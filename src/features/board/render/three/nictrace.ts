@@ -9,7 +9,7 @@ import { BusFlow, tripMs } from '../wiring/busflow';
 import type { NicLanes } from './nicflow';
 
 /** How wide a lit run is drawn (layout units): a hair wider than the 4-unit copper, so the light shows round it. */
-export const LIT_W = 5;
+const LIT_W = 5;
 /** The least time between two packets of one bus of a card (ms of the view's clock). */
 const PULSE_GAP = 140;
 

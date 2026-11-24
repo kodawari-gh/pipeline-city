@@ -15,7 +15,7 @@ import { NetFlows } from './flows';
 import { netDraw, netShape, type NetAnchors, type NetDraw, type NetShape } from './shape';
 
 /** The path's places for this machine, from the room's props and the machine's own lead. */
-export function anchorsOf(s: Snapshot, machine: Machine3D): NetAnchors {
+function anchorsOf(s: Snapshot, machine: Machine3D): NetAnchors {
   const plate = ispPlate(),
     rs = ROUTER_SPOT;
   const lan = machine.cableRuns().find((r) => r.id === 'lan');

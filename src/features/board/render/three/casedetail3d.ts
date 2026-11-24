@@ -74,15 +74,7 @@ export interface Frame {
 const black = () => mat(0x050608, { roughness: 0.85 });
 const steel = () => mat(0x959aa3, { metalness: 0.75, roughness: 0.38 });
 /** A cylinder whose axis is world x (a thumbscrew in the rear wall, a jack): centred on the world point, `len` long. */
-export function drumX(
-  x: number,
-  y: number,
-  z: number,
-  r: number,
-  len: number,
-  m: Material,
-  sides: number = SEG.post,
-): Mesh {
+function drumX(x: number, y: number, z: number, r: number, len: number, m: Material, sides: number = SEG.post): Mesh {
   const o = new Mesh(new CylinderGeometry(r, r, len, sides).rotateZ(Math.PI / 2), m);
   o.position.set(x, y, z);
   return place(o);
@@ -749,8 +741,8 @@ const PORTS: Record<CaseKind, Port[]> = {
 const pip = (c: number) => mat(0x050608, { emissive: c, emissiveIntensity: 0, roughness: 0.3 });
 
 /** An unseen plate over the power button, rising above the case's top: the button lies flat on top, so a click head on (the board view) finds it here. */
-const hitPlate = (x: number, y: number, z: number): Mesh => {
-  return unseen(
+const hitPlate = (x: number, y: number, z: number): Mesh =>
+  unseen(
     rectBox(
       { x: x - 210, y: y - 260, w: 420, h: 260 },
       z - 210,
@@ -758,7 +750,6 @@ const hitPlate = (x: number, y: number, z: number): Mesh => {
       mat(0, { transparent: true, opacity: 0, depthWrite: false }),
     ),
   );
-};
 
 /**
  * The power button, the status lights and the front ports of each kind. The Mini: a square beige button and two lamps on top of its plastic

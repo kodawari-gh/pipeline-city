@@ -6,7 +6,7 @@
 import { BLOCK_BYTES } from '@/core/sim/memmap';
 import { Prng } from '@/core/sim/prng';
 
-export type ContractKindId = 'cloud.archive' | 'cloud.hot';
+type ContractKindId = 'cloud.archive' | 'cloud.hot';
 
 /** Log ids of contracts start here, so they never meet the id of a key. */
 export const CONTRACT_LOG_BASE = 1_000_000;
@@ -60,7 +60,7 @@ export const CONTRACT_KINDS: readonly ContractKind[] = [
 export const contractKind = (id: string): ContractKind | undefined => CONTRACT_KINDS.find((k) => k.id === id);
 
 /** Names of the clients that leave datasets. */
-export const CLIENT_NAMES: readonly string[] = [
+const CLIENT_NAMES: readonly string[] = [
   'Acme Archives',
   'Brightline Media',
   'Corvid Labs',
@@ -99,7 +99,7 @@ export interface ContractOffer extends ContractTerms {
 }
 
 /** A read request waiting for the drive: it must be served by `due`; `left` ticks of drive time remain. */
-export interface PendingRead {
+interface PendingRead {
   due: number;
   left: number;
 }

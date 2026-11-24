@@ -15,7 +15,7 @@ const NET_LEGEND: readonly (readonly [string, string])[] = [
 const css = (c: number): string => `#${c.toString(16).padStart(6, '0')}`;
 
 /** `heat`: a temperature; `watts`: a draw (the power lens); `warn`: something wrong; `dim`: a hint; `net`: a link's speed (the network lens); `limit`: the slowest link, or a link that needs care. */
-export type TagTone = 'heat' | 'warn' | 'dim' | 'watts' | 'net' | 'limit';
+type TagTone = 'heat' | 'warn' | 'dim' | 'watts' | 'net' | 'limit';
 
 export interface AirTag {
   id: string;
@@ -26,7 +26,7 @@ export interface AirTag {
   /** A temperature the tag follows: a small arrow shows while it climbs or falls. */
   tempC?: number;
   /** Which side of `at` the pill sits: centred (default), growing to the right, or to the left. */
-  anchor?: 'c' | 'l' | 'r';
+  anchor?: 'c' | 'l' | 'r' | undefined;
   /** A scale in place of words: a bar of the palette with the values at its two ends (foot and top), in °C on the thermal scale, in W on the power scale (`unit`). */
   scale?: readonly [number, number];
   /** What `scale` counts: degrees (default) or watts. */
@@ -42,7 +42,7 @@ export interface AirTag {
 }
 
 /** A temperature that moves faster than this (C per second, smoothed) gets an arrow. */
-export const TREND_C_PER_S = 0.03;
+const TREND_C_PER_S = 0.03;
 
 /** The canvas rect in CSS px. `minTop`: the lowest a pill may sit (the foot of the HUD bar: a label under the bar cannot be read). */
 export interface TagView {
@@ -290,7 +290,7 @@ export class AirTags3D {
     el.className = 'airtag';
     el.style.display = 'none';
     host.appendChild(el);
-    return { el, key: '', label: 0, visible: false, left: NaN, top: NaN, w: 0, h: 0 };
+    return { el, key: '', label: 0, visible: false, left: Number.NaN, top: Number.NaN, w: 0, h: 0 };
   }
 
   private setVisible(node: PillNode, on: boolean): void {

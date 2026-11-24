@@ -71,7 +71,7 @@ describe('mergeStatic', () => {
     const baked = (g: BoxGeometry) =>
       g.setAttribute(
         '_ao',
-        new Float32BufferAttribute(new Float32Array(2 * g.attributes.position!.count).fill(0.5), 2),
+        new Float32BufferAttribute(new Float32Array(2 * g.attributes['position']!.count).fill(0.5), 2),
       );
     root.add(
       new Mesh(baked(new BoxGeometry()), m),
@@ -81,8 +81,8 @@ describe('mergeStatic', () => {
     );
     expect(mergeStatic(root)).toBe(4);
     const [a, b] = root.children.filter((c) => c.name === 'merged') as Mesh[];
-    expect(a!.geometry.attributes._ao!.count).toBe(72);
-    expect(b!.geometry.attributes._ao).toBeUndefined();
+    expect(a!.geometry.attributes['_ao']!.count).toBe(72);
+    expect(b!.geometry.attributes['_ao']).toBeUndefined();
   });
 
   it('leaves picked, see-through, transparent and lone meshes as they are', () => {
@@ -158,8 +158,8 @@ describe('mergePalette', () => {
     expect(root.children).toHaveLength(1);
     expect(out!.castShadow).toBe(true);
     const m = out!.material as MeshStandardMaterial,
-      pc = out!.geometry.attributes._pc!,
-      prm = out!.geometry.attributes._prm!;
+      pc = out!.geometry.attributes['_pc']!,
+      prm = out!.geometry.attributes['_prm']!;
     expect(m.color.getHex()).toBe(0xffffff);
     expect(m.customProgramCacheKey()).toMatch(/\|pal$/);
     expect(twins).toEqual([m]);
@@ -220,17 +220,17 @@ describe('mergePalette', () => {
     b.scale.set(1, 2, 1);
     inner.add(b);
     root.add(a, inner);
-    const was = [a, b].map((m) => Float32Array.from(m.geometry.attributes.position!.array));
+    const was = [a, b].map((m) => Float32Array.from(m.geometry.attributes['position']!.array));
     expect(mergePalette(root)).toBe(2);
     const out = merged(root)[0]!,
-      pos = out.geometry.attributes.position!,
+      pos = out.geometry.attributes['position']!,
       parts = partsOf(out),
       p = new Vector3();
     let at = 0;
     parts.forEach(({ mesh, inMesh }, i) => {
-      expect(Array.from(mesh.geometry.attributes.position!.array)).toEqual(Array.from(was[i]!));
+      expect(Array.from(mesh.geometry.attributes['position']!.array)).toEqual(Array.from(was[i]!));
       const g = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry,
-        q = g.attributes.position!;
+        q = g.attributes['position']!;
       for (let k = 0; k < q.count; k++, at++) {
         p.fromBufferAttribute(q, k).applyMatrix4(inMesh);
         expect(Math.abs(p.x - pos.getX(at)) + Math.abs(p.y - pos.getY(at)) + Math.abs(p.z - pos.getZ(at))).toBeLessThan(
@@ -244,7 +244,7 @@ describe('mergePalette', () => {
   it('keeps the cells of space apart, skips the subtrees it is told to, and keeps the light map UVs', () => {
     const root = new Group(),
       skipped = new Group(),
-      uv1 = (g: BoxGeometry) => g.setAttribute('uv1', g.attributes.uv!.clone());
+      uv1 = (g: BoxGeometry) => g.setAttribute('uv1', g.attributes['uv']!.clone());
     const at = (x: number, c: number) => {
       const m = new Mesh(uv1(new BoxGeometry(10, 10, 10)), new MeshStandardMaterial({ color: c }));
       m.position.x = x;
@@ -255,7 +255,7 @@ describe('mergePalette', () => {
     expect(mergePalette(root, { cell: 500, skip: [skipped] })).toBe(4);
     const out = merged(root);
     expect(out).toHaveLength(2);
-    for (const m of out) expect(m.geometry.attributes.uv1!.count).toBe(72);
+    for (const m of out) expect(m.geometry.attributes['uv1']!.count).toBe(72);
     expect(skipped.children).toHaveLength(2);
   });
 
@@ -433,7 +433,7 @@ describe('mergeSiblings', () => {
     const named = new Mesh(box(), grey());
     named.name = 'psu-cover';
     const marked = new Mesh(box(), grey());
-    marked.userData.plug = true;
+    marked.userData['plug'] = true;
     const glow = new Mesh(box(), new MeshStandardMaterial({ emissive: 0x220000 })),
       mine = new Mesh(box(), own(grey()));
     const glass = new Mesh(box(), new MeshStandardMaterial({ transparent: true, opacity: 0.5 })),

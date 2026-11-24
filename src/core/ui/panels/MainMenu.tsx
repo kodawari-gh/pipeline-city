@@ -101,7 +101,7 @@ export function MainMenu({ ready = true }: { ready?: boolean }) {
   const stage = (i: number) => STAGES[Math.min(i, STAGES.length - 1)]!;
   // The enabled groups in order: a row is its own group, the utility line is one group of its buttons.
   const focusable = () => [...(root.current?.querySelectorAll<HTMLElement>('[data-group]:not(:disabled)') ?? [])];
-  const groups = () => [...new Set(focusable().map((el) => Number(el.dataset.group)))];
+  const groups = () => [...new Set(focusable().map((el) => Number(el.dataset['group'])))];
   const utils = () => [...(root.current?.querySelectorAll<HTMLElement>('.pl-util:not(:disabled)') ?? [])];
 
   const focusGroup = (g: number) => {
@@ -133,14 +133,14 @@ export function MainMenu({ ready = true }: { ready?: boolean }) {
       // ← → change the utility button that has focus. The key moves the chip to the utility line itself, past the hold-off.
       const list = utils();
       const i = list.indexOf(active as HTMLElement);
-      if (i < 0) return;
+      if (i === -1) return;
       e.preventDefault();
       setAt(utilGroup);
       list[cycleValue(list.length, i, e.key)]!.focus();
       return;
     }
     const gs = groups();
-    const next = moveFocus(gs.length, gs.indexOf(Number(active?.dataset.group)), e.key);
+    const next = moveFocus(gs.length, gs.indexOf(Number(active?.dataset['group'])), e.key);
     if (next < 0) return;
     e.preventDefault();
     const g = gs[next]!;

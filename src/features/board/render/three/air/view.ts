@@ -10,7 +10,7 @@ import { viewInset } from '@/app/hover';
 import { FAN_FULL_LEVEL, FanMotor, fanBank, machineLive } from '@/core/render/fanmotor';
 import { AMBIENT_C } from '../../../sim/specs';
 import { AIR_SOURCES } from '@/features/room/render/desk/airsources';
-import { airflowModel, type AirModel } from '@/features/room/render/desk/airflow';
+import { airflowModel } from '@/features/room/render/desk/airflow';
 import { fanMounts, radiatorSpan } from '@/features/room/render/desk/props/case';
 import { CASE_FRONT } from '@/features/room/render/three/roomplan';
 import { CASE_GLASS, REAR_FAN, REAR_FAN_FITTED } from '../../layout/layout';
@@ -52,7 +52,7 @@ const SCALE_TAU = 1.5;
 /** How hard a fan blows by its speed (0 to 1): a fan that turns moves air, a faster one more. */
 const blow = (l: number): number => (l > 0.02 ? 0.3 + 0.7 * Math.min(1.3, l) : 0);
 /** The same by the fans' bank id (`fanBank`: the 3D machine publishes the speed its fans turn at). */
-export const levelOf = (bank: string): number => blow(fanBank.level(bank));
+const levelOf = (bank: string): number => blow(fanBank.level(bank));
 
 export class AirView3D {
   private readonly group = new Group();
@@ -60,7 +60,7 @@ export class AirView3D {
   private readonly tags: AirTags3D;
   /** The words as the model made them, and the whole degrees the scale tag shows (it is made again when they change). */
   private words3: AirTag[] = [];
-  private shownHi = NaN;
+  private shownHi = Number.NaN;
   private plan: AirPlan | null = null;
   private sim: AirSim | null = null;
   private particles: AirParticles | null = null;
@@ -68,7 +68,6 @@ export class AirView3D {
   /** The coolant as a liquid, made when the machine has a loop; `waterTried`: it has been looked for since the last rebuild. */
   private water: Water | null = null;
   private waterTried = false;
-  private model: AirModel | null = null;
   private parts: AirPart[] = [];
   private temps: ReadonlyMap<string, number> = new Map();
   private seen: Snapshot | null = null;
@@ -89,7 +88,7 @@ export class AirView3D {
   cost = 0;
 
   constructor(
-    private readonly scene: Scene,
+    scene: Scene,
     private readonly dom: HTMLElement | null = null,
   ) {
     this.group.add(this.veil);
@@ -203,7 +202,6 @@ export class AirView3D {
       slots: slotRects(snap),
       sources: AIR_SOURCES,
     });
-    this.model = model;
     const z = CASE_FRONT - 150;
     this.words3 = model.tags.map((t): AirTag => ({
       id: t.id,
@@ -213,7 +211,7 @@ export class AirView3D {
       anchor: t.anchor,
       ...(t.tempC !== undefined ? { tempC: t.tempC } : {}),
     }));
-    this.shownHi = NaN;
+    this.shownHi = Number.NaN;
     this.pushTags();
   }
 

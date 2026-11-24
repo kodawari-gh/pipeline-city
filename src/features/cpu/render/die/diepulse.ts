@@ -8,7 +8,7 @@ import { pointAt } from './diemotion';
 import type { Pt, Rect } from '../core/cpuplan';
 
 /** How long a wire stays lit behind a packet (ms). */
-export const TRAIL_MS = 1500;
+const TRAIL_MS = 1500;
 
 /** A packet of data running along a link. */
 export interface Packet {
@@ -33,7 +33,7 @@ export interface Dot {
   env: number;
 }
 
-export const lengthOf = (pts: Pt[]) =>
+const lengthOf = (pts: Pt[]) =>
   pts.reduce((s, p, i) => (i ? s + Math.hypot(p[0] - pts[i - 1]![0], p[1] - pts[i - 1]![1]) : 0), 0);
 
 /** A packet on a wire (and the trail it will leave, lit from 0.6 of its way on) starting at `t0` ms. */
@@ -112,7 +112,7 @@ export interface PulseAt {
 export function drawPulse(g: Graphics, dots: Map<string, Dot>, seen: Set<string>, p: PulseAt): void {
   let d = dots.get(p.key);
   if (!d) {
-    d = { px: NaN, py: NaN, hist: [], lastHost: '', env: 1 };
+    d = { px: Number.NaN, py: Number.NaN, hist: [], lastHost: '', env: 1 };
     dots.set(p.key, d);
   }
   seen.add(p.key);

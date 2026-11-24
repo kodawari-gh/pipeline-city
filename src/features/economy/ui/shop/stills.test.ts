@@ -11,7 +11,7 @@ const STILLS: string = urlMod.fileURLToPath(new URL('../../../../../public/still
 describe('the shop stills', () => {
   // (a part added to the gallery, a router or a plan needs its still: `npm run stills -- --only <id>`)
   it('has a baked still for every part the shop sells (the gallery, the routers, the plans), and none for a part it no longer has', () => {
-    const m = JSON.parse(fs.readFileSync(STILLS + 'manifest.json', 'utf8')) as {
+    const m = JSON.parse(fs.readFileSync(`${STILLS}manifest.json`, 'utf8')) as {
       w: number;
       h: number;
       stills: Record<string, string>;

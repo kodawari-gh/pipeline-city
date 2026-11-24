@@ -139,7 +139,7 @@ describe('the listener: keyboard and mouse activation', () => {
 describe('Back cues', () => {
   it('the Controls Done button carries data-cue="ui_back"', () => {
     const tag = openingTags(src('src/core/ui/panels/Controls.tsx'), 'button').find((t) =>
-      /onClick=\{\(\) => closeControls\(\)\}/.test(t),
+      t.includes('onClick={() => closeControls()}'),
     );
     expect(tag).toBeDefined();
     expect(tag).toContain('data-cue="ui_back"');
@@ -147,7 +147,7 @@ describe('Back cues', () => {
 
   it('the Load confirm Cancel row carries data-cue="ui_back"', () => {
     const tag = openingTags(src('src/core/ui/panels/LoadConfirm.tsx'), 'button').find((t) =>
-      /onClick=\{cancel\}/.test(t),
+      t.includes('onClick={cancel}'),
     );
     expect(tag).toBeDefined();
     expect(tag).toContain('data-cue="ui_back"');
@@ -156,7 +156,7 @@ describe('Back cues', () => {
 
 describe('the OS chip in Hud.tsx', () => {
   it('plays ui_click, then ui_transition_in', () => {
-    const tag = openingTags(src('src/core/ui/Hud.tsx'), 'button').find((t) => /toggleOs/.test(t));
+    const tag = openingTags(src('src/core/ui/Hud.tsx'), 'button').find((t) => t.includes('toggleOs'));
     expect(tag).toBeDefined();
     expect(tag).toContain('data-cue="ui_click"');
     expect(tag).toContain('data-cue-next="ui_transition_in"');
@@ -172,7 +172,7 @@ describe('every button has a data-cue attribute', () => {
   ])('%s', (file) => {
     const tags = openingTags(src(file), 'button');
     expect(tags.length).toBeGreaterThan(0);
-    const bare = tags.filter((t) => !/data-cue=/.test(t)).map((t) => t.replace(/\s+/g, ' ').slice(0, 90));
+    const bare = tags.filter((t) => !t.includes('data-cue=')).map((t) => t.replaceAll(/\s+/g, ' ').slice(0, 90));
     expect(bare).toEqual([]);
   });
 });
@@ -195,7 +195,7 @@ describe('every button and input in the menus and the HUD has a data-cue attribu
     const code = src(file);
     const tags = [...openingTags(code, 'button'), ...openingTags(code, 'input')];
     expect(tags.length).toBeGreaterThan(0);
-    const bare = tags.filter((t) => !/data-cue=/.test(t)).map((t) => t.replace(/\s+/g, ' ').slice(0, 90));
+    const bare = tags.filter((t) => !t.includes('data-cue=')).map((t) => t.replaceAll(/\s+/g, ' ').slice(0, 90));
     expect(bare).toEqual([]);
   });
 });
@@ -203,7 +203,7 @@ describe('every button and input in the menus and the HUD has a data-cue attribu
 describe('Settings and Graphics: open, value and back cues', () => {
   it('the main menu Settings button plays ui_click, then ui_transition_in', () => {
     const tag = openingTags(src('src/core/ui/panels/MainMenu.tsx'), 'button').find((t) =>
-      /openSettings\('menu'\)/.test(t),
+      t.includes("openSettings('menu')"),
     );
     expect(tag).toBeDefined();
     expect(tag).toContain('data-cue="ui_click"');
@@ -212,14 +212,16 @@ describe('Settings and Graphics: open, value and back cues', () => {
 
   it('the Settings Back button carries data-cue="ui_back"', () => {
     const tag = openingTags(src('src/core/ui/panels/Settings.tsx'), 'button').find((t) =>
-      /onClick=\{closeSettings\}/.test(t),
+      t.includes('onClick={closeSettings}'),
     );
     expect(tag).toBeDefined();
     expect(tag).toContain('data-cue="ui_back"');
   });
 
   it('the Settings option choices (role="radio") carry data-cue="ui_value_change"', () => {
-    const tags = openingTags(src('src/core/ui/panels/Settings.tsx'), 'button').filter((t) => /role="radio"/.test(t));
+    const tags = openingTags(src('src/core/ui/panels/Settings.tsx'), 'button').filter((t) =>
+      t.includes('role="radio"'),
+    );
     expect(tags.length).toBeGreaterThan(0);
     for (const t of tags) expect(t).toContain('data-cue="ui_value_change"');
   });
@@ -227,7 +229,9 @@ describe('Settings and Graphics: open, value and back cues', () => {
 
 describe('the OS window close button', () => {
   it('carries a close cue (ui_panel_close or ui_back)', () => {
-    const tag = openingTags(src('src/features/os/ui/OsPanel.tsx'), 'button').find((t) => /onClick=\{closeOs\}/.test(t));
+    const tag = openingTags(src('src/features/os/ui/OsPanel.tsx'), 'button').find((t) =>
+      t.includes('onClick={closeOs}'),
+    );
     expect(tag).toBeDefined();
     expect(tag).toMatch(/data-cue="(ui_panel_close|ui_back)"/);
   });

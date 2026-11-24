@@ -256,14 +256,14 @@ class Layer {
       }
     });
     this.attr.needsUpdate = true;
-    this.mat.uniforms.uDim!.value = dim;
+    this.mat.uniforms['uDim']!.value = dim;
   }
 
   frame(pixel: number, t: number, clock: number): void {
     const u = this.mat.uniforms;
-    u.uPixel!.value = pixel;
-    u.uT!.value = t;
-    u.uClock!.value = clock;
+    u['uPixel']!.value = pixel;
+    u['uT']!.value = t;
+    u['uClock']!.value = clock;
   }
 
   get strips(): number {
@@ -321,8 +321,8 @@ class Rings {
   }
 
   frame(pixel: number, clock: number): void {
-    this.mat.uniforms.uPixel!.value = pixel;
-    this.mat.uniforms.uClock!.value = clock;
+    this.mat.uniforms['uPixel']!.value = pixel;
+    this.mat.uniforms['uClock']!.value = clock;
   }
 
   dispose(): void {
@@ -463,8 +463,8 @@ class Nodes {
   }
 
   frame(clock: number): void {
-    this.mat.uniforms.uClock!.value = clock;
-    this.hiddenMat.uniforms.uClock!.value = clock;
+    this.mat.uniforms['uClock']!.value = clock;
+    this.hiddenMat.uniforms['uClock']!.value = clock;
   }
 
   get count(): number {

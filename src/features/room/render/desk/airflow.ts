@@ -13,7 +13,7 @@ import type { AirCtx, AirFan, AirSource } from '@/core/render/airsource';
 // board/sim/airflow.ts) for the zone each part sits in.
 
 export type Pt = [number, number];
-export type AirState = 'on' | 'idle' | 'dead';
+type AirState = 'on' | 'idle' | 'dead';
 
 /** The case fans as the renderer knows them (`fanMounts` in props/case.ts). */
 export interface AirMount {
@@ -23,7 +23,7 @@ export interface AirMount {
 }
 
 /** One stream of air through a fan mount. `intake` air starts outside and goes in; the rest starts in the case and leaves. */
-export interface AirLane {
+interface AirLane {
   id: string;
   pts: Pt[];
   intake: boolean;
@@ -49,7 +49,7 @@ export interface AirLane {
   picks: { u: number; heat: number }[];
 }
 /** A part that warms the air: a haze over its rect. `heat` 0 (cool) to 1 (at the limit). */
-export interface AirZone {
+interface AirZone {
   id: string;
   label: string;
   /** The box round the whole zone (where the air picks its heat up, where the tag sits). */
@@ -61,13 +61,13 @@ export interface AirZone {
   heat: number;
   tempC: number;
   /** A flat part: the air passes over it (`AirHeat.flat`). */
-  flat?: boolean;
+  flat?: boolean | undefined;
   /** The sim's air of the area the zone sits in (`s.board.air`): 0 to 1 ventilation, and how much warmer than the room the cards make it, C. Unset while the machine is off. */
-  flow?: number;
-  riseC?: number;
+  flow?: number | undefined;
+  riseC?: number | undefined;
 }
 /** A word on the lens. `tempC`: the temperature the tag shows, if it shows one: the view follows it and adds a small arrow when it climbs or falls. */
-export interface AirTag {
+interface AirTag {
   id: string;
   at: Pt;
   text: string;
@@ -109,7 +109,7 @@ const mid = (r: Rect): Pt => [r.x + r.w / 2, r.y + r.h / 2];
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 const deg = (t: number) => `${Math.round(t)}°C`;
 /** Case heat per watt of the cards, as the sim (`CASE_HEAT_C_PER_W`). */
-export const CASE_HEAT_C_PER_W = 0.05;
+const CASE_HEAT_C_PER_W = 0.05;
 const REACH = 900;
 /** An area with less than this share of its designed airflow is named on the lens. */
 const POOR_AIR = 0.7;
@@ -148,13 +148,6 @@ export function airColor(h: number): string {
   const t = clamp01(h),
     [a, b, f] = t < 0.5 ? ([COOL, WARM, t * 2] as const) : ([WARM, HOT, (t - 0.5) * 2] as const);
   return `#${hex(lerp(a[0], b[0], f))}${hex(lerp(a[1], b[1], f))}${hex(lerp(a[2], b[2], f))}`;
-}
-
-/** The heat the air carries at `u` along a lane (the parts it passed so far, eased in over a short stretch). */
-export function laneHeat(l: Pick<AirLane, 'picks'>, u: number): number {
-  let h = 0;
-  for (const p of l.picks) h += p.heat * clamp01((u - p.u) / 0.12 + 0.5) * (u >= p.u - 0.06 ? 1 : 0);
-  return clamp01(h);
 }
 
 /** What breathes where right now. */

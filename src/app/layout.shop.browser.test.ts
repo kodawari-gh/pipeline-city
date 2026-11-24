@@ -195,7 +195,7 @@ describe.skipIf(!GATE)('Shop as Edge tabs in the browser (ticket #73)', () => {
           const ctl = await page.evaluate(shopControls);
           expect(ctl.boxes.length, 'the Shop has controls').toBeGreaterThan(0);
           const boxes: Box[] = ctl.boxes.map(({ x, y, r, b }) => ({ x, y, r, b }));
-          const off = ctl.boxes.filter((c, i) => outsideViewport(boxes[i]!, vp.w, vp.h)).map((c) => c.name);
+          const off = ctl.boxes.filter((_c, i) => outsideViewport(boxes[i]!, vp.w, vp.h)).map((c) => c.name);
           expect(off, 'Shop controls outside the window').toEqual([]);
           const hits: string[] = [];
           for (let i = 0; i < boxes.length; i++) {

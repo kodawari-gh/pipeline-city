@@ -52,8 +52,8 @@ describe('the 3D cases', () => {
       m.side.traverse((o) => {
         if ((o as Mesh).isMesh && o !== m.hit) expect(o.raycast.length, kind).toBe(0);
       });
-      expect(m.hit.userData.id, kind).toBe('case.side');
-      expect(m.power.userData.id, kind).toBe('power');
+      expect(m.hit.userData['id'], kind).toBe('case.side');
+      expect(m.power.userData['id'], kind).toBe('power');
     }
   });
 

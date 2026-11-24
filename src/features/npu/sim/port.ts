@@ -34,7 +34,7 @@ export interface NpuConfig {
   memBytes: number;
 }
 
-export class NpuFault extends Error {
+class NpuFault extends Error {
   constructor(msg: string) {
     super(msg);
     this.name = 'NpuFault';
@@ -48,7 +48,7 @@ export const NPU_LOG = 16;
 export const NPU_CELL_WORDS = 16;
 
 /** The parameter block of a Layer descriptor, read out of card memory: where the weights, the activations in and out and the biases lie, the matrix size and whether relu follows. */
-export interface NpuLayerBlock {
+interface NpuLayerBlock {
   w: number;
   x: number;
   out: number;

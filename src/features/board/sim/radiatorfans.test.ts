@@ -30,7 +30,7 @@ describe("a radiator over its side's fans", () => {
       r = fittedRadiator(g.board)!,
       k = (deviceSpec(r.dev) as RadiatorSpec).coolingPerC;
     for (const id of r.mounts) g.cables[`fan:${id}`] = true;
-    g.cables.sysfan = true;
+    g.cables['sysfan'] = true;
     expect(g.fanPower().loopK).toBeCloseTo(k); // two high-airflow fans: more than the radiator needs
     g.cables[`fan:${r.mounts[0]}`] = false;
     const one = Math.min(1, (getSpec('fan140x') as FanSpec).airflow / (2 * basicFan(140).airflow));
@@ -39,7 +39,7 @@ describe("a radiator over its side's fans", () => {
     for (const id of r.mounts) g.cables[`fan:${id}`] = false;
     expect(g.fanPower().loopK).toBeCloseTo(k * UNFANNED_SHARE);
     for (const id of r.mounts) g.cables[`fan:${id}`] = true;
-    g.cables.sysfan = false; // no hub, no fan turns
+    g.cables['sysfan'] = false; // no hub, no fan turns
     expect(g.fanPower().loopK).toBeCloseTo(k * UNFANNED_SHARE);
   });
 
@@ -47,7 +47,7 @@ describe("a radiator over its side's fans", () => {
     const g = rig(),
       r = fittedRadiator(g.board)!;
     for (const id of Object.keys(g.cables)) if (id.startsWith('fan:')) g.cables[id] = true;
-    g.cables.sysfan = true;
+    g.cables['sysfan'] = true;
     const all = Object.keys(g.cables).filter((id) => id.startsWith('fan:')).length;
     expect(g.fanPower().caseFans).toBe(all - r.mounts.length);
   });

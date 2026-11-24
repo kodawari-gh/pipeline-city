@@ -12,7 +12,7 @@ export interface Grab {
   lift(e: PointerEvent): boolean;
 }
 
-export type PadKind = 'pan' | 'turn' | 'pinch';
+type PadKind = 'pan' | 'turn' | 'pinch';
 
 export interface PadHost {
   /** The first pointer went down at `at` (client px). What a drag from here may lift, or null. */
@@ -50,10 +50,10 @@ export interface Ptr {
 export const SLOP_MOUSE = 5,
   SLOP_TOUCH = 10;
 /** A press that stays this long (ms) without moving lifts what it holds. */
-export const HOLD_MS = 400;
+const HOLD_MS = 400;
 /** A second tap within this many ms and px of the first is a double. */
-export const DOUBLE_MS = 380,
-  DOUBLE_PX = 30;
+export const DOUBLE_MS = 380;
+const DOUBLE_PX = 30;
 
 type Mode = 'idle' | 'press' | 'pan' | 'turn' | 'two' | 'lifted' | 'spent';
 type Later = (ms: number, fn: () => void) => () => void;

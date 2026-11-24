@@ -4,7 +4,7 @@ Code: `src/core/sim` (`Machine`, `Engine`, `Intc`), `src/features/cpu/sim/engine
 
 ## 1. How the CPU is driven
 
-```
+```text
 Game.advanceBaseTick()                      one base tick = 1 s of game time at 1x (4 per second of real time)
   -> Machine.advanceBaseTick()              1000 sub-ticks (ClockScheduler)
        -> domain "cpu" fires N times        N = the CPU's clock (ticks per base tick) from its spec, scaled by throttling

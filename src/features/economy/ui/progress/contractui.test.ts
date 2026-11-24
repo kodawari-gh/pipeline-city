@@ -76,8 +76,8 @@ describe('contract cards', () => {
   });
 
   it('a hot offer says it needs an SSD', () => {
-    expect(offerView(offer({ hot: true, minDriveTier: 1 })).facts.some((f) => /SSD/.test(f.text))).toBe(true);
-    expect(offerView(offer()).facts.some((f) => /SSD/.test(f.text))).toBe(false);
+    expect(offerView(offer({ hot: true, minDriveTier: 1 })).facts.some((f) => f.text.includes('SSD'))).toBe(true);
+    expect(offerView(offer()).facts.some((f) => f.text.includes('SSD'))).toBe(false);
   });
 
   it('the pay for mirrored storage is in the pay tooltip', () => {

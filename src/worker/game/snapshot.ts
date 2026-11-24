@@ -148,7 +148,7 @@ export function snapshot(this: Game): Snapshot {
     powered: this.powered,
     bootProgress: this.bootProgress(phase),
     monitorLive: live,
-    monitorPowered: !!this.cables.monmains,
+    monitorPowered: !!this.cables['monmains'],
     energy: { wallW: this.wallW, wh: this.wattTicks / 3600 },
     bill: this.billSnap(),
     noPowerReason: this.cutReason() ?? chk.noPower,

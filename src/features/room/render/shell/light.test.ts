@@ -132,23 +132,23 @@ describe('the lights as data', () => {
   });
   it('gives a light nothing to draw while its source is off', () => {
     const e = byId({ ...night, lamp: 0, screen: 0 });
-    expect(e.lamp!.lit.length + e.lamp!.tint.length).toBe(0);
-    expect(e.screen!.lit.length + e.screen!.tint.length).toBe(0);
-    expect(byId(night).screen!.lit.length).toBeGreaterThan(0);
+    expect(e['lamp']!.lit.length + e['lamp']!.tint.length).toBe(0);
+    expect(e['screen']!.lit.length + e['screen']!.tint.length).toBe(0);
+    expect(byId(night)['screen']!.lit.length).toBeGreaterThan(0);
   });
   it('keeps the screen light soft: the glass is the only rectangle, and it is feathered', () => {
-    const rects = byId(night).screen!.lit.filter((l) => l.shape.k === 'rect');
+    const rects = byId(night)['screen']!.lit.filter((l) => l.shape.k === 'rect');
     expect(rects.length).toBe(1);
     expect((rects[0]!.shape as { soft?: number }).soft).toBeGreaterThan(0);
-    expect(byId(night).screen!.tint.some((l) => l.shape.k === 'poly')).toBe(false);
+    expect(byId(night)['screen']!.tint.some((l) => l.shape.k === 'poly')).toBe(false);
   });
   it('throws less light by day than by night', () => {
-    const tintOf = (i: LightIn) => byId(i).screen!.tint.reduce((a, l) => a + (l.erase ? 0 : l.alpha), 0);
+    const tintOf = (i: LightIn) => byId(i)['screen']!.tint.reduce((a, l) => a + (l.erase ? 0 : l.alpha), 0);
     expect(tintOf({ ...day, night: 0 })).toBeLessThan(tintOf(night));
   });
   it('follows the items: the screen light moves with the screen and the keyboard lift with the keyboard', () => {
     const at = (g: LightGeo) =>
-      byId(night, g).screen!.lit.map((l) =>
+      byId(night, g)['screen']!.lit.map((l) =>
         l.shape.k === 'blob' ? l.shape.x : l.shape.k === 'rect' ? l.shape.r.x : 0,
       );
     const a = at(G),
@@ -161,7 +161,7 @@ describe('the lights as data', () => {
     expect(b.every((x, j) => Math.abs(x - a[j]! - 700) < 1e-6)).toBe(true);
   });
   it('moves every piece of a light by an offset, and by nothing as the same light', () => {
-    const e = byId(night).lamp!,
+    const e = byId(night)['lamp']!,
       m = shiftEmitter(e, 300, -200);
     expect(shiftEmitter(e, 0, 0)).toBe(e);
     expect(m.clip!.x).toBe(e.clip!.x + 300);

@@ -23,19 +23,19 @@ export const TPM_KIND_COLOR: Record<TpmBlockKind, Key> = {
   ramport: 'ld',
   guard: 'bad',
 };
-export const TPM_LINK_COLOR: Record<TpmLinkKind, Key> = { host: 'alu', control: 'mute', data: 'st', mem: 'ld' };
+const TPM_LINK_COLOR: Record<TpmLinkKind, Key> = { host: 'alu', control: 'mute', data: 'st', mem: 'ld' };
 
 /** The accent of the die's rim: the serial module cyan, the single-cycle one purple. */
-export const tpmAccent = (T: Theme, plan: TpmPlan): string => (plan.input.hashStages > 1 ? T.alu : T.mul);
+const tpmAccent = (T: Theme, plan: TpmPlan): string => (plan.input.hashStages > 1 ? T.alu : T.mul);
 
 /** The line under the die's name: what the module is made of. */
-export const tpmTitle = (plan: TpmPlan): string => {
+const tpmTitle = (plan: TpmPlan): string => {
   const i = plan.input;
   return `SECURE MODULE · ${i.hashStages > 1 ? `${i.hashStages}-step hash round` : 'one-cycle hash round'} · ${i.quoteRounds} signing round${i.quoteRounds === 1 ? '' : 's'}`;
 };
 
 /** The legend of the colours. */
-export const TPM_LEGEND: { text: string; key: Key }[] = [
+const TPM_LEGEND: { text: string; key: Key }[] = [
   { text: 'HOST', key: 'alu' },
   { text: 'REGISTERS', key: 'st' },
   { text: 'CONTROL', key: 'br' },
@@ -45,7 +45,7 @@ export const TPM_LEGEND: { text: string; key: Key }[] = [
 ];
 
 /** How the module is drawn: the CPU die's art (`planFar`, `planNear`) with the module's colours and symbols. */
-export function tpmStyle(plan: TpmPlan): PlanStyle<TpmBlock, TpmLink> {
+function tpmStyle(plan: TpmPlan): PlanStyle<TpmBlock, TpmLink> {
   const opt = { stages: plan.input.hashStages, rounds: plan.input.quoteRounds, keys: plan.input.keys };
   return {
     color: (T, b) => T[TPM_KIND_COLOR[b.kind]],

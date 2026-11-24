@@ -11,7 +11,7 @@ import { drawn } from './sweep';
 import { OutsideView } from './view';
 
 const fs = fsMod as any;
-const GOLDEN: string = urlMod.fileURLToPath(new URL('./highident.expected.json', import.meta.url));
+const GOLDEN: string = urlMod.fileURLToPath(new URL('highident.expected.json', import.meta.url));
 
 /** One group's fingerprint: its meshes, the meshes a camera draws, the triangles those draw (instances counted), its vertices and instances, and a hash of them. */
 interface Row {
@@ -75,7 +75,7 @@ function fingerprint(scene: Scene): Record<string, Row> {
       g.tris += (indices / 3) * copies;
     }
     g.h.add(drawnHere ? 1 : 0);
-    const attr = mesh.geometry.attributes.position as BufferAttribute | undefined;
+    const attr = mesh.geometry.attributes['position'] as BufferAttribute | undefined;
     if (attr) {
       g.verts += attr.count;
       const e = pos.copy(mesh.matrixWorld).elements;
@@ -135,8 +135,8 @@ describe('High builds the same city', () => {
     console.log(
       `High city identity: ${rows.length} groups, ${sum((r) => r.meshes)} meshes, ${sum((r) => r.draws)} draws, ${sum((r) => r.tris)} tris, ${sum((r) => r.verts)} verts, ${sum((r) => r.instances)} instances`,
     );
-    const env = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process.env;
-    if (env.UPDATE_HIGH_GOLDEN === '1') {
+    const { env } = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process;
+    if (env['UPDATE_HIGH_GOLDEN'] === '1') {
       fs.writeFileSync(GOLDEN, `${JSON.stringify(got, null, 2)}\n`);
       return;
     }

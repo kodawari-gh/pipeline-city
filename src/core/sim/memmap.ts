@@ -58,7 +58,7 @@ export const IRQ = { TIMER: 0, NIC: 1, DISK: 2, USB: 3, IPI: 4 } as const;
 // ---- PCH (platform controller hub): boot ROM shadow, USB host controller, display control. See docs/ASSEMBLY.md.
 
 /** The boot ROM image is shadowed into RAM at address 0 at power-on; the CPU starts executing there. */
-export const ROM_BASE = 0x0000_0000;
+
 /** Fixed ROM entry a finished job jumps to (hosted programs end with `li t0, ROM_DONE_VECTOR; jalr zero, t0, 0`). */
 export const ROM_DONE_VECTOR = 0x10;
 /** The loader copies the key's program here and jumps to it. Everything below is ROM. */
@@ -147,7 +147,7 @@ export const STORAGE_PORTS: readonly string[] = [
 ];
 /** A block is 64 words. */
 export const BLOCK_BYTES = 256;
-export const BLOCK_WORDS = 64;
+
 /** Port registers (word access, offsets from the port base). */
 export const STORAGE_REG = {
   /** ro: bit0 busy, bit1 error (bad lba, no media, command while busy), bit2 media present. */
@@ -253,7 +253,6 @@ export const MPU_REG = {
   FAULT_ADDR: 0x18,
 } as const;
 /** The result text of a job the OS killed for writing to protected memory. */
-export const FAULT_TEXT = 'SEGFAULT';
 
 // ---- Interval timer (docs/OS.md "Preemption"). Word registers, offsets from TIMER_BASE.
 
@@ -473,7 +472,7 @@ export const NIC_FLAG_ABORT = 2;
  * it sends (`NicTxSlot.ARG`, above the segment number in the low byte), so the sender can time the round trip of every segment, even one it sent twice.
  */
 export const NIC_STAMP_SHIFT = 8;
-export const NIC_STAMP_BITS = 24;
+
 export const NIC_STAMP_MASK = 0xffffff;
 export const NIC_ACK_NEXT_MASK = 0xff;
 /**

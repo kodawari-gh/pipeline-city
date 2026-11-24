@@ -4,7 +4,7 @@ import type { Theme } from '@/core/render/theme';
 import { planFar, planNear, type DieArt, type PlanStyle } from '../../cpu/render/die/dieart';
 import { cellRects } from '../../cpu/render/die/dieart';
 import type { DiskBlock, DiskLink, DiskPlan } from './diskfloor';
-import { armTip, flatGrid, headTrack, platterCell, queueLanes, type Cell } from './diskplan';
+import { armTip, flatGrid, platterCell, queueLanes, type Cell } from './diskplan';
 import type { DriveKind } from './drives';
 
 // The art of a drive's cutaway, in the CPU die's style (die/dieart.ts): a dark floor with a rim line in the tier's accent, macro blocks tinted in their
@@ -102,7 +102,7 @@ export interface DataCtx {
 }
 
 /** The colour of a cell, and how strongly it shows. */
-export function cellStyle(T: Theme, c: Cell, x: DataCtx): { color: string; a: number } {
+function cellStyle(T: Theme, c: Cell, x: DataCtx): { color: string; a: number } {
   const dimK = x.dim ? 0.4 : 1;
   if (c.kind === 'free') return { color: mix(T.die, T.ink, 0.1), a: 0.7 };
   if (c.kind === 'bad') return { color: T.bad, a: 0.95 };
@@ -316,6 +316,3 @@ export function drawBar(g: Graphics, T: Theme, w: number, h: number, used: numbe
     });
   g.roundRect(x, y, bw, bh, bh / 2).stroke({ width: 1.2, color: mix(T.line, T.ink, 0.3), alpha: 0.8 });
 }
-
-/** The head track the arm eases to (re-export for the view). */
-export const trackFor = (lba: number, total: number, tracks: number): number => headTrack(lba, total, tracks);

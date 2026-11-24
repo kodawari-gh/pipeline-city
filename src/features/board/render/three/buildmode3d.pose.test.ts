@@ -59,7 +59,7 @@ function stage(): BuildStage {
     clientWidth: 400,
     clientHeight: 800,
   });
-  s._machine = {
+  s['_machine'] = {
     moving: false,
     doorOpen: false,
     frame() {},
@@ -77,12 +77,15 @@ function stage(): BuildStage {
     panelIds: () => [],
     syncPanel() {},
   };
-  s._game = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
-  s.rebuild = s.rebuildAll = function (this: { snaps: { drop(): void }; board: { tier: number; caseTier: number } }) {
+  s['_game'] = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
+  s['rebuild'] = s['rebuildAll'] = function (this: {
+    snaps: { drop(): void };
+    board: { tier: number; caseTier: number };
+  }) {
     this.snaps.drop();
     setLayoutTier(this.board.tier, Math.max(this.board.tier, this.board.caseTier));
   };
-  s.door = () => Promise.resolve();
+  s['door'] = () => Promise.resolve();
   return s as unknown as BuildStage;
 }
 
@@ -96,8 +99,8 @@ const hid = (s: BuildStage) => s as unknown as Record<string, any>;
 async function pump(s: BuildStage, work: Promise<unknown>, onTick?: () => void): Promise<void> {
   const timer = setInterval(() => {
     const h = hid(s);
-    if (h.anim) {
-      h.step(0.05);
+    if (h['anim']) {
+      h['step'](0.05);
       onTick?.();
     }
   }, 1);
@@ -130,7 +133,7 @@ describe('a part keeps its own turn through its motion', () => {
     o.position.set(100, 200, 300);
     const turns: number[] = [];
     const tick = () => turns.push(o.rotation.y);
-    await pump(s, hid(s).playAll([o], 'fan', 'in'), tick);
+    await pump(s, hid(s)['playAll']([o], 'fan', 'in'), tick);
     expect(turns.length).toBeGreaterThan(0);
     for (const y of turns) expect(y).toBeCloseTo(Math.PI / 2, 5);
     expect(o.rotation.y).toBeCloseTo(Math.PI / 2, 5);
@@ -144,7 +147,7 @@ describe('a part keeps its own turn through its motion', () => {
     const o = new Group();
     o.rotation.y = Math.PI / 2;
     o.position.set(100, 200, 300);
-    await pump(s, hid(s).playAll([o], 'fan', 'out'));
+    await pump(s, hid(s)['playAll']([o], 'fan', 'out'));
     expect(o.visible).toBe(false);
     expect(o.rotation.y).toBeCloseTo(Math.PI / 2, 5);
   });
@@ -159,14 +162,14 @@ describe('a part keeps its own turn through its motion', () => {
       const o = findById(m.root, f.id)!,
         spot = coolerFanBox('cooler-tower', k)!;
       // in: it ends at its seat, in its spot (a fan laid flat is 2760 wide along x and 600 thin along z: out of the spot on both)
-      await pump(s, hid(s).playAll([o], 'fan', 'in'));
+      await pump(s, hid(s)['playAll']([o], 'fan', 'in'));
       let c = new Box3().setFromObject(o, true);
       expect(c.min.x, `${f.slot} in`).toBeGreaterThanOrEqual(spot.r.x - proud);
       expect(c.max.x, `${f.slot} in`).toBeLessThanOrEqual(spot.r.x + spot.r.w + proud);
       expect(c.min.z, `${f.slot} in`).toBeGreaterThanOrEqual(spot.z0 - proud);
       expect(c.max.z, `${f.slot} in`).toBeLessThanOrEqual(spot.z1 + proud);
       // out: it leaves along z (hidden where its way ends) and is still as thin along x as its spot
-      await pump(s, hid(s).playAll([o], 'fan', 'out'));
+      await pump(s, hid(s)['playAll']([o], 'fan', 'out'));
       c = new Box3().setFromObject(o, true);
       expect(c.min.x, `${f.slot} out`).toBeGreaterThanOrEqual(spot.r.x - proud);
       expect(c.max.x, `${f.slot} out`).toBeLessThanOrEqual(spot.r.x + spot.r.w + proud);
@@ -179,7 +182,7 @@ describe('a part keeps its own turn through its motion', () => {
     o.rotation.y = 0;
     const tips: number[] = [];
     const tick = () => tips.push(Math.abs(o.rotation.y));
-    await pump(s, hid(s).playAll([o], 'gpu', 'out'), tick);
+    await pump(s, hid(s)['playAll']([o], 'gpu', 'out'), tick);
     const peak = Math.max(...tips);
     expect(peak).toBeGreaterThan(0.02);
     expect(peak).toBeLessThanOrEqual(0.0701);
@@ -200,9 +203,9 @@ describe('a part keeps its own turn through its motion', () => {
     expect(fan).toBeDefined();
     // the fan's built object, turned a quarter as a case mount is built
     const g = new Group();
-    g.userData.id = fan.id;
+    g.userData['id'] = fan.id;
     g.rotation.y = Math.PI / 2;
-    hid(s)._machine.root.add(g);
+    hid(s)['_machine'].root.add(g);
     await pump(s, s.remove(devNode(fan.id)));
     expect(of(s, 'fan')).toHaveLength(0);
     await pump(s, s.undo());

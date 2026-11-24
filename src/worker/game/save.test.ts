@@ -222,7 +222,7 @@ describe('validation', () => {
     expect(() => Game.fromSave({ ...good(), version: 99 })).toThrow(/newer/);
     expect(() => Game.fromSave({ ...good(), version: 0 })).toThrow(/unknown version/);
     expect(() => Game.fromSave({ ...good(), money: 'lots' })).toThrow(/money/);
-    expect(() => Game.fromSave({ ...good(), money: NaN })).toThrow(/money/);
+    expect(() => Game.fromSave({ ...good(), money: Number.NaN })).toThrow(/money/);
     expect(() =>
       Game.fromSave({ ...good(), board: { tier: 0, nextId: 1, devices: [{ id: 'd', spec: 'nope', slot: 'cpu0' }] } }),
     ).toThrow(/board/);
@@ -234,7 +234,7 @@ describe('validation', () => {
       Game.fromSave({ ...good(), tray: [{ id: 1, template: 'bogus', seed: 1, scale: 1, arrival: 0, deadline: 1 }] }),
     ).toThrow(/template/);
     const noTray = good();
-    delete noTray.tray;
+    delete noTray['tray'];
     expect(() => Game.fromSave(noTray)).toThrow(/tray/);
   });
 });
@@ -360,7 +360,7 @@ describe('migrate', () => {
 
 /** A save as a build from before the fan parts wrote it: no fan devices (the case and the heatsinks had them built in). */
 function fanless(s: Record<string, unknown>): Record<string, unknown> {
-  const b = s.board as { devices: { spec: string }[] };
+  const b = s['board'] as { devices: { spec: string }[] };
   return { ...s, board: { ...b, devices: b.devices.filter((d) => !d.spec.startsWith('fan')) } };
 }
 
@@ -369,18 +369,18 @@ function v2Save(): Record<string, unknown> {
   const g = new Game({ seed: 21, preassembled: true });
   play(g, 300, 1);
   const s = fanless(json(g.toSave()) as unknown as Record<string, unknown>);
-  const { storageInstalled, osInstalled, firstOsJob, ...old } = s.progress as Record<string, boolean>;
+  const { storageInstalled, osInstalled, firstOsJob, ...old } = s['progress'] as Record<string, boolean>;
   void storageInstalled;
   void osInstalled;
   void firstOsJob;
-  delete s.os;
+  delete s['os'];
   return { ...s, version: 2, progress: old };
 }
 
 describe('migration v2 -> v3', () => {
   it('adds no OS and three false milestones; the machine keeps the reboot-per-job flow', () => {
     const v2 = v2Save();
-    expect(v2.version).toBe(2);
+    expect(v2['version']).toBe(2);
     const m = migrate(json(v2)) as { version: number; os: unknown; progress: Record<string, boolean> };
     expect(m.version).toBe(5);
     expect(m.os).toBeNull();
@@ -393,7 +393,7 @@ describe('migration v2 -> v3', () => {
     const l = Game.fromSave(json(v2));
     const s = l.snapshot();
     expect(s).toMatchObject({ powered: false, phase: 'off', os: null, storage: [] });
-    expect(s.money).toBe(v2.money);
+    expect(s.money).toBe(v2['money']);
     expect(
       s.devices
         .filter((d) => !isFan(d.spec))
@@ -412,7 +412,7 @@ describe('migration v2 -> v3', () => {
       play(g, 400, 1);
     }
     expect(a.money).toBe(b.money);
-    expect(a.completed).toBeGreaterThan(v2.completed as number);
+    expect(a.completed).toBeGreaterThan(v2['completed'] as number);
     expect(JSON.stringify(a.toSave())).toBe(JSON.stringify(b.toSave()));
   });
 
@@ -422,7 +422,7 @@ describe('migration v2 -> v3', () => {
 });
 
 function g2specs(v2: Record<string, unknown>): string[] {
-  return (v2.board as { devices: { spec: string }[] }).devices.map((d) => d.spec).sort();
+  return (v2['board'] as { devices: { spec: string }[] }).devices.map((d) => d.spec).sort();
 }
 
 /** A version 3 save as the previous build wrote it: the old tier numbering (0 = 2 DIMM board, 1 = ATX+ board). */
@@ -430,7 +430,7 @@ function v3Save(oldTier: number, inventory: { id: string; spec: string }[] = [])
   const g = new Game({ seed: 31, preassembled: true });
   play(g, 100, 1);
   const s = fanless(json(g.toSave()) as unknown as Record<string, unknown>);
-  return { ...s, version: 3, board: { ...(s.board as object), tier: oldTier }, inventory };
+  return { ...s, version: 3, board: { ...(s['board'] as object), tier: oldTier }, inventory };
 }
 
 describe('migration v3 -> v4', () => {
@@ -463,7 +463,7 @@ describe('coolerInstalled in older saves', () => {
     const save = json(new Game({ seed: 2, preassembled: true }).toSave()) as unknown as {
       progress: Record<string, unknown>;
     };
-    delete save.progress.coolerInstalled;
+    delete save.progress['coolerInstalled'];
     const l = Game.fromSave(save);
     expect(l.snapshot().progress.coolerInstalled).toBe(true);
     expect(l.snapshot().devices.some((d) => d.kind === 'cooler')).toBe(true);
@@ -473,7 +473,7 @@ describe('coolerInstalled in older saves', () => {
     const g = new Game({ seed: 2 });
     g.install('inv1');
     const save = json(g.toSave()) as unknown as { progress: Record<string, unknown> };
-    delete save.progress.coolerInstalled;
+    delete save.progress['coolerInstalled'];
     expect(Game.fromSave(save).snapshot().progress.coolerInstalled).toBe(false);
     expect(Game.fromSave(json(V1)).snapshot().progress.coolerInstalled).toBe(true);
   });
@@ -484,9 +484,9 @@ describe('pcie power lead in saves (additive, no version bump)', () => {
     const save = JSON.parse(JSON.stringify(new Game({ seed: 9 }).toSave()));
     expect(save.cables.pcie).toBe(false);
     delete save.cables.pcie;
-    expect(parseSave(save).cables.pcie).toBe(false);
+    expect(parseSave(save).cables['pcie']).toBe(false);
     save.cables.pcie = true;
-    expect(parseSave(save).cables.pcie).toBe(true);
+    expect(parseSave(save).cables['pcie']).toBe(true);
   });
 });
 

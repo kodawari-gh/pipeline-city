@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import * as fsMod from 'node:fs';
 // @ts-ignore
 import * as urlMod from 'node:url';
+
 const fs = fsMod as any;
 
 const css: string = fs.readFileSync(urlMod.fileURLToPath(new URL('../ui.css', import.meta.url)), 'utf8');
@@ -20,14 +21,14 @@ function declsOf(body: string): Record<string, string> {
   const decls: Record<string, string> = {};
   for (const part of body.split(';')) {
     const at = part.indexOf(':');
-    if (at >= 0) decls[part.slice(0, at).trim().toLowerCase()] = part.slice(at + 1).trim();
+    if (at !== -1) decls[part.slice(0, at).trim().toLowerCase()] = part.slice(at + 1).trim();
   }
   return decls;
 }
 
 /** The style rules of the sheet, with the `@media` queries each sits under. `@keyframes` and `@font-face` blocks are skipped. */
 function rulesOf(text: string): Rule[] {
-  const src = text.replace(/\/\*[\s\S]*?\*\//g, '');
+  const src = text.replaceAll(/\/\*[\s\S]*?\*\//g, '');
   const out: Rule[] = [];
   const media: string[] = [];
   let buf = '';
@@ -62,7 +63,7 @@ function rulesOf(text: string): Rule[] {
       continue;
     }
     const end = src.indexOf('}', i);
-    if (end < 0) break;
+    if (end === -1) break;
     out.push({
       media: [...media],
       selectors: head.split(',').map((s) => s.trim()),
@@ -81,7 +82,7 @@ function featureHolds(feature: string, c: Ctx): boolean {
   if (!m) return false;
   const name = m[1] ?? '';
   const value = m[2] ?? '';
-  const px = (v: string) => (/em$/.test(v) ? parseFloat(v) * 16 : parseFloat(v));
+  const px = (v: string) => (/em$/.test(v) ? Number.parseFloat(v) * 16 : Number.parseFloat(v));
   switch (name) {
     case 'max-width':
       return c.w <= px(value);

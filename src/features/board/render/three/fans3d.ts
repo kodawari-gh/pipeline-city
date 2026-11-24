@@ -251,7 +251,7 @@ export function fanPart(
   const frame = mat(0x1d1e22, { roughness: 0.62 });
   if (level === 0) {
     const body = place(new Mesh(housing(d, depth, sides, small), frame));
-    body.geometry.userData.low = housing(
+    body.geometry.userData['low'] = housing(
       d,
       depth,
       fanLodSides(full, 1),
@@ -313,33 +313,5 @@ export function caseFan(
   f.root.position.set(r.x + r.w / 2, -(r.y + r.h / 2), zc);
   if (axis === 'x') f.root.rotation.y = Math.PI / 2;
   else f.root.rotation.x = Math.PI / 2;
-  return { root: f.root, spin: { ...f.spin, needs: 'fan:' + fit.slot } };
-}
-
-/** A part's own round fan facing the glass (a card's): a round shroud with a lip, the motor on its struts and a curved-blade rotor, its face at depth `z`. */
-export function partFan(x: number, y: number, z: number, r: number, frame = 0x1d1e22): { root: Group; spin: Spin } {
-  const root = new Group(),
-    depth = Math.min(160, r * 0.4);
-  root.position.set(x, -y, z - depth / 2);
-  // (r is the radius in units: the diameter in mm is 2r / UNITS_PER_MM)
-  const sides = fanSides((2 * r) / UNITS_PER_MM),
-    small = Math.max(8, sides / 2);
-  const shroud = place(
-    new Mesh(
-      new CylinderGeometry(r * 1.04, r * 1.04, depth, sides, 1, true).rotateX(Math.PI / 2),
-      mat(frame, { roughness: 0.55, side: DoubleSide }),
-    ),
-  );
-  const lip = place(
-    new Mesh(
-      new TorusGeometry(r * 1.04, depth * 0.08, SEG.smallDisc, sides),
-      mat(0x2a2d32, { roughness: 0.4, metalness: 0.3 }),
-    ),
-  );
-  lip.position.z = depth / 2;
-  root.add(shroud, lip);
-  motor(root, r, depth, 3, small);
-  const rotor = fanRotor(r * 0.98, r > 300 ? 9 : 7, blades(), hubM());
-  root.add(rotor);
-  return { root, spin: { rotor, ring: null, needs: null } };
+  return { root: f.root, spin: { ...f.spin, needs: `fan:${fit.slot}` } };
 }

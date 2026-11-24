@@ -74,7 +74,7 @@ describe('picker contents per id', () => {
         cpuClock: { value: 1.5, min: 0.25, max: 1.5 },
       }),
     )!;
-    expect(hot.lines.some((l) => l.level === 'bad' && /Unstable/.test(l.text))).toBe(true);
+    expect(hot.lines.some((l) => l.level === 'bad' && l.text.includes('Unstable'))).toBe(true);
   });
 
   it('a fitted part offers Remove (by its slot, its device id or its world id); an empty socket and a spare do not', () => {
@@ -149,7 +149,7 @@ describe('picker contents per id', () => {
 
   it('late key explains the late penalty', () => {
     const m = pickerFor('key:1', snap({ tray: [key({ late: true })], baseTick: 200 }))!;
-    expect(m.lines.some((l) => l.level === 'bad' && /Late by/.test(l.text))).toBe(true);
+    expect(m.lines.some((l) => l.level === 'bad' && l.text.includes('Late by'))).toBe(true);
   });
 
   it('finished key in the port: remove action, result shown', () => {
@@ -158,7 +158,7 @@ describe('picker contents per id', () => {
     expect(m.actions).toEqual([
       expect.objectContaining({ id: 'eject', label: 'Remove key (get paid)', primary: true }),
     ]);
-    expect(m.lines.some((l) => /#72 mul=31 OK/.test(l.text))).toBe(true);
+    expect(m.lines.some((l) => l.text.includes('#72 mul=31 OK'))).toBe(true);
   });
 
   it('a second key while one is plugged: plug is refused with a reason', () => {
@@ -175,7 +175,7 @@ describe('picker contents per id', () => {
     const m = pickerFor('power', snap())!;
     expect(m.actions[0]).toMatchObject({ id: 'power', label: 'Power on' });
     expect(m.actions[0]!.why).toMatch(/power supply/);
-    expect(m.lines.some((l) => /power supply/.test(l.text))).toBe(true);
+    expect(m.lines.some((l) => l.text.includes('power supply'))).toBe(true);
   });
 
   it('power button after a PSU trip: power cycle comes first', () => {
@@ -199,7 +199,7 @@ describe('picker contents per id', () => {
     });
     const m = pickerFor('psu', s)!;
     expect(m.kind).toBe('psu');
-    expect(m.lines.some((l) => l.level === 'bad' && /95 W of 40 W/.test(l.text))).toBe(true);
+    expect(m.lines.some((l) => l.level === 'bad' && l.text.includes('95 W of 40 W'))).toBe(true);
     expect(m.ladder.map((r) => [r.specId, r.state])).toEqual([
       ['psu0', 'installed'],
       ['psu1', 'ready'],

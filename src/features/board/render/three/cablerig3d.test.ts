@@ -144,7 +144,7 @@ describe('a cable run out of its hole', () => {
     z.strands.forEach((s, i) => {
       expect(dist(s[0]!, path[i]![0]!)).toBeLessThan(1e-6);
       expect(dist(s[s.length - 1]!, path[i]![path[i]!.length - 1]!)).toBeLessThan(1e-6);
-      // (evenly respaced points cut the sharp corners of this crude path a little)
+      // (evenly spaced points cut the sharp corners of this crude path a little)
       expect(Math.abs(lengthOf(s) / lengthOf(path[i]!) - 1)).toBeLessThan(0.05);
     });
   });

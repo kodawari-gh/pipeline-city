@@ -112,7 +112,7 @@ Light-theme tokens (the whole `:root` default palette and the `LIGHT` object) ar
 
 ## 4. Parts
 
-**Realism (holds)**
+### Realism (holds)
 
 - Real scale (23 units/mm, `src/features/board/render/layout/layout.ts:151`), real fixings, soft edges: `softBox` 2 segments, radius 40 (`src/core/render/three/geometry.ts:71`), 1-segment bevels. No stylised shapes.
 - Real material families only (palette §2: charcoal, graphite, satin and bright metal, PCB masks, one gold, one copper).
@@ -130,14 +130,14 @@ These four stay recognisably the same hardware (OEM tower, 3.5" HDD, DDR2 clip-o
 | `ram1` DDR2 (`visual: "dimm-fast"` → `stickLook` `'low'`, `ram3d.ts:35-36,204`)                                                                    | Silver clip-on spreader `#8d939c`, metalness 0.55, roughness 0.50                                                                                                                                               | Dark anodised clip-on, in the same family as today's DDR3 fins (`#2b2f37`, `ram3d.ts:205`). Plate `#2a2d32`–`#4e5360`, metalness 0.55–0.70, roughness 0.40–0.55. PCB under the spreader stays navy `#171b23`.                                                                              | None. DDR2 clip-ons have no RGB (RGB starts at the `'rgb'` look, DDR4/5).                                                                                                                                                                          |
 | `cooler1` tower (`visual: "cooler-tower"`, `tower()` in `cooler3d.ts:222-223`)                                                                     | Bright aluminium fins `#b4bccb`, metalness 0.75, roughness 0.30; base block `#8a93a6`, roughness 0.34 (`cooler3d.ts:223,240`)                                                                                   | Dark anodised aluminium (the liquid pump already uses this language at `#3a3f48`, metalness 0.45, roughness 0.40, `cooler3d.ts:319-321`). Fins `#2a2d32`–`#4e5360`, metalness 0.55–0.75, roughness 0.30–0.45. Base block in the same range. Copper heat pipes stay `#c0793a` (real metal). | None on the fin stack or pipes. Fan rings, if present, follow the shared fan RGB (folded to `#a68bff`). The cyan painted accent edge (`ACCENT.tower #3be3ff`, `cooler3d.ts:254`) is albedo, not a light; leave or mute it so it does not break C1. |
 
-**Emissive (new)**
+### Emissive (new)
 
 - Emissives only where real hardware has light: status and activity LEDs, RGB strips and rings (fans, GPU shroud, cooler cap, case strip, board strip, RAM), screens, lit traces and die blocks. No glowing outlines on geometry; no emissive on bare plastic or metal.
 - Colours from the neon and status roles only (§2). State looks: a burn is `#ff5a78` 0.8 (`materials.ts`). A part that runs, runs hot or throttles has no glow of its own (removed 2026-11-21 at Khalil's request); the lenses show heat and draw.
 - LOD stand-ins keep the same materials, so emissive state survives at a distance (`src/core/render/three/partlod.ts`; `docs/render/lod.md` "The stand-in"). New emissive materials must keep this: a stateful material joins only its own set.
 - **Stills: powered-on idle (proposal).** Today `renderStill` shows parts unpowered (3 of 71 stills have any neon pixel, S > 0.6 and V > 0.85: `tpm1` 17 px, `tpm2` 15 px, `cooler1` 1 px). New stills show idle emissives (LEDs, strips, rings at their idle level), with no active or heat glow.
 
-**Brands (makers' marks)**
+### Brands (makers' marks)
 
 - Each kind of part has one fictional maker with its own mark, wordmark and colour scheme: `src/core/render/brands/`, one module per brand. The design sheets and the rules are in [brands/README.md](brands/README.md).
 - A mark lights one palette neon (§2), on the mark and its lit letters only (C1). Etches, debosses and silkscreens print in one tone. Prints use the brand's type, never a system font, except for small print (specs, serials).
@@ -176,7 +176,7 @@ Rules (targets; all values are proposals (J)):
 
 ## 9. References ([art/references.png](art/references.png))
 
-**References**
+### References
 
 1. `docs/art/cpu2-die-crop.png`: the die art's class colours and floorplan: the interior look the zoom must reach (at full value; §5). After the class-hue change, this crop will need a refresh.
 2. `public/stills/cpu2.webp`: a real package carrying neon art; the target once relit (§3).
@@ -184,7 +184,7 @@ Rules (targets; all values are proposals (J)):
 4. `public/stills/gpu3.webp`: charcoal shroud and modelled fans, ready for an RGB ring (§4).
 5. `public/stills/vsink1.webp`: a black fin stack with one copper band: dark, plausible, mean L 55.1.
 
-**Anti-references (the old look, including the withdrawn light-part exceptions)**
+### Anti-references (the old look, including the withdrawn light-part exceptions)
 
 - `public/boot-still.jpg`: a sunny warm room (48.0 % warm pixels (R > B + 5), 0 % neon, wood tones `#413124`, `#593e23`).
 - `public/stills/case0.webp`: was the cream case, mean L 231.6. Done 2026-11-16: the 3D case is the charcoal variant (§4; body and inner `#2a2d32`, plastic front `#1d1e22`, cage and buttons `#4e5360`, screws `#959aa3`), its still has mean L 57.8. The 2D shell art (`exterior.ts` `STYLES[0]`, `devices.ts`, `desk/props/case.ts`) uses the same charcoals (checked by its tests only, no picture looked at).
@@ -214,7 +214,7 @@ S ≈ hours, M ≈ days, L ≈ a week or more (J). The rework stays on hold unti
 
 ## 11. Asset checklist (new batches)
 
-**Part still**
+### Part still
 
 - [ ] Rendered with `npm run stills -- --only <id>`, not painted; 480×336 RGBA webp, q 0.9; listed in `public/stills/manifest.json` with a unique hash.
 - [ ] Lit with the cool key and one neon rim (§3), once that lands; powered-on idle emissives only (§4).
@@ -223,7 +223,7 @@ S ≈ hours, M ≈ days, L ≈ a week or more (J). The rework stays on hold unti
 - [ ] Emissive only on real light sources; colours from §2 neon and status roles.
 - [ ] Fill 0.66–0.86; bbox centre within ±30 px x, ±40 px y; no ground shadow, no outline.
 
-**3D part (code)**
+### 3D part (code)
 
 - [ ] Real scale (23 u/mm), real fixings, `softBox` or 1-segment bevels.
 - [ ] Materials from §2; PBR inside the ranges in §4; no hex outside §2 (except a new material named and added here). `case0` / `hdd0` / `ram1` / `cooler1` follow the dark or anodised specs in §4.
@@ -231,17 +231,17 @@ S ≈ hours, M ≈ days, L ≈ a week or more (J). The rework stays on hold unti
 - [ ] Night screenshot per preset (`npm run shot -- out.png --view board --preset Low|Medium|High`): the part reads and its glow blooms.
 - [ ] No `#8b5cff`; brand / RGB uses `#a68bff`.
 
-**2D interior art**
+### 2D interior art
 
 - [ ] Tokens only (§6 grep check); strokes ≥ 1 px at the closest LOD; class colours as in §2 (load `#9ab8ff`, store `#a8ff55`, not status green or amber).
 - [ ] Dark palette only (`builtinTheme()`). No light-theme art.
 
-**Room**
+### Room
 
 - [ ] Surfaces from the charcoal / graphite targets in §3, not oak or ash veneer.
 - [ ] Warm practicals only; warm-tinted pixels (R > B + 5) under 20 % in a night shot (J).
 
-**Quick check (luminance, fill, neon)**
+### Quick check (luminance, fill, neon)
 
 ```python
 from PIL import Image; import numpy as np

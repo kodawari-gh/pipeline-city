@@ -96,7 +96,7 @@ const rnd = () => (seedN = (seedN * 16807) % 2147483647) / 2147483647;
 /** How deep a weave's threads are (`relief`, in its texels). */
 const WEAVE_DEPTH = 2.5;
 /** Woven cloth: a weave (`weave`) as its map, and its threads' relief from the same texture as its normal map, so the light rakes them. */
-export function woven(
+function woven(
   base: string,
   o: { knit?: boolean; repeat?: [number, number] } = {},
 ): { map: Texture | null; normalMap: Texture | null } {
@@ -305,18 +305,18 @@ export function board(r: RectLike, z0: number, z1: number, m: Material, radius =
 /** A cushion or pillow: a box whose faces puff out, thick in the middle and thin at the seams. */
 export function cushion(w: number, h: number, d: number, puff = 1): BufferGeometry {
   const g = new BoxGeometry(2, 2, 2, 10, 4, 10),
-    p = g.attributes.position!;
+    p = g.attributes['position']!;
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i),
       y = p.getY(i),
       z = p.getZ(i);
-    const fall = (1 - Math.pow(Math.abs(x), 3)) * (1 - Math.pow(Math.abs(z), 3));
+    const fall = (1 - Math.abs(x) ** 3) * (1 - Math.abs(z) ** 3);
     const r = Math.hypot(x, z) || 1,
       round = Math.max(Math.abs(x), Math.abs(z)) / r;
     p.setXYZ(
       i,
       (x * (0.82 + 0.18 * round) * w) / 2,
-      (y * (0.25 + 0.75 * Math.pow(Math.max(0, fall), 0.6 * puff)) * h) / 2,
+      (y * (0.25 + 0.75 * Math.max(0, fall) ** (0.6 * puff)) * h) / 2,
       (z * (0.82 + 0.18 * round) * d) / 2,
     );
   }
@@ -337,7 +337,7 @@ export function pillow(
   o: { pinch?: number; lumps?: number; seed?: number } = {},
 ): BufferGeometry {
   const g = new BoxGeometry(2, 2, 2, 24, 2, 18),
-    p = g.attributes.position!;
+    p = g.attributes['position']!;
   const pinch = o.pinch ?? 0.06,
     lumps = o.lumps ?? 0.06,
     s = o.seed ?? 0;
@@ -347,14 +347,14 @@ export function pillow(
       z = Math.sin((p.getZ(i) * Math.PI) / 2);
     // the panel's rise from the seam: steep at first, then flat over the middle
     const fill = (1 - x * x) * (1 - z * z),
-      rise = 1 - Math.pow(1 - fill, 2.2);
+      rise = 1 - (1 - fill) ** 2.2;
     const lump =
       1 +
       lumps *
         (Math.sin(x * 2.3 + s) * Math.sin(z * 1.9 + s * 1.7) + 0.5 * Math.sin(x * 4.1 - z * 3.3 + s * 2.3)) *
         rise;
     const r = Math.max(Math.abs(x), Math.abs(z)),
-      round = r > 0 ? r / Math.pow(x ** 4 + z ** 4, 0.25) : 1;
+      round = r > 0 ? r / (x ** 4 + z ** 4) ** 0.25 : 1;
     const px = x * round * (1 - pinch * (1 - z * z)),
       pz = z * round * (1 - pinch * (1 - x * x));
     p.setXYZ(i, (px * w) / 2, (y * (PILLOW_WELT + (1 - PILLOW_WELT) * rise) * lump * h) / 2, (pz * d) / 2);
@@ -709,7 +709,7 @@ export function nightstand(): Bedside {
     prof = kept.map((i) => full[i]!),
     y0 = -top + legH;
   const lanternGeo = new LatheGeometry(prof, SEG.lathe),
-    luv = lanternGeo.attributes.uv!;
+    luv = lanternGeo.attributes['uv']!;
   for (let k = 0; k < luv.count; k++) luv.setY(k, kept[k % kept.length]! / (full.length - 1));
   const lantern = place(new Mesh(lanternGeo, shade));
   lantern.position.set(lx, y0, lz);
@@ -925,7 +925,7 @@ function stripLit<T extends MeshStandardMaterial>(m: T): T {
     gap = (FLOOR_Y - top - 1400) / n;
   const f = (v: number) => v.toFixed(1);
   m.onBeforeCompile = (sh) => {
-    sh.uniforms.uStripColour = STRIP_STAND_IN.colour;
+    sh.uniforms['uStripColour'] = STRIP_STAND_IN.colour;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vStripPos;\nvarying vec3 vStripN;')
       .replace(
@@ -978,7 +978,7 @@ function shelvedBooks(books: readonly Book[]): Group {
     col = new Color();
   // the cover: its spine (+x) rounded across the book's thickness, as a bound book's back is, steepest where it meets the boards
   const cover = new BoxGeometry(1, 1, 1, 1, 1, 12),
-    cp = cover.attributes.position!;
+    cp = cover.attributes['position']!;
   for (let i = 0; i < cp.count; i++)
     if (cp.getX(i) > 0.49) cp.setX(i, 0.5 + SPINE_ROUND * Math.sqrt(Math.max(0, 1 - 4 * cp.getZ(i) ** 2)));
   cover.computeVertexNormals();

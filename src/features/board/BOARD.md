@@ -43,7 +43,7 @@ Serialization shape (this is the board part of the save; temperatures are not sa
 
 ## Power and heat (`thermal.ts`)
 
-`const th = new ThermalModel(machine.prng); th.step(board, {cpu: load, ...})` once per base tick (load 0..1 per kind, default 1). Per device: `r = effClock / baseClock`; `power = idleW*r + (loadW-idleW)*load*r^3`; `T += (heat - (passive + coolerCoeff[CPU only]) * (T - 25)) / mass`. Effective clock = requested * thermal factor * PSU factor. Read `th.state(id)` (tempC, powerW, effClock, throttle, unstable, stress), `th.power`, `th.effectiveClock(id)`.
+`const th = new ThermalModel(machine.prng); th.step(board, {cpu: load, ...})` once per base tick (load 0..1 per kind, default 1). Per device: `r = effClock / baseClock`; `power = idleW*r + (loadW-idleW)*load*r^3`; `T += (heat - (passive + coolerCoeff[CPU only]) * (T - 25)) / mass`. Effective clock = `requested * thermal factor * PSU factor`. Read `th.state(id)` (tempC, powerW, effClock, throttle, unstable, stress), `th.power`, `th.effectiveClock(id)`.
 
 - **Throttle**: factor 1 up to `throttleC` (CPU 70), falling linearly to 0.8 at `unstableC` (85). Throttling only trims 20%, so heavy overclock or poor cooling still runs away.
 - **Instability**: above `unstableC`, `th.errorRoll(id)` returns true with p = 1% + 2%/degree (max 50%) using the machine PRNG. It consumes PRNG state only while unstable. Engines are not wired to it yet; the sim decides what an error does.

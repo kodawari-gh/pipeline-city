@@ -4,7 +4,6 @@
 // A kind with no 3D model yet gives null.
 import { Box3, Group, Object3D, Vector3 } from 'three';
 import { builtinTheme, type Theme } from '@/core/render/theme';
-import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import type { RectLike } from '@/core/render/three/geometry';
 import {
   BOARD_TIERS,

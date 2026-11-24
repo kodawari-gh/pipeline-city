@@ -165,8 +165,8 @@ export function deskChair(
     const t = (k / 32) * Math.PI * 2,
       sx = Math.cos(t),
       sy = Math.sin(t),
-      ex = Math.sign(sx) * Math.pow(Math.abs(sx), 0.35),
-      ey = Math.sign(sy) * Math.pow(Math.abs(sy), 0.35);
+      ex = Math.sign(sx) * Math.abs(sx) ** 0.35,
+      ey = Math.sign(sy) * Math.abs(sy) ** 0.35;
     const yy = (ey + 1) / 2,
       ww = (W / 2) * (0.9 + 0.1 * yy);
     ring.push([ex * ww * MM, (60 + yy * H) * MM, 30 * ex * ex * MM]);

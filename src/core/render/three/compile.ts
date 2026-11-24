@@ -168,12 +168,12 @@ export function startShadowPrograms(r: WebGLRenderer, scene: Object3D, cam: Came
       im.isInstancedMesh === true,
       !!im.instanceColor,
       sk.isSkinnedMesh === true,
-      !!g.attributes.normal,
+      !!g.attributes['normal'],
       !!mp.position,
       !!mp.normal,
       !!mp.color,
       (mp.position ?? mp.normal ?? mp.color)?.length ?? 0,
-    ].join();
+    ].join(',');
     for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
       if (!mat.visible) continue;
       const c = mat as Casting,
@@ -187,7 +187,7 @@ export function startShadowPrograms(r: WebGLRenderer, scene: Object3D, cam: Came
           c.alphaMap?.channel ?? '-',
           c.displacementMap?.channel ?? '-',
           test > 0,
-        ].join();
+        ].join(',');
         if (seen.has(state + shape)) continue;
         seen.add(state + shape);
         let dm = pool.get(state);
@@ -255,7 +255,7 @@ export function prime(left: Program[], ms: number): boolean {
 /** The longest a first picture waits for its programs to link; then it draws, and the driver finishes the link in that draw. */
 export const LINK_MAX_MS = 15000;
 /** The time a tick spends on the first use of linked programs (`prime`): the page stays alive between the ticks. */
-export const PRIME_MS = 4;
+const PRIME_MS = 4;
 
 /**
  * The wait for a scene's programs before it is drawn (docs/render/load.md). Call `ready` in each tick that would draw, and draw when it says so.
@@ -292,7 +292,7 @@ export class ProgramGate {
 }
 
 /** The programs the materials under `root` have made so far (none is made here). */
-export function programsOf(r: WebGLRenderer, root: Object3D): Program[] {
+function programsOf(r: WebGLRenderer, root: Object3D): Program[] {
   const out = new Set<Program>();
   root.traverse((x) => {
     const m = (x as Mesh).material as Material | Material[] | undefined;

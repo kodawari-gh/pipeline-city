@@ -139,7 +139,7 @@ function upload(a: BufferAttribute, from: number, n: number): void {
   a.needsUpdate = true;
 }
 
-const enum Part {
+enum Part {
   Paint = 0,
   Glass = 1,
   Tyre = 2,
@@ -190,14 +190,14 @@ function merge(pieces: [BufferGeometry, Part][]): BufferGeometry {
       n.clearGroups();
       return n.setAttribute(
         'part',
-        new Float32BufferAttribute(new Float32Array(n.attributes.position!.count).fill(p), 1),
+        new Float32BufferAttribute(new Float32Array(n.attributes['position']!.count).fill(p), 1),
       );
     }),
   )!;
 }
 
 /** A model's geometry (`MODELS`), in its frame, on the road at y = 0. */
-export function carGeometry(model: number): BufferGeometry {
+function carGeometry(model: number): BufferGeometry {
   const { tail, len: L } = MODELS[model]!,
     W = 1.78,
     H = tail === 'estate' ? 1.5 : tail === 'hatch' ? 1.47 : 1.43,
@@ -211,7 +211,7 @@ export function carGeometry(model: number): BufferGeometry {
   const deck: [number, number][] =
     tail === 'boot'
       ? [
-          [-half + 1.0, belt + 0.03],
+          [-half + 1, belt + 0.03],
           [-half + 0.16, belt + 0.01],
         ]
       : [[-half + 0.2, belt]];
@@ -309,7 +309,7 @@ export function carMaterial(u: CarLight, coat = true): MeshPhysicalMaterial {
     clearcoatRoughness: 0.12,
   });
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.cNight = u.night;
+    sh.uniforms['cNight'] = u.night;
     sh.vertexShader = sh.vertexShader
       .replace(
         '#include <common>',
@@ -401,7 +401,7 @@ function poolGeometry(): BufferGeometry {
     );
     return g.setAttribute('kind', new Float32BufferAttribute(new Array(6).fill(kind), 1));
   };
-  return mergeGeometries([quad(2.0, 17, 2.6, 0), quad(-2.2, -5.2, 1.3, 1)])!;
+  return mergeGeometries([quad(2, 17, 2.6, 0), quad(-2.2, -5.2, 1.3, 1)])!;
 }
 
 /** The soft shadow under a car: dark under its middle, fading out past its sides. */
@@ -666,7 +666,7 @@ export class Fleet {
     tr.step(Math.min(dt, 0.4));
     for (const im of this.moving) im.count = 0;
     const pa = this.pools.instanceMatrix.array as Float32Array,
-      pl = this.pools.geometry.attributes.lit!.array as Float32Array;
+      pl = this.pools.geometry.attributes['lit']!.array as Float32Array;
     const sa = this.shades.instanceMatrix.array as Float32Array;
     let n = 0;
     for (let ri = 0; ri < tr.lanes.length; ri++) {
@@ -726,7 +726,7 @@ export class Fleet {
           k = im.count++;
         turned(im.instanceMatrix.array as Float32Array, k, x, z, cr, sr);
         paint(im.instanceColor!.array as Float32Array, k, c.colour);
-        const la = im.geometry.attributes.lit!.array as Float32Array;
+        const la = im.geometry.attributes['lit']!.array as Float32Array;
         la[k * 2] = 1;
         la[k * 2 + 1] = brake;
       }
@@ -734,11 +734,11 @@ export class Fleet {
     for (const im of this.moving) {
       upload(im.instanceMatrix, 0, im.count);
       upload(im.instanceColor!, 0, im.count);
-      upload(im.geometry.attributes.lit as BufferAttribute, 0, im.count);
+      upload(im.geometry.attributes['lit'] as BufferAttribute, 0, im.count);
     }
     this.pools.count = night ? n : 0;
     upload(this.pools.instanceMatrix, 0, this.pools.count);
-    upload(this.pools.geometry.attributes.lit as BufferAttribute, 0, this.pools.count);
+    upload(this.pools.geometry.attributes['lit'] as BufferAttribute, 0, this.pools.count);
     this.shades.count = P + n;
     upload(this.shades.instanceMatrix, P, n);
   }

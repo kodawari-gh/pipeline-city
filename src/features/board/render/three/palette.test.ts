@@ -76,7 +76,7 @@ export function nearPairs(colours: number[], near: number): [number, number, num
   return out.sort((a, b) => a[2] - b[2]);
 }
 
-const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
+const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
 
 /** The ceilings of distinct base colours: the machine, the room. */
@@ -96,7 +96,7 @@ describe('the base colours', () => {
       const list = [...set.keys()].sort((a, b) => a - b),
         pairs = nearPairs(list, 12);
       console.log(`${name}: ${list.length} base colours, ${pairs.length} pairs nearer than 12`);
-      if (env.PALETTE_DUMP === '1') {
+      if (env['PALETTE_DUMP'] === '1') {
         console.log(list.map((c) => `${hex(c)} x${set.get(c)}`).join('\n'));
         console.log(pairs.map(([a, b, k]) => `${hex(a)} ${hex(b)} ${k}`).join('\n'));
       }
@@ -117,7 +117,7 @@ describe('the base colours', () => {
           files++;
           (fs.readFileSync(at, 'utf8') as string).split('\n').forEach((line, i) => {
             for (const m of line.matchAll(/\b(?:mat|cloth)\(0x([0-9a-fA-F]{6})\b/g)) {
-              const v = parseInt(m[1]!, 16);
+              const v = Number.parseInt(m[1]!, 16);
               if (!allowed.has(v)) bad.push(`${at.pathname}:${i + 1} ${hex(v)}`);
             }
           });

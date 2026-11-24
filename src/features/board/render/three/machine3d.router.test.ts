@@ -109,7 +109,7 @@ describe("the router's board on the machine", () => {
       cx = stand.face.x + stand.face.w / 2,
       cy = -(stand.face.y + stand.face.h / 2);
     const boardRoot = (): { visible: boolean; lying: boolean } => {
-      const o = m.root.children.find((c) => c.userData.id === 'router')!;
+      const o = m.root.children.find((c) => c.userData['id'] === 'router')!;
       return { visible: o.visible, lying: Math.abs(o.children[0]!.rotation.x + Math.PI / 2) < 1e-9 };
     };
     const seen = (d: number) => {

@@ -293,7 +293,7 @@ describe('AirTags3D', () => {
     t.show(false);
     const list = pills(host);
     expect(list.length).toBe(2);
-    expect(list.every((p) => p.style.display === 'none')).toBe(true);
+    expect(list.every((p) => p.style['display'] === 'none')).toBe(true);
     expect(t.boxes().every((b) => !b.visible)).toBe(true);
     t.dispose();
     expect(pills(host).length).toBe(0);

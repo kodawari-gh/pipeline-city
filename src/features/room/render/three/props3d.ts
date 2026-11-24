@@ -82,7 +82,7 @@ export function lamp(
     joint = mat(0x4e5360, { metalness: 0.6, roughness: 0.3 });
   const g = tag(new Group(), 'lamp');
   // (its baked occlusion: the joints between the paired arms, the base under them; `vertexao.ts`)
-  g.userData.ao = 30 * MM;
+  g.userData['ao'] = 30 * MM;
   g.add(post(base.x, base.y, z, 950, 150, coat, SEG.ring, 880));
   g.add(post(base.x, base.y - 150, z, 230, 280, coat, SEG.disc, 200));
   const b0: V3 = [base.x, -(base.y - 400), z],
@@ -160,7 +160,7 @@ export class Monitor {
     const R = this.root,
       cx = m.x + m.w / 2;
     // (its baked occlusion: the column into the back, the foot on the desk; `vertexao.ts`)
-    R.userData.ao = 40 * MM;
+    R.userData['ao'] = 40 * MM;
     // the body: the panel, the back housing, the bracket, the stand, the ports (monitor3d.ts)
     const body = monitorBody(m, screen, deskY, z0);
     if (lowDetail()) mergeWithin(body); // (Low: the housing, bracket and stand in a few draws)
@@ -316,7 +316,7 @@ export class DigitalClock {
 
   constructor(r: RectLike) {
     // (its baked occlusion: the bezel round the face, the case against the column; `vertexao.ts`)
-    this.root.userData.ao = 20 * MM;
+    this.root.userData['ao'] = 20 * MM;
     this.root.add(softBox(r, 0, 260, mat(STEEL, { roughness: 0.45, metalness: 0.3 }), 50));
     this.root.add(
       rectBox({ x: r.x + 90, y: r.y + 90, w: r.w - 180, h: r.h - 180 }, 260, 270, mat(0x131518, { roughness: 0.3 })),
@@ -501,8 +501,8 @@ export function teaCup(x: number, deskY: number, z: number): Cup {
       SAUCER.map(([r, y]) => new Vector2(r, y)),
       SEG.lathe,
     );
-  const sp = sg.attributes.position!,
-    suv = sg.attributes.uv!;
+  const sp = sg.attributes['position']!,
+    suv = sg.attributes['uv']!;
   // (the grain runs along x; up the rim's side it climbs across the grain, as on a turned block)
   for (let i = 0; i < sp.count; i++) suv.setXY(i, sp.getX(i) / 92 + 0.5, sp.getZ(i) / 92 + 0.5 + sp.getY(i) / 40);
   const saucer = place(new Mesh(sg, walnut));
@@ -586,7 +586,7 @@ const KEY_U = 372;
 /** A keycap: a box whose top is drawn in to a smaller face (the cap's taper), `w` wide and `d` deep. */
 function capGeo(w: number, d: number, h: number, inset: number): BoxGeometry {
   const g = new BoxGeometry(w, h, d),
-    p = g.attributes.position!;
+    p = g.attributes['position']!;
   for (let i = 0; i < p.count; i++)
     if (p.getY(i) > 0)
       p.setXYZ(i, p.getX(i) - Math.sign(p.getX(i)) * inset, p.getY(i), p.getZ(i) - Math.sign(p.getZ(i)) * inset);
@@ -608,7 +608,7 @@ export function keyboard(cx: number, deskY: number, z: number): Group {
     W = 15 * U,
     D = 6.25 * U;
   // (its baked occlusion: the gaps between the caps, the plate inside the rim; `vertexao.ts`)
-  g.userData.ao = 25 * MM;
+  g.userData['ao'] = 25 * MM;
   const caseM = mat(0x2a2d32, { roughness: 0.4, metalness: 0.3 }),
     rim = 180;
   board.add(softBox({ x: -W / 2 - rim, y: -200, w: W + 2 * rim, h: 200 }, -D / 2 - rim, D / 2 + rim, caseM, 70));
@@ -712,7 +712,7 @@ export function mouse(
     shell = mat(0x959aa3, { roughness: 0.6 }),
     dark = mat(0x2a2d32, { roughness: 0.5 });
   const geo = new SphereGeometry(1, SEG.drum, 16),
-    p = geo.attributes.position!;
+    p = geo.attributes['position']!;
   // the shell's height: flat underneath, higher at the palm (+z, toward the room) than at the nose
   const lift = (y: number, zz: number) => (y < -0.1 ? -0.1 + (y + 0.1) * 0.15 : y) * (1 + 0.18 * zz);
   for (let i = 0; i < p.count; i++)

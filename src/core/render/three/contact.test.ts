@@ -42,7 +42,7 @@ describe('contact', () => {
     const ball = new SphereGeometry(300, 24, 16).translate(0, 300, 0);
     floor.settle(ball, -60);
     floor.conform(ball, 10);
-    const p = ball.attributes.position!;
+    const p = ball.attributes['position']!;
     let min = Infinity,
       flat = 0;
     for (let i = 0; i < p.count; i++) {

@@ -54,7 +54,7 @@ export interface PowerLine {
 }
 
 /** A ring on a cable's socket: drawn while the cable is out. */
-export interface PowerRing {
+interface PowerRing {
   id: string;
   cable: string;
   at: V3;
@@ -65,7 +65,7 @@ export interface PowerRing {
  * A node that is a place, not a line: a flat plate of light lying where the thing is (the regulators and the fan hub on the board, the wall socket). Its colour is its
  * role (a hub is cyan, a source white), its brightness what passes through it.
  */
-export interface PowerNode {
+interface PowerNode {
   id: string;
   role: Role;
   /** Its centre and its half-extents along its own x and y (world vectors): the plate lies in the plane they span. */

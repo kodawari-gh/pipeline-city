@@ -227,7 +227,7 @@ describe('material key', () => {
     d.defines = { A: '' };
     expect(materialKey(d)).not.toBe(k);
     const u = mat(0x334455);
-    u.userData.x = 1;
+    u.userData['x'] = 1;
     expect(materialKey(u)).not.toBe(k);
   });
 
@@ -245,17 +245,17 @@ describe('material key', () => {
 
   it('never throws on a cycle or an object inside userData: an object of its own is keyed by identity', () => {
     const loop: Record<string, unknown> = { a: 1 };
-    loop.self = loop;
+    loop['self'] = loop;
     const m = mat(0x334455),
       n = mat(0x334455),
       o = new Group();
-    m.userData.loop = loop;
-    m.userData.holder = { o };
-    n.userData.loop = loop;
-    n.userData.holder = { o };
+    m.userData['loop'] = loop;
+    m.userData['holder'] = { o };
+    n.userData['loop'] = loop;
+    n.userData['holder'] = { o };
     expect(() => materialKey(m)).not.toThrow();
     expect(materialKey(m)).toBe(materialKey(n));
-    n.userData.holder = { o: new Group() };
+    n.userData['holder'] = { o: new Group() };
     expect(materialKey(n)).not.toBe(materialKey(m));
   });
 

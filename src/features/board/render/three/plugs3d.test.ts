@@ -121,7 +121,7 @@ describe('the cables plugs', () => {
   const kinds = (p: { body: Object3D }): string[] => {
     const t: string[] = [];
     p.body.traverse((o) => {
-      if (typeof o.userData.plug === 'string') t.push(o.userData.plug);
+      if (typeof o.userData['plug'] === 'string') t.push(o.userData['plug']);
     });
     return t;
   };

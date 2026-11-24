@@ -13,8 +13,8 @@ describe('Low contact shade', () => {
 
   it('is darkest under and at the footprint, gone at its reach, its outline the footprint grown by the reach', () => {
     const m = footShade(r, reach, peak, 50),
-      pos = m.geometry.attributes.position!,
-      col = m.geometry.attributes.color!;
+      pos = m.geometry.attributes['position']!,
+      col = m.geometry.attributes['color']!;
     expect(col.itemSize).toBe(4);
     expect(col.getW(0)).toBeCloseTo(peak);
     const per = (pos.count - 1) / RINGS.length,
@@ -30,7 +30,7 @@ describe('Low contact shade', () => {
 
   it('faces +z, draws once with no depth write, and is not hit', () => {
     const m = footShade(r, reach, peak),
-      pos = m.geometry.attributes.position!,
+      pos = m.geometry.attributes['position']!,
       ix = m.geometry.index!;
     let area = 0;
     for (let t = 0; t < ix.count; t += 3) {

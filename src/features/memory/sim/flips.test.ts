@@ -32,7 +32,7 @@ describe('bit flips in memory', () => {
     until(g, () => (g.snapshot().bitFlips ?? 0) > 0);
     expect(g.eccInstalled()).toBe(false);
     expect(g.snapshot().eccCorrected).toBe(0);
-    expect(g.snapshot().log.some((l) => l.kind === 'fault' && /bit flipped/.test(l.text))).toBe(true);
+    expect(g.snapshot().log.some((l) => l.kind === 'fault' && l.text.includes('bit flipped'))).toBe(true);
   });
 
   it('ECC RAM corrects it and counts it: the memory is untouched', () => {

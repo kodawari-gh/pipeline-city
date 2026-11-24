@@ -30,7 +30,7 @@ function ok<T extends { ok: boolean }>(r: T): T {
 function rig(
   tier: number,
   cpu: string,
-  o: { clock?: number; cooler?: string; sink?: string; psu?: string } = {},
+  o: { clock?: number; cooler?: string; sink?: string | undefined; psu?: string } = {},
 ): Board {
   const b = createBoard(tier);
   for (const s of [cpu, 'ram0', 'display0', o.cooler ?? 'cooler1', o.psu ?? (tier >= 2 ? 'psu2' : 'psu1')])
@@ -271,7 +271,7 @@ describe('the game around the VRM', () => {
     }
     expect(g.errors).toBeGreaterThan(0);
     const s = g.snapshot();
-    expect(s.log.some((e) => e.kind === 'fault' && /VRM voltage droop/.test(e.text))).toBe(true);
+    expect(s.log.some((e) => e.kind === 'fault' && e.text.includes('VRM voltage droop'))).toBe(true);
     expect(s.board.vrm.unstable).toBe(true);
     expect(s.board.vrm.loadRatio).toBeGreaterThan(1);
   });
@@ -287,7 +287,7 @@ describe('the game around the VRM', () => {
     expect(s).toMatchObject({ phase: 'error', phaseReason: 'board dead: replace the board' });
     expect(s.board).toMatchObject({ burnt: true, name: 'Starter' });
     expect(s.board.vrm.burnt).toBe(true);
-    expect(s.log.some((e) => /board dead/.test(e.text))).toBe(true);
+    expect(s.log.some((e) => e.text.includes('board dead'))).toBe(true);
     // Replacement: the same tier is for sale like any board (bought with the machine on, installed with it off).
     expect(s.purchases.find((p) => p.id === 'board0')!.blocked).toBeUndefined();
     g.powerButton();
@@ -411,13 +411,13 @@ describe('cards in the case (docs/ACCEL.md)', () => {
   it('a 180 W card warms the CPU by about 9 degrees without a case fan', () => {
     // gpu3 is a later tier (T80): stand in for it with the table's numbers.
     const gpu3 = {
-      ...DEVICE_SPECS.gpu1!,
+      ...DEVICE_SPECS['gpu1']!,
       id: 'gpu3t',
       loadW: 180,
       idleW: 12,
-      thermal: { ...DEVICE_SPECS.gpu1!.thermal, passive: 6 },
+      thermal: { ...DEVICE_SPECS['gpu1']!.thermal, passive: 6 },
     } as DeviceSpec;
-    (DEVICE_SPECS as Record<string, DeviceSpec>).gpu3t = gpu3;
+    (DEVICE_SPECS as Record<string, DeviceSpec>)['gpu3t'] = gpu3;
     try {
       const bare = rig(3, 'cpu1', { psu: 'psu3', cooler: 'cooler1' });
       const base = cpuTemp(bare, settle(bare, { cpu: 1, gpu: 1 }));
@@ -427,7 +427,7 @@ describe('cards in the case (docs/ACCEL.md)', () => {
       expect(cpuTemp(card, th) - base).toBeGreaterThan(8);
       expect(cpuTemp(card, th) - base).toBeLessThan(10);
     } finally {
-      delete (DEVICE_SPECS as Record<string, DeviceSpec>).gpu3t;
+      delete (DEVICE_SPECS as Record<string, DeviceSpec>)['gpu3t'];
     }
   });
 
@@ -453,10 +453,10 @@ describe('cards in the case (docs/ACCEL.md)', () => {
   });
 
   it("the card's watts count against the PSU: an overclocked card can brown out a small supply", () => {
-    (DEVICE_SPECS as Record<string, DeviceSpec>).gpuCool = {
-      ...DEVICE_SPECS.gpu1!,
+    (DEVICE_SPECS as Record<string, DeviceSpec>)['gpuCool'] = {
+      ...DEVICE_SPECS['gpu1']!,
       id: 'gpuCool',
-      thermal: { ...DEVICE_SPECS.gpu1!.thermal, passive: 8 },
+      thermal: { ...DEVICE_SPECS['gpu1']!.thermal, passive: 8 },
     } as DeviceSpec;
     const mk = () => {
       const b = rig(3, 'cpu0', { psu: 'psu1', cooler: 'cooler0' });
@@ -469,7 +469,7 @@ describe('cards in the case (docs/ACCEL.md)', () => {
     ok(setClock(hot, findDevices(hot, 'gpu')[0]!.id, 3));
     const th = settle(hot, { gpu: 1, cpu: 1 }, 20);
     expect(th.power.psuFactor).toBeLessThan(1);
-    delete (DEVICE_SPECS as Record<string, DeviceSpec>).gpuCool;
+    delete (DEVICE_SPECS as Record<string, DeviceSpec>)['gpuCool'];
   });
 
   it('an NPU or a TPM draws its watts too (they have no clock)', () => {

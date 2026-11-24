@@ -7,7 +7,7 @@ import { fmtMbit, limiterLadder, linkUsable } from '../../network/ui/netui';
 import type { Level } from '@/core/ui/logic';
 import type { IconName } from '../../economy/ui/shop/picker';
 
-export type ResId = 'cpu' | 'vrm' | 'ram' | 'psu' | 'queue' | 'net' | `disk:${string}`;
+type ResId = 'cpu' | 'vrm' | 'ram' | 'psu' | 'queue' | 'net' | `disk:${string}`;
 
 export interface ResRow {
   id: ResId;
@@ -20,7 +20,7 @@ export interface ResRow {
   detail: string;
   level: Level;
   /** What is wrong and what to do about it, for a row that is not `ok`. */
-  advice?: string;
+  advice?: string | undefined;
 }
 
 export interface Bottleneck {
@@ -258,7 +258,7 @@ export function bottleneck(rows: ResRow[]): Bottleneck | null {
 
 // ---------- spool settings ----------
 
-export interface SpoolDriveRow {
+interface SpoolDriveRow {
   deviceId: string;
   label: string;
   home: boolean;

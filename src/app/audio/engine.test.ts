@@ -312,7 +312,7 @@ describe('voices, rate limits and ducking', () => {
     expect(key && standard).toBeTruthy();
     eng.playCue(key!.id);
     eng.playCue(standard!.id);
-    const deep = Math.pow(10, MIX.ducking.cueDuckDb.key / 20);
+    const deep = 10 ** (MIX.ducking.cueDuckDb.key / 20);
     const writes = (eng.musicDuck as unknown as Gain).gain.log;
     expect(Math.min(...writes)).toBeCloseTo(deep, 3);
     expect(writes[writes.length - 1]!).toBeCloseTo(1, 6); // the release returns music to unity gain
@@ -383,7 +383,7 @@ describe('level-up stinger: engine', () => {
     await eng.preload([LEVEL_UP_C]);
     vi.spyOn(performance, 'now').mockReturnValue(5000);
     eng.playCue('level_up');
-    const deep = Math.pow(10, MIX.ducking.cueDuckDb.milestone / 20);
+    const deep = 10 ** (MIX.ducking.cueDuckDb.milestone / 20);
     const writes = (eng.musicDuck as unknown as Gain).gain.log;
     expect(Math.min(...writes)).toBeCloseTo(deep, 3);
   });
@@ -396,7 +396,7 @@ describe('level-up stinger: engine', () => {
     await eng.preload([LEVEL_UP_C]);
     vi.spyOn(performance, 'now').mockReturnValue(5000);
     eng.playCue('level_up');
-    const deep = Math.pow(10, MIX.ducking.cueDuckDb.milestone / 20);
+    const deep = 10 ** (MIX.ducking.cueDuckDb.milestone / 20);
     // Every gain node that dipped to the milestone depth: the music duck and the ambience duck.
     const dipped = ctx().gains.filter((g) => g.gain.log.some((x) => Math.abs(x - deep) < 1e-3));
     expect(dipped.length).toBeGreaterThanOrEqual(2);
@@ -422,7 +422,7 @@ describe('level-up stinger: engine', () => {
 // the context suspends after `hiddenTab.suspendAfterMs`, and a visible tab resumes it and fades back in.
 describe('hidden tab', () => {
   const FADE = (): Gain => ctx().gains[0]!; // openGraph makes the fade node first
-  const lastTarget = (g: Gain): number | undefined => g.gain.log[g.gain.log.length - 1];
+  const lastTarget = (g: Gain): number | undefined => g.gain.log.at(-1);
 
   it('a cue asked for while hidden is refused', async () => {
     const eng = await import('./engine');

@@ -133,7 +133,7 @@ describe.skipIf(!GATE)('motion with reduced motion on, in the browser (ticket #4
         await page.click('.pl-menu.newgame .pl-row.hero');
         await page.waitForSelector('[data-step="welcome"]', { timeout: BOOT_MS });
       } catch (e) {
-        throw new Error(`${(e as Error).message}\nthe page said: ${said()}`);
+        throw new Error(`${(e as Error).message}\nthe page said: ${said()}`, { cause: e });
       }
       expect(errors, 'no page error or console error with reduced motion on').toEqual([]);
       await ctx.close();

@@ -7,10 +7,10 @@
 /** A raw term reaches 1 this far past its threshold. */
 export const STRESS_SCALE = 0.2;
 /** The power ratio where the power term starts (music-spec.json: totalW / budgetW - 0.9). */
-export const POWER_THRESHOLD = 0.9;
+const POWER_THRESHOLD = 0.9;
 
 /** The parts of a snapshot the stress reads. Every field may be missing: a missing term is 0. */
-export interface StressVrm {
+interface StressVrm {
   loadRatio?: number;
   tempC?: number;
   throttleC?: number;
@@ -18,10 +18,10 @@ export interface StressVrm {
 }
 
 export interface StressSnap {
-  devices?: readonly { throttle?: number }[] | null;
+  devices?: readonly { throttle?: number | undefined }[] | null | undefined;
   /** The board's VRM, at top level. A snapshot that carries it only under `board` (the game's shape) is read there too. */
-  vrm?: StressVrm | null;
-  board?: { vrm?: StressVrm | null } | null;
+  vrm?: StressVrm | null | undefined;
+  board?: { vrm?: StressVrm | null | undefined } | null | undefined;
   power?: { totalW?: number; budgetW?: number } | null;
 }
 

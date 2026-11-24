@@ -5,7 +5,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDirector, type DirectorSnap, type Scene } from './director';
 import { keyName, keyPcForLevel } from './keys';
-import { MIX } from './mixTokens';
 
 type Quant = 'bar' | 'beat' | 'now';
 type LoopId = 'amb_room_city_loop' | 'amb_machine_hum_loop';

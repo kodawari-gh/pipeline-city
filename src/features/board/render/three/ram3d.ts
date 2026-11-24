@@ -182,7 +182,7 @@ function plateShape(v1: number, u0: number, u1: number, c: number): Shape {
 let chipTex: Texture | null | undefined;
 
 /** The gold fingers on each face by generation: an SDR stick has 168 pins, a DDR2 or DDR3 240, a DDR4 or DDR5 288 (half on each face). */
-export const stickPins = (visual: string): number =>
+const stickPins = (visual: string): number =>
   visual === 'dimm-basic' ? 84 : visual === 'dimm-fast' || visual === 'dimm-ddr3' ? 120 : 144;
 
 /** A DRAM chip's face (as wide as the chip is long, 230 by 180): black epoxy with a sheen, the pin-1 dot, the maker's lockup, a part number, a date code and a data-matrix square, laser-etched. */
@@ -248,7 +248,7 @@ export function dimmSlot(
       hy = end < 0 ? r.y : r.y + r.h;
     pivot.position.set(cx, -hy, BOARD_Z);
     pivot.rotation.x = end * open;
-    pivot.userData.latchEnd = end; // (Build my PC swings it open for a stick on its way out: `buildmode3d.ts`)
+    pivot.userData['latchEnd'] = end; // (Build my PC swings it open for a stick on its way out: `buildmode3d.ts`)
     const arm = softBox(
       { x: -SLOT_W / 2 + 4, y: end < 0 ? -34 : 0, w: SLOT_W - 8, h: 34 },
       0,

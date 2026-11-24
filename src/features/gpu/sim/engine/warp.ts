@@ -19,10 +19,10 @@ import type { GpuCacheView, GpuEngine, GpuSmView, GpuWarpView, WarpConfig } from
 import { GpuMemSystem, type GpuMemConfig } from './memsys';
 
 /** Cycles before the first issue (fetch and decode of the first instruction) and after the last (execute, write-back). */
-export const WARP_FILL = 2;
-export const WARP_DRAIN = 2;
+const WARP_FILL = 2;
+const WARP_DRAIN = 2;
 /** Cycles a warp cannot issue after a taken branch. */
-export const WARP_BRANCH_PENALTY = 2;
+const WARP_BRANCH_PENALTY = 2;
 
 type State = 'ready' | 'barrier' | 'done';
 

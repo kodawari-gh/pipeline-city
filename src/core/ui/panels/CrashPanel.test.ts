@@ -2,7 +2,6 @@
 // (copy, download, close). It is never a dead end. Written before the coder's changes: the way-forward rules fail until they land.
 // The node run has no DOM, so CrashPanel is called as a plain function and its element tree is walked (the Hud.test.ts pattern).
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { crash } from '@/app/store';
 import type { CrashReport } from '@/worker/crash';
 
 const hooks = vi.hoisted(() => ({ effects: [] as (() => unknown)[] }));
@@ -20,13 +19,13 @@ type Node = VEl | string | number | boolean | null | undefined | Node[];
 /** Every element in the tree, depth first. */
 function all(v: Node): VEl[] {
   if (Array.isArray(v)) return v.flatMap(all);
-  if (v && typeof v === 'object' && 'props' in v) return [v, ...all(v.props.children as Node)];
+  if (v && typeof v === 'object' && 'props' in v) return [v, ...all(v.props['children'] as Node)];
   return [];
 }
 /** The text a node shows: its strings and numbers, in order. */
 function text(v: Node): string {
   if (Array.isArray(v)) return v.map(text).join('');
-  if (v && typeof v === 'object' && 'props' in v) return text(v.props.children as Node);
+  if (v && typeof v === 'object' && 'props' in v) return text(v.props['children'] as Node);
   return typeof v === 'string' || typeof v === 'number' ? String(v) : '';
 }
 const buttons = (tree: Node) => all(tree).filter((el) => el.type === 'button');
@@ -80,16 +79,16 @@ describe('the crash state', () => {
   it('gives a way forward: copy, download and close are each a button', async () => {
     const store = await import('@/app/store');
     store.crash.value = report;
-    const labels = buttons(CrashPanel()).map((b) => text(b.props.children as Node).trim());
+    const labels = buttons(CrashPanel()).map((b) => text(b.props['children'] as Node).trim());
     expect(labels).toEqual(expect.arrayContaining(['Copy report', 'Download report', 'Close']));
   });
 
   it('Close clears the crash and the panel goes away (no dead end)', async () => {
     const store = await import('@/app/store');
     store.crash.value = report;
-    const close = buttons(CrashPanel()).find((b) => text(b.props.children as Node).trim() === 'Close');
-    expect(close?.props.onClick).toBeTypeOf('function');
-    close!.props.onClick();
+    const close = buttons(CrashPanel()).find((b) => text(b.props['children'] as Node).trim() === 'Close');
+    expect(close?.props['onClick']).toBeTypeOf('function');
+    close!.props['onClick']();
     expect(store.crash.value).toBeNull();
     expect(CrashPanel()).toBeNull();
   });

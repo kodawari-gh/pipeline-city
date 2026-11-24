@@ -301,15 +301,15 @@ describe('the arrival mix', () => {
       return Object.fromEntries(m.map(([c, w]) => [c.id, w / total]));
     };
     for (const level of [1, 2, 3]) expect(share(level, 1, {}, 0)).toEqual({ cli: 1 });
-    expect(share(4, 1, {}, 0).scan).toBeUndefined();
+    expect(share(4, 1, {}, 0)['scan']).toBeUndefined();
     const s5 = share(5, 1, { 5: 1e9 }, 1e9 + 10000); // fully ramped
-    expect(s5.scan).toBeCloseTo(0.25, 2);
-    expect(s5.cli).toBeCloseTo(0.4, 2);
+    expect(s5['scan']).toBeCloseTo(0.25, 2);
+    expect(s5['cli']).toBeCloseTo(0.4, 2);
     // Scan ramps in over 300 ticks from its level; the moment the level is reached there is no scan at all.
-    expect(share(5, 1, { 5: 0 }, 0).scan ?? 0).toBe(0);
-    expect(share(5, 1, { 5: 0 }, 150).scan).toBeLessThan(0.2);
+    expect(share(5, 1, { 5: 0 }, 0)['scan'] ?? 0).toBe(0);
+    expect(share(5, 1, { 5: 0 }, 150)['scan']).toBeLessThan(0.2);
     // web arrives at level 4: nothing at the moment the level is reached, half its share after 300 ticks, all after 600.
-    expect(share(4, 1, { 4: 1000 }, 1000).web ?? 0).toBe(0);
+    expect(share(4, 1, { 4: 1000 }, 1000)['web'] ?? 0).toBe(0);
     const half = jobMix(4, 1, { 4: 1000 }, 1300).find(([c]) => c.id === 'web')![1];
     expect(half).toBeCloseTo(7.5, 6);
     expect(jobMix(4, 1, { 4: 1000 }, 1600).find(([c]) => c.id === 'web')![1]).toBe(15);
@@ -657,7 +657,7 @@ describe('sandbox rules level', () => {
     expect(g.setLevel(3)).toMatchObject({ ok: true, level: 3 });
     expect(g.snapshot().patience.mul).toBe(3);
     expect(g.snapshot().level.level).toBe(3);
-    for (const bad of [0, 19, 2.5, NaN]) expect(g.setLevel(bad).ok, String(bad)).toBe(false);
+    for (const bad of [0, 19, 2.5, Number.NaN]) expect(g.setLevel(bad).ok, String(bad)).toBe(false);
     const c = new Game({ seed: 1 });
     expect(c.setLevel(5)).toEqual({ ok: false, reason: 'sandbox mode only' });
     expect(c.level).toBe(1);

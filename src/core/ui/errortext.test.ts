@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 import * as fsMod from 'node:fs';
 // @ts-ignore
 import * as urlMod from 'node:url';
+
 const fs = fsMod as any;
 const ROOT: string = urlMod.fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -21,11 +22,11 @@ const MIN_REM = 1;
 /** The smallest contrast (WCAG AA, normal text) for the colour of such a message on the panel behind it. */
 const MIN_CONTRAST = 4.5;
 
-const css = fs.readFileSync(`${ROOT}src/core/ui/ui.css`, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '') as string;
+const css = fs.readFileSync(`${ROOT}src/core/ui/ui.css`, 'utf8').replaceAll(/\/\*[\s\S]*?\*\//g, '') as string;
 const html = fs
   .readFileSync(`${ROOT}index.html`, 'utf8')
-  .replace(/<!--[\s\S]*?-->/g, '')
-  .replace(/\/\*[\s\S]*?\*\//g, '') as string;
+  .replaceAll(/<!--[\s\S]*?-->/g, '')
+  .replaceAll(/\/\*[\s\S]*?\*\//g, '') as string;
 
 interface Rule {
   selector: string;
@@ -36,7 +37,7 @@ interface Rule {
 function rules(text: string): Rule[] {
   const out: Rule[] = [];
   for (const m of text.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    for (const sel of m[1]!.split(',')) out.push({ selector: sel.replace(/\s+/g, ' ').trim(), body: m[2]! });
+    for (const sel of m[1]!.split(',')) out.push({ selector: sel.replaceAll(/\s+/g, ' ').trim(), body: m[2]! });
   }
   return out;
 }
@@ -54,8 +55,8 @@ const VARS = rootVars(css);
 /** A value with its var(--x) replaced from :root (a few levels deep). */
 function resolve(value: string): string {
   let v = value.trim();
-  for (let i = 0; i < 6 && /var\(/.test(v); i++)
-    v = v.replace(/var\((--[\w-]+)\s*(?:,[^)]*)?\)/g, (_, n: string) => VARS.get(n) ?? '0');
+  for (let i = 0; i < 6 && v.includes('var('); i++)
+    v = v.replaceAll(/var\((--[\w-]+)\s*(?:,[^)]*)?\)/g, (_, n: string) => VARS.get(n) ?? '0');
   return v;
 }
 
@@ -94,7 +95,7 @@ function sizesOf(body: string): string[] {
   const out: string[] = [];
   for (const m of body.matchAll(/(?:^|;)\s*font-size\s*:\s*([^;]+)/g)) out.push(m[1]!.trim());
   for (const m of body.matchAll(/(?:^|;)\s*font\s*:\s*([^;]+)/g)) {
-    const t = m[1]!.replace(/var\([^)]*\)/g, (x) => resolve(x));
+    const t = m[1]!.replaceAll(/var\([^)]*\)/g, (x) => resolve(x));
     const s = /(?:^|\s)((?:max|min|clamp)\([^)]*\)|-?\d*\.?\d+(?:rem|px|em|vmin|vw|vh|%))(?:\/[^\s]+)?(?:\s|$)/.exec(t);
     if (s) out.push(s[1]!);
   }
@@ -159,7 +160,7 @@ describe('the text of a message that decides an action is 1 rem or larger', () =
 /** WCAG relative luminance of a #rrggbb colour. */
 function luminance(hex: string): number {
   const c = [1, 3, 5]
-    .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255)
     .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
   return 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
 }

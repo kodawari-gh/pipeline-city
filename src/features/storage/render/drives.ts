@@ -14,7 +14,7 @@ export const driveKindOf = (visual: string): DriveKind =>
   visual === 'ssd-nvme' ? 'ssd-nvme' : visual === 'ssd-sata' ? 'ssd-sata' : 'hdd';
 
 /** Index of a slot id: sata3 -> 3, m21 -> 1 (the number after the type). */
-export const slotIndex = (slot: string): number => Number(slot.replace(/^(sata|m2)/, '')) || 0;
+const slotIndex = (slot: string): number => Number(slot.replace(/^(sata|m2)/, '')) || 0;
 
 /** The SATA drives are drawn at this design size (a cell of 700 x 500) and scaled to the cell of the cage. */
 const DESIGN = { w: 700, h: 500 };
@@ -45,7 +45,7 @@ export function driveBody(kind: DriveKind, slot: string): Rect {
  * An NVMe stick's parts over its body `b`, as a real 2280 lays them out: the controller (13 mm square) by the fingers, its DRAM cache, two NAND
  * packages, and the finned spreader over the DRAM and the NAND, short of the notch.
  */
-export function nvmeParts(b: Rect): { ctrl: Rect; dram: Rect; nand: Rect[]; sink: Rect } {
+function nvmeParts(b: Rect): { ctrl: Rect; dram: Rect; nand: Rect[]; sink: Rect } {
   const cy = b.y + b.h / 2;
   return {
     ctrl: { x: b.x + 110, y: cy - 150, w: 300, h: 300 },
@@ -58,24 +58,12 @@ export function nvmeParts(b: Rect): { ctrl: Rect; dram: Rect; nand: Rect[]; sink
   };
 }
 
-/**
- * The small OS chip on the drive that hosts the OS (hover / select / highlight / flyTo id `os`): on an NVMe stick, a sticker on the spreader's
- * north edge, clear of the drive view's title (diskview.ts).
- */
-export function osBadgeRect(kind: DriveKind, slot: string): Rect {
-  const b = driveBody(kind, slot);
-  const k = kind === 'ssd-nvme' ? 1 : driveScale();
-  return kind === 'ssd-nvme'
-    ? { x: b.x + 560, y: b.y + 18, w: 140, h: 62 }
-    : { x: b.x + 14 * k, y: b.y + 12 * k, w: 140 * k, h: 62 * k };
-}
-
 /** Cell/slot rect that a drive of this slot occupies (drop target). */
 export const slotRect = (slot: string): Rect =>
   slot.startsWith('m2') ? M2_SLOTS[slotIndex(slot)]! : BAY_CELLS[slotIndex(slot)]!;
 
-const metal = (T: Theme) => '#2c3548';
-const metalHi = (T: Theme) => '#3a4660';
+const metal = (_T: Theme) => '#2c3548';
+const metalHi = (_T: Theme) => '#3a4660';
 
 /** Static casing, centred nowhere: drawn straight in world coordinates. */
 export function driveArt(T: Theme, kind: DriveKind, slot: string, capLabel: string): Container {

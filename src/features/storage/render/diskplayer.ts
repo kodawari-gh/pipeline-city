@@ -15,7 +15,7 @@ import type { DiskPlan } from './diskfloor';
 import { CELL_BLOCKS, headTrack, platterCell } from './diskplan';
 import type { DriveKind } from './drives';
 
-export type StepKind = 'cmd' | 'lookup' | 'send' | 'array' | 'return' | 'seek' | 'rotate' | 'media' | 'status';
+type StepKind = 'cmd' | 'lookup' | 'send' | 'array' | 'return' | 'seek' | 'rotate' | 'media' | 'status';
 
 /** One step: it starts at `at` ms into the script and lasts `dur` ms. */
 export interface Step {

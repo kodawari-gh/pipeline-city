@@ -72,7 +72,7 @@ describe('patience by level', () => {
     expect(save.version).toBe(5);
     expect(Game.fromSave(save).snapshot().patience.sinceFirstBoot).toBe(1000);
     const old = json(g.toSave()) as unknown as Record<string, unknown>;
-    delete old.firstBootTick;
+    delete old['firstBootTick'];
     expect(Game.fromSave(old).snapshot().patience.sinceFirstBoot).toBe(0);
     expect(() => parseSave({ ...json(g.toSave()), firstBootTick: -3 })).toThrow(/firstBootTick/);
   });
@@ -80,9 +80,9 @@ describe('patience by level', () => {
   it('an older save without firstManualCycle gets it from firstKeyEjected', () => {
     const g = new Game({ seed: 1, economy: { baseDemandPerTick: 0 } });
     const s = json(g.toSave()) as unknown as { progress: Record<string, boolean> };
-    delete s.progress.firstManualCycle;
+    delete s.progress['firstManualCycle'];
     expect(parseSave(migrate(json(s))).progress.firstManualCycle).toBe(false);
-    s.progress.firstKeyEjected = true;
+    s.progress['firstKeyEjected'] = true;
     expect(parseSave(migrate(json(s))).progress.firstManualCycle).toBe(true);
   });
 });

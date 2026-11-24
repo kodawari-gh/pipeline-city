@@ -21,15 +21,15 @@ export const CTRL_DIE = { w: 200, h: 200 } as const,
   NAND_DIE = { w: 252, h: 168 } as const,
   PLATTER = { w: 200, h: 200, R: 100 } as const;
 
-export type CtrlKind = 'iface' | 'cores' | 'queue' | 'ecc' | 'cache' | 'channel';
-export interface CtrlBlock {
+type CtrlKind = 'iface' | 'cores' | 'queue' | 'ecc' | 'cache' | 'channel';
+interface CtrlBlock {
   id: string;
   kind: CtrlKind;
   label: string;
   rect: DieRect;
   grid?: { cols: number; rows: number };
 }
-export interface CtrlLink {
+interface CtrlLink {
   kind: 'host' | 'data' | 'channel' | 'ctl';
   pts: [number, number][];
 }
@@ -121,13 +121,13 @@ export function ctrlDiePlan(kind: Exclude<DriveKind, 'hdd'>): CtrlPlan {
   return { w, h, blocks, links, channels: n };
 }
 
-export interface NandPlane {
+interface NandPlane {
   rect: DieRect;
   array: DieRect;
   decoder: DieRect;
   buffer: DieRect;
 }
-export interface NandTile {
+interface NandTile {
   rect: DieRect;
   planes: NandPlane[];
   periphery: { id: string; label: string; rect: DieRect }[];

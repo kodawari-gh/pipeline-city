@@ -7,6 +7,7 @@ import { planInput } from '../core/cpuplan';
 import { cpuPlan } from '../core/cpuplans';
 import { glyph, glyphArea, type Put } from './blockart';
 import { hasSymbol, isTall } from './glyphgeom';
+
 export { isTall };
 
 // The static art of a CPU die, drawn from a `CpuPlan` (docs/DIE.md): macro blocks with rim lines, dense cell arrays, trace bundles
@@ -17,7 +18,7 @@ export { isTall };
 type Key = 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'bad' | 'mute';
 
 /** The accent of each block kind (the theme token it is drawn with). */
-export const KIND_COLOR: Record<BlockKind, Key> = {
+const KIND_COLOR: Record<BlockKind, Key> = {
   power: 'ld',
   thermal: 'br',
   mc: 'ld',
@@ -61,7 +62,7 @@ export const KIND_COLOR: Record<BlockKind, Key> = {
   resultbus: 'mul',
   ring: 'mul',
 };
-export const LINK_COLOR: Record<LinkKind, Key> = {
+const LINK_COLOR: Record<LinkKind, Key> = {
   data: 'alu',
   control: 'mute',
   flush: 'bad',
@@ -73,7 +74,7 @@ export const LINK_COLOR: Record<LinkKind, Key> = {
   power: 'ld',
 };
 /** Links drawn dashed: they carry an event, not a stream. */
-export const EVENT_LINK: ReadonlySet<LinkKind> = new Set<LinkKind>(['flush', 'forward', 'wakeup', 'irq']);
+const EVENT_LINK: ReadonlySet<LinkKind> = new Set<LinkKind>(['flush', 'forward', 'wakeup', 'irq']);
 /** The die side each board-facing block's bond pads sit on. */
 const PAD_SIDE: Partial<Record<BlockKind, 'N' | 'S' | 'E' | 'W'>> = {
   power: 'N',
@@ -84,8 +85,6 @@ const PAD_SIDE: Partial<Record<BlockKind, 'N' | 'S' | 'E' | 'W'>> = {
   usb: 'W',
   display: 'W',
 };
-
-export const colorOf = (T: Theme, k: Key): string => T[k];
 
 /** What the art needs of a block and a link, so a CPU die and a GPU card are drawn by the same code (`planFar`, `planNear`). */
 export interface PlanBlock {
@@ -304,7 +303,7 @@ export function planNear<B extends PlanBlock, L extends PlanLink>(
 }
 
 /** How the CPU die is drawn. */
-export const CPU_STYLE: PlanStyle<Block, Link> = {
+const CPU_STYLE: PlanStyle<Block, Link> = {
   color: (T, b) => T[KIND_COLOR[b.kind]],
   linkColor: (T, l) => T[LINK_COLOR[l.kind]],
   dashed: (l) => EVENT_LINK.has(l.kind),

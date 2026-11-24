@@ -196,7 +196,7 @@ describe('the tutorial is completable with public actions', () => {
   it('a bot follows every step from a fresh game to the last card, in order, within 10 minutes per step', () => {
     resetTutorialState();
     const g = new Game({ seed: 7, economy: { startMoney: CAMPAIGN_START_MONEY } });
-    const seen: Array<{ id: StepId; tick: number }> = [];
+    const seen: { id: StepId; tick: number }[] = [];
     let last: StepId | null = null;
     let finishedAt = -1;
 
@@ -238,7 +238,7 @@ describe('the tutorial is completable with public actions', () => {
     // Re-run the same route, collecting every refusal the public actions give back.
     resetTutorialState();
     const g = new Game({ seed: 7, economy: { startMoney: CAMPAIGN_START_MONEY } });
-    let refused: string[] = [];
+    const refused: string[] = [];
     const wrap = <T extends { ok: boolean; reason?: string }>(name: string, r: T): T => {
       if (!r.ok) refused.push(`${name}: ${r.reason}`);
       return r;
@@ -272,7 +272,7 @@ describe('the tutorial is completable with public actions', () => {
 function runTutorial(seed: number, every: number) {
   resetTutorialState();
   const g = new Game({ seed, economy: { startMoney: CAMPAIGN_START_MONEY } });
-  const seen: Array<{ id: StepId; tick: number }> = [];
+  const seen: { id: StepId; tick: number }[] = [];
   const refused: string[] = [];
   const wrap = <T extends { ok: boolean; reason?: string }>(name: string, r: T): T => {
     if (!r.ok) refused.push(`${name}: ${r.reason}`);

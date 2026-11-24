@@ -20,7 +20,7 @@ import type { FacadeUniforms } from './towers';
 import { STYLES } from './plan';
 
 /** The city's lamps the buildings take their light from at Low: the view's eight PointLights, here as an analytic term. */
-export const LOW_LAMPS = 8;
+const LOW_LAMPS = 8;
 /** The lamps' reach (the view's PointLight distance). */
 const LAMP_REACH = 45;
 /** The lamps' live state: `k` is the lamps' intensity (0 by day), `col` their colour, `pos` their world positions (padded to LOW_LAMPS, far off). */
@@ -70,7 +70,7 @@ const RIB_LITE = 1.2;
 const RIB_FRAME: readonly [number, number, number] = [0.72, 0.7, 0.68];
 /** By day a ribbon's glass is its building's tint times this: the dark room behind a half-mirror, as base's reads (a curtain wall's glass
  * mirrors the sky: `LOW_DAY_GLASS`). Its curtains and blinds add their fabric times `RIB_FABRIC`, seen through the same mirror. */
-export const LOW_RIB_GLASS = 0.26;
+const LOW_RIB_GLASS = 0.26;
 const RIB_FABRIC = 0.13;
 /** A wall's lit rooms at night (a ribbon's or a punched wall's) times this: High's lit window (sRGB about 79, 64, 48) under this lambert's emissive. */
 const RIB_LIT = 1.3;
@@ -201,15 +201,15 @@ export function lowFacadeMaterial(lampAt: Vector3[] = []): {
   };
   const mat = new MeshLambertMaterial({ vertexColors: true, map: day, emissive: new Color(0xffffff) });
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.fNight = u.night;
-    sh.uniforms.fTime = u.time;
-    sh.uniforms.fHor = u.hor;
-    sh.uniforms.fSun = u.sun;
-    sh.uniforms.fSunCol = u.sunCol;
-    sh.uniforms.fPixel = u.pixel;
-    sh.uniforms.fLampK = lamps.k;
-    sh.uniforms.fLampCol = lamps.col;
-    sh.uniforms.fLampPos = lamps.pos;
+    sh.uniforms['fNight'] = u.night;
+    sh.uniforms['fTime'] = u.time;
+    sh.uniforms['fHor'] = u.hor;
+    sh.uniforms['fSun'] = u.sun;
+    sh.uniforms['fSunCol'] = u.sunCol;
+    sh.uniforms['fPixel'] = u.pixel;
+    sh.uniforms['fLampK'] = lamps.k;
+    sh.uniforms['fLampCol'] = lamps.col;
+    sh.uniforms['fLampPos'] = lamps.pos;
     sh.vertexShader = sh.vertexShader
       .replace(
         '#include <common>',

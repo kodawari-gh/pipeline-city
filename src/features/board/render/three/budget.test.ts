@@ -35,7 +35,7 @@ function countMachineRoom(roots: Object3D[]): { draws: number; verts: number } {
       const drawnHere = shown(o) && (mesh.layers.mask & 1) !== 0 && [mesh.material].flat().some((x) => x.visible);
       if (!drawnHere) return;
       draws += 1;
-      verts += mesh.geometry.attributes.position?.count ?? 0;
+      verts += mesh.geometry.attributes['position']?.count ?? 0;
     });
   }
   return { draws, verts };

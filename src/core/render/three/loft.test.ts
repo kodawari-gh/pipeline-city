@@ -11,15 +11,15 @@ describe('frameLoft', () => {
   ] as const;
 
   it('spans the rect and the profile height', () => {
-    const b = new Box3().setFromBufferAttribute(frameLoft(1000, 600, profile).attributes.position as never);
+    const b = new Box3().setFromBufferAttribute(frameLoft(1000, 600, profile).attributes['position'] as never);
     expect(b.min.toArray()).toEqual([-500, -300, 0]);
     expect(b.max.toArray()).toEqual([500, 300, 150]);
   });
 
   it('faces out: the top step looks up, the outer wall looks out', () => {
     const g = frameLoft(1000, 600, profile),
-      p = g.attributes.position!,
-      n = g.attributes.normal!;
+      p = g.attributes['position']!,
+      n = g.attributes['normal']!;
     let up = 0,
       out = 0;
     for (let i = 0; i < p.count; i++) {
@@ -50,7 +50,7 @@ describe('taperTube', () => {
         20,
         8,
       ),
-      p = g.attributes.position!;
+      p = g.attributes['position']!;
     let r0 = 0,
       r1 = 0;
     for (let i = 0; i < p.count; i++) {
@@ -73,7 +73,7 @@ describe('ribbon', () => {
           [1000, 0, 0],
         ],
         200,
-      ).attributes.position as never,
+      ).attributes['position'] as never,
     );
     expect(b.getSize(new Vector3()).toArray().map(Math.round)).toEqual([1000, 200, 0]);
   });

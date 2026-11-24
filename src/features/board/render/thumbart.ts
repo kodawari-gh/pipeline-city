@@ -50,12 +50,7 @@ function frameOf(b: { x: number; y: number; width: number; height: number }) {
   return { x: cx - w / 2, y: cy - h / 2, w, h };
 }
 
-function render(
-  r: Renderer,
-  art: Container,
-  T: Theme,
-  frame?: { x: number; y: number; w: number; h: number },
-): ICanvas {
+function render(r: Renderer, art: Container, frame?: { x: number; y: number; w: number; h: number }): ICanvas {
   // wrapped first: the art may carry its own position, scale and pivot, which only a parent's local bounds include
   const stage = new Container();
   stage.addChild(art);
@@ -90,7 +85,7 @@ export function drawThumb(r: Renderer, id: string, T: Theme): ICanvas | null {
       setLayoutTier(tier, tier);
       const a = buildBoard(T, tier, undefined, true);
       a.labels.visible = false;
-      return render(r, a.root, T, frameOf({ x: BD.x, y: BD.y, width: BD.w, height: BD.h }));
+      return render(r, a.root, frameOf({ x: BD.x, y: BD.y, width: BD.w, height: BD.h }));
     }
     if (cm) {
       const tier = Number(cm[1]),
@@ -99,14 +94,14 @@ export function drawThumb(r: Renderer, id: string, T: Theme): ICanvas | null {
       setLayoutTier(tier, tier);
       const art = exteriorArt(T, { nSata: 2, drives: [], features: BOARD_TIERS[tier]!.features });
       const f = exteriorFrame();
-      return render(r, art, T, frameOf({ x: f.x, y: f.y, width: f.w, height: f.h }));
+      return render(r, art, frameOf({ x: f.x, y: f.y, width: f.w, height: f.h }));
     }
     const router = getRouterSpec(id);
-    if (router) return render(r, routerArt(T, router.visual, router.name), T);
+    if (router) return render(r, routerArt(T, router.visual, router.name));
     const isp = getIspSpec(id);
     if (isp) {
       setLayoutTier(2, 2);
-      return render(r, wallArt(T, { id: isp.id, name: isp.name, downMbps: isp.downMbps }), T);
+      return render(r, wallArt(T, { id: isp.id, name: isp.name, downMbps: isp.downMbps }));
     }
     const spec = getSpec(id);
     if (!spec) return null;
@@ -137,7 +132,6 @@ export function drawThumb(r: Renderer, id: string, T: Theme): ICanvas | null {
         return render(
           r,
           holder,
-          T,
           frameOf({ x: -FAN_ART_MAX / 2, y: -FAN_ART_MAX / 2, width: FAN_ART_MAX, height: FAN_ART_MAX }),
         );
       case 'psu':
@@ -178,7 +172,7 @@ export function drawThumb(r: Renderer, id: string, T: Theme): ICanvas | null {
         holder.destroy();
         return null;
     }
-    return render(r, holder, T);
+    return render(r, holder);
   } finally {
     setLayoutTier(prev[0], prev[1]);
   }

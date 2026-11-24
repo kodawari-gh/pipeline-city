@@ -14,7 +14,7 @@ import type { Result } from '@/worker/game/types';
 export function spawnKey(this: Game, template: string, scale = 1): Result<{ keyId: number }> {
   if (!this.sandbox) return NOT_SANDBOX;
   const cls = typeof template === 'string' ? jobClass(template) : undefined;
-  if (!cls && (typeof template !== 'string' || !Object.prototype.hasOwnProperty.call(TEMPLATES, template)))
+  if (!cls && (typeof template !== 'string' || !Object.hasOwn(TEMPLATES, template)))
     return { ok: false, reason: `unknown job template "${String(template)}"` };
   if (!Number.isInteger(scale) || scale < 1 || scale > 16)
     return { ok: false, reason: 'scale must be a whole number from 1 to 16' };

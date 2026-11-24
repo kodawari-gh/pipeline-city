@@ -4,11 +4,10 @@
 // the seated cable, the loose one and the held one, so nothing swaps when a plug goes in or out. Each strand has one length, the one it has
 // seated: loose or held, the plug goes only as far as that reaches.
 import { Group, Quaternion, Vector3, type Object3D } from 'three';
-import { lowDetail } from '@/core/render/three/detail';
 import { mergeWithin } from '@/core/render/three/merge';
 import { dist, hang, lengthOf, type Plane, type RopeEnd, type V3 } from '@/core/render/three/rope';
 import type { RigPower } from './power/runs';
-import { cableMesh, loosePlug, type Env, type Look } from './wires3d';
+import { cableMesh, type Env, type Look } from './wires3d';
 
 /** A socket's mouth and the way a plug pulls out of it (a unit vector). */
 export interface Seat {
@@ -49,7 +48,7 @@ export interface CableRig {
    *  the plug that socket takes (one of another size or turn: a card's real HDMI, the board's smaller one), built in the rig's seat. */
   alts?: { port: string; at: V3; model?: () => { root: Object3D; strands: RopeEnd[] } }[];
   /** `connectCable`'s port argument for the seat itself. */
-  port?: string;
+  port?: string | undefined;
   /** False when nothing takes it now (a PCIe lead with no card): its seat is only where its model is built. */
   canSeat: boolean;
   /** How far the plug goes in: it pops free past this, it lines up this far out of the mouth. */
@@ -71,21 +70,6 @@ export interface CableRig {
 
 const V = (p: V3) => new Vector3(p[0], p[1], p[2]);
 const T = (v: Vector3): V3 => [v.x, v.y, v.z];
-
-/** A straight plug standing out of its seat along the axis, `l` long (a video or mains plug): its model and its exit. */
-export function straightPlug(
-  seat: Seat,
-  w: number,
-  h: number,
-  l: number,
-  accent: string,
-): { root: Object3D; strands: RopeEnd[] } {
-  const root = loosePlug(w, h, l, accent),
-    ax = V(seat.axis);
-  root.quaternion.setFromUnitVectors(new Vector3(0, 0, 1), ax);
-  root.position.copy(V(seat.at).addScaledVector(ax, l));
-  return { root, strands: [{ at: T(V(seat.at).addScaledVector(ax, l + 2)), dir: seat.axis }] };
-}
 
 /**
  * A plug model (plugs3d.ts: built round its own z axis, its socket's mouth at z = -l, the cable leaving at 0) standing in its seat, turned `roll`
@@ -128,7 +112,7 @@ export function middle(ends: readonly RopeEnd[]): RopeEnd {
 }
 
 /** The pose of a plug hanging at a cable's tip: its strands' middle on the tip, the cable leaving it back along the tip's direction (`free` of the turn there, `freedom`). */
-export function poseOnTip(seat: Seat, exits: readonly RopeEnd[], tip: { at: V3; dir: V3 }, free = 1): Pose {
+function poseOnTip(seat: Seat, exits: readonly RopeEnd[], tip: { at: V3; dir: V3 }, free = 1): Pose {
   const m = middle(exits),
     q = new Quaternion().slerp(new Quaternion().setFromUnitVectors(V(m.dir), V(tip.dir).negate().normalize()), free);
   return { at: T(V(tip.at).sub(V(m.at).sub(V(seat.at)).applyQuaternion(q))), q };
@@ -294,9 +278,9 @@ export function rigBuild(
 ): { group: Group; strands: V3[][]; seated: boolean } {
   const g = new Group(),
     m = rig.model();
-  g.userData.rig = true;
+  g.userData['rig'] = true;
   if (seated && rig.canSeat) {
-    m.root.userData.plug = true;
+    m.root.userData['plug'] = true;
     const strands = rig.seated(m.strands);
     g.add(m.root, ...skins(rig, strands));
     if (rig.extra) g.add(rig.extra());
@@ -304,7 +288,7 @@ export function rigBuild(
   }
   const l = looseState(rig, m.strands, rest);
   const pivot = pivotOf(rig.seat, m.root, l.rest.pose);
-  pivot.userData.plug = true;
+  pivot.userData['plug'] = true;
   g.add(pivot, ...skins(rig, l.strands));
   return { group: merged(g), strands: l.strands, seated: false };
 }

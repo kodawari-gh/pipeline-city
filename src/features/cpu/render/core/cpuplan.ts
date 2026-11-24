@@ -106,7 +106,7 @@ export interface Link {
   both?: boolean;
 }
 
-export type Arch = 'unpipelined' | 'inorder' | 'inorder2' | 'ooo';
+type Arch = 'unpipelined' | 'inorder' | 'inorder2' | 'ooo';
 
 export interface PlanInput {
   arch: Arch;
@@ -114,7 +114,7 @@ export interface PlanInput {
   forwarding?: boolean;
   /** Fetch / dispatch width of the OoO engine (default 2). */
   width?: number;
-  cacheLines?: number;
+  cacheLines?: number | undefined;
   ways?: number;
   icacheLines?: number;
   l2Lines?: number;

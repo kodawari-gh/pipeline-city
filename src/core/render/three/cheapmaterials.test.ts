@@ -41,7 +41,7 @@ describe('cheapMaterials', () => {
         side: DoubleSide,
         alphaTest: 0.2,
       });
-    std.userData.tag = 1;
+    std.userData['tag'] = 1;
     const a = new Mesh(geo, std),
       b = new Mesh(geo, std),
       root = new Group().add(a, b);
@@ -56,7 +56,7 @@ describe('cheapMaterials', () => {
     expect(l.opacity).toBe(0.5);
     expect(l.side).toBe(DoubleSide);
     expect(l.alphaTest).toBe(0.2);
-    expect(l.userData.tag).toBe(1);
+    expect(l.userData['tag']).toBe(1);
     const phys = new Mesh(geo, new MeshPhysicalMaterial());
     cheapMaterials(phys);
     expect((phys.material as unknown as MeshLambertMaterial).isMeshLambertMaterial).toBe(true);
@@ -118,7 +118,7 @@ describe('cheapMaterials', () => {
     const a = new Mesh(geo, basic),
       b = new Mesh(geo, sh),
       c = new Mesh(geo, std);
-    c.userData.standIn = true;
+    c.userData['standIn'] = true;
     cheapMaterials(new Group().add(a, b, c));
     expect([a.material, b.material, c.material]).toEqual([basic, sh, std]);
   });

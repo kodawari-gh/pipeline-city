@@ -8,6 +8,7 @@ import { keyName, keyPcForLevel, pickFile } from './keys';
 import * as fsMod from 'node:fs';
 // @ts-ignore
 import * as urlMod from 'node:url';
+
 const fs = fsMod as any;
 // Token paths are relative to the public root (`audio/sfx/...`), as the loader fetches them.
 const PUBLIC_DIR: string = urlMod.fileURLToPath(new URL('../../../public/', import.meta.url));
@@ -47,13 +48,13 @@ describe('file choice for pitched cues', () => {
   it.each(Array.from({ length: 12 }, (_, i) => i + 1))('level %i: the nearest root is within one semitone', (level) => {
     const keyPc = keyPcForLevel(level);
     const pick = pickFile(cue('payout'), keyPc, new Map());
-    const root = pick.path.match(/payout__(\w+)\.ogg$/)?.[1] ?? '';
+    const root = /payout__(\w+)\.ogg$/.exec(pick.path)?.[1] ?? '';
     expect(Object.keys(ROOTS)).toContain(root);
     const d = dist(keyPc, ROOTS[root]!);
     expect(Math.abs(d)).toBeLessThanOrEqual(1);
     // Nearest: no other render root is closer.
     for (const pc of Object.values(ROOTS)) expect(Math.abs(d)).toBeLessThanOrEqual(Math.abs(dist(keyPc, pc)));
-    expect(pick.rate).toBeCloseTo(Math.pow(2, d / 12), 6);
+    expect(pick.rate).toBeCloseTo(2 ** (d / 12), 6);
   });
 
   it('level 13 picks the same file as level 1', () => {

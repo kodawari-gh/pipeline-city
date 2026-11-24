@@ -100,7 +100,7 @@ describe('pipeSnapOf', () => {
       expect(r.text.length).toBeGreaterThan(1);
     }
     // an instruction that went all the way through shows its stages in order: F D X M W
-    const full = tr.rows.find((r) => /F+D+X+M+W/.test(r.codes.replace(/ /g, '')));
+    const full = tr.rows.find((r) => /F+D+X+M+W/.test(r.codes.replaceAll(' ', '')));
     expect(full).toBeDefined();
     // ids ascend
     for (let i = 1; i < tr.rows.length; i++) expect(tr.rows[i]!.id).toBeGreaterThan(tr.rows[i - 1]!.id);

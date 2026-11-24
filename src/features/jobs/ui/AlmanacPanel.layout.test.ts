@@ -9,13 +9,14 @@ import { describe, expect, it } from 'vitest';
 import * as fsMod from 'node:fs';
 // @ts-ignore
 import * as urlMod from 'node:url';
+
 const fs = fsMod as any;
 
 const css: string = fs.readFileSync(urlMod.fileURLToPath(new URL('../../../core/ui/ui.css', import.meta.url)), 'utf8');
 
 /** Rules of the sheet, flat: each block's selector text and declarations. @media wrappers are skipped (their rules are still read). */
 function rulesOf(text: string): { selector: string; decls: Record<string, string> }[] {
-  const src = text.replace(/\/\*[\s\S]*?\*\//g, '');
+  const src = text.replaceAll(/\/\*[\s\S]*?\*\//g, '');
   const out: { selector: string; decls: Record<string, string> }[] = [];
   for (const m of src.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     const selector = m[1]!.replace(/^[\s\S]*?@[\w-]+[^{]*$/m, '').trim();
@@ -23,7 +24,7 @@ function rulesOf(text: string): { selector: string; decls: Record<string, string
     const decls: Record<string, string> = {};
     for (const part of m[2]!.split(';')) {
       const at = part.indexOf(':');
-      if (at >= 0) decls[part.slice(0, at).trim().toLowerCase()] = part.slice(at + 1).trim();
+      if (at !== -1) decls[part.slice(0, at).trim().toLowerCase()] = part.slice(at + 1).trim();
     }
     out.push({ selector, decls });
   }

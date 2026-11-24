@@ -320,7 +320,7 @@ export class DieView {
           alpha: 0.7,
         });
       }
-      txt(gau.used + '/' + gau.cap, barX + barW + 6, cy, gau.used >= gau.cap ? T.br : T.ink, false, 0.9);
+      txt(`${gau.used}/${gau.cap}`, barX + barW + 6, cy, gau.used >= gau.cap ? T.br : T.ink, false, 0.9);
       if (gau.stall) txt(gau.stall, tx + tw, cy, T.br, true);
       y += row;
     }
@@ -349,21 +349,18 @@ export class DieView {
     const sig = ws
       .map(
         (w) =>
-          w.hw +
-          (w.selected ? '*' : '') +
-          w.models.map((m) => [m.tint, m.parked ? 1 : 0, m.sub].join(':')).join('/') +
-          w.models[0]!.cells.join('.') +
-          Math.round(w.models[0]!.fill * 8) +
-          (w.models[0]!.ooo
-            ? w.models[0]!.ooo.gauges.map(
-                (x) => x.used + (x.stall ?? '') + x.slots.map((c) => (c.cls ?? '-') + (c.done ? 1 : 0)).join(''),
-              ).join(',') + w.models[0]!.ooo.units.map((u) => (u.cls ?? '-') + q8(u.progress)).join('')
-            : '') +
-          '~' +
-          q8(w.models[0]!.ipc) +
-          ':' +
-          q8(w.models[0]!.stall) +
-          'd',
+          `${
+            w.hw +
+            (w.selected ? '*' : '') +
+            w.models.map((m) => [m.tint, m.parked ? 1 : 0, m.sub].join(':')).join('/') +
+            w.models[0]!.cells.join('.') +
+            Math.round(w.models[0]!.fill * 8) +
+            (w.models[0]!.ooo
+              ? w.models[0]!.ooo.gauges.map(
+                  (x) => x.used + (x.stall ?? '') + x.slots.map((c) => (c.cls ?? '-') + (c.done ? 1 : 0)).join(''),
+                ).join(',') + w.models[0]!.ooo.units.map((u) => (u.cls ?? '-') + q8(u.progress)).join('')
+              : '')
+          }~${q8(w.models[0]!.ipc)}:${q8(w.models[0]!.stall)}d`,
       )
       .join('|');
     if (sig === this.sig) return;
@@ -490,7 +487,7 @@ export class DieView {
         if (lead.fill > 0) {
           g.rect(tx, cy + ch * 1.25, tw, ch * 0.18).fill({ color: T.line, alpha: 0.3 });
           g.rect(tx, cy + ch * 1.25, tw * lead.fill, ch * 0.18).fill({ color: T.mul });
-          cap('REORDER BUFFER ' + Math.round(lead.fill * 100) + '%', tx + tw, cy + ch * 1.25 + ch * 0.3, T.mul, true);
+          cap(`REORDER BUFFER ${Math.round(lead.fill * 100)}%`, tx + tw, cy + ch * 1.25 + ch * 0.3, T.mul, true);
         }
       }
       // the rate bar: the instructions per cycle in the core's colour (of the tile's width), the cycles lost to stalls in red from the other end
@@ -504,8 +501,8 @@ export class DieView {
         const sw = bw * Math.min(1, lead.stall);
         if (sw > bh) box(g, tx + bw - sw, by, sw, bh, bh / 2, { fill: T.br, fa: 0.85 });
       }
-      cap('IPC ' + lead.ipc.toFixed(2) + ' (work done per cycle)', tx, by + bh * 1.6, lead.color);
-      cap('STALLED ' + Math.round(lead.stall * 100) + '%', tx + tw, by + bh * 1.6 + fs * 1.4, T.br, true);
+      cap(`IPC ${lead.ipc.toFixed(2)} (work done per cycle)`, tx, by + bh * 1.6, lead.color);
+      cap(`STALLED ${Math.round(lead.stall * 100)}%`, tx + tw, by + bh * 1.6 + fs * 1.4, T.br, true);
       // the core badges and the border stay when the wash has faded: a core you zoomed into still says which it is
       const lw = Math.max(2, q.w * 0.004);
       b.roundRect(q.x, q.y, q.w, q.h, rad).stroke({ color: lead.color, width: lw, alpha: asleep(lead) ? 0.35 : 0.9 });

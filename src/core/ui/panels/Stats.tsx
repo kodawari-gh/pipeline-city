@@ -41,7 +41,7 @@ function Fold({
 }: {
   title: string;
   hint?: string;
-  note?: string;
+  note?: string | undefined;
   open?: boolean;
   children: ComponentChildren;
 }) {
@@ -83,15 +83,15 @@ export function Stats() {
         </div>
         <div class="kv">
           <span>retired</span>
-          <b>{c.retired ?? 0}</b>
+          <b>{c['retired'] ?? 0}</b>
         </div>
         <div class="kv">
           <span>cycles</span>
-          <b>{c.cycles ?? 0}</b>
+          <b>{c['cycles'] ?? 0}</b>
         </div>
         <div class="kv" title="Mispredicted branches that threw away work">
           <span>flushes</span>
-          <b>{c.flushes ?? 0}</b>
+          <b>{c['flushes'] ?? 0}</b>
         </div>
       </section>
       <section>
@@ -109,11 +109,11 @@ export function Stats() {
       <Fold title="Cache" note={hit === null ? undefined : `${(hit * 100).toFixed(0)}% hit`}>
         <div class="kv">
           <span>hits</span>
-          <b>{c.cacheHits ?? 0}</b>
+          <b>{c['cacheHits'] ?? 0}</b>
         </div>
         <div class="kv">
           <span>misses</span>
-          <b>{c.cacheMisses ?? 0}</b>
+          <b>{c['cacheMisses'] ?? 0}</b>
         </div>
         <div class="kv">
           <span>hit rate</span>

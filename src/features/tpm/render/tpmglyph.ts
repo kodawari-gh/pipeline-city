@@ -12,16 +12,7 @@ import type { TpmBlock } from './tpmplan';
 // that decide whether an access may pass. Pure drawing into a Graphics (and a callback for the few labels); the rectangles the live layer lights are
 // the `*Geom` functions below, shared by the drawing and by `tpmLive`.
 
-export const TPM_GLYPH_KINDS = new Set<TpmBlock['kind']>([
-  'lpc',
-  'regs',
-  'seq',
-  'hash',
-  'quote',
-  'vault',
-  'ramport',
-  'guard',
-]);
+const TPM_GLYPH_KINDS = new Set<TpmBlock['kind']>(['lpc', 'regs', 'seq', 'hash', 'quote', 'vault', 'ramport', 'guard']);
 
 /** The area a symbol may use: the block under its name (the area the CPU die's cell grids fill), or null when the block is too small. */
 export function tpmGlyphArea(b: Pick<TpmBlock, 'kind' | 'rect'>): Rect | null {
@@ -35,23 +26,23 @@ export function tpmGlyphArea(b: Pick<TpmBlock, 'kind' | 'rect'>): Rect | null {
 const R = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h });
 const hex = (n: number, d = 8): string => (n >>> 0).toString(16).padStart(d, '0');
 
-export const REG_NAMES = ['status', 'cmd', 'arg0', 'arg1', 'result', 'fault'] as const;
-export const FLAGS = [
+const REG_NAMES = ['status', 'cmd', 'arg0', 'arg1', 'result', 'fault'] as const;
+const FLAGS = [
   ['busy', 'BSY'],
   ['error', 'ERR'],
   ['present', 'PRS'],
   ['done', 'DNE'],
   ['prot', 'PRT'],
 ] as const;
-export const STATE_NAMES = ['IDLE', 'IN', 'WORK', 'OUT'] as const;
-export const CMD_NAMES = ['', 'MEASURE', 'ATTEST', 'SEAL', 'UNSEAL', 'PROTECT', 'UNPROTECT'] as const;
-export const FAULT_NAMES = ['', 'BAD COMMAND', 'BAD RANGE', 'NO SUCH KEY', 'VIOLATION'] as const;
-export const LPC_PINS = ['clk', 'frame', 'ad0', 'ad1', 'ad2', 'ad3', 'rst'] as const;
+const STATE_NAMES = ['IDLE', 'IN', 'WORK', 'OUT'] as const;
+const CMD_NAMES = ['', 'MEASURE', 'ATTEST', 'SEAL', 'UNSEAL', 'PROTECT', 'UNPROTECT'] as const;
+const FAULT_NAMES = ['', 'BAD COMMAND', 'BAD RANGE', 'NO SUCH KEY', 'VIOLATION'] as const;
+const LPC_PINS = ['clk', 'frame', 'ad0', 'ad1', 'ad2', 'ad3', 'rst'] as const;
 
 // ---------------------------------------------------------------- the geometry the drawing and the live layer share
 
 /** The header link: a lane per signal, each a row of cells the bits march along, and a meter for the ticks a hop takes. */
-export function lpcGeom(a: Rect) {
+function lpcGeom(a: Rect) {
   const n = LPC_PINS.length,
     lw = 32,
     foot = 44,
@@ -72,7 +63,7 @@ export function lpcGeom(a: Rect) {
 }
 
 /** The six registers: a name and eight hex digits each, the status row as five flag chips. */
-export function regsGeom(a: Rect) {
+function regsGeom(a: Rect) {
   const n = REG_NAMES.length,
     pitch = a.h / n,
     nw = 46,
@@ -99,7 +90,7 @@ export function regsGeom(a: Rect) {
 }
 
 /** The sequencer: its four states, the bar of the phase's ticks and the line naming the command. */
-export function seqGeom(a: Rect) {
+function seqGeom(a: Rect) {
   const sh = Math.min(26, a.h * 0.38),
     gapw = 16,
     sw = (a.w - 3 * gapw) / 4;
@@ -113,7 +104,7 @@ export function seqGeom(a: Rect) {
 }
 
 /** The hash engine: the word in, the round unit (`stages` steps on the serial module, one on the fast one), the accumulator with its feedback, the seed, the progress and the result. */
-export function hashGeom(a: Rect, stages: number) {
+function hashGeom(a: Rect, stages: number) {
   const rowH = Math.min(38, a.h * 0.36),
     arrow = 16,
     word = R(a.x, a.y, 104, rowH),
@@ -144,7 +135,7 @@ export function hashGeom(a: Rect, stages: number) {
 }
 
 /** The quote engine: the nonce and the shift register meet in an xor, then the signing rounds, then the quote. */
-export function quoteGeom(a: Rect, rounds: number) {
+function quoteGeom(a: Rect, rounds: number) {
   const h = Math.min(20, a.h - 6),
     nonce = R(a.x, a.y, 60, h),
     xor = { cx: nonce.x + nonce.w + 22, cy: a.y + h / 2, r: Math.min(8, h / 2) };
@@ -168,7 +159,7 @@ export function quoteGeom(a: Rect, rounds: number) {
 }
 
 /** The sealed storage: a table of slots, a handle and a value in each. */
-export function vaultGeom(a: Rect, keys: number) {
+function vaultGeom(a: Rect, keys: number) {
   const gx = 16,
     gy = 4,
     rows = Math.ceil(keys / 2),
@@ -186,7 +177,7 @@ export function vaultGeom(a: Rect, keys: number) {
 }
 
 /** The bus master: the address it drives, the word it latches, the request and the acknowledge, and the lanes of the RAM bus. */
-export function ramGeom(a: Rect) {
+function ramGeom(a: Rect) {
   const addr = R(a.x, a.y, 240, 26),
     data = R(a.x, a.y + 38, 240, 26),
     bx = a.x + 240 + 18,
@@ -231,7 +222,7 @@ export function guardGeom(a: Rect) {
 }
 
 /** The window the protected range cuts out of the ruler (RAM is `ram` bytes). */
-export function guardWindow(ruler: Rect, range: { lo: number; hi: number }, ram: number): Rect {
+function guardWindow(ruler: Rect, range: { lo: number; hi: number }, ram: number): Rect {
   const x0 = ruler.x + (Math.min(ram, range.lo) / ram) * ruler.w,
     x1 = ruler.x + (Math.min(ram, range.hi) / ram) * ruler.w;
   return R(x0, ruler.y, Math.max(2, x1 - x0), ruler.h);
@@ -545,13 +536,13 @@ export interface TpmShow {
   ms: number;
 }
 
-export type LiveKey = 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'bad';
-export interface TpmLiveItem {
+type LiveKey = 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'bad';
+interface TpmLiveItem {
   rect: Rect;
   color: LiveKey;
   a: number;
 }
-export interface TpmLiveText {
+interface TpmLiveText {
   rect: Rect;
   top: string;
   ink?: boolean;

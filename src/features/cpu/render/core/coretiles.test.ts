@@ -57,7 +57,11 @@ describe('core tiles', () => {
 
   it('tints a thread by its job and its number: one family per job, a different one for another job', () => {
     const hue = (hex: string) => {
-      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number];
+      const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255) as [
+        number,
+        number,
+        number,
+      ];
       const mx = Math.max(r, g, b),
         mn = Math.min(r, g, b),
         d = mx - mn;

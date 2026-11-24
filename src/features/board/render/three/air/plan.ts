@@ -26,7 +26,7 @@ export interface AirBody {
 /** Units to the metre: a millimetre is 23 units. */
 export const UNITS_PER_M = 23000;
 /** The speed of the air at a basic fan's face at full speed, metres per second. A fan's `airflow` rating scales it. */
-export const FAN_FACE_MS = 1.5;
+const FAN_FACE_MS = 1.5;
 /** The tray's face: the air's floor. The case's air is its inside, from the tray to the glass. */
 const TRAY_Z = CASE_Z + 70;
 
@@ -302,7 +302,11 @@ function boxesOf(s: Snapshot, bodies: readonly AirBody[]): AirBox[] {
       visual = (d && (getSpec(d.spec) as { visual?: string } | undefined)?.visual) || '';
     if (b.kind === 'basement' && bay) {
       // the supply stands in the basement: its unit is a part the air goes through, the rest of the basement stays a wall
-      out.push(...carve(b.id, b, bay, BODY_K.basement!), box(bay.id, bay.min, bay.max, PSU_K, bay.id), ...casing(bay));
+      out.push(
+        ...carve(b.id, b, bay, BODY_K['basement']!),
+        box(bay.id, bay.min, bay.max, PSU_K, bay.id),
+        ...casing(bay),
+      );
     } else if (b.kind === 'cooler') {
       if (visual === 'cooler-tower') {
         const t = COOLER_AIR.tower;

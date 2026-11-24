@@ -17,7 +17,7 @@ export const LOD_OVERVIEW = 0.05;
 /** The overview's class. */
 const BIG = LOD_RADII.length - 1;
 /** The zoom under which the class of greatest radius `r` is far. */
-export const farAt = (r: number): number => (r === Infinity ? LOD_OVERVIEW : LOD_PX / r);
+const farAt = (r: number): number => (r === Infinity ? LOD_OVERVIEW : LOD_PX / r);
 /** A class draws as stand-ins while its greatest radius is under this many pixels on the screen. */
 export const LOD_PX = 8;
 /** The dead band: a class goes back to its parts only over `LOD_PX * (1 + LOD_BAND)`, so a zoom that wobbles at the limit switches nothing. */
@@ -54,7 +54,7 @@ export const standInDraws = (far: boolean, sources: readonly Object3D[], holds: 
 const COPY = new Matrix4();
 
 /** The world radius of a mesh: its geometry's sphere at its scale; for an instanced mesh, the radius of its largest copy. World matrices set. */
-export function worldRadius(m: Mesh): number {
+function worldRadius(m: Mesh): number {
   if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
   const im = m as Partial<InstancedMesh> & Mesh;
   let copy = 1;
@@ -98,7 +98,7 @@ export function lodSources(root: Object3D, o: LodScope = {}): Source[] {
     out: Source[] = [];
   const walk = (x: Object3D, anchor: Object3D, off: boolean): void => {
     const u = x.userData;
-    if (!x.visible || u.spin || u.live || u.standIn) return;
+    if (!x.visible || u['spin'] || u['live'] || u['standIn']) return;
     const own = x !== root && anchors.has(x),
       a = own ? x : anchor,
       left = own ? false : off || skip.has(x),
@@ -260,7 +260,7 @@ export class PartLod {
       if (only && b.anchor !== only) return true;
       this.swap(b, false);
       b.mesh.removeFromParent();
-      b.mesh.userData.standIn = false;
+      b.mesh.userData['standIn'] = false;
       b.mesh.geometry.dispose();
       return false;
     });

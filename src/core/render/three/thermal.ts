@@ -4,13 +4,13 @@
 
 /** The stops of the palette: where on the scale (0 cold, 1 hot) and the colour there, as sRGB. */
 export const THERMAL: readonly (readonly [number, number])[] = [
-  [0.0, 0x2f6bff],
+  [0, 0x2f6bff],
   [0.2, 0x7a3df0],
   [0.4, 0xd3306e],
   [0.6, 0xff5a24],
   [0.78, 0xffa51f],
   [0.9, 0xffe45a],
-  [1.0, 0xfff8e0],
+  [1, 0xfff8e0],
 ];
 
 /** The exponent the scale bends by: the first kelvins over the room's already show (the air's own rise is small beside a part's). */
@@ -19,12 +19,12 @@ export const THERMAL_BEND = 0.8;
 /** The temperature `tempC` as a place on the scale from `lo` (0) to `hi` (1). */
 export function heatOf(tempC: number, lo: number, hi: number): number {
   const x = (tempC - lo) / Math.max(1e-6, hi - lo);
-  return Math.pow(Math.min(1, Math.max(0, x)), THERMAL_BEND);
+  return Math.min(1, Math.max(0, x)) ** THERMAL_BEND;
 }
 
 /** The temperature at a place `h` on the scale: the inverse of `heatOf`. */
 export function tempAt(h: number, lo: number, hi: number): number {
-  return lo + Math.pow(Math.min(1, Math.max(0, h)), 1 / THERMAL_BEND) * (hi - lo);
+  return lo + Math.min(1, Math.max(0, h)) ** (1 / THERMAL_BEND) * (hi - lo);
 }
 
 /** The colour at place `h` (0 to 1) as `0xrrggbb` (sRGB). */
@@ -46,7 +46,7 @@ export function thermalGradient(dir: 'to top' | 'to right' = 'to top'): string {
   return `linear-gradient(${dir}, ${THERMAL.map(([t, c]) => `${hex(c)} ${(t * 100).toFixed(0)}%`).join(', ')})`;
 }
 
-const lin = (v: number): number => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+const lin = (v: number): number => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
 
 /**
  * The scale as a GLSL function `vec3 thermal(float h)` in linear colour (the working space of the picture): piecewise between the stops. The ribbons' shader

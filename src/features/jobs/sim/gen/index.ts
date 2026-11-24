@@ -9,27 +9,16 @@ import type { Kernel, Mix } from './kernels';
 import { MAX_CODE_BYTES, TEMPLATES, type GenParams, type ResolvedParams } from './templates';
 
 export * from './kernels';
-export {
-  TEMPLATES,
-  gpuPicture,
-  BUF_BASE,
-  HEAP_BASE,
-  indexBytes,
-  type GenParams,
-  type GpuTarget,
-  type NpuTarget,
-  type ResolvedParams,
-  type TemplateFn,
-} from './templates';
+export { TEMPLATES, gpuPicture, indexBytes, type GenParams, type GpuTarget, type NpuTarget } from './templates';
 
-export interface KernelInfo {
+interface KernelInfo {
   kernel: string;
   ns: string;
   mix: Mix[];
   footprintBytes: number;
 }
 
-export interface GenMeta {
+interface GenMeta {
   template: string;
   seed: number;
   params: ResolvedParams;

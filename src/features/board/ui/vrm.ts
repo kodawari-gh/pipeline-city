@@ -102,8 +102,8 @@ export function vrmReadout(s: Snapshot, rail: VrmRail = 'cpu'): VrmReadout | nul
 }
 
 /** Plain-words status lines for the VRM card. */
-export function vrmLines(v: VrmReadout): Array<{ level: Level | 'info'; text: string }> {
-  const out: Array<{ level: Level | 'info'; text: string }> = [];
+export function vrmLines(v: VrmReadout): { level: Level | 'info'; text: string }[] {
+  const out: { level: Level | 'info'; text: string }[] = [];
   if (v.burnt) {
     out.push({
       level: 'bad',
@@ -135,15 +135,15 @@ export function vrmLines(v: VrmReadout): Array<{ level: Level | 'info'; text: st
 }
 
 /** Slot counts shown on a board card, with the icon that stands for each. */
-export type BoardSlotIcon = 'cpu' | 'memory' | 'slot' | 'disk' | 'fan' | 'bolt';
-export interface BoardSlotCount {
+type BoardSlotIcon = 'cpu' | 'memory' | 'slot' | 'disk' | 'fan' | 'bolt';
+interface BoardSlotCount {
   key: string;
   label: string;
   count: number;
   icon: BoardSlotIcon;
 }
 
-export type BoardCardState = 'installed' | 'dead' | 'crate' | 'ready' | 'poor' | 'blocked' | 'locked' | 'level';
+type BoardCardState = 'installed' | 'dead' | 'crate' | 'ready' | 'poor' | 'blocked' | 'locked' | 'level';
 
 /** One motherboard tier as a card: slots, features, VRM strength with before/after bars, price and the state. */
 export interface BoardCard {
@@ -155,14 +155,14 @@ export interface BoardCard {
   /** Sandbox: nothing is paid. */
   free: boolean;
   /** Why it cannot be taken now (blocked, poor, locked, crate), for the tooltip. */
-  reason?: string;
+  reason?: string | undefined;
   /** State `level`: the player level that opens this tier, and whether it is the very next one. */
-  lock?: LevelLock;
+  lock?: LevelLock | undefined;
   soon?: boolean;
   /** Copies of this board in the inventory. */
-  spares?: number;
+  spares?: number | undefined;
   /** Buying another: set on a fitted or spare card. */
-  more?: MoreOffer;
+  more?: MoreOffer | undefined;
   /** The buy (or replace) button is live: the sim offers it, nothing blocks it and it is affordable. */
   canBuy: boolean;
   slots: BoardSlotCount[];
@@ -186,7 +186,7 @@ export interface BoardCard {
   deltaText: string;
 }
 
-const SLOT_LABELS: Array<{ key: string; label: string; icon: BoardSlotIcon }> = [
+const SLOT_LABELS: { key: string; label: string; icon: BoardSlotIcon }[] = [
   { key: 'cpu', label: 'processor sockets', icon: 'cpu' },
   { key: 'dimm', label: 'memory slots', icon: 'memory' },
   { key: 'pcie', label: 'expansion (PCIe) slots', icon: 'slot' },

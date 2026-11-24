@@ -1,4 +1,3 @@
-import { Container, Graphics, RenderTexture, Sprite, Texture, type Renderer } from 'pixi.js';
 import type { Rect } from '@/features/board/render/layout/layout';
 
 // The room's light (docs/render/room/light.md "Light"): one layer above everything outside the case, made of three small textures that are redrawn only when the
@@ -72,23 +71,23 @@ export interface LightGeo {
 }
 
 /** One soft shape of a light, in world units: a round spot, the lamp's cone (apex at x,y opening along `rot`, `len` long), a rectangle (feathered by `soft`), an ellipse or a polygon. */
-export type LightShape =
+type LightShape =
   | { k: 'blob'; x: number; y: number; w: number; h: number }
   | { k: 'cone'; x: number; y: number; len: number; rot: number }
   | { k: 'rect'; r: Rect; soft?: number }
   | { k: 'ellipse'; x: number; y: number; rx: number; ry: number }
   | { k: 'poly'; pts: number[] };
 /** A shape and its strength (0 to 1). In a light's `lit` list it takes the dark away; in its `tint` list it paints `color`, or with `erase` takes tint away again. */
-export interface LightLayer {
+interface LightLayer {
   shape: LightShape;
   alpha: number;
-  color?: string;
+  color?: string | undefined;
   erase?: boolean;
 }
 /** One source of light (the window, the lamp, the screen, the clock, or a light a scene adds): what it lights and what it tints. `clip` keeps it inside a rectangle (the lamp does not light under the desk). */
 export interface Emitter {
   id: string;
-  clip?: Rect;
+  clip?: Rect | undefined;
   lit: LightLayer[];
   tint: LightLayer[];
 }
@@ -118,7 +117,7 @@ export function shiftEmitter(e: Emitter, dx: number, dy: number): Emitter {
 }
 
 /** How much the window lights the room round it, 0 to 1, and in what colour: from the strongest shaft (the sun by day, the moon by night). */
-export function windowGlow(beams: Beam[]): { k: number; color: string } {
+function windowGlow(beams: Beam[]): { k: number; color: string } {
   let best: Beam | null = null,
     sum = 0;
   for (const b of beams) {
@@ -255,325 +254,3 @@ export function emittersOf(i: LightIn, G: LightGeo): Emitter[] {
 }
 
 // ---- the two soft shapes every light is made of ----
-let cone: Texture | null = null,
-  blobTex: Texture | null = null;
-const canvasTex = (w: number, h: number, fill: (d: Uint8ClampedArray) => void): Texture => {
-  const c = document.createElement('canvas');
-  c.width = w;
-  c.height = h;
-  const x = c.getContext('2d')!,
-    img = x.createImageData(w, h);
-  fill(img.data);
-  x.putImageData(img, 0, 0);
-  return Texture.from(c);
-};
-/** A cone: its apex at the left middle, opening to the right, bright near the apex and along the axis, fading with the distance and toward its edges. */
-function coneTexture(): Texture {
-  return (cone ??= canvasTex(256, 256, (d) => {
-    for (let y = 0; y < 256; y++)
-      for (let x = 0; x < 256; x++) {
-        const dx = x / 255,
-          dy = (y - 128) / 255,
-          r = Math.hypot(dx, dy),
-          th = Math.abs(Math.atan2(dy, dx));
-        const a =
-          Math.min(1, (1 / (1 + (r / 0.3) ** 2)) * 1.4) *
-          (1 - sstep(0.7, 1, r)) *
-          (1 - sstep(BEAM.half * 0.35, BEAM.half, th));
-        const i = (y * 256 + x) * 4;
-        d[i] = d[i + 1] = d[i + 2] = 255;
-        d[i + 3] = Math.round(255 * a);
-      }
-  }));
-}
-/** A round soft spot, opaque in the middle and clear at the edge. */
-function blobTexture(): Texture {
-  return (blobTex ??= canvasTex(128, 128, (d) => {
-    for (let y = 0; y < 128; y++)
-      for (let x = 0; x < 128; x++) {
-        const r = Math.hypot(x - 63.5, y - 63.5) / 64,
-          a = r >= 1 ? 0 : (1 - r * r) ** 2;
-        const i = (y * 128 + x) * 4;
-        d[i] = d[i + 1] = d[i + 2] = 255;
-        d[i + 3] = Math.round(255 * a);
-      }
-  }));
-}
-
-/** A rectangle with soft edges, as a stack of nested rectangles whose opacities add up to one: used for the screen, the clock, and to cut the case, the monitor and the router out of the focus dark. */
-function softRect(g: Graphics, r: Rect, spread: number, color = '#ffffff') {
-  for (let k = 0; k < 4; k++)
-    g.roundRect(
-      r.x - spread * (1 - k / 4),
-      r.y - spread * (1 - k / 4),
-      r.w + 2 * spread * (1 - k / 4),
-      r.h + 2 * spread * (1 - k / 4),
-      spread * 0.6,
-    ).fill({ color, alpha: k === 3 ? 1 : 0.3 });
-}
-
-/** The light layer. `root` goes above the room's things (the monitor, the props, the case's shell) and below what must stay as it is (the mail, the highlights). */
-export class LightView {
-  readonly root = new Container();
-  private readonly shade = new Sprite();
-  private readonly glow = new Sprite();
-  private readonly focus = new Sprite();
-  private readonly shadeG = new Graphics();
-  /** The window's shafts, live: they follow the sun every frame (the textures are redrawn only in steps). */
-  private readonly beamG = new Graphics();
-  /** The even washes (the sky's lift, the warm of the ends of the day): over all the room, not the region, so no edge of the region shows on a tall or wide screen. */
-  private readonly washG = new Graphics();
-  private beamKey = '';
-  private readonly focusG = new Graphics();
-  private readonly focusBox = new Container();
-  private readonly rts: RenderTexture[] = [];
-  private key = '';
-  /** Bumped when a light is moved or added or an item of the room moved: part of the key the textures are drawn for. */
-  private rev = 0;
-  private readonly offs = new Map<string, { x: number; y: number }>();
-  private readonly extra = new Map<string, Emitter>();
-  private fAmount = 0;
-  /** Texture pixels per world unit, x and y: the region maps to the whole texture (the size is rounded up, so this is `LIGHT_RES` to within a pixel; a scene drawn at exactly `LIGHT_RES` would leave a blank edge column). */
-  private readonly sx: number;
-  private readonly sy: number;
-
-  constructor(
-    private readonly r: Renderer,
-    private g: LightGeo,
-  ) {
-    const reg = g.region,
-      w = Math.ceil(reg.w * LIGHT_RES),
-      h = Math.ceil(reg.h * LIGHT_RES);
-    this.sx = w / reg.w;
-    this.sy = h / reg.h;
-    for (const s of [this.shade, this.glow, this.focus]) {
-      const rt = RenderTexture.create({ width: w, height: h, resolution: 1 });
-      this.rts.push(rt);
-      s.texture = rt;
-      s.position.set(reg.x, reg.y);
-      s.scale.set(reg.w / w, reg.h / h);
-    }
-    this.glow.blendMode = 'screen';
-    this.beamG.blendMode = 'screen';
-    this.washG.blendMode = 'screen';
-    this.focusBox.addChild(this.focusG, this.focus);
-    this.root.addChild(this.shadeG, this.shade, this.glow, this.washG, this.beamG, this.focusBox);
-    this.focusBox.alpha = 0;
-    this.drawFocus();
-  }
-
-  /** The strength of the focus dark (0 to 1): only an alpha, so it follows the camera for free. */
-  setFocus(f: number) {
-    this.fAmount = f;
-    this.focusBox.alpha = f * 0.64;
-    this.focusBox.visible = f > 0.004;
-  }
-  get focusAmount() {
-    return this.fAmount;
-  }
-
-  /** The window's shafts and the patch on the desk top: redrawn (a few small polygons) when the sun has moved. */
-  setBeams(beams: Beam[]) {
-    const k = beams.map((b) => `${b.color}:${Math.round(b.slant * 500)}:${Math.round(b.a * 500)}`).join('|');
-    if (k === this.beamKey) return;
-    this.beamKey = k;
-    const g = this.beamG;
-    g.clear();
-    for (const b of beams) {
-      for (const q of b.quads) g.poly(q.pts).fill({ color: b.color, alpha: Math.min(0.6, b.a * q.fade * 2.2) });
-      if (b.patch)
-        g.ellipse(b.patch.x, b.patch.y, b.patch.rx, b.patch.ry).fill({
-          color: b.color,
-          alpha: Math.min(0.5, b.a * 3.2),
-        });
-    }
-  }
-
-  /** Move a light (by id: `window`, `lamp`, `screen`, `clock`, or one added with `addLight`) by (dx, dy) world units from where its item stands; (0, 0) puts it back. The next `set` redraws. */
-  place(id: string, dx: number, dy: number) {
-    if (dx || dy) this.offs.set(id, { x: dx, y: dy });
-    else this.offs.delete(id);
-    this.rev++;
-  }
-  /** Add (or replace) a light of a scene's own, for example one for a new item: it is drawn after the room's lights, in the order added. */
-  addLight(e: Emitter) {
-    this.extra.set(e.id, e);
-    this.rev++;
-  }
-  removeLight(id: string) {
-    if (this.extra.delete(id)) this.rev++;
-  }
-  /** Items of the room moved (the keyboard, the screen, the lamp's mouth, ...): take the new places; the lights that follow them are redrawn on the next `set`. */
-  setGeo(patch: Partial<LightGeo>) {
-    this.g = { ...this.g, ...patch };
-    this.rev++;
-  }
-
-  /** Redraw the shade and the glow if the quantised state changed. Returns whether it did. */
-  set(i: LightIn, force = false): boolean {
-    const k = lightKey(i) + '#' + this.rev;
-    if (!force && k === this.key) return false;
-    this.key = k;
-    const ems = this.emitters(i);
-    this.drawShade(i, ems);
-    this.drawGlow(i, ems);
-    return true;
-  }
-
-  /** The scene drawn into a texture: world units in, the region's top-left at the texture's origin. */
-  private paint(rt: RenderTexture, build: (c: Container) => void) {
-    const c = new Container(),
-      reg = this.g.region;
-    c.scale.set(this.sx, this.sy);
-    c.position.set(-reg.x * this.sx, -reg.y * this.sy);
-    build(c);
-    this.r.render({ container: c, target: rt, clear: true, clearColor: [0, 0, 0, 0] });
-    c.destroy({ children: true });
-  }
-
-  private spot(
-    c: Container,
-    tex: Texture,
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    o: { color?: string; alpha?: number; erase?: boolean; rot?: number; anchor?: [number, number] } = {},
-  ) {
-    const s = new Sprite(tex);
-    s.anchor.set(...(o.anchor ?? [0.5, 0.5]));
-    s.position.set(x, y);
-    s.width = w;
-    s.height = h;
-    s.rotation = o.rot ?? 0;
-    if (o.color) s.tint = o.color;
-    s.alpha = o.alpha ?? 1;
-    if (o.erase) s.blendMode = 'erase';
-    c.addChild(s);
-    return s;
-  }
-
-  /** One layer drawn into a texture: `erase` cuts it out of what is there (the shade), otherwise it is painted in its colour. */
-  private put(c: Container, l: LightLayer, erase: boolean) {
-    const s = l.shape,
-      cut = erase || !!l.erase,
-      col = cut ? '#ffffff' : (l.color ?? '#ffffff');
-    if (s.k === 'blob') {
-      this.spot(c, blobTexture(), s.x, s.y, s.w, s.h, { color: cut ? undefined : l.color, alpha: l.alpha, erase: cut });
-      return;
-    }
-    if (s.k === 'cone') {
-      this.spot(c, coneTexture(), s.x, s.y, s.len, s.len, {
-        color: cut ? undefined : l.color,
-        alpha: l.alpha,
-        erase: cut,
-        rot: s.rot,
-        anchor: [0, 0.5],
-      });
-      return;
-    }
-    const g = new Graphics();
-    if (s.k === 'rect') {
-      if (s.soft) softRect(g, s.r, s.soft, col);
-      else g.rect(s.r.x, s.r.y, s.r.w, s.r.h).fill({ color: col });
-    } else if (s.k === 'ellipse') g.ellipse(s.x, s.y, s.rx, s.ry).fill({ color: col });
-    else g.poly(s.pts).fill({ color: col });
-    g.alpha = l.alpha;
-    if (cut) g.blendMode = 'erase';
-    c.addChild(g);
-  }
-
-  /** The room's lights as they stand now: each moved by its `place` offset, then the lights a scene added. */
-  private emitters(i: LightIn): Emitter[] {
-    const all = [...emittersOf(i, this.g), ...this.extra.values()];
-    return all.map((e) => {
-      const o = this.offs.get(e.id);
-      return o ? shiftEmitter(e, o.x, o.y) : e;
-    });
-  }
-
-  /** The container a light's layers go in: the paint itself, or a clipped one. */
-  private hostOf(c: Container, e: Emitter): Container {
-    if (!e.clip) return c;
-    const host = new Container(),
-      m = new Graphics().rect(e.clip.x, e.clip.y, e.clip.w, e.clip.h).fill({ color: '#ffffff' });
-    host.addChild(m);
-    host.mask = m;
-    c.addChild(host);
-    return host;
-  }
-
-  private drawShade(i: LightIn, ems: Emitter[]) {
-    const A = ambientOf(i),
-      G = this.g,
-      reg = G.region;
-    // the dark is also painted round the region (a wide screen shows more than the region): the same colour and opacity as its edge
-    this.shadeG.clear();
-    const big = 90000;
-    if (A.alpha > 0.002) {
-      this.shadeG
-        .rect(-big, -big, 2 * big, reg.y + big)
-        .rect(-big, reg.y + reg.h, 2 * big, big)
-        .rect(-big, reg.y, reg.x + big, reg.h)
-        .rect(reg.x + reg.w, reg.y, big, reg.h)
-        .fill({ color: A.color, alpha: A.alpha });
-    }
-    this.paint(this.rts[0]!, (c) => {
-      if (A.alpha > 0.002) {
-        c.addChild(new Graphics().rect(reg.x, reg.y, reg.w, reg.h).fill({ color: A.color, alpha: A.alpha }));
-        for (const e of ems) {
-          if (!e.lit.length) continue;
-          const host = this.hostOf(c, e);
-          for (const l of e.lit) this.put(host, l, true);
-        }
-      }
-      // the inside of the case has its own light
-      this.put(c, { shape: { k: 'rect', r: G.inner }, alpha: 1 }, true);
-    });
-  }
-
-  private drawGlow(i: LightIn, ems: Emitter[]) {
-    const G = this.g;
-    // the sky's lift by day (a pale wash) and the warm of the ends of the day: even, over the whole room
-    const lift = 0.1 * (1 - i.night),
-      warm = 0.08 * i.dusk,
-      BIG = 90000;
-    this.washG.clear();
-    if (lift > 0.002) this.washG.rect(-BIG, -BIG, 2 * BIG, 2 * BIG).fill({ color: '#bcd4ff', alpha: lift });
-    if (warm > 0.002) this.washG.rect(-BIG, -BIG, 2 * BIG, 2 * BIG).fill({ color: '#ff9a5a', alpha: warm });
-    this.paint(this.rts[1]!, (c) => {
-      for (const e of ems) {
-        if (!e.tint.length) continue;
-        const host = this.hostOf(c, e);
-        for (const l of e.tint) this.put(host, l, false);
-      }
-      // the inside of the case has its own light: none of this reaches it
-      this.put(c, { shape: { k: 'rect', r: G.inner }, alpha: 1 }, true);
-    });
-  }
-
-  /** The focus dark: all of the region, with the case, the monitor and the router cut out (soft edged). Drawn once; only its alpha moves. */
-  private drawFocus() {
-    const G = this.g,
-      reg = G.region,
-      big = 90000,
-      col = '#04060d';
-    this.focusG.clear();
-    this.focusG
-      .rect(-big, -big, 2 * big, reg.y + big)
-      .rect(-big, reg.y + reg.h, 2 * big, big)
-      .rect(-big, reg.y, reg.x + big, reg.h)
-      .rect(reg.x + reg.w, reg.y, big, reg.h)
-      .fill({ color: col });
-    this.paint(this.rts[2]!, (c) => {
-      c.addChild(new Graphics().rect(reg.x, reg.y, reg.w, reg.h).fill({ color: col }));
-      for (const r of [G.case, G.monitor, G.router])
-        this.put(c, { shape: { k: 'rect', r, soft: 500 }, alpha: 1 }, true);
-    });
-  }
-
-  destroy() {
-    this.root.destroy({ children: true });
-    for (const rt of this.rts) rt.destroy(true);
-  }
-}

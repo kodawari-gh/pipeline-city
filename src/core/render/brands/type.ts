@@ -28,7 +28,7 @@ export interface TypeStyle {
 }
 
 /** The descender's depth below the baseline, in cap heights. */
-export const DSC = 0.26;
+const DSC = 0.26;
 
 /** The tools a glyph draws with, in its box (`W` wide, cap height 1, y down). Skeleton bounds: `l r` (sides), `b` (baseline), `h` (half the weight). */
 interface G {
@@ -343,7 +343,7 @@ const CAPS: Record<string, Glyph> = {
     },
   },
   V: { w: 0.72, sb: [-0.05, -0.05], draw: (g) => vee(g, 0) },
-  W: { w: 1.0, sb: [-0.04, -0.04], draw: (g) => dub(g, 0) },
+  W: { w: 1, sb: [-0.04, -0.04], draw: (g) => dub(g, 0) },
   X: { w: 0.7, sb: [-0.03, -0.03], draw: (g) => ex(g, 0) },
   Y: {
     w: 0.7,
@@ -849,8 +849,8 @@ export function typeWidth(text: string, st: TypeStyle): number {
 export interface SetOpts {
   /** The accent for the lit letters and dots (null: they take the ink). */
   acc?: string | null;
-  lit?: readonly number[];
-  litDots?: boolean;
+  lit?: readonly number[] | undefined;
+  litDots?: boolean | undefined;
 }
 
 /** Sets `text` in `st`: its left end at x, its cap height `cap` px and centred on y. Returns the width in px. */

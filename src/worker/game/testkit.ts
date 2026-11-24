@@ -14,12 +14,12 @@ export const econ = (keys: Keys = [{ template: 'cli.log' }]) => ({ baseDemandPer
 export function rig(
   storage: 'hdd0' | 'ssd1' | 'nvme2',
   opts: {
-    cpu?: string;
+    cpu?: string | undefined;
     os?: boolean;
-    keys?: Keys;
-    seed?: number;
-    economy?: Partial<EconomyConfig>;
-    startLevel?: number;
+    keys?: Keys | undefined;
+    seed?: number | undefined;
+    economy?: Partial<EconomyConfig> | undefined;
+    startLevel?: number | undefined;
     ram?: string;
   } = {},
 ): Game {
@@ -59,12 +59,12 @@ export function netRig(
   opts: {
     isp?: string;
     router?: string;
-    port?: string;
+    port?: string | undefined;
     wait?: boolean;
-    keys?: Keys;
-    seed?: number;
-    economy?: Partial<EconomyConfig>;
-    cpu?: string;
+    keys?: Keys | undefined;
+    seed?: number | undefined;
+    economy?: Partial<EconomyConfig> | undefined;
+    cpu?: string | undefined;
   } = {},
 ): Game {
   const g = rig(storage, { cpu: opts.cpu, keys: opts.keys ?? [], seed: opts.seed, economy: opts.economy });

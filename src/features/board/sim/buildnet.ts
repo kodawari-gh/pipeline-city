@@ -68,7 +68,7 @@ export function setNet(g: Game, kind: NetKind, id: string | null): Result {
       return r.ok ? { ok: true } : r;
     }
     const r = put(g, id);
-    if (r.ok && !g.cables.lan) g.connectLan(); // (a refusal here, no jack on the board and no card, is the machine's to answer: the cable waits)
+    if (r.ok && !g.cables['lan']) g.connectLan(); // (a refusal here, no jack on the board and no card, is the machine's to answer: the cable waits)
     return r;
   }
   const old = g.os?.spec.id ?? null;

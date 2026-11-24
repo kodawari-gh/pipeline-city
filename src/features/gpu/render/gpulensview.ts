@@ -10,8 +10,8 @@ import { DEVICE_LOD, SHOWN, bandAlpha, onBand } from '@/core/render/lod/lod';
 // (address, word, the instruction or the number, a class pill for code), a note naming the region, the instruction in flight beside the title, and a thin
 // line from the panel to the cell. The card's other memory parts show their data in place (gpumem.ts); this is the one reading aid, like the RAM's.
 
-export const LENS_Z = DEVICE_LOD.gpu.lens;
-export const LENS_W = 310,
+const LENS_Z = DEVICE_LOD.gpu.lens;
+const LENS_W = 310,
   LINE = 11,
   LENS_H = 16 + LENS_ROWS * LINE + 8 + 2 * 9 + 14;
 const CLASS_KEY: [OpClass, string][] = [

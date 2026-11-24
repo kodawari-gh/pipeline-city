@@ -122,7 +122,7 @@ describe("Machine3D on the studio's wall", () => {
     const kinds = (o: Object3D): string[] => {
       const t: string[] = [];
       o.traverse((x) => {
-        if (typeof x.userData.plug === 'string') t.push(x.userData.plug);
+        if (typeof x.userData['plug'] === 'string') t.push(x.userData['plug']);
       });
       return t;
     };
@@ -132,7 +132,7 @@ describe("Machine3D on the studio's wall", () => {
   const heldAt = (mc: Machine3D, port: string): string[] => {
     const t: string[] = [];
     mc.rig('lan')!.alts!.find((a) => a.port === port)!.model!().root.traverse((x) => {
-      if (typeof x.userData.plug === 'string') t.push(x.userData.plug);
+      if (typeof x.userData['plug'] === 'string') t.push(x.userData['plug']);
     });
     return t;
   };

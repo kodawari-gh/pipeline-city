@@ -78,11 +78,11 @@ void main() {
 }`;
 
 /** How bright the water is over the picture, the length of a band of light along it (units), and how fast the bands go at full flow (bands a second). */
-const STRENGTH = 1.0,
+const STRENGTH = 1,
   LAMBDA = 2600,
   SPEED = 0.45;
 /** The water's temperature, shown from the loop's mean this many times as far (the loop's own rise is a few kelvins: on the scale the parts glow by it would not show). */
-export const SPREAD = 3.5;
+const SPREAD = 3.5;
 
 /** The water of one machine, as a mesh. */
 export class Water {
@@ -156,18 +156,18 @@ export class Water {
       mean = (hotC + coldC) / 2,
       f = Math.max(0, Math.min(1, flow));
     this.phase = (this.phase + dt * SPEED * f) % 1000;
-    const k = u.uK!.value as number[];
+    const k = u['uK']!.value as number[];
     for (let i = 0; i < KNOTS; i++) {
       const level = this.net.level[Math.min(i, this.net.level.length - 1)] ?? 0;
       k[i] = mean + SPREAD * (coldC + level * (hotC - coldC) - mean);
     }
-    u.uLo!.value = lo;
-    u.uHi!.value = hi;
-    u.uPhase!.value = this.phase;
-    u.uMove!.value = Math.min(1, f * 3);
+    u['uLo']!.value = lo;
+    u['uHi']!.value = hi;
+    u['uPhase']!.value = this.phase;
+    u['uMove']!.value = Math.min(1, f * 3);
     // still water is dimmer: the pump has stopped
-    u.uStrength!.value = STRENGTH * (0.45 + 0.55 * Math.min(1, f * 3));
-    u.uPixel!.value = 2 / (cam.projectionMatrix.elements[5]! * Math.max(1, pxHeight));
+    u['uStrength']!.value = STRENGTH * (0.45 + 0.55 * Math.min(1, f * 3));
+    u['uPixel']!.value = 2 / (cam.projectionMatrix.elements[5]! * Math.max(1, pxHeight));
   }
 
   dispose(): void {

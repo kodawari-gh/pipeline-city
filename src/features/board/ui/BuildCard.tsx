@@ -26,7 +26,7 @@ export function BuildCard({
   /** The panels that float over the stage: the card stays out from under them. */
   avoid: () => (HTMLElement | null)[];
   /** Phone: the panes fill the screen, so the card is a sheet over them, just above the bottom bar (`foot`). */
-  sheet?: () => HTMLElement | null;
+  sheet?: (() => HTMLElement | null) | undefined;
 }) {
   void stage.viewRev.value; // (the part moves on the screen with the camera: the card follows)
   void stage.status.value.rev;
@@ -39,13 +39,13 @@ export function BuildCard({
   useLayoutEffect(() => {
     const el = shell.current;
     if (!el || !dev) return;
-    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize),
+    const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
       gap = rem * 0.9;
     const vw = window.innerWidth,
       vh = window.innerHeight;
     if (sheet) {
       const f = sheet()?.getBoundingClientRect();
-      el.dataset.side = 'dock';
+      el.dataset['side'] = 'dock';
       el.style.transform = 'none';
       el.style.left = '0.5rem';
       el.style.right = '0.5rem';
@@ -66,7 +66,7 @@ export function BuildCard({
     // (whatever the free strip was, the card never leaves the screen)
     p.x = Math.min(Math.max(0, p.x), Math.max(0, vw - size.w));
     p.y = Math.min(Math.max(0, p.y), Math.max(0, vh - size.h));
-    el.dataset.side = p.side;
+    el.dataset['side'] = p.side;
     el.style.setProperty('--tail', `${p.tail}px`);
     el.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
   });
@@ -110,7 +110,7 @@ export function BuildCard({
             <button
               class="primary"
               disabled={busy}
-              title={`Take it out, with everything in its way (Delete)`}
+              title="Take it out, with everything in its way (Delete)"
               onClick={() => {
                 void stage.remove(devNode(id));
               }}

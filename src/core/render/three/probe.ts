@@ -42,7 +42,7 @@ void main() { vec3 c = textureCube(env, vDir).rgb; gl_FragColor = vec4(mix(c, ve
  * again in that draw and in the next frame's (CITY-06: each of a capture's frames took twice a frame's script time). A light at no strength
  * lights as a hidden one does, so the capture is the same picture. A root with no shown light is hidden whole.
  */
-export function leaveOut(root: Object3D): () => void {
+function leaveOut(root: Object3D): () => void {
   const lights: (Light & { shadow?: LightShadow })[] = [];
   root.traverseVisible((o) => {
     if ((o as Light).isLight) lights.push(o as Light);

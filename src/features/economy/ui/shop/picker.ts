@@ -62,7 +62,7 @@ const BLOCK_BYTES = 256;
 
 export type PickerKind =
   DeviceKind | 'board' | 'case' | 'os' | 'router' | 'isp' | 'key' | 'tray' | 'power' | 'usb' | 'info';
-export type BuyState = 'ready' | 'poor' | 'blocked';
+type BuyState = 'ready' | 'poor' | 'blocked';
 export type IconName =
   | 'bolt'
   | 'flame'
@@ -108,12 +108,12 @@ export interface PickerLine {
 export interface PickerAction {
   id: 'power' | 'powerCycle' | 'plug' | 'eject' | 'uninstall' | 'uninstallOs' | 'formatDrive';
   label: string;
-  keyId?: number;
+  keyId?: number | undefined;
   /** `uninstall`: the installed device to take out (`router` for the router spot). */
-  deviceId?: string;
-  primary?: boolean;
+  deviceId?: string | undefined;
+  primary?: boolean | undefined;
   /** Disabled reason, when the action is shown but cannot be taken now. */
-  why?: string;
+  why?: string | undefined;
 }
 
 /** Under an OS the key stays in while the OS has its job; it pops out by itself. */
@@ -131,11 +131,11 @@ export interface Stat {
   unit: string;
   higherIsBetter: boolean;
   /** The values span orders of magnitude (network speeds): bar lengths use a log scale. */
-  log?: boolean;
+  log?: boolean | undefined;
 }
 
 /** One rung of the upgrade ladder for a kind of part. */
-export type LadderState = 'installed' | 'crate' | 'ready' | 'poor' | 'blocked' | 'locked' | 'level';
+type LadderState = 'installed' | 'crate' | 'ready' | 'poor' | 'blocked' | 'locked' | 'level';
 
 export interface LadderStep {
   /** Spec id (`cpu1`), or `board<tier>` for the board ladder. */
@@ -143,29 +143,29 @@ export interface LadderStep {
   name: string;
   tier: number;
   state: LadderState;
-  price?: number;
+  price?: number | undefined;
   /** Sandbox game: show "free" instead of the price. */
-  free?: boolean;
+  free?: boolean | undefined;
   /** Why it cannot be bought (poor, blocked) or a short note (crate, locked). */
-  reason?: string;
+  reason?: string | undefined;
   /** State `level`: the player level that opens it (greyed tile, lock and "Level N"). */
-  lock?: LevelLock;
+  lock?: LevelLock | undefined;
   /** The gating level is the very next one: a subtle outline. */
-  soon?: boolean;
+  soon?: boolean | undefined;
   /** Installed device instance id, for the installed rung. */
-  devId?: string;
+  devId?: string | undefined;
   /** Inventory item id, for the crate rung. */
-  invId?: string;
+  invId?: string | undefined;
   /** A warning on the rung (a CPU the board's VRM cannot feed, a liquid cooler with no VRM heatsink, a router with no OS yet). */
-  warn?: string;
+  warn?: string | undefined;
   /** The word for the installed rung when "Fitted" is wrong: "Active" for a plan, "Placed" for a router. */
-  fittedLabel?: string;
+  fittedLabel?: string | undefined;
   /** Buying applies it at once (an internet plan) instead of adding it to the inventory. */
-  applied?: boolean;
+  applied?: boolean | undefined;
   /** Copies of it in the inventory (a spare), on a fitted or spare tile. */
-  spares?: number;
+  spares?: number | undefined;
   /** Buying another copy: set on a fitted or spare tile, where the tile itself has no buy button. */
-  more?: MoreOffer;
+  more?: MoreOffer | undefined;
 }
 
 export interface PickerModel {
@@ -177,31 +177,31 @@ export interface PickerModel {
   /** Upgrade ladder for part kinds: owned, next and blocked rungs (older tiers are left out). */
   ladder: LadderStep[];
   /** The VRM readout (the `vrm` id, and the CPU card when a CPU is fitted). */
-  vrm?: VrmReadout | null;
+  vrm?: VrmReadout | null | undefined;
   /** The motherboard tier cards (the `board` picker). Replaces the rung list for boards. */
-  boardCards?: BoardCard[];
+  boardCards?: BoardCard[] | undefined;
   /** Spec id of the part in this socket (or the first of its kind), for the before/after bars. */
   current: string | null;
   /** The spec the player selected (an inventory part, or a spec id): the default option for the bars. */
   focus: string | null;
-  emptyText?: string;
+  emptyText?: string | undefined;
   lines: PickerLine[];
   actions: PickerAction[];
   /** Show the CPU clock control. */
   clock: boolean;
   /** Installed device, for live readings and the clock. */
-  device?: DeviceSnap;
+  device?: DeviceSnap | undefined;
   /** The installed OS, on the card for the OS itself and for the drive that hosts it. */
-  osSection?: OsSection | null;
+  osSection?: OsSection | null | undefined;
   /** The bay's shelf: operating systems on offer (only while no OS is installed). */
-  shelf?: LadderStep[];
+  shelf?: LadderStep[] | undefined;
   /** A key card: its needs, deadline and decline (levelui.ts). */
-  job?: JobView;
+  job?: JobView | undefined;
   /** A small tag next to the title: `retired` on a USB key whose client went online. */
-  tag?: string;
+  tag?: string | undefined;
 }
 
-export interface OsQueueRow {
+interface OsQueueRow {
   keyId: number;
   label: string;
   type: string;
@@ -231,7 +231,7 @@ const findKey = (s: Snapshot, id: number): KeySnap | undefined =>
 const keyType = (s: Snapshot, id: number): string => findKey(s, id)?.type ?? '';
 
 /** What the needs chips, the deadline and the decline button read from a key. */
-export const jobView = (k: KeySnap): JobView => ({
+const jobView = (k: KeySnap): JobView => ({
   id: k.id,
   label: k.label,
   needs: k.needs,
@@ -292,7 +292,7 @@ export const boardId = (tier: number) => `board${tier}`;
 export const caseId = (tier: number) => `case${tier}`;
 
 /** Every spec id of a kind, ordered by tier (or the board tiers). */
-export function catalogOf(kind: PickerKind): string[] {
+function catalogOf(kind: PickerKind): string[] {
   if (kind === 'board') return BOARD_TIERS.map((b) => boardId(b.tier));
   if (kind === 'case') return CASE_TIERS.map((c) => caseId(c.tier));
   if (
@@ -320,7 +320,7 @@ export function catalogOf(kind: PickerKind): string[] {
 }
 
 /** Sustained throughput of a drive at its base clock, bytes per second (the same model as the sim's storage device). */
-export function drivePerSecond(spec: { clock: { base: number }; blockTicks: number }): number {
+function drivePerSecond(spec: { clock: { base: number }; blockTicks: number }): number {
   return Math.round((spec.clock.base * ECONOMY.cpuCyclesPerClock * BLOCK_BYTES) / spec.blockTicks);
 }
 
@@ -782,7 +782,7 @@ export function kindOf(id: string, s: Snapshot): DeviceKind | 'board' | 'case' |
  * for sale whatever you own, and a tile you own carries a `more` offer (buy another: a spare, a downgrade, a second machine).
  */
 export function ladderFor(s: Snapshot, kind: PickerKind): LadderStep[] {
-  const installed: Array<{ spec: string; devId: string }> =
+  const installed: { spec: string; devId: string }[] =
     kind === 'board'
       ? [{ spec: boardId(s.boardTier), devId: '' }]
       : kind === 'case'
@@ -912,7 +912,7 @@ export function ladderFor(s: Snapshot, kind: PickerKind): LadderStep[] {
 }
 
 /** Total memory of the working sticks in the machine, bytes. */
-export function installedRamBytes(s: Snapshot): number {
+function installedRamBytes(s: Snapshot): number {
   let n = 0;
   for (const d of s.devices) {
     if (d.kind !== 'ram' || d.burnt) continue;
@@ -935,7 +935,7 @@ export function nextUpgrade(ladder: LadderStep[]): LadderStep | undefined {
 }
 
 /** Plain lines about a key: what it is, how late, what it pays. */
-export function keyLines(k: KeySnap, now: number): PickerLine[] {
+function keyLines(k: KeySnap, now: number): PickerLine[] {
   const left = k.deadlineTick - now;
   return [
     { level: 'info', text: JOB_TYPES[k.type] ?? 'A client job.' },
@@ -949,15 +949,15 @@ export function keyLines(k: KeySnap, now: number): PickerLine[] {
 }
 
 /** The line on a retired USB key (its client went online): no penalty if it expires or is declined, serving it still pays. */
-export const RETIRED_LINE =
+const RETIRED_LINE =
   'Retired: this client now sends jobs over the network. If the key expires or you decline it, nothing is lost; serving it still pays.';
 
 /** Every key the machine knows about: tray plus the plugged one. */
-export function allKeys(s: Snapshot): KeySnap[] {
+function allKeys(s: Snapshot): KeySnap[] {
   return [...s.tray, ...(s.plugged ? [s.plugged] : [])];
 }
 
-const powerStatus = (s: Snapshot) => (s.powered ? `Status: ${s.phase.replace(/-/g, ' ')}` : 'Status: off');
+const powerStatus = (s: Snapshot) => (s.powered ? `Status: ${s.phase.replaceAll('-', ' ')}` : 'Status: off');
 
 function emptyCard(id: string, kind: PickerKind, title: string, plain: string, nerd: string): PickerModel {
   return { id, kind, title, plain, nerd, ladder: [], current: null, focus: null, lines: [], actions: [], clock: false };
@@ -1127,7 +1127,7 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
       ? [
           {
             level: 'info',
-            text: `${k.label}: ${k.done ? 'finished, ready to hand back' : s.keyIgnored ? 'ignored until the next boot' : s.phase.replace(/-/g, ' ')}`,
+            text: `${k.label}: ${k.done ? 'finished, ready to hand back' : s.keyIgnored ? 'ignored until the next boot' : s.phase.replaceAll('-', ' ')}`,
           },
           ...keyLines(k, s.baseTick).slice(1),
           ...(s.keyIgnored

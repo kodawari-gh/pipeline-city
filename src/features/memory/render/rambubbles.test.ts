@@ -44,7 +44,7 @@ describe('RAM bubbles', () => {
   });
 
   it('folds the resources past the cap into one bubble with the cores that reached them', () => {
-    const rs = Array.from({ length: 5 }, (_, k) => reg('r' + k, k * 0x100, k * 0x100 + 0x100));
+    const rs = Array.from({ length: 5 }, (_, k) => reg(`r${k}`, k * 0x100, k * 0x100 + 0x100));
     const touches = rs.map((r, k) => touch(r.lo, k % 2, k % 2 === 1, 10 - k));
     const b = bubblesOf(touches, rs, 3);
     expect(b.map((x) => x.id)).toEqual(['r0', 'r1', '+']);

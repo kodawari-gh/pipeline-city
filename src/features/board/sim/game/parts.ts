@@ -213,7 +213,7 @@ export function swapNow(
 /** Power off once (paying a finished key first), install every part in turn, and power back on once if the machine was on. A part that no longer fits is skipped and noted. */
 export function swapMany(
   this: Game,
-  items: { invId: string; slotId?: string; name: string }[],
+  items: { invId: string; slotId?: string | undefined; name: string }[],
 ): Result<{ fitted: number }> {
   if (this.plugged?.done) this.ejectKey();
   const wasOn = this.powered;
@@ -284,7 +284,7 @@ export function uninstall(this: Game, deviceId: string): Result<{ invId: string 
     const old = routerByTier(this.routerTier);
     if (!old) return { ok: false, reason: 'no router is installed' };
     this.routerTier = 0;
-    this.cables.lan = false;
+    this.cables['lan'] = false;
     this.lan = null;
     const invId = `inv${this.nextInvId++}`;
     this.inventory.push({ id: invId, spec: old.id });
@@ -371,7 +371,7 @@ export function connectCable(this: Game, cable: string, port?: string): Result<{
   ] as keyof Progress | undefined;
   if (flag) this.progress[flag] = true;
   if (wall || cable === 'video') this.machine.display.connected = this.monitorLive();
-  if (wall && this.cables.pcmains && this.cables.monmains) this.progress.mainsConnected = true;
+  if (wall && this.cables['pcmains'] && this.cables['monmains']) this.progress.mainsConnected = true;
   if (this.powered && isFanCable(cable)) this.syncRates(true); // a fan plugged on a running machine spins up at once
   this.note('cable', `${cableName(r.cable)} connected`);
   return r;
@@ -379,7 +379,7 @@ export function connectCable(this: Game, cable: string, port?: string): Result<{
 
 /** The ethernet cable runs from a port (the board jack, or a NIC card jack) to the router. Allowed while the machine is on. */
 export function connectLan(this: Game, port?: string): Result<{ cable: CableId }> {
-  if (this.cables.lan) return { ok: false, reason: 'Ethernet cable is already connected' };
+  if (this.cables['lan']) return { ok: false, reason: 'Ethernet cable is already connected' };
   if (!this.routerTier) return { ok: false, reason: 'needs a router: install one next to the monitor first' };
   const nics = this.board.devices.filter((d) => deviceSpec(d).kind === 'nic' && !d.burnt);
   const onboard = BOARD_TIERS[this.board.tier]!.features.ethernetMbps > 0;
@@ -391,7 +391,7 @@ export function connectLan(this: Game, port?: string): Result<{ cable: CableId }
   } else if (!nics.some((d) => d.id === pick)) {
     return { ok: false, reason: `no working network card "${pick}"` };
   }
-  this.cables.lan = true;
+  this.cables['lan'] = true;
   this.lan = pick;
   this.progress.lanConnected = true;
   this.note('cable', `Ethernet cable connected to ${pick === 'board' ? 'the board jack' : pick}`);
@@ -400,8 +400,8 @@ export function connectLan(this: Game, port?: string): Result<{ cable: CableId }
 
 export function disconnectCable(this: Game, cable: string): Result<{ cable: CableId }> {
   if (cable === 'lan') {
-    if (!this.cables.lan) return { ok: false, reason: 'Ethernet cable is not connected' };
-    this.cables.lan = false;
+    if (!this.cables['lan']) return { ok: false, reason: 'Ethernet cable is not connected' };
+    this.cables['lan'] = false;
     this.lan = null;
     this.note('cable', 'Ethernet cable disconnected');
     return { ok: true, cable: 'lan' };
@@ -486,8 +486,8 @@ export function flagInstalled(this: Game, kind: DeviceKind): void {
   if (f) this.progress[f] = true;
   // a sandbox machine is plugged into the wall as its parts go in (Build my PC plugs each cord by hand: the player watches it go in)
   if (this.sandbox && !this.looseFit) {
-    if (kind === 'psu') this.cables.pcmains = true;
-    if (kind === 'display') this.cables.monmains = true;
+    if (kind === 'psu') this.cables['pcmains'] = true;
+    if (kind === 'display') this.cables['monmains'] = true;
   }
 }
 
@@ -510,7 +510,7 @@ export function afterBoardChange(this: Game): void {
   // A cable plugged into a network card that left the board comes out with it.
   if (this.lan && this.lan !== 'board' && !this.board.devices.some((d) => d.id === this.lan)) {
     this.lan = null;
-    this.cables.lan = false;
+    this.cables['lan'] = false;
     this.note('cable', 'Ethernet cable came unplugged');
   }
   // A video cable plugged into a card that left the board (or into a card while the display is no longer a graphics one) comes out too.
@@ -518,12 +518,12 @@ export function afterBoardChange(this: Game): void {
     const disp = findDevices(this.board, 'display')[0];
     if (!this.videoCard() || !disp || !(deviceSpec(disp) as DisplaySpec).graphics) {
       this.video = 'board';
-      this.cables.video = false;
+      this.cables['video'] = false;
       this.note('cable', 'Video cable came unplugged');
     }
   }
   for (const c of pruneCables(this.board, this.cables)) this.note('cable', `${cableName(c)} came unplugged`);
-  if (!this.cables.video) this.video = 'board';
+  if (!this.cables['video']) this.video = 'board';
 }
 
 /**

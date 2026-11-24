@@ -412,7 +412,7 @@ export function zoomAbout(
 
 /** One frame of easing toward `goal`. Height eases by ratio, so a long zoom feels even. Independent of the frame rate. */
 export function stepView(v: OrbitView, goal: OrbitView, dt: number): OrbitView {
-  const t = 1 - Math.pow(EASE_LEFT, Math.max(0, dt)),
+  const t = 1 - EASE_LEFT ** Math.max(0, dt),
     mix = (a: number, b: number) => a + (b - a) * t;
   return {
     x: mix(v.x, goal.x),

@@ -7,7 +7,7 @@ export function Meter(props: {
   label: string;
   max?: number;
   text?: string;
-  mark?: number;
+  mark?: number | undefined;
 }) {
   const max = props.max ?? 1;
   const frac = Math.min(1, Math.max(0, props.value / max));

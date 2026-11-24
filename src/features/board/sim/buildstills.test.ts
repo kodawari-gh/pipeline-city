@@ -19,7 +19,7 @@ interface Manifest {
   stills: Record<string, string>;
   recipes: Record<string, string>;
 }
-const manifest = (): Manifest => JSON.parse(fs.readFileSync(DIR + 'manifest.json', 'utf8')) as Manifest;
+const manifest = (): Manifest => JSON.parse(fs.readFileSync(`${DIR}manifest.json`, 'utf8')) as Manifest;
 
 describe('the Start list pictures', () => {
   it('has a baked picture for every start that puts a machine on the stage, and none for another', () => {
@@ -33,7 +33,7 @@ describe('the Start list pictures', () => {
 
   it('has none for Empty: it puts nothing on the stage, so there is nothing to take a picture of', () => {
     expect(START_KEYS).toContain('empty');
-    expect(manifest().stills.empty).toBeUndefined();
+    expect(manifest().stills['empty']).toBeUndefined();
     expect(fs.existsSync(`${DIR}empty.webp`)).toBe(false);
   });
 

@@ -22,7 +22,7 @@ class FakeWorker {
   onmessage: ((e: { data: unknown }) => void) | null = null;
   onerror: (() => void) | null = null;
   terminated = false;
-  sent: Array<{ type: string }> = [];
+  sent: { type: string }[] = [];
   constructor() {
     FakeWorker.made.push(this);
   }
@@ -147,10 +147,10 @@ describe('offline', () => {
     online.value = false;
     watchConnection();
     expect(shown()).toMatch(/offline/i);
-    listeners.online!();
+    listeners['online']!();
     expect(online.value).toBe(true);
     expect(lastError.value).toBeNull();
-    listeners.offline!();
+    listeners['offline']!();
     expect(online.value).toBe(false);
   });
 });

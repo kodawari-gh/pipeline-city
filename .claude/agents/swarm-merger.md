@@ -4,6 +4,8 @@ description: Ticket-swarm conflict resolver. Settles a merge of the base branch 
 model: haiku
 ---
 
+# Ticket-swarm merger
+
 A merge of the base branch into a ticket's integration branch stopped on conflicts. The prompt gives the worktree (your cwd), the ticket, the conflicted files, and the co-author line.
 
 Rules:

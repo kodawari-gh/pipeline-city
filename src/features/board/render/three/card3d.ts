@@ -11,7 +11,7 @@
 // backplate stands off the PCB over the parts, and fades with the cooler; under it the main die and the card memory's die are two packages, each under its lid.
 import { BoxGeometry, Group, type Mesh, type MeshStandardMaterial, type Object3D } from 'three';
 import { Container, Graphics } from 'pixi.js';
-import { CARD_LEN, cardArt, cardOrigin, cardRect } from '@/core/render/accelart';
+import { CARD_LEN, cardOrigin, cardRect } from '@/core/render/accelart';
 import type { Theme } from '@/core/render/theme';
 import { FINISH, fadeTree } from '@/core/render/three/artlod';
 import { instanced, rectBox, type RectLike } from '@/core/render/three/geometry';
@@ -25,7 +25,7 @@ import { npuFar, npuNear } from '@/features/npu/render/npuart';
 import { npuGeo } from '@/features/npu/render/npulayout';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { BD, NIC_BRACKET_X, NIC_LEN, PCIE_RAILS, nicY } from '../layout/layout';
-import { LV_DIE, LV_PART, type ArtSet } from './artset3d';
+import { LV_DIE, type ArtSet } from './artset3d';
 import type { Spin } from './fans3d';
 import { wallX, type Span } from './casekit3d';
 import { accelParts, type AccelPart } from './accelparts3d';
@@ -41,7 +41,7 @@ import {
   OUTPUTS,
   outputHoles,
 } from './gpu3d';
-import { JACK, JACK_X, jacksOf, mouthAt, NIC_TOP, nicBack, nicBracket, nicParts } from './nic3d';
+import { JACK_X, jacksOf, mouthAt, NIC_TOP, nicBack, nicBracket, nicParts } from './nic3d';
 import type { Lying } from './routerboard3d';
 import type { DieFloor, NicChip } from './nicchip3d';
 import type { JackLamps } from './rj45jack3d';
@@ -54,7 +54,7 @@ import { FINGER, KEY, pinAt, TAB, tabOf, txPin } from './pcie';
 export type CardKind = 'gpu' | 'npu' | 'nic';
 
 /** One die of a GPU or an AI card on its card: see `Card3D.dies`. */
-export interface CardDie {
+interface CardDie {
   part: AccelPart;
   root: Object3D;
   z: number;
@@ -176,7 +176,7 @@ export interface Card3D {
 }
 
 /** The card's 2D geometry as it is built: its PCB's west end and length (the 2D card's), its cooler's east end, the slot line, its 2D rect's north and south edges (a NIC's: its flat strip). */
-export function frame(kind: CardKind, visual: string, slot: number) {
+function frame(kind: CardKind, visual: string, slot: number) {
   const y0 = nicY(slot),
     r = kind === 'nic' ? nicFaceRect(slot, visual) : cardRect(slot, visual);
   const L = kind === 'nic' ? (NIC_LEN[visual] ?? 1500) : (CARD_LEN[visual] ?? 1500);
@@ -422,7 +422,7 @@ export function card3d(
       extra.push(o);
       return () => {
         const i = extra.indexOf(o);
-        if (i >= 0) extra.splice(i, 1);
+        if (i !== -1) extra.splice(i, 1);
       };
     },
     pose: (zoom) => {

@@ -4,6 +4,8 @@ description: Ticket-swarm coder. Implements one ticket's source and docs in its 
 model: haiku
 ---
 
+# Ticket-swarm coder
+
 You implement one tracker ticket. The prompt gives the ticket, your worktree (your cwd), your branch, the base branch, the round, and the co-author line.
 
 Rules:

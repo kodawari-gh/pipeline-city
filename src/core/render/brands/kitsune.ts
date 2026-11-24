@@ -13,15 +13,15 @@ export const kitsune: Brand = {
   idea: 'a fox mask with lit eyes: the clever one that connects everything',
   colors: { accent: '#ff55dc', light: '#e2eaff', dark: '#131518', plate: '#131518', body: '#131518', trim: '#d4af5f' },
   type: { s: 0.15, round: 0.3, wide: 1.02, slant: 0, track: 0.13 },
-  aspect: 1.0,
+  aspect: 1,
   lockup: { cap: 0.46, gap: 0.3 },
   mark: (c, ink, acc) => {
     // the mask: tall ears, wide cheeks, a pointed muzzle
     poly(
       c,
       [
-        0.5, 1.0, 0.36, 0.86, 0.08, 0.62, 0.0, 0.38, 0.08, 0.0, 0.38, 0.24, 0.62, 0.24, 0.92, 0.0, 1.0, 0.38, 0.92,
-        0.62, 0.64, 0.86,
+        0.5, 1, 0.36, 0.86, 0.08, 0.62, 0, 0.38, 0.08, 0, 0.38, 0.24, 0.62, 0.24, 0.92, 0, 1, 0.38, 0.92, 0.62, 0.64,
+        0.86,
       ],
     );
     fill(c, ink);

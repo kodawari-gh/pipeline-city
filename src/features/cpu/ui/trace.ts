@@ -15,7 +15,7 @@ export interface TraceLine {
 }
 
 const REG = ['zero', 'ra', 'sp', 'a0', 'a1', 'a2', 'a3', 't0', 't1', 't2', 't3', 't4', 's0', 's1', 's2', 's3'];
-const hex = (n: number, w = 4) => '0x' + (n >>> 0).toString(16).padStart(w, '0');
+const hex = (n: number, w = 4) => `0x${(n >>> 0).toString(16).padStart(w, '0')}`;
 const CACHE = ['D$', 'I$', 'L2'];
 const IRQ_NAME: Record<number, string> = {
   [IRQ.TIMER]: 'timer',
@@ -44,7 +44,7 @@ export function decodeEvent(cycle: number, kind: number, a: number, b: number, c
       return {
         cycle,
         group: 'os',
-        text: `interrupt ${IRQ_NAME[a] ?? 'line ' + a}: return address ${hex(b)}, handler ${hex(c)}`,
+        text: `interrupt ${IRQ_NAME[a] ?? `line ${a}`}: return address ${hex(b)}, handler ${hex(c)}`,
       };
     case Ev.Iret:
       return { cycle, group: 'os', text: `iret: back to ${hex(a)}` };
@@ -52,7 +52,7 @@ export function decodeEvent(cycle: number, kind: number, a: number, b: number, c
       return { cycle, group: 'os', text: `new address space: page table at ${hex(a)} (TLB emptied)` };
     case Ev.Tlb:
       if (a === 2)
-        return { cycle, group: 'tlb', text: `page fault at ${hex(c * 256)}: ${FAULT_NAME[d] ?? 'cause ' + d}` };
+        return { cycle, group: 'tlb', text: `page fault at ${hex(c * 256)}: ${FAULT_NAME[d] ?? `cause ${d}`}` };
       return {
         cycle,
         group: 'tlb',
@@ -78,7 +78,7 @@ export function decodeEvent(cycle: number, kind: number, a: number, b: number, c
         text: `${CACHE[a] ?? '?'} fill: slot ${b} takes line ${hex(c * 16, 4)}${d >= 0 ? ` (evicts ${hex(d * 16, 4)})` : ''}`,
       };
     case Ev.Reg:
-      return { cycle, group: 'reg', text: `${REG[a] ?? 'x' + a} <- ${hex(b, 1)}` };
+      return { cycle, group: 'reg', text: `${REG[a] ?? `x${a}`} <- ${hex(b, 1)}` };
     case Ev.Pred:
       return { cycle, group: 'pred', text: `predictor ${a}: counter ${c} -> ${b}` };
   }
@@ -111,7 +111,7 @@ export class TraceBuffer {
     const first = flat.length >= 6 ? flat[0]! : -1;
     if (first >= 0 && this.last >= 0 && first + 1000 < this.last) this.clear();
     for (let k = 0; k + 5 < flat.length; k += 6) {
-      const key = flat.slice(k, k + 6).join(',') + '#' + (k % 6);
+      const key = `${flat.slice(k, k + 6).join(',')}#${k % 6}`;
       if (this.seen.has(key)) continue;
       const l = decodeEvent(flat[k]!, flat[k + 1]!, flat[k + 2]!, flat[k + 3]!, flat[k + 4]!, flat[k + 5]!);
       if (!l) continue;

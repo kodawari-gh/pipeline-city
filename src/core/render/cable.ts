@@ -1,5 +1,4 @@
 import type { Graphics } from 'pixi.js';
-import type { Theme } from './theme';
 
 // One look and one physics for every cable in the game (PSU leads, drive cables, fan cords, wall cords, the ISP lead, the ethernet and
 // video cables). A cable is a sleeve with a shadow, a faint tint of its accent and a lit streak. A cable that is not routed along the
@@ -9,7 +8,7 @@ import type { Theme } from './theme';
 export type Pt = [number, number];
 
 /** The sleeve colour. Over the wall (dark theme) it is paler, with a halo, so it stays readable on the dark slats. */
-export const sleeveOf = (T: Theme, wall = false) => (wall ? '#36457a' : '#171d29');
+export const sleeveOf = (wall = false) => (wall ? '#36457a' : '#171d29');
 const HALO = '#8fa3d6';
 
 export interface CableLook {
@@ -45,7 +44,7 @@ function shifted(pts: readonly Pt[], d: number): Pt[] {
 }
 
 /** Paint a cable's body along a dense centre line: shadow, halo, sleeve, accent tint, braid, lit streak and shade streak. */
-export function paintCable(g: Graphics, T: Theme, pts: readonly Pt[], look: CableLook) {
+export function paintCable(g: Graphics, pts: readonly Pt[], look: CableLook) {
   if (pts.length < 2) return;
   const { w, accent } = look,
     wall = !!look.wall;
@@ -60,7 +59,7 @@ export function paintCable(g: Graphics, T: Theme, pts: readonly Pt[], look: Cabl
     g.stroke({ width: w * 1.5, color: HALO, alpha: 0.28, cap: 'round', join: 'round' });
   }
   trace(g, pts);
-  g.stroke({ width: w, color: sleeveOf(T, wall), cap: 'round', join: 'round' });
+  g.stroke({ width: w, color: sleeveOf(wall), cap: 'round', join: 'round' });
   trace(g, pts);
   g.stroke({ width: w, color: accent, alpha: 0.14, cap: 'round', join: 'round' });
   if (look.braid) {
@@ -260,7 +259,7 @@ export function stepFall(f: Fall, dt: number, anchor: Pt, len: number, rest: Pt,
 // ---------------------------------------------------------------- management (visual only)
 
 /** A cable tie or a velcro strap round a cable at a point, square to it: a short dark band with a lit edge. */
-export function paintTie(g: Graphics, T: Theme, at: Pt, dir: Pt, w: number, accent: string) {
+export function paintTie(g: Graphics, at: Pt, dir: Pt, w: number, accent: string) {
   const l = Math.hypot(dir[0], dir[1]) || 1,
     tx = dir[0] / l,
     ty = dir[1] / l,
@@ -420,35 +419,4 @@ export function drape(route: Pt[], o: DrapeOpts = {}): { path: Pt[]; clips: Clip
     return { at: path[i]!, dir: [b[0] - a[0], b[1] - a[1]] as Pt };
   });
   return { path, clips };
-}
-
-/** A cable clip screwed to the wall round a cable of width `w` at `at`: a saddle (a plate with a screw, a lit edge, a shadow). */
-export function paintClip(g: Graphics, T: Theme, at: Pt, dir: Pt, w: number) {
-  const l = Math.hypot(dir[0], dir[1]) || 1,
-    tx = dir[0] / l,
-    ty = dir[1] / l,
-    nx = -ty,
-    ny = tx,
-    h = w * 0.78 + 10,
-    t = Math.max(10, w * 0.32);
-  const q = (ox: number, oy: number, hh: number, tt: number) =>
-    g.poly([
-      at[0] + ox + nx * hh - tx * tt,
-      at[1] + oy + ny * hh - ty * tt,
-      at[0] + ox + nx * hh + tx * tt,
-      at[1] + oy + ny * hh + ty * tt,
-      at[0] + ox - nx * hh + tx * tt,
-      at[1] + oy - ny * hh + ty * tt,
-      at[0] + ox - nx * hh - tx * tt,
-      at[1] + oy - ny * hh - ty * tt,
-    ]);
-  q(w * 0.1, w * 0.16, h, t);
-  g.fill({ color: '#000000', alpha: 0.28 });
-  q(0, 0, h, t);
-  g.fill({ color: '#7c8db8' });
-  q(-t * 0.25, 0, h, t * 0.3);
-  g.fill({ color: '#ffffff', alpha: 0.2 });
-  g.circle(at[0] + nx * h * 0.82, at[1] + ny * h * 0.82, Math.max(4, w * 0.09))
-    .circle(at[0] - nx * h * 0.82, at[1] - ny * h * 0.82, Math.max(4, w * 0.09))
-    .fill({ color: '#10151f' });
 }

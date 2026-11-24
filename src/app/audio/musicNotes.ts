@@ -6,7 +6,7 @@ import type { GameEvent } from '../../worker/game/types';
 
 export type Family = 'pluck' | 'glint' | 'low';
 export type Register = 'build' | 'flow' | 'glint' | 'failure';
-export type DuckClass = 'standard' | 'key' | 'failure' | 'milestone';
+type DuckClass = 'standard' | 'key' | 'failure' | 'milestone';
 
 /** One note of an event: a scale degree (0 = root, 7 = octave) in a register, `beat` beats after the event. */
 export interface NoteStep {
@@ -23,7 +23,7 @@ export interface NoteSpec {
 }
 
 /** The most note voices at once. A ninth steals the oldest (music-spec.json `voices.cue_max`, the music bus's cap in MIX.voices). */
-export const NOTE_VOICE_MAX = MIX.voices.music;
+const NOTE_VOICE_MAX = MIX.voices.music;
 
 /** A note's length in seconds, for the voice cap (music-spec.json `notes`). */
 export const NOTE_DUR_S: Readonly<Record<Family, number>> = { pluck: 1.2, glint: 0.6, low: 1.8 };
@@ -58,7 +58,7 @@ export function noteMidi(keyPc: number, reg: Register, degree: number): number {
 }
 
 /** A MIDI note as the file token (`Cs4`: MIDI 60 = C4). */
-export const noteToken = (midi: number): string => `${PC_NAME[mod(midi, 12)]}${Math.floor(midi / 12) - 1}`;
+const noteToken = (midi: number): string => `${PC_NAME[mod(midi, 12)]}${Math.floor(midi / 12) - 1}`;
 
 /** The sound file id of one note (`music_note_glint_F5`). The engine loads `music/notes/<id>.ogg`. */
 export const noteId = (family: Family, midi: number): string => `music_note_${family}_${noteToken(midi)}`;
@@ -97,7 +97,7 @@ export function noteSpecFor(e: Pick<GameEvent, 'kind' | 'text'>): NoteSpec | nul
           duck: 'standard',
           steps: [step('pluck', 'build', 4), step('pluck', 'build', 0, HALF), step('low', 'failure', 0)],
         };
-      if (/connected/.test(t))
+      if (t.includes('connected'))
         return { duck: 'standard', steps: [step('pluck', 'build', 0), step('pluck', 'build', 4, HALF)] };
       return null;
     case 'power':
@@ -127,13 +127,14 @@ export function noteSpecFor(e: Pick<GameEvent, 'kind' | 'text'>): NoteSpec | nul
       return { duck: 'standard', steps: [step('glint', 'glint', 3, 0, -4)] };
     case 'net':
       // The spec names the flow register here, but a rise 4 -> 7 fits only the glint register (flow folds it down).
-      if (/link up/.test(t)) return { duck: 'standard', steps: [step('glint', 'glint', 4), step('glint', 'glint', 7)] };
+      if (t.includes('link up'))
+        return { duck: 'standard', steps: [step('glint', 'glint', 4), step('glint', 'glint', 7)] };
       return null;
     case 'bill':
       if (/^paid/.test(t)) return { duck: 'standard', steps: [step('glint', 'glint', 4), step('glint', 'glint', 0)] };
       return null;
     case 'contract':
-      if (/accepted/.test(t))
+      if (t.includes('accepted'))
         return { duck: 'standard', steps: [step('pluck', 'flow', 4), step('pluck', 'flow', 8, HALF)] };
       return { duck: 'standard', steps: [step('pluck', 'flow', 8), step('pluck', 'flow', 4, HALF)] };
     case 'purchase':

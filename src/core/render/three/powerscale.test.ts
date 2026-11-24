@@ -59,7 +59,6 @@ describe('the power scale', () => {
 
   it('gives each role its own colour family: a source white, a hub cyan, a use amber', () => {
     const r = (c: number) => c >> 16,
-      g = (c: number) => (c >> 8) & 255,
       b = (c: number) => c & 255;
     for (const h of [0.3, 0.62, 1]) {
       // (a hub is blue over red, a use is red over blue, a source is near white: its channels stay close)

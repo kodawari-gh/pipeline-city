@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { Box3, type Mesh, type MeshStandardMaterial, type Object3D, Vector3 } from 'three';
+import { Box3, type Mesh, Vector3 } from 'three';
 import { setLowDetail } from '@/core/render/three/detail';
 import { radiatorBay, radiatorSpan } from '@/features/room/render/desk/props/case';
 import { BOARD_Z, CASE_D, CASE_Z, FAN_ZC } from '@/features/room/render/three/roomplan';

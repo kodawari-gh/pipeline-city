@@ -2,7 +2,7 @@
 import { overallOf, type BenchGroup, type TaskResult } from '@/features/sandbox/sim/benchtasks';
 
 /** A score of this is par: what the reference machine built for the task gets. A bar is full at twice of it. */
-export const PAR = 1000;
+const PAR = 1000;
 
 /** How full a score's bar is, in percent: par is half. */
 export const barPct = (score: number | null | undefined): number =>

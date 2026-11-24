@@ -378,7 +378,7 @@ const PLASTER_RELIEF = 0.12,
  * is the light's, not the paint's), and no colour map (the old one moved a texel 2 levels of 255 at most, which nobody saw, for 1.4 MB of
  * GPU memory). Its own stream of random numbers, so the room's other textures keep theirs and a bake gives the same files each time.
  */
-export function plasterMaps(): PlasterMaps {
+function plasterMaps(): PlasterMaps {
   const N = 512,
     hgt = new Float32Array(N * N);
   let seed = 4271;
@@ -443,7 +443,7 @@ export function plasterMaps(): PlasterMaps {
     }),
   };
 }
-export interface PlasterMaps {
+interface PlasterMaps {
   normalMap: Texture | null;
   roughnessMap: Texture | null;
 }
@@ -590,7 +590,7 @@ function planksTex(): Texture | null {
 const PLANKS_REPEAT: [number, number] = [2.4, 3.2];
 
 /** The floor's maps, painted: always the same boards (their own seed). The texture bake runs it (`room-planks`, `tools/bake/textures.mjs`). */
-export function planksMaps(): OakMaps {
+function planksMaps(): OakMaps {
   const keep = seedN;
   seedN = 4871;
   const maps = oakMaps(planksTex());
@@ -599,7 +599,7 @@ export function planksMaps(): OakMaps {
 }
 
 /** The rug's map, painted: always the same flecks (its own seed). The texture bake runs it (`room-rug`). */
-export function rugMap(): Texture | null {
+function rugMap(): Texture | null {
   const keep = seedN;
   seedN = 9311;
   const map = rugTex();
@@ -713,7 +713,7 @@ export interface RoomFrame {
   mail: boolean;
   t: number;
   /** The lights of the router's jacks, from the link's frames (`network/render/jackleds.ts`): the side jack the lead's cord goes into, and the WAN jack. All out when missing. */
-  net?: LinkLevels;
+  net?: LinkLevels | undefined;
 }
 
 export class Room3D {
@@ -1205,7 +1205,7 @@ export class Room3D {
     // the router: black, as the other things on the wall
     const router = tag(new Group(), 'router');
     // (its baked occlusion, 3 cm out: the antennas' hinges, its foot on the shelf; `vertexao.ts`)
-    router.userData.ao = 560;
+    router.userData['ao'] = 560;
     // its tier's look is the shared model's (`router3d.ts`, as the gallery and the studio's wall show it): the home router with its two aerials and four lights; the gigabit
     // one, with stouter aerials and a row of lights; the 10G switch-router: no aerials, fins and a lit bar; the edge router: a rack unit with its ears, a row of cages
     // and two rows of lights. It stands in the router's spot at one scale (the tier's box fits it), its east end and feet on the shelf, its front 1400 out
@@ -1805,7 +1805,7 @@ export class Room3D {
     tray.slice(0, 10).forEach((k, i) => {
       const hook = trayHook(i),
         c = trayKeyCentre(i),
-        g = tag(new Group(), 'key:' + k.id),
+        g = tag(new Group(), `key:${k.id}`),
         col = new Color(lanyardColour(k)).getHex();
       const label = paint(64, 256, (cx, w, h) => {
         cx.fillStyle = '#eceef2';
@@ -1935,7 +1935,7 @@ export class Room3D {
         .lerp(this.sun.color, 0.2 * low * day)
         .lerp(new Color(0x6f86d8), night);
     }
-    this.blindK += ((f.blind ? 1 : 0) - this.blindK) * (1 - Math.pow(0.02, dt));
+    this.blindK += ((f.blind ? 1 : 0) - this.blindK) * (1 - 0.02 ** dt);
     const wh = WINDOW.h - 900,
       bh = Math.max(1, this.blindK * wh);
     for (const b of this.blinds) {

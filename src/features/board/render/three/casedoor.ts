@@ -13,7 +13,7 @@ export interface DoorPose {
 }
 
 /** How long a full opening takes, in seconds. */
-export const DOOR_SECONDS: Record<CaseKind, number> = { oem: 1.3, matte: 1.0, gamer: 0.9, show: 1.3 };
+export const DOOR_SECONDS: Record<CaseKind, number> = { oem: 1.3, matte: 1, gamer: 0.9, show: 1.3 };
 /** How far an open panel stands out: past square, so its far end leans away from the inside. */
 export const SWING = (105 * Math.PI) / 180;
 

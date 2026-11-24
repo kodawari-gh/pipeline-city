@@ -68,7 +68,7 @@ export const saveHooks = {
 
 let worker: Worker | null = null;
 let autosaveTimer: ReturnType<typeof setInterval> | undefined;
-let saveWaiters: Array<(s: SaveV1) => void> = [];
+let saveWaiters: ((s: SaveV1) => void)[] = [];
 
 const send = (m: ToSim) => worker?.postMessage(m);
 
@@ -115,7 +115,7 @@ export function startSim(
   worker = w;
   w.onerror = () => {
     if (w !== worker) return;
-    lastError.value = SAY + 'The game could not start. Reload the page and try again.';
+    lastError.value = `${SAY}The game could not start. Reload the page and try again.`;
     starting.value = false;
   };
   w.onmessage = (e: MessageEvent<FromSim>) => {
@@ -340,18 +340,18 @@ function download(name: string, text: string) {
 /** Download the current game as pipeline-city-<tick>.json. */
 export function exportSave() {
   if (!worker) {
-    lastError.value =
-      SAY +
-      'The game is not running, so it cannot be saved to a file. Your save is unchanged. Start a game, then try again.';
+    lastError.value = `${
+      SAY
+    }The game is not running, so it cannot be saved to a file. Your save is unchanged. Start a game, then try again.`;
     return;
   }
   requestSave((save) => {
     try {
       download(`pipeline-city-${save.baseTick}.json`, JSON.stringify(save, null, 1));
     } catch {
-      lastError.value =
-        SAY +
-        'The file could not be saved. Your save is unchanged. Try again, or check your download settings in your browser.';
+      lastError.value = `${
+        SAY
+      }The file could not be saved. Your save is unchanged. Try again, or check your download settings in your browser.`;
     }
   });
 }
@@ -374,9 +374,10 @@ export async function readSaveFile(file: File): Promise<SaveV1 | null> {
     // (a file that is not JSON is not a save; a save this version cannot read is from another version, or damaged)
     lastError.value =
       e instanceof SyntaxError
-        ? SAY + 'That file is not a Pipeline City save. Pick another file, or go back to the menu.'
-        : SAY +
-          'That save cannot be loaded. It may be from another version of the game, or damaged. Your save is unchanged. Pick another file, or go back to the menu.';
+        ? `${SAY}That file is not a Pipeline City save. Pick another file, or go back to the menu.`
+        : `${
+            SAY
+          }That save cannot be loaded. It may be from another version of the game, or damaged. Your save is unchanged. Pick another file, or go back to the menu.`;
     return null;
   }
 }
@@ -388,9 +389,9 @@ export async function importSave(file: File) {
 }
 
 /** Offline: the game still runs, and the way forward is a reload once the connection is back (the pictures load on the page's start). */
-const OFFLINE_NOTICE =
-  SAY +
-  'You are offline. The game still runs, but pictures from the server may not show. Reconnect, then reload the page.';
+const OFFLINE_NOTICE = `${
+  SAY
+}You are offline. The game still runs, but pictures from the server may not show. Reconnect, then reload the page.`;
 
 /** Record the browser's connection state. Going offline shows the notice in `lastError`; coming back online clears it. */
 export function setOnline(on: boolean): void {

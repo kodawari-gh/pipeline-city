@@ -13,7 +13,7 @@ const COUNTER_INDEX = new Map<string, number>(COUNTER_NAMES.map((n, i) => [n, i]
 export type JobOutcome = 'done' | 'expired' | 'declined' | 'lost' | 'breached' | 'completed';
 
 /** What a contract log entry adds: who, where, how it went. `type` is the contract kind (`cloud.archive`, `cloud.hot`), `payout` the net money. */
-export interface ContractLogInfo {
+interface ContractLogInfo {
   client: string;
   /** Name of the drive that held the data. */
   drive: string;
@@ -67,7 +67,7 @@ export interface JobLogEntry {
   /** The game was loaded while this job was on the machine: `win` counts only since the reload (the counters restart), and there is none if the result was already in. */
   reloaded?: true;
   /** Absent for jobs that never ran, and when the machine rebooted mid-job. */
-  win?: JobWindow;
+  win?: JobWindow | undefined;
   /** Set on a contract entry (outcome `completed`, `lost` or `breached`). The job fields then read: arrival = accepted, finish = the contract end, end = settled. */
   contract?: ContractLogInfo;
 }
@@ -76,7 +76,7 @@ export interface JobLogEntry {
 export const JOB_LOG_CAP = 60;
 
 /** The counter names a window is made of, in the order `windowOf` reads them. */
-export const WINDOW_COUNTERS = [
+const WINDOW_COUNTERS = [
   'cycles',
   'retired',
   'stallLoad',
@@ -276,7 +276,7 @@ function readingOf(e: JobLogEntry): Verdict {
         ? 'No counters for this run: the game was reloaded during it.'
         : 'No counters for this run (the machine restarted during it).',
     };
-  const stalls: Array<[number, string, string, VerdictKind, string]> = [
+  const stalls: [number, string, string, VerdictKind, string][] = [
     [
       w.stallCache,
       'waiting on memory (cache misses)',
@@ -399,7 +399,7 @@ export function summarise(list: readonly JobLogEntry[]): LogSummary {
 }
 
 /** The stall causes a run's cycles are spent on, as a share of its cycles, largest first. */
-export function stallShares(w: JobWindow): Array<{ key: string; label: string; share: number }> {
+export function stallShares(w: JobWindow): { key: string; label: string; share: number }[] {
   const c = Math.max(1, w.cycles);
   return [
     { key: 'cache', label: 'Waiting on memory', share: w.stallCache / c },
@@ -417,7 +417,7 @@ export interface Agg {
   queue: number;
   run: number;
   collect: number;
-  win?: JobWindow;
+  win?: JobWindow | undefined;
   verdict: Verdict;
 }
 

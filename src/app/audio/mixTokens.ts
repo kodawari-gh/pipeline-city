@@ -9,19 +9,19 @@ export const MIX = {
   basePath: 'audio/',
   buses: {
     master: {
-      defaultDb: 0.0,
+      defaultDb: 0,
     },
     music: {
-      defaultDb: -8.0,
+      defaultDb: -8,
     },
     sfx: {
-      defaultDb: 0.0,
+      defaultDb: 0,
     },
     ui: {
-      defaultDb: -3.0,
+      defaultDb: -3,
     },
     ambience: {
-      defaultDb: 0.0,
+      defaultDb: 0,
     },
   },
   sliders: {
@@ -52,10 +52,10 @@ export const MIX = {
     holdMs: 150,
     releaseMs: 400,
     cueDuckDb: {
-      standard: -2.0,
-      key: -3.0,
-      failure: -4.0,
-      milestone: -4.0,
+      standard: -2,
+      key: -3,
+      failure: -4,
+      milestone: -4,
     },
   },
   pause: {
@@ -63,13 +63,13 @@ export const MIX = {
     fadeMs: 1000,
     musicHold: {
       _doc: 'tempo is fixed at 66 bpm (no nudge from speed or pause). The darkening is built into music_pausebed_{KEY} (equal-power crossfade from the bed); the pluck layer goes through a low-pass at -5 dB. Details: audio/music/music-spec.json -> pause.',
-      tempoScale: 1.0,
+      tempoScale: 1,
       lowpassHz: 850,
-      pluckDb: -5.0,
+      pluckDb: -5,
     },
     ambienceGainDb: {
-      amb_room_city_loop: 0.0,
-      amb_machine_hum_loop: -4.0,
+      amb_room_city_loop: 0,
+      amb_machine_hum_loop: -4,
     },
     uiDuringPause: 'normal',
     sfxDuringPause: 'normal',
@@ -106,8 +106,8 @@ export const MIX = {
       when: 'snapshot.powered',
       fanFollow: {
         _doc: 'x = mean DeviceSnap.fan of fan-bearing devices (0..1), else 0.5',
-        gainDbAt0: -6.0,
-        gainDbAt1: 0.0,
+        gainDbAt0: -6,
+        gainDbAt1: 0,
         rateAt0: 0.92,
         rateAt1: 1.12,
         smoothMs: 800,
@@ -135,18 +135,18 @@ export const MIX = {
   },
   fileTargets: {
     _doc: 'max momentary loudness (BS.1770, 400 ms) per file, LUFS; peaks <= -1.2 dBTP',
-    'ui.micro': -38.0,
-    'ui.tick': -42.0,
-    'ui.action': -32.0,
-    'ui.transition': -30.0,
-    'ui.important': -28.0,
-    'sfx.minor': -26.0,
-    'sfx.standard': -23.0,
-    'sfx.key': -20.0,
-    'sfx.stinger': -18.0,
+    'ui.micro': -38,
+    'ui.tick': -42,
+    'ui.action': -32,
+    'ui.transition': -30,
+    'ui.important': -28,
+    'sfx.minor': -26,
+    'sfx.standard': -23,
+    'sfx.key': -20,
+    'sfx.stinger': -18,
     ambienceIntegrated: {
-      amb_room_city_loop: -40.0,
-      amb_machine_hum_loop: -38.0,
+      amb_room_city_loop: -40,
+      amb_machine_hum_loop: -38,
     },
   },
   logRules: [
@@ -217,7 +217,7 @@ export const MIX = {
     },
     {
       kind: 'payout',
-      match: '\\(late\\)$',
+      match: String.raw`\(late\)$`,
       cue: 'payout_late',
     },
     {
@@ -320,7 +320,7 @@ export const MIX = {
     loopSamples: 698182,
     menuLoopSamples: 1396364,
     loopPadSamples: 4800,
-    levelupWithSfxDb: -6.0,
+    levelupWithSfxDb: -6,
     levelupWithSfxDoc:
       'music_levelup_{KEY} plays at -6 dB whenever the SFX stinger level_up__{KEY} plays on the same bar (both are kept)',
     menu: {
@@ -329,20 +329,20 @@ export const MIX = {
     },
     preload: 'current key + next key (+7 semitones) decoded; ~34 MB decoded per key',
     layerGainDb: {
-      bed: 0.0,
-      pluck: -2.0,
-      bass: -5.0,
-      shimmer: -7.0,
-      stress: -6.0,
-      pausebed: 1.0,
+      bed: 0,
+      pluck: -2,
+      bass: -5,
+      shimmer: -7,
+      stress: -6,
+      pausebed: 1,
       menu: 2.5,
     },
     cueGainDb: {
-      pluck: 2.0,
-      glint: 0.0,
-      low: 1.0,
-      levelup: 0.0,
-      fault: 0.0,
+      pluck: 2,
+      glint: 0,
+      low: 1,
+      levelup: 0,
+      fault: 0,
     },
     trimDb: 0.3,
   },
@@ -2489,4 +2489,3 @@ export const MIX = {
 
 export type CueId = (typeof MIX.cues)[number]['id'];
 export type BusId = keyof typeof MIX.buses;
-export type KeyName = (typeof MIX.transpose.keyNames)[number];

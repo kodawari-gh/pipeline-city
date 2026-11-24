@@ -10,7 +10,7 @@ export const raiden: Brand = {
   idea: 'the thunder drum struck: a lit bolt breaking through its ring',
   colors: { accent: '#ffc247', light: '#e2eaff', dark: '#131518', plate: '#131518', body: '#1d1e22', trim: '#4e5360' },
   type: { s: 0.16, round: 0.08, wide: 0.88, slant: 0.2, track: 0.07 },
-  aspect: 1.0,
+  aspect: 1,
   lockup: { cap: 0.5, gap: 0.28 },
   mark: (c, ink, acc) => {
     circle(c, 0.52, 0.5, 0.42);

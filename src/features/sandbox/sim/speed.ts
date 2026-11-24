@@ -115,7 +115,7 @@ export function flatOut(speed: Speed, targetTicks = 1500): Record<string, number
   callMs.sort((x, y) => x - y);
   const msPerTick = advMs / ticks;
   const msPerSnap = snaps > 0 ? snapMs / snaps : 0;
-  const msBusy = busy.ticks ? busy.ms / busy.ticks : NaN;
+  const msBusy = busy.ticks ? busy.ms / busy.ticks : Number.NaN;
   // The worker's second: 10 calls, each with a snapshot, and the rest is ticks. The busy figure is the one to plan for.
   const ceiling = (1000 - 10 * msPerSnap) / (busy.ticks ? msBusy : msPerTick);
   return {
@@ -123,7 +123,7 @@ export function flatOut(speed: Speed, targetTicks = 1500): Record<string, number
     ticks,
     msPerTick: +msPerTick.toFixed(3),
     msPerTickJobRunning: +msBusy.toFixed(3),
-    msPerTickOther: other.ticks ? +(other.ms / other.ticks).toFixed(3) : NaN,
+    msPerTickOther: other.ticks ? +(other.ms / other.ticks).toFixed(3) : Number.NaN,
     msPerSnapshot: +msPerSnap.toFixed(3),
     ticksPerSecondFlatOut: Math.round(ticks / ((advMs + snapMs) / 1000)),
     ceilingX: Math.floor(ceiling),

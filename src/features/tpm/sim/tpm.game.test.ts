@@ -54,7 +54,7 @@ describe('a TPM in the machine', () => {
     g.spawnKey('secure');
     const op = new Operator(g, 1);
     let ticks = 0;
-    while (!/running/.test(g.currentPhase()) && ticks++ < 5000) {
+    while (!g.currentPhase().includes('running') && ticks++ < 5000) {
       g.advanceBaseTick();
       op.step();
     }
@@ -64,7 +64,7 @@ describe('a TPM in the machine', () => {
     (g as unknown as { tpm: { violated: boolean } }).tpm.violated = true;
     g.advanceBaseTick();
     expect(g.errors).toBe(errors + 1);
-    expect(g.snapshot().log.some((e) => /protected-mode violation/.test(e.text))).toBe(true);
+    expect(g.snapshot().log.some((e) => e.text.includes('protected-mode violation'))).toBe(true);
     expect(g.snapshot().tray.length + (g.pluggedKey() ? 1 : 0)).toBeGreaterThan(0); // the job is not lost, it restarts
   });
 
@@ -138,7 +138,7 @@ describe('protected mode under the paged OS', { timeout: 600_000 }, () => {
     expect(takeCrash(h)).toEqual([]);
     expect(states().every((s) => s === JobState.Result)).toBe(true);
     expect(g.errors).toBe(0);
-    expect(g.snapshot().log.some((e) => /protected-mode violation/.test(e.text))).toBe(false);
+    expect(g.snapshot().log.some((e) => e.text.includes('protected-mode violation'))).toBe(false);
     expect(shifted).toBe(true);
   });
 });

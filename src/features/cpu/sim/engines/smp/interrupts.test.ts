@@ -232,10 +232,7 @@ describe('interrupts: entry and return', () => {
   });
 
   it("the handler sees the line and the return address in the controller's registers", () => {
-    const src =
-      SETUP +
-      WORK +
-      `
+    const src = `${SETUP + WORK}
 isr:${SAVE}
   li t0, ${INTC_BASE}
   lw t1, ${INTC_REG.CAUSE}(t0)
@@ -257,10 +254,7 @@ ${RESTORE}`;
   const base = run(() => new RefEngine(), MAIN);
 
   it('a line that is not acknowledged fires again as soon as iret enables interrupts', () => {
-    const src =
-      SETUP +
-      WORK +
-      `
+    const src = `${SETUP + WORK}
 isr:${SAVE}
   lw t0, ${COUNTER}(zero)
   addi t0, t0, 1
@@ -282,10 +276,7 @@ ${RESTORE}`;
   });
 
   it('the lowest pending line is taken first', () => {
-    const src =
-      SETUP.replace(`li t0, ${1 << IRQ.NIC}`, `li t0, ${(1 << IRQ.NIC) | (1 << IRQ.USB)}`) +
-      WORK +
-      `
+    const src = `${SETUP.replace(`li t0, ${1 << IRQ.NIC}`, `li t0, ${(1 << IRQ.NIC) | (1 << IRQ.USB)}`) + WORK}
 isr:${SAVE}
   li t0, ${INTC_BASE}
   lw t1, ${INTC_REG.CAUSE}(t0)

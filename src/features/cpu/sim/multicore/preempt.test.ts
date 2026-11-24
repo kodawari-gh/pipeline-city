@@ -180,7 +180,7 @@ spin:
     // a frame owned by job slot 5, which is not running
     dv.setUint32(FMAP + 4 * 1000, 5 + 1, true);
     for (let i = 0; i < 4; i++) g.snapshot();
-    expect(g.snapshot().health!.some((h) => h.level === 'bad' && /not give them back/.test(h.text))).toBe(true);
+    expect(g.snapshot().health!.some((h) => h.level === 'bad' && h.text.includes('not give them back'))).toBe(true);
   });
 
   it("the snapshot carries each running program's page table: the ROM, its image and the pages it claimed, with their bits", () => {

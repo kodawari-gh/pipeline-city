@@ -58,7 +58,7 @@ export function solid(m: Material): m is MeshStandardMaterial {
 
 /** Does the geometry carry baked vertex occlusion (`vertexao.ts`): a prop or a plant, which keeps it instead of a lightmap. */
 export function hasAo(g: BufferGeometry): boolean {
-  const a = g.attributes._ao?.array;
+  const a = g.attributes['_ao']?.array;
   if (a) for (let i = 0; i < a.length; i++) if (a[i]! < 0.999) return true;
   return false;
 }
@@ -71,7 +71,7 @@ export const shown = (o: Object3D): boolean => {
 
 /** A geometry's positions through `k` (to the room's frame), as the bake's export reads them (Float32, so the hash rounds the same values). */
 export function framed(g: BufferGeometry, k: Matrix4): Float32Array {
-  const p = g.attributes.position!,
+  const p = g.attributes['position']!,
     out = new Float32Array(3 * p.count),
     v = new Vector3();
   for (let i = 0; i < p.count; i++) {
@@ -104,7 +104,7 @@ export function keyFrames(hour: number, hours: readonly number[]): [number, numb
  * A light group's lightmap: its file, the scale its RGBM decodes by, a lamp group's baked lead intensity, a sun frame's hour. `ktx2` names the
  * same map as a KTX2 file (`tools/bake/lightmaps.mjs`): the game loads that one when it can, and the PNG when it cannot.
  */
-export interface BakeGroup {
+interface BakeGroup {
   id: string;
   kind: 'lamp' | 'sky' | 'city' | 'sun';
   file: string;
@@ -114,7 +114,7 @@ export interface BakeGroup {
   hour?: number;
 }
 /** A receiver: its hash, its corners (three a triangle, unindexed) and where its UVs start in `meshes.bin` (in corners). */
-export interface BakeMesh {
+interface BakeMesh {
   name: string;
   hash: string;
   corners: number;
@@ -124,7 +124,7 @@ export interface BakeMesh {
  * A lamp group's direct light on the receivers, for when the lamp cap takes its lights out of the scene: one channel of the file `map`
  * (`BakeManifest.direct.files`), the square root of the light over `scale`; `colour` gives it its hue; `lead` as a `BakeGroup`'s.
  */
-export interface BakeDirect {
+interface BakeDirect {
   id: string;
   map: number;
   channel: number;
@@ -287,8 +287,8 @@ const BEGIN = ShaderChunk.lights_fragment_begin.replace(
  * material patched before stays as it is.
  */
 export function lightmapped(m: Material): void {
-  if (m.userData.lightmapped) return;
-  m.userData.lightmapped = true;
+  if (m.userData['lightmapped']) return;
+  m.userData['lightmapped'] = true;
   const prev = m.onBeforeCompile.bind(m),
     key = `${m.customProgramCacheKey()}|lm`;
   m.onBeforeCompile = (sh: WebGLProgramParametersWithUniforms, r: WebGLRenderer) => {
@@ -350,9 +350,9 @@ export function applyLightmap(root: Object3D, bake: Bake, map: Texture, o: LitOp
     if (x.isInstancedMesh || x.isSkinnedMesh || Array.isArray(m.material) || !solid(m.material) || o.skip?.(m))
       continue;
     const g = m.geometry,
-      corners = g.index ? g.index.count : g.attributes.position!.count;
+      corners = g.index ? g.index.count : g.attributes['position']!.count;
     // (a mesh lit before keeps the hash of its geometry as the bake saw it: its own is unindexed now)
-    let hash = m.userData.bakeHash as string | undefined,
+    let hash = m.userData['bakeHash'] as string | undefined,
       pos: Float32Array | null = null;
     if (!hash) {
       pos = framed(g, k.multiplyMatrices(toRoot, m.matrixWorld));
@@ -375,7 +375,7 @@ export function applyLightmap(root: Object3D, bake: Bake, map: Texture, o: LitOp
   for (const e of bake.manifest.meshes) {
     if (found.has(e.hash)) continue;
     const i = none.findIndex((x) => x.corners === e.corners);
-    if (i < 0) continue;
+    if (i === -1) continue;
     lit.push([none[i]!.m, e, e.hash]);
     found.add(e.hash);
     loose++;
@@ -393,7 +393,7 @@ export function applyLightmap(root: Object3D, bake: Bake, map: Texture, o: LitOp
       if (use(old, -1) === 0) old.dispose();
     }
     g.setAttribute('uv1', new BufferAttribute(bake.uvs.subarray(2 * e.offset, 2 * (e.offset + e.corners)), 2, true));
-    m.userData.bakeHash = hash;
+    m.userData['bakeHash'] = hash;
     const src = m.material as MeshStandardMaterial;
     let mat = mats.get(src);
     if (!mat) {
@@ -551,7 +551,7 @@ export class LightmapMix {
     renderer.setClearColor(0x000000, 1);
     renderer.clear(true, false, false);
     renderer.autoClear = false;
-    const k = this.mat.uniforms.k!.value as Vector3;
+    const k = this.mat.uniforms['k']!.value as Vector3;
     for (const g of this.bake.manifest.groups) {
       const l = levels.get(g.id),
         map = this.bake.maps.get(g.id);
@@ -560,7 +560,7 @@ export class LightmapMix {
       if (typeof l === 'number') k.setScalar(l * s);
       else k.set(l.r * s, l.g * s, l.b * s);
       if (Math.max(k.x, k.y, k.z) <= 0) continue;
-      this.mat.uniforms.map!.value = map;
+      this.mat.uniforms['map']!.value = map;
       renderer.render(this.scene, this.cam);
     }
     const maps = this.bake.direct,
@@ -572,9 +572,9 @@ export class LightmapMix {
           map = maps[g.map];
         if (l <= 0 || !map) continue;
         const s = (l * g.scale) / (g.lead || 1);
-        (u.k!.value as Vector3).set(g.colour[0] * s, g.colour[1] * s, g.colour[2] * s);
-        (u.sel!.value as Vector3).set(g.channel === 0 ? 1 : 0, g.channel === 1 ? 1 : 0, g.channel === 2 ? 1 : 0);
-        u.map!.value = map;
+        (u['k']!.value as Vector3).set(g.colour[0] * s, g.colour[1] * s, g.colour[2] * s);
+        (u['sel']!.value as Vector3).set(g.channel === 0 ? 1 : 0, g.channel === 1 ? 1 : 0, g.channel === 2 ? 1 : 0);
+        u['map']!.value = map;
         renderer.render(this.scene, this.cam);
       }
       this.quad.material = this.mat;

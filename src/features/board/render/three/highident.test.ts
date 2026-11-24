@@ -13,7 +13,7 @@ import { buildMachine, maxedSnapshot, quietCanvas } from './testutil';
 quietCanvas();
 
 const fs = fsMod as any;
-const GOLDEN: string = urlMod.fileURLToPath(new URL('./highident.expected.json', import.meta.url));
+const GOLDEN: string = urlMod.fileURLToPath(new URL('highident.expected.json', import.meta.url));
 
 /** One group's fingerprint: its meshes, the draws a camera on layer 0 makes (a Mesh or an InstancedMesh is one), its vertices and instances, and a hash of them. */
 interface Row {
@@ -72,7 +72,7 @@ function fingerprint(roots: [string, Object3D][]): Record<string, Row> {
       const drawn = shown(o) && (mesh.layers.mask & 1) !== 0 && [mesh.material].flat().some((x) => x.visible);
       if (drawn) g.draws += 1;
       g.h.add(drawn ? 1 : 0);
-      const attr = mesh.geometry.attributes.position as BufferAttribute | undefined;
+      const attr = mesh.geometry.attributes['position'] as BufferAttribute | undefined;
       if (attr) {
         g.verts += attr.count;
         const e = pos.copy(mesh.matrixWorld).elements;
@@ -131,8 +131,8 @@ describe('High builds the same machine and room', () => {
     console.log(
       `High identity: ${rows.length} groups, ${sum((r) => r.meshes)} meshes, ${sum((r) => r.draws)} draws, ${sum((r) => r.verts)} verts, ${sum((r) => r.instances)} instances`,
     );
-    const env = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process.env;
-    if (env.UPDATE_HIGH_GOLDEN === '1') {
+    const { env } = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process;
+    if (env['UPDATE_HIGH_GOLDEN'] === '1') {
       fs.writeFileSync(GOLDEN, `${JSON.stringify(got, null, 2)}\n`);
       return;
     }

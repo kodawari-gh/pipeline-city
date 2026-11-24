@@ -10,13 +10,13 @@ export interface Field {
   bits: number;
 }
 
-const hex = (v: number, w = 1) => '0x' + (v >>> 0).toString(16).padStart(w, '0');
-export const regName = (n: number): string => REG_NAMES[n] ?? 'x' + n;
+const hex = (v: number, w = 1) => `0x${(v >>> 0).toString(16).padStart(w, '0')}`;
+export const regName = (n: number): string => REG_NAMES[n] ?? `x${n}`;
 const reg = regName;
 /** An address as the token's reference: `@c5a0`. */
-export const pcText = (pc: number): string => '@' + (pc >>> 0).toString(16).padStart(4, '0');
+export const pcText = (pc: number): string => `@${(pc >>> 0).toString(16).padStart(4, '0')}`;
 /** A short number that tells apart two runs of the same instruction (a loop body): the instruction's sequence number. */
-export const seqText = (id: number): string => '#' + id;
+export const seqText = (id: number): string => `#${id}`;
 
 /** A colour that belongs to one instruction (its ring and its pips in the queues): a hue by sequence number. */
 export function idColor(id: number): string {
@@ -32,7 +32,7 @@ export function idColor(id: number): string {
     Math.round(v * 255)
       .toString(16)
       .padStart(2, '0');
-  return '#' + c(f(0)) + c(f(8)) + c(f(4));
+  return `#${c(f(0))}${c(f(8))}${c(f(4))}`;
 }
 
 /** The registers an instruction reads, in order. */

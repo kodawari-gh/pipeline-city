@@ -1,7 +1,7 @@
 // Keys and the mouse on the main menu (ticket #36; SPEC §10 and §4.4 to §4.5). Pure TS: no DOM, no Pixi, no Preact.
 
 /** How long the mouse stays still after a key press, in ms. The mouse does not move focus during it. */
-export const MOUSE_HOLD_MS = 1000;
+const MOUSE_HOLD_MS = 1000;
 
 /**
  * The row focus moves to for a key. `count`: enabled rows. `at`: the focused row, or -1 for none.

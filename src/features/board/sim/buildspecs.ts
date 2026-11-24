@@ -63,7 +63,7 @@ export function specSheet(m: {
   caseTier: number;
   specs: readonly string[];
   shown?: Shown;
-  drawW?: number;
+  drawW?: number | undefined;
 }): SpecSheet {
   const shown = m.shown ?? 'machine';
   let budget = shown === 'machine' ? (BOARD_TIERS[m.boardTier]?.price ?? 0) : 0,

@@ -130,9 +130,9 @@ describe('Machine3D.heldCables', () => {
     expect([...m.heldCables()]).toEqual([]);
     let cable: Object3D | undefined;
     m.root.traverse((o) => {
-      if (o.userData.id === 'cable.atx') cable = o;
+      if (o.userData['id'] === 'cable.atx') cable = o;
     });
-    const rig = cable?.children.find((c) => c.userData.rig);
+    const rig = cable?.children.find((c) => c.userData['rig']);
     expect(rig).toBeDefined();
     rig!.visible = false;
     expect([...m.heldCables()]).toEqual(['atx']);

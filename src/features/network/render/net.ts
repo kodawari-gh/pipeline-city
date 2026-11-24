@@ -36,7 +36,7 @@ const vgrad = (top: string, bot: string) =>
   });
 
 /** "50 Mb", "1 Gb". */
-export const fmtMbps = (m: number) => (m >= 1000 ? `${+(m / 1000).toFixed(1)} Gb` : `${m} Mb`);
+const fmtMbps = (m: number) => (m >= 1000 ? `${+(m / 1000).toFixed(1)} Gb` : `${m} Mb`);
 
 // ---------------------------------------------------------------- router geometry
 
@@ -52,19 +52,10 @@ const GEOM: Record<string, Geom> = {
   'router-core': { w: 1600, h: 300, nLan: 4 },
 };
 const geom = (visual: string): Geom => GEOM[visual] ?? GEOM['router-home']!;
-// The router is drawn at its design size around its shelf corner (ROUTER_EAST, SHELF_Y) in a container scaled by NET_K, so the box and
-// everything on it grow together; the `world` helpers below give the scaled positions the cable, the LEDs and the hit boxes use.
-const tx = (x: number) => ROUTER_EAST + (x - ROUTER_EAST) * NET_K;
-const ty = (y: number) => SHELF_Y + (y - SHELF_Y) * NET_K;
 /** The box a router occupies in design units (right-aligned to the shelf end, standing on the shelf line). */
 const designRect = (visual: string): Rect => {
   const g = geom(visual);
   return { x: ROUTER_EAST - g.w, y: SHELF_Y - g.h, w: g.w, h: g.h };
-};
-/** The box a router occupies in the world (right-aligned to the shelf end, standing on the shelf line). */
-export const routerRect = (visual: string): Rect => {
-  const d = designRect(visual);
-  return { x: tx(d.x), y: ty(d.y), w: d.w * NET_K, h: d.h * NET_K };
 };
 const pitch = (visual: string) => Math.min(150, (geom(visual).w - 420) / geom(visual).nLan);
 const SOCK_H = 84;
@@ -265,9 +256,4 @@ const nicLeds = (i: number): Pt2[] => {
 interface Pt2 {
   x: number;
   y: number;
-}
-
-/** Exterior rear plate: the cut-outs and LED wells of the NIC jacks (the board's own jack is drawn by exterior.ts). */
-export function nicPlateLeds(i: number): Pt2[] {
-  return nicLeds(i);
 }

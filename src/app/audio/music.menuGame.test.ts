@@ -10,7 +10,7 @@
 // Layer gain: the token dB (MIX.music.layerGainDb) plus 20 log10 of the linear state target (music-spec.md §4), e.g. pluck target 0.5 -> token dB + -6 dB.
 // Values come from MIX, the music spec token or the key rules; the menu's 2 s and the 1.5 s return fade are the ticket's numbers.
 import { describe, expect, it } from 'vitest';
-import { createDirector, type DirectorSnap, type Scene, type UiInput } from './director';
+import { createDirector, type DirectorSnap } from './director';
 import { keyName, keyPcForLevel } from './keys';
 import { MIX } from './mixTokens';
 
@@ -77,8 +77,6 @@ const snap = (level: number, phase: string = 'idle-os'): DirectorSnap => ({
   level: { level },
   phase: phase as DirectorSnap['phase'],
 });
-
-const UI_RUNNING: UiInput = { speed: 1, hold: null, crashed: false };
 
 const keyOf = (level: number) => keyName(keyPcForLevel(level));
 const keyed = (layer: Layer, level: number) => `music_${layer}_${keyOf(level)}`;

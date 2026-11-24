@@ -76,8 +76,8 @@ export const OUTPUTS: readonly Output[] = [
   ...[34.5, 55, 75.5].map((c): Output => ({ kind: 'dp', c: c * MM, w: 17 * MM, h: 6.2 * MM, d: 15 * MM })),
 ];
 /** How far the outputs' shells stand off the PCB's underside (they sit on it), and how far their mouths stand in behind the bracket's face. */
-export const OUT_OFF = 2,
-  OUT_IN = 6;
+const OUT_OFF = 2;
+export const OUT_IN = 6;
 /** The middle of an output's mouth across the card's thickness, under the PCB's underside. */
 export const outDepth = (o: Output): number => OUT_OFF + o.h / 2;
 /** The top of the bracket's port openings over the slot's line: the vents start past it. */

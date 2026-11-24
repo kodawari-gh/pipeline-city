@@ -88,7 +88,7 @@ describe('BuildStage first picture', () => {
       clientWidth: 400,
       clientHeight: 800,
     });
-    s._machine = {
+    s['_machine'] = {
       moving: false,
       doorOpen: false,
       frame() {},
@@ -97,8 +97,8 @@ describe('BuildStage first picture', () => {
       lod() {},
       root: new Group(),
     };
-    s._game = {};
-    s.snaps = { of: () => ({}), drop() {} };
+    s['_game'] = {};
+    s['snaps'] = { of: () => ({}), drop() {} };
     stage = s as unknown as Stage;
   });
   afterEach(() => {

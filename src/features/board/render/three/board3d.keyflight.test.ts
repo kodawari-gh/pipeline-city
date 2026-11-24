@@ -13,7 +13,7 @@ import * as camera from '@/core/render/three/camera';
 import { panBy, type OrbitView } from '@/core/render/three/camera';
 
 const fs = fsMod as any;
-const text: string = fs.readFileSync(urlMod.fileURLToPath(new URL('./board3d.ts', import.meta.url)), 'utf8');
+const text: string = fs.readFileSync(urlMod.fileURLToPath(new URL('board3d.ts', import.meta.url)), 'utf8');
 
 type Inset = { top: number; right: number; bottom: number; left: number };
 type Shift = (id: string, v: OrbitView, H: number, bh: number, viewInset: { peek: () => Inset }) => OrbitView;
@@ -40,10 +40,10 @@ function keyShift(): Shift {
   if (at < 0) throw new Error(`board3d.ts must have one \`${GUARD.trim()}\` statement (the key flight's eye shift)`);
   const after = at + GUARD.length;
   const statement = text[after] === '{' ? braced(text, after) : text.slice(after, text.indexOf(';', after) + 1);
-  if (!/viewInset\.peek\(\)/.test(statement) || !/(panBy|lowerInBand)\(/.test(statement))
+  if (!statement.includes('viewInset.peek()') || !/(panBy|lowerInBand)\(/.test(statement))
     throw new Error(`the key flight statement must read viewInset and pan the view: ${statement}`);
-  const lowerInBand = (camera as unknown as Record<string, unknown>).lowerInBand;
-  if (/lowerInBand\(/.test(statement) && typeof lowerInBand !== 'function')
+  const lowerInBand = (camera as unknown as Record<string, unknown>)['lowerInBand'];
+  if (statement.includes('lowerInBand(') && typeof lowerInBand !== 'function')
     throw new Error('the key flight calls lowerInBand, which camera.ts does not export');
   const run = new Function(
     'id',
@@ -62,6 +62,7 @@ function keyShift(): Shift {
     } catch (e) {
       throw new Error(
         `the key flight statement reads something this harness does not give it: ${(e as Error).message}`,
+        { cause: e },
       );
     }
   };

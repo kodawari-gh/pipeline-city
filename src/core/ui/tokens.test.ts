@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import * as fsMod from 'node:fs';
 // @ts-ignore
 import * as urlMod from 'node:url';
+
 const fs = fsMod as any;
 const ROOT: string = urlMod.fileURLToPath(new URL('../../../', import.meta.url));
 const read = (rel: string): string => fs.readFileSync(`${ROOT}${rel}`, 'utf8');
@@ -58,8 +59,8 @@ describe('fonts are self-hosted', () => {
 
   it('keeps the UI font variables on the Plex families, not the system fonts', () => {
     const ui = read('src/core/ui/ui.css');
-    const uiVar = ui.match(/--ui:\s*([^;]+);/);
-    const monoVar = ui.match(/--mono:\s*([^;]+);/);
+    const uiVar = /--ui:\s*([^;]+);/.exec(ui);
+    const monoVar = /--mono:\s*([^;]+);/.exec(ui);
     expect(uiVar, '--ui in ui.css').not.toBeNull();
     expect(monoVar, '--mono in ui.css').not.toBeNull();
     expect(uiVar![1]).toMatch(/'Plex Sans'|'Plex Cond'/);
@@ -77,7 +78,7 @@ describe('fonts are preloaded', () => {
     const main = read('src/app/main.tsx');
     const tags = [...html.matchAll(/<link\b[^>]*>/g)].map((m) => m[0]);
     // Attribute order does not matter: each attribute is read on its own.
-    const attr = (tag: string, name: string): string | undefined => tag.match(new RegExp(`\\s${name}="([^"]*)"`))?.[1];
+    const attr = (tag: string, name: string): string | undefined => new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1];
     for (const base of ['IBMPlexSansCondensed-SemiBold', 'IBMPlexMono-Medium']) {
       const inHtml = tags.some(
         (tag) =>
@@ -94,7 +95,7 @@ describe('fonts are preloaded', () => {
   it('gives the preload links crossorigin, as font preloads need', () => {
     const html = read('index.html');
     const links = [...html.matchAll(/<link[^>]*rel="preload"[^>]*>/g)].map((m) => m[0]);
-    for (const l of links.filter((x) => /as="font"/.test(x))) expect(l).toMatch(/crossorigin/);
+    for (const l of links.filter((x) => x.includes('as="font"'))) expect(l).toMatch(/crossorigin/);
   });
 });
 

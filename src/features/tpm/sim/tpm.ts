@@ -44,7 +44,7 @@ export function wordHash(words: Iterable<number>): number {
 type Phase = 'idle' | 'in' | 'work' | 'out';
 
 /** Commands kept in the log the board view replays. */
-export const TPM_LOG = 8;
+const TPM_LOG = 8;
 /** Sealed values the view lists. */
 export const TPM_KEYS_SHOWN = 8;
 

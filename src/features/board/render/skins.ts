@@ -7,7 +7,7 @@
 //   3 Enthusiast   gloss black, gold silk, graphite sinks with a brushed silver insert, an armoured I/O cover, a violet accent and RGB
 
 /** A colour for each theme: [dark, light]. */
-export type Tone = readonly [string, string];
+type Tone = readonly [string, string];
 
 export interface BoardSkin {
   name: string;
@@ -100,4 +100,4 @@ export const slotArmour = (tier: number, i: number): boolean => {
 };
 
 /** A `#rrggbb` colour as a number (for three.js materials). */
-export const hexNum = (c: string): number => parseInt(c.slice(1, 7), 16);
+export const hexNum = (c: string): number => Number.parseInt(c.slice(1, 7), 16);

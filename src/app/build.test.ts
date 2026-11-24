@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import * as fsMod from 'node:fs';
 // @ts-ignore
 import * as urlMod from 'node:url';
+
 const fs = fsMod as any;
 const ROOT: string = urlMod.fileURLToPath(new URL('../../', import.meta.url));
 

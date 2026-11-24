@@ -35,7 +35,7 @@ const merged = (o: Object3D | null | undefined): number => {
 const rigOf = (root: Object3D, id: string): Object3D | null => {
   let r: Object3D | null = null;
   findById(root, id)?.traverse((c) => {
-    if (!r && c.userData.rig) r = c;
+    if (!r && c.userData['rig']) r = c;
   });
   return r;
 };
@@ -95,7 +95,7 @@ it("the machine's wires are merged at every tier (machine3d.ts, `mergeSiblings(t
     let n = 0;
     w.traverse((c) => {
       let inRig = false;
-      for (let p: Object3D | null = c; p && p !== w; p = p.parent) if (p.userData.rig) inRig = true;
+      for (let p: Object3D | null = c; p && p !== w; p = p.parent) if (p.userData['rig']) inRig = true;
       if (!inRig && (c as Mesh).isMesh && c.name === 'merged') n++;
     });
     return n;

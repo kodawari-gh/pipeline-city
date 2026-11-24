@@ -9,8 +9,8 @@ import { SEG } from '@/core/render/three/geometry';
 import { NOISE_PERIOD, skyNoise } from './skynoise';
 
 /** The warm hour's sky low down (linear): the ember toward the sun, and the earth's shadow away from it. `view.ts` gives the haze the same. */
-export const EMBER = new Color(0.95, 0.33, 0.09),
-  EARTH_SHADOW = new Color(0.13, 0.1, 0.18);
+const EMBER = new Color(0.95, 0.33, 0.09);
+export const EARTH_SHADOW = new Color(0.13, 0.1, 0.18);
 const vec = (c: Color): string => `vec3(${c.r.toFixed(3)}, ${c.g.toFixed(3)}, ${c.b.toFixed(3)})`;
 
 const VERT = /* glsl */ `
@@ -143,7 +143,7 @@ export interface SkyUniforms {
  * The moon's night (hours; past midnight they count on from 24): it rises in the east at `MOON_RISE` and sets in the west at `MOON_SET`.
  * Its side to side (radians from north, east positive) and its height at the top of its arc.
  */
-export const MOON_RISE = 18,
+const MOON_RISE = 18,
   MOON_SET = 32;
 const MOON_EAST = 0.6,
   MOON_WEST = -0.308,

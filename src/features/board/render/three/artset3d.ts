@@ -9,8 +9,8 @@ import { ArtBaker, startBaker } from './bake';
 import type { Raise } from './parts3d';
 
 /** The texture densities (pixels per unit) of the board's own face and of a part raised off it, rising. */
-export const LV_BOARD = [0.2, 0.8, 2.4, 7],
-  LV_RAISED = [0.6, 2.4, 7];
+export const LV_BOARD = [0.2, 0.8, 2.4, 7];
+const LV_RAISED = [0.6, 2.4, 7];
 /**
  * The same for a part's face and for the dies (their names are 9 to 14 units high). The finest is for the closest view (`LIMITS.heightMin`:
  * about 10 screen pixels per unit), where the silkscreen and the die names stay sharp.
@@ -56,7 +56,7 @@ export class ArtSet {
   /** Take a face and its art away (a part built again alone): its tiles and its textures go. */
   drop(s: ArtSurface, b?: ArtBaker): void {
     const i = this.surfaces.indexOf(s);
-    if (i >= 0) this.surfaces.splice(i, 1);
+    if (i !== -1) this.surfaces.splice(i, 1);
     s.root.removeFromParent();
     s.dispose();
     const j = b ? this.bakers.indexOf(b) : -1;
@@ -95,7 +95,7 @@ export class ArtSet {
     this.reveals.push(r);
     return () => {
       const i = this.reveals.indexOf(r);
-      if (i >= 0) this.reveals.splice(i, 1);
+      if (i !== -1) this.reveals.splice(i, 1);
     };
   }
 
@@ -112,9 +112,9 @@ export class ArtSet {
 
   /** Hand the set to the viewer on the part's root. */
   attach(o: Object3D): void {
-    o.userData.frame = this.frame;
-    o.userData.dispose = this.dispose;
-    o.userData.open = this.open;
+    o.userData['frame'] = this.frame;
+    o.userData['dispose'] = this.dispose;
+    o.userData['open'] = this.open;
   }
 
   /** Per frame under a host that runs the queue (the Build stage's wall, with the stage's own queue): the reveals, then the faces' tiles. */

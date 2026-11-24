@@ -82,34 +82,34 @@ export const TPM_HEADER: Readonly<Record<number, string>> = {
 
 export type Layer = 'top' | 'bottom';
 /** A copper run: its net, layer, width and polyline. */
-export interface Trace {
+interface Trace {
   net: string;
   layer: Layer;
   w: number;
   pts: Pt[];
 }
 /** A via, through both layers. */
-export interface Via {
+interface Via {
   net: string;
   x: number;
   y: number;
 }
 /** An SMD pad on the top: its part's pin (`U1.5`, `C1.2`), net, rect and centre. */
-export interface Pad {
+interface Pad {
   id: string;
   net: string;
   r: Rect;
   c: Pt;
 }
 /** A through-hole pad: one of the connector's contacts, by its number. */
-export interface Hole {
+interface Hole {
   pin: number;
   net: string;
   x: number;
   y: number;
 }
 /** A passive or the LED on the top: designator, package, kind, centre, turned along y, value, the nets of its two ends (west or north first). */
-export interface Part {
+interface Part {
   ref: string;
   pkg: '0402' | '0603';
   kind: 'cap' | 'res' | 'led';
@@ -146,11 +146,11 @@ export const CU = {
   fid: 6,
 } as const;
 /** A leg's land: its width, length, and how far out of the body it starts. */
-export const LEG_PAD = { w: 9, h: 15, gap: 7 } as const;
+const LEG_PAD = { w: 9, h: 15, gap: 7 } as const;
 
 const MM = 23;
 /** A passive's two pads (west or north first), a hair past its tinned ends. */
-export function partPads(p: Pick<Part, 'x' | 'y' | 'pkg' | 'turn'>): [Rect, Rect] {
+function partPads(p: Pick<Part, 'x' | 'y' | 'pkg' | 'turn'>): [Rect, Rect] {
   const [l, w] = p.pkg === '0603' ? [1.6 * MM, 0.8 * MM] : [1 * MM, 0.5 * MM],
     e = l * 0.3,
     k = 2;

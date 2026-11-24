@@ -104,7 +104,7 @@ export class Cloth {
   private step(ph: Phase, dt: number, t: number): void {
     const { p, q, v, mesh: m, o } = this,
       n = m.n,
-      damp = Math.pow(ph.keep, dt),
+      damp = ph.keep ** dt,
       acc: [number, number, number] = [0, 0, 0];
     for (let i = 0; i < n; i++) {
       const k = 3 * i;

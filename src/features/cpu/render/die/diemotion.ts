@@ -14,7 +14,7 @@ import type { CacheSnap, StoredSnap, TraceSnap } from '../../sim/pipesnap';
 /** How fast the replay runs, in engine cycles per second of game time. */
 export const CYCLES_PER_SEC = 4.5;
 /** Seconds the old window takes to fade while the next one starts. */
-export const FADE_S = 0.5;
+const FADE_S = 0.5;
 /** Cycles to hold the last frame of a window before the next window replaces it. */
 const HOLD = 0.4;
 /** Windows kept for the scrubber. */
@@ -55,7 +55,7 @@ export function routeBetween(plan: CpuPlan, from: string, to: string): Route | n
     cache = new Map();
     routes.set(plan, cache);
   }
-  const key = from + '>' + to;
+  const key = `${from}>${to}`;
   if (cache.has(key)) return cache.get(key) ?? null;
   const by = new Map(plan.blocks.map((b) => [b.id, b]));
   const a = by.get(from),
@@ -120,7 +120,7 @@ export function routeBetween(plan: CpuPlan, from: string, to: string): Route | n
 }
 
 /** The way one step of an instruction goes: along the wires if they join the two blocks in a few hops, else a straight glide (the unpipelined die has no wires between its stages). */
-export function stepRoute(plan: CpuPlan, from: string, to: string, maxHops = 3): Route | null {
+function stepRoute(plan: CpuPlan, from: string, to: string, maxHops = 3): Route | null {
   const rt = routeBetween(plan, from, to);
   if (!rt) return null;
   if (rt.links.length > 0 && rt.links.length <= maxHops) return rt;
@@ -133,7 +133,7 @@ export function stepRoute(plan: CpuPlan, from: string, to: string, maxHops = 3):
  * The point a fraction `u` (0..1) of the way along the traces of a route: the links' own polylines one after another by length. The gaps inside
  * the blocks between two links are not travelled (the pulse is always on a trace and passes into the next one at the block's edge).
  */
-export function wirePoint(rt: Route, u: number): Pt | null {
+function wirePoint(rt: Route, u: number): Pt | null {
   const lens = rt.links.map((h) => h.link.pts.reduce((n, p, i) => (i ? n + dist(p, h.link.pts[i - 1]!) : 0), 0));
   const total = lens.reduce((n, x) => n + x, 0);
   if (rt.links.length === 0 || total <= 0) return null;
@@ -168,7 +168,7 @@ export function pointAt(pts: Pt[], u: number): Pt {
 }
 
 /** The link joining two blocks, and whether it is walked backwards. */
-export function linkBetween(
+function linkBetween(
   plan: CpuPlan,
   from: string,
   to: string,
@@ -316,7 +316,7 @@ export class StoreReplay {
   l2?: CacheView;
   pred: { entries: number; bits: number; table: number[]; at: number[] };
   /** The TLB at the snapshot (not rewound: it shows what is in it now). */
-  tlb?: { vpn: number[]; frame: number[] };
+  tlb?: { vpn: number[]; frame: number[] } | undefined;
   readonly events: StoreEvent[] = [];
   private byCycle = new Map<number, StoreEvent[]>();
 
@@ -392,7 +392,7 @@ export class StoreReplay {
 /** The registers an instruction reads, by its disassembly ("sw a2, 4(s0)" reads a2 and s0; "add a1, a1, a0" reads a1 and a0). */
 export function regsRead(text: string): number[] {
   const sp = text.indexOf(' ');
-  if (sp < 0) return [];
+  if (sp === -1) return [];
   const op = text.slice(0, sp);
   const names = text
     .slice(sp + 1)
@@ -433,8 +433,8 @@ export interface ChipState {
   from?: string;
   to?: string;
   /** Where the instruction is on the wires between the two blocks (only the die's own traces, never across a block); undefined when no trace joins them. */
-  wx?: number;
-  wy?: number;
+  wx?: number | undefined;
+  wy?: number | undefined;
 }
 
 /** Something that happens at a cycle boundary: the die turns it into packets on the wires. */
@@ -526,7 +526,7 @@ export class Player {
   private hosts: Hosts;
   private lastShown = -1;
   /** The windows already seen, oldest first (the Trace panel's scrubber moves through them while the game is paused). */
-  private history: { seg: TraceSnap; stored?: StoredSnap }[] = [];
+  private history: { seg: TraceSnap; stored?: StoredSnap | undefined }[] = [];
 
   /** `lean`: only the beats and the writes are wanted, not where each instruction is drawn (`dietraffic.ts`): `chips` and `fading` stay empty. */
   constructor(
@@ -927,7 +927,7 @@ export function packetsFor(plan: CpuPlan, ev: BeatEvent, ctx: BeatContext = { ev
       if (has('ic')) {
         if (at(Ev.Fill, Which.I)) {
           chain(['fetch', 'ic', hasL2 ? 'l2' : 'fabric', 'fabric', 'mc'], 0.1, 'mute', 0.25);
-          chain(['mc', 'fabric', hasL2 ? 'l2' : 'fabric', 'ic', 'fetch'], 1.0, 'inst', 0.3);
+          chain(['mc', 'fabric', hasL2 ? 'l2' : 'fabric', 'ic', 'fetch'], 1, 'inst', 0.3);
         } else if (hasL2 && at(Ev.Hit, Which.L2)) chain(['l2', 'ic', 'fetch'], 0.2);
         else chain(['ic', 'fetch'], 0.2);
       } else {

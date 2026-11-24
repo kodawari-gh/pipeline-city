@@ -24,7 +24,7 @@ export interface RamDieSpec {
   subChannels?: number;
 }
 
-export interface RamBank {
+interface RamBank {
   index: number;
   group: number;
   rect: DieRect;

@@ -14,7 +14,7 @@ import { NPU_CELL_WORDS, NPU_LIST_SHOWN } from '../sim/port';
 // drawing into a Graphics (and a callback for the few labels); the rectangles the live layer lights are the `*Geom` functions below, shared by the
 // drawing, by `npuLive` and by the hover table (the cells of the array have an id each).
 
-export const NPU_GLYPH_KINDS = new Set<NpuBlock['kind']>(['host', 'ctl', 'desc', 'tiles', 'array', 'post', 'cardmem']);
+const NPU_GLYPH_KINDS = new Set<NpuBlock['kind']>(['host', 'ctl', 'desc', 'tiles', 'array', 'post', 'cardmem']);
 
 /** The area a symbol may use: the block under its name (the area the CPU die's cell grids fill), or null when the block is too small. */
 export function npuGlyphArea(b: Pick<NpuBlock, 'kind' | 'rect'>): Rect | null {
@@ -28,11 +28,11 @@ export function npuGlyphArea(b: Pick<NpuBlock, 'kind' | 'rect'>): Rect | null {
 const R = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h });
 const hex = (n: number, d = 8): string => (n >>> 0).toString(16).padStart(d, '0');
 
-export const OP_NAMES = ['', 'LOAD', 'MATMUL', 'MACC', 'BIAS', 'RELU', 'STORE', 'LAYER'] as const;
-export const CTL_NAMES = ['status', 'desc', 'count', 'cycles', 'fault', 'grid'] as const;
-export const FLAGS = ['BSY', 'ERR', 'DNE', 'PRS'] as const;
-export const HOST_PINS = ['clk', 'tx0', 'tx1', 'rx0', 'rx1'] as const;
-export const FAULT_NAMES = ['', 'BAD LAUNCH', 'STEP FAULT'] as const;
+const OP_NAMES = ['', 'LOAD', 'MATMUL', 'MACC', 'BIAS', 'RELU', 'STORE', 'LAYER'] as const;
+const CTL_NAMES = ['status', 'desc', 'count', 'cycles', 'fault', 'grid'] as const;
+const FLAGS = ['BSY', 'ERR', 'DNE', 'PRS'] as const;
+const HOST_PINS = ['clk', 'tx0', 'tx1', 'rx0', 'rx1'] as const;
+const FAULT_NAMES = ['', 'BAD LAUNCH', 'STEP FAULT'] as const;
 
 // ---------------------------------------------------------------- the geometry the drawing, the live layer and the hover table share
 
@@ -155,7 +155,7 @@ export function arrayGeom(a: Rect, K: number) {
 }
 
 /** The bias and relu stage: a row of K accumulator values in, the adder with the bias, the max(0, x) unit, a row of K values out. */
-export function postGeom(a: Rect, K: number) {
+function postGeom(a: Rect, K: number) {
   const h = Math.min(22, a.h - 4),
     cy = a.y + a.h / 2,
     row = (x: number, w: number) => ({
@@ -220,7 +220,7 @@ export interface NpuRegion {
   kind: 'w' | 'x' | 'out' | 'bias' | 'list';
 }
 /** The colour of each kind of region, and its name in the key (the order is the order in the key, and the priority where regions overlap). */
-export const REGION_KINDS: { kind: NpuRegion['kind']; color: 'ld' | 'alu' | 'st' | 'mul' | 'br'; name: string }[] = [
+const REGION_KINDS: { kind: NpuRegion['kind']; color: 'ld' | 'alu' | 'st' | 'mul' | 'br'; name: string }[] = [
   { kind: 'list', color: 'br', name: 'list' },
   { kind: 'w', color: 'ld', name: 'weights' },
   { kind: 'bias', color: 'mul', name: 'bias' },
@@ -468,7 +468,7 @@ export interface NpuShow {
 }
 
 /** What the CPU just did through the card's window: a word of card memory or a register, read or written. */
-export interface NpuTouch {
+interface NpuTouch {
   store: boolean;
   /** The row of the control block's registers it hit (`ctlRowOf`), or -1 for card memory. */
   reg: number;
@@ -484,14 +484,14 @@ export const ctlRowOf = (off: number): number =>
   (({ 0x00: 0, 0x04: 0, 0x08: 1, 0x0c: 2, 0x10: 5, 0x14: 5, 0x1c: 3, 0x20: 4 }) as Record<number, number>)[off & ~3] ??
   0;
 
-export type LiveKey = 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'bad' | 'mute';
-export interface NpuLiveItem {
+type LiveKey = 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'bad' | 'mute';
+interface NpuLiveItem {
   rect: Rect;
   color: LiveKey;
   a: number;
   /** Drawn as an outline (an access), not a fill. */ ring?: boolean;
 }
-export interface NpuLiveText {
+interface NpuLiveText {
   rect: Rect;
   top: string;
   ink?: boolean;

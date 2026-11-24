@@ -59,7 +59,7 @@ import {
 
 type VrmSpecOf = (typeof BOARD_TIERS)[number]['vrm'];
 
-export const THROTTLE_MIN = 0.8;
+const THROTTLE_MIN = 0.8;
 export const TRIP_RATIO = 1.5;
 
 export interface DeviceThermal {
@@ -159,13 +159,13 @@ export function clockPowerW(spec: { idleW: number; loadW: number }, r: number, l
   return spec.idleW * r + (spec.loadW - spec.idleW) * load * r * r * r;
 }
 /** W per degree C the cooling block moves from the CPU into the coolant (the pump must run). */
-export const LOOP_BLOCK_K = 60;
+const LOOP_BLOCK_K = 60;
 /** The block's exchange is worked out in this many steps per tick: it is stiff (a light CPU, a strong block), one step would overshoot. */
 const LOOP_SUBSTEPS = 12;
 /** Joules per degree C of the coolant in the loop (one base tick = 1 s): it warms up and cools down slowly. */
-export const LOOP_MASS = 120;
+const LOOP_MASS = 120;
 /** W per degree C the water carries at full flow (flow x specific heat): the heat the block hands over divided by this is how much the water warms crossing it. */
-export const LOOP_FLOW_CP = 15;
+const LOOP_FLOW_CP = 15;
 /** How fast the flow follows the pump (share of the gap per tick) and the most the water warms crossing the block, C. */
 const LOOP_FLOW_EASE = 0.4;
 const LOOP_MAX_RISE_C = 30;

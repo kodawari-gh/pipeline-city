@@ -130,7 +130,7 @@ describe('sandbox tools', () => {
     expect(g.snapshot().reputation).toBe(g.cfg.repMax);
     g.setReputation(-1);
     expect(g.snapshot().reputation).toBe(g.cfg.repMin);
-    expect(g.setReputation(NaN).ok).toBe(false);
+    expect(g.setReputation(Number.NaN).ok).toBe(false);
   });
   it('are refused in a campaign game', () => {
     const g = new Game({ seed: 1, economy: econ() });

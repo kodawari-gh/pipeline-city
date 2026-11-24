@@ -5,7 +5,6 @@ import type { Snapshot } from '@/worker/protocol';
 // and coasts down to still, it never jumps. The speeds are published in `fanBank` so that other views (the airflow lens) show the same fan.
 
 /** Fan speed in the units of `live.ts`: radians per second of a rotor; an edge-on fan slides 0.8 blade lengths per unit and second. */
-export const FAN_MAX = 12;
 
 /** The speed that counts as "full" for the air a fan blows (a case fan idles near 2, a hot cooler reaches 10+). */
 export const FAN_FULL_LEVEL = 7;

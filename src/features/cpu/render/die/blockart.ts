@@ -8,11 +8,9 @@ import {
   glyphArea,
   hasSymbol,
   hazardGeom,
-  isGlyph,
   isVertical,
   laneCount,
   latchSlots,
-  GLYPH_KINDS,
 } from './glyphgeom';
 import { mix } from '@/core/render/ink';
 import { regName, slotValues, writesOf } from './tokentext';
@@ -23,7 +21,7 @@ import type { Theme } from '@/core/render/theme';
 // trapezoid, a multiplier a triangle of partial products, the decoder the instruction's fields and the control lines it raises.
 // Pure drawing into a Graphics (and a callback for the few labels), so it is testable and the far view never pays for it.
 
-export { fetchWidth, glyphArea, hasSymbol, isGlyph, isVertical, laneCount, GLYPH_KINDS };
+export { glyphArea, hasSymbol };
 
 /** Where a text goes: its centre, in die units, and its size. */
 export type Put = (text: string, x: number, y: number, size: number) => void;
@@ -385,7 +383,7 @@ export interface LiveGlyph {
     /** A single line in a small cell (the GPU's memory parts), in the ink colour not the lit one. */ small?: boolean;
     ink?: boolean;
     /** Texts of one group are sized alike, to the longest of them (`small` ones). */ grp?: string;
-    fit?: number;
+    fit?: number | undefined;
   }[];
   lit: { rect: Rect; color: 'alu' | 'mul' | 'ld' | 'st' | 'br'; a: number }[];
 }
@@ -602,7 +600,7 @@ export function glyphLive(b: Block, a: Rect, items: LiveItem[], pc?: number, pro
       if (it && s.out && s.out.w > 20) {
         const wr = writesOf(it.word ?? 0);
         out.lit.push({ rect: wipe(s.out, pr(0)), color: 'st', a: 0.9 });
-        if (pr(0) > 0.55) out.texts.push({ rect: s.out, top: wr >= 0 ? '→ ' + regName(wr) : 'done', bottom: '' });
+        if (pr(0) > 0.55) out.texts.push({ rect: s.out, top: wr >= 0 ? `→ ${regName(wr)}` : 'done', bottom: '' });
       }
       break;
     case 'alu':

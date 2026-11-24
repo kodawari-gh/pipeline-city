@@ -6,7 +6,7 @@ Status: **built** — the MMU and TLB (`src/features/memory/sim/mmu.ts`), transl
 
 A CPU either has an **MMU** (`CpuSpec.mmu = { tlb }`: cpu2 and up; cpu0 and cpu1 have none) or it does not. With translation on, the CPU's instruction fetches, loads and stores use **virtual addresses**: a 20-bit space (1 MiB) of 256-byte pages (the size of a drive block and of a DRAM row), translated through a **two-level page table** the OS keeps in RAM:
 
-```
+```text
 virtual address:  [ level 1 index (6) | level 2 index (6) | offset (8) ]
 table entry:      bit 0 valid, bit 1 write, bit 2 execute, bits 8.. the frame (physical address >> 8)
 ```

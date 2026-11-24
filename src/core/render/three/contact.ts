@@ -61,7 +61,7 @@ export class DepthMap {
 
   /** The triangles of a geometry (its vertices where it stands), sampled at half a cell. */
   add(geo: BufferGeometry): this {
-    const p = geo.attributes.position!,
+    const p = geo.attributes['position']!,
       idx = geo.index,
       n = idx ? idx.count : p.count;
     const at = (i: number): V3 => [p.getX(i), p.getY(i), p.getZ(i)];
@@ -126,7 +126,7 @@ export class DepthMap {
 
   /** The least gap between a geometry and the surfaces, along the axis (negative: it is in them; Infinity: nothing under it). */
   clearance(geo: BufferGeometry): number {
-    const p = geo.attributes.position!;
+    const p = geo.attributes['position']!;
     let gap = Infinity;
     for (let i = 0; i < p.count; i++) {
       const v: V3 = [p.getX(i), p.getY(i), p.getZ(i)],
@@ -152,7 +152,7 @@ export class DepthMap {
    * out (a flat patch with a rounded edge), farther off it does not move; 0 is a hard stop.
    */
   conform(geo: BufferGeometry, soft = 0): void {
-    const p = geo.attributes.position!;
+    const p = geo.attributes['position']!;
     for (let i = 0; i < p.count; i++) {
       const v: [number, number, number] = [p.getX(i), p.getY(i), p.getZ(i)],
         h = this.height(v);

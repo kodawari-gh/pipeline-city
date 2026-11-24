@@ -263,7 +263,7 @@ describe('StudioWall', () => {
     const kinds = (o: Object3D): string[] => {
       const t: string[] = [];
       o.traverse((x) => {
-        if (typeof x.userData.plug === 'string') t.push(x.userData.plug);
+        if (typeof x.userData['plug'] === 'string') t.push(x.userData['plug']);
       });
       return t;
     };

@@ -228,7 +228,7 @@ export async function renderStill(o: Object3D, w: number, h: number): Promise<HT
   const hooks: PartHooks[] = [];
   o.traverse((n) => {
     n.castShadow = true;
-    if (n.userData.frame || n.userData.dispose) hooks.push(n.userData as PartHooks);
+    if (n.userData['frame'] || n.userData['dispose']) hooks.push(n.userData as PartHooks);
   });
   for (const k of hooks) k.open?.();
   scene.add(o);
@@ -342,7 +342,7 @@ export function mountViewer(host: HTMLElement): Viewer {
     if (o) {
       o.traverse((n) => {
         n.castShadow = true;
-        if (n.userData.frame || n.userData.dispose) hooks.push(n.userData as PartHooks);
+        if (n.userData['frame'] || n.userData['dispose']) hooks.push(n.userData as PartHooks);
       });
       scene.add(o);
       const b = new Box3().setFromObject(o);

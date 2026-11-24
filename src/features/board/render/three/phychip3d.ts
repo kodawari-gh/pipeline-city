@@ -8,7 +8,6 @@ import type { RectLike } from '@/core/render/three/geometry';
 import { tag } from '@/core/render/three/pick';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { mirror, nicChip, type DieFloor, type NicChip } from './nicchip3d';
-import { MM } from './pcbkit3d';
 import { CHIP_H } from './solids3d';
 
 /** The laser marking of each look: the chip, the standard it speaks, a date code. */

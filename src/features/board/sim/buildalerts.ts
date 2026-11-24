@@ -12,7 +12,7 @@ import { BOARD_TIERS, type DeviceKind } from './specs';
 import { ThermalModel, type FanPower, type Loads } from './thermal';
 
 /** `bad`: it breaks or will not run (the supply trips, a card has no power lead, a part burns). `warn`: it runs badly or is not finished (it slows down, it crashes now and then, a part is missing). */
-export type AlertLevel = 'bad' | 'warn';
+type AlertLevel = 'bad' | 'warn';
 
 export interface Alert {
   /** The compat issue's id (`psu-brownout`...), `boot` for what stops the power-on test, or `hot-throttle`, `hot-errors`, `hot-burn` for heat. */

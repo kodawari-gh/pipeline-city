@@ -49,7 +49,7 @@ export function LoadConfirm() {
     if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) return;
     e.preventDefault();
     lastKey.current = Date.now();
-    const g = Number((document.activeElement as HTMLElement | null)?.dataset.group);
+    const g = Number((document.activeElement as HTMLElement | null)?.dataset['group']);
     const next = moveFocus(2, g, e.key);
     setAt(next);
     focusRow(next);

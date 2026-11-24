@@ -37,7 +37,7 @@ export function gullWing(width: number): BufferGeometry {
 }
 
 /** A can's height for its radius: the big filter caps are tall, the small polymer ones squat. */
-export const canHeight = (r: number): number => r * (r >= 50 ? 2.5 : 2.1);
+const canHeight = (r: number): number => r * (r >= 50 ? 2.5 : 2.1);
 
 /** The vent cross scored in a can's aluminium top, and its polarity mark. */
 function canTop() {
@@ -142,7 +142,7 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean, capS
     caps,
     can,
     capSleeve
-      ? mat(parseInt(capSleeve.slice(1), 16), { roughness: 0.32 })
+      ? mat(Number.parseInt(capSleeve.slice(1), 16), { roughness: 0.32 })
       : mat(0x959aa3, { metalness: 0.6, roughness: 0.45 }),
   );
   // (satin, as the coin cell's: a mirror top flares white under the lamp up close)

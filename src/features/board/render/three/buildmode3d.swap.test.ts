@@ -56,7 +56,7 @@ function stage(): Stage {
     clientWidth: 400,
     clientHeight: 800,
   });
-  s._machine = {
+  s['_machine'] = {
     moving: false,
     doorOpen: false,
     frame() {},
@@ -65,8 +65,8 @@ function stage(): Stage {
     lod() {},
     root: new Group(),
   };
-  s._game = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
-  s.rebuild = function (this: { snaps: { drop(): void } }) {
+  s['_game'] = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
+  s['rebuild'] = function (this: { snaps: { drop(): void } }) {
     this.snaps.drop();
   };
   return s as unknown as Stage;

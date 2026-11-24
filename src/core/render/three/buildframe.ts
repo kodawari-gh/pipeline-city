@@ -6,9 +6,9 @@ import { applyView, clampView, fitRect, panBy, type Box, type OrbitView } from '
 /** The Build stage's 3/4 start view. */
 export const BUILD_START = { yaw: 0.42, pitch: 0.3, fov: 30 };
 /** How much of the free window the machine's projected box fills: 0.8 leaves 10% air on each side (about 54 px high at 1080 p). */
-export const FRAME_FILL = 0.8;
+const FRAME_FILL = 0.8;
 /** The 3/4 view draws the near bottom larger, so the drawn middle sits low of the window's middle: the view seats it this share of the stage up. */
-export const SEAT_UP = 0.05;
+const SEAT_UP = 0.05;
 
 /** A solid in world units (y up): its centre and its size (x wide, y high, z deep). */
 export interface Solid {

@@ -5,7 +5,7 @@
 import type { Grid, Pt, Rect } from '../../../cpu/render/core/cpuplan';
 import { placeTree, routeWires, type Node, type Spec, type WireSpec } from '../../../cpu/render/core/cpufloor';
 
-export type { Pt, Rect };
+export type { Rect };
 
 /** One block of a plan. A `frame` is the container drawn behind its children (the controller round its blocks). */
 export interface NetBlock<K extends string = string> {
@@ -46,7 +46,7 @@ export interface Margins {
   bottom: number;
 }
 
-const cache = new Map<string, NetPlan<string, string, unknown>>();
+const cache = new Map<string, NetPlan<string, string>>();
 
 /**
  * Lay `tree` out in a `size` area inside the margins, route `specs` through the gutters and return the plan. `extra` adds wires the router does not
@@ -84,19 +84,6 @@ export function layPlan<K extends string, L extends string, I>(
   }));
   if (extra) links.push(...extra(blocks));
   const plan: NetPlan<K, L, I> = { input, die, blocks, links };
-  cache.set(key, plan as NetPlan<string, string, unknown>);
+  cache.set(key, plan as NetPlan<string, string>);
   return plan;
 }
-
-/** A block of a plan by id (throws on a plan that lacks it: the ids are the plan builder's own). */
-export function blockOf<K extends string>(plan: Pick<NetPlan<K>, 'blocks'>, id: string): NetBlock<K> {
-  const b = plan.blocks.find((x) => x.id === id);
-  if (!b) throw new Error(`netplan: no block ${id}`);
-  return b;
-}
-
-/** A link of a plan by id, or undefined. */
-export const linkById = <L extends string>(
-  plan: Pick<NetPlan<string, L>, 'links'>,
-  id: string,
-): NetLink<L> | undefined => plan.links.find((l) => l.id === id);

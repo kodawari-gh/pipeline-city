@@ -86,7 +86,7 @@ function snapshot(): Snap {
     }
     const text = ((e as HTMLElement).innerText || e.getAttribute('aria-label') || '')
       .trim()
-      .replace(/\s+/g, ' ')
+      .replaceAll(/\s+/g, ' ')
       .slice(0, 32);
     return { id: i, label: text || e.tagName.toLowerCase(), box: box(e), ancestors, clips };
   });

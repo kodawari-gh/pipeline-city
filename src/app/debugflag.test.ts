@@ -84,7 +84,7 @@ describe('the debug overlay is only loaded dynamically', () => {
       path.join(SRC, 'features', 'board', 'render', 'three', 'board3d.ts'),
       'utf8',
     ) as string;
-    expect(text.replace(/\s+/g, ' ')).toContain(
+    expect(text.replaceAll(/\s+/g, ' ')).toContain(
       "void whenDebug(location.search, () => import('@/app/debug/overlay'), { renderer, canvas, roots:",
     );
   });

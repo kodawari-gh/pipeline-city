@@ -109,7 +109,9 @@ export async function openBooted(
       timeout: BOOT_MS,
     });
   } catch (e) {
-    throw new Error(`${(e as Error).message}\nthe page said: ${errors.slice(-5).join(' | ') || 'nothing'}`);
+    throw new Error(`${(e as Error).message}\nthe page said: ${errors.slice(-5).join(' | ') || 'nothing'}`, {
+      cause: e,
+    });
   }
   return { page, ctxClose: () => ctx.close() };
 }

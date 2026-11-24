@@ -7,7 +7,7 @@
 import type { AirGrid, Shape, V3 } from './grid';
 
 /** A face the fan's air crosses and the speed it has there for each unit of the fan's flow: the cell-centred speed gets it (see `velocityOf`). */
-export interface Jet {
+interface Jet {
   c: number;
   /** The cell on the other side of the fan's plane (an inner fan), or -1 (a wall fan: the air comes in from the room through the wall). */
   to: number;
@@ -256,7 +256,7 @@ class Cg {
  * fan's own flow on the faces it crosses (`jets`, times the fan's flow `q`). (The air that passes a part of a cell goes at the gradient: the open
  * share only says how much of the face is open.) Stored as x, y, z per cell.
  */
-export function velocityOf(g: AirGrid, phi: Float64Array, jets: readonly Jet[] = [], q = 0): Float32Array {
+function velocityOf(g: AirGrid, phi: Float64Array, jets: readonly Jet[] = [], q = 0): Float32Array {
   const [nx, ny, nz] = g.n,
     [hx, hy, hz] = g.h,
     [fx, fy, fz] = g.face,

@@ -15,6 +15,7 @@
   font-style: normal;
   font-display: swap;
 }
+
 @font-face {
   font-family: 'Plex Sans';
   src: url('./fonts/IBMPlexSans-Regular.woff2') format('woff2');
@@ -22,6 +23,7 @@
   font-style: normal;
   font-display: swap;
 }
+
 @font-face {
   font-family: 'Plex Sans';
   src: url('./fonts/IBMPlexSans-Medium.woff2') format('woff2');
@@ -29,6 +31,7 @@
   font-style: normal;
   font-display: swap;
 }
+
 @font-face {
   font-family: 'Plex Sans';
   src: url('./fonts/IBMPlexSans-SemiBold.woff2') format('woff2');
@@ -36,6 +39,7 @@
   font-style: normal;
   font-display: swap;
 }
+
 @font-face {
   font-family: 'Plex Mono';
   src: url('./fonts/IBMPlexMono-Medium.woff2') format('woff2');
@@ -63,7 +67,7 @@
   /* ---------- Colour: in-game 07 to 12 (approved 2026-11-21 10:20) ---------- */
   --c-shade: #0a0a0c; /* edge tabs and ramps, always at --a-shade */
   --a-shade: 0.86; /* keeps every palette colour at >= 4.5:1 over pure white */
-  --c-shade-86: rgba(10, 10, 12, 0.86); /* the one backing colour in game */
+  --c-shade-86: rgb(10 10 12 / 86%); /* the one backing colour in game */
   --c-studio: #111113; /* Gallery stage, phone Build letterbox */
   --c-build-surround: #49484a; /* the Build 3D clear colour seen around the machine (see IMPLEMENTATION.md step 7) */
 
@@ -129,30 +133,34 @@
   /* ---------- Scrims (menus, approved r2) and ramps (in game, r3) ---------- */
   --scrim-menu: linear-gradient(
     90deg,
-    rgba(4, 6, 15, 0.88) 0,
-    rgba(4, 6, 15, 0.88) 35.802rem,
-    rgba(4, 6, 15, 0) 50.617rem
+    rgb(4 6 15 / 88%) 0,
+    rgb(4 6 15 / 88%) 35.802rem,
+    rgb(4 6 15 / 0%) 50.617rem
   ); /* 580, 820 */
+
   --scrim-wide: linear-gradient(
     90deg,
-    rgba(4, 6, 15, 0.88) 0,
-    rgba(4, 6, 15, 0.88) 46.914rem,
-    rgba(4, 6, 15, 0) 61.728rem
+    rgb(4 6 15 / 88%) 0,
+    rgb(4 6 15 / 88%) 46.914rem,
+    rgb(4 6 15 / 0%) 61.728rem
   ); /* 760, 1000 */
+
   --ramp-pause: linear-gradient(
     90deg,
     var(--c-shade-86) 0,
     var(--c-shade-86) 34.568rem,
-    rgba(10, 10, 12, 0) 41.975rem
+    rgb(10 10 12 / 0%) 41.975rem
   ); /* 560, 680 */
+
   --ramp-wide: linear-gradient(
     90deg,
     var(--c-shade-86) 0,
     var(--c-shade-86) 46.914rem,
-    rgba(10, 10, 12, 0) 61.728rem
+    rgb(10 10 12 / 0%) 61.728rem
   ); /* 760, 1000: New game opened inside a game */
+
   --ramp-tutorial: none; /* desktop has no tutorial ramp: the instruction sits on an edge tab */
-  --veil-loading: rgba(4, 6, 15, 0.55); /* 03 loading: flat 55 % void under the menu scrim */
+  --veil-loading: rgb(4 6 15 / 55%); /* 03 loading: flat 55 % void under the menu scrim */
 
   /* ---------- Layers ---------- */
   --z-scene: 0;
@@ -180,7 +188,7 @@
 }
 
 /* ---------- Phone layout (reference 390 x 844, 1rem = 15 px). Gradients run bottom-up so they follow bottom-anchored content. ---------- */
-@media (max-width: 48em), (max-aspect-ratio: 3/4), (max-height: 37.5em) and (orientation: landscape) {
+@media (width <= 48em), (aspect-ratio <= 3/4), (height <= 37.5em) and (orientation: landscape) {
   :root {
     --t-silk: 0.733rem; /* 11 px */
     --edge-menu: 1.6rem; /* 24 */
@@ -206,34 +214,23 @@
     --ch-sm: 0.667rem;
     --ch: 0.933rem;
     --ch-lg: 1.333rem;
+
     /* menu: clear at y 400, 88 % from 580 on the 1080 px phone mock frame = 0 % at 680 px and 88 % from 500 px above the bottom */
-    --scrim-menu: linear-gradient(
-      0deg,
-      rgba(4, 6, 15, 0.88) 0,
-      rgba(4, 6, 15, 0.88) 33.333rem,
-      rgba(4, 6, 15, 0) 45.333rem
-    );
+    --scrim-menu: linear-gradient(0deg, rgb(4 6 15 / 88%) 0, rgb(4 6 15 / 88%) 33.333rem, rgb(4 6 15 / 0%) 45.333rem);
+
     /* wide: clear at y 140, 88 % from 300 = 0 % at 940 and 88 % from 780 above the bottom */
-    --scrim-wide: linear-gradient(
-      0deg,
-      rgba(4, 6, 15, 0.88) 0,
-      rgba(4, 6, 15, 0.88) 52rem,
-      rgba(4, 6, 15, 0) 62.667rem
-    );
+    --scrim-wide: linear-gradient(0deg, rgb(4 6 15 / 88%) 0, rgb(4 6 15 / 88%) 52rem, rgb(4 6 15 / 0%) 62.667rem);
+
     /* pause: clear at y 470, 86 % from 536 = 0 % at 610 and 86 % from 544 above the bottom */
-    --ramp-pause: linear-gradient(
-      0deg,
-      var(--c-shade-86) 0,
-      var(--c-shade-86) 36.267rem,
-      rgba(10, 10, 12, 0) 40.667rem
-    );
-    --ramp-wide: linear-gradient(0deg, var(--c-shade-86) 0, var(--c-shade-86) 52rem, rgba(10, 10, 12, 0) 62.667rem);
+    --ramp-pause: linear-gradient(0deg, var(--c-shade-86) 0, var(--c-shade-86) 36.267rem, rgb(10 10 12 / 0%) 40.667rem);
+    --ramp-wide: linear-gradient(0deg, var(--c-shade-86) 0, var(--c-shade-86) 52rem, rgb(10 10 12 / 0%) 62.667rem);
+
     /* tutorial (phone only): clear at y 640, 86 % from 700 = 0 % at 440 and 86 % from 380 above the bottom */
     --ramp-tutorial: linear-gradient(
       0deg,
       var(--c-shade-86) 0,
       var(--c-shade-86) 25.333rem,
-      rgba(10, 10, 12, 0) 29.333rem
+      rgb(10 10 12 / 0%) 29.333rem
     );
   }
 }

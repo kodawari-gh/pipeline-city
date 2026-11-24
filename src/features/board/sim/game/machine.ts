@@ -221,7 +221,7 @@ export function fault(this: Game): string | null {
 
 export function monitorLive(this: Game): boolean {
   const d = findDevices(this.board, 'display')[0];
-  if (!d || d.burnt || !this.cables.video || !this.cables.monmains) return false;
+  if (!d || d.burnt || !this.cables['video'] || !this.cables['monmains']) return false;
   return this.video === 'board' || this.videoCard() !== null;
 }
 
@@ -232,7 +232,7 @@ export function monitorLive(this: Game): boolean {
 export function fanPower(this: Game): FanPower {
   const c = this.cables,
     b = this.board;
-  const hub = !!c.sysfan;
+  const hub = !!c['sysfan'];
   const rad = fittedRadiator(b);
   const radSpec = rad ? (deviceSpec(rad.dev) as RadiatorSpec) : null;
   const flowOf = (m: string): number => {
@@ -256,9 +256,9 @@ export function fanPower(this: Game): FanPower {
   const radSpinning = rad ? rad.mounts.filter(turns) : [];
   const all = [...spinning, ...radSpinning];
   return {
-    cpu: !!c.cpufan,
-    vrm: !!c.vrmfan,
-    ram: !!c.ramfan,
+    cpu: !!c['cpufan'],
+    vrm: !!c['vrmfan'],
+    ram: !!c['ramfan'],
     caseFans: spinning.length,
     mounts: all,
     mountFlow: Object.fromEntries(all.map((m) => [m, flowOf(m)])),
@@ -270,7 +270,7 @@ export function fanPower(this: Game): FanPower {
 /** The machine's draw on the wall this tick (the parts' draw; a monitor whose cord is out takes nothing) added to the energy meter. */
 export function meterWall(this: Game): void {
   const p = this.thermal.power;
-  const mon = this.cables.monmains
+  const mon = this.cables['monmains']
     ? 0
     : findDevices(this.board, 'display').reduce((a, d) => a + (this.thermal.state(d.id)?.powerW ?? 0), 0);
   this.wallW = this.powered && !p.off ? Math.max(0, p.totalW - mon) : 0;

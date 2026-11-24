@@ -50,11 +50,6 @@ export function padsAt(c: Ctx, pts: [number, number][], w: number, h: number, a 
   c.g.fill({ color: color ?? c.P.via, alpha: a });
 }
 
-/** A row of `n` small rects along a line (pins, legs, vents). */
-export function row(c: Ctx, x: number, y: number, n: number, dx: number, dy: number, w: number, h: number) {
-  for (let i = 0; i < n; i++) c.g.rect(x + i * dx - w / 2, y + i * dy - h / 2, w, h);
-}
-
 /** A mounting hole with its screw: a copper-ringed pad, the washer, a pan head with a cross slot (it threads into the case's standoff below). */
 export function hole(c: Ctx, x: number, y: number, r = 74) {
   const { g, P } = c;
@@ -74,7 +69,7 @@ export function hole(c: Ctx, x: number, y: number, r = 74) {
     .lineTo(x, y + k)
     .stroke({ width: 8, color: P.dark, alpha: 0.85, cap: 'round' }); // the cross slot
   g.moveTo(x + Math.cos(3.6) * r * 0.46, y + Math.sin(3.6) * r * 0.46)
-    .arc(x, y, r * 0.46, 3.6, 5.0)
+    .arc(x, y, r * 0.46, 3.6, 5)
     .stroke({ width: 4, color: '#ffffff', alpha: 0.35 }); // a highlight
 }
 
@@ -160,7 +155,7 @@ export function cap(c: Ctx, x: number, y: number, r: number, accent?: string) {
 }
 
 /** A power inductor (metal-alloy choke): block, bevel, a winding cut across it. */
-export function choke(c: Ctx, x: number, y: number, w: number, h: number) {
+function choke(c: Ctx, x: number, y: number, w: number, h: number) {
   const { g, P } = c;
   c.solid?.({ kind: 'choke', x: x + w / 2, y: y + h / 2, w, h });
   shadow(c, x, y, w, h, 14, 12, 0.32);
@@ -173,7 +168,7 @@ export function choke(c: Ctx, x: number, y: number, w: number, h: number) {
 }
 
 /** A DrMOS power stage: a square package with a heat pad and legs on three sides. */
-export function powerStage(c: Ctx, x: number, y: number, s: number) {
+function powerStage(c: Ctx, x: number, y: number, s: number) {
   const { g, P } = c;
   c.solid?.({ kind: 'stage', x: x + s / 2, y: y + s / 2, w: s, h: s });
   for (let i = 0; i < 7; i++) {
@@ -275,7 +270,7 @@ export function dimmSocket(c: Ctx, r: Rect, n: number) {
   if (c.solid) {
     // the 3D view builds the housing, the stick stands in it (ram3d.ts): only what is on the board stays, the solder rows
     joints();
-    c.labels.addChild(label('DIMM_' + (n + 1), r.x + r.w, r.y - 62, 34, c.P.silk, { anchor: [1, 0.5] }));
+    c.labels.addChild(label(`DIMM_${n + 1}`, r.x + r.w, r.y - 62, 34, c.P.silk, { anchor: [1, 0.5] }));
     return;
   }
   const skin = skinOf(c.tier);
@@ -289,7 +284,7 @@ export function dimmSocket(c: Ctx, r: Rect, n: number) {
     box(g, cx - 34, fy, 68, 26, 8, { fill: skin.latch, stroke: P.edge, lw: 4 });
     g.rect(cx - 22, fy + 10, 44, 6).fill({ color: P.silk, alpha: 0.4 });
   }
-  c.labels.addChild(label('DIMM_' + (n + 1), r.x + r.w, r.y - 62, 34, c.P.silk, { anchor: [1, 0.5] }));
+  c.labels.addChild(label(`DIMM_${n + 1}`, r.x + r.w, r.y - 62, 34, c.P.silk, { anchor: [1, 0.5] }));
 }
 
 /** A PCIe slot: housing, slot opening with a key, pins, a retention latch at the end, and the staggered SMT pads along both long edges. */
@@ -430,7 +425,7 @@ export function sataPortArt(c: Ctx, p: Rect, i: number, live: boolean) {
   // the solder tails on the west edge (the three signal lanes land on them; the housing's own pins sit behind)
   for (const dy of [-26, 0, 26]) g.rect(p.x - 12, p.y + p.h / 2 + dy - 8, 30, 16);
   g.fill({ color: P.via, alpha: 0.7 * a });
-  c.labels.addChild(label('SATA' + i, p.x + p.w / 2, p.y - 24, 30, P.silk, { anchor: [0.5, 0.5], a }));
+  c.labels.addChild(label(`SATA${i}`, p.x + p.w / 2, p.y - 24, 30, P.silk, { anchor: [0.5, 0.5], a }));
 }
 
 /**

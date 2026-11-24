@@ -26,7 +26,7 @@ export const CITY_CUTS = [
   'sky',
   'clock',
 ] as const;
-export type CityCut = (typeof CITY_CUTS)[number];
+type CityCut = (typeof CITY_CUTS)[number];
 export type CityCuts = Readonly<Record<CityCut, boolean>>;
 
 const cuts = (on: boolean | ReadonlySet<string>): CityCuts =>
