@@ -733,7 +733,13 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
       const shared = this.sw.locked.some((l) => cmd.startsWith(l));
       const line = shared ? `node "${SELF}" lock -- ${cmd}` : cmd;
       const t0 = Date.now();
-      const r = await sh(line, [], { cwd: p, shell: true, timeoutMs: this.sw.agentTimeoutMin * 60e3 });
+      const opts = { cwd: p, shell: true, timeoutMs: this.sw.agentTimeoutMin * 60e3 };
+      let r = await sh(line, [], opts);
+      if (r.code !== 0 && !shared) {
+        // Parallel tickets load the machine and time tests out: rerun once alone before a round is spent.
+        this.emit(`#${n} check failed, rerun alone: ${cmd}`);
+        r = await sh(`node "${SELF}" lock --name gates -- ${cmd}`, [], opts);
+      }
       const secs = Math.round((Date.now() - t0) / 1000);
       if (r.code !== 0) {
         this.emit(`#${n} check failed (${secs}s): ${cmd}`);
