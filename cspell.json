@@ -23,7 +23,8 @@
     ".baseline/**",
     "e2e/shots/**",
     ".claude/worktrees/**",
-    ".claude/swarm/**"
+    ".claude/swarm/**",
+    ".cache/**"
   ],
   "dictionaryDefinitions": [
     {

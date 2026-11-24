@@ -713,3 +713,5 @@ xrrggbb
 xtal
 zchip
 zlit
+worktree
+worktrees

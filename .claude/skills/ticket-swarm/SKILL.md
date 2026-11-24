@@ -10,7 +10,7 @@ description: Build tracker tickets with a swarm of headless subagents (coder and
 ```
 node .claude/skills/ticket-swarm/swarm.mjs ticket <n>[,<n>...] [--base <branch>]
 node .claude/skills/ticket-swarm/swarm.mjs run <parent> [--base <branch>] [--from <ref>] [--slots <k>]
-node .claude/skills/ticket-swarm/swarm.mjs status | gc | lock -- <cmd>
+node .claude/skills/ticket-swarm/swarm.mjs status | gc | deps | lock -- <cmd>
 ```
 
 `run` base defaults to `parent/<parent>`, which the script makes from `--from` (default: the current branch) when missing. At the end of a run it removes the worktrees and branches of closed tickets. `ticket` base defaults to the current branch: confirm it with the user before the first run.
@@ -23,7 +23,7 @@ Every ticket needs a planned model on the board (Haiku, Sonnet or Opus). Set a m
 
 Per ticket, per round:
 
-1. Coder and tester run in parallel, each a headless `claude -p` with the `swarm-*` agent from `.claude/agents/`, in its own worktree and branch (`ticket/<n>-coder`, `ticket/<n>-tester`). From round 2, only the role named in the findings reruns, from the integration tip.
+1. Coder and tester run in parallel, each a headless `claude -p` with the `swarm-*` agent from `.claude/agents/`, in its own worktree and branch (`ticket/<n>-coder`, `ticket/<n>-tester`). From round 2, only the role named in the findings reruns, from the integration tip. A ticket whose body has the line `Tests: none` gets no tester: the coder takes every finding.
 2. Round merge into `ticket/<n>`: base first, then coder, then tester. On a conflict, the coder wins source files and the tester wins test files. A conflict with the base goes to `swarm-merger` once.
 3. The reviewer runs the ticket's checks and returns PASS or FAIL with findings tagged by role.
 4. PASS: In review, then one squash commit on the base (swarm log rows included), issue closed, Done with `Rounds` and `Cost`, worktrees and branches removed. FAIL: next round one step up the ladder.
@@ -31,6 +31,8 @@ Per ticket, per round:
 **Ladder**: start at the planned model, effort `medium`. Each FAIL raises effort (`medium` → `high` → `xhigh`), then the model (`haiku` → `sonnet` → `opus`) at `medium`. A FAIL at `opus xhigh` stops the ticket.
 
 **Cost**: the sum of `total_cost_usd` of every agent run on the ticket (API-equivalent USD), written to the board on Done or stop.
+
+**Dependencies**: `swarm.install` runs in new worktrees. With `swarm.shareDeps` (`keys`: the lockfiles; `dirs`: the install folders), it runs once per hash of the key files, in a detached worktree `.claude/worktrees/deps-<hash>`, and each ticket worktree links its `dirs` there. A ticket that changes a key file gets its own shared install on the next round. An agent that must change dependencies runs `swarm.mjs deps` first: it swaps the links for a private install. `gc` removes shared installs that nothing links to. Tool caches that live in an install folder must move to a per-worktree path in the repo's config.
 
 **Lock**: agents wrap the commands in `swarm.locked` with `swarm.mjs lock`, so only one runs on the machine at a time.
 

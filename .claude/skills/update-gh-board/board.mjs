@@ -20,7 +20,9 @@ export function run(cmd, args, opts = {}) {
   }).trim();
 }
 export const gh = (args) => run('gh', args);
-export const repoRoot = (cwd = process.cwd()) => run('git', ['rev-parse', '--show-toplevel'], { cwd });
+/** The main checkout's root, also from inside a linked worktree (its config is the live one). */
+export const repoRoot = (cwd = process.cwd()) =>
+  dirname(run('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd }));
 
 export function configPath(root = repoRoot()) {
   return join(root, 'docs', 'agents', 'board.json');
@@ -41,7 +43,7 @@ function pick(list, name, what) {
 }
 
 const ISSUE_Q = `query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){issue(number:$n){
-  id number state title
+  id number state title body
   projectItems(first:20){nodes{id project{id}
     fieldValues(first:40){nodes{
       ... on ProjectV2ItemFieldSingleSelectValue{name field{... on ProjectV2FieldCommon{id}}}
@@ -71,6 +73,7 @@ export function getIssue(cfg, n) {
     nodeId: is.id,
     state: is.state,
     title: is.title,
+    body: is.body,
     item,
     blockers: is.blockedBy.nodes,
     openBlockers: is.blockedBy.nodes.filter((b) => b.state === 'OPEN').map((b) => b.number),

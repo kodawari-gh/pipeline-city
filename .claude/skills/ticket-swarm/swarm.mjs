@@ -12,6 +12,10 @@ import {
   rmSync,
   readdirSync,
   statSync,
+  lstatSync,
+  symlinkSync,
+  unlinkSync,
+  rmdirSync,
 } from 'node:fs';
 import { join, dirname, resolve, basename } from 'node:path';
 import { tmpdir, homedir } from 'node:os';
@@ -29,6 +33,22 @@ import {
   repoRoot,
 } from '../update-gh-board/board.mjs';
 
+/**
+ * @typedef {{ keys: string[], dirs: string[] }} ShareDeps
+ * @typedef {{ slots: number, permissionMode: string, agentTimeoutMin: number, testFile: string, locked: string[],
+ *   coAuthor: Record<string, string>, install?: string, shareDeps?: ShareDeps, log?: string, claudeBin?: string }} SwarmConfig
+ */
+
+/** A git or tool failure: the ticket stops, its worktrees stay for diagnosis, a rerun resumes it. */
+class Critical extends Error {}
+/** The ticket cannot go on as written (`blocked`) or every tier failed (`exhausted`). */
+class Stop extends Error {
+  constructor(msg, kind) {
+    super(msg);
+    this.kind = kind;
+  }
+}
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SELF = join(HERE, 'swarm.mjs');
 const MODELS = ['haiku', 'sonnet', 'opus'];
@@ -41,9 +61,13 @@ const stamp = () => new Date().toTimeString().slice(0, 5);
 /** Tier for a ticket after `failures` reviewer FAILs, starting at the planned model. null = exhausted. */
 export function tierAt(planned, failures) {
   const m = MODELS.indexOf(String(planned).toLowerCase());
-  if (m < 0) throw new Error(`Planned model "${planned}" is not swarmable`);
+  if (m < 0) {
+    throw new Error(`Planned model "${planned}" is not swarmable`);
+  }
   const i = m * EFFORTS.length + failures;
-  if (i >= MODELS.length * EFFORTS.length) return null;
+  if (i >= MODELS.length * EFFORTS.length) {
+    return null;
+  }
   return { model: MODELS[Math.floor(i / EFFORTS.length)], effort: EFFORTS[i % EFFORTS.length] };
 }
 export const tierName = (t) => `${t.model} ${t.effort}`;
@@ -68,11 +92,16 @@ function sh(cmd, args, { cwd, input, timeoutMs, shell = false } = {}) {
       err += String(e);
     });
     p.on('close', (code) => {
-      if (t) clearTimeout(t);
+      if (t) {
+        clearTimeout(t);
+      }
       res({ code: timedOut ? -1 : code, out, err, timedOut });
     });
-    if (input != null) p.stdin.end(input);
-    else p.stdin.end();
+    if (input != null) {
+      p.stdin.end(input);
+    } else {
+      p.stdin.end();
+    }
   });
 }
 const git = (cwd, ...args) => run('git', args, { cwd });
@@ -85,6 +114,85 @@ const gitOk = (cwd, ...args) => {
   }
 };
 
+// ---------- shared dependency helpers ----------
+
+/** Short hash of the dependency key files in worktree `p`. */
+function depsHash(share, p) {
+  const h = createHash('sha256');
+  for (const k of share.keys) {
+    const f = join(p, k);
+    h.update(`${k}\0`);
+    if (existsSync(f)) {
+      h.update(readFileSync(f));
+    }
+    h.update('\0');
+  }
+  return h.digest('hex').slice(0, 12);
+}
+const depsDir = (root, h) => join(root, '.claude', 'worktrees', `deps-${h}`);
+/** Marker in the worktree's own git dir: `shared <hash>` or `private <hash>`. */
+const depsMarker = (p) => join(git(p, 'rev-parse', '--absolute-git-dir'), 'swarm-deps');
+function isLink(p) {
+  try {
+    return lstatSync(p).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+/** Remove a dir, or only the link when it is a symlink or junction (never its target). */
+function removeDir(p) {
+  if (isLink(p)) {
+    try {
+      unlinkSync(p);
+    } catch {
+      rmdirSync(p);
+    }
+  } else if (existsSync(p)) {
+    rmSync(p, { recursive: true, force: true });
+  }
+}
+/** Remove only the dependency links in worktree `p`, so no later recursive delete can reach the shared install. */
+function unlinkDeps(share, p) {
+  for (const d of share?.dirs ?? []) {
+    if (isLink(join(p, d))) {
+      removeDir(join(p, d));
+    }
+  }
+}
+/** Remove a worktree (dependency links first). False when it is still there, e.g. a process holds it open. */
+function removeWorktree(root, share, p) {
+  if (!existsSync(p)) {
+    return true;
+  }
+  unlinkDeps(share, p);
+  if (!gitOk(root, 'worktree', 'remove', '--force', p)) {
+    try {
+      rmSync(p, { recursive: true, force: true });
+    } catch {
+      // In use: the caller reports it and gc retries.
+    }
+  }
+  return !existsSync(p);
+}
+/** Exclusive lock file; a lock older than 30 minutes is stale and taken over. */
+async function takeLock(file) {
+  for (;;) {
+    try {
+      writeFileSync(file, String(process.pid), { flag: 'wx' });
+      return;
+    } catch {
+      try {
+        if (Date.now() - statSync(file).mtimeMs > 30 * 60e3) {
+          rmSync(file, { force: true });
+        }
+      } catch {
+        // The holder released it between the two calls.
+      }
+      await sleep(2000);
+    }
+  }
+}
+
 function findClaude(cfg) {
   const cands = [process.env.CLAUDE_BIN, cfg.swarm?.claudeBin].filter(Boolean);
   try {
@@ -96,12 +204,15 @@ function findClaude(cfg) {
       .filter((d) => d.startsWith('anthropic.claude-code-'))
       .sort()
       .reverse();
-    for (const d of dirs)
+    for (const d of dirs) {
       cands.push(join(ext, d, 'resources', 'native-binary', process.platform === 'win32' ? 'claude.exe' : 'claude'));
+    }
   }
   cands.push(join(homedir(), '.local', 'bin', process.platform === 'win32' ? 'claude.exe' : 'claude'));
   const hit = cands.find((c) => c && existsSync(c));
-  if (!hit) throw new Error('claude CLI not found. Set CLAUDE_BIN or swarm.claudeBin in board.json.');
+  if (!hit) {
+    throw new Error('claude CLI not found. Set CLAUDE_BIN or swarm.claudeBin in board.json.');
+  }
   return hit;
 }
 
@@ -163,7 +274,9 @@ function agentsJson(root) {
 class Swarm {
   constructor(cfg, key, base) {
     this.cfg = cfg;
+    /** @type {string} */
     this.root = cfg.root;
+    /** @type {SwarmConfig} */
     this.sw = {
       slots: 2,
       permissionMode: 'auto',
@@ -180,8 +293,9 @@ class Swarm {
     this.state = existsSync(this.statePath)
       ? JSON.parse(readFileSync(this.statePath, 'utf8'))
       : { key, base, tickets: {} };
-    if (base && this.state.base && base !== this.state.base)
+    if (base && this.state.base && base !== this.state.base) {
       throw new Error(`State ${this.statePath} uses base ${this.state.base}, not ${base}. Delete it to change base.`);
+    }
     this.state.base ||= base;
     this.base = this.state.base;
     this.claude = findClaude(cfg);
@@ -244,10 +358,11 @@ class Swarm {
         this.save();
       }
       if (r.code === 0 && so && !j.is_error) {
-        if (denials)
+        if (denials) {
           this.emit(
             `#${n} ${role}: ${denials} permission denial(s): ${j.permission_denials.map((d) => d.tool_name).join(', ')}`,
           );
+        }
         return so;
       }
       const why = r.timedOut
@@ -259,9 +374,13 @@ class Swarm {
   }
 
   facts(n, issue, role, tier, extra = '') {
-    const locked = this.sw.locked.length
+    const lockLine = this.sw.locked.length
       ? `Shared-resource lock: run any command starting with ${this.sw.locked.map((c) => `"${c}"`).join(', ')} as: node "${SELF}" lock -- <command>\n`
       : '';
+    const depsLine = this.sw.shareDeps
+      ? `Dependencies: ${this.sw.shareDeps.dirs.join(', ')} link to an install other worktrees share. Never run "${this.sw.install}" or a package add/remove command there. To change dependencies, first run: node "${SELF}" deps (it makes a private install in your worktree).\n`
+      : '';
+    const locked = lockLine + depsLine;
     return `Ticket #${n} in ${this.cfg.repo}: "${issue.title}". Read it with: gh issue view ${n} --repo ${this.cfg.repo} --json title,body
 Your worktree (cwd): ${this.wt(n, role === 'reviewer' ? 'merge' : role)}
 Your branch: ${this.br(n, role === 'reviewer' ? 'merge' : role)}
@@ -273,37 +392,141 @@ ${locked}${extra}`;
 
   // ---------- worktrees ----------
 
+  /** Worktree roles a ticket needs: no tester when its body says `Tests: none`. */
+  roles(n) {
+    return this.t(n).noTests ? ['coder', 'merge'] : ['coder', 'tester', 'merge'];
+  }
+
   async ensureWorktrees(n) {
     const fresh = [];
-    for (const role of ['coder', 'tester', 'merge']) {
+    for (const role of this.roles(n)) {
       const p = this.wt(n, role),
         b = this.br(n, role);
-      if (existsSync(p)) continue;
-      if (gitOk(this.root, 'rev-parse', '--verify', `refs/heads/${b}`)) git(this.root, 'worktree', 'add', p, b);
-      else git(this.root, 'worktree', 'add', p, '-b', b, this.base);
+      if (existsSync(join(p, '.git'))) {
+        continue;
+      }
+      // A folder without .git is a leftover of a failed removal: git there would act on the main checkout.
+      if (!removeWorktree(this.root, this.sw.shareDeps, p)) {
+        throw new Critical(`${p} is a leftover folder in use`);
+      }
+      gitOk(this.root, 'worktree', 'prune');
+      if (gitOk(this.root, 'rev-parse', '--verify', `refs/heads/${b}`)) {
+        git(this.root, 'worktree', 'add', p, b);
+      } else {
+        git(this.root, 'worktree', 'add', p, '-b', b, this.base);
+      }
       fresh.push(p);
     }
-    if (fresh.length && this.sw.install) {
+    if (!this.sw.install) {
+      return;
+    }
+    if (this.sw.shareDeps) {
+      for (const role of this.roles(n)) {
+        await this.ensureDeps(n, this.wt(n, role));
+      }
+      return;
+    }
+    if (fresh.length) {
       this.emit(`#${n} install in ${fresh.length} worktree(s)`);
       const rs = await Promise.all(
         fresh.map((p) => sh(this.sw.install, [], { cwd: p, shell: true, timeoutMs: 20 * 60e3 })),
       );
       const bad = rs.findIndex((r) => r.code !== 0);
-      if (bad >= 0) throw new Critical(`install failed in ${fresh[bad]}: ${rs[bad].err.slice(-300)}`);
+      if (bad >= 0) {
+        throw new Critical(`install failed in ${fresh[bad]}: ${rs[bad].err.slice(-300)}`);
+      }
     }
   }
+
+  // ---------- shared dependencies (swarm.shareDeps: { keys, dirs }) ----------
+
+  /**
+   * Link the worktree's dependency dirs to one install per hash of its key files.
+   * The install runs once in a detached worktree at `.claude/worktrees/deps-<hash>`.
+   * A worktree that holds a private install (`swarm.mjs deps`) keeps it while its key files are unchanged.
+   */
+  async ensureDeps(n, p) {
+    if (!existsSync(join(p, '.git'))) {
+      throw new Critical(`${p} is not a worktree`);
+    }
+    const h = depsHash(this.sw.shareDeps, p);
+    const mark = depsMarker(p);
+    const now = existsSync(mark) ? readFileSync(mark, 'utf8') : '';
+    if (now === `private ${h}`) {
+      return;
+    }
+    const cache = depsDir(this.root, h);
+    if (
+      now === `shared ${h}` &&
+      this.sw.shareDeps.dirs.every((d) => !existsSync(join(cache, d)) || isLink(join(p, d)))
+    ) {
+      return;
+    }
+    if (git(p, 'status', '--porcelain', '--', ...this.sw.shareDeps.keys)) {
+      throw new Critical(`${p}: dependency key files have uncommitted changes`);
+    }
+    await this.depsCache(n, h, git(p, 'rev-parse', 'HEAD'));
+    for (const d of this.sw.shareDeps.dirs) {
+      const target = join(cache, d);
+      if (!existsSync(target)) {
+        continue;
+      }
+      removeDir(join(p, d));
+      symlinkSync(target, join(p, d), 'junction');
+    }
+    writeFileSync(mark, `shared ${h}`);
+  }
+
+  /** Build the shared install for hash `h` from commit `rev`, once. Concurrent callers wait on the same build. */
+  depsCache(n, h, rev) {
+    this.depsJobs ??= new Map();
+    const cache = depsDir(this.root, h);
+    if (existsSync(join(cache, '.swarm-deps-ok'))) {
+      return Promise.resolve();
+    }
+    if (!this.depsJobs.has(h)) {
+      const job = (async () => {
+        const lockFile = `${cache}.lock`;
+        await takeLock(lockFile);
+        try {
+          if (existsSync(join(cache, '.swarm-deps-ok'))) {
+            return;
+          }
+          if (!removeWorktree(this.root, null, cache)) {
+            throw new Critical(`${cache} is incomplete and in use`);
+          }
+          gitOk(this.root, 'worktree', 'prune');
+          git(this.root, 'worktree', 'add', '--detach', cache, rev);
+          this.emit(`#${n} install shared deps ${h}`);
+          const r = await sh(this.sw.install, [], { cwd: cache, shell: true, timeoutMs: 20 * 60e3 });
+          if (r.code !== 0) {
+            throw new Critical(`install failed in ${cache}: ${r.err.slice(-300)}`);
+          }
+          writeFileSync(join(cache, '.swarm-deps-ok'), rev);
+        } finally {
+          rmSync(lockFile, { force: true });
+          this.depsJobs.delete(h);
+        }
+      })();
+      this.depsJobs.set(h, job);
+    }
+    return this.depsJobs.get(h);
+  }
   clean(p) {
-    if (existsSync(join(p, '.git')) && gitOk(p, 'rev-parse', '-q', '--verify', 'MERGE_HEAD'))
+    if (existsSync(join(p, '.git')) && gitOk(p, 'rev-parse', '-q', '--verify', 'MERGE_HEAD')) {
       gitOk(p, 'merge', '--abort');
+    }
     git(p, 'reset', '--hard', 'HEAD');
   }
   removeWorktrees(n, { branches }) {
     for (const role of ['coder', 'tester', 'merge']) {
       const p = this.wt(n, role);
-      if (existsSync(p)) {
-        gitOk(this.root, 'worktree', 'remove', '--force', p) || rmSync(p, { recursive: true, force: true });
+      if (!removeWorktree(this.root, this.sw.shareDeps, p)) {
+        this.emit(`#${n} could not remove ${p} (in use); gc retries`);
       }
-      if (branches) gitOk(this.root, 'branch', '-D', this.br(n, role));
+      if (branches) {
+        gitOk(this.root, 'branch', '-D', this.br(n, role));
+      }
     }
     gitOk(this.root, 'worktree', 'prune');
   }
@@ -312,39 +535,51 @@ ${locked}${extra}`;
 
   async mergeBranch(n, tier, issue, ref, side) {
     const p = this.wt(n, 'merge');
-    if (gitOk(p, 'merge', '--no-ff', '--no-edit', ref)) return;
-    const files = git(p, 'diff', '--name-only', '--diff-filter=U').split(/\r?\n/).filter(Boolean);
-    if (side === 'base') {
-      // Base moved under the ticket: let a merger agent settle it once, else stop.
-      const out = await this.agent(
-        'swarm-merger',
-        n,
-        p,
-        tier,
-        this.facts(
-          n,
-          issue,
-          'merge',
-          tier,
-          `Task: a merge of ${ref} into ${this.br(n, 'merge')} stopped on conflicts in: ${files.join(', ')}.
-Resolve them keeping both the ticket's intent and the base's changes, stage the paths, and commit with git commit --no-edit. If you cannot, run git merge --abort and report resolved=false.`,
-        ),
-        MERGE_SCHEMA,
-      );
-      if (out.resolved && !gitOk(p, 'rev-parse', '-q', '--verify', 'MERGE_HEAD')) return;
+    if (gitOk(p, 'merge', '--no-ff', '--no-edit', ref)) {
+      return;
+    }
+    if (!gitOk(p, 'rev-parse', '-q', '--verify', 'MERGE_HEAD')) {
       this.clean(p);
-      throw new Critical(`conflict with ${ref} in ${files.join(', ')}: ${out.summary}`);
+      throw new Critical(`merge of ${ref} did not start`);
     }
-    // Coder wins source files, tester wins test files.
-    for (const f of files) {
-      const theirs = this.testRe.test(f) ? side === 'tester' : side === 'coder';
-      if (!gitOk(p, 'checkout', theirs ? '--theirs' : '--ours', '--', f)) {
-        this.clean(p);
-        throw new Critical(`conflict the rule cannot settle: ${f}`);
+    const files = git(p, 'diff', '--name-only', '--diff-filter=U').split(/\r?\n/).filter(Boolean);
+    let why = `stopped on conflicts in: ${files.join(', ')}`;
+    // Role branches: coder wins source files, tester wins test files.
+    if (side !== 'base' && files.every((f) => this.takeSide(p, f, side))) {
+      try {
+        git(p, 'commit', '--no-edit');
+        return;
+      } catch (error) {
+        why = `was refused by the commit hook:\n${`${error.stdout ?? ''}${error.stderr ?? ''}`.slice(-1500)}`;
       }
-      git(p, 'add', '--', f);
     }
-    git(p, 'commit', '--no-edit');
+    // Base conflicts, a file the rule cannot settle, or a hook refusal: a merger agent settles it once, else stop.
+    const out = await this.agent(
+      'swarm-merger',
+      n,
+      p,
+      tier,
+      this.facts(
+        n,
+        issue,
+        'merge',
+        tier,
+        `Task: the merge of ${ref} into ${this.br(n, 'merge')} is in progress and ${why}
+Finish it: keep the ticket's intent and the other side's changes, make the repo's commit hooks pass, stage the paths, and commit with git commit --no-edit. If you cannot, run git merge --abort and report resolved=false.`,
+      ),
+      MERGE_SCHEMA,
+    );
+    if (out.resolved && !gitOk(p, 'rev-parse', '-q', '--verify', 'MERGE_HEAD')) return;
+    this.clean(p);
+    throw new Critical(`merge of ${ref} ${why.split('\n')[0]}: ${out.summary}`);
+  }
+
+  /** Settle one conflicted file by the role rule. False when git cannot. */
+  takeSide(p, f, side) {
+    const theirs = this.testRe.test(f) ? side === 'tester' : side === 'coder';
+    if (!gitOk(p, 'checkout', theirs ? '--theirs' : '--ours', '--', f)) return false;
+    git(p, 'add', '--', f);
+    return true;
   }
 
   // ---------- one ticket ----------
@@ -354,19 +589,30 @@ Resolve them keeping both the ticket's intent and the base's changes, stage the 
     const issue = getIssue(this.cfg, n);
     const planned = issue.item?.planned;
     T.phase = 'running';
+    T.noTests = /^Tests:\s*none\b/imu.test(issue.body ?? '');
     this.save();
     setStatus(this.cfg, n, 'In progress');
     await this.ensureWorktrees(n);
-    let relaunch = T.findings.length ? [...new Set(T.findings.map((f) => f.role))] : ['coder', 'tester'];
+    const workers = this.roles(n).filter((r) => r !== 'merge');
+    if (T.noTests) {
+      this.emit(`#${n} Tests: none, no tester`);
+    }
+    const routed = (findings) => {
+      const r = [...new Set(findings.map((f) => (T.noTests ? 'coder' : f.role)))];
+      return r.length ? r : workers;
+    };
+    let relaunch = T.findings.length ? routed(T.findings) : workers;
     for (;;) {
       const tier = tierAt(planned, T.failures);
-      if (!tier) throw new Stop('ladder exhausted', 'exhausted');
+      if (!tier) {
+        throw new Stop('ladder exhausted', 'exhausted');
+      }
       T.rounds++;
       this.save();
       this.emit(`#${n} round ${T.rounds} ${tierName(tier)}: ${relaunch.join(' + ')}`);
       const findingsText = T.findings.length
         ? `Reviewer findings to fix on your branch:\n${T.findings
-            .filter((f) => relaunch.includes(f.role))
+            .filter((f) => T.noTests || relaunch.includes(f.role))
             .map(
               (f, i) =>
                 `${i + 1}. ${f.file}${f.line ? ':' + f.line : ''} ${f.problem}${f.acceptance ? ` (acceptance: ${f.acceptance})` : ''}${f.repeat ? ' [REPEATED: add a test that proves the fix]' : ''}`,
@@ -378,7 +624,12 @@ Resolve them keeping both the ticket's intent and the base's changes, stage the 
       const jobs = relaunch.map(async (role) => {
         const p = this.wt(n, role);
         this.clean(p);
-        if (T.rounds > 1) git(p, 'reset', '--hard', tip);
+        if (T.rounds > 1) {
+          git(p, 'reset', '--hard', tip);
+        }
+        if (this.sw.install && this.sw.shareDeps) {
+          await this.ensureDeps(n, p);
+        }
         const out = await this.agent(
           `swarm-${role}`,
           n,
@@ -387,7 +638,9 @@ Resolve them keeping both the ticket's intent and the base's changes, stage the 
           this.facts(n, issue, role, tier, findingsText),
           WORK_SCHEMA,
         );
-        if (out.blocker) throw new Stop(`${role} blocker: ${out.blocker}`, 'blocked');
+        if (out.blocker) {
+          throw new Stop(`${role} blocker: ${out.blocker}`, 'blocked');
+        }
         const dirty = git(p, 'status', '--porcelain', '--untracked-files=no');
         this.emit(
           `#${n} ${role} ${git(p, 'rev-parse', '--short', 'HEAD')}: ${out.summary.split(/\r?\n/)[0].slice(0, 160)}${out.unmet.length ? ` | unmet: ${out.unmet.length}` : ''}${dirty ? ' | WARNING: uncommitted changes dropped' : ''}`,
@@ -399,9 +652,13 @@ Resolve them keeping both the ticket's intent and the base's changes, stage the 
       this.clean(merge);
       await this.mergeBranch(n, tier, issue, this.base, 'base');
       // Merge every role branch the integration branch does not hold yet (covers commits from an earlier, interrupted run).
-      for (const role of ['coder', 'tester']) {
-        if (!gitOk(merge, 'merge-base', '--is-ancestor', this.br(n, role), 'HEAD'))
+      for (const role of workers) {
+        if (!gitOk(merge, 'merge-base', '--is-ancestor', this.br(n, role), 'HEAD')) {
           await this.mergeBranch(n, tier, issue, this.br(n, role), role);
+        }
+      }
+      if (this.sw.install && this.sw.shareDeps) {
+        await this.ensureDeps(n, merge);
       }
 
       const head = git(merge, 'rev-parse', 'HEAD');
@@ -415,7 +672,7 @@ Resolve them keeping both the ticket's intent and the base's changes, stage the 
           issue,
           'reviewer',
           tier,
-          `Review: git diff ${this.base}...HEAD in your worktree. Do not edit, stage or commit.\nTag each finding with the role whose branch must fix it: tester for test files, coder for everything else.\n`,
+          `Review: git diff ${this.base}...HEAD in your worktree. Do not edit, stage or commit.\n${T.noTests ? 'The ticket says Tests: none. Tag every finding coder.' : 'Tag each finding with the role whose branch must fix it: tester for test files, coder for everything else.'}\n`,
         ),
         REVIEW_SCHEMA,
       );
@@ -443,8 +700,7 @@ Resolve them keeping both the ticket's intent and the base's changes, stage the 
       T.findings = rv.findings.map((f) => ({ ...f, repeat: prev.has(`${f.file}|${f.problem}`) }));
       T.failures++;
       this.save();
-      relaunch = [...new Set(T.findings.map((f) => f.role))];
-      if (!relaunch.length) relaunch = ['coder', 'tester'];
+      relaunch = routed(T.findings);
     }
   }
 
@@ -500,19 +756,29 @@ Resolve them keeping both the ticket's intent and the base's changes, stage the 
       git(this.root, 'update-ref', `refs/heads/${this.base}`, sha, old);
       return sha;
     }
-    const p = block.match(/^worktree (.*)$/m)[1];
+    const [, p] = block.match(/^worktree (.*)$/m);
     for (let i = 0; i < 30 && !gitOk(p, 'diff', '--cached', '--quiet'); i++) {
-      if (i === 0) this.emit(`#${n} waiting: ${p} has staged changes from another session`);
+      if (i === 0) {
+        this.emit(`#${n} waiting: ${p} has staged changes from another session`);
+      }
       await sleep(10e3);
     }
-    if (!gitOk(p, 'diff', '--cached', '--quiet')) throw new Critical(`${p} index busy; squash not done`);
+    if (!gitOk(p, 'diff', '--cached', '--quiet')) {
+      throw new Critical(`${p} index busy; squash not done`);
+    }
     try {
       git(p, 'merge', '--squash', ref);
-    } catch (e) {
+    } catch (error) {
       gitOk(p, 'reset', '--merge');
-      throw new Critical(`merge --squash refused in ${p}: ${String(e.stderr || e.message).slice(0, 300)}`);
+      throw new Critical(`merge --squash refused in ${p}: ${String(error.stderr || error.message).slice(0, 300)}`);
     }
-    git(p, 'commit', '-F', msgFile);
+    try {
+      git(p, 'commit', '-F', msgFile);
+    } catch (error) {
+      // Leave the checkout as it was: unstage the squash and restore the files.
+      gitOk(p, 'reset', '--merge');
+      throw new Critical(`squash commit refused in ${p}: ${`${error.stdout ?? ''}${error.stderr ?? ''}`.slice(-300)}`);
+    }
     return git(p, 'rev-parse', 'HEAD');
   }
 
@@ -524,7 +790,9 @@ Resolve them keeping both the ticket's intent and the base's changes, stage the 
     this.emit(`#${n} STOP ${T.phase}: ${err.message}`);
     try {
       setStatus(this.cfg, n, 'Backlog');
-      if (T.cost) setCost(this.cfg, n, T.cost);
+      if (T.cost) {
+        setCost(this.cfg, n, T.cost);
+      }
       const open = T.findings
         .map((f, i) => `${i + 1}. [${f.role}] ${f.file}${f.line ? ':' + f.line : ''} ${f.problem}`)
         .join('\n');
@@ -533,10 +801,12 @@ Resolve them keeping both the ticket's intent and the base's changes, stage the 
         n,
         `Swarm stopped (${T.phase}): ${err.message}\n\nRounds: ${T.rounds}. Work kept on branch \`${this.br(n, 'merge')}\`.\n\n${open ? `Open findings:\n${open}\n\n` : ''}| Ticket | Round | Tier | Result | Notes |\n| --- | --- | --- | --- | --- |\n${T.rows.join('\n')}`,
       );
-    } catch (e) {
-      this.emit(`#${n} board/comment write failed: ${e.message}`);
+    } catch (error) {
+      this.emit(`#${n} board/comment write failed: ${error.message}`);
     }
-    if (T.phase !== 'critical') this.removeWorktrees(n, { branches: false });
+    if (T.phase !== 'critical') {
+      this.removeWorktrees(n, { branches: false });
+    }
   }
 
   // ---------- loop ----------
@@ -545,8 +815,10 @@ Resolve them keeping both the ticket's intent and the base's changes, stage the 
     const running = new Map();
     const warned = new Set();
     for (const [n, T] of Object.entries(this.state.tickets)) {
-      if (T.phase === 'running') {
+      // A critical stop keeps its worktrees for diagnosis; a rerun resumes it once the cause is fixed.
+      if (T.phase === 'running' || T.phase === 'critical') {
         T.phase = 'resume';
+        delete T.reason;
         this.emit(`#${n} resuming at round ${T.rounds + 1}`);
       }
     }
@@ -561,17 +833,25 @@ Resolve them keeping both the ticket's intent and the base's changes, stage the 
       let ready = [];
       if (parent) {
         const r = sync(this.cfg, parent);
-        for (const m of r.moves) this.emit(`board ${m}`);
-        ready = r.ready;
+        for (const m of r.moves) {
+          this.emit(`board ${m}`);
+        }
+        ({ ready } = r);
       }
-      if (only) ready = only.filter((n) => getIssue(this.cfg, n).state === 'OPEN');
+      if (only) {
+        ready = only.filter((n) => getIssue(this.cfg, n).state === 'OPEN');
+      }
       const resume = Object.entries(this.state.tickets)
         .filter(([, T]) => T.phase === 'resume')
         .map(([n]) => Number(n));
       const queue = [...new Set([...resume, ...ready])].filter((n) => {
-        if (running.has(n)) return false;
+        if (running.has(n)) {
+          return false;
+        }
         const T = this.state.tickets[n];
-        if (T && !['new', 'resume'].includes(T.phase)) return false;
+        if (T && !['new', 'resume'].includes(T.phase)) {
+          return false;
+        }
         const planned = getIssue(this.cfg, n).item?.planned;
         if (!planned || !MODELS.includes(planned.toLowerCase())) {
           if (!warned.has(n)) {
@@ -582,15 +862,21 @@ Resolve them keeping both the ticket's intent and the base's changes, stage the 
         }
         return true;
       });
-      while (running.size < this.sw.slots && queue.length) start(queue.shift());
-      if (!running.size) break;
+      while (running.size < this.sw.slots && queue.length) {
+        start(queue.shift());
+      }
+      if (!running.size) {
+        break;
+      }
       await Promise.race([...running.values(), sleep(120e3)]);
     }
     const ts = Object.entries(this.state.tickets);
     this.emit(
       `FINISHED: ${ts.map(([n, T]) => `#${n} ${T.phase}${T.phase === 'done' ? ` ${T.commit?.slice(0, 8)} r${T.rounds}` : ''}`).join(', ') || 'nothing to run'}`,
     );
-    if (warned.size) this.emit(`waiting on planned model: ${[...warned].map((n) => '#' + n).join(' ')}`);
+    if (warned.size) {
+      this.emit(`waiting on planned model: ${[...warned].map((n) => '#' + n).join(' ')}`);
+    }
     for (const line of gc(this.cfg)) {
       this.emit(`gc: ${line}`);
     }
@@ -599,7 +885,7 @@ Resolve them keeping both the ticket's intent and the base's changes, stage the 
 
 /** Remove the worktrees and branches of closed tickets; keep those of open ones. */
 function gc(cfg) {
-  const root = cfg.root;
+  const { root } = cfg;
   const out = [];
   const branches = git(root, 'branch', '--format=%(refname:short)')
     .split(/\r?\n/)
@@ -612,8 +898,8 @@ function gc(cfg) {
     }
     for (const role of ['coder', 'tester', 'merge']) {
       const p = join(root, '.claude', 'worktrees', `t${n}-${role}`);
-      if (existsSync(p) && !gitOk(root, 'worktree', 'remove', '--force', p)) {
-        rmSync(p, { recursive: true, force: true });
+      if (!removeWorktree(root, cfg.swarm?.shareDeps, p)) {
+        out.push(`could not remove ${p} (in use)`);
       }
     }
     for (const br of branches.filter((b) => b === `ticket/${n}` || b.startsWith(`ticket/${n}-`))) {
@@ -622,7 +908,61 @@ function gc(cfg) {
     out.push(`removed #${n} worktrees and branches`);
   }
   gitOk(root, 'worktree', 'prune');
+  if (cfg.swarm?.shareDeps) {
+    out.push(...gcDeps(cfg));
+  }
   return out;
+}
+
+/** Remove shared installs no ticket worktree links to, except the one for the main checkout's key files. */
+function gcDeps(cfg) {
+  const { root } = cfg;
+  const wtDir = join(root, '.claude', 'worktrees');
+  if (!existsSync(wtDir)) {
+    return [];
+  }
+  const keep = new Set([depsHash(cfg.swarm.shareDeps, root)]);
+  const names = readdirSync(wtDir);
+  for (const d of names.filter((x) => !x.startsWith('deps-'))) {
+    try {
+      const m = readFileSync(depsMarker(join(wtDir, d)), 'utf8').split(' ');
+      if (m[0] === 'shared') {
+        keep.add(m[1]);
+      }
+    } catch {
+      // Not a worktree or no marker: it links nothing.
+    }
+  }
+  const out = [];
+  for (const d of names.filter((x) => /^deps-[0-9a-f]+$/u.test(x))) {
+    if (keep.has(d.slice(5)) || existsSync(join(wtDir, `${d}.lock`))) {
+      continue;
+    }
+    const p = join(wtDir, d);
+    out.push(removeWorktree(root, null, p) ? `removed shared deps ${d.slice(5)}` : `could not remove ${p} (in use)`);
+  }
+  gitOk(root, 'worktree', 'prune');
+  return out;
+}
+
+/** `swarm.mjs deps`: replace the dependency links in the current worktree with a private install. */
+async function privateDeps(cfg) {
+  const share = cfg.swarm?.shareDeps;
+  if (!share || !cfg.swarm.install) {
+    return console.log('shareDeps is off: run the install command yourself.');
+  }
+  const p = resolve(git(process.cwd(), 'rev-parse', '--show-toplevel'));
+  if (p === resolve(cfg.root)) {
+    throw new Error('deps runs only in a swarm worktree');
+  }
+  unlinkDeps(share, p);
+  const r = await sh(cfg.swarm.install, [], { cwd: p, shell: true, timeoutMs: 20 * 60e3 });
+  process.stdout.write(r.out.slice(-2000));
+  if (r.code !== 0) {
+    throw new Error(`install failed: ${r.err.slice(-500)}`);
+  }
+  writeFileSync(depsMarker(p), `private ${depsHash(share, p)}`);
+  console.log('private install done');
 }
 
 /** The parent's base branch parent/<n>, made from `from` when missing. Never checked out. */
@@ -633,14 +973,6 @@ function parentBranch(root, parent, from) {
   }
   return b;
 }
-class Critical extends Error {}
-class Stop extends Error {
-  constructor(msg, kind) {
-    super(msg);
-    this.kind = kind;
-  }
-}
-
 // ---------- lock ----------
 
 async function lock(name, cmd) {
@@ -651,8 +983,10 @@ async function lock(name, cmd) {
     try {
       mkdirSync(dir);
       break;
-    } catch (e) {
-      if (e.code !== 'EEXIST') throw e;
+    } catch (error) {
+      if (error.code !== 'EEXIST') {
+        throw error;
+      }
       let dead = false;
       try {
         const o = JSON.parse(readFileSync(join(dir, 'owner.json'), 'utf8'));
@@ -661,7 +995,9 @@ async function lock(name, cmd) {
         } catch {
           dead = true;
         }
-        if (Date.now() - o.t > staleMs) dead = true;
+        if (Date.now() - o.t > staleMs) {
+          dead = true;
+        }
       } catch {
         dead = Date.now() - statSync(dir).mtimeMs > 60e3;
       }
@@ -669,7 +1005,9 @@ async function lock(name, cmd) {
         rmSync(dir, { recursive: true, force: true });
         continue;
       }
-      if (waited % 30 === 0) console.error(`[lock ${name}] waiting...`);
+      if (waited % 30 === 0) {
+        console.error(`[lock ${name}] waiting...`);
+      }
       await sleep(2000);
     }
   }
@@ -690,7 +1028,8 @@ const HELP = `swarm.mjs: ticket swarm runner (config docs/agents/board.json)
   run <parent> [--base <branch>] [--from <ref>] [--slots <k>]   swarm every ready child until none is left
   ticket <n>[,<n>...] [--base <branch>]          swarm the named tickets only
   status [<key>]                                 phase, rounds and tier of each ticket in a run
-  gc                                             remove worktrees and branches of closed tickets
+  gc                                             remove worktrees and branches of closed tickets, and unused shared installs
+  deps                                           in a swarm worktree: replace shared dependency links with a private install
   lock [--name <name>] -- <command...>           run a command under a machine-wide mutex (default name: browser)
 run: base defaults to parent/<parent>, made from --from (default: the current branch) when missing; gc runs at the end.
 ticket: base defaults to the current branch.
@@ -703,10 +1042,14 @@ function opt(a, name, def) {
 
 async function main(argv) {
   const [cmd, ...a] = argv;
-  if (!cmd || cmd === 'help' || cmd === '--help') return console.log(HELP);
+  if (!cmd || cmd === 'help' || cmd === '--help') {
+    return console.log(HELP);
+  }
   if (cmd === 'lock') {
     const i = a.indexOf('--');
-    if (i < 0) throw new Error('lock needs -- <command>');
+    if (i < 0) {
+      throw new Error('lock needs -- <command>');
+    }
     return lock(opt(a.slice(0, i), '--name', 'browser'), a.slice(i + 1).join(' '));
   }
   const root = repoRoot();
@@ -719,35 +1062,49 @@ async function main(argv) {
     for (const f of files) {
       const s = JSON.parse(readFileSync(join(dir, f), 'utf8'));
       console.log(`${s.key} (base ${s.base})`);
-      for (const [n, T] of Object.entries(s.tickets))
+      for (const [n, T] of Object.entries(s.tickets)) {
         console.log(
           `  #${n} ${T.phase} rounds=${T.rounds} failures=${T.failures} cost=$${(T.cost || 0).toFixed(2)}${T.reason ? ` (${T.reason})` : ''}`,
         );
+      }
     }
     return;
   }
   if (cmd === 'gc') {
-    for (const line of gc(cfg)) console.log(line);
+    for (const line of gc(cfg)) {
+      console.log(line);
+    }
     return;
   }
-  if (a.includes('--no-install')) cfg.swarm = { ...cfg.swarm, install: '' };
+  if (cmd === 'deps') {
+    return privateDeps(cfg);
+  }
+  if (a.includes('--no-install')) {
+    cfg.swarm = { ...cfg.swarm, install: '' };
+  }
   /** @type {string} */
   const current = git(root, 'branch', '--show-current');
   if (cmd === 'run') {
     const parent = Number(a[0]);
-    if (!parent) throw new Error('run needs a parent issue number');
+    if (!parent) {
+      throw new Error('run needs a parent issue number');
+    }
     const s = new Swarm(
       cfg,
       `p${parent}`,
       opt(a, '--base') ?? parentBranch(root, parent, opt(a, '--from', current === '' ? 'HEAD' : current)),
     );
-    if (a.includes('--slots')) s.sw.slots = Number(opt(a, '--slots'));
+    if (a.includes('--slots')) {
+      s.sw.slots = Number(opt(a, '--slots'));
+    }
     s.emit(`START parent #${parent} base ${s.base} slots ${s.sw.slots}`);
     return s.loop({ parent });
   }
   if (cmd === 'ticket') {
     const base = opt(a, '--base', current);
-    if (!base) throw new Error('No base branch: pass --base');
+    if (!base) {
+      throw new Error('No base branch: pass --base');
+    }
     const only = String(a[0]).split(',').map(Number).filter(Boolean);
     const s = new Swarm(cfg, `t${only.join('-')}`, base);
     s.sw.slots = Math.max(s.sw.slots, only.length);

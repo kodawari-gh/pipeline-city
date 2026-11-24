@@ -79,6 +79,8 @@ The end-to-end behaviour this ticket makes work, from the player's or caller's v
 
 The module and exported functions the tester calls, and the test helpers to use. Name modules, not line numbers.
 
+When no new test applies (a config change, a reformat, an auto-fix that existing suites prove), write this exact line instead: `Tests: none`. The swarm then runs no tester.
+
 ## Checks
 
 The commands the reviewer runs: the test files, plus the checks the repo requires (`AGENTS.md` or `CLAUDE.md`, and the repo notes in `docs/agents/board.md`). For visual work, the screenshot to capture.
