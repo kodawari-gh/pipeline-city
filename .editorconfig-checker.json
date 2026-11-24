@@ -1,0 +1,19 @@
+{
+  "Exclude": [
+    "node_modules",
+    "dist",
+    "docs/pipeline-city-",
+    "public",
+    "res/",
+    "package-lock[.]json",
+    "[.](png|webp|ogg|ktx2|woff2|glb|bin|ico|jpg|svg|md)$",
+    ".cocoindex_code",
+    ".baseline/",
+    "e2e/shots",
+    "LICENSE[.]txt$",
+    ".basedpyright/"
+  ],
+  "Disable": {
+    "IndentSize": true
+  }
+}

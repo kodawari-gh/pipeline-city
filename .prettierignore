@@ -1,0 +1,12 @@
+dist/
+public/
+res/
+docs/pipeline-city-*/
+e2e/shots/
+.claude/swarm/
+.claude/worktrees/
+.cocoindex_code/
+package-lock.json
+**/*.baseline.json
+.baseline/
+.basedpyright/

@@ -1,0 +1,19 @@
+# Git hooks (installed by `npm install` through the `prepare` script). The full gate is `npm run check`, run in CI.
+pre-commit:
+  parallel: false
+  commands:
+    format:
+      glob: '*.{ts,tsx,mjs,cjs,js,json,jsonc,md,css,html,yml,yaml}'
+      run: npx prettier --write --log-level warn {staged_files}
+      stage_fixed: true
+    types:
+      glob: '*.{ts,tsx}'
+      run: npm run --silent check:types
+    lint:
+      glob: '*.{ts,tsx,mjs,cjs,js}'
+      run: npm run --silent check:lint
+
+commit-msg:
+  commands:
+    commitlint:
+      run: npx commitlint --edit {1}

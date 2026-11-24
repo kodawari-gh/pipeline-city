@@ -20,12 +20,25 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - uses: astral-sh/setup-uv@v6
+      - run: npm run check
       - run: npm test
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         if: github.ref == 'refs/heads/main'
         with:
           path: dist
+
+  # Secrets in any commit of the pushed history.
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # The slow 3D and simulation tests (tools/heavy-tests.ts). Started by hand from the Actions tab; they do not gate the deploy.
   heavy:

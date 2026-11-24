@@ -1,0 +1,35 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "dictionaries": [
+    "typescript",
+    "node",
+    "npm",
+    "css",
+    "html",
+    "softwareTerms",
+    "companies",
+    "misc",
+    "en-gb",
+    "project-words"
+  ],
+  "ignorePaths": [
+    "node_modules/**",
+    "dist/**",
+    "docs/pipeline-city-*/**",
+    "public/**",
+    "res/**",
+    "package-lock.json",
+    ".baseline/**",
+    "e2e/shots/**",
+    ".claude/worktrees/**",
+    ".claude/swarm/**"
+  ],
+  "dictionaryDefinitions": [
+    {
+      "name": "project-words",
+      "path": "./project-words.txt",
+      "addWords": true
+    }
+  ]
+}

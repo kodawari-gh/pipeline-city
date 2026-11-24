@@ -1,0 +1,32 @@
+{
+ "src/core/ui/tokens.css": {
+  "alpha-value-notation": 19,
+  "at-rule-empty-line-before": 4,
+  "color-function-alias-notation": 19,
+  "color-function-notation": 19,
+  "comment-empty-line-before": 4,
+  "custom-property-empty-line-before": 4,
+  "media-feature-range-notation": 3
+ },
+ "src/core/ui/ui.css": {
+  "alpha-value-notation": 87,
+  "at-rule-empty-line-before": 58,
+  "block-no-empty": 1,
+  "color-function-alias-notation": 87,
+  "color-function-notation": 87,
+  "comment-empty-line-before": 149,
+  "custom-property-empty-line-before": 5,
+  "declaration-block-no-redundant-longhand-properties": 29,
+  "declaration-empty-line-before": 3,
+  "length-zero-no-unit": 5,
+  "media-feature-range-notation": 66,
+  "no-descending-specificity": 360,
+  "no-duplicate-selectors": 45,
+  "property-no-deprecated": 1,
+  "property-no-vendor-prefix": 36,
+  "rule-empty-line-before": 1801,
+  "selector-not-notation": 5,
+  "shorthand-property-no-redundant-values": 2,
+  "value-keyword-case": 11
+ }
+}

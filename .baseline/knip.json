@@ -1,0 +1,915 @@
+{
+ ".claude/skills/ticket-swarm/swarm.mjs": {
+  "knip/files": 1
+ },
+ ".claude/skills/update-gh-board/board.mjs": {
+  "knip/files": 1
+ },
+ "docs/pipeline-city-menu-ui/assets/mock-sources/lib.js": {
+  "knip/files": 1
+ },
+ "e2e/hud.e2e.mjs": {
+  "knip/files": 1
+ },
+ "e2e/tutorial.e2e.mjs": {
+  "knip/unresolved": 7
+ },
+ "package.json": {
+  "knip/binaries": 1,
+  "knip/devDependencies": 3
+ },
+ "public/basis/basis_transcoder.js": {
+  "knip/files": 1
+ },
+ "src/app/audio/director.ts": {
+  "knip/exports": 1,
+  "knip/types": 1
+ },
+ "src/app/audio/mixTokens.ts": {
+  "knip/types": 1
+ },
+ "src/app/audio/music.ts": {
+  "knip/exports": 8,
+  "knip/types": 1
+ },
+ "src/app/audio/musicNotes.ts": {
+  "knip/exports": 2,
+  "knip/types": 1
+ },
+ "src/app/audio/stress.ts": {
+  "knip/exports": 1,
+  "knip/types": 1
+ },
+ "src/app/audio/uiCues.ts": {
+  "knip/exports": 1
+ },
+ "src/app/debug/controls.ts": {
+  "knip/exports": 1
+ },
+ "src/app/layout.harness.ts": {
+  "knip/exports": 1
+ },
+ "src/core/render/airsource.ts": {
+  "knip/exports": 1,
+  "knip/types": 1
+ },
+ "src/core/render/brands/index.ts": {
+  "knip/exports": 2,
+  "knip/types": 2
+ },
+ "src/core/render/brands/kit.ts": {
+  "knip/types": 1
+ },
+ "src/core/render/brands/pixi.ts": {
+  "knip/exports": 1
+ },
+ "src/core/render/brands/type.ts": {
+  "knip/exports": 1
+ },
+ "src/core/render/camera.ts": {
+  "knip/types": 2
+ },
+ "src/core/render/capture.ts": {
+  "knip/files": 1
+ },
+ "src/core/render/fanmotor.ts": {
+  "knip/exports": 1
+ },
+ "src/core/render/ink.ts": {
+  "knip/exports": 1
+ },
+ "src/core/render/lod/lod.ts": {
+  "knip/exports": 5
+ },
+ "src/core/render/shape.ts": {
+  "knip/exports": 6
+ },
+ "src/core/render/three/aojob.ts": {
+  "knip/exports": 1
+ },
+ "src/core/render/three/artlod.ts": {
+  "knip/exports": 1
+ },
+ "src/core/render/three/baked.ts": {
+  "knip/exports": 2
+ },
+ "src/core/render/three/buildframe.ts": {
+  "knip/exports": 2
+ },
+ "src/core/render/three/caseshade.ts": {
+  "knip/exports": 1
+ },
+ "src/core/render/three/cheapmaterials.ts": {
+  "knip/exports": 2
+ },
+ "src/core/render/three/cloth/glb.ts": {
+  "knip/types": 1
+ },
+ "src/core/render/three/cloth/pattern.ts": {
+  "knip/exports": 5,
+  "knip/types": 2
+ },
+ "src/core/render/three/cloth/solid.ts": {
+  "knip/exports": 4
+ },
+ "src/core/render/three/compile.ts": {
+  "knip/exports": 2
+ },
+ "src/core/render/three/eye.ts": {
+  "knip/exports": 2
+ },
+ "src/core/render/three/geometry.ts": {
+  "knip/exports": 4
+ },
+ "src/core/render/three/gesture.ts": {
+  "knip/types": 1
+ },
+ "src/core/render/three/lightmapmix.ts": {
+  "knip/types": 3
+ },
+ "src/core/render/three/localeye.ts": {
+  "knip/exports": 5
+ },
+ "src/core/render/three/materials.ts": {
+  "knip/exports": 3
+ },
+ "src/core/render/three/merge.ts": {
+  "knip/exports": 1
+ },
+ "src/core/render/three/pad.ts": {
+  "knip/exports": 2,
+  "knip/types": 1
+ },
+ "src/core/render/three/partlod.ts": {
+  "knip/exports": 2
+ },
+ "src/core/render/three/post.ts": {
+  "knip/exports": 1
+ },
+ "src/core/render/three/probe.ts": {
+  "knip/exports": 1
+ },
+ "src/core/render/three/sleeve.ts": {
+  "knip/exports": 1
+ },
+ "src/core/sim/hw/clock.ts": {
+  "knip/exports": 1
+ },
+ "src/core/sim/memmap.ts": {
+  "knip/exports": 4
+ },
+ "src/core/ui/kit/Pipeline.tsx": {
+  "knip/exports": 1
+ },
+ "src/core/ui/kit/Sprite.tsx": {
+  "knip/exports": 1
+ },
+ "src/core/ui/kit/units.ts": {
+  "knip/exports": 1
+ },
+ "src/core/ui/logic.ts": {
+  "knip/exports": 2
+ },
+ "src/core/ui/menuNav.ts": {
+  "knip/exports": 1
+ },
+ "src/core/ui/panels/LogPanel.tsx": {
+  "knip/exports": 1
+ },
+ "src/core/ui/panels/NewGame.tsx": {
+  "knip/duplicates": 1
+ },
+ "src/core/ui/place.ts": {
+  "knip/exports": 1
+ },
+ "src/core/ui/testdata.ts": {
+  "knip/exports": 2
+ },
+ "src/features/board/render/board.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/boardArt.ts": {
+  "knip/exports": 2
+ },
+ "src/features/board/render/boardParts.ts": {
+  "knip/exports": 3
+ },
+ "src/features/board/render/cooler.ts": {
+  "knip/exports": 4
+ },
+ "src/features/board/render/devices.ts": {
+  "knip/exports": 9
+ },
+ "src/features/board/render/layout/boardlayout.ts": {
+  "knip/exports": 7,
+  "knip/types": 3
+ },
+ "src/features/board/render/layout/layout.ts": {
+  "knip/duplicates": 1,
+  "knip/exports": 30
+ },
+ "src/features/board/render/layout/pins.ts": {
+  "knip/duplicates": 1,
+  "knip/exports": 8
+ },
+ "src/features/board/render/layout/ports.ts": {
+  "knip/exports": 7
+ },
+ "src/features/board/render/skins.ts": {
+  "knip/types": 1
+ },
+ "src/features/board/render/three/accelparts3d.ts": {
+  "knip/types": 1
+ },
+ "src/features/board/render/three/air/airtags.ts": {
+  "knip/exports": 1,
+  "knip/types": 1
+ },
+ "src/features/board/render/three/air/grid.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/air/particles.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/air/plan.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/air/solve.ts": {
+  "knip/exports": 1,
+  "knip/types": 1
+ },
+ "src/features/board/render/three/air/view.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/air/water.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/air/waternet.ts": {
+  "knip/types": 1
+ },
+ "src/features/board/render/three/artset3d.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/bake.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/basement3d.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/boardhw3d.ts": {
+  "knip/exports": 2
+ },
+ "src/features/board/render/three/buildmotion.ts": {
+  "knip/exports": 8
+ },
+ "src/features/board/render/three/cablerig3d.ts": {
+  "knip/exports": 2
+ },
+ "src/features/board/render/three/card3d.ts": {
+  "knip/exports": 1,
+  "knip/types": 1
+ },
+ "src/features/board/render/three/casedetail3d.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/casekit3d.ts": {
+  "knip/exports": 4
+ },
+ "src/features/board/render/three/cooler3d.ts": {
+  "knip/exports": 2
+ },
+ "src/features/board/render/three/drive3d.ts": {
+  "knip/exports": 4
+ },
+ "src/features/board/render/three/drivecage3d.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/driveinner3d.ts": {
+  "knip/exports": 3
+ },
+ "src/features/board/render/three/fans3d.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/gpu3d.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/machine3d.ts": {
+  "knip/exports": 3
+ },
+ "src/features/board/render/three/models3d.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/nic3d.ts": {
+  "knip/types": 1
+ },
+ "src/features/board/render/three/niccopper.ts": {
+  "knip/exports": 1,
+  "knip/types": 7
+ },
+ "src/features/board/render/three/nictrace.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/nvme3d.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/pcbkit3d.ts": {
+  "knip/types": 1
+ },
+ "src/features/board/render/three/pcie.ts": {
+  "knip/exports": 3
+ },
+ "src/features/board/render/three/plughand3d.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/plugs3d.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/power/ledger.ts": {
+  "knip/types": 1
+ },
+ "src/features/board/render/three/power/net.ts": {
+  "knip/types": 2
+ },
+ "src/features/board/render/three/psu3d.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/ram3d.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/ramface3d.ts": {
+  "knip/exports": 2
+ },
+ "src/features/board/render/three/rj45jack3d.ts": {
+  "knip/exports": 2
+ },
+ "src/features/board/render/three/routerboard3d.ts": {
+  "knip/exports": 3,
+  "knip/types": 2
+ },
+ "src/features/board/render/three/solids3d.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/studiowall3d.ts": {
+  "knip/exports": 2,
+  "knip/types": 2
+ },
+ "src/features/board/render/three/swisssocket3d.ts": {
+  "knip/types": 1
+ },
+ "src/features/board/render/three/tpm3d.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/three/wires3d.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/thumbs.ts": {
+  "knip/exports": 2
+ },
+ "src/features/board/render/wiring/busflow.ts": {
+  "knip/exports": 2
+ },
+ "src/features/board/render/wiring/busmap.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/render/wiring/cords.ts": {
+  "knip/exports": 4
+ },
+ "src/features/board/render/wiring/routes.ts": {
+  "knip/exports": 22
+ },
+ "src/features/board/render/wiring/stitch.ts": {
+  "knip/exports": 2
+ },
+ "src/features/board/sim/board.ts": {
+  "knip/exports": 2
+ },
+ "src/features/board/sim/buildalerts.ts": {
+  "knip/types": 1
+ },
+ "src/features/board/sim/buildrun.ts": {
+  "knip/types": 1
+ },
+ "src/features/board/sim/cables.ts": {
+  "knip/exports": 3
+ },
+ "src/features/board/sim/compat.ts": {
+  "knip/exports": 1,
+  "knip/types": 1
+ },
+ "src/features/board/sim/pch/rom.ts": {
+  "knip/exports": 2
+ },
+ "src/features/board/sim/removal.ts": {
+  "knip/exports": 3
+ },
+ "src/features/board/sim/specs.ts": {
+  "knip/exports": 1,
+  "knip/types": 2
+ },
+ "src/features/board/sim/thermal.ts": {
+  "knip/exports": 4
+ },
+ "src/features/board/sim/vrm.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/ui/benchhud.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/ui/buildhud.ts": {
+  "knip/types": 1
+ },
+ "src/features/board/ui/buildstills.ts": {
+  "knip/exports": 1
+ },
+ "src/features/board/ui/vrm.ts": {
+  "knip/types": 3
+ },
+ "src/features/cpu/render/core/coretiles.ts": {
+  "knip/types": 2
+ },
+ "src/features/cpu/render/core/cpufloor.ts": {
+  "knip/exports": 1
+ },
+ "src/features/cpu/render/core/cpuplan.ts": {
+  "knip/types": 1
+ },
+ "src/features/cpu/render/die/blockart.ts": {
+  "knip/exports": 5
+ },
+ "src/features/cpu/render/die/dieart.ts": {
+  "knip/exports": 5
+ },
+ "src/features/cpu/render/die/diemotion.ts": {
+  "knip/exports": 4
+ },
+ "src/features/cpu/render/die/diepulse.ts": {
+  "knip/exports": 2
+ },
+ "src/features/cpu/render/die/dieview.ts": {
+  "knip/exports": 1
+ },
+ "src/features/cpu/sim/cpuprofile.ts": {
+  "knip/exports": 1
+ },
+ "src/features/cpu/sim/engines/common.ts": {
+  "knip/exports": 1,
+  "knip/types": 1
+ },
+ "src/features/cpu/sim/engines/index.ts": {
+  "knip/exports": 1,
+  "knip/types": 2
+ },
+ "src/features/cpu/sim/engines/inorder.ts": {
+  "knip/exports": 2
+ },
+ "src/features/cpu/sim/engines/ooo.ts": {
+  "knip/exports": 1
+ },
+ "src/features/cpu/sim/engines/testutil.ts": {
+  "knip/exports": 2
+ },
+ "src/features/cpu/sim/engines/view.ts": {
+  "knip/exports": 2
+ },
+ "src/features/cpu/sim/isa/isa.ts": {
+  "knip/types": 1
+ },
+ "src/features/cpu/sim/pipesnap.ts": {
+  "knip/exports": 1,
+  "knip/types": 1
+ },
+ "src/features/cpu/ui/TracePanel.tsx": {
+  "knip/exports": 2
+ },
+ "src/features/economy/sim/contracts.ts": {
+  "knip/exports": 1,
+  "knip/types": 2
+ },
+ "src/features/economy/sim/economy.ts": {
+  "knip/types": 2
+ },
+ "src/features/economy/sim/levels.ts": {
+  "knip/exports": 1
+ },
+ "src/features/economy/ui/progress/Levels.tsx": {
+  "knip/exports": 1
+ },
+ "src/features/economy/ui/progress/PowerBill.tsx": {
+  "knip/exports": 1
+ },
+ "src/features/economy/ui/progress/contractui.ts": {
+  "knip/exports": 1,
+  "knip/types": 2
+ },
+ "src/features/economy/ui/progress/levelui.ts": {
+  "knip/exports": 3,
+  "knip/types": 3
+ },
+ "src/features/economy/ui/shop/Inventory.tsx": {
+  "knip/exports": 1
+ },
+ "src/features/economy/ui/shop/PickerCard.tsx": {
+  "knip/exports": 1
+ },
+ "src/features/economy/ui/shop/picker.ts": {
+  "knip/exports": 7,
+  "knip/types": 3
+ },
+ "src/features/gpu/render/gpuart.ts": {
+  "knip/exports": 1
+ },
+ "src/features/gpu/render/gpuglyph.ts": {
+  "knip/exports": 1
+ },
+ "src/features/gpu/render/gpulayout.ts": {
+  "knip/exports": 2,
+  "knip/types": 2
+ },
+ "src/features/gpu/render/gpulensview.ts": {
+  "knip/exports": 4
+ },
+ "src/features/gpu/render/gpumem.ts": {
+  "knip/exports": 1,
+  "knip/types": 1
+ },
+ "src/features/gpu/render/plan/gpuplans.ts": {
+  "knip/exports": 1
+ },
+ "src/features/gpu/render/plan/gpuplayer.ts": {
+  "knip/exports": 1,
+  "knip/types": 2
+ },
+ "src/features/gpu/sim/engine/warp.ts": {
+  "knip/exports": 3
+ },
+ "src/features/gpu/sim/gpupicture.ts": {
+  "knip/exports": 5
+ },
+ "src/features/gpu/sim/index.ts": {
+  "knip/exports": 3
+ },
+ "src/features/gpu/sim/isa/isa.ts": {
+  "knip/types": 1
+ },
+ "src/features/gpu/sim/isa/isadoc.ts": {
+  "knip/exports": 1
+ },
+ "src/features/gpu/sim/isa/ref.ts": {
+  "knip/exports": 1,
+  "knip/types": 2
+ },
+ "src/features/gpu/sim/port.ts": {
+  "knip/exports": 2,
+  "knip/types": 3
+ },
+ "src/features/jobs/sim/gen/index.ts": {
+  "knip/exports": 2,
+  "knip/types": 4
+ },
+ "src/features/jobs/sim/gen/tasks.memory.ts": {
+  "knip/exports": 1
+ },
+ "src/features/jobs/sim/gen/templates.ts": {
+  "knip/exports": 2,
+  "knip/types": 1
+ },
+ "src/features/jobs/sim/jobcode.ts": {
+  "knip/exports": 1,
+  "knip/types": 1
+ },
+ "src/features/jobs/sim/jobdex.ts": {
+  "knip/types": 1
+ },
+ "src/features/jobs/sim/joblog.ts": {
+  "knip/exports": 1,
+  "knip/types": 1
+ },
+ "src/features/jobs/ui/AlmanacPanel.tsx": {
+  "knip/exports": 1
+ },
+ "src/features/memory/render/ramdie.ts": {
+  "knip/types": 1
+ },
+ "src/features/memory/render/ramlayout.ts": {
+  "knip/exports": 1
+ },
+ "src/features/memory/sim/dram.ts": {
+  "knip/types": 2
+ },
+ "src/features/memory/sim/mmu.ts": {
+  "knip/exports": 2
+ },
+ "src/features/memory/sim/ramregions.ts": {
+  "knip/types": 1
+ },
+ "src/features/network/render/lens/flows.ts": {
+  "knip/exports": 1
+ },
+ "src/features/network/render/lens/shape.ts": {
+  "knip/types": 2
+ },
+ "src/features/network/render/lens/view.ts": {
+  "knip/exports": 1
+ },
+ "src/features/network/render/net.ts": {
+  "knip/exports": 3
+ },
+ "src/features/network/render/netvis.ts": {
+  "knip/exports": 1
+ },
+ "src/features/network/render/nic/nicart.ts": {
+  "knip/exports": 6
+ },
+ "src/features/network/render/nic/nicglyph.ts": {
+  "knip/types": 2
+ },
+ "src/features/network/render/nic/nicshow.ts": {
+  "knip/types": 1
+ },
+ "src/features/network/render/plan/netaddr.ts": {
+  "knip/exports": 2,
+  "knip/types": 5
+ },
+ "src/features/network/render/plan/netplan.ts": {
+  "knip/exports": 2,
+  "knip/types": 1
+ },
+ "src/features/network/render/router/routerart.ts": {
+  "knip/exports": 6
+ },
+ "src/features/network/render/router/routerglyph.ts": {
+  "knip/exports": 1,
+  "knip/types": 1
+ },
+ "src/features/network/ui/NetPanel.tsx": {
+  "knip/exports": 1
+ },
+ "src/features/network/ui/netdesc.ts": {
+  "knip/exports": 1
+ },
+ "src/features/network/ui/netui.ts": {
+  "knip/exports": 8,
+  "knip/types": 9
+ },
+ "src/features/npu/render/npuart.ts": {
+  "knip/exports": 4
+ },
+ "src/features/npu/render/npuglyph.ts": {
+  "knip/exports": 8,
+  "knip/types": 4
+ },
+ "src/features/npu/render/npulayout.ts": {
+  "knip/exports": 1
+ },
+ "src/features/npu/sim/port.ts": {
+  "knip/exports": 1,
+  "knip/types": 1
+ },
+ "src/features/os/sim/kernel.ts": {
+  "knip/duplicates": 1,
+  "knip/exports": 22
+ },
+ "src/features/os/ui/OsViews.tsx": {
+  "knip/exports": 1
+ },
+ "src/features/os/ui/osui.ts": {
+  "knip/types": 2
+ },
+ "src/features/room/render/desk/airflow.ts": {
+  "knip/exports": 2,
+  "knip/types": 4
+ },
+ "src/features/room/render/desk/peripherals.ts": {
+  "knip/exports": 1
+ },
+ "src/features/room/render/desk/props/case.ts": {
+  "knip/exports": 9
+ },
+ "src/features/room/render/desk/props/mail.ts": {
+  "knip/exports": 8,
+  "knip/types": 2
+ },
+ "src/features/room/render/desk/props/props.ts": {
+  "knip/exports": 19,
+  "knip/types": 4
+ },
+ "src/features/room/render/desk/screenmodel.ts": {
+  "knip/types": 3
+ },
+ "src/features/room/render/shell/exterior.ts": {
+  "knip/exports": 3
+ },
+ "src/features/room/render/shell/light.ts": {
+  "knip/exports": 2,
+  "knip/types": 2
+ },
+ "src/features/room/render/shell/room.ts": {
+  "knip/exports": 2
+ },
+ "src/features/room/render/three/furniture3d.ts": {
+  "knip/exports": 1
+ },
+ "src/features/room/render/three/hoodiecloth.ts": {
+  "knip/files": 1
+ },
+ "src/features/room/render/three/outside/cars.ts": {
+  "knip/exports": 1
+ },
+ "src/features/room/render/three/outside/detail.ts": {
+  "knip/types": 1
+ },
+ "src/features/room/render/three/outside/lowfacade.ts": {
+  "knip/exports": 2
+ },
+ "src/features/room/render/three/outside/sky.ts": {
+  "knip/exports": 3
+ },
+ "src/features/room/render/three/outside/sunmap.ts": {
+  "knip/exports": 1
+ },
+ "src/features/room/render/three/outside/traffic.ts": {
+  "knip/exports": 3,
+  "knip/types": 1
+ },
+ "src/features/room/render/three/outside/trees.ts": {
+  "knip/exports": 1
+ },
+ "src/features/room/render/three/outside/view.ts": {
+  "knip/exports": 1
+ },
+ "src/features/room/render/three/plants3d.ts": {
+  "knip/exports": 2,
+  "knip/types": 1
+ },
+ "src/features/room/render/three/room3d.ts": {
+  "knip/exports": 3,
+  "knip/types": 1
+ },
+ "src/features/room/render/three/roomplan.ts": {
+  "knip/exports": 3
+ },
+ "src/features/sandbox/sim/speed.ts": {
+  "knip/files": 1
+ },
+ "src/features/storage/render/diskart.ts": {
+  "knip/exports": 2
+ },
+ "src/features/storage/render/diskdie.ts": {
+  "knip/types": 5
+ },
+ "src/features/storage/render/diskfloor.ts": {
+  "knip/types": 2
+ },
+ "src/features/storage/render/diskplan.ts": {
+  "knip/exports": 1,
+  "knip/types": 1
+ },
+ "src/features/storage/render/diskplayer.ts": {
+  "knip/types": 1
+ },
+ "src/features/storage/render/drives.ts": {
+  "knip/exports": 3
+ },
+ "src/features/storage/sim/fs.ts": {
+  "knip/exports": 1,
+  "knip/types": 1
+ },
+ "src/features/storage/sim/storage.ts": {
+  "knip/exports": 1
+ },
+ "src/features/tpm/render/tpmart.ts": {
+  "knip/exports": 5
+ },
+ "src/features/tpm/render/tpmcopper.ts": {
+  "knip/exports": 2,
+  "knip/types": 5
+ },
+ "src/features/tpm/render/tpmglyph.ts": {
+  "knip/exports": 15,
+  "knip/types": 3
+ },
+ "src/features/tpm/sim/tpm.ts": {
+  "knip/exports": 1
+ },
+ "src/features/tutorial/ui/anchor.ts": {
+  "knip/exports": 1,
+  "knip/types": 1
+ },
+ "src/features/tutorial/ui/dialogue.ts": {
+  "knip/exports": 1
+ },
+ "src/features/tutorial/ui/tutorial.ts": {
+  "knip/exports": 4,
+  "knip/types": 1
+ },
+ "src/worker/crash.ts": {
+  "knip/exports": 2,
+  "knip/types": 2
+ },
+ "src/worker/game/index.ts": {
+  "knip/files": 1
+ },
+ "src/worker/game/save.ts": {
+  "knip/types": 9
+ },
+ "src/worker/game/types.ts": {
+  "knip/types": 2
+ },
+ "src/worker/host.ts": {
+  "knip/exports": 1
+ },
+ "src/worker/protocol.ts": {
+  "knip/exports": 1,
+  "knip/types": 1
+ },
+ "tools/aircheck.mjs": {
+  "knip/unresolved": 3
+ },
+ "tools/animcheck.mjs": {
+  "knip/unresolved": 3
+ },
+ "tools/audio-check.mjs": {
+  "knip/files": 1
+ },
+ "tools/bake/bake.mjs": {
+  "knip/unresolved": 1
+ },
+ "tools/bake/scene.ts": {
+  "knip/types": 1
+ },
+ "tools/bench-boot-report.mjs": {
+  "knip/exports": 3
+ },
+ "tools/bench-costs.mjs": {
+  "knip/files": 1
+ },
+ "tools/bench-groups.mjs": {
+  "knip/files": 1
+ },
+ "tools/bench-modes.mjs": {
+  "knip/unresolved": 1
+ },
+ "tools/bench3d.mjs": {
+  "knip/unresolved": 4
+ },
+ "tools/benchswap.mjs": {
+  "knip/unresolved": 1
+ },
+ "tools/brands/sheet.ts": {
+  "knip/files": 1
+ },
+ "tools/build-navy-check.mjs": {
+  "knip/files": 1
+ },
+ "tools/build-style-check.mjs": {
+  "knip/files": 1
+ },
+ "tools/build-tabs-check.mjs": {
+  "knip/files": 1
+ },
+ "tools/buildstills.mjs": {
+  "knip/unresolved": 2
+ },
+ "tools/clipcheck.mjs": {
+  "knip/unresolved": 2
+ },
+ "tools/e2e3d.mjs": {
+  "knip/files": 1
+ },
+ "tools/flicker.mjs": {
+  "knip/unresolved": 1
+ },
+ "tools/hud-coverage.mjs": {
+  "knip/files": 1
+ },
+ "tools/leak3d.mjs": {
+  "knip/files": 1
+ },
+ "tools/loop-seams.mjs": {
+  "knip/files": 1
+ },
+ "tools/lum.mjs": {
+  "knip/files": 1
+ },
+ "tools/menu-matrix.mjs": {
+  "knip/files": 1
+ },
+ "tools/paused-check.mjs": {
+  "knip/files": 1
+ },
+ "tools/powercheck.mjs": {
+  "knip/unresolved": 2
+ },
+ "tools/scene-coverage.mjs": {
+  "knip/exports": 1
+ },
+ "tools/shot-case.mjs": {
+  "knip/files": 1
+ },
+ "tools/shot.mjs": {
+  "knip/unresolved": 1
+ },
+ "tools/stills.mjs": {
+  "knip/unresolved": 6
+ }
+}

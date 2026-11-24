@@ -1,0 +1,12 @@
+{
+  // Default rules, plus: prose lines wrap freely (MD013 off), inline HTML is allowed in docs (MD033 off).
+  "config": { "default": true, "MD013": false, "MD033": false },
+  "ignores": [
+    "node_modules/**",
+    "dist/**",
+    "docs/pipeline-city-*/**",
+    ".claude/worktrees/**",
+    ".claude/swarm/**",
+    "e2e/shots/**",
+  ],
+}

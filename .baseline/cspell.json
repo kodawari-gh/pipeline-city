@@ -1,0 +1,643 @@
+{
+ "docs/3D_STYLE.md": {
+  "word:glbs": 1,
+  "word:heatpipes": 2,
+  "word:toolbag": 1
+ },
+ "docs/ARCHITECTURE.md": {
+  "word:memcpy": 1
+ },
+ "docs/PC_PARTS.md": {
+  "word:buildloose": 1,
+  "word:mipped": 1,
+  "word:torx": 1
+ },
+ "docs/UI.md": {
+  "word:completability": 1,
+  "word:cssprefix": 1,
+  "word:jrpg": 1
+ },
+ "docs/agents/issue-tracker.md": {
+  "word:startable": 1,
+  "word:wayfinding": 1
+ },
+ "docs/art-style.md": {
+  "word:asarray": 1,
+  "word:cascadia": 1,
+  "word:debosses": 1,
+  "word:numpy": 1,
+  "word:retint": 1,
+  "word:wcag": 1
+ },
+ "docs/brands/README.md": {
+  "word:wordmarks": 1
+ },
+ "docs/brands/fujin.md": {
+  "word:mitsudomoe": 1
+ },
+ "docs/render/air.md": {
+  "word:navier": 1
+ },
+ "docs/render/cloth.md": {
+  "word:taubin": 1
+ },
+ "docs/render/interact.md": {
+  "word:overviewframe": 1
+ },
+ "docs/render/load.md": {
+  "word:clipcheck": 1,
+  "word:fritsch": 1,
+  "word:fxaa": 1,
+  "word:mediump": 1,
+  "word:renderbuffers": 1,
+  "word:smaa": 1,
+  "word:smoothstep": 1
+ },
+ "docs/render/lod.md": {
+  "word:fanlod": 1,
+  "word:lowof": 1,
+  "word:supersampling": 1
+ },
+ "docs/render/look-per-cost.md": {
+  "word:karis": 1,
+  "word:moiré": 1
+ },
+ "docs/render/three.md": {
+  "word:lowkeep": 1,
+  "word:mergelook": 1,
+  "word:zstd": 1
+ },
+ "e2e/tutorial.e2e.mjs": {
+  "word:slowmo": 2
+ },
+ "src/app/audio/AUDIO.md": {
+  "word:pythonutf": 1
+ },
+ "src/app/audio/mixTokens.ts": {
+  "word:lufs": 1
+ },
+ "src/app/debugflag.test.ts": {
+  "word:debugx": 1
+ },
+ "src/app/graphics.ts": {
+  "word:geforce": 1,
+  "word:immortalis": 1,
+  "word:powervr": 1,
+  "word:softpipe": 1,
+  "word:videocore": 1,
+  "word:xclipse": 1
+ },
+ "src/app/touchguard.test.ts": {
+  "word:gesturechange": 1,
+  "word:gestureend": 1,
+  "word:gesturestart": 1
+ },
+ "src/app/touchguard.ts": {
+  "word:gesturechange": 1,
+  "word:gestureend": 1,
+  "word:gesturestart": 1
+ },
+ "src/core/render/brands/fujin.ts": {
+  "word:mitsudomoe": 1
+ },
+ "src/core/render/brands/index.ts": {
+  "word:bahnschrift": 1,
+  "word:neue": 1
+ },
+ "src/core/render/brands/type.ts": {
+  "word:wordmarks": 1
+ },
+ "src/core/render/cable.ts": {
+  "word:chaikin": 1
+ },
+ "src/core/render/ink.ts": {
+  "word:petch": 1
+ },
+ "src/core/render/live.ts": {
+  "word:gpuvideo": 1,
+  "word:psurear": 1
+ },
+ "src/core/render/shape.ts": {
+  "word:peucker": 1
+ },
+ "src/core/render/three/artlod.ts": {
+  "word:bumpmap": 2,
+  "word:nibl": 1
+ },
+ "src/core/render/three/boxenv.ts": {
+  "word:worldpos": 2
+ },
+ "src/core/render/three/buildframe.test.ts": {
+  "word:buildtabs": 1
+ },
+ "src/core/render/three/cloth/bake.ts": {
+  "word:taubin": 1
+ },
+ "src/core/render/three/cloth/occlusion.ts": {
+  "word:hammersley": 1
+ },
+ "src/core/render/three/compile.ts": {
+  "word:programiv": 1
+ },
+ "src/core/render/three/contact.ts": {
+  "word:softplus": 2
+ },
+ "src/core/render/three/lightmapmix.ts": {
+  "word:unflipped": 1
+ },
+ "src/core/render/three/localeye.ts": {
+  "word:oetf": 1,
+  "word:tonemapping": 1
+ },
+ "src/core/render/three/pad.ts": {
+  "word:capturable": 1
+ },
+ "src/core/render/three/post.ts": {
+  "word:isinf": 2,
+  "word:multisamples": 1
+ },
+ "src/core/render/three/spline.test.ts": {
+  "word:binormals": 1
+ },
+ "src/core/render/three/spline.ts": {
+  "word:coef": 2
+ },
+ "src/core/sim/memmap.ts": {
+  "word:gpukernels": 1
+ },
+ "src/core/ui/tokens.css": {
+  "word:retint": 1
+ },
+ "src/core/ui/tokens.test.ts": {
+  "word:cascadia": 1,
+  "word:gstatic": 1,
+  "word:typekit": 1
+ },
+ "src/core/ui/ui.css": {
+  "word:bcards": 1,
+  "word:bfoot": 1,
+  "word:bhead": 2,
+  "word:bslots": 1,
+  "word:chead": 1,
+  "word:clabel": 1,
+  "word:ctext": 1,
+  "word:dotpulse": 2,
+  "word:jobrow": 1,
+  "word:plateless": 1,
+  "word:ptext": 1,
+  "word:rfoot": 1,
+  "word:rtier": 1,
+  "word:scrtxt": 1,
+  "word:sline": 1,
+  "word:statcard": 1,
+  "word:tbtns": 1,
+  "word:tcount": 1,
+  "word:tiphead": 1,
+  "word:tiptext": 1,
+  "word:tlock": 1,
+  "word:tmeter": 1,
+  "word:trate": 1,
+  "word:ttier": 1,
+  "word:vbars": 1,
+  "word:vfill": 1
+ },
+ "src/features/board/render/devices.ts": {
+  "word:scanlines": 1
+ },
+ "src/features/board/render/layout/boardlayout.test.ts": {
+  "word:dseq": 2
+ },
+ "src/features/board/render/three/accelparts3d.ts": {
+  "word:gddr": 2
+ },
+ "src/features/board/render/three/air/airtags.test.ts": {
+  "word:sourcehands": 1
+ },
+ "src/features/board/render/three/air/solve.ts": {
+  "word:preconditioner": 1
+ },
+ "src/features/board/render/three/bake.ts": {
+  "word:batchable": 2
+ },
+ "src/features/board/render/three/buildmotion.ts": {
+  "word:fritsch": 1
+ },
+ "src/features/board/render/three/cablerig3d.test.ts": {
+  "word:respaced": 1
+ },
+ "src/features/board/render/three/casekit3d.ts": {
+  "word:multisampled": 1
+ },
+ "src/features/board/render/three/chips3d.ts": {
+  "word:unproject": 2
+ },
+ "src/features/board/render/three/drag3d.ts": {
+  "word:capturable": 1
+ },
+ "src/features/board/render/three/drive3d.ts": {
+  "word:sbfm": 1,
+  "word:torx": 1
+ },
+ "src/features/board/render/three/machine3d.test.ts": {
+  "word:ultrawide": 1
+ },
+ "src/features/board/render/three/niccopper.ts": {
+  "word:jtag": 1
+ },
+ "src/features/board/render/three/nvme3d.ts": {
+  "word:neue": 1,
+  "word:qfxo": 2
+ },
+ "src/features/board/render/three/pcbkit3d.ts": {
+  "word:hexs": 2
+ },
+ "src/features/board/render/three/pcie.ts": {
+  "word:jtag": 1,
+  "word:smclk": 1,
+  "word:smdat": 1,
+  "word:trst": 1,
+  "word:vaux": 1
+ },
+ "src/features/board/render/three/power/net.test.ts": {
+  "word:nopsu": 1
+ },
+ "src/features/board/render/three/power/net.ts": {
+  "word:nopsu": 1
+ },
+ "src/features/board/render/wiring/routes.ts": {
+  "word:cpins": 2,
+  "word:dmax": 2
+ },
+ "src/features/board/sim/board.ts": {
+  "word:unclocked": 1
+ },
+ "src/features/board/sim/game/machine.ts": {
+  "word:unboosted": 1
+ },
+ "src/features/board/sim/game/parts.ts": {
+  "word:ungated": 1
+ },
+ "src/features/board/sim/pch/rom.ts": {
+  "word:havekey": 2,
+  "word:nomedia": 2,
+  "word:oshand": 2,
+  "word:oskern": 2,
+  "word:ramsm": 2
+ },
+ "src/features/board/sim/specs.ts": {
+  "word:pciew": 1,
+  "word:unclocked": 1
+ },
+ "src/features/board/ui/BuildCard.tsx": {
+  "word:chead": 1
+ },
+ "src/features/board/ui/BuildStart.tsx": {
+  "word:sline": 1
+ },
+ "src/features/board/ui/buildtabs.test.ts": {
+  "word:boxless": 2
+ },
+ "src/features/cpu/DIE.md": {
+  "word:mset": 1
+ },
+ "src/features/cpu/ENGINES.md": {
+  "word:fdsrrrrrrrrrc": 1,
+  "word:fdsssssssxrc": 1,
+  "word:fdssxxxxxxrc": 1,
+  "word:predecode": 1
+ },
+ "src/features/cpu/ISA.md": {
+  "word:funct": 1
+ },
+ "src/features/cpu/MULTICORE.md": {
+  "word:numa": 1,
+  "word:refetches": 1,
+  "word:shootdown": 2,
+  "word:shootdowns": 1
+ },
+ "src/features/cpu/render/die/blockart.ts": {
+  "word:bltui": 1
+ },
+ "src/features/cpu/sim/asm/assemble.test.ts": {
+  "word:nnop": 1
+ },
+ "src/features/cpu/sim/cpuprofile.ts": {
+  "word:playstyles": 1
+ },
+ "src/features/cpu/sim/engines/common.ts": {
+  "word:unfetchable": 1
+ },
+ "src/features/cpu/sim/engines/inorder.ts": {
+  "word:predecode": 1
+ },
+ "src/features/cpu/sim/engines/timing/golden.test.ts": {
+  "word:fddddddxmw": 2,
+  "word:fdddxmmmmmw": 2,
+  "word:ffdxmw": 2,
+  "word:fffdddddddxmw": 2,
+  "word:ffffffdxmw": 2,
+  "word:fffffffdddxmw": 2
+ },
+ "src/features/cpu/sim/engines/timing/timing.test.ts": {
+  "word:predecoded": 1
+ },
+ "src/features/cpu/sim/engines/timing/wide.golden.test.ts": {
+  "word:fdddddddxmw": 1,
+  "word:fddxmmmmmw": 1,
+  "word:fdsc": 1,
+  "word:fdsrrrc": 1,
+  "word:fdsrrrrrrrrrc": 1,
+  "word:fdsssssssxrc": 1,
+  "word:fdssxxxxxxrc": 1,
+  "word:fdsxxxrc": 1,
+  "word:ffdddddddxmw": 1,
+  "word:ffddxmw": 1,
+  "word:ffffffddxmw": 1,
+  "word:fffffffdxmw": 1,
+  "word:nlui": 1
+ },
+ "src/features/cpu/sim/engines/timing/wide.timing.test.ts": {
+  "word:nbeq": 1
+ },
+ "src/features/cpu/sim/engines/wide.test.ts": {
+  "word:securejob": 1
+ },
+ "src/features/cpu/sim/isa/index.ts": {
+  "word:disasm": 1
+ },
+ "src/features/cpu/sim/isa/isa.test.ts": {
+  "word:imms": 2
+ },
+ "src/features/cpu/ui/TracePanel.tsx": {
+  "word:trate": 1
+ },
+ "src/features/economy/PROGRESSION.md": {
+  "word:hyperscale": 1
+ },
+ "src/features/economy/sim/contracts.ts": {
+  "word:brightline": 1,
+  "word:corvid": 1
+ },
+ "src/features/economy/sim/levels.ts": {
+  "word:hyperscale": 1
+ },
+ "src/features/economy/ui/shop/Gallery.acceptance.test.ts": {
+  "word:macrotasks": 1,
+  "word:vnode": 1
+ },
+ "src/features/economy/ui/shop/Inventory.tsx": {
+  "word:netlens": 1,
+  "word:tcount": 1,
+  "word:tlock": 1,
+  "word:ttier": 1
+ },
+ "src/features/economy/ui/shop/PartArt.tsx": {
+  "word:scrtxt": 1
+ },
+ "src/features/economy/ui/shop/PickerCard.tsx": {
+  "word:clabel": 1,
+  "word:jobrow": 1,
+  "word:ptext": 1,
+  "word:rfoot": 1,
+  "word:rtier": 1,
+  "word:vfill": 1
+ },
+ "src/features/economy/ui/shop/StatCard.tsx": {
+  "word:statcard": 1
+ },
+ "src/features/economy/ui/shop/picker.ts": {
+  "word:fansize": 1
+ },
+ "src/features/economy/ui/shop/stathelp.ts": {
+  "word:fansize": 1
+ },
+ "src/features/gpu/ACCEL.md": {
+  "word:immediates": 1,
+  "word:matmuls": 1,
+  "word:npuflow": 1
+ },
+ "src/features/gpu/GPU.md": {
+  "word:gpulensview": 1
+ },
+ "src/features/gpu/render/gpuview.ts": {
+  "word:gpulensview": 1
+ },
+ "src/features/gpu/render/plan/gpuplans.ts": {
+  "word:vregs": 2
+ },
+ "src/features/gpu/sim/engine/racecheck.test.ts": {
+  "word:racecheck": 1
+ },
+ "src/features/gpu/sim/gpupicture.ts": {
+  "word:gpukernels": 1
+ },
+ "src/features/gpu/sim/isa/ref.test.ts": {
+  "word:njmp": 1,
+  "word:strided": 1
+ },
+ "src/features/jobs/GEN.md": {
+  "word:memcpy": 1
+ },
+ "src/features/jobs/JOBS.md": {
+  "word:gpujobtiers": 1
+ },
+ "src/features/jobs/sim/gen/gen.test.ts": {
+  "word:asms": 2,
+  "word:fams": 2,
+  "word:spherewide": 1
+ },
+ "src/features/jobs/sim/jobcode.ts": {
+  "word:bytearray": 1
+ },
+ "src/features/jobs/ui/AlmanacPanel.tsx": {
+  "word:tiphead": 1,
+  "word:tiptext": 1
+ },
+ "src/features/memory/RAM.md": {
+  "word:precharges": 1
+ },
+ "src/features/memory/sim/dram.ts": {
+  "word:precharges": 1
+ },
+ "src/features/memory/sim/ramregions.test.ts": {
+  "word:ktable": 1,
+  "word:ptab": 1
+ },
+ "src/features/memory/sim/ramregions.ts": {
+  "word:jtable": 1,
+  "word:ktable": 1,
+  "word:ptab": 1
+ },
+ "src/features/network/NETSTACK.md": {
+  "word:livelock": 1,
+  "word:napi": 1,
+  "word:statelessly": 1
+ },
+ "src/features/network/NETWORK.md": {
+  "word:ktick": 2,
+  "word:unspooled": 1
+ },
+ "src/features/network/render/nic/nicplan.ts": {
+  "word:nicdie": 1
+ },
+ "src/features/network/render/router/routerplan.ts": {
+  "word:routerdie": 1
+ },
+ "src/features/network/sim/transport.ts": {
+  "word:finaliser": 1
+ },
+ "src/features/network/ui/nicdesc.test.ts": {
+  "word:boardx": 1
+ },
+ "src/features/os/OS.md": {
+  "word:threadjob": 1
+ },
+ "src/features/os/sim/blockasm.ts": {
+  "word:rwait": 1,
+  "word:wcopy": 1,
+  "word:wwait": 1
+ },
+ "src/features/os/sim/kernel.ts": {
+  "word:fshit": 2,
+  "word:kend": 10,
+  "word:kflash": 2,
+  "word:kfoe": 2,
+  "word:kfree": 2,
+  "word:kicopy": 2,
+  "word:kiscan": 2,
+  "word:kiused": 2,
+  "word:knoev": 2,
+  "word:kpnone": 2,
+  "word:kpout": 2,
+  "word:ktnic": 2,
+  "word:kzero": 2,
+  "word:kzjt": 2,
+  "word:rscan": 2,
+  "word:spret": 2
+ },
+ "src/features/room/light.md": {
+  "word:denoises": 1,
+  "word:envmix": 1,
+  "word:oidn": 1,
+  "word:opti": 1
+ },
+ "src/features/room/render/desk/airflow.test.ts": {
+  "word:noexit": 1
+ },
+ "src/features/room/render/desk/airflow.ts": {
+  "word:noexit": 1,
+  "word:noin": 1
+ },
+ "src/features/room/render/desk/screenview.ts": {
+  "word:scanline": 1
+ },
+ "src/features/room/render/shell/exterior.ts": {
+  "word:bcuts": 2
+ },
+ "src/features/room/render/three/clutter3d.ts": {
+  "word:superellipsoid": 1
+ },
+ "src/features/room/render/three/outside/city.ts": {
+  "word:heightfield": 1
+ },
+ "src/features/room/render/three/outside/mirror.ts": {
+  "word:lengyel's": 1
+ },
+ "src/features/room/render/three/outside/skynoise.ts": {
+  "word:vnoise": 2
+ },
+ "src/features/room/render/three/outside/sweep.ts": {
+  "word:unindexes": 1
+ },
+ "src/features/room/render/three/outside/towers.ts": {
+  "word:vlook": 1
+ },
+ "src/features/room/render/three/palette.ts": {
+  "word:flatweave": 1,
+  "word:keycap": 1,
+  "word:planckian": 1
+ },
+ "src/features/room/render/three/props3d.ts": {
+  "word:chataku": 1,
+  "word:keycap": 1,
+  "word:yunomi": 1,
+  "word:yunomi's": 1
+ },
+ "src/features/room/room.md": {
+  "word:ellipsised": 1
+ },
+ "src/features/sandbox/SANDBOX.md": {
+  "word:ryzen": 1
+ },
+ "src/features/storage/render/diskdie.ts": {
+  "word:ldpc": 1
+ },
+ "src/features/storage/render/diskplayer.test.ts": {
+  "word:seqs": 1
+ },
+ "src/features/tpm/render/tpmcopper.ts": {
+  "word:testbi": 2,
+  "word:testi": 2
+ },
+ "src/features/tpm/render/tpmlayout.ts": {
+  "word:jedec": 1
+ },
+ "src/features/tutorial/ui/TutorialCard.tsx": {
+  "word:jrpg": 1,
+  "word:tbtns": 1,
+  "word:tmeter": 1
+ },
+ "src/features/tutorial/ui/highlight.ts": {
+  "word:beqz": 2,
+  "word:bnez": 2,
+  "word:constexpr": 1,
+  "word:seqz": 2
+ },
+ "src/features/tutorial/ui/tutorial.test.ts": {
+  "word:routr": 1
+ },
+ "src/worker/SAVE.md": {
+  "word:fanparts": 1,
+  "word:savedisk": 1
+ },
+ "src/worker/game/save.ts": {
+  "word:unspooled": 1
+ },
+ "tools/bake/bake.mjs": {
+  "word:steamapps": 1
+ },
+ "tools/bake/ktx2.mjs": {
+  "word:supercompression": 1
+ },
+ "tools/bake/rgbm.ts": {
+  "word:denoised": 1,
+  "word:paeth": 4
+ },
+ "tools/bake/textures.mjs": {
+  "word:supercompression": 1
+ },
+ "tools/bench-boot.mjs": {
+  "word:alphamap": 1,
+  "word:alphatest": 1,
+  "word:normalmap": 1
+ },
+ "tools/bench-costs.mjs": {
+  "word:domcontentloaded": 1
+ },
+ "tools/brands/sheet.ts": {
+  "word:bahnschrift": 1
+ },
+ "tools/build-tabs-check.mjs": {
+  "word:nostage": 2
+ },
+ "tools/heavy-tests.ts": {
+  "word:lowmerge": 1,
+  "word:mergelook": 1
+ },
+ "tools/hud-coverage.mjs": {
+  "word:lstep": 2
+ },
+ "tools/jobsheet.mjs": {
+  "word:jobsheet": 2
+ }
+}
