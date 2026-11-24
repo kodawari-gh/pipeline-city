@@ -21,7 +21,7 @@ The `ticket-swarm` runner makes all writes during a swarm. Use the CLI for ticke
 
 ## Setup (once per repo)
 
-If `docs/agents/board.json` is missing: ask the user which project (`gh project list --owner <owner>`), then run `node $B init <owner> <number> <owner/repo>`. It creates the `Planned model`, `Rounds` and `Cost` fields if missing and writes the config. The `Status` field needs the five options above; init names any that are missing. Add the `swarm` block by hand (see this repo's `board.json` for the keys: log, install, shareDeps, testFile, locked, checks, allow, slots, permissionMode, agentTimeoutMin, coAuthor). Commit the file.
+If `docs/agents/board.json` is missing: ask the user which project (`gh project list --owner <owner>`), then run `node $B init <owner> <number> <owner/repo>`. It creates the `Planned model`, `Rounds` and `Cost` fields if missing and writes the config. The `Status` field needs the five options above; init names any that are missing. Add the `swarm` block by hand (see this repo's `board.json` for the keys: log, install, shareDeps, testFile, locked, checks, rerun (timing-sensitive checks rerun once alone on failure), allow, slots, permissionMode, agentTimeoutMin, coAuthor). Commit the file.
 
 ## Planned model
 

@@ -37,7 +37,7 @@ import {
  * @typedef {{ keys: string[], dirs: string[] }} ShareDeps
  * @typedef {{ slots: number, permissionMode: string, agentTimeoutMin: number, testFile: string, locked: string[],
  *   coAuthor: Record<string, string>, install?: string, shareDeps?: ShareDeps, log?: string, claudeBin?: string,
- *   checks?: string[], allow?: string[] }} SwarmConfig
+ *   checks?: string[], rerun?: string[], allow?: string[] }} SwarmConfig
  */
 
 /** A git or tool failure: the ticket stops, its worktrees stay for diagnosis, a rerun resumes it. */
@@ -789,8 +789,8 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
       const t0 = Date.now();
       const opts = { cwd: p, shell: true, timeoutMs: this.sw.agentTimeoutMin * 60e3 };
       let r = await sh(line, [], opts);
-      if (r.code !== 0 && !shared) {
-        // Parallel tickets load the machine and time tests out: rerun once alone before a round is spent.
+      if (r.code !== 0 && !shared && (this.sw.rerun ?? []).includes(cmd)) {
+        // `swarm.rerun` gates time out when parallel tickets load the machine: rerun once alone before a round is spent.
         this.emit(`#${n} check failed, rerun alone: ${cmd}`);
         r = await sh(`node "${SELF}" lock --name gates -- ${cmd}`, [], opts);
       }

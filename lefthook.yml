@@ -12,6 +12,11 @@ pre-commit:
     lint:
       glob: '*.{ts,tsx,mjs,cjs,js}'
       run: npm run --silent check:lint
+    spell:
+      glob: '*.{ts,tsx,mjs,md,css}'
+      # Same scope as check:spell, whose glob skips dot folders.
+      exclude: ['.*/**']
+      run: npx cspell --no-progress --no-summary --no-must-find-files {staged_files}
 
 commit-msg:
   commands:

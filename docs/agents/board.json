@@ -34,6 +34,7 @@
     "testFile": "\\.(test|spec)\\.[cm]?[jt]sx?$",
     "locked": ["npm run shot", "npm run test:browser", "npm run test:heavy", "npm run prod"],
     "checks": ["npm run check", "npm run test:fast"],
+    "rerun": ["npm run test:fast"],
     "allow": [
       "Bash(npm run:*)",
       "Bash(npx vitest:*)",
