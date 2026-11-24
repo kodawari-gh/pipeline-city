@@ -14,12 +14,46 @@
 // `key` stands in for it on what moves. The room's probe is the bounce on all that moves. No light fills from nowhere; the eye adapts to the
 // dark (`localeye.ts`). The sim knows nothing of it.
 import {
-  BoxGeometry, Color, DoubleSide, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, NoColorSpace, PlaneGeometry, PointLight, RepeatWrapping,Shape, ShapeGeometry,
-  RectAreaLight, SpotLight, Vector2, type CanvasTexture, type Light, type LightShadow, type Material, type Object3D, type PerspectiveCamera, type Scene, type Texture, type WebGLRenderer,
+  BoxGeometry,
+  Color,
+  DoubleSide,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  MeshStandardMaterial,
+  NoColorSpace,
+  PlaneGeometry,
+  PointLight,
+  RepeatWrapping,
+  Shape,
+  ShapeGeometry,
+  RectAreaLight,
+  SpotLight,
+  Vector2,
+  type CanvasTexture,
+  type Light,
+  type LightShadow,
+  type Material,
+  type Object3D,
+  type PerspectiveCamera,
+  type Scene,
+  type Texture,
+  type WebGLRenderer,
 } from 'three';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import type { KeySnap } from '@/worker/game/types';
-import { LAYOUT_CASE, LAYOUT_TIER, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, ispPlate, routerLan, type Rect } from '@/features/board/render/layout/layout';
+import {
+  LAYOUT_CASE,
+  LAYOUT_TIER,
+  MONITOR,
+  OUTBOX,
+  ROUTER_SPOT,
+  SCREEN,
+  SHELF_Y,
+  ispPlate,
+  routerLan,
+  type Rect,
+} from '@/features/board/render/layout/layout';
 import { QSFP_SIDE_K } from '@/features/board/render/three/plugs3d';
 import { QSFP, qsfpFace, qsfpLamps, qsfpLook } from '@/features/board/render/three/qsfp3d';
 import { jackFace, jackLook, type JackLamps } from '@/features/board/render/three/rj45jack3d';
@@ -27,12 +61,32 @@ import { DARK, lightJack, type LinkLevels } from '@/features/network/render/jack
 import { qsfpPorts, routerModel, routerStand } from '@/features/board/render/three/router3d';
 import { ROOM_SOCKET, wallPlate } from '@/features/board/render/three/swisssocket3d';
 import { bakedTex } from '@/core/render/three/baked';
-import { SEG, disposeTree, drum, paint, place, post, rectBox, shareTex, softBox, tube, worldUv } from '@/core/render/three/geometry';
+import {
+  SEG,
+  disposeTree,
+  drum,
+  paint,
+  place,
+  post,
+  rectBox,
+  shareTex,
+  softBox,
+  tube,
+  worldUv,
+} from '@/core/render/three/geometry';
 import { glows, mergePalette, mergeStatic, mergeWithin } from '@/core/render/three/merge';
 import { catchUp } from '@/core/render/three/shadows';
 import type { Program } from '@/core/render/three/compile';
 import { lowDetail } from '@/core/render/three/detail';
-import { LightmapMix, STAND_IN_DECAY, applyLightmap, keyFrames, loadBake, loadDirect, type Bake } from '@/core/render/three/lightmapmix';
+import {
+  LightmapMix,
+  STAND_IN_DECAY,
+  applyLightmap,
+  keyFrames,
+  loadBake,
+  loadDirect,
+  type Bake,
+} from '@/core/render/three/lightmapmix';
 import { makeAoPool, type AoPool } from '@/core/render/three/aopool';
 import { vertexAoPooled, vertexAoSteps } from '@/core/render/three/vertexao';
 import { boxEnv, type BoxEnv } from '@/core/render/three/boxenv';
@@ -42,24 +96,98 @@ import { DECODE_SRGB, fadeTree, rawSrgb } from '@/core/render/three/artlod';
 import { KEY_LEN, lanyardColour, trayHook, trayKeyCentre } from '../desk/props/props';
 import { ENV_H, ENV_W, MAIL_S, keyPose, letterPose, mailStage } from '../desk/props/mail';
 import { roomGeo, skyAt, type RoomGeo } from '../shell/room';
-import { DigitalClock, KEY_LEAD, Monitor, keyboard, lamp, mouse, notebook, steam, teaCup, type Cup, type Lamp, type Screen } from './props3d';
+import {
+  DigitalClock,
+  KEY_LEAD,
+  Monitor,
+  keyboard,
+  lamp,
+  mouse,
+  notebook,
+  steam,
+  teaCup,
+  type Cup,
+  type Lamp,
+  type Screen,
+} from './props3d';
 import { GLASS_T, OutsideView } from './outside/view';
 import { M } from './outside/plan';
 import type { CityDetail } from './outside/detail';
 import { effective, isLow } from '@/app/graphics';
 import {
-  OAK_TILE, STRIP_STAND_IN, STRIP_W, arcLamp, bakedOak, bed, board, bookcase, ceilingLight, door, eastWall, floorLantern, grainUv, nightstand, oak, oakMaps, pictureLight, print, sconce, shelfStrips,
-  smokedOak, type Lantern, type OakMaps,
+  OAK_TILE,
+  STRIP_STAND_IN,
+  STRIP_W,
+  arcLamp,
+  bakedOak,
+  bed,
+  board,
+  bookcase,
+  ceilingLight,
+  door,
+  eastWall,
+  floorLantern,
+  grainUv,
+  nightstand,
+  oak,
+  oakMaps,
+  pictureLight,
+  print,
+  sconce,
+  shelfStrips,
+  smokedOak,
+  type Lantern,
+  type OakMaps,
 } from './furniture3d';
 import { deskChair } from './chair3d';
 import { RoomEnv } from './roomenv';
 import { mess } from './clutter3d';
 import { FIG_AT, aloe, floorPlant } from './plants3d';
-import { CEILING, LANTERN, MANILA, NEON, NEON_WASH, OAK, OAK_GRAIN, PAPER, RUG_LINE, RUG_WOOL, STEEL, STONE, TRIM, VENEER, VENEER_GRAIN, WALL, kelvin, rgbOf, shadeOf } from './palette';
 import {
-  BED, BENCH, CEIL_Y, CLOCK_Y, DESK_D, DESK_TOP, DOOR, EAST_X, FLOOR_Y, FRONT_Z, KEY_STAND, MONITOR_Z, MULLION_X, PED, PIER, RUG, TRAY,
-  WALL_T, WEST_X, WINDOW,
-  daylight, sunDir, wallAround,
+  CEILING,
+  LANTERN,
+  MANILA,
+  NEON,
+  NEON_WASH,
+  OAK,
+  OAK_GRAIN,
+  PAPER,
+  RUG_LINE,
+  RUG_WOOL,
+  STEEL,
+  STONE,
+  TRIM,
+  VENEER,
+  VENEER_GRAIN,
+  WALL,
+  kelvin,
+  rgbOf,
+  shadeOf,
+} from './palette';
+import {
+  BED,
+  BENCH,
+  CEIL_Y,
+  CLOCK_Y,
+  DESK_D,
+  DESK_TOP,
+  DOOR,
+  EAST_X,
+  FLOOR_Y,
+  FRONT_Z,
+  KEY_STAND,
+  MONITOR_Z,
+  MULLION_X,
+  PED,
+  PIER,
+  RUG,
+  TRAY,
+  WALL_T,
+  WEST_X,
+  WINDOW,
+  daylight,
+  sunDir,
+  wallAround,
 } from './roomplan';
 import { LIGHT_ORDER, MACHINE_LIGHTS, bounceLift, chooseLights, type LightId } from './roomlights';
 
@@ -70,7 +198,11 @@ const KEY_W = 230;
  * lantern: a lantern's is a cube of six faces this size; the arc lamp, whose shadows are the board's parts); 0 has no shadows, 3 is the tuned look.
  */
 const SHADOW_LEVELS: readonly (readonly number[] | null)[] = [
-  null, [1024, 1024, 512, 256, 256, 512], [2048, 1024, 1024, 512, 512, 1024], [4096, 2048, 1024, 1024, 1024, 2048], [8192, 4096, 2048, 2048, 2048, 4096],
+  null,
+  [1024, 1024, 512, 256, 256, 512],
+  [2048, 1024, 1024, 512, 512, 1024],
+  [4096, 2048, 1024, 1024, 1024, 2048],
+  [8192, 4096, 2048, 2048, 2048, 4096],
 ];
 /** Each light's softness at level 3. It is in map texels, so a map of another size takes its share and the shadow's edge stays as wide. */
 const SHADOW_SOFT = [14, 5, 6, 5, 5, 4];
@@ -104,7 +236,8 @@ export const PROBE_K = 1;
  */
 const SHADOW_TURN_MS = 400;
 /** The window's frame sits this far back in its reveal (z of its room face), and the glass a little behind that. */
-const FRAME_Z = -1000, GLASS_Z = -1500;
+const FRAME_Z = -1000,
+  GLASS_Z = -1500;
 /** The sun is a spot this far out along its direction from the window: its cone covers the opening, its shadow the reveal and the frame. */
 const SUN_D = 90000;
 /** The plaster texture's size on the walls (units; about 43 cm). */
@@ -125,14 +258,18 @@ const CITY_DAY = 0.3;
  * half-angle, a whole sphere by default); `nits(cd)` an area light's, for a face that shows `cd` candela a square metre.
  */
 const LUX_K = 1.4e-3;
-const lumens = (lm: number, cone = Math.PI): number => lm / (2 * Math.PI * (1 - Math.cos(cone))) * M * M * LUX_K;
+const lumens = (lm: number, cone = Math.PI): number => (lm / (2 * Math.PI * (1 - Math.cos(cone)))) * M * M * LUX_K;
 const nits = (cd: number): number => cd * LUX_K;
 /** The desk lamp's bulb, the bedside lantern's (a 60 W-equivalent bulb in paper), the screen's mean glow (a dark interface, half its white). */
-const DESK_LM = 500, LANTERN_LM = 800, SCREEN_NITS = 120;
+const DESK_LM = 500,
+  LANTERN_LM = 800,
+  SCREEN_NITS = 120;
 /** A shelf's LED strip, lumens a metre (a soft strip behind a diffuser); its face's level spreads them over its width, out of one side. */
-const STRIP_LM_M = 450, STRIP_NITS = STRIP_LM_M / (Math.PI * STRIP_W / M);
+const STRIP_LM_M = 450,
+  STRIP_NITS = STRIP_LM_M / ((Math.PI * STRIP_W) / M);
 /** The picture light's slot (spread over its face as the strips are), and each of the door sconce's two spots (up, down). */
-const PICTURE_LM = 220, SCONCE_LM = 450;
+const PICTURE_LM = 220,
+  SCONCE_LM = 450;
 /** The monitor's cyan bias strip round its back: about 2 m of RGB strip at cyan (its green and blue: about half its white's lumens). */
 const BIAS_LM = 400;
 /**
@@ -146,19 +283,37 @@ const PRINT = { x: BED.x + BED.w / 2 - 7600, y: -15800, w: 15200, h: 10800 };
 /** The cells of space the palette merge keeps apart (`mergeByPalette`): 2 m, so a view of one corner still culls the rest. */
 const PALETTE_CELL = 2 * M;
 
-const smooth = (a: number, b: number, v: number): number => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+const smooth = (a: number, b: number, v: number): number => {
+  const t = Math.min(1, Math.max(0, (v - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
 
 /** The room's light bake (`public/bake/room/`), loaded once a page: null when there is none or it cannot be read. */
 const BAKE_URL = `${import.meta.env.BASE_URL}bake/room/`;
-let bakeLoad: Promise<Bake | null> | null = null, bakeRenderer: WebGLRenderer | undefined;
-const roomBake = (): Promise<Bake | null> => (bakeLoad ??= typeof createImageBitmap === 'undefined' ? Promise.resolve(null)
-  // (a page that starts with a lamp cap takes the capped lamps' direct light with the bake, so the first probe sees it)
-  : loadBake(BAKE_URL, bakeRenderer).then(async (b) => { if (effective.peek().lights > 0) await loadDirect(BAKE_URL, b); return b; }).catch((e: unknown) => { if (import.meta.env.DEV) console.warn('the room light bake did not load:', e); return null; }));
+let bakeLoad: Promise<Bake | null> | null = null,
+  bakeRenderer: WebGLRenderer | undefined;
+const roomBake = (): Promise<Bake | null> =>
+  (bakeLoad ??=
+    typeof createImageBitmap === 'undefined'
+      ? Promise.resolve(null)
+      : // (a page that starts with a lamp cap takes the capped lamps' direct light with the bake, so the first probe sees it)
+        loadBake(BAKE_URL, bakeRenderer)
+          .then(async (b) => {
+            if (effective.peek().lights > 0) await loadDirect(BAKE_URL, b);
+            return b;
+          })
+          .catch((e: unknown) => {
+            if (import.meta.env.DEV) console.warn('the room light bake did not load:', e);
+            return null;
+          }));
 /**
  * Starts loading the room's light bake now, before the room is built (its files load while the build holds the page). With the page's
  * renderer the maps come as KTX2 (the formats of its GPU); a call with none, or a load begun before, takes the PNGs.
  */
-export const preloadRoomBake = (renderer?: WebGLRenderer): void => { bakeRenderer ??= renderer; void roomBake(); };
+export const preloadRoomBake = (renderer?: WebGLRenderer): void => {
+  bakeRenderer ??= renderer;
+  void roomBake();
+};
 /** The city in the window, one for every room (a case of another tier is a new room, but the same view): it takes seconds to build. */
 let city: OutsideView | null = null;
 /** The city's detail now: Low graphics (`isLow`) build the cut city, any other settings the full one. */
@@ -167,7 +322,11 @@ const wantedDetail = (): CityDetail => (isLow(effective.peek()) ? 'low' : 'high'
 const cityQuad = () => [WINDOW.x + WINDOW.w / 2, -(WINDOW.y + WINDOW.h / 2), WINDOW.w, WINDOW.h, GLASS_Z] as const;
 /** A city of another detail than wanted goes (the graphics settings crossed the Low line). */
 const dropOldCity = (detail: CityDetail): void => {
-  if (city && city.detail !== detail) { city.mesh.removeFromParent(); city.dispose(); city = null; }
+  if (city && city.detail !== detail) {
+    city.mesh.removeFromParent();
+    city.dispose();
+    city = null;
+  }
 };
 const theCity = (detail: CityDetail = wantedDetail()): OutsideView => {
   dropOldCity(detail);
@@ -180,12 +339,20 @@ const theCity = (detail: CityDetail = wantedDetail()): OutsideView => {
  * Once the programs start, the caller must not wait for a paint: it would wait for the driver.
  */
 export async function prepareCity(
-  r: WebGLRenderer, shadows: number, between: (label: string, share: number) => Promise<void> = () => Promise.resolve(), until?: Promise<void>,
+  r: WebGLRenderer,
+  shadows: number,
+  between: (label: string, share: number) => Promise<void> = () => Promise.resolve(),
+  until?: Promise<void>,
 ): Promise<void> {
   const detail = wantedDetail();
   dropOldCity(detail);
   // `until`: the baked textures, still loading: the buildings, which need none, build while they do (`OutsideView.make`)
-  const c = (city ??= await OutsideView.make(...cityQuad(), detail, between, until && { until, turn: () => new Promise<void>((done) => setTimeout(done, 0)) }));
+  const c = (city ??= await OutsideView.make(
+    ...cityQuad(),
+    detail,
+    between,
+    until && { until, turn: () => new Promise<void>((done) => setTimeout(done, 0)) },
+  ));
   await between('Starting the city shaders', 1);
   c.setShadows(shadows);
   c.startPrograms(r);
@@ -198,10 +365,11 @@ export const cityMesh = (): Mesh | null => city?.mesh ?? null;
 export const cityLayers = (): OutsideView | null => city;
 
 let seedN = 1;
-const rnd = () => ((seedN = (seedN * 16807) % 2147483647) / 2147483647);
+const rnd = () => (seedN = (seedN * 16807) % 2147483647) / 2147483647;
 
 /** The plaster's relief: its height in the normal map's slope (per texel), how much smoother the peel's tops are than its pits. */
-const PLASTER_RELIEF = 0.12, PLASTER_SHEEN = 0.12;
+const PLASTER_RELIEF = 0.12,
+  PLASTER_SHEEN = 0.12;
 
 /**
  * Plaster: one flat paint over a skimmed wall, an even modern finish. Its relief is a fine orange peel from the roller over a faint trowel
@@ -211,75 +379,131 @@ const PLASTER_RELIEF = 0.12, PLASTER_SHEEN = 0.12;
  * GPU memory). Its own stream of random numbers, so the room's other textures keep theirs and a bake gives the same files each time.
  */
 export function plasterMaps(): PlasterMaps {
-  const N = 512, hgt = new Float32Array(N * N);
+  const N = 512,
+    hgt = new Float32Array(N * N);
   let seed = 4271;
-  const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   // a lattice of random values per scale (cells of about 1.7 cm, 3.4 mm, 1.7 mm), wrapped at the tile's edge, blended smoothly between its points
-  const octaves = [[26, 0.3], [128, 0.75], [256, 0.4]].map(([n, amp]) => ({ n: n!, amp: amp!, v: Array.from({ length: n! * n! }, () => r() * 2 - 1) }));
+  const octaves = [
+    [26, 0.3],
+    [128, 0.75],
+    [256, 0.4],
+  ].map(([n, amp]) => ({ n: n!, amp: amp!, v: Array.from({ length: n! * n! }, () => r() * 2 - 1) }));
   const ease = (t: number) => t * t * (3 - 2 * t);
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-    let s = 0;
-    for (const { n, amp, v } of octaves) {
-      const fx = (x / N) * n, fy = (y / N) * n, ix = Math.floor(fx), iy = Math.floor(fy), tx = ease(fx - ix), ty = ease(fy - iy);
-      const r0 = iy * n, r1 = ((iy + 1) % n) * n, i1 = (ix + 1) % n;
-      s += amp * ((v[r0 + ix]! * (1 - tx) + v[r0 + i1]! * tx) * (1 - ty) + (v[r1 + ix]! * (1 - tx) + v[r1 + i1]! * tx) * ty);
+  for (let y = 0; y < N; y++)
+    for (let x = 0; x < N; x++) {
+      let s = 0;
+      for (const { n, amp, v } of octaves) {
+        const fx = (x / N) * n,
+          fy = (y / N) * n,
+          ix = Math.floor(fx),
+          iy = Math.floor(fy),
+          tx = ease(fx - ix),
+          ty = ease(fy - iy);
+        const r0 = iy * n,
+          r1 = ((iy + 1) % n) * n,
+          i1 = (ix + 1) % n;
+        s +=
+          amp *
+          ((v[r0 + ix]! * (1 - tx) + v[r0 + i1]! * tx) * (1 - ty) + (v[r1 + ix]! * (1 - tx) + v[r1 + i1]! * tx) * ty);
+      }
+      hgt[y * N + x] = s + (r() - 0.5) * 0.2;
     }
-    hgt[y * N + x] = s + (r() - 0.5) * 0.2;
-  }
   const at = (x: number, y: number) => hgt[((y + N) % N) * N + ((x + N) % N)]!;
   /** One map from the height field: `px(x, y, out)` fills a texel's rgb. */
   const field = (px: (x: number, y: number, o: Uint8ClampedArray, i: number) => void) => {
-    const t = paint(N, N, (c, w, h) => {
-      c.fillStyle = '#000'; c.fillRect(0, 0, w, h);
-      const img = c.getImageData(0, 0, w, h);
-      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) px(x, y, img.data, (y * w + x) * 4);
-      c.putImageData(img, 0, 0);
-    }, [1, 1]);
+    const t = paint(
+      N,
+      N,
+      (c, w, h) => {
+        c.fillStyle = '#000';
+        c.fillRect(0, 0, w, h);
+        const img = c.getImageData(0, 0, w, h);
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) px(x, y, img.data, (y * w + x) * 4);
+        c.putImageData(img, 0, 0);
+      },
+      [1, 1],
+    );
     if (t) t.colorSpace = NoColorSpace;
     return t;
   };
   return {
     // the slope by central differences; the canvas runs down, the texture's v up
     normalMap: field((x, y, d, i) => {
-      const nx = -(at(x + 1, y) - at(x - 1, y)) * PLASTER_RELIEF, ny = (at(x, y + 1) - at(x, y - 1)) * PLASTER_RELIEF, l = Math.hypot(nx, ny, 1);
-      d[i] = 128 + 127 * (nx / l); d[i + 1] = 128 + 127 * (ny / l); d[i + 2] = 128 + 127 / l;
+      const nx = -(at(x + 1, y) - at(x - 1, y)) * PLASTER_RELIEF,
+        ny = (at(x, y + 1) - at(x, y - 1)) * PLASTER_RELIEF,
+        l = Math.hypot(nx, ny, 1);
+      d[i] = 128 + 127 * (nx / l);
+      d[i + 1] = 128 + 127 * (ny / l);
+      d[i + 2] = 128 + 127 / l;
     }),
-    roughnessMap: field((x, y, d, i) => { d[i] = d[i + 2] = 255; d[i + 1] = 255 * (1 - PLASTER_SHEEN * Math.min(1, Math.max(0, 0.5 + at(x, y) * 0.4))); }),
+    roughnessMap: field((x, y, d, i) => {
+      d[i] = d[i + 2] = 255;
+      d[i + 1] = 255 * (1 - PLASTER_SHEEN * Math.min(1, Math.max(0, 0.5 + at(x, y) * 0.4)));
+    }),
   };
 }
-export interface PlasterMaps { normalMap: Texture | null; roughnessMap: Texture | null }
+export interface PlasterMaps {
+  normalMap: Texture | null;
+  roughnessMap: Texture | null;
+}
 
 /** The plaster's two maps from the baked set (`public/tex/`, `npm run bake:tex`); null before it has loaded or with `?nobaked`. */
 function bakedPlaster(): PlasterMaps | null {
-  const normalMap = bakedTex('room-plaster-n'), roughnessMap = bakedTex('room-plaster-r');
+  const normalMap = bakedTex('room-plaster-n'),
+    roughnessMap = bakedTex('room-plaster-r');
   if (!normalMap || !roughnessMap) return null;
-  for (const t of [normalMap, roughnessMap]) { t.wrapS = t.wrapT = RepeatWrapping; shareTex(t); }
+  for (const t of [normalMap, roughnessMap]) {
+    t.wrapS = t.wrapT = RepeatWrapping;
+    shareTex(t);
+  }
   return { normalMap, roughnessMap };
 }
 
 /** The blinds' screen: a dark cloth with a soft cloud of light and shade (smooth noise over three scales, seamless) and a fine stipple. */
 function screenTex(base: string, repeat: [number, number]): Texture | null {
-  return paint(512, 512, (c, w, h) => {
-    c.fillStyle = base; c.fillRect(0, 0, w, h);
-    const img = c.getImageData(0, 0, w, h), d = img.data;
-    // a lattice of random values per scale, wrapped at the tile's edge, blended smoothly between its points
-    const octaves = [[4, 5], [9, 3], [23, 1.6]].map(([n, amp]) => ({ n: n!, amp: amp!, v: Array.from({ length: n! * n! }, () => rnd() * 2 - 1) }));
-    const ease = (t: number) => t * t * (3 - 2 * t);
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        let s = 0;
-        for (const { n, amp, v } of octaves) {
-          const fx = (x / w) * n, fy = (y / h) * n, ix = Math.floor(fx), iy = Math.floor(fy), tx = ease(fx - ix), ty = ease(fy - iy);
-          const r0 = iy * n, r1 = ((iy + 1) % n) * n, i1 = (ix + 1) % n;
-          s += amp * ((v[r0 + ix]! * (1 - tx) + v[r0 + i1]! * tx) * (1 - ty) + (v[r1 + ix]! * (1 - tx) + v[r1 + i1]! * tx) * ty);
+  return paint(
+    512,
+    512,
+    (c, w, h) => {
+      c.fillStyle = base;
+      c.fillRect(0, 0, w, h);
+      const img = c.getImageData(0, 0, w, h),
+        d = img.data;
+      // a lattice of random values per scale, wrapped at the tile's edge, blended smoothly between its points
+      const octaves = [
+        [4, 5],
+        [9, 3],
+        [23, 1.6],
+      ].map(([n, amp]) => ({ n: n!, amp: amp!, v: Array.from({ length: n! * n! }, () => rnd() * 2 - 1) }));
+      const ease = (t: number) => t * t * (3 - 2 * t);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let s = 0;
+          for (const { n, amp, v } of octaves) {
+            const fx = (x / w) * n,
+              fy = (y / h) * n,
+              ix = Math.floor(fx),
+              iy = Math.floor(fy),
+              tx = ease(fx - ix),
+              ty = ease(fy - iy);
+            const r0 = iy * n,
+              r1 = ((iy + 1) % n) * n,
+              i1 = (ix + 1) % n;
+            s +=
+              amp *
+              ((v[r0 + ix]! * (1 - tx) + v[r0 + i1]! * tx) * (1 - ty) +
+                (v[r1 + ix]! * (1 - tx) + v[r1 + i1]! * tx) * ty);
+          }
+          s += (rnd() - 0.5) * 4;
+          const o = (y * w + x) * 4;
+          for (let k = 0; k < 3; k++) d[o + k] = Math.max(0, Math.min(255, d[o + k]! + s));
         }
-        s += (rnd() - 0.5) * 4;
-        const o = (y * w + x) * 4;
-        for (let k = 0; k < 3; k++) d[o + k] = Math.max(0, Math.min(255, d[o + k]! + s));
       }
-    }
-    c.putImageData(img, 0, 0);
-  }, repeat);
+      c.putImageData(img, 0, 0);
+    },
+    repeat,
+  );
 }
 
 /**
@@ -289,41 +513,78 @@ function screenTex(base: string, repeat: [number, number]): Texture | null {
  */
 function planksTex(): Texture | null {
   const grain = `rgba(${rgbOf(shadeOf(OAK_GRAIN, OAK)).join(',')},`;
-  return paint(1024, 1024, (c, w, h) => {
-    const rows = 8, ph = h / rows;
-    for (let r = 0; r < rows; r++) {
-      const y0 = r * ph, cuts = [((r * 0.37 + 0.13) % 1) * w];
-      if (r % 2) cuts.push(((r * 0.37 + 0.63) % 1) * w);
-      cuts.sort((a, b) => a - b);
-      // the boards of this row: between the cuts, and the one through the tile's edge (drawn in two parts, the same board)
-      const boards: [number, number][][] = cuts.map((x, k) => (k + 1 < cuts.length ? [[x, cuts[k + 1]!]] : [[x, w], [0, cuts[0]!]]));
-      for (const parts of boards) {
-        // (a board a few shades from the next, a hair cooler at most: one surface, not a patchwork; no warm cast, art-style v3)
-        const f = 0.86 + rnd() * 0.14, warm = -rnd() * 2, seed = seedN;
-        for (const [x0, x1] of parts) {
-          seedN = seed;
-          c.save(); c.beginPath(); c.rect(x0, y0, x1 - x0, ph); c.clip();
-          c.fillStyle = `rgb(${255 * f},${255 * f - warm},${255 * f - 2 * warm})`; c.fillRect(0, y0, w, ph);
-          // the grain along the board, waved a little; a few lighter streaks
-          for (let i = 0; i < 16; i++) {
-            const gy = y0 + rnd() * ph, amp = 2 + rnd() * 5;
-            c.strokeStyle = rnd() < 0.8 ? `${grain}${0.14 + rnd() * 0.18})` : `rgba(255,255,255,${0.04 + rnd() * 0.05})`; c.lineWidth = 0.8 + rnd() * 1.8;
-            c.beginPath(); c.moveTo(0, gy); for (let x = 0; x <= w; x += 64) c.lineTo(x, gy + Math.sin(x / 90 + i) * amp); c.stroke();
+  return paint(
+    1024,
+    1024,
+    (c, w, h) => {
+      const rows = 8,
+        ph = h / rows;
+      for (let r = 0; r < rows; r++) {
+        const y0 = r * ph,
+          cuts = [((r * 0.37 + 0.13) % 1) * w];
+        if (r % 2) cuts.push(((r * 0.37 + 0.63) % 1) * w);
+        cuts.sort((a, b) => a - b);
+        // the boards of this row: between the cuts, and the one through the tile's edge (drawn in two parts, the same board)
+        const boards: [number, number][][] = cuts.map((x, k) =>
+          k + 1 < cuts.length
+            ? [[x, cuts[k + 1]!]]
+            : [
+                [x, w],
+                [0, cuts[0]!],
+              ],
+        );
+        for (const parts of boards) {
+          // (a board a few shades from the next, a hair cooler at most: one surface, not a patchwork; no warm cast, art-style v3)
+          const f = 0.86 + rnd() * 0.14,
+            warm = -rnd() * 2,
+            seed = seedN;
+          for (const [x0, x1] of parts) {
+            seedN = seed;
+            c.save();
+            c.beginPath();
+            c.rect(x0, y0, x1 - x0, ph);
+            c.clip();
+            c.fillStyle = `rgb(${255 * f},${255 * f - warm},${255 * f - 2 * warm})`;
+            c.fillRect(0, y0, w, ph);
+            // the grain along the board, waved a little; a few lighter streaks
+            for (let i = 0; i < 16; i++) {
+              const gy = y0 + rnd() * ph,
+                amp = 2 + rnd() * 5;
+              c.strokeStyle =
+                rnd() < 0.8 ? `${grain}${0.14 + rnd() * 0.18})` : `rgba(255,255,255,${0.04 + rnd() * 0.05})`;
+              c.lineWidth = 0.8 + rnd() * 1.8;
+              c.beginPath();
+              c.moveTo(0, gy);
+              for (let x = 0; x <= w; x += 64) c.lineTo(x, gy + Math.sin(x / 90 + i) * amp);
+              c.stroke();
+            }
+            // a knot: dark heart, rings stretched along the board
+            if (rnd() < 0.4) {
+              const kx = x0 + (0.2 + rnd() * 0.6) * (x1 - x0),
+                ky = y0 + ph * (0.3 + rnd() * 0.4);
+              for (let k = 4; k >= 0; k--) {
+                c.fillStyle = `${grain}${0.1 + (4 - k) * 0.08})`;
+                c.beginPath();
+                c.ellipse(kx, ky, 5 + k * 7, 3 + k * 2.2, 0, 0, Math.PI * 2);
+                c.fill();
+              }
+            }
+            c.restore();
           }
-          // a knot: dark heart, rings stretched along the board
-          if (rnd() < 0.4) {
-            const kx = x0 + (0.2 + rnd() * 0.6) * (x1 - x0), ky = y0 + ph * (0.3 + rnd() * 0.4);
-            for (let k = 4; k >= 0; k--) { c.fillStyle = `${grain}${0.1 + (4 - k) * 0.08})`; c.beginPath(); c.ellipse(kx, ky, 5 + k * 7, 3 + k * 2.2, 0, 0, Math.PI * 2); c.fill(); }
-          }
-          c.restore();
+        }
+        // the long joint above the row (dark, then its lit bevel), the butt joints
+        c.fillStyle = 'rgba(4,6,15,0.75)';
+        c.fillRect(0, y0, w, 3);
+        c.fillStyle = 'rgba(226,234,255,0.1)';
+        c.fillRect(0, y0 + 3, w, 2);
+        for (const x of cuts) {
+          c.fillStyle = 'rgba(4,6,15,0.7)';
+          c.fillRect(x - 1, y0, 2.5, ph);
         }
       }
-      // the long joint above the row (dark, then its lit bevel), the butt joints
-      c.fillStyle = 'rgba(4,6,15,0.75)'; c.fillRect(0, y0, w, 3);
-      c.fillStyle = 'rgba(226,234,255,0.1)'; c.fillRect(0, y0 + 3, w, 2);
-      for (const x of cuts) { c.fillStyle = 'rgba(4,6,15,0.7)'; c.fillRect(x - 1, y0, 2.5, ph); }
-    }
-  }, PLANKS_REPEAT);
+    },
+    PLANKS_REPEAT,
+  );
 }
 /** The floor's tiles across the room and along it. */
 const PLANKS_REPEAT: [number, number] = [2.4, 3.2];
@@ -348,15 +609,22 @@ export function rugMap(): Texture | null {
 
 /** The floor: long planks east-west (`planksTex`, or its baked maps), wall to wall. */
 export function oakFloor(): Mesh {
-  const floor = new Mesh(new PlaneGeometry(EAST_X - WEST_X, FRONT_Z), smokedOak(bakedOak('room-planks', PLANKS_REPEAT) ?? planksMaps()));
-  floor.rotation.x = -Math.PI / 2; floor.position.set((WEST_X + EAST_X) / 2, -FLOOR_Y, FRONT_Z / 2);
+  const floor = new Mesh(
+    new PlaneGeometry(EAST_X - WEST_X, FRONT_Z),
+    smokedOak(bakedOak('room-planks', PLANKS_REPEAT) ?? planksMaps()),
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set((WEST_X + EAST_X) / 2, -FLOOR_Y, FRONT_Z / 2);
   floor.receiveShadow = true;
   return floor;
 }
 
 /** The desk's top: one slab of the floor's smoked oak, its grain along the desk, its edges rounded as all the furniture's (`board`). */
 export function deskSlab(g: RoomGeo): Mesh {
-  return grainUv(board({ x: g.desk.x0, y: g.ys, w: g.desk.x1 - g.desk.x0, h: DESK_TOP }, 0, DESK_D, smokedOak()), OAK_TILE);
+  return grainUv(
+    board({ x: g.desk.x0, y: g.ys, w: g.desk.x1 - g.desk.x0, h: DESK_TOP }, 0, DESK_D, smokedOak()),
+    OAK_TILE,
+  );
 }
 
 /**
@@ -365,12 +633,19 @@ export function deskSlab(g: RoomGeo): Mesh {
  */
 export function drawerUnit(g: RoomGeo): Mesh[] {
   const ped = { x: g.desk.x1 - PED.in, y: g.ys + DESK_TOP, w: PED.w, h: FLOOR_Y - g.ys - DESK_TOP };
-  const alex = mat(0xffffff, { map: oak(VENEER, VENEER_GRAIN), roughness: 0.55 }), slot = mat(0x050608, { roughness: 0.9 });
-  const out = [board(ped, 300, DESK_D - 400, alex), rectBox({ x: ped.x + 260, y: ped.y + 40, w: ped.w - 520, h: ped.h - 80 }, DESK_D - 400, DESK_D - 380, slot)];
+  const alex = mat(0xffffff, { map: oak(VENEER, VENEER_GRAIN), roughness: 0.55 }),
+    slot = mat(0x050608, { roughness: 0.9 });
+  const out = [
+    board(ped, 300, DESK_D - 400, alex),
+    rectBox({ x: ped.x + 260, y: ped.y + 40, w: ped.w - 520, h: ped.h - 80 }, DESK_D - 400, DESK_D - 380, slot),
+  ];
   const dh = (ped.h - 160 - 4 * 90) / 5;
   for (let k = 0; k < 5; k++) {
     const d = { x: ped.x + 300, y: ped.y + 80 + k * (dh + 90), w: ped.w - 600, h: dh };
-    out.push(board(d, DESK_D - 520, DESK_D - 300, alex), rectBox({ x: d.x + d.w / 2 - 1500, y: d.y, w: 3000, h: 220 }, DESK_D - 310, DESK_D - 290, slot));
+    out.push(
+      board(d, DESK_D - 520, DESK_D - 300, alex),
+      rectBox({ x: d.x + d.w / 2 - 1500, y: d.y, w: 3000, h: 220 }, DESK_D - 310, DESK_D - 290, slot),
+    );
   }
   return out;
 }
@@ -381,14 +656,23 @@ export function drawerUnit(g: RoomGeo): Mesh[] {
  */
 function rugTex(): Texture | null {
   return paint(1024, 768, (c, w, h) => {
-    c.fillStyle = RUG_WOOL; c.fillRect(0, 0, w, h);
-    for (let x = 0; x < w; x += 12) for (let y = 0; y < h; y += 6) {
-      c.fillStyle = (Math.floor(x / 12) + Math.floor(y / 6)) % 2 ? 'rgba(255,255,255,0.015)' : 'rgba(0,0,0,0.03)';
-      c.fillRect(x, y, 12, 3);
+    c.fillStyle = RUG_WOOL;
+    c.fillRect(0, 0, w, h);
+    for (let x = 0; x < w; x += 12)
+      for (let y = 0; y < h; y += 6) {
+        c.fillStyle = (Math.floor(x / 12) + Math.floor(y / 6)) % 2 ? 'rgba(255,255,255,0.015)' : 'rgba(0,0,0,0.03)';
+        c.fillRect(x, y, 12, 3);
+      }
+    for (let k = 0; k < 14000; k++) {
+      c.fillStyle = rnd() < 0.5 ? `rgba(255,255,255,${0.03 + rnd() * 0.05})` : `rgba(0,0,0,${0.05 + rnd() * 0.08})`;
+      c.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2, 1 + rnd() * 2);
     }
-    for (let k = 0; k < 14000; k++) { c.fillStyle = rnd() < 0.5 ? `rgba(255,255,255,${0.03 + rnd() * 0.05})` : `rgba(0,0,0,${0.05 + rnd() * 0.08})`; c.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2, 1 + rnd() * 2); }
     const m = 54;
-    c.globalAlpha = 0.35; c.strokeStyle = RUG_LINE; c.lineWidth = 2; c.strokeRect(m, m, w - 2 * m, h - 2 * m); c.globalAlpha = 1;
+    c.globalAlpha = 0.35;
+    c.strokeStyle = RUG_LINE;
+    c.lineWidth = 2;
+    c.strokeRect(m, m, w - 2 * m, h - 2 * m);
+    c.globalAlpha = 1;
   });
 }
 
@@ -399,8 +683,11 @@ function rugTex(): Texture | null {
  */
 export function mergeAfterBake(root: Object3D, envs: RoomEnv, skip: readonly Object3D[]): number {
   return mergePalette(root, {
-    skip, cell: PALETTE_CELL, ok: (m) => envs.mats.has(m as MeshStandardMaterial),
-    twin: (src, c) => envs.twin(src, c), drop: (m) => envs.mats.delete(m as MeshStandardMaterial),
+    skip,
+    cell: PALETTE_CELL,
+    ok: (m) => envs.mats.has(m as MeshStandardMaterial),
+    twin: (src, c) => envs.twin(src, c),
+    drop: (m) => envs.mats.delete(m as MeshStandardMaterial),
   });
 }
 
@@ -408,14 +695,23 @@ export function mergeAfterBake(root: Object3D, envs: RoomEnv, skip: readonly Obj
 let areaLights = false;
 
 /** A step of `Room3D.make`: what comes next, and how far along the build is (0 to 1). */
-interface RoomStep { label: string; share: number }
+interface RoomStep {
+  label: string;
+  share: number;
+}
 
 export interface RoomFrame {
-  hour: number; lamp: boolean; blind: boolean; screen: Screen;
+  hour: number;
+  lamp: boolean;
+  blind: boolean;
+  screen: Screen;
   /** The tier of the router on its spot (1 to 4), or 0 for none. */
   router: number;
   /** The ISP plan's tier (0 to 5), and whether an upload waits or goes out (the letterbox's light). */
-  isp: number; ispName: string; mail: boolean; t: number;
+  isp: number;
+  ispName: string;
+  mail: boolean;
+  t: number;
   /** The lights of the router's jacks, from the link's frames (`network/render/jackleds.ts`): the side jack the lead's cord goes into, and the WAN jack. All out when missing. */
   net?: LinkLevels;
 }
@@ -492,7 +788,9 @@ export class Room3D {
   /** The room's materials that take the environment's reflections: the studio's, dimmed at night, until the probe has the room's own. */
   private envs!: RoomEnv;
   /** What a Low merge tells the reflections' register of a palette material (the register exists once the room is built). */
-  private readonly envTwin = (src: Material, copy: Material): void => { (this.envs as RoomEnv | undefined)?.twin(src, copy); };
+  private readonly envTwin = (src: Material, copy: Material): void => {
+    (this.envs as RoomEnv | undefined)?.twin(src, copy);
+  };
   private probe = false;
   /** The room's box for the probe's reflections (boxenv.ts): on once the probe holds the room. */
   private box!: BoxEnv;
@@ -511,9 +809,14 @@ export class Room3D {
    * it the room is built at once, which holds the page for 1.2 to 1.6 s (docs/render/load.md).
    */
   constructor(env: Texture | null = null, defer = false) {
-    const g = this.geo = roomGeo();
+    const g = (this.geo = roomGeo());
     this.probeAt = [(g.desk.x0 + g.desk.x1) / 2, -g.ys + 3500, DESK_D + 5000];
-    if (!defer) { const run = this.assemble(env); while (!run.next().done) { /* every step in a row */ } }
+    if (!defer) {
+      const run = this.assemble(env);
+      while (!run.next().done) {
+        /* every step in a row */
+      }
+    }
   }
 
   /**
@@ -522,16 +825,21 @@ export class Room3D {
    * room as `new Room3D(env)`.
    */
   static async make(
-    env: Texture | null, between: (label: string, share: number) => Promise<void>, slice: () => Promise<void> = () => new Promise((done) => setTimeout(done, 0)),
+    env: Texture | null,
+    between: (label: string, share: number) => Promise<void>,
+    slice: () => Promise<void> = () => new Promise((done) => setTimeout(done, 0)),
     pool: AoPool | null = makeAoPool(),
   ): Promise<Room3D> {
-    const room = new Room3D(env, true), run = room.assemble(env, pool && { pool, slice });
+    const room = new Room3D(env, true),
+      run = room.assemble(env, pool && { pool, slice });
     try {
       for (let step = run.next(); !step.done; step = run.next()) {
         const v = step.value;
         await (v instanceof Promise ? v : v ? between(v.label, v.share) : slice());
       }
-    } finally { pool?.dispose(); }
+    } finally {
+      pool?.dispose();
+    }
     return room;
   }
 
@@ -539,18 +847,38 @@ export class Room3D {
    * The room's geometry and lights, in steps. A `yield` with a name says what comes next and how far along the build is (0 to 1); a bare one
    * only offers a turn to the page. The constructor runs them in a row.
    */
-  private *assemble(env: Texture | null, ao: { pool: AoPool; slice: () => Promise<void> } | null = null): Generator<RoomStep | Promise<unknown> | void> {
-    const g = this.geo, R = this.root, ys = g.ys, fl = FLOOR_Y, deskTop = -ys, H = fl - CEIL_Y;
-    if (!areaLights) { RectAreaLightUniformsLib.init(); areaLights = true; }
+  private *assemble(
+    env: Texture | null,
+    ao: { pool: AoPool; slice: () => Promise<void> } | null = null,
+  ): Generator<RoomStep | Promise<unknown> | void> {
+    const g = this.geo,
+      R = this.root,
+      ys = g.ys,
+      fl = FLOOR_Y,
+      deskTop = -ys,
+      H = fl - CEIL_Y;
+    if (!areaLights) {
+      RectAreaLightUniformsLib.init();
+      areaLights = true;
+    }
     // the models that load late (the mouse, the hoodie) join once the room is built: its merges and its bake must not see them
     let built!: () => void;
-    const until = new Promise<void>((done) => { built = done; });
-    const graphite = mat(0x2a2d32, { roughness: 0.3 }), trim = mat(TRIM, { roughness: 0.5 });
+    const until = new Promise<void>((done) => {
+      built = done;
+    });
+    const graphite = mat(0x2a2d32, { roughness: 0.3 }),
+      trim = mat(TRIM, { roughness: 0.5 });
     const chrome = mat(0xb9babf, { metalness: 0.85, roughness: 0.25 });
     const dark = mat(0x2a2d32, { roughness: 0.5 });
     // one plaster on every wall, its texture at one size on each piece and running on across the pieces (`worldUv`)
     // (the paint is the palette's `WALL` as it is: `mat` would move this grey to a step of the parts' grey ladder)
-    const plaster = mat(0xffffff, { color: new Color(WALL), ...(bakedPlaster() ?? plasterMaps()), normalScale: new Vector2(1, 1), roughness: 0.92 }), wall = (r: Rect, z0: number, z1: number) => worldUv(rectBox(r, z0, z1, plaster), PLASTER_TILE);
+    const plaster = mat(0xffffff, {
+        color: new Color(WALL),
+        ...(bakedPlaster() ?? plasterMaps()),
+        normalScale: new Vector2(1, 1),
+        roughness: 0.92,
+      }),
+      wall = (r: Rect, z0: number, z1: number) => worldUv(rectBox(r, z0, z1, plaster), PLASTER_TILE);
     const W = WINDOW;
 
     // ---- the back wall: plaster round the glass (a slot over it, a low upstand under it, the corner to the west, the bed's wall to the east)
@@ -559,17 +887,35 @@ export class Room3D {
     R.add(wall({ x: PIER.x0, y: W.y, w: PIER.x1 - PIER.x0, h: W.h }, -WALL_T, 0));
 
     // ---- the other walls, the ceiling (they take light, they cast no shadow: the eye is always inside) ----
-    const shell = (m: Mesh) => { m.castShadow = false; return m; };
+    const shell = (m: Mesh) => {
+      m.castShadow = false;
+      return m;
+    };
     R.add(shell(wall({ x: WEST_X - 1200, y: CEIL_Y, w: 1200, h: H }, -WALL_T, FRONT_Z + 1200)));
     R.add(shell(wall({ x: EAST_X, y: CEIL_Y, w: 1200, h: H }, -WALL_T, FRONT_Z + 1200)));
     R.add(shell(wall({ x: WEST_X - 1200, y: CEIL_Y, w: EAST_X - WEST_X + 2400, h: H }, FRONT_Z, FRONT_Z + 1200)));
-    R.add(shell(rectBox({ x: WEST_X - 1200, y: CEIL_Y - 1200, w: EAST_X - WEST_X + 2400, h: 1200 }, -WALL_T, FRONT_Z + 1200, mat(CEILING, { roughness: 0.95 }))));
+    R.add(
+      shell(
+        rectBox(
+          { x: WEST_X - 1200, y: CEIL_Y - 1200, w: EAST_X - WEST_X + 2400, h: 1200 },
+          -WALL_T,
+          FRONT_Z + 1200,
+          mat(CEILING, { roughness: 0.95 }),
+        ),
+      ),
+    );
     // a low flush skirting, square-edged, and a shadow gap where the walls meet the ceiling (no cornice); the door breaks the skirting on the west wall
     const skirt = (r: Rect, z0: number, z1: number, m: Material = trim) => R.add(shell(softBox(r, z0, z1, m, 20)));
-    const SK = 1100, run = (x0: number, x1: number, z0: number, z1: number, out: 'x' | '-x' | 'z' | '-z') => {
-      const r = out === 'z' || out === '-z' ? { x: x0, y: fl - SK, w: x1 - x0, h: SK } : out === 'x' ? { x: x0, y: fl - SK, w: 110, h: SK } : { x: x1 - 110, y: fl - SK, w: 110, h: SK };
-      skirt(r, out === 'z' ? z0 : out === '-z' ? z1 - 110 : z0, out === 'z' ? z0 + 110 : z1);
-    };
+    const SK = 1100,
+      run = (x0: number, x1: number, z0: number, z1: number, out: 'x' | '-x' | 'z' | '-z') => {
+        const r =
+          out === 'z' || out === '-z'
+            ? { x: x0, y: fl - SK, w: x1 - x0, h: SK }
+            : out === 'x'
+              ? { x: x0, y: fl - SK, w: 110, h: SK }
+              : { x: x1 - 110, y: fl - SK, w: 110, h: SK };
+        skirt(r, out === 'z' ? z0 : out === '-z' ? z1 - 110 : z0, out === 'z' ? z0 + 110 : z1);
+      };
     run(WEST_X, EAST_X, 0, 0, 'z');
     run(WEST_X, WEST_X, 0, DOOR.z0 - 980, 'x');
     run(WEST_X, WEST_X, DOOR.z1 + 980, FRONT_Z, 'x');
@@ -583,27 +929,58 @@ export class Room3D {
     // ---- the floor: long smoked oak planks; a flat charcoal rug under the bed's west side (`RUG`) ----
     R.add(oakFloor());
     const pile = shareTex(bakedTex('room-rug')) ?? rugMap();
-    const rug = softBox({ x: RUG.x0, y: fl - RUG.h, w: RUG.x1 - RUG.x0, h: RUG.h }, RUG.z0, RUG.z1, cloth(0xffffff, { map: pile, bumpMap: pile, bumpScale: 1, roughness: 0.97 }), 140);
+    const rug = softBox(
+      { x: RUG.x0, y: fl - RUG.h, w: RUG.x1 - RUG.x0, h: RUG.h },
+      RUG.z0,
+      RUG.z1,
+      cloth(0xffffff, { map: pile, bumpMap: pile, bumpScale: 1, roughness: 0.97 }),
+      140,
+    );
     rug.castShadow = false;
     R.add(rug);
 
     // ---- the glass wall: slim black aluminium frames set back in the reveal, a pane a bay (the column parts two bays, a mullion parts the west
     // one), one picture of the city behind them all; a roller blind in each bay, its cassette at the top of the reveal ----
     // (matt enough that the sky light's one spot, a large light in truth, leaves no glint on a frame's rounded edge for the bloom to spread)
-    const winG = tag(new Group(), 'blind'), bar = 300, fz0 = FRAME_Z - 700, alu = mat(0x1d1e22, { metalness: 0.5, roughness: 0.6 });
-    const bays = [{ x0: W.x, x1: PIER.x0 }, { x0: PIER.x1, x1: W.x + W.w }];
+    const winG = tag(new Group(), 'blind'),
+      bar = 300,
+      fz0 = FRAME_Z - 700,
+      alu = mat(0x1d1e22, { metalness: 0.5, roughness: 0.6 });
+    const bays = [
+      { x0: W.x, x1: PIER.x0 },
+      { x0: PIER.x1, x1: W.x + W.w },
+    ];
     for (const b of bays) {
       const w = b.x1 - b.x0;
-      for (const r of [{ x: b.x0, y: W.y, w, h: bar }, { x: b.x0, y: W.y + W.h - bar, w, h: bar }, { x: b.x0, y: W.y, w: bar, h: W.h }, { x: b.x1 - bar, y: W.y, w: bar, h: W.h }]) winG.add(softBox(r, fz0, FRAME_Z, alu, 30));
+      for (const r of [
+        { x: b.x0, y: W.y, w, h: bar },
+        { x: b.x0, y: W.y + W.h - bar, w, h: bar },
+        { x: b.x0, y: W.y, w: bar, h: W.h },
+        { x: b.x1 - bar, y: W.y, w: bar, h: W.h },
+      ])
+        winG.add(softBox(r, fz0, FRAME_Z, alu, 30));
     }
     winG.add(softBox({ x: MULLION_X - bar / 2, y: W.y + bar, w: bar, h: W.h - 2 * bar }, fz0, FRAME_Z, alu, 30));
-    const glass = seeThrough(new Mesh(new PlaneGeometry(W.w, W.h), new MeshStandardMaterial({ color: 0xdbeaff, transparent: true, opacity: 0.07, roughness: 0.05, metalness: 0.2, depthWrite: false })));
+    const glass = seeThrough(
+      new Mesh(
+        new PlaneGeometry(W.w, W.h),
+        new MeshStandardMaterial({
+          color: 0xdbeaff,
+          transparent: true,
+          opacity: 0.07,
+          roughness: 0.05,
+          metalness: 0.2,
+          depthWrite: false,
+        }),
+      ),
+    );
     glass.position.set(W.x + W.w / 2, -(W.y + W.h / 2), GLASS_Z + 100);
     this.outside = theCity();
     this.cityDetail = this.outside.detail;
     this.window = winG;
     winG.add(this.outside.mesh, glass);
-    const cassette = mat(0x2a2d32, { roughness: 0.5 }), screen = mat(0xffffff, { map: screenTex('#4b5059', [2, 4]), roughness: 0.9, side: DoubleSide });
+    const cassette = mat(0x2a2d32, { roughness: 0.5 }),
+      screen = mat(0xffffff, { map: screenTex('#4b5059', [2, 4]), roughness: 0.9, side: DoubleSide });
     for (const b of bays) {
       winG.add(softBox({ x: b.x0 + 150, y: W.y, w: b.x1 - b.x0 - 300, h: 900 }, -900, -150, cassette, 120));
       const blind = place(new Mesh(new BoxGeometry(b.x1 - b.x0 - 500, 1, 40), screen));
@@ -613,40 +990,78 @@ export class Room3D {
     }
     R.add(winG);
     // the bench along the glass west of the desk: a slab of dark stone at seat height on a plinth set in, in the trim's tone; the aloe on it
-    const B = BENCH, stone = mat(STONE, { roughness: 0.3 });
+    const B = BENCH,
+      stone = mat(STONE, { roughness: 0.3 });
     R.add(softBox({ x: B.x0, y: B.top, w: B.x1 - B.x0, h: 600 }, B.z0, B.z1, stone, 60));
-    R.add(softBox({ x: B.x0 + 500, y: B.top + 600, w: B.x1 - B.x0 - 1000, h: fl - B.top - 600 }, B.z0 + 300, B.z1 - 700, trim, 40));
+    R.add(
+      softBox(
+        { x: B.x0 + 500, y: B.top + 600, w: B.x1 - B.x0 - 1000, h: fl - B.top - 600 },
+        B.z0 + 300,
+        B.z1 - 700,
+        trim,
+        40,
+      ),
+    );
     R.add(aloe(B.x1 - 2600, B.top, (B.z0 + B.z1) / 2));
     yield;
 
     // ---- the furniture: the bed and its LED strips, the bedside drawer and its lantern, the bookcase, the door, the ceiling light, a print over
     // the bed, plants ----
-    const bd = bed(), ns = nightstand();
+    const bd = bed(),
+      ns = nightstand();
     yield;
-    this.ledGlow = bd.glow; this.ledUnder = bd.under; this.ledHalo = bd.halo;
+    this.ledGlow = bd.glow;
+    this.ledUnder = bd.under;
+    this.ledHalo = bd.halo;
     // (every strip casts the one pale wash, the desk's too)
-    this.ledUnder.color.setHex(NEON_WASH); this.ledHalo.color.setHex(NEON_WASH);
+    this.ledUnder.color.setHex(NEON_WASH);
+    this.ledHalo.color.setHex(NEON_WASH);
     this.shade = ns.shade;
     this.bulbGlow = ns.glow;
     this.bedLight.position.set(...ns.bulb);
     // the lantern's shadow: the nightstand, the bed and the pillows in its light, softly
     // (a light with no cut-off distance keeps its shadow camera's own range: it must reach across the room)
-    Object.assign(this.bedLight.shadow.camera, { near: 200, far: LANTERN_FAR }); this.bedLight.shadow.bias = -0.002; this.bedLight.shadow.normalBias = 20;
+    Object.assign(this.bedLight.shadow.camera, { near: 200, far: LANTERN_FAR });
+    this.bedLight.shadow.bias = -0.002;
+    this.bedLight.shadow.normalBias = 20;
     // (a lantern's paper and its bulb let the light through: they cast no shadow, the paper glows with it)
-    const glassy = (l: Lantern) => l.root.traverse((o) => { const m = (o as Mesh).material; if (m === l.shade || m === l.glow) o.castShadow = false; });
+    const glassy = (l: Lantern) =>
+      l.root.traverse((o) => {
+        const m = (o as Mesh).material;
+        if (m === l.shade || m === l.glow) o.castShadow = false;
+      });
     glassy(ns);
-    for (const r of [ns.root, bd.root]) r.traverse((o) => { if (o.castShadow) o.layers.enable(BEDSIDE_LAYER); });
+    for (const r of [ns.root, bd.root])
+      r.traverse((o) => {
+        if (o.castShadow) o.layers.enable(BEDSIDE_LAYER);
+      });
     // the floor lantern's shadow: the bookcase's end, the fig's leaves on the west wall and the floor
     this.floorLamp = floorLantern();
     glassy(this.floorLamp);
     this.floorLight.position.set(...this.floorLamp.bulb);
-    Object.assign(this.floorLight.shadow.camera, { near: 200, far: LANTERN_FAR }); this.floorLight.shadow.bias = -0.002; this.floorLight.shadow.normalBias = 20;
+    Object.assign(this.floorLight.shadow.camera, { near: 200, far: LANTERN_FAR });
+    this.floorLight.shadow.bias = -0.002;
+    this.floorLight.shadow.normalBias = 20;
     const top = ceilingLight(4000, CEIL_Y, 30000);
-    R.add(bd.root, ns.root, bookcase(), door(), top.root, floorPlant(FIG_AT.x, FIG_AT.z), eastWall(), this.bedLight, this.floorLamp.root, this.floorLight, this.strips.root);
+    R.add(
+      bd.root,
+      ns.root,
+      bookcase(),
+      door(),
+      top.root,
+      floorPlant(FIG_AT.x, FIG_AT.z),
+      eastWall(),
+      this.bedLight,
+      this.floorLamp.root,
+      this.floorLight,
+      this.strips.root,
+    );
     R.add(print(PRINT, 0), this.picture.root, this.sconce.root, this.arc.root);
     // (the arc lamp's shadow reaches from its dome to the floor)
     const al = this.arc.light;
-    Object.assign(al.shadow.camera, { near: 300, far: 60000 }); al.shadow.bias = -0.0005; al.shadow.normalBias = 10;
+    Object.assign(al.shadow.camera, { near: 300, far: 60000 });
+    al.shadow.bias = -0.0005;
+    al.shadow.normalBias = 10;
     yield { label: 'Setting the desk', share: 0.2 };
 
     // ---- the desk: a smoked oak top (the floor's and the slats' wood) on two round black steel legs at the west end and a black-brown drawer
@@ -654,26 +1069,40 @@ export class Room3D {
     const legH = fl - ys - DESK_TOP;
     R.add(deskSlab(g));
     // the legs: round steel tubes screwed into plates under the top, a plastic foot on each
-    const steel = mat(STEEL, { roughness: 0.45, metalness: 0.4 }), tx = g.desk.x0 + 1000;
+    const steel = mat(STEEL, { roughness: 0.45, metalness: 0.4 }),
+      tx = g.desk.x0 + 1000;
     for (const z of [1000, DESK_D - 1000]) {
-      R.add(post(tx, fl - 200, z, 280, legH - 200, steel, SEG.drum), post(tx, fl, z, 300, 200, mat(0x131518, { roughness: 0.8 }), SEG.drum));
+      R.add(
+        post(tx, fl - 200, z, 280, legH - 200, steel, SEG.drum),
+        post(tx, fl, z, 300, 200, mat(0x131518, { roughness: 0.8 }), SEG.drum),
+      );
       R.add(softBox({ x: tx - 600, y: ys + DESK_TOP, w: 1200, h: 60 }, z - 600, z + 600, steel, 20));
     }
     // the drawer unit at the east end
     R.add(...drawerUnit(g));
     const pedX = g.desk.x1 - PED.in;
     // the cable tray: a black steel trough hung under the top's back edge (the power strip lies in it, `clutter3d.ts`) on two brackets
-    const t = TRAY, under = ys + DESK_TOP, ty = under + t.drop;
-    for (const [z0, z1] of [[t.z0, t.z0 + 60], [t.z1 - 60, t.z1]] as const) R.add(softBox({ x: t.x0, y: ty, w: t.x1 - t.x0, h: t.h }, z0, z1, steel, 20));
+    const t = TRAY,
+      under = ys + DESK_TOP,
+      ty = under + t.drop;
+    for (const [z0, z1] of [
+      [t.z0, t.z0 + 60],
+      [t.z1 - 60, t.z1],
+    ] as const)
+      R.add(softBox({ x: t.x0, y: ty, w: t.x1 - t.x0, h: t.h }, z0, z1, steel, 20));
     R.add(softBox({ x: t.x0, y: ty + t.h - 60, w: t.x1 - t.x0, h: 60 }, t.z0, t.z1, steel, 20));
     for (const x of [t.x0, t.x1 - 60]) R.add(softBox({ x, y: ty, w: 60, h: t.h }, t.z0, t.z1, steel, 20));
-    for (const x of [t.x0 + 1500, t.x1 - 1500]) R.add(softBox({ x: x - 200, y: under, w: 400, h: t.drop }, t.z1 - 400, t.z1, steel, 20));
+    for (const x of [t.x0 + 1500, t.x1 - 1500])
+      R.add(softBox({ x: x - 200, y: under, w: 400, h: t.drop }, t.z1 - 400, t.z1, steel, 20));
     // a cyan LED strip under the top's front edge, as round the bed: at night the desk floats on its glow. Its area light is a narrow band
     // along the strip (a wide one would show as a bright box in the glass behind the desk), stopping short of the drawer unit so its side
     // does not catch the light at point-blank range (a hard bright edge)
-    const knee0 = g.desk.x0 + 600, knee1 = pedX - 200, lit1 = pedX - 2200;
+    const knee0 = g.desk.x0 + 600,
+      knee1 = pedX - 200,
+      lit1 = pedX - 2200;
     R.add(rectBox({ x: knee0, y: under, w: knee1 - knee0, h: 120 }, DESK_D - 700, DESK_D - 540, this.ledGlow));
-    this.deskLed.width = lit1 - knee0; this.deskLed.height = 1600;
+    this.deskLed.width = lit1 - knee0;
+    this.deskLed.height = 1600;
     this.deskLed.position.set((knee0 + lit1) / 2, -under - 200, DESK_D - 1400);
     this.deskLed.rotation.x = -Math.PI / 2;
     R.add(this.deskLed);
@@ -681,21 +1110,43 @@ export class Room3D {
     // ---- on the desk: the monitor, the keyboard on its felt mat, the mouse, a tea cup on its saucer, a notebook ----
     this.monitor = new Monitor(MONITOR, SCREEN, ys, MONITOR_Z);
     R.add(this.monitor.root, this.monitor.bias);
-    const kx = MONITOR.x + MONITOR.w / 2, kz = MONITOR_Z + 3600;
+    const kx = MONITOR.x + MONITOR.w / 2,
+      kz = MONITOR_Z + 3600;
     const felt = paint(512, 192, (c, w, h) => {
-      c.fillStyle = '#5b6168'; c.fillRect(0, 0, w, h);
-      for (let k = 0; k < 4000; k++) { c.fillStyle = rnd() < 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.07)'; c.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2, 1); }
+      c.fillStyle = '#5b6168';
+      c.fillRect(0, 0, w, h);
+      for (let k = 0; k < 4000; k++) {
+        c.fillStyle = rnd() < 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.07)';
+        c.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2, 1);
+      }
       // the stitched edge
-      c.strokeStyle = 'rgba(30,32,36,0.8)'; c.lineWidth = 4; c.strokeRect(2, 2, w - 4, h - 4);
-      c.strokeStyle = 'rgba(205,200,190,0.55)'; c.lineWidth = 1.5; c.setLineDash([6, 4]); c.strokeRect(9, 9, w - 18, h - 18);
+      c.strokeStyle = 'rgba(30,32,36,0.8)';
+      c.lineWidth = 4;
+      c.strokeRect(2, 2, w - 4, h - 4);
+      c.strokeStyle = 'rgba(205,200,190,0.55)';
+      c.lineWidth = 1.5;
+      c.setLineDash([6, 4]);
+      c.strokeRect(9, 9, w - 18, h - 18);
     });
     const matEnd = kx + 4800;
-    R.add(softBox({ x: kx - 5200, y: ys - 40, w: matEnd - (kx - 5200), h: 40 }, kz - 2100, kz + 2100, mat(0xffffff, { map: felt, roughness: 0.97 }), 20));
+    R.add(
+      softBox(
+        { x: kx - 5200, y: ys - 40, w: matEnd - (kx - 5200), h: 40 },
+        kz - 2100,
+        kz + 2100,
+        mat(0xffffff, { map: felt, roughness: 0.97 }),
+        20,
+      ),
+    );
     this.mouse = mouse(kx + 4100, ys, kz + 200, (o) => this.envs.adopt(o), until);
     R.add(keyboard(kx, ys, kz), this.mouse, notebook(-16600, ys, 10000, 0.22));
     // the grommet the keyboard's cable goes down through, near the wall: a black cap on the top, its sleeve under it, over the tray
-    const grommet = { x: kx + KEY_LEAD[0], z: kz + KEY_LEAD[1] }, cap = mat(0x131518, { roughness: 0.6 });
-    R.add(post(grommet.x, ys, grommet.z, 420, 20, cap, SEG.drum), post(grommet.x, under + 300, grommet.z, 300, 300, cap, SEG.disc));
+    const grommet = { x: kx + KEY_LEAD[0], z: kz + KEY_LEAD[1] },
+      cap = mat(0x131518, { roughness: 0.6 });
+    R.add(
+      post(grommet.x, ys, grommet.z, 420, 20, cap, SEG.drum),
+      post(grommet.x, under + 300, grommet.z, 300, 300, cap, SEG.disc),
+    );
     // the chair, half under the desk west of the keyboard, turned toward the window as left after use
     R.add(deskChair(kx - 7500, DESK_D + 2600, -0.3, (o) => this.envs.adopt(o), until));
     // the things about: a backpack against the drawer unit, the power strip in the tray and its leads, books on the bench
@@ -714,7 +1165,10 @@ export class Room3D {
     const [mx, my, mz] = this.lamp.mouth;
     this.lampLight.position.set(mx, my, mz);
     this.lampLight.target.position.set(mx + this.lamp.dir[0] * 4000, deskTop, mz + 2500);
-    this.lampLight.castShadow = true; this.lampLight.shadow.mapSize.set(1024, 1024); this.lampLight.shadow.bias = -0.0005; this.lampLight.shadow.radius = 6;
+    this.lampLight.castShadow = true;
+    this.lampLight.shadow.mapSize.set(1024, 1024);
+    this.lampLight.shadow.bias = -0.0005;
+    this.lampLight.shadow.radius = 6;
     Object.assign(this.lampLight.shadow.camera, { near: 200, far: 90000 });
     R.add(this.lampLight, this.lampLight.target);
 
@@ -723,12 +1177,18 @@ export class Room3D {
     R.add(this.clock.root);
     // ---- the key stand on the desk west of the monitor: the 2D rack's two rows of hooks on a black steel frame, two uprights on feet. It is
     // the rack moved off the wall (`standAt`), so the keys keep their 2D places in it; the lowest key hangs clear of the desk ----
-    const rack = tag(new Group(), 'tray'), kr = g.keyRack, bar1 = kr.x + kr.w + 210;
-    const low = Math.max(...[5, 6, 7, 8, 9].map((i) => trayKeyCentre(i).y)) + KEY_LEN / 2, foot = low + 300;
+    const rack = tag(new Group(), 'tray'),
+      kr = g.keyRack,
+      bar1 = kr.x + kr.w + 210;
+    const low = Math.max(...[5, 6, 7, 8, 9].map((i) => trayKeyCentre(i).y)) + KEY_LEN / 2,
+      foot = low + 300;
     for (let row = 0; row < 2; row++) {
       const y = trayHook(row * 5).y;
       rack.add(softBox({ x: kr.x + 120, y: y - 110, w: kr.w - 240 + row * 330, h: 220 }, 0, 200, dark, 40));
-      for (let col = 0; col < 5; col++) { const h = trayHook(row * 5 + col); rack.add(drum(h.x, h.y, 200, 420, 40, chrome, SEG.midRound)); }
+      for (let col = 0; col < 5; col++) {
+        const h = trayHook(row * 5 + col);
+        rack.add(drum(h.x, h.y, 200, 420, 40, chrome, SEG.midRound));
+      }
     }
     const rackTop = trayHook(0).y - 300;
     for (const x of [kr.x - 60, bar1]) {
@@ -749,11 +1209,17 @@ export class Room3D {
     // its tier's look is the shared model's (`router3d.ts`, as the gallery and the studio's wall show it): the home router with its two aerials and four lights; the gigabit
     // one, with stouter aerials and a row of lights; the 10G switch-router: no aerials, fins and a lit bar; the edge router: a rack unit with its ears, a row of cages
     // and two rows of lights. It stands in the router's spot at one scale (the tier's box fits it), its east end and feet on the shelf, its front 1400 out
-    const rs = ROUTER_SPOT, jackSteel = mat(0x959aa3, { metalness: 0.8, roughness: 0.44 });
+    const rs = ROUTER_SPOT,
+      jackSteel = mat(0x959aa3, { metalness: 0.8, roughness: 0.44 });
     // (its LAN jack on the east side is the board's rear I/O's, rj45jack3d's `jackFace`: 160 across, 124 tall, its mouth 180 deep)
-    const PORT = { w: 160, h: 124 }, DEEP = 180, lan = routerLan();
+    const PORT = { w: 160, h: 124 },
+      DEEP = 180,
+      lan = routerLan();
     const build = (tier: number) => {
-      for (const c of [...router.children]) { router.remove(c); disposeTree(c); }
+      for (const c of [...router.children]) {
+        router.remove(c);
+        disposeTree(c);
+      }
       const { k, front, depth, ox, oy } = routerStand(tier, rs);
       // (the wall hides its back, so it has none. The lead's cord goes into the side jack, the patch lead into the WAN jack: those two have lights, the other four jacks have no cable)
       const m = routerModel(tier, { depth, fine: !lowDetail(), rear: false, drive: [4] });
@@ -765,21 +1231,36 @@ export class Room3D {
       this.routerAlpha = 1;
       this.shellCasters = [];
       // the LAN jack on its east side, where the lead's plug stays (turned to face east)
-      const side = new Group(), look = jackLook(jackSteel);
+      const side = new Group(),
+        look = jackLook(jackSteel);
       side.rotation.y = Math.PI;
       if (qsfpPorts(tier) > 0) {
         // (the edge router's LAN ports are QSFP+ cages, this one too: at the scale the board's jack is drawn, its two lights in a block over it)
-        const w = QSFP.cage.w * QSFP_SIDE_K, h = QSFP.cage.h * QSFP_SIDE_K, s = { y0: lan.y - h / 2, y1: lan.y + h / 2, z0: -lan.z - w / 2, z1: -lan.z + w / 2 }, cage = qsfpLook(jackSteel);
+        const w = QSFP.cage.w * QSFP_SIDE_K,
+          h = QSFP.cage.h * QSFP_SIDE_K,
+          s = { y0: lan.y - h / 2, y1: lan.y + h / 2, z0: -lan.z - w / 2, z1: -lan.z + w / 2 },
+          cage = qsfpLook(jackSteel);
         qsfpFace(side, -lan.x, s, DEEP, cage, !lowDetail());
         qsfpLamps(side, -lan.x, s, '-y', look, cage, true);
-      } else jackFace(side, -lan.x, { y0: lan.y - PORT.h / 2, y1: lan.y + PORT.h / 2, z0: -lan.z - PORT.w / 2, z1: -lan.z + PORT.w / 2 }, DEEP, look, !lowDetail());
+      } else
+        jackFace(
+          side,
+          -lan.x,
+          { y0: lan.y - PORT.h / 2, y1: lan.y + PORT.h / 2, z0: -lan.z - PORT.w / 2, z1: -lan.z + PORT.w / 2 },
+          DEEP,
+          look,
+          !lowDetail(),
+        );
       router.add(side);
       // (the frames light them: `frame`)
       this.routerLamps = { lan: look, wan: m.jacks[4] ?? null };
       mergeWithin(router, { twin: this.envTwin, apart: [m.shell] }); // (the router's plates, vents and jacks in a few draws, every tier; the shell keeps palette materials of its own, for its fade)
       // (Low: its status lights and its jacks' lenses in one draw a colour, where each light was a draw; CITY-06. The shell's lights merge within the shell: they fade with it)
       if (lowDetail()) {
-        const inShell = (o: Object3D): boolean => { for (let p: Object3D | null = o; p; p = p.parent) if (p === m.shell) return true; return false; };
+        const inShell = (o: Object3D): boolean => {
+          for (let p: Object3D | null = o; p; p = p.parent) if (p === m.shell) return true;
+          return false;
+        };
         mergeStatic(m.shell, { ok: glows });
         mergeStatic(router, { own: true, ok: (x) => glows(x) && !inShell(x) });
       }
@@ -790,33 +1271,76 @@ export class Room3D {
         const ms = (o as Mesh).material as Material | Material[] | undefined;
         for (const x of Array.isArray(ms) ? ms : ms ? [ms] : []) {
           const s = x as MeshStandardMaterial;
-          if (!seen.has(x) && s.isMeshStandardMaterial && s.emissiveIntensity > 0 && (s.emissive.r > 0 || s.emissive.g > 0 || s.emissive.b > 0)) { seen.add(x); this.shellGlows.push({ m: s, i: s.emissiveIntensity }); }
+          if (
+            !seen.has(x) &&
+            s.isMeshStandardMaterial &&
+            s.emissiveIntensity > 0 &&
+            (s.emissive.r > 0 || s.emissive.g > 0 || s.emissive.b > 0)
+          ) {
+            seen.add(x);
+            this.shellGlows.push({ m: s, i: s.emissiveIntensity });
+          }
         }
       });
     };
-    this.routerBuild = (tier) => { if (tier !== this.routerTier) { this.routerTier = tier; build(tier); } };
+    this.routerBuild = (tier) => {
+      if (tier !== this.routerTier) {
+        this.routerTier = tier;
+        build(tier);
+      }
+    };
     this.routerBuild(1);
     R.add(router);
     // the router's empty place: an unseen box a router dragged from the inventory lands on (`router`), there while no router stands
     this.routerBody = router;
-    this.routerSpot = tag(rectBox(ROUTER_SPOT, 300, 1400, new MeshStandardMaterial({ transparent: true, opacity: 0, depthWrite: false })), 'router');
+    this.routerSpot = tag(
+      rectBox(ROUTER_SPOT, 300, 1400, new MeshStandardMaterial({ transparent: true, opacity: 0, depthWrite: false })),
+      'router',
+    );
     R.add(unseen(this.routerSpot));
     // (the LAN lead is the machine's: a cable with a plug to move, `Machine3D.buildRoomCords`)
     // the letterbox: powder-coated black steel, as the other things on the wall
     const box = tag(new Group(), 'mail');
     box.add(softBox(OUTBOX, 0, 700, mat(STEEL, { roughness: 0.45 }), 70));
-    box.add(rectBox({ x: OUTBOX.x + 180, y: OUTBOX.y - 10, w: OUTBOX.w - 360, h: 30 }, 200, 500, mat(0x050608, { roughness: 0.8 })));
+    box.add(
+      rectBox(
+        { x: OUTBOX.x + 180, y: OUTBOX.y - 10, w: OUTBOX.w - 360, h: 30 },
+        200,
+        500,
+        mat(0x050608, { roughness: 0.8 }),
+      ),
+    );
     // its front door (a panel in a fine seam), a name plate, the lock
-    const ob = OUTBOX, front = mat(0x1d1e22, { roughness: 0.45 });
-    box.add(rectBox({ x: ob.x + 70, y: ob.y + 150, w: ob.w - 140, h: ob.h - 220 }, 700, 704, mat(0x050608, { roughness: 0.6 })));
+    const ob = OUTBOX,
+      front = mat(0x1d1e22, { roughness: 0.45 });
+    box.add(
+      rectBox(
+        { x: ob.x + 70, y: ob.y + 150, w: ob.w - 140, h: ob.h - 220 },
+        700,
+        704,
+        mat(0x050608, { roughness: 0.6 }),
+      ),
+    );
     box.add(softBox({ x: ob.x + 85, y: ob.y + 165, w: ob.w - 170, h: ob.h - 250 }, 700, 730, front, 20));
-    box.add(softBox({ x: ob.x + 260, y: ob.y + 260, w: ob.w - 520, h: 130 }, 730, 742, mat(PAPER, { roughness: 0.6 }), 10));
-    box.add(drum(ob.x + ob.w - 200, ob.y + ob.h - 220, 730, 760, 55, chrome, SEG.part), rectBox({ x: ob.x + ob.w - 212, y: ob.y + ob.h - 250, w: 24, h: 60 }, 760, 764, dark));
+    box.add(
+      softBox({ x: ob.x + 260, y: ob.y + 260, w: ob.w - 520, h: 130 }, 730, 742, mat(PAPER, { roughness: 0.6 }), 10),
+    );
+    box.add(
+      drum(ob.x + ob.w - 200, ob.y + ob.h - 220, 730, 760, 55, chrome, SEG.part),
+      rectBox({ x: ob.x + ob.w - 212, y: ob.y + ob.h - 250, w: 24, h: 60 }, 760, 764, dark),
+    );
     mergeWithin(box, { twin: this.envTwin });
     R.add(box);
-    const plate = g.socket.plate, socket = tag(new Group(), 'socket');
+    const plate = g.socket.plate,
+      socket = tag(new Group(), 'socket');
     // (a two-gang Swiss plate: a type 13 recess for each cord's type 12 plug, the plug is the machine's: `Machine3D.buildRoomCords`)
-    wallPlate(socket, { rect: plate, outlets: [g.socket.mon, g.socket.pc], face: ROOM_SOCKET.face, k: ROOM_SOCKET.k, look: { plate: graphite, black: mat(0x050608, { roughness: 0.6 }) } });
+    wallPlate(socket, {
+      rect: plate,
+      outlets: [g.socket.mon, g.socket.pc],
+      face: ROOM_SOCKET.face,
+      k: ROOM_SOCKET.k,
+      look: { plate: graphite, black: mat(0x050608, { roughness: 0.6 }) },
+    });
     mergeWithin(socket, { twin: this.envTwin }); // (the plate and its six holes in two draws, every tier)
     // the ISP's wall plate: on the column under the letterbox, right of the monitor, where the room's view sees it (the 2D plate is under the desk)
     const ISP_PLATE: Rect = ispPlate();
@@ -824,16 +1348,30 @@ export class Room3D {
     // the ISP line's tier: five small lights along the wall plate, lit up to the plan's tier
     for (let k = 0; k < 5; k++) {
       const m = new MeshStandardMaterial({ color: 0x131518, emissive: new Color(NEON), emissiveIntensity: 0 });
-      const d = drum(ISP_PLATE.x + ISP_PLATE.w * (0.14 + k * 0.18), ISP_PLATE.y + ISP_PLATE.h * 0.8, 80, 96, ISP_PLATE.w * 0.04, m, SEG.smallDisc);
+      const d = drum(
+        ISP_PLATE.x + ISP_PLATE.w * (0.14 + k * 0.18),
+        ISP_PLATE.y + ISP_PLATE.h * 0.8,
+        80,
+        96,
+        ISP_PLATE.w * 0.04,
+        m,
+        SEG.smallDisc,
+      );
       this.ispDots.push(m);
       R.add(d);
     }
     // the plan's name under the lights, small print on the plate (drawn on a canvas when the plan changes)
     if (typeof document !== 'undefined') {
       const cv = document.createElement('canvas');
-      cv.width = 512; cv.height = 128;
+      cv.width = 512;
+      cv.height = 128;
       const tex = rawSrgb(cv);
-      const face = new Mesh(new PlaneGeometry(ISP_PLATE.w * 0.84, ISP_PLATE.h * 0.26), Object.assign(new MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthWrite: false }), { defines: { ...DECODE_SRGB } }));
+      const face = new Mesh(
+        new PlaneGeometry(ISP_PLATE.w * 0.84, ISP_PLATE.h * 0.26),
+        Object.assign(new MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthWrite: false }), {
+          defines: { ...DECODE_SRGB },
+        }),
+      );
       face.position.set(ISP_PLATE.x + ISP_PLATE.w / 2, -(ISP_PLATE.y + ISP_PLATE.h * 0.5), 82);
       this.ispText = { cv, tex, shown: '\u0000' };
       R.add(seeThrough(face));
@@ -855,15 +1393,20 @@ export class Room3D {
     this.key.castShadow = true;
     this.key.shadow.mapSize.set(4096, 4096);
     Object.assign(this.key.shadow.camera, { near: 2000, far: 140000 });
-    this.key.shadow.bias = -0.0003; this.key.shadow.normalBias = 20; this.key.shadow.radius = 14;
+    this.key.shadow.bias = -0.0003;
+    this.key.shadow.normalBias = 20;
+    this.key.shadow.radius = 14;
     R.add(this.key, this.key.target);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     Object.assign(this.sun.shadow.camera, { near: SUN_D - 30000, far: SUN_D + 90000 });
-    this.sun.shadow.bias = -0.0002; this.sun.shadow.normalBias = 30; this.sun.shadow.radius = 5;
+    this.sun.shadow.bias = -0.0002;
+    this.sun.shadow.normalBias = 30;
+    this.sun.shadow.radius = 5;
     R.add(this.sun, this.sun.target);
     // (on the panel's face, turned to the room: an area light shines along its -z)
-    this.screenLight.width = SCREEN.w; this.screenLight.height = SCREEN.h;
+    this.screenLight.width = SCREEN.w;
+    this.screenLight.height = SCREEN.h;
     this.screenLight.position.set(SCREEN.x + SCREEN.w / 2, -(SCREEN.y + SCREEN.h / 2), MONITOR_Z + 200);
     this.screenLight.rotation.y = Math.PI;
     R.add(this.screenLight);
@@ -876,16 +1419,24 @@ export class Room3D {
     // the props' and the plants' baked occlusion (cast once here: 0.8 s on this thread a slice at a time, 0.3 s on a pool of workers that `make`
     // gives it, the page waiting), then the still scenery in few draws
     yield { label: 'Shading the corners', share: 0.4 };
-    if (ao) yield vertexAoPooled(R, ao.pool, ao.slice); else yield* vertexAoSteps(R);
+    if (ao) yield vertexAoPooled(R, ao.pool, ao.slice);
+    else yield* vertexAoSteps(R);
     yield { label: 'Tidying the room', share: 0.95 };
     mergeStatic(R);
     this.share();
     // the monitor's empty place on the desk: an unseen box a part dragged from the inventory lands on (`display0`), there only while no monitor stands
     const spotM = new MeshStandardMaterial({ transparent: true, opacity: 0, depthWrite: false });
-    this.monitorSpot = tag(rectBox({ x: MONITOR.x, y: MONITOR.y, w: MONITOR.w, h: MONITOR.h }, MONITOR_Z - 300, MONITOR_Z + 400, spotM), 'display0');
+    this.monitorSpot = tag(
+      rectBox({ x: MONITOR.x, y: MONITOR.y, w: MONITOR.w, h: MONITOR.h }, MONITOR_Z - 300, MONITOR_Z + 400, spotM),
+      'display0',
+    );
     R.add(unseen(this.monitorSpot));
     // the baked bounce once its files are in; until then, and on a mesh the bake does not know, the probe's. Then the still scenery by palette
-    this.ready = roomBake().then((b) => { if (this.gone) return; if (b) this.takeBake(b); this.mergeByPalette(); });
+    this.ready = roomBake().then((b) => {
+      if (this.gone) return;
+      if (b) this.takeBake(b);
+      this.mergeByPalette();
+    });
     built();
   }
 
@@ -895,13 +1446,17 @@ export class Room3D {
    * Only materials that take the room's reflections join; the key rack is built again with each key, the mouse's stand-in hides when the
    * model is in (it can come after the bake).
    */
-  private mergeByPalette(): void { mergeAfterBake(this.root, this.envs, [this.keys, this.mouse]); }
+  private mergeByPalette(): void {
+    mergeAfterBake(this.root, this.envs, [this.keys, this.mouse]);
+  }
 
   /**
    * Starts linking the programs the window's view draws with (`compile.ts`), and the bake's mix: the room's own come with the scene it stands
    * in. Call it after a first `frame`, so its lights stand as they will be drawn.
    */
-  startPrograms(r: WebGLRenderer, scene: Scene): Program[] { return [...this.outside.startPrograms(r, scene), ...(this.lightmap?.startPrograms(r) ?? [])]; }
+  startPrograms(r: WebGLRenderer, scene: Scene): Program[] {
+    return [...this.outside.startPrograms(r, scene), ...(this.lightmap?.startPrograms(r) ?? [])];
+  }
 
   /**
    * The baked bounce's light groups: the lights the room scales by one value (a switch, a step of the evening). `tools/bake/` bakes each at
@@ -909,20 +1464,36 @@ export class Room3D {
    */
   lightGroups(): { id: string; lights: Light[] }[] {
     return [
-      { id: 'desk', lights: [this.lampLight] }, { id: 'arc', lights: [this.arc.light] }, { id: 'floor', lights: [this.floorLight] }, { id: 'bedside', lights: [this.bedLight] },
-      { id: 'strips', lights: this.strips.lights }, { id: 'picture', lights: [this.picture.light] }, { id: 'sconce', lights: [this.sconce.up, this.sconce.down] },
-      { id: 'led', lights: [this.ledUnder, this.ledHalo, this.deskLed] }, { id: 'screen', lights: [this.screenLight, this.monitor.bias] },
+      { id: 'desk', lights: [this.lampLight] },
+      { id: 'arc', lights: [this.arc.light] },
+      { id: 'floor', lights: [this.floorLight] },
+      { id: 'bedside', lights: [this.bedLight] },
+      { id: 'strips', lights: this.strips.lights },
+      { id: 'picture', lights: [this.picture.light] },
+      { id: 'sconce', lights: [this.sconce.up, this.sconce.down] },
+      { id: 'led', lights: [this.ledUnder, this.ledHalo, this.deskLed] },
+      { id: 'screen', lights: [this.screenLight, this.monitor.bias] },
     ];
   }
 
   /** The bake's lightmap on the meshes it knows. The others keep the probe; the dev build names them (the bake is older than the room). */
   private takeBake(b: Bake): void {
-    const mix = new LightmapMix(b), blinds = new Set<Object3D>(this.blinds);
-    const lit = applyLightmap(this.root, b, mix.texture, { metre: M, skip: (o) => blinds.has(o), twin: (src, c) => this.envs.twin(src, c) });
+    const mix = new LightmapMix(b),
+      blinds = new Set<Object3D>(this.blinds);
+    const lit = applyLightmap(this.root, b, mix.texture, {
+      metre: M,
+      skip: (o) => blinds.has(o),
+      twin: (src, c) => this.envs.twin(src, c),
+    });
     // (the bake is of the first board in the first case: there each mesh has its hash. With another tier the desk and what stands on it
     // move, and those meshes are found by their count of corners, `loose`)
-    if (import.meta.env.DEV && (lit.missing.length || lit.stale || (lit.loose && LAYOUT_TIER === 0 && LAYOUT_CASE === 0))) {
-      console.warn(`the room light bake is old (run \`npm run bake\`): ${lit.meshes.length} meshes lit (${lit.loose} by count, not by hash), ${lit.stale} baked ones not found, none for: ${lit.missing.join(', ')}`);
+    if (
+      import.meta.env.DEV &&
+      (lit.missing.length || lit.stale || (lit.loose && LAYOUT_TIER === 0 && LAYOUT_CASE === 0))
+    ) {
+      console.warn(
+        `the room light bake is old (run \`npm run bake\`): ${lit.meshes.length} meshes lit (${lit.loose} by count, not by hash), ${lit.stale} baked ones not found, none for: ${lit.missing.join(', ')}`,
+      );
     }
     this.lightmap = mix;
     this.bake = b;
@@ -935,7 +1506,10 @@ export class Room3D {
    * rack is built again with each new key; a replaced material leaves the reflections' register.
    */
   private share(): void {
-    shareMaterials(this.root, { skip: [this.keys], onReplace: (m) => this.envs.mats.delete(m as MeshStandardMaterial) });
+    shareMaterials(this.root, {
+      skip: [this.keys],
+      onReplace: (m) => this.envs.mats.delete(m as MeshStandardMaterial),
+    });
   }
 
   /** The baked bounce for the light as it stands, summed again only when that light changes (`lightKey`). */
@@ -943,17 +1517,22 @@ export class Room3D {
     const lm = this.lightmap;
     if (!lm || this.mixKey === this.lightKey) return;
     this.mixKey = this.lightKey;
-    const levels = new Map<string, number | Color>(), direct = new Map<string, number>();
+    const levels = new Map<string, number | Color>(),
+      direct = new Map<string, number>();
     // (a capped lamp's light is out of the scene, its level is not: its bounce stays, and the bake's direct light of its group stands in for
     // its pool; a bake without it lifts the bounce in its place, `CAPPED_BOUNCE`)
     for (const g of this.lightGroups()) {
-      const level = g.lights[0]!.intensity, capped = g.lights.filter((l) => !l.visible).length;
-      if (capped && lm.hasDirect(g.id)) { levels.set(g.id, level); direct.set(g.id, level * (capped / g.lights.length)); }
-      else levels.set(g.id, level * bounceLift(capped, g.lights.length));
+      const level = g.lights[0]!.intensity,
+        capped = g.lights.filter((l) => !l.visible).length;
+      if (capped && lm.hasDirect(g.id)) {
+        levels.set(g.id, level);
+        direct.set(g.id, level * (capped / g.lights.length));
+      } else levels.set(g.id, level * bounceLift(capped, g.lights.length));
     }
     levels.set('sky', this.key.color.clone().multiplyScalar(this.skyK * SKY_K));
     levels.set('city', this.key.color.clone().multiplyScalar(this.cityK * SKY_K));
-    for (const [h, w] of keyFrames(this.hour, SUN_HOURS)) levels.set(`sun-${h}`, this.sun.color.clone().multiplyScalar(this.sunK * w));
+    for (const [h, w] of keyFrames(this.hour, SUN_HOURS))
+      levels.set(`sun-${h}`, this.sun.color.clone().multiplyScalar(this.sunK * w));
     lm.mix(renderer, levels, direct);
   }
 
@@ -962,8 +1541,13 @@ export class Room3D {
    * the night it stands still (`sunDir`), so the moon's shaft it gives keeps its map.
    */
   private aimSun(hour: number): void {
-    const d = sunDir(hour), W = WINDOW, c = [W.x + W.w / 2, -(W.y + W.h / 2), GLASS_Z] as const, p = this.sun.position;
-    const x = c[0] + d[0] * SUN_D, y = c[1] + d[1] * SUN_D, z = c[2] + d[2] * SUN_D;
+    const d = sunDir(hour),
+      W = WINDOW,
+      c = [W.x + W.w / 2, -(W.y + W.h / 2), GLASS_Z] as const,
+      p = this.sun.position;
+    const x = c[0] + d[0] * SUN_D,
+      y = c[1] + d[1] * SUN_D,
+      z = c[2] + d[2] * SUN_D;
     if (p.x === x && p.y === y && p.z === z) return;
     p.set(x, y, z);
     this.sun.target.position.set(c[0] - d[0] * 20000, c[1] - d[1] * 20000, c[2] - d[2] * 20000);
@@ -981,34 +1565,56 @@ export class Room3D {
   }
 
   /** Does any light of the room cast a shadow? With none, no map is drawn and the shadow scan has nothing to serve. */
-  get casting(): boolean { return this.casters.some((l) => l.castShadow); }
+  get casting(): boolean {
+    return this.casters.some((l) => l.castShadow);
+  }
 
   /** The lights that cast shadows, in `SHADOW_LEVELS`' order. */
-  private get casters(): (SpotLight | PointLight)[] { return [this.key, this.sun, this.lampLight, this.bedLight, this.floorLight, this.arc.light]; }
+  private get casters(): (SpotLight | PointLight)[] {
+    return [this.key, this.sun, this.lampLight, this.bedLight, this.floorLight, this.arc.light];
+  }
 
   /** The room's lights by their name in `LIGHT_ORDER` (roomlights.ts). */
   private lightsOf(id: LightId): Light[] {
     switch (id) {
-      case 'key': return [this.key];
-      case 'sun': return [this.sun];
-      case 'arc': return [this.arc.light];
-      case 'desk': return [this.lampLight];
-      case 'floor': return [this.floorLight];
-      case 'bedside': return [this.bedLight];
-      case 'sconce': return [this.sconce.up, this.sconce.down];
-      case 'screen': return [this.screenLight];
-      case 'deskLed': return [this.deskLed];
-      case 'picture': return [this.picture.light];
-      case 'ledHalo': return [this.ledHalo];
-      case 'ledUnder': return [this.ledUnder];
-      case 'bias': return [this.monitor.bias];
-      case 'strips': return this.strips.lights;
-      case 'case': case 'spill': return []; // (the machine's: `Machine3D.setLights`)
+      case 'key':
+        return [this.key];
+      case 'sun':
+        return [this.sun];
+      case 'arc':
+        return [this.arc.light];
+      case 'desk':
+        return [this.lampLight];
+      case 'floor':
+        return [this.floorLight];
+      case 'bedside':
+        return [this.bedLight];
+      case 'sconce':
+        return [this.sconce.up, this.sconce.down];
+      case 'screen':
+        return [this.screenLight];
+      case 'deskLed':
+        return [this.deskLed];
+      case 'picture':
+        return [this.picture.light];
+      case 'ledHalo':
+        return [this.ledHalo];
+      case 'ledUnder':
+        return [this.ledUnder];
+      case 'bias':
+        return [this.monitor.bias];
+      case 'strips':
+        return this.strips.lights;
+      case 'case':
+      case 'spill':
+        return []; // (the machine's: `Machine3D.setLights`)
     }
   }
 
   /** The scene's real-time lights at the cap last set (`setLights`), the machine's included: the board hands them on to the machine. */
-  get liveLights(): ReadonlySet<LightId> { return this.choice.live; }
+  get liveLights(): ReadonlySet<LightId> {
+    return this.choice.live;
+  }
 
   /** The graphics settings' shadow level and choice of lights, as last set. */
   private shadowLevel = 3;
@@ -1025,7 +1631,15 @@ export class Room3D {
     for (const id of LIGHT_ORDER) for (const l of this.lightsOf(id)) l.visible = this.choice.live.has(id);
     this.mixKey = '';
     // (a cap set later: the capped lamps' direct light loads now, and the next frame's mix takes it)
-    if (cap > 0 && this.bake && !this.bake.direct) void loadDirect(BAKE_URL, this.bake).then(() => { this.mixKey = ''; }, () => { /* the lifted bounce stays */ });
+    if (cap > 0 && this.bake && !this.bake.direct)
+      void loadDirect(BAKE_URL, this.bake).then(
+        () => {
+          this.mixKey = '';
+        },
+        () => {
+          /* the lifted bounce stays */
+        },
+      );
     this.setShadows(this.shadowLevel);
   }
 
@@ -1036,10 +1650,12 @@ export class Room3D {
   setShadows(level: number): void {
     this.shadowLevel = level;
     this.outside.setShadows(level);
-    const sizes = SHADOW_LEVELS[level] ?? null, least = SHADOW_LEVELS[Math.min(level, 1)] ?? null;
+    const sizes = SHADOW_LEVELS[level] ?? null,
+      least = SHADOW_LEVELS[Math.min(level, 1)] ?? null;
     this.casters.forEach((l, i) => {
       // (a lamp that casts with the lamps' shadows off takes the smallest map: `ALWAYS_CASTS`)
-      const id = CASTER_IDS[i]!, size = this.choice.shadows.has(id) ? (this.choice.small.has(id) ? least : sizes)?.[i] ?? 0 : 0;
+      const id = CASTER_IDS[i]!,
+        size = this.choice.shadows.has(id) ? ((this.choice.small.has(id) ? least : sizes)?.[i] ?? 0) : 0;
       l.castShadow = size > 0;
       l.shadow.autoUpdate = false;
       l.shadow.needsUpdate = true;
@@ -1051,7 +1667,10 @@ export class Room3D {
         l.shadow.camera.layers.set(small ? BEDSIDE_LAYER : 0);
         l.shadow.camera.updateProjectionMatrix();
       }
-      if (l.shadow.mapSize.x !== size || !size) { l.shadow.map?.dispose(); l.shadow.map = null; }
+      if (l.shadow.mapSize.x !== size || !size) {
+        l.shadow.map?.dispose();
+        l.shadow.map = null;
+      }
       if (!size) return;
       l.shadow.mapSize.set(size, size);
       l.shadow.radius = SHADOW_SOFT[i]! * (size / SHADOW_LEVELS[3]![i]!);
@@ -1085,7 +1704,9 @@ export class Room3D {
    * The room's slow motion is due a frame: the city's beat (`OutsideView.due`, each few ticks), which also carries the cup's steam, the clock
    * and the hour's light as it turns. A frame drawn on demand (docs/render/load.md) draws on it.
    */
-  get ambientDue(): boolean { return this.outside.due; }
+  get ambientDue(): boolean {
+    return this.outside.due;
+  }
 
   /** Free what is not under the root: the baked bounce's target. The city stays for the next room: call it before the root is freed. */
   dispose(): void {
@@ -1115,7 +1736,10 @@ export class Room3D {
    */
   redrawShadows(moved: boolean, now: number): void {
     const lights = this.casters;
-    if (moved) { for (const l of lights) catchUp(l); return; }
+    if (moved) {
+      for (const l of lights) catchUp(l);
+      return;
+    }
     if (now - this.shadowAt < SHADOW_TURN_MS) return;
     this.shadowAt = now;
     catchUp(lights[this.shadowTurn++ % lights.length]!);
@@ -1126,7 +1750,11 @@ export class Room3D {
    * frame asks for nothing (a deferred map is not owed until a light casts again). Else it returns whether a caster moved, or a map is still
    * owed (`pending`).
    */
-  scanShadows(cache: { scan(scene: Object3D, now: number): boolean; pending?: boolean }, scene: Object3D, now: number): boolean {
+  scanShadows(
+    cache: { scan(scene: Object3D, now: number): boolean; pending?: boolean },
+    scene: Object3D,
+    now: number,
+  ): boolean {
     if (!this.casting) return false;
     const cast = cache.scan(scene, now);
     this.redrawShadows(cast, now);
@@ -1135,16 +1763,29 @@ export class Room3D {
 
   /** The keys that have been on the rack (a key not in it is new mail), and the new ones still arriving: a letter drifts in, opens, the key rises out and is carried to its hook (the 2D's `mail.ts` poses). */
   private known: Set<number> | null = null;
-  private arrivals: { g: Group; env: Group; flap: Mesh; mats: MeshStandardMaterial[]; rest: { x: number; y: number }; t0: number }[] = [];
+  private arrivals: {
+    g: Group;
+    env: Group;
+    flap: Mesh;
+    mats: MeshStandardMaterial[];
+    rest: { x: number; y: number };
+    t0: number;
+  }[] = [];
 
   /** The envelope: paper, and its flap, which turns about the top edge. */
   private envelope(): { env: Group; flap: Mesh; mats: MeshStandardMaterial[] } {
-    const paper = mat(PAPER, { roughness: 0.8 }), darker = mat(MANILA, { roughness: 0.8 }), env = new Group();
+    const paper = mat(PAPER, { roughness: 0.8 }),
+      darker = mat(MANILA, { roughness: 0.8 }),
+      env = new Group();
     paper.transparent = darker.transparent = true;
     paper.side = darker.side = DoubleSide;
     env.add(softBox({ x: -ENV_W / 2, y: -ENV_H / 2, w: ENV_W, h: ENV_H }, 0, 40, paper, 20));
     const tri = new Shape();
-    tri.moveTo(-ENV_W / 2, 0).lineTo(ENV_W / 2, 0).lineTo(0, -ENV_H * 0.55).closePath();
+    tri
+      .moveTo(-ENV_W / 2, 0)
+      .lineTo(ENV_W / 2, 0)
+      .lineTo(0, -ENV_H * 0.55)
+      .closePath();
     const flap = new Mesh(new ShapeGeometry(tri), darker);
     flap.position.set(0, ENV_H / 2, 44);
     env.add(flap);
@@ -1157,22 +1798,58 @@ export class Room3D {
     if (key === this.keysKey) return;
     this.keysKey = key;
     this.arrivals = [];
-    for (const c of [...this.keys.children]) { this.keys.remove(c); disposeTree(c, true); }
+    for (const c of [...this.keys.children]) {
+      this.keys.remove(c);
+      disposeTree(c, true);
+    }
     tray.slice(0, 10).forEach((k, i) => {
-      const hook = trayHook(i), c = trayKeyCentre(i), g = tag(new Group(), 'key:' + k.id), col = new Color(lanyardColour(k)).getHex();
+      const hook = trayHook(i),
+        c = trayKeyCentre(i),
+        g = tag(new Group(), 'key:' + k.id),
+        col = new Color(lanyardColour(k)).getHex();
       const label = paint(64, 256, (cx, w, h) => {
-        cx.fillStyle = '#eceef2'; cx.fillRect(0, 0, w, h);
-        cx.fillStyle = lanyardColour(k); cx.fillRect(0, 0, w, 34);
-        cx.save(); cx.translate(w / 2, h / 2 + 14); cx.rotate(Math.PI / 2);
-        cx.fillStyle = '#2b3140'; cx.font = 'bold 24px system-ui, sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
-        cx.fillText(k.label, 0, 0); cx.restore();
+        cx.fillStyle = '#eceef2';
+        cx.fillRect(0, 0, w, h);
+        cx.fillStyle = lanyardColour(k);
+        cx.fillRect(0, 0, w, 34);
+        cx.save();
+        cx.translate(w / 2, h / 2 + 14);
+        cx.rotate(Math.PI / 2);
+        cx.fillStyle = '#2b3140';
+        cx.font = 'bold 24px system-ui, sans-serif';
+        cx.textAlign = 'center';
+        cx.textBaseline = 'middle';
+        cx.fillText(k.label, 0, 0);
+        cx.restore();
       });
       const shell = mat(NYLON, { roughness: 0.35 });
       const body = softBox({ x: c.x - KEY_W / 2, y: c.y - KEY_LEN / 2, w: KEY_W, h: KEY_LEN }, 260, 400, shell, 40);
       g.add(body);
-      if (label) { const f = new Mesh(new PlaneGeometry(KEY_W - 40, KEY_LEN - 60), mat(0xffffff, { map: label, roughness: 0.4 })); f.position.set(c.x, -c.y, 402); g.add(f); }
-      g.add(rectBox({ x: c.x - 70, y: c.y + KEY_LEN / 2, w: 140, h: 190 }, 280, 380, mat(0xb9babf, { metalness: 0.8, roughness: 0.3 })));
-      g.add(tube([[hook.x, -hook.y, 400], [hook.x - 20, -(hook.y + 200), 380], [c.x, -(c.y - KEY_LEN / 2), 340]], 26, mat(col, { roughness: 0.7 }), SEG.cord));
+      if (label) {
+        const f = new Mesh(new PlaneGeometry(KEY_W - 40, KEY_LEN - 60), mat(0xffffff, { map: label, roughness: 0.4 }));
+        f.position.set(c.x, -c.y, 402);
+        g.add(f);
+      }
+      g.add(
+        rectBox(
+          { x: c.x - 70, y: c.y + KEY_LEN / 2, w: 140, h: 190 },
+          280,
+          380,
+          mat(0xb9babf, { metalness: 0.8, roughness: 0.3 }),
+        ),
+      );
+      g.add(
+        tube(
+          [
+            [hook.x, -hook.y, 400],
+            [hook.x - 20, -(hook.y + 200), 380],
+            [c.x, -(c.y - KEY_LEN / 2), 340],
+          ],
+          26,
+          mat(col, { roughness: 0.7 }),
+          SEG.cord,
+        ),
+      );
       if (this.known && !this.known.has(k.id)) {
         const e = this.envelope();
         g.visible = false;
@@ -1185,7 +1862,9 @@ export class Room3D {
   }
 
   /** The monitor's screen as the 2D game's `Live` draws it, or null for the plain picture (props3d.ts `Monitor.useLive`). */
-  setScreenImage(img: { canvas: HTMLCanvasElement; w: number; h: number; rev?: number } | null): void { this.monitor.useLive(img); }
+  setScreenImage(img: { canvas: HTMLCanvasElement; w: number; h: number; rev?: number } | null): void {
+    this.monitor.useLive(img);
+  }
 
   /**
    * The zoom takes the router's shell away to show the board inside it (`Machine3D.onRouterShell`): `a` is how much of the shell is left, 1 whole to 0 gone. Its jacks, its plinth and its feet stay.
@@ -1200,7 +1879,13 @@ export class Room3D {
     for (const g of this.shellGlows) g.m.emissiveIntensity = g.i * a;
     if (was > 0.5 && a <= 0.5) {
       this.shellCasters = [];
-      sh.traverse((o) => { const m = o as Mesh; if (m.isMesh && m.castShadow) { this.shellCasters.push(m); m.castShadow = false; } });
+      sh.traverse((o) => {
+        const m = o as Mesh;
+        if (m.isMesh && m.castShadow) {
+          this.shellCasters.push(m);
+          m.castShadow = false;
+        }
+      });
     } else if (was <= 0.5 && a > 0.5) {
       for (const m of this.shellCasters) m.castShadow = true;
       this.shellCasters = [];
@@ -1213,8 +1898,15 @@ export class Room3D {
     for (const a of this.arrivals) {
       if (a.t0 < 0) a.t0 = f.t;
       const u = (f.t - a.t0) / MAIL_S;
-      if (u >= 1) { a.g.visible = true; a.g.position.set(0, 0, 0); a.g.rotation.z = 0; a.env.visible = false; continue; }
-      const lp = letterPose(Math.max(0, u), stage), kp = keyPose(Math.max(0, u), stage, a.rest);
+      if (u >= 1) {
+        a.g.visible = true;
+        a.g.position.set(0, 0, 0);
+        a.g.rotation.z = 0;
+        a.env.visible = false;
+        continue;
+      }
+      const lp = letterPose(Math.max(0, u), stage),
+        kp = keyPose(Math.max(0, u), stage, a.rest);
       a.env.position.set(lp.x, -lp.y, 330);
       a.env.rotation.z = -lp.rot;
       a.flap.scale.y = lp.flap;
@@ -1225,21 +1917,31 @@ export class Room3D {
       a.g.position.set(kp.x - a.rest.x, -(kp.y - a.rest.y), kp.phase === 'settle' ? 0 : 160);
     }
     this.arrivals = this.arrivals.filter((a) => (f.t - a.t0) / MAIL_S < 1 || a.t0 < 0);
-    const day = daylight(f.hour), night = 1 - day;
+    const day = daylight(f.hour),
+      night = 1 - day;
     this.outside.frame(f.hour, f.t);
     const hk = Math.round(f.hour * 20);
     if (hk !== this.sunKey) {
       this.sunKey = hk;
       this.aimSun(f.hour);
-      const s = skyAt(f.hour), low = 1 - Math.min(1, Math.max(0, sunDir(f.hour)[1] / 0.45));
+      const s = skyAt(f.hour),
+        low = 1 - Math.min(1, Math.max(0, sunDir(f.hour)[1] / 0.45));
       this.sun.color.set(0xfff2dc).lerp(new Color(s.hor), 0.25 + low * 0.6);
       if (day <= 0) this.sun.color.set(0x8fa6ff);
       // the sky's colour, paler; the low sun warms it a little; the night's is the moon's blue
-      this.key.color.set(s.top).lerp(new Color(0xffffff), 0.5).lerp(this.sun.color, 0.2 * low * day).lerp(new Color(0x6f86d8), night);
+      this.key.color
+        .set(s.top)
+        .lerp(new Color(0xffffff), 0.5)
+        .lerp(this.sun.color, 0.2 * low * day)
+        .lerp(new Color(0x6f86d8), night);
     }
     this.blindK += ((f.blind ? 1 : 0) - this.blindK) * (1 - Math.pow(0.02, dt));
-    const wh = WINDOW.h - 900, bh = Math.max(1, this.blindK * wh);
-    for (const b of this.blinds) { b.scale.y = bh; b.position.y = -(WINDOW.y + 900) - bh / 2; }
+    const wh = WINDOW.h - 900,
+      bh = Math.max(1, this.blindK * wh);
+    for (const b of this.blinds) {
+      b.scale.y = bh;
+      b.position.y = -(WINDOW.y + 900) - bh / 2;
+    }
     const open = 1 - this.blindK * 0.85;
     // the day comes in by the window, the sky's light and the sun; the rest of the room has what bounces (the probe). At night a dim blue
     // moonlight: the lamps, the screen and the machine carry the room
@@ -1263,7 +1965,9 @@ export class Room3D {
     // cyan LED strips (the floor round the bed, the wall over the headboard, the desk's underside); as night falls the bedside lantern (a warm
     // pool round the bed, its bulb glowing through the paper), the picture light and the door's sconce
     const ramp = (a: number, b: number) => Math.min(1, Math.max(0, (night - a) / (b - a)));
-    const dusk = ramp(0.1, 0.4), led = ramp(0.2, 0.6), bedside = ramp(0.35, 0.65);
+    const dusk = ramp(0.1, 0.4),
+      led = ramp(0.2, 0.6),
+      bedside = ramp(0.35, 0.65);
     this.floorLight.intensity = dusk * lumens(LANTERN_LM);
     this.floorLamp.shade.emissiveIntensity = dusk * 1.1;
     this.floorLamp.glow.emissiveIntensity = dusk * 4;
@@ -1278,7 +1982,7 @@ export class Room3D {
     this.arc.shade.emissiveIntensity = 1.2;
     this.bedLight.intensity = bedside * lumens(LANTERN_LM);
     const pl = this.picture.light;
-    pl.intensity = bedside * nits(PICTURE_LM / (Math.PI * pl.width * pl.height / (M * M)));
+    pl.intensity = bedside * nits(PICTURE_LM / ((Math.PI * pl.width * pl.height) / (M * M)));
     this.picture.glow.emissiveIntensity = bedside * 1.6;
     this.sconce.up.intensity = bedside * lumens(SCONCE_LM, this.sconce.up.angle);
     this.sconce.down.intensity = bedside * lumens(SCONCE_LM, this.sconce.down.angle);
@@ -1293,7 +1997,7 @@ export class Room3D {
     const lit = f.screen.installed && f.screen.powered;
     this.screenLight.intensity = lit ? nits(SCREEN_NITS) : 0;
     const bias = this.monitor.bias;
-    bias.intensity = lit ? nits(BIAS_LM / (Math.PI * bias.width * bias.height / (M * M))) : 0;
+    bias.intensity = lit ? nits(BIAS_LM / ((Math.PI * bias.width * bias.height) / (M * M))) : 0;
     this.lightKey = `${this.sunKey >> 1}|${f.lamp}|${Math.round(this.blindK * 6)}|${f.screen.powered}|${Math.round(bedside * 4)}|${Math.round(led * 4)}|${Math.round(dusk * 4)}|${this.choice.live.size}`;
     this.monitor.set(f.screen, f.hour);
     this.monitorSpot.visible = !f.screen.installed;
@@ -1301,17 +2005,22 @@ export class Room3D {
     this.routerSpot.visible = f.router === 0;
     if (f.router > 0) this.routerBuild(f.router);
     // (the jacks' lights follow the frames the link carries; no router stands, or no game: they are out)
-    const net = f.router > 0 ? f.net ?? DARK : DARK;
+    const net = f.router > 0 ? (f.net ?? DARK) : DARK;
     lightJack(this.routerLamps?.lan, net.lan);
     lightJack(this.routerLamps?.wan, net.wan);
-    this.ispDots.forEach((m, k) => { m.emissiveIntensity = k < f.isp ? 2 : 0; });
+    this.ispDots.forEach((m, k) => {
+      m.emissiveIntensity = k < f.isp ? 2 : 0;
+    });
     this.mailLed.emissiveIntensity = f.mail ? 1.2 + 1.2 * Math.sin(f.t * 6) : 0;
     const it = this.ispText;
     if (it && it.shown !== f.ispName) {
       it.shown = f.ispName;
       const c = it.cv.getContext('2d')!;
       c.clearRect(0, 0, it.cv.width, it.cv.height);
-      c.fillStyle = '#7fd8ff'; c.font = '600 54px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillStyle = '#7fd8ff';
+      c.font = '600 54px system-ui, sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
       c.fillText(f.ispName.toUpperCase(), it.cv.width / 2, it.cv.height / 2, it.cv.width - 24);
       it.tex.needsUpdate = true;
     }

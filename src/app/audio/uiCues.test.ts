@@ -90,8 +90,16 @@ describe('clickSteps: a click plays its cue, then a sub-screen transition 60 to 
 
 describe('the mix names every cue this ticket uses', () => {
   it.each([
-    'ui_hover', 'ui_focus_move', 'ui_click', 'ui_back', 'ui_value_change',
-    'ui_toggle_on', 'ui_toggle_off', 'ui_tab_switch', 'ui_transition_in', 'ui_transition_out',
+    'ui_hover',
+    'ui_focus_move',
+    'ui_click',
+    'ui_back',
+    'ui_value_change',
+    'ui_toggle_on',
+    'ui_toggle_off',
+    'ui_tab_switch',
+    'ui_transition_in',
+    'ui_transition_out',
   ])('%s is a cue id', (id) => {
     expect(MIX.cues.map((c) => c.id)).toContain(id);
   });
@@ -102,8 +110,16 @@ describe('the mix names every cue this ticket uses', () => {
 // ---------------------------------------------------------------------------
 
 const UI_IDS = [
-  'ui_hover', 'ui_focus_move', 'ui_click', 'ui_back', 'ui_value_change',
-  'ui_toggle_on', 'ui_toggle_off', 'ui_tab_switch', 'ui_transition_in', 'ui_transition_out',
+  'ui_hover',
+  'ui_focus_move',
+  'ui_click',
+  'ui_back',
+  'ui_value_change',
+  'ui_toggle_on',
+  'ui_toggle_off',
+  'ui_tab_switch',
+  'ui_transition_in',
+  'ui_transition_out',
 ];
 const rel = (p: string): string => p.replace(/^\/?audio\//, '');
 const filesOf = (id: string): string[] => (MIX.cues.find((c) => c.id === id)?.files ?? []).map(rel);
@@ -157,8 +173,7 @@ class FakeInput extends FakeElement {
   checked = false;
 }
 
-const elem = (attrs: Record<string, string> = {}, parent?: FakeElement): FakeElement =>
-  new FakeElement(attrs, parent);
+const elem = (attrs: Record<string, string> = {}, parent?: FakeElement): FakeElement => new FakeElement(attrs, parent);
 
 interface Ev {
   target?: FakeNode | null;
@@ -174,7 +189,10 @@ class FakeTarget {
     this.handlers.set(type, [...(this.handlers.get(type) ?? []), h]);
   }
   removeEventListener(type: string, h: (e: unknown) => void): void {
-    this.handlers.set(type, (this.handlers.get(type) ?? []).filter((x) => x !== h));
+    this.handlers.set(
+      type,
+      (this.handlers.get(type) ?? []).filter((x) => x !== h),
+    );
   }
   listenerCount(type: string): number {
     return (this.handlers.get(type) ?? []).length;
@@ -208,23 +226,38 @@ class FakeWin extends FakeTarget {
 // The real engine: a fake AudioContext records each source and the time it started.
 class Param {
   value = 1;
-  setTargetAtTime(): this { return this; }
-  setValueAtTime(): this { return this; }
-  linearRampToValueAtTime(): this { return this; }
-  cancelScheduledValues(): this { return this; }
+  setTargetAtTime(): this {
+    return this;
+  }
+  setValueAtTime(): this {
+    return this;
+  }
+  linearRampToValueAtTime(): this {
+    return this;
+  }
+  cancelScheduledValues(): this {
+    return this;
+  }
 }
 class Node_ {
-  connect<T>(n: T): T { return n; }
+  connect<T>(n: T): T {
+    return n;
+  }
   disconnect(): void {}
 }
-class Gain extends Node_ { gain = new Param(); }
+class Gain extends Node_ {
+  gain = new Param();
+}
 class Source extends Node_ {
   buffer: { path: string } | null = null;
   playbackRate = new Param();
   onended: (() => void) | null = null;
   started = false;
   startAt = -1;
-  start(when = 0): void { this.started = true; this.startAt = when; }
+  start(when = 0): void {
+    this.started = true;
+    this.startAt = when;
+  }
   stop(): void {}
 }
 class FakeCtx {
@@ -233,15 +266,33 @@ class FakeCtx {
   currentTime = 0;
   destination = new Node_();
   sources: Source[] = [];
-  constructor() { FakeCtx.last = this; }
-  createGain(): Gain { return new Gain(); }
-  createDelay() { return Object.assign(new Gain(), { delayTime: new Param() }); }
-  createBufferSource(): Source { const s = new Source(); this.sources.push(s); return s; }
-  resume(): Promise<void> { this.state = 'running'; return Promise.resolve(); }
-  suspend(): Promise<void> { this.state = 'suspended'; return Promise.resolve(); }
+  constructor() {
+    FakeCtx.last = this;
+  }
+  createGain(): Gain {
+    return new Gain();
+  }
+  createDelay() {
+    return Object.assign(new Gain(), { delayTime: new Param() });
+  }
+  createBufferSource(): Source {
+    const s = new Source();
+    this.sources.push(s);
+    return s;
+  }
+  resume(): Promise<void> {
+    this.state = 'running';
+    return Promise.resolve();
+  }
+  suspend(): Promise<void> {
+    this.state = 'suspended';
+    return Promise.resolve();
+  }
 }
 class FakeOffline {
-  decodeAudioData(data: { path: string }): Promise<{ path: string }> { return Promise.resolve(data); }
+  decodeAudioData(data: { path: string }): Promise<{ path: string }> {
+    return Promise.resolve(data);
+  }
 }
 async function fakeFetch(url: string) {
   const path = url.slice(url.indexOf('audio/') + 'audio/'.length);

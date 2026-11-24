@@ -7,18 +7,28 @@
 // after the kernel halts. The instruction semantics and the cycle rule are the reference interpreter's (src/sim/ref/gpuref.ts): this
 // device steps that core, so it matches it by construction and the tests check the cycle counts against known runs.
 
-import { GPU_BASE, GPU_CODE, GPU_FRAME, GPU_HOP_TICKS, GPU_MEM, GPU_REG, GPU_STRIDE, GpuFaultCode, GpuStatus } from "@/core/sim/memmap";
-import { createGpu, sameGpuConfig, type GpuCacheView, type GpuConfig, type GpuEngine, type GpuSmView } from ".";
-import { GpuFault, type GpuStep } from "./isa/ref";
-import type { Rate } from "@/core/sim/hw/clock";
-import type { Device } from "@/core/sim/hw/device";
+import {
+  GPU_BASE,
+  GPU_CODE,
+  GPU_FRAME,
+  GPU_HOP_TICKS,
+  GPU_MEM,
+  GPU_REG,
+  GPU_STRIDE,
+  GpuFaultCode,
+  GpuStatus,
+} from '@/core/sim/memmap';
+import { createGpu, sameGpuConfig, type GpuCacheView, type GpuConfig, type GpuEngine, type GpuSmView } from '.';
+import { GpuFault, type GpuStep } from './isa/ref';
+import type { Rate } from '@/core/sim/hw/clock';
+import type { Device } from '@/core/sim/hw/device';
 
-type Phase = "idle" | "in" | "run" | "out";
+type Phase = 'idle' | 'in' | 'run' | 'out';
 
 /** Instructions of the last launch a card remembers for its view (the die view replays them at its own pace). */
 export const GPU_TRACE_STEPS = 64;
 
-export type { GpuCacheView, GpuSmView, GpuWarpView } from ".";
+export type { GpuCacheView, GpuSmView, GpuWarpView } from '.';
 
 /** What a card shows from the outside: its shape, where the launch is, and the last instructions it ran (docs/ACCEL.md "Art as built"). */
 export interface GpuView {
@@ -77,7 +87,7 @@ export class GpuPort implements Device {
 
   private cfg: GpuConfig | null = null;
   private core: GpuEngine | null = null;
-  private phase: Phase = "idle";
+  private phase: Phase = 'idle';
   private wait = 0;
   private kernel = 0;
   private lanes = 0;
@@ -94,7 +104,10 @@ export class GpuPort implements Device {
   /** The core's counters for the last launch (instructions, lane slots idle through divergence, cycles lost to conflicts). */
   lastStats = { instructions: 0, idleLaneSlots: 0, conflictCycles: 0 };
 
-  constructor(readonly name: string, index: number) {
+  constructor(
+    readonly name: string,
+    index: number,
+  ) {
     this.base = GPU_BASE + index * GPU_STRIDE;
   }
 
@@ -109,7 +122,7 @@ export class GpuPort implements Device {
   /** Power-on reset: card memory is volatile and no launch is in flight. */
   reset(): void {
     this.core?.mem.fill(0);
-    this.phase = "idle";
+    this.phase = 'idle';
     this.wait = 0;
     this.kernel = this.lanes = 0;
     this.done = this.error = false;
@@ -124,17 +137,33 @@ export class GpuPort implements Device {
     const core = this.core;
     if (!core) return null;
     return {
-      lanes: core.lanes, banks: core.banks, memBytes: core.mem.length * 4, phase: this.phase, mask: core.mask, stack: [...core.stack], pc: core.pc,
+      lanes: core.lanes,
+      banks: core.banks,
+      memBytes: core.mem.length * 4,
+      phase: this.phase,
+      mask: core.mask,
+      stack: [...core.stack],
+      pc: core.pc,
       regs: this.launches > 0 ? core.regs.map((r) => Array.from(r)) : [],
       trace: this.trace.map((s) => ({ ...s, banks: s.banks && [...s.banks] })),
       launches: this.launches,
-      stats: { instructions: core.instructions, idleLaneSlots: core.idleLaneSlots, conflictCycles: core.conflictCycles, cycles: core.cycles },
-      sms: core.smViews?.() ?? [{ warps: [{ pc: core.pc, mask: core.mask, stack: [...core.stack], state: core.halted ? "done" : "ready" }] }],
+      stats: {
+        instructions: core.instructions,
+        idleLaneSlots: core.idleLaneSlots,
+        conflictCycles: core.conflictCycles,
+        cycles: core.cycles,
+      },
+      sms: core.smViews?.() ?? [
+        { warps: [{ pc: core.pc, mask: core.mask, stack: [...core.stack], state: core.halted ? 'done' : 'ready' }] },
+      ],
       error: this.error,
       code: kernelWords(core.mem),
       ...(core.cacheViews ? { caches: core.cacheViews() } : {}),
       fill: fillMap(core.mem),
-      frame: this.launches > 0 ? Array.from(core.mem.subarray(GPU_FRAME.at >>> 2, (GPU_FRAME.at >>> 2) + GPU_FRAME.words)) : [],
+      frame:
+        this.launches > 0
+          ? Array.from(core.mem.subarray(GPU_FRAME.at >>> 2, (GPU_FRAME.at >>> 2) + GPU_FRAME.words))
+          : [],
     };
   }
 
@@ -143,7 +172,7 @@ export class GpuPort implements Device {
   }
 
   get isBusy(): boolean {
-    return this.phase !== "idle";
+    return this.phase !== 'idle';
   }
 
   /** The card memory as words (the tests and the game's views read it; the CPU goes through the window). */
@@ -153,7 +182,7 @@ export class GpuPort implements Device {
 
   takeActivity(): boolean {
     const a = this.active;
-    this.active = this.phase !== "idle";
+    this.active = this.phase !== 'idle';
     return a;
   }
 
@@ -166,15 +195,33 @@ export class GpuPort implements Device {
     let w = 0;
     switch (off & ~3) {
       case GPU_REG.STATUS:
-        w = (this.phase !== "idle" ? GpuStatus.Busy : 0) | (this.error ? GpuStatus.Error : 0) | (core ? GpuStatus.Present : 0) | (this.done ? GpuStatus.Done : 0);
+        w =
+          (this.phase !== 'idle' ? GpuStatus.Busy : 0) |
+          (this.error ? GpuStatus.Error : 0) |
+          (core ? GpuStatus.Present : 0) |
+          (this.done ? GpuStatus.Done : 0);
         break;
-      case GPU_REG.KERNEL: w = this.kernel; break;
-      case GPU_REG.LANES: w = this.lanes; break;
-      case GPU_REG.LANES_MAX: w = this.cfg?.lanes ?? 0; break;
-      case GPU_REG.MEM_BYTES: w = this.cfg?.memBytes ?? 0; break;
-      case GPU_REG.BANKS: w = this.cfg?.banks ?? 0; break;
-      case GPU_REG.CYCLES: w = this.lastCycles; break;
-      case GPU_REG.FAULT: w = this.fault; break;
+      case GPU_REG.KERNEL:
+        w = this.kernel;
+        break;
+      case GPU_REG.LANES:
+        w = this.lanes;
+        break;
+      case GPU_REG.LANES_MAX:
+        w = this.cfg?.lanes ?? 0;
+        break;
+      case GPU_REG.MEM_BYTES:
+        w = this.cfg?.memBytes ?? 0;
+        break;
+      case GPU_REG.BANKS:
+        w = this.cfg?.banks ?? 0;
+        break;
+      case GPU_REG.CYCLES:
+        w = this.lastCycles;
+        break;
+      case GPU_REG.FAULT:
+        w = this.fault;
+        break;
     }
     return (w >>> (8 * (off & 3))) & 0xff;
   }
@@ -189,7 +236,8 @@ export class GpuPort implements Device {
       }
       return;
     }
-    const reg = off & ~3, sh = 8 * (off & 3);
+    const reg = off & ~3,
+      sh = 8 * (off & 3);
     const put = (old: number): number => ((old & ~(0xff << sh)) | ((val & 0xff) << sh)) >>> 0;
     if (reg === GPU_REG.KERNEL) this.kernel = put(this.kernel);
     else if (reg === GPU_REG.LANES) this.lanes = put(this.lanes);
@@ -198,14 +246,21 @@ export class GpuPort implements Device {
 
   private launch(cmd: number): void {
     const core = this.core;
-    if (cmd !== 1 || !core || this.phase !== "idle" || this.kernel % 4 !== 0 || this.kernel >= core.mem.length * 4 || this.lanes > core.lanes) {
+    if (
+      cmd !== 1 ||
+      !core ||
+      this.phase !== 'idle' ||
+      this.kernel % 4 !== 0 ||
+      this.kernel >= core.mem.length * 4 ||
+      this.lanes > core.lanes
+    ) {
       this.error = true;
       this.fault = GpuFaultCode.BadLaunch;
       return;
     }
     this.error = this.done = false;
     this.fault = GpuFaultCode.None;
-    this.phase = "in";
+    this.phase = 'in';
     this.wait = GPU_HOP_TICKS;
     this.trace = [];
     this.active = true;
@@ -214,15 +269,15 @@ export class GpuPort implements Device {
 
   tick(): void {
     const core = this.core;
-    if (!core || this.phase === "idle") return;
+    if (!core || this.phase === 'idle') return;
     switch (this.phase) {
-      case "in":
+      case 'in':
         if (--this.wait <= 0) {
           core.reset(this.kernel, this.lanes === 0 ? core.lanes : this.lanes);
-          this.phase = "run";
+          this.phase = 'run';
         }
         break;
-      case "run": {
+      case 'run': {
         try {
           const issued = core.step();
           if (issued) {
@@ -239,9 +294,9 @@ export class GpuPort implements Device {
         if (core.halted) this.finish(core);
         break;
       }
-      case "out":
+      case 'out':
         if (--this.wait <= 0) {
-          this.phase = "idle";
+          this.phase = 'idle';
           this.done = true;
         }
         break;
@@ -251,8 +306,12 @@ export class GpuPort implements Device {
   private finish(core: GpuEngine): void {
     this.lastCycles = core.cycles;
     this.kernelCycles += core.cycles;
-    this.lastStats = { instructions: core.instructions, idleLaneSlots: core.idleLaneSlots, conflictCycles: core.conflictCycles };
-    this.phase = "out";
+    this.lastStats = {
+      instructions: core.instructions,
+      idleLaneSlots: core.idleLaneSlots,
+      conflictCycles: core.conflictCycles,
+    };
+    this.phase = 'out';
     this.wait = GPU_HOP_TICKS;
   }
 }

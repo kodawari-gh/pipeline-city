@@ -13,10 +13,21 @@ import { CYCLES_PER_SEC, opClass, Player, type OpClass, type StoreEvent } from '
 const CYCLE_MS = 1000 / CYCLES_PER_SEC;
 
 /** A reach for RAM or a device's window. `core` is the logical core that made it, on a multicore die. `at` is game time in ms. */
-export interface MemoryTouch { kind: 'fetch' | 'load' | 'store'; addr: number; cls: OpClass; at: number; core?: number }
+export interface MemoryTouch {
+  kind: 'fetch' | 'load' | 'store';
+  addr: number;
+  cls: OpClass;
+  at: number;
+  core?: number;
+}
 
 /** The core fetches the instruction at `pc`: it enters the fetch stage. */
-export const fetchTouch = (pc: number, cls: OpClass, now: number): MemoryTouch => ({ kind: 'fetch', addr: pc, cls, at: now + CYCLE_MS * 0.6 });
+export const fetchTouch = (pc: number, cls: OpClass, now: number): MemoryTouch => ({
+  kind: 'fetch',
+  addr: pc,
+  cls,
+  at: now + CYCLE_MS * 0.6,
+});
 
 /**
  * The core loads or stores: an access the engine logged (`Ev.Mem`: `a` is 0 for a load and 1 for a store, `b` the address). The log is the one place that
@@ -24,7 +35,9 @@ export const fetchTouch = (pc: number, cls: OpClass, now: number): MemoryTouch =
  * core a load as it executes and a store as it commits. (Matching it to the beat of the instruction by cycle found none of an in-order core's.)
  */
 export const accessTouch = (e: Pick<StoreEvent, 'a' | 'b'>, now: number): MemoryTouch =>
-  e.a === 1 ? { kind: 'store', addr: e.b >>> 0, cls: 'st', at: now + CYCLE_MS * 0.5 } : { kind: 'load', addr: e.b >>> 0, cls: 'ld', at: now + CYCLE_MS * 0.8 };
+  e.a === 1
+    ? { kind: 'store', addr: e.b >>> 0, cls: 'st', at: now + CYCLE_MS * 0.5 }
+    : { kind: 'load', addr: e.b >>> 0, cls: 'ld', at: now + CYCLE_MS * 0.8 };
 
 /** The replay of a CPU's cycles that only tells where the reaches for RAM and the interrupts are (`onMemory`, `onInterrupt`), and draws nothing. */
 export class DieTraffic {
@@ -53,10 +66,12 @@ export class DieTraffic {
   update(s: Snapshot | null): void {
     this.lanes.forEach((player, k) => {
       const pipe = this.split ? s?.cores?.tiles[k] : s?.pipe;
-      if (pipe?.trace) player.push(pipe.trace, pipe.stored); else player.reset();
+      if (pipe?.trace) player.push(pipe.trace, pipe.stored);
+      else player.reset();
     });
     this.logical = [];
-    for (const c of s?.cores?.live ?? []) if (this.logical[c.hw] === undefined || (c.job !== 0 && !c.parked)) this.logical[c.hw] = c.core;
+    for (const c of s?.cores?.live ?? [])
+      if (this.logical[c.hw] === undefined || (c.job !== 0 && !c.parked)) this.logical[c.hw] = c.core;
   }
 
   /** Play to game time `now` (ms): the cycles crossed since the last call tell their reaches. `paused`: a step shows its last cycle at once (`Player.update`). */

@@ -10,14 +10,14 @@ The wind god's crest: three tomoe that chase round a lit hub (a mitsudomoe). The
 
 ## Colours
 
-| Role | Hex | Note |
-|---|---|---|
-| accent | `#8fd9e6` | frost, the hub |
-| light | `#b9babf` | aluminium ink on dark |
-| dark | `#0a0e22` | navy ink on light |
-| plate | `#0a0e22` | navy badge ground |
-| body | `#4e5360` | gunmetal fins and frames |
-| trim | `#c0793a` | copper of a heat pipe or a cold plate |
+| Role   | Hex       | Note                                  |
+| ------ | --------- | ------------------------------------- |
+| accent | `#8fd9e6` | frost, the hub                        |
+| light  | `#b9babf` | aluminium ink on dark                 |
+| dark   | `#0a0e22` | navy ink on light                     |
+| plate  | `#0a0e22` | navy badge ground                     |
+| body   | `#4e5360` | gunmetal fins and frames              |
+| trim   | `#c0793a` | copper of a heat pipe or a cold plate |
 
 ## Type
 

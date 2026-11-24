@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { Eye } from './eye';
 
-const KEY = 0.04 / 1.2, RANGE = [0.3, 14] as const, DT = 1 / 30;
+const KEY = 0.04 / 1.2,
+  RANGE = [0.3, 14] as const,
+  DT = 1 / 30;
 
 /** A scene of luminance `lum` seen at the eye's exposure: the reading depends a little on it, and jitters by +-1 %. */
 function reading(lum: number, e: Eye, n: number): number {
@@ -58,7 +60,8 @@ describe('Eye', () => {
   it('a held eye stays where it stands: a lens that darkens the picture on purpose must not be lifted back', () => {
     const e = new Eye(KEY, RANGE);
     run(e, 0.05, 300);
-    const goal = e.goal, seen = e.seen;
+    const goal = e.goal,
+      seen = e.seen;
     e.hold(true);
     expect(e.holding).toBe(true);
     // (a picture 25 times darker would lift the exposure to its limit)

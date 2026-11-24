@@ -16,13 +16,18 @@ const HIDDEN_LAYER = 30;
  * glass), `flat` (the picture at 1 pixel per screen pixel, not `SUPER`). With none off, the view is as it is without `?debug`.
  */
 export function debugLayer(v: OutsideView, layer: string, off: boolean): void {
-  if (off) v.off.add(layer); else v.off.delete(layer);
+  if (off) v.off.add(layer);
+  else v.off.delete(layer);
   // (the hour's light is set again at the next `frame`)
   if (layer === 'lights' || layer === 'glow' || layer === 'mirror') v.key = -1;
-  const hide = (list: Object3D[] | undefined) => list?.forEach((o) => o.traverse((n) => {
-    // (layers, not `visible`: a sweep sets that on each cut)
-    if (off) n.layers.set(HIDDEN_LAYER); else n.layers.set(0);
-  }));
+  const hide = (list: Object3D[] | undefined) =>
+    list?.forEach((o) =>
+      o.traverse((n) => {
+        // (layers, not `visible`: a sweep sets that on each cut)
+        if (off) n.layers.set(HIDDEN_LAYER);
+        else n.layers.set(0);
+      }),
+    );
   if (layer === 'lights') {
     for (const l of v.lamps) l.visible = !off;
     hide(v.parts.signs);
@@ -37,11 +42,14 @@ export function debugLayer(v: OutsideView, layer: string, off: boolean): void {
 
 /** What the city's own picture draws, by its meshes now (the triangles from their draw ranges and instances; the calls a mesh each, and a group of a mesh more). Not the room's. */
 export function debugStats(v: OutsideView): { tris: number; calls: number } {
-  let tris = 0, calls = 0;
+  let tris = 0,
+    calls = 0;
   v.scene.traverseVisible((o) => {
     const m = o as Mesh;
     if (!m.isMesh || !o.layers.isEnabled(0)) return;
-    const g = m.geometry, { start, count } = g.drawRange, n = Math.max(0, Math.min(count, drawn(g) - start)) / 3;
+    const g = m.geometry,
+      { start, count } = g.drawRange,
+      n = Math.max(0, Math.min(count, drawn(g) - start)) / 3;
     tris += n * ((m as InstancedMesh).isInstancedMesh ? (m as InstancedMesh).count : 1);
     calls += Array.isArray(m.material) ? Math.max(1, g.groups.length) : 1;
   });

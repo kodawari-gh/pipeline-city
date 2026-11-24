@@ -12,7 +12,12 @@ const HELD = new Set(['Human', 'Parent']);
 const IN_FLIGHT = new Set(['In progress', 'In review']);
 
 export function run(cmd, args, opts = {}) {
-  return execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 << 20, ...opts }).trim();
+  return execFileSync(cmd, args, {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    maxBuffer: 64 << 20,
+    ...opts,
+  }).trim();
 }
 export const gh = (args) => run('gh', args);
 export const repoRoot = (cwd = process.cwd()) => run('git', ['rev-parse', '--show-toplevel'], { cwd });
@@ -22,7 +27,8 @@ export function configPath(root = repoRoot()) {
 }
 export function loadConfig(root = repoRoot()) {
   const p = configPath(root);
-  if (!existsSync(p)) throw new Error(`No board config at ${p}. Run: node board.mjs init <owner> <project-number> <owner/repo>`);
+  if (!existsSync(p))
+    throw new Error(`No board config at ${p}. Run: node board.mjs init <owner> <project-number> <owner/repo>`);
   const cfg = JSON.parse(readFileSync(p, 'utf8'));
   const [o, r] = cfg.repo.split('/');
   return { ...cfg, root, o, r };
@@ -57,11 +63,15 @@ export function getIssue(cfg, n) {
       status: val(cfg.fields.status.id)?.name ?? null,
       planned: val(cfg.fields.planned.id)?.name ?? null,
       rounds: val(cfg.fields.rounds.id)?.number ?? null,
-      cost: cfg.fields.cost ? val(cfg.fields.cost.id)?.number ?? null : null,
+      cost: cfg.fields.cost ? (val(cfg.fields.cost.id)?.number ?? null) : null,
     };
   }
   return {
-    n: is.number, nodeId: is.id, state: is.state, title: is.title, item,
+    n: is.number,
+    nodeId: is.id,
+    state: is.state,
+    title: is.title,
+    item,
     blockers: is.blockedBy.nodes,
     openBlockers: is.blockedBy.nodes.filter((b) => b.state === 'OPEN').map((b) => b.number),
     children: is.subIssues.nodes,
@@ -71,7 +81,15 @@ export function getIssue(cfg, n) {
 export function ensureItem(cfg, n) {
   let is = getIssue(cfg, n);
   if (!is.item) {
-    gh(['project', 'item-add', String(cfg.number), '--owner', cfg.owner, '--url', `https://github.com/${cfg.repo}/issues/${n}`]);
+    gh([
+      'project',
+      'item-add',
+      String(cfg.number),
+      '--owner',
+      cfg.owner,
+      '--url',
+      `https://github.com/${cfg.repo}/issues/${n}`,
+    ]);
     is = getIssue(cfg, n);
     if (!is.item) throw new Error(`#${n}: item-add did not put it on the board`);
   }
@@ -79,7 +97,18 @@ export function ensureItem(cfg, n) {
 }
 
 function editSelect(cfg, itemId, field, option) {
-  gh(['project', 'item-edit', '--project-id', cfg.projectId, '--id', itemId, '--field-id', field.id, '--single-select-option-id', field.options[option]]);
+  gh([
+    'project',
+    'item-edit',
+    '--project-id',
+    cfg.projectId,
+    '--id',
+    itemId,
+    '--field-id',
+    field.id,
+    '--single-select-option-id',
+    field.options[option],
+  ]);
 }
 
 /** Set a single-select field, then re-read to verify. Returns the issue after the write. */
@@ -100,7 +129,18 @@ export const setPlanned = (cfg, n, m) => setSelect(cfg, n, 'planned', PLANNED, m
 function setNumber(cfg, n, key, v) {
   if (!cfg.fields[key]) return;
   const is = ensureItem(cfg, n);
-  gh(['project', 'item-edit', '--project-id', cfg.projectId, '--id', is.item.id, '--field-id', cfg.fields[key].id, '--number', String(v)]);
+  gh([
+    'project',
+    'item-edit',
+    '--project-id',
+    cfg.projectId,
+    '--id',
+    is.item.id,
+    '--field-id',
+    cfg.fields[key].id,
+    '--number',
+    String(v),
+  ]);
 }
 export const setRounds = (cfg, n, k) => setNumber(cfg, n, 'rounds', k);
 /** Cost in USD, rounded to cents. Accumulated API cost of every agent run on the ticket. */
@@ -135,11 +175,23 @@ export function sync(cfg, parent, { dry = false } = {}) {
     const cur = is.item?.status ?? null;
     const planned = is.item?.planned ?? null;
     let want;
-    if (is.state !== 'OPEN') { want = 'Done'; report.done.push(is.n); }
-    else if (IN_FLIGHT.has(cur)) { report.inFlight.push(is.n); continue; }
-    else if (HELD.has(planned)) { want = 'Backlog'; report.held.push(is.n); }
-    else if (is.openBlockers.length) { want = 'Backlog'; report.blocked.push(`${is.n}<-${is.openBlockers.join('+')}`); }
-    else { want = 'Ready'; report.ready.push(is.n); if (!planned) report.noPlanned.push(is.n); }
+    if (is.state !== 'OPEN') {
+      want = 'Done';
+      report.done.push(is.n);
+    } else if (IN_FLIGHT.has(cur)) {
+      report.inFlight.push(is.n);
+      continue;
+    } else if (HELD.has(planned)) {
+      want = 'Backlog';
+      report.held.push(is.n);
+    } else if (is.openBlockers.length) {
+      want = 'Backlog';
+      report.blocked.push(`${is.n}<-${is.openBlockers.join('+')}`);
+    } else {
+      want = 'Ready';
+      report.ready.push(is.n);
+      if (!planned) report.noPlanned.push(is.n);
+    }
     if (cur !== want) {
       report.moves.push(`#${is.n} ${cur ?? '(none)'} -> ${want}`);
       if (!dry) setStatus(cfg, is.n, want);
@@ -150,11 +202,27 @@ export function sync(cfg, parent, { dry = false } = {}) {
 
 /** Discover ids for a project and write docs/agents/board.json. Creates missing Planned model and Rounds fields. */
 export function init(owner, number, repo, root = repoRoot()) {
-  const listFields = () => JSON.parse(gh(['project', 'field-list', String(number), '--owner', owner, '--format', 'json'])).fields;
+  const listFields = () =>
+    JSON.parse(gh(['project', 'field-list', String(number), '--owner', owner, '--format', 'json'])).fields;
   let fields = listFields();
   const find = (name) => fields.find((f) => f.name.toLowerCase() === name.toLowerCase());
-  if (!find('Planned model')) gh(['project', 'field-create', String(number), '--owner', owner, '--name', 'Planned model', '--data-type', 'SINGLE_SELECT', '--single-select-options', PLANNED.join(',')]);
-  for (const nm of ['Rounds', 'Cost']) if (!find(nm)) gh(['project', 'field-create', String(number), '--owner', owner, '--name', nm, '--data-type', 'NUMBER']);
+  if (!find('Planned model'))
+    gh([
+      'project',
+      'field-create',
+      String(number),
+      '--owner',
+      owner,
+      '--name',
+      'Planned model',
+      '--data-type',
+      'SINGLE_SELECT',
+      '--single-select-options',
+      PLANNED.join(','),
+    ]);
+  for (const nm of ['Rounds', 'Cost'])
+    if (!find(nm))
+      gh(['project', 'field-create', String(number), '--owner', owner, '--name', nm, '--data-type', 'NUMBER']);
   fields = listFields();
   const opts = (f, names) => {
     const o = {};
@@ -170,7 +238,10 @@ export function init(owner, number, repo, root = repoRoot()) {
   const p = configPath(root);
   const prev = existsSync(p) ? JSON.parse(readFileSync(p, 'utf8')) : {};
   const cfg = {
-    ...prev, owner, number: Number(number), repo,
+    ...prev,
+    owner,
+    number: Number(number),
+    repo,
     projectId: gh(['project', 'view', String(number), '--owner', owner, '--format', 'json', '--jq', '.id']),
     fields: {
       status: { id: status.id, options: opts(status, STATUSES) },
@@ -204,16 +275,28 @@ function main(argv) {
     case 'show': {
       const is = getIssue(cfg, n);
       console.log(`#${is.n} ${is.state} "${is.title}"`);
-      console.log(`  status=${is.item?.status ?? '(not on board)'} planned=${is.item?.planned ?? '-'} rounds=${is.item?.rounds ?? '-'} cost=${is.item?.cost != null ? '$' + is.item.cost : '-'}`);
+      console.log(
+        `  status=${is.item?.status ?? '(not on board)'} planned=${is.item?.planned ?? '-'} rounds=${is.item?.rounds ?? '-'} cost=${is.item?.cost != null ? '$' + is.item.cost : '-'}`,
+      );
       console.log(`  open blockers: ${is.openBlockers.map((b) => '#' + b).join(' ') || 'none'}`);
-      if (is.children.length) console.log(`  children: ${is.children.map((c) => `#${c.number}${c.state === 'OPEN' ? '' : '(closed)'}`).join(' ')}`);
+      if (is.children.length)
+        console.log(
+          `  children: ${is.children.map((c) => `#${c.number}${c.state === 'OPEN' ? '' : '(closed)'}`).join(' ')}`,
+        );
       return;
     }
-    case 'status': return console.log(`#${n} status=${setStatus(cfg, n, a[1]).item.status}`);
-    case 'planned': return console.log(`#${n} planned=${setPlanned(cfg, n, a[1]).item.planned}`);
-    case 'rounds': setRounds(cfg, n, Number(a[1])); return console.log(`#${n} rounds=${a[1]}`);
-    case 'cost': setCost(cfg, n, Number(a[1])); return console.log(`#${n} cost=$${a[1]}`);
-    case 'done': return console.log(`#${n} status=${done(cfg, n, a[1] != null ? Number(a[1]) : null, a[2]).item.status}`);
+    case 'status':
+      return console.log(`#${n} status=${setStatus(cfg, n, a[1]).item.status}`);
+    case 'planned':
+      return console.log(`#${n} planned=${setPlanned(cfg, n, a[1]).item.planned}`);
+    case 'rounds':
+      setRounds(cfg, n, Number(a[1]));
+      return console.log(`#${n} rounds=${a[1]}`);
+    case 'cost':
+      setCost(cfg, n, Number(a[1]));
+      return console.log(`#${n} cost=$${a[1]}`);
+    case 'done':
+      return console.log(`#${n} status=${done(cfg, n, a[1] != null ? Number(a[1]) : null, a[2]).item.status}`);
     case 'sync': {
       const r = sync(cfg, n, { dry: a.includes('--dry') });
       for (const m of r.moves) console.log(`${a.includes('--dry') ? 'would move' : 'moved'} ${m}`);
@@ -224,10 +307,16 @@ function main(argv) {
       if (r.noPlanned.length) console.log(`NO PLANNED MODEL (set before swarming): ${r.noPlanned.join(' ')}`);
       return;
     }
-    default: throw new Error(`Unknown command "${cmd}".\n${HELP}`);
+    default:
+      throw new Error(`Unknown command "${cmd}".\n${HELP}`);
   }
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === (await import('node:path')).resolve(process.argv[1])) {
-  try { main(process.argv.slice(2)); } catch (e) { console.error(String(e.stderr || e.message || e).trim()); process.exit(1); }
+  try {
+    main(process.argv.slice(2));
+  } catch (e) {
+    console.error(String(e.stderr || e.message || e).trim());
+    process.exit(1);
+  }
 }

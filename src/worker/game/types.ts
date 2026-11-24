@@ -1,19 +1,19 @@
 // The game's public shapes: the options, the snapshot the worker posts every tick and the pieces it is made of. Types only.
 // game.ts re-exports all of it, so `import { Snapshot } from "./game"` keeps working.
 
-import type { BoardFeatures, CableId, DeviceKind, SlotType } from "../../features/board/sim";
-import type { FileKind, FsRun, MountState } from "../../features/storage/sim/fs";
-import type { StorageCmd } from "../../features/storage/sim/storage";
-import type { GpuView } from "../../features/gpu/sim/port";
-import type { NpuView } from "../../features/npu/sim/port";
-import type { TpmView } from "../../features/tpm/sim/tpm";
-import type { Binding } from "../../features/network/sim";
-import type { DexSnap } from "../../features/jobs/sim/jobdex";
-import type { JobLogEntry, JobWindow } from "../../features/jobs/sim/joblog";
-import type { ItemInfo, LevelRowSnap } from "../../features/economy/sim/levels";
-import type { CoresSnap, PipeSnap, RamMap } from "../../features/cpu/sim/pipesnap";
-import type { EconomyConfig } from "../../features/economy/sim/economy";
-import type { Progress } from "./save";
+import type { BoardFeatures, CableId, DeviceKind, SlotType } from '../../features/board/sim';
+import type { FileKind, FsRun, MountState } from '../../features/storage/sim/fs';
+import type { StorageCmd } from '../../features/storage/sim/storage';
+import type { GpuView } from '../../features/gpu/sim/port';
+import type { NpuView } from '../../features/npu/sim/port';
+import type { TpmView } from '../../features/tpm/sim/tpm';
+import type { Binding } from '../../features/network/sim';
+import type { DexSnap } from '../../features/jobs/sim/jobdex';
+import type { JobLogEntry, JobWindow } from '../../features/jobs/sim/joblog';
+import type { ItemInfo, LevelRowSnap } from '../../features/economy/sim/levels';
+import type { CoresSnap, PipeSnap, RamMap } from '../../features/cpu/sim/pipesnap';
+import type { EconomyConfig } from '../../features/economy/sim/economy';
+import type { Progress } from './save';
 
 export interface GameOptions {
   seed: number;
@@ -104,7 +104,7 @@ export interface VrmSnap {
 
 /** The air of one area of the case (board/sim/airflow.ts): `north` (processor, memory, regulators), `cards` (the PCIe cards), `bay` (the drives). */
 export interface AirZoneSnap {
-  id: "north" | "cards" | "bay";
+  id: 'north' | 'cards' | 'bay';
   /** 0 to 1: how well the area is ventilated against the case with every fan turning (1 = as designed; 0 = no air moves). */
   flow: number;
   /** Case-fan equivalents cooling the area (CASE_FAN_K W/C each, to every part in it). */
@@ -136,7 +136,7 @@ export interface BoardSnap {
    * The liquid loop (a liquid cooler with a radiator): the coolant's temperature, the heat the radiator gives to the air now (W) and its side of the case,
    * the pump's flow (0..1) and the water going to (`hotC`) and coming back from (`coldC`) the radiator. Null with no loop.
    */
-  loop: { coolantC: number; rejectW: number; side: "front" | "top"; flow: number; hotC: number; coldC: number } | null;
+  loop: { coolantC: number; rejectW: number; side: 'front' | 'top'; flow: number; hotC: number; coldC: number } | null;
 }
 
 /** One pipeline stage occupant (IF ID EX MEM WB), for the renderer. See docs/RENDER.md. */
@@ -158,7 +158,7 @@ export interface StageSnap {
 export interface PurchaseSnap {
   id: string;
   name: string;
-  kind: DeviceKind | "board" | "case" | "os" | "router" | "isp";
+  kind: DeviceKind | 'board' | 'case' | 'os' | 'router' | 'isp';
   price: number;
   affordable: boolean;
   /** Set if the board would refuse it right now (e.g. PSU too small, no slot). */
@@ -177,20 +177,42 @@ export interface PurchaseSnap {
  * "waiting-for-key" and "done-remove-key" are the old per-job-reboot phases: kept in the type, never produced any more.
  */
 export type Phase =
-  | "waiting-for-key" | "done-remove-key"
-  | "off" | "posting" | "mounting" | "loading" | "running" | "writing" | "halted" | "error"
-  | "booting-os" | "idle-os" | "ingesting" | "running-os" | "flashing";
+  | 'waiting-for-key'
+  | 'done-remove-key'
+  | 'off'
+  | 'posting'
+  | 'mounting'
+  | 'loading'
+  | 'running'
+  | 'writing'
+  | 'halted'
+  | 'error'
+  | 'booting-os'
+  | 'idle-os'
+  | 'ingesting'
+  | 'running-os'
+  | 'flashing';
 
 /** Where a key's job stands. Legacy (no OS) keys are "tray", then "done" once the ROM wrote the result. */
-export type KeyStage = "tray" | "ingesting" | "queued" | "running" | "result" | "flashing" | "done"
-  | "offer" | "downloading" | "spooled" | "uploading";
+export type KeyStage =
+  | 'tray'
+  | 'ingesting'
+  | 'queued'
+  | 'running'
+  | 'result'
+  | 'flashing'
+  | 'done'
+  | 'offer'
+  | 'downloading'
+  | 'spooled'
+  | 'uploading';
 
 /** A part you own but have not installed. */
 export interface InventorySnap {
   /** Inventory item id (what `install` takes). */
   id: string;
   spec: string;
-  kind: DeviceKind | "board" | "case" | "os" | "router";
+  kind: DeviceKind | 'board' | 'case' | 'os' | 'router';
   name: string;
   /** Free slot ids it fits right now (drop targets). For a board item: ["board"], for a case item ["case"]; for an OS: the storage slots it can go on. */
   freeSlots: string[];
@@ -326,7 +348,12 @@ export interface StorageSnap {
   /** The OS lives on this device. */
   hasOs: boolean;
   /** What the blocks hold, as runs in LBA order (docs/OS.md, filesystem). */
-  fs: { runs: FsRun[]; fragmentation: number; byKind: Record<FileKind, number>; files: { id: number; owner: string; kind: FileKind; lost: boolean }[] };
+  fs: {
+    runs: FsRun[];
+    fragmentation: number;
+    byKind: Record<FileKind, number>;
+    files: { id: number; owner: string; kind: FileKind; lost: boolean }[];
+  };
   /** Wear of each 8-block group, percent of its endurance (the worse member of a mirror). */
   wear: number[];
   /** The block the head (or the last command) rests on: the HDD art seeks to it. */
@@ -389,7 +416,7 @@ export interface ContractSnap {
   /** Ticks left to hold. */
   left: number;
   /** `ok`: reads can be served now. `unservable`: the OS is down, the drive is not mounted or its queue is full. `lost`: the data is gone. */
-  health: "ok" | "unservable" | "lost";
+  health: 'ok' | 'unservable' | 'lost';
   /** Ticks until the next read request, and the reads waiting for the drive. */
   nextRead: number;
   pending: number;
@@ -401,13 +428,20 @@ export interface ContractSnap {
   fees: number;
 }
 
-export interface ContractsSnap { open: boolean; offers: ContractOfferSnap[]; active: ContractSnap[] }
+export interface ContractsSnap {
+  open: boolean;
+  offers: ContractOfferSnap[];
+  active: ContractSnap[];
+}
 
 /** The OS's view of a drive this boot: `unmounted` (no OS up, or the drive is unformatted), then `scanning`, `repairing` and `mounted`. */
-export type MountPhase = "unmounted" | "scanning" | "repairing" | "mounted";
+export type MountPhase = 'unmounted' | 'scanning' | 'repairing' | 'mounted';
 
 /** One line of the health panel. */
-export interface HealthItem { level: "ok" | "warn" | "bad"; text: string }
+export interface HealthItem {
+  level: 'ok' | 'warn' | 'bad';
+  text: string;
+}
 
 /** One ingested job in the OS queue. */
 export interface OsJobSnap {
@@ -415,7 +449,7 @@ export interface OsJobSnap {
   slot: number;
   keyId: number;
   label: string;
-  state: "queued" | "running" | "result";
+  state: 'queued' | 'running' | 'result';
   /** The job sits in the spool on the drive (always true: every kernel queue row is spooled). */
   persisted: boolean;
   /** 0 = running now or next to run; counts queued jobs ahead of it. Results awaiting delivery use -1. */
@@ -448,7 +482,26 @@ export interface OsSnap {
     spoolMax: number;
     /** The slots the automatic setting uses (the OS tier's default); `spoolMax` is the most the job table holds. */
     spoolAuto?: number;
-    drives: { deviceId: string; slot: string; name: string; tier: number; home: boolean; on: boolean; why: string | null; slots: number; freeBytes: number; alloc: number | null; maxSlots: number; needsFormat: boolean; formatWhy: string | null; reserveBytes: number | null; dataBytes: number; capacityBytes: number; usedBytes: number; osBytes: number }[];
+    drives: {
+      deviceId: string;
+      slot: string;
+      name: string;
+      tier: number;
+      home: boolean;
+      on: boolean;
+      why: string | null;
+      slots: number;
+      freeBytes: number;
+      alloc: number | null;
+      maxSlots: number;
+      needsFormat: boolean;
+      formatWhy: string | null;
+      reserveBytes: number | null;
+      dataBytes: number;
+      capacityBytes: number;
+      usedBytes: number;
+      osBytes: number;
+    }[];
   };
 }
 
@@ -472,7 +525,7 @@ export interface BillSnap {
 }
 
 /** What the USB port's LED would be doing. */
-export type KeyActivity = "none" | "enumerating" | "ingesting" | "flashing" | "done";
+export type KeyActivity = 'none' | 'enumerating' | 'ingesting' | 'flashing' | 'done';
 
 export interface GameEvent {
   tick: number;
@@ -605,13 +658,17 @@ export interface Snapshot {
 
   // ---- no-OS boot flow and client patience (added with the manual boot loop; all additive) ----
   /** For phase "halted": "job-done" (result written, remove the key) or "no-boot-media" (no key at boot). Otherwise null. */
-  haltReason: "job-done" | "no-boot-media" | null;
+  haltReason: 'job-done' | 'no-boot-media' | null;
   /** A key sits in the port of a running no-OS machine that already did its one look at the port: it is ignored until a power cycle. */
   keyIgnored: boolean;
   /** True when a finished key ejects and pays by itself (always, unless a test turns it off): the UI says so instead of "remove the key". */
   autoEject: boolean;
   /** Installs queued behind the running job, in order: they all happen in one power cycle (power off, install each, power on) as soon as the job is done. */
-  pendingSwaps: { invId: string; /** The slot the part will take. */ target: string; /** The installed part it replaces (null: an empty slot, a board or a case). */ replacesId: string | null }[];
+  pendingSwaps: {
+    invId: string;
+    /** The slot the part will take. */ target: string;
+    /** The installed part it replaces (null: an empty slot, a board or a case). */ replacesId: string | null;
+  }[];
   /** The last power-on ended in a POST error (phase "error", `phaseReason` says which part). */
   postFailed: boolean;
   /** Client patience right now: the level's multiplier (docs/PROGRESSION.md). `sinceFirstBoot` is informational. */
@@ -630,12 +687,12 @@ export interface Snapshot {
   net: NetSnap;
 }
 
-export type LinkState = "no-device" | "no-cable" | "no-os" | "link-up" | "saturated" | "down";
+export type LinkState = 'no-device' | 'no-cable' | 'no-os' | 'link-up' | 'saturated' | 'down';
 
 export interface TransferSnap {
   jobId: number;
   label: string;
-  dir: "down" | "up";
+  dir: 'down' | 'up';
   totalMB: number;
   doneMB: number;
   percent: number;
@@ -699,7 +756,7 @@ export interface NicStackSnap {
 export interface NetSnap {
   state: LinkState;
   reason: string | null;
-  port: { kind: "board" | "nic" | null; deviceId: string | null; mbps: number };
+  port: { kind: 'board' | 'nic' | null; deviceId: string | null; mbps: number };
   router: { id: string; name: string; mbps: number; clients: number; visual: string } | null;
   isp: { id: string; name: string; downMbps: number; upMbps: number; clients: number } | null;
   bandwidth: { downMbps: number; upMbps: number; clients: number; binding: Binding | null };
@@ -712,7 +769,12 @@ export interface NetSnap {
   spooled: KeySnap[];
   /** USB keys retired because the link has been up (sticky). */
   usbRetired: boolean;
-  usbFallback: { state: "off" | "retired" | "waiting" | "fallback"; deadTicks: number; startsIn: number | null; keyRateMul: number };
+  usbFallback: {
+    state: 'off' | 'retired' | 'waiting' | 'fallback';
+    deadTicks: number;
+    startsIn: number | null;
+    keyRateMul: number;
+  };
   /** Retired keys lying in the USB tray (docs/NETWORK.md "Retired keys"). */
   retiredKeys: number;
   counters: { delivered: number; downloaded: number; uploaded: number; lost: number };

@@ -1,10 +1,17 @@
 // Pure placement of a popup next to an on-screen object (the picker) and of the tutorial card away from its target.
 // All numbers are runtime client pixels measured from the DOM / renderer, not design sizes.
 
-export interface Rect { x: number; y: number; w: number; h: number }
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 export type Side = 'right' | 'left' | 'below' | 'above' | 'dock';
 export interface Placement {
-  x: number; y: number; side: Side;
+  x: number;
+  y: number;
+  side: Side;
   /** Offset of the tail along the popup's edge facing the object (from the popup's top or left); unused for `dock`. */
   tail: number;
 }
@@ -14,8 +21,10 @@ const right = (r: Rect) => r.x + r.w;
 const bottom = (r: Rect) => r.y + r.h;
 
 export const intersect = (a: Rect, b: Rect): Rect | null => {
-  const x = Math.max(a.x, b.x), y = Math.max(a.y, b.y);
-  const w = Math.min(right(a), right(b)) - x, h = Math.min(bottom(a), bottom(b)) - y;
+  const x = Math.max(a.x, b.x),
+    y = Math.max(a.y, b.y);
+  const w = Math.min(right(a), right(b)) - x,
+    h = Math.min(bottom(a), bottom(b)) - y;
   return w > 0 && h > 0 ? { x, y, w, h } : null;
 };
 export const overlaps = (a: Rect, b: Rect) => intersect(a, b) !== null;
@@ -26,10 +35,17 @@ export const overlaps = (a: Rect, b: Rect) => intersect(a, b) !== null;
  * When no side fits (an object as big as the screen, or a tiny free area) it docks to the bottom right of `free`, with
  * no tail. The anchor is first clipped to `free`, so a half-visible object is pointed at where it is visible.
  */
-export function placePopup(anchor: Rect, size: { w: number; h: number }, free: Rect, gap: number, order: Side[] = ['right', 'left', 'below', 'above']): Placement {
+export function placePopup(
+  anchor: Rect,
+  size: { w: number; h: number },
+  free: Rect,
+  gap: number,
+  order: Side[] = ['right', 'left', 'below', 'above'],
+): Placement {
   const a = intersect(anchor, free) ?? anchor;
   const { w, h } = size;
-  const cx = a.x + a.w / 2, cy = a.y + a.h / 2;
+  const cx = a.x + a.w / 2,
+    cy = a.y + a.h / 2;
   const yFor = () => clamp(cy - h / 2, free.y, Math.max(free.y, bottom(free) - h));
   const xFor = () => clamp(cx - w / 2, free.x, Math.max(free.x, right(free) - w));
   for (const side of order) {
@@ -58,7 +74,8 @@ export function dockPlacement(size: { w: number; h: number }, free: Rect): Place
   return {
     x: Math.max(free.x, right(free) - size.w),
     y: Math.max(free.y, bottom(free) - size.h),
-    side: 'dock', tail: 0,
+    side: 'dock',
+    tail: 0,
   };
 }
 
@@ -77,7 +94,9 @@ export function liftAbove(card: Rect, target: Rect | null, gap: number, minTop: 
 
 /** Is the rect's centre inside the inner 80 percent of the free area? */
 export function comfortablyVisible(r: Rect, free: Rect): boolean {
-  const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
-  const mx = free.w * 0.1, my = free.h * 0.1;
+  const cx = r.x + r.w / 2,
+    cy = r.y + r.h / 2;
+  const mx = free.w * 0.1,
+    my = free.h * 0.1;
   return cx >= free.x + mx && cx <= right(free) - mx && cy >= free.y + my && cy <= bottom(free) - my;
 }

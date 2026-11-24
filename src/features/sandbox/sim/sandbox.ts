@@ -1,11 +1,11 @@
 // Game feature: the sandbox tools (refused outside the sandbox). Every export is a `Game` method (see game.ts).
 
-import { TEMPLATES } from "../../jobs/sim/gen";
-import type { Game } from "@/worker/game/game";
-import { NOT_SANDBOX } from "@/worker/game/internal";
-import { JOB_DEX } from "../../jobs/sim/jobdex";
-import { JOB_CLASSES, jobClass, levelDef, MAX_LEVEL, type JobClassId } from "../../economy/sim/levels";
-import type { Result } from "@/worker/game/types";
+import { TEMPLATES } from '../../jobs/sim/gen';
+import type { Game } from '@/worker/game/game';
+import { NOT_SANDBOX } from '@/worker/game/internal';
+import { JOB_DEX } from '../../jobs/sim/jobdex';
+import { JOB_CLASSES, jobClass, levelDef, MAX_LEVEL, type JobClassId } from '../../economy/sim/levels';
+import type { Result } from '@/worker/game/types';
 
 /**
  * Sandbox: add a key to the tray: a generator template (any `cli*`) at `scale` 1..16, or a job class id (`db`, `web`,
@@ -13,10 +13,13 @@ import type { Result } from "@/worker/game/types";
  */
 export function spawnKey(this: Game, template: string, scale = 1): Result<{ keyId: number }> {
   if (!this.sandbox) return NOT_SANDBOX;
-  const cls = typeof template === "string" ? jobClass(template) : undefined;
-  if (!cls && (typeof template !== "string" || !Object.prototype.hasOwnProperty.call(TEMPLATES, template))) return { ok: false, reason: `unknown job template "${String(template)}"` };
-  if (!Number.isInteger(scale) || scale < 1 || scale > 16) return { ok: false, reason: "scale must be a whole number from 1 to 16" };
-  if (this.tray.waiting().length >= this.cfg.queueCap) return { ok: false, reason: `the tray is full (${this.cfg.queueCap} keys)` };
+  const cls = typeof template === 'string' ? jobClass(template) : undefined;
+  if (!cls && (typeof template !== 'string' || !Object.prototype.hasOwnProperty.call(TEMPLATES, template)))
+    return { ok: false, reason: `unknown job template "${String(template)}"` };
+  if (!Number.isInteger(scale) || scale < 1 || scale > 16)
+    return { ok: false, reason: 'scale must be a whole number from 1 to 16' };
+  if (this.tray.waiting().length >= this.cfg.queueCap)
+    return { ok: false, reason: `the tray is full (${this.cfg.queueCap} keys)` };
   const keyId = this.nextKeyId;
   try {
     if (cls) this.enqueue(cls.template, cls.scale, cls.id);
@@ -25,16 +28,17 @@ export function spawnKey(this: Game, template: string, scale = 1): Result<{ keyI
     if (e instanceof RangeError) return { ok: false, reason: e.message }; // a scale this job's buffer or display cannot hold
     throw e;
   }
-  this.note("sandbox", `spawned key ${keyId} (${template} x${scale})`);
+  this.note('sandbox', `spawned key ${keyId} (${template} x${scale})`);
   return { ok: true, keyId };
 }
 
 /** Sandbox: pin the rules level (patience, payout, demand and the arrival mix) at `level` (1 to 18). Refused in a campaign. */
 export function setLevel(this: Game, level: number): Result<{ level: number }> {
   if (!this.sandbox) return NOT_SANDBOX;
-  if (!Number.isInteger(level) || level < 1 || level > MAX_LEVEL) return { ok: false, reason: `level must be a whole number from 1 to ${MAX_LEVEL}` };
+  if (!Number.isInteger(level) || level < 1 || level > MAX_LEVEL)
+    return { ok: false, reason: `level must be a whole number from 1 to ${MAX_LEVEL}` };
   this.sandboxLevel = level;
-  this.note("sandbox", `rules level set to ${level} (${levelDef(level).name})`);
+  this.note('sandbox', `rules level set to ${level} (${levelDef(level).name})`);
   return { ok: true, level };
 }
 
@@ -48,8 +52,12 @@ export function setJobClasses(this: Game, off: readonly string[]): Result<{ off:
   const bad = off.find((id) => !known.has(id));
   if (bad !== undefined) return { ok: false, reason: `unknown job class '${bad}'` };
   this.sandboxOff = new Set(off as JobClassId[]);
-  for (const q of [this.tray, this.offersQ]) for (const k of q.waiting()) if (this.sandboxOff.has(k.cls as JobClassId)) q.take(k.id);
-  this.note("sandbox", this.sandboxOff.size ? `arrivals off: ${[...this.sandboxOff].join(", ")}` : "every job class arrives again");
+  for (const q of [this.tray, this.offersQ])
+    for (const k of q.waiting()) if (this.sandboxOff.has(k.cls as JobClassId)) q.take(k.id);
+  this.note(
+    'sandbox',
+    this.sandboxOff.size ? `arrivals off: ${[...this.sandboxOff].join(', ')}` : 'every job class arrives again',
+  );
   return { ok: true, off: [...this.sandboxOff] };
 }
 
@@ -64,8 +72,12 @@ export function setJobKinds(this: Game, off: readonly string[]): Result<{ off: s
   if (bad !== undefined) return { ok: false, reason: `unknown kind of job '${bad}'` };
   this.sandboxKindsOff = new Set(off);
   // Keys of a kind just switched off that are still waiting go back to their client, so the choice shows at once (the plugged key and the OS's stay).
-  for (const q of [this.tray, this.offersQ]) for (const k of q.waiting()) if (this.sandboxKindsOff.has(k.type)) q.take(k.id);
-  this.note("sandbox", this.sandboxKindsOff.size ? `${this.sandboxKindsOff.size} kinds of job off` : "every kind of job arrives again");
+  for (const q of [this.tray, this.offersQ])
+    for (const k of q.waiting()) if (this.sandboxKindsOff.has(k.type)) q.take(k.id);
+  this.note(
+    'sandbox',
+    this.sandboxKindsOff.size ? `${this.sandboxKindsOff.size} kinds of job off` : 'every kind of job arrives again',
+  );
   return { ok: true, off: [...this.sandboxKindsOff] };
 }
 
@@ -74,7 +86,7 @@ export function clearQueue(this: Game): Result<{ removed: number }> {
   if (!this.sandbox) return NOT_SANDBOX;
   const removed = this.tray.waiting().length;
   this.tray.set([]);
-  this.note("sandbox", `tray cleared (${removed} keys)`);
+  this.note('sandbox', `tray cleared (${removed} keys)`);
   return { ok: true, removed };
 }
 
@@ -82,11 +94,18 @@ export function clearQueue(this: Game): Result<{ removed: number }> {
 export function repairAll(this: Game): Result<{ repaired: number; tripCleared: boolean }> {
   if (!this.sandbox) return NOT_SANDBOX;
   let repaired = 0;
-  for (const d of this.board.devices) if (d.burnt) { delete d.burnt; repaired++; }
-  if (this.board.burnt) { delete this.board.burnt; repaired++; }
+  for (const d of this.board.devices)
+    if (d.burnt) {
+      delete d.burnt;
+      repaired++;
+    }
+  if (this.board.burnt) {
+    delete this.board.burnt;
+    repaired++;
+  }
   const tripCleared = this.thermal.power.tripped;
   this.thermal.coolAll();
-  this.note("sandbox", `repaired everything (${repaired} burnt parts${tripCleared ? ", PSU trip cleared" : ""})`);
+  this.note('sandbox', `repaired everything (${repaired} burnt parts${tripCleared ? ', PSU trip cleared' : ''})`);
   return { ok: true, repaired, tripCleared };
 }
 
@@ -96,7 +115,7 @@ export function repairAll(this: Game): Result<{ repaired: number; tripCleared: b
  */
 export function setReputation(this: Game, value: number): Result<{ reputation: number }> {
   if (!this.sandbox) return NOT_SANDBOX;
-  if (typeof value !== "number" || !Number.isFinite(value)) return { ok: false, reason: "reputation must be a number" };
+  if (typeof value !== 'number' || !Number.isFinite(value)) return { ok: false, reason: 'reputation must be a number' };
   const rep = Math.min(this.cfg.repMax, Math.max(this.cfg.repMin, value));
   this.avgTurnaround = Math.max(1, this.targetTurnaround() / rep);
   for (const k of this.tray.waiting()) {
@@ -105,6 +124,6 @@ export function setReputation(this: Game, value: number): Result<{ reputation: n
       k.deadline = this.baseTick + this.deadlineTicks();
     }
   }
-  this.note("sandbox", `reputation set to ${rep.toFixed(2)}`);
+  this.note('sandbox', `reputation set to ${rep.toFixed(2)}`);
   return { ok: true, reputation: this.reputation() };
 }

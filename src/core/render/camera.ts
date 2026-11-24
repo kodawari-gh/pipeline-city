@@ -1,6 +1,20 @@
-export interface View { x: number; y: number; z: number }
-export interface Inset { top: number; right: number; bottom: number; left: number }
-export interface Rect { x: number; y: number; w: number; h: number }
+export interface View {
+  x: number;
+  y: number;
+  z: number;
+}
+export interface Inset {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 /** Options for a flight (`flyTo` in board.ts, `Camera.flyTo`). Defaults are in docs/render/interact.md. */
 export interface FlyOpts {
@@ -20,15 +34,23 @@ export interface FlyOpts {
 /** The text raster resolution. The 2D camera that once moved it is gone, so it stays at 2. */
 export const currentTextResolution = () => 2;
 
-interface FadeNode { alpha: number; destroyed?: boolean }
-interface Faded { t: FadeNode }
+interface FadeNode {
+  alpha: number;
+  destroyed?: boolean;
+}
+interface Faded {
+  t: FadeNode;
+}
 const faded: Faded[] = [];
 let sweepAt = 256;
 /** Put a label on the list that `sweepLabels` trims. `base`, `size` and `min` are kept for the callers' signature. */
 export function registerLabel(t: FadeNode, _base: number, _size: number, _min = 6): void {
   faded.push({ t });
   // no frame drops the destroyed labels: drop them each time the list doubles (PERF12)
-  if (faded.length >= sweepAt) { sweepLabels(); sweepAt = Math.max(256, faded.length * 2); }
+  if (faded.length >= sweepAt) {
+    sweepLabels();
+    sweepAt = Math.max(256, faded.length * 2);
+  }
 }
 /** Drop the destroyed labels from the list. A 3D screen calls it when its art is gone. Returns how many stay. */
 export function sweepLabels(): number {
@@ -37,4 +59,3 @@ export function sweepLabels(): number {
   faded.length = n;
   return n;
 }
-

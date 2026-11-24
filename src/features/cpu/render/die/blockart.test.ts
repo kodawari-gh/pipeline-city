@@ -8,9 +8,24 @@ import { controlsOf, glyph, glyphArea, glyphLive, slotsOf, CONTROL_LINES } from 
 import type { Theme } from '@/core/render/theme';
 
 const DARK: Theme = {
-  bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',
-  ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a',
-  alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
+  bg: '#04060f',
+  board: '#081628',
+  trace: '#1e4270',
+  sub: '#0d1636',
+  die: '#111b46',
+  pin: '#d4af5f',
+  tile: '#18245c',
+  ink: '#e2eaff',
+  mute: '#8a97c2',
+  line: '#2a366a',
+  dot: '#18214a',
+  on: '#08102a',
+  alu: '#3be3ff',
+  mul: '#a68bff',
+  ld: '#ffc247',
+  st: '#6dffa6',
+  br: '#ff55dc',
+  bad: '#ff5a78',
 };
 
 // The symbols inside the die's blocks (docs/DIE.md "Inside the blocks"): they fit their blocks, and the live text goes where the symbol has room for it.
@@ -19,9 +34,20 @@ const INPUTS: PlanInput[] = [
   { arch: 'unpipelined', cacheLines: 8 },
   { arch: 'inorder', forwarding: true, cacheLines: 16, icacheLines: 8, l2Lines: 32 },
   { arch: 'inorder2', forwarding: true, cacheLines: 16 },
-  { arch: 'ooo', width: 4, robSize: 32, schedSize: 16, fetchQueue: 8, cacheLines: 64, ways: 4, icacheLines: 32, l2Lines: 128 },
+  {
+    arch: 'ooo',
+    width: 4,
+    robSize: 32,
+    schedSize: 16,
+    fetchQueue: 8,
+    cacheLines: 64,
+    ways: 4,
+    icacheLines: 32,
+    l2Lines: 128,
+  },
 ];
-const inside = (r: Rect, o: Rect) => r.x >= o.x - 4 && r.y >= o.y - 1 && r.x + r.w <= o.x + o.w + 4 && r.y + r.h <= o.y + o.h + 1;
+const inside = (r: Rect, o: Rect) =>
+  r.x >= o.x - 4 && r.y >= o.y - 1 && r.x + r.w <= o.x + o.w + 4 && r.y + r.h <= o.y + o.h + 1;
 
 describe('block symbols', () => {
   it('every symbol block of every architecture has room for its symbol, which is drawn without error', () => {
@@ -49,8 +75,13 @@ describe('block symbols', () => {
 
   it('the PC shows eight hex digits and a fetch block one word per lane it reads', () => {
     const plan = cpuPlan(INPUTS[3]!);
-    const pc = plan.blocks.find((b) => b.kind === 'pc')!, fetch = plan.blocks.find((b) => b.kind === 'fetch')!;
-    expect(glyphLive(pc, glyphArea(pc)!, [], 0x1abc).texts.map((t) => t.top).join('')).toBe('00001abc');
+    const pc = plan.blocks.find((b) => b.kind === 'pc')!,
+      fetch = plan.blocks.find((b) => b.kind === 'fetch')!;
+    expect(
+      glyphLive(pc, glyphArea(pc)!, [], 0x1abc)
+        .texts.map((t) => t.top)
+        .join(''),
+    ).toBe('00001abc');
     expect(slotsOf(fetch, glyphArea(fetch)!).words).toHaveLength(4);
   });
 
@@ -72,12 +103,15 @@ describe('block symbols', () => {
         const pins = glyphPins(b)!;
         expect(pins, `${i.arch} ${b.id}`).not.toBeNull();
         for (const p of [...Object.values(pins.ins), ...(pins.out ? [pins.out] : [])]) {
-          expect(p[0], b.id).toBeGreaterThanOrEqual(b.rect.x); expect(p[0], b.id).toBeLessThanOrEqual(b.rect.x + b.rect.w);
-          expect(p[1], b.id).toBeGreaterThanOrEqual(b.rect.y); expect(p[1], b.id).toBeLessThanOrEqual(b.rect.y + b.rect.h);
+          expect(p[0], b.id).toBeGreaterThanOrEqual(b.rect.x);
+          expect(p[0], b.id).toBeLessThanOrEqual(b.rect.x + b.rect.w);
+          expect(p[1], b.id).toBeGreaterThanOrEqual(b.rect.y);
+          expect(p[1], b.id).toBeLessThanOrEqual(b.rect.y + b.rect.h);
         }
       }
       for (const l of plan.links) {
-        const to = plan.blocks.find((b) => b.id === l.to)!, pins = glyphPins(to);
+        const to = plan.blocks.find((b) => b.id === l.to)!,
+          pins = glyphPins(to);
         if (!pins) continue;
         const pin = inPinFor(to, l.id, pins)!;
         expect(l.pts[l.pts.length - 1], `${i.arch} ${l.id} into ${to.id}`).toEqual(pin);
@@ -87,13 +121,17 @@ describe('block symbols', () => {
 
   it('the next-PC multiplexer takes the +4, the branch redirect and the interrupt vector on three different pins', () => {
     const plan = cpuPlan(INPUTS[3]!);
-    const npc = plan.blocks.find((b) => b.kind === 'nextpc')!, pins = glyphPins(npc)!;
+    const npc = plan.blocks.find((b) => b.kind === 'nextpc')!,
+      pins = glyphPins(npc)!;
     expect(inPinFor(npc, 'pcadd-npc', pins)).toEqual(pins.ins['+4']);
     expect(inPinFor(npc, 'br-npc', pins)).toEqual(pins.ins.br);
     expect(inPinFor(npc, 'irq-pc', pins)).toEqual(pins.ins.irq);
     expect(new Set([pins.ins['+4']![1], pins.ins.br![1], pins.ins.irq![1]]).size).toBe(3);
     // a link docks: it runs on from the block's edge to the pin without a diagonal
-    const d = dockLink(npc, npc, 'br-npc', [[npc.rect.x, npc.rect.y + 20], [npc.rect.x - 30, npc.rect.y + 20]]);
+    const d = dockLink(npc, npc, 'br-npc', [
+      [npc.rect.x, npc.rect.y + 20],
+      [npc.rect.x - 30, npc.rect.y + 20],
+    ]);
     for (let k = 1; k < d.length; k++) expect(d[k]![0] === d[k - 1]![0] || d[k]![1] === d[k - 1]![1]).toBe(true);
   });
 
@@ -107,15 +145,25 @@ describe('block symbols', () => {
       for (const b of symbols) {
         expect(glyphArea(b), `${spec.id} ${b.id}`).not.toBeNull();
         expect(() => glyph(new Graphics(), DARK, b, glyphArea(b)!, '#0af', () => {})).not.toThrow();
-        const live = glyphLive(b, glyphArea(b)!, [{ op: 'add', text: 'add t4, t1, t2', pc: 0x1000, word: 0x00a01083 }], 0x1000, [1]);
-        for (const t of live.texts) expect(t.rect.x + t.rect.w, `${spec.id} ${b.id}`).toBeLessThanOrEqual(b.rect.x + b.rect.w + 4);
+        const live = glyphLive(
+          b,
+          glyphArea(b)!,
+          [{ op: 'add', text: 'add t4, t1, t2', pc: 0x1000, word: 0x00a01083 }],
+          0x1000,
+          [1],
+        );
+        for (const t of live.texts)
+          expect(t.rect.x + t.rect.w, `${spec.id} ${b.id}`).toBeLessThanOrEqual(b.rect.x + b.rect.w + 4);
       }
       // a decoder never falls back to a field of cells: wide or in a column it is a symbol
-      for (const b of plan.blocks.filter((x) => x.kind === 'decode')) expect(hasSymbol(b), `${spec.id} ${b.id}`).toBe(true);
+      for (const b of plan.blocks.filter((x) => x.kind === 'decode'))
+        expect(hasSymbol(b), `${spec.id} ${b.id}`).toBe(true);
       for (const l of plan.links) {
-        const to = plan.blocks.find((b) => b.id === l.to)!, pins = glyphPins(to);
+        const to = plan.blocks.find((b) => b.id === l.to)!,
+          pins = glyphPins(to);
         if (pins) expect(l.pts[l.pts.length - 1], `${spec.id} ${l.id}`).toEqual(inPinFor(to, l.id, pins));
-        const from = plan.blocks.find((b) => b.id === l.from)!, fp = glyphPins(from);
+        const from = plan.blocks.find((b) => b.id === l.from)!,
+          fp = glyphPins(from);
         if (fp?.out) expect(l.pts[0], `${spec.id} ${l.id} from ${from.id}`).toEqual(fp.out);
       }
     }
@@ -123,7 +171,8 @@ describe('block symbols', () => {
 
   it('the hazard lamp lights for a waiting instruction and the forwarding multiplexer for the operand that is forwarded', () => {
     const plan = cpuPlan(INPUTS[2]!);
-    const hz = plan.blocks.find((b) => b.kind === 'hazard')!, fw = plan.blocks.find((b) => b.kind === 'forward')!;
+    const hz = plan.blocks.find((b) => b.kind === 'hazard')!,
+      fw = plan.blocks.find((b) => b.kind === 'forward')!;
     const item = { op: 'add', text: 'add t0, t1, t2', pc: 0x1000, word: 1 };
     expect(glyphLive(hz, glyphArea(hz)!, [], undefined, []).lit).toHaveLength(0);
     expect(glyphLive(hz, glyphArea(hz)!, [item]).lit).toHaveLength(1);

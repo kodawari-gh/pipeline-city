@@ -4,7 +4,14 @@ import type { Theme } from '@/core/render/theme';
 import { planFar, planNear, type DieArt, type PlanStyle } from '../../../cpu/render/die/dieart';
 import { routerGeo } from './routerlayout';
 import { routerGlyph, routerGlyphArea } from './routerglyph';
-import { fmtSize, type RouterBlock, type RouterBlockKind, type RouterLink, type RouterLinkKind, type RouterPlan } from './routerplan';
+import {
+  fmtSize,
+  type RouterBlock,
+  type RouterBlockKind,
+  type RouterLink,
+  type RouterLinkKind,
+  type RouterPlan,
+} from './routerplan';
 
 // The static art of the router SoC's die (docs/render/net.md "Inside the NIC and the router"): the chip's plan drawn in the CPU die's style (die/dieart.ts, docs/DIE.md): macro blocks
 // tinted in their kind's colour with a rim line, the symbols of routerglyph.ts, trace bundles ending in solder pads, names and second lines. It is baked onto the die's top in 3D
@@ -13,12 +20,23 @@ import { fmtSize, type RouterBlock, type RouterBlockKind, type RouterLink, type 
 type Key = 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'bad' | 'mute';
 
 /** The accent of each block kind (the theme token it is drawn with: the line side cyan, the forwarding green, the CPU purple, the memory amber). */
-export const ROUTER_KIND_COLOR: Record<RouterBlockKind, Key> = { soc: 'mute', cpu: 'mul', mem: 'ld', wanmac: 'alu', pkt: 'st', sw: 'st', stat: 'st' };
+export const ROUTER_KIND_COLOR: Record<RouterBlockKind, Key> = {
+  soc: 'mute',
+  cpu: 'mul',
+  mem: 'ld',
+  wanmac: 'alu',
+  pkt: 'st',
+  sw: 'st',
+  stat: 'st',
+};
 export const ROUTER_LINK_COLOR: Record<RouterLinkKind, Key> = { data: 'st', control: 'mute', memory: 'ld' };
 
 /** The legend of the colours. */
 export const ROUTER_LEGEND: { text: string; key: Key }[] = [
-  { text: 'LINE', key: 'alu' }, { text: 'FORWARD', key: 'st' }, { text: 'CPU', key: 'mul' }, { text: 'MEMORY', key: 'ld' },
+  { text: 'LINE', key: 'alu' },
+  { text: 'FORWARD', key: 'st' },
+  { text: 'CPU', key: 'mul' },
+  { text: 'MEMORY', key: 'ld' },
 ];
 
 /** The line under the plan: what the router is. */
@@ -42,13 +60,18 @@ export function routerStyle(plan: RouterPlan): PlanStyle<RouterBlock, RouterLink
 /** The die's floor, the blocks and the SoC's frame: the far view. */
 export function routerFar(g: Graphics, T: Theme, plan: RouterPlan): void {
   const D = plan.die;
-  g.roundRect(D.x, D.y, D.w, D.h, 8).fill({ color: mix(T.die, '#000000', 0.3) }).stroke({ width: 2.5, color: mix(T.line, T.alu, 0.5) });
+  g.roundRect(D.x, D.y, D.w, D.h, 8)
+    .fill({ color: mix(T.die, '#000000', 0.3) })
+    .stroke({ width: 2.5, color: mix(T.line, T.alu, 0.5) });
   planFar(g, T, plan.blocks, routerStyle(plan));
 }
 
 /** Traces, symbols and names of a plan, and the strip under the blocks. */
 export function routerNear(T: Theme, plan: RouterPlan): DieArt {
-  const art = planNear(T, plan, routerStyle(plan)), D = plan.die, sy = D.y + D.h - 30 + 15, names = art.names;
+  const art = planNear(T, plan, routerStyle(plan)),
+    D = plan.die,
+    sy = D.y + D.h - 30 + 15,
+    names = art.names;
   names.addChild(label(routerTitle(plan), D.x + 14, sy, 15, T.mute, { weight: '700', a: 0.9 }));
   const legend = new Graphics();
   names.addChild(legend);
@@ -64,7 +87,11 @@ export function routerNear(T: Theme, plan: RouterPlan): DieArt {
 
 /** The die's floorplan in its frame (`routerGeo`): the far view and the near one over it. The 3D board bakes it onto the SoC's die (routerboard3d.ts), the live layer draws over it (routerview.ts). */
 export function routerDie(T: Theme, tier: number): Container {
-  const root = new Container(), geo = routerGeo(tier), die = new Container(), plate = new Graphics(), near = routerNear(T, geo.plan);
+  const root = new Container(),
+    geo = routerGeo(tier),
+    die = new Container(),
+    plate = new Graphics(),
+    near = routerNear(T, geo.plan);
   routerFar(plate, T, geo.plan);
   die.addChild(plate, near.root);
   root.addChild(die);

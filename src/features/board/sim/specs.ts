@@ -1,13 +1,42 @@
 // Declarative device specs: plain data records, read by the sim and (via `visual`) the renderer.
 // BALANCE IS A PLACEHOLDER: every number here is a round, plausible guess to be tuned by playing.
 
-import type { EngineConfig } from "../../cpu/sim/engines";
-import type { GpuConfig } from "../../gpu/sim/engine/engine";
+import type { EngineConfig } from '../../cpu/sim/engines';
+import type { GpuConfig } from '../../gpu/sim/engine/engine';
 
 /** Typed slots / ports on a board. A device only fits a free slot of its own type. */
-export type SlotType = "cpu" | "dimm" | "pcie" | "sata" | "m2" | "usb" | "cooler" | "display" | "atx" | "atx-plus" | "vrm-sink" | "ram-sink" | "tpm" | "radiator" | "fan";
+export type SlotType =
+  | 'cpu'
+  | 'dimm'
+  | 'pcie'
+  | 'sata'
+  | 'm2'
+  | 'usb'
+  | 'cooler'
+  | 'display'
+  | 'atx'
+  | 'atx-plus'
+  | 'vrm-sink'
+  | 'ram-sink'
+  | 'tpm'
+  | 'radiator'
+  | 'fan';
 
-export type DeviceKind = "cpu" | "ram" | "psu" | "cooler" | "display" | "storage" | "vrm-sink" | "ram-sink" | "nic" | "gpu" | "npu" | "tpm" | "radiator" | "fan";
+export type DeviceKind =
+  | 'cpu'
+  | 'ram'
+  | 'psu'
+  | 'cooler'
+  | 'display'
+  | 'storage'
+  | 'vrm-sink'
+  | 'ram-sink'
+  | 'nic'
+  | 'gpu'
+  | 'npu'
+  | 'tpm'
+  | 'radiator'
+  | 'fan';
 
 /** The standard fan sizes, mm: a fan fits only a spot of its own size (a case mount, a heatsink's fan spot). */
 export type FanSize = 40 | 92 | 120 | 140;
@@ -19,10 +48,15 @@ export const PCIE_LEAD_W = 75;
 /** The lowest board tier with a PCIe power connector (the Starter board has none; the render layout matches it, `pciewY`). */
 export const PCIE_POWER_MIN_TIER = 1;
 /** PCIe power leads a card takes: what its load needs beyond the slot's share (0 = slot power only). */
-export const cardLeads = (s: { loadW: number }): number => (s.loadW > PCIE_SLOT_W ? Math.ceil((s.loadW - PCIE_SLOT_W) / PCIE_LEAD_W) : 0);
+export const cardLeads = (s: { loadW: number }): number =>
+  s.loadW > PCIE_SLOT_W ? Math.ceil((s.loadW - PCIE_SLOT_W) / PCIE_LEAD_W) : 0;
 
 /** Clock range in ticks per base tick (1 = one device tick per second at 1x). */
-export interface ClockRange { min: number; base: number; max: number }
+export interface ClockRange {
+  min: number;
+  base: number;
+  max: number;
+}
 
 /** First-order thermal parameters. Temperatures in degrees C. */
 export interface ThermalSpec {
@@ -64,16 +98,16 @@ interface SpecBase {
 }
 
 export interface CpuSpec extends SpecBase {
-  kind: "cpu";
+  kind: 'cpu';
   clock: ClockRange;
   /** Engine selection: tier maps to engine kind and options. */
   engine: EngineConfig;
   /** The part this one builds on in the CPU tree (docs/TECHTREE.md); absent for the trunk and the generalists after it. */
   after?: string;
   /** The way a specialist leans: `frontend` (instruction cache, better predictor: branchy code), `memory` (bigger and associative data cache, L2: big data), `wide` (everything big), `multicore` (several cores on one die: more programs at once). */
-  branch?: "frontend" | "memory" | "wide" | "multicore";
+  branch?: 'frontend' | 'memory' | 'wide' | 'multicore';
   /** The memory controller (docs/RAM.md): how many sticks it drives in parallel (channels) and what it does with a row after an access. Default 1 channel, open page. */
-  memory?: { channels: number; policy: "open" | "closed" | "adaptive" };
+  memory?: { channels: number; policy: 'open' | 'closed' | 'adaptive' };
   /** Hardware cores, all running `engine` and sharing the L2 and memory controller (docs/MULTICORE.md). Absent: one. */
   cores?: number;
   /** Logical cores (threads) per hardware core, switching on a data cache miss (docs/MULTICORE.md section 5). Absent: one. */
@@ -83,7 +117,7 @@ export interface CpuSpec extends SpecBase {
 }
 
 export interface RamSpec extends SpecBase {
-  kind: "ram";
+  kind: 'ram';
   clock: ClockRange;
   sizeBytes: number;
   /** Access cost in RAM clock ticks (to a bank whose row is closed); becomes the CPU's cache miss penalty (see apply.ts). */
@@ -105,7 +139,7 @@ export interface RamSpec extends SpecBase {
 }
 
 export interface PsuSpec extends SpecBase {
-  kind: "psu";
+  kind: 'psu';
   /** Wattage budget. */
   watts: number;
   /** PCIe power leads the PSU has (the `pcie` cable of docs/ACCEL.md): 0 for the small ones. */
@@ -118,10 +152,14 @@ export interface PsuSpec extends SpecBase {
  * The fan spots of a heatsink (docs/ASSEMBLY.md "Fans"): `n` spots for fans of `size`, slots `<its slot>.fan<k>` while it is fitted. It cools
  * by its rating times `fanShare`: `bare` of it with no fan turning, all of it with one basic fan, a little more with more air.
  */
-export interface FanSpots { n: number; size: FanSize; bare: number }
+export interface FanSpots {
+  n: number;
+  size: FanSize;
+  bare: number;
+}
 
 export interface CoolerSpec extends SpecBase {
-  kind: "cooler";
+  kind: 'cooler';
   /** Extra heat removal from the CPU, W per degree C above ambient (with one basic fan turning on an air heatsink). */
   coolingPerC: number;
   /** Airflow the cooler gives the VRM, W per degree C above ambient (an air cooler's fan blows over it, liquid does not). */
@@ -134,14 +172,14 @@ export interface CoolerSpec extends SpecBase {
 
 /** A radiator for a liquid loop: it bolts along the front or the top of the case (slot `rad-front` / `rad-top`), spanning every fan mount of that side; the fans on those mounts push air through it, each on its mount's cable. */
 export interface RadiatorSpec extends SpecBase {
-  kind: "radiator";
+  kind: 'radiator';
   /** W per degree C it adds to the loop (every mount of its side with a basic fan turning). */
   coolingPerC: number;
 }
 
 /** A heatsink bolted onto one of the board's VRMs: slot `vrm-sink` is the CPU's, slot `ram-sink` the memory's (see docs/VRM.md). The fan fins take a fan on their spot. */
 export interface VrmSinkSpec extends SpecBase {
-  kind: "vrm-sink" | "ram-sink";
+  kind: 'vrm-sink' | 'ram-sink';
   /** Heat removal from the VRM, W per degree C above ambient (with its fan turning, if it has a spot). */
   coolingPerC: number;
   /** The fan fins' spot: the fan's cable plugs into the board's VRM_FAN / RAM_FAN header. */
@@ -150,13 +188,13 @@ export interface VrmSinkSpec extends SpecBase {
 
 /** A fan (docs/ASSEMBLY.md "Fans"): it fits a spot of its `size` only. `airflow` 1 is a basic fan's; it draws idleW..loadW while it turns. */
 export interface FanSpec extends SpecBase {
-  kind: "fan";
+  kind: 'fan';
   size: FanSize;
   airflow: number;
 }
 
 export interface DisplaySpec extends SpecBase {
-  kind: "display";
+  kind: 'display';
   clock: ClockRange;
   /** Display ticks per landed write. */
   writeLatency: number;
@@ -170,7 +208,7 @@ export interface DisplaySpec extends SpecBase {
  * SATA drives draw from the PSU budget (watts only, no separate connector); NVMe needs the M.2 slot.
  */
 export interface StorageSpec extends SpecBase {
-  kind: "storage";
+  kind: 'storage';
   clock: ClockRange;
   capacityBytes: number;
   latencyTicks: number;
@@ -189,14 +227,14 @@ export interface StorageSpec extends SpecBase {
 
 /** A PCIe network card (docs/NETWORK.md). Its jack replaces the onboard one for the cable plugged into it; load watts follow the traffic. */
 export interface NicSpec extends SpecBase {
-  kind: "nic";
+  kind: 'nic';
   /** Link speed in Mbit/s (halved above the throttle temperature). */
   mbps: number;
 }
 
 /** An accelerator card in a PCIe slot (docs/ACCEL.md): a GPU or an NPU. Its own regulator is folded into `heatFactor`; it draws from the PSU. */
 export interface CardSpec extends SpecBase {
-  kind: "gpu" | "npu";
+  kind: 'gpu' | 'npu';
   /** GPU only: its microarchitecture (docs/GPU.md); every kind exposes lanes, memBytes and banks. */
   gpu?: GpuConfig;
   /** NPU only: the systolic grid (grid x grid multiply-accumulate cells) and its card memory. */
@@ -205,12 +243,24 @@ export interface CardSpec extends SpecBase {
 
 /** A TPM daughterboard on the board's header (slot `tpm`), no cable (docs/ACCEL.md). */
 export interface TpmSpec extends SpecBase {
-  kind: "tpm";
+  kind: 'tpm';
   /** Bus costs in the module's own ticks: per word measured, per attestation, and the extra RAM ticks a protected-mode access pays. */
   tpm?: { measureTicks: number; attestTicks: number; surcharge: number };
 }
 
-export type DeviceSpec = CpuSpec | RamSpec | PsuSpec | CoolerSpec | DisplaySpec | StorageSpec | VrmSinkSpec | NicSpec | CardSpec | TpmSpec | RadiatorSpec | FanSpec;
+export type DeviceSpec =
+  | CpuSpec
+  | RamSpec
+  | PsuSpec
+  | CoolerSpec
+  | DisplaySpec
+  | StorageSpec
+  | VrmSinkSpec
+  | NicSpec
+  | CardSpec
+  | TpmSpec
+  | RadiatorSpec
+  | FanSpec;
 
 export const AMBIENT_C = 25;
 /** Ticks above damageC (accumulated, cooling slowly forgives) before a device is burnt. */
@@ -223,195 +273,1199 @@ const storageThermal: ThermalSpec = { passive: 0.4, mass: 25, throttleC: 55, uns
 const inertThermal: ThermalSpec = { passive: 1, mass: 50, throttleC: 999, unstableC: 999, damageC: 999 };
 
 export const specList: DeviceSpec[] = [
-  { id: "cpu0", kind: "cpu", tier: 0, name: "Tiny-1 (unpipelined)", slot: "cpu", price: 0, idleW: 2, loadW: 10, heatFactor: 1,
-    clock: { min: 0.25, base: 1, max: 1.5 }, thermal: cpuThermal, visual: "cpu-unpipelined",
-    engine: { kind: "unpipelined" } },
-  { id: "cpu1", kind: "cpu", tier: 1, name: "Tiny-5 (5-stage, no forwarding)", slot: "cpu", price: 200, idleW: 3, loadW: 20, heatFactor: 1,
-    clock: { min: 0.5, base: 2, max: 3 }, thermal: cpuThermal, visual: "cpu-inorder",
-    engine: { kind: "inorder", forwarding: false } },
-  { id: "cpu2", kind: "cpu", tier: 2, name: "Tiny-5F (5-stage, forwarding)", slot: "cpu", mmu: { tlb: 4 }, price: 800, idleW: 4, loadW: 35, heatFactor: 1,
-    clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
-    engine: { kind: "inorder", forwarding: true, cacheLines: 16, redirectPenalty: 2 } },
+  {
+    id: 'cpu0',
+    kind: 'cpu',
+    tier: 0,
+    name: 'Tiny-1 (unpipelined)',
+    slot: 'cpu',
+    price: 0,
+    idleW: 2,
+    loadW: 10,
+    heatFactor: 1,
+    clock: { min: 0.25, base: 1, max: 1.5 },
+    thermal: cpuThermal,
+    visual: 'cpu-unpipelined',
+    engine: { kind: 'unpipelined' },
+  },
+  {
+    id: 'cpu1',
+    kind: 'cpu',
+    tier: 1,
+    name: 'Tiny-5 (5-stage, no forwarding)',
+    slot: 'cpu',
+    price: 200,
+    idleW: 3,
+    loadW: 20,
+    heatFactor: 1,
+    clock: { min: 0.5, base: 2, max: 3 },
+    thermal: cpuThermal,
+    visual: 'cpu-inorder',
+    engine: { kind: 'inorder', forwarding: false },
+  },
+  {
+    id: 'cpu2',
+    kind: 'cpu',
+    tier: 2,
+    name: 'Tiny-5F (5-stage, forwarding)',
+    slot: 'cpu',
+    mmu: { tlb: 4 },
+    price: 800,
+    idleW: 4,
+    loadW: 35,
+    heatFactor: 1,
+    clock: { min: 1, base: 3, max: 5 },
+    thermal: cpuThermal,
+    visual: 'cpu-inorder-fwd',
+    engine: { kind: 'inorder', forwarding: true, cacheLines: 16, redirectPenalty: 2 },
+  },
   // Placeholder price, power and art: the owner sets the price (docs/PROGRESSION.md), T32 the board/VRM demand, T33 the art.
-  { id: "cpu3", kind: "cpu", tier: 3, name: "Tiny-5F2 (2-wide in-order)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, mmu: { tlb: 8 }, price: 2400, idleW: 5, loadW: 50, heatFactor: 1,
-    clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
-    engine: { kind: "inorder2", forwarding: true, cacheLines: 16, redirectPenalty: 2 } },
+  {
+    id: 'cpu3',
+    kind: 'cpu',
+    tier: 3,
+    name: 'Tiny-5F2 (2-wide in-order)',
+    slot: 'cpu',
+    memory: { channels: 2, policy: 'adaptive' },
+    mmu: { tlb: 8 },
+    price: 2400,
+    idleW: 5,
+    loadW: 50,
+    heatFactor: 1,
+    clock: { min: 1, base: 3, max: 5 },
+    thermal: cpuThermal,
+    visual: 'cpu-inorder-fwd',
+    engine: { kind: 'inorder2', forwarding: true, cacheLines: 16, redirectPenalty: 2 },
+  },
   // The consumer dual core (owner 2026-10-29, docs/MULTICORE.md): two `cpu2` cores on one shared 32-line L2. Placeholder price, power and art. 70 W is the whole chip with both cores busy.
-  { id: "cpu2d", kind: "cpu", tier: 3, name: "Tiny-5F x2 (dual core)", slot: "cpu", memory: { channels: 2, policy: "open" }, mmu: { tlb: 4 }, cores: 2, price: 2000, idleW: 5, loadW: 70, heatFactor: 1, after: "cpu2", branch: "multicore",
-    clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
-    engine: { kind: "inorder", forwarding: true, cacheLines: 16, l2Lines: 32, redirectPenalty: 2 } },
+  {
+    id: 'cpu2d',
+    kind: 'cpu',
+    tier: 3,
+    name: 'Tiny-5F x2 (dual core)',
+    slot: 'cpu',
+    memory: { channels: 2, policy: 'open' },
+    mmu: { tlb: 4 },
+    cores: 2,
+    price: 2000,
+    idleW: 5,
+    loadW: 70,
+    heatFactor: 1,
+    after: 'cpu2',
+    branch: 'multicore',
+    clock: { min: 1, base: 3, max: 5 },
+    thermal: cpuThermal,
+    visual: 'cpu-inorder-fwd',
+    engine: { kind: 'inorder', forwarding: true, cacheLines: 16, l2Lines: 32, redirectPenalty: 2 },
+  },
   // The Duo with two threads on each core (docs/MULTICORE.md section 5): a thread that misses the data cache hands its core to the other one. Four logical cores. Placeholder price, power and art.
-  { id: "cpu3t", kind: "cpu", tier: 4, name: "Tiny-5F x2 SMT (dual core, 2 threads)", slot: "cpu", memory: { channels: 2, policy: "open" }, mmu: { tlb: 4 }, cores: 2, threads: 2, price: 5000, idleW: 6, loadW: 80, heatFactor: 1, after: "cpu2d", branch: "multicore",
-    clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
-    engine: { kind: "inorder", forwarding: true, cacheLines: 16, l2Lines: 64, redirectPenalty: 2 } },
+  {
+    id: 'cpu3t',
+    kind: 'cpu',
+    tier: 4,
+    name: 'Tiny-5F x2 SMT (dual core, 2 threads)',
+    slot: 'cpu',
+    memory: { channels: 2, policy: 'open' },
+    mmu: { tlb: 4 },
+    cores: 2,
+    threads: 2,
+    price: 5000,
+    idleW: 6,
+    loadW: 80,
+    heatFactor: 1,
+    after: 'cpu2d',
+    branch: 'multicore',
+    clock: { min: 1, base: 3, max: 5 },
+    thermal: cpuThermal,
+    visual: 'cpu-inorder-fwd',
+    engine: { kind: 'inorder', forwarding: true, cacheLines: 16, l2Lines: 64, redirectPenalty: 2 },
+  },
   // The level 14 pair (docs/MULTICORE.md sections 5 and 8). The server: four cores with two switch-on-miss threads each, eight logical cores for the 8-thread `hpc` kinds. Placeholder price, power and art.
-  { id: "cpu5s", kind: "cpu", tier: 5, name: "Tiny-5F x4 SMT (server, 4 cores, 8 threads)", slot: "cpu", memory: { channels: 4, policy: "open" }, mmu: { tlb: 8 }, cores: 4, threads: 2, price: 9000, idleW: 8, loadW: 95, heatFactor: 1, after: "cpu3t", branch: "multicore",
-    clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
-    engine: { kind: "inorder", forwarding: true, cacheLines: 16, l2Lines: 64, redirectPenalty: 2 } },
+  {
+    id: 'cpu5s',
+    kind: 'cpu',
+    tier: 5,
+    name: 'Tiny-5F x4 SMT (server, 4 cores, 8 threads)',
+    slot: 'cpu',
+    memory: { channels: 4, policy: 'open' },
+    mmu: { tlb: 8 },
+    cores: 4,
+    threads: 2,
+    price: 9000,
+    idleW: 8,
+    loadW: 95,
+    heatFactor: 1,
+    after: 'cpu3t',
+    branch: 'multicore',
+    clock: { min: 1, base: 3, max: 5 },
+    thermal: cpuThermal,
+    visual: 'cpu-inorder-fwd',
+    engine: { kind: 'inorder', forwarding: true, cacheLines: 16, l2Lines: 64, redirectPenalty: 2 },
+  },
   // The HPC part: two out-of-order cores with full SMT (both threads in the pipeline at once, a ROB of 16 split between them). Four logical cores.
-  { id: "cpu5h", kind: "cpu", tier: 5, name: "Tiny-OoO x2 SMT (HPC, 2 cores, 4 threads)", slot: "cpu", memory: { channels: 4, policy: "adaptive" }, mmu: { tlb: 16 }, cores: 2, threads: 2, price: 11000, idleW: 9, loadW: 115, heatFactor: 1, after: "cpu4", branch: "multicore",
-    clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
-    engine: { kind: "ooo", robSize: 16, schedSize: 8, fetchQueue: 8, commitWidth: 4, cacheLines: 16, l2Lines: 64, redirectPenalty: 2 } },
+  {
+    id: 'cpu5h',
+    kind: 'cpu',
+    tier: 5,
+    name: 'Tiny-OoO x2 SMT (HPC, 2 cores, 4 threads)',
+    slot: 'cpu',
+    memory: { channels: 4, policy: 'adaptive' },
+    mmu: { tlb: 16 },
+    cores: 2,
+    threads: 2,
+    price: 11000,
+    idleW: 9,
+    loadW: 115,
+    heatFactor: 1,
+    after: 'cpu4',
+    branch: 'multicore',
+    clock: { min: 1, base: 3, max: 5 },
+    thermal: cpuThermal,
+    visual: 'cpu-inorder-fwd',
+    engine: {
+      kind: 'ooo',
+      robSize: 16,
+      schedSize: 8,
+      fetchQueue: 8,
+      commitWidth: 4,
+      cacheLines: 16,
+      l2Lines: 64,
+      redirectPenalty: 2,
+    },
+  },
   // The only ooo CPU (owner 2026-10-24): ROB 8, 4-wide commit. ROB 16 and 32 are deferred. Placeholder price, power and art as cpu3.
-  { id: "cpu4", kind: "cpu", tier: 4, name: "Tiny-OoO (out-of-order, ROB 8)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, mmu: { tlb: 16 }, price: 6000, idleW: 6, loadW: 80, heatFactor: 1,
-    clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
-    engine: { kind: "ooo", robSize: 8, commitWidth: 4, cacheLines: 16, redirectPenalty: 2 } },
+  {
+    id: 'cpu4',
+    kind: 'cpu',
+    tier: 4,
+    name: 'Tiny-OoO (out-of-order, ROB 8)',
+    slot: 'cpu',
+    memory: { channels: 2, policy: 'adaptive' },
+    mmu: { tlb: 16 },
+    price: 6000,
+    idleW: 6,
+    loadW: 80,
+    heatFactor: 1,
+    clock: { min: 1, base: 3, max: 5 },
+    thermal: cpuThermal,
+    visual: 'cpu-inorder-fwd',
+    engine: { kind: 'ooo', robSize: 8, commitWidth: 4, cacheLines: 16, redirectPenalty: 2 },
+  },
   // The branches (owner 2026-10-27, docs/TECHTREE.md): at each step a specialist leans one way. Placeholder numbers like the rest.
   // Tier is the depth in the tree, so siblings share a tier: cpu3, cpu2f and cpu2m are all tier 3.
-  { id: "cpu2f", kind: "cpu", tier: 3, name: "Tiny-5F+I (front end: I-cache, 2-bit predictor)", slot: "cpu", mmu: { tlb: 8 }, price: 1500, idleW: 4, loadW: 40, heatFactor: 1, after: "cpu2", branch: "frontend",
-    clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
-    engine: { kind: "inorder", forwarding: true, cacheLines: 16, icacheLines: 8, predEntries: 128, predBits: 2, redirectPenalty: 2 } },
-  { id: "cpu2m", kind: "cpu", tier: 3, name: "Tiny-5F+D (memory: 2-way D-cache, L2)", slot: "cpu", memory: { channels: 2, policy: "open" }, mmu: { tlb: 8 }, price: 1500, idleW: 4, loadW: 42, heatFactor: 1, after: "cpu2", branch: "memory",
-    clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
-    engine: { kind: "inorder", forwarding: true, cacheLines: 32, ways: 2, l2Lines: 32, redirectPenalty: 2 } },
-  { id: "cpu3f", kind: "cpu", tier: 4, name: "Tiny-5F2+I (2-wide, front end)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, mmu: { tlb: 8 }, price: 3600, idleW: 5, loadW: 58, heatFactor: 1, after: "cpu2f", branch: "frontend",
-    clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
-    engine: { kind: "inorder2", forwarding: true, cacheLines: 16, icacheLines: 16, predEntries: 256, predBits: 2, redirectPenalty: 2 } },
-  { id: "cpu3m", kind: "cpu", tier: 4, name: "Tiny-5F2+D (2-wide, memory)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, mmu: { tlb: 16 }, price: 3600, idleW: 5, loadW: 60, heatFactor: 1, after: "cpu2m", branch: "memory",
-    clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
-    engine: { kind: "inorder2", forwarding: true, cacheLines: 64, ways: 4, l2Lines: 64, redirectPenalty: 2 } },
-  { id: "cpu4f", kind: "cpu", tier: 5, name: "Tiny-OoO+I (out of order, ROB 16, front end)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, mmu: { tlb: 16 }, price: 8500, idleW: 6, loadW: 88, heatFactor: 1, after: "cpu3f", branch: "frontend",
-    clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
-    engine: { kind: "ooo", robSize: 16, schedSize: 8, fetchQueue: 8, commitWidth: 4, cacheLines: 16, icacheLines: 32, predEntries: 512, predBits: 2, redirectPenalty: 2 } },
-  { id: "cpu4m", kind: "cpu", tier: 5, name: "Tiny-OoO+D (out of order, ROB 16, memory)", slot: "cpu", memory: { channels: 4, policy: "adaptive" }, mmu: { tlb: 32 }, price: 8500, idleW: 6, loadW: 90, heatFactor: 1, after: "cpu3m", branch: "memory",
-    clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
-    engine: { kind: "ooo", robSize: 16, schedSize: 8, fetchQueue: 8, commitWidth: 4, cacheLines: 64, ways: 4, l2Lines: 128, redirectPenalty: 2 } },
-  { id: "cpu4w", kind: "cpu", tier: 6, name: "Tiny-OoO-W (4-wide out of order, ROB 32)", slot: "cpu", memory: { channels: 4, policy: "adaptive" }, mmu: { tlb: 32 }, price: 12000, idleW: 8, loadW: 100, heatFactor: 1, after: "cpu4", branch: "wide",
-    clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
-    engine: { kind: "ooo", width: 4, robSize: 32, schedSize: 16, fetchQueue: 8, commitWidth: 8, cacheLines: 64, ways: 4, icacheLines: 32, l2Lines: 128, predEntries: 512, predBits: 2, redirectPenalty: 2 } },
+  {
+    id: 'cpu2f',
+    kind: 'cpu',
+    tier: 3,
+    name: 'Tiny-5F+I (front end: I-cache, 2-bit predictor)',
+    slot: 'cpu',
+    mmu: { tlb: 8 },
+    price: 1500,
+    idleW: 4,
+    loadW: 40,
+    heatFactor: 1,
+    after: 'cpu2',
+    branch: 'frontend',
+    clock: { min: 1, base: 3, max: 5 },
+    thermal: cpuThermal,
+    visual: 'cpu-inorder-fwd',
+    engine: {
+      kind: 'inorder',
+      forwarding: true,
+      cacheLines: 16,
+      icacheLines: 8,
+      predEntries: 128,
+      predBits: 2,
+      redirectPenalty: 2,
+    },
+  },
+  {
+    id: 'cpu2m',
+    kind: 'cpu',
+    tier: 3,
+    name: 'Tiny-5F+D (memory: 2-way D-cache, L2)',
+    slot: 'cpu',
+    memory: { channels: 2, policy: 'open' },
+    mmu: { tlb: 8 },
+    price: 1500,
+    idleW: 4,
+    loadW: 42,
+    heatFactor: 1,
+    after: 'cpu2',
+    branch: 'memory',
+    clock: { min: 1, base: 3, max: 5 },
+    thermal: cpuThermal,
+    visual: 'cpu-inorder-fwd',
+    engine: { kind: 'inorder', forwarding: true, cacheLines: 32, ways: 2, l2Lines: 32, redirectPenalty: 2 },
+  },
+  {
+    id: 'cpu3f',
+    kind: 'cpu',
+    tier: 4,
+    name: 'Tiny-5F2+I (2-wide, front end)',
+    slot: 'cpu',
+    memory: { channels: 2, policy: 'adaptive' },
+    mmu: { tlb: 8 },
+    price: 3600,
+    idleW: 5,
+    loadW: 58,
+    heatFactor: 1,
+    after: 'cpu2f',
+    branch: 'frontend',
+    clock: { min: 1, base: 3, max: 5 },
+    thermal: cpuThermal,
+    visual: 'cpu-inorder-fwd',
+    engine: {
+      kind: 'inorder2',
+      forwarding: true,
+      cacheLines: 16,
+      icacheLines: 16,
+      predEntries: 256,
+      predBits: 2,
+      redirectPenalty: 2,
+    },
+  },
+  {
+    id: 'cpu3m',
+    kind: 'cpu',
+    tier: 4,
+    name: 'Tiny-5F2+D (2-wide, memory)',
+    slot: 'cpu',
+    memory: { channels: 2, policy: 'adaptive' },
+    mmu: { tlb: 16 },
+    price: 3600,
+    idleW: 5,
+    loadW: 60,
+    heatFactor: 1,
+    after: 'cpu2m',
+    branch: 'memory',
+    clock: { min: 1, base: 3, max: 5 },
+    thermal: cpuThermal,
+    visual: 'cpu-inorder-fwd',
+    engine: { kind: 'inorder2', forwarding: true, cacheLines: 64, ways: 4, l2Lines: 64, redirectPenalty: 2 },
+  },
+  {
+    id: 'cpu4f',
+    kind: 'cpu',
+    tier: 5,
+    name: 'Tiny-OoO+I (out of order, ROB 16, front end)',
+    slot: 'cpu',
+    memory: { channels: 2, policy: 'adaptive' },
+    mmu: { tlb: 16 },
+    price: 8500,
+    idleW: 6,
+    loadW: 88,
+    heatFactor: 1,
+    after: 'cpu3f',
+    branch: 'frontend',
+    clock: { min: 1, base: 3, max: 5 },
+    thermal: cpuThermal,
+    visual: 'cpu-inorder-fwd',
+    engine: {
+      kind: 'ooo',
+      robSize: 16,
+      schedSize: 8,
+      fetchQueue: 8,
+      commitWidth: 4,
+      cacheLines: 16,
+      icacheLines: 32,
+      predEntries: 512,
+      predBits: 2,
+      redirectPenalty: 2,
+    },
+  },
+  {
+    id: 'cpu4m',
+    kind: 'cpu',
+    tier: 5,
+    name: 'Tiny-OoO+D (out of order, ROB 16, memory)',
+    slot: 'cpu',
+    memory: { channels: 4, policy: 'adaptive' },
+    mmu: { tlb: 32 },
+    price: 8500,
+    idleW: 6,
+    loadW: 90,
+    heatFactor: 1,
+    after: 'cpu3m',
+    branch: 'memory',
+    clock: { min: 1, base: 3, max: 5 },
+    thermal: cpuThermal,
+    visual: 'cpu-inorder-fwd',
+    engine: {
+      kind: 'ooo',
+      robSize: 16,
+      schedSize: 8,
+      fetchQueue: 8,
+      commitWidth: 4,
+      cacheLines: 64,
+      ways: 4,
+      l2Lines: 128,
+      redirectPenalty: 2,
+    },
+  },
+  {
+    id: 'cpu4w',
+    kind: 'cpu',
+    tier: 6,
+    name: 'Tiny-OoO-W (4-wide out of order, ROB 32)',
+    slot: 'cpu',
+    memory: { channels: 4, policy: 'adaptive' },
+    mmu: { tlb: 32 },
+    price: 12000,
+    idleW: 8,
+    loadW: 100,
+    heatFactor: 1,
+    after: 'cpu4',
+    branch: 'wide',
+    clock: { min: 1, base: 3, max: 5 },
+    thermal: cpuThermal,
+    visual: 'cpu-inorder-fwd',
+    engine: {
+      kind: 'ooo',
+      width: 4,
+      robSize: 32,
+      schedSize: 16,
+      fetchQueue: 8,
+      commitWidth: 8,
+      cacheLines: 64,
+      ways: 4,
+      icacheLines: 32,
+      l2Lines: 128,
+      predEntries: 512,
+      predBits: 2,
+      redirectPenalty: 2,
+    },
+  },
 
-  { id: "ram0", kind: "ram", tier: 0, gen: "SDR", name: "SDRAM 16K", slot: "dimm", price: 0, idleW: 1, loadW: 2, heatFactor: 1,
-    clock: { min: 0.5, base: 1, max: 1.5 }, thermal: ramThermal, visual: "dimm-basic",
-    sizeBytes: 16 * 1024, latency: 200, banks: 2, bankGroups: 1, rowBytes: 256, tCL: 80, tRCD: 120, tRP: 100, burst: 8 },
-  { id: "ram1", kind: "ram", tier: 1, gen: "DDR2", name: "DDR2 32K", slot: "dimm", price: 100, idleW: 1, loadW: 3, heatFactor: 1,
-    clock: { min: 1, base: 2, max: 3 }, thermal: ramThermal, visual: "dimm-fast",
-    sizeBytes: 32 * 1024, latency: 12, banks: 4, bankGroups: 1, rowBytes: 256, tCL: 5, tRCD: 7, tRP: 6, burst: 2 },
-  { id: "ram1b", kind: "ram", tier: 2, gen: "DDR3", name: "DDR3 64K", slot: "dimm", price: 220, idleW: 1, loadW: 3, heatFactor: 1,
-    clock: { min: 1.5, base: 2.5, max: 3.5 }, thermal: ramThermal, visual: "dimm-ddr3",
-    sizeBytes: 64 * 1024, latency: 9, banks: 8, bankGroups: 1, rowBytes: 256, tCL: 4, tRCD: 5, tRP: 4, burst: 2 },
-  { id: "ram2", kind: "ram", tier: 3, gen: "DDR4", name: "DDR4 128K", slot: "dimm", price: 400, idleW: 2, loadW: 5, heatFactor: 1,
-    clock: { min: 2, base: 3, max: 5 }, thermal: ramThermal, visual: "dimm-lowlat",
-    sizeBytes: 128 * 1024, latency: 4, banks: 16, bankGroups: 4, rowBytes: 256, tCL: 2, tRCD: 2, tRP: 2, burst: 1 },
-  { id: "ram3", kind: "ram", tier: 4, gen: "DDR4", name: "DDR4 ECC 128K", slot: "dimm", price: 1500, idleW: 3, loadW: 7, heatFactor: 1,
-    clock: { min: 2, base: 3, max: 4 }, thermal: ramThermal, visual: "dimm-ecc",
-    sizeBytes: 128 * 1024, latency: 5, banks: 16, bankGroups: 4, rowBytes: 256, tCL: 2, tRCD: 3, tRP: 2, burst: 1, ecc: true },
-  { id: "ram4", kind: "ram", tier: 5, gen: "DDR5", name: "DDR5 256K", slot: "dimm", price: 2400, idleW: 3, loadW: 7, heatFactor: 1,
-    clock: { min: 3, base: 4, max: 6 }, thermal: ramThermal, visual: "dimm-ddr5", subChannels: 2,
-    sizeBytes: 256 * 1024, latency: 4, banks: 32, bankGroups: 8, rowBytes: 256, tCL: 2, tRCD: 2, tRP: 2, burst: 1 },
-  { id: "ram5", kind: "ram", tier: 6, gen: "DDR5", name: "DDR5 ECC 256K", slot: "dimm", price: 4200, idleW: 4, loadW: 9, heatFactor: 1,
-    clock: { min: 3, base: 4, max: 5.5 }, thermal: ramThermal, visual: "dimm-ddr5ecc", subChannels: 2,
-    sizeBytes: 256 * 1024, latency: 4, banks: 32, bankGroups: 8, rowBytes: 256, tCL: 2, tRCD: 3, tRP: 2, burst: 1, ecc: true },
+  {
+    id: 'ram0',
+    kind: 'ram',
+    tier: 0,
+    gen: 'SDR',
+    name: 'SDRAM 16K',
+    slot: 'dimm',
+    price: 0,
+    idleW: 1,
+    loadW: 2,
+    heatFactor: 1,
+    clock: { min: 0.5, base: 1, max: 1.5 },
+    thermal: ramThermal,
+    visual: 'dimm-basic',
+    sizeBytes: 16 * 1024,
+    latency: 200,
+    banks: 2,
+    bankGroups: 1,
+    rowBytes: 256,
+    tCL: 80,
+    tRCD: 120,
+    tRP: 100,
+    burst: 8,
+  },
+  {
+    id: 'ram1',
+    kind: 'ram',
+    tier: 1,
+    gen: 'DDR2',
+    name: 'DDR2 32K',
+    slot: 'dimm',
+    price: 100,
+    idleW: 1,
+    loadW: 3,
+    heatFactor: 1,
+    clock: { min: 1, base: 2, max: 3 },
+    thermal: ramThermal,
+    visual: 'dimm-fast',
+    sizeBytes: 32 * 1024,
+    latency: 12,
+    banks: 4,
+    bankGroups: 1,
+    rowBytes: 256,
+    tCL: 5,
+    tRCD: 7,
+    tRP: 6,
+    burst: 2,
+  },
+  {
+    id: 'ram1b',
+    kind: 'ram',
+    tier: 2,
+    gen: 'DDR3',
+    name: 'DDR3 64K',
+    slot: 'dimm',
+    price: 220,
+    idleW: 1,
+    loadW: 3,
+    heatFactor: 1,
+    clock: { min: 1.5, base: 2.5, max: 3.5 },
+    thermal: ramThermal,
+    visual: 'dimm-ddr3',
+    sizeBytes: 64 * 1024,
+    latency: 9,
+    banks: 8,
+    bankGroups: 1,
+    rowBytes: 256,
+    tCL: 4,
+    tRCD: 5,
+    tRP: 4,
+    burst: 2,
+  },
+  {
+    id: 'ram2',
+    kind: 'ram',
+    tier: 3,
+    gen: 'DDR4',
+    name: 'DDR4 128K',
+    slot: 'dimm',
+    price: 400,
+    idleW: 2,
+    loadW: 5,
+    heatFactor: 1,
+    clock: { min: 2, base: 3, max: 5 },
+    thermal: ramThermal,
+    visual: 'dimm-lowlat',
+    sizeBytes: 128 * 1024,
+    latency: 4,
+    banks: 16,
+    bankGroups: 4,
+    rowBytes: 256,
+    tCL: 2,
+    tRCD: 2,
+    tRP: 2,
+    burst: 1,
+  },
+  {
+    id: 'ram3',
+    kind: 'ram',
+    tier: 4,
+    gen: 'DDR4',
+    name: 'DDR4 ECC 128K',
+    slot: 'dimm',
+    price: 1500,
+    idleW: 3,
+    loadW: 7,
+    heatFactor: 1,
+    clock: { min: 2, base: 3, max: 4 },
+    thermal: ramThermal,
+    visual: 'dimm-ecc',
+    sizeBytes: 128 * 1024,
+    latency: 5,
+    banks: 16,
+    bankGroups: 4,
+    rowBytes: 256,
+    tCL: 2,
+    tRCD: 3,
+    tRP: 2,
+    burst: 1,
+    ecc: true,
+  },
+  {
+    id: 'ram4',
+    kind: 'ram',
+    tier: 5,
+    gen: 'DDR5',
+    name: 'DDR5 256K',
+    slot: 'dimm',
+    price: 2400,
+    idleW: 3,
+    loadW: 7,
+    heatFactor: 1,
+    clock: { min: 3, base: 4, max: 6 },
+    thermal: ramThermal,
+    visual: 'dimm-ddr5',
+    subChannels: 2,
+    sizeBytes: 256 * 1024,
+    latency: 4,
+    banks: 32,
+    bankGroups: 8,
+    rowBytes: 256,
+    tCL: 2,
+    tRCD: 2,
+    tRP: 2,
+    burst: 1,
+  },
+  {
+    id: 'ram5',
+    kind: 'ram',
+    tier: 6,
+    gen: 'DDR5',
+    name: 'DDR5 ECC 256K',
+    slot: 'dimm',
+    price: 4200,
+    idleW: 4,
+    loadW: 9,
+    heatFactor: 1,
+    clock: { min: 3, base: 4, max: 5.5 },
+    thermal: ramThermal,
+    visual: 'dimm-ddr5ecc',
+    subChannels: 2,
+    sizeBytes: 256 * 1024,
+    latency: 4,
+    banks: 32,
+    bankGroups: 8,
+    rowBytes: 256,
+    tCL: 2,
+    tRCD: 3,
+    tRP: 2,
+    burst: 1,
+    ecc: true,
+  },
 
-  { id: "psu0", kind: "psu", tier: 0, name: "PSU 40 W", slot: "atx", price: 0, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "psu-basic", watts: 40, pcieLeads: 0, fan: false },
-  { id: "psu1", kind: "psu", tier: 1, name: "PSU 100 W", slot: "atx", price: 60, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "psu-mid", watts: 100, pcieLeads: 0, fan: false },
-  { id: "psu2", kind: "psu", tier: 2, name: "PSU 250 W (ATX+)", slot: "atx-plus", price: 250, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "psu-big", watts: 250, pcieLeads: 1, fan: true },
+  {
+    id: 'psu0',
+    kind: 'psu',
+    tier: 0,
+    name: 'PSU 40 W',
+    slot: 'atx',
+    price: 0,
+    idleW: 0,
+    loadW: 0,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'psu-basic',
+    watts: 40,
+    pcieLeads: 0,
+    fan: false,
+  },
+  {
+    id: 'psu1',
+    kind: 'psu',
+    tier: 1,
+    name: 'PSU 100 W',
+    slot: 'atx',
+    price: 60,
+    idleW: 0,
+    loadW: 0,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'psu-mid',
+    watts: 100,
+    pcieLeads: 0,
+    fan: false,
+  },
+  {
+    id: 'psu2',
+    kind: 'psu',
+    tier: 2,
+    name: 'PSU 250 W (ATX+)',
+    slot: 'atx-plus',
+    price: 250,
+    idleW: 0,
+    loadW: 0,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'psu-big',
+    watts: 250,
+    pcieLeads: 1,
+    fan: true,
+  },
 
   // 500 W with two PCIe leads (docs/ACCEL.md). Placeholder price.
-  { id: "psu3", kind: "psu", tier: 3, name: "PSU 500 W (ATX+)", slot: "atx-plus", price: 900, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "psu-big", watts: 500, pcieLeads: 2, fan: true },
+  {
+    id: 'psu3',
+    kind: 'psu',
+    tier: 3,
+    name: 'PSU 500 W (ATX+)',
+    slot: 'atx-plus',
+    price: 900,
+    idleW: 0,
+    loadW: 0,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'psu-big',
+    watts: 500,
+    pcieLeads: 2,
+    fan: true,
+  },
 
   // 1 kW with four PCIe leads. Placeholder price.
-  { id: "psu4", kind: "psu", tier: 4, name: "PSU 1 kW (ATX+)", slot: "atx-plus", price: 2400, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "psu-big", watts: 1000, pcieLeads: 4, fan: true },
+  {
+    id: 'psu4',
+    kind: 'psu',
+    tier: 4,
+    name: 'PSU 1 kW (ATX+)',
+    slot: 'atx-plus',
+    price: 2400,
+    idleW: 0,
+    loadW: 0,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'psu-big',
+    watts: 1000,
+    pcieLeads: 4,
+    fan: true,
+  },
 
   // the air heatsinks are bare: their fans are parts of their own (the `fan*` specs below)
-  { id: "cooler0", kind: "cooler", tier: 0, name: "Stock heatsink", slot: "cooler", price: 0, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "cooler-stock", coolingPerC: 0.35, vrmAirPerC: 0.05, fanSpots: { n: 1, size: 92, bare: 0.35 } },
-  { id: "cooler1", kind: "cooler", tier: 1, name: "Tower heatsink", slot: "cooler", price: 40, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "cooler-tower", coolingPerC: 0.8, vrmAirPerC: 0.25, fanSpots: { n: 2, size: 120, bare: 0.3 } },
-  { id: "cooler2", kind: "cooler", tier: 2, name: "Liquid loop", slot: "cooler", price: 300, idleW: 1, loadW: 6, heatFactor: 0,
-    thermal: inertThermal, visual: "cooler-liquid", coolingPerC: 1.8, vrmAirPerC: 0, loop: { pumpPerC: 0.4 } },
+  {
+    id: 'cooler0',
+    kind: 'cooler',
+    tier: 0,
+    name: 'Stock heatsink',
+    slot: 'cooler',
+    price: 0,
+    idleW: 0,
+    loadW: 0,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'cooler-stock',
+    coolingPerC: 0.35,
+    vrmAirPerC: 0.05,
+    fanSpots: { n: 1, size: 92, bare: 0.35 },
+  },
+  {
+    id: 'cooler1',
+    kind: 'cooler',
+    tier: 1,
+    name: 'Tower heatsink',
+    slot: 'cooler',
+    price: 40,
+    idleW: 0,
+    loadW: 0,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'cooler-tower',
+    coolingPerC: 0.8,
+    vrmAirPerC: 0.25,
+    fanSpots: { n: 2, size: 120, bare: 0.3 },
+  },
+  {
+    id: 'cooler2',
+    kind: 'cooler',
+    tier: 2,
+    name: 'Liquid loop',
+    slot: 'cooler',
+    price: 300,
+    idleW: 1,
+    loadW: 6,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'cooler-liquid',
+    coolingPerC: 1.8,
+    vrmAirPerC: 0,
+    loop: { pumpPerC: 0.4 },
+  },
 
   // radiators: the loop's cooling is the pump's plus the radiator's (rad1 brings it to the old 1.8). Placeholder prices.
-  { id: "rad1", kind: "radiator", tier: 1, name: "Slim radiator", slot: "radiator", price: 60, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "radiator-slim", coolingPerC: 1.4 },
-  { id: "rad2", kind: "radiator", tier: 2, name: "Thick radiator", slot: "radiator", price: 130, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "radiator-thick", coolingPerC: 2 },
-  { id: "rad3", kind: "radiator", tier: 3, name: "Big radiator", slot: "radiator", price: 240, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "radiator-big", coolingPerC: 2.6 },
+  {
+    id: 'rad1',
+    kind: 'radiator',
+    tier: 1,
+    name: 'Slim radiator',
+    slot: 'radiator',
+    price: 60,
+    idleW: 0,
+    loadW: 0,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'radiator-slim',
+    coolingPerC: 1.4,
+  },
+  {
+    id: 'rad2',
+    kind: 'radiator',
+    tier: 2,
+    name: 'Thick radiator',
+    slot: 'radiator',
+    price: 130,
+    idleW: 0,
+    loadW: 0,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'radiator-thick',
+    coolingPerC: 2,
+  },
+  {
+    id: 'rad3',
+    kind: 'radiator',
+    tier: 3,
+    name: 'Big radiator',
+    slot: 'radiator',
+    price: 240,
+    idleW: 0,
+    loadW: 0,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'radiator-big',
+    coolingPerC: 2.6,
+  },
 
-  { id: "vsink0", kind: "vrm-sink", tier: 0, name: "VRM fins", slot: "vrm-sink", price: 30, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "vrm-sink-fins", coolingPerC: 0.25 },
-  { id: "vsink1", kind: "vrm-sink", tier: 1, name: "VRM big fins", slot: "vrm-sink", price: 70, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "vrm-sink-big", coolingPerC: 0.5 },
-  { id: "vsink2", kind: "vrm-sink", tier: 2, name: "VRM fan fins", slot: "vrm-sink", price: 130, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "vrm-sink-fan", coolingPerC: 1, fanSpots: { n: 1, size: 40, bare: 0.5 } },
-  { id: "rsink0", kind: "ram-sink", tier: 0, name: "RAM VRM fins", slot: "ram-sink", price: 25, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "vrm-sink-fins", coolingPerC: 0.25 },
-  { id: "rsink1", kind: "ram-sink", tier: 1, name: "RAM VRM big fins", slot: "ram-sink", price: 60, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "vrm-sink-big", coolingPerC: 0.5 },
-  { id: "rsink2", kind: "ram-sink", tier: 2, name: "RAM VRM fan fins", slot: "ram-sink", price: 110, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "vrm-sink-fan", coolingPerC: 1, fanSpots: { n: 1, size: 40, bare: 0.5 } },
+  {
+    id: 'vsink0',
+    kind: 'vrm-sink',
+    tier: 0,
+    name: 'VRM fins',
+    slot: 'vrm-sink',
+    price: 30,
+    idleW: 0,
+    loadW: 0,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'vrm-sink-fins',
+    coolingPerC: 0.25,
+  },
+  {
+    id: 'vsink1',
+    kind: 'vrm-sink',
+    tier: 1,
+    name: 'VRM big fins',
+    slot: 'vrm-sink',
+    price: 70,
+    idleW: 0,
+    loadW: 0,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'vrm-sink-big',
+    coolingPerC: 0.5,
+  },
+  {
+    id: 'vsink2',
+    kind: 'vrm-sink',
+    tier: 2,
+    name: 'VRM fan fins',
+    slot: 'vrm-sink',
+    price: 130,
+    idleW: 0,
+    loadW: 0,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'vrm-sink-fan',
+    coolingPerC: 1,
+    fanSpots: { n: 1, size: 40, bare: 0.5 },
+  },
+  {
+    id: 'rsink0',
+    kind: 'ram-sink',
+    tier: 0,
+    name: 'RAM VRM fins',
+    slot: 'ram-sink',
+    price: 25,
+    idleW: 0,
+    loadW: 0,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'vrm-sink-fins',
+    coolingPerC: 0.25,
+  },
+  {
+    id: 'rsink1',
+    kind: 'ram-sink',
+    tier: 1,
+    name: 'RAM VRM big fins',
+    slot: 'ram-sink',
+    price: 60,
+    idleW: 0,
+    loadW: 0,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'vrm-sink-big',
+    coolingPerC: 0.5,
+  },
+  {
+    id: 'rsink2',
+    kind: 'ram-sink',
+    tier: 2,
+    name: 'RAM VRM fan fins',
+    slot: 'ram-sink',
+    price: 110,
+    idleW: 0,
+    loadW: 0,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'vrm-sink-fan',
+    coolingPerC: 1,
+    fanSpots: { n: 1, size: 40, bare: 0.5 },
+  },
 
   // Fans (docs/ASSEMBLY.md "Fans"): one per standard size, a basic and a high-airflow grade. The 140 mm basic fan moves a third more than the
   // smaller ones: the Full tower fits fewer of them. Placeholder prices and power.
-  { id: "fan40", kind: "fan", tier: 0, name: "40 mm fan", slot: "fan", price: 10, idleW: 0.1, loadW: 0.5, heatFactor: 0,
-    thermal: inertThermal, visual: "fan-basic", size: 40, airflow: 1 },
-  { id: "fan92", kind: "fan", tier: 0, name: "92 mm fan", slot: "fan", price: 12, idleW: 0.2, loadW: 1, heatFactor: 0,
-    thermal: inertThermal, visual: "fan-basic", size: 92, airflow: 1 },
-  { id: "fan92x", kind: "fan", tier: 1, name: "92 mm high-airflow fan", slot: "fan", price: 30, idleW: 0.3, loadW: 1.6, heatFactor: 0,
-    thermal: inertThermal, visual: "fan-high", size: 92, airflow: 1.5 },
-  { id: "fan120", kind: "fan", tier: 0, name: "120 mm fan", slot: "fan", price: 18, idleW: 0.3, loadW: 1.5, heatFactor: 0,
-    thermal: inertThermal, visual: "fan-basic", size: 120, airflow: 1 },
-  { id: "fan120x", kind: "fan", tier: 1, name: "120 mm high-airflow fan", slot: "fan", price: 45, idleW: 0.5, loadW: 2.4, heatFactor: 0,
-    thermal: inertThermal, visual: "fan-high", size: 120, airflow: 1.5 },
-  { id: "fan140", kind: "fan", tier: 0, name: "140 mm fan", slot: "fan", price: 25, idleW: 0.4, loadW: 1.8, heatFactor: 0,
-    thermal: inertThermal, visual: "fan-basic", size: 140, airflow: 1.35 },
-  { id: "fan140x", kind: "fan", tier: 1, name: "140 mm high-airflow fan", slot: "fan", price: 60, idleW: 0.6, loadW: 2.8, heatFactor: 0,
-    thermal: inertThermal, visual: "fan-high", size: 140, airflow: 2 },
+  {
+    id: 'fan40',
+    kind: 'fan',
+    tier: 0,
+    name: '40 mm fan',
+    slot: 'fan',
+    price: 10,
+    idleW: 0.1,
+    loadW: 0.5,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'fan-basic',
+    size: 40,
+    airflow: 1,
+  },
+  {
+    id: 'fan92',
+    kind: 'fan',
+    tier: 0,
+    name: '92 mm fan',
+    slot: 'fan',
+    price: 12,
+    idleW: 0.2,
+    loadW: 1,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'fan-basic',
+    size: 92,
+    airflow: 1,
+  },
+  {
+    id: 'fan92x',
+    kind: 'fan',
+    tier: 1,
+    name: '92 mm high-airflow fan',
+    slot: 'fan',
+    price: 30,
+    idleW: 0.3,
+    loadW: 1.6,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'fan-high',
+    size: 92,
+    airflow: 1.5,
+  },
+  {
+    id: 'fan120',
+    kind: 'fan',
+    tier: 0,
+    name: '120 mm fan',
+    slot: 'fan',
+    price: 18,
+    idleW: 0.3,
+    loadW: 1.5,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'fan-basic',
+    size: 120,
+    airflow: 1,
+  },
+  {
+    id: 'fan120x',
+    kind: 'fan',
+    tier: 1,
+    name: '120 mm high-airflow fan',
+    slot: 'fan',
+    price: 45,
+    idleW: 0.5,
+    loadW: 2.4,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'fan-high',
+    size: 120,
+    airflow: 1.5,
+  },
+  {
+    id: 'fan140',
+    kind: 'fan',
+    tier: 0,
+    name: '140 mm fan',
+    slot: 'fan',
+    price: 25,
+    idleW: 0.4,
+    loadW: 1.8,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'fan-basic',
+    size: 140,
+    airflow: 1.35,
+  },
+  {
+    id: 'fan140x',
+    kind: 'fan',
+    tier: 1,
+    name: '140 mm high-airflow fan',
+    slot: 'fan',
+    price: 60,
+    idleW: 0.6,
+    loadW: 2.8,
+    heatFactor: 0,
+    thermal: inertThermal,
+    visual: 'fan-high',
+    size: 140,
+    airflow: 2,
+  },
 
-  { id: "hdd0", kind: "storage", tier: 0, name: "HDD 96K", slot: "sata", price: 40, idleW: 1, loadW: 4, heatFactor: 1,
-    clock: { min: 0.5, base: 1, max: 1.25 }, thermal: storageThermal, visual: "hdd",
-    capacityBytes: 96 * 1024, latencyTicks: 720, blockTicks: 72, enduranceBlocks: 40000, queueDepth: 2, seekByDistance: true, mechBadRate: 0.0002 },
-  { id: "ssd1", kind: "storage", tier: 1, name: "SATA SSD 64K", slot: "sata", price: 150, idleW: 0.5, loadW: 2.5, heatFactor: 1,
-    clock: { min: 1, base: 2, max: 3 }, thermal: storageThermal, visual: "ssd-sata",
-    capacityBytes: 64 * 1024, latencyTicks: 72, blockTicks: 36, enduranceBlocks: 6000, queueDepth: 4 },
-  { id: "nvme2", kind: "storage", tier: 2, name: "NVMe SSD 128K", slot: "m2", price: 400, idleW: 1, loadW: 6, heatFactor: 1,
-    clock: { min: 2, base: 4, max: 6 }, thermal: storageThermal, visual: "ssd-nvme",
-    capacityBytes: 128 * 1024, latencyTicks: 14, blockTicks: 14, enduranceBlocks: 20000, queueDepth: 16 },
-  { id: "raid2", kind: "storage", tier: 3, name: "RAID 1 2x NVMe 128K", slot: "m2", price: 1200, idleW: 2, loadW: 11, heatFactor: 1,
-    clock: { min: 2, base: 4, max: 6 }, thermal: storageThermal, visual: "ssd-nvme",
-    capacityBytes: 128 * 1024, latencyTicks: 14, blockTicks: 14, enduranceBlocks: 20000, queueDepth: 16, mirror: true },
+  {
+    id: 'hdd0',
+    kind: 'storage',
+    tier: 0,
+    name: 'HDD 96K',
+    slot: 'sata',
+    price: 40,
+    idleW: 1,
+    loadW: 4,
+    heatFactor: 1,
+    clock: { min: 0.5, base: 1, max: 1.25 },
+    thermal: storageThermal,
+    visual: 'hdd',
+    capacityBytes: 96 * 1024,
+    latencyTicks: 720,
+    blockTicks: 72,
+    enduranceBlocks: 40000,
+    queueDepth: 2,
+    seekByDistance: true,
+    mechBadRate: 0.0002,
+  },
+  {
+    id: 'ssd1',
+    kind: 'storage',
+    tier: 1,
+    name: 'SATA SSD 64K',
+    slot: 'sata',
+    price: 150,
+    idleW: 0.5,
+    loadW: 2.5,
+    heatFactor: 1,
+    clock: { min: 1, base: 2, max: 3 },
+    thermal: storageThermal,
+    visual: 'ssd-sata',
+    capacityBytes: 64 * 1024,
+    latencyTicks: 72,
+    blockTicks: 36,
+    enduranceBlocks: 6000,
+    queueDepth: 4,
+  },
+  {
+    id: 'nvme2',
+    kind: 'storage',
+    tier: 2,
+    name: 'NVMe SSD 128K',
+    slot: 'm2',
+    price: 400,
+    idleW: 1,
+    loadW: 6,
+    heatFactor: 1,
+    clock: { min: 2, base: 4, max: 6 },
+    thermal: storageThermal,
+    visual: 'ssd-nvme',
+    capacityBytes: 128 * 1024,
+    latencyTicks: 14,
+    blockTicks: 14,
+    enduranceBlocks: 20000,
+    queueDepth: 16,
+  },
+  {
+    id: 'raid2',
+    kind: 'storage',
+    tier: 3,
+    name: 'RAID 1 2x NVMe 128K',
+    slot: 'm2',
+    price: 1200,
+    idleW: 2,
+    loadW: 11,
+    heatFactor: 1,
+    clock: { min: 2, base: 4, max: 6 },
+    thermal: storageThermal,
+    visual: 'ssd-nvme',
+    capacityBytes: 128 * 1024,
+    latencyTicks: 14,
+    blockTicks: 14,
+    enduranceBlocks: 20000,
+    queueDepth: 16,
+    mirror: true,
+  },
 
-  { id: "nic1", kind: "nic", tier: 1, name: "GbE card", slot: "pcie", pcieWidth: 1, price: 120, idleW: 1.5, loadW: 3.5, heatFactor: 1,
-    thermal: { passive: 0.3, mass: 20, throttleC: 75, unstableC: 90, damageC: 105 }, visual: "nic-gbe", mbps: 1000 },
-  { id: "nic2", kind: "nic", tier: 2, name: "10GbE card", slot: "pcie", pcieWidth: 4, price: 500, idleW: 5, loadW: 11, heatFactor: 1,
-    thermal: { passive: 0.3, mass: 20, throttleC: 65, unstableC: 80, damageC: 95 }, visual: "nic-10g", mbps: 10000 },
-  { id: "nic3", kind: "nic", tier: 3, name: "40GbE card", slot: "pcie", pcieWidth: 8, price: 1800, idleW: 9, loadW: 22, heatFactor: 1,
-    thermal: { passive: 0.3, mass: 20, throttleC: 60, unstableC: 75, damageC: 90 }, visual: "nic-40g", mbps: 40000 },
+  {
+    id: 'nic1',
+    kind: 'nic',
+    tier: 1,
+    name: 'GbE card',
+    slot: 'pcie',
+    pcieWidth: 1,
+    price: 120,
+    idleW: 1.5,
+    loadW: 3.5,
+    heatFactor: 1,
+    thermal: { passive: 0.3, mass: 20, throttleC: 75, unstableC: 90, damageC: 105 },
+    visual: 'nic-gbe',
+    mbps: 1000,
+  },
+  {
+    id: 'nic2',
+    kind: 'nic',
+    tier: 2,
+    name: '10GbE card',
+    slot: 'pcie',
+    pcieWidth: 4,
+    price: 500,
+    idleW: 5,
+    loadW: 11,
+    heatFactor: 1,
+    thermal: { passive: 0.3, mass: 20, throttleC: 65, unstableC: 80, damageC: 95 },
+    visual: 'nic-10g',
+    mbps: 10000,
+  },
+  {
+    id: 'nic3',
+    kind: 'nic',
+    tier: 3,
+    name: '40GbE card',
+    slot: 'pcie',
+    pcieWidth: 8,
+    price: 1800,
+    idleW: 9,
+    loadW: 22,
+    heatFactor: 1,
+    thermal: { passive: 0.3, mass: 20, throttleC: 60, unstableC: 75, damageC: 90 },
+    visual: 'nic-40g',
+    mbps: 40000,
+  },
 
   // Accelerators (docs/ACCEL.md). Prices are orders of magnitude only; the card's own cooler is folded into `passive`.
-  { id: "gpu1", kind: "gpu", tier: 1, name: "GPU 8 lanes", slot: "pcie", pcieWidth: 8, price: 1500, idleW: 4, loadW: 40, heatFactor: 1,
-    clock: { min: 1, base: 2, max: 3 }, thermal: { passive: 1, fanPerC: 0.5, mass: 40, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-1",
-    gpu: { kind: "simd", lanes: 8, memBytes: 16 * 1024, banks: 1 } },
+  {
+    id: 'gpu1',
+    kind: 'gpu',
+    tier: 1,
+    name: 'GPU 8 lanes',
+    slot: 'pcie',
+    pcieWidth: 8,
+    price: 1500,
+    idleW: 4,
+    loadW: 40,
+    heatFactor: 1,
+    clock: { min: 1, base: 2, max: 3 },
+    thermal: { passive: 1, fanPerC: 0.5, mass: 40, throttleC: 80, unstableC: 95, damageC: 110 },
+    visual: 'gpu-1',
+    gpu: { kind: 'simd', lanes: 8, memBytes: 16 * 1024, banks: 1 },
+  },
   // Later tiers (docs/ACCEL.md tables): more lanes, memory and banks, a faster clock. gpu3 needs both PCIe leads of a big PSU.
-  { id: "gpu2", kind: "gpu", tier: 2, name: "GPU 16 lanes", slot: "pcie", pcieWidth: 16, price: 5000, idleW: 8, loadW: 90, heatFactor: 1,
-    clock: { min: 1.5, base: 3, max: 4.5 }, thermal: { passive: 2, fanPerC: 1, mass: 60, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-2",
-    gpu: { kind: "warp", lanes: 16, warps: 2, memBytes: 32 * 1024, banks: 2, lineWords: 8, globalLatency: 6 } },
-  { id: "gpu3", kind: "gpu", tier: 3, name: "GPU 32 lanes", slot: "pcie", pcieWidth: 32, price: 15000, idleW: 12, loadW: 180, heatFactor: 1,
-    clock: { min: 2, base: 4, max: 6 }, thermal: { passive: 4, fanPerC: 2, mass: 90, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-3",
-    gpu: { kind: "multi", lanes: 32, sms: 2, warps: 2, memBytes: 64 * 1024, banks: 4, lineWords: 8, globalLatency: 6, l1Lines: 16, l1Hit: 2, l2Lines: 64, l2Hit: 4 } },
-  { id: "npu1", kind: "npu", tier: 1, name: "NPU 4x4", slot: "pcie", pcieWidth: 4, price: 2500, idleW: 2, loadW: 15, heatFactor: 1,
-    clock: { min: 1, base: 2, max: 3 }, thermal: { passive: 0.4, fanPerC: 0.2, mass: 25, throttleC: 75, unstableC: 90, damageC: 105 }, visual: "npu-1",
-    npu: { grid: 4, memBytes: 8 * 1024 } },
-  { id: "npu2", kind: "npu", tier: 2, name: "NPU 8x8", slot: "pcie", pcieWidth: 8, price: 10000, idleW: 5, loadW: 45, heatFactor: 1,
-    clock: { min: 1.5, base: 3, max: 4.5 }, thermal: { passive: 1.2, fanPerC: 0.6, mass: 40, throttleC: 75, unstableC: 90, damageC: 105 }, visual: "npu-2",
-    npu: { grid: 8, memBytes: 32 * 1024 } },
-  { id: "tpm1", kind: "tpm", tier: 1, name: "Secure module", slot: "tpm", price: 400, idleW: 0.2, loadW: 0.5, heatFactor: 1,
-    thermal: { passive: 0.2, mass: 5, throttleC: 90, unstableC: 105, damageC: 120 }, visual: "tpm-1",
-    tpm: { measureTicks: 4, attestTicks: 60, surcharge: 2 } },
-  { id: "tpm2", kind: "tpm", tier: 2, name: "Secure module 2", slot: "tpm", price: 1500, idleW: 0.3, loadW: 0.8, heatFactor: 1,
-    thermal: { passive: 0.2, mass: 5, throttleC: 90, unstableC: 105, damageC: 120 }, visual: "tpm-2",
-    tpm: { measureTicks: 1, attestTicks: 20, surcharge: 1 } },
+  {
+    id: 'gpu2',
+    kind: 'gpu',
+    tier: 2,
+    name: 'GPU 16 lanes',
+    slot: 'pcie',
+    pcieWidth: 16,
+    price: 5000,
+    idleW: 8,
+    loadW: 90,
+    heatFactor: 1,
+    clock: { min: 1.5, base: 3, max: 4.5 },
+    thermal: { passive: 2, fanPerC: 1, mass: 60, throttleC: 80, unstableC: 95, damageC: 110 },
+    visual: 'gpu-2',
+    gpu: { kind: 'warp', lanes: 16, warps: 2, memBytes: 32 * 1024, banks: 2, lineWords: 8, globalLatency: 6 },
+  },
+  {
+    id: 'gpu3',
+    kind: 'gpu',
+    tier: 3,
+    name: 'GPU 32 lanes',
+    slot: 'pcie',
+    pcieWidth: 32,
+    price: 15000,
+    idleW: 12,
+    loadW: 180,
+    heatFactor: 1,
+    clock: { min: 2, base: 4, max: 6 },
+    thermal: { passive: 4, fanPerC: 2, mass: 90, throttleC: 80, unstableC: 95, damageC: 110 },
+    visual: 'gpu-3',
+    gpu: {
+      kind: 'multi',
+      lanes: 32,
+      sms: 2,
+      warps: 2,
+      memBytes: 64 * 1024,
+      banks: 4,
+      lineWords: 8,
+      globalLatency: 6,
+      l1Lines: 16,
+      l1Hit: 2,
+      l2Lines: 64,
+      l2Hit: 4,
+    },
+  },
+  {
+    id: 'npu1',
+    kind: 'npu',
+    tier: 1,
+    name: 'NPU 4x4',
+    slot: 'pcie',
+    pcieWidth: 4,
+    price: 2500,
+    idleW: 2,
+    loadW: 15,
+    heatFactor: 1,
+    clock: { min: 1, base: 2, max: 3 },
+    thermal: { passive: 0.4, fanPerC: 0.2, mass: 25, throttleC: 75, unstableC: 90, damageC: 105 },
+    visual: 'npu-1',
+    npu: { grid: 4, memBytes: 8 * 1024 },
+  },
+  {
+    id: 'npu2',
+    kind: 'npu',
+    tier: 2,
+    name: 'NPU 8x8',
+    slot: 'pcie',
+    pcieWidth: 8,
+    price: 10000,
+    idleW: 5,
+    loadW: 45,
+    heatFactor: 1,
+    clock: { min: 1.5, base: 3, max: 4.5 },
+    thermal: { passive: 1.2, fanPerC: 0.6, mass: 40, throttleC: 75, unstableC: 90, damageC: 105 },
+    visual: 'npu-2',
+    npu: { grid: 8, memBytes: 32 * 1024 },
+  },
+  {
+    id: 'tpm1',
+    kind: 'tpm',
+    tier: 1,
+    name: 'Secure module',
+    slot: 'tpm',
+    price: 400,
+    idleW: 0.2,
+    loadW: 0.5,
+    heatFactor: 1,
+    thermal: { passive: 0.2, mass: 5, throttleC: 90, unstableC: 105, damageC: 120 },
+    visual: 'tpm-1',
+    tpm: { measureTicks: 4, attestTicks: 60, surcharge: 2 },
+  },
+  {
+    id: 'tpm2',
+    kind: 'tpm',
+    tier: 2,
+    name: 'Secure module 2',
+    slot: 'tpm',
+    price: 1500,
+    idleW: 0.3,
+    loadW: 0.8,
+    heatFactor: 1,
+    thermal: { passive: 0.2, mass: 5, throttleC: 90, unstableC: 105, damageC: 120 },
+    visual: 'tpm-2',
+    tpm: { measureTicks: 1, attestTicks: 20, surcharge: 1 },
+  },
 
-  { id: "display0", kind: "display", tier: 0, name: "CLI monitor", slot: "display", price: 0, idleW: 1, loadW: 3, heatFactor: 1,
-    clock: { min: 0.5, base: 1, max: 2 }, thermal: dispThermal, visual: "monitor-cli", writeLatency: 1 },
+  {
+    id: 'display0',
+    kind: 'display',
+    tier: 0,
+    name: 'CLI monitor',
+    slot: 'display',
+    price: 0,
+    idleW: 1,
+    loadW: 3,
+    heatFactor: 1,
+    clock: { min: 0.5, base: 1, max: 2 },
+    thermal: dispThermal,
+    visual: 'monitor-cli',
+    writeLatency: 1,
+  },
   // The graphics display (docs/ACCEL.md "Display"): a faster panel (writes land at once) with a richer screen: the OS dashboard, or what a GPU draws when the cable is on the card.
-  { id: "display1", kind: "display", tier: 1, name: "Graphics display", slot: "display", price: 2500, idleW: 3, loadW: 8, heatFactor: 1,
-    clock: { min: 0.5, base: 1, max: 2 }, thermal: dispThermal, visual: "monitor-gfx", writeLatency: 0, graphics: true },
+  {
+    id: 'display1',
+    kind: 'display',
+    tier: 1,
+    name: 'Graphics display',
+    slot: 'display',
+    price: 2500,
+    idleW: 3,
+    loadW: 8,
+    heatFactor: 1,
+    clock: { min: 0.5, base: 1, max: 2 },
+    thermal: dispThermal,
+    visual: 'monitor-gfx',
+    writeLatency: 0,
+    graphics: true,
+  },
 ];
 
 export const DEVICE_SPECS: Readonly<Record<string, DeviceSpec>> = Object.fromEntries(specList.map((s) => [s.id, s]));
@@ -491,21 +1545,62 @@ export interface CaseTierSpec {
 }
 
 export const CASE_TIERS: readonly CaseTierSpec[] = [
-  { tier: 0, name: "Mini tower", price: 25, maxBoard: 0, form: "mini-ITX", visual: "case-mini", fans: { front: 2, top: 0, rear: false }, fanSize: 92 },
-  { tier: 1, name: "Micro tower", price: 70, maxBoard: 1, form: "micro-ATX", visual: "case-micro", fans: { front: 3, top: 1, rear: true }, fanSize: 92 },
-  { tier: 2, name: "Mid tower", price: 160, maxBoard: 2, form: "ATX", visual: "case-mid", fans: { front: 3, top: 2, rear: true }, fanSize: 120 },
-  { tier: 3, name: "Full tower", price: 320, maxBoard: 3, form: "E-ATX", visual: "case-full", fans: { front: 3, top: 2, rear: true }, fanSize: 140 },
+  {
+    tier: 0,
+    name: 'Mini tower',
+    price: 25,
+    maxBoard: 0,
+    form: 'mini-ITX',
+    visual: 'case-mini',
+    fans: { front: 2, top: 0, rear: false },
+    fanSize: 92,
+  },
+  {
+    tier: 1,
+    name: 'Micro tower',
+    price: 70,
+    maxBoard: 1,
+    form: 'micro-ATX',
+    visual: 'case-micro',
+    fans: { front: 3, top: 1, rear: true },
+    fanSize: 92,
+  },
+  {
+    tier: 2,
+    name: 'Mid tower',
+    price: 160,
+    maxBoard: 2,
+    form: 'ATX',
+    visual: 'case-mid',
+    fans: { front: 3, top: 2, rear: true },
+    fanSize: 120,
+  },
+  {
+    tier: 3,
+    name: 'Full tower',
+    price: 320,
+    maxBoard: 3,
+    form: 'E-ATX',
+    visual: 'case-full',
+    fans: { front: 3, top: 2, rear: true },
+    fanSize: 140,
+  },
 ];
 
 /** The fan mounts of a case tier, ids `front0..`, `top0..` and `rear`: each takes a fan of the case's size, with a cable to the fan hub. */
 export function caseMounts(tier: number): string[] {
   const f = CASE_TIERS[tier]?.fans;
   if (!f) return [];
-  return [...Array.from({ length: f.front }, (_, k) => `front${k}`), ...Array.from({ length: f.top }, (_, k) => `top${k}`), ...(f.rear ? ["rear"] : [])];
+  return [
+    ...Array.from({ length: f.front }, (_, k) => `front${k}`),
+    ...Array.from({ length: f.top }, (_, k) => `top${k}`),
+    ...(f.rear ? ['rear'] : []),
+  ];
 }
 
 /** The basic fan of a size (the one a migrated save and the starting machine get). */
-export const basicFan = (size: FanSize): FanSpec => specList.find((s): s is FanSpec => s.kind === "fan" && s.size === size && s.tier === 0)!;
+export const basicFan = (size: FanSize): FanSpec =>
+  specList.find((s): s is FanSpec => s.kind === 'fan' && s.size === size && s.tier === 0)!;
 
 /**
  * The share of a heatsink's rated cooling it gives with `air` of fans turning on it (the summed `airflow`): `bare` with none, 1 with one basic fan, and a
@@ -519,28 +1614,74 @@ export const caseFor = (boardTier: number): number => CASE_TIERS.findIndex((c) =
 const vrmTemps = { throttleC: 90, unstableC: 105, damageC: 120 };
 
 export const BOARD_TIERS: readonly BoardTierSpec[] = [
-  { tier: 0, name: "Starter", price: 40, visual: "board-starter",
+  {
+    tier: 0,
+    name: 'Starter',
+    price: 40,
+    visual: 'board-starter',
     pcieWidths: [16],
-    slots: { cpu: 1, dimm: 1, pcie: 1, sata: 2, usb: 1, atx: 1, cooler: 1, display: 1, "vrm-sink": 1, "ram-sink": 1 },
+    slots: { cpu: 1, dimm: 1, pcie: 1, sata: 2, usb: 1, atx: 1, cooler: 1, display: 1, 'vrm-sink': 1, 'ram-sink': 1 },
     features: { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 },
     vrm: { phases: 2, ampsPerPhase: 12, peakEfficiency: 0.8, ripple: 0.6, mass: 20, passive: 0.15, ...vrmTemps },
-    ramVrm: { phases: 2, ampsPerPhase: 6, peakEfficiency: 0.78, ripple: 0.6, mass: 15, passive: 0.15, ...vrmTemps } },
-  { tier: 1, name: "Basic", price: 150, visual: "board-basic",
+    ramVrm: { phases: 2, ampsPerPhase: 6, peakEfficiency: 0.78, ripple: 0.6, mass: 15, passive: 0.15, ...vrmTemps },
+  },
+  {
+    tier: 1,
+    name: 'Basic',
+    price: 150,
+    visual: 'board-basic',
     pcieWidths: [16, 4],
-    slots: { cpu: 1, dimm: 2, pcie: 2, sata: 3, usb: 2, atx: 1, cooler: 1, display: 1, "vrm-sink": 1, "ram-sink": 1 },
+    slots: { cpu: 1, dimm: 2, pcie: 2, sata: 3, usb: 2, atx: 1, cooler: 1, display: 1, 'vrm-sink': 1, 'ram-sink': 1 },
     features: { ethernetMbps: 100, usbPorts: 2, displayPorts: 1 },
     vrm: { phases: 3, ampsPerPhase: 12, peakEfficiency: 0.84, ripple: 0.45, mass: 30, passive: 0.2, ...vrmTemps },
-    ramVrm: { phases: 2, ampsPerPhase: 8, peakEfficiency: 0.82, ripple: 0.45, mass: 22, passive: 0.2, ...vrmTemps } },
-  { tier: 2, name: "Mainstream", price: 300, visual: "board-mainstream",
+    ramVrm: { phases: 2, ampsPerPhase: 8, peakEfficiency: 0.82, ripple: 0.45, mass: 22, passive: 0.2, ...vrmTemps },
+  },
+  {
+    tier: 2,
+    name: 'Mainstream',
+    price: 300,
+    visual: 'board-mainstream',
     pcieWidths: [16, 8, 4],
-    slots: { cpu: 1, dimm: 4, pcie: 3, sata: 4, m2: 2, usb: 3, tpm: 1, "atx-plus": 1, cooler: 1, display: 1, "vrm-sink": 1, "ram-sink": 1 },
+    slots: {
+      cpu: 1,
+      dimm: 4,
+      pcie: 3,
+      sata: 4,
+      m2: 2,
+      usb: 3,
+      tpm: 1,
+      'atx-plus': 1,
+      cooler: 1,
+      display: 1,
+      'vrm-sink': 1,
+      'ram-sink': 1,
+    },
     features: { ethernetMbps: 100, usbPorts: 3, displayPorts: 2 },
     vrm: { phases: 4, ampsPerPhase: 15, peakEfficiency: 0.88, ripple: 0.25, mass: 45, passive: 0.3, ...vrmTemps },
-    ramVrm: { phases: 3, ampsPerPhase: 10, peakEfficiency: 0.86, ripple: 0.25, mass: 32, passive: 0.3, ...vrmTemps } },
-  { tier: 3, name: "Enthusiast", price: 700, visual: "board-enthusiast",
+    ramVrm: { phases: 3, ampsPerPhase: 10, peakEfficiency: 0.86, ripple: 0.25, mass: 32, passive: 0.3, ...vrmTemps },
+  },
+  {
+    tier: 3,
+    name: 'Enthusiast',
+    price: 700,
+    visual: 'board-enthusiast',
     pcieWidths: [32, 16, 8, 4],
-    slots: { cpu: 1, dimm: 8, pcie: 4, sata: 8, m2: 3, usb: 4, tpm: 1, "atx-plus": 1, cooler: 1, display: 1, "vrm-sink": 1, "ram-sink": 1 },
+    slots: {
+      cpu: 1,
+      dimm: 8,
+      pcie: 4,
+      sata: 8,
+      m2: 3,
+      usb: 4,
+      tpm: 1,
+      'atx-plus': 1,
+      cooler: 1,
+      display: 1,
+      'vrm-sink': 1,
+      'ram-sink': 1,
+    },
     features: { ethernetMbps: 1000, usbPorts: 4, displayPorts: 2 },
     vrm: { phases: 6, ampsPerPhase: 20, peakEfficiency: 0.92, ripple: 0.1, mass: 60, passive: 0.4, ...vrmTemps },
-    ramVrm: { phases: 4, ampsPerPhase: 15, peakEfficiency: 0.9, ripple: 0.1, mass: 45, passive: 0.4, ...vrmTemps } },
+    ramVrm: { phases: 4, ampsPerPhase: 15, peakEfficiency: 0.9, ripple: 0.1, mass: 45, passive: 0.4, ...vrmTemps },
+  },
 ];

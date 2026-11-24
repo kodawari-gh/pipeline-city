@@ -36,7 +36,8 @@ const partsText = () => {
 export function MainMenu({ ready = true }: { ready?: boolean }) {
   const offer = autosaveOffer.value;
   const previous = previousOffer.value;
-  const modal = newGameOpen.value || loadOffer.value !== null || settingsOpen.value || galleryOpen.value || buildOpen.value;
+  const modal =
+    newGameOpen.value || loadOffer.value !== null || settingsOpen.value || galleryOpen.value || buildOpen.value;
   const root = useRef<HTMLDivElement>(null);
   const fileIn = useRef<HTMLInputElement>(null);
   const [at, setAt] = useState(0);
@@ -52,15 +53,47 @@ export function MainMenu({ ready = true }: { ready?: boolean }) {
     return () => mq.removeEventListener('change', on);
   }, []);
 
-  const meta = { build: ready ? buildsText(savedBuilds().length) : 'after loading', gallery: ready ? partsText() : 'after loading' };
+  const meta = {
+    build: ready ? buildsText(savedBuilds().length) : 'after loading',
+    gallery: ready ? partsText() : 'after loading',
+  };
 
   // The spine. Tags follow the stage order; the utility line takes the stage after the last row.
   type Row = { key: string; label: string; meta?: string; hero?: boolean; disabled?: boolean; run: () => void };
   const rows: Row[] = [];
-  if (offer) rows.push({ key: 'continue', label: 'Continue', meta: saveSummary(offer, autosaveAt.value, Date.now()), hero: true, run: () => startSim(offer) });
-  rows.push({ key: 'new', label: 'New game', meta: offer ? 'Campaign · sandbox' : 'Campaign or sandbox', hero: !offer, run: () => openNewGame() });
-  rows.push({ key: 'build', label: 'Build my PC', meta: meta.build, disabled: !ready, run: () => { buildOpen.value = true; } });
-  rows.push({ key: 'gallery', label: 'Gallery', meta: meta.gallery, disabled: !ready, run: () => { galleryOpen.value = true; } });
+  if (offer)
+    rows.push({
+      key: 'continue',
+      label: 'Continue',
+      meta: saveSummary(offer, autosaveAt.value, Date.now()),
+      hero: true,
+      run: () => startSim(offer),
+    });
+  rows.push({
+    key: 'new',
+    label: 'New game',
+    meta: offer ? 'Campaign · sandbox' : 'Campaign or sandbox',
+    hero: !offer,
+    run: () => openNewGame(),
+  });
+  rows.push({
+    key: 'build',
+    label: 'Build my PC',
+    meta: meta.build,
+    disabled: !ready,
+    run: () => {
+      buildOpen.value = true;
+    },
+  });
+  rows.push({
+    key: 'gallery',
+    label: 'Gallery',
+    meta: meta.gallery,
+    disabled: !ready,
+    run: () => {
+      galleryOpen.value = true;
+    },
+  });
   // The utility line takes the stage after the rows. Its buttons are one group; ← → move between them.
   const utilGroup = rows.length;
 
@@ -117,9 +150,17 @@ export function MainMenu({ ready = true }: { ready?: boolean }) {
 
   // A row: a plain button. Its stage tag is an empty span (the letters come from CSS), so the button's text is its label and meta.
   const rowEl = (r: Row, g: number) => (
-    <button key={r.key} class={`mm-btn pl-row ${r.hero ? 'hero' : ''} ${at === g ? 'pl-chip' : ''}`} disabled={r.disabled} data-group={g}
-       data-cue={r.key === 'continue' ? 'ui_confirm' : 'ui_click'} data-cue-next={r.key === 'new' || r.key === 'gallery' ? 'ui_transition_in' : undefined}
-      onPointerEnter={() => onEnter(g)} onFocus={() => onEnter(g)} onClick={r.run}>
+    <button
+      key={r.key}
+      class={`mm-btn pl-row ${r.hero ? 'hero' : ''} ${at === g ? 'pl-chip' : ''}`}
+      disabled={r.disabled}
+      data-group={g}
+      data-cue={r.key === 'continue' ? 'ui_confirm' : 'ui_click'}
+      data-cue-next={r.key === 'new' || r.key === 'gallery' ? 'ui_transition_in' : undefined}
+      onPointerEnter={() => onEnter(g)}
+      onFocus={() => onEnter(g)}
+      onClick={r.run}
+    >
       <span class="pl-tag" data-tag={stage(g)} aria-hidden="true" />
       <span class="pl-text">
         <span class="pl-label">{r.label}</span>
@@ -133,26 +174,73 @@ export function MainMenu({ ready = true }: { ready?: boolean }) {
 
   return (
     <>
-      <div class={`pl-menu mainmenu ${loading ? 'loading' : ''} ${offer ? '' : 'nosave'}`} ref={root} onKeyDown={onKey} inert={modal}>
+      <div
+        class={`pl-menu mainmenu ${loading ? 'loading' : ''} ${offer ? '' : 'nosave'}`}
+        ref={root}
+        onKeyDown={onKey}
+        inert={modal}
+      >
         <div class="pl-stack">
-          {loading
-            ? <DisplayTitle lines={['Pipeline', 'City']} share={share} meta={bootLine(label, share)} />
-            : <DisplayTitle lines={['Pipeline', 'City']} meta={`build ${BUILD_HASH}`} />}
+          {loading ? (
+            <DisplayTitle lines={['Pipeline', 'City']} share={share} meta={bootLine(label, share)} />
+          ) : (
+            <DisplayTitle lines={['Pipeline', 'City']} meta={`build ${BUILD_HASH}`} />
+          )}
           <nav class="pl-spine" aria-label="Main menu">
             {rows.map((r, g) => rowEl(r, g))}
-            <span class={`pl-tag pl-util-tag ${at === utilGroup ? 'pl-chip' : ''}`} data-tag={stage(utilGroup)} aria-hidden="true" />
+            <span
+              class={`pl-tag pl-util-tag ${at === utilGroup ? 'pl-chip' : ''}`}
+              data-tag={stage(utilGroup)}
+              aria-hidden="true"
+            />
             {previous && (
-              <button class="mm-btn pl-util" data-cue="ui_confirm" data-group={utilGroup} onClick={() => startSim(previous)} onFocus={utilOn} onPointerEnter={utilOn}>
+              <button
+                class="mm-btn pl-util"
+                data-cue="ui_confirm"
+                data-group={utilGroup}
+                onClick={() => startSim(previous)}
+                onFocus={utilOn}
+                onPointerEnter={utilOn}
+              >
                 Previous save<span class="pl-util-meta">{saveSummary(previous, previousAt.value, Date.now())}</span>
               </button>
             )}
-            <button class="mm-btn pl-util" data-cue="ui_click" data-group={utilGroup} onClick={() => fileIn.current?.click()} onFocus={utilOn} onPointerEnter={utilOn}>Load file</button>
-            <button class="mm-btn pl-util" data-cue="ui_click" data-cue-next="ui_transition_in" data-group={utilGroup} onClick={() => openSettings('menu')} onFocus={utilOn} onPointerEnter={utilOn}>Settings</button>
-            <input ref={fileIn} type="file" accept="application/json,.json" hidden data-cue="silent"
-              onChange={(e) => { const f = e.currentTarget.files?.[0]; if (f) void loadFromFile(f); e.currentTarget.value = ''; }} />
+            <button
+              class="mm-btn pl-util"
+              data-cue="ui_click"
+              data-group={utilGroup}
+              onClick={() => fileIn.current?.click()}
+              onFocus={utilOn}
+              onPointerEnter={utilOn}
+            >
+              Load file
+            </button>
+            <button
+              class="mm-btn pl-util"
+              data-cue="ui_click"
+              data-cue-next="ui_transition_in"
+              data-group={utilGroup}
+              onClick={() => openSettings('menu')}
+              onFocus={utilOn}
+              onPointerEnter={utilOn}
+            >
+              Settings
+            </button>
+            <input
+              ref={fileIn}
+              type="file"
+              accept="application/json,.json"
+              hidden
+              data-cue="silent"
+              onChange={(e) => {
+                const f = e.currentTarget.files?.[0];
+                if (f) void loadFromFile(f);
+                e.currentTarget.value = '';
+              }}
+            />
             {tp && <TestPoint />}
           </nav>
-          {desktop && <p class="pl-hints">↑ ↓ move   Enter open   Esc back</p>}
+          {desktop && <p class="pl-hints">↑ ↓ move Enter open Esc back</p>}
           <TraceLayer root={root} at={at} tp={tp} />
         </div>
       </div>

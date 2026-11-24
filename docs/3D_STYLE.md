@@ -39,36 +39,36 @@ These are drawn-triangle counts from a headless build of the showcase models, th
 
 **By part kind** (showcase model, drawn tris):
 
-| Kind | n | min | median | max |
-|---|---:|---:|---:|---:|
-| case | 4 | 213,954 | 259,056 | 333,206 |
-| board | 4 | 49,812 | 58,468 | 90,760 |
-| gpu | 3 | 34,274 | 45,706 | 56,578 |
-| cooler | 3 | 6,972 | 8,072 | 48,908 |
-| storage | 4 | 2,502 | 5,458 | 34,588 |
-| nic | 3 | 17,064 | 24,016 | 33,300 |
-| fan | 7 | 26,376 | 27,528 | 28,840 |
-| npu | 2 | 21,890 | 21,890 | 23,390 |
-| display | 2 | 16,938 | 16,938 | 16,938 |
-| vrm-sink | 3 | 2,588 | 3,044 | 10,304 |
-| psu | 5 | 3,134 | 10,200 | 10,200 |
-| tpm | 2 | 7,518 | 7,518 | 7,518 |
-| ram-sink | 3 | 2,588 | 3,044 | 6,104 |
-| ram | 7 | 2,594 | 2,996 | 5,540 |
-| radiator | 3 | 5,028 | 5,028 | 5,028 |
-| cpu | 16 | 4,000 | 4,284 | 4,284 |
+| Kind     |   n |     min |  median |     max |
+| -------- | --: | ------: | ------: | ------: |
+| case     |   4 | 213,954 | 259,056 | 333,206 |
+| board    |   4 |  49,812 |  58,468 |  90,760 |
+| gpu      |   3 |  34,274 |  45,706 |  56,578 |
+| cooler   |   3 |   6,972 |   8,072 |  48,908 |
+| storage  |   4 |   2,502 |   5,458 |  34,588 |
+| nic      |   3 |  17,064 |  24,016 |  33,300 |
+| fan      |   7 |  26,376 |  27,528 |  28,840 |
+| npu      |   2 |  21,890 |  21,890 |  23,390 |
+| display  |   2 |  16,938 |  16,938 |  16,938 |
+| vrm-sink |   3 |   2,588 |   3,044 |  10,304 |
+| psu      |   5 |   3,134 |  10,200 |  10,200 |
+| tpm      |   2 |   7,518 |   7,518 |   7,518 |
+| ram-sink |   3 |   2,588 |   3,044 |   6,104 |
+| ram      |   7 |   2,594 |   2,996 |   5,540 |
+| radiator |   3 |   5,028 |   5,028 |   5,028 |
+| cpu      |  16 |   4,000 |   4,284 |   4,284 |
 
 The heavy outliers are `cooler1` (48,908: four `TubeGeometry` 220×16 heatpipes) and `nvme2` (34,588: a 179×68 draped-label plane). At Low the cooler's heat pipes are 40×8 and the NVMe label is one flat quad (`byDetail`, `nvme3d.ts`). Fan housing cost is dominated by two `fanFlange` extrusions at `curveSegments: 48` (10,432 tris each).
 
 **Scenes and imports:**
 
-| Scene or file | Drawn tris | Unique tris | Notes |
-|---|---:|---:|---|
-| Room | 237,638 | 222,174 | Includes the duvet (33,248), three large lathes, 60 furniture rounded boxes |
-| Maxed machine | 845,840 | 710,936 | 1,440 meshes; eight 25,088-tri fan housings; three 24,344-tri nvme drapes |
-| City (outside the window) | 3,643,156 | 3,374,580 | Larger than the room and the maxed machine together |
-| `hoodie.glb` | 15,070 | 15,070 | Imported cloth bake |
-| `mouse.glb` | 1,198 | 1,198 | The owner's model |
+| Scene or file             | Drawn tris | Unique tris | Notes                                                                       |
+| ------------------------- | ---------: | ----------: | --------------------------------------------------------------------------- |
+| Room                      |    237,638 |     222,174 | Includes the duvet (33,248), three large lathes, 60 furniture rounded boxes |
+| Maxed machine             |    845,840 |     710,936 | 1,440 meshes; eight 25,088-tri fan housings; three 24,344-tri nvme drapes   |
+| City (outside the window) |  3,643,156 |   3,374,580 | Larger than the room and the maxed machine together                         |
+| `hoodie.glb`              |     15,070 |      15,070 | Imported cloth bake                                                         |
+| `mouse.glb`               |      1,198 |       1,198 | The owner's model                                                           |
 
 ### Modelling rules
 
@@ -107,21 +107,21 @@ Each part must be **instantly recognizable** from any angle, including at shop-t
 
 **Measured base colours by component type** (median-cut over the opaque pixels of each family's stills, top colours; these are lit colours as rendered, not material inputs):
 
-| Type | Hue | Measured (stills) |
-|---|---|---|
-| CPU package / die | Navy package, blue die blocks | `#2e344e`, die `#2b4877` / `#557a98`, pins gold |
-| GPU (shroud) | Charcoal | `#313338`, `#212326` |
-| RAM (green PCB) | Green | `#32875b` (ram0) |
-| RAM (heat spreader) | Charcoal or silver | `#2a2d33`; silver `ram1` (current exception). Target (art-style.md §4, rework item 4, on hold): dark anodised clip-on, same family as today's DDR3 fins (`#2b2f37`, `ram3d.ts:205`) |
-| SSD / NVMe | Dark grey + label | `#4d525e`, `#41444a` |
-| PSU | Near-black | `#242425`, `#1c1c1e`; gold stripe `#e3cc71` (lit gold; the one gold is `#d4af5f`, art-style §2) |
-| Motherboard | Mask by tier | green `#3d6957` (board0), blue `#2b406c` (board1), black `#1d2023` (board2-3) |
-| Heatsinks (VRM, RAM, rsink) | Black anodised | `#222428` |
-| Cooler | Aluminium, satin blue-grey | `#adb2bd` (cooler1, current exception, measured), pump `#647293` (cooler2). Target (art-style.md §4, rework item 4, on hold): dark anodised fins `#2a2d32`–`#4e5360` |
-| Radiator | Satin aluminium → **to rework** dark | now `#9da2ac`, `#818695`. Target (art-style.md §4, rework item 9, on hold): mean luminance 60–100 |
-| NIC | Teal PCB | `#3a829e` |
-| Fans | Dark plastic | `#3a3a3e`; violet pads `#7a5cc8` on `*x` (current, `fans3d.ts`; not in art-style §2; target brand violet `#a68bff`, rework item 8, on hold) |
-| Cables | Dark grey | not in stills (rule to set) |
+| Type                        | Hue                                  | Measured (stills)                                                                                                                                                                   |
+| --------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CPU package / die           | Navy package, blue die blocks        | `#2e344e`, die `#2b4877` / `#557a98`, pins gold                                                                                                                                     |
+| GPU (shroud)                | Charcoal                             | `#313338`, `#212326`                                                                                                                                                                |
+| RAM (green PCB)             | Green                                | `#32875b` (ram0)                                                                                                                                                                    |
+| RAM (heat spreader)         | Charcoal or silver                   | `#2a2d33`; silver `ram1` (current exception). Target (art-style.md §4, rework item 4, on hold): dark anodised clip-on, same family as today's DDR3 fins (`#2b2f37`, `ram3d.ts:205`) |
+| SSD / NVMe                  | Dark grey + label                    | `#4d525e`, `#41444a`                                                                                                                                                                |
+| PSU                         | Near-black                           | `#242425`, `#1c1c1e`; gold stripe `#e3cc71` (lit gold; the one gold is `#d4af5f`, art-style §2)                                                                                     |
+| Motherboard                 | Mask by tier                         | green `#3d6957` (board0), blue `#2b406c` (board1), black `#1d2023` (board2-3)                                                                                                       |
+| Heatsinks (VRM, RAM, rsink) | Black anodised                       | `#222428`                                                                                                                                                                           |
+| Cooler                      | Aluminium, satin blue-grey           | `#adb2bd` (cooler1, current exception, measured), pump `#647293` (cooler2). Target (art-style.md §4, rework item 4, on hold): dark anodised fins `#2a2d32`–`#4e5360`                |
+| Radiator                    | Satin aluminium → **to rework** dark | now `#9da2ac`, `#818695`. Target (art-style.md §4, rework item 9, on hold): mean luminance 60–100                                                                                   |
+| NIC                         | Teal PCB                             | `#3a829e`                                                                                                                                                                           |
+| Fans                        | Dark plastic                         | `#3a3a3e`; violet pads `#7a5cc8` on `*x` (current, `fans3d.ts`; not in art-style §2; target brand violet `#a68bff`, rework item 8, on hold)                                         |
+| Cables                      | Dark grey                            | not in stills (rule to set)                                                                                                                                                         |
 
 Saturated colour belongs to a PCB, the die art, or one small accent per part (a stripe, pads, a band).
 
@@ -155,6 +155,7 @@ From `src/core/render/three/materials.ts` (`GLOW`, `partLook`):
 A part's glow in a lens scales by its `gain` (wide faces glow softer).
 
 **RGB and accents (in-game; stills are currently unpowered — see Animation):**
+
 - GPU fan ring: `glowMat(0x3be3ff, 0x1d6f80)`, `fixed: 0x3be3ff` (`gpu3d.ts:212-214`).
 - Tower cooler accent `ACCENT.tower = 0x3be3ff`: two accent lines on the top cover (`cooler3d.ts:263`) and its fans' fixed ring.
 - Case strip by machine state: idle/working `T.alu` (cyan; working breathes), halt `T.ld` amber, error/dead `T.bad` red (`case3d.ts:98`).
@@ -168,6 +169,7 @@ A part's glow in a lens scales by its `gain` (wide faces glow softer).
 ### Outline / Selection
 
 **When selected or hovered** (`src/core/render/three/post.ts:66,212`):
+
 - three.js `OutlinePass` (`PickOutline`, with the scene depth so hidden edges show dimmer)
 - Visible edge `#ffff00`, hidden edge `#8a7a00`
 - `edgeThickness` **1.5**, `edgeStrength` 4
@@ -191,6 +193,7 @@ The room is lit from its window, as a real room is (`src/features/room/light.md`
 From `src/core/render/three/viewer.ts` `studio` / `renderStill`:
 
 **Current:**
+
 - ACES filmic, exposure 1.6; `RoomEnvironment` reflections at intensity 0.55; ambient `#ffffff` 0.25.
 - Key `#fff0dc` × 2.4 at (+1.5r, +2r, +1.2r) from the part's centre, PCF shadows (2048² for stills); rim `#9ab8ff` × 1.2 at (−2r, +r, −1.5r).
 - Floor disc `#1a1d26` in the gallery; hidden in stills (transparent background, no ground shadow).
@@ -313,10 +316,10 @@ There is no separate sandbox camera. `board3d.ts:811` `caseView(yaw=0, pitch=0.0
 
 Measured effect (bytes; `gltf-transform` 4, 2026-11-15; "br" is the brotli transfer size):
 
-| File | Today | br | Quantized only | br | Meshopt | br | Draco | br |
-|---|---|---|---|---|---|---|---|---|
-| `mouse.glb` | 46,800 | 13,363 | 30,200 | 10,856 | 19,076 | 10,010 | 10,652 | 7,173 |
-| `hoodie.glb` | 418,444 | 249,011 | 320,644 | 168,789 | 179,396 | 132,275 | 72,932 | 67,868 |
+| File         | Today   | br      | Quantized only | br      | Meshopt | br      | Draco  | br     |
+| ------------ | ------- | ------- | -------------- | ------- | ------- | ------- | ------ | ------ |
+| `mouse.glb`  | 46,800  | 13,363  | 30,200         | 10,856  | 19,076  | 10,010  | 10,652 | 7,173  |
+| `hoodie.glb` | 418,444 | 249,011 | 320,644        | 168,789 | 179,396 | 132,275 | 72,932 | 67,868 |
 
 Both files ship with meshopt since 2026-11-16 (`hoodie.glb` 179,396 bytes, `mouse.glb` 19,076) and meet the 200 KB budget; the loader has the decoder (`setMeshoptDecoder`, `gltf.ts`). The quantized hoodie was checked on a real-GPU room shot, before and after: 40 of 122,100 pixels of the chair differ by more than 8 of 255. Its `TEXCOORD_0` is not quantized (out of the 0 to 1 range). Not measured: decode time.
 
@@ -330,16 +333,16 @@ The map cap has two exceptions, both baked from painters and not held in a model
 
 Real material families only. A part uses these hexes, plus pure black or white at alpha below 1 for shading. Source: [art-style.md](art-style.md) §2 and §4.
 
-| Family | Hex | Use |
-|---|---|---|
-| 1. Charcoal and graphite | `#1d1e22`, `#2a2d32`, `#4e5360` | Plastic, anodised cases, dark drives and coolers |
-| 2. Satin and bright metal | `#959aa3`, `#b9babf` | Brushed and polished metal |
-| 3. PCB masks | `#131518`, `#16294d`, `#173d29` | Board and card substrate |
-| 4. Gold | `#d4af5f` | One gold: contacts and pins |
-| 5. Copper | `#c0793a` | One copper: heat pipes and the cooler |
-| 6. Nylon and PTFE | `#d6d1c2` | White plastic: a standoff, a tie, a label's base (`NYLON`) |
-| 7. Ceramic | `#9a7a52` | A chip capacitor's body (`CERAMIC`) |
-| 8. Laminate edge | `#45443a` | A PCB's edge, side-on (`LAMINATE`) |
+| Family                    | Hex                             | Use                                                        |
+| ------------------------- | ------------------------------- | ---------------------------------------------------------- |
+| 1. Charcoal and graphite  | `#1d1e22`, `#2a2d32`, `#4e5360` | Plastic, anodised cases, dark drives and coolers           |
+| 2. Satin and bright metal | `#959aa3`, `#b9babf`            | Brushed and polished metal                                 |
+| 3. PCB masks              | `#131518`, `#16294d`, `#173d29` | Board and card substrate                                   |
+| 4. Gold                   | `#d4af5f`                       | One gold: contacts and pins                                |
+| 5. Copper                 | `#c0793a`                       | One copper: heat pipes and the cooler                      |
+| 6. Nylon and PTFE         | `#d6d1c2`                       | White plastic: a standoff, a tie, a label's base (`NYLON`) |
+| 7. Ceramic                | `#9a7a52`                       | A chip capacitor's body (`CERAMIC`)                        |
+| 8. Laminate edge          | `#45443a`                       | A PCB's edge, side-on (`LAMINATE`)                         |
 
 The chip body `#0d1636` (art-style §2 "Sub / chip body") is the CPU package's substrate. The room's own tones (paper, opal glass, bark, stem, soil, tea) are in `src/features/room/render/three/palette.ts`. The laminate edge is a family colour; it is not a mask.
 
@@ -359,18 +362,18 @@ One method for patterns: a pattern of many small holes (slots, mesh, vents) is a
 
 Round parts: one side per **4–8 px** of on-screen circumference. Use **6 px** per side (J) as the design value, and clamp to the range below. Features under 2 px on screen are left out (LPC4).
 
-| Zone | Rule or target | Source |
-|---|---|---|
-| Round fan flanges and housings | 16 to 48 sides, by diameter; the 40 mm housing at 16 (J; was 25,088 tris, 16.5× cap) | ASR4 |
-| Flange next to case walls | 6 sides | ASR4 |
-| Teacup and bedside lantern (lathe) | 24 to 32 sides, fewer profile points | ASR7 |
-| Solder joint | 6 sides, 3 rings (about 36 tris, was 400) | ASR5 |
-| Heat pipes (`TubeGeometry`) | Under the cap; today 220 × 16, four tubes | ASR6 |
-| Monitor bevels | 10 and 6 today; one value for the room overview (J) | ASR10 |
-| Case and card edge bevels | 1 to 2 segments (`softBox`) | ASR10 |
-| Plugs | 4 today; kept | ASR10 |
-| Default `post` / `drum` / `tube` | 16 / 24 / 7 today; set one table in `geometry.ts` | ASR10 |
-| RAM `curveSegments` | 10 today; set from the table | ASR10 |
+| Zone                               | Rule or target                                                                       | Source |
+| ---------------------------------- | ------------------------------------------------------------------------------------ | ------ |
+| Round fan flanges and housings     | 16 to 48 sides, by diameter; the 40 mm housing at 16 (J; was 25,088 tris, 16.5× cap) | ASR4   |
+| Flange next to case walls          | 6 sides                                                                              | ASR4   |
+| Teacup and bedside lantern (lathe) | 24 to 32 sides, fewer profile points                                                 | ASR7   |
+| Solder joint                       | 6 sides, 3 rings (about 36 tris, was 400)                                            | ASR5   |
+| Heat pipes (`TubeGeometry`)        | Under the cap; today 220 × 16, four tubes                                            | ASR6   |
+| Monitor bevels                     | 10 and 6 today; one value for the room overview (J)                                  | ASR10  |
+| Case and card edge bevels          | 1 to 2 segments (`softBox`)                                                          | ASR10  |
+| Plugs                              | 4 today; kept                                                                        | ASR10  |
+| Default `post` / `drum` / `tube`   | 16 / 24 / 7 today; set one table in `geometry.ts`                                    | ASR10  |
+| RAM `curveSegments`                | 10 today; set from the table                                                         | ASR10  |
 
 Each builder reads its count from this table. A builder does not hard-code its own count.
 
@@ -378,14 +381,14 @@ Each builder reads its count from this table. A builder does not hard-code its o
 
 Ceilings are today's **High** counts (`budget.test.ts`, `BUDGET`). The test fails above +5 %. A rise needs a reason in the commit.
 
-| View | Draws | Vertices | Triangles | Note |
-|---|---|---|---|---|
-| Machine and room (layer 0) | 924 | 1,172,752 | — | Test: `budget.test.ts` (was 2,216,520 before ASR1–ASR10) |
-| City (instances counted) | — | — | 2,103,386 | Test: `budget.test.ts` (was 3,643,156 before ASR2) |
-| Room alone | — | — | 237,638 | Measured, no test yet |
-| Maxed machine alone | — | — | 845,840 | Measured, no test yet |
-| Board view | to set | to set | to set | Owner (J) after LPC4 |
-| Part close-up | to set | to set | to set | Owner (J) after LPC4 |
+| View                       | Draws  | Vertices  | Triangles | Note                                                     |
+| -------------------------- | ------ | --------- | --------- | -------------------------------------------------------- |
+| Machine and room (layer 0) | 924    | 1,172,752 | —         | Test: `budget.test.ts` (was 2,216,520 before ASR1–ASR10) |
+| City (instances counted)   | —      | —         | 2,103,386 | Test: `budget.test.ts` (was 3,643,156 before ASR2)       |
+| Room alone                 | —      | —         | 237,638   | Measured, no test yet                                    |
+| Maxed machine alone        | —      | —         | 845,840   | Measured, no test yet                                    |
+| Board view                 | to set | to set    | to set    | Owner (J) after LPC4                                     |
+| Part close-up              | to set | to set    | to set    | Owner (J) after LPC4                                     |
 
 Phones: the mobile budgets (PERF9, Review against mobile budgets) govern the draw count. Those figures are reference values, not measured limits for this game. The owner sets the phone limit (PERF9).
 

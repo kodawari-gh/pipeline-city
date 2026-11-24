@@ -13,12 +13,26 @@ import type { NicBlock, NicBlockKind, NicLink, NicLinkKind, NicPlan } from './ni
 type Key = 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'bad' | 'mute';
 
 /** The accent of each block kind (the theme token it is drawn with: the line side cyan, the MAC green, the queues amber, the host side purple, the heat sensor red). */
-export const NIC_KIND_COLOR: Record<NicBlockKind, Key> = { ctl: 'mute', phy: 'alu', mac: 'st', stats: 'st', rxq: 'ld', txq: 'ld', dma: 'mul', pcie: 'mul', temp: 'bad' };
+export const NIC_KIND_COLOR: Record<NicBlockKind, Key> = {
+  ctl: 'mute',
+  phy: 'alu',
+  mac: 'st',
+  stats: 'st',
+  rxq: 'ld',
+  txq: 'ld',
+  dma: 'mul',
+  pcie: 'mul',
+  temp: 'bad',
+};
 export const NIC_LINK_COLOR: Record<NicLinkKind, Key> = { line: 'alu', data: 'st', host: 'mul', control: 'mute' };
 
 /** The legend of the colours. */
 export const NIC_LEGEND: { text: string; key: Key }[] = [
-  { text: 'LINE', key: 'alu' }, { text: 'MAC', key: 'st' }, { text: 'QUEUES', key: 'ld' }, { text: 'HOST', key: 'mul' }, { text: 'HEAT', key: 'bad' },
+  { text: 'LINE', key: 'alu' },
+  { text: 'MAC', key: 'st' },
+  { text: 'QUEUES', key: 'ld' },
+  { text: 'HOST', key: 'mul' },
+  { text: 'HEAT', key: 'bad' },
 ];
 
 /** The line under the plan: what the card is. */
@@ -42,18 +56,24 @@ export function nicStyle(plan: NicPlan): PlanStyle<NicBlock, NicLink> {
 /** The die's floor, the blocks and the controller's frame: the far view. */
 export function nicFar(g: Graphics, T: Theme, plan: NicPlan): void {
   const D = plan.die;
-  g.roundRect(D.x, D.y, D.w, D.h, 8).fill({ color: mix(T.die, '#000000', 0.3) }).stroke({ width: 2.5, color: mix(T.line, T.alu, 0.5) });
+  g.roundRect(D.x, D.y, D.w, D.h, 8)
+    .fill({ color: mix(T.die, '#000000', 0.3) })
+    .stroke({ width: 2.5, color: mix(T.line, T.alu, 0.5) });
   planFar(g, T, plan.blocks, nicStyle(plan));
 }
 
 /** Traces, symbols and names of a plan, and the strip under the blocks. */
 export function nicNear(T: Theme, plan: NicPlan): DieArt {
-  const art = planNear(T, plan, nicStyle(plan)), D = plan.die, sy = D.y + D.h - 30 + 15, names = art.names;
+  const art = planNear(T, plan, nicStyle(plan)),
+    D = plan.die,
+    sy = D.y + D.h - 30 + 15,
+    names = art.names;
   names.addChild(label(nicTitle(plan), D.x + 14, sy, 15, T.mute, { weight: '700', a: 0.9 }));
   const legend = new Graphics();
   names.addChild(legend);
   // (a chip with no heat sensor has no heat colour to name)
-  const items = NIC_LEGEND.filter((e) => e.key !== 'bad' || plan.input.heat), widths = items.map((e) => 14 + e.text.length * 7.4 + 14);
+  const items = NIC_LEGEND.filter((e) => e.key !== 'bad' || plan.input.heat),
+    widths = items.map((e) => 14 + e.text.length * 7.4 + 14);
   let lx = D.x + D.w - 14 - widths.reduce((n, w) => n + w, 0) + 8;
   items.forEach((e, k) => {
     legend.roundRect(lx, sy - 4, 9, 9, 2).fill({ color: T[e.key] });
@@ -68,7 +88,11 @@ export function nicNear(T: Theme, plan: NicPlan): DieArt {
  * (nic3d.ts), the live layer draws over it (nicview.ts).
  */
 export function nicDie(T: Theme, visual: string, slot: number): Container {
-  const root = new Container(), geo = nicGeo(visual, slot), die = new Container(), plate = new Graphics(), near = nicNear(T, geo.plan);
+  const root = new Container(),
+    geo = nicGeo(visual, slot),
+    die = new Container(),
+    plate = new Graphics(),
+    near = nicNear(T, geo.plan);
   die.position.set(geo.origin.x, geo.origin.y);
   nicFar(plate, T, geo.plan);
   die.addChild(plate, near.root);

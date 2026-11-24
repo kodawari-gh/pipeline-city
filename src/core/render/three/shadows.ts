@@ -1,6 +1,21 @@
 import {
-  DepthFormat, DepthTexture, Group, Matrix4, RedFormat, Sphere, UnsignedByteType, UnsignedIntType, WebGLRenderTarget,
-  type Camera, type InstancedMesh, type Light as AnyLight, type LightShadow, type Mesh, type Object3D, type RenderTarget, type WebGLRenderer,
+  DepthFormat,
+  DepthTexture,
+  Group,
+  Matrix4,
+  RedFormat,
+  Sphere,
+  UnsignedByteType,
+  UnsignedIntType,
+  WebGLRenderTarget,
+  type Camera,
+  type InstancedMesh,
+  type Light as AnyLight,
+  type LightShadow,
+  type Mesh,
+  type Object3D,
+  type RenderTarget,
+  type WebGLRenderer,
 } from 'three';
 
 /** A light, with the shadow the ones that cast one carry. */
@@ -32,12 +47,27 @@ const CATCH_UP = 'shadowCatchUp';
  * Ask for `l`'s shadow map to redraw if a caster in its range changed since its last draw (a move the scan saw, a fan's rotor that turns).
  * A still scene makes it a no-op. A change the caller knows of (the light moved, its map was resized) sets `shadow.needsUpdate` instead.
  */
-export function catchUp(l: AnyLight): void { l.userData[CATCH_UP] = true; }
+export function catchUp(l: AnyLight): void {
+  l.userData[CATCH_UP] = true;
+}
 
 /** A fingerprint of one caster's place: its world matrix, weighted and summed. */
 function printOf(o: Object3D): number {
   const e = o.matrixWorld.elements;
-  return e[0]! + 2 * e[1]! + 3 * e[2]! + 5 * e[4]! + 7 * e[5]! + 11 * e[6]! + 13 * e[8]! + 17 * e[9]! + 19 * e[10]! + 0.37 * e[12]! + 0.53 * e[13]! + 0.71 * e[14]!;
+  return (
+    e[0]! +
+    2 * e[1]! +
+    3 * e[2]! +
+    5 * e[4]! +
+    7 * e[5]! +
+    11 * e[6]! +
+    13 * e[8]! +
+    17 * e[9]! +
+    19 * e[10]! +
+    0.37 * e[12]! +
+    0.53 * e[13]! +
+    0.71 * e[14]!
+  );
 }
 
 /** A caster's fingerprint: its place, its geometry and, for an instanced mesh, its copies' places. */
@@ -46,19 +76,26 @@ function casterPrint(m: Mesh): number {
   return printOf(m) + 23 * m.geometry.id + 29 * (im.instanceMatrix?.version ?? 0) + 31 * (im.count ?? 1);
 }
 
-const _m = new Matrix4(), _one = new Sphere(), _part = new Sphere(), _bounds = new Sphere();
+const _m = new Matrix4(),
+  _one = new Sphere(),
+  _part = new Sphere(),
+  _bounds = new Sphere();
 
 /**
  * A caster's world bounds, into `out`: its geometry's sphere, over its copies for an instanced mesh. No end (radius Infinity) where the
  * sphere is not sure: vertices that move (`userData.live`), a mesh kept out of the culling.
  */
 function boundsOf(m: Mesh, out: Sphere): Sphere {
-  const g = m.geometry, im = m as Partial<InstancedMesh>;
+  const g = m.geometry,
+    im = m as Partial<InstancedMesh>;
   if (!g.boundingSphere) g.computeBoundingSphere();
   const b = g.boundingSphere!;
   if (im.isInstancedMesh) {
     out.makeEmpty();
-    for (let i = 0; i < im.count!; i++) { im.getMatrixAt!(i, _m); out.union(_one.copy(b).applyMatrix4(_m)); }
+    for (let i = 0; i < im.count!; i++) {
+      im.getMatrixAt!(i, _m);
+      out.union(_one.copy(b).applyMatrix4(_m));
+    }
   } else out.copy(b);
   out.applyMatrix4(m.matrixWorld);
   if (m.userData.live || !m.frustumCulled || !Number.isFinite(b.radius)) out.radius = Infinity;
@@ -70,7 +107,8 @@ function boundsUnder(o: Object3D, out: Sphere): Sphere {
   if (!o.visible || !Number.isFinite(out.radius)) return out;
   if ((o as Mesh).isMesh && o.castShadow) {
     boundsOf(o as Mesh, _part);
-    if (Number.isFinite(_part.radius)) out.union(_part); else out.radius = Infinity;
+    if (Number.isFinite(_part.radius)) out.union(_part);
+    else out.radius = Infinity;
   }
   for (const c of o.children) boundsUnder(c, out);
   return out;
@@ -98,15 +136,18 @@ function layersOf(l: Light): number {
  * `distance`, else the camera's `far`). A caster outside it is not in the light's map. No end for a light with no such view (a sun).
  */
 function rangeOf(l: Light, out: Sphere): void {
-  const sh = l.shadow, p = l as { isPointLight?: boolean; isSpotLight?: boolean; distance?: number; angle?: number };
+  const sh = l.shadow,
+    p = l as { isPointLight?: boolean; isSpotLight?: boolean; distance?: number; angle?: number };
   out.center.setFromMatrixPosition(l.matrixWorld);
   out.radius = Infinity;
   if (!sh || !(p.isPointLight || p.isSpotLight)) return;
   const half = p.isPointLight ? Math.PI / 4 : p.angle! * ((sh as { focus?: number }).focus ?? 1);
   if (half > 1.5) return;
-  const t = Math.tan(half), aspect = p.isPointLight ? 1 : sh.mapSize.x / sh.mapSize.y;
+  const t = Math.tan(half),
+    aspect = p.isPointLight ? 1 : sh.mapSize.x / sh.mapSize.y;
   // the far corner of the view
-  out.radius = (p.distance || (sh.camera as Camera & { far: number }).far) * Math.sqrt(1 + (1 + aspect * aspect) * t * t);
+  out.radius =
+    (p.distance || (sh.camera as Camera & { far: number }).far) * Math.sqrt(1 + (1 + aspect * aspect) * t * t);
 }
 
 /** Is `o` in some scene (its parent chain reaches a `Scene`)? A light under a group that is no longer in a scene is not. */
@@ -177,29 +218,45 @@ export class ShadowCache {
       if (!o.visible) return;
       if (o.userData.spin) {
         const h = printOf(o);
-        if (spins.get(o) !== h) { _bounds.makeEmpty(); this.touch(o, boundsUnder(o, _bounds), layersUnder(o)); }
+        if (spins.get(o) !== h) {
+          _bounds.makeEmpty();
+          this.touch(o, boundsUnder(o, _bounds), layersUnder(o));
+        }
         nextSpins.set(o, h);
         return;
       }
       if ((o as Mesh).isMesh && o.castShadow) {
-        const h = casterPrint(o as Mesh), was = seen.get(o);
+        const h = casterPrint(o as Mesh),
+          was = seen.get(o);
         next.set(o, h);
         if (was === undefined) added++;
-        if (was !== h || o.userData.live) { fresh.push(o); this.touch(o, boundsOf(o as Mesh, _bounds), o.layers.mask); }
+        if (was !== h || o.userData.live) {
+          fresh.push(o);
+          this.touch(o, boundsOf(o as Mesh, _bounds), o.layers.mask);
+        }
       }
       for (const c of o.children) walk(c);
     };
     walk(root);
     // a still caster gone from view (hidden or removed) is still in the still pictures
     let stale = false;
-    if (next.size - added < seen.size) for (const o of seen.keys()) if (!next.has(o) && !this.isMover(o)) { stale = true; this.mark(this.bounds.get(o), o.layers.mask); }
+    if (next.size - added < seen.size)
+      for (const o of seen.keys())
+        if (!next.has(o) && !this.isMover(o)) {
+          stale = true;
+          this.mark(this.bounds.get(o), o.layers.mask);
+        }
     this.seen = next;
     this.next = seen;
     this.spins = nextSpins;
     this.nextSpins = spins;
     this.moved = fresh.length > 0 || stale;
     if (!this.moved) {
-      if (this.movers.length && now - this.movedAt > SETTLE_MS) { this.movers = []; this.moverSet.clear(); this.epoch++; }
+      if (this.movers.length && now - this.movedAt > SETTLE_MS) {
+        this.movers = [];
+        this.moverSet.clear();
+        this.epoch++;
+      }
       return false;
     }
     this.movedAt = now;
@@ -207,7 +264,10 @@ export class ShadowCache {
     if (joined.length || stale) {
       for (const o of joined) this.moverSet.add(o);
       // only the topmost: a mover's subtree is kept out and drawn with it
-      this.movers = [...this.moverSet].filter((o) => { for (let p = o.parent; p; p = p.parent) if (this.moverSet.has(p)) return false; return true; });
+      this.movers = [...this.moverSet].filter((o) => {
+        for (let p = o.parent; p; p = p.parent) if (this.moverSet.has(p)) return false;
+        return true;
+      });
       this.moverSet = new Set(this.movers);
       this.epoch++;
     }
@@ -225,7 +285,11 @@ export class ShadowCache {
     for (const r of this.lights) {
       if (inAScene(r.l)) continue;
       const s = this.still.get(r.l);
-      if (s) { s.rt.depthTexture?.dispose(); s.rt.dispose(); this.still.delete(r.l); }
+      if (s) {
+        s.rt.depthTexture?.dispose();
+        s.rt.dispose();
+        this.still.delete(r.l);
+      }
       this.lit.delete(r.l);
     }
     this.lights = this.lights.filter((r) => inAScene(r.l));
@@ -233,7 +297,10 @@ export class ShadowCache {
 
   /** Drop the still pictures (the maps were resized, or the lights are new). */
   reset(): void {
-    for (const s of this.still.values()) { s.rt.depthTexture?.dispose(); s.rt.dispose(); }
+    for (const s of this.still.values()) {
+      s.rt.depthTexture?.dispose();
+      s.rt.dispose();
+    }
     this.still.clear();
     this.epoch++;
     this.lights = [];
@@ -245,13 +312,21 @@ export class ShadowCache {
     const was = this.bounds.get(o);
     this.mark(was, layers);
     this.mark(to, layers);
-    if (was) was.copy(to); else this.bounds.set(o, to.clone());
+    if (was) was.copy(to);
+    else this.bounds.set(o, to.clone());
   }
 
   /** The lights whose range meets `s` (every range, with no `s`) and whose maps draw one of `layers` are dirty. */
   private mark(s: Sphere | undefined, layers: number): void {
-    if (!this.ranged) { this.ranged = true; for (const r of this.lights) { rangeOf(r.l, r.range); r.layers = layersOf(r.l); } }
-    for (const r of this.lights) if (!r.dirty && (r.layers & layers) !== 0 && (!s || r.range.intersectsSphere(s))) r.dirty = true;
+    if (!this.ranged) {
+      this.ranged = true;
+      for (const r of this.lights) {
+        rangeOf(r.l, r.range);
+        r.layers = layersOf(r.l);
+      }
+    }
+    for (const r of this.lights)
+      if (!r.dirty && (r.layers & layers) !== 0 && (!s || r.range.intersectsSphere(s))) r.dirty = true;
   }
 
   private isMover(o: Object3D): boolean {
@@ -269,11 +344,24 @@ export class ShadowCache {
     full.sort((a, b) => this.lit.get(a)!.since - this.lit.get(b)!.since);
     const served = full.splice(0, this.budget);
     this.budget -= served.length;
-    for (const l of full) { const r = this.lit.get(l)!; if (r.since === Infinity) r.since = ++this.deferSeq; }
+    for (const l of full) {
+      const r = this.lit.get(l)!;
+      if (r.since === Infinity) r.since = ++this.deferSeq;
+    }
     due.push(...served);
     if (!due.length) return;
-    for (const l of due) { const r = this.lit.get(l); if (r) { r.dirty = false; r.since = Infinity; } }
-    if (!this.movers.length) { this.draw(due, scene, camera); due.length = 0; return; }
+    for (const l of due) {
+      const r = this.lit.get(l);
+      if (r) {
+        r.dirty = false;
+        r.since = Infinity;
+      }
+    }
+    if (!this.movers.length) {
+      this.draw(due, scene, camera);
+      due.length = 0;
+      return;
+    }
     for (const l of due) {
       const sh = l.shadow;
       // (a point light's map is a cube of six depth faces: the still picture is one face's copy, so it redraws whole)
@@ -296,8 +384,11 @@ export class ShadowCache {
 
   /** Can `l`'s map be a copy of its still picture now: a picture of this epoch and the map's size, and a caster moved (a move's redraw). */
   private cheap(l: Light): boolean {
-    const s = this.still.get(l), map = l.shadow?.map;
-    return this.moved && !!s && !!map && s.epoch === this.epoch && s.rt.width === map.width && s.rt.height === map.height;
+    const s = this.still.get(l),
+      map = l.shadow?.map;
+    return (
+      this.moved && !!s && !!map && s.epoch === this.epoch && s.rt.width === map.width && s.rt.height === map.height
+    );
   }
 
   /**
@@ -310,44 +401,82 @@ export class ShadowCache {
     if (!sh) return true;
     let r = this.lit.get(l);
     // (a new light is dirty: its map is not drawn yet)
-    if (!r) { r = { l, range: new Sphere(), layers: -1, dirty: true, since: Infinity }; this.lit.set(l, r); this.lights.push(r); }
-    if (l.userData[CATCH_UP]) { l.userData[CATCH_UP] = false; if (r.dirty) sh.needsUpdate = true; }
+    if (!r) {
+      r = { l, range: new Sphere(), layers: -1, dirty: true, since: Infinity };
+      this.lit.set(l, r);
+      this.lights.push(r);
+    }
+    if (l.userData[CATCH_UP]) {
+      l.userData[CATCH_UP] = false;
+      if (r.dirty) sh.needsUpdate = true;
+    }
     if (!sh.autoUpdate) {
       if (!sh.needsUpdate) return false;
-      if (l.intensity <= 0) { const s = this.still.get(l); if (s) s.epoch = -1; return false; }
+      if (l.intensity <= 0) {
+        const s = this.still.get(l);
+        if (s) s.epoch = -1;
+        return false;
+      }
     }
     return true;
   }
 
   /** One light's map: its still picture (drawn again if out of date), then the movers over it. */
   private redraw(l: Light, scene: Object3D, camera: Camera): void {
-    const sh = l.shadow!, s = this.still.get(l), map = sh.map;
+    const sh = l.shadow!,
+      s = this.still.get(l),
+      map = sh.map;
     if (this.cheap(l)) this.copy(s!.rt, map!);
     else {
       const was = this.movers.map((o) => o.visible);
       for (const o of this.movers) o.visible = false;
-      try { this.draw([l], scene, camera); } finally { this.movers.forEach((o, i) => { o.visible = was[i]!; }); }
+      try {
+        this.draw([l], scene, camera);
+      } finally {
+        this.movers.forEach((o, i) => {
+          o.visible = was[i]!;
+        });
+      }
       if (!sh.map) return;
       this.copy(sh.map, this.pictureOf(l, sh.map).rt);
     }
-    const shown = this.movers.filter((o) => { let p: Object3D | null = o; for (; p && p !== scene; p = p.parent) if (!p.visible) return false; return p === scene; });
+    const shown = this.movers.filter((o) => {
+      let p: Object3D | null = o;
+      for (; p && p !== scene; p = p.parent) if (!p.visible) return false;
+      return p === scene;
+    });
     if (!shown.length) return;
     this.top.children = shown;
     sh.needsUpdate = true;
     const clear = this.r.clear;
     this.r.clear = () => {};
-    try { this.draw([l], this.top, camera); } finally { this.r.clear = clear; this.top.children = []; }
+    try {
+      this.draw([l], this.top, camera);
+    } finally {
+      this.r.clear = clear;
+      this.top.children = [];
+    }
   }
 
   /** The light's still picture, made or resized to its map, marked as of this epoch. */
   private pictureOf(l: Light, map: RenderTarget) {
     let s = this.still.get(l);
     if (!s || s.rt.width !== map.width || s.rt.height !== map.height) {
-      if (s) { s.rt.depthTexture?.dispose(); s.rt.dispose(); }
+      if (s) {
+        s.rt.depthTexture?.dispose();
+        s.rt.dispose();
+      }
       // only the depth is copied: the colour buffer is the smallest that makes the target whole
       const depth = new DepthTexture(map.width, map.height, UnsignedIntType);
       depth.format = DepthFormat;
-      s = { rt: new WebGLRenderTarget(map.width, map.height, { format: RedFormat, type: UnsignedByteType, depthTexture: depth }), epoch: -1 };
+      s = {
+        rt: new WebGLRenderTarget(map.width, map.height, {
+          format: RedFormat,
+          type: UnsignedByteType,
+          depthTexture: depth,
+        }),
+        epoch: -1,
+      };
       this.r.initRenderTarget(s.rt);
       this.still.set(l, s);
     }

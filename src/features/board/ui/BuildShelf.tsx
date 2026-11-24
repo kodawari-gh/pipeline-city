@@ -6,13 +6,29 @@ import { PartShelf } from '@/features/economy/ui/shop/PartShelf';
 type Part = import('../render/three/buildmode3d').BinPart;
 
 /** What a press on a tile starts: a part off the shelf (the stage's shelf is unlimited). */
-export interface Pressed { item: string; spec: string; name: string }
+export interface Pressed {
+  item: string;
+  spec: string;
+  name: string;
+}
 
 /**
  * The left panel: the catalogue (the studio's shelf, `PartShelf`, as the Gallery has it). Drag a tile onto the PC; a click fits it in the first free
  * socket. While a machine part is dragged the panel is the bin: it says so and takes the drop.
  */
-export function BuildShelf({ shelf, kinds, parts, kind, setKind, busy, press, fit, taking, over, lift }: {
+export function BuildShelf({
+  shelf,
+  kinds,
+  parts,
+  kind,
+  setKind,
+  busy,
+  press,
+  fit,
+  taking,
+  over,
+  lift,
+}: {
   shelf: RefObject<HTMLElement | null>;
   kinds: readonly string[];
   parts: readonly Part[];
@@ -41,9 +57,11 @@ export function BuildShelf({ shelf, kinds, parts, kind, setKind, busy, press, fi
       setKind={setKind}
       all
       dim={busy}
-      tip={(p) => (netKindOf(p.id)
-        ? `${p.name}. Drag it onto the stage, or click, to ${p.kind === 'os' ? 'install it on the first drive that holds it' : p.kind === 'router' ? 'stand it by the wall, cabled to the PC' : 'bring it in by the wall jack'}.`
-        : `${p.name}. Drag it onto the PC to fit it, or click to fit it in the first free socket.`)}
+      tip={(p) =>
+        netKindOf(p.id)
+          ? `${p.name}. Drag it onto the stage, or click, to ${p.kind === 'os' ? 'install it on the first drive that holds it' : p.kind === 'router' ? 'stand it by the wall, cabled to the PC' : 'bring it in by the wall jack'}.`
+          : `${p.name}. Drag it onto the PC to fit it, or click to fit it in the first free socket.`
+      }
       onPress={(p, e) => press({ item: p.id, spec: p.id, name: p.name }, e)}
       onActivate={(p) => fit(p.id)}
     >

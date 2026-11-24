@@ -10,14 +10,14 @@ Three claw marks torn through the metal, the middle one still glowing. KAIJU is 
 
 ## Colours
 
-| Role | Hex | Note |
-|---|---|---|
-| accent | `#ff5a78` | red, the middle claw |
-| light | `#e2eaff` | pale ink on dark |
-| dark | `#131518` | black ink on light |
-| plate | `#1d1e22` | charcoal badge ground |
-| body | `#2a2d32` | graphite heat spreader |
-| trim | `#4e5360` | gunmetal |
+| Role   | Hex       | Note                   |
+| ------ | --------- | ---------------------- |
+| accent | `#ff5a78` | red, the middle claw   |
+| light  | `#e2eaff` | pale ink on dark       |
+| dark   | `#131518` | black ink on light     |
+| plate  | `#1d1e22` | charcoal badge ground  |
+| body   | `#2a2d32` | graphite heat spreader |
+| trim   | `#4e5360` | gunmetal               |
 
 ## Type
 

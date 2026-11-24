@@ -2,10 +2,10 @@
 // and three ways to run it: as NPU descriptors, as a GPU kernel launched once per layer, or as a CPU loop. All three compute the same
 // numbers; `networkExpected` is the plain-JS answer. Matrices are int32, row-major unless a function says tile-major.
 
-import { assembleGpu } from "../../gpu/sim/isa/asm";
-import { NPU_DESC_WORDS, NPU_LAYER_WORDS, NpuOp } from "@/core/sim/memmap";
-import { Prng } from "@/core/sim/prng";
-import type { Kernel } from "../../jobs/sim/gen/kernels";
+import { assembleGpu } from '../../gpu/sim/isa/asm';
+import { NPU_DESC_WORDS, NPU_LAYER_WORDS, NpuOp } from '@/core/sim/memmap';
+import { Prng } from '@/core/sim/prng';
+import type { Kernel } from '../../jobs/sim/gen/kernels';
 
 /** The batch and the layers are `M` x `M`. A grid of 4 or 8 divides it. */
 export const M = 8;
@@ -65,7 +65,14 @@ export function npuProgram(n: Network): { words: number[]; count: number; finalA
   const blockAt = (l: number) => NPU_LAYOUT.desc + n.layers * NPU_DESC_WORDS * 4 + l * NPU_LAYER_WORDS * 4;
   for (let l = 0; l < n.layers; l++) words.push(NpuOp.Layer, blockAt(l), 0, 0);
   for (let l = 0; l < n.layers; l++) {
-    words.push(NPU_LAYOUT.w + l * M * M * 4, NPU_LAYOUT.x[l % 2]!, NPU_LAYOUT.x[(l + 1) % 2]!, NPU_LAYOUT.b + l * M * 4, M, 1);
+    words.push(
+      NPU_LAYOUT.w + l * M * M * 4,
+      NPU_LAYOUT.x[l % 2]!,
+      NPU_LAYOUT.x[(l + 1) % 2]!,
+      NPU_LAYOUT.b + l * M * 4,
+      M,
+      1,
+    );
   }
   return { words, count: n.layers, finalAt: NPU_LAYOUT.x[n.layers % 2]! };
 }
@@ -81,8 +88,9 @@ export const GPU_NET_LAYOUT = { args: 0x1f0, x: [0x200, 0x300] as const, w: 0x40
 /** The layer kernel: reads W, X, OUT and bias addresses from the argument words, so one upload serves every layer. */
 export function gpuLayerSource(lanes: number): string {
   const A = GPU_NET_LAYOUT.args;
-  let k = "";
-  for (let i = 0; i < M; i++) k += `        vld v5, ${4 * i}(v2)\n        vld v6, ${32 * i}(v3)\n        vmul v5, v5, v6\n        vadd v4, v4, v5\n`;
+  let k = '';
+  for (let i = 0; i < M; i++)
+    k += `        vld v5, ${4 * i}(v2)\n        vld v6, ${32 * i}(v3)\n        vmul v5, v5, v6\n        vadd v4, v4, v5\n`;
   return `
         lane v1
         mpush
@@ -121,12 +129,31 @@ export const gpuLayerCode = (lanes: number): Uint32Array => assembleGpu(gpuLayer
 
 /** cpu_layer(W = a0, X = a1, OUT = a2, bias = a3): one dense layer with relu, row-major. */
 export function cpuLayer(ns: string): Kernel {
-  const body: string[] = ["li t4, 8", `${ns}_i:`, "mv t3, a1", `${ns}_j:`, "li t0, 0"];
-  for (let k = 0; k < M; k++) body.push(`lw t2, ${4 * k}(a0)`, `lw t1, ${32 * k}(t3)`, "mul t2, t2, t1", "add t0, t0, t2");
+  const body: string[] = ['li t4, 8', `${ns}_i:`, 'mv t3, a1', `${ns}_j:`, 'li t0, 0'];
+  for (let k = 0; k < M; k++)
+    body.push(`lw t2, ${4 * k}(a0)`, `lw t1, ${32 * k}(t3)`, 'mul t2, t2, t1', 'add t0, t0, t2');
   body.push(
-    "lw t1, 0(a3)", "add t0, t0, t1", `bge t0, zero, ${ns}_p`, "li t0, 0", `${ns}_p:`, "sw t0, 0(a2)", "addi a2, a2, 4",
-    "addi t3, t3, 4", "addi t1, a1, 32", `bne t3, t1, ${ns}_j`,
-    "addi a0, a0, 32", "addi a3, a3, 4", "addi t4, t4, -1", `bne t4, zero, ${ns}_i`, "ret",
+    'lw t1, 0(a3)',
+    'add t0, t0, t1',
+    `bge t0, zero, ${ns}_p`,
+    'li t0, 0',
+    `${ns}_p:`,
+    'sw t0, 0(a2)',
+    'addi a2, a2, 4',
+    'addi t3, t3, 4',
+    'addi t1, a1, 32',
+    `bne t3, t1, ${ns}_j`,
+    'addi a0, a0, 32',
+    'addi a3, a3, 4',
+    'addi t4, t4, -1',
+    `bne t4, zero, ${ns}_i`,
+    'ret',
   );
-  return { name: "npu_layer", ns, mix: ["mem", "mul", "alu", "branch"], footprintBytes: 0, asm: [`${ns}:`, ...body.map((l) => `  ${l}`)].join("\n") };
+  return {
+    name: 'npu_layer',
+    ns,
+    mix: ['mem', 'mul', 'alu', 'branch'],
+    footprintBytes: 0,
+    asm: [`${ns}:`, ...body.map((l) => `  ${l}`)].join('\n'),
+  };
 }

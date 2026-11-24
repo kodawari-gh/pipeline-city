@@ -13,13 +13,42 @@ export const cpuAir: AirSource = {
   id: 'cpu',
   kinds: ['cpu', 'cooler'],
   heat: (c) => deviceHeat(['cpu'], 'cpu', 'CPU', c, true),
-  fans: (c) => c.s.devices.filter((d) => d.kind === 'cooler').flatMap((d): AirFan[] => {
-    const visual = getSpec(d.spec)?.visual ?? '';
-    if (visual !== 'cooler-liquid' && !c.s.devices.some((f) => f.kind === 'fan' && f.slot.startsWith(`${d.slot}.fan`))) return [];
-    if (visual === 'cooler-tower') {
-      const slab = towerFanRect(), y = slab.y + slab.h / 2, exit = REAR_FAN.x - 700, exitY = REAR_FAN.y + REAR_FAN.h / 2;
-      return [{ id: 'cooler', rect: COOLER, edge: [slab], path: [[slab.x, y], [COOLER.x - 60, y], [exit + 500, exitY], [exit, exitY]] }];
-    }
-    return [{ id: 'cooler', rect: COOLER, rotor: coolerFanAt(visual), ...(visual === 'cooler-liquid' ? { noStream: true } : { ring: STOCK_VANES_R }) }];
-  }),
+  fans: (c) =>
+    c.s.devices
+      .filter((d) => d.kind === 'cooler')
+      .flatMap((d): AirFan[] => {
+        const visual = getSpec(d.spec)?.visual ?? '';
+        if (
+          visual !== 'cooler-liquid' &&
+          !c.s.devices.some((f) => f.kind === 'fan' && f.slot.startsWith(`${d.slot}.fan`))
+        )
+          return [];
+        if (visual === 'cooler-tower') {
+          const slab = towerFanRect(),
+            y = slab.y + slab.h / 2,
+            exit = REAR_FAN.x - 700,
+            exitY = REAR_FAN.y + REAR_FAN.h / 2;
+          return [
+            {
+              id: 'cooler',
+              rect: COOLER,
+              edge: [slab],
+              path: [
+                [slab.x, y],
+                [COOLER.x - 60, y],
+                [exit + 500, exitY],
+                [exit, exitY],
+              ],
+            },
+          ];
+        }
+        return [
+          {
+            id: 'cooler',
+            rect: COOLER,
+            rotor: coolerFanAt(visual),
+            ...(visual === 'cooler-liquid' ? { noStream: true } : { ring: STOCK_VANES_R }),
+          },
+        ];
+      }),
 };

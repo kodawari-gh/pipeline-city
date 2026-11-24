@@ -1,12 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { GPU_OPS } from "./isa/isa";
-import { GPU_GROUP_ORDER, GPU_OP_DOC } from "./isa/isadoc";
-import { GPU_TASK_KERNELS, KERNEL_LAYOUT } from "./kernels";
-import { GPU_CODE } from "@/core/sim/memmap";
-import { gpuKernelOf, gpuKernelProfile, gpuListing, gpuOpClass } from "./gpucode";
+import { describe, expect, it } from 'vitest';
+import { GPU_OPS } from './isa/isa';
+import { GPU_GROUP_ORDER, GPU_OP_DOC } from './isa/isadoc';
+import { GPU_TASK_KERNELS, KERNEL_LAYOUT } from './kernels';
+import { GPU_CODE } from '@/core/sim/memmap';
+import { gpuKernelOf, gpuKernelProfile, gpuListing, gpuOpClass } from './gpucode';
 
 describe("the GPU's instructions in words", () => {
-  it("every instruction of the ISA is described, in a known group", () => {
+  it('every instruction of the ISA is described, in a known group', () => {
     for (const o of GPU_OPS) {
       const d = GPU_OP_DOC[o.name];
       expect(d, o.name).toBeDefined();
@@ -20,44 +20,52 @@ describe("the GPU's instructions in words", () => {
   });
 });
 
-describe("a GPU kernel in the almanac", () => {
-  it("every graphics job names its kernel, and other jobs have none", () => {
+describe('a GPU kernel in the almanac', () => {
+  it('every graphics job names its kernel, and other jobs have none', () => {
     for (const k of GPU_TASK_KERNELS) expect(gpuKernelOf(`gpu.${k}`)).toBe(k);
-    expect(gpuKernelOf("cli.log")).toBeNull();
-    expect(gpuKernelProfile("cli.log", 8)).toBeNull();
+    expect(gpuKernelOf('cli.log')).toBeNull();
+    expect(gpuKernelProfile('cli.log', 8)).toBeNull();
   });
 
-  it("the kernel is listed with a label on its loop, how often each instruction ran, and branches that name their target", () => {
-    const p = gpuKernelProfile("gpu.blur3", 8)!;
+  it('the kernel is listed with a label on its loop, how often each instruction ran, and branches that name their target', () => {
+    const p = gpuKernelProfile('gpu.blur3', 8)!;
     expect(p.lines.length).toBeGreaterThan(20);
     expect(p.lines.every((l, k) => l.addr === 4 * k)).toBe(true);
-    expect(p.lines.some((l) => l.labels.includes("loop"))).toBe(true);
-    expect(p.lines.find((l) => l.text.startsWith("bany"))!.text).toBe("bany loop");
-    expect(p.lines.at(-1)!.text).toBe("halt");
+    expect(p.lines.some((l) => l.labels.includes('loop'))).toBe(true);
+    expect(p.lines.find((l) => l.text.startsWith('bany'))!.text).toBe('bany loop');
+    expect(p.lines.at(-1)!.text).toBe('halt');
     expect(p.lines.at(-1)!.count).toBe(1);
     // the picture is 2560 pixels: the loop body runs 2560 / lanes times
-    const body = p.lines.find((l) => l.text.startsWith("vst"))!;
+    const body = p.lines.find((l) => l.text.startsWith('vst'))!;
     expect(body.count).toBeGreaterThanOrEqual(2560 / 8);
     expect(p.instructions).toBe(p.lines.reduce((n, l) => n + l.count, 0));
     expect(Object.values(p.mix).reduce((a, b) => a + b, 0)).toBe(p.instructions);
     expect(p.laneUse).toBeGreaterThan(0.9);
   });
 
-  it("the same kernel on more lanes runs fewer instructions, and a branching kernel leaves lanes idle", () => {
-    expect(gpuKernelProfile("gpu.vadd", 32)!.instructions).toBeLessThan(gpuKernelProfile("gpu.vadd", 8)!.instructions);
-    expect(gpuKernelProfile("gpu.thresh", 8)!.laneUse).toBeLessThan(gpuKernelProfile("gpu.vadd", 8)!.laneUse);
+  it('the same kernel on more lanes runs fewer instructions, and a branching kernel leaves lanes idle', () => {
+    expect(gpuKernelProfile('gpu.vadd', 32)!.instructions).toBeLessThan(gpuKernelProfile('gpu.vadd', 8)!.instructions);
+    expect(gpuKernelProfile('gpu.thresh', 8)!.laneUse).toBeLessThan(gpuKernelProfile('gpu.vadd', 8)!.laneUse);
   });
 
-  it("raw words (a kernel read back from card memory) list with labels made up for the branch targets", () => {
-    const p = gpuKernelProfile("gpu.saxpy", 16)!;
+  it('raw words (a kernel read back from card memory) list with labels made up for the branch targets', () => {
+    const p = gpuKernelProfile('gpu.saxpy', 16)!;
     const lines = gpuListing(p.lines.map((l) => l.word));
     expect(lines.map((l) => l.word)).toEqual(p.lines.map((l) => l.word));
-    const bany = lines.find((l) => l.text.startsWith("bany"))!;
-    const to = bany.text.split(" ")[1]!;
+    const bany = lines.find((l) => l.text.startsWith('bany'))!;
+    const to = bany.text.split(' ')[1]!;
     expect(lines.some((l) => l.labels.includes(to))).toBe(true);
   });
 
-  it("the classes colour a load, a store, a multiply, a mask change and a branch apart from plain arithmetic", () => {
-    expect([gpuOpClass("vld"), gpuOpClass("vst"), gpuOpClass("vmul"), gpuOpClass("msetlt"), gpuOpClass("bany"), gpuOpClass("halt"), gpuOpClass("vadd")]).toEqual(["ld", "st", "mul", "br", "br", "sys", "alu"]);
+  it('the classes colour a load, a store, a multiply, a mask change and a branch apart from plain arithmetic', () => {
+    expect([
+      gpuOpClass('vld'),
+      gpuOpClass('vst'),
+      gpuOpClass('vmul'),
+      gpuOpClass('msetlt'),
+      gpuOpClass('bany'),
+      gpuOpClass('halt'),
+      gpuOpClass('vadd'),
+    ]).toEqual(['ld', 'st', 'mul', 'br', 'br', 'sys', 'alu']);
   });
 });

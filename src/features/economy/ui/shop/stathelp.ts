@@ -7,23 +7,31 @@ export const STAT_HELP: Record<string, string> = {
   queue: 'How many jobs can wait in line for the OS. A longer queue means fewer jobs turned away.',
   memory: 'Memory the OS needs fitted before it will run. Lower is easier to meet.',
   disk: 'Drive space the OS takes up when installed. Lower leaves more room for jobs.',
-  speed: 'How much work the processor gets done each second (clock speed times how clever its design is). Higher finishes jobs sooner.',
+  speed:
+    'How much work the processor gets done each second (clock speed times how clever its design is). Higher finishes jobs sooner.',
   power: 'Electricity it draws while working. Lower is better: it costs less and leaves room on the power supply.',
   size: 'How much it can hold. More lets bigger jobs fit.',
-  airflow: 'How much air it moves, compared with a basic fan. More air keeps parts cooler, and each extra fan on a heatsink gains a little less.',
+  airflow:
+    'How much air it moves, compared with a basic fan. More air keeps parts cooler, and each extra fan on a heatsink gains a little less.',
   fansize: 'The width of the fan. A fan only fits a spot of its own size.',
   latency: 'How long one read takes, in ticks. Lower is better: the processor waits less.',
   watts: 'The most power the supply can deliver. Everything you fit must add up to less than this.',
-  cooling: 'Heat carried away for each degree it is hotter than the room. Higher keeps parts cooler, so they throttle less.',
-  lanes: 'How many things the card does at the same instant, all following the same instructions. More lanes means big batches finish sooner.',
+  cooling:
+    'Heat carried away for each degree it is hotter than the room. Higher keeps parts cooler, so they throttle less.',
+  lanes:
+    'How many things the card does at the same instant, all following the same instructions. More lanes means big batches finish sooner.',
   sms: 'How many compute cores (streaming multiprocessors) the card has. Each runs its own share of the lanes side by side, so more SMs finish a big launch sooner.',
-  warps: 'How many groups of lanes each SM keeps ready. While one group waits for memory another runs, so more warps hide the memory wait.',
+  warps:
+    'How many groups of lanes each SM keeps ready. While one group waits for memory another runs, so more warps hide the memory wait.',
   l2: 'The cache shared by every SM. A line one SM fetched is already there for the others, so repeated reads skip the slow card memory. Zero means the card has none.',
-  cardclk: 'How fast the card runs compared with a processor at its stock clock. Higher means every step of its work takes less time.',
+  cardclk:
+    'How fast the card runs compared with a processor at its stock clock. Higher means every step of its work takes less time.',
   cardmem: 'The memory on the card itself. The work and its data are copied in first, so bigger jobs need more.',
-  cells: 'How many multiply-and-add cells the matrix unit has. More cells means each layer of a network finishes in fewer steps.',
+  cells:
+    'How many multiply-and-add cells the matrix unit has. More cells means each layer of a network finishes in fewer steps.',
   measure: 'How long the module takes to check each word of memory. Lower is better: a secure job starts sooner.',
   attest: 'How long the module takes to sign a statement about what is running. Lower is better.',
-  surcharge: 'Extra processor cycles every memory access costs while a secure job runs (the encryption). Lower is better.',
+  surcharge:
+    'Extra processor cycles every memory access costs while a secure job runs (the encryption). Lower is better.',
   throughput: 'How many bytes per second it moves once a read has started. Higher loads and saves faster.',
 };

@@ -1,20 +1,20 @@
 // Golden per-cycle stage charts (F D X M W, x = flushed, . = not in flight). A diff here means timing changed:
 // check it is intended, then update with `npx vitest run -u`. Charts are read back from the timeline ring buffer.
-import { describe, expect, it } from "vitest";
-import { CONFIGS, chart } from "../testutil";
+import { describe, expect, it } from 'vitest';
+import { CONFIGS, chart } from '../testutil';
 
 const PROGRAMS = {
-  hazards: "li s3, 4096\nlw t0, 0(s3)\nadd t1, t0, t0\naddi t2, t1, 1\nsw t2, 4(s3)\necall",
-  loop: "li t0, 3\nl:\naddi t0, t0, -1\nbne t0, zero, l\necall",
-  callRet: "li s3, 4096\ncall f\nlw a0, 0(s3)\necall\nf:\nsw sp, 0(s3)\nret",
+  hazards: 'li s3, 4096\nlw t0, 0(s3)\nadd t1, t0, t0\naddi t2, t1, 1\nsw t2, 4(s3)\necall',
+  loop: 'li t0, 3\nl:\naddi t0, t0, -1\nbne t0, zero, l\necall',
+  callRet: 'li s3, 4096\ncall f\nlw a0, 0(s3)\necall\nf:\nsw sp, 0(s3)\nret',
 };
 
 const cfg = (name: string) => CONFIGS.find((c) => c.name === name)!;
 const run = (name: string, prog: keyof typeof PROGRAMS) => chart(cfg(name).make(), PROGRAMS[prog]);
 
-describe("golden: unpipelined", () => {
-  it("hazards", () => {
-    expect(run("unpipelined", "hazards")).toMatchInlineSnapshot(`
+describe('golden: unpipelined', () => {
+  it('hazards', () => {
+    expect(run('unpipelined', 'hazards')).toMatchInlineSnapshot(`
       "
       00 addi s3, zero, 4096 |FDXMW.............................
       04 lw t0, 0(s3)        |.....FDXMMMMMW....................
@@ -26,8 +26,8 @@ describe("golden: unpipelined", () => {
       "
     `);
   });
-  it("loop", () => {
-    expect(run("unpipelined", "loop")).toMatchInlineSnapshot(`
+  it('loop', () => {
+    expect(run('unpipelined', 'loop')).toMatchInlineSnapshot(`
       "
       00 addi t0, zero, 3 |FDXMW...................................
       04 addi t0, t0, -1  |.....FDXMW..............................
@@ -41,8 +41,8 @@ describe("golden: unpipelined", () => {
       "
     `);
   });
-  it("callRet", () => {
-    expect(run("unpipelined", "callRet")).toMatchInlineSnapshot(`
+  it('callRet', () => {
+    expect(run('unpipelined', 'callRet')).toMatchInlineSnapshot(`
       "
       00 addi s3, zero, 4096 |FDXMW.............................
       04 jal ra, 12          |.....FDXMW........................
@@ -56,9 +56,9 @@ describe("golden: unpipelined", () => {
   });
 });
 
-describe("golden: inorder fwd shared=off", () => {
-  it("hazards", () => {
-    expect(run("inorder fwd shared=off", "hazards")).toMatchInlineSnapshot(`
+describe('golden: inorder fwd shared=off', () => {
+  it('hazards', () => {
+    expect(run('inorder fwd shared=off', 'hazards')).toMatchInlineSnapshot(`
       "
       00 addi s3, zero, 4096 |FDXMW..........
       04 lw t0, 0(s3)        |.FDXMMMMMW.....
@@ -72,8 +72,8 @@ describe("golden: inorder fwd shared=off", () => {
       "
     `);
   });
-  it("loop", () => {
-    expect(run("inorder fwd shared=off", "loop")).toMatchInlineSnapshot(`
+  it('loop', () => {
+    expect(run('inorder fwd shared=off', 'loop')).toMatchInlineSnapshot(`
       "
       00 addi t0, zero, 3 |FDXMW...........
       04 addi t0, t0, -1  |.FDXMW..........
@@ -93,8 +93,8 @@ describe("golden: inorder fwd shared=off", () => {
       "
     `);
   });
-  it("callRet", () => {
-    expect(run("inorder fwd shared=off", "callRet")).toMatchInlineSnapshot(`
+  it('callRet', () => {
+    expect(run('inorder fwd shared=off', 'callRet')).toMatchInlineSnapshot(`
       "
       00 addi s3, zero, 4096 |FDXMW...........
       04 jal ra, 12          |.FDXMW..........
@@ -112,9 +112,9 @@ describe("golden: inorder fwd shared=off", () => {
   });
 });
 
-describe("golden: inorder fwd shared=on", () => {
-  it("hazards", () => {
-    expect(run("inorder fwd shared=on", "hazards")).toMatchInlineSnapshot(`
+describe('golden: inorder fwd shared=on', () => {
+  it('hazards', () => {
+    expect(run('inorder fwd shared=on', 'hazards')).toMatchInlineSnapshot(`
       "
       00 addi s3, zero, 4096 |FDXMW..........
       04 lw t0, 0(s3)        |.FDXMMMMMW.....
@@ -127,8 +127,8 @@ describe("golden: inorder fwd shared=on", () => {
       "
     `);
   });
-  it("loop", () => {
-    expect(run("inorder fwd shared=on", "loop")).toMatchInlineSnapshot(`
+  it('loop', () => {
+    expect(run('inorder fwd shared=on', 'loop')).toMatchInlineSnapshot(`
       "
       00 addi t0, zero, 3 |FDXMW...........
       04 addi t0, t0, -1  |.FDXMW..........
@@ -148,8 +148,8 @@ describe("golden: inorder fwd shared=on", () => {
       "
     `);
   });
-  it("callRet", () => {
-    expect(run("inorder fwd shared=on", "callRet")).toMatchInlineSnapshot(`
+  it('callRet', () => {
+    expect(run('inorder fwd shared=on', 'callRet')).toMatchInlineSnapshot(`
       "
       00 addi s3, zero, 4096 |FDXMW...........
       04 jal ra, 12          |.FDXMW..........
@@ -165,9 +165,9 @@ describe("golden: inorder fwd shared=on", () => {
   });
 });
 
-describe("golden: inorder nofwd shared=off", () => {
-  it("hazards", () => {
-    expect(run("inorder nofwd shared=off", "hazards")).toMatchInlineSnapshot(`
+describe('golden: inorder nofwd shared=off', () => {
+  it('hazards', () => {
+    expect(run('inorder nofwd shared=off', 'hazards')).toMatchInlineSnapshot(`
       "
       00 addi s3, zero, 4096 |FDXMW.................
       04 lw t0, 0(s3)        |.FDDDXMMMMMW..........
@@ -181,8 +181,8 @@ describe("golden: inorder nofwd shared=off", () => {
       "
     `);
   });
-  it("loop", () => {
-    expect(run("inorder nofwd shared=off", "loop")).toMatchInlineSnapshot(`
+  it('loop', () => {
+    expect(run('inorder nofwd shared=off', 'loop')).toMatchInlineSnapshot(`
       "
       00 addi t0, zero, 3 |FDXMW...................
       04 addi t0, t0, -1  |.FDDDXMW................
@@ -202,8 +202,8 @@ describe("golden: inorder nofwd shared=off", () => {
       "
     `);
   });
-  it("callRet", () => {
-    expect(run("inorder nofwd shared=off", "callRet")).toMatchInlineSnapshot(`
+  it('callRet', () => {
+    expect(run('inorder nofwd shared=off', 'callRet')).toMatchInlineSnapshot(`
       "
       00 addi s3, zero, 4096 |FDXMW............
       04 jal ra, 12          |.FDXMW...........
@@ -221,9 +221,9 @@ describe("golden: inorder nofwd shared=off", () => {
   });
 });
 
-describe("golden: inorder nofwd shared=on", () => {
-  it("hazards", () => {
-    expect(run("inorder nofwd shared=on", "hazards")).toMatchInlineSnapshot(`
+describe('golden: inorder nofwd shared=on', () => {
+  it('hazards', () => {
+    expect(run('inorder nofwd shared=on', 'hazards')).toMatchInlineSnapshot(`
       "
       00 addi s3, zero, 4096 |FDXMW.................
       04 lw t0, 0(s3)        |.FDDDXMMMMMW..........
@@ -236,8 +236,8 @@ describe("golden: inorder nofwd shared=on", () => {
       "
     `);
   });
-  it("loop", () => {
-    expect(run("inorder nofwd shared=on", "loop")).toMatchInlineSnapshot(`
+  it('loop', () => {
+    expect(run('inorder nofwd shared=on', 'loop')).toMatchInlineSnapshot(`
       "
       00 addi t0, zero, 3 |FDXMW...................
       04 addi t0, t0, -1  |.FDDDXMW................
@@ -257,8 +257,8 @@ describe("golden: inorder nofwd shared=on", () => {
       "
     `);
   });
-  it("callRet", () => {
-    expect(run("inorder nofwd shared=on", "callRet")).toMatchInlineSnapshot(`
+  it('callRet', () => {
+    expect(run('inorder nofwd shared=on', 'callRet')).toMatchInlineSnapshot(`
       "
       00 addi s3, zero, 4096 |FDXMW............
       04 jal ra, 12          |.FDXMW...........
@@ -273,4 +273,3 @@ describe("golden: inorder nofwd shared=on", () => {
     `);
   });
 });
-

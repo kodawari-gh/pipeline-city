@@ -32,7 +32,7 @@ Status: **design, not built** (T85). It is the plan for T53 (multicore) and T50 
            bus: RAM, display, storage, PCH, GPU, NPU, TPM, interrupt controller
 ```
 
-- **Words.** A *core* is a hardware core: one pipeline. A *logical core* (hardware thread) is what the OS schedules on: registers, pc and interrupt state. A core without multithreading has one logical core. Job needs count **logical** cores; speed depends on how many are hardware cores.
+- **Words.** A _core_ is a hardware core: one pipeline. A _logical core_ (hardware thread) is what the OS schedules on: registers, pc and interrupt state. A core without multithreading has one logical core. Job needs count **logical** cores; speed depends on how many are hardware cores.
 - **All cores share one clock** (the `cpu` domain). On each CPU tick `Machine.stepCpu` steps core 0, then core 1, and so on, in index order. Same save and seed, same cycles.
 - **Cores are identical** inside one CPU (one `EngineConfig` per spec, plus `cores` and `threads` per core).
 - **Per logical core** (moves out of `Machine`): registers (today `machine.regs`), pc, interrupt state (EPC, pending, enable), the interval timer, the display row base. **Per core**: the engine and its L1 caches, predictor, TLB (entries tagged by thread) and MMU. **Shared**: RAM, the L2, the DRAM controller, every device.
@@ -52,7 +52,7 @@ A new `MemSystem` (`src/features/memory/sim/memsys.ts`) holds the L2 and the `Dr
 
 The caches are **tags only** and RAM is **write-through, no-allocate** (ENGINES.md "Common behaviour"): data always comes from RAM. So the simulation is **functionally coherent for free**: a load on any core sees the newest store from any core. Coherence here is a **timing rule**.
 
-**The rule (invalidate on write):** when a store or an atomic from core k lands (MEM on the in-order engines, commit on the out-of-order one, the point it writes RAM), every *other* core's L1 D and L1 I drops that line if it has it. The L2 is shared and never invalidated by a store. Threads of one core share its L1, so they never invalidate each other.
+**The rule (invalidate on write):** when a store or an atomic from core k lands (MEM on the in-order engines, commit on the out-of-order one, the point it writes RAM), every _other_ core's L1 D and L1 I drops that line if it has it. The L2 is shared and never invalidated by a store. Threads of one core share its L1, so they never invalidate each other.
 
 - Cost: the other core's next load to the line misses its L1 and pays the L2 cost. Counted as `CoherenceInvals` and `CoherenceMisses`.
 - **False sharing is real and visible**: two cores writing different words of one 16-byte line ping-pong it. The `hpc` generators avoid it (line-aligned slices); a lesson or a sandbox job can show it.
@@ -65,10 +65,10 @@ The caches are **tags only** and RAM is **write-through, no-allocate** (ENGINES.
 
 Two R-format instructions (opcodes left to the implementer, as for the rest of the ISA):
 
-| Instruction | Does |
-|---|---|
-| `amoadd rd, rs2, (rs1)` | `rd = mem[rs1]; mem[rs1] = rd + rs2` as one step |
-| `amoswap rd, rs2, (rs1)` | `rd = mem[rs1]; mem[rs1] = rs2` as one step |
+| Instruction              | Does                                             |
+| ------------------------ | ------------------------------------------------ |
+| `amoadd rd, rs2, (rs1)`  | `rd = mem[rs1]; mem[rs1] = rd + rs2` as one step |
+| `amoswap rd, rs2, (rs1)` | `rd = mem[rs1]; mem[rs1] = rs2` as one step      |
 
 - Word-aligned RAM addresses only; on a device address or misaligned it faults like a bad load.
 - **In-order engines**: the read and the write happen in MEM in the same cycle. Cores step one after another, so nothing can come between them. The value comes from RAM; the access **always goes to the L2** (`l2Penalty`, or RAM's cost on an L2 miss), never hits the L1, and invalidates the line in the other cores (section 3). It counts as a load for load-use hazards and as a store for the shared port.
@@ -92,12 +92,12 @@ Each core with `threads: 2` holds two logical cores. Which kind depends on the e
 
 The OS sees logical cores. Each tier adds one thing:
 
-| OS (level) | On a multicore CPU |
-|---|---|
-| `os1` (3) | core 0 only, the others parked: it knows one core |
-| `os2` Paged (8) | **one program per logical core**, each run to completion (no timer), kernel under the big lock. Up to `programSlots` = logical cores, at most 4 |
-| `os3` Preemptive (13) | preemption on every logical core: a timer per core, the job table as the shared ready list, up to 8 programs |
-| `os4` Multicore (14) | **multithreaded jobs** (section 7), affinity, park and wake |
+| OS (level)            | On a multicore CPU                                                                                                                              |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `os1` (3)             | core 0 only, the others parked: it knows one core                                                                                               |
+| `os2` Paged (8)       | **one program per logical core**, each run to completion (no timer), kernel under the big lock. Up to `programSlots` = logical cores, at most 4 |
+| `os3` Preemptive (13) | preemption on every logical core: a timer per core, the job table as the shared ready list, up to 8 programs                                    |
+| `os4` Multicore (14)  | **multithreaded jobs** (section 7), affinity, park and wake                                                                                     |
 
 On a single-core CPU each OS is exactly as today. So the level 9 dual core pays off with `os2` (level 8): two jobs at once.
 
@@ -131,12 +131,12 @@ A job declares its thread count `T` in its header (a new generator meta field `t
 
 **VRM demand** keeps its form (`demand = P / vcore`), so it follows the busy cores. Proposed parts, checked against VRM.md's rule that a CPU at stock on its own board never nears `throttleC` (load ratio well under 1):
 
-| Part (level) | Cores x threads (logical) | Core | loadW | Board it needs | Load ratio at stock, all busy |
-|---|---|---|---|---|---|
-| `cpu2d` Duo (9) | 2 x 1 (2) | `cpu2` class 5-stage, shared L2 32 lines | 70 W | Enthusiast (120 A) | 0.58 (on Mainstream 1.17: crashes, the lesson) |
-| `cpu3t` Duo-T (11) | 2 x 2 switch-on-miss (4) | `cpu2` class + miss buffers, L2 64 lines | 80 W | Enthusiast | 0.67 + the SMT share, warm |
-| `cpu5s` server (14) | 4 x 2 switch-on-miss (8) | `cpu2` class, L2 64 lines, 4 channels | 95 W | Enthusiast with a heatsink, `board4` to overclock | 0.79 on Enthusiast; 0.48 on `board4` |
-| `cpu5h` HPC (14) | 2 x 2 full SMT (4) | `cpu4` class out-of-order, L2 64 lines, 4 channels | 115 W | Enthusiast with a fan heatsink, `board4` to overclock | 0.96 on Enthusiast; 0.58 on `board4` |
+| Part (level)        | Cores x threads (logical) | Core                                               | loadW | Board it needs                                        | Load ratio at stock, all busy                  |
+| ------------------- | ------------------------- | -------------------------------------------------- | ----- | ----------------------------------------------------- | ---------------------------------------------- |
+| `cpu2d` Duo (9)     | 2 x 1 (2)                 | `cpu2` class 5-stage, shared L2 32 lines           | 70 W  | Enthusiast (120 A)                                    | 0.58 (on Mainstream 1.17: crashes, the lesson) |
+| `cpu3t` Duo-T (11)  | 2 x 2 switch-on-miss (4)  | `cpu2` class + miss buffers, L2 64 lines           | 80 W  | Enthusiast                                            | 0.67 + the SMT share, warm                     |
+| `cpu5s` server (14) | 4 x 2 switch-on-miss (8)  | `cpu2` class, L2 64 lines, 4 channels              | 95 W  | Enthusiast with a heatsink, `board4` to overclock     | 0.79 on Enthusiast; 0.48 on `board4`           |
+| `cpu5h` HPC (14)    | 2 x 2 full SMT (4)        | `cpu4` class out-of-order, L2 64 lines, 4 channels | 115 W | Enthusiast with a fan heatsink, `board4` to overclock | 0.96 on Enthusiast; 0.58 on `board4`           |
 
 - `board4` (server, level 15): one usable socket, VRM proposed 8 x 25 A = 200 A, more PCIe. The second socket is NUMA (each socket its own memory) and is **not** in this design: it stays a drawn, empty socket.
 - **Memory**: several cores missing at once are memory-bound; the level 14 parts get a 4-channel controller, which needs four sticks (Enthusiast has 8 DIMM slots): RAM becomes a multicore purchase too.
@@ -144,16 +144,16 @@ A job declares its thread count `T` in its header (a new generator meta field `t
 
 ## 9. Unlock levels
 
-| Level | Buy | Jobs |
-|---|---|---|
-| 8 | `os2` learns one program per core (exists, single-core today) | |
-| 9 | `cpu2d` Duo, about $2,000 (needs Enthusiast, also level 9) | none new: two jobs at once is the gain |
-| 11 | `cpu3t` Duo-T, about $5,000 | |
-| 13 | `os3` learns preemption on every core | |
-| 14 | `cpu5s` (about $9,000), `cpu5h` (about $11,000), `os4` (about $3,000) | `hpc` arrives (12 percent, ramping over 600 ticks): `hpc.reduce` (2), `hpc.matmul` (2) |
-| 15 | `board4`, `psu4` | `hpc.nbody` (2), `hpc.montecarlo` (4) |
-| 16 | | `hpc.sort` (4) |
-| 17 | | `hpc.bfs` (8), `hpc.fft` (8): 8 logical cores, so `cpu5s` |
+| Level | Buy                                                                   | Jobs                                                                                   |
+| ----- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| 8     | `os2` learns one program per core (exists, single-core today)         |                                                                                        |
+| 9     | `cpu2d` Duo, about $2,000 (needs Enthusiast, also level 9)            | none new: two jobs at once is the gain                                                 |
+| 11    | `cpu3t` Duo-T, about $5,000                                           |                                                                                        |
+| 13    | `os3` learns preemption on every core                                 |                                                                                        |
+| 14    | `cpu5s` (about $9,000), `cpu5h` (about $11,000), `os4` (about $3,000) | `hpc` arrives (12 percent, ramping over 600 ticks): `hpc.reduce` (2), `hpc.matmul` (2) |
+| 15    | `board4`, `psu4`                                                      | `hpc.nbody` (2), `hpc.montecarlo` (4)                                                  |
+| 16    |                                                                       | `hpc.sort` (4)                                                                         |
+| 17    |                                                                       | `hpc.bfs` (8), `hpc.fft` (8): 8 logical cores, so `cpu5s`                              |
 
 `cpu5` in `levels.ts` becomes the two ids; `cpu2d` and `cpu3t` are new rows in PROGRESSION.md's table and the CPU tree (TECHTREE.md). Sandbox: everything unlocked.
 

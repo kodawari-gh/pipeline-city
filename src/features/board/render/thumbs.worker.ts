@@ -9,10 +9,16 @@ import { drawThumb, type ThumbJob, type ThumbReply } from './thumbart';
 
 const post = (m: ThumbReply) => (self as unknown as DedicatedWorkerGlobalScope).postMessage(m);
 const jobs: ThumbJob[] = [];
-let epoch = 0, busy = false;
+let epoch = 0,
+  busy = false;
 
-const ready: Promise<Renderer | null> = autoDetectRenderer({ preference: 'webgl', width: 64, height: 64, backgroundAlpha: 0, antialias: true })
-  .catch(() => null);
+const ready: Promise<Renderer | null> = autoDetectRenderer({
+  preference: 'webgl',
+  width: 64,
+  height: 64,
+  backgroundAlpha: 0,
+  antialias: true,
+}).catch(() => null);
 
 self.onmessage = (e: MessageEvent<ThumbJob | { epoch: number }>) => {
   const m = e.data;
@@ -25,14 +31,19 @@ async function run() {
   if (busy) return;
   busy = true;
   const r = await ready;
-  if (!r) { post({ dead: true }); return; }
+  if (!r) {
+    post({ dead: true });
+    return;
+  }
   for (let j = jobs.shift(); j; j = jobs.shift()) {
     if (j.epoch < epoch) continue;
     let png: Blob | null = null;
     try {
       const c = drawThumb(r, j.id, j.theme) as OffscreenCanvas | null;
       if (c) png = await c.convertToBlob({ type: 'image/png' });
-    } catch { /* no picture: the UI keeps its drawn icon */ }
+    } catch {
+      /* no picture: the UI keeps its drawn icon */
+    }
     post({ key: j.key, epoch: j.epoch, png });
   }
   busy = false;

@@ -41,23 +41,45 @@ const check = (ok, what) => {
   console.log(`${ok ? 'PASS' : 'FAIL'} ${what}`);
 };
 
-const alreadyUp = await fetch(url).then((r) => r.ok, () => false);
-const server = alreadyUp ? null : spawn(process.execPath, [viteBin, '--port', String(PORT), '--strictPort'], { stdio: 'ignore' });
-const stopServer = () => { try { server?.kill(); } catch { /* already gone */ } };
+const alreadyUp = await fetch(url).then(
+  (r) => r.ok,
+  () => false,
+);
+const server = alreadyUp
+  ? null
+  : spawn(process.execPath, [viteBin, '--port', String(PORT), '--strictPort'], { stdio: 'ignore' });
+const stopServer = () => {
+  try {
+    server?.kill();
+  } catch {
+    /* already gone */
+  }
+};
 process.on('exit', stopServer);
 let exited = null;
-server?.on('exit', (c) => { exited = c; });
+server?.on('exit', (c) => {
+  exited = c;
+});
 for (let i = 0; !alreadyUp; i++) {
   if (exited !== null) throw new Error(`the dev server exited with ${exited}`);
   if (i > 100) throw new Error('the dev server did not start');
-  try { if ((await fetch(url)).ok) break; } catch { /* not up yet */ }
+  try {
+    if ((await fetch(url)).ok) break;
+  } catch {
+    /* not up yet */
+  }
   await new Promise((r) => setTimeout(r, 300));
 }
 
 const browser = await chromium.launch({
   headless: !process.env.SHOW,
   ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
-  args: [...(process.env.SOFTWARE ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] : ['--enable-gpu', '--use-angle=d3d11', '--enable-gpu-rasterization']), '--ignore-gpu-blocklist'],
+  args: [
+    ...(process.env.SOFTWARE
+      ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader']
+      : ['--enable-gpu', '--use-angle=d3d11', '--enable-gpu-rasterization']),
+    '--ignore-gpu-blocklist',
+  ],
 });
 
 /**
@@ -65,13 +87,23 @@ const browser = await chromium.launch({
  * (the worker then fails to load), or no `hold` for a free worker. `init` is a function the page runs before any script of its own.
  */
 async function open(tag, viewport, { hold = null, init = null, until = 'button.mm-btn:has-text("New game")' } = {}) {
-  const ctx = await browser.newContext({ viewport, reducedMotion: process.env.REDUCED_MOTION ? 'reduce' : 'no-preference' });
+  const ctx = await browser.newContext({
+    viewport,
+    reducedMotion: process.env.REDUCED_MOTION ? 'reduce' : 'no-preference',
+  });
   if (init) await ctx.addInitScript(init);
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message.slice(0, 160)));
   page.setDefaultTimeout(30_000);
-  if (hold) await page.route((u) => u.pathname.includes('/src/worker/worker.ts'), async (route) => { await hold.gate; await route.abort(); });
+  if (hold)
+    await page.route(
+      (u) => u.pathname.includes('/src/worker/worker.ts'),
+      async (route) => {
+        await hold.gate;
+        await route.abort();
+      },
+    );
   await page.goto(url, { timeout: LOAD_MS });
   await page.waitForSelector(until, { timeout: LOAD_MS });
   return { ctx, page, errors, tag };
@@ -86,28 +118,38 @@ const NO_WEBGL = () => {
 };
 
 /** The text of an element, its font size against the root's, and its contrast against the worst backing (see the header). */
-const measure = (page, sel) => page.evaluate((s) => {
-  const el = document.querySelector(s);
-  if (!el) return null;
-  const rgba = (c) => {
-    const n = (c.match(/-?[\d.]+/g) || []).map(Number);
-    if (c.startsWith('color(')) return [n[0] * 255, n[1] * 255, n[2] * 255, n.length > 3 ? n[3] : 1]; // color(srgb r g b / a)
-    return [n[0], n[1], n[2], n.length > 3 ? n[3] : 1];
-  };
-  const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
-  let card = el;
-  while (card && rgba(getComputedStyle(card).backgroundColor)[3] < 0.5) card = card.parentElement;
-  if (!card) return { text: el.textContent, ratio: 0, px: 0, root: 0 };
-  const b = rgba(getComputedStyle(card).backgroundColor);
-  let back = [0, 1, 2].map((i) => b[i] * b[3] + 255 * (1 - b[3])); // over white
-  back = back.map((v) => v * 0.95 + 255 * 0.05); // the sheen
-  const fg = rgba(getComputedStyle(el).color);
-  const l1 = lum(fg), l2 = lum(back);
-  return {
-    text: el.textContent.replace(/\s+/g, ' ').trim(), ratio: (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05),
-    px: parseFloat(getComputedStyle(el).fontSize), root: parseFloat(getComputedStyle(document.documentElement).fontSize),
-  };
-}, sel);
+const measure = (page, sel) =>
+  page.evaluate((s) => {
+    const el = document.querySelector(s);
+    if (!el) return null;
+    const rgba = (c) => {
+      const n = (c.match(/-?[\d.]+/g) || []).map(Number);
+      if (c.startsWith('color(')) return [n[0] * 255, n[1] * 255, n[2] * 255, n.length > 3 ? n[3] : 1]; // color(srgb r g b / a)
+      return [n[0], n[1], n[2], n.length > 3 ? n[3] : 1];
+    };
+    const lum = (c) => {
+      const f = (v) => {
+        v /= 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
+    };
+    let card = el;
+    while (card && rgba(getComputedStyle(card).backgroundColor)[3] < 0.5) card = card.parentElement;
+    if (!card) return { text: el.textContent, ratio: 0, px: 0, root: 0 };
+    const b = rgba(getComputedStyle(card).backgroundColor);
+    let back = [0, 1, 2].map((i) => b[i] * b[3] + 255 * (1 - b[3])); // over white
+    back = back.map((v) => v * 0.95 + 255 * 0.05); // the sheen
+    const fg = rgba(getComputedStyle(el).color);
+    const l1 = lum(fg),
+      l2 = lum(back);
+    return {
+      text: el.textContent.replace(/\s+/g, ' ').trim(),
+      ratio: (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05),
+      px: parseFloat(getComputedStyle(el).fontSize),
+      root: parseFloat(getComputedStyle(document.documentElement).fontSize),
+    };
+  }, sel);
 
 /**
  * The contrast of an element's text against the picture under it: the text is hidden, the element's box is photographed, and the worst
@@ -115,28 +157,45 @@ const measure = (page, sel) => page.evaluate((s) => {
  */
 async function contrastOverPicture(page, sel) {
   const { clip, fg } = await page.evaluate((s) => {
-    const el = document.querySelector(s), r = el.getBoundingClientRect(), fg = getComputedStyle(el).color;
+    const el = document.querySelector(s),
+      r = el.getBoundingClientRect(),
+      fg = getComputedStyle(el).color;
     el.style.color = 'transparent';
     return { clip: { x: r.left, y: r.top, width: r.width, height: r.height }, fg };
   }, sel);
   let png;
-  try { png = await page.screenshot({ clip }); } finally { await page.evaluate((s) => { document.querySelector(s).style.color = ''; }, sel); }
-  return page.evaluate(async ({ b64, fg }) => {
-    const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob());
-    const g = Object.assign(document.createElement('canvas'), { width: bitmap.width, height: bitmap.height }).getContext('2d');
-    g.drawImage(bitmap, 0, 0);
-    const px = g.getImageData(0, 0, bitmap.width, bitmap.height).data;
-    const lin = Array.from({ length: 256 }, (_, v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
-    const lum = (r, gr, b) => 0.2126 * lin[r] + 0.7152 * lin[gr] + 0.0722 * lin[b];
-    const [fr, fgr, fb] = fg.match(/[\d.]+/g).map(Number);
-    const lf = lum(fr, fgr, fb);
-    let worst = Infinity;
-    for (let i = 0; i < px.length; i += 4) {
-      const lb = lum(px[i], px[i + 1], px[i + 2]);
-      worst = Math.min(worst, (Math.max(lf, lb) + 0.05) / (Math.min(lf, lb) + 0.05));
-    }
-    return worst;
-  }, { b64: png.toString('base64'), fg });
+  try {
+    png = await page.screenshot({ clip });
+  } finally {
+    await page.evaluate((s) => {
+      document.querySelector(s).style.color = '';
+    }, sel);
+  }
+  return page.evaluate(
+    async ({ b64, fg }) => {
+      const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob());
+      const g = Object.assign(document.createElement('canvas'), {
+        width: bitmap.width,
+        height: bitmap.height,
+      }).getContext('2d');
+      g.drawImage(bitmap, 0, 0);
+      const px = g.getImageData(0, 0, bitmap.width, bitmap.height).data;
+      const lin = Array.from({ length: 256 }, (_, v) => {
+        v /= 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      });
+      const lum = (r, gr, b) => 0.2126 * lin[r] + 0.7152 * lin[gr] + 0.0722 * lin[b];
+      const [fr, fgr, fb] = fg.match(/[\d.]+/g).map(Number);
+      const lf = lum(fr, fgr, fb);
+      let worst = Infinity;
+      for (let i = 0; i < px.length; i += 4) {
+        const lb = lum(px[i], px[i + 1], px[i + 2]);
+        worst = Math.min(worst, (Math.max(lf, lb) + 0.05) / (Math.min(lf, lb) + 0.05));
+      }
+      return worst;
+    },
+    { b64: png.toString('base64'), fg },
+  );
 }
 
 /**
@@ -150,18 +209,28 @@ async function judge(s, sel, label, words, { overPicture = false } = {}) {
   if (overPicture) m.ratio = await contrastOverPicture(s.page, sel);
   for (const w of words) check(m.text.includes(w), `${label}: says "${w}" (it says: "${m.text.slice(0, 110)}")`);
   check(m.px >= m.root - 0.01, `${label}: text is ${m.px}px, at least 1 rem (${m.root}px)`);
-  check(m.ratio >= 4.5, `${label}: contrast ${m.ratio.toFixed(2)}:1${overPicture ? ' on the worst pixel of the picture' : ''}, at least 4.5:1`);
+  check(
+    m.ratio >= 4.5,
+    `${label}: contrast ${m.ratio.toFixed(2)}:1${overPicture ? ' on the worst pixel of the picture' : ''}, at least 4.5:1`,
+  );
 }
 
 const shot = (s, name) => s.page.screenshot({ path: join(SHOTS, `${name}.png`) });
 const menuShown = (s) => s.page.locator('button.mm-btn:has-text("New game")').isVisible();
-const fileIn = (s, name, text) => s.page.setInputFiles('input[type=file]', { name, mimeType: 'application/json', buffer: Buffer.from(text) });
-const noticeBox = (s) => s.page.evaluate(() => { const r = document.querySelector('.notice')?.getBoundingClientRect(); return r ? { l: r.left, r: r.right, w: innerWidth } : null; });
+const fileIn = (s, name, text) =>
+  s.page.setInputFiles('input[type=file]', { name, mimeType: 'application/json', buffer: Buffer.from(text) });
+const noticeBox = (s) =>
+  s.page.evaluate(() => {
+    const r = document.querySelector('.notice')?.getBoundingClientRect();
+    return r ? { l: r.left, r: r.right, w: innerWidth } : null;
+  });
 /** The menu's first button is in the page, and what a click on it would hit is the boot screen: no game can start under it. */
-const menuCovered = (s) => s.page.evaluate(() => {
-  const b = document.querySelector('button.mm-btn'), r = b?.getBoundingClientRect();
-  return !!r && !!document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest('#boot');
-});
+const menuCovered = (s) =>
+  s.page.evaluate(() => {
+    const b = document.querySelector('button.mm-btn'),
+      r = b?.getBoundingClientRect();
+    return !!r && !!document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest('#boot');
+  });
 /** In a game: the player's way to a file, Menu, then Files, then Export game. */
 async function exportFromMenu(s) {
   await s.page.click('.menu > button[aria-label="Menu"]');
@@ -171,21 +240,36 @@ async function exportFromMenu(s) {
 
 try {
   // ---- corrupt file, at the main menu: desktop and phone ----
-  for (const [tag, vp] of [['desktop', { width: 1920, height: 1080 }], ['phone', { width: 390, height: 844 }]]) {
+  for (const [tag, vp] of [
+    ['desktop', { width: 1920, height: 1080 }],
+    ['phone', { width: 390, height: 844 }],
+  ]) {
     const s = await open(`corrupt ${tag}`, vp);
     await fileIn(s, 'not-a-save.json', 'this is not json {');
     await s.page.waitForSelector('.notice');
-    await judge(s, '.notice > span', `corrupt file (${tag})`, ['not a Pipeline City save', 'Pick another file', 'menu']);
+    await judge(s, '.notice > span', `corrupt file (${tag})`, [
+      'not a Pipeline City save',
+      'Pick another file',
+      'menu',
+    ]);
     const box = await noticeBox(s);
     check(!!box && box.l >= 0 && box.r <= box.w, `corrupt file (${tag}): the notice is inside the window`);
-    check(await s.page.locator('.notice button[aria-label="Dismiss"]').isVisible(), `corrupt file (${tag}): the notice can be dismissed`);
+    check(
+      await s.page.locator('.notice button[aria-label="Dismiss"]').isVisible(),
+      `corrupt file (${tag}): the notice can be dismissed`,
+    );
     check(await menuShown(s), `corrupt file (${tag}): the main menu is still there`);
     await shot(s, `corrupt-file-${tag}`);
     if (tag === 'desktop') {
       await s.page.click('.notice button[aria-label="Dismiss"]');
       await fileIn(s, 'old.json', '{"version":99}');
       await s.page.waitForSelector('.notice');
-      await judge(s, '.notice > span', 'incompatible save', ['cannot be loaded', 'another version', 'Your save is unchanged', 'go back to the menu']);
+      await judge(s, '.notice > span', 'incompatible save', [
+        'cannot be loaded',
+        'another version',
+        'Your save is unchanged',
+        'go back to the menu',
+      ]);
       check(await menuShown(s), 'incompatible save: the main menu is still there');
     }
     check(s.errors.length === 0, `corrupt file (${tag}): no page error (${s.errors.join(' | ')})`);
@@ -196,7 +280,9 @@ try {
   {
     const s = await open('offline', { width: 1920, height: 1080 });
     // (offline from the start, the page's own 3D world would fail to load: that is the boot failure screen. Here the world is up first.)
-    await s.page.evaluate(`(async () => { const { booted } = await import('/src/app/boot.ts'); while (!booted.value) await new Promise((r) => setTimeout(r, 200)); })()`);
+    await s.page.evaluate(
+      `(async () => { const { booted } = await import('/src/app/boot.ts'); while (!booted.value) await new Promise((r) => setTimeout(r, 200)); })()`,
+    );
     await s.ctx.setOffline(true);
     await s.page.waitForSelector('.notice');
     await judge(s, '.notice > span', 'offline', ['You are offline', 'still runs', 'Reconnect', 'reload the page']);
@@ -209,50 +295,86 @@ try {
   }
 
   // ---- boot failure: a browser with no WebGL. The boot screen stays, says why and what to try; "Try again" reloads. Desktop and phone ----
-  for (const [tag, vp] of [['desktop', { width: 1920, height: 1080 }], ['phone', { width: 390, height: 844 }]]) {
+  for (const [tag, vp] of [
+    ['desktop', { width: 1920, height: 1080 }],
+    ['phone', { width: 390, height: 844 }],
+  ]) {
     const s = await open(`boot failure ${tag}`, vp, { init: NO_WEBGL, until: '#boot.fail' });
     const what = `boot failure, no WebGL (${tag})`;
     // (the still fades in over 1.2 s: the contrast is read when it is all there)
-    await s.page.waitForFunction(() => { const i = document.querySelector('.boot-still'); return !i || (i.classList.contains('on') && getComputedStyle(i).opacity === '1'); });
-    check(await s.page.locator('.boot-still.on').count() === 1, `${what}: the picture is behind the text, so the contrast is read over it`);
+    await s.page.waitForFunction(() => {
+      const i = document.querySelector('.boot-still');
+      return !i || (i.classList.contains('on') && getComputedStyle(i).opacity === '1');
+    });
+    check(
+      (await s.page.locator('.boot-still.on').count()) === 1,
+      `${what}: the picture is behind the text, so the contrast is read over it`,
+    );
     await judge(s, '#boot .boot-stage', `${what}: the reason`, ['WebGL is not available'], { overPicture: true });
-    await judge(s, '#boot .boot-help', `${what}: what to try`, ['Turn on hardware acceleration', 'try another browser'], { overPicture: true });
+    await judge(
+      s,
+      '#boot .boot-help',
+      `${what}: what to try`,
+      ['Turn on hardware acceleration', 'try another browser'],
+      { overPicture: true },
+    );
     await judge(s, '#boot .boot-retry', `${what}: the button`, ['Try again']);
     check(await s.page.locator('#boot .boot-retry').isVisible(), `${what}: "Try again" is shown`);
     check(await menuCovered(s), `${what}: the boot screen covers the menu, so no game can start without a world`);
     const inside = await s.page.evaluate(() => ({
       sideways: document.documentElement.scrollWidth > innerWidth,
-      out: ['.boot-stage', '.boot-help', '.boot-retry'].filter((q) => { const r = document.querySelector(`#boot ${q}`).getBoundingClientRect(); return r.left < 0 || r.right > innerWidth; }),
+      out: ['.boot-stage', '.boot-help', '.boot-retry'].filter((q) => {
+        const r = document.querySelector(`#boot ${q}`).getBoundingClientRect();
+        return r.left < 0 || r.right > innerWidth;
+      }),
     }));
-    check(!inside.sideways && inside.out.length === 0, `${what}: the words are inside the window and nothing scrolls sideways (out: ${inside.out.join(', ') || 'none'})`);
+    check(
+      !inside.sideways && inside.out.length === 0,
+      `${what}: the words are inside the window and nothing scrolls sideways (out: ${inside.out.join(', ') || 'none'})`,
+    );
     await shot(s, `boot-failure-${tag}`);
     // "Try again" is a real way forward: it loads the page anew (here the browser still has no WebGL, so the screen comes back)
-    await s.page.evaluate(() => { window.__loadedBefore = true; });
+    await s.page.evaluate(() => {
+      window.__loadedBefore = true;
+    });
     await s.page.click('#boot .boot-retry');
     await s.page.waitForFunction(() => !window.__loadedBefore && !!document.querySelector('#boot.fail'));
     check(true, `${what}: "Try again" reloads the page`);
-    check(s.errors.length > 0 && s.errors.every((e) => /webgl/i.test(e)), `${what}: the only page errors are the renderer's own (${s.errors.join(' | ')})`);
+    check(
+      s.errors.length > 0 && s.errors.every((e) => /webgl/i.test(e)),
+      `${what}: the only page errors are the renderer's own (${s.errors.join(' | ')})`,
+    );
     await s.ctx.close();
   }
 
   // ---- starting, then a start failure (the worker is held, then fails to load) ----
   {
     let release;
-    const hold = { gate: new Promise((r) => { release = r; }) };
+    const hold = {
+      gate: new Promise((r) => {
+        release = r;
+      }),
+    };
     const s = await open('starting', { width: 1920, height: 1080 }, { hold });
     await s.page.click('button.mm-btn:has-text("New game")');
     await s.page.waitForSelector('.pl-menu.newgame .pl-row.hero');
     await s.page.click('.pl-menu.newgame .pl-row.hero');
     await s.page.waitForSelector('.starting');
     await judge(s, '.starting-text', 'starting', ['This takes a few seconds', 'reload the page']);
-    check(/^(Starting…|Getting the room ready…)/.test((await measure(s.page, '.starting-text'))?.text ?? ''), 'starting: it says what is going on');
+    check(
+      /^(Starting…|Getting the room ready…)/.test((await measure(s.page, '.starting-text'))?.text ?? ''),
+      'starting: it says what is going on',
+    );
     const hint = await measure(s.page, '.starting-hint');
-    check(!!hint && hint.px >= hint.root - 0.01 && hint.ratio >= 4.5, `starting: the next step is 1 rem and contrast ${hint?.ratio.toFixed(2)}:1`);
+    check(
+      !!hint && hint.px >= hint.root - 0.01 && hint.ratio >= 4.5,
+      `starting: the next step is 1 rem and contrast ${hint?.ratio.toFixed(2)}:1`,
+    );
     await shot(s, 'starting');
     release();
     await s.page.waitForSelector('.notice', { timeout: BOOT_MS });
     await judge(s, '.notice > span', 'start failure', ['The game could not start', 'Reload the page']);
-    check(await s.page.locator('.starting').count() === 0, 'start failure: "Starting…" is gone');
+    check((await s.page.locator('.starting').count()) === 0, 'start failure: "Starting…" is gone');
     check(await menuShown(s), 'start failure: the main menu is back, so the player can try again');
     await shot(s, 'start-failure');
     await s.ctx.close();
@@ -274,9 +396,18 @@ try {
     await s.page.waitForSelector('.modal.crash');
     await judge(s, '.modal.crash .pplain', 'crash', ['It is paused so nothing is lost', 'copy or download the report']);
     await judge(s, '.crash-line', 'crash headline', ['bad jump']);
-    const btn = await s.page.evaluate(() => [...document.querySelectorAll('.modal.crash .pactions button')].map((b) => ({ t: b.textContent.trim(), px: parseFloat(getComputedStyle(b).fontSize) })));
+    const btn = await s.page.evaluate(() =>
+      [...document.querySelectorAll('.modal.crash .pactions button')].map((b) => ({
+        t: b.textContent.trim(),
+        px: parseFloat(getComputedStyle(b).fontSize),
+      })),
+    );
     const root = await s.page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
-    for (const want of ['Show details', 'Copy report', 'Download report', 'Close']) check(btn.some((b) => b.t === want && b.px >= root - 0.01), `crash: the "${want}" button is there, 1 rem`);
+    for (const want of ['Show details', 'Copy report', 'Download report', 'Close'])
+      check(
+        btn.some((b) => b.t === want && b.px >= root - 0.01),
+        `crash: the "${want}" button is there, 1 rem`,
+      );
     await s.page.click('.modal.crash button:has-text("Show details")');
     await judge(s, '.crash-text', 'crash report', ['CRASH']);
     await shot(s, 'crash');
@@ -289,17 +420,32 @@ try {
     // (the tutorial's welcome card stands over the lower rows of the Paused screen, "Files" among them, so the player skips it first)
     await s.page.click('aside.tut button:has-text("Skip")');
     await s.page.waitForSelector('aside.tut', { state: 'detached' });
-    await s.page.evaluate(() => { window.__createObjectURL = URL.createObjectURL; URL.createObjectURL = () => { throw new Error('refused'); }; });
+    await s.page.evaluate(() => {
+      window.__createObjectURL = URL.createObjectURL;
+      URL.createObjectURL = () => {
+        throw new Error('refused');
+      };
+    });
     await exportFromMenu(s);
     await s.page.waitForSelector('.notice');
-    await judge(s, '.notice > span', 'failed export', ['The file could not be saved', 'Your save is unchanged', 'Try again', 'download settings']);
+    await judge(s, '.notice > span', 'failed export', [
+      'The file could not be saved',
+      'Your save is unchanged',
+      'Try again',
+      'download settings',
+    ]);
     check(await s.page.locator('.dockbar').isVisible(), 'failed export: the game goes on');
     await shot(s, 'failed-export');
-    await s.page.evaluate(() => { URL.createObjectURL = window.__createObjectURL; });
+    await s.page.evaluate(() => {
+      URL.createObjectURL = window.__createObjectURL;
+    });
     await s.page.click('.notice button[aria-label="Dismiss"]');
     const [file] = await Promise.all([s.page.waitForEvent('download'), exportFromMenu(s)]);
-    check(/^pipeline-city-\d+\.json$/.test(file.suggestedFilename()), `failed export: trying again saves the file (${file.suggestedFilename()})`);
-    check(await s.page.locator('.notice').count() === 0, 'failed export: no notice after the good save');
+    check(
+      /^pipeline-city-\d+\.json$/.test(file.suggestedFilename()),
+      `failed export: trying again saves the file (${file.suggestedFilename()})`,
+    );
+    check((await s.page.locator('.notice').count()) === 0, 'failed export: no notice after the good save');
 
     // a bad file while a game runs: the notice, then the main menu
     await s.page.evaluate(`(async () => {

@@ -9,20 +9,51 @@ import { resolve } from 'node:path';
 import { chromium } from 'playwright-core';
 
 const args = process.argv.slice(2);
-const oi = args.indexOf('--out'), out = resolve(oi < 0 ? 'docs/brands' : args[oi + 1]);
+const oi = args.indexOf('--out'),
+  out = resolve(oi < 0 ? 'docs/brands' : args[oi + 1]);
 const ids = args.filter((a, i) => !a.startsWith('--') && (oi < 0 || i !== oi + 1));
-const ALL = ['roster', 'axiom', 'ocula', 'synapta', 'sigil', 'kaiju', 'kura', 'raiden', 'fujin', 'kitsune', 'relay', 'hako', 'hikari', 'pipeline'];
+const ALL = [
+  'roster',
+  'axiom',
+  'ocula',
+  'synapta',
+  'sigil',
+  'kaiju',
+  'kura',
+  'raiden',
+  'fujin',
+  'kitsune',
+  'relay',
+  'hako',
+  'hikari',
+  'pipeline',
+];
 const want = ids.length ? ids : ALL;
 mkdirSync(out, { recursive: true });
 
-const PORT = Number(process.env.PORT || 5199), base = `http://localhost:${PORT}/`;
-const up = async () => { try { return (await fetch(base)).ok; } catch { return false; } };
+const PORT = Number(process.env.PORT || 5199),
+  base = `http://localhost:${PORT}/`;
+const up = async () => {
+  try {
+    return (await fetch(base)).ok;
+  } catch {
+    return false;
+  }
+};
 let server = null;
 if (!(await up())) {
-  server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(PORT), '--strictPort'], { stdio: 'ignore' });
+  server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(PORT), '--strictPort'], {
+    stdio: 'ignore',
+  });
   for (let i = 0; i < 100 && !(await up()); i++) await new Promise((r) => setTimeout(r, 300));
 }
-process.on('exit', () => { try { server?.kill(); } catch { /* gone */ } });
+process.on('exit', () => {
+  try {
+    server?.kill();
+  } catch {
+    /* gone */
+  }
+});
 
 const browser = await chromium.launch({ headless: true, channel: 'chrome' });
 try {

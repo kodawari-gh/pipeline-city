@@ -1,14 +1,14 @@
-import { REG_SP } from "../../features/cpu/sim/isa/isa";
-import { IRQ, KERNEL_FAULT, RAM_DEFAULT_SIZE, SMT_LOAD_SHARE, STATUS_BASE, STATUS_SIZE } from "./memmap";
-import type { MemSystem } from "../../features/memory/sim/memsys";
-import { Bus } from "./hw/bus";
-import { ClockScheduler, type Rate } from "./hw/clock";
-import { BankedDevice, Core } from "../../features/cpu/sim/core";
-import { RamDevice, type Device } from "./hw/device";
-import { Display } from "./hw/display";
-import type { Engine } from "./engine";
-import { IntcHub } from "./hw/intc";
-import { Prng } from "./prng";
+import { REG_SP } from '../../features/cpu/sim/isa/isa';
+import { IRQ, KERNEL_FAULT, RAM_DEFAULT_SIZE, SMT_LOAD_SHARE, STATUS_BASE, STATUS_SIZE } from './memmap';
+import type { MemSystem } from '../../features/memory/sim/memsys';
+import { Bus } from './hw/bus';
+import { ClockScheduler, type Rate } from './hw/clock';
+import { BankedDevice, Core } from '../../features/cpu/sim/core';
+import { RamDevice, type Device } from './hw/device';
+import { Display } from './hw/display';
+import type { Engine } from './engine';
+import { IntcHub } from './hw/intc';
+import { Prng } from './prng';
 
 export interface MachineConfig {
   ramSize?: number;
@@ -42,17 +42,21 @@ export class Machine {
   /** The L2 and DRAM the cores share, if the machine was given one (the game gives a multicore CPU's before `attach`). */
   mem: MemSystem | null;
   /** Core 0's register file. */
-  readonly regs: Core["regs"];
+  readonly regs: Core['regs'];
   /** Interrupt controller, always on the bus at INTC_BASE (banked per core on a multicore machine). */
-  readonly intc: Core["intc"];
+  readonly intc: Core['intc'];
   /** Memory protection, always on the bus at MPU_BASE (off until the kernel enables it for a job). */
-  readonly mpu: Core["mpu"];
-  readonly timer: Core["timer"];
+  readonly mpu: Core['mpu'];
+  readonly timer: Core['timer'];
   /** Memory management unit (docs/VM.md), always on the bus at MMU_BASE; a CPU without one leaves it `tlbEntries` 0. */
-  readonly mmu: Core["mmu"];
+  readonly mmu: Core['mmu'];
 
-  get engine(): Engine | null { return this.cores[0]!.engine; }
-  set engine(e: Engine | null) { this.cores[0]!.engine = e; }
+  get engine(): Engine | null {
+    return this.cores[0]!.engine;
+  }
+  set engine(e: Engine | null) {
+    this.cores[0]!.engine = e;
+  }
 
   constructor(cfg: MachineConfig = {}) {
     this.ram = new Uint8Array(cfg.ramSize ?? RAM_DEFAULT_SIZE);
@@ -60,28 +64,37 @@ export class Machine {
     this.prng = new Prng(cfg.seed ?? 1);
     this.mem = cfg.mem ?? null;
     const n = cfg.cores ?? 1;
-    if (!Number.isInteger(n) || n < 1) throw new RangeError("a machine needs at least one core");
+    if (!Number.isInteger(n) || n < 1) throw new RangeError('a machine needs at least one core');
     if (this.mem && n > 1) this.mem.shared = true;
     this.hub = new IntcHub();
     this.cores = Array.from({ length: n }, (_, k) => new Core(k, this.ram, this.hub));
     const c0 = this.cores[0]!;
-    this.regs = c0.regs; this.intc = c0.intc; this.mpu = c0.mpu; this.timer = c0.timer; this.mmu = c0.mmu;
+    this.regs = c0.regs;
+    this.intc = c0.intc;
+    this.mpu = c0.mpu;
+    this.timer = c0.timer;
+    this.mmu = c0.mmu;
     this.display = new Display(cfg.displayRate, cfg.displayLatency ?? 0);
     // A display access lands `rowBase` rows lower for the core making it (0 unless the OS sets it, so one core is unchanged).
     this.display.rowShift = () => this.cores[this.bus.core]!.intc.rowBase;
-    this.status = new RamDevice("status", STATUS_BASE, STATUS_SIZE);
+    this.status = new RamDevice('status', STATUS_BASE, STATUS_SIZE);
     this.addDevice(this.display);
     this.addDevice(this.status);
     // The per-core devices sit at the same addresses for every core; with several cores a banked device answers for the core the bus is serving.
-    this.perCore = ([(c) => c.intc, (c) => c.mpu, (c) => c.timer, (c) => c.mmu] as ((c: Core) => Device)[]).map((pick) => ({ pick, dev: this.deviceFor(pick) }));
+    this.perCore = ([(c) => c.intc, (c) => c.mpu, (c) => c.timer, (c) => c.mmu] as ((c: Core) => Device)[]).map(
+      (pick) => ({ pick, dev: this.deviceFor(pick) }),
+    );
     for (const c of this.cores) c.mmu.onSpace = (table) => c.engine?.note?.(10, table, 0, 0); // Ev.Space
     for (const e of this.perCore) this.addDevice(e.dev);
     this.bus.mpu = this.mpu;
     // Protected mode (the TPM) guards the address space that asked for it: its page table while translation is on, else physical (-1).
-    this.bus.spaceOf = (k) => { const m = this.cores[k]!.mmu; return m.enabled ? m.table : -1; };
+    this.bus.spaceOf = (k) => {
+      const m = this.cores[k]!.mmu;
+      return m.enabled ? m.table : -1;
+    };
     this.bus.translate = (k, va) => this.cores[k]!.mmu.peek(va);
     // Registered after devices, so devices tick before the CPU within the same sub-tick.
-    this.clock.addDomain("cpu", cfg.cpuRate ?? { mul: 1, div: 1 }, () => this.stepCpu());
+    this.clock.addDomain('cpu', cfg.cpuRate ?? { mul: 1, div: 1 }, () => this.stepCpu());
   }
 
   private readonly perCore: { pick: (c: Core) => Device; dev: Device }[];
@@ -97,7 +110,7 @@ export class Machine {
    * stay; the per-core devices on the bus are swapped for banked ones (or back for a single core), and a shared L2 is switched on for more than one.
    */
   setCores(n: number): void {
-    if (!Number.isInteger(n) || n < 1) throw new RangeError("a machine needs at least one core");
+    if (!Number.isInteger(n) || n < 1) throw new RangeError('a machine needs at least one core');
     if (n !== this.cores.length) {
       while (this.cores.length < n) {
         const c = new Core(this.cores.length, this.ram, this.hub);
@@ -164,11 +177,18 @@ export class Machine {
   /** One CPU cycle: every core in turn (index order, rotating with a shared L2), so the same save gives the same cycles. */
   stepCpu(): void {
     const cores = this.cores;
-    if (cores.length === 1) { this.bus.serve(0, cores[0]!.mpu); this.stepCore(cores[0]!); return; } // serve: a swapped-in CPU must not inherit the old core index
+    if (cores.length === 1) {
+      this.bus.serve(0, cores[0]!.mpu);
+      this.stepCore(cores[0]!);
+      return;
+    } // serve: a swapped-in CPU must not inherit the old core index
     // With a shared L2 the cores that miss in the same cycle are served one per cycle in rotation, starting at cycle % cores: the step order rotates so no core is starved.
-    const mem = this.mem, n = cores.length, first = mem ? mem.now % n : 0;
+    const mem = this.mem,
+      n = cores.length,
+      first = mem ? mem.now % n : 0;
     for (let i = 0; i < n; i++) {
-      const k = (first + i) % n, c = cores[k]!;
+      const k = (first + i) % n,
+        c = cores[k]!;
       if (!this.isPrimary(c)) continue; // a thread is stepped with its core
       this.bus.serve(k, c.mpu);
       this.stepCore(c);
@@ -184,7 +204,10 @@ export class Machine {
   private stepCore(p: Core): void {
     const e = p.engine;
     if (!e || e.halted) return;
-    if (e.concurrent && e.threads) { this.stepSmt(p, e, e.threads); return; }
+    if (e.concurrent && e.threads) {
+      this.stepSmt(p, e, e.threads);
+      return;
+    }
     // With threads, the core being served is the one the engine fetches for; a core with nothing to fetch for still counts its misses down.
     let c = p;
     if (e.threads) {
@@ -203,14 +226,20 @@ export class Machine {
         e.holdFetch?.(true);
         if (e.drained !== false) {
           intc.parkedCycles++;
-          if (e.threads) { e.yieldThread?.(); if (e.waiting) this.runEngine(e, p); } // another thread takes the core
+          if (e.threads) {
+            e.yieldThread?.();
+            if (e.waiting) this.runEngine(e, p);
+          } // another thread takes the core
           return;
         }
         draining = true;
       }
     }
     // Protected mode charges extra cycles per RAM access (the TPM's encryption): the CPU waits them out.
-    if (p.cpuStall > 0) { p.cpuStall--; return; }
+    if (p.cpuStall > 0) {
+      p.cpuStall--;
+      return;
+    }
     this.trap(e, c, draining);
     this.runEngine(e, p);
   }
@@ -225,7 +254,10 @@ export class Machine {
       t.timer.step();
       if (t.intc.parked && t.intc.wakes) t.intc.parked = false;
     }
-    if (p.cpuStall > 0) { p.cpuStall--; return; }
+    if (p.cpuStall > 0) {
+      p.cpuStall--;
+      return;
+    }
     let busy = false;
     for (let t = 0; t < ts.length; t++) {
       if (e.threadHalted?.(t)) continue;
@@ -235,7 +267,10 @@ export class Machine {
       let draining = false;
       if (c.intc.parked) {
         e.holdFetch?.(true);
-        if (e.drained !== false) { c.intc.parkedCycles++; continue; }
+        if (e.drained !== false) {
+          c.intc.parkedCycles++;
+          continue;
+        }
         draining = true;
       }
       busy = true;
@@ -286,7 +321,10 @@ export class Machine {
     } finally {
       this.bus.guardOn = false;
     }
-    if (this.bus.stallCycles > 0) { p.cpuStall += this.bus.stallCycles; this.bus.stallCycles = 0; }
+    if (this.bus.stallCycles > 0) {
+      p.cpuStall += this.bus.stallCycles;
+      this.bus.stallCycles = 0;
+    }
   }
 
   /**
@@ -299,7 +337,11 @@ export class Machine {
       if (t.intc.parked && t.intc.wakes) t.intc.parked = false;
     }
     const a = e.activeCore ?? null;
-    for (const t of ts) if (t !== a && !t.intc.parked && t.intc.next() >= 0) { e.switchTo?.(t); break; }
+    for (const t of ts)
+      if (t !== a && !t.intc.parked && t.intc.next() >= 0) {
+        e.switchTo?.(t);
+        break;
+      }
     if (a) return a;
     if (e.waiting || ts.some((t) => !t.intc.parked)) this.runEngine(e, p);
     else for (const t of ts) t.intc.parkedCycles++;
@@ -348,7 +390,8 @@ export class Machine {
    * once (a test); without, the caller parks the thread like a secondary core (see `parkCore`) for the OS to start.
    */
   attachThread(k: number, of: number, program?: Uint32Array, opts: { entry?: number; stackTop?: number } = {}): void {
-    const c = this.cores[k], e = this.cores[of]?.engine;
+    const c = this.cores[k],
+      e = this.cores[of]?.engine;
     if (!c || !e?.addThread) throw new RangeError(`no core ${k} or no threads on core ${of}`);
     c.powerOn();
     c.entry = opts.entry ?? 0;

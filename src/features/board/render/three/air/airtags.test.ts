@@ -112,8 +112,11 @@ describe('AirTags3D', () => {
     t.set([tag('a', [0, 0, 0], 'AAAA'), tag('b', [0, 0, 0], 'BBBB')], 0);
     t.frame(makeCam(), VIEW);
     const [a, b] = t.boxes();
-    const overlap = a!.left < b!.left + b!.width && b!.left < a!.left + a!.width
-      && a!.top < b!.top + b!.height && b!.top < a!.top + a!.height;
+    const overlap =
+      a!.left < b!.left + b!.width &&
+      b!.left < a!.left + a!.width &&
+      a!.top < b!.top + b!.height &&
+      b!.top < a!.top + a!.height;
     expect(overlap).toBe(false);
   });
 
@@ -153,7 +156,13 @@ describe('AirTags3D', () => {
 
   it('a scale tag in watts shows the draws at the two ends of a bar of the power scale', () => {
     const t = make();
-    t.set([tag('wall', [0, 0, 0], 'WALL 54 W', { tone: 'watts' }), tag('scale', [0, 0, 0], '', { scale: [0, 175.2], unit: 'W', under: 'wall' })], 0);
+    t.set(
+      [
+        tag('wall', [0, 0, 0], 'WALL 54 W', { tone: 'watts' }),
+        tag('scale', [0, 0, 0], '', { scale: [0, 175.2], unit: 'W', under: 'wall' }),
+      ],
+      0,
+    );
     t.frame(makeCam(), VIEW);
     const pill = pills(host)[1]!;
     expect(pill.className).toContain('airtag-scale');
@@ -163,7 +172,13 @@ describe('AirTags3D', () => {
     // a tag of watts has its own tone
     expect(pills(host)[0]!.className).toContain('airtag-watts');
     // the same scale in degrees keeps the thermal bar: the key tells them apart, so a pill that changes unit is written again
-    t.set([tag('wall', [0, 0, 0], 'WALL 54 W', { tone: 'watts' }), tag('scale', [0, 0, 0], '', { scale: [0, 175], under: 'wall' })], 1);
+    t.set(
+      [
+        tag('wall', [0, 0, 0], 'WALL 54 W', { tone: 'watts' }),
+        tag('scale', [0, 0, 0], '', { scale: [0, 175], under: 'wall' }),
+      ],
+      1,
+    );
     t.frame(makeCam(), VIEW);
     expect(pills(host)[1]!.textContent).toBe('0°C175°C');
     expect(pills(host)[1]!.children[1]!.className).not.toContain('airtag-bar-w');
@@ -171,10 +186,15 @@ describe('AirTags3D', () => {
 
   it('a tag with a role starts its pill with a chip of that role (a source, a hub or a user); a tag with none has no chip', () => {
     const t = make();
-    t.set([
-      tag('wall', [0, 0, 0], 'WALL 54 W', { tone: 'watts', role: 'source' }), tag('psu', [0, 0, 0], 'SUPPLY 54 W', { tone: 'watts', role: 'hub' }),
-      tag('cpu', [0, 0, 0], 'CPU 13 W', { tone: 'watts', role: 'use' }), tag('x', [0, 0, 0], 'CPU 13 W', { tone: 'watts' }),
-    ], 0);
+    t.set(
+      [
+        tag('wall', [0, 0, 0], 'WALL 54 W', { tone: 'watts', role: 'source' }),
+        tag('psu', [0, 0, 0], 'SUPPLY 54 W', { tone: 'watts', role: 'hub' }),
+        tag('cpu', [0, 0, 0], 'CPU 13 W', { tone: 'watts', role: 'use' }),
+        tag('x', [0, 0, 0], 'CPU 13 W', { tone: 'watts' }),
+      ],
+      0,
+    );
     t.frame(makeCam(), VIEW);
     const [wall, psu, cpu, x] = pills(host);
     expect(wall!.className).toContain('airtag-r-source');
@@ -182,7 +202,12 @@ describe('AirTags3D', () => {
     expect(psu!.children[0]!.className).toBe('airtag-chip airtag-chip-hub');
     expect(cpu!.children[0]!.className).toBe('airtag-chip airtag-chip-use');
     // (the words are the same: the chip adds no text)
-    expect([wall, psu, cpu, x].map((p) => p!.textContent)).toEqual(['WALL 54 W', 'SUPPLY 54 W', 'CPU 13 W', 'CPU 13 W']);
+    expect([wall, psu, cpu, x].map((p) => p!.textContent)).toEqual([
+      'WALL 54 W',
+      'SUPPLY 54 W',
+      'CPU 13 W',
+      'CPU 13 W',
+    ]);
     expect(x!.children.length).toBe(0);
     expect(x!.className).not.toContain('airtag-r-');
     // a pill with a chip is wider than one without it, for the same words
@@ -196,18 +221,34 @@ describe('AirTags3D', () => {
 
   it('a legend tag shows a chip and a word for each of the three roles', () => {
     const t = make();
-    t.set([tag('wall', [0, 0, 0], 'WALL 54 W', { tone: 'watts', role: 'source' }), tag('legend', [0, 0, 0], '', { legend: true, under: 'wall' })], 0);
+    t.set(
+      [
+        tag('wall', [0, 0, 0], 'WALL 54 W', { tone: 'watts', role: 'source' }),
+        tag('legend', [0, 0, 0], '', { legend: true, under: 'wall' }),
+      ],
+      0,
+    );
     t.frame(makeCam(), VIEW);
     const pill = pills(host)[1]!;
     expect(pill.className).toContain('airtag-legend');
-    expect(pill.children.map((c) => c.children[0]!.className)).toEqual(['airtag-chip airtag-chip-source', 'airtag-chip airtag-chip-hub', 'airtag-chip airtag-chip-use']);
+    expect(pill.children.map((c) => c.children[0]!.className)).toEqual([
+      'airtag-chip airtag-chip-source',
+      'airtag-chip airtag-chip-hub',
+      'airtag-chip airtag-chip-use',
+    ]);
     expect(pill.textContent).toBe('sourcehands onuses');
     // (it sits under the tag it names, and is not written again while it holds)
     const [wall, legend] = t.boxes();
     expect(legend!.left).toBe(wall!.left);
     expect(legend!.top).toBeGreaterThanOrEqual(wall!.top + wall!.height);
     const first = pill.children[0];
-    t.set([tag('wall', [0, 0, 0], 'WALL 55 W', { tone: 'watts', role: 'source' }), tag('legend', [0, 0, 0], '', { legend: true, under: 'wall' })], 1);
+    t.set(
+      [
+        tag('wall', [0, 0, 0], 'WALL 55 W', { tone: 'watts', role: 'source' }),
+        tag('legend', [0, 0, 0], '', { legend: true, under: 'wall' }),
+      ],
+      1,
+    );
     t.frame(makeCam(), VIEW);
     expect(pills(host)[1]!.children[0]).toBe(first);
   });

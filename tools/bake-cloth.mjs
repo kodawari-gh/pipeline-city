@@ -7,12 +7,18 @@ import { fileURLToPath } from 'node:url';
 import { runnerImport } from 'vite';
 
 const file = process.argv[2];
-if (!file) { console.log('usage: npm run bake:cloth -- <module.ts>'); process.exit(1); }
+if (!file) {
+  console.log('usage: npm run bake:cloth -- <module.ts>');
+  process.exit(1);
+}
 const src = fileURLToPath(new URL('../src', import.meta.url));
 const config = { configFile: false, logLevel: 'warn', resolve: { alias: { '@': src } } };
 const { module: spec } = await runnerImport(resolve(file), config);
 const { module: tool } = await runnerImport(resolve(src, 'core/render/three/cloth/bake.ts'), config);
-if (!spec.bake) { console.log(`${file} exports no \`bake\``); process.exit(1); }
+if (!spec.bake) {
+  console.log(`${file} exports no \`bake\``);
+  process.exit(1);
+}
 const bytes = tool.bakeCloth(spec.bake, (line) => console.log(line));
 const out = fileURLToPath(new URL(`../public/models/${spec.bake.name}.glb`, import.meta.url));
 mkdirSync(resolve(out, '..'), { recursive: true });

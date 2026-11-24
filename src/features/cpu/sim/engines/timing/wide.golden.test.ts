@@ -1,15 +1,15 @@
 // Golden per-cycle charts for the wide engines. inorder2 uses F D X M W; ooo uses F D S X R C (S = waiting in the
 // scheduler, R = result ready, waiting to commit); x = flushed, . = not in flight. A diff means timing changed: check it
 // is intended, then update with `npx vitest run -u`.
-import { describe, expect, it } from "vitest";
-import { InOrderEngine } from "../inorder";
-import { OooEngine } from "../ooo";
-import { chart } from "../testutil";
+import { describe, expect, it } from 'vitest';
+import { InOrderEngine } from '../inorder';
+import { OooEngine } from '../ooo';
+import { chart } from '../testutil';
 
 const PROGRAMS = {
-  hazards: "li s3, 4096\nlw t0, 0(s3)\nadd t1, t0, t0\naddi t2, t1, 1\nsw t2, 4(s3)\necall",
-  loop: "li t0, 3\nl:\naddi t0, t0, -1\nbne t0, zero, l\necall",
-  pairs: "addi t0, zero, 1\naddi t1, zero, 2\naddi t2, t0, 3\naddi t3, t1, 4\nlui t4, 1\nmul a0, t2, t3\necall",
+  hazards: 'li s3, 4096\nlw t0, 0(s3)\nadd t1, t0, t0\naddi t2, t1, 1\nsw t2, 4(s3)\necall',
+  loop: 'li t0, 3\nl:\naddi t0, t0, -1\nbne t0, zero, l\necall',
+  pairs: 'addi t0, zero, 1\naddi t1, zero, 2\naddi t2, t0, 3\naddi t3, t1, 4\nlui t4, 1\nmul a0, t2, t3\necall',
 };
 
 const sum = (c: Float64Array) =>
@@ -17,8 +17,8 @@ const sum = (c: Float64Array) =>
 const io2 = () => new InOrderEngine({ width: 2 });
 const ooo = () => new OooEngine();
 
-describe("golden: inorder2", () => {
-  it("hazards", () => {
+describe('golden: inorder2', () => {
+  it('hazards', () => {
     expect(chart(io2(), PROGRAMS.hazards, sum)).toMatchInlineSnapshot(`
       "
       00 addi s3, zero, 4096 |FDXMW.........
@@ -35,7 +35,7 @@ describe("golden: inorder2", () => {
       "
     `);
   });
-  it("loop", () => {
+  it('loop', () => {
     expect(chart(io2(), PROGRAMS.loop, sum)).toMatchInlineSnapshot(`
       "
       00 addi t0, zero, 3 |FDXMW...........
@@ -61,7 +61,7 @@ describe("golden: inorder2", () => {
       "
     `);
   });
-  it("pairs", () => {
+  it('pairs', () => {
     expect(chart(io2(), PROGRAMS.pairs, sum)).toMatchInlineSnapshot(`
       "
       00 addi t0, zero, 1 |FDXMW...
@@ -81,8 +81,8 @@ describe("golden: inorder2", () => {
   });
 });
 
-describe("golden: ooo", () => {
-  it("hazards", () => {
+describe('golden: ooo', () => {
+  it('hazards', () => {
     expect(chart(ooo(), PROGRAMS.hazards, sum)).toMatchInlineSnapshot(`
       "
       00 addi s3, zero, 4096 |FDSXRC.........
@@ -95,7 +95,7 @@ describe("golden: ooo", () => {
       "
     `);
   });
-  it("loop", () => {
+  it('loop', () => {
     expect(chart(ooo(), PROGRAMS.loop, sum)).toMatchInlineSnapshot(`
       "
       00 addi t0, zero, 3 |FDSXRC..........
@@ -119,7 +119,7 @@ describe("golden: ooo", () => {
       "
     `);
   });
-  it("pairs", () => {
+  it('pairs', () => {
     expect(chart(ooo(), PROGRAMS.pairs, sum)).toMatchInlineSnapshot(`
       "
       00 addi t0, zero, 1 |FDSXRC....

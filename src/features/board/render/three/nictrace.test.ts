@@ -10,13 +10,18 @@ import { NicTraceView } from './nictrace';
 import { tabOf } from './pcie';
 
 const frame = (visual: string): CardFrame => {
-  const y0 = nicY(0), x1 = BD.x + NIC_LEN[visual]!;
+  const y0 = nicY(0),
+    x1 = BD.x + NIC_LEN[visual]!;
   return { x0: BD.x, x1, xe: x1, y0, end: y0 + STAND.nic };
 };
-const lanesOf = (visual: string, slot = 0) => { const f = frame(visual); return nicLanes(nicCopper(visual, f, tabOf(0, f.x1, NIC_LANES[visual]!)), slot); };
+const lanesOf = (visual: string, slot = 0) => {
+  const f = frame(visual);
+  return nicLanes(nicCopper(visual, f, tabOf(0, f.x1, NIC_LANES[visual]!)), slot);
+};
 const view = (visual = 'nic-gbe', slot = 'pcie0'): { v: NicTraceView; lanes: ReturnType<typeof lanesOf> } => {
   setLayoutTier(3, 3);
-  const v = new NicTraceView(), lanes = lanesOf(visual);
+  const v = new NicTraceView(),
+    lanes = lanesOf(visual);
   v.setScene(builtinTheme());
   v.add(slot, lanes);
   return { v, lanes };
@@ -33,7 +38,7 @@ describe("the network card's copper, alive", () => {
     expect(v.lead('pcie9', 'tx')).toBe(0);
   });
 
-  it('times the copper before the die by the lanes\' own length: the jack\'s pairs for a frame from the cable, the slot\'s for one from the host', () => {
+  it("times the copper before the die by the lanes' own length: the jack's pairs for a frame from the cable, the slot's for one from the host", () => {
     for (const visual of ['nic-gbe', 'nic-10g', 'nic-40g']) {
       const { v, lanes } = view(visual);
       expect(v.lead('pcie0', 'rx'), visual).toBe(tripMs(lanes.media));
@@ -45,7 +50,7 @@ describe("the network card's copper, alive", () => {
     }
   });
 
-  it('lights the jack\'s pairs for a frame from the cable, answers with their time, and lets them fade once it has arrived', () => {
+  it("lights the jack's pairs for a frame from the cable, answers with their time, and lets them fade once it has arrived", () => {
     const { v } = view();
     const lead = v.launch('pcie0', 'rx', 1000, 1200);
     expect(lead).toBe(v.lead('pcie0', 'rx'));
@@ -58,9 +63,10 @@ describe("the network card's copper, alive", () => {
     expect(v.busy('pcie0')).toBe(false);
   });
 
-  it('runs a frame the host sends over the slot\'s pairs, then, once the die has passed it, out over the jack\'s', () => {
+  it("runs a frame the host sends over the slot's pairs, then, once the die has passed it, out over the jack's", () => {
     const { v } = view();
-    const lead = v.launch('pcie0', 'tx', 0, 1200), tail = tripMs(lanesOf('nic-gbe').media);
+    const lead = v.launch('pcie0', 'tx', 0, 1200),
+      tail = tripMs(lanesOf('nic-gbe').media);
     expect(lead).toBe(v.lead('pcie0', 'tx'));
     v.frame(0);
     expect(v.busy('pcie0')).toBe(true);
@@ -73,7 +79,7 @@ describe("the network card's copper, alive", () => {
     expect(v.busy('pcie0')).toBe(false);
   });
 
-  it('keeps each card\'s packets on its own copper', () => {
+  it("keeps each card's packets on its own copper", () => {
     setLayoutTier(3, 3);
     const v = new NicTraceView();
     v.setScene(builtinTheme());
@@ -102,7 +108,7 @@ describe("the network card's copper, alive", () => {
 });
 
 describe("a graphics card's or an AI card's copper, alive", () => {
-  it('lights a bus when the die\'s view tells of a word on it, at most once in a while, and only while the copper is seen', () => {
+  it("lights a bus when the die's view tells of a word on it, at most once in a while, and only while the copper is seen", () => {
     const { v } = view('nic-10g');
     v.pulse('pcie0', 'host', 1); // (not seen yet: nothing is lit)
     expect(v.busy('pcie0')).toBe(false);

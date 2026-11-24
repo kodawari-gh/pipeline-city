@@ -1,4 +1,19 @@
-import { DirectionalLight, Frustum, Matrix4, PerspectiveCamera, Scene, Vector2, WebGLRenderTarget, type InstancedMesh, type Material, type Mesh, type MeshStandardMaterial, type PointLight, type ShaderMaterial, type WebGLRenderer } from 'three';
+import {
+  DirectionalLight,
+  Frustum,
+  Matrix4,
+  PerspectiveCamera,
+  Scene,
+  Vector2,
+  WebGLRenderTarget,
+  type InstancedMesh,
+  type Material,
+  type Mesh,
+  type MeshStandardMaterial,
+  type PointLight,
+  type ShaderMaterial,
+  type WebGLRenderer,
+} from 'three';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { debugLayer, debugStats } from '@/app/debug/city-layers';
 import { CITY_CUTS, LOW_EVERY, parseCityCuts, type CityCuts, type CityDetail } from './detail';
@@ -8,38 +23,63 @@ import { OutsideView } from './view';
 
 // the `?debug` overlay's layers: each changes what it claims, and turning it on again gives back what the view was
 type Peek = {
-  scene: { traverse(f: (o: unknown) => void): void }; lamps: PointLight[]; dome: Mesh; clock: number; key: number; mirrorAt: number;
-  quad: ShaderMaterial; kit: { night: { mat: MeshStandardMaterial; k: number }[] }; facade: { night: { value: number } };
+  scene: { traverse(f: (o: unknown) => void): void };
+  lamps: PointLight[];
+  dome: Mesh;
+  clock: number;
+  key: number;
+  mirrorAt: number;
+  quad: ShaderMaterial;
+  kit: { night: { mat: MeshStandardMaterial; k: number }[] };
+  facade: { night: { value: number } };
   target: WebGLRenderTarget | null;
   parts: { signs: { traverse(f: (o: { layers: { mask: number } }) => void): void }[] };
 };
 
 describe('debugLayer and debugStats (city-layers.ts)', () => {
   let v: OutsideView, p: Peek;
-  beforeAll(() => { v = new OutsideView(0, 0, 1, 1, 0); p = v as unknown as Peek; }, 180000);
+  beforeAll(() => {
+    v = new OutsideView(0, 0, 1, 1, 0);
+    p = v as unknown as Peek;
+  }, 180000);
 
   it('has stats of what it draws, and every layer back on leaves them as they were', () => {
     const all = debugStats(v);
     expect(all.tris).toBeGreaterThan(1000);
     expect(all.calls).toBeGreaterThan(5);
-    for (const k of ['lights', 'buildings', 'trees', 'streets', 'freeze', 'cars', 'sky', 'glow', 'steam', 'mirror', 'flat']) { debugLayer(v,k, true); debugLayer(v,k, false); }
+    for (const k of [
+      'lights',
+      'buildings',
+      'trees',
+      'streets',
+      'freeze',
+      'cars',
+      'sky',
+      'glow',
+      'steam',
+      'mirror',
+      'flat',
+    ]) {
+      debugLayer(v, k, true);
+      debugLayer(v, k, false);
+    }
     expect(debugStats(v)).toEqual(all);
   });
 
   it('buildings, trees, streets, cars, steam and sky take their triangles out, each one its own', () => {
     const all = debugStats(v);
     for (const k of ['buildings', 'trees', 'streets', 'cars', 'steam', 'sky']) {
-      debugLayer(v,k, true);
+      debugLayer(v, k, true);
       const less = debugStats(v);
       expect(less.tris, k).toBeLessThan(all.tris);
       expect(less.calls, k).toBeLessThan(all.calls);
-      debugLayer(v,k, false);
+      debugLayer(v, k, false);
       expect(debugStats(v), k).toEqual(all);
     }
-    debugLayer(v,'buildings', true);
+    debugLayer(v, 'buildings', true);
     const noBuildings = debugStats(v).tris;
     expect(noBuildings).toBeLessThan(all.tris * 0.9);
-    debugLayer(v,'buildings', false);
+    debugLayer(v, 'buildings', false);
   });
 
   it('lights puts the lamps and the emissives at 0 at night, and on again gives them back', () => {
@@ -47,16 +87,21 @@ describe('debugLayer and debugStats (city-layers.ts)', () => {
     const lit = p.kit.night.map((n) => n.mat.emissiveIntensity);
     expect(lit.every((x) => x > 0)).toBe(true);
     expect(p.lamps.every((l) => l.visible)).toBe(true);
-    debugLayer(v,'lights', true);
+    debugLayer(v, 'lights', true);
     v.frame(23, 1);
     expect(p.kit.night.every((n) => n.mat.emissiveIntensity === 0)).toBe(true);
     expect(p.lamps.every((l) => !l.visible)).toBe(true);
     expect(p.facade.night.value).toBe(0);
     // the signs' layer: every node of each sign off (HIDDEN_LAYER = 30), then back on (layer 0)
-    const signMasks = (): number[] => p.parts.signs.flatMap((s) => { const m: number[] = []; s.traverse((o) => m.push(o.layers.mask)); return m; });
+    const signMasks = (): number[] =>
+      p.parts.signs.flatMap((s) => {
+        const m: number[] = [];
+        s.traverse((o) => m.push(o.layers.mask));
+        return m;
+      });
     expect(signMasks().length).toBeGreaterThan(0);
     expect(signMasks().every((m) => m === 2 ** 30)).toBe(true);
-    debugLayer(v,'lights', false);
+    debugLayer(v, 'lights', false);
     v.frame(23, 1);
     expect(p.kit.night.map((n) => n.mat.emissiveIntensity)).toEqual(lit);
     expect(p.lamps.every((l) => l.visible)).toBe(true);
@@ -66,16 +111,17 @@ describe('debugLayer and debugStats (city-layers.ts)', () => {
 
   it('glow and mirror go to 0 at night, and on again give them back', () => {
     v.frame(23, 1);
-    const glow = p.quad.uniforms.glowK!.value as number, mirror = p.mirrorAt;
+    const glow = p.quad.uniforms.glowK!.value as number,
+      mirror = p.mirrorAt;
     expect(glow).toBeGreaterThan(0);
     expect(mirror).toBeGreaterThan(0);
-    debugLayer(v,'glow', true);
-    debugLayer(v,'mirror', true);
+    debugLayer(v, 'glow', true);
+    debugLayer(v, 'mirror', true);
     v.frame(23, 1);
     expect(p.quad.uniforms.glowK!.value).toBe(0);
     expect(p.mirrorAt).toBe(0);
-    debugLayer(v,'glow', false);
-    debugLayer(v,'mirror', false);
+    debugLayer(v, 'glow', false);
+    debugLayer(v, 'mirror', false);
     v.frame(23, 1);
     expect(p.quad.uniforms.glowK!.value).toBe(glow);
     expect(p.mirrorAt).toBe(mirror);
@@ -83,10 +129,10 @@ describe('debugLayer and debugStats (city-layers.ts)', () => {
 
   it('freeze keeps the clock where it was, and on again lets it run', () => {
     v.frame(12, 10);
-    debugLayer(v,'freeze', true);
+    debugLayer(v, 'freeze', true);
     v.frame(12, 50);
     expect(p.clock).toBe(10);
-    debugLayer(v,'freeze', false);
+    debugLayer(v, 'freeze', false);
     v.frame(12, 60);
     expect(p.clock).toBe(60);
   });
@@ -97,13 +143,29 @@ describe('OutsideView.draw, flat (City 1x)', () => {
   let v: OutsideView, p: Peek, room: Scene, cam: PerspectiveCamera, renderer: WebGLRenderer;
   const draw = () => v.draw(renderer, room, cam, 4);
   beforeEach(() => {
-    v = new OutsideView(0, 0, 2, 2, 0); p = v as unknown as Peek;
-    room = new Scene(); room.add(v.mesh);
-    cam = new PerspectiveCamera(50, 1, 0.1, 20000); cam.position.set(0, 0, 3);
-    const gl = { createQuery: () => ({}), beginQuery: () => {}, endQuery: () => {}, getQueryParameter: () => true, ANY_SAMPLES_PASSED_CONSERVATIVE: 0x8d6a, QUERY_RESULT: 0x8866, QUERY_RESULT_AVAILABLE: 0x8867 };
+    v = new OutsideView(0, 0, 2, 2, 0);
+    p = v as unknown as Peek;
+    room = new Scene();
+    room.add(v.mesh);
+    cam = new PerspectiveCamera(50, 1, 0.1, 20000);
+    cam.position.set(0, 0, 3);
+    const gl = {
+      createQuery: () => ({}),
+      beginQuery: () => {},
+      endQuery: () => {},
+      getQueryParameter: () => true,
+      ANY_SAMPLES_PASSED_CONSERVATIVE: 0x8d6a,
+      QUERY_RESULT: 0x8866,
+      QUERY_RESULT_AVAILABLE: 0x8867,
+    };
     renderer = {
-      domElement: { addEventListener: () => {}, removeEventListener: () => {} }, getDrawingBufferSize: (s: Vector2) => s.set(400, 300), getContext: () => gl,
-      getRenderTarget: () => null, setRenderTarget: () => {}, clear: () => {}, render: () => {},
+      domElement: { addEventListener: () => {}, removeEventListener: () => {} },
+      getDrawingBufferSize: (s: Vector2) => s.set(400, 300),
+      getContext: () => gl,
+      getRenderTarget: () => null,
+      setRenderTarget: () => {},
+      clear: () => {},
+      render: () => {},
     } as unknown as WebGLRenderer;
     v.frame(12, 1);
     // (the sky's environment is not what these check: its cube camera is not drawn by this stub renderer)
@@ -114,16 +176,17 @@ describe('OutsideView.draw, flat (City 1x)', () => {
     draw();
     const big = p.target!;
     expect(big.samples).toBe(2);
-    const w2 = big.width, h2 = big.height;
+    const w2 = big.width,
+      h2 = big.height;
     const release = vi.spyOn(big, 'dispose');
-    debugLayer(v,'flat', true);
+    debugLayer(v, 'flat', true);
     draw();
     expect(p.target).not.toBe(big);
     expect(release).toHaveBeenCalled();
     expect(p.target!.width).toBe(w2 / 2);
     expect(p.target!.height).toBe(h2 / 2);
     expect(p.target!.samples).toBe(2);
-    debugLayer(v,'flat', false);
+    debugLayer(v, 'flat', false);
     draw();
     expect(p.target!.width).toBe(w2);
     expect(p.target!.height).toBe(h2);
@@ -132,30 +195,61 @@ describe('OutsideView.draw, flat (City 1x)', () => {
 
   it('the flat toggle sets the quad scale, the target size and its samples on the next draw, both ways', () => {
     draw();
-    const w2 = p.target!.width, h2 = p.target!.height;
+    const w2 = p.target!.width,
+      h2 = p.target!.height;
     expect([p.quad.uniforms.ss!.value, p.target!.samples]).toEqual([2, 2]);
-    debugLayer(v,'flat', true);
+    debugLayer(v, 'flat', true);
     draw();
-    expect([p.quad.uniforms.ss!.value, p.target!.width, p.target!.height, p.target!.samples]).toEqual([1, w2 / 2, h2 / 2, 2]);
-    debugLayer(v,'flat', false);
+    expect([p.quad.uniforms.ss!.value, p.target!.width, p.target!.height, p.target!.samples]).toEqual([
+      1,
+      w2 / 2,
+      h2 / 2,
+      2,
+    ]);
+    debugLayer(v, 'flat', false);
     draw();
     expect([p.quad.uniforms.ss!.value, p.target!.width, p.target!.height, p.target!.samples]).toEqual([2, w2, h2, 2]);
   });
 });
 
-const Detailed = OutsideView as unknown as new (cx: number, cy: number, w: number, h: number, z: number, detail?: CityDetail, cuts?: CityCuts) => OutsideView;
-const inner = (v: OutsideView): { scene: Scene; disposables: Material[] } => v as unknown as { scene: Scene; disposables: Material[] };
-const meshes = (v: OutsideView): number => { let n = 0; inner(v).scene.traverse((o) => { if ((o as Mesh).isMesh) n++; }); return n; };
+const Detailed = OutsideView as unknown as new (
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+  z: number,
+  detail?: CityDetail,
+  cuts?: CityCuts,
+) => OutsideView;
+const inner = (v: OutsideView): { scene: Scene; disposables: Material[] } =>
+  v as unknown as { scene: Scene; disposables: Material[] };
+const meshes = (v: OutsideView): number => {
+  let n = 0;
+  inner(v).scene.traverse((o) => {
+    if ((o as Mesh).isMesh) n++;
+  });
+  return n;
+};
 /** The ticks `frame` needs before the picture is due. */
 function ticks(v: OutsideView): number {
-  for (let n = 1; n <= 20; n++) { v.frame(12, n); if (v.due) return n; }
+  for (let n = 1; n <= 20; n++) {
+    v.frame(12, n);
+    if (v.due) return n;
+  }
   return Infinity;
 }
 
-const everyMesh = (v: OutsideView): Mesh[] => { const out: Mesh[] = []; inner(v).scene.traverse((o) => { if ((o as Mesh).isMesh) out.push(o as Mesh); }); return out; };
+const everyMesh = (v: OutsideView): Mesh[] => {
+  const out: Mesh[] = [];
+  inner(v).scene.traverse((o) => {
+    if ((o as Mesh).isMesh) out.push(o as Mesh);
+  });
+  return out;
+};
 /** Mesh count, the indices drawn in all, and a checksum of every position. */
 function fingerprint(v: OutsideView): { meshes: number; drawn: number; sum: number } {
-  let drawnN = 0, sum = 0;
+  let drawnN = 0,
+    sum = 0;
   const ms = everyMesh(v);
   for (const m of ms) {
     drawnN += drawn(m.geometry);
@@ -170,12 +264,17 @@ function viewTriangles(v: OutsideView, fov: number): number {
   cam.position.set(GRID.av0, 100, 0);
   cam.lookAt(GRID.av0, 100, -1000);
   cam.updateMatrixWorld(true);
-  const seen = new Frustum().setFromProjectionMatrix(new Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+  const seen = new Frustum().setFromProjectionMatrix(
+    new Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse),
+  );
   for (const s of (v as unknown as { sweeps: Sweep[] }).sweeps) s.cut(seen);
   let n = 0;
   for (const m of everyMesh(v)) {
     if (!m.visible) continue;
-    const g = m.geometry, r = g.drawRange, total = drawn(g), c = Math.min(r.count, total - r.start);
+    const g = m.geometry,
+      r = g.drawRange,
+      total = drawn(g),
+      c = Math.min(r.count, total - r.start);
     n += (c / 3) * ((m as InstancedMesh).isInstancedMesh ? (m as InstancedMesh).count : 1);
   }
   return Math.round(n);
@@ -208,7 +307,9 @@ describe('OutsideView detail', () => {
     const base = fingerprint(plain);
     expect(fingerprint(high)).toEqual(base);
     expect(fingerprint(new Detailed(0, 0, 10, 10, 0, 'high', parseCityCuts('?citycuts=none', 'high')))).toEqual(base);
-    expect(fingerprint(new Detailed(0, 0, 10, 10, 0, 'high', parseCityCuts('?citycuts=far,palette,fleet,steam', 'high')))).toEqual(base);
+    expect(
+      fingerprint(new Detailed(0, 0, 10, 10, 0, 'high', parseCityCuts('?citycuts=far,palette,fleet,steam', 'high'))),
+    ).toEqual(base);
     expect(base.meshes).toBeGreaterThan(14);
   }, 180000);
 
@@ -221,22 +322,32 @@ describe('OutsideView detail', () => {
       // (`streets` and `palette` trade triangles for draws: wide cells, and one mesh over materials of unlike reach, cut the view more coarsely;
       // alone they may draw more, the sum of all cuts may not. The other cuts may never draw more: a merged ring that mixes near and far
       // pieces draws every near piece in the far pieces' wide band, so rings of unlike reach stay apart.)
-      for (const cut of CITY_CUTS.filter((c) => c !== 'streets' && c !== 'palette')) expect(viewTriangles(new Detailed(0, 0, 10, 10, 0, 'low', parseCityCuts(`?citycuts=${cut}`, 'low')), fov), `${cut} at ${fov}`).toBeLessThanOrEqual(base);
+      for (const cut of CITY_CUTS.filter((c) => c !== 'streets' && c !== 'palette'))
+        expect(
+          viewTriangles(new Detailed(0, 0, 10, 10, 0, 'low', parseCityCuts(`?citycuts=${cut}`, 'low')), fov),
+          `${cut} at ${fov}`,
+        ).toBeLessThanOrEqual(base);
     }
   }, 600000);
 
   it("Low with no cut (citycuts=none) draws High's materials; the facade cut alone is the Lambert one", () => {
-    const kinds = (v: OutsideView): string[] => everyMesh(v).map((m) => (m.material as Material).type).sort();
-    const uncut = new Detailed(0, 0, 10, 10, 0, "low", parseCityCuts("?citycuts=none", "low"));
+    const kinds = (v: OutsideView): string[] =>
+      everyMesh(v)
+        .map((m) => (m.material as Material).type)
+        .sort();
+    const uncut = new Detailed(0, 0, 10, 10, 0, 'low', parseCityCuts('?citycuts=none', 'low'));
     expect(kinds(uncut)).toEqual(kinds(high));
-    expect(kinds(new Detailed(0, 0, 10, 10, 0, "low", parseCityCuts("?citycuts=facade", "low")))).toContain("MeshLambertMaterial");
-    expect(kinds(uncut)).not.toContain("MeshLambertMaterial");
+    expect(kinds(new Detailed(0, 0, 10, 10, 0, 'low', parseCityCuts('?citycuts=facade', 'low')))).toContain(
+      'MeshLambertMaterial',
+    );
+    expect(kinds(uncut)).not.toContain('MeshLambertMaterial');
   }, 180000);
 
   it('Low: a sun that lights at noon, and the buildings on the facade material', () => {
     low.frame(12, 1);
     const { scene, disposables } = inner(low);
-    let sun = 0, facade = 0;
+    let sun = 0,
+      facade = 0;
     scene.traverse((o) => {
       if ((o as DirectionalLight).isDirectionalLight && (o as DirectionalLight).intensity > 0) sun++;
       if ((o as Mesh).isMesh && (o as Mesh).material === disposables[0]) facade++;
@@ -248,7 +359,8 @@ describe('OutsideView detail', () => {
   });
 
   it('Low: the sky is the cheap shader (with the noise texture), High and the uncut city keep the full one', () => {
-    const noiseSky = (v: OutsideView): boolean => everyMesh(v).some((m) => 'tNoise' in ((m.material as unknown as { uniforms?: object }).uniforms ?? {}));
+    const noiseSky = (v: OutsideView): boolean =>
+      everyMesh(v).some((m) => 'tNoise' in ((m.material as unknown as { uniforms?: object }).uniforms ?? {}));
     expect(noiseSky(low)).toBe(true);
     expect(noiseSky(high)).toBe(false);
     expect(noiseSky(new Detailed(0, 0, 10, 10, 0, 'low', parseCityCuts('?citycuts=none', 'low')))).toBe(false);
@@ -267,8 +379,12 @@ describe('OutsideView detail', () => {
 
 describe('OutsideView ambient motion', () => {
   type Clocked = {
-    leaf: { time: { value: number } }; steam: { time: { value: number } }; facade: { time: { value: number } };
-    haze: { hzTime: { value: number } }; sky: { uniforms: { time: { value: number } } }; traffic: { t: number };
+    leaf: { time: { value: number } };
+    steam: { time: { value: number } };
+    facade: { time: { value: number } };
+    haze: { hzTime: { value: number } };
+    sky: { uniforms: { time: { value: number } } };
+    traffic: { t: number };
     fleet: { update(dt: number, ex: number, ez: number): void };
   };
   const clocks = (v: OutsideView): Clocked => v as unknown as Clocked;
@@ -303,7 +419,8 @@ describe('OutsideView ambient motion', () => {
   });
 
   it('Low: the traffic (and so the signals) still runs on each frame', () => {
-    const c = clocks(low), t0 = c.traffic.t;
+    const c = clocks(low),
+      t0 = c.traffic.t;
     c.fleet.update(1, 0, 0);
     expect(c.traffic.t).toBeGreaterThan(t0);
   });
@@ -313,8 +430,16 @@ describe('OutsideView.make (the boot builds the city a step at a time)', () => {
   it('names each step in order, and builds the city that `new` builds', async () => {
     const steps: { label: string; share: number }[] = [];
     const whole = new OutsideView(0, 0, 10, 10, 0, 'high');
-    const stepped = await OutsideView.make(0, 0, 10, 10, 0, 'high', async (label, share) => { steps.push({ label, share }); });
-    expect(steps.map((s) => s.label)).toEqual(['Laying the streets', 'Merging the streets', 'Raising the towers', 'Planting the trees', 'Painting the sky']);
+    const stepped = await OutsideView.make(0, 0, 10, 10, 0, 'high', async (label, share) => {
+      steps.push({ label, share });
+    });
+    expect(steps.map((s) => s.label)).toEqual([
+      'Laying the streets',
+      'Merging the streets',
+      'Raising the towers',
+      'Planting the trees',
+      'Painting the sky',
+    ]);
     expect(steps.map((s) => s.share)).toEqual([...steps.map((s) => s.share)].sort((a, b) => a - b));
     expect(steps[0]!.share).toBe(0);
     expect(steps.every((s) => s.share < 1)).toBe(true);
@@ -323,19 +448,47 @@ describe('OutsideView.make (the boot builds the city a step at a time)', () => {
 
   // BOOT-05: the buildings need no texture, so the boot builds them while the baked textures load, and the first step waits for the textures
   it('with `early`: builds the buildings in turns while `until` is pending, waits for it before the first step, and builds the same city', async () => {
-    const events: string[] = [], whole = new OutsideView(0, 0, 10, 10, 0, 'high');
-    let release = (): void => {}, turns = 0;
-    const until = new Promise<void>((done) => { release = () => { events.push('until'); done(); }; });
+    const events: string[] = [],
+      whole = new OutsideView(0, 0, 10, 10, 0, 'high');
+    let release = (): void => {},
+      turns = 0;
+    const until = new Promise<void>((done) => {
+      release = () => {
+        events.push('until');
+        done();
+      };
+    });
     const timer = setTimeout(release, 20000);
-    const turn = async (): Promise<void> => { events.push('turn'); if (++turns === 2) release(); await new Promise((r) => setTimeout(r, 0)); };
-    const early = await OutsideView.make(0, 0, 10, 10, 0, 'high', async (label) => { events.push(label); }, { until, turn });
+    const turn = async (): Promise<void> => {
+      events.push('turn');
+      if (++turns === 2) release();
+      await new Promise((r) => setTimeout(r, 0));
+    };
+    const early = await OutsideView.make(
+      0,
+      0,
+      10,
+      10,
+      0,
+      'high',
+      async (label) => {
+        events.push(label);
+      },
+      { until, turn },
+    );
     clearTimeout(timer);
     const first = events.indexOf('Laying the streets');
     expect(events.indexOf('turn')).toBe(0);
     expect(events.indexOf('until'), 'the textures in before the first step').toBeLessThan(first);
     expect(events.slice(0, first).filter((e) => e === 'turn').length, 'the turns before the first step').toBe(turns);
     expect(turns).toBeGreaterThanOrEqual(2);
-    expect(events.slice(first)).toEqual(['Laying the streets', 'Merging the streets', 'Raising the towers', 'Planting the trees', 'Painting the sky']);
+    expect(events.slice(first)).toEqual([
+      'Laying the streets',
+      'Merging the streets',
+      'Raising the towers',
+      'Planting the trees',
+      'Painting the sky',
+    ]);
     expect(debugStats(early)).toEqual(debugStats(whole));
   }, 180000);
 });
@@ -344,17 +497,39 @@ describe('OutsideView.make (the boot builds the city a step at a time)', () => {
 describe('OutsideView.dispose (the canvas it watched)', () => {
   it('takes its context-loss handlers off the canvas, and frees the query', () => {
     const v = new Detailed(0, 0, 2, 2, 0, 'low');
-    const room = new Scene(); room.add(v.mesh);
-    const cam = new PerspectiveCamera(50, 1, 0.1, 20000); cam.position.set(0, 0, 3);
-    const on = new Map<string, Set<unknown>>(), query = {}, deleted: unknown[] = [];
-    const gl = { createQuery: () => query, deleteQuery: (q: unknown) => deleted.push(q), beginQuery: () => {}, endQuery: () => {}, getQueryParameter: () => true, ANY_SAMPLES_PASSED_CONSERVATIVE: 0x8d6a, QUERY_RESULT: 0x8866, QUERY_RESULT_AVAILABLE: 0x8867 };
+    const room = new Scene();
+    room.add(v.mesh);
+    const cam = new PerspectiveCamera(50, 1, 0.1, 20000);
+    cam.position.set(0, 0, 3);
+    const on = new Map<string, Set<unknown>>(),
+      query = {},
+      deleted: unknown[] = [];
+    const gl = {
+      createQuery: () => query,
+      deleteQuery: (q: unknown) => deleted.push(q),
+      beginQuery: () => {},
+      endQuery: () => {},
+      getQueryParameter: () => true,
+      ANY_SAMPLES_PASSED_CONSERVATIVE: 0x8d6a,
+      QUERY_RESULT: 0x8866,
+      QUERY_RESULT_AVAILABLE: 0x8867,
+    };
     const canvas = {
-      addEventListener: (k: string, f: unknown) => { (on.get(k) ?? on.set(k, new Set()).get(k)!).add(f); },
-      removeEventListener: (k: string, f: unknown) => { on.get(k)?.delete(f); },
+      addEventListener: (k: string, f: unknown) => {
+        (on.get(k) ?? on.set(k, new Set()).get(k)!).add(f);
+      },
+      removeEventListener: (k: string, f: unknown) => {
+        on.get(k)?.delete(f);
+      },
     };
     const renderer = {
-      domElement: canvas, getDrawingBufferSize: (s: Vector2) => s.set(400, 300), getContext: () => gl,
-      getRenderTarget: () => null, setRenderTarget: () => {}, clear: () => {}, render: () => {},
+      domElement: canvas,
+      getDrawingBufferSize: (s: Vector2) => s.set(400, 300),
+      getContext: () => gl,
+      getRenderTarget: () => null,
+      setRenderTarget: () => {},
+      clear: () => {},
+      render: () => {},
     } as unknown as WebGLRenderer;
     v.frame(12, 1);
     (v as unknown as { envDirty: boolean }).envDirty = false;

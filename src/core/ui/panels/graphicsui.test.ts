@@ -16,12 +16,17 @@ describe('tierNote', () => {
 
   it('says what Auto picked and why', () => {
     expect(tierNote(rec({}))).toBe('Auto picked High: discrete GPU.');
-    expect(tierNote(rec({ tier: 'medium', reason: 'slow frames, was High' }))).toBe('Auto picked Medium: slow frames, was High.');
+    expect(tierNote(rec({ tier: 'medium', reason: 'slow frames, was High' }))).toBe(
+      'Auto picked Medium: slow frames, was High.',
+    );
   });
 
   it('leaves the reason out when there is none', () => expect(tierNote(rec({ reason: '' }))).toBe('Auto picked High.'));
 
-  it('says the player chose, whatever tier it was', () => expect(tierNote(rec({ mode: 'manual', tier: 'low', reason: 'chosen' }))).toBe('Set by you. Auto picks from the GPU and the CPU.'));
+  it('says the player chose, whatever tier it was', () =>
+    expect(tierNote(rec({ mode: 'manual', tier: 'low', reason: 'chosen' }))).toBe(
+      'Set by you. Auto picks from the GPU and the CPU.',
+    ));
 });
 
 describe('nextIndex', () => {

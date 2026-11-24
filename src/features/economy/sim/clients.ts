@@ -1,19 +1,30 @@
 // Game feature: the clients. Where keys come from (arrivals, the mix), what the machine can offer them, how long they wait,
 // reputation, the client base and the level. Every export is a `Game` method (see game.ts).
 
-import { deviceSpec } from "../../board/sim";
-import { generate, runReference } from "../../jobs/sim/gen";
+import { deviceSpec } from '../../board/sim';
+import { generate, runReference } from '../../jobs/sim/gen';
+import { demandRate, payMulFor, payout, pickTemplate, reputation as reputationOf, slaFactor } from './economy';
+import type { Game } from '@/worker/game/game';
+import type { Key } from '@/worker/game/internal';
+import { classBlocked, pickTask, taskNeeds, taskOfTemplate } from '../../jobs/sim/jobdex';
 import {
-  demandRate, payMulFor, payout, pickTemplate, reputation as reputationOf, slaFactor,
-} from "./economy";
-import type { Game } from "@/worker/game/game";
-import type { Key } from "@/worker/game/internal";
-import { classBlocked, pickTask, taskNeeds, taskOfTemplate } from "../../jobs/sim/jobdex";
-import {
-  classOfTemplate, itemInfo, jobClass, jobMix, levelDef, levelDemandMul, levelFor, levelPayMul, needsMet, NO_CAPS, patienceMul, pickClass,
-  pointsFor, type Caps, type JobClassDef,
-} from "./levels";
-import type { SavedKey } from "@/worker/game/save";
+  classOfTemplate,
+  itemInfo,
+  jobClass,
+  jobMix,
+  levelDef,
+  levelDemandMul,
+  levelFor,
+  levelPayMul,
+  needsMet,
+  NO_CAPS,
+  patienceMul,
+  pickClass,
+  pointsFor,
+  type Caps,
+  type JobClassDef,
+} from './levels';
+import type { SavedKey } from '@/worker/game/save';
 
 export function rebuild(this: Game, r: SavedKey): Key {
   const g = generate(r.template, r.seed, { scale: r.scale });
@@ -23,18 +34,36 @@ export function rebuild(this: Game, r: SavedKey): Key {
   // The kind of job is the one whose template made the key (a key of another class, such as an old web key that ran the calculation, keeps its class).
   const task = known && known.cls === clsId ? known : undefined;
   // A test-override mix carries its own payout multipliers; otherwise the class does (when the key is the class's own job, or one of the kinds it sends).
-  const own = cls && (task ? r.scale === (task.scale ?? cls.scale) : cls.template === r.template && cls.scale === r.scale);
+  const own =
+    cls && (task ? r.scale === (task.scale ?? cls.scale) : cls.template === r.template && cls.scale === r.scale);
   const payMul = this.cfg.mix ? payMulFor(this.cfg, r.template, r.scale) : own ? cls.payMul * (task?.payMul ?? 1) : 1;
-  const parsed = /^# (?:\S*\.)?(\w+) request/.exec(g.asm)?.[1] ?? "cli";
+  const parsed = /^# (?:\S*\.)?(\w+) request/.exec(g.asm)?.[1] ?? 'cli';
   // `work` (a reference run of the whole program, up to 3M steps, 25-100 ms for a gpu job) is worked out on first read. A key nobody prices or pays never costs it.
   let work: number | undefined;
   return {
-    id: r.id, arrival: r.arrival, template: r.template, seed: r.seed, scale: r.scale, deadline: r.deadline,
-    get work(): number { return work ??= runReference(g).steps; },
-    set work(v: number) { work = v; },
-    type: task?.id ?? (clsId === "cli" || clsId === "scan" ? parsed : clsId), jobNo: g.meta.params.jobId,
-    cls: clsId, needs: task ? taskNeeds(task) : cls?.needs ?? [], payMul,
-    attempts: 1, pluggedAt: r.pluggedAt ?? 0, done: false, doneAt: 0, result: "", retired: r.retired === true,
+    id: r.id,
+    arrival: r.arrival,
+    template: r.template,
+    seed: r.seed,
+    scale: r.scale,
+    deadline: r.deadline,
+    get work(): number {
+      return (work ??= runReference(g).steps);
+    },
+    set work(v: number) {
+      work = v;
+    },
+    type: task?.id ?? (clsId === 'cli' || clsId === 'scan' ? parsed : clsId),
+    jobNo: g.meta.params.jobId,
+    cls: clsId,
+    needs: task ? taskNeeds(task) : (cls?.needs ?? []),
+    payMul,
+    attempts: 1,
+    pluggedAt: r.pluggedAt ?? 0,
+    done: false,
+    doneAt: 0,
+    result: '',
+    retired: r.retired === true,
   };
 }
 
@@ -44,16 +73,27 @@ export function enqueue(this: Game, template: string, scale = 1, cls?: string, n
   // A class with several kinds of job sends one the player's level has reached, chosen by the seed (no extra draw: the PRNG stream does not depend on it).
   const c = pick && cls ? jobClass(cls) : undefined;
   const task = c && pickTask(c, this.level, seed, this.sandbox ? this.sandboxKindsOff : undefined);
-  if (task) { template = task.template; scale = task.scale ?? c!.scale; }
+  if (task) {
+    template = task.template;
+    scale = task.scale ?? c!.scale;
+  }
   const src = net ? this.offersQ : this.tray;
   if (src.waiting().length >= this.cfg.queueCap) {
     this.dropped++;
     // The client takes the key back: that counts against the turnaround average, so it costs reputation.
     this.avgTurnaround += this.cfg.emaAlpha * (this.cfg.giveUpTurnaround * this.patience() - this.avgTurnaround);
-    this.note("drop", net ? "offer list full: a client gave up" : "tray full: a client gave up");
+    this.note('drop', net ? 'offer list full: a client gave up' : 'tray full: a client gave up');
     return false;
   }
-  const key = this.rebuild({ id: this.nextKeyId++, template, seed, scale, arrival: this.baseTick, deadline: this.baseTick + this.deadlineTicks(), ...(cls ? { cls } : {}) });
+  const key = this.rebuild({
+    id: this.nextKeyId++,
+    template,
+    seed,
+    scale,
+    arrival: this.baseTick,
+    deadline: this.baseTick + this.deadlineTicks(),
+    ...(cls ? { cls } : {}),
+  });
   src.offer(key);
   this.dexSeen(key);
   return true;
@@ -81,10 +121,15 @@ export function arrivals(this: Game): void {
       this.enqueue(m.template, m.scale, undefined, toNet);
     } else {
       // The web class needs a plan and has no share while no client is on the wire (no plan, or a long dead link).
-      const mix = jobMix(this.level, this.reputation(), this.levelTicks, this.baseTick).filter(([c]) => (c.id !== "web" || (this.ispTier > 0 && !fallback)) && !this.sandboxOff.has(c.id) && !classBlocked(c, this.level, this.sandboxKindsOff));
+      const mix = jobMix(this.level, this.reputation(), this.levelTicks, this.baseTick).filter(
+        ([c]) =>
+          (c.id !== 'web' || (this.ispTier > 0 && !fallback)) &&
+          !this.sandboxOff.has(c.id) &&
+          !classBlocked(c, this.level, this.sandboxKindsOff),
+      );
       if (mix.length === 0) return; // the sandbox switched off every class (or every kind of them) of this level
       const c: JobClassDef = pickClass(mix, r);
-      this.enqueue(c.template, c.scale, c.id, toNet || c.id === "web", true);
+      this.enqueue(c.template, c.scale, c.id, toNet || c.id === 'web', true);
     }
   }
 }
@@ -101,10 +146,22 @@ export function caps(this: Game): Caps {
 
 /** Caps with the network need decided by the caller (`netOk`): admission asks about the link as it is right now. */
 export function capsWith(this: Game, netOk: boolean): Caps {
-  const storage = this.board.devices.filter((d) => !d.burnt && deviceSpec(d).kind === "storage");
-  const tpms = this.board.devices.filter((d) => !d.burnt && deviceSpec(d).kind === "tpm");
+  const storage = this.board.devices.filter((d) => !d.burnt && deviceSpec(d).kind === 'storage');
+  const tpms = this.board.devices.filter((d) => !d.burnt && deviceSpec(d).kind === 'tpm');
   const tpm = tpms.length > 0;
-  return { ...NO_CAPS, net: netOk, netTier: netOk ? this.ispTier : 0, tpm, tpmTier: tpm ? Math.max(...tpms.map((d) => deviceSpec(d).tier)) : 0, ecc: this.eccInstalled(), cores: this.cpuLogicalCores(), osTier: this.os?.spec.tier ?? 0, ramBytes: this.installedRamBytes(), ...this.fsCaps(), storageTier: storage.length ? Math.max(...storage.map((d) => deviceSpec(d).tier)) : -1 };
+  return {
+    ...NO_CAPS,
+    net: netOk,
+    netTier: netOk ? this.ispTier : 0,
+    tpm,
+    tpmTier: tpm ? Math.max(...tpms.map((d) => deviceSpec(d).tier)) : 0,
+    ecc: this.eccInstalled(),
+    cores: this.cpuLogicalCores(),
+    osTier: this.os?.spec.tier ?? 0,
+    ramBytes: this.installedRamBytes(),
+    ...this.fsCaps(),
+    storageTier: storage.length ? Math.max(...storage.map((d) => deviceSpec(d).tier)) : -1,
+  };
 }
 
 export function runnable(this: Game, k: Key, caps = this.caps()): boolean {
@@ -122,9 +179,9 @@ export function expireKeys(this: Game): void {
     this.tray.take(k.id);
     this.offersQ.take(k.id);
     this.expired++;
-    this.addLog(k, "expired", 0, true);
+    this.addLog(k, 'expired', 0, true);
     this.avgTurnaround += this.cfg.emaAlpha * (this.cfg.giveUpTurnaround * this.patience() - this.avgTurnaround);
-    this.note("expire", `a client took back job ${k.id} (${k.type}): the machine cannot run it`);
+    this.note('expire', `a client took back job ${k.id} (${k.type}): the machine cannot run it`);
   }
 }
 
@@ -141,7 +198,7 @@ export function addClientBase(this: Game, rep: number): void {
   }
   this.lvl = to;
   this.leveledUpAt = this.baseTick;
-  this.note("level", `Level ${to}: ${levelDef(to).name}`);
+  this.note('level', `Level ${to}: ${levelDef(to).name}`);
 }
 
 /** Turnaround that drives reputation: the average, or the oldest waiting key's age if that is worse. */
@@ -150,8 +207,11 @@ export function serviceTurnaround(this: Game): number {
   const caps = this.caps();
   // Retired USB keys (docs/NETWORK.md "Retired keys") are left out too: the client went online.
   const waiting = [
-    ...this.tray.waiting().filter((k) => !k.retired && this.runnable(k, caps)), ...this.offersQ.waiting().filter((k) => this.runnable(k, caps)),
-    ...this.downloads.map((t) => t.key), ...this.rx, ...this.spool.filter((k) => !this.uploads.some((t) => t.key.id === k.id)),
+    ...this.tray.waiting().filter((k) => !k.retired && this.runnable(k, caps)),
+    ...this.offersQ.waiting().filter((k) => this.runnable(k, caps)),
+    ...this.downloads.map((t) => t.key),
+    ...this.rx,
+    ...this.spool.filter((k) => !this.uploads.some((t) => t.key.id === k.id)),
   ];
   const oldest = waiting.reduce<Key | undefined>((o, k) => (!o || k.arrival < o.arrival ? k : o), undefined);
   const age = oldest && this.progress.poweredOn ? this.baseTick - oldest.arrival : 0;

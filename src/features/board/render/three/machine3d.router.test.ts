@@ -15,22 +15,40 @@ import { maxedSnapshot, quietCanvas } from './testutil';
 
 quietCanvas();
 
-const mine = (m: Machine3D): string[] => m.rails.map((r) => r.id).filter((id) => id === 'router' || id.startsWith('router.'));
+const mine = (m: Machine3D): string[] =>
+  m.rails.map((r) => r.id).filter((id) => id === 'router' || id.startsWith('router.'));
 /** The ids a tier's board offers a flight to: the board, its bodies (the SoC's last: its die's rail), no block of the die. */
-const offered = (tier: number): string[] => ['router', ...routerIds(tier).filter((id) => (ROUTER_BODIES as readonly string[]).includes(id)), 'router.soc'];
+const offered = (tier: number): string[] => [
+  'router',
+  ...routerIds(tier).filter((id) => (ROUTER_BODIES as readonly string[]).includes(id)),
+  'router.soc',
+];
 const ROUTERS = { 2: { id: 'router2', name: 'Gigabit router', mbps: 1000, clients: 4, visual: 'router-gbe' } } as const;
-const withRouter = (s: Snapshot, router: NonNullable<Snapshot['net']>['router']): Snapshot => ({ ...s, net: { ...s.net!, router } });
+const withRouter = (s: Snapshot, router: NonNullable<Snapshot['net']>['router']): Snapshot => ({
+  ...s,
+  net: { ...s.net!, router },
+});
 /** A camera `d` in front of the point `at` (the room's frame: layout x, 3D y, depth), looking at it. */
-const camAt = (x: number, y: number, z: number, d: number): PerspectiveCamera => { const c = new PerspectiveCamera(40, 16 / 9, 10, 200000); c.position.set(x, y, z + d); c.lookAt(x, y, z); c.updateMatrixWorld(); return c; };
+const camAt = (x: number, y: number, z: number, d: number): PerspectiveCamera => {
+  const c = new PerspectiveCamera(40, 16 / 9, 10, 200000);
+  c.position.set(x, y, z + d);
+  c.lookAt(x, y, z);
+  c.updateMatrixWorld();
+  return c;
+};
 const H = 1080;
 
-describe('the router\'s board on the machine', () => {
-  const s = maxedSnapshot(), geo = roomGeo();
+describe("the router's board on the machine", () => {
+  const s = maxedSnapshot(),
+    geo = roomGeo();
 
   it('has a flight to the board and to each part of the router the game has, all lying on the plinth behind the jacks', () => {
-    const m = new Machine3D(s, geo, new BakeQueue(), new Chips3D(), true, false, false), tier = Number(/\d+$/.exec(s.net!.router!.id)![0]), stand = routerStand(tier);
+    const m = new Machine3D(s, geo, new BakeQueue(), new Chips3D(), true, false, false),
+      tier = Number(/\d+$/.exec(s.net!.router!.id)![0]),
+      stand = routerStand(tier);
     expect(mine(m)).toEqual(offered(tier));
-    const board = m.rails.find((r) => r.id === 'router')!, lie = board.lie!;
+    const board = m.rails.find((r) => r.id === 'router')!,
+      lie = board.lie!;
     // (it lies behind the front: its jack side is just behind the jacks' backs, and it ends before the back wall)
     expect(lie).toBeDefined();
     expect(board.z + lie.d / 2).toBeLessThan(stand.front);
@@ -52,20 +70,24 @@ describe('the router\'s board on the machine', () => {
       expect(r.z + r.lie!.d / 2, r.id).toBeLessThanOrEqual(board.z + lie.d / 2 + 0.01);
       expect(r.lie!.y, r.id).toBeGreaterThanOrEqual(lie.y - 0.01);
     }
-    for (const r of m.rails.filter((x) => x.id.startsWith('router.') && x.id !== 'router.soc')) expect(r.zoom, r.id).toBe(DEVICE_LOD.router.detail);
+    for (const r of m.rails.filter((x) => x.id.startsWith('router.') && x.id !== 'router.soc'))
+      expect(r.zoom, r.id).toBe(DEVICE_LOD.router.detail);
     // (the die's flight comes in where its lid is gone)
     expect(m.rails.find((r) => r.id === 'router.soc')!.zoom).toBeGreaterThan(DEVICE_LOD.router.fade[1]);
     m.dispose();
   });
 
   it('has none with no router, none on the Build my PC stage, and none without the live chips', () => {
-    expect(mine(new Machine3D(withRouter(s, null), geo, new BakeQueue(), new Chips3D(), true, false, false))).toEqual([]);
+    expect(mine(new Machine3D(withRouter(s, null), geo, new BakeQueue(), new Chips3D(), true, false, false))).toEqual(
+      [],
+    );
     expect(mine(new Machine3D(s, geo, new BakeQueue(), new Chips3D(), false, false, false))).toEqual([]);
     expect(mine(new Machine3D(s, geo, new BakeQueue(), null, true, false, false))).toEqual([]);
   });
 
   it('is made again for a router of another tier, and goes with the router', () => {
-    const m = new Machine3D(s, geo, new BakeQueue(), new Chips3D(), true, false, false), before = mine(m).length;
+    const m = new Machine3D(s, geo, new BakeQueue(), new Chips3D(), true, false, false),
+      before = mine(m).length;
     m.syncCables(withRouter(s, ROUTERS[2]), geo);
     expect(mine(m)).toEqual(offered(2));
     expect(mine(m).length).not.toBe(before);
@@ -79,14 +101,21 @@ describe('the router\'s board on the machine', () => {
   });
 
   it('keeps the shell whole from afar and takes it away as the camera comes in, the board lying where it is', () => {
-    const m = new Machine3D(s, geo, new BakeQueue(), new Chips3D(), true, false, false), alphas: number[] = [];
+    const m = new Machine3D(s, geo, new BakeQueue(), new Chips3D(), true, false, false),
+      alphas: number[] = [];
     m.onRouterShell = (a) => alphas.push(a);
-    const tier = Number(/\d+$/.exec(s.net!.router!.id)![0]), stand = routerStand(tier), cx = stand.face.x + stand.face.w / 2, cy = -(stand.face.y + stand.face.h / 2);
+    const tier = Number(/\d+$/.exec(s.net!.router!.id)![0]),
+      stand = routerStand(tier),
+      cx = stand.face.x + stand.face.w / 2,
+      cy = -(stand.face.y + stand.face.h / 2);
     const boardRoot = (): { visible: boolean; lying: boolean } => {
       const o = m.root.children.find((c) => c.userData.id === 'router')!;
       return { visible: o.visible, lying: Math.abs(o.children[0]!.rotation.x + Math.PI / 2) < 1e-9 };
     };
-    const seen = (d: number) => { m.lod(camAt(cx, cy, stand.front, d), H, 1); return { ...boardRoot(), shell: alphas[alphas.length - 1]! }; };
+    const seen = (d: number) => {
+      m.lod(camAt(cx, cy, stand.front, d), H, 1);
+      return { ...boardRoot(), shell: alphas[alphas.length - 1]! };
+    };
     expect(tier).toBeGreaterThan(0);
     const far = seen(60000);
     expect(far.visible).toBe(false);

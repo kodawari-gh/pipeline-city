@@ -1,20 +1,83 @@
 import { describe, expect, it } from 'vitest';
 import type { GpuSnap } from '@/worker/game/types';
 import type { Snapshot } from '@/worker/protocol';
-import { FRAME_COLS, FRAME_HOLD, clock, dashModel, frameColor, frameModel, holdFrame, ipcBetween, type DashCtx } from './screenmodel';
+import {
+  FRAME_COLS,
+  FRAME_HOLD,
+  clock,
+  dashModel,
+  frameColor,
+  frameModel,
+  holdFrame,
+  ipcBetween,
+  type DashCtx,
+} from './screenmodel';
 
-const job = (slot: number, keyId: number, label: string, state: 'queued' | 'running' | 'result', ahead = 0) => ({ slot, keyId, label, state, persisted: true, ahead });
+const job = (slot: number, keyId: number, label: string, state: 'queued' | 'running' | 'result', ahead = 0) => ({
+  slot,
+  keyId,
+  label,
+  state,
+  persisted: true,
+  ahead,
+});
 
 /** The few snapshot fields the dashboard reads. */
 function snap(over: Record<string, unknown> = {}): Snapshot {
   return {
-    phase: 'running-os', baseTick: 100, keyActivity: 'none', plugged: null,
+    phase: 'running-os',
+    baseTick: 100,
+    keyActivity: 'none',
+    plugged: null,
     power: { totalW: 120, budgetW: 400, psuFactor: 1, off: false, tripped: false },
     cpuClock: { value: 1, min: 0.5, max: 2 },
-    devices: [{ id: 'cpu', spec: 'cpu1', kind: 'cpu', name: 'CPU', slot: 'cpu', burnt: false, requestedClock: null, effectiveClock: 1.25, tempC: 55, powerW: 30, throttle: 1, unstable: false }],
-    storage: [{ deviceId: 'd', slot: 'sata0', spec: 's', name: 'S', burnt: false, capacityBytes: 100 * 1024, usedBytes: 25 * 1024, bytesRead: 0, bytesWritten: 0, busy: false, latencyTicks: 0, blockTicks: 0, bytesPerSecond: 0, hasOs: true }],
-    os: { spec: 'os2', tier: 2, name: 'Pipeline OS', deviceId: 'd', slot: 'sata0', programSlots: 2, queueSlots: 8, up: true, runningKeyId: 7, spool: { slotBytes: 0, slots: 0, used: 0, freeBytes: 0, full: false },
-      queue: [job(0, 9, 'sort', 'queued', 1), job(1, 7, 'fib', 'running'), job(2, 8, 'hash', 'result', -1)] },
+    devices: [
+      {
+        id: 'cpu',
+        spec: 'cpu1',
+        kind: 'cpu',
+        name: 'CPU',
+        slot: 'cpu',
+        burnt: false,
+        requestedClock: null,
+        effectiveClock: 1.25,
+        tempC: 55,
+        powerW: 30,
+        throttle: 1,
+        unstable: false,
+      },
+    ],
+    storage: [
+      {
+        deviceId: 'd',
+        slot: 'sata0',
+        spec: 's',
+        name: 'S',
+        burnt: false,
+        capacityBytes: 100 * 1024,
+        usedBytes: 25 * 1024,
+        bytesRead: 0,
+        bytesWritten: 0,
+        busy: false,
+        latencyTicks: 0,
+        blockTicks: 0,
+        bytesPerSecond: 0,
+        hasOs: true,
+      },
+    ],
+    os: {
+      spec: 'os2',
+      tier: 2,
+      name: 'Pipeline OS',
+      deviceId: 'd',
+      slot: 'sata0',
+      programSlots: 2,
+      queueSlots: 8,
+      up: true,
+      runningKeyId: 7,
+      spool: { slotBytes: 0, slots: 0, used: 0, freeBytes: 0, full: false },
+      queue: [job(0, 9, 'sort', 'queued', 1), job(1, 7, 'fib', 'running'), job(2, 8, 'hash', 'result', -1)],
+    },
     net: { state: 'link-up', bandwidth: { downMbps: 100, upMbps: 20, clients: 1, binding: null }, transfers: [] },
     ram: null,
     ...over,
@@ -54,11 +117,14 @@ describe('dashModel', () => {
   });
 
   it('gives the memory of a program from the RAM map and the machine bars', () => {
-    const ram = { bytes: 1000, regions: [
-      { lo: 0, hi: 100, kind: 'os', name: 'kernel' },
-      { lo: 100, hi: 300, kind: 'prog', name: 'fib', owner: 7 },
-      { lo: 300, hi: 400, kind: 'work', name: 'fib data', owner: 7 },
-    ] };
+    const ram = {
+      bytes: 1000,
+      regions: [
+        { lo: 0, hi: 100, kind: 'os', name: 'kernel' },
+        { lo: 100, hi: 300, kind: 'prog', name: 'fib', owner: 7 },
+        { lo: 300, hi: 400, kind: 'work', name: 'fib data', owner: 7 },
+      ],
+    };
     const m = dashModel(snap({ ram }), ctx())!;
     expect(m.procs[0]!.mem).toBe('200B+100B');
     expect(m.mem!.parts.map((p) => Math.round(p.frac * 100))).toEqual([10, 30, 60]);
@@ -88,8 +154,21 @@ describe('dashModel', () => {
 });
 
 const card = (o: Partial<GpuSnap> = {}): GpuSnap => ({
-  slot: 'pcie1', lanes: 8, banks: 1, memBytes: 8192, phase: 'idle', mask: 0, stack: [], pc: 0, regs: [], trace: [], launches: 1, error: false,
-  stats: { instructions: 100, idleLaneSlots: 80, conflictCycles: 3, cycles: 120 }, frame: [], ...o,
+  slot: 'pcie1',
+  lanes: 8,
+  banks: 1,
+  memBytes: 8192,
+  phase: 'idle',
+  mask: 0,
+  stack: [],
+  pc: 0,
+  regs: [],
+  trace: [],
+  launches: 1,
+  error: false,
+  stats: { instructions: 100, idleLaneSlots: 80, conflictCycles: 3, cycles: 120 },
+  frame: [],
+  ...o,
 });
 
 describe('frameModel', () => {
@@ -119,7 +198,8 @@ describe('frameModel', () => {
 
   it('clamps negative and big words into 0..1', () => {
     const frame = Array(256).fill(0);
-    frame[0] = 0xffffffff; frame[1] = 1000;
+    frame[0] = 0xffffffff;
+    frame[1] = 1000;
     const m = frameModel(card({ frame }))!;
     expect(m.cells[0]).toBe(0);
     expect(m.cells[1]).toBe(1);
@@ -155,9 +235,13 @@ describe('holdFrame', () => {
   it('shows while the card works and for the hold after its latest launch, then lets go', () => {
     let h = { seq: 0, at: -Infinity };
     let r = holdFrame(h, card({ launches: 1, phase: 'run' }), 100);
-    expect(r.show).toBe(true); h = r.hold;
-    r = holdFrame(h, idle, 100 + FRAME_HOLD); expect(r.show).toBe(true); h = r.hold;
-    r = holdFrame(h, idle, 100 + FRAME_HOLD + 1); expect(r.show).toBe(false);
+    expect(r.show).toBe(true);
+    h = r.hold;
+    r = holdFrame(h, idle, 100 + FRAME_HOLD);
+    expect(r.show).toBe(true);
+    h = r.hold;
+    r = holdFrame(h, idle, 100 + FRAME_HOLD + 1);
+    expect(r.show).toBe(false);
   });
   it('a new launch restarts the hold, even one that finished between two snapshots', () => {
     let h = { seq: 1, at: 100 };

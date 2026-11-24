@@ -10,14 +10,14 @@ A box seen from its corner, its top lit and its side vented: a case, nothing mor
 
 ## Colours
 
-| Role | Hex | Note |
-|---|---|---|
+| Role   | Hex       | Note                     |
+| ------ | --------- | ------------------------ |
 | accent | `#e2eaff` | cold white, the top face |
-| light | `#b9babf` | aluminium ink on dark |
-| dark | `#1d1e22` | charcoal ink on light |
-| plate | `#1d1e22` | charcoal badge ground |
-| body | `#2a2d32` | graphite steel |
-| trim | `#959aa3` | brushed nickel |
+| light  | `#b9babf` | aluminium ink on dark    |
+| dark   | `#1d1e22` | charcoal ink on light    |
+| plate  | `#1d1e22` | charcoal badge ground    |
+| body   | `#2a2d32` | graphite steel           |
+| trim   | `#959aa3` | brushed nickel           |
 
 HAKO is the only brand without a coloured neon. Its light is the case's own white light, so its mark never fights with the parts inside it.
 

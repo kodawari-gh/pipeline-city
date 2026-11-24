@@ -8,14 +8,14 @@ Spend at build time or at a rare event, not per frame. The room is static and th
 
 ## Done on this branch
 
-| Item | Change | Frame cost |
-|---|---|---|
-| Selection outline | Cyan `#3be3ff`, about 1 px, strength 1.5, drawn after the bloom (it no longer blooms). Was yellow, strength 4. | Same |
-| Bloom | Strength 0.12 / 0.2 (was 0.3 / 0.5), threshold 1.6 (was 1.2), radius 0.3, high-pass cap 4 (was 32). Only real emitters bloom. | Same |
-| City night lights | Roof beacons pulse slowly (3.5 s) in place of a hard blink; the 9 Hz sign stutter and the star twinkle are gone; aircraft strobes ramp over 150 ms. | Same |
-| Full tower | Dark monolith: straight charcoal body, one large smoked glass side, flat plinth, one violet inner strip. No pillars, lit outlines, name plates or bright silver. | Fewer draws and lights |
-| Mid tower | One violet strip in place of the six-colour bar; plain plate; flat feet. | Fewer lights |
-| Bloom | Strength 0.5 to 0.2 (step 4c). Halos tighter; neon and lamps read as sources. Whole-frame mean unchanged at night. | Free |
+| Item              | Change                                                                                                                                                           | Frame cost             |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| Selection outline | Cyan `#3be3ff`, about 1 px, strength 1.5, drawn after the bloom (it no longer blooms). Was yellow, strength 4.                                                   | Same                   |
+| Bloom             | Strength 0.12 / 0.2 (was 0.3 / 0.5), threshold 1.6 (was 1.2), radius 0.3, high-pass cap 4 (was 32). Only real emitters bloom.                                    | Same                   |
+| City night lights | Roof beacons pulse slowly (3.5 s) in place of a hard blink; the 9 Hz sign stutter and the star twinkle are gone; aircraft strobes ramp over 150 ms.              | Same                   |
+| Full tower        | Dark monolith: straight charcoal body, one large smoked glass side, flat plinth, one violet inner strip. No pillars, lit outlines, name plates or bright silver. | Fewer draws and lights |
+| Mid tower         | One violet strip in place of the six-colour bar; plain plate; flat feet.                                                                                         | Fewer lights           |
+| Bloom             | Strength 0.5 to 0.2 (step 4c). Halos tighter; neon and lamps read as sources. Whole-frame mean unchanged at night.                                               | Free                   |
 
 Flicker, measured (night, still camera, High, share of window pixels whose luminance moves more than 24/255 in 1.5 s): 1.42% before, 1.33% after; with cars hidden 0.79% to 0.72%; with the sky and facade clocks frozen 0.35% (the floor). The rest is car motion and cloud drift, which are motion, not flicker. Not measured: shimmer of small lights while the camera moves.
 
@@ -44,18 +44,18 @@ The open items were tasks LPC1–LPC11 ("Look per cost") in the old work list (`
 
 ## Assets against art-style v3
 
-| Asset | Problem | Where |
-|---|---|---|
-| Mini tower | Cream; a named anti-reference. On hold by the owner. | `case3d.ts` `LOOKS.oem` |
-| Case tray, drive cages | Brass and tan read as cardboard through the new glass. | `casetray3d.ts`, `drivecage3d.ts` |
-| City signs | Saturated `#ff3f9e`, `#ff5a3c`. | `outside/towers.ts` `SIGNS` |
-| City fields, cars | Olive greens; yellow and red cars. | `outside/city.ts`, `outside/plan.ts` |
-| Gold and copper | Four golds, two coppers; the palette has one each. | `ram3d`, `nic3d`, `psu3d`, `gpu3d` |
-| Fan accents | Violet `0x7a5cc8`, `0x8b5cff`, not `#a68bff`. | `fans3d.ts` |
-| Desk props | Green monitor LED `0x4cff8a`; terracotta keycaps. | `props3d.ts` |
-| East wall panel | Emissive on a part that is not a light source. | `furniture3d.ts` |
-| Slat wall, desk, shelves | Warm wood. On hold (ASR8). | `palette.ts` |
-| Board colours | About 490 hard-coded hex values, no palette module (ASR9). | `src/features/board/render/three` |
+| Asset                    | Problem                                                    | Where                                |
+| ------------------------ | ---------------------------------------------------------- | ------------------------------------ |
+| Mini tower               | Cream; a named anti-reference. On hold by the owner.       | `case3d.ts` `LOOKS.oem`              |
+| Case tray, drive cages   | Brass and tan read as cardboard through the new glass.     | `casetray3d.ts`, `drivecage3d.ts`    |
+| City signs               | Saturated `#ff3f9e`, `#ff5a3c`.                            | `outside/towers.ts` `SIGNS`          |
+| City fields, cars        | Olive greens; yellow and red cars.                         | `outside/city.ts`, `outside/plan.ts` |
+| Gold and copper          | Four golds, two coppers; the palette has one each.         | `ram3d`, `nic3d`, `psu3d`, `gpu3d`   |
+| Fan accents              | Violet `0x7a5cc8`, `0x8b5cff`, not `#a68bff`.              | `fans3d.ts`                          |
+| Desk props               | Green monitor LED `0x4cff8a`; terracotta keycaps.          | `props3d.ts`                         |
+| East wall panel          | Emissive on a part that is not a light source.             | `furniture3d.ts`                     |
+| Slat wall, desk, shelves | Warm wood. On hold (ASR8).                                 | `palette.ts`                         |
+| Board colours            | About 490 hard-coded hex values, no palette module (ASR9). | `src/features/board/render/three`    |
 
 Step 4c, glow pass (2026-11-15): the soft glow round the city lights (`GLOW` in `outside/view.ts`) 0.3 to 0.2, and the lantern gain (`kit.ts` night `k`) 9 to 7. Night view at High, hour 23: the halo round the neon is tighter; the neon outlines and the lamps read as shapes. Case gains (`machine3d.ts`): fan rings 2.2 to 1.6 (fixed colour 2.8 to 2.0), LEDs 2 to 1.5, disk LED 2.2 to 1.6. Night shot at High, hour 23, `--view 0,-600,0.1`: the change is small; the cooler's LED reads a little softer, the case shape stays. Accent strip (`stripLight`, `case3d.ts`): working breath 1.2 ± 0.8 to 1.0 ± 0.6, error peak 2.4 to 1.8. It is a state signal, so the states stay distinct. Not visible in the same night shot. `casedecor` has no emissive code to change.
 
@@ -70,9 +70,9 @@ Same night view at Low and High (`--hour 23`, `citycuts=1`). The beacon shader m
 `npm run flicker`, night, 30 frames, 2 px/frame pan. Window = the city; rest = room and case.
 
 | Preset | Still, full frame | Pan window | Pan rest | Shimmer window | Shimmer rest |
-|---|---|---|---|---|---|
-| High | 0.48 % | 8.58 % | 45.98 % | 0.18 % | 2.07 % |
-| Low | 0.22 % | 11.86 % | 42.28 % | 0.38 % | 0.97 % |
+| ------ | ----------------- | ---------- | -------- | -------------- | ------------ |
+| High   | 0.48 %            | 8.58 %     | 45.98 %  | 0.18 %         | 2.07 %       |
+| Low    | 0.22 %            | 11.86 %    | 42.28 %  | 0.38 %         | 0.97 %       |
 
 The Low shimmer window differs from the earlier 0.17 % by about 0.2 points, so a single run is noisy. The pan numbers include motion. The "done when" test (a scene with no lights and no thin geometry) is not built yet, so this does not close LPC8. The three worst sources stay as listed above; the first needs LPC5 (owner). (The shimmer columns of this table, and the shimmer numbers above, count 4 turns or more, not 8: see the next section.)
 
@@ -83,9 +83,9 @@ Correction: `turns()` in `tools/flicker.mjs` gave a pixel that turned 4 times a 
 `npm run flicker`, night, 30 frames, 2 px/frame pan, RTX 5080 (ANGLE D3D11), after the 15 s settle:
 
 | Preset | Still, full frame | Pan window | Pan rest | Shimmer window | Shimmer rest | Control (plain wall): still, pan, shimmer |
-|---|---|---|---|---|---|---|
-| High | 0.53 % | 8.56 % | 44.76 % | 0.17 % | 0.28 % | 0.00 %, 0.02 %, 0.00 % |
-| Low | 0.51 % | 11.57 % | 39.47 % | 0.17 % | 0.11 % | 0.00 %, 0.00 %, 0.00 % |
+| ------ | ----------------- | ---------- | -------- | -------------- | ------------ | ----------------------------------------- |
+| High   | 0.53 %            | 8.56 %     | 44.76 %  | 0.17 %         | 0.28 %       | 0.00 %, 0.02 %, 0.00 %                    |
+| Low    | 0.51 %            | 11.57 %    | 39.47 %  | 0.17 %         | 0.11 %       | 0.00 %, 0.00 %, 0.00 %                    |
 
 The share of the shimmering pixels by region of the room view (the pan map; High, then Low): the city window 22 % and 47 %, the keyboard 20 % and 0 %, the monitor 19 % and 13 %, the machine behind the glass 17 % and 24 %; every other region (the bookcase, the three paper lamps, the chair, the drawers) is under 1 % at 8 turns. At 4 turns or more (the old measure, High 1.56 % of the frame) the books of the bookcase are 47 % of it, then the machine 12 %, the city window 6 %, the monitor 6 % and the keyboard 5 %: the lamps' ribs and the spines move a pixel 4 to 7 times in 60 px of pan, which is detail passing, not shimmer.
 
@@ -95,9 +95,9 @@ The three worst sources, by the strict measure: (1) the city's lit windows, beac
 
 The question: does #23 leave High alone? An earlier run read High idle at 25.3 fps against main's 27.8, with ranges that overlap. Rerun on the dev desktop (RTX 5080, ANGLE D3D11, dev server), as a same-box pair: `bench:modes --device razr-fold-folded --presets high --modes game-max --views idle --ms 6000` (485x997 at 2.225, CPU /4), 3 rounds, the two builds alternating. Base: `03fe0bca` (main before #23, with the current tool copied in). Now: `386977cb`, which has #23 and all the work after it.
 
-| Build | Idle fps (3 rounds) | p50 ms | p95 ms | Draw calls | Ktri |
-|---|---|---|---|---|---|
-| `03fe0bca` | 11.7, 11.4, 11.7 | 81.2, 83.3, 82.6 | 120, 140, 124 | 541, 607, 480 | 1505, 1594, 1390 |
-| `386977cb` | 17.5, 16.9, 19.0 | 56.7, 59.0, 51.1 | 84, 91, 74 | 356, 323, 317 | 732, 717, 692 |
+| Build      | Idle fps (3 rounds) | p50 ms           | p95 ms        | Draw calls    | Ktri             |
+| ---------- | ------------------- | ---------------- | ------------- | ------------- | ---------------- |
+| `03fe0bca` | 11.7, 11.4, 11.7    | 81.2, 83.3, 82.6 | 120, 140, 124 | 541, 607, 480 | 1505, 1594, 1390 |
+| `386977cb` | 17.5, 16.9, 19.0    | 56.7, 59.0, 51.1 | 84, 91, 74    | 356, 323, 317 | 732, 717, 692    |
 
 High idle is not slower than at the base: it is faster, and the ranges do not overlap (17 to 19 fps against 11 to 12). So the earlier gap (25.3 against 27.8) is not a High regression; run-to-run spread is the likely cause. These are 6 s runs on the dev desktop.

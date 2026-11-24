@@ -12,7 +12,11 @@ import { skinOf } from './skins';
 // layer lights the buses from the same rects.
 
 export interface Ctx {
-  g: Graphics; labels: Container; T: Theme; P: Palette; tier: number;
+  g: Graphics;
+  labels: Container;
+  T: Theme;
+  P: Palette;
+  tier: number;
   /** Told about every part a drawer could stand up in 3D (the 3D view builds them from it; the 2D board leaves it unset). */
   solid?: (s: Solid) => void;
 }
@@ -21,15 +25,23 @@ export interface Ctx {
 export type Solid =
   | { kind: 'cap'; x: number; y: number; r: number }
   | { kind: 'smd' | 'choke' | 'stage'; x: number; y: number; w: number; h: number }
-  | { kind: 'leg'; x: number; y: number; w: number; h: number; /** The chip's side it leaves from (its point is on that edge). */ side: 'n' | 's' | 'w' | 'e' }
+  | {
+      kind: 'leg';
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      /** The chip's side it leaves from (its point is on that edge). */ side: 'n' | 's' | 'w' | 'e';
+    }
   | { kind: 'pin' | 'lga'; x: number; y: number; s: number }
   | { kind: 'screw'; x: number; y: number; r: number };
 
 /** A soft drop shadow under a part that stands off the board. */
 export function shadow(c: Ctx, x: number, y: number, w: number, h: number, r: number, off = 12, a = 0.28) {
-  const k = 1, s = off * 0.9;
+  const k = 1,
+    s = off * 0.9;
   box(c.g, x + off * 0.6 - s, y + off * 1.1 - s, w + 2 * s, h + 2 * s, r + s, { fill: '#000000', fa: a * 0.4 * k }); // the soft penumbra
-  box(c.g, x + off, y + off * 1.3, w, h, r, { fill: '#000000', fa: a * k });                                       // the tight core
+  box(c.g, x + off, y + off * 1.3, w, h, r, { fill: '#000000', fa: a * k }); // the tight core
 }
 
 /** Queue pads (small rects centred on the points) in the colour of the palette's plated copper. */
@@ -50,13 +62,20 @@ export function hole(c: Ctx, x: number, y: number, r = 74) {
   disc(g, x, y, r + 34, { fill: P.board }); // the keepout: bare board round the screw, whatever was drawn under it
   disc(g, x, y, r, { fill: P.panel, stroke: P.edge, lw: 8 });
   disc(g, x, y, r + 26, { stroke: P.silk, lw: 4, sa: 0.35 });
-  const head = mix(P.panel, '#ffffff', 0.3), rim = mix(P.edge, '#ffffff', 0.25);
-  disc(g, x + 4, y + 7, r * 0.78, { fill: '#000000', fa: 0.35 });                 // its shadow
+  const head = mix(P.panel, '#ffffff', 0.3),
+    rim = mix(P.edge, '#ffffff', 0.25);
+  disc(g, x + 4, y + 7, r * 0.78, { fill: '#000000', fa: 0.35 }); // its shadow
   disc(g, x, y, r * 0.78, { fill: mix(P.panel, '#ffffff', 0.16), stroke: rim, lw: 3, sa: 0.8 }); // the washer
-  disc(g, x, y, r * 0.58, { fill: head, stroke: rim, lw: 3, sa: 0.9 });                           // the head
+  disc(g, x, y, r * 0.58, { fill: head, stroke: rim, lw: 3, sa: 0.9 }); // the head
   const k = r * 0.36;
-  g.moveTo(x - k, y).lineTo(x + k, y).moveTo(x, y - k).lineTo(x, y + k).stroke({ width: 8, color: P.dark, alpha: 0.85, cap: 'round' }); // the cross slot
-  g.moveTo(x + Math.cos(3.6) * r * 0.46, y + Math.sin(3.6) * r * 0.46).arc(x, y, r * 0.46, 3.6, 5.0).stroke({ width: 4, color: '#ffffff', alpha: 0.35 }); // a highlight
+  g.moveTo(x - k, y)
+    .lineTo(x + k, y)
+    .moveTo(x, y - k)
+    .lineTo(x, y + k)
+    .stroke({ width: 8, color: P.dark, alpha: 0.85, cap: 'round' }); // the cross slot
+  g.moveTo(x + Math.cos(3.6) * r * 0.46, y + Math.sin(3.6) * r * 0.46)
+    .arc(x, y, r * 0.46, 3.6, 5.0)
+    .stroke({ width: 4, color: '#ffffff', alpha: 0.35 }); // a highlight
 }
 
 /** A cooler's mounting hole: a bare plated ring round the drill, a printed circle round it (the backplate's standoff threads through; `cooler3d.ts`). */
@@ -65,27 +84,62 @@ export function coolerHole(c: Ctx, x: number, y: number, r: number, ring: number
   disc(g, x, y, ring + 6, { fill: P.board });
   disc(g, x, y, ring, { fill: mix(P.via, '#c9a65a', 0.5), stroke: P.edge, lw: 4, sa: 0.6 });
   disc(g, x, y, r, { fill: '#05070b' });
-  g.moveTo(x + Math.cos(3.7) * r, y + Math.sin(3.7) * r).arc(x, y, r, 3.7, 5.2).stroke({ width: 3, color: '#ffffff', alpha: 0.18 }); // the drill's lit wall
+  g.moveTo(x + Math.cos(3.7) * r, y + Math.sin(3.7) * r)
+    .arc(x, y, r, 3.7, 5.2)
+    .stroke({ width: 3, color: '#ffffff', alpha: 0.18 }); // the drill's lit wall
 }
 
 /** A square-ish IC with `legs` legs on every side (centred, `pitch` apart: the same positions `legAt` gives the router), a pin-1 dot and an optional label. */
-export function chip(c: Ctx, r: Rect, o: { legs?: number; pitch?: number; text?: string; size?: number; tone?: string; accent?: string; round?: number } = {}) {
+export function chip(
+  c: Ctx,
+  r: Rect,
+  o: {
+    legs?: number;
+    pitch?: number;
+    text?: string;
+    size?: number;
+    tone?: string;
+    accent?: string;
+    round?: number;
+  } = {},
+) {
   const { g, P, T } = c;
-  const legs = o.legs ?? 6, pitch = o.pitch ?? Math.min(r.w, r.h) / (legs + 1);
+  const legs = o.legs ?? 6,
+    pitch = o.pitch ?? Math.min(r.w, r.h) / (legs + 1);
   const tone = o.tone ?? P.dark;
   shadow(c, r.x, r.y, r.w, r.h, 8, 8, 0.3);
   legRects(c, r, legs, pitch);
   g.fill({ color: P.silkHi, alpha: 0.55 });
-  box(g, r.x, r.y, r.w, r.h, o.round ?? 8, { fill: tone, stroke: o.accent ?? P.edge, lw: 4, sa: o.accent ? 0.55 : 0.9 });
+  box(g, r.x, r.y, r.w, r.h, o.round ?? 8, {
+    fill: tone,
+    stroke: o.accent ?? P.edge,
+    lw: 4,
+    sa: o.accent ? 0.55 : 0.9,
+  });
   g.rect(r.x + 6, r.y + 6, r.w - 12, 5).fill({ color: '#ffffff', alpha: 0.07 });
   disc(g, r.x + 22, r.y + 22, 8, { fill: P.silk, fa: 0.5 });
-  if (o.text) c.labels.addChild(label(o.text, r.x + r.w / 2, r.y + r.h / 2, o.size ?? 44, o.accent ?? T.mul, { head: true, anchor: [0.5, 0.5], a: 0.6 }));
+  if (o.text)
+    c.labels.addChild(
+      label(o.text, r.x + r.w / 2, r.y + r.h / 2, o.size ?? 44, o.accent ?? T.mul, {
+        head: true,
+        anchor: [0.5, 0.5],
+        a: 0.6,
+      }),
+    );
 }
 
 /** Queue the legs of a chip on all four sides (n each, or as many as fit when 0), at the pin-map positions; the caller fills. */
 export function legRects(c: Ctx, r: Rect, n: number, pitch = LEG_PITCH) {
-  for (const side of ['n', 's'] as const) for (const [x, y] of legsOf(r, side, n || undefined, pitch)) { c.g.rect(x - 5, y - 10, 10, 20); c.solid?.({ kind: 'leg', x, y, w: 10, h: 20, side }); }
-  for (const side of ['w', 'e'] as const) for (const [x, y] of legsOf(r, side, n || undefined, pitch)) { c.g.rect(x - 10, y - 5, 20, 10); c.solid?.({ kind: 'leg', x, y, w: 20, h: 10, side }); }
+  for (const side of ['n', 's'] as const)
+    for (const [x, y] of legsOf(r, side, n || undefined, pitch)) {
+      c.g.rect(x - 5, y - 10, 10, 20);
+      c.solid?.({ kind: 'leg', x, y, w: 10, h: 20, side });
+    }
+  for (const side of ['w', 'e'] as const)
+    for (const [x, y] of legsOf(r, side, n || undefined, pitch)) {
+      c.g.rect(x - 10, y - 5, 20, 10);
+      c.solid?.({ kind: 'leg', x, y, w: 20, h: 10, side });
+    }
 }
 
 /** An electrolytic or polymer capacitor seen from above: a can with a polarity band and a vent cross. */
@@ -95,8 +149,14 @@ export function cap(c: Ctx, x: number, y: number, r: number, accent?: string) {
   disc(g, x + 6, y + 9, r, { fill: '#000000', fa: 0.3 });
   disc(g, x, y, r, { fill: P.panel, stroke: accent ?? P.via, lw: 5, sa: 0.75 });
   disc(g, x, y, r * 0.66, { fill: mix(P.panel, '#ffffff', 0.06), stroke: P.edge, lw: 3, sa: 0.8 });
-  g.moveTo(x + Math.cos(2.2) * r * 0.84, y + Math.sin(2.2) * r * 0.84).arc(x, y, r * 0.84, 2.2, 4.1).stroke({ width: Math.max(5, r * 0.2), color: P.silkHi, alpha: 0.55 });
-  g.moveTo(x - r * 0.28, y - r * 0.1).lineTo(x + r * 0.28, y + r * 0.1).moveTo(x - r * 0.28, y + r * 0.1).lineTo(x + r * 0.28, y - r * 0.1).stroke({ width: 3, color: P.edge, alpha: 0.7 });
+  g.moveTo(x + Math.cos(2.2) * r * 0.84, y + Math.sin(2.2) * r * 0.84)
+    .arc(x, y, r * 0.84, 2.2, 4.1)
+    .stroke({ width: Math.max(5, r * 0.2), color: P.silkHi, alpha: 0.55 });
+  g.moveTo(x - r * 0.28, y - r * 0.1)
+    .lineTo(x + r * 0.28, y + r * 0.1)
+    .moveTo(x - r * 0.28, y + r * 0.1)
+    .lineTo(x + r * 0.28, y - r * 0.1)
+    .stroke({ width: 3, color: P.edge, alpha: 0.7 });
 }
 
 /** A power inductor (metal-alloy choke): block, bevel, a winding cut across it. */
@@ -106,7 +166,9 @@ export function choke(c: Ctx, x: number, y: number, w: number, h: number) {
   shadow(c, x, y, w, h, 14, 12, 0.32);
   box(g, x, y, w, h, 14, { fill: mix(P.dark, P.panel, 0.2), stroke: P.edge, lw: 5 });
   box(g, x + 12, y + 12, w - 24, h - 24, 8, { fill: mix(P.dark, P.panel, 0.45), stroke: P.copper, lw: 6, sa: 0.7 });
-  g.moveTo(x + w * 0.5, y + 16).lineTo(x + w * 0.5, y + h - 16).stroke({ width: 5, color: P.copper, alpha: 0.55 });
+  g.moveTo(x + w * 0.5, y + 16)
+    .lineTo(x + w * 0.5, y + h - 16)
+    .stroke({ width: 5, color: P.copper, alpha: 0.55 });
   g.rect(x + 8, y + 6, w - 16, 5).fill({ color: '#ffffff', alpha: 0.08 });
 }
 
@@ -116,7 +178,9 @@ export function powerStage(c: Ctx, x: number, y: number, s: number) {
   c.solid?.({ kind: 'stage', x: x + s / 2, y: y + s / 2, w: s, h: s });
   for (let i = 0; i < 7; i++) {
     const t = (i + 0.7) * (s / 7.4);
-    g.rect(x - 16, y + t, 18, 11).rect(x + s - 2, y + t, 18, 11).rect(x + t, y + s - 2, 11, 18);
+    g.rect(x - 16, y + t, 18, 11)
+      .rect(x + s - 2, y + t, 18, 11)
+      .rect(x + t, y + s - 2, 11, 18);
   }
   g.fill({ color: P.via, alpha: 0.7 });
   box(g, x, y, s, s, 8, { fill: P.dark, stroke: P.edge, lw: 4 });
@@ -128,16 +192,26 @@ export function powerStage(c: Ctx, x: number, y: number, s: number) {
 /** A strip of small SMD passives (capacitors, resistors) in a line. */
 export function smd(c: Ctx, x: number, y: number, n: number, dx: number, dy: number, w = 30, h = 18, a = 0.9) {
   const { g, P } = c;
-  for (let i = 0; i < n; i++) { g.rect(x + i * dx - w / 2, y + i * dy - h / 2, w, h); c.solid?.({ kind: 'smd', x: x + i * dx, y: y + i * dy, w, h }); }
+  for (let i = 0; i < n; i++) {
+    g.rect(x + i * dx - w / 2, y + i * dy - h / 2, w, h);
+    c.solid?.({ kind: 'smd', x: x + i * dx, y: y + i * dy, w, h });
+  }
   g.fill({ color: P.panel, alpha: a });
-  for (let i = 0; i < n; i++) g.rect(x + i * dx - w / 2, y + i * dy - h / 2, w * 0.24, h).rect(x + i * dx + w / 2 - w * 0.24, y + i * dy - h / 2, w * 0.24, h);
+  for (let i = 0; i < n; i++)
+    g.rect(x + i * dx - w / 2, y + i * dy - h / 2, w * 0.24, h).rect(
+      x + i * dx + w / 2 - w * 0.24,
+      y + i * dy - h / 2,
+      w * 0.24,
+      h,
+    );
   g.fill({ color: P.via, alpha: 0.65 });
 }
 
 /** Via dots on a regular grid inside a rect (a ground / power pour's stitching). */
 export function stitch(c: Ctx, r: Rect, pitch: number, rad = 6, a = 0.35) {
   const { g, P } = c;
-  for (let x = r.x + pitch / 2; x < r.x + r.w; x += pitch) for (let y = r.y + pitch / 2; y < r.y + r.h; y += pitch) g.circle(x, y, rad);
+  for (let x = r.x + pitch / 2; x < r.x + r.w; x += pitch)
+    for (let y = r.y + pitch / 2; y < r.y + r.h; y += pitch) g.circle(x, y, rad);
   g.fill({ color: P.tent, alpha: a });
 }
 
@@ -146,17 +220,24 @@ export function vrmPhaseArt(c: Ctx, r: Rect, empty: boolean, railY: number) {
   const { g, P } = c;
   box(g, r.x, r.y, r.w, r.h, 18, { fill: P.dark, fa: 0.3, stroke: P.edge, lw: 4, sa: 0.5 });
   if (empty) return;
-  const fx = r.x + 24, fy = r.y + 40, ps = 130;
+  const fx = r.x + 24,
+    fy = r.y + 40,
+    ps = 130;
   // input: a stub from the rail down to the power stage and the input capacitors
   g.rect(r.x + 60 - 14, railY + 22, 28, fy - railY - 22).fill({ color: P.pour });
   smd(c, r.x + 232, r.y + 42, 3, 0, 36, 34, 20); // input decoupling
-  g.moveTo(r.x + 232, r.y + 20).lineTo(r.x + 232, railY + 22).stroke({ width: 10, color: P.pour });
+  g.moveTo(r.x + 232, r.y + 20)
+    .lineTo(r.x + 232, railY + 22)
+    .stroke({ width: 10, color: P.pour });
   powerStage(c, fx, fy, ps);
   // phase node: power stage to choke, a short fat trace
   g.rect(r.x + 60 - 20, fy + ps + 2, 40, 40).fill({ color: P.pour });
   choke(c, r.x + 20, r.y + 214, 160, 150);
   // output: the choke's output goes right and down to the capacitors, then into the plane
-  g.moveTo(r.x + 180, r.y + 290).lineTo(r.x + 265, r.y + 290).lineTo(r.x + 265, r.y + r.h - 4).stroke({ width: 26, color: P.pour, join: 'round', cap: 'butt' });
+  g.moveTo(r.x + 180, r.y + 290)
+    .lineTo(r.x + 265, r.y + 290)
+    .lineTo(r.x + 265, r.y + r.h - 4)
+    .stroke({ width: 26, color: P.pour, join: 'round', cap: 'butt' });
   cap(c, r.x + 265, r.y + 250, 40);
   cap(c, r.x + 265, r.y + 345, 40);
   smd(c, r.x + 30, r.y + 420, 5, 56, 0, 24, 30, 0.8);
@@ -171,7 +252,9 @@ export function dramPhaseArt(c: Ctx, r: Rect, railY: number) {
   smd(c, r.x + 128, r.y + 60, 3, 0, 32, 28, 18);
   g.rect(r.x + 40, r.y + 122, 30, 26).fill({ color: P.pour });
   // the output pour from under the choke down to the rail, the capacitor below the choke standing on it
-  g.moveTo(r.x + 124, r.y + 196).lineTo(r.x + 124, r.y + r.h - 4).stroke({ width: 22, color: P.pour });
+  g.moveTo(r.x + 124, r.y + 196)
+    .lineTo(r.x + 124, r.y + r.h - 4)
+    .stroke({ width: 22, color: P.pour });
   choke(c, r.x + 14, r.y + 148, 110, 88);
   cap(c, r.x + 122, r.y + 266, 28);
 }
@@ -182,7 +265,9 @@ export function dramPhaseArt(c: Ctx, r: Rect, railY: number) {
  * beside the memory-voltage pad.
  */
 export function dimmSocket(c: Ctx, r: Rect, n: number) {
-  const { g, P } = c, cx = r.x + r.w / 2, rows = Math.floor((r.h - 40) / 22);
+  const { g, P } = c,
+    cx = r.x + r.w / 2,
+    rows = Math.floor((r.h - 40) / 22);
   const joints = () => {
     for (let k = 0; k < rows; k++) g.rect(cx - 50, r.y + 20 + k * 22, 10, 12).rect(cx + 40, r.y + 20 + k * 22, 10, 12);
     g.fill({ color: P.via, alpha: 0.7 });
@@ -209,10 +294,16 @@ export function dimmSocket(c: Ctx, r: Rect, n: number) {
 
 /** A PCIe slot: housing, slot opening with a key, pins, a retention latch at the end, and the staggered SMT pads along both long edges. */
 export function pcieSlot(c: Ctx, r: Rect, name: string, armor: boolean, big: boolean) {
-  const { g, P } = c, skin = skinOf(c.tier);
+  const { g, P } = c,
+    skin = skinOf(c.tier);
   shadow(c, r.x, r.y, r.w, r.h, 10, 8, 0.25);
   // (the steel armour round a slot: a bright rim, as the 3D builds it)
-  box(g, r.x, r.y, r.w, r.h, 10, { fill: skin.slot, stroke: armor ? '#9aa3ae' : P.edge, lw: armor ? 6 : 5, sa: armor ? 0.8 : 1 });
+  box(g, r.x, r.y, r.w, r.h, 10, {
+    fill: skin.slot,
+    stroke: armor ? '#9aa3ae' : P.edge,
+    lw: armor ? 6 : 5,
+    sa: armor ? 0.8 : 1,
+  });
   g.rect(r.x + 40, r.y + 16, r.w - 90, 26).fill({ color: P.dark });
   const keyX = r.x + Math.min(r.w * 0.2, 700);
   g.rect(keyX, r.y + 12, 18, 34).fill({ color: skin.slot });
@@ -234,7 +325,11 @@ export function pcieSlot(c: Ctx, r: Rect, name: string, armor: boolean, big: boo
  * board. Drawn after the slot's power tab, over it: the tab is a pad on the board, the button stands above.
  */
 export function pcieRelease(c: Ctx, r: Rect) {
-  const { g, P } = c, bx = r.x + r.w + 2, by = r.y + r.h / 2 - 12, w = 40, h = 52;
+  const { g, P } = c,
+    bx = r.x + r.w + 2,
+    by = r.y + r.h / 2 - 12,
+    w = 40,
+    h = 52;
   shadow(c, bx, by, w, h, 10, 9, 0.4);
   box(g, bx, by, w, h, 10, { fill: skinOf(c.tier).latch, stroke: P.edge, lw: 4 });
   g.rect(bx + 5, by + 4, w - 10, 5).fill({ color: P.silkHi, alpha: 0.35 }); // the lit top edge
@@ -243,18 +338,32 @@ export function pcieRelease(c: Ctx, r: Rect) {
 }
 
 /** A power connector: housing with a grid of cavities, a latch ridge on the open side. */
-export function powerConn(c: Ctx, r: Rect, cols: number, rows: number, name: string, mouth: 'e' | 'n', a = 1, nameAt?: [number, number, number]) {
+export function powerConn(
+  c: Ctx,
+  r: Rect,
+  cols: number,
+  rows: number,
+  name: string,
+  mouth: 'e' | 'n',
+  a = 1,
+  nameAt?: [number, number, number],
+) {
   const { g, P } = c;
   shadow(c, r.x, r.y, r.w, r.h, 14, 10, 0.28);
   box(g, r.x, r.y, r.w, r.h, 14, { fill: P.sub, stroke: P.via, lw: 6, fa: a, sa: a * 0.8 });
   const horizontal = mouth === 'n'; // 8-pin: cavities in `cols` along x and `rows` along y
   // every cavity is the same size on both connectors (a real EPS plug has the 24-pin's pitch and cavities), centred in its cell
-  const pw = 70, ph = horizontal ? Math.min(60, (r.h - 60) / rows - 14) : Math.min(60, (r.h - 60) / cols - 18);
+  const pw = 70,
+    ph = horizontal ? Math.min(60, (r.h - 60) / rows - 14) : Math.min(60, (r.h - 60) / cols - 18);
   if (horizontal) {
-    const cw = (r.w - 80) / cols, ch = (r.h - 60) / rows;
-    for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) g.rect(r.x + 40 + (i + 0.5) * cw - pw / 2, r.y + 38 + (j + 0.5) * ch - ph / 2, pw, ph);
+    const cw = (r.w - 80) / cols,
+      ch = (r.h - 60) / rows;
+    for (let i = 0; i < cols; i++)
+      for (let j = 0; j < rows; j++)
+        g.rect(r.x + 40 + (i + 0.5) * cw - pw / 2, r.y + 38 + (j + 0.5) * ch - ph / 2, pw, ph);
   } else {
-    for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) g.rect(r.x + 40 + j * 110, r.y + 30 + i * ((r.h - 60) / rows) + 6, pw, ph);
+    for (let i = 0; i < rows; i++)
+      for (let j = 0; j < cols; j++) g.rect(r.x + 40 + j * 110, r.y + 30 + i * ((r.h - 60) / rows) + 6, pw, ph);
   }
   g.fill({ color: P.via, alpha: 0.8 * a });
   // latch ridge
@@ -265,10 +374,26 @@ export function powerConn(c: Ctx, r: Rect, cols: number, rows: number, name: str
 }
 
 /** A pin header (cols x rows, 0.1 inch pitch): body, gold pins (but the `key` pin), a pin-1 mark, its name above. */
-export function header(c: Ctx, x: number, y: number, cols: number, rows: number, name: string, key?: readonly [number, number]) {
-  const { g, P } = c, pitch = HDR_PITCH, w = cols * pitch + 24, h = rows * pitch + 24;
+export function header(
+  c: Ctx,
+  x: number,
+  y: number,
+  cols: number,
+  rows: number,
+  name: string,
+  key?: readonly [number, number],
+) {
+  const { g, P } = c,
+    pitch = HDR_PITCH,
+    w = cols * pitch + 24,
+    h = rows * pitch + 24;
   box(g, x, y, w, h, 8, { fill: P.dark, stroke: P.edge, lw: 4 });
-  for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) if (i !== key?.[0] || j !== key[1]) { g.rect(x + 12 + i * pitch + 10, y + 12 + j * pitch + 10, 28, 28); c.solid?.({ kind: 'pin', x: x + 12 + i * pitch + 24, y: y + 12 + j * pitch + 24, s: 12 }); }
+  for (let i = 0; i < cols; i++)
+    for (let j = 0; j < rows; j++)
+      if (i !== key?.[0] || j !== key[1]) {
+        g.rect(x + 12 + i * pitch + 10, y + 12 + j * pitch + 10, 28, 28);
+        c.solid?.({ kind: 'pin', x: x + 12 + i * pitch + 24, y: y + 12 + j * pitch + 24, s: 12 });
+      }
   g.fill({ color: c.T.pin, alpha: 0.75 });
   g.poly([x + 4, y - 12, x + 22, y - 12, x + 4, y - 30]).fill({ color: P.silkHi, alpha: 0.6 });
   c.labels.addChild(label(name, x, y - 46, 28, P.silk, { anchor: [0, 0.5] }));
@@ -277,11 +402,28 @@ export function header(c: Ctx, x: number, y: number, cols: number, rows: number,
 
 /** A SATA port (mouth east): housing, the L-shaped opening with its key, the pin row, a latch lip. */
 export function sataPortArt(c: Ctx, p: Rect, i: number, live: boolean) {
-  const { g, P } = c, a = live ? 1 : 0.35;
+  const { g, P } = c,
+    a = live ? 1 : 0.35;
   shadow(c, p.x, p.y, p.w, p.h, 10, 8, 0.25 * a);
   box(g, p.x, p.y, p.w, p.h, 10, { fill: P.sub, stroke: P.edge, lw: 5, fa: a, sa: a });
-  g.poly([p.x + 150, p.y + 20, p.x + p.w - 20, p.y + 20, p.x + p.w - 20, p.y + p.h - 20, p.x + 150, p.y + p.h - 20, p.x + 150, p.y + p.h - 52, p.x + 210, p.y + p.h - 52, p.x + 210, p.y + 52, p.x + 150, p.y + 52])
-    .fill({ color: P.dark, alpha: a });
+  g.poly([
+    p.x + 150,
+    p.y + 20,
+    p.x + p.w - 20,
+    p.y + 20,
+    p.x + p.w - 20,
+    p.y + p.h - 20,
+    p.x + 150,
+    p.y + p.h - 20,
+    p.x + 150,
+    p.y + p.h - 52,
+    p.x + 210,
+    p.y + p.h - 52,
+    p.x + 210,
+    p.y + 52,
+    p.x + 150,
+    p.y + 52,
+  ]).fill({ color: P.dark, alpha: a });
   for (let k = 0; k < 7; k++) g.rect(p.x + 56 + k * 12, p.y + 20, 6, 20);
   g.fill({ color: P.via, alpha: 0.55 * a });
   g.rect(p.x + p.w - 8, p.y + 14, 10, p.h - 28).fill({ color: P.silk, alpha: 0.35 * a });

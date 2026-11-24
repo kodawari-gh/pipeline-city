@@ -15,9 +15,21 @@ const HOLD_S = 0.5;
 export const HISTORY = 120;
 
 /** What one SM shows: the newest instruction it issued by now, and how far through its cycles it is. */
-export interface SmTick { sm: number; step: GpuStep | null; index: number; progress: number; round: number }
+export interface SmTick {
+  sm: number;
+  step: GpuStep | null;
+  index: number;
+  progress: number;
+  round: number;
+}
 /** A warp's state at the cycle on show: the mask of its newest instruction (after it, when the engine says), and the SM it is on. */
-export interface WarpTick { sm: number; warp: number; mask: number; index: number; /** The instruction is still waiting (a load, a bank conflict) at this cycle. */ busy: boolean }
+export interface WarpTick {
+  sm: number;
+  warp: number;
+  mask: number;
+  index: number;
+  /** The instruction is still waiting (a load, a bank conflict) at this cycle. */ busy: boolean;
+}
 
 export interface GpuTick {
   /** The instruction on show (the newest to have issued on the card), or null before any. */
@@ -38,22 +50,39 @@ export interface GpuTick {
   warps: WarpTick[];
 }
 
-const IDLE: GpuTick = { step: null, index: -1, length: 0, progress: 0, round: 0, playing: false, cycle: 0, sms: [], warps: [] };
+const IDLE: GpuTick = {
+  step: null,
+  index: -1,
+  length: 0,
+  progress: 0,
+  round: 0,
+  playing: false,
+  cycle: 0,
+  sms: [],
+  warps: [],
+};
 
 const sigOf = (g: GpuSnap): string => {
-  const a = g.trace[0], z = g.trace[g.trace.length - 1];
+  const a = g.trace[0],
+    z = g.trace[g.trace.length - 1];
   return `${g.launches}|${g.trace.length}|${a?.pc ?? -1}|${z?.pc ?? -1}|${z?.mask ?? 0}|${g.stats.cycles}`;
 };
 
-interface Timed { step: GpuStep; t0: number; dur: number }
+interface Timed {
+  step: GpuStep;
+  t0: number;
+  dur: number;
+}
 
 /** A window on the card's clock: starts from `startCycle` when every instruction has one, else one after the other. */
 function timeline(steps: GpuStep[]): { items: Timed[]; total: number } {
   const timed = steps.length > 0 && steps.every((s) => s.startCycle !== undefined);
   const base = timed ? steps[0]!.startCycle! : 0;
-  let at = 0, total = 0;
+  let at = 0,
+    total = 0;
   const items = steps.map((step): Timed => {
-    const dur = Math.max(1, step.cost), t0 = timed ? Math.max(0, step.startCycle! - base) : at;
+    const dur = Math.max(1, step.cost),
+      t0 = timed ? Math.max(0, step.startCycle! - base) : at;
     at += dur;
     total = Math.max(total, t0 + dur);
     return { step, t0, dur };
@@ -76,12 +105,31 @@ export class GpuPlayer {
 
   /** The newest snapshot of the card (undefined: no card, forget everything). */
   feed(g: GpuSnap | undefined): void {
-    if (!g) { this.show([]); this.pending = null; this.sig = ''; this.launches = -1; this.past = []; this.frozen = false; return; }
+    if (!g) {
+      this.show([]);
+      this.pending = null;
+      this.sig = '';
+      this.launches = -1;
+      this.past = [];
+      this.frozen = false;
+      return;
+    }
     const sig = sigOf(g);
     if (sig === this.sig) return;
     this.sig = sig;
-    if (g.trace.length === 0) { this.show([]); this.pending = null; this.launches = g.launches; return; }
-    if (g.launches !== this.launches || this.win.length === 0) { this.launches = g.launches; this.pending = null; if (!this.frozen) this.show(g.trace); else this.keep(g.trace); return; }
+    if (g.trace.length === 0) {
+      this.show([]);
+      this.pending = null;
+      this.launches = g.launches;
+      return;
+    }
+    if (g.launches !== this.launches || this.win.length === 0) {
+      this.launches = g.launches;
+      this.pending = null;
+      if (!this.frozen) this.show(g.trace);
+      else this.keep(g.trace);
+      return;
+    }
     this.pending = g.trace;
   }
 
@@ -101,17 +149,29 @@ export class GpuPlayer {
   }
 
   /** Windows that can be sought back into (the one on show last). */
-  get windows(): number { return this.past.length; }
+  get windows(): number {
+    return this.past.length;
+  }
   /** Cycles in the newest window (what `seek(0, c)` can reach: 0..span). */
-  get span(): number { const last = this.pending ?? this.past[this.past.length - 1]; return last ? timeline(last).total : 0; }
+  get span(): number {
+    const last = this.pending ?? this.past[this.past.length - 1];
+    return last ? timeline(last).total : 0;
+  }
   /** The cycle the replay is at now. */
-  get cycle(): number { return this.t; }
+  get cycle(): number {
+    return this.t;
+  }
   /** True while the replay is held on a sought cycle. */
-  get scrubbed(): boolean { return this.frozen; }
+  get scrubbed(): boolean {
+    return this.frozen;
+  }
 
   /** Hold the replay at `cycle` of the window `back` windows before the newest (0 = the newest), and return the machine there. */
   seek(back: number, cycle = 0): GpuTick {
-    if (this.pending) { this.keep(this.pending); this.pending = null; } // the newest window is the one to look into
+    if (this.pending) {
+      this.keep(this.pending);
+      this.pending = null;
+    } // the newest window is the one to look into
     const steps = this.past[this.past.length - 1 - Math.max(0, Math.min(back, this.past.length - 1))];
     if (!steps) return IDLE;
     const tl = timeline(steps);
@@ -129,7 +189,13 @@ export class GpuPlayer {
     if (!this.frozen) return;
     this.frozen = false;
     const last = this.past[this.past.length - 1];
-    if (last) { const tl = timeline(last); this.win = tl.items; this.total = tl.total; this.t = tl.total; this.hold = HOLD_S; }
+    if (last) {
+      const tl = timeline(last);
+      this.win = tl.items;
+      this.total = tl.total;
+      this.t = tl.total;
+      this.hold = HOLD_S;
+    }
   }
 
   /**
@@ -138,8 +204,15 @@ export class GpuPlayer {
    */
   advance(dt: number, paused = false): GpuTick {
     if (paused && !this.frozen) {
-      if (this.pending) { const next = this.pending; this.pending = null; this.show(next); }
-      if (this.fresh && this.win.length > 0) { this.t = this.total; this.hold = HOLD_S; }
+      if (this.pending) {
+        const next = this.pending;
+        this.pending = null;
+        this.show(next);
+      }
+      if (this.fresh && this.win.length > 0) {
+        this.t = this.total;
+        this.hold = HOLD_S;
+      }
     }
     this.fresh = false;
     if (this.win.length === 0) return IDLE;
@@ -147,17 +220,24 @@ export class GpuPlayer {
       if (this.t < this.total) this.t = Math.min(this.total, this.t + dt * CYCLES_PER_SEC);
       else {
         this.hold += dt;
-        if (this.pending && this.hold >= HOLD_S) { const next = this.pending; this.pending = null; this.show(next); return this.advance(0); }
+        if (this.pending && this.hold >= HOLD_S) {
+          const next = this.pending;
+          this.pending = null;
+          this.show(next);
+          return this.advance(0);
+        }
       }
     }
     return this.tick();
   }
 
   private tick(): GpuTick {
-    const win = this.win, t = this.t;
+    const win = this.win,
+      t = this.t;
     // the newest instruction to have started by now, over the whole card and per SM and warp
     let at = 0;
-    const smAt = new Map<number, number>(), warpAt = new Map<string, number>();
+    const smAt = new Map<number, number>(),
+      warpAt = new Map<string, number>();
     for (let k = 0; k < win.length; k++) {
       const it = win[k]!;
       if (it.t0 > t && k > 0) continue;
@@ -166,16 +246,35 @@ export class GpuPlayer {
       warpAt.set(`${it.step.sm ?? 0}.${it.step.warp ?? 0}`, k);
     }
     const view = (k: number) => {
-      const it = win[k]!, progress = Math.min(1, Math.max(0, (t - it.t0) / it.dur));
+      const it = win[k]!,
+        progress = Math.min(1, Math.max(0, (t - it.t0) / it.dur));
       return { it, progress, round: Math.min(it.dur - 1, Math.floor(progress * it.dur)) };
     };
     const main = view(at);
-    const sms: SmTick[] = [...smAt].sort((a, b) => a[0] - b[0]).map(([sm, k]) => { const v = view(k); return { sm, step: v.it.step, index: k, progress: v.progress, round: v.round }; });
-    const warps: WarpTick[] = [...warpAt].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })).map(([key, k]) => {
-      const it = win[k]!, [sm, warp] = key.split('.').map(Number) as [number, number];
-      return { sm, warp, mask: it.step.maskAfter ?? it.step.mask, index: k, busy: t < it.t0 + it.dur };
-    });
-    return { step: main.it.step, index: at, length: win.length, progress: main.progress, round: main.round, playing: !this.frozen && t < this.total, cycle: t, sms, warps };
+    const sms: SmTick[] = [...smAt]
+      .sort((a, b) => a[0] - b[0])
+      .map(([sm, k]) => {
+        const v = view(k);
+        return { sm, step: v.it.step, index: k, progress: v.progress, round: v.round };
+      });
+    const warps: WarpTick[] = [...warpAt]
+      .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
+      .map(([key, k]) => {
+        const it = win[k]!,
+          [sm, warp] = key.split('.').map(Number) as [number, number];
+        return { sm, warp, mask: it.step.maskAfter ?? it.step.mask, index: k, busy: t < it.t0 + it.dur };
+      });
+    return {
+      step: main.it.step,
+      index: at,
+      length: win.length,
+      progress: main.progress,
+      round: main.round,
+      playing: !this.frozen && t < this.total,
+      cycle: t,
+      sms,
+      warps,
+    };
   }
 }
 

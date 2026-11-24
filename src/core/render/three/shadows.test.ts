@@ -1,19 +1,45 @@
 import { describe, expect, it } from 'vitest';
-import { BoxGeometry, DirectionalLight, Group, InstancedMesh, Matrix4, Mesh, PointLight, Scene, SpotLight, type Light, type LightShadow, type Object3D, type WebGLRenderer } from 'three';
+import {
+  BoxGeometry,
+  DirectionalLight,
+  Group,
+  InstancedMesh,
+  Matrix4,
+  Mesh,
+  PointLight,
+  Scene,
+  SpotLight,
+  type Light,
+  type LightShadow,
+  type Object3D,
+  type WebGLRenderer,
+} from 'three';
 import { ShadowCache, catchUp } from './shadows';
 
 /** A scene with a panel of two casters, a still caster and a spinning rotor; the cache over a renderer that is only its shadow map. */
 function setup() {
-  const scene = new Scene(), panel = new Group(), rotor = new Group();
-  const caster = () => { const m = new Mesh(new BoxGeometry()); m.castShadow = true; return m; };
-  const a = caster(), b = caster(), still = caster(), blade = caster();
+  const scene = new Scene(),
+    panel = new Group(),
+    rotor = new Group();
+  const caster = () => {
+    const m = new Mesh(new BoxGeometry());
+    m.castShadow = true;
+    return m;
+  };
+  const a = caster(),
+    b = caster(),
+    still = caster(),
+    blade = caster();
   panel.add(a, b);
   rotor.userData.spin = true;
   rotor.add(blade);
   scene.add(panel, still, rotor);
   const cache = new ShadowCache({ shadowMap: { render: () => {} } } as unknown as WebGLRenderer);
   const movers = () => (cache as unknown as { movers: Object3D[] }).movers;
-  const at = (t: number) => { scene.updateMatrixWorld(true); return cache.scan(scene, t); };
+  const at = (t: number) => {
+    scene.updateMatrixWorld(true);
+    return cache.scan(scene, t);
+  };
   at(0);
   at(5000); // settled: nothing is a mover
   return { scene, panel, a, b, still, rotor, cache, movers, at };
@@ -49,16 +75,21 @@ describe('ShadowCache.scan', () => {
     rotor.rotation.z = 1;
     expect(at(6000)).toBe(false);
   });
-  it('redraws a point light\'s cube map whole while things move (the still picture is a flat map)', () => {
-    const scene = new Scene(), m = new Mesh(new BoxGeometry());
+  it("redraws a point light's cube map whole while things move (the still picture is a flat map)", () => {
+    const scene = new Scene(),
+      m = new Mesh(new BoxGeometry());
     m.castShadow = true;
     scene.add(m);
     const drawn: string[] = [];
-    const cache = new ShadowCache({ shadowMap: { render: (ls: { type: string }[], s: Object3D) => drawn.push(`${ls[0]!.type}:${s === scene}`) } } as unknown as WebGLRenderer);
-    const bulb = new PointLight(), sun = new DirectionalLight();
+    const cache = new ShadowCache({
+      shadowMap: { render: (ls: { type: string }[], s: Object3D) => drawn.push(`${ls[0]!.type}:${s === scene}`) },
+    } as unknown as WebGLRenderer);
+    const bulb = new PointLight(),
+      sun = new DirectionalLight();
     bulb.shadow.autoUpdate = sun.shadow.autoUpdate = false;
     bulb.shadow.needsUpdate = true;
-    scene.updateMatrixWorld(true); cache.scan(scene, 0);
+    scene.updateMatrixWorld(true);
+    cache.scan(scene, 0);
     m.position.x = 5;
     scene.updateMatrixWorld(true);
     expect(cache.scan(scene, 16)).toBe(true);
@@ -83,7 +114,14 @@ describe('ShadowCache.scan', () => {
  * One frame of a test: the renders (each draws the maps the budget allows), then the scan. The budget defers a map to the next render, so the
  * frame draws on while a map is owed (`pending`). A move asks every map again. Returns the maps drawn over the frame, and whether a caster moved.
  */
-function frameOf(cache: ShadowCache, r: WebGLRenderer, scene: Scene, lights: Light[], drawn: Light[], t: number): { drawn: Light[]; moved: boolean } {
+function frameOf(
+  cache: ShadowCache,
+  r: WebGLRenderer,
+  scene: Scene,
+  lights: Light[],
+  drawn: Light[],
+  t: number,
+): { drawn: Light[]; moved: boolean } {
   const got: Light[] = [];
   let moved = false;
   do {
@@ -91,22 +129,39 @@ function frameOf(cache: ShadowCache, r: WebGLRenderer, scene: Scene, lights: Lig
     r.shadowMap.render(lights, scene, null as never);
     got.push(...drawn);
     scene.updateMatrixWorld(true);
-    if (cache.scan(scene, t)) { moved = true; for (const l of lights) catchUp(l); }
+    if (cache.scan(scene, t)) {
+      moved = true;
+      for (const l of lights) catchUp(l);
+    }
   } while (cache.pending);
   return { drawn: got, moved };
 }
 
 /** A scene with a still caster, a spinning rotor and two lights; the cache over a renderer that records each map it draws, as three does. */
 function lit() {
-  const scene = new Scene(), caster = new Mesh(new BoxGeometry()), rotor = new Group(), blade = new Mesh(new BoxGeometry());
+  const scene = new Scene(),
+    caster = new Mesh(new BoxGeometry()),
+    rotor = new Group(),
+    blade = new Mesh(new BoxGeometry());
   caster.castShadow = blade.castShadow = true;
   rotor.userData.spin = true;
   rotor.add(blade);
-  const lamp = new SpotLight(), bulb = new PointLight();
-  for (const l of [lamp, bulb]) { l.castShadow = true; l.shadow.autoUpdate = false; l.shadow.needsUpdate = true; }
+  const lamp = new SpotLight(),
+    bulb = new PointLight();
+  for (const l of [lamp, bulb]) {
+    l.castShadow = true;
+    l.shadow.autoUpdate = false;
+    l.shadow.needsUpdate = true;
+  }
   scene.add(caster, rotor, lamp, bulb);
   const drawn: Light[] = [];
-  const draw = (ls: (Light & { shadow?: LightShadow })[]) => { for (const l of ls) if (l.shadow!.autoUpdate || l.shadow!.needsUpdate) { drawn.push(l); l.shadow!.needsUpdate = false; } };
+  const draw = (ls: (Light & { shadow?: LightShadow })[]) => {
+    for (const l of ls)
+      if (l.shadow!.autoUpdate || l.shadow!.needsUpdate) {
+        drawn.push(l);
+        l.shadow!.needsUpdate = false;
+      }
+  };
   const r = { shadowMap: { render: draw } } as unknown as WebGLRenderer;
   const cache = new ShadowCache(r);
   /** One frame: the maps drawn for it, then the scan after its draw; a move asks every map again (as `Room3D.redrawShadows`). */
@@ -122,17 +177,32 @@ function lit() {
  * that reaches 500 and a sun with no range. A frame is as in `lit`.
  */
 function ranged() {
-  const scene = new Scene(), caster = new Mesh(new BoxGeometry()), rotor = new Group(), blade = new Mesh(new BoxGeometry());
+  const scene = new Scene(),
+    caster = new Mesh(new BoxGeometry()),
+    rotor = new Group(),
+    blade = new Mesh(new BoxGeometry());
   caster.castShadow = blade.castShadow = true;
   rotor.userData.spin = true;
   rotor.add(blade);
   caster.position.x = rotor.position.x = 100;
-  const bulb = new PointLight(0xffffff, 1, 10), lamp = new SpotLight(), sun = new DirectionalLight();
+  const bulb = new PointLight(0xffffff, 1, 10),
+    lamp = new SpotLight(),
+    sun = new DirectionalLight();
   const lights = [bulb, lamp, sun];
-  for (const l of lights) { l.castShadow = true; l.shadow.autoUpdate = false; l.shadow.needsUpdate = true; }
+  for (const l of lights) {
+    l.castShadow = true;
+    l.shadow.autoUpdate = false;
+    l.shadow.needsUpdate = true;
+  }
   scene.add(caster, rotor, ...lights);
   const drawn: Light[] = [];
-  const draw = (ls: (Light & { shadow?: LightShadow })[]) => { for (const l of ls) if (l.shadow!.needsUpdate) { drawn.push(l); l.shadow!.needsUpdate = false; } };
+  const draw = (ls: (Light & { shadow?: LightShadow })[]) => {
+    for (const l of ls)
+      if (l.shadow!.needsUpdate) {
+        drawn.push(l);
+        l.shadow!.needsUpdate = false;
+      }
+  };
   const r = { shadowMap: { render: draw } } as unknown as WebGLRenderer;
   const cache = new ShadowCache(r);
   const frame = (t: number) => frameOf(cache, r, scene, lights, drawn, t).drawn;
@@ -164,7 +234,7 @@ describe('ShadowCache ranges', () => {
     frame(6096);
     expect(frame(6112)).toEqual([lamp, sun]);
   });
-  it('reaches as far as the corner of a point light\'s cube, and no farther', () => {
+  it("reaches as far as the corner of a point light's cube, and no farther", () => {
     const { caster, bulb, lamp, sun, frame } = ranged();
     caster.position.set(18.5, 0, 0); // its sphere (0.87) ends past 17.3
     frame(6000);
@@ -176,7 +246,7 @@ describe('ShadowCache ranges', () => {
     frame(6064);
     expect(frame(6080)).toEqual([bulb, lamp, sun]);
   });
-  it('takes an instanced caster\'s bounds over its copies', () => {
+  it("takes an instanced caster's bounds over its copies", () => {
     const { caster, bulb, lamp, sun, lights, frame } = ranged();
     const copies = new InstancedMesh(new BoxGeometry(), undefined, 2);
     copies.castShadow = true;
@@ -215,26 +285,47 @@ describe('ShadowCache ranges', () => {
 describe('ShadowCache layers', () => {
   const LAYER = 5;
   function rig() {
-    const scene = new Scene(), caster = () => { const m = new Mesh(new BoxGeometry()); m.castShadow = true; return m; };
-    const plain = caster(), on = caster(), rotor = new Group(), blade = caster();
+    const scene = new Scene(),
+      caster = () => {
+        const m = new Mesh(new BoxGeometry());
+        m.castShadow = true;
+        return m;
+      };
+    const plain = caster(),
+      on = caster(),
+      rotor = new Group(),
+      blade = caster();
     on.layers.enable(LAYER);
     rotor.userData.spin = true;
     rotor.add(blade);
-    const layered = new PointLight(0xffffff, 1, 1000), dflt = new PointLight(0xffffff, 1, 1000);
+    const layered = new PointLight(0xffffff, 1, 1000),
+      dflt = new PointLight(0xffffff, 1, 1000);
     layered.shadow.camera.layers.set(LAYER);
     const lights = [layered, dflt];
-    for (const l of lights) { l.castShadow = true; l.shadow.autoUpdate = false; l.shadow.needsUpdate = true; }
+    for (const l of lights) {
+      l.castShadow = true;
+      l.shadow.autoUpdate = false;
+      l.shadow.needsUpdate = true;
+    }
     scene.add(plain, on, rotor, ...lights);
     const drawn: Light[] = [];
-    const draw = (ls: PointLight[]) => { for (const l of ls) if (l.shadow.needsUpdate) { drawn.push(l); l.shadow.needsUpdate = false; } };
+    const draw = (ls: PointLight[]) => {
+      for (const l of ls)
+        if (l.shadow.needsUpdate) {
+          drawn.push(l);
+          l.shadow.needsUpdate = false;
+        }
+    };
     const r = { shadowMap: { render: draw } } as unknown as WebGLRenderer;
     const cache = new ShadowCache(r);
     const frame = (t: number) => frameOf(cache, r, scene, lights, drawn, t).drawn;
-    frame(0); frame(16); frame(5000);
+    frame(0);
+    frame(16);
+    frame(5000);
     return { plain, on, rotor, layered, dflt, frame };
   }
 
-  it('does not redraw a light for a caster on none of its map\'s layers, and does for one on a layer', () => {
+  it("does not redraw a light for a caster on none of its map's layers, and does for one on a layer", () => {
     const { plain, on, layered, dflt, frame } = rig();
     plain.position.x = 10;
     frame(6000);
@@ -243,11 +334,12 @@ describe('ShadowCache layers', () => {
     frame(7000);
     expect(frame(7016)).toEqual([layered, dflt]);
   });
-  it('leaves a spinning part on layer 0 out of a layered light\'s redraws', () => {
+  it("leaves a spinning part on layer 0 out of a layered light's redraws", () => {
     const { rotor, layered, dflt, frame } = rig();
     rotor.rotation.z = 1;
     frame(6000);
-    catchUp(layered); catchUp(dflt);
+    catchUp(layered);
+    catchUp(dflt);
     expect(frame(6016)).toEqual([dflt]);
   });
 });
@@ -299,20 +391,40 @@ describe('ShadowCache maps', () => {
 
 /** Three spot lights (due at once) over a caster that does not move, and an autoUpdate light; the cache over a recording renderer, as three does. */
 function budget() {
-  const scene = new Scene(), caster = new Mesh(new BoxGeometry());
+  const scene = new Scene(),
+    caster = new Mesh(new BoxGeometry());
   caster.castShadow = true;
   scene.add(caster);
   const lights = [new SpotLight(), new SpotLight(), new SpotLight()];
-  for (const l of lights) { l.castShadow = true; l.shadow.autoUpdate = false; l.shadow.needsUpdate = true; }
+  for (const l of lights) {
+    l.castShadow = true;
+    l.shadow.autoUpdate = false;
+    l.shadow.needsUpdate = true;
+  }
   const auto = new SpotLight();
-  auto.castShadow = true; auto.shadow.autoUpdate = true;
+  auto.castShadow = true;
+  auto.shadow.autoUpdate = true;
   scene.add(...lights, auto);
   const drawn: Light[] = [];
-  const draw = (ls: (Light & { shadow?: LightShadow })[]) => { for (const l of ls) if (l.shadow!.autoUpdate || l.shadow!.needsUpdate) { drawn.push(l); l.shadow!.needsUpdate = false; } };
+  const draw = (ls: (Light & { shadow?: LightShadow })[]) => {
+    for (const l of ls)
+      if (l.shadow!.autoUpdate || l.shadow!.needsUpdate) {
+        drawn.push(l);
+        l.shadow!.needsUpdate = false;
+      }
+  };
   const r = { shadowMap: { render: draw } } as unknown as WebGLRenderer;
   const cache = new ShadowCache(r);
-  const render = () => { drawn.length = 0; r.shadowMap.render([...lights, auto], scene, null as never); return [...drawn]; };
-  const frame = (t: number) => { scene.updateMatrixWorld(true); cache.scan(scene, t); return render(); };
+  const render = () => {
+    drawn.length = 0;
+    r.shadowMap.render([...lights, auto], scene, null as never);
+    return [...drawn];
+  };
+  const frame = (t: number) => {
+    scene.updateMatrixWorld(true);
+    cache.scan(scene, t);
+    return render();
+  };
   return { lights, auto, cache, render, frame };
 }
 
@@ -358,22 +470,59 @@ describe('ShadowCache budget', () => {
  * removed from it is not drawn. Returns the scene, the lights and the cache's `pending`.
  */
 function removable(grouped = false) {
-  const scene = new Scene(), caster = new Mesh(new BoxGeometry());
+  const scene = new Scene(),
+    caster = new Mesh(new BoxGeometry());
   caster.castShadow = true;
   scene.add(caster);
   const lights = [new SpotLight(), new SpotLight(), new SpotLight()];
-  for (const l of lights) { l.castShadow = true; l.shadow.autoUpdate = false; l.shadow.needsUpdate = true; }
+  for (const l of lights) {
+    l.castShadow = true;
+    l.shadow.autoUpdate = false;
+    l.shadow.needsUpdate = true;
+  }
   // the lights under a group, the group in the scene (or the lights directly in the scene)
   const group = new Group();
-  if (grouped) { scene.add(group); group.add(...lights); } else scene.add(...lights);
+  if (grouped) {
+    scene.add(group);
+    group.add(...lights);
+  } else scene.add(...lights);
   const drawn: Light[] = [];
-  const draw = (ls: (Light & { shadow?: LightShadow })[]) => { for (const l of ls) if (l.shadow!.needsUpdate) { drawn.push(l); l.shadow!.needsUpdate = false; } };
+  const draw = (ls: (Light & { shadow?: LightShadow })[]) => {
+    for (const l of ls)
+      if (l.shadow!.needsUpdate) {
+        drawn.push(l);
+        l.shadow!.needsUpdate = false;
+      }
+  };
   const r = { shadowMap: { render: draw } } as unknown as WebGLRenderer;
   const cache = new ShadowCache(r);
   const c = cache as unknown as { pending: boolean };
   /** One scan, then the render of the frame (over the lights in the scene, as three's): the maps drawn. */
-  const frame = (t: number) => { scene.updateMatrixWorld(true); cache.scan(scene, t); drawn.length = 0; r.shadowMap.render(lights.filter((l) => inScene(l, scene)), scene, null as never); return [...drawn]; };
-  return { scene, group, lights, cache, c, frame, drawn, r, scan: (t: number) => { scene.updateMatrixWorld(true); cache.scan(scene, t); } };
+  const frame = (t: number) => {
+    scene.updateMatrixWorld(true);
+    cache.scan(scene, t);
+    drawn.length = 0;
+    r.shadowMap.render(
+      lights.filter((l) => inScene(l, scene)),
+      scene,
+      null as never,
+    );
+    return [...drawn];
+  };
+  return {
+    scene,
+    group,
+    lights,
+    cache,
+    c,
+    frame,
+    drawn,
+    r,
+    scan: (t: number) => {
+      scene.updateMatrixWorld(true);
+      cache.scan(scene, t);
+    },
+  };
 }
 
 /** Is `o` in `scene` (its parent chain reaches the scene)? */
@@ -414,14 +563,18 @@ describe('ShadowCache removed lights', () => {
   });
   it('keeps a deferred light of another scene: a scan of this scene does not drop it', () => {
     const { lights, c, frame, scan, r, drawn } = removable();
-    const other = new Scene(), x = new SpotLight();
-    x.castShadow = true; x.shadow.autoUpdate = false; x.shadow.needsUpdate = true;
+    const other = new Scene(),
+      x = new SpotLight();
+    x.castShadow = true;
+    x.shadow.autoUpdate = false;
+    x.shadow.needsUpdate = true;
     other.add(x);
     frame(0); // draws lights[0]: the budget is spent
     drawn.length = 0;
     r.shadowMap.render([x], other, null as never); // deferred: owed, in another scene
     expect(drawn).toEqual([]);
-    frame(16); frame(32); // lights[1] and lights[2] are drawn, the board's scans run
+    frame(16);
+    frame(32); // lights[1] and lights[2] are drawn, the board's scans run
     expect(c.pending).toBe(true); // x is still owed
     scan(48); // refills the budget
     drawn.length = 0;

@@ -26,13 +26,27 @@ export class FrameMeter {
   /** Read a snapshot (once per new one). */
   feed(s: MeterSource | null | undefined): void {
     const f = s?.net?.frames;
-    if (!s || !f) { this.tick = Number.NaN; this.rx = 0; this.tx = 0; return; }
-    if (Number.isNaN(this.tick) || s.baseTick < this.tick || f.rx < this.rx0 || f.tx < this.tx0) { this.tick = s.baseTick; this.rx0 = f.rx; this.tx0 = f.tx; this.rx = 0; this.tx = 0; return; }
+    if (!s || !f) {
+      this.tick = Number.NaN;
+      this.rx = 0;
+      this.tx = 0;
+      return;
+    }
+    if (Number.isNaN(this.tick) || s.baseTick < this.tick || f.rx < this.rx0 || f.tx < this.tx0) {
+      this.tick = s.baseTick;
+      this.rx0 = f.rx;
+      this.tx0 = f.tx;
+      this.rx = 0;
+      this.tx = 0;
+      return;
+    }
     if (s.baseTick > this.tick) {
       const dt = s.baseTick - this.tick;
       this.rx = (f.rx - this.rx0) / dt;
       this.tx = (f.tx - this.tx0) / dt;
-      this.tick = s.baseTick; this.rx0 = f.rx; this.tx0 = f.tx;
+      this.tick = s.baseTick;
+      this.rx0 = f.rx;
+      this.tx0 = f.tx;
     }
   }
 }
@@ -51,10 +65,18 @@ export function busy(rate: number, line: number): number {
 export const loadOf = (rate: number, line: number): number => (line > 0 ? Math.min(1, Math.max(0, rate / line)) : 0);
 
 /** A link speed in short words: 100 Mb, 1 Gb, 2.5 Gb, 40 Gb (a Mbit a second). */
-export const fmtSpeed = (mbps: number): string => (mbps >= 1000 ? `${+(mbps / 1000).toFixed(1)} Gb` : `${+mbps.toFixed(0)} Mb`);
+export const fmtSpeed = (mbps: number): string =>
+  mbps >= 1000 ? `${+(mbps / 1000).toFixed(1)} Gb` : `${+mbps.toFixed(0)} Mb`;
 
 /** A share of the line rate: 0.4 %, 12 %, 100 %. */
-export const fmtPct = (f: number): string => (f <= 0 ? '0 %' : f < 0.01 ? `${(f * 100).toFixed(2)} %` : f < 0.1 ? `${(f * 100).toFixed(1)} %` : `${Math.round(f * 100)} %`);
+export const fmtPct = (f: number): string =>
+  f <= 0
+    ? '0 %'
+    : f < 0.01
+      ? `${(f * 100).toFixed(2)} %`
+      : f < 0.1
+        ? `${(f * 100).toFixed(1)} %`
+        : `${Math.round(f * 100)} %`;
 
 /** A number of frames in short words: 950, 4.2 k, 83 k, 1.2 M. */
 export function fmtFrames(n: number): string {

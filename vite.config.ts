@@ -12,7 +12,11 @@ const EXCLUDE = [...configDefaults.exclude, '**/.claude/**'];
 // The short git hash of this build, shown as the build line (src/core/ui/build.ts). The dev server reads 'dev'.
 function buildHash(): string {
   try {
-    return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() || 'unknown';
+    return (
+      execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+        .toString()
+        .trim() || 'unknown'
+    );
   } catch {
     return 'unknown';
   }
@@ -32,9 +36,31 @@ export default defineConfig(({ command }) => ({
     pool: 'vmThreads',
     exclude: EXCLUDE,
     projects: [
-      { extends: true, test: { name: 'fast', sequence: { groupOrder: 1 }, exclude: [...EXCLUDE, ...HEAVY_TESTS, BROWSER_TESTS] } },
-      { extends: true, test: { name: 'heavy', sequence: { groupOrder: 2 }, include: [...HEAVY_TESTS], maxWorkers: 6, testTimeout: 400_000, hookTimeout: 120_000 } },
-      { extends: true, test: { name: 'browser', sequence: { groupOrder: 3 }, include: [BROWSER_TESTS], fileParallelism: false, testTimeout: 240_000 } },
+      {
+        extends: true,
+        test: { name: 'fast', sequence: { groupOrder: 1 }, exclude: [...EXCLUDE, ...HEAVY_TESTS, BROWSER_TESTS] },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'heavy',
+          sequence: { groupOrder: 2 },
+          include: [...HEAVY_TESTS],
+          maxWorkers: 6,
+          testTimeout: 400_000,
+          hookTimeout: 120_000,
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'browser',
+          sequence: { groupOrder: 3 },
+          include: [BROWSER_TESTS],
+          fileParallelism: false,
+          testTimeout: 240_000,
+        },
+      },
     ],
   },
 }));

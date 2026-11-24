@@ -8,7 +8,10 @@ import { thermalGradient } from '@/core/render/three/thermal';
 
 const ROLES: readonly Role[] = ['source', 'hub', 'use'];
 /** The network lens's legend: the two ways data goes (the chips' colours are the pulses'), by the class of the chip and its word. */
-const NET_LEGEND: readonly (readonly [string, string])[] = [['in', 'coming in'], ['out', 'going out']];
+const NET_LEGEND: readonly (readonly [string, string])[] = [
+  ['in', 'coming in'],
+  ['out', 'going out'],
+];
 const css = (c: number): string => `#${c.toString(16).padStart(6, '0')}`;
 
 /** `heat`: a temperature; `watts`: a draw (the power lens); `warn`: something wrong; `dim`: a hint; `net`: a link's speed (the network lens); `limit`: the slowest link, or a link that needs care. */
@@ -42,7 +45,13 @@ export interface AirTag {
 export const TREND_C_PER_S = 0.03;
 
 /** The canvas rect in CSS px. `minTop`: the lowest a pill may sit (the foot of the HUD bar: a label under the bar cannot be read). */
-export interface TagView { left: number; top: number; width: number; height: number; minTop?: number }
+export interface TagView {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  minTop?: number;
+}
 
 /** Gap (CSS px) kept between pills. Also the step a pill climbs to clear another one. */
 const GAP = 4;
@@ -82,8 +91,15 @@ const CSS = `
 .airtag-legend .airtag-chip { margin-right: 0.3rem; }
 `;
 
-interface Trend { temp: number; t: number; slope: number }
-interface Item { tag: AirTag; arrow: '' | 'up' | 'down' }
+interface Trend {
+  temp: number;
+  t: number;
+  slope: number;
+}
+interface Item {
+  tag: AirTag;
+  arrow: '' | 'up' | 'down';
+}
 interface PillNode {
   el: HTMLDivElement;
   key: string; // what was last written, so unchanged text is not written again
@@ -94,7 +110,12 @@ interface PillNode {
   w: number;
   h: number;
 }
-interface Box { l: number; t: number; r: number; b: number }
+interface Box {
+  l: number;
+  t: number;
+  r: number;
+  b: number;
+}
 
 /** Smooth the slope with the newest change. A held value keeps the old trend. */
 function step(old: Trend | undefined, temp: number, now: number): Trend {
@@ -115,10 +136,16 @@ function overlaps(l: number, t: number, w: number, h: number, placed: readonly B
  */
 function settle(left: number, top: number, w: number, h: number, placed: readonly Box[], floor: number): number {
   let dir = -1;
-  if (top < floor) { top = floor; dir = 1; }
+  if (top < floor) {
+    top = floor;
+    dir = 1;
+  }
   for (let s = 0; s < MAX_STEPS && overlaps(left, top, w, h, placed); s++) {
     top += dir * (h + GAP);
-    if (dir < 0 && top < floor) { top = floor; dir = 1; }
+    if (dir < 0 && top < floor) {
+      top = floor;
+      dir = 1;
+    }
   }
   return top;
 }
@@ -141,7 +168,10 @@ export class AirTags3D {
   private disposed = false;
 
   constructor(host?: HTMLElement) {
-    if (typeof document === 'undefined') { this.host = null; return; }
+    if (typeof document === 'undefined') {
+      this.host = null;
+      return;
+    }
     this.host = host ?? document.body;
     // One style element per page, however many instances exist.
     if (!document.getElementById(STYLE_ID)) {
@@ -187,7 +217,10 @@ export class AirTags3D {
       const at = item.tag.at;
       const ndc = this.ndc.set(at[0], at[1], at[2]).project(cam);
       // A z above 1 means the point is behind the camera.
-      if (!this.shown || ndc.z > 1) { this.setVisible(node, false); continue; }
+      if (!this.shown || ndc.z > 1) {
+        this.setVisible(node, false);
+        continue;
+      }
       this.setVisible(node, true);
       this.writeText(node, item);
       live.push({
@@ -200,18 +233,24 @@ export class AirTags3D {
     for (let i = this.items.length; i < this.nodes.length; i++) this.setVisible(this.nodes[i]!, false);
 
     // Pass 2: measure, then place each pill and push it up while it clashes.
-    const placed: Box[] = [], byId = new Map<string, Box>();
+    const placed: Box[] = [],
+      byId = new Map<string, Box>();
     for (const { node, item, x, y } of live) {
       const w = node.el.offsetWidth || node.label * EST_CHAR_W;
       const h = node.el.offsetHeight || EST_H;
       const anchor = item.tag.anchor ?? 'c';
       const ref = item.tag.under ? byId.get(item.tag.under) : undefined;
-      let left: number, top: number, s = 0;
+      let left: number,
+        top: number,
+        s = 0;
       if (ref) {
         // under its tag's pill: it climbs no higher, it goes down while it clashes
         left = fitX(ref.l, w, view);
         top = ref.b + GAP;
-        while (s < MAX_STEPS && overlaps(left, top, w, h, placed)) { top += h + GAP; s++; }
+        while (s < MAX_STEPS && overlaps(left, top, w, h, placed)) {
+          top += h + GAP;
+          s++;
+        }
       } else {
         const want = anchor === 'l' ? x : anchor === 'r' ? x - w : x - w / 2;
         left = fitX(want, w, view);
@@ -261,17 +300,26 @@ export class AirTags3D {
   }
 
   private writeText(node: PillNode, item: Item): void {
-    const sc = item.tag.scale, watts = item.tag.unit === 'W', role = item.tag.role;
-    const key = item.tag.legend ? `legend|${item.tag.legend}` : sc ? `scale|${watts ? 'W' : 'C'}|${Math.round(sc[0])}|${Math.round(sc[1])}` : `${item.tag.tone}|${role ?? ''}|${item.arrow}|${item.tag.text}`;
+    const sc = item.tag.scale,
+      watts = item.tag.unit === 'W',
+      role = item.tag.role;
+    const key = item.tag.legend
+      ? `legend|${item.tag.legend}`
+      : sc
+        ? `scale|${watts ? 'W' : 'C'}|${Math.round(sc[0])}|${Math.round(sc[1])}`
+        : `${item.tag.tone}|${role ?? ''}|${item.arrow}|${item.tag.text}`;
     if (key === node.key) return;
     node.key = key;
     if (item.tag.legend) {
       // the legend: a chip of each role's colour and its word
       node.el.className = 'airtag airtag-legend';
       node.el.textContent = '';
-      const entries: readonly (readonly [string, string])[] = item.tag.legend === 'net' ? NET_LEGEND : ROLES.map((r) => [r, ROLE_WORD[r]] as const);
+      const entries: readonly (readonly [string, string])[] =
+        item.tag.legend === 'net' ? NET_LEGEND : ROLES.map((r) => [r, ROLE_WORD[r]] as const);
       for (const [kind, text] of entries) {
-        const span = document.createElement('span'), chip = document.createElement('i'), word = document.createElement('span');
+        const span = document.createElement('span'),
+          chip = document.createElement('i'),
+          word = document.createElement('span');
         chip.className = `airtag-chip airtag-chip-${kind}`;
         word.textContent = text;
         span.appendChild(chip);
@@ -285,7 +333,12 @@ export class AirTags3D {
       // the scale: the values at the two ends of a bar of the palette
       node.el.className = 'airtag airtag-scale';
       node.el.textContent = '';
-      const end = (c: number): HTMLSpanElement => { const s = document.createElement('span'); s.textContent = `${Math.round(c)}${watts ? ' W' : '°C'}`; return s; }, bar = document.createElement('span');
+      const end = (c: number): HTMLSpanElement => {
+          const s = document.createElement('span');
+          s.textContent = `${Math.round(c)}${watts ? ' W' : '°C'}`;
+          return s;
+        },
+        bar = document.createElement('span');
       bar.className = watts ? 'airtag-bar airtag-bar-w' : 'airtag-bar';
       node.el.appendChild(end(sc[0]));
       node.el.appendChild(bar);
@@ -297,7 +350,8 @@ export class AirTags3D {
     node.el.textContent = '';
     if (role) {
       // (the chip of its role starts the pill)
-      const chip = document.createElement('i'), text = document.createElement('span');
+      const chip = document.createElement('i'),
+        text = document.createElement('span');
       chip.className = `airtag-chip airtag-chip-${role}`;
       text.textContent = item.tag.text;
       node.el.appendChild(chip);
@@ -319,7 +373,13 @@ export class AirTags3D {
     // Write only when a position moved. Whole pixels keep the DOM steady.
     const l = Math.round(left);
     const t = Math.round(top);
-    if (l !== node.left) { node.left = l; node.el.style.left = `${l}px`; }
-    if (t !== node.top) { node.top = t; node.el.style.top = `${t}px`; }
+    if (l !== node.left) {
+      node.left = l;
+      node.el.style.left = `${l}px`;
+    }
+    if (t !== node.top) {
+      node.top = t;
+      node.el.style.top = `${t}px`;
+    }
   }
 }

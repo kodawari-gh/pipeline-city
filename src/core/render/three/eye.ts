@@ -20,7 +20,10 @@ export class Eye {
   private skip = 0;
 
   /** `key`: the luminance times exposure to hold (the key over the base exposure); `range`: the factor's limits. */
-  constructor(private readonly key: number, private readonly range: readonly [number, number]) {}
+  constructor(
+    private readonly key: number,
+    private readonly range: readonly [number, number],
+  ) {}
 
   /**
    * Hold the eye where it stands (`on`) or let it read again. A lens that darkens the picture on purpose (the power lens) holds it: the eye would take the dark for a
@@ -32,13 +35,18 @@ export class Eye {
   }
 
   /** Is the eye held? */
-  get holding(): boolean { return this.held; }
+  get holding(): boolean {
+    return this.held;
+  }
 
   /** A reading of the meter (null: none came). A held eye drops it, and so do the first ones after the hold. */
   read(lum: number | null): void {
     if (lum === null) return;
     if (this.held) return;
-    if (this.skip > 0) { this.skip--; return; }
+    if (this.skip > 0) {
+      this.skip--;
+      return;
+    }
     const g = Math.min(this.range[1], Math.max(this.range[0], this.key / lum));
     if (Math.abs(Math.log(g / this.goal)) > EYE_DEAD) this.goal = g;
   }
@@ -50,5 +58,7 @@ export class Eye {
   }
 
   /** The eye is still on its way: the view keeps drawing. */
-  get moving(): boolean { return Math.abs(Math.log(this.goal / this.seen)) > EYE_DONE; }
+  get moving(): boolean {
+    return Math.abs(Math.log(this.goal / this.seen)) > EYE_DONE;
+  }
 }

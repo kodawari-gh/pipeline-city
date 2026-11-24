@@ -4,11 +4,15 @@ import { cardCandidates, cardText } from './lodcard';
 import { RectCache } from './lodrect';
 
 /** A card `w` wide at (x, y). */
-const node = (x: number, y: number, w = 100): Container => ({ x, y, getLocalBounds: () => ({ x: 0, y: 0, width: w, height: 100 }) }) as unknown as Container;
+const node = (x: number, y: number, w = 100): Container =>
+  ({ x, y, getLocalBounds: () => ({ x: 0, y: 0, width: w, height: 100 }) }) as unknown as Container;
 const view = { x: 0, y: 0, w: 4000, h: 3000 };
 
 describe('cardCandidates', () => {
-  const cards = [{ slot: 'a', root: node(1950, 1450) }, { slot: 'b', root: node(50000, 5000) }];
+  const cards = [
+    { slot: 'a', root: node(1950, 1450) },
+    { slot: 'b', root: node(50000, 5000) },
+  ];
   it('lists only cards in view, with their id', () => {
     const out = cardCandidates('gpu', cards, new RectCache(), view, 1.6, 1.5);
     expect(out.map((c) => c.id)).toEqual(['gpu:a']);
@@ -18,16 +22,20 @@ describe('cardCandidates', () => {
     expect(cardCandidates('gpu', cards, new RectCache(), view, 1, 1.5)).toEqual([]);
   });
   it('does not care how big a card is: only the zoom and its distance from the centre', () => {
-    const small = [{ slot: 's', root: node(1950, 1450, 100) }], wide = [{ slot: 'w', root: node(1000, 1450, 2000) }];
+    const small = [{ slot: 's', root: node(1950, 1450, 100) }],
+      wide = [{ slot: 'w', root: node(1000, 1450, 2000) }];
     for (const z of [1, 1.6]) {
-      expect(cardCandidates('gpu', small, new RectCache(), view, z, 1.5)).toHaveLength(cardCandidates('gpu', wide, new RectCache(), view, z, 1.5).length);
+      expect(cardCandidates('gpu', small, new RectCache(), view, z, 1.5)).toHaveLength(
+        cardCandidates('gpu', wide, new RectCache(), view, z, 1.5).length,
+      );
     }
   });
 });
 
 describe('distance from the centre', () => {
   it('a card at the edge reaches the detail stage later than one at the centre', () => {
-    const near = [{ slot: 'a', root: node(1950, 1450) }], far = [{ slot: 'b', root: node(3800, 2900) }];
+    const near = [{ slot: 'a', root: node(1950, 1450) }],
+      far = [{ slot: 'b', root: node(3800, 2900) }];
     expect(cardCandidates('gpu', near, new RectCache(), view, 1.6, 1.5)).toHaveLength(1);
     expect(cardCandidates('gpu', far, new RectCache(), view, 1.6, 1.5)).toHaveLength(0);
     expect(cardCandidates('gpu', far, new RectCache(), view, 5, 1.5)).toHaveLength(1);

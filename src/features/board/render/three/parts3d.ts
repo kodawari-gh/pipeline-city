@@ -21,7 +21,10 @@ const steel = () => mat(0x959aa3, { metalness: 0.85, roughness: 0.32 });
 function screw(g: Group, x: number, y: number, z: number, r: number) {
   g.add(drum(x, y, z, z + r * 0.45, r, steel(), SEG.disc));
   const slot = mat(0x1d1e22, { roughness: 0.6 });
-  g.add(rectBox({ x: x - r * 0.6, y: y - r * 0.1, w: r * 1.2, h: r * 0.2 }, z + r * 0.4, z + r * 0.47, slot), rectBox({ x: x - r * 0.1, y: y - r * 0.6, w: r * 0.2, h: r * 1.2 }, z + r * 0.4, z + r * 0.47, slot));
+  g.add(
+    rectBox({ x: x - r * 0.6, y: y - r * 0.1, w: r * 1.2, h: r * 0.2 }, z + r * 0.4, z + r * 0.47, slot),
+    rectBox({ x: x - r * 0.1, y: y - r * 0.6, w: r * 0.2, h: r * 1.2 }, z + r * 0.4, z + r * 0.47, slot),
+  );
 }
 
 // ------------------------------------------------------------------ M.2
@@ -30,9 +33,13 @@ function screw(g: Group, x: number, y: number, z: number, r: number) {
  * corners and as tall as the socket holds the stick, its M2 thread dark in its top.
  */
 export function m2Standoff(m: RectLike): Group {
-  const [x, y] = m2Standoffs(m)[2]!, g = new Group();
+  const [x, y] = m2Standoffs(m)[2]!,
+    g = new Group();
   g.add(drum(x, y, BOARD_Z, BOARD_Z + 42, 52, brass(), SEG.lowDisc));
-  const hole = new Mesh(new CylinderGeometry(20, 20, 0.6, SEG.post).rotateX(Math.PI / 2), mat(0x1d1e22, { roughness: 0.8 }));
+  const hole = new Mesh(
+    new CylinderGeometry(20, 20, 0.6, SEG.post).rotateX(Math.PI / 2),
+    mat(0x1d1e22, { roughness: 0.8 }),
+  );
   hole.position.set(x, -y, BOARD_Z + 41.7);
   g.add(hole);
   return g;
@@ -49,26 +56,50 @@ export const PCH_OVER = 44;
  * with a silver plateau and a lit strip along its south face). The plateau wears the 2D drawing (`pchPlateau`). `glow`: the strip's material.
  */
 export function chipset(q: RectLike, tier: number, raise: Raise): { root: Group; glow: MeshStandardMaterial | null } {
-  const g = new Group(), Z = BOARD_Z;
-  if (tier === 0) { raise(g, q, Z, Z + 50, mat(0x050608, { roughness: 0.62 }), 8); return { root: g, glow: null }; }
+  const g = new Group(),
+    Z = BOARD_Z;
+  if (tier === 0) {
+    raise(g, q, Z, Z + 50, mat(0x050608, { roughness: 0.62 }), 8);
+    return { root: g, glow: null };
+  }
   // (the package's legs stand 30 high: the sink's base clears them by a hair, so from any angle its edge hides them)
-  const facet = tier >= 2, s = grow(q, PCH_OVER), pad = Z + 34, top = Z + (facet ? 150 : 112);
+  const facet = tier >= 2,
+    s = grow(q, PCH_OVER),
+    pad = Z + 34,
+    top = Z + (facet ? 150 : 112);
   // the package under it (its sides show in the shadow gap) and the thermal pad's edge
-  g.add(rectBox(q, Z, pad - 4, mat(0x050608, { roughness: 0.6 })), rectBox(grow(q, -16), pad - 4, pad, mat(0x959aa3, { roughness: 0.85 })));
-  const sk = skinOf(tier), body = facet
-    ? mat(hexNum(sk.sink), { metalness: 0.55, roughness: 0.42, map: tiled(brushed(), 2, 2) })
-    : mat(hexNum(sk.sink), { metalness: 0.35, roughness: 0.55 });
+  g.add(
+    rectBox(q, Z, pad - 4, mat(0x050608, { roughness: 0.6 })),
+    rectBox(grow(q, -16), pad - 4, pad, mat(0x959aa3, { roughness: 0.85 })),
+  );
+  const sk = skinOf(tier),
+    body = facet
+      ? mat(hexNum(sk.sink), { metalness: 0.55, roughness: 0.42, map: tiled(brushed(), 2, 2) })
+      : mat(hexNum(sk.sink), { metalness: 0.35, roughness: 0.55 });
   // (the chamfers stay clear of the corner legs' tips: a leg row starts 30 in from the package's corner and its legs reach 22 out)
   const cut = 64;
-  g.add(slab(shapeOf(outlinePts(s, facet ? 0 : 24, facet ? [cut, cut, cut, cut] : NONE)), pad, top, body, facet ? 10 : 8));
+  g.add(
+    slab(shapeOf(outlinePts(s, facet ? 0 : 24, facet ? [cut, cut, cut, cut] : NONE)), pad, top, body, facet ? 10 : 8),
+  );
   const pl = pchPlateau(q, tier);
-  raise(g, pl, top - 4, top + (facet ? 38 : 14), sk.insert ? mat(hexNum(sk.insert), { metalness: 0.6, roughness: 0.42 }) : body, facet ? 8 : 4);
+  raise(
+    g,
+    pl,
+    top - 4,
+    top + (facet ? 38 : 14),
+    sk.insert ? mat(hexNum(sk.insert), { metalness: 0.6, roughness: 0.42 }) : body,
+    facet ? 8 : 4,
+  );
   for (const [x, y] of pchFixings(q, tier)) {
     if (facet) {
       // a spring screw: the coil round the shank under the head
       g.add(drum(x, y, top, top + 26, 13, mat(0x959aa3, { metalness: 0.7, roughness: 0.4 }), SEG.chipRound));
       screw(g, x, y, top + 26, 20);
-    } else g.add(drum(x, y, top, top + 10, 18, mat(NYLON, { roughness: 0.6 }), SEG.roundCap), drum(x, y, top + 10, top + 18, 11, mat(NYLON, { roughness: 0.6 }), SEG.chipRound));
+    } else
+      g.add(
+        drum(x, y, top, top + 10, 18, mat(NYLON, { roughness: 0.6 }), SEG.roundCap),
+        drum(x, y, top + 10, top + 18, 11, mat(NYLON, { roughness: 0.6 }), SEG.chipRound),
+      );
   }
   let glow: MeshStandardMaterial | null = null;
   if (tier === 3) {
@@ -84,26 +115,43 @@ let cellTex: Texture | null | undefined;
 /** The coin cell's top: brushed steel, the + and the type stamped in it. */
 function cellTop(): Texture | null {
   if (cellTex !== undefined) return cellTex;
-  return cellTex = shareTex(paint(256, 256, (c, w, h) => {
-    const g = c.createRadialGradient(w * 0.4, h * 0.35, 10, w / 2, h / 2, w / 2);
-    g.addColorStop(0, '#dfe4ea'); g.addColorStop(1, '#8d96a2');
-    c.fillStyle = g; c.fillRect(0, 0, w, h);
-    c.fillStyle = 'rgba(40,46,56,0.55)'; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.font = '700 64px system-ui, sans-serif'; c.fillText('+', w / 2, h * 0.34);
-    c.font = '600 40px system-ui, sans-serif'; c.fillText('CR2032', w / 2, h * 0.62);
-  }));
+  return (cellTex = shareTex(
+    paint(256, 256, (c, w, h) => {
+      const g = c.createRadialGradient(w * 0.4, h * 0.35, 10, w / 2, h / 2, w / 2);
+      g.addColorStop(0, '#dfe4ea');
+      g.addColorStop(1, '#8d96a2');
+      c.fillStyle = g;
+      c.fillRect(0, 0, w, h);
+      c.fillStyle = 'rgba(40,46,56,0.55)';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.font = '700 64px system-ui, sans-serif';
+      c.fillText('+', w / 2, h * 0.34);
+      c.font = '600 40px system-ui, sans-serif';
+      c.fillText('CR2032', w / 2, h * 0.62);
+    }),
+  ));
 }
 
 /** The board's coin cell over its 2D rect: a dark holder, the cell in it, the spring clip across its top. */
 export function coinCell(r: RectLike): Group {
-  const g = new Group(), cx = r.x + r.w / 2, cy = r.y + r.h / 2, R = Math.min(r.w, r.h) / 2;
+  const g = new Group(),
+    cx = r.x + r.w / 2,
+    cy = r.y + r.h / 2,
+    R = Math.min(r.w, r.h) / 2;
   g.add(drum(cx, cy, BOARD_Z, BOARD_Z + 26, R + 14, mat(0x1d1e22, { roughness: 0.55 }), SEG.bigDisc));
   // (a satin top: a mirror one flares white under the lamp up close)
-  const side = mat(0xb9babf, { metalness: 0.8, roughness: 0.4 }), cell = place(new Mesh(new CylinderGeometry(R, R, 30, SEG.drum).rotateX(Math.PI / 2), [side, mat(0xffffff, { map: cellTop(), metalness: 0.65, roughness: 0.48 }), side]));
+  const side = mat(0xb9babf, { metalness: 0.8, roughness: 0.4 }),
+    cell = place(
+      new Mesh(new CylinderGeometry(R, R, 30, SEG.drum).rotateX(Math.PI / 2), [
+        side,
+        mat(0xffffff, { map: cellTop(), metalness: 0.65, roughness: 0.48 }),
+        side,
+      ]),
+    );
   cell.position.set(cx, -cy, BOARD_Z + 34);
   cell.rotation.z = -Math.PI / 2; // the stamp reads across, as the board's text does
   g.add(cell);
   g.add(softBox({ x: cx - R - 22, y: cy - 16, w: R * 0.9, h: 32 }, BOARD_Z + 46, BOARD_Z + 56, steel(), 6));
   return g;
 }
-

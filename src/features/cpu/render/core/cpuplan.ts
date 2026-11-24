@@ -8,22 +8,67 @@
 
 import type { EngineConfig } from '../../sim/engines';
 
-export interface Rect { x: number; y: number; w: number; h: number }
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 export type Pt = [number, number];
 
 export type BlockKind =
   // the die's edge: the parts that talk to the board
-  | 'power' | 'thermal' | 'mc' | 'pcie' | 'clock' | 'usb' | 'display' | 'intc' | 'timer' | 'mpu' | 'fabric'
+  | 'power'
+  | 'thermal'
+  | 'mc'
+  | 'pcie'
+  | 'clock'
+  | 'usb'
+  | 'display'
+  | 'intc'
+  | 'timer'
+  | 'mpu'
+  | 'fabric'
   // the core
-  | 'stage' | 'latch'
-  | 'pc' | 'pcadd' | 'nextpc' | 'fetch' | 'port' | 'icache' | 'predictor' | 'queue'
-  | 'imm' | 'decode' | 'bundle' | 'hazard' | 'control'
-  | 'regfile' | 'alu' | 'mul' | 'branch' | 'forward' | 'mmio' | 'lsu' | 'wb'
-  | 'dcache' | 'l2' | 'tlb'
-  | 'rename' | 'rob' | 'sched' | 'resultbus' | 'ring';
+  | 'stage'
+  | 'latch'
+  | 'pc'
+  | 'pcadd'
+  | 'nextpc'
+  | 'fetch'
+  | 'port'
+  | 'icache'
+  | 'predictor'
+  | 'queue'
+  | 'imm'
+  | 'decode'
+  | 'bundle'
+  | 'hazard'
+  | 'control'
+  | 'regfile'
+  | 'alu'
+  | 'mul'
+  | 'branch'
+  | 'forward'
+  | 'mmio'
+  | 'lsu'
+  | 'wb'
+  | 'dcache'
+  | 'l2'
+  | 'tlb'
+  | 'rename'
+  | 'rob'
+  | 'sched'
+  | 'resultbus'
+  | 'ring';
 
 /** Entries a block shows as cells, an exact `cols` x `rows` (never a partial row). */
-export interface Grid { cols: number; rows: number; count: number; ring?: boolean }
+export interface Grid {
+  cols: number;
+  rows: number;
+  count: number;
+  ring?: boolean;
+}
 
 export interface Block {
   id: string;
@@ -100,14 +145,24 @@ export interface CpuPlan {
 export function planInput(e: EngineConfig, extra: Partial<PlanInput> = {}): PlanInput {
   const base: PlanInput = { arch: 'unpipelined' };
   switch (e.kind) {
-    case 'ref': case 'unpipelined':
-      base.arch = 'unpipelined'; break;
+    case 'ref':
+    case 'unpipelined':
+      base.arch = 'unpipelined';
+      break;
     case 'inorder':
-      base.arch = 'inorder'; base.forwarding = e.forwarding ?? true; break;
+      base.arch = 'inorder';
+      base.forwarding = e.forwarding ?? true;
+      break;
     case 'inorder2':
-      base.arch = 'inorder2'; base.forwarding = e.forwarding ?? true; break;
+      base.arch = 'inorder2';
+      base.forwarding = e.forwarding ?? true;
+      break;
     case 'ooo':
-      base.arch = 'ooo'; base.width = e.width ?? 2; base.robSize = e.robSize ?? 8; base.schedSize = e.schedSize ?? 6; base.fetchQueue = e.fetchQueue ?? 4;
+      base.arch = 'ooo';
+      base.width = e.width ?? 2;
+      base.robSize = e.robSize ?? 8;
+      base.schedSize = e.schedSize ?? 6;
+      base.fetchQueue = e.fetchQueue ?? 4;
       base.commitWidth = e.commitWidth ?? base.width;
       break;
   }
@@ -131,7 +186,7 @@ export function gridExact(n: number, w: number, h: number): Grid {
   for (let cols = 1; cols <= n; cols++) {
     if (n % cols !== 0) continue;
     const rows = n / cols;
-    const score = Math.abs(Math.log((w / cols) / (h / rows) / 1.5));
+    const score = Math.abs(Math.log(w / cols / (h / rows) / 1.5));
     if (score < best.score - 1e-9) best = { cols, rows, score };
   }
   return { cols: best.cols, rows: best.rows, count: n };

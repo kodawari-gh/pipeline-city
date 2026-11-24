@@ -4,7 +4,15 @@ import { selected, viewInset } from '../../app/hover';
 import { booted } from '../../app/boot';
 import { dragging, highlight } from '../../app/interaction';
 import {
-  lastRunSpeed, leaving, snapshot, speed, starting, toggleZoomSlow, togglePause, zoomSlowOn, zoomSlowdown,
+  lastRunSpeed,
+  leaving,
+  snapshot,
+  speed,
+  starting,
+  toggleZoomSlow,
+  togglePause,
+  zoomSlowOn,
+  zoomSlowdown,
 } from '../../app/store';
 import { SPEEDS } from '../../worker/protocol';
 import { fmtMoney, fmtNum, fmtTicks, isOsActivity, statusChip } from './logic';
@@ -36,11 +44,27 @@ import { LogPanel } from './panels/LogPanel';
 import { CrashPanel } from './panels/CrashPanel';
 import { SettingsScreen } from './panels/Settings';
 import {
-  buildOpen, closeControls, controlsOpen, galleryOpen, gameMenuOpen, holdActive, netOpen, osOpen, runAt, toggleOs, statsOpen, toggleNet, toggleStats, tutorial,
+  buildOpen,
+  closeControls,
+  controlsOpen,
+  galleryOpen,
+  gameMenuOpen,
+  holdActive,
+  netOpen,
+  osOpen,
+  runAt,
+  toggleOs,
+  statsOpen,
+  toggleNet,
+  toggleStats,
+  tutorial,
 } from './state';
 
 /** What the Paused screen needs from two features (it imports none itself). */
-const PAUSED_FEATURES: PausedFeatures = { netChip: hudNetChip, tutorialOn: (s) => currentStep(s, tutorial.value) !== null };
+const PAUSED_FEATURES: PausedFeatures = {
+  netChip: hudNetChip,
+  tutorialOn: (s) => currentStep(s, tutorial.value) !== null,
+};
 
 /** The tutorial points at a number in the bar: `hud:<name>` in the highlight list pulses it. */
 const lit = (name: string) => (highlight.value.includes(`hud:${name}`) ? 'pulse' : '');
@@ -61,28 +85,70 @@ const phoneLayout = () => window.matchMedia?.('(max-width: 48em)').matches ?? fa
  */
 function SpeedControl() {
   const [open, setOpen] = useState(false);
-  const v = speed.value, shown = v === 0 ? lastRunSpeed.value : v, held = holdActive.value;
+  const v = speed.value,
+    shown = v === 0 ? lastRunSpeed.value : v,
+    held = holdActive.value;
   // A hold (popup, menu) cannot be lifted here: the rail says "Held" and no resume hint.
   return (
     <div class={`speedctl ${open ? 'open' : ''}`} onMouseLeave={() => setOpen(false)}>
-      <button class="icon pp" data-cue="silent" aria-label={v === 0 ? (held ? 'Held' : 'Resume') : 'Pause'} title={v === 0 ? (held ? 'Held: a popup or the menu holds the clock' : 'Resume (Space)') : 'Pause (Space)'} aria-pressed={v === 0} onClick={() => { if (!held) togglePause(); }}>
+      <button
+        class="icon pp"
+        data-cue="silent"
+        aria-label={v === 0 ? (held ? 'Held' : 'Resume') : 'Pause'}
+        title={v === 0 ? (held ? 'Held: a popup or the menu holds the clock' : 'Resume (Space)') : 'Pause (Space)'}
+        aria-pressed={v === 0}
+        onClick={() => {
+          if (!held) togglePause();
+        }}
+      >
         <Icon name={v === 0 && !held ? 'play' : 'pause'} size={14} />
         {v === 0 && <span class="pp-state">{held ? 'Held' : 'Paused'}</span>}
       </button>
       {!phoneLayout() && (
-        <button class="icon zs" data-cue="ui_click" aria-label="Slow down when zoomed in" aria-pressed={zoomSlowOn.value}
-          title={zoomSlowOn.value ? 'Slow motion when zoomed in: on (click to turn off)' : 'Slow motion when zoomed in: off (click to turn on)'} onClick={toggleZoomSlow}>
+        <button
+          class="icon zs"
+          data-cue="ui_click"
+          aria-label="Slow down when zoomed in"
+          aria-pressed={zoomSlowOn.value}
+          title={
+            zoomSlowOn.value
+              ? 'Slow motion when zoomed in: on (click to turn off)'
+              : 'Slow motion when zoomed in: off (click to turn on)'
+          }
+          onClick={toggleZoomSlow}
+        >
           <Icon name="gauge" size={14} />
         </button>
       )}
-      <div class="seg speeds" role="group" aria-label="Speed" onClick={(e) => {
-        // phone: a tap on a step button is handled by that button; a tap on the gap between steps steps here
-        if (phoneLayout()) { if (!held && !(e.target as Element).closest('button')) runAt(nextSpeed(shown)); }
-        // a speed button runs its speed and closes the rail (above): the click that bubbles here must not reopen it
-        else if (!(e.target as Element).closest('button')) setOpen(true);
-      }}>
+      <div
+        class="seg speeds"
+        role="group"
+        aria-label="Speed"
+        onClick={(e) => {
+          // phone: a tap on a step button is handled by that button; a tap on the gap between steps steps here
+          if (phoneLayout()) {
+            if (!held && !(e.target as Element).closest('button')) runAt(nextSpeed(shown));
+          }
+          // a speed button runs its speed and closes the rail (above): the click that bubbles here must not reopen it
+          else if (!(e.target as Element).closest('button')) setOpen(true);
+        }}
+      >
         {runSteps.map((x) => (
-          <button key={x} data-cue="silent" class={shown === x ? 'on' : ''} aria-pressed={shown === x && v !== 0} title={speedTitle(x)} onClick={() => { if (phoneLayout()) { if (!held) runAt(nextSpeed(shown)); } else { runAt(x); setOpen(false); } }}>
+          <button
+            key={x}
+            data-cue="silent"
+            class={shown === x ? 'on' : ''}
+            aria-pressed={shown === x && v !== 0}
+            title={speedTitle(x)}
+            onClick={() => {
+              if (phoneLayout()) {
+                if (!held) runAt(nextSpeed(shown));
+              } else {
+                runAt(x);
+                setOpen(false);
+              }
+            }}
+          >
             {speedLabel(x)}
           </button>
         ))}
@@ -97,7 +163,11 @@ function SpeedControl() {
  */
 function Title({ on, quick = false }: { on: boolean; quick?: boolean }) {
   // `quick`: a studio screen covers the room, and the name must not show through it as it fades
-  return <div class={`title ${on ? '' : 'gone'} ${quick ? 'quick' : ''}`} aria-hidden={!on}>Pipeline City</div>;
+  return (
+    <div class={`title ${on ? '' : 'gone'} ${quick ? 'quick' : ''}`} aria-hidden={!on}>
+      Pipeline City
+    </div>
+  );
 }
 
 /** Space pauses and resumes. It leaves text fields and sliders alone, and an open dialog keeps Space for its own buttons. */
@@ -116,10 +186,15 @@ function PauseKey() {
       (document.activeElement as HTMLElement | null)?.blur?.(); // a focused button would also take the Space as a press
       if (!holdActive.peek()) togglePause();
     };
-    const up = (e: KeyboardEvent) => { if (mine(e)) e.preventDefault(); };
+    const up = (e: KeyboardEvent) => {
+      if (mine(e)) e.preventDefault();
+    };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
-    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+    };
   }, []);
   // (no pause pill: the speed rail shows the paused state)
   return null;
@@ -128,7 +203,11 @@ function PauseKey() {
 /** Zoomed in, the machine is shown in slow motion so a block can be followed: a line under the rail says so, and how to get the full pace back. */
 function SlowNote() {
   const slow = zoomSlowdown.value;
-  return slow < 0.97 ? <div class="slow-note" role="status">Slow motion {Math.round(slow * 100)}% <span class="mute">zoomed in · zoom out for full pace</span></div> : null;
+  return slow < 0.97 ? (
+    <div class="slow-note" role="status">
+      Slow motion {Math.round(slow * 100)}% <span class="mute">zoomed in · zoom out for full pace</span>
+    </div>
+  ) : null;
 }
 
 /**
@@ -142,7 +221,8 @@ function InsetReporter() {
     // under the pointer mid-drag. The part is hidden, the space is kept.
     let invKept: { side: 'bottom' | 'right'; v: number } | null = null;
     const measure = () => {
-      const W = window.innerWidth, H = window.innerHeight;
+      const W = window.innerWidth,
+        H = window.innerHeight;
       const gap = parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.5;
       const next = { top: 0, right: 0, bottom: 0, left: 0 };
       // The edge tabs (`.hud-side`) are the HUD's boxes: the bar itself spans the screen, so it is not measured.
@@ -165,7 +245,10 @@ function InsetReporter() {
           next.bottom = Math.max(next.bottom, Math.ceil(H - r.top + gap));
         } else if (el.classList.contains('inv')) {
           invSeen = true;
-          if (!el.classList.contains('away')) invKept = side ? { side: 'right', v: Math.ceil(W - r.left + gap) } : { side: 'bottom', v: Math.ceil(H - r.top + gap) };
+          if (!el.classList.contains('away'))
+            invKept = side
+              ? { side: 'right', v: Math.ceil(W - r.left + gap) }
+              : { side: 'bottom', v: Math.ceil(H - r.top + gap) };
           if (invKept) next[invKept.side] = Math.max(next[invKept.side], invKept.v);
         } else if (side) {
           if (r.left + r.width / 2 < W / 2) next.left = Math.max(next.left, Math.ceil(r.right + gap));
@@ -174,23 +257,31 @@ function InsetReporter() {
       }
       if (!invSeen) invKept = null;
       const cur = viewInset.peek();
-      if (cur.top !== next.top || cur.right !== next.right || cur.bottom !== next.bottom || cur.left !== next.left) viewInset.value = next;
+      if (cur.top !== next.top || cur.right !== next.right || cur.bottom !== next.bottom || cur.left !== next.left)
+        viewInset.value = next;
     };
     measure();
     const mo = hud ? new MutationObserver(measure) : null;
     // `style` too: the tutorial card's height is set in its style (its fit), and the picker moves by its style.
-    if (hud) mo!.observe(hud, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+    if (hud)
+      mo!.observe(hud, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
     window.addEventListener('resize', measure);
-    return () => { mo?.disconnect(); window.removeEventListener('resize', measure); };
+    return () => {
+      mo?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
   }, []);
   return null;
 }
 
-
 function Reputation({ s }: { s: NonNullable<typeof snapshot.value> }) {
   const perMin = s.demandRate * 60;
   return (
-    <div class={`stat ${lit('reputation')}`} data-hud="reputation" title={`Reputation ${fmtNum(s.reputation, 2)}: from how fast you answer. Demand ${fmtNum(perMin, 1)} keys a minute.`}>
+    <div
+      class={`stat ${lit('reputation')}`}
+      data-hud="reputation"
+      title={`Reputation ${fmtNum(s.reputation, 2)}: from how fast you answer. Demand ${fmtNum(perMin, 1)} keys a minute.`}
+    >
       <Icon name="star" size={14} />
       <span class="value">{fmtNum(s.reputation, 2)}</span>
     </div>
@@ -201,7 +292,11 @@ function Reputation({ s }: { s: NonNullable<typeof snapshot.value> }) {
 function PhaseChip({ s }: { s: NonNullable<typeof snapshot.value> }) {
   const c = statusChip(s);
   // The chip pulses while the OS is doing work; `.paused` on the root stops it when the game is paused.
-  return <span class={`chip ${c.level} ${isOsActivity(s.phase) ? 'live' : ''}`} role="status" title={c.title}>{c.text}</span>;
+  return (
+    <span class={`chip ${c.level} ${isOsActivity(s.phase) ? 'live' : ''}`} role="status" title={c.title}>
+      {c.text}
+    </span>
+  );
 }
 
 /** Network chip: appears once a router exists, shows the link speed or why there is none. Opens the network panel. */
@@ -209,7 +304,13 @@ function NetChipButton({ s }: { s: NonNullable<typeof snapshot.value> }) {
   const c = hudNetChip(s);
   if (!c) return null;
   return (
-    <button class={`chip ${c.level}`} data-cue="ui_click" title={c.title} aria-pressed={netOpen.value} onClick={toggleNet}>
+    <button
+      class={`chip ${c.level}`}
+      data-cue="ui_click"
+      title={c.title}
+      aria-pressed={netOpen.value}
+      onClick={toggleNet}
+    >
       <Icon name={c.icon} size={12} /> {c.text}
     </button>
   );
@@ -219,7 +320,14 @@ function NetChipButton({ s }: { s: NonNullable<typeof snapshot.value> }) {
 function OsChipButton({ s }: { s: NonNullable<typeof snapshot.value> }) {
   if (!s.os) return null;
   return (
-    <button class="chip idle" data-cue="ui_click" data-cue-next="ui_transition_in" title="The operating system: resource monitor, job queue and apps" aria-pressed={osOpen.value} onClick={toggleOs}>
+    <button
+      class="chip idle"
+      data-cue="ui_click"
+      data-cue-next="ui_transition_in"
+      title="The operating system: resource monitor, job queue and apps"
+      aria-pressed={osOpen.value}
+      onClick={toggleOs}
+    >
       <Icon name="layers" size={12} /> OS {s.os.spool.used}/{s.os.spool.slots}
     </button>
   );
@@ -257,7 +365,10 @@ function Starting({ text = 'Starting…', hint }: { text?: string; hint?: string
   return (
     <div class="starting" role="status" aria-live="polite">
       <i class="starting-ring" aria-hidden="true" />
-      <span class="starting-text">{text}{hint && <small class="starting-hint">{hint}</small>}</span>
+      <span class="starting-text">
+        {text}
+        {hint && <small class="starting-hint">{hint}</small>}
+      </span>
     </div>
   );
 }
@@ -272,11 +383,22 @@ export function Hud() {
     const ready = booted.value;
     return (
       <>
-        {starting.value ? <Starting text={ready ? 'Starting…' : 'Getting the room ready…'} hint={STARTING_HINT} /> : <MainMenu ready={ready} />}
+        {starting.value ? (
+          <Starting text={ready ? 'Starting…' : 'Getting the room ready…'} hint={STARTING_HINT} />
+        ) : (
+          <MainMenu ready={ready} />
+        )}
         <NewGameScreen />
-        {ready && <><Gallery /><BuildMode /></>}
+        {ready && (
+          <>
+            <Gallery />
+            <BuildMode />
+          </>
+        )}
         <LoadConfirm />
-        <div class="stack over-menu"><Notice /></div>
+        <div class="stack over-menu">
+          <Notice />
+        </div>
       </>
     );
   }
@@ -291,8 +413,12 @@ export function Hud() {
         <div class="hud-side hud-left">
           {/* what the player earns and spends, then what the machine is doing, then (a sandbox) its tools: three groups with a hairline between */}
           <div class="hud-grp hud-econ">
-            <div class={`money ${lit('money')}`} data-hud="money" title="Money. Finish client keys to earn more.">{s.sandbox ? '∞' : fmtMoney(s.money)}</div>
-            <span class="time" title="Game time">{fmtTicks(s.baseTick)}</span>
+            <div class={`money ${lit('money')}`} data-hud="money" title="Money. Finish client keys to earn more.">
+              {s.sandbox ? '∞' : fmtMoney(s.money)}
+            </div>
+            <span class="time" title="Game time">
+              {fmtTicks(s.baseTick)}
+            </span>
             <Reputation s={s} />
             <PowerBill s={s} />
           </div>
@@ -313,11 +439,25 @@ export function Hud() {
           )}
         </div>
         {/* (a sandbox pins the rules level: its Jobs button says it, so the bar has no second pill for it) */}
-        {!s.sandbox && <div class={`hud-side hud-center ${lit('level')}`} data-hud="level"><LevelBar s={s} /></div>}
+        {!s.sandbox && (
+          <div class={`hud-side hud-center ${lit('level')}`} data-hud="level">
+            <LevelBar s={s} />
+          </div>
+        )}
         <div class="hud-side hud-right">
           <SpeedControl />
           <div class="menu">
-            <button class={`icon ${menuOpen ? 'on' : ''}`} data-cue="silent" aria-expanded={menuOpen} aria-haspopup="menu" aria-label="Menu" title="Menu (Esc)" onClick={() => { gameMenuOpen.value = !menuOpen; }}>
+            <button
+              class={`icon ${menuOpen ? 'on' : ''}`}
+              data-cue="silent"
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              aria-label="Menu"
+              title="Menu (Esc)"
+              onClick={() => {
+                gameMenuOpen.value = !menuOpen;
+              }}
+            >
               <Icon name="menu" size={14} />
             </button>
           </div>
@@ -331,7 +471,9 @@ export function Hud() {
       <Shop s={s} />
       {statsOpen.value && (
         <aside class="dock" aria-label="Stats">
-          <button class="close" data-cue="ui_panel_close" aria-label="Close stats" onClick={toggleStats}><Icon name="close" size={11} /></button>
+          <button class="close" data-cue="ui_panel_close" aria-label="Close stats" onClick={toggleStats}>
+            <Icon name="close" size={11} />
+          </button>
           <Stats />
         </aside>
       )}

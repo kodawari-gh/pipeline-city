@@ -3,10 +3,34 @@ import { describe, expect, it } from 'vitest';
 import { DARK, JACK_GLOW, LinkLeds, STRETCH, lightJack, linkOf, type LinkSource } from './jackleds';
 
 /** A snapshot's share: the PC on or off, a router and a plan or none, a cable in the board's jack or none, the frames counted so far. */
-function src(o: { tick?: number; on?: boolean; tripped?: boolean; router?: boolean; isp?: boolean; plugged?: boolean; mbps?: number; rx?: number; tx?: number } = {}): LinkSource {
-  const { tick = 0, on = true, tripped = false, router = true, isp = true, plugged = true, mbps = 100, rx = 0, tx = 0 } = o;
+function src(
+  o: {
+    tick?: number;
+    on?: boolean;
+    tripped?: boolean;
+    router?: boolean;
+    isp?: boolean;
+    plugged?: boolean;
+    mbps?: number;
+    rx?: number;
+    tx?: number;
+  } = {},
+): LinkSource {
+  const {
+    tick = 0,
+    on = true,
+    tripped = false,
+    router = true,
+    isp = true,
+    plugged = true,
+    mbps = 100,
+    rx = 0,
+    tx = 0,
+  } = o;
   return {
-    baseTick: tick, powered: on, power: { tripped },
+    baseTick: tick,
+    powered: on,
+    power: { tripped },
     net: {
       port: plugged ? { kind: 'board', deviceId: null, mbps } : { kind: null, deviceId: null, mbps: 0 },
       router: router ? { id: 'router1', name: 'Home router', mbps: 100, clients: 2, visual: 'router-home' } : null,
@@ -17,7 +41,7 @@ function src(o: { tick?: number; on?: boolean; tripped?: boolean; router?: boole
 }
 
 describe('the link lights', () => {
-  it('light the PC end and the router\'s LAN jack when the cable is in, the router stands and the PC is on', () => {
+  it("light the PC end and the router's LAN jack when the cable is in, the router stands and the PC is on", () => {
     expect(linkOf(src())).toEqual({ pc: true, wan: true });
     const lv = new LinkLeds().step(src(), 0.016);
     expect(lv.pc.link).toBe(1);
@@ -30,8 +54,9 @@ describe('the link lights', () => {
     expect(linkOf(src({ isp: false })).wan).toBe(false);
   });
 
-  it('go out with the PC: off, a tripped supply, a burnt port; the router\'s WAN light stays with its plan', () => {
-    for (const o of [{ on: false }, { tripped: true }, { mbps: 0 }]) expect(linkOf(src(o)), JSON.stringify(o)).toEqual({ pc: false, wan: true });
+  it("go out with the PC: off, a tripped supply, a burnt port; the router's WAN light stays with its plan", () => {
+    for (const o of [{ on: false }, { tripped: true }, { mbps: 0 }])
+      expect(linkOf(src(o)), JSON.stringify(o)).toEqual({ pc: false, wan: true });
   });
 
   it('are out without a cable or without a router', () => {
@@ -69,7 +94,7 @@ describe('the activity lights', () => {
     expect(after.moving).toBe(false);
   });
 
-  it('are the same on the PC\'s port and the router\'s LAN jack, and on the WAN while a plan is there', () => {
+  it("are the same on the PC's port and the router's LAN jack, and on the WAN while a plan is there", () => {
     const l = new LinkLeds();
     l.step(src({ tick: 0 }), 0);
     const lv = l.step(src({ tick: 1, rx: 5000, tx: 2500 }), 0.016);
@@ -87,7 +112,7 @@ describe('the activity lights', () => {
     expect(l.framesPerTick).toBeCloseTo(4167 + 2083, 5);
   });
 
-  it('count both ways: a lone upload\'s data frames out make it light as well', () => {
+  it("count both ways: a lone upload's data frames out make it light as well", () => {
     const l = new LinkLeds();
     l.step(src({ tick: 0 }), 0);
     expect(l.step(src({ tick: 1, rx: 100, tx: 200 }), 0.016).pc.act).toBe(1);
@@ -97,9 +122,13 @@ describe('the activity lights', () => {
     const l = new LinkLeds();
     l.step(src({ tick: 0 }), 0);
     // 10 frames a tick (a stretch of 0.03 s: 10 x 0.03 = 0.3 of the time lit)
-    const dt = 0.005, lit: number[] = [];
-    let on = 0, edges = 0, last = l.step(src({ tick: 1, rx: 7, tx: 3 }), 0).pc.act;
-    for (let k = 0; k < 200; k++) { // one second
+    const dt = 0.005,
+      lit: number[] = [];
+    let on = 0,
+      edges = 0,
+      last = l.step(src({ tick: 1, rx: 7, tx: 3 }), 0).pc.act;
+    for (let k = 0; k < 200; k++) {
+      // one second
       const lv = l.step(src({ tick: 1, rx: 7, tx: 3 }), dt);
       lit.push(lv.pc.act);
       on += lv.pc.act;

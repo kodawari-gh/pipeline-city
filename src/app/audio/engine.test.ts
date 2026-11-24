@@ -14,20 +14,43 @@ const ALL_FILES = [...new Set(MIX.cues.flatMap((c) => c.files.map(rel)))];
 class Param {
   log: number[] = [];
   private v = 1;
-  get value(): number { return this.v; }
-  set value(x: number) { this.v = x; this.log.push(x); }
-  setTargetAtTime(x: number): this { this.log.push(x); return this; }
-  setValueAtTime(x: number): this { this.log.push(x); return this; }
-  linearRampToValueAtTime(x: number): this { this.log.push(x); return this; }
-  cancelScheduledValues(): this { return this; }
+  get value(): number {
+    return this.v;
+  }
+  set value(x: number) {
+    this.v = x;
+    this.log.push(x);
+  }
+  setTargetAtTime(x: number): this {
+    this.log.push(x);
+    return this;
+  }
+  setValueAtTime(x: number): this {
+    this.log.push(x);
+    return this;
+  }
+  linearRampToValueAtTime(x: number): this {
+    this.log.push(x);
+    return this;
+  }
+  cancelScheduledValues(): this {
+    return this;
+  }
 }
 class Node {
-  connect<T>(n: T): T { return n; }
+  connect<T>(n: T): T {
+    return n;
+  }
   disconnect(): void {}
 }
-class Gain extends Node { gain = new Param(); }
+class Gain extends Node {
+  gain = new Param();
+}
 /** A lowpass filter stand-in: engine.ts sets its type and cutoff per music voice. */
-class Filter extends Node { type = ""; frequency = new Param(); }
+class Filter extends Node {
+  type = '';
+  frequency = new Param();
+}
 class Source extends Node {
   buffer: { path: string; length: number } | null = null;
   playbackRate = new Param();
@@ -39,8 +62,13 @@ class Source extends Node {
   loopEnd = -1;
   /** The context time the engine asked this source to start at. */
   when = -1;
-  start(when = 0): void { this.started = true; this.when = when; }
-  stop(): void { this.stopped = true; }
+  start(when = 0): void {
+    this.started = true;
+    this.when = when;
+  }
+  stop(): void {
+    this.stopped = true;
+  }
 }
 /** A stand-in AudioContext. Every node it makes is kept, so a test can read the calls. */
 class FakeCtx {
@@ -50,17 +78,39 @@ class FakeCtx {
   destination = new Node();
   gains: Gain[] = [];
   sources: Source[] = [];
-  constructor() { FakeCtx.last = this; }
-  createGain(): Gain { const g = new Gain(); this.gains.push(g); return g; }
-  createDelay() { return Object.assign(new Gain(), { delayTime: new Param() }); }
-  createBufferSource(): Source { const s = new Source(); this.sources.push(s); return s; }
-  createBiquadFilter(): Filter { return new Filter(); }
-  resume(): Promise<void> { this.state = 'running'; return Promise.resolve(); }
-  suspend(): Promise<void> { this.state = 'suspended'; return Promise.resolve(); }
+  constructor() {
+    FakeCtx.last = this;
+  }
+  createGain(): Gain {
+    const g = new Gain();
+    this.gains.push(g);
+    return g;
+  }
+  createDelay() {
+    return Object.assign(new Gain(), { delayTime: new Param() });
+  }
+  createBufferSource(): Source {
+    const s = new Source();
+    this.sources.push(s);
+    return s;
+  }
+  createBiquadFilter(): Filter {
+    return new Filter();
+  }
+  resume(): Promise<void> {
+    this.state = 'running';
+    return Promise.resolve();
+  }
+  suspend(): Promise<void> {
+    this.state = 'suspended';
+    return Promise.resolve();
+  }
 }
 /** A stand-in OfflineAudioContext: engine.ts decodes each fetched file with it. The decoded "buffer" keeps the path. */
 class FakeOffline {
-  decodeAudioData(data: { path: string; length: number }): Promise<{ path: string; length: number }> { return Promise.resolve(data); }
+  decodeAudioData(data: { path: string; length: number }): Promise<{ path: string; length: number }> {
+    return Promise.resolve(data);
+  }
 }
 
 // Network: each fetch records its path. A test can hold one file (a gate), or make one fail.
@@ -69,7 +119,9 @@ const failing = new Set<string>();
 const gates = new Map<string, Promise<void>>();
 /** A file's decoded length (samples) when a test sets one: a decoder that trims a loop. Default: the manifest's count. */
 const decodedLength = new Map<string, number>();
-const manifestSamples = new Map<string, number>(Object.entries(MIX.ambience).map(([id, t]) => [`ambience/${id}.ogg`, t.samples]));
+const manifestSamples = new Map<string, number>(
+  Object.entries(MIX.ambience).map(([id, t]) => [`ambience/${id}.ogg`, t.samples]),
+);
 let inFlight = 0;
 let maxInFlight = 0;
 async function fakeFetch(url: string) {
@@ -96,12 +148,17 @@ function stubBrowser(): void {
   vi.stubGlobal('fetch', vi.fn(fakeFetch));
 }
 const gesture = (type: string): boolean => target.dispatchEvent(new Event(type));
-const flush = async (): Promise<void> => { for (let i = 0; i < 30; i++) await new Promise((r) => setTimeout(r, 0)); };
+const flush = async (): Promise<void> => {
+  for (let i = 0; i < 30; i++) await new Promise((r) => setTimeout(r, 0));
+};
 const ctx = (): FakeCtx => FakeCtx.last!;
 /** Every source the context made so far. None exist before the first gesture (no context yet). */
 const sourcesOf = (): Source[] => FakeCtx.last?.sources ?? [];
 /** Files of the sources that were started, in order. */
-const playedFiles = (): (string | undefined)[] => sourcesOf().filter((s) => s.started).map((s) => s.buffer?.path);
+const playedFiles = (): (string | undefined)[] =>
+  sourcesOf()
+    .filter((s) => s.started)
+    .map((s) => s.buffer?.path);
 const aliveCount = (): number => sourcesOf().filter((s) => s.started && !s.stopped).length;
 
 let warn: any;
@@ -155,7 +212,12 @@ describe('loading', () => {
     const eng = await import('./engine');
     const files = ['sfx/payout__F.ogg', 'sfx/payout__Gs.ogg', 'sfx/payout__B.ogg'];
     let release!: () => void;
-    gates.set(files[0]!, new Promise<void>((r) => { release = r; }));
+    gates.set(
+      files[0]!,
+      new Promise<void>((r) => {
+        release = r;
+      }),
+    );
     const done = eng.preload(files);
     await flush();
     expect(fetched).toEqual([files[0]]);
@@ -171,7 +233,12 @@ describe('loading', () => {
     eng.unlockOnGesture();
     gesture('pointerdown');
     let release!: () => void;
-    gates.set('sfx/payout__F.ogg', new Promise<void>((r) => { release = r; }));
+    gates.set(
+      'sfx/payout__F.ogg',
+      new Promise<void>((r) => {
+        release = r;
+      }),
+    );
     const pending = eng.preload(['sfx/payout__F.ogg']);
     await flush();
     eng.playCue('payout');
@@ -278,7 +345,12 @@ describe('level-up stinger: engine', () => {
     eng.startLoading();
     await flush();
     let release!: () => void;
-    gates.set(LEVEL_UP_C, new Promise<void>((r) => { release = r; }));
+    gates.set(
+      LEVEL_UP_C,
+      new Promise<void>((r) => {
+        release = r;
+      }),
+    );
     eng.setKeyPc(0);
     await flush();
     eng.playCue('level_up');
@@ -369,8 +441,8 @@ describe('hidden tab', () => {
     await eng.preload(filesOf('payout'));
     let t = 0;
     vi.spyOn(performance, 'now').mockImplementation(() => (t += 1000)); // past the cue's rate limit
-    eng.playCue('payout');                   // starts now
-    eng.playCue('payout', { delayS: 5 });    // queued
+    eng.playCue('payout'); // starts now
+    eng.playCue('payout', { delayS: 5 }); // queued
     const [now, queued] = sourcesOf();
     eng.setHidden(true);
     expect(queued!.stopped).toBe(true);
@@ -444,10 +516,19 @@ describe('level-up stinger: the music beat', () => {
   /** A clock that answers `secs` for every time, and keeps the times it was asked about. */
   const clockAt = (secs: number) => {
     const asked: number[] = [];
-    return { asked, clock: { secondsToNextBeat(nowS: number) { asked.push(nowS); return secs; } } };
+    return {
+      asked,
+      clock: {
+        secondsToNextBeat(nowS: number) {
+          asked.push(nowS);
+          return secs;
+        },
+      },
+    };
   };
   /** The start time of the first started source that played `path`. */
-  const startedAt = (path: string): number | undefined => sourcesOf().find((s) => s.started && s.buffer?.path === path)?.when;
+  const startedAt = (path: string): number | undefined =>
+    sourcesOf().find((s) => s.started && s.buffer?.path === path)?.when;
 
   it('with no music running the stinger starts at once', async () => {
     const eng = await import('./engine');
@@ -665,7 +746,13 @@ describe('ticket #58: loop end and the decoder trim', () => {
     const [src] = roomSources();
     expect(src!.loopEnd).toBeCloseTo(ROOM_SAMPLES / MIX.sampleRate, 9);
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn).toHaveBeenCalledWith('ambience loop length differs from the manifest', expect.stringContaining(ROOM_FILE), trimmed, 'expected', ROOM_SAMPLES);
+    expect(warn).toHaveBeenCalledWith(
+      'ambience loop length differs from the manifest',
+      expect.stringContaining(ROOM_FILE),
+      trimmed,
+      'expected',
+      ROOM_SAMPLES,
+    );
   });
 
   it('a trimmed loop that starts again logs no second warning', async () => {
@@ -695,7 +782,9 @@ describe('ticket #65: the first hit of a music note plays', () => {
     eng.startLoading();
     await flush();
     expect(NOTE_CUES.length).toBeGreaterThan(0);
-    NOTE_CUES.forEach((c, i) => eng.engineSink.playNote(c.id, { token: i + 1, delayS: 0, gainDb: 0, duckClass: 'standard' }));
+    NOTE_CUES.forEach((c, i) =>
+      eng.engineSink.playNote(c.id, { token: i + 1, delayS: 0, gainDb: 0, duckClass: 'standard' }),
+    );
     expect(playedFiles()).toEqual(NOTE_CUES.map((c) => rel(c.files[0]!)));
     expect(warn).not.toHaveBeenCalled();
   });

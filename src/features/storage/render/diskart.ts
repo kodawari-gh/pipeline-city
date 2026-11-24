@@ -12,11 +12,19 @@ import type { DriveKind } from './drives';
 // cells of `diskplan.ts`: the capacity map (one cell per block group) and, deeper, the cells inside the NAND dies or on the platter, with the head arm.
 
 type Key = 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'bad' | 'mute';
-const BLOCK_COLOR: Record<DiskBlock['kind'], Key> = { iface: 'alu', ctrl: 'br', cache: 'ld', nand: 'mul', queue: 'st', pre: 'ld' };
+const BLOCK_COLOR: Record<DiskBlock['kind'], Key> = {
+  iface: 'alu',
+  ctrl: 'br',
+  cache: 'ld',
+  nand: 'mul',
+  queue: 'st',
+  pre: 'ld',
+};
 const LINK_COLOR: Record<DiskLink['kind'], Key> = { host: 'alu', data: 'st', channel: 'mul', ctl: 'mute' };
 
 /** The accent of a tier's rim: the spinning disk amber, the SATA SSD purple, the NVMe cyan. */
-export const accentOf = (T: Theme, kind: DriveKind): string => (kind === 'hdd' ? T.ld : kind === 'ssd-sata' ? T.mul : T.alu);
+export const accentOf = (T: Theme, kind: DriveKind): string =>
+  kind === 'hdd' ? T.ld : kind === 'ssd-sata' ? T.mul : T.alu;
 
 /** The die's art for a drive plan: blocks and links in the die's own look; the NAND dies' cells and the platter are drawn live. */
 const STYLE: PlanStyle<DiskBlock, DiskLink> = {
@@ -39,27 +47,44 @@ export interface StaticArt {
 
 /** The part of the cutaway that never changes with the drive's contents. */
 export function diskStatic(T: Theme, kind: DriveKind, plan: DiskPlan): StaticArt {
-  const g = new Graphics(), accent = accentOf(T, kind);
-  g.roundRect(0, 0, plan.w, plan.h, Math.min(plan.w, plan.h) * 0.03).fill({ color: mix(T.die, '#000000', 0.25) }).stroke({ width: Math.max(1.5, plan.h * 0.008), color: mix(T.line, accent, 0.6) });
+  const g = new Graphics(),
+    accent = accentOf(T, kind);
+  g.roundRect(0, 0, plan.w, plan.h, Math.min(plan.w, plan.h) * 0.03)
+    .fill({ color: mix(T.die, '#000000', 0.25) })
+    .stroke({ width: Math.max(1.5, plan.h * 0.008), color: mix(T.line, accent, 0.6) });
   // bond pads along the edges, like the die's
-  const pad = plan.h * 0.016, step = pad * 2;
-  for (let x = plan.w * 0.04; x + pad < plan.w * 0.96; x += step) { g.rect(x, plan.h * 0.012, pad, pad); g.rect(x, plan.h * 0.988 - pad, pad, pad); }
+  const pad = plan.h * 0.016,
+    step = pad * 2;
+  for (let x = plan.w * 0.04; x + pad < plan.w * 0.96; x += step) {
+    g.rect(x, plan.h * 0.012, pad, pad);
+    g.rect(x, plan.h * 0.988 - pad, pad, pad);
+  }
   g.fill({ color: T.pin, alpha: 0.55 });
-  g.poly([plan.w * 0.012, plan.h * 0.012, plan.w * 0.04, plan.h * 0.012, plan.w * 0.012, plan.h * 0.06]).fill({ color: accent, alpha: 0.9 });
+  g.poly([plan.w * 0.012, plan.h * 0.012, plan.w * 0.04, plan.h * 0.012, plan.w * 0.012, plan.h * 0.06]).fill({
+    color: accent,
+    alpha: 0.9,
+  });
   if (plan.platter) {
     const p = plan.platter;
-    g.circle(p.cx, p.cy, p.R + p.R * 0.05).fill({ color: mix(T.die, '#000000', 0.45) }).stroke({ width: Math.max(1.2, plan.h * 0.006), color: accent, alpha: 0.7 });
+    g.circle(p.cx, p.cy, p.R + p.R * 0.05)
+      .fill({ color: mix(T.die, '#000000', 0.45) })
+      .stroke({ width: Math.max(1.2, plan.h * 0.006), color: accent, alpha: 0.7 });
   }
   if (!plan.platter) {
     // a PCB: a row of decoupling capacitors beside the controller, test pads, and on a SATA drive the mounting hole
-    const cw = plan.w * 0.014, ch = plan.h * 0.03;
+    const cw = plan.w * 0.014,
+      ch = plan.h * 0.03;
     for (let i = 0; i < 8; i++) g.roundRect(plan.w * 0.17 + i * cw * 1.9, plan.h * 0.07, cw, ch, 1.5);
     g.fill({ color: mix(T.die, T.ink, 0.35), alpha: 0.9 });
-    for (let i = 0; i < 8; i++) g.rect(plan.w * 0.17 + i * cw * 1.9 + cw * 0.15, plan.h * 0.07 + ch * 0.2, cw * 0.7, ch * 0.6);
+    for (let i = 0; i < 8; i++)
+      g.rect(plan.w * 0.17 + i * cw * 1.9 + cw * 0.15, plan.h * 0.07 + ch * 0.2, cw * 0.7, ch * 0.6);
     g.fill({ color: T.pin, alpha: 0.5 });
     for (let i = 0; i < 4; i++) g.circle(plan.w * 0.05 + i * plan.w * 0.028, plan.h * 0.88, plan.h * 0.01);
     g.fill({ color: T.pin, alpha: 0.6 });
-    if (kind === 'ssd-sata') g.circle(plan.w * 0.965, plan.h * 0.5, plan.h * 0.022).fill({ color: T.bg }).stroke({ width: Math.max(1.2, plan.h * 0.006), color: accent, alpha: 0.7 });
+    if (kind === 'ssd-sata')
+      g.circle(plan.w * 0.965, plan.h * 0.5, plan.h * 0.022)
+        .fill({ color: T.bg })
+        .stroke({ width: Math.max(1.2, plan.h * 0.006), color: accent, alpha: 0.7 });
   }
   const blocks = new Graphics();
   planFar(blocks, T, plan.blocks, STYLE);
@@ -84,7 +109,16 @@ export function cellStyle(T: Theme, c: Cell, x: DataCtx): { color: string; a: nu
   const lost = c.kind === 'lost' || (x.burnt && c.kind === 'dataset');
   if (lost) return { color: mix(T.bad, T.bg, 0.5), a: 0.95 * dimK };
   const owned = [T.ld, T.br, mix(T.ld, T.bad, 0.5), mix(T.alu, T.mul, 0.5)];
-  const color = c.kind === 'os' ? T.alu : c.kind === 'spool' ? T.st : c.kind === 'program' ? T.mul : c.kind === 'meta' ? T.mute : owned[x.owners.get(c.file) ?? 0]!;
+  const color =
+    c.kind === 'os'
+      ? T.alu
+      : c.kind === 'spool'
+        ? T.st
+        : c.kind === 'program'
+          ? T.mul
+          : c.kind === 'meta'
+            ? T.mute
+            : owned[x.owners.get(c.file) ?? 0]!;
   return { color, a: (0.3 + 0.7 * c.fill) * dimK };
 }
 
@@ -95,26 +129,53 @@ const wearShade = (c: Cell): number => (c.kind === 'bad' ? 0 : Math.min(0.5, (c.
  * The capacity map: one cell per block group over the whole floor. A flash drive gets a flat grid, a hard disk its platter as rings (the first blocks on
  * the outer ring) of sectors.
  */
-export function drawMap(g: Graphics, T: Theme, kind: DriveKind, plan: DiskPlan, cells: readonly Cell[], x: DataCtx): void {
+export function drawMap(
+  g: Graphics,
+  T: Theme,
+  kind: DriveKind,
+  plan: DiskPlan,
+  cells: readonly Cell[],
+  x: DataCtx,
+): void {
   g.clear();
   if (plan.platter) {
-    const p = plan.platter, ring = (p.R * 0.86) / p.tracks;
+    const p = plan.platter,
+      ring = (p.R * 0.86) / p.tracks;
     cells.forEach((c, i) => {
       const { track, sector } = platterCell(i, p.sectors);
-      const r1 = p.R * 0.97 - track * ring, r0 = r1 - ring * 0.9, a0 = (sector / p.sectors) * Math.PI * 2 - Math.PI / 2, a1 = ((sector + 1) / p.sectors) * Math.PI * 2 - Math.PI / 2 - 0.02;
+      const r1 = p.R * 0.97 - track * ring,
+        r0 = r1 - ring * 0.9,
+        a0 = (sector / p.sectors) * Math.PI * 2 - Math.PI / 2,
+        a1 = ((sector + 1) / p.sectors) * Math.PI * 2 - Math.PI / 2 - 0.02;
       const s = cellStyle(T, c, x);
       const pts: number[] = [];
-      for (let k = 0; k <= 3; k++) { const a = a0 + ((a1 - a0) * k) / 3; pts.push(p.cx + Math.cos(a) * r1, p.cy + Math.sin(a) * r1); }
-      for (let k = 3; k >= 0; k--) { const a = a0 + ((a1 - a0) * k) / 3; pts.push(p.cx + Math.cos(a) * r0, p.cy + Math.sin(a) * r0); }
+      for (let k = 0; k <= 3; k++) {
+        const a = a0 + ((a1 - a0) * k) / 3;
+        pts.push(p.cx + Math.cos(a) * r1, p.cy + Math.sin(a) * r1);
+      }
+      for (let k = 3; k >= 0; k--) {
+        const a = a0 + ((a1 - a0) * k) / 3;
+        pts.push(p.cx + Math.cos(a) * r0, p.cy + Math.sin(a) * r0);
+      }
       g.poly(pts).fill({ color: s.color, alpha: s.a });
     });
-    g.circle(p.cx, p.cy, p.hub).fill({ color: mix(T.die, T.ink, 0.25) }).stroke({ width: Math.max(1, plan.h * 0.006), color: accentOf(T, kind) });
+    g.circle(p.cx, p.cy, p.hub)
+      .fill({ color: mix(T.die, T.ink, 0.25) })
+      .stroke({ width: Math.max(1, plan.h * 0.006), color: accentOf(T, kind) });
     return;
   }
-  const m = plan.h * 0.06, w = plan.w - m * 2, h = plan.h - m * 2, grid = flatGrid(cells.length, w, h);
+  const m = plan.h * 0.06,
+    w = plan.w - m * 2,
+    h = plan.h - m * 2,
+    grid = flatGrid(cells.length, w, h);
   cells.forEach((c, i) => {
-    const s = cellStyle(T, c, x), cx = m + (i % grid.cols) * grid.cw, cy = m + Math.floor(i / grid.cols) * grid.ch;
-    g.roundRect(cx + 1, cy + 1, Math.max(1.5, grid.cw - 2), Math.max(1.5, grid.ch - 2), 1.5).fill({ color: s.color, alpha: s.a });
+    const s = cellStyle(T, c, x),
+      cx = m + (i % grid.cols) * grid.cw,
+      cy = m + Math.floor(i / grid.cols) * grid.ch;
+    g.roundRect(cx + 1, cy + 1, Math.max(1.5, grid.cw - 2), Math.max(1.5, grid.ch - 2), 1.5).fill({
+      color: s.color,
+      alpha: s.a,
+    });
   });
 }
 
@@ -137,28 +198,77 @@ export function drawSpin(g: Graphics, T: Theme, plan: DiskPlan, angle: number, b
   if (!p) return;
   for (let k = 0; k < 2; k++) {
     const a0 = angle + k * Math.PI;
-    g.moveTo(p.cx, p.cy).arc(p.cx, p.cy, p.R * 0.97, a0 - 0.26, a0 + 0.26).closePath().fill({ color: '#ffffff', alpha: busy ? 0.09 : 0.06 });
-    g.moveTo(p.cx, p.cy).arc(p.cx, p.cy, p.R * 0.97, a0 + 0.8, a0 + 0.9).closePath().fill({ color: '#ffffff', alpha: 0.04 });
+    g.moveTo(p.cx, p.cy)
+      .arc(p.cx, p.cy, p.R * 0.97, a0 - 0.26, a0 + 0.26)
+      .closePath()
+      .fill({ color: '#ffffff', alpha: busy ? 0.09 : 0.06 });
+    g.moveTo(p.cx, p.cy)
+      .arc(p.cx, p.cy, p.R * 0.97, a0 + 0.8, a0 + 0.9)
+      .closePath()
+      .fill({ color: '#ffffff', alpha: 0.04 });
   }
-  const mx = p.cx + Math.cos(angle) * p.R * 1.02, my = p.cy + Math.sin(angle) * p.R * 1.02;
+  const mx = p.cx + Math.cos(angle) * p.R * 1.02,
+    my = p.cy + Math.sin(angle) * p.R * 1.02;
   g.circle(mx, my, Math.max(2, plan.h * 0.012)).fill({ color: busy ? T.ld : mix(T.ld, T.bg, 0.4) });
 }
 
 /** The cells in the NAND dies (wear shaded), or on the platter's arm side: the arm seeking to the block in use; the queue lanes lit for the waiting requests. */
-export function drawArch(g: Graphics, T: Theme, kind: DriveKind, plan: DiskPlan, cells: readonly Cell[], x: DataCtx, live: ArchLive): void {
+export function drawArch(
+  g: Graphics,
+  T: Theme,
+  kind: DriveKind,
+  plan: DiskPlan,
+  cells: readonly Cell[],
+  x: DataCtx,
+  live: ArchLive,
+): void {
   g.clear();
   const accent = accentOf(T, kind);
   if (plan.arm && plan.platter) {
-    const p = plan.platter, a = plan.arm, ring = (p.R * 0.86) / p.tracks;
+    const p = plan.platter,
+      a = plan.arm,
+      ring = (p.R * 0.86) / p.tracks;
     const { x: ex, y: ey } = armTip(a.px, a.py, a.len, p.cx, p.cy, p.R * 0.97 - live.track * ring - ring * 0.45);
-    const ux = (ex - a.px) / a.len, uy = (ey - a.py) / a.len, nx = -uy, ny = ux, k = plan.h;
+    const ux = (ex - a.px) / a.len,
+      uy = (ey - a.py) / a.len,
+      nx = -uy,
+      ny = ux,
+      k = plan.h;
     // the voice coil behind the pivot, the tapered arm, the head slider at its tip
-    g.poly([a.px + nx * k * 0.03 - ux * k * 0.02, a.py + ny * k * 0.03 - uy * k * 0.02, a.px + nx * k * 0.045 - ux * k * 0.075, a.py + ny * k * 0.045 - uy * k * 0.075, a.px - nx * k * 0.045 - ux * k * 0.075, a.py - ny * k * 0.045 - uy * k * 0.075, a.px - nx * k * 0.03 - ux * k * 0.02, a.py - ny * k * 0.03 - uy * k * 0.02]).fill({ color: mix(T.ld, '#000000', 0.4) }).stroke({ width: 1.5, color: T.ld, alpha: 0.7 });
-    g.poly([a.px + nx * k * 0.026, a.py + ny * k * 0.026, ex + nx * k * 0.007, ey + ny * k * 0.007, ex - nx * k * 0.007, ey - ny * k * 0.007, a.px - nx * k * 0.026, a.py - ny * k * 0.026]).fill({ color: mix(T.mute, T.ink, 0.35), alpha: 0.97 }).stroke({ width: 1.2, color: mix(T.line, T.ink, 0.3) });
-    g.moveTo(a.px, a.py).lineTo(ex, ey).stroke({ width: Math.max(1, k * 0.006), color: '#ffffff', alpha: 0.2 });
-    g.circle(a.px, a.py, plan.h * 0.03).fill({ color: mix(T.die, T.ink, 0.3) }).stroke({ width: 1.5, color: accent });
+    g.poly([
+      a.px + nx * k * 0.03 - ux * k * 0.02,
+      a.py + ny * k * 0.03 - uy * k * 0.02,
+      a.px + nx * k * 0.045 - ux * k * 0.075,
+      a.py + ny * k * 0.045 - uy * k * 0.075,
+      a.px - nx * k * 0.045 - ux * k * 0.075,
+      a.py - ny * k * 0.045 - uy * k * 0.075,
+      a.px - nx * k * 0.03 - ux * k * 0.02,
+      a.py - ny * k * 0.03 - uy * k * 0.02,
+    ])
+      .fill({ color: mix(T.ld, '#000000', 0.4) })
+      .stroke({ width: 1.5, color: T.ld, alpha: 0.7 });
+    g.poly([
+      a.px + nx * k * 0.026,
+      a.py + ny * k * 0.026,
+      ex + nx * k * 0.007,
+      ey + ny * k * 0.007,
+      ex - nx * k * 0.007,
+      ey - ny * k * 0.007,
+      a.px - nx * k * 0.026,
+      a.py - ny * k * 0.026,
+    ])
+      .fill({ color: mix(T.mute, T.ink, 0.35), alpha: 0.97 })
+      .stroke({ width: 1.2, color: mix(T.line, T.ink, 0.3) });
+    g.moveTo(a.px, a.py)
+      .lineTo(ex, ey)
+      .stroke({ width: Math.max(1, k * 0.006), color: '#ffffff', alpha: 0.2 });
+    g.circle(a.px, a.py, plan.h * 0.03)
+      .fill({ color: mix(T.die, T.ink, 0.3) })
+      .stroke({ width: 1.5, color: accent });
     g.circle(a.px, a.py, plan.h * 0.01).fill({ color: accent });
-    g.roundRect(ex - k * 0.014, ey - k * 0.014, k * 0.028, k * 0.028, 2).fill({ color: live.busy ? T.ld : mix(T.ld, T.bg, 0.4) });
+    g.roundRect(ex - k * 0.014, ey - k * 0.014, k * 0.028, k * 0.028, 2).fill({
+      color: live.busy ? T.ld : mix(T.ld, T.bg, 0.4),
+    });
     // where the head is: a mark on its track's ring
     g.circle(ex, ey, plan.h * 0.034).stroke({ width: 1.5, color: T.ld, alpha: live.busy ? 0.9 : 0.4 });
     return;
@@ -167,7 +277,8 @@ export function drawArch(g: Graphics, T: Theme, kind: DriveKind, plan: DiskPlan,
     const b = plan.blocks.find((x2) => x2.id === d.block)!;
     const rects = cellRects(b);
     for (let k = 0; k < d.slice.count; k++) {
-      const c = cells[d.slice.first + k], r = rects[k];
+      const c = cells[d.slice.first + k],
+        r = rects[k];
       if (!c || !r) continue;
       const s = cellStyle(T, c, x);
       g.roundRect(r.x, r.y, r.w, r.h, 1.5).fill({ color: s.color, alpha: s.a });
@@ -177,10 +288,14 @@ export function drawArch(g: Graphics, T: Theme, kind: DriveKind, plan: DiskPlan,
   }
   const q = plan.blocks.find((b) => b.kind === 'queue');
   if (q) {
-    const { lanes, lit } = queueLanes(live.queued, live.depth), rects = cellRects(q);
+    const { lanes, lit } = queueLanes(live.queued, live.depth),
+      rects = cellRects(q);
     for (let k = 0; k < lanes && k < rects.length; k++) {
       const r = rects[k]!;
-      g.roundRect(r.x, r.y, r.w, r.h, 1.5).fill({ color: k < lit ? T.st : mix(T.die, T.st, 0.15), alpha: k < lit ? 0.95 : 0.8 });
+      g.roundRect(r.x, r.y, r.w, r.h, 1.5).fill({
+        color: k < lit ? T.st : mix(T.die, T.st, 0.15),
+        alpha: k < lit ? 0.95 : 0.8,
+      });
     }
   }
 }
@@ -188,9 +303,17 @@ export function drawArch(g: Graphics, T: Theme, kind: DriveKind, plan: DiskPlan,
 /** The fill bar of the far view: the share of the drive that holds data, along the bottom of the casing. */
 export function drawBar(g: Graphics, T: Theme, w: number, h: number, used: number, cap: number, burnt: boolean): void {
   g.clear();
-  const bw = w * 0.5, bh = Math.max(4, h * 0.028), x = w * 0.04, y = h - bh - h * 0.035, share = cap > 0 ? Math.min(1, used / cap) : 0;
+  const bw = w * 0.5,
+    bh = Math.max(4, h * 0.028),
+    x = w * 0.04,
+    y = h - bh - h * 0.035,
+    share = cap > 0 ? Math.min(1, used / cap) : 0;
   g.roundRect(x, y, bw, bh, bh / 2).fill({ color: '#000000', alpha: 0.45 });
-  if (share > 0) g.roundRect(x, y, Math.max(bh, bw * share), bh, bh / 2).fill({ color: burnt ? T.bad : share > 0.9 ? T.ld : T.alu, alpha: 0.95 });
+  if (share > 0)
+    g.roundRect(x, y, Math.max(bh, bw * share), bh, bh / 2).fill({
+      color: burnt ? T.bad : share > 0.9 ? T.ld : T.alu,
+      alpha: 0.95,
+    });
   g.roundRect(x, y, bw, bh, bh / 2).stroke({ width: 1.2, color: mix(T.line, T.ink, 0.3), alpha: 0.8 });
 }
 

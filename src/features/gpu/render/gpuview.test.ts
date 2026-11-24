@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { Container } from 'pixi.js';
 
 // Text needs a canvas, which the tests do not have: labels are empty containers here (as in accelart.test.ts).
-vi.mock('@/core/render/ink', async (orig) => ({ ...(await orig<typeof import('@/core/render/ink')>()), label: () => Object.assign(new Container(), { text: '' }) }));
+vi.mock('@/core/render/ink', async (orig) => ({
+  ...(await orig<typeof import('@/core/render/ink')>()),
+  label: () => Object.assign(new Container(), { text: '' }),
+}));
 
 import type { GpuSnap } from '@/worker/game/types';
 import type { Theme } from '@/core/render/theme';
@@ -11,15 +14,45 @@ import { fanBank } from '@/core/render/fanmotor';
 import { setLayoutTier } from '../../board/render/layout/layout';
 
 const T: Theme = {
-  bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',
-  ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a',
-  alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
+  bg: '#04060f',
+  board: '#081628',
+  trace: '#1e4270',
+  sub: '#0d1636',
+  die: '#111b46',
+  pin: '#d4af5f',
+  tile: '#18245c',
+  ink: '#e2eaff',
+  mute: '#8a97c2',
+  line: '#2a366a',
+  dot: '#18214a',
+  on: '#08102a',
+  alu: '#3be3ff',
+  mul: '#a68bff',
+  ld: '#ffc247',
+  st: '#6dffa6',
+  br: '#ff55dc',
+  bad: '#ff5a78',
 };
 
 const snap = (o: Partial<GpuSnap> = {}): GpuSnap => ({
-  slot: 'pcie0', lanes: 8, banks: 1, memBytes: 8192, phase: 'run', mask: 0xff, stack: [0xff], pc: 8, regs: Array.from({ length: 8 }, () => Array(8).fill(1)),
-  trace: [{ pc: 0, name: 'vld', kind: 'ld', mask: 0x0f, cost: 2, banks: [2], dest: 3 }, { pc: 4, name: 'halt', kind: 'sys', mask: 0x0f, cost: 1, banks: null, dest: null }],
-  launches: 1, error: false, frame: [], stats: { instructions: 2, idleLaneSlots: 4, conflictCycles: 1, cycles: 3 }, ...o,
+  slot: 'pcie0',
+  lanes: 8,
+  banks: 1,
+  memBytes: 8192,
+  phase: 'run',
+  mask: 0xff,
+  stack: [0xff],
+  pc: 8,
+  regs: Array.from({ length: 8 }, () => Array(8).fill(1)),
+  trace: [
+    { pc: 0, name: 'vld', kind: 'ld', mask: 0x0f, cost: 2, banks: [2], dest: 3 },
+    { pc: 4, name: 'halt', kind: 'sys', mask: 0x0f, cost: 1, banks: null, dest: null },
+  ],
+  launches: 1,
+  error: false,
+  frame: [],
+  stats: { instructions: 2, idleLaneSlots: 4, conflictCycles: 1, cycles: 3 },
+  ...o,
 });
 
 describe('GPU view', () => {
@@ -69,7 +102,8 @@ describe('GPU view', () => {
     v.setScene(T, [{ slot: 'pcie0', visual: 'gpu-2', origin: { x: 0, y: 0 } }]);
     v.setZoom(1);
     const told: { slot: string; ends: string[]; reverse: boolean[] }[] = [];
-    v.onTraffic = (slot, hops) => told.push({ slot, ends: hops.flatMap((h) => [h.link.from, h.link.to]), reverse: hops.map((h) => h.reverse) });
+    v.onTraffic = (slot, hops) =>
+      told.push({ slot, ends: hops.flatMap((h) => [h.link.from, h.link.to]), reverse: hops.map((h) => h.reverse) });
     v.update([snap({ phase: 'in' })], undefined);
     v.frame(1 / 30, true);
     expect(told.some((t) => t.slot === 'pcie0' && t.ends[0] === 'pcie' && t.reverse.every((r) => !r))).toBe(true);
@@ -131,7 +165,8 @@ describe('GPU view', () => {
     v.setZoom(6); // deep enough that even a card off the centre of the view is past the counters stage
     v.update([snap()], [{ slot: 'pcie0', tempC: 70, fan: 0.7, throttle: 1, burnt: false, powerW: 40 } as never]);
     const card = v.root.children[0] as Container;
-    const near = { x: -200, y: -200, w: 1000, h: 600 }, far = { x: 1e6, y: 1e6, w: 1000, h: 600 };
+    const near = { x: -200, y: -200, w: 1000, h: 600 },
+      far = { x: 1e6, y: 1e6, w: 1000, h: 600 };
     v.frame(1 / 30, true, false, { view: near, top: new Set(['gpu:pcie0']) });
     expect(card.visible).toBe(true);
     expect(v.candidates(near).map((c) => c.id)).toEqual(['gpu:pcie0']);
@@ -148,7 +183,11 @@ describe('GPU view', () => {
 describe('along', () => {
   it('finds the point a fraction of the way along a polyline, clamped to its ends', async () => {
     const { along } = await import('./gpuview');
-    const pts: [number, number][] = [[0, 0], [10, 0], [10, 10]];
+    const pts: [number, number][] = [
+      [0, 0],
+      [10, 0],
+      [10, 10],
+    ];
     expect(along(pts, 0)).toEqual([0, 0]);
     expect(along(pts, 0.25)).toEqual([5, 0]);
     expect(along(pts, 0.75)).toEqual([10, 5]);
@@ -163,8 +202,30 @@ describe('GPU view on a multi-SM card', () => {
     v.setScene(T, [{ slot: 'pcie0', visual: 'gpu-3', origin: { x: 0, y: 0 } }]);
     v.setZoom(1);
     const trace = [
-      { pc: 0, name: 'vld', kind: 'ld' as const, mask: 0xff, cost: 4, banks: [2, 1, 1, 0], dest: 2, startCycle: 0, sm: 0, warp: 0 },
-      { pc: 0, name: 'vadd', kind: 'alu' as const, mask: 0x0f, cost: 1, banks: null, dest: 3, startCycle: 1, sm: 1, warp: 1 },
+      {
+        pc: 0,
+        name: 'vld',
+        kind: 'ld' as const,
+        mask: 0xff,
+        cost: 4,
+        banks: [2, 1, 1, 0],
+        dest: 2,
+        startCycle: 0,
+        sm: 0,
+        warp: 0,
+      },
+      {
+        pc: 0,
+        name: 'vadd',
+        kind: 'alu' as const,
+        mask: 0x0f,
+        cost: 1,
+        banks: null,
+        dest: 3,
+        startCycle: 1,
+        sm: 1,
+        warp: 1,
+      },
     ];
     v.update([snap({ lanes: 32, banks: 4, trace })], [{ slot: 'pcie0', tempC: 50, throttle: false } as never]);
     for (let i = 0; i < 30; i++) expect(() => v.frame(1 / 30, true)).not.toThrow();

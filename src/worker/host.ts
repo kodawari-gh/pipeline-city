@@ -44,7 +44,17 @@ export function takeCrash(state: HostState): FromSim[] {
 export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
   try {
     if (msg.type === 'init') {
-      state.game = msg.save ? Game.fromSave(msg.save, { powerRatePerWh: CAMPAIGN_POWER_RATE }) : new Game({ seed: msg.seed ?? 1, sandbox: !!msg.sandbox, preassembled: !!msg.preassembled, maxed: !!msg.maxed, ...(msg.sandbox ? {} : { economy: { startMoney: CAMPAIGN_START_MONEY, powerRatePerWh: CAMPAIGN_POWER_RATE } }) });
+      state.game = msg.save
+        ? Game.fromSave(msg.save, { powerRatePerWh: CAMPAIGN_POWER_RATE })
+        : new Game({
+            seed: msg.seed ?? 1,
+            sandbox: !!msg.sandbox,
+            preassembled: !!msg.preassembled,
+            maxed: !!msg.maxed,
+            ...(msg.sandbox
+              ? {}
+              : { economy: { startMoney: CAMPAIGN_START_MONEY, powerRatePerWh: CAMPAIGN_POWER_RATE } }),
+          });
       state.owed = 0;
       state.speed = 1;
       return [{ type: 'ready' }, { type: 'snapshot', snapshot: state.game.snapshot() }];
@@ -53,42 +63,83 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
     if (!g) return [{ type: 'error', message: `${msg.type}: sim not started` }];
     switch (msg.type) {
       case 'setSpeed':
-        if (msg.speed === 64 && !g.sandbox) return [{ type: 'error', message: 'setSpeed: 64x is for the sandbox only' }];
+        if (msg.speed === 64 && !g.sandbox)
+          return [{ type: 'error', message: 'setSpeed: 64x is for the sandbox only' }];
         state.speed = msg.speed;
         return [];
-      case 'step': { const ran = g.stepCycles(msg.cycles); return [{ type: 'snapshot', snapshot: g.snapshotAfterStep(ran) }]; }
-      case 'stepTick': { const c0 = g.cycleNow(); g.advanceBaseTick(); return [{ type: 'snapshot', snapshot: g.snapshotAfterStep(g.cycleNow() - c0) }]; }
-      case 'stepGpu': g.stepGpu(msg.slot, msg.cycles); return [{ type: 'snapshot', snapshot: g.snapshot() }];
-      case 'viewCore': g.setViewCore(msg.core); return [{ type: 'snapshot', snapshot: g.snapshot() }];
-      case 'spawnKey': return refusable(g, 'spawnKey', g.spawnKey(msg.template, msg.scale));
-      case 'clearQueue': return refusable(g, 'clearQueue', g.clearQueue());
-      case 'repairAll': return refusable(g, 'repairAll', g.repairAll());
-      case 'setReputation': return refusable(g, 'setReputation', g.setReputation(msg.value));
-      case 'setLevel': return refusable(g, 'setLevel', g.setLevel(msg.level));
-      case 'setJobClasses': return refusable(g, 'setJobClasses', g.setJobClasses(msg.off));
-      case 'setJobKinds': return refusable(g, 'setJobKinds', g.setJobKinds(msg.off));
-      case 'purchase': return refusable(g, 'purchase ' + msg.id, g.purchase(msg.id));
-      case 'sell': return refusable(g, 'sell', g.sell(msg.invId));
-      case 'cancelSwap': return refusable(g, 'cancelSwap', g.cancelSwap(msg.invId));
-      case 'setCpuClock': return refusable(g, 'setCpuClock', g.setCpuClock(msg.clock));
-      case 'setRamClock': return refusable(g, 'setRamClock', g.setRamClock(msg.deviceId, msg.clock));
-      case 'install': return refusable(g, 'install', g.swapInstall(msg.invId, msg.slotId));
-      case 'uninstall': return refusable(g, 'uninstall', g.uninstall(msg.deviceId));
-      case 'connectCable': return refusable(g, 'connectCable', g.connectCable(msg.cable, msg.port));
-      case 'disconnectCable': return refusable(g, 'disconnectCable', g.disconnectCable(msg.cable));
-      case 'powerButton': return refusable(g, 'powerButton', g.powerButton());
-      case 'plugKey': return refusable(g, 'plugKey', g.plugAndBoot(msg.keyId));
-      case 'ejectKey': return refusable(g, 'ejectKey', g.ejectKey());
-      case 'declineKey': return refusable(g, 'declineKey', g.declineKey(msg.keyId));
-      case 'declineJob': return refusable(g, 'declineJob', g.declineJob(msg.id));
-      case 'uninstallOs': return refusable(g, 'uninstallOs', g.uninstallOs());
-      case 'formatDrive': return refusable(g, 'formatDrive', g.formatDrive(msg.deviceId, msg.confirm));
-      case 'setSpoolSlots': return refusable(g, 'setSpoolSlots', g.setSpoolSlots(msg.slots));
-      case 'setDataReserve': return refusable(g, 'setDataReserve', g.setDataReserve(msg.deviceId, msg.blocks));
-      case 'setSpoolAlloc': return refusable(g, 'setSpoolAlloc', g.setSpoolAlloc(msg.deviceId, msg.slots));
-      case 'setSpoolDrive': return refusable(g, 'setSpoolDrive', g.setSpoolDrive(msg.deviceId, msg.on));
-      case 'acceptContract': return refusable(g, 'acceptContract', g.acceptContract(msg.offerId, msg.deviceId));
-      case 'ignoreContract': return refusable(g, 'ignoreContract', g.ignoreContract(msg.offerId));
+      case 'step': {
+        const ran = g.stepCycles(msg.cycles);
+        return [{ type: 'snapshot', snapshot: g.snapshotAfterStep(ran) }];
+      }
+      case 'stepTick': {
+        const c0 = g.cycleNow();
+        g.advanceBaseTick();
+        return [{ type: 'snapshot', snapshot: g.snapshotAfterStep(g.cycleNow() - c0) }];
+      }
+      case 'stepGpu':
+        g.stepGpu(msg.slot, msg.cycles);
+        return [{ type: 'snapshot', snapshot: g.snapshot() }];
+      case 'viewCore':
+        g.setViewCore(msg.core);
+        return [{ type: 'snapshot', snapshot: g.snapshot() }];
+      case 'spawnKey':
+        return refusable(g, 'spawnKey', g.spawnKey(msg.template, msg.scale));
+      case 'clearQueue':
+        return refusable(g, 'clearQueue', g.clearQueue());
+      case 'repairAll':
+        return refusable(g, 'repairAll', g.repairAll());
+      case 'setReputation':
+        return refusable(g, 'setReputation', g.setReputation(msg.value));
+      case 'setLevel':
+        return refusable(g, 'setLevel', g.setLevel(msg.level));
+      case 'setJobClasses':
+        return refusable(g, 'setJobClasses', g.setJobClasses(msg.off));
+      case 'setJobKinds':
+        return refusable(g, 'setJobKinds', g.setJobKinds(msg.off));
+      case 'purchase':
+        return refusable(g, 'purchase ' + msg.id, g.purchase(msg.id));
+      case 'sell':
+        return refusable(g, 'sell', g.sell(msg.invId));
+      case 'cancelSwap':
+        return refusable(g, 'cancelSwap', g.cancelSwap(msg.invId));
+      case 'setCpuClock':
+        return refusable(g, 'setCpuClock', g.setCpuClock(msg.clock));
+      case 'setRamClock':
+        return refusable(g, 'setRamClock', g.setRamClock(msg.deviceId, msg.clock));
+      case 'install':
+        return refusable(g, 'install', g.swapInstall(msg.invId, msg.slotId));
+      case 'uninstall':
+        return refusable(g, 'uninstall', g.uninstall(msg.deviceId));
+      case 'connectCable':
+        return refusable(g, 'connectCable', g.connectCable(msg.cable, msg.port));
+      case 'disconnectCable':
+        return refusable(g, 'disconnectCable', g.disconnectCable(msg.cable));
+      case 'powerButton':
+        return refusable(g, 'powerButton', g.powerButton());
+      case 'plugKey':
+        return refusable(g, 'plugKey', g.plugAndBoot(msg.keyId));
+      case 'ejectKey':
+        return refusable(g, 'ejectKey', g.ejectKey());
+      case 'declineKey':
+        return refusable(g, 'declineKey', g.declineKey(msg.keyId));
+      case 'declineJob':
+        return refusable(g, 'declineJob', g.declineJob(msg.id));
+      case 'uninstallOs':
+        return refusable(g, 'uninstallOs', g.uninstallOs());
+      case 'formatDrive':
+        return refusable(g, 'formatDrive', g.formatDrive(msg.deviceId, msg.confirm));
+      case 'setSpoolSlots':
+        return refusable(g, 'setSpoolSlots', g.setSpoolSlots(msg.slots));
+      case 'setDataReserve':
+        return refusable(g, 'setDataReserve', g.setDataReserve(msg.deviceId, msg.blocks));
+      case 'setSpoolAlloc':
+        return refusable(g, 'setSpoolAlloc', g.setSpoolAlloc(msg.deviceId, msg.slots));
+      case 'setSpoolDrive':
+        return refusable(g, 'setSpoolDrive', g.setSpoolDrive(msg.deviceId, msg.on));
+      case 'acceptContract':
+        return refusable(g, 'acceptContract', g.acceptContract(msg.offerId, msg.deviceId));
+      case 'ignoreContract':
+        return refusable(g, 'ignoreContract', g.ignoreContract(msg.offerId));
       case 'powerCycle':
         g.powerCycle();
         return [{ type: 'snapshot', snapshot: g.snapshot() }];

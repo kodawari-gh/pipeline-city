@@ -14,12 +14,22 @@ export const lastRunSpeed = signal<Speed>(DEFAULT_SPEED);
 /** The share of its pace the world animation runs at while the camera is zoomed in (1: full pace; render/lod.ts `zoomSlow`). The HUD explains it when it is below 1. */
 export const zoomSlowdown = signal(1);
 const ZOOM_SLOW_KEY = 'pipeline-city.zoomSlow';
-const readZoomSlow = (): boolean => { try { return localStorage.getItem(ZOOM_SLOW_KEY) !== 'off'; } catch { return true; } };
+const readZoomSlow = (): boolean => {
+  try {
+    return localStorage.getItem(ZOOM_SLOW_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+};
 /** Whether zooming in slows the world (default on; kept per viewer). The HUD button next to the speed toggles it. */
 export const zoomSlowOn = signal(readZoomSlow());
 export function toggleZoomSlow(): void {
   zoomSlowOn.value = !zoomSlowOn.value;
-  try { localStorage.setItem(ZOOM_SLOW_KEY, zoomSlowOn.value ? 'on' : 'off'); } catch { /* storage blocked: the choice lasts for the session */ }
+  try {
+    localStorage.setItem(ZOOM_SLOW_KEY, zoomSlowOn.value ? 'on' : 'off');
+  } catch {
+    /* storage blocked: the choice lasts for the session */
+  }
 }
 export const lastError = signal<string | null>(null);
 /** Whether the browser says the player is online. Offline, the game still runs; pictures that come from the server may not show (`setOnline`). */
@@ -78,13 +88,22 @@ function stopWorker() {
 let waitForBoot: (() => void) | null = null;
 
 /** (Re)start the worker with a save, or a new random game. */
-export function startSim(save: SaveV1 | null, opts: { sandbox?: boolean; preassembled?: boolean; maxed?: boolean } = {}) {
+export function startSim(
+  save: SaveV1 | null,
+  opts: { sandbox?: boolean; preassembled?: boolean; maxed?: boolean } = {},
+) {
   // The menu shows over the boot screen while the world loads. A game chosen now waits for the screen to go: it starts at once after, and the
   // menu says so (`starting`). Started now, its first machine would be built twice, and the page is busy building the room.
   if (!booted.peek()) {
     starting.value = true;
     waitForBoot?.(); // (a later choice replaces an earlier one that still waits)
-    waitForBoot = booted.subscribe((b) => { if (b) { waitForBoot?.(); waitForBoot = null; startSim(save, opts); } });
+    waitForBoot = booted.subscribe((b) => {
+      if (b) {
+        waitForBoot?.();
+        waitForBoot = null;
+        startSim(save, opts);
+      }
+    });
     return;
   }
   if (save) saveHooks.restore(save);
@@ -102,9 +121,13 @@ export function startSim(save: SaveV1 | null, opts: { sandbox?: boolean; preasse
   w.onmessage = (e: MessageEvent<FromSim>) => {
     if (w !== worker) return;
     const m = e.data;
-    if (m.type === 'snapshot') { snapshot.value = m.snapshot; starting.value = false; }
-    else if (m.type === 'error') { lastError.value = m.message; if (!snapshot.peek()) starting.value = false; }
-    else if (m.type === 'crash') {
+    if (m.type === 'snapshot') {
+      snapshot.value = m.snapshot;
+      starting.value = false;
+    } else if (m.type === 'error') {
+      lastError.value = m.message;
+      if (!snapshot.peek()) starting.value = false;
+    } else if (m.type === 'crash') {
       crash.value = m.report;
       speed.value = 0; // the sim paused itself
     } else if (m.type === 'saved') {
@@ -114,7 +137,14 @@ export function startSim(save: SaveV1 | null, opts: { sandbox?: boolean; preasse
       waiters.forEach((f) => f(save));
     }
   };
-  send({ type: 'init', save, seed: (Math.random() * 0x100000000) >>> 0, sandbox: !!opts.sandbox, preassembled: !!opts.preassembled, maxed: !!opts.maxed });
+  send({
+    type: 'init',
+    save,
+    seed: (Math.random() * 0x100000000) >>> 0,
+    sandbox: !!opts.sandbox,
+    preassembled: !!opts.preassembled,
+    maxed: !!opts.maxed,
+  });
   send({ type: 'setSpeed', speed: DEFAULT_SPEED });
   autosaveTimer = setInterval(() => requestSave(autosave), AUTOSAVE_EVERY_MS);
 }
@@ -140,7 +170,11 @@ function autosave(save: SaveV1) {
 export const saving = signal(false);
 export function saveNow(done?: () => void): void {
   saving.value = true;
-  requestSave((save) => { autosave(save); saving.value = false; done?.(); });
+  requestSave((save) => {
+    autosave(save);
+    saving.value = false;
+    done?.();
+  });
 }
 
 /**
@@ -148,7 +182,11 @@ export function saveNow(done?: () => void): void {
  * first, so Continue brings it back. A sim that does not answer within `LEAVE_WAIT_MS` is left with the autosave it had.
  */
 export function leaveSim(): void {
-  if (!worker || !snapshot.peek()) { stopWorker(); loadAutosaveOffer(); return; }
+  if (!worker || !snapshot.peek()) {
+    stopWorker();
+    loadAutosaveOffer();
+    return;
+  }
   let left = false;
   leaving.value = true;
   const leave = (save?: SaveV1) => {
@@ -170,7 +208,10 @@ export function leaveSim(): void {
 export function loadAutosaveOffer(): boolean {
   try {
     const raw = localStorage.getItem(AUTOSAVE_KEY);
-    if (!raw) { autosaveOffer.value = null; return false; }
+    if (!raw) {
+      autosaveOffer.value = null;
+      return false;
+    }
     const at = Number(localStorage.getItem(AUTOSAVE_AT_KEY));
     autosaveAt.value = Number.isFinite(at) && at > 0 ? at : null;
     autosaveOffer.value = parseSave(JSON.parse(raw));
@@ -185,7 +226,11 @@ export function loadAutosaveOffer(): boolean {
 export function loadPreviousOffer(): boolean {
   try {
     const raw = localStorage.getItem(PREVIOUS_KEY);
-    if (!raw) { previousOffer.value = null; previousAt.value = null; return false; }
+    if (!raw) {
+      previousOffer.value = null;
+      previousAt.value = null;
+      return false;
+    }
     const at = Number(localStorage.getItem(PREVIOUS_AT_KEY));
     previousAt.value = Number.isFinite(at) && at > 0 ? at : null;
     previousOffer.value = parseSave(JSON.parse(raw));
@@ -244,11 +289,14 @@ export const formatDrive = (deviceId: string, confirm = false) => send({ type: '
 /** OS menu: the most queue slots wanted (null: as many as the OS allows). Applies at the next power-on. */
 export const setSpoolSlots = (slots: number | null) => send({ type: 'setSpoolSlots', slots });
 /** OS menu: let a drive hold spool slots or not. Applies at the next power-on. */
-export const setDataReserve = (deviceId: string, blocks: number | null) => send({ type: 'setDataReserve', deviceId, blocks });
-export const setSpoolAlloc = (deviceId: string, slots: number | null) => send({ type: 'setSpoolAlloc', deviceId, slots });
+export const setDataReserve = (deviceId: string, blocks: number | null) =>
+  send({ type: 'setDataReserve', deviceId, blocks });
+export const setSpoolAlloc = (deviceId: string, slots: number | null) =>
+  send({ type: 'setSpoolAlloc', deviceId, slots });
 export const setSpoolDrive = (deviceId: string, on: boolean) => send({ type: 'setSpoolDrive', deviceId, on });
 /** Accept a cloud-storage contract offer from the job log (optionally on a chosen drive), or turn it down (it just goes away). */
-export const acceptContract = (offerId: number, deviceId?: string) => send({ type: 'acceptContract', offerId, deviceId });
+export const acceptContract = (offerId: number, deviceId?: string) =>
+  send({ type: 'acceptContract', offerId, deviceId });
 export const ignoreContract = (offerId: number) => send({ type: 'ignoreContract', offerId });
 // Sandbox tools (docs/SANDBOX.md): the sim refuses them outside a sandbox game.
 export const spawnKey = (template: string, scale?: number) => send({ type: 'spawnKey', template, scale });
@@ -292,14 +340,18 @@ function download(name: string, text: string) {
 /** Download the current game as pipeline-city-<tick>.json. */
 export function exportSave() {
   if (!worker) {
-    lastError.value = SAY + 'The game is not running, so it cannot be saved to a file. Your save is unchanged. Start a game, then try again.';
+    lastError.value =
+      SAY +
+      'The game is not running, so it cannot be saved to a file. Your save is unchanged. Start a game, then try again.';
     return;
   }
   requestSave((save) => {
     try {
       download(`pipeline-city-${save.baseTick}.json`, JSON.stringify(save, null, 1));
     } catch {
-      lastError.value = SAY + 'The file could not be saved. Your save is unchanged. Try again, or check your download settings in your browser.';
+      lastError.value =
+        SAY +
+        'The file could not be saved. Your save is unchanged. Try again, or check your download settings in your browser.';
     }
   });
 }
@@ -320,9 +372,11 @@ export async function readSaveFile(file: File): Promise<SaveV1 | null> {
     return parseSave(JSON.parse(await file.text()));
   } catch (e) {
     // (a file that is not JSON is not a save; a save this version cannot read is from another version, or damaged)
-    lastError.value = e instanceof SyntaxError
-      ? SAY + 'That file is not a Pipeline City save. Pick another file, or go back to the menu.'
-      : SAY + 'That save cannot be loaded. It may be from another version of the game, or damaged. Your save is unchanged. Pick another file, or go back to the menu.';
+    lastError.value =
+      e instanceof SyntaxError
+        ? SAY + 'That file is not a Pipeline City save. Pick another file, or go back to the menu.'
+        : SAY +
+          'That save cannot be loaded. It may be from another version of the game, or damaged. Your save is unchanged. Pick another file, or go back to the menu.';
     return null;
   }
 }
@@ -334,7 +388,9 @@ export async function importSave(file: File) {
 }
 
 /** Offline: the game still runs, and the way forward is a reload once the connection is back (the pictures load on the page's start). */
-const OFFLINE_NOTICE = SAY + 'You are offline. The game still runs, but pictures from the server may not show. Reconnect, then reload the page.';
+const OFFLINE_NOTICE =
+  SAY +
+  'You are offline. The game still runs, but pictures from the server may not show. Reconnect, then reload the page.';
 
 /** Record the browser's connection state. Going offline shows the notice in `lastError`; coming back online clears it. */
 export function setOnline(on: boolean): void {

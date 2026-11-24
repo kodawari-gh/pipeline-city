@@ -1,7 +1,20 @@
 // The shared parts of a brand (docs/brands/README.md): its record, its colour scheme and the canvas helpers its mark is drawn with.
 import type { TypeStyle } from './type';
 
-export type BrandId = 'axiom' | 'ocula' | 'synapta' | 'sigil' | 'kaiju' | 'kura' | 'raiden' | 'fujin' | 'kitsune' | 'relay' | 'hako' | 'hikari' | 'pipeline';
+export type BrandId =
+  | 'axiom'
+  | 'ocula'
+  | 'synapta'
+  | 'sigil'
+  | 'kaiju'
+  | 'kura'
+  | 'raiden'
+  | 'fujin'
+  | 'kitsune'
+  | 'relay'
+  | 'hako'
+  | 'hikari'
+  | 'pipeline';
 
 /**
  * A brand's colour scheme. The accent is one palette neon (docs/art-style.md §2); the rest are the real materials and inks its parts wear, for
@@ -49,7 +62,10 @@ export type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 export const TAU = Math.PI * 2;
 
 /** A point at radius `r`, angle `a`, round (cx, cy). */
-export const at = (cx: number, cy: number, r: number, a: number): [number, number] => [cx + Math.cos(a) * r, cy + Math.sin(a) * r];
+export const at = (cx: number, cy: number, r: number, a: number): [number, number] => [
+  cx + Math.cos(a) * r,
+  cy + Math.sin(a) * r,
+];
 
 /** A closed polygon as a sub-path of the current path: x0, y0, x1, y1... */
 export function poly(c: Ctx, pts: readonly number[]) {
@@ -74,7 +90,11 @@ export function fill(c: Ctx, color: string) {
 
 /** Strokes the current path, `w` wide, and starts a new one. */
 export function stroke(c: Ctx, color: string, w: number, cap: CanvasLineCap = 'butt', join: CanvasLineJoin = 'miter') {
-  c.strokeStyle = color; c.lineWidth = w; c.lineCap = cap; c.lineJoin = join; c.miterLimit = 10;
+  c.strokeStyle = color;
+  c.lineWidth = w;
+  c.lineCap = cap;
+  c.lineJoin = join;
+  c.miterLimit = 10;
   c.stroke();
   c.beginPath();
 }
@@ -91,10 +111,12 @@ export function knock(c: Ctx, draw: () => void) {
 
 /** A clear canvas `w` by `h` px (a DOM canvas on the main thread, an offscreen one elsewhere). */
 export function layer(w: number, h: number): { cv: HTMLCanvasElement | OffscreenCanvas; c: Ctx } {
-  const W = Math.max(1, Math.ceil(w)), H = Math.max(1, Math.ceil(h));
+  const W = Math.max(1, Math.ceil(w)),
+    H = Math.max(1, Math.ceil(h));
   if (typeof document !== 'undefined') {
     const cv = document.createElement('canvas');
-    cv.width = W; cv.height = H;
+    cv.width = W;
+    cv.height = H;
     return { cv, c: cv.getContext('2d')! };
   }
   const cv = new OffscreenCanvas(W, H);

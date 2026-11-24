@@ -2,17 +2,32 @@
 // source's colour, roughness, metalness and uv on its own vertices, and draw with its map. A copper mesh is never painted grey by a neighbour,
 // and a mapped label keeps its uv rect.
 import { afterEach, describe, expect, it } from 'vitest';
-import { BoxGeometry, Color, Group, Mesh, MeshStandardMaterial, PlaneGeometry, type BufferAttribute, type Object3D, type Texture } from 'three';
+import {
+  BoxGeometry,
+  Color,
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  PlaneGeometry,
+  type BufferAttribute,
+  type Object3D,
+  type Texture,
+} from 'three';
 import { setLowDetail } from '@/core/render/three/detail';
 import { mergePalette, mergeSiblings, mergeWithin, partsOf, standIns } from '@/core/render/three/merge';
 import { tag } from '@/core/render/three/pick';
 import { buildMachine, maxedSnapshot, quietCanvas } from './testutil';
 
 quietCanvas();
-afterEach(() => { setLowDetail(false); });
+afterEach(() => {
+  setLowDetail(false);
+});
 
-const COPPER = 0xc0793a, GREY = 0x9aa2ad, BLACK = 0x18181b;
-const std = (color: number, o: { metalness?: number; roughness?: number; map?: Texture } = {}) => new MeshStandardMaterial({ color, metalness: 0.05, roughness: 0.6, ...o });
+const COPPER = 0xc0793a,
+  GREY = 0x9aa2ad,
+  BLACK = 0x18181b;
+const std = (color: number, o: { metalness?: number; roughness?: number; map?: Texture } = {}) =>
+  new MeshStandardMaterial({ color, metalness: 0.05, roughness: 0.6, ...o });
 const near = (a: number, b: number, what: string) => expect(Math.abs(a - b), what).toBeLessThan(1e-4);
 
 /** Each source of each merged mesh under `root`: its vertices in the merged mesh hold its colour, roughness, metalness and uv; the merged mesh draws with its map. */
@@ -21,11 +36,18 @@ function expectKept(root: Object3D, what: string): number {
   root.traverse((o) => {
     const parts = partsOf(o);
     if (!parts.length) return;
-    const out = o as Mesh, g = out.geometry, pc = g.attributes._pc as BufferAttribute, prm = g.attributes._prm as BufferAttribute, uv = g.attributes.uv as BufferAttribute;
+    const out = o as Mesh,
+      g = out.geometry,
+      pc = g.attributes._pc as BufferAttribute,
+      prm = g.attributes._prm as BufferAttribute,
+      uv = g.attributes.uv as BufferAttribute;
     const pal = out.material as MeshStandardMaterial;
     let at = 0;
     for (const { mesh } of parts) {
-      const src = mesh.material as MeshStandardMaterial, sg = mesh.geometry, sidx = sg.index, suv = sg.attributes.uv as BufferAttribute | undefined;
+      const src = mesh.material as MeshStandardMaterial,
+        sg = mesh.geometry,
+        sidx = sg.index,
+        suv = sg.attributes.uv as BufferAttribute | undefined;
       const n = sidx ? sidx.count : sg.attributes.position!.count;
       expect(pal.map, `${what}: map of ${src.color.getHexString()}`).toBe(src.map);
       expect(pal.side, `${what}: side`).toBe(src.side);
@@ -52,10 +74,13 @@ function expectKept(root: Object3D, what: string): number {
   return checked;
 }
 
-describe('a palette merge keeps every source mesh\'s look', () => {
+describe("a palette merge keeps every source mesh's look", () => {
   /** A holder with an id (a part), copper, grey and black meshes in a sub-group and a mapped label of its own. */
   const scene = () => {
-    const root = new Group(), part = tag(new Group(), 'part'), sub = new Group(), map = { isTexture: true } as unknown as Texture;
+    const root = new Group(),
+      part = tag(new Group(), 'part'),
+      sub = new Group(),
+      map = { isTexture: true } as unknown as Texture;
     const cu = new Mesh(new BoxGeometry(10, 10, 10), std(COPPER, { metalness: 0.9, roughness: 0.28 }));
     const grey = new Mesh(new BoxGeometry(10, 10, 10), std(GREY, { metalness: 0.8, roughness: 0.3 }));
     const black = new Mesh(new BoxGeometry(10, 10, 10), std(BLACK, { roughness: 0.55 }));
@@ -78,7 +103,9 @@ describe('a palette merge keeps every source mesh\'s look', () => {
     expect(parts).toContain(s.cu);
     expect(parts).toContain(s.grey);
     const labelMesh = merged.find((m) => (m.material as MeshStandardMaterial).map === s.map)!;
-    const uv = labelMesh.geometry.attributes.uv as BufferAttribute, us = Array.from({ length: uv.count }, (_, i) => uv.getX(i)), vs = Array.from({ length: uv.count }, (_, i) => uv.getY(i));
+    const uv = labelMesh.geometry.attributes.uv as BufferAttribute,
+      us = Array.from({ length: uv.count }, (_, i) => uv.getX(i)),
+      vs = Array.from({ length: uv.count }, (_, i) => uv.getY(i));
     expect([Math.min(...us), Math.max(...us), Math.min(...vs), Math.max(...vs)]).toEqual([0, 1, 0, 1]);
   });
 
@@ -102,30 +129,39 @@ describe('a palette merge keeps every source mesh\'s look', () => {
       if (!pc) continue; // (a set that keeps its own material: it draws with it)
       let at = 0;
       for (const src of sources) {
-        const m = src.material as MeshStandardMaterial, n = src.geometry.index ? src.geometry.index.count : src.geometry.attributes.position!.count;
-        near(pc.getX(at), m.color.r, 'stand-in r'); near(pc.getY(at), m.color.g, 'stand-in g'); near(pc.getZ(at), m.color.b, 'stand-in b');
+        const m = src.material as MeshStandardMaterial,
+          n = src.geometry.index ? src.geometry.index.count : src.geometry.attributes.position!.count;
+        near(pc.getX(at), m.color.r, 'stand-in r');
+        near(pc.getY(at), m.color.g, 'stand-in g');
+        near(pc.getZ(at), m.color.b, 'stand-in b');
         at += n;
       }
     }
     expect(new Color(COPPER).r).toBeGreaterThan(new Color(COPPER).b); // (the copper is warm: a grey result would fail the checks above)
   });
 
-  it('a stand-in of plain meshes draws with a PBR palette at Low, as the machine\'s palette meshes do (PHONE-01: the RAM chips went darker), and as before at High', () => {
+  it("a stand-in of plain meshes draws with a PBR palette at Low, as the machine's palette meshes do (PHONE-01: the RAM chips went darker), and as before at High", () => {
     for (const low of [true, false]) {
       setLowDetail(low);
       const s = scene();
       s.root.updateMatrixWorld(true);
-      const pals = standIns(s.root, [s.cu, s.grey, s.black, s.label, s.label2]).filter((x) => x.mesh.geometry.attributes._pc).map((x) => x.mesh.material as MeshStandardMaterial);
+      const pals = standIns(s.root, [s.cu, s.grey, s.black, s.label, s.label2])
+        .filter((x) => x.mesh.geometry.attributes._pc)
+        .map((x) => x.mesh.material as MeshStandardMaterial);
       expect(pals.length, `Low ${low}`).toBeGreaterThan(0);
       for (const m of pals) expect(m.customProgramCacheKey().endsWith('|keep'), `Low ${low}`).toBe(low);
     }
   });
 });
 
-describe('the Low machine keeps every merged mesh\'s look', () => {
-  it('each palette mesh of the maxed machine, merged with stand-ins at Low, holds its sources\' colour, roughness, metalness, uv and map', { timeout: 120_000 }, () => {
-    setLowDetail(true);
-    const m = buildMachine(maxedSnapshot(), true, true);
-    expect(expectKept(m.root, 'Low machine')).toBeGreaterThan(100);
-  });
+describe("the Low machine keeps every merged mesh's look", () => {
+  it(
+    "each palette mesh of the maxed machine, merged with stand-ins at Low, holds its sources' colour, roughness, metalness, uv and map",
+    { timeout: 120_000 },
+    () => {
+      setLowDetail(true);
+      const m = buildMachine(maxedSnapshot(), true, true);
+      expect(expectKept(m.root, 'Low machine')).toBeGreaterThan(100);
+    },
+  );
 });

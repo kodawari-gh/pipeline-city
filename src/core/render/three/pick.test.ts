@@ -11,11 +11,16 @@ const camera = (): PerspectiveCamera => {
   c.updateMatrixWorld(true);
   return c;
 };
-const box = (z: number) => { const m = new Mesh(new BoxGeometry(10, 10, 1), new MeshStandardMaterial()); m.position.z = z; return m; };
+const box = (z: number) => {
+  const m = new Mesh(new BoxGeometry(10, 10, 1), new MeshStandardMaterial());
+  m.position.z = z;
+  return m;
+};
 
 describe('the pick ray', () => {
   it('finds an unseen box, which no camera draws', () => {
-    const root = new Group(), hit = unseen(tag(box(5), 'socket'));
+    const root = new Group(),
+      hit = unseen(tag(box(5), 'socket'));
     root.add(hit, box(0));
     root.updateMatrixWorld(true);
     const cam = camera();
@@ -26,7 +31,10 @@ describe('the pick ray', () => {
   });
 
   it('skips a hidden unseen box and a see-through mesh', () => {
-    const root = new Group(), hit = unseen(tag(box(5), 'socket')), glass = seeThrough(tag(box(8), 'glass')), part = tag(box(0), 'part');
+    const root = new Group(),
+      hit = unseen(tag(box(5), 'socket')),
+      glass = seeThrough(tag(box(8), 'glass')),
+      part = tag(box(0), 'part');
     root.add(hit, glass, part);
     root.updateMatrixWorld(true);
     hit.visible = false;
@@ -34,7 +42,9 @@ describe('the pick ray', () => {
   });
 
   it('finds the depth of the surface behind a plate that only takes a click (`skip`)', () => {
-    const root = new Group(), plate = unseen(tag(box(5), 'case.side')), part = tag(box(0), 'part');
+    const root = new Group(),
+      plate = unseen(tag(box(5), 'case.side')),
+      part = tag(box(0), 'part');
     root.add(plate, part);
     root.updateMatrixWorld(true);
     const cam = camera();

@@ -1,32 +1,53 @@
 import { afterAll, describe, expect, it } from 'vitest';
-import { CASE_BD, CASE_IN, FAN_LEN, GEO, PCIE_RAILS, PSU, REAR_FAN, REAR_FAN_FITTED, TOP_FANS, setLayoutTier } from '@/features/board/render/layout/layout';
+import {
+  CASE_BD,
+  CASE_IN,
+  FAN_LEN,
+  GEO,
+  PCIE_RAILS,
+  PSU,
+  REAR_FAN,
+  REAR_FAN_FITTED,
+  TOP_FANS,
+  setLayoutTier,
+} from '@/features/board/render/layout/layout';
 import { BOARD_Z, CASE_FRONT, REAR_ZC } from '@/features/room/render/three/roomplan';
 import { basementPlan } from '@/features/board/render/three/basement3d';
 import { frontFanRects, standoffs } from './case';
 
 afterAll(() => setLayoutTier(2));
 
-describe('the case\'s mounts and fans', () => {
+describe("the case's mounts and fans", () => {
   it('has a stud under every hole of every board it takes, all on the tray above the shroud', () => {
-    for (let c = 0; c <= 3; c++) for (let b = 0; b <= c; b++) {
-      setLayoutTier(b, c);
-      const studs = standoffs();
-      for (const [x, y] of GEO.holes) {
-        expect(studs.some(([sx, sy]) => sx === x && sy === y), `case ${c} board ${b} hole ${x},${y}`).toBe(true);
-        expect(y + 66, `case ${c} board ${b}`).toBeLessThan(PSU.y);
+    for (let c = 0; c <= 3; c++)
+      for (let b = 0; b <= c; b++) {
+        setLayoutTier(b, c);
+        const studs = standoffs();
+        for (const [x, y] of GEO.holes) {
+          expect(
+            studs.some(([sx, sy]) => sx === x && sy === y),
+            `case ${c} board ${b} hole ${x},${y}`,
+          ).toBe(true);
+          expect(y + 66, `case ${c} board ${b}`).toBeLessThan(PSU.y);
+        }
+        for (const [x, y] of studs) {
+          expect(
+            x > CASE_BD.x && x < CASE_BD.x + CASE_BD.w && y > CASE_BD.y && y < CASE_BD.y + CASE_BD.h,
+            `case ${c} stud ${x},${y}`,
+          ).toBe(true);
+        }
       }
-      for (const [x, y] of studs) {
-        expect(x > CASE_BD.x && x < CASE_BD.x + CASE_BD.w && y > CASE_BD.y && y < CASE_BD.y + CASE_BD.h, `case ${c} stud ${x},${y}`).toBe(true);
-      }
-    }
   });
 
   it('gives each board its own count of screws, more for the bigger boards', () => {
-    const n = [0, 1, 2, 3].map((t) => { setLayoutTier(t, t); return GEO.holes.length; });
+    const n = [0, 1, 2, 3].map((t) => {
+      setLayoutTier(t, t);
+      return GEO.holes.length;
+    });
     expect(n).toEqual([6, 8, 9, 12]);
   });
 
-  it('fits the tier\'s size of fan on every mount, inside the case', () => {
+  it("fits the tier's size of fan on every mount, inside the case", () => {
     for (let c = 0; c <= 3; c++) {
       setLayoutTier(c, c);
       expect(FAN_LEN, `case ${c}`).toBe([2120, 2120, 2760, 3220][c]);

@@ -27,13 +27,13 @@ If `docs/agents/board.json` is missing: ask the user which project (`gh project 
 
 Every ticket gets a planned model when it is created (`to-tickets`). The swarm starts its ladder there. Choose by what makes the ticket hard:
 
-| Planned | Pick when |
-| --- | --- |
-| Haiku | One module, logic or wiring. A test seam already exists. Each acceptance item is a unit-test assertion. |
-| Sonnet | Visual layout judged by a screenshot or pixel values. Work across process, thread or service boundaries. Persistence or wire format changes. A new test seam is needed. |
-| Opus | A change to an interface many modules share. The expand step of a wide refactor. A design choice the ticket leaves open. Performance diagnosis. |
-| Human | Needs human sign-off, taste, credentials, or a decision only the user can make. Never swarmed. |
-| Parent | The issue only groups sub-issues. Never swarmed. |
+| Planned | Pick when                                                                                                                                                               |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Haiku   | One module, logic or wiring. A test seam already exists. Each acceptance item is a unit-test assertion.                                                                 |
+| Sonnet  | Visual layout judged by a screenshot or pixel values. Work across process, thread or service boundaries. Persistence or wire format changes. A new test seam is needed. |
+| Opus    | A change to an interface many modules share. The expand step of a wide refactor. A design choice the ticket leaves open. Performance diagnosis.                         |
+| Human   | Needs human sign-off, taste, credentials, or a decision only the user can make. Never swarmed.                                                                          |
+| Parent  | The issue only groups sub-issues. Never swarmed.                                                                                                                        |
 
 Then read the swarm log (`swarm.log` in `board.json`) and the repo notes in `docs/agents/board.md`, if present. If a similar past ticket needed 3 or more rounds at a tier, plan one model higher. A ticket is held only when its planned model is Human or Parent; the user's go-ahead covers everything else.
 

@@ -19,14 +19,27 @@ const HOODIE_MODEL = `${import.meta.env.BASE_URL}models/hoodie.glb`;
 const TILE = 100;
 
 /** A 1x1 rib knit: raised columns and the valleys between, a tile 12 mm across (the bake's uvs run a tile per `TILE` mm). */
-const ribs = (base: string) => paint(64, 64, (c, w, h) => {
-  c.fillStyle = base; c.fillRect(0, 0, w, h);
-  for (let i = 0; i < 4; i++) {
-    const x = (i * w) / 4, g = c.createLinearGradient(x, 0, x + w / 4, 0);
-    g.addColorStop(0, 'rgba(0,0,0,0.28)'); g.addColorStop(0.3, 'rgba(255,255,255,0.1)'); g.addColorStop(0.55, 'rgba(255,255,255,0.12)'); g.addColorStop(0.85, 'rgba(0,0,0,0.2)'); g.addColorStop(1, 'rgba(0,0,0,0.28)');
-    c.fillStyle = g; c.fillRect(x, 0, w / 4, h);
-  }
-}, [TILE / 12, 1]);
+const ribs = (base: string) =>
+  paint(
+    64,
+    64,
+    (c, w, h) => {
+      c.fillStyle = base;
+      c.fillRect(0, 0, w, h);
+      for (let i = 0; i < 4; i++) {
+        const x = (i * w) / 4,
+          g = c.createLinearGradient(x, 0, x + w / 4, 0);
+        g.addColorStop(0, 'rgba(0,0,0,0.28)');
+        g.addColorStop(0.3, 'rgba(255,255,255,0.1)');
+        g.addColorStop(0.55, 'rgba(255,255,255,0.12)');
+        g.addColorStop(0.85, 'rgba(0,0,0,0.2)');
+        g.addColorStop(1, 'rgba(0,0,0,0.28)');
+        c.fillStyle = g;
+        c.fillRect(x, 0, w / 4, h);
+      }
+    },
+    [TILE / 12, 1],
+  );
 
 /**
  * The hoodie the chair wears, folded over its back: the body down behind it, the hood over its front, the sleeves down the sides. Added to
@@ -39,7 +52,8 @@ function hoodie(c: Group, alive: () => boolean, loaded?: (o: Object3D) => void, 
     if (!m || !alive()) return;
     const knit = cloth(0xffffff, { map: weave('#4b5443', { knit: true, repeat: [1, 1] }), side: DoubleSide });
     const rib = cloth(0xffffff, { map: ribs('#434b3a'), side: DoubleSide });
-    bakedAo(knit); bakedAo(rib);
+    bakedAo(knit);
+    bakedAo(rib);
     const o = m.clone(true);
     o.traverse((x) => {
       if (!(x as Mesh).isMesh) return;
@@ -55,15 +69,35 @@ function hoodie(c: Group, alive: () => boolean, loaded?: (o: Object3D) => void, 
 
 /** A soft box centred on (x, y, z) in millimetres, y up. */
 function slab(x: number, y: number, z: number, w: number, h: number, d: number, m: Material, radius = 8): Mesh {
-  return softBox({ x: (x - w / 2) * MM, y: -(y + h / 2) * MM, w: w * MM, h: h * MM }, (z - d / 2) * MM, (z + d / 2) * MM, m, radius * MM);
+  return softBox(
+    { x: (x - w / 2) * MM, y: -(y + h / 2) * MM, w: w * MM, h: h * MM },
+    (z - d / 2) * MM,
+    (z + d / 2) * MM,
+    m,
+    radius * MM,
+  );
 }
 
 /** A rod between two points in millimetres. */
-const bar = (a: readonly [number, number, number], b: readonly [number, number, number], r: number, m: Material, sides: number = SEG.rod): Mesh =>
-  rod([a[0] * MM, a[1] * MM, a[2] * MM], [b[0] * MM, b[1] * MM, b[2] * MM], r * MM, m, sides);
+const bar = (
+  a: readonly [number, number, number],
+  b: readonly [number, number, number],
+  r: number,
+  m: Material,
+  sides: number = SEG.rod,
+): Mesh => rod([a[0] * MM, a[1] * MM, a[2] * MM], [b[0] * MM, b[1] * MM, b[2] * MM], r * MM, m, sides);
 
 /** A cylinder standing on (x, y0, z), in millimetres, `axisX` laid along x (a wheel). */
-function can(x: number, y: number, z: number, r: number, h: number, m: Material, axisX = false, sides: number = SEG.post): Mesh {
+function can(
+  x: number,
+  y: number,
+  z: number,
+  r: number,
+  h: number,
+  m: Material,
+  axisX = false,
+  sides: number = SEG.post,
+): Mesh {
   const o = new Mesh(new CylinderGeometry(r * MM, r * MM, h * MM, sides), m);
   if (axisX) o.rotation.z = Math.PI / 2;
   o.position.set(x * MM, (axisX ? y : y + h / 2) * MM, z * MM);
@@ -75,15 +109,27 @@ function can(x: number, y: number, z: number, r: number, h: number, m: Material,
  * The chair, its seat's middle over the floor point (x, z) in room units, turned `turn` radians from square to the desk; `loaded` gets the
  * hoodie, no sooner than `until` settles.
  */
-export function deskChair(x: number, z: number, turn: number, loaded?: (o: Object3D) => void, until?: Promise<unknown>): Group {
-  const root = new Group(), c = new Group();
-  const black = mat(0x1d1e22, { roughness: 0.45 }), steel = mat(0xb9babf, { metalness: 0.9, roughness: 0.28 });
-  const seatCloth = cloth(0xffffff, { map: weave('#4a4d52', { repeat: [3, 3] }) }), mesh = cloth(0xffffff, { map: weave('#2c2f33', { repeat: [10, 12] }), sheenColor: 0x6a6e74 });
+export function deskChair(
+  x: number,
+  z: number,
+  turn: number,
+  loaded?: (o: Object3D) => void,
+  until?: Promise<unknown>,
+): Group {
+  const root = new Group(),
+    c = new Group();
+  const black = mat(0x1d1e22, { roughness: 0.45 }),
+    steel = mat(0xb9babf, { metalness: 0.9, roughness: 0.28 });
+  const seatCloth = cloth(0xffffff, { map: weave('#4a4d52', { repeat: [3, 3] }) }),
+    mesh = cloth(0xffffff, { map: weave('#2c2f33', { repeat: [10, 12] }), sheenColor: 0x6a6e74 });
 
   // ---- the base: a hub, five legs falling to the castors, each castor two wheels on a swivel ----
   c.add(can(0, 95, 0, 42, 70, black, false, SEG.disc));
   for (let k = 0; k < 5; k++) {
-    const a = (k / 5) * Math.PI * 2 + 0.3, ca = Math.cos(a), sa = Math.sin(a), tip = 315;
+    const a = (k / 5) * Math.PI * 2 + 0.3,
+      ca = Math.cos(a),
+      sa = Math.sin(a),
+      tip = 315;
     c.add(bar([ca * 30, 125, sa * 30], [ca * tip, 88, sa * tip], 19, black, SEG.cord));
     c.add(can(ca * tip, 62, sa * tip, 12, 30, steel, false, SEG.smallDisc));
     const wheel = new Group();
@@ -107,16 +153,23 @@ export function deskChair(x: number, z: number, turn: number, loaded?: (o: Objec
   c.add(seat);
 
   // ---- the back: a spine from the tilt box, a black frame round a mesh panel, laid back a little (its top away from the sitter), a lumbar pad ----
-  const lean = 0.16, back = new Group();
+  const lean = 0.16,
+    back = new Group();
   back.position.set(0, 540 * MM, 255 * MM);
   back.rotation.x = lean;
-  const H = 380, W = 440;
+  const H = 380,
+    W = 440;
   const ring: [number, number, number][] = [];
   for (let k = 0; k <= 32; k++) {
     // a rounded rectangle, wider at the top, its middle bowed back (the panel's curve round the sitter)
-    const t = (k / 32) * Math.PI * 2, sx = Math.cos(t), sy = Math.sin(t), ex = Math.sign(sx) * Math.pow(Math.abs(sx), 0.35), ey = Math.sign(sy) * Math.pow(Math.abs(sy), 0.35);
-    const yy = (ey + 1) / 2, ww = W / 2 * (0.9 + 0.1 * yy);
-    ring.push([ex * ww * MM, (60 + yy * H) * MM, (30 * ex * ex) * MM]);
+    const t = (k / 32) * Math.PI * 2,
+      sx = Math.cos(t),
+      sy = Math.sin(t),
+      ex = Math.sign(sx) * Math.pow(Math.abs(sx), 0.35),
+      ey = Math.sign(sy) * Math.pow(Math.abs(sy), 0.35);
+    const yy = (ey + 1) / 2,
+      ww = (W / 2) * (0.9 + 0.1 * yy);
+    ring.push([ex * ww * MM, (60 + yy * H) * MM, 30 * ex * ex * MM]);
   }
   back.add(tube(ring, 13 * MM, black, SEG.frameBar));
   const panel = new Mesh(cushion((W - 30) * MM, 18 * MM, (H - 30) * MM, 0.5), mesh);
@@ -130,7 +183,10 @@ export function deskChair(x: number, z: number, turn: number, loaded?: (o: Objec
 
   // ---- the armrests: a post up from under each side of the seat, a soft pad on it ----
   for (const s of [-1, 1]) {
-    c.add(bar([s * 120, 440, 40], [s * 262, 440, 40], 14, black, SEG.frameBar), bar([s * 262, 440, 40], [s * 268, 650, 20], 18, black, SEG.rod));
+    c.add(
+      bar([s * 120, 440, 40], [s * 262, 440, 40], 14, black, SEG.frameBar),
+      bar([s * 262, 440, 40], [s * 268, 650, 20], 18, black, SEG.rod),
+    );
     c.add(slab(s * 268, 662, 0, 72, 28, 250, black, 12));
   }
 

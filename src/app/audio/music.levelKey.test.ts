@@ -191,7 +191,10 @@ describe('director: the level-up chord with the SFX stinger', () => {
     d.onSnapshot(snapOf(2, [note(4, 'level', 'Level 2: Desk')]));
     d.onSnapshot(snapOf(3, [note(4, 'level', 'Level 2: Desk'), note(9, 'level', 'Level 3: Shop')]));
     const chords = rec.named('playStinger').map((c) => c.args[0]);
-    expect(chords).toEqual([`music_levelup_${keyName(keyPcForLevel(2))}`, `music_levelup_${keyName(keyPcForLevel(3))}`]);
+    expect(chords).toEqual([
+      `music_levelup_${keyName(keyPcForLevel(2))}`,
+      `music_levelup_${keyName(keyPcForLevel(3))}`,
+    ]);
   });
 });
 
@@ -216,8 +219,13 @@ describe('director: several levels in one tick', () => {
     d.onSnapshot(snapOf(1));
     rec.calls.length = 0;
     d.onSnapshot(snapOf(3, [note(4, 'level', 'Level 2: Desk'), note(4, 'level', 'Level 3: Shop')]));
-    const stepStarts = rec.named('startMusic').filter((c) => c.args[0] === stemId('bed', keyPcForLevel(2)) || c.args[0] === stemId('bed', keyPcForLevel(3)));
-    expect(stepStarts.map((c) => c.args[0])).toEqual([stemId('bed', keyPcForLevel(2)), stemId('bed', keyPcForLevel(3))]);
+    const stepStarts = rec
+      .named('startMusic')
+      .filter((c) => c.args[0] === stemId('bed', keyPcForLevel(2)) || c.args[0] === stemId('bed', keyPcForLevel(3)));
+    expect(stepStarts.map((c) => c.args[0])).toEqual([
+      stemId('bed', keyPcForLevel(2)),
+      stemId('bed', keyPcForLevel(3)),
+    ]);
     for (const s of stepStarts) expect(s.args[2]).toBe('beat');
     expect(keyPcForLevel(3)).toBe((keyPcForLevel(2) + MIX.transpose.stepSemitones) % 12);
   });
@@ -291,7 +299,9 @@ describe('music: a level change whose new key is not decoded yet (ticket #64, AC
     m.onKey(keyPcForLevel(2));
     nextSnapshot(m);
     for (const layer of PLAYING_LAYERS) {
-      const newStarts = rec.calls.filter((c) => c.name === 'startMusic' && c.args[0] === stemId(layer, keyPcForLevel(2)));
+      const newStarts = rec.calls.filter(
+        (c) => c.name === 'startMusic' && c.args[0] === stemId(layer, keyPcForLevel(2)),
+      );
       const oldStops = rec.calls.filter((c) => c.name === 'stopMusic' && c.args[0] === stemId(layer, keyPcForLevel(1)));
       expect(newStarts, `${layer} of the new key does not start yet`).toEqual([]);
       expect(oldStops, `${layer} of the old key keeps playing`).toEqual([]);
@@ -303,7 +313,9 @@ describe('music: a level change whose new key is not decoded yet (ticket #64, AC
     m.onKey(keyPcForLevel(2));
     for (let i = 0; i < 3; i++) nextSnapshot(m);
     const crossfades = rec.calls.filter(
-      (c) => (c.name === 'startMusic' || c.name === 'stopMusic' || c.name === 'setMusicGain') && String(c.args[0]).includes(newKey),
+      (c) =>
+        (c.name === 'startMusic' || c.name === 'stopMusic' || c.name === 'setMusicGain') &&
+        String(c.args[0]).includes(newKey),
     );
     expect(crossfades).toEqual([]);
   });

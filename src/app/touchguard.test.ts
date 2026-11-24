@@ -4,9 +4,20 @@ import { guardPage } from './touchguard';
 /** A document that only keeps the listeners (the tests run without a DOM). */
 function fakeDoc() {
   const on = new Map<string, EventListener[]>();
-  const doc = { addEventListener: (type: string, fn: EventListener) => { on.set(type, [...(on.get(type) ?? []), fn]); } };
+  const doc = {
+    addEventListener: (type: string, fn: EventListener) => {
+      on.set(type, [...(on.get(type) ?? []), fn]);
+    },
+  };
   const fire = (type: string, e: object): { prevented: boolean } => {
-    const ev = { cancelable: true, prevented: false, preventDefault() { this.prevented = true; }, ...e };
+    const ev = {
+      cancelable: true,
+      prevented: false,
+      preventDefault() {
+        this.prevented = true;
+      },
+      ...e,
+    };
     for (const fn of on.get(type) ?? []) fn(ev as unknown as Event);
     return { prevented: ev.prevented };
   };
@@ -14,7 +25,7 @@ function fakeDoc() {
 }
 
 describe('guardPage', () => {
-  it('stops iOS Safari\'s pinch (its gesture events)', () => {
+  it("stops iOS Safari's pinch (its gesture events)", () => {
     const { doc, fire, on } = fakeDoc();
     guardPage(doc);
     for (const t of ['gesturestart', 'gesturechange', 'gestureend']) {

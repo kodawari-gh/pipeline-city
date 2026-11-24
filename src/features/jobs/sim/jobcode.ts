@@ -2,22 +2,29 @@
 // reference interpreter, counting what each instruction does, so the listing shows how often every line ran and the breakdown shows how much of the job is
 // arithmetic, loads and stores, multiplies, branches. Pure: no sim state, nothing is changed by looking.
 
-import { generate } from "./gen";
-import { decode, disassemble, SPEC_BY_NAME } from "../../cpu/sim/isa";
-import { RefCpu, RefMemory } from "../../cpu/sim/ref";
+import { generate } from './gen';
+import { decode, disassemble, SPEC_BY_NAME } from '../../cpu/sim/isa';
+import { RefCpu, RefMemory } from '../../cpu/sim/ref';
 
 /** What an instruction does for the machine: the classes the die and the RAM view colour by. */
-export type OpClass = "alu" | "mul" | "ld" | "st" | "br" | "sys";
-export const OP_CLASSES: readonly OpClass[] = ["alu", "ld", "st", "mul", "br", "sys"];
-export const OP_CLASS_NAME: Record<OpClass, string> = { alu: "arithmetic and logic", ld: "loads", st: "stores", mul: "multiplies", br: "branches and jumps", sys: "system" };
+export type OpClass = 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'sys';
+export const OP_CLASSES: readonly OpClass[] = ['alu', 'ld', 'st', 'mul', 'br', 'sys'];
+export const OP_CLASS_NAME: Record<OpClass, string> = {
+  alu: 'arithmetic and logic',
+  ld: 'loads',
+  st: 'stores',
+  mul: 'multiplies',
+  br: 'branches and jumps',
+  sys: 'system',
+};
 
 export function opClassOf(mnemonic: string): OpClass {
-  if (mnemonic === "mul") return "mul";
-  if (mnemonic === "lw" || mnemonic === "lb" || mnemonic === "lbu") return "ld";
-  if (mnemonic === "sw" || mnemonic === "sb") return "st";
-  if (mnemonic === "jal" || mnemonic === "jalr" || mnemonic[0] === "b") return "br";
-  if (mnemonic === "ecall" || mnemonic === "iret") return "sys";
-  return "alu";
+  if (mnemonic === 'mul') return 'mul';
+  if (mnemonic === 'lw' || mnemonic === 'lb' || mnemonic === 'lbu') return 'ld';
+  if (mnemonic === 'sw' || mnemonic === 'sb') return 'st';
+  if (mnemonic === 'jal' || mnemonic === 'jalr' || mnemonic[0] === 'b') return 'br';
+  if (mnemonic === 'ecall' || mnemonic === 'iret') return 'sys';
+  return 'alu';
 }
 
 /** One word of the program: where it is, what it is and how many times it ran. */
@@ -72,38 +79,73 @@ export function profileOf(template: string, scale: number, seed = 1): CodeProfil
   const counts = new Uint32Array(g.program.length);
   const mix = zero();
   const pages = new Set<number>();
-  let branches = 0, taken = 0, bytes = 0, guard = 0;
+  let branches = 0,
+    taken = 0,
+    bytes = 0,
+    guard = 0;
   while (!cpu.halted && guard++ < MAX_STEPS) {
-    const pc = cpu.pc, i = decode(cpu.mem.load32(pc));
+    const pc = cpu.pc,
+      i = decode(cpu.mem.load32(pc));
     if (!i) break;
     const k = pc >>> 2;
     if (k < counts.length) counts[k]!++;
     const cls = opClassOf(i.name);
     mix[cls]++;
     let addr = -1;
-    if (cls === "ld" || cls === "st") {
+    if (cls === 'ld' || cls === 'st') {
       addr = (cpu.regs[i.rs1]! + i.imm) >>> 0;
-      const w = i.name === "lw" || i.name === "sw" ? 4 : 1;
-      if (addr < DEVICE_BASE) { pages.add(addr >>> 8); bytes += w; }
+      const w = i.name === 'lw' || i.name === 'sw' ? 4 : 1;
+      if (addr < DEVICE_BASE) {
+        pages.add(addr >>> 8);
+        bytes += w;
+      }
     }
     cpu.step();
-    if (cls === "br" && i.name[0] === "b") { branches++; if (cpu.pc !== ((pc + 4) >>> 0)) taken++; }
+    if (cls === 'br' && i.name[0] === 'b') {
+      branches++;
+      if (cpu.pc !== (pc + 4) >>> 0) taken++;
+    }
   }
   const labels = new Map<number, string[]>();
-  for (const [name, a] of g.symbols) { const l = labels.get(a) ?? []; l.push(name); labels.set(a, l); }
-  const lines: CodeLine[] = [], staticMix = zero();
+  for (const [name, a] of g.symbols) {
+    const l = labels.get(a) ?? [];
+    l.push(name);
+    labels.set(a, l);
+  }
+  const lines: CodeLine[] = [],
+    staticMix = zero();
   let codeWords = 0;
   g.program.forEach((word, k) => {
-    const text = disassemble(word), mn = text.split(" ")[0]!;
+    const text = disassemble(word),
+      mn = text.split(' ')[0]!;
     const known = SPEC_BY_NAME.has(mn);
-    const cls = known ? opClassOf(mn) : "alu";
+    const cls = known ? opClassOf(mn) : 'alu';
     const count = counts[k] ?? 0;
-    if (count > 0) { codeWords++; staticMix[cls]++; }
+    if (count > 0) {
+      codeWords++;
+      staticMix[cls]++;
+    }
     lines.push({ addr: 4 * k, word: word >>> 0, text, cls, count, labels: labels.get(4 * k) ?? [] });
   });
   const out: CodeProfile = {
-    template, scale, asm: g.asm, lines, mix, staticMix, steps: guard, codeWords, dataWords: g.program.length - codeWords,
-    branches, taken, pages: pages.size, bytesMoved: bytes, display: cpu.mem.displayText().split("\n").filter((l) => l.trim()).join("\n"),
+    template,
+    scale,
+    asm: g.asm,
+    lines,
+    mix,
+    staticMix,
+    steps: guard,
+    codeWords,
+    dataWords: g.program.length - codeWords,
+    branches,
+    taken,
+    pages: pages.size,
+    bytesMoved: bytes,
+    display: cpu.mem
+      .displayText()
+      .split('\n')
+      .filter((l) => l.trim())
+      .join('\n'),
   };
   cache.set(key, out);
   return out;
@@ -122,65 +164,74 @@ export function mixShares(p: CodeProfile): Record<OpClass, number> {
  * (branches), as shares of the instructions that did something; plus how memory-heavy it is in bytes per instruction.
  */
 export function reliance(p: CodeProfile): { compute: number; memory: number; control: number; bytesPerInstr: number } {
-  const s = mixShares(p), useful = Math.max(1e-9, 1 - s.sys);
-  return { compute: (s.alu + s.mul) / useful, memory: (s.ld + s.st) / useful, control: s.br / useful, bytesPerInstr: p.bytesMoved / Math.max(1, p.steps) };
+  const s = mixShares(p),
+    useful = Math.max(1e-9, 1 - s.sys);
+  return {
+    compute: (s.alu + s.mul) / useful,
+    memory: (s.ld + s.st) / useful,
+    control: s.br / useful,
+    bytesPerInstr: p.bytesMoved / Math.max(1, p.steps),
+  };
 }
 
 /** The almanac entry -> the generator template that makes its program, and the scales worth looking at. */
 export const CODE_SOURCE: Record<string, { template: string; scales: number[] }> = {
-  log: { template: "cli.log", scales: [1, 2, 4] },
-  calc: { template: "cli.calc", scales: [1, 2, 4] },
-  checksum: { template: "cli.checksum", scales: [1, 2, 4] },
-  fib: { template: "cli.fib", scales: [1, 2, 4] },
-  reverse: { template: "cli.reverse", scales: [1, 2, 3] },
-  gcd: { template: "cli.gcd", scales: [1, 2, 4] },
-  popcount: { template: "cli.popcount", scales: [1, 2, 4] },
-  sort: { template: "cli.sort", scales: [1, 2, 4] },
-  matmul: { template: "cli.matmul", scales: [1, 2, 4] },
-  crc: { template: "cli.crc", scales: [1, 2, 4] },
-  scan: { template: "cli.scan", scales: [1, 2, 4, 8] },
-  db: { template: "db.index", scales: [1, 2, 4, 8] },
-  chase: { template: "mem.chase", scales: [1, 2, 4] },
-  stream: { template: "mem.stream", scales: [1, 2, 4] },
-  stencil: { template: "mem.stencil", scales: [1, 2, 4] },
-  transpose: { template: "mem.transpose", scales: [1, 2] },
-  sieve: { template: "mem.sieve", scales: [1, 2, 4] },
-  hashtab: { template: "mem.hashtab", scales: [1, 2, 4] },
-  secure: { template: "secure.sign", scales: [1, 2, 4] },
-  verify: { template: "secure.verify", scales: [1, 2, 4] },
-  measure: { template: "secure.measure", scales: [1, 2, 4] },
-  encrypt: { template: "secure.encrypt", scales: [1, 2, 4] },
-  vault: { template: "secure.vault", scales: [1, 2, 4] },
-  rotate: { template: "secure.rotate", scales: [1, 2, 4] },
-  attest: { template: "secure.attest", scales: [1, 2, 4] },
-  vadd: { template: "gpu.vadd", scales: [1, 4] },
-  saxpy: { template: "gpu.saxpy", scales: [1, 4] },
-  thresh: { template: "gpu.thresh", scales: [1, 4] },
-  blur3: { template: "gpu.blur3", scales: [1, 4] },
-  poly: { template: "gpu.poly", scales: [1, 4] },
-  mandel: { template: "gpu.mandel", scales: [1, 4] },
-  sphere: { template: "gpu.sphere", scales: [1, 4] },
-  perceptron: { template: "npu.perceptron", scales: [1, 2] },
-  npu: { template: "npu.infer", scales: [1, 2, 4] },
-  deep: { template: "npu.deep", scales: [1, 2, 4] },
-  page: { template: "web.page", scales: [1, 2, 4] },
-  api: { template: "web.api", scales: [1, 2, 4] },
-  dns: { template: "web.dns", scales: [1, 2, 4] },
-  form: { template: "web.form", scales: [1, 2, 4] },
-  search: { template: "web.search", scales: [1, 2, 4] },
-  upload: { template: "web.upload", scales: [1, 2, 4] },
-  image: { template: "web.image", scales: [1, 2, 4] },
-  video: { template: "web.video", scales: [1, 2, 4] },
-  "hpc-reduce": { template: "hpc.reduce", scales: [1, 2, 4] },
-  "hpc-matmul": { template: "hpc.matmul", scales: [1, 2] },
-  "hpc-nbody": { template: "hpc.nbody", scales: [1, 2, 4] },
-  "hpc-montecarlo": { template: "hpc.montecarlo", scales: [1, 2, 4] },
-  "hpc-sort": { template: "hpc.sort", scales: [1, 2, 4] },
-  "hpc-bfs": { template: "hpc.bfs", scales: [1, 2, 4] },
-  "hpc-fft": { template: "hpc.fft", scales: [1, 2, 4] },
+  log: { template: 'cli.log', scales: [1, 2, 4] },
+  calc: { template: 'cli.calc', scales: [1, 2, 4] },
+  checksum: { template: 'cli.checksum', scales: [1, 2, 4] },
+  fib: { template: 'cli.fib', scales: [1, 2, 4] },
+  reverse: { template: 'cli.reverse', scales: [1, 2, 3] },
+  gcd: { template: 'cli.gcd', scales: [1, 2, 4] },
+  popcount: { template: 'cli.popcount', scales: [1, 2, 4] },
+  sort: { template: 'cli.sort', scales: [1, 2, 4] },
+  matmul: { template: 'cli.matmul', scales: [1, 2, 4] },
+  crc: { template: 'cli.crc', scales: [1, 2, 4] },
+  scan: { template: 'cli.scan', scales: [1, 2, 4, 8] },
+  db: { template: 'db.index', scales: [1, 2, 4, 8] },
+  chase: { template: 'mem.chase', scales: [1, 2, 4] },
+  stream: { template: 'mem.stream', scales: [1, 2, 4] },
+  stencil: { template: 'mem.stencil', scales: [1, 2, 4] },
+  transpose: { template: 'mem.transpose', scales: [1, 2] },
+  sieve: { template: 'mem.sieve', scales: [1, 2, 4] },
+  hashtab: { template: 'mem.hashtab', scales: [1, 2, 4] },
+  secure: { template: 'secure.sign', scales: [1, 2, 4] },
+  verify: { template: 'secure.verify', scales: [1, 2, 4] },
+  measure: { template: 'secure.measure', scales: [1, 2, 4] },
+  encrypt: { template: 'secure.encrypt', scales: [1, 2, 4] },
+  vault: { template: 'secure.vault', scales: [1, 2, 4] },
+  rotate: { template: 'secure.rotate', scales: [1, 2, 4] },
+  attest: { template: 'secure.attest', scales: [1, 2, 4] },
+  vadd: { template: 'gpu.vadd', scales: [1, 4] },
+  saxpy: { template: 'gpu.saxpy', scales: [1, 4] },
+  thresh: { template: 'gpu.thresh', scales: [1, 4] },
+  blur3: { template: 'gpu.blur3', scales: [1, 4] },
+  poly: { template: 'gpu.poly', scales: [1, 4] },
+  mandel: { template: 'gpu.mandel', scales: [1, 4] },
+  sphere: { template: 'gpu.sphere', scales: [1, 4] },
+  perceptron: { template: 'npu.perceptron', scales: [1, 2] },
+  npu: { template: 'npu.infer', scales: [1, 2, 4] },
+  deep: { template: 'npu.deep', scales: [1, 2, 4] },
+  page: { template: 'web.page', scales: [1, 2, 4] },
+  api: { template: 'web.api', scales: [1, 2, 4] },
+  dns: { template: 'web.dns', scales: [1, 2, 4] },
+  form: { template: 'web.form', scales: [1, 2, 4] },
+  search: { template: 'web.search', scales: [1, 2, 4] },
+  upload: { template: 'web.upload', scales: [1, 2, 4] },
+  image: { template: 'web.image', scales: [1, 2, 4] },
+  video: { template: 'web.video', scales: [1, 2, 4] },
+  'hpc-reduce': { template: 'hpc.reduce', scales: [1, 2, 4] },
+  'hpc-matmul': { template: 'hpc.matmul', scales: [1, 2] },
+  'hpc-nbody': { template: 'hpc.nbody', scales: [1, 2, 4] },
+  'hpc-montecarlo': { template: 'hpc.montecarlo', scales: [1, 2, 4] },
+  'hpc-sort': { template: 'hpc.sort', scales: [1, 2, 4] },
+  'hpc-bfs': { template: 'hpc.bfs', scales: [1, 2, 4] },
+  'hpc-fft': { template: 'hpc.fft', scales: [1, 2, 4] },
 };
 
-export interface HighLevel { cpp: string; python: string }
+export interface HighLevel {
+  cpp: string;
+  python: string;
+}
 
 /** The same job as a person would write it: what the assembly above does, in C++ and in Python (shown for the keen). */
 export const HIGH_LEVEL: Record<string, HighLevel> = {
@@ -1015,7 +1066,7 @@ def layer(W, X, b):
     return [[max(0, b[r] + sum(W[r][k] * X[k][c] for k in range(8)))   # 512 multiplies a layer
              for c in range(8)] for r in range(8)]`,
   },
-  "hpc-reduce": {
+  'hpc-reduce': {
     cpp: `// hpc.reduce: each thread folds its share of the array; the partial sums are added into one total
 #include <atomic>
 #include <cstdint>
@@ -1032,7 +1083,7 @@ def worker(a, k, T, total):
     part = sum(x * x + (x >> 3) for x in a[k * n // T:(k + 1) * n // T])
     total.add(part)                                  # an atomic add`,
   },
-  "hpc-matmul": {
+  'hpc-matmul': {
     cpp: `// hpc.matmul: C = A x B (8 x K by K x 8); each thread computes its rows of C and adds them up
 void worker(const int32_t* A, const int32_t* B, int K, int k, int T, std::atomic<int32_t>& total) {
     int32_t part = 0;
@@ -1047,7 +1098,7 @@ def worker(A, B, K, k, T, total):
     rows = range(k * 8 // T, (k + 1) * 8 // T)
     total.add(sum(A[i][x] * B[x][j] for i in rows for j in range(8) for x in range(K)))`,
   },
-  "hpc-nbody": {
+  'hpc-nbody': {
     cpp: `// hpc.nbody: every body moves by the pull of all the others, from the positions of the step before; a barrier ends each step
 void worker(int32_t* pos[2], const int32_t* mass, int steps, int k, int T, Barrier& bar) {
     for (int s = 0; s < steps; s++) {
@@ -1069,7 +1120,7 @@ def worker(pos, mass, steps, k, T, barrier):
             nxt[i] = now[i] + (pull >> 8)
         barrier.wait()`,
   },
-  "hpc-montecarlo": {
+  'hpc-montecarlo': {
     cpp: `// hpc.montecarlo: a point is a hash of its number; count the ones inside the quarter circle
 void worker(int n, int k, int T, std::atomic<int32_t>& hits) {
     int32_t mine = 0;
@@ -1089,7 +1140,7 @@ def worker(n, k, T, hits):
         mine += x * x + y * y < 65536
     hits.add(mine)`,
   },
-  "hpc-sort": {
+  'hpc-sort': {
     cpp: `// hpc.sort: each thread sorts its run (bubble sort), then thread 0 merges the runs and adds up value x position
 void worker(int32_t* a, int n, int k, int T, Barrier& bar) {
     int lo = k * n / T, hi = (k + 1) * n / T;
@@ -1108,7 +1159,7 @@ def worker(a, k, T, barrier):
         merged = sorted(a)                           # the merge of the sorted runs
         return sum(v * (i + 1) for i, v in enumerate(merged))`,
   },
-  "hpc-bfs": {
+  'hpc-bfs': {
     cpp: `// hpc.bfs: level by level, every thread settles its own points whose in-edge was settled on the level before; a barrier ends each level
 void worker(const int* in1, const int* in2, int* dist, int n, int k, int T, Barrier& bar) {
     for (int level = 1; level < n; level++) {
@@ -1127,7 +1178,7 @@ def worker(in1, in2, dist, k, T, barrier):
                 dist[v] = level
         barrier.wait()`,
   },
-  "hpc-fft": {
+  'hpc-fft': {
     cpp: `// hpc.fft: butterflies (a sum and a difference) stage by stage, in place; the threads share each stage and wait for each other after it
 void worker(int32_t* x, int n, int k, int T, Barrier& bar) {
     for (int s = 0; (1 << s) < n; s++) {
@@ -1155,10 +1206,17 @@ def worker(x, k, T, barrier):
 HIGH_LEVEL.web = HIGH_LEVEL.calc!;
 
 /** One cell of a job's picture: the kind of instruction it is and how often it ran (0 = never, 1 = the busiest word). */
-export interface SpriteCell { cls: OpClass; heat: number }
+export interface SpriteCell {
+  cls: OpClass;
+  heat: number;
+}
 
 /** A job's program drawn as a picture: one cell per instruction word, in order, wrapped into rows. */
-export interface Sprite { cols: number; rows: number; cells: SpriteCell[] }
+export interface Sprite {
+  cols: number;
+  rows: number;
+  cells: SpriteCell[];
+}
 
 /**
  * The picture of a program (the almanac's sprite for the job): every word that ran, coloured by what the instruction does and as bright as it was busy.
@@ -1166,10 +1224,15 @@ export interface Sprite { cols: number; rows: number; cells: SpriteCell[] }
  */
 export function spriteOf(p: CodeProfile, maxCells = 400): Sprite {
   let last = -1;
-  p.lines.forEach((l, i) => { if (l.count > 0) last = i; });
+  p.lines.forEach((l, i) => {
+    if (l.count > 0) last = i;
+  });
   const lines = p.lines.slice(0, last + 1).slice(0, maxCells);
   const lg = Math.log(Math.max(...lines.map((l) => l.count), 1) + 1);
-  const cells = lines.map((l): SpriteCell => ({ cls: l.cls, heat: l.count > 0 ? Math.max(0.18, Math.log(l.count + 1) / lg) : 0 }));
+  const cells = lines.map((l): SpriteCell => ({
+    cls: l.cls,
+    heat: l.count > 0 ? Math.max(0.18, Math.log(l.count + 1) / lg) : 0,
+  }));
   const cols = Math.max(6, Math.min(32, Math.ceil(Math.sqrt(Math.max(1, cells.length) * 2.2))));
   return { cols, rows: Math.max(1, Math.ceil(cells.length / cols)), cells };
 }

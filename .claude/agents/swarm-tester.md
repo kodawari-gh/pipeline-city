@@ -7,6 +7,7 @@ model: haiku
 You write tests for one tracker ticket. The prompt gives the ticket, your worktree (your cwd), your branch, the base branch, the round, and the co-author line.
 
 Rules:
+
 - Work only inside your worktree. Run git from it.
 - Read the ticket. Turn each acceptance item into a test through the ticket's "Test seam". Test what a player or caller can see: behaviour, not component structure, class names or private variables.
 - Write test files only. Keep any helper inside the test file.

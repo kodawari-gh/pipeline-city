@@ -1,7 +1,15 @@
 // Braided sleeves and plugs in 3D, after the 2D cable look (`paintCable`, `cableArt`, docs/render/board.md "Cable look and physics"): a dark
 // sleeve woven with strands of the lead's accent, a plug body (a dark moulding, the accent collar where the cable leaves it), the clamps round a
 // hose. The power leads, the fans' cords and the loop's hoses use them (wires3d.ts hangs them).
-import { CatmullRomCurve3, CylinderGeometry, Group, Mesh, Vector3, type MeshStandardMaterial, type Texture } from 'three';
+import {
+  CatmullRomCurve3,
+  CylinderGeometry,
+  Group,
+  Mesh,
+  Vector3,
+  type MeshStandardMaterial,
+  type Texture,
+} from 'three';
 import { mix } from '@/core/render/ink';
 import { SEG, paint, place, rectBox, shareTex, softBox, withLow } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
@@ -11,7 +19,8 @@ import { Sleeve } from '@/core/render/three/sleeve';
 const hex = (c: string): number => parseInt(c.slice(1), 16);
 const braids = new Map<string, Texture | null>();
 /** Yarn bands across a weave tile (each way), and the tile's size in pixels. */
-const BANDS = 4, TILE = 64;
+const BANDS = 4,
+  TILE = 64;
 
 /**
  * A woven sleeve's tile, a 2-over-2 twill as PET sleeving is braided: two sets of round yarns cross on the diagonals, each over two and under
@@ -19,22 +28,50 @@ const BANDS = 4, TILE = 64;
  */
 function braid(base: string, tint: string): Texture | null {
   const key = base + tint;
-  if (!braids.has(key)) braids.set(key, shareTex(paint(TILE, TILE, (c, w, h) => {
-    const img = c.createImageData(w, h), band = w / BANDS, rgb = (s: string) => [1, 3, 5].map((i) => parseInt(s.slice(i, i + 2), 16));
-    const gap = rgb(mix(base, '#000000', 0.55)), yarn = rgb(mix(base, tint, 0.14)), accent = rgb(mix(base, tint, 0.62));
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      // the two diagonal sets: which yarn (ia, ib) and where across it (fa, fb, 0 to 1)
-      const a = (x + y + 0.5) / band, b = (x - y + h + 0.5) / band, ia = Math.floor(a), ib = Math.floor(b), fa = a - ia, fb = b - ib;
-      // a goes over b on two crossings in four, along both sets: the twill's steps
-      const overA = ((ia + ib) & 3) < 2, f = overA ? fa : fb, along = overA ? fb : fa, which = overA ? ia : ib + 2;
-      // round across the yarn, a little sunk where it dives under at the run's ends
-      const across = Math.sin(Math.PI * f), dive = 0.78 + 0.22 * Math.sin(Math.PI * ((along + ((ia + ib) & 1)) / 2));
-      const lit = Math.pow(across, 0.6) * dive, col = (which & 3) === 0 ? accent : yarn, o = (y * w + x) * 4;
-      for (let k = 0; k < 3; k++) img.data[o + k] = Math.round(gap[k]! + (col[k]! - gap[k]!) * Math.min(1, lit * 1.08));
-      img.data[o + 3] = 255;
-    }
-    c.putImageData(img, 0, 0);
-  }, [1, 1])));
+  if (!braids.has(key))
+    braids.set(
+      key,
+      shareTex(
+        paint(
+          TILE,
+          TILE,
+          (c, w, h) => {
+            const img = c.createImageData(w, h),
+              band = w / BANDS,
+              rgb = (s: string) => [1, 3, 5].map((i) => parseInt(s.slice(i, i + 2), 16));
+            const gap = rgb(mix(base, '#000000', 0.55)),
+              yarn = rgb(mix(base, tint, 0.14)),
+              accent = rgb(mix(base, tint, 0.62));
+            for (let y = 0; y < h; y++)
+              for (let x = 0; x < w; x++) {
+                // the two diagonal sets: which yarn (ia, ib) and where across it (fa, fb, 0 to 1)
+                const a = (x + y + 0.5) / band,
+                  b = (x - y + h + 0.5) / band,
+                  ia = Math.floor(a),
+                  ib = Math.floor(b),
+                  fa = a - ia,
+                  fb = b - ib;
+                // a goes over b on two crossings in four, along both sets: the twill's steps
+                const overA = ((ia + ib) & 3) < 2,
+                  f = overA ? fa : fb,
+                  along = overA ? fb : fa,
+                  which = overA ? ia : ib + 2;
+                // round across the yarn, a little sunk where it dives under at the run's ends
+                const across = Math.sin(Math.PI * f),
+                  dive = 0.78 + 0.22 * Math.sin(Math.PI * ((along + ((ia + ib) & 1)) / 2));
+                const lit = Math.pow(across, 0.6) * dive,
+                  col = (which & 3) === 0 ? accent : yarn,
+                  o = (y * w + x) * 4;
+                for (let k = 0; k < 3; k++)
+                  img.data[o + k] = Math.round(gap[k]! + (col[k]! - gap[k]!) * Math.min(1, lit * 1.08));
+                img.data[o + 3] = 255;
+              }
+            c.putImageData(img, 0, 0);
+          },
+          [1, 1],
+        ),
+      ),
+    );
   return braids.get(key) ?? null;
 }
 
@@ -49,33 +86,66 @@ export function sleeveMat(base: string, tint: string | null): MeshStandardMateri
 export const samplesFor = (n: number): number => Math.max(24, (n - 1) * 3);
 
 /** A braided tube through world points, `r` thick: the sleeve `base` woven toward `tint`. Its curve is returned for what sits along it. */
-export function braidedTube(pts: readonly Vector3[], r: number, base: string, tint: string): { mesh: Mesh; curve: CatmullRomCurve3 } {
-  const path = [pts.map((p): V3 => [p.x, p.y, p.z])], steps = samplesFor(pts.length);
+export function braidedTube(
+  pts: readonly Vector3[],
+  r: number,
+  base: string,
+  tint: string,
+): { mesh: Mesh; curve: CatmullRomCurve3 } {
+  const path = [pts.map((p): V3 => [p.x, p.y, p.z])],
+    steps = samplesFor(pts.length);
   const sl = new Sleeve(1, r, steps, SEG.sleeve);
   sl.update(path);
   // (the lower level: half the steps, 6 sides; the same skin, so it fits the full one)
   const low = new Sleeve(1, r, Math.max(SEG.sleeveStepsLow, Math.ceil(steps / 2)), SEG.sleeveLow);
   low.update(path);
-  return { mesh: place(new Mesh(withLow(sl.geometry, () => low.geometry), sleeveMat(base, tint))), curve: new CatmullRomCurve3(pts.map((p) => p.clone()), false, 'centripetal') };
+  return {
+    mesh: place(
+      new Mesh(
+        withLow(sl.geometry, () => low.geometry),
+        sleeveMat(base, tint),
+      ),
+    ),
+    curve: new CatmullRomCurve3(
+      pts.map((p) => p.clone()),
+      false,
+      'centripetal',
+    ),
+  };
 }
 
 /** A band round a tube at `s` along its curve (a hose clamp, a cable tie), `len` long. */
 export function band(curve: CatmullRomCurve3, s: number, r: number, len: number, m: MeshStandardMaterial): Mesh {
-  const u = Math.max(0, Math.min(1, s / curve.getLength())), o = place(new Mesh(new CylinderGeometry(r, r, len, SEG.disc), m));
+  const u = Math.max(0, Math.min(1, s / curve.getLength())),
+    o = place(new Mesh(new CylinderGeometry(r, r, len, SEG.disc), m));
   o.position.copy(curve.getPointAt(u));
   o.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), curve.getTangentAt(u));
   return o;
 }
 
 /** A plug's body over a layout rect from depth z0 to z1, the accent collar round it near z1 where the cable leaves, the dark cap over that end. */
-export function plugBody(r: { x: number; y: number; w: number; h: number }, z0: number, z1: number, accent: string): Group {
-  const g = new Group(), dark = mat(0x1d1e22, { roughness: 0.5 }), k = Math.min(14, r.w / 4, r.h / 4);
+export function plugBody(
+  r: { x: number; y: number; w: number; h: number },
+  z0: number,
+  z1: number,
+  accent: string,
+): Group {
+  const g = new Group(),
+    dark = mat(0x1d1e22, { roughness: 0.5 }),
+    k = Math.min(14, r.w / 4, r.h / 4);
   g.add(softBox(r, z0, z1 - 34, dark, k));
-  g.add(softBox({ x: r.x - 4, y: r.y - 4, w: r.w + 8, h: r.h + 8 }, z1 - 36, z1 - 12, mat(hex(accent), { roughness: 0.45 }), Math.min(8, k)));
+  g.add(
+    softBox(
+      { x: r.x - 4, y: r.y - 4, w: r.w + 8, h: r.h + 8 },
+      z1 - 36,
+      z1 - 12,
+      mat(hex(accent), { roughness: 0.45 }),
+      Math.min(8, k),
+    ),
+  );
   g.add(softBox(r, z1 - 14, z1, dark, Math.min(6, k)));
   return g;
 }
-
 
 /** A card's 8-pin plug (a Mini-Fit housing, 2 x 4 wires) over its socket's mouth, in mm: its width along the card and its depth across it. */
 export const CARD_PLUG = { w: 20.5 * 23, h: 9.1 * 23 };
@@ -85,9 +155,14 @@ export const CARD_PLUG = { w: 20.5 * 23, h: 9.1 * 23 };
  * `top`, where the wires leave; its latch arm down the side away from the PCB (+y), hooked under the socket's ridge, pressed at its top to pull it.
  */
 export function standingPlug(at: { x: number; y: number; z: number }, accent: string, top: number): Group {
-  const { w, h } = CARD_PLUG, g = plugBody({ x: at.x - w / 2, y: at.y - h / 2, w, h }, at.z - 30, top, accent), m = mat(0x1d1e22, { roughness: 0.5 });
+  const { w, h } = CARD_PLUG,
+    g = plugBody({ x: at.x - w / 2, y: at.y - h / 2, w, h }, at.z - 30, top, accent),
+    m = mat(0x1d1e22, { roughness: 0.5 });
   const y1 = at.y + 6.5 * 23;
   g.add(rectBox({ x: at.x - 60, y: y1, w: 120, h: 30 }, at.z - 125, at.z + 70, m));
-  g.add(rectBox({ x: at.x - 60, y: at.y + h / 2, w: 120, h: y1 - at.y - h / 2 }, at.z + 30, at.z + 70, m), rectBox({ x: at.x - 60, y: at.y + 4.9 * 23, w: 120, h: y1 - at.y - 4.9 * 23 }, at.z - 125, at.z - 105, m));
+  g.add(
+    rectBox({ x: at.x - 60, y: at.y + h / 2, w: 120, h: y1 - at.y - h / 2 }, at.z + 30, at.z + 70, m),
+    rectBox({ x: at.x - 60, y: at.y + 4.9 * 23, w: 120, h: y1 - at.y - 4.9 * 23 }, at.z - 125, at.z - 105, m),
+  );
   return g;
 }

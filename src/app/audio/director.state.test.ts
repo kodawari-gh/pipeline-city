@@ -184,9 +184,10 @@ describe('state rules: skipped when a note of the same family played', () => {
 
   it('a note of another family does not skip the state rule', () => {
     const log = [note(9, 'payout', 'key 1 paid: $120')];
-    expect(cuesFor({ net: { state: 'down' } }, { net: { state: 'link-up' } }, log).sort()).toEqual(
-      ['net_link_up', 'payout'],
-    );
+    expect(cuesFor({ net: { state: 'down' } }, { net: { state: 'link-up' } }, log).sort()).toEqual([
+      'net_link_up',
+      'payout',
+    ]);
   });
 });
 

@@ -1,12 +1,40 @@
 // Mesh builders of the 3D scene. The layout is 2D with y down (`layout.ts`): a rect of it plus a depth range is a box in the world, x east, y up, z out of the wall.
 import {
-  BoxGeometry, BufferGeometry, CanvasTexture, CatmullRomCurve3, CylinderGeometry, DynamicDrawUsage, ExtrudeGeometry, Float32BufferAttribute, Group, InstancedMesh, Mesh, Object3D, Path, PlaneGeometry,
-  RepeatWrapping, SRGBColorSpace, Shape, ShapeUtils, SphereGeometry, TubeGeometry, Vector2, Vector3, type ExtrudeGeometryOptions, type Material, type Texture,
+  BoxGeometry,
+  BufferGeometry,
+  CanvasTexture,
+  CatmullRomCurve3,
+  CylinderGeometry,
+  DynamicDrawUsage,
+  ExtrudeGeometry,
+  Float32BufferAttribute,
+  Group,
+  InstancedMesh,
+  Mesh,
+  Object3D,
+  Path,
+  PlaneGeometry,
+  RepeatWrapping,
+  SRGBColorSpace,
+  Shape,
+  ShapeUtils,
+  SphereGeometry,
+  TubeGeometry,
+  Vector2,
+  Vector3,
+  type ExtrudeGeometryOptions,
+  type Material,
+  type Texture,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { sheetCut } from '@/core/render/three/detail';
 
-export interface RectLike { x: number; y: number; w: number; h: number }
+export interface RectLike {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 /** The anisotropic filtering of every painted or baked texture (the graphics settings; a new texture takes it, `refilter` moves the old ones). */
 export let anisotropy = 8;
@@ -17,18 +45,22 @@ export function refilter(root: Object3D, n: number): void {
   const done = new Set<Texture>();
   root.traverse((o) => {
     const m = (o as Mesh).material as Material | Material[] | undefined;
-    for (const x of Array.isArray(m) ? m : m ? [m] : []) for (const v of Object.values(x)) {
-      const t = v as (CanvasTexture & { isCompressedTexture?: boolean }) | null;
-      if (!(t?.isCanvasTexture || t?.isCompressedTexture) || done.has(t)) continue; // (a baked map is compressed, `baked.ts`)
-      done.add(t);
-      t.anisotropy = n;
-      t.needsUpdate = true;
-    }
+    for (const x of Array.isArray(m) ? m : m ? [m] : [])
+      for (const v of Object.values(x)) {
+        const t = v as (CanvasTexture & { isCompressedTexture?: boolean }) | null;
+        if (!(t?.isCanvasTexture || t?.isCompressedTexture) || done.has(t)) continue; // (a baked map is compressed, `baked.ts`)
+        done.add(t);
+        t.anisotropy = n;
+        t.needsUpdate = true;
+      }
   });
 }
 
 export function place<T extends Object3D>(o: T, shadow = true): T {
-  if (shadow) { o.castShadow = true; o.receiveShadow = true; }
+  if (shadow) {
+    o.castShadow = true;
+    o.receiveShadow = true;
+  }
   return o;
 }
 
@@ -37,7 +69,8 @@ export function place<T extends Object3D>(o: T, shadow = true): T {
  * surface gets a zero normal there, and a zero normal turns the whole frame black (it is NaN in the shader, and the post passes spread it).
  */
 export function healNormals<T extends BufferGeometry>(g: T, cols: number): T {
-  const n = g.attributes.normal!, ok = (i: number) => i >= 0 && i < n.count && Math.hypot(n.getX(i), n.getY(i), n.getZ(i)) > 0.5;
+  const n = g.attributes.normal!,
+    ok = (i: number) => i >= 0 && i < n.count && Math.hypot(n.getX(i), n.getY(i), n.getZ(i)) > 0.5;
   for (let i = 0; i < n.count; i++) {
     if (ok(i)) continue;
     const j = ok(i - cols) ? i - cols : i + cols;
@@ -48,7 +81,8 @@ export function healNormals<T extends BufferGeometry>(g: T, cols: number): T {
 
 /** A sharp box over a layout rect, from depth z0 to z1. */
 export function rectBox(r: RectLike, z0: number, z1: number, m: Material): Mesh {
-  const g = new BoxGeometry(r.w, r.h, z1 - z0), o = new Mesh(g, m);
+  const g = new BoxGeometry(r.w, r.h, z1 - z0),
+    o = new Mesh(g, m);
   o.position.set(r.x + r.w / 2, -(r.y + r.h / 2), (z0 + z1) / 2);
   return place(o);
 }
@@ -58,9 +92,18 @@ export function rectBox(r: RectLike, z0: number, z1: number, m: Material): Mesh 
  * every size and runs on across boxes that meet. Each face takes the two axes along it. For a mesh that is moved, not turned or scaled.
  */
 export function worldUv<T extends Mesh>(o: T, tile: number): T {
-  const g = o.geometry, p = g.getAttribute('position'), n = g.getAttribute('normal'), uv = g.getAttribute('uv'), at = o.position;
+  const g = o.geometry,
+    p = g.getAttribute('position'),
+    n = g.getAttribute('normal'),
+    uv = g.getAttribute('uv'),
+    at = o.position;
   for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i) + at.x, y = p.getY(i) + at.y, z = p.getZ(i) + at.z, ax = Math.abs(n.getX(i)), ay = Math.abs(n.getY(i)), az = Math.abs(n.getZ(i));
+    const x = p.getX(i) + at.x,
+      y = p.getY(i) + at.y,
+      z = p.getZ(i) + at.z,
+      ax = Math.abs(n.getX(i)),
+      ay = Math.abs(n.getY(i)),
+      az = Math.abs(n.getZ(i));
     const [u, v] = ax >= ay && ax >= az ? [z, y] : ay >= az ? [x, z] : [x, y];
     uv.setXY(i, u / tile, v / tile);
   }
@@ -74,70 +117,149 @@ export function worldUv<T extends Mesh>(o: T, tile: number): T {
  */
 export const SEG = {
   /** Default sides of `post`, `drum`, `tube` and `rod`. */
-  post: 16, drum: 24, tube: 7, rod: 10,
+  post: 16,
+  drum: 24,
+  tube: 7,
+  rod: 10,
   /** Edge bevels: case and card edges (`softBox`), the monitor (one value for the room overview). */
-  bevel: 2, monitorBevel: 6,
+  bevel: 2,
+  monitorBevel: 6,
   /** A solder joint: sides round it, rings up it (about 36 triangles). */
-  joint: 6, jointRings: 3,
+  joint: 6,
+  jointRings: 3,
   /** A solder joint's lower level (LOD-05): one band up the fillet, so a cone on the same sides and the same outer size. */
   jointRingsLow: 1,
   /** Lathe props (the teacup, the bedside lantern): sides round the axis, and the most profile points. The cup's sides are 24 (ASR7). */
-  lathe: 28, latheProfile: 12, cupLathe: 24,
+  lathe: 28,
+  latheProfile: 12,
+  cupLathe: 24,
   /** The floor lantern's profile points (two a rib, 16 ribs, and the top; about 1,800 triangles at `lathe` sides; ASR11). */
   floorLanternProfile: 33,
   /** A round flange next to a case wall; a plug's round. */
-  flangeWall: 6, plug: 4,
+  flangeWall: 6,
+  plug: 4,
   /** RAM outline curves (`curveSegments`). */
   ramCurve: 10,
   /** Extrude outlines (`curveSegments`): a straight edge, a flat case, PCB or board outline, an outline with holes, a rounded bezel. */
-  curveFlat: 1, caseCurve: 6, holeCurve: 8, curveRound: 12,
+  curveFlat: 1,
+  caseCurve: 6,
+  holeCurve: 8,
+  curveRound: 12,
   /** Small round parts (sides): an LED, a grommet or hole; a cap or standoff; a mid-size disc; a large bracket or base. */
-  smallDisc: 8, part: 12, disc: 20, bigDisc: 32,
+  smallDisc: 8,
+  part: 12,
+  disc: 20,
+  bigDisc: 32,
   /** Thin tubes and turned or cut parts: a cable or wire, a pipe, a hex nut, a knob. */
-  cord: 6, pipe: 14, hexNut: 6, knob: 18,
+  cord: 6,
+  pipe: 14,
+  hexNut: 6,
+  knob: 18,
   /** Flat edge bevels (one side): a case lid, a card bracket, a steel plate. */
   bevelFlat: 1,
   /** Thin round parts (sides): a low disc (a cap, a heat-sink plate); a thin tube (a lamp's cord); a bag's zip; a frame bar or cable tube; a mid-size round part. */
-  lowDisc: 6, thinTube: 4, zip: 5, frameBar: 8, midRound: 10,
+  lowDisc: 6,
+  thinTube: 4,
+  zip: 5,
+  frameBar: 8,
+  midRound: 10,
   /** Round parts of a board or a room (sides): a chip's cap or a coil; a round cap or a tyre; a lamp or chair arm; a can or sleeve; a rim or a heat-sink head; a wide disc (a cooler rim). */
-  chipRound: 14, roundCap: 18, arm: 12, canister: 28, ring: 40, wideDisc: 48,
+  chipRound: 14,
+  roundCap: 18,
+  arm: 12,
+  canister: 28,
+  ring: 40,
+  wideDisc: 48,
   /** Car bodies (`curveSegments`, `bevelSegments`): the arcs of a rounded car side, and its bevel. */
-  carCurve: 4, carBevel: 3,
+  carCurve: 4,
+  carBevel: 3,
   /** Screw and rivet parts (sides): a rivet's dome; a rivet's mandrel hole; a cap screw's hex socket; a rubber pad's flat top. */
-  rivetDome: 16, rivetHole: 10, capSocket: 6, padTop: 14,
+  rivetDome: 16,
+  rivetHole: 10,
+  capSocket: 6,
+  padTop: 14,
   /** Large rounds seen close (sides): a speaker, a power button or a display floor; a fan-guard wire ring or the Build floor. */
-  fineDisc: 64, fineRing: 72,
+  fineDisc: 64,
+  fineRing: 72,
   /** A fan-guard ring's lower level (LOD-05): its sides along the ring, and round its wire. */
-  fineRingLow: 24, ringTubeLow: 4,
+  fineRingLow: 24,
+  ringTubeLow: 4,
   /** A braided sleeve's sides round (the full level), its lower level's sides, and its fewest steps along (LOD-05). */
-  sleeve: 14, sleeveLow: 6, sleeveStepsLow: 8,
+  sleeve: 14,
+  sleeveLow: 6,
+  sleeveStepsLow: 8,
   /** A pin coil's lower level (LOD-05): its steps along the coil (four a turn, so the peaks fall on steps and `lowOf` keeps it), and its sides round the wire. */
-  coilStepsLow: 16, coilSidesLow: 4,
+  coilStepsLow: 16,
+  coilSidesLow: 4,
   /** A ball's or a dome's rings (pole to pole): a small ball; a mid ball; a lamp bulb; a bare bulb; the sky dome. */
-  rings: 8, ringsMid: 10, ringsBulb: 12, ringsFine: 14, skyRings: 24,
+  rings: 8,
+  ringsMid: 10,
+  ringsBulb: 12,
+  ringsFine: 14,
+  skyRings: 24,
   /** Plant stems (sides): a trunk, a branch, a stalk, a thin stem. */
-  trunk: 9, branch: 7, stalk: 5, stem: 4,
+  trunk: 9,
+  branch: 7,
+  stalk: 5,
+  stem: 4,
   /** Heat pipes (ASR6): sides and steps along the pipe, at High and at the cheap tiers. */
-  heatPipe: 12, heatPipeLow: 8, heatPipeSteps: 96, heatPipeStepsLow: 40,
+  heatPipe: 12,
+  heatPipeLow: 8,
+  heatPipeSteps: 96,
+  heatPipeStepsLow: 40,
   /** A heat pipe's lower detail level (LOD-05): its steps along the pipe, and its sides round it. */
-  heatPipeLevelSteps: 24, heatPipeLevelSides: 6,
+  heatPipeLevelSteps: 24,
+  heatPipeLevelSides: 6,
   /** A rounded corner of a point path or an outline (steps a corner): the default, a soft one, a coarse one. */
-  corner: 5, cornerSoft: 8, cornerCoarse: 2, cornerMid: 6, cornerTight: 4,
+  corner: 5,
+  cornerSoft: 8,
+  cornerCoarse: 2,
+  cornerMid: 6,
+  cornerTight: 4,
   /** A furniture board's edge bevel (steps), softer than `bevel`. */
   softBevel: 4,
   /** A rolled rim's sides (the cloth bake's hem tube); a spire's band of sides (its flats face the walls). */
-  rimSides: 8, spireSides: 8,
+  rimSides: 8,
+  spireSides: 8,
   /** Tree limbs (sides, and steps along the limb): a sparse bole; a bole; a far bole or limb; a near leader; a near bole; a near branch; a far branch; a near twig. */
-  limbSparse: 3, limbSparseSteps: 1, limbBole: 6, limbBoleSteps: 2, limbFar: 8, limbFarSteps: 8, limbLeader: 10, limbLeaderSteps: 16,
-  limbNear: 10, limbNearSteps: 8, limbNearBranch: 6, limbNearBranchSteps: 8, limbBranch: 4, limbBranchSteps: 4, limbTwig: 4, limbTwigSteps: 3,
+  limbSparse: 3,
+  limbSparseSteps: 1,
+  limbBole: 6,
+  limbBoleSteps: 2,
+  limbFar: 8,
+  limbFarSteps: 8,
+  limbLeader: 10,
+  limbLeaderSteps: 16,
+  limbNear: 10,
+  limbNearSteps: 8,
+  limbNearBranch: 6,
+  limbNearBranchSteps: 8,
+  limbBranch: 4,
+  limbBranchSteps: 4,
+  limbTwig: 4,
+  limbTwigSteps: 3,
   /** Icosahedron detail levels (subdivisions, not sides): a tree's crown ball, coarse to fine near the window; a leaf node; a bark chip. */
-  ballDetail: 0, ballDetailMid: 1, ballDetailFine: 2, nodeDetail: 1, chipDetail: 0,
+  ballDetail: 0,
+  ballDetailMid: 1,
+  ballDetailFine: 2,
+  nodeDetail: 1,
+  chipDetail: 0,
   /** A car's wheel arch (steps over its half turn); a leaf blade's steps along it and across it: the fig's, the aloe's lance. */
-  wheelArch: 8, figLong: 14, lanceLong: 8, lanceWide: 4,
+  wheelArch: 8,
+  figLong: 14,
+  lanceLong: 8,
+  lanceWide: 4,
 } as const;
 
 /** Fan sides by diameter, mm -> sides (ASR4). Points between two entries are linear. */
-const FAN_SIDE_TABLE: readonly (readonly [number, number])[] = [[40, 16], [80, 24], [92, 24], [120, 32], [140, 40], [200, 48]];
+const FAN_SIDE_TABLE: readonly (readonly [number, number])[] = [
+  [40, 16],
+  [80, 24],
+  [92, 24],
+  [120, 32],
+  [140, 40],
+  [200, 48],
+];
 
 /**
  * The sides of a round fan part (flange, housing, hub, rings) from the fan's diameter in mm: 16 at 40 mm, 24 at 80 to 92 mm, 32 at 120 mm,
@@ -147,7 +269,8 @@ export const fanSides = (mm: number): number => {
   const first = FAN_SIDE_TABLE[0]!;
   if (mm <= first[0]) return first[1];
   for (let i = 1; i < FAN_SIDE_TABLE.length; i++) {
-    const [x1, y1] = FAN_SIDE_TABLE[i]!, [x0, y0] = FAN_SIDE_TABLE[i - 1]!;
+    const [x1, y1] = FAN_SIDE_TABLE[i]!,
+      [x0, y0] = FAN_SIDE_TABLE[i - 1]!;
     if (mm <= x1) return 2 * Math.round((y0 + ((y1 - y0) * (mm - x0)) / (x1 - x0)) / 2);
   }
   return FAN_SIDE_TABLE[FAN_SIDE_TABLE.length - 1]![1];
@@ -161,9 +284,16 @@ export const fanSides = (mm: number): number => {
  */
 export const lowSides = (sides: number): number => Math.max(8, 4 * Math.round(sides / 8));
 /** Sets `g`'s lower detail level (`userData.low`) to `low()`, when `has`. Returns `g`. */
-export const withLow = <T extends BufferGeometry>(g: T, low: () => BufferGeometry, has = true): T => { if (has) g.userData.low = low(); return g; };
+export const withLow = <T extends BufferGeometry>(g: T, low: () => BufferGeometry, has = true): T => {
+  if (has) g.userData.low = low();
+  return g;
+};
 const lowCylinder = (rTop: number, r: number, h: number, sides: number): CylinderGeometry =>
-  withLow(new CylinderGeometry(rTop, r, h, sides), () => new CylinderGeometry(rTop, r, h, lowSides(sides)), lowSides(sides) < sides);
+  withLow(
+    new CylinderGeometry(rTop, r, h, sides),
+    () => new CylinderGeometry(rTop, r, h, lowSides(sides)),
+    lowSides(sides) < sides,
+  );
 
 /**
  * The most a lower detail level's outline may stand off the full shape's (LOD-05), in world units: half a millimetre. The overview's
@@ -173,11 +303,16 @@ const lowCylinder = (rTop: number, r: number, h: number, sides: number): Cylinde
 export const LOW_TOL = 12;
 
 /** The 26 directions of a cube's faces, edges and corners: `outlineOff` measures the reach along them. */
-const REACH = [-1, 0, 1].flatMap((x) => [-1, 0, 1].flatMap((y) => [-1, 0, 1].map((z) => new Vector3(x, y, z)))).filter((d) => d.lengthSq() > 0).map((d) => d.normalize());
+const REACH = [-1, 0, 1]
+  .flatMap((x) => [-1, 0, 1].flatMap((y) => [-1, 0, 1].map((z) => new Vector3(x, y, z))))
+  .filter((d) => d.lengthSq() > 0)
+  .map((d) => d.normalize());
 
 /** The reach of a geometry along each of `REACH`: its farthest vertex that way. */
 function reachOf(g: BufferGeometry): number[] {
-  const p = g.getAttribute('position'), v = new Vector3(), out = REACH.map(() => -Infinity);
+  const p = g.getAttribute('position'),
+    v = new Vector3(),
+    out = REACH.map(() => -Infinity);
   for (let i = 0; i < p.count; i++) {
     v.fromBufferAttribute(p, i);
     for (let k = 0; k < REACH.length; k++) out[k] = Math.max(out[k]!, v.dot(REACH[k]!));
@@ -187,7 +322,8 @@ function reachOf(g: BufferGeometry): number[] {
 
 /** How far `low`'s outline stands off `g`'s: the most their reach differs along the 26 directions of `REACH`. */
 export function outlineOff(g: BufferGeometry, low: BufferGeometry): number {
-  const a = reachOf(g), b = reachOf(low);
+  const a = reachOf(g),
+    b = reachOf(low);
   return Math.max(...a.map((r, k) => Math.abs(r - b[k]!)));
 }
 
@@ -195,7 +331,10 @@ export function outlineOff(g: BufferGeometry, low: BufferGeometry): number {
 export function fitLow<T extends BufferGeometry>(g: T, tries: readonly (() => BufferGeometry)[]): T {
   for (const t of tries) {
     const low = t();
-    if (outlineOff(g, low) <= LOW_TOL) { g.userData.low = low; break; }
+    if (outlineOff(g, low) <= LOW_TOL) {
+      g.userData.low = low;
+      break;
+    }
     low.dispose();
   }
   return g;
@@ -208,21 +347,42 @@ export function fitLow<T extends BufferGeometry>(g: T, tries: readonly (() => Bu
  */
 export function softBox(r: RectLike, z0: number, z1: number, m: Material, radius = 40): Mesh {
   const rad = Math.min(radius, r.w / 2.01, r.h / 2.01, (z1 - z0) / 2.01);
-  const low = () => (rad * (Math.sqrt(3) - 1) <= LOW_TOL ? new BoxGeometry(r.w, r.h, z1 - z0) : new RoundedBoxGeometry(r.w, r.h, z1 - z0, 1, rad));
-  const g = withLow(new RoundedBoxGeometry(r.w, r.h, z1 - z0, SEG.bevel, rad), low), o = new Mesh(g, m);
+  const low = () =>
+    rad * (Math.sqrt(3) - 1) <= LOW_TOL
+      ? new BoxGeometry(r.w, r.h, z1 - z0)
+      : new RoundedBoxGeometry(r.w, r.h, z1 - z0, 1, rad);
+  const g = withLow(new RoundedBoxGeometry(r.w, r.h, z1 - z0, SEG.bevel, rad), low),
+    o = new Mesh(g, m);
   o.position.set(r.x + r.w / 2, -(r.y + r.h / 2), (z0 + z1) / 2);
   return place(o);
 }
 
 /** A cylinder standing on the layout point (x, y): its axis is world y. `y` is its base. */
-export function post(x: number, y: number, z: number, r: number, h: number, m: Material, sides: number = SEG.post, rTop = r): Mesh {
+export function post(
+  x: number,
+  y: number,
+  z: number,
+  r: number,
+  h: number,
+  m: Material,
+  sides: number = SEG.post,
+  rTop = r,
+): Mesh {
   const o = new Mesh(lowCylinder(rTop, r, h, sides), m);
   o.position.set(x, -y + h / 2, z);
   return place(o);
 }
 
 /** A disc-like cylinder facing the viewer (its axis is world z), centred on the layout point. */
-export function drum(x: number, y: number, z0: number, z1: number, r: number, m: Material, sides: number = SEG.drum): Mesh {
+export function drum(
+  x: number,
+  y: number,
+  z0: number,
+  z1: number,
+  r: number,
+  m: Material,
+  sides: number = SEG.drum,
+): Mesh {
   const o = new Mesh(lowCylinder(r, r, z1 - z0, sides), m);
   o.rotation.x = Math.PI / 2;
   o.position.set(x, -y, (z0 + z1) / 2);
@@ -237,8 +397,16 @@ export function face(r: RectLike, z: number, m: Material): Mesh {
 }
 
 /** A straight rod from world point a to b (a lamp arm, a pipe run). */
-export function rod(a: readonly [number, number, number], b: readonly [number, number, number], r: number, m: Material, sides: number = SEG.rod): Mesh {
-  const va = new Vector3(...a), vb = new Vector3(...b), len = va.distanceTo(vb);
+export function rod(
+  a: readonly [number, number, number],
+  b: readonly [number, number, number],
+  r: number,
+  m: Material,
+  sides: number = SEG.rod,
+): Mesh {
+  const va = new Vector3(...a),
+    vb = new Vector3(...b),
+    len = va.distanceTo(vb);
   const o = new Mesh(lowCylinder(r, r, len, sides), m);
   o.position.copy(va).add(vb).multiplyScalar(0.5);
   o.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), vb.sub(va).normalize());
@@ -246,24 +414,52 @@ export function rod(a: readonly [number, number, number], b: readonly [number, n
 }
 
 /** A tube through 3D points (a cable, a lamp arm): a smooth curve, few sides. `segs`: the steps along it (default three a point, at least 8). */
-export function tube(points: readonly (readonly [number, number, number])[], radius: number, m: Material, sides: number = SEG.tube, segs = Math.max(8, points.length * 3)): Mesh {
-  const curve = new CatmullRomCurve3(points.map((p) => new Vector3(p[0], p[1], p[2])), false, 'centripetal');
+export function tube(
+  points: readonly (readonly [number, number, number])[],
+  radius: number,
+  m: Material,
+  sides: number = SEG.tube,
+  segs = Math.max(8, points.length * 3),
+): Mesh {
+  const curve = new CatmullRomCurve3(
+    points.map((p) => new Vector3(p[0], p[1], p[2])),
+    false,
+    'centripetal',
+  );
   // (the lower level: half the sides, 4 at least, with half the steps along it or all of them, whichever keeps the outline within `LOW_TOL`;
   // a cable is a pixel or two wide from far)
-  const full = new TubeGeometry(curve, segs, radius, sides, false), few = Math.min(sides, Math.max(4, Math.ceil(sides / 2)));
-  const tries = few < sides ? [Math.max(4, Math.ceil(segs / 2)), segs].map((n) => () => new TubeGeometry(curve, n, radius, few, false)) : [];
+  const full = new TubeGeometry(curve, segs, radius, sides, false),
+    few = Math.min(sides, Math.max(4, Math.ceil(sides / 2)));
+  const tries =
+    few < sides
+      ? [Math.max(4, Math.ceil(segs / 2)), segs].map((n) => () => new TubeGeometry(curve, n, radius, few, false))
+      : [];
   return place(new Mesh(fitLow(full, tries), m));
 }
 
 /** A polyline with each inner corner cut by a round of radius `r` (a few points along the arc): a bent pipe for `tube`, tight at its bends. */
-export function rounded(pts: readonly (readonly [number, number, number])[], r: number, per: number = SEG.corner): [number, number, number][] {
-  const v = pts.map((p) => new Vector3(p[0], p[1], p[2])), out: [number, number, number][] = [[pts[0]![0], pts[0]![1], pts[0]![2]]];
+export function rounded(
+  pts: readonly (readonly [number, number, number])[],
+  r: number,
+  per: number = SEG.corner,
+): [number, number, number][] {
+  const v = pts.map((p) => new Vector3(p[0], p[1], p[2])),
+    out: [number, number, number][] = [[pts[0]![0], pts[0]![1], pts[0]![2]]];
   for (let i = 1; i + 1 < v.length; i++) {
-    const p = v[i]!, a = v[i - 1]!.clone().sub(p), b = v[i + 1]!.clone().sub(p);
-    const k = Math.min(r, a.length() / 2, b.length() / 2), s = p.clone().addScaledVector(a.normalize(), k), e = p.clone().addScaledVector(b.normalize(), k);
+    const p = v[i]!,
+      a = v[i - 1]!.clone().sub(p),
+      b = v[i + 1]!.clone().sub(p);
+    const k = Math.min(r, a.length() / 2, b.length() / 2),
+      s = p.clone().addScaledVector(a.normalize(), k),
+      e = p.clone().addScaledVector(b.normalize(), k);
     // a quadratic bend from the cut on the way in to the cut on the way out, the corner as its control point
     for (let j = 0; j <= per; j++) {
-      const t = j / per, q = s.clone().multiplyScalar((1 - t) ** 2).addScaledVector(p, 2 * t * (1 - t)).addScaledVector(e, t * t);
+      const t = j / per,
+        q = s
+          .clone()
+          .multiplyScalar((1 - t) ** 2)
+          .addScaledVector(p, 2 * t * (1 - t))
+          .addScaledVector(e, t * t);
       out.push([q.x, q.y, q.z]);
     }
   }
@@ -280,8 +476,13 @@ export function thin<T>(pts: readonly T[], step: number): T[] {
 }
 
 /** Many copies of one geometry in one draw call. Each item gives its copy's position, and optionally its scale and its turn round z (`rz`). */
-export function instanced(g: BufferGeometry, m: Material, items: readonly { x: number; y: number; z: number; sx?: number; sy?: number; sz?: number; rz?: number }[]): InstancedMesh {
-  const o = new InstancedMesh(g, m, items.length), d = new Object3D();
+export function instanced(
+  g: BufferGeometry,
+  m: Material,
+  items: readonly { x: number; y: number; z: number; sx?: number; sy?: number; sz?: number; rz?: number }[],
+): InstancedMesh {
+  const o = new InstancedMesh(g, m, items.length),
+    d = new Object3D();
   o.instanceMatrix.setUsage(DynamicDrawUsage);
   items.forEach((it, i) => {
     d.position.set(it.x, it.y, it.z);
@@ -298,22 +499,40 @@ export function instanced(g: BufferGeometry, m: Material, items: readonly { x: n
  * One fan blade round the z axis, from radius `r0` to `r1`: a thin plate whose chord runs along the turn, tilted out of the plane by its pitch
  * (steep at the root, flatter at the tip), swept forward toward a rounded tip and cupped across the chord. One surface: draw it double-sided.
  */
-export function fanBlade(r0: number, r1: number, chord: number, o: { sweep?: number; pitch?: number; cup?: number; seg?: number } = {}): BufferGeometry {
-  const seg = o.seg ?? 10, sweep = o.sweep ?? 0.5, pitch = o.pitch ?? 0.6, cup = o.cup ?? 0.12, across = 5;
-  const pos: number[] = [], idx: number[] = [];
+export function fanBlade(
+  r0: number,
+  r1: number,
+  chord: number,
+  o: { sweep?: number; pitch?: number; cup?: number; seg?: number } = {},
+): BufferGeometry {
+  const seg = o.seg ?? 10,
+    sweep = o.sweep ?? 0.5,
+    pitch = o.pitch ?? 0.6,
+    cup = o.cup ?? 0.12,
+    across = 5;
+  const pos: number[] = [],
+    idx: number[] = [];
   for (let i = 0; i <= seg; i++) {
-    const t = i / seg, R = r0 + (r1 - r0) * t, th = sweep * t * t, p = pitch * (1 - 0.45 * t);
+    const t = i / seg,
+      R = r0 + (r1 - r0) * t,
+      th = sweep * t * t,
+      p = pitch * (1 - 0.45 * t);
     const c = chord * (0.75 + 0.5 * t) * Math.sqrt(Math.max(0.08, 1 - (Math.max(0, t - 0.75) / 0.25) ** 2));
-    const ux = Math.cos(th), uy = Math.sin(th);
+    const ux = Math.cos(th),
+      uy = Math.sin(th);
     for (let j = 0; j < across; j++) {
-      const s = j / (across - 1) - 0.5, along = s * c, lift = cup * c * (0.25 - s * s);
+      const s = j / (across - 1) - 0.5,
+        along = s * c,
+        lift = cup * c * (0.25 - s * s);
       pos.push(R * ux - uy * along * Math.cos(p), R * uy + ux * along * Math.cos(p), along * Math.sin(p) + lift);
     }
   }
-  for (let i = 0; i < seg; i++) for (let j = 0; j < across - 1; j++) {
-    const a = i * across + j, c = a + across;
-    idx.push(a, c, a + 1, a + 1, c, c + 1);
-  }
+  for (let i = 0; i < seg; i++)
+    for (let j = 0; j < across - 1; j++) {
+      const a = i * across + j,
+        c = a + across;
+      idx.push(a, c, a + 1, a + 1, c, c + 1);
+    }
   const g = new BufferGeometry();
   g.setAttribute('position', new Float32BufferAttribute(pos, 3));
   g.setIndex(idx);
@@ -325,13 +544,27 @@ export function fanBlade(r0: number, r1: number, chord: number, o: { sweep?: num
  * A fan's rotor round the z axis (radius `r`, `n` blades): a domed hub with a badge ring and curved blades. It spins by its `rotation.z`.
  * `chord`: the blades' width in parts of `r`; `pitch`: their tilt (`fanBlade`). The hub's sides come from the rotor's own diameter (`fanSides`).
  */
-export function fanRotor(r: number, n: number, blade: Material, hub: Material, o: { chord?: number; pitch?: number; sides?: number; rings?: number } = {}): Group {
-  const rotor = new Group(), hr = r * 0.3, sides = o.sides ?? fanSides((2 * r) / 23);
+export function fanRotor(
+  r: number,
+  n: number,
+  blade: Material,
+  hub: Material,
+  o: { chord?: number; pitch?: number; sides?: number; rings?: number } = {},
+): Group {
+  const rotor = new Group(),
+    hr = r * 0.3,
+    sides = o.sides ?? fanSides((2 * r) / 23);
   const hubM = new Mesh(new CylinderGeometry(hr, hr, r * 0.22, sides).rotateX(Math.PI / 2), hub);
-  const dome = new Mesh(new SphereGeometry(hr, sides, o.rings ?? SEG.rings, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2).scale(1, 1, 0.35), hub);
+  const dome = new Mesh(
+    new SphereGeometry(hr, sides, o.rings ?? SEG.rings, 0, Math.PI * 2, 0, Math.PI / 2)
+      .rotateX(Math.PI / 2)
+      .scale(1, 1, 0.35),
+    hub,
+  );
   dome.position.z = r * 0.11;
   // (no uv, as the blades: a hub and blades of one program merge into one mesh)
-  hubM.geometry.deleteAttribute('uv'); dome.geometry.deleteAttribute('uv');
+  hubM.geometry.deleteAttribute('uv');
+  dome.geometry.deleteAttribute('uv');
   rotor.add(place(hubM), place(dome));
   const g = fanBlade(hr * 0.92, r * 0.97, r * (o.chord ?? 0.62), o.pitch === undefined ? {} : { pitch: o.pitch });
   for (let k = 0; k < n; k++) {
@@ -343,7 +576,8 @@ export function fanRotor(r: number, n: number, blade: Material, hub: Material, o
 }
 
 /** A fan's throat radius and how far off its axis its four screws stand (along x and y), in parts of its width: the same on every size, as on a real fan. */
-export const FAN_THROAT = 0.475, FAN_SCREW = 0.4375;
+export const FAN_THROAT = 0.475,
+  FAN_SCREW = 0.4375;
 
 /**
  * A fan's flange round the z axis (centred, `t` thick), for a fan `d` wide: a square plate with rounded corners, a round throat and a screw hole in
@@ -351,16 +585,43 @@ export const FAN_THROAT = 0.475, FAN_SCREW = 0.4375;
  * `sides`: the throat's sides, for a lower detail level (`fanPart`); the default is the fan's own (`fanSides`).
  */
 export function fanFlange(d: number, t: number, w = d, sides: number = fanSides(d / 23), low = false): BufferGeometry {
-  const h = w / 2, c = w * 0.07, b = Math.min(t * 0.2, d * 0.006);
+  const h = w / 2,
+    c = w * 0.07,
+    b = Math.min(t * 0.2, d * 0.006);
   // each round takes its sides from the fan's size (the segment table): the throat a full `fanSides`, a corner a quarter of it, a screw hole 8
-  const n = sides, arc = (cx: number, cy: number, r: number, a0: number, a1: number, k: number): Vector2[] =>
-    Array.from({ length: k + 1 }, (_, i) => { const a = a0 + ((a1 - a0) * i) / k; return new Vector2(cx + Math.cos(a) * r, cy + Math.sin(a) * r); });
-  const q = Math.max(2, n / 4), P = Math.PI;
-  const s = new Shape([...arc(h - c, -h + c, c, -P / 2, 0, q), ...arc(h - c, h - c, c, 0, P / 2, q), ...arc(-h + c, h - c, c, P / 2, P, q), ...arc(-h + c, -h + c, c, P, P * 1.5, q)]);
-  const round = (cx: number, cy: number, r: number, k: number): Path => new Path(arc(cx, cy, r, 0, -2 * P * (1 - 1 / k), k - 1));
+  const n = sides,
+    arc = (cx: number, cy: number, r: number, a0: number, a1: number, k: number): Vector2[] =>
+      Array.from({ length: k + 1 }, (_, i) => {
+        const a = a0 + ((a1 - a0) * i) / k;
+        return new Vector2(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+      });
+  const q = Math.max(2, n / 4),
+    P = Math.PI;
+  const s = new Shape([
+    ...arc(h - c, -h + c, c, -P / 2, 0, q),
+    ...arc(h - c, h - c, c, 0, P / 2, q),
+    ...arc(-h + c, h - c, c, P / 2, P, q),
+    ...arc(-h + c, -h + c, c, P, P * 1.5, q),
+  ]);
+  const round = (cx: number, cy: number, r: number, k: number): Path =>
+    new Path(arc(cx, cy, r, 0, -2 * P * (1 - 1 / k), k - 1));
   s.holes.push(round(0, 0, d * FAN_THROAT, n));
-  for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) s.holes.push(round(x * d * FAN_SCREW, y * d * FAN_SCREW, d * 0.022, low ? 6 : SEG.smallDisc));
-  return extrude(s, { depth: t - 2 * b, bevelEnabled: true, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: low ? 1 : SEG.bevel, curveSegments: SEG.curveFlat }).translate(0, 0, -t / 2 + b);
+  for (const [x, y] of [
+    [-1, -1],
+    [1, -1],
+    [1, 1],
+    [-1, 1],
+  ] as const)
+    s.holes.push(round(x * d * FAN_SCREW, y * d * FAN_SCREW, d * 0.022, low ? 6 : SEG.smallDisc));
+  return extrude(s, {
+    depth: t - 2 * b,
+    bevelEnabled: true,
+    bevelSize: b,
+    bevelThickness: b,
+    bevelOffset: -b,
+    bevelSegments: low ? 1 : SEG.bevel,
+    curveSegments: SEG.curveFlat,
+  }).translate(0, 0, -t / 2 + b);
 }
 
 /**
@@ -369,7 +630,8 @@ export function fanFlange(d: number, t: number, w = d, sides: number = fanSides(
  * opening's sides. Every extrusion with holes goes through here.
  */
 export function extrude(s: Shape, o: ExtrudeGeometryOptions = {}): ExtrudeGeometry {
-  const seg = o.curveSegments ?? SEG.curveRound, cw = ShapeUtils.isClockWise(s.getPoints(seg));
+  const seg = o.curveSegments ?? SEG.curveRound,
+    cw = ShapeUtils.isClockWise(s.getPoints(seg));
   s.holes = s.holes.map((h) => {
     const p = h.getPoints(seg);
     return ShapeUtils.isClockWise(p) === cw ? new Path(p.reverse()) : h;
@@ -378,22 +640,46 @@ export function extrude(s: Shape, o: ExtrudeGeometryOptions = {}): ExtrudeGeomet
 }
 
 /** A texture painted on a canvas, or null where no canvas exists (the tests run without a DOM). */
-export function paint(w: number, h: number, draw: (c: CanvasRenderingContext2D, w: number, h: number) => void, repeat?: [number, number]): Texture | null {
+export function paint(
+  w: number,
+  h: number,
+  draw: (c: CanvasRenderingContext2D, w: number, h: number) => void,
+  repeat?: [number, number],
+): Texture | null {
   if (typeof document === 'undefined') return null;
   const cv = document.createElement('canvas');
-  cv.width = w; cv.height = h;
+  cv.width = w;
+  cv.height = h;
   draw(cv.getContext('2d')!, w, h);
   const t = new CanvasTexture(cv);
   t.colorSpace = SRGBColorSpace;
   t.anisotropy = anisotropy;
-  if (repeat) { t.wrapS = t.wrapT = RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); }
+  if (repeat) {
+    t.wrapS = t.wrapT = RepeatWrapping;
+    t.repeat.set(repeat[0], repeat[1]);
+  }
   return t;
 }
 
 /** `paint` at the picture's detail: a big sheet is half its size per side at Low (`sheetCut`). The painter keeps its own `w` by `h` coordinates. */
-export function paintLow(w: number, h: number, draw: (c: CanvasRenderingContext2D, w: number, h: number) => void, repeat?: [number, number]): Texture | null {
+export function paintLow(
+  w: number,
+  h: number,
+  draw: (c: CanvasRenderingContext2D, w: number, h: number) => void,
+  repeat?: [number, number],
+): Texture | null {
   const k = sheetCut(w, h);
-  return k < 1 ? paint(Math.round(w * k), Math.round(h * k), (c) => { c.scale(k, k); draw(c, w, h); }, repeat) : paint(w, h, draw, repeat);
+  return k < 1
+    ? paint(
+        Math.round(w * k),
+        Math.round(h * k),
+        (c) => {
+          c.scale(k, k);
+          draw(c, w, h);
+        },
+        repeat,
+      )
+    : paint(w, h, draw, repeat);
 }
 
 /** Textures that outlive the rebuild that made them (the caches): `disposeTree` leaves them alive. */
@@ -407,11 +693,16 @@ export function shareTex<T extends Texture | null | undefined>(t: T): T {
 /** A soft dark blob: the baked contact shadow under a thing that stands on a surface. */
 let blobTex: Texture | null = null;
 export function shadowBlob(): Texture | null {
-  return blobTex ??= shareTex(paint(128, 128, (c, w, h) => {
-    const g = c.createRadialGradient(w / 2, h / 2, 4, w / 2, h / 2, w / 2);
-    g.addColorStop(0, 'rgba(20,10,4,0.55)'); g.addColorStop(0.55, 'rgba(20,10,4,0.28)'); g.addColorStop(1, 'rgba(20,10,4,0)');
-    c.fillStyle = g; c.fillRect(0, 0, w, h);
-  }));
+  return (blobTex ??= shareTex(
+    paint(128, 128, (c, w, h) => {
+      const g = c.createRadialGradient(w / 2, h / 2, 4, w / 2, h / 2, w / 2);
+      g.addColorStop(0, 'rgba(20,10,4,0.55)');
+      g.addColorStop(0.55, 'rgba(20,10,4,0.28)');
+      g.addColorStop(1, 'rgba(20,10,4,0)');
+      c.fillStyle = g;
+      c.fillRect(0, 0, w, h);
+    }),
+  ));
 }
 
 /**

@@ -25,11 +25,18 @@ let ktx2: Promise<void> | null = null;
  */
 export function ktx2Support(renderer: WebGLRenderer | null, make?: () => Promise<Ktx2>): Promise<void> {
   if (ktx2 && !make) return ktx2;
-  const made = make ?? (async () => {
-    const { KTX2Loader } = await import('three/addons/loaders/KTX2Loader.js');
-    return new KTX2Loader().setTranscoderPath(BASIS_PATH).detectSupport(renderer!);
-  });
-  return (ktx2 = made().then((l) => { loader.setKTX2Loader(l); }, () => {}));
+  const made =
+    make ??
+    (async () => {
+      const { KTX2Loader } = await import('three/addons/loaders/KTX2Loader.js');
+      return new KTX2Loader().setTranscoderPath(BASIS_PATH).detectSupport(renderer!);
+    });
+  return (ktx2 = made().then(
+    (l) => {
+      loader.setKTX2Loader(l);
+    },
+    () => {},
+  ));
 }
 
 /**
@@ -53,9 +60,15 @@ const pending = new Set<Promise<unknown>>();
  */
 export function loadModel(url: string, until?: Promise<unknown>): Promise<Object3D | null> {
   let p = cache.get(url);
-  if (!p) { p = sceneOf(url).catch(() => null); cache.set(url, p); }
+  if (!p) {
+    p = sceneOf(url).catch(() => null);
+    cache.set(url, p);
+  }
   // (a model that comes in changes a still view: its users add it before the next frame, which then draws, docs/render/load.md)
-  const done = (until ? Promise.all([p, until]).then(([m]) => m) : p).then((m) => { sceneChanged(); return m; });
+  const done = (until ? Promise.all([p, until]).then(([m]) => m) : p).then((m) => {
+    sceneChanged();
+    return m;
+  });
   pending.add(done);
   void done.then(() => pending.delete(done));
   return done;
@@ -70,7 +83,10 @@ export function modelsIn(ms = 2000): Promise<void> {
   if (!pending.size) return Promise.resolve();
   return new Promise((done) => {
     const timer = setTimeout(done, ms);
-    void Promise.all([...pending]).then(() => { clearTimeout(timer); done(); });
+    void Promise.all([...pending]).then(() => {
+      clearTimeout(timer);
+      done();
+    });
   });
 }
 
@@ -84,7 +100,9 @@ export type WarmModel = (model: Object3D, parent: Object3D) => Program[] | null;
 const warmers = new WeakMap<Object3D, WarmModel>();
 
 /** A scene's owner says how a model that joins after its programs have started is warmed (`joinModel`). */
-export function warmLateModels(scene: Object3D, warm: WarmModel): void { warmers.set(scene, warm); }
+export function warmLateModels(scene: Object3D, warm: WarmModel): void {
+  warmers.set(scene, warm);
+}
 
 /** How often a held model asks the driver whether its programs have linked (ms). */
 const LOOK_MS = 16;
@@ -96,18 +114,29 @@ const LOOK_MS = 16;
  * `prepare` runs first, once the model is on the parent: what changes its programs (the room's environment) must be done before they start.
  * Anywhere else, or before the scene's programs have started, it joins and shows at once. `alive` false ends the wait (the parent is gone).
  */
-export function joinModel(parent: Object3D, model: Object3D, { prepare, shown, alive = () => true }: { prepare?: () => void; shown?: () => void; alive?: () => boolean } = {}): void {
+export function joinModel(
+  parent: Object3D,
+  model: Object3D,
+  { prepare, shown, alive = () => true }: { prepare?: () => void; shown?: () => void; alive?: () => boolean } = {},
+): void {
   parent.add(model);
   prepare?.();
   let top = parent;
   while (top.parent) top = top.parent;
   const programs = warmers.get(top)?.(model, parent) ?? null;
-  if (!programs) { shown?.(); return; }
-  const was = model.visible, gate = new ProgramGate(() => programs);
+  if (!programs) {
+    shown?.();
+    return;
+  }
+  const was = model.visible,
+    gate = new ProgramGate(() => programs);
   model.visible = false;
   const look = (): void => {
     if (!alive()) return;
-    if (!gate.ready()) { setTimeout(look, LOOK_MS); return; }
+    if (!gate.ready()) {
+      setTimeout(look, LOOK_MS);
+      return;
+    }
     model.visible = was;
     shown?.();
     sceneChanged();
@@ -119,9 +148,19 @@ export function joinModel(parent: Object3D, model: Object3D, { prepare, shown, a
  * Scale `o` to fit the layout rect `r` (x right, y down) and stand it on depth `z0`, no taller than up to `z1`; its middle goes to the rect's middle.
  * Evenly by default; `stretch`: x and y each fill the rect (a part that is only a block, like a heat sink), the height keeps to the smaller of them.
  */
-export function fitModel(o: Object3D, r: { x: number; y: number; w: number; h: number }, z0: number, z1: number, stretch = false): Object3D {
-  const box = new Box3().setFromObject(o), size = box.getSize(new Vector3()), mid = box.getCenter(new Vector3());
-  const kx = r.w / (size.x || 1), ky = r.h / (size.y || 1), kz = Math.min((z1 - z0) / (size.z || 1), stretch ? Math.min(kx, ky) : Infinity);
+export function fitModel(
+  o: Object3D,
+  r: { x: number; y: number; w: number; h: number },
+  z0: number,
+  z1: number,
+  stretch = false,
+): Object3D {
+  const box = new Box3().setFromObject(o),
+    size = box.getSize(new Vector3()),
+    mid = box.getCenter(new Vector3());
+  const kx = r.w / (size.x || 1),
+    ky = r.h / (size.y || 1),
+    kz = Math.min((z1 - z0) / (size.z || 1), stretch ? Math.min(kx, ky) : Infinity);
   const k = stretch ? new Vector3(kx, ky, kz) : new Vector3().setScalar(Math.min(kx, ky, kz));
   o.scale.multiply(k);
   o.position.set(r.x + r.w / 2 - mid.x * k.x, -(r.y + r.h / 2) - mid.y * k.y, z0 - box.min.z * k.z);
@@ -132,9 +171,23 @@ export function fitModel(o: Object3D, r: { x: number; y: number; w: number; h: n
  * Put the model at `url` on `parent`, fitted to `r`, and hide `replace` (the primitives it stands for) once it has loaded. Does nothing if it fails,
  * or if `parent` was thrown away meanwhile (`alive`).
  */
-export function useModel(parent: Group, url: string, r: { x: number; y: number; w: number; h: number }, z0: number, z1: number, replace: Object3D[], alive: () => boolean = () => true, stretch = false): void {
+export function useModel(
+  parent: Group,
+  url: string,
+  r: { x: number; y: number; w: number; h: number },
+  z0: number,
+  z1: number,
+  replace: Object3D[],
+  alive: () => boolean = () => true,
+  stretch = false,
+): void {
   void loadModel(url).then((m) => {
     if (!m || !alive()) return;
-    joinModel(parent, fitModel(m.clone(true), r, z0, z1, stretch), { shown: () => { for (const o of replace) o.visible = false; }, alive });
+    joinModel(parent, fitModel(m.clone(true), r, z0, z1, stretch), {
+      shown: () => {
+        for (const o of replace) o.visible = false;
+      },
+      alive,
+    });
   });
 }

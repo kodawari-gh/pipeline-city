@@ -1,14 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { Rope, dist, hang, lengthOf, naturalLength, type V3 } from './rope';
 
-const A: V3 = [0, 0, 0], B: V3 = [1000, 0, 0];
+const A: V3 = [0, 0, 0],
+  B: V3 = [1000, 0, 0];
 
 /** How far the cable turns at each inner point (radians). */
-const turns = (p: V3[]) => p.slice(1, -1).map((q, i) => {
-  const a = p[i]!, c = p[i + 2]!, u = [q[0] - a[0], q[1] - a[1], q[2] - a[2]], v = [c[0] - q[0], c[1] - q[1], c[2] - q[2]];
-  const cos = (u[0]! * v[0]! + u[1]! * v[1]! + u[2]! * v[2]!) / (Math.hypot(...u) * Math.hypot(...v) || 1);
-  return Math.acos(Math.max(-1, Math.min(1, cos)));
-});
+const turns = (p: V3[]) =>
+  p.slice(1, -1).map((q, i) => {
+    const a = p[i]!,
+      c = p[i + 2]!,
+      u = [q[0] - a[0], q[1] - a[1], q[2] - a[2]],
+      v = [c[0] - q[0], c[1] - q[1], c[2] - q[2]];
+    const cos = (u[0]! * v[0]! + u[1]! * v[1]! + u[2]! * v[2]!) / (Math.hypot(...u) * Math.hypot(...v) || 1);
+    return Math.acos(Math.max(-1, Math.min(1, cos)));
+  });
 
 describe('a hanging cable', () => {
   it('keeps its ends on the plugs, leaves each along its plug and keeps its length', () => {
@@ -37,8 +42,19 @@ describe('a hanging cable', () => {
 
   it('bends in one even arc out of its plug, never a hook, when its length is the natural one', () => {
     // a CPU lead out of a grommet behind the board into a plug in front of it that faces the glass: it must turn back on itself
-    const a = { at: [0, 450, 0] as V3, dir: [0, 0, 1] as V3 }, b = { at: [110, 0, 500] as V3, dir: [0, 0, 1] as V3 };
-    const p = hang({ a, b, length: naturalLength(a, b, 1, 110) * 1.03, r: 24, stiff: 0.75, n: 22, lead: 110, sag: 0.25, handle: 1 });
+    const a = { at: [0, 450, 0] as V3, dir: [0, 0, 1] as V3 },
+      b = { at: [110, 0, 500] as V3, dir: [0, 0, 1] as V3 };
+    const p = hang({
+      a,
+      b,
+      length: naturalLength(a, b, 1, 110) * 1.03,
+      r: 24,
+      stiff: 0.75,
+      n: 22,
+      lead: 110,
+      sag: 0.25,
+      handle: 1,
+    });
     // the turn is spread over the arc (a hook turns more than a radian at one point) and the cable keeps its length
     expect(Math.max(...turns(p))).toBeLessThan(0.75);
     expect(Math.min(...p.map((q) => q[1]))).toBeGreaterThan(-1);
@@ -46,8 +62,16 @@ describe('a hanging cable', () => {
   });
 
   it('lies on a floor and goes round a box', () => {
-    const floor = -300, box = { min: [400, -1000, -100] as V3, max: [600, 100, 100] as V3 };
-    const p = hang({ a: { at: A, dir: [1, 0, 0] }, b: { at: B, dir: [-1, 0, 0] }, length: 2400, r: 10, planes: [{ n: [0, 1, 0], d: floor }], solids: [box] });
+    const floor = -300,
+      box = { min: [400, -1000, -100] as V3, max: [600, 100, 100] as V3 };
+    const p = hang({
+      a: { at: A, dir: [1, 0, 0] },
+      b: { at: B, dir: [-1, 0, 0] },
+      length: 2400,
+      r: 10,
+      planes: [{ n: [0, 1, 0], d: floor }],
+      solids: [box],
+    });
     for (const q of p) expect(q[1]).toBeGreaterThanOrEqual(floor + 10 - 1);
     for (const q of p.slice(1, -1)) {
       const inside = [0, 1, 2].every((j) => q[j]! > box.min[j]! + 2 && q[j]! < box.max[j]! - 2);
@@ -65,7 +89,15 @@ describe('a hanging cable', () => {
   it('bends round in loops instead of folding in zigzags when it has slack and little room', () => {
     // a short lead out of a socket into a hole behind it, with more cable than the gap (the SATA and 24-pin case), lying against a plane
     for (const stiff of [0.4, 0.7]) {
-      const p = hang({ a: { at: [0, 0, 300], dir: [1, 0, 0] }, b: { at: [250, 0, 0], dir: [0, 0, 1] }, length: 900, r: 15, stiff, n: 20, planes: [{ n: [0, 0, 1], d: 0 }] });
+      const p = hang({
+        a: { at: [0, 0, 300], dir: [1, 0, 0] },
+        b: { at: [250, 0, 0], dir: [0, 0, 1] },
+        length: 900,
+        r: 15,
+        stiff,
+        n: 20,
+        planes: [{ n: [0, 0, 1], d: 0 }],
+      });
       expect(Math.max(...turns(p)), `stiff ${stiff}`).toBeLessThan(1.05);
     }
   });
@@ -79,7 +111,14 @@ describe('a hanging cable', () => {
 });
 
 describe('a held cable (a live rope)', () => {
-  const spec = { a: { at: A, dir: [0, 0, 1] as V3 }, b: { at: B, dir: [-1, 0, 0] as V3 }, length: 1500, r: 10, stiff: 0.5, n: 20 };
+  const spec = {
+    a: { at: A, dir: [0, 0, 1] as V3 },
+    b: { at: B, dir: [-1, 0, 0] as V3 },
+    length: 1500,
+    r: 10,
+    stiff: 0.5,
+    n: 20,
+  };
 
   it('comes to the same curve as `hang` over the same steps', () => {
     const rope = new Rope(spec);
@@ -114,8 +153,21 @@ describe('a held cable (a live rope)', () => {
 
   it('comes to rest with slack, a stiff bundle held still (it does not shake)', () => {
     // a 24-pin bundle held off to the side of its grommet (taken from the game): 28% slack it has to bend
-    const rope = new Rope({ a: { at: [4850, 1222, 2294], dir: [0, 0, 1] }, b: { at: [5566, 569, 2545], dir: [-0.227, 0.974, 0] }, length: 1281, r: 24, stiff: 0.7, n: 20, lead: 90, planes: [{ n: [0, 0, 1], d: 2270 }] }, { live: true });
-    let last = rope.points(), most = 0;
+    const rope = new Rope(
+      {
+        a: { at: [4850, 1222, 2294], dir: [0, 0, 1] },
+        b: { at: [5566, 569, 2545], dir: [-0.227, 0.974, 0] },
+        length: 1281,
+        r: 24,
+        stiff: 0.7,
+        n: 20,
+        lead: 90,
+        planes: [{ n: [0, 0, 1], d: 2270 }],
+      },
+      { live: true },
+    );
+    let last = rope.points(),
+      most = 0;
     for (let f = 0; f < 120; f++) {
       rope.step(4);
       const now = rope.points();
@@ -129,16 +181,30 @@ describe('a held cable (a live rope)', () => {
     // a cord held up by both ends, its far end let go: it falls onto a shelf beside and under it (what it has left slides off), never more than
     // half its thickness into it
     const shelf = { min: [-1000, -2000, -500] as V3, max: [1000, -1500, 500] as V3 };
-    const rope = new Rope({ a: { at: [0, 0, 0], dir: [1, 0, 0] }, b: { at: [400, 0, 0], dir: [-1, 0, 0] }, length: 3000, r: 10, solids: [shelf] }, { live: true });
+    const rope = new Rope(
+      {
+        a: { at: [0, 0, 0], dir: [1, 0, 0] },
+        b: { at: [400, 0, 0], dir: [-1, 0, 0] },
+        length: 3000,
+        r: 10,
+        solids: [shelf],
+      },
+      { live: true },
+    );
     rope.setEnds({ at: [0, 0, 0], dir: [1, 0, 0] }, null);
     rope.step(1500);
     const p = rope.points();
     expect(Math.min(...p.map((q) => q[1]))).toBeLessThan(-1000);
-    for (const q of p) expect([0, 1, 2].every((j) => q[j]! > shelf.min[j]! - 5 && q[j]! < shelf.max[j]! + 5), q.join()).toBe(false);
+    for (const q of p)
+      expect(
+        [0, 1, 2].every((j) => q[j]! > shelf.min[j]! - 5 && q[j]! < shelf.max[j]! + 5),
+        q.join(),
+      ).toBe(false);
   });
 
   it('starts from the points it is given', () => {
-    const start = hang(spec), rope = new Rope(spec, { start });
+    const start = hang(spec),
+      rope = new Rope(spec, { start });
     expect(rope.points()).toEqual(start);
     // ends that do not move leave it at rest once it has settled
     const cord = new Rope({ a: spec.a, b: null, length: 800 });

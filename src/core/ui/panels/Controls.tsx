@@ -45,7 +45,14 @@ function Rows({ rows }: { rows: readonly Row[] }) {
     <>
       {rows.map(([keys, does]) => (
         <div class="ctl-row" key={does}>
-          <span class="ctl-k">{keys.map((k, i) => <span key={k}>{i > 0 && <i>or</i>}<kbd>{k}</kbd></span>)}</span>
+          <span class="ctl-k">
+            {keys.map((k, i) => (
+              <span key={k}>
+                {i > 0 && <i>or</i>}
+                <kbd>{k}</kbd>
+              </span>
+            ))}
+          </span>
           <span>{does}</span>
         </div>
       ))}
@@ -58,7 +65,13 @@ export function Controls() {
   useEffect(() => {
     if (!open) return;
     const before = document.activeElement as HTMLElement | null;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeControls(); } };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        closeControls();
+      }
+    };
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('keydown', onKey);
@@ -67,15 +80,33 @@ export function Controls() {
   }, [open]);
   if (!open) return null;
   return (
-    <div class="modal-back ctl-back" onClick={(e) => { if (e.target === e.currentTarget) closeControls(); }}>
+    <div
+      class="modal-back ctl-back"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) closeControls();
+      }}
+    >
       <div class="card modal mm-card ctl" role="dialog" aria-modal="true" aria-label="Controls">
         <div class="big">Controls</div>
         <div class="ctl-cols">
-          <section aria-label="Mouse"><h3>Mouse</h3><Rows rows={MOUSE} /></section>
-          <section aria-label="Touch"><h3>Touch</h3><Rows rows={TOUCH} /></section>
-          <section aria-label="Keys"><h3>Keys</h3><Rows rows={KEYS} /></section>
+          <section aria-label="Mouse">
+            <h3>Mouse</h3>
+            <Rows rows={MOUSE} />
+          </section>
+          <section aria-label="Touch">
+            <h3>Touch</h3>
+            <Rows rows={TOUCH} />
+          </section>
+          <section aria-label="Keys">
+            <h3>Keys</h3>
+            <Rows rows={KEYS} />
+          </section>
         </div>
-        <div class="pactions"><button class="primary" data-cue="ui_back" autofocus onClick={() => closeControls()}>Done</button></div>
+        <div class="pactions">
+          <button class="primary" data-cue="ui_back" autofocus onClick={() => closeControls()}>
+            Done
+          </button>
+        </div>
       </div>
     </div>
   );

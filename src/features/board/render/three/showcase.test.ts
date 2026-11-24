@@ -7,14 +7,31 @@ import { LAYOUT_CASE, LAYOUT_TIER, setLayoutTier } from '../layout/layout';
 import { buildShowcaseModel } from './showcase';
 
 const T = builtinTheme();
-const BUILT = ['cpu', 'ram', 'gpu', 'npu', 'nic', 'cooler', 'fan', 'storage', 'psu', 'radiator', 'tpm', 'vrm-sink', 'ram-sink', 'display'];
+const BUILT = [
+  'cpu',
+  'ram',
+  'gpu',
+  'npu',
+  'nic',
+  'cooler',
+  'fan',
+  'storage',
+  'psu',
+  'radiator',
+  'tpm',
+  'vrm-sink',
+  'ram-sink',
+  'display',
+];
 
 describe('the showcase models', () => {
   it('builds every spec of the modelled kinds: solid, resting on the floor, centred', () => {
     for (const s of Object.values(DEVICE_SPECS).filter((x) => BUILT.includes(x.kind))) {
       const m = buildShowcaseModel(s.id, T);
       expect(m, s.id).not.toBeNull();
-      const b = new Box3().setFromObject(m!), z = b.getSize(b.max.clone()), c = b.getCenter(b.max.clone());
+      const b = new Box3().setFromObject(m!),
+        z = b.getSize(b.max.clone()),
+        c = b.getCenter(b.max.clone());
       expect(z.x * z.y * z.z, s.id).toBeGreaterThan(0);
       expect(b.min.y, s.id).toBeCloseTo(0, 3);
       expect(Math.abs(c.x) + Math.abs(c.z), s.id).toBeLessThan(1);
@@ -29,7 +46,9 @@ describe('the showcase models', () => {
     const widths = ['router1', 'router2', 'router3', 'router4'].map((id) => {
       const m = buildShowcaseModel(id, T);
       expect(m, id).not.toBeNull();
-      const b = new Box3().setFromObject(m!), s = b.getSize(b.max.clone()), c = b.getCenter(b.max.clone());
+      const b = new Box3().setFromObject(m!),
+        s = b.getSize(b.max.clone()),
+        c = b.getCenter(b.max.clone());
       expect(s.x * s.y * s.z, id).toBeGreaterThan(0);
       expect(b.min.y, id).toBeCloseTo(0, 3);
       expect(Math.abs(c.x) + Math.abs(c.z), id).toBeLessThan(1);
@@ -58,13 +77,22 @@ describe('the showcase models', () => {
     cam.position.set(0, 0, z);
     cam.updateMatrixWorld(true);
     o.updateMatrixWorld(true);
-    o.traverse((n) => { const f = n.userData.frame as ((c: PerspectiveCamera, h: number) => void) | undefined; if (f) f(cam, 900); });
+    o.traverse((n) => {
+      const f = n.userData.frame as ((c: PerspectiveCamera, h: number) => void) | undefined;
+      if (f) f(cam, 900);
+    });
   };
 
   it('fades the shell of a router as the camera comes in and shows its board, as the room does', () => {
     for (const id of ['router1', 'router4']) {
       const m = buildShowcaseModel(id, T)!;
-      const board = (): boolean => { let v = false; m.traverse((o) => { if (o.userData.id === 'router') v = o.visible; }); return v; };
+      const board = (): boolean => {
+        let v = false;
+        m.traverse((o) => {
+          if (o.userData.id === 'router') v = o.visible;
+        });
+        return v;
+      };
       runFrame(m, 60000);
       expect(board(), id + ' far').toBe(false);
       runFrame(m, 1500);
@@ -73,19 +101,23 @@ describe('the showcase models', () => {
   });
 
   it('stands a RAM stick with its long side along x', () => {
-    const b = new Box3().setFromObject(buildShowcaseModel('ram0', T)!), s = b.getSize(b.max.clone());
+    const b = new Box3().setFromObject(buildShowcaseModel('ram0', T)!),
+      s = b.getSize(b.max.clone());
     expect(s.x).toBeGreaterThan(s.y);
     expect(s.x).toBeGreaterThan(s.z);
   });
 
-  it('turns a NIC to show its parts first: its jacks stand on the viewer\'s side of the card (+z), as a graphics card shows its cooler', () => {
+  it("turns a NIC to show its parts first: its jacks stand on the viewer's side of the card (+z), as a graphics card shows its cooler", () => {
     for (const id of ['nic1', 'nic2', 'nic3']) {
       const m = buildShowcaseModel(id, T)!;
       m.updateMatrixWorld(true);
       let jack: Object3D | null = null;
-      m.traverse((o) => { if (idOf(o)?.endsWith('.nic-jack')) jack = o; });
+      m.traverse((o) => {
+        if (idOf(o)?.endsWith('.nic-jack')) jack = o;
+      });
       expect(jack, id).not.toBeNull();
-      const whole = new Box3().setFromObject(m).getCenter(new Vector3()), at = new Box3().setFromObject(jack!).getCenter(new Vector3());
+      const whole = new Box3().setFromObject(m).getCenter(new Vector3()),
+        at = new Box3().setFromObject(jack!).getCenter(new Vector3());
       expect(at.z - whole.z, id).toBeGreaterThan(1);
     }
   });

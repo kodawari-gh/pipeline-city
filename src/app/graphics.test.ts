@@ -1,17 +1,70 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  autoStep, awayHeld, CHOICES, DEFAULTS, effective, FrameGate, graphics, lowered, loopLimit, nextStep, parseGraphics, parseTierRecord, pickTier, presetOf, PRESETS, PRESET_NAMES, resetTierSteps,
-  isLow, loadStart, resetGraphics, resolveStart, setAutoTier, setGraphic, setPreset, setTier, SlowWatch, stepTier, tierGraphics, TierWatch, tierRecord, type DeviceInfo, type Graphics, type Tier, watchFps,
+  autoStep,
+  awayHeld,
+  CHOICES,
+  DEFAULTS,
+  effective,
+  FrameGate,
+  graphics,
+  lowered,
+  loopLimit,
+  nextStep,
+  parseGraphics,
+  parseTierRecord,
+  pickTier,
+  presetOf,
+  PRESETS,
+  PRESET_NAMES,
+  resetTierSteps,
+  isLow,
+  loadStart,
+  resetGraphics,
+  resolveStart,
+  setAutoTier,
+  setGraphic,
+  setPreset,
+  setTier,
+  SlowWatch,
+  stepTier,
+  tierGraphics,
+  TierWatch,
+  tierRecord,
+  type DeviceInfo,
+  type Graphics,
+  type Tier,
+  watchFps,
 } from './graphics';
 
-const dev = (o: Partial<DeviceInfo>): DeviceInfo => ({ renderer: '', cores: 8, memoryGb: 8, width: 1920, height: 1080, dpr: 1, ...o });
+const dev = (o: Partial<DeviceInfo>): DeviceInfo => ({
+  renderer: '',
+  cores: 8,
+  memoryGb: 8,
+  width: 1920,
+  height: 1080,
+  dpr: 1,
+  ...o,
+});
 
 describe('pickTier', () => {
   it('RTX 5080 4K desktop is high', () => {
-    expect(pickTier(dev({ renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 5080 Direct3D11 vs_5_0 ps_5_0)', cores: 24, width: 3840, height: 2160, dpr: 1.5 })).tier).toBe('high');
+    expect(
+      pickTier(
+        dev({
+          renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 5080 Direct3D11 vs_5_0 ps_5_0)',
+          cores: 24,
+          width: 3840,
+          height: 2160,
+          dpr: 1.5,
+        }),
+      ).tier,
+    ).toBe('high');
   });
   it('Intel UHD laptop is medium', () => {
-    expect(pickTier(dev({ renderer: 'ANGLE (Intel, Intel(R) UHD Graphics 620)', cores: 8 }))).toMatchObject({ tier: 'medium', reason: 'integrated GPU' });
+    expect(pickTier(dev({ renderer: 'ANGLE (Intel, Intel(R) UHD Graphics 620)', cores: 8 }))).toMatchObject({
+      tier: 'medium',
+      reason: 'integrated GPU',
+    });
   });
   it('Adreno phone and iPhone are low', () => {
     expect(pickTier(dev({ renderer: 'Adreno (TM) 730', width: 412, height: 915, dpr: 2.6 })).tier).toBe('low');
@@ -22,7 +75,9 @@ describe('pickTier', () => {
     expect(pickTier(dev({ renderer: 'Apple GPU', width: 1440, height: 900 })).tier).toBe('medium');
   });
   it('software GL is low', () => {
-    expect(pickTier(dev({ renderer: 'ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device), SwiftShader driver)' })).tier).toBe('low');
+    expect(
+      pickTier(dev({ renderer: 'ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device), SwiftShader driver)' })).tier,
+    ).toBe('low');
     expect(pickTier(dev({ renderer: 'llvmpipe (LLVM 15.0.7, 256 bits)' })).tier).toBe('low');
   });
   it('caps: 2 cores or 2 GB is low, 4 cores at most medium, a small screen at most medium', () => {
@@ -33,7 +88,10 @@ describe('pickTier', () => {
     expect(pickTier(dev({ renderer: gpu, width: 480, height: 800 })).tier).toBe('medium');
   });
   it('an unknown renderer is medium; hidden cores and memory cap nothing', () => {
-    expect(pickTier(dev({ renderer: 'Mystery', cores: 0, memoryGb: 0 }))).toMatchObject({ tier: 'medium', reason: 'unknown GPU' });
+    expect(pickTier(dev({ renderer: 'Mystery', cores: 0, memoryGb: 0 }))).toMatchObject({
+      tier: 'medium',
+      reason: 'unknown GPU',
+    });
   });
 });
 
@@ -79,7 +137,8 @@ describe('TierWatch', () => {
   it('steady 60 fps drawn frames with light work are up', () => expect(replay(1000 / 60, 1000 / 60, 3)).toBe('up'));
   // (c) 200 ms frames are never fast
   it('200 ms frames are not up', () => expect(replay(200, 200, 3)).not.toBe('up'));
-  it('a real slow frame still steps down when idle ticks sit between them', () => expect(replay(100, 50, 40)).toBe('down'));
+  it('a real slow frame still steps down when idle ticks sit between them', () =>
+    expect(replay(100, 50, 40)).toBe('down'));
 
   it('ignores frames the away limit holds down', () => {
     const w2 = new TierWatch();
@@ -105,7 +164,10 @@ describe('tier persistence', () => {
   const store = new Map<string, string>();
   beforeEach(() => {
     store.clear();
-    vi.stubGlobal('localStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) });
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+    });
     resetTierSteps();
     setAutoTier({ tier: 'high', reason: 'test' });
     store.clear();
@@ -124,7 +186,8 @@ describe('tier persistence', () => {
   });
   it('a step saves the tier and the next start begins there (round trip)', () => {
     expect(stepTier('down', 'high')).toBe(true);
-    const saved = JSON.parse(store.get('pipeline-city.graphics')!), rec = JSON.parse(store.get('pipeline-city.graphics.tier')!);
+    const saved = JSON.parse(store.get('pipeline-city.graphics')!),
+      rec = JSON.parse(store.get('pipeline-city.graphics.tier')!);
     expect(parseTierRecord(rec)).toMatchObject({ mode: 'auto' });
     const next = resolveStart(saved, rec, '', detect('high'));
     expect(next.rec.tier).toBe(tierRecord.value.tier);
@@ -146,7 +209,8 @@ describe('tier persistence', () => {
     expect(stepTier('down', 'low')).toBe(true); // medium -> low, the next load
     expect(tierRecord.value).toMatchObject({ tier: 'low', maxUp: 'low' });
     // reload
-    const saved = JSON.parse(store.get('pipeline-city.graphics')!), rec = JSON.parse(store.get('pipeline-city.graphics.tier')!);
+    const saved = JSON.parse(store.get('pipeline-city.graphics')!),
+      rec = JSON.parse(store.get('pipeline-city.graphics.tier')!);
     const s = resolveStart(saved, rec, '', detect('low'));
     expect(s.rec.tier).toBe('low');
     tierRecord.value = s.rec; // the new load's state
@@ -155,14 +219,33 @@ describe('tier persistence', () => {
     expect(tierRecord.value.tier).toBe('low');
   });
   it('a record with maxUp below its tier starts at maxUp; an old record parses', () => {
-    const s = resolveStart({ ...DEFAULTS, v: 2 }, { mode: 'auto', tier: 'high', reason: '', maxUp: 'medium' }, '', detect('high'));
+    const s = resolveStart(
+      { ...DEFAULTS, v: 2 },
+      { mode: 'auto', tier: 'high', reason: '', maxUp: 'medium' },
+      '',
+      detect('high'),
+    );
     expect(s.rec.tier).toBe('medium');
-    expect(parseTierRecord({ mode: 'auto', tier: 'low', reason: '' })).toEqual({ mode: 'auto', tier: 'low', reason: '' });
+    expect(parseTierRecord({ mode: 'auto', tier: 'low', reason: '' })).toEqual({
+      mode: 'auto',
+      tier: 'low',
+      reason: '',
+    });
   });
   describe('maxUp expires', () => {
-    const DAY = 24 * 3600 * 1000, T0 = 1_000_000_000_000;
-    const rec = (o: object = {}) => ({ mode: 'auto', tier: 'high', reason: '', maxUp: 'low', maxUpAt: T0, maxUpFp: 'gpu|1920x1080', ...o });
-    const run = (r: object, now: number, fp = 'gpu|1920x1080') => resolveStart({ ...DEFAULTS, v: 2 }, r, '', detect('high'), { now, fp: () => fp }).rec;
+    const DAY = 24 * 3600 * 1000,
+      T0 = 1_000_000_000_000;
+    const rec = (o: object = {}) => ({
+      mode: 'auto',
+      tier: 'high',
+      reason: '',
+      maxUp: 'low',
+      maxUpAt: T0,
+      maxUpFp: 'gpu|1920x1080',
+      ...o,
+    });
+    const run = (r: object, now: number, fp = 'gpu|1920x1080') =>
+      resolveStart({ ...DEFAULTS, v: 2 }, r, '', detect('high'), { now, fp: () => fp }).rec;
     it('is kept inside 3 days on the same device', () => {
       expect(run(rec(), T0 + 2 * DAY)).toMatchObject({ tier: 'low', maxUp: 'low', maxUpAt: T0 });
     });
@@ -178,11 +261,18 @@ describe('tier persistence', () => {
       expect(run(rec(), T0 + DAY, 'gpu|2560x1440').maxUp).toBeUndefined();
     });
     it('an old record with no date is kept and dated now', () => {
-      expect(run({ mode: 'auto', tier: 'high', reason: '', maxUp: 'low' }, T0 + 9 * DAY)).toMatchObject({ tier: 'low', maxUp: 'low', maxUpAt: T0 + 9 * DAY, maxUpFp: 'gpu|1920x1080' });
+      expect(run({ mode: 'auto', tier: 'high', reason: '', maxUp: 'low' }, T0 + 9 * DAY)).toMatchObject({
+        tier: 'low',
+        maxUp: 'low',
+        maxUpAt: T0 + 9 * DAY,
+        maxUpFp: 'gpu|1920x1080',
+      });
     });
   });
   describe('an undated maxUp is saved once', () => {
-    const DAY = 24 * 3600 * 1000, T0 = 1_000_000_000_000, TK = 'pipeline-city.graphics.tier';
+    const DAY = 24 * 3600 * 1000,
+      T0 = 1_000_000_000_000,
+      TK = 'pipeline-city.graphics.tier';
     it('is dated at the first load and expires on a later one', () => {
       const m = new Map<string, string>([
         ['pipeline-city.graphics', JSON.stringify({ ...DEFAULTS, v: 2 })],
@@ -204,12 +294,31 @@ describe('tier persistence', () => {
       ]);
       const store = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) };
       loadStart(store, '', detect('high'), { now: 5, fp: () => 'f' });
-      expect(JSON.parse(m.get('pipeline-city.graphics.tier')!)).toEqual({ mode: 'auto', tier: 'high', reason: '', maxUp: 'medium', maxUpAt: 5, maxUpFp: 'f' });
+      expect(JSON.parse(m.get('pipeline-city.graphics.tier')!)).toEqual({
+        mode: 'auto',
+        tier: 'high',
+        reason: '',
+        maxUp: 'medium',
+        maxUpAt: 5,
+        maxUpFp: 'f',
+      });
     });
   });
   describe('the Low picture moves from 0.6 / shadows 1 to 0.75 / shadows 0 (save v4)', () => {
     // the full old Low, hard-coded: PRESETS.low no longer holds it
-    const OLD_LOW = { scale: 0.6, msaa: 0, ao: 0, bloom: 0, shadows: 1, lights: 4, lightShadows: 0, textures: 0, filtering: 2, live: 0, particles: 0 };
+    const OLD_LOW = {
+      scale: 0.6,
+      msaa: 0,
+      ao: 0,
+      bloom: 0,
+      shadows: 1,
+      lights: 4,
+      lightShadows: 0,
+      textures: 0,
+      filtering: 2,
+      live: 0,
+      particles: 0,
+    };
     const lowRec = { mode: 'manual', tier: 'low', reason: 'chosen' };
     const high = () => ({ tier: 'high' as const, reason: '' });
     it('a v3 save at the old Low parses to the new Low, which is Low', () => {
@@ -229,19 +338,23 @@ describe('tier persistence', () => {
       expect(s.g).toMatchObject({ scale: 0.75, shadows: 0, lights: 4, lightShadows: 0 });
       expect(presetOf(s.g)).toBe('low');
     });
-    it('a v4 Custom at 0.6 / shadows 1 stays the player\'s', () => {
+    it("a v4 Custom at 0.6 / shadows 1 stays the player's", () => {
       const s = resolveStart({ ...OLD_LOW, fps: 60, v: 4 }, lowRec, '', high);
       expect(s.g).toMatchObject({ scale: 0.6, shadows: 1 });
       expect(presetOf(s.g)).toBeNull();
     });
-    it('a v3 save at 0.6 with another shadow level stays the player\'s', () => {
+    it("a v3 save at 0.6 with another shadow level stays the player's", () => {
       const s = resolveStart({ ...OLD_LOW, shadows: 2, fps: 60, v: 3 }, lowRec, '', high);
       expect(s.g).toMatchObject({ scale: 0.6, shadows: 2 });
     });
   });
   describe('the touch default from before tiers', () => {
-    const old = { ...PRESETS.low, scale: 0.75, shadows: 0, fps: 30, brightness: 1, auto: true, v: 1 } as Record<string, unknown>;
-    delete old.lights; delete old.lightShadows;
+    const old = { ...PRESETS.low, scale: 0.75, shadows: 0, fps: 30, brightness: 1, auto: true, v: 1 } as Record<
+      string,
+      unknown
+    >;
+    delete old.lights;
+    delete old.lightShadows;
     it('reads as Low, auto, with 4 lamps', () => {
       const s = resolveStart(old, null, '', detect('high'));
       expect(s.rec).toMatchObject({ mode: 'auto', tier: 'low' });
@@ -249,7 +362,14 @@ describe('tier persistence', () => {
     });
     it('a save that differs in any key stays manual', () => {
       // a picture key off the touch default makes it Custom: no lamps. fps and brightness are not picture keys, so the save keeps Low's 4 lamps
-      for (const [k, v] of [['scale', 0.8], ['shadows', 1], ['msaa', 2], ['particles', 1], ['fps', 60], ['brightness', 1.1]] as const) {
+      for (const [k, v] of [
+        ['scale', 0.8],
+        ['shadows', 1],
+        ['msaa', 2],
+        ['particles', 1],
+        ['fps', 60],
+        ['brightness', 1.1],
+      ] as const) {
         const s = resolveStart({ ...old, [k]: v }, null, '', detect('low'));
         expect(s.rec.mode, k).toBe('manual');
         expect(s.g.lights, k).toBe(['fps', 'brightness'].includes(k) ? 4 : 0);
@@ -258,7 +378,12 @@ describe('tier persistence', () => {
   });
   it('a bench start (stored preset, no tier record, or ?tier) is manual: no auto step can change it', () => {
     const stored = { ...PRESETS.high, fps: 0, brightness: 1, auto: false, v: 2 };
-    for (const [saved, search] of [[stored, ''], [{ ...stored, ...PRESETS.low }, ''], [null, '?tier=low'], [stored, '?tier=high']] as const) {
+    for (const [saved, search] of [
+      [stored, ''],
+      [{ ...stored, ...PRESETS.low }, ''],
+      [null, '?tier=low'],
+      [stored, '?tier=high'],
+    ] as const) {
       const s = resolveStart(saved, null, search, detect('high'));
       expect(s.rec.mode).toBe('manual');
     }
@@ -291,7 +416,12 @@ describe('tier persistence', () => {
     expect(stepTier('up', 'high')).toBe(false);
   });
   it('?tier= overrides for the session, is manual and is not stored', () => {
-    const s = resolveStart({ ...DEFAULTS, v: 2 }, { mode: 'auto', tier: 'high', reason: '' }, '?tier=low', detect('high'));
+    const s = resolveStart(
+      { ...DEFAULTS, v: 2 },
+      { mode: 'auto', tier: 'high', reason: '' },
+      '?tier=low',
+      detect('high'),
+    );
     expect(s.rec).toMatchObject({ mode: 'manual', tier: 'low' });
     expect(s.g).toMatchObject({ scale: 0.75, shadows: 0, fps: 60 });
     expect(resolveStart(null, null, '?tier=bogus', detect('medium')).rec.tier).toBe('medium');
@@ -318,7 +448,12 @@ describe('tier persistence', () => {
       expect(s.g.fps).toBe(30);
     });
     it('a v2 save keeps its auto flag', () => {
-      const s = resolveStart({ ...PRESETS.high, fps: 60, auto: true, v: 2 }, { mode: 'manual', tier: 'high', reason: 'chosen' }, '', detect('high'));
+      const s = resolveStart(
+        { ...PRESETS.high, fps: 60, auto: true, v: 2 },
+        { mode: 'manual', tier: 'high', reason: 'chosen' },
+        '',
+        detect('high'),
+      );
       expect(s.g.auto).toBe(true);
     });
   });
@@ -386,8 +521,27 @@ describe('auto-adjust', () => {
     expect(lowered(DEFAULTS, 1)).toEqual({ ...DEFAULTS, ao: 0 });
     expect(lowered(DEFAULTS, 2)).toEqual({ ...DEFAULTS, ao: 0, bloom: 0, msaa: 0, live: 0 });
     expect(lowered(DEFAULTS, 3)).toEqual({ ...DEFAULTS, ao: 0, bloom: 0, msaa: 0, live: 0, scale: 0.75 });
-    expect(lowered(DEFAULTS, 4)).toEqual({ ...DEFAULTS, ao: 0, bloom: 0, msaa: 0, live: 0, scale: 0.75, shadows: 0, lightShadows: 0 });
-    expect(lowered(DEFAULTS, 5)).toEqual({ ...DEFAULTS, ao: 0, bloom: 0, msaa: 0, live: 0, scale: 0.75, shadows: 0, lightShadows: 0, fps: 30 });
+    expect(lowered(DEFAULTS, 4)).toEqual({
+      ...DEFAULTS,
+      ao: 0,
+      bloom: 0,
+      msaa: 0,
+      live: 0,
+      scale: 0.75,
+      shadows: 0,
+      lightShadows: 0,
+    });
+    expect(lowered(DEFAULTS, 5)).toEqual({
+      ...DEFAULTS,
+      ao: 0,
+      bloom: 0,
+      msaa: 0,
+      live: 0,
+      scale: 0.75,
+      shadows: 0,
+      lightShadows: 0,
+      fps: 30,
+    });
   });
 
   it('step 5 caps the frame limit at 30 and never raises it', () => {
@@ -454,9 +608,33 @@ describe('the settings signal', () => {
 
   it('setPreset gives Medium and High their own pictures, scale and shadows included', () => {
     setPreset('medium');
-    expect(graphics.value).toMatchObject({ scale: 0.75, shadows: 2, msaa: 2, ao: 1, bloom: 1, lights: 0, lightShadows: 0, textures: 1, filtering: 4, live: 1, particles: 1 });
+    expect(graphics.value).toMatchObject({
+      scale: 0.75,
+      shadows: 2,
+      msaa: 2,
+      ao: 1,
+      bloom: 1,
+      lights: 0,
+      lightShadows: 0,
+      textures: 1,
+      filtering: 4,
+      live: 1,
+      particles: 1,
+    });
     setPreset('high');
-    expect(graphics.value).toMatchObject({ scale: 1, shadows: 3, msaa: 4, ao: 2, bloom: 2, lights: 0, lightShadows: 1, textures: 2, filtering: 8, live: 2, particles: 2 });
+    expect(graphics.value).toMatchObject({
+      scale: 1,
+      shadows: 3,
+      msaa: 4,
+      ao: 2,
+      bloom: 2,
+      lights: 0,
+      lightShadows: 1,
+      textures: 2,
+      filtering: 8,
+      live: 2,
+      particles: 2,
+    });
   });
 
   it('Reset to defaults gives back the detected tier and the three options a preset leaves alone', () => {
@@ -500,7 +678,10 @@ describe('the frame limit', () => {
   const drawnIn = (s: number, limitAt: (t: number) => number) => {
     const g = new FrameGate();
     let n = 0;
-    for (let i = 0; i < 120 * s; i++) { const t = (i * 1000) / 120; if (g.ready(t, limitAt(t))) n++; }
+    for (let i = 0; i < 120 * s; i++) {
+      const t = (i * 1000) / 120;
+      if (g.ready(t, limitAt(t))) n++;
+    }
     return n;
   };
 
@@ -538,7 +719,8 @@ describe('the watches at the Low limit', () => {
     const w = new SlowWatch();
     w.reset(0);
     let fired = 0;
-    for (let t = 5000, i = 0; t < 5000 + secs * 1000; i++, t += 1000 / fps) if (w.tick(1 / fps, t, watchFps(g, limit))) fired++;
+    for (let t = 5000, i = 0; t < 5000 + secs * 1000; i++, t += 1000 / fps)
+      if (w.tick(1 / fps, t, watchFps(g, limit))) fired++;
     return fired;
   };
   /** The one decision `TierWatch` makes from steady frames, judged as board3d judges them. */
@@ -546,7 +728,8 @@ describe('the watches at the Low limit', () => {
     const w = new TierWatch();
     w.reset(0);
     let out: 'down' | 'up' | null = null;
-    for (let t = 5000, i = 0; i < 600 && !out; i++, t += 1000 / fps) out = w.tick(1 / fps, workMs, t, watchFps(g, limit));
+    for (let t = 5000, i = 0; i < 600 && !out; i++, t += 1000 / fps)
+      out = w.tick(1 / fps, workMs, t, watchFps(g, limit));
     return out;
   };
 
@@ -571,7 +754,12 @@ describe('the watches at the Low limit', () => {
 describe('isLow: Low alone takes the cheap materials, probe and shadows', () => {
   it('a Low tier and a migrated old Low save are Low', () => {
     expect(isLow(tierGraphics('low', DEFAULTS))).toBe(true);
-    const old = resolveStart({ ...PRESETS.low, fps: 30, v: 2 }, { mode: 'manual', tier: 'low', reason: 'chosen' }, '', () => ({ tier: 'high', reason: '' }));
+    const old = resolveStart(
+      { ...PRESETS.low, fps: 30, v: 2 },
+      { mode: 'manual', tier: 'low', reason: 'chosen' },
+      '',
+      () => ({ tier: 'high', reason: '' }),
+    );
     expect(isLow(old.g)).toBe(true);
   });
   it('Medium, High and the defaults are not Low', () => {
@@ -591,8 +779,12 @@ describe('SlowWatch', () => {
     const w = new SlowWatch();
     w.reset(0);
     expect(w.tick(0.1, 1000, 0)).toBe(false);
-    let t = 5000, fired = 0;
-    for (let i = 0; i < 26; i++) { t += 100; if (w.tick(0.1, t, 0)) fired++; }
+    let t = 5000,
+      fired = 0;
+    for (let i = 0; i < 26; i++) {
+      t += 100;
+      if (w.tick(0.1, t, 0)) fired++;
+    }
     expect(fired).toBe(1);
   });
 

@@ -93,16 +93,16 @@ An entry's key is `class | hw`. This differs from ARCHITECTURE.md "Calibration c
 
 `hw` is a short hash (FNV-1a, 8 hex digits) of the sorted `slot=spec@clock` parts that can change the class's time. Each class has a **mask**: the parts it reads.
 
-| part | in the mask of |
-|---|---|
-| CPU (spec, so the core count) and its clock setting | every class |
-| RAM modules (spec, slot) and the memory clock setting | every class |
-| OS spec (its `programSlots`) and the OS drive's spec | every class (every network job goes through the spool) |
-| board tier and cooling: cooler, radiators, the fans that are plugged | every class (they set the clock the CPU and the cards can hold) |
-| data drives (spec, slot, RAID) | `db` |
-| TPM spec (fixed `tpm` domain, no clock setting) | `secure` |
-| each working GPU: spec, slot and the clock setting of its domain (`pcie0`, `pcie1`) | `gpu`, `npu` (the NPU's fallback is the GPU) |
-| each working NPU: spec, slot and its domain's clock setting | `npu` |
+| part                                                                                | in the mask of                                                  |
+| ----------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| CPU (spec, so the core count) and its clock setting                                 | every class                                                     |
+| RAM modules (spec, slot) and the memory clock setting                               | every class                                                     |
+| OS spec (its `programSlots`) and the OS drive's spec                                | every class (every network job goes through the spool)          |
+| board tier and cooling: cooler, radiators, the fans that are plugged                | every class (they set the clock the CPU and the cards can hold) |
+| data drives (spec, slot, RAID)                                                      | `db`                                                            |
+| TPM spec (fixed `tpm` domain, no clock setting)                                     | `secure`                                                        |
+| each working GPU: spec, slot and the clock setting of its domain (`pcie0`, `pcie1`) | `gpu`, `npu` (the NPU's fallback is the GPU)                    |
+| each working NPU: spec, slot and its domain's clock setting                         | `npu`                                                           |
 
 A card is **working** when the sim would launch on it (`Game.onCard`: fitted, not burnt, `pcie` lead plugged). A card that does not work is left out, so its key is the key of the CPU path. So a GPU swap changes the `gpu` and `npu` keys and keeps the `cli` entries (ACCEL.md task 10). The network is not in any key: its limits are read at catch-up time. Cloud-storage contracts are not jobs and have no entry.
 

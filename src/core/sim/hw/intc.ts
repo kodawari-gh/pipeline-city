@@ -2,8 +2,8 @@
 // address. The Machine owns one. The CPU takes an interrupt only between instructions (the engine is drained), so the
 // state a handler sees is precise. Nothing here is saved: a loaded game starts powered off.
 
-import { INTC_BASE, INTC_REG, INTC_ROUTES, INTC_SIZE, IRQ } from "../memmap";
-import type { Device } from "./device";
+import { INTC_BASE, INTC_REG, INTC_ROUTES, INTC_SIZE, IRQ } from '../memmap';
+import type { Device } from './device';
 
 /** What the cores' controller banks share: who they are (for IPIs) and which core takes each device line. */
 export class IntcHub {
@@ -28,7 +28,7 @@ export class IntcHub {
 }
 
 export class Intc implements Device {
-  readonly name = "intc";
+  readonly name = 'intc';
   readonly base = INTC_BASE;
   readonly size = INTC_SIZE;
   /** Set by a write to PARK: the machine does not step this core until a line that is not masked is pending. */
@@ -53,13 +53,24 @@ export class Intc implements Device {
   maxLatency = 0;
 
   /** Bank `index` of `hub` (a controller on its own is a one-core machine's). */
-  constructor(readonly index = 0, readonly hub: IntcHub = new IntcHub()) {
+  constructor(
+    readonly index = 0,
+    readonly hub: IntcHub = new IntcHub(),
+  ) {
     hub.banks[index] = this;
   }
 
   /** Power-on reset: nothing pending, nothing enabled, no vector, interrupts off, not parked. Routes are the hub's and are reset with core 0. */
   reset(): void {
-    this.pending = this.mask = this.vector = this.epc = this.cause = this.taken = this.lastLatency = this.maxLatency = 0;
+    this.pending =
+      this.mask =
+      this.vector =
+      this.epc =
+      this.cause =
+      this.taken =
+      this.lastLatency =
+      this.maxLatency =
+        0;
     this.ie = false;
     this.parked = false;
     this.parkedCycles = 0;
@@ -106,17 +117,28 @@ export class Intc implements Device {
 
   private word(reg: number): number {
     switch (reg) {
-      case INTC_REG.PENDING: return this.pending;
-      case INTC_REG.MASK: return this.mask;
-      case INTC_REG.VECTOR: return this.vector;
-      case INTC_REG.EPC: return this.epc;
-      case INTC_REG.CAUSE: return this.cause;
-      case INTC_REG.CTRL: return this.ie ? 1 : 0;
-      case INTC_REG.COUNT: return this.taken;
-      case INTC_REG.ROW_BASE: return this.rowBase;
-      case INTC_REG.CORE_ID: return this.index;
-      case INTC_REG.CORES: return this.hub.banks.length;
-      case INTC_REG.PARK: return this.parked ? 1 : 0;
+      case INTC_REG.PENDING:
+        return this.pending;
+      case INTC_REG.MASK:
+        return this.mask;
+      case INTC_REG.VECTOR:
+        return this.vector;
+      case INTC_REG.EPC:
+        return this.epc;
+      case INTC_REG.CAUSE:
+        return this.cause;
+      case INTC_REG.CTRL:
+        return this.ie ? 1 : 0;
+      case INTC_REG.COUNT:
+        return this.taken;
+      case INTC_REG.ROW_BASE:
+        return this.rowBase;
+      case INTC_REG.CORE_ID:
+        return this.index;
+      case INTC_REG.CORES:
+        return this.hub.banks.length;
+      case INTC_REG.PARK:
+        return this.parked ? 1 : 0;
       default: {
         const line = (reg - INTC_REG.ROUTE) >> 2;
         return reg >= INTC_REG.ROUTE && line < INTC_ROUTES ? this.hub.routes[line]! : 0;
@@ -133,16 +155,32 @@ export class Intc implements Device {
     const reg = addr & ~3;
     const shift = 8 * (addr & 3);
     const byte = (val & 0xff) << shift;
-    const merge = (old: number): number => (((old & ~(0xff << shift)) | byte) >>> 0);
+    const merge = (old: number): number => ((old & ~(0xff << shift)) | byte) >>> 0;
     switch (reg) {
-      case INTC_REG.MASK: this.mask = merge(this.mask); break;
-      case INTC_REG.ACK: this.ack(byte >>> 0); break;
-      case INTC_REG.VECTOR: this.vector = merge(this.vector); break;
-      case INTC_REG.EPC: this.epc = merge(this.epc); break;
-      case INTC_REG.CTRL: if (shift === 0) this.ie = (val & 1) !== 0; break;
-      case INTC_REG.ROW_BASE: this.rowBase = merge(this.rowBase) | 0; break;
-      case INTC_REG.IPI: this.hub.ipi(byte >>> 0); break;
-      case INTC_REG.PARK: if (val & 0xff) this.parked = true; break;
+      case INTC_REG.MASK:
+        this.mask = merge(this.mask);
+        break;
+      case INTC_REG.ACK:
+        this.ack(byte >>> 0);
+        break;
+      case INTC_REG.VECTOR:
+        this.vector = merge(this.vector);
+        break;
+      case INTC_REG.EPC:
+        this.epc = merge(this.epc);
+        break;
+      case INTC_REG.CTRL:
+        if (shift === 0) this.ie = (val & 1) !== 0;
+        break;
+      case INTC_REG.ROW_BASE:
+        this.rowBase = merge(this.rowBase) | 0;
+        break;
+      case INTC_REG.IPI:
+        this.hub.ipi(byte >>> 0);
+        break;
+      case INTC_REG.PARK:
+        if (val & 0xff) this.parked = true;
+        break;
       default: {
         const line = (reg - INTC_REG.ROUTE) >> 2;
         if (reg >= INTC_REG.ROUTE && line < INTC_ROUTES) this.hub.routes[line] = merge(this.hub.routes[line]!);

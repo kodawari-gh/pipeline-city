@@ -6,36 +6,62 @@
 // holds no key. With an OS it keeps the machine on: plug a tray key to ingest it, unplug it once queued (the OS holds it),
 // plug a held key whose result is ready, remove it when the flash landed. The sim itself never needs it.
 
-import { deviceSpec, getSpec } from "../../board/sim";
-import { getRouterSpec } from "../../network/sim";
-import { boardTierOf, caseTierOf } from "./economy";
-import type { Game } from "@/worker/game/game";
+import { deviceSpec, getSpec } from '../../board/sim';
+import { getRouterSpec } from '../../network/sim';
+import { boardTierOf, caseTierOf } from './economy';
+import type { Game } from '@/worker/game/game';
 
 export class Operator {
   private wait = 0;
-  constructor(private readonly g: Game, private readonly reaction = 0) {}
+  constructor(
+    private readonly g: Game,
+    private readonly reaction = 0,
+  ) {}
 
   step(): void {
     const g = this.g;
     const plugged = g.pluggedKey();
-    if (plugged?.done && g.currentPhase() !== "writing" && g.currentPhase() !== "flashing") return this.act(() => { g.ejectKey(); });
-    if ((!plugged || g.currentPhase() === "error") && this.hasMaintenance()) return this.act(() => this.assemble(false));
+    if (plugged?.done && g.currentPhase() !== 'writing' && g.currentPhase() !== 'flashing')
+      return this.act(() => {
+        g.ejectKey();
+      });
+    if ((!plugged || g.currentPhase() === 'error') && this.hasMaintenance())
+      return this.act(() => this.assemble(false));
     if (g.hasOs()) return this.stepOs(plugged);
     const phase = g.currentPhase();
     // A halted machine (job done, or no key at boot) stays halted until it is power-cycled by hand.
-    if (g.powered && !plugged && phase === "halted") return this.act(() => { g.powerButton(); });
-    if (!g.powered && !plugged && g.trayKeyIds().length > 0) return this.act(() => { g.plugKey(g.trayKeyIds()[0]!); });
-    if (!g.powered && plugged) return this.act(() => { g.powerButton(); });
+    if (g.powered && !plugged && phase === 'halted')
+      return this.act(() => {
+        g.powerButton();
+      });
+    if (!g.powered && !plugged && g.trayKeyIds().length > 0)
+      return this.act(() => {
+        g.plugKey(g.trayKeyIds()[0]!);
+      });
+    if (!g.powered && plugged)
+      return this.act(() => {
+        g.powerButton();
+      });
     this.wait = 0;
   }
 
   private stepOs(plugged: { id: number; done: boolean } | null): void {
     const g = this.g;
-    if (!g.powered) return this.act(() => { g.powerButton(); });
+    if (!g.powered)
+      return this.act(() => {
+        g.powerButton();
+      });
     // The OS keeps the key until the result is written, then it pops out by itself: the bot only plugs the next one.
     if (plugged) return void (this.wait = 0);
-    if (g.trayKeyIds().length > 0 && g.currentPhase() !== "booting-os" && g.currentPhase() !== "posting" && g.currentPhase() !== "mounting") {
-      return this.act(() => { g.plugKey(g.trayKeyIds()[0]!); });
+    if (
+      g.trayKeyIds().length > 0 &&
+      g.currentPhase() !== 'booting-os' &&
+      g.currentPhase() !== 'posting' &&
+      g.currentPhase() !== 'mounting'
+    ) {
+      return this.act(() => {
+        g.plugKey(g.trayKeyIds()[0]!);
+      });
     }
     this.wait = 0;
   }
@@ -58,19 +84,24 @@ export class Operator {
   private wanted(): string[] {
     const g = this.g;
     const tier = (id: string): number => getSpec(g.inventoryItems().find((i) => i.id === id)!.spec)?.tier ?? 99;
-    return g.inventoryItems().filter((it) => {
-      if (!g.canInstall(it.id)) return false;
-      const spec = getSpec(it.spec);
-      if (!spec) {
-        if (getRouterSpec(it.spec)) return false; // a router is placed by hand
-        const bt = boardTierOf(it.spec), ct = caseTierOf(it.spec);
-        if (bt !== undefined) return bt > g.board.tier; // a board or a case only when it is bigger: the ones it replaced come back as spares
-        if (ct !== undefined) return ct > g.board.caseTier;
-        return true; // an OS
-      }
-      const have = g.board.devices.filter((d) => deviceSpec(d).kind === spec.kind && !d.burnt);
-      return have.length === 0 || spec.tier > Math.max(...have.map((d) => deviceSpec(d).tier));
-    }).map((it) => it.id).sort((a, b) => tier(b) - tier(a));
+    return g
+      .inventoryItems()
+      .filter((it) => {
+        if (!g.canInstall(it.id)) return false;
+        const spec = getSpec(it.spec);
+        if (!spec) {
+          if (getRouterSpec(it.spec)) return false; // a router is placed by hand
+          const bt = boardTierOf(it.spec),
+            ct = caseTierOf(it.spec);
+          if (bt !== undefined) return bt > g.board.tier; // a board or a case only when it is bigger: the ones it replaced come back as spares
+          if (ct !== undefined) return ct > g.board.caseTier;
+          return true; // an OS
+        }
+        const have = g.board.devices.filter((d) => deviceSpec(d).kind === spec.kind && !d.burnt);
+        return have.length === 0 || spec.tier > Math.max(...have.map((d) => deviceSpec(d).tier));
+      })
+      .map((it) => it.id)
+      .sort((a, b) => tier(b) - tier(a));
   }
 
   /** Swap over the weakest installed part of the same kind (a second RAM stick would not speed the first one up). */
@@ -78,7 +109,9 @@ export class Operator {
     const g = this.g;
     const spec = getSpec(g.inventoryItems().find((i) => i.id === invId)!.spec);
     if (!spec) return undefined;
-    const have = g.board.devices.filter((d) => deviceSpec(d).kind === spec.kind).sort((a, b) => deviceSpec(a).tier - deviceSpec(b).tier);
+    const have = g.board.devices
+      .filter((d) => deviceSpec(d).kind === spec.kind)
+      .sort((a, b) => deviceSpec(a).tier - deviceSpec(b).tier);
     return have[0]?.slot;
   }
 
@@ -86,7 +119,7 @@ export class Operator {
   assemble(powerOn = true): void {
     const g = this.g;
     if (g.powered) g.powerButton();
-    for (let again = true; again; ) {
+    for (let again = true; again;) {
       again = false;
       for (const id of this.wanted()) {
         if (g.install(id, this.slotFor(id)).ok) {

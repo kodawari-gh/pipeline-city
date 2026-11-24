@@ -13,7 +13,19 @@ export const LOW_FLEET = 0.5;
 export const LOW_FURNITURE_M = 150;
 
 /** The Low cuts, each by name: `?citycuts=` picks which apply (isolation, to find what a cut costs). */
-export const CITY_CUTS = ['cadence', 'far', 'streets', 'furniture', 'trees', 'steam', 'fleet', 'palette', 'facade', 'sky', 'clock'] as const;
+export const CITY_CUTS = [
+  'cadence',
+  'far',
+  'streets',
+  'furniture',
+  'trees',
+  'steam',
+  'fleet',
+  'palette',
+  'facade',
+  'sky',
+  'clock',
+] as const;
 export type CityCut = (typeof CITY_CUTS)[number];
 export type CityCuts = Readonly<Record<CityCut, boolean>>;
 
@@ -33,4 +45,5 @@ export function parseCityCuts(search: string, detail: CityDetail): CityCuts {
 }
 
 /** The cuts of this page's query (`parseCityCuts` of `location.search`). */
-export const cityCuts = (detail: CityDetail): CityCuts => parseCityCuts(typeof location === 'undefined' ? '' : location.search, detail);
+export const cityCuts = (detail: CityDetail): CityCuts =>
+  parseCityCuts(typeof location === 'undefined' ? '' : location.search, detail);

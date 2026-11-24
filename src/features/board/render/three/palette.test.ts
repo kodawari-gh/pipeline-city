@@ -12,8 +12,32 @@ import { JACK, USB_TONGUE } from '@/features/board/render/three/casedetail3d';
 import { strapTone } from '@/features/board/render/three/casetray3d';
 import { LAN_LEAD } from '@/features/board/render/three/machine3d';
 import {
-  BARK, CEILING as ROOM_CEILING, DUVET, KEY_ACCENT, LANTERN, MANILA, NEON, NEON_WASH, OAK, OAK_GRAIN, OPAL, PAPER, RUG_LINE, RUG_WOOL, RUNNER,
-  SHEET, SOIL, STEEL, STEM, STONE, STONEWARE, TEA, TRIM, VENEER, VENEER_GRAIN, WALL,
+  BARK,
+  CEILING as ROOM_CEILING,
+  DUVET,
+  KEY_ACCENT,
+  LANTERN,
+  MANILA,
+  NEON,
+  NEON_WASH,
+  OAK,
+  OAK_GRAIN,
+  OPAL,
+  PAPER,
+  RUG_LINE,
+  RUG_WOOL,
+  RUNNER,
+  SHEET,
+  SOIL,
+  STEEL,
+  STEM,
+  STONE,
+  STONEWARE,
+  TEA,
+  TRIM,
+  VENEER,
+  VENEER_GRAIN,
+  WALL,
 } from '@/features/room/render/three/palette';
 import { LEAF_TINTS } from '@/features/room/render/three/plants3d';
 import { Room3D } from '@/features/room/render/three/room3d';
@@ -23,7 +47,8 @@ quietCanvas();
 
 /** Plain base colours under `root` (no map, no glow, not see-through), each with its count of materials. */
 export function baseColours(root: Object3D): Map<number, number> {
-  const seen = new Set<Material>(), out = new Map<number, number>();
+  const seen = new Set<Material>(),
+    out = new Map<number, number>();
   root.traverse((o) => {
     const mesh = o as Mesh;
     if (!mesh.isMesh) return;
@@ -40,12 +65,14 @@ export function baseColours(root: Object3D): Map<number, number> {
 
 /** Pairs of colours nearer than `near` (sum of the channel differences, 0-765). */
 export function nearPairs(colours: number[], near: number): [number, number, number][] {
-  const d = (a: number, b: number) => Math.abs((a >> 16) - (b >> 16)) + Math.abs(((a >> 8) & 255) - ((b >> 8) & 255)) + Math.abs((a & 255) - (b & 255));
+  const d = (a: number, b: number) =>
+    Math.abs((a >> 16) - (b >> 16)) + Math.abs(((a >> 8) & 255) - ((b >> 8) & 255)) + Math.abs((a & 255) - (b & 255));
   const out: [number, number, number][] = [];
-  for (let i = 0; i < colours.length; i++) for (let j = i + 1; j < colours.length; j++) {
-    const k = d(colours[i]!, colours[j]!);
-    if (k <= near) out.push([colours[i]!, colours[j]!, k]);
-  }
+  for (let i = 0; i < colours.length; i++)
+    for (let j = i + 1; j < colours.length; j++) {
+      const k = d(colours[i]!, colours[j]!);
+      if (k <= near) out.push([colours[i]!, colours[j]!, k]);
+    }
   return out.sort((a, b) => a[2] - b[2]);
 }
 
@@ -60,9 +87,14 @@ const OPEN: number[] = [];
 
 describe('the base colours', () => {
   it('stay under the ceiling', () => {
-    const machine = baseColours(buildMachine(maxedSnapshot(), false).root), room = baseColours(new Room3D().root);
-    for (const [name, set] of [['machine', machine], ['room', room]] as const) {
-      const list = [...set.keys()].sort((a, b) => a - b), pairs = nearPairs(list, 12);
+    const machine = baseColours(buildMachine(maxedSnapshot(), false).root),
+      room = baseColours(new Room3D().root);
+    for (const [name, set] of [
+      ['machine', machine],
+      ['room', room],
+    ] as const) {
+      const list = [...set.keys()].sort((a, b) => a - b),
+        pairs = nearPairs(list, 12);
       console.log(`${name}: ${list.length} base colours, ${pairs.length} pairs nearer than 12`);
       if (env.PALETTE_DUMP === '1') {
         console.log(list.map((c) => `${hex(c)} x${set.get(c)}`).join('\n'));
@@ -74,7 +106,8 @@ describe('the base colours', () => {
 
   it('every mat() literal is a family colour', () => {
     const allowed = new Set<number>([...FAMILY, 0xffffff, 0x000000, 0x0d1636, 0x3be3ff, 0xa68bff, ...OPEN]);
-    const fs = fsMod as any, bad: string[] = [];
+    const fs = fsMod as any,
+      bad: string[] = [];
     let files = 0;
     const walk = (dir: URL) => {
       for (const e of fs.readdirSync(dir, { withFileTypes: true }) as { name: string; isDirectory(): boolean }[]) {
@@ -101,16 +134,58 @@ describe('the base colours', () => {
     const h = (c: string | number): number => (typeof c === 'number' ? c : hexNum(c));
     const theme = builtinTheme();
     const named = new Set<number>([
-      ...FAMILY, 0xffffff, 0x000000, 0x0d1636, 0x3be3ff, 0xa68bff, NYLON, CERAMIC, LAMINATE,
-      ...Object.values(JACK), ...USB_TONGUE, h(LAN_LEAD),
+      ...FAMILY,
+      0xffffff,
+      0x000000,
+      0x0d1636,
+      0x3be3ff,
+      0xa68bff,
+      NYLON,
+      CERAMIC,
+      LAMINATE,
+      ...Object.values(JACK),
+      ...USB_TONGUE,
+      h(LAN_LEAD),
       ...SKINS.map((s) => hexNum(s.accent)),
       // (a case's accent is the theme's alu or mul colour, case3d.ts; its strap tab is that accent muted, casetray3d.ts)
-      h(theme.alu), h(theme.mul), strapTone(h(theme.alu)), strapTone(h(theme.mul)),
-      ...[WALL, ROOM_CEILING, TRIM, VENEER, VENEER_GRAIN, OAK, OAK_GRAIN, STEEL, SHEET, DUVET, RUNNER, RUG_WOOL, RUG_LINE, STONE, STONEWARE,
-        PAPER, MANILA, OPAL, BARK, STEM, SOIL, TEA, KEY_ACCENT, NEON, NEON_WASH, LANTERN].map(h),
+      h(theme.alu),
+      h(theme.mul),
+      strapTone(h(theme.alu)),
+      strapTone(h(theme.mul)),
+      ...[
+        WALL,
+        ROOM_CEILING,
+        TRIM,
+        VENEER,
+        VENEER_GRAIN,
+        OAK,
+        OAK_GRAIN,
+        STEEL,
+        SHEET,
+        DUVET,
+        RUNNER,
+        RUG_WOOL,
+        RUG_LINE,
+        STONE,
+        STONEWARE,
+        PAPER,
+        MANILA,
+        OPAL,
+        BARK,
+        STEM,
+        SOIL,
+        TEA,
+        KEY_ACCENT,
+        NEON,
+        NEON_WASH,
+        LANTERN,
+      ].map(h),
       ...LEAF_TINTS,
     ]);
-    const seen = [...baseColours(buildMachine(maxedSnapshot(), false).root).keys(), ...baseColours(new Room3D().root).keys()];
+    const seen = [
+      ...baseColours(buildMachine(maxedSnapshot(), false).root).keys(),
+      ...baseColours(new Room3D().root).keys(),
+    ];
     const unnamed = [...new Set(seen.filter((c) => !named.has(c)))].sort((a, b) => a - b);
     expect(unnamed.map(hex), 'unnamed base colours').toEqual([]);
   }, 120_000);

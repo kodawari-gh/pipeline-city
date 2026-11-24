@@ -40,13 +40,30 @@ function keyShift(): Shift {
   if (at < 0) throw new Error(`board3d.ts must have one \`${GUARD.trim()}\` statement (the key flight's eye shift)`);
   const after = at + GUARD.length;
   const statement = text[after] === '{' ? braced(text, after) : text.slice(after, text.indexOf(';', after) + 1);
-  if (!/viewInset\.peek\(\)/.test(statement) || !/(panBy|lowerInBand)\(/.test(statement)) throw new Error(`the key flight statement must read viewInset and pan the view: ${statement}`);
+  if (!/viewInset\.peek\(\)/.test(statement) || !/(panBy|lowerInBand)\(/.test(statement))
+    throw new Error(`the key flight statement must read viewInset and pan the view: ${statement}`);
   const lowerInBand = (camera as unknown as Record<string, unknown>).lowerInBand;
-  if (/lowerInBand\(/.test(statement) && typeof lowerInBand !== 'function') throw new Error('the key flight calls lowerInBand, which camera.ts does not export');
-  const run = new Function('id', 'v', 'H', 'bh', 'viewInset', 'panBy', 'lowerInBand', `${GUARD}${statement}\nreturn v;`) as (...a: unknown[]) => OrbitView;
+  if (/lowerInBand\(/.test(statement) && typeof lowerInBand !== 'function')
+    throw new Error('the key flight calls lowerInBand, which camera.ts does not export');
+  const run = new Function(
+    'id',
+    'v',
+    'H',
+    'bh',
+    'viewInset',
+    'panBy',
+    'lowerInBand',
+    `${GUARD}${statement}\nreturn v;`,
+  ) as (...a: unknown[]) => OrbitView;
   // (a name the statement reads that the harness does not give it is a ReferenceError: say so)
   return (id, v, H, bh, viewInset) => {
-    try { return run(id, v, H, bh, viewInset, panBy, lowerInBand); } catch (e) { throw new Error(`the key flight statement reads something this harness does not give it: ${(e as Error).message}`); }
+    try {
+      return run(id, v, H, bh, viewInset, panBy, lowerInBand);
+    } catch (e) {
+      throw new Error(
+        `the key flight statement reads something this harness does not give it: ${(e as Error).message}`,
+      );
+    }
   };
 }
 
@@ -63,9 +80,11 @@ const BOX = 800;
 function flight(id: string, inset: Partial<Inset>, from: OrbitView = START, h = H, box = BOX) {
   const i: Inset = { top: 0, right: 0, bottom: 0, left: 0, ...inset };
   const to = keyShift()(id, from, h, box, { peek: () => i });
-  const k = from.height / h, boxPx = box / k;
+  const k = from.height / h,
+    boxPx = box / k;
   const up = (to.y - from.y) / Math.cos(from.pitch);
-  const mid = (i.top + h - i.bottom) / 2, centre = mid + up / k;
+  const mid = (i.top + h - i.bottom) / 2,
+    centre = mid + up / k;
   return { to, boxPx, mid, centre, top: centre - boxPx / 2, bottom: centre + boxPx / 2, i };
 }
 
@@ -141,7 +160,8 @@ describe('the key flight moves the eye no further than the HUD forces (board3d.t
           if (f.top < top || f.bottom > h - bottom) problems.push(`${where}: under an inset`);
           const free = h / 2 - f.boxPx / 2 - AIR.max >= top && h / 2 + f.boxPx / 2 + AIR.max <= h - bottom;
           const forced = h / 2 - f.boxPx / 2 - AIR.min < top || h / 2 + f.boxPx / 2 + AIR.min > h - bottom;
-          if (free && Math.abs(f.centre - h / 2) > 0.01) problems.push(`${where}: nothing forces it off the middle, but it is not there`);
+          if (free && Math.abs(f.centre - h / 2) > 0.01)
+            problems.push(`${where}: nothing forces it off the middle, but it is not there`);
           if (forced) {
             const rests = Math.abs(f.top - top) <= AIR.max || Math.abs(h - bottom - f.bottom) <= AIR.max;
             if (!rests) problems.push(`${where}: an inset forces it off the middle, but it rests on neither inset`);

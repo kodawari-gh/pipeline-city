@@ -33,27 +33,47 @@ vi.mock('preact/hooks', () => ({
   useState: (init: unknown) => {
     const k = rt.at++;
     if (!(k in rt.slots)) rt.slots[k] = init;
-    const set = (v: unknown) => { rt.slots[k] = typeof v === 'function' ? (v as (p: unknown) => unknown)(rt.slots[k]) : v; };
+    const set = (v: unknown) => {
+      rt.slots[k] = typeof v === 'function' ? (v as (p: unknown) => unknown)(rt.slots[k]) : v;
+    };
     return [rt.slots[k], set];
   },
-  useMemo: (fn: () => unknown) => { rt.at++; return fn(); },
-  useCallback: (fn: unknown) => { rt.at++; return fn; },
+  useMemo: (fn: () => unknown) => {
+    rt.at++;
+    return fn();
+  },
+  useCallback: (fn: unknown) => {
+    rt.at++;
+    return fn;
+  },
   useEffect: (fn: () => unknown, deps?: unknown[]) => {
     const k = rt.at++;
     const prev = rt.deps[k];
-    if (!prev || !deps || deps.some((d, j) => !Object.is(d, prev[j]))) { rt.deps[k] = deps; rt.pending.push(fn); }
+    if (!prev || !deps || deps.some((d, j) => !Object.is(d, prev[j]))) {
+      rt.deps[k] = deps;
+      rt.pending.push(fn);
+    }
   },
   useLayoutEffect: (fn: () => unknown, deps?: unknown[]) => {
     const k = rt.at++;
     const prev = rt.deps[k];
-    if (!prev || !deps || deps.some((d, j) => !Object.is(d, prev[j]))) { rt.deps[k] = deps; rt.pending.push(fn); }
+    if (!prev || !deps || deps.some((d, j) => !Object.is(d, prev[j]))) {
+      rt.deps[k] = deps;
+      rt.pending.push(fn);
+    }
   },
 }));
 
 vi.mock('@/core/render/three/viewer', () => ({
-  mountViewer: () => (rig.viewer = {
-    setInsets: vi.fn(), resize: vi.fn(), reset: vi.fn(), setAutoTurn: vi.fn(), setObject: vi.fn(), dispose: vi.fn(),
-  }),
+  mountViewer: () =>
+    (rig.viewer = {
+      setInsets: vi.fn(),
+      resize: vi.fn(),
+      reset: vi.fn(),
+      setAutoTurn: vi.fn(),
+      setObject: vi.fn(),
+      dispose: vi.fn(),
+    }),
 }));
 vi.mock('@/features/board/render/three/showcase', () => ({ buildShowcaseModel: () => ({}) }));
 
@@ -83,7 +103,8 @@ function tree(v: any): Out[] {
   const ref = v.ref ?? propRef;
   if (ref) {
     const el = fakeEl(String(props.class ?? props.className ?? ''));
-    if (typeof ref === 'function') ref(el); else ref.current = el;
+    if (typeof ref === 'function') ref(el);
+    else ref.current = el;
   }
   return [{ tag: String(v.type), props, kids: tree(children) }];
 }
@@ -108,9 +129,20 @@ async function render(): Promise<Out[]> {
 }
 
 beforeEach(() => {
-  rt.at = 0; rt.slots = []; rt.deps = []; rt.pending = []; rig.viewer = null;
+  rt.at = 0;
+  rt.slots = [];
+  rt.deps = [];
+  rt.pending = [];
+  rig.viewer = null;
   vi.stubGlobal('window', { addEventListener() {}, removeEventListener() {} });
-  vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
   vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
   galleryOpen.value = true;
   closeSettings();
@@ -119,7 +151,11 @@ beforeEach(() => {
 describe('Gallery acceptance (#42)', () => {
   it('shows every category the game has, and the part count it shows is the real count', async () => {
     const groups = galleryGroups();
-    for (const k of SHOP_ORDER.filter((x) => hasModel(x))) expect(groups.map((g) => g.kind), `${k} is listed`).toContain(k);
+    for (const k of SHOP_ORDER.filter((x) => hasModel(x)))
+      expect(
+        groups.map((g) => g.kind),
+        `${k} is listed`,
+      ).toContain(k);
     expect(groups[groups.length - 1]!.kind, 'Router comes last').toBe('router');
     const real = groups.reduce((n, g) => n + g.items.length, 0);
     const out = await render();
@@ -133,13 +169,16 @@ describe('Gallery acceptance (#42)', () => {
     const pos = (o: Out[]) => text([every(o).find((h) => String(h.props.class ?? '').includes('gal-pos'))!]);
     expect(pos(out)).toBe(`1 of ${n}`);
 
-    named(out, 'button', 'Next part').props.onClick(); out = await render();
+    named(out, 'button', 'Next part').props.onClick();
+    out = await render();
     expect(pos(out)).toBe(`2 of ${n}`);
-    named(out, 'button', 'Previous part').props.onClick(); out = await render();
+    named(out, 'button', 'Previous part').props.onClick();
+    out = await render();
     expect(pos(out)).toBe(`1 of ${n}`);
 
     expect(named(out, 'button', 'Turn by itself').props['aria-pressed']).toBe(true);
-    named(out, 'button', 'Turn by itself').props.onClick(); out = await render();
+    named(out, 'button', 'Turn by itself').props.onClick();
+    out = await render();
     expect(named(out, 'button', 'Turn by itself').props['aria-pressed']).toBe(false);
     expect(rig.viewer!.setAutoTurn).toHaveBeenLastCalledWith(false);
 
@@ -162,14 +201,18 @@ describe('Gallery acceptance (#42)', () => {
   it('draws no navy in the Gallery stage: the backdrop is flat studio grey and the 3D floor and background are not navy', () => {
     // navy, as IMPLEMENTATION.md step 9 defines it: blue minus red above 6 and luminance under 0.06
     const lum = (hex: string) => {
-      const c = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+      const c = [0, 2, 4]
+        .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+        .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
       return 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
     };
     const navy = (hex: string) => parseInt(hex.slice(4, 6), 16) - parseInt(hex.slice(0, 2), 16) > 6 && lum(hex) < 0.06;
 
     const css = srcFile('../../../../core/ui/ui.css');
     const studioRules = [...css.matchAll(/(?:^|\n)\.mode \{([^}]*)\}/g)].map((m) => m[1]!);
-    const backgrounds = studioRules.flatMap((b) => [...b.matchAll(/(?:^|[;\s])background:\s*([^;]+);/g)].map((m) => m[1]!.trim()));
+    const backgrounds = studioRules.flatMap((b) =>
+      [...b.matchAll(/(?:^|[;\s])background:\s*([^;]+);/g)].map((m) => m[1]!.trim()),
+    );
     expect(backgrounds.length).toBeGreaterThan(0);
     for (const bg of backgrounds) {
       expect(bg, 'the Gallery backdrop').not.toMatch(/gradient/);
@@ -177,7 +220,10 @@ describe('Gallery acceptance (#42)', () => {
     }
 
     const viewer = srcFile('../../../../core/render/three/viewer.ts');
-    const body = viewer.slice(viewer.indexOf('function studio('), viewer.indexOf('\n}\n', viewer.indexOf('function studio(')));
+    const body = viewer.slice(
+      viewer.indexOf('function studio('),
+      viewer.indexOf('\n}\n', viewer.indexOf('function studio(')),
+    );
     const colours = [...body.matchAll(/0x([0-9a-f]{6})\b/gi)].map((m) => m[1]!.toLowerCase());
     expect(colours.length).toBeGreaterThan(0);
     const navies = colours.filter((hex) => navy(hex.slice(0, 6)));

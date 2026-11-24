@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Game } from '@/worker/game/game';
 import type { Snapshot } from '@/worker/protocol';
 
-vi.mock('@/app/store', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/app/store')>()), startSim: vi.fn() }));
+vi.mock('@/app/store', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/app/store')>()),
+  startSim: vi.fn(),
+}));
 vi.mock('./Confirm', () => ({ askConfirm: vi.fn() }));
 vi.mock('../leave', () => ({ leaveGame: vi.fn() }));
 
@@ -15,7 +18,9 @@ beforeEach(async () => {
   vi.resetModules();
   const mem = new Map<string, string>();
   vi.stubGlobal('localStorage', {
-    getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k),
+    getItem: (k: string) => mem.get(k) ?? null,
+    setItem: (k: string, v: string) => void mem.set(k, v),
+    removeItem: (k: string) => void mem.delete(k),
   });
   ({ loadFromFile } = await import('@/core/ui/panels/loadgame'));
   store = await import('@/app/store');
@@ -23,7 +28,8 @@ beforeEach(async () => {
   store.lastError.value = null;
 });
 
-const goodFile = () => new File([JSON.stringify(new Game({ seed: 7 }).toSave())], 'save.json', { type: 'application/json' });
+const goodFile = () =>
+  new File([JSON.stringify(new Game({ seed: 7 }).toSave())], 'save.json', { type: 'application/json' });
 
 describe('Load file', () => {
   it('an unreadable file starts nothing and says why in the toast', async () => {

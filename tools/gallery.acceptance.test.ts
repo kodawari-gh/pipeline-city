@@ -14,15 +14,26 @@ const path = pathMod as any;
 const TOOLS: string = urlMod.fileURLToPath(new URL('.', import.meta.url));
 
 /** The browser scripts under tools/ that open the Gallery (its dialog or its root class). */
-const galleryScripts = (): { file: string; src: string }[] => fs.readdirSync(TOOLS)
-  .filter((f: string) => f.endsWith('.mjs'))
-  .map((f: string) => ({ file: path.join(TOOLS, f) as string, src: fs.readFileSync(path.join(TOOLS, f), 'utf8') as string }))
-  .filter((s: { src: string }) => /['"]\.gallery['"]|aria-label=['"]Gallery['"]|\.gal-main/.test(s.src));
+const galleryScripts = (): { file: string; src: string }[] =>
+  fs
+    .readdirSync(TOOLS)
+    .filter((f: string) => f.endsWith('.mjs'))
+    .map((f: string) => ({
+      file: path.join(TOOLS, f) as string,
+      src: fs.readFileSync(path.join(TOOLS, f), 'utf8') as string,
+    }))
+    .filter((s: { src: string }) => /['"]\.gallery['"]|aria-label=['"]Gallery['"]|\.gal-main/.test(s.src));
 
 /** The viewport entries of a script, as `{ w: 1920, h: 1080, ... }` in either order of the keys. */
 const viewportsOf = (src: string): { w: number; h: number }[] => [
-  ...[...src.matchAll(/\{[^{}]*\bw:\s*(\d+)[^{}]*\bh:\s*(\d+)[^{}]*\}/g)].map((m) => ({ w: Number(m[1]), h: Number(m[2]) })),
-  ...[...src.matchAll(/\{[^{}]*\bh:\s*(\d+)[^{}]*\bw:\s*(\d+)[^{}]*\}/g)].map((m) => ({ w: Number(m[2]), h: Number(m[1]) })),
+  ...[...src.matchAll(/\{[^{}]*\bw:\s*(\d+)[^{}]*\bh:\s*(\d+)[^{}]*\}/g)].map((m) => ({
+    w: Number(m[1]),
+    h: Number(m[2]),
+  })),
+  ...[...src.matchAll(/\{[^{}]*\bh:\s*(\d+)[^{}]*\bw:\s*(\d+)[^{}]*\}/g)].map((m) => ({
+    w: Number(m[2]),
+    h: Number(m[1]),
+  })),
 ];
 
 describe('Gallery acceptance, browser script (#42)', () => {
@@ -31,16 +42,22 @@ describe('Gallery acceptance, browser script (#42)', () => {
     expect(scripts, 'a tools/ script opens the Gallery').not.toHaveLength(0);
     const covered = scripts.some(({ src }) => {
       const vp = viewportsOf(src);
-      return vp.length >= 4 && vp.some((v) => v.w === 1920 && v.h === 1080) && vp.some((v) => v.w === 390 && v.h === 844);
+      return (
+        vp.length >= 4 && vp.some((v) => v.w === 1920 && v.h === 1080) && vp.some((v) => v.w === 390 && v.h === 844)
+      );
     });
-    expect(covered, 'a Gallery script runs over at least four viewports, 1920 x 1080 and 390 x 844 among them').toBe(true);
+    expect(covered, 'a Gallery script runs over at least four viewports, 1920 x 1080 and 390 x 844 among them').toBe(
+      true,
+    );
   });
 
   it('saves Gallery screenshots for the dev server and for the production build (--prod)', () => {
     const scripts = galleryScripts();
     expect(scripts, 'a tools/ script opens the Gallery').not.toHaveLength(0);
     const saves = scripts.some(({ src }) => /gallery[^\n]{0,80}\.png|\.png[^\n]{0,80}gallery/i.test(src));
-    const prod = scripts.some(({ src }) => /--prod\b|PROD\b/.test(src) && /vite['"],\s*['"]preview|'preview'/.test(src));
+    const prod = scripts.some(
+      ({ src }) => /--prod\b|PROD\b/.test(src) && /vite['"],\s*['"]preview|'preview'/.test(src),
+    );
     expect(saves, 'the Gallery check saves a .png').toBe(true);
     expect(prod, 'the script can serve the production build (vite preview) for --prod').toBe(true);
   });

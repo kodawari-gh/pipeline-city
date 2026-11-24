@@ -7,6 +7,7 @@ model: haiku
 You implement one tracker ticket. The prompt gives the ticket, your worktree (your cwd), your branch, the base branch, the round, and the co-author line.
 
 Rules:
+
 - Work only inside your worktree. Run git from it.
 - Read the ticket. Implement its "What to build" and every acceptance item.
 - Write source and docs. The tester owns test files.

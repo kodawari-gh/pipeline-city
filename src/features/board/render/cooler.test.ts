@@ -2,9 +2,17 @@ import { describe, expect, it, vi } from 'vitest';
 import { Container } from 'pixi.js';
 
 // Text needs a canvas, which the tests do not have: labels are empty containers here (as in art.test.ts).
-vi.mock('@/core/render/ink', async (orig) => ({ ...(await orig<typeof import('@/core/render/ink')>()), label: () => new Container() }));
+vi.mock('@/core/render/ink', async (orig) => ({
+  ...(await orig<typeof import('@/core/render/ink')>()),
+  label: () => new Container(),
+}));
 // gradient fills draw on a canvas, which the tests do not have
-vi.mock('pixi.js', async (orig) => ({ ...(await orig<typeof import('pixi.js')>()), FillGradient: class { constructor(public o?: unknown) {} } }));
+vi.mock('pixi.js', async (orig) => ({
+  ...(await orig<typeof import('pixi.js')>()),
+  FillGradient: class {
+    constructor(public o?: unknown) {}
+  },
+}));
 
 import { specsOfKind, type CoolerSpec } from '../sim/specs';
 import { coolerArt, coolerKitArt, radiatorArt, radiatorFit, radiatorPorts, tubeRoutes } from './cooler';
@@ -13,9 +21,24 @@ import { CASE_IN, COOLER, setLayoutTier } from './layout/layout';
 import type { Theme } from '@/core/render/theme';
 
 const DARK: Theme = {
-  bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',
-  ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a',
-  alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
+  bg: '#04060f',
+  board: '#081628',
+  trace: '#1e4270',
+  sub: '#0d1636',
+  die: '#111b46',
+  pin: '#d4af5f',
+  tile: '#18245c',
+  ink: '#e2eaff',
+  mute: '#8a97c2',
+  line: '#2a366a',
+  dot: '#18214a',
+  on: '#08102a',
+  alu: '#3be3ff',
+  mul: '#a68bff',
+  ld: '#ffc247',
+  st: '#6dffa6',
+  br: '#ff55dc',
+  bad: '#ff5a78',
 };
 const coolers = specsOfKind('cooler') as CoolerSpec[];
 
@@ -45,24 +68,29 @@ describe('cooler art', () => {
 });
 
 /** What a radiator can span in the case now: the front and the top (the rear takes none), each as one mount. */
-const spans = () => (['front', 'top'] as const).map((s) => radiatorSpan(s)).filter((m): m is NonNullable<ReturnType<typeof radiatorSpan>> => !!m);
+const spans = () =>
+  (['front', 'top'] as const)
+    .map((s) => radiatorSpan(s))
+    .filter((m): m is NonNullable<ReturnType<typeof radiatorSpan>> => !!m);
 
 describe('the radiator', () => {
   it('bolts along the front or the top of any case, with a live fan for every mount it spans', () => {
     for (const tier of [0, 1, 2, 3]) {
       setLayoutTier(tier, tier);
-      for (const m of spans()) for (const grade of [1, 2, 3] as const) {
-        const r = radiatorArt(DARK, radiatorFit(m, 0), grade, m.ids.length);
-        expect(r.root.children.length, `${tier} ${m.id}`).toBeGreaterThan(0);
-        expect(r.fans.length, `${tier} ${m.id}`).toBe(m.ids.length);
-        for (const f of r.fans) expect(f.offset).toBe(0);
-      }
+      for (const m of spans())
+        for (const grade of [1, 2, 3] as const) {
+          const r = radiatorArt(DARK, radiatorFit(m, 0), grade, m.ids.length);
+          expect(r.root.children.length, `${tier} ${m.id}`).toBeGreaterThan(0);
+          expect(r.fans.length, `${tier} ${m.id}`).toBe(m.ids.length);
+          for (const f of r.fans) expect(f.offset).toBe(0);
+        }
     }
   });
 
   it('spans every fan of its side, and the rear has no radiator', () => {
     setLayoutTier(3, 3);
-    const top = radiatorSpan('top')!, front = radiatorSpan('front')!;
+    const top = radiatorSpan('top')!,
+      front = radiatorSpan('front')!;
     expect(top.ids).toEqual(['top0', 'top1']);
     expect(front.ids).toEqual(['front0', 'front1', 'front2']);
     expect(top.rect.w).toBeGreaterThan(top.rect.h);
@@ -74,7 +102,10 @@ describe('the radiator', () => {
   it('its two ports are on the inboard face of the mount, side by side, in the tank nearer the pump', () => {
     setLayoutTier(3, 3);
     for (const m of spans()) {
-      const f = radiatorFit(m, 0), { tips, inward } = radiatorPorts(f), [a, b] = tips, r = m.rect;
+      const f = radiatorFit(m, 0),
+        { tips, inward } = radiatorPorts(f),
+        [a, b] = tips,
+        r = m.rect;
       expect(Math.hypot(a[0] - b[0], a[1] - b[1]), m.id).toBeGreaterThan(60); // room for a tube each
       const c: [number, number] = [r.x + r.w / 2, r.y + r.h / 2];
       for (const p of tips) expect((p[0] - c[0]) * inward[0] + (p[1] - c[1]) * inward[1], m.id).toBeGreaterThan(0); // on the inboard side of the slab's middle
@@ -87,14 +118,16 @@ describe('the radiator', () => {
 
   it('the tubes run from the pump to the ports of every mount without leaving the case', () => {
     setLayoutTier(3, 3);
-    const a: [number, number] = [COOLER.x + COOLER.w / 2 - 120, COOLER.y + 170], b: [number, number] = [COOLER.x + COOLER.w / 2 + 120, COOLER.y + 170];
+    const a: [number, number] = [COOLER.x + COOLER.w / 2 - 120, COOLER.y + 170],
+      b: [number, number] = [COOLER.x + COOLER.w / 2 + 120, COOLER.y + 170];
     for (const m of spans()) {
       const [t1, t2] = tubeRoutes(radiatorFit(m, 0), a, b);
       for (const route of [t1, t2]) {
         expect(route.length, m.id).toBeGreaterThanOrEqual(2);
         expect([a, b], m.id).toContainEqual(route[0]);
         for (const p of route) {
-          expect(p[0], m.id).toBeGreaterThan(CASE_IN.x - 400); expect(p[0], m.id).toBeLessThan(CASE_IN.x + CASE_IN.w + 400);
+          expect(p[0], m.id).toBeGreaterThan(CASE_IN.x - 400);
+          expect(p[0], m.id).toBeLessThan(CASE_IN.x + CASE_IN.w + 400);
         }
       }
     }

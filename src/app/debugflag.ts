@@ -6,7 +6,11 @@ export function debugOn(search: string): boolean {
 }
 
 /** Loads the debug module and mounts it with `ctx`, if `search` asks for it; else nothing is loaded (null). */
-export function whenDebug<C>(search: string, load: () => Promise<{ mountDebug(ctx: C): void }>, ctx: C): Promise<void> | null {
+export function whenDebug<C>(
+  search: string,
+  load: () => Promise<{ mountDebug(ctx: C): void }>,
+  ctx: C,
+): Promise<void> | null {
   if (!debugOn(search)) return null;
   return load().then((m) => m.mountDebug(ctx));
 }

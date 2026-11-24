@@ -1,4 +1,13 @@
-import { Color, Frustum, Matrix4, PerspectiveCamera, Sphere, Vector3, type InstancedMesh, type MeshPhysicalMaterial } from 'three';
+import {
+  Color,
+  Frustum,
+  Matrix4,
+  PerspectiveCamera,
+  Sphere,
+  Vector3,
+  type InstancedMesh,
+  type MeshPhysicalMaterial,
+} from 'three';
 import { describe, expect, it } from 'vitest';
 import { FULL_LOW, Fleet, carMaterial, ownAvenue, parkCells, reach, share, within } from './cars';
 import type { HazeUniforms } from './haze';
@@ -12,29 +21,49 @@ function eye(r: () => number, fov = 26): { cam: PerspectiveCamera; seen: Frustum
   cam.position.set(GRID.av0 + (r() - 0.5) * 300, 5 + r() * 120, 30 - r() * 300);
   cam.rotation.set(-0.6 + r() * 0.7, r() * Math.PI * 2, 0, 'YXZ');
   cam.updateMatrixWorld();
-  return { cam, seen: new Frustum().setFromProjectionMatrix(new Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse)) };
+  return {
+    cam,
+    seen: new Frustum().setFromProjectionMatrix(
+      new Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse),
+    ),
+  };
 }
 
 const ball = (x: number, y: number, z: number, r: number): Sphere => new Sphere(new Vector3(x, y, z), r);
 /** The places (x, z) of a mesh's instances. */
 const placed = (im: InstancedMesh): string[] => {
-  const a = im.instanceMatrix.array, out: string[] = [];
+  const a = im.instanceMatrix.array,
+    out: string[] = [];
   for (let i = 0; i < im.count; i++) out.push(`${a[i * 16 + 12]!.toFixed(2)},${a[i * 16 + 14]!.toFixed(2)}`);
   return out;
 };
 const key = (x: number, z: number): string => `${Math.fround(x).toFixed(2)},${Math.fround(z).toFixed(2)}`;
 
 const haze = (): HazeUniforms => ({
-  hzCol: { value: new Color() }, hzSun: { value: new Color() }, hzDir: { value: new Vector3() }, hzDensity: { value: 0 }, hzFall: { value: 0 },
-  hzMist: { value: new Color() }, hzMistD: { value: 0 }, hzTime: { value: 0 },
+  hzCol: { value: new Color() },
+  hzSun: { value: new Color() },
+  hzDir: { value: new Vector3() },
+  hzDensity: { value: 0 },
+  hzFall: { value: 0 },
+  hzMist: { value: new Color() },
+  hzMistD: { value: 0 },
+  hzTime: { value: 0 },
 });
 /** The (x, z) of a mesh's instances, as numbers. */
 const spots = (im: InstancedMesh): [number, number][] => {
-  const a = im.instanceMatrix.array, out: [number, number][] = [];
+  const a = im.instanceMatrix.array,
+    out: [number, number][] = [];
   for (let i = 0; i < im.count; i++) out.push([a[i * 16 + 12]!, a[i * 16 + 14]!]);
   return out;
 };
-type Inside = { moving: InstancedMesh[]; near: InstancedMesh[]; far: InstancedMesh; pools: InstancedMesh; shades: InstancedMesh; still: { im: InstancedMesh; cars: Car[] }[] };
+type Inside = {
+  moving: InstancedMesh[];
+  near: InstancedMesh[];
+  far: InstancedMesh;
+  pools: InstancedMesh;
+  shades: InstancedMesh;
+  still: { im: InstancedMesh; cars: Car[] }[];
+};
 
 describe('cars', () => {
   it('tells a ball out of a frustum, wholly in it, or across the planes it cuts', () => {
@@ -42,7 +71,8 @@ describe('cars', () => {
     for (let k = 0; k < 20; k++) {
       const { cam, seen } = eye(r);
       for (let q = 0; q < 200; q++) {
-        const b = ball(cam.position.x + (r() - 0.5) * 800, r() * 20, cam.position.z + (r() - 0.5) * 800, 1 + r() * 60), cut = within(seen, b);
+        const b = ball(cam.position.x + (r() - 0.5) * 800, r() * 20, cam.position.z + (r() - 0.5) * 800, 1 + r() * 60),
+          cut = within(seen, b);
         expect(cut >= 0).toBe(seen.intersectsSphere(b));
         if (cut < 0) continue;
         seen.planes.forEach((p, i) => expect(!!(cut & (1 << i))).toBe(p.distanceToPoint(b.center) < b.radius));
@@ -50,20 +80,31 @@ describe('cars', () => {
     }
   });
 
-  it('cuts a route to the stretch where a car\'s ball meets the frustum', () => {
+  it("cuts a route to the stretch where a car's ball meets the frustum", () => {
     // (count the misses and expect once: an expect for each sample took over 5 s)
-    const r = rng(5), tr = new Traffic(), out = [0, 0], miss: string[] = [];
+    const r = rng(5),
+      tr = new Traffic(),
+      out = [0, 0],
+      miss: string[] = [];
     let n = 0;
     for (let k = 0; k < 12; k++) {
       const { seen } = eye(r, k % 2 ? 26 : 70);
-      for (const rt of tr.routes) for (const [y, rad] of [[0, 4.5], [1.5, 3], [0, 17.5]] as const) {
-        reach(rt, seen, y, rad, out);
-        for (let m = -40; m < rt.len + 40; m += 3.7) {
-          if (Math.abs(m - out[0]!) < 1e-6 || Math.abs(m - out[1]!) < 1e-6) continue;
-          n++;
-          if ((m >= out[0]! && m <= out[1]!) !== seen.intersectsSphere(ball(rt.x + rt.dx * m, y, rt.z + rt.dz * m, rad))) miss.push(`eye ${k} m ${m}`);
+      for (const rt of tr.routes)
+        for (const [y, rad] of [
+          [0, 4.5],
+          [1.5, 3],
+          [0, 17.5],
+        ] as const) {
+          reach(rt, seen, y, rad, out);
+          for (let m = -40; m < rt.len + 40; m += 3.7) {
+            if (Math.abs(m - out[0]!) < 1e-6 || Math.abs(m - out[1]!) < 1e-6) continue;
+            n++;
+            if (
+              (m >= out[0]! && m <= out[1]!) !== seen.intersectsSphere(ball(rt.x + rt.dx * m, y, rt.z + rt.dz * m, rad))
+            )
+              miss.push(`eye ${k} m ${m}`);
+          }
         }
-      }
     }
     expect(n).toBeGreaterThan(1000);
     expect(miss).toEqual([]);
@@ -73,37 +114,57 @@ describe('cars', () => {
   });
 
   it('keeps every parked car in a cell whose ball holds it', () => {
-    const all = parked(), { cars, turn, cells } = parkCells(all);
+    const all = parked(),
+      { cars, turn, cells } = parkCells(all);
     expect(new Set(cars)).toEqual(new Set(all));
     expect(cars.length).toBe(all.length);
     expect(cells[cells.length - 1]!.to).toBe(cars.length);
-    for (const { ball: b, from, to } of cells) for (let i = from; i < to; i++) {
-      const c = cars[i]!;
-      expect(Math.hypot(c.x - b.center.x, c.z - b.center.z) + 3).toBeLessThanOrEqual(b.radius + 1e-9);
-      expect(turn[i * 2]).toBeCloseTo(Math.cos(c.rot), 12);
-      expect(turn[i * 2 + 1]).toBeCloseTo(Math.sin(c.rot), 12);
-    }
+    for (const { ball: b, from, to } of cells)
+      for (let i = from; i < to; i++) {
+        const c = cars[i]!;
+        expect(Math.hypot(c.x - b.center.x, c.z - b.center.z) + 3).toBeLessThanOrEqual(b.radius + 1e-9);
+        expect(turn[i * 2]).toBeCloseTo(Math.cos(c.rot), 12);
+        expect(turn[i * 2 + 1]).toBeCloseTo(Math.sin(c.rot), 12);
+      }
   });
 
   describe('fleet size', () => {
     /** `Fleet` as the Low cut will build it (the count scale and the model cap do not exist yet). */
-    const Sized = Fleet as unknown as new (t: Traffic, p: Car[], l: { night: { value: number } }, h: HazeUniforms, scale?: number, models?: number) => Fleet;
+    const Sized = Fleet as unknown as new (
+      t: Traffic,
+      p: Car[],
+      l: { night: { value: number } },
+      h: HazeUniforms,
+      scale?: number,
+      models?: number,
+    ) => Fleet;
     const meshes = (f: Fleet): InstancedMesh[] => (f as unknown as Inside).moving;
-    const drawnCars = (f: Fleet): number => { f.update(0.1, 0, 0); return meshes(f).reduce((s, im) => s + im.count, 0); };
+    const drawnCars = (f: Fleet): number => {
+      f.update(0.1, 0, 0);
+      return meshes(f).reduce((s, im) => s + im.count, 0);
+    };
     /** The moving cars drawn within `FULL_LOW` of the eye (ex, ez): they always drive at Low. */
-    const nearCount = (f: Fleet, ex: number, ez: number): number => meshes(f).flatMap(spots).filter(([x, z]) => Math.hypot(x - ex, z - ez) < FULL_LOW).length;
+    const nearCount = (f: Fleet, ex: number, ez: number): number =>
+      meshes(f)
+        .flatMap(spots)
+        .filter(([x, z]) => Math.hypot(x - ex, z - ez) < FULL_LOW).length;
 
     it('lock: the default fleet is every car, in several meshes', () => {
-      const tr = new Traffic(), light = { night: { value: 0 } }, a = new Fleet(tr, parked(), light, haze()), b = new Sized(tr, parked(), light, haze(), 1);
+      const tr = new Traffic(),
+        light = { night: { value: 0 } },
+        a = new Fleet(tr, parked(), light, haze()),
+        b = new Sized(tr, parked(), light, haze(), 1);
       expect(drawnCars(a)).toBe(tr.cars.length);
       expect(drawnCars(b)).toBe(tr.cars.length);
       expect(meshes(b).length).toBe(meshes(a).length);
       expect(meshes(a).length).toBeGreaterThan(1);
-      a.dispose(); b.dispose();
+      a.dispose();
+      b.dispose();
     });
 
     it('Low: one full model and the far box for moving cars, those whose share is under LOW_FLEET', () => {
-      const tr = new Traffic(), low = new Sized(tr, parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
+      const tr = new Traffic(),
+        low = new Sized(tr, parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
       expect(meshes(low).length).toBe(2);
       expect((low as unknown as Inside).near.length).toBe(1);
       // (the share is picked before the clip, so an eye sees at most that many: the clip of Low leaves some of the fleet out of reach of one eye)
@@ -111,62 +172,125 @@ describe('cars', () => {
       const seenNow = meshes(low).reduce((s, im) => s + im.count, 0);
       expect(seenNow).toBeGreaterThan(0);
       // (the window's own avenue keeps every car: those are over the share)
-      const keep = tr.lanes.reduce((s, lane, ri) => s + (ownAvenue(tr.routes[ri]!) ? lane.length : lane.filter((_, q) => share(ri, q) < LOW_FLEET).length), 0);
+      const keep = tr.lanes.reduce(
+        (s, lane, ri) =>
+          s + (ownAvenue(tr.routes[ri]!) ? lane.length : lane.filter((_, q) => share(ri, q) < LOW_FLEET).length),
+        0,
+      );
       expect(seenNow).toBeLessThanOrEqual(keep + nearCount(low, GRID.av0, 0));
       low.dispose();
     });
 
-    it('Low: every car in a lane of the window\'s avenue drives out to the avenue\'s clip; a street that crosses it keeps its share', () => {
-      const light = { night: { value: 0 } }, trF = new Traffic(), trL = new Traffic();
-      const full = new Sized(trF, parked(), light, haze(), 1, 1), low = new Sized(trL, parked(), light, haze(), LOW_FLEET, 1);
+    it("Low: every car in a lane of the window's avenue drives out to the avenue's clip; a street that crosses it keeps its share", () => {
+      const light = { night: { value: 0 } },
+        trF = new Traffic(),
+        trL = new Traffic();
+      const full = new Sized(trF, parked(), light, haze(), 1, 1),
+        low = new Sized(trL, parked(), light, haze(), LOW_FLEET, 1);
       const own = trL.routes.filter(ownAvenue);
       expect(own.length).toBeGreaterThan(1);
       expect(own.length).toBeLessThan(trL.routes.length / 4);
-      for (const rt of own) { expect(rt.dx).toBe(0); expect(Math.abs(rt.x - GRID.av0)).toBeLessThanOrEqual(GRID.avenue / 2); }
+      for (const rt of own) {
+        expect(rt.dx).toBe(0);
+        expect(Math.abs(rt.x - GRID.av0)).toBeLessThanOrEqual(GRID.avenue / 2);
+      }
       // a street's lane where it crosses the avenue is not the avenue's
       expect(trL.routes.some((rt) => Math.abs(rt.dx) > 0.5 && !ownAvenue(rt))).toBe(true);
-      const ex = GRID.av0, ez = 0;
+      const ex = GRID.av0,
+        ez = 0;
       full.update(0.1, ex, ez);
       low.update(0.1, ex, ez);
       // the avenue's cars past FULL_LOW, to the avenue's clip (900 m, a ring's edge): the stretch the window shows (the near block hides it to about 350 m)
-      const lanes = (f: Fleet): string[] => meshes(f).flatMap(spots).filter(([x, z]) => Math.abs(x - GRID.av0) <= GRID.avenue / 2 && Math.hypot(x - ex, z - ez) >= FULL_LOW && Math.hypot(x - ex, z - ez) < 900).map(([x, z]) => key(x, z)).sort();
-      const mine = (tr: Traffic): Set<string> => new Set(tr.routes.flatMap((rt, ri) => ownAvenue(rt) ? tr.lanes[ri]!.map((c) => { const m = tr.front(c, tr.phase(ri)) - c.len / 2; return key(rt.x + rt.dx * m, rt.z + rt.dz * m); }) : []));
-      const along = (f: Fleet, tr: Traffic): string[] => { const set = mine(tr); return lanes(f).filter((k) => set.has(k)); };
+      const lanes = (f: Fleet): string[] =>
+        meshes(f)
+          .flatMap(spots)
+          .filter(
+            ([x, z]) =>
+              Math.abs(x - GRID.av0) <= GRID.avenue / 2 &&
+              Math.hypot(x - ex, z - ez) >= FULL_LOW &&
+              Math.hypot(x - ex, z - ez) < 900,
+          )
+          .map(([x, z]) => key(x, z))
+          .sort();
+      const mine = (tr: Traffic): Set<string> =>
+        new Set(
+          tr.routes.flatMap((rt, ri) =>
+            ownAvenue(rt)
+              ? tr.lanes[ri]!.map((c) => {
+                  const m = tr.front(c, tr.phase(ri)) - c.len / 2;
+                  return key(rt.x + rt.dx * m, rt.z + rt.dz * m);
+                })
+              : [],
+          ),
+        );
+      const along = (f: Fleet, tr: Traffic): string[] => {
+        const set = mine(tr);
+        return lanes(f).filter((k) => set.has(k));
+      };
       expect(along(low, trL)).toEqual(along(full, trF));
       expect(along(low, trL).length).toBeGreaterThan(4);
       // and more of them than the share alone would leave
-      const shared = trL.routes.reduce((s, rt, ri) => s + (ownAvenue(rt) ? trL.lanes[ri]!.filter((_, q) => share(ri, q) < LOW_FLEET).length : 0), 0);
+      const shared = trL.routes.reduce(
+        (s, rt, ri) => s + (ownAvenue(rt) ? trL.lanes[ri]!.filter((_, q) => share(ri, q) < LOW_FLEET).length : 0),
+        0,
+      );
       const total = trL.routes.reduce((s, rt, ri) => s + (ownAvenue(rt) ? trL.lanes[ri]!.length : 0), 0);
       expect(shared).toBeLessThan(total);
-      full.dispose(); low.dispose();
+      full.dispose();
+      low.dispose();
     });
 
     it('Low: every car within FULL_LOW (300 m) of the eye drives, the share thins only the rest', () => {
       expect(FULL_LOW).toBe(300);
-      const light = { night: { value: 0 } }, full = new Sized(new Traffic(), parked(), light, haze(), 1, 1), low = new Sized(new Traffic(), parked(), light, haze(), LOW_FLEET, 1);
-      for (const [ex, ez] of [[GRID.av0, 0], [GRID.av0 + 40, 120], [GRID.av0 - 90, -60]] as const) {
+      const light = { night: { value: 0 } },
+        full = new Sized(new Traffic(), parked(), light, haze(), 1, 1),
+        low = new Sized(new Traffic(), parked(), light, haze(), LOW_FLEET, 1);
+      for (const [ex, ez] of [
+        [GRID.av0, 0],
+        [GRID.av0 + 40, 120],
+        [GRID.av0 - 90, -60],
+      ] as const) {
         full.update(0.1, ex, ez);
         low.update(0.1, ex, ez);
-        const near = (f: Fleet): string[] => meshes(f).flatMap(spots).filter(([x, z]) => Math.hypot(x - ex, z - ez) < FULL_LOW).map(([x, z]) => key(x, z)).sort();
+        const near = (f: Fleet): string[] =>
+          meshes(f)
+            .flatMap(spots)
+            .filter(([x, z]) => Math.hypot(x - ex, z - ez) < FULL_LOW)
+            .map(([x, z]) => key(x, z))
+            .sort();
         expect(near(low)).toEqual(near(full));
         expect(near(low).length).toBeGreaterThan(0);
         // past it, the share thins the fleet
         const all = (f: Fleet): number => meshes(f).reduce((s, im) => s + im.count, 0);
         expect(all(low)).toBeLessThan(all(full));
       }
-      full.dispose(); low.dispose();
+      full.dispose();
+      low.dispose();
     });
 
-    it("Low: a car key is in [0, 1), the same each call, and about evenly spread", () => {
+    it('Low: a car key is in [0, 1), the same each call, and about evenly spread', () => {
       const keys: number[] = [];
-      for (let ri = 0; ri < 40; ri++) for (let q = 0; q < 40; q++) { const k = share(ri, q); expect(k >= 0 && k < 1).toBe(true); expect(share(ri, q)).toBe(k); keys.push(k); }
+      for (let ri = 0; ri < 40; ri++)
+        for (let q = 0; q < 40; q++) {
+          const k = share(ri, q);
+          expect(k >= 0 && k < 1).toBe(true);
+          expect(share(ri, q)).toBe(k);
+          keys.push(k);
+        }
       const under = keys.filter((k) => k < LOW_FLEET).length / keys.length;
       expect(Math.abs(under - LOW_FLEET)).toBeLessThan(0.05);
     });
   });
 
   describe('near range', () => {
-    const Sized = Fleet as unknown as new (t: Traffic, p: Car[], l: { night: { value: number } }, h: HazeUniforms, scale?: number, models?: number) => Fleet;
+    const Sized = Fleet as unknown as new (
+      t: Traffic,
+      p: Car[],
+      l: { night: { value: number } },
+      h: HazeUniforms,
+      scale?: number,
+      models?: number,
+    ) => Fleet;
     /** After a draw from the eye (ex, ez): the spots of the full models and of the far box. */
     const drawAt = (f: Fleet, ex: number, ez: number): { full: [number, number][]; box: [number, number][] } => {
       f.update(0.1, ex, ez);
@@ -174,17 +298,23 @@ describe('cars', () => {
       return { full: i.near.flatMap(spots), box: spots(i.far) };
     };
     /** Eyes spread over the street near the window. */
-    const eyes = (r: () => number): [number, number][] => Array.from({ length: 8 }, () => [GRID.av0 + (r() - 0.5) * 600, (r() - 0.5) * 600]);
+    const eyes = (r: () => number): [number, number][] =>
+      Array.from({ length: 8 }, () => [GRID.av0 + (r() - 0.5) * 600, (r() - 0.5) * 600]);
 
     it('Low: a full model only within 100 m of the eye, the far box past it', () => {
-      const r = rng(12), low = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
+      const r = rng(12),
+        low = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
       const bad: string[] = [];
-      let full = 0, box = 0;
+      let full = 0,
+        box = 0;
       for (const [ex, ez] of eyes(r)) {
         const d = drawAt(low, ex, ez);
-        for (const [x, z] of d.full) if (!(Math.hypot(x - ex, z - ez) < 100)) bad.push(`full at ${Math.hypot(x - ex, z - ez)}`);
-        for (const [x, z] of d.box) if (!(Math.hypot(x - ex, z - ez) >= 100)) bad.push(`box at ${Math.hypot(x - ex, z - ez)}`);
-        full += d.full.length; box += d.box.length;
+        for (const [x, z] of d.full)
+          if (!(Math.hypot(x - ex, z - ez) < 100)) bad.push(`full at ${Math.hypot(x - ex, z - ez)}`);
+        for (const [x, z] of d.box)
+          if (!(Math.hypot(x - ex, z - ez) >= 100)) bad.push(`box at ${Math.hypot(x - ex, z - ez)}`);
+        full += d.full.length;
+        box += d.box.length;
       }
       // (a miss is counted, not expected one by one: an expect for each car took long)
       expect(bad).toEqual([]);
@@ -194,14 +324,23 @@ describe('cars', () => {
     });
 
     it('High: a full model within 260 m of the eye, the far box past it, full models past 100 m', () => {
-      const r = rng(13), high = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze());
+      const r = rng(13),
+        high = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze());
       const bad: string[] = [];
-      let full = 0, box = 0, past100 = 0;
+      let full = 0,
+        box = 0,
+        past100 = 0;
       for (const [ex, ez] of eyes(r)) {
         const d = drawAt(high, ex, ez);
-        for (const [x, z] of d.full) { const h = Math.hypot(x - ex, z - ez); if (!(h < 260)) bad.push(`full at ${h}`); if (h >= 100) past100++; }
-        for (const [x, z] of d.box) if (!(Math.hypot(x - ex, z - ez) >= 260)) bad.push(`box at ${Math.hypot(x - ex, z - ez)}`);
-        full += d.full.length; box += d.box.length;
+        for (const [x, z] of d.full) {
+          const h = Math.hypot(x - ex, z - ez);
+          if (!(h < 260)) bad.push(`full at ${h}`);
+          if (h >= 100) past100++;
+        }
+        for (const [x, z] of d.box)
+          if (!(Math.hypot(x - ex, z - ez) >= 260)) bad.push(`box at ${Math.hypot(x - ex, z - ez)}`);
+        full += d.full.length;
+        box += d.box.length;
       }
       expect(bad).toEqual([]);
       expect(full).toBeGreaterThan(0);
@@ -212,19 +351,27 @@ describe('cars', () => {
 
     // (the Low clip, as `CLIP_LOW` in cars.ts: a car past it is not drawn, moving or parked; one within it still is. On the window's avenue
     // the clip is `CLIP_AVENUE_LOW`)
-    const CLIP = 350, CLIP_AVENUE = 900;
+    const CLIP = 350,
+      CLIP_AVENUE = 900;
     /** Whether Low may draw a car at `x`, `h` m from the eye. */
-    const kept = (x: number, h: number): boolean => h <= CLIP || (Math.abs(x - GRID.av0) <= GRID.avenue / 2 && h <= CLIP_AVENUE);
-    it('Low: no car past 350 m of the eye, moving or parked, but on the window\'s avenue (to 900 m); those within it are drawn', () => {
-      const r = rng(14), low = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
+    const kept = (x: number, h: number): boolean =>
+      h <= CLIP || (Math.abs(x - GRID.av0) <= GRID.avenue / 2 && h <= CLIP_AVENUE);
+    it("Low: no car past 350 m of the eye, moving or parked, but on the window's avenue (to 900 m); those within it are drawn", () => {
+      const r = rng(14),
+        low = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
       const bad: string[] = [];
-      let moving = 0, parkedIn = 0;
+      let moving = 0,
+        parkedIn = 0;
       for (const [ex, ez] of eyes(r)) {
         low.update(0.1, ex, ez);
         low.park(undefined, ex, ez);
         const i = low as unknown as Inside;
-        const mv = [...i.near.flatMap(spots), ...spots(i.far)], pk = i.still.flatMap(({ im }) => spots(im));
-        for (const [x, z] of [...mv, ...pk]) { const h = Math.hypot(x - ex, z - ez); if (!kept(x, h)) bad.push(`car at ${h}`); }
+        const mv = [...i.near.flatMap(spots), ...spots(i.far)],
+          pk = i.still.flatMap(({ im }) => spots(im));
+        for (const [x, z] of [...mv, ...pk]) {
+          const h = Math.hypot(x - ex, z - ez);
+          if (!kept(x, h)) bad.push(`car at ${h}`);
+        }
         moving += mv.filter(([x, z]) => Math.hypot(x - ex, z - ez) <= CLIP).length;
         parkedIn += pk.filter(([x, z]) => Math.hypot(x - ex, z - ez) <= CLIP).length;
       }
@@ -240,22 +387,39 @@ describe('cars', () => {
       cam.position.set(GRID.av0 + (r() - 0.5) * 60, 47, 3 + r() * 6);
       cam.rotation.set(-0.05 - r() * 0.2, (r() - 0.5) * 0.3, 0, 'YXZ');
       cam.updateMatrixWorld();
-      return { ex: cam.position.x, ez: cam.position.z, seen: new Frustum().setFromProjectionMatrix(new Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse)) };
+      return {
+        ex: cam.position.x,
+        ez: cam.position.z,
+        seen: new Frustum().setFromProjectionMatrix(
+          new Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse),
+        ),
+      };
     };
-    const dist = (s: [number, number][], ex: number, ez: number): number[] => s.map(([x, z]) => Math.hypot(x - ex, z - ez));
+    const dist = (s: [number, number][], ex: number, ez: number): number[] =>
+      s.map(([x, z]) => Math.hypot(x - ex, z - ez));
 
     it('Low: from a window eye, moving cars past 100 m (and within the clip) are the far box, not the full model', () => {
-      const r = rng(21), low = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
+      const r = rng(21),
+        low = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
       const i = low as unknown as Inside;
-      let box = 0, full = 0;
+      let box = 0,
+        full = 0;
       const bad: string[] = [];
       for (let k = 0; k < 6; k++) {
         const { ex, ez, seen } = windowEye(r);
-        for (let q = 0; q < 20; q++) { low.update(0.1, ex, ez, seen); low.park(seen, ex, ez); }
-        const far = dist(spots(i.far), ex, ez), near = dist(i.near.flatMap(spots), ex, ez);
-        spots(i.far).forEach(([x], j) => { const h = far[j]!; if (!(h >= 100 && kept(x, h))) bad.push(`box at ${h}`); });
+        for (let q = 0; q < 20; q++) {
+          low.update(0.1, ex, ez, seen);
+          low.park(seen, ex, ez);
+        }
+        const far = dist(spots(i.far), ex, ez),
+          near = dist(i.near.flatMap(spots), ex, ez);
+        spots(i.far).forEach(([x], j) => {
+          const h = far[j]!;
+          if (!(h >= 100 && kept(x, h))) bad.push(`box at ${h}`);
+        });
         for (const h of near) if (!(h < 100)) bad.push(`full at ${h}`);
-        box += far.filter((h) => h >= 100).length; full += near.length;
+        box += far.filter((h) => h >= 100).length;
+        full += near.length;
       }
       expect(bad).toEqual([]);
       // (the far box carries the mid-avenue cars: some on every window eye, the full models few)
@@ -265,17 +429,22 @@ describe('cars', () => {
     });
 
     it('Low: from a window eye, the parked cars past 100 m (and within the clip) are instanced in the box mesh', () => {
-      const r = rng(22), low = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
+      const r = rng(22),
+        low = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
       const i = low as unknown as Inside;
       let inRange = 0;
       const bad: string[] = [];
       for (let k = 0; k < 6; k++) {
         const { ex, ez, seen } = windowEye(r);
-        low.update(0.1, ex, ez, seen); low.park(seen, ex, ez);
+        low.update(0.1, ex, ez, seen);
+        low.park(seen, ex, ez);
         // (every parked car at Low is a box: its one mesh of them, with the cars it places)
         expect(i.still.length).toBe(1);
-        const at = spots(i.still[0]!.im), h = dist(at, ex, ez);
-        h.forEach((d, j) => { if (!kept(at[j]![0], d)) bad.push(`parked at ${d}`); });
+        const at = spots(i.still[0]!.im),
+          h = dist(at, ex, ez);
+        h.forEach((d, j) => {
+          if (!kept(at[j]![0], d)) bad.push(`parked at ${d}`);
+        });
         inRange += h.filter((d) => d >= 100).length;
       }
       expect(bad).toEqual([]);
@@ -284,14 +453,19 @@ describe('cars', () => {
     });
 
     it('High: from a window eye, the full models stay within 260 m and the box is past it', () => {
-      const r = rng(23), high = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze());
+      const r = rng(23),
+        high = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze());
       const i = high as unknown as Inside;
       const bad: string[] = [];
       let midFull = 0;
       for (let k = 0; k < 6; k++) {
         const { ex, ez, seen } = windowEye(r);
-        high.update(0.1, ex, ez, seen); high.park(seen, ex, ez);
-        for (const h of dist(i.near.flatMap(spots), ex, ez)) { if (!(h < 260)) bad.push(`full at ${h}`); if (h >= 100) midFull++; }
+        high.update(0.1, ex, ez, seen);
+        high.park(seen, ex, ez);
+        for (const h of dist(i.near.flatMap(spots), ex, ez)) {
+          if (!(h < 260)) bad.push(`full at ${h}`);
+          if (h >= 100) midFull++;
+        }
         for (const h of dist(spots(i.far), ex, ez)) if (!(h >= 260)) bad.push(`box at ${h}`);
       }
       expect(bad).toEqual([]);
@@ -307,17 +481,27 @@ describe('cars', () => {
      */
     const LIVE = new Vector3(-0.59, 46.49, 3.69);
     const hidden = (bs: Building[], x: number, z: number): boolean => {
-      const d = [x - LIVE.x, 0.8 - LIVE.y, z - LIVE.z], o = [LIVE.x, LIVE.y, LIVE.z];
-      return bs.some((b) => b.tiers.some((t) => {
-        const box = [[t.x0, t.x1], [t.y0, t.y1], [t.z0, t.z1]];
-        let lo = 0, hi = 0.999;
-        for (let a = 0; a < 3; a++) {
-          let u = (box[a]![0]! - o[a]!) / d[a]!, v = (box[a]![1]! - o[a]!) / d[a]!;
-          if (u > v) [u, v] = [v, u];
-          lo = Math.max(lo, u); hi = Math.min(hi, v);
-        }
-        return lo <= hi;
-      }));
+      const d = [x - LIVE.x, 0.8 - LIVE.y, z - LIVE.z],
+        o = [LIVE.x, LIVE.y, LIVE.z];
+      return bs.some((b) =>
+        b.tiers.some((t) => {
+          const box = [
+            [t.x0, t.x1],
+            [t.y0, t.y1],
+            [t.z0, t.z1],
+          ];
+          let lo = 0,
+            hi = 0.999;
+          for (let a = 0; a < 3; a++) {
+            let u = (box[a]![0]! - o[a]!) / d[a]!,
+              v = (box[a]![1]! - o[a]!) / d[a]!;
+            if (u > v) [u, v] = [v, u];
+            lo = Math.max(lo, u);
+            hi = Math.min(hi, v);
+          }
+          return lo <= hi;
+        }),
+      );
     };
     /** The cars on the window's avenue in the stretch it shows, in sight of the live eye, summed over a run of draws. */
     const inSight = (f: Fleet, bs: Building[]): number => {
@@ -334,25 +518,29 @@ describe('cars', () => {
       return n;
     };
 
-    it('Low: from the live window eye, about half of High\'s cars show on the avenue past the near block', () => {
+    it("Low: from the live window eye, about half of High's cars show on the avenue past the near block", () => {
       const bs = buildings();
       const high = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze());
       const low = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
-      const h = inSight(high, bs), l = inSight(low, bs);
+      const h = inSight(high, bs),
+        l = inSight(low, bs);
       expect(h).toBeGreaterThan(20);
       expect(l).toBeGreaterThanOrEqual(h * 0.4);
       expect(l).toBeLessThan(h);
-      high.dispose(); low.dispose();
+      high.dispose();
+      low.dispose();
     }, 60000);
 
     it('High: no clip, so cars past 350 m of the eye are placed', () => {
-      const r = rng(15), high = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze());
+      const r = rng(15),
+        high = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze());
       let past = 0;
       for (const [ex, ez] of eyes(r)) {
         high.update(0.1, ex, ez);
         high.park(undefined, ex, ez);
         const i = high as unknown as Inside;
-        for (const [x, z] of [...i.near.flatMap(spots), ...spots(i.far), ...i.still.flatMap(({ im }) => spots(im))]) if (Math.hypot(x - ex, z - ez) > CLIP) past++;
+        for (const [x, z] of [...i.near.flatMap(spots), ...spots(i.far), ...i.still.flatMap(({ im }) => spots(im))])
+          if (Math.hypot(x - ex, z - ez) > CLIP) past++;
       }
       expect(past).toBeGreaterThan(0);
       high.dispose();
@@ -360,7 +548,14 @@ describe('cars', () => {
   });
 
   describe('material', () => {
-    const Sized = Fleet as unknown as new (t: Traffic, p: Car[], l: { night: { value: number } }, h: HazeUniforms, scale?: number, models?: number) => Fleet;
+    const Sized = Fleet as unknown as new (
+      t: Traffic,
+      p: Car[],
+      l: { night: { value: number } },
+      h: HazeUniforms,
+      scale?: number,
+      models?: number,
+    ) => Fleet;
 
     it('High: the car material keeps its clearcoat of 1', () => {
       expect(carMaterial({ night: { value: 0 } }).clearcoat).toBe(1);
@@ -386,19 +581,30 @@ describe('cars', () => {
   });
 
   it('places just the cars the eye sees: moving and parked, their shadows, their pools at night', () => {
-    const r = rng(9), tr = new Traffic(), light = { night: { value: 0 } }, fleet = new Fleet(tr, parked(), light, haze());
-    const f = fleet as unknown as Inside, P = parked().length;
+    const r = rng(9),
+      tr = new Traffic(),
+      light = { night: { value: 0 } },
+      fleet = new Fleet(tr, parked(), light, haze());
+    const f = fleet as unknown as Inside,
+      P = parked().length;
     let saw = 0;
     for (let k = 0; k < 10; k++) {
-      const { cam, seen } = eye(r), ex = cam.position.x, ez = cam.position.z;
+      const { cam, seen } = eye(r),
+        ex = cam.position.x,
+        ez = cam.position.z;
       light.night.value = k % 2;
       fleet.update(0.1 + r() * 0.3, ex, ez, seen);
       fleet.park(seen);
-      const body: string[] = [], close: string[] = [];
-      let shade = 0, pool = 0;
+      const body: string[] = [],
+        close: string[] = [];
+      let shade = 0,
+        pool = 0;
       for (const c of tr.cars) {
         const { x, z } = tr.pose(c);
-        if (seen.intersectsSphere(ball(x, 1.5, z, 3))) { body.push(key(x, z)); if (Math.hypot(x - ex, z - ez) < 260) close.push(key(x, z)); }
+        if (seen.intersectsSphere(ball(x, 1.5, z, 3))) {
+          body.push(key(x, z));
+          if (Math.hypot(x - ex, z - ez) < 260) close.push(key(x, z));
+        }
         if (seen.intersectsSphere(ball(x, 0, z, 4.5))) shade++;
         if (seen.intersectsSphere(ball(x, 0, z, 17.5))) pool++;
       }
@@ -409,7 +615,12 @@ describe('cars', () => {
       expect(f.shades.count - P).toBe(k % 2 ? pool : shade);
       expect(f.pools.count).toBe(k % 2 ? pool : 0);
       for (const { im, cars } of f.still) {
-        expect(placed(im).sort()).toEqual(cars.filter((c) => seen.intersectsSphere(ball(c.x, 1.5, c.z, 3))).map((c) => key(c.x, c.z)).sort());
+        expect(placed(im).sort()).toEqual(
+          cars
+            .filter((c) => seen.intersectsSphere(ball(c.x, 1.5, c.z, 3)))
+            .map((c) => key(c.x, c.z))
+            .sort(),
+        );
       }
     }
     // (most of the eyes see some of the traffic, not all of it)
@@ -420,10 +631,20 @@ describe('cars', () => {
     expect(f.moving.reduce((s, im) => s + im.count, 0)).toBe(tr.cars.length);
     expect(f.still.reduce((s, { im }) => s + im.count, 0)).toBe(P);
     // on a frame that draws the sun's map, the parked cars the eye sees and those its box holds (CITY-08): the cars out of both are not placed
-    const r2 = rng(4), { seen: a } = eye(r2), { seen: b } = eye(r2);
+    const r2 = rng(4),
+      { seen: a } = eye(r2),
+      { seen: b } = eye(r2);
     fleet.park(a, 0, 0, b);
     for (const { im, cars } of f.still) {
-      expect(placed(im).sort()).toEqual(cars.filter((c) => { const s = ball(c.x, 1.5, c.z, 3); return a.intersectsSphere(s) || b.intersectsSphere(s); }).map((c) => key(c.x, c.z)).sort());
+      expect(placed(im).sort()).toEqual(
+        cars
+          .filter((c) => {
+            const s = ball(c.x, 1.5, c.z, 3);
+            return a.intersectsSphere(s) || b.intersectsSphere(s);
+          })
+          .map((c) => key(c.x, c.z))
+          .sort(),
+      );
     }
     const union = f.still.reduce((s, { im }) => s + im.count, 0);
     fleet.park(a, 0, 0);

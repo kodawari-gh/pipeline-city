@@ -54,7 +54,8 @@ export function stressTerms(s: StressSnap): StressTerms {
   }
 
   const p = s.power ?? null;
-  const power = p && finite(p.totalW) && finite(p.budgetW) && p.budgetW > 0 ? scaled(p.totalW / p.budgetW - POWER_THRESHOLD) : 0;
+  const power =
+    p && finite(p.totalW) && finite(p.budgetW) && p.budgetW > 0 ? scaled(p.totalW / p.budgetW - POWER_THRESHOLD) : 0;
 
   return { throttle, temp, vrm, power, amount: Math.max(throttle, temp, vrm, power) };
 }

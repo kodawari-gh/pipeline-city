@@ -19,7 +19,9 @@ vi.mock('preact/hooks', () => ({
   useState: (init: unknown) => {
     const k = rt.at++;
     if (!(k in rt.slots)) rt.slots[k] = init;
-    const set = (v: unknown) => { rt.slots[k] = typeof v === 'function' ? (v as (prev: unknown) => unknown)(rt.slots[k]) : v; };
+    const set = (v: unknown) => {
+      rt.slots[k] = typeof v === 'function' ? (v as (prev: unknown) => unknown)(rt.slots[k]) : v;
+    };
     return [rt.slots[k], set];
   },
   useEffect: (fn: () => unknown, deps?: unknown[]) => {
@@ -28,7 +30,11 @@ vi.mock('preact/hooks', () => ({
     const changed = !prev || !deps || deps.some((d, j) => !Object.is(d, prev.deps?.[j]));
     if (changed) rt.pending.push({ k, fn, deps });
   },
-  useLayoutEffect: (fn: () => unknown, deps?: unknown[]) => { const k = rt.at++; const prev = rt.effects[k]; if (!prev || !deps || deps.some((d, j) => !Object.is(d, prev.deps?.[j]))) rt.pending.push({ k, fn, deps }); },
+  useLayoutEffect: (fn: () => unknown, deps?: unknown[]) => {
+    const k = rt.at++;
+    const prev = rt.effects[k];
+    if (!prev || !deps || deps.some((d, j) => !Object.is(d, prev.deps?.[j]))) rt.pending.push({ k, fn, deps });
+  },
 }));
 
 type VEl = { type: unknown; props: Record<string, any> };
@@ -64,8 +70,12 @@ beforeEach(async () => {
   vi.stubGlobal('document', {});
   winListeners = {};
   vi.stubGlobal('window', {
-    addEventListener: (type: string, fn: (e: unknown) => void) => { (winListeners[type] ??= []).push(fn); },
-    removeEventListener: (type: string, fn: (e: unknown) => void) => { winListeners[type] = (winListeners[type] ?? []).filter((f) => f !== fn); },
+    addEventListener: (type: string, fn: (e: unknown) => void) => {
+      (winListeners[type] ??= []).push(fn);
+    },
+    removeEventListener: (type: string, fn: (e: unknown) => void) => {
+      winListeners[type] = (winListeners[type] ?? []).filter((f) => f !== fn);
+    },
   });
   ({ Settings } = (await import('@/core/ui/panels/Settings')) as unknown as { Settings: () => unknown });
   graphics = await import('@/app/graphics');
@@ -109,7 +119,9 @@ describe('the five tabs', () => {
 
 describe('the Quality tab', () => {
   it('shows the four presets and the device tier', () => {
-    const radios = all(tree()).filter((el) => el.props.role === 'radio').map((el) => text(childrenOf(el)));
+    const radios = all(tree())
+      .filter((el) => el.props.role === 'radio')
+      .map((el) => text(childrenOf(el)));
     // the preset row, then the device row: Auto and the three tiers
     expect(radios).toEqual(['Low', 'Medium', 'High', 'Ultra', 'Auto', 'Low', 'Medium', 'High']);
   });
@@ -117,12 +129,16 @@ describe('the Quality tab', () => {
 
 describe('the foot', () => {
   it('has Peek', () => {
-    const buttons = all(tree()).filter((el) => el.type === 'button').map((el) => text(childrenOf(el)).trim());
+    const buttons = all(tree())
+      .filter((el) => el.type === 'button')
+      .map((el) => text(childrenOf(el)).trim());
     expect(buttons.some((t) => /peek/i.test(t))).toBe(true);
   });
 
   it('has a Back control', () => {
-    const buttons = all(tree()).filter((el) => el.type === 'button').map((el) => text(childrenOf(el)).trim());
+    const buttons = all(tree())
+      .filter((el) => el.type === 'button')
+      .map((el) => text(childrenOf(el)).trim());
     expect(buttons.some((t) => /back/i.test(t))).toBe(true);
   });
 });
@@ -145,9 +161,14 @@ describe('no alarm colour for low fps', () => {
 
 describe('Peek with the mouse: held while the button is down, and the release ends it, also off the button', () => {
   const peekButton = () => all(tree()).find((el) => el.type === 'button' && /peek/i.test(text(childrenOf(el))))!;
-  const peeking = () => String(all(tree()).find((el) => el.props.role === 'dialog')!.props.class).split(/\s+/).includes('peek');
+  const peeking = () =>
+    String(all(tree()).find((el) => el.props.role === 'dialog')!.props.class)
+      .split(/\s+/)
+      .includes('peek');
   /** A window event, such as a release the pointer made off the Peek button. */
-  const onWindow = (type: string) => { for (const fn of [...(winListeners[type] ?? [])]) fn({ type, key: undefined }); };
+  const onWindow = (type: string) => {
+    for (const fn of [...(winListeners[type] ?? [])]) fn({ type, key: undefined });
+  };
 
   it('a mouse press holds Peek on, and the release lets go (the window hears it, so it need not be over the button)', () => {
     peekButton().props.onPointerDown({ type: 'pointerdown', button: 0, pointerType: 'mouse' });

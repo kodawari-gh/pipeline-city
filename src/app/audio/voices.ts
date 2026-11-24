@@ -15,10 +15,14 @@ export interface VoiceRec {
 export type Admit = { ok: false } | { ok: true; evict: VoiceRec[] };
 
 /** The oldest voice of a list. */
-const oldest = (vs: VoiceRec[]): VoiceRec | undefined => vs.reduce<VoiceRec | undefined>((a, v) => (!a || v.t < a.t ? v : a), undefined);
+const oldest = (vs: VoiceRec[]): VoiceRec | undefined =>
+  vs.reduce<VoiceRec | undefined>((a, v) => (!a || v.t < a.t ? v : a), undefined);
 /** The lowest priority, then the oldest (the stealing order). */
 const weakest = (vs: VoiceRec[]): VoiceRec | undefined =>
-  vs.reduce<VoiceRec | undefined>((a, v) => (!a || v.prio < a.prio || (v.prio === a.prio && v.t < a.t) ? v : a), undefined);
+  vs.reduce<VoiceRec | undefined>(
+    (a, v) => (!a || v.prio < a.prio || (v.prio === a.prio && v.t < a.t) ? v : a),
+    undefined,
+  );
 
 export class VoicePool {
   readonly list: VoiceRec[] = [];
@@ -44,7 +48,7 @@ export class VoicePool {
     let steal: VoiceRec | undefined;
     if (busFull || globalFull) {
       steal = weakest(busFull ? onBus : rest);
-      if (!steal || steal.prio > c.priority) return { ok: false };   // everything playing matters more
+      if (!steal || steal.prio > c.priority) return { ok: false }; // everything playing matters more
     }
 
     const evict = [sameVictim, steal].filter((v): v is VoiceRec => !!v);

@@ -1,25 +1,39 @@
 // Game feature: the network (docs/NETWORK.md). The link state table, downloads and uploads, retiring the USB keys, the NIC
 // feed into the kernel, what a power loss does to it all, and the network snapshot. Every export is a `Game` method (see game.ts).
 
-import { BOARD_TIERS, deviceSpec, type NicSpec } from "../../board/sim";
-import { generate } from "../../jobs/sim/gen";
-import { JOB_ROW, JobState, NIC_ACK_NEXT_MASK, NIC_FLAG_ABORT, NIC_FLAG_REPLAY, NIC_SEG_WORDS, NIC_STAMP_MASK, NIC_STAMP_SHIFT } from "@/core/sim/memmap";
-import { bandwidth, DISK_NET_MBPS, fifoSegsOf, ispByTier, jobSizes, NET, pickOffer, routerByTier } from ".";
-import type { NicPacket, NicSegment } from "./nic";
-import { Flow, RttEstimate } from "./transport";
-import type { Game } from "@/worker/game/game";
-import type { Key, KernelJob, Link, Transfer } from "@/worker/game/internal";
-import { needsMet } from "../../economy/sim/levels";
-import type { FlowSnap, LinkState, NetSnap, NetStackSnap, TransferSnap } from "@/worker/game/types";
+import { BOARD_TIERS, deviceSpec, type NicSpec } from '../../board/sim';
+import { generate } from '../../jobs/sim/gen';
+import {
+  JOB_ROW,
+  JobState,
+  NIC_ACK_NEXT_MASK,
+  NIC_FLAG_ABORT,
+  NIC_FLAG_REPLAY,
+  NIC_SEG_WORDS,
+  NIC_STAMP_MASK,
+  NIC_STAMP_SHIFT,
+} from '@/core/sim/memmap';
+import { bandwidth, DISK_NET_MBPS, fifoSegsOf, ispByTier, jobSizes, NET, pickOffer, routerByTier } from '.';
+import type { NicPacket, NicSegment } from './nic';
+import { Flow, RttEstimate } from './transport';
+import type { Game } from '@/worker/game/game';
+import type { Key, KernelJob, Link, Transfer } from '@/worker/game/internal';
+import { needsMet } from '../../economy/sim/levels';
+import type { FlowSnap, LinkState, NetSnap, NetStackSnap, TransferSnap } from '@/worker/game/types';
 
 /** The uplink port the cable is in: its speed (a hot NIC runs at half), or none. */
-export function portInfo(this: Game): Link["port"] {
+export function portInfo(this: Game): Link['port'] {
   if (!this.lan) return { kind: null, deviceId: null, mbps: 0 };
-  if (this.lan === "board") return { kind: "board", deviceId: null, mbps: this.board.burnt ? 0 : BOARD_TIERS[this.board.tier]!.features.ethernetMbps };
+  if (this.lan === 'board')
+    return {
+      kind: 'board',
+      deviceId: null,
+      mbps: this.board.burnt ? 0 : BOARD_TIERS[this.board.tier]!.features.ethernetMbps,
+    };
   const d = this.board.devices.find((x) => x.id === this.lan);
-  if (!d || d.burnt) return { kind: "nic", deviceId: this.lan, mbps: 0 };
+  if (!d || d.burnt) return { kind: 'nic', deviceId: this.lan, mbps: 0 };
   const half = (this.thermal.state(d.id)?.throttle ?? 1) < 1;
-  return { kind: "nic", deviceId: d.id, mbps: (deviceSpec(d) as NicSpec).mbps * (half ? 0.5 : 1) };
+  return { kind: 'nic', deviceId: d.id, mbps: (deviceSpec(d) as NicSpec).mbps * (half ? 0.5 : 1) };
 }
 
 /** Evaluate the link state table (docs/NETWORK.md "Link states") and the effective bandwidth. */
@@ -30,25 +44,36 @@ export function computeLink(this: Game): Link {
   const mk = (state: LinkState, reason: string | null, bwOn = false): Link => {
     const osDev = this.os && this.board.devices.find((d) => d.id === this.os!.deviceId);
     const disk = osDev ? (DISK_NET_MBPS[osDev.spec] ?? 80) : 0;
-    return { state, reason, port, router, isp, bw: bwOn ? bandwidth(port.mbps, router, isp, disk) : { downMbps: 0, upMbps: 0, clients: 0, binding: null } };
+    return {
+      state,
+      reason,
+      port,
+      router,
+      isp,
+      bw: bwOn ? bandwidth(port.mbps, router, isp, disk) : { downMbps: 0, upMbps: 0, clients: 0, binding: null },
+    };
   };
-  if (!router || !isp) return mk("no-device", !isp ? "no ISP plan: buy one" : "no router: install one next to the monitor");
-  if (!this.lan) return mk("no-cable", "plug the ethernet cable from the board jack into the router");
-  if (!this.os) return mk("no-os", "needs an OS: the network runs inside it");
+  if (!router || !isp)
+    return mk('no-device', !isp ? 'no ISP plan: buy one' : 'no router: install one next to the monitor');
+  if (!this.lan) return mk('no-cable', 'plug the ethernet cable from the board jack into the router');
+  if (!this.os) return mk('no-os', 'needs an OS: the network runs inside it');
   const ram = this.installedRamBytes();
-  if (ram < NET.minRamBytes) return mk("no-os", `needs ${NET.minRamBytes / 1024}K of RAM, only ${ram / 1024}K installed`);
-  if (this.os.queueSlots < 1) return mk("no-os", "no free space on the OS drive for a spool slot");
-  if (port.mbps <= 0) return mk("down", this.lan === "board" ? "the board is dead" : "the network card is burnt out", true);
-  if (!this.powered) return mk("down", "the machine is off", true);
+  if (ram < NET.minRamBytes)
+    return mk('no-os', `needs ${NET.minRamBytes / 1024}K of RAM, only ${ram / 1024}K installed`);
+  if (this.os.queueSlots < 1) return mk('no-os', 'no free space on the OS drive for a spool slot');
+  if (port.mbps <= 0)
+    return mk('down', this.lan === 'board' ? 'the board is dead' : 'the network card is burnt out', true);
+  if (!this.powered) return mk('down', 'the machine is off', true);
   const fault = this.fault();
-  if (fault || this.postError) return mk("down", fault ?? "the machine failed POST", true);
+  if (fault || this.postError) return mk('down', fault ?? 'the machine failed POST', true);
   const phase = this.currentPhase();
-  if (phase !== "idle-os" && phase !== "ingesting" && phase !== "running-os" && phase !== "flashing") return mk("down", "the OS is starting", true);
-  const up = mk("link-up", null, true);
+  if (phase !== 'idle-os' && phase !== 'ingesting' && phase !== 'running-os' && phase !== 'flashing')
+    return mk('down', 'the OS is starting', true);
+  const up = mk('link-up', null, true);
   const waiting = this.offersQ.waiting().some((k) => this.runnable(k, this.capsWith(true)));
   const slotsFull = this.activeTransfers() >= up.bw.clients;
   if (slotsFull || (waiting && this.reserved() >= this.os.queueSlots)) {
-    return { ...up, state: "saturated", reason: slotsFull ? "every client slot is busy" : "the spool is full" };
+    return { ...up, state: 'saturated', reason: slotsFull ? 'every client slot is busy' : 'the spool is full' };
   }
   return up;
 }
@@ -63,7 +88,8 @@ export function wireLoss(this: Game): number {
   if (this.cfg.lossTable) {
     const id = this.link.port.deviceId;
     const hot = id ? this.thermal.state(id) : undefined;
-    keep *= (1 - (this.link.isp?.loss ?? 0)) * (1 - (this.link.router?.loss ?? 0)) * (1 - (hot?.unstable ? hot.errProb : 0));
+    keep *=
+      (1 - (this.link.isp?.loss ?? 0)) * (1 - (this.link.router?.loss ?? 0)) * (1 - (hot?.unstable ? hot.errProb : 0));
   }
   return 1 - keep;
 }
@@ -91,7 +117,10 @@ export function usbFallback(this: Game): boolean {
 
 /** A job whose result is ready (the key holds it, or the kernel has it in its result state or in the NIC's transmit ring). */
 export function resultWaiting(this: Game, k: Key): boolean {
-  return k.done || this.kernelJobs().some((j) => j.key === k.id && (j.state === JobState.Result || j.state === JobState.Sending));
+  return (
+    k.done ||
+    this.kernelJobs().some((j) => j.key === k.id && (j.state === JobState.Result || j.state === JobState.Sending))
+  );
 }
 
 /**
@@ -104,13 +133,13 @@ export function retireUsbKeys(this: Game): void {
   for (const k of [...this.tray.waiting(), ...(this.plugged ? [this.plugged] : [])]) {
     if (!this.resultWaiting(k)) k.retired = true;
   }
-  this.note("net", "the USB keys left behind are retired: they no longer hold reputation");
+  this.note('net', 'the USB keys left behind are retired: they no longer hold reputation');
 }
 
 /** The kernel can take the NIC feed now (booted, not in a POST error). */
 export function kernelUp(this: Game): boolean {
   const phase = this.currentPhase();
-  return phase === "idle-os" || phase === "ingesting" || phase === "running-os" || phase === "flashing";
+  return phase === 'idle-os' || phase === 'ingesting' || phase === 'running-os' || phase === 'flashing';
 }
 
 /** One base tick of the network after the machine ran: link state, retirement, transfers, and the feed into the kernel. */
@@ -121,7 +150,11 @@ export function netTick(this: Game): void {
   if (usable && !this.linkWasUsable) this.retireUsbKeys();
   this.linkWasUsable = usable;
   if (usable) {
-    if (!this.progress.linkUp) this.note("net", `link up: ${this.link.bw.downMbps} Mbit down, ${this.link.bw.upMbps} up (limited by ${this.link.bw.binding})`);
+    if (!this.progress.linkUp)
+      this.note(
+        'net',
+        `link up: ${this.link.bw.downMbps} Mbit down, ${this.link.bw.upMbps} up (limited by ${this.link.bw.binding})`,
+      );
     this.progress.linkUp = true;
     this.networkLinked = true;
     this.deadTicks = 0;
@@ -158,10 +191,10 @@ const moved = (t: Transfer, share: number): number => Math.max(0, Math.min(share
  * on the way they flow, and the acknowledgements the receiver sends back on the other way, one for `NET.ackEvery` data frames. The port's statistics are
  * these, and the jacks' activity lights follow them (`network/render/jackleds.ts`). Fractions stay in the totals, so a whole transfer counts exactly.
  */
-function countFrames(f: { rx: number; tx: number }, mb: number, dir: "rx" | "tx"): void {
+function countFrames(f: { rx: number; tx: number }, mb: number, dir: 'rx' | 'tx'): void {
   const data = (mb * 1e6) / NET.frameBytes;
   f[dir] += data;
-  f[dir === "rx" ? "tx" : "rx"] += data / NET.ackEvery;
+  f[dir === 'rx' ? 'tx' : 'rx'] += data / NET.ackEvery;
 }
 
 /**
@@ -205,7 +238,10 @@ export function runTransfers(this: Game): void {
   const sending = this.activeUploads();
   if (sending.length > 0) {
     const each = bw.upMbps / 8 / sending.length;
-    for (const t of sending) { countFrames(this.netFrames, moved(t, each), "tx"); t.doneMB += each; }
+    for (const t of sending) {
+      countFrames(this.netFrames, moved(t, each), 'tx');
+      t.doneMB += each;
+    }
     for (const t of sending.filter((x) => x.doneMB >= x.totalMB)) {
       this.uploads = this.uploads.filter((x) => x !== t);
       this.spool = this.spool.filter((k) => k.id !== t.key.id); // delivery is the receipt: the spool slot is free
@@ -214,7 +250,7 @@ export function runTransfers(this: Game): void {
       t.key.done = true;
       this.progress.firstNetJob = true;
       this.progress.firstOsJob = true;
-      this.deliver(t.key, "delivered over the network");
+      this.deliver(t.key, 'delivered over the network');
     }
   }
 }
@@ -241,9 +277,9 @@ function runFlow(g: Game, t: Transfer, share: number): void {
   const was = { ...f.stats };
   if (!t.replay) f.loss = g.wireLoss(); // the line, the router and the card can change while a download runs (a card heats up)
   const sends = f.step(g.baseTick, f.moving ? share : 0);
-  for (const k of ["sent", "resent", "lost", "timeouts"] as const) g.netWire[k] += f.stats[k] - was[k];
+  for (const k of ['sent', 'resent', 'lost', 'timeouts'] as const) g.netWire[k] += f.stats[k] - was[k];
   if (!t.replay) {
-    countFrames(g.netFrames, f.earned, "rx");
+    countFrames(g.netFrames, f.earned, 'rx');
     t.doneMB = f.carriedMB;
     t.totalMB = f.workMB;
   }
@@ -251,7 +287,14 @@ function runFlow(g: Game, t: Transfer, share: number): void {
   const stamp = (g.baseTick & NIC_STAMP_MASK) << NIC_STAMP_SHIFT; // the clock the segment leaves by: the kernel echoes it in the acknowledgement
   for (const s of sends) {
     if (s.lost) continue;
-    const seg: NicSegment = { key: t.key.id, seq: s.seq, count: t.segs!, total: words.length, words: words.subarray(s.seq * NIC_SEG_WORDS, (s.seq + 1) * NIC_SEG_WORDS), flags: ((t.replay ? NIC_FLAG_REPLAY : 0) | stamp) >>> 0 };
+    const seg: NicSegment = {
+      key: t.key.id,
+      seq: s.seq,
+      count: t.segs!,
+      total: words.length,
+      words: words.subarray(s.seq * NIC_SEG_WORDS, (s.seq + 1) * NIC_SEG_WORDS),
+      flags: ((t.replay ? NIC_FLAG_REPLAY : 0) | stamp) >>> 0,
+    };
     g.wireQ.push({ at: g.baseTick + 1, seg }); // the NIC's step in the next tick takes it
   }
 }
@@ -261,7 +304,12 @@ function deliverAcks(g: Game): void {
   const due = g.wireAcks.filter((a) => a.at <= g.baseTick);
   if (due.length === 0) return;
   g.wireAcks = g.wireAcks.filter((a) => a.at > g.baseTick);
-  for (const a of due) (g.downloads.find((t) => t.key.id === a.key) ?? g.restores.find((t) => t.key.id === a.key))?.flow?.ack(g.baseTick, a.next, (g.baseTick - a.stamp) & NIC_STAMP_MASK);
+  for (const a of due)
+    (g.downloads.find((t) => t.key.id === a.key) ?? g.restores.find((t) => t.key.id === a.key))?.flow?.ack(
+      g.baseTick,
+      a.next,
+      (g.baseTick - a.stamp) & NIC_STAMP_MASK,
+    );
 }
 
 /** A segment sent more times than the transport allows without an answer: the download fails. The offer goes back (attempts + 1) and a reset tells the kernel to free what it holds of the job. */
@@ -270,18 +318,30 @@ function giveUp(g: Game, t: Transfer): void {
   t.key.attempts++;
   g.offersQ.giveBack(t.key);
   g.netCount.lost++;
-  g.wireQ.push({ at: g.baseTick + 1, seg: { key: t.key.id, seq: 0, count: 0, total: 0, words: new Uint32Array(0), flags: NIC_FLAG_ABORT } });
-  g.note("net", `download #${String(t.key.jobNo).padStart(2, "0")} failed: the machine did not answer, it goes back to the offers`);
+  g.wireQ.push({
+    at: g.baseTick + 1,
+    seg: { key: t.key.id, seq: 0, count: 0, total: 0, words: new Uint32Array(0), flags: NIC_FLAG_ABORT },
+  });
+  g.note(
+    'net',
+    `download #${String(t.key.jobNo).padStart(2, '0')} failed: the machine did not answer, it goes back to the offers`,
+  );
 }
 
 /** The program of a job as a client sends it: generated from the job's template and seed (a USB key carries the same one). */
 export function jobWords(this: Game, key: Key): Uint32Array {
-  return generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true, gpu: this.gpuTarget(), npu: this.npuTarget() }).program;
+  return generate(key.template, key.seed, {
+    row: JOB_ROW,
+    scale: key.scale,
+    hosted: true,
+    gpu: this.gpuTarget(),
+    npu: this.npuTarget(),
+  }).program;
 }
 
 /** The text the result words of a job make: the bytes up to the first NUL, trailing blanks cut (what `kernelResult` reads out of the job table). */
 function resultText(words: Uint32Array): string {
-  let s = "";
+  let s = '';
   for (const w of words) {
     for (let i = 0; i < 4; i++) {
       const b = (w >>> (8 * i)) & 0xff;
@@ -310,7 +370,12 @@ export function wirePull(this: Game): NicSegment | null {
  */
 export function wireSend(this: Game, p: NicPacket): void {
   if (p.words.length === 0) {
-    this.wireAcks.push({ at: this.baseTick, key: p.key, next: p.arg & NIC_ACK_NEXT_MASK, stamp: p.arg >>> NIC_STAMP_SHIFT });
+    this.wireAcks.push({
+      at: this.baseTick,
+      key: p.key,
+      next: p.arg & NIC_ACK_NEXT_MASK,
+      stamp: p.arg >>> NIC_STAMP_SHIFT,
+    });
     return;
   }
   // a result means the kernel had the whole job, even if the last acknowledgement has not reached the sender (it was lost, or is late): the download is over
@@ -361,9 +426,16 @@ export function adoptReceived(this: Game): void {
 export function feedKernel(this: Game): void {
   if (!this.kernelUp() || !this.linkUsable) return;
   const jobs = this.kernelJobs();
-  this.restores = this.restores.filter((t) => !jobs.some((j) => j.net && j.key === t.key.id && j.state >= JobState.Queued)); // the kernel has it: the replay is over
+  this.restores = this.restores.filter(
+    (t) => !jobs.some((j) => j.net && j.key === t.key.id && j.state >= JobState.Queued),
+  ); // the kernel has it: the replay is over
   for (const k of this.spool) {
-    if (jobs.some((j) => j.key === k.id) || this.uploads.some((t) => t.key.id === k.id) || this.restores.some((t) => t.key.id === k.id)) continue;
+    if (
+      jobs.some((j) => j.key === k.id) ||
+      this.uploads.some((t) => t.key.id === k.id) ||
+      this.restores.some((t) => t.key.id === k.id)
+    )
+      continue;
     this.restores.push(newDownload(this, k, true));
   }
 }
@@ -396,33 +468,60 @@ export function loseTransfers(this: Game): void {
 
 export function transferSnaps(this: Game): TransferSnap[] {
   const out: TransferSnap[] = [];
-  const add = (t: Transfer, dir: "down" | "up"): void => {
-    const rate = (dir === "down" ? this.link.bw.downMbps / Math.max(1, this.downloads.filter((x) => x.flow?.sending ?? true).length) : this.link.bw.upMbps / Math.max(1, this.activeUploads().length)) / 8;
+  const add = (t: Transfer, dir: 'down' | 'up'): void => {
+    const rate =
+      (dir === 'down'
+        ? this.link.bw.downMbps / Math.max(1, this.downloads.filter((x) => x.flow?.sending ?? true).length)
+        : this.link.bw.upMbps / Math.max(1, this.activeUploads().length)) / 8;
     out.push({
-      jobId: t.key.id, label: `#${String(t.key.jobNo).padStart(2, "0")} ${t.key.type}`, dir, totalMB: t.totalMB, doneMB: t.doneMB,
-      percent: Math.min(100, Math.round((100 * t.doneMB) / t.totalMB)), etaTicks: rate > 0 ? Math.ceil((t.totalMB - t.doneMB) / rate) : -1, persisted: false,
-      ...(dir === "down" && t.flow ? { flow: flowSnap(t.flow) } : {}),
+      jobId: t.key.id,
+      label: `#${String(t.key.jobNo).padStart(2, '0')} ${t.key.type}`,
+      dir,
+      totalMB: t.totalMB,
+      doneMB: t.doneMB,
+      percent: Math.min(100, Math.round((100 * t.doneMB) / t.totalMB)),
+      etaTicks: rate > 0 ? Math.ceil((t.totalMB - t.doneMB) / rate) : -1,
+      persisted: false,
+      ...(dir === 'down' && t.flow ? { flow: flowSnap(t.flow) } : {}),
     });
   };
-  for (const t of this.downloads) if (t.flow?.sending ?? true) add(t, "down"); // one that has put every segment on the wire is the kernel's now (`stageOf`: ingesting)
-  for (const t of this.activeUploads()) add(t, "up");
+  for (const t of this.downloads) if (t.flow?.sending ?? true) add(t, 'down'); // one that has put every segment on the wire is the kernel's now (`stageOf`: ingesting)
+  for (const t of this.activeUploads()) add(t, 'up');
   return out;
 }
 
 export function netSnap(this: Game, jobs: KernelJob[]): NetSnap {
   const l = this.computeLink();
-  const fb = this.networkLinked ? (this.usbFallback() ? "fallback" : this.linkUsable ? "retired" : "waiting") : "off";
+  const fb = this.networkLinked ? (this.usbFallback() ? 'fallback' : this.linkUsable ? 'retired' : 'waiting') : 'off';
   return {
-    state: l.state, reason: l.reason, port: { ...l.port },
-    router: l.router && { id: l.router.id, name: l.router.name, mbps: l.router.mbps, clients: l.router.clients, visual: l.router.visual },
-    isp: l.isp && { id: l.isp.id, name: l.isp.name, downMbps: l.isp.downMbps, upMbps: l.isp.upMbps, clients: l.isp.clients },
-    bandwidth: { ...l.bw }, transfers: this.transferSnaps(), uploadsWaiting: this.uploads.filter((t) => t.waiting).length,
+    state: l.state,
+    reason: l.reason,
+    port: { ...l.port },
+    router: l.router && {
+      id: l.router.id,
+      name: l.router.name,
+      mbps: l.router.mbps,
+      clients: l.router.clients,
+      visual: l.router.visual,
+    },
+    isp: l.isp && {
+      id: l.isp.id,
+      name: l.isp.name,
+      downMbps: l.isp.downMbps,
+      upMbps: l.isp.upMbps,
+      clients: l.isp.clients,
+    },
+    bandwidth: { ...l.bw },
+    transfers: this.transferSnaps(),
+    uploadsWaiting: this.uploads.filter((t) => t.waiting).length,
     offers: this.offersQ.waiting().map((k) => this.keySnap(k, jobs)),
     spooled: this.spool.map((k) => this.keySnap(k, jobs)),
     usbRetired: this.networkLinked,
     usbFallback: {
-      state: fb, deadTicks: this.deadTicks, startsIn: fb === "waiting" ? Math.max(0, this.cfg.usbFallbackTicks - this.deadTicks) : null,
-      keyRateMul: fb === "fallback" ? this.cfg.usbFallbackMul : fb === "waiting" ? 0 : 1,
+      state: fb,
+      deadTicks: this.deadTicks,
+      startsIn: fb === 'waiting' ? Math.max(0, this.cfg.usbFallbackTicks - this.deadTicks) : null,
+      keyRateMul: fb === 'fallback' ? this.cfg.usbFallbackMul : fb === 'waiting' ? 0 : 1,
     },
     retiredKeys: this.tray.waiting().filter((k) => k.retired).length,
     counters: { ...this.netCount },
@@ -433,18 +532,37 @@ export function netSnap(this: Game, jobs: KernelJob[]): NetSnap {
 
 /** A download's transport as the snapshot has it. */
 function flowSnap(f: Flow): FlowSnap {
-  return { segs: f.segs, acked: f.acked, inflight: f.inflight, window: f.window, resent: f.stats.resent, timeouts: f.stats.timeouts, rto: f.rto };
+  return {
+    segs: f.segs,
+    acked: f.acked,
+    inflight: f.inflight,
+    window: f.window,
+    resent: f.stats.resent,
+    timeouts: f.stats.timeouts,
+    rto: f.rto,
+  };
 }
 
 /** The transport's counters, the loss now, the round trip the senders measured and the NIC's buffers and rings. */
 function stackSnap(g: Game): NetStackSnap {
   const v = g.nic.view();
   return {
-    ...g.netWire, loss: g.wireLoss(),
+    ...g.netWire,
+    loss: g.wireLoss(),
     rtt: g.netRtt?.sampled ? { srtt: g.netRtt.srtt, rttvar: g.netRtt.rttvar, rto: g.netRtt.rto } : null,
     nic: {
-      enabled: v.enabled, fifo: v.fifo, fifoSegs: v.fifoSegs, rxUsed: g.nic.rxPending, rxSlots: v.rxSlots, txUsed: g.nic.txPending, txSlots: v.txSlots,
-      rx: v.rx, drops: v.drops, tx: v.tx, dmaWords: v.dmaWords, irqs: v.irqs,
+      enabled: v.enabled,
+      fifo: v.fifo,
+      fifoSegs: v.fifoSegs,
+      rxUsed: g.nic.rxPending,
+      rxSlots: v.rxSlots,
+      txUsed: g.nic.txPending,
+      txSlots: v.txSlots,
+      rx: v.rx,
+      drops: v.drops,
+      tx: v.tx,
+      dmaWords: v.dmaWords,
+      irqs: v.irqs,
     },
   };
 }

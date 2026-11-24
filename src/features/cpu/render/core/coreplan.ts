@@ -37,26 +37,51 @@ export function splitPlan(plan: CpuPlan): SplitPlan | null {
     const p = `c${k}.`;
     const own = (id: string) => id.startsWith(p);
     const strip = (id: string) => (own(id) ? id.slice(p.length) : sharedName(id));
-    const blocks = plan.blocks.filter((b) => b.core === k).map((b): Block => {
-      const { core: _core, ...rest } = b;
-      return { ...rest, id: b.id.slice(p.length), ...(b.parent ? { parent: b.parent.slice(p.length) } : {}) };
-    });
-    const links = plan.links.filter((l) => own(l.from) && own(l.to)).map((l): Link => ({ ...l, id: l.id.slice(p.length), from: l.from.slice(p.length), to: l.to.slice(p.length) }));
+    const blocks = plan.blocks
+      .filter((b) => b.core === k)
+      .map((b): Block => {
+        const { core: _core, ...rest } = b;
+        return { ...rest, id: b.id.slice(p.length), ...(b.parent ? { parent: b.parent.slice(p.length) } : {}) };
+      });
+    const links = plan.links
+      .filter((l) => own(l.from) && own(l.to))
+      .map((l): Link => ({ ...l, id: l.id.slice(p.length), from: l.from.slice(p.length), to: l.to.slice(p.length) }));
     // the wires of this tile to the shared part, and the shared part's own
     const out = plan.links
-      .filter((l) => (own(l.from) && isShared(l.to)) || (isShared(l.from) && own(l.to)) || (isShared(l.from) && isShared(l.to)))
-      .map((l): Link => ({ ...l, id: own(l.from) || own(l.to) ? strip(l.id) : l.id, from: strip(l.from), to: strip(l.to) }));
+      .filter(
+        (l) =>
+          (own(l.from) && isShared(l.to)) || (isShared(l.from) && own(l.to)) || (isShared(l.from) && isShared(l.to)),
+      )
+      .map((l): Link => ({
+        ...l,
+        id: own(l.from) || own(l.to) ? strip(l.id) : l.id,
+        from: strip(l.from),
+        to: strip(l.to),
+      }));
     const die = rect;
     return {
       plan: { arch: plan.arch, cores: 1, die, blocks, links },
       rect,
-      motion: { arch: plan.arch, cores: 1, die, blocks: [...blocks, ...shared.map((b) => ({ ...b, id: sharedName(b.id) }))], links: [...links, ...out] },
+      motion: {
+        arch: plan.arch,
+        cores: 1,
+        die,
+        blocks: [...blocks, ...shared.map((b) => ({ ...b, id: sharedName(b.id) }))],
+        links: [...links, ...out],
+      },
       scale: rect.w / CORE_TILE_W,
     };
   });
   const inner = (l: Link) => coreOf(l.from) !== undefined && coreOf(l.from) === coreOf(l.to);
   return {
-    shared: { arch: plan.arch, cores: plan.cores, die: plan.die, blocks: shared, links: plan.links.filter((l) => !inner(l)), tiles: rects },
+    shared: {
+      arch: plan.arch,
+      cores: plan.cores,
+      die: plan.die,
+      blocks: shared,
+      links: plan.links.filter((l) => !inner(l)),
+      tiles: rects,
+    },
     tiles,
   };
 }

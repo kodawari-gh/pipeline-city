@@ -3,7 +3,12 @@ import type { RamRegion } from '../sim/ramregions';
 import { bubblesOf, coresText, regionOf, type BubbleTouch } from './rambubbles';
 
 const reg = (id: string, lo: number, hi: number, name = id): RamRegion => ({ id, kind: 'os', name, note: '', lo, hi });
-const regions = [reg('kernel', 0x1000, 0x2000, 'OS kernel'), reg('table', 0x2000, 0x3000, 'Job table'), reg('app', 0x4000, 0x8000, '#07 calc'), reg('work', 0x5000, 0x5400, 'calc memory')];
+const regions = [
+  reg('kernel', 0x1000, 0x2000, 'OS kernel'),
+  reg('table', 0x2000, 0x3000, 'Job table'),
+  reg('app', 0x4000, 0x8000, '#07 calc'),
+  reg('work', 0x5000, 0x5400, 'calc memory'),
+];
 const touch = (addr: number, core: number, write = false, t = 0): BubbleTouch => ({ addr, core, write, t });
 
 describe('RAM bubbles', () => {
@@ -21,7 +26,10 @@ describe('RAM bubbles', () => {
     expect(b[0]!.contended).toBe(true);
     expect(b[0]!.writes).toBe(1);
     expect(b[0]!.addr).toBe(0x2010); // where the newest touch was
-    expect(b[0]!.cores).toEqual([{ core: 1, reads: 1, writes: 1 }, { core: 0, reads: 1, writes: 0 }]);
+    expect(b[0]!.cores).toEqual([
+      { core: 1, reads: 1, writes: 1 },
+      { core: 0, reads: 1, writes: 0 },
+    ]);
     expect(coresText(b[0]!.cores)).toBe('C1+C0');
   });
 

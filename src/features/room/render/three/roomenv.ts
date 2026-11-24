@@ -11,7 +11,10 @@ export class RoomEnv {
   private map: Texture | null;
   private k = 1;
 
-  constructor(private readonly studio: Texture | null, private readonly box: BoxEnv) {
+  constructor(
+    private readonly studio: Texture | null,
+    private readonly box: BoxEnv,
+  ) {
     this.map = studio;
   }
 

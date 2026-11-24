@@ -15,7 +15,8 @@ quietCanvas();
 describe('Machine3D.powerGlow', () => {
   let snap: Snapshot, m: Machine3D;
   beforeAll(() => {
-    const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true }), bought = g.purchase('tpm1');
+    const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true }),
+      bought = g.purchase('tpm1');
     if (bought.ok) g.install(bought.invId, 'tpm0');
     // (a machine that is off: no fan turns and no ring of light shines, so a glow is the lens's)
     snap = { ...g.snapshot(), powered: false };
@@ -37,7 +38,11 @@ describe('Machine3D.powerGlow', () => {
   };
   /** Ease the parts all the way to the look they were given. */
   const settle = (): void => m.frame(snap, 5);
-  const lens = (levels: [string, number][], roles: [string, 'source' | 'hub' | 'use'][] = levels.map(([id]) => [id, 'use'] as [string, 'use']), warn: string[] = []): void => {
+  const lens = (
+    levels: [string, number][],
+    roles: [string, 'source' | 'hub' | 'use'][] = levels.map(([id]) => [id, 'use'] as [string, 'use']),
+    warn: string[] = [],
+  ): void => {
     m.powerGlow(new Map(levels), new Set(warn), new Map(roles));
     settle();
   };
@@ -46,7 +51,10 @@ describe('Machine3D.powerGlow', () => {
     const fans = ids('fan');
     expect(fans.length).toBeGreaterThanOrEqual(2);
     const [a, b] = fans as [string, string];
-    lens([[a, 1], [b, 0.1]]);
+    lens([
+      [a, 1],
+      [b, 0.1],
+    ]);
     expect(glow(a).k).toBeGreaterThan(glow(b).k);
     expect(glow(b).k).toBeGreaterThan(0);
     // (the other fans are not in the lens: they have no role and stay dark)
@@ -56,7 +64,7 @@ describe('Machine3D.powerGlow', () => {
     settle();
   });
 
-  it('lights the module (the TPM) too, and gives the lens\'s glow back to nothing when it is off', () => {
+  it("lights the module (the TPM) too, and gives the lens's glow back to nothing when it is off", () => {
     const tpm = ids('tpm')[0];
     expect(tpm).toBeDefined();
     expect(glow(tpm!).k).toBe(0);
@@ -67,11 +75,13 @@ describe('Machine3D.powerGlow', () => {
     expect(glow(tpm!).k).toBeLessThan(1e-3);
   });
 
-  it('gives a fan materials of its own only while the lens shows (a material that no other part shares costs a draw each: the other views keep the build\'s), and puts the build\'s back', () => {
+  it("gives a fan materials of its own only while the lens shows (a material that no other part shares costs a draw each: the other views keep the build's), and puts the build's back", () => {
     const fan = ids('fan')[0]!;
     const mats = (): unknown[] => {
       const out: unknown[] = [];
-      findById(m.root, fan)?.traverse((o) => { if ((o as Mesh).isMesh) out.push((o as Mesh).material); });
+      findById(m.root, fan)?.traverse((o) => {
+        if ((o as Mesh).isMesh) out.push((o as Mesh).material);
+      });
       return out;
     };
     m.powerGlow(null);
@@ -95,9 +105,20 @@ describe('Machine3D.powerGlow', () => {
   });
 
   it('shows a use in amber, a hub in cyan and a source in white', () => {
-    const cpu = ids('cpu')[0]!, psu = ids('psu')[0]!;
-    lens([[cpu, 0.7], [psu, 0.7]], [[cpu, 'use'], [psu, 'hub']]);
-    const use = glow(cpu).rgb, hub = glow(psu).rgb;
+    const cpu = ids('cpu')[0]!,
+      psu = ids('psu')[0]!;
+    lens(
+      [
+        [cpu, 0.7],
+        [psu, 0.7],
+      ],
+      [
+        [cpu, 'use'],
+        [psu, 'hub'],
+      ],
+    );
+    const use = glow(cpu).rgb,
+      hub = glow(psu).rgb;
     expect(use[0]).toBeGreaterThan(use[2]);
     expect(hub[2]).toBeGreaterThan(hub[0]);
     lens([[psu, 0.7]], [[psu, 'source']]);
@@ -117,7 +138,7 @@ describe('Machine3D.powerGlow', () => {
     settle();
   });
 
-  it('takes the basement\'s shroud off while the lens shows (the supply and the fan hub stand under it), and puts it back', () => {
+  it("takes the basement's shroud off while the lens shows (the supply and the fan hub stand under it), and puts it back", () => {
     const shroud = m.root.getObjectByName('shroud');
     expect(shroud).toBeDefined();
     expect(shroud!.visible).toBe(true);
@@ -127,8 +148,13 @@ describe('Machine3D.powerGlow', () => {
     expect(shroud!.visible).toBe(true);
   });
 
-  it('puts the fans\' rings of light low while the lens shows: a decoration is no power', () => {
-    const on = { ...snap, powered: true, power: { ...snap.power, off: false, tripped: false }, cables: snap.cables.map((c) => ({ ...c, connected: true })) };
+  it("puts the fans' rings of light low while the lens shows: a decoration is no power", () => {
+    const on = {
+      ...snap,
+      powered: true,
+      power: { ...snap.power, off: false, tripped: false },
+      cables: snap.cables.map((c) => ({ ...c, connected: true })),
+    };
     const fans = (m as unknown as { fans: { ring: MeshStandardMaterial | null }[] }).fans.filter((f) => f.ring);
     expect(fans.length).toBeGreaterThan(0);
     const ring = (): number => Math.max(...fans.map((f) => f.ring!.emissiveIntensity));

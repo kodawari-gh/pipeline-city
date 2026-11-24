@@ -35,29 +35,61 @@ const VIEWPORTS = [
 // --prod: the optimized build (what players run). It has no `window.__board`, and the checks wait for the canvas instead.
 if (PROD) {
   const b = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'build'], { stdio: 'inherit' });
-  if ((await new Promise((r) => b.on('exit', (code) => r(code)))) !== 0) { console.log('the build failed'); process.exit(1); }
+  if ((await new Promise((r) => b.on('exit', (code) => r(code)))) !== 0) {
+    console.log('the build failed');
+    process.exit(1);
+  }
 }
 let server = null;
-const listening = async () => { try { await fetch(url); return true; } catch { return false; } };
-const up = async () => { try { return (await fetch(url)).ok; } catch { return false; } };
+const listening = async () => {
+  try {
+    await fetch(url);
+    return true;
+  } catch {
+    return false;
+  }
+};
+const up = async () => {
+  try {
+    return (await fetch(url)).ok;
+  } catch {
+    return false;
+  }
+};
 // A server on PORT is reused only when it is the game (2xx) and this is not --prod (it may be the dev server). Anything else on PORT stops the run.
 if (await listening()) {
-  if (PROD || !(await up())) { console.log(`port ${PORT} is in use by another server: stop it or set PORT`); process.exit(2); }
+  if (PROD || !(await up())) {
+    console.log(`port ${PORT} is in use by another server: stop it or set PORT`);
+    process.exit(2);
+  }
 } else {
-  server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', ...(PROD ? ['preview'] : []), '--port', String(PORT), '--strictPort'], { stdio: 'ignore' });
+  server = spawn(
+    process.execPath,
+    ['node_modules/vite/bin/vite.js', ...(PROD ? ['preview'] : []), '--port', String(PORT), '--strictPort'],
+    { stdio: 'ignore' },
+  );
   for (let i = 0; i < 100 && !(await up()); i++) await new Promise((r) => setTimeout(r, 300));
 }
 console.log(`info ${PROD ? 'production build (vite preview)' : 'dev server'} at ${url}`);
-process.on('exit', () => { try { server?.kill(); } catch { /* gone */ } });
+process.on('exit', () => {
+  try {
+    server?.kill();
+  } catch {
+    /* gone */
+  }
+});
 
 const browser = FIREFOX
   ? await firefox.launch({ headless: true, firefoxUserPrefs: { 'webgl.force-enabled': true } })
   : await chromium.launch({
-    headless: true,
-    ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
-  });
+      headless: true,
+      ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
+    });
 let failures = 0;
-const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if (!ok) failures++; };
+const check = (ok, what) => {
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`);
+  if (!ok) failures++;
+};
 
 // Screens 04 (New game) and 05 (Load confirm) of ticket #37: SPEC §5.4 and §5.5. Run at every viewport above, with and without an autosave.
 // The save comes from the dev server (the game module is imported in the page), so the script needs no fixture file.
@@ -81,8 +113,13 @@ async function getFixture(b) {
 async function openMenu(b, vp, withSave) {
   const ctx = await b.newContext({ viewport: { width: vp.w, height: vp.h } });
   if (withSave) {
-    await ctx.addInitScript(([k, ka, v, at]) => { localStorage.setItem(k, v); localStorage.setItem(ka, String(at)); },
-      [SAVE_KEY, SAVE_AT_KEY, JSON.stringify(fixture), Date.now() - 2 * 3600e3]);
+    await ctx.addInitScript(
+      ([k, ka, v, at]) => {
+        localStorage.setItem(k, v);
+        localStorage.setItem(ka, String(at));
+      },
+      [SAVE_KEY, SAVE_AT_KEY, JSON.stringify(fixture), Date.now() - 2 * 3600e3],
+    );
   }
   const page = await ctx.newPage();
   const errors = [];
@@ -90,9 +127,13 @@ async function openMenu(b, vp, withSave) {
   await page.goto(url);
   await page.waitForSelector('.pl-row', { timeout: 30000 });
   // (the menu rows stay disabled until the loader finishes: "after loading"). A boot that does not finish fails the run here, with the reason.
-  await page.waitForFunction(() => document.querySelectorAll('.pl-row:disabled').length === 0, null, { timeout: 90000 }).catch((e) => {
-    throw new Error(`the boot did not finish: menu rows still disabled after 90 s (${url}). ${e.message.split('\n')[0]}`);
-  });
+  await page
+    .waitForFunction(() => document.querySelectorAll('.pl-row:disabled').length === 0, null, { timeout: 90000 })
+    .catch((e) => {
+      throw new Error(
+        `the boot did not finish: menu rows still disabled after 90 s (${url}). ${e.message.split('\n')[0]}`,
+      );
+    });
   await page.waitForTimeout(900);
   return { ctx, page, errors };
 }
@@ -101,40 +142,59 @@ async function openMenu(b, vp, withSave) {
 async function fits(page, label) {
   const geo = await page.evaluate(() => {
     // (a screen over the menu leaves the menu inert and hidden: its buttons are not on the page the player sees)
-    const boxes = [...document.querySelectorAll('button')].filter((e) => e.getClientRects().length && !e.closest('[inert]')).map((e) => {
-      const r = e.getBoundingClientRect();
-      return { t: (e.textContent || '').trim().slice(0, 24), x: r.left, y: r.top, r: r.right, b: r.bottom };
-    });
+    const boxes = [...document.querySelectorAll('button')]
+      .filter((e) => e.getClientRects().length && !e.closest('[inert]'))
+      .map((e) => {
+        const r = e.getBoundingClientRect();
+        return { t: (e.textContent || '').trim().slice(0, 24), x: r.left, y: r.top, r: r.right, b: r.bottom };
+      });
     return { boxes, vw: innerWidth, vh: innerHeight, sw: document.documentElement.scrollWidth };
   });
   const outside = geo.boxes.filter((b) => b.x < -1 || b.y < -1 || b.r > geo.vw + 1 || b.b > geo.vh + 1);
-  check(outside.length === 0, `${label}: no button outside the viewport${outside.length ? ' (' + outside.map((b) => b.t).join(', ') + ')' : ''}`);
+  check(
+    outside.length === 0,
+    `${label}: no button outside the viewport${outside.length ? ' (' + outside.map((b) => b.t).join(', ') + ')' : ''}`,
+  );
   check(geo.sw <= geo.vw + 1, `${label}: no horizontal page scroll (${geo.sw} <= ${geo.vw})`);
   let overlap = null;
-  for (let i = 0; i < geo.boxes.length && !overlap; i++) for (let j = i + 1; j < geo.boxes.length && !overlap; j++) {
-    const a = geo.boxes[i], c = geo.boxes[j];
-    if (a.x < c.r - 0.5 && c.x < a.r - 0.5 && a.y < c.b - 0.5 && c.y < a.b - 0.5) overlap = `${a.t} / ${c.t}`;
-  }
+  for (let i = 0; i < geo.boxes.length && !overlap; i++)
+    for (let j = i + 1; j < geo.boxes.length && !overlap; j++) {
+      const a = geo.boxes[i],
+        c = geo.boxes[j];
+      if (a.x < c.r - 0.5 && c.x < a.r - 0.5 && a.y < c.b - 0.5 && c.y < a.b - 0.5) overlap = `${a.t} / ${c.t}`;
+    }
   check(!overlap, `${label}: buttons do not overlap${overlap ? ' (' + overlap + ')' : ''}`);
 }
 
 /** The colour of the text leaf that starts with `start` (what the player reads). */
-const colourOf = (page, start) => page.evaluate((t) => {
-  const leaf = [...document.querySelectorAll('body *')].find((e) => e.childElementCount === 0 && (e.textContent || '').trim().startsWith(t));
-  return leaf ? getComputedStyle(leaf).color : null;
-}, start);
+const colourOf = (page, start) =>
+  page.evaluate((t) => {
+    const leaf = [...document.querySelectorAll('body *')].find(
+      (e) => e.childElementCount === 0 && (e.textContent || '').trim().startsWith(t),
+    );
+    return leaf ? getComputedStyle(leaf).color : null;
+  }, start);
 
 async function newGameScreen(b, vp, withSave) {
   const { ctx, page, errors } = await openMenu(b, vp, withSave);
   const tag = `${vp.name} ${vp.w}x${vp.h} 04 ${withSave ? 'with save' : 'no save'}`;
   await page.getByRole('button', { name: /^New game/ }).click();
   const hero = page.getByRole('button', { name: withSave ? /^Replace save and start/ : /^Start$/ });
-  await hero.first().waitFor({ timeout: 5000 }).catch(() => {});
-  check(await hero.count() === 1, `${tag}: the hero reads ${withSave ? '"Replace save and start"' : '"Start"'}`);
+  await hero
+    .first()
+    .waitFor({ timeout: 5000 })
+    .catch(() => {});
+  check((await hero.count()) === 1, `${tag}: the hero reads ${withSave ? '"Replace save and start"' : '"Start"'}`);
   const colour = await colourOf(page, withSave ? 'Replace save and start' : 'Start');
-  check(withSave ? colour === RED : colour !== RED, `${tag}: the hero label is ${withSave ? 'red' : 'not red'} (${colour})`);
+  check(
+    withSave ? colour === RED : colour !== RED,
+    `${tag}: the hero label is ${withSave ? 'red' : 'not red'} (${colour})`,
+  );
   const body = await page.evaluate(() => document.body.innerText);
-  check(withSave === /Overwrites your autosave: Level \d+ · \$[\d,]+/.test(body), `${tag}: the warn meta names the autosave only when a save exists`);
+  check(
+    withSave === /Overwrites your autosave: Level \d+ · \$[\d,]+/.test(body),
+    `${tag}: the warn meta names the autosave only when a save exists`,
+  );
   await fits(page, tag);
   await page.screenshot({ path: `${outDir}/04-new-game-${withSave ? 'save' : 'nosave'}-${vp.name}.png` });
   if (!withSave) {
@@ -146,7 +206,9 @@ async function newGameScreen(b, vp, withSave) {
   // two clicks reach the game: the hero starts it, and no second question appears
   await hero.first().click();
   await page.waitForTimeout(400);
-  const asked = await page.evaluate(() => /Replace and start|Discard and start|This (replaces|discards)/.test(document.body.innerText));
+  const asked = await page.evaluate(() =>
+    /Replace and start|Discard and start|This (replaces|discards)/.test(document.body.innerText),
+  );
   check(!asked, `${tag}: the hero starts the game with no second confirm`);
   check(errors.length === 0, `${tag}: no page error${errors.length ? ' (' + errors.join(' | ') + ')' : ''}`);
   await ctx.close();
@@ -155,29 +217,48 @@ async function newGameScreen(b, vp, withSave) {
 async function loadScreen(b, vp, withSave) {
   const { ctx, page, errors } = await openMenu(b, vp, withSave);
   const tag = `${vp.name} ${vp.w}x${vp.h} 05 ${withSave ? 'with save' : 'no save'}`;
-  const file = (name, buffer) => page.locator('input[type=file]').setInputFiles({ name, mimeType: 'application/json', buffer });
+  const file = (name, buffer) =>
+    page.locator('input[type=file]').setInputFiles({ name, mimeType: 'application/json', buffer });
   await file('save.json', Buffer.from(JSON.stringify(fixture)));
   const wb = page.getByRole('button', { name: /^Replace save and load/ });
-  await wb.first().waitFor({ timeout: 5000 }).catch(() => {});
+  await wb
+    .first()
+    .waitFor({ timeout: 5000 })
+    .catch(() => {});
   await page.waitForTimeout(900); // the menu fades in
-  check(await wb.count() === 1, `${tag}: the Load confirm screen shows "Replace save and load"`);
+  check((await wb.count()) === 1, `${tag}: the Load confirm screen shows "Replace save and load"`);
   // (innerText: the title is upper case by CSS, and the label and its value have no space between them in the text)
   const body = await page.evaluate(() => document.body.innerText);
   check(/load this\s*game\?/i.test(body), `${tag}: title "Load this game?"`);
-  check(withSave ? /SAVE\s*Level \d+ · \$/.test(body) : /SAVE\s*none/.test(body), `${tag}: SAVE line ${withSave ? 'shows the autosave' : 'reads "none"'}`);
+  check(
+    withSave ? /SAVE\s*Level \d+ · \$/.test(body) : /SAVE\s*none/.test(body),
+    `${tag}: SAVE line ${withSave ? 'shows the autosave' : 'reads "none"'}`,
+  );
   check(/FILE\s*Level \d+ · \$/.test(body), `${tag}: FILE line shows the file`);
   // (the key hints are hidden on a phone: the touch screen has no keys)
-  const hintsShown = await page.evaluate(() => { const h = document.querySelector('.loadconfirm .pl-hints'); return !!h && getComputedStyle(h).display !== 'none'; });
-  check(!hintsShown || /choose\s*Enter confirm\s*Esc cancel/.test(body), `${tag}: a displayed hint line has its text (shown ${hintsShown})`);
+  const hintsShown = await page.evaluate(() => {
+    const h = document.querySelector('.loadconfirm .pl-hints');
+    return !!h && getComputedStyle(h).display !== 'none';
+  });
+  check(
+    !hintsShown || /choose\s*Enter confirm\s*Esc cancel/.test(body),
+    `${tag}: a displayed hint line has its text (shown ${hintsShown})`,
+  );
   const focused = await page.evaluate(() => (document.activeElement?.textContent || '').trim());
   check(/^Cancel/.test(focused), `${tag}: Cancel has focus (${focused})`);
   const colour = await colourOf(page, 'Replace save and load');
   check(colour === RED, `${tag}: the hero label is red (${colour})`);
   if (vp.name === 'desktop') {
     const pos = await page.evaluate(() => {
-      const leaf = [...document.querySelectorAll('body *')].find((e) => e.childElementCount === 0 && (e.textContent || '').trim().startsWith('SAVE'));
+      const leaf = [...document.querySelectorAll('body *')].find(
+        (e) => e.childElementCount === 0 && (e.textContent || '').trim().startsWith('SAVE'),
+      );
       const btn = (re) => [...document.querySelectorAll('button')].find((x) => re.test((x.textContent || '').trim()));
-      const at = (el) => { if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.left, y: r.top }; };
+      const at = (el) => {
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { x: r.left, y: r.top };
+      };
       return { save: at(leaf), cancel: at(btn(/^Cancel/)), wb: at(btn(/^Replace save and load/)) };
     });
     // SPEC §5.5 positions, read as the top-left of each item, within 2 px
@@ -195,7 +276,10 @@ async function loadScreen(b, vp, withSave) {
     await file('bad.json', Buffer.from('not json'));
     await page.waitForTimeout(300);
     const after = await page.evaluate(() => document.body.innerText);
-    check(/not a Pipeline City save/.test(after) && !/load this\s*game\?/i.test(after),`${tag}: an unreadable file gives a toast and no question`);
+    check(
+      /not a Pipeline City save/.test(after) && !/load this\s*game\?/i.test(after),
+      `${tag}: an unreadable file gives a toast and no question`,
+    );
   }
   check(errors.length === 0, `${tag}: no page error${errors.length ? ' (' + errors.join(' | ') + ')' : ''}`);
   await ctx.close();
@@ -207,11 +291,18 @@ async function settingsScreen(b, vp) {
   const { ctx, page, errors } = await openMenu(b, vp, false);
   const tag = `${vp.name} ${vp.w}x${vp.h} settings`;
   const dialog = page.getByRole('dialog', { name: 'Settings' });
-  const focused = () => page.evaluate(() => {
-    const el = document.activeElement;
-    return { role: el?.getAttribute('role'), text: (el?.textContent || '').trim(), row: el?.getAttribute('data-row'), now: el?.getAttribute('aria-valuenow') };
-  });
-  const peeking = () => page.evaluate(() => document.querySelector('.pl-menu.settings')?.classList.contains('peek') ?? false);
+  const focused = () =>
+    page.evaluate(() => {
+      const el = document.activeElement;
+      return {
+        role: el?.getAttribute('role'),
+        text: (el?.textContent || '').trim(),
+        row: el?.getAttribute('data-row'),
+        now: el?.getAttribute('aria-valuenow'),
+      };
+    });
+  const peeking = () =>
+    page.evaluate(() => document.querySelector('.pl-menu.settings')?.classList.contains('peek') ?? false);
 
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await dialog.waitFor({ timeout: 5000 }).catch(() => {});
@@ -220,7 +311,9 @@ async function settingsScreen(b, vp) {
   check(f.role === 'tab' && /Quality/.test(f.text), `${tag}: the rail takes the focus on Quality (${f.text})`);
   await page.keyboard.press('ArrowRight');
   await page.waitForTimeout(80);
-  const selected = await page.evaluate(() => document.querySelector('[role="tab"][aria-selected="true"]')?.textContent.trim() ?? '');
+  const selected = await page.evaluate(
+    () => document.querySelector('[role="tab"][aria-selected="true"]')?.textContent.trim() ?? '',
+  );
   check(/Display/.test(selected), `${tag}: ArrowRight moves to the next tab (${selected})`);
   await page.keyboard.press('ArrowDown');
   f = await focused();
@@ -252,7 +345,11 @@ async function settingsScreen(b, vp) {
   await page.keyboard.up(' ');
   await page.waitForTimeout(80);
   check(heldKey && !(await peeking()), `${tag}: Peek hides the screen while Space is held`);
-  await page.evaluate(() => document.querySelector('.st-peek')?.dispatchEvent(new PointerEvent('pointerdown', { button: 0, pointerType: 'touch', bubbles: true })));
+  await page.evaluate(() =>
+    document
+      .querySelector('.st-peek')
+      ?.dispatchEvent(new PointerEvent('pointerdown', { button: 0, pointerType: 'touch', bubbles: true })),
+  );
   await page.waitForTimeout(80);
   const heldTouch = await peeking();
   await page.evaluate(() => window.dispatchEvent(new PointerEvent('pointerup', { pointerType: 'touch' })));
@@ -273,7 +370,10 @@ async function settingsScreen(b, vp) {
   await page.getByRole('button', { name: /^← Back/ }).click();
   await page.waitForTimeout(200);
   check(!(await dialog.isVisible()), `${tag}: Back closes the screen`);
-  check(await page.getByRole('button', { name: 'Settings', exact: true }).isVisible(), `${tag}: Back returns to the main menu`);
+  check(
+    await page.getByRole('button', { name: 'Settings', exact: true }).isVisible(),
+    `${tag}: Back returns to the main menu`,
+  );
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await dialog.waitFor({ timeout: 5000 }).catch(() => {});
   await page.keyboard.press('Escape');
@@ -304,13 +404,20 @@ async function galleryScreen(gb, vp) {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(url);
   await page.waitForSelector('.pl-row', { timeout: 30000 });
-  await page.waitForFunction(() => document.querySelectorAll('.pl-row:disabled').length === 0, null, { timeout: 90000 }).catch(() => {});
+  await page
+    .waitForFunction(() => document.querySelectorAll('.pl-row:disabled').length === 0, null, { timeout: 90000 })
+    .catch(() => {});
   await page.getByRole('button', { name: /^Gallery/ }).click();
   await page.waitForSelector('.gallery .bld-tile', { timeout: 20000 });
   await page.waitForTimeout(900);
 
-  const kinds = await page.locator('.gal-spine .gal-row').evaluateAll((ts) => ts.map((t) => t.getAttribute('title').replace(/ \(\d+\)$/, '')));
-  check(kinds.includes('Router') && kinds.includes('Case') && kinds.includes('Motherboard'), `${tag}: the rail has every category, Router included (${kinds.length})`);
+  const kinds = await page
+    .locator('.gal-spine .gal-row')
+    .evaluateAll((ts) => ts.map((t) => t.getAttribute('title').replace(/ \(\d+\)$/, '')));
+  check(
+    kinds.includes('Router') && kinds.includes('Case') && kinds.includes('Motherboard'),
+    `${tag}: the rail has every category, Router included (${kinds.length})`,
+  );
 
   // every category: its heading count, its rail count and the stepper's "of N" agree with the tiles shown
   let bad = null;
@@ -326,7 +433,8 @@ async function galleryScreen(gb, vp) {
         pos: document.querySelector('.gal-pos')?.textContent ?? '',
       };
     });
-    if (r.heading !== r.tiles || r.rail !== r.tiles || !r.pos.endsWith(`of ${r.tiles}`)) bad = `${kinds[i]} ${JSON.stringify(r)}`;
+    if (r.heading !== r.tiles || r.rail !== r.tiles || !r.pos.endsWith(`of ${r.tiles}`))
+      bad = `${kinds[i]} ${JSON.stringify(r)}`;
   }
   check(!bad, `${tag}: every category's count is the real count${bad ? ' (' + bad + ')' : ''}`);
 
@@ -336,7 +444,10 @@ async function galleryScreen(gb, vp) {
   const second = await page.locator('.gal-pos').textContent();
   await page.getByRole('button', { name: 'Previous part' }).click();
   const back = await page.locator('.gal-pos').textContent();
-  check(first !== second && back === first, `${tag}: the stepper moves through the category (${first.trim()} -> ${second.trim()} -> ${back.trim()})`);
+  check(
+    first !== second && back === first,
+    `${tag}: the stepper moves through the category (${first.trim()} -> ${second.trim()} -> ${back.trim()})`,
+  );
 
   // Spin toggles its pressed state; Reset runs
   const spin = page.getByRole('button', { name: 'Spin' });
@@ -349,20 +460,41 @@ async function galleryScreen(gb, vp) {
   // Settings opens the one Settings screen; Escape closes it and the Gallery stays
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Settings' });
-  const opened = await dialog.waitFor({ timeout: 5000 }).then(() => true, () => false);
+  const opened = await dialog.waitFor({ timeout: 5000 }).then(
+    () => true,
+    () => false,
+  );
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
-  check(opened && await page.locator('.gallery').isVisible(), `${tag}: Settings opens and Escape keeps the Gallery`);
+  check(opened && (await page.locator('.gallery').isVisible()), `${tag}: Settings opens and Escape keeps the Gallery`);
 
   // the brackets: inside the stage, clear of the shelf, the summary, the right column and the foot
   const geo = await page.evaluate(() => {
-    const box = (q) => { const e = document.querySelector(q); if (!e) return null; const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; };
-    return { frame: box('.gal-brackets'), stage: box('.gal-main'), panels: ['.bld-bin', '.bld-read', '.gal-side', '.bld-foot'].map(box) };
+    const box = (q) => {
+      const e = document.querySelector(q);
+      if (!e) return null;
+      const b = e.getBoundingClientRect();
+      return { l: b.left, t: b.top, r: b.right, b: b.bottom };
+    };
+    return {
+      frame: box('.gal-brackets'),
+      stage: box('.gal-main'),
+      panels: ['.bld-bin', '.bld-read', '.gal-side', '.bld-foot'].map(box),
+    };
   });
   const f = geo.frame;
-  const inside = !!f && !!geo.stage && f.l >= geo.stage.l - 1 && f.r <= geo.stage.r + 1 && f.t >= geo.stage.t - 1 && f.b <= geo.stage.b + 1;
+  const inside =
+    !!f &&
+    !!geo.stage &&
+    f.l >= geo.stage.l - 1 &&
+    f.r <= geo.stage.r + 1 &&
+    f.t >= geo.stage.t - 1 &&
+    f.b <= geo.stage.b + 1;
   const clash = geo.panels.filter((p) => p && f && f.l < p.r && p.l < f.r && f.t < p.b && p.t < f.b).length;
-  check(inside && clash === 0 && f.r - f.l > 200 && f.b - f.t > 150, `${tag}: the brackets sit in the stage and clear every panel (${clash} overlaps)`);
+  check(
+    inside && clash === 0 && f.r - f.l > 200 && f.b - f.t > 150,
+    `${tag}: the brackets sit in the stage and clear every panel (${clash} overlaps)`,
+  );
 
   // no navy: pixels with B - R > 6 and luminance below 0.06 (ACCEPTANCE §3 "08 Gallery", the navy rule of §5.7)
   const png = `${outDir}/gallery-${vp.name}.png`;
@@ -400,7 +532,9 @@ async function hudScreen(gb, vp) {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(url);
   await page.waitForSelector('.pl-row', { timeout: 30000 });
-  await page.waitForFunction(() => document.querySelectorAll('.pl-row:disabled').length === 0, null, { timeout: 90000 }).catch(() => {});
+  await page
+    .waitForFunction(() => document.querySelectorAll('.pl-row:disabled').length === 0, null, { timeout: 90000 })
+    .catch(() => {});
   const renderer = await page.evaluate(() => {
     const g = document.createElement('canvas').getContext('webgl2');
     const e = g?.getExtension('WEBGL_debug_renderer_info');
@@ -408,7 +542,10 @@ async function hudScreen(gb, vp) {
   });
   const software = /swiftshader|llvmpipe|software/i.test(renderer);
   check(!software, `${tag}: the GPU draws the board (renderer ${renderer})`);
-  if (software) { await ctx.close(); return; }
+  if (software) {
+    await ctx.close();
+    return;
+  }
 
   // a campaign game: New game, Campaign, Start (the same two clicks as the new-game screen says)
   await page.getByRole('button', { name: /^New game/ }).click();
@@ -416,22 +553,42 @@ async function hudScreen(gb, vp) {
   await page.getByRole('button', { name: /^Start$/ }).click();
   await page.waitForSelector('header.hud', { timeout: 60000 });
   // the first frame frames the room again (shot.mjs waits for the same): a click before it would hit the room, not the HUD
-  await page.waitForFunction(() => !window.__board || window.__board.renderer.domElement.style.pointerEvents !== 'none', null, { timeout: 60000 });
+  await page.waitForFunction(
+    () => !window.__board || window.__board.renderer.domElement.style.pointerEvents !== 'none',
+    null,
+    { timeout: 60000 },
+  );
   await page.waitForTimeout(2500);
   // the welcome card holds the clock and dims the board: its own Skip ends it, so the HUD is live
   await page.evaluate(async () => {
     for (let i = 0; i < 80; i++) {
       const skip = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Skip');
-      if (skip) { skip.click(); return; }
+      if (skip) {
+        skip.click();
+        return;
+      }
       document.querySelector('button.dlg')?.click();
       await new Promise((r) => setTimeout(r, 250));
     }
   });
-  await page.waitForFunction(() => !document.querySelector('.modal-back.dlg-back'), null, { timeout: 15000 }).catch(() => {});
-  check(await page.locator('.modal-back.dlg-back').count() === 0, `${tag}: the tutorial card is skipped (the clock runs)`);
+  await page
+    .waitForFunction(() => !document.querySelector('.modal-back.dlg-back'), null, { timeout: 15000 })
+    .catch(() => {});
+  check(
+    (await page.locator('.modal-back.dlg-back').count()) === 0,
+    `${tag}: the tutorial card is skipped (the clock runs)`,
+  );
 
   // the HUD mounts after the skip: wait a little for each control before it counts as missing
-  const visible = (sel) => page.locator(sel).first().waitFor({ state: 'visible', timeout: 8000 }).then(() => true, () => false);
+  const visible = (sel) =>
+    page
+      .locator(sel)
+      .first()
+      .waitFor({ state: 'visible', timeout: 8000 })
+      .then(
+        () => true,
+        () => false,
+      );
   const pp = () => page.locator('.speedctl .pp').getAttribute('aria-label');
   const speedOn = () => page.evaluate(() => document.querySelector('.speeds button.on')?.textContent.trim() ?? '');
   check(await visible('[aria-label="Menu"]'), `${tag}: the Menu button is on the bar`);
@@ -440,8 +597,11 @@ async function hudScreen(gb, vp) {
   check(await visible('.hud-center .lvl'), `${tag}: the level is on the bar`);
   if (phone) {
     check(!(await visible('.hud-sys')), `${tag}: the machine status is not on the top tab (it is in the menu)`);
-    check(!(await visible('[data-hud="bill"]')), `${tag}: the power bill chip is not on the top tab (it is in the menu)`);
-    check(await page.locator('.speedctl .zs').count() === 0, `${tag}: the slow-motion button is not on the rail`);
+    check(
+      !(await visible('[data-hud="bill"]')),
+      `${tag}: the power bill chip is not on the top tab (it is in the menu)`,
+    );
+    check((await page.locator('.speedctl .zs').count()) === 0, `${tag}: the slow-motion button is not on the rail`);
   } else {
     check(await visible('.speedctl .zs'), `${tag}: the slow-motion button is on the rail`);
     check(await visible('[data-hud="bill"]'), `${tag}: the power bill chip is on the bar`);
@@ -457,7 +617,7 @@ async function hudScreen(gb, vp) {
   check(p1 !== p0, `${tag}: the pause button toggles (${p0} -> ${p1})`);
   await page.keyboard.press('Space');
   await page.waitForTimeout(150);
-  check(await pp() === p0, `${tag}: Space toggles the pause back (${await pp()})`);
+  check((await pp()) === p0, `${tag}: Space toggles the pause back (${await pp()})`);
 
   // speed: a phone tap steps to the next speed; the desktop rail runs the speed it is clicked on, and closes
   if (phone) {
@@ -465,17 +625,20 @@ async function hudScreen(gb, vp) {
     await page.locator('.speeds').click();
     await page.waitForTimeout(150);
     const after = await speedOn();
-    check(before !== '' && after !== '' && before !== after, `${tag}: a tap on the speed steps to the next one (${before} -> ${after})`);
+    check(
+      before !== '' && after !== '' && before !== after,
+      `${tag}: a tap on the speed steps to the next one (${before} -> ${after})`,
+    );
   } else {
     const rail = page.locator('.speeds');
     await rail.hover();
     const btns = rail.locator('button');
-    const last = btns.nth(await btns.count() - 1);
+    const last = btns.nth((await btns.count()) - 1);
     const lastLabel = (await last.textContent()).trim();
     await last.click();
     await page.waitForTimeout(150);
-    check(await speedOn() === lastLabel, `${tag}: the rail runs the speed clicked (${lastLabel})`);
-    check(await page.locator('.speedctl.open').count() === 0, `${tag}: picking a speed closes the rail`);
+    check((await speedOn()) === lastLabel, `${tag}: the rail runs the speed clicked (${lastLabel})`);
+    check((await page.locator('.speedctl.open').count()) === 0, `${tag}: picking a speed closes the rail`);
   }
 
   // the menu: on a phone the machine status, the power bill, the network, the OS and the slow motion are its rows; on desktop they are not
@@ -484,65 +647,97 @@ async function hudScreen(gb, vp) {
   await page.waitForSelector('.pl-menu.paused', { timeout: 5000 });
   await page.locator('.pl-util', { hasText: 'Tools' }).click();
   const inMenu = (sel) => page.locator(`.pl-sub ${sel}`).count();
-  check(await inMenu('.menu-info') === (phone ? 1 : 0), `${tag}: the machine status is ${phone ? 'a Tools row' : 'not a Tools row'}`);
-  check(await inMenu('.pl-sub-item:has-text("Zoom slow")') === (phone ? 1 : 0), `${tag}: Zoom slow is ${phone ? 'a Tools row' : 'not a Tools row'}`);
-  check(await inMenu('.pl-sub-item[title^="Power bill"]') === (phone ? 1 : 0), `${tag}: the power bill is ${phone ? 'a Tools row' : 'not a Tools row'}`);
+  check(
+    (await inMenu('.menu-info')) === (phone ? 1 : 0),
+    `${tag}: the machine status is ${phone ? 'a Tools row' : 'not a Tools row'}`,
+  );
+  check(
+    (await inMenu('.pl-sub-item:has-text("Zoom slow")')) === (phone ? 1 : 0),
+    `${tag}: Zoom slow is ${phone ? 'a Tools row' : 'not a Tools row'}`,
+  );
+  check(
+    (await inMenu('.pl-sub-item[title^="Power bill"]')) === (phone ? 1 : 0),
+    `${tag}: the power bill is ${phone ? 'a Tools row' : 'not a Tools row'}`,
+  );
   await page.screenshot({ path: `${outDir}/hud-${vp.name}-menu.png` });
   if (phone) {
     // the power bill opens its card from the menu (the menu closes); Escape closes the card
     await page.click('.pl-sub-item[title^="Power bill"]');
     await page.waitForSelector('#bill-pop', { timeout: 5000 }).catch(() => {});
-    check(await visible('#bill-pop') && await page.locator('.pl-menu.paused').count() === 0, `${tag}: the power bill row opens its card and the menu closes`);
+    check(
+      (await visible('#bill-pop')) && (await page.locator('.pl-menu.paused').count()) === 0,
+      `${tag}: the power bill row opens its card and the menu closes`,
+    );
     await fits(page, `${tag} bill`);
     await page.screenshot({ path: `${outDir}/hud-${vp.name}-bill.png` });
     await page.keyboard.press('Escape');
     await page.waitForTimeout(150);
-    check(await page.locator('#bill-pop').count() === 0, `${tag}: Escape closes the power bill card`);
+    check((await page.locator('#bill-pop').count()) === 0, `${tag}: Escape closes the power bill card`);
   } else {
     // Escape closes the Tools list first, then the menu
     await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
     await page.waitForTimeout(150);
-    check(await page.locator('.pl-menu.paused').count() === 0, `${tag}: Escape closes the menu`);
+    check((await page.locator('.pl-menu.paused').count()) === 0, `${tag}: Escape closes the menu`);
   }
 
   // the lenses: phone = the Lens branch on the dock (Escape, a click outside and a pick close it); desktop = the three buttons on the dock
   if (phone) {
     const toggle = page.locator('.lens-toggle');
-    check(await toggle.isVisible() && !(await visible('[data-hud="lens"]')), `${tag}: the dock has one Lens button, the lenses are in its branch`);
+    check(
+      (await toggle.isVisible()) && !(await visible('[data-hud="lens"]')),
+      `${tag}: the dock has one Lens button, the lenses are in its branch`,
+    );
     await toggle.click();
     await page.waitForTimeout(150);
-    check(await page.locator('.lens-branch.open').count() === 1, `${tag}: the Lens button opens its branch`);
-    check(await page.locator('.lens-pop [data-hud="lens"]').isVisible() && await page.locator('.lens-pop [data-hud="airflow"]').isVisible(), `${tag}: the branch shows Power and Airflow`);
+    check((await page.locator('.lens-branch.open').count()) === 1, `${tag}: the Lens button opens its branch`);
+    check(
+      (await page.locator('.lens-pop [data-hud="lens"]').isVisible()) &&
+        (await page.locator('.lens-pop [data-hud="airflow"]').isVisible()),
+      `${tag}: the branch shows Power and Airflow`,
+    );
     await page.screenshot({ path: `${outDir}/hud-${vp.name}-lens.png` });
     await page.keyboard.press('Escape');
     await page.waitForTimeout(150);
-    check(await page.locator('.lens-branch.open').count() === 0, `${tag}: Escape closes the branch`);
-    check(await page.evaluate(() => document.activeElement?.classList.contains('lens-toggle') ?? false), `${tag}: Escape gives the focus back to the Lens button`);
+    check((await page.locator('.lens-branch.open').count()) === 0, `${tag}: Escape closes the branch`);
+    check(
+      await page.evaluate(() => document.activeElement?.classList.contains('lens-toggle') ?? false),
+      `${tag}: Escape gives the focus back to the Lens button`,
+    );
     await toggle.click();
     await page.waitForTimeout(150);
     await page.mouse.click(vp.w / 2, vp.h * 0.3);
     await page.waitForTimeout(150);
-    check(await page.locator('.lens-branch.open').count() === 0, `${tag}: a click outside closes the branch`);
+    check((await page.locator('.lens-branch.open').count()) === 0, `${tag}: a click outside closes the branch`);
     await toggle.click();
     await page.waitForTimeout(150);
     await page.locator('.lens-pop [data-hud="lens"]').click();
     await page.waitForTimeout(150);
-    check(await page.locator('.lens-branch.open').count() === 0, `${tag}: a pick closes the branch`);
-    check(/Power$/.test((await toggle.textContent()).trim()) && await page.getAttribute('[data-hud="lens"]', 'aria-pressed') === 'true', `${tag}: the Lens button reads the lens on (Power)`);
+    check((await page.locator('.lens-branch.open').count()) === 0, `${tag}: a pick closes the branch`);
+    check(
+      /Power$/.test((await toggle.textContent()).trim()) &&
+        (await page.getAttribute('[data-hud="lens"]', 'aria-pressed')) === 'true',
+      `${tag}: the Lens button reads the lens on (Power)`,
+    );
     await toggle.click();
     await page.waitForTimeout(150);
     await page.locator('.lens-pop [data-hud="lens"]').click();
     await page.waitForTimeout(150);
     check(/Lens$/.test((await toggle.textContent()).trim()), `${tag}: the Lens button reads Lens when no lens is on`);
   } else {
-    check(!(await visible('.lens-toggle')) && await visible('[data-hud="lens"]'), `${tag}: the Power lens button is on the dock`);
+    check(
+      !(await visible('.lens-toggle')) && (await visible('[data-hud="lens"]')),
+      `${tag}: the Power lens button is on the dock`,
+    );
     await page.click('[data-hud="lens"]');
     await page.waitForTimeout(150);
-    check(await page.getAttribute('[data-hud="lens"]', 'aria-pressed') === 'true', `${tag}: a click turns the Power lens on`);
+    check(
+      (await page.getAttribute('[data-hud="lens"]', 'aria-pressed')) === 'true',
+      `${tag}: a click turns the Power lens on`,
+    );
     await page.keyboard.press('p');
     await page.waitForTimeout(150);
-    check(await page.getAttribute('[data-hud="lens"]', 'aria-pressed') === 'false', `${tag}: the P key turns it off`);
+    check((await page.getAttribute('[data-hud="lens"]', 'aria-pressed')) === 'false', `${tag}: the P key turns it off`);
   }
   await fits(page, `${tag} lens`);
   check(errors.length === 0, `${tag}: no page error${errors.length ? ' (' + errors.join(' | ') + ')' : ''}`);
@@ -562,13 +757,17 @@ try {
     await page.goto(url);
     // 03: the menu shows over the boot screen while the world loads; Build my PC and Gallery are disabled
     await page.waitForSelector('.pl-menu', { timeout: 30000 });
-    const loading = await page.evaluate(() => document.querySelector('.pl-menu')?.classList.contains('loading') ?? false);
+    const loading = await page.evaluate(
+      () => document.querySelector('.pl-menu')?.classList.contains('loading') ?? false,
+    );
     if (loading) await page.waitForTimeout(800); // the menu's 0.6 s fade-in
     if (loading) await page.screenshot({ path: `${outDir}/03-loading-${vp.name}.png` });
     console.log(`info ${label}: loading screen ${loading ? 'seen (03)' : 'not seen (booted before the first poll)'}`);
 
     // 02: booted, the rows enabled
-    await page.waitForFunction(() => document.querySelectorAll('.pl-row:disabled').length === 0, null, { timeout: 90000 }).catch(() => {});
+    await page
+      .waitForFunction(() => document.querySelectorAll('.pl-row:disabled').length === 0, null, { timeout: 90000 })
+      .catch(() => {});
     await page.waitForTimeout(900); // the menu's fade-in
     await page.screenshot({ path: `${outDir}/02-menu-${vp.name}.png` });
 
@@ -580,15 +779,20 @@ try {
       return { boxes, vw: innerWidth, vh: innerHeight, sw: document.documentElement.scrollWidth };
     });
     const outside = geo.boxes.filter((b) => b.x < -1 || b.y < -1 || b.r > geo.vw + 1 || b.b > geo.vh + 1);
-    check(outside.length === 0, `${label}: no control outside the viewport${outside.length ? ' (' + outside.map((b) => b.t).join(', ') + ')' : ''}`);
+    check(
+      outside.length === 0,
+      `${label}: no control outside the viewport${outside.length ? ' (' + outside.map((b) => b.t).join(', ') + ')' : ''}`,
+    );
     check(geo.sw <= geo.vw + 1, `${label}: no horizontal page scroll (${geo.sw} <= ${geo.vw})`);
     // rows and utility lines must not overlap one another
     const items = geo.boxes.filter((b) => /pl-row|pl-util\b|pl-utils/.test(b.t) || b.t.includes('pl-row'));
     let overlap = null;
-    for (let i = 0; i < items.length && !overlap; i++) for (let j = i + 1; j < items.length && !overlap; j++) {
-      const a = items[i], b = items[j];
-      if (a.x < b.r - 0.5 && b.x < a.r - 0.5 && a.y < b.b - 0.5 && b.y < a.b - 0.5) overlap = `${a.t} / ${b.t}`;
-    }
+    for (let i = 0; i < items.length && !overlap; i++)
+      for (let j = i + 1; j < items.length && !overlap; j++) {
+        const a = items[i],
+          b = items[j];
+        if (a.x < b.r - 0.5 && b.x < a.r - 0.5 && a.y < b.b - 0.5 && b.y < a.b - 0.5) overlap = `${a.t} / ${b.t}`;
+      }
     check(!overlap, `${label}: rows do not overlap${overlap ? ' (' + overlap + ')' : ''}`);
 
     // keys: ↓ moves the chip to the next row; a mouse move at once does not move it back; after one second it may
@@ -605,9 +809,14 @@ try {
     const chipNow = await page.evaluate(() => {
       const row = document.querySelector('.pl-row.pl-chip');
       if (row) return row.getAttribute('data-group');
-      return document.querySelector('.pl-util-tag.pl-chip') ? String(document.querySelectorAll('.pl-row').length) : null;
+      return document.querySelector('.pl-util-tag.pl-chip')
+        ? String(document.querySelectorAll('.pl-row').length)
+        : null;
     });
-    check(chipNow === afterKey, `${label}: mouse does not steal focus within 1 s of a key (chip ${chipNow}, focus ${afterKey})`);
+    check(
+      chipNow === afterKey,
+      `${label}: mouse does not steal focus within 1 s of a key (chip ${chipNow}, focus ${afterKey})`,
+    );
 
     // the text-control rule (SPEC §10): the focused utility button is underlined in cyan, and the chip sits on the utility line
     for (let k = 0; k < 6; k++) {
@@ -623,8 +832,10 @@ try {
         chip: !!document.querySelector('.pl-util-tag.pl-chip'),
       };
     });
-    check(util.isUtil && /underline/.test(util.underline) && util.chip,
-      `${label}: focused utility is underlined and the chip is on the utility line (focus on utility ${util.isUtil}, underline "${util.underline}", chip ${util.chip})`);
+    check(
+      util.isUtil && /underline/.test(util.underline) && util.chip,
+      `${label}: focused utility is underlined and the chip is on the utility line (focus on utility ${util.isUtil}, underline "${util.underline}", chip ${util.chip})`,
+    );
 
     check(errors.length === 0, `${label}: no page error${errors.length ? ' (' + errors.join(' | ') + ')' : ''}`);
     await page.context().close();
@@ -640,10 +851,10 @@ try {
   const gpu = FIREFOX
     ? await firefox.launch({ headless: true, firefoxUserPrefs: { 'webgl.force-enabled': true } })
     : await chromium.launch({
-      headless: true,
-      ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
-      args: GPU_ARGS,
-    });
+        headless: true,
+        ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
+        args: GPU_ARGS,
+      });
   try {
     for (const vp of HUD_VIEWPORTS) {
       await hudScreen(gpu, vp);
@@ -656,5 +867,9 @@ try {
   await browser.close();
 }
 console.log(failures ? `${failures} check(s) failed` : 'all menu checks passed');
-try { server?.kill(); } catch { /* gone */ }
+try {
+  server?.kill();
+} catch {
+  /* gone */
+}
 process.exit(failures ? 1 : 0);

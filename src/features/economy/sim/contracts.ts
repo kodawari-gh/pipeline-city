@@ -3,10 +3,10 @@
 // the network queue. This file is the pure model (kinds, terms, offers, the seeded read schedule); the Game methods that run it are in `cloud.ts`.
 // The dataset has no bytes: it is a ledger file (`DiskFs`) and its content is regenerated from `seed` when it is needed. ALL NUMBERS ARE PLACEHOLDERS.
 
-import { BLOCK_BYTES } from "@/core/sim/memmap";
-import { Prng } from "@/core/sim/prng";
+import { BLOCK_BYTES } from '@/core/sim/memmap';
+import { Prng } from '@/core/sim/prng';
 
-export type ContractKindId = "cloud.archive" | "cloud.hot";
+export type ContractKindId = 'cloud.archive' | 'cloud.hot';
 
 /** Log ids of contracts start here, so they never meet the id of a key. */
 export const CONTRACT_LOG_BASE = 1_000_000;
@@ -33,14 +33,43 @@ export interface ContractKind {
 }
 
 export const CONTRACT_KINDS: readonly ContractKind[] = [
-  { id: "cloud.archive", name: "Cold archive", hot: false, minDriveTier: 0, blocks: [24, 48], duration: [1800, 3600], readEvery: [240, 420], readDeadline: 90, readTicks: 8 },
-  { id: "cloud.hot", name: "Hot storage", hot: true, minDriveTier: 1, blocks: [12, 24], duration: [1200, 2400], readEvery: [60, 120], readDeadline: 24, readTicks: 3 },
+  {
+    id: 'cloud.archive',
+    name: 'Cold archive',
+    hot: false,
+    minDriveTier: 0,
+    blocks: [24, 48],
+    duration: [1800, 3600],
+    readEvery: [240, 420],
+    readDeadline: 90,
+    readTicks: 8,
+  },
+  {
+    id: 'cloud.hot',
+    name: 'Hot storage',
+    hot: true,
+    minDriveTier: 1,
+    blocks: [12, 24],
+    duration: [1200, 2400],
+    readEvery: [60, 120],
+    readDeadline: 24,
+    readTicks: 3,
+  },
 ];
 
 export const contractKind = (id: string): ContractKind | undefined => CONTRACT_KINDS.find((k) => k.id === id);
 
 /** Names of the clients that leave datasets. */
-export const CLIENT_NAMES: readonly string[] = ["Acme Archives", "Brightline Media", "Corvid Labs", "Delta Photo", "Eon Analytics", "Foxglove Studio", "Granite Legal", "Harbor Health"];
+export const CLIENT_NAMES: readonly string[] = [
+  'Acme Archives',
+  'Brightline Media',
+  'Corvid Labs',
+  'Delta Photo',
+  'Eon Analytics',
+  'Foxglove Studio',
+  'Granite Legal',
+  'Harbor Health',
+];
 
 /** What an offer and the contract made from it agree on. */
 export interface ContractTerms {
@@ -70,7 +99,10 @@ export interface ContractOffer extends ContractTerms {
 }
 
 /** A read request waiting for the drive: it must be served by `due`; `left` ticks of drive time remain. */
-export interface PendingRead { due: number; left: number }
+export interface PendingRead {
+  due: number;
+  left: number;
+}
 
 /** An accepted contract: its data is in the ledger file `fileId` on drive `deviceId`. */
 export interface Contract extends ContractTerms {
@@ -108,8 +140,16 @@ export function rollTerms(rng: Prng, kind: ContractKind, levelPay: number): Cont
   const readEvery = between(rng, kind.readEvery);
   const reads = Math.max(1, Math.floor(duration / readEvery));
   return {
-    kind: kind.id, client: CLIENT_NAMES[rng.nextInt(CLIENT_NAMES.length)]!, seed: rng.nextU32(), blocks: between(rng, kind.blocks),
-    duration, readEvery, readDeadline: kind.readDeadline, readTicks: kind.readTicks, minDriveTier: kind.minDriveTier, levelPay,
+    kind: kind.id,
+    client: CLIENT_NAMES[rng.nextInt(CLIENT_NAMES.length)]!,
+    seed: rng.nextU32(),
+    blocks: between(rng, kind.blocks),
+    duration,
+    readEvery,
+    readDeadline: kind.readDeadline,
+    readTicks: kind.readTicks,
+    minDriveTier: kind.minDriveTier,
+    levelPay,
     maxMisses: Math.max(2, Math.round(reads * 0.3)),
   };
 }

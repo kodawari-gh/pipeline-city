@@ -16,13 +16,16 @@ describe('wheelZoom', () => {
     expect(wheelZoom({ deltaY: 5000, deltaMode: 2, ctrlKey: false })).toBe(k);
   });
   it('takes a trackpad pinch (ctrl held) in finer steps with a stronger effect per pixel', () => {
-    expect(Math.log(wheelZoom({ deltaY: 10, deltaMode: 0, ctrlKey: true }))).toBeGreaterThan(Math.log(wheelZoom({ deltaY: 10, deltaMode: 0, ctrlKey: false })));
+    expect(Math.log(wheelZoom({ deltaY: 10, deltaMode: 0, ctrlKey: true }))).toBeGreaterThan(
+      Math.log(wheelZoom({ deltaY: 10, deltaMode: 0, ctrlKey: false })),
+    );
   });
 });
 
 describe('turnOf', () => {
   it('turns by the same share of the stage whatever its size', () => {
-    const a = turnOf(100, 50, 500), b = turnOf(200, 100, 1000);
+    const a = turnOf(100, 50, 500),
+      b = turnOf(200, 100, 1000);
     expect(a.yaw).toBeCloseTo(b.yaw, 10);
     expect(a.pitch).toBeCloseTo(b.pitch, 10);
     expect(a.yaw).toBeCloseTo(-(100 / 500) * TURN, 10);
@@ -33,7 +36,8 @@ describe('turnOf', () => {
   });
 });
 
-const A = { x: 100, y: 200 }, B = { x: 200, y: 200 };
+const A = { x: 100, y: 200 },
+  B = { x: 200, y: 200 };
 
 describe('two fingers', () => {
   it('wait until they have travelled before they mean anything', () => {
@@ -86,12 +90,20 @@ describe('two fingers', () => {
   });
 
   it('takes the short way round for a twist across the half turn', () => {
-    const s: Two = { a0: { x: 200, y: 200 }, b0: { x: 100, y: 201 }, kind: 'pinch', a: { x: 200, y: 200 }, b: { x: 100, y: 201 }, na: 4, nb: 4 };
+    const s: Two = {
+      a0: { x: 200, y: 200 },
+      b0: { x: 100, y: 201 },
+      kind: 'pinch',
+      a: { x: 200, y: 200 },
+      b: { x: 100, y: 201 },
+      na: 4,
+      nb: 4,
+    };
     const { move } = twoMove(s, { x: 200, y: 200 }, { x: 100, y: 199 });
     expect(Math.abs(move.twist)).toBeLessThan(0.05);
   });
 
-  it('hear both fingers before they decide: a fast swipe\'s first finger alone is no pinch', () => {
+  it("hear both fingers before they decide: a fast swipe's first finger alone is no pinch", () => {
     // (the events come one finger at a time: finger 1 has gone 60 px down, finger 2's event is still to come)
     const first = twoMove(twoStart(A, B), { x: 100, y: 260 }, B, 0);
     expect(first.move.kind).toBeNull();
@@ -101,10 +113,12 @@ describe('two fingers', () => {
   });
 
   it('a finger at rest while the other goes round it is a pinch, once the mover has been heard enough', () => {
-    let s = twoStart(A, B), kind: string | null = null;
+    let s = twoStart(A, B),
+      kind: string | null = null;
     for (let i = 1; i <= 6; i++) {
       const r = twoMove(s, A, { x: 200 + 4 * i, y: 200 }, 1);
-      s = r.two; kind = r.move.kind;
+      s = r.two;
+      kind = r.move.kind;
       if (i < 3) expect(kind).toBeNull(); // (its travel is under the lock, or the other finger is not heard)
     }
     expect(kind).toBe('pinch');

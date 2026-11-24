@@ -12,19 +12,37 @@ vi.mock('@/core/render/three/init', async (orig) => {
       camera: new PerspectiveCamera(30, 1, 10, 1e6),
       renderer: {
         domElement: { width: 400, height: 400, addEventListener() {}, removeEventListener() {} },
-        setOpaqueSort() {}, getPixelRatio: () => 1, setSize() {}, properties: { get: () => ({}) }, compile: () => new Set(), getRenderTarget: () => null, setRenderTarget() {},
+        setOpaqueSort() {},
+        getPixelRatio: () => 1,
+        setSize() {},
+        properties: { get: () => ({}) },
+        compile: () => new Set(),
+        getRenderTarget: () => null,
+        setRenderTarget() {},
       },
     }),
   };
 });
 vi.mock('@/core/render/three/post', () => ({
   Post: class {
-    render() {} refine = () => false; meter = () => null; metered = () => null;
-    setEye() {} setReach() {} setDark() {} setOutlined() {} apply() {} setSize() {}
+    render() {}
+    refine = () => false;
+    meter = () => null;
+    metered = () => null;
+    setEye() {}
+    setReach() {}
+    setDark() {}
+    setOutlined() {}
+    apply() {}
+    setSize() {}
     startPrograms = () => [];
   },
 }));
-vi.mock('./lens3d', () => ({ Lens3D: class { frame() {} } }));
+vi.mock('./lens3d', () => ({
+  Lens3D: class {
+    frame() {}
+  },
+}));
 
 import { BuildStage } from './buildmode3d';
 import { setLayoutTier } from '../layout/layout';
@@ -35,8 +53,28 @@ import { devNode } from '@/features/board/sim/removal';
 
 /** A stage with the full rig and no 3D, as the stage opens its game (`looseFit`): the machine's drawing is stubbed, the game and the history are the real ones. */
 function stage(): BuildStage {
-  const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({ clientWidth: 400, clientHeight: 800 });
-  s._machine = { moving: false, doorOpen: false, frame() {}, setOpen() {}, closeDoor() {}, holdDetail() {}, lod() {}, root: new Group(), boardRoots: () => [], caseRoots: [], rig: () => null, holdBack() {}, letRun() {}, isHeldBack: () => false, panelIds: () => [], syncPanel() {} };
+  const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
+    clientWidth: 400,
+    clientHeight: 800,
+  });
+  s._machine = {
+    moving: false,
+    doorOpen: false,
+    frame() {},
+    setOpen() {},
+    closeDoor() {},
+    holdDetail() {},
+    lod() {},
+    root: new Group(),
+    boardRoots: () => [],
+    caseRoots: [],
+    rig: () => null,
+    holdBack() {},
+    letRun() {},
+    isHeldBack: () => false,
+    panelIds: () => [],
+    syncPanel() {},
+  };
   s._game = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
   s.rebuild = s.rebuildAll = function (this: { snaps: { drop(): void }; board: { tier: number; caseTier: number } }) {
     this.snaps.drop();
@@ -52,7 +90,13 @@ const ids = (s: BuildStage): string[] => s.alerts.map((a) => a.id);
 
 describe('the stage takes a part that fits, and says what the machine will do', () => {
   beforeEach(() => {
-    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {});
   });
@@ -62,11 +106,14 @@ describe('the stage takes a part that fits, and says what the machine will do', 
   });
 
   it('a supply too small goes in: the list and the amber line say it trips, and Undo puts the old one back', async () => {
-    const s = stage(), was = of(s, 'psu')[0]!.spec;
+    const s = stage(),
+      was = of(s, 'psu')[0]!.spec;
     await s.fit('psu0');
     expect(of(s, 'psu')[0]!.spec).toBe('psu0');
     expect(s.alerts[0]).toMatchObject({ id: 'psu-trip', level: 'bad', title: 'Supply trips' });
-    expect(s.refusal.peek()?.text).toMatch(/^Supply trips: The parts draw \d+ W at full load\. The power supply gives 40 W\./);
+    expect(s.refusal.peek()?.text).toMatch(
+      /^Supply trips: The parts draw \d+ W at full load\. The power supply gives 40 W\./,
+    );
     await s.undo(); // (a swap is two steps: the new supply out, then the old one back)
     await s.undo();
     expect(of(s, 'psu')[0]!.spec).toBe(was);
@@ -100,7 +147,8 @@ describe('the stage takes a part that fits, and says what the machine will do', 
     const s = stage();
     await s.clear();
     for (const part of ['case1', 'board1', 'psu1', 'cpu1', 'cooler0', 'fan92', 'ram0']) await s.fit(part);
-    const seat = of(s, 'fan')[0]!.slot, home = of(s, 'cooler')[0]!;
+    const seat = of(s, 'fan')[0]!.slot,
+      home = of(s, 'cooler')[0]!;
     expect(seat).toBe(`${home.slot}.fan0`);
     // the cooler comes out, and its fan with it: the fan has no spot without the heatsink, so it stays out
     await s.remove(devNode(home.id));
@@ -140,7 +188,8 @@ describe('the stage takes a part that fits, and says what the machine will do', 
   });
 
   it('the drive that holds the OS comes out: the OS moves to another drive, or waits and goes back on the drive that goes in', async () => {
-    const s = stage(), drive = of(s, 'storage').find((d) => d.id === s.game.os?.deviceId)!;
+    const s = stage(),
+      drive = of(s, 'storage').find((d) => d.id === s.game.os?.deviceId)!;
     expect(of(s, 'storage').length).toBeGreaterThan(1);
     await s.remove(devNode(drive.id));
     expect(s.refusal.peek()).toBeNull();
@@ -148,7 +197,8 @@ describe('the stage takes a part that fits, and says what the machine will do', 
     expect(s.snapshot.os?.slot).not.toBe(drive.slot); // (the OS is on a drive that stayed)
     const one = stage();
     await one.buildPreset(BUILD_PRESETS[0]!);
-    const only = of(one, 'storage')[0]!, home = only.slot;
+    const only = of(one, 'storage')[0]!,
+      home = only.slot;
     expect(one.snapshot.os?.slot).toBe(home);
     await one.remove(devNode(only.id));
     expect(one.refusal.peek()).toBeNull();

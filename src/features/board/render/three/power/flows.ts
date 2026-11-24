@@ -4,7 +4,17 @@
 // the line keeps a steady glow, so it reads at a glance. A line with no draw is a dim thread, a cable that is out pulses red and does not move. The lines are drawn with
 // the depth test, lifted a little toward the eye (a cable is seen where it runs, and goes behind the parts that stand in front of it); the runs the machine does not
 // show (behind the tray) are drawn through everything, thin and dim. Rings on the open sockets are drawn through everything too.
-import { AdditiveBlending, DoubleSide, Float32BufferAttribute, Group, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, ShaderMaterial, type PerspectiveCamera } from 'three';
+import {
+  AdditiveBlending,
+  DoubleSide,
+  Float32BufferAttribute,
+  Group,
+  InstancedBufferAttribute,
+  InstancedBufferGeometry,
+  Mesh,
+  ShaderMaterial,
+  type PerspectiveCamera,
+} from 'three';
 import { powerGlsl, type Role } from '@/core/render/three/powerscale';
 import type { PowerDraw, PowerLine, PowerShape } from './net';
 
@@ -13,30 +23,50 @@ const STRENGTH = 1.25;
 /** How much of a plate's brightness shows through what stands in front of it. */
 const HIDDEN_PLATE = 0.22;
 /** Speed (units a second) and gap between pulses (units) at the foot and the top of the scale. */
-const SPEED_LO = 1500, SPEED_HI = 5200, GAP_LO = 1500, GAP_HI = 800;
+const SPEED_LO = 1500,
+  SPEED_HI = 5200,
+  GAP_LO = 1500,
+  GAP_HI = 800;
 /** A held cable's lines (the hand draws its own). */
 const HELD = 3;
 
 /** A number in [0, 1) from a name: where in its gap each line's pulses start, so the strands of a cable do not pulse as one. */
 export function seedOf(id: string): number {
   let h = 2166136261;
-  for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
   return ((h >>> 0) % 10007) / 10007;
 }
 
 /** The straight stretches of some lines, as the buffers of a mesh: each strip's two ends (the fourth number: the arc length along its line), its width, its seed and its lift. */
-export interface Strips { a: Float32Array; b: Float32Array; look: Float32Array; n: number; first: Int32Array; count: Int32Array }
+export interface Strips {
+  a: Float32Array;
+  b: Float32Array;
+  look: Float32Array;
+  n: number;
+  first: Int32Array;
+  count: Int32Array;
+}
 export function strips(lines: readonly PowerLine[]): Strips {
   let cap = 0;
   for (const l of lines) cap += Math.max(0, l.pts.length - 1);
-  const a = new Float32Array(4 * cap), b = new Float32Array(4 * cap), look = new Float32Array(4 * cap), first = new Int32Array(lines.length), count = new Int32Array(lines.length);
+  const a = new Float32Array(4 * cap),
+    b = new Float32Array(4 * cap),
+    look = new Float32Array(4 * cap),
+    first = new Int32Array(lines.length),
+    count = new Int32Array(lines.length);
   let k = 0;
   lines.forEach((l, i) => {
     first[i] = k;
-    const seed = seedOf(l.id), lift = l.lift;
+    const seed = seedOf(l.id),
+      lift = l.lift;
     let s = 0;
     for (let j = 1; j < l.pts.length; j++) {
-      const p = l.pts[j - 1]!, q = l.pts[j]!, len = Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]);
+      const p = l.pts[j - 1]!,
+        q = l.pts[j]!,
+        len = Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]);
       if (!(len > 1e-3)) continue;
       a.set([p[0], p[1], p[2], s], 4 * k);
       b.set([q[0], q[1], q[2], s + len], 4 * k);
@@ -52,7 +82,7 @@ export function strips(lines: readonly PowerLine[]): Strips {
 /** A line's tone in its strips' state: a use's amber, a hub's cyan, a source's white. */
 const TONE: Record<Role, number> = { use: 0, hub: 1, source: 2 };
 
-const VERT = /* glsl */`
+const VERT = /* glsl */ `
 attribute vec2 corner;
 attribute vec4 iA, iB, iLook;
 attribute vec3 iState;
@@ -87,10 +117,10 @@ void main() {
 }`;
 
 /** The colour of a role at a place on its scale (GLSL): `tone` 0 a use, 1 a hub, 2 a source. */
-const ROLE_GLSL = /* glsl */`
+const ROLE_GLSL = /* glsl */ `
 vec3 role(float tone, float h) { return tone > 1.5 ? source(h) : (tone > 0.5 ? hub(h) : power(h)); }`;
 
-const FRAG = /* glsl */`
+const FRAG = /* glsl */ `
 uniform float uT, uClock, uStrength, uDim;
 varying float vS, vAcross, vLevel, vState, vSeed, vFade, vTone;
 ${powerGlsl()}
@@ -125,7 +155,7 @@ void main() {
   gl_FragColor = vec4(col * uStrength * uDim, a);
 }`;
 
-const RING_VERT = /* glsl */`
+const RING_VERT = /* glsl */ `
 attribute vec2 corner;
 attribute vec4 iRing;
 attribute float iOpen;
@@ -142,7 +172,7 @@ void main() {
   vSeed = fract(dot(iRing.xyz, vec3(0.013, 0.007, 0.011)));
 }`;
 
-const RING_FRAG = /* glsl */`
+const RING_FRAG = /* glsl */ `
 uniform float uClock;
 varying vec2 vUv;
 varying float vSeed;
@@ -166,7 +196,12 @@ class Layer {
   private readonly attr: InstancedBufferAttribute;
   private readonly s: Strips;
 
-  constructor(private readonly lines: readonly PowerLine[], private readonly index: readonly number[], depth: boolean, order: number) {
+  constructor(
+    private readonly lines: readonly PowerLine[],
+    private readonly index: readonly number[],
+    depth: boolean,
+    order: number,
+  ) {
     const s = (this.s = strips(lines));
     // one strip: two ends, two sides
     this.geo.setAttribute('corner', new Float32BufferAttribute([0, -1, 0, 1, 1, -1, 1, 1], 2));
@@ -182,8 +217,21 @@ class Layer {
     this.geo.instanceCount = s.n;
     this.mat = new ShaderMaterial({
       // (added to the picture: two strips that overlap at a bend, or the strands of a cable at its plug, add up; both faces, a strip's winding turns with its run's way)
-      vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, depthTest: depth, blending: AdditiveBlending, toneMapped: false, side: DoubleSide,
-      uniforms: { uPixel: { value: 0.002 }, uT: { value: 0 }, uClock: { value: 0 }, uStrength: { value: STRENGTH }, uDim: { value: 1 } },
+      vertexShader: VERT,
+      fragmentShader: FRAG,
+      transparent: true,
+      depthWrite: false,
+      depthTest: depth,
+      blending: AdditiveBlending,
+      toneMapped: false,
+      side: DoubleSide,
+      uniforms: {
+        uPixel: { value: 0.002 },
+        uT: { value: 0 },
+        uClock: { value: 0 },
+        uStrength: { value: STRENGTH },
+        uDim: { value: 1 },
+      },
     });
     this.mesh = new Mesh(this.geo, this.mat);
     this.mesh.frustumCulled = false;
@@ -194,10 +242,18 @@ class Layer {
 
   /** The new draw: each strip's place on the scale and its state. */
   set(draw: PowerDraw, held: ReadonlySet<string>, dim: number): void {
-    const st = this.state, s = this.s;
+    const st = this.state,
+      s = this.s;
     this.lines.forEach((l, i) => {
-      const ix = this.index[i]!, lv = draw.level[ix]!, state = held.has(l.cable) ? HELD : draw.state[ix]!, tone = TONE[l.tone];
-      for (let k = s.first[i]!, e = k + s.count[i]!; k < e; k++) { st[3 * k] = lv; st[3 * k + 1] = state; st[3 * k + 2] = tone; }
+      const ix = this.index[i]!,
+        lv = draw.level[ix]!,
+        state = held.has(l.cable) ? HELD : draw.state[ix]!,
+        tone = TONE[l.tone];
+      for (let k = s.first[i]!, e = k + s.count[i]!; k < e; k++) {
+        st[3 * k] = lv;
+        st[3 * k + 1] = state;
+        st[3 * k + 2] = tone;
+      }
     });
     this.attr.needsUpdate = true;
     this.mat.uniforms.uDim!.value = dim;
@@ -210,7 +266,9 @@ class Layer {
     u.uClock!.value = clock;
   }
 
-  get strips(): number { return this.s.n; }
+  get strips(): number {
+    return this.s.n;
+  }
 
   dispose(): void {
     this.mesh.removeFromParent();
@@ -228,7 +286,8 @@ class Rings {
   private readonly attr: InstancedBufferAttribute;
 
   constructor(shape: PowerShape) {
-    const n = shape.rings.length, ring = new Float32Array(4 * n);
+    const n = shape.rings.length,
+      ring = new Float32Array(4 * n);
     shape.rings.forEach((r, i) => ring.set([r.at[0], r.at[1], r.at[2], r.r], 4 * i));
     this.geo.setAttribute('corner', new Float32BufferAttribute([-1, -1, 1, -1, -1, 1, 1, 1], 2));
     this.geo.setAttribute('position', new Float32BufferAttribute(new Float32Array(12), 3));
@@ -239,7 +298,14 @@ class Rings {
     this.geo.setAttribute('iOpen', this.attr);
     this.geo.instanceCount = n;
     this.mat = new ShaderMaterial({
-      vertexShader: RING_VERT, fragmentShader: RING_FRAG, transparent: true, depthWrite: false, depthTest: false, blending: AdditiveBlending, toneMapped: false, side: DoubleSide,
+      vertexShader: RING_VERT,
+      fragmentShader: RING_FRAG,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      blending: AdditiveBlending,
+      toneMapped: false,
+      side: DoubleSide,
       uniforms: { uPixel: { value: 0.002 }, uClock: { value: 0 } },
     });
     this.mesh = new Mesh(this.geo, this.mat);
@@ -266,7 +332,7 @@ class Rings {
   }
 }
 
-const NODE_VERT = /* glsl */`
+const NODE_VERT = /* glsl */ `
 attribute vec2 corner;
 attribute vec3 iAt, iEx, iEy;
 attribute vec4 iLook;
@@ -284,7 +350,7 @@ void main() {
   vSeed = fract(dot(iAt, vec3(0.011, 0.007, 0.013)));
 }`;
 
-const NODE_FRAG = /* glsl */`
+const NODE_FRAG = /* glsl */ `
 uniform float uClock, uStrength;
 varying vec2 vLocal, vHalf;
 varying float vRole, vLevel, vState, vRound, vSeed;
@@ -332,10 +398,15 @@ class Nodes {
   private readonly n: number;
 
   constructor(shape: PowerShape) {
-    const n = (this.n = shape.nodes.length), at = new Float32Array(3 * n), ex = new Float32Array(3 * n), ey = new Float32Array(3 * n);
+    const n = (this.n = shape.nodes.length),
+      at = new Float32Array(3 * n),
+      ex = new Float32Array(3 * n),
+      ey = new Float32Array(3 * n);
     this.look = new Float32Array(4 * Math.max(1, n));
     shape.nodes.forEach((nd, k) => {
-      at.set(nd.at, 3 * k); ex.set(nd.ex, 3 * k); ey.set(nd.ey, 3 * k);
+      at.set(nd.at, 3 * k);
+      ex.set(nd.ex, 3 * k);
+      ey.set(nd.ey, 3 * k);
       this.look[4 * k] = TONE[nd.role];
       this.look[4 * k + 3] = nd.round;
     });
@@ -349,7 +420,14 @@ class Nodes {
     this.geo.setAttribute('iLook', this.attr);
     this.geo.instanceCount = n;
     this.mat = new ShaderMaterial({
-      vertexShader: NODE_VERT, fragmentShader: NODE_FRAG, transparent: true, depthWrite: false, depthTest: true, blending: AdditiveBlending, toneMapped: false, side: DoubleSide,
+      vertexShader: NODE_VERT,
+      fragmentShader: NODE_FRAG,
+      transparent: true,
+      depthWrite: false,
+      depthTest: true,
+      blending: AdditiveBlending,
+      toneMapped: false,
+      side: DoubleSide,
       uniforms: { uClock: { value: 0 }, uStrength: { value: STRENGTH } },
     });
     this.mesh = new Mesh(this.geo, this.mat);
@@ -358,7 +436,14 @@ class Nodes {
     this.mesh.raycast = () => {};
     this.mesh.visible = n > 0;
     this.hiddenMat = new ShaderMaterial({
-      vertexShader: NODE_VERT, fragmentShader: NODE_FRAG, transparent: true, depthWrite: false, depthTest: false, blending: AdditiveBlending, toneMapped: false, side: DoubleSide,
+      vertexShader: NODE_VERT,
+      fragmentShader: NODE_FRAG,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      blending: AdditiveBlending,
+      toneMapped: false,
+      side: DoubleSide,
       uniforms: { uClock: { value: 0 }, uStrength: { value: STRENGTH * HIDDEN_PLATE } },
     });
     const hidden = new Mesh(this.geo, this.hiddenMat);
@@ -370,7 +455,10 @@ class Nodes {
   }
 
   set(draw: PowerDraw): void {
-    for (let k = 0; k < this.n; k++) { this.look[4 * k + 1] = draw.nodeLevel[k]!; this.look[4 * k + 2] = draw.nodeState[k]!; }
+    for (let k = 0; k < this.n; k++) {
+      this.look[4 * k + 1] = draw.nodeLevel[k]!;
+      this.look[4 * k + 2] = draw.nodeState[k]!;
+    }
     this.attr.needsUpdate = true;
   }
 
@@ -379,7 +467,9 @@ class Nodes {
     this.hiddenMat.uniforms.uClock!.value = clock;
   }
 
-  get count(): number { return this.n; }
+  get count(): number {
+    return this.n;
+  }
 
   dispose(): void {
     this.mesh.removeFromParent();
@@ -399,10 +489,22 @@ export class PowerFlows {
   private t = 0;
 
   constructor(shape: PowerShape) {
-    const idx = shape.lines.map((_, i) => i), pick = (ghost: boolean): number[] => idx.filter((i) => (shape.lines[i]!.kind === 'ghost') === ghost);
-    const a = pick(false), b = pick(true);
-    this.solid = new Layer(a.map((i) => shape.lines[i]!), a, true, 1002);
-    this.ghost = new Layer(b.map((i) => shape.lines[i]!), b, false, 1003);
+    const idx = shape.lines.map((_, i) => i),
+      pick = (ghost: boolean): number[] => idx.filter((i) => (shape.lines[i]!.kind === 'ghost') === ghost);
+    const a = pick(false),
+      b = pick(true);
+    this.solid = new Layer(
+      a.map((i) => shape.lines[i]!),
+      a,
+      true,
+      1002,
+    );
+    this.ghost = new Layer(
+      b.map((i) => shape.lines[i]!),
+      b,
+      false,
+      1003,
+    );
     this.rings = new Rings(shape);
     this.nodes = new Nodes(shape);
     this.mesh.add(this.nodes.mesh, this.solid.mesh, this.ghost.mesh, this.rings.mesh);
@@ -428,9 +530,13 @@ export class PowerFlows {
   }
 
   /** How many strips are drawn, for the check tool. */
-  get strips(): number { return this.solid.strips + this.ghost.strips; }
+  get strips(): number {
+    return this.solid.strips + this.ghost.strips;
+  }
   /** How many plates are drawn. */
-  get plates(): number { return this.nodes.count; }
+  get plates(): number {
+    return this.nodes.count;
+  }
 
   dispose(): void {
     this.mesh.removeFromParent();

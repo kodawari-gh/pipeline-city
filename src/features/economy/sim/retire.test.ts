@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { ECONOMY } from "./economy";
-import { Game } from "@/worker/game/game";
-import { netRig, rig, type Keys } from "@/worker/game/testkit";
+import { describe, expect, it } from 'vitest';
+import { ECONOMY } from './economy';
+import { Game } from '@/worker/game/game';
+import { netRig, rig, type Keys } from '@/worker/game/testkit';
 
 // Hardware tests: every item is buyable (levels have their own tests).
 ECONOMY.levelGating = false;
@@ -9,44 +9,55 @@ ECONOMY.levelGating = false;
 // Retired keys (docs/NETWORK.md "Retired keys"): the USB keys the client left behind when the link comes up stop holding
 // reputation, expire silently and cost nothing to decline; they can still be served until their deadline.
 
-const tick = (g: Game, n: number): void => { for (let i = 0; i < n; i++) g.advanceBaseTick(); };
+const tick = (g: Game, n: number): void => {
+  for (let i = 0; i < n; i++) g.advanceBaseTick();
+};
 /** Advance until `done` holds (evaluated once per tick; it may act, e.g. plug a key). */
 function until(g: Game, done: () => boolean, max = 3000): number {
   let t = 0;
   let ok = done();
-  while (!ok && t < max) { g.advanceBaseTick(); t++; ok = done(); }
+  while (!ok && t < max) {
+    g.advanceBaseTick();
+    t++;
+    ok = done();
+  }
   expect(ok).toBe(true);
   return t;
 }
 const net = (g: Game) => g.snapshot().net;
-const keys = (n: number): Keys => Array.from({ length: n }, () => ({ template: "cli.log" }));
+const keys = (n: number): Keys => Array.from({ length: n }, () => ({ template: 'cli.log' }));
 
 /** Put a job straight into the offer list (the offers channel), as a client would. */
-function offer(g: Game, template = "cli.log", scale = 1): void {
-  (g as unknown as { enqueue(t: string, s: number, c: string | undefined, n: boolean): boolean }).enqueue(template, scale, undefined, true);
+function offer(g: Game, template = 'cli.log', scale = 1): void {
+  (g as unknown as { enqueue(t: string, s: number, c: string | undefined, n: boolean): boolean }).enqueue(
+    template,
+    scale,
+    undefined,
+    true,
+  );
 }
 
 /** The network parts of `netRig` without the cable (so the link comes up later, or never). */
 function addNetwork(g: Game): void {
-  for (const id of ["ram2"]) {
+  for (const id of ['ram2']) {
     const b = g.purchase(id);
     if (!b.ok) throw new Error(`purchase ${id}: ${b.reason}`);
     const r = g.install(b.invId);
     if (!r.ok) throw new Error(`install ${id}: ${r.reason}`);
   }
-  const router = g.purchase("router1");
+  const router = g.purchase('router1');
   if (!router.ok) throw new Error(`router: ${router.reason}`);
-  if (!g.install(router.invId).ok) throw new Error("place router");
-  if (!g.purchase("isp1").ok) throw new Error("isp");
+  if (!g.install(router.invId).ok) throw new Error('place router');
+  if (!g.purchase('isp1').ok) throw new Error('isp');
 }
 
 /** A full tray of 10 jobs at the switch, the tray never served; the network serves offers. Left at the link-up tick. */
 const fullTray = (seed: number, retire: boolean, demand = 0.012): Game =>
-  netRig("ssd1", { seed, keys: keys(10), economy: { retireUsbKeys: retire, baseDemandPerTick: demand } });
+  netRig('ssd1', { seed, keys: keys(10), economy: { retireUsbKeys: retire, baseDemandPerTick: demand } });
 
-describe("retired keys: the rule", { timeout: 30000 }, () => {
-  it("the USB keys retire when the link comes up; offers that arrive later are not retired", () => {
-    const g = netRig("ssd1", { keys: keys(2), economy: { baseDemandPerTick: 0 } });
+describe('retired keys: the rule', { timeout: 30000 }, () => {
+  it('the USB keys retire when the link comes up; offers that arrive later are not retired', () => {
+    const g = netRig('ssd1', { keys: keys(2), economy: { baseDemandPerTick: 0 } });
     const s = g.snapshot();
     expect(s.tray).toHaveLength(2);
     expect(s.tray.every((k) => k.retired)).toBe(true);
@@ -55,7 +66,7 @@ describe("retired keys: the rule", { timeout: 30000 }, () => {
     expect(g.snapshot().net.offers.every((k) => k.retired === false)).toBe(true);
   });
 
-  it("a full tray does not hold reputation after the switch: retirement on, against the old rule on the same seeds", () => {
+  it('a full tray does not hold reputation after the switch: retirement on, against the old rule on the same seeds', () => {
     for (const seed of [7, 11, 23]) {
       const on = fullTray(seed, true);
       const off = fullTray(seed, false);
@@ -67,8 +78,8 @@ describe("retired keys: the rule", { timeout: 30000 }, () => {
     }
   });
 
-  it("a retired key expires silently at its deadline: no penalty, not counted; without the rule it stays", () => {
-    const on = netRig("ssd1", { keys: keys(1), economy: { baseDemandPerTick: 0 } });
+  it('a retired key expires silently at its deadline: no penalty, not counted; without the rule it stays', () => {
+    const on = netRig('ssd1', { keys: keys(1), economy: { baseDemandPerTick: 0 } });
     const dl = on.snapshot().tray[0]!.deadlineTick;
     const avg = on.snapshot().avgTurnaround;
     until(on, () => on.baseTick > dl, 2000);
@@ -76,13 +87,13 @@ describe("retired keys: the rule", { timeout: 30000 }, () => {
     expect(on.snapshot().expired).toBe(0); // silent: not one of the "could not run it" expiries
     expect(on.snapshot().avgTurnaround).toBe(avg); // and no give-up in the turnaround average
 
-    const off = netRig("ssd1", { keys: keys(1), economy: { baseDemandPerTick: 0, retireUsbKeys: false } });
+    const off = netRig('ssd1', { keys: keys(1), economy: { baseDemandPerTick: 0, retireUsbKeys: false } });
     tick(off, dl - off.baseTick + 5);
     expect(off.snapshot().tray).toHaveLength(1); // the old rule: a runnable key is not taken back
   });
 
-  it("a retired key is still served: plugged, ingested by the OS, and it pops out and pays by itself", () => {
-    const g = netRig("ssd1", { keys: keys(1), economy: { baseDemandPerTick: 0 } });
+  it('a retired key is still served: plugged, ingested by the OS, and it pops out and pays by itself', () => {
+    const g = netRig('ssd1', { keys: keys(1), economy: { baseDemandPerTick: 0 } });
     const id = g.snapshot().tray[0]!.id;
     until(g, () => g.plugKey(id).ok, 600); // a refusal while the feed holds the port is a moment, not a failure
     expect(g.snapshot().plugged?.retired).toBe(true);
@@ -90,41 +101,41 @@ describe("retired keys: the rule", { timeout: 30000 }, () => {
     expect(g.lastCompleted!.payout).toBeGreaterThan(0);
   });
 
-  it("declining a retired key costs nothing; declining a normal one still does", () => {
+  it('declining a retired key costs nothing; declining a normal one still does', () => {
     // 11 keys: one is dropped at the start, which lifts the average off the target (a decline moves it toward the target).
-    const on = netRig("ssd1", { keys: keys(11), economy: { baseDemandPerTick: 0 } });
+    const on = netRig('ssd1', { keys: keys(11), economy: { baseDemandPerTick: 0 } });
     const id = on.snapshot().tray[0]!.id;
     const avgBefore = on.snapshot().avgTurnaround;
     expect(on.declineKey(id).ok).toBe(true);
     expect(on.snapshot().declined).toBe(1);
     expect(on.snapshot().avgTurnaround).toBe(avgBefore);
 
-    const off = netRig("ssd1", { keys: keys(11), economy: { baseDemandPerTick: 0, retireUsbKeys: false } });
+    const off = netRig('ssd1', { keys: keys(11), economy: { baseDemandPerTick: 0, retireUsbKeys: false } });
     const id2 = off.snapshot().tray[0]!.id;
     const avgOff = off.snapshot().avgTurnaround;
     expect(off.declineKey(id2).ok).toBe(true);
     expect(off.snapshot().avgTurnaround).not.toBe(avgOff);
   });
 
-  it("fallback keys are normal until the link returns, then they are retired again", () => {
+  it('fallback keys are normal until the link returns, then they are retired again', () => {
     // Build the rig with no keys and no cable, then bring the link up and let it go down: keys that arrive in the USB
     // fallback are normal (not retired) and are retired again when the link returns.
-    const g = rig("ssd1", { keys: [] });
+    const g = rig('ssd1', { keys: [] });
     addNetwork(g);
-    expect(g.connectCable("lan").ok).toBe(true);
+    expect(g.connectCable('lan').ok).toBe(true);
     g.powerButton();
-    until(g, () => net(g).state === "link-up" || net(g).state === "saturated", 1000);
+    until(g, () => net(g).state === 'link-up' || net(g).state === 'saturated', 1000);
     g.cfg.baseDemandPerTick = 0.3;
-    expect(g.disconnectCable("lan").ok).toBe(true);
+    expect(g.disconnectCable('lan').ok).toBe(true);
     tick(g, 320);
-    expect(net(g).usbFallback.state).toBe("fallback");
+    expect(net(g).usbFallback.state).toBe('fallback');
     tick(g, 200);
     const tray = g.snapshot().tray;
     expect(tray.length).toBeGreaterThanOrEqual(2);
     expect(tray.every((k) => k.retired === false)).toBe(true); // normal keys during the fallback
 
     // The link returns: the keys in the tray are retired.
-    expect(g.connectCable("lan").ok).toBe(true);
+    expect(g.connectCable('lan').ok).toBe(true);
     tick(g, 1);
     const after = g.snapshot();
     expect(after.tray.every((k) => k.retired)).toBe(true);
@@ -132,9 +143,9 @@ describe("retired keys: the rule", { timeout: 30000 }, () => {
   });
 });
 
-describe("retired keys: save, determinism and the snapshot", { timeout: 30000 }, () => {
-  it("the retired flag survives a save round trip; an old save of a linked game retires its USB keys", () => {
-    const g = netRig("ssd1", { keys: keys(2), economy: { baseDemandPerTick: 0 } });
+describe('retired keys: save, determinism and the snapshot', { timeout: 30000 }, () => {
+  it('the retired flag survives a save round trip; an old save of a linked game retires its USB keys', () => {
+    const g = netRig('ssd1', { keys: keys(2), economy: { baseDemandPerTick: 0 } });
     const save = JSON.parse(JSON.stringify(g.toSave()));
     expect(save.tray.every((k: { retired: boolean }) => k.retired === true)).toBe(true);
     const h = Game.fromSave(save);
@@ -148,14 +159,18 @@ describe("retired keys: save, determinism and the snapshot", { timeout: 30000 },
     expect(o.snapshot().tray.every((k) => k.retired)).toBe(true);
 
     // A save from a game that never linked keeps its keys normal.
-    const never = rig("ssd1", { keys: keys(1) });
+    const never = rig('ssd1', { keys: keys(1) });
     const nv = JSON.parse(JSON.stringify(never.toSave()));
     for (const k of nv.tray) delete k.retired;
-    expect(Game.fromSave(nv).snapshot().tray.every((k) => !k.retired)).toBe(true);
+    expect(
+      Game.fromSave(nv)
+        .snapshot()
+        .tray.every((k) => !k.retired),
+    ).toBe(true);
   });
 
-  it("the retired flag of held keys and the port survives a save", () => {
-    const g = netRig("ssd1", { keys: keys(1), economy: { baseDemandPerTick: 0 } });
+  it('the retired flag of held keys and the port survives a save', () => {
+    const g = netRig('ssd1', { keys: keys(1), economy: { baseDemandPerTick: 0 } });
     const id = g.snapshot().tray[0]!.id;
     until(g, () => g.plugKey(id).ok, 600);
     until(g, () => g.pluggedIngested(), 800);
@@ -167,7 +182,7 @@ describe("retired keys: save, determinism and the snapshot", { timeout: 30000 },
     expect(h.snapshot().plugged?.retired).toBe(true);
   });
 
-  it("is deterministic: the same seed gives the same reputation, sales and retired count", () => {
+  it('is deterministic: the same seed gives the same reputation, sales and retired count', () => {
     const series = (): number[][] => {
       const g = fullTray(7, true);
       const out: number[][] = [];
@@ -181,8 +196,8 @@ describe("retired keys: save, determinism and the snapshot", { timeout: 30000 },
     expect(series()).toEqual(series());
   });
 
-  it("a key in the USB port does not hold up the network: the NIC has its own way into the kernel", () => {
-    const g = netRig("ssd1", { keys: keys(1), economy: { baseDemandPerTick: 0 } });
+  it('a key in the USB port does not hold up the network: the NIC has its own way into the kernel', () => {
+    const g = netRig('ssd1', { keys: keys(1), economy: { baseDemandPerTick: 0 } });
     const id = g.snapshot().tray[0]!.id;
     until(g, () => g.plugKey(id).ok, 600);
     offer(g);
@@ -192,8 +207,8 @@ describe("retired keys: save, determinism and the snapshot", { timeout: 30000 },
     until(g, () => g.pluggedKey() === null, 3000);
   });
 
-  it("os.spoolFull follows the spool and the chip field matches spool.full", () => {
-    const g = netRig("hdd0", { isp: "isp1" });
+  it('os.spoolFull follows the spool and the chip field matches spool.full', () => {
+    const g = netRig('hdd0', { isp: 'isp1' });
     const slots = g.snapshot().os!.queueSlots;
     for (let i = 0; i < slots + 3; i++) offer(g);
     let sawFull = false;

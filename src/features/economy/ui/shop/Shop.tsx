@@ -35,12 +35,17 @@ export function Shop({ s }: { s: Snapshot }) {
   }, [open, focus]);
   const sections = kind ? all.filter((x) => x.kind === kind) : all;
   const flat = sections.flatMap((x) => x.items.map((i) => i.specId));
-  const shown = picked && flat.includes(picked) ? picked : flat[0] ?? null;
+  const shown = picked && flat.includes(picked) ? picked : (flat[0] ?? null);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { if (view3d) setView3d(false); else closeShop(); return; }
-      const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+      if (e.key === 'Escape') {
+        if (view3d) setView3d(false);
+        else closeShop();
+        return;
+      }
+      const step =
+        e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
       if (!step || !flat.length) return;
       e.preventDefault();
       const i = Math.max(0, flat.indexOf(shown ?? ''));
@@ -50,15 +55,35 @@ export function Shop({ s }: { s: Snapshot }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [open, view3d, shown, flat.join()]);
   if (!open) return null;
-  const pickKind = (k: ShopKind | null) => { setKind(k); setPicked(null); };
+  const pickKind = (k: ShopKind | null) => {
+    setKind(k);
+    setPicked(null);
+  };
   const shownKind = shown ? kindOf(shown, s) : null;
   return (
-    <div class="modal-back shop-back" onClick={(e) => { if (e.target === e.currentTarget) closeShop(); }}>
+    <div
+      class="modal-back shop-back"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) closeShop();
+      }}
+    >
       <div class="card shop" data-cue="ui_panel_open" role="dialog" aria-modal="true" aria-label="Shop">
         <header class="shop-head">
-          <span class="shop-title"><Icon name="shop" size={16} /> Shop</span>
-          <span class="chip" title="Your money"><Icon name="dollar" size={12} /> {s.sandbox ? 'free' : fmtMoney(s.money)}</span>
-          <button class="close" data-cue="ui_panel_close" aria-label="Close shop" title="Close (Esc)" onClick={closeShop}><Icon name="close" size={12} /></button>
+          <span class="shop-title">
+            <Icon name="shop" size={16} /> Shop
+          </span>
+          <span class="chip" title="Your money">
+            <Icon name="dollar" size={12} /> {s.sandbox ? 'free' : fmtMoney(s.money)}
+          </span>
+          <button
+            class="close"
+            data-cue="ui_panel_close"
+            aria-label="Close shop"
+            title="Close (Esc)"
+            onClick={closeShop}
+          >
+            <Icon name="close" size={12} />
+          </button>
         </header>
         <div class="shop-body">
           <nav class="shop-rail" aria-label="Category">
@@ -66,7 +91,12 @@ export function Shop({ s }: { s: Snapshot }) {
               <Icon name="grid" size={13} /> <span>All</span>
             </button>
             {all.map((x) => (
-              <button key={x.kind} class={kind === x.kind ? 'on' : ''} aria-pressed={kind === x.kind} onClick={() => pickKind(kind === x.kind ? null : x.kind)}>
+              <button
+                key={x.kind}
+                class={kind === x.kind ? 'on' : ''}
+                aria-pressed={kind === x.kind}
+                onClick={() => pickKind(kind === x.kind ? null : x.kind)}
+              >
                 <Icon name={x.icon} size={13} /> <span>{x.label}</span> <em>{x.items.length}</em>
               </button>
             ))}
@@ -74,9 +104,13 @@ export function Shop({ s }: { s: Snapshot }) {
           <div class="shop-list">
             {sections.map((sec) => (
               <section key={sec.kind} class="shop-sec" aria-label={sec.label}>
-                <h3><Icon name={sec.icon} size={13} /> {sec.label}</h3>
+                <h3>
+                  <Icon name={sec.icon} size={13} /> {sec.label}
+                </h3>
                 <div class="rungs">
-                  {sec.items.map((r) => <Rung key={r.specId} step={r} picked={r.specId === shown} onPick={setPicked} />)}
+                  {sec.items.map((r) => (
+                    <Rung key={r.specId} step={r} picked={r.specId === shown} onPick={setPicked} />
+                  ))}
                 </div>
               </section>
             ))}

@@ -1,5 +1,13 @@
 // The Low tier's cheaper material model: a Lambert program (no specular, no PBR maps) for the room's standard materials.
-import { Color, Material, MeshLambertMaterial, type Mesh, type MeshStandardMaterial, type Object3D, type Side } from 'three';
+import {
+  Color,
+  Material,
+  MeshLambertMaterial,
+  type Mesh,
+  type MeshStandardMaterial,
+  type Object3D,
+  type Side,
+} from 'three';
 
 type Std = MeshStandardMaterial & { isMeshStandardMaterial: true };
 const STRIPPED = ['normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'bumpMap'] as const;
@@ -13,9 +21,17 @@ const isPatched = (m: Material): boolean => m.onBeforeCompile !== Material.proto
  * (`fadeTree`) or a glow cap (`glowOnly`) reaches the material the game owns. `transparent` is among them: `sync` sees its change.
  */
 const LIVE = [
-  'emissiveIntensity', 'opacity', 'visible', 'depthWrite', 'map', 'emissiveMap', 'transparent',
+  'emissiveIntensity',
+  'opacity',
+  'visible',
+  'depthWrite',
+  'map',
+  'emissiveMap',
+  'transparent',
   // (a decal or a label draws over the surface under it by its offset: a Lambert without it tears against that surface)
-  'polygonOffset', 'polygonOffsetFactor', 'polygonOffsetUnits',
+  'polygonOffset',
+  'polygonOffsetFactor',
+  'polygonOffsetUnits',
 ] as const;
 
 /** A source at or under this metalness is paint or plastic: its Lambert keeps the source's own Color object. */
@@ -28,7 +44,10 @@ const HSL = { h: 0, s: 0, l: 0 };
  * Is `c` a warm, saturated metal (copper, brass, gold)? Its colour is the metal's own, as seen in its reflections: a Lambert keeps it, where it
  * would turn a grey metal dark.
  */
-export const warmMetal = (c: Color): boolean => { c.getHSL(HSL); return HSL.s > 0.35 && (HSL.h < 0.18 || HSL.h > 0.97); };
+export const warmMetal = (c: Color): boolean => {
+  c.getHSL(HSL);
+  return HSL.s > 0.35 && (HSL.h < 0.18 || HSL.h > 0.97);
+};
 
 /**
  * What a Lambert of a metal reads as its colour: `src` mixed toward the dark metal range by `metalness`, as a metal has no diffuse of its own and
@@ -47,13 +66,30 @@ export function metalColor(src: Color, metalness: number, out: Color = new Color
  * still reaches the Lambert with no sync. A write to one channel lands on the source.
  */
 function metalLive(m: Std): Color {
-  const c = new Color(), seen = [NaN, NaN, NaN, NaN], mix = new Color();
+  const c = new Color(),
+    seen = [NaN, NaN, NaN, NaN],
+    mix = new Color();
   const fresh = (): Color => {
-    const s = m.color, k = m.metalness;
-    if (s.r !== seen[0] || s.g !== seen[1] || s.b !== seen[2] || k !== seen[3]) { seen[0] = s.r; seen[1] = s.g; seen[2] = s.b; seen[3] = k; metalColor(s, k, mix); }
+    const s = m.color,
+      k = m.metalness;
+    if (s.r !== seen[0] || s.g !== seen[1] || s.b !== seen[2] || k !== seen[3]) {
+      seen[0] = s.r;
+      seen[1] = s.g;
+      seen[2] = s.b;
+      seen[3] = k;
+      metalColor(s, k, mix);
+    }
     return mix;
   };
-  for (const ch of ['r', 'g', 'b'] as const) Object.defineProperty(c, ch, { configurable: true, enumerable: true, get: () => fresh()[ch], set(v: number) { m.color[ch] = v; } });
+  for (const ch of ['r', 'g', 'b'] as const)
+    Object.defineProperty(c, ch, {
+      configurable: true,
+      enumerable: true,
+      get: () => fresh()[ch],
+      set(v: number) {
+        m.color[ch] = v;
+      },
+    });
   return c;
 }
 
@@ -64,12 +100,25 @@ function metalLive(m: Std): Color {
 function lambertOf(m: Std): MeshLambertMaterial {
   const color = m.metalness > NON_METAL ? metalLive(m) : m.color;
   const l = new MeshLambertMaterial({
-    color, emissive: m.emissive, vertexColors: m.vertexColors, transparent: m.transparent, side: m.side, alphaTest: m.alphaTest,
+    color,
+    emissive: m.emissive,
+    vertexColors: m.vertexColors,
+    transparent: m.transparent,
+    side: m.side,
+    alphaTest: m.alphaTest,
   });
   l.color = color;
   l.emissive = m.emissive;
   const src = m as unknown as Record<string, unknown>;
-  for (const k of LIVE) Object.defineProperty(l, k, { configurable: true, enumerable: true, get: () => src[k], set(v: unknown) { src[k] = v; } });
+  for (const k of LIVE)
+    Object.defineProperty(l, k, {
+      configurable: true,
+      enumerable: true,
+      get: () => src[k],
+      set(v: unknown) {
+        src[k] = v;
+      },
+    });
   l.userData = m.userData;
   l.name = m.name;
   return l;
@@ -77,10 +126,19 @@ function lambertOf(m: Std): MeshLambertMaterial {
 
 /** What a Lambert's program depends on, as its source has it: `sync` compares it with the last one it saw. */
 type Prog = { transparent: boolean; side: Side; alpha: boolean; map: boolean; emap: boolean };
-const progOf = (s: Std): Prog => ({ transparent: s.transparent, side: s.side, alpha: s.alphaTest > 0, map: !!s.map, emap: !!s.emissiveMap });
+const progOf = (s: Std): Prog => ({
+  transparent: s.transparent,
+  side: s.side,
+  alpha: s.alphaTest > 0,
+  map: !!s.map,
+  emap: !!s.emissiveMap,
+});
 
 /** Is `o` `root` or under it? */
-const under = (o: Object3D, root: Object3D): boolean => { for (let p: Object3D | null = o; p; p = p.parent) if (p === root) return true; return false; };
+const under = (o: Object3D, root: Object3D): boolean => {
+  for (let p: Object3D | null = o; p; p = p.parent) if (p === root) return true;
+  return false;
+};
 
 /**
  * Swap `root`'s standard materials for cheaper ones, and return the function that undoes it (originals and maps back).
@@ -100,27 +158,48 @@ export function cheapMaterials(root: Object3D): { sync(): void; undo(): void } {
       if (!stripped.has(m)) {
         const was: Partial<Record<Stripped, unknown>> = {};
         let any = false;
-        for (const k of STRIPPED) if (m[k]) { was[k] = m[k]; (m as unknown as Record<string, unknown>)[k] = null; any = true; }
-        if (any) { stripped.set(m, was); m.needsUpdate = true; }
+        for (const k of STRIPPED)
+          if (m[k]) {
+            was[k] = m[k];
+            (m as unknown as Record<string, unknown>)[k] = null;
+            any = true;
+          }
+        if (any) {
+          stripped.set(m, was);
+          m.needsUpdate = true;
+        }
       }
       return m;
     }
     let l = made.get(m);
-    if (!l) { made.set(m, l = lambertOf(m)); prog.set(m, progOf(m)); }
+    if (!l) {
+      made.set(m, (l = lambertOf(m)));
+      prog.set(m, progOf(m));
+    }
     return l;
   };
   // Swap what `root` holds that is still standard. A cheap mesh is a Lambert now, so it comes back as it is and is not swapped twice.
-  const swapAll = () => root.traverse((o) => {
-    const mesh = o as Mesh;
-    if (!mesh.isMesh || mesh.userData.standIn) return;
-    if (Array.isArray(mesh.material)) {
-      const list = mesh.material;
-      list.forEach((m, i) => { const c = cheap(m); if (c !== m) { swaps.push({ mesh, index: i, from: m }); list[i] = c; } });
-    } else {
-      const c = cheap(mesh.material);
-      if (c !== mesh.material) { swaps.push({ mesh, index: null, from: mesh.material }); mesh.material = c; }
-    }
-  });
+  const swapAll = () =>
+    root.traverse((o) => {
+      const mesh = o as Mesh;
+      if (!mesh.isMesh || mesh.userData.standIn) return;
+      if (Array.isArray(mesh.material)) {
+        const list = mesh.material;
+        list.forEach((m, i) => {
+          const c = cheap(m);
+          if (c !== m) {
+            swaps.push({ mesh, index: i, from: m });
+            list[i] = c;
+          }
+        });
+      } else {
+        const c = cheap(mesh.material);
+        if (c !== mesh.material) {
+          swaps.push({ mesh, index: null, from: mesh.material });
+          mesh.material = c;
+        }
+      }
+    });
   swapAll();
   return {
     /**
@@ -131,12 +210,23 @@ export function cheapMaterials(root: Object3D): { sync(): void; undo(): void } {
     sync() {
       for (let i = swaps.length - 1; i >= 0; i--) if (!under(swaps[i]!.mesh, root)) swaps.splice(i, 1);
       const used = new Set(swaps.map((s) => s.from));
-      for (const [s, l] of made) if (!used.has(s)) { l.dispose(); made.delete(s); prog.delete(s); }
+      for (const [s, l] of made)
+        if (!used.has(s)) {
+          l.dispose();
+          made.delete(s);
+          prog.delete(s);
+        }
       swapAll();
       for (const [s, l] of made) {
-        const p = prog.get(s)!, now = progOf(s);
+        const p = prog.get(s)!,
+          now = progOf(s);
         // (these change the program or the sorting: a new compile)
-        const dirty = p.transparent !== now.transparent || p.side !== now.side || p.alpha !== now.alpha || p.map !== now.map || p.emap !== now.emap;
+        const dirty =
+          p.transparent !== now.transparent ||
+          p.side !== now.side ||
+          p.alpha !== now.alpha ||
+          p.map !== now.map ||
+          p.emap !== now.emap;
         prog.set(s, now);
         l.side = s.side;
         l.alphaTest = s.alphaTest;
@@ -145,11 +235,18 @@ export function cheapMaterials(root: Object3D): { sync(): void; undo(): void } {
     },
     undo() {
       for (const { mesh, index, from } of swaps) {
-        if (index === null) mesh.material = from; else (mesh.material as Material[])[index] = from;
+        if (index === null) mesh.material = from;
+        else (mesh.material as Material[])[index] = from;
       }
-      for (const [m, was] of stripped) { Object.assign(m, was); m.needsUpdate = true; }
+      for (const [m, was] of stripped) {
+        Object.assign(m, was);
+        m.needsUpdate = true;
+      }
       for (const l of made.values()) l.dispose();
-      swaps.length = 0; stripped.clear(); made.clear(); prog.clear();
+      swaps.length = 0;
+      stripped.clear();
+      made.clear();
+      prog.clear();
     },
   };
 }
@@ -162,7 +259,14 @@ export type Cheap = ReturnType<typeof cheapMaterials>;
  * the lamp cap: a capture kept from before lit the machine by a room that is no more, a half brighter than High's on the case's back wall).
  * Else a capture is wanted while bounces are left, or the light changed.
  */
-export function probePlan(o: { low: boolean; probed: boolean; busy: boolean; bounces: number; keyChanged: boolean; waited: boolean }): { request: boolean; bounces: number } {
+export function probePlan(o: {
+  low: boolean;
+  probed: boolean;
+  busy: boolean;
+  bounces: number;
+  keyChanged: boolean;
+  waited: boolean;
+}): { request: boolean; bounces: number } {
   if (o.low && o.probed) return { request: !o.busy && o.keyChanged && o.waited, bounces: 0 };
   if (o.busy) return { request: false, bounces: o.bounces };
   const request = o.bounces > 0 || (o.keyChanged && o.waited);

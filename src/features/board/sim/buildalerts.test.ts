@@ -24,7 +24,10 @@ describe('what the Start list offers', () => {
   it('every start is a sound machine: nothing to warn about, with the heat or without it', async () => {
     for (const key of START_KEYS) {
       const { game, shown } = await startGame(key);
-      expect({ key, alerts: buildAlerts(game.board, game.cables, shown, game.fanPower()) }).toEqual({ key, alerts: [] });
+      expect({ key, alerts: buildAlerts(game.board, game.cables, shown, game.fanPower()) }).toEqual({
+        key,
+        alerts: [],
+      });
       expect({ key, alerts: buildAlerts(game.board, game.cables, shown) }).toEqual({ key, alerts: [] });
     }
   });
@@ -34,7 +37,11 @@ describe('the supply and the leads', () => {
   it('a supply a little too small is amber: the machine slows down', () => {
     const g = rig(['psu0', 'cpu2', 'cooler0', 'ram2', 'display0']);
     const a = alerts(g).find((x) => x.id === 'psu-brownout')!;
-    expect(a).toMatchObject({ level: 'warn', title: 'Supply too small', part: g.board.devices.find((d) => deviceSpec(d).kind === 'psu')!.id });
+    expect(a).toMatchObject({
+      level: 'warn',
+      title: 'Supply too small',
+      part: g.board.devices.find((d) => deviceSpec(d).kind === 'psu')!.id,
+    });
     expect(a.text).toMatch(/gives 40 W.*% of its speed/);
   });
 
@@ -81,19 +88,54 @@ describe('the heat, from the thermal model', () => {
     const g = rig(['psu4', 'cpu4w', 'cooler2', 'ram5', 'display0'], 'case3', 'board3');
     const before = JSON.stringify(g.board);
     const a = alerts(g);
-    expect(a.find((x) => x.id === 'hot-burn')).toMatchObject({ level: 'bad', title: 'CPU burns out', part: g.board.devices.find((d) => deviceSpec(d).kind === 'cpu')!.id });
+    expect(a.find((x) => x.id === 'hot-burn')).toMatchObject({
+      level: 'bad',
+      title: 'CPU burns out',
+      part: g.board.devices.find((d) => deviceSpec(d).kind === 'cpu')!.id,
+    });
     expect(JSON.stringify(g.board)).toBe(before);
     expect(g.board.devices.some((d) => d.burnt)).toBe(false);
   });
 
   it('the radiator that was missing clears it', () => {
-    const g = rig(['psu4', 'cpu4w', 'cooler2', 'rad3@rad-top', 'ram5', 'display0', 'fan140x@top0', 'fan140x@top1', 'fan140x@front0', 'fan140x@rear'], 'case3', 'board3');
+    const g = rig(
+      [
+        'psu4',
+        'cpu4w',
+        'cooler2',
+        'rad3@rad-top',
+        'ram5',
+        'display0',
+        'fan140x@top0',
+        'fan140x@top1',
+        'fan140x@front0',
+        'fan140x@rear',
+      ],
+      'case3',
+      'board3',
+    );
     expect(ids(g).filter((id) => id.startsWith('hot-'))).toEqual([]);
   });
 
   it('stands in for the static cooling check: it ignores the case fans, the model does not', () => {
     // a 80 W processor on a tower heatsink, with the case fans all round: the static check says it makes errors; the machine only slows a little
-    const g = rig(['psu3', 'cpu4', 'cooler1', 'ram2', 'display0', 'fan120@front0', 'fan120@front1', 'fan120@front2', 'fan120@top0', 'fan120@top1', 'fan120@rear'], 'case2', 'board2');
+    const g = rig(
+      [
+        'psu3',
+        'cpu4',
+        'cooler1',
+        'ram2',
+        'display0',
+        'fan120@front0',
+        'fan120@front1',
+        'fan120@front2',
+        'fan120@top0',
+        'fan120@top1',
+        'fan120@rear',
+      ],
+      'case2',
+      'board2',
+    );
     expect(checkCompat(g.board).find((i) => i.id === 'cpu-cooling')).toMatchObject({ severity: 'error' });
     expect(buildAlerts(g.board, g.cables, 'machine').map((a) => a.id)).toContain('cpu-cooling'); // (no fans given: the static check)
     const withFans = ids(g);
@@ -110,7 +152,10 @@ describe('the heat, from the thermal model', () => {
 describe('alertKey', () => {
   it('is the same for the same problem on the same part, whatever id the part has: a part that came out and went back is not news', () => {
     const g = rig(['psu0', 'cpu2', 'cooler0', 'ram2', 'display0']);
-    const key = () => { const a = alerts(g).find((x) => x.id === 'psu-brownout')!; return alertKey(a, g.board); };
+    const key = () => {
+      const a = alerts(g).find((x) => x.id === 'psu-brownout')!;
+      return alertKey(a, g.board);
+    };
     const was = key();
     const psu = g.board.devices.find((d) => deviceSpec(d).kind === 'psu')!;
     g.uninstall(psu.id);
@@ -122,15 +167,21 @@ describe('alertKey', () => {
   });
 
   it('is one key for a supply that sags and a supply that trips: it is one problem in two degrees', () => {
-    const sag = rig(['psu0', 'cpu2', 'cooler0', 'ram2', 'display0']), trip = rig(['psu0', 'cpu2', 'cooler0', 'ram2', 'display0', 'gpu1']);
-    const key = (g: Game, id: string) => alertKey(alerts(g).find((x) => x.id === id)!, g.board);
+    const sag = rig(['psu0', 'cpu2', 'cooler0', 'ram2', 'display0']),
+      trip = rig(['psu0', 'cpu2', 'cooler0', 'ram2', 'display0', 'gpu1']);
+    const key = (g: Game, id: string) =>
+      alertKey(
+        alerts(g).find((x) => x.id === id)!,
+        g.board,
+      );
     expect(key(sag, 'psu-brownout')).toBe(key(trip, 'psu-trip'));
   });
 });
 
 describe('what is news after a change', () => {
   /** What the machine says about itself after the change, against what it had before it. */
-  const news = (before: Game, after: Game) => newAlerts(alerts(after), after.board, standing(alerts(before), before.board)).map((a) => a.id);
+  const news = (before: Game, after: Game) =>
+    newAlerts(alerts(after), after.board, standing(alerts(before), before.board)).map((a) => a.id);
 
   it('a problem the machine did not have is news', () => {
     const sound = rig(['psu1', 'cpu2', 'cooler0', 'ram2', 'display0', 'fan92@front0']);
@@ -139,19 +190,22 @@ describe('what is news after a change', () => {
   });
 
   it('a problem it had and still has is not news, with other numbers or not', () => {
-    const a = rig(['psu0', 'cpu2', 'cooler0', 'ram2', 'display0']), b = rig(['psu0', 'cpu2', 'cooler0', 'ram2', 'display0', 'hdd0@sata0']);
+    const a = rig(['psu0', 'cpu2', 'cooler0', 'ram2', 'display0']),
+      b = rig(['psu0', 'cpu2', 'cooler0', 'ram2', 'display0', 'hdd0@sata0']);
     expect(alerts(a).some((x) => x.id === 'psu-brownout')).toBe(true);
     expect(news(a, a)).toEqual([]);
     expect(news(a, b).filter((id) => id === 'psu-brownout')).toEqual([]);
   });
 
   it('a problem that got worse is news: a sag that became a trip', () => {
-    const sag = rig(['psu0', 'cpu2', 'cooler0', 'ram2', 'display0']), trip = rig(['psu0', 'cpu2', 'cooler0', 'ram2', 'display0', 'gpu1']);
+    const sag = rig(['psu0', 'cpu2', 'cooler0', 'ram2', 'display0']),
+      trip = rig(['psu0', 'cpu2', 'cooler0', 'ram2', 'display0', 'gpu1']);
     expect(news(sag, trip)).toContain('psu-trip');
   });
 
   it('a problem that only eased is not news: a trip that became a sag', () => {
-    const sag = rig(['psu0', 'cpu2', 'cooler0', 'ram2', 'display0']), trip = rig(['psu0', 'cpu2', 'cooler0', 'ram2', 'display0', 'gpu1']);
+    const sag = rig(['psu0', 'cpu2', 'cooler0', 'ram2', 'display0']),
+      trip = rig(['psu0', 'cpu2', 'cooler0', 'ram2', 'display0', 'gpu1']);
     // (a machine that is off has no heat to judge: when it runs again, the heat it makes is news of its own)
     expect(news(trip, sag).filter((id) => id.startsWith('psu'))).toEqual([]);
   });
@@ -166,9 +220,12 @@ describe('what is news after a change', () => {
   });
 
   it('the worst news comes first', () => {
-    const bare = rig(['psu1', 'cpu1', 'cooler0', 'ram0']), card = rig(['psu1', 'cpu1', 'cooler0', 'ram0', 'gpu2@pcie0']);
+    const bare = rig(['psu1', 'cpu1', 'cooler0', 'ram0']),
+      card = rig(['psu1', 'cpu1', 'cooler0', 'ram0', 'gpu2@pcie0']);
     const list = newAlerts(alerts(card), card.board, standing(alerts(bare), bare.board));
-    expect(list.map((a) => a.level)).toEqual([...list.map((a) => a.level)].sort((x, y) => Number(y === 'bad') - Number(x === 'bad')));
+    expect(list.map((a) => a.level)).toEqual(
+      [...list.map((a) => a.level)].sort((x, y) => Number(y === 'bad') - Number(x === 'bad')),
+    );
     expect(list[0]).toMatchObject({ id: 'pcie-leads', level: 'bad' });
   });
 });

@@ -1,6 +1,6 @@
-import { DISPLAY_BASE, DISPLAY_COLS, DISPLAY_ROWS, DISPLAY_SIZE } from "../memmap";
-import type { Rate } from "./clock";
-import type { Device } from "./device";
+import { DISPLAY_BASE, DISPLAY_COLS, DISPLAY_ROWS, DISPLAY_SIZE } from '../memmap';
+import type { Rate } from './clock';
+import type { Device } from './device';
 
 /**
  * Memory-mapped text framebuffer: cols x rows ASCII bytes, row-major.
@@ -8,7 +8,7 @@ import type { Device } from "./device";
  * Reads return what has landed so far.
  */
 export class Display implements Device {
-  readonly name = "display";
+  readonly name = 'display';
   readonly base = DISPLAY_BASE;
   readonly size = DISPLAY_SIZE;
   readonly cells = new Uint8Array(DISPLAY_SIZE);
@@ -71,7 +71,8 @@ export class Display implements Device {
   setText(lines: string[]): void {
     this.clear();
     lines.slice(0, this.rows).forEach((line, y) => {
-      for (let x = 0; x < Math.min(line.length, this.cols); x++) this.cells[y * this.cols + x] = line.charCodeAt(x) & 0xff;
+      for (let x = 0; x < Math.min(line.length, this.cols); x++)
+        this.cells[y * this.cols + x] = line.charCodeAt(x) & 0xff;
     });
   }
 
@@ -79,14 +80,14 @@ export class Display implements Device {
   text(): string {
     const rows: string[] = [];
     for (let y = 0; y < this.rows; y++) {
-      let s = "";
+      let s = '';
       for (let x = 0; x < this.cols; x++) {
         const b = this.cells[y * this.cols + x]!;
-        s += b === 0 ? " " : String.fromCharCode(b);
+        s += b === 0 ? ' ' : String.fromCharCode(b);
       }
       rows.push(s.trimEnd());
     }
-    while (rows.length > 0 && rows[rows.length - 1] === "") rows.pop();
-    return rows.join("\n");
+    while (rows.length > 0 && rows[rows.length - 1] === '') rows.pop();
+    return rows.join('\n');
   }
 }

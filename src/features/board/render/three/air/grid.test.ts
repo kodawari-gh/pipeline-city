@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { AirGrid, type AirBox, type V3 } from './grid';
 
-const MIN: V3 = [0, 0, 0], MAX: V3 = [6000, 4000, 3000];
+const MIN: V3 = [0, 0, 0],
+  MAX: V3 = [6000, 4000, 3000];
 const box = (id: string, min: V3, max: V3, k: V3 = [0, 0, 0]): AirBox => ({ id, min, max, k });
 
 describe('AirGrid', () => {
@@ -16,7 +17,8 @@ describe('AirGrid', () => {
 
   it('finds the cell of a point, and none outside', () => {
     const g = new AirGrid(MIN, MAX, [], 1000);
-    const c = g.cellAt(3000, 2000, 1500), mid = g.centre(c);
+    const c = g.cellAt(3000, 2000, 1500),
+      mid = g.centre(c);
     expect(Math.abs(mid[0] - 3000)).toBeLessThanOrEqual(g.h[0]);
     expect(g.cellAt(-1, 10, 10)).toBe(-1);
     expect(g.cellAt(10, 10, 3001)).toBe(-1);
@@ -50,20 +52,30 @@ describe('AirGrid', () => {
   });
 
   it('keeps the box lists: a point inside a box has that box in its cell', () => {
-    const g = new AirGrid(MIN, MAX, [box('a', [1000, 1000, 1000], [2000, 2000, 2000]), box('b', [4000, 500, 500], [5000, 1500, 1500])], 5000);
-    const c = g.cellAt(1500, 1500, 1500), list = [...g.boxList.slice(g.boxStart[c], g.boxStart[c + 1])];
+    const g = new AirGrid(
+      MIN,
+      MAX,
+      [box('a', [1000, 1000, 1000], [2000, 2000, 2000]), box('b', [4000, 500, 500], [5000, 1500, 1500])],
+      5000,
+    );
+    const c = g.cellAt(1500, 1500, 1500),
+      list = [...g.boxList.slice(g.boxStart[c], g.boxStart[c + 1])];
     expect(list).toContain(0);
     expect(list).not.toContain(1);
   });
 
   it('measures a disc footprint by its area', () => {
-    const g = new AirGrid(MIN, MAX, [], 5000), r = 900, f = g.footprint([3000, 2000, 0], 2, { r });
+    const g = new AirGrid(MIN, MAX, [], 5000),
+      r = 900,
+      f = g.footprint([3000, 2000, 0], 2, { r });
     const sum = f.area.reduce((a, b) => a + b, 0);
     expect(Math.abs(sum - Math.PI * r * r) / (Math.PI * r * r)).toBeLessThan(0.06);
   });
 
   it('gives a vent its conductance by area and distance to the wall', () => {
-    const g = new AirGrid(MIN, MAX, [], 5000), area = 1200 * 800, open = 0.6;
+    const g = new AirGrid(MIN, MAX, [], 5000),
+      area = 1200 * 800,
+      open = 0.6;
     g.vent(0, [0, 2000, 1500], { hw: 600, hh: 400 }, open);
     let sum = 0;
     for (let c = 0; c < g.cells; c++) sum += g.ground[c]!;

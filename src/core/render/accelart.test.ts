@@ -5,15 +5,42 @@ import { Container, Graphics } from 'pixi.js';
 vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), label: () => new Container() }));
 
 import { cardLeads, specsOfKind } from '../../features/board/sim/specs';
-import { PLUG_BLOCK, cardArt, cardOrigin, cardPlugs, cardRect, CARD_LEN, gpuCover, headerRect, tpmArt, tpmHeader, tpmRect } from './accelart';
+import {
+  PLUG_BLOCK,
+  cardArt,
+  cardOrigin,
+  cardPlugs,
+  cardRect,
+  CARD_LEN,
+  gpuCover,
+  headerRect,
+  tpmArt,
+  tpmHeader,
+  tpmRect,
+} from './accelart';
 import { CARD_TOP, gpuPlan, GPU_H } from '../../features/gpu/render/gpulayout';
 import { setLayoutTier } from '../../features/board/render/layout/layout';
 import type { Theme } from './theme';
 
 const DARK: Theme = {
-  bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',
-  ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a',
-  alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
+  bg: '#04060f',
+  board: '#081628',
+  trace: '#1e4270',
+  sub: '#0d1636',
+  die: '#111b46',
+  pin: '#d4af5f',
+  tile: '#18245c',
+  ink: '#e2eaff',
+  mute: '#8a97c2',
+  line: '#2a366a',
+  dot: '#18214a',
+  on: '#08102a',
+  alu: '#3be3ff',
+  mul: '#a68bff',
+  ld: '#ffc247',
+  st: '#6dffa6',
+  br: '#ff55dc',
+  bad: '#ff5a78',
 };
 
 describe('accelerator art', () => {
@@ -46,7 +73,9 @@ describe('accelerator art', () => {
     expect(CARD_LEN['npu-1']).toBeLessThan(CARD_LEN['npu-2']!);
     setLayoutTier(3, 3);
     // a Graphics holds every fan as circle paths: the bigger card has more instructions to draw
-    const size = (v: string) => (cardArt(DARK, v, 0).children[0] as unknown as { context: { instructions: unknown[] } }).context.instructions.length;
+    const size = (v: string) =>
+      (cardArt(DARK, v, 0).children[0] as unknown as { context: { instructions: unknown[] } }).context.instructions
+        .length;
     expect(size('gpu-3')).toBeGreaterThan(size('gpu-1'));
     expect(size('npu-2')).toBeGreaterThanOrEqual(size('npu-1')); // (no power socket on either: both run on slot power)
   });
@@ -55,16 +84,23 @@ describe('accelerator art', () => {
     for (const s of [...specsOfKind('gpu'), ...specsOfKind('npu')]) {
       const plugs = cardPlugs(s.visual);
       expect(plugs, s.id).toHaveLength(cardLeads(s));
-      for (const x of plugs) expect(x > 0 && x + PLUG_BLOCK.w / 2 < CARD_LEN[s.visual]!, `${s.id} socket on the card`).toBe(true);
+      for (const x of plugs)
+        expect(x > 0 && x + PLUG_BLOCK.w / 2 < CARD_LEN[s.visual]!, `${s.id} socket on the card`).toBe(true);
     }
   });
 
   it('a GPU on the board leaves its cover and blades to the view; a still picture draws them in', () => {
     setLayoutTier(3, 3);
-    for (const [v, fans] of [['gpu-1', 1], ['gpu-2', 2], ['gpu-3', 3]] as const) {
-      const live = cardArt(DARK, v, 1, true), still = cardArt(DARK, v, 1);
+    for (const [v, fans] of [
+      ['gpu-1', 1],
+      ['gpu-2', 2],
+      ['gpu-3', 3],
+    ] as const) {
+      const live = cardArt(DARK, v, 1, true),
+        still = cardArt(DARK, v, 1);
       expect(still.children.length - live.children.length, v).toBe(2 + fans); // the die and its traces, plus one blade set per fan
-      const o = cardOrigin(1, v), r = cardRect(1, v);
+      const o = cardOrigin(1, v),
+        r = cardRect(1, v);
       expect(o.y).toBe(r.y); // the plan's origin is the card's top-left corner
       expect(gpuPlan(v).fans).toHaveLength(fans);
     }
@@ -75,7 +111,9 @@ describe('accelerator art', () => {
   it('the fans stand along the top edge of the card rectangle', () => {
     setLayoutTier(3, 3);
     for (const v of ['gpu-1', 'gpu-2', 'gpu-3']) {
-      const r = cardRect(0, v), o = cardOrigin(0, v), p = gpuPlan(v);
+      const r = cardRect(0, v),
+        o = cardOrigin(0, v),
+        p = gpuPlan(v);
       for (const f of p.fans) {
         expect(o.y + f.y).toBeLessThan(r.y + 20);
         expect(o.y + f.y + f.h).toBeLessThan(r.y + r.h / 2);
@@ -89,7 +127,9 @@ describe('accelerator art', () => {
     expect([0, 1, 2, 3].map((t) => tpmHeader(t) !== null)).toEqual([false, false, true, true]);
     for (const tier of [2, 3]) {
       setLayoutTier(tier, tier);
-      const h = tpmHeader(tier)!, r = tpmRect(tier)!, hr = headerRect(h);
+      const h = tpmHeader(tier)!,
+        r = tpmRect(tier)!,
+        hr = headerRect(h);
       expect(r.x).toBeLessThan(hr.x);
       expect(r.x + r.w).toBeGreaterThan(hr.x + hr.w);
       for (const spec of specsOfKind('tpm')) expect(tpmArt(DARK, spec.visual, h).children.length).toBeGreaterThan(0);

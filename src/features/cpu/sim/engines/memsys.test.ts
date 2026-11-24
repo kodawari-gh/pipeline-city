@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { assemble } from "../asm";
-import { Machine } from "@/core/sim";
-import { InOrderEngine } from "./inorder";
-import { MemSystem } from "@/features/memory/sim/memsys";
-import { OooEngine } from "./ooo";
-import { Counter } from "./view";
+import { describe, expect, it } from 'vitest';
+import { assemble } from '../asm';
+import { Machine } from '@/core/sim';
+import { InOrderEngine } from './inorder';
+import { MemSystem } from '@/features/memory/sim/memsys';
+import { OooEngine } from './ooo';
+import { Counter } from './view';
 
 // Scan 16 lines (256 bytes) once with a 4-line L1.
 const SCAN = `
@@ -29,15 +29,16 @@ function runOn(engine: InOrderEngine | OooEngine, mem?: MemSystem): { cycles: nu
   return { cycles: engine.cycle, c: engine.view.counters };
 }
 
-describe("MemSystem", () => {
-  it("an engine without a shared one builds its own, as before", () => {
-    const a = runOn(new InOrderEngine(SETTINGS)), b = runOn(new InOrderEngine(SETTINGS));
+describe('MemSystem', () => {
+  it('an engine without a shared one builds its own, as before', () => {
+    const a = runOn(new InOrderEngine(SETTINGS)),
+      b = runOn(new InOrderEngine(SETTINGS));
     expect(a.cycles).toBe(b.cycles);
     expect(a.c[Counter.L2Misses]).toBe(16);
     expect(a.c[Counter.L2Hits]).toBe(0);
   });
 
-  it("two engines share one L2: what the first filled, the second finds", () => {
+  it('two engines share one L2: what the first filled, the second finds', () => {
     const alone = runOn(new InOrderEngine(SETTINGS));
     const mem = new MemSystem(MEM);
     const first = runOn(new InOrderEngine(SETTINGS), mem);
@@ -50,7 +51,7 @@ describe("MemSystem", () => {
     expect(second.cycles).toBeLessThan(first.cycles);
   });
 
-  it("an out-of-order engine can share it with an in-order one", () => {
+  it('an out-of-order engine can share it with an in-order one', () => {
     const mem = new MemSystem(MEM);
     runOn(new InOrderEngine(SETTINGS), mem);
     const o = runOn(new OooEngine(SETTINGS), mem);
@@ -59,14 +60,15 @@ describe("MemSystem", () => {
 
   it("the L2 of the shared system shows in each engine's stored state", () => {
     const mem = new MemSystem(MEM);
-    const a = new InOrderEngine(SETTINGS), b = new InOrderEngine(SETTINGS);
+    const a = new InOrderEngine(SETTINGS),
+      b = new InOrderEngine(SETTINGS);
     runOn(a, mem);
     runOn(b, mem);
     expect(a.storedState().l2!.tags).toEqual(b.storedState().l2!.tags);
     expect(a.storedState().l2!.tags.filter((t) => t >= 0).length).toBe(16);
   });
 
-  it("rejects a negative L2 penalty", () => {
+  it('rejects a negative L2 penalty', () => {
     expect(() => new MemSystem({ ...MEM, l2Penalty: -1 })).toThrow(RangeError);
   });
 });

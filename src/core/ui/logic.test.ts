@@ -1,7 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import {
-  billChip, cacheHitRate, clockWarning, cpiIpc, describeId, fillToasts, fmtAgo, fmtMoney, friendlyError, fmtTicks, HINTS, newHints,
-  fitFilterFor, fitsFilter, saveSummary, statusChip, stallsByCause, stackItems, tempLevel, triggeredHints,
+  billChip,
+  cacheHitRate,
+  clockWarning,
+  cpiIpc,
+  describeId,
+  fillToasts,
+  fmtAgo,
+  fmtMoney,
+  friendlyError,
+  fmtTicks,
+  HINTS,
+  newHints,
+  fitFilterFor,
+  fitsFilter,
+  saveSummary,
+  statusChip,
+  stallsByCause,
+  stackItems,
+  tempLevel,
+  triggeredHints,
 } from './logic';
 import { SAY } from '../../app/say';
 import { inventoryGroups } from './logic';
@@ -18,8 +36,12 @@ import type { PlanInput } from '../../features/cpu/render/core/cpuplan';
 
 /** One floorplan per architecture and optional part: the ids the die writes. */
 const DIE_INPUTS: PlanInput[] = [
-  { arch: 'unpipelined', cacheLines: 8 }, { arch: 'inorder', forwarding: false, cacheLines: 8 }, { arch: 'inorder', forwarding: true, cacheLines: 16, icacheLines: 8, l2Lines: 32 },
-  { arch: 'inorder2', forwarding: true, cacheLines: 16 }, { arch: 'ooo', width: 2, robSize: 8, schedSize: 6, fetchQueue: 4, cacheLines: 16 }, { arch: 'inorder', forwarding: true, cacheLines: 8, cores: 4 },
+  { arch: 'unpipelined', cacheLines: 8 },
+  { arch: 'inorder', forwarding: false, cacheLines: 8 },
+  { arch: 'inorder', forwarding: true, cacheLines: 16, icacheLines: 8, l2Lines: 32 },
+  { arch: 'inorder2', forwarding: true, cacheLines: 16 },
+  { arch: 'ooo', width: 2, robSize: 8, schedSize: 6, fetchQueue: 4, cacheLines: 16 },
+  { arch: 'inorder', forwarding: true, cacheLines: 8, cores: 4 },
 ];
 
 describe('format', () => {
@@ -55,14 +77,21 @@ describe('stats', () => {
 
 describe('HUD status text', () => {
   const phaseText: Array<[Phase, string]> = [
-    ['off', 'Off'], ['posting', 'POST'], ['waiting-for-key', 'Waiting for key'], ['loading', 'Loading'],
-    ['running', 'Running'], ['writing', 'Writing'], ['done-remove-key', 'Remove key'],
+    ['off', 'Off'],
+    ['posting', 'POST'],
+    ['waiting-for-key', 'Waiting for key'],
+    ['loading', 'Loading'],
+    ['running', 'Running'],
+    ['writing', 'Writing'],
+    ['done-remove-key', 'Remove key'],
   ];
   it('halted: job done asks for the key to be removed, no boot media asks for a key and a restart', () => {
     const done = statusChip(snap({ phase: 'halted', powered: true, haltReason: 'job-done' }));
     expect(done.text).toBe('Job done: remove key');
     expect(done.title).toMatch(/power off and on/);
-    expect(statusChip(snap({ phase: 'halted', powered: true, haltReason: 'no-boot-media' })).text).toBe('No boot media');
+    expect(statusChip(snap({ phase: 'halted', powered: true, haltReason: 'no-boot-media' })).text).toBe(
+      'No boot media',
+    );
   });
   it('a POST error is presented as one, not as a refusal', () => {
     const c = statusChip(snap({ phase: 'error', powered: true, phaseReason: 'no CPU installed', postFailed: true }));
@@ -83,7 +112,14 @@ describe('HUD status text', () => {
     expect(c.level).toBe('bad');
   });
   it('a tripped supply overrides the phase', () => {
-    expect(statusChip(snap({ phase: 'running', power: { vrmLossW: 0, totalW: 90, budgetW: 40, psuFactor: 0, off: false, tripped: true } })).text).toBe('Tripped');
+    expect(
+      statusChip(
+        snap({
+          phase: 'running',
+          power: { vrmLossW: 0, totalW: 90, budgetW: 40, psuFactor: 0, off: false, tripped: true },
+        }),
+      ).text,
+    ).toBe('Tripped');
   });
   it('off says why the power button would do nothing', () => {
     expect(statusChip(snap()).title).toMatch(/power supply/);
@@ -99,12 +135,14 @@ describe('refusal text', () => {
     expect(friendlyError('plugKey: a key is already plugged in!')).toBe('Not now: A key is already plugged in!');
   });
   it('shows the app\'s own sentence as it is, with no "Not now:"', () => {
-    expect(friendlyError(SAY + 'That file is not a Pipeline City save.')).toBe('That file is not a Pipeline City save.');
+    expect(friendlyError(SAY + 'That file is not a Pipeline City save.')).toBe(
+      'That file is not a Pipeline City save.',
+    );
   });
 });
 
 describe('saved games in the menu', () => {
-  it('says how long ago in the player\'s words', () => {
+  it("says how long ago in the player's words", () => {
     expect(fmtAgo(20_000)).toBe('just now');
     expect(fmtAgo(5 * 60_000 + 10_000)).toBe('5 min ago');
     expect(fmtAgo(3 * 3_600_000)).toBe('3 h ago');
@@ -133,17 +171,27 @@ describe('hints', () => {
     expect(triggeredHints(snap({ devices: [dev({ unstable: true })] }))).toContain('overheat');
     expect(triggeredHints(snap({ queueLength: 3 }))).toContain('queue');
     expect(triggeredHints(snap({ devices: [dev({ burnt: true })] }))).toContain('burnt');
-    expect(triggeredHints(snap({ power: { vrmLossW: 0, totalW: 90, budgetW: 40, psuFactor: 0.4, off: false, tripped: true } }))).toEqual(['trip']);
-    expect(triggeredHints(snap({ power: { vrmLossW: 0, totalW: 50, budgetW: 40, psuFactor: 0.8, off: false, tripped: false } }))).toEqual(['brownout']);
+    expect(
+      triggeredHints(
+        snap({ power: { vrmLossW: 0, totalW: 90, budgetW: 40, psuFactor: 0.4, off: false, tripped: true } }),
+      ),
+    ).toEqual(['trip']);
+    expect(
+      triggeredHints(
+        snap({ power: { vrmLossW: 0, totalW: 50, budgetW: 40, psuFactor: 0.8, off: false, tripped: false } }),
+      ),
+    ).toEqual(['brownout']);
   });
   it('looseFan: a fitted fan with its cable out while the machine is on', () => {
-    const cable = (id: string, connected: boolean, blocked: string | null = null) => ({ id, name: id, connected, blocked, plain: '' }) as unknown as ReturnType<typeof snap>['cables'][number];
-    const loose = [cable('fan:front0', false)], none = [cable('fan:front0', false, 'no fan fitted'), cable('vrmfan', true)];
+    const cable = (id: string, connected: boolean, blocked: string | null = null) =>
+      ({ id, name: id, connected, blocked, plain: '' }) as unknown as ReturnType<typeof snap>['cables'][number];
+    const loose = [cable('fan:front0', false)],
+      none = [cable('fan:front0', false, 'no fan fitted'), cable('vrmfan', true)];
     expect(triggeredHints(snap({ powered: true, cables: loose }))).toContain('looseFan');
     expect(triggeredHints(snap({ powered: false, cables: loose }))).not.toContain('looseFan');
     expect(triggeredHints(snap({ powered: true, cables: none }))).not.toContain('looseFan');
   });
-  it('a radiator fan cable is described as the radiator\'s, a bare mount\'s as a case fan', () => {
+  it("a radiator fan cable is described as the radiator's, a bare mount's as a case fan", () => {
     const s = snap({ devices: [dev({ kind: 'radiator', slot: 'rad-top' })] });
     expect(describeId('cable.fan:top0', s)!.title).toMatch(/Radiator fan cable \(top 1\)/);
     expect(describeId('cable.fan:top1', s)!.title).toMatch(/Radiator fan cable \(top 2\)/); // it spans the whole top
@@ -151,7 +199,10 @@ describe('hints', () => {
   });
   it('an empty fan spot names the size that fits', () => {
     const s = snap({ slots: [{ id: 'front0', type: 'fan', deviceId: null, size: 120 }] });
-    expect(describeId('front0', s)).toMatchObject({ title: 'Empty fan spot', plain: expect.stringContaining('120 mm') });
+    expect(describeId('front0', s)).toMatchObject({
+      title: 'Empty fan spot',
+      plain: expect.stringContaining('120 mm'),
+    });
   });
   it('the CPU fan cable tip stops only a pump: a heatsink runs on', () => {
     expect(describeId('cable.cpufan')!.nerd).toContain('only when a pump');
@@ -162,34 +213,44 @@ describe('hints', () => {
   describe('network hints', () => {
     const base = snap().net;
     const withNet = (o: Partial<typeof base>) => snap({ net: { ...base, ...o } });
-    const osWith = (spoolFull: boolean) => ({ queue: [], queueSlots: 4, spool: { full: spoolFull }, spoolFull } as unknown as NonNullable<ReturnType<typeof snap>['os']>);
+    const osWith = (spoolFull: boolean) =>
+      ({ queue: [], queueSlots: 4, spool: { full: spoolFull }, spoolFull }) as unknown as NonNullable<
+        ReturnType<typeof snap>['os']
+      >;
 
     it('nothing on a quiet network', () => {
       expect(triggeredHints(snap())).toEqual([]);
     });
     it('retiredKeys: link-up retires the USB path and keys are left', () => {
       expect(triggeredHints(withNet({ state: 'link-up', usbRetired: true, retiredKeys: 2 }))).toContain('retiredKeys');
-      expect(triggeredHints(withNet({ state: 'link-up', usbRetired: true, retiredKeys: 0 }))).not.toContain('retiredKeys');
+      expect(triggeredHints(withNet({ state: 'link-up', usbRetired: true, retiredKeys: 0 }))).not.toContain(
+        'retiredKeys',
+      );
       expect(triggeredHints(withNet({ usbRetired: false, retiredKeys: 2 }))).not.toContain('retiredKeys');
     });
     it('spoolFull: only while the link is up or saturated', () => {
       expect(triggeredHints(snap({ os: osWith(true), net: { ...base, state: 'link-up' } }))).toContain('spoolFull');
       expect(triggeredHints(snap({ os: osWith(true), net: { ...base, state: 'saturated' } }))).toContain('spoolFull');
       expect(triggeredHints(snap({ os: osWith(true), net: { ...base, state: 'down' } }))).not.toContain('spoolFull');
-      expect(triggeredHints(snap({ os: osWith(false), net: { ...base, state: 'link-up' } }))).not.toContain('spoolFull');
+      expect(triggeredHints(snap({ os: osWith(false), net: { ...base, state: 'link-up' } }))).not.toContain(
+        'spoolFull',
+      );
     });
     it('linkDown: the link was up once (fallback armed) and is down now', () => {
       const fb = (state: 'off' | 'retired' | 'waiting' | 'fallback') => ({ ...base.usbFallback, state });
       expect(triggeredHints(withNet({ state: 'down', usbFallback: fb('waiting') }))).toContain('linkDown');
       expect(triggeredHints(withNet({ state: 'down', usbFallback: fb('off') }))).not.toContain('linkDown');
-      expect(triggeredHints(withNet({ state: 'down', usbFallback: fb('waiting'), reason: 'the OS is starting' }))).not.toContain('linkDown');
+      expect(
+        triggeredHints(withNet({ state: 'down', usbFallback: fb('waiting'), reason: 'the OS is starting' })),
+      ).not.toContain('linkDown');
     });
     it('saturated: the link is saturated', () => {
       expect(triggeredHints(withNet({ state: 'saturated' }))).toContain('saturated');
       expect(triggeredHints(withNet({ state: 'link-up' }))).not.toContain('saturated');
     });
     it('every network hint has a definition', () => {
-      for (const id of ['retiredKeys', 'spoolFull', 'linkDown', 'saturated']) expect(HINTS[id]?.text.length, id).toBeGreaterThan(20);
+      for (const id of ['retiredKeys', 'spoolFull', 'linkDown', 'saturated'])
+        expect(HINTS[id]?.text.length, id).toBeGreaterThan(20);
     });
   });
   it('shows each only once', () => {
@@ -229,7 +290,10 @@ describe('descriptions', () => {
 
   it('an empty slot names the socket, an occupied slot describes the part in it', () => {
     const s = snap({
-      slots: [{ id: 'cpu0', type: 'cpu', deviceId: null }, { id: 'dimm0', type: 'dimm', deviceId: 'dev7' }],
+      slots: [
+        { id: 'cpu0', type: 'cpu', deviceId: null },
+        { id: 'dimm0', type: 'dimm', deviceId: 'dev7' },
+      ],
       devices: [dev({ id: 'dev7', spec: 'ram0', kind: 'ram', slot: 'dimm0' })],
     });
     expect(describeId('cpu0', s)).toMatchObject({ title: 'Empty socket' });
@@ -246,11 +310,29 @@ describe('descriptions', () => {
   it('every id the renderer writes has a description', () => {
     const s = snap({ tray: [key({ id: 4 })] });
     const ids = [
-      'crate', 'tray', 'usb', 'power', 'monitor', 'psu', 'cable.atx', 'cable.cpu', 'cable.video', 'key:4', 'inv:inv1',
-      'vrm', 'vrm2', 'atx', 'cpw', 'psu.readout',
+      'crate',
+      'tray',
+      'usb',
+      'power',
+      'monitor',
+      'psu',
+      'cable.atx',
+      'cable.cpu',
+      'cable.video',
+      'key:4',
+      'inv:inv1',
+      'vrm',
+      'vrm2',
+      'atx',
+      'cpw',
+      'psu.readout',
       'board',
       // the die: one id per kind of block, from every architecture's floorplan (the renderer's hit ids)
-      ...DIE_INPUTS.flatMap((i) => cpuPlan(i).blocks.filter((b) => b.kind !== 'stage').map((b) => 'cpu.' + b.kind)),
+      ...DIE_INPUTS.flatMap((i) =>
+        cpuPlan(i)
+          .blocks.filter((b) => b.kind !== 'stage')
+          .map((b) => 'cpu.' + b.kind),
+      ),
     ];
     for (const id of ids) expect(describeId(id, s), id).not.toBeNull();
     for (const [id, d] of Object.entries(REGIONS)) {
@@ -272,15 +354,38 @@ describe('descriptions', () => {
 });
 
 describe('graphics card ids', () => {
-  const gpuSnap = (slot: string, lanes: number, banks: number): NonNullable<ReturnType<typeof snap>['gpus']>[number] => ({
-    slot, lanes, banks, memBytes: 8192, phase: 'run', mask: 0b101, stack: [1], pc: 8, regs: [], launches: 2, error: false, frame: [],
-    trace: [], stats: { instructions: 10, idleLaneSlots: 3, conflictCycles: 4, cycles: 14 },
+  const gpuSnap = (
+    slot: string,
+    lanes: number,
+    banks: number,
+  ): NonNullable<ReturnType<typeof snap>['gpus']>[number] => ({
+    slot,
+    lanes,
+    banks,
+    memBytes: 8192,
+    phase: 'run',
+    mask: 0b101,
+    stack: [1],
+    pc: 8,
+    regs: [],
+    launches: 2,
+    error: false,
+    frame: [],
+    trace: [],
+    stats: { instructions: 10, idleLaneSlots: 3, conflictCycles: 4, cycles: 14 },
   });
 
   it('every part the board draws on a graphics card has a description, with and without a snapshot', () => {
-    for (const [spec, visual] of [['gpu1', 'gpu-1'], ['gpu2', 'gpu-2'], ['gpu3', 'gpu-3']] as const) {
+    for (const [spec, visual] of [
+      ['gpu1', 'gpu-1'],
+      ['gpu2', 'gpu-2'],
+      ['gpu3', 'gpu-3'],
+    ] as const) {
       const gs = getSpec(spec) as { gpu: { lanes: number; banks: number } };
-      const s = snap({ devices: [dev({ id: 'g1', spec, kind: 'gpu', slot: 'pcie1', tempC: 61 })], gpus: [gpuSnap('pcie1', gs.gpu.lanes, gs.gpu.banks)] });
+      const s = snap({
+        devices: [dev({ id: 'g1', spec, kind: 'gpu', slot: 'pcie1', tempC: 61 })],
+        gpus: [gpuSnap('pcie1', gs.gpu.lanes, gs.gpu.banks)],
+      });
       const ids = gpuIds(visual, 'pcie1');
       expect(ids.length, visual).toBeGreaterThan(gs.gpu.lanes + gs.gpu.banks);
       for (const id of ids) {
@@ -295,7 +400,10 @@ describe('graphics card ids', () => {
   });
 
   it('says what a lane, bank and fan are doing now, and ignores ids that are not card parts', () => {
-    const s = snap({ devices: [dev({ id: 'g1', spec: 'gpu2', kind: 'gpu', slot: 'pcie0', tempC: 72 })], gpus: [gpuSnap('pcie0', 16, 2)] });
+    const s = snap({
+      devices: [dev({ id: 'g1', spec: 'gpu2', kind: 'gpu', slot: 'pcie0', tempC: 72 })],
+      gpus: [gpuSnap('pcie0', 16, 2)],
+    });
     expect(describeId('pcie0.lane0', s)!.nerd).toMatch(/lane 0 of 16 \| on/);
     expect(describeId('pcie0.lane1', s)!.nerd).toMatch(/off under the mask/);
     expect(describeId('pcie0.bank1', s)!.nerd).toMatch(/bank 1 of 2.*4 cycles lost/);
@@ -324,13 +432,28 @@ describe('inventoryGroups', () => {
 });
 
 describe('inventory stacks and the fit filter', () => {
-  const item = (id: string, spec: string, kind: string, free: string[] = [], swap: string[] = []) =>
-    ({ id, spec, kind, name: spec, freeSlots: free, swapSlots: swap, installable: free.length + swap.length > 0 });
+  const item = (id: string, spec: string, kind: string, free: string[] = [], swap: string[] = []) => ({
+    id,
+    spec,
+    kind,
+    name: spec,
+    freeSlots: free,
+    swapSlots: swap,
+    installable: free.length + swap.length > 0,
+  });
 
   it('identical spares become one stack; the fittable one stands for it, the order is kept', () => {
-    const items = [item('a', 'ram0', 'ram'), item('b', 'cpu1', 'cpu', ['cpu0']), item('c', 'ram0', 'ram', ['dimm0']), item('d', 'ram0', 'ram')];
+    const items = [
+      item('a', 'ram0', 'ram'),
+      item('b', 'cpu1', 'cpu', ['cpu0']),
+      item('c', 'ram0', 'ram', ['dimm0']),
+      item('d', 'ram0', 'ram'),
+    ];
     const st = stackItems(items);
-    expect(st.map((x) => [x.spec, x.items.length])).toEqual([['ram0', 3], ['cpu1', 1]]);
+    expect(st.map((x) => [x.spec, x.items.length])).toEqual([
+      ['ram0', 3],
+      ['cpu1', 1],
+    ]);
     expect(st[0]!.rep.id).toBe('c');
     expect(st[1]!.rep.id).toBe('b');
   });
@@ -359,7 +482,18 @@ describe('inventory stacks and the fit filter', () => {
 });
 
 describe('billChip', () => {
-  const bill = { ratePerWh: 0.15, periodTicks: 600, nextTick: 700, accruedWh: 4, accruedCost: 1, unpaid: 0, cutTick: null, cut: false, last: null, paidTotal: 0 };
+  const bill = {
+    ratePerWh: 0.15,
+    periodTicks: 600,
+    nextTick: 700,
+    accruedWh: 4,
+    accruedCost: 1,
+    unpaid: 0,
+    cutTick: null,
+    cut: false,
+    last: null,
+    paidTotal: 0,
+  };
   it('is absent without a bill', () => {
     expect(billChip(snap())).toBeNull();
   });
@@ -367,8 +501,14 @@ describe('billChip', () => {
     expect(billChip(snap({ baseTick: 640, bill }))).toEqual({ text: '$1 1m 00s', level: 'idle' });
   });
   it('warns while a bill is unpaid and goes red when the wall is cut', () => {
-    expect(billChip(snap({ baseTick: 700, bill: { ...bill, unpaid: 3, cutTick: 760 } }))).toEqual({ text: '$3 due, cut in 1m 00s', level: 'warn' });
-    expect(billChip(snap({ bill: { ...bill, unpaid: 3, cutTick: 760, cut: true } }))).toEqual({ text: 'CUT $3', level: 'bad' });
+    expect(billChip(snap({ baseTick: 700, bill: { ...bill, unpaid: 3, cutTick: 760 } }))).toEqual({
+      text: '$3 due, cut in 1m 00s',
+      level: 'warn',
+    });
+    expect(billChip(snap({ bill: { ...bill, unpaid: 3, cutTick: 760, cut: true } }))).toEqual({
+      text: 'CUT $3',
+      level: 'bad',
+    });
   });
 });
 

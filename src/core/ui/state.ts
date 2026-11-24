@@ -8,29 +8,51 @@ import { selected } from '../../app/hover';
 import { lastRunSpeed, saveHooks, setSpeed, snapshot, speed } from '../../app/store';
 import type { Snapshot, Speed } from '../../worker/protocol';
 import { celebrationFor, reconcileSeen, type Celebration } from '../../features/economy/ui/progress/levelui';
-import { closeSettings as closeSettingsScreen, openSettings as openSettingsScreen, settingsOpener, type SettingsFrom } from './panels/settingsnav';
+import {
+  closeSettings as closeSettingsScreen,
+  openSettings as openSettingsScreen,
+  settingsOpener,
+  type SettingsFrom,
+} from './panels/settingsnav';
 import { fillToasts, fitFilterFor, fitsFilter, newHints, totalStalls, type Hint } from './logic';
-import { currentStep, INITIAL_TUTORIAL, resumeState, tutorialForSave, type TutorialState } from '../../features/tutorial/ui/tutorial';
+import {
+  currentStep,
+  INITIAL_TUTORIAL,
+  resumeState,
+  tutorialForSave,
+  type TutorialState,
+} from '../../features/tutorial/ui/tutorial';
 
 const HINTS_KEY = 'pipeline-city.hints';
 const TUTORIAL_KEY = 'pipeline-city.tutorial';
 const SCALE_KEY = 'pipeline-city.uiScale';
 
 function readStore(key: string): string | null {
-  try { return localStorage.getItem(key); } catch { return null; }
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
 }
 function writeStore(key: string, value: string) {
-  try { localStorage.setItem(key, value); } catch { /* storage blocked or full: ignore */ }
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* storage blocked or full: ignore */
+  }
 }
 
 // ---- UI size (multiplies the root font size, see docs/UI.md "Scaling") ----
 
 export const UI_SCALE_MIN = 0.8;
 export const UI_SCALE_MAX = 1.5;
-export const clampScale = (v: number) => (Number.isFinite(v) ? Math.min(UI_SCALE_MAX, Math.max(UI_SCALE_MIN, Math.round(v * 20) / 20)) : 1);
+export const clampScale = (v: number) =>
+  Number.isFinite(v) ? Math.min(UI_SCALE_MAX, Math.max(UI_SCALE_MIN, Math.round(v * 20) / 20)) : 1;
 export const uiScale = signal<number>(clampScale(Number(readStore(SCALE_KEY) ?? 1)));
 // (no page in the node test run: the root is touched only when the document has one)
-effect(() => { if (typeof document !== 'undefined') document.documentElement?.style.setProperty('--ui-scale', String(uiScale.value)); });
+effect(() => {
+  if (typeof document !== 'undefined') document.documentElement?.style.setProperty('--ui-scale', String(uiScale.value));
+});
 export function setUiScale(v: number) {
   uiScale.value = clampScale(v);
   writeStore(SCALE_KEY, String(uiScale.value));
@@ -40,7 +62,9 @@ export function setUiScale(v: number) {
 
 // Paused (speed 0): UI animations that show sim activity stop too. CSS keys on `.paused` at the root (see `.sim-anim`).
 // Purely interactive feedback (hover, panels, toasts) is not frozen.
-effect(() => { if (typeof document !== 'undefined') document.documentElement?.classList.toggle('paused', speed.value === 0); });
+effect(() => {
+  if (typeof document !== 'undefined') document.documentElement?.classList.toggle('paused', speed.value === 0);
+});
 
 export const statsOpen = signal(false);
 /** Whether the power bill card is open. Shared so the phone menu can open it (PowerBill.tsx draws it). */
@@ -48,20 +72,32 @@ export const billOpen = signal(false);
 export const netOpen = signal(false);
 /** The OS window (a modal like the almanac and the log): the resource monitor, the spool settings and (work in progress) apps. Opened from the bottom bar, the HUD chip and the menu. */
 export const osOpen = signal(false);
-export const toggleOs = () => { osOpen.value = !osOpen.value; };
-export const closeOs = () => { osOpen.value = false; };
+export const toggleOs = () => {
+  osOpen.value = !osOpen.value;
+};
+export const closeOs = () => {
+  osOpen.value = false;
+};
 /** The Settings screen (SPEC §5.6, `panels/Settings.tsx`): the picture and the interface, over the menu, the game or a studio screen. Its opener lives in `panels/settingsnav.ts`. */
 export const settingsOpen = computed(() => settingsOpener.value !== null);
 export const settingsFrom = computed<SettingsFrom>(() => settingsOpener.value ?? 'menu');
 export const openSettings = (from: SettingsFrom = 'menu') => openSettingsScreen(from);
 /** Back and Esc: closes Settings and returns to its opener. The game menu shows again when it opened Settings (SPEC §9). */
 export const closeSettings = () => {
-  batch(() => { if (closeSettingsScreen() === 'paused') gameMenuOpen.value = true; });
+  batch(() => {
+    if (closeSettingsScreen() === 'paused') gameMenuOpen.value = true;
+  });
 };
 // The stats and network drawers dock on the same side: opening one closes the other.
-export const toggleStats = () => { statsOpen.value = !statsOpen.value; if (statsOpen.value) netOpen.value = false; };
+export const toggleStats = () => {
+  statsOpen.value = !statsOpen.value;
+  if (statsOpen.value) netOpen.value = false;
+};
 /** The network panel (opened from the HUD chip once a router exists). */
-export const toggleNet = () => { netOpen.value = !netOpen.value; if (netOpen.value) statsOpen.value = false; };
+export const toggleNet = () => {
+  netOpen.value = !netOpen.value;
+  if (netOpen.value) statsOpen.value = false;
+};
 /** The in-game menu (the "…" button in the bar). Esc opens it when nothing else is open (`Hud.tsx`). */
 export const gameMenuOpen = signal(false);
 /** The controls reference: every key and mouse move of the game (`panels/Controls.tsx`; the menu's Help, and the ? key). */
@@ -72,12 +108,21 @@ export const controlsOpen = signal(false);
 /** Open flag and the level to scroll to (null: the current level). */
 /** The shop: every item in the game, with its price and state. */
 export const shopOpen = signal(false);
-export const openShop = () => { shopOpen.value = true; };
+export const openShop = () => {
+  shopOpen.value = true;
+};
 /** The part the shop should show when it opens (the picker's 3D view button); the shop clears it once it has. */
 export const shopFocus = signal<string | null>(null);
-export const openShopAt = (specId: string) => { shopFocus.value = specId; shopOpen.value = true; };
-export const closeShop = () => { shopOpen.value = false; };
-export const toggleShop = () => { shopOpen.value = !shopOpen.value; };
+export const openShopAt = (specId: string) => {
+  shopFocus.value = specId;
+  shopOpen.value = true;
+};
+export const closeShop = () => {
+  shopOpen.value = false;
+};
+export const toggleShop = () => {
+  shopOpen.value = !shopOpen.value;
+};
 
 /** The gallery (main menu): every part as a 3D model. */
 export const galleryOpen = signal(false);
@@ -86,13 +131,19 @@ export const galleryOpen = signal(false);
 export const buildOpen = signal(false);
 
 export const milestones = signal<{ focus: number | null } | null>(null);
-export const openMilestones = (focus: number | null = null) => { milestones.value = { focus }; };
-export const closeMilestones = () => { milestones.value = null; };
+export const openMilestones = (focus: number | null = null) => {
+  milestones.value = { focus };
+};
+export const closeMilestones = () => {
+  milestones.value = null;
+};
 
 // ---- inventory tray (spare parts; drag them from here onto the board) ----
 
 export const inventoryOpen = signal(false);
-export const toggleInventory = () => { inventoryOpen.value = !inventoryOpen.value; };
+export const toggleInventory = () => {
+  inventoryOpen.value = !inventoryOpen.value;
+};
 /** Shelf filter by kind (null = all). */
 export const inventoryKind = signal<string | null>(null);
 /**
@@ -103,18 +154,28 @@ export const fitTarget = signal<string | null>(null);
 
 effect(() => {
   const sel = selected.value;
-  if (!sel || sel.startsWith('inv:')) { if (!sel) fitTarget.value = null; return; }
+  if (!sel || sel.startsWith('inv:')) {
+    if (!sel) fitTarget.value = null;
+    return;
+  }
   const s = snapshot.peek();
   const f = fitFilterFor(sel, s);
   const any = !!f && !!s && s.inventory.some((it) => fitsFilter(f, it));
   fitTarget.value = any ? sel : null;
-  if (any) { inventoryOpen.value = true; inventoryKind.value = null; }
+  if (any) {
+    inventoryOpen.value = true;
+    inventoryKind.value = null;
+  }
 });
 
 // ---- guided tutorial (per viewer) ----
 
 function loadTutorial(): TutorialState {
-  try { return resumeState(JSON.parse(readStore(TUTORIAL_KEY) ?? 'null')); } catch { return INITIAL_TUTORIAL; }
+  try {
+    return resumeState(JSON.parse(readStore(TUTORIAL_KEY) ?? 'null'));
+  } catch {
+    return INITIAL_TUTORIAL;
+  }
 }
 export const tutorial = signal<TutorialState>(loadTutorial());
 
@@ -127,7 +188,8 @@ saveHooks.attach = (save) => ({ ...save, tutorial: tutorial.peek() });
 saveHooks.restore = (save) => setTutorial(tutorialForSave(save.tutorial, save.progress));
 
 /** A new campaign asks whether the player wants the tutorial: yes starts it from the welcome card, no hides it (the menu replays it). */
-export const resetTutorial = (wanted: boolean) => setTutorial(wanted ? { ...INITIAL_TUTORIAL } : { ...INITIAL_TUTORIAL, skipped: true });
+export const resetTutorial = (wanted: boolean) =>
+  setTutorial(wanted ? { ...INITIAL_TUTORIAL } : { ...INITIAL_TUTORIAL, skipped: true });
 export const startTutorial = () => setTutorial({ ...tutorial.value, welcomed: true });
 export const skipTutorial = () => setTutorial({ ...tutorial.value, skipped: true });
 /** Got it on an explain-only step. */
@@ -137,12 +199,18 @@ export const finishTutorial = () => setTutorial({ ...tutorial.value, finished: t
 /** Start again from the welcome card. Flags are judged from live state against a baseline taken now. */
 export function replayTutorial(s: Snapshot | null) {
   setTutorial({
-    welcomed: false, skipped: false, finished: false, osLesson: true, offered: true, acks: [],
+    welcomed: false,
+    skipped: false,
+    finished: false,
+    osLesson: true,
+    offered: true,
+    acks: [],
     replay: s ? { completed: s.completed, owned: s.devices.length + s.inventory.length } : null,
   });
 }
 /** "Next lesson: the OS" card: take the lesson. The finished steps are already done, so it starts at the drive. */
-export const takeOsLesson = () => setTutorial({ ...tutorial.value, welcomed: true, finished: false, osLesson: true, offered: true });
+export const takeOsLesson = () =>
+  setTutorial({ ...tutorial.value, welcomed: true, finished: false, osLesson: true, offered: true });
 /** The same card, dismissed: it does not come back. */
 export const declineOsLesson = () => setTutorial({ ...tutorial.value, finished: true, osLesson: false, offered: true });
 
@@ -152,7 +220,9 @@ function loadSeen(): Set<string> {
   try {
     const v = JSON.parse(readStore(HINTS_KEY) ?? '[]');
     return new Set(Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []);
-  } catch { return new Set(); }
+  } catch {
+    return new Set();
+  }
 }
 const seen = loadSeen();
 /** At most MAX_TOASTS are visible; the rest wait in `queued` and appear as the visible ones go away. */
@@ -168,7 +238,10 @@ function pump(visible: Hint[], queue: Hint[]) {
 }
 
 export function dismissToast(id: string) {
-  pump(toasts.value.filter((t) => t.id !== id), queued.value);
+  pump(
+    toasts.value.filter((t) => t.id !== id),
+    queued.value,
+  );
 }
 
 function showHint(h: Hint) {
@@ -213,13 +286,22 @@ export const holdActive = signal(false);
 export const holdTop = signal<Hold | null>(null);
 const syncHold = (): void => {
   holdActive.value = holds.size > 0;
-  holdTop.value = holds.has('levelUp') ? 'levelUp' : holds.has('tutorial') ? 'tutorial' : holds.has('menu') ? 'menu' : null;
+  holdTop.value = holds.has('levelUp')
+    ? 'levelUp'
+    : holds.has('tutorial')
+      ? 'tutorial'
+      : holds.has('menu')
+        ? 'menu'
+        : null;
 };
 
 export function setHold(h: Hold, on: boolean): void {
   if (on) {
     if (holds.has(h)) return;
-    if (holds.size === 0 && speed.peek() !== 0) { resumeOnRelease = true; setSpeed(0); }
+    if (holds.size === 0 && speed.peek() !== 0) {
+      resumeOnRelease = true;
+      setSpeed(0);
+    }
     holds.add(h);
   } else {
     if (!holds.delete(h)) return;
@@ -247,7 +329,11 @@ export function runAt(s: Speed): void {
     gameMenuOpen.value = false;
     if (controlsFromMenu.peek()) controlsOpen.value = false;
     holds.delete('menu');
-    if (holds.size > 0) { lastRunSpeed.value = s; syncHold(); return; }
+    if (holds.size > 0) {
+      lastRunSpeed.value = s;
+      syncHold();
+      return;
+    }
     resumeOnRelease = false;
     syncHold();
     setSpeed(s);
@@ -274,8 +360,15 @@ export function closeControls(): void {
     if (back) gameMenuOpen.value = true;
   });
 }
-effect(() => { if (!controlsOpen.value) controlsFromMenu.value = false; });
-const menuFamily = computed(() => gameMenuOpen.value || (settingsOpen.value && settingsFrom.value === 'paused') || (controlsOpen.value && controlsFromMenu.value));
+effect(() => {
+  if (!controlsOpen.value) controlsFromMenu.value = false;
+});
+const menuFamily = computed(
+  () =>
+    gameMenuOpen.value ||
+    (settingsOpen.value && settingsFrom.value === 'paused') ||
+    (controlsOpen.value && controlsFromMenu.value),
+);
 effect(() => setHold('menu', menuFamily.value));
 
 export function dismissLevelUp() {
@@ -290,7 +383,11 @@ export function pauseForTutorialPopup(open: boolean) {
 
 effect(() => {
   const s = snapshot.value;
-  if (!s) { clearHolds(); dismissLevelUp(); return; }
+  if (!s) {
+    clearHolds();
+    dismissLevelUp();
+    return;
+  }
   const owed = celebrationFor(s, seenLevel);
   if (owed && !levelUp.peek()) {
     levelUp.value = owed;
@@ -302,20 +399,30 @@ effect(() => {
   // Otherwise follow the level (a load, a new game).
   if (!owed) {
     const next = reconcileSeen(s, seenLevel);
-    if (next !== seenLevel) { seenLevel = next; writeStore(SEEN_KEY, String(next)); }
+    if (next !== seenLevel) {
+      seenLevel = next;
+      writeStore(SEEN_KEY, String(next));
+    }
   }
 });
 
 // ---- recent activity (for the stats sparkline) ----
 
-export interface Sample { tick: number; retired: number; stalls: number }
+export interface Sample {
+  tick: number;
+  retired: number;
+  stalls: number;
+}
 export const history = signal<Sample[]>([]);
 let lastSample: { tick: number; retired: number; stalls: number } | null = null;
 const HISTORY_LEN = 60;
 
 effect(() => {
   const s = snapshot.value;
-  if (!s) { lastSample = null; return; }
+  if (!s) {
+    lastSample = null;
+    return;
+  }
   const retired = s.counters.retired ?? 0;
   const stalls = totalStalls(s.counters);
   if (lastSample && s.baseTick === lastSample.tick) return;

@@ -1,6 +1,6 @@
-import type { MemSystem } from "../../features/memory/sim/memsys";
-import type { Core } from "../../features/cpu/sim/core";
-import type { Machine } from "./machine";
+import type { MemSystem } from '../../features/memory/sim/memsys';
+import type { Core } from '../../features/cpu/sim/core';
+import type { Machine } from './machine';
 
 /**
  * A CPU engine (unpipelined, 5-stage, ...). It owns its pipeline state; the Machine owns RAM and the devices, and each Core its registers and

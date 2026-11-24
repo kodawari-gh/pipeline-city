@@ -40,10 +40,25 @@ export interface NicChip {
  * rectangle the die's plan covers in its frame (the card's band, `NicGeo.die`): the frame is placed so the plan's middle lies on the die's. `o.height`: the QFN's height off the PCB when it is
  * not the card's 0.9 mm; `o.die`: the die's side (layout units) when it is not the card's (the motherboard's Ethernet chip is a taller package with a bigger pad, phychip3d.ts).
  */
-export function nicChip(u: Group, chip: RectLike, qfn: boolean, zu: number, mark: readonly string[], U: (r: RectLike) => RectLike, plan: RectLike, floor?: DieFloor, o: { height?: number; die?: number } = {}): NicChip {
+export function nicChip(
+  u: Group,
+  chip: RectLike,
+  qfn: boolean,
+  zu: number,
+  mark: readonly string[],
+  U: (r: RectLike) => RectLike,
+  plan: RectLike,
+  floor?: DieFloor,
+  o: { height?: number; die?: number } = {},
+): NicChip {
   // (the die has its plan's shape, `plan.h` over `plan.w`: the floorplan fills the die and the die fills the package)
-  const lid = new Group(), side = o.die ?? (qfn ? DIE_MM.qfn : DIE_MM.bga) * MM, scale = side / plan.w, dh = plan.h * scale;
-  const cx = chip.x + chip.w / 2, cy = chip.y + chip.h / 2, rect = { x: cx - side / 2, y: cy - dh / 2, w: side, h: dh };
+  const lid = new Group(),
+    side = o.die ?? (qfn ? DIE_MM.qfn : DIE_MM.bga) * MM,
+    scale = side / plan.w,
+    dh = plan.h * scale;
+  const cx = chip.x + chip.w / 2,
+    cy = chip.y + chip.h / 2,
+    rect = { x: cx - side / 2, y: cy - dh / 2, w: side, h: dh };
   const silicon = mat(0x1d1e22, { metalness: 0.35, roughness: 0.3 });
   let zTop: number, top: number, dieTop: number;
   if (qfn) {
@@ -57,7 +72,8 @@ export function nicChip(u: Group, chip: RectLike, qfn: boolean, zu: number, mark
     pkg(lid, U(chip), zu, top, mark);
   } else {
     // the substrate, the die on it (flip-chip), the lid over them
-    const h = 2.4 * MM, t = lidBase(h);
+    const h = 2.4 * MM,
+      t = lidBase(h);
     u.add(softBox(U(chip), zu, zu + t, mat(0x173d29, { roughness: 0.55 }), 2));
     u.add(softBox(U(rect), zu + t, zu + t + 0.8 * MM, silicon, 2));
     dieTop = t + 0.8 * MM;
@@ -72,9 +88,17 @@ export function nicChip(u: Group, chip: RectLike, qfn: boolean, zu: number, mark
   frame.position.set(cx - scale * (plan.x + plan.w / 2), cy + scale * (plan.y + plan.h / 2), zTop);
   frame.scale.setScalar(scale);
   const made = floor?.(frame, scale);
-  if (made) { u.add(frame); die = made; }
+  if (made) {
+    u.add(frame);
+    die = made;
+  }
   return {
-    lid, die, scale, rect, top, dieTop,
+    lid,
+    die,
+    scale,
+    rect,
+    top,
+    dieTop,
     lod: (zoom) => {
       const a = dieShow(zoom, side);
       fadeTree(lid, 1 - a);

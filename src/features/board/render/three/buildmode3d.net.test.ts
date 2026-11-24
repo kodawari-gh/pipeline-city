@@ -12,19 +12,37 @@ vi.mock('@/core/render/three/init', async (orig) => {
       camera: new PerspectiveCamera(30, 1, 10, 1e6),
       renderer: {
         domElement: { width: 400, height: 400, addEventListener() {}, removeEventListener() {} },
-        setOpaqueSort() {}, getPixelRatio: () => 1, setSize() {}, properties: { get: () => ({}) }, compile: () => new Set(), getRenderTarget: () => null, setRenderTarget() {},
+        setOpaqueSort() {},
+        getPixelRatio: () => 1,
+        setSize() {},
+        properties: { get: () => ({}) },
+        compile: () => new Set(),
+        getRenderTarget: () => null,
+        setRenderTarget() {},
       },
     }),
   };
 });
 vi.mock('@/core/render/three/post', () => ({
   Post: class {
-    render() {} refine = () => false; meter = () => null; metered = () => null;
-    setEye() {} setReach() {} setDark() {} setOutlined() {} apply() {} setSize() {}
+    render() {}
+    refine = () => false;
+    meter = () => null;
+    metered = () => null;
+    setEye() {}
+    setReach() {}
+    setDark() {}
+    setOutlined() {}
+    apply() {}
+    setSize() {}
     startPrograms = () => [];
   },
 }));
-vi.mock('./lens3d', () => ({ Lens3D: class { frame() {} } }));
+vi.mock('./lens3d', () => ({
+  Lens3D: class {
+    frame() {}
+  },
+}));
 
 import { BuildStage, binParts } from './buildmode3d';
 import { setLayoutTier } from '../layout/layout';
@@ -32,8 +50,28 @@ import { Game } from '@/worker/game/game';
 
 /** A stage with the full rig and no 3D (the best OS, router and plan are in): the machine's drawing is stubbed, the game and the history are the real ones. */
 function stage(): BuildStage {
-  const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({ clientWidth: 400, clientHeight: 800 });
-  s._machine = { moving: false, doorOpen: false, frame() {}, setOpen() {}, closeDoor() {}, holdDetail() {}, lod() {}, root: new Group(), boardRoots: () => [], caseRoots: [], rig: () => null, holdBack() {}, letRun() {}, isHeldBack: () => false, panelIds: () => [], syncPanel() {} };
+  const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
+    clientWidth: 400,
+    clientHeight: 800,
+  });
+  s._machine = {
+    moving: false,
+    doorOpen: false,
+    frame() {},
+    setOpen() {},
+    closeDoor() {},
+    holdDetail() {},
+    lod() {},
+    root: new Group(),
+    boardRoots: () => [],
+    caseRoots: [],
+    rig: () => null,
+    holdBack() {},
+    letRun() {},
+    isHeldBack: () => false,
+    panelIds: () => [],
+    syncPanel() {},
+  };
   s._game = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
   s.rebuild = s.rebuildAll = function (this: { snaps: { drop(): void }; board: { tier: number; caseTier: number } }) {
     this.snaps.drop();
@@ -45,7 +83,11 @@ function stage(): BuildStage {
 }
 
 /** What stands: the OS, the router and the plan, by id. */
-const net = (s: BuildStage) => ({ os: s.snapshot.os?.spec ?? null, router: s.snapshot.net.router?.id ?? null, isp: s.snapshot.net.isp?.id ?? null });
+const net = (s: BuildStage) => ({
+  os: s.snapshot.os?.spec ?? null,
+  router: s.snapshot.net.router?.id ?? null,
+  isp: s.snapshot.net.isp?.id ?? null,
+});
 
 describe('the shelf lists the network', () => {
   it('has every OS for sale, every router and every internet plan, each with its kind and tier', () => {
@@ -61,7 +103,13 @@ describe('the shelf lists the network', () => {
 
 describe('the stage fits the network', () => {
   beforeEach(() => {
-    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {});
   });
@@ -156,13 +204,23 @@ describe('the stage fits the network', () => {
 
 describe('the Wall camera preset', () => {
   beforeEach(() => {
-    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {});
   });
 
-  it('frames the wall\'s plates and router, not the whole machine: nearer, higher, to the west, nearly head on', () => {
-    const s = stage() as unknown as { preset(name: string): void; resetView(): void; goal: { x: number; y: number; height: number; yaw: number } };
+  it("frames the wall's plates and router, not the whole machine: nearer, higher, to the west, nearly head on", () => {
+    const s = stage() as unknown as {
+      preset(name: string): void;
+      resetView(): void;
+      goal: { x: number; y: number; height: number; yaw: number };
+    };
     s.resetView();
     const whole = { ...s.goal };
     s.preset('wall');

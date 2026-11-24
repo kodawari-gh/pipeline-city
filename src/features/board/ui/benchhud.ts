@@ -5,12 +5,14 @@ import { overallOf, type BenchGroup, type TaskResult } from '@/features/sandbox/
 export const PAR = 1000;
 
 /** How full a score's bar is, in percent: par is half. */
-export const barPct = (score: number | null | undefined): number => (score ? Math.max(0, Math.min(100, (score / (2 * PAR)) * 100)) : 0);
+export const barPct = (score: number | null | undefined): number =>
+  score ? Math.max(0, Math.min(100, (score / (2 * PAR)) * 100)) : 0;
 
 /** How long a run took: seconds up to two minutes, then minutes. */
 export function secondsText(s: number): string {
   if (s < 120) return `${s} s`;
-  const m = Math.floor(s / 60), r = s % 60;
+  const m = Math.floor(s / 60),
+    r = s % 60;
   return r === 0 ? `${m} min` : `${m} min ${r} s`;
 }
 
@@ -27,11 +29,19 @@ export const deltaText = (d: number | null): string => (d === null || d === 0 ? 
 export const whyShort = (why: string): string => why.split(': ')[0]!;
 
 /** The overall score of the results in `now`, and its change from the same tasks in `was` (the machine scored before); `n` is how many tasks count. */
-export function overallOfRuns(now: Readonly<Record<string, TaskResult>>, was: Readonly<Record<string, TaskResult>>): { overall: number; n: number; delta: number | null } {
+export function overallOfRuns(
+  now: Readonly<Record<string, TaskResult>>,
+  was: Readonly<Record<string, TaskResult>>,
+): { overall: number; n: number; delta: number | null } {
   const mine = Object.values(now).filter((r) => r.score !== null);
   const both = mine.filter((r) => was[r.id]?.score);
-  return { overall: overallOf(mine), n: mine.length, delta: both.length > 0 ? deltaPct(overallOf(both), overallOf(both.map((r) => was[r.id]!))) : null };
+  return {
+    overall: overallOf(mine),
+    n: mine.length,
+    delta: both.length > 0 ? deltaPct(overallOf(both), overallOf(both.map((r) => was[r.id]!))) : null,
+  };
 }
 
 /** The mean score of a group's tasks that have one (0 when none has). */
-export const groupScore = (g: BenchGroup, now: Readonly<Record<string, TaskResult>>): number => overallOf(g.tasks.map((t) => now[t.id]).filter((r): r is TaskResult => !!r));
+export const groupScore = (g: BenchGroup, now: Readonly<Record<string, TaskResult>>): number =>
+  overallOf(g.tasks.map((t) => now[t.id]).filter((r): r is TaskResult => !!r));

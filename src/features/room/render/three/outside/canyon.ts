@@ -4,7 +4,7 @@
 import type { Material } from 'three';
 import { GRID } from './plan';
 
-const FN = /* glsl */`
+const FN = /* glsl */ `
 varying vec3 vCanyonW;
 /** How much of the sky a ground point w sees: least at the foot of a wall, more toward the road's middle, all of it inside a block. */
 float canyonSky(vec3 w) {
@@ -17,15 +17,22 @@ float canyonSky(vec3 w) {
 
 /** Give a ground material the street's shade (its own `onBeforeCompile` still runs first). */
 export function withCanyon(m: Material): void {
-  const prev = m.onBeforeCompile, key = `${m.customProgramCacheKey()}|canyon`;
+  const prev = m.onBeforeCompile,
+    key = `${m.customProgramCacheKey()}|canyon`;
   m.onBeforeCompile = (sh, r) => {
     prev.call(m, sh, r);
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vCanyonW;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvCanyonW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvCanyonW = (modelMatrix * vec4(transformed, 1.0)).xyz;',
+      );
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>\n${FN}`)
-      .replace('#include <aomap_fragment>', 'float canyon = canyonSky(vCanyonW);\nreflectedLight.indirectDiffuse = mix(reflectedLight.indirectDiffuse, vec3(dot(reflectedLight.indirectDiffuse, vec3(0.3, 0.55, 0.15))), 0.45) * canyon;\nreflectedLight.indirectSpecular *= canyon;\n#include <aomap_fragment>');
+      .replace(
+        '#include <aomap_fragment>',
+        'float canyon = canyonSky(vCanyonW);\nreflectedLight.indirectDiffuse = mix(reflectedLight.indirectDiffuse, vec3(dot(reflectedLight.indirectDiffuse, vec3(0.3, 0.55, 0.15))), 0.45) * canyon;\nreflectedLight.indirectSpecular *= canyon;\n#include <aomap_fragment>',
+      );
   };
   m.customProgramCacheKey = () => key;
   m.needsUpdate = true;

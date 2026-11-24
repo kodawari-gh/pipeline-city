@@ -15,8 +15,12 @@ class FakeWorker {
   sent: Sent[] = [];
   onmessage: unknown = null;
   onerror: unknown = null;
-  constructor() { FakeWorker.made.push(this); }
-  postMessage(m: Sent): void { this.sent.push(m); }
+  constructor() {
+    FakeWorker.made.push(this);
+  }
+  postMessage(m: Sent): void {
+    this.sent.push(m);
+  }
   terminate(): void {}
 }
 
@@ -24,11 +28,17 @@ class FakeWorker {
 const store = new Map<string, string>();
 const fakeStorage = {
   getItem: (k: string) => store.get(k) ?? null,
-  setItem: (k: string, v: string) => { store.set(k, String(v)); },
-  removeItem: (k: string) => { store.delete(k); },
+  setItem: (k: string, v: string) => {
+    store.set(k, String(v));
+  },
+  removeItem: (k: string) => {
+    store.delete(k);
+  },
   clear: () => store.clear(),
   key: (i: number) => [...store.keys()][i] ?? null,
-  get length() { return store.size; },
+  get length() {
+    return store.size;
+  },
 };
 
 /** A real save (the sim's own format), made after `ticks` base ticks, as the JSON text the store keeps. */

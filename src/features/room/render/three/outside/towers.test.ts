@@ -14,7 +14,10 @@ const away = (b: Building): number => Math.hypot((b.tiers[0]!.x0 + b.tiers[0]!.x
 
 describe('massGeometries detail', () => {
   let bs: Building[], high: MassRing[];
-  beforeAll(() => { bs = buildings(); high = massGeometries(bs); }, 60000);
+  beforeAll(() => {
+    bs = buildings();
+    high = massGeometries(bs);
+  }, 60000);
 
   it('lock: High is the same with the detail omitted or "high": rings, draws, positions', () => {
     const again = withDetail(bs, [], 'high');
@@ -28,11 +31,12 @@ describe('massGeometries detail', () => {
     expect(withDetail(bs, [], 'low').length).toBe(LOW_NEAR_RINGS + 1);
   }, 60000);
 
-  it('Low: the near rings are High\'s, building for building: fine clutter (door, step, lamp), and solar panels (kind 7)', () => {
+  it("Low: the near rings are High's, building for building: fine clutter (door, step, lamp), and solar panels (kind 7)", () => {
     const low = withDetail(bs, [], 'low');
     // buildings under FINE (420 m) from the window: the near rings hold some, so the fine clutter is there to keep
     expect(bs.filter((b) => away(b) < 300).length, 'near buildings').toBeGreaterThan(0);
-    const near = low.slice(0, LOW_NEAR_RINGS), hi = high.slice(0, LOW_NEAR_RINGS);
+    const near = low.slice(0, LOW_NEAR_RINGS),
+      hi = high.slice(0, LOW_NEAR_RINGS);
     expect(near.map((r) => r.at)).toEqual(hi.map((r) => r.at));
     expect(near.map((r) => sum(r.geometry))).toEqual(hi.map((r) => sum(r.geometry)));
     let solar = 0;
@@ -51,39 +55,60 @@ describe('massGeometries detail', () => {
     expect(total(withDetail(bs, [], 'low'))).toBeLessThan(total(high) * 0.37);
   }, 60000);
 
-  it('Low: a far-mesh building within LOW_WHOLE is High\'s whole building, vertex for vertex', () => {
-    const far = withDetail(bs, [], 'low').at(-1)!, ring = high[LOW_NEAR_RINGS]!;
-    const mid = (b: Building): number => bearing((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2, (b.tiers[0]!.z0 + b.tiers[0]!.z1) / 2);
+  it("Low: a far-mesh building within LOW_WHOLE is High's whole building, vertex for vertex", () => {
+    const far = withDetail(bs, [], 'low').at(-1)!,
+      ring = high[LOW_NEAR_RINGS]!;
+    const mid = (b: Building): number =>
+      bearing((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2, (b.tiers[0]!.z0 + b.tiers[0]!.z1) / 2);
     const farBs = bs.filter((b) => away(b) >= 300).sort((p, q) => mid(p) - mid(q));
     // (`LOW_WHOLE` is the edge of High's ring after the near ones, so that ring is the whole buildings, in the same order)
     expect(farBs.filter((b) => away(b) < LOW_WHOLE).length).toBe(ring.balls.length);
-    const lp = far.geometry.attributes.position!.array, hp = ring.geometry.attributes.position!.array;
+    const lp = far.geometry.attributes.position!.array,
+      hp = ring.geometry.attributes.position!.array;
     let j = 0;
     for (let i = 0; i < farBs.length; i++) {
       if (away(farBs[i]!) >= LOW_WHOLE) continue;
       expect(far.at[i + 1]! - far.at[i]!, `building ${j} vertices`).toBe(ring.at[j + 1]! - ring.at[j]!);
-      expect(Array.from(lp.subarray(3 * far.at[i]!, 3 * far.at[i + 1]!))).toEqual(Array.from(hp.subarray(3 * ring.at[j]!, 3 * ring.at[j + 1]!)));
+      expect(Array.from(lp.subarray(3 * far.at[i]!, 3 * far.at[i + 1]!))).toEqual(
+        Array.from(hp.subarray(3 * ring.at[j]!, 3 * ring.at[j + 1]!)),
+      );
       j++;
     }
     expect(j).toBeGreaterThan(100);
   }, 60000);
 
-  it('Low: a block past LOW_WHOLE keeps High\'s own crown lights, tip beacon and sign boards (the roof plant\'s draws still run)', () => {
-    const far = withDetail(bs, [], 'low').at(-1)!, ring = high[LOW_NEAR_RINGS + 1]!;
-    const mid = (b: Building): number => bearing((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2, (b.tiers[0]!.z0 + b.tiers[0]!.z1) / 2);
+  it("Low: a block past LOW_WHOLE keeps High's own crown lights, tip beacon and sign boards (the roof plant's draws still run)", () => {
+    const far = withDetail(bs, [], 'low').at(-1)!,
+      ring = high[LOW_NEAR_RINGS + 1]!;
+    const mid = (b: Building): number =>
+      bearing((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2, (b.tiers[0]!.z0 + b.tiers[0]!.z1) / 2);
     const farBs = bs.filter((b) => away(b) >= 300).sort((p, q) => mid(p) - mid(q));
     // a building's vertices of one kind: their places, and their seeds
     const of = (r: MassRing, i: number, kind: number): { at: number[]; seeds: number[] } => {
-      const pos = r.geometry.attributes.position!, aux = r.geometry.attributes.aux!, at: number[] = [], seeds: number[] = [];
-      for (let v = r.at[i]!; v < r.at[i + 1]!; v++) if (Math.round(aux.getY(v)) === kind) { at.push(pos.getX(v), pos.getY(v), pos.getZ(v)); seeds.push(aux.getX(v)); }
+      const pos = r.geometry.attributes.position!,
+        aux = r.geometry.attributes.aux!,
+        at: number[] = [],
+        seeds: number[] = [];
+      for (let v = r.at[i]!; v < r.at[i + 1]!; v++)
+        if (Math.round(aux.getY(v)) === kind) {
+          at.push(pos.getX(v), pos.getY(v), pos.getZ(v));
+          seeds.push(aux.getX(v));
+        }
       return { at, seeds };
     };
-    let j = 0, crowns = 0, boards = 0;
+    let j = 0,
+      crowns = 0,
+      boards = 0;
     for (let i = 0; i < farBs.length; i++) {
       const d = away(farBs[i]!);
       // (High's ring after the whole ones ends at 900 m: within it a roof has its plant, whose draws come before the crown's)
       if (d < LOW_WHOLE || d >= 900) continue;
-      const lc = of(far, i, 4), hc = of(ring, j, 4), ls = of(far, i, 8), hs = of(ring, j, 8), lb = of(far, i, 3), hb = of(ring, j, 3);
+      const lc = of(far, i, 4),
+        hc = of(ring, j, 4),
+        ls = of(far, i, 8),
+        hs = of(ring, j, 8),
+        lb = of(far, i, 3),
+        hb = of(ring, j, 3);
       expect(lc.at, `crown lights ${j}`).toEqual(hc.at);
       expect(ls.at, `sign boards ${j}`).toEqual(hs.at);
       expect(ls.seeds).toEqual(hs.seeds);
@@ -100,7 +125,8 @@ describe('massGeometries detail', () => {
   }, 60000);
 
   it('Low: the far mesh holds every far building (a plain block past LOW_WHOLE), of more than one height', () => {
-    const low = withDetail(bs, [], 'low'), far = low[low.length - 1]!;
+    const low = withDetail(bs, [], 'low'),
+      far = low[low.length - 1]!;
     // (the ring edge: ring 1 ends at 300 m)
     expect(far.balls.length).toBe(bs.filter((b) => away(b) >= 300).length);
     // each far building is a block, plus optional night pieces (flood, LED, signs, crowns, beacons)
@@ -108,8 +134,12 @@ describe('massGeometries detail', () => {
     const aux = far.geometry.attributes.aux!;
     const lights = new Set<number>();
     for (let i = 0; i < aux.count; i++) lights.add(Math.round(aux.getY(i)));
-    expect([3, 4, 5, 8, 9].some((k) => lights.has(k)), 'far blocks keep live night-light kinds').toBe(true);
-    const pos = far.geometry.attributes.position!, tops = new Set<number>();
+    expect(
+      [3, 4, 5, 8, 9].some((k) => lights.has(k)),
+      'far blocks keep live night-light kinds',
+    ).toBe(true);
+    const pos = far.geometry.attributes.position!,
+      tops = new Set<number>();
     for (let i = 0; i < far.balls.length; i++) {
       let top = -Infinity;
       for (let v = far.at[i]!; v < far.at[i + 1]!; v++) top = Math.max(top, pos.getY(v));
@@ -120,43 +150,65 @@ describe('massGeometries detail', () => {
 
   it('Low: a far mast or spire keeps its own pieces under its tip beacon (no floating beacon), and no roof clutter round a mast', () => {
     const far = withDetail(bs, [], 'low').at(-1)!;
-    const pos = far.geometry.attributes.position!, aux = far.geometry.attributes.aux!;
+    const pos = far.geometry.attributes.position!,
+      aux = far.geometry.attributes.aux!;
     const kind = (v: number): number => Math.round(aux.getY(v));
     // the far balls are in the order `massGeometries` sorts them: by bearing of the first tier's middle
-    const mid = (b: Building): number => bearing((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2, (b.tiers[0]!.z0 + b.tiers[0]!.z1) / 2);
+    const mid = (b: Building): number =>
+      bearing((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2, (b.tiers[0]!.z0 + b.tiers[0]!.z1) / 2);
     const farBs = bs.filter((b) => away(b) >= 300).sort((p, q) => mid(p) - mid(q));
     expect(farBs.length).toBe(far.balls.length);
     let checked = 0;
     for (let i = 0; i < farBs.length; i++) {
-      const b = farBs[i]!, h = topOf(b);
+      const b = farBs[i]!,
+        h = topOf(b);
       // (a building within `LOW_WHOLE` is High's whole one, roof plant and corner beacons too: the test above holds it)
       if ((b.crown !== 'mast' && b.crown !== 'spire') || h < 110 || away(b) < LOW_WHOLE) continue;
       checked++;
-      const v0 = far.at[i]!, v1 = far.at[i + 1]!;
+      const v0 = far.at[i]!,
+        v1 = far.at[i + 1]!;
       // the tip: the lowest beacon vertex; the silhouette must reach up to it on a kept piece, not stop short
       let tip = Infinity;
       for (let v = v0; v < v1; v++) if (kind(v) === 3) tip = Math.min(tip, pos.getY(v));
       expect(tip, `${b.crown} tip beacon`).toBeLessThan(Infinity);
       // a mast's shaft is Plain, 1.1 m wide, from its 6 m base up (a box: its vertices sit on its bottom and top rings);
       // a spire's stages and needle are Plain (unlit) or Crown/Led/Flood (lit), with rings between its roof and its tip
-      const cx = (b.tiers[b.tiers.length - 1]!.x0 + b.tiers[b.tiers.length - 1]!.x1) / 2, cz = (b.tiers[b.tiers.length - 1]!.z0 + b.tiers[b.tiers.length - 1]!.z1) / 2;
-      let under = 0, reachesTip = false;
+      const cx = (b.tiers[b.tiers.length - 1]!.x0 + b.tiers[b.tiers.length - 1]!.x1) / 2,
+        cz = (b.tiers[b.tiers.length - 1]!.z0 + b.tiers[b.tiers.length - 1]!.z1) / 2;
+      let under = 0,
+        reachesTip = false;
       for (let v = v0; v < v1; v++) {
-        const y = pos.getY(v), k = kind(v);
+        const y = pos.getY(v),
+          k = kind(v);
         if (k !== 3 && Math.abs(y - tip) < 0.01) reachesTip = true;
         if (b.crown === 'mast') {
-          if (k === 2 && y >= h + 6 - 0.01 && y < tip - 0.01 && Math.abs(pos.getX(v) - cx) <= 0.56 && Math.abs(pos.getZ(v) - cz) <= 0.56) under++;
+          if (
+            k === 2 &&
+            y >= h + 6 - 0.01 &&
+            y < tip - 0.01 &&
+            Math.abs(pos.getX(v) - cx) <= 0.56 &&
+            Math.abs(pos.getZ(v) - cz) <= 0.56
+          )
+            under++;
         } else if ([2, 4, 5, 9].includes(k) && y > h + 1 && y < tip - 0.01) under++;
       }
       expect(reachesTip, `${b.crown} silhouette reaches its tip beacon`).toBe(true);
       expect(under, `${b.crown} keeps its silhouette between its roof and tip`).toBeGreaterThan(0);
       if (b.crown === 'mast') {
         // a mast's own footprint is all it keeps of the roof: no plain vertex outside its 3 m base in the first 6 m
-        const t = b.tiers[b.tiers.length - 1]!, cx = (t.x0 + t.x1) / 2, cz = (t.z0 + t.z1) / 2;
+        const t = b.tiers[b.tiers.length - 1]!,
+          cx = (t.x0 + t.x1) / 2,
+          cz = (t.z0 + t.z1) / 2;
         let stray = 0;
         for (let v = v0; v < v1; v++) {
           const y = pos.getY(v);
-          if (kind(v) === 2 && y >= h - 0.01 && y < h + 6 - 0.01 && (Math.abs(pos.getX(v) - cx) > 1.5 + 1e-3 || Math.abs(pos.getZ(v) - cz) > 1.5 + 1e-3)) stray++;
+          if (
+            kind(v) === 2 &&
+            y >= h - 0.01 &&
+            y < h + 6 - 0.01 &&
+            (Math.abs(pos.getX(v) - cx) > 1.5 + 1e-3 || Math.abs(pos.getZ(v) - cz) > 1.5 + 1e-3)
+          )
+            stray++;
         }
         expect(stray, 'mast: no roof clutter restored').toBe(0);
       }
@@ -166,14 +218,21 @@ describe('massGeometries detail', () => {
 
   it('Low: far blocks keep live Led corner strips (vertical, not only the top band)', () => {
     const far = withDetail(bs, [], 'low').at(-1)!;
-    const pos = far.geometry.attributes.position!, aux = far.geometry.attributes.aux!, look = far.geometry.attributes.look!;
+    const pos = far.geometry.attributes.position!,
+      aux = far.geometry.attributes.aux!,
+      look = far.geometry.attributes.look!;
     // a corner strip is Led, grows across (look.w = Wide.Across = 1) and runs up a tier; the band is Led, Wide.Up, and flat
-    let strips = 0, tallest = 0;
+    let strips = 0,
+      tallest = 0;
     for (let i = 0; i < far.balls.length; i++) {
-      let lo = Infinity, hi = -Infinity, n = 0;
+      let lo = Infinity,
+        hi = -Infinity,
+        n = 0;
       for (let v = far.at[i]!; v < far.at[i + 1]!; v++) {
         if (Math.round(aux.getY(v)) !== 5 || Math.round(look.getW(v)) !== 1) continue;
-        lo = Math.min(lo, pos.getY(v)); hi = Math.max(hi, pos.getY(v)); n++;
+        lo = Math.min(lo, pos.getY(v));
+        hi = Math.max(hi, pos.getY(v));
+        n++;
       }
       if (n > 0) strips++;
       tallest = Math.max(tallest, hi - lo);
@@ -185,16 +244,27 @@ describe('massGeometries detail', () => {
 
 // BOOT-05: the boot builds the buildings while the baked textures load, a turn for the page every 20 ms (`OutsideView.make`)
 describe('massSteps', () => {
-  it.each(['high', 'low'] as const)('%s: with no budget it yields after each building, and ends with the rings massGeometries makes', (detail) => {
-    const bs = buildings(), run = massSteps(bs, [], detail, 0);
-    let yields = 0, step = run.next();
-    while (!step.done) { yields++; step = run.next(); }
-    const whole = massGeometries(bs, [], detail);
-    expect(yields).toBe(bs.length);
-    expect(step.value.map((r) => r.at)).toEqual(whole.map((r) => r.at));
-    expect(step.value.map((r) => sum(r.geometry))).toEqual(whole.map((r) => sum(r.geometry)));
-    expect(step.value.map((r) => r.balls.map((b) => b.radius))).toEqual(whole.map((r) => r.balls.map((b) => b.radius)));
-  }, 60000);
+  it.each(['high', 'low'] as const)(
+    '%s: with no budget it yields after each building, and ends with the rings massGeometries makes',
+    (detail) => {
+      const bs = buildings(),
+        run = massSteps(bs, [], detail, 0);
+      let yields = 0,
+        step = run.next();
+      while (!step.done) {
+        yields++;
+        step = run.next();
+      }
+      const whole = massGeometries(bs, [], detail);
+      expect(yields).toBe(bs.length);
+      expect(step.value.map((r) => r.at)).toEqual(whole.map((r) => r.at));
+      expect(step.value.map((r) => sum(r.geometry))).toEqual(whole.map((r) => sum(r.geometry)));
+      expect(step.value.map((r) => r.balls.map((b) => b.radius))).toEqual(
+        whole.map((r) => r.balls.map((b) => b.radius)),
+      );
+    },
+    60000,
+  );
 
   it('never yields with an endless budget (`massGeometries`)', () => {
     const run = massSteps(buildings(), [], 'high', Infinity);

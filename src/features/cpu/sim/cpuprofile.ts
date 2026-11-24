@@ -6,10 +6,10 @@
 // so no job yet rewards a bigger data cache. The memory benchmark walks a table that fits a big cache but not a small one; the jobs
 // that will lean on it (docs/MULTICORE.md "hpc", longer scans) come later.
 
-import { assemble } from "./asm";
-import { createEngine, type EngineConfig, type PipelineEngine } from "./engines";
-import { Machine } from "@/core/sim";
-import { getSpec, type CpuSpec } from "../../board/sim/specs";
+import { assemble } from './asm';
+import { createEngine, type EngineConfig, type PipelineEngine } from './engines';
+import { Machine } from '@/core/sim';
+import { getSpec, type CpuSpec } from '../../board/sim/specs';
 
 export interface CpuProfile {
   /** Arithmetic with long dependent chains and few branches. */
@@ -69,7 +69,10 @@ const BENCH: Record<keyof CpuProfile, string> = {
     bne  s0, s1, outer
     ecall`,
 };
-const PROGRAMS = Object.fromEntries(Object.entries(BENCH).map(([k, v]) => [k, assemble(v).program])) as Record<keyof CpuProfile, Uint32Array>;
+const PROGRAMS = Object.fromEntries(Object.entries(BENCH).map(([k, v]) => [k, assemble(v).program])) as Record<
+  keyof CpuProfile,
+  Uint32Array
+>;
 
 const MISS_PENALTY = 6;
 const MAX_CYCLES = 3_000_000;
@@ -78,7 +81,7 @@ const memo = new Map<string, CpuProfile>();
 
 /** Instructions per cycle of one engine config on one benchmark. */
 export function ipcOf(cfg: EngineConfig, kind: keyof CpuProfile): number {
-  const engine = createEngine(cfg.kind === "ref" ? cfg : { ...cfg, missPenalty: MISS_PENALTY }) as PipelineEngine;
+  const engine = createEngine(cfg.kind === 'ref' ? cfg : { ...cfg, missPenalty: MISS_PENALTY }) as PipelineEngine;
   const m = new Machine();
   m.attach(engine, PROGRAMS[kind]);
   while (!engine.halted && engine.cycle < MAX_CYCLES) engine.step();
@@ -88,7 +91,7 @@ export function ipcOf(cfg: EngineConfig, kind: keyof CpuProfile): number {
 /** Measured speed of a CPU spec on the three kinds of work, in instructions per base tick (clock times IPC), to two decimals. Memoised. */
 export function cpuProfile(specId: string): CpuProfile | null {
   const spec = getSpec(specId);
-  if (!spec || spec.kind !== "cpu") return null;
+  if (!spec || spec.kind !== 'cpu') return null;
   const hit = memo.get(specId);
   if (hit) return hit;
   const cpu = spec as CpuSpec;

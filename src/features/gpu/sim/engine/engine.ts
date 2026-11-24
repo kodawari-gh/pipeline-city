@@ -2,11 +2,11 @@
 // timing model; `GpuRef` (src/sim/ref/gpuref.ts) is the functional ground truth every engine is tested against. One `step()` is ONE card
 // cycle, so the port counts cycles itself instead of stalling after a multi-cycle instruction.
 
-import type { GpuStep } from "../isa/ref";
+import type { GpuStep } from '../isa/ref';
 
 /** Lockstep SIMD unit, unpipelined (gpu1; the model `GpuRef` has always had). `kind` may be left out in spec data. */
 export interface SimdConfig {
-  kind?: "simd";
+  kind?: 'simd';
   /** Lanes that run in lockstep, 1..32. */
   lanes: number;
   /** Card memory in bytes (a multiple of 4). Kernel code and data share it. */
@@ -17,7 +17,7 @@ export interface SimdConfig {
 
 /** An SM with `warps` warps of `lanes / warps` lanes, a scoreboard, a round-robin scheduler and a coalescing memory path (gpu2). */
 export interface WarpConfig {
-  kind: "warp";
+  kind: 'warp';
   /** Lanes on the card, 1..32; a multiple of `warps`. */
   lanes: number;
   warps: number;
@@ -31,7 +31,7 @@ export interface WarpConfig {
 
 /** `sms` SMs of `warps` warps each, a per-SM L1 and one L2 shared by the card (gpu3). Launch lanes are dealt to the SMs in order. */
 export interface MultiConfig {
-  kind: "multi";
+  kind: 'multi';
   /** Lanes on the card, 1..32; a multiple of `sms * warps`. */
   lanes: number;
   sms: number;
@@ -57,7 +57,7 @@ export interface GpuWarpView {
   pc: number;
   mask: number;
   stack: number[];
-  state: "ready" | "wait-mem" | "barrier" | "done";
+  state: 'ready' | 'wait-mem' | 'barrier' | 'done';
 }
 
 /** One streaming multiprocessor: its warps. The unpipelined unit is one SM with one warp. */
@@ -67,7 +67,7 @@ export interface GpuSmView {
 
 /** One cache as the view shows it: the line held in each slot with the words it holds (they are read from card memory, which a write-through cache always matches), null where a slot is empty. */
 export interface GpuCacheView {
-  level: "L1" | "L2";
+  level: 'L1' | 'L2';
   /** The SM an L1 belongs to (the L2 is the card's). */
   sm?: number;
   /** Words per line. */
@@ -108,8 +108,13 @@ export interface GpuEngine {
 /** Whether two configs describe the same card (every field, not a chosen few), so a new field cannot silently keep the old core. */
 export function sameGpuConfig(a: GpuConfig | null, b: GpuConfig | null): boolean {
   if (!a || !b) return a === b;
-  const ra = { ...a, kind: a.kind ?? "simd" } as unknown as Record<string, unknown>, rb = { ...b, kind: b.kind ?? "simd" } as unknown as Record<string, unknown>;
-  const ka = Object.keys(ra).filter((k) => ra[k] !== undefined).sort();
-  const kb = Object.keys(rb).filter((k) => rb[k] !== undefined).sort();
+  const ra = { ...a, kind: a.kind ?? 'simd' } as unknown as Record<string, unknown>,
+    rb = { ...b, kind: b.kind ?? 'simd' } as unknown as Record<string, unknown>;
+  const ka = Object.keys(ra)
+    .filter((k) => ra[k] !== undefined)
+    .sort();
+  const kb = Object.keys(rb)
+    .filter((k) => rb[k] !== undefined)
+    .sort();
   return ka.length === kb.length && ka.every((k, n) => k === kb[n] && ra[k] === rb[k]);
 }

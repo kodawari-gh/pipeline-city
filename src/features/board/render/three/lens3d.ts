@@ -26,13 +26,22 @@ export class Lens3D {
    * Does the lens that is drawing darken the picture on purpose (the power lens: all that is no power part goes near black)? The host then holds the eye
    * (`Eye.hold`, `Post.setDark`), or the exposure and the local eye would lift the dark back up. The airflow and network lenses only tint the room: the eye adapts to them.
    */
-  get dark(): boolean { return this.power.shown; }
+  get dark(): boolean {
+    return this.power.shown;
+  }
 
   /**
    * Per frame (after the camera): draw the lens that is on, or hide all. `dt` in game seconds, `dpr` the canvas pixels per CSS pixel.
    * `machine`: the machine the lens runs in (no machine, no lens).
    */
-  frame(cam: PerspectiveCamera, H: number, s: Snapshot | null, dt: number, dpr: number, machine: Machine3D | null = null): void {
+  frame(
+    cam: PerspectiveCamera,
+    H: number,
+    s: Snapshot | null,
+    dt: number,
+    dpr: number,
+    machine: Machine3D | null = null,
+  ): void {
     if (airflowLens.peek() && s && machine) this.air.frame(cam, H * dpr, s, machine, dt);
     else this.air.hide();
     if (powerLens.peek() && s && machine) this.power.frame(cam, H * dpr, s, machine, dt);

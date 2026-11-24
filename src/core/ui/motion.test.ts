@@ -10,7 +10,8 @@ import * as fsMod from 'node:fs';
 import * as urlMod from 'node:url';
 const fs = fsMod as any;
 
-const read = (name: string): string => fs.readFileSync(urlMod.fileURLToPath(new URL(`./${name}`, import.meta.url)), 'utf8');
+const read = (name: string): string =>
+  fs.readFileSync(urlMod.fileURLToPath(new URL(`./${name}`, import.meta.url)), 'utf8');
 const strip = (s: string): string => s.replace(/\/\*[\s\S]*?\*\//g, '');
 const tokens = strip(read('tokens.css'));
 const ui = strip(read('ui.css'));
@@ -75,18 +76,22 @@ describe('UI motion: transitions and animations use the duration tokens (ticket 
   });
 
   it('every transition and animation declaration uses a var() duration token, except none', () => {
-    const bad = Object.entries(sources).flatMap(([name, text]) => motionDecls(text)
-      .filter((d) => d.value !== 'none')
-      .filter((d) => !/var\(\s*--d-[\w-]+\s*\)/.test(d.value))
-      .map((d) => `${name}: ${d.prop}: ${d.value}`));
+    const bad = Object.entries(sources).flatMap(([name, text]) =>
+      motionDecls(text)
+        .filter((d) => d.value !== 'none')
+        .filter((d) => !/var\(\s*--d-[\w-]+\s*\)/.test(d.value))
+        .map((d) => `${name}: ${d.prop}: ${d.value}`),
+    );
     expect(bad, 'motion without a --d-* duration token').toEqual([]);
   });
 
   it('no transition or animation declaration has a raw ms or s value (in the sheets, index.html or cues3d.ts)', () => {
     const raw = /(?<![\w.-])(\d*\.?\d+)(ms|s)\b/;
-    const bad = Object.entries(sources).flatMap(([name, text]) => motionDecls(text)
-      .filter((d) => raw.test(d.value))
-      .map((d) => `${name}: ${d.prop}: ${d.value}`));
+    const bad = Object.entries(sources).flatMap(([name, text]) =>
+      motionDecls(text)
+        .filter((d) => raw.test(d.value))
+        .map((d) => `${name}: ${d.prop}: ${d.value}`),
+    );
     expect(bad, 'motion with a hard-coded duration').toEqual([]);
   });
 });
@@ -99,7 +104,9 @@ describe('UI motion: reduced motion shortens or stops motion (ticket #46, criter
   it('the reduced-motion rule overrides the duration tokens, or sets transition to none', () => {
     const blocks = reducedBlocks(sheet);
     const overridesTokens = blocks.some((b) => /--d-[\w-]+\s*:\s*0(ms|s)?\s*[;}]?/.test(b));
-    const stopsTransitions = blocks.some((b) => motionDecls(b).some((d) => d.prop === 'transition' && d.value === 'none'));
+    const stopsTransitions = blocks.some((b) =>
+      motionDecls(b).some((d) => d.prop === 'transition' && d.value === 'none'),
+    );
     expect(overridesTokens || stopsTransitions, 'no reduced-motion rule shortens or stops transitions').toBe(true);
   });
 
@@ -125,7 +132,8 @@ describe('UI motion: reduced motion shortens or stops motion (ticket #46, criter
   });
 
   it('the praise pill and the level ring stop their fade under reduced motion, so they rest visible', () => {
-    const stopsAnimation = (selector: string) => reducedBlocks(ui).some((b) => new RegExp(`${selector}\\s*\\{[^}]*animation\\s*:\\s*none`).test(b));
+    const stopsAnimation = (selector: string) =>
+      reducedBlocks(ui).some((b) => new RegExp(`${selector}\\s*\\{[^}]*animation\\s*:\\s*none`).test(b));
     expect(stopsAnimation('\\.tut-praise'), '.tut-praise').toBe(true);
     expect(stopsAnimation('\\.lvl-hero \\.ring'), '.lvl-hero .ring').toBe(true);
   });

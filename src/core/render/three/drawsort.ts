@@ -4,16 +4,25 @@
 // Use: `renderer.setOpaqueSort(byProgram)`, and `rankMaterials` after a frame that drew new materials.
 import type { Material, Mesh, Object3D } from 'three';
 
-interface Ranked { _rank?: number }
+interface Ranked {
+  _rank?: number;
+}
 
 /** One draw of three's render list (the fields the sort reads). */
-export interface DrawItem { id: number; groupOrder: number; renderOrder: number; z: number; material: Material }
+export interface DrawItem {
+  id: number;
+  groupOrder: number;
+  renderOrder: number;
+  z: number;
+  material: Material;
+}
 
 /** three's own opaque order, with the material's program rank before its id. A material with no rank yet sorts first. */
 export function byProgram(a: DrawItem, b: DrawItem): number {
   if (a.groupOrder !== b.groupOrder) return a.groupOrder - b.groupOrder;
   if (a.renderOrder !== b.renderOrder) return a.renderOrder - b.renderOrder;
-  const ma = a.material, mb = b.material;
+  const ma = a.material,
+    mb = b.material;
   if (ma !== mb) {
     const d = ((ma as Ranked)._rank ?? 0) - ((mb as Ranked)._rank ?? 0);
     if (d !== 0) return d;

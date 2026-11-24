@@ -1,12 +1,30 @@
 // The Three.js context: renderer, scene, camera (docs/THREE_SETUP.md). Soft shadows, a studio environment for image-based light and filmic tone
 // mapping carry the warm room look (docs/3D_STYLE.md).
-import { ACESFilmicToneMapping, Color, HalfFloatType, PCFShadowMap, PMREMGenerator, PerspectiveCamera, SRGBColorSpace, Scene, Texture, WebGLCubeRenderTarget, WebGLRenderer } from 'three';
+import {
+  ACESFilmicToneMapping,
+  Color,
+  HalfFloatType,
+  PCFShadowMap,
+  PMREMGenerator,
+  PerspectiveCamera,
+  SRGBColorSpace,
+  Scene,
+  Texture,
+  WebGLCubeRenderTarget,
+  WebGLRenderer,
+} from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import './arealoop';
 import { ktx2Support } from './gltf';
 
 /** `pmrem`: a prefilter for environment maps, its programs linked. */
-export interface RenderContext { scene: Scene; camera: PerspectiveCamera; renderer: WebGLRenderer; canvas: HTMLCanvasElement; pmrem: PMREMGenerator }
+export interface RenderContext {
+  scene: Scene;
+  camera: PerspectiveCamera;
+  renderer: WebGLRenderer;
+  canvas: HTMLCanvasElement;
+  pmrem: PMREMGenerator;
+}
 
 /**
  * The tone mapping's exposure at 100 % brightness, by day (the graphics settings multiply it, `Post.apply`, and so does the eye's adaptation,
@@ -29,7 +47,10 @@ export function restoreStudioEnv(scene: Scene, pmrem: PMREMGenerator): void {
 }
 
 export function createRenderContext(host: HTMLElement, background: string): RenderContext {
-  const renderer = new WebGLRenderer({ antialias: false, powerPreference: new URLSearchParams(location.search).has('lowpower') ? 'low-power' : 'high-performance' }); // the scene's target (`post.ts`) does the antialiasing
+  const renderer = new WebGLRenderer({
+    antialias: false,
+    powerPreference: new URLSearchParams(location.search).has('lowpower') ? 'low-power' : 'high-performance',
+  }); // the scene's target (`post.ts`) does the antialiasing
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(host.clientWidth, host.clientHeight);
   renderer.outputColorSpace = SRGBColorSpace;
@@ -66,7 +87,8 @@ export function trackRender(renderer: WebGLRenderer, scene: Scene): void {
 }
 
 function untrackRender(renderer: WebGLRenderer): void {
-  if (import.meta.env.DEV && typeof window !== 'undefined') (window as unknown as { __renders?: Map<WebGLRenderer, Scene> }).__renders?.delete(renderer);
+  if (import.meta.env.DEV && typeof window !== 'undefined')
+    (window as unknown as { __renders?: Map<WebGLRenderer, Scene> }).__renders?.delete(renderer);
 }
 
 /**

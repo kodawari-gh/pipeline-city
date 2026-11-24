@@ -1,9 +1,9 @@
 // What every template is built from: the parameter and result types, the program builder and the helpers that lay a result line out on the display.
 // Split from templates.ts so the task files (tasks.*.ts) can share it without importing the registry.
 
-import { DISPLAY_BASE, DISPLAY_COLS, DISPLAY_ROWS } from "@/core/sim/memmap";
-import type { Prng } from "@/core/sim/prng";
-import type { Kernel } from "./kernels";
+import { DISPLAY_BASE, DISPLAY_COLS, DISPLAY_ROWS } from '@/core/sim/memmap';
+import type { Prng } from '@/core/sim/prng';
+import type { Kernel } from './kernels';
 
 export interface GenParams {
   /** Work multiplier (default 1): more log lines, more hash words, more scan elements, more multiply rounds. */
@@ -99,16 +99,16 @@ export class Builder {
   finish(header: string, expectedText: string, threads?: number): Built {
     const asm = [
       `# ${header}`,
-      "main:",
+      'main:',
       ...(threads !== undefined && threads > 1 ? [`  addi zero, zero, ${threads}`] : []),
       ...this.body,
-      ...(threads !== undefined ? ["thread_end:"] : []),
-      "  ecall",
-      "",
-      ...this.kernels.map((k) => k.asm + "\n"),
+      ...(threads !== undefined ? ['thread_end:'] : []),
+      '  ecall',
+      '',
+      ...this.kernels.map((k) => k.asm + '\n'),
       ...this.data,
-      "",
-    ].join("\n");
+      '',
+    ].join('\n');
     return { asm, kernels: this.kernels, expectedText, ...(threads !== undefined && threads > 1 ? { threads } : {}) };
   }
 }
@@ -125,22 +125,22 @@ export interface Line {
 
 export function layoutLine(segs: Seg[]): Line {
   const bytes: (number | null)[] = [];
-  const fields: Line["fields"] = [];
+  const fields: Line['fields'] = [];
   for (const s of segs) {
-    if (typeof s === "string") for (const ch of s) bytes.push(ch.charCodeAt(0));
+    if (typeof s === 'string') for (const ch of s) bytes.push(ch.charCodeAt(0));
     else {
       fields.push({ off: bytes.length, width: s.dyn });
       for (let i = 0; i < s.dyn; i++) bytes.push(null);
     }
   }
-  if (bytes.length > DISPLAY_COLS) throw new RangeError("line too long");
+  if (bytes.length > DISPLAY_COLS) throw new RangeError('line too long');
   return { bytes, fields };
 }
 
 /** Text of a line with dynamic fields replaced by the given numbers (zero padded). */
 export function renderLine(segs: Seg[], values: number[]): string {
   let v = 0;
-  return segs.map((s) => (typeof s === "string" ? s : String(values[v++]!).padStart(s.dyn, "0"))).join("");
+  return segs.map((s) => (typeof s === 'string' ? s : String(values[v++]!).padStart(s.dyn, '0'))).join('');
 }
 
 /** Static text goes out as packed word stores (about 3 instructions per 4 characters). Dynamic fields stay 0. */
@@ -166,9 +166,9 @@ export function rowAddr(row: number): number {
 }
 
 export function blankRows(row: number): string {
-  return "\n".repeat(row);
+  return '\n'.repeat(row);
 }
 
 export function pad2(n: number): string {
-  return String(n).padStart(2, "0");
+  return String(n).padStart(2, '0');
 }

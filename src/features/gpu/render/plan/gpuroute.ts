@@ -7,12 +7,20 @@ import type { GpuLink, GpuPlan } from './gpuplan';
 // is testable; the card view sends packets along it (board/gpuview.ts).
 
 /** One wire on the way, and whether the packet runs it against its direction. */
-export interface Hop { link: GpuLink; reverse: boolean }
+export interface Hop {
+  link: GpuLink;
+  reverse: boolean;
+}
 
 /** The shortest chain of links from block `from` to block `to`, following the links' directions (null when there is none). */
-export function pathBetween<L extends { from: string; to: string }>(links: readonly L[], from: string, to: string): L[] | null {
+export function pathBetween<L extends { from: string; to: string }>(
+  links: readonly L[],
+  from: string,
+  to: string,
+): L[] | null {
   if (from === to) return [];
-  const prev = new Map<string, L>(), seen = new Set<string>([from]);
+  const prev = new Map<string, L>(),
+    seen = new Set<string>([from]);
   let frontier = [from];
   while (frontier.length) {
     const next: string[] = [];
@@ -38,7 +46,8 @@ export function pathBetween<L extends { from: string; to: string }>(links: reado
 const prefix = (plan: Pick<GpuPlan, 'input'>, sm: number): string => (plan.input.sms > 1 ? `sm${sm}.` : '');
 
 /** Where an SM's instructions enter: the program counter of the unit, the fetch of a warp SM. */
-export const entryOf = (plan: Pick<GpuPlan, 'input'>, sm: number): string => (plan.input.kind === 'simd' ? 'pc' : `${prefix(plan, sm)}fetch`);
+export const entryOf = (plan: Pick<GpuPlan, 'input'>, sm: number): string =>
+  plan.input.kind === 'simd' ? 'pc' : `${prefix(plan, sm)}fetch`;
 
 /** The links a launch crosses: the host link, the launch registers, the entry of SM `sm`. */
 export function launchRoute(plan: Pick<GpuPlan, 'input' | 'links'>, sm = 0): Hop[] {
@@ -47,8 +56,13 @@ export function launchRoute(plan: Pick<GpuPlan, 'input' | 'links'>, sm = 0): Hop
 
 /** The links an instruction of kind `step.kind` runs on SM `sm`, in order. */
 export function gpuRoute(plan: Pick<GpuPlan, 'input' | 'links'>, step: Pick<GpuStep, 'kind'>, sm: number): Hop[] {
-  const p = prefix(plan, sm), regs = `${p}regs`, lanes = `${p}lanes`, out: Hop[] = [];
-  const add = (a: string, b: string) => { for (const link of pathBetween(plan.links, a, b) ?? []) out.push({ link, reverse: false }); };
+  const p = prefix(plan, sm),
+    regs = `${p}regs`,
+    lanes = `${p}lanes`,
+    out: Hop[] = [];
+  const add = (a: string, b: string) => {
+    for (const link of pathBetween(plan.links, a, b) ?? []) out.push({ link, reverse: false });
+  };
   add(entryOf(plan, sm), regs);
   if (step.kind === 'sys' || step.kind === 'br') return out; // the front end alone: a halt, a jump
   add(regs, lanes);

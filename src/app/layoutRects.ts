@@ -56,9 +56,11 @@ export function overlappingControls(controls: readonly Control[]): [string, stri
   const seen = controls.map(shown);
   for (let i = 0; i < controls.length; i++) {
     for (let j = i + 1; j < controls.length; j++) {
-      const a = controls[i]!, c = controls[j]!;
+      const a = controls[i]!,
+        c = controls[j]!;
       if (a.ancestors.includes(c.id) || c.ancestors.includes(a.id)) continue;
-      const sa = seen[i], sc = seen[j];
+      const sa = seen[i],
+        sc = seen[j];
       if (sa && sc && overlaps(sa, sc)) out.push([a.label, c.label]);
     }
   }
@@ -79,7 +81,10 @@ export function controlProblems(c: Control, vw: number, vh: number): string[] {
 
 /** The width of the window not covered by any of the boxes (their horizontal spans, merged), in px. */
 export function freeWidth(vw: number, boxes: readonly Box[]): number {
-  const spans = boxes.map((b) => [Math.max(0, b.x), Math.min(vw, b.r)] as const).filter(([a, z]) => z > a).sort((p, q) => p[0] - q[0]);
+  const spans = boxes
+    .map((b) => [Math.max(0, b.x), Math.min(vw, b.r)] as const)
+    .filter(([a, z]) => z > a)
+    .sort((p, q) => p[0] - q[0]);
   let covered = 0;
   let end = 0;
   for (const [a, z] of spans) {

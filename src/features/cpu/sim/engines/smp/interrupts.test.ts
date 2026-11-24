@@ -1,11 +1,11 @@
 // Interrupts on every engine (docs/CPU.md "Interrupts"): a handler may start at any instruction boundary, saves and restores
 // what it uses, and the interrupted program ends with exactly the registers and memory of an uninterrupted run.
-import { describe, expect, it } from "vitest";
-import { assemble } from "../../asm";
-import { INTC_BASE, INTC_REG, IRQ } from "@/core/sim/memmap";
-import { Machine, RefEngine, type Engine } from "@/core/sim";
-import { RefCpu } from "../../ref";
-import { CONFIGS, WIDE_CONFIGS } from "../testutil";
+import { describe, expect, it } from 'vitest';
+import { assemble } from '../../asm';
+import { INTC_BASE, INTC_REG, IRQ } from '@/core/sim/memmap';
+import { Machine, RefEngine, type Engine } from '@/core/sim';
+import { RefCpu } from '../../ref';
+import { CONFIGS, WIDE_CONFIGS } from '../testutil';
 
 const COUNTER = 0xf08;
 const DATA = 0x2000;
@@ -90,14 +90,25 @@ alt:
 `;
 
 const ENGINES: { name: string; make: () => Engine }[] = [
-  { name: "ref", make: () => new RefEngine() },
+  { name: 'ref', make: () => new RefEngine() },
   ...CONFIGS.map((c) => ({ name: c.name, make: () => c.make() })),
   ...WIDE_CONFIGS.map((c) => ({ name: c.name, make: () => c.make() })),
   // the optional parts: an interrupt during an instruction cache miss, an L2 refill or a 2-bit predicted loop is still precise
-  ...WIDE_CONFIGS.map((c) => ({ name: `${c.name} +I$ +2way +L2 +2bit`, make: () => c.make({ icacheLines: 4, cacheLines: 8, ways: 2, l2Lines: 16, predBits: 2 }) })),
+  ...WIDE_CONFIGS.map((c) => ({
+    name: `${c.name} +I$ +2way +L2 +2bit`,
+    make: () => c.make({ icacheLines: 4, cacheLines: 8, ways: 2, l2Lines: 16, predBits: 2 }),
+  })),
 ];
 
-interface Result { regs: number[]; data: Uint8Array; count: number; cycles: number; taken: number; maxLatency: number; machine: Machine }
+interface Result {
+  regs: number[];
+  data: Uint8Array;
+  count: number;
+  cycles: number;
+  taken: number;
+  maxLatency: number;
+  machine: Machine;
+}
 
 /** Run to halt, raising the NIC line at each given cycle. */
 function run(make: () => Engine, src: string, raiseAt: number[] = [], maxCycles = 100_000): Result {
@@ -106,23 +117,28 @@ function run(make: () => Engine, src: string, raiseAt: number[] = [], maxCycles 
   m.attach(e, assemble(src).program);
   let cyc = 0;
   while (!e.halted) {
-    if (cyc >= maxCycles) throw new Error("did not halt");
+    if (cyc >= maxCycles) throw new Error('did not halt');
     if (raiseAt.includes(cyc)) m.intc.raise(IRQ.NIC);
     m.stepCpu();
     cyc++;
   }
   return {
-    regs: Array.from(m.regs), data: m.ram.slice(DATA, DATA + DATA_BYTES), count: m.bus.load32(COUNTER),
-    cycles: cyc, taken: m.intc.taken, maxLatency: m.intc.maxLatency, machine: m,
+    regs: Array.from(m.regs),
+    data: m.ram.slice(DATA, DATA + DATA_BYTES),
+    count: m.bus.load32(COUNTER),
+    cycles: cyc,
+    taken: m.intc.taken,
+    maxLatency: m.intc.maxLatency,
+    machine: m,
   };
 }
 
 const MAIN = SETUP + WORK + ISR;
 
-describe("interrupts: the interrupted program is unchanged", () => {
+describe('interrupts: the interrupted program is unchanged', () => {
   const base = run(() => new RefEngine(), MAIN);
 
-  it("an uninterrupted run takes none", () => {
+  it('an uninterrupted run takes none', () => {
     expect(base.taken).toBe(0);
     expect(base.count).toBe(0);
     expect(base.regs[3]).toBeGreaterThan(0);
@@ -169,17 +185,18 @@ describe("interrupts: the interrupted program is unchanged", () => {
     it(`${eng.name}: the delay before the handler starts is bounded by the pipeline`, () => {
       const quiet = run(eng.make, MAIN);
       let worst = 0;
-      for (let at = 0; at <= Math.floor(quiet.cycles * 0.85); at += 3) worst = Math.max(worst, run(eng.make, MAIN, [at]).maxLatency);
+      for (let at = 0; at <= Math.floor(quiet.cycles * 0.85); at += 3)
+        worst = Math.max(worst, run(eng.make, MAIN, [at]).maxLatency);
       // A pipeline empties in a handful of cycles (a cache miss freeze adds a few more); the reference is instant.
-      expect(worst).toBeLessThanOrEqual(eng.name === "ref" ? 0 : 40);
+      expect(worst).toBeLessThanOrEqual(eng.name === 'ref' ? 0 : 40);
     });
 
     it(`${eng.name}: interrupts stay off until they are enabled, and a masked line never fires`, () => {
-      const noIe = SETUP.replace(`sw t0, ${INTC_REG.CTRL}(t1)`, "nop") + WORK + ISR;
+      const noIe = SETUP.replace(`sw t0, ${INTC_REG.CTRL}(t1)`, 'nop') + WORK + ISR;
       const a = run(eng.make, noIe, [10, 20]);
       expect(a.taken).toBe(0);
       expect(a.regs).toEqual(base.regs);
-      const masked = SETUP.replace(`li t0, ${1 << IRQ.NIC}`, "li t0, 0") + WORK + ISR;
+      const masked = SETUP.replace(`li t0, ${1 << IRQ.NIC}`, 'li t0, 0') + WORK + ISR;
       const b = run(eng.make, masked, [10, 20]);
       expect(b.taken).toBe(0);
       expect(b.machine.intc.pending).toBe(1 << IRQ.NIC); // still latched, waiting for the mask
@@ -187,7 +204,7 @@ describe("interrupts: the interrupted program is unchanged", () => {
     });
   }
 
-  it("the run is deterministic", () => {
+  it('the run is deterministic', () => {
     for (const eng of ENGINES) {
       const a = run(eng.make, MAIN, [40, 77]);
       const b = run(eng.make, MAIN, [40, 77]);
@@ -197,25 +214,28 @@ describe("interrupts: the interrupted program is unchanged", () => {
   });
 });
 
-describe("interrupts: entry and return", () => {
-  it("a bare reference CPU has no interrupt controller for iret", () => {
+describe('interrupts: entry and return', () => {
+  it('a bare reference CPU has no interrupt controller for iret', () => {
     const cpu = new RefCpu();
-    cpu.load(assemble("iret").program);
+    cpu.load(assemble('iret').program);
     expect(() => cpu.step()).toThrow(/iret without an interrupt controller/);
   });
 
-  it("an engine that cannot be interrupted never takes one", () => {
+  it('an engine that cannot be interrupted never takes one', () => {
     const m = new Machine();
     const e = new RefEngine();
     m.attach(e, assemble(MAIN).program);
-    Object.defineProperty(e, "drained", { value: undefined });
+    Object.defineProperty(e, 'drained', { value: undefined });
     m.intc.raise(IRQ.NIC);
     for (let k = 0; k < 2000 && !e.halted; k++) m.stepCpu();
     expect(m.intc.taken).toBe(0);
   });
 
   it("the handler sees the line and the return address in the controller's registers", () => {
-    const src = SETUP + WORK + `
+    const src =
+      SETUP +
+      WORK +
+      `
 isr:${SAVE}
   li t0, ${INTC_BASE}
   lw t1, ${INTC_REG.CAUSE}(t0)
@@ -236,8 +256,11 @@ ${RESTORE}`;
 
   const base = run(() => new RefEngine(), MAIN);
 
-  it("a line that is not acknowledged fires again as soon as iret enables interrupts", () => {
-    const src = SETUP + WORK + `
+  it('a line that is not acknowledged fires again as soon as iret enables interrupts', () => {
+    const src =
+      SETUP +
+      WORK +
+      `
 isr:${SAVE}
   lw t0, ${COUNTER}(zero)
   addi t0, t0, 1
@@ -258,8 +281,11 @@ ${RESTORE}`;
     }
   });
 
-  it("the lowest pending line is taken first", () => {
-    const src = SETUP.replace(`li t0, ${1 << IRQ.NIC}`, `li t0, ${(1 << IRQ.NIC) | (1 << IRQ.USB)}`) + WORK + `
+  it('the lowest pending line is taken first', () => {
+    const src =
+      SETUP.replace(`li t0, ${1 << IRQ.NIC}`, `li t0, ${(1 << IRQ.NIC) | (1 << IRQ.USB)}`) +
+      WORK +
+      `
 isr:${SAVE}
   li t0, ${INTC_BASE}
   lw t1, ${INTC_REG.CAUSE}(t0)

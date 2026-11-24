@@ -32,7 +32,10 @@ export const sizeClass = (radius: number): number => LOD_RADII.findIndex((r) => 
  * player works in, Build my PC's own); the limits and their dead bands stay under it.
  */
 export function farClasses(zoom: number, was: readonly boolean[] = [], ceil = Infinity): boolean[] {
-  return LOD_RADII.map((r, i) => { const at = Math.min(farAt(r), ceil / (1 + LOD_BAND)); return zoom < at ? true : zoom >= ceil || zoom > at * (1 + LOD_BAND) ? false : !!was[i]; });
+  return LOD_RADII.map((r, i) => {
+    const at = Math.min(farAt(r), ceil / (1 + LOD_BAND));
+    return zoom < at ? true : zoom >= ceil || zoom > at * (1 + LOD_BAND) ? false : !!was[i];
+  });
 }
 
 /** Is `o` held in full detail: it, or an object above it, is one of `holds` (a part the player points at, selects or drags, a part a step moves). */
@@ -45,7 +48,8 @@ export function heldBy(o: Object3D, holds: ReadonlySet<Object3D>): boolean {
  * The hold rule: a stand-in draws only while its class is far and none of the meshes it draws for is held (`heldBy`). One held mesh sends
  * the whole stand-in back to its parts, so a held part is never half merged.
  */
-export const standInDraws = (far: boolean, sources: readonly Object3D[], holds: ReadonlySet<Object3D>): boolean => far && !sources.some((s) => heldBy(s, holds));
+export const standInDraws = (far: boolean, sources: readonly Object3D[], holds: ReadonlySet<Object3D>): boolean =>
+  far && !sources.some((s) => heldBy(s, holds));
 
 const COPY = new Matrix4();
 
@@ -54,7 +58,13 @@ export function worldRadius(m: Mesh): number {
   if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
   const im = m as Partial<InstancedMesh> & Mesh;
   let copy = 1;
-  if (im.isInstancedMesh) { copy = 0; for (let i = 0; i < im.count!; i++) { im.getMatrixAt!(i, COPY); copy = Math.max(copy, COPY.getMaxScaleOnAxis()); } }
+  if (im.isInstancedMesh) {
+    copy = 0;
+    for (let i = 0; i < im.count!; i++) {
+      im.getMatrixAt!(i, COPY);
+      copy = Math.max(copy, COPY.getMaxScaleOnAxis());
+    }
+  }
   return m.geometry.boundingSphere!.radius * m.matrixWorld.getMaxScaleOnAxis() * copy;
 }
 
@@ -69,7 +79,11 @@ export interface LodScope {
 }
 
 /** A mesh that goes in a stand-in: its anchor (the nearest above it, else the root) and its size class. */
-export interface Source { mesh: Mesh; anchor: Object3D; cls: number }
+export interface Source {
+  mesh: Mesh;
+  anchor: Object3D;
+  cls: number;
+}
 
 /**
  * The meshes under `root` that go in stand-ins. In: a shown mesh of a size class that can join a set (`standInKey`). Out: what is hidden now,
@@ -79,11 +93,16 @@ export interface Source { mesh: Mesh; anchor: Object3D; cls: number }
  */
 export function lodSources(root: Object3D, o: LodScope = {}): Source[] {
   root.updateWorldMatrix(true, true);
-  const anchors = new Set(o.anchors ?? []), skip = new Set(o.skip ?? []), out: Source[] = [];
+  const anchors = new Set(o.anchors ?? []),
+    skip = new Set(o.skip ?? []),
+    out: Source[] = [];
   const walk = (x: Object3D, anchor: Object3D, off: boolean): void => {
     const u = x.userData;
     if (!x.visible || u.spin || u.live || u.standIn) return;
-    const own = x !== root && anchors.has(x), a = own ? x : anchor, left = own ? false : off || skip.has(x), m = x as Mesh;
+    const own = x !== root && anchors.has(x),
+      a = own ? x : anchor,
+      left = own ? false : off || skip.has(x),
+      m = x as Mesh;
     if (!left && !own && x !== root && m.isMesh) {
       const cls = sizeClass(worldRadius(m));
       if (cls >= 0 && standInKey(m) !== null) out.push({ mesh: m, anchor: a, cls });
@@ -99,13 +118,20 @@ export function drawnMeshes(root: Object3D): number {
   let n = 0;
   root.traverseVisible((o) => {
     const m = o as Mesh;
-    if (m.isMesh && (m.layers.mask & 1) && [m.material].flat().some((x) => x.visible)) n++;
+    if (m.isMesh && m.layers.mask & 1 && [m.material].flat().some((x) => x.visible)) n++;
   });
   return n;
 }
 
 /** One stand-in as built: its mesh under its anchor, the meshes it draws for, their class and the layers they draw on. */
-interface Built { mesh: Mesh; sources: Mesh[]; anchor: Object3D; cls: number; mask: number; held: boolean }
+interface Built {
+  mesh: Mesh;
+  sources: Mesh[];
+  anchor: Object3D;
+  cls: number;
+  mask: number;
+  held: boolean;
+}
 
 /**
  * The stand-ins of one model and their switch. `build` makes them (all, or one anchor's again); `update` takes the zoom and swaps each
@@ -128,18 +154,34 @@ export class PartLod {
   private shared = false;
 
   /** `scope`: the anchors and the left-out subtrees as they are now (asked on each build). */
-  constructor(private readonly root: Object3D, private readonly scope: () => LodScope = () => ({})) { this.build(); }
+  constructor(
+    private readonly root: Object3D,
+    private readonly scope: () => LodScope = () => ({}),
+  ) {
+    this.build();
+  }
 
   /** The stand-in meshes (of all the classes; `far` says which draw). */
-  get standIns(): readonly Mesh[] { return this.built.map((b) => b.mesh); }
+  get standIns(): readonly Mesh[] {
+    return this.built.map((b) => b.mesh);
+  }
   /** Which classes draw as stand-ins now. */
-  get farNow(): readonly boolean[] { return this.far; }
+  get farNow(): readonly boolean[] {
+    return this.far;
+  }
   /** The meshes a stand-in draws for, or none. */
-  sourcesOf(standIn: Object3D): readonly Mesh[] { return this.built.find((b) => b.mesh === standIn)?.sources ?? []; }
+  sourcesOf(standIn: Object3D): readonly Mesh[] {
+    return this.built.find((b) => b.mesh === standIn)?.sources ?? [];
+  }
   /** Does this stand-in draw now (its parts do not)? */
-  draws(standIn: Object3D): boolean { const b = this.built.find((x) => x.mesh === standIn); return !!b && this.far[b.cls]! && !b.held; }
+  draws(standIn: Object3D): boolean {
+    const b = this.built.find((x) => x.mesh === standIn);
+    return !!b && this.far[b.cls]! && !b.held;
+  }
   /** Is this stand-in held in full detail now (a mesh it draws for is held, or shares a stand-in with one)? */
-  held(standIn: Object3D): boolean { return !!this.built.find((x) => x.mesh === standIn)?.held; }
+  held(standIn: Object3D): boolean {
+    return !!this.built.find((x) => x.mesh === standIn)?.held;
+  }
 
   /**
    * Hold these objects in full detail, each with all under it (`standInDraws`), and all of the model from the zoom `ceil` in (`farClasses`).
@@ -158,21 +200,30 @@ export class PartLod {
    */
   private settle(fresh?: ReadonlySet<Built>): void {
     const held = new Set(this.built.filter((b) => !standInDraws(true, b.sources, this.holds)));
-    if (this.shared) for (let grew = held.size > 0; grew; ) {
-      grew = false;
-      const meshes = new Set([...held].flatMap((b) => b.sources));
-      for (const b of this.built) if (!held.has(b) && b.sources.some((s) => meshes.has(s))) { held.add(b); grew = true; }
-    }
+    if (this.shared)
+      for (let grew = held.size > 0; grew;) {
+        grew = false;
+        const meshes = new Set([...held].flatMap((b) => b.sources));
+        for (const b of this.built)
+          if (!held.has(b) && b.sources.some((s) => meshes.has(s))) {
+            held.add(b);
+            grew = true;
+          }
+      }
     for (const b of this.built) {
       const h = held.has(b);
-      if (h !== b.held || fresh?.has(b)) { b.held = h; this.swap(b); }
+      if (h !== b.held || fresh?.has(b)) {
+        b.held = h;
+        this.swap(b);
+      }
     }
   }
 
   /** Make the stand-ins again as the model stands: all, or those of one anchor (`only`: its content changed). The old ones are freed. */
   build(only?: Object3D): void {
     this.drop(only);
-    const by = new Map<Object3D, Mesh[][]>(), fresh = new Set<Built>();
+    const by = new Map<Object3D, Mesh[][]>(),
+      fresh = new Set<Built>();
     for (const s of lodSources(this.root, this.scope())) {
       if (only && s.anchor !== only) continue;
       let sets = by.get(s.anchor);
@@ -185,7 +236,10 @@ export class PartLod {
       const guards = new Set<Object3D>();
       sets.forEach((meshes, cls) => {
         // the overview's class holds most of the model's triangles: it is made when the overview is first reached, not at each build
-        if (cls === BIG && !this.far[BIG]) { this.owed ||= meshes.length > 1; return; }
+        if (cls === BIG && !this.far[BIG]) {
+          this.owed ||= meshes.length > 1;
+          return;
+        }
         for (const { mesh, sources } of standIns(anchor, meshes, pals)) {
           const b: Built = { mesh, sources, anchor, cls, mask: mesh.layers.mask, held: false };
           for (const s of sources) for (let p: Object3D | null = s; p && p !== anchor; p = p.parent) guards.add(p);
@@ -210,7 +264,8 @@ export class PartLod {
       b.mesh.geometry.dispose();
       return false;
     });
-    if (only) this.guards.delete(only); else this.guards.clear();
+    if (only) this.guards.delete(only);
+    else this.guards.clear();
   }
 
   /**
@@ -219,14 +274,20 @@ export class PartLod {
    * draws itself when it shows again). No class crossed and nothing hidden: a few compares and one read per guard, no other work.
    */
   update(zoom: number): void {
-    const far = farClasses(zoom, this.far, this.ceil), was = this.far;
+    const far = farClasses(zoom, this.far, this.ceil),
+      was = this.far;
     this.far = far;
-    if (far[BIG] && this.owed) { this.owed = false; this.build(); }
+    if (far[BIG] && this.owed) {
+      this.owed = false;
+      this.build();
+    }
     if (far.some(Boolean)) {
       const stale = [...this.guards].filter(([, nodes]) => nodes.some((o) => !o.visible)).map(([anchor]) => anchor);
       for (const anchor of stale) this.build(anchor);
     }
-    far.forEach((f, cls) => { if (f !== was[cls]) for (const b of this.built) if (b.cls === cls) this.swap(b); });
+    far.forEach((f, cls) => {
+      if (f !== was[cls]) for (const b of this.built) if (b.cls === cls) this.swap(b);
+    });
   }
 
   /** Put a stand-in and its parts on the layers of the side that draws (`far`: default as the class and the holds say). */

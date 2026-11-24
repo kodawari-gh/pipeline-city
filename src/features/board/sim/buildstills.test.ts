@@ -13,7 +13,12 @@ const fs = fsMod as any;
 const crypto = cryptoMod as any;
 const DIR: string = urlMod.fileURLToPath(new URL('../../../../public/stills/builds/', import.meta.url));
 
-interface Manifest { w: number; h: number; stills: Record<string, string>; recipes: Record<string, string> }
+interface Manifest {
+  w: number;
+  h: number;
+  stills: Record<string, string>;
+  recipes: Record<string, string>;
+}
 const manifest = (): Manifest => JSON.parse(fs.readFileSync(DIR + 'manifest.json', 'utf8')) as Manifest;
 
 describe('the Start list pictures', () => {
@@ -35,7 +40,11 @@ describe('the Start list pictures', () => {
   it('keeps each picture with the hash the page asks it by (a changed picture is not served from the cache)', () => {
     const m = manifest();
     for (const key of PICTURE_KEYS) {
-      const hash = crypto.createHash('sha1').update(fs.readFileSync(`${DIR}${key}.webp`)).digest('hex').slice(0, 8);
+      const hash = crypto
+        .createHash('sha1')
+        .update(fs.readFileSync(`${DIR}${key}.webp`))
+        .digest('hex')
+        .slice(0, 8);
       expect(m.stills[key], `${key}: run npm run buildstills`).toBe(hash);
     }
   });

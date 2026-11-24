@@ -17,8 +17,7 @@ interface Rec {
 function recordingBackend() {
   const calls: Rec[] = [];
   const sink = new Proxy({} as Record<string, (...a: unknown[]) => void>, {
-    get: (_t, name) =>
-      typeof name === 'string' ? (...args: unknown[]) => void calls.push({ name, args }) : undefined,
+    get: (_t, name) => (typeof name === 'string' ? (...args: unknown[]) => void calls.push({ name, args }) : undefined),
     has: () => true,
   });
   return {
@@ -83,7 +82,13 @@ const SH = (level: number) => keyed('shimmer', level);
 const ST = (level: number) => keyed('stress', level);
 
 describe('stressAmount: the worst term, clamped to 0..1', () => {
-  const snap = (opts: { throttles?: number[]; loadRatio?: number; totalW?: number; budgetW?: number; tempC?: number }) =>
+  const snap = (opts: {
+    throttles?: number[];
+    loadRatio?: number;
+    totalW?: number;
+    budgetW?: number;
+    tempC?: number;
+  }) =>
     ({
       devices: (opts.throttles ?? [1]).map((throttle, i) => ({ id: `d${i}`, throttle, tempC: 40 })),
       vrm: { loadRatio: opts.loadRatio ?? 0.5, tempC: opts.tempC ?? 40, throttleC: 90, damageC: 105 },
@@ -243,7 +248,9 @@ describe('debt: an unpaid bill muffles the bed', () => {
 
   it('the bill low-pass on the bed fades in over 1 s', () => {
     const { b } = game(1, { bill: { unpaid: 12 } });
-    const lp = b.calls.filter((c) => c.name === 'setMusicLowpass' && c.args[0] === keyed('bed', 1) && c.args[1] === 3000).at(-1);
+    const lp = b.calls
+      .filter((c) => c.name === 'setMusicLowpass' && c.args[0] === keyed('bed', 1) && c.args[1] === 3000)
+      .at(-1);
     expect(lp).toBeDefined();
     expect(lp!.args[2]).toBe(1000);
   });

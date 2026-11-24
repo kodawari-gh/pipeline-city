@@ -1,16 +1,19 @@
 // Virtual memory (docs/VM.md): the MMU and the engines' precise page faults. Programs run translated and must give exactly what the reference gives,
 // with pages mapped up front or claimed by a fault handler while they run (the fault can strike at any point of the pipeline, in a fetch, a load or a
 // store: the restart must lose nothing and repeat nothing).
-import { describe, expect, it } from "vitest";
-import { assemble } from "../../cpu/sim/asm";
-import { DEVICE_BASE, MMU_BASE, MMU_REG, PteBit, VmFault } from "@/core/sim/memmap";
-import { Machine } from "@/core/sim";
-import { createEngine, Counter, type EngineConfig, type PipelineEngine } from "../../cpu/sim/engines/index";
-import { DATA_BASE, genData, genProgram } from "../../cpu/sim/engines/testgen";
-import { runRef } from "../../cpu/sim/engines/testutil";
+import { describe, expect, it } from 'vitest';
+import { assemble } from '../../cpu/sim/asm';
+import { DEVICE_BASE, MMU_BASE, MMU_REG, PteBit, VmFault } from '@/core/sim/memmap';
+import { Machine } from '@/core/sim';
+import { createEngine, Counter, type EngineConfig, type PipelineEngine } from '../../cpu/sim/engines/index';
+import { DATA_BASE, genData, genProgram } from '../../cpu/sim/engines/testgen';
+import { runRef } from '../../cpu/sim/engines/testutil';
 
 const SHIFT = 0x2000; // a program's virtual address v lives at physical v + SHIFT
-const L1 = 0x5000, L2 = 0x5100, SCRATCH = 0x5200, HANDLER = 0x5400;
+const L1 = 0x5000,
+  L2 = 0x5100,
+  SCRATCH = 0x5200,
+  HANDLER = 0x5400;
 
 /** The OS's page-fault handler: it maps the faulting page (v -> v + SHIFT) and goes back to the instruction. It saves what it uses. */
 const HANDLER_SRC = `
@@ -33,24 +36,66 @@ const HANDLER_SRC = `
   iret`;
 
 const ENGINES: { name: string; cfg: EngineConfig }[] = [
-  { name: "unpipelined", cfg: { kind: "unpipelined" } },
-  { name: "inorder", cfg: { kind: "inorder", forwarding: true, cacheLines: 8 } },
-  { name: "inorder nofwd shared port", cfg: { kind: "inorder", forwarding: false, sharedPort: true, cacheLines: 8 } },
-  { name: "inorder2 + caches", cfg: { kind: "inorder2", forwarding: true, cacheLines: 16, ways: 2, icacheLines: 8, l2Lines: 32, missPenalty: 6 } },
-  { name: "ooo", cfg: { kind: "ooo", width: 2, robSize: 16, schedSize: 8, fetchQueue: 8, cacheLines: 16, missPenalty: 6 } },
-  { name: "ooo wide + dram", cfg: { kind: "ooo", width: 4, robSize: 32, schedSize: 16, fetchQueue: 8, cacheLines: 32, icacheLines: 16, l2Lines: 64, dram: { channels: 2, banks: 4, bankGroups: 2, rowBytes: 256, tCL: 2, tRCD: 3, tRP: 3, burst: 1, ccdS: 1, ccdL: 2, refreshEvery: 500, tRFC: 5, policy: "adaptive" } } },
+  { name: 'unpipelined', cfg: { kind: 'unpipelined' } },
+  { name: 'inorder', cfg: { kind: 'inorder', forwarding: true, cacheLines: 8 } },
+  { name: 'inorder nofwd shared port', cfg: { kind: 'inorder', forwarding: false, sharedPort: true, cacheLines: 8 } },
+  {
+    name: 'inorder2 + caches',
+    cfg: { kind: 'inorder2', forwarding: true, cacheLines: 16, ways: 2, icacheLines: 8, l2Lines: 32, missPenalty: 6 },
+  },
+  {
+    name: 'ooo',
+    cfg: { kind: 'ooo', width: 2, robSize: 16, schedSize: 8, fetchQueue: 8, cacheLines: 16, missPenalty: 6 },
+  },
+  {
+    name: 'ooo wide + dram',
+    cfg: {
+      kind: 'ooo',
+      width: 4,
+      robSize: 32,
+      schedSize: 16,
+      fetchQueue: 8,
+      cacheLines: 32,
+      icacheLines: 16,
+      l2Lines: 64,
+      dram: {
+        channels: 2,
+        banks: 4,
+        bankGroups: 2,
+        rowBytes: 256,
+        tCL: 2,
+        tRCD: 3,
+        tRP: 3,
+        burst: 1,
+        ccdS: 1,
+        ccdL: 2,
+        refreshEvery: 500,
+        tRFC: 5,
+        policy: 'adaptive',
+      },
+    },
+  },
 ];
 
 const pte = (frame: number, flags: number): number => (frame << 8) | flags;
 const put = (m: Machine, pa: number, v: number): void => m.bus.store32(pa, v);
 
-interface Run { m: Machine; e: PipelineEngine; steps: number }
+interface Run {
+  m: Machine;
+  e: PipelineEngine;
+  steps: number;
+}
 
 /**
  * Run `src` (assembled for virtual address 0, data at virtual DATA_BASE) translated by an MMU with `tlb` entries. Its code pages are mapped up front;
  * its data pages are mapped up front (`mapData`) or by the fault handler as the program touches them.
  */
-function runVm(cfg: EngineConfig, src: string, data: Uint8Array, o: { tlb?: number; mapData?: boolean; dataPages?: number; ro?: boolean } = {}): Run {
+function runVm(
+  cfg: EngineConfig,
+  src: string,
+  data: Uint8Array,
+  o: { tlb?: number; mapData?: boolean; dataPages?: number; ro?: boolean } = {},
+): Run {
   const m = new Machine();
   const e = createEngine(cfg) as PipelineEngine;
   const program = assemble(src).program;
@@ -62,16 +107,22 @@ function runVm(cfg: EngineConfig, src: string, data: Uint8Array, o: { tlb?: numb
   assemble(HANDLER_SRC).program.forEach((w, i) => put(m, HANDLER + 4 * i, w));
   m.mmu.configure(o.tlb ?? 8);
   put(m, L1, pte(L2 >> 8, PteBit.Valid));
-  const codePages = Math.ceil(program.length * 4 / 256);
+  const codePages = Math.ceil((program.length * 4) / 256);
   for (let p = 0; p < codePages; p++) put(m, L2 + 4 * p, pte((p * 256 + SHIFT) >> 8, PteBit.Valid | PteBit.Exec));
-  if (o.mapData) for (let p = 0; p < (o.dataPages ?? 1); p++) put(m, L2 + 4 * ((DATA_BASE >> 8) + p), pte(((DATA_BASE >> 8) + p) + (SHIFT >> 8), PteBit.Valid | PteBit.Write | (o.ro ? 0 : 0)));
+  if (o.mapData)
+    for (let p = 0; p < (o.dataPages ?? 1); p++)
+      put(
+        m,
+        L2 + 4 * ((DATA_BASE >> 8) + p),
+        pte((DATA_BASE >> 8) + p + (SHIFT >> 8), PteBit.Valid | PteBit.Write | (o.ro ? 0 : 0)),
+      );
   m.bus.store32(MMU_BASE + MMU_REG.TABLE, L1);
   m.bus.store32(MMU_BASE + MMU_REG.VECTOR, HANDLER);
   m.mmu.enabled = true;
   let steps = 0;
   // the handler's code pages are physical: translation is off while it runs; give it execute permission through the identity of the OS (it runs untranslated)
   while (!e.halted) {
-    if (steps++ > 400_000) throw new Error("did not halt");
+    if (steps++ > 400_000) throw new Error('did not halt');
     m.stepCpu();
   }
   return { m, e, steps };
@@ -91,23 +142,31 @@ loop:
   bne t0, t2, loop
   ecall`;
 
-describe.each(ENGINES)("translated programs match the reference: $name", ({ cfg }) => {
-  it("random programs, every page mapped up front", () => {
+describe.each(ENGINES)('translated programs match the reference: $name', ({ cfg }) => {
+  it('random programs, every page mapped up front', () => {
     for (let seed = 1; seed <= 12; seed++) {
-      const src = genProgram(seed, 40), data = genData(seed), ref = runRef(src, data);
+      const src = genProgram(seed, 40),
+        data = genData(seed),
+        ref = runRef(src, data);
       const r = runVm(cfg, src, data, { mapData: true });
       expect(Array.from(r.m.regs), `seed ${seed}`).toEqual(ref.regs);
-      expect(Array.from(r.m.ram.slice(SHIFT + DATA_BASE, SHIFT + DATA_BASE + 256)), `seed ${seed} data`).toEqual(Array.from(ref.mem.slice(DATA_BASE, DATA_BASE + 256)));
+      expect(Array.from(r.m.ram.slice(SHIFT + DATA_BASE, SHIFT + DATA_BASE + 256)), `seed ${seed} data`).toEqual(
+        Array.from(ref.mem.slice(DATA_BASE, DATA_BASE + 256)),
+      );
       expect(r.m.mmu.faults).toBe(0);
     }
   });
 
-  it("random programs, the data page claimed by a fault the program must not notice", () => {
+  it('random programs, the data page claimed by a fault the program must not notice', () => {
     for (let seed = 30; seed <= 41; seed++) {
-      const src = genProgram(seed, 40), data = genData(seed), ref = runRef(src, data);
+      const src = genProgram(seed, 40),
+        data = genData(seed),
+        ref = runRef(src, data);
       const r = runVm(cfg, src, data);
       expect(Array.from(r.m.regs), `seed ${seed}`).toEqual(ref.regs);
-      expect(Array.from(r.m.ram.slice(SHIFT + DATA_BASE, SHIFT + DATA_BASE + 256)), `seed ${seed} data`).toEqual(Array.from(ref.mem.slice(DATA_BASE, DATA_BASE + 256)));
+      expect(Array.from(r.m.ram.slice(SHIFT + DATA_BASE, SHIFT + DATA_BASE + 256)), `seed ${seed} data`).toEqual(
+        Array.from(ref.mem.slice(DATA_BASE, DATA_BASE + 256)),
+      );
       // the program touches its data page: at most one fault, and the handler's work is the only extra thing that happened
       expect(r.m.mmu.faults).toBeLessThanOrEqual(1);
       expect(r.e.view.counters[Counter.PageFaults]).toBe(r.m.mmu.faults);
@@ -115,7 +174,8 @@ describe.each(ENGINES)("translated programs match the reference: $name", ({ cfg 
   });
 
   it("a scan over eight pages faults once on each, restarts every time and gets the reference's answer", () => {
-    const data = genData(5), ref = runRef(SCAN, data);
+    const data = genData(5),
+      ref = runRef(SCAN, data);
     const r = runVm(cfg, SCAN, data);
     expect(Array.from(r.m.regs)).toEqual(ref.regs);
     expect(r.m.mmu.faults).toBe(8);
@@ -124,26 +184,28 @@ describe.each(ENGINES)("translated programs match the reference: $name", ({ cfg 
   });
 });
 
-describe("the TLB and the table walk", () => {
-  const cfg: EngineConfig = { kind: "inorder", forwarding: true, cacheLines: 8, missPenalty: 6 };
+describe('the TLB and the table walk', () => {
+  const cfg: EngineConfig = { kind: 'inorder', forwarding: true, cacheLines: 8, missPenalty: 6 };
   const data = genData(9);
 
-  it("a bigger TLB misses less and finishes sooner (a walk is two reads the CPU waits for)", () => {
+  it('a bigger TLB misses less and finishes sooner (a walk is two reads the CPU waits for)', () => {
     const small = runVm(cfg, SCAN, data, { tlb: 1, mapData: true, dataPages: 8 });
     const big = runVm(cfg, SCAN, data, { tlb: 16, mapData: true, dataPages: 8 });
-    const sm = small.e.view.counters[Counter.TlbMisses]!, bm = big.e.view.counters[Counter.TlbMisses]!;
+    const sm = small.e.view.counters[Counter.TlbMisses]!,
+      bm = big.e.view.counters[Counter.TlbMisses]!;
     expect(sm).toBeGreaterThan(bm);
     expect(small.steps).toBeGreaterThan(big.steps);
     expect(Array.from(small.m.regs)).toEqual(Array.from(big.m.regs));
   });
 
-  it("is deterministic", () => {
-    const a = runVm(cfg, SCAN, data), b = runVm(cfg, SCAN, data);
+  it('is deterministic', () => {
+    const a = runVm(cfg, SCAN, data),
+      b = runVm(cfg, SCAN, data);
     expect(a.steps).toBe(b.steps);
     expect(Array.from(a.e.view.counters)).toEqual(Array.from(b.e.view.counters));
   });
 
-  it("translation changes nothing while it is off: the same program runs the same cycles", () => {
+  it('translation changes nothing while it is off: the same program runs the same cycles', () => {
     const plain = (() => {
       const m = new Machine();
       const e = createEngine(cfg) as PipelineEngine;
@@ -165,10 +227,14 @@ describe("the TLB and the table walk", () => {
   });
 });
 
-describe("the MMU device", () => {
-  const mk = () => { const m = new Machine(); m.mmu.configure(4); return m; };
+describe('the MMU device', () => {
+  const mk = () => {
+    const m = new Machine();
+    m.mmu.configure(4);
+    return m;
+  };
 
-  it("a CPU without an MMU cannot switch it on", () => {
+  it('a CPU without an MMU cannot switch it on', () => {
     const m = new Machine();
     m.bus.store32(MMU_BASE + MMU_REG.CONTROL, 1);
     expect(m.mmu.enabled).toBe(false);
@@ -180,7 +246,7 @@ describe("the MMU device", () => {
     expect(m.bus.load32(MMU_BASE + MMU_REG.TLB_ENTRIES)).toBe(4);
   });
 
-  it("translates through two levels, checks permissions and leaves devices alone", () => {
+  it('translates through two levels, checks permissions and leaves devices alone', () => {
     const m = mk();
     put(m, L1 + 4 * 2, pte(L2 >> 8, PteBit.Valid)); // level 1 index 2: virtual 0x8000..0xbfff
     put(m, L2 + 4 * 5, pte(0x31, PteBit.Valid | PteBit.Write)); // virtual 0x8500 -> physical 0x3100, read and write
@@ -205,7 +271,7 @@ describe("the MMU device", () => {
     expect(mmu.peek(0x8734)).toBe(-1);
   });
 
-  it("the TLB replaces the least recently used entry, and a new table or a flush empties it", () => {
+  it('the TLB replaces the least recently used entry, and a new table or a flush empties it', () => {
     const m = mk();
     put(m, L1, pte(L2 >> 8, PteBit.Valid));
     for (let p = 0; p < 8; p++) put(m, L2 + 4 * p, pte(0x40 + p, PteBit.Valid | PteBit.Write));
@@ -226,7 +292,7 @@ describe("the MMU device", () => {
     expect(mmu.dump().vpn.every((v) => v < 0)).toBe(true);
   });
 
-  it("a trap switches translation off for the OS, and iret switches it back on", () => {
+  it('a trap switches translation off for the OS, and iret switches it back on', () => {
     const m = mk();
     m.mmu.enabled = true;
     m.mmu.enterKernel();
@@ -242,7 +308,7 @@ describe("the MMU device", () => {
   });
 });
 
-describe("faults the OS does not fix", () => {
+describe('faults the OS does not fix', () => {
   const STOP = `
     li t0, ${MMU_BASE}
     lw a2, ${MMU_REG.FAULT_CAUSE}(t0)
@@ -269,48 +335,70 @@ describe("faults the OS does not fix", () => {
     return m;
   };
 
-  it.each(ENGINES)("$name: a store to a read-only page faults, the stores before it landed and the ones after it never do", ({ cfg }) => {
-    const m = run(cfg, `
+  it.each(ENGINES)(
+    '$name: a store to a read-only page faults, the stores before it landed and the ones after it never do',
+    ({ cfg }) => {
+      const m = run(
+        cfg,
+        `
       li s3, 0x1000
       li a0, 11
       sw a0, 0(s3)
       li a1, 22
       sw a1, 8(s3)
       sw a1, 0x300(zero)
-      ecall`, (mm) => { put(mm, L2 + 4 * 16, pte(0x30, PteBit.Valid | PteBit.Write)); put(mm, L2 + 4 * 17, pte(0x31, PteBit.Valid)); });
-    // 0x1000 is writable here and 0x1100 is not; the program only touches 0x1000 and the unmapped 0x300
-    expect(m.bus.load32(0x3000)).toBe(11);
-    expect(m.bus.load32(0x3008)).toBe(22);
-    expect(m.mmu.cause).toBe(VmFault.NotPresent); // 0x300 is on a page nobody mapped
-    expect(m.regs[5]).toBe(VmFault.NotPresent);
-    expect(m.regs[6]).toBe(0x300);
-    expect(m.mmu.faults).toBe(1);
-  });
+      ecall`,
+        (mm) => {
+          put(mm, L2 + 4 * 16, pte(0x30, PteBit.Valid | PteBit.Write));
+          put(mm, L2 + 4 * 17, pte(0x31, PteBit.Valid));
+        },
+      );
+      // 0x1000 is writable here and 0x1100 is not; the program only touches 0x1000 and the unmapped 0x300
+      expect(m.bus.load32(0x3000)).toBe(11);
+      expect(m.bus.load32(0x3008)).toBe(22);
+      expect(m.mmu.cause).toBe(VmFault.NotPresent); // 0x300 is on a page nobody mapped
+      expect(m.regs[5]).toBe(VmFault.NotPresent);
+      expect(m.regs[6]).toBe(0x300);
+      expect(m.mmu.faults).toBe(1);
+    },
+  );
 
-  it.each(ENGINES)("$name: writing a read-only page and running data are both refused with their cause", ({ cfg }) => {
-    const ro = run(cfg, `
+  it.each(ENGINES)('$name: writing a read-only page and running data are both refused with their cause', ({ cfg }) => {
+    const ro = run(
+      cfg,
+      `
       li s3, 0x1000
       li a0, 5
       sw a0, 0(s3)
-      ecall`, () => undefined);
+      ecall`,
+      () => undefined,
+    );
     expect(ro.mmu.cause).toBe(VmFault.Write);
     expect(ro.regs[6]).toBe(0x1000);
     expect(ro.bus.load32(0x3000)).toBe(0); // the store did nothing
-    const nx = run(cfg, `
+    const nx = run(
+      cfg,
+      `
       li s3, 0x1000
       jalr zero, s3, 0
-      ecall`, () => undefined);
+      ecall`,
+      () => undefined,
+    );
     expect(nx.mmu.cause).toBe(VmFault.Exec);
     expect(nx.regs[6]).toBe(0x1000);
   });
 
   // Crash 2026-11-01: a bit flip turned a jump in a job into a jump to 0xffff0010. Device space passed the MMU unchanged, the fetch read zeros and the
   // illegal instruction threw RangeError, which ended the game instead of killing the job.
-  it.each(ENGINES)("$name: a jump into device space is an execute fault, not a crash", ({ cfg }) => {
-    const m = run(cfg, `
+  it.each(ENGINES)('$name: a jump into device space is an execute fault, not a crash', ({ cfg }) => {
+    const m = run(
+      cfg,
+      `
       li s3, 0xffff0010
       jalr zero, s3, 0
-      ecall`, () => undefined);
+      ecall`,
+      () => undefined,
+    );
     expect(m.mmu.cause).toBe(VmFault.Exec);
     expect(m.regs[6]).toBe(0xffff0010 | 0);
     expect(m.mmu.faults).toBe(1);

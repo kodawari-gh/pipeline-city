@@ -11,37 +11,99 @@ vi.mock('@/core/render/three/init', async (orig) => {
       camera: new PerspectiveCamera(30, 1, 10, 1e6),
       pmrem: { dispose() {} },
       renderer: {
-        domElement: { width: 400, height: 400, addEventListener() {}, removeEventListener() {}, getBoundingClientRect: () => ({ left: 0, top: 0, width: 400, height: 400 }), remove() {} },
-        setOpaqueSort() {}, getPixelRatio: () => 1, setSize() {}, properties: { get: () => ({}) }, compile: () => new Set(), getRenderTarget: () => null, setRenderTarget() {}, forceContextLoss() {}, dispose() {},
+        domElement: {
+          width: 400,
+          height: 400,
+          addEventListener() {},
+          removeEventListener() {},
+          getBoundingClientRect: () => ({ left: 0, top: 0, width: 400, height: 400 }),
+          remove() {},
+        },
+        setOpaqueSort() {},
+        getPixelRatio: () => 1,
+        setSize() {},
+        properties: { get: () => ({}) },
+        compile: () => new Set(),
+        getRenderTarget: () => null,
+        setRenderTarget() {},
+        forceContextLoss() {},
+        dispose() {},
       },
     }),
   };
 });
 vi.mock('@/core/render/three/post', () => ({
-  Post: class { render() {} meter = () => null; metered = () => null; setEye() {} setReach() {} setDark() {} setOutlined() {} apply() {} setSize() {} dispose() {} startPrograms = () => []; },
+  Post: class {
+    render() {}
+    meter = () => null;
+    metered = () => null;
+    setEye() {}
+    setReach() {}
+    setDark() {}
+    setOutlined() {}
+    apply() {}
+    setSize() {}
+    dispose() {}
+    startPrograms = () => [];
+  },
 }));
-vi.mock('./lens3d', () => ({ Lens3D: class { frame() {} dispose() {} } }));
+vi.mock('./lens3d', () => ({
+  Lens3D: class {
+    frame() {}
+    dispose() {}
+  },
+}));
 vi.mock('./bake', async (orig) => ({ ...(await orig<typeof import('./bake')>()), startBaker: () => {} })); // (no Pixi renderer in a test)
 
 import { BuildStage } from './buildmode3d';
 
-type Closed = { runBenchmark(): Promise<void>; plan(n: string): string[]; partAt(x: number, y: number): string | null; slotAt(x: number, y: number): string | null; dispose(): void; benching: { value: unknown }; picture: Promise<void> };
+type Closed = {
+  runBenchmark(): Promise<void>;
+  plan(n: string): string[];
+  partAt(x: number, y: number): string | null;
+  slotAt(x: number, y: number): string | null;
+  dispose(): void;
+  benching: { value: unknown };
+  picture: Promise<void>;
+};
 
 describe('a closed BuildStage', () => {
   let stage: Closed;
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {});
     vi.stubGlobal('window', {}); // (the dev build's `__build` hook)
-    const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({ clientWidth: 400, clientHeight: 800 });
-    s._machine = { moving: false, doorOpen: true, frame() {}, setOpen() {}, holdDetail() {}, lod() {}, root: new Group(), boardRoots: () => [], dispose() {} };
+    const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
+      clientWidth: 400,
+      clientHeight: 800,
+    });
+    s._machine = {
+      moving: false,
+      doorOpen: true,
+      frame() {},
+      setOpen() {},
+      holdDetail() {},
+      lod() {},
+      root: new Group(),
+      boardRoots: () => [],
+      dispose() {},
+    };
     s._game = {};
     s.snaps = { of: () => ({}), drop() {} };
     stage = s as unknown as Closed;
   });
-  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
 
   it('ends the wait of an `open` that has no first picture yet', async () => {
     stage.dispose();

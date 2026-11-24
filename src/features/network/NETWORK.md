@@ -60,13 +60,14 @@ Speeds are in Mbit/s. Sizes of jobs are in "game MB" (fiction units, see "Job si
 - **Onboard port (not a part):** present on board tiers 1 and up as a `lan` jack on the board's I/O panel: Basic 100, Mainstream 100, Enthusiast 1000 (`BoardFeatures.ethernetMbps`; Starter has none). It is free, draws nothing extra (the board's idle power already counts it), cannot be bought or burnt separately, and is usable once the network unlocks (level 4). It does not use a PCIe slot.
 - **PCIe NIC cards** (new device kind `nic`, slot `pcie`, one card per slot; a NIC card has its own jack and its speed replaces the onboard one for the cable plugged into it):
 
-| Id | Name | Speed | Price | Idle / load W | Thermal (throttle / unstable / damage C) | Unlock |
-|---|---|---|---|---|---|---|
-| `nic1` | GbE card | 1000 | $120 | 1.5 / 3.5 | 75 / 90 / 105 | level 7 |
-| `nic2` | 10GbE card | 10000 | $500 | 5 / 11 | 65 / 80 / 95 | level 11 |
-| `nic3` | 40GbE card | 40000 | $1800 | 9 / 22 | 60 / 75 / 90 | level 17 |
+| Id     | Name       | Speed | Price | Idle / load W | Thermal (throttle / unstable / damage C) | Unlock   |
+| ------ | ---------- | ----- | ----- | ------------- | ---------------------------------------- | -------- |
+| `nic1` | GbE card   | 1000  | $120  | 1.5 / 3.5     | 75 / 90 / 105                            | level 7  |
+| `nic2` | 10GbE card | 10000 | $500  | 5 / 11        | 65 / 80 / 95                             | level 11 |
+| `nic3` | 40GbE card | 40000 | $1800 | 9 / 22        | 60 / 75 / 90                             | level 17 |
 
-  The card's load watts follow its traffic (utilisation of the link), so a busy 40G card is a real power and heat source and counts against the PSU rated load at install time like any part (`heatFactor` 1). Above its throttle temperature the card runs at half speed, above unstable it corrupts frames (each segment that crosses it is lost with the card's error odds, `errProb`: 1% plus 2% per degree, at most 50%, and the sender sends it again after its timeout), above damage it burns (like any device; replace it). Each chip has its own **input FIFO**, the packets that wait for a free ring slot: the onboard jack 2 segments, `nic1` 4, `nic2` 8, `nic3` 16 (`NIC_FIFO` in `network/sim/specs.ts`). A segment that finds it full is dropped, so a deeper FIFO rides out a longer spell of a busy kernel (`NETSTACK.md` 3.2). Fast cards want airflow, so cooler and case-fan choices matter again. A card needs a free `pcie` slot (Basic has 1, Mainstream 2, Enthusiast 4), so the network competes for slots with the future GPU, NPU and TPM: a deliberate choice.
+The card's load watts follow its traffic (utilisation of the link), so a busy 40G card is a real power and heat source and counts against the PSU rated load at install time like any part (`heatFactor` 1). Above its throttle temperature the card runs at half speed, above unstable it corrupts frames (each segment that crosses it is lost with the card's error odds, `errProb`: 1% plus 2% per degree, at most 50%, and the sender sends it again after its timeout), above damage it burns (like any device; replace it). Each chip has its own **input FIFO**, the packets that wait for a free ring slot: the onboard jack 2 segments, `nic1` 4, `nic2` 8, `nic3` 16 (`NIC_FIFO` in `network/sim/specs.ts`). A segment that finds it full is dropped, so a deeper FIFO rides out a longer spell of a busy kernel (`NETSTACK.md` 3.2). Fast cards want airflow, so cooler and case-fan choices matter again. A card needs a free `pcie` slot (Basic has 1, Mainstream 2, Enthusiast 4), so the network competes for slots with the future GPU, NPU and TPM: a deliberate choice.
+
 - On Basic and Mainstream the onboard jack is 100 Mbit, so `nic1` (level 7) is the cheap step from 100 to 1000 without the $700 Enthusiast board (level 9). Enthusiast already has 1 Gbit, and a card is for 10G and 40G.
 
 ### The cable (a drag)
@@ -77,12 +78,12 @@ An **ethernet cable** is a new cable `lan` in `Snapshot.cables` next to `atx`, `
 
 A separate external box placed beside the monitor, powered from the wall (no PSU budget, no heat, cannot burn). It is bought, not installed: `purchase("router1")` places it (replacing a lower one; the old one disappears). It is always on, so the link drops when the PC is off only because the PC is off.
 
-| Id | Name | Port speed | Simultaneous clients | Price | Unlock |
-|---|---|---|---|---|---|
-| `router1` | Home router | 100 | 2 | $60 | level 4 |
-| `router2` | Gigabit router | 1000 | 4 | $200 | level 7 |
-| `router3` | 10G switch-router | 10000 | 8 | $700 | level 11 |
-| `router4` | Edge router | 40000 | 16 | $2500 | level 17 |
+| Id        | Name              | Port speed | Simultaneous clients | Price | Unlock   |
+| --------- | ----------------- | ---------- | -------------------- | ----- | -------- |
+| `router1` | Home router       | 100        | 2                    | $60   | level 4  |
+| `router2` | Gigabit router    | 1000       | 4                    | $200  | level 7  |
+| `router3` | 10G switch-router | 10000      | 8                    | $700  | level 11 |
+| `router4` | Edge router       | 40000      | 16                   | $2500 | level 17 |
 
 Each router loses a share of the segments that cross it (`RouterSpec.loss`, placeholders): `router1` 2%, `router2` 0.5%, `router3` and `router4` 0.1%.
 
@@ -90,13 +91,13 @@ Each router loses a share of the segments that cross it (`RouterSpec.loss`, plac
 
 Bought once, not an installed part and not a bill (owner): `purchase("isp1")` sets the plan; a higher plan replaces it (no refund, no downgrade offer). The router is pre-wired to the wall jack, so there is no second cable. (The 3D studio draws the wall's port as an RJ45 jack, or as a QSFP+ cage for `isp5`, which copper cannot carry; a lead between unlike ports gets an adapter: `docs/render/net.md` "QSFP+ ports".) The plan caps the download and upload bandwidth and how many clients can be served at once.
 
-| Id | Name | Download / upload (Mbit/s) | Clients at once | Price | Unlock |
-|---|---|---|---|---|---|
-| `isp1` | Basic DSL | 50 / 10 | 2 | $150 | level 4 |
-| `isp2` | Cable | 200 / 50 | 4 | $500 | level 6 |
-| `isp3` | Fibre | 1000 / 300 | 8 | $1500 | level 9 |
-| `isp4` | Business fibre | 5000 / 1500 | 16 | $5000 | level 14 |
-| `isp5` | Backbone | 20000 / 10000 | 32 | $15000 | level 18 |
+| Id     | Name           | Download / upload (Mbit/s) | Clients at once | Price  | Unlock   |
+| ------ | -------------- | -------------------------- | --------------- | ------ | -------- |
+| `isp1` | Basic DSL      | 50 / 10                    | 2               | $150   | level 4  |
+| `isp2` | Cable          | 200 / 50                   | 4               | $500   | level 6  |
+| `isp3` | Fibre          | 1000 / 300                 | 8               | $1500  | level 9  |
+| `isp4` | Business fibre | 5000 / 1500                | 16              | $5000  | level 14 |
+| `isp5` | Backbone       | 20000 / 10000              | 32              | $15000 | level 18 |
 
 The plan's line loses segments too (`IspSpec.loss`, placeholders): `isp1` 2%, `isp2` 0.5%, `isp3` to `isp5` 0.1%. The chance a segment is lost is the combination of the plan, the router, a card that has gone unstable from heat and the extra `ECONOMY.wireLoss` (0 by default): `1 - (1 - a)(1 - b)(1 - c)(1 - d)` (`NETSTACK.md` 3.5). `ECONOMY.lossTable = false` leaves only `wireLoss` (the tests that pin a transfer to the tick use it).
 
@@ -129,14 +130,14 @@ Missing any gives a link state with a readable reason (below) and never a refusa
 
 `snapshot.net.state`:
 
-| State | When | What the player sees |
-|---|---|---|
-| `no-device` | no ISP plan or no router yet | net panel hidden or shows "no service" |
-| `no-cable` | router and plan present, no cable plugged | wall jack lit, router link LED off, hint "plug the cable into the board" |
-| `no-os` | cable plugged, but no booted OS meeting the minimum (`reason` says which: OS missing, RAM below 64K, no space) | port LED amber |
-| `link-up` | cable plugged, OS booted with the stack, plan present, port working | green link LED, traffic pulses |
-| `saturated` | `link-up` and every client slot is in use or the offer list is waiting for a free slot or queue place | LED blinks, "bandwidth full" chip with the binding limiter |
-| `down` | the machine lost power (power off, PSU trip, brownout), crashed, the board is dead, the uplink NIC is burnt, or the OS is not up (booting) | LED off; the router and the plan stay lit |
+| State       | When                                                                                                                                       | What the player sees                                                     |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `no-device` | no ISP plan or no router yet                                                                                                               | net panel hidden or shows "no service"                                   |
+| `no-cable`  | router and plan present, no cable plugged                                                                                                  | wall jack lit, router link LED off, hint "plug the cable into the board" |
+| `no-os`     | cable plugged, but no booted OS meeting the minimum (`reason` says which: OS missing, RAM below 64K, no space)                             | port LED amber                                                           |
+| `link-up`   | cable plugged, OS booted with the stack, plan present, port working                                                                        | green link LED, traffic pulses                                           |
+| `saturated` | `link-up` and every client slot is in use or the offer list is waiting for a free slot or queue place                                      | LED blinks, "bandwidth full" chip with the binding limiter               |
+| `down`      | the machine lost power (power off, PSU trip, brownout), crashed, the board is dead, the uplink NIC is burnt, or the OS is not up (booting) | LED off; the router and the plan stay lit                                |
 
 `down` and `no-os` differ in cause: `down` is transient (power); `no-os` is a setup problem. A powered machine that reboots goes `down` until the OS is back up (the OS boot takes about 20 to 75 s depending on drive and CPU, `OS.md`).
 
@@ -178,17 +179,17 @@ The USB keys left behind when the link comes up must not punish the switch (the 
 
 Each template (and class, `PROGRESSION.md`) has a download size (program plus data) and an upload size (result). Times below are for one transfer alone at the stated bandwidth.
 
-| Template / class | Down MB | Up MB | Down at 50 Mbit | Up at 10 Mbit | Down at 1000 Mbit |
-|---|---|---|---|---|---|
-| `cli.log`, `cli.calc` | 24 | 2 | 3.8 s | 1.6 s | 0.2 s |
-| `cli.checksum` | 30 | 2 | 4.8 s | 1.6 s | 0.2 s |
-| `cli.scan` (scale 4) | 300 | 10 | 48 s | 8 s | 2.4 s |
-| `db` (planned) | 400 | 80 | 64 s | 64 s | 3.2 s |
-| `web` (planned) | 4 | 25 | 0.6 s | 20 s | 0.03 s |
-| `secure` (planned) | 100 | 10 | 16 s | 8 s | 0.8 s |
-| `gpu` (planned) | 2000 | 600 | 320 s | 480 s | 16 s |
-| `npu` (planned) | 1200 | 40 | 192 s | 32 s | 9.6 s |
-| `hpc` (planned) | 3000 | 200 | 480 s | 160 s | 24 s |
+| Template / class      | Down MB | Up MB | Down at 50 Mbit | Up at 10 Mbit | Down at 1000 Mbit |
+| --------------------- | ------- | ----- | --------------- | ------------- | ----------------- |
+| `cli.log`, `cli.calc` | 24      | 2     | 3.8 s           | 1.6 s         | 0.2 s             |
+| `cli.checksum`        | 30      | 2     | 4.8 s           | 1.6 s         | 0.2 s             |
+| `cli.scan` (scale 4)  | 300     | 10    | 48 s            | 8 s           | 2.4 s             |
+| `db` (planned)        | 400     | 80    | 64 s            | 64 s          | 3.2 s             |
+| `web` (planned)       | 4       | 25    | 0.6 s           | 20 s          | 0.03 s            |
+| `secure` (planned)    | 100     | 10    | 16 s            | 8 s           | 0.8 s             |
+| `gpu` (planned)       | 2000    | 600   | 320 s           | 480 s         | 16 s              |
+| `npu` (planned)       | 1200    | 40    | 192 s           | 32 s          | 9.6 s             |
+| `hpc` (planned)       | 3000    | 200   | 480 s           | 160 s         | 24 s              |
 
 `size` scales with the job's generator `scale` (linear). A web request is the only upload-heavy class, which makes the upload cap of the plan matter. A GPU or HPC job is hopeless on a 50 Mbit line (minutes of download), which is the pressure to buy `isp3` and above, and also a reason a level-10 player needs more than `isp2`.
 
@@ -196,12 +197,12 @@ Each template (and class, `PROGRESSION.md`) has a download size (program plus da
 
 Every arrival is drawn from the level's mix (`PROGRESSION.md`) and goes to one channel, decided by the network state:
 
-| State | USB keys (tray) | Network offers | Web class |
-|---|---|---|---|
-| never linked (setup) | normal rate (non-web classes) | none | offers (wait, and expire, until the first link) |
-| linked, link up (`link-up`, `saturated`) | none (retired) | normal rate | offers |
-| linked, link down under 300 ticks | none | normal rate (they pile up to the cap: clients see a dead server) | offers |
-| linked, link down 300 ticks or more (fallback) | one third of the normal rate | none (existing offers age and expire) | none |
+| State                                          | USB keys (tray)               | Network offers                                                   | Web class                                       |
+| ---------------------------------------------- | ----------------------------- | ---------------------------------------------------------------- | ----------------------------------------------- |
+| never linked (setup)                           | normal rate (non-web classes) | none                                                             | offers (wait, and expire, until the first link) |
+| linked, link up (`link-up`, `saturated`)       | none (retired)                | normal rate                                                      | offers                                          |
+| linked, link down under 300 ticks              | none                          | normal rate (they pile up to the cap: clients see a dead server) | offers                                          |
+| linked, link down 300 ticks or more (fallback) | one third of the normal rate  | none (existing offers age and expire)                            | none                                            |
 
 The web class has no share until a plan is bought, and none in fallback (no client is on the wire). The other classes are renormalised over the share that is left.
 
@@ -227,15 +228,15 @@ New registers at `NET_BASE` in the memory map (a device on the bus, present when
 
 Everything in RAM is lost on power loss (power off, PSU trip, crash, burnt board); anything written to the drive survives. The OS writes each job to its spool when its transfer completes, so the rule is about where the bytes are:
 
-| Item | Where it lives | On power loss |
-|---|---|---|
+| Item                                                       | Where it lives     | On power loss                                                                                                                                                                                                                                 |
+| ---------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Spooled job: queued, running, or result waiting for upload | drive (spool slot) | **survives.** The queue is rebuilt from the spool headers at boot, in ingest order. A running job restarts from its beginning. A finished result that was only in RAM is lost, so the job runs again. Attempts unchanged (nothing was resent) |
-| Finished download not yet written to the spool | RAM (rx window) | lost. The offer returns to the offer list with `attempts++` and its original arrival tick |
-| Download in progress | RAM | lost. The offer returns the same way and restarts from zero at the next boot, once the link is up |
-| Upload in progress | RAM (tx window) | the result is lost; the job is still spooled and runs again. Attempts unchanged |
-| Offers waiting | client side | survive and keep aging; while the machine is down they expire at their deadline like unserved keys (this punishes long outages and rewards booting once and staying up) |
-| Keys in the tray | client side | survive, as today |
-| Network jobs ingested (queued, or result waiting) | drive | survive as spooled jobs |
+| Finished download not yet written to the spool             | RAM (rx window)    | lost. The offer returns to the offer list with `attempts++` and its original arrival tick                                                                                                                                                     |
+| Download in progress                                       | RAM                | lost. The offer returns the same way and restarts from zero at the next boot, once the link is up                                                                                                                                             |
+| Upload in progress                                         | RAM (tx window)    | the result is lost; the job is still spooled and runs again. Attempts unchanged                                                                                                                                                               |
+| Offers waiting                                             | client side        | survive and keep aging; while the machine is down they expire at their deadline like unserved keys (this punishes long outages and rewards booting once and staying up)                                                                       |
+| Keys in the tray                                           | client side        | survive, as today                                                                                                                                                                                                                             |
+| Network jobs ingested (queued, or result waiting)          | drive              | survive as spooled jobs                                                                                                                                                                                                                       |
 
 - The link goes `down` on any of those losses. Removing the cable mid-transfer is the same as power off for the transfers (state `no-cable`); the spool is kept.
 - On reboot the link comes back up when the OS is up (`down` to `link-up`); the offer list is served from the oldest, and the spooled jobs are served before new ones.
@@ -334,10 +335,10 @@ Hints (first occurrence): link `down` after a power-off (and that the spooled jo
 5. Queue bound: reservation counts downloads; a full queue keeps offers waiting and expiring; the bound never exceeds `queueSlots`.
 6. USB retirement and fallback: after the first `link-up` no key arrives; keys in the tray are still served; `deadTicks` reaching 300 starts keys at one third of the normal rate (counted over a long run within a tolerance); a return to `link-up` ends the fallback at once; the web class has no share in fallback and none before a plan; `deadTicks` and the retirement are sticky across save and load.
 7. Power loss: a spooled job survives (the queue is rebuilt from the headers in `sequence` order; a running one restarts from zero); a finished download still in the rx window and a download in progress return to the offer list with `attempts++`; an upload in progress and a result that was only in RAM run again; the offers expire while `down`; money and score are not credited twice.
-11. Spool: a slot with no valid header after a power cut is free at boot; a full spool keeps offers and tray keys waiting (not refused) until they expire; the bound never exceeds the free space; delivery frees the slot and only then pays; `os.spool` and `queue[].persisted` match the state.
-8. Needs and expiry: an unrunnable offer is shown, never started, expires with the penalty of `PROGRESSION.md`, and is excluded from the oldest-age term.
-9. Save: v4 loads into v5 with defaults; round trip of router, plan, lan and `networkLinked`; offers and transfers are not saved; determinism with the same seed.
-10. Protocol and store: `connectCable("lan", port)` and `disconnectCable("lan")` while on; `purchase("isp2")` and `purchase("router2")` apply immediately and respect level and money; the snapshot's `net` block matches the game state; an operator bot test that sets up the network and compares the income and reputation with and without it.
+8. Spool: a slot with no valid header after a power cut is free at boot; a full spool keeps offers and tray keys waiting (not refused) until they expire; the bound never exceeds the free space; delivery frees the slot and only then pays; `os.spool` and `queue[].persisted` match the state.
+9. Needs and expiry: an unrunnable offer is shown, never started, expires with the penalty of `PROGRESSION.md`, and is excluded from the oldest-age term.
+10. Save: v4 loads into v5 with defaults; round trip of router, plan, lan and `networkLinked`; offers and transfers are not saved; determinism with the same seed.
+11. Protocol and store: `connectCable("lan", port)` and `disconnectCable("lan")` while on; `purchase("isp2")` and `purchase("router2")` apply immediately and respect level and money; the snapshot's `net` block matches the game state; an operator bot test that sets up the network and compares the income and reputation with and without it.
 
 ## Web jobs (built 2026-10-29)
 
@@ -356,55 +357,55 @@ Web is the upload-heavy class: a small request whose cost is the **answer going 
 
 ### How it fails
 
-| Failure | Cause | Effect |
-|---|---|---|
-| Never admitted | no link, spool full, no client slot | the offer ages; past its deadline it expires with the normal penalty |
-| Late | slow upload (plan), shared upload, a result waiting for a slot, slow CPU, a long job ahead | delivered with reduced pay (SLA), reputation by turnaround as usual |
-| Lost result | power loss, crash, cable pulled during the upload or the wait | the job is spooled, so it runs again and re-uploads; the SLA clock keeps running from arrival |
-| Lost download | power loss during the download | the offer returns with `attempts + 1` |
+| Failure         | Cause                                                                                                          | Effect                                                                                              |
+| --------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Never admitted  | no link, spool full, no client slot                                                                            | the offer ages; past its deadline it expires with the normal penalty                                |
+| Late            | slow upload (plan), shared upload, a result waiting for a slot, slow CPU, a long job ahead                     | delivered with reduced pay (SLA), reputation by turnaround as usual                                 |
+| Lost result     | power loss, crash, cable pulled during the upload or the wait                                                  | the job is spooled, so it runs again and re-uploads; the SLA clock keeps running from arrival       |
+| Lost download   | power loss during the download                                                                                 | the offer returns with `attempts + 1`                                                               |
 | Failed download | the sender sent one segment 9 times without an acknowledgement (a lossy wire, or a kernel that never has room) | the offer returns with `attempts + 1`, the kernel frees what it held of the job (`NETSTACK.md` 3.7) |
-| Declined | the player declines a waiting web offer | normal decline cost (one third of an expiry) |
+| Declined        | the player declines a waiting web offer                                                                        | normal decline cost (one third of an expiry)                                                        |
 
 ### Measured (2026-10-29)
 
-Rig: Mainstream board, `cpu2`, SATA SSD, `os1`, `ram2` (96K), level 4 to 7 start, demand 0.03 per tick, the level's real job mix, 6 seeds of 4,000 ticks each. `router1` and `router2` differ only with `isp2` (`clients` is the smaller of the two, `isp1` has 2). SLA 120. *Web* is web jobs delivered; *turn* the mean turnaround in ticks; *on time* the share inside the SLA; *yield* the share of the full pay that was paid; *$/ktick* the web pay per 1,000 ticks.
+Rig: Mainstream board, `cpu2`, SATA SSD, `os1`, `ram2` (96K), level 4 to 7 start, demand 0.03 per tick, the level's real job mix, 6 seeds of 4,000 ticks each. `router1` and `router2` differ only with `isp2` (`clients` is the smaller of the two, `isp1` has 2). SLA 120. _Web_ is web jobs delivered; _turn_ the mean turnaround in ticks; _on time_ the share inside the SLA; _yield_ the share of the full pay that was paid; _$/ktick_ the web pay per 1,000 ticks.
 
-| Level | Plan / router | Web | Turn | On time | Yield | $/ktick |
-|---|---|---|---|---|---|---|
-| 4 | `isp1` / any | 122 | 122 | 88% | 97% | 6,253 |
-| 4 | `isp2` / `router1` | 157 | 121 | 86% | 97% | 8,084 |
-| 4 | `isp2` / `router2` | 154 | 106 | 87% | 97% | 9,212 |
-| 5 | `isp1` / any | 74 | 163 | 78% | 94% | 3,313 |
-| 5 | `isp2` / `router1` | 109 | 148 | 73% | 94% | 5,612 |
-| 5 | `isp2` / `router2` | 112 | 104 | 91% | 99% | 8,037 |
-| 6 | `isp1` / any | 50 | 238 | 36% | 83% | 2,188 |
-| 6 | `isp2` / `router1` | 91 | 153 | 75% | 93% | 4,701 |
-| 6 | `isp2` / `router2` | 92 | 167 | 66% | 91% | 5,565 |
-| 7 | `isp1` / any | 58 | 209 | 41% | 83% | 2,357 |
-| 7 | `isp2` / `router1` | 116 | 175 | 51% | 85% | 6,502 |
-| 7 | `isp2` / `router2` | 113 | 162 | 60% | 89% | 7,843 |
+| Level | Plan / router      | Web | Turn | On time | Yield | $/ktick |
+| ----- | ------------------ | --- | ---- | ------- | ----- | ------- |
+| 4     | `isp1` / any       | 122 | 122  | 88%     | 97%   | 6,253   |
+| 4     | `isp2` / `router1` | 157 | 121  | 86%     | 97%   | 8,084   |
+| 4     | `isp2` / `router2` | 154 | 106  | 87%     | 97%   | 9,212   |
+| 5     | `isp1` / any       | 74  | 163  | 78%     | 94%   | 3,313   |
+| 5     | `isp2` / `router1` | 109 | 148  | 73%     | 94%   | 5,612   |
+| 5     | `isp2` / `router2` | 112 | 104  | 91%     | 99%   | 8,037   |
+| 6     | `isp1` / any       | 50  | 238  | 36%     | 83%   | 2,188   |
+| 6     | `isp2` / `router1` | 91  | 153  | 75%     | 93%   | 4,701   |
+| 6     | `isp2` / `router2` | 92  | 167  | 66%     | 91%   | 5,565   |
+| 7     | `isp1` / any       | 58  | 209  | 41%     | 83%   | 2,357   |
+| 7     | `isp2` / `router1` | 116 | 175  | 51%     | 85%   | 6,502   |
+| 7     | `isp2` / `router2` | 113 | 162  | 60%     | 89%   | 7,843   |
 
 `isp2` pays visibly more at every level (more web jobs delivered, and a better yield from level 5), and `router2` adds 14 to 43% on top of it. The SLA's own share of that is the yield column: small at level 4 (the CPU, not the line, sets the time), 5 to 8 points from level 5. A sweep of `slaTicks` from 45 to 120 left the yield gap between `isp1` and `isp2` / `router2` unchanged (level 4: 0 to 1 points, 5: 5 to 7, 6: 7 to 8, 7: 6) and only 120 keeps `isp2` / `router2` on time at 60% or more at every level (at 45 it is 60, 54, 21 and 19%), so **120 stays**. No other balance number changed.
 
 ### Measured with the transport and the loss table (2026-11-22)
 
-Rig: Mainstream board, `cpu2`, SATA SSD, `os1`, `ram2`, the onboard jack, demand 0.03 per tick, the level's job mix, 3 seeds of 4,000 ticks (sums over the seeds). *Done* is jobs completed; *sent* the segments the senders put on the wire, *resent* the resends among them, *timeouts* the retransmission timers that fired. *Table off* is no loss (`ECONOMY.lossTable = false`), *on* the plan and router shares of 3.5.
+Rig: Mainstream board, `cpu2`, SATA SSD, `os1`, `ram2`, the onboard jack, demand 0.03 per tick, the level's job mix, 3 seeds of 4,000 ticks (sums over the seeds). _Done_ is jobs completed; _sent_ the segments the senders put on the wire, _resent_ the resends among them, _timeouts_ the retransmission timers that fired. _Table off_ is no loss (`ECONOMY.lossTable = false`), _on_ the plan and router shares of 3.5.
 
-| Level | Plan / router | Table | Done | Sent | Resent | Timeouts | NIC drops |
-|---|---|---|---|---|---|---|---|
-| 4 | `isp1` / `router1` | off / on | 380 / 383 | 595 / 635 | 12 / 47 | 30 / 61 | 0 / 1 |
-| 4 | `isp2` / `router1` | off / on | 505 / 489 | 835 / 828 | 21 / 58 | 34 / 71 | 4 / 0 |
-| 4 | `isp2` / `router2` | off / on | 503 / 478 | 819 / 799 | 13 / 31 | 29 / 46 | 0 / 0 |
-| 5 | `isp1` / `router1` | off / on | 359 / 317 | 590 / 555 | 14 / 45 | 30 / 54 | 1 / 0 |
-| 5 | `isp2` / `router1` | off / on | 463 / 455 | 793 / 816 | 14 / 52 | 23 / 62 | 1 / 0 |
-| 5 | `isp2` / `router2` | off / on | 466 / 458 | 796 / 796 | 13 / 27 | 24 / 43 | 0 / 0 |
-| 7 | `isp1` / `router1` | off / on | 311 / 279 | 544 / 524 | 5 / 35 | 15 / 52 | 0 / 0 |
-| 7 | `isp2` / `router1` | off / on | 382 / 386 | 692 / 746 | 15 / 51 | 25 / 62 | 5 / 6 |
-| 7 | `isp2` / `router2` | off / on | 379 / 377 | 696 / 705 | 14 / 31 | 25 / 45 | 4 / 4 |
+| Level | Plan / router      | Table    | Done      | Sent      | Resent  | Timeouts | NIC drops |
+| ----- | ------------------ | -------- | --------- | --------- | ------- | -------- | --------- |
+| 4     | `isp1` / `router1` | off / on | 380 / 383 | 595 / 635 | 12 / 47 | 30 / 61  | 0 / 1     |
+| 4     | `isp2` / `router1` | off / on | 505 / 489 | 835 / 828 | 21 / 58 | 34 / 71  | 4 / 0     |
+| 4     | `isp2` / `router2` | off / on | 503 / 478 | 819 / 799 | 13 / 31 | 29 / 46  | 0 / 0     |
+| 5     | `isp1` / `router1` | off / on | 359 / 317 | 590 / 555 | 14 / 45 | 30 / 54  | 1 / 0     |
+| 5     | `isp2` / `router1` | off / on | 463 / 455 | 793 / 816 | 14 / 52 | 23 / 62  | 1 / 0     |
+| 5     | `isp2` / `router2` | off / on | 466 / 458 | 796 / 796 | 13 / 27 | 24 / 43  | 0 / 0     |
+| 7     | `isp1` / `router1` | off / on | 311 / 279 | 544 / 524 | 5 / 35  | 15 / 52  | 0 / 0     |
+| 7     | `isp2` / `router1` | off / on | 382 / 386 | 692 / 746 | 15 / 51 | 25 / 62  | 5 / 6     |
+| 7     | `isp2` / `router2` | off / on | 379 / 377 | 696 / 705 | 14 / 31 | 25 / 45  | 4 / 4     |
 
-With the table on, a resend is mostly a lost segment sent again: *resent* is about the segments the wire lost plus a dozen. The cheap plan costs the most: at levels 5 and 7 `isp1` / `router1` delivers 10 to 12% fewer jobs than the same line without loss, `isp2` / `router2` 0 to 5% fewer. The jobs are CPU-bound otherwise, so the plan and router prices (`PROGRESSION.md`) did not move. The measured round trip settles at 4 to 29 ticks: the kernel answers when its loop gets to the NIC, and a job that runs on OS 1 or 2 holds it up for the job's length.
+With the table on, a resend is mostly a lost segment sent again: _resent_ is about the segments the wire lost plus a dozen. The cheap plan costs the most: at levels 5 and 7 `isp1` / `router1` delivers 10 to 12% fewer jobs than the same line without loss, `isp2` / `router2` 0 to 5% fewer. The jobs are CPU-bound otherwise, so the plan and router prices (`PROGRESSION.md`) did not move. The measured round trip settles at 4 to 29 ticks: the kernel answers when its loop gets to the NIC, and a job that runs on OS 1 or 2 holds it up for the job's length.
 
-*Before the timestamp echo and the shared estimate* (the first transport) the `isp2` runs sent 1,100 to 1,350 segments and resent 430 to 550 of them (about 40%), because each download started with a 3-tick timer against a kernel that answered 8 to 60 ticks later. Every download now starts with the round trip the link has shown, and a timer fires for a lost segment, not for a slow answer.
+_Before the timestamp echo and the shared estimate_ (the first transport) the `isp2` runs sent 1,100 to 1,350 segments and resent 430 to 550 of them (about 40%), because each download started with a 3-tick timer against a kernel that answered 8 to 60 ticks later. Every download now starts with the round trip the link has shown, and a timer fires for a lost segment, not for a slow answer.
 
 ## Decided (2026-10-24)
 
@@ -425,7 +426,6 @@ Owner decisions 1 to 4 are at the top. Every other proposal is accepted as writt
 
 - Nothing blocks the build. Not designed yet, so not decided: a second machine or Wi-Fi, a UPS item for the router, and the spool size of a planned drive tier (RAID, `nvme3`).
 - Prices and disk rates of the planned items are placeholders until the engines and GPU work set them, and the time and income estimates are re-measured by the bots.
-
 
 ## No memory requirement (2026-10-24)
 

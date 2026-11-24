@@ -72,20 +72,27 @@ describe('the debug overlay is only loaded dynamically', () => {
       const text = fs.readFileSync(file, 'utf8') as string;
       for (const m of text.matchAll(SPEC)) {
         const target = resolveSpec(file, m[2]!);
-        if (target && (target + path.sep).startsWith(debugDir)) offenders.push(`${path.relative(SRC, file)} -> ${m[2]}`);
+        if (target && (target + path.sep).startsWith(debugDir))
+          offenders.push(`${path.relative(SRC, file)} -> ${m[2]}`);
       }
     }
     expect(offenders).toEqual([]);
   });
 
   it('board3d.ts loads the overlay by a dynamic import behind whenDebug', () => {
-    const text = fs.readFileSync(path.join(SRC, 'features', 'board', 'render', 'three', 'board3d.ts'), 'utf8') as string;
-    expect(text).toContain("void whenDebug(location.search, () => import('@/app/debug/overlay'), { renderer, canvas, roots:");
+    const text = fs.readFileSync(
+      path.join(SRC, 'features', 'board', 'render', 'three', 'board3d.ts'),
+      'utf8',
+    ) as string;
+    expect(text.replace(/\s+/g, ' ')).toContain(
+      "void whenDebug(location.search, () => import('@/app/debug/overlay'), { renderer, canvas, roots:",
+    );
   });
 
   it('debugflag.ts has no top-level statements besides its exports and imports', () => {
     const lines = (fs.readFileSync(path.join(SRC, 'app', 'debugflag.ts'), 'utf8') as string).split('\n');
-    const bad = lines.filter((l) => /^\S/.test(l) && !/^(\/\/|\/\*|\*|\}|import\b|export\b)/.test(l));
+    // A line that opens with `)` closes a signature that the formatter wrapped: it is not a statement.
+    const bad = lines.filter((l) => /^\S/.test(l) && !/^(\/\/|\/\*|\*|\}|\)|import\b|export\b)/.test(l));
     expect(bad).toEqual([]);
   });
 });

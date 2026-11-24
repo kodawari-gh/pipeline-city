@@ -10,14 +10,14 @@ A synapse: two nerve ends and the lit signal that crosses the gap between them. 
 
 ## Colours
 
-| Role | Hex | Note |
-|---|---|---|
+| Role   | Hex       | Note               |
+| ------ | --------- | ------------------ |
 | accent | `#a68bff` | violet, the signal |
-| light | `#e2eaff` | pale ink on dark |
-| dark | `#0a0e22` | navy ink on light |
-| plate | `#0a0e22` | navy badge ground |
-| body | `#2a2d32` | graphite shroud |
-| trim | `#959aa3` | nickel |
+| light  | `#e2eaff` | pale ink on dark   |
+| dark   | `#0a0e22` | navy ink on light  |
+| plate  | `#0a0e22` | navy badge ground  |
+| body   | `#2a2d32` | graphite shroud    |
+| trim   | `#959aa3` | nickel             |
 
 The PC's frame also uses violet. An NPU sits on the board next to it; the mark is small, so the two do not compete.
 

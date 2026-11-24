@@ -18,6 +18,9 @@ export function saveFacts(save: SaveV1): string {
 /** A save file from the player: a good one opens the Load confirm screen. A bad one says so (the notice, `readSaveFile`) and a game on screen ends, so the player is back at the main menu. */
 export async function loadFromFile(file: File): Promise<void> {
   const save = await readSaveFile(file);
-  if (save) { loadOffer.value = save; return; }
+  if (save) {
+    loadOffer.value = save;
+    return;
+  }
   if (snapshot.peek()) leaveGame();
 }

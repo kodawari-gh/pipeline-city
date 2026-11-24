@@ -1,7 +1,11 @@
 // Plain-language + nerd descriptions for board regions and world objects that are not device specs.
 // A layperson line first, a technical line second. Ids are the ones the renderer writes to hover/selected.
 
-export interface Description { title: string; plain: string; nerd: string }
+export interface Description {
+  title: string;
+  plain: string;
+  nerd: string;
+}
 
 export const REGIONS: Record<string, Description> = {
   board: {
@@ -26,7 +30,8 @@ export const REGIONS: Record<string, Description> = {
   },
   chipset: {
     title: 'Chipset (PCH)',
-    plain: 'The platform controller. It holds the boot program, runs the USB port, and performs the power-on self-test and the loader that starts each client job.',
+    plain:
+      'The platform controller. It holds the boot program, runs the USB port, and performs the power-on self-test and the loader that starts each client job.',
     nerd: 'PCH: boot ROM shadowed into RAM at reset, USB host controller (key windows, STATUS/PHASE registers), display routing. Linked to the CPU over DMI.',
   },
   io: {
@@ -56,7 +61,8 @@ export const REGIONS: Record<string, Description> = {
   },
   bay: {
     title: 'Drive cage (SATA)',
-    plain: 'Where the storage drives go, along the front of the case. Click it to buy a drive: an HDD is slow and cheap, an SSD is faster. The OS lives on a drive.',
+    plain:
+      'Where the storage drives go, along the front of the case. Click it to buy a drive: an HDD is slow and cheap, an SSD is faster. The OS lives on a drive.',
     nerd: 'SATA drive cage (cells sata0 .. sata7, as many as the biggest board the case holds has SATA ports). One cable per drive to its port, one power lead for all.',
   },
   case: {
@@ -66,7 +72,8 @@ export const REGIONS: Record<string, Description> = {
   },
   os: {
     title: 'Operating system (on this drive)',
-    plain: 'The OS installed on this drive. Click the badge for its status, queue and uninstall. The monitor only shows its text.',
+    plain:
+      'The OS installed on this drive. Click the badge for its status, queue and uninstall. The monitor only shows its text.',
     nerd: 'Badge for the OS on its storage device: the boot image sits on the drive, the job queue in kernel RAM. Systems on offer: click a drive bay.',
   },
   bat: {
@@ -79,8 +86,16 @@ export const REGIONS: Record<string, Description> = {
     plain: 'Would make sound. This workshop has no use for it.',
     nerd: 'HD audio codec. Decor.',
   },
-  hex: { title: 'Decoration', plain: 'Just board art.', nerd: 'Hex-pattern silkscreen on the board: decor, no effect in the sim.' },
-  qr: { title: 'Decoration', plain: 'A sticker. Nothing to see.', nerd: 'QR-style sticker on the board: decor, no effect in the sim.' },
+  hex: {
+    title: 'Decoration',
+    plain: 'Just board art.',
+    nerd: 'Hex-pattern silkscreen on the board: decor, no effect in the sim.',
+  },
+  qr: {
+    title: 'Decoration',
+    plain: 'A sticker. Nothing to see.',
+    nerd: 'QR-style sticker on the board: decor, no effect in the sim.',
+  },
   psu: {
     title: 'Power supply',
     plain: 'Feeds the whole machine. If parts ask for more power than it has, everything slows down or shuts off.',
@@ -88,12 +103,14 @@ export const REGIONS: Record<string, Description> = {
   },
   monitor: {
     title: 'Monitor',
-    plain: 'Shows what the machine is doing: the self-test, then the work on each client job. It needs its video cable.',
+    plain:
+      'Shows what the machine is doing: the self-test, then the work on each client job. It needs its video cable.',
     nerd: 'CLI display driven by the PCH through the HDMI path. Rows 0-3 POST, 5 status, 8 the job output.',
   },
   crate: {
     title: 'Inventory',
-    plain: 'Spare parts you own but have not fitted. Open the inventory (top bar) and drag them onto the matching socket.',
+    plain:
+      'Spare parts you own but have not fitted. Open the inventory (top bar) and drag them onto the matching socket.',
     nerd: 'The inventory: purchases land here; parts only change while the machine is off.',
   },
   tray: {
@@ -103,7 +120,8 @@ export const REGIONS: Record<string, Description> = {
   },
   usb: {
     title: 'USB port',
-    plain: 'Work comes in here. Plug in one client key and the machine runs that job and writes the answer on the key. Remove the key to get paid.',
+    plain:
+      'Work comes in here. Plug in one client key and the machine runs that job and writes the answer on the key. Remove the key to get paid.',
     nerd: 'PCH USB host, one key at a time. The boot ROM copies the program into RAM, runs it, and writes the result back.',
   },
   power: {
@@ -136,7 +154,7 @@ export const REGIONS: Record<string, Description> = {
     plain: 'Brings electricity from the wall to the monitor. Without it the screen stays dark.',
     nerd: 'The machine keeps running; you just cannot see it.',
   },
-  'socket': {
+  socket: {
     title: 'Wall socket',
     plain: 'The wall socket. The PC and the monitor each plug into one of its holes.',
     nerd: 'All the electricity the machine uses comes through here.',
@@ -152,46 +170,208 @@ export const REGIONS: Record<string, Description> = {
     nerd: 'Load = sum of device watts against the rated budget; over 100% trips the supply.',
   },
   // Zoomed-in processor die (src/render/die/dieview.ts, docs/DIE.md): one id per kind of block, `cpu.<kind>`.
-  'cpu.power': { title: 'Power', plain: 'Where the board’s power enters the chip: the supply voltage arrives through many small pads.', nerd: 'vcore from the VRM, one stub per phase. A bigger load needs more phases.' },
-  'cpu.thermal': { title: 'Sensors', plain: 'The temperature sensor and the power-management bus.', nerd: 'Thermal diode and SVID: the VRM and the throttle read them.' },
-  'cpu.mc': { title: 'Memory controller', plain: 'Talks to the memory sticks.', nerd: 'MC: the DIMM bus, 6 lanes drawn; latency comes from the RAM spec and sets the cache miss penalty.' },
-  'cpu.pcie': { title: 'PCIe, NVMe and DMI', plain: 'The lanes to the chipset, the drives and the cards.', nerd: 'The link to the PCH (DMI), the NVMe lanes and the PCIe lanes, all leaving the south edge.' },
-  'cpu.clock': { title: 'Clock', plain: 'Sets how fast the processor steps.', nerd: 'Core clock domain: the PLL, a divider and multiplier against the base tick, driven by the board crystal.' },
-  'cpu.usb': { title: 'USB', plain: 'The door for USB keys.', nerd: 'Memory-mapped USB host: the bytes of a key arrive here.' },
-  'cpu.display': { title: 'Display', plain: 'Sends the picture to the monitor.', nerd: 'The text display device the monitor shows; written through memory-mapped registers.' },
-  'cpu.intc': { title: 'Interrupt controller', plain: 'Lets devices interrupt the processor.', nerd: 'Intc: pending, mask and vector registers; the lowest line wins, the processor drains its pipeline before it enters the handler.' },
-  'cpu.timer': { title: 'Timer', plain: 'Counts processor cycles and interrupts the processor at a steady interval, so the operating system can take the processor back from a program.', nerd: 'Interval timer: a memory-mapped period register (0 = off); each time the count runs out it raises the TIMER interrupt line and restarts.' },
-  'cpu.mpu': { title: 'Memory protection unit', plain: 'Guards memory. A program may only touch its own region; a write outside it is stopped and the program is ended with a fault.', nerd: 'MPU: memory-mapped region registers checked on every store; a violation sends the CPU to the kernel\'s fault handler.' },
-  'cpu.fabric': { title: 'System bus', plain: 'Joins the caches, the memory controller and the devices.', nerd: 'Shared bus: cache misses go to RAM through it, device accesses skip the cache.' },
-  'cpu.latch': { title: 'Pipeline register', plain: 'Holds an instruction between two stages.', nerd: 'Latch between stages: the instruction and its values move on together each cycle.' },
-  'cpu.pc': { title: 'Program counter', plain: 'Holds the address of the next instruction.', nerd: 'PC: 32 bits, redirected by a taken branch, a jump or an interrupt.' },
-  'cpu.pcadd': { title: 'PC + 4', plain: 'Works out the address of the following instruction.', nerd: 'Adder: PC + 4, the next sequential fetch.' },
-  'cpu.nextpc': { title: 'Next-PC choice', plain: 'Chooses between the next instruction and a branch target.', nerd: 'Mux: PC + 4, the predicted target or the redirect from execute.' },
-  'cpu.fetch': { title: 'Fetch', plain: 'Reads the next instruction from memory.', nerd: 'IF: instruction fetch, PC to the memory port (through the I-cache if the CPU has one).' },
-  'cpu.port': { title: 'Fetch port', plain: 'Where instruction reads leave the core.', nerd: 'The instruction side of the memory port.' },
-  'cpu.icache': { title: 'Instruction cache', plain: 'A small, fast copy of recent instructions.', nerd: 'I-cache: a miss stalls fetch while the line comes from RAM.' },
-  'cpu.predictor': { title: 'Branch predictor', plain: 'Guesses which way a branch goes so work can start early.', nerd: 'Predictor table of saturating bits indexed by PC; a wrong guess flushes the wrong-path instructions.' },
-  'cpu.queue': { title: 'Instruction queue', plain: 'Instructions wait here between two steps.', nerd: 'Fetch queue or dispatch buffer: a ring of slots, oldest first.' },
-  'cpu.imm': { title: 'Immediate', plain: 'Pulls the constant out of an instruction.', nerd: 'Immediate generator: sign-extends the constant field.' },
-  'cpu.decode': { title: 'Decode', plain: 'Works out what the instruction asks for.', nerd: 'ID: opcode and operands, register read ports.' },
-  'cpu.bundle': { title: 'Pairing', plain: 'Decides which two instructions can go together.', nerd: 'Issue pairing: stops at a dependency, a second memory operation or a branch.' },
-  'cpu.hazard': { title: 'Hazard unit', plain: 'Stops an instruction until the value it needs is ready.', nerd: 'Stall logic: compares source registers with the ones still in flight.' },
-  'cpu.control': { title: 'Control', plain: 'Sequences the phases of an instruction.', nerd: 'The sequencer of the unpipelined core: one phase at a time.' },
-  'cpu.regfile': { title: 'Registers', plain: 'The processor’s own scratch slots.', nerd: 'Register file: 16 x 32-bit; read in decode, written at write-back (commit on the out-of-order core).' },
-  'cpu.alu': { title: 'Arithmetic unit', plain: 'Does the arithmetic or works out an address.', nerd: 'ALU: 32 bit-slices; add, logic, shifts and address generation.' },
-  'cpu.mul': { title: 'Multiplier', plain: 'Multiplies two numbers, slowly.', nerd: 'Multiply unit: takes several cycles.' },
-  'cpu.branch': { title: 'Branch unit', plain: 'Checks whether a branch was guessed right.', nerd: 'Resolves the branch: a wrong guess redirects fetch and squashes the instructions behind it.' },
-  'cpu.forward': { title: 'Forwarding', plain: 'Passes a result straight to the instruction that needs it.', nerd: 'Bypass muxes fed from the later pipeline registers; they save the stall a hazard would cost.' },
-  'cpu.mmio': { title: 'Device check', plain: 'Sends device addresses past the cache.', nerd: 'Address check: the device range is uncached and goes to the bus.' },
-  'cpu.lsu': { title: 'Load and store', plain: 'Reads or writes memory for loads and stores.', nerd: 'MEM: load/store unit, data access through the D-cache.' },
-  'cpu.wb': { title: 'Write back', plain: 'Puts the result into a register. The instruction is done.', nerd: 'WB: register file write, retire.' },
-  'cpu.tlb': { title: 'TLB', plain: 'Remembers where recent addresses are, so each access does not have to look them up.', nerd: 'Translation lookaside buffer of the MMU: virtual page to physical frame. A miss walks the two-level page table in RAM (through the L2) and the CPU waits for it; a missing or forbidden page is a page fault, which the OS handles.' },
-  'cpu.dcache': { title: 'Data cache', plain: 'A small, fast copy of recent data.', nerd: 'D-cache: direct mapped or set associative; a miss freezes the pipeline for the RAM latency.' },
-  'cpu.l2': { title: 'Second-level cache', plain: 'A bigger, slower cache behind the small ones.', nerd: 'L2: shared by both L1 caches, in front of RAM.' },
-  'cpu.rename': { title: 'Rename table', plain: 'Gives every result its own register so instructions can overtake each other.', nerd: 'Register alias table: maps each architectural register to the newest producer.' },
-  'cpu.rob': { title: 'Reorder buffer', plain: 'Keeps instructions in order so they finish in order.', nerd: 'ROB: a ring; the oldest entry commits when done, which is also when stores reach memory.' },
-  'cpu.sched': { title: 'Scheduler', plain: 'Holds instructions until their inputs are ready, then sends them out.', nerd: 'Issue window: an entry leaves when its operands are ready and a unit is free.' },
-  'cpu.resultbus': { title: 'Result bus', plain: 'Carries finished results back.', nerd: 'Result broadcast: wakes waiting instructions, fills the reorder buffer, resolves branches.' },
+  'cpu.power': {
+    title: 'Power',
+    plain: 'Where the board’s power enters the chip: the supply voltage arrives through many small pads.',
+    nerd: 'vcore from the VRM, one stub per phase. A bigger load needs more phases.',
+  },
+  'cpu.thermal': {
+    title: 'Sensors',
+    plain: 'The temperature sensor and the power-management bus.',
+    nerd: 'Thermal diode and SVID: the VRM and the throttle read them.',
+  },
+  'cpu.mc': {
+    title: 'Memory controller',
+    plain: 'Talks to the memory sticks.',
+    nerd: 'MC: the DIMM bus, 6 lanes drawn; latency comes from the RAM spec and sets the cache miss penalty.',
+  },
+  'cpu.pcie': {
+    title: 'PCIe, NVMe and DMI',
+    plain: 'The lanes to the chipset, the drives and the cards.',
+    nerd: 'The link to the PCH (DMI), the NVMe lanes and the PCIe lanes, all leaving the south edge.',
+  },
+  'cpu.clock': {
+    title: 'Clock',
+    plain: 'Sets how fast the processor steps.',
+    nerd: 'Core clock domain: the PLL, a divider and multiplier against the base tick, driven by the board crystal.',
+  },
+  'cpu.usb': {
+    title: 'USB',
+    plain: 'The door for USB keys.',
+    nerd: 'Memory-mapped USB host: the bytes of a key arrive here.',
+  },
+  'cpu.display': {
+    title: 'Display',
+    plain: 'Sends the picture to the monitor.',
+    nerd: 'The text display device the monitor shows; written through memory-mapped registers.',
+  },
+  'cpu.intc': {
+    title: 'Interrupt controller',
+    plain: 'Lets devices interrupt the processor.',
+    nerd: 'Intc: pending, mask and vector registers; the lowest line wins, the processor drains its pipeline before it enters the handler.',
+  },
+  'cpu.timer': {
+    title: 'Timer',
+    plain:
+      'Counts processor cycles and interrupts the processor at a steady interval, so the operating system can take the processor back from a program.',
+    nerd: 'Interval timer: a memory-mapped period register (0 = off); each time the count runs out it raises the TIMER interrupt line and restarts.',
+  },
+  'cpu.mpu': {
+    title: 'Memory protection unit',
+    plain:
+      'Guards memory. A program may only touch its own region; a write outside it is stopped and the program is ended with a fault.',
+    nerd: "MPU: memory-mapped region registers checked on every store; a violation sends the CPU to the kernel's fault handler.",
+  },
+  'cpu.fabric': {
+    title: 'System bus',
+    plain: 'Joins the caches, the memory controller and the devices.',
+    nerd: 'Shared bus: cache misses go to RAM through it, device accesses skip the cache.',
+  },
+  'cpu.latch': {
+    title: 'Pipeline register',
+    plain: 'Holds an instruction between two stages.',
+    nerd: 'Latch between stages: the instruction and its values move on together each cycle.',
+  },
+  'cpu.pc': {
+    title: 'Program counter',
+    plain: 'Holds the address of the next instruction.',
+    nerd: 'PC: 32 bits, redirected by a taken branch, a jump or an interrupt.',
+  },
+  'cpu.pcadd': {
+    title: 'PC + 4',
+    plain: 'Works out the address of the following instruction.',
+    nerd: 'Adder: PC + 4, the next sequential fetch.',
+  },
+  'cpu.nextpc': {
+    title: 'Next-PC choice',
+    plain: 'Chooses between the next instruction and a branch target.',
+    nerd: 'Mux: PC + 4, the predicted target or the redirect from execute.',
+  },
+  'cpu.fetch': {
+    title: 'Fetch',
+    plain: 'Reads the next instruction from memory.',
+    nerd: 'IF: instruction fetch, PC to the memory port (through the I-cache if the CPU has one).',
+  },
+  'cpu.port': {
+    title: 'Fetch port',
+    plain: 'Where instruction reads leave the core.',
+    nerd: 'The instruction side of the memory port.',
+  },
+  'cpu.icache': {
+    title: 'Instruction cache',
+    plain: 'A small, fast copy of recent instructions.',
+    nerd: 'I-cache: a miss stalls fetch while the line comes from RAM.',
+  },
+  'cpu.predictor': {
+    title: 'Branch predictor',
+    plain: 'Guesses which way a branch goes so work can start early.',
+    nerd: 'Predictor table of saturating bits indexed by PC; a wrong guess flushes the wrong-path instructions.',
+  },
+  'cpu.queue': {
+    title: 'Instruction queue',
+    plain: 'Instructions wait here between two steps.',
+    nerd: 'Fetch queue or dispatch buffer: a ring of slots, oldest first.',
+  },
+  'cpu.imm': {
+    title: 'Immediate',
+    plain: 'Pulls the constant out of an instruction.',
+    nerd: 'Immediate generator: sign-extends the constant field.',
+  },
+  'cpu.decode': {
+    title: 'Decode',
+    plain: 'Works out what the instruction asks for.',
+    nerd: 'ID: opcode and operands, register read ports.',
+  },
+  'cpu.bundle': {
+    title: 'Pairing',
+    plain: 'Decides which two instructions can go together.',
+    nerd: 'Issue pairing: stops at a dependency, a second memory operation or a branch.',
+  },
+  'cpu.hazard': {
+    title: 'Hazard unit',
+    plain: 'Stops an instruction until the value it needs is ready.',
+    nerd: 'Stall logic: compares source registers with the ones still in flight.',
+  },
+  'cpu.control': {
+    title: 'Control',
+    plain: 'Sequences the phases of an instruction.',
+    nerd: 'The sequencer of the unpipelined core: one phase at a time.',
+  },
+  'cpu.regfile': {
+    title: 'Registers',
+    plain: 'The processor’s own scratch slots.',
+    nerd: 'Register file: 16 x 32-bit; read in decode, written at write-back (commit on the out-of-order core).',
+  },
+  'cpu.alu': {
+    title: 'Arithmetic unit',
+    plain: 'Does the arithmetic or works out an address.',
+    nerd: 'ALU: 32 bit-slices; add, logic, shifts and address generation.',
+  },
+  'cpu.mul': {
+    title: 'Multiplier',
+    plain: 'Multiplies two numbers, slowly.',
+    nerd: 'Multiply unit: takes several cycles.',
+  },
+  'cpu.branch': {
+    title: 'Branch unit',
+    plain: 'Checks whether a branch was guessed right.',
+    nerd: 'Resolves the branch: a wrong guess redirects fetch and squashes the instructions behind it.',
+  },
+  'cpu.forward': {
+    title: 'Forwarding',
+    plain: 'Passes a result straight to the instruction that needs it.',
+    nerd: 'Bypass muxes fed from the later pipeline registers; they save the stall a hazard would cost.',
+  },
+  'cpu.mmio': {
+    title: 'Device check',
+    plain: 'Sends device addresses past the cache.',
+    nerd: 'Address check: the device range is uncached and goes to the bus.',
+  },
+  'cpu.lsu': {
+    title: 'Load and store',
+    plain: 'Reads or writes memory for loads and stores.',
+    nerd: 'MEM: load/store unit, data access through the D-cache.',
+  },
+  'cpu.wb': {
+    title: 'Write back',
+    plain: 'Puts the result into a register. The instruction is done.',
+    nerd: 'WB: register file write, retire.',
+  },
+  'cpu.tlb': {
+    title: 'TLB',
+    plain: 'Remembers where recent addresses are, so each access does not have to look them up.',
+    nerd: 'Translation lookaside buffer of the MMU: virtual page to physical frame. A miss walks the two-level page table in RAM (through the L2) and the CPU waits for it; a missing or forbidden page is a page fault, which the OS handles.',
+  },
+  'cpu.dcache': {
+    title: 'Data cache',
+    plain: 'A small, fast copy of recent data.',
+    nerd: 'D-cache: direct mapped or set associative; a miss freezes the pipeline for the RAM latency.',
+  },
+  'cpu.l2': {
+    title: 'Second-level cache',
+    plain: 'A bigger, slower cache behind the small ones.',
+    nerd: 'L2: shared by both L1 caches, in front of RAM.',
+  },
+  'cpu.rename': {
+    title: 'Rename table',
+    plain: 'Gives every result its own register so instructions can overtake each other.',
+    nerd: 'Register alias table: maps each architectural register to the newest producer.',
+  },
+  'cpu.rob': {
+    title: 'Reorder buffer',
+    plain: 'Keeps instructions in order so they finish in order.',
+    nerd: 'ROB: a ring; the oldest entry commits when done, which is also when stores reach memory.',
+  },
+  'cpu.sched': {
+    title: 'Scheduler',
+    plain: 'Holds instructions until their inputs are ready, then sends them out.',
+    nerd: 'Issue window: an entry leaves when its operands are ready and a unit is free.',
+  },
+  'cpu.resultbus': {
+    title: 'Result bus',
+    plain: 'Carries finished results back.',
+    nerd: 'Result broadcast: wakes waiting instructions, fills the reorder buffer, resolves branches.',
+  },
   'cpu.ring': { title: 'Ring', plain: 'A ring of slots.', nerd: 'Circular buffer with a head and a tail.' },
 };
 

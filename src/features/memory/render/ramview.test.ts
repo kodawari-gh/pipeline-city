@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { Container } from 'pixi.js';
 
 // Text needs a canvas, which the tests do not have: labels are empty containers here (as in diemulti.test.ts).
-vi.mock('@/core/render/ink', async (orig) => ({ ...(await orig<typeof import('@/core/render/ink')>()), label: () => Object.assign(new Container(), { text: '' }) }));
+vi.mock('@/core/render/ink', async (orig) => ({
+  ...(await orig<typeof import('@/core/render/ink')>()),
+  label: () => Object.assign(new Container(), { text: '' }),
+}));
 
 import { builtinTheme } from '@/core/render/theme';
 import type { RamMap } from '../../cpu/sim/pipesnap';
@@ -17,7 +20,11 @@ const T = builtinTheme();
 const map = (bytes: number): RamMap => ({ bytes, filled: [], code: [], regions: [], image: new Uint8Array(bytes) });
 const chips = (n: number) => Array.from({ length: n }, (_, i) => ({ x: i * 150, y: 0, w: 116, h: 112 }));
 
-function view(sticks: { idx: number; bytes: number }[], rects: { x: number; y: number; w: number; h: number }[], bytes = sticks.reduce((n, s) => n + s.bytes, 0)): RamView {
+function view(
+  sticks: { idx: number; bytes: number }[],
+  rects: { x: number; y: number; w: number; h: number }[],
+  bytes = sticks.reduce((n, s) => n + s.bytes, 0),
+): RamView {
   const v = new RamView();
   v.setScene(T, rects);
   v.setSticks(sticks);
@@ -29,7 +36,10 @@ describe.each([
   ['with no chips to draw (the 3D board)', () => []],
   ['with the chips of the 2D board', () => chips(2 * CHIPS_PER_STICK)],
 ])('which stick answers an address, %s', (_name, rects) => {
-  const two = [{ idx: 0, bytes: MB }, { idx: 1, bytes: MB }];
+  const two = [
+    { idx: 0, bytes: MB },
+    { idx: 1, bytes: MB },
+  ];
 
   it('the first stick holds the lowest addresses, the next one the next', () => {
     const v = view(two, rects());
@@ -39,14 +49,20 @@ describe.each([
     expect(v.stickOf(2 * MB - 1)).toBe(1);
   });
 
-  it('an address past the memory (a device window) is no stick\'s', () => {
+  it("an address past the memory (a device window) is no stick's", () => {
     const v = view(two, rects());
     expect(v.stickOf(2 * MB)).toBe(-1);
     expect(v.stickOf(0xf0000000)).toBe(-1);
   });
 
-  it('answers with the stick\'s slot number, lowest slot first whatever the order the sticks are listed in', () => {
-    const v = view([{ idx: 5, bytes: MB }, { idx: 2, bytes: MB }], rects());
+  it("answers with the stick's slot number, lowest slot first whatever the order the sticks are listed in", () => {
+    const v = view(
+      [
+        { idx: 5, bytes: MB },
+        { idx: 2, bytes: MB },
+      ],
+      rects(),
+    );
     expect(v.stickOf(0)).toBe(2);
     expect(v.stickOf(MB)).toBe(5);
   });
@@ -57,7 +73,10 @@ describe.each([
     v.setMap(map(MB));
     expect(v.stickOf(MB - 1)).toBe(0);
     expect(v.stickOf(MB)).toBe(-1);
-    v.setSticks([{ idx: 0, bytes: MB }, { idx: 3, bytes: MB }]);
+    v.setSticks([
+      { idx: 0, bytes: MB },
+      { idx: 3, bytes: MB },
+    ]);
     v.setMap(map(2 * MB));
     expect(v.stickOf(MB)).toBe(3);
   });

@@ -14,7 +14,12 @@ import { buildBuses, type Bus, type BusKind } from '../../board/render/wiring/ro
 import { deviceAt, npuAccess, resolve, slotChain } from '../../board/render/wiring/busmap';
 import { GEO, setLayoutTier } from '../../board/render/layout/layout';
 
-interface Access { store: boolean; reg: boolean; off: number; word: number }
+interface Access {
+  store: boolean;
+  reg: boolean;
+  off: number;
+  word: number;
+}
 
 /** Serve one `npu` job with an NPU in the machine and return every access to the card's window, in order, with the machine afterwards. */
 function runJob() {
@@ -29,7 +34,13 @@ function runJob() {
     const orig = bus[name]!.bind(bus);
     bus[name] = (a: number, v?: number) => {
       const n = npuAccess(a);
-      if (n && (name.endsWith('32') || (n.off & 3) === 0)) log.push({ store: name.startsWith('store'), reg: n.off < NPU_MEM, off: n.off, word: name.startsWith('store') ? (v ?? 0) >>> 0 : -1 });
+      if (n && (name.endsWith('32') || (n.off & 3) === 0))
+        log.push({
+          store: name.startsWith('store'),
+          reg: n.off < NPU_MEM,
+          off: n.off,
+          word: name.startsWith('store') ? (v ?? 0) >>> 0 : -1,
+        });
       return orig(a, v);
     };
   }
@@ -37,7 +48,10 @@ function runJob() {
   g.clearQueue();
   expect(g.spawnKey('npu').ok).toBe(true);
   const op = new Operator(g, 1);
-  for (let n = 0; g.completed < 1 && n < 400_000; n++) { g.advanceBaseTick(); op.step(); }
+  for (let n = 0; g.completed < 1 && n < 400_000; n++) {
+    g.advanceBaseTick();
+    op.step();
+  }
   expect(g.completed).toBe(1);
   expect(g.errors).toBe(0);
   return { g, slot, log };
@@ -51,7 +65,8 @@ describe('an inference job on the NPU, access by access', () => {
   const regs = log.filter((a) => a.reg);
 
   it('copies the activations, the weights, the biases and the descriptor list into card memory word by word, before anything else', () => {
-    const net = makeNetwork(new Prng(1), layers), prog = npuProgram(net);
+    const net = makeNetwork(new Prng(1), layers),
+      prog = npuProgram(net);
     const wantWords = 64 + layers * 64 + layers * 8 + roundUp16(prog.words.length * 4) / 4;
     const stores = log.filter((a) => mem(a) && a.store);
     expect(stores).toHaveLength(wantWords);
@@ -60,7 +75,8 @@ describe('an inference job on the NPU, access by access', () => {
     expect(stores[64]!.off - NPU_MEM).toBe(0x200); // NPU_LAYOUT.w
     expect(stores[stores.length - 1]!.off - NPU_MEM).toBeGreaterThan(0x900); // the list, last
     // nothing touches a register until the last word is in
-    const firstReg = log.findIndex((a) => a.reg), lastStore = log.map((a, i) => (mem(a) && a.store ? i : -1)).reduce((m, i) => Math.max(m, i), -1);
+    const firstReg = log.findIndex((a) => a.reg),
+      lastStore = log.map((a, i) => (mem(a) && a.store ? i : -1)).reduce((m, i) => Math.max(m, i), -1);
     expect(firstReg).toBeGreaterThan(lastStore);
   });
 
@@ -75,7 +91,7 @@ describe('an inference job on the NPU, access by access', () => {
     expect(log.indexOf(regs.find((a) => !a.store)!)).toBeGreaterThan(log.indexOf(writes[2]!)); // polling starts after the go
   });
 
-  it('then reads the result back out of card memory (one word at a time, in order, from the last layer\'s buffer) and not before the polling ends', () => {
+  it("then reads the result back out of card memory (one word at a time, in order, from the last layer's buffer) and not before the polling ends", () => {
     const lastPoll = log.lastIndexOf(regs.filter((a) => !a.store).at(-1)!);
     const reads = log.map((a, i) => ({ a, i })).filter((x) => mem(x.a) && !x.a.store);
     expect(reads).toHaveLength(64);
@@ -85,7 +101,8 @@ describe('an inference job on the NPU, access by access', () => {
   });
 
   it('is what the card says it saw: the counters, the log of descriptors and the map of card memory agree', () => {
-    const stores = log.filter((a) => mem(a) && a.store).length, reads = log.filter((a) => mem(a) && !a.store).length;
+    const stores = log.filter((a) => mem(a) && a.store).length,
+      reads = log.filter((a) => mem(a) && !a.store).length;
     expect(card).toMatchObject({ slot, hostWrites: stores, hostReads: reads, launches: 1, count: layers });
     expect(card.log.map((e) => e.op)).toEqual(Array(layers).fill(7));
     expect(card.lastRead).toBe(npuProgram(makeNetwork(new Prng(1), layers)).finalAt + 63 * 4);
@@ -104,7 +121,8 @@ describe('an inference job on the NPU, access by access', () => {
       return out;
     };
     it('every one of those accesses lights traces on the way to the card: a write runs toward the card, a read comes back', () => {
-      const m = map(), k = Number(slot.slice(4));
+      const m = map(),
+        k = Number(slot.slice(4));
       if (k >= GEO.pcie.length) return; // (this tier has no such slot)
       for (const a of log) {
         const addr = NPU_BASE + k * NPU_STRIDE + a.off;

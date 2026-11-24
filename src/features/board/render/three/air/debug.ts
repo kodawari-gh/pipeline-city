@@ -16,21 +16,35 @@ function boxLines(out: number[], min: V3, max: V3): void {
 function ringLines(out: number[], at: V3, axis: number, r: number): void {
   const [u, v] = axis === 0 ? [1, 2] : axis === 1 ? [0, 2] : [0, 1];
   for (let i = 0; i < SEG; i++) {
-    const a = (i / SEG) * Math.PI * 2, b = ((i + 1) / SEG) * Math.PI * 2, p: V3 = [...at], q: V3 = [...at];
-    p[u!] = at[u!]! + Math.cos(a) * r; p[v!] = at[v!]! + Math.sin(a) * r;
-    q[u!] = at[u!]! + Math.cos(b) * r; q[v!] = at[v!]! + Math.sin(b) * r;
+    const a = (i / SEG) * Math.PI * 2,
+      b = ((i + 1) / SEG) * Math.PI * 2,
+      p: V3 = [...at],
+      q: V3 = [...at];
+    p[u!] = at[u!]! + Math.cos(a) * r;
+    p[v!] = at[v!]! + Math.sin(a) * r;
+    q[u!] = at[u!]! + Math.cos(b) * r;
+    q[v!] = at[v!]! + Math.sin(b) * r;
     out.push(...p, ...q);
   }
 }
 
 /** The lines of a plan: a mesh per colour. */
 export function planLines(plan: AirPlan, sim?: AirSim): LineSegments[] {
-  const white: number[] = [], red: number[] = [], orange: number[] = [], green: number[] = [], cyan: number[] = [], yellow: number[] = [], blue: number[] = [], grey: number[] = [];
+  const white: number[] = [],
+    red: number[] = [],
+    orange: number[] = [],
+    green: number[] = [],
+    cyan: number[] = [],
+    yellow: number[] = [],
+    blue: number[] = [],
+    grey: number[] = [];
   boxLines(white, plan.min, plan.max);
   for (const b of plan.boxes) boxLines(b.k[0] < 0.12 && b.k[1] < 0.12 && b.k[2] < 0.12 ? red : orange, b.min, b.max);
   for (const f of plan.fans) {
     if (f.kind === 'wall') {
-      const axis = f.wall >> 1, hi = (f.wall & 1) === 1, at: V3 = [...f.centre];
+      const axis = f.wall >> 1,
+        hi = (f.wall & 1) === 1,
+        at: V3 = [...f.centre];
       at[axis] = hi ? plan.max[axis]! : plan.min[axis]!;
       ringLines(f.into ? green : cyan, at, axis, f.r);
       const tip: V3 = [...at];
@@ -44,14 +58,27 @@ export function planLines(plan: AirPlan, sim?: AirSim): LineSegments[] {
     }
   }
   for (const v of plan.vents) {
-    const axis = v.wall >> 1, hi = (v.wall & 1) === 1, at: V3 = [...v.centre];
+    const axis = v.wall >> 1,
+      hi = (v.wall & 1) === 1,
+      at: V3 = [...v.centre];
     at[axis] = hi ? plan.max[axis]! : plan.min[axis]!;
     if ('r' in v.shape) ringLines(blue, at, axis, v.shape.r);
-    else { const lo: V3 = [...at], up: V3 = [...at], [u, w] = axis === 0 ? [1, 2] : axis === 1 ? [0, 2] : [0, 1]; lo[u!] = at[u!]! - v.shape.hw; lo[w!] = at[w!]! - v.shape.hh; up[u!] = at[u!]! + v.shape.hw; up[w!] = at[w!]! + v.shape.hh; boxLines(blue, lo, up); }
+    else {
+      const lo: V3 = [...at],
+        up: V3 = [...at],
+        [u, w] = axis === 0 ? [1, 2] : axis === 1 ? [0, 2] : [0, 1];
+      lo[u!] = at[u!]! - v.shape.hw;
+      lo[w!] = at[w!]! - v.shape.hh;
+      up[u!] = at[u!]! + v.shape.hw;
+      up[w!] = at[w!]! + v.shape.hh;
+      boxLines(blue, lo, up);
+    }
   }
   // the fastest cells' arrows
   if (sim) {
-    const g = sim.grid, u = sim.field.u, top: [number, number][] = [];
+    const g = sim.grid,
+      u = sim.field.u,
+      top: [number, number][] = [];
     for (let c = 0; c < g.cells; c += 5) top.push([c, Math.hypot(u[3 * c]!, u[3 * c + 1]!, u[3 * c + 2]!)]);
     const c0: V3 = [0, 0, 0];
     for (const [c, m] of top) {
@@ -64,10 +91,22 @@ export function planLines(plan: AirPlan, sim?: AirSim): LineSegments[] {
   const make = (pts: number[], color: number): LineSegments => {
     const g = new BufferGeometry();
     g.setAttribute('position', new Float32BufferAttribute(pts, 3));
-    const l = new LineSegments(g, new LineBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.9, toneMapped: false }));
+    const l = new LineSegments(
+      g,
+      new LineBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.9, toneMapped: false }),
+    );
     l.frustumCulled = false;
     l.renderOrder = 1100;
     return l;
   };
-  return [make(white, 0xffffff), make(red, 0xff3344), make(orange, 0xffa030), make(green, 0x40ff70), make(cyan, 0x40e0ff), make(yellow, 0xffe040), make(blue, 0x5080ff), make(grey, 0x9090a0)];
+  return [
+    make(white, 0xffffff),
+    make(red, 0xff3344),
+    make(orange, 0xffa030),
+    make(green, 0x40ff70),
+    make(cyan, 0x40e0ff),
+    make(yellow, 0xffe040),
+    make(blue, 0x5080ff),
+    make(grey, 0x9090a0),
+  ];
 }

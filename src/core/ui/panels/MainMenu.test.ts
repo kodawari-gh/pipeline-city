@@ -41,10 +41,24 @@ beforeEach(async () => {
   vi.resetModules();
   const mem = new Map<string, string>();
   vi.stubGlobal('localStorage', {
-    getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k),
+    getItem: (k: string) => mem.get(k) ?? null,
+    setItem: (k: string, v: string) => void mem.set(k, v),
+    removeItem: (k: string) => void mem.delete(k),
   });
-  vi.stubGlobal('document', { activeElement: null, getElementById: () => null, documentElement: { setAttribute: () => {}, style: { setProperty: () => {} }, classList: { toggle: () => {}, add: () => {}, remove: () => {} } } });
-  vi.stubGlobal('window', { addEventListener: () => {}, removeEventListener: () => {}, matchMedia: () => ({ matches: false, addEventListener: () => {} }) });
+  vi.stubGlobal('document', {
+    activeElement: null,
+    getElementById: () => null,
+    documentElement: {
+      setAttribute: () => {},
+      style: { setProperty: () => {} },
+      classList: { toggle: () => {}, add: () => {}, remove: () => {} },
+    },
+  });
+  vi.stubGlobal('window', {
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    matchMedia: () => ({ matches: false, addEventListener: () => {} }),
+  });
   ({ MainMenu } = await import('@/core/ui/panels/MainMenu'));
   store = await import('@/app/store');
   store.autosaveOffer.value = null;

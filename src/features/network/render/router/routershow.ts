@@ -11,7 +11,12 @@ import { netAddrs, type NetAddrs } from '../plan/netaddr';
 import { busy, fmtSpeed, lineFrames, loadOf, type FrameMeter } from '../plan/netmeter';
 
 /** A transfer in flight through the router: its job's name and how far it is. */
-export interface RouterFlow { label: string; percent: number; jobId: number; dir: 'down' | 'up' }
+export interface RouterFlow {
+  label: string;
+  percent: number;
+  jobId: number;
+  dir: 'down' | 'up';
+}
 
 export interface RouterShow {
   tier: number;
@@ -59,26 +64,69 @@ export interface RouterShow {
 export function limitWords(s: Pick<RouterShow, 'binding' | 'limitMbps'>): string {
   const sp = fmtSpeed(s.limitMbps);
   switch (s.binding) {
-    case 'router': return `the router, ${sp}`;
-    case 'isp': return `the plan, ${sp}`;
-    case 'disk': return `the drive, ${sp}`;
-    case 'port': return `the PC's port, ${sp}`;
-    default: return 'none';
+    case 'router':
+      return `the router, ${sp}`;
+    case 'isp':
+      return `the plan, ${sp}`;
+    case 'disk':
+      return `the drive, ${sp}`;
+    case 'port':
+      return `the PC's port, ${sp}`;
+    default:
+      return 'none';
   }
 }
 
 /** The router in the snapshot as the view shows it, or null when no router stands. */
-export function routerShow(s: Snapshot | null | undefined, meter: Pick<FrameMeter, 'rx' | 'tx'>, ms: number): RouterShow | null {
-  const net = s?.net, r = net?.router;
+export function routerShow(
+  s: Snapshot | null | undefined,
+  meter: Pick<FrameMeter, 'rx' | 'tx'>,
+  ms: number,
+): RouterShow | null {
+  const net = s?.net,
+    r = net?.router;
   if (!s || !net || !r) return null;
-  const spec = getRouterSpec(r.id), tier = spec?.tier ?? (Number(/\d+$/.exec(r.id)?.[0]) || 1), link = linkOf(s), flow = link.pc && link.wan, line = lineFrames(r.mbps);
-  const rx = flow ? meter.rx : 0, tx = flow ? meter.tx : 0, isp = net.isp;
-  const flows = (dir: 'down' | 'up'): RouterFlow[] => net.transfers.filter((t) => t.dir === dir).map((t) => ({ label: t.label, percent: t.percent, jobId: t.jobId, dir: t.dir }));
+  const spec = getRouterSpec(r.id),
+    tier = spec?.tier ?? (Number(/\d+$/.exec(r.id)?.[0]) || 1),
+    link = linkOf(s),
+    flow = link.pc && link.wan,
+    line = lineFrames(r.mbps);
+  const rx = flow ? meter.rx : 0,
+    tx = flow ? meter.tx : 0,
+    isp = net.isp;
+  const flows = (dir: 'down' | 'up'): RouterFlow[] =>
+    net.transfers
+      .filter((t) => t.dir === dir)
+      .map((t) => ({ label: t.label, percent: t.percent, jobId: t.jobId, dir: t.dir }));
   return {
-    tier, name: r.name, ratedMbps: r.mbps, clientsMax: r.clients, pc: link.pc, wan: link.wan, plugged: net.port.kind !== null, state: net.state, reason: net.reason,
-    ispName: isp?.name ?? null, downMbps: isp?.downMbps ?? 0, upMbps: isp?.upMbps ?? 0, lanMbps: link.pc ? Math.min(net.port.mbps, r.mbps) : 0,
-    rx, tx, rxTotal: net.frames.rx, txTotal: net.frames.tx, rxLoad: loadOf(rx, line), txLoad: loadOf(tx, line), rxAct: busy(rx, line), txAct: busy(tx, line),
-    downs: flows('down'), ups: flows('up'),
-    used: net.transfers.length, slots: Math.min(r.clients, isp?.clients ?? r.clients), binding: net.bandwidth.binding, limitMbps: net.bandwidth.downMbps, addr: netAddrs(s), ms,
+    tier,
+    name: r.name,
+    ratedMbps: r.mbps,
+    clientsMax: r.clients,
+    pc: link.pc,
+    wan: link.wan,
+    plugged: net.port.kind !== null,
+    state: net.state,
+    reason: net.reason,
+    ispName: isp?.name ?? null,
+    downMbps: isp?.downMbps ?? 0,
+    upMbps: isp?.upMbps ?? 0,
+    lanMbps: link.pc ? Math.min(net.port.mbps, r.mbps) : 0,
+    rx,
+    tx,
+    rxTotal: net.frames.rx,
+    txTotal: net.frames.tx,
+    rxLoad: loadOf(rx, line),
+    txLoad: loadOf(tx, line),
+    rxAct: busy(rx, line),
+    txAct: busy(tx, line),
+    downs: flows('down'),
+    ups: flows('up'),
+    used: net.transfers.length,
+    slots: Math.min(r.clients, isp?.clients ?? r.clients),
+    binding: net.bandwidth.binding,
+    limitMbps: net.bandwidth.downMbps,
+    addr: netAddrs(s),
+    ms,
   };
 }

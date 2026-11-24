@@ -33,7 +33,12 @@ export function levelBar(s: Snapshot): LevelBarModel {
   const atMax = l.next === null;
   if (l.sandbox) {
     return {
-      level: l.level, name: l.name, sandbox: true, atMax: false, pct: 0, label: `rules level ${l.level}`,
+      level: l.level,
+      name: l.name,
+      sandbox: true,
+      atMax: false,
+      pct: 0,
+      label: `rules level ${l.level}`,
       tooltip: `Sandbox: the rules (how long clients wait, what they pay, which jobs arrive) are fixed at level ${l.level}, ${l.name}. Change it in the sandbox tools.`,
     };
   }
@@ -57,24 +62,65 @@ export function levelBar(s: Snapshot): LevelBarModel {
 
 // ---------- milestone screen ----------
 
-export type IconKey = 'bolt' | 'flame' | 'clock' | 'dollar' | 'memory' | 'cpu' | 'lock' | 'check' | 'box' | 'fan' | 'slot' | 'warn' | 'gauge'
-  | 'net' | 'usb' | 'screen' | 'disk' | 'eff' | 'wave' | 'card' | 'grid';
+export type IconKey =
+  | 'bolt'
+  | 'flame'
+  | 'clock'
+  | 'dollar'
+  | 'memory'
+  | 'cpu'
+  | 'lock'
+  | 'check'
+  | 'box'
+  | 'fan'
+  | 'slot'
+  | 'warn'
+  | 'gauge'
+  | 'net'
+  | 'usb'
+  | 'screen'
+  | 'disk'
+  | 'eff'
+  | 'wave'
+  | 'card'
+  | 'grid';
 
 /** Icon for an unlock-table kind, for items that have no illustration yet (planned devices). */
 export function kindIcon(kind: string): IconKey {
   switch (kind) {
-    case 'cpu': case 'os': return 'cpu';
-    case 'npu': return 'grid';
-    case 'ram': return 'memory';
-    case 'cooler': case 'fan': case 'radiator': case 'vrm-sink': case 'ram-sink': return 'fan';
-    case 'psu': return 'bolt';
-    case 'display': return 'screen';
-    case 'gpu': return 'card';
-    case 'storage': case 'raid': return 'disk';
-    case 'board': case 'case': return 'slot';
-    case 'router': case 'isp': case 'nic': return 'net';
-    case 'tpm': return 'lock';
-    default: return 'box';
+    case 'cpu':
+    case 'os':
+      return 'cpu';
+    case 'npu':
+      return 'grid';
+    case 'ram':
+      return 'memory';
+    case 'cooler':
+    case 'fan':
+    case 'radiator':
+    case 'vrm-sink':
+    case 'ram-sink':
+      return 'fan';
+    case 'psu':
+      return 'bolt';
+    case 'display':
+      return 'screen';
+    case 'gpu':
+      return 'card';
+    case 'storage':
+    case 'raid':
+      return 'disk';
+    case 'board':
+    case 'case':
+      return 'slot';
+    case 'router':
+    case 'isp':
+    case 'nic':
+      return 'net';
+    case 'tpm':
+      return 'lock';
+    default:
+      return 'box';
   }
 }
 
@@ -85,26 +131,57 @@ export const JOB_CLASS_LABEL: Record<string, { label: string; icon: IconKey; hin
   db: { label: 'Database', icon: 'disk', hint: 'Needs an operating system and a SATA SSD or better.' },
   web: { label: 'Web', icon: 'net', hint: 'Needs a network link.' },
   secure: { label: 'Secure', icon: 'lock', hint: 'Needs a secure module (TPM).' },
-  gpu: { label: 'GPU', icon: 'screen', hint: 'Array jobs: a graphics card makes them faster (they run without one, slowly).' },
-  npu: { label: 'AI', icon: 'cpu', hint: 'Network jobs: a neural accelerator makes them faster (they run without one, slowly).' },
+  gpu: {
+    label: 'GPU',
+    icon: 'screen',
+    hint: 'Array jobs: a graphics card makes them faster (they run without one, slowly).',
+  },
+  npu: {
+    label: 'AI',
+    icon: 'cpu',
+    hint: 'Network jobs: a neural accelerator makes them faster (they run without one, slowly).',
+  },
   hpc: { label: 'Heavy compute', icon: 'fan', hint: 'Needs OS 4 and a multicore processor.' },
-  cloud: { label: 'Cloud storage', icon: 'disk', hint: 'Opt-in contracts in the job log: hold a client\'s data on a formatted drive (Paged OS 2.0 or better).' },
+  cloud: {
+    label: 'Cloud storage',
+    icon: 'disk',
+    hint: "Opt-in contracts in the job log: hold a client's data on a formatted drive (Paged OS 2.0 or better).",
+  },
 };
 
 /** The icon of each group of kinds of job, for a kind that arrives after its class did. */
-const GROUP_ICON: Record<string, IconKey> = { everyday: 'clock', memory: 'memory', network: 'net', trust: 'lock', accel: 'card' };
+const GROUP_ICON: Record<string, IconKey> = {
+  everyday: 'clock',
+  memory: 'memory',
+  network: 'net',
+  trust: 'lock',
+  accel: 'card',
+};
 
 /** The kinds of job that first arrive at a level, apart from the ones that come with their class (the class has its own chip). */
 export function newKindsAt(level: number): { id: string; label: string; icon: IconKey; hint: string }[] {
-  return JOB_DEX.filter((e) => !e.planned && taskLevel(e) === level && taskLevel(e) > (jobClass(e.cls)?.firstLevel ?? 1)).map((e) => {
+  return JOB_DEX.filter(
+    (e) => !e.planned && taskLevel(e) === level && taskLevel(e) > (jobClass(e.cls)?.firstLevel ?? 1),
+  ).map((e) => {
     const needs = (e.needs ?? jobClass(e.cls)?.needs ?? []).map((n) => describeNeed(n).long);
-    return { id: e.id, label: e.name, icon: GROUP_ICON[dexGroup(e.id)?.id ?? ''] ?? 'box', hint: needs.length ? `Needs ${needs.join(' and ')}.` : 'Needs nothing special.' };
+    return {
+      id: e.id,
+      label: e.name,
+      icon: GROUP_ICON[dexGroup(e.id)?.id ?? ''] ?? 'box',
+      hint: needs.length ? `Needs ${needs.join(' and ')}.` : 'Needs nothing special.',
+    };
   });
 }
 
 export type MilestoneStatus = 'passed' | 'current' | 'upcoming';
 
-export interface MilestoneUnlock { id: string; name: string; kind: string; planned: boolean; icon: IconKey }
+export interface MilestoneUnlock {
+  id: string;
+  name: string;
+  kind: string;
+  planned: boolean;
+  icon: IconKey;
+}
 
 export interface MilestoneRow {
   level: number;
@@ -135,7 +212,10 @@ export function milestoneRows(s: Snapshot): MilestoneRow[] {
       threshold: r.threshold,
       status: r.level < cur ? 'passed' : r.level === cur ? 'current' : 'upcoming',
       unlocks: r.unlocks.map((u) => ({ ...u, icon: kindIcon(u.kind) })),
-      newJobs: [...r.newJobs.map((id) => ({ id, ...(JOB_CLASS_LABEL[id] ?? { label: id, icon: 'box' as const, hint: '' }) })), ...newKindsAt(r.level)],
+      newJobs: [
+        ...r.newJobs.map((id) => ({ id, ...(JOB_CLASS_LABEL[id] ?? { label: id, icon: 'box' as const, hint: '' }) })),
+        ...newKindsAt(r.level),
+      ],
       waitS: Math.round(ECONOMY.deadlineTicks * r.patienceMul),
       payMul: r.payMul,
       patience: prev ? (r.patienceMul < prev.patienceMul ? 'stricter' : 'same') : null,
@@ -148,12 +228,18 @@ export function milestoneRows(s: Snapshot): MilestoneRow[] {
 /** Whether `PartArt` can draw this unlock-table id (a real part, a board tier or an OS). */
 export function hasArt(id: string, kind: string, planned: boolean): boolean {
   if (planned) return false;
-  return /^board\d+$/.test(id) || ['cpu', 'ram', 'cooler', 'fan', 'psu', 'display', 'vrm-sink', 'ram-sink', 'storage', 'os'].includes(kind);
+  return (
+    /^board\d+$/.test(id) ||
+    ['cpu', 'ram', 'cooler', 'fan', 'psu', 'display', 'vrm-sink', 'ram-sink', 'storage', 'os'].includes(kind)
+  );
 }
 
 // ---------- locked items (the player level gates purchases) ----------
 
-export interface LevelLock { level: number; name: string }
+export interface LevelLock {
+  level: number;
+  name: string;
+}
 
 /**
  * The hover text of an item that the player level still gates. The level reason comes first; the money or hardware
@@ -170,7 +256,8 @@ export function lockTooltip(lock: LevelLock, also: { blocked?: string; priceShor
 export const lockBadge = (lock: LevelLock): string => `Level ${lock.level}`;
 
 /** The item is gated by exactly the next level: it carries a subtle outline so the player sees what is coming. */
-export const isNextLevelLock = (lock: LevelLock | undefined, current: number): boolean => !!lock && lock.level === current + 1;
+export const isNextLevelLock = (lock: LevelLock | undefined, current: number): boolean =>
+  !!lock && lock.level === current + 1;
 
 /**
  * Shelf order: items open now first (their order kept), then the gated ones by the level that opens them (order kept
@@ -185,7 +272,12 @@ export function unlockedFirst<T>(items: readonly T[], lockOf: (t: T) => LevelLoc
 
 // ---------- level-up celebration ----------
 
-export interface Celebration { level: number; name: string; unlocked: MilestoneUnlock[]; at: number }
+export interface Celebration {
+  level: number;
+  name: string;
+  unlocked: MilestoneUnlock[];
+  at: number;
+}
 
 /**
  * The banner to show for this snapshot, or null. `seen` is the highest level this viewer has already been told about
@@ -196,7 +288,9 @@ export function celebrationFor(s: Snapshot, seen: number | null): Celebration | 
   const l = s.level;
   if (l.sandbox || s.sandbox || l.leveledUpAt === null || seen === null || l.level <= seen) return null;
   return {
-    level: l.level, name: l.name, at: l.leveledUpAt,
+    level: l.level,
+    name: l.name,
+    at: l.leveledUpAt,
     unlocked: l.recentlyUnlocked.map((u) => ({ ...u, icon: kindIcon(u.kind) })),
   };
 }
@@ -228,13 +322,32 @@ export interface JobView {
 }
 
 const NEED_LONG: Record<string, string> = {
-  OS: 'an OS', SSD: 'a SATA SSD or better', DRIVE: 'a storage drive', NET: 'a network link', TPM: 'a TPM', GPU: 'a GPU', NPU: 'an NPU', CORES: 'a multicore CPU',
+  OS: 'an OS',
+  SSD: 'a SATA SSD or better',
+  DRIVE: 'a storage drive',
+  NET: 'a network link',
+  TPM: 'a TPM',
+  GPU: 'a GPU',
+  NPU: 'an NPU',
+  CORES: 'a multicore CPU',
 };
 const NEED_ICON: Record<string, IconKey> = {
-  OS: 'cpu', SSD: 'disk', DRIVE: 'disk', NET: 'net', TPM: 'lock', GPU: 'screen', NPU: 'cpu', CORES: 'fan',
+  OS: 'cpu',
+  SSD: 'disk',
+  DRIVE: 'disk',
+  NET: 'net',
+  TPM: 'lock',
+  GPU: 'screen',
+  NPU: 'cpu',
+  CORES: 'fan',
 };
 
-export interface NeedChip { short: string; long: string; icon: IconKey; missing: boolean }
+export interface NeedChip {
+  short: string;
+  long: string;
+  icon: IconKey;
+  missing: boolean;
+}
 
 /** One chip per need (a device icon and its short name); `missing` ones are shown red. */
 export function needChips(j: Pick<JobView, 'needs' | 'missing'>): NeedChip[] {
@@ -255,7 +368,10 @@ export interface DeadlineInfo {
 }
 
 /** Deadline of a job the machine cannot run (null for a runnable one: it has the normal soft deadline). Red in the last quarter. */
-export function deadlineInfo(j: Pick<JobView, 'runnable' | 'arrivalTick' | 'expiresTick'>, now: number): DeadlineInfo | null {
+export function deadlineInfo(
+  j: Pick<JobView, 'runnable' | 'arrivalTick' | 'expiresTick'>,
+  now: number,
+): DeadlineInfo | null {
   if (j.runnable) return null;
   const left = Math.max(0, j.expiresTick - now);
   const window = Math.max(1, j.expiresTick - j.arrivalTick);
@@ -285,13 +401,20 @@ export function declineWords(sandbox: boolean, armed: boolean): { label: string;
       : { label: 'Decline', title: 'The client leaves and the job is gone. Free in the sandbox: no reputation cost.' };
   }
   return armed
-    ? { label: 'Sure? Costs reputation', title: 'Press again within 3 seconds to decline. A small reputation cost, and no payout.' }
+    ? {
+        label: 'Sure? Costs reputation',
+        title: 'Press again within 3 seconds to decline. A small reputation cost, and no payout.',
+      }
     : { label: 'Decline', title: 'The client leaves. A small reputation cost, no payout. Press twice to confirm.' };
 }
 
 // ---------- POST time ----------
 
-export interface PostPart { label: string; ticks: number; hint: string }
+export interface PostPart {
+  label: string;
+  ticks: number;
+  hint: string;
+}
 
 /**
  * What the boot wait (POST) is made of, in plain words. Mirrors the sim's `postTicks` (a base, the memory check by size and
@@ -299,21 +422,39 @@ export interface PostPart { label: string; ticks: number; hint: string }
  */
 export function postBreakdown(s: Snapshot): { total: number; parts: PostPart[] } {
   const c = ECONOMY.coldBoot;
-  let kib = 0, sticks = 0, init = 0, devs = 0;
+  let kib = 0,
+    sticks = 0,
+    init = 0,
+    devs = 0;
   for (const d of s.devices) {
     if (d.burnt) continue;
     const spec = getSpec(d.spec);
     if (!spec) continue;
-    if (spec.kind === 'ram') { kib += spec.sizeBytes / 1024; sticks++; }
+    if (spec.kind === 'ram') {
+      kib += spec.sizeBytes / 1024;
+      sticks++;
+    }
     const i = c.init[spec.id] ?? c.init[spec.kind] ?? 0;
     init += i;
     if (i > 0) devs++;
   }
   const raw: PostPart[] = [
     { label: 'Firmware', ticks: c.base, hint: 'The fixed cost of starting the board.' },
-    { label: 'Memory check', ticks: Math.min(c.kiBCap, c.perKiB * kib), hint: `The firmware counts the ${Math.round(kib)}K of RAM; more memory takes longer (up to a limit).` },
-    { label: `${sticks} RAM stick${sticks === 1 ? '' : 's'}`, ticks: c.perStick * sticks, hint: 'Each memory stick is detected and trained.' },
-    { label: `${devs} device${devs === 1 ? '' : 's'}`, ticks: init, hint: 'Processor, display and drives each take a moment to start.' },
+    {
+      label: 'Memory check',
+      ticks: Math.min(c.kiBCap, c.perKiB * kib),
+      hint: `The firmware counts the ${Math.round(kib)}K of RAM; more memory takes longer (up to a limit).`,
+    },
+    {
+      label: `${sticks} RAM stick${sticks === 1 ? '' : 's'}`,
+      ticks: c.perStick * sticks,
+      hint: 'Each memory stick is detected and trained.',
+    },
+    {
+      label: `${devs} device${devs === 1 ? '' : 's'}`,
+      ticks: init,
+      hint: 'Processor, display and drives each take a moment to start.',
+    },
   ].filter((p) => p.ticks > 0);
   const sum = raw.reduce((a, p) => a + p.ticks, 0);
   const scale = sum > 0 ? s.postTicks / sum : 1;
@@ -332,12 +473,25 @@ export function lockOf(s: Snapshot, id: string, p?: { locked?: LevelLock; later?
 }
 
 /** What buying one more of a part you own would do: the small buy button on its tile or card. */
-export interface MoreOffer { state: 'ready' | 'poor' | 'blocked' | 'level'; price: number; free?: boolean; reason?: string; lock?: LevelLock }
+export interface MoreOffer {
+  state: 'ready' | 'poor' | 'blocked' | 'level';
+  price: number;
+  free?: boolean;
+  reason?: string;
+  lock?: LevelLock;
+}
 
 /** The `more` offer of a tile or card: buying another copy of a part you own, from its purchase row. */
 export function moreOffer(s: Snapshot, p: Snapshot['purchases'][number], lock: LevelLock | undefined): MoreOffer {
   const free = s.sandbox || undefined;
-  if (lock) return { state: 'level', price: p.price, free, lock, reason: lockTooltip(lock, { blocked: p.blocked, priceShort: free ? 0 : p.price - s.money }) };
+  if (lock)
+    return {
+      state: 'level',
+      price: p.price,
+      free,
+      lock,
+      reason: lockTooltip(lock, { blocked: p.blocked, priceShort: free ? 0 : p.price - s.money }),
+    };
   if (p.blocked) return { state: 'blocked', price: p.price, free, reason: p.blocked };
   if (s.sandbox || p.affordable) return { state: 'ready', price: p.price, free };
   return { state: 'poor', price: p.price, reason: `Need ${fmtMoney(p.price - s.money)} more` };

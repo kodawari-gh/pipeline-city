@@ -6,12 +6,15 @@ import type { Material } from 'three';
 import { GRID } from './plan';
 
 /** The lamps' share of their full light (0 by day, 1 at night). */
-export interface LampUniforms { lampNight: { value: number } }
+export interface LampUniforms {
+  lampNight: { value: number };
+}
 
 /** The pools' light (linear, over the ground's colour) at their middle, and the shop fronts' at the wall's foot, as a share of it. */
-const K = 2.2, SHOPS = 0.7;
+const K = 2.2,
+  SHOPS = 0.7;
 
-const FN = /* glsl */`
+const FN = /* glsl */ `
 uniform float lampNight;
 varying vec3 vLampW;
 /** A row of pools along a line: d across from the row, s along it, every S (m), each r round; fw the pixel's size (m). */
@@ -38,16 +41,23 @@ vec3 lampLight(vec3 w) {
 
 /** Give a ground material the lamps' pools at night (its own `onBeforeCompile` still runs first). */
 export function withLampLight(m: Material, u: LampUniforms): void {
-  const prev = m.onBeforeCompile, key = `${m.customProgramCacheKey()}|lamps`;
+  const prev = m.onBeforeCompile,
+    key = `${m.customProgramCacheKey()}|lamps`;
   m.onBeforeCompile = (sh, r) => {
     prev.call(m, sh, r);
     sh.uniforms.lampNight = u.lampNight;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vLampW;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLampW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvLampW = (modelMatrix * vec4(transformed, 1.0)).xyz;',
+      );
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>\n${FN}`)
-      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * lampLight(vLampW) * ${K.toFixed(2)};`);
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * lampLight(vLampW) * ${K.toFixed(2)};`,
+      );
   };
   m.customProgramCacheKey = () => key;
   m.needsUpdate = true;

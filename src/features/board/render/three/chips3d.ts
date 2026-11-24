@@ -3,7 +3,17 @@
 // art), fed the same snapshots, the same eased clock, and the zoom and view of the camera. Each face shows them on a plane just over its baked art:
 // the part of the face in view, drawn at the screen's density by the offscreen Pixi renderer (`drawLive`) at most 30 times a second, and only
 // while the face shows (the lid has faded, the card has swung down).
-import { AdditiveBlending, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Vector3, type CanvasTexture, type Object3D, type PerspectiveCamera } from 'three';
+import {
+  AdditiveBlending,
+  Matrix4,
+  Mesh,
+  MeshBasicMaterial,
+  PlaneGeometry,
+  Vector3,
+  type CanvasTexture,
+  type Object3D,
+  type PerspectiveCamera,
+} from 'three';
 import type { Container } from 'pixi.js';
 import type { Snapshot } from '@/worker/protocol';
 import { getSpec, type CpuSpec } from '@/features/board/sim/specs';
@@ -40,30 +50,68 @@ import { busesOf } from './accelbus';
 export type ChipKind = 'die' | 'gpu' | 'npu' | 'tpm' | 'nic' | 'router' | 'nictrace';
 
 /** The finest density a live layer is drawn at (pixels per unit: the dies' finest baked level), its widest side (pixels), its least gap between two drawings (ms). */
-const MAX_PX = 10, MAX_SIDE = 2048, FRAME_MS = 33;
+const MAX_PX = 10,
+  MAX_SIDE = 2048,
+  FRAME_MS = 33;
 /** The live faces at each level of the graphics settings: the least gap between two drawings (ms) and the finest density. Level 2 is the tuned look. */
-export const LIVE_LEVELS = [{ ms: FRAME_MS * 2, px: MAX_PX / 2 }, { ms: FRAME_MS, px: MAX_PX / 2 }, { ms: FRAME_MS, px: MAX_PX }, { ms: FRAME_MS / 2, px: MAX_PX }] as const;
+export const LIVE_LEVELS = [
+  { ms: FRAME_MS * 2, px: MAX_PX / 2 },
+  { ms: FRAME_MS, px: MAX_PX / 2 },
+  { ms: FRAME_MS, px: MAX_PX },
+  { ms: FRAME_MS / 2, px: MAX_PX },
+] as const;
 /** The view when the camera looks past the plane: everything is in it. */
 const EVERYWHERE: LodRect = { x: -1e7, y: -1e7, w: 2e7, h: 2e7 };
-const CORNERS = [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0]] as const;
-const O = new Vector3(), D = new Vector3(), INV = new Matrix4();
+const CORNERS = [
+  [-1, -1],
+  [1, -1],
+  [1, 1],
+  [-1, 1],
+  [0, 0],
+] as const;
+const O = new Vector3(),
+  D = new Vector3(),
+  INV = new Matrix4();
 
 /**
  * Where the camera's view meets the plane at depth `z` of a frame (`inv`: world to that frame; none: the world itself): the layout rect between
  * the corners' rays (null when one of them looks past the plane), and the zoom where the centre's ray meets it (screen pixels per unit, `screenPx`).
  */
-export function viewOn(cam: PerspectiveCamera, H: number, z: number, inv?: Matrix4): { rect: LodRect | null; zoom: number } {
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, zoom = 0, miss = false;
+export function viewOn(
+  cam: PerspectiveCamera,
+  H: number,
+  z: number,
+  inv?: Matrix4,
+): { rect: LodRect | null; zoom: number } {
+  let x0 = Infinity,
+    y0 = Infinity,
+    x1 = -Infinity,
+    y1 = -Infinity,
+    zoom = 0,
+    miss = false;
   for (const [nx, ny] of CORNERS) {
     O.copy(cam.position);
     D.set(nx, ny, 0.5).unproject(cam);
-    if (inv) { O.applyMatrix4(inv); D.applyMatrix4(inv); }
+    if (inv) {
+      O.applyMatrix4(inv);
+      D.applyMatrix4(inv);
+    }
     D.sub(O);
     const t = (z - O.z) / D.z;
-    if (!(t > 0) || !Number.isFinite(t)) { miss = true; continue; }
-    if (nx === 0 && ny === 0) { zoom = screenPx(D.length() * t, cam.fov, H); continue; }
-    const x = O.x + D.x * t, y = -(O.y + D.y * t);
-    x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+    if (!(t > 0) || !Number.isFinite(t)) {
+      miss = true;
+      continue;
+    }
+    if (nx === 0 && ny === 0) {
+      zoom = screenPx(D.length() * t, cam.fov, H);
+      continue;
+    }
+    const x = O.x + D.x * t,
+      y = -(O.y + D.y * t);
+    x0 = Math.min(x0, x);
+    x1 = Math.max(x1, x);
+    y0 = Math.min(y0, y);
+    y1 = Math.max(y1, y);
   }
   return { rect: miss ? null : { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, zoom };
 }
@@ -71,13 +119,18 @@ export function viewOn(cam: PerspectiveCamera, H: number, z: number, inv?: Matri
 /** The part of a face `r` to draw: the view grown by `margin` of its size each side (a short pan stays covered), inside the face; null when they do not meet. No view: all of it. */
 export function liveCrop(r: Rect, view: LodRect | null, margin = 0.1): Rect | null {
   if (!view) return r;
-  const mx = view.w * margin, my = view.h * margin;
-  const x0 = Math.max(r.x, view.x - mx), y0 = Math.max(r.y, view.y - my), x1 = Math.min(r.x + r.w, view.x + view.w + mx), y1 = Math.min(r.y + r.h, view.y + view.h + my);
+  const mx = view.w * margin,
+    my = view.h * margin;
+  const x0 = Math.max(r.x, view.x - mx),
+    y0 = Math.max(r.y, view.y - my),
+    x1 = Math.min(r.x + r.w, view.x + view.w + mx),
+    y1 = Math.min(r.y + r.h, view.y + view.h + my);
   return x1 > x0 && y1 > y0 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
 }
 
 /** The density to draw a crop at: the screen's (`need`, pixels per unit), no finer than `max` (`MAX_PX`), no side over `side` pixels (`MAX_SIDE`). */
-export const livePx = (crop: Rect, need: number, max = MAX_PX, side = MAX_SIDE): number => Math.min(need, max, side / crop.w, side / crop.h);
+export const livePx = (crop: Rect, need: number, max = MAX_PX, side = MAX_SIDE): number =>
+  Math.min(need, max, side / crop.w, side / crop.h);
 
 interface Face {
   kind: ChipKind;
@@ -135,13 +188,17 @@ export class Chips3D {
   constructor() {
     // a core's access shows on the die where it leaves, and in an AI card's window the word lands in its memory or its registers (the 2D's `Live`)
     this.die.onMemory = (e) => {
-      const write = e.kind === 'store', hit = routeOnDie(this.die, e.addr, write, this.t), npu = hit?.kind === 'card' ? npuAccess(e.addr) : null;
+      const write = e.kind === 'store',
+        hit = routeOnDie(this.die, e.addr, write, this.t),
+        npu = hit?.kind === 'card' ? npuAccess(e.addr) : null;
       if (npu) this.npu.touch(npu.slot, write, npu.off);
     };
     // a frame leaves a card's way: its copper lights first, and the die's packets wait for it (nictrace.ts)
     this.nic.onLaunch = (slot, dir, at, total) => this.nicTrace.launch(slot, dir, at, total);
     // a graphics card's or an AI card's buses: the receive lines and the memory bus light with the words the die's view sends (accelbus.ts)
-    const traffic = (slot: string, hops: Parameters<typeof busesOf>[0]) => { for (const [bus, dir] of busesOf(hops)) this.nicTrace.pulse(slot, bus, dir); };
+    const traffic = (slot: string, hops: Parameters<typeof busesOf>[0]) => {
+      for (const [bus, dir] of busesOf(hops)) this.nicTrace.pulse(slot, bus, dir);
+    };
     this.gpu.onTraffic = traffic;
     this.npu.onTraffic = traffic;
   }
@@ -149,7 +206,8 @@ export class Chips3D {
   /** A new machine (machine3d.ts): the CPU's floorplan and the cards from its parts; the old faces go, the parts bring their new ones (`face`). */
   setScene(s: Snapshot | null): void {
     this.drop();
-    const gpus: GpuCardScene[] = [], npus: NpuScene[] = [];
+    const gpus: GpuCardScene[] = [],
+      npus: NpuScene[] = [];
     let cpu: CpuSpec | null = null;
     for (const d of s?.devices ?? []) {
       const spec = getSpec(d.spec);
@@ -159,18 +217,26 @@ export class Chips3D {
         (spec.kind === 'gpu' ? gpus : npus).push({ slot: d.slot, visual, origin: cardOrigin(idx(d.slot), visual) });
       }
     }
-    if (cpu) this.die.setPlan(this.T, planOf(cpu)); else this.die.clear();
+    if (cpu) this.die.setPlan(this.T, planOf(cpu));
+    else this.die.clear();
     this.cpu = !!cpu;
     this.cpuSpec = cpu;
     this.cards = new Map([...gpus, ...npus].map((c) => [c.slot, { visual: c.visual, origin: c.origin }]));
     this.gpu.setScene(this.T, gpus);
     this.npu.setScene(this.T, npus);
-    const hdr = tpmHeader(LAYOUT_TIER), mods: TpmScene[] = [];
-    for (const d of s?.devices ?? []) { const spec = getSpec(d.spec); if (spec?.kind === 'tpm' && hdr) mods.push({ slot: d.slot, visual: spec.visual, hdr: headerRect(hdr) }); }
+    const hdr = tpmHeader(LAYOUT_TIER),
+      mods: TpmScene[] = [];
+    for (const d of s?.devices ?? []) {
+      const spec = getSpec(d.spec);
+      if (spec?.kind === 'tpm' && hdr) mods.push({ slot: d.slot, visual: spec.visual, hdr: headerRect(hdr) });
+    }
     this.tpms = new Map(mods.map((m) => [m.slot, { visual: m.visual, hdr: m.hdr }]));
     this.tpm.setScene(this.T, mods);
     const nics: NicScene[] = [];
-    for (const d of s?.devices ?? []) { const spec = getSpec(d.spec); if (spec?.kind === 'nic') nics.push({ slot: d.slot, visual: spec.visual, index: idx(d.slot) }); }
+    for (const d of s?.devices ?? []) {
+      const spec = getSpec(d.spec);
+      if (spec?.kind === 'nic') nics.push({ slot: d.slot, visual: spec.visual, index: idx(d.slot) });
+    }
     // (the Ethernet chip on the motherboard is one more die, in a band of its own past the slots': its parts' ids start with `board`)
     const mbps = s?.board.features.ethernetMbps ?? 0;
     if (mbps > 0) nics.push({ slot: BOARD_NIC, visual: boardLook(mbps), index: BOARD_BAND });
@@ -211,12 +277,33 @@ export class Chips3D {
   /** Show the live layer of the `kind` view on the face `rect` (layout units) at depth `z` under `parent`: it shows, moves and turns with it. */
   face(parent: Object3D, kind: ChipKind, rect: Rect, z: number, slot?: string): void {
     // (the copper's light is added to the mask under it, as the board's traces are: `BoardLive3D`)
-    const light = kind === 'nictrace' ? { blending: AdditiveBlending, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 } : {};
+    const light =
+      kind === 'nictrace'
+        ? {
+            blending: AdditiveBlending,
+            toneMapped: false,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2,
+          }
+        : {};
     const mat = new MeshBasicMaterial({ transparent: true, depthWrite: false, opacity: 0, ...light });
     const mesh = seeThrough(new Mesh(new PlaneGeometry(1, 1), mat));
     mesh.visible = false;
     parent.add(mesh);
-    this.faces.push({ kind, parent, rect, z, mesh, mat, canvas: null, tex: null, size: '', at: -Infinity, ...(slot ? { slot } : {}) });
+    this.faces.push({
+      kind,
+      parent,
+      rect,
+      z,
+      mesh,
+      mat,
+      canvas: null,
+      tex: null,
+      size: '',
+      at: -Infinity,
+      ...(slot ? { slot } : {}),
+    });
   }
 
   /** A snapshot: each view's replay gets its part (the 2D's `Live.update` and `DieView.update`). */
@@ -244,14 +331,25 @@ export class Chips3D {
     const dieFace = this.faces.find((f) => f.kind === 'die');
     if (this.cpu && dieFace) {
       dieFace.parent.updateWorldMatrix(true, false);
-      const v = viewOn(cam, H, dieFace.z, INV.copy(dieFace.parent.matrixWorld).invert()), view = v.rect ?? EVERYWHERE, p = deviceLod(DIE_PLAN, view), seen = seenZoom(v.zoom, p.focus);
+      const v = viewOn(cam, H, dieFace.z, INV.copy(dieFace.parent.matrixWorld).invert()),
+        view = v.rect ?? EVERYWHERE,
+        p = deviceLod(DIE_PLAN, view),
+        seen = seenZoom(v.zoom, p.focus);
       this.dieAlpha = p.onScreen ? dieShow(seen, DIE_PLAN.w) : 0;
       this.die.setZoom(v.zoom, seen, view);
       this.die.frame(this.t, paused, this.dieAlpha > 0.01 && shown(dieFace.parent));
     }
     // the cards: read where they lie once they have swung down
-    const v = viewOn(cam, H, HINGE_Z), view = v.rect ?? EVERYWHERE;
-    const lod = { view, top: this.budget.assign([...this.gpu.candidates(view), ...this.npu.candidates(view), ...this.tpm.candidates(view)]) };
+    const v = viewOn(cam, H, HINGE_Z),
+      view = v.rect ?? EVERYWHERE;
+    const lod = {
+      view,
+      top: this.budget.assign([
+        ...this.gpu.candidates(view),
+        ...this.npu.candidates(view),
+        ...this.tpm.candidates(view),
+      ]),
+    };
     this.gpu.setZoom(v.zoom);
     this.npu.setZoom(v.zoom);
     this.tpm.setZoom(v.zoom);
@@ -260,7 +358,9 @@ export class Chips3D {
     for (const f of this.faces) {
       if (f.kind !== 'nic' || !f.slot) continue;
       f.parent.updateWorldMatrix(true, false);
-      const nv = viewOn(cam, H, f.z, INV.copy(f.parent.matrixWorld).invert()), nview = nv.rect ?? EVERYWHERE, p = deviceLod(f.rect, nview);
+      const nv = viewOn(cam, H, f.z, INV.copy(f.parent.matrixWorld).invert()),
+        nview = nv.rect ?? EVERYWHERE,
+        p = deviceLod(f.rect, nview);
       const alpha = p.onScreen ? dieShow(seenZoom(nv.zoom, p.focus), f.rect.w) : 0;
       this.nicAlpha.set(f.slot, alpha);
       this.nic.setSight(f.slot, { zoom: nv.zoom, view: nview, shown: alpha > 0.01 && shown(f.parent) });
@@ -270,7 +370,10 @@ export class Chips3D {
     for (const f of this.faces) {
       if (f.kind !== 'nictrace' || !f.slot) continue;
       f.parent.updateWorldMatrix(true, false);
-      const tv = viewOn(cam, H, f.z, INV.copy(f.parent.matrixWorld).invert()), alpha = shown(f.parent) ? smooth((f.band ?? DEVICE_LOD.nic.parts)[0], (f.band ?? DEVICE_LOD.nic.parts)[1], tv.zoom) : 0;
+      const tv = viewOn(cam, H, f.z, INV.copy(f.parent.matrixWorld).invert()),
+        alpha = shown(f.parent)
+          ? smooth((f.band ?? DEVICE_LOD.nic.parts)[0], (f.band ?? DEVICE_LOD.nic.parts)[1], tv.zoom)
+          : 0;
       this.traceAlpha.set(f.slot, alpha);
       this.nicTrace.setSight(f.slot, { zoom: tv.zoom, shown: alpha > 0.01 });
     }
@@ -283,7 +386,9 @@ export class Chips3D {
     const rf = this.routerGeo ? this.faces.find((f) => f.kind === 'router') : undefined;
     if (this.routerGeo && rf) {
       rf.parent.updateWorldMatrix(true, false);
-      const rv = viewOn(cam, H, rf.z, INV.copy(rf.parent.matrixWorld).invert()), rview = rv.rect ?? EVERYWHERE, p = deviceLod(rf.rect, rview);
+      const rv = viewOn(cam, H, rf.z, INV.copy(rf.parent.matrixWorld).invert()),
+        rview = rv.rect ?? EVERYWHERE,
+        p = deviceLod(rf.rect, rview);
       this.routerAlpha = p.onScreen ? dieShow(seenZoom(rv.zoom, p.focus), rf.rect.w) : 0;
       this.router.setSight({ zoom: rv.zoom, view: rview, shown: this.routerAlpha > 0.01 && shown(rf.parent) });
     }
@@ -304,11 +409,18 @@ export class Chips3D {
       D.set(nx, ny, 0.5).unproject(cam).applyMatrix4(inv).sub(O);
       const t = (f.z - O.z) / D.z;
       if (!(t > 0) || !Number.isFinite(t)) continue;
-      const x = O.x + D.x * t, y = -(O.y + D.y * t), zoom = viewOn(cam, H, f.z, inv).zoom;
-      let best: string | null = null, area = Infinity;
+      const x = O.x + D.x * t,
+        y = -(O.y + D.y * t),
+        zoom = viewOn(cam, H, f.z, inv).zoom;
+      let best: string | null = null,
+        area = Infinity;
       for (const h of this.partsOf(f)) {
-        if (zoom < h.min || x < h.rect.x || x > h.rect.x + h.rect.w || y < h.rect.y || y > h.rect.y + h.rect.h) continue;
-        if (h.rect.w * h.rect.h < area) { area = h.rect.w * h.rect.h; best = h.id; }
+        if (zoom < h.min || x < h.rect.x || x > h.rect.x + h.rect.w || y < h.rect.y || y > h.rect.y + h.rect.h)
+          continue;
+        if (h.rect.w * h.rect.h < area) {
+          area = h.rect.w * h.rect.h;
+          best = h.id;
+        }
       }
       if (best) return best;
     }
@@ -319,40 +431,100 @@ export class Chips3D {
   private partsOf(f: Face): { id: string; rect: Rect; min: number }[] {
     if (f.kind === 'die') {
       if (!this.cpuSpec) return [];
-      return planOf(this.cpuSpec).blocks.filter((b) => b.kind !== 'stage').map((b) => ({ id: 'cpu.' + b.kind, rect: b.rect, min: DEVICE_LOD.die.hover }));
+      return planOf(this.cpuSpec)
+        .blocks.filter((b) => b.kind !== 'stage')
+        .map((b) => ({ id: 'cpu.' + b.kind, rect: b.rect, min: DEVICE_LOD.die.hover }));
     }
     if (f.kind === 'tpm') {
       const m = f.slot ? this.tpms.get(f.slot) : undefined;
-      return m ? tpmParts(tpmGeo(m.visual, m.hdr)).map((p) => ({ id: `${f.slot}.${p.id}`, rect: p.rect, min: p.inner ? DEVICE_LOD.tpm.hover : DEVICE_LOD.tpm.lid })) : [];
+      return m
+        ? tpmParts(tpmGeo(m.visual, m.hdr)).map((p) => ({
+            id: `${f.slot}.${p.id}`,
+            rect: p.rect,
+            min: p.inner ? DEVICE_LOD.tpm.hover : DEVICE_LOD.tpm.lid,
+          }))
+        : [];
     }
     if (f.kind === 'nic') {
       const n = f.slot ? this.nics.get(f.slot) : undefined;
-      return n ? nicParts(nicGeo(n.visual, n.index)).map((p) => ({ id: `${f.slot}.${p.id}`, rect: p.rect, min: DEVICE_LOD.nic.hover })) : [];
+      return n
+        ? nicParts(nicGeo(n.visual, n.index)).map((p) => ({
+            id: `${f.slot}.${p.id}`,
+            rect: p.rect,
+            min: DEVICE_LOD.nic.hover,
+          }))
+        : [];
     }
-    if (f.kind === 'router') return this.routerGeo ? routerParts(this.routerGeo).map((p) => ({ id: p.id, rect: p.rect, min: DEVICE_LOD.router.hover })) : [];
+    if (f.kind === 'router')
+      return this.routerGeo
+        ? routerParts(this.routerGeo).map((p) => ({ id: p.id, rect: p.rect, min: DEVICE_LOD.router.hover }))
+        : [];
     // (a card's lit copper has no parts to point at: it only lights)
     if (f.kind === 'nictrace') return [];
     const c = f.slot ? this.cards.get(f.slot) : undefined;
     if (!c) return [];
-    if (f.kind === 'gpu') return gpuParts(gpuPlan(c.visual)).map((p) => ({ id: `${f.slot}.${p.id}`, rect: moveRect(p.rect, c.origin), min: p.inner ? DEVICE_LOD.gpu.hover : DEVICE_LOD.gpu.fan }));
-    return npuParts(npuGeo(c.visual)).map((p) => ({ id: `${f.slot}.${p.id}`, rect: moveRect(p.rect, c.origin), min: p.fine ? DEVICE_LOD.npu.fine : p.inner ? DEVICE_LOD.npu.hover : DEVICE_LOD.npu.lid }));
+    if (f.kind === 'gpu')
+      return gpuParts(gpuPlan(c.visual)).map((p) => ({
+        id: `${f.slot}.${p.id}`,
+        rect: moveRect(p.rect, c.origin),
+        min: p.inner ? DEVICE_LOD.gpu.hover : DEVICE_LOD.gpu.fan,
+      }));
+    return npuParts(npuGeo(c.visual)).map((p) => ({
+      id: `${f.slot}.${p.id}`,
+      rect: moveRect(p.rect, c.origin),
+      min: p.fine ? DEVICE_LOD.npu.fine : p.inner ? DEVICE_LOD.npu.hover : DEVICE_LOD.npu.lid,
+    }));
   }
 
   private viewOf(kind: ChipKind): Container {
-    return kind === 'die' ? this.die.root : kind === 'gpu' ? this.gpu.root : kind === 'tpm' ? this.tpm.root : kind === 'nic' ? this.nic.root : kind === 'router' ? this.router.root : kind === 'nictrace' ? this.nicTrace.root : this.npu.root;
+    return kind === 'die'
+      ? this.die.root
+      : kind === 'gpu'
+        ? this.gpu.root
+        : kind === 'tpm'
+          ? this.tpm.root
+          : kind === 'nic'
+            ? this.nic.root
+            : kind === 'router'
+              ? this.router.root
+              : kind === 'nictrace'
+                ? this.nicTrace.root
+                : this.npu.root;
   }
 
   /** Draw a face's live layer: the part of it in view (in its own frame: a card may still be turning), at the screen's density. */
   private draw(f: Face, cam: PerspectiveCamera, H: number, dpr: number, now: number): void {
     // (a card's copper is drawn only while a packet is on it: a quiet card has nothing lit to show)
-    const a = f.kind === 'die' ? this.dieAlpha : f.kind === 'router' ? this.routerAlpha : f.kind === 'nic' ? this.nicAlpha.get(f.slot ?? '') ?? 0 : f.kind === 'nictrace' ? (this.nicTrace.busy(f.slot ?? '') ? this.traceAlpha.get(f.slot ?? '') ?? 0 : 0) : 1;
-    if (a <= 0.01 || !shown(f.parent)) { f.mesh.visible = false; return; }
+    const a =
+      f.kind === 'die'
+        ? this.dieAlpha
+        : f.kind === 'router'
+          ? this.routerAlpha
+          : f.kind === 'nic'
+            ? (this.nicAlpha.get(f.slot ?? '') ?? 0)
+            : f.kind === 'nictrace'
+              ? this.nicTrace.busy(f.slot ?? '')
+                ? (this.traceAlpha.get(f.slot ?? '') ?? 0)
+                : 0
+              : 1;
+    if (a <= 0.01 || !shown(f.parent)) {
+      f.mesh.visible = false;
+      return;
+    }
     if (now - f.at < this.live.ms) return;
     f.parent.updateWorldMatrix(true, false);
-    const v = viewOn(cam, H, f.z, INV.copy(f.parent.matrixWorld).invert()), crop = liveCrop(f.rect, v.rect);
-    if (!crop || v.zoom <= 0) { f.mesh.visible = false; return; }
-    const canvas = (f.canvas ??= document.createElement('canvas')), got = drawLive(this.viewOf(f.kind), crop, livePx(crop, v.zoom * dpr, this.live.px), canvas);
-    if (!got) { f.mesh.visible = false; return; }
+    const v = viewOn(cam, H, f.z, INV.copy(f.parent.matrixWorld).invert()),
+      crop = liveCrop(f.rect, v.rect);
+    if (!crop || v.zoom <= 0) {
+      f.mesh.visible = false;
+      return;
+    }
+    const canvas = (f.canvas ??= document.createElement('canvas')),
+      got = drawLive(this.viewOf(f.kind), crop, livePx(crop, v.zoom * dpr, this.live.px), canvas);
+    if (!got) {
+      f.mesh.visible = false;
+      return;
+    }
     f.at = now;
     const size = `${canvas.width}x${canvas.height}`;
     if (!f.tex || f.size !== size) {

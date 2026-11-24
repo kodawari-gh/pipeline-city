@@ -42,15 +42,15 @@ In code: `startSim(null, { sandbox: true, preassembled: assembled, maxed: assemb
 
 Shown as the **SANDBOX** chip in the HUD bar. Each is a `ToSim` message and a `Game` method, refused with `sandbox mode only` outside a sandbox game (`NOT_SANDBOX`):
 
-| Tool | What it does |
-|---|---|
-| `spawnKey(template, scale)` | Adds a key with a generator template (for example `cli`, `cli.log`, `cli.scan`) at scale 1 to 16 to the tray, or a job class id (`db`, `web`, `secure`, `gpu`, `npu`, `hpc`: the class sets template and scale and carries its needs, so it may be unrunnable). Refused when the tray is full. |
-| `setLevel(level)` | Pins the rules level (patience, payout, demand, arrival mix) at 1 to 18; refused in a campaign (`sandbox mode only`). |
-| `setJobClasses(off)` | Chooses which job classes arrive on their own: `off` lists the classes that stop (`cli`, `scan`, `db`, `web`, `secure`, `gpu`, `npu`, `hpc`; empty = all arrive). A class the pinned level has no share for never arrives anyway. With every class off nothing arrives; `spawnKey` still adds any. Saved with the game. Shown as the "Arriving on their own" checkboxes in the tools popover. |
-| `setJobKinds(off)` | Finer than the classes: `off` lists kinds of job (job dex ids such as `fib`, `mandel`, `hpc-fft`) that stop arriving on their own (empty = all arrive). A kind arrives when its class is on, the pinned level has reached it and it is not off; a class whose kinds at the level are all off sends nothing (`classBlocked`). `spawnKey` still adds any. Saved with the game. Shown in the **LEVEL n · JOBS** panel (below). |
-| `clearQueue()` | Throws away every key in the tray. The plugged key and the keys the OS holds stay. |
-| `repairAll()` | Un-burns every part and the board, cools everything to ambient, clears a PSU trip. Works powered or not. |
-| `setReputation(value)` | Sets reputation within the economy's range (0.4 to 4). The turnaround average is set to match, and it moves as usual afterwards. |
+| Tool                        | What it does                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `spawnKey(template, scale)` | Adds a key with a generator template (for example `cli`, `cli.log`, `cli.scan`) at scale 1 to 16 to the tray, or a job class id (`db`, `web`, `secure`, `gpu`, `npu`, `hpc`: the class sets template and scale and carries its needs, so it may be unrunnable). Refused when the tray is full.                                                                                                                              |
+| `setLevel(level)`           | Pins the rules level (patience, payout, demand, arrival mix) at 1 to 18; refused in a campaign (`sandbox mode only`).                                                                                                                                                                                                                                                                                                       |
+| `setJobClasses(off)`        | Chooses which job classes arrive on their own: `off` lists the classes that stop (`cli`, `scan`, `db`, `web`, `secure`, `gpu`, `npu`, `hpc`; empty = all arrive). A class the pinned level has no share for never arrives anyway. With every class off nothing arrives; `spawnKey` still adds any. Saved with the game. Shown as the "Arriving on their own" checkboxes in the tools popover.                               |
+| `setJobKinds(off)`          | Finer than the classes: `off` lists kinds of job (job dex ids such as `fib`, `mandel`, `hpc-fft`) that stop arriving on their own (empty = all arrive). A kind arrives when its class is on, the pinned level has reached it and it is not off; a class whose kinds at the level are all off sends nothing (`classBlocked`). `spawnKey` still adds any. Saved with the game. Shown in the **LEVEL n · JOBS** panel (below). |
+| `clearQueue()`              | Throws away every key in the tray. The plugged key and the keys the OS holds stay.                                                                                                                                                                                                                                                                                                                                          |
+| `repairAll()`               | Un-burns every part and the board, cools everything to ambient, clears a PSU trip. Works powered or not.                                                                                                                                                                                                                                                                                                                    |
+| `setReputation(value)`      | Sets reputation within the economy's range (0.4 to 4). The turnaround average is set to match, and it moves as usual afterwards.                                                                                                                                                                                                                                                                                            |
 
 The store actions are `spawnKey`, `clearQueue`, `repairAll`, `setReputation`, `setJobClasses`, `setJobKinds` and `setLevel` in `src/app/store.ts`.
 
@@ -69,11 +69,11 @@ The catch-up cap is `MAX_TICKS_PER_FRAME` = **128** base ticks per call, in ever
 Two modes per speed. **Flat out**: back-to-back calls of 100 ms game time, which gives the cost of a tick and the ceiling. **Paced**: 8 s of real time with the worker's 100 ms timer, which gives the ticks delivered against the ticks owed.
 
 | Speed | Flat out: ms per tick | Flat-out ceiling | Paced: ticks/s delivered (share of owed) | Worst paced call (ticks + snapshot) |
-|---|---|---|---|---|
-| 1x | 0.09 | about 12,000x | 0.99 (99.5%) | 1 ms |
-| 4x | 0.07 | about 13,800x | 3.96 (99.1%) | 2 ms |
-| 16x | 0.08 | about 13,000x | 15.94 (99.7%) | 16 ms |
-| 64x | 0.09 | about 12,000x | 63.88 (99.8%) | 13 ms |
+| ----- | --------------------- | ---------------- | ---------------------------------------- | ----------------------------------- |
+| 1x    | 0.09                  | about 12,000x    | 0.99 (99.5%)                             | 1 ms                                |
+| 4x    | 0.07                  | about 13,800x    | 3.96 (99.1%)                             | 2 ms                                |
+| 16x   | 0.08                  | about 13,000x    | 15.94 (99.7%)                            | 16 ms                               |
+| 64x   | 0.09                  | about 12,000x    | 63.88 (99.8%)                            | 13 ms                               |
 
 Over three runs the cost stayed at 0.06 to 0.09 ms per tick (the job-running and idle phases cost the same), the ceiling was 12,000 to 16,500x, and a snapshot cost about 0.4 ms and 13 KB.
 
@@ -84,6 +84,7 @@ The practical limit at high speed is on the client, not in the sim: the main thr
 ## Benchmark (Build my PC)
 
 The benchmark scores a machine on the almanac's jobs. The player runs one task, a set or all of them from the benchmark screen (`board/ui/BuildBench.tsx`, see `docs/UI.md` "Studio screens"). It is not a sandbox tool: it lives in this feature because it plays the sim. The full header of each file says more.
+
 - `sim/benchtasks.ts`: pure data. `BENCH_TASKS` (51: every program in the job almanac, plus the drive test `disk`), `BENCH_GROUPS` (the almanac's groups, each with a colour), `QUICK_TASKS` (`crc stream disk page vadd npu`: one of each kind of work), `overallOf`. The screen imports this file alone.
 - `sim/pcbench.ts`: the runner. `benchIssues` / `benchable` say why a task cannot run on this machine (the almanac's needs, a card for the card jobs). `runBenchTasks(game, ids, ...)` runs the tasks one after the other, each on its own copy of the machine (`Game.fromSave`: no keys, no arrivals, a fixed random state), so a score does not depend on what else was picked. `measureTask` runs one now. The UI never imports it: `BuildStage.loadBench` loads it when the screen opens.
 - Score = 1000 × rate ÷ `REFERENCE_RATE[task]`; the reference is a machine built for the task (`referenceRig`), so 1000 is par and it scores about 1000 there (`pcbench.test.ts` checks every task and names the rate to put in `REFERENCE_RATE` when the sim's balance moves). The overall score is the geometric mean of the scores. Time is the game's execution time of the job (one base tick is one simulated second at 1x), not the wall clock.

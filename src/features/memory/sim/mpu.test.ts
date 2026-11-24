@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { assemble } from "../../cpu/sim/asm";
-import { createEngine, type EngineConfig } from "../../cpu/sim/engines";
-import { KERNEL_FAULT, MPU_BASE, MPU_REG } from "@/core/sim/memmap";
-import { Machine } from "@/core/sim/machine";
+import { describe, expect, it } from 'vitest';
+import { assemble } from '../../cpu/sim/asm';
+import { createEngine, type EngineConfig } from '../../cpu/sim/engines';
+import { KERNEL_FAULT, MPU_BASE, MPU_REG } from '@/core/sim/memmap';
+import { Machine } from '@/core/sim/machine';
 
 const PROGRAM = `
   li s0, ${MPU_BASE}
@@ -28,10 +28,10 @@ const HANDLER = `
   ecall`;
 
 const ENGINES: { name: string; cfg: EngineConfig }[] = [
-  { name: "inorder", cfg: { kind: "inorder", forwarding: true } },
-  { name: "inorder2", cfg: { kind: "inorder2", forwarding: true } },
-  { name: "ooo", cfg: { kind: "ooo", robSize: 8, commitWidth: 2 } },
-  { name: "unpipelined", cfg: { kind: "unpipelined" } },
+  { name: 'inorder', cfg: { kind: 'inorder', forwarding: true } },
+  { name: 'inorder2', cfg: { kind: 'inorder2', forwarding: true } },
+  { name: 'ooo', cfg: { kind: 'ooo', robSize: 8, commitWidth: 2 } },
+  { name: 'unpipelined', cfg: { kind: 'unpipelined' } },
 ];
 
 function run(cfg: EngineConfig): Machine {
@@ -43,8 +43,8 @@ function run(cfg: EngineConfig): Machine {
   return m;
 }
 
-describe("memory protection unit", () => {
-  it("is off after reset and stores anywhere land", () => {
+describe('memory protection unit', () => {
+  it('is off after reset and stores anywhere land', () => {
     const m = new Machine();
     expect(m.mpu.enabled).toBe(false);
     m.bus.store32(0x2800, 5);
@@ -52,7 +52,7 @@ describe("memory protection unit", () => {
     expect(m.mpu.faults).toBe(0);
   });
 
-  it("registers read back as words and bytes", () => {
+  it('registers read back as words and bytes', () => {
     const m = new Machine();
     m.bus.store32(MPU_BASE + MPU_REG.R1_LO, 0x1234_5678);
     expect(m.mpu.lo[1]).toBe(0x1234_5678);
@@ -61,14 +61,17 @@ describe("memory protection unit", () => {
     expect(m.mpu.enabled).toBe(true);
   });
 
-  it.each(ENGINES)("$name: a store into a protected range is dropped and sends the CPU to the fault handler", ({ cfg }) => {
-    const m = run(cfg);
-    expect(m.bus.load32(0x2800)).toBe(7); // before the unit was on
-    expect(m.bus.load32(0x2804)).toBe(0); // refused
-    expect(m.bus.load32(0x500)).toBe(0xbeef); // the handler ran
-    expect(m.bus.load32(0x700)).toBe(0); // the job did not go on
-    expect(m.mpu.faults).toBe(1);
-    expect(m.mpu.faultAddr).toBe(0x2804);
-    expect(m.mpu.enabled).toBe(false); // the handler runs as the kernel
-  });
+  it.each(ENGINES)(
+    '$name: a store into a protected range is dropped and sends the CPU to the fault handler',
+    ({ cfg }) => {
+      const m = run(cfg);
+      expect(m.bus.load32(0x2800)).toBe(7); // before the unit was on
+      expect(m.bus.load32(0x2804)).toBe(0); // refused
+      expect(m.bus.load32(0x500)).toBe(0xbeef); // the handler ran
+      expect(m.bus.load32(0x700)).toBe(0); // the job did not go on
+      expect(m.mpu.faults).toBe(1);
+      expect(m.mpu.faultAddr).toBe(0x2804);
+      expect(m.mpu.enabled).toBe(false); // the handler runs as the kernel
+    },
+  );
 });

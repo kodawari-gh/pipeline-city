@@ -11,8 +11,12 @@ class FakeWorker {
   sent: Sent[] = [];
   onmessage: unknown = null;
   onerror: unknown = null;
-  constructor() { FakeWorker.made.push(this); }
-  postMessage(m: Sent): void { this.sent.push(m); }
+  constructor() {
+    FakeWorker.made.push(this);
+  }
+  postMessage(m: Sent): void {
+    this.sent.push(m);
+  }
   terminate(): void {}
 }
 

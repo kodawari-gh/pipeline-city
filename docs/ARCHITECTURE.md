@@ -6,15 +6,15 @@ Status: POC. Decisions below are current, not final. The old prototype was `lega
 
 ## Stack
 
-| Concern | Choice |
-|---|---|
-| Language / build | TypeScript + Vite, npm |
-| Board rendering | Three.js (WebGL); Pixi bakes the 2D art onto 3D parts |
-| Panels / HUD | Preact + `@preact/signals` |
-| Simulation | Web Worker, from day one |
-| Tests | Vitest |
-| Hosting | Static site (no backend) |
-| Saves | Versioned JSON, exported/imported as local files |
+| Concern          | Choice                                                |
+| ---------------- | ----------------------------------------------------- |
+| Language / build | TypeScript + Vite, npm                                |
+| Board rendering  | Three.js (WebGL); Pixi bakes the 2D art onto 3D parts |
+| Panels / HUD     | Preact + `@preact/signals`                            |
+| Simulation       | Web Worker, from day one                              |
+| Tests            | Vitest                                                |
+| Hosting          | Static site (no backend)                              |
+| Saves            | Versioned JSON, exported/imported as local files      |
 
 ## Layers
 

@@ -2,19 +2,23 @@ import { describe, expect, it } from 'vitest';
 import { ARCH } from './diskplan';
 import { CTRL_DIE, NAND_DIE, PLATTER, ctrlDiePlan, nandDiePlan, platterPlan, type DieRect } from './diskdie';
 
-const inside = (a: DieRect, b: DieRect): boolean => a.x >= b.x - 1e-6 && a.y >= b.y - 1e-6 && a.x + a.w <= b.x + b.w + 1e-6 && a.y + a.h <= b.y + b.h + 1e-6;
-const meet = (a: DieRect, b: DieRect): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+const inside = (a: DieRect, b: DieRect): boolean =>
+  a.x >= b.x - 1e-6 && a.y >= b.y - 1e-6 && a.x + a.w <= b.x + b.w + 1e-6 && a.y + a.h <= b.y + b.h + 1e-6;
+const meet = (a: DieRect, b: DieRect): boolean =>
+  a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
 describe('the controller die of a flash drive', () => {
   for (const kind of ['ssd-sata', 'ssd-nvme'] as const) {
     it(`${kind}: an engine for each channel of its tier, every block in the die and clear of the others`, () => {
-      const p = ctrlDiePlan(kind), die = { x: 0, y: 0, w: CTRL_DIE.w, h: CTRL_DIE.h };
+      const p = ctrlDiePlan(kind),
+        die = { x: 0, y: 0, w: CTRL_DIE.w, h: CTRL_DIE.h };
       expect(p.blocks.filter((b) => b.kind === 'channel')).toHaveLength(ARCH[kind].channels);
       for (const b of p.blocks) {
         expect(inside(b.rect, die), b.id).toBe(true);
         for (const o of p.blocks) if (o !== b) expect(meet(b.rect, o.rect), `${b.id}/${o.id}`).toBe(false);
       }
-      for (const l of p.links) for (const pt of l.pts) expect(inside({ x: pt[0], y: pt[1], w: 0, h: 0 }, die)).toBe(true);
+      for (const l of p.links)
+        for (const pt of l.pts) expect(inside({ x: pt[0], y: pt[1], w: 0, h: 0 }, die)).toBe(true);
     });
   }
 
@@ -37,7 +41,8 @@ describe('the NAND die', () => {
           expect(inside(a, t.rect), `${n}`).toBe(true);
           for (const b of parts) if (a !== b) expect(meet(a, b), `${n}`).toBe(false);
         }
-        for (const q of t.planes) for (const sub of [q.array, q.decoder, q.buffer]) expect(inside(sub, q.rect)).toBe(true);
+        for (const q of t.planes)
+          for (const sub of [q.array, q.decoder, q.buffer]) expect(inside(sub, q.rect)).toBe(true);
       }
     }
   });

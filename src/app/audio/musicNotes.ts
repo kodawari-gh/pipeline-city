@@ -66,7 +66,13 @@ export const noteId = (family: Family, midi: number): string => `music_note_${fa
 /** The gain (dB) of a note: its family's cue gain (MIX.music.cueGainDb) plus the step's own offset. */
 export const noteGainDb = (s: NoteStep): number => MIX.music.cueGainDb[s.family] + (s.gainDb ?? 0);
 
-const step = (family: Family, reg: Register, degree: number, beat = 0, gainDb?: number): NoteStep => ({ family, reg, degree, beat, ...(gainDb !== undefined ? { gainDb } : {}) });
+const step = (family: Family, reg: Register, degree: number, beat = 0, gainDb?: number): NoteStep => ({
+  family,
+  reg,
+  degree,
+  beat,
+  ...(gainDb !== undefined ? { gainDb } : {}),
+});
 /** A half-beat fall or rise: the spacing of the falling and rising pairs. */
 const HALF = 0.5;
 /** A third of a beat: the spacing of the power chord and the payout fan. */
@@ -80,16 +86,26 @@ export function noteSpecFor(e: Pick<GameEvent, 'kind' | 'text'>): NoteSpec | nul
   switch (e.kind) {
     case 'install':
       if (/will be swapped in|queued installs? cancelled|queued swap was dropped/.test(t)) return null;
-      if (/removed|came off/.test(t)) return { duck: 'standard', steps: [step('pluck', 'build', 4), step('pluck', 'build', 0, HALF)] };
+      if (/removed|came off/.test(t))
+        return { duck: 'standard', steps: [step('pluck', 'build', 4), step('pluck', 'build', 0, HALF)] };
       if (/installed|placed next to|formatted/.test(t)) return { duck: 'standard', steps: [step('pluck', 'build', 0)] };
       return null;
     case 'cable':
       // A disconnect (or an unplug) falls 4 -> 0 over a low root; a connect rises 0 -> 4 (`disconnected` before `connected`).
-      if (/came unplugged|disconnected/.test(t)) return { duck: 'standard', steps: [step('pluck', 'build', 4), step('pluck', 'build', 0, HALF), step('low', 'failure', 0)] };
-      if (/connected/.test(t)) return { duck: 'standard', steps: [step('pluck', 'build', 0), step('pluck', 'build', 4, HALF)] };
+      if (/came unplugged|disconnected/.test(t))
+        return {
+          duck: 'standard',
+          steps: [step('pluck', 'build', 4), step('pluck', 'build', 0, HALF), step('low', 'failure', 0)],
+        };
+      if (/connected/.test(t))
+        return { duck: 'standard', steps: [step('pluck', 'build', 0), step('pluck', 'build', 4, HALF)] };
       return null;
     case 'power':
-      if (/powered on|reconnected/.test(t)) return { duck: 'standard', steps: [0, 4, 7].map((d) => step('pluck', 'build', d, d === 0 ? 0 : d === 4 ? THIRD : 2 * THIRD)) };
+      if (/powered on|reconnected/.test(t))
+        return {
+          duck: 'standard',
+          steps: [0, 4, 7].map((d) => step('pluck', 'build', d, d === 0 ? 0 : d === 4 ? THIRD : 2 * THIRD)),
+        };
       return null;
     case 'key':
       return { duck: 'key', steps: [step('pluck', 'flow', 2)] };
@@ -117,11 +133,13 @@ export function noteSpecFor(e: Pick<GameEvent, 'kind' | 'text'>): NoteSpec | nul
       if (/^paid/.test(t)) return { duck: 'standard', steps: [step('glint', 'glint', 4), step('glint', 'glint', 0)] };
       return null;
     case 'contract':
-      if (/accepted/.test(t)) return { duck: 'standard', steps: [step('pluck', 'flow', 4), step('pluck', 'flow', 8, HALF)] };
+      if (/accepted/.test(t))
+        return { duck: 'standard', steps: [step('pluck', 'flow', 4), step('pluck', 'flow', 8, HALF)] };
       return { duck: 'standard', steps: [step('pluck', 'flow', 8), step('pluck', 'flow', 4, HALF)] };
     case 'purchase':
       // A sale is the uninstall figure (music-spec.json `events.install`, "uninstall / sell").
-      if (/^sold/.test(t)) return { duck: 'standard', steps: [step('pluck', 'build', 4), step('pluck', 'build', 0, HALF)] };
+      if (/^sold/.test(t))
+        return { duck: 'standard', steps: [step('pluck', 'build', 4), step('pluck', 'build', 0, HALF)] };
       return null;
     default:
       return null;

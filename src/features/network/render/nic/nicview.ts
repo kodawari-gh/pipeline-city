@@ -5,7 +5,14 @@ import type { Theme } from '@/core/render/theme';
 import { DEVICE_LOD, seenZoom, type LodRect } from '@/core/render/lod/lod';
 import { RectCache } from '@/core/render/lod/lodrect';
 import { cardText } from '@/core/render/lod/lodcard';
-import { CellTexts, drawPackets, drawTrails, packetOn, type Packet, type Trail } from '../../../cpu/render/die/diepulse';
+import {
+  CellTexts,
+  drawPackets,
+  drawTrails,
+  packetOn,
+  type Packet,
+  type Trail,
+} from '../../../cpu/render/die/diepulse';
 import { FrameMeter } from '../plan/netmeter';
 import type { Rect } from '../plan/netplan';
 import { nicGlyphArea, nicLive } from './nicglyph';
@@ -25,10 +32,18 @@ const TEXT_Z = DEVICE_LOD.nic.text;
 const TEXT_CAP = 22;
 
 /** A new card in the scene: its header slot id (`pcie2`), its look and its PCIe slot's number. */
-export interface NicScene { slot: string; visual: string; index: number }
+export interface NicScene {
+  slot: string;
+  visual: string;
+  index: number;
+}
 
 /** Where the camera is over a die: the zoom (screen pixels per plan unit), the part of the die's frame in view (null: all of it), and whether the die is seen at all (its lid is gone, its card faces the camera). */
-export interface NicSight { zoom: number; view: LodRect | null; shown: boolean }
+export interface NicSight {
+  zoom: number;
+  view: LodRect | null;
+  shown: boolean;
+}
 
 interface CardView {
   slot: string;
@@ -80,15 +95,39 @@ export class NicView {
   }
 
   private build(s: NicScene): CardView {
-    const geo = nicGeo(s.visual, s.index), root = new Container(), bounds = new Graphics();
+    const geo = nicGeo(s.visual, s.index),
+      root = new Container(),
+      bounds = new Graphics();
     root.position.set(geo.origin.x, geo.origin.y);
     // (the view's place is read from its bounds: an invisible rectangle over the plan gives them before anything is lit)
     bounds.rect(0, 0, geo.plan.die.w, geo.plan.die.h).fill({ color: 0x000000, alpha: 0 });
-    const glowG = new Graphics(), litG = new Graphics(), texts = new Container(), trailG = new Graphics(), packetG = new Graphics();
+    const glowG = new Graphics(),
+      litG = new Graphics(),
+      texts = new Container(),
+      trailG = new Graphics(),
+      packetG = new Graphics();
     root.addChild(bounds, glowG, litG, texts, trailG, packetG);
     this.root.addChild(root);
-    const areas = geo.plan.blocks.flatMap((b) => { const a = nicGlyphArea(b); return a ? [{ b, a }] : []; });
-    return { slot: s.slot, geo, root, glowG, litG, texts, trailG, packetG, cellTexts: new Map(), packets: [], trails: new Map(), glow: new Map(), next: { rx: 0, tx: 0 }, areas };
+    const areas = geo.plan.blocks.flatMap((b) => {
+      const a = nicGlyphArea(b);
+      return a ? [{ b, a }] : [];
+    });
+    return {
+      slot: s.slot,
+      geo,
+      root,
+      glowG,
+      litG,
+      texts,
+      trailG,
+      packetG,
+      cellTexts: new Map(),
+      packets: [],
+      trails: new Map(),
+      glow: new Map(),
+      next: { rx: 0, tx: 0 },
+      areas,
+    };
   }
 
   /** The camera's zoom and view over the die of the card in `slot`. */
@@ -97,7 +136,9 @@ export class NicView {
   }
 
   /** The view's clock (ms of game time): the clock the launches (`onLaunch`) and the packets run on. */
-  get clock(): number { return this.now; }
+  get clock(): number {
+    return this.now;
+  }
 
   /** The newest snapshot: the frame meter reads its counters. */
   update(s: Snapshot | null | undefined): void {
@@ -113,35 +154,69 @@ export class NicView {
     this.now += (paused ? 0 : dt) * 1000;
     const T = this.T;
     for (const c of this.cards) {
-      const sight = this.sights.get(c.slot), pl = this.rects.place(c, c.root, sight?.view ?? undefined), on = pl.onScreen && !!sight?.shown;
+      const sight = this.sights.get(c.slot),
+        pl = this.rects.place(c, c.root, sight?.view ?? undefined),
+        on = pl.onScreen && !!sight?.shown;
       c.root.visible = on;
       const show = nicShow(this.snap, c.slot, this.meter, this.now);
       // (the frames leave at the card's own pace whether the die is seen or not: its copper lights from the same launches)
       if (show) this.fly(T, c, show.link ? { rx: show.rxAct, tx: show.txAct } : { rx: 0, tx: 0 }, on);
       if (!on) continue;
-      const z = seenZoom(sight?.zoom ?? 1, pl.focus), { showText, ta } = cardText(z, undefined, `nic:${c.slot}`, TEXT_Z, DEVICE_LOD.nic.detail);
+      const z = seenZoom(sight?.zoom ?? 1, pl.focus),
+        { showText, ta } = cardText(z, undefined, `nic:${c.slot}`, TEXT_Z, DEVICE_LOD.nic.detail);
       c.texts.visible = showText;
       c.texts.alpha = ta;
-      if (!show) { c.packets = []; c.trails.clear(); c.litG.clear(); c.glowG.clear(); c.trailG.clear(); c.packetG.clear(); for (const ct of c.cellTexts.values()) ct.hideFrom(0); continue; }
+      if (!show) {
+        c.packets = [];
+        c.trails.clear();
+        c.litG.clear();
+        c.glowG.clear();
+        c.trailG.clear();
+        c.packetG.clear();
+        for (const ct of c.cellTexts.values()) ct.hideFrom(0);
+        continue;
+      }
       // the blocks the frames go through glow while they do
       const want = new Map<string, number>();
-      if (show.link) for (const dir of ['rx', 'tx'] as NicDir[]) { const act = dir === 'rx' ? show.rxAct : show.txAct; if (act > 0) for (const id of BLOCKS[dir]) want.set(id, Math.max(want.get(id) ?? 0, act)); }
+      if (show.link)
+        for (const dir of ['rx', 'tx'] as NicDir[]) {
+          const act = dir === 'rx' ? show.rxAct : show.txAct;
+          if (act > 0) for (const id of BLOCKS[dir]) want.set(id, Math.max(want.get(id) ?? 0, act));
+        }
       for (const [id, v] of want) c.glow.set(id, (c.glow.get(id) ?? 0) + (v - (c.glow.get(id) ?? 0)) * 0.25);
-      for (const [id, v] of c.glow) if (!want.has(id)) { const n = v * 0.9; if (n < 0.02) c.glow.delete(id); else c.glow.set(id, n); }
+      for (const [id, v] of c.glow)
+        if (!want.has(id)) {
+          const n = v * 0.9;
+          if (n < 0.02) c.glow.delete(id);
+          else c.glow.set(id, n);
+        }
       const byId = new Map(c.geo.plan.blocks.map((b) => [b.id, b]));
       c.glowG.clear();
       for (const [id, v] of c.glow) {
         const b = byId.get(id);
-        if (b) { const col = T[NIC_KIND_COLOR[b.kind] === 'mute' ? 'alu' : NIC_KIND_COLOR[b.kind]]; box(c.glowG, b.rect.x, b.rect.y, b.rect.w, b.rect.h, 3, { fill: col, fa: 0.012 * v, stroke: col, lw: 2, sa: 0.4 * v }); }
+        if (b) {
+          const col = T[NIC_KIND_COLOR[b.kind] === 'mute' ? 'alu' : NIC_KIND_COLOR[b.kind]];
+          box(c.glowG, b.rect.x, b.rect.y, b.rect.w, b.rect.h, 3, {
+            fill: col,
+            fa: 0.012 * v,
+            stroke: col,
+            lw: 2,
+            sa: 0.4 * v,
+          });
+        }
       }
       // the symbols' lit parts and numbers
       c.litG.clear();
       const used = new Set<string>();
       for (const { b, a } of c.areas) {
         const live = nicLive(b, a, show, c.geo.plan.input);
-        for (const l of live.lit) box(c.litG, l.rect.x, l.rect.y, l.rect.w, l.rect.h, 1.5, { fill: T[l.color], fa: l.a });
+        for (const l of live.lit)
+          box(c.litG, l.rect.x, l.rect.y, l.rect.w, l.rect.h, 1.5, { fill: T[l.color], fa: l.a });
         let ct = c.cellTexts.get(b.id);
-        if (!ct) { ct = new CellTexts(c.texts); c.cellTexts.set(b.id, ct); }
+        if (!ct) {
+          ct = new CellTexts(c.texts);
+          c.cellTexts.set(b.id, ct);
+        }
         used.add(b.id);
         live.texts.forEach((x, n) => ct!.line(n, x.top, x.rect, x.ink ? T.ink : T.on, x.fit, TEXT_CAP));
         ct.hideFrom(live.texts.length);
@@ -160,14 +235,26 @@ export class NicView {
   private fly(T: Theme, c: CardView, act: Record<NicDir, number>, on: boolean): void {
     for (const dir of ['rx', 'tx'] as NicDir[]) {
       const a = act[dir];
-      if (a <= 0) { c.next[dir] = this.now; continue; }
+      if (a <= 0) {
+        c.next[dir] = this.now;
+        continue;
+      }
       if (this.now < c.next[dir] || (on && c.packets.length > 28)) continue;
       c.next[dir] = this.now + 1800 - 1500 * a;
-      const total = 1500 - 700 * a, lead = this.onLaunch?.(c.slot, dir, this.now, total) ?? 0;
+      const total = 1500 - 700 * a,
+        lead = this.onLaunch?.(c.slot, dir, this.now, total) ?? 0;
       if (!on) continue;
-      const route = nicRoute(c.geo.plan, dir), sp = (total * 0.9) / route.length, dur = Math.max(sp * 1.1, 220);
+      const route = nicRoute(c.geo.plan, dir),
+        sp = (total * 0.9) / route.length,
+        dur = Math.max(sp * 1.1, 220);
       route.forEach((h, i) => {
-        const { packet, trail } = packetOn({ id: h.link.id, lanes: h.link.lanes, pts: h.link.pts }, h.reverse, this.now + lead + i * sp, dur, dir === 'rx' ? T.alu : T.mul);
+        const { packet, trail } = packetOn(
+          { id: h.link.id, lanes: h.link.lanes, pts: h.link.pts },
+          h.reverse,
+          this.now + lead + i * sp,
+          dur,
+          dir === 'rx' ? T.alu : T.mul,
+        );
         c.packets.push(packet);
         c.trails.set(`${h.link.id}:${dir}`, trail);
       });

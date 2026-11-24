@@ -10,7 +10,8 @@ import * as fsMod from 'node:fs';
 import * as urlMod from 'node:url';
 const fs = fsMod as any;
 
-const css: string = fs.readFileSync(urlMod.fileURLToPath(new URL('../../../../core/ui/ui.css', import.meta.url)), 'utf8')
+const css: string = fs
+  .readFileSync(urlMod.fileURLToPath(new URL('../../../../core/ui/ui.css', import.meta.url)), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '');
 
 /** Every rule as [selectorList, declarations]; an `@media` wrapper is skipped, its inner rules are kept. */
@@ -19,10 +20,12 @@ const rules: [string, string][] = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map
 const SHOP = /(^|[\s,>+~])\.shop(?![\w-])|\.shop-[\w-]+/;
 /** The rules that style the Shop: any selector in the list names a Shop class. */
 const shopRules = rules.filter(([sel]) => sel.split(',').some((s) => SHOP.test(s)));
-const decls = (prop: RegExp): string[] => shopRules.flatMap(([sel, body]) =>
-  [...body.matchAll(/([\w-]+)\s*:\s*([^;]+)/g)]
-    .filter((d) => prop.test(d[1]!))
-    .map((d) => `${sel} { ${d[1]}: ${d[2]!.trim()} }`));
+const decls = (prop: RegExp): string[] =>
+  shopRules.flatMap(([sel, body]) =>
+    [...body.matchAll(/([\w-]+)\s*:\s*([^;]+)/g)]
+      .filter((d) => prop.test(d[1]!))
+      .map((d) => `${sel} { ${d[1]}: ${d[2]!.trim()} }`),
+  );
 
 describe('Shop look: Edge tabs, no glass (ticket #73, SPEC §1 rules 5 to 7)', () => {
   it('the Shop has rules in the sheet', () => {
@@ -30,7 +33,9 @@ describe('Shop look: Edge tabs, no glass (ticket #73, SPEC §1 rules 5 to 7)', (
   });
 
   it('no box-shadow, text-shadow, backdrop-filter or glow on any Shop rule', () => {
-    const glass = decls(/^(-webkit-)?(box-shadow|text-shadow|backdrop-filter|filter)$/).filter((d) => !/:\s*none\s*(\}|$)/.test(d));
+    const glass = decls(/^(-webkit-)?(box-shadow|text-shadow|backdrop-filter|filter)$/).filter(
+      (d) => !/:\s*none\s*(\}|$)/.test(d),
+    );
     expect(glass).toEqual([]);
   });
 
@@ -45,17 +50,21 @@ describe('Shop look: Edge tabs, no glass (ticket #73, SPEC §1 rules 5 to 7)', (
   });
 
   it('no radius on a Shop panel, tab or list (radius 4 px is for chips only)', () => {
-    const big = decls(/^border-radius$/).filter((d) => {
-      const px = d.match(/:\s*([\d.]+)px/);
-      return !px || Number(px[1]) > 4;
-    }).filter((d) => !/\.shop-rail button\b/.test(d));
+    const big = decls(/^border-radius$/)
+      .filter((d) => {
+        const px = d.match(/:\s*([\d.]+)px/);
+        return !px || Number(px[1]) > 4;
+      })
+      .filter((d) => !/\.shop-rail button\b/.test(d));
     expect(big).toEqual([]);
   });
 
   it('the Shop panel fills with the neutral backing --c-shade-86, not navy (SPEC rule 7)', () => {
     // the panel itself (`.shop`, `.shop.card`), not its descendants: a bar's fill or a tint is a data colour, not the backing
     const panel = shopRules.filter(([sel]) => sel.split(',').some((s) => /^\.shop(\.card)?$/.test(s.trim())));
-    const bg = panel.flatMap(([, body]) => [...body.matchAll(/background(?:-color)?\s*:\s*([^;]+)/g)].map((m) => m[1]!.trim()));
+    const bg = panel.flatMap(([, body]) =>
+      [...body.matchAll(/background(?:-color)?\s*:\s*([^;]+)/g)].map((m) => m[1]!.trim()),
+    );
     expect(bg.length).toBeGreaterThan(0);
     for (const v of bg) {
       expect(v, `Shop background "${v}"`).not.toMatch(/--c-(void|stage|panel)\b/);

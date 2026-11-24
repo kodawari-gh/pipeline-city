@@ -9,7 +9,10 @@ import { getSpec } from '@/features/board/sim/specs';
 export type FlowState = 'on' | 'idle' | 'missing';
 
 /** A group of parts drawing together (all the RAM sticks, all the case fans). */
-export interface KindDraw { w: number; ids: string[] }
+export interface KindDraw {
+  w: number;
+  ids: string[];
+}
 
 export interface Ledger {
   /** The machine draws now: it is powered and its supply holds. */
@@ -43,12 +46,17 @@ export interface Ledger {
 }
 
 /** The watts as words: a decimal under 10 W, whole above. */
-export const wattsText = (w: number): string => (w >= 10 ? `${Math.round(w)} W` : `${(Math.round(w * 10) / 10).toFixed(1)} W`);
+export const wattsText = (w: number): string =>
+  w >= 10 ? `${Math.round(w)} W` : `${(Math.round(w * 10) / 10).toFixed(1)} W`;
 
 /** The cable a fan header's fan or a pump follows, by the kind of the part that hosts it. */
 const HEADER: Readonly<Record<string, string>> = { cooler: 'cpufan', 'vrm-sink': 'vrmfan', 'ram-sink': 'ramfan' };
 
-const sum = (a: Iterable<number>): number => { let t = 0; for (const x of a) t += x; return t; };
+const sum = (a: Iterable<number>): number => {
+  let t = 0;
+  for (const x of a) t += x;
+  return t;
+};
 
 /**
  * Split the machine's draw over its cables: the PC cord carries what the machine takes less the monitor, the monitor's cord the monitor, the 8-pin the CPU, each
@@ -59,7 +67,8 @@ const sum = (a: Iterable<number>): number => { let t = 0; for (const x of a) t +
 export function powerLedger(s: Snapshot): Ledger {
   const on = s.powered && !s.power.off;
   const w = (d: { powerW: number }): number => (on ? d.powerW : 0);
-  const hasPsu = s.devices.some((d) => d.kind === 'psu'), hasMonitor = s.devices.some((d) => d.kind === 'display');
+  const hasPsu = s.devices.some((d) => d.kind === 'psu'),
+    hasMonitor = s.devices.some((d) => d.kind === 'display');
   const monW = sum(s.devices.filter((d) => d.kind === 'display').map(w));
   const cpuW = sum(s.devices.filter((d) => d.kind === 'cpu').map(w));
   const sata = new Map(s.storage.filter((d) => d.slot.startsWith('sata')).map((d) => [d.slot, d.deviceId] as const));
@@ -68,7 +77,9 @@ export function powerLedger(s: Snapshot): Ledger {
 
   const cable = new Map<string, number>();
   // the PCIe leads: a card's share is its draw over its leads and the slot
-  const cards = s.devices.filter((d) => (d.kind === 'gpu' || d.kind === 'npu') && !d.burnt).map((d) => ({ slot: d.slot, loadW: getSpec(d.spec)?.loadW ?? 0, w: w(d) }));
+  const cards = s.devices
+    .filter((d) => (d.kind === 'gpu' || d.kind === 'npu') && !d.burnt)
+    .map((d) => ({ slot: d.slot, loadW: getSpec(d.spec)?.loadW ?? 0, w: w(d) }));
   for (const l of assignLeads(cards)) {
     const c = cards.find((q) => q.slot === l.slot)!;
     cable.set(l.lead, c.w / (assignLeads([c]).length + 1));
@@ -79,14 +90,25 @@ export function powerLedger(s: Snapshot): Ledger {
   for (const d of s.devices) {
     if (d.kind === 'fan') {
       const host = fanHost(d.slot);
-      if (host === null) { cable.set(`fan:${d.slot}`, w(d)); hub += w(d); continue; }
-      const h = s.devices.find((x) => x.slot === host), id = h ? HEADER[h.kind] : undefined;
+      if (host === null) {
+        cable.set(`fan:${d.slot}`, w(d));
+        hub += w(d);
+        continue;
+      }
+      const h = s.devices.find((x) => x.slot === host),
+        id = h ? HEADER[h.kind] : undefined;
       if (id) cable.set(id, (cable.get(id) ?? 0) + w(d));
     } else if (HEADER[d.kind]) cable.set(HEADER[d.kind]!, (cable.get(HEADER[d.kind]!) ?? 0) + w(d)); // (a loop's pump)
   }
   cable.set('sysfan', hub);
   cable.set('cpu', cpuW);
-  cable.set('atx', Math.max(0, pcW - cpuW - sum(sataDrives.map(w)) - sum([...cable].filter(([id]) => /^pcie\d*$/.test(id)).map(([, x]) => x))));
+  cable.set(
+    'atx',
+    Math.max(
+      0,
+      pcW - cpuW - sum(sataDrives.map(w)) - sum([...cable].filter(([id]) => /^pcie\d*$/.test(id)).map(([, x]) => x)),
+    ),
+  );
   cable.set('pcmains', pcW);
   cable.set('monmains', monW);
 
@@ -99,21 +121,42 @@ export function powerLedger(s: Snapshot): Ledger {
   const board = new Map<string, number>();
   const kinds = new Map<string, KindDraw>();
   for (const d of s.devices) {
-    if (d.kind === 'psu') { part.set(d.id, pcW); continue; }
+    if (d.kind === 'psu') {
+      part.set(d.id, pcW);
+      continue;
+    }
     part.set(d.id, w(d));
     const card = cards.find((c) => c.slot === d.slot);
     board.set(d.id, sata.has(d.slot) ? 0 : card ? card.w / (assignLeads([card]).length + 1) : w(d));
     if (d.kind === 'display') continue;
     const k = kinds.get(d.kind) ?? { w: 0, ids: [] };
-    k.w += w(d); k.ids.push(d.id);
+    k.w += w(d);
+    k.ids.push(d.id);
     kinds.set(d.kind, k);
   }
   const loadW = on ? s.power.totalW : 0;
   // the regulators: the processor's hands on the processor's draw, the memory's the sticks' (what each wastes is the heat it makes: `VrmSnap.heatW`)
-  const vrm = { cpu: { out: cpuW, loss: on ? Math.max(0, s.board?.vrm?.heatW ?? 0) : 0 }, ram: { out: kinds.get('ram')?.w ?? 0, loss: on ? Math.max(0, s.board?.ramVrm?.heatW ?? 0) : 0 } };
+  const vrm = {
+    cpu: { out: cpuW, loss: on ? Math.max(0, s.board?.vrm?.heatW ?? 0) : 0 },
+    ram: { out: kinds.get('ram')?.w ?? 0, loss: on ? Math.max(0, s.board?.ramVrm?.heatW ?? 0) : 0 },
+  };
   return {
-    on, hasPsu, hasMonitor, monW, pcW, wallW: s.energy.wallW, loadW, budgetW: s.power.budgetW, tripped: s.power.tripped, refW: Math.max(60, loadW),
-    part, cable, board, kinds, vrm, missing,
+    on,
+    hasPsu,
+    hasMonitor,
+    monW,
+    pcW,
+    wallW: s.energy.wallW,
+    loadW,
+    budgetW: s.power.budgetW,
+    tripped: s.power.tripped,
+    refW: Math.max(60, loadW),
+    part,
+    cable,
+    board,
+    kinds,
+    vrm,
+    missing,
     state: (id) => (missing(id) ? 'missing' : (cable.get(id) ?? 0) > 0.05 ? 'on' : 'idle'),
   };
 }

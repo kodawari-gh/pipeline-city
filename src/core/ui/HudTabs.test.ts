@@ -7,7 +7,9 @@ import type { Snapshot } from '@/worker/protocol';
 
 const hooks = vi.hoisted(() => ({ effects: [] as (() => unknown)[] }));
 vi.mock('preact/hooks', () => ({
-  useEffect: (fn: () => unknown) => { hooks.effects.push(fn); },
+  useEffect: (fn: () => unknown) => {
+    hooks.effects.push(fn);
+  },
   useRef: () => ({ current: null }),
   useState: (v: unknown) => [v, () => {}],
 }));
@@ -41,18 +43,26 @@ beforeEach(async () => {
   vi.resetModules();
   const mem = new Map<string, string>();
   vi.stubGlobal('localStorage', {
-    getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k),
+    getItem: (k: string) => mem.get(k) ?? null,
+    setItem: (k: string, v: string) => void mem.set(k, v),
+    removeItem: (k: string) => void mem.delete(k),
   });
   vi.stubGlobal('document', {
     activeElement: null,
     getElementById: () => null,
     querySelector: () => null,
     querySelectorAll: () => [],
-    documentElement: { setAttribute: () => {}, style: { setProperty: () => {} }, classList: { toggle: () => {}, add: () => {}, remove: () => {} } },
+    documentElement: {
+      setAttribute: () => {},
+      style: { setProperty: () => {} },
+      classList: { toggle: () => {}, add: () => {}, remove: () => {} },
+    },
   });
   vi.stubGlobal('window', {
-    innerWidth: 1920, innerHeight: 1080,
-    addEventListener: () => {}, removeEventListener: () => {},
+    innerWidth: 1920,
+    innerHeight: 1080,
+    addEventListener: () => {},
+    removeEventListener: () => {},
     matchMedia: () => ({ matches: false, addEventListener: () => {} }),
   });
   hooks.effects = [];
@@ -66,7 +76,9 @@ beforeEach(async () => {
 
 /** Finds a child component by its function name in the HUD tree, and runs it with its effects. */
 function mount(name: string): VEl {
-  const el = all(Hud() as unknown as Node).find((e) => typeof e.type === 'function' && (e.type as { name?: string }).name === name);
+  const el = all(Hud() as unknown as Node).find(
+    (e) => typeof e.type === 'function' && (e.type as { name?: string }).name === name,
+  );
   expect(el, `${name} is in the HUD`).toBeDefined();
   hooks.effects = [];
   const out = (el!.type as (p: Record<string, unknown>) => unknown)(el!.props) as Node;
@@ -127,16 +139,30 @@ describe('HUD speed rail keeps its controls', () => {
 
 describe('HUD reports its tabs to the inset reporter', () => {
   it('the bar bottom plus half a rem is the top inset, so the overview frames under it', () => {
-    const bar = { getBoundingClientRect: () => ({ top: 0, bottom: 84, height: 84, left: 0, right: 1920, width: 1920 }), style: { setProperty: () => {} }, classList: { contains: () => false } };
+    const bar = {
+      getBoundingClientRect: () => ({ top: 0, bottom: 84, height: 84, left: 0, right: 1920, width: 1920 }),
+      style: { setProperty: () => {} },
+      classList: { contains: () => false },
+    };
     vi.stubGlobal('document', {
       activeElement: null,
       getElementById: () => ({ style: { setProperty: () => {} } }),
       querySelector: () => null,
       querySelectorAll: (sel: string) => (sel === '.hud-side' ? [bar] : []),
-      documentElement: { setAttribute: () => {}, style: { setProperty: () => {} }, classList: { toggle: () => {}, add: () => {}, remove: () => {} } },
+      documentElement: {
+        setAttribute: () => {},
+        style: { setProperty: () => {} },
+        classList: { toggle: () => {}, add: () => {}, remove: () => {} },
+      },
     });
     vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
-    vi.stubGlobal('MutationObserver', class { observe() {} disconnect() {} });
+    vi.stubGlobal(
+      'MutationObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     hover.viewInset.value = { top: 0, right: 0, bottom: 0, left: 0 };
     mount('InsetReporter');
     expect(hover.viewInset.value.top).toBe(92);

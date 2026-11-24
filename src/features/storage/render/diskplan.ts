@@ -31,9 +31,11 @@ export function cellsOf(runs: readonly FsRun[], totalBlocks: number, wear: reado
   const filled = new Array<number>(n).fill(0);
   const own = new Array<Map<number, number>>(n);
   for (const r of runs) {
-    const first = Math.floor(r.start / CELL_BLOCKS), last = Math.floor((r.start + r.len - 1) / CELL_BLOCKS);
+    const first = Math.floor(r.start / CELL_BLOCKS),
+      last = Math.floor((r.start + r.len - 1) / CELL_BLOCKS);
     for (let c = first; c <= last && c < n; c++) {
-      const lo = Math.max(r.start, c * CELL_BLOCKS), hi = Math.min(r.start + r.len, (c + 1) * CELL_BLOCKS);
+      const lo = Math.max(r.start, c * CELL_BLOCKS),
+        hi = Math.min(r.start + r.len, (c + 1) * CELL_BLOCKS);
       const k = r.kind;
       if (RANK[k] > RANK[kind[c]!]) kind[c] = k;
       if (r.filled && k !== 'free' && k !== 'bad') filled[c]! += hi - lo;
@@ -41,10 +43,20 @@ export function cellsOf(runs: readonly FsRun[], totalBlocks: number, wear: reado
     }
   }
   return kind.map((k, c) => {
-    let file = 0, best = 0;
-    for (const [f, v] of own[c] ?? []) if (v > best) { best = v; file = f; }
+    let file = 0,
+      best = 0;
+    for (const [f, v] of own[c] ?? [])
+      if (v > best) {
+        best = v;
+        file = f;
+      }
     const size = Math.min(CELL_BLOCKS, totalBlocks - c * CELL_BLOCKS);
-    return { kind: k, fill: k === 'free' || k === 'bad' ? 0 : Math.min(1, filled[c]! / size), file: k === 'bad' ? 0 : file, wear: wear[c] ?? 0 };
+    return {
+      kind: k,
+      fill: k === 'free' || k === 'bad' ? 0 : Math.min(1, filled[c]! / size),
+      file: k === 'bad' ? 0 : file,
+      wear: wear[c] ?? 0,
+    };
   });
 }
 
@@ -59,24 +71,45 @@ export function ownerSlot(owner: string): number {
 }
 
 /** One line of the legend: what it is, how many blocks, and for datasets the colour slot of the owner. */
-export interface LegendRow { key: string; label: string; kind: CellKind; blocks: number; slot: number }
+export interface LegendRow {
+  key: string;
+  label: string;
+  kind: CellKind;
+  blocks: number;
+  slot: number;
+}
 
 /** The legend of a drive: the system's files by kind, one row per dataset owner, then lost, bad and free; empty rows left out, biggest datasets first. */
-export function legendOf(s: Pick<StorageSnap, "fs">): LegendRow[] {
+export function legendOf(s: Pick<StorageSnap, 'fs'>): LegendRow[] {
   const owners = new Map(s.fs.files.map((f) => [f.id, f]));
   const sys: Record<string, number> = { os: 0, spool: 0, program: 0, meta: 0 };
   const data = new Map<string, number>();
-  let lost = 0, bad = 0, free = 0;
+  let lost = 0,
+    bad = 0,
+    free = 0;
   for (const r of s.fs.runs) {
-    if (r.kind === 'free') { free += r.len; continue; }
-    if (r.kind === 'bad') { bad += r.len; continue; }
-    if (r.kind === 'lost') { lost += r.len; continue; }
+    if (r.kind === 'free') {
+      free += r.len;
+      continue;
+    }
+    if (r.kind === 'bad') {
+      bad += r.len;
+      continue;
+    }
+    if (r.kind === 'lost') {
+      lost += r.len;
+      continue;
+    }
     const filled = r.filled ? r.len : 0;
-    if (r.kind === 'dataset') { const o = owners.get(r.file)?.owner ?? '?'; data.set(o, (data.get(o) ?? 0) + r.len); }
-    else sys[r.kind] = (sys[r.kind] ?? 0) + (r.kind === 'spool' ? filled : r.len);
+    if (r.kind === 'dataset') {
+      const o = owners.get(r.file)?.owner ?? '?';
+      data.set(o, (data.get(o) ?? 0) + r.len);
+    } else sys[r.kind] = (sys[r.kind] ?? 0) + (r.kind === 'spool' ? filled : r.len);
   }
   const rows: LegendRow[] = [];
-  const add = (key: string, label: string, kind: CellKind, blocks: number, slot = 0) => { if (blocks > 0) rows.push({ key, label, kind, blocks, slot }); };
+  const add = (key: string, label: string, kind: CellKind, blocks: number, slot = 0) => {
+    if (blocks > 0) rows.push({ key, label, kind, blocks, slot });
+  };
   add('os', 'OS', 'os', sys.os ?? 0);
   add('spool', 'Spool', 'spool', sys.spool ?? 0);
   add('program', 'Programs', 'program', sys.program ?? 0);
@@ -89,7 +122,12 @@ export function legendOf(s: Pick<StorageSnap, "fs">): LegendRow[] {
 }
 
 /** One row of the extent list: blocks `start..end` (inclusive), what they are and whose. */
-export interface ExtentRow { start: number; end: number; kind: CellKind; owner: string }
+export interface ExtentRow {
+  start: number;
+  end: number;
+  kind: CellKind;
+  owner: string;
+}
 
 /** The extents in LBA order, free space left out, at most `max` rows (the rest counted in `more`). */
 export function extentRows(s: Pick<StorageSnap, 'fs'>, max: number): { rows: ExtentRow[]; more: number } {
@@ -97,7 +135,12 @@ export function extentRows(s: Pick<StorageSnap, 'fs'>, max: number): { rows: Ext
   const all: ExtentRow[] = [];
   for (const r of s.fs.runs) {
     if (r.kind === 'free') continue;
-    all.push({ start: r.start, end: r.start + r.len - 1, kind: r.kind, owner: r.kind === 'bad' ? '' : owners.get(r.file) ?? (r.kind === 'meta' ? 'raw' : '') });
+    all.push({
+      start: r.start,
+      end: r.start + r.len - 1,
+      kind: r.kind,
+      owner: r.kind === 'bad' ? '' : (owners.get(r.file) ?? (r.kind === 'meta' ? 'raw' : '')),
+    });
   }
   return { rows: all.slice(0, max), more: Math.max(0, all.length - max) };
 }
@@ -116,7 +159,10 @@ export function platterOf(n: number): { tracks: number; sectors: number } {
 }
 
 /** Track and sector of cell `i` on the platter. */
-export const platterCell = (i: number, sectors: number): { track: number; sector: number } => ({ track: Math.floor(i / sectors), sector: i % sectors });
+export const platterCell = (i: number, sectors: number): { track: number; sector: number } => ({
+  track: Math.floor(i / sectors),
+  sector: i % sectors,
+});
 
 /** The track the head sits on for block `lba` (the first blocks are on the outer track 0). */
 export function headTrack(lba: number, totalBlocks: number, tracks: number): number {
@@ -124,13 +170,21 @@ export function headTrack(lba: number, totalBlocks: number, tracks: number): num
 }
 
 /** The NAND dies of a flash drive: `dies` equal slices of the cells, in order, each with its own grid of `cols` columns. */
-export interface DieSlice { index: number; first: number; count: number; cols: number; rows: number; channel: number }
+export interface DieSlice {
+  index: number;
+  first: number;
+  count: number;
+  cols: number;
+  rows: number;
+  channel: number;
+}
 
 export function dieSlices(n: number, dies: number, channels: number): DieSlice[] {
   const per = Math.ceil(n / dies);
   const out: DieSlice[] = [];
   for (let d = 0; d < dies; d++) {
-    const first = d * per, count = Math.max(0, Math.min(per, n - first));
+    const first = d * per,
+      count = Math.max(0, Math.min(per, n - first));
     const cols = Math.max(1, Math.ceil(Math.sqrt(per / 1.4)));
     out.push({ index: d, first, count, cols, rows: Math.max(1, Math.ceil(per / cols)), channel: d % channels });
   }
@@ -162,14 +216,23 @@ export interface CounterRows {
   health: string;
 }
 
-const MOUNT_WORD: Record<string, string> = { unmounted: 'unmounted', scanning: 'scanning', repairing: 'repairing', mounted: 'mounted' };
+const MOUNT_WORD: Record<string, string> = {
+  unmounted: 'unmounted',
+  scanning: 'scanning',
+  repairing: 'repairing',
+  mounted: 'mounted',
+};
 
 export function counterRows(s: StorageSnap, maxExtents: number): CounterRows {
   const { rows, more } = extentRows(s, maxExtents);
   const pct = Math.round(s.wearPct);
   const q = queueLanes(s.queued, s.queueDepth);
   const frag = Math.round(s.fs.fragmentation * 100);
-  const state = s.burnt ? 'BURNT' : s.mount.state === 'unformatted' ? 'unformatted' : `${s.mount.state} · ${MOUNT_WORD[s.mount.phase] ?? s.mount.phase}${s.mount.phase === 'scanning' || s.mount.phase === 'repairing' ? ` ${Math.round(s.mount.progress * 100)}%` : ''}`;
+  const state = s.burnt
+    ? 'BURNT'
+    : s.mount.state === 'unformatted'
+      ? 'unformatted'
+      : `${s.mount.state} · ${MOUNT_WORD[s.mount.phase] ?? s.mount.phase}${s.mount.phase === 'scanning' || s.mount.phase === 'repairing' ? ` ${Math.round(s.mount.progress * 100)}%` : ''}`;
   const parts = [`frag ${frag}%`];
   if (s.badGroups > 0) parts.push(`bad groups ${s.badGroups}`);
   if (s.lostBlocks > 0) parts.push(`lost ${s.lostBlocks} blocks`);
@@ -194,9 +257,21 @@ export const dimmed = (s: Pick<StorageSnap, 'mount' | 'burnt'>): boolean => !s.b
  * an arc, so its length never changes; a ring out of its reach is clamped to the nearest one it can reach. Of the two meeting points the one on the left of the
  * line from the pivot to the centre is taken, so the tip moves smoothly with `r`.
  */
-export function armTip(px: number, py: number, len: number, cx: number, cy: number, r: number): { x: number; y: number } {
-  const dx = cx - px, dy = cy - py, D = Math.hypot(dx, dy) || 1;
+export function armTip(
+  px: number,
+  py: number,
+  len: number,
+  cx: number,
+  cy: number,
+  r: number,
+): { x: number; y: number } {
+  const dx = cx - px,
+    dy = cy - py,
+    D = Math.hypot(dx, dy) || 1;
   const rr = Math.min(D + len, Math.max(Math.abs(D - len) + 1e-6, r));
-  const a = (len * len - rr * rr + D * D) / (2 * D), h = Math.sqrt(Math.max(0, len * len - a * a)), ux = dx / D, uy = dy / D;
+  const a = (len * len - rr * rr + D * D) / (2 * D),
+    h = Math.sqrt(Math.max(0, len * len - a * a)),
+    ux = dx / D,
+    uy = dy / D;
   return { x: px + ux * a + uy * h, y: py + uy * a - ux * h };
 }

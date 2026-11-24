@@ -2,7 +2,20 @@
 // atlas of bay × storey cells, linear albedo with the AO baked in (the window's reveals, the slab's shadow over it, the sill). A cell repeats
 // per bay; each wall picks its cells by its seed. The map is built once, in JS, so it exists without a canvas. At night its rooms are High's,
 // window by window on High's grid (`lowRibLight`), the emissive, scaled live by the facade's night uniform.
-import { ClampToEdgeWrapping, Color, DataTexture, DataUtils, HalfFloatType, LinearFilter, LinearMipmapLinearFilter, MeshLambertMaterial, NoColorSpace, RGBAFormat, ShaderChunk, Vector3 } from 'three';
+import {
+  ClampToEdgeWrapping,
+  Color,
+  DataTexture,
+  DataUtils,
+  HalfFloatType,
+  LinearFilter,
+  LinearMipmapLinearFilter,
+  MeshLambertMaterial,
+  NoColorSpace,
+  RGBAFormat,
+  ShaderChunk,
+  Vector3,
+} from 'three';
 import type { FacadeUniforms } from './towers';
 import { STYLES } from './plan';
 
@@ -11,10 +24,17 @@ export const LOW_LAMPS = 8;
 /** The lamps' reach (the view's PointLight distance). */
 const LAMP_REACH = 45;
 /** The lamps' live state: `k` is the lamps' intensity (0 by day), `col` their colour, `pos` their world positions (padded to LOW_LAMPS, far off). */
-export interface LowLamps { k: { value: number }; col: { value: Color }; pos: { value: Vector3[] } }
+export interface LowLamps {
+  k: { value: number };
+  col: { value: Color };
+  pos: { value: Vector3[] };
+}
 
 /** The atlas: CELLS × CELLS cells of CELL texels; a cell is one bay across and one storey up, its outer EDGE texels the wall's frame (so the cells meet unseen). */
-const CELLS = 8, CELL = 32, SIZE = CELLS * CELL, EDGE = 2;
+const CELLS = 8,
+  CELL = 32,
+  SIZE = CELLS * CELL,
+  EDGE = 2;
 /** The atlas's anisotropic taps (the renderer clamps them to its maximum). */
 export const LOW_ANISO = 2;
 /** Night walls: the day albedo times this tint at full night. Cool and dark, as base's unlit walls read (a warm grey reads brown under the lamps). */
@@ -38,7 +58,9 @@ export const LOW_FW = 0.5;
 /** The top mip of a SIZE atlas (a 1×1 texel: the map's mean). */
 const LOW_TOP_MIP = Math.log2(SIZE);
 /** The atlas's window in its cell (a fraction of the bay across and the storey up; each facade maps its own share onto it), and its lites: three across, two up. */
-const WIN = { u0: 0.19, u1: 0.81, v0: 0.24, v1: 0.84 }, COLS = 3, ROWS = 2;
+const WIN = { u0: 0.19, u1: 0.81, v0: 0.24, v1: 0.84 },
+  COLS = 3,
+  ROWS = 2;
 /** A band's ribbon (`STYLES.band`): its window across the bay and up the storey, from its sill, on High's grid (the facade's own uv), so
  * each window, its curtain and its room are High's. Behind it, rooms as High's (`lowRibLight`); the ground floor is High's shops. */
 const RIB_WIN = STYLES.band.win;
@@ -70,7 +92,9 @@ const smooth = (a: number, b: number, x: number): number => {
   return t * t * (3 - 2 * t);
 };
 
-export interface LowFacadeMaps { day: DataTexture }
+export interface LowFacadeMaps {
+  day: DataTexture;
+}
 
 /** The day atlas, baked once and shared. */
 let baked: LowFacadeMaps | null = null;
@@ -101,24 +125,31 @@ function bakeFacadeMaps(): LowFacadeMaps {
     for (let cx = 0; cx < CELLS; cx++) {
       const rand = rng(cy * CELLS + cx + 1);
       // this cell's frame tone and its glass
-      const frame = 0.8 + 0.08 * rand(), glassK = 0.85 + 0.3 * rand();
+      const frame = 0.8 + 0.08 * rand(),
+        glassK = 0.85 + 0.3 * rand();
       for (let y = 0; y < CELL; y++) {
         for (let x = 0; x < CELL; x++) {
-          const u = (x + 0.5) / CELL, v = (y + 0.5) / CELL;
+          const u = (x + 0.5) / CELL,
+            v = (y + 0.5) / CELL;
           const o = ((cy * CELL + y) * SIZE + (cx * CELL + x)) * 4;
           const edge = x < EDGE || y < EDGE || x >= CELL - EDGE || y >= CELL - EDGE;
           const inW = u > WIN.u0 && u < WIN.u1 && v > WIN.v0 && v < WIN.v1;
           // the frame: the wall's own colour, shaded by the slab above the window and the reveal beside it, lighter on the sill
           let ao = 1;
-          if (!inW && v >= WIN.v1 && v < WIN.v1 + 0.07 && u > WIN.u0 - 0.03 && u < WIN.u1 + 0.03) ao = 0.6 + 0.4 * smooth(WIN.v1, WIN.v1 + 0.07, v);
+          if (!inW && v >= WIN.v1 && v < WIN.v1 + 0.07 && u > WIN.u0 - 0.03 && u < WIN.u1 + 0.03)
+            ao = 0.6 + 0.4 * smooth(WIN.v1, WIN.v1 + 0.07, v);
           else if (!inW && v <= WIN.v0 && v > WIN.v0 - 0.06) ao = 0.92;
           else if (!inW && u > WIN.u0 - 0.04 && u < WIN.u1 + 0.04 && v > WIN.v0 && v < WIN.v1) ao = 0.78;
-          let r = frame * ao, g = frame * ao, b = frame * ao, glass = 0;
+          let r = frame * ao,
+            g = frame * ao,
+            b = frame * ao,
+            glass = 0;
           if (inW) {
             // the glass: dark, its upper part mirroring the sky; the reveal's shade inside the edge; mullions and a transom in the frame's tone
             const d = Math.min(u - WIN.u0, WIN.u1 - u, v - WIN.v0, WIN.v1 - v);
             const reveal = 0.5 + 0.5 * smooth(0, 0.07, d);
-            const cw = (WIN.u1 - WIN.u0) / COLS, ch = (WIN.v1 - WIN.v0) / ROWS;
+            const cw = (WIN.u1 - WIN.u0) / COLS,
+              ch = (WIN.v1 - WIN.v0) / ROWS;
             const onMullion = [1, 2].some((k) => Math.abs(u - (WIN.u0 + k * cw)) < 0.012);
             const onTransom = Math.abs(v - (WIN.v0 + ch)) < 0.015;
             if (onMullion || onTransom) {
@@ -131,9 +162,14 @@ function bakeFacadeMaps(): LowFacadeMaps {
               b = 0.085 * glassK * (1 + sky) * reveal;
             }
           }
-          if (edge) { r = g = b = frame; }
+          if (edge) {
+            r = g = b = frame;
+          }
           // the alpha is the glass's mask (not sampled as opacity): the shader tints the glass by its building's tint, and lights it at night
-          day[o] = r; day[o + 1] = g; day[o + 2] = b; day[o + 3] = glass;
+          day[o] = r;
+          day[o + 1] = g;
+          day[o + 2] = b;
+          day[o + 3] = glass;
         }
       }
     }
@@ -143,11 +179,26 @@ function bakeFacadeMaps(): LowFacadeMaps {
 
 /** The buildings' lambert material: the baked day map times the vertex colour, High's lit rooms as its emissive. Its uniforms are `facadeMaterial`'s, so the view's updates reach it.
  * The lamps do not light it as PointLights do (the scene's PointLights skip its fragments: the point loop is cut from its lights chunk); `lamps` gives the analytic lamp term instead. */
-export function lowFacadeMaterial(lampAt: Vector3[] = []): { mat: MeshLambertMaterial; u: FacadeUniforms; lamps: LowLamps } {
+export function lowFacadeMaterial(lampAt: Vector3[] = []): {
+  mat: MeshLambertMaterial;
+  u: FacadeUniforms;
+  lamps: LowLamps;
+} {
   const { day } = lowFacadeMaps();
-  const u: FacadeUniforms = { night: { value: 0 }, time: { value: 0 }, sun: { value: new Vector3(0, 1, 0) }, sunCol: { value: new Color(0, 0, 0) }, hor: { value: new Color(0, 0, 0) }, pixel: { value: 0 } };
+  const u: FacadeUniforms = {
+    night: { value: 0 },
+    time: { value: 0 },
+    sun: { value: new Vector3(0, 1, 0) },
+    sunCol: { value: new Color(0, 0, 0) },
+    hor: { value: new Color(0, 0, 0) },
+    pixel: { value: 0 },
+  };
   const far = new Vector3(0, -1e5, 0);
-  const lamps: LowLamps = { k: { value: 0 }, col: { value: new Color(0xffc98a) }, pos: { value: Array.from({ length: LOW_LAMPS }, (_, i) => lampAt[i]?.clone() ?? far.clone()) } };
+  const lamps: LowLamps = {
+    k: { value: 0 },
+    col: { value: new Color(0xffc98a) },
+    pos: { value: Array.from({ length: LOW_LAMPS }, (_, i) => lampAt[i]?.clone() ?? far.clone()) },
+  };
   const mat = new MeshLambertMaterial({ vertexColors: true, map: day, emissive: new Color(0xffffff) });
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.fNight = u.night;
@@ -160,7 +211,9 @@ export function lowFacadeMaterial(lampAt: Vector3[] = []): { mat: MeshLambertMat
     sh.uniforms.fLampCol = lamps.col;
     sh.uniforms.fLampPos = lamps.pos;
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', `#include <common>
+      .replace(
+        '#include <common>',
+        `#include <common>
 attribute vec2 fuv;
 attribute vec4 look;
 attribute vec3 aux;
@@ -173,8 +226,11 @@ varying float vLowWide, vLowY;
 flat varying vec2 vLowOff, vLowWashY;
 flat varying vec4 vLowLook;
 flat varying vec3 vLowTint, vLowWash;
-flat varying float vLowFac, vLowKind, vLowNight, vLowSeed, vLowMetal;`)
-      .replace('#include <begin_vertex>', `#include <begin_vertex>
+flat varying float vLowFac, vLowKind, vLowNight, vLowSeed, vLowMetal;`,
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
 int lowKind = int(aux.y + 0.5);
 // a thin thing far off holds a whole pixel's width, as facadeMaterial's does (plain, beacon, LED band)
 float lowWide = 1.0;
@@ -198,9 +254,12 @@ vLowKind = float(lowKind);
 vLowSeed = aux.x;
 vLowMetal = aux.z;
 // each building's own night level, so the lit rooms do not all come up together
-vLowNight = 0.9 + 0.2 * fract(aux.x * 0.5698402909);`);
+vLowNight = 0.9 + 0.2 * fract(aux.x * 0.5698402909);`,
+      );
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', `#include <common>
+      .replace(
+        '#include <common>',
+        `#include <common>
 uniform float fNight, fTime, fLampK;
 uniform vec3 fHor, fSun, fSunCol, fLampCol, fLampPos[${LOW_LAMPS}];
 varying vec2 vLowBay, vLowFuv;
@@ -372,10 +431,16 @@ vec3 lowRibLight(vec2 g, vec2 fw, vec4 c, vec3 V, vec3 N) {
   vec3 across = fHor * 0.3 * (1.0 - 0.3 * pane) + vec3(1.0, 0.76, 0.5) * pane * mix(step(0.74, lowH(floor(rg) + seed)), 0.26, cf) * 0.55 * fNight;
   vec3 mirrorK = mix(mix(vec3(0.1 + 0.09 * h), vLowTint * 1.7, refl * 0.9), vec3(1.0), pow(1.0 - clamp(-dot(V, N), 0.0, 1.0), 5.0));
   return rooms + mirrorK * (hit * mix(across, fHor * 0.09, road) + (1.0 - hit) * fHor * 0.3);
-}`)
+}`,
+      )
       // the point lights' loop is cut from this wall's lights (`#if 0`): the scene's PointLights stay live for the street, cars and other meshes
-      .replace('#include <lights_fragment_begin>', ShaderChunk.lights_fragment_begin.replace('#if ( NUM_POINT_LIGHTS > 0 ) && defined( RE_Direct )', '#if 0'))
-      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+      .replace(
+        '#include <lights_fragment_begin>',
+        ShaderChunk.lights_fragment_begin.replace('#if ( NUM_POINT_LIGHTS > 0 ) && defined( RE_Direct )', '#if 0'),
+      )
+      .replace(
+        '#include <lights_fragment_end>',
+        `#include <lights_fragment_end>
 // the lamps at night, analytic per pixel (the PointLights' falloff and Lambert term, on the wall's view-space normal); off by day (fLampK 0)
 if (fLampK > 0.0) {
   vec3 lowP = -vViewPosition, lowL = vec3(0.0);
@@ -385,8 +450,11 @@ if (fLampK > 0.0) {
     lowL += fLampCol * (saturate(1.0 - dist / ${LAMP_REACH}.0) / max(dist * dist, 0.01)) * max(dot(normal, d / dist), 0.0);
   }
   reflectedLight.directDiffuse += lowL * (fLampK * RECIPROCAL_PI) * diffuseColor.rgb;
-}`)
-      .replace('#include <map_fragment>', `{
+}`,
+      )
+      .replace(
+        '#include <map_fragment>',
+        `{
   vec2 lowUv = lowAtlas(), lowDx = dFdx(vLowBay) * lowScale() / ${CELLS}.0, lowDy = dFdy(vLowBay) * lowScale() / ${CELLS}.0;
   // far off at night, the wall's albedo is the map's mean (its top mip), not its window texels: no dark dots on a far tower
   float lowFarM = smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition)) * fNight;
@@ -409,10 +477,13 @@ if (fLampK > 0.0) {
   lowGlassM = lowTex.a * vLowFac;
   // at night the walls go cool and dark between the windows, as base's do (the lamps light the darker albedo too); by day fNight is 0
   diffuseColor.rgb *= mix(vec3(1.0), vec3(${LOW_NIGHT_WALL.join(', ')}), fNight * vLowFac);
-}`)
+}`,
+      )
       // by day the non-facade kinds take facadeMaterial's daytime diffuse, not the vertex colour (a dark LED line, pale metal, a dark sign board);
       // this runs after color_fragment, which multiplies the vertex colour in. Their glow stays on the emissive step, scaled by the night
-      .replace('#include <color_fragment>', `#include <color_fragment>
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
 if (vLowFac == 0.0) {
   if (vLowKind == 5.0) diffuseColor.rgb = mix(vec3(0.04), vec3(0.55, 0.58, 0.6), vLowMetal);
   else if (vLowKind == 9.0) diffuseColor.rgb = vec3(0.55, 0.58, 0.6);
@@ -458,8 +529,11 @@ vec3 lowGlassD = mix(mix(vLowTint * ${LOW_DAY_GLASS}, vLowTint * ${LOW_FAR_GLASS
 float lowGlassF = mix(lowGlassM, lowWinMask() * vLowFac, lowFarD * (1.0 - lowRibD));
 vec3 lowDayWall = mix(lowFrameD, lowGlassD, lowGlassF);
 lowMirM = lowGlassF * lowFarD * (1.0 - lowRibD) * vLowFac * (1.0 - fNight);
-diffuseColor.rgb = mix(diffuseColor.rgb, mix(lowDayWall, diffuseColor.rgb, fNight), vLowFac);`)
-      .replace('#include <emissivemap_fragment>', `{
+diffuseColor.rgb = mix(diffuseColor.rgb, mix(lowDayWall, diffuseColor.rgb, fNight), vLowFac);`,
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        `{
   // the walls' lit rooms, and each kind's live glow at facadeMaterial's night strength (LED band, flood, beacon, lantern, sign). Both are
   // scaled by the night, so nothing shows by day
   vec3 lowGlow = vec3(0.0);
@@ -506,7 +580,8 @@ diffuseColor.rgb = mix(diffuseColor.rgb, mix(lowDayWall, diffuseColor.rgb, fNigh
     lowMir = mix(lowSkyM, lowWallM, lowHit) * lowMirM;
   }
   totalEmissiveRadiance = emissive * ((lowLit * vLowFac * vLowNight + lowGlow) * fNight + lowMir);
-}`);
+}`,
+      );
   };
   mat.customProgramCacheKey = () => 'outside-facade-low';
   return { mat, u, lamps };

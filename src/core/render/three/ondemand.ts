@@ -9,7 +9,9 @@ export const BATCH_MS = 200;
 
 let changes = 0;
 /** Something changed a scene out of any frame's own work (a baked tile, a model that loaded): every gate draws its next tick. */
-export function sceneChanged(): void { changes++; }
+export function sceneChanged(): void {
+  changes++;
+}
 
 /**
  * The "needs a frame" signal: a one-shot ask (a change), a busy source (an animation that plays), a time-limited keep, or a `sceneChanged`
@@ -25,10 +27,14 @@ export class DrawGate {
   forced = false;
 
   /** Something changed: draw the next tick. */
-  ask(): void { this.asked = true; }
+  ask(): void {
+    this.asked = true;
+  }
 
   /** Keep drawing until `now + ms` (after input, or for a fade with no other source). */
-  keep(now: number, ms: number): void { this.until = Math.max(this.until, now + ms); }
+  keep(now: number, ms: number): void {
+    this.until = Math.max(this.until, now + ms);
+  }
 
   /**
    * Draw this tick? `busy` says an animation plays now. One more frame follows the last busy tick, so the end pose shows. `more` says that
@@ -36,7 +42,8 @@ export class DrawGate {
    * `BATCH_MS`. The last one (`more` false) draws at once.
    */
   want(now: number, busy = false, more = false): boolean {
-    const changed = this.seen !== changes, hard = this.asked || busy || this.was || now < this.until;
+    const changed = this.seen !== changes,
+      hard = this.asked || busy || this.was || now < this.until;
     if (!hard && !changed) return false;
     if (!hard && more && now - this.drew < BATCH_MS) return false; // (the change stays unseen: a later tick draws it)
     this.forced = this.asked || changed;
@@ -92,11 +99,12 @@ export class ViewWatch {
     for (const d of [near, far]) {
       // the NDC depth of view depth d under the last projection
       const z = -this.p10 + this.p14 / d;
-      for (const nx of GRID) for (const ny of GRID) {
-        const c = this.c.set(nx, ny, z, 1).applyMatrix4(this.m);
-        if (c.w <= 1e-9) return Infinity;
-        most = Math.max(most, Math.abs(c.x / c.w - nx) * w / 2, Math.abs(c.y / c.w - ny) * h / 2);
-      }
+      for (const nx of GRID)
+        for (const ny of GRID) {
+          const c = this.c.set(nx, ny, z, 1).applyMatrix4(this.m);
+          if (c.w <= 1e-9) return Infinity;
+          most = Math.max(most, (Math.abs(c.x / c.w - nx) * w) / 2, (Math.abs(c.y / c.w - ny) * h) / 2);
+        }
     }
     return most;
   }

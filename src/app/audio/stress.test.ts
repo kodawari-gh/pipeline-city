@@ -32,7 +32,7 @@ describe('stressAmount', () => {
 
   it('starts the power term at 90 percent of budget', () => {
     expect(stressTerms({ power: { totalW: 90, budgetW: 100 } }).power).toBe(0);
-    expect(stressTerms({ power: { totalW: 90 + 100 * STRESS_SCALE / 2, budgetW: 100 } }).power).toBeCloseTo(0.5, 9);
+    expect(stressTerms({ power: { totalW: 90 + (100 * STRESS_SCALE) / 2, budgetW: 100 } }).power).toBeCloseTo(0.5, 9);
   });
 
   it('ignores power when the budget is zero', () => {

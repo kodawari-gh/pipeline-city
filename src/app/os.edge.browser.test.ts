@@ -41,19 +41,42 @@ interface Sheet {
 
 function sheetSnapshot(): Sheet {
   const panel = document.querySelector('[aria-label="Operating system"]') as HTMLElement | null;
-  const empty = { found: false, box: { x: 0, y: 0, r: 0, b: 0 }, panel: { borders: [], radius: '', shadow: '', backdrop: '', image: '' }, descendants: [], layers: [], controls: [], sw: 0, sh: 0 } as Sheet;
+  const empty = {
+    found: false,
+    box: { x: 0, y: 0, r: 0, b: 0 },
+    panel: { borders: [], radius: '', shadow: '', backdrop: '', image: '' },
+    descendants: [],
+    layers: [],
+    controls: [],
+    sw: 0,
+    sh: 0,
+  } as Sheet;
   if (!panel) return empty;
-  const box = (e: Element): Box => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, r: r.right, b: r.bottom }; };
+  const box = (e: Element): Box => {
+    const r = e.getBoundingClientRect();
+    return { x: r.left, y: r.top, r: r.right, b: r.bottom };
+  };
   const cs = getComputedStyle(panel);
-  const borders = ['Top', 'Right', 'Bottom', 'Left'].map((s) => `${s}:${(cs as any)[`border${s}Width`]}/${(cs as any)[`border${s}Style`]}`)
+  const borders = ['Top', 'Right', 'Bottom', 'Left']
+    .map((s) => `${s}:${(cs as any)[`border${s}Width`]}/${(cs as any)[`border${s}Style`]}`)
     .filter((v) => !/:0px\/none$/.test(v));
 
   const problemsOf = (e: Element): string[] => {
     const s = getComputedStyle(e);
     const out: string[] = [];
-    const bw = [s.borderTopWidth, s.borderRightWidth, s.borderBottomWidth, s.borderLeftWidth].some((w, i) => parseFloat(w) > 0 && [s.borderTopStyle, s.borderRightStyle, s.borderBottomStyle, s.borderLeftStyle][i] !== 'none');
+    const bw = [s.borderTopWidth, s.borderRightWidth, s.borderBottomWidth, s.borderLeftWidth].some(
+      (w, i) =>
+        parseFloat(w) > 0 &&
+        [s.borderTopStyle, s.borderRightStyle, s.borderBottomStyle, s.borderLeftStyle][i] !== 'none',
+    );
     if (bw) out.push('border');
-    if (parseFloat(s.borderTopLeftRadius) > 4 || parseFloat(s.borderTopRightRadius) > 4 || parseFloat(s.borderBottomLeftRadius) > 4 || parseFloat(s.borderBottomRightRadius) > 4) out.push(`radius ${s.borderTopLeftRadius}`);
+    if (
+      parseFloat(s.borderTopLeftRadius) > 4 ||
+      parseFloat(s.borderTopRightRadius) > 4 ||
+      parseFloat(s.borderBottomLeftRadius) > 4 ||
+      parseFloat(s.borderBottomRightRadius) > 4
+    )
+      out.push(`radius ${s.borderTopLeftRadius}`);
     if (s.boxShadow !== 'none') out.push('box-shadow');
     if (s.textShadow !== 'none') out.push('text-shadow');
     if (s.backdropFilter !== 'none' && s.backdropFilter !== '') out.push('backdrop-filter');
@@ -61,34 +84,67 @@ function sheetSnapshot(): Sheet {
     return out;
   };
 
-  const descendants = [...panel.querySelectorAll('*')].map((e) => ({ tag: e.tagName.toLowerCase(), cls: String(e.className).split(' ')[0] || '-', problems: problemsOf(e) }))
+  const descendants = [...panel.querySelectorAll('*')]
+    .map((e) => ({
+      tag: e.tagName.toLowerCase(),
+      cls: String(e.className).split(' ')[0] || '-',
+      problems: problemsOf(e),
+    }))
     .filter((d) => d.problems.length > 0);
 
   // the layers between the sheet and the body: the scrim and its wrappers, which cover the 3D view
   const layers: Sheet['layers'] = [];
   for (let a = panel.parentElement; a && a !== document.body && a !== document.documentElement; a = a.parentElement) {
     const s = getComputedStyle(a);
-    layers.push({ tag: a.tagName.toLowerCase(), cls: String(a.className).split(' ')[0] || '-', backdropFilter: s.backdropFilter, shadow: s.boxShadow, image: s.backgroundImage, bg: s.backgroundColor });
+    layers.push({
+      tag: a.tagName.toLowerCase(),
+      cls: String(a.className).split(' ')[0] || '-',
+      backdropFilter: s.backdropFilter,
+      shadow: s.boxShadow,
+      image: s.backgroundImage,
+      bg: s.backgroundColor,
+    });
   }
   // the Build sheet's scrim is a sibling of the sheet (not an ancestor): it covers the 3D view the same way
   const scrim = panel.parentElement?.querySelector(':scope > .bench-scrim');
   if (scrim) {
     const s = getComputedStyle(scrim);
-    layers.push({ tag: 'div', cls: 'bench-scrim', backdropFilter: s.backdropFilter, shadow: s.boxShadow, image: s.backgroundImage, bg: s.backgroundColor });
+    layers.push({
+      tag: 'div',
+      cls: 'bench-scrim',
+      backdropFilter: s.backdropFilter,
+      shadow: s.boxShadow,
+      image: s.backgroundImage,
+      bg: s.backgroundColor,
+    });
   }
   const own = problemsOf(panel);
 
   const sel = 'button, [role="tab"], input, select, textarea, a[href]';
-  const controls = [...panel.querySelectorAll(sel)].filter((e) => {
-    const s = getComputedStyle(e);
-    const r = e.getBoundingClientRect();
-    return s.display !== 'none' && s.visibility === 'visible' && r.width > 0 && r.height > 0;
-  }).map((e) => ({ label: ((e as HTMLElement).innerText || e.getAttribute('aria-label') || e.tagName).trim().replace(/\s+/g, ' ').slice(0, 32), box: box(e) }));
+  const controls = [...panel.querySelectorAll(sel)]
+    .filter((e) => {
+      const s = getComputedStyle(e);
+      const r = e.getBoundingClientRect();
+      return s.display !== 'none' && s.visibility === 'visible' && r.width > 0 && r.height > 0;
+    })
+    .map((e) => ({
+      label: ((e as HTMLElement).innerText || e.getAttribute('aria-label') || e.tagName)
+        .trim()
+        .replace(/\s+/g, ' ')
+        .slice(0, 32),
+      box: box(e),
+    }));
 
   return {
     found: true,
     box: box(panel),
-    panel: { borders, radius: cs.borderTopLeftRadius, shadow: cs.boxShadow, backdrop: cs.backdropFilter, image: cs.backgroundImage },
+    panel: {
+      borders,
+      radius: cs.borderTopLeftRadius,
+      shadow: cs.boxShadow,
+      backdrop: cs.backdropFilter,
+      image: cs.backgroundImage,
+    },
     descendants: own.length ? [{ tag: 'panel', cls: 'ospanel', problems: own }, ...descendants] : descendants,
     layers,
     controls,
@@ -122,55 +178,69 @@ async function openSheet(page: Page): Promise<void> {
 }
 
 describe.skipIf(!GATE)('OS sheet is a flat Edge tab (ticket #76)', () => {
-  beforeAll(async () => { dev = await startServer(); browser = await launchChrome(); }, 120_000);
-  afterAll(async () => { await browser?.close().catch(() => {}); killTree(dev?.child); dev = null; browser = null; });
+  beforeAll(async () => {
+    dev = await startServer();
+    browser = await launchChrome();
+  }, 120_000);
+  afterAll(async () => {
+    await browser?.close().catch(() => {});
+    killTree(dev?.child);
+    dev = null;
+    browser = null;
+  });
 
   for (const vp of VIEWPORTS) {
-    it(`${vp.w} x ${vp.h} (${vp.name}): the sheet is flat, touches a screen edge, sits on a neutral layer and fits`, async () => {
-      const errors: string[] = [];
-      const problems: string[] = [];
-      const { page, ctxClose } = await openBooted(browser!, dev!, vp.w, vp.h, errors);
-      try {
-        await openSheet(page);
-        const s = await page.evaluate(sheetSnapshot);
+    it(
+      `${vp.w} x ${vp.h} (${vp.name}): the sheet is flat, touches a screen edge, sits on a neutral layer and fits`,
+      async () => {
+        const errors: string[] = [];
+        const problems: string[] = [];
+        const { page, ctxClose } = await openBooted(browser!, dev!, vp.w, vp.h, errors);
+        try {
+          await openSheet(page);
+          const s = await page.evaluate(sheetSnapshot);
 
-        expect(s.found, 'the OS sheet is on screen').toBe(true);
-        if (!s.found) return;
+          expect(s.found, 'the OS sheet is on screen').toBe(true);
+          if (!s.found) return;
 
-        // flat: no border, no radius, no shadow, no glass, no gradient
-        expect(s.panel.borders, 'sheet borders').toEqual([]);
-        expect(s.panel.radius, 'sheet corner radius').toBe('0px');
-        expect(s.panel.shadow, 'sheet box-shadow').toBe('none');
-        expect(s.panel.backdrop === 'none' || s.panel.backdrop === '', 'sheet backdrop-filter').toBe(true);
-        expect(/gradient/i.test(s.panel.image), 'sheet background-image').toBe(false);
-        expect(s.descendants, 'sheet parts with a border, radius above 4 px, shadow, glass or gradient').toEqual([]);
+          // flat: no border, no radius, no shadow, no glass, no gradient
+          expect(s.panel.borders, 'sheet borders').toEqual([]);
+          expect(s.panel.radius, 'sheet corner radius').toBe('0px');
+          expect(s.panel.shadow, 'sheet box-shadow').toBe('none');
+          expect(s.panel.backdrop === 'none' || s.panel.backdrop === '', 'sheet backdrop-filter').toBe(true);
+          expect(/gradient/i.test(s.panel.image), 'sheet background-image').toBe(false);
+          expect(s.descendants, 'sheet parts with a border, radius above 4 px, shadow, glass or gradient').toEqual([]);
 
-        // the layers behind the sheet: no glass, no shadow, no gradient, and a neutral colour (not navy)
-        for (const l of s.layers) {
-          const where = `${l.tag}.${l.cls}`;
-          if (l.backdropFilter !== 'none' && l.backdropFilter !== '') problems.push(`${where} has backdrop-filter`);
-          if (l.shadow !== 'none') problems.push(`${where} has box-shadow`);
-          if (/gradient/i.test(l.image)) problems.push(`${where} has a gradient`);
-          if (spreadOf(l.bg) > 10) problems.push(`${where} is not neutral (${l.bg})`);
-        }
-
-        // a flat tab touches at least one screen edge (1 px of slack)
-        const touches = Math.min(s.box.x, s.box.y, vp.w - s.box.r, vp.h - s.box.b) <= 1;
-        expect(touches, `sheet box ${JSON.stringify(s.box)} touches a screen edge of ${vp.w} x ${vp.h}`).toBe(true);
-
-        // controls: on screen, no overlap, and the page does not scroll
-        for (const c of s.controls) if (outsideViewport(c.box, vp.w, vp.h)) problems.push(`"${c.label}" is outside the window`);
-        for (let i = 0; i < s.controls.length; i++) {
-          for (let j = i + 1; j < s.controls.length; j++) {
-            if (overlaps(s.controls[i]!.box, s.controls[j]!.box)) problems.push(`"${s.controls[i]!.label}" overlaps "${s.controls[j]!.label}"`);
+          // the layers behind the sheet: no glass, no shadow, no gradient, and a neutral colour (not navy)
+          for (const l of s.layers) {
+            const where = `${l.tag}.${l.cls}`;
+            if (l.backdropFilter !== 'none' && l.backdropFilter !== '') problems.push(`${where} has backdrop-filter`);
+            if (l.shadow !== 'none') problems.push(`${where} has box-shadow`);
+            if (/gradient/i.test(l.image)) problems.push(`${where} has a gradient`);
+            if (spreadOf(l.bg) > 10) problems.push(`${where} is not neutral (${l.bg})`);
           }
+
+          // a flat tab touches at least one screen edge (1 px of slack)
+          const touches = Math.min(s.box.x, s.box.y, vp.w - s.box.r, vp.h - s.box.b) <= 1;
+          expect(touches, `sheet box ${JSON.stringify(s.box)} touches a screen edge of ${vp.w} x ${vp.h}`).toBe(true);
+
+          // controls: on screen, no overlap, and the page does not scroll
+          for (const c of s.controls)
+            if (outsideViewport(c.box, vp.w, vp.h)) problems.push(`"${c.label}" is outside the window`);
+          for (let i = 0; i < s.controls.length; i++) {
+            for (let j = i + 1; j < s.controls.length; j++) {
+              if (overlaps(s.controls[i]!.box, s.controls[j]!.box))
+                problems.push(`"${s.controls[i]!.label}" overlaps "${s.controls[j]!.label}"`);
+            }
+          }
+          if (pageOverflows(s.sw, s.sh, vp.w, vp.h)) problems.push(`the page scrolls (${s.sw} x ${s.sh})`);
+          for (const e of errors) problems.push(`page error ${e}`);
+          expect(problems, problems.join('\n')).toEqual([]);
+        } finally {
+          await ctxClose().catch(() => {});
         }
-        if (pageOverflows(s.sw, s.sh, vp.w, vp.h)) problems.push(`the page scrolls (${s.sw} x ${s.sh})`);
-        for (const e of errors) problems.push(`page error ${e}`);
-        expect(problems, problems.join('\n')).toEqual([]);
-      } finally {
-        await ctxClose().catch(() => {});
-      }
-    }, TEST_MS);
+      },
+      TEST_MS,
+    );
   }
 });

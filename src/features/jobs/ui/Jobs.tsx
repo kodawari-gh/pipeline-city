@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'preact/hooks';
 import { declineJob, declineKey, snapshot } from '@/app/store';
 import { Icon } from '@/core/ui/kit/Icons';
-import { DECLINE_ARM_MS, declineStep, declineWords, deadlineInfo, needChips, type JobView } from '../../economy/ui/progress/levelui';
+import {
+  DECLINE_ARM_MS,
+  declineStep,
+  declineWords,
+  deadlineInfo,
+  needChips,
+  type JobView,
+} from '../../economy/ui/progress/levelui';
 import { fmtTicks } from '@/core/ui/logic';
 
 // Job needs, the deadline of an unrunnable job and the Decline button (docs/PROGRESSION.md "Declining"). Used by the key
@@ -14,9 +21,18 @@ export function NeedChips({ job }: { job: JobView }) {
   return (
     <span class="needs" role="list" aria-label="This job needs">
       {chips.map((c) => (
-        <span role="listitem" key={c.short} class={`chip need-chip ${c.missing ? 'bad' : 'ok'}`}
-          title={c.missing ? `Missing: this job needs ${c.long} and the machine has none that works.` : `Needs ${c.long}: the machine has it.`}>
-          <Icon name={c.icon} size={11} /> {c.short}{c.missing && <span class="miss"> missing</span>}
+        <span
+          role="listitem"
+          key={c.short}
+          class={`chip need-chip ${c.missing ? 'bad' : 'ok'}`}
+          title={
+            c.missing
+              ? `Missing: this job needs ${c.long} and the machine has none that works.`
+              : `Needs ${c.long}: the machine has it.`
+          }
+        >
+          <Icon name={c.icon} size={11} /> {c.short}
+          {c.missing && <span class="miss"> missing</span>}
         </span>
       ))}
     </span>
@@ -29,9 +45,16 @@ export function Deadline({ job }: { job: JobView }) {
   const d = deadlineInfo(job, now);
   if (!d) return null;
   return (
-    <span class={`deadline ${d.urgency}`} title={`The client takes this job back in ${fmtTicks(d.left)}. A missed job costs reputation.`}>
-      <span class="dl-bar" aria-hidden="true"><i style={{ width: `${d.frac * 100}%` }} /></span>
-      <span class="dl-t"><Icon name="clock" size={10} /> {fmtTicks(d.left)}</span>
+    <span
+      class={`deadline ${d.urgency}`}
+      title={`The client takes this job back in ${fmtTicks(d.left)}. A missed job costs reputation.`}
+    >
+      <span class="dl-bar" aria-hidden="true">
+        <i style={{ width: `${d.frac * 100}%` }} />
+      </span>
+      <span class="dl-t">
+        <Icon name="clock" size={10} /> {fmtTicks(d.left)}
+      </span>
     </span>
   );
 }
@@ -59,7 +82,12 @@ export function DeclineButton({ job, via, compact }: { job: JobView; via: 'key' 
     } else setArmedAt(Date.now());
   };
   return (
-    <button class={`decline ${armed ? 'armed' : ''} ${compact ? 'compact' : ''}`} title={w.title} aria-label={`${w.label}: ${job.label}`} onClick={press}>
+    <button
+      class={`decline ${armed ? 'armed' : ''} ${compact ? 'compact' : ''}`}
+      title={w.title}
+      aria-label={`${w.label}: ${job.label}`}
+      onClick={press}
+    >
       <Icon name={armed ? 'warn' : 'close'} size={11} /> {w.label}
     </button>
   );

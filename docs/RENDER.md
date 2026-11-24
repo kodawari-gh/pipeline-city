@@ -4,37 +4,37 @@ Code: `src/core/render/three/` and `src/features/*/render/three/` draw the world
 
 This file is the hub: world layout, layers, theme, snapshot fields, known gaps and the last verification. Read the area file for the topic, not all of them:
 
-| Topic | File |
-|---|---|
-| camera and flights, hover / selected ids, hit testing, drag and drop, tutorial rings, anchors | [`render/interact.md`](render/interact.md) |
-| bus activity, boot visuals, power-off look, performance, trace and stepping | [`render/live.md`](render/live.md) |
-| orderly routing, pin map, board tiers, cases and the VRM | [`render/board.md`](render/board.md) |
-| the case, the bay and the OS screen, far-zoom exterior (LOD), installed devices, rear I/O, PSU face | [`render/case.md`](render/case.md) |
-| router, wall plate, ethernet cable, NIC cards | [`render/net.md`](render/net.md) |
-| the airflow lens: the 3D air as particles, the precomputed flow, collisions, heat exchange, water cooling, the supply's air | [`render/air.md`](render/air.md) |
-| the power lens: the real cables, the board's copper and the parts lit by what they draw, the pulses, the missing cables, the watts | [`render/power.md`](render/power.md) |
-| the network lens: the plan's line and the LAN lead lit by the link, the in and out comets, the limit words, the camera | [`render/net.md`](render/net.md) ("The network lens") |
-| the room: desk props, key rack and mail, USB keys, wall cords | [`render/room/room.md`](../src/features/room/room.md) |
-| the room's wall, floor, ceiling, desk, perspective, camera cap, baking | [`render/room/shell.md`](../src/features/room/shell.md) |
-| the window, game-time clock, time of day, the room's light | [`render/room/light.md`](../src/features/room/light.md) |
-| the LOD0, LOD1, LOD2, stand-in and card scheme; the city's distance bands and Low cuts; the reveal bands of the chips | [`render/lod.md`](render/lod.md) |
-| the 3D renderer (Three.js, the game's view): presets and tiers, merges, cheap materials, city culling and the occlusion gate, `?debug` toggles, bench and shot tools | [`render/three.md`](render/three.md) |
-| 3D room cloth (the hoodie): pattern pieces, the offline cloth solver, how to bake a model | [`render/cloth.md`](render/cloth.md) |
-| the 3D world's load: boot screen, shader link rules, menu, flight into the game | [`render/load.md`](render/load.md) |
-| the CPU die and the memory map | [`DIE.md`](../src/features/cpu/DIE.md) |
+| Topic                                                                                                                                                                | File                                                    |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| camera and flights, hover / selected ids, hit testing, drag and drop, tutorial rings, anchors                                                                        | [`render/interact.md`](render/interact.md)              |
+| bus activity, boot visuals, power-off look, performance, trace and stepping                                                                                          | [`render/live.md`](render/live.md)                      |
+| orderly routing, pin map, board tiers, cases and the VRM                                                                                                             | [`render/board.md`](render/board.md)                    |
+| the case, the bay and the OS screen, far-zoom exterior (LOD), installed devices, rear I/O, PSU face                                                                  | [`render/case.md`](render/case.md)                      |
+| router, wall plate, ethernet cable, NIC cards                                                                                                                        | [`render/net.md`](render/net.md)                        |
+| the airflow lens: the 3D air as particles, the precomputed flow, collisions, heat exchange, water cooling, the supply's air                                          | [`render/air.md`](render/air.md)                        |
+| the power lens: the real cables, the board's copper and the parts lit by what they draw, the pulses, the missing cables, the watts                                   | [`render/power.md`](render/power.md)                    |
+| the network lens: the plan's line and the LAN lead lit by the link, the in and out comets, the limit words, the camera                                               | [`render/net.md`](render/net.md) ("The network lens")   |
+| the room: desk props, key rack and mail, USB keys, wall cords                                                                                                        | [`render/room/room.md`](../src/features/room/room.md)   |
+| the room's wall, floor, ceiling, desk, perspective, camera cap, baking                                                                                               | [`render/room/shell.md`](../src/features/room/shell.md) |
+| the window, game-time clock, time of day, the room's light                                                                                                           | [`render/room/light.md`](../src/features/room/light.md) |
+| the LOD0, LOD1, LOD2, stand-in and card scheme; the city's distance bands and Low cuts; the reveal bands of the chips                                                | [`render/lod.md`](render/lod.md)                        |
+| the 3D renderer (Three.js, the game's view): presets and tiers, merges, cheap materials, city culling and the occlusion gate, `?debug` toggles, bench and shot tools | [`render/three.md`](render/three.md)                    |
+| 3D room cloth (the hoodie): pattern pieces, the offline cloth solver, how to bake a model                                                                            | [`render/cloth.md`](render/cloth.md)                    |
+| the 3D world's load: boot screen, shader link rules, menu, flight into the game                                                                                      | [`render/load.md`](render/load.md)                      |
+| the CPU die and the memory map                                                                                                                                       | [`DIE.md`](../src/features/cpu/DIE.md)                  |
 
 ## Files
 
-| File | Role |
-|---|---|
-| `board.ts` | the bridge the HTML UI uses (`anchorOf`, `flyTo`) to the 3D board (`three/board3d.ts`) |
-| `theme.ts` | theme tokens (below) |
-| `layout/layout.ts` | world coordinates (die floorplan, monitor, tray, router shelf) and the **tier-dependent** ones as live bindings (`setLayoutTier(boardTier, caseTier)`: board, DIMMs, VRMs, PSU, bay, case, world box), seeded PRNG, hover regions |
-| `thumbs.ts` | pictures of parts for the shop, inventory and picker: the baked 3D stills (`public/stills/`, `npm run stills`: `tools/stills.mjs`, `renderStill` in `viewer.ts`), else the real art (`thumbart.ts`) rendered in a worker (`thumbs.worker.ts`) to cached image URLs |
-| `cpuplan.ts`, `cpufloor.ts`, `cpuplans.ts` | the **CPU die floorplans as data** (blocks, links, cell grids per architecture; pure geometry, tested), see [`DIE.md`](../src/features/cpu/DIE.md) |
-| `dieart.ts` | the static art of a die from its plan: `dieFar` (blocks, stage frames, bond pads; baked with the CPU by `cpuArt`) and `dieNear` (trace bundles, cell arrays, names) |
-| `dieview.ts` | the die in motion (`DieView`): instruction chips in their blocks per lane and unit, the out-of-order structures as cells coloured by state, event flashes and link pulses, the levels of detail by zoom |
-| `ink.ts` | small Graphics / Text helpers |
+| File                                       | Role                                                                                                                                                                                                                                                               |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `board.ts`                                 | the bridge the HTML UI uses (`anchorOf`, `flyTo`) to the 3D board (`three/board3d.ts`)                                                                                                                                                                             |
+| `theme.ts`                                 | theme tokens (below)                                                                                                                                                                                                                                               |
+| `layout/layout.ts`                         | world coordinates (die floorplan, monitor, tray, router shelf) and the **tier-dependent** ones as live bindings (`setLayoutTier(boardTier, caseTier)`: board, DIMMs, VRMs, PSU, bay, case, world box), seeded PRNG, hover regions                                  |
+| `thumbs.ts`                                | pictures of parts for the shop, inventory and picker: the baked 3D stills (`public/stills/`, `npm run stills`: `tools/stills.mjs`, `renderStill` in `viewer.ts`), else the real art (`thumbart.ts`) rendered in a worker (`thumbs.worker.ts`) to cached image URLs |
+| `cpuplan.ts`, `cpufloor.ts`, `cpuplans.ts` | the **CPU die floorplans as data** (blocks, links, cell grids per architecture; pure geometry, tested), see [`DIE.md`](../src/features/cpu/DIE.md)                                                                                                                 |
+| `dieart.ts`                                | the static art of a die from its plan: `dieFar` (blocks, stage frames, bond pads; baked with the CPU by `cpuArt`) and `dieNear` (trace bundles, cell arrays, names)                                                                                                |
+| `dieview.ts`                               | the die in motion (`DieView`): instruction chips in their blocks per lane and unit, the out-of-order structures as cells coloured by state, event flashes and link pulses, the levels of detail by zoom                                                            |
+| `ink.ts`                                   | small Graphics / Text helpers                                                                                                                                                                                                                                      |
 
 ## World layout
 
@@ -102,4 +102,3 @@ Headless Chrome (software GL), 1360x800 and 1920x1080, through `window.__board`:
 **Drop targets and picks (historical, not re-run; real mouse events, headless Chrome, software GL, 1360x800; 1920x1080 for `m20`).** Each run starts from a sandbox save written by the sim: Enthusiast board with the crate parts and RAM, the drives and the OS on the shelf. Results: an NVMe drive dragged onto `m20` installs (Mainstream and Enthusiast, at both sizes); an HDD onto `sata0` and a SATA SSD onto `sata1` install (Enthusiast); the Resident OS dropped on an installed HDD (`sata0`), SATA SSD (`sata1`) and NVMe (`m20`) sets the OS badge each time. The NVMe drive cannot be bought on the Starter board ("needs an M.2 slot (bigger board)"), so the drop there never starts: the earlier report that `m20` refuses the drive is the purchase gate, not the renderer. Picks: an empty board area opens the board picker (`board`); the cooler body opens the cooler (`dev` of the cooler); the exposed CPU ring opens the CPU; hover shows the id each click picks. The inset refit: with the Enthusiast machine and the shelf open the chassis ends above the shelf (no overlap at 1360x800); with a campaign game after Start, the chassis ends above the bottom-centre `.tut` card (the reserve is 314 px there).
 
 Not verified in this pass: the OS remove cue end to end (see Known gaps), and the two-drive power-lead crossing (seen, not fixed).
-

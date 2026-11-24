@@ -22,12 +22,17 @@ export function uiCueFor(ev: UiEvent, attr: string | null, on = false): CueId | 
   // A panel root's open marker plays nothing here: the open cue comes from panelCues.ts or the director, so a click inside the panel stays silent.
   if (attr === null || attr === 'ui_panel_open') return null;
   switch (ev) {
-    case 'hover': return 'ui_hover';
-    case 'focus': return 'ui_focus_move';
+    case 'hover':
+      return 'ui_hover';
+    case 'focus':
+      return 'ui_focus_move';
     // A slider's tick comes from its input event (one per 5 % step), so a click on it plays nothing extra.
-    case 'click': return attr === 'ui_slider_tick' ? null : isCueId(attr) ? attr : null;
-    case 'toggle': return attr === 'ui_toggle' ? (on ? 'ui_toggle_on' : 'ui_toggle_off') : null;
-    case 'value': return attr === 'ui_value_change' ? 'ui_value_change' : null;
+    case 'click':
+      return attr === 'ui_slider_tick' ? null : isCueId(attr) ? attr : null;
+    case 'toggle':
+      return attr === 'ui_toggle' ? (on ? 'ui_toggle_on' : 'ui_toggle_off') : null;
+    case 'value':
+      return attr === 'ui_value_change' ? 'ui_value_change' : null;
   }
 }
 
@@ -42,7 +47,10 @@ export function sliderStep(min: number, max: number, value: number): number {
 export const TYPE_EVERY = 3;
 export const typeTickDue = (typed: number): boolean => typed > 0 && typed % TYPE_EVERY === 0;
 
-export interface CueStep { id: CueId; delayS: number }
+export interface CueStep {
+  id: CueId;
+  delayS: number;
+}
 
 /** The steps of one click: the element's cue now, then the `data-cue-next` transition 70 ms later. */
 export function clickSteps(attr: string | null, next: string | null): CueStep[] {
@@ -54,7 +62,15 @@ export function clickSteps(attr: string | null, next: string | null): CueStep[] 
 }
 
 /** Tags whose Enter or Space the browser turns into a click itself; the click listener already plays those. */
-const NATIVE_ACTIVATION: ReadonlySet<string> = new Set(['BUTTON', 'A', 'INPUT', 'SELECT', 'TEXTAREA', 'SUMMARY', 'LABEL']);
+const NATIVE_ACTIVATION: ReadonlySet<string> = new Set([
+  'BUTTON',
+  'A',
+  'INPUT',
+  'SELECT',
+  'TEXTAREA',
+  'SUMMARY',
+  'LABEL',
+]);
 
 /** True when Enter or Space on this element makes no click, so the key listener must play its cue (a div with role="radio"). */
 export function keyNeedsCue(key: string, tagName: string): boolean {

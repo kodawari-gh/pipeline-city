@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { CODE_SOURCE, HIGH_LEVEL, mixShares, OP_CLASSES, profileOf, reliance, spriteOf } from "./jobcode";
-import { JOB_DEX } from "./jobdex";
+import { describe, expect, it } from 'vitest';
+import { CODE_SOURCE, HIGH_LEVEL, mixShares, OP_CLASSES, profileOf, reliance, spriteOf } from './jobcode';
+import { JOB_DEX } from './jobdex';
 
-describe("the code view of a job", () => {
-  it("every playable almanac entry has a program to read and a C++ and a Python version", () => {
+describe('the code view of a job', () => {
+  it('every playable almanac entry has a program to read and a C++ and a Python version', () => {
     for (const e of JOB_DEX.filter((x) => !x.planned && !x.contract)) {
       expect(CODE_SOURCE[e.id], e.id).toBeDefined();
       expect(HIGH_LEVEL[e.id]!.cpp.length, e.id).toBeGreaterThan(80);
@@ -11,47 +11,62 @@ describe("the code view of a job", () => {
     }
   });
 
-  it("runs the real program: it halts, shows the expected text, and the counts add up", () => {
+  it('runs the real program: it halts, shows the expected text, and the counts add up', () => {
     for (const [id, src] of Object.entries(CODE_SOURCE)) {
       const p = profileOf(src.template, src.scales[0]!);
       expect(p.steps, id).toBeGreaterThan(10);
-      expect(OP_CLASSES.reduce((n, c) => n + p.mix[c], 0), id).toBe(p.steps);
-      expect(p.lines.reduce((n, l) => n + l.count, 0), id).toBe(p.steps);
+      expect(
+        OP_CLASSES.reduce((n, c) => n + p.mix[c], 0),
+        id,
+      ).toBe(p.steps);
+      expect(
+        p.lines.reduce((n, l) => n + l.count, 0),
+        id,
+      ).toBe(p.steps);
       expect(p.mix.sys, id).toBe(1); // the one ecall
       expect(p.display.length, id).toBeGreaterThan(3);
       expect(p.codeWords + p.dataWords, id).toBe(p.lines.length);
-      expect(p.lines.some((l) => l.labels.includes("main")), id).toBe(true);
+      expect(
+        p.lines.some((l) => l.labels.includes('main')),
+        id,
+      ).toBe(true);
     }
   });
 
-  it("tells the jobs apart by what they lean on", () => {
+  it('tells the jobs apart by what they lean on', () => {
     const r = (id: string, scale = 1) => reliance(profileOf(CODE_SOURCE[id]!.template, scale));
-    expect(profileOf("cli.calc", 2).mix.mul).toBeGreaterThan(profileOf("cli.log", 2).mix.mul);
-    expect(r("calc", 4).memory).toBeLessThan(r("db").memory); // a multiply chain against a table of lookups
-    expect(r("scan", 4).memory).toBeGreaterThan(r("calc", 4).memory);
-    expect(mixShares(profileOf("db.index", 1)).ld).toBeGreaterThan(0.03);
-    const db = profileOf("db.index", 1);
+    expect(profileOf('cli.calc', 2).mix.mul).toBeGreaterThan(profileOf('cli.log', 2).mix.mul);
+    expect(r('calc', 4).memory).toBeLessThan(r('db').memory); // a multiply chain against a table of lookups
+    expect(r('scan', 4).memory).toBeGreaterThan(r('calc', 4).memory);
+    expect(mixShares(profileOf('db.index', 1)).ld).toBeGreaterThan(0.03);
+    const db = profileOf('db.index', 1);
     expect(db.pages).toBeGreaterThanOrEqual(128); // the whole 32K table, one page per record
-    expect(profileOf("db.index", 4).pages).toBeGreaterThan(db.pages * 3);
+    expect(profileOf('db.index', 4).pages).toBeGreaterThan(db.pages * 3);
     expect(db.taken).toBeGreaterThan(0);
   });
 });
 
-describe("the picture of a job", () => {
-  it("has a cell for every word that ran, in rows of the stated width, with the busiest words brightest", () => {
+describe('the picture of a job', () => {
+  it('has a cell for every word that ran, in rows of the stated width, with the busiest words brightest', () => {
     for (const [id, src] of Object.entries(CODE_SOURCE)) {
-      const p = profileOf(src.template, src.scales[0]!), sp = spriteOf(p);
+      const p = profileOf(src.template, src.scales[0]!),
+        sp = spriteOf(p);
       expect(sp.cells.length, id).toBeGreaterThan(5);
       expect(sp.cells.length, id).toBeLessThanOrEqual(sp.cols * sp.rows);
       expect(sp.cols * (sp.rows - 1), id).toBeLessThan(sp.cells.length);
-      for (const c of sp.cells) { expect(c.heat).toBeGreaterThanOrEqual(0); expect(c.heat).toBeLessThanOrEqual(1); }
+      for (const c of sp.cells) {
+        expect(c.heat).toBeGreaterThanOrEqual(0);
+        expect(c.heat).toBeLessThanOrEqual(1);
+      }
       expect(Math.max(...sp.cells.map((c) => c.heat)), id).toBe(1);
     }
   });
 
-  it("looks different for different jobs", () => {
-    const sig = (id: string) => { const sp = spriteOf(profileOf(CODE_SOURCE[id]!.template, CODE_SOURCE[id]!.scales[0]!)); return sp.cells.map((c) => c.cls[0]).join(""); };
-    expect(new Set(["log", "calc", "scan", "db", "secure", "mandel"].map(sig)).size).toBe(6);
+  it('looks different for different jobs', () => {
+    const sig = (id: string) => {
+      const sp = spriteOf(profileOf(CODE_SOURCE[id]!.template, CODE_SOURCE[id]!.scales[0]!));
+      return sp.cells.map((c) => c.cls[0]).join('');
+    };
+    expect(new Set(['log', 'calc', 'scan', 'db', 'secure', 'mandel'].map(sig)).size).toBe(6);
   });
 });
-

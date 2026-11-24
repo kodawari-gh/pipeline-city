@@ -34,7 +34,9 @@ describe('benchhud', () => {
   });
 
   it('keeps what comes before the first colon of a reason', () => {
-    expect(whyShort('Needs a graphics card: without one it runs on the CPU, many times slower')).toBe('Needs a graphics card');
+    expect(whyShort('Needs a graphics card: without one it runs on the CPU, many times slower')).toBe(
+      'Needs a graphics card',
+    );
     expect(whyShort('Needs a TPM and ECC RAM')).toBe('Needs a TPM and ECC RAM');
   });
 

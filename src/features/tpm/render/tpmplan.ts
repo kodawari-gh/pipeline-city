@@ -9,13 +9,17 @@ import type { Grid, Pt, Rect } from '../../cpu/render/core/cpuplan';
 
 export type TpmBlockKind =
   // the header side: the link to the chipset and the six registers the CPU sees
-  | 'lpc' | 'regs'
+  | 'lpc'
+  | 'regs'
   // the command sequencer
   | 'seq'
   // the engines: measure, attest, seal / unseal
-  | 'hash' | 'quote' | 'vault'
+  | 'hash'
+  | 'quote'
+  | 'vault'
   // the memory side: the bus master the hash reads RAM with, and the guard of protected mode
-  | 'ramport' | 'guard';
+  | 'ramport'
+  | 'guard';
 
 export interface TpmBlock {
   id: string;
@@ -60,5 +64,9 @@ export interface TpmPlan {
 
 /** The plan input of a module's config. */
 export function tpmPlanInput(c: TpmConfig, keys: number): TpmPlanInput {
-  return { hashStages: Math.max(1, Math.round(c.measureTicks)), quoteRounds: Math.max(1, Math.round(c.attestTicks / 20)), keys };
+  return {
+    hashStages: Math.max(1, Math.round(c.measureTicks)),
+    quoteRounds: Math.max(1, Math.round(c.attestTicks / 20)),
+    keys,
+  };
 }

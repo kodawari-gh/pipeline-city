@@ -67,12 +67,12 @@ A CPU on its tier's board (`cpu0` on Starter, `cpu1` on Basic, `cpu2` on Mainstr
 
 Four tiers, `BOARD_TIERS[tier]`, purchase ids `board1` ... `board3` (the number is the tier; the start board is tier 0 and is free). Slots a tier lacks are simply absent from `snapshot.slots`; the renderer draws the missing ones unpopulated on one shared layout.
 
-| Tier | Name | Price | cpu | dimm | pcie | sata | m2 | usb | display | vrm-sink | power | Ethernet | VRM (phases x A, peak eff, ripple) |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | Starter | start board, free (a replacement costs $40) | 1 | 1 | 0 | 1 | 0 | 1 | 1 (HDMI) | 1 | atx | none | 2 x 12 A = 24 A, 0.80, 0.60 |
-| 1 | Basic | $150 | 1 | 2 | 1 | 2 | 0 | 2 | 1 | 1 | atx | 100 Mbit | 3 x 12 A = 36 A, 0.84, 0.45 |
-| 2 | Mainstream | $300 | 1 | 4 | 2 | 2 | 1 | 3 | 1 | 1 | atx-plus | 100 Mbit | 4 x 15 A = 60 A, 0.88, 0.25 |
-| 3 | Enthusiast | $700 | 1 | 8 | 4 | 2 | 1 | 4 | 1 | 1 | atx-plus | 1 Gbit | 6 x 20 A = 120 A, 0.92, 0.10 |
+| Tier | Name       | Price                                       | cpu | dimm | pcie | sata | m2  | usb | display  | vrm-sink | power    | Ethernet | VRM (phases x A, peak eff, ripple) |
+| ---- | ---------- | ------------------------------------------- | --- | ---- | ---- | ---- | --- | --- | -------- | -------- | -------- | -------- | ---------------------------------- |
+| 0    | Starter    | start board, free (a replacement costs $40) | 1   | 1    | 0    | 1    | 0   | 1   | 1 (HDMI) | 1        | atx      | none     | 2 x 12 A = 24 A, 0.80, 0.60        |
+| 1    | Basic      | $150                                        | 1   | 2    | 1    | 2    | 0   | 2   | 1        | 1        | atx      | 100 Mbit | 3 x 12 A = 36 A, 0.84, 0.45        |
+| 2    | Mainstream | $300                                        | 1   | 4    | 2    | 2    | 1   | 3   | 1        | 1        | atx-plus | 100 Mbit | 4 x 15 A = 60 A, 0.88, 0.25        |
+| 3    | Enthusiast | $700                                        | 1   | 8    | 4    | 2    | 1   | 4   | 1        | 1        | atx-plus | 1 Gbit   | 6 x 20 A = 120 A, 0.92, 0.10       |
 
 Notes: all tiers can take one VRM heatsink (the Starter board included: the part is cheap and teaches the idea). Storage ports per tier: SATA 2 / 3 / 4 / 8 and M.2 0 / 0 / 2 / 3, PCIe 1 / 2 / 3 / 4 (`STORAGE_PORTS` in `memmap.ts` has a bus window for each: `sata0 .. sata7`, `m20 .. m22`, the first three at their old addresses). A drive you own is offered again while a slot is free. `features` is `{ethernetMbps, usbPorts, displayPorts}`; `displayPorts` is 1, 1, 2, 2 as a visual/feature count (the sim supports one monitor so far; there is still one `display` slot). Ethernet is a feature field only: the network phase will read it, there is no network device or behaviour yet. VRM per tier (all tiers): `passive` 0.15 / 0.20 / 0.30 / 0.40 W per degree C, `mass` 20 / 30 / 45 / 60 J per degree C, `throttleC` 90, `unstableC` 105, `damageC` 120.
 
@@ -80,11 +80,11 @@ Buying: every `board<N>` is for sale at any time (any tier, any number, the mach
 
 ## VRM heatsinks (kind `vrm-sink`, slot type `vrm-sink`)
 
-| Id | Part | coolingPerC | Draw (idle / load W) | Price |
-|---|---|---|---|---|
-| vsink0 | Passive fins | 0.25 | 0 / 0 | $30 |
-| vsink1 | Big fins | 0.5 | 0 / 0 | $70 |
-| vsink2 | Fan fins (a spot for a 40 mm fan; half the rating with no fan turning) | 1.0 | 0 / 0 (the `fan40` draws 0.1 / 0.5, follows CPU load) | $140 |
+| Id     | Part                                                                   | coolingPerC | Draw (idle / load W)                                  | Price |
+| ------ | ---------------------------------------------------------------------- | ----------- | ----------------------------------------------------- | ----- |
+| vsink0 | Passive fins                                                           | 0.25        | 0 / 0                                                 | $30   |
+| vsink1 | Big fins                                                               | 0.5         | 0 / 0                                                 | $70   |
+| vsink2 | Fan fins (a spot for a 40 mm fan; half the rating with no fan turning) | 1.0         | 0 / 0 (the `fan40` draws 0.1 / 0.5, follows CPU load) | $140  |
 
 Coupling to the CPU cooler (it now mounts on the installed CPU, so with no CPU or cooler the VRM gets no airflow; `CoolerSpec.vrmAirPerC`, in proportion to the air of the heatsink's turning fans, up to one basic fan): stock heatsink 0.05, tower heatsink 0.25, **liquid loop 0**. A liquid-cooled CPU therefore leaves the VRM with only its own passive path and the sink, which is why a good CPU cooler can make the VRM the new bottleneck.
 

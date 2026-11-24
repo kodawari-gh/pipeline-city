@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { assemble } from "../asm";
-import { RefCpu, RefFault } from "./index";
+import { describe, expect, it } from 'vitest';
+import { assemble } from '../asm';
+import { RefCpu, RefFault } from './index';
 
 function run(src: string, maxSteps?: number): RefCpu {
   const cpu = new RefCpu();
@@ -10,8 +10,8 @@ function run(src: string, maxSteps?: number): RefCpu {
 }
 const reg = (cpu: RefCpu, n: number): number => cpu.regs[n]!;
 
-describe("reference interpreter", () => {
-  it("sums 1..10 in a loop", () => {
+describe('reference interpreter', () => {
+  it('sums 1..10 in a loop', () => {
     const cpu = run(`
       li a0, 0
       li a1, 1
@@ -26,7 +26,7 @@ describe("reference interpreter", () => {
     expect(cpu.halted).toBe(true);
   });
 
-  it("supports call/ret with stack", () => {
+  it('supports call/ret with stack', () => {
     const cpu = run(`
       li a0, 6
       call fact
@@ -53,7 +53,7 @@ describe("reference interpreter", () => {
     expect(reg(cpu, 2)).toBe(64 * 1024); // sp restored
   });
 
-  it("does loads and stores of words and bytes", () => {
+  it('does loads and stores of words and bytes', () => {
     const cpu = run(`
       la t0, buf
       li a0, -2
@@ -74,7 +74,7 @@ describe("reference interpreter", () => {
     expect(reg(cpu, 9)).toBe(0x7f);
   });
 
-  it("handles ALU edge cases", () => {
+  it('handles ALU edge cases', () => {
     const cpu = run(`
       li a0, 0xdeadbeef
       li a1, -8
@@ -97,7 +97,7 @@ describe("reference interpreter", () => {
     expect(reg(cpu, 0)).toBe(0);
   });
 
-  it("writes a string to the display", () => {
+  it('writes a string to the display', () => {
     const cpu = run(`
       li t0, 0x40000000     # DISPLAY_BASE
       la t1, msg
@@ -111,13 +111,13 @@ describe("reference interpreter", () => {
     end: ecall
     msg: .string "HELLO, CITY"
     `);
-    expect(cpu.mem.displayText()).toBe("HELLO, CITY");
+    expect(cpu.mem.displayText()).toBe('HELLO, CITY');
   });
 
-  it("faults on bad access, illegal opcode and runaway loops", () => {
-    expect(() => run("li a0, 0x20000000\nlw a1, 0(a0)")).toThrow(RefFault);
-    expect(() => run("li a0, 1\nlw a1, 0(a0)")).toThrow(/misaligned/);
-    expect(() => run(".word 0")).toThrow(/illegal/);
-    expect(() => run("l: j l", 100)).toThrow(/exceeded/);
+  it('faults on bad access, illegal opcode and runaway loops', () => {
+    expect(() => run('li a0, 0x20000000\nlw a1, 0(a0)')).toThrow(RefFault);
+    expect(() => run('li a0, 1\nlw a1, 0(a0)')).toThrow(/misaligned/);
+    expect(() => run('.word 0')).toThrow(/illegal/);
+    expect(() => run('l: j l', 100)).toThrow(/exceeded/);
   });
 });

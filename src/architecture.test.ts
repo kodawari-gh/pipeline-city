@@ -51,15 +51,20 @@ const BASELINE = 82;
 
 describe('architecture', () => {
   it('sim code imports no render, ui or app code and no DOM libraries', () => {
-    const bad = offenders(isSim, (t, spec) =>
-      /(^|\/)(render|ui)\//.test(t) || t.startsWith('app/') || /^(pixi\.js|preact)/.test(spec));
+    const bad = offenders(
+      isSim,
+      (t, spec) => /(^|\/)(render|ui)\//.test(t) || t.startsWith('app/') || /^(pixi\.js|preact)/.test(spec),
+    );
     expect(bad).toEqual([]);
   });
 
   // Known debt: core hubs (render/live, render/interact, sim/machine, ui/Hud) wire up features.
   // The count may only go down.
   it('core imports of feature code do not grow', () => {
-    const bad = offenders((f) => f.startsWith('core/'), (t) => t.startsWith('features/'));
+    const bad = offenders(
+      (f) => f.startsWith('core/'),
+      (t) => t.startsWith('features/'),
+    );
     expect(bad.length).toBeLessThanOrEqual(BASELINE);
   });
 });

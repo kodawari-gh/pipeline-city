@@ -16,7 +16,9 @@ describe('crash report pieces', () => {
   it('says where an address lives: inside a region, past the end of one, outside RAM, or unaligned', () => {
     const regions = [{ name: 'kernel', lo: 0xc100, hi: 0xc200 }];
     expect(describePc(0xc120, regions, 0x10000, 0x1234)).toMatch(/inside "kernel".*0x00001234/);
-    expect(describePc(0xd310, regions, 0x10000, 0)).toMatch(/4368 bytes past the end of "kernel".*0xc200.*ran off the end/);
+    expect(describePc(0xd310, regions, 0x10000, 0)).toMatch(
+      /4368 bytes past the end of "kernel".*0xc200.*ran off the end/,
+    );
     expect(describePc(0x20000, regions, 0x10000, null)).toMatch(/outside RAM/);
     expect(describePc(0xc121, regions, 0x10000, null)).toMatch(/not word aligned/);
   });
@@ -24,7 +26,10 @@ describe('crash report pieces', () => {
   it('dumps RAM words eight to a line and stops at the end of RAM', () => {
     const ram = new Uint8Array(64);
     new DataView(ram.buffer).setUint32(4, 0xdeadbeef, true);
-    expect(wordsHex(ram, 0, 10).split('\n')).toEqual(['0000: 00000000 deadbeef 00000000 00000000 00000000 00000000 00000000 00000000', '0020: 00000000 00000000']);
+    expect(wordsHex(ram, 0, 10).split('\n')).toEqual([
+      '0000: 00000000 deadbeef 00000000 00000000 00000000 00000000 00000000 00000000',
+      '0020: 00000000 00000000',
+    ]);
     expect(wordsHex(ram, 56, 8)).toBe('0038: 00000000 00000000');
   });
 });
@@ -72,7 +77,9 @@ describe('the host on a crash', () => {
 
   it('pauses the sim, keeps the report and posts it once instead of throwing again every tick', () => {
     const h = started();
-    h.game!.advanceBaseTick = () => { throw FAULT; };
+    h.game!.advanceBaseTick = () => {
+      throw FAULT;
+    };
     expect(() => advance(h, 1000)).not.toThrow();
     expect(h.speed).toBe(0);
     const posted = takeCrash(h);
@@ -85,7 +92,9 @@ describe('the host on a crash', () => {
 
   it('a throw while handling an action also reports, next to the error', () => {
     const h = started();
-    h.game!.powerButton = () => { throw FAULT; };
+    h.game!.powerButton = () => {
+      throw FAULT;
+    };
     const r = handleMessage(h, { type: 'powerButton' });
     expect(r.map((m) => m.type)).toEqual(['error', 'crash']);
     expect(h.speed).toBe(0);

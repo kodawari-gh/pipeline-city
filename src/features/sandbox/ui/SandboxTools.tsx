@@ -9,15 +9,29 @@ import { taskOfTemplate } from '../../jobs/sim/jobdex';
 // Keyboard: the chip toggles the popover, Escape closes it and gives focus back to the chip.
 
 const TEMPLATE_LABEL: Record<string, string> = {
-  cli: 'mixed (log / calc / checksum)', 'cli.log': 'log', 'cli.calc': 'calc', 'cli.checksum': 'checksum', 'cli.scan': 'scan (memory heavy)',
+  cli: 'mixed (log / calc / checksum)',
+  'cli.log': 'log',
+  'cli.calc': 'calc',
+  'cli.checksum': 'checksum',
+  'cli.scan': 'scan (memory heavy)',
 };
 
 const CLASS_LABEL: Record<string, string> = {
-  cli: 'Command line', scan: 'Memory scan', db: 'Database', web: 'Web page', secure: 'Secure signing',
-  gpu: 'GPU batch', npu: 'AI inference', hpc: 'HPC',
+  cli: 'Command line',
+  scan: 'Memory scan',
+  db: 'Database',
+  web: 'Web page',
+  secure: 'Secure signing',
+  gpu: 'GPU batch',
+  npu: 'AI inference',
+  hpc: 'HPC',
 };
 /** What a class needs of the machine, for its tooltip. */
-const CLASS_NEEDS: Record<string, string> = { web: 'Needs an ISP plan', secure: 'Needs a TPM and ECC memory', hpc: 'Needs OS 4 and 2 or more cores' };
+const CLASS_NEEDS: Record<string, string> = {
+  web: 'Needs an ISP plan',
+  secure: 'Needs a TPM and ECC memory',
+  hpc: 'Needs OS 4 and 2 or more cores',
+};
 
 export function SandboxTools({ s }: { s: Snapshot }) {
   const [open, setOpen] = useState(false);
@@ -43,7 +57,11 @@ export function SandboxTools({ s }: { s: Snapshot }) {
   return (
     <div class="sbx">
       <button
-        data-cue="ui_click" ref={chip} class={`sbx-chip ${open ? 'on' : ''}`} aria-expanded={open} aria-controls="sbx-tools"
+        data-cue="ui_click"
+        ref={chip}
+        class={`sbx-chip ${open ? 'on' : ''}`}
+        aria-expanded={open}
+        aria-controls="sbx-tools"
         title="Sandbox game: infinite money, everything unlocked. Click for the sandbox tools."
         onClick={() => setOpen(!open)}
       >
@@ -54,49 +72,112 @@ export function SandboxTools({ s }: { s: Snapshot }) {
           <h4>Add a key</h4>
           <div class="sbx-row">
             <select aria-label="Job template" value={tpl} onChange={(e) => setTpl(e.currentTarget.value)}>
-              {TEMPLATE_NAMES.map((t) => <option key={t} value={t}>{TEMPLATE_LABEL[t] ?? taskOfTemplate(t)?.name ?? t}</option>)}
+              {TEMPLATE_NAMES.map((t) => (
+                <option key={t} value={t}>
+                  {TEMPLATE_LABEL[t] ?? taskOfTemplate(t)?.name ?? t}
+                </option>
+              ))}
             </select>
-            <select aria-label="Work multiplier" value={scale} title="Work multiplier" onChange={(e) => setScale(Number(e.currentTarget.value))}>
-              {[1, 2, 4, 8, 16].map((n) => <option key={n} value={n}>x{n}</option>)}
+            <select
+              aria-label="Work multiplier"
+              value={scale}
+              title="Work multiplier"
+              onChange={(e) => setScale(Number(e.currentTarget.value))}
+            >
+              {[1, 2, 4, 8, 16].map((n) => (
+                <option key={n} value={n}>
+                  x{n}
+                </option>
+              ))}
             </select>
-            <button data-cue="ui_confirm" onClick={() => spawnKey(tpl, scale)} aria-label="Spawn a key with this job">Spawn</button>
+            <button data-cue="ui_confirm" onClick={() => spawnKey(tpl, scale)} aria-label="Spawn a key with this job">
+              Spawn
+            </button>
           </div>
           <div class="sbx-row">
-            <button data-cue="ui_click" onClick={clearQueue} title="Throw away every key in the tray">Clear queue</button>
-            <button data-cue="ui_click" onClick={repairAll} title="Un-burn all parts and the board, cool everything down, reset a tripped PSU">Repair all</button>
+            <button data-cue="ui_click" onClick={clearQueue} title="Throw away every key in the tray">
+              Clear queue
+            </button>
+            <button
+              data-cue="ui_click"
+              onClick={repairAll}
+              title="Un-burn all parts and the board, cool everything down, reset a tripped PSU"
+            >
+              Repair all
+            </button>
           </div>
           <h4>Reputation</h4>
           <div class="sbx-row">
             <input
-              type="range" data-cue="ui_slider_tick" min="0.4" max="4" step="0.05" value={shownRep} aria-label="Reputation"
+              type="range"
+              data-cue="ui_slider_tick"
+              min="0.4"
+              max="4"
+              step="0.05"
+              value={shownRep}
+              aria-label="Reputation"
               aria-valuetext={shownRep.toFixed(2)}
-              onInput={(e) => { const v = Number(e.currentTarget.value); setRep(v); setReputation(v); }}
+              onInput={(e) => {
+                const v = Number(e.currentTarget.value);
+                setRep(v);
+                setReputation(v);
+              }}
               // Keep the local value while the slider has focus: a keyboard step fires `change` on every press, and
               // resetting there snapped the slider back to the last snapshot (the next press started from the old value).
               onBlur={() => setRep(null)}
             />
-            <span class="sbx-val" aria-hidden="true">{shownRep.toFixed(2)}</span>
+            <span class="sbx-val" aria-hidden="true">
+              {shownRep.toFixed(2)}
+            </span>
           </div>
           <h4>Arriving on their own</h4>
           <div class="sbj-kinds sbx-classes" role="group" aria-label="Job classes that arrive on their own">
             {JOB_CLASSES.map((c) => {
-              const atLevel = !!levelDef(s.level.level).mix[c.id], off = s.level.classesOff.includes(c.id);
+              const atLevel = !!levelDef(s.level.level).mix[c.id],
+                off = s.level.classesOff.includes(c.id);
               return (
-                <button key={c.id} class={`sbj-kind${off ? '' : ' on'}${atLevel ? '' : ' dim'}`} data-cue="ui_toggle" aria-pressed={!off}
-                  title={`${CLASS_NEEDS[c.id] ? `${CLASS_NEEDS[c.id]}. ` : ''}${atLevel ? '' : `Not part of the arrival mix at level ${s.level.level}: spawn one by hand, or raise the rules level (the LEVEL button).`}`.trim() || undefined}
-                  onClick={() => setJobClasses(JOB_CLASSES.map((x) => x.id).filter((id) => (id === c.id ? !off : s.level.classesOff.includes(id))))}>
+                <button
+                  key={c.id}
+                  class={`sbj-kind${off ? '' : ' on'}${atLevel ? '' : ' dim'}`}
+                  data-cue="ui_toggle"
+                  aria-pressed={!off}
+                  title={
+                    `${CLASS_NEEDS[c.id] ? `${CLASS_NEEDS[c.id]}. ` : ''}${atLevel ? '' : `Not part of the arrival mix at level ${s.level.level}: spawn one by hand, or raise the rules level (the LEVEL button).`}`.trim() ||
+                    undefined
+                  }
+                  onClick={() =>
+                    setJobClasses(
+                      JOB_CLASSES.map((x) => x.id).filter((id) =>
+                        id === c.id ? !off : s.level.classesOff.includes(id),
+                      ),
+                    )
+                  }
+                >
                   {CLASS_LABEL[c.id] ?? c.id}
                 </button>
               );
             })}
           </div>
           <div class="sbx-row">
-            <button data-cue="ui_click" onClick={() => setJobClasses([])} title="Let every class arrive again">All on</button>
-            <button data-cue="ui_click" onClick={() => setJobClasses(JOB_CLASSES.map((c) => c.id))} title="Stop every class: no key arrives until you spawn one or switch a class on">All off</button>
+            <button data-cue="ui_click" onClick={() => setJobClasses([])} title="Let every class arrive again">
+              All on
+            </button>
+            <button
+              data-cue="ui_click"
+              onClick={() => setJobClasses(JOB_CLASSES.map((c) => c.id))}
+              title="Stop every class: no key arrives until you spawn one or switch a class on"
+            >
+              All off
+            </button>
           </div>
           <h4>Speed</h4>
           <div class="sbx-row">
-            <button class={speed.value === 64 ? 'on' : ''} data-cue="ui_toggle" aria-pressed={speed.value === 64} onClick={() => setSpeed(speed.value === 64 ? 1 : 64)}>
+            <button
+              class={speed.value === 64 ? 'on' : ''}
+              data-cue="ui_toggle"
+              aria-pressed={speed.value === 64}
+              onClick={() => setSpeed(speed.value === 64 ? 1 : 64)}
+            >
               {speed.value === 64 ? '16x on (back to 1x)' : 'Run at 16x'}
             </button>
           </div>

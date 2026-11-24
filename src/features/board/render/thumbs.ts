@@ -37,7 +37,11 @@ let stillsAsked = false;
 function prefetchStills(): void {
   const todo = Object.entries(stills ?? {}).map(([id, h]) => `${STILLS}${id}.webp?${h}`);
   const step = () => {
-    for (const url of todo.splice(0, 4)) { const img = new Image(); img.decoding = 'async'; img.src = url; }
+    for (const url of todo.splice(0, 4)) {
+      const img = new Image();
+      img.decoding = 'async';
+      img.src = url;
+    }
     if (todo.length) setTimeout(step, 50);
   };
   setTimeout(step, 0);
@@ -49,8 +53,15 @@ export function loadStills(): void {
   stillsAsked = true;
   void fetch(`${STILLS}manifest.json`)
     .then(async (r) => (r.ok ? ((await r.json()) as { stills?: Record<string, string> }).stills : null))
-    .catch((e: unknown) => { if (import.meta.env.DEV) console.warn('the shop stills did not load:', e); return null; })
-    .then((m) => { stills = m ?? {}; thumbsVersion.value += 1; prefetchStills(); });
+    .catch((e: unknown) => {
+      if (import.meta.env.DEV) console.warn('the shop stills did not load:', e);
+      return null;
+    })
+    .then((m) => {
+      stills = m ?? {};
+      thumbsVersion.value += 1;
+      prefetchStills();
+    });
 }
 
 export function initThumbs(r: Renderer): void {
@@ -67,12 +78,20 @@ function startWorker(): void {
   if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') return;
   try {
     worker = new Worker(new URL('./thumbs.worker.ts', import.meta.url), { type: 'module' });
-  } catch { return; }
+  } catch {
+    return;
+  }
   worker.onmessage = (e: MessageEvent<ThumbReply>) => {
     const m = e.data;
-    if ('dead' in m) { fallBack(); return; }
+    if ('dead' in m) {
+      fallBack();
+      return;
+    }
     if (m.epoch !== epoch || !sent.delete(m.key)) return;
-    if (m.png) { cache.set(m.key, URL.createObjectURL(m.png)); thumbsVersion.value += 1; } else failed.add(m.key);
+    if (m.png) {
+      cache.set(m.key, URL.createObjectURL(m.png));
+      thumbsVersion.value += 1;
+    } else failed.add(m.key);
   };
   worker.onerror = () => fallBack();
 }
@@ -102,13 +121,20 @@ export function thumbOf(id: string): string | null {
   const still = stills[id];
   if (still) return `${STILLS}${id}.webp?${still}`;
   if (!renderer) return null;
-  const theme = readTheme(), key = id;
+  const theme = readTheme(),
+    key = id;
   const hit = cache.get(key);
   if (hit) return hit;
   if (failed.has(key) || sent.has(key) || queue.some((j) => j.key === key)) return null;
   const job: ThumbJob = { key, id, theme, epoch };
   startWorker();
-  if (worker) { sent.set(key, job); worker.postMessage(job); } else { queue.push(job); pump(); }
+  if (worker) {
+    sent.set(key, job);
+    worker.postMessage(job);
+  } else {
+    queue.push(job);
+    pump();
+  }
   return null;
 }
 
@@ -121,8 +147,13 @@ function pump() {
     if (j && j.epoch === epoch) {
       try {
         const c = renderer && drawThumb(renderer, j.id, j.theme);
-        if (c) { cache.set(j.key, (c as HTMLCanvasElement).toDataURL('image/png')); thumbsVersion.value += 1; } else failed.add(j.key);
-      } catch { failed.add(j.key); }
+        if (c) {
+          cache.set(j.key, (c as HTMLCanvasElement).toDataURL('image/png'));
+          thumbsVersion.value += 1;
+        } else failed.add(j.key);
+      } catch {
+        failed.add(j.key);
+      }
     }
     if (queue.length) setTimeout(next, 0);
     else busy = false;

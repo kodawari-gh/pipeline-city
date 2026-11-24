@@ -3,31 +3,61 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BoxGeometry, Mesh, MeshStandardMaterial } from 'three';
 
-const rig = vi.hoisted(() => ({ ready: false, depthReady: true, render: vi.fn(), started: vi.fn(), depth: vi.fn(), used: vi.fn(), restored: null as null | (() => void), frame: null as null | ((now: number) => void) }));
+const rig = vi.hoisted(() => ({
+  ready: false,
+  depthReady: true,
+  render: vi.fn(),
+  started: vi.fn(),
+  depth: vi.fn(),
+  used: vi.fn(),
+  restored: null as null | (() => void),
+  frame: null as null | ((now: number) => void),
+}));
 
 vi.mock('three', async (orig) => {
   const actual = await orig<typeof import('three')>();
   class WebGLRenderer {
     domElement = {
-      style: { setProperty() {} }, width: 400, height: 300,
-      addEventListener: (k: string, f: () => void) => { if (k === 'webglcontextrestored') rig.restored = f; },
+      style: { setProperty() {} },
+      width: 400,
+      height: 300,
+      addEventListener: (k: string, f: () => void) => {
+        if (k === 'webglcontextrestored') rig.restored = f;
+      },
       removeEventListener() {},
     };
     shadowMap = { enabled: false, type: 0 };
-    outputColorSpace = ''; toneMapping = 0; toneMappingExposure = 1;
-    setPixelRatio() {} setSize() {}
+    outputColorSpace = '';
+    toneMapping = 0;
+    toneMappingExposure = 1;
+    setPixelRatio() {}
+    setSize() {}
     render = rig.render;
   }
-  class PMREMGenerator { dispose() {} }
+  class PMREMGenerator {
+    dispose() {}
+  }
   return { ...actual, WebGLRenderer, PMREMGenerator };
 });
-vi.mock('./init', async (orig) => ({ ...(await orig<typeof import('./init')>()), studioEnv: () => null, restoreStudioEnv() {}, trackRender() {}, disposeRenderContext() {} }));
+vi.mock('./init', async (orig) => ({
+  ...(await orig<typeof import('./init')>()),
+  studioEnv: () => null,
+  restoreStudioEnv() {},
+  trackRender() {},
+  disposeRenderContext() {},
+}));
 vi.mock('./compile', async (orig) => ({
   ...(await orig<typeof import('./compile')>()),
   /** One program that links when the test says so, and counts its first use. */
-  startPrograms: (...a: unknown[]) => { rig.started(...a); return [{ isReady: () => rig.ready, getUniforms: rig.used }]; },
+  startPrograms: (...a: unknown[]) => {
+    rig.started(...a);
+    return [{ isReady: () => rig.ready, getUniforms: rig.used }];
+  },
   /** One depth program of the shadows, that links when the test says so. */
-  startShadowPrograms: (...a: unknown[]) => { rig.depth(...a); return [{ isReady: () => rig.depthReady }]; },
+  startShadowPrograms: (...a: unknown[]) => {
+    rig.depth(...a);
+    return [{ isReady: () => rig.depthReady }];
+  },
 }));
 
 import { mountViewer, type Viewer } from './viewer';
@@ -37,22 +67,45 @@ const part = () => new Mesh(new BoxGeometry(10, 10, 10), new MeshStandardMateria
 
 describe('mountViewer, the first picture of a part', () => {
   let viewer: Viewer, clock: number;
-  const tick = (n = 1) => { for (let i = 0; i < n; i++) { clock += TICK; rig.frame!(clock); } };
+  const tick = (n = 1) => {
+    for (let i = 0; i < n; i++) {
+      clock += TICK;
+      rig.frame!(clock);
+    }
+  };
 
   beforeEach(() => {
-    rig.ready = false; rig.depthReady = true;
-    rig.render.mockClear(); rig.started.mockClear(); rig.depth.mockClear(); rig.used.mockClear();
-    rig.restored = null; rig.frame = null;
+    rig.ready = false;
+    rig.depthReady = true;
+    rig.render.mockClear();
+    rig.started.mockClear();
+    rig.depth.mockClear();
+    rig.used.mockClear();
+    rig.restored = null;
+    rig.frame = null;
     clock = 1000;
     vi.spyOn(performance, 'now').mockImplementation(() => clock);
     vi.stubGlobal('window', { devicePixelRatio: 1 });
-    vi.stubGlobal('document', { createElement: () => ({ width: 0, height: 0, getContext: () => ({ createRadialGradient: () => ({ addColorStop() {} }), fillRect() {} }) }) });
-    vi.stubGlobal('requestAnimationFrame', (f: (now: number) => void) => { rig.frame = f; return 1; });
+    vi.stubGlobal('document', {
+      createElement: () => ({
+        width: 0,
+        height: 0,
+        getContext: () => ({ createRadialGradient: () => ({ addColorStop() {} }), fillRect() {} }),
+      }),
+    });
+    vi.stubGlobal('requestAnimationFrame', (f: (now: number) => void) => {
+      rig.frame = f;
+      return 1;
+    });
     vi.stubGlobal('cancelAnimationFrame', () => {});
     viewer = mountViewer({ appendChild() {}, clientWidth: 400, clientHeight: 300 } as unknown as HTMLElement);
     viewer.setObject(part());
   });
-  afterEach(() => { viewer?.dispose(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+  afterEach(() => {
+    viewer?.dispose();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
 
   it('draws nothing while the programs link, starts them once, and draws when they have linked', () => {
     tick(30);

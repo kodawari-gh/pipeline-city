@@ -19,9 +19,17 @@ beforeEach(async () => {
   vi.resetModules();
   const mem = new Map<string, string>();
   vi.stubGlobal('localStorage', {
-    getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k),
+    getItem: (k: string) => mem.get(k) ?? null,
+    setItem: (k: string, v: string) => void mem.set(k, v),
+    removeItem: (k: string) => void mem.delete(k),
   });
-  vi.stubGlobal('document', { documentElement: { setAttribute: () => {}, style: { setProperty: () => {} }, classList: { toggle: () => {}, add: () => {}, remove: () => {} } } });
+  vi.stubGlobal('document', {
+    documentElement: {
+      setAttribute: () => {},
+      style: { setProperty: () => {} },
+      classList: { toggle: () => {}, add: () => {}, remove: () => {} },
+    },
+  });
   st = await import('@/core/ui/state');
   store = await import('@/app/store');
   leave = await import('@/core/ui/leave');
@@ -30,11 +38,18 @@ beforeEach(async () => {
   store.snapshot.value = base;
 });
 
-const openMenu = () => { st.gameMenuOpen.value = true; };
-const closeMenu = () => { st.gameMenuOpen.value = false; };
+const openMenu = () => {
+  st.gameMenuOpen.value = true;
+};
+const closeMenu = () => {
+  st.gameMenuOpen.value = false;
+};
 const speed = () => store.speed.value;
 /** A snapshot one level above the seen one: the level-up popup is owed. */
-const levelUpSnap = (): Snapshot => ({ ...base, level: { ...base.level, level: base.level.level + 1, leveledUpAt: 1000, recentlyUnlocked: [] } });
+const levelUpSnap = (): Snapshot => ({
+  ...base,
+  level: { ...base.level, level: base.level.level + 1, leveledUpAt: 1000, recentlyUnlocked: [] },
+});
 
 describe('menu hold on the clock', () => {
   it('opening the menu while running holds the clock; closing it restores the earlier speed', () => {

@@ -3,16 +3,22 @@ import type { Room } from '@/core/render/three/camera';
 import type { Rect } from '@/features/board/render/layout/layout';
 
 /** The desk's depth from the wall (about 650 mm at the monitor's scale), and its top's thickness. */
-export const DESK_D = 12000, DESK_TOP = 360;
+export const DESK_D = 12000,
+  DESK_TOP = 360;
 /** The case stands this far from the wall; the board sits on its far panel. */
-export const CASE_Z = 2200, BOARD_Z = CASE_Z + 260;
+export const CASE_Z = 2200,
+  BOARD_Z = CASE_Z + 260;
 /** How deep each case tier is (mini, micro, mid, full tower): the rear fan stands beside the I/O plate, so the bigger fans need a deeper case. */
 export const CASE_DEPTHS = [4200, 4200, 4500, 4900];
 /**
  * The current case's depth and its face toward the viewer; the case fans and a radiator sit centred in that depth, a fan is at most `FAN_MAX` wide.
  * The rear fan's centre `REAR_ZC`: toward the glass, just clear of the I/O plate. Live bindings, as in `layout.ts`: `setCaseDepth` moves them.
  */
-export let CASE_D = CASE_DEPTHS[0]!, CASE_FRONT = CASE_Z + CASE_D, FAN_ZC = CASE_Z + CASE_D / 2, FAN_MAX = CASE_D - 600, REAR_ZC = BOARD_Z + 1260 + 1060;
+export let CASE_D = CASE_DEPTHS[0]!,
+  CASE_FRONT = CASE_Z + CASE_D,
+  FAN_ZC = CASE_Z + CASE_D / 2,
+  FAN_MAX = CASE_D - 600,
+  REAR_ZC = BOARD_Z + 1260 + 1060;
 /** Point the case's depths at this case tier, whose fans are `fanLen` long (`setLayoutTier` calls it). */
 export function setCaseDepth(tier: number, fanLen: number): void {
   CASE_D = CASE_DEPTHS[tier] ?? CASE_DEPTHS[0]!;
@@ -29,15 +35,23 @@ export const START_HOUR_3D = 14.2;
 
 // ---- the bedroom round the desk: real sizes at the monitor's scale (about 18,700 units a metre; the 2D floor is far closer than a real one) ----
 /** The floor (a desk 750 mm high) and the ceiling (2.5 m over the floor), 2D y down. */
-export const FLOOR_Y = 20000, CEIL_Y = -26800;
+export const FLOOR_Y = 20000,
+  CEIL_Y = -26800;
 /** The side walls and the wall behind the viewer (the room is 4.8 m wide and 3.7 m deep). */
-export const WEST_X = -40000, EAST_X = 50000, FRONT_Z = 70000;
+export const WEST_X = -40000,
+  EAST_X = 50000,
+  FRONT_Z = 70000;
 /**
  * The back wall's thickness (its reveal), and the glass wall in it (2D y down): floor-to-ceiling glazing from near the west corner to past the
  * case, from a slot under the ceiling (the blinds' pocket) down to a low upstand (10 cm). The city fills the view behind the desk.
  */
 export const WALL_T = 2600;
-export const WINDOW: Rect = { x: WEST_X + 2400, y: CEIL_Y + 900, w: 10400 - (WEST_X + 2400), h: FLOOR_Y - 1900 - (CEIL_Y + 900) };
+export const WINDOW: Rect = {
+  x: WEST_X + 2400,
+  y: CEIL_Y + 900,
+  w: 10400 - (WEST_X + 2400),
+  h: FLOOR_Y - 1900 - (CEIL_Y + 900),
+};
 /**
  * The building's column in the glass wall, behind the monitor's east end: plaster, the whole height. The things of the 2D wall stay on it at
  * their 2D places (the router's shelf, the letterbox, the network and power plates); the clock moves onto it (`CLOCK_Y`).
@@ -55,7 +69,15 @@ export const VIEW_TOP = -14000;
  * end and `lamp.dz` off its middle, `lamp.r` round and `lamp.h` tall), the bookcase on the west wall, the door near the front.
  */
 export const BED = { x: 19500, w: 26500, z0: 500, z1: 38000, head: 600, headTop: FLOOR_Y - 17500, top: FLOOR_Y - 9000 };
-export const NIGHTSTAND = { x: 11400, w: 7200, z0: 0, z1: 6800, top: FLOOR_Y - 9300, h: 3200, lamp: { dx: 2400, dz: -300, r: 1950, h: 3800 } };
+export const NIGHTSTAND = {
+  x: 11400,
+  w: 7200,
+  z0: 0,
+  z1: 6800,
+  top: FLOOR_Y - 9300,
+  h: 3200,
+  lamp: { dx: 2400, dz: -300, r: 1950, h: 3800 },
+};
 export const BOOKCASE = { x: WEST_X, w: 5600, z0: 8000, z1: 24000, top: FLOOR_Y - 34000 };
 export const DOOR = { z0: 46000, z1: 62000, top: FLOOR_Y - 38500 };
 /** The wall sconce on the west wall north of the door, clear of its architrave: its middle along the wall (z) and its middle at eye height (2D y down). */
@@ -104,9 +126,24 @@ export function eyeRoom(): Room {
  */
 export function eyeBlocks(geo: { desk: { x0: number; x1: number }; ys: number }): Room[] {
   // a box from 2D: its ends (x), its top and bottom (2D y down), its back and front (z)
-  const box = (x0: number, x1: number, top: number, bottom: number, z0: number, z1: number): Room => ({ x0, x1, y0: -bottom, y1: -top, z0, z1 });
-  const fl = FLOOR_Y, { x, w, z0, z1 } = BED, duvet = BED.top - 1700, ns = NIGHTSTAND, lamp = ns.lamp;
-  const lx = ns.x + lamp.dx, lz = (ns.z0 + ns.z1) / 2 + lamp.dz, ped = geo.desk.x1 - PED.in, under = geo.ys + DESK_TOP, b = BENCH;
+  const box = (x0: number, x1: number, top: number, bottom: number, z0: number, z1: number): Room => ({
+    x0,
+    x1,
+    y0: -bottom,
+    y1: -top,
+    z0,
+    z1,
+  });
+  const fl = FLOOR_Y,
+    { x, w, z0, z1 } = BED,
+    duvet = BED.top - 1700,
+    ns = NIGHTSTAND,
+    lamp = ns.lamp;
+  const lx = ns.x + lamp.dx,
+    lz = (ns.z0 + ns.z1) / 2 + lamp.dz,
+    ped = geo.desk.x1 - PED.in,
+    under = geo.ys + DESK_TOP,
+    b = BENCH;
   return [
     box(x - 400, x + w + 400, duvet, fl - 8500, z0 - 100, z1 + 400),
     box(x - 1400, x + w + 1400, fl - 8500, fl - 6500, z0 - 100, z1 + 700),
@@ -132,7 +169,9 @@ export function eyeBlocks(geo: { desk: { x0: number; x1: number }; ys: number })
  * the faces of the city that look at us, and low in the evening it rakes across them from the west.
  */
 export function sunDir(hour: number): [number, number, number] {
-  const f = Math.min(1, Math.max(0, (hour - 6) / 14.5)), az = 1.75 - 3.5 * f, el = 0.85 * Math.sin(Math.PI * f) - 0.04;
+  const f = Math.min(1, Math.max(0, (hour - 6) / 14.5)),
+    az = 1.75 - 3.5 * f,
+    el = 0.85 * Math.sin(Math.PI * f) - 0.04;
   return [Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)];
 }
 
@@ -148,6 +187,7 @@ export function wallAround(x0: number, x1: number, y0: number, y1: number, hole:
 
 /** How strong the sun is at an hour: 0 at night, 1 from mid morning to mid afternoon. */
 export function daylight(hour: number): number {
-  const up = Math.min(1, Math.max(0, (hour - 5.5) / 2.5)), down = Math.min(1, Math.max(0, (20.5 - hour) / 2.5));
+  const up = Math.min(1, Math.max(0, (hour - 5.5) / 2.5)),
+    down = Math.min(1, Math.max(0, (20.5 - hour) / 2.5));
   return Math.min(up, down);
 }

@@ -1,16 +1,16 @@
 // Game feature: the USB key's life. Plug, eject, pay, decline, the auto-eject, and the job log and almanac entries a key leaves.
 // Every export is a `Game` method (see game.ts).
 
-import { COUNTER_NAMES, type PipelineEngine } from "../../cpu/sim/engines";
-import { generate } from "../../jobs/sim/gen";
-import { JOB_ROW, JobState, PchPhase } from "@/core/sim/memmap";
-import { dexEntry } from "../../jobs/sim/jobdex";
-import { JOB_LOG_CAP, windowOf, type JobOutcome, type JobWindow } from "../../jobs/sim/joblog";
-import { payout, slaFactor } from "./economy";
-import type { Game } from "@/worker/game/game";
-import type { Key } from "@/worker/game/internal";
-import { levelPayMul, needsMet } from "./levels";
-import type { Result } from "@/worker/game/types";
+import { COUNTER_NAMES, type PipelineEngine } from '../../cpu/sim/engines';
+import { generate } from '../../jobs/sim/gen';
+import { JOB_ROW, JobState, PchPhase } from '@/core/sim/memmap';
+import { dexEntry } from '../../jobs/sim/jobdex';
+import { JOB_LOG_CAP, windowOf, type JobOutcome, type JobWindow } from '../../jobs/sim/joblog';
+import { payout, slaFactor } from './economy';
+import type { Game } from '@/worker/game/game';
+import type { Key } from '@/worker/game/internal';
+import { levelPayMul, needsMet } from './levels';
+import type { Result } from '@/worker/game/types';
 
 /** The player's plug: as `plugKey`, and a machine that is off switches on (a refusal to start is reported). */
 export function plugAndBoot(this: Game, keyId: number): Result<{ key: number }> {
@@ -22,21 +22,27 @@ export function plugAndBoot(this: Game, keyId: number): Result<{ key: number }> 
 
 /** Plug a key from the tray into the USB port. One program at a time: a key already in the port must come out first. */
 export function plugKey(this: Game, keyId: number): Result<{ key: number }> {
-  if (this.plugged) return { ok: false, reason: "a key is already plugged in: remove it first" };
+  if (this.plugged) return { ok: false, reason: 'a key is already plugged in: remove it first' };
   const peek = this.tray.waiting().find((k) => k.id === keyId);
   if (peek) {
     // A job the machine cannot run is refused at the port (with an OS, at ingest): it waits in the tray until it expires or is declined.
     const need = needsMet(peek.needs, this.caps());
     if (!need.ok) {
-      this.note("key", `key ${peek.id} refused: needs ${need.missing.join(", ")}`);
-      return { ok: false, reason: `cannot run this job: it needs ${need.missing.join(" and ")}` };
+      this.note('key', `key ${peek.id} refused: needs ${need.missing.join(', ')}`);
+      return { ok: false, reason: `cannot run this job: it needs ${need.missing.join(' and ')}` };
     }
   }
   const key = this.tray.take(keyId);
   if (!key) return { ok: false, reason: `no key ${keyId} in the tray` };
   let program: Uint32Array;
   try {
-    program = generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true, gpu: this.gpuTarget(), npu: this.npuTarget() }).program;
+    program = generate(key.template, key.seed, {
+      row: JOB_ROW,
+      scale: key.scale,
+      hosted: true,
+      gpu: this.gpuTarget(),
+      npu: this.npuTarget(),
+    }).program;
   } catch (e) {
     this.tray.giveBack(key);
     return { ok: false, reason: `the key is unreadable (${(e as Error).message})` };
@@ -51,7 +57,7 @@ export function plugKey(this: Game, keyId: number): Result<{ key: number }> {
   this.pchKey = { id: key.id, program, done: key.done, result: key.result };
   this.pch.plug(this.pchKey);
   this.progress.firstKeyPlugged = true;
-  this.note("key", `key ${key.id} plugged in`);
+  this.note('key', `key ${key.id} plugged in`);
   return { ok: true, key: key.id };
 }
 
@@ -62,10 +68,13 @@ export function plugKey(this: Game, keyId: number): Result<{ key: number }> {
  */
 export function ejectKey(this: Game): Result<{ payout: number; done: boolean }> {
   const key = this.plugged;
-  if (!key) return { ok: false, reason: "no key is plugged in" };
+  if (!key) return { ok: false, reason: 'no key is plugged in' };
   // Under an OS the key stays in while the OS has its job: the result is written onto it and it pops out and pays by itself.
   if (this.os && this.powered && !key.done && this.kernelJobs().some((j) => j.key === key.id)) {
-    return { ok: false, reason: "the OS is working on this job: the key pops out by itself when the result is written" };
+    return {
+      ok: false,
+      reason: 'the OS is working on this job: the key pops out by itself when the result is written',
+    };
   }
   const phase = this.currentPhase();
   this.plugged = null;
@@ -74,14 +83,15 @@ export function ejectKey(this: Game): Result<{ payout: number; done: boolean }> 
   if (!key.done) {
     if (!this.os) key.attempts++;
     this.tray.giveBack(key);
-    this.note("key", `key ${key.id} pulled before the job finished`);
-    if (this.powered && !this.postError && (phase === "loading" || phase === "running" || phase === "writing")) this.coldBoot();
+    this.note('key', `key ${key.id} pulled before the job finished`);
+    if (this.powered && !this.postError && (phase === 'loading' || phase === 'running' || phase === 'writing'))
+      this.coldBoot();
     return { ok: true, payout: 0, done: false };
   }
   if (!this.progress.firstKeyEjected && !this.sandbox) {
     // Scripted for the guided start: the first happy client tells two friends, so the tutorial's next lesson never finds an empty tray.
-    for (let i = 0; i < 2; i++) this.enqueue("cli", 1, "cli");
-    this.note("key", "your first client told two friends: new keys are in the tray");
+    for (let i = 0; i < 2; i++) this.enqueue('cli', 1, 'cli');
+    this.note('key', 'your first client told two friends: new keys are in the tray');
   }
   this.progress.firstKeyEjected = true;
   if (this.os) {
@@ -89,7 +99,7 @@ export function ejectKey(this: Game): Result<{ payout: number; done: boolean }> 
     if (!key.doneBeforeOs) this.progress.firstOsJob = true;
     this.freeKernelSlot(key.id); // delivery is the receipt: the kernel's slot for this job is free again
   }
-  const pay = this.deliver(key, "collected");
+  const pay = this.deliver(key, 'collected');
   return { ok: true, payout: pay, done: true };
 }
 
@@ -106,19 +116,28 @@ export function deliver(this: Game, key: Key, how: string): number {
   this.avgTurnaround += this.cfg.emaAlpha * (turnaround - this.avgTurnaround);
   this.addClientBase(this.reputation());
   this.lastCompleted = {
-    id: key.id, template: key.template, payout: pay, turnaround, execTicks: key.doneAt - this.ranOf(key), late,
-    attempts: key.attempts, completedAt: this.baseTick,
+    id: key.id,
+    template: key.template,
+    payout: pay,
+    turnaround,
+    execTicks: key.doneAt - this.ranOf(key),
+    late,
+    attempts: key.attempts,
+    completedAt: this.baseTick,
   };
   this.dexDone(key);
-  this.addLog(key, "done", pay, late);
-  this.note("payout", `key ${key.id} ${how}: $${pay}${late ? " (late)" : ""}`);
+  this.addLog(key, 'done', pay, late);
+  this.note('payout', `key ${key.id} ${how}: $${pay}${late ? ' (late)' : ''}`);
   return pay;
 }
 
 /** Ids of the keys in the tray that the machine can run, oldest first (what a bot should plug). */
 export function trayKeyIds(this: Game): number[] {
   const caps = this.caps();
-  return this.tray.waiting().filter((k) => needsMet(k.needs, caps).ok).map((k) => k.id);
+  return this.tray
+    .waiting()
+    .filter((k) => needsMet(k.needs, caps).ok)
+    .map((k) => k.id);
 }
 
 /**
@@ -128,21 +147,24 @@ export function trayKeyIds(this: Game): number[] {
  * Refused for the plugged key, a running job and a result waiting for collection.
  */
 export function declineKey(this: Game, keyId: number): Result<{ keyId: number }> {
-  if (this.plugged?.id === keyId) return { ok: false, reason: "plugged: the key is in the USB port, remove it first" };
+  if (this.plugged?.id === keyId) return { ok: false, reason: 'plugged: the key is in the USB port, remove it first' };
   const retired = this.tray.waiting().some((k) => k.id === keyId && k.retired);
   const inTray = this.tray.waiting().some((k) => k.id === keyId);
   const inOffers = this.offersQ.waiting().some((k) => k.id === keyId);
   const spooled = this.spool.find((k) => k.id === keyId);
-  const gone = this.tray.waiting().find((k) => k.id === keyId) ?? this.offersQ.waiting().find((k) => k.id === keyId) ?? spooled;
+  const gone =
+    this.tray.waiting().find((k) => k.id === keyId) ?? this.offersQ.waiting().find((k) => k.id === keyId) ?? spooled;
   if (inOffers) {
     this.offersQ.take(keyId);
   } else if (this.downloads.some((t) => t.key.id === keyId) || this.rx.some((k) => k.id === keyId)) {
-    return { ok: false, reason: "downloading: the job is on the wire" };
+    return { ok: false, reason: 'downloading: the job is on the wire' };
   } else if (spooled) {
-    if (this.uploads.some((t) => t.key.id === keyId)) return { ok: false, reason: "uploading: the result is being sent" };
+    if (this.uploads.some((t) => t.key.id === keyId))
+      return { ok: false, reason: 'uploading: the result is being sent' };
     const job = this.kernelJobs().find((j) => j.key === keyId);
-    if (job?.state === JobState.Running) return { ok: false, reason: "running: the job is being run" };
-    if (job?.state === JobState.Result || job?.state === JobState.Sending) return { ok: false, reason: "result ready: it is being delivered" };
+    if (job?.state === JobState.Running) return { ok: false, reason: 'running: the job is being run' };
+    if (job?.state === JobState.Result || job?.state === JobState.Sending)
+      return { ok: false, reason: 'result ready: it is being delivered' };
     if (job) this.freeKernelSlot(keyId);
     this.spool = this.spool.filter((k) => k.id !== keyId);
   } else if (!inTray) {
@@ -151,10 +173,14 @@ export function declineKey(this: Game, keyId: number): Result<{ keyId: number }>
     this.tray.take(keyId);
   }
   this.declined++;
-  if (gone) this.addLog(gone, "declined", 0, false);
+  if (gone) this.addLog(gone, 'declined', 0, false);
   // A retired key costs nothing to decline (docs/NETWORK.md "Retired keys"): its client already went online.
-  if (!this.sandbox && !retired) this.avgTurnaround += this.cfg.emaAlpha * (this.targetTurnaround() - this.avgTurnaround);
-  this.note("decline", `declined job ${keyId}${this.sandbox ? " (free in the sandbox)" : retired ? " (free: retired)" : ""}`);
+  if (!this.sandbox && !retired)
+    this.avgTurnaround += this.cfg.emaAlpha * (this.targetTurnaround() - this.avgTurnaround);
+  this.note(
+    'decline',
+    `declined job ${keyId}${this.sandbox ? ' (free in the sandbox)' : retired ? ' (free: retired)' : ''}`,
+  );
   return { ok: true, keyId };
 }
 
@@ -171,7 +197,11 @@ export function pluggedKey(this: Game): { id: number; done: boolean } | null {
 /** Under an OS: the plugged key is in the kernel's queue (queued or running), so it can be unplugged. For bots. */
 export function pluggedIngested(this: Game): boolean {
   const k = this.plugged;
-  return !!k && !k.done && this.kernelJobs().some((j) => j.key === k.id && (j.state === JobState.Queued || j.state === JobState.Running));
+  return (
+    !!k &&
+    !k.done &&
+    this.kernelJobs().some((j) => j.key === k.id && (j.state === JobState.Queued || j.state === JobState.Running))
+  );
 }
 
 /** A finished key ejects itself `autoEjectTicks` after its result is in, and pays. No OS: after the machine halts on JOB DONE, and the machine powers off. With an OS: after the flash, and the machine stays on. */
@@ -179,7 +209,10 @@ export function autoEject(this: Game): void {
   const k = this.plugged;
   // No OS: after JOB DONE (halted). With an OS: once the result has landed on the key (the flash is over).
   const ready = !!k && k.done && (this.os ? this.pch.phase !== PchPhase.OsFlash : this.pch.phase === PchPhase.Halted);
-  if (!this.cfg.autoEjectTicks || !ready) { this.autoEjectWait = 0; return; }
+  if (!this.cfg.autoEjectTicks || !ready) {
+    this.autoEjectWait = 0;
+    return;
+  }
   if (++this.autoEjectWait >= this.cfg.autoEjectTicks) {
     this.autoEjectWait = 0;
     this.ejectKey();
@@ -198,7 +231,7 @@ export function afterMachine(this: Game): void {
     if (!this.os) k.doneBeforeOs = true;
     k.result = pk.result;
     this.progress.firstJobDone = true;
-    this.note("job", `key ${k.id} holds its result: ${k.result}`);
+    this.note('job', `key ${k.id} holds its result: ${k.result}`);
   }
 }
 
@@ -258,16 +291,27 @@ export function liveOf(this: Game, k: Key): { live?: JobWindow; gpu?: true } {
 
 /** The job's work runs on a graphics card: a `gpu` class job while a working card is fitted (without one the CPU does it and its stalls are real). The CPU only spins on the card's status. */
 export function onCard(this: Game, k: Key): boolean {
-  return k.cls === "gpu" && this.gpuTarget() !== undefined;
+  return k.cls === 'gpu' && this.gpuTarget() !== undefined;
 }
 
 /** The job log: one line for a job that ended (docs/JOBS.md "The log"). */
 export function addLog(this: Game, k: Key, outcome: JobOutcome, pay: number, late: boolean): void {
-  const done = outcome === "done";
+  const done = outcome === 'done';
   this.jobLog.push({
-    id: k.id, type: k.type, scale: k.scale, outcome, arrival: k.arrival,
-    start: done ? this.startOf(k) : this.baseTick, ...(done && k.ranAt !== undefined ? { ran: Math.max(this.startOf(k), k.ranAt) } : {}), finish: done ? k.doneAt : this.baseTick, end: this.baseTick,
-    deadline: k.deadline, payout: pay, late, attempts: k.attempts, os: this.os?.spec.tier ?? 0,
+    id: k.id,
+    type: k.type,
+    scale: k.scale,
+    outcome,
+    arrival: k.arrival,
+    start: done ? this.startOf(k) : this.baseTick,
+    ...(done && k.ranAt !== undefined ? { ran: Math.max(this.startOf(k), k.ranAt) } : {}),
+    finish: done ? k.doneAt : this.baseTick,
+    end: this.baseTick,
+    deadline: k.deadline,
+    payout: pay,
+    late,
+    attempts: k.attempts,
+    os: this.os?.spec.tier ?? 0,
     ...(done && this.onCard(k) ? { gpu: true as const } : {}),
     ...(done && k.reloaded ? { reloaded: true as const } : {}),
     ...(done && k.win ? { win: { ...k.win } } : {}),

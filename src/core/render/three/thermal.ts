@@ -4,7 +4,13 @@
 
 /** The stops of the palette: where on the scale (0 cold, 1 hot) and the colour there, as sRGB. */
 export const THERMAL: readonly (readonly [number, number])[] = [
-  [0.00, 0x2f6bff], [0.20, 0x7a3df0], [0.40, 0xd3306e], [0.60, 0xff5a24], [0.78, 0xffa51f], [0.90, 0xffe45a], [1.00, 0xfff8e0],
+  [0.0, 0x2f6bff],
+  [0.2, 0x7a3df0],
+  [0.4, 0xd3306e],
+  [0.6, 0xff5a24],
+  [0.78, 0xffa51f],
+  [0.9, 0xffe45a],
+  [1.0, 0xfff8e0],
 ];
 
 /** The exponent the scale bends by: the first kelvins over the room's already show (the air's own rise is small beside a part's). */
@@ -26,7 +32,9 @@ export function thermalHex(h: number): number {
   const x = Math.min(1, Math.max(0, h));
   let i = 1;
   while (i < THERMAL.length - 1 && THERMAL[i]![0] < x) i++;
-  const [t0, c0] = THERMAL[i - 1]!, [t1, c1] = THERMAL[i]!, k = Math.min(1, Math.max(0, (x - t0) / (t1 - t0)));
+  const [t0, c0] = THERMAL[i - 1]!,
+    [t1, c1] = THERMAL[i]!,
+    k = Math.min(1, Math.max(0, (x - t0) / (t1 - t0)));
   const ch = (s: number) => Math.round(((c0 >> s) & 255) + (((c1 >> s) & 255) - ((c0 >> s) & 255)) * k);
   return (ch(16) << 16) | (ch(8) << 8) | ch(0);
 }

@@ -21,7 +21,8 @@ export const CARD_LEN: Record<string, number> = { ...GPU_LEN, ...NPU_LEN };
 const CARD_H: Record<string, number> = { ...GPU_H, ...NPU_H };
 
 /** How far a card's north edge is above its slot's rail: a graphics card and an AI card hang mostly below the rail (away from the CPU), the rest sit centred. */
-const cardTop = (visual: string): number => (visual.startsWith('gpu') || visual.startsWith('npu') ? CARD_TOP : (CARD_H[visual] ?? 200) / 2);
+const cardTop = (visual: string): number =>
+  visual.startsWith('gpu') || visual.startsWith('npu') ? CARD_TOP : (CARD_H[visual] ?? 200) / 2;
 
 /** Where a card's power sockets sit: the x of each socket's centre from the card's west edge, and the y of its top from the card's north edge. One per PCIe lead the card takes (`cardLeads`). */
 export const cardPlugs = (visual: string): number[] => {
@@ -37,7 +38,10 @@ export const cardRect = (i: number, visual: string): Rect => {
 };
 
 /** Where a card's north-west PCB corner is in board space (the origin of its `gpuPlan`). */
-export const cardOrigin = (i: number, visual: string): { x: number; y: number } => ({ x: BD.x, y: nicY(i) - cardTop(visual) });
+export const cardOrigin = (i: number, visual: string): { x: number; y: number } => ({
+  x: BD.x,
+  y: nicY(i) - cardTop(visual),
+});
 
 /** The shroud plate over the die, in card-local units: dark with the heatsink's fins running across it. The view fades it away when zoomed in. */
 export function gpuCover(g: Graphics, T: Theme, p: GpuPlan): Graphics {
@@ -60,32 +64,52 @@ export function gpuCover(g: Graphics, T: Theme, p: GpuPlan): Graphics {
  * metal frame and a heatsink's wider fins.
  */
 export function npuCover(T: Theme, geo: NpuGeo): Container {
-  const root = new Container(), g = new Graphics(), r = geo.lid, two = geo.visual === 'npu-2', K = geo.grid;
+  const root = new Container(),
+    g = new Graphics(),
+    r = geo.lid,
+    two = geo.visual === 'npu-2',
+    K = geo.grid;
   root.addChild(g);
   box(g, r.x, r.y, r.w, r.h, 10, { fill: '#0d1220', stroke: two ? T.alu : T.line, lw: two ? 6 : 4 });
-  const fin = '#7d89a4', step = two ? 34 : 26;
+  const fin = '#7d89a4',
+    step = two ? 34 : 26;
   for (let x = r.x + 30; x < r.x + r.w - 20; x += step) g.moveTo(x, r.y + 14).lineTo(x, r.y + r.h - 14);
   g.stroke({ width: two ? 14 : 8, color: fin, alpha: two ? 0.3 : 0.18 });
-  for (let x = r.x + 30; x < r.x + r.w - 20; x += step) g.moveTo(x + step * 0.4, r.y + 14).lineTo(x + step * 0.4, r.y + r.h - 14);
+  for (let x = r.x + 30; x < r.x + r.w - 20; x += step)
+    g.moveTo(x + step * 0.4, r.y + 14).lineTo(x + step * 0.4, r.y + r.h - 14);
   g.stroke({ width: 3, color: '#000000', alpha: 0.35 });
   // the array's grid etched in the lid
-  const size = Math.min(r.h * 0.6, 340), cell = size / K, gx = r.x + r.w * 0.6, gy = r.y + (r.h - size) / 2;
+  const size = Math.min(r.h * 0.6, 340),
+    cell = size / K,
+    gx = r.x + r.w * 0.6,
+    gy = r.y + (r.h - size) / 2;
   box(g, gx - 14, gy - 14, size + 28, size + 28, 8, { fill: '#05070c', fa: 0.7, stroke: T.alu, lw: 3, sa: 0.8 });
-  for (let a = 0; a < K; a++) for (let b = 0; b < K; b++) g.rect(gx + b * cell + 2, gy + a * cell + 2, cell - 4, cell - 4);
+  for (let a = 0; a < K; a++)
+    for (let b = 0; b < K; b++) g.rect(gx + b * cell + 2, gy + a * cell + 2, cell - 4, cell - 4);
   g.fill({ color: T.alu, alpha: 0.5 });
   disc(g, r.x + 22, r.y + 22, 6, { fill: T.alu, fa: 0.85 });
   disc(g, r.x + r.w - 22, r.y + 22, 6, { fill: T.alu, fa: 0.85 });
   root.addChild(label('AI CARD', r.x + 44, r.y + r.h * 0.3, 44, T.ink, { head: true, a: 0.9 }));
-  root.addChild(label(`NPU ${K} x ${K}${two ? ' · SHIELDED' : ''}`, r.x + 44, r.y + r.h * 0.5, 28, two ? T.alu : T.mute, { head: true, a: 0.9 }));
+  root.addChild(
+    label(`NPU ${K} x ${K}${two ? ' · SHIELDED' : ''}`, r.x + 44, r.y + r.h * 0.5, 28, two ? T.alu : T.mute, {
+      head: true,
+      a: 0.9,
+    }),
+  );
   return root;
 }
 
 /** A GPU or NPU card on slot `i`, `visual` = the spec's key (`gpu-1`...`npu-2`). `live`: a card on the board, whose blades and cover (a GPU) or whose lid and die (an NPU) the views draw. */
 export function cardArt(T: Theme, visual: string, i: number, live = false): Container {
-  const root = new Container(), g = new Graphics();
+  const root = new Container(),
+    g = new Graphics();
   root.addChild(g);
   const isGpu = visual.startsWith('gpu');
-  const L = CARD_LEN[visual] ?? 1500, H = CARD_H[visual] ?? 200, y = nicY(i), x0 = BD.x, top = y - cardTop(visual);
+  const L = CARD_LEN[visual] ?? 1500,
+    H = CARD_H[visual] ?? 200,
+    y = nicY(i),
+    x0 = BD.x,
+    top = y - cardTop(visual);
   const pcb = isGpu ? '#1b2236' : '#2a1d46';
   box(g, x0 + 10, top + 16, L, H, 14, { fill: '#000000', fa: 0.3 });
   box(g, x0, top, L, H, 14, { fill: pcb, stroke: T.alu, lw: 6, sa: 0.55 });
@@ -94,19 +118,27 @@ export function cardArt(T: Theme, visual: string, i: number, live = false): Cont
   g.fill({ color: T.pin, alpha: 0.85 });
   if (isGpu) {
     // the shroud frame, a row of fans along the top edge in their bezels, an accent stripe, the power plug blocks on the end
-    const p = gpuPlan(visual), o = { x: x0, y: top };
+    const p = gpuPlan(visual),
+      o = { x: x0, y: top };
     box(g, o.x + p.shroud.x, o.y + p.shroud.y, p.shroud.w, p.shroud.h, 10, { fill: '#0d1220', stroke: T.line, lw: 4 });
     for (const f of p.fans) edgeFan(g, T, moveRect(f, o), false, '#1d2536', mix(T.alu, T.bg, 0.4)); // the case fans' look, edge-on
     g.rect(o.x + p.shroud.x + 14, o.y + p.shroud.y + p.shroud.h - 10, p.shroud.w - 28, 6);
     g.fill({ color: T.alu, alpha: 0.9 });
-    for (const px of cardPlugs(visual)) box(g, x0 + px - PLUG_BLOCK.w / 2, top - PLUG_BLOCK.up, PLUG_BLOCK.w, PLUG_BLOCK.h, 6, { fill: '#05070c', stroke: T.line, lw: 3 }); // the power sockets: a lead plugs in here
+    for (const px of cardPlugs(visual))
+      box(g, x0 + px - PLUG_BLOCK.w / 2, top - PLUG_BLOCK.up, PLUG_BLOCK.w, PLUG_BLOCK.h, 6, {
+        fill: '#05070c',
+        stroke: T.line,
+        lw: 3,
+      }); // the power sockets: a lead plugs in here
     // bracket with the display outputs
     box(g, NIC_BRACKET_X, top - 10, 30, H + 20, 4, { fill: '#aab4c9', stroke: T.line, lw: 4 });
-    for (let k = 0; k < 3; k++) box(g, NIC_BRACKET_X - 54, y - 70 + k * 52, 54, 34, 4, { fill: '#05070c', stroke: T.line, lw: 3 });
+    for (let k = 0; k < 3; k++)
+      box(g, NIC_BRACKET_X - 54, y - 70 + k * 52, 54, 34, 4, { fill: '#05070c', stroke: T.line, lw: 3 });
     if (!live) {
       // a still picture (shop tile): the cover and the blades drawn in
       // the die itself under the fans (the board's view fades the shroud away to this), the shroud only as the frame
-      const die = new Graphics(), near = gpuNear(T, p.die);
+      const die = new Graphics(),
+        near = gpuNear(T, p.die);
       gpuFar(die, T, p.die);
       die.position.set(o.x + p.origin.x, o.y + p.origin.y);
       near.root.position.set(o.x + p.origin.x, o.y + p.origin.y);
@@ -120,8 +152,13 @@ export function cardArt(T: Theme, visual: string, i: number, live = false): Cont
     root.addChild(label(visual.toUpperCase().replace('-', ' '), x0 + 18, top + 142, 30, T.alu, { head: true, a: 0.9 }));
   } else {
     // the matrix unit: its die lies under a lid (npuCover; the board's view fades it away and draws the die); it runs on slot power
-    const geo = npuGeo(visual), K = geo.grid, d = geo.die;
-    for (let k = 0; k < 4; k++) { g.rect(x0 + 40 + k * 34, top + 12, 18, 30); g.rect(x0 + 40 + k * 34, top + H - 42, 18, 30); }
+    const geo = npuGeo(visual),
+      K = geo.grid,
+      d = geo.die;
+    for (let k = 0; k < 4; k++) {
+      g.rect(x0 + 40 + k * 34, top + 12, 18, 30);
+      g.rect(x0 + 40 + k * 34, top + H - 42, 18, 30);
+    }
     g.fill({ color: mix(pcb, '#000000', 0.45) });
     box(g, x0 + d.x - 12, top + d.y - 12, d.w + 24, d.h + 24, 12, { fill: mix(pcb, '#000000', 0.5) });
     box(g, NIC_BRACKET_X, top - 10, 30, H + 20, 4, { fill: '#aab4c9', stroke: T.line, lw: 4 });
@@ -137,7 +174,13 @@ export function cardArt(T: Theme, visual: string, i: number, live = false): Cont
 }
 
 /** A header's rectangle in board space (`HeaderGeo`: pins of `cols` x `rows` at 52 spacing with a 24 border, as boardArt draws it). */
-export interface HeaderBox { x: number; y: number; cols: number; rows: number; key?: readonly [number, number] }
+export interface HeaderBox {
+  x: number;
+  y: number;
+  cols: number;
+  rows: number;
+  key?: readonly [number, number];
+}
 export const headerRect = (h: HeaderBox): Rect => ({ x: h.x, y: h.y, w: h.cols * 52 + 24, h: h.rows * 52 + 24 });
 
 /**
@@ -145,15 +188,27 @@ export const headerRect = (h: HeaderBox): Rect => ({ x: h.x, y: h.y, w: h.cols *
  * away when zoomed in, like a card's shroud, and the die shows through; a shop tile has it as a still picture. The better module has a metal frame.
  */
 export function tpmCover(T: Theme, visual: string, band: Rect): Container {
-  const root = new Container(), g = new Graphics(), two = visual === 'tpm-2';
+  const root = new Container(),
+    g = new Graphics(),
+    two = visual === 'tpm-2';
   root.addChild(g);
   box(g, band.x, band.y, band.w, band.h, 6, { fill: '#0b101c', stroke: two ? T.alu : T.line, lw: two ? 4 : 3 });
-  if (two) box(g, band.x + 6, band.y + 6, band.w - 12, band.h - 12, 4, { stroke: mix(T.alu, '#000000', 0.4), lw: 1.5, sa: 0.8 });
+  if (two)
+    box(g, band.x + 6, band.y + 6, band.w - 12, band.h - 12, 4, {
+      stroke: mix(T.alu, '#000000', 0.4),
+      lw: 1.5,
+      sa: 0.8,
+    });
   disc(g, band.x + 14, band.y + 14, 4.5, { fill: T.alu, fa: 0.85 });
   // the lock the module is named for
   padlock(g, band.x + band.w - 40, band.y + band.h / 2 + 4, 30, true, two ? T.alu : mix(T.ink, T.bg, 0.5), '#0b101c');
   root.addChild(label('SECURE MODULE', band.x + 34, band.y + band.h * 0.34, 22, T.ink, { head: true, a: 0.9 }));
-  root.addChild(label(two ? 'TPM 2.0' : 'TPM 1.2', band.x + 34, band.y + band.h * 0.62, 16, two ? T.alu : T.mute, { head: true, a: 0.9 }));
+  root.addChild(
+    label(two ? 'TPM 2.0' : 'TPM 1.2', band.x + 34, band.y + band.h * 0.62, 16, two ? T.alu : T.mute, {
+      head: true,
+      a: 0.9,
+    }),
+  );
   return root;
 }
 
@@ -162,9 +217,12 @@ export function tpmCover(T: Theme, visual: string, band: Rect): Container {
  * pin left out). `live`: on the board, where the view (tpmview.ts) draws the lid and the die.
  */
 export function tpmArt(T: Theme, visual: string, h: HeaderBox, live = false): Container {
-  const root = new Container(), g = new Graphics();
+  const root = new Container(),
+    g = new Graphics();
   root.addChild(g);
-  const r = headerRect(h), geo = tpmGeo(visual, r), p = geo.pcb;
+  const r = headerRect(h),
+    geo = tpmGeo(visual, r),
+    p = geo.pcb;
   const pcb = '#1f3b2e';
   box(g, p.x + 24, p.y + 58, p.w, p.h - 18, 8, { fill: '#000000', fa: 0.3 });
   box(g, p.x, p.y, p.w, p.h, 8, { fill: pcb, stroke: T.alu, lw: 4, sa: 0.6 });
@@ -176,14 +234,21 @@ export function tpmArt(T: Theme, visual: string, h: HeaderBox, live = false): Co
   }
   g.fill({ color: '#a9afb7' });
   box(g, c.x, c.y, c.w, c.h, 3, { fill: '#17191d' });
-  for (let i = 0; i < h.cols; i++) for (let j = 0; j < h.rows; j++) {
-    if (i === h.key?.[0] && j === h.key[1]) continue;
-    const x = r.x + 36 + i * 52, y = r.y + 36 + j * 52;
-    disc(g, x, y, 15, { fill: '#a9afb7', stroke: mix(pcb, '#000000', 0.35), lw: 2 });
-    disc(g, x - 3, y - 3, 6, { fill: '#ffffff', fa: 0.45 });
-  }
+  for (let i = 0; i < h.cols; i++)
+    for (let j = 0; j < h.rows; j++) {
+      if (i === h.key?.[0] && j === h.key[1]) continue;
+      const x = r.x + 36 + i * 52,
+        y = r.y + 36 + j * 52;
+      disc(g, x, y, 15, { fill: '#a9afb7', stroke: mix(pcb, '#000000', 0.35), lw: 2 });
+      disc(g, x - 3, y - 3, 6, { fill: '#ffffff', fa: 0.45 });
+    }
   // the chip's decoupling, between the lid and the pins
-  for (const cx of [p.x + 40, p.x + 80, p.x + p.w - 66]) { box(g, cx, r.y - 8, 26, 14, 2, { fill: '#8a6a4a' }); g.rect(cx, r.y - 8, 5, 14).rect(cx + 21, r.y - 8, 5, 14).fill({ color: T.alu, alpha: 0.9 }); }
+  for (const cx of [p.x + 40, p.x + 80, p.x + p.w - 66]) {
+    box(g, cx, r.y - 8, 26, 14, 2, { fill: '#8a6a4a' });
+    g.rect(cx, r.y - 8, 5, 14)
+      .rect(cx + 21, r.y - 8, 5, 14)
+      .fill({ color: T.alu, alpha: 0.9 });
+  }
   root.addChild(label('TPM', p.x + 12, p.y + 4, 26, T.alu, { head: true, a: 0.9 }));
   if (!live) root.addChild(tpmCover(T, visual, geo.band));
   return root;

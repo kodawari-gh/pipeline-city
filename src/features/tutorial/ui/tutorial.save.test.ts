@@ -14,22 +14,38 @@ beforeAll(async () => {
   // state.ts touches the DOM and localStorage at import; the tests run in node.
   const mem = new Map<string, string>();
   vi.stubGlobal('localStorage', {
-    getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k),
+    getItem: (k: string) => mem.get(k) ?? null,
+    setItem: (k: string, v: string) => void mem.set(k, v),
+    removeItem: (k: string) => void mem.delete(k),
   });
-  vi.stubGlobal('document', { documentElement: { setAttribute: () => {}, style: { setProperty: () => {} }, classList: { toggle: () => {}, add: () => {}, remove: () => {} } } });
+  vi.stubGlobal('document', {
+    documentElement: {
+      setAttribute: () => {},
+      style: { setProperty: () => {} },
+      classList: { toggle: () => {}, add: () => {}, remove: () => {} },
+    },
+  });
   st = await import('@/core/ui/state');
   store = await import('@/app/store');
 });
 
 const freshSave = () => new Game({ seed: 7 }).toSave();
 const roundTrip = (save: ReturnType<typeof freshSave>) => parseSave(JSON.parse(JSON.stringify(save)));
-const set = (t: TutorialState) => { st.tutorial.value = t; };
+const set = (t: TutorialState) => {
+  st.tutorial.value = t;
+};
 
 describe('tutorial state travels with the save', () => {
   it('attach writes the current state into the save, and it survives JSON and parseSave', () => {
     set({ ...INITIAL_TUTORIAL, welcomed: true, acks: ['money', 'reputation'], osLesson: true, offered: true });
     const saved = roundTrip(store.saveHooks.attach(freshSave()));
-    expect(saved.tutorial).toEqual({ ...INITIAL_TUTORIAL, welcomed: true, acks: ['money', 'reputation'], osLesson: true, offered: true });
+    expect(saved.tutorial).toEqual({
+      ...INITIAL_TUTORIAL,
+      welcomed: true,
+      acks: ['money', 'reputation'],
+      osLesson: true,
+      offered: true,
+    });
   });
 
   it('a save with the field still loads into a game (the sim ignores it)', () => {
@@ -57,7 +73,10 @@ describe('tutorial state travels with the save', () => {
   it('restore also persists to localStorage, so a page reload keeps it', () => {
     const save = { ...freshSave(), tutorial: { ...INITIAL_TUTORIAL, welcomed: true, skipped: true } };
     store.saveHooks.restore(save);
-    expect(JSON.parse(localStorage.getItem('pipeline-city.tutorial')!)).toMatchObject({ welcomed: true, skipped: true });
+    expect(JSON.parse(localStorage.getItem('pipeline-city.tutorial')!)).toMatchObject({
+      welcomed: true,
+      skipped: true,
+    });
   });
 
   it('a skipped tutorial stays skipped after a save and load', () => {
@@ -73,7 +92,25 @@ describe('tutorial state travels with the save', () => {
 describe('saves from before the field existed', () => {
   it('a mid-OS-lesson save resumes the lesson on a browser that never saw the tutorial', () => {
     const save = freshSave();
-    const old = { ...save, progress: { ...save.progress, cpuInstalled: true, psuInstalled: true, ramInstalled: true, monitorInstalled: true, atxConnected: true, cpuPowerConnected: true, videoConnected: true, poweredOn: true, firstKeyPlugged: true, firstJobDone: true, firstKeyEjected: true, firstPurchase: true, storageInstalled: true } };
+    const old = {
+      ...save,
+      progress: {
+        ...save.progress,
+        cpuInstalled: true,
+        psuInstalled: true,
+        ramInstalled: true,
+        monitorInstalled: true,
+        atxConnected: true,
+        cpuPowerConnected: true,
+        videoConnected: true,
+        poweredOn: true,
+        firstKeyPlugged: true,
+        firstJobDone: true,
+        firstKeyEjected: true,
+        firstPurchase: true,
+        storageInstalled: true,
+      },
+    };
     delete (old as { tutorial?: unknown }).tutorial;
     set({ ...INITIAL_TUTORIAL, skipped: true }); // junk left by another game
     store.saveHooks.restore(old);

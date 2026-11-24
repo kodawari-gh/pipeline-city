@@ -3,9 +3,42 @@ import type { Snapshot } from '@/worker/protocol';
 import { IO_PORTS, IO_X } from '@/features/board/render/layout/boardlayout';
 import { acInlet, portProfile, shieldSheet } from '@/features/board/render/layout/ports';
 import { box, label, lgrad, mix } from '@/core/render/ink';
-import { BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PC_POWER, PSU, PSU_REAR_FAN, REAR_FAN, WALL_T, gpuPort, nicJack, nicY, type Rect } from '@/features/board/render/layout/layout';
+import {
+  BAY_CELLS,
+  BR,
+  CASE,
+  CASE_GLASS,
+  CASE_IN,
+  CASE_LEDS,
+  CASE_PANEL,
+  LAYOUT_CASE,
+  PC_POWER,
+  PSU,
+  PSU_REAR_FAN,
+  REAR_FAN,
+  WALL_T,
+  gpuPort,
+  nicJack,
+  nicY,
+  type Rect,
+} from '@/features/board/render/layout/layout';
 import { CASE_LOOK } from '../desk/props/case';
-import { CASE_CUTS, CASE_KIND, WINDOW_CUTS, brandLockup, caseWindow, growCuts, hexes, holes, isCut, outline, screw, slots, type CaseKind, type Cuts } from './casedecor';
+import {
+  CASE_CUTS,
+  CASE_KIND,
+  WINDOW_CUTS,
+  brandLockup,
+  caseWindow,
+  growCuts,
+  hexes,
+  holes,
+  isCut,
+  outline,
+  screw,
+  slots,
+  type CaseKind,
+  type Cuts,
+} from './casedecor';
 import type { DriveKind } from '@/features/storage/render/drives';
 import type { Theme } from '@/core/render/theme';
 
@@ -17,7 +50,12 @@ import type { Theme } from '@/core/render/theme';
 // Static art is built once per (theme, tier, drives) and baked to one texture by board.ts; the accent strip is the only live part.
 
 /** The thin accent light strip on the front rim of the case (a vertical bar east of the glass). */
-export const stripRect = () => ({ x: CASE.x + CASE.w - 82, y0: CASE_GLASS.y + 140, y1: CASE_GLASS.y + CASE_GLASS.h - 110, w: 20 });
+export const stripRect = () => ({
+  x: CASE.x + CASE.w - 82,
+  y0: CASE_GLASS.y + 140,
+  y1: CASE_GLASS.y + CASE_GLASS.h - 110,
+  w: 20,
+});
 
 export interface ExteriorOpts {
   /** SATA ports this tier has. */
@@ -35,12 +73,15 @@ export interface ExteriorOpts {
 /** Where a cage drive's activity LED sits (world), by cell: on the front rim, level with its cell. */
 export const frontLed = (cell: number) => ({ x: stripRect().x + 10, y: BAY_CELLS[cell]!.y + BAY_CELLS[cell]!.h / 2 });
 
-
 export function exteriorTones(T: Theme) {
   return {
-    hi: '#3b4663', mid: '#29324b', lo: '#181e30',
-    edge: '#51608a', shade: '#070a12',
-    glassTop: '#0f172a', glassBot: '#05080f',
+    hi: '#3b4663',
+    mid: '#29324b',
+    lo: '#181e30',
+    edge: '#51608a',
+    shade: '#070a12',
+    glassTop: '#0f172a',
+    glassBot: '#05080f',
     cut: '#05070c',
   };
 }
@@ -50,8 +91,12 @@ function brush(g: Graphics, x: number, y: number, w: number, h: number, step = 3
   const [tl, tr, br, bl] = cuts ?? [0, 0, 0, 0];
   for (let yy = y + step / 2, k = 0; yy < y + h; yy += step, k++) {
     // a cut corner shortens the line where the corner has been cut away
-    const x0 = x + Math.max(0, tl - (yy - y), bl - (y + h - yy)), x1 = x + w - Math.max(0, tr - (yy - y), br - (y + h - yy));
-    if (x1 > x0) g.moveTo(x0, yy).lineTo(x1, yy).stroke({ width: 5, color: k % 2 ? '#ffffff' : '#000000', alpha: 0.028 });
+    const x0 = x + Math.max(0, tl - (yy - y), bl - (y + h - yy)),
+      x1 = x + w - Math.max(0, tr - (yy - y), br - (y + h - yy));
+    if (x1 > x0)
+      g.moveTo(x0, yy)
+        .lineTo(x1, yy)
+        .stroke({ width: 5, color: k % 2 ? '#ffffff' : '#000000', alpha: 0.028 });
   }
 }
 
@@ -60,7 +105,14 @@ function brush(g: Graphics, x: number, y: number, w: number, h: number, step = 3
  * Mini: a pale aluminium shell, soft corners, amber light. Micro: matte black, cyan. Mid: gunmetal with brass trim, violet.
  * Full: a dark monolith in charcoal, a square box with a small radius, a smoked window and a violet light.
  */
-interface CaseStyle { mixTo: string; k: number; accent: (T: Theme) => string; rad: number; rgb: boolean; brushed: boolean }
+interface CaseStyle {
+  mixTo: string;
+  k: number;
+  accent: (T: Theme) => string;
+  rad: number;
+  rgb: boolean;
+  brushed: boolean;
+}
 const STYLES: CaseStyle[] = [
   // a budget OEM tower: charcoal painted steel, square corners, a solid side with one vent patch, no window
   { mixTo: '#2a2d32', k: 0.72, accent: (T) => T.ld, rad: 28, rgb: false, brushed: false },
@@ -71,22 +123,41 @@ const STYLES: CaseStyle[] = [
   // a showcase: a charcoal monolith with brushed sides, a small radius, a smoked window and no light but its front state strip
   { mixTo: '#1d1e22', k: 0.7, accent: (T) => T.mul, rad: 20, rgb: false, brushed: true },
 ];
-const styleOf = (): CaseStyle & { kind: CaseKind } => ({ ...(STYLES[LAYOUT_CASE] ?? STYLES[2]!), kind: CASE_KIND[LAYOUT_CASE] ?? 'gamer' });
+const styleOf = (): CaseStyle & { kind: CaseKind } => ({
+  ...(STYLES[LAYOUT_CASE] ?? STYLES[2]!),
+  kind: CASE_KIND[LAYOUT_CASE] ?? 'gamer',
+});
 
 /** The body tones of the current tier: the shared steel tones mixed toward the tier's colour. */
 function bodyTones(T: Theme, st: CaseStyle) {
-  const c = exteriorTones(T), m = (v: string) => mix(v, st.mixTo, st.k);
+  const c = exteriorTones(T),
+    m = (v: string) => mix(v, st.mixTo, st.k);
   // the painted OEM tower is charcoal to its edges: its own palette, no darkening and no steel grey left in it
   if (st.k >= 0.72 && st.mixTo === '#2a2d32') {
     return { ...c, hi: '#4e5360', mid: '#2a2d32', lo: '#1d1e22', edge: '#131518', shade: '#050608', cut: '#131518' };
   }
-  return { ...c, hi: m(c.hi), mid: m(c.mid), lo: m(c.lo), edge: mix(c.edge, st.mixTo, st.k * 0.6), cut: mix(c.cut, '#000000', 0.2) };
+  return {
+    ...c,
+    hi: m(c.hi),
+    mid: m(c.mid),
+    lo: m(c.lo),
+    edge: mix(c.edge, st.mixTo, st.k * 0.6),
+    cut: mix(c.cut, '#000000', 0.2),
+  };
 }
 
 /** A bevel round a rounded box: a lit edge on the top and west sides, a shaded one on the bottom and east. */
 function bevel(g: Graphics, x: number, y: number, w: number, h: number, r: number, a = 1) {
-  g.moveTo(x + r, y).lineTo(x + w - r, y).moveTo(x, y + r).lineTo(x, y + h - r).stroke({ width: 6, color: '#ffffff', alpha: 0.13 * a, cap: 'round' });
-  g.moveTo(x + r, y + h).lineTo(x + w - r, y + h).moveTo(x + w, y + r).lineTo(x + w, y + h - r).stroke({ width: 6, color: '#000000', alpha: 0.4 * a, cap: 'round' });
+  g.moveTo(x + r, y)
+    .lineTo(x + w - r, y)
+    .moveTo(x, y + r)
+    .lineTo(x, y + h - r)
+    .stroke({ width: 6, color: '#ffffff', alpha: 0.13 * a, cap: 'round' });
+  g.moveTo(x + r, y + h)
+    .lineTo(x + w - r, y + h)
+    .moveTo(x + w, y + r)
+    .lineTo(x + w, y + h - r)
+    .stroke({ width: 6, color: '#000000', alpha: 0.4 * a, cap: 'round' });
 }
 
 /** The static exterior (world coordinates, around `CASE`). */
@@ -94,82 +165,152 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   const root = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const st = styleOf(), c = bodyTones(T, st), acc = st.accent(T), R = st.rad;
-  const c0 = CASE, p = CASE_PANEL, gl = CASE_GLASS, ci = CASE_IN;
-  const oem = st.kind === 'oem', dim = oem ? '#959aa3' : '#8d9bc4';
+  const st = styleOf(),
+    c = bodyTones(T, st),
+    acc = st.accent(T),
+    R = st.rad;
+  const c0 = CASE,
+    p = CASE_PANEL,
+    gl = CASE_GLASS,
+    ci = CASE_IN;
+  const oem = st.kind === 'oem',
+    dim = oem ? '#959aa3' : '#8d9bc4';
   const slit = oem ? mix(c.lo, '#000000', 0.5) : c.glassTop; // the dark of the vent holes
 
   // the feet (rubber pads on the small cases, wider blocks on the full tower, which also throws a little light on the desk) and the soft shadow
-  const kind = st.kind, fw = { oem: 190, matte: 300, gamer: 300, show: 600 }[kind];
-  if (kind === 'show') { // one flat plinth, inset from the sides and the front and back
+  const kind = st.kind,
+    fw = { oem: 190, matte: 300, gamer: 300, show: 600 }[kind];
+  if (kind === 'show') {
+    // one flat plinth, inset from the sides and the front and back
     box(g, c0.x + 250, c0.y + c0.h - 40, c0.w - 500, 150, 30, { fill: '#4e5360', stroke: c.edge, lw: 6, sa: 0.5 });
     g.rect(c0.x + 300, c0.y + c0.h - 34, c0.w - 600, 5).fill({ color: '#ffffff', alpha: 0.1 });
-  }
-  else for (const fx of [c0.x + 300, c0.x + c0.w - 300 - fw]) {
-    const fy = c0.y + c0.h - 40;
-    if (kind === 'gamer') { // two flat rubber rails, as on the matte case
-      box(g, fx, fy, fw, 150, 30, { fill: '#0c0c0e', stroke: c.edge, lw: 6, sa: 0.5 });
-    } else {
-      box(g, fx, fy, fw, kind === 'oem' ? 130 : 150, kind === 'oem' ? 65 : 30, { fill: kind === 'oem' ? '#131518' : c.shade, stroke: c.edge, lw: 6, sa: 0.5 });
-      g.rect(fx + 30, fy, fw - 60, 5).fill({ color: '#ffffff', alpha: 0.08 });
+  } else
+    for (const fx of [c0.x + 300, c0.x + c0.w - 300 - fw]) {
+      const fy = c0.y + c0.h - 40;
+      if (kind === 'gamer') {
+        // two flat rubber rails, as on the matte case
+        box(g, fx, fy, fw, 150, 30, { fill: '#0c0c0e', stroke: c.edge, lw: 6, sa: 0.5 });
+      } else {
+        box(g, fx, fy, fw, kind === 'oem' ? 130 : 150, kind === 'oem' ? 65 : 30, {
+          fill: kind === 'oem' ? '#131518' : c.shade,
+          stroke: c.edge,
+          lw: 6,
+          sa: 0.5,
+        });
+        g.rect(fx + 30, fy, fw - 60, 5).fill({ color: '#ffffff', alpha: 0.08 });
+      }
+      if (st.rgb) g.rect(fx + 20, c0.y + c0.h + 100, fw - 40, 8).fill({ color: acc, alpha: 0.55 });
     }
-    if (st.rgb) g.rect(fx + 20, c0.y + c0.h + 100, fw - 40, 8).fill({ color: acc, alpha: 0.55 });
-  }
   const bc = isCut(CASE_CUTS[kind]) ? CASE_CUTS[kind] : undefined; // (no kind has cut corners now: the body stays a box with its radius)
   outline(g, c0.x + 24, c0.y + 40, c0.w, c0.h, R, bc).fill({ color: '#000000', alpha: 0.4 });
   box(g, c0.x + 60, c0.y + c0.h + 40, c0.w - 80, 120, 60, { fill: '#000000', fa: 0.22 });
-  if (bc) for (const grow of [90, 45]) outline(g, c0.x - grow, c0.y - grow, c0.w + 2 * grow, c0.h + 2 * grow, R + grow, growCuts(bc, grow)).fill({ color: acc, alpha: 0.05 }); // its light spills onto the wall
+  if (bc)
+    for (const grow of [90, 45])
+      outline(g, c0.x - grow, c0.y - grow, c0.w + 2 * grow, c0.h + 2 * grow, R + grow, growCuts(bc, grow)).fill({
+        color: acc,
+        alpha: 0.05,
+      }); // its light spills onto the wall
 
   // body: brushed metal lit from the top left, with a bevelled rim and a soft light band down the side
-  outline(g, c0.x, c0.y, c0.w, c0.h, R, bc).fill(lgrad(c.hi, c.lo, [0.25, 1])).stroke({ width: 12, color: c.edge, alpha: 0.9, join: 'miter' });
-  outline(g, c0.x + 14, c0.y + 14, c0.w - 28, c0.h - 28, R - 10, bc && growCuts(bc, -8)).fill(lgrad('#ffffff12', '#ffffff00', [1, 0.2]));
+  outline(g, c0.x, c0.y, c0.w, c0.h, R, bc)
+    .fill(lgrad(c.hi, c.lo, [0.25, 1]))
+    .stroke({ width: 12, color: c.edge, alpha: 0.9, join: 'miter' });
+  outline(g, c0.x + 14, c0.y + 14, c0.w - 28, c0.h - 28, R - 10, bc && growCuts(bc, -8)).fill(
+    lgrad('#ffffff12', '#ffffff00', [1, 0.2]),
+  );
   if (st.brushed) brush(g, c0.x + 40, c0.y + 40, c0.w - 80, c0.h - 80, 34, bc && growCuts(bc, -26));
   bevel(g, c0.x + 16, c0.y + 16, c0.w - 32, c0.h - 32, R - 10, kind === 'matte' ? 0.4 : kind === 'oem' ? 0.3 : 1);
 
   // top panel: a recessed plate with an accent hairline, the brand, a row of vents and the light window for the status LEDs
   const pi = bc ? 410 : 36; // the chamfered corners cut into the panel's ends
-  if (kind !== 'matte') g.roundRect(p.x + pi, p.y + 36, p.w - 2 * pi, p.h - 52, 40).fill(lgrad(c.mid, c.lo)).stroke({ width: 6, color: c.edge, alpha: 0.6 });
+  if (kind !== 'matte')
+    g.roundRect(p.x + pi, p.y + 36, p.w - 2 * pi, p.h - 52, 40)
+      .fill(lgrad(c.mid, c.lo))
+      .stroke({ width: 6, color: c.edge, alpha: 0.6 });
   if (kind !== 'matte') g.rect(p.x + pi + 34, p.y + 44, p.w - 2 * pi - 68, 10).fill({ color: '#000000', alpha: 0.3 });
-  if (kind !== 'oem' && kind !== 'matte') g.rect(p.x + pi + 54, p.y + p.h - 34, p.w - 2 * pi - 108, 5).fill({ color: acc, alpha: 0.5 });
+  if (kind !== 'oem' && kind !== 'matte')
+    g.rect(p.x + pi + 54, p.y + p.h - 34, p.w - 2 * pi - 108, 5).fill({ color: acc, alpha: 0.5 });
   const nv = CASE_LOOK[LAYOUT_CASE]?.vents ?? 16;
-  if (kind === 'gamer') { slots(g, { x: -2250, y: p.y + 110, w: nv * 78, h: 200 }, nv, 70); g.fill({ color: c.cut }); }
-  else if (kind !== 'show') for (let k = 0; k < nv; k++) box(g, -2250 + k * 78, p.y + 120, 30, 190, 15, { fill: c.cut }); // (the showcase's top is one plain rail, its fans behind the filter)
-  if (kind === 'gamer') { // an angled mesh cap in the top front corner
-    const cx = c0.x + c0.w - 20, cw = 380;
-    g.poly([cx - cw, c0.y + 20, cx, c0.y + 20, cx, c0.y + 20 + cw * 0.8]).fill(lgrad('#1c212c', '#07090d')).stroke({ width: 5, color: c.edge, alpha: 0.6 });
-    for (let k = 1; k < 5; k++) { const x0 = cx - cw + k * 70; g.moveTo(x0, c0.y + 20).lineTo(cx, c0.y + 20 + 0.8 * (cx - x0)); }
+  if (kind === 'gamer') {
+    slots(g, { x: -2250, y: p.y + 110, w: nv * 78, h: 200 }, nv, 70);
+    g.fill({ color: c.cut });
+  } else if (kind !== 'show')
+    for (let k = 0; k < nv; k++) box(g, -2250 + k * 78, p.y + 120, 30, 190, 15, { fill: c.cut }); // (the showcase's top is one plain rail, its fans behind the filter)
+  if (kind === 'gamer') {
+    // an angled mesh cap in the top front corner
+    const cx = c0.x + c0.w - 20,
+      cw = 380;
+    g.poly([cx - cw, c0.y + 20, cx, c0.y + 20, cx, c0.y + 20 + cw * 0.8])
+      .fill(lgrad('#1c212c', '#07090d'))
+      .stroke({ width: 5, color: c.edge, alpha: 0.6 });
+    for (let k = 1; k < 5; k++) {
+      const x0 = cx - cw + k * 70;
+      g.moveTo(x0, c0.y + 20).lineTo(cx, c0.y + 20 + 0.8 * (cx - x0));
+    }
     g.stroke({ width: 14, color: '#000000', alpha: 0.7 });
   }
-  box(g, CASE_LEDS.disk - 120, p.y + 70, CASE_LEDS.err - CASE_LEDS.disk + 240, 250, 40, { fill: c.cut, stroke: c.edge, lw: 5, sa: 0.5 });
+  box(g, CASE_LEDS.disk - 120, p.y + 70, CASE_LEDS.err - CASE_LEDS.disk + 240, 250, 40, {
+    fill: c.cut,
+    stroke: c.edge,
+    lw: 5,
+    sa: 0.5,
+  });
   root.addChild(label('DISK', CASE_LEDS.disk, p.y + 340, 34, dim, { anchor: [0.5, 0.5], a: 0.9 }));
-  for (const [t, x] of [['ON', CASE_LEDS.on], ['OFF', CASE_LEDS.off], ['ERR', CASE_LEDS.err]] as const) root.addChild(label(t, x, p.y + 340, 34, dim, { anchor: [0.5, 0.5], a: 0.9 }));
+  for (const [t, x] of [
+    ['ON', CASE_LEDS.on],
+    ['OFF', CASE_LEDS.off],
+    ['ERR', CASE_LEDS.err],
+  ] as const)
+    root.addChild(label(t, x, p.y + 340, 34, dim, { anchor: [0.5, 0.5], a: 0.9 }));
 
   // rear I/O plate (west): a panel with the external connectors cut into it
   const io = { x: c0.x + 30, y: ci.y, w: BR.io.x + BR.io.w + 60 - (c0.x + 30), h: gl.h };
-  if (kind !== 'matte') { g.roundRect(io.x, io.y, io.w, io.h, 30).fill(lgrad(c.mid, c.lo)).stroke({ width: 6, color: c.edge, alpha: 0.7 }); brush(g, io.x + 10, io.y + 10, io.w - 20, io.h - 20, 40); }
+  if (kind !== 'matte') {
+    g.roundRect(io.x, io.y, io.w, io.h, 30).fill(lgrad(c.mid, c.lo)).stroke({ width: 6, color: c.edge, alpha: 0.7 });
+    brush(g, io.x + 10, io.y + 10, io.w - 20, io.h - 20, 40);
+  }
   rearIo(g, T, o);
   root.addChild(label('REAR I/O', io.x + 24, io.y + 70, 56, dim, { head: true, a: 0.6 }));
   // the PSU's exhaust grille (the cases above the Mini)
-  if (PSU_REAR_FAN) for (let k = 0; k < 7; k++) box(g, io.x + 40, PSU_REAR_FAN.y + 50 + k * 90, 120, 26, 13, { fill: c.cut, fa: 0.75 });
+  if (PSU_REAR_FAN)
+    for (let k = 0; k < 7; k++) box(g, io.x + 40, PSU_REAR_FAN.y + 50 + k * 90, 120, 26, 13, { fill: c.cut, fa: 0.75 });
   // the rear fan, the expansion slot covers and the top fans are inside: only their vents show on the plate
-  for (let k = 0; k < Math.min(5, Math.floor((REAR_FAN.h - 40) / 70)); k++) box(g, io.x + 40, REAR_FAN.y + 60 + k * 70, 120, 26, 13, { fill: c.cut, fa: 0.75 });
+  for (let k = 0; k < Math.min(5, Math.floor((REAR_FAN.h - 40) / 70)); k++)
+    box(g, io.x + 40, REAR_FAN.y + 60 + k * 70, 120, 26, 13, { fill: c.cut, fa: 0.75 });
 
   // the glass side: a bezel (the tier's trim colour where it has one), a dark gasket, then the window itself, a hole in the body
   // with a thin smoked pane over it, so the real interior shows through at every zoom
   // The window differs by case: none on the OEM tower (a solid side with a vent patch), the upper part on the matte case, a cut corner on the
   // gaming case, a full height smoked pane in a thin dark gasket on the showcase.
   const win = caseWindow(kind);
-  const bz = kind === 'matte' ? 22 : 30, wr = kind === 'show' ? 24 : 50;
+  const bz = kind === 'matte' ? 22 : 30,
+    wr = kind === 'show' ? 24 : 50;
   const cuts: Cuts | undefined = isCut(WINDOW_CUTS[kind]) ? WINDOW_CUTS[kind] : undefined;
   const bcuts: Cuts | undefined = cuts && (cuts.map((v) => (v ? v + bz * 0.6 : 0)) as Cuts);
   const top = new Graphics();
   if (kind === 'oem') solidSide(g, c, { x: ci.x, y: gl.y, w: ci.w, h: gl.h }, win);
   else {
     // the showcase's bezel is a dark gasket (no trim); the gaming one is blue-black, the others plain steel
-    const bezelFill = kind === 'show' ? lgrad('#15171c', '#030304') : kind === 'gamer' ? lgrad('#222834', '#07090d') : lgrad(c.mid, c.lo);
-    if (kind !== 'matte') outline(g, win.x - bz, win.y - bz, win.w + 2 * bz, win.h + 2 * bz, wr + 26, bcuts).fill(bezelFill).stroke({ width: 6, color: c.edge, alpha: 0.6 });
+    const bezelFill =
+      kind === 'show'
+        ? lgrad('#15171c', '#030304')
+        : kind === 'gamer'
+          ? lgrad('#222834', '#07090d')
+          : lgrad(c.mid, c.lo);
+    if (kind !== 'matte')
+      outline(g, win.x - bz, win.y - bz, win.w + 2 * bz, win.h + 2 * bz, wr + 26, bcuts)
+        .fill(bezelFill)
+        .stroke({ width: 6, color: c.edge, alpha: 0.6 });
     if (kind !== 'matte') bevel(g, win.x - bz + 4, win.y - bz + 4, win.w + 2 * bz - 8, win.h + 2 * bz - 8, 20, 0.8);
-    outline(g, win.x - 16, win.y - 16, win.w + 32, win.h + 32, wr + 12, cuts && (cuts.map((v) => (v ? v + 10 : 0)) as Cuts)).fill(c.shade);
+    outline(
+      g,
+      win.x - 16,
+      win.y - 16,
+      win.w + 32,
+      win.h + 32,
+      wr + 12,
+      cuts && (cuts.map((v) => (v ? v + 10 : 0)) as Cuts),
+    ).fill(c.shade);
     const hole = new Graphics();
     hole.blendMode = 'erase';
     outline(hole, win.x, win.y, win.w, win.h, wr, cuts).fill('#000000');
@@ -179,25 +320,57 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
     pane.alpha = kind === 'matte' ? 0.55 : 0.4;
     root.addChild(top);
   }
-  const refl = (x0: number, w: number, a: number) => top.poly([win.x + x0, win.y + 8, win.x + x0 + w, win.y + 8, win.x + x0 + w - 1500, win.y + win.h - 8, win.x + x0 - 1500, win.y + win.h - 8]).fill({ color: '#ffffff', alpha: a });
+  const refl = (x0: number, w: number, a: number) =>
+    top
+      .poly([
+        win.x + x0,
+        win.y + 8,
+        win.x + x0 + w,
+        win.y + 8,
+        win.x + x0 + w - 1500,
+        win.y + win.h - 8,
+        win.x + x0 - 1500,
+        win.y + win.h - 8,
+      ])
+      .fill({ color: '#ffffff', alpha: a });
   const ra = 0.05;
-  refl(3200, 700, ra); refl(4200, 150, ra * 0.8); refl(7500, 500, ra * 0.7);
-  outline(top, win.x + 14, win.y + 14, win.w - 28, win.h - 28, wr - 10, cuts && (cuts.map((v) => (v ? v - 10 : 0)) as Cuts)).stroke({ width: 5, color: '#ffffff', alpha: 0.1 });
+  refl(3200, 700, ra);
+  refl(4200, 150, ra * 0.8);
+  refl(7500, 500, ra * 0.7);
+  outline(
+    top,
+    win.x + 14,
+    win.y + 14,
+    win.w - 28,
+    win.h - 28,
+    wr - 10,
+    cuts && (cuts.map((v) => (v ? v - 10 : 0)) as Cuts),
+  ).stroke({ width: 5, color: '#ffffff', alpha: 0.1 });
   // the light under the glass: multi-zone RGB on the gaming case, one colour on the showcase, nothing on the plain cases
-  if (kind === 'gamer') { // one violet strip under the glass (the same length as the old six-colour bar)
-    const ly = win.y + win.h - 40, lx0 = win.x + 140, lw = win.w - 280;
+  if (kind === 'gamer') {
+    // one violet strip under the glass (the same length as the old six-colour bar)
+    const ly = win.y + win.h - 40,
+      lx0 = win.x + 140,
+      lw = win.w - 280;
     top.roundRect(lx0, ly - 30, lw, 60, 30).fill({ color: acc, alpha: 0.12 });
     top.roundRect(lx0, ly, lw, 10, 5).fill(acc);
   }
 
   // PSU compartment: a brushed panel with a perforated intake (the drive cage is inside, behind the glass)
-  const lowY = gl.y + gl.h, lowH = ci.y + ci.h - lowY;
+  const lowY = gl.y + gl.h,
+    lowH = ci.y + ci.h - lowY;
   const lowFill = kind === 'gamer' ? lgrad('#232936', '#0a0c11') : lgrad(c.mid, c.lo);
-  if (kind !== 'matte') g.roundRect(ci.x, lowY, ci.w, lowH, 36).fill(lowFill).stroke({ width: 6, color: c.edge, alpha: 0.5 });
+  if (kind !== 'matte')
+    g.roundRect(ci.x, lowY, ci.w, lowH, 36).fill(lowFill).stroke({ width: 6, color: c.edge, alpha: 0.5 });
   if (st.brushed) brush(g, ci.x + 10, lowY + 10, ci.w - 20, lowH - 20, 40);
   if (kind !== 'matte') bevel(g, ci.x + 10, lowY + 10, ci.w - 20, lowH - 20, 30, 0.7); // the matte side is one sheet: no seam under the window
   const mesh = { x: PSU.x + 120, y: PSU.y + 60, w: 3300, h: PSU.h - 120 };
-  box(g, mesh.x, mesh.y, mesh.w, mesh.h, 40, { fill: oem ? mix(c.lo, '#000000', 0.25) : c.cut, stroke: c.edge, lw: 5, sa: 0.6 });
+  box(g, mesh.x, mesh.y, mesh.w, mesh.h, 40, {
+    fill: oem ? mix(c.lo, '#000000', 0.25) : c.cut,
+    stroke: c.edge,
+    lw: 5,
+    sa: 0.6,
+  });
   if (kind === 'show') hexes(g, { x: mesh.x + 40, y: mesh.y + 40, w: mesh.w - 80, h: mesh.h - 80 }, 46, 10);
   else holes(g, { x: mesh.x + 30, y: mesh.y + 30, w: mesh.w - 60, h: mesh.h - 60 }, 64, 13);
   g.fill({ color: slit, alpha: 1 });
@@ -205,13 +378,20 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   // the mains inlet in the rear wall at the PSU's end (the cord is drawn by the room)
   acInlet(g, T, PC_POWER, { wallX: IO_X, wallW: WALL_T });
   // the badge beside the intake: a plate of the body's metal with the name pressed into it (a lit edge above each letter's shadow)
-  const bx = mesh.x + mesh.w + 260, area = { x: bx, y: PSU.y + 60, w: ci.x + ci.w - 300 - bx, h: PSU.h - 120 };
+  const bx = mesh.x + mesh.w + 260,
+    area = { x: bx, y: PSU.y + 60, w: ci.x + ci.w - 300 - bx, h: PSU.h - 120 };
   badge(root, g, c, kind, area);
 
   // front rim: a slim vertical vent column east of the glass
   const STRIP = stripRect();
-  for (let k = 0; k < Math.floor((STRIP.y1 - STRIP.y0 - 260) / 215) + 1; k++) box(g, STRIP.x + 62, STRIP.y0 + 260 + k * 215, 16, 120, 8, { fill: c.cut, fa: 0.8 });
-  box(g, STRIP.x - 6, STRIP.y0 - 6, STRIP.w + 12, STRIP.y1 - STRIP.y0 + 12, 12, { fill: c.cut, stroke: c.edge, lw: 3, sa: 0.5 });
+  for (let k = 0; k < Math.floor((STRIP.y1 - STRIP.y0 - 260) / 215) + 1; k++)
+    box(g, STRIP.x + 62, STRIP.y0 + 260 + k * 215, 16, 120, 8, { fill: c.cut, fa: 0.8 });
+  box(g, STRIP.x - 6, STRIP.y0 - 6, STRIP.w + 12, STRIP.y1 - STRIP.y0 + 12, 12, {
+    fill: c.cut,
+    stroke: c.edge,
+    lw: 3,
+    sa: 0.5,
+  });
   return root;
 }
 
@@ -221,14 +401,24 @@ type Tones = ReturnType<typeof bodyTones>;
 
 /** The solid side of the OEM tower: a pressed panel with a square perforated vent patch, screws in its corners and the seam to the PSU bay. */
 function solidSide(g: Graphics, c: Tones, r: Rect, win: Rect) {
-  g.roundRect(r.x + 50, r.y + 40, r.w - 100, r.h - 80, 20).fill(lgrad(mix(c.hi, c.lo, 0.25), mix(c.hi, c.lo, 0.6))).stroke({ width: 8, color: c.edge, alpha: 0.5 });
+  g.roundRect(r.x + 50, r.y + 40, r.w - 100, r.h - 80, 20)
+    .fill(lgrad(mix(c.hi, c.lo, 0.25), mix(c.hi, c.lo, 0.6)))
+    .stroke({ width: 8, color: c.edge, alpha: 0.5 });
   g.roundRect(r.x + 62, r.y + 52, r.w - 124, r.h - 104, 14).stroke({ width: 5, color: '#ffffff', alpha: 0.08 });
   const v = { x: win.x + 700, y: r.y + r.h / 2 - 760, w: 1500, h: 1500 };
   g.roundRect(v.x - 24, v.y - 24, v.w + 48, v.h + 48, 50).fill({ color: '#000000', alpha: 0.18 });
-  g.roundRect(v.x, v.y, v.w, v.h, 40).fill(mix(c.lo, '#000000', 0.2)).stroke({ width: 6, color: c.edge, alpha: 0.7 });
+  g.roundRect(v.x, v.y, v.w, v.h, 40)
+    .fill(mix(c.lo, '#000000', 0.2))
+    .stroke({ width: 6, color: c.edge, alpha: 0.7 });
   holes(g, { x: v.x + 30, y: v.y + 30, w: v.w - 60, h: v.h - 60 }, 52, 12);
   g.fill({ color: mix(c.lo, '#000000', 0.5) });
-  for (const [x, y] of [[r.x + 110, r.y + 100], [r.x + r.w - 110, r.y + 100], [r.x + 110, r.y + r.h - 100], [r.x + r.w - 110, r.y + r.h - 100]] as const) screw(g, x, y, 30, mix(c.hi, c.lo, 0.3), c.edge);
+  for (const [x, y] of [
+    [r.x + 110, r.y + 100],
+    [r.x + r.w - 110, r.y + 100],
+    [r.x + 110, r.y + r.h - 100],
+    [r.x + r.w - 110, r.y + r.h - 100],
+  ] as const)
+    screw(g, x, y, 30, mix(c.hi, c.lo, 0.3), c.edge);
 }
 
 /**
@@ -237,20 +427,37 @@ function solidSide(g: Graphics, c: Tones, r: Rect, win: Rect) {
  */
 function badge(root: Container, g: Graphics, c: Tones, kind: CaseKind, r: Rect) {
   // the case maker's lockup (`brands/hako.ts`), as the 3D case has it: a label, a debossed plate, a debossed print
-  const right = r.x + r.w, cy = r.y + r.h / 2;
+  const right = r.x + r.w,
+    cy = r.y + r.h / 2;
   if (kind === 'oem') {
-    const w = 700, x = right - w, h = 300;
-    g.roundRect(x, cy - h / 2, w, h, 16).fill(mix(c.hi, c.lo, 0.45)).stroke({ width: 5, color: c.edge, alpha: 0.7 });
+    const w = 700,
+      x = right - w,
+      h = 300;
+    g.roundRect(x, cy - h / 2, w, h, 16)
+      .fill(mix(c.hi, c.lo, 0.45))
+      .stroke({ width: 5, color: c.edge, alpha: 0.7 });
     brandLockup(root, 'hako', x + w / 2, cy, 110, '#959aa3');
-  } else if (kind === 'gamer') { // a dark plate, the lockup debossed into it
-    const w = 1100, x = right - w, h = 380, y = cy - h / 2;
+  } else if (kind === 'gamer') {
+    // a dark plate, the lockup debossed into it
+    const w = 1100,
+      x = right - w,
+      h = 380,
+      y = cy - h / 2;
     g.roundRect(x, y, w, h, 28).fill(lgrad('#171b25', '#07090d')).stroke({ width: 6, color: c.edge, alpha: 0.6 });
-    for (const [dy, col] of [[8, '#2a2f3a'], [0, '#000000']] as const) brandLockup(root, 'hako', x + w / 2, y + h / 2 + dy, 190, col, null, 1);
-  } else { // matte and showcase: debossed, a dark print over a paler lip
-    for (const [dy, col] of [[8, '#2a2d32'], [0, '#050608']] as const) brandLockup(root, 'hako', right - 120 - 520, cy + dy, 200, col, null, 1);
+    for (const [dy, col] of [
+      [8, '#2a2f3a'],
+      [0, '#000000'],
+    ] as const)
+      brandLockup(root, 'hako', x + w / 2, y + h / 2 + dy, 190, col, null, 1);
+  } else {
+    // matte and showcase: debossed, a dark print over a paler lip
+    for (const [dy, col] of [
+      [8, '#2a2d32'],
+      [0, '#050608'],
+    ] as const)
+      brandLockup(root, 'hako', right - 120 - 520, cy + dy, 200, col, null, 1);
   }
 }
-
 
 /**
  * The rear panel from outside, in the same side profile as inside the case (ports.ts): the wall's sheet at the case's west edge and
@@ -258,24 +465,47 @@ function badge(root: Container, g: Graphics, c: Tones, kind: CaseKind, r: Rect) 
  * board has it), HDMI, DisplayPort (if it has a second output), USB, and the jack of every NIC card.
  */
 function rearIo(g: Graphics, T: Theme, o: ExteriorOpts) {
-  const c = tones(T), f = o.features, q = BR.io;
-  const fitted = (id: string) => (id === 'eth' ? f.ethernetMbps > 0 : id === 'dp' ? f.displayPorts >= 2 : id.startsWith('usb') ? Number(id.slice(3)) < f.usbPorts : true);
+  const c = tones(T),
+    f = o.features,
+    q = BR.io;
+  const fitted = (id: string) =>
+    id === 'eth'
+      ? f.ethernetMbps > 0
+      : id === 'dp'
+        ? f.displayPorts >= 2
+        : id.startsWith('usb')
+          ? Number(id.slice(3)) < f.usbPorts
+          : true;
   shieldSheet(g, T, IO_X + 14, q.y + 20, WALL_T - 28, q.h - 40);
   for (const p of IO_PORTS) portProfile(g, T, p, fitted(p.id), { wallX: IO_X, wallW: WALL_T, depth: WALL_T - 24 });
   if (f.ethernetMbps > 0) {
     const e = IO_PORTS.find((p) => p.id === 'eth')!;
-    for (const lx of [e.x + 50, e.x + 110]) g.circle(lx, e.y + e.h / 2 + 36, 11).fill({ color: '#05070c' }).stroke({ width: 3, color: c.edge, alpha: 0.7 });
+    for (const lx of [e.x + 50, e.x + 110])
+      g.circle(lx, e.y + e.h / 2 + 36, 11)
+        .fill({ color: '#05070c' })
+        .stroke({ width: 3, color: c.edge, alpha: 0.7 });
   }
   // NIC cards: their jack comes out of the rear wall at the height of the card's slot
   for (const i of o.nics ?? []) {
     const j = nicJack(i);
-    portProfile(g, T, { id: `nic${i}`, kind: 'rj45', x: j.x, y: nicY(i), w: j.w, h: j.h }, true, { wallX: IO_X, wallW: WALL_T, depth: WALL_T - 24 });
-    for (const lx of [j.x + 50, j.x + 112]) g.circle(lx, j.y + j.h + 30, 11).fill({ color: '#05070c' }).stroke({ width: 3, color: c.edge, alpha: 0.7 });
+    portProfile(g, T, { id: `nic${i}`, kind: 'rj45', x: j.x, y: nicY(i), w: j.w, h: j.h }, true, {
+      wallX: IO_X,
+      wallW: WALL_T,
+      depth: WALL_T - 24,
+    });
+    for (const lx of [j.x + 50, j.x + 112])
+      g.circle(lx, j.y + j.h + 30, 11)
+        .fill({ color: '#05070c' })
+        .stroke({ width: 3, color: c.edge, alpha: 0.7 });
   }
   // graphics cards: an HDMI port at the height of the card's slot
   for (const i of o.gpus ?? []) {
     const p = gpuPort(i);
-    portProfile(g, T, { id: `gpu${i}`, kind: 'hdmi', x: p.x, y: p.y + p.h / 2, w: p.w, h: p.h }, true, { wallX: IO_X, wallW: WALL_T, depth: WALL_T - 24 });
+    portProfile(g, T, { id: `gpu${i}`, kind: 'hdmi', x: p.x, y: p.y + p.h / 2, w: p.w, h: p.h }, true, {
+      wallX: IO_X,
+      wallW: WALL_T,
+      depth: WALL_T - 24,
+    });
   }
 }
 
@@ -289,7 +519,17 @@ export function stripModeOf(s: Snapshot | null): StripMode {
   if (!s.powered) return 'off';
   const ph = s.phase;
   if (ph === 'halted') return 'halt';
-  return ph === 'posting' || ph === 'mounting' || ph === 'loading' || ph === 'running' || ph === 'writing' || ph === 'booting-os' || ph === 'ingesting' || ph === 'running-os' || ph === 'flashing' ? 'work' : 'idle';
+  return ph === 'posting' ||
+    ph === 'mounting' ||
+    ph === 'loading' ||
+    ph === 'running' ||
+    ph === 'writing' ||
+    ph === 'booting-os' ||
+    ph === 'ingesting' ||
+    ph === 'running-os' ||
+    ph === 'flashing'
+    ? 'work'
+    : 'idle';
 }
 
 /**
@@ -297,18 +537,41 @@ export function stripModeOf(s: Snapshot | null): StripMode {
  * idle: a dim steady glow; halted: a steady amber glow (on, but finished or waiting for a boot key); working: a bright pulse that
  * travels down the strip; error blinks red on wall time (an alarm: a pause must not leave it stuck bright); dead is a steady dim red.
  */
-export function drawStrip(g: Graphics, T: Theme, mode: StripMode, t: number, disk: number, drives: { slot: string }[], wall = t) {
+export function drawStrip(
+  g: Graphics,
+  T: Theme,
+  mode: StripMode,
+  t: number,
+  disk: number,
+  drives: { slot: string }[],
+  wall = t,
+) {
   g.clear();
-  const { x, y0, y1, w } = stripRect(), len = y1 - y0, c = tones(T);
+  const { x, y0, y1, w } = stripRect(),
+    len = y1 - y0,
+    c = tones(T);
   const col = mode === 'error' || mode === 'dead' ? T.bad : mode === 'halt' ? T.ld : T.alu;
   if (mode === 'off') {
     box(g, x, y0, w, len, 10, { fill: mix(c.shade, T.bg, 0.3), fa: 0.9 });
   } else {
-    const base = mode === 'idle' ? 0.34 : mode === 'halt' ? 0.5 : mode === 'work' ? 0.5 : mode === 'dead' ? 0.4 : 0.35 + 0.65 * (Math.floor(wall / 420) % 2);
+    const base =
+      mode === 'idle'
+        ? 0.34
+        : mode === 'halt'
+          ? 0.5
+          : mode === 'work'
+            ? 0.5
+            : mode === 'dead'
+              ? 0.4
+              : 0.35 + 0.65 * (Math.floor(wall / 420) % 2);
     box(g, x - 22, y0 - 10, w + 44, len + 20, 22, { fill: col, fa: 0.05 * (base + 0.3) });
     box(g, x, y0, w, len, 10, { fill: col, fa: base });
     if (mode === 'work') {
-      const seg = 1000, u = (t / 2600) % 1, y = y0 - seg + (len + seg) * u, a = Math.max(y0, y), b = Math.min(y1, y + seg);
+      const seg = 1000,
+        u = (t / 2600) % 1,
+        y = y0 - seg + (len + seg) * u,
+        a = Math.max(y0, y),
+        b = Math.min(y1, y + seg);
       if (b > a) {
         box(g, x - 24, a, w + 48, b - a, 24, { fill: col, fa: 0.16 });
         box(g, x - 4, a, w + 8, b - a, 12, { fill: '#ffffff', fa: 0.55 });
@@ -320,9 +583,12 @@ export function drawStrip(g: Graphics, T: Theme, mode: StripMode, t: number, dis
     if (!d.slot.startsWith('sata')) continue; // an M.2 stick has no front LED
     const cell = Number(d.slot.slice(4));
     if (!BAY_CELLS[cell]) continue;
-    const l = frontLed(cell), a = disk;
+    const l = frontLed(cell),
+      a = disk;
     if (a > 0.02) g.circle(l.x, l.y, 30).fill({ color: T.ld, alpha: 0.3 * a });
-    g.circle(l.x, l.y, 14).fill({ color: a > 0.02 ? T.ld : mix(T.ld, T.bg, 0.8), alpha: a > 0.02 ? 0.4 + 0.6 * a : 0.7 }).stroke({ width: 3, color: c.edge, alpha: 0.8 });
+    g.circle(l.x, l.y, 14)
+      .fill({ color: a > 0.02 ? T.ld : mix(T.ld, T.bg, 0.8), alpha: a > 0.02 ? 0.4 + 0.6 * a : 0.7 })
+      .stroke({ width: 3, color: c.edge, alpha: 0.8 });
   }
 }
 

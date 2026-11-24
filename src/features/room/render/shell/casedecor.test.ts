@@ -10,8 +10,10 @@ describe('case decoration shapes', () => {
   it('a cut corner stays inside the box and trims only its own corner', () => {
     const p = cutRect(10, 20, 100, 60, [0, 30, 0, 0]);
     for (let i = 0; i < p.length; i += 2) {
-      expect(p[i]).toBeGreaterThanOrEqual(10); expect(p[i]).toBeLessThanOrEqual(110);
-      expect(p[i + 1]).toBeGreaterThanOrEqual(20); expect(p[i + 1]).toBeLessThanOrEqual(80);
+      expect(p[i]).toBeGreaterThanOrEqual(10);
+      expect(p[i]).toBeLessThanOrEqual(110);
+      expect(p[i + 1]).toBeGreaterThanOrEqual(20);
+      expect(p[i + 1]).toBeLessThanOrEqual(80);
     }
     expect(p.slice(2, 6)).toEqual([80, 20, 110, 50]);
   });
@@ -38,7 +40,9 @@ describe('case kinds and windows', () => {
   });
 
   it('the matte window is shorter than the gaming one, and the showcase window is the same size as the gaming one', () => {
-    const matte = caseWindow('matte'), gamer = caseWindow('gamer'), show = caseWindow('show');
+    const matte = caseWindow('matte'),
+      gamer = caseWindow('gamer'),
+      show = caseWindow('show');
     expect(matte.h).toBeLessThan(gamer.h);
     expect(show.w).toBe(gamer.w);
     expect(show.h).toBe(gamer.h);

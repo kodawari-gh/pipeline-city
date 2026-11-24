@@ -3,14 +3,22 @@
 // water's temperature at that place of the loop (`waterAt`: hot from the pump to the radiator's core, cooling along its lanes, cold on the way back, heated again
 // across the pump's cold plate), and bands of light run along it at the speed of the flow. It is drawn over the picture, through the hoses and the radiator's
 // plates: the hose's own sleeve and the radiator's body glow by their temperature (`PartSkin.thermal`) round it.
-import { DoubleSide, Float32BufferAttribute, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, ShaderMaterial, type PerspectiveCamera } from 'three';
+import {
+  DoubleSide,
+  Float32BufferAttribute,
+  InstancedBufferAttribute,
+  InstancedBufferGeometry,
+  Mesh,
+  ShaderMaterial,
+  type PerspectiveCamera,
+} from 'three';
 import { THERMAL_BEND, thermalGlsl } from '@/core/render/three/thermal';
 import type { WaterNet } from './waternet';
 
 /** The knots of the temperature along the loop (`waterNet` makes this many). */
 export const KNOTS = 8;
 
-const VERT = /* glsl */`
+const VERT = /* glsl */ `
 attribute vec2 corner;
 attribute vec3 iA, iB;
 attribute vec4 iInfo;
@@ -38,7 +46,7 @@ void main() {
   vPh = iInfo.w;
 }`;
 
-const FRAG = /* glsl */`
+const FRAG = /* glsl */ `
 #define COVER 0.92
 uniform float uS[${KNOTS}], uK[${KNOTS}];
 uniform float uLo, uHi, uStrength, uPhase, uLambda, uMove;
@@ -70,7 +78,9 @@ void main() {
 }`;
 
 /** How bright the water is over the picture, the length of a band of light along it (units), and how fast the bands go at full flow (bands a second). */
-const STRENGTH = 1.0, LAMBDA = 2600, SPEED = 0.45;
+const STRENGTH = 1.0,
+  LAMBDA = 2600,
+  SPEED = 0.45;
 /** The water's temperature, shown from the loop's mean this many times as far (the loop's own rise is a few kelvins: on the scale the parts glow by it would not show). */
 export const SPREAD = 3.5;
 
@@ -87,7 +97,10 @@ export class Water {
     // (`position` is needed for the draw count; the shader does not read it)
     this.geo.setAttribute('position', new Float32BufferAttribute(new Float32Array(12), 3));
     this.geo.setIndex([0, 1, 2, 1, 3, 2]);
-    const n = net.runs.length, a = new Float32Array(3 * n), b = new Float32Array(3 * n), info = new Float32Array(4 * n);
+    const n = net.runs.length,
+      a = new Float32Array(3 * n),
+      b = new Float32Array(3 * n),
+      info = new Float32Array(4 * n);
     net.runs.forEach((r, i) => {
       a.set(r.a, 3 * i);
       b.set(r.b, 3 * i);
@@ -100,10 +113,23 @@ export class Water {
     const s = Array.from({ length: KNOTS }, (_, i) => net.stops[Math.min(i, net.stops.length - 1)] ?? 0);
     this.mat = new ShaderMaterial({
       // (laid over the picture: two runs that overlap at a bend are one colour, so they add nothing; both faces, a strip's winding turns with the run's way)
-      vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, depthTest: false, toneMapped: false, side: DoubleSide,
+      vertexShader: VERT,
+      fragmentShader: FRAG,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      toneMapped: false,
+      side: DoubleSide,
       uniforms: {
-        uPixel: { value: 0.002 }, uS: { value: s }, uK: { value: new Array<number>(KNOTS).fill(25) }, uLo: { value: 25 }, uHi: { value: 55 },
-        uStrength: { value: STRENGTH }, uPhase: { value: 0 }, uLambda: { value: LAMBDA }, uMove: { value: 0 },
+        uPixel: { value: 0.002 },
+        uS: { value: s },
+        uK: { value: new Array<number>(KNOTS).fill(25) },
+        uLo: { value: 25 },
+        uHi: { value: 55 },
+        uStrength: { value: STRENGTH },
+        uPhase: { value: 0 },
+        uLambda: { value: LAMBDA },
+        uMove: { value: 0 },
       },
     });
     this.mesh = new Mesh(this.geo, this.mat);
@@ -116,8 +142,19 @@ export class Water {
    * Per frame. `lo`, `hi`: the temperatures at the two ends of the thermal scale; `hotC`, `coldC`: the water where it leaves the pump and where it comes back;
    * `flow`: how hard the pump drives it (0 to 1; 0 is still water); `dt`: game seconds; `pxHeight`: the view's height in pixels.
    */
-  frame(cam: PerspectiveCamera, pxHeight: number, lo: number, hi: number, hotC: number, coldC: number, flow: number, dt: number): void {
-    const u = this.mat.uniforms, mean = (hotC + coldC) / 2, f = Math.max(0, Math.min(1, flow));
+  frame(
+    cam: PerspectiveCamera,
+    pxHeight: number,
+    lo: number,
+    hi: number,
+    hotC: number,
+    coldC: number,
+    flow: number,
+    dt: number,
+  ): void {
+    const u = this.mat.uniforms,
+      mean = (hotC + coldC) / 2,
+      f = Math.max(0, Math.min(1, flow));
     this.phase = (this.phase + dt * SPEED * f) % 1000;
     const k = u.uK!.value as number[];
     for (let i = 0; i < KNOTS; i++) {

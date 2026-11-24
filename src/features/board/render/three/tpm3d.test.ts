@@ -9,11 +9,14 @@ import { tpmModel, TPM_Z } from './tpm3d';
 describe('the TPM module', () => {
   it('is a real 18 x 13 mm board, 1 mm thick, on its female connector over the header, its die and its LED on their faces', () => {
     setLayoutTier(3, 3);
-    const p = tpmRect(3)!, hr = headerRect(tpmHeader(3)!);
+    const p = tpmRect(3)!,
+      hr = headerRect(tpmHeader(3)!);
     for (const visual of ['tpm-1', 'tpm-2']) {
-      const g = new Group(), faces: { r: RectLike; z: number }[] = [];
+      const g = new Group(),
+        faces: { r: RectLike; z: number }[] = [];
       expect(tpmModel(g, visual, (_, r, z) => faces.push({ r, z }))).not.toBeNull();
-      const pcb = new Box3().setFromObject(g.getObjectByName('tpm-pcb')!), all = new Box3().setFromObject(g);
+      const pcb = new Box3().setFromObject(g.getObjectByName('tpm-pcb')!),
+        all = new Box3().setFromObject(g);
       expect((pcb.max.x - pcb.min.x) / 23, visual).toBeCloseTo(18.3, 1);
       expect((pcb.max.y - pcb.min.y) / 23, visual).toBeCloseTo(13, 1);
       expect(pcb.min.z).toBeCloseTo(TPM_Z.pcb, 0);
@@ -27,7 +30,8 @@ describe('the TPM module', () => {
       // the chip is a TSSOP-28: 14 legs on each long side
       expect((g.getObjectByName('tpm-legs') as InstancedMesh).count, visual).toBe(28);
       // the die's face covers the die over the chip's top, the LED's face its lens
-      const geo = tpmGeo(visual, hr), [die, led] = faces;
+      const geo = tpmGeo(visual, hr),
+        [die, led] = faces;
       expect(faces.length).toBe(2);
       expect(die!.r.x).toBeLessThanOrEqual(geo.die.x);
       expect(die!.r.x + die!.r.w).toBeGreaterThanOrEqual(geo.die.x + geo.die.w);

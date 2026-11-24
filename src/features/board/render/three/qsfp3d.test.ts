@@ -4,7 +4,10 @@ import { mat } from '@/core/render/three/materials';
 import type { Span } from './casekit3d';
 import { QSFP, qsfpFace, qsfpLamps, qsfpLook } from './qsfp3d';
 
-const K = 23, W = QSFP.cage.w * K, H = QSFP.cage.h * K, DEEP = 22 * K;
+const K = 23,
+  W = QSFP.cage.w * K,
+  H = QSFP.cage.h * K,
+  DEEP = 22 * K;
 /** A card's cage (its width along y, lying) and a router's (its width along z), on the same size of span. */
 const card: Span = { y0: 100, y1: 100 + W, z0: 10, z1: 10 + H };
 const front: Span = { y0: 100, y1: 100 + H, z0: 10, z1: 10 + W };
@@ -14,7 +17,9 @@ const look = qsfpLook(mat(0x8a9099, {}));
 /** The box of every mesh made of `m` in `g`, in layout terms (the model's y is the layout's negated). */
 const boxOf = (g: Group, m: Material) => {
   const b = new Box3();
-  g.traverse((o) => { if (o instanceof Mesh && o.material === m) b.expandByObject(o); });
+  g.traverse((o) => {
+    if (o instanceof Mesh && o.material === m) b.expandByObject(o);
+  });
   return { empty: b.isEmpty(), x0: b.min.x, x1: b.max.x, y0: -b.max.y, y1: -b.min.y, z0: b.min.z, z1: b.max.z };
 };
 
@@ -29,7 +34,10 @@ describe("the QSFP+ cage's face", () => {
   });
 
   it('stands over its span and runs back to its depth, whichever way the span is wide', () => {
-    for (const [name, s] of [['card', card], ['router', front]] as const) {
+    for (const [name, s] of [
+      ['card', card],
+      ['router', front],
+    ] as const) {
       const g = new Group();
       qsfpFace(g, 0, s, DEEP, look);
       const b = boxOf(g, look.shell);
@@ -43,12 +51,14 @@ describe("the QSFP+ cage's face", () => {
   });
 
   it('draws the connector (its housing, the slot and the 38 gold contacts in two rows) only when it is fine', () => {
-    const plain = new Group(), fine = new Group();
+    const plain = new Group(),
+      fine = new Group();
     qsfpFace(plain, 0, card, DEEP, look, false);
     qsfpFace(fine, 0, card, DEEP, look, true);
     expect(fine.children.length - plain.children.length).toBe(3);
     // the gold: one instanced draw, 19 contacts a row
-    const gold = fine.children.find((o) => (o as Mesh).material === look.gold) as (Mesh & { count?: number }) | undefined;
+    const gold = fine.children.find((o) => (o as Mesh).material === look.gold) as
+      (Mesh & { count?: number }) | undefined;
     expect(gold?.count).toBe(38);
     expect(boxOf(plain, look.gold).empty).toBe(true);
     // (the connector stands at the back, behind the mouth: nothing of it is in the first half)
@@ -59,14 +69,17 @@ describe("the QSFP+ cage's face", () => {
     const g = new Group();
     qsfpLamps(g, 0, card, 'z', lamps, look, true);
     // the block: the cage's width, 2.4 mm tall over it, 8.6 mm deep (it ends inside the bracket)
-    const block = boxOf(g, look.housing), mid = (card.y0 + card.y1) / 2;
+    const block = boxOf(g, look.housing),
+      mid = (card.y0 + card.y1) / 2;
     expect(block.y0).toBeCloseTo(card.y0, 3);
     expect(block.y1).toBeCloseTo(card.y1, 3);
     expect(block.z0).toBeCloseTo(card.z1, 3);
     expect(block.z1 - block.z0).toBeCloseTo(QSFP.lamp.h * K, 3);
     expect(block.x1 - block.x0).toBeCloseTo(QSFP.lamp.d * K, 3);
     // the lenses: link toward -y, activity toward +y, on the block's face, over its middle, a hair proud (under a unit: the card stays inside its strip)
-    const link = boxOf(g, lamps.link), act = boxOf(g, lamps.act), over = card.z1 + (QSFP.lamp.h * K) / 2;
+    const link = boxOf(g, lamps.link),
+      act = boxOf(g, lamps.act),
+      over = card.z1 + (QSFP.lamp.h * K) / 2;
     expect((link.y0 + link.y1) / 2).toBeCloseTo(mid - 5.3 * K, 3);
     expect((act.y0 + act.y1) / 2).toBeCloseTo(mid + 5.3 * K, 3);
     expect((link.z0 + link.z1) / 2).toBeCloseTo(over, 3);
@@ -79,7 +92,9 @@ describe("the QSFP+ cage's face", () => {
     const bare = new Group();
     qsfpLamps(bare, 0, front, '-y', lamps, look, false);
     expect(boxOf(bare, look.housing).empty).toBe(true);
-    const link = boxOf(bare, lamps.link), act = boxOf(bare, lamps.act), mid = (front.z0 + front.z1) / 2;
+    const link = boxOf(bare, lamps.link),
+      act = boxOf(bare, lamps.act),
+      mid = (front.z0 + front.z1) / 2;
     // (over the cage: toward -y, clear of it by a gap)
     expect(link.y1).toBeLessThan(front.y0);
     expect(act.y1).toBeLessThan(front.y0);

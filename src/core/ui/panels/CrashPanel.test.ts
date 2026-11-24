@@ -7,7 +7,9 @@ import type { CrashReport } from '@/worker/crash';
 
 const hooks = vi.hoisted(() => ({ effects: [] as (() => unknown)[] }));
 vi.mock('preact/hooks', () => ({
-  useEffect: (fn: () => unknown) => { hooks.effects.push(fn); },
+  useEffect: (fn: () => unknown) => {
+    hooks.effects.push(fn);
+  },
   useRef: () => ({ current: null }),
   useState: (v: unknown) => [v, () => {}],
 }));

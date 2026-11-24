@@ -11,16 +11,23 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i ground stitching', (ti
   };
 
   it('scatters vias through the free plane, all on the board', () => {
-    const { g, lanes } = setup(), vias = stitchVias(g, lanes);
+    const { g, lanes } = setup(),
+      vias = stitchVias(g, lanes);
     expect(vias.length).toBeGreaterThan(150);
-    for (const [x, y] of vias) expect(x > g.bd.x && x < g.bd.x + g.bd.w && y > g.bd.y && y < g.bd.y + g.bd.h).toBe(true);
+    for (const [x, y] of vias)
+      expect(x > g.bd.x && x < g.bd.x + g.bd.w && y > g.bd.y && y < g.bd.y + g.bd.h).toBe(true);
   });
 
   it('keeps every via off the lanes, on any layer, and off the mounting holes', () => {
-    const { g, lanes } = setup(), vias = stitchVias(g, lanes);
+    const { g, lanes } = setup(),
+      vias = stitchVias(g, lanes);
     for (const [x, y] of vias) {
       let d = Infinity;
-      for (const l of lanes) for (let s = 0; s < l.len; s += 10) { const p = pointAt(l, s); d = Math.min(d, Math.hypot(p[0] - x, p[1] - y)); }
+      for (const l of lanes)
+        for (let s = 0; s < l.len; s += 10) {
+          const p = pointAt(l, s);
+          d = Math.min(d, Math.hypot(p[0] - x, p[1] - y));
+        }
       expect(d, `via at ${x},${y}`).toBeGreaterThan(STITCH_LANE - 12);
       for (const [hx, hy] of g.holes) expect(Math.hypot(hx - x, hy - y)).toBeGreaterThanOrEqual(STITCH_HOLE);
     }

@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { decode, OPS, SPEC_BY_NAME } from "../isa/isa";
-import { Prng } from "@/core/sim";
-import { InstrPool } from "./common";
+import { describe, expect, it } from 'vitest';
+import { decode, OPS, SPEC_BY_NAME } from '../isa/isa';
+import { Prng } from '@/core/sim';
+import { InstrPool } from './common';
 
-describe("allocation-free decode", () => {
-  it("InstrPool.decodeSlot matches isa decode on random words, legal and illegal", () => {
+describe('allocation-free decode', () => {
+  it('InstrPool.decodeSlot matches isa decode on random words, legal and illegal', () => {
     const pool = new InstrPool();
     const rng = new Prng(1234);
     const ops = OPS.map((s) => s.op);

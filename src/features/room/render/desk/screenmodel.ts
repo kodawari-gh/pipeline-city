@@ -9,10 +9,27 @@ import { memoryTable, sizeText } from '@/features/memory/render/ramlayout';
 
 export type Tone = 'ok' | 'warn' | 'bad' | 'dim';
 
-export interface DashBar { label: string; text: string; frac: number; tone: Tone; mark?: number }
-export interface DashProc { pid: string; name: string; state: string; mem: string; time: string; tone: 'run' | 'wait' | 'done' }
+export interface DashBar {
+  label: string;
+  text: string;
+  frac: number;
+  tone: Tone;
+  mark?: number;
+}
+export interface DashProc {
+  pid: string;
+  name: string;
+  state: string;
+  mem: string;
+  time: string;
+  tone: 'run' | 'wait' | 'done';
+}
 /** A stacked bar: the parts in order, each a fraction of the whole. */
-export interface DashStack { label: string; text: string; parts: { frac: number; tone: 'sys' | 'proc' | 'free' }[] }
+export interface DashStack {
+  label: string;
+  text: string;
+  parts: { frac: number; tone: 'sys' | 'proc' | 'free' }[];
+}
 
 export interface DashModel {
   title: string;
@@ -46,63 +63,115 @@ const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 /** Instructions per cycle between two counter readings (null when no cycles passed or the counters restarted). */
 export function ipcBetween(prev: Record<string, number> | null, cur: Record<string, number>): number | null {
   if (!prev) return null;
-  const dc = (cur.cycles ?? 0) - (prev.cycles ?? 0), dr = (cur.retired ?? 0) - (prev.retired ?? 0);
+  const dc = (cur.cycles ?? 0) - (prev.cycles ?? 0),
+    dr = (cur.retired ?? 0) - (prev.retired ?? 0);
   return dc > 0 && dr >= 0 ? dr / dc : null;
 }
 
 /** `mm:ss` of a tick count (a base tick is a second). */
-export const clock = (ticks: number): string => `${String(Math.floor(ticks / 60)).padStart(2, '0')}:${String(Math.floor(ticks % 60)).padStart(2, '0')}`;
+export const clock = (ticks: number): string =>
+  `${String(Math.floor(ticks / 60)).padStart(2, '0')}:${String(Math.floor(ticks % 60)).padStart(2, '0')}`;
 
-const tempTone = (t: number, thr?: number, bad?: number): Tone => (bad !== undefined && t >= bad ? 'bad' : thr !== undefined && t >= thr ? 'warn' : 'ok');
+const tempTone = (t: number, thr?: number, bad?: number): Tone =>
+  bad !== undefined && t >= bad ? 'bad' : thr !== undefined && t >= thr ? 'warn' : 'ok';
 
 export function dashModel(s: Snapshot, ctx: DashCtx): DashModel | null {
   const os = s.os;
   if (!os) return null;
-  const ph = s.phase, q = os.queue ?? [];
-  const status = ph === 'idle-os' ? 'READY' : ph === 'ingesting' ? 'INGEST' : ph === 'running-os' ? 'RUNNING' : ph === 'flashing' ? 'FLASHING' : 'BOOTING';
+  const ph = s.phase,
+    q = os.queue ?? [];
+  const status =
+    ph === 'idle-os'
+      ? 'READY'
+      : ph === 'ingesting'
+        ? 'INGEST'
+        : ph === 'running-os'
+          ? 'RUNNING'
+          : ph === 'flashing'
+            ? 'FLASHING'
+            : 'BOOTING';
   const up = ctx.upTick === null ? null : Math.max(0, s.baseTick - ctx.upTick);
   const sub = `UP ${up === null ? '--:--' : clock(up)}   PROG ${os.programSlots ?? 1}   QUEUE ${q.length}/${os.queueSlots ?? '?'}`;
 
   const bars: DashBar[] = [];
   const cpu = s.devices.find((d) => d.kind === 'cpu');
   if (cpu && s.cpuClock) {
-    const c = s.cpuClock, span = c.max - c.min || 1;
-    bars.push({ label: 'CLOCK', text: cpu.burnt ? 'BURNT' : `${cpu.effectiveClock.toFixed(2)}x`, frac: clamp01((cpu.effectiveClock - c.min) / span), tone: cpu.burnt ? 'bad' : cpu.throttle < 1 ? 'warn' : 'ok' });
+    const c = s.cpuClock,
+      span = c.max - c.min || 1;
+    bars.push({
+      label: 'CLOCK',
+      text: cpu.burnt ? 'BURNT' : `${cpu.effectiveClock.toFixed(2)}x`,
+      frac: clamp01((cpu.effectiveClock - c.min) / span),
+      tone: cpu.burnt ? 'bad' : cpu.throttle < 1 ? 'warn' : 'ok',
+    });
   }
   if (cpu) {
-    const sp = getSpec(cpu.spec), th = sp?.thermal;
-    bars.push({ label: 'TEMP', text: `${cpu.tempC.toFixed(0)} C`, frac: clamp01(cpu.tempC / (th?.damageC ?? 100)), tone: tempTone(cpu.tempC, th?.throttleC, th?.unstableC), mark: th ? th.throttleC / th.damageC : undefined });
+    const sp = getSpec(cpu.spec),
+      th = sp?.thermal;
+    bars.push({
+      label: 'TEMP',
+      text: `${cpu.tempC.toFixed(0)} C`,
+      frac: clamp01(cpu.tempC / (th?.damageC ?? 100)),
+      tone: tempTone(cpu.tempC, th?.throttleC, th?.unstableC),
+      mark: th ? th.throttleC / th.damageC : undefined,
+    });
   }
-  bars.push({ label: 'POWER', text: `${s.power.totalW.toFixed(0)}/${s.power.budgetW.toFixed(0)} W`, frac: clamp01(s.power.totalW / Math.max(1, s.power.budgetW)), tone: s.power.tripped || s.power.totalW > s.power.budgetW ? 'bad' : s.power.totalW > 0.85 * s.power.budgetW ? 'warn' : 'ok' });
+  bars.push({
+    label: 'POWER',
+    text: `${s.power.totalW.toFixed(0)}/${s.power.budgetW.toFixed(0)} W`,
+    frac: clamp01(s.power.totalW / Math.max(1, s.power.budgetW)),
+    tone:
+      s.power.tripped || s.power.totalW > s.power.budgetW
+        ? 'bad'
+        : s.power.totalW > 0.85 * s.power.budgetW
+          ? 'warn'
+          : 'ok',
+  });
   const disk = s.storage?.find((x) => x.hasOs) ?? s.storage?.find((x) => x.slot === os.slot);
   if (disk && disk.capacityBytes > 0) {
     const f = clamp01(disk.usedBytes / disk.capacityBytes);
-    bars.push({ label: `DISK ${disk.slot.toUpperCase()}`, text: `${Math.round(disk.usedBytes / 1024)}K/${Math.round(disk.capacityBytes / 1024)}K`, frac: f, tone: f > 0.95 ? 'bad' : f > 0.8 ? 'warn' : 'ok' });
+    bars.push({
+      label: `DISK ${disk.slot.toUpperCase()}`,
+      text: `${Math.round(disk.usedBytes / 1024)}K/${Math.round(disk.capacityBytes / 1024)}K`,
+      frac: f,
+      tone: f > 0.95 ? 'bad' : f > 0.8 ? 'warn' : 'ok',
+    });
   }
 
   const mt = s.ram ? memoryTable(s.ram.regions, s.ram.bytes) : null;
-  const mem: DashStack | null = mt && mt.total > 0 ? {
-    label: 'MEM',
-    text: `${sizeText(mt.total)}  SYS ${sizeText(mt.sys)}  FREE ${sizeText(mt.free)}`,
-    parts: [
-      { frac: mt.sys / mt.total, tone: 'sys' },
-      { frac: mt.procs.reduce((a, p) => a + p.bytes, 0) / mt.total, tone: 'proc' },
-      { frac: mt.free / mt.total, tone: 'free' },
-    ],
-  } : null;
+  const mem: DashStack | null =
+    mt && mt.total > 0
+      ? {
+          label: 'MEM',
+          text: `${sizeText(mt.total)}  SYS ${sizeText(mt.sys)}  FREE ${sizeText(mt.free)}`,
+          parts: [
+            { frac: mt.sys / mt.total, tone: 'sys' },
+            { frac: mt.procs.reduce((a, p) => a + p.bytes, 0) / mt.total, tone: 'proc' },
+            { frac: mt.free / mt.total, tone: 'free' },
+          ],
+        }
+      : null;
 
   const last = ctx.ipc.length ? ctx.ipc[ctx.ipc.length - 1]! : null;
   const vm = s.mmu && (os.tier ?? 1) >= 2 ? s.mmu : null;
   const all = vm ? vm.hits + vm.misses : 0;
-  const ipcText = (last === null ? 'IPC --' : `IPC ${last.toFixed(2)}`) + (vm ? `   TLB HIT ${all ? Math.round((100 * vm.hits) / all) : 100}%   FAULTS ${vm.faults}` : '');
+  const ipcText =
+    (last === null ? 'IPC --' : `IPC ${last.toFixed(2)}`) +
+    (vm ? `   TLB HIT ${all ? Math.round((100 * vm.hits) / all) : 100}%   FAULTS ${vm.faults}` : '');
 
   const n = s.net;
-  const net = n ? (n.state === 'link-up' || n.state === 'saturated'
-    ? `NET ${n.state === 'saturated' ? 'SATURATED' : 'UP'}  ${n.bandwidth.downMbps.toFixed(0)}/${n.bandwidth.upMbps.toFixed(0)} Mbps  ${n.transfers.length} XFER`
-    : `NET ${n.state.toUpperCase().replace('-', ' ')}`) : 'NET --';
+  const net = n
+    ? n.state === 'link-up' || n.state === 'saturated'
+      ? `NET ${n.state === 'saturated' ? 'SATURATED' : 'UP'}  ${n.bandwidth.downMbps.toFixed(0)}/${n.bandwidth.upMbps.toFixed(0)} Mbps  ${n.transfers.length} XFER`
+      : `NET ${n.state.toUpperCase().replace('-', ' ')}`
+    : 'NET --';
 
   // the process table: running programs first, then the queue in order; the memory column is the image plus what the program claimed
-  const order = [...q.filter((j) => j.state === 'running'), ...q.filter((j) => j.state === 'queued').sort((a, b) => a.ahead - b.ahead), ...q.filter((j) => j.state === 'result')];
+  const order = [
+    ...q.filter((j) => j.state === 'running'),
+    ...q.filter((j) => j.state === 'queued').sort((a, b) => a.ahead - b.ahead),
+    ...q.filter((j) => j.state === 'result'),
+  ];
   const alone = order.filter((j) => j.state === 'running').length === 1; // a single-program OS does not tag its regions with the key
   const rows: DashProc[] = order.map((j) => {
     const p = mt?.procs.find((x) => x.owner === j.keyId) ?? (alone && j.state === 'running' ? mt?.procs[0] : undefined);
@@ -119,14 +188,34 @@ export function dashModel(s: Snapshot, ctx: DashCtx): DashModel | null {
   const SHOWN = ctx.compact ? 3 : 8;
 
   const ready = q.filter((j) => j.state === 'result');
-  let prompt = '', promptTone: DashModel['promptTone'] = 'dim';
+  let prompt = '',
+    promptTone: DashModel['promptTone'] = 'dim';
   if (ph === 'ingesting') prompt = `INGESTING KEY ${s.plugged?.label ?? ''}`;
-  else if (ph === 'flashing') { prompt = `WRITING RESULT ${s.plugged?.label ?? ''}`; promptTone = 'warn'; }
-  else if (s.keyActivity === 'done' && s.plugged) { prompt = `REMOVE KEY ${s.plugged.label}`; promptTone = 'ok'; }
-  else if (ready.length) { prompt = `PLUG KEY ${ready[0]!.label} TO COLLECT${ready.length > 1 ? ` (+${ready.length - 1})` : ''}`; promptTone = 'warn'; }
-  else if (!order.length) prompt = 'IDLE  insert a key';
+  else if (ph === 'flashing') {
+    prompt = `WRITING RESULT ${s.plugged?.label ?? ''}`;
+    promptTone = 'warn';
+  } else if (s.keyActivity === 'done' && s.plugged) {
+    prompt = `REMOVE KEY ${s.plugged.label}`;
+    promptTone = 'ok';
+  } else if (ready.length) {
+    prompt = `PLUG KEY ${ready[0]!.label} TO COLLECT${ready.length > 1 ? ` (+${ready.length - 1})` : ''}`;
+    promptTone = 'warn';
+  } else if (!order.length) prompt = 'IDLE  insert a key';
 
-  return { title: `${(os.name ?? 'OS').toUpperCase().slice(0, 28)} T${os.tier ?? 1}`, status, sub, bars, mem, ipc: ctx.ipc, ipcText, net, procs: rows.slice(0, SHOWN), more: Math.max(0, rows.length - SHOWN), prompt, promptTone };
+  return {
+    title: `${(os.name ?? 'OS').toUpperCase().slice(0, 28)} T${os.tier ?? 1}`,
+    status,
+    sub,
+    bars,
+    mem,
+    ipc: ctx.ipc,
+    ipcText,
+    net,
+    procs: rows.slice(0, SHOWN),
+    more: Math.max(0, rows.length - SHOWN),
+    prompt,
+    promptTone,
+  };
 }
 
 /** A stable text of everything the view draws, so it repaints only when this changes. */
@@ -167,21 +256,37 @@ export function frameModel(g: GpuSnap | undefined): FrameModel | null {
   const busy = slots > 0 ? Math.round((100 * (slots - g.stats.idleLaneSlots)) / slots) : 0;
   const state = g.error ? 'FAULT' : g.phase === 'idle' ? 'DONE' : 'DRAWING';
   return {
-    cols: pic.cols, rows: pic.rows, cells: pic.cells, seq: g.launches,
+    cols: pic.cols,
+    rows: pic.rows,
+    cells: pic.cells,
+    seq: g.launches,
     status: `FRAME ${g.launches}  ${state}  ${g.stats.cycles} CYC  ${g.lanes} LANES ${busy}% BUSY  ${g.stats.conflictCycles} CONFLICTS`,
   };
 }
 
-const RAMP = [[6, 4, 24], [38, 12, 110], [120, 20, 160], [220, 40, 120], [255, 130, 40], [255, 225, 90], [255, 255, 235]] as const;
+const RAMP = [
+  [6, 4, 24],
+  [38, 12, 110],
+  [120, 20, 160],
+  [220, 40, 120],
+  [255, 130, 40],
+  [255, 225, 90],
+  [255, 255, 235],
+] as const;
 /** The picture's colour for a cell value 0..1: deep indigo up through violet and magenta to orange, yellow and white-hot (a heat-map, so low and high read apart). */
 export function frameColor(t: number): string {
-  const x = clamp01(t) * (RAMP.length - 1), i = Math.min(RAMP.length - 2, Math.floor(x)), f = x - i;
+  const x = clamp01(t) * (RAMP.length - 1),
+    i = Math.min(RAMP.length - 2, Math.floor(x)),
+    f = x - i;
   const c = RAMP[i]!.map((a, k) => Math.round(a + (RAMP[i + 1]![k]! - a) * f));
   return `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 }
 
 /** What the screen remembers of a card to decide how long its frame stays up: the launch count it last saw and the tick it last saw the card busy or launched. */
-export interface FrameHold { seq: number; at: number }
+export interface FrameHold {
+  seq: number;
+  at: number;
+}
 
 /** Advance the hold with this snapshot's card: the frame is up while the card works and `FRAME_HOLD` ticks after its latest launch. */
 export function holdFrame(h: FrameHold, g: GpuSnap | undefined, tick: number): { hold: FrameHold; show: boolean } {

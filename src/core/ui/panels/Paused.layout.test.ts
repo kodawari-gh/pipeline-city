@@ -35,12 +35,25 @@ function rulesOf(text: string): Rule[] {
   let i = 0;
   while (i < src.length) {
     const c = src.charAt(i++);
-    if (c === ';') { buf = ''; continue; }
-    if (c === '}') { media.pop(); buf = ''; continue; }
-    if (c !== '{') { buf += c; continue; }
+    if (c === ';') {
+      buf = '';
+      continue;
+    }
+    if (c === '}') {
+      media.pop();
+      buf = '';
+      continue;
+    }
+    if (c !== '{') {
+      buf += c;
+      continue;
+    }
     const head = buf.trim();
     buf = '';
-    if (head.startsWith('@media')) { media.push(head.slice('@media'.length).trim()); continue; }
+    if (head.startsWith('@media')) {
+      media.push(head.slice('@media'.length).trim());
+      continue;
+    }
     if (head.startsWith('@')) {
       for (let depth = 1; depth > 0 && i < src.length;) {
         const d = src.charAt(i++);
@@ -51,7 +64,12 @@ function rulesOf(text: string): Rule[] {
     }
     const end = src.indexOf('}', i);
     if (end < 0) break;
-    out.push({ media: [...media], selectors: head.split(',').map((s) => s.trim()), decls: declsOf(src.slice(i, end)), order: out.length });
+    out.push({
+      media: [...media],
+      selectors: head.split(',').map((s) => s.trim()),
+      decls: declsOf(src.slice(i, end)),
+      order: out.length,
+    });
     i = end + 1;
   }
   return out;
@@ -67,17 +85,24 @@ function featureHolds(feature: string, c: Ctx): boolean {
   const value = m[2] ?? '';
   const px = (v: string) => (/em$/.test(v) ? parseFloat(v) * 16 : parseFloat(v));
   switch (name) {
-    case 'max-width': return c.w <= px(value);
-    case 'min-width': return c.w >= px(value);
-    case 'max-height': return c.h <= px(value);
-    case 'min-height': return c.h >= px(value);
+    case 'max-width':
+      return c.w <= px(value);
+    case 'min-width':
+      return c.w >= px(value);
+    case 'max-height':
+      return c.h <= px(value);
+    case 'min-height':
+      return c.h >= px(value);
     case 'max-aspect-ratio': {
       const [a, b] = value.split('/').map(Number);
       return c.w / c.h <= (a ?? NaN) / (b ?? 1);
     }
-    case 'orientation': return value === (c.w > c.h ? 'landscape' : 'portrait');
-    case 'pointer': return value === (c.coarse ? 'coarse' : 'fine');
-    default: return false;
+    case 'orientation':
+      return value === (c.w > c.h ? 'landscape' : 'portrait');
+    case 'pointer':
+      return value === (c.coarse ? 'coarse' : 'fine');
+    default:
+      return false;
   }
 }
 
@@ -101,7 +126,8 @@ function cascade(prop: string, selectors: string[], c: Ctx): string | undefined 
       const value = selectors.includes(sel) ? valueOf(r.decls, prop) : undefined;
       if (value === undefined) continue;
       const spec = (sel.match(/[.#][\w-]+/g) ?? []).length;
-      if (!best || spec > best.spec || (spec === best.spec && r.order > best.order)) best = { spec, order: r.order, value };
+      if (!best || spec > best.spec || (spec === best.spec && r.order > best.order))
+        best = { spec, order: r.order, value };
     }
   }
   return best?.value;
@@ -118,7 +144,10 @@ function splitTopLevel(s: string): string[] {
   for (const c of s) {
     if (c === '(') depth++;
     if (c === ')') depth--;
-    if (c === ',' && depth === 0) { out.push(cur); cur = ''; } else cur += c;
+    if (c === ',' && depth === 0) {
+      out.push(cur);
+      cur = '';
+    } else cur += c;
   }
   out.push(cur);
   return out;
@@ -139,17 +168,28 @@ function smallestPx(v: string | undefined): number {
 const LANDSCAPE_PHONE: Ctx = { w: 844, h: 390, coarse: true };
 /** The selectors that reach a paused spine row that is not a hero (the coarse rule for 48 px rows is `.pl-menu .pl-row:not(.hero)`), a hero row, the title and the stack (SPEC §5.10). */
 const ROW = ['.pl-row', '.pl-menu.paused .pl-row', '.pl-menu .pl-row:not(.hero)'];
-const HERO = ['.pl-row', '.pl-menu.paused .pl-row', '.pl-row.hero', '.pl-menu.paused .pl-row.hero', '.pl-menu .pl-row.hero'];
+const HERO = [
+  '.pl-row',
+  '.pl-menu.paused .pl-row',
+  '.pl-row.hero',
+  '.pl-menu.paused .pl-row.hero',
+  '.pl-menu .pl-row.hero',
+];
 const TITLE = ['.pl-title', '.pl-menu.paused .pl-title'];
 
 describe('the Paused screen layout (ui.css)', () => {
   it('on a coarse pointer, the paused rows are at least 48 px tall in landscape (844 x 390, SPEC §10)', () => {
-    expect(smallestPx(cascade('min-height', ROW, LANDSCAPE_PHONE)), 'the landscape row min-height').toBeGreaterThanOrEqual(48);
-    expect(smallestPx(cascade('min-height', HERO, LANDSCAPE_PHONE)), 'the landscape hero row min-height').toBeGreaterThanOrEqual(48);
+    expect(
+      smallestPx(cascade('min-height', ROW, LANDSCAPE_PHONE)),
+      'the landscape row min-height',
+    ).toBeGreaterThanOrEqual(48);
+    expect(
+      smallestPx(cascade('min-height', HERO, LANDSCAPE_PHONE)),
+      'the landscape hero row min-height',
+    ).toBeGreaterThanOrEqual(48);
   });
 
   it('the landscape title uses --t-display-sm (SPEC §6.5)', () => {
     expect(cascade('font-size', TITLE, LANDSCAPE_PHONE)).toBe('var(--t-display-sm)');
   });
-
 });

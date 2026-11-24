@@ -9,7 +9,10 @@ vi.mock('preact/hooks', () => ({
   useRef: () => ({ current: null }),
   useState: (v: unknown) => [v, () => {}],
 }));
-vi.mock('@/app/store', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/app/store')>()), startNewGame: vi.fn() }));
+vi.mock('@/app/store', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/app/store')>()),
+  startNewGame: vi.fn(),
+}));
 
 type VEl = { type: unknown; props: Record<string, any> };
 type Node = VEl | string | number | boolean | null | undefined | Node[];
@@ -39,10 +42,25 @@ beforeEach(async () => {
   vi.resetModules();
   const mem = new Map<string, string>();
   vi.stubGlobal('localStorage', {
-    getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k),
+    getItem: (k: string) => mem.get(k) ?? null,
+    setItem: (k: string, v: string) => void mem.set(k, v),
+    removeItem: (k: string) => void mem.delete(k),
   });
-  vi.stubGlobal('document', { activeElement: null, getElementById: () => null, contains: () => false, documentElement: { setAttribute: () => {}, style: { setProperty: () => {} }, classList: { toggle: () => {}, add: () => {}, remove: () => {} } } });
-  vi.stubGlobal('window', { addEventListener: () => {}, removeEventListener: () => {}, matchMedia: () => ({ matches: false, addEventListener: () => {} }) });
+  vi.stubGlobal('document', {
+    activeElement: null,
+    getElementById: () => null,
+    contains: () => false,
+    documentElement: {
+      setAttribute: () => {},
+      style: { setProperty: () => {} },
+      classList: { toggle: () => {}, add: () => {}, remove: () => {} },
+    },
+  });
+  vi.stubGlobal('window', {
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    matchMedia: () => ({ matches: false, addEventListener: () => {} }),
+  });
   ({ MainMenu } = await import('@/core/ui/panels/MainMenu'));
   ({ NewGameDialog } = await import('@/core/ui/panels/NewGame'));
   store = await import('@/app/store');
@@ -73,7 +91,10 @@ const buttonNamed = (buttons: VEl[], re: RegExp) => {
 };
 const allText = (v: Node): string => text(v);
 /** Opens the New game screen the way the player does: the menu row. */
-const openFromMenu = () => menuRows().find((r) => titleOf(r).startsWith("New game"))!.props.onClick();
+const openFromMenu = () =>
+  menuRows()
+    .find((r) => titleOf(r).startsWith('New game'))!
+    .props.onClick();
 
 describe('New game reaches the game in two clicks', () => {
   it('no save: New game, then Start starts the game once, with no second confirm', () => {

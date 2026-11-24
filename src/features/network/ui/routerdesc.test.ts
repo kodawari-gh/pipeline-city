@@ -15,27 +15,43 @@ const ROUTERS = [
 
 /** A running machine over the router of `tier`, with the cable in the PC's port (or in none) and a plan on the line (or none). */
 function game(tier: 1 | 2 | 3 | 4, plugged = true, plan = true): Snapshot {
-  const base = snap(), r = ROUTERS[tier - 1]!;
+  const base = snap(),
+    r = ROUTERS[tier - 1]!;
   return snap({
-    powered: true, power: { ...base.power, tripped: false },
+    powered: true,
+    power: { ...base.power, tripped: false },
     net: {
-      ...base.net!, state: plugged ? 'link-up' : 'no-cable', reason: plugged ? null : 'no cable', router: r,
+      ...base.net!,
+      state: plugged ? 'link-up' : 'no-cable',
+      reason: plugged ? null : 'no cable',
+      router: r,
       port: plugged ? { kind: 'board', deviceId: null, mbps: 1000 } : { kind: null, deviceId: null, mbps: 0 },
       isp: plan ? { id: 'isp5', name: 'Backbone', downMbps: 20000, upMbps: 10000, clients: 32 } : null,
       bandwidth: { downMbps: Math.min(1000, r.mbps), upMbps: 500, clients: Math.min(r.clients, 32), binding: 'port' },
-      transfers: [{ jobId: 4, label: '#4 db', dir: 'down', totalMB: 80, doneMB: 20, percent: 25, etaTicks: 6, persisted: false }], uploadsWaiting: 2, frames: { rx: 123456, tx: 61728 }, counters: { delivered: 9, downloaded: 11, uploaded: 7, lost: 0 },
+      transfers: [
+        { jobId: 4, label: '#4 db', dir: 'down', totalMB: 80, doneMB: 20, percent: 25, etaTicks: 6, persisted: false },
+      ],
+      uploadsWaiting: 2,
+      frames: { rx: 123456, tx: 61728 },
+      counters: { delivered: 9, downloaded: 11, uploaded: 7, lost: 0 },
     },
   });
 }
 
-describe('the words for the router\'s parts', () => {
+describe("the words for the router's parts", () => {
   it('describes every part the plan draws, for every tier, with a router, with a snapshot without one and without a game', () => {
     for (const tier of [1, 2, 3, 4] as const) {
       const ids = routerIds(tier);
       expect(ids.length, `tier ${tier}`).toBeGreaterThanOrEqual(13);
       for (const id of ids) {
         expect(isRouterId(id), id).toBe(true);
-        for (const d of [describeId(id, game(tier)), describeId(id, game(tier, false)), describeId(id, game(tier, true, false)), describeId(id, snap()), describeId(id)]) {
+        for (const d of [
+          describeId(id, game(tier)),
+          describeId(id, game(tier, false)),
+          describeId(id, game(tier, true, false)),
+          describeId(id, snap()),
+          describeId(id),
+        ]) {
           expect(d, `tier ${tier} ${id}`).not.toBeNull();
           expect(d!.title.length, `${id} title`).toBeGreaterThan(2);
           expect(d!.plain.length, `${id} plain`).toBeGreaterThan(10);
@@ -59,7 +75,8 @@ describe('the words for the router\'s parts', () => {
   });
 
   it('gives the addresses where the network layer has them: the IPs, the MACs, the lease, the table of the NAT and of the switch', () => {
-    const s = game(2), a = netAddrs(s)!;
+    const s = game(2),
+      a = netAddrs(s)!;
     expect(describeId('router.wanmac', s)!.nerd).toContain(`WAN ${a.wan!.ip}/${a.wan!.prefix}`);
     expect(describeId('router.wanmac', s)!.nerd).toContain(`MAC ${a.wan!.mac}`);
     expect(describeId('router.wanmac', s)!.nerd).toContain(`gateway ${a.wan!.gateway.ip}`);
@@ -86,7 +103,7 @@ describe('the words for the router\'s parts', () => {
     expect(describeId('router.power', game(1))!.nerd).toMatch(/DC 12 V jack/);
   });
 
-  it('says so with no cable or no plan, and gives the plan\'s own words with no game', () => {
+  it("says so with no cable or no plan, and gives the plan's own words with no game", () => {
     expect(describeId('router.lanphy', game(2, false))!.nerd).toMatch(/no link: no cable/);
     expect(describeId('router.sw', game(2, false))!.nerd).toMatch(/no port up/);
     expect(describeId('router.pkt', game(2, false))!.nerd).toMatch(/of 4 clients in service/);
@@ -97,7 +114,15 @@ describe('the words for the router\'s parts', () => {
   });
 
   it('ignores ids that are not its parts', () => {
-    for (const id of ['router.nonsense', 'router.', 'router', 'soc', 'router.soc.x', 'cpu.router.soc', 'pcie1.router.soc']) {
+    for (const id of [
+      'router.nonsense',
+      'router.',
+      'router',
+      'soc',
+      'router.soc.x',
+      'cpu.router.soc',
+      'pcie1.router.soc',
+    ]) {
       expect(isRouterId(id), id).toBe(false);
       if (id !== 'router') expect(describeId(id, game(4)), id).toBeNull();
     }

@@ -15,13 +15,23 @@ export const LOAD_MS = 60_000;
 export const BOOT_MS = 60_000;
 export const STEP_MS = 20_000;
 
-const freePort = (): Promise<number> => new Promise((res, rej) => {
-  const s = createServer();
-  s.once('error', rej);
-  s.listen(0, () => { const p = s.address().port; s.close(() => res(p)); });
-});
+const freePort = (): Promise<number> =>
+  new Promise((res, rej) => {
+    const s = createServer();
+    s.once('error', rej);
+    s.listen(0, () => {
+      const p = s.address().port;
+      s.close(() => res(p));
+    });
+  });
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-const answers = async (url: string): Promise<boolean> => { try { return (await fetch(url)).ok; } catch { return false; } };
+const answers = async (url: string): Promise<boolean> => {
+  try {
+    return (await fetch(url)).ok;
+  } catch {
+    return false;
+  }
+};
 
 export function killTree(child: any): void {
   if (!child?.pid || child.exitCode !== null) return;
@@ -29,33 +39,65 @@ export function killTree(child: any): void {
   else child.kill();
 }
 
-export interface Dev { child: any; url: string; exited: () => number | null }
+export interface Dev {
+  child: any;
+  url: string;
+  exited: () => number | null;
+}
 
 export async function startServer(): Promise<Dev> {
   const port = await freePort();
   const url = `http://localhost:${port}/`;
-  const child = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(port), '--strictPort'], { cwd: ROOT, stdio: 'ignore' });
+  const child = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(port), '--strictPort'], {
+    cwd: ROOT,
+    stdio: 'ignore',
+  });
   let code: number | null = null;
-  child.on('exit', (c: number | null) => { code = c ?? -1; });
+  child.on('exit', (c: number | null) => {
+    code = c ?? -1;
+  });
   for (let i = 0; !(await answers(url)); i++) {
     if (code !== null) throw new Error(`the dev server exited with ${code}`);
-    if (i > 100) { killTree(child); throw new Error('the dev server did not start'); }
+    if (i > 100) {
+      killTree(child);
+      throw new Error('the dev server did not start');
+    }
     await sleep(300);
   }
   return { child, url, exited: () => code };
 }
 
-export const launchChrome = (): Promise<Browser> => chromium.launch({
-  headless: true,
-  ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
-  args: [...(process.env.SOFTWARE ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] : ['--enable-gpu', '--use-angle=d3d11', '--enable-gpu-rasterization']), '--ignore-gpu-blocklist'],
-});
+export const launchChrome = (): Promise<Browser> =>
+  chromium.launch({
+    headless: true,
+    ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
+    args: [
+      ...(process.env.SOFTWARE
+        ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader']
+        : ['--enable-gpu', '--use-angle=d3d11', '--enable-gpu-rasterization']),
+      '--ignore-gpu-blocklist',
+    ],
+  });
 
 /** Opens a page at a size (with an optional UI size, 0.8 to 1.5) and waits until the main menu is booted. */
-export async function openBooted(browser: Browser, dev: Dev, w: number, h: number, errors: string[], uiScale?: number): Promise<{ page: Page; ctxClose: () => Promise<void> }> {
+export async function openBooted(
+  browser: Browser,
+  dev: Dev,
+  w: number,
+  h: number,
+  errors: string[],
+  uiScale?: number,
+): Promise<{ page: Page; ctxClose: () => Promise<void> }> {
   if (dev.exited() !== null) throw new Error(`the dev server is gone (exit ${dev.exited()})`);
   const ctx = await browser.newContext({ viewport: { width: w, height: h } });
-  if (uiScale) await ctx.addInitScript((v: number) => { try { localStorage.setItem('pipeline-city.uiScale', String(v)); } catch { /* none */ } }, uiScale);
+  if (uiScale)
+    await ctx.addInitScript((v: number) => {
+      try {
+        localStorage.setItem('pipeline-city.uiScale', String(v));
+      } catch {
+        /* none */
+      }
+    }, uiScale);
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(e.message.slice(0, 200)));
   page.on('crash', () => errors.push('PAGE CRASHED'));
@@ -63,7 +105,9 @@ export async function openBooted(browser: Browser, dev: Dev, w: number, h: numbe
   try {
     await page.goto(dev.url, { timeout: LOAD_MS });
     await page.waitForSelector('.pl-row', { timeout: LOAD_MS });
-    await page.waitForFunction(() => document.querySelectorAll('.pl-row:disabled').length === 0, null, { timeout: BOOT_MS });
+    await page.waitForFunction(() => document.querySelectorAll('.pl-row:disabled').length === 0, null, {
+      timeout: BOOT_MS,
+    });
   } catch (e) {
     throw new Error(`${(e as Error).message}\nthe page said: ${errors.slice(-5).join(' | ') || 'nothing'}`);
   }

@@ -13,7 +13,7 @@ export interface FilePick {
 /** Key pitch class (0 = C) of a level. Level 1 is F Lydian (5); each level up is a fifth; the keys wrap every 12 levels. */
 export function keyPcForLevel(level: number): number {
   const { levelOneKeyPc, stepSemitones } = MIX.transpose;
-  return ((((levelOneKeyPc + stepSemitones * (level - 1)) % 12) + 12) % 12);
+  return (((levelOneKeyPc + stepSemitones * (level - 1)) % 12) + 12) % 12;
 }
 
 /** The key's token name, indexed by pitch class: `Fs`, never `F#` (the music lane uses the same tokens). */

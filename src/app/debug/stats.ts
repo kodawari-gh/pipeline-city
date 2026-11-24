@@ -99,16 +99,24 @@ export interface StatsSnapshot {
 }
 
 /** The viewport: the window's inner size, the screen's size, and the orientation. */
-export interface ViewportInfo { vw: number; vh: number; sw: number; sh: number; orient: string }
+export interface ViewportInfo {
+  vw: number;
+  vh: number;
+  sw: number;
+  sh: number;
+  orient: string;
+}
 
 /**
  * The viewport for the readout. The orientation is screen.orientation's type when the browser has it; else it is read from the window size, and the
  * text says so ("by size").
  */
 export function viewportOf(
-  win: Pick<Window, 'innerWidth' | 'innerHeight'>, scr: Partial<Pick<Screen, 'width' | 'height'>> & { orientation?: { type: string } },
+  win: Pick<Window, 'innerWidth' | 'innerHeight'>,
+  scr: Partial<Pick<Screen, 'width' | 'height'>> & { orientation?: { type: string } },
 ): ViewportInfo {
-  const orient = scr.orientation?.type ?? (win.innerWidth > win.innerHeight ? 'landscape (by size)' : 'portrait (by size)');
+  const orient =
+    scr.orientation?.type ?? (win.innerWidth > win.innerHeight ? 'landscape (by size)' : 'portrait (by size)');
   return { vw: win.innerWidth, vh: win.innerHeight, sw: scr.width ?? 0, sh: scr.height ?? 0, orient };
 }
 

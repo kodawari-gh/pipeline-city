@@ -1,17 +1,36 @@
 import { describe, expect, it } from 'vitest';
 import type { V3 } from '@/core/render/three/rope';
-import { FAR_PX, POP_PX, SNAP_PX, hover, insertOffset, insertTime, keepClear, pullOffset, reelShare, reelTime, snapWeight, springStep } from './plughand3d';
+import {
+  FAR_PX,
+  POP_PX,
+  SNAP_PX,
+  hover,
+  insertOffset,
+  insertTime,
+  keepClear,
+  pullOffset,
+  reelShare,
+  reelTime,
+  snapWeight,
+  springStep,
+} from './plughand3d';
 
 describe('the hand that holds a plug', () => {
   it('carries the plug to its goal on a spring that does not overshoot, at any frame rate', () => {
     for (const dt of [1 / 30, 1 / 60, 1 / 144]) {
-      let x = 0, v = 0, max = 0;
-      for (let t = 0; t < 0.5; t += dt) { [x, v] = springStep(x, v, 100, 25, dt); max = Math.max(max, x); }
+      let x = 0,
+        v = 0,
+        max = 0;
+      for (let t = 0; t < 0.5; t += dt) {
+        [x, v] = springStep(x, v, 100, 25, dt);
+        max = Math.max(max, x);
+      }
       expect(x, `dt ${dt}`).toBeGreaterThan(99);
       expect(max, `dt ${dt}`).toBeLessThanOrEqual(100 + 1e-9);
     }
     // one long step lands where many short ones do
-    let a = 0, va = 0;
+    let a = 0,
+      va = 0;
     for (let i = 0; i < 10; i++) [a, va] = springStep(a, va, 50, 25, 0.01);
     expect(springStep(0, 0, 50, 25, 0.1)[0]).toBeCloseTo(a, 6);
   });
@@ -47,13 +66,21 @@ describe('the hand that holds a plug', () => {
 
   it('rides a held plug over what is under the pointer, never behind it, however slanted the view', () => {
     // a case seen through its glass (z 2000), its side wall at x 2000: the tray at 0, the deck (the board's face) at 300, a part on it up to 700
-    const up: V3 = [0, 0, 1], walls = [{ n: up, d: 0 }, { n: [0, 0, -1] as V3, d: -2000 }, { n: [-1, 0, 0] as V3, d: -2000 }, { n: up, d: 300 }];
-    const part = { min: [0, 0, 300] as V3, max: [400, 400, 700] as V3 }, env = { planes: walls, solids: [part] };
+    const up: V3 = [0, 0, 1],
+      walls = [
+        { n: up, d: 0 },
+        { n: [0, 0, -1] as V3, d: -2000 },
+        { n: [-1, 0, 0] as V3, d: -2000 },
+        { n: up, d: 300 },
+      ];
+    const part = { min: [0, 0, 300] as V3, max: [400, 400, 700] as V3 },
+      env = { planes: walls, solids: [part] };
     // straight in: on the part's top, or on the deck beside it (never down on the tray)
     expect(hover([200, 200, 5000], [0, 0, -1], env, 80, up)).toEqual([200, 200, 780]);
     expect(hover([1000, 200, 5000], [0, 0, -1], env, 80, up)).toEqual([1000, 200, 380]);
     // slanted: still 80 off the face it meets, on the pointer's ray
-    const d: V3 = [0.8, 0, -0.6], p = hover([-3000, 200, 4000], d, env, 80, up)!;
+    const d: V3 = [0.8, 0, -0.6],
+      p = hover([-3000, 200, 4000], d, env, 80, up)!;
     expect(p[2]).toBeCloseTo(380);
     // the part's side, met first along a flat ray, keeps the plug off it too
     expect(hover([-3000, 200, 500], [1, 0, 0], env, 80, up)).toEqual([-80, 200, 500]);
@@ -66,8 +93,12 @@ describe('the hand that holds a plug', () => {
   });
 
   it('keeps a held plug over the parts it passes and inside the walls', () => {
-    const walls = [{ n: [0, 0, 1] as V3, d: 0 }, { n: [0, 0, -1] as V3, d: -2000 }];
-    const sink = { min: [0, 0, 0] as V3, max: [400, 400, 500] as V3 }, shroud = { min: [-1000, -2000, 0] as V3, max: [1000, -1000, 2000] as V3 };
+    const walls = [
+      { n: [0, 0, 1] as V3, d: 0 },
+      { n: [0, 0, -1] as V3, d: -2000 },
+    ];
+    const sink = { min: [0, 0, 0] as V3, max: [400, 400, 500] as V3 },
+      shroud = { min: [-1000, -2000, 0] as V3, max: [1000, -1000, 2000] as V3 };
     const env = { planes: walls, solids: [sink, shroud] };
     // over the heatsink: lifted to its top, toward the glass
     expect(keepClear([200, 200, 300], env, 80)).toEqual([200, 200, 580]);
@@ -86,19 +117,26 @@ describe('a cable run out of its hole', () => {
   });
 
   it('goes from nothing to all of its way, eased at both ends and never back', () => {
-    const run = 1, at = (t: number): number => reelShare(t, run, 0, 1);
+    const run = 1,
+      at = (t: number): number => reelShare(t, run, 0, 1);
     expect(at(0)).toBe(0);
     expect(at(run)).toBeCloseTo(1);
     expect(at(5)).toBeCloseTo(1);
     let last = -1;
-    for (let t = 0; t <= run; t += 0.02) { const k = at(t); expect(k).toBeGreaterThanOrEqual(last); last = k; }
+    for (let t = 0; t <= run; t += 0.02) {
+      const k = at(t);
+      expect(k).toBeGreaterThanOrEqual(last);
+      last = k;
+    }
     // (eased: slow at the start and the end)
     expect(at(0.05)).toBeLessThan(0.05);
     expect(at(run - 0.05)).toBeGreaterThan(0.95);
   });
 
   it('runs to the share where the push-in starts, then pushes the plug home and no further', () => {
-    const run = 1, push = 0.3, pre = 0.9;
+    const run = 1,
+      push = 0.3,
+      pre = 0.9;
     expect(reelShare(run, run, push, pre)).toBeCloseTo(pre);
     expect(reelShare(run + push, run, push, pre)).toBeCloseTo(1);
     expect(reelShare(run + push + 3, run, push, pre)).toBeCloseTo(1);

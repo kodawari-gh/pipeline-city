@@ -1,22 +1,49 @@
 import { describe, expect, it } from 'vitest';
-import { Box3, BoxGeometry, Group, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshStandardMaterial, ShaderLib, Vector3 } from 'three';
+import {
+  Box3,
+  BoxGeometry,
+  Group,
+  Matrix4,
+  Mesh,
+  MeshBasicMaterial,
+  MeshLambertMaterial,
+  MeshStandardMaterial,
+  ShaderLib,
+  Vector3,
+} from 'three';
 import { CASE_SHADE, caseShadePatch, caseShaded, setCaseShade, type CasePass } from './caseshade';
 
 /** The GLSL `caseShade` in TypeScript: the share of a light toward `dir` at the world point `at`. */
 function shade(at: Vector3, dir: Vector3): number {
-  const inv = CASE_SHADE.inv.value, p = at.clone().applyMatrix4(inv), d = dir.clone().transformDirection(inv);
+  const inv = CASE_SHADE.inv.value,
+    p = at.clone().applyMatrix4(inv),
+    d = dir.clone().transformDirection(inv);
   if (Math.max(Math.abs(p.x), Math.abs(p.y), Math.abs(p.z)) >= 1) return 1;
-  const ax = (['x', 'y', 'z'] as const).map((k) => ({ t: ((d[k] >= 0 ? 1 : -1) - p[k]) / (Math.abs(d[k]) < 1e-6 ? (d[k] >= 0 ? 1e-6 : -1e-6) : d[k]), pass: (d[k] >= 0 ? CASE_SHADE.plus : CASE_SHADE.minus).value[k] }));
+  const ax = (['x', 'y', 'z'] as const).map((k) => ({
+    t: ((d[k] >= 0 ? 1 : -1) - p[k]) / (Math.abs(d[k]) < 1e-6 ? (d[k] >= 0 ? 1e-6 : -1e-6) : d[k]),
+    pass: (d[k] >= 0 ? CASE_SHADE.plus : CASE_SHADE.minus).value[k],
+  }));
   return ax.reduce((a, b) => (b.t < a.t ? b : a)).pass;
 }
 
 describe('the case shades its inside from the spot lights (Low, no shadow map)', () => {
-  const pass: CasePass = { plus: [0, 0.2, 0.75], minus: [0, 0, 0] }, box = new Box3(new Vector3(0, 0, 0), new Vector3(4, 6, 2));
+  const pass: CasePass = { plus: [0, 0.2, 0.75], minus: [0, 0, 0] },
+    box = new Box3(new Vector3(0, 0, 0), new Vector3(4, 6, 2));
   setCaseShade(box, new Matrix4().makeTranslation(10, 0, 0), pass);
 
-  it('maps the box in the root\'s frame to the cube -1..1', () => {
-    expect(new Vector3(10, 0, 0).applyMatrix4(CASE_SHADE.inv.value).toArray().map((v) => +v.toFixed(6))).toEqual([-1, -1, -1]);
-    expect(new Vector3(14, 6, 2).applyMatrix4(CASE_SHADE.inv.value).toArray().map((v) => +v.toFixed(6))).toEqual([1, 1, 1]);
+  it("maps the box in the root's frame to the cube -1..1", () => {
+    expect(
+      new Vector3(10, 0, 0)
+        .applyMatrix4(CASE_SHADE.inv.value)
+        .toArray()
+        .map((v) => +v.toFixed(6)),
+    ).toEqual([-1, -1, -1]);
+    expect(
+      new Vector3(14, 6, 2)
+        .applyMatrix4(CASE_SHADE.inv.value)
+        .toArray()
+        .map((v) => +v.toFixed(6)),
+    ).toEqual([1, 1, 1]);
   });
 
   it('lets a light in by the face its ray leaves through: the glass side, the top filter, not the steel', () => {
@@ -48,9 +75,18 @@ describe('the case shades its inside from the spot lights (Low, no shadow map)',
   });
 
   it('shades the lit materials under a root, gives each a program of its own, and undoes it', () => {
-    const root = new Group(), std = new MeshStandardMaterial(), lam = new MeshLambertMaterial(), basic = new MeshBasicMaterial();
-    root.add(new Mesh(new BoxGeometry(), std), new Mesh(new BoxGeometry(), [lam, basic]), new Mesh(new BoxGeometry(), std));
-    const key = std.customProgramCacheKey(), before = std.onBeforeCompile, basicBefore = basic.onBeforeCompile;
+    const root = new Group(),
+      std = new MeshStandardMaterial(),
+      lam = new MeshLambertMaterial(),
+      basic = new MeshBasicMaterial();
+    root.add(
+      new Mesh(new BoxGeometry(), std),
+      new Mesh(new BoxGeometry(), [lam, basic]),
+      new Mesh(new BoxGeometry(), std),
+    );
+    const key = std.customProgramCacheKey(),
+      before = std.onBeforeCompile,
+      basicBefore = basic.onBeforeCompile;
     const s = caseShaded(root);
     expect(std.customProgramCacheKey()).toBe(`${key}|case`);
     expect(lam.customProgramCacheKey()).toContain('|case');

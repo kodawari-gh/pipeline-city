@@ -14,18 +14,34 @@ type Key = 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'bad' | 'mute';
 
 /** The accent of each block kind (the theme token it is drawn with; the CPU die's colours: fetch cyan, memory amber, registers green). */
 export const GPU_KIND_COLOR: Record<GpuBlockKind, Key> = {
-  pcie: 'alu', launch: 'br', pc: 'alu', fetch: 'alu', decode: 'alu', sched: 'mul', warps: 'mul', regfile: 'st', lanes: 'alu', mask: 'mul',
-  coalescer: 'ld', arbiter: 'br', banks: 'ld', l1: 'ld', l2: 'ld', dram: 'ld', sm: 'mute',
+  pcie: 'alu',
+  launch: 'br',
+  pc: 'alu',
+  fetch: 'alu',
+  decode: 'alu',
+  sched: 'mul',
+  warps: 'mul',
+  regfile: 'st',
+  lanes: 'alu',
+  mask: 'mul',
+  coalescer: 'ld',
+  arbiter: 'br',
+  banks: 'ld',
+  l1: 'ld',
+  l2: 'ld',
+  dram: 'ld',
+  sm: 'mute',
 };
 export const GPU_LINK_COLOR: Record<GpuLinkKind, Key> = { data: 'alu', control: 'mute', mem: 'ld', launch: 'br' };
 
-
 /** The accent of a card's die rim, by its microarchitecture (the CPU die's rim does the same by tier). */
-export const gpuAccent = (T: Theme, plan: GpuPlan): string => (plan.input.kind === 'multi' ? T.mul : plan.input.kind === 'warp' ? T.st : T.alu);
+export const gpuAccent = (T: Theme, plan: GpuPlan): string =>
+  plan.input.kind === 'multi' ? T.mul : plan.input.kind === 'warp' ? T.st : T.alu;
 
 /** The line under the die's name: what the card is made of. */
 export function gpuTitle(plan: GpuPlan): string {
-  const i = plan.input, lanes = `${i.lanes} lanes`;
+  const i = plan.input,
+    lanes = `${i.lanes} lanes`;
   if (i.kind === 'simd') return `SIMD UNIT · ${lanes} · ${i.banks} bank${i.banks === 1 ? '' : 's'}`;
   if (i.kind === 'warp') return `WARP SM · ${i.warps} warps · ${lanes}`;
   return `${i.sms} SMs · ${i.warps} warps each · ${lanes} · L2`;
@@ -33,29 +49,49 @@ export function gpuTitle(plan: GpuPlan): string {
 
 /** The legend of the colours (the instruction and block colours of the die). */
 export const GPU_LEGEND: { text: string; key: Key }[] = [
-  { text: 'ALU', key: 'alu' }, { text: 'MEMORY', key: 'ld' }, { text: 'REGISTERS', key: 'st' }, { text: 'SCHEDULING', key: 'mul' }, { text: 'CONTROL', key: 'br' },
+  { text: 'ALU', key: 'alu' },
+  { text: 'MEMORY', key: 'ld' },
+  { text: 'REGISTERS', key: 'st' },
+  { text: 'SCHEDULING', key: 'mul' },
+  { text: 'CONTROL', key: 'br' },
 ];
 
 /** The two dies' floors, the SM frames, the blocks, the bond pads round the edges and the pin-1 mark: the far view. The main die and the card memory are two chips (the gap between them is the board). */
 export function gpuFar(g: Graphics, T: Theme, plan: GpuPlan): void {
-  const D = plan.core, accent = gpuAccent(T, plan), floor = mix(T.die, '#000000', 0.25);
-  g.roundRect(D.x, D.y, D.w, D.h, 6).fill({ color: floor }).stroke({ width: 3, color: mix(T.line, accent, 0.6) });
+  const D = plan.core,
+    accent = gpuAccent(T, plan),
+    floor = mix(T.die, '#000000', 0.25);
+  g.roundRect(D.x, D.y, D.w, D.h, 6)
+    .fill({ color: floor })
+    .stroke({ width: 3, color: mix(T.line, accent, 0.6) });
   const Mm = plan.memory;
-  g.roundRect(Mm.x, Mm.y, Mm.w, Mm.h, 6).fill({ color: floor }).stroke({ width: 3, color: mix(T.line, T.ld, 0.6) });
-  for (let x = Mm.x + DIE_MARGIN.x; x + 6 <= Mm.x + Mm.w - DIE_MARGIN.x; x += 12) { g.rect(x, Mm.y + 8, 6, 6); g.rect(x, Mm.y + Mm.h - 14, 6, 6); }
+  g.roundRect(Mm.x, Mm.y, Mm.w, Mm.h, 6)
+    .fill({ color: floor })
+    .stroke({ width: 3, color: mix(T.line, T.ld, 0.6) });
+  for (let x = Mm.x + DIE_MARGIN.x; x + 6 <= Mm.x + Mm.w - DIE_MARGIN.x; x += 12) {
+    g.rect(x, Mm.y + 8, 6, 6);
+    g.rect(x, Mm.y + Mm.h - 14, 6, 6);
+  }
   g.fill({ color: T.pin, alpha: 0.7 });
   g.poly([Mm.x + 6, Mm.y + 6, Mm.x + 22, Mm.y + 6, Mm.x + 6, Mm.y + 22]).fill({ color: T.ld, alpha: 0.9 });
   // the bond pad ring in the margin (the CPU die's gold pads), the host edge in the link's colour
-  const x0 = D.x + DIE_MARGIN.x, x1 = D.x + D.w - DIE_MARGIN.x, y0 = D.y + DIE_MARGIN.top, y1 = D.y + D.h - DIE_MARGIN.bottom;
-  for (let x = x0; x + 6 <= x1; x += 12) { g.rect(x, D.y + 8, 6, 6); g.rect(x, D.y + D.h - 14, 6, 6); }
+  const x0 = D.x + DIE_MARGIN.x,
+    x1 = D.x + D.w - DIE_MARGIN.x,
+    y0 = D.y + DIE_MARGIN.top,
+    y1 = D.y + D.h - DIE_MARGIN.bottom;
+  for (let x = x0; x + 6 <= x1; x += 12) {
+    g.rect(x, D.y + 8, 6, 6);
+    g.rect(x, D.y + D.h - 14, 6, 6);
+  }
   for (let y = y0 + 12; y + 6 <= y1; y += 12) g.rect(D.x + D.w - 14, y, 6, 6);
   g.fill({ color: T.pin, alpha: 0.7 });
   g.poly([D.x + 6, D.y + 6, D.x + 22, D.y + 6, D.x + 6, D.y + 22]).fill({ color: accent, alpha: 0.9 });
-  for (const b of plan.blocks) if (b.kind === 'pcie') {
-    const n = Math.floor((b.rect.h - 20) / 12);
-    for (let k = 0; k < n; k++) g.rect(D.x + 9, b.rect.y + 10 + k * 12, 6, 6);
-    g.fill({ color: T.alu, alpha: 0.8 });
-  }
+  for (const b of plan.blocks)
+    if (b.kind === 'pcie') {
+      const n = Math.floor((b.rect.h - 20) / 12);
+      for (let k = 0; k < n; k++) g.rect(D.x + 9, b.rect.y + 10 + k * 12, 6, 6);
+      g.fill({ color: T.alu, alpha: 0.8 });
+    }
   planFar(g, T, plan.blocks, GPU_STYLE);
 }
 
@@ -78,7 +114,9 @@ export const gpuLaneLines = laneLines;
 export function gpuNear(T: Theme, plan: GpuPlan): GpuArt {
   const art = planNear(T, plan, GPU_STYLE);
   // the strip under the blocks: the card's name, the colour legend, the revision (the CPU package's text, docs/DIE.md)
-  const D = plan.core, sy = D.y + D.h - DIE_MARGIN.bottom + 15, names = art.names;
+  const D = plan.core,
+    sy = D.y + D.h - DIE_MARGIN.bottom + 15,
+    names = art.names;
   names.addChild(label(gpuTitle(plan), D.x + DIE_MARGIN.x, sy, 13, T.mute, { weight: '700', a: 0.85 }));
   const legend = new Graphics();
   names.addChild(legend);

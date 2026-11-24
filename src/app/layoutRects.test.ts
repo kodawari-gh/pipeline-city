@@ -1,10 +1,27 @@
 // Unit tests for the box rules of the layout browser script (ticket #47). Pure: no browser.
 import { describe, expect, it } from 'vitest';
-import { type Box, type Control, containedIn, controlProblems, freeWidth, missingNames, outsideClip, outsideViewport, overlappingControls, overlaps, pageOverflows } from './layoutRects';
+import {
+  type Box,
+  type Control,
+  containedIn,
+  controlProblems,
+  freeWidth,
+  missingNames,
+  outsideClip,
+  outsideViewport,
+  overlappingControls,
+  overlaps,
+  pageOverflows,
+} from './layoutRects';
 
 const box = (x: number, y: number, w: number, h: number): Box => ({ x, y, r: x + w, b: y + h });
-const ctl = (id: number, label: string, b: Box, ancestors: number[] = [], clips: Control['clips'] = []): Control =>
-  ({ id, label, box: b, ancestors, clips });
+const ctl = (id: number, label: string, b: Box, ancestors: number[] = [], clips: Control['clips'] = []): Control => ({
+  id,
+  label,
+  box: b,
+  ancestors,
+  clips,
+});
 
 describe('overlaps', () => {
   it('is true for boxes that share area', () => {
@@ -64,7 +81,10 @@ describe('pageOverflows', () => {
 
 describe('overlappingControls', () => {
   it('reports two sibling controls that share area', () => {
-    const pairs = overlappingControls([ctl(1, 'Continue', box(0, 0, 100, 40)), ctl(2, 'New game', box(0, 30, 100, 40))]);
+    const pairs = overlappingControls([
+      ctl(1, 'Continue', box(0, 0, 100, 40)),
+      ctl(2, 'New game', box(0, 30, 100, 40)),
+    ]);
     expect(pairs).toEqual([['Continue', 'New game']]);
   });
 
@@ -84,7 +104,9 @@ describe('controlProblems', () => {
   });
 
   it('names a control outside the window', () => {
-    expect(controlProblems(ctl(1, 'Settings', box(300, 10, 120, 40)), 390, 844)).toEqual(['Settings is outside the viewport']);
+    expect(controlProblems(ctl(1, 'Settings', box(300, 10, 120, 40)), 390, 844)).toEqual([
+      'Settings is outside the viewport',
+    ]);
   });
 
   it('names a control clipped by a non-scrolling ancestor', () => {

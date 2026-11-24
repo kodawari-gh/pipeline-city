@@ -10,11 +10,20 @@
 //              are dropped) and kills the job (`takeViolation`), and every RAM access inside it costs `surcharge` extra CPU cycles
 //   Unprotect  leave protected mode
 
-import { TPM_BASE, TPM_HOP_TICKS, TPM_REG, TPM_SEAL_TICKS, TPM_SIZE, TpmCmd, TpmFault, TpmStatus } from "@/core/sim/memmap";
-import type { Bus } from "@/core/sim/hw/bus";
-import type { Rate } from "@/core/sim/hw/clock";
-import type { Device } from "@/core/sim/hw/device";
-import type { Prng } from "@/core/sim/prng";
+import {
+  TPM_BASE,
+  TPM_HOP_TICKS,
+  TPM_REG,
+  TPM_SEAL_TICKS,
+  TPM_SIZE,
+  TpmCmd,
+  TpmFault,
+  TpmStatus,
+} from '@/core/sim/memmap';
+import type { Bus } from '@/core/sim/hw/bus';
+import type { Rate } from '@/core/sim/hw/clock';
+import type { Device } from '@/core/sim/hw/device';
+import type { Prng } from '@/core/sim/prng';
 
 export interface TpmConfig {
   /** Module ticks per word measured. */
@@ -32,7 +41,7 @@ export function wordHash(words: Iterable<number>): number {
   return h >>> 0;
 }
 
-type Phase = "idle" | "in" | "work" | "out";
+type Phase = 'idle' | 'in' | 'work' | 'out';
 
 /** Commands kept in the log the board view replays. */
 export const TPM_LOG = 8;
@@ -40,7 +49,15 @@ export const TPM_LOG = 8;
 export const TPM_KEYS_SHOWN = 8;
 
 /** One finished (or refused) command, for the view. `ticks` is the module's work time (0 when it was refused at the door). */
-export interface TpmLogEntry { seq: number; cmd: number; arg0: number; arg1: number; result: number; fault: number; ticks: number }
+export interface TpmLogEntry {
+  seq: number;
+  cmd: number;
+  arg0: number;
+  arg1: number;
+  result: number;
+  fault: number;
+  ticks: number;
+}
 
 /** What the module shows from the outside (docs/ACCEL.md "TPM"): where a command is, the registers, protected mode, the sealed values and the last commands. */
 export interface TpmView {
@@ -77,14 +94,14 @@ export interface TpmView {
 }
 
 export class TpmPort implements Device {
-  readonly name = "tpm";
+  readonly name = 'tpm';
   readonly base = TPM_BASE;
   readonly size = TPM_SIZE;
   /** Starts stopped; the game runs it on a fixed slow clock while a module is installed. */
   readonly clock: Rate = { mul: 0, div: 1 };
 
   private cfg: TpmConfig | null = null;
-  private phase: Phase = "idle";
+  private phase: Phase = 'idle';
   private wait = 0;
   private span = 0;
   private worked = 0;
@@ -115,12 +132,22 @@ export class TpmPort implements Device {
   guardedAccesses = 0;
 
   /** `instant`: commands finish at once, with no hop, work time or bus guard (the reference interpreter's fake TPM). */
-  constructor(private readonly bus: Bus | null, private readonly ram: Uint8Array, private readonly prng: Prng, readonly instant = false) {}
+  constructor(
+    private readonly bus: Bus | null,
+    private readonly ram: Uint8Array,
+    private readonly prng: Prng,
+    readonly instant = false,
+  ) {}
 
   /** Put a module on the header (or take it out with null). */
   configure(cfg: TpmConfig | null): void {
     if (cfg === this.cfg) return;
-    const same = cfg && this.cfg && cfg.measureTicks === this.cfg.measureTicks && cfg.attestTicks === this.cfg.attestTicks && cfg.surcharge === this.cfg.surcharge;
+    const same =
+      cfg &&
+      this.cfg &&
+      cfg.measureTicks === this.cfg.measureTicks &&
+      cfg.attestTicks === this.cfg.attestTicks &&
+      cfg.surcharge === this.cfg.surcharge;
     if (same) return;
     this.cfg = cfg;
     if (!cfg) this.sealed.clear();
@@ -129,7 +156,7 @@ export class TpmPort implements Device {
 
   /** Power-on reset: no command in flight, protected mode off. Sealed values survive (they live in the module). */
   reset(): void {
-    this.phase = "idle";
+    this.phase = 'idle';
     this.wait = this.span = this.worked = 0;
     this.measured = [];
     this.log = [];
@@ -143,23 +170,49 @@ export class TpmPort implements Device {
   view(): TpmView | null {
     const cfg = this.cfg;
     if (!cfg) return null;
-    const work = this.phase === "work" && this.cmd === TpmCmd.Measure;
+    const work = this.phase === 'work' && this.cmd === TpmCmd.Measure;
     // the hash so far: the words the module has read at `measureTicks` a word
-    const hashed = work ? Math.min(this.measured.length, Math.floor((this.span - this.wait) / Math.max(1, cfg.measureTicks))) : 0;
+    const hashed = work
+      ? Math.min(this.measured.length, Math.floor((this.span - this.wait) / Math.max(1, cfg.measureTicks)))
+      : 0;
     return {
-      phase: this.phase, cmd: this.cmd, arg0: this.arg0, arg1: this.arg1, result: this.result, fault: this.fault,
-      busy: this.phase !== "idle", error: this.error, done: this.done, wait: this.wait, span: this.span,
+      phase: this.phase,
+      cmd: this.cmd,
+      arg0: this.arg0,
+      arg1: this.arg1,
+      result: this.result,
+      fault: this.fault,
+      busy: this.phase !== 'idle',
+      error: this.error,
+      done: this.done,
+      wait: this.wait,
+      span: this.span,
       range: this.range ? { ...this.range } : null,
-      hashed, partial: hashed > 0 ? wordHash(this.measured.slice(0, hashed)) : 0,
+      hashed,
+      partial: hashed > 0 ? wordHash(this.measured.slice(0, hashed)) : 0,
       sealed: [...this.sealed].slice(-TPM_KEYS_SHOWN).map(([handle, value]) => ({ handle, value })),
       log: this.log.map((e) => ({ ...e })),
-      commands: this.commands, measuredWords: this.measuredWords, guardedAccesses: this.guardedAccesses, lastViolation: this.lastViolation,
-      measureTicks: cfg.measureTicks, attestTicks: cfg.attestTicks, surcharge: cfg.surcharge, ramBytes: this.ram.length,
+      commands: this.commands,
+      measuredWords: this.measuredWords,
+      guardedAccesses: this.guardedAccesses,
+      lastViolation: this.lastViolation,
+      measureTicks: cfg.measureTicks,
+      attestTicks: cfg.attestTicks,
+      surcharge: cfg.surcharge,
+      ramBytes: this.ram.length,
     };
   }
 
   private note(ticks: number, cmd = this.cmd): void {
-    this.log.push({ seq: ++this.seq, cmd, arg0: this.arg0, arg1: this.arg1, result: this.result, fault: this.fault, ticks });
+    this.log.push({
+      seq: ++this.seq,
+      cmd,
+      arg0: this.arg0,
+      arg1: this.arg1,
+      result: this.result,
+      fault: this.fault,
+      ticks,
+    });
     if (this.log.length > TPM_LOG) this.log.shift();
   }
 
@@ -168,7 +221,7 @@ export class TpmPort implements Device {
   }
 
   get isBusy(): boolean {
-    return this.phase !== "idle";
+    return this.phase !== 'idle';
   }
 
   get isProtected(): boolean {
@@ -193,7 +246,9 @@ export class TpmPort implements Device {
     if (!r) return 0;
     // paged: the range is virtual, so test the frame; on a miss look again once, a page may have been mapped since Protect
     // (the access comes from the guarded space, so the core serving it has the job's table)
-    const inside = this.frames ? this.frames.has(addr >>> 8) || this.resolve(this.bus!.core).has(addr >>> 8) : addr >= r.lo && addr < r.hi;
+    const inside = this.frames
+      ? this.frames.has(addr >>> 8) || this.resolve(this.bus!.core).has(addr >>> 8)
+      : addr >= r.lo && addr < r.hi;
     if (inside) {
       this.guardedAccesses++;
       return this.cfg?.surcharge ?? 0;
@@ -209,19 +264,32 @@ export class TpmPort implements Device {
     let w = 0;
     switch (off & ~3) {
       case TPM_REG.STATUS:
-        w = (this.phase !== "idle" ? TpmStatus.Busy : 0) | (this.error ? TpmStatus.Error : 0) | (this.cfg ? TpmStatus.Present : 0)
-          | (this.done ? TpmStatus.Done : 0) | (this.range ? TpmStatus.Protected : 0);
+        w =
+          (this.phase !== 'idle' ? TpmStatus.Busy : 0) |
+          (this.error ? TpmStatus.Error : 0) |
+          (this.cfg ? TpmStatus.Present : 0) |
+          (this.done ? TpmStatus.Done : 0) |
+          (this.range ? TpmStatus.Protected : 0);
         break;
-      case TPM_REG.ARG0: w = this.arg0; break;
-      case TPM_REG.ARG1: w = this.arg1; break;
-      case TPM_REG.RESULT: w = this.result; break;
-      case TPM_REG.FAULT: w = this.fault; break;
+      case TPM_REG.ARG0:
+        w = this.arg0;
+        break;
+      case TPM_REG.ARG1:
+        w = this.arg1;
+        break;
+      case TPM_REG.RESULT:
+        w = this.result;
+        break;
+      case TPM_REG.FAULT:
+        w = this.fault;
+        break;
     }
     return (w >>> (8 * (off & 3))) & 0xff;
   }
 
   write(off: number, val: number): void {
-    const reg = off & ~3, sh = 8 * (off & 3);
+    const reg = off & ~3,
+      sh = 8 * (off & 3);
     const put = (old: number): number => ((old & ~(0xff << sh)) | ((val & 0xff) << sh)) >>> 0;
     if (reg === TPM_REG.ARG0) this.arg0 = put(this.arg0);
     else if (reg === TPM_REG.ARG1) this.arg1 = put(this.arg1);
@@ -229,10 +297,12 @@ export class TpmPort implements Device {
   }
 
   private start(cmd: number): void {
-    if (!this.cfg || this.phase !== "idle" || cmd < TpmCmd.Measure || cmd > TpmCmd.Unprotect) return this.refuse(TpmFault.BadCommand, cmd);
+    if (!this.cfg || this.phase !== 'idle' || cmd < TpmCmd.Measure || cmd > TpmCmd.Unprotect)
+      return this.refuse(TpmFault.BadCommand, cmd);
     if (cmd === TpmCmd.Measure || cmd === TpmCmd.Protect) {
       const bytes = this.arg1 * 4;
-      if (this.arg0 % 4 !== 0 || this.arg1 === 0 || this.arg0 + bytes > this.ram.length) return this.refuse(TpmFault.BadRange, cmd);
+      if (this.arg0 % 4 !== 0 || this.arg1 === 0 || this.arg0 + bytes > this.ram.length)
+        return this.refuse(TpmFault.BadRange, cmd);
     }
     this.error = this.done = false;
     this.fault = TpmFault.None;
@@ -245,7 +315,7 @@ export class TpmPort implements Device {
       this.done = true;
       return;
     }
-    this.phase = "in";
+    this.phase = 'in';
     this.wait = this.span = TPM_HOP_TICKS;
   }
 
@@ -275,15 +345,20 @@ export class TpmPort implements Device {
         return TPM_SEAL_TICKS;
       case TpmCmd.Unseal: {
         const v = this.sealed.get(this.arg0);
-        if (v === undefined) { this.error = true; this.fault = TpmFault.NoSuchKey; }
-        else this.result = v;
+        if (v === undefined) {
+          this.error = true;
+          this.fault = TpmFault.NoSuchKey;
+        } else this.result = v;
         return TPM_SEAL_TICKS;
       }
       case TpmCmd.Protect:
         this.range = { lo: this.arg0, hi: this.arg0 + 4 * this.arg1 };
         this.frames = null;
         if (this.cmdSpace !== -1 && this.bus?.translate) this.resolve(this.cmdCore);
-        if (!this.instant && this.bus) { this.bus.guardSpace = this.cmdSpace; this.bus.guard = this.guard; }
+        if (!this.instant && this.bus) {
+          this.bus.guardSpace = this.cmdSpace;
+          this.bus.guard = this.guard;
+        }
         return 1;
       default: // Unprotect
         this.leaveProtected();
@@ -293,7 +368,8 @@ export class TpmPort implements Device {
 
   /** Resolve the virtual range page by page through `core`'s table into the physical frames it covers (unmapped pages are skipped), and keep the set. Page granular. */
   private resolve(core: number): Set<number> {
-    const r = this.range!, frames = new Set<number>();
+    const r = this.range!,
+      frames = new Set<number>();
     for (let va = r.lo & ~255; va < r.hi; va += 256) {
       const pa = this.bus!.translate?.(core, va) ?? -1;
       if (pa >= 0) frames.add(pa >>> 8);
@@ -312,27 +388,29 @@ export class TpmPort implements Device {
   }
 
   private physWord(addr: number): number {
-    return (this.ram[addr]! | (this.ram[addr + 1]! << 8) | (this.ram[addr + 2]! << 16) | (this.ram[addr + 3]! << 24)) >>> 0;
+    return (
+      (this.ram[addr]! | (this.ram[addr + 1]! << 8) | (this.ram[addr + 2]! << 16) | (this.ram[addr + 3]! << 24)) >>> 0
+    );
   }
 
   tick(): void {
     switch (this.phase) {
-      case "in":
+      case 'in':
         if (--this.wait <= 0) {
           this.worked = this.execute();
           this.wait = this.span = Math.max(1, this.worked);
-          this.phase = "work";
+          this.phase = 'work';
         }
         break;
-      case "work":
+      case 'work':
         if (--this.wait <= 0) {
-          this.phase = "out";
+          this.phase = 'out';
           this.wait = this.span = TPM_HOP_TICKS;
         }
         break;
-      case "out":
+      case 'out':
         if (--this.wait <= 0) {
-          this.phase = "idle";
+          this.phase = 'idle';
           this.done = true;
           this.wait = this.span = 0;
           this.note(this.worked);

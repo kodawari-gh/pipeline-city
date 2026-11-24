@@ -6,7 +6,10 @@ import { mountDebug, PANEL_MAX_WIDTH } from './overlay';
 
 // the city's layers are the module's (`city-layers.ts`, tested with the view): here, a stub city keeps the layers that are off
 vi.mock('./city-layers', () => ({
-  debugLayer: (v: { off: Set<string> }, k: string, o: boolean) => { if (o) v.off.add(k); else v.off.delete(k); },
+  debugLayer: (v: { off: Set<string> }, k: string, o: boolean) => {
+    if (o) v.off.add(k);
+    else v.off.delete(k);
+  },
   debugStats: () => ({ tris: 1234, calls: 7 }),
 }));
 
@@ -26,9 +29,17 @@ interface Fake {
 const made: Fake[] = [];
 const fakeEl = (tag: string): Fake => {
   const el: Fake = {
-    tag, style: { cssText: '' }, textContent: '', children: [], handlers: {},
-    append(...nodes) { el.children.push(...nodes); },
-    addEventListener(type, fn) { el.handlers[type] = fn; },
+    tag,
+    style: { cssText: '' },
+    textContent: '',
+    children: [],
+    handlers: {},
+    append(...nodes) {
+      el.children.push(...nodes);
+    },
+    addEventListener(type, fn) {
+      el.handlers[type] = fn;
+    },
     remove() {},
   };
   made.push(el);
@@ -47,7 +58,10 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     frame = null;
     vi.stubGlobal('document', { createElement: fakeEl, body: { append: () => {} } });
     vi.stubGlobal('window', { devicePixelRatio: 1 });
-    vi.stubGlobal('requestAnimationFrame', (cb: (now: number) => void) => { frame = cb; return 1; });
+    vi.stubGlobal('requestAnimationFrame', (cb: (now: number) => void) => {
+      frame = cb;
+      return 1;
+    });
   });
 
   afterEach(() => {
@@ -58,7 +72,13 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     setAutoTier({ tier: 'low', reason: 'test' });
     const render = { calls: 0 };
     const renderer = {
-      info: { autoReset: true, render, reset() { render.calls = 0; } },
+      info: {
+        autoReset: true,
+        render,
+        reset() {
+          render.calls = 0;
+        },
+      },
       getPixelRatio: () => 1,
     } as unknown as WebGLRenderer;
     const canvas = { width: 100, height: 100 } as unknown as HTMLCanvasElement;
@@ -78,7 +98,13 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     setAutoTier({ tier: 'low', reason: 'test' });
     const render = { calls: 0 };
     const renderer = {
-      info: { autoReset: true, render, reset() { render.calls = 0; } },
+      info: {
+        autoReset: true,
+        render,
+        reset() {
+          render.calls = 0;
+        },
+      },
       getPixelRatio: () => 1,
     } as unknown as WebGLRenderer;
     mountDebug({ renderer, canvas: { width: 1, height: 1 } as unknown as HTMLCanvasElement });
@@ -100,7 +126,16 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
   /** A renderer stub that draws nothing (the readout still runs). */
   const rig = () => {
     const render = { calls: 0 };
-    return { info: { autoReset: true, render, reset() { render.calls = 0; } }, getPixelRatio: () => 1 } as unknown as WebGLRenderer;
+    return {
+      info: {
+        autoReset: true,
+        render,
+        reset() {
+          render.calls = 0;
+        },
+      },
+      getPixelRatio: () => 1,
+    } as unknown as WebGLRenderer;
   };
   const cvs = () => ({ width: 1, height: 1 }) as unknown as HTMLCanvasElement;
 
@@ -142,7 +177,8 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
   });
 
   it('Auto shows the city and the machine again, and the hide buttons are off', () => {
-    const city = { visible: true }, machine = { visible: true };
+    const city = { visible: true },
+      machine = { visible: true };
     mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city, machine }) });
     frame!(0);
     button('Hide city').handlers.click!();
@@ -163,7 +199,8 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
 
   it('Hide city hides only the city root, and Hide machine only the machine root; neither touches the saved settings', () => {
     setPreset('high');
-    const city = { visible: true }, machine = { visible: true };
+    const city = { visible: true },
+      machine = { visible: true };
     mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city, machine }) });
     frame!(0);
     const before = graphics.value;
@@ -192,10 +229,20 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
   const cityStub = () => ({ off: new Set<string>() }) as unknown as OutsideView;
 
   it.each([
-    ['No city lights', 'lights'], ['No buildings', 'buildings'], ['No trees', 'trees'], ['No streets', 'streets'], ['Freeze city', 'freeze'], ['No cars', 'cars'],
-    ['No city sky', 'sky'], ['No glow', 'glow'], ['No steam', 'steam'], ['No mirror', 'mirror'], ['City 1x', 'flat'],
+    ['No city lights', 'lights'],
+    ['No buildings', 'buildings'],
+    ['No trees', 'trees'],
+    ['No streets', 'streets'],
+    ['Freeze city', 'freeze'],
+    ['No cars', 'cars'],
+    ['No city sky', 'sky'],
+    ['No glow', 'glow'],
+    ['No steam', 'steam'],
+    ['No mirror', 'mirror'],
+    ['City 1x', 'flat'],
   ])('the %s button turns off only the %s layer, lights up, and Auto turns it on again', (label, key) => {
-    const layers = cityStub(), city = { visible: true };
+    const layers = cityStub(),
+      city = { visible: true };
     mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city, machine: null, layers }) });
     frame!(0);
     const lit = '#3a7d44';
@@ -215,7 +262,8 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
   });
 
   it('Hide city still hides the city root only, and leaves the layers as they were', () => {
-    const layers = cityStub(), city = { visible: true };
+    const layers = cityStub(),
+      city = { visible: true };
     mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city, machine: null, layers }) });
     frame!(0);
     button('Hide city').handlers.click!();
@@ -245,7 +293,12 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
   });
 
   it('at 1920x1080 the panel does not reach the main menu New game button (its left edge, ui.css .mm-btn)', () => {
-    vi.stubGlobal('window', { devicePixelRatio: 1, innerWidth: 1920, innerHeight: 1080, screen: { width: 1920, height: 1080 } });
+    vi.stubGlobal('window', {
+      devicePixelRatio: 1,
+      innerWidth: 1920,
+      innerHeight: 1080,
+      screen: { width: 1920, height: 1080 },
+    });
     const city = { visible: true };
     mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city, machine: null, layers: cityStub() }) });
     frame!(0);
@@ -255,7 +308,8 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
 
     // px at a 16px root: the panel's right edge at its widest, and the New game button's left edge (the .mainmenu is centred;
     // .mm-btn is clamp(13rem, 24vw, 17rem) wide). Both use the same 1920px window.
-    const rem = 16, vw = 1920 / 100;
+    const rem = 16,
+      vw = 1920 / 100;
     const left = 0.25 * rem;
     const cap = 50 * vw - 9.5 * rem;
     // the box model: a border-box cap includes the padding; a content-box cap adds it outside
@@ -269,9 +323,16 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
   });
 
   it('the readout has the viewport line: the window, the screen and the orientation', () => {
-    vi.stubGlobal('window', { devicePixelRatio: 1, innerWidth: 485, innerHeight: 997, screen: { width: 485, height: 997 } });
+    vi.stubGlobal('window', {
+      devicePixelRatio: 1,
+      innerWidth: 485,
+      innerHeight: 997,
+      screen: { width: 485, height: 997 },
+    });
     mountDebug({ renderer: rig(), canvas: cvs() });
     frame!(0);
-    expect(made.find((e) => e.tag === 'pre')!.textContent).toContain('view 485x997, screen 485x997, portrait (by size)');
+    expect(made.find((e) => e.tag === 'pre')!.textContent).toContain(
+      'view 485x997, screen 485x997, portrait (by size)',
+    );
   });
 });

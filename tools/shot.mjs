@@ -22,9 +22,12 @@ import { dirname, resolve } from 'node:path';
 import { chromium, firefox } from 'playwright-core';
 
 const args = process.argv.slice(2);
-const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : args[i + 1]; };
+const flag = (n, d) => {
+  const i = args.indexOf('--' + n);
+  return i < 0 ? d : args[i + 1];
+};
 const out = resolve(args.find((a, i) => !a.startsWith('--') && !(args[i - 1] ?? '').startsWith('--')) ?? 'shot.png');
-const [W, H] = (flag('size', '1600x900')).split('x').map(Number);
+const [W, H] = flag('size', '1600x900').split('x').map(Number);
 const PORT = Number(process.env.PORT || 5199);
 const url = `http://localhost:${PORT}/`;
 mkdirSync(dirname(out), { recursive: true });
@@ -32,39 +35,76 @@ mkdirSync(dirname(out), { recursive: true });
 const PROD = args.includes('--prod');
 if (PROD) {
   const b = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'build'], { stdio: 'inherit' });
-  if (await new Promise((r) => b.on('exit', r))) { console.log('the build failed'); process.exit(1); }
+  if (await new Promise((r) => b.on('exit', r))) {
+    console.log('the build failed');
+    process.exit(1);
+  }
 }
 let server = null;
-const up = async () => { try { return (await fetch(url)).ok; } catch { return false; } };
+const up = async () => {
+  try {
+    return (await fetch(url)).ok;
+  } catch {
+    return false;
+  }
+};
 if (!(await up())) {
-  server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', ...(PROD ? ['preview'] : []), '--port', String(PORT), '--strictPort'], { stdio: 'ignore' });
+  server = spawn(
+    process.execPath,
+    ['node_modules/vite/bin/vite.js', ...(PROD ? ['preview'] : []), '--port', String(PORT), '--strictPort'],
+    { stdio: 'ignore' },
+  );
   for (let i = 0; i < 100 && !(await up()); i++) await new Promise((r) => setTimeout(r, 300));
 }
-const stop = () => { try { server?.kill(); } catch { /* gone */ } };
+const stop = () => {
+  try {
+    server?.kill();
+  } catch {
+    /* gone */
+  }
+};
 process.on('exit', stop);
 
 const gpu = ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'];
-const browser = args.includes('--firefox') ? await firefox.launch({ headless: true, firefoxUserPrefs: { 'webgl.force-enabled': true } }) : await chromium.launch({
-  headless: true,
-  ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
-  args: process.env.SOFTWARE ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] : gpu,
-});
+const browser = args.includes('--firefox')
+  ? await firefox.launch({ headless: true, firefoxUserPrefs: { 'webgl.force-enabled': true } })
+  : await chromium.launch({
+      headless: true,
+      ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
+      args: process.env.SOFTWARE ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] : gpu,
+    });
 try {
   const p = await (await browser.newContext({ viewport: { width: W, height: H } })).newPage();
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
   // --console: print the page's console errors and warnings too (a shader that fails to compile is only logged)
-  if (args.includes('--console')) p.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[${m.type()}]`, m.text().slice(0, 2000)); });
+  if (args.includes('--console'))
+    p.on('console', (m) => {
+      if (m.type() === 'error' || m.type() === 'warning') console.log(`[${m.type()}]`, m.text().slice(0, 2000));
+    });
   await p.goto(url + (flag('query', '') ? '?' + flag('query', '') : ''));
   await p.waitForTimeout(1500);
-  const renderer = await p.evaluate(() => { const g = document.createElement('canvas').getContext('webgl2'); const e = g?.getExtension('WEBGL_debug_renderer_info'); return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'unknown'; });
+  const renderer = await p.evaluate(() => {
+    const g = document.createElement('canvas').getContext('webgl2');
+    const e = g?.getExtension('WEBGL_debug_renderer_info');
+    return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'unknown';
+  });
   console.log('GL renderer:', renderer);
-  if (/swiftshader|llvmpipe|software/i.test(renderer) && !process.env.SOFTWARE) { console.log('The browser fell back to software GL: stopping (SOFTWARE=1 to allow it).'); process.exitCode = 2; throw new Error('software GL'); }
+  if (/swiftshader|llvmpipe|software/i.test(renderer) && !process.env.SOFTWARE) {
+    console.log('The browser fell back to software GL: stopping (SOFTWARE=1 to allow it).');
+    process.exitCode = 2;
+    throw new Error('software GL');
+  }
   // --build: open "Build my PC" from the main menu instead of a game (then --click / --eval work on that screen)
-  if (args.includes('--build')) { await p.click('text=Build my PC'); await p.waitForSelector('.bld-foot', { timeout: 20000 }); await p.waitForTimeout(4000); }
+  if (args.includes('--build')) {
+    await p.click('text=Build my PC');
+    await p.waitForSelector('.bld-foot', { timeout: 20000 });
+    await p.waitForTimeout(4000);
+  }
   // --menu: stop on the main menu (no game), so --click "Settings" opens the Settings modal
-  else if (args.includes('--menu')) { await p.waitForTimeout(1000); }
-  else {
+  else if (args.includes('--menu')) {
+    await p.waitForTimeout(1000);
+  } else {
     // (the main menu has no Sandbox row: New game opens the dialog, whose Sandbox choice starts a sandbox game)
     await p.click('.pl-row:has-text("New game")');
     await p.click('.pl-val:has-text("Sandbox")');
@@ -73,23 +113,39 @@ try {
     else {
       await p.waitForFunction(() => !!window.__board, null, { timeout: 20000 });
       // the view's first frame of the game frames the room again (`flyToRoom`): a flight asked before it would be lost
-      await p.waitForFunction(() => window.__board.renderer.domElement.style.pointerEvents !== 'none', null, { timeout: 60000 });
+      await p.waitForFunction(() => window.__board.renderer.domElement.style.pointerEvents !== 'none', null, {
+        timeout: 60000,
+      });
     }
   }
   // (the optimized build has no `window.__board` to wait for: its first frame frames the room again, so give it time before a flight is asked)
   await p.waitForTimeout(PROD ? 9000 : 2500);
-  if (flag('hour', '')) await p.evaluate(async (h) => { const { roomDebug } = await import('/src/features/room/render/shell/room.ts'); roomDebug.hour = h; }, Number(flag('hour', '')));
+  if (flag('hour', ''))
+    await p.evaluate(
+      async (h) => {
+        const { roomDebug } = await import('/src/features/room/render/shell/room.ts');
+        roomDebug.hour = h;
+      },
+      Number(flag('hour', '')),
+    );
   if (flag('preset', '')) {
     const name = flag('preset', '');
     await p.click('[aria-label=Menu]');
     await p.click('role=menuitem[name=/Settings/]');
     await p.click(`.pl-menu.settings [role=radiogroup][aria-label=Preset] >> role=radio[name="${name}"i]`);
-    await p.click('.pl-menu.settings [role=tab][id=st-tab-display]'); await p.click('.pl-menu.settings [role=radiogroup][aria-label=Auto-adjust] >> text=Off');
+    await p.click('.pl-menu.settings [role=tab][id=st-tab-display]');
+    await p.click('.pl-menu.settings [role=radiogroup][aria-label=Auto-adjust] >> text=Off');
     await p.click('.pl-menu.settings .pl-back');
     const g = await p.evaluate(() => JSON.parse(localStorage.getItem('pipeline-city.graphics') ?? 'null'));
     const t = await p.evaluate(() => JSON.parse(localStorage.getItem('pipeline-city.graphics.tier') ?? 'null'));
     // the preset's tier is saved as manual; `auto` false means the switch held
-    if (!g || g.auto !== false || t?.mode !== 'manual') { console.log(`The preset ${name} did not take (saved graphics: ${JSON.stringify(g)}, tier: ${JSON.stringify(t)}).`); process.exitCode = 3; throw new Error('preset'); }
+    if (!g || g.auto !== false || t?.mode !== 'manual') {
+      console.log(
+        `The preset ${name} did not take (saved graphics: ${JSON.stringify(g)}, tier: ${JSON.stringify(t)}).`,
+      );
+      process.exitCode = 3;
+      throw new Error('preset');
+    }
     console.log('preset:', name);
     await p.waitForTimeout(800);
   }
@@ -98,14 +154,23 @@ try {
   else if (view === 'cpu') await p.evaluate(() => window.__board.flyToCpu());
   else if (view === 'board') await p.evaluate(() => window.__board.flyToBoard());
   else if (view === 'room') await p.evaluate(() => window.__board.flyToRoom?.());
-  else if (view.includes(',')) { const [x, y, z] = view.split(',').map(Number); await p.evaluate(([x, y, z]) => window.__board.camera.set({ x, y, z }), [x, y, z]); }
+  else if (view.includes(',')) {
+    const [x, y, z] = view.split(',').map(Number);
+    await p.evaluate(([x, y, z]) => window.__board.camera.set({ x, y, z }), [x, y, z]);
+  }
   if (flag('look', '')) await p.evaluate((v) => window.__board.lookAt(...v), flag('look', '').split(',').map(Number));
   // a click on the picture must wait for the --view flight to land: during it, it hits the room, not the board
   if (view && (flag('tap', '') || flag('dblclick', ''))) await p.waitForTimeout(4000);
   // --tap "x,y" (repeatable by "x,y|x,y"): click these screen points in order, e.g. the power supply, whose popup has the power button (then --click "Power on")
-  for (const at of flag('tap', '').split('|').filter(Boolean)) { await p.mouse.click(...at.split(',').map(Number)); await p.waitForTimeout(600); }
+  for (const at of flag('tap', '').split('|').filter(Boolean)) {
+    await p.mouse.click(...at.split(',').map(Number));
+    await p.waitForTimeout(600);
+  }
   // --click "text" (repeatable by "a|b"): click these in order after the view is set, e.g. the menu and then its OS entry
-  for (const t of flag('click', '').split('|').filter(Boolean)) { await p.click(t.startsWith('[') || t.includes('=') ? t : `text=${t}`); await p.waitForTimeout(400); }
+  for (const t of flag('click', '').split('|').filter(Boolean)) {
+    await p.click(t.startsWith('[') || t.includes('=') ? t : `text=${t}`);
+    await p.waitForTimeout(400);
+  }
   // --eval "js": run this in the page (dev server only: `await import('/src/app/store.ts')` is the live store, e.g. `.powerButton()` to switch the machine on);
   // what it returns is printed
   if (flag('eval', '')) {
@@ -113,20 +178,38 @@ try {
     if (out !== undefined) console.log('eval:', JSON.stringify(out));
   }
   // --keys "a" (comma list): press these keys after the clicks, e.g. `a` for the airflow lens
-  for (const k of flag('keys', '').split(',').filter(Boolean)) { await p.keyboard.press(k); await p.waitForTimeout(300); }
+  for (const k of flag('keys', '').split(',').filter(Boolean)) {
+    await p.keyboard.press(k);
+    await p.waitForTimeout(300);
+  }
   if (flag('keys', '') && flag('dblclick', '')) await p.waitForTimeout(4000); // (a key may start a flight, e.g. `b`: the board)
   // --hover "x,y": rest the pointer here (screen pixels), e.g. to see a part's outline
   if (flag('hover', '')) await p.mouse.move(...flag('hover', '').split(',').map(Number));
   // --dblclick "x,y": double-click here (screen pixels) and wait `--flight` ms (4500) for the camera: a part flies into view (the prod build has no `window.__board.focusPart`)
-  for (const at of flag('dblclick', '').split('|').filter(Boolean)) { await p.mouse.dblclick(...at.split(',').map(Number)); await p.waitForTimeout(Number(flag('flight', 4500))); }
+  for (const at of flag('dblclick', '').split('|').filter(Boolean)) {
+    await p.mouse.dblclick(...at.split(',').map(Number));
+    await p.waitForTimeout(Number(flag('flight', 4500)));
+  }
   await p.waitForTimeout(Number(flag('wait', 2500)));
   // --fps: count animation frames for 3 s and print the mean frame rate and the slowest frame (the 3D target is 60 FPS)
   if (args.includes('--fps')) {
-    const r = await p.evaluate(() => new Promise((done) => {
-      let n = 0, worst = 0, t0 = performance.now(), prev = t0;
-      const f = (t) => { n++; worst = Math.max(worst, t - prev); prev = t; if (t - t0 < 3000) requestAnimationFrame(f); else done({ fps: Math.round((n / (t - t0)) * 10000) / 10, worstMs: Math.round(worst) }); };
-      requestAnimationFrame(f);
-    }));
+    const r = await p.evaluate(
+      () =>
+        new Promise((done) => {
+          let n = 0,
+            worst = 0,
+            t0 = performance.now(),
+            prev = t0;
+          const f = (t) => {
+            n++;
+            worst = Math.max(worst, t - prev);
+            prev = t;
+            if (t - t0 < 3000) requestAnimationFrame(f);
+            else done({ fps: Math.round((n / (t - t0)) * 10000) / 10, worstMs: Math.round(worst) });
+          };
+          requestAnimationFrame(f);
+        }),
+    );
     console.log(`FPS ${r.fps} (slowest frame ${r.worstMs} ms)`);
   }
   const clip = flag('clip', '') === 'hud' ? { x: 0, y: 0, width: W, height: 90 } : undefined;
@@ -134,7 +217,9 @@ try {
   console.log('saved', out, errors.length ? `(page errors: ${errors.slice(0, 3).join(' | ')})` : '');
   // --noui <png>: the same run, UI hidden, for `node tools/hud-coverage.mjs <out.png> <png>`
   if (flag('noui', '')) {
-    await p.evaluate(() => { document.getElementById('hud').style.visibility = 'hidden'; });
+    await p.evaluate(() => {
+      document.getElementById('hud').style.visibility = 'hidden';
+    });
     await p.waitForTimeout(400);
     await p.screenshot({ path: resolve(flag('noui', '')) });
     console.log('saved', resolve(flag('noui', '')));

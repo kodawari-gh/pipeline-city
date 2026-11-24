@@ -17,19 +17,27 @@
 // their air does not reach the board (the processor's and the cards' areas; the bay itself is cooled by it). A full cage of hard disks costs about one front
 // fan; the basement's cage under the shroud costs nothing.
 
-import { basicFan, CASE_TIERS, caseMounts } from "./specs";
-import type { DeviceKind } from "./specs";
+import { basicFan, CASE_TIERS, caseMounts } from './specs';
+import type { DeviceKind } from './specs';
 
-export type AirZoneId = "north" | "cards" | "bay";
-export const AIR_ZONES: readonly AirZoneId[] = ["north", "cards", "bay"];
+export type AirZoneId = 'north' | 'cards' | 'bay';
+export const AIR_ZONES: readonly AirZoneId[] = ['north', 'cards', 'bay'];
 
 /** The area a kind of part sits in; null for parts that do not breathe the case air (a cooler, a sink, the PSU, the monitor, a radiator). */
 export function zoneOf(kind: DeviceKind): AirZoneId | null {
   switch (kind) {
-    case "cpu": case "ram": return "north";
-    case "gpu": case "npu": case "nic": case "tpm": return "cards";
-    case "storage": return "bay";
-    default: return null;
+    case 'cpu':
+    case 'ram':
+      return 'north';
+    case 'gpu':
+    case 'npu':
+    case 'nic':
+    case 'tpm':
+      return 'cards';
+    case 'storage':
+      return 'bay';
+    default:
+      return null;
   }
 }
 
@@ -61,21 +69,79 @@ type Shade = readonly (readonly number[])[];
  * disk lies flat across the air; a 2.5-inch SSD is thin and short. Measured from the 3D models (render/three/fit.test.ts checks it against the layout).
  */
 export const BAY_SHADE: readonly { hdd: Shade; ssd: Shade }[] = [
-  { hdd: [[0.186, 0.087], [0, 0.283]], ssd: [[0, 0.069], [0, 0.069]] },
-  { hdd: [[0, 0.283, 0], [0, 0.255, 0.019], [0, 0, 0.283], [0, 0, 0.283]], ssd: [[0, 0.069, 0], [0, 0.025, 0.035], [0, 0, 0.069], [0, 0, 0.069]] },
-  { hdd: [[0, 0.21, 0], [0, 0.189, 0.014], [0, 0, 0.21], [0, 0, 0.21]], ssd: [[0, 0.049, 0], [0, 0.018, 0.025], [0, 0, 0.049], [0, 0, 0.049]] },
-  { hdd: [[0, 0.156, 0], [0, 0.156, 0], [0, 0.156, 0], [0, 0.021, 0.13], [0, 0, 0.156], [0, 0, 0.156]], ssd: [[0, 0.036, 0], [0, 0.036, 0], [0, 0.036, 0], [0, 0, 0.036], [0, 0, 0.036], [0, 0, 0.036]] },
+  {
+    hdd: [
+      [0.186, 0.087],
+      [0, 0.283],
+    ],
+    ssd: [
+      [0, 0.069],
+      [0, 0.069],
+    ],
+  },
+  {
+    hdd: [
+      [0, 0.283, 0],
+      [0, 0.255, 0.019],
+      [0, 0, 0.283],
+      [0, 0, 0.283],
+    ],
+    ssd: [
+      [0, 0.069, 0],
+      [0, 0.025, 0.035],
+      [0, 0, 0.069],
+      [0, 0, 0.069],
+    ],
+  },
+  {
+    hdd: [
+      [0, 0.21, 0],
+      [0, 0.189, 0.014],
+      [0, 0, 0.21],
+      [0, 0, 0.21],
+    ],
+    ssd: [
+      [0, 0.049, 0],
+      [0, 0.018, 0.025],
+      [0, 0, 0.049],
+      [0, 0, 0.049],
+    ],
+  },
+  {
+    hdd: [
+      [0, 0.156, 0],
+      [0, 0.156, 0],
+      [0, 0.156, 0],
+      [0, 0.021, 0.13],
+      [0, 0, 0.156],
+      [0, 0, 0.156],
+    ],
+    ssd: [
+      [0, 0.036, 0],
+      [0, 0.036, 0],
+      [0, 0.036, 0],
+      [0, 0, 0.036],
+      [0, 0, 0.036],
+      [0, 0, 0.036],
+    ],
+  },
 ];
 
 /** A drive in a bay: its SATA port's index (`sata<bay>`) and whether it is a hard disk. */
-export interface BayDrive { bay: number; hdd: boolean }
+export interface BayDrive {
+  bay: number;
+  hdd: boolean;
+}
 
 /** The share of each front fan (top to bottom) that the drives of the main cage block, 0 to 1. */
 export function cageShade(tier: number, drives: readonly BayDrive[]): number[] {
-  const table = BAY_SHADE[tier], out = new Array<number>(CASE_TIERS[tier]?.fans.front ?? 0).fill(0);
+  const table = BAY_SHADE[tier],
+    out = new Array<number>(CASE_TIERS[tier]?.fans.front ?? 0).fill(0);
   for (const d of drives) {
     const row = table && (d.hdd ? table.hdd : table.ssd)[d.bay - BASE_BAYS];
-    row?.forEach((s, i) => { if (i < out.length) out[i]! += s; });
+    row?.forEach((s, i) => {
+      if (i < out.length) out[i]! += s;
+    });
   }
   return out.map((s) => Math.min(1, s));
 }
@@ -92,19 +158,25 @@ export interface ZoneAir {
 const gauss = (x: number, c: number) => Math.exp(-(((x - c) / 0.3) ** 2));
 
 /** Supply and draw of an area for the turning fans (ids as `caseMounts`, each with its airflow); `shade` is what the main cage blocks of each front fan. */
-function supplyDraw(tier: number, turning: ReadonlyMap<string, number>, shade?: readonly number[]): Record<AirZoneId, { supply: number; draw: number }> {
-  const mounts = caseMounts(tier), nFront = mounts.filter((m) => m.startsWith("front")).length;
+function supplyDraw(
+  tier: number,
+  turning: ReadonlyMap<string, number>,
+  shade?: readonly number[],
+): Record<AirZoneId, { supply: number; draw: number }> {
+  const mounts = caseMounts(tier),
+    nFront = mounts.filter((m) => m.startsWith('front')).length;
   const out = {} as Record<AirZoneId, { supply: number; draw: number }>;
   for (const z of AIR_ZONES) {
-    let supply = 0, draw = PASSIVE * DRAW_REAR[z];
+    let supply = 0,
+      draw = PASSIVE * DRAW_REAR[z];
     for (const m of mounts) {
       const w = turning.get(m);
       if (w === undefined) continue;
-      if (m.startsWith("front")) {
-        const i = Number(m.slice(5)), kept = z === "bay" ? 1 : 1 - (shade?.[i] ?? 0);
+      if (m.startsWith('front')) {
+        const i = Number(m.slice(5)),
+          kept = z === 'bay' ? 1 : 1 - (shade?.[i] ?? 0);
         supply += w * REACH[z] * gauss((i + 0.5) / nFront, LEVEL[z]) * Math.max(0, kept);
-      }
-      else if (m === "rear") draw += w * DRAW_REAR[z];
+      } else if (m === 'rear') draw += w * DRAW_REAR[z];
       else draw += w * DRAW_TOP[z];
     }
     out[z] = { supply, draw };
@@ -113,7 +185,7 @@ function supplyDraw(tier: number, turning: ReadonlyMap<string, number>, shade?: 
 }
 
 /** The harmonic mean: 0 unless both are there. */
-const through = (s: number, d: number) => (s > 0 && d > 0 ? (2 * s * d) / (s + d) : 0) + STIR * (s + d) / 2;
+const through = (s: number, d: number) => (s > 0 && d > 0 ? (2 * s * d) / (s + d) : 0) + (STIR * (s + d)) / 2;
 
 /**
  * The air of each area. `turning` is the ids of the case fans that turn (their own cable and the hub's); undefined means no layout is known (a model run
@@ -122,18 +194,34 @@ const through = (s: number, d: number) => (s > 0 && d > 0 ? (2 * s * d) / (s + d
  * `flow` is capped at 1 there, while `fans` keeps growing with high-airflow fans. `shade` is the share of each front fan the main cage's drives block (`cageShade`):
  * the case as designed has an empty cage.
  */
-export function zoneAir(tier: number, turning: readonly string[] | undefined, caseFans: number, cardW: number, heatPerW: number, flowOf?: Readonly<Record<string, number>>, shade?: readonly number[]): Record<AirZoneId, ZoneAir> {
+export function zoneAir(
+  tier: number,
+  turning: readonly string[] | undefined,
+  caseFans: number,
+  cardW: number,
+  heatPerW: number,
+  flowOf?: Readonly<Record<string, number>>,
+  shade?: readonly number[],
+): Record<AirZoneId, ZoneAir> {
   const out = {} as Record<AirZoneId, ZoneAir>;
   if (!turning) {
     for (const z of AIR_ZONES) out[z] = { fans: caseFans, flow: 1, riseC: heatPerW * cardW };
     return out;
   }
-  const size = CASE_TIERS[tier]?.fanSize, base = size ? basicFan(size).airflow : 1;
-  const all = caseMounts(tier), n = all.length * base;
-  const now = supplyDraw(tier, new Map(turning.map((m) => [m, flowOf?.[m] ?? base])), shade), best = supplyDraw(tier, new Map(all.map((m) => [m, base])));
+  const size = CASE_TIERS[tier]?.fanSize,
+    base = size ? basicFan(size).airflow : 1;
+  const all = caseMounts(tier),
+    n = all.length * base;
+  const now = supplyDraw(tier, new Map(turning.map((m) => [m, flowOf?.[m] ?? base])), shade),
+    best = supplyDraw(tier, new Map(all.map((m) => [m, base])));
   for (const z of AIR_ZONES) {
-    const ratio = through(now[z].supply, now[z].draw) / Math.max(1e-6, through(best[z].supply, best[z].draw)), flow = Math.min(1, ratio);
-    out[z] = { fans: n * ratio * QUALITY[z], flow, riseC: heatPerW * cardW * COUPLE[z] * Math.min(MAX_TRAPPED, 1 / Math.max(1 / MAX_TRAPPED, flow)) };
+    const ratio = through(now[z].supply, now[z].draw) / Math.max(1e-6, through(best[z].supply, best[z].draw)),
+      flow = Math.min(1, ratio);
+    out[z] = {
+      fans: n * ratio * QUALITY[z],
+      flow,
+      riseC: heatPerW * cardW * COUPLE[z] * Math.min(MAX_TRAPPED, 1 / Math.max(1 / MAX_TRAPPED, flow)),
+    };
   }
   return out;
 }

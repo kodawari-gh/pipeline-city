@@ -21,20 +21,50 @@ const SIZES = [
   { name: 'landscape', w: 844, h: 390, phone: true },
 ];
 // the Build pieces that must not overlap each other (a piece inside another one is not a pair)
-const CHROME = ['.bld-read', '.bld-lens', '.bld-hint', '.bld-panes', '.bld-run', '.bld-tools', '.bld-views', '.bld-bin', '.bld-inst', '.bld-mtog'];
+const CHROME = [
+  '.bld-read',
+  '.bld-lens',
+  '.bld-hint',
+  '.bld-panes',
+  '.bld-run',
+  '.bld-tools',
+  '.bld-views',
+  '.bld-bin',
+  '.bld-inst',
+  '.bld-mtog',
+];
 mkdirSync(outDir, { recursive: true });
 
 if (PROD) {
   const b = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'build'], { stdio: 'inherit' });
-  if (await new Promise((r) => b.on('exit', r))) { console.log('the build failed'); process.exit(1); }
+  if (await new Promise((r) => b.on('exit', r))) {
+    console.log('the build failed');
+    process.exit(1);
+  }
 }
 let server = null;
-const up = async () => { try { return (await fetch(url)).ok; } catch { return false; } };
+const up = async () => {
+  try {
+    return (await fetch(url)).ok;
+  } catch {
+    return false;
+  }
+};
 if (!(await up())) {
-  server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', ...(PROD ? ['preview'] : []), '--port', String(PORT), '--strictPort'], { stdio: 'ignore' });
+  server = spawn(
+    process.execPath,
+    ['node_modules/vite/bin/vite.js', ...(PROD ? ['preview'] : []), '--port', String(PORT), '--strictPort'],
+    { stdio: 'ignore' },
+  );
   for (let i = 0; i < 100 && !(await up()); i++) await new Promise((r) => setTimeout(r, 300));
 }
-const stop = () => { try { server?.kill(); } catch { /* gone */ } };
+const stop = () => {
+  try {
+    server?.kill();
+  } catch {
+    /* gone */
+  }
+};
 process.on('exit', stop);
 
 const browser = await chromium.launch({
@@ -43,18 +73,32 @@ const browser = await chromium.launch({
   args: ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'],
 });
 const problems = [];
-const fail = (where, what) => { problems.push(`${where}: ${what}`); console.log(`FAIL ${where}: ${what}`); };
+const fail = (where, what) => {
+  problems.push(`${where}: ${what}`);
+  console.log(`FAIL ${where}: ${what}`);
+};
 /** Page side: the pieces on screen, the pairs that overlap (a piece inside another is not a pair), the pieces that leave the screen. */
 const facts = (chrome) => {
-  const shown = (e) => { if (getComputedStyle(e).display === 'none') return false; const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+  const shown = (e) => {
+    if (getComputedStyle(e).display === 'none') return false;
+    const r = e.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  };
   const items = [];
-  for (const q of chrome) for (const e of document.querySelectorAll(q)) if (shown(e)) { const r = e.getBoundingClientRect(); items.push({ q, e, x: r.left, y: r.top, r: r.right, b: r.bottom }); }
-  const overlaps = [], offscreen = [];
+  for (const q of chrome)
+    for (const e of document.querySelectorAll(q))
+      if (shown(e)) {
+        const r = e.getBoundingClientRect();
+        items.push({ q, e, x: r.left, y: r.top, r: r.right, b: r.bottom });
+      }
+  const overlaps = [],
+    offscreen = [];
   items.forEach((a, i) => {
     if (a.x < -0.5 || a.y < -0.5 || a.r > innerWidth + 0.5 || a.b > innerHeight + 0.5) offscreen.push(a.q);
     items.slice(i + 1).forEach((b) => {
       if (a.e.contains(b.e) || b.e.contains(a.e)) return;
-      if (Math.min(a.r, b.r) - Math.max(a.x, b.x) > 1 && Math.min(a.b, b.b) - Math.max(a.y, b.y) > 1) overlaps.push(`${a.q} x ${b.q}`);
+      if (Math.min(a.r, b.r) - Math.max(a.x, b.x) > 1 && Math.min(a.b, b.b) - Math.max(a.y, b.y) > 1)
+        overlaps.push(`${a.q} x ${b.q}`);
     });
   });
   const build = document.querySelector('.build');
@@ -64,8 +108,11 @@ const facts = (chrome) => {
     machine: build?.getAttribute('data-machine') ?? null,
     overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     paneTabsShown: !!panes && shown(panes),
-    overlaps, offscreen,
-    boxes: items.map((a) => `  ${a.q} at ${Math.round(a.x)},${Math.round(a.y)} size ${Math.round(a.r - a.x)}x${Math.round(a.b - a.y)}`),
+    overlaps,
+    offscreen,
+    boxes: items.map(
+      (a) => `  ${a.q} at ${Math.round(a.x)},${Math.round(a.y)} size ${Math.round(a.r - a.x)}x${Math.round(a.b - a.y)}`,
+    ),
   };
 };
 
@@ -78,11 +125,15 @@ try {
     p.on('pageerror', (e) => errors.push(e.message));
     /** One state of the screen: its facts, a screenshot, and a failure for each broken check. */
     const check = async (label) => {
-      const where = `${s.name} ${label}`, f = await p.evaluate(facts, CHROME);
+      const where = `${s.name} ${label}`,
+        f = await p.evaluate(facts, CHROME);
       const file = resolve(outDir, `build-${s.name}-${label}-${PROD ? 'prod' : 'dev'}.png`);
       await p.screenshot({ path: file });
-      console.log(`[${where}] layout ${f.layout}, machine ${f.machine}, overflowX ${f.overflowX}, pane tabs ${f.paneTabsShown ? 'shown' : 'hidden'}; saved ${file}`);
-      if (f.layout !== (s.phone ? 'phone' : 'desk')) fail(where, `the layout is ${f.layout}, the viewport wants ${s.phone ? 'phone' : 'desk'}`);
+      console.log(
+        `[${where}] layout ${f.layout}, machine ${f.machine}, overflowX ${f.overflowX}, pane tabs ${f.paneTabsShown ? 'shown' : 'hidden'}; saved ${file}`,
+      );
+      if (f.layout !== (s.phone ? 'phone' : 'desk'))
+        fail(where, `the layout is ${f.layout}, the viewport wants ${s.phone ? 'phone' : 'desk'}`);
       if (f.overflowX > 0) fail(where, `the page scrolls sideways by ${f.overflowX}px`);
       if (f.paneTabsShown !== s.phone) fail(where, `the pane tabs are ${f.paneTabsShown ? 'shown' : 'hidden'}`);
       if (f.overlaps.length) fail(where, `pieces overlap: ${[...new Set(f.overlaps)].join('; ')}`);
@@ -91,23 +142,50 @@ try {
     };
     /** A phone: pick a part (dev builds expose the stage as `window.__build`) and fail when its card leaves the screen. */
     const cardCheck = async () => {
-      const picked = await p.evaluate(() => { const b = window.__build; const d = b?.board.devices[0]; if (!d) return b ? 'none' : 'nostage'; b.select(d.id); return 'ok'; });
-      if (picked === 'nostage') { console.log(`[${s.name}] no window.__build (a prod build): the part card is not checked`); return; }
-      if (picked === 'none') { fail(`${s.name} part card`, 'there is no part to pick, so no card to check'); return; }
+      const picked = await p.evaluate(() => {
+        const b = window.__build;
+        const d = b?.board.devices[0];
+        if (!d) return b ? 'none' : 'nostage';
+        b.select(d.id);
+        return 'ok';
+      });
+      if (picked === 'nostage') {
+        console.log(`[${s.name}] no window.__build (a prod build): the part card is not checked`);
+        return;
+      }
+      if (picked === 'none') {
+        fail(`${s.name} part card`, 'there is no part to pick, so no card to check');
+        return;
+      }
       await p.waitForTimeout(600);
-      const r = await p.evaluate(() => { const e = document.querySelector('.bld-card'); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.left, y: b.top, r: b.right, b: b.bottom, w: innerWidth, h: innerHeight }; });
+      const r = await p.evaluate(() => {
+        const e = document.querySelector('.bld-card');
+        if (!e) return null;
+        const b = e.getBoundingClientRect();
+        return { x: b.left, y: b.top, r: b.right, b: b.bottom, w: innerWidth, h: innerHeight };
+      });
       await p.screenshot({ path: resolve(outDir, `build-${s.name}-card-${PROD ? 'prod' : 'dev'}.png`) });
       if (!r) fail(`${s.name} part card`, 'a part is picked but no card is drawn');
-      else if (r.x < -0.5 || r.y < -0.5 || r.r > r.w + 0.5 || r.b > r.h + 0.5) fail(`${s.name} part card`, `the card is outside the screen: ${Math.round(r.x)},${Math.round(r.y)} to ${Math.round(r.r)},${Math.round(r.b)} in ${r.w}x${r.h}`);
+      else if (r.x < -0.5 || r.y < -0.5 || r.r > r.w + 0.5 || r.b > r.h + 0.5)
+        fail(
+          `${s.name} part card`,
+          `the card is outside the screen: ${Math.round(r.x)},${Math.round(r.y)} to ${Math.round(r.r)},${Math.round(r.b)} in ${r.w}x${r.h}`,
+        );
       await p.evaluate(() => window.__build?.select(null));
     };
     try {
       await p.goto(url);
       await p.waitForTimeout(1500);
-      const renderer = await p.evaluate(() => { const g = document.createElement('canvas').getContext('webgl2'); const e = g?.getExtension('WEBGL_debug_renderer_info'); return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'unknown'; });
+      const renderer = await p.evaluate(() => {
+        const g = document.createElement('canvas').getContext('webgl2');
+        const e = g?.getExtension('WEBGL_debug_renderer_info');
+        return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'unknown';
+      });
       console.log(`[${s.name} ${s.w}x${s.h}] GL renderer: ${renderer}`);
-      if (/swiftshader|llvmpipe|software/i.test(renderer)) { console.log('The browser fell back to software GL: stopping.'); glFailed = true; }
-      else {
+      if (/swiftshader|llvmpipe|software/i.test(renderer)) {
+        console.log('The browser fell back to software GL: stopping.');
+        glFailed = true;
+      } else {
         await p.click('text=Build my PC');
         await p.waitForSelector('.bld-foot', { timeout: 20000 });
         await p.waitForTimeout(4000);

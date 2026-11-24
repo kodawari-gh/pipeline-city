@@ -47,7 +47,8 @@ export function inFlowOrder(strands: readonly (readonly V3[])[], power: RigPower
   const lines = strands.map((s) => (power.out ? reversed(s) : [...s.map((p) => [...p] as V3)]));
   const tail = power.beyond;
   if (tail && tail.length && lines.length) {
-    const first = lines[0]!, end = first[first.length - 1]!;
+    const first = lines[0]!,
+      end = first[first.length - 1]!;
     // (the cable goes on from where the first strand ends: its run past the desk's hole, or its own piece when they do not meet)
     if (d2(end, tail[0]!) < 60 * 60) first.push(...tail.slice(1).map((p) => [...p] as V3));
     else lines.push(tail.map((p) => [...p] as V3));

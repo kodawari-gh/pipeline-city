@@ -9,7 +9,9 @@ import type { Snapshot } from '@/worker/game/game';
 import { currentStep, INITIAL_TUTORIAL, pendingUpgrade, STEPS, type StepId, type TutorialState } from './tutorial';
 
 let ST: TutorialState = { ...INITIAL_TUTORIAL, welcomed: true };
-const resetTutorialState = () => { ST = { ...INITIAL_TUTORIAL, welcomed: true, acks: [] }; };
+const resetTutorialState = () => {
+  ST = { ...INITIAL_TUTORIAL, welcomed: true, acks: [] };
+};
 /** About 10 minutes of game time (the waits are client arrivals at a floor reputation). */
 const MAX_STEP_TICKS = 660;
 /** Smooth: no step keeps the player waiting two minutes of game time, and the whole tutorial, network included, is over in under nine. */
@@ -30,10 +32,22 @@ const nextKey = (s: Snapshot) => s.tray.find((k) => k.runnable);
 function serve(g: Game, s: Snapshot): void {
   if (s.os) return;
   // A finished key left in the port of a machine that is off (the manual loop) is handed back before an OS can claim it.
-  if (!g.powered && s.plugged?.done) { g.ejectKey(); return; }
-  if (s.plugged?.done && !s.autoEject) { g.ejectKey(); return; }
-  if (g.powered && !s.plugged && (s.phase === 'halted' || s.phase === 'error')) { g.powerButton(); return; }
-  if (!g.powered && !s.plugged && nextKey(s)) { g.plugKey(nextKey(s)!.id); return; }
+  if (!g.powered && s.plugged?.done) {
+    g.ejectKey();
+    return;
+  }
+  if (s.plugged?.done && !s.autoEject) {
+    g.ejectKey();
+    return;
+  }
+  if (g.powered && !s.plugged && (s.phase === 'halted' || s.phase === 'error')) {
+    g.powerButton();
+    return;
+  }
+  if (!g.powered && !s.plugged && nextKey(s)) {
+    g.plugKey(nextKey(s)!.id);
+    return;
+  }
   if (!g.powered && s.plugged) g.powerButton();
 }
 
@@ -41,11 +55,15 @@ function serve(g: Game, s: Snapshot): void {
 function act(g: Game, s: Snapshot, id: StepId): void {
   // The steps before the first purchase are the player's own actions; the background serve starts once they are done.
   if (STEPS.findIndex((x) => x.id === id) >= STEPS.findIndex((x) => x.id === 'spend')) serve(g, s);
-  const powerOff = () => { if (g.powered) g.powerButton(); };
+  const powerOff = () => {
+    if (g.powered) g.powerButton();
+  };
   // A free socket if there is one, else the occupied socket of the same kind (a swap: the old part returns to the inventory).
   const installPart = (kinds: string[], pick: (i: Snapshot['inventory'][number]) => boolean = () => true) => {
     powerOff();
-    const item = s.inventory.find((i) => kinds.includes(i.kind) && pick(i) && (i.freeSlots.length + i.swapSlots.length) > 0);
+    const item = s.inventory.find(
+      (i) => kinds.includes(i.kind) && pick(i) && i.freeSlots.length + i.swapSlots.length > 0,
+    );
     if (item) g.install(item.id, item.freeSlots[0] ?? item.swapSlots[0]);
   };
   const buy = (specId: string, price: number) => {
@@ -56,19 +74,33 @@ function act(g: Game, s: Snapshot, id: StepId): void {
     }
   };
   switch (id) {
-    case 'cpu': installPart(['cpu']); break;
-    case 'ram': installPart(['ram']); break;
-    case 'cooler': installPart(['cooler']); break;
-    case 'fan': installPart(['fan']); break;
-    case 'psu': installPart(['psu']); break;
-    case 'monitor': installPart(['display']); break;
+    case 'cpu':
+      installPart(['cpu']);
+      break;
+    case 'ram':
+      installPart(['ram']);
+      break;
+    case 'cooler':
+      installPart(['cooler']);
+      break;
+    case 'fan':
+      installPart(['fan']);
+      break;
+    case 'psu':
+      installPart(['psu']);
+      break;
+    case 'monitor':
+      installPart(['display']);
+      break;
     case 'cables': {
       powerOff();
-      for (const cable of ['atx', 'cpu', 'cpufan', 'video']) if (!s.cables.find((c) => c.id === cable)?.connected) g.connectCable(cable);
+      for (const cable of ['atx', 'cpu', 'cpufan', 'video'])
+        if (!s.cables.find((c) => c.id === cable)?.connected) g.connectCable(cable);
       break;
     }
     case 'wall':
-      for (const cable of ['pcmains', 'monmains']) if (!s.cables.find((c) => c.id === cable)?.connected) g.connectCable(cable);
+      for (const cable of ['pcmains', 'monmains'])
+        if (!s.cables.find((c) => c.id === cable)?.connected) g.connectCable(cable);
       break;
     case 'bootOs':
       if (!g.powered) g.powerButton();
@@ -83,33 +115,80 @@ function act(g: Game, s: Snapshot, id: StepId): void {
       if (g.powered) g.powerButton();
       else if (!s.plugged && nextKey(s)) g.plugAndBoot(nextKey(s)!.id);
       break;
-    case 'watch': break;
-    case 'money': case 'reputation': case 'level': ST = { ...ST, acks: [...ST.acks, id] }; break; // the player reads and presses Got it
-    case 'osPaid': break; // the key pops out by itself
-    case 'spend': buy('cpu1', 200); break;
-    case 'reachLevel3': break; // the background serve loop delivers the jobs
-    case 'fit': installPart(PART_KINDS, (i) => pendingUpgrade(s, i)); break;
-    case 'buyDrive': buy('hdd0', 40); break;
-    case 'drive': installPart(['storage']); break;
-    case 'buyRam': buy('ram1', 100); break;
-    case 'fitRam': installPart(['ram']); break;
-    case 'buyOs': buy('os1', 150); break;
-    case 'os': installPart(['os']); break;
-    case 'osIngest': case 'reachLevel4':
+    case 'watch':
+      break;
+    case 'money':
+    case 'reputation':
+    case 'level':
+      ST = { ...ST, acks: [...ST.acks, id] };
+      break; // the player reads and presses Got it
+    case 'osPaid':
+      break; // the key pops out by itself
+    case 'spend':
+      buy('cpu1', 200);
+      break;
+    case 'reachLevel3':
+      break; // the background serve loop delivers the jobs
+    case 'fit':
+      installPart(PART_KINDS, (i) => pendingUpgrade(s, i));
+      break;
+    case 'buyDrive':
+      buy('hdd0', 40);
+      break;
+    case 'drive':
+      installPart(['storage']);
+      break;
+    case 'buyRam':
+      buy('ram1', 100);
+      break;
+    case 'fitRam':
+      installPart(['ram']);
+      break;
+    case 'buyOs':
+      buy('os1', 150);
+      break;
+    case 'os':
+      installPart(['os']);
+      break;
+    case 'osIngest':
+    case 'reachLevel4':
       if (!g.powered) g.powerButton();
       if (!s.plugged && nextKey(s)) g.plugKey(nextKey(s)!.id);
       break;
-    case 'buyIsp': buy('isp1', 150); break;
-    case 'buyRouter': buy('router1', 60); break;
-    case 'placeRouter': installPart(['router']); break;
-    case 'buyCase': if (g.powered) g.powerButton(); else buy('case1', 70); break; // a case (like a board) can only be bought with the machine off
-    case 'fitCase': installPart(['case']); break;
-    case 'buyBoard': if (g.powered) g.powerButton(); else buy('board1', 150); break; // a board can only be bought with the machine off
-    case 'fitBoard': installPart(['board']); break;
-    case 'plugLan': g.connectCable('lan'); break;
-    case 'linkUp': if (!g.powered) g.powerButton(); break; // the OS brings the link up by itself
-    case 'firstNetJob': break; // the jobs arrive and run on their own
-    case 'welcome': case 'done': break;
+    case 'buyIsp':
+      buy('isp1', 150);
+      break;
+    case 'buyRouter':
+      buy('router1', 60);
+      break;
+    case 'placeRouter':
+      installPart(['router']);
+      break;
+    case 'buyCase':
+      if (g.powered) g.powerButton();
+      else buy('case1', 70);
+      break; // a case (like a board) can only be bought with the machine off
+    case 'fitCase':
+      installPart(['case']);
+      break;
+    case 'buyBoard':
+      if (g.powered) g.powerButton();
+      else buy('board1', 150);
+      break; // a board can only be bought with the machine off
+    case 'fitBoard':
+      installPart(['board']);
+      break;
+    case 'plugLan':
+      g.connectCable('lan');
+      break;
+    case 'linkUp':
+      if (!g.powered) g.powerButton();
+      break; // the OS brings the link up by itself
+    case 'firstNetJob':
+      break; // the jobs arrive and run on their own
+    case 'welcome':
+    case 'done':
+      break;
   }
 }
 
@@ -129,10 +208,12 @@ describe('the tutorial is completable with public actions', () => {
         seen.push({ id: step.id, tick: s.baseTick });
         last = step.id;
       }
-      if (step.id === 'done') { finishedAt = tick; break; }
+      if (step.id === 'done') {
+        finishedAt = tick;
+        break;
+      }
       act(g, s, step.id);
     }
-
 
     // Every step (but welcome, which the bot skips past with the Start button) became active, in STEPS order.
     const expected = STEPS.filter((x) => x.id !== 'welcome' && !OPTIONAL.includes(x.id)).map((x) => x.id);
@@ -197,7 +278,12 @@ function runTutorial(seed: number, every: number) {
     if (!r.ok) refused.push(`${name}: ${r.reason}`);
     return r;
   };
-  const install = g.install.bind(g), connect = g.connectCable.bind(g), plug = g.plugKey.bind(g), eject = g.ejectKey.bind(g), power = g.powerButton.bind(g), buy = g.purchase.bind(g);
+  const install = g.install.bind(g),
+    connect = g.connectCable.bind(g),
+    plug = g.plugKey.bind(g),
+    eject = g.ejectKey.bind(g),
+    power = g.powerButton.bind(g),
+    buy = g.purchase.bind(g);
   g.install = (inv: string, slot?: string) => wrap('install', install(inv, slot));
   g.connectCable = (c: string) => wrap('connectCable', connect(c));
   g.plugKey = (k: number) => wrap('plugKey', plug(k));
@@ -210,22 +296,39 @@ function runTutorial(seed: number, every: number) {
     g.advanceBaseTick();
     const s = g.snapshot();
     const step = currentStep(s, ST)!;
-    if (step.id !== last) { seen.push({ id: step.id, tick: s.baseTick }); last = step.id; }
-    if (step.id === 'done') { finishedAt = tick; break; }
+    if (step.id !== last) {
+      seen.push({ id: step.id, tick: s.baseTick });
+      last = step.id;
+    }
+    if (step.id === 'done') {
+      finishedAt = tick;
+      break;
+    }
     if (tick % every === 0) act(g, s, step.id);
   }
   return { g, seen, refused, finishedAt };
 }
 
 describe('the tutorial stays smooth across seeds and player speeds', () => {
-  const cases = [[1, 1], [2, 1], [3, 4], [5, 6], [11, 6], [23, 10]] as const;
+  const cases = [
+    [1, 1],
+    [2, 1],
+    [3, 4],
+    [5, 6],
+    [11, 6],
+    [23, 10],
+  ] as const;
   for (const [seed, every] of cases) {
     it(`seed ${seed}, one action every ${every} s: every step in order, nothing refused, no step waits long`, () => {
       const { seen, refused, finishedAt } = runTutorial(seed, every);
       expect(finishedAt, 'the tutorial reached its last card').toBeGreaterThan(0);
-      expect(seen.map((x) => x.id).filter((x) => !OPTIONAL.includes(x))).toEqual(STEPS.filter((x) => x.id !== 'welcome' && !OPTIONAL.includes(x.id)).map((x) => x.id));
+      expect(seen.map((x) => x.id).filter((x) => !OPTIONAL.includes(x))).toEqual(
+        STEPS.filter((x) => x.id !== 'welcome' && !OPTIONAL.includes(x.id)).map((x) => x.id),
+      );
       expect(refused).toEqual([]);
-      const long = seen.map((x, i) => ({ id: x.id, dur: (seen[i + 1]?.tick ?? x.tick) - x.tick })).filter((x) => x.dur > SMOOTH_STEP_TICKS);
+      const long = seen
+        .map((x, i) => ({ id: x.id, dur: (seen[i + 1]?.tick ?? x.tick) - x.tick }))
+        .filter((x) => x.dur > SMOOTH_STEP_TICKS);
       expect(long).toEqual([]);
       expect(finishedAt).toBeLessThanOrEqual(SMOOTH_TOTAL_TICKS);
     }, 60000);

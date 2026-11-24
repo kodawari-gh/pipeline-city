@@ -33,14 +33,23 @@ type Part = import('../render/three/buildmode3d').BinPart;
 // plug is pulled and plugged by hand (the stage's hand, as the game's), and the OS sheet (`BuildOs.tsx`: the game's OS window, and the OS to install) is a sheet like the benchmark's.
 
 /** The shelf's categories, in the order the Gallery and the shop list them (the monitor stands on the desk, not in the case), then the network: the OS, the router and the internet plan. */
-const KINDS = [...STUDIO_KINDS.filter((k) => k !== 'display' && !(NET_KINDS as readonly string[]).includes(k)), ...NET_KINDS];
+const KINDS = [
+  ...STUDIO_KINDS.filter((k) => k !== 'display' && !(NET_KINDS as readonly string[]).includes(k)),
+  ...NET_KINDS,
+];
 
 /** The hover line of what a click or a drag does: for a part, a socket, the case's side panel, its power button, a cable's plug. */
 const doesOf = (id: string, stage: Stage): string => {
   if (id === 'case.side') return 'Click to open it';
-  if (id === 'power') return stage.state.value.on ? 'Click to switch the machine off' : 'Click to switch the machine on';
-  if (id.startsWith('cable.')) return (stage.snapshot.cables.find((c) => c.id === id.slice(6))?.connected ?? true) ? 'Drag the plug out' : 'Drag the plug to its socket';
-  return stage.board.devices.some((d) => d.id === id) ? 'Click to pick it · drag it onto the shelf to take it out' : 'Drop a part here to fit it';
+  if (id === 'power')
+    return stage.state.value.on ? 'Click to switch the machine off' : 'Click to switch the machine on';
+  if (id.startsWith('cable.'))
+    return (stage.snapshot.cables.find((c) => c.id === id.slice(6))?.connected ?? true)
+      ? 'Drag the plug out'
+      : 'Drag the plug to its socket';
+  return stage.board.devices.some((d) => d.id === id)
+    ? 'Click to pick it · drag it onto the shelf to take it out'
+    : 'Drop a part here to fit it';
 };
 
 /** The phone's layout (SPEC 6.1): the same query as the rest of the menus, read here so the markup can change with it. */
@@ -66,7 +75,10 @@ export function BuildMode() {
   const [shelfOpen, setShelfOpen] = useState(false);
   const choosePane = (p: BuildPane) => {
     if (p === 'parts' && pane === 'parts') setShelfOpen((o) => !o);
-    else { setPane(p); setShelfOpen(p === 'parts'); }
+    else {
+      setPane(p);
+      setShelfOpen(p === 'parts');
+    }
   };
   const [machineOpen, setMachineOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -110,28 +122,42 @@ export function BuildMode() {
     if (!open) return;
     // (the Start list's pictures: their list is small and comes long before the stage does)
     loadBuildStills();
-    let dead = false, s: Stage | null = null;
+    let dead = false,
+      s: Stage | null = null;
     // (the stage's first picture takes a moment: a player who leaves meanwhile frees it at once, `BuildStage.open`)
     const leaving = new AbortController();
-    import('../render/three/buildmode3d').then(async (m) => {
-      if (dead || !host.current) return;
-      try {
-        s = await m.BuildStage.open(host.current, leaving.signal);
-        if (dead) { s.dispose(); return; }
-        s.onGrab = (device, e) => {
-          const d = s!.board.devices.find((v) => v.id === device);
-          if (!d) return;
-          begin({ from: 'machine', item: device, spec: d.spec, name: DEVICE_SPECS[d.spec]?.name ?? d.spec }, e, () => s!.select(device));
-        };
-        stageRef.current = s;
-        setParts(m.binParts());
-        setStage(s);
-      } catch { setFailed(true); }
-    }).catch(() => setFailed(true));
+    import('../render/three/buildmode3d')
+      .then(async (m) => {
+        if (dead || !host.current) return;
+        try {
+          s = await m.BuildStage.open(host.current, leaving.signal);
+          if (dead) {
+            s.dispose();
+            return;
+          }
+          s.onGrab = (device, e) => {
+            const d = s!.board.devices.find((v) => v.id === device);
+            if (!d) return;
+            begin({ from: 'machine', item: device, spec: d.spec, name: DEVICE_SPECS[d.spec]?.name ?? d.spec }, e, () =>
+              s!.select(device),
+            );
+          };
+          stageRef.current = s;
+          setParts(m.binParts());
+          setStage(s);
+        } catch {
+          setFailed(true);
+        }
+      })
+      .catch(() => setFailed(true));
     const onKey = (e: KeyboardEvent) => {
       const st = stageRef.current;
       // (a box on the benchmark sheet keeps the keys: Escape still leaves)
-      if (e.target instanceof HTMLTextAreaElement || (e.target instanceof HTMLInputElement && e.target.type !== 'checkbox')) return;
+      if (
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target instanceof HTMLInputElement && e.target.type !== 'checkbox')
+      )
+        return;
       const busy = !!st?.status.peek().busy;
       if (e.key === 'Escape') {
         // (the stage fast-forwards the step that plays; the graphics modal shuts itself)
@@ -146,17 +172,27 @@ export function BuildMode() {
       if (e.altKey || !st || benchRef.current || osRef.current) return;
       const k = e.key.toLowerCase();
       if (e.ctrlKey || e.metaKey) {
-        if (k === 'z' && !e.shiftKey) { e.preventDefault(); void st.undo(); }
-        else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); void st.redo(); }
+        if (k === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          void st.undo();
+        } else if (k === 'y' || (k === 'z' && e.shiftKey)) {
+          e.preventDefault();
+          void st.redo();
+        }
         return;
       }
       const picked = st.selected.peek();
-      if (k === 'o') { if (!busy) st.openInside(!st.insideOpen); }
-      else if (k === 'p') powerLens.value = !powerLens.value;
+      if (k === 'o') {
+        if (!busy) st.openInside(!st.insideOpen);
+      } else if (k === 'p') powerLens.value = !powerLens.value;
       else if (k === 'a') airflowLens.value = !airflowLens.value;
-      else if (k === 'f') { if (picked) st.focusDevice(picked); }
-      else if (k === 'r' || k === 'home') st.resetView();
-      else if ((k === 'delete' || k === 'backspace') && picked && !busy) { e.preventDefault(); void st.remove(devNode(picked)); }
+      else if (k === 'f') {
+        if (picked) st.focusDevice(picked);
+      } else if (k === 'r' || k === 'home') st.resetView();
+      else if ((k === 'delete' || k === 'backspace') && picked && !busy) {
+        e.preventDefault();
+        void st.remove(devNode(picked));
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => {
@@ -191,58 +227,188 @@ export function BuildMode() {
   }, [shown]);
   // the machine is framed in the free window the tabs leave: measured from their live boxes, again when they move or the page resizes (`buildframe.ts`)
   useEffect(() => {
-    const el = root.current, box = host.current;
+    const el = root.current,
+      box = host.current;
     if (!stage || !el || !box) return;
     const measure = () => {
-      const tabs = [...el.querySelectorAll<HTMLElement>('.bld-back, .bld-read, .bld-bin, .bld-inst.open, .bld-lens, .bld-dock, .bld-foot')];
+      const tabs = [
+        ...el.querySelectorAll<HTMLElement>(
+          '.bld-back, .bld-read, .bld-bin, .bld-inst.open, .bld-lens, .bld-dock, .bld-foot',
+        ),
+      ];
       const at = box.getBoundingClientRect();
-      stage.setTabs(tabs.map((t) => { const r = t.getBoundingClientRect(); return { x: r.left - at.left, y: r.top - at.top, w: r.width, h: r.height }; }));
+      stage.setTabs(
+        tabs.map((t) => {
+          const r = t.getBoundingClientRect();
+          return { x: r.left - at.left, y: r.top - at.top, w: r.width, h: r.height };
+        }),
+      );
     };
     measure();
     const mo = new MutationObserver(measure);
-    mo.observe(el, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style', 'data-machine', 'data-pane', 'data-shelf'] });
+    mo.observe(el, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['class', 'style', 'data-machine', 'data-pane', 'data-shelf'],
+    });
     el.addEventListener('transitionend', measure);
     window.addEventListener('resize', measure);
-    return () => { mo.disconnect(); el.removeEventListener('transitionend', measure); window.removeEventListener('resize', measure); };
+    return () => {
+      mo.disconnect();
+      el.removeEventListener('transitionend', measure);
+      window.removeEventListener('resize', measure);
+    };
   }, [stage]);
   if (!open) return null;
   void rev;
-  const picked = stage?.selected.value ?? null, hover = stage?.hover.value ?? null;
+  const picked = stage?.selected.value ?? null,
+    hover = stage?.hover.value ?? null;
   // the bottom box: on the phone the dock is `display: contents` and has no box, so the bottom bar (`.bld-foot`) stands for it
   const bottom = phone ? '.bld-foot' : '.bld-dock';
-  const avoid = () => ['.bld-bin', '.bld-inst', '.bld-read', bottom, '.bld-lens'].map((q) => root.current?.querySelector<HTMLElement>(q) ?? null);
+  const avoid = () =>
+    ['.bld-bin', '.bld-inst', '.bld-read', bottom, '.bld-lens'].map(
+      (q) => root.current?.querySelector<HTMLElement>(q) ?? null,
+    );
   // a start's line stays while it is the last thing done (a later change, or Undo itself, makes it stale) and nothing else is going on
   const flash = stage && said && said.swaps === stage.swaps && stage.lastWasSwap && !busy && !drag ? said.text : null;
   // a refusal ("it fits no socket") takes the line for a few seconds: the log of what was done is for `?debug` only, the player must still hear a no
-  const refused = stage && !busy && !drag ? stage.refusal.value?.text ?? null : null;
+  const refused = stage && !busy && !drag ? (stage.refusal.value?.text ?? null) : null;
   // (before the stage is open the machine is not known: the line says so, it does not say the case is empty)
   const hint = !stage
-    ? (failed ? '3D is not available here.' : 'Getting the workshop ready…')
-    : refused ?? flash ?? hintLine({ busy, step: st?.step ?? '', dragging: drag?.from ?? null, over: drag?.over ?? null, picked: !!picked, open: stage.open.value, fitted: stage.board.devices.length, shown, shell: drag ? shellOf(drag.item) : undefined, on: stage.state.value.on, holding: !!stage.cableTip.value });
+    ? failed
+      ? '3D is not available here.'
+      : 'Getting the workshop ready…'
+    : (refused ??
+      flash ??
+      hintLine({
+        busy,
+        step: st?.step ?? '',
+        dragging: drag?.from ?? null,
+        over: drag?.over ?? null,
+        picked: !!picked,
+        open: stage.open.value,
+        fitted: stage.board.devices.length,
+        shown,
+        shell: drag ? shellOf(drag.item) : undefined,
+        on: stage.state.value.on,
+        holding: !!stage.cableTip.value,
+      }));
 
   return (
-    <div class="build mode bld-tabs" data-cue="ui_panel_open" data-layout={phone ? 'phone' : 'desk'} data-pane={pane} data-shelf={shelfOpen ? 'open' : 'shut'} data-machine={machineOpen ? 'open' : 'shut'} role="dialog" aria-modal="true" aria-label="Build my PC" ref={root}>
+    <div
+      class="build mode bld-tabs"
+      data-cue="ui_panel_open"
+      data-layout={phone ? 'phone' : 'desk'}
+      data-pane={pane}
+      data-shelf={shelfOpen ? 'open' : 'shut'}
+      data-machine={machineOpen ? 'open' : 'shut'}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Build my PC"
+      ref={root}
+    >
       <div class={`bld-host ${drag?.over === 'stage' ? 'drop' : ''}`} ref={host} />
-      {!stage && !failed && <div class="bld-note mute" role="status"><span class="bld-wait"><i class="starting-ring" aria-hidden="true" />Loading the workshop…</span></div>}
+      {!stage && !failed && (
+        <div class="bld-note mute" role="status">
+          <span class="bld-wait">
+            <i class="starting-ring" aria-hidden="true" />
+            Loading the workshop…
+          </span>
+        </div>
+      )}
       {failed && <div class="bld-note mute">3D is not available here.</div>}
       <BuildShelf
-        shelf={shelf} kinds={KINDS} parts={parts} kind={kind} setKind={setKind} busy={busy}
-        press={(t, e) => begin({ from: 'shelf', ...t }, e, () => { void stageRef.current?.fit(t.item); })}
-        fit={(item) => { void stageRef.current?.fit(item); }}
-        taking={drag?.from === 'machine'} over={drag?.over === 'bin'} lift={!!drag}
+        shelf={shelf}
+        kinds={KINDS}
+        parts={parts}
+        kind={kind}
+        setKind={setKind}
+        busy={busy}
+        press={(t, e) =>
+          begin({ from: 'shelf', ...t }, e, () => {
+            void stageRef.current?.fit(t.item);
+          })
+        }
+        fit={(item) => {
+          void stageRef.current?.fit(item);
+        }}
+        taking={drag?.from === 'machine'}
+        over={drag?.over === 'bin'}
+        lift={!!drag}
       />
-      <button class="bld-back" data-cue="ui_panel_close" title="Back to the game (Esc)" onClick={() => { buildOpen.value = false; }}><Icon name="prev" size={12} />Back<em>Esc</em></button>
+      <button
+        class="bld-back"
+        data-cue="ui_panel_close"
+        title="Back to the game (Esc)"
+        onClick={() => {
+          buildOpen.value = false;
+        }}
+      >
+        <Icon name="prev" size={12} />
+        Back<em>Esc</em>
+      </button>
       {stage && <Readout stage={stage} rev={rev} />}
       <ViewOptions ready={!!stage} stage={stage} onBench={() => setBench(true)} />
-      <BuildMachine stage={stage} rev={rev} kinds={KINDS} saved={saved} setSaved={setSaved} busy={busy} begin={begin} selected={picked} onBench={() => setBench(true)} onShelf={setKind} onStart={say} open={machineOpen} onToggle={() => setMachineOpen((o) => !o)} />
-      <Foot stage={stage} hint={hint} undo={!refused && flash && stage ? () => { void stage.undo(); } : undefined} warn={refused && stage ? () => stage.clearRefusal() : undefined} onOs={() => setOsSheet(true)} pane={pane} onPane={choosePane} />
+      <BuildMachine
+        stage={stage}
+        rev={rev}
+        kinds={KINDS}
+        saved={saved}
+        setSaved={setSaved}
+        busy={busy}
+        begin={begin}
+        selected={picked}
+        onBench={() => setBench(true)}
+        onShelf={setKind}
+        onStart={say}
+        open={machineOpen}
+        onToggle={() => setMachineOpen((o) => !o)}
+      />
+      <Foot
+        stage={stage}
+        hint={hint}
+        undo={
+          !refused && flash && stage
+            ? () => {
+                void stage.undo();
+              }
+            : undefined
+        }
+        warn={refused && stage ? () => stage.clearRefusal() : undefined}
+        onOs={() => setOsSheet(true)}
+        pane={pane}
+        onPane={choosePane}
+      />
       {stage && bench && <BuildBench stage={stage} onClose={() => setBench(false)} />}
-      {stage && osSheet && <BuildOs stage={stage} onClose={() => setOsSheet(false)} onBench={() => { setOsSheet(false); setBench(true); }} />}
-      {stage && picked && !drag && !bench && !osSheet && <BuildCard stage={stage} id={picked} avoid={avoid} sheet={phone ? () => root.current?.querySelector<HTMLElement>('.bld-foot') ?? null : undefined} />}
-      {stage && hover && !drag && !busy && !bench && !osSheet && hover.id !== picked && <TooltipBubble id={hover.id} x={hover.x} y={hover.y} s={stage.snapshot} extra={doesOf(hover.id, stage)} />}
+      {stage && osSheet && (
+        <BuildOs
+          stage={stage}
+          onClose={() => setOsSheet(false)}
+          onBench={() => {
+            setOsSheet(false);
+            setBench(true);
+          }}
+        />
+      )}
+      {stage && picked && !drag && !bench && !osSheet && (
+        <BuildCard
+          stage={stage}
+          id={picked}
+          avoid={avoid}
+          sheet={phone ? () => root.current?.querySelector<HTMLElement>('.bld-foot') ?? null : undefined}
+        />
+      )}
+      {stage && hover && !drag && !busy && !bench && !osSheet && hover.id !== picked && (
+        <TooltipBubble id={hover.id} x={hover.x} y={hover.y} s={stage.snapshot} extra={doesOf(hover.id, stage)} />
+      )}
       {stage && <CableTip stage={stage} />}
       {drag && <Ghost drag={drag} shown={shown} />}
-      {toast && <div class="bld-toast" role="status" style={{ left: `${toast.x}px`, top: `${toast.y}px` }}>{toast.text}</div>}
+      {toast && (
+        <div class="bld-toast" role="status" style={{ left: `${toast.x}px`, top: `${toast.y}px` }}>
+          {toast.text}
+        </div>
+      )}
     </div>
   );
 }
@@ -251,11 +417,16 @@ export function BuildMode() {
 function CableTip({ stage }: { stage: Stage }) {
   const t = stage.cableTip.value;
   if (!t) return null;
-  return <div class={`bld-cabletip ${t.ok ? 'ok' : ''}`} role="status" style={{ left: `${t.x}px`, top: `${t.y}px` }}>{t.text}</div>;
+  return (
+    <div class={`bld-cabletip ${t.ok ? 'ok' : ''}`} role="status" style={{ left: `${t.x}px`, top: `${t.y}px` }}>
+      {t.text}
+    </div>
+  );
 }
 
 /** `case` or `board` for a catalogue id that is one of them (the two parts a bare case or an empty stage takes), `net` for an OS, a router or an internet plan, else nothing. */
-const shellOf = (item: string): 'case' | 'board' | 'net' | undefined => (/^case\d$/.test(item) ? 'case' : /^board\d$/.test(item) ? 'board' : netKindOf(item) ? 'net' : undefined);
+const shellOf = (item: string): 'case' | 'board' | 'net' | undefined =>
+  /^case\d$/.test(item) ? 'case' : /^board\d$/.test(item) ? 'board' : netKindOf(item) ? 'net' : undefined;
 
 /**
  * The part on the pointer: its picture and name, and what a let-go would do (green: it fits, red: it fits nowhere). `shown`: with a bare case no part has a
@@ -266,17 +437,41 @@ function Ghost({ drag, shown }: { drag: Drag; shown: Shown }) {
   const no = drag.target === '';
   const none = shown === 'nothing';
   const net = shellOf(drag.item) === 'net';
-  const says = drag.from === 'shelf' && net
-    ? (drag.over === 'stage' ? 'Let go to fit it' : 'Drag it onto the stage')
-    : drag.from === 'shelf'
-    ? (drag.over !== 'stage' ? (none ? 'Drag it onto the stage' : 'Drag it onto the PC')
-      : no ? (none ? 'Fit a case first' : shown === 'case' ? 'Fit a motherboard first' : 'Fits no socket here')
-      : drag.target && !/^(case|board)\d$/.test(drag.target) ? `Let go to fit it in ${drag.target}` : none ? 'Let go to bring it in' : 'Let go to fit it here')
-    : (drag.over === 'bin' ? 'Let go to take it out' : 'Drop it on the shelf to take it out');
+  const says =
+    drag.from === 'shelf' && net
+      ? drag.over === 'stage'
+        ? 'Let go to fit it'
+        : 'Drag it onto the stage'
+      : drag.from === 'shelf'
+        ? drag.over !== 'stage'
+          ? none
+            ? 'Drag it onto the stage'
+            : 'Drag it onto the PC'
+          : no
+            ? none
+              ? 'Fit a case first'
+              : shown === 'case'
+                ? 'Fit a motherboard first'
+                : 'Fits no socket here'
+            : drag.target && !/^(case|board)\d$/.test(drag.target)
+              ? `Let go to fit it in ${drag.target}`
+              : none
+                ? 'Let go to bring it in'
+                : 'Let go to fit it here'
+        : drag.over === 'bin'
+          ? 'Let go to take it out'
+          : 'Drop it on the shelf to take it out';
   return (
-    <div class={`bld-ghost ${ok ? 'ok' : ''} ${no ? 'no' : ''}`} style={{ left: `${drag.x}px`, top: `${drag.y}px` }} aria-hidden="true">
+    <div
+      class={`bld-ghost ${ok ? 'ok' : ''} ${no ? 'no' : ''}`}
+      style={{ left: `${drag.x}px`, top: `${drag.y}px` }}
+      aria-hidden="true"
+    >
       <PartArt id={drag.spec} size={44} />
-      <span><b>{drag.name}</b><em>{says}</em></span>
+      <span>
+        <b>{drag.name}</b>
+        <em>{says}</em>
+      </span>
     </div>
   );
 }

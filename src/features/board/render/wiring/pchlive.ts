@@ -11,23 +11,40 @@ import type { Lane } from './routes';
 // the key moving). Pure geometry and colour choices; `live.ts` decides when a message happens.
 
 /** A leg of the chip that a lane lands on. `arrives`: the direction (as routed, 1 first end to second) in which a packet reaches the chip there. */
-export interface ChipLeg { x: number; y: number; side: Side; arrives: 1 | -1 }
+export interface ChipLeg {
+  x: number;
+  y: number;
+  side: Side;
+  arrives: 1 | -1;
+}
 /** One packet reaching or leaving a leg, at game time `at`. */
-export interface LegHit { x: number; y: number; side: Side; color: string; at: number }
+export interface LegHit {
+  x: number;
+  y: number;
+  side: Side;
+  color: string;
+  at: number;
+}
 
 const SIDES: readonly Side[] = ['n', 's', 'w', 'e'];
 /** How near a lane's end must be to a leg's middle to count as landing on it (the lanes end exactly on a leg: a half pitch is plenty). */
 const LAND = 14;
 /** The flash ramps up over `RAMP` ms before the packet gets there and dies away with a time constant of `FALL`; a hit is over after `HIT_MS`. */
-const RAMP = 70, FALL = 160;
+const RAMP = 70,
+  FALL = 160;
 export const HIT_MS = 900;
 
 /** The leg of `chip` one end of `lane` lands on, or null when the lane does not end on the chip. */
 export function chipLegOf(chip: Rect, lane: Lane): ChipLeg | null {
-  const pts = lane.pts, ends = [{ p: pts[pts.length - 1]!, arrives: 1 as const }, { p: pts[0]!, arrives: -1 as const }];
+  const pts = lane.pts,
+    ends = [
+      { p: pts[pts.length - 1]!, arrives: 1 as const },
+      { p: pts[0]!, arrives: -1 as const },
+    ];
   for (const { p, arrives } of ends) {
     for (const side of SIDES) {
-      for (const [x, y] of legsOf(chip, side)) if (Math.hypot(p[0] - x, p[1] - y) <= LAND) return { x, y, side, arrives };
+      for (const [x, y] of legsOf(chip, side))
+        if (Math.hypot(p[0] - x, p[1] - y) <= LAND) return { x, y, side, arrives };
     }
   }
   return null;
@@ -41,7 +58,11 @@ export function legGlow(h: Pick<LegHit, 'at'>, now: number): number {
 }
 
 /** What the corner LED shows. `tone`: the theme colour; `on`: lit now (a blink is off half the time); `a`: how bright. Null: dark. */
-export interface Led { tone: 'ld' | 'st' | 'bad'; on: boolean; a: number }
+export interface Led {
+  tone: 'ld' | 'st' | 'bad';
+  on: boolean;
+  a: number;
+}
 
 /**
  * The LED of the controller: amber while POST or the kernel boots, steady green when idle (dim once a job has halted), red in error, a fast green
@@ -51,7 +72,8 @@ export function ledOf(powered: boolean, phase: string, keyActivity: string, now:
   if (!powered || phase === 'off') return null;
   if (phase === 'error') return { tone: 'bad', on: true, a: 1 };
   if (keyActivity === 'enumerating') return { tone: 'ld', on: Math.floor(now / 450) % 2 === 0, a: 1 };
-  if (keyActivity === 'ingesting' || keyActivity === 'flashing' || phase === 'loading' || phase === 'writing') return { tone: 'st', on: Math.floor(now / 130) % 2 === 0, a: 1 };
+  if (keyActivity === 'ingesting' || keyActivity === 'flashing' || phase === 'loading' || phase === 'writing')
+    return { tone: 'st', on: Math.floor(now / 130) % 2 === 0, a: 1 };
   if (phase === 'posting' || phase === 'mounting' || phase === 'booting-os') return { tone: 'ld', on: true, a: 1 };
   if (phase === 'halted') return { tone: 'st', on: true, a: 0.5 };
   return { tone: 'st', on: true, a: 1 };
@@ -87,12 +109,15 @@ export function drawPch(g: Graphics, T: Theme, c: Rect, o: PchLook): void {
   for (const h of o.hits) {
     const a = legGlow(h, o.now);
     if (a < 0.02) continue;
-    const across = h.side === 'n' || h.side === 's', w = across ? 10 : 20, hh = across ? 20 : 10;
+    const across = h.side === 'n' || h.side === 's',
+      w = across ? 10 : 20,
+      hh = across ? 20 : 10;
     g.rect(h.x - w, h.y - hh, w * 2, hh * 2).fill({ color: h.color, alpha: 0.28 * a });
     g.rect(h.x - w / 2, h.y - hh / 2, w, hh).fill({ color: h.color, alpha: 0.95 * a });
   }
   if (o.led) {
-    const { x, y } = pchLedAt(c), col = T[o.led.tone];
+    const { x, y } = pchLedAt(c),
+      col = T[o.led.tone];
     if (o.led.on) g.circle(x, y, 18).fill({ color: col, alpha: 0.3 * o.led.a });
     g.circle(x, y, 8).fill({ color: o.led.on ? col : '#2a3150', alpha: o.led.on ? o.led.a : 0.7 });
   }

@@ -14,8 +14,7 @@ interface Rec {
 function recordingBackend() {
   const calls: Rec[] = [];
   const sink = new Proxy({} as Record<string, (...a: unknown[]) => void>, {
-    get: (_t, name) =>
-      typeof name === 'string' ? (...args: unknown[]) => void calls.push({ name, args }) : undefined,
+    get: (_t, name) => (typeof name === 'string' ? (...args: unknown[]) => void calls.push({ name, args }) : undefined),
     has: () => true,
   });
   return {
@@ -118,7 +117,10 @@ describe('speed: density and brightness only, never tempo', () => {
       if (names.has(bad)) {
         // A stop or start of the bass at speed 1 is the layer exit, not a tempo change: only the bass may move.
         const moved = r.b.calls.slice(from).filter((c) => c.name === bad);
-        expect(moved.every((c) => c.args[0] === BASS), `${bad} on a layer other than the bass`).toBe(true);
+        expect(
+          moved.every((c) => c.args[0] === BASS),
+          `${bad} on a layer other than the bass`,
+        ).toBe(true);
       }
     }
   });
@@ -144,7 +146,11 @@ describe('speed: density and brightness only, never tempo', () => {
 // The event notes per beat follow the density: each note cue carries `perBeat` = EVENT_NOTES_PER_BEAT x density (4 x 1, 2, 3).
 describe('speed: event notes per beat follow the density', () => {
   /** Six fresh payout notes in one snapshot (a payout plays a note cue). */
-  const payouts = Array.from({ length: 6 }, (_, i) => ({ tick: i + 1, kind: 'payout', text: 'key 3 paid: (late) $120' }));
+  const payouts = Array.from({ length: 6 }, (_, i) => ({
+    tick: i + 1,
+    kind: 'payout',
+    text: 'key 3 paid: (late) $120',
+  }));
 
   /** The `perBeat` of each note cue, after the clock runs at `speed`. */
   const capsAt = (speed: number): (number | undefined)[] => {

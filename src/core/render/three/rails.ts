@@ -10,4 +10,11 @@ import type { Box } from './camera';
  * A card on edge is such a part (its face looks up). `angle`: the part's face does not look at the glass (the memory sticks' faces look east): the flight turns the view to this yaw and
  * pitch, as the player would, and ends there; nothing turns the camera by itself on the way in.
  */
-export interface Rail { id: string; rect: Box; z: number; zoom: number; lie?: { y: number; d: number }; angle?: { yaw: number; pitch: number } }
+export interface Rail {
+  id: string;
+  rect: Box;
+  z: number;
+  zoom: number;
+  lie?: { y: number; d: number };
+  angle?: { yaw: number; pitch: number };
+}

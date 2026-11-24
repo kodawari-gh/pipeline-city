@@ -8,7 +8,9 @@ describe('the 3D basement', () => {
     const slide = motionFor('psu').keys.find((k) => k.at[0] > 0)!.at[0];
     for (const t of [0, 1, 2, 3]) {
       setLayoutTier(t, t);
-      const p = basementPlan(), u = p.psu, o = psuOpening(u);
+      const p = basementPlan(),
+        u = p.psu,
+        o = psuOpening(u);
       expect(u.x - CASE.x, `tier ${t}`).toBeLessThan(slide);
       expect(u.x + u.w + slide, `tier ${t}`).toBeLessThan(p.vent.x);
       expect(p.vent.x + p.vent.w, `tier ${t}`).toBeLessThan(p.east);
@@ -17,10 +19,11 @@ describe('the 3D basement', () => {
     }
   });
 
-  it('keeps the bay\'s fan on its underside, a real 92 or 120 mm fan', () => {
+  it("keeps the bay's fan on its underside, a real 92 or 120 mm fan", () => {
     for (const t of [0, 3]) {
       setLayoutTier(t, t);
-      const u = basementPlan().psu, f = psuFan(u);
+      const u = basementPlan().psu,
+        f = psuFan(u);
       expect(f.r, `tier ${t}`).toBe((t === 0 ? 46 : 60) * 23);
       expect(f.x - f.r, `tier ${t}`).toBeGreaterThan(u.x);
       expect(f.x + f.r, `tier ${t}`).toBeLessThan(u.x + u.w);
@@ -31,7 +34,8 @@ describe('the 3D basement', () => {
   it('puts the power supply in the back corner by its inlet, under the shroud', () => {
     for (const t of [0, 1, 2, 3]) {
       setLayoutTier(t, t);
-      const p = basementPlan(), u = p.psu;
+      const p = basementPlan(),
+        u = p.psu;
       expect(u.x, `tier ${t}`).toBeGreaterThanOrEqual(CASE_IN.x);
       expect(PC_POWER.y, `tier ${t}`).toBeGreaterThan(u.y);
       expect(PC_POWER.y, `tier ${t}`).toBeLessThan(u.y + u.h);

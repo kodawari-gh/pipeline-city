@@ -12,19 +12,37 @@ vi.mock('@/core/render/three/init', async (orig) => {
       camera: new PerspectiveCamera(30, 1, 10, 1e6),
       renderer: {
         domElement: { width: 400, height: 400, addEventListener() {}, removeEventListener() {} },
-        setOpaqueSort() {}, getPixelRatio: () => 1, setSize() {}, properties: { get: () => ({}) }, compile: () => new Set(), getRenderTarget: () => null, setRenderTarget() {},
+        setOpaqueSort() {},
+        getPixelRatio: () => 1,
+        setSize() {},
+        properties: { get: () => ({}) },
+        compile: () => new Set(),
+        getRenderTarget: () => null,
+        setRenderTarget() {},
       },
     }),
   };
 });
 vi.mock('@/core/render/three/post', () => ({
   Post: class {
-    render() {} refine = () => false; meter = () => null; metered = () => null;
-    setEye() {} setReach() {} setDark() {} setOutlined() {} apply() {} setSize() {}
+    render() {}
+    refine = () => false;
+    meter = () => null;
+    metered = () => null;
+    setEye() {}
+    setReach() {}
+    setDark() {}
+    setOutlined() {}
+    apply() {}
+    setSize() {}
     startPrograms = () => [];
   },
 }));
-vi.mock('./lens3d', () => ({ Lens3D: class { frame() {} } }));
+vi.mock('./lens3d', () => ({
+  Lens3D: class {
+    frame() {}
+  },
+}));
 
 import { BuildStage } from './buildmode3d';
 import { setLayoutTier } from '../layout/layout';
@@ -37,8 +55,28 @@ import { findById } from '@/core/render/three/pick';
 
 /** A stage with the full rig and no 3D, as the stage opens its game (`looseFit`): the machine's drawing is stubbed, the game and the history are the real ones. `playAll` is the real one. */
 function stage(): BuildStage {
-  const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({ clientWidth: 400, clientHeight: 800 });
-  s._machine = { moving: false, doorOpen: false, frame() {}, setOpen() {}, closeDoor() {}, holdDetail() {}, lod() {}, root: new Group(), boardRoots: () => [], caseRoots: [], rig: () => null, holdBack() {}, letRun() {}, isHeldBack: () => false, panelIds: () => [], syncPanel() {} };
+  const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
+    clientWidth: 400,
+    clientHeight: 800,
+  });
+  s._machine = {
+    moving: false,
+    doorOpen: false,
+    frame() {},
+    setOpen() {},
+    closeDoor() {},
+    holdDetail() {},
+    lod() {},
+    root: new Group(),
+    boardRoots: () => [],
+    caseRoots: [],
+    rig: () => null,
+    holdBack() {},
+    letRun() {},
+    isHeldBack: () => false,
+    panelIds: () => [],
+    syncPanel() {},
+  };
   s._game = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
   s.rebuild = s.rebuildAll = function (this: { snaps: { drop(): void }; board: { tier: number; caseTier: number } }) {
     this.snaps.drop();
@@ -58,7 +96,10 @@ const hid = (s: BuildStage) => s as unknown as Record<string, any>;
 async function pump(s: BuildStage, work: Promise<unknown>, onTick?: () => void): Promise<void> {
   const timer = setInterval(() => {
     const h = hid(s);
-    if (h.anim) { h.step(0.05); onTick?.(); }
+    if (h.anim) {
+      h.step(0.05);
+      onTick?.();
+    }
   }, 1);
   try {
     await work;
@@ -71,7 +112,13 @@ const of = (s: BuildStage, kind: string) => s.board.devices.filter((d) => device
 
 describe('a part keeps its own turn through its motion', () => {
   beforeEach(() => {
-    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {});
   });
@@ -109,7 +156,8 @@ describe('a part keeps its own turn through its motion', () => {
     const m = coolerModel('cooler-tower', fans);
     const proud = 32; // (the fan's light stands a little proud of its face)
     for (const [k, f] of fans.entries()) {
-      const o = findById(m.root, f.id)!, spot = coolerFanBox('cooler-tower', k)!;
+      const o = findById(m.root, f.id)!,
+        spot = coolerFanBox('cooler-tower', k)!;
       // in: it ends at its seat, in its spot (a fan laid flat is 2760 wide along x and 600 thin along z: out of the spot on both)
       await pump(s, hid(s).playAll([o], 'fan', 'in'));
       let c = new Box3().setFromObject(o, true);
@@ -140,11 +188,14 @@ describe('a part keeps its own turn through its motion', () => {
 
   it('Undo of a removal puts a fan back with its turn', async () => {
     const s = stage();
-    await pump(s, (async () => {
-      await s.clear();
-      for (const part of ['case1', 'board1', 'psu1', 'cpu1', 'cooler0', 'ram0']) await s.fit(part);
-      await s.fit('fan92', 'front0');
-    })());
+    await pump(
+      s,
+      (async () => {
+        await s.clear();
+        for (const part of ['case1', 'board1', 'psu1', 'cpu1', 'cooler0', 'ram0']) await s.fit(part);
+        await s.fit('fan92', 'front0');
+      })(),
+    );
     const fan = of(s, 'fan')[0]!;
     expect(fan).toBeDefined();
     // the fan's built object, turned a quarter as a case mount is built

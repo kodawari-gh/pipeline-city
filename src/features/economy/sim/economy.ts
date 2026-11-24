@@ -1,12 +1,19 @@
 // Economy: placeholder balance config plus pure helpers (demand, reputation, payout, purchase catalog).
 // No DOM. Every number that affects balance is in ECONOMY; see docs/GAME.md for how pacing was set.
 
-import { getIspSpec, getRouterSpec, NET } from "../../network/sim";
-import { getOsSpec } from "../../os/sim";
+import { getIspSpec, getRouterSpec, NET } from '../../network/sim';
+import { getOsSpec } from '../../os/sim';
 import {
-  BOARD_TIERS, CASE_TIERS, caseFor, deviceSpec, getSpec, specsOfKind,
-  type Board, type DeviceKind, type RamSpec,
-} from "../../board/sim";
+  BOARD_TIERS,
+  CASE_TIERS,
+  caseFor,
+  deviceSpec,
+  getSpec,
+  specsOfKind,
+  type Board,
+  type DeviceKind,
+  type RamSpec,
+} from '../../board/sim';
 
 export interface MixEntry {
   /** Template name for `generate()` ("cli" picks log/calc/checksum from the seed). */
@@ -173,7 +180,7 @@ export const ECONOMY: EconomyConfig = {
   speedMax: 2,
   deadlineTicks: 180,
   lateFactor: 0.5,
-  startQueue: [{ template: "cli.log" }],
+  startQueue: [{ template: 'cli.log' }],
   idleLoad: 0.1,
   memoryFlipRate: 0.00005,
   startMoney: 0,
@@ -181,7 +188,14 @@ export const ECONOMY: EconomyConfig = {
   payBase: 20,
   usbEnumTicks: 3,
   usbFlashTicks: 2,
-  coldBoot: { base: 1, perKiB: 0.05, kiBCap: 3, perStick: 0.5, max: 8, init: { cpu: 0.5, display: 0.5, hdd0: 1, ssd1: 0.5, nvme2: 0.25, raid2: 0.25 } },
+  coldBoot: {
+    base: 1,
+    perKiB: 0.05,
+    kiBCap: 3,
+    perStick: 0.5,
+    max: 8,
+    init: { cpu: 0.5, display: 0.5, hdd0: 1, ssd1: 0.5, nvme2: 0.25, raid2: 0.25 },
+  },
   firmwareBoost: 12,
   osBootBoost: 48,
   autoEjectTicks: 3,
@@ -196,9 +210,18 @@ export const ECONOMY: EconomyConfig = {
   billPeriodTicks: 600,
   billGraceTicks: 120,
   contracts: {
-    offerEvery: 240, offerCap: 3, offerTtl: 1500,
-    holdPerKiBTick: 0.012, hotMul: 2.5, mirrorBonus: 0.5, completeBonus: 0.15,
-    readFee: 6, lossPenaltyPerKiB: 12, breachShare: 0.5, lossRepUnits: 1, breachRepUnits: 0.5,
+    offerEvery: 240,
+    offerCap: 3,
+    offerTtl: 1500,
+    holdPerKiBTick: 0.012,
+    hotMul: 2.5,
+    mirrorBonus: 0.5,
+    completeBonus: 0.15,
+    readFee: 6,
+    lossPenaltyPerKiB: 12,
+    breachShare: 0.5,
+    lossRepUnits: 1,
+    breachRepUnits: 0.5,
   },
 };
 
@@ -252,7 +275,7 @@ export function postTicks(cfg: EconomyConfig, board: Board): number {
   for (const d of board.devices) {
     if (d.burnt) continue;
     const s = deviceSpec(d);
-    if (s.kind === "ram") {
+    if (s.kind === 'ram') {
       kib += (s as RamSpec).sizeBytes / 1024;
       sticks++;
     }
@@ -308,10 +331,30 @@ export function pickTemplate(mix: MixEntry[], ramBytes: number, r: number, tick 
 // ---------- purchases ----------
 
 /** Every kind of device the shop sells. */
-const DEVICE_KINDS: DeviceKind[] = ["cpu", "ram", "psu", "cooler", "display", "storage", "vrm-sink", "ram-sink", "nic", "gpu", "npu", "tpm", "radiator", "fan"];
+const DEVICE_KINDS: DeviceKind[] = [
+  'cpu',
+  'ram',
+  'psu',
+  'cooler',
+  'display',
+  'storage',
+  'vrm-sink',
+  'ram-sink',
+  'nic',
+  'gpu',
+  'npu',
+  'tpm',
+  'radiator',
+  'fan',
+];
 
 /** Something the player can buy: a device spec id, or a board tier (`board1`). */
-export interface Offer { id: string; name: string; kind: DeviceKind | "board" | "case"; price: number }
+export interface Offer {
+  id: string;
+  name: string;
+  kind: DeviceKind | 'board' | 'case';
+  price: number;
+}
 
 const BOARD_ID = /^board([0-9]+)$/;
 const CASE_ID = /^case([0-9]+)$/;
@@ -329,9 +372,12 @@ export function boardTierOf(id: string): number | undefined {
 }
 
 export function offerPrice(id: string): number | undefined {
-  const t = boardTierOf(id), c = caseTierOf(id);
+  const t = boardTierOf(id),
+    c = caseTierOf(id);
   if (c !== undefined) return CASE_TIERS[c]?.price;
-  return t !== undefined ? BOARD_TIERS[t]?.price : (getSpec(id)?.price ?? getOsSpec(id)?.price ?? getRouterSpec(id)?.price ?? getIspSpec(id)?.price);
+  return t !== undefined
+    ? BOARD_TIERS[t]?.price
+    : (getSpec(id)?.price ?? getOsSpec(id)?.price ?? getRouterSpec(id)?.price ?? getIspSpec(id)?.price);
 }
 
 /** Selling a spare part back returns this share of its list price: the rest is lost (docs/GAME.md "Selling"). */
@@ -342,7 +388,7 @@ export const sellValue = (spec: string): number => Math.floor(Math.max(offerPric
 
 /** Why a board of this tier cannot go into the board's case. */
 export const caseTooSmall = (board: Board, boardTier: number): string =>
-  `the ${CASE_TIERS[board.caseTier]?.name ?? "case"} is too small for a ${BOARD_TIERS[boardTier]?.name ?? "bigger"} board: buy a ${CASE_TIERS[caseFor(boardTier)]?.name ?? "bigger case"} first`;
+  `the ${CASE_TIERS[board.caseTier]?.name ?? 'case'} is too small for a ${BOARD_TIERS[boardTier]?.name ?? 'bigger'} board: buy a ${CASE_TIERS[caseFor(boardTier)]?.name ?? 'bigger case'} first`;
 
 /** The cheapest a spare costs: the starter crate's parts are free to receive but not to buy again. */
 export const SPARE_FLOOR = 10;
@@ -355,9 +401,10 @@ export const SPARE_FLOOR = 10;
 export function catalog(): Offer[] {
   const out: Offer[] = [];
   const at = (price: number) => Math.max(price, SPARE_FLOOR);
-  for (const t of BOARD_TIERS) out.push({ id: `board${t.tier}`, name: t.name, kind: "board", price: at(t.price) });
-  for (const c of CASE_TIERS) out.push({ id: `case${c.tier}`, name: c.name, kind: "case", price: at(c.price) });
-  for (const kind of DEVICE_KINDS) for (const s of specsOfKind(kind)) out.push({ id: s.id, name: s.name, kind: s.kind, price: at(s.price) });
+  for (const t of BOARD_TIERS) out.push({ id: `board${t.tier}`, name: t.name, kind: 'board', price: at(t.price) });
+  for (const c of CASE_TIERS) out.push({ id: `case${c.tier}`, name: c.name, kind: 'case', price: at(c.price) });
+  for (const kind of DEVICE_KINDS)
+    for (const s of specsOfKind(kind)) out.push({ id: s.id, name: s.name, kind: s.kind, price: at(s.price) });
   return out;
 }
 

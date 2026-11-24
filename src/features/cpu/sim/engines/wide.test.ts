@@ -1,10 +1,10 @@
 // Correctness of the wide engines (inorder2 / inorder4 / ooo with several sizes) against the reference interpreter.
-import { describe, expect, it } from "vitest";
-import { assemble } from "../asm";
-import { RefCpu } from "../ref";
-import { generate, runReference, TEMPLATE_NAMES } from "@/features/jobs/sim/gen";
-import { genData, genProgram } from "./testgen";
-import { WIDE_CONFIGS, firstMemDiff, runEngine, runProgram, runRef } from "./testutil";
+import { describe, expect, it } from 'vitest';
+import { assemble } from '../asm';
+import { RefCpu } from '../ref';
+import { generate, runReference, TEMPLATE_NAMES } from '@/features/jobs/sim/gen';
+import { genData, genProgram } from './testgen';
+import { WIDE_CONFIGS, firstMemDiff, runEngine, runProgram, runRef } from './testutil';
 
 const HAND: Record<string, string> = {
   sum: `
@@ -121,7 +121,13 @@ const HAND: Record<string, string> = {
     ecall`,
 };
 
-function expectSame(name: string, src: string, make: () => ReturnType<(typeof WIDE_CONFIGS)[number]["make"]>, seed: number, chaos: boolean): void {
+function expectSame(
+  name: string,
+  src: string,
+  make: () => ReturnType<(typeof WIDE_CONFIGS)[number]['make']>,
+  seed: number,
+  chaos: boolean,
+): void {
   const data = genData(seed);
   const ref = runRef(src, data);
   const got = runEngine(make(), src, data, chaos ? { seed: seed + 1, p: 0.15 } : undefined);
@@ -130,16 +136,16 @@ function expectSame(name: string, src: string, make: () => ReturnType<(typeof WI
   expect(got.counters[1], `${name} retired`).toBe(ref.cycles);
 }
 
-describe.each(WIDE_CONFIGS)("wide correctness vs reference: $name", ({ make }) => {
+describe.each(WIDE_CONFIGS)('wide correctness vs reference: $name', ({ make }) => {
   for (const [name, src] of Object.entries(HAND)) {
     it(`hand-written: ${name}`, () => {
-      if (name === "display") {
+      if (name === 'display') {
         const cpu = new RefCpu();
         cpu.load(assemble(src).program);
         cpu.run();
         const out = runEngine(make(), src);
         expect(out.regs).toEqual(Array.from(cpu.regs));
-        expect(out.machine.display.text()).toBe("Hi");
+        expect(out.machine.display.text()).toBe('Hi');
       } else {
         expectSame(name, src, make, 7, false);
         expectSame(name, src, make, 8, true);
@@ -147,15 +153,15 @@ describe.each(WIDE_CONFIGS)("wide correctness vs reference: $name", ({ make }) =
     });
   }
 
-  it("random programs", () => {
+  it('random programs', () => {
     for (let seed = 1; seed <= 40; seed++) expectSame(`seed ${seed}`, genProgram(seed), make, seed, false);
   });
 
-  it("random programs with cache invalidations and predictor flips", () => {
+  it('random programs with cache invalidations and predictor flips', () => {
     for (let seed = 100; seed < 140; seed++) expectSame(`seed ${seed}`, genProgram(seed, 45), make, seed, true);
   });
 
-  it("zero-penalty and tiny caches stay correct", () => {
+  it('zero-penalty and tiny caches stay correct', () => {
     for (let seed = 200; seed < 210; seed++) {
       const src = genProgram(seed);
       const data = genData(seed);
@@ -168,9 +174,11 @@ describe.each(WIDE_CONFIGS)("wide correctness vs reference: $name", ({ make }) =
     }
   });
 
-  it("generated game programs (cli, scan, every template; text on the display)", () => {
+  it('generated game programs (cli, scan, every template; text on the display)', () => {
     // the secure.* jobs talk to a TPM this bare machine does not have (securejob.test.ts and gen.test.ts run it against one)
-    const names = [...new Set(["cli", "cli.scan", ...TEMPLATE_NAMES])].filter((t) => !t.startsWith("secure.") && !t.startsWith("gpu.")); // the gpu.* picture jobs run 0.2 to 1.3M instructions on the CPU: gen.test.ts runs them on the in-order engines
+    const names = [...new Set(['cli', 'cli.scan', ...TEMPLATE_NAMES])].filter(
+      (t) => !t.startsWith('secure.') && !t.startsWith('gpu.'),
+    ); // the gpu.* picture jobs run 0.2 to 1.3M instructions on the CPU: gen.test.ts runs them on the in-order engines
     for (const t of names) {
       for (let s = 0; s < 6; s++) {
         const g = generate(t, s * 37 + 5, { scale: 1 + (s % 3) });
@@ -186,8 +194,8 @@ describe.each(WIDE_CONFIGS)("wide correctness vs reference: $name", ({ make }) =
     }
   }, 60_000);
 
-  it("generated programs survive random cache invalidations and predictor flips", () => {
-    for (const t of ["cli", "cli.scan"]) {
+  it('generated programs survive random cache invalidations and predictor flips', () => {
+    for (const t of ['cli', 'cli.scan']) {
       for (let s = 0; s < 4; s++) {
         const g = generate(t, s * 13 + 2, { scale: 2 });
         const ref = runReference(g);

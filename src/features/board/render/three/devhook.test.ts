@@ -9,6 +9,14 @@ const fs = fsMod as any;
 const FILE: string = urlMod.fileURLToPath(new URL('./board3d.ts', import.meta.url));
 const text: string = fs.readFileSync(FILE, 'utf8');
 
+// The code as statements: comments dropped, whitespace collapsed, cut at `;`, `{` and `}`. The formatter may wrap a line anywhere; a statement stays whole.
+const statements: string[] = text
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/\/\/.*$/gm, '')
+  .replace(/\s+/g, ' ')
+  .split(/[;{}]/)
+  .map((s) => s.trim());
+
 const DEV_GATE = 'if (import.meta.env.DEV) {';
 const BOARD_OBJECT = '.__board = {';
 
@@ -36,22 +44,25 @@ describe('the dev camera hook stays behind import.meta.env.DEV', () => {
 
   it('the frame loop eases the view once, and only its intro branch reads unclamped, behind the DEV gate', () => {
     // the eased view goes through `inRoom`, or, on the game's first flight to the overview (`intro`), through `keepWhole` (the desk's shadow)
-    const eases = text.split('\n').filter((l) => l.includes('stepView(view, goal, dt)'));
-    expect(eases.map((l) => l.trim())).toEqual(['const eased = stepView(view, goal, dt);']);
-    const sets = text.split('\n').filter((l) => /^\s*view = /.test(l) && l.includes('eased'));
-    expect(sets.map((l) => l.trim())).toEqual(['view = intro && atOverview && !(import.meta.env.DEV && unclamped) ? keepWhole(eased, eyeRoom(), keeping(false), 0.6, goal.y) : inRoom(eased, false);']);
+    const eases = statements.filter((s) => s.includes('stepView(view, goal, dt)'));
+    expect(eases).toEqual(['const eased = stepView(view, goal, dt)']);
+    const sets = statements.filter((s) => s.startsWith('view = ') && s.includes('eased'));
+    expect(sets).toEqual([
+      'view = intro && atOverview && !(import.meta.env.DEV && unclamped) ? keepWhole(eased, eyeRoom(), keeping(false), 0.6, goal.y) : inRoom(eased, false)',
+    ]);
   });
 
   it('unclamped is read only where the DEV gate makes it dead code in prod', () => {
     // every use of `unclamped` is either its declaration, a write, or one of three reads, each behind `import.meta.env.DEV &&`: the test in inRoom,
     // the one in the overview, and the frame loop's intro branch (which negates the whole DEV-and-unclamped test)
-    const reads = text.split('\n').filter((l) => /\bunclamped\b/.test(l) && !/unclamped = (true|false);/.test(l) && !/^\s*(\/\/|\/\*\*|\*)/.test(l)).map((l) => l.trim());
+    const reads = statements.filter((s) => /\bunclamped\b/.test(s) && !/^(let )?unclamped = (true|false)$/.test(s));
     expect(reads).toEqual([
-      'const inRoom = (v: OrbitView, restore = true): OrbitView => (import.meta.env.DEV && unclamped ? v : keepInside(v, eyeRoom(), keeping(restore)));',
-      'return import.meta.env.DEV && unclamped ? v : keepWhole(v, eyeRoom(), keeping(true));',
-      'view = intro && atOverview && !(import.meta.env.DEV && unclamped) ? keepWhole(eased, eyeRoom(), keeping(false), 0.6, goal.y) : inRoom(eased, false);',
+      'const inRoom = (v: OrbitView, restore = true): OrbitView => import.meta.env.DEV && unclamped ? v : keepInside(v, eyeRoom(), keeping(restore))',
+      'return import.meta.env.DEV && unclamped ? v : keepWhole(v, eyeRoom(), keeping(true))',
+      'view = intro && atOverview && !(import.meta.env.DEV && unclamped) ? keepWhole(eased, eyeRoom(), keeping(false), 0.6, goal.y) : inRoom(eased, false)',
     ]);
     // (whatever the lines say, each read has the DEV test in front of it: the bundler folds it to false in prod and the read goes)
-    for (const l of reads) expect(l, 'a read of unclamped without the DEV test').toMatch(/import\.meta\.env\.DEV && unclamped/);
+    for (const l of reads)
+      expect(l, 'a read of unclamped without the DEV test').toMatch(/import\.meta\.env\.DEV && unclamped/);
   });
 });

@@ -20,38 +20,57 @@ const OVER_OPEN = new Set(['atx', 'cpu', 'pcie', 'pcie2', 'pcie3', 'pcie4', 'vid
 const SLACK = 8;
 
 /** How deep (units) the polyline `pts`, thick `r`, goes into a box: the worst point of it, sampled every 25 units. */
-function depthIn(pts: readonly (readonly number[])[], r: number, min: readonly number[], max: readonly number[]): number {
+function depthIn(
+  pts: readonly (readonly number[])[],
+  r: number,
+  min: readonly number[],
+  max: readonly number[],
+): number {
   let worst = 0;
   for (let i = 1; i < pts.length; i++) {
-    const a = pts[i - 1]!, b = pts[i]!, len = Math.hypot(b[0]! - a[0]!, b[1]! - a[1]!, b[2]! - a[2]!), k = Math.max(1, Math.ceil(len / 25));
+    const a = pts[i - 1]!,
+      b = pts[i]!,
+      len = Math.hypot(b[0]! - a[0]!, b[1]! - a[1]!, b[2]! - a[2]!),
+      k = Math.max(1, Math.ceil(len / 25));
     for (let j = 0; j <= k; j++) {
       const f = j / k;
-      worst = Math.max(worst, Math.min(...[0, 1, 2].map((q) => Math.min(a[q]! + (b[q]! - a[q]!) * f - min[q]!, max[q]! - (a[q]! + (b[q]! - a[q]!) * f)))) - r);
+      worst = Math.max(
+        worst,
+        Math.min(
+          ...[0, 1, 2].map((q) =>
+            Math.min(a[q]! + (b[q]! - a[q]!) * f - min[q]!, max[q]! - (a[q]! + (b[q]! - a[q]!) * f)),
+          ),
+        ) - r,
+      );
     }
   }
   return worst;
 }
 
-describe('the cables and the machine\'s bodies', () => {
+describe("the cables and the machine's bodies", () => {
   const games: [string, Game][] = [];
   beforeAll(async () => {
     for (const p of BUILD_PRESETS) games.push([p.name, await presetGame(p)]);
     games.push(['full', await fullGame()]);
   }, 120_000);
 
-  it('leaves the supply\'s leads, the video cable and the mains cords clear of every part, in each ready-made machine', () => {
+  it("leaves the supply's leads, the video cable and the mains cords clear of every part, in each ready-made machine", () => {
     for (const [name, g] of games) {
       const s = g.snapshot();
       setLayoutTier(s.boardTier, Math.max(s.boardTier, s.caseTier));
-      const m = new Machine3D(s, roomGeo(), new BakeQueue(), null, false), bodies = m.airBodies();
+      const m = new Machine3D(s, roomGeo(), new BakeQueue(), null, false),
+        bodies = m.airBodies();
       try {
         const runs = m.cableRuns().filter((r) => OVER_OPEN.has(r.id));
         expect(runs.length, `${name}: its supply's leads`).toBeGreaterThan(1);
-        for (const r of runs) for (const b of bodies) {
-          const worst = Math.max(...r.strands.map((st) => depthIn(st, r.r, b.min, b.max)));
-          expect(worst, `${name}: ${r.id} in ${b.id} (${b.kind})`).toBeLessThanOrEqual(SLACK);
-        }
-      } finally { m.dispose(); }
+        for (const r of runs)
+          for (const b of bodies) {
+            const worst = Math.max(...r.strands.map((st) => depthIn(st, r.r, b.min, b.max)));
+            expect(worst, `${name}: ${r.id} in ${b.id} (${b.kind})`).toBeLessThanOrEqual(SLACK);
+          }
+      } finally {
+        m.dispose();
+      }
     }
   }, 120_000);
 });

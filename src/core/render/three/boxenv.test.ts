@@ -1,4 +1,11 @@
-import { MeshStandardMaterial, ShaderChunk, ShaderLib, type Material, type WebGLProgramParametersWithUniforms, type WebGLRenderer } from 'three';
+import {
+  MeshStandardMaterial,
+  ShaderChunk,
+  ShaderLib,
+  type Material,
+  type WebGLProgramParametersWithUniforms,
+  type WebGLRenderer,
+} from 'three';
 import { describe, expect, it } from 'vitest';
 import { bakedAo } from './bakedao';
 import { boxEnv, boxProjected } from './boxenv';
@@ -6,9 +13,15 @@ import { boxEnv, boxProjected } from './boxenv';
 const box = boxEnv([0, 0, 0], [1, 1, 1], [0.5, 0.5, 0.5]);
 // three's shader with every chunk in place, as the GPU gets it
 const expand = (s: string): string =>
-  s.replace(/^[ \t]*#include +<(\w+)>/gm, (_, n: string) => expand((ShaderChunk as unknown as Record<string, string>)[n] ?? ''));
+  s.replace(/^[ \t]*#include +<(\w+)>/gm, (_, n: string) =>
+    expand((ShaderChunk as unknown as Record<string, string>)[n] ?? ''),
+  );
 const compiled = (m: Material) => {
-  const sh = { vertexShader: ShaderLib.physical.vertexShader, fragmentShader: ShaderLib.physical.fragmentShader, uniforms: {} } as unknown as WebGLProgramParametersWithUniforms;
+  const sh = {
+    vertexShader: ShaderLib.physical.vertexShader,
+    fragmentShader: ShaderLib.physical.fragmentShader,
+    uniforms: {},
+  } as unknown as WebGLProgramParametersWithUniforms;
   m.onBeforeCompile(sh, {} as WebGLRenderer);
   return { vs: expand(sh.vertexShader), fs: expand(sh.fragmentShader), uniforms: sh.uniforms };
 };
@@ -27,7 +40,7 @@ const once = (m: Material) => {
 };
 
 describe('box-projected reflections', () => {
-  it('patches three\'s physical shader once', () => {
+  it("patches three's physical shader once", () => {
     const m = new MeshStandardMaterial();
     boxProjected(m, box);
     once(m);

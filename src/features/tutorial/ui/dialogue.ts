@@ -9,7 +9,11 @@ export const CHAR_MS = 24;
  * stays one page (the box grows rather than cutting a sentence in two).
  */
 export function pagesOf(text: string, max = PAGE_CHARS): string[] {
-  const sentences = text.match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)\s*/g)?.map((x) => x.trim()).filter(Boolean) ?? [];
+  const sentences =
+    text
+      .match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)\s*/g)
+      ?.map((x) => x.trim())
+      .filter(Boolean) ?? [];
   const pages: string[] = [];
   for (const s of sentences) {
     const last = pages[pages.length - 1];

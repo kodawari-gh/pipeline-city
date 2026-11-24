@@ -7,7 +7,11 @@ import * as urlMod from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const played: string[] = [];
-vi.mock('./engine', () => ({ playCue: (id: string) => { played.push(id); } }));
+vi.mock('./engine', () => ({
+  playCue: (id: string) => {
+    played.push(id);
+  },
+}));
 
 const ROOT: string = urlMod.fileURLToPath(new URL('../../../', import.meta.url));
 const src = (p: string): string => (fsMod as any).readFileSync(`${ROOT}${p}`, 'utf8');
@@ -36,24 +40,46 @@ function openingTags(code: string, tag: string): string[] {
 
 class FakeEl {
   parentNode: FakeEl | null = null;
-  constructor(readonly attrs: Record<string, string>, readonly doc: FakeTarget) {}
-  getAttribute(n: string): string | null { return this.attrs[n] ?? null; }
-  closest(): FakeEl | null { return this.getAttribute('data-cue') !== null ? this : null; }
-  contains(o: unknown): boolean { return o === this; }
+  constructor(
+    readonly attrs: Record<string, string>,
+    readonly doc: FakeTarget,
+  ) {}
+  getAttribute(n: string): string | null {
+    return this.attrs[n] ?? null;
+  }
+  closest(): FakeEl | null {
+    return this.getAttribute('data-cue') !== null ? this : null;
+  }
+  contains(o: unknown): boolean {
+    return o === this;
+  }
   /** A native click: a focused button turns Enter or Space into this itself. */
-  click(): void { this.doc.dispatch('click', { target: this }); }
+  click(): void {
+    this.doc.dispatch('click', { target: this });
+  }
 }
 
 class FakeTarget {
   private readonly h = new Map<string, ((e: unknown) => void)[]>();
-  addEventListener(t: string, f: (e: unknown) => void): void { this.h.set(t, [...(this.h.get(t) ?? []), f]); }
-  removeEventListener(t: string, f: (e: unknown) => void): void { this.h.set(t, (this.h.get(t) ?? []).filter((x) => x !== f)); }
+  addEventListener(t: string, f: (e: unknown) => void): void {
+    this.h.set(t, [...(this.h.get(t) ?? []), f]);
+  }
+  removeEventListener(t: string, f: (e: unknown) => void): void {
+    this.h.set(
+      t,
+      (this.h.get(t) ?? []).filter((x) => x !== f),
+    );
+  }
   dispatch(type: string, ev: Record<string, unknown> = {}): void {
     const e = { type, target: null, relatedTarget: null, ...ev, preventDefault() {} };
     for (const f of [...(this.h.get(type) ?? [])]) f(e);
   }
-  querySelector(): null { return null; }
-  matchMedia(): { matches: boolean } { return { matches: true }; }
+  querySelector(): null {
+    return null;
+  }
+  matchMedia(): { matches: boolean } {
+    return { matches: true };
+  }
 }
 
 describe('the listener: keyboard and mouse activation', () => {
@@ -74,7 +100,10 @@ describe('the listener: keyboard and mouse activation', () => {
     // A NewGame choice: a div with role="radio", so the browser does not turn Enter or Space into a click.
     choice = new FakeEl({ role: 'radio', 'data-cue': 'ui_value_change' }, doc);
   });
-  afterEach(() => { off(); vi.unstubAllGlobals(); });
+  afterEach(() => {
+    off();
+    vi.unstubAllGlobals();
+  });
 
   it('a mouse click on a data-cue element plays its cue once', () => {
     doc.dispatch('click', { target: choice });
@@ -109,13 +138,17 @@ describe('the listener: keyboard and mouse activation', () => {
 
 describe('Back cues', () => {
   it('the Controls Done button carries data-cue="ui_back"', () => {
-    const tag = openingTags(src('src/core/ui/panels/Controls.tsx'), 'button').find((t) => /onClick=\{\(\) => closeControls\(\)\}/.test(t));
+    const tag = openingTags(src('src/core/ui/panels/Controls.tsx'), 'button').find((t) =>
+      /onClick=\{\(\) => closeControls\(\)\}/.test(t),
+    );
     expect(tag).toBeDefined();
     expect(tag).toContain('data-cue="ui_back"');
   });
 
   it('the Load confirm Cancel row carries data-cue="ui_back"', () => {
-    const tag = openingTags(src('src/core/ui/panels/LoadConfirm.tsx'), 'button').find((t) => /onClick=\{cancel\}/.test(t));
+    const tag = openingTags(src('src/core/ui/panels/LoadConfirm.tsx'), 'button').find((t) =>
+      /onClick=\{cancel\}/.test(t),
+    );
     expect(tag).toBeDefined();
     expect(tag).toContain('data-cue="ui_back"');
   });
@@ -169,14 +202,18 @@ describe('every button and input in the menus and the HUD has a data-cue attribu
 
 describe('Settings and Graphics: open, value and back cues', () => {
   it('the main menu Settings button plays ui_click, then ui_transition_in', () => {
-    const tag = openingTags(src('src/core/ui/panels/MainMenu.tsx'), 'button').find((t) => /openSettings\('menu'\)/.test(t));
+    const tag = openingTags(src('src/core/ui/panels/MainMenu.tsx'), 'button').find((t) =>
+      /openSettings\('menu'\)/.test(t),
+    );
     expect(tag).toBeDefined();
     expect(tag).toContain('data-cue="ui_click"');
     expect(tag).toContain('data-cue-next="ui_transition_in"');
   });
 
   it('the Settings Back button carries data-cue="ui_back"', () => {
-    const tag = openingTags(src('src/core/ui/panels/Settings.tsx'), 'button').find((t) => /onClick=\{closeSettings\}/.test(t));
+    const tag = openingTags(src('src/core/ui/panels/Settings.tsx'), 'button').find((t) =>
+      /onClick=\{closeSettings\}/.test(t),
+    );
     expect(tag).toBeDefined();
     expect(tag).toContain('data-cue="ui_back"');
   });

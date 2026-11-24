@@ -34,13 +34,17 @@ import { cardCandidates, cardText } from '@/core/render/lod/lodcard';
 // Zoom levels (board scale; the card is large, up to 3800 units, so they sit below the die's): the cover fades 0.16 -> 0.28, the traces and cells
 // are there with it, the names come at 0.3, the second lines and the counters at 0.6.
 const MEM_KINDS = new Set<GpuBlock['kind']>(['dram', 'banks', 'l1', 'l2', 'regfile']);
-const [FADE_FROM, FADE_TO] = DEVICE_LOD.gpu.fade, TEXT_Z = DEVICE_LOD.gpu.text, DETAIL_Z = DEVICE_LOD.gpu.detail;
+const [FADE_FROM, FADE_TO] = DEVICE_LOD.gpu.fade,
+  TEXT_Z = DEVICE_LOD.gpu.text,
+  DETAIL_Z = DEVICE_LOD.gpu.detail;
 /** Fan speed in turns per second: idle (just powered, cold), and at the card's throttle point. */
-const FAN_IDLE = 0.5, FAN_FULL = 3.5;
+const FAN_IDLE = 0.5,
+  FAN_FULL = 3.5;
 /** Seen edge-on a turn is some blade spacings sliding past (the case fans do the same, a little slower). */
 const BLADES_PER_TURN = 1.6;
 /** Milliseconds one card cycle lasts in the replay, and how long an instruction takes to settle into a block's symbol. */
-const CYCLE_MS = 1000 / CYCLES_PER_SEC, WIPE_MS = 320;
+const CYCLE_MS = 1000 / CYCLES_PER_SEC,
+  WIPE_MS = 320;
 
 /** `live.ts` fan speed units per turn per second (an edge-on fan slides 0.8 blade lengths per unit; a card's turn is `BLADES_PER_TURN` of them). */
 const TURNS_TO_SPEED = BLADES_PER_TURN / 0.8;
@@ -53,11 +57,17 @@ export function cardSpins(live: boolean, d: { burnt: boolean; powerW: number } |
 /** The point a fraction `f` of the way along a polyline (by length). */
 export function along(pts: Pt[], f: number): Pt {
   let len = 0;
-  for (let i = 1; i < pts.length; i++) len += Math.abs(pts[i]![0] - pts[i - 1]![0]) + Math.abs(pts[i]![1] - pts[i - 1]![1]);
+  for (let i = 1; i < pts.length; i++)
+    len += Math.abs(pts[i]![0] - pts[i - 1]![0]) + Math.abs(pts[i]![1] - pts[i - 1]![1]);
   let d = Math.max(0, Math.min(1, f)) * len;
   for (let i = 1; i < pts.length; i++) {
-    const a = pts[i - 1]!, b = pts[i]!, seg = Math.abs(b[0] - a[0]) + Math.abs(b[1] - a[1]);
-    if (d <= seg || i === pts.length - 1) { const u = seg === 0 ? 0 : Math.min(1, d / seg); return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u]; }
+    const a = pts[i - 1]!,
+      b = pts[i]!,
+      seg = Math.abs(b[0] - a[0]) + Math.abs(b[1] - a[1]);
+    if (d <= seg || i === pts.length - 1) {
+      const u = seg === 0 ? 0 : Math.min(1, d / seg);
+      return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
+    }
     d -= seg;
   }
   return pts[0]!;
@@ -70,16 +80,35 @@ export function fanTurns(fan: number, busy: boolean): number {
 
 /** The colour of an instruction kind (the die's colours: ALU cyan, load amber, store green, branch pink). */
 export function kindColor(T: Theme, kind: GpuStepKind): string {
-  return kind === 'ld' ? T.ld : kind === 'st' ? T.st : kind === 'mask' ? T.mul : kind === 'br' ? T.br : kind === 'sys' ? T.mute : T.alu;
+  return kind === 'ld'
+    ? T.ld
+    : kind === 'st'
+      ? T.st
+      : kind === 'mask'
+        ? T.mul
+        : kind === 'br'
+          ? T.br
+          : kind === 'sys'
+            ? T.mute
+            : T.alu;
 }
 
 /** What a card is called while it does what, for the link block. */
 export const PHASE_TEXT: Record<GpuSnap['phase'], string> = { idle: 'IDLE', in: 'LAUNCH', run: 'RUNNING', out: 'DONE' };
 
-export interface GpuCardScene { slot: string; visual: string; origin: { x: number; y: number } }
+export interface GpuCardScene {
+  slot: string;
+  visual: string;
+  origin: { x: number; y: number };
+}
 
 /** A packet in flight toward a block: the block glows while it arrives. */
-interface Flight { to: string; t0: number; dur: number; color: string }
+interface Flight {
+  to: string;
+  t0: number;
+  dur: number;
+  color: string;
+}
 
 interface CardView {
   slot: string;
@@ -164,7 +193,11 @@ export class GpuView {
   }
 
   private build(T: Theme, c: GpuCardScene): CardView {
-    const plan = gpuPlan(c.visual), root = new Container(), inner = new Container(), plate = new Graphics(), dyn = new Graphics();
+    const plan = gpuPlan(c.visual),
+      root = new Container(),
+      inner = new Container(),
+      plate = new Graphics(),
+      dyn = new Graphics();
     root.position.set(c.origin.x, c.origin.y);
     // the die at the card's offset: its floor and blocks drawn once, then the traces, cells and names the zoom brings in, then the live layers over them
     const art = new Container();
@@ -172,20 +205,38 @@ export class GpuView {
     gpuFar(plate, T, plan.die);
     const near = gpuNear(T, plan.die);
     art.addChild(plate, near.wires, near.cells);
-    const glowG = new Graphics(), litG = new Graphics(), texts = new Container(), trailG = new Graphics(), packetG = new Graphics();
+    const glowG = new Graphics(),
+      litG = new Graphics(),
+      texts = new Container(),
+      trailG = new Graphics(),
+      packetG = new Graphics();
     const live = new Container();
     live.addChild(glowG, dyn, litG, texts, trailG, packetG);
     inner.addChild(art, live);
-    const names = new Container(), subs = new Container();
+    const names = new Container(),
+      subs = new Container();
     names.position.set(plan.origin.x, plan.origin.y);
     subs.position.set(plan.origin.x, plan.origin.y);
     names.addChild(near.names);
     subs.addChild(near.subs);
     inner.addChild(names, subs);
     const low = (r: Rect, lines: number, size: number): number => r.y + r.h - 8 - lines * (size + 3);
-    const linkText = label('PCIe', plan.link.x + 7, low(plan.link, 1, 12), 12, T.mute, { head: true, a: 0.95, minPx: 4 });
-    const ctrText = label('', plan.mem.x + plan.mem.w - 7, plan.mem.y + 30, 8, T.mute, { a: 0.9, minPx: 4, anchor: [1, 0.5] });
-    const memText = label('', plan.mem.x + plan.mem.w - 7, plan.mem.y + 12, 10, T.ink, { head: true, a: 0.95, anchor: [1, 0.5], minPx: 4 });
+    const linkText = label('PCIe', plan.link.x + 7, low(plan.link, 1, 12), 12, T.mute, {
+      head: true,
+      a: 0.95,
+      minPx: 4,
+    });
+    const ctrText = label('', plan.mem.x + plan.mem.w - 7, plan.mem.y + 30, 8, T.mute, {
+      a: 0.9,
+      minPx: 4,
+      anchor: [1, 0.5],
+    });
+    const memText = label('', plan.mem.x + plan.mem.w - 7, plan.mem.y + 12, 10, T.ink, {
+      head: true,
+      a: 0.95,
+      anchor: [1, 0.5],
+      minPx: 4,
+    });
     inner.addChild(linkText, ctrText, memText);
 
     const cover = gpuCover(new Graphics(), T, plan);
@@ -195,10 +246,46 @@ export class GpuView {
     if (this.bare) for (const n of [art, names, subs, cover, ...fans.map((f) => f.fan)]) n.renderable = false;
     this.root.addChild(root);
     return {
-      slot: c.slot, plan, root, inner, dyn, glowG, litG, texts, trailG, packetG, cellTexts: new Map(), packets: [], trails: new Map(), flights: [], glow: new Map(), sent: new Map(), born: new Map(), animating: false,
-      cover, fans, wires: near.wires, cells: near.cells, names, subs, linkText, ctrText, memText, player: new GpuPlayer(), lens,
-      memParts: plan.die.blocks.filter((b) => MEM_KINDS.has(b.kind)).map((b) => ({ ...b, rect: { x: b.rect.x + plan.origin.x, y: b.rect.y + plan.origin.y, w: b.rect.w, h: b.rect.h } })),
-      tick: { step: null, index: -1, length: 0, progress: 0, round: 0, playing: false, cycle: 0, sms: [], warps: [] }, snap: undefined, fan: 0, spin: false, sig: '',
+      slot: c.slot,
+      plan,
+      root,
+      inner,
+      dyn,
+      glowG,
+      litG,
+      texts,
+      trailG,
+      packetG,
+      cellTexts: new Map(),
+      packets: [],
+      trails: new Map(),
+      flights: [],
+      glow: new Map(),
+      sent: new Map(),
+      born: new Map(),
+      animating: false,
+      cover,
+      fans,
+      wires: near.wires,
+      cells: near.cells,
+      names,
+      subs,
+      linkText,
+      ctrText,
+      memText,
+      player: new GpuPlayer(),
+      lens,
+      memParts: plan.die.blocks
+        .filter((b) => MEM_KINDS.has(b.kind))
+        .map((b) => ({
+          ...b,
+          rect: { x: b.rect.x + plan.origin.x, y: b.rect.y + plan.origin.y, w: b.rect.w, h: b.rect.h },
+        })),
+      tick: { step: null, index: -1, length: 0, progress: 0, round: 0, playing: false, cycle: 0, sms: [], warps: [] },
+      snap: undefined,
+      fan: 0,
+      spin: false,
+      sig: '',
     };
   }
 
@@ -228,12 +315,16 @@ export class GpuView {
     this.root.visible = inner && this.cards.length > 0;
     if (!this.root.visible || !this.T) return;
     // a paused game has no game time, but a card that is stepped still has to move: its packets and lights run on the wall clock then
-    const wall = performance.now(), wdt = Math.min(0.1, Math.max(0, (wall - this.lastWall) / 1000));
+    const wall = performance.now(),
+      wdt = Math.min(0.1, Math.max(0, (wall - this.lastWall) / 1000));
     this.lastWall = wall;
     this.now += (paused ? wdt : dt) * 1000;
     const T = this.T;
     for (const c of this.cards) {
-      const pl = this.rects.place(c, c.root, lod?.view), on = pl.onScreen, z = seenZoom(this.zoom, pl.focus), fade = smooth(FADE_FROM, FADE_TO, z);
+      const pl = this.rects.place(c, c.root, lod?.view),
+        on = pl.onScreen,
+        z = seenZoom(this.zoom, pl.focus),
+        fade = smooth(FADE_FROM, FADE_TO, z);
       this.seen = z;
       c.root.visible = on;
       // the fans: on whatever the zoom, while the card is in view
@@ -246,18 +337,27 @@ export class GpuView {
       }
       fanBank.set(`gpu:${c.slot}`, speed);
       // a paused game can be scrubbed: the Trace panel names a cycle of this card's last instructions and the card shows the machine at it
-      const mine = scrubTarget.peek() === `gpu:${c.slot}`, cur = mine ? scrubCursor.peek() : null;
+      const mine = scrubTarget.peek() === `gpu:${c.slot}`,
+        cur = mine ? scrubCursor.peek() : null;
       if (cur !== null) c.tick = c.player.seek(0, cur);
-      else { if (c.player.scrubbed) c.player.resume(); c.tick = c.player.advance(dt, paused); }
+      else {
+        if (c.player.scrubbed) c.player.resume();
+        c.tick = c.player.advance(dt, paused);
+      }
       if (mine) {
-        const hi = Math.floor(c.player.span), old = scrubRange.peek(), sh = Math.round(c.player.cycle);
+        const hi = Math.floor(c.player.span),
+          old = scrubRange.peek(),
+          sh = Math.round(c.player.cycle);
         if (!old || old.lo !== 0 || old.hi !== hi) scrubRange.value = hi > 0 ? { lo: 0, hi } : null;
         if (sh !== scrubShown.peek()) scrubShown.value = sh;
       }
       c.cover.alpha = 1 - fade;
       c.inner.alpha = fade;
       c.inner.visible = fade > 0.02;
-      if (!c.inner.visible || !on) { c.lens.hide(); continue; }
+      if (!c.inner.visible || !on) {
+        c.lens.hide();
+        continue;
+      }
       // names and counters fade in over a short band (no pop); a redraw is only asked for when one starts to show
       const { ta, da, showText, showDetail } = cardText(z, lod, `gpu:${c.slot}`, TEXT_Z, DETAIL_Z);
       c.names.visible = c.linkText.visible = c.texts.visible = showText;
@@ -265,7 +365,8 @@ export class GpuView {
       c.subs.visible = c.ctrText.visible = c.memText.visible = showDetail;
       c.subs.alpha = c.ctrText.alpha = c.memText.alpha = da;
       this.animate(T, c, cur !== null);
-      const t = c.tick, s = c.snap;
+      const t = c.tick,
+        s = c.snap;
       const sig = `${t.index}|${t.round}|${Math.round(t.progress * 6)}|${t.step?.mask ?? -1}|${s?.phase ?? '-'}|${s?.stack.length ?? 0}|${s ? s.stats.cycles : -1}|${s?.launches ?? 0}|${showText ? 1 : 0}${showDetail ? 1 : 0}`;
       if (sig === c.sig) continue;
       c.sig = sig;
@@ -285,9 +386,13 @@ export class GpuView {
     if (n === 0) return;
     // (a load brings its word from the card memory: the way back along the route)
     this.onTraffic?.(c.slot, back ? route.map((h) => ({ link: h.link, reverse: !h.reverse })) : route);
-    const pipelined = c.plan.die.input.kind !== 'simd', sp = pipelined ? CYCLE_MS * 0.9 : Math.max(CYCLE_MS * 0.9, (Math.max(1, cost) * CYCLE_MS) / n), dur = Math.max(sp * 1.1, 180);
+    const pipelined = c.plan.die.input.kind !== 'simd',
+      sp = pipelined ? CYCLE_MS * 0.9 : Math.max(CYCLE_MS * 0.9, (Math.max(1, cost) * CYCLE_MS) / n),
+      dur = Math.max(sp * 1.1, 180);
     route.forEach((h, i) => {
-      const link = this.hopLink(c, h), t0 = this.now + i * sp, { packet, trail } = packetOn(link, h.reverse, t0, dur, color);
+      const link = this.hopLink(c, h),
+        t0 = this.now + i * sp,
+        { packet, trail } = packetOn(link, h.reverse, t0, dur, color);
       c.packets.push(packet);
       c.trails.set(link.id, trail);
       c.flights.push({ to: h.reverse ? h.link.from : h.link.to, t0, dur, color });
@@ -296,22 +401,45 @@ export class GpuView {
 
   /** The moving parts: packets on the wires, the glow of the blocks they reach, what the symbols of the front end hold. */
   private animate(T: Theme, c: CardView, frozen: boolean): void {
-    const now = this.now, t = c.tick, s = c.snap, plan = c.plan;
-    if (!s) { c.sent.clear(); c.packets = []; c.trails.clear(); c.flights = []; }
-    else if (frozen) {
+    const now = this.now,
+      t = c.tick,
+      s = c.snap,
+      plan = c.plan;
+    if (!s) {
+      c.sent.clear();
+      c.packets = [];
+      c.trails.clear();
+      c.flights = [];
+    } else if (frozen) {
       // held on a cycle: nothing travels, the path the instruction on show took stays lit
-      c.packets = []; c.flights = []; c.sent.clear();
+      c.packets = [];
+      c.flights = [];
+      c.sent.clear();
       for (const sm of t.sms) {
         if (!sm.step) continue;
-        for (const h of gpuRoute(plan.die, sm.step, sm.sm)) { const link = this.hopLink(c, h); const { trail } = packetOn(link, h.reverse, now, 1, kindColor(T, sm.step.kind)); c.trails.set(link.id, { ...trail, t0: now - 250 }); }
+        for (const h of gpuRoute(plan.die, sm.step, sm.sm)) {
+          const link = this.hopLink(c, h);
+          const { trail } = packetOn(link, h.reverse, now, 1, kindColor(T, sm.step.kind));
+          c.trails.set(link.id, { ...trail, t0: now - 250 });
+        }
       }
     } else {
-      if (s.phase === 'in' && c.sent.get(-1) !== `in:${s.launches}`) { c.sent.set(-1, `in:${s.launches}`); this.fly(c, launchRoute(plan.die), T.br, 4); }
+      if (s.phase === 'in' && c.sent.get(-1) !== `in:${s.launches}`) {
+        c.sent.set(-1, `in:${s.launches}`);
+        this.fly(c, launchRoute(plan.die), T.br, 4);
+      }
       for (const sm of t.sms) {
         const key = `${s.launches}:${sm.index}`;
         if (c.sent.get(sm.sm) === key) continue;
         c.sent.set(sm.sm, key);
-        if (sm.step) this.fly(c, gpuRoute(plan.die, sm.step, sm.sm), kindColor(T, sm.step.kind), sm.step.cost, sm.step.kind === 'ld');
+        if (sm.step)
+          this.fly(
+            c,
+            gpuRoute(plan.die, sm.step, sm.sm),
+            kindColor(T, sm.step.kind),
+            sm.step.cost,
+            sm.step.kind === 'ld',
+          );
       }
     }
     c.flights = c.flights.filter((f) => f.t0 + f.dur > now);
@@ -320,11 +448,17 @@ export class GpuView {
     const want = new Map<string, string>();
     for (const f of c.flights) if (now >= f.t0) want.set(f.to, f.color);
     for (const [id, color] of want) c.glow.set(id, { v: Math.min(1, (c.glow.get(id)?.v ?? 0) + 0.25), color });
-    for (const [id, g] of c.glow) if (!want.has(id)) { g.v *= 0.9; if (g.v < 0.02) c.glow.delete(id); }
+    for (const [id, g] of c.glow)
+      if (!want.has(id)) {
+        g.v *= 0.9;
+        if (g.v < 0.02) c.glow.delete(id);
+      }
     const byId = new Map(plan.blocks.map((b) => [b.id, b]));
 
     // the symbols of the front end: the program counter's digits, the word fetched, the decoded word and the control lines it raises
-    const wall = performance.now(), used = new Set<string>(), born = new Map<string, number>();
+    const wall = performance.now(),
+      used = new Set<string>(),
+      born = new Map<string, number>();
     const lit: { rect: Rect; color: string; a: number }[] = [];
     for (const b of plan.blocks) {
       if (b.kind !== 'pc' && b.kind !== 'fetch' && b.kind !== 'decode') continue;
@@ -333,11 +467,20 @@ export class GpuView {
       if (!a || !sm?.step || !s) continue;
       const k = `${b.id}:${s.launches}:${sm.index}`;
       born.set(k, c.born.get(k) ?? wall);
-      const u = Math.min(1, (wall - born.get(k)!) / WIPE_MS), prog = u * u * (3 - 2 * u);
-      const live = gpuGlyphLive({ id: b.id, kind: b.kind, label: b.kind === 'fetch' ? 'FETCH' : b.kind.toUpperCase(), rect: b.rect }, a, sm.step, prog);
+      const u = Math.min(1, (wall - born.get(k)!) / WIPE_MS),
+        prog = u * u * (3 - 2 * u);
+      const live = gpuGlyphLive(
+        { id: b.id, kind: b.kind, label: b.kind === 'fetch' ? 'FETCH' : b.kind.toUpperCase(), rect: b.rect },
+        a,
+        sm.step,
+        prog,
+      );
       for (const l of live.lit) lit.push({ rect: l.rect, color: T[l.color], a: l.a });
       let ct = c.cellTexts.get(b.id);
-      if (!ct) { ct = new CellTexts(c.texts); c.cellTexts.set(b.id, ct); }
+      if (!ct) {
+        ct = new CellTexts(c.texts);
+        c.cellTexts.set(b.id, ct);
+      }
       used.add(b.id);
       live.texts.forEach((x, n) => ct!.set(n, x.top, x.bottom, x.rect, T.on));
       ct.hideFrom(live.texts.length);
@@ -350,7 +493,10 @@ export class GpuView {
       const live = gpuHostLive(b.kind, a, { phase: s.phase, lanes: s.lanes, launches: s.launches, ms: now });
       for (const l of live.lit) lit.push({ rect: l.rect, color: T[l.color], a: l.a });
       let ct = c.cellTexts.get(b.id);
-      if (!ct) { ct = new CellTexts(c.texts); c.cellTexts.set(b.id, ct); }
+      if (!ct) {
+        ct = new CellTexts(c.texts);
+        c.cellTexts.set(b.id, ct);
+      }
       used.add(b.id);
       live.texts.forEach((x, n) => ct!.set(n, x.top, x.bottom, x.rect, T.on));
       ct.hideFrom(live.texts.length);
@@ -359,28 +505,58 @@ export class GpuView {
     if (!s) c.lens.hide();
     if (s) {
       const sms = t.sms.length > 0 ? t.sms : [];
-      const memStepOf = (sm: number | null): GpuStep | null => [...s.trace].reverse().find((x) => x.mem && (sm === null || (x.sm ?? 0) === sm)) ?? null;
+      const memStepOf = (sm: number | null): GpuStep | null =>
+        [...s.trace].reverse().find((x) => x.mem && (sm === null || (x.sm ?? 0) === sm)) ?? null;
       for (const b of c.memParts) {
         const a = gpuGlyphArea({ kind: b.kind, rect: b.rect });
         if (!a) continue;
-        const own = b.sm !== undefined && plan.die.input.sms > 1 ? b.sm : null, shared = b.kind === 'dram' || b.kind === 'l2';
-        const sm = shared ? (sms.find((x) => x.step?.mem)?.sm ?? sms[0]?.sm ?? 0) : (own ?? 0), tk = sms.find((x) => x.sm === sm);
+        const own = b.sm !== undefined && plan.die.input.sms > 1 ? b.sm : null,
+          shared = b.kind === 'dram' || b.kind === 'l2';
+        const sm = shared ? (sms.find((x) => x.step?.mem)?.sm ?? sms[0]?.sm ?? 0) : (own ?? 0),
+          tk = sms.find((x) => x.sm === sm);
         const step = tk?.step ?? null;
         const live = gpuMemLive(b, a, {
-          step, memStep: step?.mem ? step : memStepOf(shared ? null : sm), sm, perSm: plan.perSm, banks: plan.die.input.banks, lineWords: plan.die.input.lineWords,
-          cache: b.kind === 'l1' ? s.caches?.find((x) => x.level === 'L1' && (x.sm ?? 0) === sm) : b.kind === 'l2' ? s.caches?.find((x) => x.level === 'L2') : undefined, round: tk?.round ?? 0,
+          step,
+          memStep: step?.mem ? step : memStepOf(shared ? null : sm),
+          sm,
+          perSm: plan.perSm,
+          banks: plan.die.input.banks,
+          lineWords: plan.die.input.lineWords,
+          cache:
+            b.kind === 'l1'
+              ? s.caches?.find((x) => x.level === 'L1' && (x.sm ?? 0) === sm)
+              : b.kind === 'l2'
+                ? s.caches?.find((x) => x.level === 'L2')
+                : undefined,
+          round: tk?.round ?? 0,
         });
         if (b.kind === 'dram') {
           // the one magnifier: the words around the address the last load or store touched, beside its cell
-          const ms = step?.mem ? step : memStepOf(null), lens = gpuLensRows(ms);
-          if (lens && ms && b.bytes) c.lens.set(T, lens, dramCellRect(a, b.bytes, lens.addr), b.rect, this.seen, kindColor(T, ms.kind), ms === step);
+          const ms = step?.mem ? step : memStepOf(null),
+            lens = gpuLensRows(ms);
+          if (lens && ms && b.bytes)
+            c.lens.set(
+              T,
+              lens,
+              dramCellRect(a, b.bytes, lens.addr),
+              b.rect,
+              this.seen,
+              kindColor(T, ms.kind),
+              ms === step,
+            );
           else c.lens.hide();
         }
         for (const l of live.lit) lit.push({ rect: l.rect, color: T[l.color], a: l.a });
         let ct = c.cellTexts.get(b.id);
-        if (!ct) { ct = new CellTexts(c.texts); c.cellTexts.set(b.id, ct); }
+        if (!ct) {
+          ct = new CellTexts(c.texts);
+          c.cellTexts.set(b.id, ct);
+        }
         used.add(b.id);
-        live.texts.forEach((x, n) => { if (x.small) ct!.line(n, x.top, x.rect, x.ink ? T.ink : T.on, x.fit); else ct!.set(n, x.top, x.bottom, x.rect, x.ink ? T.ink : T.on); });
+        live.texts.forEach((x, n) => {
+          if (x.small) ct!.line(n, x.top, x.rect, x.ink ? T.ink : T.on, x.fit);
+          else ct!.set(n, x.top, x.bottom, x.rect, x.ink ? T.ink : T.on);
+        });
         ct.hideFrom(live.texts.length);
       }
     }
@@ -394,7 +570,14 @@ export class GpuView {
     gg.clear();
     for (const [id, g] of c.glow) {
       const b = byId.get(id);
-      if (b) box(gg, b.rect.x, b.rect.y, b.rect.w, b.rect.h, 3, { fill: g.color, fa: 0.16 * g.v, stroke: g.color, lw: 2.5, sa: 0.55 * g.v });
+      if (b)
+        box(gg, b.rect.x, b.rect.y, b.rect.w, b.rect.h, 3, {
+          fill: g.color,
+          fa: 0.16 * g.v,
+          stroke: g.color,
+          lw: 2.5,
+          sa: 0.55 * g.v,
+        });
     }
     c.litG.clear();
     for (const l of lit) box(c.litG, l.rect.x, l.rect.y, l.rect.w, l.rect.h, 1.5, { fill: l.color, fa: l.a });
@@ -403,23 +586,45 @@ export class GpuView {
   }
 
   private draw(T: Theme, c: CardView): void {
-    const g = c.dyn, p = c.plan, t = c.tick, s = c.snap, step = t.step;
+    const g = c.dyn,
+      p = c.plan,
+      t = c.tick,
+      s = c.snap,
+      step = t.step;
     g.clear();
-    const col = step ? kindColor(T, step.kind) : T.alu, pulse = 1 - t.progress * 0.6;
-    const on = !!s && s.phase !== 'idle' || t.playing;
+    const col = step ? kindColor(T, step.kind) : T.alu,
+      pulse = 1 - t.progress * 0.6;
+    const on = (!!s && s.phase !== 'idle') || t.playing;
     // lanes: lit under the mask, dark when the mask turned them off
-    const smTick = (sm: number) => t.sms.find((x) => x.sm === sm), smStep = (sm: number) => smTick(sm)?.step ?? step;
-    const laneOn = (k: number): boolean => { const st = smStep(Math.floor(k / p.perSm)); return st ? ((st.mask >>> (k % p.perSm)) & 1) === 1 : true; };
+    const smTick = (sm: number) => t.sms.find((x) => x.sm === sm),
+      smStep = (sm: number) => smTick(sm)?.step ?? step;
+    const laneOn = (k: number): boolean => {
+      const st = smStep(Math.floor(k / p.perSm));
+      return st ? ((st.mask >>> (k % p.perSm)) & 1) === 1 : true;
+    };
     p.laneCells.forEach((r, k) => {
-      const act = laneOn(k), units = laneUnits(r);
+      const act = laneOn(k),
+        units = laneUnits(r);
       if (!s) g.rect(r.x, r.y, r.w, r.h).fill({ color: T.line, alpha: 0.18 });
       else if (act) {
         // a roomy cell keeps its ALU readable: a faint wash, and the unit the instruction goes through lit
-        g.rect(r.x, r.y, r.w, r.h).fill({ color: col, alpha: units ? (on ? 0.08 + 0.12 * pulse : 0.06) : on ? 0.28 + 0.55 * pulse : 0.2 }).stroke({ width: 2, color: col, alpha: on ? 0.8 : 0.35 });
-        const st = smStep(Math.floor(k / p.perSm)), u = units && st ? aluUnitOf(st.name) : -1;
-        if (units && u >= 0) { const ur = units.units[u]!; g.rect(ur.x, ur.y, ur.w, ur.h).fill({ color: col, alpha: on ? 0.55 + 0.35 * pulse : 0.35 }); g.rect(units.res.x, units.res.y, units.res.w, units.res.h).fill({ color: col, alpha: on ? 0.4 * pulse + 0.15 : 0.15 }); }
-      }
-      else g.rect(r.x, r.y, r.w, r.h).fill({ color: '#000000', alpha: 0.55 }).stroke({ width: 1.5, color: T.line, alpha: 0.5 });
+        g.rect(r.x, r.y, r.w, r.h)
+          .fill({ color: col, alpha: units ? (on ? 0.08 + 0.12 * pulse : 0.06) : on ? 0.28 + 0.55 * pulse : 0.2 })
+          .stroke({ width: 2, color: col, alpha: on ? 0.8 : 0.35 });
+        const st = smStep(Math.floor(k / p.perSm)),
+          u = units && st ? aluUnitOf(st.name) : -1;
+        if (units && u >= 0) {
+          const ur = units.units[u]!;
+          g.rect(ur.x, ur.y, ur.w, ur.h).fill({ color: col, alpha: on ? 0.55 + 0.35 * pulse : 0.35 });
+          g.rect(units.res.x, units.res.y, units.res.w, units.res.h).fill({
+            color: col,
+            alpha: on ? 0.4 * pulse + 0.15 : 0.15,
+          });
+        }
+      } else
+        g.rect(r.x, r.y, r.w, r.h)
+          .fill({ color: '#000000', alpha: 0.55 })
+          .stroke({ width: 1.5, color: T.line, alpha: 0.5 });
     });
     // the execution mask, one bit per lane
     p.maskBits.forEach((r, k) => {
@@ -428,19 +633,33 @@ export class GpuView {
     });
     // the mask stack: slots filled to the card's current depth
     const depth = s?.stack.length ?? 0;
-    p.maskSlots.forEach((r, k) => { if (k < depth) g.rect(r.x, r.y, r.w, r.h).fill({ color: T.mul, alpha: 0.85 }); });
-    // the registers: a cell is bright when the lane holds something, the destination of the instruction on show glows in its colour
-    for (const set of p.regSets) set.rows.forEach((row, ri) => {
-      const cw = row.w / set.cols, vals = s?.regs[ri];
-      for (let l = 0; l < set.cols; l++) g.rect(row.x + l * cw + 0.5, row.y, Math.max(1, cw - 1), row.h).fill({ color: T.alu, alpha: vals && vals[set.lane0 + l] !== 0 ? 0.5 : 0.1 });
-      if (step && step.dest === ri) g.rect(row.x, row.y, row.w, row.h).fill({ color: col, alpha: 0.55 * pulse }).stroke({ width: 1.5, color: col, alpha: 0.9 });
+    p.maskSlots.forEach((r, k) => {
+      if (k < depth) g.rect(r.x, r.y, r.w, r.h).fill({ color: T.mul, alpha: 0.85 });
     });
+    // the registers: a cell is bright when the lane holds something, the destination of the instruction on show glows in its colour
+    for (const set of p.regSets)
+      set.rows.forEach((row, ri) => {
+        const cw = row.w / set.cols,
+          vals = s?.regs[ri];
+        for (let l = 0; l < set.cols; l++)
+          g.rect(row.x + l * cw + 0.5, row.y, Math.max(1, cw - 1), row.h).fill({
+            color: T.alu,
+            alpha: vals && vals[set.lane0 + l] !== 0 ? 0.5 : 0.1,
+          });
+        if (step && step.dest === ri)
+          g.rect(row.x, row.y, row.w, row.h)
+            .fill({ color: col, alpha: 0.55 * pulse })
+            .stroke({ width: 1.5, color: col, alpha: 0.9 });
+      });
     // the banks: the addresses queued on each, served one round at a time
     const t0: GpuTick = { ...t, step: smStep(0), round: smTick(0)?.round ?? t.round };
     const mem = t0.step?.kind === 'ld' || t0.step?.kind === 'st';
     const bad = conflicted(t0);
     p.bankBars.forEach((r, b) => {
-      const { queued, served } = bankState(t0, b), along = r.w >= r.h, len = (along ? r.w : r.h) - 4, segL = len / 8;
+      const { queued, served } = bankState(t0, b),
+        along = r.w >= r.h,
+        len = (along ? r.w : r.h) - 4,
+        segL = len / 8;
       for (let k = 0; k < Math.min(queued, 8); k++) {
         const f = { color: k < served ? col : T.line, alpha: k < served ? 0.9 : 0.5 };
         if (along) g.rect(r.x + 2 + k * segL + 1, r.y + 1, segL - 2, r.h - 2).fill(f);
@@ -451,24 +670,38 @@ export class GpuView {
     if (mem) g.rect(p.mem.x, p.mem.y, p.mem.w, p.mem.h).fill({ color: bad ? T.bad : col, alpha: 0.12 * pulse }); // the card memory answers
     // the warps: a chip each, lit by the instruction it holds (its mask as a bar) and outlined while it is the one issuing
     for (const w of p.warpCells) {
-      const wt = t.warps.find((x) => x.sm === w.sm && x.warp === w.warp), r = w.rect;
-      if (!wt) { g.rect(r.x, r.y, r.w, r.h).fill({ color: '#000000', alpha: 0.3 }); continue; }
+      const wt = t.warps.find((x) => x.sm === w.sm && x.warp === w.warp),
+        r = w.rect;
+      if (!wt) {
+        g.rect(r.x, r.y, r.w, r.h).fill({ color: '#000000', alpha: 0.3 });
+        continue;
+      }
       let n = 0;
       for (let k = 0; k < p.perSm; k++) if ((wt.mask >>> k) & 1) n++;
       g.rect(r.x + 2, r.y + r.h - 6, (r.w - 4) * (n / p.perSm), 4).fill({ color: T.alu, alpha: 0.85 });
-      if (wt.busy) g.rect(r.x, r.y, r.w, r.h).stroke({ width: 2, color: wt.index === t.index ? col : T.mul, alpha: 0.9 });
+      if (wt.busy)
+        g.rect(r.x, r.y, r.w, r.h).stroke({ width: 2, color: wt.index === t.index ? col : T.mul, alpha: 0.9 });
     }
     // card memory: the map of cells, each as full as the words in it
-    const dram = c.memParts.find((b) => b.kind === 'dram'), da = dram && gpuGlyphArea({ kind: 'dram', rect: dram.rect });
-    if (dram && da && s?.fill) for (const f of dramFill(da, dram.bytes ?? 0, s.fill)) g.rect(f.rect.x, f.rect.y, f.rect.w, f.rect.h).fill({ color: T[f.color], alpha: f.a });
+    const dram = c.memParts.find((b) => b.kind === 'dram'),
+      da = dram && gpuGlyphArea({ kind: 'dram', rect: dram.rect });
+    if (dram && da && s?.fill)
+      for (const f of dramFill(da, dram.bytes ?? 0, s.fill))
+        g.rect(f.rect.x, f.rect.y, f.rect.w, f.rect.h).fill({ color: T[f.color], alpha: f.a });
     // the PCIe link: lit while a launch crosses it
     const hop = s?.phase === 'in' || s?.phase === 'out';
     if (hop) g.rect(p.link.x, p.link.y, p.link.w, p.link.h).fill({ color: T.mul, alpha: 0.18 });
     // the texts
     c.linkText.text = s ? `PCIe ${PHASE_TEXT[s.phase]}` : 'PCIe';
-    const ms = smStep(0), accesses = ms?.banks ? ms.banks.reduce((n, v) => n + v, 0) : 0;
-    c.memText.text = s && mem && ms ? `${ms.name} · ${accesses} access${accesses === 1 ? '' : 'es'}${bad ? ` · ${ms.cost} cycles` : ''}` : '';
-    c.ctrText.text = s ? `${s.launches} launches · ${s.stats.instructions} instr · ${s.stats.idleLaneSlots} idle · ${s.stats.conflictCycles} conflicts` : '';
+    const ms = smStep(0),
+      accesses = ms?.banks ? ms.banks.reduce((n, v) => n + v, 0) : 0;
+    c.memText.text =
+      s && mem && ms
+        ? `${ms.name} · ${accesses} access${accesses === 1 ? '' : 'es'}${bad ? ` · ${ms.cost} cycles` : ''}`
+        : '';
+    c.ctrText.text = s
+      ? `${s.launches} launches · ${s.stats.instructions} instr · ${s.stats.idleLaneSlots} idle · ${s.stats.conflictCycles} conflicts`
+      : '';
     void stepText;
   }
 }

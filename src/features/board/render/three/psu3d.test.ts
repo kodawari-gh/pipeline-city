@@ -6,11 +6,14 @@ import { mainsInlet, mainsPlug, PLUG_TAIL, psuBox, psuForm, psuUnit } from './ps
 
 const MM = 23;
 // the supplies each case can take: the SFX ones in every case, the ATX one only in the cases with an ATX bay
-const fits = (caseTier: number): string[] => (caseTier >= 2 ? ['psu-basic', 'psu-mid', 'psu-big'] : ['psu-basic', 'psu-mid']);
+const fits = (caseTier: number): string[] =>
+  caseTier >= 2 ? ['psu-basic', 'psu-mid', 'psu-big'] : ['psu-basic', 'psu-mid'];
 
 describe('the 3D power supply', () => {
   it('builds the small supplies as SFX units and the big one as an ATX unit, at their real sizes', () => {
-    [125, 63.5, 100].forEach((mm, k) => expect([PSU_FORM.sfx.w, PSU_FORM.sfx.h, PSU_FORM.sfx.d][k]! / MM).toBeCloseTo(mm, 1));
+    [125, 63.5, 100].forEach((mm, k) =>
+      expect([PSU_FORM.sfx.w, PSU_FORM.sfx.h, PSU_FORM.sfx.d][k]! / MM).toBeCloseTo(mm, 1),
+    );
     expect([PSU_FORM.atx.w, PSU_FORM.atx.h, PSU_FORM.atx.d].map((v) => v / MM)).toEqual([150, 86, 140]);
     expect(psuForm('psu-basic')).toBe(PSU_FORM.sfx);
     expect(psuForm('psu-mid')).toBe(PSU_FORM.sfx);
@@ -20,9 +23,11 @@ describe('the 3D power supply', () => {
   it('stands each unit in its bay: its rear on the rear wall, its feet on the bay floor, inside the bay', () => {
     for (const t of [0, 1, 2, 3]) {
       setLayoutTier(t, t);
-      const p = basementPlan(), u = p.psu;
+      const p = basementPlan(),
+        u = p.psu;
       for (const v of fits(t)) {
-        const b = psuBox(u, v), at = `tier ${t} ${v}`;
+        const b = psuBox(u, v),
+          at = `tier ${t} ${v}`;
         expect(b.x, at).toBe(u.x);
         expect(b.x + b.w, at).toBeLessThanOrEqual(u.x + u.w);
         expect(b.y + b.h, at).toBe(u.y + u.h);
@@ -39,12 +44,14 @@ describe('the 3D power supply', () => {
     }
   });
 
-  it('puts the C14 inlet in the rear wall\'s opening and seats the C13 plug in it, the cord leaving its tail', () => {
+  it("puts the C14 inlet in the rear wall's opening and seats the C13 plug in it, the cord leaving its tail", () => {
     for (const t of [0, 3]) {
       setLayoutTier(t, t);
-      const p = basementPlan(), o = psuOpening(p.psu);
+      const p = basementPlan(),
+        o = psuOpening(p.psu);
       for (const v of fits(t)) {
-        const [x, y, z] = mainsInlet(p, v), at = `tier ${t} ${v}`;
+        const [x, y, z] = mainsInlet(p, v),
+          at = `tier ${t} ${v}`;
         expect(x, at).toBeLessThan(CASE.x);
         expect(-y, at).toBeGreaterThan(o.y0);
         expect(-y, at).toBeLessThan(o.y1);

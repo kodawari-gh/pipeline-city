@@ -6,11 +6,11 @@ The lens shows the machine's power as light in the machine's own 3D space. It do
 
 The colour says the **role** of a thing, the brightness says how much it draws:
 
-| Role | Colour | What it is |
-|---|---|---|
-| source | white | where power comes in: the wall socket and the mains cord |
-| hub | cyan | takes power in and hands it on: the supply, the two regulators (VRM), the fan hub |
-| use | amber | turns power into work and heat: the processor, the memory, a card, a drive, a fan, the TPM |
+| Role   | Colour | What it is                                                                                 |
+| ------ | ------ | ------------------------------------------------------------------------------------------ |
+| source | white  | where power comes in: the wall socket and the mains cord                                   |
+| hub    | cyan   | takes power in and hands it on: the supply, the two regulators (VRM), the fan hub          |
+| use    | amber  | turns power into work and heat: the processor, the memory, a card, a drive, a fan, the TPM |
 
 A legend of the three roles sits under the scale pill.
 
@@ -18,25 +18,25 @@ A legend of the three roles sits under the scale pill.
 
 The cables, the parts and the board do not move while the machine stands. So the lines are made once, and a frame moves nothing on the CPU.
 
-| When | What | Cost |
-|---|---|---|
-| a cable is built again (`Machine3D.cablesRev`), or a part or a cable is added or removed (the key in `PowerView3D.frame`) | the shape (`powerShape`): the lines from the real cables and the board's buses, the stubs, the rings; the strips' buffers (`strips`) | about 700 strips, once |
-| each snapshot | `powerLedger` (the watts by cable and by part), `powerDraw` (each line's place on the scale and state, the words, the parts' levels), one write of the strips' state, the parts' glow | tiny |
-| each frame | two uniforms a layer (time, pixel size), the words' projection | 0.04 to 0.07 ms (`PowerView3D.cost`) |
+| When                                                                                                                      | What                                                                                                                                                                                  | Cost                                 |
+| ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| a cable is built again (`Machine3D.cablesRev`), or a part or a cable is added or removed (the key in `PowerView3D.frame`) | the shape (`powerShape`): the lines from the real cables and the board's buses, the stubs, the rings; the strips' buffers (`strips`)                                                  | about 700 strips, once               |
+| each snapshot                                                                                                             | `powerLedger` (the watts by cable and by part), `powerDraw` (each line's place on the scale and state, the words, the parts' levels), one write of the strips' state, the parts' glow | tiny                                 |
+| each frame                                                                                                                | two uniforms a layer (time, pixel size), the words' projection                                                                                                                        | 0.04 to 0.07 ms (`PowerView3D.cost`) |
 
 The pulses are found in the shader from each strip's arc length and the time: nothing is moved. A frame of the lens is six draws (the veil, the dim plates through everything, the plates, the lines with the depth test, the hidden runs, the rings). The words are DOM.
 
 ## Files (`board/render/three/power/`)
 
-| File | Role |
-|---|---|
-| `ledger.ts` | pure: `powerLedger(snapshot)`, where the draw goes, cable by cable and part by part; `FlowState`; `wattsText` |
-| `runs.ts` | pure: `CableRun` (what `Machine3D.cableRuns` gives of each cable), `RigPower` (what a draggable cable tells the lens), `inFlowOrder`, `reversed` |
-| `net.ts` | pure: `powerShape` (the machine as built: lines, rings, plates), `powerDraw` (one snapshot on the shape: levels, states, words, roles, glow) |
-| `flows.ts` | Three: `PowerFlows`: the lines as instanced strips with a shader that finds the pulses, the rings, and the plates (`Nodes`); `strips`, `seedOf` (pure) |
-| `view.ts` | `PowerView3D`: owns the above and the words and the veil, rebuilds the shape when the machine changes, writes each snapshot, makes the parts glow. `Lens3D` (`lens3d.ts`) hosts it |
+| File                              | Role                                                                                                                                                                                                                                                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ledger.ts`                       | pure: `powerLedger(snapshot)`, where the draw goes, cable by cable and part by part; `FlowState`; `wattsText`                                                                                                                                                                                                |
+| `runs.ts`                         | pure: `CableRun` (what `Machine3D.cableRuns` gives of each cable), `RigPower` (what a draggable cable tells the lens), `inFlowOrder`, `reversed`                                                                                                                                                             |
+| `net.ts`                          | pure: `powerShape` (the machine as built: lines, rings, plates), `powerDraw` (one snapshot on the shape: levels, states, words, roles, glow)                                                                                                                                                                 |
+| `flows.ts`                        | Three: `PowerFlows`: the lines as instanced strips with a shader that finds the pulses, the rings, and the plates (`Nodes`); `strips`, `seedOf` (pure)                                                                                                                                                       |
+| `view.ts`                         | `PowerView3D`: owns the above and the words and the veil, rebuilds the shape when the machine changes, writes each snapshot, makes the parts glow. `Lens3D` (`lens3d.ts`) hosts it                                                                                                                           |
 | `core/render/three/powerscale.ts` | pure: the power scale (`POWER`, `HUB`, `SOURCE` stops, `Role`, `ROLE_HEX`, `ROLE_WORD`, `levelOf`, `wattsAt`, `powerHex`, `hubHex`, `sourceHex`, `powerGradient`, `powerGlsl`, `WARN`, `POWER_VEIL`, `POWER_LIFT`). The pulses' shader, the parts' glow (`PartSkin.electric`) and the legend bar all read it |
-| `air/airtags.ts` | the words as DOM pills pinned to 3D points (`AirTags3D`): the tone `watts`, the role chip, the scale pill in watts (`unit: 'W'`) and the legend of the roles |
+| `air/airtags.ts`                  | the words as DOM pills pinned to 3D points (`AirTags3D`): the tone `watts`, the role chip, the scale pill in watts (`unit: 'W'`) and the legend of the roles                                                                                                                                                 |
 
 `Machine3D` gives the lens four things (`machine3d.ts`): `cableRuns()` (each cable's strands, as the sleeves are made from them, in the order the power goes), `cablesRev` (moves when a cable is built again), `heldCables()` (the cables a hand holds) and `partBox(id)` (a part's box); and `powerGlow(levels, warn, roles)` puts the glow on the parts.
 
@@ -71,12 +71,12 @@ One mesh of instanced strips for the lines with the depth test (a cable goes beh
 
 The fragment shader reads the strip's level (0 to 1 on the power scale) and state:
 
-| State | Look |
-|---|---|
-| on | a steady body glow, and **pulses**: a comet with a hot head and a tail, running toward the part. The speed goes from 1,500 to 5,200 units a second and the gap from 1,500 to 800 units from the foot to the top of the scale. The head is paler than the body, toward white at the top. Each line starts at its own place in the gap (`seedOf`), so the strands of one cable do not pulse as one |
-| idle | a dim thread: the machine is off, or the run carries nothing |
-| missing | red, pulsing, still: its cable is out |
-| held | hidden (a hand holds the plug: the hand draws its own cable) |
+| State   | Look                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| on      | a steady body glow, and **pulses**: a comet with a hot head and a tail, running toward the part. The speed goes from 1,500 to 5,200 units a second and the gap from 1,500 to 800 units from the foot to the top of the scale. The head is paler than the body, toward white at the top. Each line starts at its own place in the gap (`seedOf`), so the strands of one cable do not pulse as one |
+| idle    | a dim thread: the machine is off, or the run carries nothing                                                                                                                                                                                                                                                                                                                                     |
+| missing | red, pulsing, still: its cable is out                                                                                                                                                                                                                                                                                                                                                            |
+| held    | hidden (a hand holds the plug: the hand draws its own cable)                                                                                                                                                                                                                                                                                                                                     |
 
 Pulses run on game time: they stop with the pause. The red pulse and the rings run on the real clock, so what is wrong keeps pulsing while the game is paused.
 

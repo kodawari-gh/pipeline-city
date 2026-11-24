@@ -1,4 +1,4 @@
-import { JT_SLOTS, jobTableFor } from "./kernel";
+import { JT_SLOTS, jobTableFor } from './kernel';
 // The OS ladder, as data. An OS is a purchasable item that is INSTALLED onto a storage device (not into a board slot):
 // it occupies capacity there and needs a minimum amount of RAM. Only 'single-task resident' (os1) is implemented; the
 // later tiers are listed so the shop can show them locked, and so the kernel's seam (`programSlots`, always 1 for v1)
@@ -30,18 +30,65 @@ export interface OsSpec {
 }
 
 export const OS_SPECS: readonly OsSpec[] = [
-  { id: "os1", tier: 1, name: "Resident OS 1.0", price: 150, minRamBytes: 32 * 1024, diskBytes: 12 * 1024,
-    programSlots: 1, queueSlots: 4, fsTier: 1, visual: "os-resident",
-    description: "Single-task resident: boots once and stays running. Ingests client keys into a job queue and runs one program at a time." },
-  { id: "os2", tier: 2, name: "Paged OS 2.0", price: 600, minRamBytes: 64 * 1024, diskBytes: 24 * 1024,
-    programSlots: 1, queueSlots: 8, fsTier: 2, needsMmu: true, visual: "os-coop",
-    description: "Virtual memory: every program runs in its own address space, claims memory as it touches it and cannot reach the OS. Needs a CPU with an MMU. Runs one program on each core, two at most: a second core runs a second program." },
-  { id: "os3", tier: 3, name: "Preemptive OS 3.0", price: 2000, minRamBytes: 256 * 1024, diskBytes: 48 * 1024,
-    programSlots: 4, queueSlots: 12, fsTier: 3, needsMmu: true, visual: "os-preempt",
-    description: "Preemptive scheduling: a timer interrupt shares each core between programs, up to four on one core and up to eight on a multicore CPU, each in its own address space. Needs a CPU with an MMU and 256K of RAM." },
-  { id: "os4", tier: 4, name: "Multicore OS 4.0", price: 6000, minRamBytes: 256 * 1024, diskBytes: 96 * 1024,
-    programSlots: 8, queueSlots: 16, fsTier: 4, needsMmu: true, visual: "os-smp",
-    description: "Preemptive scheduling on every logical core, and threaded programs: one program on several cores at once, with the threads kept on the cores they ran on. Needs a CPU with an MMU and 256K of RAM." },
+  {
+    id: 'os1',
+    tier: 1,
+    name: 'Resident OS 1.0',
+    price: 150,
+    minRamBytes: 32 * 1024,
+    diskBytes: 12 * 1024,
+    programSlots: 1,
+    queueSlots: 4,
+    fsTier: 1,
+    visual: 'os-resident',
+    description:
+      'Single-task resident: boots once and stays running. Ingests client keys into a job queue and runs one program at a time.',
+  },
+  {
+    id: 'os2',
+    tier: 2,
+    name: 'Paged OS 2.0',
+    price: 600,
+    minRamBytes: 64 * 1024,
+    diskBytes: 24 * 1024,
+    programSlots: 1,
+    queueSlots: 8,
+    fsTier: 2,
+    needsMmu: true,
+    visual: 'os-coop',
+    description:
+      'Virtual memory: every program runs in its own address space, claims memory as it touches it and cannot reach the OS. Needs a CPU with an MMU. Runs one program on each core, two at most: a second core runs a second program.',
+  },
+  {
+    id: 'os3',
+    tier: 3,
+    name: 'Preemptive OS 3.0',
+    price: 2000,
+    minRamBytes: 256 * 1024,
+    diskBytes: 48 * 1024,
+    programSlots: 4,
+    queueSlots: 12,
+    fsTier: 3,
+    needsMmu: true,
+    visual: 'os-preempt',
+    description:
+      'Preemptive scheduling: a timer interrupt shares each core between programs, up to four on one core and up to eight on a multicore CPU, each in its own address space. Needs a CPU with an MMU and 256K of RAM.',
+  },
+  {
+    id: 'os4',
+    tier: 4,
+    name: 'Multicore OS 4.0',
+    price: 6000,
+    minRamBytes: 256 * 1024,
+    diskBytes: 96 * 1024,
+    programSlots: 8,
+    queueSlots: 16,
+    fsTier: 4,
+    needsMmu: true,
+    visual: 'os-smp',
+    description:
+      'Preemptive scheduling on every logical core, and threaded programs: one program on several cores at once, with the threads kept on the cores they ran on. Needs a CPU with an MMU and 256K of RAM.',
+  },
 ];
 
 export function getOsSpec(id: string): OsSpec | undefined {
@@ -58,7 +105,8 @@ export function programSlotsOn(os: OsSpec, cores: number, logical: number): numb
 }
 
 /** The OS tier boots its multicore kernel on this CPU: the paged OS with a second core, the preemptive and the multicore OS with several logical cores. */
-export const smpOn = (tier: number, cores: number, logical: number): boolean => (tier === 2 ? cores > 1 : tier >= 3 && logical > 1);
+export const smpOn = (tier: number, cores: number, logical: number): boolean =>
+  tier === 2 ? cores > 1 : tier >= 3 && logical > 1;
 
 /** One job spread over several cores needs the multicore OS (its threaded programs) and a CPU with at least two logical cores. */
 export const threadsOn = (os: OsSpec, logical: number): boolean => os.tier >= 4 && logical > 1;

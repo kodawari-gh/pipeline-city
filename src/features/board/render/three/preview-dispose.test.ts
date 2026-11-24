@@ -8,12 +8,32 @@ import { setLayoutTier } from '@/features/board/render/layout/layout';
 
 // Canvases that draw nothing, so `paint` makes real CanvasTextures in Node.
 // Any call returns another such proxy (gradients need `addColorStop`); the few reads the art makes are answered.
-const nothing: unknown = new Proxy(function () {}, { get: (_t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing), apply: () => nothing, set: () => true });
-const context = () => new Proxy({}, {
-  get: (_t, k) => (k === 'measureText' ? () => ({ width: 1, actualBoundingBoxAscent: 1, actualBoundingBoxDescent: 1 }) : k === 'getImageData' ? () => ({ data: new Uint8ClampedArray(4) }) : nothing),
+const nothing: unknown = new Proxy(function () {}, {
+  get: (_t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
+  apply: () => nothing,
   set: () => true,
 });
-const canvas = () => ({ width: 1, height: 1, style: {}, getContext: context, addEventListener() {}, toDataURL: () => '' });
+const context = () =>
+  new Proxy(
+    {},
+    {
+      get: (_t, k) =>
+        k === 'measureText'
+          ? () => ({ width: 1, actualBoundingBoxAscent: 1, actualBoundingBoxDescent: 1 })
+          : k === 'getImageData'
+            ? () => ({ data: new Uint8ClampedArray(4) })
+            : nothing,
+      set: () => true,
+    },
+  );
+const canvas = () => ({
+  width: 1,
+  height: 1,
+  style: {},
+  getContext: context,
+  addEventListener() {},
+  toDataURL: () => '',
+});
 
 // The stubbed `document` would start Pixi's offscreen renderer (bake.ts), which cannot run in Node: the test does not need it.
 vi.mock('./bake', async (orig) => ({ ...(await orig<typeof import('./bake')>()), startBaker: () => {} }));
@@ -42,7 +62,10 @@ describe('preview rebuild frees its textures', () => {
 
   // Kept for the whole file (each test file runs alone): Pixi's async renderer probe reads `document` after the test returns.
   beforeAll(() => {
-    vi.stubGlobal('document', { createElement: (tag: string) => (tag === 'canvas' ? canvas() : { style: {}, addEventListener() {}, appendChild() {}, setAttribute() {} }) });
+    vi.stubGlobal('document', {
+      createElement: (tag: string) =>
+        tag === 'canvas' ? canvas() : { style: {}, addEventListener() {}, appendChild() {}, setAttribute() {} },
+    });
   });
 
   test('live textures stay flat across preview cycles', () => {

@@ -39,7 +39,8 @@ export function judge(screen, share, phone = false) {
 export function gridPoints(w, h, cols = 80) {
   const rows = Math.max(1, Math.round((cols * h) / w));
   const pts = [];
-  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) pts.push([((c + 0.5) * w) / cols, ((r + 0.5) * h) / rows]);
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++) pts.push([((c + 0.5) * w) / cols, ((r + 0.5) * h) / rows]);
   return pts;
 }
 
@@ -47,7 +48,7 @@ export function gridPoints(w, h, cols = 80) {
 export function shareOf(obstructed) {
   if (!obstructed.length) throw new Error('no points');
   const hit = obstructed.filter(Boolean).length;
-  return Math.round((1000 * (1 - hit / obstructed.length))) / 10;
+  return Math.round(1000 * (1 - hit / obstructed.length)) / 10;
 }
 
 // ---- the browser part -------------------------------------------------------------------------------------------------
@@ -69,36 +70,67 @@ async function main() {
   ];
 
   // The dev server or the preview server must answer; this run starts the one it needs and stops it at the end.
-  const up = async () => { try { return (await fetch(url)).ok; } catch { return false; } };
+  const up = async () => {
+    try {
+      return (await fetch(url)).ok;
+    } catch {
+      return false;
+    }
+  };
   let server = null;
   if (!(await up())) {
     if (PROD) {
       const b = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'build'], { stdio: 'inherit' });
-      if (await new Promise((r) => b.on('exit', r))) { console.error('the build failed'); process.exit(1); }
+      if (await new Promise((r) => b.on('exit', r))) {
+        console.error('the build failed');
+        process.exit(1);
+      }
     }
-    server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', ...(PROD ? ['preview'] : []), '--port', String(PORT), '--strictPort'], { stdio: 'ignore' });
+    server = spawn(
+      process.execPath,
+      ['node_modules/vite/bin/vite.js', ...(PROD ? ['preview'] : []), '--port', String(PORT), '--strictPort'],
+      { stdio: 'ignore' },
+    );
     for (let i = 0; i < 100 && !(await up()); i++) await new Promise((r) => setTimeout(r, 300));
-    if (!(await up())) { console.error(`no server at ${url}`); server.kill(); process.exit(1); }
+    if (!(await up())) {
+      console.error(`no server at ${url}`);
+      server.kill();
+      process.exit(1);
+    }
   }
-  const stop = () => { try { server?.kill(); } catch { /* gone */ } };
+  const stop = () => {
+    try {
+      server?.kill();
+    } catch {
+      /* gone */
+    }
+  };
   process.on('exit', stop);
 
   const gpu = ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'];
   const browser = FIREFOX
     ? await firefox.launch({ headless: true, firefoxUserPrefs: { 'webgl.force-enabled': true } })
-    : await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }), args: gpu });
+    : await chromium.launch({
+        headless: true,
+        ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
+        args: gpu,
+      });
 
   /** The menu, booted: every row enabled (the rows stay disabled "after loading"). */
   async function openMenu(page) {
     await page.goto(url);
     await page.waitForSelector('.pl-row', { timeout: 60000 });
-    await page.waitForFunction(() => document.querySelectorAll('.pl-row:disabled').length === 0, null, { timeout: 90000 });
+    await page.waitForFunction(() => document.querySelectorAll('.pl-row:disabled').length === 0, null, {
+      timeout: 90000,
+    });
     await page.waitForTimeout(900);
   }
 
   /** The picture is steady: the workshop has loaded (its "Loading" note is gone) and the screen has faded in. */
   async function settled(page) {
-    await page.waitForFunction(() => !/Loading the workshop/.test(document.body.innerText), null, { timeout: 120000 }).catch(() => {});
+    await page
+      .waitForFunction(() => !/Loading the workshop/.test(document.body.innerText), null, { timeout: 120000 })
+      .catch(() => {});
     await page.waitForTimeout(2500);
   }
 
@@ -114,7 +146,10 @@ async function main() {
       await page.waitForSelector('header.hud', { timeout: 60000 }).catch(() => {});
       await page.waitForTimeout(PROD ? 9000 : 4000);
       const skip = page.locator('button', { hasText: /^Skip$/ });
-      if (await skip.count()) { await skip.first().click(); await page.waitForTimeout(1500); }
+      if (await skip.count()) {
+        await skip.first().click();
+        await page.waitForTimeout(1500);
+      }
     },
     async build(page) {
       await openMenu(page);
@@ -150,10 +185,13 @@ async function main() {
       if (el.querySelector('canvas') || el.tagName === 'CANVAS') p = false;
       else {
         const cs = getComputedStyle(el);
-        p = el.matches('button, input, select, textarea, a[href], [role="tab"], [role="button"]')
-          || cs.backgroundImage !== 'none' || bgAlpha(cs.backgroundColor) > 0
-          || (cs.borderTopStyle !== 'none' && parseFloat(cs.borderTopWidth) > 0)
-          || cs.boxShadow !== 'none' || cs.backdropFilter !== 'none';
+        p =
+          el.matches('button, input, select, textarea, a[href], [role="tab"], [role="button"]') ||
+          cs.backgroundImage !== 'none' ||
+          bgAlpha(cs.backgroundColor) > 0 ||
+          (cs.borderTopStyle !== 'none' && parseFloat(cs.borderTopWidth) > 0) ||
+          cs.boxShadow !== 'none' ||
+          cs.backdropFilter !== 'none';
       }
       cache.set(el, p);
       return p;
@@ -186,7 +224,9 @@ async function main() {
           // the phone Gallery figure is not in the package: it is measured and printed, not gated
           const gate = screen === 'gallery' && vp.phone ? null : figureFor(screen, vp.phone);
           const ok = gate === null || share >= gate;
-          rows.push(`${ok ? 'ok  ' : 'FAIL'} ${tag}: coverage ${share} % (${gate === null ? 'no gate' : `gate ${gate} %`})${errors.length ? ' PAGE ERROR ' + errors.join(' | ') : ''}`);
+          rows.push(
+            `${ok ? 'ok  ' : 'FAIL'} ${tag}: coverage ${share} % (${gate === null ? 'no gate' : `gate ${gate} %`})${errors.length ? ' PAGE ERROR ' + errors.join(' | ') : ''}`,
+          );
           if (!ok) failures.push(`${tag} ${share} % below ${gate} %`);
         } catch (e) {
           rows.push(`FAIL ${tag}: ${(e.message || String(e)).split('\n')[0]}`);
@@ -201,6 +241,9 @@ async function main() {
     stop();
   }
   for (const r of rows) console.log(r);
-  if (failures.length) { console.error(`${failures.length} failure(s):\n  ${failures.join('\n  ')}`); process.exit(1); }
+  if (failures.length) {
+    console.error(`${failures.length} failure(s):\n  ${failures.join('\n  ')}`);
+    process.exit(1);
+  }
   console.log('all scene coverage gates pass');
 }

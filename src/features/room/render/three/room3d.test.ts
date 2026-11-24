@@ -1,5 +1,16 @@
 import { expect, it, vi } from 'vitest';
-import { BoxGeometry, Matrix4, Mesh, MeshStandardMaterial, Scene, type Light, type LightShadow, type Object3D, type PointLight, type WebGLRenderer } from 'three';
+import {
+  BoxGeometry,
+  Matrix4,
+  Mesh,
+  MeshStandardMaterial,
+  Scene,
+  type Light,
+  type LightShadow,
+  type Object3D,
+  type PointLight,
+  type WebGLRenderer,
+} from 'three';
 import { framed, meshHash, type Bake } from '@/core/render/three/lightmapmix';
 import { partsOf } from '@/core/render/three/merge';
 import { ShadowCache } from '@/core/render/three/shadows';
@@ -9,18 +20,28 @@ import { FLOOR_Y, NIGHTSTAND } from './roomplan';
 
 type Caster = Light & { shadow: LightShadow };
 
-it('keeps the bedside lantern\'s map to the drawer and the bed with the lamps\' shadows off: only a caster on BEDSIDE_LAYER redraws it', () => {
-  const room = new Room3D(), scene = new Scene();
-  const bed = (room as unknown as { bedLight: PointLight }).bedLight, lights = (room as unknown as { casters: Caster[] }).casters;
+it("keeps the bedside lantern's map to the drawer and the bed with the lamps' shadows off: only a caster on BEDSIDE_LAYER redraws it", () => {
+  const room = new Room3D(),
+    scene = new Scene();
+  const bed = (room as unknown as { bedLight: PointLight }).bedLight,
+    lights = (room as unknown as { casters: Caster[] }).casters;
   // a caster under the drawer: in the lantern's range, on no layer of its map
   const near = new Mesh(new BoxGeometry(1000, 1000, 1000));
   near.castShadow = true;
   near.position.set(NIGHTSTAND.x + NIGHTSTAND.w / 2, -FLOOR_Y + 500, NIGHTSTAND.z1 / 2);
   scene.add(room.root, near);
   let drawer: Object3D | undefined;
-  room.root.traverse((o) => { if (!drawer && (o as Mesh).isMesh && o.castShadow && o.layers.isEnabled(BEDSIDE_LAYER)) drawer = o; });
+  room.root.traverse((o) => {
+    if (!drawer && (o as Mesh).isMesh && o.castShadow && o.layers.isEnabled(BEDSIDE_LAYER)) drawer = o;
+  });
   const drawn: Light[] = [];
-  const draw = (ls: Caster[]) => { for (const l of ls) if (l.shadow.needsUpdate) { drawn.push(l); l.shadow.needsUpdate = false; } };
+  const draw = (ls: Caster[]) => {
+    for (const l of ls)
+      if (l.shadow.needsUpdate) {
+        drawn.push(l);
+        l.shadow.needsUpdate = false;
+      }
+  };
   const r = { shadowMap: { render: draw } } as unknown as WebGLRenderer;
   const cache = new ShadowCache(r);
   let now = 0;
@@ -28,13 +49,21 @@ it('keeps the bedside lantern\'s map to the drawer and the bed with the lamps\' 
   const frames = (): Light[] => {
     for (let i = 0; i < 2; i++) {
       drawn.length = 0;
-      r.shadowMap.render(lights.filter((l) => l.castShadow), scene, null as never);
+      r.shadowMap.render(
+        lights.filter((l) => l.castShadow),
+        scene,
+        null as never,
+      );
       scene.updateMatrixWorld(true);
-      room.redrawShadows(cache.scan(scene, now += 16), now);
+      room.redrawShadows(cache.scan(scene, (now += 16)), now);
     }
     return [...drawn];
   };
-  const settle = () => { frames(); now += 5000; frames(); };
+  const settle = () => {
+    frames();
+    now += 5000;
+    frames();
+  };
 
   room.setLights(0, false); // Medium: the lamps' shadows off
   bed.intensity = 1;
@@ -68,9 +97,15 @@ it('casting is false with the shadows off and true at a shadow level', () => {
 });
 
 it('scanShadows does not scan with no caster, and scans once with one', () => {
-  const room = new Room3D(), scene = new Scene();
+  const room = new Room3D(),
+    scene = new Scene();
   let calls = 0;
-  const cache = { scan: (_s: Object3D, _now: number) => { calls++; return false; } };
+  const cache = {
+    scan: (_s: Object3D, _now: number) => {
+      calls++;
+      return false;
+    },
+  };
   room.setLights(4, false);
   room.setShadows(0);
   expect(room.scanShadows(cache, scene, 0)).toBe(false);
@@ -81,7 +116,8 @@ it('scanShadows does not scan with no caster, and scans once with one', () => {
 });
 
 it('scanShadows asks again while a map is pending, but not when no light casts', () => {
-  const room = new Room3D(), scene = new Scene();
+  const room = new Room3D(),
+    scene = new Scene();
   const cache = { scan: () => false, pending: true };
   room.setLights(4, false);
   room.setShadows(0);
@@ -93,7 +129,9 @@ it('scanShadows asks again while a map is pending, but not when no light casts',
 /** The city's picture in numbers: its meshes, their vertices drawn, and a sum of every position. */
 function cityChecksum(room: Room3D): string {
   const view = (room as unknown as { outside: { scene: Scene } }).outside;
-  let meshes = 0, vertices = 0, sum = 0;
+  let meshes = 0,
+    vertices = 0,
+    sum = 0;
   view.scene.traverse((o) => {
     const m = o as Mesh;
     if (!m.isMesh) return;
@@ -110,8 +148,11 @@ it('the city detail is "high" by default', () => {
 }, 180000);
 
 it('setCityDetail("low") builds the cut city, and "high" again builds the first city back, the old view disposed', () => {
-  const room = new Room3D(), swap = room as unknown as Swap, first = cityChecksum(room);
-  const view = (room as unknown as { outside: { dispose(): void } }).outside, dispose = vi.spyOn(view, 'dispose');
+  const room = new Room3D(),
+    swap = room as unknown as Swap,
+    first = cityChecksum(room);
+  const view = (room as unknown as { outside: { dispose(): void } }).outside,
+    dispose = vi.spyOn(view, 'dispose');
   expect(swap.setCityDetail).toBeTypeOf('function');
   swap.setCityDetail!('low');
   expect(swap.cityDetail).toBe('low');
@@ -129,8 +170,13 @@ it('takes the baked bounce and then shares equal materials again, the replaced o
   await room.ready; // (the first share and the merge are over)
   const priv = room as unknown as { envs: { adopt(o: Object3D): void; mats: Set<unknown> }; takeBake(b: Bake): void };
   // two meshes made after the first share, each with its own material, equal but for their identity
-  const make = (x: number) => { const m = new Mesh(new BoxGeometry(900, 900, 900), new MeshStandardMaterial({ color: 0x336699 })); m.position.set(x, 3000, 3000); return m; };
-  const a = make(0), b = make(5000);
+  const make = (x: number) => {
+    const m = new Mesh(new BoxGeometry(900, 900, 900), new MeshStandardMaterial({ color: 0x336699 }));
+    m.position.set(x, 3000, 3000);
+    return m;
+  };
+  const a = make(0),
+    b = make(5000);
   room.root.add(a, b);
   priv.envs.adopt(room.root);
   expect(a.material).not.toBe(b.material);
@@ -138,14 +184,29 @@ it('takes the baked bounce and then shares equal materials again, the replaced o
   expect(priv.envs.mats.has(dropped)).toBe(true);
   room.root.updateMatrixWorld(true);
   const toRoot = room.root.matrixWorld.clone().invert();
-  const hashOf = (m: Mesh) => meshHash(framed(m.geometry, new Matrix4().multiplyMatrices(toRoot, m.matrixWorld)), m.geometry.index?.array ?? null);
+  const hashOf = (m: Mesh) =>
+    meshHash(
+      framed(m.geometry, new Matrix4().multiplyMatrices(toRoot, m.matrixWorld)),
+      m.geometry.index?.array ?? null,
+    );
   const corners = a.geometry.index!.count;
   const bake: Bake = {
     manifest: {
-      version: 1, encoding: 'rgbm-sqrt', width: 64, height: 64, texelsPerMetre: 50, samples: 1, groups: [], dark: [],
-      meshes: [{ name: 'a', hash: hashOf(a), corners, offset: 0 }, { name: 'b', hash: hashOf(b), corners, offset: corners }],
+      version: 1,
+      encoding: 'rgbm-sqrt',
+      width: 64,
+      height: 64,
+      texelsPerMetre: 50,
+      samples: 1,
+      groups: [],
+      dark: [],
+      meshes: [
+        { name: 'a', hash: hashOf(a), corners, offset: 0 },
+        { name: 'b', hash: hashOf(b), corners, offset: corners },
+      ],
     },
-    maps: new Map(), uvs: new Uint16Array(4 * corners),
+    maps: new Map(),
+    uvs: new Uint16Array(4 * corners),
   };
   priv.takeBake(bake);
   // both took the light map, and the two equal materials are one again
@@ -161,9 +222,32 @@ it('takes the baked bounce and then shares equal materials again, the replaced o
 // shown state the game changes: a merged copy would stay drawn. The test finds those meshes by running the frame in both states, not by name.
 it('the palette merge leaves every mesh the game shows and hides alone (checked from what a frame changes)', async () => {
   const room = new Room3D();
-  const frame = (installed: boolean, router: number) => room.frame({ hour: 12, lamp: false, blind: false, screen: { installed, powered: installed, live: false, text: '' }, router, isp: 0, ispName: '', mail: false, t: 1 }, 0.016);
+  const frame = (installed: boolean, router: number) =>
+    room.frame(
+      {
+        hour: 12,
+        lamp: false,
+        blind: false,
+        screen: { installed, powered: installed, live: false, text: '' },
+        router,
+        isp: 0,
+        ispName: '',
+        mail: false,
+        t: 1,
+      },
+      0.016,
+    );
   /** The meshes a camera would draw: shown, and every parent shown. */
-  const drawn = () => { const s = new Set<Object3D>(); const walk = (o: Object3D) => { if (!o.visible) return; if ((o as Mesh).isMesh) s.add(o); o.children.forEach(walk); }; walk(room.root); return s; };
+  const drawn = () => {
+    const s = new Set<Object3D>();
+    const walk = (o: Object3D) => {
+      if (!o.visible) return;
+      if ((o as Mesh).isMesh) s.add(o);
+      o.children.forEach(walk);
+    };
+    walk(room.root);
+    return s;
+  };
   frame(true, 1);
   const on = drawn();
   frame(false, 0);
@@ -173,7 +257,9 @@ it('the palette merge leaves every mesh the game shows and hides alone (checked 
   frame(true, 1);
   await room.ready;
   const merged = new Set<Object3D>();
-  room.root.traverse((o) => { for (const p of partsOf(o)) merged.add(p.mesh); });
+  room.root.traverse((o) => {
+    for (const p of partsOf(o)) merged.add(p.mesh);
+  });
   expect(merged.size).toBeGreaterThan(0); // (the merge ran)
   expect(flips.filter((o) => merged.has(o))).toEqual([]);
   // and nothing the merge made stands drawn once the game hides them
@@ -183,18 +269,31 @@ it('the palette merge leaves every mesh the game shows and hides alone (checked 
 
 // The router's jack lights on the shelf (docs/render/net.md "LED meanings"): the side jack the lead's cord goes into and the WAN jack carry a light each way; the frames
 // of the link, as `LinkLeds` turns them into levels, are all that lights them, and the merges leave their lamps alone.
-it('lights the router\'s side jack and its WAN jack from the levels of the link, and no other', async () => {
+it("lights the router's side jack and its WAN jack from the levels of the link, and no other", async () => {
   const room = new Room3D();
   const out = { installed: false, powered: false, live: false, text: '' };
-  const lv = (lan: [number, number], wan: [number, number]): LinkLevels => ({ pc: { link: lan[0], act: lan[1] }, lan: { link: lan[0], act: lan[1] }, wan: { link: wan[0], act: wan[1] }, moving: false });
-  const frame = (router: number, net?: LinkLevels) => room.frame({ hour: 12, lamp: false, blind: false, screen: out, router, isp: 3, ispName: '', mail: false, t: 1, net }, 0.016);
+  const lv = (lan: [number, number], wan: [number, number]): LinkLevels => ({
+    pc: { link: lan[0], act: lan[1] },
+    lan: { link: lan[0], act: lan[1] },
+    wan: { link: wan[0], act: wan[1] },
+    moving: false,
+  });
+  const frame = (router: number, net?: LinkLevels) =>
+    room.frame(
+      { hour: 12, lamp: false, blind: false, screen: out, router, isp: 3, ispName: '', mail: false, t: 1, net },
+      0.016,
+    );
   /** The glow of every light of one colour, by material, dimmest first (a router has two jacks with lights: the side one and the WAN one). */
   const glows = (hex: number): number[] => {
     const seen = new Set<MeshStandardMaterial>();
-    room.root.traverse((o) => { const m = (o as Mesh).material as MeshStandardMaterial | undefined; if ((o as Mesh).isMesh && m && !Array.isArray(m) && m.emissive?.getHex() === hex) seen.add(m); });
+    room.root.traverse((o) => {
+      const m = (o as Mesh).material as MeshStandardMaterial | undefined;
+      if ((o as Mesh).isMesh && m && !Array.isArray(m) && m.emissive?.getHex() === hex) seen.add(m);
+    });
     return [...seen].map((m) => m.emissiveIntensity).sort((a, b) => a - b);
   };
-  const LINK = 0x58e08a, ACT = 0xffb547;
+  const LINK = 0x58e08a,
+    ACT = 0xffb547;
   for (const tier of [1, 2, 3, 4]) {
     frame(tier);
     await room.ready;

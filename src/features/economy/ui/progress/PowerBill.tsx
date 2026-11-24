@@ -13,7 +13,9 @@ export { billOpen };
 
 export function PowerBill({ s }: { s: Snapshot }) {
   const open = billOpen.value;
-  const setOpen = (v: boolean) => { billOpen.value = v; };
+  const setOpen = (v: boolean) => {
+    billOpen.value = v;
+  };
   const chip = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -33,7 +35,12 @@ export function PowerBill({ s }: { s: Snapshot }) {
   return (
     <div class="bill">
       <button
-        ref={chip} class={`chip ${c.level}`} data-cue="ui_click" aria-expanded={open} aria-controls="bill-pop" data-hud="bill"
+        ref={chip}
+        class={`chip ${c.level}`}
+        data-cue="ui_click"
+        aria-expanded={open}
+        aria-controls="bill-pop"
+        data-hud="bill"
         title={`Power bill: ${rate}, issued every ${fmtTicks(b.periodTicks)} and paid from your money. Click for the details.`}
         onClick={() => setOpen(!open)}
       >
@@ -42,13 +49,26 @@ export function PowerBill({ s }: { s: Snapshot }) {
       {open && (
         <div id="bill-pop" class="card bill-pop" role="dialog" aria-label="Power bill">
           <dl>
-            <dt>Rate</dt><dd>{rate}</dd>
-            <dt>Drawing now</dt><dd>{fmtNum(s.energy.wallW, 0)} W</dd>
-            <dt>Since the last bill</dt><dd>{fmtNum(b.accruedWh, 1)} Wh = ${b.accruedCost}</dd>
-            <dt>Next bill</dt><dd>{b.nextTick === null ? 'after the first power-on' : `in ${fmtTicks(b.nextTick - s.baseTick)}`}</dd>
-            <dt>Last bill</dt><dd>{b.last ? `$${b.last.amount} (${fmtNum(b.last.wh, 1)} Wh)` : 'none yet'}</dd>
-            <dt>Paid so far</dt><dd>${b.paidTotal}</dd>
-            {b.unpaid > 0 && <><dt>Unpaid</dt><dd class="bad">${b.unpaid}</dd></>}
+            <dt>Rate</dt>
+            <dd>{rate}</dd>
+            <dt>Drawing now</dt>
+            <dd>{fmtNum(s.energy.wallW, 0)} W</dd>
+            <dt>Since the last bill</dt>
+            <dd>
+              {fmtNum(b.accruedWh, 1)} Wh = ${b.accruedCost}
+            </dd>
+            <dt>Next bill</dt>
+            <dd>{b.nextTick === null ? 'after the first power-on' : `in ${fmtTicks(b.nextTick - s.baseTick)}`}</dd>
+            <dt>Last bill</dt>
+            <dd>{b.last ? `$${b.last.amount} (${fmtNum(b.last.wh, 1)} Wh)` : 'none yet'}</dd>
+            <dt>Paid so far</dt>
+            <dd>${b.paidTotal}</dd>
+            {b.unpaid > 0 && (
+              <>
+                <dt>Unpaid</dt>
+                <dd class="bad">${b.unpaid}</dd>
+              </>
+            )}
           </dl>
           <div class="bill-msg">
             {b.cut

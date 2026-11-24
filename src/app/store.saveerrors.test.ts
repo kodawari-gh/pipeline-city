@@ -4,7 +4,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Game } from '@/worker/game/game';
 import { friendlyError } from '@/core/ui/logic';
 import { booted } from './boot';
-import { exportSave, lastError, leaveSim, online, readSaveFile, setOnline, snapshot, startSim, starting, watchConnection } from './store';
+import {
+  exportSave,
+  lastError,
+  leaveSim,
+  online,
+  readSaveFile,
+  setOnline,
+  snapshot,
+  startSim,
+  starting,
+  watchConnection,
+} from './store';
 
 class FakeWorker {
   static made: FakeWorker[] = [];
@@ -12,9 +23,15 @@ class FakeWorker {
   onerror: (() => void) | null = null;
   terminated = false;
   sent: Array<{ type: string }> = [];
-  constructor() { FakeWorker.made.push(this); }
-  postMessage(m: { type: string }): void { this.sent.push(m); }
-  terminate(): void { this.terminated = true; }
+  constructor() {
+    FakeWorker.made.push(this);
+  }
+  postMessage(m: { type: string }): void {
+    this.sent.push(m);
+  }
+  terminate(): void {
+    this.terminated = true;
+  }
 }
 
 const NEXT_STEP = /pick|choose|another|menu|try|reload|reconnect|start a game|check/i;
@@ -34,7 +51,10 @@ beforeEach(() => {
   setOnline(true);
 });
 
-afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 /** A game on screen: the sim has sent its first snapshot. */
 function runGame(): FakeWorker {
@@ -119,7 +139,11 @@ describe('offline', () => {
 
   it('a page that opens offline shows the notice at once', () => {
     const listeners: Record<string, () => void> = {};
-    vi.stubGlobal('window', { addEventListener: (t: string, f: () => void) => { listeners[t] = f; } });
+    vi.stubGlobal('window', {
+      addEventListener: (t: string, f: () => void) => {
+        listeners[t] = f;
+      },
+    });
     online.value = false;
     watchConnection();
     expect(shown()).toMatch(/offline/i);

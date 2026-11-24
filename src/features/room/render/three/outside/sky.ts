@@ -9,10 +9,11 @@ import { SEG } from '@/core/render/three/geometry';
 import { NOISE_PERIOD, skyNoise } from './skynoise';
 
 /** The warm hour's sky low down (linear): the ember toward the sun, and the earth's shadow away from it. `view.ts` gives the haze the same. */
-export const EMBER = new Color(0.95, 0.33, 0.09), EARTH_SHADOW = new Color(0.13, 0.1, 0.18);
+export const EMBER = new Color(0.95, 0.33, 0.09),
+  EARTH_SHADOW = new Color(0.13, 0.1, 0.18);
 const vec = (c: Color): string => `vec3(${c.r.toFixed(3)}, ${c.g.toFixed(3)}, ${c.b.toFixed(3)})`;
 
-const VERT = /* glsl */`
+const VERT = /* glsl */ `
 varying vec3 vDir;
 void main() {
   vDir = position;
@@ -30,7 +31,7 @@ const LOW_FBM = `uniform sampler2D tNoise;
 float fbm(vec2 p) { return texture2D(tNoise, p * ${(1 / NOISE_PERIOD).toFixed(6)}).r; }`;
 
 /** The sky's fragment shader. `fbm` is the cloud and moon-sea noise: the live one at High, the baked map's at Low. */
-const frag = (fbm: string): string => /* glsl */`
+const frag = (fbm: string): string => /* glsl */ `
 uniform vec3 top, hor, ground, sunDir, sunCol, moonDir, glow, mist;
 uniform float night, time, clouds, dusk, duskK;
 varying vec3 vDir;
@@ -123,17 +124,30 @@ void main() {
 
 /** The sky's uniforms: its colours (linear), the sun's direction and its light, the moon's direction, the city's glow low down and the mist's over the roofs, the night's share, the clock, the clouds' cover, the warm hour's share and its brightness. */
 export interface SkyUniforms {
-  top: { value: Color }; hor: { value: Color }; ground: { value: Color }; sunDir: { value: Vector3 }; sunCol: { value: Color };
-  moonDir: { value: Vector3 }; glow: { value: Color }; mist: { value: Color }; night: { value: number }; time: { value: number }; clouds: { value: number };
-  dusk: { value: number }; duskK: { value: number };
+  top: { value: Color };
+  hor: { value: Color };
+  ground: { value: Color };
+  sunDir: { value: Vector3 };
+  sunCol: { value: Color };
+  moonDir: { value: Vector3 };
+  glow: { value: Color };
+  mist: { value: Color };
+  night: { value: number };
+  time: { value: number };
+  clouds: { value: number };
+  dusk: { value: number };
+  duskK: { value: number };
 }
 
 /**
  * The moon's night (hours; past midnight they count on from 24): it rises in the east at `MOON_RISE` and sets in the west at `MOON_SET`.
  * Its side to side (radians from north, east positive) and its height at the top of its arc.
  */
-export const MOON_RISE = 18, MOON_SET = 32;
-const MOON_EAST = 0.6, MOON_WEST = -0.308, MOON_HIGH = 0.122;
+export const MOON_RISE = 18,
+  MOON_SET = 32;
+const MOON_EAST = 0.6,
+  MOON_WEST = -0.308,
+  MOON_HIGH = 0.122;
 
 /**
  * Where the moon is at an hour (north is -z, east +x). Its path is drawn for the window, not the sky's real one, which would take it behind
@@ -141,7 +155,8 @@ const MOON_EAST = 0.6, MOON_WEST = -0.308, MOON_HIGH = 0.122;
  * fastest just after it rises. Under the horizon outside its night.
  */
 export function moonDir(hour: number): Vector3 {
-  const h = hour < 12 ? hour + 24 : hour, u = Math.min(1, Math.max(0, (h - MOON_RISE) / (MOON_SET - MOON_RISE)));
+  const h = hour < 12 ? hour + 24 : hour,
+    u = Math.min(1, Math.max(0, (h - MOON_RISE) / (MOON_SET - MOON_RISE)));
   const az = MOON_EAST + (MOON_WEST - MOON_EAST) * (1 - (1 - u) ** 2.75);
   const el = u > 0 && u < 1 ? MOON_HIGH * Math.sqrt(Math.sin(u * Math.PI)) : -0.2;
   return new Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
@@ -156,12 +171,30 @@ export const skyFragment = (low: boolean): string => frag(low ? LOW_FBM : LIVE_F
  */
 export function skyMaterial(low = false): ShaderMaterial {
   const uniforms: SkyUniforms = {
-    top: { value: new Color() }, hor: { value: new Color() }, ground: { value: new Color() }, sunDir: { value: new Vector3(0, 1, 0) },
-    sunCol: { value: new Color() }, moonDir: { value: moonDir(23) }, glow: { value: new Color() }, mist: { value: new Color() }, night: { value: 0 }, time: { value: 0 }, clouds: { value: 0.75 },
-    dusk: { value: 0 }, duskK: { value: 1 },
+    top: { value: new Color() },
+    hor: { value: new Color() },
+    ground: { value: new Color() },
+    sunDir: { value: new Vector3(0, 1, 0) },
+    sunCol: { value: new Color() },
+    moonDir: { value: moonDir(23) },
+    glow: { value: new Color() },
+    mist: { value: new Color() },
+    night: { value: 0 },
+    time: { value: 0 },
+    clouds: { value: 0.75 },
+    dusk: { value: 0 },
+    duskK: { value: 1 },
   };
   const all = low ? { ...uniforms, tNoise: { value: skyNoise() } } : uniforms;
-  return new ShaderMaterial({ vertexShader: VERT, fragmentShader: skyFragment(low), uniforms: all as unknown as ShaderMaterial['uniforms'], side: BackSide, depthWrite: false, depthTest: false, fog: false });
+  return new ShaderMaterial({
+    vertexShader: VERT,
+    fragmentShader: skyFragment(low),
+    uniforms: all as unknown as ShaderMaterial['uniforms'],
+    side: BackSide,
+    depthWrite: false,
+    depthTest: false,
+    fog: false,
+  });
 }
 
 /** The dome, `radius` round its middle (set it on the camera), drawn before all else. */

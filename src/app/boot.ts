@@ -31,12 +31,14 @@ function logStage(el: HTMLElement, label: string): void {
   const log = el.querySelector('.boot-log');
   if (!log || done[done.length - 1] === label) return;
   done.push(label);
-  log.replaceChildren(...done.slice(-LOG_LINES).map((l, i, all) => {
-    const row = document.createElement(i === all.length - 1 ? 'em' : 'span');
-    row.textContent = `${i === all.length - 1 ? '[ .. ]' : '[ ok ]'} ${l.toLowerCase()}`;
-    row.style.display = 'block';
-    return row;
-  }));
+  log.replaceChildren(
+    ...done.slice(-LOG_LINES).map((l, i, all) => {
+      const row = document.createElement(i === all.length - 1 ? 'em' : 'span');
+      row.textContent = `${i === all.length - 1 ? '[ .. ]' : '[ ok ]'} ${l.toLowerCase()}`;
+      row.style.display = 'block';
+      return row;
+    }),
+  );
 }
 
 const STILL_KEY = 'pc.bootStill';
@@ -45,7 +47,8 @@ const STILL_KEY = 'pc.bootStill';
 export function saveStill(src: HTMLCanvasElement): void {
   try {
     if (!src.width || !src.height) return;
-    const w = 480, c = document.createElement('canvas');
+    const w = 480,
+      c = document.createElement('canvas');
     c.width = w;
     c.height = Math.max(1, Math.round((w * src.height) / src.width));
     const g = c.getContext('2d');
@@ -53,7 +56,9 @@ export function saveStill(src: HTMLCanvasElement): void {
     g.drawImage(src, 0, 0, c.width, c.height);
     const url = c.toDataURL('image/jpeg', 0.62);
     if (url.length > 20 && url.startsWith('data:image/jpeg')) localStorage.setItem(STILL_KEY, url);
-  } catch { /* no storage, or a tainted canvas: the next boot has no still */ }
+  } catch {
+    /* no storage, or a tainted canvas: the next boot has no still */
+  }
 }
 
 /**
@@ -68,7 +73,8 @@ export function bootFail(error: unknown): void {
   // (the screen covers the menu again: a game started now could never show)
   el.classList.remove('menu');
   el.classList.add('fail');
-  const stage = el.querySelector('.boot-stage'), help = el.querySelector('.boot-help');
+  const stage = el.querySelector('.boot-stage'),
+    help = el.querySelector('.boot-help');
   if (stage) stage.textContent = webgl ? 'WebGL is not available' : 'The 3D world could not start';
   if (help) {
     help.textContent = webgl
@@ -95,9 +101,18 @@ export function bootDone(): void {
   el.classList.add('done');
   // Reduced motion: no fade, so no transition ends; the screen goes at once.
   let calm = false;
-  try { calm = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { calm = false; }
-  if (calm) { el.remove(); return; }
+  try {
+    calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    calm = false;
+  }
+  if (calm) {
+    el.remove();
+    return;
+  }
   // (the bar's own transition ends inside it)
-  el.addEventListener('transitionend', (e) => { if (e.target === el && e.propertyName === 'opacity') el.remove(); });
+  el.addEventListener('transitionend', (e) => {
+    if (e.target === el && e.propertyName === 'opacity') el.remove();
+  });
   setTimeout(() => el.remove(), 2000);
 }

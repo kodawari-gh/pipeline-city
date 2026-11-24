@@ -2,8 +2,8 @@
 // No prediction: branches resolve in EX with no penalty. Work happens as the instruction enters each stage:
 // IF reads the word through the bus, ID decodes, EX reads registers and computes, MEM does the data access, WB writes back.
 
-import { EngineBase, F, OPF, OP_ECALL, POOL_MASK, type EngineSettings } from "./common";
-import { Cause, Counter, Fate, SlotKind, Stage, StageCode } from "./view";
+import { EngineBase, F, OPF, OP_ECALL, POOL_MASK, type EngineSettings } from './common';
+import { Cause, Counter, Fate, SlotKind, Stage, StageCode } from './view';
 
 export class UnpipelinedEngine extends EngineBase {
   private active = false;
@@ -79,11 +79,17 @@ export class UnpipelinedEngine extends EngineBase {
         break;
       case Stage.EX: {
         const f = OPF[p.op[s]!]!;
-        if (p.fault[s]) { this.fault(s); break; }
+        if (p.fault[s]) {
+          this.fault(s);
+          break;
+        }
         p.a[s] = f & F.Rs1 ? this.regs[p.rs1[s]!]! : 0;
         p.b[s] = f & F.Rs2 ? this.regs[p.rs2[s]!]! : 0;
         const next = this.execute(s);
-        if (p.fault[s]) { this.fault(s); break; }
+        if (p.fault[s]) {
+          this.fault(s);
+          break;
+        }
         if (f & F.Branch) this.v.counters[Counter.Branches]!++;
         this.fetchPc = next;
         break;

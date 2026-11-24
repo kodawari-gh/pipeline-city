@@ -12,33 +12,106 @@ const CONFIGS: [string, PlanInput][] = [
   ['unpipelined', { arch: 'unpipelined', cacheLines: 8 }],
   ['5-stage, no forwarding', { arch: 'inorder', forwarding: false, cacheLines: 8 }],
   ['5-stage, forwarding', { arch: 'inorder', forwarding: true, cacheLines: 16 }],
-  ['5-stage + I-cache', { arch: 'inorder', forwarding: true, cacheLines: 16, icacheLines: 8, predEntries: 128, predBits: 2 }],
-  ['5-stage + I-cache + L2', { arch: 'inorder', forwarding: true, cacheLines: 32, ways: 2, icacheLines: 16, l2Lines: 64 }],
+  [
+    '5-stage + I-cache',
+    { arch: 'inorder', forwarding: true, cacheLines: 16, icacheLines: 8, predEntries: 128, predBits: 2 },
+  ],
+  [
+    '5-stage + I-cache + L2',
+    { arch: 'inorder', forwarding: true, cacheLines: 32, ways: 2, icacheLines: 16, l2Lines: 64 },
+  ],
   ['2-wide', { arch: 'inorder2', forwarding: true, cacheLines: 16 }],
   ['2-wide + L2', { arch: 'inorder2', forwarding: true, cacheLines: 64, ways: 4, icacheLines: 16, l2Lines: 64 }],
   ['ooo', { arch: 'ooo', width: 2, robSize: 8, schedSize: 6, fetchQueue: 4, cacheLines: 16, commitWidth: 4 }],
-  ['ooo + I-cache', { arch: 'ooo', width: 2, robSize: 16, schedSize: 10, fetchQueue: 4, cacheLines: 16, icacheLines: 16 }],
-  ['ooo wide', { arch: 'ooo', width: 4, robSize: 32, schedSize: 16, fetchQueue: 8, cacheLines: 64, ways: 4, icacheLines: 32, l2Lines: 128, predEntries: 512, predBits: 2 }],
+  [
+    'ooo + I-cache',
+    { arch: 'ooo', width: 2, robSize: 16, schedSize: 10, fetchQueue: 4, cacheLines: 16, icacheLines: 16 },
+  ],
+  [
+    'ooo wide',
+    {
+      arch: 'ooo',
+      width: 4,
+      robSize: 32,
+      schedSize: 16,
+      fetchQueue: 8,
+      cacheLines: 64,
+      ways: 4,
+      icacheLines: 32,
+      l2Lines: 128,
+      predEntries: 512,
+      predBits: 2,
+    },
+  ],
   ['ooo scalar', { arch: 'ooo', width: 1, robSize: 2, schedSize: 1, fetchQueue: 2, cacheLines: 8 }],
   ['5-stage + MMU', { arch: 'inorder', forwarding: true, cacheLines: 16, tlbEntries: 4 }],
-  ['2-wide + MMU + L2', { arch: 'inorder2', forwarding: true, cacheLines: 64, ways: 4, icacheLines: 16, l2Lines: 64, tlbEntries: 16 }],
-  ['ooo + MMU', { arch: 'ooo', width: 2, robSize: 16, schedSize: 10, fetchQueue: 4, cacheLines: 16, icacheLines: 16, tlbEntries: 8 }],
-  ['ooo wide + MMU + L2', { arch: 'ooo', width: 4, robSize: 32, schedSize: 16, fetchQueue: 8, cacheLines: 64, ways: 4, icacheLines: 32, l2Lines: 128, tlbEntries: 32 }],
+  [
+    '2-wide + MMU + L2',
+    { arch: 'inorder2', forwarding: true, cacheLines: 64, ways: 4, icacheLines: 16, l2Lines: 64, tlbEntries: 16 },
+  ],
+  [
+    'ooo + MMU',
+    {
+      arch: 'ooo',
+      width: 2,
+      robSize: 16,
+      schedSize: 10,
+      fetchQueue: 4,
+      cacheLines: 16,
+      icacheLines: 16,
+      tlbEntries: 8,
+    },
+  ],
+  [
+    'ooo wide + MMU + L2',
+    {
+      arch: 'ooo',
+      width: 4,
+      robSize: 32,
+      schedSize: 16,
+      fetchQueue: 8,
+      cacheLines: 64,
+      ways: 4,
+      icacheLines: 32,
+      l2Lines: 128,
+      tlbEntries: 32,
+    },
+  ],
   ['4 cores in-order', { arch: 'inorder', forwarding: true, cacheLines: 16, cores: 4, l2Lines: 64 }],
   ['8 cores in-order', { arch: 'inorder', forwarding: true, cacheLines: 8, cores: 8, l2Lines: 128 }],
-  ['2 cores ooo', { arch: 'ooo', width: 4, robSize: 32, schedSize: 16, fetchQueue: 8, cacheLines: 64, ways: 4, cores: 2, l2Lines: 128 }],
+  [
+    '2 cores ooo',
+    {
+      arch: 'ooo',
+      width: 4,
+      robSize: 32,
+      schedSize: 16,
+      fetchQueue: 8,
+      cacheLines: 64,
+      ways: 4,
+      cores: 2,
+      l2Lines: 128,
+    },
+  ],
 ];
 
-const inside = (a: Rect, o: Rect): boolean => a.x >= o.x && a.y >= o.y && a.x + a.w <= o.x + o.w && a.y + a.h <= o.y + o.h;
-const apart = (a: Rect, c: Rect): boolean => a.x + a.w <= c.x || c.x + c.w <= a.x || a.y + a.h <= c.y || c.y + c.h <= a.y;
+const inside = (a: Rect, o: Rect): boolean =>
+  a.x >= o.x && a.y >= o.y && a.x + a.w <= o.x + o.w && a.y + a.h <= o.y + o.h;
+const apart = (a: Rect, c: Rect): boolean =>
+  a.x + a.w <= c.x || c.x + c.w <= a.x || a.y + a.h <= c.y || c.y + c.h <= a.y;
 const onEdge = (p: Pt, r: Rect): boolean => {
-  const x = p[0], y = p[1];
-  const inX = x >= r.x && x <= r.x + r.w, inY = y >= r.y && y <= r.y + r.h;
+  const x = p[0],
+    y = p[1];
+  const inX = x >= r.x && x <= r.x + r.w,
+    inY = y >= r.y && y <= r.y + r.h;
   return (inX && (y === r.y || y === r.y + r.h)) || (inY && (x === r.x || x === r.x + r.w));
 };
 /** Does the axis-aligned segment a-b pass through the inside of r (the edge itself does not count)? */
 const crosses = (a: Pt, b: Pt, r: Rect): boolean => {
-  const x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]), y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
+  const x0 = Math.min(a[0], b[0]),
+    x1 = Math.max(a[0], b[0]),
+    y0 = Math.min(a[1], b[1]),
+    y1 = Math.max(a[1], b[1]);
   return x1 > r.x && x0 < r.x + r.w && y1 > r.y && y0 < r.y + r.h;
 };
 const eq = (a: Pt, b: Pt): boolean => a[0] === b[0] && a[1] === b[1];
@@ -57,11 +130,13 @@ function check(plan: CpuPlan): string[] {
       if (!p) bad.push(`${b.id}: parent ${b.parent} is not defined before it`);
       else if (!inside(b.rect, p.rect)) bad.push(`${b.id} sticks out of its frame ${b.parent}`);
     }
-    if (b.grid && (b.grid.cols * b.grid.rows !== b.grid.count || b.grid.cols < 1 || b.grid.rows < 1)) bad.push(`${b.id} has an inexact grid ${b.grid.cols}x${b.grid.rows} for ${b.grid.count}`);
+    if (b.grid && (b.grid.cols * b.grid.rows !== b.grid.count || b.grid.cols < 1 || b.grid.rows < 1))
+      bad.push(`${b.id} has an inexact grid ${b.grid.cols}x${b.grid.rows} for ${b.grid.count}`);
   }
   for (let i = 0; i < plan.blocks.length; i++) {
     for (let j = i + 1; j < plan.blocks.length; j++) {
-      const a = plan.blocks[i]!, c = plan.blocks[j]!;
+      const a = plan.blocks[i]!,
+        c = plan.blocks[j]!;
       if (a.parent === c.id || c.parent === a.id) continue; // a child sits inside its frame
       if (!apart(a.rect, c.rect)) bad.push(`${a.id} overlaps ${c.id}`);
     }
@@ -70,19 +145,33 @@ function check(plan: CpuPlan): string[] {
   for (const l of plan.links) {
     if (ids.has(l.id)) bad.push(`duplicate link id ${l.id}`);
     ids.add(l.id);
-    const a = byId.get(l.from), c = byId.get(l.to);
-    if (!a || !c) { bad.push(`${l.id}: unknown end ${l.from} / ${l.to}`); continue; }
+    const a = byId.get(l.from),
+      c = byId.get(l.to);
+    if (!a || !c) {
+      bad.push(`${l.id}: unknown end ${l.from} / ${l.to}`);
+      continue;
+    }
     if (l.pts.length < 2) bad.push(`${l.id} has fewer than two points`);
     if (!(l.lanes >= 1 && l.lanes <= 4)) bad.push(`${l.id} has ${l.lanes} lanes`);
-    const p0 = l.pts[0]!, p1 = l.pts[l.pts.length - 1]!;
+    const p0 = l.pts[0]!,
+      p1 = l.pts[l.pts.length - 1]!;
     // a link ends on the edge of its block, or (where the block draws a symbol) at a pin inside it
-    if (!onEdge(p0, a.rect) && !(glyphPins(a)?.out && eq(p0, glyphPins(a)!.out!))) bad.push(`${l.id} starts off the edge and off the output pin of ${l.from}`);
-    if (!onEdge(p1, c.rect) && !(glyphPins(c) && Object.values(glyphPins(c)!.ins).some((q) => eq(p1, q)))) bad.push(`${l.id} ends off the edge and off an input pin of ${l.to}`);
+    if (!onEdge(p0, a.rect) && !(glyphPins(a)?.out && eq(p0, glyphPins(a)!.out!)))
+      bad.push(`${l.id} starts off the edge and off the output pin of ${l.from}`);
+    if (!onEdge(p1, c.rect) && !(glyphPins(c) && Object.values(glyphPins(c)!.ins).some((q) => eq(p1, q))))
+      bad.push(`${l.id} ends off the edge and off an input pin of ${l.to}`);
     for (let k = 1; k < l.pts.length; k++) {
-      const u = l.pts[k - 1]!, v = l.pts[k]!;
+      const u = l.pts[k - 1]!,
+        v = l.pts[k]!;
       if (u[0] !== v[0] && u[1] !== v[1]) bad.push(`${l.id} has a diagonal segment`);
       if (u[0] === v[0] && u[1] === v[1]) bad.push(`${l.id} has a zero-length segment`);
-      if (!inside({ x: Math.min(u[0], v[0]), y: Math.min(u[1], v[1]), w: Math.abs(u[0] - v[0]), h: Math.abs(u[1] - v[1]) }, DIE)) bad.push(`${l.id} leaves the die`);
+      if (
+        !inside(
+          { x: Math.min(u[0], v[0]), y: Math.min(u[1], v[1]), w: Math.abs(u[0] - v[0]), h: Math.abs(u[1] - v[1]) },
+          DIE,
+        )
+      )
+        bad.push(`${l.id} leaves the die`);
       for (const o of plan.blocks) {
         if (o.kind === 'stage' || o.id === l.from || o.id === l.to) continue;
         if (crosses(u, v, o.rect)) bad.push(`${l.id} runs through ${o.id}`);
@@ -135,23 +224,33 @@ describe('cpu floorplans', () => {
     });
     it('puts the board-facing blocks on the edge their pins are on', () => {
       const core = plan.blocks.filter((b) => b.zone === 'core' && b.kind !== 'stage');
-      const left = Math.min(...core.map((b) => b.rect.x)), right = Math.max(...core.map((b) => b.rect.x + b.rect.w));
-      const top = Math.min(...core.map((b) => b.rect.y)), bottom = Math.max(...core.map((b) => b.rect.y + b.rect.h));
+      const left = Math.min(...core.map((b) => b.rect.x)),
+        right = Math.max(...core.map((b) => b.rect.x + b.rect.w));
+      const top = Math.min(...core.map((b) => b.rect.y)),
+        bottom = Math.max(...core.map((b) => b.rect.y + b.rect.h));
       const west = (id: string) => get(plan, id).rect.x + get(plan, id).rect.w <= left;
-      expect(get(plan, 'mc').rect.x).toBeGreaterThanOrEqual(right);   // the DIMM bus leaves east
+      expect(get(plan, 'mc').rect.x).toBeGreaterThanOrEqual(right); // the DIMM bus leaves east
       expect(west('usb') && west('display') && west('intc') && west('timer') && west('mpu')).toBe(true); // USB, video out, interrupts, the timer and the MPU: west
       for (const id of ['pwr', 'thermal']) expect(get(plan, id).rect.y + get(plan, id).rect.h).toBeLessThanOrEqual(top); // vcore and SVID: north
-      for (const id of ['pcie', 'clk']) expect(get(plan, id).rect.y).toBeGreaterThanOrEqual(bottom - 1);               // PCIe, NVMe, DMI, the crystal: south
+      for (const id of ['pcie', 'clk']) expect(get(plan, id).rect.y).toBeGreaterThanOrEqual(bottom - 1); // PCIe, NVMe, DMI, the crystal: south
     });
   });
 
   it('has the clock, the interrupt controller and every edge block exactly once', () => {
     for (const [, input] of CONFIGS) {
       const plan = cpuPlan(input);
-      for (const id of ['pwr', 'thermal', 'mc', 'pcie', 'clk', 'usb', 'display', 'intc', 'timer', 'mpu', 'fabric']) expect(plan.blocks.filter((b) => b.id === id), id).toHaveLength(1);
+      for (const id of ['pwr', 'thermal', 'mc', 'pcie', 'clk', 'usb', 'display', 'intc', 'timer', 'mpu', 'fabric'])
+        expect(
+          plan.blocks.filter((b) => b.id === id),
+          id,
+        ).toHaveLength(1);
       expect(plan.links.some((l) => l.kind === 'irq')).toBe(true);
       // every unit the CPU reaches through the system bus has its wire (the die view runs a packet along it), and the timer ticks the controller
-      for (const id of ['fab-intc', 'fab-timer', 'fab-mpu', 'timer-intc']) expect(plan.links.some((l) => l.id === id), id).toBe(true);
+      for (const id of ['fab-intc', 'fab-timer', 'fab-mpu', 'timer-intc'])
+        expect(
+          plan.links.some((l) => l.id === id),
+          id,
+        ).toBe(true);
       expect(plan.links.find((l) => l.kind === 'irq')!.from).toBe('intc'); // (the die view sends the interrupt along the first irq wire)
     }
   });
@@ -164,14 +263,20 @@ describe('cpu floorplans', () => {
     expect(kinds({ arch: 'inorder', forwarding: false }).has('forward')).toBe(false);
     expect(kinds({ arch: 'inorder', forwarding: true }).has('forward')).toBe(true);
     expect(kinds({ arch: 'inorder2', forwarding: true }).has('bundle')).toBe(true);
-    for (const k of ['rob', 'sched', 'rename', 'resultbus', 'queue'] as const) expect(kinds({ arch: 'ooo' }).has(k)).toBe(true);
+    for (const k of ['rob', 'sched', 'rename', 'resultbus', 'queue'] as const)
+      expect(kinds({ arch: 'ooo' }).has(k)).toBe(true);
     expect(kinds({ arch: 'inorder', forwarding: true }).has('rob')).toBe(false);
     for (const [, i] of CONFIGS) expect(kinds(i).has('port')).toBe(false); // no invented fetch port: without an I-cache fetch goes through the bus
   });
 
   it('draws one lit unit per OoO functional unit, with the names of the engine', () => {
     const plan = cpuPlan({ arch: 'ooo' });
-    expect(plan.blocks.filter((b) => b.unit).map((b) => b.unit).sort()).toEqual(['ALU0', 'ALU1', 'LSU', 'MUL']);
+    expect(
+      plan.blocks
+        .filter((b) => b.unit)
+        .map((b) => b.unit)
+        .sort(),
+    ).toEqual(['ALU0', 'ALU1', 'LSU', 'MUL']);
   });
 
   it('gives a stage frame to every pipeline stage, in order', () => {
@@ -196,7 +301,14 @@ describe('cpu floorplans', () => {
     for (const s of cpus) {
       const plan = cpuPlan(planInput(s.engine));
       expect(check(plan), s.id).toEqual([]);
-      const wanted = s.engine.kind === 'ooo' ? 'ooo' : s.engine.kind === 'inorder2' ? 'inorder2' : s.engine.kind === 'inorder' ? 'inorder' : 'unpipelined';
+      const wanted =
+        s.engine.kind === 'ooo'
+          ? 'ooo'
+          : s.engine.kind === 'inorder2'
+            ? 'inorder2'
+            : s.engine.kind === 'inorder'
+              ? 'inorder'
+              : 'unpipelined';
       expect(plan.arch, s.id).toBe(wanted);
     }
   });
@@ -204,8 +316,11 @@ describe('cpu floorplans', () => {
   it('draws different dies for different architectures (no shared floorplan)', () => {
     const sig = (i: PlanInput) => JSON.stringify(cpuPlan(i).blocks.map((b) => [b.id, b.rect]));
     const set = new Set([
-      sig({ arch: 'unpipelined' }), sig({ arch: 'inorder', forwarding: false }), sig({ arch: 'inorder', forwarding: true }),
-      sig({ arch: 'inorder2', forwarding: true }), sig({ arch: 'ooo' }),
+      sig({ arch: 'unpipelined' }),
+      sig({ arch: 'inorder', forwarding: false }),
+      sig({ arch: 'inorder', forwarding: true }),
+      sig({ arch: 'inorder2', forwarding: true }),
+      sig({ arch: 'ooo' }),
     ]);
     expect(set.size).toBe(5);
   });
@@ -241,7 +356,17 @@ describe('slicing layout', () => {
   });
   it('places a tree edge to edge, a frame before its children', () => {
     const out: Block[] = [];
-    place(row([col([leaf('a', 'pc', 'A'), leaf('b', 'pc', 'B', { px: 40 })], { frame: { id: 'f', kind: 'stage', label: 'F' }, f: 1 }), leaf('c', 'pc', 'C', { px: 100 })]), { x: 0, y: 0, w: 400, h: 300 }, out);
+    place(
+      row([
+        col([leaf('a', 'pc', 'A'), leaf('b', 'pc', 'B', { px: 40 })], {
+          frame: { id: 'f', kind: 'stage', label: 'F' },
+          f: 1,
+        }),
+        leaf('c', 'pc', 'C', { px: 100 }),
+      ]),
+      { x: 0, y: 0, w: 400, h: 300 },
+      out,
+    );
     expect(out.map((b) => b.id)).toEqual(['f', 'a', 'b', 'c']);
     expect(out.find((b) => b.id === 'c')!.rect).toEqual({ x: 300, y: 0, w: 100, h: 300 });
     expect(out.find((b) => b.id === 'a')!.parent).toBe('f');
@@ -265,17 +390,28 @@ describe('channel router', () => {
     const blocks = [mk('a', { x: 40, y: 40, w: 100, h: 100 }), mk('b', { x: 154, y: 120, w: 100, h: 100 })];
     const [l] = routeLinks(die, blocks, [{ id: 'l', kind: 'data', from: 'a', to: 'b' }]);
     expect(l!.pts.length).toBeLessThanOrEqual(4);
-    for (let k = 1; k < l!.pts.length; k++) expect(l!.pts[k]![0] === l!.pts[k - 1]![0] || l!.pts[k]![1] === l!.pts[k - 1]![1]).toBe(true);
+    for (let k = 1; k < l!.pts.length; k++)
+      expect(l!.pts[k]![0] === l!.pts[k - 1]![0] || l!.pts[k]![1] === l!.pts[k - 1]![1]).toBe(true);
   });
   it('goes around a block in the way, through the gutters only', () => {
-    const blocks = [mk('a', { x: 40, y: 100, w: 60, h: 60 }), mk('wall', { x: 114, y: 40, w: 60, h: 180 }), mk('b', { x: 188, y: 100, w: 60, h: 60 })];
+    const blocks = [
+      mk('a', { x: 40, y: 100, w: 60, h: 60 }),
+      mk('wall', { x: 114, y: 40, w: 60, h: 180 }),
+      mk('b', { x: 188, y: 100, w: 60, h: 60 }),
+    ];
     const [l] = routeLinks(die, blocks, [{ id: 'l', kind: 'data', from: 'a', to: 'b' }]);
     for (let k = 1; k < l!.pts.length; k++) expect(crosses(l!.pts[k - 1]!, l!.pts[k]!, blocks[1]!.rect)).toBe(false);
     expect(l!.pts.length).toBeGreaterThan(2);
   });
   it('fails loudly when a block is walled in', () => {
-    const blocks = [mk('a', { x: 150, y: 100, w: 40, h: 40 }), mk('wall', { x: 40, y: 40, w: 320, h: 220 }), mk('b', { x: 380, y: 280, w: 10, h: 10 })];
-    expect(() => routeLinks(die, blocks, [{ id: 'l', kind: 'data', from: 'a', to: 'b' }])).toThrow(/no route|no free edge/);
+    const blocks = [
+      mk('a', { x: 150, y: 100, w: 40, h: 40 }),
+      mk('wall', { x: 40, y: 40, w: 320, h: 220 }),
+      mk('b', { x: 380, y: 280, w: 10, h: 10 }),
+    ];
+    expect(() => routeLinks(die, blocks, [{ id: 'l', kind: 'data', from: 'a', to: 'b' }])).toThrow(
+      /no route|no free edge/,
+    );
   });
 });
 
@@ -287,10 +423,15 @@ describe('the TLB', () => {
         const b = p.blocks.find((x) => x.kind === 'tlb');
         expect(b, `${arch} ${tlb}`).toBeDefined();
         expect(b!.grid!.count).toBe(tlb);
-        for (const id of ['lsu-tlb', 'fetch-tlb', 'tlb-walk']) expect(p.links.some((l) => l.id === id), `${arch} ${id}`).toBe(true);
+        for (const id of ['lsu-tlb', 'fetch-tlb', 'tlb-walk'])
+          expect(
+            p.links.some((l) => l.id === id),
+            `${arch} ${id}`,
+          ).toBe(true);
       }
     }
-    for (const arch of ['unpipelined', 'inorder', 'ooo'] as const) expect(cpuPlan({ arch, cacheLines: 8 }).blocks.some((x) => x.kind === 'tlb')).toBe(false);
+    for (const arch of ['unpipelined', 'inorder', 'ooo'] as const)
+      expect(cpuPlan({ arch, cacheLines: 8 }).blocks.some((x) => x.kind === 'tlb')).toBe(false);
   });
 
   it('every shipped CPU with an MMU draws its TLB at the size of its spec', () => {

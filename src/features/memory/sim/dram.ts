@@ -7,7 +7,7 @@
 // (no conflicts, never a hit), `adaptive` closes a bank's row after an access that was a conflict (random access) and keeps it otherwise.
 // Times are CPU cycles; everything is deterministic and off unless an engine is given a `dram` setting (the game derives it, apply.ts).
 
-export type PagePolicy = "open" | "closed" | "adaptive";
+export type PagePolicy = 'open' | 'closed' | 'adaptive';
 
 export interface DramSettings {
   /** Channels (power of two): pages alternate between them, each has its own data bus and banks. */
@@ -68,9 +68,11 @@ export class Dram {
   private refreshAt = 0;
 
   constructor(readonly s: DramSettings) {
-    if (!pow2(s.channels) || !pow2(s.banks) || !pow2(s.rowBytes) || !pow2(s.bankGroups)) throw new RangeError("dram: channels, banks, bankGroups and rowBytes must be powers of two");
-    if (s.bankGroups > s.banks) throw new RangeError("dram: more bank groups than banks");
-    for (const k of ["tCL", "tRCD", "tRP", "burst", "ccdS", "ccdL", "refreshEvery", "tRFC"] as const) if (!Number.isInteger(s[k]) || s[k] < 0) throw new RangeError(`dram: ${k} must be an integer >= 0`);
+    if (!pow2(s.channels) || !pow2(s.banks) || !pow2(s.rowBytes) || !pow2(s.bankGroups))
+      throw new RangeError('dram: channels, banks, bankGroups and rowBytes must be powers of two');
+    if (s.bankGroups > s.banks) throw new RangeError('dram: more bank groups than banks');
+    for (const k of ['tCL', 'tRCD', 'tRP', 'burst', 'ccdS', 'ccdL', 'refreshEvery', 'tRFC'] as const)
+      if (!Number.isInteger(s[k]) || s[k] < 0) throw new RangeError(`dram: ${k} must be an integer >= 0`);
     this.channels = s.channels;
     this.banks = s.banks;
     this.rowBytes = s.rowBytes;
@@ -99,18 +101,22 @@ export class Dram {
   /** Where an address lives: pages alternate between channels, then between banks. */
   locate(addr: number): { channel: number; bank: number; row: number } {
     const page = addr >>> this.shift;
-    const channel = page & this.chanMask, p = page >>> this.chanShift;
+    const channel = page & this.chanMask,
+      p = page >>> this.chanShift;
     return { channel, bank: channel * this.banks + (p & this.bankMask), row: p >>> this.bankShift };
   }
 
   /** The page number whose row is `row` in bank index `bank` (over all channels): the inverse of `locate`, for drawing. */
   pageOf(bank: number, row: number): number {
-    const channel = Math.floor(bank / this.banks), b = bank % this.banks;
+    const channel = Math.floor(bank / this.banks),
+      b = bank % this.banks;
     return (((row << this.bankShift) | b) << this.chanShift) | channel;
   }
 
   /** The open row of every bank over all channels (-1: closed). */
-  openRows(): number[] { return Array.from(this.open); }
+  openRows(): number[] {
+    return Array.from(this.open);
+  }
 
   private refresh(now: number, log: DramLog | null): void {
     const every = this.s.refreshEvery;
@@ -119,7 +125,10 @@ export class Dram {
     while (now >= this.nextRefresh) {
       const b = this.refreshAt;
       const prev = this.open[b]!;
-      if (prev >= 0) { this.open[b] = -1; log?.(this.nextRefresh, b, -1, prev, RowOutcome.Refresh); }
+      if (prev >= 0) {
+        this.open[b] = -1;
+        log?.(this.nextRefresh, b, -1, prev, RowOutcome.Refresh);
+      }
       this.bankBusy[b] = Math.max(this.bankBusy[b]!, this.nextRefresh + this.s.tRFC);
       this.refreshAt = (b + 1) % total;
       this.nextRefresh += every;
@@ -134,9 +143,16 @@ export class Dram {
     const group = (bank % this.banks) % s.bankGroups;
     const prev = this.open[bank]!;
     let outcome: RowOutcomeKind, work: number;
-    if (prev === row) { outcome = RowOutcome.Hit; work = s.tCL; }
-    else if (prev < 0) { outcome = RowOutcome.Empty; work = s.tRCD + s.tCL; }
-    else { outcome = RowOutcome.Conflict; work = s.tRP + s.tRCD + s.tCL; }
+    if (prev === row) {
+      outcome = RowOutcome.Hit;
+      work = s.tCL;
+    } else if (prev < 0) {
+      outcome = RowOutcome.Empty;
+      work = s.tRCD + s.tCL;
+    } else {
+      outcome = RowOutcome.Conflict;
+      work = s.tRP + s.tRCD + s.tCL;
+    }
     // the bank must be free (a refresh keeps it busy), then the row work; the burst needs the channel's bus after the previous burst and its gap
     const gap = this.lastGroup[channel] === group ? s.ccdL : s.ccdS;
     const start = Math.max(now, this.bankBusy[bank]!);
@@ -145,7 +161,7 @@ export class Dram {
     this.busBusy[channel] = done;
     this.lastGroup[channel] = group;
     this.bankBusy[bank] = start + work;
-    const closeNow = s.policy === "closed" || (s.policy === "adaptive" && outcome === RowOutcome.Conflict);
+    const closeNow = s.policy === 'closed' || (s.policy === 'adaptive' && outcome === RowOutcome.Conflict);
     this.open[bank] = closeNow ? -1 : row;
     log?.(now, bank, closeNow ? -1 : row, prev, outcome);
     return { cycles: Math.ceil(done - now), channel, bank, row, prev, outcome };

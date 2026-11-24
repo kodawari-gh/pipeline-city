@@ -3,7 +3,16 @@
 // registers feed the array of multiply-accumulate cells, which drains south into the bias and relu stage that writes back to card memory.
 
 import type { Rect } from '../../cpu/render/core/cpuplan';
-import { col, leaf, placeTree, routeWires, row, type Node, type Spec, type WireSpec } from '../../cpu/render/core/cpufloor';
+import {
+  col,
+  leaf,
+  placeTree,
+  routeWires,
+  row,
+  type Node,
+  type Spec,
+  type WireSpec,
+} from '../../cpu/render/core/cpufloor';
 import type { NpuBlock, NpuBlockKind, NpuLinkKind, NpuPlan, NpuPlanInput } from './npuplan';
 
 /** Margins round the blocks: the bond pads run in them, and the south one carries the title and the legend. */
@@ -20,17 +29,27 @@ type Opt = Partial<Spec<K>> & { f?: number; px?: number };
 const L = (id: string, kind: K, label: string, o: Opt = {}): N => leaf<K>(id, kind, label, o);
 
 type W = [id: string, kind: NpuLinkKind, from: string, to: string, lanes?: 1 | 2 | 3 | 4];
-const wires = (a: W[]): WireSpec<NpuLinkKind>[] => a.map(([id, kind, from, to, lanes]) => ({ id, kind, from, to, ...(lanes ? { lanes } : {}) }));
+const wires = (a: W[]): WireSpec<NpuLinkKind>[] =>
+  a.map(([id, kind, from, to, lanes]) => ({ id, kind, from, to, ...(lanes ? { lanes } : {}) }));
 
 function build(i: NpuPlanInput): { tree: N; specs: WireSpec<NpuLinkKind>[] } {
   // top to bottom the way the data goes; the host link in the north east, and every block that talks to the card memory (the die beside this one, in the east) has a free east edge
-  const tree = col<K>([
-    row<K>([L('ctl', 'ctl', 'CONTROL', { sub: 'what the CPU writes', f: 58 }), L('host', 'host', 'PCIE LINK', { sub: `x${i.lanes}, to the machine`, f: 42 })], { f: 16 }),
-    L('desc', 'desc', 'DESCRIPTORS', { sub: 'the list being run', f: 18 }),
-    L('tiles', 'tiles', 'TILE REGISTERS', { sub: 'four tiles of the array size', f: 11 }),
-    L('array', 'array', 'MAC ARRAY', { sub: `${i.grid} x ${i.grid} multiply-accumulate cells`, f: 43 }),
-    L('post', 'post', 'BIAS AND RELU', { sub: 'after the array, before the store', f: 12 }),
-  ], { f: 1 });
+  const tree = col<K>(
+    [
+      row<K>(
+        [
+          L('ctl', 'ctl', 'CONTROL', { sub: 'what the CPU writes', f: 58 }),
+          L('host', 'host', 'PCIE LINK', { sub: `x${i.lanes}, to the machine`, f: 42 }),
+        ],
+        { f: 16 },
+      ),
+      L('desc', 'desc', 'DESCRIPTORS', { sub: 'the list being run', f: 18 }),
+      L('tiles', 'tiles', 'TILE REGISTERS', { sub: 'four tiles of the array size', f: 11 }),
+      L('array', 'array', 'MAC ARRAY', { sub: `${i.grid} x ${i.grid} multiply-accumulate cells`, f: 43 }),
+      L('post', 'post', 'BIAS AND RELU', { sub: 'after the array, before the store', f: 12 }),
+    ],
+    { f: 1 },
+  );
   const specs: W[] = [
     ['host-ctl', 'host', 'host', 'ctl', 2],
     ['host-mem', 'host', 'host', 'cardmem', 3],
@@ -60,14 +79,32 @@ export function npuPlan(i: NpuPlanInput, size: { w: number; h: number } = npuDie
   const hit = cache.get(key);
   if (hit) return hit;
   // the main die at the origin, the card memory's die beside it over the gap, its south edge on the main die's
-  const core = { x: 0, y: 0, w: size.w, h: size.h }, memory = { x: size.w + NPU_GAP, y: size.h - NPU_MEM.h, w: NPU_MEM.w, h: NPU_MEM.h };
+  const core = { x: 0, y: 0, w: size.w, h: size.h },
+    memory = { x: size.w + NPU_GAP, y: size.h - NPU_MEM.h, w: NPU_MEM.w, h: NPU_MEM.h };
   const die = { x: 0, y: 0, w: memory.x + memory.w, h: size.h };
   const { tree, specs } = build(i);
   const blocks: NpuBlock[] = [];
   const M = DIE_MARGIN;
-  placeTree<K, NpuBlock>(tree, { x: M.x, y: M.top, w: size.w - 2 * M.x, h: size.h - M.top - M.bottom }, blocks, (s, r) => make(s, r));
-  placeTree<K, NpuBlock>(L('cardmem', 'cardmem', 'CARD MEMORY', { sub: `${Math.round(i.memBytes / 1024)}K, weights and activations` }), { x: memory.x + M.x, y: memory.y + M.top, w: memory.w - 2 * M.x, h: memory.h - M.top - M.bottom }, blocks, (s, r) => make(s, r));
-  const plan: NpuPlan = { input: i, die, core, memory, blocks, links: routeWires(die, blocks, specs, undefined, 'npuplan') };
+  placeTree<K, NpuBlock>(
+    tree,
+    { x: M.x, y: M.top, w: size.w - 2 * M.x, h: size.h - M.top - M.bottom },
+    blocks,
+    (s, r) => make(s, r),
+  );
+  placeTree<K, NpuBlock>(
+    L('cardmem', 'cardmem', 'CARD MEMORY', { sub: `${Math.round(i.memBytes / 1024)}K, weights and activations` }),
+    { x: memory.x + M.x, y: memory.y + M.top, w: memory.w - 2 * M.x, h: memory.h - M.top - M.bottom },
+    blocks,
+    (s, r) => make(s, r),
+  );
+  const plan: NpuPlan = {
+    input: i,
+    die,
+    core,
+    memory,
+    blocks,
+    links: routeWires(die, blocks, specs, undefined, 'npuplan'),
+  };
   cache.set(key, plan);
   return plan;
 }

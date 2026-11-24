@@ -18,7 +18,15 @@ export async function ktx2Of(rgba, width, height, mode = 'etc1s') {
   try {
     return await encodeToKTX2(new Uint8Array(4), {
       imageDecoder: async () => ({ width, height, data: rgba }),
-      isKTX2File: true, generateMipmap: false, isYFlip: false, enableDebug: false, isPerceptual: false, isSetKTX2SRGBTransferFunc: false, ...MODES[mode],
+      isKTX2File: true,
+      generateMipmap: false,
+      isYFlip: false,
+      enableDebug: false,
+      isPerceptual: false,
+      isSetKTX2SRGBTransferFunc: false,
+      ...MODES[mode],
     });
-  } finally { console.log = say; }
+  } finally {
+    console.log = say;
+  }
 }

@@ -10,7 +10,13 @@ import { BOOT_MS, GATE, STEP_MS, type Dev, killTree, launchChrome, openBooted, s
 
 declare const process: any;
 const TEST_MS = 60_000 + BOOT_MS + 10 * STEP_MS;
-const FIVE = [{ w: 1920, h: 1080 }, { w: 390, h: 844 }, { w: 360, h: 800 }, { w: 412, h: 915 }, { w: 844, h: 390 }];
+const FIVE = [
+  { w: 1920, h: 1080 },
+  { w: 390, h: 844 },
+  { w: 360, h: 800 },
+  { w: 412, h: 915 },
+  { w: 844, h: 390 },
+];
 
 let dev: Dev | null = null;
 let browser: Browser | null = null;
@@ -24,7 +30,9 @@ async function intoGame(page: Page): Promise<void> {
   await page.waitForTimeout(1500);
   const skip = page.locator('button', { hasText: /^Skip$/ });
   if (await skip.count()) await skip.first().click();
-  await page.waitForFunction(() => !document.querySelector('.modal-back.dlg-back'), null, { timeout: STEP_MS }).catch(() => {});
+  await page
+    .waitForFunction(() => !document.querySelector('.modal-back.dlg-back'), null, { timeout: STEP_MS })
+    .catch(() => {});
 }
 
 /** Opens the Shop from the HUD dock and waits for its panel. */
@@ -64,7 +72,11 @@ function shopLook(): {
 }
 
 /** Runs in the page: the boxes of the visible Shop controls, and whether the page scrolls. */
-function shopControls(): { boxes: { name: string; x: number; y: number; r: number; b: number }[]; sw: number; sh: number } {
+function shopControls(): {
+  boxes: { name: string; x: number; y: number; r: number; b: number }[];
+  sw: number;
+  sh: number;
+} {
   const boxes: { name: string; x: number; y: number; r: number; b: number }[] = [];
   const all = [...document.querySelectorAll('.card.shop button, .card.shop [role="button"]')];
   for (const e of all) {
@@ -74,85 +86,131 @@ function shopControls(): { boxes: { name: string; x: number; y: number; r: numbe
     const r = e.getBoundingClientRect();
     if (cs.display === 'none' || cs.visibility !== 'visible' || r.width <= 0 || r.height <= 0) continue;
     // A control inside a scrolling list counts by its visible part only: the rest is scrolled away by design.
-    let x = r.left, y = r.top, rr = r.right, b = r.bottom;
+    let x = r.left,
+      y = r.top,
+      rr = r.right,
+      b = r.bottom;
     for (let p = e.parentElement; p && !p.classList.contains('shop'); p = p.parentElement) {
       const o = getComputedStyle(p);
       if (o.overflowY === 'visible' && o.overflowX === 'visible') continue;
       const c = p.getBoundingClientRect();
-      x = Math.max(x, c.left); y = Math.max(y, c.top); rr = Math.min(rr, c.right); b = Math.min(b, c.bottom);
+      x = Math.max(x, c.left);
+      y = Math.max(y, c.top);
+      rr = Math.min(rr, c.right);
+      b = Math.min(b, c.bottom);
     }
     if (rr <= x || b <= y) continue;
-    boxes.push({ name: (e.getAttribute('aria-label') || (e as HTMLElement).innerText || e.className || '').trim().slice(0, 30), x, y, r: rr, b });
+    boxes.push({
+      name: (e.getAttribute('aria-label') || (e as HTMLElement).innerText || e.className || '').trim().slice(0, 30),
+      x,
+      y,
+      r: rr,
+      b,
+    });
   }
   return { boxes, sw: document.documentElement.scrollWidth, sh: document.documentElement.scrollHeight };
 }
 
 describe.skipIf(!GATE)('Shop as Edge tabs in the browser (ticket #73)', () => {
-  beforeAll(async () => { dev = await startServer(); }, 120_000);
-  afterAll(() => { killTree(dev?.child); dev = null; });
-  beforeEach(async () => { process.stderr.write(`  running: ${expect.getState().currentTestName}\n`); browser = await launchChrome(); }, 60_000);
-  afterEach(async () => { await browser?.close().catch(() => {}); browser = null; }, 60_000);
+  beforeAll(async () => {
+    dev = await startServer();
+  }, 120_000);
+  afterAll(() => {
+    killTree(dev?.child);
+    dev = null;
+  });
+  beforeEach(async () => {
+    process.stderr.write(`  running: ${expect.getState().currentTestName}\n`);
+    browser = await launchChrome();
+  }, 60_000);
+  afterEach(async () => {
+    await browser?.close().catch(() => {});
+    browser = null;
+  }, 60_000);
 
-  it('1920 x 1080: the open Shop is a flat edge tab touching a screen edge, with no border, radius, shadow, blur or gradient', async () => {
-    const errors: string[] = [];
-    const { page, ctxClose } = await openBooted(browser!, dev!, 1920, 1080, errors);
-    try {
-      await intoGame(page);
-      await openShop(page);
-      const look = await page.evaluate(shopLook);
-      expect(look.box, 'the Shop panel exists').not.toBeNull();
-      const b = look.box!;
-      const touches = Math.min(b.x, b.y, 1920 - b.r, 1080 - b.b) <= 1;
-      expect(touches, `the Shop panel touches no screen edge: ${JSON.stringify(b)}`).toBe(true);
-      expect(look.border.every((w) => w === '0px'), `border widths ${look.border.join(' ')}`).toBe(true);
-      expect(look.radius, 'corner radius').toBe('0px');
-      expect(look.shadow, 'box-shadow').toBe('none');
-      expect(look.text, 'text-shadow').toBe('none');
-      expect(look.blur, 'backdrop-filter').toBe('none|none');
-      expect(look.image, 'background-image (gradient)').toBe('none');
-    } finally { await ctxClose().catch(() => {}); }
-  }, TEST_MS);
-
-  it('1920 x 1080: no navy behind the 3D view (the Shop backing is transparent or neutral)', async () => {
-    const errors: string[] = [];
-    const { page, ctxClose } = await openBooted(browser!, dev!, 1920, 1080, errors);
-    try {
-      await intoGame(page);
-      await openShop(page);
-      const look = await page.evaluate(shopLook);
-      const rgba = (s: string) => (s.match(/[\d.]+/g) ?? []).map(Number);
-      const check = (label: string, css: string) => {
-        const [r = 0, g = 0, b = 0, a = 1] = rgba(css);
-        if (a === 0) return;
-        expect(Math.max(r, g, b) - Math.min(r, g, b), `${label} "${css}" is tinted, not neutral`).toBeLessThanOrEqual(8);
-      };
-      check('Shop panel background', look.bg);
-      check('Shop backing behind the 3D view', look.back);
-    } finally { await ctxClose().catch(() => {}); }
-  }, TEST_MS);
-
-  for (const vp of FIVE) {
-    it(`${vp.w} x ${vp.h}: the open Shop controls are on screen, with no overlap and no page scroll`, async () => {
+  it(
+    '1920 x 1080: the open Shop is a flat edge tab touching a screen edge, with no border, radius, shadow, blur or gradient',
+    async () => {
       const errors: string[] = [];
-      const { page, ctxClose } = await openBooted(browser!, dev!, vp.w, vp.h, errors);
+      const { page, ctxClose } = await openBooted(browser!, dev!, 1920, 1080, errors);
       try {
         await intoGame(page);
         await openShop(page);
-        const ctl = await page.evaluate(shopControls);
-        expect(ctl.boxes.length, 'the Shop has controls').toBeGreaterThan(0);
-        const boxes: Box[] = ctl.boxes.map(({ x, y, r, b }) => ({ x, y, r, b }));
-        const off = ctl.boxes.filter((c, i) => outsideViewport(boxes[i]!, vp.w, vp.h)).map((c) => c.name);
-        expect(off, 'Shop controls outside the window').toEqual([]);
-        const hits: string[] = [];
-        for (let i = 0; i < boxes.length; i++) {
-          for (let j = i + 1; j < boxes.length; j++) {
-            if (overlaps(boxes[i]!, boxes[j]!)) hits.push(`${ctl.boxes[i]!.name} / ${ctl.boxes[j]!.name}`);
+        const look = await page.evaluate(shopLook);
+        expect(look.box, 'the Shop panel exists').not.toBeNull();
+        const b = look.box!;
+        const touches = Math.min(b.x, b.y, 1920 - b.r, 1080 - b.b) <= 1;
+        expect(touches, `the Shop panel touches no screen edge: ${JSON.stringify(b)}`).toBe(true);
+        expect(
+          look.border.every((w) => w === '0px'),
+          `border widths ${look.border.join(' ')}`,
+        ).toBe(true);
+        expect(look.radius, 'corner radius').toBe('0px');
+        expect(look.shadow, 'box-shadow').toBe('none');
+        expect(look.text, 'text-shadow').toBe('none');
+        expect(look.blur, 'backdrop-filter').toBe('none|none');
+        expect(look.image, 'background-image (gradient)').toBe('none');
+      } finally {
+        await ctxClose().catch(() => {});
+      }
+    },
+    TEST_MS,
+  );
+
+  it(
+    '1920 x 1080: no navy behind the 3D view (the Shop backing is transparent or neutral)',
+    async () => {
+      const errors: string[] = [];
+      const { page, ctxClose } = await openBooted(browser!, dev!, 1920, 1080, errors);
+      try {
+        await intoGame(page);
+        await openShop(page);
+        const look = await page.evaluate(shopLook);
+        const rgba = (s: string) => (s.match(/[\d.]+/g) ?? []).map(Number);
+        const check = (label: string, css: string) => {
+          const [r = 0, g = 0, b = 0, a = 1] = rgba(css);
+          if (a === 0) return;
+          expect(Math.max(r, g, b) - Math.min(r, g, b), `${label} "${css}" is tinted, not neutral`).toBeLessThanOrEqual(
+            8,
+          );
+        };
+        check('Shop panel background', look.bg);
+        check('Shop backing behind the 3D view', look.back);
+      } finally {
+        await ctxClose().catch(() => {});
+      }
+    },
+    TEST_MS,
+  );
+
+  for (const vp of FIVE) {
+    it(
+      `${vp.w} x ${vp.h}: the open Shop controls are on screen, with no overlap and no page scroll`,
+      async () => {
+        const errors: string[] = [];
+        const { page, ctxClose } = await openBooted(browser!, dev!, vp.w, vp.h, errors);
+        try {
+          await intoGame(page);
+          await openShop(page);
+          const ctl = await page.evaluate(shopControls);
+          expect(ctl.boxes.length, 'the Shop has controls').toBeGreaterThan(0);
+          const boxes: Box[] = ctl.boxes.map(({ x, y, r, b }) => ({ x, y, r, b }));
+          const off = ctl.boxes.filter((c, i) => outsideViewport(boxes[i]!, vp.w, vp.h)).map((c) => c.name);
+          expect(off, 'Shop controls outside the window').toEqual([]);
+          const hits: string[] = [];
+          for (let i = 0; i < boxes.length; i++) {
+            for (let j = i + 1; j < boxes.length; j++) {
+              if (overlaps(boxes[i]!, boxes[j]!)) hits.push(`${ctl.boxes[i]!.name} / ${ctl.boxes[j]!.name}`);
+            }
           }
+          expect(hits, 'overlapping Shop controls').toEqual([]);
+          expect(ctl.sw <= vp.w && ctl.sh <= vp.h, `page scroll ${ctl.sw}x${ctl.sh}`).toBe(true);
+          expect(errors, 'page errors').toEqual([]);
+        } finally {
+          await ctxClose().catch(() => {});
         }
-        expect(hits, 'overlapping Shop controls').toEqual([]);
-        expect(ctl.sw <= vp.w && ctl.sh <= vp.h, `page scroll ${ctl.sw}x${ctl.sh}`).toBe(true);
-        expect(errors, 'page errors').toEqual([]);
-      } finally { await ctxClose().catch(() => {}); }
-    }, TEST_MS);
+      },
+      TEST_MS,
+    );
   }
 });

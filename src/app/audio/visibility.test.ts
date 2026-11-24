@@ -23,7 +23,11 @@ type Ev = { kind: 'set' | 'linear' | 'target'; t: number; v: number; tc?: number
  */
 function gainAt(evs: Ev[], T: number, n = evs.length): number {
   let k = n;
-  for (let i = 0; i < n; i++) if (evs[i]!.t > T) { k = i; break; }
+  for (let i = 0; i < n; i++)
+    if (evs[i]!.t > T) {
+      k = i;
+      break;
+    }
   if (k < n && evs[k]!.kind === 'linear') {
     const e = evs[k]!;
     const startT = k > 0 ? evs[k - 1]!.t : 0;
@@ -42,28 +46,52 @@ function gainAt(evs: Ev[], T: number, n = evs.length): number {
 
 class Param {
   evs: Ev[] = [];
-  private add(ev: Ev): this { this.evs.push(ev); return this; }
+  private add(ev: Ev): this {
+    this.evs.push(ev);
+    return this;
+  }
   /** Reading `value` gives the value now. Writing it sets the value now (a set event). */
-  get value(): number { return gainAt(this.evs, clock.t); }
-  set value(x: number) { this.add({ kind: 'set', t: clock.t, v: x }); }
-  setValueAtTime(x: number, t: number): this { return this.add({ kind: 'set', t, v: x }); }
-  linearRampToValueAtTime(x: number, t: number): this { return this.add({ kind: 'linear', t, v: x }); }
-  setTargetAtTime(x: number, t: number, tc: number): this { return this.add({ kind: 'target', t, v: x, tc }); }
-  cancelScheduledValues(t: number): this { this.evs = this.evs.filter((e) => e.t < t); return this; }
+  get value(): number {
+    return gainAt(this.evs, clock.t);
+  }
+  set value(x: number) {
+    this.add({ kind: 'set', t: clock.t, v: x });
+  }
+  setValueAtTime(x: number, t: number): this {
+    return this.add({ kind: 'set', t, v: x });
+  }
+  linearRampToValueAtTime(x: number, t: number): this {
+    return this.add({ kind: 'linear', t, v: x });
+  }
+  setTargetAtTime(x: number, t: number, tc: number): this {
+    return this.add({ kind: 'target', t, v: x, tc });
+  }
+  cancelScheduledValues(t: number): this {
+    this.evs = this.evs.filter((e) => e.t < t);
+    return this;
+  }
 }
 class Node {
-  connect<T>(n: T): T { return n; }
+  connect<T>(n: T): T {
+    return n;
+  }
   disconnect(): void {}
 }
-class Gain extends Node { gain = new Param(); }
+class Gain extends Node {
+  gain = new Param();
+}
 class Source extends Node {
   buffer: { path: string } | null = null;
   playbackRate = new Param();
   onended: (() => void) | null = null;
   started = false;
   stopped = false;
-  start(): void { this.started = true; }
-  stop(): void { this.stopped = true; }
+  start(): void {
+    this.started = true;
+  }
+  stop(): void {
+    this.stopped = true;
+  }
 }
 /** A stand-in AudioContext. Its clock is the fake clock. Suspend and resume set `state` at once, as the browser does. */
 class FakeCtx {
@@ -72,16 +100,38 @@ class FakeCtx {
   destination = new Node();
   gains: Gain[] = [];
   sources: Source[] = [];
-  constructor() { FakeCtx.last = this; }
-  get currentTime(): number { return clock.t; }
-  createGain(): Gain { const g = new Gain(); this.gains.push(g); return g; }
-  createDelay() { return Object.assign(new Gain(), { delayTime: new Param() }); }
-  createBufferSource(): Source { const s = new Source(); this.sources.push(s); return s; }
-  resume(): Promise<void> { this.state = 'running'; return Promise.resolve(); }
-  suspend(): Promise<void> { this.state = 'suspended'; return Promise.resolve(); }
+  constructor() {
+    FakeCtx.last = this;
+  }
+  get currentTime(): number {
+    return clock.t;
+  }
+  createGain(): Gain {
+    const g = new Gain();
+    this.gains.push(g);
+    return g;
+  }
+  createDelay() {
+    return Object.assign(new Gain(), { delayTime: new Param() });
+  }
+  createBufferSource(): Source {
+    const s = new Source();
+    this.sources.push(s);
+    return s;
+  }
+  resume(): Promise<void> {
+    this.state = 'running';
+    return Promise.resolve();
+  }
+  suspend(): Promise<void> {
+    this.state = 'suspended';
+    return Promise.resolve();
+  }
 }
 class FakeOffline {
-  decodeAudioData(data: { path: string }): Promise<{ path: string }> { return Promise.resolve(data); }
+  decodeAudioData(data: { path: string }): Promise<{ path: string }> {
+    return Promise.resolve(data);
+  }
 }
 
 async function fakeFetch(url: string) {
@@ -93,7 +143,9 @@ let target: EventTarget;
 let doc: EventTarget & { visibilityState: string };
 const gesture = (type: string): boolean => target.dispatchEvent(new Event(type));
 /** Microtasks only (fake timers stop setTimeout). Enough for the fake fetch and decode to settle. */
-const flushMicrotasks = async (): Promise<void> => { for (let i = 0; i < 50; i++) await Promise.resolve(); };
+const flushMicrotasks = async (): Promise<void> => {
+  for (let i = 0; i < 50; i++) await Promise.resolve();
+};
 /** Step the fake clock and the fake timers together, 1 ms at a time. */
 function advance(ms: number): void {
   for (let i = 0; i < ms; i++) {
@@ -101,15 +153,23 @@ function advance(ms: number): void {
     vi.advanceTimersByTime(1);
   }
 }
-const hide = (): void => { doc.visibilityState = 'hidden'; doc.dispatchEvent(new Event('visibilitychange')); };
-const show = (): void => { doc.visibilityState = 'visible'; doc.dispatchEvent(new Event('visibilitychange')); };
+const hide = (): void => {
+  doc.visibilityState = 'hidden';
+  doc.dispatchEvent(new Event('visibilitychange'));
+};
+const show = (): void => {
+  doc.visibilityState = 'visible';
+  doc.dispatchEvent(new Event('visibilitychange'));
+};
 const ctx = (): FakeCtx => FakeCtx.last!;
 /** The master bus is the first gain node the engine makes (openGraph creates it before the other buses). */
 const master = (): Gain => ctx().gains[0]!;
 /** The master level at the player's default mix, from the mix tokens (busGains reads the bus defaults). */
 const masterLevel = (): number => busGains(defaultVolumes()).master;
 const playedFiles = (): (string | undefined)[] =>
-  ctx().sources.filter((s) => s.started).map((s) => s.buffer?.path);
+  ctx()
+    .sources.filter((s) => s.started)
+    .map((s) => s.buffer?.path);
 
 beforeEach(() => {
   clock.t = 0;

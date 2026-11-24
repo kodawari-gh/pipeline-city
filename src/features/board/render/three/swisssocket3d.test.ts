@@ -5,22 +5,39 @@ import { Box3, Group, Mesh, MeshStandardMaterial } from 'three';
 import { mat } from '@/core/render/three/materials';
 import { roomGeo } from '@/features/room/render/shell/room';
 import { lozenge, SWISS, T13 } from './plugs3d';
-import { inPinwheel, pinHoles, pinwheel, recessHoles, recessOutline, ROOM_SOCKET, TRIPLE, tripleSocket, wallPlate } from './swisssocket3d';
+import {
+  inPinwheel,
+  pinHoles,
+  pinwheel,
+  recessHoles,
+  recessOutline,
+  ROOM_SOCKET,
+  TRIPLE,
+  tripleSocket,
+  wallPlate,
+} from './swisssocket3d';
 import { quietCanvas } from './testutil';
 
 quietCanvas();
 
 const MM = 23;
 /** A closed outline of a socket (its recess drawn in by `inset` mm; a negative inset grows it: a plug's shoulder) in mm from the screw. */
-const outline = (s: ReturnType<typeof pinwheel>[number], inset: number): [number, number][] => lozenge(inset).map((p) => inPinwheel(s, p));
+const outline = (s: ReturnType<typeof pinwheel>[number], inset: number): [number, number][] =>
+  lozenge(inset).map((p) => inPinwheel(s, p));
 const segDist = (p: readonly number[], a: readonly number[], b: readonly number[]): number => {
-  const dx = b[0]! - a[0]!, dy = b[1]! - a[1]!, t = Math.max(0, Math.min(1, ((p[0]! - a[0]!) * dx + (p[1]! - a[1]!) * dy) / (dx * dx + dy * dy)));
+  const dx = b[0]! - a[0]!,
+    dy = b[1]! - a[1]!,
+    t = Math.max(0, Math.min(1, ((p[0]! - a[0]!) * dx + (p[1]! - a[1]!) * dy) / (dx * dx + dy * dy)));
   return Math.hypot(p[0]! - a[0]! - t * dx, p[1]! - a[1]! - t * dy);
 };
 /** The least distance between two closed outlines (neither inside the other). */
 const gap = (a: [number, number][], b: [number, number][]): number => {
   let m = Infinity;
-  for (const [p, q] of [[a, b], [b, a]] as const) for (const v of p) for (let i = 0; i < q.length; i++) m = Math.min(m, segDist(v, q[i]!, q[(i + 1) % q.length]!));
+  for (const [p, q] of [
+    [a, b],
+    [b, a],
+  ] as const)
+    for (const v of p) for (let i = 0; i < q.length; i++) m = Math.min(m, segDist(v, q[i]!, q[(i + 1) % q.length]!));
   return m;
 };
 
@@ -40,7 +57,7 @@ describe('the pinwheel', () => {
     expect(left.y).toBeCloseTo(right.y, 5);
   });
 
-  it('puts each socket\'s earth hole 11.8 mm from the screw and its live and neutral holes 19.3 mm, as a real one measures', () => {
+  it("puts each socket's earth hole 11.8 mm from the screw and its live and neutral holes 19.3 mm, as a real one measures", () => {
     for (const s of [top, left, right]) {
       const [l, n, e] = pinHoles(s);
       expect(Math.hypot(e![0], e![1])).toBeCloseTo(11.8, 1);
@@ -54,19 +71,30 @@ describe('the pinwheel', () => {
     }
   });
 
-  it('leaves 3 mm of the insert between two recesses, and the recesses clear of the insert\'s edge', () => {
+  it("leaves 3 mm of the insert between two recesses, and the recesses clear of the insert's edge", () => {
     const o = [top, left, right].map((s) => outline(s, 0));
-    for (const [a, b] of [[0, 1], [1, 2], [0, 2]] as const) expect(gap(o[a]!, o[b]!)).toBeGreaterThan(2.8);
-    for (const r of o) for (const [x, y] of r) {
-      expect(Math.abs(x)).toBeLessThan(TRIPLE.insert / 2 - 1.5);
-      expect(Math.abs(y)).toBeLessThan(TRIPLE.insert / 2 - 1.5);
-    }
+    for (const [a, b] of [
+      [0, 1],
+      [1, 2],
+      [0, 2],
+    ] as const)
+      expect(gap(o[a]!, o[b]!)).toBeGreaterThan(2.8);
+    for (const r of o)
+      for (const [x, y] of r) {
+        expect(Math.abs(x)).toBeLessThan(TRIPLE.insert / 2 - 1.5);
+        expect(Math.abs(y)).toBeLessThan(TRIPLE.insert / 2 - 1.5);
+      }
   });
 
   it('lets a plug in each of the three sockets at once: the shoulders stand clear of each other', () => {
     // (a shoulder is the recess's outline a hair out: 0.6 mm each, of the 3 between two recesses)
     const sh = [top, left, right].map((s) => outline(s, -SWISS.shoulder.out));
-    for (const [a, b] of [[0, 1], [1, 2], [0, 2]] as const) expect(gap(sh[a]!, sh[b]!)).toBeGreaterThan(1.5);
+    for (const [a, b] of [
+      [0, 1],
+      [1, 2],
+      [0, 2],
+    ] as const)
+      expect(gap(sh[a]!, sh[b]!)).toBeGreaterThan(1.5);
   });
 });
 
@@ -79,7 +107,8 @@ describe('tripleSocket', () => {
   };
 
   it('builds a 91 mm square frame round the screw, from the wall to the face and not past it', () => {
-    const { g, root } = build(), b = new Box3().setFromObject(g);
+    const { g, root } = build(),
+      b = new Box3().setFromObject(g);
     expect(root.children).toContain(g);
     expect(g.name).toBe('wall.mains');
     expect((b.max.x - b.min.x) / MM).toBeCloseTo(91, 0);
@@ -91,8 +120,14 @@ describe('tripleSocket', () => {
   });
 
   it('cuts each recess down to its floor, 13 mm under the face, with three black holes in it', () => {
-    const { g } = build(), floor = 700 + (18 - T13.deep) * MM;
-    const holes = g.children.filter((o) => (o as Mesh).isMesh && ((o as Mesh).material as MeshStandardMaterial) === look.black && new Box3().setFromObject(o).min.z < floor);
+    const { g } = build(),
+      floor = 700 + (18 - T13.deep) * MM;
+    const holes = g.children.filter(
+      (o) =>
+        (o as Mesh).isMesh &&
+        ((o as Mesh).material as MeshStandardMaterial) === look.black &&
+        new Box3().setFromObject(o).min.z < floor,
+    );
     // (nine contact holes, the three in each floor; the screw's slot is black too, but it stands at the face)
     expect(holes).toHaveLength(9);
     for (const h of holes) {
@@ -105,7 +140,10 @@ describe('tripleSocket', () => {
 
 describe('a recess of a plate', () => {
   const box = (p: { x: number; y: number }[]): { x0: number; x1: number; y0: number; y1: number } => ({
-    x0: Math.min(...p.map((q) => q.x)), x1: Math.max(...p.map((q) => q.x)), y0: Math.min(...p.map((q) => q.y)), y1: Math.max(...p.map((q) => q.y)),
+    x0: Math.min(...p.map((q) => q.x)),
+    x1: Math.max(...p.map((q) => q.x)),
+    y0: Math.min(...p.map((q) => q.y)),
+    y1: Math.max(...p.map((q) => q.y)),
   });
 
   it('is the traced hexagon at the scale it is drawn at, 39 x 22.1 mm, round its middle', () => {
@@ -125,7 +163,7 @@ describe('a recess of a plate', () => {
     expect((b.x1 - b.x0) / 10).toBeCloseTo(22.1, 1);
   });
 
-  it('puts the three holes where the plug\'s pins go: the live and the neutral one 19 apart, the earth one 5 under them, all turned with it', () => {
+  it("puts the three holes where the plug's pins go: the live and the neutral one 19 apart, the earth one 5 under them, all turned with it", () => {
     const [l, n, e] = recessHoles({ x: 50, y: 70, roll: 0 }, 14);
     expect(l![0]).toBeCloseTo(50 - (T13.pitch / 2) * 14, 5);
     expect(n![0]).toBeCloseTo(50 + (T13.pitch / 2) * 14, 5);
@@ -142,14 +180,18 @@ describe('a recess of a plate', () => {
 
 describe('wallPlate', () => {
   const look = { plate: mat(0x2a2d32), black: mat(0x050608) };
-  const g = roomGeo(), p = g.socket.plate, { k, face } = ROOM_SOCKET, floor = face - T13.deep * k;
+  const g = roomGeo(),
+    p = g.socket.plate,
+    { k, face } = ROOM_SOCKET,
+    floor = face - T13.deep * k;
   const build = (): { plate: Group; root: Group } => {
     const root = new Group();
     return { plate: wallPlate(root, { rect: p, outlets: [g.socket.mon, g.socket.pc], face, k, look }), root };
   };
 
-  it('builds the room\'s plate over its layout rect, from the wall to the face and not past it', () => {
-    const { plate, root } = build(), b = new Box3().setFromObject(plate);
+  it("builds the room's plate over its layout rect, from the wall to the face and not past it", () => {
+    const { plate, root } = build(),
+      b = new Box3().setFromObject(plate);
     expect(root.children).toContain(plate);
     expect(b.min.x).toBeCloseTo(p.x, 0);
     expect(b.max.x).toBeCloseTo(p.x + p.w, 0);
@@ -162,7 +204,9 @@ describe('wallPlate', () => {
 
   it('cuts a recess for each outlet down to its floor, 13 mm under the face, with three black holes in it', () => {
     const { plate } = build();
-    const holes = plate.children.filter((o) => (o as Mesh).isMesh && ((o as Mesh).material as MeshStandardMaterial) === look.black);
+    const holes = plate.children.filter(
+      (o) => (o as Mesh).isMesh && ((o as Mesh).material as MeshStandardMaterial) === look.black,
+    );
     expect(holes).toHaveLength(6);
     for (const h of holes) {
       const b = new Box3().setFromObject(h);
@@ -171,9 +215,14 @@ describe('wallPlate', () => {
     }
   });
 
-  it('fits the room\'s layout: both recesses upright on the plate at the outlets, a web between them, the frame clear of them', () => {
+  it("fits the room's layout: both recesses upright on the plate at the outlets, a web between them, the frame clear of them", () => {
     const rs = [g.socket.mon, g.socket.pc].map((o) => recessOutline({ x: o.x, y: -o.y, roll: 0 }, k));
-    const [a, c] = rs.map((r) => ({ x0: Math.min(...r.map((q) => q.x)), x1: Math.max(...r.map((q) => q.x)), y0: Math.min(...r.map((q) => q.y)), y1: Math.max(...r.map((q) => q.y)) }));
+    const [a, c] = rs.map((r) => ({
+      x0: Math.min(...r.map((q) => q.x)),
+      x1: Math.max(...r.map((q) => q.x)),
+      y0: Math.min(...r.map((q) => q.y)),
+      y1: Math.max(...r.map((q) => q.y)),
+    }));
     // (the monitor's is the west one: its outlet stands at 0.28 of the plate, the PC's at 0.72)
     expect(a!.x1).toBeLessThan(c!.x0 - 5 * k);
     // (the frame's rim, 5.5 mm, and a little more of the insert)

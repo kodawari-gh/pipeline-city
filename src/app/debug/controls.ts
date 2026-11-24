@@ -8,7 +8,9 @@ import { DEFAULTS, debugOverride, effective, PRESETS, setAutoTier, type Graphics
 /** The render scales the overlay offers (within SCALE_MIN..SCALE_MAX). */
 export const SCALES = [0.5, 0.6, 0.75, 0.85, 1];
 
-const put = (o: Partial<Graphics>): void => { debugOverride.value = { ...debugOverride.value, ...o }; };
+const put = (o: Partial<Graphics>): void => {
+  debugOverride.value = { ...debugOverride.value, ...o };
+};
 const drop = (...keys: (keyof Graphics)[]): void => {
   const o = { ...debugOverride.value };
   for (const k of keys) delete o[k];
@@ -27,7 +29,10 @@ export const postOn = (g: Graphics): boolean => g.ao > 0 || g.bloom > 0 || g.msa
 
 /** Post off: ao, bloom and msaa at 0. Post on: the player's own values, else Medium's post values. Nothing else changes. */
 export function setPost(on: boolean): void {
-  if (!on) { put({ ao: 0, bloom: 0, msaa: 0 }); return; }
+  if (!on) {
+    put({ ao: 0, bloom: 0, msaa: 0 });
+    return;
+  }
   drop('ao', 'bloom', 'msaa');
   if (!postOn(effective.peek())) put({ ao: PRESETS.medium.ao, bloom: PRESETS.medium.bloom, msaa: PRESETS.medium.msaa });
 }
@@ -37,7 +42,10 @@ export const shadowsOn = (g: Graphics): boolean => g.shadows > 0;
 
 /** Shadow off: level 0. Shadow on: the player's own level, else the default level. Nothing else changes. */
 export function setShadowsOn(on: boolean): void {
-  if (!on) { put({ shadows: 0 }); return; }
+  if (!on) {
+    put({ shadows: 0 });
+    return;
+  }
   drop('shadows');
   if (!shadowsOn(effective.peek())) put({ shadows: DEFAULTS.shadows });
 }

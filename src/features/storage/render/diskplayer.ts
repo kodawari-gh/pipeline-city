@@ -60,48 +60,132 @@ export function channelOf(kind: DriveKind, i: number): string[] {
 const clamp = (v: number, a: number, b: number): number => Math.max(a, Math.min(b, v));
 
 /** The steps for one command, with times in ms. `weights` are shares of the total; a step with weight 0 is left out. */
-export function scriptFor(kind: DriveKind, plan: DiskPlan, cmd: StorageCmd, fromTrack: number, totalBlocks: number): Script {
-  const write = cmd.op === 'w', cell = Math.floor(cmd.lba / CELL_BLOCKS);
+export function scriptFor(
+  kind: DriveKind,
+  plan: DiskPlan,
+  cmd: StorageCmd,
+  fromTrack: number,
+  totalBlocks: number,
+): Script {
+  const write = cmd.op === 'w',
+    cell = Math.floor(cmd.lba / CELL_BLOCKS);
   const steps: Step[] = [];
   const w: [Omit<Step, 'at' | 'dur'>, number][] = [];
-  const add = (kind: StepKind, label: string, weight: number, links: Step['links'] = [], blocks: string[] = [], data = false): void => { if (weight > 0) w.push([{ kind, label, links, blocks, data }, weight]); };
+  const add = (
+    kind: StepKind,
+    label: string,
+    weight: number,
+    links: Step['links'] = [],
+    blocks: string[] = [],
+    data = false,
+  ): void => {
+    if (weight > 0) w.push([{ kind, label, links, blocks, data }, weight]);
+  };
   const verb = write ? 'write' : 'read';
-  let die = 0, toTrack = fromTrack, total: number;
+  let die = 0,
+    toTrack = fromTrack,
+    total: number;
   if (plan.platter) {
     toTrack = headTrack(cmd.lba, totalBlocks, plan.platter.tracks);
     const move = Math.abs(toTrack - fromTrack) > 0 || cmd.seek > 0;
     // the seek takes the share of the time the sim's seek ticks are of the command's ticks
-    const ticks = Math.max(1, cmd.seek + cmd.xfer), seekShare = cmd.seek / ticks;
+    const ticks = Math.max(1, cmd.seek + cmd.xfer),
+      seekShare = cmd.seek / ticks;
     total = clamp(ticks * 7, 600, 2600);
-    const fixed = 0.34, rest = 1 - fixed;
-    add('cmd', `${verb} block ${cmd.lba}: the command reaches the controller`, 0.1, [{ id: 'iface-ctrl', rev: false }], ['iface', 'ctrl'], write);
+    const fixed = 0.34,
+      rest = 1 - fixed;
+    add(
+      'cmd',
+      `${verb} block ${cmd.lba}: the command reaches the controller`,
+      0.1,
+      [{ id: 'iface-ctrl', rev: false }],
+      ['iface', 'ctrl'],
+      write,
+    );
     add('lookup', 'the servo plans the move', 0.06, [], ['ctrl']);
     if (move) add('seek', `the arm seeks to track ${toTrack + 1}`, rest * seekShare + 0.04, [], []);
     add('rotate', 'the platter turns the sector under the head', move ? 0.1 : 0.14, [], []);
-    add('media', write ? 'the head writes the sector' : 'the head reads the sector', rest * (1 - seekShare) * 0.7 + 0.06, [{ id: 'ctrl-pre', rev: !write }], ['pre'], true);
-    add('return', write ? 'the controller reports it is done' : 'the data goes back to the host', 0.14, [{ id: 'iface-ctrl', rev: true }], ['ctrl', 'iface'], !write);
+    add(
+      'media',
+      write ? 'the head writes the sector' : 'the head reads the sector',
+      rest * (1 - seekShare) * 0.7 + 0.06,
+      [{ id: 'ctrl-pre', rev: !write }],
+      ['pre'],
+      true,
+    );
+    add(
+      'return',
+      write ? 'the controller reports it is done' : 'the data goes back to the host',
+      0.14,
+      [{ id: 'iface-ctrl', rev: true }],
+      ['ctrl', 'iface'],
+      !write,
+    );
   } else {
     die = dieOf(plan, cell).die;
-    const ch = channelOf(kind, die), nand = `nand${die}`, ticks = Math.max(1, cmd.xfer);
+    const ch = channelOf(kind, die),
+      nand = `nand${die}`,
+      ticks = Math.max(1, cmd.xfer);
     total = clamp(ticks * 14, 700, 1800);
     const queued = kind === 'ssd-nvme' ? [{ id: 'queue-ctrl', rev: false }] : [];
-    add('cmd', `${verb} block ${cmd.lba}: the command reaches the controller`, 0.13, [...queued, { id: 'iface-ctrl', rev: false }], kind === 'ssd-nvme' ? ['queue', 'iface', 'ctrl'] : ['iface', 'ctrl'], write);
-    add('lookup', write ? 'the map picks a free page; the data waits in the cache' : 'the map finds where the block lives', 0.13, [{ id: 'ctrl-cache', rev: !write }], ['ctrl', 'cache'], write);
-    add('send', write ? `the data goes down the channel to NAND ${die}` : `the address goes down the channel to NAND ${die}`, 0.12, ch.map((id) => ({ id, rev: false })), ['ctrl', nand], write);
+    add(
+      'cmd',
+      `${verb} block ${cmd.lba}: the command reaches the controller`,
+      0.13,
+      [...queued, { id: 'iface-ctrl', rev: false }],
+      kind === 'ssd-nvme' ? ['queue', 'iface', 'ctrl'] : ['iface', 'ctrl'],
+      write,
+    );
+    add(
+      'lookup',
+      write ? 'the map picks a free page; the data waits in the cache' : 'the map finds where the block lives',
+      0.13,
+      [{ id: 'ctrl-cache', rev: !write }],
+      ['ctrl', 'cache'],
+      write,
+    );
+    add(
+      'send',
+      write ? `the data goes down the channel to NAND ${die}` : `the address goes down the channel to NAND ${die}`,
+      0.12,
+      ch.map((id) => ({ id, rev: false })),
+      ['ctrl', nand],
+      write,
+    );
     add('array', write ? `NAND ${die} programs the page` : `NAND ${die} senses the page`, 0.32, [], [nand]);
-    add('return', write ? 'the status comes back' : 'the data comes up the channel', 0.15, ch.map((id) => ({ id, rev: true })), [nand, 'ctrl'], !write);
-    add('status', write ? 'the host is told it is done' : 'the data goes out to the host', 0.15, [{ id: 'iface-ctrl', rev: true }], ['ctrl', 'iface'], !write);
+    add(
+      'return',
+      write ? 'the status comes back' : 'the data comes up the channel',
+      0.15,
+      ch.map((id) => ({ id, rev: true })),
+      [nand, 'ctrl'],
+      !write,
+    );
+    add(
+      'status',
+      write ? 'the host is told it is done' : 'the data goes out to the host',
+      0.15,
+      [{ id: 'iface-ctrl', rev: true }],
+      ['ctrl', 'iface'],
+      !write,
+    );
   }
   const sum = w.reduce((n, [, x]) => n + x, 0);
   let at = 0;
-  for (const [s, x] of w) { const dur = (x / sum) * total; steps.push({ ...s, at, dur }); at += dur; }
+  for (const [s, x] of w) {
+    const dur = (x / sum) * total;
+    steps.push({ ...s, at, dur });
+    at += dur;
+  }
   return { cmd, steps, total, die, cell, fromTrack, toTrack };
 }
 
 /** The step running at `t` ms into a script (the last one once it is over), and how far through it (0..1). */
 export function stepAt(s: Script, t: number): { step: Step; p: number } {
   let st = s.steps[0]!;
-  for (const x of s.steps) { if (t >= x.at) st = x; }
+  for (const x of s.steps) {
+    if (t >= x.at) st = x;
+  }
   return { step: st, p: clamp((t - st.at) / Math.max(1, st.dur), 0, 1) };
 }
 
@@ -121,13 +205,20 @@ export const turnLeft = (s: Script, t: number): number => {
 };
 
 /** The platter cell of the command (track and sector), for the highlight. */
-export const platterTarget = (plan: DiskPlan, s: Script): { track: number; sector: number } | null => (plan.platter ? platterCell(s.cell, plan.platter.sectors) : null);
+export const platterTarget = (plan: DiskPlan, s: Script): { track: number; sector: number } | null =>
+  plan.platter ? platterCell(s.cell, plan.platter.sectors) : null;
 
 /** Most commands waiting to play; older ones are skipped, so the picture never lags the sim by long. */
 const BACKLOG = 5;
 
 /** A link to send a packet on, from the step that just began. */
-export interface Spawn { id: string; rev: boolean; dur: number; data: boolean; write: boolean }
+export interface Spawn {
+  id: string;
+  rev: boolean;
+  dur: number;
+  data: boolean;
+  write: boolean;
+}
 
 /** Plays the scripts of a drive's commands one after another. */
 export class DiskPlayer {
@@ -184,7 +275,9 @@ export class DiskPlayer {
         this.t = 0;
         this.started = -1;
       }
-      const speed = 1 + this.queue.length * 0.6, s = this.cur, room = (s.total - this.t) / speed;
+      const speed = 1 + this.queue.length * 0.6,
+        s = this.cur,
+        room = (s.total - this.t) / speed;
       const used = Math.min(left, room);
       this.t += used * speed;
       left -= used;
@@ -192,9 +285,13 @@ export class DiskPlayer {
         const st = s.steps[i]!;
         if (st.at > this.t + 1e-6) break;
         this.started = i;
-        for (const l of st.links) out.push({ id: l.id, rev: l.rev, dur: st.dur / speed, data: st.data, write: s.cmd.op === 'w' });
+        for (const l of st.links)
+          out.push({ id: l.id, rev: l.rev, dur: st.dur / speed, data: st.data, write: s.cmd.op === 'w' });
       }
-      if (this.t >= s.total - 1e-6) { this.rest = s.toTrack; this.cur = null; }
+      if (this.t >= s.total - 1e-6) {
+        this.rest = s.toTrack;
+        this.cur = null;
+      }
     }
     return out;
   }

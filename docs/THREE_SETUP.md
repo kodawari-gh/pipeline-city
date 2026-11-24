@@ -28,7 +28,7 @@ interface RenderContext {
 export function createRenderContext(canvas: HTMLCanvasElement): RenderContext {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x04060f); // dark theme default
-  
+
   const renderer = new THREE.WebGLRenderer({
     canvas,
     antialias: true,
@@ -37,20 +37,20 @@ export function createRenderContext(canvas: HTMLCanvasElement): RenderContext {
   });
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(canvas.clientWidth, canvas.clientHeight);
-  
+
   // Lighting
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
   scene.add(ambientLight);
-  
+
   const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
   directionalLight.position.set(10, 20, 15);
   directionalLight.castShadow = true;
   scene.add(directionalLight);
-  
+
   // Orthographic camera for board view
   const camera = createOrthoCamera(canvas);
   scene.add(camera);
-  
+
   return { scene, camera, renderer };
 }
 
@@ -58,14 +58,17 @@ function createOrthoCamera(canvas: HTMLCanvasElement): THREE.OrthographicCamera 
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
   const aspect = w / h;
-  
+
   const frustumHeight = 10000; // world units visible at zoom=1
   const frustumWidth = frustumHeight * aspect;
-  
+
   const camera = new THREE.OrthographicCamera(
-    -frustumWidth / 2, frustumWidth / 2,
-    frustumHeight / 2, -frustumHeight / 2,
-    0.1, 100000
+    -frustumWidth / 2,
+    frustumWidth / 2,
+    frustumHeight / 2,
+    -frustumHeight / 2,
+    0.1,
+    100000,
   );
   camera.position.z = 5000;
   return camera;
@@ -75,7 +78,7 @@ export function onWindowResize(ctx: RenderContext, canvas: HTMLCanvasElement) {
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
   renderer.setSize(w, h);
-  
+
   if (camera instanceof THREE.OrthographicCamera) {
     const aspect = w / h;
     const frustumHeight = camera.top - camera.bottom;
@@ -116,42 +119,30 @@ export function createCameraState(): CameraState {
   };
 }
 
-export function updateCameraZoom(
-  camera: THREE.OrthographicCamera,
-  state: CameraState,
-  zoomDelta: number
-) {
+export function updateCameraZoom(camera: THREE.OrthographicCamera, state: CameraState, zoomDelta: number) {
   state.targetZoom = Math.max(0.1, Math.min(20, state.targetZoom * (1 - zoomDelta * ZOOM_SPEED)));
 }
 
-export function updateCameraPan(
-  state: CameraState,
-  deltaX: number,
-  deltaY: number
-) {
+export function updateCameraPan(state: CameraState, deltaX: number, deltaY: number) {
   // Pan in world space proportional to zoom
   const panScale = state.zoom * PAN_SPEED;
   state.target.x -= deltaX * panScale;
   state.target.y += deltaY * panScale;
 }
 
-export function updateCamera(
-  camera: THREE.OrthographicCamera,
-  state: CameraState,
-  deltaTime: number
-) {
+export function updateCamera(camera: THREE.OrthographicCamera, state: CameraState, deltaTime: number) {
   // Smooth zoom
   state.zoom = THREE.MathUtils.lerp(state.zoom, state.targetZoom, TWEEN_SPEED);
-  
+
   // Smooth pan
   state.position.lerp(state.target, TWEEN_SPEED);
-  
+
   // Apply zoom to camera (scale frustum)
   const zoom = state.zoom;
   const aspect = camera.right - camera.left / (camera.top - camera.bottom);
   const h = (camera.top - camera.bottom) * zoom;
   const w = h * aspect;
-  
+
   camera.left = -w / 2;
   camera.right = w / 2;
   camera.top = h / 2;
@@ -161,12 +152,7 @@ export function updateCamera(
   camera.updateProjectionMatrix();
 }
 
-export function flyTo(
-  state: CameraState,
-  targetPos: THREE.Vector3,
-  targetZoom: number,
-  duration: number = 1000
-) {
+export function flyTo(state: CameraState, targetPos: THREE.Vector3, targetZoom: number, duration: number = 1000) {
   // Async tween target position and zoom over duration
   state.target.copy(targetPos);
   state.targetZoom = targetZoom;
@@ -182,10 +168,7 @@ Defines materials for parts, with state overrides (powered, throttled, burnt).
 import * as THREE from 'three';
 import { Theme } from '../theme';
 
-export function createPartMaterial(
-  color: string,
-  theme: Theme
-): THREE.MeshStandardMaterial {
+export function createPartMaterial(color: string, theme: Theme): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
     color: new THREE.Color(color),
     metalness: 0.2,
@@ -197,36 +180,35 @@ export function createPartMaterial(
 export function updateMaterialState(
   material: THREE.Material,
   state: { powered: boolean; throttled: boolean; burnt: boolean; tempC: number },
-  theme: Theme
+  theme: Theme,
 ) {
   if (!(material instanceof THREE.MeshStandardMaterial)) return;
-  
+
   if (state.burnt) {
     material.emissive.setHex(0xff0000);
     material.emissiveIntensity = 0.3;
     material.opacity = 0.7;
     return;
   }
-  
+
   if (!state.powered) {
     material.color.multiplyScalar(0.5); // desaturate
     material.emissive.setHex(0x000000);
     return;
   }
-  
+
   // Heat glow (cyan → amber → red)
   if (state.tempC > 42) {
     const heatFactor = Math.min(1, (state.tempC - 42) / 40);
-    const glowColor = new THREE.Color()
-      .lerpColors(
-        new THREE.Color(0x3be3ff), // cyan
-        new THREE.Color(0xff5a78), // red
-        heatFactor
-      );
+    const glowColor = new THREE.Color().lerpColors(
+      new THREE.Color(0x3be3ff), // cyan
+      new THREE.Color(0xff5a78), // red
+      heatFactor,
+    );
     material.emissive.copy(glowColor);
     material.emissiveIntensity = 0.2 + heatFactor * 0.4;
   }
-  
+
   if (state.throttled) {
     material.color.multiplyScalar(0.8);
   }
@@ -257,7 +239,7 @@ export async function loadModel(path: string): Promise<THREE.Group> {
   if (modelCache.has(path)) {
     return modelCache.get(path)!.clone();
   }
-  
+
   const { scene } = await gltfLoader.loadAsync(path);
   modelCache.set(path, scene);
   return scene.clone();
@@ -296,32 +278,30 @@ import { Snapshot } from 'src/worker/game/types';
 export function mountBoard(host: HTMLElement) {
   const canvas = document.createElement('canvas');
   host.appendChild(canvas);
-  
+
   const ctx = createRenderContext(canvas);
   const cameraState = createCameraState();
-  
+
   let lastTime = performance.now();
-  
+
   function frame() {
     const now = performance.now();
     const deltaTime = (now - lastTime) / 1000;
     lastTime = now;
-    
+
     // Update from snapshot (live.ts will call this)
     // updateScene(ctx.scene, snapshot);
-    
+
     updateCamera(ctx.camera, cameraState, deltaTime);
     ctx.renderer.render(ctx.scene, ctx.camera);
-    
+
     requestAnimationFrame(frame);
   }
-  
-  window.addEventListener('resize', () =>
-    onWindowResize(ctx, canvas)
-  );
-  
+
+  window.addEventListener('resize', () => onWindowResize(ctx, canvas));
+
   requestAnimationFrame(frame);
-  
+
   return { scene: ctx.scene, renderer: ctx.renderer, camera: cameraState };
 }
 ```
@@ -329,6 +309,7 @@ export function mountBoard(host: HTMLElement) {
 ## Asset Pipeline (Future)
 
 Models will be created in Blender and exported as glTF 2.0 (glb):
+
 1. Design low-poly geometry (100-1000 tris per part)
 2. Unwrap UVs
 3. Bake material colors
@@ -356,12 +337,14 @@ No changes to `vite.config.ts` initially. Assets directory `public/assets/models
 ## Performance Baseline
 
 **Target metrics:**
+
 - 60 FPS at 1920x1080 on desktop GPU
 - < 5ms render time per frame (excluding UI)
 - Instant model loading (cached)
 - Smooth zoom to 20x magnification
 
 **Optimization techniques (Phase 4), status at `03fe0bc`:**
+
 - Instancing: in place for room books, city cars, signal lamps, swept rings and machine fixings. No `BatchedMesh`.
 - Frustum culling: in place (three.js per-mesh bounds, plus `Sweep.cut` for the city). Not a planned item.
 - LOD meshes: part stand-ins, which hold the builders' LOD1 (2026-11-16). See [render/lod.md](render/lod.md).

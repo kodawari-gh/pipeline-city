@@ -36,13 +36,19 @@ const isShell = (item: string): boolean => /^(case|board)\d$/.test(item) || netK
  * its sockets); no move is a `click`. `note` says why a drop did nothing. The handlers read refs and setters only, so the copies made when the
  * stage opened stay right.
  */
-export function useBuildDrag(stage: { current: Stage | null }, host: RefObject<HTMLElement | null>, shelf: RefObject<HTMLElement | null>, note: (text: string, x: number, y: number) => void) {
+export function useBuildDrag(
+  stage: { current: Stage | null },
+  host: RefObject<HTMLElement | null>,
+  shelf: RefObject<HTMLElement | null>,
+  note: (text: string, x: number, y: number) => void,
+) {
   const [drag, setDrag] = useState<Drag | null>(null);
   const stop = useRef<() => void>(() => {});
   /** A drag is in the air (the press has moved past the slop). */
   const air = useRef(false);
   /** The shelf takes a machine part: its panel, and the note that holds the parts flyout's place (the desk's flyout is a box beside the rail). */
-  const inBin = (x: number, y: number): boolean => within(shelf.current, x, y) || within(shelf.current?.querySelector<HTMLElement>('.bld-bin-note') ?? null, x, y);
+  const inBin = (x: number, y: number): boolean =>
+    within(shelf.current, x, y) || within(shelf.current?.querySelector<HTMLElement>('.bld-bin-note') ?? null, x, y);
 
   const drop = (src: Source, x: number, y: number): void => {
     const st = stage.current;
@@ -54,12 +60,17 @@ export function useBuildDrag(stage: { current: Stage | null }, host: RefObject<H
     }
     if (!onStage(host.current, x, y)) return;
     // (a bare case has no socket at all: the stage's own refusal says why, on the hint line)
-    if (st.dropTarget(src.item, x, y) === null) { if (st.bare.peek()) void st.fit(src.item); else note(`${src.name} fits no socket in this machine`, x, y); return; }
+    if (st.dropTarget(src.item, x, y) === null) {
+      if (st.bare.peek()) void st.fit(src.item);
+      else note(`${src.name} fits no socket in this machine`, x, y);
+      return;
+    }
     void st.fit(src.item, st.slotAt(x, y) ?? undefined);
   };
 
   const begin = (src: Source, e: PointerEvent, click: () => void): void => {
-    const sx = e.clientX, sy = e.clientY;
+    const sx = e.clientX,
+      sy = e.clientY;
     let moving = false;
     const where = (x: number, y: number): Over => (inBin(x, y) ? 'bin' : onStage(host.current, x, y) ? 'stage' : null);
     const move = (m: PointerEvent) => {
@@ -74,7 +85,8 @@ export function useBuildDrag(stage: { current: Stage | null }, host: RefObject<H
         if (src.from === 'shelf' && st && !isShell(src.item) && !st.bare.peek() && !st.insideOpen) st.openInside(true);
       }
       const over = where(m.clientX, m.clientY);
-      const target = src.from === 'shelf' && over === 'stage' ? st?.dropTarget(src.item, m.clientX, m.clientY) ?? '' : undefined;
+      const target =
+        src.from === 'shelf' && over === 'stage' ? (st?.dropTarget(src.item, m.clientX, m.clientY) ?? '') : undefined;
       st?.showTarget(target || null);
       setDrag({ ...src, x: m.clientX, y: m.clientY, over, target });
     };
@@ -87,7 +99,10 @@ export function useBuildDrag(stage: { current: Stage | null }, host: RefObject<H
       stage.current?.showTarget(null);
       stage.current?.carry(null);
       setDrag(null);
-      if (!moving) { if (u) click(); return; }
+      if (!moving) {
+        if (u) click();
+        return;
+      }
       if (u) drop(src, u.clientX, u.clientY);
     };
     const up = (u: PointerEvent) => end(u);

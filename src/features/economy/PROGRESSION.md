@@ -30,26 +30,26 @@ Code: `src/features/economy/sim/levels.ts` (all level, class, mix and unlock dat
 
 Measured with the bots (placeholders, plus or minus 40 percent):
 
-| What | Result |
-|---|---|
-| First job, tutorial bot (build to first payout) | 83 s; Operator bot with 2 s reaction: 132 s |
-| Level 2 | about 430 s |
-| Level 3 | tutorial bot (`cpu1` first, then `ram1`) 1,140 s (19 min); Operator bot buying `cpu1`, `ram1`: 1,540 s |
-| Level 3 to 4 (38 points) | cpu2 + NVMe + OS: 810 to 1,010 s; cpu1 + SATA SSD + OS: 2,440 to 2,870 s; cpu1 + HDD + OS: not reached in 4,000 s (the `db` jobs are unrunnable on an HDD and their expiries hold the reputation at the floor, about 0.35 points per job) |
-| OS versus manual (rig, 3,000 s, reputation after tick 600) | level 3: 0.92 vs 0.67; level 5: 0.89 vs 0.66; level 7: 0.80 vs 0.59; the OS side also serves 40 to 60 percent more jobs |
+| What                                                       | Result                                                                                                                                                                                                                                    |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| First job, tutorial bot (build to first payout)            | 83 s; Operator bot with 2 s reaction: 132 s                                                                                                                                                                                               |
+| Level 2                                                    | about 430 s                                                                                                                                                                                                                               |
+| Level 3                                                    | tutorial bot (`cpu1` first, then `ram1`) 1,140 s (19 min); Operator bot buying `cpu1`, `ram1`: 1,540 s                                                                                                                                    |
+| Level 3 to 4 (38 points)                                   | cpu2 + NVMe + OS: 810 to 1,010 s; cpu1 + SATA SSD + OS: 2,440 to 2,870 s; cpu1 + HDD + OS: not reached in 4,000 s (the `db` jobs are unrunnable on an HDD and their expiries hold the reputation at the floor, about 0.35 points per job) |
+| OS versus manual (rig, 3,000 s, reputation after tick 600) | level 3: 0.92 vs 0.67; level 5: 0.89 vs 0.66; level 7: 0.80 vs 0.59; the OS side also serves 40 to 60 percent more jobs                                                                                                                   |
 
 ### Re-check after the CPI drop (T34, 2026-10-24)
 
 CPI fell from about 1.3 to 0.9, so jobs finish about 1.4x faster at the same clock. Re-run with the bots, seed 7, no balance number changed (times in seconds of game time; plus or minus 40 percent):
 
-| What | Before | Now |
-|---|---|---|
-| Level 2, tutorial bot | about 430 | 354 |
-| Level 3, tutorial bot (`cpu1`, `ram1`, then serves) | 1,140 | 1,141 |
-| Level 4, tutorial bot (OS, HDD; the lesson's `reachLevel4` wait) | not reached in 4,000 s on cpu1 + HDD in the older measurement | 1,807 |
-| Level 2 / 3 / 4, Operator bot (reaction 0, buys `cpu1` and `ram1`, no OS) | level 3 about 1,540 (reaction 2) | 362 / 1,267 / 1,481 |
-| Level 2 / 3 / 4, Operator bot (reaction 2, same buys) | | 394 / 1,470 / 1,702 |
-| First job, Operator bot (reaction 0 / 2) | 132 (reaction 2) | 81 / 89 |
+| What                                                                      | Before                                                        | Now                 |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------- |
+| Level 2, tutorial bot                                                     | about 430                                                     | 354                 |
+| Level 3, tutorial bot (`cpu1`, `ram1`, then serves)                       | 1,140                                                         | 1,141               |
+| Level 4, tutorial bot (OS, HDD; the lesson's `reachLevel4` wait)          | not reached in 4,000 s on cpu1 + HDD in the older measurement | 1,807               |
+| Level 2 / 3 / 4, Operator bot (reaction 0, buys `cpu1` and `ram1`, no OS) | level 3 about 1,540 (reaction 2)                              | 362 / 1,267 / 1,481 |
+| Level 2 / 3 / 4, Operator bot (reaction 2, same buys)                     |                                                               | 394 / 1,470 / 1,702 |
+| First job, Operator bot (reaction 0 / 2)                                  | 132 (reaction 2)                                              | 81 / 89             |
 
 Reading: only level 2 and the first job speed up. Level 3 on the tutorial bot is unchanged (1,141 vs 1,140): from level 2 on, client base is limited by job arrivals (`0.02 x demandMul x reputation` per second) and the manual loop's plug and power steps, not by run time, so a faster CPU barely moves it. The Operator bot with reaction 2 improves about 5 percent at level 3. Level 4 is now reached by every bot within 1,500 to 1,800 s (about 25 to 30 minutes, near the table's 35); the ladder's level 3 time (about 19 minutes) still matches. No threshold needs changing for this; level 4 to 5 stays with T35 (balance pass).
 
@@ -86,26 +86,26 @@ Curve: `threshold(n) = round(4 * (n-1)^2.05)`, then rounded to a neat number (to
 
 Time estimate: for a competent player at 1x (the bots in `patience.test.ts` and `tradeoff.test.ts` are the reference: a first job at 70 to 80 s, about $0.5 per second early, 99 jobs in 4500 s with an OS on a mid rig at reputation 1.2 to 1.8). Points per second modelled as `0.014 * 1.2^(n-2)` (about 1 job per 80 s at weight 1.1 on level 1, about 0.04 at level 8, about 0.2 at level 17). The cumulative times are **estimates, plus or minus 40%**, and depend heavily on how soon the player automates; they have to be re-measured with a bot once the level system exists.
 
-| Level | Name | Threshold (client base) | Increment | Cumulative time (est.) |
-|---|---|---|---|---|
-| 1 | Garage Bench | 0 | | 0 |
-| 2 | Hobby Shop | 4 | 4 | 5 min |
-| 3 | Local Gigs | 12 (was 17, see Built) | 8 | 20 min |
-| 4 | Small Office | 38 | 26 | 35 min |
-| 5 | Storefront | 70 | 32 | 55 min |
-| 6 | Neighbourhood | 110 | 40 | 80 min |
-| 7 | District | 155 | 45 | 100 min |
-| 8 | Town Hub | 215 | 60 | 125 min |
-| 9 | Business Park | 285 | 70 | 150 min |
-| 10 | Tech Quarter | 360 | 75 | 170 min |
-| 11 | Campus | 450 | 90 | 190 min |
-| 12 | Data Annex | 550 | 100 | 210 min |
-| 13 | Colocation | 650 | 100 | 225 min |
-| 14 | Compute Floor | 770 | 120 | 240 min |
-| 15 | Enterprise | 900 | 130 | 255 min |
-| 16 | Hyperscale | 1050 | 150 | 270 min |
-| 17 | Metro Grid | 1200 | 150 | 280 min |
-| 18 | Metropolis | 1350 | 150 | 290 min |
+| Level | Name          | Threshold (client base) | Increment | Cumulative time (est.) |
+| ----- | ------------- | ----------------------- | --------- | ---------------------- |
+| 1     | Garage Bench  | 0                       |           | 0                      |
+| 2     | Hobby Shop    | 4                       | 4         | 5 min                  |
+| 3     | Local Gigs    | 12 (was 17, see Built)  | 8         | 20 min                 |
+| 4     | Small Office  | 38                      | 26        | 35 min                 |
+| 5     | Storefront    | 70                      | 32        | 55 min                 |
+| 6     | Neighbourhood | 110                     | 40        | 80 min                 |
+| 7     | District      | 155                     | 45        | 100 min                |
+| 8     | Town Hub      | 215                     | 60        | 125 min                |
+| 9     | Business Park | 285                     | 70        | 150 min                |
+| 10    | Tech Quarter  | 360                     | 75        | 170 min                |
+| 11    | Campus        | 450                     | 90        | 190 min                |
+| 12    | Data Annex    | 550                     | 100       | 210 min                |
+| 13    | Colocation    | 650                     | 100       | 225 min                |
+| 14    | Compute Floor | 770                     | 120       | 240 min                |
+| 15    | Enterprise    | 900                     | 130       | 255 min                |
+| 16    | Hyperscale    | 1050                    | 150       | 270 min                |
+| 17    | Metro Grid    | 1200                    | 150       | 280 min                |
+| 18    | Metropolis    | 1350                    | 150       | 290 min                |
 
 18 levels, about 5 hours to the end at 1x for a competent player (a casual one two to three times that). Level 1 to 2 is only 4 points, so the first celebration comes after the first five or six jobs (the first purchase moment). The names are working titles. Level 18 is the cap; the score keeps counting (the HUD shows `1350+`), so the end of the ladder can be extended later without a migration.
 
@@ -143,26 +143,26 @@ level  patienceMul  payMul  demandMul   target(s)  deadline(s)
 
 "Buy" means appears in the shop and can be bought if money and hardware allow. Everything listed stays visible from level 1 as a greyed illustrated tile marked `Level N` until reached. Ids in `code` exist in `specs.ts` / `src/features/os/sim/specs.ts` today; **(planned)** ids are proposed names for items not yet in the catalog (the owner or the engines/GPU agents may rename them). Prices of planned items are orders of magnitude only (about 5 to 15 minutes of income at the level they unlock).
 
-| Lvl | Buy: devices and tiers | Boards / OS / network | New job types arriving (see mix below) |
-|---|---|---|---|
-| 1 | start crate: `cpu0`, `ram0`, `psu0`, `cooler0`, `fan92`, `display0`, board 0 Starter. Shop: `cpu1` ($200), `ram1` ($100, buy **two**: 2 x 32K = 64K, the RAM the network needs), `cooler1` ($50), `fan120` ($18, it fits the tower), `psu1` ($60), `vsink0` ($30) | none | `cli.log`, `cli.calc`, `cli.checksum`, `cli.scan` (scan ramps in over 300 ticks as today) |
-| 2 | `vsink1` ($70), `hdd0` ($40) | board 1 Basic ($150: 2 DIMM, 1 PCIe, 100 Mbit jack, live from level 4) | none new (heavier `cli` scales) |
-| 3 | `ssd1` ($150) | `os1` Resident OS ($150: needs a drive and 32K RAM) | **db** (needs an OS and a SATA SSD or better) |
-| 4 | | **Network start** ([`NETWORK.md`](NETWORK.md)): `router1` ($60, 100 Mbit), `isp1` ($150, 50/10 Mbit, 2 clients); the Basic jack goes live and the ethernet cable comes free with the router; the automation lesson. Needs `os1` and 64K RAM | **web** (once a plan is bought; needs a live link to run) |
-| 5 | `psu2` 250 W ATX+ ($250), `ram2` 64K low-latency ($400) | board 2 Mainstream ($300: 4 DIMM, 2 PCIe, M.2, ATX+, 100 Mbit jack) | db and web grow |
-| 6 | `cpu2` ($800; needs the Mainstream VRM), `cooler2` ($300) | `isp2` ($500: 200/50 Mbit, 4 clients) | |
-| 7 | `nvme2` ($400, M.2 SSD), `vsink2` ($140), `rsink2`, `fan40`, high-airflow fans `fan92x`, `fan120x` | `router2` ($200, 1 Gbit), `nic1` ($120, 1 Gbit PCIe card) | |
-| 8 | `cpu3` 2-wide in-order ($2,400) | `os2` Paged OS 2.0 ($600) | |
-| 9 | `tpm1` secure module, `ram3` ECC RAM (**planned**), CPU branches `cpu2f` (front end) and `cpu2m` (memory), $1,500 each, and `cpu2d` (dual core, $2,000: `os2` runs two programs at once on it), `fan140`, `fan140x` (the Full case's size) | board 3 Enthusiast ($700: 8 DIMM, 4 PCIe, onboard 1 Gbit), `isp3` ($1500: 1000/300 Mbit, 8 clients) | **secure / TPM job** (needs a TPM) |
-| 10 | `gpu1` (PCIe + PCIe power connector), `psu3` 500 W, `display1` graphics display (OS dashboard, and the GPU's frame when its cable is on the card) | | **GPU render** (needs a GPU) |
-| 11 | `cpu4` out-of-order ($6,000; wants a 250 W+ PSU and liquid cooling), branches `cpu3f` / `cpu3m` ($3,600), `cpu3t` (dual core, two threads each: four logical cores, $5,000), radiator `rad3` (the big one; `rad1` unlocks at level 6 with `cooler2`, `rad2` at 7: the AIO cools only through a radiator, along the front or the top of the case, the player's choice) | `router3` ($700, 10G, 8 clients), `nic2` ($500, 10G card) | |
-| 12 | `npu1` | | **NPU inference** (needs an NPU) |
-| 13 | `tpm2` (**planned**), branches `cpu4f` / `cpu4m` ($8,500) | `os3` Preemptive OS 3.0 ($2000, `programSlots` 4) | |
-| 14 | `cpu5s` server ($9,000), `cpu5h` HPC ($11,000), `gpu2` (**planned**) | `isp4` ($5000: 5000/1500 Mbit, 16 clients) | **HPC multi-core simulation** (needs a multicore CPU) |
-| 15 | `psu4` 1 kW (**planned**), `cpu4w` wide out-of-order ($12,000) | board 4 server (**planned**: second CPU socket, more PCIe) | |
-| 16 | `gpu3`, `npu2` (**planned**), RAID of two NVMe (**planned**) | | |
-| 17 | | `nic3` 40 Gbit card ($1800), `router4` ($2500, 40G, 16 clients) | |
-| 18 | | `isp5` ($15000: 20000/10000 Mbit, 32 clients); "build a second machine" (far future, not designed) | |
+| Lvl | Buy: devices and tiers                                                                                                                                                                                                                                                                                                                                                | Boards / OS / network                                                                                                                                                                                                                       | New job types arriving (see mix below)                                                    |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| 1   | start crate: `cpu0`, `ram0`, `psu0`, `cooler0`, `fan92`, `display0`, board 0 Starter. Shop: `cpu1` ($200), `ram1` ($100, buy **two**: 2 x 32K = 64K, the RAM the network needs), `cooler1` ($50), `fan120` ($18, it fits the tower), `psu1` ($60), `vsink0` ($30)                                                                                                     | none                                                                                                                                                                                                                                        | `cli.log`, `cli.calc`, `cli.checksum`, `cli.scan` (scan ramps in over 300 ticks as today) |
+| 2   | `vsink1` ($70), `hdd0` ($40)                                                                                                                                                                                                                                                                                                                                          | board 1 Basic ($150: 2 DIMM, 1 PCIe, 100 Mbit jack, live from level 4)                                                                                                                                                                      | none new (heavier `cli` scales)                                                           |
+| 3   | `ssd1` ($150)                                                                                                                                                                                                                                                                                                                                                         | `os1` Resident OS ($150: needs a drive and 32K RAM)                                                                                                                                                                                         | **db** (needs an OS and a SATA SSD or better)                                             |
+| 4   |                                                                                                                                                                                                                                                                                                                                                                       | **Network start** ([`NETWORK.md`](NETWORK.md)): `router1` ($60, 100 Mbit), `isp1` ($150, 50/10 Mbit, 2 clients); the Basic jack goes live and the ethernet cable comes free with the router; the automation lesson. Needs `os1` and 64K RAM | **web** (once a plan is bought; needs a live link to run)                                 |
+| 5   | `psu2` 250 W ATX+ ($250), `ram2` 64K low-latency ($400)                                                                                                                                                                                                                                                                                                               | board 2 Mainstream ($300: 4 DIMM, 2 PCIe, M.2, ATX+, 100 Mbit jack)                                                                                                                                                                         | db and web grow                                                                           |
+| 6   | `cpu2` ($800; needs the Mainstream VRM), `cooler2` ($300)                                                                                                                                                                                                                                                                                                             | `isp2` ($500: 200/50 Mbit, 4 clients)                                                                                                                                                                                                       |                                                                                           |
+| 7   | `nvme2` ($400, M.2 SSD), `vsink2` ($140), `rsink2`, `fan40`, high-airflow fans `fan92x`, `fan120x`                                                                                                                                                                                                                                                                    | `router2` ($200, 1 Gbit), `nic1` ($120, 1 Gbit PCIe card)                                                                                                                                                                                   |                                                                                           |
+| 8   | `cpu3` 2-wide in-order ($2,400)                                                                                                                                                                                                                                                                                                                                       | `os2` Paged OS 2.0 ($600)                                                                                                                                                                                                                   |                                                                                           |
+| 9   | `tpm1` secure module, `ram3` ECC RAM (**planned**), CPU branches `cpu2f` (front end) and `cpu2m` (memory), $1,500 each, and `cpu2d` (dual core, $2,000: `os2` runs two programs at once on it), `fan140`, `fan140x` (the Full case's size)                                                                                                                            | board 3 Enthusiast ($700: 8 DIMM, 4 PCIe, onboard 1 Gbit), `isp3` ($1500: 1000/300 Mbit, 8 clients)                                                                                                                                         | **secure / TPM job** (needs a TPM)                                                        |
+| 10  | `gpu1` (PCIe + PCIe power connector), `psu3` 500 W, `display1` graphics display (OS dashboard, and the GPU's frame when its cable is on the card)                                                                                                                                                                                                                     |                                                                                                                                                                                                                                             | **GPU render** (needs a GPU)                                                              |
+| 11  | `cpu4` out-of-order ($6,000; wants a 250 W+ PSU and liquid cooling), branches `cpu3f` / `cpu3m` ($3,600), `cpu3t` (dual core, two threads each: four logical cores, $5,000), radiator `rad3` (the big one; `rad1` unlocks at level 6 with `cooler2`, `rad2` at 7: the AIO cools only through a radiator, along the front or the top of the case, the player's choice) | `router3` ($700, 10G, 8 clients), `nic2` ($500, 10G card)                                                                                                                                                                                   |                                                                                           |
+| 12  | `npu1`                                                                                                                                                                                                                                                                                                                                                                |                                                                                                                                                                                                                                             | **NPU inference** (needs an NPU)                                                          |
+| 13  | `tpm2` (**planned**), branches `cpu4f` / `cpu4m` ($8,500)                                                                                                                                                                                                                                                                                                             | `os3` Preemptive OS 3.0 ($2000, `programSlots` 4)                                                                                                                                                                                           |                                                                                           |
+| 14  | `cpu5s` server ($9,000), `cpu5h` HPC ($11,000), `gpu2` (**planned**)                                                                                                                                                                                                                                                                                                  | `isp4` ($5000: 5000/1500 Mbit, 16 clients)                                                                                                                                                                                                  | **HPC multi-core simulation** (needs a multicore CPU)                                     |
+| 15  | `psu4` 1 kW (**planned**), `cpu4w` wide out-of-order ($12,000)                                                                                                                                                                                                                                                                                                        | board 4 server (**planned**: second CPU socket, more PCIe)                                                                                                                                                                                  |                                                                                           |
+| 16  | `gpu3`, `npu2` (**planned**), RAID of two NVMe (**planned**)                                                                                                                                                                                                                                                                                                          |                                                                                                                                                                                                                                             |                                                                                           |
+| 17  |                                                                                                                                                                                                                                                                                                                                                                       | `nic3` 40 Gbit card ($1800), `router4` ($2500, 40G, 16 clients)                                                                                                                                                                             |                                                                                           |
+| 18  |                                                                                                                                                                                                                                                                                                                                                                       | `isp5` ($15000: 20000/10000 Mbit, 32 clients); "build a second machine" (far future, not designed)                                                                                                                                          |                                                                                           |
 
 Notes on the table:
 
@@ -183,16 +183,16 @@ Notes on the table:
 
 A **job class** groups templates and carries `needs`. The four existing classes are generated by `cli.log`, `cli.calc`, `cli.checksum` (the `cli` pick by seed) and `cli.scan` (scale 4, `payMul` 2, RAM-bound). The rest do not exist yet: each needs a generator template (src/features/jobs/GEN.md "Adding a template") and, for the accelerators, the device and its ISA.
 
-| Class (template) | State | Needs to run | First level | Notes |
-|---|---|---|---|---|
-| `cli` (log, calc, checksum) | built | nothing | 1 | the bulk early |
-| `scan` | built | nothing (RAM speeds it) | 5 | ramp over 300 ticks as today |
-| `db` | planned | an OS and a drive of tier SATA SSD or better | 5 | many block reads; slow on HDD is not allowed, so it needs `ssd1`+ |
-| `web` | built: eight kinds (`web.page` and so on) | a plan bought and a live link (any OS with the net stack); a kind may ask for a faster plan | 4 | small request, big response; upload-bound. No share until a plan is bought, none during the USB fallback (`NETWORK.md`) |
-| `secure` | built (T72, T73) | a TPM / secure module | 9 | attestation and encrypted memory steps, extra cycles |
-| `gpu` | built (T77) | nothing: it runs on the CPU, faster with a GPU (decision 2026-10-24, src/features/gpu/ACCEL.md) | 10 | CPU prepares, GPU kernel, ARCHITECTURE "Accelerators" |
-| `npu` | built (T78, T79) | nothing: NPU, then GPU, then CPU, slower down the chain, same pay | 12 | |
-| `hpc` | built (M11) | OS 4 and a multicore CPU (at least 2 logical cores; a kind asks for 2, 4 or 8) | 14 | seven threaded kinds, `tasks.hpc.ts` (JOBS.md) |
+| Class (template)            | State                                     | Needs to run                                                                                    | First level | Notes                                                                                                                   |
+| --------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `cli` (log, calc, checksum) | built                                     | nothing                                                                                         | 1           | the bulk early                                                                                                          |
+| `scan`                      | built                                     | nothing (RAM speeds it)                                                                         | 5           | ramp over 300 ticks as today                                                                                            |
+| `db`                        | planned                                   | an OS and a drive of tier SATA SSD or better                                                    | 5           | many block reads; slow on HDD is not allowed, so it needs `ssd1`+                                                       |
+| `web`                       | built: eight kinds (`web.page` and so on) | a plan bought and a live link (any OS with the net stack); a kind may ask for a faster plan     | 4           | small request, big response; upload-bound. No share until a plan is bought, none during the USB fallback (`NETWORK.md`) |
+| `secure`                    | built (T72, T73)                          | a TPM / secure module                                                                           | 9           | attestation and encrypted memory steps, extra cycles                                                                    |
+| `gpu`                       | built (T77)                               | nothing: it runs on the CPU, faster with a GPU (decision 2026-10-24, src/features/gpu/ACCEL.md) | 10          | CPU prepares, GPU kernel, ARCHITECTURE "Accelerators"                                                                   |
+| `npu`                       | built (T78, T79)                          | nothing: NPU, then GPU, then CPU, slower down the chain, same pay                               | 12          |                                                                                                                         |
+| `hpc`                       | built (M11)                               | OS 4 and a multicore CPU (at least 2 logical cores; a kind asks for 2, 4 or 8)                  | 14          | seven threaded kinds, `tasks.hpc.ts` (JOBS.md)                                                                          |
 
 Needs are one of: `{kind: "os", min}`, `{kind: "storage", minTier}`, `{kind: "net"}`, `{kind: "tpm"}`, `{kind: "gpu", minTier}`, `{kind: "npu"}`, `{kind: "cores", min}`. A need is **met** when the matching device is installed and working (not burnt) at the moment the job would be picked to run (and for `net` while the link is up).
 
@@ -200,26 +200,26 @@ Needs are one of: `{kind: "os", min}`, `{kind: "storage", minTier}`, `{kind: "ne
 
 Shares per level; a class's share ramps linearly from 0 to its value over **600 ticks** after the level that introduces it is reached (as `rampTicks` 300 does for scan today), so a new class starts as a trickle. Rows sum to 100.
 
-| Lvl | cli | scan | db | web | secure | gpu | npu | hpc |
-|---|---|---|---|---|---|---|---|---|
-| 1 | 100 | | | | | | | |
-| 2 | 100 | | | | | | | |
-| 3 | 100 | | | | | | | |
-| 4 | 85 | | | 15 | | | | |
-| 5 | 40 | 25 | 20 | 15 | | | | |
-| 6 | 37 | 23 | 22 | 18 | | | | |
-| 7 | 33 | 22 | 24 | 21 | | | | |
-| 8 | 28 | 22 | 25 | 25 | | | | |
-| 9 | 25 | 18 | 20 | 22 | 15 | | | |
-| 10 | 20 | 15 | 15 | 18 | 12 | 20 | | |
-| 11 | 18 | 12 | 14 | 18 | 12 | 26 | | |
-| 12 | 15 | 10 | 12 | 18 | 10 | 20 | 15 | |
-| 13 | 12 | 8 | 12 | 18 | 10 | 20 | 20 | |
-| 14 | 10 | 8 | 10 | 16 | 10 | 18 | 16 | 12 |
-| 15 | 8 | 6 | 10 | 16 | 10 | 18 | 16 | 16 |
-| 16 | 6 | 5 | 9 | 16 | 10 | 18 | 17 | 19 |
-| 17 | 5 | 4 | 8 | 15 | 10 | 18 | 18 | 22 |
-| 18 | 4 | 3 | 7 | 14 | 10 | 18 | 18 | 26 |
+| Lvl | cli | scan | db  | web | secure | gpu | npu | hpc |
+| --- | --- | ---- | --- | --- | ------ | --- | --- | --- |
+| 1   | 100 |      |     |     |        |     |     |     |
+| 2   | 100 |      |     |     |        |     |     |     |
+| 3   | 100 |      |     |     |        |     |     |     |
+| 4   | 85  |      |     | 15  |        |     |     |     |
+| 5   | 40  | 25   | 20  | 15  |        |     |     |     |
+| 6   | 37  | 23   | 22  | 18  |        |     |     |     |
+| 7   | 33  | 22   | 24  | 21  |        |     |     |     |
+| 8   | 28  | 22   | 25  | 25  |        |     |     |     |
+| 9   | 25  | 18   | 20  | 22  | 15     |     |     |     |
+| 10  | 20  | 15   | 15  | 18  | 12     | 20  |     |     |
+| 11  | 18  | 12   | 14  | 18  | 12     | 26  |     |     |
+| 12  | 15  | 10   | 12  | 18  | 10     | 20  | 15  |     |
+| 13  | 12  | 8    | 12  | 18  | 10     | 20  | 20  |     |
+| 14  | 10  | 8    | 10  | 16  | 10     | 18  | 16  | 12  |
+| 15  | 8   | 6    | 10  | 16  | 10     | 18  | 16  | 16  |
+| 16  | 6   | 5    | 9   | 16  | 10     | 18  | 17  | 19  |
+| 17  | 5   | 4    | 8   | 15  | 10     | 18  | 18  | 22  |
+| 18  | 4   | 3    | 7   | 14  | 10     | 18  | 18  | 26  |
 
 **Plain work first (2026-10-24, owner):** levels 1 to 4 send only `cli` jobs (log, calc, checksum), because scans take far longer and swamp the first hours. Scans and `db` arrive from level 5, once the network has opened; a later lesson is meant to explain the different workloads and how to handle them (not built yet).
 
@@ -253,14 +253,14 @@ The player may **decline** any job that is still waiting: an unrunnable job, or 
 
 Worked example. Level 10 (the first level with `gpu` jobs): patienceMul 0.90, so target 54 s, deadline 162 ticks, give-up turnaround 162. The turnaround average is 50, so reputation = 54 / 50 = 1.08 (`reputation()` in economy.ts). At tick 1000 a `gpu` job arrives and the player has no GPU.
 
-| Event | avgTurnaround (EMA 0.3) | reputation = 54 / avg |
-|---|---|---|
-| before | 50 | 1.08 |
-| tick 1162: the gpu job expires, feeds 162 | 0.3 x 162 + 0.7 x 50 = 83.6 | 0.65 |
-| next normal job delivered after 40 s | 0.3 x 40 + 0.7 x 83.6 = 70.5 | 0.77 |
-| second | 61.4 | 0.88 |
-| third | 55.0 | 0.98 |
-| fourth | 50.5 | 1.07 |
+| Event                                     | avgTurnaround (EMA 0.3)      | reputation = 54 / avg |
+| ----------------------------------------- | ---------------------------- | --------------------- |
+| before                                    | 50                           | 1.08                  |
+| tick 1162: the gpu job expires, feeds 162 | 0.3 x 162 + 0.7 x 50 = 83.6  | 0.65                  |
+| next normal job delivered after 40 s      | 0.3 x 40 + 0.7 x 83.6 = 70.5 | 0.77                  |
+| second                                    | 61.4                         | 0.88                  |
+| third                                     | 55.0                         | 0.98                  |
+| fourth                                    | 50.5                         | 1.07                  |
 
 One expiry costs about four normal jobs of recovery and about 40% of demand while it lasts; those jobs also earn only about 0.5 to 0.8 points each instead of about 1.1, so a repeatedly unserved type visibly slows the level climb. With the 20% share and the 600-tick ramp, the player who buys the GPU within the level keeps losing only a few jobs. A player who never buys it loses about a fifth of all arrivals and sits near reputation 0.8: the pressure is real but not fatal.
 
@@ -309,32 +309,45 @@ New file `src/features/economy/sim/levels.ts` (pure data plus helpers), and one 
 
 ```ts
 export type Need =
-  | { kind: "os"; min: number } | { kind: "storage"; minTier: number } | { kind: "net" }
-  | { kind: "tpm" } | { kind: "gpu"; minTier: number } | { kind: "npu" } | { kind: "cores"; min: number };
+  | { kind: 'os'; min: number }
+  | { kind: 'storage'; minTier: number }
+  | { kind: 'net' }
+  | { kind: 'tpm' }
+  | { kind: 'gpu'; minTier: number }
+  | { kind: 'npu' }
+  | { kind: 'cores'; min: number };
 
 export interface JobClassDef {
-  id: "cli" | "scan" | "db" | "web" | "secure" | "gpu" | "npu" | "hpc";
-  templates: string[];              // generator templates ("cli" picks log/calc/checksum by seed)
-  scale?: number; payMul?: number;
+  id: 'cli' | 'scan' | 'db' | 'web' | 'secure' | 'gpu' | 'npu' | 'hpc';
+  templates: string[]; // generator templates ("cli" picks log/calc/checksum by seed)
+  scale?: number;
+  payMul?: number;
   needs: Need[];
-  firstLevel: number;               // the share ramps from here
-  netMB?: { down: number; up: number };   // NETWORK.md job sizes
+  firstLevel: number; // the share ramps from here
+  netMB?: { down: number; up: number }; // NETWORK.md job sizes
 }
 
 export interface LevelDef {
-  level: number; name: string;
-  threshold: number;                // client base needed
-  patienceMul: number; payMul: number; demandMul: number;
-  mix: Partial<Record<JobClassDef["id"], number>>;   // percent; rows sum to 100
-  unlocks: string[];                // offer ids: spec ids, "board3", "os2", "isp1"...
+  level: number;
+  name: string;
+  threshold: number; // client base needed
+  patienceMul: number;
+  payMul: number;
+  demandMul: number;
+  mix: Partial<Record<JobClassDef['id'], number>>; // percent; rows sum to 100
+  unlocks: string[]; // offer ids: spec ids, "board3", "os2", "isp1"...
 }
 
-export const LEVELS: readonly LevelDef[];                 // 18 rows
+export const LEVELS: readonly LevelDef[]; // 18 rows
 export const JOB_CLASSES: readonly JobClassDef[];
-export function levelFor(clientBase: number): number;     // monotonic
-export function unlockLevelOf(offerId: string): number;   // 1 for the start crate, else the row that lists it
-export function pointsFor(reputation: number): number;    // clamp(rep, 0.5, 2)
-export function jobMix(level: number, reputation: number, sinceLevelTicks: Record<number, number>): [JobClassDef, number][];
+export function levelFor(clientBase: number): number; // monotonic
+export function unlockLevelOf(offerId: string): number; // 1 for the start crate, else the row that lists it
+export function pointsFor(reputation: number): number; // clamp(rep, 0.5, 2)
+export function jobMix(
+  level: number,
+  reputation: number,
+  sinceLevelTicks: Record<number, number>,
+): [JobClassDef, number][];
 export function needsMet(needs: Need[], machine): { ok: boolean; missing: string[] };
 export function coldBootTicks(board, devices, cfg): number;
 ```
@@ -346,12 +359,27 @@ export function coldBootTicks(board, devices, cfg): number;
 
 ```ts
 level: {
-  level: number; name: string; clientBase: number;
-  floor: number; next: number | null;          // thresholds of this level and the next (null at 18)
-  progress: number;                             // 0..1 within the level
-  patienceMul: number; payMul: number; demandMul: number;
-  leveledUpAt: number | null;                   // base tick of the latest level-up, for the celebration
-  upcoming: { level: number; name: string; unlocks: { id: string; name: string; kind: string }[] }[];  // every level, for the milestone screen
+  level: number;
+  name: string;
+  clientBase: number;
+  floor: number;
+  next: number | null; // thresholds of this level and the next (null at 18)
+  progress: number; // 0..1 within the level
+  patienceMul: number;
+  payMul: number;
+  demandMul: number;
+  leveledUpAt: number | null; // base tick of the latest level-up, for the celebration
+  upcoming: {
+    level: number;
+    name: string;
+    unlocks: {
+      id: string;
+      name: string;
+      kind: string;
+    }
+    [];
+  }
+  []; // every level, for the milestone screen
 }
 ```
 
@@ -403,7 +431,6 @@ Owner decisions are at the top. Every other proposal is accepted as written: **d
 - Prices and final names of the planned items (`cpu3` to `cpu5`, `gpu1` to `gpu3`, `npu1` and `npu2`, `tpm1` and `tpm2`, `psu3` and `psu4`, the fans, `cooler3`, `board4`, `nvme3`, `ram3`): orders of magnitude only until the engines and GPU work set them.
 - Level 18 is the cap. Extending the ladder past it is not designed.
 - Every time and income estimate here (the table's times, the price check) is a placeholder until the Operator bot measures it.
-
 
 ## Pacing update (2026-10-24)
 

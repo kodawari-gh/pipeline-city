@@ -107,11 +107,22 @@ export const PCH_RESULT_WORDS = 8;
 
 /** Values of PCH_REG.PHASE. */
 export const PchPhase = {
-  Off: 0, Posting: 1, Waiting: 2, Loading: 3, Running: 4, Writing: 5, Done: 6,
+  Off: 0,
+  Posting: 1,
+  Waiting: 2,
+  Loading: 3,
+  Running: 4,
+  Writing: 5,
+  Done: 6,
   /** OS mode (the kernel writes these): booting the kernel from disk, idle, ingesting a key, running a job, flashing a result. */
-  OsBoot: 7, OsIdle: 8, OsIngest: 9, OsRun: 10, OsFlash: 11,
+  OsBoot: 7,
+  OsIdle: 8,
+  OsIngest: 9,
+  OsRun: 10,
+  OsFlash: 11,
   /** No-OS flow: the ROM looks for a key once, after POST. Halted = the job is done (result written), NoMedia = no key at boot. Both spin until power-off. */
-  Halted: 12, NoMedia: 13,
+  Halted: 12,
+  NoMedia: 13,
 } as const;
 
 // ---- Storage ports (block devices) and the OS. See docs/BOARD.md (storage) and docs/OS.md.
@@ -121,7 +132,19 @@ export const STORAGE_BASE = 0x4003_0000;
 export const STORAGE_STRIDE = 0x1000;
 /** Slot ids that carry a block device, in port order (the board slot id doubles as the port / clock domain name). The first three keep
  * their addresses from when a board had two SATA ports and one M.2; the bigger boards' extra ports are appended. */
-export const STORAGE_PORTS: readonly string[] = ["sata0", "sata1", "m20", "sata2", "sata3", "sata4", "sata5", "m21", "m22", "sata6", "sata7"];
+export const STORAGE_PORTS: readonly string[] = [
+  'sata0',
+  'sata1',
+  'm20',
+  'sata2',
+  'sata3',
+  'sata4',
+  'sata5',
+  'm21',
+  'm22',
+  'sata6',
+  'sata7',
+];
 /** A block is 64 words. */
 export const BLOCK_BYTES = 256;
 export const BLOCK_WORDS = 64;
@@ -165,7 +188,15 @@ export const PAGED_TABLES = 0xb000;
 export const PAGED_TABLES_BYTES = 0x400;
 /** Header words: magic, total blocks (header + kernel), queue slots, program slots, spool start block, spool blocks per job, OS tier. */
 export const OS_MAGIC = 0x3153_564f;
-export const OS_HEADER = { MAGIC: 0, TOTAL_BLOCKS: 1, QUEUE_SLOTS: 2, PROGRAM_SLOTS: 3, SPOOL_LBA: 4, SPOOL_BLOCKS: 5, TIER: 6 } as const;
+export const OS_HEADER = {
+  MAGIC: 0,
+  TOTAL_BLOCKS: 1,
+  QUEUE_SLOTS: 2,
+  PROGRAM_SLOTS: 3,
+  SPOOL_LBA: 4,
+  SPOOL_BLOCKS: 5,
+  TIER: 6,
+} as const;
 /**
  * The spool map in the header: one word per queue slot (from word `OS_SPOOL_MAP`), the slot's first spool block. The top byte names the drive:
  * 0 is the OS drive, k > 0 is storage port k - 1 (`STORAGE_PORTS` order). The drive ignores that byte in its LBA register (`SPOOL_PORT_SHIFT`).
@@ -177,7 +208,17 @@ export const KDATA_BASE = 0xe000;
 export const KDATA_SLOTS = 16;
 export const KSLOT_BYTES = 64;
 /** Slot word offsets (bytes). */
-export const KSLOT = { STATE: 0, KEY: 4, LEN: 8, LBA: 12, RESULT: 16, SEQ: 48, THREADS: 52, LIVE: 56, DEAD: 60 } as const;
+export const KSLOT = {
+  STATE: 0,
+  KEY: 4,
+  LEN: 8,
+  LBA: 12,
+  RESULT: 16,
+  SEQ: 48,
+  THREADS: 52,
+  LIVE: 56,
+  DEAD: 60,
+} as const;
 /**
  * Threaded jobs (OS 4, docs/MULTICORE.md section 7, docs/OS.md): a program that wants T > 1 threads starts with the nop `addi zero, zero, T`, which every engine runs
  * as any other nop. The kernel makes T contexts that share the address space; thread k starts at the program's entry with `a0 = k`, `a1 = T` and its stack top at `threadStackTop(k)`.
@@ -203,12 +244,16 @@ export const MPU_REG = {
   /** rw: 1 = stores into the protected ranges are refused and fault. The kernel sets it just before it jumps to a job. Reset: 0. */
   ENABLE: 0x00,
   /** rw: the two protected ranges [LO, HI) of RAM (the boot ROM; the OS header, kernel and job table). Reset: empty. */
-  R0_LO: 0x04, R0_HI: 0x08, R1_LO: 0x0c, R1_HI: 0x10,
+  R0_LO: 0x04,
+  R0_HI: 0x08,
+  R1_LO: 0x0c,
+  R1_HI: 0x10,
   /** ro: faults since power-on, and the address the last refused store aimed at. */
-  FAULTS: 0x14, FAULT_ADDR: 0x18,
+  FAULTS: 0x14,
+  FAULT_ADDR: 0x18,
 } as const;
 /** The result text of a job the OS killed for writing to protected memory. */
-export const FAULT_TEXT = "SEGFAULT";
+export const FAULT_TEXT = 'SEGFAULT';
 
 // ---- Interval timer (docs/OS.md "Preemption"). Word registers, offsets from TIMER_BASE.
 
@@ -239,9 +284,11 @@ export const MMU_REG = {
   /** rw: where the CPU goes on a page fault (the OS's handler; translation is off there). */
   VECTOR: 0x0c,
   /** ro: the faulting virtual address and why (`VmFault`) of the last fault. */
-  FAULT_ADDR: 0x10, FAULT_CAUSE: 0x14,
+  FAULT_ADDR: 0x10,
+  FAULT_CAUSE: 0x14,
   /** ro: TLB entries, and page faults taken since power-on. */
-  TLB_ENTRIES: 0x18, FAULTS: 0x1c,
+  TLB_ENTRIES: 0x18,
+  FAULTS: 0x1c,
 } as const;
 /** Table entry bits (the frame is bits 8 and up). */
 export const PteBit = { Valid: 1, Write: 2, Exec: 4 } as const;
@@ -256,7 +303,7 @@ export const FAULT_CAUSE_LINE = 30;
 export const GPU_BASE = 0x4005_0000;
 export const GPU_STRIDE = 0x2_0000; // room for a 64K card behind the register page
 /** Slot ids a GPU can sit in (a board has at most four PCIe slots); the slot id doubles as the port and clock domain name. */
-export const GPU_PORTS: readonly string[] = ["pcie0", "pcie1", "pcie2", "pcie3"];
+export const GPU_PORTS: readonly string[] = ['pcie0', 'pcie1', 'pcie2', 'pcie3'];
 /** Card registers (word access, offsets from the port base). */
 export const GPU_REG = {
   /** ro: GpuStatus bits. */
@@ -324,7 +371,7 @@ export const TPM_SEAL_TICKS = 10;
 /** The NPU in PCIe slot k sits at NPU_BASE + k * NPU_STRIDE; its port and clock domain are named "npu" + k. */
 export const NPU_BASE = 0x4013_0000;
 export const NPU_STRIDE = 0x1_0000;
-export const NPU_PORTS: readonly string[] = ["npu0", "npu1", "npu2", "npu3"];
+export const NPU_PORTS: readonly string[] = ['npu0', 'npu1', 'npu2', 'npu3'];
 /** Registers (word access, offsets from the port base). Status bits are GpuStatus, fault codes GpuFaultCode. */
 export const NPU_REG = {
   STATUS: 0x00,
@@ -379,15 +426,22 @@ export const NIC_REG = {
   /** rw: NicCtrl bits. Reset: 0 (the NIC is off until the kernel enables it, so nothing reaches RAM before the kernel is ready). */
   CTRL: 0x04,
   /** rw: the receive ring's address in RAM, and its slot count. */
-  RX_BASE: 0x08, RX_SLOTS: 0x0c,
+  RX_BASE: 0x08,
+  RX_SLOTS: 0x0c,
   /** ro: the NIC's write index. rw: the kernel's read index (`RX_TAIL`): the slots from tail up to head wait for the kernel. */
-  RX_HEAD: 0x10, RX_TAIL: 0x14,
+  RX_HEAD: 0x10,
+  RX_TAIL: 0x14,
   /** rw: the transmit ring's address and slot count. */
-  TX_BASE: 0x18, TX_SLOTS: 0x1c,
+  TX_BASE: 0x18,
+  TX_SLOTS: 0x1c,
   /** ro: the NIC's read index. rw: the kernel's write index (`TX_TAIL`): writing it rings the doorbell, the slots from head up to tail are ready to send. */
-  TX_HEAD: 0x20, TX_TAIL: 0x24,
+  TX_HEAD: 0x20,
+  TX_TAIL: 0x24,
   /** ro, since power-on: segments written to the ring, segments dropped (the ring was full), packets sent, interrupts raised. */
-  STAT_RX: 0x28, STAT_DROP: 0x2c, STAT_TX: 0x30, STAT_IRQ: 0x34,
+  STAT_RX: 0x28,
+  STAT_DROP: 0x2c,
+  STAT_TX: 0x30,
+  STAT_IRQ: 0x34,
 } as const;
 /** `STATUS` bits: the link is up (cable, router, power), a segment waits in the ring, a packet waits to be sent, a segment was dropped since the last reset, the NIC is enabled. */
 export const NicStatus = { Link: 1, RxPending: 2, TxBusy: 4, Dropped: 8, Enabled: 16 } as const;

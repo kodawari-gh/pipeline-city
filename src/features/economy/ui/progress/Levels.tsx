@@ -15,7 +15,14 @@ export function LevelBar({ s }: { s: Snapshot }) {
   const m = levelBar(s);
   if (m.sandbox) {
     return (
-      <button class="lvl-chip" data-cue="ui_click" data-cue-next="ui_transition_in" title={m.tooltip} aria-label={`Rules level ${m.level}, ${m.name}. Open the levels`} onClick={() => openMilestones()}>
+      <button
+        class="lvl-chip"
+        data-cue="ui_click"
+        data-cue-next="ui_transition_in"
+        title={m.tooltip}
+        aria-label={`Rules level ${m.level}, ${m.name}. Open the levels`}
+        onClick={() => openMilestones()}
+      >
         {m.label}
       </button>
     );
@@ -25,11 +32,25 @@ export function LevelBar({ s }: { s: Snapshot }) {
   const n = next !== null && next <= 10 ? next : 10;
   const filled = Math.round((m.pct / 100) * n);
   return (
-    <button class={`lvl ${m.atMax ? 'max' : ''}`} data-cue="ui_click" data-cue-next="ui_transition_in" title={m.tooltip} aria-label={`Level ${m.level}, ${m.name}. Client base ${m.label}. Open the levels`} onClick={() => openMilestones()}>
+    <button
+      class={`lvl ${m.atMax ? 'max' : ''}`}
+      data-cue="ui_click"
+      data-cue-next="ui_transition_in"
+      title={m.tooltip}
+      aria-label={`Level ${m.level}, ${m.name}. Client base ${m.label}. Open the levels`}
+      onClick={() => openMilestones()}
+    >
       <span class="lvl-n">{m.level}</span>
       <span class="lvl-name">{m.name}</span>
-      <span class="lvl-cells" aria-hidden="true">{Array.from({ length: n }, (_, i) => <i key={i} class={i < filled ? 'on' : ''} />)}</span>
-      <span class="lvl-num">{m.label}{m.atMax ? ' +' : <span class="lvl-word"> clients</span>}</span>
+      <span class="lvl-cells" aria-hidden="true">
+        {Array.from({ length: n }, (_, i) => (
+          <i key={i} class={i < filled ? 'on' : ''} />
+        ))}
+      </span>
+      <span class="lvl-num">
+        {m.label}
+        {m.atMax ? ' +' : <span class="lvl-word"> clients</span>}
+      </span>
     </button>
   );
 }
@@ -38,8 +59,13 @@ export function LevelBar({ s }: { s: Snapshot }) {
 export function UnlockChip({ u, small }: { u: MilestoneUnlock; small?: boolean }) {
   const art = hasArt(u.id, u.kind, u.planned);
   return (
-    <span class={`ut ${small ? 'small' : ''} ${u.planned ? 'planned' : ''}`} title={u.planned ? `${u.name}: planned, not in the game yet` : u.name}>
-      <span class="ut-art">{art ? <PartArt id={u.id} size={small ? 30 : 48} /> : <Icon name={u.icon} size={small ? 14 : 22} />}</span>
+    <span
+      class={`ut ${small ? 'small' : ''} ${u.planned ? 'planned' : ''}`}
+      title={u.planned ? `${u.name}: planned, not in the game yet` : u.name}
+    >
+      <span class="ut-art">
+        {art ? <PartArt id={u.id} size={small ? 30 : 48} /> : <Icon name={u.icon} size={small ? 14 : 22} />}
+      </span>
       <span class="ut-name">{u.name.split(' (')[0]}</span>
     </span>
   );
@@ -50,28 +76,57 @@ function Row({ r }: { r: MilestoneRow }) {
   const strict = r.patience === 'stricter';
   return (
     <li class={`ms-row ${r.status}`} data-level={r.level} aria-current={r.status === 'current' ? 'step' : undefined}>
-      <div class="ms-badge" aria-hidden="true">{r.status === 'passed' ? <Icon name="check" size={13} /> : r.level}</div>
+      <div class="ms-badge" aria-hidden="true">
+        {r.status === 'passed' ? <Icon name="check" size={13} /> : r.level}
+      </div>
       <div class="ms-main">
         <div class="ms-head">
           <b class="ms-name">{r.name}</b>
-          <span class="ms-thr" title="Client base needed for this level">{r.threshold === 0 ? 'start' : `${r.threshold} clients`}</span>
-          <span class="ms-sr">{r.status === 'passed' ? 'Reached' : r.status === 'current' ? 'You are here' : 'Not reached yet'}</span>
+          <span class="ms-thr" title="Client base needed for this level">
+            {r.threshold === 0 ? 'start' : `${r.threshold} clients`}
+          </span>
+          <span class="ms-sr">
+            {r.status === 'passed' ? 'Reached' : r.status === 'current' ? 'You are here' : 'Not reached yet'}
+          </span>
         </div>
-        {r.status === 'current' && <div class="ms-prog" aria-hidden="true"><i style={{ width: `${r.progress * 100}%` }} /></div>}
+        {r.status === 'current' && (
+          <div class="ms-prog" aria-hidden="true">
+            <i style={{ width: `${r.progress * 100}%` }} />
+          </div>
+        )}
         <div class="ms-chips">
-          <span class="chip" title={`Clients wait about ${r.waitS} s${strict ? ': less patient than the level before' : ''}.`}>
-            <Icon name="clock" size={11} /> {r.waitS} s{strict && <span class="ms-arrow down" aria-label="stricter">&#9660;</span>}
+          <span
+            class="chip"
+            title={`Clients wait about ${r.waitS} s${strict ? ': less patient than the level before' : ''}.`}
+          >
+            <Icon name="clock" size={11} /> {r.waitS} s
+            {strict && (
+              <span class="ms-arrow down" aria-label="stricter">
+                &#9660;
+              </span>
+            )}
           </span>
           <span class="chip" title={`Payouts x${fmtNum(r.payMul, 2)}${pay ? ': bigger than the level before' : ''}.`}>
-            <Icon name="dollar" size={11} /> x{fmtNum(r.payMul, 2)}{pay && <span class="ms-arrow up" aria-label="bigger">&#9650;</span>}
+            <Icon name="dollar" size={11} /> x{fmtNum(r.payMul, 2)}
+            {pay && (
+              <span class="ms-arrow up" aria-label="bigger">
+                &#9650;
+              </span>
+            )}
           </span>
           {r.newJobs.map((j) => (
-            <span class="chip" key={j.id} title={`New clients: ${j.hint}`}><Icon name={j.icon} size={11} /> {j.label}</span>
+            <span class="chip" key={j.id} title={`New clients: ${j.hint}`}>
+              <Icon name={j.icon} size={11} /> {j.label}
+            </span>
           ))}
         </div>
         {r.unlocks.length > 0 && (
           <div class="ms-unl" role="list" aria-label={`Unlocks at level ${r.level}`}>
-            {r.unlocks.map((u) => <span role="listitem" key={u.id}><UnlockChip u={u} /></span>)}
+            {r.unlocks.map((u) => (
+              <span role="listitem" key={u.id}>
+                <UnlockChip u={u} />
+              </span>
+            ))}
           </div>
         )}
       </div>
@@ -93,16 +148,27 @@ function MilestoneModal({ s, focus }: { s: Snapshot; focus: number | null }) {
     box.current?.querySelector<HTMLElement>('button.close')?.focus();
     const row = list.current?.querySelector<HTMLElement>(`[data-level="${target}"]`);
     // Show the target level near the top, with the level before it peeking in.
-    if (row && list.current) list.current.scrollTop = Math.max(0, row.offsetTop - list.current.offsetTop - row.offsetHeight * 0.6);
+    if (row && list.current)
+      list.current.scrollTop = Math.max(0, row.offsetTop - list.current.offsetTop - row.offsetHeight * 0.6);
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.preventDefault(); closeMilestones(); return; }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeMilestones();
+        return;
+      }
       if (e.key !== 'Tab' || !box.current) return;
       const items = [...box.current.querySelectorAll<HTMLElement>('button:not(:disabled), [tabindex="0"]')];
       if (!items.length) return;
-      const first = items[0]!, last = items[items.length - 1]!;
+      const first = items[0]!,
+        last = items[items.length - 1]!;
       const active = document.activeElement as HTMLElement | null;
-      if (e.shiftKey && (active === first || !box.current.contains(active))) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && (active === last || !box.current.contains(active))) { e.preventDefault(); first.focus(); }
+      if (e.shiftKey && (active === first || !box.current.contains(active))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (active === last || !box.current.contains(active))) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => {
@@ -111,7 +177,12 @@ function MilestoneModal({ s, focus }: { s: Snapshot; focus: number | null }) {
     };
   }, [target]);
   return (
-    <div class="modal-back ms-back" onClick={(e) => { if (e.target === e.currentTarget) closeMilestones(); }}>
+    <div
+      class="modal-back ms-back"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) closeMilestones();
+      }}
+    >
       <div ref={box} class="card ms" role="dialog" aria-modal="true" aria-labelledby="ms-title">
         <header class="ms-top">
           <div>
@@ -122,10 +193,14 @@ function MilestoneModal({ s, focus }: { s: Snapshot; focus: number | null }) {
                 : 'Serve clients to grow your client base. Each level unlocks parts and brings new kinds of work.'}
             </div>
           </div>
-          <button class="close" aria-label="Close levels" title="Close (Esc)" onClick={closeMilestones}><Icon name="close" size={12} /></button>
+          <button class="close" aria-label="Close levels" title="Close (Esc)" onClick={closeMilestones}>
+            <Icon name="close" size={12} />
+          </button>
         </header>
         <ol class="ms-list" ref={list} tabIndex={0} aria-label="All levels">
-          {rows.map((r) => <Row key={r.level} r={r} />)}
+          {rows.map((r) => (
+            <Row key={r.level} r={r} />
+          ))}
         </ol>
         <div class="ms-foot mute">Later levels are stricter: clients wait less, and pay more.</div>
       </div>
@@ -146,13 +221,17 @@ export function MilestoneScreen({ s }: { s: Snapshot }) {
 export function LevelUpModal() {
   const up = levelUp.value;
   const next = useRef<HTMLButtonElement>(null);
-  useEffect(() => { if (up) next.current?.focus(); }, [up?.level]);
+  useEffect(() => {
+    if (up) next.current?.focus();
+  }, [up?.level]);
   if (!up) return null;
   return (
     <div class="modal-back lvlmodal">
       <div class="card modal lvl-card" role="dialog" aria-modal="true" aria-label={`Level ${up.level}: ${up.name}`}>
         <div class="lvl-hero" aria-hidden="true">
-          <i class="ring r1" /><i class="ring r2" /><i class="ring r3" />
+          <i class="ring r1" />
+          <i class="ring r2" />
+          <i class="ring r3" />
           <span class="lvl-big">{up.level}</span>
         </div>
         <div class="eyebrow mute lvl-eyebrow">Level up</div>
@@ -162,14 +241,30 @@ export function LevelUpModal() {
             <div class="eyebrow mute lvl-unl">Now unlocked</div>
             <div class="lvl-unlocks">
               {up.unlocked.map((u, i) => (
-                <span class="lvl-pop" key={u.id} style={{ animationDelay: `calc(var(--d-long) + ${i} * var(--d-fast))` }}><UnlockChip u={u} /></span>
+                <span
+                  class="lvl-pop"
+                  key={u.id}
+                  style={{ animationDelay: `calc(var(--d-long) + ${i} * var(--d-fast))` }}
+                >
+                  <UnlockChip u={u} />
+                </span>
               ))}
             </div>
           </>
         )}
         <div class="pactions lvl-actions">
-          <button class="link" onClick={() => { openMilestones(up.level); dismissLevelUp(); }}>All levels</button>
-          <button class="primary" ref={next} onClick={dismissLevelUp}>Next</button>
+          <button
+            class="link"
+            onClick={() => {
+              openMilestones(up.level);
+              dismissLevelUp();
+            }}
+          >
+            All levels
+          </button>
+          <button class="primary" ref={next} onClick={dismissLevelUp}>
+            Next
+          </button>
         </div>
       </div>
     </div>

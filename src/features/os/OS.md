@@ -8,13 +8,13 @@ Storage is a device kind (`storage`) with a tier ladder (details in [`BOARD.md`]
 
 A port is a **memory-mapped block device** (`StoragePort`, window `STORAGE_BASE + k * 0x1000`), blocks of 256 bytes (64 words):
 
-| Offset | Name | |
-|---|---|---|
-| 0x00 | STATUS | ro: bit0 busy, bit1 error (bad block, no media, command while busy), bit2 media present |
-| 0x04 | LBA | rw: block address (written byte-wise, so a full word store works) |
-| 0x08 | CMD | wo: 1 read LBA into the buffer, 2 write the buffer to LBA. Fires on the write |
-| 0x0C | BLOCKS | ro: capacity in blocks |
-| 0x100 | buffer | 256-byte data window |
+| Offset | Name   |                                                                                         |
+| ------ | ------ | --------------------------------------------------------------------------------------- |
+| 0x00   | STATUS | ro: bit0 busy, bit1 error (bad block, no media, command while busy), bit2 media present |
+| 0x04   | LBA    | rw: block address (written byte-wise, so a full word store works)                       |
+| 0x08   | CMD    | wo: 1 read LBA into the buffer, 2 write the buffer to LBA. Fires on the write           |
+| 0x0C   | BLOCKS | ro: capacity in blocks                                                                  |
+| 0x100  | buffer | 256-byte data window                                                                    |
 
 Timing is simulated in the drive's **own clock domain** (named after the slot): a command is busy for `latencyTicks` (skipped when the block is the one right after the previous command, i.e. sequential access) plus `blockTicks`. The domain runs at the part's (thermally throttled) clock times `cpuCyclesPerClock` (36), like the CPU, so a device tick is about one toy-CPU cycle. Reads/writes only happen when the busy count runs out; the CPU polls STATUS. Stats (`bytesRead`, `bytesWritten`, used blocks, busy ticks) are counted from real commands. Measured sequential read of 8 blocks: HDD roughly 36 s, SATA SSD 5 s, NVMe 1 s (the HDD's seek alone is 20 s).
 
@@ -38,7 +38,6 @@ Gate: `canHold(disk, kind)` (media) lets a dataset in only on a `clean` drive; `
 
 **Format.** `Game.formatDrive(deviceId, confirm)` (message `formatDrive`) writes a fresh filesystem on a data drive: the ledger is wiped and the drive turns `clean`, so the next boot mounts it. `formatBlock` gives the refusal: the machine must be off, an OS with `fsTier >= 2` must be installed, and the drive must not hold the OS. A drive with datasets needs `confirm` (the picker's second press). The format is instant, like an install; it has no time cost yet. `StorageSnap.format` carries `{ why, datasets }` for the picker's "Format drive" action.
 
-
 ### Wear, bad blocks, burn, unservable data, RAID mirror
 
 All numbers are placeholders (`specs.ts`).
@@ -57,12 +56,12 @@ All numbers are placeholders (`specs.ts`).
 
 `OS_SPECS` in `src/features/os/sim/specs.ts` is data: `{id, tier, name, description, price, minRamBytes, diskBytes, programSlots, queueSlots, later?}`.
 
-| id | tier | state | RAM | disk | programSlots | queueSlots |
-|---|---|---|---|---|---|---|
-| `os1` Resident OS 1.0 | 1 | **implemented** | 32K | 12K | **1** | 4 |
-| `os2` Paged OS 2.0 | 2 | **implemented** (needs a CPU with an MMU) | 64K | 24K | **1** | 8 |
-| `os3` Preemptive OS 3.0 | 3 | **implemented** (needs a CPU with an MMU) | 64K | 48K | **4** | 8 |
-| `os4` Multicore OS 4.0 | 4 | **implemented** (needs a CPU with an MMU; unlocks at level 14) | 256K | 96K | **8** | 8 |
+| id                      | tier | state                                                          | RAM  | disk | programSlots | queueSlots |
+| ----------------------- | ---- | -------------------------------------------------------------- | ---- | ---- | ------------ | ---------- |
+| `os1` Resident OS 1.0   | 1    | **implemented**                                                | 32K  | 12K  | **1**        | 4          |
+| `os2` Paged OS 2.0      | 2    | **implemented** (needs a CPU with an MMU)                      | 64K  | 24K  | **1**        | 8          |
+| `os3` Preemptive OS 3.0 | 3    | **implemented** (needs a CPU with an MMU)                      | 64K  | 48K  | **4**        | 8          |
+| `os4` Multicore OS 4.0  | 4    | **implemented** (needs a CPU with an MMU; unlocks at level 14) | 256K | 96K  | **8**        | 8          |
 
 An OS is bought into the inventory like a part, then **installed onto a storage device** (`install(invId, slotId)` where `slotId` is the storage slot, or omitted for the first drive that qualifies). Requirements (checked at install, and shown as `blocked` reasons on the purchase): installed RAM >= `minRamBytes`, a working drive with `diskBytes` plus one job's spool area free. Install is instant and only while the machine is off; it writes the boot image and reserves `diskBytes` of the drive (capacity used, `bytesWritten`). One OS at a time. `uninstallOs()` (off only) wipes the drive's OS and returns the item to the inventory. A drive that holds the OS cannot be uninstalled or swapped. Progress flags: `storageInstalled`, `osInstalled`, `firstOsJob`.
 
@@ -89,6 +88,7 @@ Written in toy-ISA asm, assembled at import. Vectors: `KERNEL_BASE+0` boot, `+4`
 3. `kdone` saves the job's output line (display row `JOB_ROW`) into the slot as the result, state = result.
 
 **The NIC driver** (`src/features/os/sim/nicdriver.ts`, the routine `knic`; docs/NETSTACK.md). The kernel sets up the NIC at boot (`nicInit`: its two rings in RAM at `NIC_RX_AT` / `NIC_TX_AT`, enable) and keeps its own counters in the NIC area (`NICA`, words `NICK`: the reclaim index, the last link state, network jobs in the table, segments taken, drops, results sent, the event flag).
+
 - **OS 1 and 2 poll.** They run a job to the end with interrupts off (OS 1 has no privilege levels: a handler's stores would hit the memory protection of the job it interrupted), so `knic` runs at the top of every pass of the loop, between jobs. A segment that comes while a job runs waits in the ring and the NIC's FIFO; a full FIFO loses it (the sender sends it again).
 - **Decision (ticket #69): OS 2 keeps polling; no kernel change.** The NIC DMAs each segment into the ring without the CPU, so the ring buffers segments during a job. The kernel enables the interrupt line only in the OS 3 and up branch (`kernel.ts` lines 1463-1465; OS 2 leaves it off). OS 2 never enables the line (kernel.ts:1463-1465 are the only enable, in the pre branch) and gives each program an address space (kernel.ts:1357). Revisit only if a measured job length overflows the ring.
 - **OS 3 and up take the interrupt.** The NIC raises `IRQ.NIC` (core 0 takes the line) when a segment is in the ring, a packet is sent or the link changes. `ktimer`, the kernel's one interrupt entry, saves the running context as for the timer, acknowledges the line, sets the flag `NICK.EV`, clears the kernel's nap (`SLEEP`) and picks the next context: the kernel's own context, which is the bottom half. Its loop runs `knic` only when it finds the flag set and clears it first, so an event that comes while the driver runs is seen on the next pass. The end of a network job (`kfinish`, after the slot is marked done) and the first pass after boot set the flag too. With no traffic the driver never runs. The handler acknowledges the NIC line only when it sees it pending, so a line that rises later is taken again.
@@ -134,11 +134,13 @@ UI (`src/core/ui`): shop and inventory rows for kinds `storage` and `os` (OS row
 A small **MPU** (`src/features/memory/sim/mpu.ts`, registers at `MPU_BASE`, `src/features/cpu/CPU.md` map) keeps jobs out of the OS. The kernel programs two protected ranges at boot (the boot ROM `[0, USER_BASE)`, and the OS header, kernel and job table `[OS_HEADER_BASE, end of the table)`) and switches the unit on just before it jumps to a job; it is off while the kernel runs (`kdone` and `kfault` switch it off first). A store into a protected range is **dropped** and trips the unit; the machine stops fetching, lets the pipeline drain (what the job still has in flight does not land either), and sends the CPU to `KERNEL_FAULT` (`KERNEL_BASE + 8`). `kfault` ends the job the way an OS kills a process: the slot's result becomes `SEGFAULT`, the state is `Result`, and the kernel loop goes on (the result is flashed to the key like any other, and does not match the expected output, so the client is not paid). The game counts the fault (`Snapshot.faults`, this session only: not saved) and logs it. Everything else a job writes is its own: it claims memory by writing it (src/features/cpu/DIE.md "Memory"). Generated jobs never fault (tested); `fault.test.ts` runs a job that scribbles over the kernel.
 
 ## OS 2: paged
+
 `os2` ("Paged OS 2.0", level 8) gives every program an address space and needs a CPU with an MMU (src/features/memory/VM.md): the kernel builds the page tables before it runs a job, the heap and the stack are claimed by page faults, the OS is mapped read-only, and a program that touches what it may not is killed with `SEGFAULT` like on OS 1. It replaces the memory protection unit; `programSlots` is 1 (several programs at once is OS 3), or 2 on a dual-core CPU.
 
 **On a dual core (`cpu2d`)** `os2` boots the multicore image (`KERNEL_IMAGE_SMP`, `kernelSource(true, false, true)`, chosen by `kernelImageFor(tier, smp)`; the boot area on the drive is refreshed at every cold boot, so swapping the CPU swaps the kernel). Core 0 is the kernel core: it ingests, loads programs from the spool and runs the first job itself. When a job is queued and core 1 is free it loads the second into **core 1's arena** (physical `ARENA1` = 0x10000 up, a copy of the paged layout shifted by that), builds core 1's tables (`kmap1`), writes the mailbox and sends core 1 an **IPI** (`kdispatch`). Core 1 wakes in `k2entry` (the secondary vector, `KERNEL_SECONDARY`), switches its translation on and runs the job; a job's end (`kdone`) or fault (`kfault`) branches on `CORE_ID` to `kdone1`/`kfault1`, which keep the result and park the core again (`k2idle`). The kernel data is guarded by one **big kernel lock** (`klock`/`kunlock`, `amoswap`) around the state writes; core 1 never touches a drive or the display's status line, its page-fault handler (`kpf1`) is its own. It needs 128K of RAM (`SMP_MIN_FRAMES`); with less, `SMPON` stays 0 and jobs run one after the other on core 0 with core 1 asleep. `os1` stays on core 0 alone. Test: `src/features/cpu/sim/multicore/smp.test.ts`.
 
 ## OS 3: preemptive
+
 `os3` ("Preemptive OS 3.0", level 13, **needs 256K of RAM**: its frame map and kernel table sit above 64K) runs up to `programSlots` = 4 programs at once, each in its own address space (src/features/memory/VM.md), and shares the CPU between them with a timer interrupt. Code: `preemptive()` in `src/features/os/sim/kernel.ts` (`kernelSource(true, true)`), the interval timer `src/core/sim/hw/timer.ts`. Test: `src/features/cpu/sim/multicore/preempt.test.ts`.
 
 **The timer** is a device (`TIMER_BASE`, src/features/cpu/CPU.md): `INTERVAL` CPU cycles between interrupts on line 0 (0 = off), `COUNT`, and `KICK` (raise the line now). It counts CPU cycles, so it is deterministic. The kernel sets `SLICE_CYCLES` = 5000 when it starts a program and switches it off when the last program ends.
@@ -156,14 +158,18 @@ A small **MPU** (`src/features/memory/sim/mpu.ts`, registers at `MPU_BASE`, `src
 **Limits.** Four programs on one core (the job table has 16 slots (56 from OS 3)); programs share nothing and have no way to wait or yield; no priorities (round robin); a program whose frames do not fit waits in the queue; the TLB is flushed on every switch (no address-space ids yet).
 
 ### Preemption on every core (multicore `os3`)
+
 A CPU with more than one logical core (`cpuLogicalCores()` = cores x threads, up to `MAX_LCORES` = 8) boots a different image, `KERNEL_IMAGE_PRE_SMP` (`kernelSource(true, true, true)`; the single-core image is byte-identical to before). Program slots become `max(programSlots, min(8, 2 x logical cores))`. Test: `src/features/cpu/sim/multicore/smp3.test.ts`.
+
 - **One ready list under one lock.** The contexts are the same nine PCBs; `PCB.CORE` (offset 120) holds the core running it plus one, 0 when none does. The scheduler (`kpick`) takes the big kernel lock `LOCK3` (`klk`/`kuk`: read until free, then `amoswap`), scans the nine contexts from the one after the one that ran, claims the first that is runnable and not claimed, and loads it. Nothing claimable: the core sits in its idle loop (`kidlec`, a private idle PCB and stack) and writes PARK.
 - **The kernel's context runs on any core.** It is skipped by the scan only while it sleeps (`KERNEL_NAP`); `ROW_BASE` is 0 for it and the core number for a program, so each core's program writes its own display row and the row copy to and from the PCB follows. `kalloc` and `kfreeown` take the lock inline (interrupts are off wherever they run).
 - **Per-core entry points.** Each core has its own interrupt vector words (`KERNEL_TVEC + 4c`, `KERNEL_PVEC + 4c`) and a block of scratch words (`PCORE + 64c`: the page-fault handler's borrowed registers, the running PCB). Core 0 sends an IPI to the others once it is up (`kmain`); a parked core wakes into `k3entry`, sets its vectors, MMU and timer (always running at `SLICE_CYCLES`, so an idle core polls for work) and idles. `kstart` sends an IPI to wake idle cores when it queues a program. A fault kills the program on whichever core it ran.
 - **Contention.** A lock spinner must not use `amoswap` in its loop (the atomics go to the shared L2 port and starve the holder). On a switch-on-miss CPU a spinner never misses, so the in-order engine hands the pipeline to another ready thread after `THREAD_TIMEOUT` (24) cycles (src/features/cpu/ENGINES.md).
 
 ## OS 4: threaded programs (`KERNEL_IMAGE_THR`)
+
 `os4` is the multicore `os3` (above) plus programs that run on several cores at once (src/features/cpu/MULTICORE.md section 7). `kernelSource(paged, pre, smp, thr)` with `thr` builds `KERNEL_IMAGE_THR`; `kernelImageFor(4)` returns it on any CPU. Program slots are `max(8, ...)`: 8 jobs at once, at most 8 contexts in all (`MAX_THREADS_PER_JOB`).
+
 - **The header.** A program that wants T > 1 threads starts with the nop `addi zero, zero, T` (`Built.threads`, `GenMeta.threads`, src/features/jobs/GEN.md). `kstart` reads T from the first image word (the nop's immediate), stores it in `KSLOT.THREADS` and `KSLOT.LIVE`, and takes T free contexts (fewer free: the job waits in the queue). Every context's `PCB.SLOT` is the job's slot record, so the contexts of one job share the page table (`PCB.TABLE` and the three level-2 frames are copies). The contexts are made first and thread 0's `PCB.SLOT` last, so the scheduler never runs half a job.
 - **Thread k** starts at the program's entry with `a0 = k`, `a1 = T` and its stack top at `threadStackTop(k)` (thread 0: 0x10000, thread k: `0x80000 + k * 0x1000`, a mapped page demand-faulted like any other); `PCB.TIDX` is k. Threads share the address space, so they meet with `amoadd` and flags; the sync words sit at `THREAD_SYNC` (0x7f00) in the heap.
 - **Ending.** A thread that ends (the hosted `jump ROM_DONE_VECTOR`, `kdone`) ends only its own context: `KSLOT.LIVE` is decremented under the lock, and the thread that brings it to 0 frees the frames, copies the display row of thread 0 into the result, and sets the slot to Result. The result text is thread 0's row (the other threads' rows are not copied).

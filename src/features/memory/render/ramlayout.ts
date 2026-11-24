@@ -8,12 +8,22 @@ import type { Theme } from '@/core/render/theme';
 import { mix } from '@/core/render/ink';
 
 /** A page is the unit a chip is cut into (a block of the storage, 256 bytes); it is drawn as a tile of 16 x 16 pixels, one per byte, a row of the tile being a 16-byte cache line. */
-export const PAGE = 256, TILE = 16;
+export const PAGE = 256,
+  TILE = 16;
 
 /** A DRAM chip as a window onto the address space: `tilesX` x `tilesY` pages, in reading order. */
-export interface ChipSlot { rect: Rect; lo: number; hi: number; tilesX: number; tilesY: number }
+export interface ChipSlot {
+  rect: Rect;
+  lo: number;
+  hi: number;
+  tilesX: number;
+  tilesY: number;
+}
 
-export interface Stick { idx: number; bytes: number }
+export interface Stick {
+  idx: number;
+  bytes: number;
+}
 
 /** Data chips per stick (ramArt draws eight, as a real stick carries a side). */
 export const CHIPS_PER_STICK = 8;
@@ -26,15 +36,24 @@ export const CHIPS_PER_STICK = 8;
 export function chipLayout(rects: Rect[], sticks: Stick[], ramBytes: number): ChipSlot[] {
   const n = rects.length;
   if (n === 0) return [];
-  const entries = rects.map((rect, i) => ({ rect, order: sticks[Math.floor(i / CHIPS_PER_STICK)]?.idx ?? 0, i, w: (sticks[Math.floor(i / CHIPS_PER_STICK)]?.bytes ?? ramBytes / Math.max(1, Math.ceil(n / CHIPS_PER_STICK))) / CHIPS_PER_STICK }));
+  const entries = rects.map((rect, i) => ({
+    rect,
+    order: sticks[Math.floor(i / CHIPS_PER_STICK)]?.idx ?? 0,
+    i,
+    w:
+      (sticks[Math.floor(i / CHIPS_PER_STICK)]?.bytes ?? ramBytes / Math.max(1, Math.ceil(n / CHIPS_PER_STICK))) /
+      CHIPS_PER_STICK,
+  }));
   entries.sort((a, b) => a.order - b.order || a.i - b.i);
   const cap = entries.reduce((s, e) => s + e.w, 0) || 1;
   const space = Math.max(cap, ramBytes);
   const out: ChipSlot[] = new Array(n);
   let at = 0;
   entries.forEach((e, k) => {
-    const size = k === entries.length - 1 ? Math.max(256, space - at) : Math.max(256, Math.round((space * e.w) / cap / 256) * 256);
-    const pages = Math.ceil(size / PAGE), tilesX = Math.min(8, pages);
+    const size =
+      k === entries.length - 1 ? Math.max(256, space - at) : Math.max(256, Math.round((space * e.w) / cap / 256) * 256);
+    const pages = Math.ceil(size / PAGE),
+      tilesX = Math.min(8, pages);
     out[e.i] = { rect: e.rect, lo: at, hi: at + size, tilesX, tilesY: Math.ceil(pages / tilesX) };
     at += size;
   });
@@ -47,9 +66,12 @@ export const chipContent = (r: Rect): Rect => ({ x: r.x + 8, y: r.y + 24, w: r.w
 /** The colour a region gets: the OS one colour, the boot ROM grey, a program by its type (so one kind of program always looks the same). */
 export function regionColor(r: RamRegion, T: Theme): string {
   switch (r.kind) {
-    case 'rom': return T.mute;
-    case 'os': return T.ink;
-    case 'osdata': return mix(T.ink, T.mute, 0.45);
+    case 'rom':
+      return T.mute;
+    case 'os':
+      return T.ink;
+    case 'osdata':
+      return mix(T.ink, T.mute, 0.45);
     default: {
       const palette = [T.alu, T.ld, T.st, T.mul, T.br];
       let h = 0;
@@ -71,16 +93,29 @@ export function ownerMap(regions: RamRegion[], length: number): Uint8Array {
  * A chip's pages as cells: for each page that holds anything, the region that owns most of it (index + 1 into the regions, 0: none) and how
  * strong its cell is (stronger the more of it is owned and the fuller it is). `own` is `ownerMap`'s.
  */
-export function pageCells(image: Uint8Array, own: Uint8Array, slot: ChipSlot): { page: number; best: number; strength: number }[] {
-  const out: { page: number; best: number; strength: number }[] = [], pages = Math.ceil((slot.hi - slot.lo) / PAGE);
+export function pageCells(
+  image: Uint8Array,
+  own: Uint8Array,
+  slot: ChipSlot,
+): { page: number; best: number; strength: number }[] {
+  const out: { page: number; best: number; strength: number }[] = [],
+    pages = Math.ceil((slot.hi - slot.lo) / PAGE);
   for (let p = 0; p < pages; p++) {
-    const a0 = slot.lo + p * PAGE, a1 = Math.min(a0 + PAGE, image.length);
-    let nz = 0, owned = 0, best = 0;
+    const a0 = slot.lo + p * PAGE,
+      a1 = Math.min(a0 + PAGE, image.length);
+    let nz = 0,
+      owned = 0,
+      best = 0;
     const votes = new Map<number, number>();
     for (let a = a0; a < a1; a++) {
       if (image[a]) nz++;
       const o = own[a]!;
-      if (o) { owned++; const v = (votes.get(o) ?? 0) + 1; votes.set(o, v); if (v > (votes.get(best) ?? 0)) best = o; }
+      if (o) {
+        owned++;
+        const v = (votes.get(o) ?? 0) + 1;
+        votes.set(o, v);
+        if (v > (votes.get(best) ?? 0)) best = o;
+      }
     }
     if (nz || owned) out.push({ page: p, best, strength: 0.14 + 0.5 * (owned / PAGE) + 0.36 * (nz / PAGE) });
   }
@@ -89,8 +124,13 @@ export function pageCells(image: Uint8Array, own: Uint8Array, slot: ChipSlot): {
 
 /** Where the byte at `addr` is in its chip's picture, in pixels (the picture is `tilesX * TILE` wide): pages in reading order, each a 16 x 16 tile. */
 export function pixelOf(slot: ChipSlot, addr: number): { x: number; y: number } {
-  const off = addr - slot.lo, page = Math.floor(off / PAGE), within = off % PAGE;
-  return { x: (page % slot.tilesX) * TILE + (within % TILE), y: Math.floor(page / slot.tilesX) * TILE + Math.floor(within / TILE) };
+  const off = addr - slot.lo,
+    page = Math.floor(off / PAGE),
+    within = off % PAGE;
+  return {
+    x: (page % slot.tilesX) * TILE + (within % TILE),
+    y: Math.floor(page / slot.tilesX) * TILE + Math.floor(within / TILE),
+  };
 }
 
 /**
@@ -98,19 +138,53 @@ export function pixelOf(slot: ChipSlot, addr: number): { x: number; y: number } 
  * grid (x 0..cols): a rectangle for a range inside one row, otherwise the shape of a selected text block. Empty when the range misses the chip.
  */
 export function spanOutline(lo: number, hi: number, chipLo: number, chipHi: number, cols: number): [number, number][] {
-  const a = Math.max(lo, chipLo) - chipLo, b = Math.min(hi, chipHi) - chipLo;
+  const a = Math.max(lo, chipLo) - chipLo,
+    b = Math.min(hi, chipHi) - chipLo;
   if (b <= a) return [];
-  const ra = Math.floor(a / cols), rb = Math.floor((b - 1) / cols), xa = a % cols, xb = ((b - 1) % cols) + 1;
-  if (ra === rb) return [[xa, ra], [xb, ra], [xb, ra + 1], [xa, ra + 1]];
-  return [[xa, ra], [cols, ra], [cols, rb], [xb, rb], [xb, rb + 1], [0, rb + 1], [0, ra + 1], [xa, ra + 1]];
+  const ra = Math.floor(a / cols),
+    rb = Math.floor((b - 1) / cols),
+    xa = a % cols,
+    xb = ((b - 1) % cols) + 1;
+  if (ra === rb)
+    return [
+      [xa, ra],
+      [xb, ra],
+      [xb, ra + 1],
+      [xa, ra + 1],
+    ];
+  return [
+    [xa, ra],
+    [cols, ra],
+    [cols, rb],
+    [xb, rb],
+    [xb, rb + 1],
+    [0, rb + 1],
+    [0, ra + 1],
+    [xa, ra + 1],
+  ];
 }
 
 /** One line of the magnifier: a word of RAM, as hex and, where it is code, as the instruction. */
-export interface LensRow { addr: number; word: number; hex: string; text: string; code: boolean; current: boolean; region: RamRegion | null }
+export interface LensRow {
+  addr: number;
+  word: number;
+  hex: string;
+  text: string;
+  code: boolean;
+  current: boolean;
+  region: RamRegion | null;
+}
 
-const word = (img: Uint8Array, a: number): number => (a + 4 <= img.length ? (img[a]! | (img[a + 1]! << 8) | (img[a + 2]! << 16) | (img[a + 3]! << 24)) >>> 0 : 0);
+const word = (img: Uint8Array, a: number): number =>
+  a + 4 <= img.length ? (img[a]! | (img[a + 1]! << 8) | (img[a + 2]! << 16) | (img[a + 3]! << 24)) >>> 0 : 0;
 const hex8 = (w: number): string => w.toString(16).padStart(8, '0');
-const ascii = (w: number): string => [0, 8, 16, 24].map((s) => { const c = (w >>> s) & 255; return c >= 32 && c < 127 ? String.fromCharCode(c) : '.'; }).join('');
+const ascii = (w: number): string =>
+  [0, 8, 16, 24]
+    .map((s) => {
+      const c = (w >>> s) & 255;
+      return c >= 32 && c < 127 ? String.fromCharCode(c) : '.';
+    })
+    .join('');
 
 export function regionAt(regions: RamRegion[], addr: number): RamRegion | null {
   let hit: RamRegion | null = null;
@@ -136,24 +210,52 @@ export function lensRows(img: Uint8Array, regions: RamRegion[], addr: number, co
   for (let k = 0; k < count; k++) {
     const a = first + 4 * k;
     if (a + 4 > img.length) break;
-    const w = word(img, a), code = isCodeAt(regions, a) && w !== 0;
-    rows.push({ addr: a, word: w, hex: hex8(w), text: code ? disassemble(w) : w === 0 ? '' : ascii(w), code, current: a === mid, region: regionAt(regions, a) });
+    const w = word(img, a),
+      code = isCodeAt(regions, a) && w !== 0;
+    rows.push({
+      addr: a,
+      word: w,
+      hex: hex8(w),
+      text: code ? disassemble(w) : w === 0 ? '' : ascii(w),
+      code,
+      current: a === mid,
+      region: regionAt(regions, a),
+    });
   }
   return rows;
 }
 
 /** The process table the OS keeps of memory: what the system holds, what each program holds (its image and the memory it claimed), what is free. */
-export interface MemTable { total: number; sys: number; procs: { owner: number; name: string; type: string; bytes: number; image: number; claimed: number }[]; free: number }
+export interface MemTable {
+  total: number;
+  sys: number;
+  procs: { owner: number; name: string; type: string; bytes: number; image: number; claimed: number }[];
+  free: number;
+}
 export function memoryTable(regions: RamRegion[], total: number): MemTable {
   let sys = 0;
   const procs: MemTable['procs'] = [];
   for (const r of regions) {
     const n = r.hi - r.lo;
-    if (r.kind === 'rom' || r.kind === 'os' || r.kind === 'osdata') { sys += n; continue; }
+    if (r.kind === 'rom' || r.kind === 'os' || r.kind === 'osdata') {
+      sys += n;
+      continue;
+    }
     let p = procs.find((q) => q.owner === r.owner);
-    if (!p) { p = { owner: r.owner ?? 0, name: r.name.replace(/ data$/, ''), type: r.type ?? '', bytes: 0, image: 0, claimed: 0 }; procs.push(p); }
+    if (!p) {
+      p = {
+        owner: r.owner ?? 0,
+        name: r.name.replace(/ data$/, ''),
+        type: r.type ?? '',
+        bytes: 0,
+        image: 0,
+        claimed: 0,
+      };
+      procs.push(p);
+    }
     p.bytes += n;
-    if (r.kind === 'work') p.claimed += n; else p.image += n;
+    if (r.kind === 'work') p.claimed += n;
+    else p.image += n;
   }
   return { total, sys, procs, free: Math.max(0, total - sys - procs.reduce((a, p) => a + p.bytes, 0)) };
 }

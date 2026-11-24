@@ -1,13 +1,13 @@
 // What the feature files of the game share but the outside world never sees: the internal records and a few constants.
 
-import type { Binding, IspSpec, RouterSpec } from "../../features/network/sim";
-import type { NicSegment } from "../../features/network/sim/nic";
-import type { Flow } from "../../features/network/sim/transport";
-import type { OsSpec } from "../../features/os/sim";
-import { levelRows, type LevelRowSnap, type Need } from "../../features/economy/sim/levels";
-import type { JobWindow } from "../../features/jobs/sim/joblog";
-import type { LinkState, MountPhase } from "./types";
-import type { Job } from "../../features/jobs/sim/work";
+import type { Binding, IspSpec, RouterSpec } from '../../features/network/sim';
+import type { NicSegment } from '../../features/network/sim/nic';
+import type { Flow } from '../../features/network/sim/transport';
+import type { OsSpec } from '../../features/os/sim';
+import { levelRows, type LevelRowSnap, type Need } from '../../features/economy/sim/levels';
+import type { JobWindow } from '../../features/jobs/sim/joblog';
+import type { LinkState, MountPhase } from './types';
+import type { Job } from '../../features/jobs/sim/work';
 
 /** The memory array the machine is built with: the most a paged OS manages (its 20-bit virtual space). */
 export const MACHINE_RAM_BYTES = 1024 * 1024;
@@ -73,16 +73,24 @@ export interface Transfer {
 }
 
 /** A segment on its way to the NIC: it reaches the NIC's input at the tick `at`. */
-export interface WireSegment { at: number; seg: NicSegment }
+export interface WireSegment {
+  at: number;
+  seg: NicSegment;
+}
 
 /** An acknowledgement the kernel sent, on its way back to the sender: it reaches it at the tick `at`. `stamp` is the clock the segment it answers carried when it left (`NIC_STAMP_SHIFT`). */
-export interface WireAck { at: number; key: number; next: number; stamp: number }
+export interface WireAck {
+  at: number;
+  key: number;
+  next: number;
+  stamp: number;
+}
 
 /** The link as evaluated each tick. */
 export interface Link {
   state: LinkState;
   reason: string | null;
-  port: { kind: "board" | "nic" | null; deviceId: string | null; mbps: number };
+  port: { kind: 'board' | 'nic' | null; deviceId: string | null; mbps: number };
   router: RouterSpec | null;
   isp: IspSpec | null;
   bw: { downMbps: number; upMbps: number; clients: number; binding: Binding | null };
@@ -103,16 +111,28 @@ export interface InstalledOs {
 }
 
 /** The OS's boot probe of one drive: the scan, then (for a `dirty` drive) the repair, in base ticks. `left` counts down to 0. */
-export interface DriveMount { phase: MountPhase; scanTicks: number; repairTicks: number; left: number }
+export interface DriveMount {
+  phase: MountPhase;
+  scanTicks: number;
+  repairTicks: number;
+  left: number;
+}
 
 /** A row of the kernel's job table (read from RAM). `key` is the key's id; `net`: the job came over the network (the table holds the id with the top bit set). */
-export interface KernelJob { slot: number; state: number; key: number; len: number; seq: number; net: boolean }
+export interface KernelJob {
+  slot: number;
+  state: number;
+  key: number;
+  len: number;
+  seq: number;
+  net: boolean;
+}
 
 export const lockText = (l: { level: number; name: string }): string => `needs Level ${l.level} (${l.name})`;
 export const LOG_CAP = 16;
 /** The level the sandbox rules are pinned at until `setLevel`. */
 export const SANDBOX_LEVEL = 8;
-export const NOT_SANDBOX = { ok: false, reason: "sandbox mode only" } as const;
+export const NOT_SANDBOX = { ok: false, reason: 'sandbox mode only' } as const;
 
 /** The static milestone rows of the level snapshot (built once). */
 export const LEVEL_ROWS: LevelRowSnap[] = levelRows();

@@ -2,7 +2,23 @@ import { describe, expect, it } from 'vitest';
 import type { Phase } from '@/worker/game/types';
 import { OFF, RUN_SPEEDS, runState, sameRun } from './buildrun';
 
-const PHASES: Phase[] = ['waiting-for-key', 'done-remove-key', 'off', 'posting', 'mounting', 'loading', 'running', 'writing', 'halted', 'error', 'booting-os', 'idle-os', 'ingesting', 'running-os', 'flashing'];
+const PHASES: Phase[] = [
+  'waiting-for-key',
+  'done-remove-key',
+  'off',
+  'posting',
+  'mounting',
+  'loading',
+  'running',
+  'writing',
+  'halted',
+  'error',
+  'booting-os',
+  'idle-os',
+  'ingesting',
+  'running-os',
+  'flashing',
+];
 
 describe('buildrun', () => {
   it('a machine that is off is OFF whatever its phase says', () => {
@@ -31,7 +47,7 @@ describe('buildrun', () => {
     expect(sameRun(OFF, runState(true, 'posting', null))).toBe(false);
   });
 
-  it('the speeds climb, from the game\'s 1x', () => {
+  it("the speeds climb, from the game's 1x", () => {
     expect(RUN_SPEEDS[0]).toBe(1);
     expect([...RUN_SPEEDS]).toEqual([...RUN_SPEEDS].sort((a, b) => a - b));
   });

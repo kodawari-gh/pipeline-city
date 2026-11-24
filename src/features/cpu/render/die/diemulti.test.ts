@@ -2,16 +2,34 @@ import { describe, expect, it, vi } from 'vitest';
 import { Container } from 'pixi.js';
 
 // Text needs a canvas, which the tests do not have: labels are empty containers here (as in gpuview.test.ts).
-vi.mock('@/core/render/ink', async (orig) => ({ ...(await orig<typeof import('@/core/render/ink')>()), label: () => Object.assign(new Container(), { text: '' }) }));
+vi.mock('@/core/render/ink', async (orig) => ({
+  ...(await orig<typeof import('@/core/render/ink')>()),
+  label: () => Object.assign(new Container(), { text: '' }),
+}));
 
 import type { Theme } from '@/core/render/theme';
 import { cpuPlan } from '../core/cpuplans';
 import { DieView } from './diemulti';
 
 const T: Theme = {
-  bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',
-  ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a',
-  alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
+  bg: '#04060f',
+  board: '#081628',
+  trace: '#1e4270',
+  sub: '#0d1636',
+  die: '#111b46',
+  pin: '#d4af5f',
+  tile: '#18245c',
+  ink: '#e2eaff',
+  mute: '#8a97c2',
+  line: '#2a366a',
+  dot: '#18214a',
+  on: '#08102a',
+  alu: '#3be3ff',
+  mul: '#a68bff',
+  ld: '#ffc247',
+  st: '#6dffa6',
+  br: '#ff55dc',
+  bad: '#ff5a78',
 };
 
 describe('multicore die LoD', () => {
@@ -20,9 +38,14 @@ describe('multicore die LoD', () => {
     d.setPlan(T, cpuPlan({ arch: 'inorder', cores: 4, cacheLines: 8, l2Lines: 32 }));
     return d;
   };
-  const tiles = (d: DieView) => (d as unknown as { cores: { view: { root: Container }; tile: { rect: { x: number; y: number; w: number; h: number } } }[] }).cores;
+  const tiles = (d: DieView) =>
+    (
+      d as unknown as {
+        cores: { view: { root: Container }; tile: { rect: { x: number; y: number; w: number; h: number } } }[];
+      }
+    ).cores;
 
-  it('shows a tile\'s insides only once its wash is gone, never both', () => {
+  it("shows a tile's insides only once its wash is gone, never both", () => {
     const d = make();
     const view = { x: -710, y: -565, w: 1420, h: 1130 };
     for (const z of [0.05, 0.5, 1, 2, 3]) {

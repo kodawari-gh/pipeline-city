@@ -2,8 +2,8 @@
 // money by itself, and an unpaid bill cuts the wall after a grace period (docs/GAME.md "The power bill"). Every export is a
 // `Game` method (see game.ts).
 
-import type { Game } from "@/worker/game/game";
-import type { BillSnap } from "@/worker/game/types";
+import type { Game } from '@/worker/game/game';
+import type { BillSnap } from '@/worker/game/types';
 
 /** Whether this game has a bill: not the sandbox (no money), and only with a rate. */
 export function billActive(this: Game): boolean {
@@ -36,23 +36,23 @@ export function billTick(this: Game): void {
       this.lastBill = { tick: this.baseTick, wh, amount };
       this.unpaid += amount;
       this.unpaidSince ??= this.baseTick;
-      this.note("bill", `power bill: $${amount} for ${wh.toFixed(1)} Wh`);
+      this.note('bill', `power bill: $${amount} for ${wh.toFixed(1)} Wh`);
     }
   }
   if (this.unpaid > 0 && this.money >= this.unpaid) {
     this.money -= this.unpaid;
     this.billPaid += this.unpaid;
-    this.note("bill", `paid the power bill: $${this.unpaid}`);
+    this.note('bill', `paid the power bill: $${this.unpaid}`);
     this.unpaid = 0;
     this.unpaidSince = null;
     if (this.powerCut) {
       this.powerCut = false;
-      this.note("power", "the power company reconnected the wall (press power to start)");
+      this.note('power', 'the power company reconnected the wall (press power to start)');
     }
   }
   if (this.unpaid > 0 && !this.powerCut && this.baseTick >= (this.cutTick() ?? Infinity)) {
     this.powerCut = true;
-    this.note("fault", `the power company cut the wall: the $${this.unpaid} bill is unpaid`);
+    this.note('fault', `the power company cut the wall: the $${this.unpaid} bill is unpaid`);
     if (this.powered) this.powerButton(); // a hard power-off, like pulling the cord
   }
 }
@@ -64,16 +64,24 @@ export function cutTick(this: Game): number | null {
 
 /** Why the wall is cut (the power button's refusal), or null. */
 export function cutReason(this: Game): string | null {
-  return this.powerCut ? `the power company cut the wall: the $${this.unpaid} bill is unpaid (it is paid once you have the money)` : null;
+  return this.powerCut
+    ? `the power company cut the wall: the $${this.unpaid} bill is unpaid (it is paid once you have the money)`
+    : null;
 }
 
 export function billSnap(this: Game): BillSnap | null {
   if (!this.billActive()) return null;
   const wh = this.unbilledWh();
   return {
-    ratePerWh: this.cfg.powerRatePerWh, periodTicks: this.cfg.billPeriodTicks, nextTick: this.nextBillTick,
-    accruedWh: wh, accruedCost: cost(this, wh),
-    unpaid: this.unpaid, cutTick: this.cutTick(), cut: this.powerCut,
-    last: this.lastBill && { ...this.lastBill }, paidTotal: this.billPaid,
+    ratePerWh: this.cfg.powerRatePerWh,
+    periodTicks: this.cfg.billPeriodTicks,
+    nextTick: this.nextBillTick,
+    accruedWh: wh,
+    accruedCost: cost(this, wh),
+    unpaid: this.unpaid,
+    cutTick: this.cutTick(),
+    cut: this.powerCut,
+    last: this.lastBill && { ...this.lastBill },
+    paidTotal: this.billPaid,
   };
 }

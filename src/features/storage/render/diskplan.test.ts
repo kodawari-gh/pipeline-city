@@ -1,16 +1,46 @@
 import { describe, expect, it } from 'vitest';
 import type { FsRun } from '../sim/fs';
-import { ARCH, armTip, cellsOf, CELL_BLOCKS, counterRows, dieSlices, dimmed, extentRows, flatGrid, headTrack, legendOf, ownerSlot, platterCell, platterOf, queueLanes } from './diskplan';
+import {
+  ARCH,
+  armTip,
+  cellsOf,
+  CELL_BLOCKS,
+  counterRows,
+  dieSlices,
+  dimmed,
+  extentRows,
+  flatGrid,
+  headTrack,
+  legendOf,
+  ownerSlot,
+  platterCell,
+  platterOf,
+  queueLanes,
+} from './diskplan';
 
-const run = (start: number, len: number, kind: FsRun['kind'], file = 0, filled = true): FsRun => ({ start, len, kind, file, filled });
+const run = (start: number, len: number, kind: FsRun['kind'], file = 0, filled = true): FsRun => ({
+  start,
+  len,
+  kind,
+  file,
+  filled,
+});
 const files = [
-  { id: 1, owner: 'os', kind: 'os' as const, lost: false }, { id: 2, owner: 'os', kind: 'spool' as const, lost: false },
-  { id: 3, owner: 'c1', kind: 'dataset' as const, lost: false }, { id: 4, owner: 'c2', kind: 'dataset' as const, lost: false },
+  { id: 1, owner: 'os', kind: 'os' as const, lost: false },
+  { id: 2, owner: 'os', kind: 'spool' as const, lost: false },
+  { id: 3, owner: 'c1', kind: 'dataset' as const, lost: false },
+  { id: 4, owner: 'c2', kind: 'dataset' as const, lost: false },
 ];
 // 64 blocks = 8 cells: os 0-7, spool 8-15 (half written), dataset c1 16-27, dataset c2 28-39, lost 40-47, free 48-55, bad 56-63
 const runs: FsRun[] = [
-  run(0, 8, 'os', 1), run(8, 4, 'spool', 2), run(12, 4, 'spool', 2, false), run(16, 12, 'dataset', 3), run(28, 12, 'dataset', 4), run(40, 8, 'lost', 3),
-  run(48, 8, 'free', 0, false), run(56, 8, 'bad', 0, false),
+  run(0, 8, 'os', 1),
+  run(8, 4, 'spool', 2),
+  run(12, 4, 'spool', 2, false),
+  run(16, 12, 'dataset', 3),
+  run(28, 12, 'dataset', 4),
+  run(40, 8, 'lost', 3),
+  run(48, 8, 'free', 0, false),
+  run(56, 8, 'bad', 0, false),
 ];
 
 describe('cells', () => {
@@ -30,7 +60,10 @@ describe('cells', () => {
   });
 
   it('a cell shared by two datasets goes to the one with more blocks; bad and lost win over data', () => {
-    const c = cellsOf([run(0, 3, 'dataset', 3), run(3, 5, 'dataset', 4), run(8, 4, 'dataset', 3), run(12, 4, 'bad', 0, false)], 16);
+    const c = cellsOf(
+      [run(0, 3, 'dataset', 3), run(3, 5, 'dataset', 4), run(8, 4, 'dataset', 3), run(12, 4, 'bad', 0, false)],
+      16,
+    );
     expect(c[0]).toMatchObject({ kind: 'dataset', file: 4 });
     expect(c[1]).toMatchObject({ kind: 'bad', file: 0 });
   });
@@ -68,12 +101,18 @@ describe('owners and the legend', () => {
 
 describe('the extent list', () => {
   it('is in LBA order, without free space, capped with the rest counted', () => {
-    const e = extentRows({ fs: { runs, files, fragmentation: 0, byKind: { os: 0, spool: 0, program: 0, dataset: 0, meta: 0 } } }, 4);
+    const e = extentRows(
+      { fs: { runs, files, fragmentation: 0, byKind: { os: 0, spool: 0, program: 0, dataset: 0, meta: 0 } } },
+      4,
+    );
     expect(e.rows).toHaveLength(4);
     expect(e.rows[0]).toEqual({ start: 0, end: 7, kind: 'os', owner: 'os' });
     expect(e.rows[3]).toMatchObject({ start: 16, end: 27, kind: 'dataset', owner: 'c1' });
     expect(e.more).toBe(3);
-    const all = extentRows({ fs: { runs, files, fragmentation: 0, byKind: { os: 0, spool: 0, program: 0, dataset: 0, meta: 0 } } }, 99);
+    const all = extentRows(
+      { fs: { runs, files, fragmentation: 0, byKind: { os: 0, spool: 0, program: 0, dataset: 0, meta: 0 } } },
+      99,
+    );
     expect(all.more).toBe(0);
     expect(all.rows.some((r) => r.kind === 'free')).toBe(false);
   });
@@ -135,7 +174,14 @@ describe('dimming', () => {
 
 describe('the counter tier rows', () => {
   const s = {
-    name: 'SSD 4K', burnt: false, wearPct: 41.6, badGroups: 1, lostBlocks: 8, mirror: true, queued: 2, queueDepth: 4,
+    name: 'SSD 4K',
+    burnt: false,
+    wearPct: 41.6,
+    badGroups: 1,
+    lostBlocks: 8,
+    mirror: true,
+    queued: 2,
+    queueDepth: 4,
     fs: { runs, fragmentation: 0.25, byKind: { os: 8, spool: 8, program: 0, dataset: 24, meta: 0 }, files },
     mount: { state: 'clean', phase: 'mounted', progress: 1 },
   } as unknown as Parameters<typeof counterRows>[0];
@@ -153,7 +199,9 @@ describe('the counter tier rows', () => {
 
   it('shows a burnt drive as burnt, and the progress of a scan', () => {
     expect(counterRows({ ...s, burnt: true }, 1).state).toBe('BURNT');
-    expect(counterRows({ ...s, mount: { state: 'dirty', phase: 'scanning', progress: 0.5 } } as never, 1).state).toBe('dirty · scanning 50%');
+    expect(counterRows({ ...s, mount: { state: 'dirty', phase: 'scanning', progress: 0.5 } } as never, 1).state).toBe(
+      'dirty · scanning 50%',
+    );
   });
 });
 

@@ -37,7 +37,8 @@ const almanacRules = rulesOf(css).filter((r) => ALMANAC.test(r.selector));
 const panelRules = rulesOf(css).filter((r) => /\.(almanac-back|almanac)(?![\w-])/.test(r.selector));
 
 /** Every declaration value for a property, over the given rules, in source order. */
-const valuesOf = (rules: { decls: Record<string, string> }[], prop: string) => rules.map((r) => r.decls[prop]).filter((v): v is string => v !== undefined);
+const valuesOf = (rules: { decls: Record<string, string> }[], prop: string) =>
+  rules.map((r) => r.decls[prop]).filter((v): v is string => v !== undefined);
 
 describe('Almanac edge-tab look (ticket #74, ADR 0001, SPEC 1 rules 5 to 7)', () => {
   it('the Almanac has rules in the sheet', () => {
@@ -56,7 +57,10 @@ describe('Almanac edge-tab look (ticket #74, ADR 0001, SPEC 1 rules 5 to 7)', ()
       const bad = valuesOf(panelRules, prop).filter((v) => /gradient|url\(/.test(v));
       expect(bad, `${prop} on the Almanac backing or panel`).toEqual([]);
     }
-    expect(valuesOf(panelRules, 'filter').filter((v) => v !== 'none'), 'filter on the panel').toEqual([]);
+    expect(
+      valuesOf(panelRules, 'filter').filter((v) => v !== 'none'),
+      'filter on the panel',
+    ).toEqual([]);
   });
 
   it('no border on the Almanac panel or backing (a border of 0 or none is fine)', () => {
@@ -78,7 +82,10 @@ describe('Almanac edge-tab look (ticket #74, ADR 0001, SPEC 1 rules 5 to 7)', ()
   });
 
   it('the panel is backed by the one in-game backing colour, --c-shade-86 (not navy, not --bg)', () => {
-    const bgs = valuesOf(panelRules.filter((r) => /\.almanac(?![\w-])/.test(r.selector)), 'background');
+    const bgs = valuesOf(
+      panelRules.filter((r) => /\.almanac(?![\w-])/.test(r.selector)),
+      'background',
+    );
     expect(bgs.length, 'the panel sets a background').toBeGreaterThan(0);
     for (const v of bgs) {
       expect(v, `Almanac panel background ${v}`).toContain('--c-shade-86');
@@ -87,7 +94,10 @@ describe('Almanac edge-tab look (ticket #74, ADR 0001, SPEC 1 rules 5 to 7)', ()
   });
 
   it('no navy token behind the 3D view on the backing either', () => {
-    for (const v of valuesOf(panelRules.filter((r) => /\.almanac-back(?![\w-])/.test(r.selector)), 'background')) {
+    for (const v of valuesOf(
+      panelRules.filter((r) => /\.almanac-back(?![\w-])/.test(r.selector)),
+      'background',
+    )) {
       expect(v).not.toMatch(/--c-void|--c-stage|--c-panel|navy/);
     }
   });

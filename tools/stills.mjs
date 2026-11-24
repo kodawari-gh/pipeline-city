@@ -14,27 +14,51 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 
 const args = process.argv.slice(2);
-const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : args[i + 1]; };
+const flag = (n, d) => {
+  const i = args.indexOf('--' + n);
+  return i < 0 ? d : args[i + 1];
+};
 const ONLY = flag('only', '').split(',').filter(Boolean);
 const [W, H] = flag('size', '480x336').split('x').map(Number);
 const QUALITY = 0.9;
-const root = fileURLToPath(new URL('..', import.meta.url)), out = join(root, 'public/stills');
-const PORT = Number(process.env.PORT || 5199), url = `http://localhost:${PORT}/`;
-const up = async () => { try { return (await fetch(url)).ok; } catch { return false; } };
+const root = fileURLToPath(new URL('..', import.meta.url)),
+  out = join(root, 'public/stills');
+const PORT = Number(process.env.PORT || 5199),
+  url = `http://localhost:${PORT}/`;
+const up = async () => {
+  try {
+    return (await fetch(url)).ok;
+  } catch {
+    return false;
+  }
+};
 let server = null;
 if (!(await up())) {
-  server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(PORT), '--strictPort'], { stdio: 'ignore', cwd: root });
+  server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(PORT), '--strictPort'], {
+    stdio: 'ignore',
+    cwd: root,
+  });
   for (let i = 0; i < 100 && !(await up()); i++) await new Promise((r) => setTimeout(r, 300));
 }
-const stop = () => { try { server?.kill(); } catch { /* gone */ } };
+const stop = () => {
+  try {
+    server?.kill();
+  } catch {
+    /* gone */
+  }
+};
 process.on('exit', stop);
 
-const old = existsSync(join(out, 'manifest.json')) ? JSON.parse(readFileSync(join(out, 'manifest.json'), 'utf8')) : null;
+const old = existsSync(join(out, 'manifest.json'))
+  ? JSON.parse(readFileSync(join(out, 'manifest.json'), 'utf8'))
+  : null;
 const keep = ONLY.length && old && old.w === W && old.h === H ? old.stills : {};
 const browser = await chromium.launch({
   headless: true,
   ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
-  args: process.env.SOFTWARE ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] : ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'],
+  args: process.env.SOFTWARE
+    ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader']
+    : ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'],
 });
 try {
   const p = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
@@ -42,14 +66,32 @@ try {
   // (the menu's page: its fonts are the ones the parts' labels draw with; a fresh server first optimizes its dependencies)
   await p.goto(url);
   await p.waitForSelector('text=Sandbox', { timeout: 120000 });
-  const gl = await p.evaluate(() => { const g = document.createElement('canvas').getContext('webgl2'); const e = g?.getExtension('WEBGL_debug_renderer_info'); return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'unknown'; });
+  const gl = await p.evaluate(() => {
+    const g = document.createElement('canvas').getContext('webgl2');
+    const e = g?.getExtension('WEBGL_debug_renderer_info');
+    return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'unknown';
+  });
   console.log('GL renderer:', gl);
-  if (/swiftshader|llvmpipe|software/i.test(gl) && !process.env.SOFTWARE) { console.log('The browser fell back to software GL: stopping (SOFTWARE=1 to allow it).'); process.exitCode = 2; throw new Error('software GL'); }
+  if (/swiftshader|llvmpipe|software/i.test(gl) && !process.env.SOFTWARE) {
+    console.log('The browser fell back to software GL: stopping (SOFTWARE=1 to allow it).');
+    process.exitCode = 2;
+    throw new Error('software GL');
+  }
   const ids = await p.evaluate(async () => {
-    const [{ stillIds, artStillIds }, { buildShowcaseModel }, { renderStill }, { startBaker, bakeRenderer }, { drawThumb }, { builtinTheme }] = await Promise.all([
-      import('/src/features/economy/ui/shop/shopdata.ts'), import('/src/features/board/render/three/showcase.ts'),
-      import('/src/core/render/three/viewer.ts'), import('/src/features/board/render/three/bake.ts'),
-      import('/src/features/board/render/thumbart.ts'), import('/src/core/render/theme.ts'),
+    const [
+      { stillIds, artStillIds },
+      { buildShowcaseModel },
+      { renderStill },
+      { startBaker, bakeRenderer },
+      { drawThumb },
+      { builtinTheme },
+    ] = await Promise.all([
+      import('/src/features/economy/ui/shop/shopdata.ts'),
+      import('/src/features/board/render/three/showcase.ts'),
+      import('/src/core/render/three/viewer.ts'),
+      import('/src/features/board/render/three/bake.ts'),
+      import('/src/features/board/render/thumbart.ts'),
+      import('/src/core/render/theme.ts'),
     ]);
     const art = new Set(artStillIds());
     await document.fonts.ready;
@@ -57,11 +99,15 @@ try {
     startBaker();
     for (let i = 0; i < 200 && !bakeRenderer(); i++) await new Promise((r) => setTimeout(r, 50));
     window.__still = async (id, w, h, q) => {
-      if (art.has(id)) { // no 3D model: the board's own art, fitted into the still's shape
+      if (art.has(id)) {
+        // no 3D model: the board's own art, fitted into the still's shape
         const src = drawThumb(bakeRenderer(), id, builtinTheme());
         if (!src) return null;
-        const c = document.createElement('canvas'); c.width = w; c.height = h;
-        const k = Math.min(w / src.width, h / src.height), g = c.getContext('2d');
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        const k = Math.min(w / src.width, h / src.height),
+          g = c.getContext('2d');
         g.drawImage(src, (w - src.width * k) / 2, (h - src.height * k) / 2, src.width * k, src.height * k);
         return c.toDataURL('image/webp', q);
       }
@@ -77,8 +123,13 @@ try {
   const stills = { ...keep };
   let bytes = 0;
   for (const id of todo) {
-    const t = Date.now(), data = await p.evaluate(([id, w, h, q]) => window.__still(id, w, h, q), [id, W, H, QUALITY]);
-    if (!data?.startsWith('data:image/webp')) { console.log(`${id}: no still`); delete stills[id]; continue; }
+    const t = Date.now(),
+      data = await p.evaluate(([id, w, h, q]) => window.__still(id, w, h, q), [id, W, H, QUALITY]);
+    if (!data?.startsWith('data:image/webp')) {
+      console.log(`${id}: no still`);
+      delete stills[id];
+      continue;
+    }
     const buf = Buffer.from(data.slice(data.indexOf(',') + 1), 'base64');
     writeFileSync(join(out, `${id}.webp`), buf);
     stills[id] = createHash('sha1').update(buf).digest('hex').slice(0, 8);
@@ -88,9 +139,15 @@ try {
   // the parts the gallery no longer has: their files go
   for (const id of Object.keys(stills)) if (!ids.includes(id)) delete stills[id];
   for (const f of readdirSync(out)) if (f.endsWith('.webp') && !stills[f.slice(0, -5)]) rmSync(join(out, f));
-  const sorted = Object.fromEntries(Object.keys(stills).sort().map((k) => [k, stills[k]]));
+  const sorted = Object.fromEntries(
+    Object.keys(stills)
+      .sort()
+      .map((k) => [k, stills[k]]),
+  );
   writeFileSync(join(out, 'manifest.json'), JSON.stringify({ w: W, h: H, stills: sorted }, null, 1) + '\n');
-  console.log(`${todo.length} stills, ${(bytes / 1024 / 1024).toFixed(2)} MB written; ${Object.keys(sorted).length} in the manifest`);
+  console.log(
+    `${todo.length} stills, ${(bytes / 1024 / 1024).toFixed(2)} MB written; ${Object.keys(sorted).length} in the manifest`,
+  );
 } finally {
   await browser.close();
   stop();

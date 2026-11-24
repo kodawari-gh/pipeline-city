@@ -1,10 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import { FLOOR_Y, WALL_T, WINDOW } from '../roomplan';
-import { FLOOR_UP, GRID, M, STYLES, avenueX, blockRect, buildings, downtown, lamps, onCrossing, parked, streetZ, toOutside, topOf, trees } from './plan';
+import {
+  FLOOR_UP,
+  GRID,
+  M,
+  STYLES,
+  avenueX,
+  blockRect,
+  buildings,
+  downtown,
+  lamps,
+  onCrossing,
+  parked,
+  streetZ,
+  toOutside,
+  topOf,
+  trees,
+} from './plan';
 
 /** Is a point (x, z) on a road or a pavement: in a street's or an avenue's width? */
 const inStreet = (x: number, z: number): boolean => {
-  const i = Math.round((x - GRID.av0) / GRID.px), j = Math.round((-z - GRID.street / 2) / GRID.pz);
+  const i = Math.round((x - GRID.av0) / GRID.px),
+    j = Math.round((-z - GRID.street / 2) / GRID.pz);
   return Math.abs(x - avenueX(i)) < GRID.avenue / 2 || Math.abs(z - streetZ(j)) < GRID.street / 2;
 };
 
@@ -37,20 +54,27 @@ describe('outside plan', () => {
         expect(t.z1).toBeGreaterThan(t.z0);
         expect(inStreet((t.x0 + t.x1) / 2, (t.z0 + t.z1) / 2)).toBe(false);
         expect(t.z1).toBeLessThanOrEqual(-GRID.street + 1e-6);
-        if (i === 0) { expect(t.y0).toBe(0); return; }
+        if (i === 0) {
+          expect(t.y0).toBe(0);
+          return;
+        }
         const below = b.tiers[i - 1]!;
         expect(t.y0).toBeCloseTo(below.y1);
         expect(t.x0).toBeGreaterThanOrEqual(below.x0);
         expect(t.x1).toBeLessThanOrEqual(below.x1);
       });
-      if (b.tiers.length === 1) expect(Math.abs(topOf(b) / s.storey - Math.round(topOf(b) / s.storey))).toBeLessThan(1e-6);
+      if (b.tiers.length === 1)
+        expect(Math.abs(topOf(b) / s.storey - Math.round(topOf(b) / s.storey))).toBeLessThan(1e-6);
     }
   });
 
   it('builds tall downtown and lower out in the city', () => {
-    const bs = buildings(), mid = (b: (typeof bs)[number]) => [(b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2, (b.tiers[0]!.z0 + b.tiers[0]!.z1) / 2] as const;
+    const bs = buildings(),
+      mid = (b: (typeof bs)[number]) =>
+        [(b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2, (b.tiers[0]!.z0 + b.tiers[0]!.z1) / 2] as const;
     const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
-    const core = bs.filter((b) => downtown(...mid(b)) > 0.6).map(topOf), out = bs.filter((b) => downtown(...mid(b)) < 0.05).map(topOf);
+    const core = bs.filter((b) => downtown(...mid(b)) > 0.6).map(topOf),
+      out = bs.filter((b) => downtown(...mid(b)) < 0.05).map(topOf);
     expect(avg(core)).toBeGreaterThan(avg(out) * 2.5);
     expect(Math.max(...core)).toBeGreaterThan(350);
     // the blocks across our street are below the window; a few further on rise over it
@@ -62,9 +86,13 @@ describe('outside plan', () => {
 
   it('stands the trees and lamps on pavements, off the roads and the crossings', () => {
     for (const p of [...trees().filter((t) => t.kind !== 'shrub' && t.h < 13.5), ...lamps()]) {
-      const i = Math.round((p.x - GRID.av0) / GRID.px), j = Math.round((-p.z - GRID.street / 2) / GRID.pz);
-      const dx = Math.abs(p.x - avenueX(i)), dz = Math.abs(p.z - streetZ(j));
-      const onWalk = (dx > GRID.avenue / 2 - GRID.walk && dx < GRID.avenue / 2) || (dz > GRID.street / 2 - GRID.walk && dz < GRID.street / 2);
+      const i = Math.round((p.x - GRID.av0) / GRID.px),
+        j = Math.round((-p.z - GRID.street / 2) / GRID.pz);
+      const dx = Math.abs(p.x - avenueX(i)),
+        dz = Math.abs(p.z - streetZ(j));
+      const onWalk =
+        (dx > GRID.avenue / 2 - GRID.walk && dx < GRID.avenue / 2) ||
+        (dz > GRID.street / 2 - GRID.walk && dz < GRID.street / 2);
       const inPark = !inStreet(p.x, p.z);
       expect(onWalk || inPark).toBe(true);
     }

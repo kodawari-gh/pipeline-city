@@ -2,11 +2,24 @@
 // the pointer is outlined and named, a click picks it, a drag from the shelf outlines every socket that takes the part. Pure: ids, boxes and rectangles.
 import type { Box3, Camera } from 'three';
 import { Vector3 } from 'three';
-import { boardSlots, deviceSpec, freeSlots, slotAccepts, slotFits, type Board, type InstalledDevice } from '@/features/board/sim/board';
+import {
+  boardSlots,
+  deviceSpec,
+  freeSlots,
+  slotAccepts,
+  slotFits,
+  type Board,
+  type InstalledDevice,
+} from '@/features/board/sim/board';
 import { getSpec } from '@/features/board/sim/specs';
 
 /** A rectangle in client pixels. */
-export interface Rect { x: number; y: number; w: number; h: number }
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 /**
  * The sockets that take a catalogue part: the `free` ones, and the `swap` ones, where a part of its kind sits now (a drop there takes that one out
@@ -15,8 +28,17 @@ export interface Rect { x: number; y: number; w: number; h: number }
 export function fitSlots(board: Board, item: string): { free: string[]; swap: string[] } {
   const spec = /^(case|board)\d$/.test(item) ? undefined : getSpec(item);
   if (!spec) return { free: [], swap: [] };
-  const free = freeSlots(board, spec.slot, spec).map((s) => s.id), open = new Set(free);
-  const swap = boardSlots(board).filter((s) => !open.has(s.id) && slotAccepts(s.type, spec.slot) && slotFits(s, spec) && board.devices.some((d) => d.slot === s.id)).map((s) => s.id);
+  const free = freeSlots(board, spec.slot, spec).map((s) => s.id),
+    open = new Set(free);
+  const swap = boardSlots(board)
+    .filter(
+      (s) =>
+        !open.has(s.id) &&
+        slotAccepts(s.type, spec.slot) &&
+        slotFits(s, spec) &&
+        board.devices.some((d) => d.slot === s.id),
+    )
+    .map((s) => s.id);
   return { free, swap };
 }
 
@@ -45,12 +67,21 @@ const corner = new Vector3();
 /** A world box as a client rectangle (`canvas`: the canvas's own client rectangle); null when it is empty or a corner is behind the eye. */
 export function screenRect(box: Box3, camera: Camera, canvas: Rect): Rect | null {
   if (box.isEmpty()) return null;
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
-    corner.set(x, y, z).project(camera);
-    if (corner.z >= 1) return null;
-    const px = canvas.x + ((corner.x + 1) / 2) * canvas.w, py = canvas.y + ((1 - corner.y) / 2) * canvas.h;
-    x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py);
-  }
+  let x0 = Infinity,
+    y0 = Infinity,
+    x1 = -Infinity,
+    y1 = -Infinity;
+  for (const x of [box.min.x, box.max.x])
+    for (const y of [box.min.y, box.max.y])
+      for (const z of [box.min.z, box.max.z]) {
+        corner.set(x, y, z).project(camera);
+        if (corner.z >= 1) return null;
+        const px = canvas.x + ((corner.x + 1) / 2) * canvas.w,
+          py = canvas.y + ((1 - corner.y) / 2) * canvas.h;
+        x0 = Math.min(x0, px);
+        x1 = Math.max(x1, px);
+        y0 = Math.min(y0, py);
+        y1 = Math.max(y1, py);
+      }
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }

@@ -10,14 +10,14 @@ A fox mask with lit eyes: the clever one that connects everything. KITSUNE is th
 
 ## Colours
 
-| Role | Hex | Note |
-|---|---|---|
-| accent | `#ff55dc` | magenta, the eyes |
-| light | `#e2eaff` | pale ink on dark |
-| dark | `#131518` | black ink on light |
-| plate | `#131518` | black badge ground |
-| body | `#131518` | the black solder mask of its boards |
-| trim | `#d4af5f` | gold pads and contacts |
+| Role   | Hex       | Note                                |
+| ------ | --------- | ----------------------------------- |
+| accent | `#ff55dc` | magenta, the eyes                   |
+| light  | `#e2eaff` | pale ink on dark                    |
+| dark   | `#131518` | black ink on light                  |
+| plate  | `#131518` | black badge ground                  |
+| body   | `#131518` | the black solder mask of its boards |
+| trim   | `#d4af5f` | gold pads and contacts              |
 
 ## Type
 

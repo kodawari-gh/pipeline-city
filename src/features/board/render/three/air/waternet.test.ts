@@ -10,17 +10,22 @@ import { levelAt, smooth, waterAt, waterNet, WATER_R, type WaterNet } from './wa
 /** The loop of a real machine's radiator on `side`: the hoses as the 3D model seats them and the radiator's own flow. */
 function loop(side: 'top' | 'front') {
   setLayoutTier(3, 3);
-  const span = radiatorSpan(side)!, fit = radiatorFit(span, COOLER.x + COOLER.w / 2), hoses = new LoopHoses(hoseEnds(fit), { planes: [], solids: [] }).paths();
-  const rad = radiatorFlow(fit), net = waterNet(hoses, rad, COOLER_AIR.pump)!;
+  const span = radiatorSpan(side)!,
+    fit = radiatorFit(span, COOLER.x + COOLER.w / 2),
+    hoses = new LoopHoses(hoseEnds(fit), { planes: [], solids: [] }).paths();
+  const rad = radiatorFlow(fit),
+    net = waterNet(hoses, rad, COOLER_AIR.pump)!;
   return { hoses, rad, net };
 }
 
-const near = (a: readonly number[], b: readonly number[], tol = 1e-6): boolean => a.every((v, i) => Math.abs(v - b[i]!) <= tol);
+const near = (a: readonly number[], b: readonly number[], tol = 1e-6): boolean =>
+  a.every((v, i) => Math.abs(v - b[i]!) <= tol);
 
-describe('the radiator\'s flow', () => {
-  it('the tubes are the model\'s: one row across its depth, and the ports on the inboard face, the core\'s middle plane a reach inboard of them', () => {
+describe("the radiator's flow", () => {
+  it("the tubes are the model's: one row across its depth, and the ports on the inboard face, the core's middle plane a reach inboard of them", () => {
     for (const side of ['top', 'front'] as const) {
-      const { rad } = loop(side), lay = radiatorTubeLayout();
+      const { rad } = loop(side),
+        lay = radiatorTubeLayout();
       expect(rad.tubes.length, side).toBe(lay.n);
       expect(rad.ports.length, side).toBe(2);
       // the ports are one either side of the middle depth, the one nearer the board first
@@ -33,13 +38,16 @@ describe('the radiator\'s flow', () => {
       }
       expect(Math.hypot(t0.b[0] - t0.a[0], t0.b[1] - t0.a[1]), side).toBeGreaterThan(2000);
       // the tubes lie at their pitch across the depth, in order
-      rad.tubes.forEach((t, k) => { expect(t.a[2], side).toBeCloseTo(lay.z0 + (k + 0.5) * lay.pitch, 5); expect(t.b[2], side).toBeCloseTo(t.a[2], 5); });
+      rad.tubes.forEach((t, k) => {
+        expect(t.a[2], side).toBeCloseTo(lay.z0 + (k + 0.5) * lay.pitch, 5);
+        expect(t.b[2], side).toBeCloseTo(t.a[2], 5);
+      });
       expect(rad.half, side).toBeGreaterThan(200);
     }
   });
 });
 
-describe('the water\'s net', () => {
+describe("the water's net", () => {
   it('runs from the pump along the hot hose, through the radiator and back on the cold hose, and closes where it began', () => {
     for (const side of ['top', 'front'] as const) {
       const { hoses, net } = loop(side);
@@ -48,7 +56,10 @@ describe('the water\'s net', () => {
       expect(net.level.length, side).toBe(KNOTS);
       for (let i = 1; i < net.stops.length; i++) expect(net.stops[i]!, side).toBeGreaterThanOrEqual(net.stops[i - 1]!);
       expect(net.stops[net.stops.length - 1], side).toBeCloseTo(net.length, 5);
-      for (const r of net.runs) { expect(r.sb, side).toBeGreaterThan(r.sa); expect(r.r, side).toBeGreaterThan(0); }
+      for (const r of net.runs) {
+        expect(r.sb, side).toBeGreaterThan(r.sa);
+        expect(r.r, side).toBeGreaterThan(0);
+      }
       // the first run leaves the cold hose's pump end; the last arrives at it
       expect(near(net.runs[0]!.a, hoses[1]![0]!, 1e-6), side).toBe(true);
       expect(near(net.runs[net.runs.length - 1]!.b, hoses[1]![0]!, 1e-6), side).toBe(true);
@@ -72,13 +83,21 @@ describe('the water\'s net', () => {
     // a lane of the first half cools from the hot side toward the middle, a lane of the second from the middle toward the cold
     const lanes = net.runs.filter((r) => r.r === WATER_R.lane);
     expect(lanes.length).toBe(6);
-    for (const l of lanes.slice(0, 3)) { expect(levelAt(net, l.sa)).toBeCloseTo(1, 5); expect(levelAt(net, l.sb)).toBeCloseTo(0.5, 5); }
-    for (const l of lanes.slice(3)) { expect(levelAt(net, l.sa)).toBeCloseTo(0.5, 5); expect(levelAt(net, l.sb)).toBeCloseTo(0, 5); }
+    for (const l of lanes.slice(0, 3)) {
+      expect(levelAt(net, l.sa)).toBeCloseTo(1, 5);
+      expect(levelAt(net, l.sb)).toBeCloseTo(0.5, 5);
+    }
+    for (const l of lanes.slice(3)) {
+      expect(levelAt(net, l.sa)).toBeCloseTo(0.5, 5);
+      expect(levelAt(net, l.sb)).toBeCloseTo(0, 5);
+    }
   });
 
   it('draws the lanes along the radiator, the water in and the water out set apart across the core so each shows from the glass', () => {
     for (const side of ['top', 'front'] as const) {
-      const { rad, net } = loop(side), lanes = net.runs.filter((r) => r.r === WATER_R.lane), across = rad.inward;
+      const { rad, net } = loop(side),
+        lanes = net.runs.filter((r) => r.r === WATER_R.lane),
+        across = rad.inward;
       const len = Math.hypot(rad.tubes[0]!.b[0] - rad.tubes[0]!.a[0], rad.tubes[0]!.b[1] - rad.tubes[0]!.a[1]);
       for (const l of lanes) expect(Math.hypot(l.b[0] - l.a[0], l.b[1] - l.a[1]), side).toBeCloseTo(len, 3);
       // the offset of a lane from the tubes' line, along the way a fitting points: in is inboard (+), out is outboard (-), each half the core's half thickness
@@ -87,7 +106,10 @@ describe('the water\'s net', () => {
       for (const l of lanes.slice(3)) expect(off(l.a), side).toBeCloseTo(-rad.half * 0.5, 3);
       // the lanes are at depths inside the radiator's tubes
       const zs = rad.tubes.map((t) => t.a[2]);
-      for (const l of lanes) { expect(l.a[2], side).toBeGreaterThanOrEqual(Math.min(...zs) - 1e-6); expect(l.a[2], side).toBeLessThanOrEqual(Math.max(...zs) + 1e-6); }
+      for (const l of lanes) {
+        expect(l.a[2], side).toBeGreaterThanOrEqual(Math.min(...zs) - 1e-6);
+        expect(l.a[2], side).toBeLessThanOrEqual(Math.max(...zs) + 1e-6);
+      }
       // the in lanes lie at the hot port's half of the depth, the out lanes at the cold port's
       const zm = (rad.ports[0]![2] + rad.ports[1]![2]) / 2;
       for (const l of lanes.slice(0, 3)) expect(l.a[2], side).toBeLessThan(zm);
@@ -95,7 +117,7 @@ describe('the water\'s net', () => {
     }
   });
 
-  it('crosses the pump\'s cold plate between the two ports', () => {
+  it("crosses the pump's cold plate between the two ports", () => {
     const { hoses, net } = loop('front');
     const block = net.runs.filter((r) => r.r === WATER_R.block);
     expect(block.length).toBe(5);
@@ -114,7 +136,7 @@ describe('the water\'s net', () => {
     expect(waterNet([], rad, COOLER_AIR.pump)).toBeNull();
   });
 
-  it('keeps its knots in the order the shader takes them, whatever the radiator\'s tube count', () => {
+  it("keeps its knots in the order the shader takes them, whatever the radiator's tube count", () => {
     const { hoses, rad } = loop('top');
     for (const n of [1, 2, 3, 14]) {
       const net: WaterNet = waterNet(hoses, { ...rad, tubes: rad.tubes.slice(0, n) }, COOLER_AIR.pump)!;
@@ -127,7 +149,12 @@ describe('the water\'s net', () => {
 
 describe('smooth', () => {
   it('cuts each span into pieces along a curve through the points, the ends where they were', () => {
-    const pts: V3[] = [[0, 0, 0], [1000, 0, 0], [1000, 1000, 0], [2000, 1000, 500]];
+    const pts: V3[] = [
+      [0, 0, 0],
+      [1000, 0, 0],
+      [1000, 1000, 0],
+      [2000, 1000, 500],
+    ];
     const s = smooth(pts, 3);
     expect(s.length).toBe((pts.length - 1) * 3 + 1);
     expect(s[0]).toEqual(pts[0]);
@@ -135,6 +162,11 @@ describe('smooth', () => {
     // it passes through every given point
     pts.forEach((p, i) => expect(near(s[i * 3]!, p, 1e-6)).toBe(true));
     // (two points are a line)
-    expect(smooth([[0, 0, 0], [5, 0, 0]]).length).toBe(2);
+    expect(
+      smooth([
+        [0, 0, 0],
+        [5, 0, 0],
+      ]).length,
+    ).toBe(2);
   });
 });

@@ -7,14 +7,23 @@ import type { Snapshot } from '@/worker/protocol';
 
 const hooks = vi.hoisted(() => ({ effects: [] as (() => unknown)[] }));
 vi.mock('preact/hooks', () => ({
-  useEffect: (fn: () => unknown) => { hooks.effects.push(fn); },
+  useEffect: (fn: () => unknown) => {
+    hooks.effects.push(fn);
+  },
   useRef: () => ({ current: null }),
   useState: (v: unknown) => [v, () => {}],
 }));
 
 type VEl = { type: unknown; props: Record<string, any> };
 type Node = VEl | string | number | boolean | null | undefined | Node[];
-type Key = { type: 'keydown' | 'keyup'; code: string; key: string; target: object; repeat: boolean; preventDefault: () => void };
+type Key = {
+  type: 'keydown' | 'keyup';
+  code: string;
+  key: string;
+  target: object;
+  repeat: boolean;
+  preventDefault: () => void;
+};
 
 const elements = (v: Node): VEl[] => {
   if (Array.isArray(v)) return v.flatMap(elements);
@@ -38,18 +47,26 @@ beforeEach(async () => {
   vi.resetModules();
   const mem = new Map<string, string>();
   vi.stubGlobal('localStorage', {
-    getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k),
+    getItem: (k: string) => mem.get(k) ?? null,
+    setItem: (k: string, v: string) => void mem.set(k, v),
+    removeItem: (k: string) => void mem.delete(k),
   });
   // The HUD's document reads are PauseKey's. Nothing is on the page at first, so a Space reaches the pause.
   onPage = new Set();
   vi.stubGlobal('document', {
     activeElement: null,
     querySelector: (sel: string) => (sel.split(',').some((part) => onPage.has(part.trim())) ? {} : null),
-    documentElement: { setAttribute: () => {}, style: { setProperty: () => {} }, classList: { toggle: () => {}, add: () => {}, remove: () => {} } },
+    documentElement: {
+      setAttribute: () => {},
+      style: { setProperty: () => {} },
+      classList: { toggle: () => {}, add: () => {}, remove: () => {} },
+    },
   });
   listeners = {};
   vi.stubGlobal('window', {
-    addEventListener: (type: string, fn: (e: Key) => void) => { (listeners[type] ??= []).push(fn); },
+    addEventListener: (type: string, fn: (e: Key) => void) => {
+      (listeners[type] ??= []).push(fn);
+    },
     removeEventListener: () => {},
     matchMedia: () => ({ matches: false, addEventListener: () => {} }),
   });
@@ -63,7 +80,9 @@ beforeEach(async () => {
 
 /** Calls the HUD's PauseKey child by hand, so its window key listeners are added. */
 function mountPauseKey(): void {
-  const pk = all(Hud() as unknown as Node).find((el) => typeof el.type === 'function' && (el.type as { name?: string }).name === 'PauseKey');
+  const pk = all(Hud() as unknown as Node).find(
+    (el) => typeof el.type === 'function' && (el.type as { name?: string }).name === 'PauseKey',
+  );
   expect(pk, 'PauseKey is in the HUD').toBeDefined();
   hooks.effects = [];
   (pk!.type as () => unknown)();
@@ -71,7 +90,14 @@ function mountPauseKey(): void {
 }
 
 const press = (type: 'keydown' | 'keyup'): void => {
-  const e: Key = { type, code: 'Space', key: ' ', target: { tagName: 'BODY', isContentEditable: false }, repeat: false, preventDefault: () => {} };
+  const e: Key = {
+    type,
+    code: 'Space',
+    key: ' ',
+    target: { tagName: 'BODY', isContentEditable: false },
+    repeat: false,
+    preventDefault: () => {},
+  };
   for (const fn of listeners[type] ?? []) fn(e);
 };
 const speed = () => store.speed.value;
@@ -86,9 +112,9 @@ describe('Space on the Settings screen opened from the paused game', () => {
 
   it('does not toggle the pause while Settings is open from the paused menu', () => {
     store.setSpeed(2);
-    st.gameMenuOpen.value = true;   // the player opens the in-game menu: the clock stops
-    st.gameMenuOpen.value = false;  // the menu's Settings item closes it ...
-    st.openSettings('paused');      // ... and opens Settings from it: the clock stays held
+    st.gameMenuOpen.value = true; // the player opens the in-game menu: the clock stops
+    st.gameMenuOpen.value = false; // the menu's Settings item closes it ...
+    st.openSettings('paused'); // ... and opens Settings from it: the clock stays held
     expect(st.settingsOpen.value).toBe(true);
     expect(speed()).toBe(0);
     mountPauseKey();

@@ -23,7 +23,8 @@ describe('speedMix', () => {
   });
 
   it('never changes the tempo: the mix has no tempo field', () => {
-    for (const s of [1, 2, 4, 8, 16, 64]) expect(Object.keys(speedMix(s)).sort()).toEqual(['bass', 'bassDb', 'density', 'shimmerDb']);
+    for (const s of [1, 2, 4, 8, 16, 64])
+      expect(Object.keys(speedMix(s)).sort()).toEqual(['bass', 'bassDb', 'density', 'shimmerDb']);
   });
 });
 
@@ -36,7 +37,8 @@ describe('ticket #62: linear layer gains', () => {
   function fakeSink() {
     const calls: { name: string; args: unknown[] }[] = [];
     const sink = new Proxy({} as Record<string, (...a: unknown[]) => void>, {
-      get: (_t, name) => (typeof name === 'string' ? (...args: unknown[]) => void calls.push({ name, args }) : undefined),
+      get: (_t, name) =>
+        typeof name === 'string' ? (...args: unknown[]) => void calls.push({ name, args }) : undefined,
       has: () => true,
     });
     return {
@@ -47,7 +49,8 @@ describe('ticket #62: linear layer gains', () => {
         return g.length ? (g.at(-1)!.args[1] as number) : undefined;
       },
       /** The arguments of the last low-pass sent for an id, or undefined. */
-      lastLowpass: (id: string): unknown[] | undefined => calls.filter((c) => c.name === 'setMusicLowpass' && c.args[0] === id).at(-1)?.args,
+      lastLowpass: (id: string): unknown[] | undefined =>
+        calls.filter((c) => c.name === 'setMusicLowpass' && c.args[0] === id).at(-1)?.args,
     };
   }
 

@@ -7,14 +7,17 @@ describe('SnapCache (PERF19: one snapshot per change, not per frame)', () => {
   const rig = () => new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
 
   it('builds the snapshot once while the game stays the same', () => {
-    const g = rig(), c = new SnapCache(), spy = vi.spyOn(g, 'snapshot');
+    const g = rig(),
+      c = new SnapCache(),
+      spy = vi.spyOn(g, 'snapshot');
     const a = c.of(g);
     for (let i = 0; i < 10; i++) expect(c.of(g)).toBe(a);
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
   it('shows an uninstall and an install after a drop', () => {
-    const g = rig(), c = new SnapCache();
+    const g = rig(),
+      c = new SnapCache();
     const ram = c.of(g).devices.find((d) => d.kind === 'ram')!;
     expect(ram).toBeDefined();
     const out = g.uninstall(ram.id);
@@ -29,7 +32,8 @@ describe('SnapCache (PERF19: one snapshot per change, not per frame)', () => {
   });
 
   it('shows a cable change after a drop', () => {
-    const g = rig(), c = new SnapCache();
+    const g = rig(),
+      c = new SnapCache();
     const cable = c.of(g).cables.find((x) => x.connected && x.id !== 'pcmains')!;
     g.disconnectCable(cable.id);
     c.drop();
@@ -37,8 +41,11 @@ describe('SnapCache (PERF19: one snapshot per change, not per frame)', () => {
   });
 
   it('starts over for another game without a drop', () => {
-    const a = rig(), b = new Game({ seed: 1, sandbox: true, preassembled: false }), c = new SnapCache();
-    const sa = c.of(a), sb = c.of(b);
+    const a = rig(),
+      b = new Game({ seed: 1, sandbox: true, preassembled: false }),
+      c = new SnapCache();
+    const sa = c.of(a),
+      sb = c.of(b);
     expect(sb).not.toBe(sa);
     expect(sb.boardTier).toBe(b.board.tier);
   });
@@ -48,7 +55,8 @@ describe('the stage skips a build that would change nothing (ANIM-02, ANIM-06)',
   const key = (g: Game) => machineKey(new SnapCache().of(g));
 
   it('keeps the machine key when a part comes out and goes back in its socket', () => {
-    const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true }), before = key(g);
+    const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true }),
+      before = key(g);
     const ram = g.snapshot().devices.find((d) => d.kind === 'ram')!;
     const out = g.uninstall(ram.id);
     expect(out.ok).toBe(true);
@@ -58,7 +66,8 @@ describe('the stage skips a build that would change nothing (ANIM-02, ANIM-06)',
   });
 
   it('keeps the machine key when a cable is plugged in or out (the cable builds itself)', () => {
-    const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true }), before = key(g);
+    const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true }),
+      before = key(g);
     g.disconnectCable('atx');
     expect(key(g)).toBe(before);
     g.connectCable('atx');
@@ -66,14 +75,16 @@ describe('the stage skips a build that would change nothing (ANIM-02, ANIM-06)',
   });
 
   it('keys a bare case by its case alone: the board the game holds aside does not change it', () => {
-    const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true }), s = new SnapCache().of(g);
+    const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true }),
+      s = new SnapCache().of(g);
     expect(machineKey(s, 'case')).toBe(`bare|${s.caseTier}`);
     expect(machineKey(s, 'case')).not.toBe(machineKey(s));
     expect(machineKey(null, 'case')).toBe('none');
   });
 
   it('keys an empty stage as one thing, whatever case and board the game holds aside', () => {
-    const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true }), s = new SnapCache().of(g);
+    const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true }),
+      s = new SnapCache().of(g);
     expect(machineKey(s, 'nothing')).toBe('nothing');
     expect(machineKey(s, 'nothing')).not.toBe(machineKey(s, 'case'));
     expect(machineKey(s, 'nothing')).not.toBe(machineKey(s));

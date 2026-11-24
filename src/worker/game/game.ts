@@ -28,51 +28,77 @@
 //   persist    the save and its restore
 
 import {
-  allCables, createBoard, machineConfigFor, noCables, ThermalModel,
-  type Board, type Cables,
-} from "../../features/board/sim";
-import { Disk, GpuPort, Machine, NpuPort, StoragePort, TpmPort } from "../../core/sim";
-import { Prng } from "../../core/sim/prng";
-import { GPU_PORTS, NPU_PORTS, STORAGE_PORTS } from "../../core/sim/memmap";
-import { NetworkSource } from "../../features/network/sim";
-import { Nic } from "../../features/network/sim/nic";
-import type { RttEstimate } from "../../features/network/sim/transport";
-import { Pch, type PchKey } from "../../features/board/sim/pch";
-import * as bill from "../../features/economy/sim/bill";
-import * as clients from "../../features/economy/sim/clients";
-import { ECONOMY, SANDBOX_MONEY, type EconomyConfig } from "../../features/economy/sim/economy";
-import * as hardware from "../../features/board/sim/game/hardware";
+  allCables,
+  createBoard,
+  machineConfigFor,
+  noCables,
+  ThermalModel,
+  type Board,
+  type Cables,
+} from '../../features/board/sim';
+import { Disk, GpuPort, Machine, NpuPort, StoragePort, TpmPort } from '../../core/sim';
+import { Prng } from '../../core/sim/prng';
+import { GPU_PORTS, NPU_PORTS, STORAGE_PORTS } from '../../core/sim/memmap';
+import { NetworkSource } from '../../features/network/sim';
+import { Nic } from '../../features/network/sim/nic';
+import type { RttEstimate } from '../../features/network/sim/transport';
+import { Pch, type PchKey } from '../../features/board/sim/pch';
+import * as bill from '../../features/economy/sim/bill';
+import * as clients from '../../features/economy/sim/clients';
+import { ECONOMY, SANDBOX_MONEY, type EconomyConfig } from '../../features/economy/sim/economy';
+import * as hardware from '../../features/board/sim/game/hardware';
 import {
-  MACHINE_RAM_BYTES, SANDBOX_LEVEL, LOG_CAP,
-  type DriveMount, type InstalledOs, type InvItem, type Key, type Link, type Transfer, type WireAck, type WireSegment,
-} from "./internal";
-import type { DexRecord } from "../../features/jobs/sim/jobdex";
-import type { JobLogEntry } from "../../features/jobs/sim/joblog";
-import * as cloud from "../../features/economy/sim/cloud";
-import type { Contract, ContractOffer } from "../../features/economy/sim/contracts";
-import { newContractRng } from "../../features/economy/sim/contracts";
-import * as keys from "../../features/economy/sim/keys";
-import { LEVELS, MAX_LEVEL, type ItemInfo, type JobClassId } from "../../features/economy/sim/levels";
-import * as machine from "../../features/board/sim/game/machine";
-import * as memory from "../../features/memory/sim/memory";
-import * as network from "../../features/network/sim/network";
-import * as os from "../../features/os/sim/os";
-import * as parts from "../../features/board/sim/game/parts";
-import * as persist from "./persist";
-import { TRACE_CYCLES } from "../../features/cpu/sim/pipesnap";
-import * as sandbox from "../../features/sandbox/sim/sandbox";
-import { newProgress, parseSave, PROGRESS_KEYS, type Progress } from "./save";
-import * as shop from "../../features/economy/sim/shop";
-import * as snapshot from "./snapshot";
-import type { CompletedInfo, GameEvent, GameOptions } from "./types";
-import { UsbTray } from "../../features/jobs/sim/work";
+  MACHINE_RAM_BYTES,
+  SANDBOX_LEVEL,
+  LOG_CAP,
+  type DriveMount,
+  type InstalledOs,
+  type InvItem,
+  type Key,
+  type Link,
+  type Transfer,
+  type WireAck,
+  type WireSegment,
+} from './internal';
+import type { DexRecord } from '../../features/jobs/sim/jobdex';
+import type { JobLogEntry } from '../../features/jobs/sim/joblog';
+import * as cloud from '../../features/economy/sim/cloud';
+import type { Contract, ContractOffer } from '../../features/economy/sim/contracts';
+import { newContractRng } from '../../features/economy/sim/contracts';
+import * as keys from '../../features/economy/sim/keys';
+import { LEVELS, MAX_LEVEL, type ItemInfo, type JobClassId } from '../../features/economy/sim/levels';
+import * as machine from '../../features/board/sim/game/machine';
+import * as memory from '../../features/memory/sim/memory';
+import * as network from '../../features/network/sim/network';
+import * as os from '../../features/os/sim/os';
+import * as parts from '../../features/board/sim/game/parts';
+import * as persist from './persist';
+import { TRACE_CYCLES } from '../../features/cpu/sim/pipesnap';
+import * as sandbox from '../../features/sandbox/sim/sandbox';
+import { newProgress, parseSave, PROGRESS_KEYS, type Progress } from './save';
+import * as shop from '../../features/economy/sim/shop';
+import * as snapshot from './snapshot';
+import type { CompletedInfo, GameEvent, GameOptions } from './types';
+import { UsbTray } from '../../features/jobs/sim/work';
 
-export * from "./types";
+export * from './types';
 export type { GameOptions };
 
 /** The feature files' exports, which `Game` has as methods. */
-type Features = typeof parts & typeof shop & typeof sandbox & typeof machine & typeof bill & typeof keys & typeof clients
-  & typeof hardware & typeof os & typeof memory & typeof network & typeof snapshot & typeof persist & typeof cloud;
+type Features = typeof parts &
+  typeof shop &
+  typeof sandbox &
+  typeof machine &
+  typeof bill &
+  typeof keys &
+  typeof clients &
+  typeof hardware &
+  typeof os &
+  typeof memory &
+  typeof network &
+  typeof snapshot &
+  typeof persist &
+  typeof cloud;
 export interface Game extends Features {}
 
 // The fields below are the state the feature files share, so none is private.
@@ -147,7 +173,15 @@ export class Game {
   /** The OS's boot probe of each drive on the bus (not saved): base ticks of scan and repair left, `os.ts` `startMountScan`. */
   readonly mounts = new Map<string, DriveMount>();
   /** Each clock domain's rate before the cpuCyclesPerClock and boost scaling (what `applyRates` set). */
-  readonly rateDomains: readonly string[] = ["cpu", "display", "tpm", "nic", ...STORAGE_PORTS, ...GPU_PORTS, ...NPU_PORTS];
+  readonly rateDomains: readonly string[] = [
+    'cpu',
+    'display',
+    'tpm',
+    'nic',
+    ...STORAGE_PORTS,
+    ...GPU_PORTS,
+    ...NPU_PORTS,
+  ];
   readonly baseRates = new Map<string, { mul: number; div: number }>();
   /** Cycles of history the next snapshot's trace carries: a step of the paused machine asks for more so none of it is lost. */
   traceCycles = TRACE_CYCLES;
@@ -194,7 +228,7 @@ export class Game {
   /** Where the ethernet cable is plugged: "board", a NIC device id, or null. */
   lan: string | null = null;
   /** Where the video cable's PC end is plugged: "board" (the rear HDMI port) or the slot of a GPU card ("pcie1"), which needs a graphics display. */
-  video = "board";
+  video = 'board';
   /** The link has been up once: USB keys retired (sticky, saved). */
   networkLinked = false;
   deadTicks = 0;
@@ -207,7 +241,12 @@ export class Game {
   /** Jobs written to the spool on the drive, in ingest order (survive power loss). */
   spool: Key[] = [];
   /** The OS menu's spool settings (docs/OS.md "OS menu"): most queue slots wanted (null: as many as the OS allows) and the drives that hold none. Saved. */
-  osCfg: { spoolSlots: number | null; spoolOff: string[]; spoolAlloc: Record<string, number>; dataReserve: Record<string, number> } = { spoolSlots: null, spoolOff: [], spoolAlloc: {}, dataReserve: {} };
+  osCfg: {
+    spoolSlots: number | null;
+    spoolOff: string[];
+    spoolAlloc: Record<string, number>;
+    dataReserve: Record<string, number>;
+  } = { spoolSlots: null, spoolOff: [], spoolAlloc: {}, dataReserve: {} };
   /** Where the queue slots are now: per drive, how many (set by `layoutSpool` at power-on). Not saved. */
   spoolPlan: { deviceId: string; slots: number }[] = [];
   uploads: Transfer[] = [];
@@ -220,7 +259,14 @@ export class Game {
   netWire = { sent: 0, resent: 0, lost: 0, timeouts: 0 };
   /** The round trip the senders have measured to this machine (the smoothed time and its deviation), shared by the downloads of the link; null until the first download. RAM-like: lost with the link. */
   netRtt: RttEstimate | null = null;
-  link: Link = { state: "no-device", reason: "no ISP plan", port: { kind: null, deviceId: null, mbps: 0 }, router: null, isp: null, bw: { downMbps: 0, upMbps: 0, clients: 0, binding: null } };
+  link: Link = {
+    state: 'no-device',
+    reason: 'no ISP plan',
+    port: { kind: null, deviceId: null, mbps: 0 },
+    router: null,
+    isp: null,
+    bw: { downMbps: 0, upMbps: 0, clients: 0, binding: null },
+  };
   netCount = { delivered: 0, downloaded: 0, uploaded: 0, lost: 0 };
   /** The frames the uplink port has received and sent since the game started (fractions kept; counted from the bytes the transfers move, `network.ts` `countFrames`). Not saved. */
   netFrames = { rx: 0, tx: 0 };
@@ -260,9 +306,10 @@ export class Game {
     this.machine.addDevice(this.nic);
     this.thermal = new ThermalModel(this.machine.prng);
     // The case comes with two basic fans on its front mounts (their cables still out).
-    for (const m of ["front0", "front1"]) this.mustInstall("fan92", undefined, m);
+    for (const m of ['front0', 'front1']) this.mustInstall('fan92', undefined, m);
     // The crate: CPU, PSU, RAM, monitor, stock heatsink and its fan (last, so the older item ids stay inv1..inv4). Nothing else is mounted at the start.
-    for (const spec of ["cpu0", "psu0", "ram0", "display0", "cooler0", "fan92"]) this.inventory.push({ id: `inv${this.nextInvId++}`, spec });
+    for (const spec of ['cpu0', 'psu0', 'ram0', 'display0', 'cooler0', 'fan92'])
+      this.inventory.push({ id: `inv${this.nextInvId++}`, spec });
     for (const q of this.cfg.startQueue) this.enqueue(q.template, q.scale);
     if (opts.preassembled) {
       for (const it of [...this.inventory]) this.mustInstall(it.spec, it.id);
@@ -298,7 +345,7 @@ export class Game {
 
   /** The link is carrying traffic (up, or up but out of client slots). */
   get linkUsable(): boolean {
-    return this.link.state === "link-up" || this.link.state === "saturated";
+    return this.link.state === 'link-up' || this.link.state === 'saturated';
   }
 
   note(kind: string, text: string): void {
@@ -309,5 +356,18 @@ export class Game {
 
 Object.assign(
   Game.prototype,
-  parts, shop, sandbox, machine, bill, keys, clients, hardware, os, memory, network, snapshot, persist, cloud,
+  parts,
+  shop,
+  sandbox,
+  machine,
+  bill,
+  keys,
+  clients,
+  hardware,
+  os,
+  memory,
+  network,
+  snapshot,
+  persist,
+  cloud,
 );

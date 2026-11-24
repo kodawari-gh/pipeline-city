@@ -11,7 +11,10 @@ export const FRAME_FILL = 0.8;
 export const SEAT_UP = 0.05;
 
 /** A solid in world units (y up): its centre and its size (x wide, y high, z deep). */
-export interface Solid { centre: { x: number; y: number; z: number }; size: { x: number; y: number; z: number } }
+export interface Solid {
+  centre: { x: number; y: number; z: number };
+  size: { x: number; y: number; z: number };
+}
 
 type Edge = 'left' | 'right' | 'top' | 'bottom';
 
@@ -22,10 +25,12 @@ type Edge = 'left' | 'right' | 'top' | 'bottom';
  */
 function reachIn(stage: Box, tabs: Box[]): Record<Edge, number> {
   const i: Record<Edge, number> = { left: 0, right: 0, top: 0, bottom: 0 };
-  const sr = stage.x + stage.w, sb = stage.y + stage.h;
+  const sr = stage.x + stage.w,
+    sb = stage.y + stage.h;
   for (const t of tabs) {
     if (t.w <= 0 || t.h <= 0) continue;
-    const tr = t.x + t.w, tb = t.y + t.h;
+    const tr = t.x + t.w,
+      tb = t.y + t.h;
     const near: Record<Edge, number> = { top: t.y - stage.y, bottom: sb - tb, left: t.x - stage.x, right: sr - tr };
     const reach: Record<Edge, number> = { top: tb - stage.y, bottom: sb - t.y, left: tr - stage.x, right: sr - t.x };
     const [a, b]: [Edge, Edge] = t.w >= t.h ? ['top', 'bottom'] : ['left', 'right'];
@@ -38,15 +43,22 @@ function reachIn(stage: Box, tabs: Box[]): Record<Edge, number> {
 /** The free window: the stage less what the tabs reach in from each edge. */
 export function freeArea(stage: Box, tabs: Box[]): Box {
   const i = reachIn(stage, tabs);
-  return { x: stage.x + i.left, y: stage.y + i.top, w: Math.max(0, stage.w - i.left - i.right), h: Math.max(0, stage.h - i.top - i.bottom) };
+  return {
+    x: stage.x + i.left,
+    y: stage.y + i.top,
+    w: Math.max(0, stage.w - i.left - i.right),
+    h: Math.max(0, stage.h - i.top - i.bottom),
+  };
 }
 
 /** The eight corners of a solid, in world units. */
 function cornersOf(s: Solid): Vector3[] {
   const out: Vector3[] = [];
-  for (const sx of [-0.5, 0.5]) for (const sy of [-0.5, 0.5]) for (const sz of [-0.5, 0.5]) {
-    out.push(new Vector3(s.centre.x + sx * s.size.x, s.centre.y + sy * s.size.y, s.centre.z + sz * s.size.z));
-  }
+  for (const sx of [-0.5, 0.5])
+    for (const sy of [-0.5, 0.5])
+      for (const sz of [-0.5, 0.5]) {
+        out.push(new Vector3(s.centre.x + sx * s.size.x, s.centre.y + sy * s.size.y, s.centre.z + sz * s.size.z));
+      }
   return out;
 }
 
@@ -67,21 +79,27 @@ function screenOf(v: OrbitView, stage: Box, pts: Vector3[]): { x: number; y: num
  */
 export function frameMachine(stage: Box, tabs: Box[], machine: Solid, fill = FRAME_FILL): OrbitView {
   const free = freeArea(stage, tabs);
-  const fw = Math.max(50, free.w), fh = Math.max(50, free.h);
+  const fw = Math.max(50, free.w),
+    fh = Math.max(50, free.h);
   const pts = cornersOf(machine);
   const { centre: c, size: s } = machine;
   // the start height: the machine's front rect fits the window
   let v = clampView(fitRect({ x: c.x - s.x / 2, y: -c.y - s.y / 2, w: s.x, h: s.y }, c.z, fw / fh, BUILD_START, 1));
-  const tx = free.x + free.w / 2, ty = free.y + free.h / 2 - SEAT_UP * stage.h;
+  const tx = free.x + free.w / 2,
+    ty = free.y + free.h / 2 - SEAT_UP * stage.h;
   for (let n = 0; n < 16; n++) {
     const p = screenOf(v, stage, pts);
-    const minX = Math.min(...p.map((q) => q.x)), maxX = Math.max(...p.map((q) => q.x));
-    const minY = Math.min(...p.map((q) => q.y)), maxY = Math.max(...p.map((q) => q.y));
+    const minX = Math.min(...p.map((q) => q.x)),
+      maxX = Math.max(...p.map((q) => q.x));
+    const minY = Math.min(...p.map((q) => q.y)),
+      maxY = Math.max(...p.map((q) => q.y));
     const k = Math.min((fill * fw) / Math.max(1, maxX - minX), (fill * fh) / Math.max(1, maxY - minY));
-    const ex = (minX + maxX) / 2 - tx, ey = (minY + maxY) / 2 - ty;
+    const ex = (minX + maxX) / 2 - tx,
+      ey = (minY + maxY) / 2 - ty;
     if (Math.abs(k - 1) < 0.002 && Math.abs(ex) < 0.5 && Math.abs(ey) < 0.5) break;
     // world units per CSS px at the target's plane, at the new height (the height spans the stage's height)
-    const height = v.height / k, m = height / stage.h;
+    const height = v.height / k,
+      m = height / stage.h;
     v = clampView(panBy({ ...v, height }, ex * m, -ey * m));
   }
   return v;

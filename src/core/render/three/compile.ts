@@ -3,13 +3,36 @@
 // driver links them on its own threads (KHR_parallel_shader_compile); the page draws on (the boot screen, the last picture) and asks
 // `linked` each frame, or `whenLinked` waits. Without the extension every program is ready at once and links at its first draw, as before.
 import {
-  BackSide, DoubleSide, FrontSide, HalfFloatType, InstancedMesh, Mesh, MeshDepthMaterial, MeshDistanceMaterial, OrthographicCamera, PlaneGeometry, Scene, SkinnedMesh, VSMShadowMap, WebGLRenderTarget,
-  type Camera, type Light, type Material, type Object3D, type PointLight, type Side, type Texture, type WebGLRenderer,
+  BackSide,
+  DoubleSide,
+  FrontSide,
+  HalfFloatType,
+  InstancedMesh,
+  Mesh,
+  MeshDepthMaterial,
+  MeshDistanceMaterial,
+  OrthographicCamera,
+  PlaneGeometry,
+  Scene,
+  SkinnedMesh,
+  VSMShadowMap,
+  WebGLRenderTarget,
+  type Camera,
+  type Light,
+  type Material,
+  type Object3D,
+  type PointLight,
+  type Side,
+  type Texture,
+  type WebGLRenderer,
 } from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 
 /** A program as three keeps it: `isReady` asks the driver whether its link has ended, without waiting; `getUniforms` is its first use (`prime`). */
-export interface Program { isReady(): boolean; getUniforms?(): unknown }
+export interface Program {
+  isReady(): boolean;
+  getUniforms?(): unknown;
+}
 
 /**
  * Starts linking the programs `root` draws with, lit by `scene`'s lights (default `root`), and returns them. `root` is the scene, or an object
@@ -19,13 +42,25 @@ export interface Program { isReady(): boolean; getUniforms?(): unknown }
  * itself, with the renderer's tone mapping and colour space (the showcase viewer): the key of a program holds both, so the other kind is never used.
  * Set the lights as they will be drawn first: a light shown or hidden, or one that casts a shadow or stops, makes every lit program again.
  */
-export function startPrograms(r: WebGLRenderer, root: Object3D, cam: Camera, { scene = root as Scene, fades = [], toCanvas = false }: { scene?: Scene; fades?: readonly Object3D[]; toCanvas?: boolean } = {}): Program[] {
+export function startPrograms(
+  r: WebGLRenderer,
+  root: Object3D,
+  cam: Camera,
+  {
+    scene = root as Scene,
+    fades = [],
+    toCanvas = false,
+  }: { scene?: Scene; fades?: readonly Object3D[]; toCanvas?: boolean } = {},
+): Program[] {
   const flip = new Set<Material>();
-  for (const f of fades) f.traverse((x) => {
-    const m = (x as Mesh).material as Material | Material[] | undefined;
-    if (m) for (const mm of Array.isArray(m) ? m : [m]) if (!mm.transparent) flip.add(mm);
-  });
-  const was = r.getRenderTarget(), rt = toCanvas ? null : new WebGLRenderTarget(1, 1, { type: HalfFloatType }), out = new Set<Program>();
+  for (const f of fades)
+    f.traverse((x) => {
+      const m = (x as Mesh).material as Material | Material[] | undefined;
+      if (m) for (const mm of Array.isArray(m) ? m : [m]) if (!mm.transparent) flip.add(mm);
+    });
+  const was = r.getRenderTarget(),
+    rt = toCanvas ? null : new WebGLRenderTarget(1, 1, { type: HalfFloatType }),
+    out = new Set<Program>();
   // (each variant a material has made: a see-through double-sided one makes two, its back and its front)
   const take = (mats: Set<Material>) => {
     for (const m of mats) {
@@ -38,12 +73,18 @@ export function startPrograms(r: WebGLRenderer, root: Object3D, cam: Camera, { s
   try {
     take(r.compile(root, cam, scene));
     if (flip.size) {
-      for (const m of flip) { m.transparent = true; m.needsUpdate = true; }
+      for (const m of flip) {
+        m.transparent = true;
+        m.needsUpdate = true;
+      }
       take(r.compile(root, cam, scene));
     }
     return [...out];
   } finally {
-    for (const m of flip) { m.transparent = false; m.needsUpdate = true; }
+    for (const m of flip) {
+      m.transparent = false;
+      m.needsUpdate = true;
+    }
     r.setRenderTarget(was);
     rt?.dispose();
   }
@@ -59,16 +100,30 @@ export function startPassPrograms(r: WebGLRenderer, passes: readonly object[]): 
     if ((v as Material | null)?.isMaterial) mats.add(v as Material);
     else if (v instanceof FullScreenQuad && v.material) mats.add(v.material);
   };
-  for (const p of passes) for (const v of Object.values(p)) if (Array.isArray(v)) v.forEach(add); else add(v);
+  for (const p of passes)
+    for (const v of Object.values(p))
+      if (Array.isArray(v)) v.forEach(add);
+      else add(v);
   // (no normals, as `FullScreenQuad`'s triangle has none: three makes another program for a geometry with them, and that one would be drawn unlinked)
-  const quad = new Mesh(new PlaneGeometry(2, 2).deleteAttribute('normal')), cam = new OrthographicCamera(), out: Program[] = [];
-  for (const m of mats) { quad.material = m; out.push(...startPrograms(r, quad, cam)); }
+  const quad = new Mesh(new PlaneGeometry(2, 2).deleteAttribute('normal')),
+    cam = new OrthographicCamera(),
+    out: Program[] = [];
+  for (const m of mats) {
+    quad.material = m;
+    out.push(...startPrograms(r, quad, cam));
+  }
   quad.geometry.dispose();
   return out;
 }
 
 /** What three's depth pass reads from a material (`WebGLShadowMap.getDepthMaterial`); only some kinds of material have the maps. */
-type Casting = Material & { map?: Texture | null; alphaMap?: Texture | null; displacementMap?: Texture | null; displacementScale?: number; displacementBias?: number };
+type Casting = Material & {
+  map?: Texture | null;
+  alphaMap?: Texture | null;
+  displacementMap?: Texture | null;
+  displacementScale?: number;
+  displacementBias?: number;
+};
 /** The side three's depth pass draws a material's faces with: the opposite one, so a lit face does not shadow itself (`WebGLShadowMap`). */
 const SHADOW_SIDE: Record<number, Side> = { [FrontSide]: BackSide, [BackSide]: FrontSide, [DoubleSide]: DoubleSide };
 /** The depth materials `startShadowPrograms` made for a renderer, by the state that keys their program: made once, kept while the renderer lives (a disposed one would free its program). */
@@ -84,37 +139,74 @@ const depthMade = new WeakMap<WebGLRenderer, Map<string, MeshDepthMaterial | Mes
  */
 export function startShadowPrograms(r: WebGLRenderer, scene: Object3D, cam: Camera, root: Object3D = scene): Program[] {
   if (!r.shadowMap.enabled) return [];
-  const lights = new Set<Light>(), kinds = new Set<'depth' | 'distance'>();
-  for (const tree of root === scene ? [scene] : [scene, root]) tree.traverseVisible((o) => {
-    const l = o as Light;
-    if (!l.isLight) return;
-    lights.add(l);
-    if (l.castShadow) kinds.add((l as PointLight).isPointLight ? 'distance' : 'depth');
-  });
+  const lights = new Set<Light>(),
+    kinds = new Set<'depth' | 'distance'>();
+  for (const tree of root === scene ? [scene] : [scene, root])
+    tree.traverseVisible((o) => {
+      const l = o as Light;
+      if (!l.isLight) return;
+      lights.add(l);
+      if (l.castShadow) kinds.add((l as PointLight).isPointLight ? 'distance' : 'depth');
+    });
   if (!kinds.size) return [];
   const vsm = r.shadowMap.type === VSMShadowMap;
   let pool = depthMade.get(r);
   if (!pool) depthMade.set(r, (pool = new Map()));
-  const meshes: Mesh[] = [], seen = new Set<string>(), held = new Set<MeshDepthMaterial | MeshDistanceMaterial>();
+  const meshes: Mesh[] = [],
+    seen = new Set<string>(),
+    held = new Set<MeshDepthMaterial | MeshDistanceMaterial>();
   // (the hidden casters count too, as in `startPrograms`: the die under its lid)
   root.traverse((o) => {
     const m = o as Mesh;
     if (!m.isMesh || !(m.castShadow || (vsm && m.receiveShadow))) return;
-    const im = o as InstancedMesh, sk = o as SkinnedMesh, g = m.geometry, mp = g.morphAttributes;
+    const im = o as InstancedMesh,
+      sk = o as SkinnedMesh,
+      g = m.geometry,
+      mp = g.morphAttributes;
     // (what the geometry and the object make of the program's key: the instances, the skin, the normals, the morph targets)
-    const shape = [im.isInstancedMesh === true, !!im.instanceColor, sk.isSkinnedMesh === true, !!g.attributes.normal, !!mp.position, !!mp.normal, !!mp.color, (mp.position ?? mp.normal ?? mp.color)?.length ?? 0].join();
+    const shape = [
+      im.isInstancedMesh === true,
+      !!im.instanceColor,
+      sk.isSkinnedMesh === true,
+      !!g.attributes.normal,
+      !!mp.position,
+      !!mp.normal,
+      !!mp.color,
+      (mp.position ?? mp.normal ?? mp.color)?.length ?? 0,
+    ].join();
     for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
       if (!mat.visible) continue;
-      const c = mat as Casting, side = mat.shadowSide ?? (vsm ? mat.side : SHADOW_SIDE[mat.side]!), test = mat.alphaToCoverage ? 0.5 : mat.alphaTest;
+      const c = mat as Casting,
+        side = mat.shadowSide ?? (vsm ? mat.side : SHADOW_SIDE[mat.side]!),
+        test = mat.alphaToCoverage ? 0.5 : mat.alphaTest;
       for (const kind of kinds) {
-        const state = [kind, side, c.map?.channel ?? '-', c.alphaMap?.channel ?? '-', c.displacementMap?.channel ?? '-', test > 0].join();
+        const state = [
+          kind,
+          side,
+          c.map?.channel ?? '-',
+          c.alphaMap?.channel ?? '-',
+          c.displacementMap?.channel ?? '-',
+          test > 0,
+        ].join();
         if (seen.has(state + shape)) continue;
         seen.add(state + shape);
         let dm = pool.get(state);
         if (!dm) pool.set(state, (dm = kind === 'depth' ? new MeshDepthMaterial() : new MeshDistanceMaterial()));
-        Object.assign(dm, { side, map: c.map ?? null, alphaMap: c.alphaMap ?? null, alphaTest: test, displacementMap: c.displacementMap ?? null });
+        Object.assign(dm, {
+          side,
+          map: c.map ?? null,
+          alphaMap: c.alphaMap ?? null,
+          alphaTest: test,
+          displacementMap: c.displacementMap ?? null,
+        });
         held.add(dm);
-        meshes.push(im.isInstancedMesh ? Object.assign(new InstancedMesh(g, dm, 1), { instanceColor: im.instanceColor }) : sk.isSkinnedMesh ? new SkinnedMesh(g, dm) : new Mesh(g, dm));
+        meshes.push(
+          im.isInstancedMesh
+            ? Object.assign(new InstancedMesh(g, dm, 1), { instanceColor: im.instanceColor })
+            : sk.isSkinnedMesh
+              ? new SkinnedMesh(g, dm)
+              : new Mesh(g, dm),
+        );
       }
     }
   });
@@ -122,9 +214,15 @@ export function startShadowPrograms(r: WebGLRenderer, scene: Object3D, cam: Came
   // (the lights stay in their own trees: only this scene's list of children names them)
   const own = new Scene();
   own.children = [...lights, ...meshes];
-  try { return startPrograms(r, own, cam); } finally {
+  try {
+    return startPrograms(r, own, cam);
+  } finally {
     // (the kept materials hold no texture: they would keep the images of a room that is gone)
-    for (const dm of held) { dm.map = null; dm.alphaMap = null; dm.displacementMap = null; }
+    for (const dm of held) {
+      dm.map = null;
+      dm.alphaMap = null;
+      dm.displacementMap = null;
+    }
   }
 }
 
@@ -174,16 +272,23 @@ export class ProgramGate {
   constructor(private readonly start: () => Program[]) {}
 
   /** Have the programs started (a first `ready`, and no `reset` since)? A model that joins before that is in the batch (`joinModel`). */
-  get started(): boolean { return this.linking !== null; }
+  get started(): boolean {
+    return this.linking !== null;
+  }
 
   ready(now = performance.now()): boolean {
-    if (!this.linking) { this.from = now; this.linking = this.start(); }
+    if (!this.linking) {
+      this.from = now;
+      this.linking = this.start();
+    }
     if (!linked(this.linking)) return now - this.from > LINK_MAX_MS;
     this.priming ??= [...this.linking];
     return prime(this.priming, PRIME_MS);
   }
 
-  reset(): void { this.linking = this.priming = null; }
+  reset(): void {
+    this.linking = this.priming = null;
+  }
 }
 
 /** The programs the materials under `root` have made so far (none is made here). */
@@ -194,7 +299,8 @@ export function programsOf(r: WebGLRenderer, root: Object3D): Program[] {
     if (!m) return;
     for (const mm of Array.isArray(m) ? m : [m]) {
       if (!r.properties.has(mm)) continue;
-      for (const q of (r.properties.get(mm) as { programs?: Map<string, Program> }).programs?.values() ?? []) out.add(q);
+      for (const q of (r.properties.get(mm) as { programs?: Map<string, Program> }).programs?.values() ?? [])
+        out.add(q);
     }
   });
   return [...out];
@@ -207,18 +313,26 @@ export function programsOf(r: WebGLRenderer, root: Object3D): Program[] {
  */
 export function freeWhenLinked(r: WebGLRenderer, root: Object3D, free: () => void, ms = 100): void {
   const programs = programsOf(r, root);
-  const look = () => { if (linked(programs)) free(); else setTimeout(look, ms); };
+  const look = () => {
+    if (linked(programs)) free();
+    else setTimeout(look, ms);
+  };
   look();
 }
 
 /** Resolves once every program has linked; `onProgress` hears how many have, after each look (every `ms`, the page drawing between). */
-export function whenLinked(programs: readonly Program[], onProgress?: (done: number, total: number) => void, ms = 16): Promise<void> {
+export function whenLinked(
+  programs: readonly Program[],
+  onProgress?: (done: number, total: number) => void,
+  ms = 16,
+): Promise<void> {
   return new Promise((done) => {
     const look = () => {
       let n = 0;
       for (const p of programs) if (programDone(p)) n++;
       onProgress?.(n, programs.length);
-      if (n === programs.length) done(); else setTimeout(look, ms);
+      if (n === programs.length) done();
+      else setTimeout(look, ms);
     };
     look();
   });

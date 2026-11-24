@@ -5,17 +5,38 @@ import { describeId, statusChip, VRM_IDS } from '@/core/ui/logic';
 import { compareRows, ladderFor, pickerFor, statsOf } from '../../economy/ui/shop/picker';
 import { boardSnap, dev, EMPTY_SLOTS, PURCHASES, snap } from '@/core/ui/testdata';
 import {
-  boardCards, cpuVrmWarning, LIQUID_VRM_NOTE, liquidVrmNote, plannedBoardTier, vrmLines, vrmReadout, vrmZone,
+  boardCards,
+  cpuVrmWarning,
+  LIQUID_VRM_NOTE,
+  liquidVrmNote,
+  plannedBoardTier,
+  vrmLines,
+  vrmReadout,
+  vrmZone,
 } from './vrm';
 
 const buy = (id: string, price: number, o: Partial<PurchaseSnap> = {}): PurchaseSnap => ({
-  id, name: id, kind: id.startsWith('board') ? 'board' : id.startsWith('vsink') ? 'vrm-sink' : 'cooler', price, affordable: false, ...o,
+  id,
+  name: id,
+  kind: id.startsWith('board') ? 'board' : id.startsWith('vsink') ? 'vrm-sink' : 'cooler',
+  price,
+  affordable: false,
+  ...o,
 });
-const BOARDS: PurchaseSnap[] = [buy('board1', 150), buy('board2', 300, { blocked: 'powered off required: power the machine off to swap the board' })];
+const BOARDS: PurchaseSnap[] = [
+  buy('board1', 150),
+  buy('board2', 300, { blocked: 'powered off required: power the machine off to swap the board' }),
+];
 const SINKS: PurchaseSnap[] = [buy('vsink0', 30), buy('vsink1', 70), buy('vsink2', 140)];
 const SINK_SLOT: SlotSnap = { id: 'vrm-sink0', type: 'vrm-sink', deviceId: null };
 const boardItem = (id: string): InventorySnap => ({
-  id: 'inv9', spec: id, kind: 'board', name: 'board', freeSlots: ['board'], swapSlots: [], installable: false,
+  id: 'inv9',
+  spec: id,
+  kind: 'board',
+  name: 'board',
+  freeSlots: ['board'],
+  swapSlots: [],
+  installable: false,
 });
 
 describe('VRM zones and readout', () => {
@@ -27,7 +48,10 @@ describe('VRM zones and readout', () => {
   });
 
   it('reads demand, rating, zone, efficiency and loss from the snapshot', () => {
-    const s = snap({ board: boardSnap({ vrm: { loadRatio: 0.8, efficiency: 0.7, heatW: 3, tempC: 50 } }), power: { vrmLossW: 4, totalW: 20, budgetW: 40, psuFactor: 1, off: false, tripped: false } });
+    const s = snap({
+      board: boardSnap({ vrm: { loadRatio: 0.8, efficiency: 0.7, heatW: 3, tempC: 50 } }),
+      power: { vrmLossW: 4, totalW: 20, budgetW: 40, psuFactor: 1, off: false, tripped: false },
+    });
     const v = vrmReadout(s)!;
     expect(v.capacityA).toBe(24);
     expect(v.demandA).toBeCloseTo(19.2);
@@ -74,7 +98,17 @@ describe('motherboard tier cards', () => {
     const s = snap({
       money: 500,
       purchases: [...PURCHASES, buy('board1', 150, { affordable: true }), buy('board2', 300, { affordable: true })],
-      inventory: [{ id: 'inv9', spec: 'board1', kind: 'board', name: 'Basic', freeSlots: ['board'], swapSlots: [], installable: true }],
+      inventory: [
+        {
+          id: 'inv9',
+          spec: 'board1',
+          kind: 'board',
+          name: 'Basic',
+          freeSlots: ['board'],
+          swapSlots: [],
+          installable: true,
+        },
+      ],
     });
     const cards = boardCards(s);
     expect(cards[1]).toMatchObject({ state: 'crate', canBuy: false });
@@ -82,7 +116,9 @@ describe('motherboard tier cards', () => {
   });
 
   it('every tier has a card, the smaller ones too: a Mainstream machine can still buy a Starter board', () => {
-    const cards = boardCards(snap({ boardTier: 2, board: boardSnap({ tier: 2 }), purchases: [...PURCHASES, buy('board3', 700)] }));
+    const cards = boardCards(
+      snap({ boardTier: 2, board: boardSnap({ tier: 2 }), purchases: [...PURCHASES, buy('board3', 700)] }),
+    );
     expect(cards.map((c) => c.tier)).toEqual([0, 1, 2, 3]);
     expect(cards[2]!.state).toBe('installed');
   });
@@ -97,7 +133,8 @@ describe('motherboard tier cards', () => {
     expect(cards.map((c) => c.ethernetMbps)).toEqual([0, 100, 100, 1000]);
     expect(cards.map((c) => c.usbPorts)).toEqual([1, 2, 3, 4]);
     expect(cards.map((c) => c.displayPorts)).toEqual([1, 1, 2, 2]);
-    const slotsOf = (c: { slots: Array<{ key: string; count: number }> }, key: string) => c.slots.find((x) => x.key === key)?.count ?? 0;
+    const slotsOf = (c: { slots: Array<{ key: string; count: number }> }, key: string) =>
+      c.slots.find((x) => x.key === key)?.count ?? 0;
     expect(slotsOf(cards[0]!, 'dimm')).toBe(1);
     expect(slotsOf(cards[0]!, 'pcie')).toBe(1);
     expect(slotsOf(cards[2]!, 'm2')).toBe(2);
@@ -107,23 +144,41 @@ describe('motherboard tier cards', () => {
 
   it('a dead board offers the same tier as a replacement, priced, and refuses it while powered', () => {
     const replace = buy('board0', 40, { affordable: true });
-    const dead = snap({ board: boardSnap({ burnt: true, vrm: { burnt: true } }), purchases: [...PURCHASES, replace, ...BOARDS] });
+    const dead = snap({
+      board: boardSnap({ burnt: true, vrm: { burnt: true } }),
+      purchases: [...PURCHASES, replace, ...BOARDS],
+    });
     const c = boardCards(dead)[0]!;
     expect(c).toMatchObject({ state: 'dead', price: 40, canBuy: true });
     expect(c.reason).toBeUndefined();
-    const powered = boardCards(snap({
-      board: boardSnap({ burnt: true, vrm: { burnt: true } }),
-      purchases: [...PURCHASES, buy('board0', 40, { affordable: true, blocked: 'powered off required: power the machine off to swap the board' })],
-    }))[0]!;
+    const powered = boardCards(
+      snap({
+        board: boardSnap({ burnt: true, vrm: { burnt: true } }),
+        purchases: [
+          ...PURCHASES,
+          buy('board0', 40, {
+            affordable: true,
+            blocked: 'powered off required: power the machine off to swap the board',
+          }),
+        ],
+      }),
+    )[0]!;
     expect(powered).toMatchObject({ state: 'dead', canBuy: false });
     expect(powered.reason).toMatch(/powered off required/);
   });
 
   it('the status chip names the replacement and its price, and sandbox says free', () => {
-    const s = snap({ board: boardSnap({ burnt: true, vrm: { burnt: true } }), purchases: [...PURCHASES, buy('board0', 40, { affordable: true })] });
+    const s = snap({
+      board: boardSnap({ burnt: true, vrm: { burnt: true } }),
+      purchases: [...PURCHASES, buy('board0', 40, { affordable: true })],
+    });
     expect(statusChip(s)).toMatchObject({ text: 'Board dead: replace it', level: 'bad' });
     expect(statusChip(s).title).toMatch(/Starter \(\$40\)/);
-    const sb = snap({ sandbox: true, board: boardSnap({ burnt: true, vrm: { burnt: true } }), purchases: [buy('board0', 40, { affordable: true })] });
+    const sb = snap({
+      sandbox: true,
+      board: boardSnap({ burnt: true, vrm: { burnt: true } }),
+      purchases: [buy('board0', 40, { affordable: true })],
+    });
     expect(statusChip(sb).title).toMatch(/\(free\)/);
     expect(statusChip(snap()).text).toBe('Off');
   });
@@ -131,7 +186,13 @@ describe('motherboard tier cards', () => {
   it('the board picker shows the cards, and a dead board gets a line that says what to do', () => {
     const m = pickerFor('board', snap({ purchases: [...PURCHASES, ...BOARDS] }))!;
     expect(m.boardCards?.map((c) => c.id)).toEqual(['board0', 'board1', 'board2', 'board3']);
-    const dm = pickerFor('board', snap({ board: boardSnap({ burnt: true, vrm: { burnt: true } }), purchases: [buy('board0', 40, { affordable: true })] }))!;
+    const dm = pickerFor(
+      'board',
+      snap({
+        board: boardSnap({ burnt: true, vrm: { burnt: true } }),
+        purchases: [buy('board0', 40, { affordable: true })],
+      }),
+    )!;
     expect(dm.lines.some((l) => l.level === 'bad' && /board is dead/.test(l.text))).toBe(true);
   });
 
@@ -171,11 +232,12 @@ describe('warnings', () => {
 });
 
 describe('VRM heatsink rows and slot', () => {
-  const sinkSnap = (o: Parameters<typeof snap>[0] = {}) => snap({
-    slots: [...EMPTY_SLOTS, SINK_SLOT],
-    purchases: [...PURCHASES, ...SINKS],
-    ...o,
-  });
+  const sinkSnap = (o: Parameters<typeof snap>[0] = {}) =>
+    snap({
+      slots: [...EMPTY_SLOTS, SINK_SLOT],
+      purchases: [...PURCHASES, ...SINKS],
+      ...o,
+    });
 
   it('the empty heatsink slot is a drop target with its own rows', () => {
     const m = pickerFor('vrm-sink0', sinkSnap())!;
@@ -221,7 +283,9 @@ describe('descriptions for the VRM and the board features', () => {
     const plain = [0, 1, 2, 3].map((t) => describeId(`board${t}`)!);
     expect(new Set(plain.map((d) => d.plain)).size).toBe(4);
     for (const d of plain) expect(d.nerd).toMatch(/ethernet/);
-    expect(describeId('board0')!.nerd).toContain(`VRM ${BOARD_TIERS[0]!.vrm.phases} x ${BOARD_TIERS[0]!.vrm.ampsPerPhase} A`);
+    expect(describeId('board0')!.nerd).toContain(
+      `VRM ${BOARD_TIERS[0]!.vrm.phases} x ${BOARD_TIERS[0]!.vrm.ampsPerPhase} A`,
+    );
   });
 });
 

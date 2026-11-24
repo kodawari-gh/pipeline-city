@@ -14,14 +14,23 @@ import type { Snapshot } from '@/worker/protocol';
 
 const hooks = vi.hoisted(() => ({ effects: [] as (() => unknown)[] }));
 vi.mock('preact/hooks', () => ({
-  useEffect: (fn: () => unknown) => { hooks.effects.push(fn); },
+  useEffect: (fn: () => unknown) => {
+    hooks.effects.push(fn);
+  },
   useRef: () => ({ current: null }),
   useState: (v: unknown) => [v, () => {}],
 }));
 
 type VEl = { type: unknown; props: Record<string, any> };
 type Node = VEl | string | number | boolean | null | undefined | Node[];
-type Key = { type: 'keydown' | 'keyup'; code: string; key: string; target: object; repeat: boolean; preventDefault: () => void };
+type Key = {
+  type: 'keydown' | 'keyup';
+  code: string;
+  key: string;
+  target: object;
+  repeat: boolean;
+  preventDefault: () => void;
+};
 type PausedMod = {
   PAUSE_SPINE: readonly string[];
   PAUSED_ANNOUNCE: string;
@@ -63,17 +72,25 @@ beforeEach(async () => {
   vi.resetModules();
   const mem = new Map<string, string>();
   vi.stubGlobal('localStorage', {
-    getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k),
+    getItem: (k: string) => mem.get(k) ?? null,
+    setItem: (k: string, v: string) => void mem.set(k, v),
+    removeItem: (k: string) => void mem.delete(k),
   });
   onPage = new Set();
   vi.stubGlobal('document', {
     activeElement: null,
     querySelector: (sel: string) => (sel.split(',').some((part) => onPage.has(part.trim())) ? {} : null),
-    documentElement: { setAttribute: () => {}, style: { setProperty: () => {} }, classList: { toggle: () => {}, add: () => {}, remove: () => {} } },
+    documentElement: {
+      setAttribute: () => {},
+      style: { setProperty: () => {} },
+      classList: { toggle: () => {}, add: () => {}, remove: () => {} },
+    },
   });
   listeners = {};
   vi.stubGlobal('window', {
-    addEventListener: (type: string, fn: (e: Key) => void) => { (listeners[type] ??= []).push(fn); },
+    addEventListener: (type: string, fn: (e: Key) => void) => {
+      (listeners[type] ??= []).push(fn);
+    },
     removeEventListener: () => {},
     matchMedia: () => ({ matches: false, addEventListener: () => {} }),
   });
@@ -87,14 +104,23 @@ beforeEach(async () => {
 
 /** Calls the HUD's PauseKey child by hand, so its window key listeners are added. */
 function mountPauseKey(): void {
-  const pk = all(Hud() as unknown as Node).find((el) => typeof el.type === 'function' && (el.type as { name?: string }).name === 'PauseKey');
+  const pk = all(Hud() as unknown as Node).find(
+    (el) => typeof el.type === 'function' && (el.type as { name?: string }).name === 'PauseKey',
+  );
   expect(pk, 'PauseKey is in the HUD').toBeDefined();
   hooks.effects = [];
   (pk!.type as () => unknown)();
   for (const fn of hooks.effects) fn();
 }
 const press = (type: 'keydown' | 'keyup'): void => {
-  const e: Key = { type, code: 'Space', key: ' ', target: { tagName: 'BODY', isContentEditable: false }, repeat: false, preventDefault: () => {} };
+  const e: Key = {
+    type,
+    code: 'Space',
+    key: ' ',
+    target: { tagName: 'BODY', isContentEditable: false },
+    repeat: false,
+    preventDefault: () => {},
+  };
   for (const fn of listeners[type] ?? []) fn(e);
 };
 const speed = () => store.speed.value;
@@ -103,11 +129,16 @@ describe('the menu family holds the clock as one holder', () => {
   it('Paused, Settings, Paused and Resume: the clock stops once and restarts once, at its speed', () => {
     store.setSpeed(2);
     const seen: number[] = [];
-    const stop = effect(() => { seen.push(store.speed.value); });
+    const stop = effect(() => {
+      seen.push(store.speed.value);
+    });
     st.gameMenuOpen.value = true;
     expect(speed()).toBe(0);
     // The Paused Settings row: the menu closes and Settings opens in one batch, so the clock is never released between them.
-    batch(() => { st.gameMenuOpen.value = false; st.openSettings('paused'); });
+    batch(() => {
+      st.gameMenuOpen.value = false;
+      st.openSettings('paused');
+    });
     expect(speed()).toBe(0);
     expect(st.holdActive.value).toBe(true);
     st.closeSettings();
@@ -159,7 +190,9 @@ describe('the Save now row while a save is in flight (SPEC 5.10)', () => {
   const saveMeta = async (): Promise<string> => {
     const P = await importPaused();
     st.gameMenuOpen.value = true;
-    const row = all(P.Paused() as Node).find((el) => el.props.role === 'menuitem' && textOf(el.props.children as Node).includes('Save now'));
+    const row = all(P.Paused() as Node).find(
+      (el) => el.props.role === 'menuitem' && textOf(el.props.children as Node).includes('Save now'),
+    );
     expect(row, 'a Save now row').toBeDefined();
     return textOf(row!.props.children as Node);
   };
@@ -183,10 +216,19 @@ describe('Enter activates and Space does nothing on the open menu', () => {
     const tree = P.Paused() as Node;
     const layer = all(tree).find((el) => typeof el.props.onKeyDown === 'function');
     let prevented = false;
-    layer?.props.onKeyDown({ key: ' ', code: 'Space', target: null, preventDefault: () => { prevented = true; } });
+    layer?.props.onKeyDown({
+      key: ' ',
+      code: 'Space',
+      target: null,
+      preventDefault: () => {
+        prevented = true;
+      },
+    });
     expect(prevented, 'the menu does not act on Space').toBe(false);
     expect(st.gameMenuOpen.value).toBe(true);
-    const resume = all(tree).find((el) => el.props.role === 'menuitem' && textOf(el.props.children as Node).includes('Resume'));
+    const resume = all(tree).find(
+      (el) => el.props.role === 'menuitem' && textOf(el.props.children as Node).includes('Resume'),
+    );
     expect(typeof resume?.props.onClick, 'Resume is a button, so Enter clicks it').toBe('function');
     resume!.props.onClick();
     expect(st.gameMenuOpen.value).toBe(false);
@@ -242,7 +284,7 @@ describe("every item of today's menu has a place in Files, Tools or Help", () =>
     for (const item of ['Export game', 'Import game', 'New game']) expect(files).toContain(item);
   });
 
-  it('Tools holds Stats, Trace and Levels (today\'s labels, with the toggled wording)', async () => {
+  it("Tools holds Stats, Trace and Levels (today's labels, with the toggled wording)", async () => {
     const P = await importPaused();
     const tools = P.utilityLists(false).tools.map((t) => t.toLowerCase());
     for (const item of ['stats', 'trace', 'levels']) expect(tools.some((t) => t.includes(item))).toBe(true);

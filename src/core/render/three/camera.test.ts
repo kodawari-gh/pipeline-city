@@ -1,14 +1,36 @@
 import { describe, expect, it } from 'vitest';
 import {
-  LIMITS, clampView, distanceOf, eyeOf, fitHeight, fitRect, heightAt, keepInside, keepWhole, lowerInBand, orbitBy, panBy, reach, retarget, settled, sight, stepView, zoomAt,
-  turnReach, zoomAbout, zoomOn, type OrbitView, type Room,
+  LIMITS,
+  clampView,
+  distanceOf,
+  eyeOf,
+  fitHeight,
+  fitRect,
+  heightAt,
+  keepInside,
+  keepWhole,
+  lowerInBand,
+  orbitBy,
+  panBy,
+  reach,
+  retarget,
+  settled,
+  sight,
+  stepView,
+  zoomAt,
+  turnReach,
+  zoomAbout,
+  zoomOn,
+  type OrbitView,
+  type Room,
 } from './camera';
 
 const V: OrbitView = { x: 100, y: 200, z: 300, yaw: 0, pitch: 0, height: 1000, fov: 30 };
 
 describe('3D camera', () => {
   it('keeps the shown height when the fov changes (a dolly zoom)', () => {
-    const near = distanceOf({ height: 1000, fov: 40 }), far = distanceOf({ height: 1000, fov: 8 });
+    const near = distanceOf({ height: 1000, fov: 40 }),
+      far = distanceOf({ height: 1000, fov: 8 });
     expect(far).toBeGreaterThan(near * 4);
     expect(2 * far * Math.tan((8 * Math.PI) / 360)).toBeCloseTo(1000);
   });
@@ -31,12 +53,19 @@ describe('3D camera', () => {
   });
 
   it('clamps the angles and the zoom', () => {
-    expect(clampView({ ...V, yaw: 9, pitch: 9, height: 1 })).toMatchObject({ yaw: LIMITS.yaw, pitch: LIMITS.pitchMax, height: LIMITS.heightMin });
+    expect(clampView({ ...V, yaw: 9, pitch: 9, height: 1 })).toMatchObject({
+      yaw: LIMITS.yaw,
+      pitch: LIMITS.pitchMax,
+      height: LIMITS.heightMin,
+    });
     expect(orbitBy(V, -9, -9)).toMatchObject({ yaw: -LIMITS.yaw, pitch: LIMITS.pitchMin });
   });
 
   it('zooms toward the pointer: the point under it stays there', () => {
-    const aspect = 2, nx = 0.5, ny = -0.25, z = zoomAt(V, 0.5, nx, ny, aspect);
+    const aspect = 2,
+      nx = 0.5,
+      ny = -0.25,
+      z = zoomAt(V, 0.5, nx, ny, aspect);
     expect(z.height).toBe(500);
     // the world point under the pointer, before and after
     expect(V.x + nx * (V.height / 2) * aspect).toBeCloseTo(z.x + nx * (z.height / 2) * aspect);
@@ -52,7 +81,8 @@ describe('3D camera', () => {
   describe('the target on the surface the player looks at', () => {
     // the screen point of a world point, on a screen 1 tall (y up, -0.5 to 0.5 at the target's distance)
     const onScreen = (v: OrbitView, p: { x: number; y: number; z: number }) => {
-      const e = eyeOf(v), s = (e.z - p.z) * 2 * Math.tan((v.fov * Math.PI) / 360);
+      const e = eyeOf(v),
+        s = (e.z - p.z) * 2 * Math.tan((v.fov * Math.PI) / 360);
       return { x: (p.x - e.x) / s, y: (p.y - e.y) / s };
     };
 
@@ -66,7 +96,9 @@ describe('3D camera', () => {
 
     it('slides the target onto a plane and keeps the picture', () => {
       for (const v of [V, { ...V, yaw: 0.4, pitch: 0.25 }]) {
-        const r = retarget(v, -2000), a = eyeOf(v), b = eyeOf(r);
+        const r = retarget(v, -2000),
+          a = eyeOf(v),
+          b = eyeOf(r);
         expect(r.z).toBeCloseTo(-2000);
         expect([b.x, b.y, b.z].map((n, i) => n - [a.x, a.y, a.z][i]!).every((d) => Math.abs(d) < 1e-6)).toBe(true);
       }
@@ -74,11 +106,16 @@ describe('3D camera', () => {
 
     it('zooms on the surface under the pointer: it stays there, and each notch takes the same share of the way', () => {
       // the target floats 2500 in front of the surface the pointer is on (the overview's, over the board)
-      const v = { ...V, x: 0, y: 0, z: 5000, height: 4000, fov: 26 }, p = { x: 300, y: -150, z: 2500 };
+      const v = { ...V, x: 0, y: 0, z: 5000, height: 4000, fov: 26 },
+        p = { x: 300, y: -150, z: 2500 };
       let z = v;
       const gap = [heightAt(z, p.z)];
-      for (let i = 0; i < 20; i++) { z = zoomOn(z, p, 0.8); gap.push(heightAt(z, p.z)); }
-      const a = onScreen(v, p), b = onScreen(z, p);
+      for (let i = 0; i < 20; i++) {
+        z = zoomOn(z, p, 0.8);
+        gap.push(heightAt(z, p.z));
+      }
+      const a = onScreen(v, p),
+        b = onScreen(z, p);
       expect(b.x).toBeCloseTo(a.x, 6);
       expect(b.y).toBeCloseTo(a.y, 6);
       expect(z.z).toBeCloseTo(p.z);
@@ -92,18 +129,27 @@ describe('3D camera', () => {
   describe('a view that turns all the way round', () => {
     // the screen point of a world point, on a screen 1 tall at the target's distance (y up), and its depth along the line of sight
     const seen = (v: OrbitView, p: { x: number; y: number; z: number }) => {
-      const e = eyeOf(v), c = Math.cos(v.pitch), tan = 2 * Math.tan((v.fov * Math.PI) / 360);
+      const e = eyeOf(v),
+        c = Math.cos(v.pitch),
+        tan = 2 * Math.tan((v.fov * Math.PI) / 360);
       const d = [p.x - e.x, p.y - e.y, p.z - e.z];
-      const f = [-Math.sin(v.yaw) * c, -Math.sin(v.pitch), -Math.cos(v.yaw) * c], r = [Math.cos(v.yaw), 0, -Math.sin(v.yaw)];
+      const f = [-Math.sin(v.yaw) * c, -Math.sin(v.pitch), -Math.cos(v.yaw) * c],
+        r = [Math.cos(v.yaw), 0, -Math.sin(v.yaw)];
       const u = [-Math.sin(v.pitch) * Math.sin(v.yaw), Math.cos(v.pitch), -Math.sin(v.pitch) * Math.cos(v.yaw)];
-      const dot = (a: number[], b: number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!, depth = dot(d, f);
+      const dot = (a: number[], b: number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!,
+        depth = dot(d, f);
       return { x: dot(d, r) / (depth * tan), y: dot(d, u) / (depth * tan), depth };
     };
-    const LIM = { min: 5, max: 400 }, W: OrbitView = { x: 10, y: 20, z: 30, yaw: 0, pitch: 0.4, height: 100, fov: 28 }, P = { x: 18, y: 31, z: 22 };
+    const LIM = { min: 5, max: 400 },
+      W: OrbitView = { x: 10, y: 20, z: 30, yaw: 0, pitch: 0.4, height: 100, fov: 28 },
+      P = { x: 18, y: 31, z: 22 };
 
     it('keeps the point under the pointer where it is, from any side', () => {
       for (const yaw of [0, 0.9, 2.2, -3, 4.5]) {
-        const v = { ...W, yaw }, z = zoomAbout(v, P, 0.5, LIM), a = seen(v, P), b = seen(z, P);
+        const v = { ...W, yaw },
+          z = zoomAbout(v, P, 0.5, LIM),
+          a = seen(v, P),
+          b = seen(z, P);
         expect(b.x).toBeCloseTo(a.x, 6);
         expect(b.y).toBeCloseTo(a.y, 6);
         expect(b.depth).toBeCloseTo(a.depth / 2, 6);
@@ -124,7 +170,8 @@ describe('3D camera', () => {
       const far = zoomAbout({ ...W, yaw: 0, pitch: 0, height: LIM.max }, { x: W.x, y: W.y, z: W.z - 50 }, 1.25, LIM);
       expect(far.height).toBeGreaterThanOrEqual(LIM.max - 1e-9);
       // (the same for the board's camera)
-      const board = { ...V, height: LIMITS.heightMin }, front = zoomOn(board, { x: board.x, y: board.y, z: board.z + 40 }, 0.8);
+      const board = { ...V, height: LIMITS.heightMin },
+        front = zoomOn(board, { x: board.x, y: board.y, z: board.z + 40 }, 0.8);
       expect(front.height).toBeLessThanOrEqual(LIMITS.heightMin + 1e-9);
     });
 
@@ -139,7 +186,10 @@ describe('3D camera', () => {
 
   describe('kept inside a room', () => {
     const R: Room = { x0: -5000, x1: 5000, y0: -2000, y1: 3000, z0: 500, z1: 8000 };
-    const inside = (v: OrbitView) => { const e = eyeOf(v); return e.x >= R.x0 - 1e-6 && e.x <= R.x1 + 1e-6 && e.y >= R.y0 - 1e-6 && e.y <= R.y1 + 1e-6 && e.z <= R.z1 + 1e-6; };
+    const inside = (v: OrbitView) => {
+      const e = eyeOf(v);
+      return e.x >= R.x0 - 1e-6 && e.x <= R.x1 + 1e-6 && e.y >= R.y0 - 1e-6 && e.y <= R.y1 + 1e-6 && e.z <= R.z1 + 1e-6;
+    };
 
     it('leaves a view that fits as it is', () => {
       const v = { ...V, x: 0, y: 0, z: 1000, height: 1000, fov: 26 };
@@ -186,7 +236,17 @@ describe('3D camera', () => {
     const R: Room = { x0: -50000, x1: 50000, y0: -20000, y1: 20000, z0: 0, z1: 60000 };
     // a cupboard in front of the target, between it and the eye
     const B: Room = { x0: -2000, x1: 2000, y0: -20000, y1: 0, z0: 10000, z1: 14000 };
-    const near = (v: OrbitView, b: Room, gap: number) => { const e = eyeOf(v); return e.x > b.x0 - gap && e.x < b.x1 + gap && e.y > b.y0 - gap && e.y < b.y1 + gap && e.z > b.z0 - gap && e.z < b.z1 + gap; };
+    const near = (v: OrbitView, b: Room, gap: number) => {
+      const e = eyeOf(v);
+      return (
+        e.x > b.x0 - gap &&
+        e.x < b.x1 + gap &&
+        e.y > b.y0 - gap &&
+        e.y < b.y1 + gap &&
+        e.z > b.z0 - gap &&
+        e.z < b.z1 + gap
+      );
+    };
 
     it('stops the eye short of a block on its line of sight', () => {
       const v = { ...V, x: 0, y: -5000, z: 2000, height: 20000, fov: 26 };
@@ -213,7 +273,8 @@ describe('3D camera', () => {
       // the target just this side of it, or in it: the eye that would go into it goes on through and out of the far side, a close look
       // backs out
       for (const z of [9950, 12000]) {
-        const at = { ...V, x: 0, y: -5000, z, height: 1000, fov: 26 }, [n, f] = sight(at, R, [B]);
+        const at = { ...V, x: 0, y: -5000, z, height: 1000, fov: 26 },
+          [n, f] = sight(at, R, [B]);
         expect(f).toBeCloseTo(reach(at, R));
         expect(n).toBeGreaterThan(14150 - z);
         expect(n).toBeLessThan(14150 - z + 400);
@@ -224,23 +285,32 @@ describe('3D camera', () => {
         expect(keepInside({ ...at, height: 8000 }, R, { blocks: [B] }).height).toBe(8000);
       }
       // where the room ends first, it stops short of the face (from inside: it backs out to the wall)
-      const short = { ...R, z1: 13000 }, back = { ...V, x: 0, y: -5000, z: 9950, height: 8000, fov: 26 };
+      const short = { ...R, z1: 13000 },
+        back = { ...V, x: 0, y: -5000, z: 9950, height: 8000, fov: 26 };
       expect(sight(back, short, [B])).toEqual([0, expect.closeTo(50)]);
       expect(sight({ ...back, z: 12000 }, short, [B])).toEqual([1000, 1000]);
     });
 
     describe('a turn that the room stops', () => {
       const walled: Room = { x0: -5000, x1: 5000, y0: -2000, y1: 3000, z0: 500, z1: 8000 };
-      const fit = (r: Room, blocks: Room[] = []) => (v: OrbitView) => keepInside(v, r, { restore: true, blocks });
+      const fit =
+        (r: Room, blocks: Room[] = []) =>
+        (v: OrbitView) =>
+          keepInside(v, r, { restore: true, blocks });
 
       it('goes all the way when the room leaves the eye its place', () => {
         const base = { ...V, x: 0, y: 0, z: 4000, height: 1000, fov: 26 };
-        expect(turnReach(base, { yaw: 0, pitch: 0 }, { yaw: 0.5, pitch: 0.3 }, fit(walled))).toEqual({ yaw: 0.5, pitch: 0.3 });
+        expect(turnReach(base, { yaw: 0, pitch: 0 }, { yaw: 0.5, pitch: 0.3 }, fit(walled))).toEqual({
+          yaw: 0.5,
+          pitch: 0.3,
+        });
       });
 
       it('stops at a wall the target is at, not shrinking the view into it', () => {
         // the target 500 east of the west wall: a turn that puts the eye west of the wall would shrink the view to nothing
-        const base = { ...V, x: -4500, y: 0, z: 4000, height: 1000, fov: 26 }, f = fit(walled), ref = f(base).height;
+        const base = { ...V, x: -4500, y: 0, z: 4000, height: 1000, fov: 26 },
+          f = fit(walled),
+          ref = f(base).height;
         const got = turnReach(base, { yaw: 0, pitch: 0 }, { yaw: -1, pitch: 0 }, f, ref);
         expect(got.yaw).toBeGreaterThan(-0.6);
         expect(got.yaw).toBeLessThan(-0.2);
@@ -252,7 +322,9 @@ describe('3D camera', () => {
       });
 
       it('slides along the stop: the pitch goes on when the yaw cannot', () => {
-        const base = { ...V, x: -4500, y: 0, z: 4000, height: 1000, fov: 26 }, f = fit(walled), ref = f(base).height;
+        const base = { ...V, x: -4500, y: 0, z: 4000, height: 1000, fov: 26 },
+          f = fit(walled),
+          ref = f(base).height;
         const stop = turnReach(base, { yaw: 0, pitch: 0 }, { yaw: -1, pitch: 0 }, f, ref);
         const got = turnReach(base, stop, { yaw: stop.yaw - 0.5, pitch: 0.4 }, f, ref);
         expect(got.pitch).toBeGreaterThan(0.2);
@@ -263,9 +335,12 @@ describe('3D camera', () => {
         const wide: Room = { x0: -50000, x1: 50000, y0: -20000, y1: 20000, z0: 0, z1: 60000 };
         const B: Room = { x0: -2000, x1: 2000, y0: -20000, y1: 0, z0: 10000, z1: 14000 };
         // the target on the near face of the cupboard, looked at from the south: a turn through the cupboard would throw the eye to its north
-        const base = { ...V, x: 0, y: -5000, z: 9950, height: 1000, fov: 26 }, f = fit(wide, [B]), ref = f(base).height;
+        const base = { ...V, x: 0, y: -5000, z: 9950, height: 1000, fov: 26 },
+          f = fit(wide, [B]),
+          ref = f(base).height;
         for (const yaw of [-1.1, -0.5, 0.5, 1.1]) {
-          const got = turnReach(base, { yaw: 0, pitch: 0 }, { yaw, pitch: 0 }, f, ref), k = f({ ...base, ...got });
+          const got = turnReach(base, { yaw: 0, pitch: 0 }, { yaw, pitch: 0 }, f, ref),
+            k = f({ ...base, ...got });
           expect(k.height).toBeGreaterThan(ref * 0.79);
           expect(k.height).toBeLessThan(ref * 1.26);
         }
@@ -274,7 +349,8 @@ describe('3D camera', () => {
 
     it('sizes the near plane for a wide room view', () => {
       // beside a tall block, looking along its face: the wider the fov, the sooner its near plane would reach the face
-      const tall: Room = { ...B, y1: 20000 }, v = { ...V, x: 2400, y: 0, z: 2000, height: 8000, fov: 26 };
+      const tall: Room = { ...B, y1: 20000 },
+        v = { ...V, x: 2400, y: 0, z: 2000, height: 8000, fov: 26 };
       expect(reach(v, R, [tall], 40)).toBeLessThan(reach(v, R, [tall], 26));
     });
 
@@ -286,7 +362,9 @@ describe('3D camera', () => {
       const room = keepInside(under, R, { restore: true }).height;
 
       it('slides the target the least, along y only, where keepInside shrinks the view to a sliver', () => {
-        expect(keepInside(under, R, opts).height, 'the premise: this target is in the slab shadow').toBeLessThan(room * 0.2);
+        expect(keepInside(under, R, opts).height, 'the premise: this target is in the slab shadow').toBeLessThan(
+          room * 0.2,
+        );
         const k = keepWhole(under, R, opts);
         expect(k.height).toBeGreaterThan(room * 0.6);
         expect(Math.abs(k.y - under.y)).toBeLessThan(800);
@@ -295,7 +373,9 @@ describe('3D camera', () => {
 
       it('slides toward the y a flight goes to, so a view on its way is not held back above the block', () => {
         // the slab's shadow reaches from 250 above the target to 450 below it: the shortest slide is up, a flight that goes down crosses it
-        const shortest = keepWhole(under, R, opts), down = keepWhole(under, R, opts, 0.6, -5000), up = keepWhole(under, R, opts, 0.6, 5000);
+        const shortest = keepWhole(under, R, opts),
+          down = keepWhole(under, R, opts, 0.6, -5000),
+          up = keepWhole(under, R, opts, 0.6, 5000);
         expect(shortest.y).toBeGreaterThan(under.y);
         expect(down.y).toBeLessThan(under.y - 400);
         expect(up.y).toBeGreaterThan(under.y);
@@ -317,18 +397,24 @@ describe('3D camera', () => {
 
       it('gives up on a room that is all block', () => {
         const all: Room = { ...R, x0: -60000, x1: 60000, y0: -30000, y1: 30000 };
-        expect(keepWhole(under, R, { blocks: [all], restore: true })).toEqual(keepInside(under, R, { blocks: [all], restore: true }));
+        expect(keepWhole(under, R, { blocks: [all], restore: true })).toEqual(
+          keepInside(under, R, { blocks: [all], restore: true }),
+        );
       });
     });
   });
 
   describe('a small target low in the band the HUD leaves', () => {
     // a screen 900 px tall, the view 9000 units high: 10 units a pixel; the target (a key and its port) is the point at y 100
-    const view = { ...V, height: 9000 }, keyY = 100;
+    const view = { ...V, height: 9000 },
+      keyY = 100;
     // where a point is on the screen (px from the top), for a view looking straight on: its target is at the middle
     const screenY = (v: OrbitView, y: number) => 450 - (y - v.y) / (v.height / 900);
     // the view `inFree` gives: the key in the middle of the band the insets leave
-    const framed = (inset: { top: number; bottom: number }): OrbitView => ({ ...view, y: keyY - (450 - (inset.top + 900 - inset.bottom) / 2) * 10 });
+    const framed = (inset: { top: number; bottom: number }): OrbitView => ({
+      ...view,
+      y: keyY - (450 - (inset.top + 900 - inset.bottom) / 2) * 10,
+    });
 
     it('goes to the middle of the screen when the band reaches it, not to the middle of the band', () => {
       const inset = { top: 55, bottom: 340 }; // the card takes the bottom third: the band is 55 to 560, its middle 307
@@ -348,14 +434,16 @@ describe('3D camera', () => {
     });
 
     it('rests a target taller than the band on the band bottom', () => {
-      const inset = { top: 55, bottom: 600 }, half = 6000 / 10 / 2 + 24; // 600 px tall: no band holds it
+      const inset = { top: 55, bottom: 600 },
+        half = 6000 / 10 / 2 + 24; // 600 px tall: no band holds it
       expect(screenY(lowerInBand(framed(inset), inset, 900, 6000), keyY) + half).toBeCloseTo(300, 5);
     });
   });
 
   it('eases to the goal, the same way at any frame rate', () => {
     const goal = { ...V, x: 500, height: 4000, fov: 8 };
-    let a = V, b = V;
+    let a = V,
+      b = V;
     for (let i = 0; i < 60; i++) a = stepView(a, goal, 1 / 60);
     for (let i = 0; i < 20; i++) b = stepView(b, goal, 1 / 20);
     expect(a.x).toBeCloseTo(b.x, 3);

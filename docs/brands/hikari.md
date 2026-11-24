@@ -10,14 +10,14 @@ First light: a sun that rises over the horizon, read in scan lines, its rim lit.
 
 ## Colours
 
-| Role | Hex | Note |
-|---|---|---|
+| Role   | Hex       | Note                                     |
+| ------ | --------- | ---------------------------------------- |
 | accent | `#3be3ff` | cyan, the sun's rim and the dot of the i |
-| light | `#e2eaff` | pale ink on dark |
-| dark | `#131518` | black ink on light |
-| plate | `#04060f` | the screen's black |
-| body | `#131518` | black bezel |
-| trim | `#4e5360` | gunmetal stand |
+| light  | `#e2eaff` | pale ink on dark                         |
+| dark   | `#131518` | black ink on light                       |
+| plate  | `#04060f` | the screen's black                       |
+| body   | `#131518` | black bezel                              |
+| trim   | `#4e5360` | gunmetal stand                           |
 
 AXIOM also uses cyan. The monitor sits outside the case, so the two marks never meet.
 

@@ -7,7 +7,10 @@
 import { twoMove, twoStart, wheelZoom, type Pt, type Two } from './gesture';
 
 /** What a press may lift. `lift` takes the pointer over (a drag of the host's own) and says so; false: refused (it said why), the press goes on as it was. */
-export interface Grab { eager: boolean; lift(e: PointerEvent): boolean }
+export interface Grab {
+  eager: boolean;
+  lift(e: PointerEvent): boolean;
+}
 
 export type PadKind = 'pan' | 'turn' | 'pinch';
 
@@ -33,13 +36,24 @@ export interface PadHost {
 }
 
 /** One pointer event, as the recogniser reads it. */
-export interface Ptr { id: number; touch: boolean; x: number; y: number; button: number; shift: boolean; t: number; ev: PointerEvent }
+export interface Ptr {
+  id: number;
+  touch: boolean;
+  x: number;
+  y: number;
+  button: number;
+  shift: boolean;
+  t: number;
+  ev: PointerEvent;
+}
 
-export const SLOP_MOUSE = 5, SLOP_TOUCH = 10;
+export const SLOP_MOUSE = 5,
+  SLOP_TOUCH = 10;
 /** A press that stays this long (ms) without moving lifts what it holds. */
 export const HOLD_MS = 400;
 /** A second tap within this many ms and px of the first is a double. */
-export const DOUBLE_MS = 380, DOUBLE_PX = 30;
+export const DOUBLE_MS = 380,
+  DOUBLE_PX = 30;
 
 type Mode = 'idle' | 'press' | 'pan' | 'turn' | 'two' | 'lifted' | 'spent';
 type Later = (ms: number, fn: () => void) => () => void;
@@ -48,17 +62,35 @@ export class PadCore {
   private mode: Mode = 'idle';
   private ptrs = new Map<number, Pt>();
   /** The first pointer's press: where, when, what it means (`turn`: a drag turns), and what it may lift. */
-  private p: { id: number; x0: number; y0: number; x: number; y: number; touch: boolean; turn: boolean; grab: Grab | null; ev: PointerEvent } | null = null;
+  private p: {
+    id: number;
+    x0: number;
+    y0: number;
+    x: number;
+    y: number;
+    touch: boolean;
+    turn: boolean;
+    grab: Grab | null;
+    ev: PointerEvent;
+  } | null = null;
   private two: Two | null = null;
   private stop = () => {};
   private tapped: { x: number; y: number; t: number } | null = null;
   /** Did the gesture that runs move anything? (the host's `end` follows it) */
   private moved = false;
 
-  constructor(private host: PadHost, private later: Later = (ms, fn) => { const t = setTimeout(fn, ms); return () => clearTimeout(t); }) {}
+  constructor(
+    private host: PadHost,
+    private later: Later = (ms, fn) => {
+      const t = setTimeout(fn, ms);
+      return () => clearTimeout(t);
+    },
+  ) {}
 
   /** Is a pointer down that the pad has? */
-  get busy(): boolean { return this.mode !== 'idle'; }
+  get busy(): boolean {
+    return this.mode !== 'idle';
+  }
 
   /** A pointer went down. False: the pad does not take it (a third finger, one the host holds). */
   down(q: Ptr): boolean {
@@ -70,7 +102,8 @@ export class PadCore {
       this.ptrs.set(q.id, { x: q.x, y: q.y });
       if (this.ptrs.size === 2) {
         // the second finger: the press, if it is still one, is no tap, no lift and no pan (a pan that ran goes on as the pinch's)
-        this.stop(); this.stop = () => {};
+        this.stop();
+        this.stop = () => {};
         this.p = null;
         this.two = twoStart(...(this.fingers() as [Pt, Pt]));
         if (this.mode !== 'pan' && this.mode !== 'turn') this.moved = false;
@@ -81,7 +114,7 @@ export class PadCore {
     else this.ptrs.set(q.id, { x: q.x, y: q.y });
     const turn = !q.touch && (q.button === 2 || (q.button === 0 && q.shift));
     // (the middle button pans over everything: it lifts nothing)
-    const grab = !turn && q.button === 0 ? this.host.press?.({ x: q.x, y: q.y }, q.ev) ?? null : null;
+    const grab = !turn && q.button === 0 ? (this.host.press?.({ x: q.x, y: q.y }, q.ev) ?? null) : null;
     this.p = { id: q.id, x0: q.x, y0: q.y, x: q.x, y: q.y, touch: q.touch, turn, grab, ev: q.ev };
     this.mode = 'press';
     this.moved = false;
@@ -96,29 +129,41 @@ export class PadCore {
     if (this.mode === 'press' && p && q.id === p.id) {
       p.ev = q.ev;
       if (Math.hypot(q.x - p.x0, q.y - p.y0) < (p.touch ? SLOP_TOUCH : SLOP_MOUSE)) return;
-      this.stop(); this.stop = () => {};
-      if (p.grab?.eager && p.grab.lift(q.ev)) { this.give(); return; }
+      this.stop();
+      this.stop = () => {};
+      if (p.grab?.eager && p.grab.lift(q.ev)) {
+        this.give();
+        return;
+      }
       this.mode = p.turn ? 'turn' : 'pan';
       this.host.begin?.(this.mode, { x: p.x0, y: p.y0 });
       this.moved = true;
       // (the whole travel since the press: the content stays under the pointer, the slop is no dead zone)
       this.send(q.x - p.x0, q.y - p.y0);
-      p.x = q.x; p.y = q.y;
+      p.x = q.x;
+      p.y = q.y;
       return;
     }
     if ((this.mode === 'pan' || this.mode === 'turn') && p && q.id === p.id) {
       this.send(q.x - p.x, q.y - p.y);
-      p.x = q.x; p.y = q.y;
+      p.x = q.x;
+      p.y = q.y;
       return;
     }
     if (this.mode === 'two' && this.two && this.ptrs.size === 2) {
-      const [a, b] = this.fingers() as [Pt, Pt], was = this.two.kind, who = [...this.ptrs.keys()].indexOf(q.id) === 0 ? 0 : 1, r = twoMove(this.two, a, b, who);
+      const [a, b] = this.fingers() as [Pt, Pt],
+        was = this.two.kind,
+        who = [...this.ptrs.keys()].indexOf(q.id) === 0 ? 0 : 1,
+        r = twoMove(this.two, a, b, who);
       this.two = r.two;
       const m = r.move;
       if (!m.kind) return;
       if (!was) this.host.begin?.(m.kind === 'swipe' ? 'turn' : 'pinch', m.at);
       this.moved = true;
-      if (m.kind === 'swipe') { if (m.dx || m.dy) this.host.turn(m.dx, m.dy); return; }
+      if (m.kind === 'swipe') {
+        if (m.dx || m.dy) this.host.turn(m.dx, m.dy);
+        return;
+      }
       if (m.zoom !== 1) this.host.zoom(m.zoom, m.at);
       if (m.dx || m.dy) this.host.pan(m.dx, m.dy);
       if (m.twist) this.host.twist?.(m.twist, m.at);
@@ -130,7 +175,8 @@ export class PadCore {
     this.ptrs.delete(q.id);
     const p = this.p;
     if (this.mode === 'press' && p && q.id === p.id) {
-      this.stop(); this.stop = () => {};
+      this.stop();
+      this.stop = () => {};
       this.p = null;
       this.mode = 'idle';
       // (a right or middle button's click is no tap)
@@ -158,10 +204,12 @@ export class PadCore {
 
   /** The pointers are gone without a click (the window lost focus, a pointer cancel): whatever runs ends. */
   cancel(): void {
-    this.stop(); this.stop = () => {};
+    this.stop();
+    this.stop = () => {};
     if (this.moved && this.mode !== 'lifted') this.host.end?.();
     this.ptrs.clear();
-    this.p = null; this.two = null;
+    this.p = null;
+    this.two = null;
     this.mode = 'idle';
   }
 
@@ -171,13 +219,19 @@ export class PadCore {
   }
 
   // ---------------------------------------------------------------- inside
-  private fingers(): Pt[] { return [...this.ptrs.values()]; }
+  private fingers(): Pt[] {
+    return [...this.ptrs.values()];
+  }
 
   /** The host holds the pointer now: the pad lets it go, and ignores it until it is up. */
-  private give(): void { this.p = null; this.mode = 'lifted'; }
+  private give(): void {
+    this.p = null;
+    this.mode = 'lifted';
+  }
 
   private send(dx: number, dy: number): void {
-    if (this.mode === 'turn') this.host.turn(dx, dy); else this.host.pan(dx, dy);
+    if (this.mode === 'turn') this.host.turn(dx, dy);
+    else this.host.pan(dx, dy);
   }
 
   private finish(): void {
@@ -188,7 +242,11 @@ export class PadCore {
 
   private tap(at: Pt, ev: PointerEvent, t: number): void {
     const was = this.tapped;
-    if (was && t - was.t <= DOUBLE_MS && Math.hypot(at.x - was.x, at.y - was.y) <= DOUBLE_PX) { this.tapped = null; this.host.focus?.(at, ev); return; }
+    if (was && t - was.t <= DOUBLE_MS && Math.hypot(at.x - was.x, at.y - was.y) <= DOUBLE_PX) {
+      this.tapped = null;
+      this.host.focus?.(at, ev);
+      return;
+    }
     this.tapped = { x: at.x, y: at.y, t };
     this.host.tap?.(at, ev);
   }
@@ -197,21 +255,45 @@ export class PadCore {
 /** The pad on an element: its pointer events, wheel and context menu go to a `PadCore`; the browser leaves the element its fingers (no scroll, no page zoom, no text selection). */
 export function attachPad(el: HTMLElement, host: PadHost): { core: PadCore; dispose(): void } {
   const core = new PadCore(host);
-  const read = (e: PointerEvent): Ptr => ({ id: e.pointerId, touch: e.pointerType !== 'mouse', x: e.clientX, y: e.clientY, button: e.button, shift: e.shiftKey, t: e.timeStamp, ev: e });
+  const read = (e: PointerEvent): Ptr => ({
+    id: e.pointerId,
+    touch: e.pointerType !== 'mouse',
+    x: e.clientX,
+    y: e.clientY,
+    button: e.button,
+    shift: e.shiftKey,
+    t: e.timeStamp,
+    ev: e,
+  });
   const down = (e: PointerEvent) => {
     if (!core.down(read(e))) return;
     // (a pointer that is already gone, as a synthetic one in a test, cannot be captured)
-    try { el.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
+    try {
+      el.setPointerCapture(e.pointerId);
+    } catch {
+      /* not capturable */
+    }
   };
   const move = (e: PointerEvent) => core.move(read(e));
   // (the up and the cancel come to the window: a pointer the host took over may be captured by another element, and its end must not be lost)
-  const up = (e: PointerEvent) => { core.up(read(e)); try { el.releasePointerCapture(e.pointerId); } catch { /* already released */ } };
+  const up = (e: PointerEvent) => {
+    core.up(read(e));
+    try {
+      el.releasePointerCapture(e.pointerId);
+    } catch {
+      /* already released */
+    }
+  };
   const cancel = (e: PointerEvent) => core.up(read(e), true);
-  const wheel = (e: WheelEvent) => { e.preventDefault(); core.wheel(e); };
+  const wheel = (e: WheelEvent) => {
+    e.preventDefault();
+    core.wheel(e);
+  };
   const menu = (e: Event) => e.preventDefault();
   const blur = () => core.cancel();
   // (the element's own window: a pop-out or a frame has its own. A test's stand-in element has no window and no style, and takes its own events alone)
-  const win = el.ownerDocument?.defaultView ?? null, s = el.style as CSSStyleDeclaration | undefined;
+  const win = el.ownerDocument?.defaultView ?? null,
+    s = el.style as CSSStyleDeclaration | undefined;
   if (s) {
     s.touchAction = 'none';
     s.userSelect = 'none';
@@ -229,9 +311,13 @@ export function attachPad(el: HTMLElement, host: PadHost): { core: PadCore; disp
   return {
     core,
     dispose() {
-      el.removeEventListener('pointerdown', down); el.removeEventListener('pointermove', move);
-      el.removeEventListener('wheel', wheel); el.removeEventListener('contextmenu', menu);
-      win?.removeEventListener('pointerup', up); win?.removeEventListener('pointercancel', cancel); win?.removeEventListener('blur', blur);
+      el.removeEventListener('pointerdown', down);
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('wheel', wheel);
+      el.removeEventListener('contextmenu', menu);
+      win?.removeEventListener('pointerup', up);
+      win?.removeEventListener('pointercancel', cancel);
+      win?.removeEventListener('blur', blur);
       core.cancel();
     },
   };

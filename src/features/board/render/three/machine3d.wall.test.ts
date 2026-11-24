@@ -16,16 +16,21 @@ quietCanvas();
 
 const plan = wallPlan({ caseX: CASE.x, caseTop: -CASE.y, caseW: CASE.w, floorY: -(CASE.y + CASE.h) - 140 });
 /** The stage's wall, with the monitor's cord let out where a monitor would. */
-const wall = (monitor: boolean): StageWall => ({ plan, monitor: monitor ? { at: [-5856, -5352, 3510], axis: [-0.38, -0.6, -0.7] } : null });
-const dist = (a: readonly number[], b: readonly number[]): number => Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!);
+const wall = (monitor: boolean): StageWall => ({
+  plan,
+  monitor: monitor ? { at: [-5856, -5352, 3510], axis: [-0.38, -0.6, -0.7] } : null,
+});
+const dist = (a: readonly number[], b: readonly number[]): number =>
+  Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!);
 const game = (): Game => {
   const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
   expect(setNet(g, 'router', 'router2').ok).toBe(true);
   return g;
 };
-const machine = (s: Snapshot, w: StageWall | null): Machine3D => new Machine3D(s, roomGeo(), new BakeQueue(), null, false, true, true, false, 'machine', w);
+const machine = (s: Snapshot, w: StageWall | null): Machine3D =>
+  new Machine3D(s, roomGeo(), new BakeQueue(), null, false, true, true, false, 'machine', w);
 
-describe('Machine3D on the studio\'s wall', () => {
+describe("Machine3D on the studio's wall", () => {
   let snap: Snapshot, m: Machine3D, bare: Machine3D;
   beforeAll(() => {
     const g = game();
@@ -34,7 +39,7 @@ describe('Machine3D on the studio\'s wall', () => {
     bare = machine(snap, null);
   });
 
-  it('plugs the PC and the monitor into the wall\'s two outlets, each in a plug of its own', () => {
+  it("plugs the PC and the monitor into the wall's two outlets, each in a plug of its own", () => {
     for (const id of ['pcmains', 'monmains'] as const) {
       const rig = m.rig(id)!;
       expect(rig, id).not.toBeNull();
@@ -48,32 +53,38 @@ describe('Machine3D on the studio\'s wall', () => {
     expect(m.rig('pcmains')!.seat.at).not.toEqual(m.rig('monmains')!.seat.at);
   });
 
-  it('leaves the monitor\'s outlet empty when the stage has no monitor', () => {
+  it("leaves the monitor's outlet empty when the stage has no monitor", () => {
     const g = game();
-    const s = g.snapshot(), m2 = machine(s, wall(false));
+    const s = g.snapshot(),
+      m2 = machine(s, wall(false));
     expect(m2.rig('pcmains')).not.toBeNull();
     expect(m2.rig('monmains')).toBeNull();
   });
 
   it('runs each mains cord from the plug in the outlet to its device, a cord of one piece', () => {
     const runs = m.cableRuns();
-    const pc = runs.find((r) => r.id === 'pcmains')!, mon = runs.find((r) => r.id === 'monmains')!;
+    const pc = runs.find((r) => r.id === 'pcmains')!,
+      mon = runs.find((r) => r.id === 'monmains')!;
     expect(pc).toBeDefined();
     expect(mon).toBeDefined();
-    const plug = plan.mains.outlet.pcmains, first = pc.strands[0]![0]!, last = pc.strands[0]![pc.strands[0]!.length - 1]!;
+    const plug = plan.mains.outlet.pcmains,
+      first = pc.strands[0]![0]!,
+      last = pc.strands[0]![pc.strands[0]!.length - 1]!;
     // (the strand starts where the plug lets the cord out, a plug's length (52 mm) in front of the outlet, and ends at the supply's inlet at the case's rear)
     expect(dist(first, plug)).toBeGreaterThan(900);
     expect(dist(first, plug)).toBeLessThan(1500);
     expect(last[0]).toBeLessThan(CASE.x);
     expect(first[1]).toBeGreaterThan(last[1]);
     // (the monitor's cord comes out at the plug of its outlet and ends where the monitor lets it out)
-    const m1 = mon.strands[0]![0]!, m2 = mon.strands[0]![mon.strands[0]!.length - 1]!;
+    const m1 = mon.strands[0]![0]!,
+      m2 = mon.strands[0]![mon.strands[0]!.length - 1]!;
     expect(dist(m1, plan.mains.outlet.monmains)).toBeLessThan(1500);
     expect(dist(m2, [-5856, -5352, 3510])).toBeLessThan(40);
   });
 
-  it('puts the LAN lead\'s far end in the router\'s first jack, and its near end in the case\'s network port', () => {
-    const rig = m.rig('lan')!, from = rig.fixed[0]!;
+  it("puts the LAN lead's far end in the router's first jack, and its near end in the case's network port", () => {
+    const rig = m.rig('lan')!,
+      from = rig.fixed[0]!;
     expect(rig).not.toBeNull();
     // (the plug sits in the jack: its cord leaves in front of the jack's face, at the jack's height and across)
     expect(Math.hypot(from.at[0] - plan.router.lan[0], from.at[1] - plan.router.lan[1])).toBeLessThan(60);
@@ -83,7 +94,7 @@ describe('Machine3D on the studio\'s wall', () => {
     expect(rig.seat.axis).toEqual([-1, 0, 0]);
   });
 
-  it('leaves the room\'s sockets to the room: with no wall the PC\'s cord goes to the floor\'s socket', () => {
+  it("leaves the room's sockets to the room: with no wall the PC's cord goes to the floor's socket", () => {
     const rig = bare.rig('pcmains')!;
     expect(rig).not.toBeNull();
     expect(rig.name).toBe('the wall socket');
@@ -91,8 +102,11 @@ describe('Machine3D on the studio\'s wall', () => {
   });
 
   it('builds the cords again when the router is another tier, and not when nothing changed', () => {
-    const g = game(), s2 = g.snapshot(), m3 = machine(s2, wall(true));
-    const before = m3.rig('lan')!, pc = m3.rig('pcmains')!;
+    const g = game(),
+      s2 = g.snapshot(),
+      m3 = machine(s2, wall(true));
+    const before = m3.rig('lan')!,
+      pc = m3.rig('pcmains')!;
     m3.syncCables(s2, roomGeo());
     expect(m3.rig('lan')).toBe(before);
     expect(setNet(g, 'router', 'router4').ok).toBe(true);
@@ -107,7 +121,9 @@ describe('Machine3D on the studio\'s wall', () => {
   const ends = (mc: Machine3D): { router: string[]; pc: string[] } => {
     const kinds = (o: Object3D): string[] => {
       const t: string[] = [];
-      o.traverse((x) => { if (typeof x.userData.plug === 'string') t.push(x.userData.plug); });
+      o.traverse((x) => {
+        if (typeof x.userData.plug === 'string') t.push(x.userData.plug);
+      });
       return t;
     };
     return { router: kinds(mc.cableGroup('lan')!.children[0]!), pc: kinds(mc.rig('lan')!.model().root) };
@@ -115,13 +131,16 @@ describe('Machine3D on the studio\'s wall', () => {
   /** The plugs the held end takes on when it comes to another port (`alts`): what the hand swaps to. */
   const heldAt = (mc: Machine3D, port: string): string[] => {
     const t: string[] = [];
-    mc.rig('lan')!.alts!.find((a) => a.port === port)!.model!().root.traverse((x) => { if (typeof x.userData.plug === 'string') t.push(x.userData.plug); });
+    mc.rig('lan')!.alts!.find((a) => a.port === port)!.model!().root.traverse((x) => {
+      if (typeof x.userData.plug === 'string') t.push(x.userData.plug);
+    });
     return t;
   };
 
   it('ends the LAN lead as its two ports do: an RJ45 plug in a jack, an adapter in the QSFP+ cage that faces a jack, a direct attach lead between two cages', () => {
     // (the PC has the 40G card, its two cages; the board has its RJ45 jack; the router of a tier has RJ45 jacks, the edge router QSFP+ cages)
-    const g = game(), mc = machine(g.snapshot(), wall(true));
+    const g = game(),
+      mc = machine(g.snapshot(), wall(true));
     const sync = (): void => mc.syncCables(g.snapshot(), roomGeo());
     const card = g.snapshot().devices.find((d) => d.kind === 'nic')!.id;
     expect(g.snapshot().net.port).toMatchObject({ kind: 'nic', deviceId: card });
@@ -149,7 +168,8 @@ describe('Machine3D on the studio\'s wall', () => {
 
   it('builds the LAN lead again in the room when the router is another tier: the end at its port is another plug', () => {
     // (the machine in the room, no wall: the room's router has a side port, a QSFP+ cage on the edge router)
-    const g = game(), mc = new Machine3D(g.snapshot(), roomGeo(), new BakeQueue(), null, true, true, true, false, 'machine', null);
+    const g = game(),
+      mc = new Machine3D(g.snapshot(), roomGeo(), new BakeQueue(), null, true, true, true, false, 'machine', null);
     expect(g.disconnectCable('lan').ok).toBe(true);
     expect(g.connectLan('board').ok).toBe(true);
     mc.syncCables(g.snapshot(), roomGeo());

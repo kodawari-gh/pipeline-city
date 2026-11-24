@@ -2,7 +2,11 @@
 import { MIX, type CueId } from './mixTokens';
 import type { GameEvent } from '../../worker/game/types';
 
-const RULES = MIX.logRules.map((r) => ({ kind: r.kind, cue: r.cue as CueId | null, re: r.match ? new RegExp(r.match) : null }));
+const RULES = MIX.logRules.map((r) => ({
+  kind: r.kind,
+  cue: r.cue as CueId | null,
+  re: r.match ? new RegExp(r.match) : null,
+}));
 
 /** The cue a log note plays, or null (no rule, or a rule with no cue such as `level`, which the key logic handles). */
 export function cueForNote(e: Pick<GameEvent, 'kind' | 'text'>): CueId | null {

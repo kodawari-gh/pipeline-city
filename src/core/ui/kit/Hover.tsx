@@ -6,13 +6,28 @@ import type { Snapshot } from '@/worker/protocol';
 import { describeId } from '../logic';
 
 /** The first sentence only: a tooltip is a label, the card holds the rest. */
-const firstSentence = (t: string) => { const i = t.search(/[.!?](\s|$)/); return i > 0 && i < t.length - 1 ? t.slice(0, i + 1) : t; };
+const firstSentence = (t: string) => {
+  const i = t.search(/[.!?](\s|$)/);
+  return i > 0 && i < t.length - 1 ? t.slice(0, i + 1) : t;
+};
 
 /**
  * The bubble: the name and one short line of what `id` is in `s`, by the pointer at (`x`, `y`) in client pixels. `extra`: a last line, what a
  * click or a drag does. The game's tooltip and Build my PC's are this one.
  */
-export function TooltipBubble({ id, x, y, s, extra }: { id: string; x: number; y: number; s: Snapshot | null | undefined; extra?: string }) {
+export function TooltipBubble({
+  id,
+  x,
+  y,
+  s,
+  extra,
+}: {
+  id: string;
+  x: number;
+  y: number;
+  s: Snapshot | null | undefined;
+  extra?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const d = describeId(id, s);
   useLayoutEffect(() => {

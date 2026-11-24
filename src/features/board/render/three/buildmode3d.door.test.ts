@@ -13,19 +13,37 @@ vi.mock('@/core/render/three/init', async (orig) => {
       camera: new PerspectiveCamera(30, 1, 10, 1e6),
       renderer: {
         domElement: { width: 400, height: 400, addEventListener() {}, removeEventListener() {} },
-        setOpaqueSort() {}, getPixelRatio: () => 1, setSize() {}, properties: { get: () => ({}) }, compile: () => new Set(), getRenderTarget: () => null, setRenderTarget() {},
+        setOpaqueSort() {},
+        getPixelRatio: () => 1,
+        setSize() {},
+        properties: { get: () => ({}) },
+        compile: () => new Set(),
+        getRenderTarget: () => null,
+        setRenderTarget() {},
       },
     }),
   };
 });
 vi.mock('@/core/render/three/post', () => ({
   Post: class {
-    render() {} refine = () => false; meter = () => null; metered = () => null;
-    setEye() {} setReach() {} setDark() {} setOutlined() {} apply() {} setSize() {}
+    render() {}
+    refine = () => false;
+    meter = () => null;
+    metered = () => null;
+    setEye() {}
+    setReach() {}
+    setDark() {}
+    setOutlined() {}
+    apply() {}
+    setSize() {}
     startPrograms = () => [];
   },
 }));
-vi.mock('./lens3d', () => ({ Lens3D: class { frame() {} } }));
+vi.mock('./lens3d', () => ({
+  Lens3D: class {
+    frame() {}
+  },
+}));
 
 import { BuildStage, shellRefusal } from './buildmode3d';
 import { DOOR_SECONDS, doorWait } from './casedoor';
@@ -48,8 +66,24 @@ const hid = (s: Stage): Inside => s as unknown as Inside;
 
 /** A stage with the full rig and no 3D: the machine's drawing is stubbed (its panel too), the game and the history are the real ones. */
 function stage(): Stage {
-  const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({ clientWidth: 400, clientHeight: 800 });
-  const machine = { moving: false, doorOpen: false, frame() {}, setOpen() {}, closeDoor() { machine.doorOpen = false; }, holdDetail() {}, lod() {}, root: new Group(), boardRoots: () => [], caseRoots: [] };
+  const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
+    clientWidth: 400,
+    clientHeight: 800,
+  });
+  const machine = {
+    moving: false,
+    doorOpen: false,
+    frame() {},
+    setOpen() {},
+    closeDoor() {
+      machine.doorOpen = false;
+    },
+    holdDetail() {},
+    lod() {},
+    root: new Group(),
+    boardRoots: () => [],
+    caseRoots: [],
+  };
   s._machine = machine;
   s._game = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
   // (the real build sets the layout's tiers, which say what kind of case the stage shows)
@@ -62,19 +96,30 @@ function stage(): Stage {
 
 describe('BuildStage and the side panel', () => {
   beforeEach(() => {
-    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {});
   });
 
-  it('waits for the panel to swing clear before the work starts: longer for the Mini\'s steel than for the Full tower\'s glass', async () => {
+  it("waits for the panel to swing clear before the work starts: longer for the Mini's steel than for the Full tower's glass", async () => {
     vi.useFakeTimers();
     try {
       for (const tier of [3, 0]) {
         setLayoutTier(tier, tier);
-        const kind = CASE_KIND[tier]!, s = stage();
+        const kind = CASE_KIND[tier]!,
+          s = stage();
         let done = false;
-        const p = hid(s).door(true).then(() => { done = true; });
+        const p = hid(s)
+          .door(true)
+          .then(() => {
+            done = true;
+          });
         const ms = DOOR_SECONDS[kind] * 1000 * doorWait(kind);
         await vi.advanceTimersByTimeAsync(ms - 50);
         expect(done, kind).toBe(false);
@@ -82,7 +127,9 @@ describe('BuildStage and the side panel', () => {
         expect(done, kind).toBe(true);
         await p;
       }
-    } finally { vi.useRealTimers(); }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('waits for the panel itself when a slow frame left it behind the clock', async () => {
@@ -90,10 +137,16 @@ describe('BuildStage and the side panel', () => {
     try {
       for (const tier of [3, 2, 1, 0]) {
         setLayoutTier(tier, tier);
-        const kind = CASE_KIND[tier]!, s = stage(), m = hid(s)._machine;
+        const kind = CASE_KIND[tier]!,
+          s = stage(),
+          m = hid(s)._machine;
         m.doorT = 0.1; // (a hitch in the frames: the panel is a tenth open when the clock says it is clear)
         let done = false;
-        const p = hid(s).door(true).then(() => { done = true; });
+        const p = hid(s)
+          .door(true)
+          .then(() => {
+            done = true;
+          });
         await vi.advanceTimersByTimeAsync(DOOR_SECONDS[kind] * 1000 * doorWait(kind) + 200);
         expect(done, `${kind}: the clock ran out, the panel did not`).toBe(false);
         m.doorT = doorWait(kind); // (now it is clear)
@@ -101,17 +154,25 @@ describe('BuildStage and the side panel', () => {
         expect(done, kind).toBe(true);
         await p;
       }
-    } finally { vi.useRealTimers(); }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('waits for a panel the zoom is still opening, before a step moves a part through it', async () => {
     vi.useFakeTimers();
     try {
       setLayoutTier(3, 3);
-      const s = stage(), m = hid(s)._machine;
-      m.doorOpen = true; m.doorT = 0.2; // (opening: a step that starts now would go through the glass)
+      const s = stage(),
+        m = hid(s)._machine;
+      m.doorOpen = true;
+      m.doorT = 0.2; // (opening: a step that starts now would go through the glass)
       let done = false;
-      const p = hid(s).door(true).then(() => { done = true; });
+      const p = hid(s)
+        .door(true)
+        .then(() => {
+          done = true;
+        });
       await vi.advanceTimersByTimeAsync(100);
       expect(done).toBe(false);
       m.doorT = 1;
@@ -121,38 +182,55 @@ describe('BuildStage and the side panel', () => {
       // (a panel that stands open: no wait at all)
       hid(s).jobOpen = false;
       await hid(s).door(true);
-    } finally { vi.useRealTimers(); }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('waits until the panel is really shut before the case lifts', async () => {
     vi.useFakeTimers();
     try {
       setLayoutTier(3, 3);
-      const s = stage(), m = hid(s)._machine;
-      m.doorOpen = true; m.doorT = 0.6;
+      const s = stage(),
+        m = hid(s)._machine;
+      m.doorOpen = true;
+      m.doorT = 0.6;
       let done = false;
-      const p = hid(s).door(false, true).then(() => { done = true; });
+      const p = hid(s)
+        .door(false, true)
+        .then(() => {
+          done = true;
+        });
       await vi.advanceTimersByTimeAsync(DOOR_SECONDS.show * 1000 + 200);
       expect(done).toBe(false);
       m.doorT = 0;
       await vi.advanceTimersByTimeAsync(40);
       expect(done).toBe(true);
       await p;
-    } finally { vi.useRealTimers(); }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('does not wait for ever for a panel that does not move (a stage that draws no frames)', async () => {
     vi.useFakeTimers();
     try {
       setLayoutTier(3, 3);
-      const s = stage(), m = hid(s)._machine;
+      const s = stage(),
+        m = hid(s)._machine;
       m.doorT = 0;
       let done = false;
-      const p = hid(s).door(true).then(() => { done = true; });
+      const p = hid(s)
+        .door(true)
+        .then(() => {
+          done = true;
+        });
       await vi.advanceTimersByTimeAsync(DOOR_SECONDS.show * 1000 * 6);
       expect(done).toBe(true);
       await p;
-    } finally { vi.useRealTimers(); }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('waits for the whole swing when the panel must stand shut before the case lifts, and not at all when it is shut already', async () => {
@@ -162,7 +240,11 @@ describe('BuildStage and the side panel', () => {
       const s = stage();
       hid(s)._machine.doorOpen = true;
       let done = false;
-      const p = hid(s).door(false, true).then(() => { done = true; });
+      const p = hid(s)
+        .door(false, true)
+        .then(() => {
+          done = true;
+        });
       await vi.advanceTimersByTimeAsync(DOOR_SECONDS.oem * 1000 - 100);
       expect(done).toBe(false);
       await vi.advanceTimersByTimeAsync(200);
@@ -170,7 +252,9 @@ describe('BuildStage and the side panel', () => {
       await p;
       // (shut already: nothing to wait for)
       await hid(s).door(false, true);
-    } finally { vi.useRealTimers(); }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('keeps a steel panel open when a job ends, and leaves a glass one to the zoom', async () => {
@@ -178,7 +262,9 @@ describe('BuildStage and the side panel', () => {
       setLayoutTier(tier, tier);
       const s = stage();
       hid(s)._machine.doorOpen = true;
-      await hid(s).job(async () => { hid(s).jobOpen = true; });
+      await hid(s).job(async () => {
+        hid(s).jobOpen = true;
+      });
       expect(hid(s).jobOpen, `case ${tier}`).toBe(false);
       expect(hid(s).wantOpen, `case ${tier}`).toBe(tier < 2);
     }
@@ -225,7 +311,13 @@ describe('BuildStage and the side panel', () => {
 
 describe('a new case or board is checked before anything moves', () => {
   beforeEach(() => {
-    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {});
   });

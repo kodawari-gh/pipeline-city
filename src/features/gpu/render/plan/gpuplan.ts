@@ -9,11 +9,24 @@ import type { Grid, Pt, Rect } from '@/features/cpu/render/core/cpuplan';
 
 export type GpuBlockKind =
   // the host side
-  | 'pcie' | 'launch'
+  | 'pcie'
+  | 'launch'
   // one SM: the front end, the warps, the data path
-  | 'pc' | 'fetch' | 'decode' | 'sched' | 'warps' | 'regfile' | 'lanes' | 'mask'
+  | 'pc'
+  | 'fetch'
+  | 'decode'
+  | 'sched'
+  | 'warps'
+  | 'regfile'
+  | 'lanes'
+  | 'mask'
   // the memory path
-  | 'coalescer' | 'arbiter' | 'banks' | 'l1' | 'l2' | 'dram'
+  | 'coalescer'
+  | 'arbiter'
+  | 'banks'
+  | 'l1'
+  | 'l2'
+  | 'dram'
   // a streaming multiprocessor's frame (gpu3)
   | 'sm';
 
@@ -79,8 +92,41 @@ export interface GpuPlan {
 /** The plan input of a card's config. */
 export function gpuPlanInput(c: GpuConfig): GpuPlanInput {
   switch (c.kind) {
-    case 'warp': return { kind: 'warp', sms: 1, warps: c.warps, lanes: c.lanes, banks: c.banks, memBytes: c.memBytes, lineWords: c.lineWords, l1Lines: 0, l2Lines: 0 };
-    case 'multi': return { kind: 'multi', sms: c.sms, warps: c.warps, lanes: c.lanes, banks: c.banks, memBytes: c.memBytes, lineWords: c.lineWords, l1Lines: c.l1Lines, l2Lines: c.l2Lines };
-    default: return { kind: 'simd', sms: 1, warps: 1, lanes: c.lanes, banks: c.banks, memBytes: c.memBytes, lineWords: 1, l1Lines: 0, l2Lines: 0 };
+    case 'warp':
+      return {
+        kind: 'warp',
+        sms: 1,
+        warps: c.warps,
+        lanes: c.lanes,
+        banks: c.banks,
+        memBytes: c.memBytes,
+        lineWords: c.lineWords,
+        l1Lines: 0,
+        l2Lines: 0,
+      };
+    case 'multi':
+      return {
+        kind: 'multi',
+        sms: c.sms,
+        warps: c.warps,
+        lanes: c.lanes,
+        banks: c.banks,
+        memBytes: c.memBytes,
+        lineWords: c.lineWords,
+        l1Lines: c.l1Lines,
+        l2Lines: c.l2Lines,
+      };
+    default:
+      return {
+        kind: 'simd',
+        sms: 1,
+        warps: 1,
+        lanes: c.lanes,
+        banks: c.banks,
+        memBytes: c.memBytes,
+        lineWords: 1,
+        l1Lines: 0,
+        l2Lines: 0,
+      };
   }
 }

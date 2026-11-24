@@ -6,7 +6,12 @@ import type { OutsideView } from '@/features/room/render/three/outside/view';
 // The city layers hide by layer mask (not `visible`). A stub city holds one object per part.
 const HIDDEN = 30;
 const stub = () => {
-  const parts = { streets: [new Object3D()], buildings: [new Object3D()], trees: [new Object3D()], cars: [new Object3D()] };
+  const parts = {
+    streets: [new Object3D()],
+    buildings: [new Object3D()],
+    trees: [new Object3D()],
+    cars: [new Object3D()],
+  };
   const v = { off: new Set<string>(), key: 0, lamps: [], parts, age: 0 } as unknown as OutsideView;
   return { v, parts };
 };

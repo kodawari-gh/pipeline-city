@@ -16,7 +16,9 @@ export function loadBuildStills(): void {
   void fetch(`${DIR}manifest.json`)
     .then(async (r) => (r.ok ? ((await r.json()) as { stills?: Record<string, string> }).stills : null))
     .catch(() => null)
-    .then((m) => { buildStills.value = m ?? {}; });
+    .then((m) => {
+      buildStills.value = m ?? {};
+    });
 }
 
 /** The URL of a start's picture (`START_KEYS`), or null while the list loads and when the start has none. Reads a signal: a component that calls it redraws when the list is in. */

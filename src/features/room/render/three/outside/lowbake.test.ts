@@ -4,7 +4,16 @@
 import { DataUtils, LinearMipmapLinearFilter, type Material, type Mesh, type Scene, type Texture } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { OutsideView } from './view';
-import { LOW_ANISO, LOW_DAY_GLASS, LOW_FAR, LOW_FAR_GLASS, LOW_FAR_MIRROR, LOW_FW, LOW_NIGHT_WALL, lowFacadeMaps } from './lowfacade';
+import {
+  LOW_ANISO,
+  LOW_DAY_GLASS,
+  LOW_FAR,
+  LOW_FAR_GLASS,
+  LOW_FAR_MIRROR,
+  LOW_FW,
+  LOW_NIGHT_WALL,
+  lowFacadeMaps,
+} from './lowfacade';
 import { facadeMaterial } from './towers';
 
 const inner = (v: OutsideView): { scene: Scene } => v as unknown as { scene: Scene };
@@ -12,7 +21,10 @@ const inner = (v: OutsideView): { scene: Scene } => v as unknown as { scene: Sce
 /** The city's building meshes: those with the facade's `fuv` attribute. */
 function buildings(v: OutsideView): Mesh[] {
   const out: Mesh[] = [];
-  inner(v).scene.traverse((o) => { const m = o as Mesh; if (m.isMesh && m.geometry.attributes.fuv) out.push(m); });
+  inner(v).scene.traverse((o) => {
+    const m = o as Mesh;
+    if (m.isMesh && m.geometry.attributes.fuv) out.push(m);
+  });
   return out;
 }
 
@@ -33,7 +45,8 @@ function lit(m: Material): { vertexShader: string; fragmentShader: string } {
   const sh = {
     uniforms: {} as Record<string, unknown>,
     vertexShader: '#include <common>\n#include <begin_vertex>\n',
-    fragmentShader: '#include <common>\n#include <lights_fragment_begin>\n#include <lights_fragment_end>\n#include <emissivemap_fragment>\n#include <aomap_fragment>\n',
+    fragmentShader:
+      '#include <common>\n#include <lights_fragment_begin>\n#include <lights_fragment_end>\n#include <emissivemap_fragment>\n#include <aomap_fragment>\n',
   };
   const hook = (m as Material & { onBeforeCompile?: (s: typeof sh, r: unknown) => void }).onBeforeCompile;
   if (typeof hook === 'function') hook(sh, null);
@@ -52,7 +65,7 @@ function withMap(m: Material): string {
   return sh.fragmentShader;
 }
 
-const POINT_LOOP ='NUM_POINT_LIGHTS > 0 ) && defined( RE_Direct )';
+const POINT_LOOP = 'NUM_POINT_LIGHTS > 0 ) && defined( RE_Direct )';
 
 describe('Low city facade bake', () => {
   let high: OutsideView, low: OutsideView;
@@ -119,7 +132,7 @@ describe('Low city facade bake', () => {
     for (const m of ls) expect(['MeshLambertMaterial', 'MeshBasicMaterial']).toContain((m.material as Material).type);
   }, 180000);
 
-  it('Low: the buildings do not run facadeMaterial\'s per-pixel shader (no fHash, no fNoise)', () => {
+  it("Low: the buildings do not run facadeMaterial's per-pixel shader (no fHash, no fNoise)", () => {
     for (const m of buildings(low)) {
       const sh = compiled(m.material as Material).fragmentShader;
       expect(sh).not.toContain('fHash');
@@ -134,9 +147,13 @@ describe('Low city facade bake', () => {
     }
   }, 180000);
 
-  it('Low: night windows are live emissive (High\'s rooms in the shader), with no night map and nothing baked into the albedo', () => {
+  it("Low: night windows are live emissive (High's rooms in the shader), with no night map and nothing baked into the albedo", () => {
     for (const m of buildings(low)) {
-      const mat = m.material as Material & { map?: Texture | null; emissiveMap?: Texture | null; emissive?: { getHex(): number } };
+      const mat = m.material as Material & {
+        map?: Texture | null;
+        emissiveMap?: Texture | null;
+        emissive?: { getHex(): number };
+      };
       expect(mat.emissiveMap ?? null, 'no night atlas: the rooms are analytic').toBeNull();
       expect(mat.emissive?.getHex() ?? 0, 'emissive colour on').toBeGreaterThan(0);
       expect(compiled(mat).fragmentShader).not.toContain('emissiveMap');
@@ -152,17 +169,20 @@ describe('Low city facade bake', () => {
     expect(LOW_ANISO).toBeGreaterThan(1);
   }, 180000);
 
-  it('Low: by day the room hashes do not run (one uniform branch); the atlas taps stay at the tier\'s 2', () => {
+  it("Low: by day the room hashes do not run (one uniform branch); the atlas taps stay at the tier's 2", () => {
     expect(LOW_ANISO).toBeLessThanOrEqual(2);
     for (const m of buildings(low)) {
       const sh = compiled(m.material as Material).fragmentShader;
       const guard = sh.indexOf('if (fNight > 0.0) {');
       expect(guard, 'the guard').toBeGreaterThan(-1);
-      expect(sh.indexOf('lowLit = lowRibLight(lowRg2, lowRfw, lowRibC, lowV, lowN) * lowGm;'), 'the rooms are inside it').toBeGreaterThan(guard);
+      expect(
+        sh.indexOf('lowLit = lowRibLight(lowRg2, lowRfw, lowRibC, lowV, lowN) * lowGm;'),
+        'the rooms are inside it',
+      ).toBeGreaterThan(guard);
     }
   }, 180000);
 
-  it('Low: every wall lights its windows as High does (no flat lit bands): the atlas pane near, High\'s window far, a band\'s ribbon at any range', () => {
+  it("Low: every wall lights its windows as High does (no flat lit bands): the atlas pane near, High's window far, a band's ribbon at any range", () => {
     expect(LOW_FAR.far).toBeGreaterThan(LOW_FAR.near);
     for (const m of buildings(low)) {
       const sh = compiled(m.material as Material).fragmentShader;
@@ -173,11 +193,13 @@ describe('Low city facade bake', () => {
       expect(sh).not.toContain('lowRooms');
       expect(sh).not.toContain('lowBands');
       // any wall's room cover at night, not a band's only
-      expect(withMap(m.material as Material)).toContain('if (vLowFac > 0.5 && (lowRib > 0.5 || fNight > 0.0)) lowRibC = lowRibCover(lowRg2, lowRfw);');
+      expect(withMap(m.material as Material)).toContain(
+        'if (vLowFac > 0.5 && (lowRib > 0.5 || fNight > 0.0)) lowRibC = lowRibCover(lowRg2, lowRfw);',
+      );
     }
   }, 180000);
 
-  it('Low: a window\'s details go to their means at High\'s range, not a third of it (Low\'s pixel is about 2.7 of High\'s)', () => {
+  it("Low: a window's details go to their means at High's range, not a third of it (Low's pixel is about 2.7 of High's)", () => {
     expect(LOW_FW).toBeGreaterThan(0.3);
     expect(LOW_FW).toBeLessThan(1);
     const sh = compiled(buildings(low)[0]!.material as Material).fragmentShader;
@@ -186,14 +208,16 @@ describe('Low city facade bake', () => {
     expect(sh).toContain('win, smoothstep(vec2(0.1), vec2(0.35), fw));');
   }, 180000);
 
-  it('Low: the frame round a lit window catches its light, the street lamps wash the walls\' foot, a head light floods the walls, as High\'s', () => {
+  it("Low: the frame round a lit window catches its light, the street lamps wash the walls' foot, a head light floods the walls, as High's", () => {
     const vs = compiled(buildings(low)[0]!.material as Material).vertexShader;
     expect(vs).toContain('attribute vec3 wash;');
     expect(vs).toContain('attribute vec2 washY;');
     expect(vs).toContain('vLowWash = wash; vLowWashY = washY;');
     for (const m of buildings(low)) {
       const sh = compiled(m.material as Material).fragmentShader;
-      expect(sh).toContain('lowLit += vColor.rgb * lowShade * (lowRibLamp + vec3(1.0, 0.72, 0.45) * 0.45 * exp(-vLowFuv.y / 6.0)) * (1.0 - lowGm);');
+      expect(sh).toContain(
+        'lowLit += vColor.rgb * lowShade * (lowRibLamp + vec3(1.0, 0.72, 0.45) * 0.45 * exp(-vLowFuv.y / 6.0)) * (1.0 - lowGm);',
+      );
       expect(sh).toContain('float lowK = clamp((vLowY - vLowWashY.x) / (vLowWashY.y - vLowWashY.x), 0.0, 1.0);');
       expect(sh).toContain('lowLit += vLowWash * lowK * lowK * mix(1.0, 0.4, lowGm);');
     }
@@ -204,9 +228,12 @@ describe('Low city facade bake', () => {
   }, 180000);
 
   it('Low: a far block keeps its floodlights and a flat roof (a roof, not a facade: no shop strip or street wash on its top)', () => {
-    let roofs = 0, flooded = 0;
+    let roofs = 0,
+      flooded = 0;
     for (const m of buildings(low)) {
-      const a = m.geometry.attributes, aux = a.aux, wy = a.washY;
+      const a = m.geometry.attributes,
+        aux = a.aux,
+        wy = a.washY;
       if (!aux || !wy) continue;
       for (let i = 0; i < aux.count; i++) {
         if (Math.round(aux.getY(i)) === 1) roofs++;
@@ -217,7 +244,7 @@ describe('Low city facade bake', () => {
     expect(flooded, 'floodlit wall vertices').toBeGreaterThan(0);
   }, 180000);
 
-  it('Low: the wall albedo at night far off is the map\'s mean too (no dark glass dots), and by day the mix is 0 (fNight)', () => {
+  it("Low: the wall albedo at night far off is the map's mean too (no dark glass dots), and by day the mix is 0 (fNight)", () => {
     for (const m of buildings(low)) {
       const sh = withMap(m.material as Material);
       expect(sh).toContain(`textureLod(map, lowUv, ${Math.log2(256)}.0)`);
@@ -245,7 +272,9 @@ describe('Low city facade bake', () => {
     for (const m of buildings(low)) {
       const sh = compiled(m.material as Material).fragmentShader;
       // the far term multiplies only the window term (lowLit, facade kinds 0 and 6), never lowGlow
-      expect(sh).toContain('totalEmissiveRadiance = emissive * ((lowLit * vLowFac * vLowNight + lowGlow) * fNight + lowMir);');
+      expect(sh).toContain(
+        'totalEmissiveRadiance = emissive * ((lowLit * vLowFac * vLowNight + lowGlow) * fNight + lowMir);',
+      );
       expect(sh).toContain('vLowKind == 4.0) lowGlow = vColor.rgb * (1.0 + vLowLook.w) * 0.75');
     }
   }, 180000);
@@ -259,10 +288,11 @@ describe('Low city facade bake', () => {
     }
   }, 180000);
 
-  it('Low: the live night glow keeps facadeMaterial\'s kinds (LED, flood, beacon, lantern, sign), scaled by the night, with no noise', () => {
+  it("Low: the live night glow keeps facadeMaterial's kinds (LED, flood, beacon, lantern, sign), scaled by the night, with no noise", () => {
     for (const m of buildings(low)) {
       const sh = compiled(m.material as Material);
-      for (const k of ['vLowKind == 5.0', 'vLowKind == 9.0', 'vLowKind == 3.0', 'vLowKind == 4.0', 'vLowKind == 8.0']) expect(sh.fragmentShader).toContain(k);
+      for (const k of ['vLowKind == 5.0', 'vLowKind == 9.0', 'vLowKind == 3.0', 'vLowKind == 4.0', 'vLowKind == 8.0'])
+        expect(sh.fragmentShader).toContain(k);
       expect(sh.fragmentShader).toContain('* fNight;');
       expect(sh.fragmentShader).not.toContain('fHash');
       expect(sh.fragmentShader).not.toContain('fNoise');
@@ -272,7 +302,7 @@ describe('Low city facade bake', () => {
     }
   }, 180000);
 
-  it('Low: by day the LED, flood, lantern and sign kinds take High\'s daytime diffuse, not the vertex colour; the glow stays scaled by the night', () => {
+  it("Low: by day the LED, flood, lantern and sign kinds take High's daytime diffuse, not the vertex colour; the glow stays scaled by the night", () => {
     for (const m of buildings(low)) {
       const mat = m.material as Material;
       const sh = withMap(mat);
@@ -289,13 +319,15 @@ describe('Low city facade bake', () => {
       expect(compiled(mat).vertexShader).toContain('vLowMetal = aux.z;');
       // the glow is still the night's: each kind's glow scaled by fNight, not by the day diffuse
       const full = compiled(mat).fragmentShader;
-      expect(full).toContain('totalEmissiveRadiance = emissive * ((lowLit * vLowFac * vLowNight + lowGlow) * fNight + lowMir);');
+      expect(full).toContain(
+        'totalEmissiveRadiance = emissive * ((lowLit * vLowFac * vLowNight + lowGlow) * fNight + lowMir);',
+      );
       expect(full).toContain('vec3 lowGlow = vec3(0.0);');
       expect(day).not.toContain('fGlow');
     }
   }, 180000);
 
-  it('Low: by day the solar panels (kind 7) take High\'s blue cells on silver lines, the same colour as High\'s', () => {
+  it("Low: by day the solar panels (kind 7) take High's blue cells on silver lines, the same colour as High's", () => {
     // the shared colour: High's solar line in facadeMaterial, its diffuse after color_fragment
     const SOLAR = 'mix(vec3(0.012, 0.022, 0.06), vec3(0.3, 0.32, 0.34), ';
     const sh = {
@@ -303,7 +335,10 @@ describe('Low city facade bake', () => {
       vertexShader: '#include <common>\n#include <begin_vertex>\n',
       fragmentShader: '#include <common>\n#include <color_fragment>\n',
     };
-    (facadeMaterial().mat as unknown as { onBeforeCompile: (s: typeof sh, r: unknown) => void }).onBeforeCompile(sh, null);
+    (facadeMaterial().mat as unknown as { onBeforeCompile: (s: typeof sh, r: unknown) => void }).onBeforeCompile(
+      sh,
+      null,
+    );
     expect(sh.fragmentShader, 'High: solar day colour').toContain(`${SOLAR}l * 0.6)`);
     for (const m of buildings(low)) {
       const day = withMap(m.material as Material);
@@ -316,11 +351,15 @@ describe('Low city facade bake', () => {
     }
   }, 180000);
 
-  it('Low: the glass takes each building\'s own tint (the atlas alpha is the glass mask; the map step tints by it)', () => {
+  it("Low: the glass takes each building's own tint (the atlas alpha is the glass mask; the map step tints by it)", () => {
     const { day } = lowFacadeMaps();
     const data = day.image.data as Uint16Array;
-    let glass = 0, other = 0;
-    for (let i = 3; i < data.length; i += 4) { if (DataUtils.fromHalfFloat(data[i]!) > 0.5) glass++; else other++; }
+    let glass = 0,
+      other = 0;
+    for (let i = 3; i < data.length; i += 4) {
+      if (DataUtils.fromHalfFloat(data[i]!) > 0.5) glass++;
+      else other++;
+    }
     expect(glass, 'glass texels').toBeGreaterThan(0);
     expect(other, 'frame and reveal texels').toBeGreaterThan(0);
     for (const m of buildings(low)) {
@@ -332,7 +371,7 @@ describe('Low city facade bake', () => {
     }
   }, 180000);
 
-  it('Low: by day a wall keeps its own frame colour (the tower\'s vertex colour, shaded by the atlas), not one dark slate from the glass', () => {
+  it("Low: by day a wall keeps its own frame colour (the tower's vertex colour, shaded by the atlas), not one dark slate from the glass", () => {
     for (const m of buildings(low)) {
       const sh = withMap(m.material as Material);
       const at = sh.indexOf('vec3 lowFrameD');
@@ -357,7 +396,7 @@ describe('Low city facade bake', () => {
     expect(LOW_FAR_GLASS).toBeLessThan(LOW_DAY_GLASS);
   }, 180000);
 
-  it('Low: by day a far pane mirrors the horizon through High\'s mirror tint (grey plain glass, the tint on a coated one, white at a grazing look)', () => {
+  it("Low: by day a far pane mirrors the horizon through High's mirror tint (grey plain glass, the tint on a coated one, white at a grazing look)", () => {
     for (const m of buildings(low)) {
       const full = compiled(m.material as Material).fragmentShader;
       // the eye's ray: vViewPosition points from the wall to the eye, so the facing term is its dot with the normal (no minus)
@@ -366,7 +405,9 @@ describe('Low city facade bake', () => {
       // a float literal: an int would not compile in GLSL ES
       expect(full).toContain(`vec3(1.0), lowFr) * fHor * ${LOW_FAR_MIRROR.toFixed(3)};`);
       // under the roof line across the street the pane mirrors the walls there (or the road), not the sky: High's lines
-      expect(full).toContain('float lowHit = 1.0 - smoothstep(-0.7, 0.7, lowRp.y - 13.0 - 32.0 * lowNoise(vec2(lowRp.x / 34.0, vLowSeed * 0.37)));');
+      expect(full).toContain(
+        'float lowHit = 1.0 - smoothstep(-0.7, 0.7, lowRp.y - 13.0 - 32.0 * lowNoise(vec2(lowRp.x / 34.0, vLowSeed * 0.37)));',
+      );
       expect(full).toContain('(fHor * 0.3 + fSunCol * max(dot(fSun, -lowN), 0.0) * 0.26) * 0.9');
       expect(full).toContain('lowMir = mix(lowSkyM, lowWallM, lowHit) * lowMirM;');
       expect(full).toContain('uniform vec3 fHor, fSun, fSunCol,');
@@ -377,7 +418,7 @@ describe('Low city facade bake', () => {
     expect(LOW_FAR_MIRROR).toBeLessThan(1);
   }, 180000);
 
-  it('Low: a sign\'s case is dark, its lit face keeps the sign colour (the orange board), and far day glass does not go navy', () => {
+  it("Low: a sign's case is dark, its lit face keeps the sign colour (the orange board), and far day glass does not go navy", () => {
     for (const m of buildings(low)) {
       const sh = withMap(m.material as Material);
       // the case (look.w < -0.5) stays dark; a face draws High's glyph board: dark-orange backing by day, tubes at night
@@ -398,7 +439,9 @@ describe('Low city facade bake', () => {
     for (const m of buildings(low)) {
       const sh = withMap(m.material as Material);
       // at fNight 1 the mix returns the diffuse the map step left (the night wall tint and the night glass)
-      expect(sh).toContain('diffuseColor.rgb = mix(diffuseColor.rgb, mix(lowDayWall, diffuseColor.rgb, fNight), vLowFac);');
+      expect(sh).toContain(
+        'diffuseColor.rgb = mix(diffuseColor.rgb, mix(lowDayWall, diffuseColor.rgb, fNight), vLowFac);',
+      );
       // the night wall tint is still in the map step, unchanged
       expect(sh).toContain('mix(vec3(1.0), vec3(0.36, 0.44, 0.58), fNight * vLowFac)');
       // the night guard is untouched
@@ -448,7 +491,12 @@ describe('Low city facade bake', () => {
 
   it('Low: a band wall lights room by room as High does (its window ids, hashes, habits and shops), all inside the night guard', () => {
     // High's lines, in Low's names: so a band lights the same rooms at both tiers
-    const high = (s: string) => s.replace(/fHash/g, 'lowH').replace(/fGather/g, 'lowGather').replace(/vLook/g, 'vLowLook').replace(/vFuv/g, 'vLowFuv');
+    const high = (s: string) =>
+      s
+        .replace(/fHash/g, 'lowH')
+        .replace(/fGather/g, 'lowGather')
+        .replace(/vLook/g, 'vLowLook')
+        .replace(/vFuv/g, 'vLowFuv');
     for (const m of buildings(low)) {
       const full = compiled(m.material as Material).fragmentShader;
       const guard = full.indexOf('if (fNight > 0.0) {');
@@ -462,7 +510,8 @@ describe('Low city facade bake', () => {
         'float sw = 1.0 + floor(3.0 * fHash(vec2(seed, 13.7))), sid = floor(id.x / sw), hs = fHash(vec2(sid + seed * 2.3, 11.3)), sOpen = step(fHash(vec2(sid + seed, 17.1)), 0.8);',
         'lit = mix(lit, mix(sOpen, 0.8, cx), shop);',
         'vec3 lamp = fLampCol(mix(0.68 * bt, 0.55 + 0.45 * bt, home) + (hc - 0.5) * 0.55 * (1.0 - cr));',
-      ]) expect(full, line).toContain(high(line).replace('fLampCol', 'lowLampCol'));
+      ])
+        expect(full, line).toContain(high(line).replace('fLampCol', 'lowLampCol'));
       // a window's curtain by High's hash of its id
       expect(full).toContain('float h2 = lowH(id * 1.37 + vLowSeed + 7.1);');
       // the rooms light the glass, inside the guard (a band's ribbon at any range)
@@ -484,7 +533,8 @@ function withMapShader(m: Material): { vertexShader: string; fragmentShader: str
   const sh = {
     uniforms: {} as Record<string, unknown>,
     vertexShader: '#include <common>\n#include <fog_pars_vertex>\n#include <begin_vertex>\n#include <fog_vertex>\n',
-    fragmentShader: '#include <common>\n#include <map_fragment>\n#include <fog_pars_fragment>\n#include <fog_fragment>\n',
+    fragmentShader:
+      '#include <common>\n#include <map_fragment>\n#include <fog_pars_fragment>\n#include <fog_fragment>\n',
   };
   const hook = (m as Material & { onBeforeCompile?: (s: typeof sh, r: unknown) => void }).onBeforeCompile;
   if (typeof hook === 'function') hook(sh, null);

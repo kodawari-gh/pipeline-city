@@ -1,4 +1,17 @@
-import { ACESFilmicToneMapping, BoxGeometry, Mesh, MeshBasicMaterial, Object3D, PerspectiveCamera, RenderTarget, SRGBColorSpace, Scene, ShaderMaterial, Texture, type WebGLRenderer } from 'three';
+import {
+  ACESFilmicToneMapping,
+  BoxGeometry,
+  Mesh,
+  MeshBasicMaterial,
+  Object3D,
+  PerspectiveCamera,
+  RenderTarget,
+  SRGBColorSpace,
+  Scene,
+  ShaderMaterial,
+  Texture,
+  type WebGLRenderer,
+} from 'three';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/app/graphics', () => ({ pixelRatio: (scale: number) => scale }));
@@ -12,8 +25,14 @@ const HIGH = { ao: 2, bloom: 2, msaa: 4, scale: 1, brightness: 1 };
 function stubRenderer(): WebGLRenderer {
   let ratio = 1;
   return {
-    toneMapping: ACESFilmicToneMapping, outputColorSpace: SRGBColorSpace, toneMappingExposure: 1,
-    getPixelRatio: () => ratio, setPixelRatio: (r: number) => { ratio = r; }, setSize: () => {},
+    toneMapping: ACESFilmicToneMapping,
+    outputColorSpace: SRGBColorSpace,
+    toneMappingExposure: 1,
+    getPixelRatio: () => ratio,
+    setPixelRatio: (r: number) => {
+      ratio = r;
+    },
+    setSize: () => {},
   } as unknown as WebGLRenderer;
 }
 
@@ -26,11 +45,36 @@ describe('the post chain', () => {
   });
 
   it('copies the picture for the outline or the bloom, and the AO copies it as it blends', () => {
-    expect(steps({ ao: false, outline: true, bloom: false, eye: true })).toEqual(['scene', 'copy', 'outline', 'eye', 'finish']);
-    expect(steps({ ao: false, outline: false, bloom: true, eye: true })).toEqual(['scene', 'copy', 'bloom', 'eye', 'finish']);
-    expect(steps({ ao: true, outline: true, bloom: true, eye: true })).toEqual(['scene', 'ao', 'bloom', 'outline', 'eye', 'finish']);
+    expect(steps({ ao: false, outline: true, bloom: false, eye: true })).toEqual([
+      'scene',
+      'copy',
+      'outline',
+      'eye',
+      'finish',
+    ]);
+    expect(steps({ ao: false, outline: false, bloom: true, eye: true })).toEqual([
+      'scene',
+      'copy',
+      'bloom',
+      'eye',
+      'finish',
+    ]);
+    expect(steps({ ao: true, outline: true, bloom: true, eye: true })).toEqual([
+      'scene',
+      'ao',
+      'bloom',
+      'outline',
+      'eye',
+      'finish',
+    ]);
     // the outline after the bloom: its bright edge never feeds the bloom
-    expect(steps({ ao: false, outline: true, bloom: true, eye: false })).toEqual(['scene', 'copy', 'bloom', 'outline', 'finish']);
+    expect(steps({ ao: false, outline: true, bloom: true, eye: false })).toEqual([
+      'scene',
+      'copy',
+      'bloom',
+      'outline',
+      'finish',
+    ]);
   });
 
   it('follows the settings, the pick and the view', () => {
@@ -71,11 +115,14 @@ describe('the post chain', () => {
   });
 
   it('frees every target, texture and material of its own at a close (PERF12), not the scene', () => {
-    const r = stubRenderer(), scene = new Scene(), box = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    const r = stubRenderer(),
+      scene = new Scene(),
+      box = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
     scene.add(box);
     const post = new Post(r, scene, new PerspectiveCamera(), 400, 300);
     // every target, texture and shader the chain holds, a few fields deep (the passes keep theirs in fields and arrays)
-    const owned = new Set<RenderTarget | Texture | ShaderMaterial>(), seen = new Set<unknown>();
+    const owned = new Set<RenderTarget | Texture | ShaderMaterial>(),
+      seen = new Set<unknown>();
     const walk = (x: unknown, depth: number): void => {
       if (!x || typeof x !== 'object' || seen.has(x) || depth > 3 || x === r || x instanceof Object3D) return;
       seen.add(x);
@@ -88,21 +135,32 @@ describe('the post chain', () => {
     const freed = new Set<unknown>();
     for (const x of owned) x.addEventListener('dispose', () => freed.add(x));
     let sceneFreed = false;
-    box.geometry.addEventListener('dispose', () => { sceneFreed = true; });
+    box.geometry.addEventListener('dispose', () => {
+      sceneFreed = true;
+    });
     post.dispose();
     expect([...owned].filter((x) => !freed.has(x)).map((x) => x.constructor.name)).toEqual([]);
     expect(sceneFreed).toBe(false);
   });
 });
 
-describe('the still view\'s refinement', () => {
+describe("the still view's refinement", () => {
   it('keeps the first frame in place and spreads the rest over the pixel', () => {
     expect(jitter(0)).toEqual([0, 0]);
     const pts = Array.from({ length: REFINE }, (_, n) => jitter(n));
-    for (const [x, y] of pts) { expect(Math.abs(x)).toBeLessThan(0.5); expect(Math.abs(y)).toBeLessThan(0.5); }
+    for (const [x, y] of pts) {
+      expect(Math.abs(x)).toBeLessThan(0.5);
+      expect(Math.abs(y)).toBeLessThan(0.5);
+    }
     expect(new Set(pts.map(([x, y]) => `${x},${y}`)).size).toBe(REFINE);
     // each quarter of the pixel has samples, and the mean is near the pixel's middle (the picture does not move)
-    for (const [sx, sy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]] as const) expect(pts.filter(([x, y]) => x * sx > 0 && y * sy > 0).length).toBeGreaterThanOrEqual(2);
+    for (const [sx, sy] of [
+      [1, 1],
+      [1, -1],
+      [-1, 1],
+      [-1, -1],
+    ] as const)
+      expect(pts.filter(([x, y]) => x * sx > 0 && y * sy > 0).length).toBeGreaterThanOrEqual(2);
     const mean = pts.reduce((a, [x, y]) => [a[0]! + x / REFINE, a[1]! + y / REFINE], [0, 0]);
     expect(Math.hypot(mean[0]!, mean[1]!)).toBeLessThan(0.08);
   });
@@ -113,7 +171,8 @@ describe('the light meter', () => {
     const flat = new Float32Array(16 * 9 * 4).fill(Math.log(0.25));
     expect(meterMean(flat, 16, 9)).toBeCloseTo(0.25, 6);
     // a bright middle counts for more than a bright corner
-    const mid = flat.slice(), corner = flat.slice();
+    const mid = flat.slice(),
+      corner = flat.slice();
     mid[4 * (8 + 16 * 4)] = Math.log(8);
     corner[0] = Math.log(8);
     expect(meterMean(mid, 16, 9)).toBeGreaterThan(meterMean(corner, 16, 9));
@@ -124,10 +183,18 @@ describe('the light meter', () => {
   function meterRenderer() {
     const reads: { buf: Float32Array; done: () => void; fail: () => void }[] = [];
     const r = {
-      ...stubRenderer(), extensions: { has: () => true }, getRenderTarget: () => null, setRenderTarget: () => {}, render: () => {},
-      readRenderTargetPixels: () => { throw new Error('a read that holds the frame'); },
+      ...stubRenderer(),
+      extensions: { has: () => true },
+      getRenderTarget: () => null,
+      setRenderTarget: () => {},
+      render: () => {},
+      readRenderTargetPixels: () => {
+        throw new Error('a read that holds the frame');
+      },
       readRenderTargetPixelsAsync: (_t: unknown, _x: number, _y: number, _w: number, _h: number, buf: Float32Array) =>
-        new Promise<Float32Array>((done, fail) => { reads.push({ buf, done: () => done(buf), fail: () => fail(new Error('lost')) }); }),
+        new Promise<Float32Array>((done, fail) => {
+          reads.push({ buf, done: () => done(buf), fail: () => fail(new Error('lost')) });
+        }),
     } as unknown as WebGLRenderer;
     return { r, reads };
   }

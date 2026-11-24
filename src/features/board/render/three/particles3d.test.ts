@@ -12,11 +12,19 @@ const hot: Snapshot = { ...running, devices: running.devices.map((d) => ({ ...d,
 const burnt: Snapshot = { ...running, devices: running.devices.map((d) => ({ ...d, burnt: d.kind === 'cpu' })) };
 
 function stage(): { scene: Scene; fx: Particles3D; points: Points } {
-  const scene = new Scene(), fx = new Particles3D(scene);
+  const scene = new Scene(),
+    fx = new Particles3D(scene);
   return { scene, fx, points: scene.children[0] as Points };
 }
-const inAir = (p: Points): number => { const a = p.geometry.attributes.position!.array as Float32Array; let n = 0; for (let i = 0; i < a.length; i += 3) if (a[i]! < 1e6) n++; return n; };
-const run = (fx: Particles3D, s: Snapshot | null, secs: number): void => { for (let i = 0; i < secs * 30; i++) fx.frame(s, 1 / 30); };
+const inAir = (p: Points): number => {
+  const a = p.geometry.attributes.position!.array as Float32Array;
+  let n = 0;
+  for (let i = 0; i < a.length; i += 3) if (a[i]! < 1e6) n++;
+  return n;
+};
+const run = (fx: Particles3D, s: Snapshot | null, secs: number): void => {
+  for (let i = 0; i < secs * 30; i++) fx.frame(s, 1 / 30);
+};
 
 describe('particles over the machine', () => {
   it('a part that runs hot sends up no haze, and the CPU no sparks', () => {
@@ -40,7 +48,8 @@ describe('particles over the machine', () => {
   it('stops with the pause: the smoke hangs where it is, and none is born', () => {
     const { fx, points } = stage();
     run(fx, burnt, 2);
-    const before = inAir(points), pos = Array.from(points.geometry.attributes.position!.array as Float32Array);
+    const before = inAir(points),
+      pos = Array.from(points.geometry.attributes.position!.array as Float32Array);
     for (let i = 0; i < 90; i++) fx.frame(burnt, 0);
     expect(inAir(points)).toBe(before);
     expect(Array.from(points.geometry.attributes.position!.array as Float32Array)).toEqual(pos);

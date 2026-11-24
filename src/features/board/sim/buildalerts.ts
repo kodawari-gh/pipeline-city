@@ -48,7 +48,15 @@ const BUSY: Loads = { cpu: 1, ram: 1, display: 1, gpu: 1, npu: 1, storage: BURST
 /** Ticks of the dry run: every part has settled (or burnt) by about 400. */
 const SETTLE_TICKS = 500;
 /** What a part is called in a title (the spec's own name is long: "Tiny-OoO (out-of-order, ROB 8)"). The benchmark names a part the same way. */
-export const KIND_NAME: Partial<Record<DeviceKind, string>> = { cpu: 'CPU', gpu: 'GPU', npu: 'AI card', ram: 'Memory', storage: 'Drive', nic: 'Network card', tpm: 'Security chip' };
+export const KIND_NAME: Partial<Record<DeviceKind, string>> = {
+  cpu: 'CPU',
+  gpu: 'GPU',
+  npu: 'AI card',
+  ram: 'Memory',
+  storage: 'Drive',
+  nic: 'Network card',
+  tpm: 'Security chip',
+};
 
 /**
  * What the heat does to the machine working flat out (`BUSY`), from the game's own thermal model run on a copy of the board (the run burns parts; the real ones
@@ -57,32 +65,85 @@ export const KIND_NAME: Partial<Record<DeviceKind, string>> = { cpu: 'CPU', gpu:
  * damage point for long enough it burns. The board's regulators the same. A machine with no working supply does not run, and has no heat to judge.
  */
 export function heatAlerts(board: Board, fans: FanPower, skip: ReadonlySet<string> = new Set()): Alert[] {
-  const copy = structuredClone(board), th = new ThermalModel(new Prng(1)), out: Alert[] = [];
+  const copy = structuredClone(board),
+    th = new ThermalModel(new Prng(1)),
+    out: Alert[] = [];
   // (the temperature a part reached, not the one it cooled down to: a burnt part stops drawing and cools)
   const peak = new Map<string, number>();
   for (let i = 0; i < SETTLE_TICKS; i++) {
     th.step(copy, BUSY, true, fans);
-    for (const d of copy.devices) { const t = th.state(d.id)?.tempC ?? 0; if (t > (peak.get(d.id) ?? 0)) peak.set(d.id, t); }
+    for (const d of copy.devices) {
+      const t = th.state(d.id)?.tempC ?? 0;
+      if (t > (peak.get(d.id) ?? 0)) peak.set(d.id, t);
+    }
   }
   if (th.power.off) return out;
   for (const d of copy.devices) {
-    const spec = deviceSpec(d), st = th.state(d.id), t = peak.get(d.id) ?? st?.tempC ?? 0, name = KIND_NAME[spec.kind];
+    const spec = deviceSpec(d),
+      st = th.state(d.id),
+      t = peak.get(d.id) ?? st?.tempC ?? 0,
+      name = KIND_NAME[spec.kind];
     if (!name || !st || spec.thermal.throttleC >= 900) continue;
     const near = `${Math.round(t)} C`;
-    if (d.burnt) out.push({ id: 'hot-burn', level: 'bad', title: `${name} burns out`, part: d.id, text: `${spec.name} reaches ${near} at full load, past its damage point (${spec.thermal.damageC} C): it burns out. It needs more cooling.` });
-    else if (st.unstable) out.push({ id: 'hot-errors', level: 'bad', title: `${name} makes errors`, part: d.id, text: `${spec.name} settles near ${near} at full load, past ${spec.thermal.unstableC} C where it makes errors${spec.kind === 'cpu' ? ': the machine crashes at random' : ''}. It needs more cooling.` });
-    else if (st.throttle < 0.995) out.push({ id: 'hot-throttle', level: 'warn', title: `${name} throttles`, part: d.id, text: `${spec.name} settles near ${near} at full load, past its throttle point (${spec.thermal.throttleC} C): it runs at ${Math.round(st.throttle * 100)}% of its speed. ${spec.kind === 'cpu' ? 'A better cooler or more case fans cool it.' : 'More case fans cool it.'}` });
+    if (d.burnt)
+      out.push({
+        id: 'hot-burn',
+        level: 'bad',
+        title: `${name} burns out`,
+        part: d.id,
+        text: `${spec.name} reaches ${near} at full load, past its damage point (${spec.thermal.damageC} C): it burns out. It needs more cooling.`,
+      });
+    else if (st.unstable)
+      out.push({
+        id: 'hot-errors',
+        level: 'bad',
+        title: `${name} makes errors`,
+        part: d.id,
+        text: `${spec.name} settles near ${near} at full load, past ${spec.thermal.unstableC} C where it makes errors${spec.kind === 'cpu' ? ': the machine crashes at random' : ''}. It needs more cooling.`,
+      });
+    else if (st.throttle < 0.995)
+      out.push({
+        id: 'hot-throttle',
+        level: 'warn',
+        title: `${name} throttles`,
+        part: d.id,
+        text: `${spec.name} settles near ${near} at full load, past its throttle point (${spec.thermal.throttleC} C): it runs at ${Math.round(st.throttle * 100)}% of its speed. ${spec.kind === 'cpu' ? 'A better cooler or more case fans cool it.' : 'More case fans cool it.'}`,
+      });
   }
   // the regulators (heat only: what they are asked for is the part tables' business, `vrm-overload` and `vrm-burn`)
   if (copy.burnt) {
     // (a board the part tables already say will burn is said once, by that issue)
-    if (!skip.has('vrm-burn') && !skip.has('ram-vrm-burn')) out.push({ id: 'board-hot-burn', level: 'bad', title: 'Board burns out', part: null, text: "The board's voltage regulators burn out at full load. They need more cooling, or a lighter load." });
+    if (!skip.has('vrm-burn') && !skip.has('ram-vrm-burn'))
+      out.push({
+        id: 'board-hot-burn',
+        level: 'bad',
+        title: 'Board burns out',
+        part: null,
+        text: "The board's voltage regulators burn out at full load. They need more cooling, or a lighter load.",
+      });
   } else {
     const board0 = BOARD_TIERS[board.tier]!;
-    for (const [v, spec, what, own] of [[th.vrm, board0.vrm, "the board's voltage regulator", 'vrm'], [th.ramVrm, board0.ramVrm, "the memory's regulator", 'ram-vrm']] as const) {
+    for (const [v, spec, what, own] of [
+      [th.vrm, board0.vrm, "the board's voltage regulator", 'vrm'],
+      [th.ramVrm, board0.ramVrm, "the memory's regulator", 'ram-vrm'],
+    ] as const) {
       const near = `${Math.round(v.tempC)} C`;
-      if (v.unstable && v.tempC > spec.unstableC) out.push({ id: `${own}-hot-errors`, level: 'bad', title: 'Board regulator too hot', part: null, text: `${sentence(what)} settles near ${near} at full load, past ${spec.unstableC} C: the machine crashes at random. A fan on its fins cools it.` });
-      else if (v.throttle < 0.995) out.push({ id: `${own}-hot-throttle`, level: 'warn', title: 'Board regulator throttles', part: null, text: `${sentence(what)} settles near ${near} at full load, past its throttle point (${spec.throttleC} C): the processor runs at ${Math.round(v.throttle * 100)}% of its speed. A fan on its fins cools it.` });
+      if (v.unstable && v.tempC > spec.unstableC)
+        out.push({
+          id: `${own}-hot-errors`,
+          level: 'bad',
+          title: 'Board regulator too hot',
+          part: null,
+          text: `${sentence(what)} settles near ${near} at full load, past ${spec.unstableC} C: the machine crashes at random. A fan on its fins cools it.`,
+        });
+      else if (v.throttle < 0.995)
+        out.push({
+          id: `${own}-hot-throttle`,
+          level: 'warn',
+          title: 'Board regulator throttles',
+          part: null,
+          text: `${sentence(what)} settles near ${near} at full load, past its throttle point (${spec.throttleC} C): the processor runs at ${Math.round(v.throttle * 100)}% of its speed. A fan on its fins cools it.`,
+        });
     }
   }
   return out.sort((a, b) => Number(b.level === 'bad') - Number(a.level === 'bad'));
@@ -96,16 +157,35 @@ export function heatAlerts(board: Board, fans: FanPower, skip: ReadonlySet<strin
  */
 export function buildAlerts(board: Board, cables: Cables, shown: Shown = 'machine', fans?: FanPower): Alert[] {
   if (shown !== 'machine') return [];
-  const issues = checkCompat(board).filter((i) => i.severity !== 'tip' && i.id !== 'psu-missing' && !(fans && i.id === 'cpu-cooling'));
+  const issues = checkCompat(board).filter(
+    (i) => i.severity !== 'tip' && i.id !== 'psu-missing' && !(fans && i.id === 'cpu-cooling'),
+  );
   const of = (i: CompatIssue): Alert => {
     const t = TITLES[i.id];
-    return { id: i.id, level: i.severity === 'error' ? 'bad' : 'warn', title: typeof t === 'function' ? t(i) : t ?? sentence(i.message.split(/[.:]/)[0] ?? i.id), text: i.message, part: i.part };
+    return {
+      id: i.id,
+      level: i.severity === 'error' ? 'bad' : 'warn',
+      title: typeof t === 'function' ? t(i) : (t ?? sentence(i.message.split(/[.:]/)[0] ?? i.id)),
+      text: i.message,
+      part: i.part,
+    };
   };
   const c = bootCheck(board, { ...cables, pcmains: true });
   const why = c.noPower ?? c.post?.reason ?? null;
   // (a card with no lead is said once, by the issue that names the supply)
   const said = !c.noPower && c.post?.short === 'GPU power cable' && issues.some((i) => i.id === 'pcie-leads');
-  const boot: Alert[] = why && !said ? [{ id: 'boot', level: 'warn', title: sentence(why).split(':')[0]!, text: `${sentence(why)}. The machine does not start until it is fixed.`, part: null }] : [];
+  const boot: Alert[] =
+    why && !said
+      ? [
+          {
+            id: 'boot',
+            level: 'warn',
+            title: sentence(why).split(':')[0]!,
+            text: `${sentence(why)}. The machine does not start until it is fixed.`,
+            part: null,
+          },
+        ]
+      : [];
   const heat = fans ? heatAlerts(board, fans, new Set(issues.map((i) => i.id))) : [];
   const all = [...issues.map(of), ...heat];
   return [...all.filter((a) => a.level === 'bad'), ...boot, ...all.filter((a) => a.level === 'warn')];
@@ -117,12 +197,20 @@ export function buildAlerts(board: Board, cables: Cables, shown: Shown = 'machin
  * burns is too hot. The alert's level is the degree (`warn` runs badly, `bad` breaks). An id with no entry is a problem of its own.
  */
 const FAMILY: Record<string, string> = {
-  'psu-trip': 'psu', 'psu-brownout': 'psu',
-  'vrm-burn': 'vrm', 'vrm-overload': 'vrm',
-  'ram-vrm-burn': 'ram-vrm', 'ram-vrm-overload': 'ram-vrm',
-  'hot-throttle': 'hot', 'hot-errors': 'hot', 'hot-burn': 'hot',
-  'vrm-hot-errors': 'vrm-hot', 'vrm-hot-throttle': 'vrm-hot', 'board-hot-burn': 'vrm-hot',
-  'ram-vrm-hot-errors': 'ram-vrm-hot', 'ram-vrm-hot-throttle': 'ram-vrm-hot',
+  'psu-trip': 'psu',
+  'psu-brownout': 'psu',
+  'vrm-burn': 'vrm',
+  'vrm-overload': 'vrm',
+  'ram-vrm-burn': 'ram-vrm',
+  'ram-vrm-overload': 'ram-vrm',
+  'hot-throttle': 'hot',
+  'hot-errors': 'hot',
+  'hot-burn': 'hot',
+  'vrm-hot-errors': 'vrm-hot',
+  'vrm-hot-throttle': 'vrm-hot',
+  'board-hot-burn': 'vrm-hot',
+  'ram-vrm-hot-errors': 'ram-vrm-hot',
+  'ram-vrm-hot-throttle': 'ram-vrm-hot',
 };
 const RANK: Record<AlertLevel, number> = { warn: 1, bad: 2 };
 
@@ -130,7 +218,8 @@ const RANK: Record<AlertLevel, number> = { warn: 1, bad: 2 };
  * What an alert is, apart from how bad it is and which device it names: its family and the part's spec. A part that came out and went back in has a new id,
  * and its problem is the same one, so a change that only moved parts about is not news (`newAlerts`).
  */
-export const alertKey = (a: Alert, board: Board): string => `${FAMILY[a.id] ?? a.id}:${board.devices.find((d) => d.id === a.part)?.spec ?? ''}`;
+export const alertKey = (a: Alert, board: Board): string =>
+  `${FAMILY[a.id] ?? a.id}:${board.devices.find((d) => d.id === a.part)?.spec ?? ''}`;
 
 /**
  * The problems a machine has, each by its key (`alertKey`) with how bad the worst of it is (1 runs badly, 2 breaks). The power-on test (`boot`) is left out: a
@@ -138,7 +227,11 @@ export const alertKey = (a: Alert, board: Board): string => `${FAMILY[a.id] ?? a
  */
 export function standing(list: readonly Alert[], board: Board): Map<string, number> {
   const out = new Map<string, number>();
-  for (const a of list) if (a.id !== 'boot') { const k = alertKey(a, board); out.set(k, Math.max(out.get(k) ?? 0, RANK[a.level])); }
+  for (const a of list)
+    if (a.id !== 'boot') {
+      const k = alertKey(a, board);
+      out.set(k, Math.max(out.get(k) ?? 0, RANK[a.level]));
+    }
   return out;
 }
 
@@ -147,5 +240,7 @@ export function standing(list: readonly Alert[], board: Board): Map<string, numb
  * that stayed, or only eased (a trip that became a sag), is not news: the pill and the list still say it, the hint line does not say it twice. Worst first.
  */
 export function newAlerts(list: readonly Alert[], board: Board, had: ReadonlyMap<string, number>): Alert[] {
-  return list.filter((a) => a.id !== 'boot' && RANK[a.level] > (had.get(alertKey(a, board)) ?? 0)).sort((a, b) => RANK[b.level] - RANK[a.level]);
+  return list
+    .filter((a) => a.id !== 'boot' && RANK[a.level] > (had.get(alertKey(a, board)) ?? 0))
+    .sort((a, b) => RANK[b.level] - RANK[a.level]);
 }

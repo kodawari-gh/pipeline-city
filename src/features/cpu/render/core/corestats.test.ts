@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { CoreStats } from '../../sim/pipesnap';
 import { CoreRateTracker, ipcText } from './corestats';
 
-const st = (cycles: number, retired: number, stalls = 0, l2Wait = 0): CoreStats => ({ cycles, retired, stalls, l2Wait, coherence: 0 });
+const st = (cycles: number, retired: number, stalls = 0, l2Wait = 0): CoreStats => ({
+  cycles,
+  retired,
+  stalls,
+  l2Wait,
+  coherence: 0,
+});
 
 describe('core rates', () => {
   it('has no rates before a second reading', () => {

@@ -13,7 +13,10 @@ export const CASE_KIND: readonly CaseKind[] = ['oem', 'matte', 'gamer', 'show'];
  * OEM tower's solid side (the box is its whole side), the upper part on the matte case, the full front on the gaming case and the showcase.
  */
 export function caseWindow(kind: CaseKind): Rect {
-  const gl = CASE_GLASS, x0 = BR.io.x + BR.io.w + 110, x1 = gl.x + gl.w - 56, inset = 56;
+  const gl = CASE_GLASS,
+    x0 = BR.io.x + BR.io.w + 110,
+    x1 = gl.x + gl.w - 56,
+    inset = 56;
   return { x: x0, y: gl.y + inset, w: x1 - x0, h: (gl.h - 2 * inset) * (kind === 'matte' ? 0.74 : 1) };
 }
 
@@ -26,7 +29,24 @@ export type Cuts = [number, number, number, number];
 
 /** The points of a rectangle with its corners cut at 45 degrees. */
 export function cutRect(x: number, y: number, w: number, h: number, [tl, tr, br, bl]: Cuts): number[] {
-  return [x + tl, y, x + w - tr, y, x + w, y + tr, x + w, y + h - br, x + w - br, y + h, x + bl, y + h, x, y + h - bl, x, y + tl];
+  return [
+    x + tl,
+    y,
+    x + w - tr,
+    y,
+    x + w,
+    y + tr,
+    x + w,
+    y + h - br,
+    x + w - br,
+    y + h,
+    x + bl,
+    y + h,
+    x,
+    y + h - bl,
+    x,
+    y + tl,
+  ];
 }
 
 const SQUARE: Cuts = [0, 0, 0, 0];
@@ -48,36 +68,57 @@ export function outline(g: Graphics, x: number, y: number, w: number, h: number,
 
 /** A grid of round holes (staggered rows) inside `r`; the caller fills. */
 export function holes(g: Graphics, r: Rect, pitch: number, rad: number) {
-  for (let y = r.y + pitch / 2, k = 0; y < r.y + r.h; y += pitch * 0.87, k++) for (let x = r.x + pitch / 2 + (k % 2) * (pitch / 2); x < r.x + r.w - pitch / 4; x += pitch) g.circle(x, y, rad);
+  for (let y = r.y + pitch / 2, k = 0; y < r.y + r.h; y += pitch * 0.87, k++)
+    for (let x = r.x + pitch / 2 + (k % 2) * (pitch / 2); x < r.x + r.w - pitch / 4; x += pitch) g.circle(x, y, rad);
 }
 
 /** A honeycomb (pointy hexagons, `s` the side) inside `r`; the caller fills. */
 export function hexes(g: Graphics, r: Rect, s: number, gap: number) {
-  const w = Math.sqrt(3) * s, hs = s - gap * 0.6;
-  for (let y = r.y + s, k = 0; y < r.y + r.h - s * 0.5; y += s * 1.5, k++) for (let x = r.x + w / 2 + (k % 2) * (w / 2); x < r.x + r.w - w / 2 + 1; x += w) {
-    const pts: number[] = [];
-    for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + (i * Math.PI) / 3; pts.push(x + Math.cos(a) * hs, y + Math.sin(a) * hs); }
-    g.poly(pts);
-  }
+  const w = Math.sqrt(3) * s,
+    hs = s - gap * 0.6;
+  for (let y = r.y + s, k = 0; y < r.y + r.h - s * 0.5; y += s * 1.5, k++)
+    for (let x = r.x + w / 2 + (k % 2) * (w / 2); x < r.x + r.w - w / 2 + 1; x += w) {
+      const pts: number[] = [];
+      for (let i = 0; i < 6; i++) {
+        const a = Math.PI / 6 + (i * Math.PI) / 3;
+        pts.push(x + Math.cos(a) * hs, y + Math.sin(a) * hs);
+      }
+      g.poly(pts);
+    }
 }
 
 /** Slanted vent slots (parallelograms leaning east), `n` of them side by side in `r`; the caller fills. */
 export function slots(g: Graphics, r: Rect, n: number, lean: number) {
-  const pitch = r.w / n, w = pitch * 0.5;
-  for (let k = 0; k < n; k++) { const x = r.x + k * pitch; g.poly([x + lean, r.y, x + lean + w, r.y, x + w, r.y + r.h, x, r.y + r.h]); }
+  const pitch = r.w / n,
+    w = pitch * 0.5;
+  for (let k = 0; k < n; k++) {
+    const x = r.x + k * pitch;
+    g.poly([x + lean, r.y, x + lean + w, r.y, x + w, r.y + r.h, x, r.y + r.h]);
+  }
 }
 
 /** A screw head: a disc with a slot, lit from the top left. */
 export function screw(g: Graphics, x: number, y: number, r: number, tone: string, edge: string) {
   disc(g, x, y, r, { fill: tone, stroke: edge, lw: Math.max(3, r * 0.14), sa: 0.8 });
   disc(g, x - r * 0.25, y - r * 0.3, r * 0.3, { fill: '#ffffff', fa: 0.25 });
-  g.moveTo(x - r * 0.55, y + r * 0.1).lineTo(x + r * 0.55, y - r * 0.1).stroke({ width: Math.max(3, r * 0.2), color: '#000000', alpha: 0.6, cap: 'round' });
+  g.moveTo(x - r * 0.55, y + r * 0.1)
+    .lineTo(x + r * 0.55, y - r * 0.1)
+    .stroke({ width: Math.max(3, r * 0.2), color: '#000000', alpha: 0.6, cap: 'round' });
 }
 
 /**
  * A maker's lockup in 2D (`core/render/brands`): its mark `h` tall and its wordmark, as on the 3D parts, added to `root` with its centre at
  * (x, y). `acc` null prints it in the ink alone.
  */
-export function brandLockup(root: Container, id: BrandId, x: number, y: number, h: number, ink: string, acc: string | null = null, a = 0.85) {
+export function brandLockup(
+  root: Container,
+  id: BrandId,
+  x: number,
+  y: number,
+  h: number,
+  ink: string,
+  acc: string | null = null,
+  a = 0.85,
+) {
   root.addChild(brandSprite(id, x, y, h, ink, { acc, alpha: a }));
 }

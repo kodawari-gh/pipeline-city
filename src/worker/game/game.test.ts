@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { getSpec } from "../../features/board/sim";
-import { ECONOMY } from "../../features/economy/sim/economy";
-import { Game, type GameOptions } from "./game";
-import { Operator, play } from "../../features/economy/sim/operator";
-import { rig } from "./testkit";
+import { describe, expect, it } from 'vitest';
+import { getSpec } from '../../features/board/sim';
+import { ECONOMY } from '../../features/economy/sim/economy';
+import { Game, type GameOptions } from './game';
+import { Operator, play } from '../../features/economy/sim/operator';
+import { rig } from './testkit';
 
 // These tests are about hardware, not player levels: every item is buyable (levels have their own tests in levels.test.ts).
 ECONOMY.levelGating = false;
@@ -11,8 +11,11 @@ ECONOMY.caseGating = false;
 
 /** One isolated job (no arrivals) on a machine with `items` bought and installed; returns the completion record. */
 function oneJob(items: string[], template: string, scale = 1, seed = 1) {
-  const g = new Game({ seed, preassembled: true, // raw hardware speed: the firmware boost and the auto-eject are off so cycle counts and manual steps stay comparable
-    economy: { baseDemandPerTick: 0, startQueue: [{ template, scale }], firmwareBoost: 1, autoEjectTicks: 0 } });
+  const g = new Game({
+    seed,
+    preassembled: true, // raw hardware speed: the firmware boost and the auto-eject are off so cycle counts and manual steps stay comparable
+    economy: { baseDemandPerTick: 0, startQueue: [{ template, scale }], firmwareBoost: 1, autoEjectTicks: 0 },
+  });
   g.money = 1e6;
   for (const i of items) {
     const r = g.purchase(i);
@@ -27,10 +30,10 @@ function oneJob(items: string[], template: string, scale = 1, seed = 1) {
   return g.lastCompleted!;
 }
 
-const cpuOf = (g: Game) => g.snapshot().devices.find((d) => d.kind === "cpu")!;
+const cpuOf = (g: Game) => g.snapshot().devices.find((d) => d.kind === 'cpu')!;
 
-describe("pacing (real start: bare board, then the bot assembles the crate)", () => {
-  it("first job (power on to payout) is about 15-30 s (POST 3 s, auto-eject), the first payout buys a part soon after", () => {
+describe('pacing (real start: bare board, then the bot assembles the crate)', () => {
+  it('first job (power on to payout) is about 15-30 s (POST 3 s, auto-eject), the first payout buys a part soon after', () => {
     const g = new Game({ seed: 1 });
     const op = new Operator(g, 2); // a human needs a couple of seconds per manual step
     let powerOnAt = 0;
@@ -44,10 +47,16 @@ describe("pacing (real start: bare board, then the bot assembles the crate)", ()
       op.step();
       if (!powerOnAt && g.powered) powerOnAt = t;
       const s = g.snapshot();
-      if (!payAt && s.completed > 0) { payAt = t; firstPay = s.lastCompleted!.payout; firstId = s.lastCompleted!.id; }
-      const ok = s.purchases.filter((p) => p.affordable && !p.blocked && !/^(board|case)0$/.test(p.id) && (getSpec(p.id)?.tier ?? 1) > 0); // upgrades: the starter parts stay on sale for the floor price
+      if (!payAt && s.completed > 0) {
+        payAt = t;
+        firstPay = s.lastCompleted!.payout;
+        firstId = s.lastCompleted!.id;
+      }
+      const ok = s.purchases.filter(
+        (p) => p.affordable && !p.blocked && !/^(board|case)0$/.test(p.id) && (getSpec(p.id)?.tier ?? 1) > 0,
+      ); // upgrades: the starter parts stay on sale for the floor price
       if (!firstAffordable && ok.length) firstAffordable = t;
-      if (!firstTier && ok.some((p) => p.kind === "cpu" || p.kind === "ram")) firstTier = t;
+      if (!firstTier && ok.some((p) => p.kind === 'cpu' || p.kind === 'ram')) firstTier = t;
     }
     expect(powerOnAt).toBeLessThanOrEqual(12); // a few manual steps: install, plug a key, press power
     const firstJob = payAt - powerOnAt;
@@ -60,7 +69,7 @@ describe("pacing (real start: bare board, then the bot assembles the crate)", ()
     expect(firstTier).toBeLessThanOrEqual(400);
   });
 
-  it("slow start: across 30 seeds the first $100 lands in a bounded time and the first job is unchanged", () => {
+  it('slow start: across 30 seeds the first $100 lands in a bounded time and the first job is unchanged', () => {
     const times: number[] = [];
     for (let seed = 1; seed <= 30; seed++) {
       const g = new Game({ seed });
@@ -85,23 +94,23 @@ describe("pacing (real start: bare board, then the bot assembles the crate)", ()
     expect(Math.max(...times)).toBeLessThanOrEqual(300); // was 560 with the 30 s cold boot per job
   });
 
-  it("the first job leaves its text on the monitor and on the key", () => {
+  it('the first job leaves its text on the monitor and on the key', () => {
     const g = new Game({ seed: 1, economy: { autoEjectTicks: 0 } }); // the key stays so the result can be read off it
     const op = new Operator(g, 6); // the human is slow to pull the key
-    while (!(g.currentPhase() === "halted" && g.pluggedKey()?.done)) {
+    while (!(g.currentPhase() === 'halted' && g.pluggedKey()?.done)) {
       g.advanceBaseTick();
       op.step();
     }
     for (let i = 0; i < 10; i++) g.advanceBaseTick(); // let the display drain
     const s = g.snapshot();
     expect(s.display).toMatch(/#\d\d .+ OK/);
-    expect(s.display).toContain("JOB DONE");
+    expect(s.display).toContain('JOB DONE');
     expect(s.plugged!.result).toMatch(/^#\d\d .+ OK$/);
   });
 });
 
-describe("queue, reputation and demand", () => {
-  it("the tray is capped; overflow counts as a drop and costs reputation", () => {
+describe('queue, reputation and demand', () => {
+  it('the tray is capped; overflow counts as a drop and costs reputation', () => {
     const g = new Game({ seed: 3, preassembled: true, economy: { baseDemandPerTick: 1, queueCap: 5, repMin: 1 } });
     for (let t = 0; t < 40; t++) g.advanceBaseTick(); // nobody serves the keys
     const s = g.snapshot();
@@ -110,7 +119,7 @@ describe("queue, reputation and demand", () => {
     expect(s.avgTurnaround).toBeGreaterThan(g.cfg.targetTurnaround); // the clients that gave up pulled the average up
   });
 
-  it("keys sitting unserved lower reputation and demand", () => {
+  it('keys sitting unserved lower reputation and demand', () => {
     const g = new Game({ seed: 2, preassembled: true });
     const fresh = g.snapshot();
     for (let t = 0; t < 300; t++) g.advanceBaseTick(); // nobody touches the machine
@@ -120,12 +129,17 @@ describe("queue, reputation and demand", () => {
     expect(s.demandRate).toBeLessThan(fresh.demandRate);
   });
 
-  it("slow service shrinks demand, fast service holds it up", () => {
+  it('slow service shrinks demand, fast service holds it up', () => {
     /** Mean reputation over the second half of a 1500 s run (a single instant is noisy: a lull freezes the average). */
     const meanRep = (g: Game): number => {
       let sum = 0;
       let n = 0;
-      play(g, 1500, 2, (gg, t) => { if (t > 750 && t % 10 === 0) { sum += gg.snapshot().reputation; n++; } });
+      play(g, 1500, 2, (gg, t) => {
+        if (t > 750 && t % 10 === 0) {
+          sum += gg.snapshot().reputation;
+          n++;
+        }
+      });
       return sum / n;
     };
     // Averaged over three seeds and a longer run than before the manual boot loop (about 100 s per job at the start, so
@@ -140,8 +154,8 @@ describe("queue, reputation and demand", () => {
       const slow = new Game({ seed, startLevel: 5 });
       const fast = new Game({ seed, startLevel: 5 });
       fast.money = 1e6;
-      fast.purchase("cpu1");
-      fast.purchase("ram1");
+      fast.purchase('cpu1');
+      fast.purchase('ram1');
       rs += meanRep(slow) / 3;
       rf += meanRep(fast) / 3;
       doneSlow += slow.completed;
@@ -158,8 +172,12 @@ describe("queue, reputation and demand", () => {
     let s = g.snapshot();
     expect(s.tray).toHaveLength(1); // only the starter key
     expect(s.tray[0]!.age).toBe(0);
-    g.install("inv1"); g.install("inv5"); g.install("inv2"); g.install("inv3"); g.install("inv4");
-    for (const c of ["atx", "cpu", "cpufan", "video", "pcmains", "monmains"]) g.connectCable(c);
+    g.install('inv1');
+    g.install('inv5');
+    g.install('inv2');
+    g.install('inv3');
+    g.install('inv4');
+    for (const c of ['atx', 'cpu', 'cpufan', 'video', 'pcmains', 'monmains']) g.connectCable(c);
     expect(g.powerButton()).toEqual({ ok: true, powered: true });
     for (let t = 0; t < 10; t++) g.advanceBaseTick();
     s = g.snapshot();
@@ -168,40 +186,43 @@ describe("queue, reputation and demand", () => {
   });
 });
 
-describe("purchases go to the inventory", () => {
-  it("rejects what you cannot afford and what is not for sale; the rest is sold, and the inventory says whether it fits", () => {
+describe('purchases go to the inventory', () => {
+  it('rejects what you cannot afford and what is not for sale; the rest is sold, and the inventory says whether it fits', () => {
     const g = new Game({ seed: 1, preassembled: true });
-    const poor = g.purchase("cpu1");
+    const poor = g.purchase('cpu1');
     expect(!poor.ok && poor.reason).toMatch(/needs/);
     g.money = 1e6;
-    const big = g.purchase("cpu2") as { invId: string }; // 41 W of rated load > the 40 W PSU: sold anyway, it just will not go in yet
+    const big = g.purchase('cpu2') as { invId: string }; // 41 W of rated load > the 40 W PSU: sold anyway, it just will not go in yet
     expect(big.invId).toBeTruthy();
-    expect(g.snapshot().inventory.find((i) => i.id === big.invId)).toMatchObject({ installable: false, reason: expect.stringMatching(/PSU/) });
-    expect(g.purchase("psu1").ok).toBe(true);
-    expect(g.purchase("cpu1").ok).toBe(true); // any tier, and as many as you like
-    expect(g.purchase("cpu1").ok).toBe(true);
-    expect(g.purchase("nonsense").ok).toBe(false);
+    expect(g.snapshot().inventory.find((i) => i.id === big.invId)).toMatchObject({
+      installable: false,
+      reason: expect.stringMatching(/PSU/),
+    });
+    expect(g.purchase('psu1').ok).toBe(true);
+    expect(g.purchase('cpu1').ok).toBe(true); // any tier, and as many as you like
+    expect(g.purchase('cpu1').ok).toBe(true);
+    expect(g.purchase('nonsense').ok).toBe(false);
   });
 
-  it("a purchase is owned but not installed; the strict install needs the machine off", () => {
+  it('a purchase is owned but not installed; the strict install needs the machine off', () => {
     const g = new Game({ seed: 1, preassembled: true });
     g.money = 1e6;
-    const r = g.purchase("cpu1");
+    const r = g.purchase('cpu1');
     expect(r.ok).toBe(true);
     expect(g.snapshot().progress.firstPurchase).toBe(true);
-    expect(cpuOf(g).spec).toBe("cpu0");
+    expect(cpuOf(g).spec).toBe('cpu0');
     const inv = g.snapshot().inventory;
-    expect(inv.map((i) => i.spec)).toEqual(["cpu1"]);
-    expect(inv[0]).toMatchObject({ installable: true, swapSlots: ["cpu0"], freeSlots: [] });
+    expect(inv.map((i) => i.spec)).toEqual(['cpu1']);
+    expect(inv[0]).toMatchObject({ installable: true, swapSlots: ['cpu0'], freeSlots: [] });
     const id = (r as { invId: string }).invId;
-    expect(g.install(id)).toMatchObject({ ok: false, reason: "power the machine off first" });
+    expect(g.install(id)).toMatchObject({ ok: false, reason: 'power the machine off first' });
     g.powerButton();
     expect(g.install(id).ok).toBe(true);
-    expect(cpuOf(g).spec).toBe("cpu1");
-    expect(g.snapshot().inventory.map((i) => i.spec)).toEqual(["cpu0"]); // the old CPU came back
+    expect(cpuOf(g).spec).toBe('cpu1');
+    expect(g.snapshot().inventory.map((i) => i.spec)).toEqual(['cpu0']); // the old CPU came back
   });
 
-  it("plugAndBoot switches an off machine on", () => {
+  it('plugAndBoot switches an off machine on', () => {
     const g = new Game({ seed: 1, preassembled: true });
     for (let i = 0; i < 400 && g.trayKeyIds().length === 0; i++) g.advanceBaseTick();
     g.powerButton();
@@ -210,60 +231,60 @@ describe("purchases go to the inventory", () => {
     expect(g.powered).toBe(true);
   });
 
-  it("swapInstall on an idle machine powers off, installs and powers back on", () => {
+  it('swapInstall on an idle machine powers off, installs and powers back on', () => {
     const g = new Game({ seed: 1, preassembled: true });
     g.money = 1e6;
-    const id = (g.purchase("cpu1") as { invId: string }).invId;
+    const id = (g.purchase('cpu1') as { invId: string }).invId;
     expect(g.powered).toBe(true);
     expect(g.swapInstall(id)).toMatchObject({ ok: true, pending: false });
-    expect(cpuOf(g).spec).toBe("cpu1");
+    expect(cpuOf(g).spec).toBe('cpu1');
     expect(g.powered).toBe(true);
     expect(g.snapshot().pendingSwaps).toEqual([]);
   });
 
-  it("swapInstall during a job waits for the job, then swaps and restarts", () => {
+  it('swapInstall during a job waits for the job, then swaps and restarts', () => {
     const g = new Game({ seed: 1, preassembled: true });
     g.money = 1e6;
     for (let i = 0; i < 400 && g.trayKeyIds().length === 0; i++) g.advanceBaseTick();
     expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
-    const id = (g.purchase("cpu1") as { invId: string }).invId;
+    const id = (g.purchase('cpu1') as { invId: string }).invId;
     expect(g.swapInstall(id)).toMatchObject({ ok: true, pending: true });
     expect(g.snapshot().pendingSwaps).toMatchObject([{ invId: id }]);
-    expect(cpuOf(g).spec).toBe("cpu0"); // not yet: the job is still on
-    for (let i = 0; i < 4000 && cpuOf(g).spec === "cpu0"; i++) g.advanceBaseTick();
+    expect(cpuOf(g).spec).toBe('cpu0'); // not yet: the job is still on
+    for (let i = 0; i < 4000 && cpuOf(g).spec === 'cpu0'; i++) g.advanceBaseTick();
     expect(g.completed).toBe(1); // the job finished and paid first
-    expect(cpuOf(g).spec).toBe("cpu1");
+    expect(cpuOf(g).spec).toBe('cpu1');
     expect(g.powered).toBe(true);
     expect(g.snapshot().pendingSwaps).toEqual([]);
   });
 
-  it("several swaps can wait behind one job, each for its own slot, and share one power cycle", () => {
+  it('several swaps can wait behind one job, each for its own slot, and share one power cycle', () => {
     const g = new Game({ seed: 1, preassembled: true });
     g.money = 1e6;
     for (let i = 0; i < 400 && g.trayKeyIds().length === 0; i++) g.advanceBaseTick();
     expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
-    const cpu = (g.purchase("cpu1") as { invId: string }).invId;
-    const cpuB = (g.purchase("cpu1") as { invId: string }).invId;
-    const ram = (g.purchase("ram1") as { invId: string }).invId;
+    const cpu = (g.purchase('cpu1') as { invId: string }).invId;
+    const cpuB = (g.purchase('cpu1') as { invId: string }).invId;
+    const ram = (g.purchase('ram1') as { invId: string }).invId;
     expect(g.swapInstall(cpu)).toMatchObject({ ok: true, pending: true });
     expect(g.swapInstall(cpu)).toMatchObject({ ok: false }); // already queued
     expect(g.swapInstall(cpuB)).toMatchObject({ ok: false }); // the only CPU socket is taken by the first
     expect(g.swapInstall(ram)).toMatchObject({ ok: true, pending: true });
     expect(g.snapshot().pendingSwaps.map((p) => p.invId)).toEqual([cpu, ram]);
-    for (let i = 0; i < 4000 && cpuOf(g).spec === "cpu0"; i++) g.advanceBaseTick();
-    expect(cpuOf(g).spec).toBe("cpu1");
-    expect(g.snapshot().devices.some((d) => d.spec === "ram1")).toBe(true);
+    for (let i = 0; i < 4000 && cpuOf(g).spec === 'cpu0'; i++) g.advanceBaseTick();
+    expect(cpuOf(g).spec).toBe('cpu1');
+    expect(g.snapshot().devices.some((d) => d.spec === 'ram1')).toBe(true);
     expect(g.snapshot().pendingSwaps).toEqual([]);
     expect(g.powered).toBe(true);
   });
 
-  it("a queued swap can be cancelled one by one or all at once; the part stays in the inventory", () => {
+  it('a queued swap can be cancelled one by one or all at once; the part stays in the inventory', () => {
     const g = new Game({ seed: 1, preassembled: true });
     g.money = 1e6;
     for (let i = 0; i < 400 && g.trayKeyIds().length === 0; i++) g.advanceBaseTick();
     expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
-    const cpu = (g.purchase("cpu1") as { invId: string }).invId;
-    const ram = (g.purchase("ram1") as { invId: string }).invId;
+    const cpu = (g.purchase('cpu1') as { invId: string }).invId;
+    const ram = (g.purchase('ram1') as { invId: string }).invId;
     g.swapInstall(cpu);
     g.swapInstall(ram);
     expect(g.cancelSwap(cpu)).toMatchObject({ ok: true, cancelled: 1 });
@@ -271,92 +292,101 @@ describe("purchases go to the inventory", () => {
     expect(g.cancelSwap()).toMatchObject({ ok: true, cancelled: 1 });
     expect(g.cancelSwap()).toMatchObject({ ok: false });
     for (let i = 0; i < 4000 && g.jobInFlight(); i++) g.advanceBaseTick();
-    expect(cpuOf(g).spec).toBe("cpu0");
+    expect(cpuOf(g).spec).toBe('cpu0');
     expect(g.snapshot().inventory.map((i) => i.id)).toEqual(expect.arrayContaining([cpu, ram]));
   });
 
-  it("the snapshot lists purchases with price, affordability and board refusals", () => {
+  it('the snapshot lists purchases with price, affordability and board refusals', () => {
     const g = new Game({ seed: 1, preassembled: true });
     g.money = 150;
     const p = g.snapshot().purchases;
     const by = (id: string) => p.find((x) => x.id === id)!;
-    expect(by("ram1")).toMatchObject({ price: 100, affordable: true });
-    expect(by("cpu1")).toMatchObject({ price: 200, affordable: false });
-    expect(by("cpu2").blocked).toBeUndefined(); // whether a part fits is the inventory's business
-    expect(by("psu2").blocked).toBeUndefined();
-    expect(by("cpu0")).toMatchObject({ price: 10 }); // the starter parts stay on sale, at the floor price
+    expect(by('ram1')).toMatchObject({ price: 100, affordable: true });
+    expect(by('cpu1')).toMatchObject({ price: 200, affordable: false });
+    expect(by('cpu2').blocked).toBeUndefined(); // whether a part fits is the inventory's business
+    expect(by('psu2').blocked).toBeUndefined();
+    expect(by('cpu0')).toMatchObject({ price: 10 }); // the starter parts stay on sale, at the floor price
   });
 });
 
-describe("board upgrade purchase", () => {
-  it("psu2 only installs once the bigger board is fitted, then everything works on it", () => {
+describe('board upgrade purchase', () => {
+  it('psu2 only installs once the bigger board is fitted, then everything works on it', () => {
     const g = new Game({ seed: 1, preassembled: true, economy: { baseDemandPerTick: 0, startQueue: [] } });
     g.money = 1e6;
     const by = (id: string) => g.snapshot().purchases.find((p) => p.id === id);
     g.powerButton(); // a board can only be bought while powered off
-    expect(by("board1")).toMatchObject({ kind: "board", price: 150, affordable: true });
-    expect(by("board2")).toMatchObject({ kind: "board", price: 300 }); // every tier is on sale
-    expect(by("psu2")!.blocked).toBeUndefined();
-    const b1 = g.purchase("board1") as { ok: true; invId: string };
+    expect(by('board1')).toMatchObject({ kind: 'board', price: 150, affordable: true });
+    expect(by('board2')).toMatchObject({ kind: 'board', price: 300 }); // every tier is on sale
+    expect(by('psu2')!.blocked).toBeUndefined();
+    const b1 = g.purchase('board1') as { ok: true; invId: string };
     expect(b1.ok).toBe(true);
-    expect(by("board2")).toMatchObject({ kind: "board", price: 300, affordable: true });
-    const b = g.purchase("board2") as { ok: true; invId: string };
+    expect(by('board2')).toMatchObject({ kind: 'board', price: 300, affordable: true });
+    const b = g.purchase('board2') as { ok: true; invId: string };
     expect(b.ok).toBe(true);
     expect(g.money).toBe(1e6 - 450);
     expect(g.snapshot().boardTier).toBe(0); // owned, not installed
-    expect(by("board2")).toBeDefined(); // still on sale: another is a spare
-    expect(by("psu2")!.blocked).toBeUndefined();
-    const p = g.purchase("psu2") as { ok: true; invId: string };
+    expect(by('board2')).toBeDefined(); // still on sale: another is a spare
+    expect(by('psu2')!.blocked).toBeUndefined();
+    const p = g.purchase('psu2') as { ok: true; invId: string };
     expect(p.ok).toBe(true);
-    expect(g.snapshot().inventory.find((i) => i.id === b.invId)).toMatchObject({ kind: "board", freeSlots: ["board"], installable: true });
+    expect(g.snapshot().inventory.find((i) => i.id === b.invId)).toMatchObject({
+      kind: 'board',
+      freeSlots: ['board'],
+      installable: true,
+    });
     expect(g.install(b1.invId).ok).toBe(true);
     expect(g.install(b.invId).ok).toBe(true);
     expect(g.snapshot().boardTier).toBe(2);
-    expect(g.snapshot().cables.filter((c) => ["atx", "cpu", "cpufan", "video", "pcmains", "monmains"].includes(c.id)).every((c) => c.connected)).toBe(true); // parts and cables carried over
+    expect(
+      g
+        .snapshot()
+        .cables.filter((c) => ['atx', 'cpu', 'cpufan', 'video', 'pcmains', 'monmains'].includes(c.id))
+        .every((c) => c.connected),
+    ).toBe(true); // parts and cables carried over
     expect(g.install(p.invId).ok).toBe(true); // swaps over the 40 W PSU, which goes back to the inventory
-    expect(g.snapshot().cables.find((c) => c.id === "atx")!.connected).toBe(true); // swapping keeps the cables on the board
+    expect(g.snapshot().cables.find((c) => c.id === 'atx')!.connected).toBe(true); // swapping keeps the cables on the board
     g.powerButton();
     g.advanceBaseTick();
     const s = g.snapshot();
-    expect(s.devices.map((d) => d.spec).sort()).toEqual(["cooler0", "cpu0", "display0", "fan92", "psu2", "ram0"]); // the heatsink keeps its fan
+    expect(s.devices.map((d) => d.spec).sort()).toEqual(['cooler0', 'cpu0', 'display0', 'fan92', 'psu2', 'ram0']); // the heatsink keeps its fan
     expect(s.power.budgetW).toBe(250);
-    expect(g.purchase("cpu2").ok).toBe(true);
+    expect(g.purchase('cpu2').ok).toBe(true);
   });
 
-  it("is refused without the money", () => {
+  it('is refused without the money', () => {
     const g = new Game({ seed: 1 });
-    const r = g.purchase("board1");
+    const r = g.purchase('board1');
     expect(!r.ok && r.reason).toMatch(/needs [$]150/);
   });
 
-  it("keeps earning after the upgrade", () => {
+  it('keeps earning after the upgrade', () => {
     const g = new Game({ seed: 1, preassembled: true });
     g.money = 400;
     g.powerButton(); // board purchases need the machine off
-    expect(g.purchase("board1").ok).toBe(true);
+    expect(g.purchase('board1').ok).toBe(true);
     play(g, 300, 1);
     expect(g.snapshot().boardTier).toBe(1);
     expect(g.completed).toBeGreaterThan(2);
   });
 });
 
-describe("CPU tier vs RAM tier depends on the job profile", () => {
-  it("log: CPU pays off, RAM does nothing", () => {
+describe('CPU tier vs RAM tier depends on the job profile', () => {
+  it('log: CPU pays off, RAM does nothing', () => {
     const cold = 3; // the Starter machine's POST time (fixed hardware delay, not shortened by a faster CPU)
-    const base = oneJob([], "cli.log").execTicks;
-    const cpu = oneJob(["cpu1"], "cli.log").execTicks;
-    const ram = oneJob(["ram1"], "cli.log").execTicks;
+    const base = oneJob([], 'cli.log').execTicks;
+    const cpu = oneJob(['cpu1'], 'cli.log').execTicks;
+    const ram = oneJob(['ram1'], 'cli.log').execTicks;
     expect((base - cold) / (cpu - cold)).toBeGreaterThan(2.5);
     expect(Math.abs(base - ram)).toBeLessThanOrEqual(6); // only the one-off reboot for the swap
   });
 
-  it("scan (cache-hostile): CPU helps, RAM helps, and the two together help far more", () => {
-    const base = oneJob([], "cli.scan", 4).execTicks;
-    const cpu = oneJob(["cpu1"], "cli.scan", 4).execTicks;
-    const ramOnly = oneJob(["ram1"], "cli.scan", 4).execTicks;
-    const both = oneJob(["cpu1", "ram1"], "cli.scan", 4).execTicks;
-    const logCpu = oneJob(["cpu1"], "cli.log").execTicks;
-    const logBoth = oneJob(["cpu1", "ram1"], "cli.log").execTicks;
+  it('scan (cache-hostile): CPU helps, RAM helps, and the two together help far more', () => {
+    const base = oneJob([], 'cli.scan', 4).execTicks;
+    const cpu = oneJob(['cpu1'], 'cli.scan', 4).execTicks;
+    const ramOnly = oneJob(['ram1'], 'cli.scan', 4).execTicks;
+    const both = oneJob(['cpu1', 'ram1'], 'cli.scan', 4).execTicks;
+    const logCpu = oneJob(['cpu1'], 'cli.log').execTicks;
+    const logBoth = oneJob(['cpu1', 'ram1'], 'cli.log').execTicks;
     expect(base / cpu).toBeGreaterThan(1.5); // a faster CPU still waits on slow RAM (misses cost 2x as many cycles)
     expect(base / ramOnly).toBeGreaterThan(1.25); // RAM alone helps even on the slow CPU
     expect(cpu / both).toBeGreaterThan(2); // and the faster CPU needs the faster RAM
@@ -364,12 +394,15 @@ describe("CPU tier vs RAM tier depends on the job profile", () => {
     expect(Math.abs(logCpu - logBoth)).toBeLessThanOrEqual(2 + 4);
   });
 
-  it("boot time depends on the CPU: POST finishes, and the key check follows, sooner on a faster CPU", () => {
+  it('boot time depends on the CPU: POST finishes, and the key check follows, sooner on a faster CPU', () => {
     // Measured to the POST's last line (USB OK): the key check comes right after it. The halt message is not counted,
     // it is CPU work too (and it runs under load now), so the halt tick would also measure the message.
     const postTicks = (g: Game): number => {
       let t = 0;
-      while (!g.snapshot().display.includes("USB OK") && t < 500) { g.advanceBaseTick(); t++; }
+      while (!g.snapshot().display.includes('USB OK') && t < 500) {
+        g.advanceBaseTick();
+        t++;
+      }
       return t - g.snapshot().postTicks; // the CPU-dependent part: the cold-boot wait depends on the machine's RAM and drives
     };
     const starter = (items: string[]): number => {
@@ -380,9 +413,9 @@ describe("CPU tier vs RAM tier depends on the job profile", () => {
       return postTicks(g);
     };
     const t0 = starter([]);
-    const t1 = starter(["cpu1"]);
+    const t1 = starter(['cpu1']);
     // cpu2 on the Starter board droops under its load and reboots (a real crash, not a boot-time question), so it gets board2.
-    const g2 = rig("hdd0", { os: false, cpu: "cpu2", keys: [], economy: { firmwareBoost: 1 } });
+    const g2 = rig('hdd0', { os: false, cpu: 'cpu2', keys: [], economy: { firmwareBoost: 1 } });
     g2.powerButton();
     const t2 = postTicks(g2);
     expect(t0).toBeGreaterThan(t1);
@@ -390,8 +423,13 @@ describe("CPU tier vs RAM tier depends on the job profile", () => {
   });
 });
 
-describe("determinism", () => {
-  const script: [number, string][] = [[150, "cooler1"], [200, "psu1"], [260, "cpu1"], [400, "ram1"]];
+describe('determinism', () => {
+  const script: [number, string][] = [
+    [150, 'cooler1'],
+    [200, 'psu1'],
+    [260, 'cpu1'],
+    [400, 'ram1'],
+  ];
   function play2(seed: number): string[] {
     const g = new Game({ seed });
     const op = new Operator(g, 2);
@@ -404,13 +442,13 @@ describe("determinism", () => {
     }
     return out;
   }
-  it("same seed and player script gives identical snapshots", () => {
+  it('same seed and player script gives identical snapshots', () => {
     expect(play2(7)).toEqual(play2(7));
   });
-  it("different seeds differ", () => {
+  it('different seeds differ', () => {
     expect(play2(7)).not.toEqual(play2(8));
   });
-  it("snapshots are plain JSON", () => {
+  it('snapshots are plain JSON', () => {
     const g = new Game({ seed: 2, preassembled: true });
     play(g, 30);
     const s = g.snapshot();
@@ -418,11 +456,13 @@ describe("determinism", () => {
   });
 });
 
-describe("overclock, heat and errors", () => {
+describe('overclock, heat and errors', () => {
   /** Keep the machine saturated with work. */
-  const busy: GameOptions["economy"] = {
-    baseDemandPerTick: 1, repMin: 1, queueCap: 20,
-    mix: [{ template: "cli", weight: 1, minRamBytes: 0 }], // thermal tests use plain CLI jobs only
+  const busy: GameOptions['economy'] = {
+    baseDemandPerTick: 1,
+    repMin: 1,
+    queueCap: 20,
+    mix: [{ template: 'cli', weight: 1, minRamBytes: 0 }], // thermal tests use plain CLI jobs only
     coldBootTicks: 0, // the cold-boot wait idles the CPU and cools it; these tests are about a CPU that never rests
   };
 
@@ -432,20 +472,27 @@ describe("overclock, heat and errors", () => {
     g.money = 1e6;
     // cpu2 would crash the Starter board's VRM at once; these tests are about the CPU's own heat, so give it the strongest board.
     g.powerButton();
-    for (const b of ["board1", "board2", "board3"]) g.purchase(b);
-    g.purchase("psu1");
-    g.purchase("cpu2");
+    for (const b of ['board1', 'board2', 'board3']) g.purchase(b);
+    g.purchase('psu1');
+    g.purchase('cpu2');
     const op = new Operator(g, 0);
-    for (let k = 0; k < 20 && g.pluggedKey() === null; k++) { g.advanceBaseTick(); op.step(); } // maintenance, then busy
-    expect(cpuOf(g).spec).toBe("cpu2");
+    for (let k = 0; k < 20 && g.pluggedKey() === null; k++) {
+      g.advanceBaseTick();
+      op.step();
+    } // maintenance, then busy
+    expect(cpuOf(g).spec).toBe('cpu2');
     expect(g.setCpuClock(clock).ok).toBe(true);
     return { g, op };
   }
   const run = (x: { g: Game; op: Operator }, n: number, each?: (g: Game) => void) => {
-    for (let t = 0; t < n; t++) { x.g.advanceBaseTick(); x.op.step(); each?.(x.g); }
+    for (let t = 0; t < n; t++) {
+      x.g.advanceBaseTick();
+      x.op.step();
+      each?.(x.g);
+    }
   };
 
-  it("a modest overclock on the cool starting CPU raises throughput", () => {
+  it('a modest overclock on the cool starting CPU raises throughput', () => {
     const a = new Game({ seed: 5, preassembled: true, economy: busy });
     play(a, 500);
     const b = new Game({ seed: 5, preassembled: true, economy: busy });
@@ -456,17 +503,19 @@ describe("overclock, heat and errors", () => {
     expect(cpuOf(b).burnt).toBe(false);
   });
 
-  it("rejects clocks out of range", () => {
+  it('rejects clocks out of range', () => {
     expect(new Game({ seed: 1, preassembled: true }).setCpuClock(9).ok).toBe(false);
     expect(new Game({ seed: 1 }).setCpuClock(1).ok).toBe(false); // no CPU installed yet
   });
 
-  it("an aggressive overclock with the stock cooler runs hot, errors or burns, and underperforms a moderate one", () => {
+  it('an aggressive overclock with the stock cooler runs hot, errors or burns, and underperforms a moderate one', () => {
     const moderate = cpu2Game(3);
     const aggressive = cpu2Game(4.5);
     let maxT = 0;
     run(moderate, 500);
-    run(aggressive, 500, (g) => { maxT = Math.max(maxT, cpuOf(g).tempC); });
+    run(aggressive, 500, (g) => {
+      maxT = Math.max(maxT, cpuOf(g).tempC);
+    });
     const a = aggressive.g.snapshot();
     expect(cpuOf(moderate.g).burnt).toBe(false);
     expect(cpuOf(moderate.g).tempC).toBeLessThan(85);
@@ -475,7 +524,7 @@ describe("overclock, heat and errors", () => {
     expect(a.completed).toBeLessThan(moderate.g.completed);
   });
 
-  it("a thermal error crashes the machine: it reboots and the job restarts with no payout", () => {
+  it('a thermal error crashes the machine: it reboots and the job restarts with no payout', () => {
     const x = cpu2Game(4.5);
     let crashed = false;
     for (let t = 0; t < 400 && !crashed; t++) {
@@ -484,23 +533,23 @@ describe("overclock, heat and errors", () => {
       if (s.errors > 0 && s.plugged && s.plugged.attempts > 1) crashed = true;
     }
     expect(crashed).toBe(true);
-    expect(x.g.snapshot().log.some((e) => e.kind === "fault")).toBe(true);
+    expect(x.g.snapshot().log.some((e) => e.kind === 'fault')).toBe(true);
   });
 
-  it("a burnt CPU stops the machine (phase error); power off, swap it, power on", () => {
+  it('a burnt CPU stops the machine (phase error); power off, swap it, power on', () => {
     const x = cpu2Game(4.5);
     for (let t = 0; t < 600 && !cpuOf(x.g).burnt; t++) {
       x.g.advanceBaseTick();
       if (!cpuOf(x.g).burnt) x.op.step(); // stop the bot the moment it burns: it would swap the part at once
     }
     expect(cpuOf(x.g).burnt).toBe(true);
-    expect(x.g.snapshot()).toMatchObject({ phase: "error", phaseReason: expect.stringMatching(/burnt/) });
+    expect(x.g.snapshot()).toMatchObject({ phase: 'error', phaseReason: expect.stringMatching(/burnt/) });
     x.g.money = 1e6;
-    expect(x.g.purchase("cpu2").ok).toBe(true); // same-tier replacement of a burnt part is offered
+    expect(x.g.purchase('cpu2').ok).toBe(true); // same-tier replacement of a burnt part is offered
     const before = x.g.completed;
     run(x, 150); // the bot powers off, installs the replacement (the burnt one is scrapped) and goes on
     expect(cpuOf(x.g).burnt).toBe(false);
-    expect(x.g.snapshot().inventory.some((i) => i.spec === "cpu2")).toBe(false);
+    expect(x.g.snapshot().inventory.some((i) => i.spec === 'cpu2')).toBe(false);
     expect(x.g.completed).toBeGreaterThan(before);
   });
 });

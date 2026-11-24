@@ -8,7 +8,9 @@ describe('kelvin', () => {
     expect(kelvin(WHITE_K)).toBe(0xffffff);
   });
   it('is warm under it, warmer the lower, and pale blue over it', () => {
-    const [r27, g27, b27] = rgb(kelvin(2700)), [, g30, b30] = rgb(kelvin(3000)), [r65, g65, b65] = rgb(kelvin(6500));
+    const [r27, g27, b27] = rgb(kelvin(2700)),
+      [, g30, b30] = rgb(kelvin(3000)),
+      [r65, g65, b65] = rgb(kelvin(6500));
     expect(r27).toBe(255);
     expect(b27).toBeLessThan(g27);
     expect(g27).toBeLessThan(g30);

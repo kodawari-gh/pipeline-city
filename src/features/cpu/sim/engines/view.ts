@@ -1,6 +1,6 @@
 // Observability for the timed engines: typed-array views only (no per-instruction objects). See docs/ENGINES.md.
 
-export const STAGE_NAMES = ["IF", "ID", "EX", "MEM", "WB"] as const;
+export const STAGE_NAMES = ['IF', 'ID', 'EX', 'MEM', 'WB'] as const;
 export const Stage = { IF: 0, ID: 1, EX: 2, MEM: 3, WB: 4 } as const;
 
 /** What occupies a stage this cycle. */
@@ -12,7 +12,7 @@ export const Cause = { None: 0, Load: 1, Data: 2, Flush: 3, Struct: 4, Switch: 5
 /** Timeline cell codes. Index into STAGE_CODE_CHARS for the letter. */
 export const StageCode = { None: 0, F: 1, D: 2, X: 3, M: 4, W: 5, Flushed: 6, S: 7, R: 8, C: 9 } as const;
 /** In-order uses F D X M W x; the out-of-order engine uses F D S X R C x (S scheduler wait, R result ready in the ROB, C commit). */
-export const STAGE_CODE_CHARS = " FDXMWxSRC";
+export const STAGE_CODE_CHARS = ' FDXMWxSRC';
 
 /** Timeline row fate. */
 export const Fate = { InFlight: 0, Retired: 1, Flushed: 2 } as const;
@@ -88,16 +88,58 @@ export const Counter = {
   SmtUnitConflicts: 39,
 } as const;
 export const COUNTER_NAMES = [
-  "cycles", "retired", "stallLoad", "stallData", "stallFlush", "stallStruct", "stallCache",
-  "flushes", "flushedInstrs", "branches", "branchMispredicts", "cacheHits", "cacheMisses",
-  "stallRobFull", "stallSchedFull", "issued", "loadForwards", "loadWaits", "robOccupancySum", "schedOccupancySum",
-  "dualIssues", "pairBreaks", "iCacheHits", "iCacheMisses", "stallIFetch", "l2Hits", "l2Misses", "rowHits", "rowEmpty", "rowConflicts", "tlbHits", "tlbMisses", "pageFaults",
-  "l2PortBusy", "stallL2Port", "coherenceInvals", "coherenceMisses", "threadSwitches", "stallSwitch", "smtUnitConflicts",
+  'cycles',
+  'retired',
+  'stallLoad',
+  'stallData',
+  'stallFlush',
+  'stallStruct',
+  'stallCache',
+  'flushes',
+  'flushedInstrs',
+  'branches',
+  'branchMispredicts',
+  'cacheHits',
+  'cacheMisses',
+  'stallRobFull',
+  'stallSchedFull',
+  'issued',
+  'loadForwards',
+  'loadWaits',
+  'robOccupancySum',
+  'schedOccupancySum',
+  'dualIssues',
+  'pairBreaks',
+  'iCacheHits',
+  'iCacheMisses',
+  'stallIFetch',
+  'l2Hits',
+  'l2Misses',
+  'rowHits',
+  'rowEmpty',
+  'rowConflicts',
+  'tlbHits',
+  'tlbMisses',
+  'pageFaults',
+  'l2PortBusy',
+  'stallL2Port',
+  'coherenceInvals',
+  'coherenceMisses',
+  'threadSwitches',
+  'stallSwitch',
+  'smtUnitConflicts',
 ] as const;
 export const COUNTER_COUNT = COUNTER_NAMES.length;
 
 /** Cause -> stall counter index. */
-export const CAUSE_COUNTER = [0, Counter.StallLoad, Counter.StallData, Counter.StallFlush, Counter.StallStruct, Counter.StallSwitch] as const;
+export const CAUSE_COUNTER = [
+  0,
+  Counter.StallLoad,
+  Counter.StallData,
+  Counter.StallFlush,
+  Counter.StallStruct,
+  Counter.StallSwitch,
+] as const;
 
 /**
  * Ring buffer of the last `rows` instructions (row = id % rows) by `cols` cycles (column = cycle % cols).
@@ -154,8 +196,12 @@ export class ViewState implements EngineView {
   nextId = 0;
   private col = 0;
 
-  constructor(rows: number, cols: number, readonly width = 1) {
-    if (rows < 8) throw new RangeError("timeline needs at least 8 rows");
+  constructor(
+    rows: number,
+    cols: number,
+    readonly width = 1,
+  ) {
+    if (rows < 8) throw new RangeError('timeline needs at least 8 rows');
     const n = 5 * width;
     this.stageKind = new Uint8Array(n);
     this.stageId = new Int32Array(n);
@@ -163,9 +209,14 @@ export class ViewState implements EngineView {
     this.stageCause = new Uint8Array(n);
     this.stageStalled = new Uint8Array(n);
     this.timeline = {
-      rows, cols,
-      id: new Int32Array(rows), pc: new Uint32Array(rows), word: new Uint32Array(rows),
-      fate: new Uint8Array(rows), codes: new Uint8Array(rows * cols), thread: new Uint8Array(rows),
+      rows,
+      cols,
+      id: new Int32Array(rows),
+      pc: new Uint32Array(rows),
+      word: new Uint32Array(rows),
+      fate: new Uint8Array(rows),
+      codes: new Uint8Array(rows * cols),
+      thread: new Uint8Array(rows),
     };
     this.reset();
   }
@@ -178,7 +229,12 @@ export class ViewState implements EngineView {
     this.stageStalled.fill(0);
     this.counters.fill(0);
     const t = this.timeline;
-    t.id.fill(-1); t.pc.fill(0); t.word.fill(0); t.fate.fill(0); t.codes.fill(0); t.thread.fill(0);
+    t.id.fill(-1);
+    t.pc.fill(0);
+    t.word.fill(0);
+    t.fate.fill(0);
+    t.codes.fill(0);
+    t.thread.fill(0);
     this.nextId = 0;
     this.col = 0;
   }
@@ -193,7 +249,11 @@ export class ViewState implements EngineView {
   startRow(id: number, pc: number, word: number, thread = 0): void {
     const t = this.timeline;
     const r = id % t.rows;
-    t.id[r] = id; t.pc[r] = pc; t.word[r] = word; t.fate[r] = Fate.InFlight; t.thread[r] = thread;
+    t.id[r] = id;
+    t.pc[r] = pc;
+    t.word[r] = word;
+    t.fate[r] = Fate.InFlight;
+    t.thread[r] = thread;
     t.codes.fill(0, r * t.cols, (r + 1) * t.cols);
   }
 
@@ -217,7 +277,10 @@ export class ViewState implements EngineView {
   }
 
   setStage(s: number, kind: number, id: number, pc: number, cause: number): void {
-    this.stageKind[s] = kind; this.stageId[s] = id; this.stagePc[s] = pc; this.stageCause[s] = cause;
+    this.stageKind[s] = kind;
+    this.stageId[s] = id;
+    this.stagePc[s] = pc;
+    this.stageCause[s] = cause;
   }
 
   moveStage(dst: number, src: number): void {
@@ -236,7 +299,7 @@ export class ViewState implements EngineView {
 
 /** Execution units of the ooo engine (index into the unit* arrays). */
 export const Unit = { ALU0: 0, ALU1: 1, MUL: 2, LSU: 3 } as const;
-export const UNIT_NAMES = ["ALU0", "ALU1", "MUL", "LSU"] as const;
+export const UNIT_NAMES = ['ALU0', 'ALU1', 'MUL', 'LSU'] as const;
 export const UNIT_COUNT = 4;
 
 /** State of a reorder buffer entry. */
@@ -299,10 +362,16 @@ export interface OooView extends EngineView {
 }
 
 export class OooViewState extends ViewState implements OooView {
-  readonly fetchId: Int32Array; readonly fetchPc: Uint32Array;
-  readonly decodeId: Int32Array; readonly decodePc: Uint32Array;
-  readonly robId: Int32Array; readonly robPc: Uint32Array; readonly robState: Uint8Array;
-  readonly schedId: Int32Array; readonly schedPc: Uint32Array; readonly schedWhy: Uint8Array;
+  readonly fetchId: Int32Array;
+  readonly fetchPc: Uint32Array;
+  readonly decodeId: Int32Array;
+  readonly decodePc: Uint32Array;
+  readonly robId: Int32Array;
+  readonly robPc: Uint32Array;
+  readonly robState: Uint8Array;
+  readonly schedId: Int32Array;
+  readonly schedPc: Uint32Array;
+  readonly schedWhy: Uint8Array;
   readonly unitId = new Int32Array(UNIT_COUNT);
   readonly unitPc = new Uint32Array(UNIT_COUNT);
   readonly unitLeft = new Uint8Array(UNIT_COUNT);
@@ -317,15 +386,31 @@ export class OooViewState extends ViewState implements OooView {
   readonly threadIssued: Float64Array;
 
   /** `maxThreads` is how many threads the engine can hold (the decode slots and the per-thread arrays are sized for them). */
-  constructor(rows: number, cols: number, width: number, readonly robSize: number, readonly schedSize: number, readonly fetchQueueSize: number, maxThreads = 1) {
+  constructor(
+    rows: number,
+    cols: number,
+    width: number,
+    readonly robSize: number,
+    readonly schedSize: number,
+    readonly fetchQueueSize: number,
+    maxThreads = 1,
+  ) {
     super(rows, cols, width);
-    this.robCap = robSize; this.fetchCap = fetchQueueSize;
+    this.robCap = robSize;
+    this.fetchCap = fetchQueueSize;
     this.laneOcc = new Int32Array(4 * maxThreads);
-    this.threadRetired = new Float64Array(maxThreads); this.threadIssued = new Float64Array(maxThreads);
-    this.fetchId = new Int32Array(fetchQueueSize); this.fetchPc = new Uint32Array(fetchQueueSize);
-    this.decodeId = new Int32Array(width * maxThreads); this.decodePc = new Uint32Array(width * maxThreads);
-    this.robId = new Int32Array(robSize); this.robPc = new Uint32Array(robSize); this.robState = new Uint8Array(robSize);
-    this.schedId = new Int32Array(schedSize); this.schedPc = new Uint32Array(schedSize); this.schedWhy = new Uint8Array(schedSize);
+    this.threadRetired = new Float64Array(maxThreads);
+    this.threadIssued = new Float64Array(maxThreads);
+    this.fetchId = new Int32Array(fetchQueueSize);
+    this.fetchPc = new Uint32Array(fetchQueueSize);
+    this.decodeId = new Int32Array(width * maxThreads);
+    this.decodePc = new Uint32Array(width * maxThreads);
+    this.robId = new Int32Array(robSize);
+    this.robPc = new Uint32Array(robSize);
+    this.robState = new Uint8Array(robSize);
+    this.schedId = new Int32Array(schedSize);
+    this.schedPc = new Uint32Array(schedSize);
+    this.schedWhy = new Uint8Array(schedSize);
     this.reset();
   }
 
@@ -333,12 +418,27 @@ export class OooViewState extends ViewState implements OooView {
     super.reset();
     // Called from the base constructor before the fields exist.
     if (!this.fetchId) return;
-    this.fetchId.fill(-1); this.fetchPc.fill(0); this.decodeId.fill(-1); this.decodePc.fill(0);
-    this.robId.fill(-1); this.robPc.fill(0); this.robState.fill(0);
-    this.schedId.fill(-1); this.schedPc.fill(0); this.schedWhy.fill(0);
-    this.unitId.fill(-1); this.unitPc.fill(0); this.unitLeft.fill(0); this.unitTotal.fill(0);
-    this.occ.fill(0); this.stall.fill(0);
-    this.lanes = 1; this.robCap = this.robSize; this.fetchCap = this.fetchQueueSize;
-    this.laneOcc.fill(0); this.threadRetired.fill(0); this.threadIssued.fill(0);
+    this.fetchId.fill(-1);
+    this.fetchPc.fill(0);
+    this.decodeId.fill(-1);
+    this.decodePc.fill(0);
+    this.robId.fill(-1);
+    this.robPc.fill(0);
+    this.robState.fill(0);
+    this.schedId.fill(-1);
+    this.schedPc.fill(0);
+    this.schedWhy.fill(0);
+    this.unitId.fill(-1);
+    this.unitPc.fill(0);
+    this.unitLeft.fill(0);
+    this.unitTotal.fill(0);
+    this.occ.fill(0);
+    this.stall.fill(0);
+    this.lanes = 1;
+    this.robCap = this.robSize;
+    this.fetchCap = this.fetchQueueSize;
+    this.laneOcc.fill(0);
+    this.threadRetired.fill(0);
+    this.threadIssued.fill(0);
   }
 }

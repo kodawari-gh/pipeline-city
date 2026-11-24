@@ -2,14 +2,14 @@
 // unit and the MMU, plus the engine that runs it. Everything else (RAM, the other devices, the L2 and DRAM) is shared. `Machine` has one core
 // unless it is built with more; the fields of core 0 are also on the Machine itself (`machine.regs`, `machine.intc`, ...).
 
-import { REG_COUNT } from "./isa/isa";
-import type { Bus } from "@/core/sim/hw/bus";
-import type { Device } from "@/core/sim/hw/device";
-import type { Engine } from "@/core/sim/engine";
-import { Intc, type IntcHub } from "@/core/sim/hw/intc";
-import { Mmu } from "../../memory/sim/mmu";
-import { Mpu } from "../../memory/sim/mpu";
-import { Timer } from "@/core/sim/hw/timer";
+import { REG_COUNT } from './isa/isa';
+import type { Bus } from '@/core/sim/hw/bus';
+import type { Device } from '@/core/sim/hw/device';
+import type { Engine } from '@/core/sim/engine';
+import { Intc, type IntcHub } from '@/core/sim/hw/intc';
+import { Mmu } from '../../memory/sim/mmu';
+import { Mpu } from '../../memory/sim/mpu';
+import { Timer } from '@/core/sim/hw/timer';
 
 export class Core {
   readonly regs = new Int32Array(REG_COUNT);
@@ -26,7 +26,11 @@ export class Core {
   /** CPU cycles still to wait for the guard's surcharge. */
   cpuStall = 0;
 
-  constructor(readonly index: number, ram: Uint8Array, hub?: IntcHub) {
+  constructor(
+    readonly index: number,
+    ram: Uint8Array,
+    hub?: IntcHub,
+  ) {
     this.intc = new Intc(index, hub);
     this.timer = new Timer(this.intc);
     this.mmu = new Mmu(ram);
@@ -48,11 +52,19 @@ export class Core {
 export class BankedDevice implements Device {
   readonly base: number;
   readonly size: number;
-  constructor(readonly name: string, private readonly banks: Device[], private readonly bus: Bus) {
+  constructor(
+    readonly name: string,
+    private readonly banks: Device[],
+    private readonly bus: Bus,
+  ) {
     this.base = banks[0]!.base;
     this.size = banks[0]!.size;
   }
-  read(addr: number): number { return this.banks[this.bus.core]!.read(addr); }
-  write(addr: number, val: number): void { this.banks[this.bus.core]!.write(addr, val); }
+  read(addr: number): number {
+    return this.banks[this.bus.core]!.read(addr);
+  }
+  write(addr: number, val: number): void {
+    this.banks[this.bus.core]!.write(addr, val);
+  }
   tick(): void {}
 }

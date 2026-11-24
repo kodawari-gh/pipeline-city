@@ -11,8 +11,30 @@
 // itself shows faintly in the glass (`mirror.ts`), only its lit screen and lamps over the dark city.
 // Another camera (the room's probe) sees the window as the sky's cube instead.
 import {
-  Color, CubeCamera, DirectionalLight, Frustum, HemisphereLight, Group, HalfFloatType, Matrix4, Mesh, PerspectiveCamera, PlaneGeometry, PMREMGenerator, PointLight, Scene, ShaderMaterial,
-  Vector2, Vector3, Vector4, WebGLCubeRenderTarget, WebGLRenderTarget, type Camera, type Material, type Object3D, type WebGLRenderer,
+  Color,
+  CubeCamera,
+  DirectionalLight,
+  Frustum,
+  HemisphereLight,
+  Group,
+  HalfFloatType,
+  Matrix4,
+  Mesh,
+  PerspectiveCamera,
+  PlaneGeometry,
+  PMREMGenerator,
+  PointLight,
+  Scene,
+  ShaderMaterial,
+  Vector2,
+  Vector3,
+  Vector4,
+  WebGLCubeRenderTarget,
+  WebGLRenderTarget,
+  type Camera,
+  type Material,
+  type Object3D,
+  type WebGLRenderer,
 } from 'three';
 import { mergePalette, mergeStatic } from '@/core/render/three/merge';
 import { startPrograms, startShadowPrograms, type Program } from '@/core/render/three/compile';
@@ -43,9 +65,11 @@ import { plantTrees, type LeafUniforms } from './trees';
 /** The sun's shadow map at each level of the graphics settings (0: none). */
 const SHADOW_LEVELS = [0, 1024, 2048, 4096, 4096];
 /** The sun's shadow covers this square round the near blocks (m), as seen from the sun. */
-const SHADOW_HALF = 420, SHADOW_AT = new Vector3(GRID.av0, 0, -380);
+const SHADOW_HALF = 420,
+  SHADOW_AT = new Vector3(GRID.av0, 0, -380);
 /** The lamps whose light is drawn (the nearest to where the window looks, down the avenue); the rest only glow. */
-const LIT_LAMPS = 8, LAMPS_AT = new Vector3(GRID.av0, 0, -70);
+const LIT_LAMPS = 8,
+  LAMPS_AT = new Vector3(GRID.av0, 0, -70);
 /**
  * The glass's share of the light: a neutral grey glass, the same at every hour, so the bright day keeps to the room's exposure and the night
  * city is as dim through it as the day's. The room's light from outside (the sky's, the sun's) takes the same share (`room3d.ts`).
@@ -57,17 +81,27 @@ export const GLASS_T = 0.47;
  * behind it, its lit windows and signs its brightest parts (`light.md` "Targets": at 23:00 the city is half the room's mean or less).
  */
 /** The city's light in the low sky and the haze at night (linear), the haze's density (per m) by day and at night, its fall with height (per m). */
-const CITY_GLOW = new Color(0.0062, 0.0036, 0.005), HAZE_DAY = 1.5e-4, HAZE_NIGHT = 2.4e-4, HAZE_FALL = 1 / 320;
+const CITY_GLOW = new Color(0.0062, 0.0036, 0.005),
+  HAZE_DAY = 1.5e-4,
+  HAZE_NIGHT = 2.4e-4,
+  HAZE_FALL = 1 / 320;
 /** The low mist at night (`haze.ts`): its colour, lit from below by the streets (linear), and its density at the street (per m). */
-const MIST = new Color(0.0105, 0.007, 0.0105), MIST_DENSITY = 4e-4;
+const MIST = new Color(0.0105, 0.007, 0.0105),
+  MIST_DENSITY = 4e-4;
 /** The sky at full night (linear) overhead and low down, a navy the room's own `skyAt` does not need to be. The moon's light at full night. */
-const NIGHT_TOP = new Color(0.00035, 0.0007, 0.0032), NIGHT_HOR = new Color(0.0011, 0.0014, 0.005), MOON = 0.035;
+const NIGHT_TOP = new Color(0.00035, 0.0007, 0.0032),
+  NIGHT_HOR = new Color(0.0011, 0.0014, 0.005),
+  MOON = 0.035;
 /** The sun's light low down, where it has crossed the most air. */
-const SUN_LOW = new Color(1, 0.2, 0.045), STEAM_LOW = new Color(0.2, 0.125, 0.1), HOR_CLEAR = new Color(0xc2e7ff), BOUNCE_LATE = new Color(0xffc48f);
+const SUN_LOW = new Color(1, 0.2, 0.045),
+  STEAM_LOW = new Color(0.2, 0.125, 0.1),
+  HOR_CLEAR = new Color(0xc2e7ff),
+  BOUNCE_LATE = new Color(0xffc48f);
 /** The haze toward a low sun: the rose over the ember, so the far towers fade rose in front of the fire on the horizon. */
 const DUSK_ROSE = new Color(0.56, 0.2, 0.25);
 /** The warm hour's share of the sky at an hour, its bands' brightness as the light goes, how bright the haze is against them. */
-const duskShare = (h: number): number => Math.max(smooth(17.2, 18.9, h) * (1 - smooth(20.1, 21.4, h)), smooth(4.7, 5.7, h) * (1 - smooth(6.6, 8, h)));
+const duskShare = (h: number): number =>
+  Math.max(smooth(17.2, 18.9, h) * (1 - smooth(20.1, 21.4, h)), smooth(4.7, 5.7, h) * (1 - smooth(6.6, 8, h)));
 const duskLight = (h: number): number => 1 - 0.7 * smooth(19, 20.9, h) - 0.65 * (1 - smooth(4.7, 6, h));
 const DUSK_HAZE = 0.6;
 /**
@@ -79,7 +113,8 @@ const lightsAt = (h: number): number => (h < 12 ? 1 - smooth(5.2, 7.4, h) : Math
 /** How much of the soft glow round the lights (`glow.ts`) the picture takes at night. */
 const GLOW = 0.2;
 /** How far the room's picture in the glass (`mirror.ts`) is lifted at full night: the room is far darker than the screen's exposure shows it. From what share of the night's lights it starts. */
-const MIRROR = 65, MIRROR_FROM = 0.55;
+const MIRROR = 65,
+  MIRROR_FROM = 0.55;
 /** With the eye still, that picture is drawn each this many frames: its LEDs and its screen a few frames late do not show in so faint a ghost. */
 const MIRROR_EVERY = 4;
 /**
@@ -89,11 +124,13 @@ const MIRROR_EVERY = 4;
  */
 const SUN_TURN = 0.7;
 const sunOutside = (hour: number): [number, number, number] => {
-  const [x, y, z] = sunDir(hour), c = Math.cos(SUN_TURN), s = Math.sin(SUN_TURN);
+  const [x, y, z] = sunDir(hour),
+    c = Math.cos(SUN_TURN),
+    s = Math.sin(SUN_TURN);
   return [x * c - z * s, y, x * s + z * c];
 };
 
-const QUAD_VERT = /* glsl */`
+const QUAD_VERT = /* glsl */ `
 varying vec3 vWorld;
 void main() {
   vec4 w = modelMatrix * vec4(position, 1.0);
@@ -107,12 +144,13 @@ const SUPER = 2;
  * While the eye holds still the picture is drawn each this many frames: the traffic, the leaves, the clouds and the steam move on slowly at
  * that distance. An eye that moves the window's box by `HOLD_PX` (the frame's pixels) or more has it drawn again at once.
  */
-export const EVERY = 3, HOLD_PX = 1;
+export const EVERY = 3,
+  HOLD_PX = 1;
 /** At Low the steam and the leaves' sway stand at this clock (s): their poses at that instant, for good. */
 const STILL_T = 0;
 
 // the picture's pixel for a screen pixel: at the corner its block's texels share, so the linear filter averages the block in one tap
-const QUAD_FRAG = /* glsl */`
+const QUAD_FRAG = /* glsl */ `
 uniform sampler2D tOut, tGlow, tMirror;
 uniform samplerCube tEnv;
 uniform vec2 off, inv, mirrorPx;
@@ -150,7 +188,10 @@ void main() {
   gl_FragColor = vec4(c, 1.0);
 }`;
 
-const smooth = (a: number, b: number, v: number): number => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+const smooth = (a: number, b: number, v: number): number => {
+  const t = Math.min(1, Math.max(0, (v - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
 /** Two views the same to the eye: a view that has settled still creeps by far less than this (its ease never quite ends), a move soon adds up past it. */
 const nearly = (a: Matrix4, b: Matrix4): boolean => a.elements.every((x, i) => Math.abs(x - b.elements[i]!) < 1e-4);
 
@@ -186,8 +227,14 @@ export class OutsideView {
   private facade!: FacadeUniforms;
   private steam!: SteamUniforms;
   private haze: HazeUniforms = {
-    hzCol: { value: new Color() }, hzSun: { value: new Color() }, hzDir: { value: new Vector3(0, 1, 0) }, hzDensity: { value: HAZE_DAY }, hzFall: { value: HAZE_FALL },
-    hzMist: { value: new Color() }, hzMistD: { value: 0 }, hzTime: { value: 0 },
+    hzCol: { value: new Color() },
+    hzSun: { value: new Color() },
+    hzDir: { value: new Vector3(0, 1, 0) },
+    hzDensity: { value: HAZE_DAY },
+    hzFall: { value: HAZE_FALL },
+    hzMist: { value: new Color() },
+    hzMistD: { value: 0 },
+    hzTime: { value: 0 },
   };
   private traffic = new Traffic();
   private carLight: CarLight = { night: { value: 0 } };
@@ -241,7 +288,9 @@ export class OutsideView {
   off = new Set<string>();
   parts: Record<string, Object3D[]> = {};
   /** The picture is due for its next draw (each `EVERY` ticks): a frame drawn on demand (docs/render/load.md) draws on this beat. */
-  get due(): boolean { return this.age >= this.every; }
+  get due(): boolean {
+    return this.age >= this.every;
+  }
   /** The ticks between two draws of a still eye (`EVERY`; `LOW_EVERY` at Low). */
   private every = EVERY;
   /** The Low cut of the steam and leaves' clock (`clock`, `detail.ts`): they stand at `STILL_T`. */
@@ -251,12 +300,34 @@ export class OutsideView {
    * The window's quad (room units: its middle, its size, the depth of the glass). `detail`: how much of the city is built (`detail.ts`).
    * `defer`: build only the quad; the caller runs `build` (`make` does, a step at a time).
    */
-  constructor(cx: number, cy: number, w: number, h: number, z: number, readonly detail: CityDetail = 'high', private readonly cuts: CityCuts = cityCuts(detail), defer = false) {
+  constructor(
+    cx: number,
+    cy: number,
+    w: number,
+    h: number,
+    z: number,
+    readonly detail: CityDetail = 'high',
+    private readonly cuts: CityCuts = cityCuts(detail),
+    defer = false,
+  ) {
     this.quad = new ShaderMaterial({
-      vertexShader: QUAD_VERT, fragmentShader: QUAD_FRAG,
+      vertexShader: QUAD_VERT,
+      fragmentShader: QUAD_FRAG,
       uniforms: {
-        tOut: { value: null }, tEnv: { value: this.env.texture }, off: { value: new Vector2() }, inv: { value: new Vector2(1, 1) }, live: { value: 0 }, ss: { value: 1 }, tGlow: { value: null }, glowK: { value: 0 }, tint: { value: new Color(GLASS_T, GLASS_T, GLASS_T) },
-        tMirror: { value: null }, mirrorOf: { value: new Matrix4() }, mirrorK: { value: 0 }, mirrorPx: { value: new Vector2() }, glassN: { value: new Vector3(0, 0, 1) },
+        tOut: { value: null },
+        tEnv: { value: this.env.texture },
+        off: { value: new Vector2() },
+        inv: { value: new Vector2(1, 1) },
+        live: { value: 0 },
+        ss: { value: 1 },
+        tGlow: { value: null },
+        glowK: { value: 0 },
+        tint: { value: new Color(GLASS_T, GLASS_T, GLASS_T) },
+        tMirror: { value: null },
+        mirrorOf: { value: new Matrix4() },
+        mirrorK: { value: 0 },
+        mirrorPx: { value: new Vector2() },
+        glassN: { value: new Vector3(0, 0, 1) },
       },
     });
     this.mesh = new Mesh(new PlaneGeometry(w, h), this.quad);
@@ -270,7 +341,12 @@ export class OutsideView {
       if (live) this.sight.begin(r.getContext() as QueryGL);
     };
     this.mesh.onAfterRender = (r) => this.sight.end(r.getContext() as QueryGL);
-    if (!defer) { const run = this.build(); while (!run.next().done) { /* every step in a row */ } }
+    if (!defer) {
+      const run = this.build();
+      while (!run.next().done) {
+        /* every step in a row */
+      }
+    }
   }
 
   /**
@@ -278,7 +354,8 @@ export class OutsideView {
    * the baked textures load (`make`), and `build` takes it in place of building it. The same geometry as `build` makes.
    */
   private *massing(): Generator<void> {
-    const blocks = buildings(), washes: SignWash[] = [];
+    const blocks = buildings(),
+      washes: SignWash[] = [];
     this.early = { blocks, washes, rings: yield* massSteps(blocks, washes, this.cuts.far ? 'low' : 'high') };
   }
 
@@ -295,28 +372,38 @@ export class OutsideView {
     const on = (c: boolean): CityDetail => (c ? 'low' : 'high');
     this.every = cuts.cadence ? LOW_EVERY : EVERY;
     this.clockCut = cuts.clock;
-    const k = this.kit = makeKit(), ts = trees();
-    const still = new Group(), st = street(k, ts, on(cuts.streets), on(cuts.furniture));
+    const k = (this.kit = makeKit()),
+      ts = trees();
+    const still = new Group(),
+      st = street(k, ts, on(cuts.streets), on(cuts.furniture));
     still.add(st.group);
     // (with the palette cut the plain materials, which differ only in colour and shine, are palette meshes; each is swept like the plain ones, or it would draw whole)
     yield { label: 'Merging the streets', share: 0.2 };
     const palette: Material[] = [];
     if (cuts.palette) {
       mergePalette(still);
-      still.traverse((o) => { if (o.name === 'merged') palette.push((o as Mesh).material as Material); });
+      still.traverse((o) => {
+        if (o.name === 'merged') palette.push((o as Mesh).material as Material);
+      });
     }
     const cell = cuts.streets ? LOW_CELL : undefined;
-    this.sweeps.push(...(cuts.palette
-      ? [...sweptMerge(still, palette, cell, ['_pc', '_prm']), ...sweptMerge(still, [k.lantern], cell)]
-      : sweptMerge(still, [k.paint, k.yellow, k.iron, k.post, k.soil, k.lantern, k.trim, k.kerb], cell)));
+    this.sweeps.push(
+      ...(cuts.palette
+        ? [...sweptMerge(still, palette, cell, ['_pc', '_prm']), ...sweptMerge(still, [k.lantern], cell)]
+        : sweptMerge(still, [k.paint, k.yellow, k.iron, k.post, k.soil, k.lantern, k.trim, k.kerb], cell)),
+    );
     mergeStatic(still);
     // (no steam with the steam cut: a plume is a draw for a few roofs)
     // the lamps the window looks at: the buildings take them as an analytic term at Low (`lowfacade.ts`), the street takes them as PointLights
     const lampAt = [...st.lights].sort((a, b) => a.distanceTo(LAMPS_AT) - b.distanceTo(LAMPS_AT)).slice(0, LIT_LAMPS);
-    const lowFac = cuts.facade ? lowFacadeMaterial(lampAt) : null, facade = lowFac ?? facadeMaterial();
+    const lowFac = cuts.facade ? lowFacadeMaterial(lampAt) : null,
+      facade = lowFac ?? facadeMaterial();
     this.lowLamps = lowFac?.lamps ?? null;
     yield { label: 'Raising the towers', share: 0.4 };
-    const early = this.early, blocks = early?.blocks ?? buildings(), washes: SignWash[] = early?.washes ?? [], steam = cuts.steam ? null : roofSteam(blocks, this.haze);
+    const early = this.early,
+      blocks = early?.blocks ?? buildings(),
+      washes: SignWash[] = early?.washes ?? [],
+      steam = cuts.steam ? null : roofSteam(blocks, this.haze);
     const mass = (early?.rings ?? massGeometries(blocks, washes, on(cuts.far))).map((r) => {
       const m = new Mesh(r.geometry, facade.mat);
       m.castShadow = m.receiveShadow = true;
@@ -335,10 +422,18 @@ export class OutsideView {
     this.leaf = plants.leaf;
     this.scene.add(...plants.meshes);
     // (`?debug` layers: the streets with the land under them, the buildings, the trees: each hides alone)
-    this.parts = { streets: [still, ground], buildings: [...mass], trees: [...plants.meshes], steam: steam ? [steam.mesh] : [], signs: [signLight] };
+    this.parts = {
+      streets: [still, ground],
+      buildings: [...mass],
+      trees: [...plants.meshes],
+      steam: steam ? [steam.mesh] : [],
+      signs: [signLight],
+    };
     yield { label: 'Painting the sky', share: 0.9 };
     // the cars, moving and parked, and the signals' lamps
-    this.fleet = cuts.fleet ? new Fleet(this.traffic, parked(), this.carLight, this.haze, LOW_FLEET, 1) : new Fleet(this.traffic, parked(), this.carLight, this.haze);
+    this.fleet = cuts.fleet
+      ? new Fleet(this.traffic, parked(), this.carLight, this.haze, LOW_FLEET, 1)
+      : new Fleet(this.traffic, parked(), this.carLight, this.haze);
     this.signals = new Signals(st.signals);
     this.scene.add(this.fleet.group, this.signals.mesh);
     this.parts.cars = [this.fleet.group, this.signals.mesh];
@@ -355,12 +450,19 @@ export class OutsideView {
     for (const m of [k.asphalt, k.paving, k.kerb]) withLampLight(m, this.lampLight);
     for (const m of [k.asphalt, k.paving, k.kerb, k.paint, k.yellow, ...palette]) withCanyon(m);
     this.disposables.push(...palette);
-    this.scene.traverse((o) => { for (const m of [(o as Mesh).material ?? []].flat()) withHaze(m, this.haze); });
+    this.scene.traverse((o) => {
+      for (const m of [(o as Mesh).material ?? []].flat()) withHaze(m, this.haze);
+    });
 
     // the lights: the sun (its shadow over the near blocks), our tower's light thrown back, the lamps the window looks at
     this.sun.shadow.camera.near = 10;
     this.sun.shadow.camera.far = 3200;
-    Object.assign(this.sun.shadow.camera, { left: -SHADOW_HALF, right: SHADOW_HALF, top: SHADOW_HALF, bottom: -SHADOW_HALF });
+    Object.assign(this.sun.shadow.camera, {
+      left: -SHADOW_HALF,
+      right: SHADOW_HALF,
+      top: SHADOW_HALF,
+      bottom: -SHADOW_HALF,
+    });
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.04;
     this.sun.shadow.autoUpdate = false;
@@ -382,7 +484,13 @@ export class OutsideView {
    * first, in slices with `turn` between, while `until` (the baked textures) loads, and the first step waits for `until`.
    */
   static async make(
-    cx: number, cy: number, w: number, h: number, z: number, detail: CityDetail, between: (label: string, share: number) => Promise<void>,
+    cx: number,
+    cy: number,
+    w: number,
+    h: number,
+    z: number,
+    detail: CityDetail,
+    between: (label: string, share: number) => Promise<void>,
     early?: { until: Promise<void>; turn: () => Promise<void> },
   ): Promise<OutsideView> {
     const view = new OutsideView(cx, cy, w, h, z, detail, cityCuts(detail), true);
@@ -399,14 +507,17 @@ export class OutsideView {
 
   /** The sun's shadow map at `level` of the graphics settings. */
   setShadows(level: number): void {
-    const size = SHADOW_LEVELS[level] ?? 0, sh = this.sun.shadow;
+    const size = SHADOW_LEVELS[level] ?? 0,
+      sh = this.sun.shadow;
     this.sun.castShadow = size > 0;
-    if (sh.mapSize.x !== size || !size) { sh.map?.dispose(); sh.map = null; }
+    if (sh.mapSize.x !== size || !size) {
+      sh.map?.dispose();
+      sh.map = null;
+    }
     if (size) sh.mapSize.set(size, size);
     sh.radius = 2;
     this.sunMap.ask();
   }
-
 
   /** The hour's sky and light (a few times a game hour), the clouds' drift and the wind every frame. */
   frame(hour: number, t: number): void {
@@ -426,11 +537,22 @@ export class OutsideView {
     if (key === this.key) return;
     this.key = key;
     this.envDirty = true;
-    const s = skyAt(hour), day = daylight(hour), night = 1 - day, sd = sunOutside(hour), lift = 1 + 0.1 * day, dusk = duskShare(hour), duskK = duskLight(hour);
-    const dark = smooth(0.6, 1, night), gone = Math.min(1, Math.max(0, 1.25 - day * 1.6));
+    const s = skyAt(hour),
+      day = daylight(hour),
+      night = 1 - day,
+      sd = sunOutside(hour),
+      lift = 1 + 0.1 * day,
+      dusk = duskShare(hour),
+      duskK = duskLight(hour);
+    const dark = smooth(0.6, 1, night),
+      gone = Math.min(1, Math.max(0, 1.25 - day * 1.6));
     // the room's table warms its horizon for hours round the warm hour; out here the bands see to that, and until they come the air stays clear
     const clear = smooth(6.4, 8, hour) * (1 - smooth(17.6, 19, hour));
-    const top = new Color(s.top).multiplyScalar(lift).lerp(NIGHT_TOP, dark), hor = new Color(s.hor).lerp(HOR_CLEAR, clear * 0.9).multiplyScalar(lift).lerp(NIGHT_HOR, dark);
+    const top = new Color(s.top).multiplyScalar(lift).lerp(NIGHT_TOP, dark),
+      hor = new Color(s.hor)
+        .lerp(HOR_CLEAR, clear * 0.9)
+        .multiplyScalar(lift)
+        .lerp(NIGHT_HOR, dark);
     u.top.value.copy(top);
     u.hor.value.copy(hor);
     u.sunDir.value.set(sd[0], sd[1], sd[2]);
@@ -439,7 +561,8 @@ export class OutsideView {
     u.dusk.value = dusk;
     u.duskK.value = duskK;
     // the sun's light: white overhead, a burning orange low down; gone under the horizon
-    const low = 1 - smooth(0.1, 0.75, sd[1]), up = smooth(-0.03, 0.12, sd[1]);
+    const low = 1 - smooth(0.1, 0.75, sd[1]),
+      up = smooth(-0.03, 0.12, sd[1]);
     const sunCol = new Color(0xfff4e2).lerp(SUN_LOW, low * 0.85);
     u.sunCol.value.copy(sunCol).multiplyScalar(day);
     this.sun.color.copy(sunCol);
@@ -453,8 +576,12 @@ export class OutsideView {
     this.scene.environmentIntensity = 1;
     // the haze: the horizon's colour by day (at the warm hour the sky's own low down, the view's way), the sun's light in it toward the sun, the
     // city's glow at night, the low mist lit by the streets as the lamps come on
-    const side = 0.5 - 0.5 * sd[2] / Math.max(Math.hypot(sd[0], sd[2]), 1e-3);
-    const hz = this.haze, warm = new Color().copy(EARTH_SHADOW).lerp(DUSK_ROSE, side * side).multiplyScalar(duskK * DUSK_HAZE);
+    const side = 0.5 - (0.5 * sd[2]) / Math.max(Math.hypot(sd[0], sd[2]), 1e-3);
+    const hz = this.haze,
+      warm = new Color()
+        .copy(EARTH_SHADOW)
+        .lerp(DUSK_ROSE, side * side)
+        .multiplyScalar(duskK * DUSK_HAZE);
     u.glow.value.copy(CITY_GLOW).multiplyScalar(night);
     hz.hzCol.value.copy(hor).multiplyScalar(0.95).lerp(warm, dusk).add(u.glow.value);
     hz.hzSun.value.copy(sunCol).multiplyScalar(0.45 * day * up);
@@ -476,7 +603,11 @@ export class OutsideView {
     this.facade.sunCol.value.copy(sunCol).multiplyScalar(day * up);
     this.facade.hor.value.copy(hor).lerp(hz.hzCol.value, dusk);
     // the roofs' steam: the haze's colour with the sun on it, at night the mist's, warm low down from the streets
-    this.steam.stCol.value.copy(hz.hzCol.value).multiplyScalar(1.2).add(new Color().copy(sunCol).multiplyScalar(0.3 * day * up)).lerp(new Color().copy(MIST).multiplyScalar(1.5), lights);
+    this.steam.stCol.value
+      .copy(hz.hzCol.value)
+      .multiplyScalar(1.2)
+      .add(new Color().copy(sunCol).multiplyScalar(0.3 * day * up))
+      .lerp(new Color().copy(MIST).multiplyScalar(1.5), lights);
     this.steam.stLow.value.copy(this.steam.stCol.value).multiplyScalar(0.72).lerp(STEAM_LOW, lights);
     this.leaf.night.value = lights;
     this.carLight.night.value = lights;
@@ -492,64 +623,123 @@ export class OutsideView {
    * the multisampling of the frame's scene target.
    */
   draw(renderer: WebGLRenderer, room: Scene, camera: PerspectiveCamera, samples: number): void {
-    if (!outsideDraws(!!this.mesh.parent, this.mesh.visible)) { this.live = null; this.age = 0; return; }
+    if (!outsideDraws(!!this.mesh.parent, this.mesh.visible)) {
+      this.live = null;
+      this.age = 0;
+      return;
+    }
     camera.updateMatrixWorld();
     this.mesh.updateWorldMatrix(true, false);
-    const size = renderer.getDrawingBufferSize(new Vector2()), fw = size.x, fh = size.y;
+    const size = renderer.getDrawingBufferSize(new Vector2()),
+      fw = size.x,
+      fh = size.y;
     this.eyeNow.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
-    const frame = `${fw}x${fh}x${samples}`, moved = frame !== this.eyeFrame || !nearly(this.eyeNow, this.eye);
-    if (moved) { this.eye.copy(this.eyeNow); this.eyeFrame = frame; }
+    const frame = `${fw}x${fh}x${samples}`,
+      moved = frame !== this.eyeFrame || !nearly(this.eyeNow, this.eye);
+    if (moved) {
+      this.eye.copy(this.eyeNow);
+      this.eyeFrame = frame;
+    }
     if (this.sightCanvas !== renderer.domElement) {
       // a lost context takes the query with it (see `Sight.lose`)
       this.unwatch();
-      const el = this.sightCanvas = renderer.domElement;
+      const el = (this.sightCanvas = renderer.domElement);
       this.sightGl = renderer.getContext() as QueryGL;
       el.addEventListener('webglcontextlost', this.onLost);
       el.addEventListener('webglcontextrestored', this.onRestored);
     }
     this.sight.frame(renderer.getContext() as QueryGL, moved);
     // the eye sees no window, and has not moved: the picture stands as it is, ready when something moves off the window
-    if (this.sight.hidden && this.live === camera) { this.age = 0; return; }
+    if (this.sight.hidden && this.live === camera) {
+      this.age = 0;
+      return;
+    }
     const shown = this.live === camera;
     this.live = null;
     // the window's box on screen, and how near its nearest corner is
-    const p = (this.mesh.geometry as PlaneGeometry).parameters, v = new Vector3(), view = new Vector4();
-    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, nearest = Infinity, behind = false;
-    for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
-      v.set((sx * p.width) / 2, (sy * p.height) / 2, 0).applyMatrix4(this.mesh.matrixWorld).applyMatrix4(camera.matrixWorldInverse);
-      if (-v.z < camera.near) { behind = true; continue; }
+    const p = (this.mesh.geometry as PlaneGeometry).parameters,
+      v = new Vector3(),
+      view = new Vector4();
+    let x0 = Infinity,
+      y0 = Infinity,
+      x1 = -Infinity,
+      y1 = -Infinity,
+      nearest = Infinity,
+      behind = false;
+    for (const [sx, sy] of [
+      [-1, -1],
+      [1, -1],
+      [1, 1],
+      [-1, 1],
+    ] as const) {
+      v.set((sx * p.width) / 2, (sy * p.height) / 2, 0)
+        .applyMatrix4(this.mesh.matrixWorld)
+        .applyMatrix4(camera.matrixWorldInverse);
+      if (-v.z < camera.near) {
+        behind = true;
+        continue;
+      }
       nearest = Math.min(nearest, -v.z);
       view.set(v.x, v.y, v.z, 1).applyMatrix4(camera.projectionMatrix);
-      const nx = view.x / view.w, ny = view.y / view.w;
-      x0 = Math.min(x0, nx); x1 = Math.max(x1, nx); y0 = Math.min(y0, ny); y1 = Math.max(y1, ny);
+      const nx = view.x / view.w,
+        ny = view.y / view.w;
+      x0 = Math.min(x0, nx);
+      x1 = Math.max(x1, nx);
+      y0 = Math.min(y0, ny);
+      y1 = Math.max(y1, ny);
     }
-    if (behind) { x0 = y0 = -1; x1 = y1 = 1; nearest = 0; }
-    const rx = Math.max(0, Math.floor(((x0 + 1) / 2) * fw) - 2), rr = Math.min(fw, Math.ceil(((x1 + 1) / 2) * fw) + 2);
-    const ry = Math.max(0, Math.floor(((1 - y1) / 2) * fh) - 2), rb = Math.min(fh, Math.ceil(((1 - y0) / 2) * fh) + 2);
-    if (rr - rx < 1 || rb - ry < 1) { this.age = 0; return; }
+    if (behind) {
+      x0 = y0 = -1;
+      x1 = y1 = 1;
+      nearest = 0;
+    }
+    const rx = Math.max(0, Math.floor(((x0 + 1) / 2) * fw) - 2),
+      rr = Math.min(fw, Math.ceil(((x1 + 1) / 2) * fw) + 2);
+    const ry = Math.max(0, Math.floor(((1 - y1) / 2) * fh) - 2),
+      rb = Math.min(fh, Math.ceil(((1 - y0) / 2) * fh) + 2);
+    if (rr - rx < 1 || rb - ry < 1) {
+      this.age = 0;
+      return;
+    }
     // the eye has held (nearly) still since the picture was drawn: it stands for a few ticks (`EVERY`, counted by `frame`)
-    const b = this.box, drift = behind ? (moved ? Infinity : 0) : Math.max(Math.abs(x0 - b.x) * fw, Math.abs(x1 - b.z) * fw, Math.abs(y0 - b.y) * fh, Math.abs(y1 - b.w) * fh) / 2;
-    if (shown && frame === this.boxFrame && drift < HOLD_PX && this.age < this.every) { this.live = camera; return; }
+    const b = this.box,
+      drift = behind
+        ? moved
+          ? Infinity
+          : 0
+        : Math.max(Math.abs(x0 - b.x) * fw, Math.abs(x1 - b.z) * fw, Math.abs(y0 - b.y) * fh, Math.abs(y1 - b.w) * fh) /
+          2;
+    if (shown && frame === this.boxFrame && drift < HOLD_PX && this.age < this.every) {
+      this.live = camera;
+      return;
+    }
     this.age = 0;
     b.set(x0, y0, x1, y1);
     this.boxFrame = frame;
     // the picture's target, supersampled (then at most 2 samples each; City 1x draws it at 1 pixel, the same samples): within one scale it only
     // grows, so a flight does not make a new one each frame; a change of scale (the `flat` toggle) takes the size it needs, and frees the old
-    const ss = samples > 0 && !this.off.has('flat') ? SUPER : 1, ms = Math.min(samples, 2), rw = (rr - rx) * ss, rh = (rb - ry) * ss;
+    const ss = samples > 0 && !this.off.has('flat') ? SUPER : 1,
+      ms = Math.min(samples, 2),
+      rw = (rr - rx) * ss,
+      rh = (rb - ry) * ss;
     let t = this.target;
     if (!t || this.targetSS !== ss || t.width < rw || t.height < rh || t.samples !== ms) {
       const same = !!t && this.targetSS === ss;
-      const w = same ? Math.max(rw, t!.width) : rw, h = same ? Math.max(rh, t!.height) : rh;
+      const w = same ? Math.max(rw, t!.width) : rw,
+        h = same ? Math.max(rh, t!.height) : rh;
       t?.dispose();
       t = this.target = new WebGLRenderTarget(w, h, { type: HalfFloatType, samples: ms });
       this.targetSS = ss;
       this.quad.uniforms.tOut!.value = t.texture;
     }
     // the camera outside: the room camera's place in metres, its turn, its lens, cropped to the box
-    const c = this.cam, wp = camera.getWorldPosition(new Vector3());
+    const c = this.cam,
+      wp = camera.getWorldPosition(new Vector3());
     c.position.set(...toOutside(wp.x, wp.y, wp.z));
     camera.getWorldQuaternion(c.quaternion);
-    c.fov = camera.fov; c.aspect = camera.aspect; c.zoom = camera.zoom;
+    c.fov = camera.fov;
+    c.aspect = camera.aspect;
+    c.zoom = camera.zoom;
     c.near = Math.min(100, Math.max(0.03, (nearest / M) * 0.95));
     c.far = 20000;
     c.setViewOffset(fw * ss, fh * ss, rx * ss, ry * ss, rw, rh);
@@ -573,7 +763,9 @@ export class OutsideView {
       this.sun.target.updateMatrixWorld();
       this.sun.shadow.updateMatrices(this.sun);
       const sc = this.sun.shadow.camera;
-      also = this.sunBox.setFromProjectionMatrix(this.sunOf.multiplyMatrices(sc.projectionMatrix, sc.matrixWorldInverse));
+      also = this.sunBox.setFromProjectionMatrix(
+        this.sunOf.multiplyMatrices(sc.projectionMatrix, sc.matrixWorldInverse),
+      );
     }
     if (shadowNow || this.cutAll || !nearly(this.seenOf, this.cutOf)) {
       for (const s of this.sweeps) s.cut(seen, also);
@@ -640,7 +832,12 @@ export class OutsideView {
    */
   startPrograms(r: WebGLRenderer, room?: Scene): Program[] {
     this.standEnv(r);
-    return [...startPrograms(r, this.scene, this.cam), ...startShadowPrograms(r, this.scene, this.cam), ...startPrograms(r, this.envScene, this.cam), ...(room ? this.mirror.startPrograms(r, room) : [])];
+    return [
+      ...startPrograms(r, this.scene, this.cam),
+      ...startShadowPrograms(r, this.scene, this.cam),
+      ...startPrograms(r, this.envScene, this.cam),
+      ...(room ? this.mirror.startPrograms(r, room) : []),
+    ];
   }
 
   /**
@@ -676,7 +873,10 @@ export class OutsideView {
     this.mirror.dispose();
     this.signals.mesh.dispose();
     (this.signals.mesh.material as Material).dispose();
-    for (const s of [this.scene, this.envScene]) s.traverse((o) => { if ((o as Mesh).isMesh) (o as Mesh).geometry.dispose(); });
+    for (const s of [this.scene, this.envScene])
+      s.traverse((o) => {
+        if ((o as Mesh).isMesh) (o as Mesh).geometry.dispose();
+      });
     this.mesh.geometry.dispose();
     this.sky.dispose();
     for (const m of this.disposables) m.dispose();

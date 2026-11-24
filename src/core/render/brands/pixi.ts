@@ -24,12 +24,24 @@ export interface BrandSpriteOpts extends LockupOpts {
 function canvasFor(w: number, h: number): ReturnType<typeof layer> | null {
   if (typeof document === 'undefined' && typeof OffscreenCanvas === 'undefined') return null;
   const l = layer(w, h);
-  const real = (typeof HTMLCanvasElement !== 'undefined' && l.cv instanceof HTMLCanvasElement) || (typeof OffscreenCanvas !== 'undefined' && l.cv instanceof OffscreenCanvas);
+  const real =
+    (typeof HTMLCanvasElement !== 'undefined' && l.cv instanceof HTMLCanvasElement) ||
+    (typeof OffscreenCanvas !== 'undefined' && l.cv instanceof OffscreenCanvas);
   return real ? l : null;
 }
 
-export function brandSprite(id: BrandId, x: number, y: number, h: number, ink: string, o: BrandSpriteOpts = {}): Sprite {
-  const px = o.px ?? brandPx(h), pad = 4, align = o.align ?? 'center', w = lockupWidth(id, px, o);
+export function brandSprite(
+  id: BrandId,
+  x: number,
+  y: number,
+  h: number,
+  ink: string,
+  o: BrandSpriteOpts = {},
+): Sprite {
+  const px = o.px ?? brandPx(h),
+    pad = 4,
+    align = o.align ?? 'center',
+    w = lockupWidth(id, px, o);
   const key = JSON.stringify([id, ink, o.acc, o.cap, o.mark, o.word, o.text, px]);
   let tex = cache.get(key);
   if (!tex) {
@@ -44,7 +56,8 @@ export function brandSprite(id: BrandId, x: number, y: number, h: number, ink: s
     tex = Texture.from(l.cv as HTMLCanvasElement);
     cache.set(key, tex);
   }
-  const s = new Sprite(tex), ax = pad + (align === 'center' ? w / 2 : align === 'right' ? w : 0);
+  const s = new Sprite(tex),
+    ax = pad + (align === 'center' ? w / 2 : align === 'right' ? w : 0);
   s.anchor.set(ax / tex.width, 0.5);
   s.scale.set(h / px);
   s.position.set(x, y);

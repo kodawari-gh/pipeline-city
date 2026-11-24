@@ -8,11 +8,14 @@ import type { Grid, Pt, Rect } from '../../cpu/render/core/cpuplan';
 
 export type NpuBlockKind =
   // the host side: the PCIe link, and the registers the CPU writes
-  | 'host' | 'ctl'
+  | 'host'
+  | 'ctl'
   // the command processor's descriptor queue
   | 'desc'
   // the datapath: tile registers, the systolic array, the bias and relu stage after it
-  | 'tiles' | 'array' | 'post'
+  | 'tiles'
+  | 'array'
+  | 'post'
   // card memory
   | 'cardmem';
 

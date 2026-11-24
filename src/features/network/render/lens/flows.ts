@@ -3,22 +3,45 @@
 // cyan comet that runs along the line toward the machine, results that go out are violet comets that run back; the faster the link, the faster and closer the comets. With
 // the link up and nothing moving, a faint slow trickle shows it lives. A line that is out (the lead unplugged, the link down) pulses red and does not move. The lines are
 // drawn with the depth test, lifted a little toward the eye (a cable is seen where it runs, and goes behind what stands in front of it).
-import { AdditiveBlending, DoubleSide, Float32BufferAttribute, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, ShaderMaterial, type PerspectiveCamera } from 'three';
+import {
+  AdditiveBlending,
+  DoubleSide,
+  Float32BufferAttribute,
+  InstancedBufferAttribute,
+  InstancedBufferGeometry,
+  Mesh,
+  ShaderMaterial,
+  type PerspectiveCamera,
+} from 'three';
 import { seedOf } from '@/features/board/render/three/power/flows';
 import type { NetDraw, NetShape } from './shape';
 
 /** The brightness of the lines over the picture. */
 const STRENGTH = 1.0;
 /** Speed (units a second) and gap between comets (units) at the foot and the top of the speed scale. */
-const SPEED_LO = 1400, SPEED_HI = 5600, GAP_LO = 1700, GAP_HI = 900;
+const SPEED_LO = 1400,
+  SPEED_HI = 5600,
+  GAP_LO = 1700,
+  GAP_HI = 900;
 
 /** The strips of some lines, as the buffers of a mesh: each strip's two ends (the fourth number: the arc length along its line), its width, its seed and its lift. */
-export interface NetStrips { a: Float32Array; b: Float32Array; look: Float32Array; n: number; first: Int32Array; count: Int32Array }
+export interface NetStrips {
+  a: Float32Array;
+  b: Float32Array;
+  look: Float32Array;
+  n: number;
+  first: Int32Array;
+  count: Int32Array;
+}
 export function netStrips(shape: NetShape): NetStrips {
   const lines = shape.lines;
   let cap = 0;
   for (const l of lines) cap += Math.max(0, l.pts.length - 1);
-  const a = new Float32Array(4 * cap), b = new Float32Array(4 * cap), look = new Float32Array(4 * cap), first = new Int32Array(lines.length), count = new Int32Array(lines.length);
+  const a = new Float32Array(4 * cap),
+    b = new Float32Array(4 * cap),
+    look = new Float32Array(4 * cap),
+    first = new Int32Array(lines.length),
+    count = new Int32Array(lines.length);
   let k = 0;
   lines.forEach((l, i) => {
     first[i] = k;
@@ -26,7 +49,9 @@ export function netStrips(shape: NetShape): NetStrips {
     const seed = seedOf(`${l.id}${i}`);
     let s = 0;
     for (let j = 1; j < l.pts.length; j++) {
-      const p = l.pts[j - 1]!, q = l.pts[j]!, len = Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]);
+      const p = l.pts[j - 1]!,
+        q = l.pts[j]!,
+        len = Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]);
       if (!(len > 1e-3)) continue;
       a.set([p[0], p[1], p[2], s], 4 * k);
       b.set([q[0], q[1], q[2], s + len], 4 * k);
@@ -39,7 +64,7 @@ export function netStrips(shape: NetShape): NetStrips {
   return { a, b, look, n: k, first, count };
 }
 
-const VERT = /* glsl */`
+const VERT = /* glsl */ `
 attribute vec2 corner;
 attribute vec4 iA, iB, iLook;
 attribute vec3 iState;
@@ -71,7 +96,7 @@ void main() {
   vSeed = iLook.y;
 }`;
 
-const FRAG = /* glsl */`
+const FRAG = /* glsl */ `
 uniform float uT, uClock, uStrength;
 varying float vS, vAcross, vDown, vUp, vState, vSeed;
 const vec3 DOWN = vec3(0.22, 0.80, 1.0);
@@ -137,7 +162,14 @@ export class NetFlows {
     this.geo.instanceCount = s.n;
     this.mat = new ShaderMaterial({
       // (added to the picture: two strips that overlap at a bend, or the strands of a lead at its plug, add up; both faces, a strip's winding turns with its run's way)
-      vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, depthTest: true, blending: AdditiveBlending, toneMapped: false, side: DoubleSide,
+      vertexShader: VERT,
+      fragmentShader: FRAG,
+      transparent: true,
+      depthWrite: false,
+      depthTest: true,
+      blending: AdditiveBlending,
+      toneMapped: false,
+      side: DoubleSide,
       uniforms: { uPixel: { value: 0.002 }, uT: { value: 0 }, uClock: { value: 0 }, uStrength: { value: STRENGTH } },
     });
     this.mesh = new Mesh(this.geo, this.mat);
@@ -149,9 +181,14 @@ export class NetFlows {
 
   /** A new snapshot: each strip's pace and state. */
   set(draw: NetDraw): void {
-    const st = this.state, s = this.s;
+    const st = this.state,
+      s = this.s;
     this.shape.lines.forEach((_, i) => {
-      for (let k = s.first[i]!, e = k + s.count[i]!; k < e; k++) { st[3 * k] = draw.down[i]!; st[3 * k + 1] = draw.up[i]!; st[3 * k + 2] = draw.state[i]!; }
+      for (let k = s.first[i]!, e = k + s.count[i]!; k < e; k++) {
+        st[3 * k] = draw.down[i]!;
+        st[3 * k + 1] = draw.up[i]!;
+        st[3 * k + 2] = draw.state[i]!;
+      }
     });
     this.attr.needsUpdate = true;
   }
@@ -166,7 +203,9 @@ export class NetFlows {
   }
 
   /** How many strips are drawn, for the check tool. */
-  get strips(): number { return this.s.n; }
+  get strips(): number {
+    return this.s.n;
+  }
 
   dispose(): void {
     this.mesh.removeFromParent();

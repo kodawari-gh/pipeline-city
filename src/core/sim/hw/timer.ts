@@ -1,12 +1,12 @@
 // Interval timer (docs/OS.md "Preemption"): counts CPU cycles and raises the TIMER interrupt line every INTERVAL cycles. The preemptive
 // OS programs it and runs its scheduler in the handler. Off by default; counting is in CPU cycles, so it is deterministic.
 
-import { IRQ, TIMER_BASE, TIMER_REG, TIMER_SIZE } from "../memmap";
-import type { Device } from "./device";
-import type { Intc } from "./intc";
+import { IRQ, TIMER_BASE, TIMER_REG, TIMER_SIZE } from '../memmap';
+import type { Device } from './device';
+import type { Intc } from './intc';
 
 export class Timer implements Device {
-  readonly name = "timer";
+  readonly name = 'timer';
   readonly base = TIMER_BASE;
   readonly size = TIMER_SIZE;
   /** Cycles between interrupts; 0 = off. */
@@ -40,13 +40,20 @@ export class Timer implements Device {
   }
 
   write(off: number, val: number): void {
-    const reg = off & ~3, k = off & 3;
+    const reg = off & ~3,
+      k = off & 3;
     const next = (((this.bytes.get(reg) ?? 0) & ~(0xff << (8 * k))) | ((val & 0xff) << (8 * k))) >>> 0;
     this.bytes.set(reg, next);
     if (k !== 3) return;
     this.bytes.delete(reg);
-    if (reg === TIMER_REG.INTERVAL) { this.interval = next; this.count = 0; }
-    else if (reg === TIMER_REG.KICK) { this.count = 0; this.fired++; this.intc.raise(IRQ.TIMER); }
+    if (reg === TIMER_REG.INTERVAL) {
+      this.interval = next;
+      this.count = 0;
+    } else if (reg === TIMER_REG.KICK) {
+      this.count = 0;
+      this.fired++;
+      this.intc.raise(IRQ.TIMER);
+    }
   }
 
   tick(): void {}

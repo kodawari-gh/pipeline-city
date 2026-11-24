@@ -57,7 +57,9 @@ describe('file choice for pitched cues', () => {
   });
 
   it('level 13 picks the same file as level 1', () => {
-    expect(pickFile(cue('payout'), keyPcForLevel(13), new Map())).toEqual(pickFile(cue('payout'), keyPcForLevel(1), new Map()));
+    expect(pickFile(cue('payout'), keyPcForLevel(13), new Map())).toEqual(
+      pickFile(cue('payout'), keyPcForLevel(1), new Map()),
+    );
   });
 
   it('every file picked for levels 1 to 13 exists under public/audio', () => {

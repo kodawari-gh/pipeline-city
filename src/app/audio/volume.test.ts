@@ -17,15 +17,27 @@ const dB = (d: number): number => Math.pow(10, d / 20);
 /** A Storage stand-in: a Map behind getItem / setItem / removeItem. */
 class FakeStorage {
   items = new Map<string, string>();
-  getItem(k: string): string | null { return this.items.get(k) ?? null; }
-  setItem(k: string, v: string): void { this.items.set(k, String(v)); }
-  removeItem(k: string): void { this.items.delete(k); }
+  getItem(k: string): string | null {
+    return this.items.get(k) ?? null;
+  }
+  setItem(k: string, v: string): void {
+    this.items.set(k, String(v));
+  }
+  removeItem(k: string): void {
+    this.items.delete(k);
+  }
 }
 /** A storage that throws on every call, as a blocked or private window does. */
 class BlockedStorage {
-  getItem(): string | null { throw new Error('blocked'); }
-  setItem(): void { throw new Error('blocked'); }
-  removeItem(): void { throw new Error('blocked'); }
+  getItem(): string | null {
+    throw new Error('blocked');
+  }
+  setItem(): void {
+    throw new Error('blocked');
+  }
+  removeItem(): void {
+    throw new Error('blocked');
+  }
 }
 
 const all = (v: number): Volumes => ({ master: v, music: v, sounds: v, ambience: v, muted: false });
@@ -144,7 +156,10 @@ describe('persistence (per device, outside the save)', () => {
 
   it('a stored value off the step or out of range is read snapped and clamped', () => {
     const store = new FakeStorage();
-    store.setItem(MIX.sliders.storageKey, JSON.stringify({ master: 250, music: 42, sounds: -5, ambience: 100, muted: false }));
+    store.setItem(
+      MIX.sliders.storageKey,
+      JSON.stringify({ master: 250, music: 42, sounds: -5, ambience: 100, muted: false }),
+    );
     expect(readVolumes(store)).toEqual({ master: 100, music: 40, sounds: 0, ambience: 100, muted: false });
   });
 

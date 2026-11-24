@@ -43,8 +43,14 @@ function snapOf(cfg: EngineConfig, cycles: number): PipeSnap {
 }
 
 /** Play `seconds` of game time from `from`, a frame at a time (60 a second), and give what the replay told. */
-function play(t: DieTraffic, from: number, seconds: number, paused = false): { touches: MemoryTouch[]; irqs: number[] } {
-  const touches: MemoryTouch[] = [], irqs: number[] = [];
+function play(
+  t: DieTraffic,
+  from: number,
+  seconds: number,
+  paused = false,
+): { touches: MemoryTouch[]; irqs: number[] } {
+  const touches: MemoryTouch[] = [],
+    irqs: number[] = [];
   t.onMemory = (e) => touches.push(e);
   t.onInterrupt = (line) => irqs.push(line);
   for (let now = from; now < from + seconds * 1000; now += 1000 / 60) t.frame(now, paused);
@@ -75,11 +81,20 @@ describe.each(ENGINES)('DieTraffic: $name core', ({ cfg }) => {
 
   it('tells the loads and the stores of the loop, at the addresses the engine used', () => {
     const { touches } = play(make(), 1000, SECONDS);
-    const loads = touches.filter((x) => x.kind === 'load'), stores = touches.filter((x) => x.kind === 'store');
+    const loads = touches.filter((x) => x.kind === 'load'),
+      stores = touches.filter((x) => x.kind === 'store');
     expect(loads.length).toBeGreaterThan(0);
     expect(stores.length).toBeGreaterThan(0);
-    for (const l of loads) { expect(l.addr).toBeGreaterThanOrEqual(BASE); expect((l.addr - BASE) % 16).toBe(0); expect(l.cls).toBe('ld'); }
-    for (const s of stores) { expect(s.addr).toBeGreaterThanOrEqual(BASE); expect((s.addr - BASE - 4) % 16).toBe(0); expect(s.cls).toBe('st'); }
+    for (const l of loads) {
+      expect(l.addr).toBeGreaterThanOrEqual(BASE);
+      expect((l.addr - BASE) % 16).toBe(0);
+      expect(l.cls).toBe('ld');
+    }
+    for (const s of stores) {
+      expect(s.addr).toBeGreaterThanOrEqual(BASE);
+      expect((s.addr - BASE - 4) % 16).toBe(0);
+      expect(s.cls).toBe('st');
+    }
   });
 
   it('puts every reach at or after the frame that tells it, never before', () => {
@@ -117,7 +132,10 @@ describe.each(ENGINES)('DieTraffic: $name core', ({ cfg }) => {
   });
 
   it('is the same every time it is played', () => {
-    const run = () => play(make(), 1000, SECONDS).touches.map((x) => `${x.kind}:${x.addr}:${Math.round(x.at)}`).join('|');
+    const run = () =>
+      play(make(), 1000, SECONDS)
+        .touches.map((x) => `${x.kind}:${x.addr}:${Math.round(x.at)}`)
+        .join('|');
     expect(run()).toBe(run());
   });
 
@@ -148,11 +166,19 @@ describe('fetchTouch and accessTouch', () => {
 
 describe('DieTraffic on a multicore die', () => {
   const cfg: EngineConfig = { kind: 'inorder', forwarding: true, cacheLines: 8 };
-  const live = (core: number, hw: number, parked: boolean, job: number): CoreLive => ({ core, hw, parked, job, thread: 0 });
+  const live = (core: number, hw: number, parked: boolean, job: number): CoreLive => ({
+    core,
+    hw,
+    parked,
+    job,
+    thread: 0,
+  });
   const make = (lives: CoreLive[]) => {
     const t = new DieTraffic();
     t.setPlan(cpuPlan(planInput(cfg, { cores: 2, l2Lines: 32 })));
-    t.update({ cores: { selected: 0, live: lives, tiles: [snapOf(cfg, 120), snapOf(cfg, 150)] } } as unknown as Snapshot);
+    t.update({
+      cores: { selected: 0, live: lives, tiles: [snapOf(cfg, 120), snapOf(cfg, 150)] },
+    } as unknown as Snapshot);
     return t;
   };
 

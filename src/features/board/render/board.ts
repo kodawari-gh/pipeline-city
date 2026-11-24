@@ -3,11 +3,22 @@
 import type { FlyOpts } from '@/core/render/camera';
 
 /** Screen rectangle of a world object, for popups and tutorial pointers (see `anchorOf`). */
-export interface Anchor { x: number; y: number; w: number; h: number; visible: boolean }
+export interface Anchor {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  visible: boolean;
+}
 /** The world as the 3D renderer answers for it (`board3d.ts`): the same anchors and flights, from its own scene and camera. */
-export interface WorldAnchors { anchorsOf(id: string): Anchor[]; flyTo(id: string, opts: FlyOpts): boolean }
+export interface WorldAnchors {
+  anchorsOf(id: string): Anchor[];
+  flyTo(id: string, opts: FlyOpts): boolean;
+}
 let world3d: WorldAnchors | null = null;
-export function setWorldAnchors(w: WorldAnchors | null): void { world3d = w; }
+export function setWorldAnchors(w: WorldAnchors | null): void {
+  world3d = w;
+}
 
 /** Every screen rectangle of a world id: for a loose cable its plug, then the sockets that take it. */
 export function anchorsOf(id: string): Anchor[] {

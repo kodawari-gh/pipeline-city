@@ -4,8 +4,12 @@ import { disposeTree, fanSides, rectBox, worldUv } from './geometry';
 
 /** The uvs of the box's face toward +z (BoxGeometry's fifth face) at its four corners, by corner position (x, y). */
 function front(o: ReturnType<typeof rectBox>): Map<string, [number, number]> {
-  const g = o.geometry, p = g.getAttribute('position'), uv = g.getAttribute('uv'), m = new Map<string, [number, number]>();
-  for (let i = 16; i < 20; i++) m.set(`${p.getX(i) + o.position.x},${p.getY(i) + o.position.y}`, [uv.getX(i), uv.getY(i)]);
+  const g = o.geometry,
+    p = g.getAttribute('position'),
+    uv = g.getAttribute('uv'),
+    m = new Map<string, [number, number]>();
+  for (let i = 16; i < 20; i++)
+    m.set(`${p.getX(i) + o.position.x},${p.getY(i) + o.position.y}`, [uv.getX(i), uv.getY(i)]);
   return m;
 }
 
@@ -32,7 +36,9 @@ describe('disposeTree', () => {
     const mat = new MeshBasicMaterial();
     mat.envMap = tex;
     let disposed = 0;
-    tex.addEventListener('dispose', () => { disposed++; });
+    tex.addEventListener('dispose', () => {
+      disposed++;
+    });
     const mesh = rectBox({ x: 0, y: 0, w: 10, h: 10 }, 0, 10, mat);
     scene.add(mesh);
     disposeTree(scene);

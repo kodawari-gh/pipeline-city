@@ -41,10 +41,58 @@ export type RouterPlan = NetPlan<RouterBlockKind, RouterLinkKind, RouterPlanInpu
  * (tiers 1 and 2) and the rack ears of the edge router (`router3d.ts`); its board carries the rest (`routerboard3d.ts`).
  */
 export const ROUTER_PARTS: Record<number, RouterPlanInput> = {
-  1: { tier: 1, soc: 'RL-R110', cores: 1, mhz: 400, engine: 'NAT ENGINE', std: '100BASE-TX', lan: 4, dram: { mb: 64, kind: 'DDR2', chips: 1 }, flash: { mb: 8, kind: 'SPI NOR' }, radio: { bands: '2.4 GHz', aerials: 2 }, inlet: 'DC 12 V jack' },
-  2: { tier: 2, soc: 'RL-R210', cores: 2, mhz: 880, engine: 'NAT ENGINE', std: '1000BASE-T', lan: 4, dram: { mb: 256, kind: 'DDR3', chips: 2 }, flash: { mb: 16, kind: 'SPI NOR' }, radio: { bands: '2.4 + 5 GHz', aerials: 2 }, inlet: 'DC 12 V jack' },
-  3: { tier: 3, soc: 'RL-R510', cores: 4, mhz: 1400, engine: 'FORWARDING ASIC', std: '10GBASE-T', lan: 4, dram: { mb: 1024, kind: 'DDR4', chips: 2 }, flash: { mb: 128, kind: 'NAND' }, radio: null, inlet: 'DC 19 V jack' },
-  4: { tier: 4, soc: 'RL-R740', cores: 8, mhz: 2000, engine: 'FORWARDING ASIC', std: '40GBASE-CR4', lan: 4, dram: { mb: 8192, kind: 'DDR4 ECC', chips: 4 }, flash: { mb: 512, kind: 'NAND' }, radio: null, inlet: 'mains inlet' },
+  1: {
+    tier: 1,
+    soc: 'RL-R110',
+    cores: 1,
+    mhz: 400,
+    engine: 'NAT ENGINE',
+    std: '100BASE-TX',
+    lan: 4,
+    dram: { mb: 64, kind: 'DDR2', chips: 1 },
+    flash: { mb: 8, kind: 'SPI NOR' },
+    radio: { bands: '2.4 GHz', aerials: 2 },
+    inlet: 'DC 12 V jack',
+  },
+  2: {
+    tier: 2,
+    soc: 'RL-R210',
+    cores: 2,
+    mhz: 880,
+    engine: 'NAT ENGINE',
+    std: '1000BASE-T',
+    lan: 4,
+    dram: { mb: 256, kind: 'DDR3', chips: 2 },
+    flash: { mb: 16, kind: 'SPI NOR' },
+    radio: { bands: '2.4 + 5 GHz', aerials: 2 },
+    inlet: 'DC 12 V jack',
+  },
+  3: {
+    tier: 3,
+    soc: 'RL-R510',
+    cores: 4,
+    mhz: 1400,
+    engine: 'FORWARDING ASIC',
+    std: '10GBASE-T',
+    lan: 4,
+    dram: { mb: 1024, kind: 'DDR4', chips: 2 },
+    flash: { mb: 128, kind: 'NAND' },
+    radio: null,
+    inlet: 'DC 19 V jack',
+  },
+  4: {
+    tier: 4,
+    soc: 'RL-R740',
+    cores: 8,
+    mhz: 2000,
+    engine: 'FORWARDING ASIC',
+    std: '40GBASE-CR4',
+    lan: 4,
+    dram: { mb: 8192, kind: 'DDR4 ECC', chips: 4 },
+    flash: { mb: 512, kind: 'NAND' },
+    radio: null,
+    inlet: 'mains inlet',
+  },
 };
 export const routerInput = (tier: number): RouterPlanInput => ROUTER_PARTS[tier] ?? ROUTER_PARTS[1]!;
 
@@ -58,27 +106,40 @@ type Opt = Partial<Spec<K>> & { f?: number; px?: number };
 const L = (id: K, label: string, o: Opt = {}): N => leaf<K>(id, id, label, o);
 
 type W = [id: string, kind: RouterLinkKind, from: string, to: string, lanes?: 1 | 2 | 3 | 4];
-const wires = (a: W[]): WireSpec<RouterLinkKind>[] => a.map(([id, kind, from, to, lanes]) => ({ id, kind, from, to, ...(lanes ? { lanes } : {}) }));
+const wires = (a: W[]): WireSpec<RouterLinkKind>[] =>
+  a.map(([id, kind, from, to, lanes]) => ({ id, kind, from, to, ...(lanes ? { lanes } : {}) }));
 
 /** A memory size in words: 64 MB, 1 GB. */
 export const fmtSize = (mb: number): string => (mb >= 1024 ? `${+(mb / 1024).toFixed(1)} GB` : `${mb} MB`);
 
 function build(i: RouterPlanInput): { tree: N; specs: WireSpec<RouterLinkKind>[] } {
-  const soc: Spec<K> = { id: 'soc', kind: 'soc', label: `${i.soc} SoC`, sub: `${i.cores} core${i.cores === 1 ? '' : 's'} · ${i.mhz} MHz` };
-  const tree = col<K>([
-    row<K>([
-      L('wanmac', 'WAN MAC', { sub: 'the line side: the plan\'s address', f: 1 }),
-      L('cpu', 'CPU', { sub: 'runs the firmware', f: 1.15 }),
-      L('mem', 'MEMORY CTRL', { sub: `${fmtSize(i.dram.mb)} ${i.dram.kind}`, f: 0.95 }),
-    ], { f: 1 }),
-    row<K>([
-      L('pkt', i.engine, { sub: 'finds the client of each frame: the NAT table', f: 1 }),
-    ], { f: 1.5 }),
-    row<K>([
-      L('sw', 'LAN SWITCH', { sub: `${i.lan} ports, ${i.std}`, f: 1.25 }),
-      L('stat', 'TRAFFIC', { sub: 'what the router carries now', f: 1 }),
-    ], { f: 1 }),
-  ], { f: 1, frame: soc, pad: 8, title: 22 });
+  const soc: Spec<K> = {
+    id: 'soc',
+    kind: 'soc',
+    label: `${i.soc} SoC`,
+    sub: `${i.cores} core${i.cores === 1 ? '' : 's'} · ${i.mhz} MHz`,
+  };
+  const tree = col<K>(
+    [
+      row<K>(
+        [
+          L('wanmac', 'WAN MAC', { sub: "the line side: the plan's address", f: 1 }),
+          L('cpu', 'CPU', { sub: 'runs the firmware', f: 1.15 }),
+          L('mem', 'MEMORY CTRL', { sub: `${fmtSize(i.dram.mb)} ${i.dram.kind}`, f: 0.95 }),
+        ],
+        { f: 1 },
+      ),
+      row<K>([L('pkt', i.engine, { sub: 'finds the client of each frame: the NAT table', f: 1 })], { f: 1.5 }),
+      row<K>(
+        [
+          L('sw', 'LAN SWITCH', { sub: `${i.lan} ports, ${i.std}`, f: 1.25 }),
+          L('stat', 'TRAFFIC', { sub: 'what the router carries now', f: 1 }),
+        ],
+        { f: 1 },
+      ),
+    ],
+    { f: 1, frame: soc, pad: 8, title: 22 },
+  );
   const specs: W[] = [
     ['wanmac-pkt', 'data', 'wanmac', 'pkt', 3],
     ['cpu-pkt', 'control', 'cpu', 'pkt', 2],
@@ -92,6 +153,15 @@ function build(i: RouterPlanInput): { tree: N; specs: WireSpec<RouterLinkKind>[]
 
 /** The floorplan of the SoC of the router of `tier`. */
 export function routerPlan(tier: number): RouterPlan {
-  const i = routerInput(tier), { tree, specs } = build(i);
-  return layPlan<K, RouterLinkKind, RouterPlanInput>(`routerdie|${i.tier}`, i, ROUTER_DIE, M, tree, specs, 'routerplan');
+  const i = routerInput(tier),
+    { tree, specs } = build(i);
+  return layPlan<K, RouterLinkKind, RouterPlanInput>(
+    `routerdie|${i.tier}`,
+    i,
+    ROUTER_DIE,
+    M,
+    tree,
+    specs,
+    'routerplan',
+  );
 }

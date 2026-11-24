@@ -11,11 +11,16 @@ export function moveFocus(count: number, at: number, key: string): number {
   if (count <= 0) return -1;
   const on = at >= 0 && at < count;
   switch (key) {
-    case 'ArrowDown': return on ? (at + 1) % count : 0;
-    case 'ArrowUp': return on ? (at - 1 + count) % count : count - 1;
-    case 'Home': return 0;
-    case 'End': return count - 1;
-    default: return at;
+    case 'ArrowDown':
+      return on ? (at + 1) % count : 0;
+    case 'ArrowUp':
+      return on ? (at - 1 + count) % count : count - 1;
+    case 'Home':
+      return 0;
+    case 'End':
+      return count - 1;
+    default:
+      return at;
   }
 }
 
@@ -26,9 +31,12 @@ export function moveFocus(count: number, at: number, key: string): number {
 export function cycleValue(count: number, at: number, key: string): number {
   if (count <= 0) return -1;
   switch (key) {
-    case 'ArrowRight': return (at + 1 + count) % count;
-    case 'ArrowLeft': return (at - 1 + count) % count;
-    default: return at;
+    case 'ArrowRight':
+      return (at + 1 + count) % count;
+    case 'ArrowLeft':
+      return (at - 1 + count) % count;
+    default:
+      return at;
   }
 }
 

@@ -77,14 +77,15 @@ describe('fonts are preloaded', () => {
     const main = read('src/app/main.tsx');
     const tags = [...html.matchAll(/<link\b[^>]*>/g)].map((m) => m[0]);
     // Attribute order does not matter: each attribute is read on its own.
-    const attr = (tag: string, name: string): string | undefined =>
-      tag.match(new RegExp(`\\s${name}="([^"]*)"`))?.[1];
+    const attr = (tag: string, name: string): string | undefined => tag.match(new RegExp(`\\s${name}="([^"]*)"`))?.[1];
     for (const base of ['IBMPlexSansCondensed-SemiBold', 'IBMPlexMono-Medium']) {
-      const inHtml = tags.some((tag) =>
-        attr(tag, 'rel') === 'preload'
-        && attr(tag, 'as') === 'font'
-        && /\scrossorigin\b/.test(tag)
-        && (attr(tag, 'href') ?? '').includes(base));
+      const inHtml = tags.some(
+        (tag) =>
+          attr(tag, 'rel') === 'preload' &&
+          attr(tag, 'as') === 'font' &&
+          /\scrossorigin\b/.test(tag) &&
+          (attr(tag, 'href') ?? '').includes(base),
+      );
       const inMain = main.includes('preload') && main.includes(base);
       expect(inHtml || inMain, `preload for ${base}`).toBe(true);
     }

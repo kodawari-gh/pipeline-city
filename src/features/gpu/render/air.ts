@@ -8,10 +8,14 @@ export const gpuAir: AirSource = {
   id: 'gpu',
   kinds: ['gpu'],
   heat: (c) => deviceHeat(['gpu'], 'gpu', 'GPU', c),
-  fans: (c) => c.s.devices.filter((d) => d.kind === 'gpu').flatMap((d): AirFan[] => {
-    const r = c.slots.get(d.slot), visual = getSpec(d.spec)?.visual;
-    if (!r || !visual) return [];
-    const o = cardOrigin(Number(/\d+$/.exec(d.slot)?.[0] ?? 0), visual);
-    return [{ id: `gpu:${d.slot}`, rect: r, edge: gpuPlan(visual).fans.map((f) => moveRect(f, o)) }];
-  }),
+  fans: (c) =>
+    c.s.devices
+      .filter((d) => d.kind === 'gpu')
+      .flatMap((d): AirFan[] => {
+        const r = c.slots.get(d.slot),
+          visual = getSpec(d.spec)?.visual;
+        if (!r || !visual) return [];
+        const o = cardOrigin(Number(/\d+$/.exec(d.slot)?.[0] ?? 0), visual);
+        return [{ id: `gpu:${d.slot}`, rect: r, edge: gpuPlan(visual).fans.map((f) => moveRect(f, o)) }];
+      }),
 };

@@ -3,8 +3,18 @@ import type { StorageCmd } from '../sim/storage';
 import { channelOf, DiskPlayer, dieOf, scriptFor, stepAt, trackAt, turnLeft } from './diskplayer';
 import { diskPlan } from './diskfloor';
 
-const cmd = (o: Partial<StorageCmd> = {}): StorageCmd => ({ seq: 1, op: 'r', lba: 100, seek: 0, xfer: 4, queued: 0, ...o });
-const SATA = diskPlan('ssd-sata', 520, 344, 64), NVME = diskPlan('ssd-nvme', 700, 300, 64), HDD = diskPlan('hdd', 640, 444, 48);
+const cmd = (o: Partial<StorageCmd> = {}): StorageCmd => ({
+  seq: 1,
+  op: 'r',
+  lba: 100,
+  seek: 0,
+  xfer: 4,
+  queued: 0,
+  ...o,
+});
+const SATA = diskPlan('ssd-sata', 520, 344, 64),
+  NVME = diskPlan('ssd-nvme', 700, 300, 64),
+  HDD = diskPlan('hdd', 640, 444, 48);
 
 describe('the script of a command', () => {
   it('a flash read goes host, controller, map, channel, die, back up the channel, out to the host', () => {
@@ -19,7 +29,8 @@ describe('the script of a command', () => {
   });
 
   it('a write carries its data on the way in and only a status on the way back', () => {
-    const r = scriptFor('ssd-sata', SATA, cmd({ op: 'w' }), 0, 512), steps = r.steps;
+    const r = scriptFor('ssd-sata', SATA, cmd({ op: 'w' }), 0, 512),
+      steps = r.steps;
     expect(steps.filter((x) => x.data).map((x) => x.kind)).toEqual(['cmd', 'lookup', 'send']);
     expect(steps.find((x) => x.kind === 'lookup')!.links[0]!.rev).toBe(false); // into the cache
     const rd = scriptFor('ssd-sata', SATA, cmd(), 0, 512);
@@ -45,13 +56,18 @@ describe('the script of a command', () => {
     expect(sk.dur).toBeGreaterThan(far.total * 0.3);
     expect(far.toTrack).toBeGreaterThan(0);
     expect(far.steps.find((x) => x.kind === 'media')!.links[0]).toEqual({ id: 'ctrl-pre', rev: true }); // a read: preamp to controller
-    expect(scriptFor('hdd', HDD, cmd({ op: 'w' }), 0, 512).steps.find((x) => x.kind === 'media')!.links[0]!.rev).toBe(false);
+    expect(scriptFor('hdd', HDD, cmd({ op: 'w' }), 0, 512).steps.find((x) => x.kind === 'media')!.links[0]!.rev).toBe(
+      false,
+    );
   });
 
   it('steps are in order, fill the total exactly, and the arm glides from the old track to the new', () => {
     const s = scriptFor('hdd', HDD, cmd({ lba: 480, seek: 200, xfer: 70 }), 0, 512);
     let at = 0;
-    for (const x of s.steps) { expect(x.at).toBeCloseTo(at, 6); at += x.dur; }
+    for (const x of s.steps) {
+      expect(x.at).toBeCloseTo(at, 6);
+      at += x.dur;
+    }
     expect(at).toBeCloseTo(s.total, 6);
     const seek = s.steps.find((x) => x.kind === 'seek')!;
     expect(trackAt(s, 0)).toBe(0);
@@ -91,7 +107,13 @@ describe('the player', () => {
   it('plays the commands one after another, and skips the oldest when too many wait', () => {
     const p = new DiskPlayer();
     p.ingest('ssd-sata', SATA, [], 512, 0);
-    p.ingest('ssd-sata', SATA, Array.from({ length: 12 }, (_, i) => cmd({ seq: i + 1, lba: i * 8 })), 512, 0);
+    p.ingest(
+      'ssd-sata',
+      SATA,
+      Array.from({ length: 12 }, (_, i) => cmd({ seq: i + 1, lba: i * 8 })),
+      512,
+      0,
+    );
     p.step(1);
     expect(p.now!.script.cmd.seq).toBe(8); // seqs 1-7 were skipped
   });

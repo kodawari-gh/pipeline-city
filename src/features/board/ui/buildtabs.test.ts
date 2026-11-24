@@ -13,7 +13,9 @@ import * as urlMod from 'node:url';
 const hook = vi.hoisted(() => ({ ref: null as unknown, fx: [] as (() => void)[] }));
 vi.mock('preact/hooks', () => ({
   useEffect: () => {},
-  useLayoutEffect: (f: () => void) => { hook.fx.push(f); },
+  useLayoutEffect: (f: () => void) => {
+    hook.fx.push(f);
+  },
   useRef: () => ({ current: hook.ref }),
   useState: (v: unknown) => [v, () => {}],
   useMemo: (f: () => unknown) => f(),
@@ -79,7 +81,10 @@ function propsOf(tree: Node, type: unknown, name: string): Record<string, any> {
 
 describe('Build rail: every part kind is reachable (ticket #41)', () => {
   // (the kinds BuildMode passes today: the studio's kinds without the monitor and the network kinds, then the network kinds)
-  const current = () => [...STUDIO_KINDS.filter((k) => k !== 'display' && !(NET_KINDS as readonly string[]).includes(k)), ...NET_KINDS];
+  const current = () => [
+    ...STUDIO_KINDS.filter((k) => k !== 'display' && !(NET_KINDS as readonly string[]).includes(k)),
+    ...NET_KINDS,
+  ];
 
   it('the shelf rail offers every kind the current Build rail offers, and no more', () => {
     const tree = BuildMode() as unknown as Node;
@@ -103,7 +108,9 @@ describe('Build rail: every part kind is reachable (ticket #41)', () => {
 
 describe('Build lens rail and actions (ticket #41)', () => {
   it('the lens rail holds Power, Airflow and Graphics, and no Settings', () => {
-    const labels = buttons(ViewOptions({ ready: true, stage: null, onBench: () => {} }) as unknown as Node).map((b) => b.text);
+    const labels = buttons(ViewOptions({ ready: true, stage: null, onBench: () => {} }) as unknown as Node).map(
+      (b) => b.text,
+    );
     expect(labels.join(' ')).toMatch(/Power/);
     expect(labels.join(' ')).toMatch(/Airflow/);
     expect(labels.some((t) => /Graphics/.test(t))).toBe(true);
@@ -111,9 +118,13 @@ describe('Build lens rail and actions (ticket #41)', () => {
   });
 
   it('Graphics is in the lens rail, not in the Foot tools bar, and it opens a dialog (Settings)', () => {
-    const footLabels = buttons(Foot({ stage: null, hint: '', onOs: () => {}, pane: 'parts', onPane: () => {} }) as unknown as Node).map((b) => b.text);
+    const footLabels = buttons(
+      Foot({ stage: null, hint: '', onOs: () => {}, pane: 'parts', onPane: () => {} }) as unknown as Node,
+    ).map((b) => b.text);
     expect(footLabels.some((t) => /Graphics/.test(t))).toBe(false);
-    const gfx = buttons(ViewOptions({ ready: true, stage: null, onBench: () => {} }) as unknown as Node).find((b) => /Graphics/.test(b.text));
+    const gfx = buttons(ViewOptions({ ready: true, stage: null, onBench: () => {} }) as unknown as Node).find((b) =>
+      /Graphics/.test(b.text),
+    );
     expect(gfx?.el.props['aria-haspopup']).toBe('dialog');
   });
 
@@ -130,13 +141,16 @@ const urlOf = (rel: string): string => urlMod.fileURLToPath(new URL(rel, import.
 /** The pieces the part card keeps out from under: the selectors of BuildMode's `avoid` list, read from its source. */
 function avoidList(): string[] {
   const src: string = fs.readFileSync(urlOf('./BuildMode.tsx'), 'utf8');
-  const list = /const avoid = \(\) => \[([^\]]*)\]/.exec(src)?.[1] ?? '';
+  const list = /const avoid = \(\) =>\s*\[([^\]]*)\]/.exec(src)?.[1] ?? '';
   return (list.match(/'[^']+'/g) ?? []).map((s) => s.slice(1, -1));
 }
 
 /** The class each rule of ui.css ends on, for the rules that set `display: contents` and are not desk-only (so they apply on the phone). */
 function contentsOnPhone(): string[] {
-  const css: string = (fs.readFileSync(urlOf('../../../core/ui/ui.css'), 'utf8') as string).replace(/\/\*[\s\S]*?\*\//g, '');
+  const css: string = (fs.readFileSync(urlOf('../../../core/ui/ui.css'), 'utf8') as string).replace(
+    /\/\*[\s\S]*?\*\//g,
+    '',
+  );
   const out: string[] = [];
   const rule = /([^{}]+)\{([^{}]*)\}/g;
   let m: RegExpExecArray | null;
@@ -144,7 +158,13 @@ function contentsOnPhone(): string[] {
     if (!/display\s*:\s*contents/.test(m[2] ?? '')) continue;
     for (const sel of (m[1] ?? '').split(',')) {
       if (/data-layout="desk"/.test(sel)) continue;
-      out.push(sel.trim().split(/\s+|>|\+|~/).filter(Boolean).pop() ?? '');
+      out.push(
+        sel
+          .trim()
+          .split(/\s+|>|\+|~/)
+          .filter(Boolean)
+          .pop() ?? '',
+      );
     }
   }
   return out;
@@ -167,25 +187,35 @@ describe('the part card stays on the phone screen (ticket #41)', () => {
     const { DEVICE_SPECS } = await import('@/features/board/sim/specs');
     const spec = Object.keys(DEVICE_SPECS)[0]!;
     const size = { w: 300, h: 220 };
-    const el = { offsetWidth: size.w, offsetHeight: size.h, dataset: {} as Record<string, string>, style: { transform: '', setProperty: () => {} } as any };
-    const box = (left: number, top: number, right: number, bottom: number) => ({ getBoundingClientRect: () => ({ left, top, right, bottom }) }) as unknown as HTMLElement;
+    const el = {
+      offsetWidth: size.w,
+      offsetHeight: size.h,
+      dataset: {} as Record<string, string>,
+      style: { transform: '', setProperty: () => {} } as any,
+    };
+    const box = (left: number, top: number, right: number, bottom: number) =>
+      ({ getBoundingClientRect: () => ({ left, top, right, bottom }) }) as unknown as HTMLElement;
     vi.stubGlobal('window', { innerWidth: 390, innerHeight: 844 });
     vi.stubGlobal('document', { documentElement: {} });
     vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
     try {
       const stage: any = {
-        viewRev: { value: 0 }, status: { value: { rev: 0, busy: false } },
+        viewRev: { value: 0 },
+        status: { value: { rev: 0, busy: false } },
         board: { devices: [{ id: 'd1', spec, slot: 's' }] },
         anchorOf: () => ({ x: 180, y: 400, w: 30, h: 30 }),
-        plan: () => [], select: () => {},
+        plan: () => [],
+        select: () => {},
       };
-      hook.fx.length = 0; hook.ref = el;
+      hook.fx.length = 0;
+      hook.ref = el;
       // the top bar and the bottom bar together cover the whole height, so the free strip is empty
       BuildCard({ stage, id: 'd1', avoid: () => [box(0, 0, 390, 800), box(0, 700, 390, 844)] });
       hook.fx.forEach((f) => f());
       const m = /translate\((-?\d+)px, (-?\d+)px\)/.exec(el.style.transform);
       expect(m, `no transform: ${el.style.transform}`).not.toBeNull();
-      const x = Number(m![1]), y = Number(m![2]);
+      const x = Number(m![1]),
+        y = Number(m![2]);
       expect(x).toBeGreaterThanOrEqual(0);
       expect(y).toBeGreaterThanOrEqual(0);
       expect(x + size.w).toBeLessThanOrEqual(390);
@@ -198,9 +228,16 @@ describe('the part card stays on the phone screen (ticket #41)', () => {
 });
 
 describe('Power on agrees with the click path (ticket #41)', () => {
-  const stageOf = (on: boolean, calls: string[]): any => ({ state: { value: { on } }, simSpeed: { value: 1 }, power: () => calls.push('power'), skip: () => calls.push('skip') });
+  const stageOf = (on: boolean, calls: string[]): any => ({
+    state: { value: { on } },
+    simSpeed: { value: 1 },
+    power: () => calls.push('power'),
+    skip: () => calls.push('skip'),
+  });
   const powerBtn = (busy: boolean, on: boolean, calls: string[] = []) =>
-    buttons(RunControls({ stage: stageOf(on, calls), busy, bare: false }) as unknown as Node).find((b) => /^Power (on|off)$/.test(b.text))!;
+    buttons(RunControls({ stage: stageOf(on, calls), busy, bare: false }) as unknown as Node).find((b) =>
+      /^Power (on|off)$/.test(b.text),
+    )!;
 
   it('while a step plays and the machine is off, Power on stays enabled, solid, and a click skips the step', () => {
     const calls: string[] = [];
@@ -226,7 +263,11 @@ describe('the Build screen has one way out (ticket #41)', () => {
     if (Array.isArray(v)) return v.map(expand);
     if (!v || typeof v !== 'object' || !('props' in v)) return v;
     if (typeof v.type === 'function') {
-      try { return expand((v.type as (p: unknown) => Node)(v.props)); } catch { return null; }
+      try {
+        return expand((v.type as (p: unknown) => Node)(v.props));
+      } catch {
+        return null;
+      }
     }
     return { ...v, props: { ...v.props, children: expand(v.props.children as Node) } };
   };
@@ -234,7 +275,12 @@ describe('the Build screen has one way out (ticket #41)', () => {
 
   it('shows exactly one visible Back or Close control for the screen itself', () => {
     const tree = expand(BuildMode() as unknown as Node);
-    const out = all(tree).filter((el) => el.type === 'button' && /\b(back|close|exit|leave)\b/i.test(leaves(el)) && !/benchmark|OS sheet|card/i.test(leaves(el)));
+    const out = all(tree).filter(
+      (el) =>
+        el.type === 'button' &&
+        /\b(back|close|exit|leave)\b/i.test(leaves(el)) &&
+        !/benchmark|OS sheet|card/i.test(leaves(el)),
+    );
     expect(out.map(leaves)).toHaveLength(1);
   });
 });

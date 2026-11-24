@@ -5,7 +5,19 @@ import { MeshStandardMaterial, Vector3, type BufferGeometry, type Mesh } from 't
 import { describe, expect, it } from 'vitest';
 import { lowOf } from '@/core/render/three/merge';
 import { braidedTube } from './cables3d';
-import { coarse, outlinePts, pads, rivets, screws, shapeOf, slab, thumbscrews, wallCircle, wallX, type Facing } from './casekit3d';
+import {
+  coarse,
+  outlinePts,
+  pads,
+  rivets,
+  screws,
+  shapeOf,
+  slab,
+  thumbscrews,
+  wallCircle,
+  wallX,
+  type Facing,
+} from './casekit3d';
 import { cableMesh } from './wires3d';
 import { guardRing } from './psu3d';
 import { pipe } from './cooler3d';
@@ -36,7 +48,16 @@ describe('the lower detail level of the costly part shapes (LOD-05)', () => {
   });
 
   it('a heat pipe has a level of 24 steps and 6 sides on the same curve', () => {
-    const mesh = pipe([[0, 0, 0], [200, 0, 0], [200, 120, 0], [0, 120, 40]], 12, m);
+    const mesh = pipe(
+      [
+        [0, 0, 0],
+        [200, 0, 0],
+        [200, 120, 0],
+        [0, 120, 40],
+      ],
+      12,
+      m,
+    );
     expectHalf(mesh.geometry, 'pipe');
   });
 
@@ -46,7 +67,11 @@ describe('the lower detail level of the costly part shapes (LOD-05)', () => {
 
   it('an ATX cable (a sleeve of several strands) has a level of half the steps and 6 sides, on the same paths', () => {
     const pts: [number, number, number][] = [0, 1, 2, 3, 4].map((i) => [i * 40, Math.sin(i) * 20, i * 10]);
-    const mesh = cableMesh([pts, pts.map((p): [number, number, number] => [p[0], p[1] + 12, p[2]])], { r: 4, base: '#0c1226', accent: '#464078' });
+    const mesh = cableMesh([pts, pts.map((p): [number, number, number] => [p[0], p[1] + 12, p[2]])], {
+      r: 4,
+      base: '#0c1226',
+      accent: '#464078',
+    });
     expectHalf(mesh.geometry, 'cableMesh');
     expect(Object.keys(lowOf(mesh.geometry)!.attributes).sort()).toEqual(Object.keys(mesh.geometry.attributes).sort());
   });
@@ -56,8 +81,15 @@ describe('the lower detail level of the costly part shapes (LOD-05)', () => {
   });
 
   it('a coarse outline keeps its size: a small rounded corner becomes a chamfer, a wide round keeps its points, a circle two thirds of them', () => {
-    const size = (p: { x: number; y: number }[]) => [Math.min(...p.map((q) => q.x)), Math.max(...p.map((q) => q.x)), Math.min(...p.map((q) => q.y)), Math.max(...p.map((q) => q.y))];
-    const small = outlinePts({ x: 0, y: 0, w: 400, h: 200 }, 20), wide = outlinePts({ x: 0, y: 0, w: 3000, h: 2600 }, 600), circle = wallCircle(0, 0, 1300);
+    const size = (p: { x: number; y: number }[]) => [
+      Math.min(...p.map((q) => q.x)),
+      Math.max(...p.map((q) => q.x)),
+      Math.min(...p.map((q) => q.y)),
+      Math.max(...p.map((q) => q.y)),
+    ];
+    const small = outlinePts({ x: 0, y: 0, w: 400, h: 200 }, 20),
+      wide = outlinePts({ x: 0, y: 0, w: 3000, h: 2600 }, 600),
+      circle = wallCircle(0, 0, 1300);
     expect(coarse(small)).toHaveLength(8);
     expect(size(coarse(small))).toEqual(size(small));
     expect(coarse(wide)).toHaveLength(wide.length);
@@ -74,7 +106,8 @@ describe('the lower detail level of the costly part shapes (LOD-05)', () => {
   });
 
   it('a screw, a rivet, a thumbscrew head and a pad each have a level that turns with them', () => {
-    const spot = [{ x: 10, y: 20, z: 30 }], first = (g: { children: unknown[] }) => (g.children[0] as Mesh).geometry;
+    const spot = [{ x: 10, y: 20, z: 30 }],
+      first = (g: { children: unknown[] }) => (g.children[0] as Mesh).geometry;
     for (const f of ['z+', 'z-', 'x+', 'x-', 'y+', 'y-'] as Facing[]) {
       expectHalf(first(screws(spot, f, 65, m)), `screws ${f}`);
       expectHalf(first(rivets(spot, f, 40, m)), `rivets ${f}`);
@@ -88,8 +121,14 @@ describe('the lower detail level of the costly part shapes (LOD-05)', () => {
   });
 
   it('a label draped over its parts has a level of three times the grain', () => {
-    const bumps = [{ r: { x: 60, y: 50, w: 420, h: 380 }, top: 26, fall: 40 }, { r: { x: 620, y: 50, w: 520, h: 380 }, top: 22, fall: 40 }];
+    const bumps = [
+      { r: { x: 60, y: 50, w: 420, h: 380 }, top: 26, fall: 40 },
+      { r: { x: 620, y: 50, w: 520, h: 380 }, top: 22, fall: 40 },
+    ];
     expectHalf(drape({ x: 0, y: 0, w: 1256, h: 478 }, 0, bumps, m, 24).geometry, 'drape');
-    expect(lowOf(drape({ x: 0, y: 0, w: 1256, h: 478 }, 0, bumps, m, 24, true).geometry), 'the flat label').toBeUndefined();
+    expect(
+      lowOf(drape({ x: 0, y: 0, w: 1256, h: 478 }, 0, bumps, m, 24, true).geometry),
+      'the flat label',
+    ).toBeUndefined();
   });
 });

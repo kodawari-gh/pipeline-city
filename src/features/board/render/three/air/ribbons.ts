@@ -2,8 +2,21 @@
 // the camera, bright and wide at the head and fine at the tail, coloured by its temperature on the thermal scale (`core/render/three/thermal.ts`: the same
 // scale the parts glow by) and added to the picture. A veil under them turns the room cold and dark so the heat reads.
 import {
-  AdditiveBlending, AddEquation, CustomBlending, Group, InstancedBufferAttribute, InstancedBufferGeometry, InstancedInterleavedBuffer, InterleavedBufferAttribute, Float32BufferAttribute,
-  Mesh, PlaneGeometry, ShaderMaterial, SrcColorFactor, ZeroFactor, type PerspectiveCamera,
+  AdditiveBlending,
+  AddEquation,
+  CustomBlending,
+  Group,
+  InstancedBufferAttribute,
+  InstancedBufferGeometry,
+  InstancedInterleavedBuffer,
+  InterleavedBufferAttribute,
+  Float32BufferAttribute,
+  Mesh,
+  PlaneGeometry,
+  ShaderMaterial,
+  SrcColorFactor,
+  ZeroFactor,
+  type PerspectiveCamera,
 } from 'three';
 import { THERMAL_BEND, thermalGlsl } from '@/core/render/three/thermal';
 import { TRAIL, type AirParticles } from './particles';
@@ -13,7 +26,7 @@ const LAST = TRAIL - 1;
 const POINTS = Array.from({ length: TRAIL }, (_, k) => `p${k}`);
 const pick = POINTS.map((p, k) => (k === LAST ? p : `t < ${k}.5 ? ${p} : `)).join('');
 
-const VERT = /* glsl */`
+const VERT = /* glsl */ `
 attribute vec2 corner;
 attribute vec3 ${POINTS.join(', ')};
 attribute vec3 info;
@@ -49,7 +62,7 @@ void main() {
   vWorld = pw;
 }`;
 
-const FRAG = /* glsl */`
+const FRAG = /* glsl */ `
 uniform float uPass, uLo, uHi, uStrength, uCold;
 uniform vec3 uXMin, uXMax;
 varying float vHeat, vAlpha, vEdge, vCore;
@@ -68,9 +81,11 @@ void main() {
 }`;
 
 /** How bright the streaks add to the picture (the colours are the share of it), and the share of it the room's own air keeps. */
-const STRENGTH = 1.3, COLD_SHARE = 0.2;
+const STRENGTH = 1.3,
+  COLD_SHARE = 0.2;
 /** The distance from the eye, in units, where the streaks begin to show and where they are whole (23000 units a metre: 11 cm to 30 cm). */
-const NEAR_FROM = 2500, NEAR_TO = 7000;
+const NEAR_FROM = 2500,
+  NEAR_TO = 7000;
 /** A box no point is inside: the x-ray box when there is none. */
 const NO_BOX: V3 = [1e9, 1e9, 1e9];
 
@@ -85,9 +100,13 @@ export class Ribbons {
 
   constructor(private readonly p: AirParticles) {
     // the strip: TRAIL points, two corners each (the side), triangles between them
-    const corner: number[] = [], index: number[] = [];
+    const corner: number[] = [],
+      index: number[] = [];
     for (let t = 0; t < TRAIL; t++) corner.push(t, -1, t, 1);
-    for (let t = 0; t < TRAIL - 1; t++) { const a = 2 * t; index.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    for (let t = 0; t < TRAIL - 1; t++) {
+      const a = 2 * t;
+      index.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
     this.geo.setAttribute('corner', new Float32BufferAttribute(corner, 2));
     // (`position` is needed for the draw count; the shader does not read it)
     this.geo.setAttribute('position', new Float32BufferAttribute(new Float32Array(TRAIL * 2 * 3), 3));
@@ -100,10 +119,25 @@ export class Ribbons {
     this.geo.instanceCount = 0;
     for (const pass of [0, 1]) {
       const mat = new ShaderMaterial({
-        vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, depthTest: pass === 0, blending: AdditiveBlending, toneMapped: false,
+        vertexShader: VERT,
+        fragmentShader: FRAG,
+        transparent: true,
+        depthWrite: false,
+        depthTest: pass === 0,
+        blending: AdditiveBlending,
+        toneMapped: false,
         uniforms: {
-          uWidth: { value: 62 }, uPixel: { value: 0.002 }, uPass: { value: pass }, uLo: { value: 25 }, uHi: { value: 55 }, uStrength: { value: STRENGTH }, uCold: { value: COLD_SHARE },
-          uNearFrom: { value: NEAR_FROM }, uNearTo: { value: NEAR_TO }, uXMin: { value: [...NO_BOX] }, uXMax: { value: [...NO_BOX].map((v) => -v) },
+          uWidth: { value: 62 },
+          uPixel: { value: 0.002 },
+          uPass: { value: pass },
+          uLo: { value: 25 },
+          uHi: { value: 55 },
+          uStrength: { value: STRENGTH },
+          uCold: { value: COLD_SHARE },
+          uNearFrom: { value: NEAR_FROM },
+          uNearTo: { value: NEAR_TO },
+          uXMin: { value: [...NO_BOX] },
+          uXMax: { value: [...NO_BOX].map((v) => -v) },
         },
       });
       const m = new Mesh(this.geo, mat);
@@ -128,8 +162,13 @@ export class Ribbons {
    * pixels.
    */
   frame(cam: PerspectiveCamera, pxHeight: number, lo: number, hi: number, strength = 1): void {
-    const p = this.p, n = p.count;
-    for (let i = 0; i < n; i++) { this.info[3 * i] = p.T[i]!; this.info[3 * i + 1] = p.A[i]!; this.info[3 * i + 2] = p.K[i]!; }
+    const p = this.p,
+      n = p.count;
+    for (let i = 0; i < n; i++) {
+      this.info[3 * i] = p.T[i]!;
+      this.info[3 * i + 1] = p.A[i]!;
+      this.info[3 * i + 2] = p.K[i]!;
+    }
     this.buf.needsUpdate = true;
     this.infoAttr.needsUpdate = true;
     this.geo.instanceCount = n;
@@ -158,8 +197,15 @@ export function makeVeil(tint: readonly [number, number, number] = [0.13, 0.16, 
   const mat = new ShaderMaterial({
     vertexShader: 'void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }',
     fragmentShader: 'uniform vec3 uTint; void main() { gl_FragColor = vec4(uTint, 1.0); }',
-    uniforms: { uTint: { value: [...tint] } }, transparent: true, depthTest: false, depthWrite: false,
-    blending: CustomBlending, blendEquation: AddEquation, blendSrc: ZeroFactor, blendDst: SrcColorFactor, toneMapped: false,
+    uniforms: { uTint: { value: [...tint] } },
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    blending: CustomBlending,
+    blendEquation: AddEquation,
+    blendSrc: ZeroFactor,
+    blendDst: SrcColorFactor,
+    toneMapped: false,
   });
   const m = new Mesh(new PlaneGeometry(2, 2), mat);
   m.frustumCulled = false;

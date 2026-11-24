@@ -19,48 +19,50 @@ Game.advanceBaseTick()                      one base tick = 1 s of game time at 
 
 ## 2. What the CPU sees
 
-| Thing | How |
-|---|---|
-| Registers | 16 x 32-bit, owned by the `Machine` (`machine.regs`); `x0` reads 0; `sp` starts at the top of RAM |
-| Instruction fetch | a real read through the bus (`bus.load32(pc)`). There is no instruction cache: a fetch takes one cycle. A pc outside RAM or unaligned fetches an illegal word (op 0), a fault only if it reaches execution |
-| RAM | `machine.ram` at address 0 |
-| Data cache | per engine, direct-mapped, tags only; RAM is write-through, no-allocate, so memory is always up to date. A load miss freezes MEM for `missPenalty` cycles. **Only RAM addresses are cached** |
-| Devices | memory-mapped; any address at or above the RAM size goes to the device that owns it. Access is uncached, byte-granular (the bus builds a word from four byte accesses, low byte first), and misaligned or unmapped access throws `RangeError` (a crash in the game) |
-| Stores to devices | happen at the same architectural point as stores to RAM (MEM in the in-order engines, commit in the out-of-order one) and are never speculative |
+| Thing             | How                                                                                                                                                                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Registers         | 16 x 32-bit, owned by the `Machine` (`machine.regs`); `x0` reads 0; `sp` starts at the top of RAM                                                                                                                                                                   |
+| Instruction fetch | a real read through the bus (`bus.load32(pc)`). There is no instruction cache: a fetch takes one cycle. A pc outside RAM or unaligned fetches an illegal word (op 0), a fault only if it reaches execution                                                          |
+| RAM               | `machine.ram` at address 0                                                                                                                                                                                                                                          |
+| Data cache        | per engine, direct-mapped, tags only; RAM is write-through, no-allocate, so memory is always up to date. A load miss freezes MEM for `missPenalty` cycles. **Only RAM addresses are cached**                                                                        |
+| Devices           | memory-mapped; any address at or above the RAM size goes to the device that owns it. Access is uncached, byte-granular (the bus builds a word from four byte accesses, low byte first), and misaligned or unmapped access throws `RangeError` (a crash in the game) |
+| Stores to devices | happen at the same architectural point as stores to RAM (MEM in the in-order engines, commit in the out-of-order one) and are never speculative                                                                                                                     |
 
 Memory map (`src/core/sim/memmap.ts`):
 
-| Range | What |
-|---|---|
-| `0x0000_0000` + RAM size | RAM. The boot ROM is shadowed at 0; `ROM_DONE_VECTOR` 0x10; jobs load at `USER_BASE` 0x1000; the OS header, kernel and job table sit at 0xc000, 0xc100, 0xe000 |
-| `0x4000_0000` | text display |
-| `0x4001_0000` | status registers |
-| `0x4002_0000` | PCH: boot ROM glue, USB host, key and result windows |
-| `0x4003_0000` + k x 0x1000 | storage ports (block devices) |
-| `0x4004_0000`, 0x100 | **interrupt controller** (section 4) |
+| Range                      | What                                                                                                                                                           |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0x0000_0000` + RAM size   | RAM. The boot ROM is shadowed at 0; `ROM_DONE_VECTOR` 0x10; jobs load at `USER_BASE` 0x1000; the OS header, kernel and job table sit at 0xc000, 0xc100, 0xe000 |
+| `0x4000_0000`              | text display                                                                                                                                                   |
+| `0x4001_0000`              | status registers                                                                                                                                               |
+| `0x4002_0000`              | PCH: boot ROM glue, USB host, key and result windows                                                                                                           |
+| `0x4003_0000` + k x 0x1000 | storage ports (block devices)                                                                                                                                  |
+| `0x4004_0000`, 0x100       | **interrupt controller** (section 4)                                                                                                                           |
 
 ## 3. The engine contract
 
 ```ts
 interface Engine {
-  reset(machine, program): void;   // load the program at 0, cold caches and pipeline, pc 0
-  step(): void;                    // one CPU cycle
-  readonly halted, pc, cycle;      // pc = the next instruction to fetch
+  reset(machine, program): void; // load the program at 0, cold caches and pipeline, pc 0
+  step(): void; // one CPU cycle
+  readonly halted;
+  pc;
+  cycle; // pc = the next instruction to fetch
   // interrupt support (optional; all four engines and the reference have it)
-  readonly drained?: boolean;      // nothing in flight
-  holdFetch?(on): void;            // stop fetching new instructions
-  redirect?(pc): void;             // fetch from pc next (only while drained)
+  readonly drained?: boolean; // nothing in flight
+  holdFetch?(on): void; // stop fetching new instructions
+  redirect?(pc): void; // fetch from pc next (only while drained)
 }
 ```
 
 The four timed engines differ in when an instruction becomes architectural, which is what interrupts care about:
 
-| Engine (cpu spec) | Instructions in flight | Registers written | Stores / device writes | Branch resolved | Retired |
-|---|---|---|---|---|---|
-| `unpipelined` (cpu0) | exactly one, 5 cycles | WB | MEM | EX, no penalty | on entering WB |
-| `inorder` (cpu1, cpu2) | up to 5, one per stage | WB | MEM | EX, wrong guess flushes IF and ID (+2 bubbles) | WB |
-| `inorder2` (cpu3) | up to 10 in two lanes, issued as bundles | WB | MEM | EX | WB |
-| `ooo` (cpu4) | fetch queue + decode + ROB (8 entries here) | at commit | **at commit**, in order | when the branch finishes; younger work is squashed | commit, up to `commitWidth` per cycle |
+| Engine (cpu spec)      | Instructions in flight                      | Registers written | Stores / device writes  | Branch resolved                                    | Retired                               |
+| ---------------------- | ------------------------------------------- | ----------------- | ----------------------- | -------------------------------------------------- | ------------------------------------- |
+| `unpipelined` (cpu0)   | exactly one, 5 cycles                       | WB                | MEM                     | EX, no penalty                                     | on entering WB                        |
+| `inorder` (cpu1, cpu2) | up to 5, one per stage                      | WB                | MEM                     | EX, wrong guess flushes IF and ID (+2 bubbles)     | WB                                    |
+| `inorder2` (cpu3)      | up to 10 in two lanes, issued as bundles    | WB                | MEM                     | EX                                                 | WB                                    |
+| `ooo` (cpu4)           | fetch queue + decode + ROB (8 entries here) | at commit         | **at commit**, in order | when the branch finishes; younger work is squashed | commit, up to `commitWidth` per cycle |
 
 Everything an engine does after fetch is invisible to the machine until it is architectural, except two things that cannot be undone: **a store in MEM (in-order) and a load or store to a device**. That is why an interrupt is taken between instructions (section 4) and not by squashing the pipeline: a younger store in MEM has already happened.
 
@@ -78,26 +80,26 @@ The interrupted program does not know. A handler's cost is real: its instruction
 
 Always present at `INTC_BASE` 0x4004_0000. Word registers (`INTC_REG`):
 
-| Offset | Name | Access | Meaning |
-|---|---|---|---|
-| 0x00 | `PENDING` | ro | lines raised and not yet acknowledged (bit n = line n) |
-| 0x04 | `MASK` | rw | lines allowed to interrupt. Reset 0 |
-| 0x08 | `ACK` | wo | write 1-bits to clear those lines in `PENDING` |
-| 0x0c | `VECTOR` | rw | where the CPU jumps |
-| 0x10 | `EPC` | rw | where `iret` returns to |
-| 0x14 | `CAUSE` | ro | the line taken last |
-| 0x18 | `CTRL` | rw | bit0 = interrupts on. Cleared on entry, set by `iret`. Reset 0 |
-| 0x1c | `COUNT` | ro | interrupts taken |
-| 0x20 | `ROW_BASE` | rw | display row base of this core: its display accesses land that many rows lower (reset 0) |
-| 0x24 | `CORE_ID` | ro | the number of the core reading it |
-| 0x28 | `CORES` | ro | how many cores the machine has |
-| 0x2c | `IPI` | wo | a mask of cores; each gets line `IPI` (a core may signal itself; bits past the last core are ignored) |
-| 0x30 | `PARK` | rw | write nonzero: this core stops fetching, what is in its pipeline finishes, then it sleeps until a line that is not masked is pending. Reads 1 while parked |
-| 0x40 + 4n | `ROUTE[n]` | rw | the core that takes device line n, n < 16 (reset 0; a core number that does not exist means 0) |
+| Offset    | Name       | Access | Meaning                                                                                                                                                    |
+| --------- | ---------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0x00      | `PENDING`  | ro     | lines raised and not yet acknowledged (bit n = line n)                                                                                                     |
+| 0x04      | `MASK`     | rw     | lines allowed to interrupt. Reset 0                                                                                                                        |
+| 0x08      | `ACK`      | wo     | write 1-bits to clear those lines in `PENDING`                                                                                                             |
+| 0x0c      | `VECTOR`   | rw     | where the CPU jumps                                                                                                                                        |
+| 0x10      | `EPC`      | rw     | where `iret` returns to                                                                                                                                    |
+| 0x14      | `CAUSE`    | ro     | the line taken last                                                                                                                                        |
+| 0x18      | `CTRL`     | rw     | bit0 = interrupts on. Cleared on entry, set by `iret`. Reset 0                                                                                             |
+| 0x1c      | `COUNT`    | ro     | interrupts taken                                                                                                                                           |
+| 0x20      | `ROW_BASE` | rw     | display row base of this core: its display accesses land that many rows lower (reset 0)                                                                    |
+| 0x24      | `CORE_ID`  | ro     | the number of the core reading it                                                                                                                          |
+| 0x28      | `CORES`    | ro     | how many cores the machine has                                                                                                                             |
+| 0x2c      | `IPI`      | wo     | a mask of cores; each gets line `IPI` (a core may signal itself; bits past the last core are ignored)                                                      |
+| 0x30      | `PARK`     | rw     | write nonzero: this core stops fetching, what is in its pipeline finishes, then it sleeps until a line that is not masked is pending. Reads 1 while parked |
+| 0x40 + 4n | `ROUTE[n]` | rw     | the core that takes device line n, n < 16 (reset 0; a core number that does not exist means 0)                                                             |
 
 **Cores.** With several cores each has its own bank of all of these at the same address (the bus answers for the core it is serving, `bus.core`), except `ROUTE`, which is one table all banks show. A single-core machine has one bank: `CORE_ID` 0, `CORES` 1. `Machine.raise(line)` is what a device calls to reach the routed core; the timer and `IPI` are per core and always go to their own. A parked core does not step, draws idle power and counts `parkedCycles`; it wakes the cycle a masked-in line is pending (the interrupt itself is taken only if `CTRL` has interrupts on, so a core with them off just resumes after the park). A wake that was already pending when the core parked is not lost. Follow a `PARK` write with a jump back to it (an idle loop): the instructions already behind it in the pipeline complete before the sleep, as with any fetch stop. `ROW_BASE` lets several cores print their jobs' lines at once without overwriting each other; the OS sets it when it switches a context in (`src/core/sim/hw/display.ts`: an access pushed off the screen is dropped). See [`MULTICORE.md`](MULTICORE.md) sections 4 and 6.
 
-Lines (`IRQ`): `TIMER` 0, `NIC` 1, `DISK` 2, `USB` 3, `IPI` 4. **The lowest pending, enabled line wins.** Lines are *latched*: a raise stays pending until the handler writes `ACK`. A handler that forgets to acknowledge is entered again the moment `iret` turns interrupts on, which is the real behaviour and a good way to see a bug.
+Lines (`IRQ`): `TIMER` 0, `NIC` 1, `DISK` 2, `USB` 3, `IPI` 4. **The lowest pending, enabled line wins.** Lines are _latched_: a raise stays pending until the handler writes `ACK`. A handler that forgets to acknowledge is entered again the moment `iret` turns interrupts on, which is the real behaviour and a good way to see a bug.
 
 Host side (`Intc`): `raise(line)`, `next()` (the line to take now, or -1), `enter(line, epc, latency)`, `leave()`, `reset()`, and the counters `taken`, `lastLatency`, `maxLatency` (CPU cycles an interrupt waited for the pipeline to empty; for the UI and tuning).
 

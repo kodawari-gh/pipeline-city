@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { assemble } from "../asm";
-import { RefCpu } from "../ref";
-import { Machine } from "@/core/sim";
-import { createEngine, InOrderEngine, UnpipelinedEngine, type EngineConfig } from "./index";
-import { genData, genProgram } from "./testgen";
-import { CONFIGS, firstMemDiff, runEngine, runRef } from "./testutil";
+import { describe, expect, it } from 'vitest';
+import { assemble } from '../asm';
+import { RefCpu } from '../ref';
+import { Machine } from '@/core/sim';
+import { createEngine, InOrderEngine, UnpipelinedEngine, type EngineConfig } from './index';
+import { genData, genProgram } from './testgen';
+import { CONFIGS, firstMemDiff, runEngine, runRef } from './testutil';
 
 const HAND: Record<string, string> = {
   sum: `
@@ -91,7 +91,13 @@ const HAND: Record<string, string> = {
     ecall`,
 };
 
-function expectSame(name: string, src: string, make: () => ReturnType<(typeof CONFIGS)[number]["make"]>, seed: number, chaos: boolean): void {
+function expectSame(
+  name: string,
+  src: string,
+  make: () => ReturnType<(typeof CONFIGS)[number]['make']>,
+  seed: number,
+  chaos: boolean,
+): void {
   const data = genData(seed);
   const ref = runRef(src, data);
   const got = runEngine(make(), src, data, chaos ? { seed: seed + 1, p: 0.15 } : undefined);
@@ -100,10 +106,10 @@ function expectSame(name: string, src: string, make: () => ReturnType<(typeof CO
   expect(got.counters[1], `${name} retired`).toBe(ref.cycles);
 }
 
-describe.each(CONFIGS)("correctness vs reference: $name", ({ make }) => {
+describe.each(CONFIGS)('correctness vs reference: $name', ({ make }) => {
   for (const [name, src] of Object.entries(HAND)) {
     it(`hand-written: ${name}`, () => {
-      if (name === "display") {
+      if (name === 'display') {
         // 0x80000 << 11 = 0x4000_0000 (display base)
         const cpu = new RefCpu();
         cpu.load(assemble(src).program);
@@ -112,7 +118,7 @@ describe.each(CONFIGS)("correctness vs reference: $name", ({ make }) => {
         const out = runEngine(e, src);
         expect(out.regs).toEqual(Array.from(cpu.regs));
         expect(out.machine.display.text()).toBe(cpu.mem.displayText());
-        expect(out.machine.display.text()).toBe("Hi");
+        expect(out.machine.display.text()).toBe('Hi');
       } else {
         expectSame(name, src, make, 7, false);
         expectSame(name, src, make, 8, true);
@@ -120,15 +126,15 @@ describe.each(CONFIGS)("correctness vs reference: $name", ({ make }) => {
     });
   }
 
-  it("random programs", () => {
+  it('random programs', () => {
     for (let seed = 1; seed <= 40; seed++) expectSame(`seed ${seed}`, genProgram(seed), make, seed, false);
   });
 
-  it("random programs with cache invalidations and predictor flips", () => {
+  it('random programs with cache invalidations and predictor flips', () => {
     for (let seed = 100; seed < 140; seed++) expectSame(`seed ${seed}`, genProgram(seed, 45), make, seed, true);
   });
 
-  it("zero-penalty and tiny caches stay correct", () => {
+  it('zero-penalty and tiny caches stay correct', () => {
     for (let seed = 200; seed < 210; seed++) {
       const src = genProgram(seed);
       const data = genData(seed);
@@ -142,8 +148,8 @@ describe.each(CONFIGS)("correctness vs reference: $name", ({ make }) => {
   });
 });
 
-describe("determinism", () => {
-  it("same seed gives identical results, cycles and counters; different seeds differ", () => {
+describe('determinism', () => {
+  it('same seed gives identical results, cycles and counters; different seeds differ', () => {
     for (const { name, make } of CONFIGS) {
       const run = (seed: number) => {
         const o = runEngine(make(), genProgram(seed), genData(seed), { seed, p: 0.1 });
@@ -154,21 +160,21 @@ describe("determinism", () => {
     }
   });
 
-  it("generator is deterministic", () => {
+  it('generator is deterministic', () => {
     expect(genProgram(3)).toBe(genProgram(3));
     expect(genProgram(3)).not.toBe(genProgram(4));
   });
 });
 
-describe("engine selector and machine integration", () => {
+describe('engine selector and machine integration', () => {
   const prog = assemble(HAND.sum!).program;
   const configs: EngineConfig[] = [
-    { kind: "ref" },
-    { kind: "unpipelined" },
-    { kind: "inorder" },
-    { kind: "inorder", forwarding: false, sharedPort: true, missPenalty: 2 },
+    { kind: 'ref' },
+    { kind: 'unpipelined' },
+    { kind: 'inorder' },
+    { kind: 'inorder', forwarding: false, sharedPort: true, missPenalty: 2 },
   ];
-  it.each(configs)("attaches %j and runs under the clock scheduler", (cfg) => {
+  it.each(configs)('attaches %j and runs under the clock scheduler', (cfg) => {
     const m = new Machine();
     m.attach(createEngine(cfg), prog);
     for (let i = 0; i < 400 && !m.engine!.halted; i++) m.advanceBaseTick();
@@ -176,12 +182,12 @@ describe("engine selector and machine integration", () => {
     expect(m.regs[3]).toBe(55);
   });
 
-  it("factory returns the right classes", () => {
-    expect(createEngine({ kind: "unpipelined" })).toBeInstanceOf(UnpipelinedEngine);
-    expect(createEngine({ kind: "inorder" })).toBeInstanceOf(InOrderEngine);
+  it('factory returns the right classes', () => {
+    expect(createEngine({ kind: 'unpipelined' })).toBeInstanceOf(UnpipelinedEngine);
+    expect(createEngine({ kind: 'inorder' })).toBeInstanceOf(InOrderEngine);
   });
 
-  it("reset gives a cold, repeatable run", () => {
+  it('reset gives a cold, repeatable run', () => {
     const e = new InOrderEngine();
     const m = new Machine();
     m.attach(e, prog);

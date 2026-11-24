@@ -1,13 +1,21 @@
-import { describe, expect, it } from "vitest";
-import { assembleGpu } from "./isa/asm";
+import { describe, expect, it } from 'vitest';
+import { assembleGpu } from './isa/asm';
 import {
-  GPU_BASE, GPU_FRAME, GPU_HOP_TICKS, GPU_MEM, GPU_PORTS, GPU_REG, GPU_STRIDE, GpuFaultCode, GpuStatus,
-} from "@/core/sim/memmap";
-import { GpuRef } from "./isa/ref";
-import { gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, type GpuKernelName } from "./kernels";
-import { getSpec, type CardSpec } from "../../board/sim/specs";
-import { GpuPort } from "./port";
-import { Machine } from "@/core/sim/machine";
+  GPU_BASE,
+  GPU_FRAME,
+  GPU_HOP_TICKS,
+  GPU_MEM,
+  GPU_PORTS,
+  GPU_REG,
+  GPU_STRIDE,
+  GpuFaultCode,
+  GpuStatus,
+} from '@/core/sim/memmap';
+import { GpuRef } from './isa/ref';
+import { gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, type GpuKernelName } from './kernels';
+import { getSpec, type CardSpec } from '../../board/sim/specs';
+import { GpuPort } from './port';
+import { Machine } from '@/core/sim/machine';
 
 const R = (r: number) => GPU_BASE + r;
 const W = (k: number) => GPU_BASE + GPU_MEM + 4 * k;
@@ -15,12 +23,15 @@ const W = (k: number) => GPU_BASE + GPU_MEM + 4 * k;
 /** A machine with one card in pcie0 at one device tick per base tick, so `advanceBaseTick` is one card tick. */
 function rig(lanes = 8, banks = 1, memBytes = 8192) {
   const m = new Machine({ ramSize: 4096 });
-  const port = new GpuPort("pcie0", 0);
+  const port = new GpuPort('pcie0', 0);
   m.addDevice(port);
-  m.clock.setRate("pcie0", { mul: 1, div: 1 });
+  m.clock.setRate('pcie0', { mul: 1, div: 1 });
   port.configure({ lanes, memBytes, banks });
-  const put = (at: number, words: ArrayLike<number>) => { for (let k = 0; k < words.length; k++) m.bus.store32(GPU_BASE + GPU_MEM + at + 4 * k, words[k]!); };
-  const get = (at: number, n: number) => Array.from({ length: n }, (_, k) => m.bus.load32(GPU_BASE + GPU_MEM + at + 4 * k) | 0);
+  const put = (at: number, words: ArrayLike<number>) => {
+    for (let k = 0; k < words.length; k++) m.bus.store32(GPU_BASE + GPU_MEM + at + 4 * k, words[k]!);
+  };
+  const get = (at: number, n: number) =>
+    Array.from({ length: n }, (_, k) => m.bus.load32(GPU_BASE + GPU_MEM + at + 4 * k) | 0);
   const status = () => m.bus.load32(R(GPU_REG.STATUS));
   /** Launch and tick until the card is not busy; returns the ticks it took. */
   const go = (kernel = 0, lanesArg = 0): number => {
@@ -28,7 +39,11 @@ function rig(lanes = 8, banks = 1, memBytes = 8192) {
     m.bus.store32(R(GPU_REG.LANES), lanesArg);
     m.bus.store32(R(GPU_REG.CMD), 1);
     let n = 0;
-    while (status() & GpuStatus.Busy) { m.advanceBaseTick(); n++; if (n > 1_000_000) throw new Error("card never finished"); }
+    while (status() & GpuStatus.Busy) {
+      m.advanceBaseTick();
+      n++;
+      if (n > 1_000_000) throw new Error('card never finished');
+    }
     return n;
   };
   return { m, port, put, get, status, go };
@@ -48,21 +63,22 @@ function runKernel(name: GpuKernelName, lanes: number, len: number, banks = 1) {
   return { ...r, ticks, ref, out: r.get(KERNEL_LAYOUT.out, len), want: gpuKernelExpected(name, p) };
 }
 
-describe("GPU tiers", () => {
-  it("each tier beats the one below on blur3: fewer card cycles, and fewer base ticks at its faster clock", () => {
-    const spec = (id: string) => getSpec(id) as unknown as { clock: { base: number }; gpu: { lanes: number; memBytes: number; banks: number } };
+describe('GPU tiers', () => {
+  it('each tier beats the one below on blur3: fewer card cycles, and fewer base ticks at its faster clock', () => {
+    const spec = (id: string) =>
+      getSpec(id) as unknown as { clock: { base: number }; gpu: { lanes: number; memBytes: number; banks: number } };
     const run = (id: string) => {
       const s = spec(id);
       const p = { lanes: s.gpu.lanes, len: 64, phase: 3, level: 2 };
       const r = rig(s.gpu.lanes, s.gpu.banks, s.gpu.memBytes);
-      r.m.clock.setRate("pcie0", { mul: s.clock.base, div: 1 });
-      r.put(KERNEL_LAYOUT.code, assembleGpu(gpuKernelSource("blur3", p)).program);
+      r.m.clock.setRate('pcie0', { mul: s.clock.base, div: 1 });
+      r.put(KERNEL_LAYOUT.code, assembleGpu(gpuKernelSource('blur3', p)).program);
       r.put(KERNEL_LAYOUT.param, [p.phase, p.level]);
       const ticks = r.go();
-      expect(r.get(KERNEL_LAYOUT.out, 64)).toEqual(gpuKernelExpected("blur3", p));
+      expect(r.get(KERNEL_LAYOUT.out, 64)).toEqual(gpuKernelExpected('blur3', p));
       return { cycles: r.m.bus.load32(R(GPU_REG.CYCLES)), baseTicks: ticks / s.clock.base };
     };
-    const [g1, g2, g3] = [run("gpu1"), run("gpu2"), run("gpu3")];
+    const [g1, g2, g3] = [run('gpu1'), run('gpu2'), run('gpu3')];
     expect(g2.cycles).toBeLessThan(g1.cycles);
     expect(g3.cycles).toBeLessThan(g2.cycles);
     expect(g2.baseTicks).toBeLessThan(g1.baseTicks);
@@ -70,8 +86,8 @@ describe("GPU tiers", () => {
   });
 });
 
-describe("GPU card on the bus", () => {
-  it("reports what it is and an idle status", () => {
+describe('GPU card on the bus', () => {
+  it('reports what it is and an idle status', () => {
     const { m, status } = rig(8, 2, 8192);
     expect(status()).toBe(GpuStatus.Present);
     expect(m.bus.load32(R(GPU_REG.LANES_MAX))).toBe(8);
@@ -79,12 +95,12 @@ describe("GPU card on the bus", () => {
     expect(m.bus.load32(R(GPU_REG.BANKS))).toBe(2);
   });
 
-  it("sits at a fixed window per PCIe slot", () => {
-    expect(GPU_PORTS).toEqual(["pcie0", "pcie1", "pcie2", "pcie3"]);
-    expect(new GpuPort("pcie2", 2).base).toBe(GPU_BASE + 2 * GPU_STRIDE);
+  it('sits at a fixed window per PCIe slot', () => {
+    expect(GPU_PORTS).toEqual(['pcie0', 'pcie1', 'pcie2', 'pcie3']);
+    expect(new GpuPort('pcie2', 2).base).toBe(GPU_BASE + 2 * GPU_STRIDE);
   });
 
-  it("card memory is readable and writable through the window, byte by byte", () => {
+  it('card memory is readable and writable through the window, byte by byte', () => {
     const { m, put, get } = rig();
     put(0, [0x11223344, -1]);
     expect(get(0, 2)).toEqual([0x11223344, -1]);
@@ -94,33 +110,42 @@ describe("GPU card on the bus", () => {
     expect(m.bus.load32(W(2048))).toBe(0); // past the end of an 8K card reads as zero
   });
 
-  for (const name of ["vadd", "saxpy", "blur3", "mandel"] as const) {
+  for (const name of ['vadd', 'saxpy', 'blur3', 'mandel'] as const) {
     it(`${name}: same result as the reference interpreter, in the cycles it counts plus a PCIe hop each way`, () => {
       const { out, want, ref, ticks, port } = runKernel(name, 8, 32);
       expect(out).toEqual(want);
       expect(ticks).toBe(2 * GPU_HOP_TICKS + ref.cycles);
-      expect(port.lastStats).toEqual({ instructions: ref.instructions, idleLaneSlots: ref.idleLaneSlots, conflictCycles: ref.conflictCycles });
+      expect(port.lastStats).toEqual({
+        instructions: ref.instructions,
+        idleLaneSlots: ref.idleLaneSlots,
+        conflictCycles: ref.conflictCycles,
+      });
     });
   }
 
-  it("bank conflicts cost ticks, exactly as in the reference", () => {
-    const one = runKernel("vadd", 8, 32, 1);
-    const four = runKernel("vadd", 8, 32, 4);
+  it('bank conflicts cost ticks, exactly as in the reference', () => {
+    const one = runKernel('vadd', 8, 32, 1);
+    const four = runKernel('vadd', 8, 32, 4);
     expect(four.out).toEqual(four.want);
     expect(four.ticks).toBe(2 * GPU_HOP_TICKS + four.ref.cycles);
     expect(one.ref.conflictCycles).toBeGreaterThan(0); // one bank: every access of 8 distinct words queues
     expect(four.ref.conflictCycles).toBeLessThan(one.ref.conflictCycles);
   });
 
-  it("golden trace: blur3 on 8 lanes over 32 elements", () => {
-    const { ref, ticks, port } = runKernel("blur3", 8, 32);
-    expect({ instructions: ref.instructions, cycles: ref.cycles, conflictCycles: ref.conflictCycles, ticks, idle: port.lastStats.idleLaneSlots })
-      .toEqual({ instructions: 462, cycles: 602, conflictCycles: 140, ticks: 618, idle: 16 });
+  it('golden trace: blur3 on 8 lanes over 32 elements', () => {
+    const { ref, ticks, port } = runKernel('blur3', 8, 32);
+    expect({
+      instructions: ref.instructions,
+      cycles: ref.cycles,
+      conflictCycles: ref.conflictCycles,
+      ticks,
+      idle: port.lastStats.idleLaneSlots,
+    }).toEqual({ instructions: 462, cycles: 602, conflictCycles: 140, ticks: 618, idle: 16 });
   });
 
-  it("Busy while the launch is in flight, Done afterwards, until the next launch", () => {
+  it('Busy while the launch is in flight, Done afterwards, until the next launch', () => {
     const r = rig();
-    r.put(0, assembleGpu("halt").program);
+    r.put(0, assembleGpu('halt').program);
     r.m.bus.store32(R(GPU_REG.CMD), 1);
     expect(r.status() & GpuStatus.Busy).toBeTruthy();
     expect(r.status() & GpuStatus.Done).toBe(0);
@@ -133,16 +158,16 @@ describe("GPU card on the bus", () => {
     expect(r.status() & GpuStatus.Done).toBe(0);
   });
 
-  it("LANES limits how many lanes run", () => {
+  it('LANES limits how many lanes run', () => {
     const r = rig();
-    r.put(0, assembleGpu("lane v1\nvaddi v1, v1, 1\nvslli v2, v1, 2\nvst v1, 2044(v2)\nhalt").program);
+    r.put(0, assembleGpu('lane v1\nvaddi v1, v1, 1\nvslli v2, v1, 2\nvst v1, 2044(v2)\nhalt').program);
     r.go(0, 3);
     expect(r.get(2048, 8)).toEqual([1, 2, 3, 0, 0, 0, 0, 0]);
   });
 
-  it("flags a bad launch instead of hanging: busy, no card, too many lanes, a bad kernel address", () => {
+  it('flags a bad launch instead of hanging: busy, no card, too many lanes, a bad kernel address', () => {
     const r = rig();
-    r.put(0, assembleGpu("halt").program);
+    r.put(0, assembleGpu('halt').program);
     r.m.bus.store32(R(GPU_REG.CMD), 1);
     r.m.bus.store32(R(GPU_REG.CMD), 1); // while the first is in flight
     expect(r.status() & GpuStatus.Error).toBeTruthy();
@@ -161,52 +186,60 @@ describe("GPU card on the bus", () => {
     expect(r.status() & GpuStatus.Error).toBeTruthy();
 
     const empty = new Machine({ ramSize: 4096 });
-    const none = new GpuPort("pcie0", 0);
+    const none = new GpuPort('pcie0', 0);
     empty.addDevice(none);
     expect(empty.bus.load32(R(GPU_REG.STATUS))).toBe(0);
     empty.bus.store32(R(GPU_REG.CMD), 1);
     expect(empty.bus.load32(R(GPU_REG.STATUS))).toBe(GpuStatus.Error);
   });
 
-  it("a kernel that faults ends the launch with Error and the Kernel fault code", () => {
+  it('a kernel that faults ends the launch with Error and the Kernel fault code', () => {
     const r = rig();
-    r.put(0, assembleGpu("vli v1, 2\nvld v2, 0(v1)\nhalt").program); // misaligned gather
+    r.put(0, assembleGpu('vli v1, 2\nvld v2, 0(v1)\nhalt').program); // misaligned gather
     r.go();
     expect(r.status()).toBe(GpuStatus.Present | GpuStatus.Error | GpuStatus.Done);
     expect(r.m.bus.load32(R(GPU_REG.FAULT))).toBe(GpuFaultCode.Kernel);
-    r.put(0, assembleGpu("halt").program);
+    r.put(0, assembleGpu('halt').program);
     r.go(); // the card recovers
     expect(r.status()).toBe(GpuStatus.Present | GpuStatus.Done);
   });
 
-  it("a reset (power-on) wipes card memory and forgets the launch", () => {
+  it('a reset (power-on) wipes card memory and forgets the launch', () => {
     const r = rig();
-    r.put(0, assembleGpu("halt").program);
+    r.put(0, assembleGpu('halt').program);
     r.go();
     r.port.reset();
     expect(r.get(0, 1)).toEqual([0]);
     expect(r.status()).toBe(GpuStatus.Present);
   });
 
-  it("takeActivity is true for a launch and false once it has finished", () => {
+  it('takeActivity is true for a launch and false once it has finished', () => {
     const r = rig();
-    r.put(0, assembleGpu("halt").program);
+    r.put(0, assembleGpu('halt').program);
     expect(r.port.takeActivity()).toBe(false);
     r.go();
     expect(r.port.takeActivity()).toBe(true);
     expect(r.port.takeActivity()).toBe(false);
   });
 
-  it("view() shows the last instructions of a launch (at most 64), clears them at the next launch, and is null without a card", () => {
+  it('view() shows the last instructions of a launch (at most 64), clears them at the next launch, and is null without a card', () => {
     const r = rig(8, 4);
-    expect(r.port.view()).toMatchObject({ lanes: 8, banks: 4, memBytes: 8192, phase: "idle", trace: [], regs: [], launches: 0 });
-    r.put(0, assembleGpu(`${"vli v1, 1\n".repeat(70)}lane v2\nvslli v3, v2, 4\nvld v4, 1024(v3)\nhalt`).program);
+    expect(r.port.view()).toMatchObject({
+      lanes: 8,
+      banks: 4,
+      memBytes: 8192,
+      phase: 'idle',
+      trace: [],
+      regs: [],
+      launches: 0,
+    });
+    r.put(0, assembleGpu(`${'vli v1, 1\n'.repeat(70)}lane v2\nvslli v3, v2, 4\nvld v4, 1024(v3)\nhalt`).program);
     r.go();
     const v = r.port.view()!;
     expect(v.launches).toBe(1);
     expect(v.trace).toHaveLength(64);
-    expect(v.trace.at(-1)).toMatchObject({ name: "halt", kind: "sys" });
-    expect(v.trace.at(-2)).toMatchObject({ name: "vld", kind: "ld", banks: [8, 0, 0, 0] });
+    expect(v.trace.at(-1)).toMatchObject({ name: 'halt', kind: 'sys' });
+    expect(v.trace.at(-2)).toMatchObject({ name: 'vld', kind: 'ld', banks: [8, 0, 0, 0] });
     expect(v.regs).toHaveLength(8);
     expect(v.regs[2]).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
     expect(v.stats).toMatchObject({ instructions: 74, conflictCycles: 7 });
@@ -217,8 +250,8 @@ describe("GPU card on the bus", () => {
     expect(r.port.view()).toBeNull();
   });
 
-  it("view().frame is the output region of card memory: empty before a launch, the kernel output after it, blank after a reset", () => {
-    const r = runKernel("mandel", 8, 64);
+  it('view().frame is the output region of card memory: empty before a launch, the kernel output after it, blank after a reset', () => {
+    const r = runKernel('mandel', 8, 64);
     expect(r.port.view()!.frame.length).toBeGreaterThanOrEqual(64); // as much of the region as the card's memory holds
     expect(r.port.view()!.frame.length).toBeLessThanOrEqual(GPU_FRAME.words);
     expect(r.port.view()!.frame.slice(0, 64)).toEqual(r.want.map((v) => v >>> 0));
@@ -227,10 +260,10 @@ describe("GPU card on the bus", () => {
     expect(rig(8, 1).port.view()!.frame).toEqual([]);
   });
 
-  it("a stopped clock freezes a launch, and removing the card takes it off the bus status", () => {
+  it('a stopped clock freezes a launch, and removing the card takes it off the bus status', () => {
     const r = rig();
-    r.put(0, assembleGpu("halt").program);
-    r.m.clock.setRate("pcie0", { mul: 0, div: 1 });
+    r.put(0, assembleGpu('halt').program);
+    r.m.clock.setRate('pcie0', { mul: 0, div: 1 });
     r.m.bus.store32(R(GPU_REG.CMD), 1);
     for (let i = 0; i < 50; i++) r.m.advanceBaseTick();
     expect(r.status() & GpuStatus.Busy).toBeTruthy();
@@ -239,11 +272,11 @@ describe("GPU card on the bus", () => {
   });
 });
 
-describe("the kernel a card can show", () => {
-  it("the view reads the kernel back from card memory, up to its last word, and nothing before one is copied in", () => {
+describe('the kernel a card can show', () => {
+  it('the view reads the kernel back from card memory, up to its last word, and nothing before one is copied in', () => {
     const r = rig(8, 1);
     expect(r.port.view()!.code).toEqual([]);
-    const program = assembleGpu(["  lane v1", "  vli v2, 5", "  vadd v3, v1, v2", "  halt"].join("\n")).program;
+    const program = assembleGpu(['  lane v1', '  vli v2, 5', '  vadd v3, v1, v2', '  halt'].join('\n')).program;
     r.put(KERNEL_LAYOUT.code, program);
     expect(r.port.view()!.code).toEqual(Array.from(program));
     r.go();
@@ -252,38 +285,43 @@ describe("the kernel a card can show", () => {
 });
 
 describe("GPU memory popups' data", () => {
-  it("a load or store step names the addresses and words it moved, and the words around the first", () => {
-    const r = runKernel("blur3", 8, 16);
+  it('a load or store step names the addresses and words it moved, and the words around the first', () => {
+    const r = runKernel('blur3', 8, 16);
     const v = r.port.view()!;
-    const ld = v.trace.find((s) => s.name === "vld" && s.mem)!;
+    const ld = v.trace.find((s) => s.name === 'vld' && s.mem)!;
     expect(ld.mem!.addrs.length).toBeGreaterThan(0);
     expect(ld.mem!.data).toHaveLength(ld.mem!.addrs.length);
     expect(ld.mem!.around).toHaveLength(9);
     const first = ld.mem!.addrs[0]!;
     expect(ld.mem!.around[(first - ld.mem!.at) / 4]).toBe(ld.mem!.data[0]! >>> 0);
-    expect(v.trace.find((s) => s.name !== "vld" && s.name !== "vst")!.mem).toBeUndefined();
+    expect(v.trace.find((s) => s.name !== 'vld' && s.name !== 'vst')!.mem).toBeUndefined();
   });
 
-  it("a card with caches lists the lines each holds with their words from card memory", () => {
-    const cfg = (getSpec("gpu3") as CardSpec).gpu!;
+  it('a card with caches lists the lines each holds with their words from card memory', () => {
+    const cfg = (getSpec('gpu3') as CardSpec).gpu!;
     const m = new Machine({ ramSize: 4096 });
-    const port = new GpuPort("pcie0", 0);
+    const port = new GpuPort('pcie0', 0);
     m.addDevice(port);
-    m.clock.setRate("pcie0", { mul: 1, div: 1 });
+    m.clock.setRate('pcie0', { mul: 1, div: 1 });
     port.configure(cfg);
     const p = { lanes: cfg.lanes, len: cfg.lanes * 2, phase: 5, level: 3 };
-    const put = (at: number, words: ArrayLike<number>) => { for (let k = 0; k < words.length; k++) m.bus.store32(GPU_BASE + GPU_MEM + at + 4 * k, words[k]!); };
-    put(KERNEL_LAYOUT.code, assembleGpu(gpuKernelSource("blur3", p)).program);
+    const put = (at: number, words: ArrayLike<number>) => {
+      for (let k = 0; k < words.length; k++) m.bus.store32(GPU_BASE + GPU_MEM + at + 4 * k, words[k]!);
+    };
+    put(KERNEL_LAYOUT.code, assembleGpu(gpuKernelSource('blur3', p)).program);
     put(KERNEL_LAYOUT.param, [p.phase, p.level]);
     m.bus.store32(R(GPU_REG.KERNEL), 0);
     m.bus.store32(R(GPU_REG.LANES), 0);
     m.bus.store32(R(GPU_REG.CMD), 1);
     while (m.bus.load32(R(GPU_REG.STATUS)) & GpuStatus.Busy) m.advanceBaseTick();
     const caches = port.view()!.caches!;
-    expect(caches.map((c) => c.level)).toEqual(["L1", "L1", "L2"]);
+    expect(caches.map((c) => c.level)).toEqual(['L1', 'L1', 'L2']);
     const l2 = caches[2]!;
     const held = l2.lines.filter((l) => l !== null);
     expect(held.length).toBeGreaterThan(0);
-    for (const l of held) expect(l.words).toEqual(Array.from(port.memory!.subarray(l.line * l.words.length, (l.line + 1) * l.words.length)));
+    for (const l of held)
+      expect(l.words).toEqual(
+        Array.from(port.memory!.subarray(l.line * l.words.length, (l.line + 1) * l.words.length)),
+      );
   });
 });

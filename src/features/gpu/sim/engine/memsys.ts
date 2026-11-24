@@ -6,7 +6,7 @@
 //   caches     optional tag-only L1 (one per SM) and one shared L2, on the CPU's `DataCache` (write-through, a store never fills a line);
 //              a line that hits in L1 returns after `l1Hit`, else asks the L2 (one request per cycle for the whole card), else card memory
 
-import { DataCache } from "@/features/cpu/sim/engines/common";
+import { DataCache } from '@/features/cpu/sim/engines/common';
 
 export interface GpuMemConfig {
   /** Memory banks a memory unit has. */
@@ -68,10 +68,13 @@ export class GpuMemSystem {
   l2Misses = 0;
 
   constructor(readonly cfg: GpuMemConfig) {
-    if (cfg.banks < 1) throw new RangeError("a memory unit needs at least one bank");
-    if (cfg.lineWords < 1 || (cfg.lineWords & (cfg.lineWords - 1)) !== 0) throw new RangeError("lineWords must be a power of two");
+    if (cfg.banks < 1) throw new RangeError('a memory unit needs at least one bank');
+    if (cfg.lineWords < 1 || (cfg.lineWords & (cfg.lineWords - 1)) !== 0)
+      throw new RangeError('lineWords must be a power of two');
     const lineBytes = Math.max(4, cfg.lineWords * 4);
-    this.l1 = Array.from({ length: cfg.sms ?? 1 }, () => ((cfg.l1Lines ?? 0) > 0 ? new DataCache(cfg.l1Lines!, lineBytes, 0) : null));
+    this.l1 = Array.from({ length: cfg.sms ?? 1 }, () =>
+      (cfg.l1Lines ?? 0) > 0 ? new DataCache(cfg.l1Lines!, lineBytes, 0) : null,
+    );
     this.l2 = (cfg.l2Lines ?? 0) > 0 ? new DataCache(cfg.l2Lines!, lineBytes, 0) : null;
   }
 
@@ -91,9 +94,13 @@ export class GpuMemSystem {
     const rounds = Math.max(1, ...perBank);
     const l1 = this.l1[sm] ?? null;
     const served = new Array<number>(banks).fill(0); // lines of each bank served so far: the j-th one leaves in round j
-    let latency = 0, l1Hits = 0, l2Hits = 0, misses = 0;
+    let latency = 0,
+      l1Hits = 0,
+      l2Hits = 0,
+      misses = 0;
     for (const line of lines) {
-      const round = served[line % banks]!++, addr = line * lineWords * 4;
+      const round = served[line % banks]!++,
+        addr = line * lineWords * 4;
       let ready = round; // cycles after the issue at which this line's data is back
       if (l1?.hit(addr)) {
         ready += this.cfg.l1Hit ?? 1;

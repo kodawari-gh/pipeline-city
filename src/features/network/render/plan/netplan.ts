@@ -40,7 +40,11 @@ export interface NetPlan<K extends string = string, L extends string = string, I
 }
 
 /** The space the blocks leave round the area: the bond pads and the wires run in it, and the south one carries the title and the legend. */
-export interface Margins { x: number; top: number; bottom: number }
+export interface Margins {
+  x: number;
+  top: number;
+  bottom: number;
+}
 
 const cache = new Map<string, NetPlan<string, string, unknown>>();
 
@@ -49,19 +53,35 @@ const cache = new Map<string, NetPlan<string, string, unknown>>();
  * find (a bus that runs along the margin, off the blocks); it sees the placed blocks. The result is cached by `key`.
  */
 export function layPlan<K extends string, L extends string, I>(
-  key: string, input: I, size: { w: number; h: number }, m: Margins, tree: Node<K>, specs: WireSpec<L>[], tag: string, extra?: (blocks: NetBlock<K>[]) => NetLink<L>[],
+  key: string,
+  input: I,
+  size: { w: number; h: number },
+  m: Margins,
+  tree: Node<K>,
+  specs: WireSpec<L>[],
+  tag: string,
+  extra?: (blocks: NetBlock<K>[]) => NetLink<L>[],
 ): NetPlan<K, L, I> {
   const hit = cache.get(key);
   if (hit) return hit as NetPlan<K, L, I>;
-  const die: Rect = { x: 0, y: 0, w: size.w, h: size.h }, blocks: NetBlock<K>[] = [];
-  placeTree<K, NetBlock<K>>(tree, { x: m.x, y: m.top, w: size.w - 2 * m.x, h: size.h - m.top - m.bottom }, blocks, (s: Spec<K>, r, parent, _zone, frame) => {
-    const b: NetBlock<K> = { id: s.id, kind: s.kind, label: s.label, rect: { ...r } };
-    if (s.sub) b.sub = s.sub;
-    if (parent) b.parent = parent;
-    if (frame) b.frame = true;
-    return b;
-  });
-  const links: NetLink<L>[] = routeWires<NetBlock<K>, L>(die, blocks, specs, undefined, tag).map((w) => ({ ...w, lanes: w.lanes as 1 | 2 | 3 | 4 }));
+  const die: Rect = { x: 0, y: 0, w: size.w, h: size.h },
+    blocks: NetBlock<K>[] = [];
+  placeTree<K, NetBlock<K>>(
+    tree,
+    { x: m.x, y: m.top, w: size.w - 2 * m.x, h: size.h - m.top - m.bottom },
+    blocks,
+    (s: Spec<K>, r, parent, _zone, frame) => {
+      const b: NetBlock<K> = { id: s.id, kind: s.kind, label: s.label, rect: { ...r } };
+      if (s.sub) b.sub = s.sub;
+      if (parent) b.parent = parent;
+      if (frame) b.frame = true;
+      return b;
+    },
+  );
+  const links: NetLink<L>[] = routeWires<NetBlock<K>, L>(die, blocks, specs, undefined, tag).map((w) => ({
+    ...w,
+    lanes: w.lanes as 1 | 2 | 3 | 4,
+  }));
   if (extra) links.push(...extra(blocks));
   const plan: NetPlan<K, L, I> = { input, die, blocks, links };
   cache.set(key, plan as NetPlan<string, string, unknown>);
@@ -76,4 +96,7 @@ export function blockOf<K extends string>(plan: Pick<NetPlan<K>, 'blocks'>, id: 
 }
 
 /** A link of a plan by id, or undefined. */
-export const linkById = <L extends string>(plan: Pick<NetPlan<string, L>, 'links'>, id: string): NetLink<L> | undefined => plan.links.find((l) => l.id === id);
+export const linkById = <L extends string>(
+  plan: Pick<NetPlan<string, L>, 'links'>,
+  id: string,
+): NetLink<L> | undefined => plan.links.find((l) => l.id === id);

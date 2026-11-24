@@ -26,10 +26,16 @@ function corners(v: OrbitView, w: number, h: number): { x: number; y: number }[]
   applyView(cam, v, w / h);
   cam.updateMatrixWorld(true);
   const out: { x: number; y: number }[] = [];
-  for (const sx of [-0.5, 0.5]) for (const sy of [-0.5, 0.5]) for (const sz of [-0.5, 0.5]) {
-    const p = new Vector3(MACHINE.centre.x + sx * MACHINE.size.x, MACHINE.centre.y + sy * MACHINE.size.y, MACHINE.centre.z + sz * MACHINE.size.z).project(cam);
-    out.push({ x: ((p.x + 1) / 2) * w, y: ((1 - p.y) / 2) * h });
-  }
+  for (const sx of [-0.5, 0.5])
+    for (const sy of [-0.5, 0.5])
+      for (const sz of [-0.5, 0.5]) {
+        const p = new Vector3(
+          MACHINE.centre.x + sx * MACHINE.size.x,
+          MACHINE.centre.y + sy * MACHINE.size.y,
+          MACHINE.centre.z + sz * MACHINE.size.z,
+        ).project(cam);
+        out.push({ x: ((p.x + 1) / 2) * w, y: ((1 - p.y) / 2) * h });
+      }
   return out;
 }
 
@@ -76,7 +82,10 @@ describe('the Build camera frames the machine in the free area', () => {
 
 describe('the rim light stays cool', () => {
   it('keeps the Build rim light at the cool 0x8fb0ff, as ADR 0001 says', () => {
-    const src = readFileSync(urlMod.fileURLToPath(new URL('../../../features/board/render/three/buildmode3d.ts', import.meta.url)), 'utf8') as string;
+    const src = readFileSync(
+      urlMod.fileURLToPath(new URL('../../../features/board/render/three/buildmode3d.ts', import.meta.url)),
+      'utf8',
+    ) as string;
     expect(src).toMatch(/new DirectionalLight\(0x8fb0ff,\s*0\.45\)/);
     expect(src).not.toMatch(/0xc8d0e0/);
   });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { advance, handleMessage, newHost } from './host';
 import type { FromSim, Snapshot } from './protocol';
-import { ECONOMY } from "../features/economy/sim/economy";
+import { ECONOMY } from '../features/economy/sim/economy';
 
 // These tests are about hardware, not player levels: every item is buyable (levels have their own tests in levels.test.ts).
 ECONOMY.levelGating = false;
@@ -68,10 +68,12 @@ describe('host message handling', () => {
   it('assembly and key messages reach the game, refusals come back as errors plus a snapshot', () => {
     const h = newHost();
     handleMessage(h, { type: 'init', seed: 1 });
-    const snap = (r: FromSim[]): Snapshot => (r.find((m) => m.type === 'snapshot') as Extract<FromSim, { type: 'snapshot' }>).snapshot;
+    const snap = (r: FromSim[]): Snapshot =>
+      (r.find((m) => m.type === 'snapshot') as Extract<FromSim, { type: 'snapshot' }>).snapshot;
     expect(types(handleMessage(h, { type: 'powerButton' }))).toEqual(['error', 'snapshot']); // no PSU yet
     expect(types(handleMessage(h, { type: 'install', invId: 'nope' }))).toEqual(['error', 'snapshot']);
-    for (const id of ['inv1', 'inv5', 'inv2', 'inv3', 'inv4']) expect(types(handleMessage(h, { type: 'install', invId: id }))).toEqual(['snapshot']);
+    for (const id of ['inv1', 'inv5', 'inv2', 'inv3', 'inv4'])
+      expect(types(handleMessage(h, { type: 'install', invId: id }))).toEqual(['snapshot']);
     expect(snap(handleMessage(h, { type: 'connectCable', cable: 'atx' })).progress.atxConnected).toBe(true);
     handleMessage(h, { type: 'connectCable', cable: 'cpu' });
     handleMessage(h, { type: 'connectCable', cable: 'cpufan' });
@@ -90,22 +92,30 @@ describe('host message handling', () => {
   });
 
   it('buys and installs a drive and an OS, and uninstalls the OS, through the same messages', () => {
-    const snap = (r: FromSim[]): Snapshot => (r.find((m) => m.type === 'snapshot') as Extract<FromSim, { type: 'snapshot' }>).snapshot;
+    const snap = (r: FromSim[]): Snapshot =>
+      (r.find((m) => m.type === 'snapshot') as Extract<FromSim, { type: 'snapshot' }>).snapshot;
     const h = newHost();
     handleMessage(h, { type: 'init', seed: 1 });
     h.game!.money = 100_000;
     for (const id of ['inv1', 'inv2', 'inv3', 'inv4']) handleMessage(h, { type: 'install', invId: id });
-    const bought = (id: string) => snap(handleMessage(h, { type: 'purchase', id })).inventory.find((i) => i.spec === id)!;
+    const bought = (id: string) =>
+      snap(handleMessage(h, { type: 'purchase', id })).inventory.find((i) => i.spec === id)!;
     expect(types(handleMessage(h, { type: 'install', invId: bought('hdd0').id }))).toEqual(['snapshot']);
     const early = bought('os1'); // sold whatever the memory
-    expect(types(handleMessage(h, { type: 'install', invId: early.id, slotId: 'sata0' }))).toEqual(['error', 'snapshot']); // 16K RAM is too little
+    expect(types(handleMessage(h, { type: 'install', invId: early.id, slotId: 'sata0' }))).toEqual([
+      'error',
+      'snapshot',
+    ]); // 16K RAM is too little
     handleMessage(h, { type: 'uninstall', deviceId: h.game!.board.devices.find((d) => d.spec === 'ram0')!.id });
     handleMessage(h, { type: 'install', invId: bought('ram1').id });
     const os = bought('os1');
     expect(os.kind).toBe('os');
     expect(snap(handleMessage(h, { type: 'install', invId: os.id, slotId: 'sata0' })).os?.name).toMatch(/Resident/);
     expect(types(handleMessage(h, { type: 'uninstallOs' }))).toEqual(['snapshot']);
-    expect(snap(handleMessage(h, { type: 'requestSave' }).length ? [{ type: 'snapshot', snapshot: h.game!.snapshot() }] : []).os).toBeNull();
+    expect(
+      snap(handleMessage(h, { type: 'requestSave' }).length ? [{ type: 'snapshot', snapshot: h.game!.snapshot() }] : [])
+        .os,
+    ).toBeNull();
     expect(types(handleMessage(h, { type: 'uninstallOs' }))).toEqual(['error', 'snapshot']); // none left
   });
 });

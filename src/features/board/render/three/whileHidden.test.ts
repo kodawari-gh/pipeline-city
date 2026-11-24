@@ -5,7 +5,12 @@ describe('whileHidden', () => {
   it('hides the root during fn and shows it again after', () => {
     const root = { visible: true };
     let during: boolean | null = null;
-    expect(whileHidden(root, () => { during = root.visible; return 7; })).toBe(7);
+    expect(
+      whileHidden(root, () => {
+        during = root.visible;
+        return 7;
+      }),
+    ).toBe(7);
     expect(during).toBe(false);
     expect(root.visible).toBe(true);
   });
@@ -18,7 +23,11 @@ describe('whileHidden', () => {
 
   it('puts the visibility back when fn throws', () => {
     const root = { visible: true };
-    expect(() => whileHidden(root, () => { throw new Error('link'); })).toThrow('link');
+    expect(() =>
+      whileHidden(root, () => {
+        throw new Error('link');
+      }),
+    ).toThrow('link');
     expect(root.visible).toBe(true);
   });
 });

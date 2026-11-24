@@ -1,25 +1,55 @@
 // Game feature: the save. Writing the game's state out and putting a parsed save back into a fresh game (docs/SAVE.md).
 // Every export is a `Game` method (see game.ts).
 
-import { allCables, boardFromJson, boardToJson, cablesOf, deviceSpec, fittedRadiator, isFanCable, legacyRadiatorSlots, pruneCables, radiatorSlot, sideMounts } from "../../features/board/sim";
-import { generate } from "../../features/jobs/sim/gen";
-import { JOB_ROW } from "../../core/sim/memmap";
-import { getOsSpec } from "../../features/os/sim";
-import { SANDBOX_MONEY } from "../../features/economy/sim/economy";
-import { datasetBytes, type Contract, type ContractOffer } from "../../features/economy/sim/contracts";
-import type { Game } from "./game";
-import type { Key } from "./internal";
-import { JOB_DEX, type DexRecord } from "../../features/jobs/sim/jobdex";
-import { JOB_LOG_CAP, type JobLogEntry } from "../../features/jobs/sim/joblog";
-import { JOB_CLASSES, levelFor, type JobClassId } from "../../features/economy/sim/levels";
-import { SAVE_VERSION, type SavedDisk, type SavedKey, type SavedNet, type SavedPlugged, type SaveV5 } from "./save";
+import {
+  allCables,
+  boardFromJson,
+  boardToJson,
+  cablesOf,
+  deviceSpec,
+  fittedRadiator,
+  isFanCable,
+  legacyRadiatorSlots,
+  pruneCables,
+  radiatorSlot,
+  sideMounts,
+} from '../../features/board/sim';
+import { generate } from '../../features/jobs/sim/gen';
+import { JOB_ROW } from '../../core/sim/memmap';
+import { getOsSpec } from '../../features/os/sim';
+import { SANDBOX_MONEY } from '../../features/economy/sim/economy';
+import { datasetBytes, type Contract, type ContractOffer } from '../../features/economy/sim/contracts';
+import type { Game } from './game';
+import type { Key } from './internal';
+import { JOB_DEX, type DexRecord } from '../../features/jobs/sim/jobdex';
+import { JOB_LOG_CAP, type JobLogEntry } from '../../features/jobs/sim/joblog';
+import { JOB_CLASSES, levelFor, type JobClassId } from '../../features/economy/sim/levels';
+import { SAVE_VERSION, type SavedDisk, type SavedKey, type SavedNet, type SavedPlugged, type SaveV5 } from './save';
 
 /** Config-only save (no pipeline, registers or RAM). See docs/SAVE.md. */
 export function toSave(this: Game): SaveV5 {
-  const sk = (k: Key): SavedKey => ({ id: k.id, template: k.template, seed: k.seed, scale: k.scale, arrival: k.arrival, deadline: k.deadline, cls: k.cls, retired: k.retired, ...(k.pluggedAt ? { pluggedAt: k.pluggedAt } : {}) });
+  const sk = (k: Key): SavedKey => ({
+    id: k.id,
+    template: k.template,
+    seed: k.seed,
+    scale: k.scale,
+    arrival: k.arrival,
+    deadline: k.deadline,
+    cls: k.cls,
+    retired: k.retired,
+    ...(k.pluggedAt ? { pluggedAt: k.pluggedAt } : {}),
+  });
   const disks = this.savedDisks();
   const p = this.plugged;
-  const plugged: SavedPlugged | null = p && { ...sk(p), attempts: p.attempts, pluggedAt: p.pluggedAt, done: p.done, doneAt: p.doneAt, result: p.result, ...(p.done && p.ranAt !== undefined ? { ranAt: p.ranAt } : {}) };
+  const plugged: SavedPlugged | null = p && {
+    ...sk(p),
+    attempts: p.attempts,
+    pluggedAt: p.pluggedAt,
+    done: p.done,
+    doneAt: p.doneAt,
+    result: p.result,
+    ...(p.done && p.ranAt !== undefined ? { ranAt: p.ranAt } : {}),
+  };
   return {
     version: SAVE_VERSION,
     seed: this.seed,
@@ -50,21 +80,50 @@ export function toSave(this: Game): SaveV5 {
     levelTicks: Object.fromEntries(Object.entries(this.levelTicks).map(([k, v]) => [k, v])),
     declined: this.declined,
     expired: this.expired,
-    ...(Object.keys(this.dex).length ? { jobDex: JSON.parse(JSON.stringify(this.dex)) as Record<string, DexRecord> } : {}),
+    ...(Object.keys(this.dex).length
+      ? { jobDex: JSON.parse(JSON.stringify(this.dex)) as Record<string, DexRecord> }
+      : {}),
     ...(this.jobLog.length ? { jobLog: JSON.parse(JSON.stringify(this.jobLog)) as JobLogEntry[] } : {}),
     net: this.savedNet(sk),
     ...(disks.length ? { disks } : {}),
     ...(this.contracts.length || this.contractOffers.length || this.nextContractId > 1
-      ? { contracts: { nextId: this.nextContractId, rng: this.contractRng.getState(), offers: JSON.parse(JSON.stringify(this.contractOffers)) as ContractOffer[], active: JSON.parse(JSON.stringify(this.contracts)) as Contract[] } }
+      ? {
+          contracts: {
+            nextId: this.nextContractId,
+            rng: this.contractRng.getState(),
+            offers: JSON.parse(JSON.stringify(this.contractOffers)) as ContractOffer[],
+            active: JSON.parse(JSON.stringify(this.contracts)) as Contract[],
+          },
+        }
       : {}),
-    ...(this.video !== "board" ? { video: this.video } : {}),
-    ...(this.osCfg.spoolSlots !== null || this.osCfg.spoolOff.length || Object.keys(this.osCfg.spoolAlloc).length || Object.keys(this.osCfg.dataReserve).length ? { osConfig: { ...(this.osCfg.spoolSlots !== null ? { spoolSlots: this.osCfg.spoolSlots } : {}), ...(this.osCfg.spoolOff.length ? { spoolOff: [...this.osCfg.spoolOff] } : {}), ...(Object.keys(this.osCfg.spoolAlloc).length ? { spoolAlloc: { ...this.osCfg.spoolAlloc } } : {}), ...(Object.keys(this.osCfg.dataReserve).length ? { dataReserve: { ...this.osCfg.dataReserve } } : {}) } } : {}),
-    ...(this.sandbox ? {} : {
-      bill: {
-        wh: this.wattTicks / 3600, billedWh: this.billedWh, nextTick: this.nextBillTick, unpaid: this.unpaid, unpaidSince: this.unpaidSince,
-        powerCut: this.powerCut, paid: this.billPaid, last: this.lastBill && { ...this.lastBill },
-      },
-    }),
+    ...(this.video !== 'board' ? { video: this.video } : {}),
+    ...(this.osCfg.spoolSlots !== null ||
+    this.osCfg.spoolOff.length ||
+    Object.keys(this.osCfg.spoolAlloc).length ||
+    Object.keys(this.osCfg.dataReserve).length
+      ? {
+          osConfig: {
+            ...(this.osCfg.spoolSlots !== null ? { spoolSlots: this.osCfg.spoolSlots } : {}),
+            ...(this.osCfg.spoolOff.length ? { spoolOff: [...this.osCfg.spoolOff] } : {}),
+            ...(Object.keys(this.osCfg.spoolAlloc).length ? { spoolAlloc: { ...this.osCfg.spoolAlloc } } : {}),
+            ...(Object.keys(this.osCfg.dataReserve).length ? { dataReserve: { ...this.osCfg.dataReserve } } : {}),
+          },
+        }
+      : {}),
+    ...(this.sandbox
+      ? {}
+      : {
+          bill: {
+            wh: this.wattTicks / 3600,
+            billedWh: this.billedWh,
+            nextTick: this.nextBillTick,
+            unpaid: this.unpaid,
+            unpaidSince: this.unpaidSince,
+            powerCut: this.powerCut,
+            paid: this.billPaid,
+            last: this.lastBill && { ...this.lastBill },
+          },
+        }),
   };
 }
 
@@ -75,16 +134,24 @@ export function toSave(this: Game): SaveV5 {
 export function savedDisks(this: Game): SavedDisk[] {
   const out: SavedDisk[] = [];
   for (const d of this.board.devices) {
-    if (deviceSpec(d).kind !== "storage") continue;
+    if (deviceSpec(d).kind !== 'storage') continue;
     const disk = this.disks.get(d.id);
     if (!disk) continue;
     const media = disk.mediaState();
     const twin = disk.twin?.mediaState();
     const files = disk.fs.records();
-    const worn = media.wear.length > 0 || media.bad.length > 0 || (twin && (twin.wear.length > 0 || twin.bad.length > 0));
-    if (disk.mount === "unformatted" && files.length === 0 && !worn) continue;
+    const worn =
+      media.wear.length > 0 || media.bad.length > 0 || (twin && (twin.wear.length > 0 || twin.bad.length > 0));
+    if (disk.mount === 'unformatted' && files.length === 0 && !worn) continue;
     const written = disk.fs.writtenOutsideFiles();
-    out.push({ deviceId: d.id, mount: disk.mount, files, ...(written.length ? { written } : {}), media, ...(twin ? { twin } : {}) });
+    out.push({
+      deviceId: d.id,
+      mount: disk.mount,
+      files,
+      ...(written.length ? { written } : {}),
+      media,
+      ...(twin ? { twin } : {}),
+    });
   }
   return out;
 }
@@ -97,22 +164,29 @@ export function savedDisks(this: Game): SavedDisk[] {
 export function restoreDisks(this: Game, list: readonly SavedDisk[]): void {
   for (const sd of list) {
     const dev = this.board.devices.find((d) => d.id === sd.deviceId);
-    if (!dev || deviceSpec(dev).kind !== "storage") continue;
+    if (!dev || deviceSpec(dev).kind !== 'storage') continue;
     const disk = this.diskFor(dev);
     const isOs = this.os?.deviceId === dev.id;
     disk.restoreMedia(sd.media);
     if (sd.twin && disk.twin) disk.twin.restoreMedia(sd.twin);
-    const files = isOs ? sd.files.filter((f) => f.kind !== "os" && f.kind !== "spool") : sd.files;
-    disk.fs.restore(files, isOs ? [] : sd.written ?? []);
-    for (const f of disk.fs.list("dataset")) {
-      if (f.seed !== undefined && !f.lost) disk.fs.write(f.id, datasetBytes(f.seed, f.extents.reduce((n, e) => n + e.len, 0)));
+    const files = isOs ? sd.files.filter((f) => f.kind !== 'os' && f.kind !== 'spool') : sd.files;
+    disk.fs.restore(files, isOs ? [] : (sd.written ?? []));
+    for (const f of disk.fs.list('dataset')) {
+      if (f.seed !== undefined && !f.lost)
+        disk.fs.write(
+          f.id,
+          datasetBytes(
+            f.seed,
+            f.extents.reduce((n, e) => n + e.len, 0),
+          ),
+        );
     }
-    if (sd.mount !== "unformatted") disk.mount = sd.mount;
+    if (sd.mount !== 'unformatted') disk.mount = sd.mount;
   }
 }
 
 /** The contracts block of the save, back into the game: offers, running contracts, the id counter and the offers' stream. */
-export function restoreContracts(this: Game, c: NonNullable<SaveV5["contracts"]>): void {
+export function restoreContracts(this: Game, c: NonNullable<SaveV5['contracts']>): void {
   this.nextContractId = c.nextId;
   this.contractRng.setState(c.rng);
   this.contractOffers = JSON.parse(JSON.stringify(c.offers)) as ContractOffer[];
@@ -123,10 +197,17 @@ export function restoreContracts(this: Game, c: NonNullable<SaveV5["contracts"]>
 
 /** The network block of the save: plan, router, cable, offers (downloads in flight restart as offers) and the spool. */
 export function savedNet(this: Game, sk: (k: Key) => SavedKey): SavedNet {
-  const offers = [...this.offersQ.waiting(), ...this.downloads.map((t) => t.key), ...this.rx].sort((a, b) => a.id - b.id);
+  const offers = [...this.offersQ.waiting(), ...this.downloads.map((t) => t.key), ...this.rx].sort(
+    (a, b) => a.id - b.id,
+  );
   return {
-    ispTier: this.ispTier, routerTier: this.routerTier, lan: this.lan, networkLinked: this.networkLinked, deadTicks: this.deadTicks,
-    offers: offers.map(sk), spool: this.spool.map(sk),
+    ispTier: this.ispTier,
+    routerTier: this.routerTier,
+    lan: this.lan,
+    networkLinked: this.networkLinked,
+    deadTicks: this.deadTicks,
+    offers: offers.map(sk),
+    spool: this.spool.map(sk),
   };
 }
 
@@ -138,15 +219,20 @@ export function restoreSave(this: Game, s: SaveV5): void {
   this.board = boardFromJson(s.board);
   // a save from before the radiators: its liquid loop kept the cooling of a slim radiator, so it gets one for free (top fan mount if the case has one)
   legacyRadiatorSlots(this.board);
-  if (this.board.devices.some((d) => d.spec === "cooler2") && !fittedRadiator(this.board)) {
-    this.board.devices.push({ id: `dev${this.board.nextId++}`, spec: "rad1", slot: radiatorSlot(sideMounts(this.board.caseTier, "top").length > 0 ? "top" : "front") });
+  if (this.board.devices.some((d) => d.spec === 'cooler2') && !fittedRadiator(this.board)) {
+    this.board.devices.push({
+      id: `dev${this.board.nextId++}`,
+      spec: 'rad1',
+      slot: radiatorSlot(sideMounts(this.board.caseTier, 'top').length > 0 ? 'top' : 'front'),
+    });
   }
   this.machine.prng.setState(s.prngState);
   this.money = this.sandbox ? SANDBOX_MONEY : s.money;
   if (this.sandbox) {
     // the sandbox's own edits: the pinned level and what is switched off (an id that no longer exists is dropped)
     if (s.sandboxLevel !== undefined) this.sandboxLevel = s.sandboxLevel;
-    const classes = new Set<string>(JOB_CLASSES.map((c) => c.id)), kinds = new Set(JOB_DEX.filter((e) => !e.planned).map((e) => e.id));
+    const classes = new Set<string>(JOB_CLASSES.map((c) => c.id)),
+      kinds = new Set(JOB_DEX.filter((e) => !e.planned).map((e) => e.id));
     this.sandboxOff = new Set((s.sandboxOff ?? []).filter((id) => classes.has(id)) as JobClassId[]);
     this.sandboxKindsOff = new Set((s.sandboxKindsOff ?? []).filter((id) => kinds.has(id)));
   }
@@ -162,13 +248,18 @@ export function restoreSave(this: Game, s: SaveV5): void {
   this.cables = { ...s.cables, pcmains: s.cables.pcmains ?? true, monmains: s.cables.monmains ?? true }; // a save from before the wall cords had them plugged
   pruneCables(this.board, this.cables); // (a cord belongs to its PSU or monitor: one that has none comes off)
   // a save from before the fan cables had the machine running: every fan it has is plugged (a machine that used to run is not locked out of POST)
-  for (const [k, v] of Object.entries(allCables(this.board))) if (isFanCable(k) && this.cables[k] === undefined) this.cables[k] = v;
+  for (const [k, v] of Object.entries(allCables(this.board)))
+    if (isFanCable(k) && this.cables[k] === undefined) this.cables[k] = v;
   this.progress = { ...s.progress, mainsConnected: s.progress.mainsConnected ?? true }; // a save from before the cords needs no lesson on them
   // The first boot marks when clients start arriving; a save without the field (older v4) restarts it at the load tick.
   this.firstBootTick = s.progress.poweredOn ? (s.firstBootTick ?? s.baseTick) : null;
   this.declined = s.declined ?? 0;
-  this.dex = s.jobDex ? JSON.parse(JSON.stringify(s.jobDex)) as Record<string, DexRecord> : {};
-  this.jobLog = Array.isArray(s.jobLog) ? (JSON.parse(JSON.stringify(s.jobLog)) as JobLogEntry[]).filter((e) => e && typeof e.id === "number" && typeof e.type === "string").slice(-JOB_LOG_CAP) : [];
+  this.dex = s.jobDex ? (JSON.parse(JSON.stringify(s.jobDex)) as Record<string, DexRecord>) : {};
+  this.jobLog = Array.isArray(s.jobLog)
+    ? (JSON.parse(JSON.stringify(s.jobLog)) as JobLogEntry[])
+        .filter((e) => e && typeof e.id === 'number' && typeof e.type === 'string')
+        .slice(-JOB_LOG_CAP)
+    : [];
   this.expired = s.expired ?? 0;
   if (!this.sandbox) {
     if (s.clientBase !== undefined) {
@@ -202,14 +293,22 @@ export function restoreSave(this: Game, s: SaveV5): void {
     this.networkLinked = s.net.networkLinked;
     this.deadTicks = s.net.deadTicks;
   }
-  if (this.lan && this.lan !== "board" && !this.board.devices.some((d) => d.id === this.lan)) this.lan = null;
+  if (this.lan && this.lan !== 'board' && !this.board.devices.some((d) => d.id === this.lan)) this.lan = null;
   if (!this.routerTier) this.lan = null;
   this.cables.lan = this.lan !== null;
   // the video cable's port (absent: the board's); a card that is not there any more puts it back
-  this.video = typeof s.video === "string" ? s.video : "board";
-  if (this.video !== "board" && !this.videoCard()) { this.video = "board"; this.cables.video = false; }
+  this.video = typeof s.video === 'string' ? s.video : 'board';
+  if (this.video !== 'board' && !this.videoCard()) {
+    this.video = 'board';
+    this.cables.video = false;
+  }
   this.log = [];
-  this.osCfg = { spoolSlots: typeof s.osConfig?.spoolSlots === "number" ? s.osConfig.spoolSlots : null, spoolOff: Array.isArray(s.osConfig?.spoolOff) ? [...s.osConfig.spoolOff] : [], spoolAlloc: { ...(s.osConfig?.spoolAlloc ?? {}) }, dataReserve: { ...(s.osConfig?.dataReserve ?? {}) } };
+  this.osCfg = {
+    spoolSlots: typeof s.osConfig?.spoolSlots === 'number' ? s.osConfig.spoolSlots : null,
+    spoolOff: Array.isArray(s.osConfig?.spoolOff) ? [...s.osConfig.spoolOff] : [],
+    spoolAlloc: { ...(s.osConfig?.spoolAlloc ?? {}) },
+    dataReserve: { ...(s.osConfig?.dataReserve ?? {}) },
+  };
   if (s.os) this.formatOs(getOsSpec(s.os.spec)!, s.os.deviceId, false);
   if (s.disks) this.restoreDisks(s.disks);
   if (s.contracts) this.restoreContracts(s.contracts);
@@ -234,7 +333,18 @@ export function restoreSave(this: Game, s: SaveV5): void {
       key.retired = p.retired ?? (legacyRetired && !p.done);
       key.reloaded = true;
       this.plugged = key;
-      this.pchKey = { id: key.id, program: generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true, gpu: this.gpuTarget(), npu: this.npuTarget() }).program, done: key.done, result: key.result };
+      this.pchKey = {
+        id: key.id,
+        program: generate(key.template, key.seed, {
+          row: JOB_ROW,
+          scale: key.scale,
+          hosted: true,
+          gpu: this.gpuTarget(),
+          npu: this.npuTarget(),
+        }).program,
+        done: key.done,
+        result: key.result,
+      };
       this.pch.plug(this.pchKey);
     }
   } catch (e) {

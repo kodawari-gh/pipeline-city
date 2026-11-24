@@ -166,7 +166,12 @@ describe('game music: leaving the game for the main menu', () => {
     d.onScene('menu');
     expect(GAME_OUT_MS).toBe(1500);
     expect(b.stops()).toContainEqual(expect.objectContaining({ id: keyed('bed', 2), fadeOutMs: GAME_OUT_MS }));
-    expect(b.starts().filter((c) => c.id === MENU).at(-1)).toEqual(expect.objectContaining({ id: MENU }));
+    expect(
+      b
+        .starts()
+        .filter((c) => c.id === MENU)
+        .at(-1),
+    ).toEqual(expect.objectContaining({ id: MENU }));
   });
 
   it('going back to the game stops the menu loop on the next bar; leaving again stops the game stems', () => {
@@ -178,7 +183,9 @@ describe('game music: leaving the game for the main menu', () => {
     const from = b.calls.length;
     d.onScene('menu');
     const after = b.calls.slice(from);
-    expect(after).toContainEqual(expect.objectContaining({ kind: 'stop', id: keyed('bed', 1), fadeOutMs: GAME_OUT_MS }));
+    expect(after).toContainEqual(
+      expect.objectContaining({ kind: 'stop', id: keyed('bed', 1), fadeOutMs: GAME_OUT_MS }),
+    );
   });
 });
 
@@ -187,7 +194,13 @@ describe('game music: phase table (bed, pluck, bass)', () => {
     const { b, d } = inGame(1, 'running');
     d.onSnapshot(snap(1, 'off'));
     const bed = b.gains(keyed('bed', 1)).at(-1)!;
-    expect(bed).toEqual(expect.objectContaining({ id: keyed('bed', 1), gainDb: expect.closeTo(gainFor('bed', 0.5), 1), fadeMs: ENTRY_FADE_MS }));
+    expect(bed).toEqual(
+      expect.objectContaining({
+        id: keyed('bed', 1),
+        gainDb: expect.closeTo(gainFor('bed', 0.5), 1),
+        fadeMs: ENTRY_FADE_MS,
+      }),
+    );
     expect(b.stops()).toEqual(
       expect.arrayContaining([
         { kind: 'stop', id: keyed('pluck', 1), fadeOutMs: expect.any(Number), quantise: 'beat' },
@@ -213,7 +226,12 @@ describe('game music: phase table (bed, pluck, bass)', () => {
   it('running: bed, pluck and bass at 1; the bass enters on the next bar', () => {
     const { b, d } = inGame(1, 'idle-os');
     d.onSnapshot(snap(1, 'running'));
-    expect(b.starts()).toContainEqual({ kind: 'start', id: keyed('bass', 1), fadeInMs: expect.any(Number), quantise: 'bar' });
+    expect(b.starts()).toContainEqual({
+      kind: 'start',
+      id: keyed('bass', 1),
+      fadeInMs: expect.any(Number),
+      quantise: 'bar',
+    });
     expect(b.gains(keyed('bass', 1)).at(-1)!.gainDb).toBeCloseTo(gainFor('bass', 1), 1);
     expect(b.gains(keyed('pluck', 1)).at(-1)!.gainDb).toBeCloseTo(gainFor('pluck', 1), 1);
   });
@@ -221,7 +239,12 @@ describe('game music: phase table (bed, pluck, bass)', () => {
   it('running to idle: the bass exits on the next beat', () => {
     const { b, d } = inGame(1, 'running');
     d.onSnapshot(snap(1, 'idle-os'));
-    expect(b.stops()).toContainEqual({ kind: 'stop', id: keyed('bass', 1), fadeOutMs: expect.any(Number), quantise: 'beat' });
+    expect(b.stops()).toContainEqual({
+      kind: 'stop',
+      id: keyed('bass', 1),
+      fadeOutMs: expect.any(Number),
+      quantise: 'beat',
+    });
   });
 
   it('a phase inside the same state (running to running-os) changes no layer', () => {

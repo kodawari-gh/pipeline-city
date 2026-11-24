@@ -27,7 +27,13 @@ const FLOOR = 1e-6;
 const SHIFT = Number(process.env.SEAM_SHIFT || 0);
 
 // ---- the manifest and the stitch, from the source (TS modules, Vite SSR; no copy of the numbers here) ----
-const vite = await createServer({ root: ROOT, configFile: false, appType: 'custom', logLevel: 'silent', server: { middlewareMode: true, hmr: false, ws: false } });
+const vite = await createServer({
+  root: ROOT,
+  configFile: false,
+  appType: 'custom',
+  logLevel: 'silent',
+  server: { middlewareMode: true, hmr: false, ws: false },
+});
 let MIX, music, LOOP_IDS;
 try {
   ({ MIX } = await vite.ssrLoadModule('/src/app/audio/mixTokens.ts'));
@@ -45,47 +51,75 @@ const { PAD, stitchStem, MENU_ID } = music;
 const AUDIO = resolve(ROOT, 'public/audio');
 const files = [
   ...LOOP_IDS.map((id) => ({
-    name: `ambience/${id}.ogg`, path: resolve(AUDIO, 'ambience', `${id}.ogg`), stitch: false,
-    start: 0, end: MIX.ambience[id].samples + SHIFT, minLen: MIX.ambience[id].samples, exact: true,
+    name: `ambience/${id}.ogg`,
+    path: resolve(AUDIO, 'ambience', `${id}.ogg`),
+    stitch: false,
+    start: 0,
+    end: MIX.ambience[id].samples + SHIFT,
+    minLen: MIX.ambience[id].samples,
+    exact: true,
   })),
-  ...readdirSync(resolve(AUDIO, 'music/stems')).filter((f) => f.endsWith('.ogg')).sort().map((f) => {
-    const loop = f === `${MENU_ID}.ogg` ? MIX.music.menuLoopSamples : MIX.music.loopSamples;
-    return {
-      name: `music/stems/${f}`, path: resolve(AUDIO, 'music/stems', f), stitch: true,
-      start: PAD, end: PAD + loop + SHIFT, minLen: 2 * PAD + loop, exact: false,
-    };
-  }),
+  ...readdirSync(resolve(AUDIO, 'music/stems'))
+    .filter((f) => f.endsWith('.ogg'))
+    .sort()
+    .map((f) => {
+      const loop = f === `${MENU_ID}.ogg` ? MIX.music.menuLoopSamples : MIX.music.loopSamples;
+      return {
+        name: `music/stems/${f}`,
+        path: resolve(AUDIO, 'music/stems', f),
+        stitch: true,
+        start: PAD,
+        end: PAD + loop + SHIFT,
+        minLen: 2 * PAD + loop,
+        exact: false,
+      };
+    }),
 ];
 
 // ---- decode in Chrome: the page returns only the windows around the two seams (the stitch touches nothing else) ----
-const browser = await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }) }).catch((e) => {
-  console.log('Chrome did not start:', e.message);
-  process.exit(3);
-});
+const browser = await chromium
+  .launch({
+    headless: true,
+    ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
+  })
+  .catch((e) => {
+    console.log('Chrome did not start:', e.message);
+    process.exit(3);
+  });
 const rows = [];
 let code = 0;
 try {
   const page = await browser.newPage();
   await page.goto('about:blank');
   for (const f of files) {
-    const wins = [[f.start - WINDOW, f.start + WINDOW], [f.end - WINDOW, f.end + WINDOW]];
-    const got = await page.evaluate(async ({ b64, rate, wins }) => {
-      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-      const buf = await new OfflineAudioContext(1, 1, rate).decodeAudioData(bytes.buffer);
-      const channels = [];
-      for (let c = 0; c < buf.numberOfChannels; c++) {
-        const d = buf.getChannelData(c);
-        channels.push(wins.map(([a, b]) => {
-          const s = Math.max(0, a), e = Math.min(d.length, b);
-          return { start: s, v: Array.from(d.subarray(s, Math.max(s, e))) };
-        }));
-      }
-      return { length: buf.length, rate: buf.sampleRate, channels };
-    }, { b64: readFileSync(f.path).toString('base64'), rate: MIX.sampleRate, wins });
+    const wins = [
+      [f.start - WINDOW, f.start + WINDOW],
+      [f.end - WINDOW, f.end + WINDOW],
+    ];
+    const got = await page.evaluate(
+      async ({ b64, rate, wins }) => {
+        const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+        const buf = await new OfflineAudioContext(1, 1, rate).decodeAudioData(bytes.buffer);
+        const channels = [];
+        for (let c = 0; c < buf.numberOfChannels; c++) {
+          const d = buf.getChannelData(c);
+          channels.push(
+            wins.map(([a, b]) => {
+              const s = Math.max(0, a),
+                e = Math.min(d.length, b);
+              return { start: s, v: Array.from(d.subarray(s, Math.max(s, e))) };
+            }),
+          );
+        }
+        return { length: buf.length, rate: buf.sampleRate, channels };
+      },
+      { b64: readFileSync(f.path).toString('base64'), rate: MIX.sampleRate, wins },
+    );
 
     const problems = [];
     if (got.rate !== MIX.sampleRate) problems.push(`rate ${got.rate}`);
-    if (f.exact ? got.length !== f.minLen : got.length < f.minLen) problems.push(`length ${got.length} (want ${f.exact ? '=' : '>='} ${f.minLen})`);
+    if (f.exact ? got.length !== f.minLen : got.length < f.minLen)
+      problems.push(`length ${got.length} (want ${f.exact ? '=' : '>='} ${f.minLen})`);
     let worst = { ratio: 0, step: 0, typical: 0, raw: 0 };
     if (got.length < f.end) problems.push('decoded shorter than the loop');
     else {
@@ -125,10 +159,14 @@ for (const r of rows) {
   const len = r.exact ? `len ${r.length} (exact ${r.want})` : `len ${r.length} (>= ${r.want})`;
   const seam = `seam ${r.step.toExponential(2)} typical ${r.typical.toExponential(2)} ratio ${r.ratio.toFixed(2)}`;
   const raw = r.exact ? '' : ` raw ${r.raw.toFixed(2)}`;
-  console.log(`${r.problems.length ? 'FAIL' : 'PASS'}  ${r.name}  ${len}  ${seam}${raw}${r.problems.length ? '  ' + r.problems.join('; ') : ''}`);
+  console.log(
+    `${r.problems.length ? 'FAIL' : 'PASS'}  ${r.name}  ${len}  ${seam}${raw}${r.problems.length ? '  ' + r.problems.join('; ') : ''}`,
+  );
 }
 const passed = rows.filter((r) => !r.problems.length).length;
 const top = rows.reduce((a, r) => (r.ratio > a.ratio ? r : a), rows[0] ?? { ratio: 0, name: 'none' });
-console.log(`${passed}/${rows.length} files pass; SEAM_FACTOR ${SEAM_FACTOR}; WINDOW ${WINDOW} samples; largest ratio ${top.ratio.toFixed(2)} (${top.name})`);
+console.log(
+  `${passed}/${rows.length} files pass; SEAM_FACTOR ${SEAM_FACTOR}; WINDOW ${WINDOW} samples; largest ratio ${top.ratio.toFixed(2)} (${top.name})`,
+);
 console.log('This checks each asset seam, not the engine playback: no click or gap is heard by this check.');
 process.exit(code || (passed === rows.length && rows.length > 0 ? 0 : 1));

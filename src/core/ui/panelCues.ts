@@ -17,16 +17,23 @@ export function watchPanelCues(): () => void {
     let first = true;
     return effect(() => {
       const open = flag.value;
-      if (first) { first = false; return; }
+      if (first) {
+        first = false;
+        return;
+      }
       if (open) playCue('ui_panel_open');
     });
   });
   // The hint toast plays ui_warn each time a new one shows (a held toast shows later, and plays then).
   let shown: string | undefined;
-  stops.push(effect(() => {
-    const id = visibleToasts()[0]?.id;
-    if (id !== undefined && id !== shown) playCue('ui_warn');
-    shown = id;
-  }));
-  return () => { for (const stop of stops) stop(); };
+  stops.push(
+    effect(() => {
+      const id = visibleToasts()[0]?.id;
+      if (id !== undefined && id !== shown) playCue('ui_warn');
+      shown = id;
+    }),
+  );
+  return () => {
+    for (const stop of stops) stop();
+  };
 }

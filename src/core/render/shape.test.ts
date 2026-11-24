@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { cordShape, discShape, fieldShape, lazyShape, movedShape, pick, pickReach, rectShape, rectsShape, SHAPE_PAD, type Pickable, type Shape } from './shape';
+import {
+  cordShape,
+  discShape,
+  fieldShape,
+  lazyShape,
+  movedShape,
+  pick,
+  pickReach,
+  rectShape,
+  rectsShape,
+  SHAPE_PAD,
+  type Pickable,
+  type Shape,
+} from './shape';
 
 /** RGBA pixels (w by h) with alpha 255 where `on(x, y)` says so. */
 const pixels = (w: number, h: number, on: (x: number, y: number) => boolean) => {
@@ -9,7 +22,12 @@ const pixels = (w: number, h: number, on: (x: number, y: number) => boolean) => 
 };
 /** A disc of radius `r` world units centred on (cx, cy), read at `cell` world units a pixel over a frame that starts at the origin. */
 const disc = (cx: number, cy: number, r: number, cell = 10, size = 40): Shape => {
-  const f = fieldShape(pixels(size, size, (x, y) => Math.hypot((x + 0.5) * cell - cx, (y + 0.5) * cell - cy) <= r), size, size, { x: 0, y: 0, w: size * cell, h: size * cell })!;
+  const f = fieldShape(
+    pixels(size, size, (x, y) => Math.hypot((x + 0.5) * cell - cx, (y + 0.5) * cell - cy) <= r),
+    size,
+    size,
+    { x: 0, y: 0, w: size * cell, h: size * cell },
+  )!;
   expect(f).not.toBeNull();
   return f;
 };
@@ -23,7 +41,10 @@ describe('rectangles and discs', () => {
     expect(s.outline(10)).toBeNull();
   });
   it('a union of rectangles is the nearest of them', () => {
-    const s = rectsShape([{ x: 0, y: 0, w: 10, h: 100 }, { x: 0, y: 90, w: 200, h: 10 }]);
+    const s = rectsShape([
+      { x: 0, y: 0, w: 10, h: 100 },
+      { x: 0, y: 90, w: 200, h: 10 },
+    ]);
     expect(s.dist(5, 50)).toBe(0);
     expect(s.dist(100, 95)).toBe(0);
     expect(s.dist(100, 50)).toBe(40);
@@ -82,8 +103,14 @@ describe('a silhouette read from pixels', () => {
     expect(s.outline(12)).toBe(s.outline(12)); // the same ring again is not worked out again
   });
   it('follows a shape that is not a box: an L leaves its inner corner out', () => {
-    const cell = 10, size = 40;
-    const s = fieldShape(pixels(size, size, (x, y) => (x >= 5 && x < 10 && y >= 5 && y < 35) || (x >= 5 && x < 30 && y >= 30 && y < 35)), size, size, { x: 0, y: 0, w: 400, h: 400 })!;
+    const cell = 10,
+      size = 40;
+    const s = fieldShape(
+      pixels(size, size, (x, y) => (x >= 5 && x < 10 && y >= 5 && y < 35) || (x >= 5 && x < 30 && y >= 30 && y < 35)),
+      size,
+      size,
+      { x: 0, y: 0, w: 400, h: 400 },
+    )!;
     expect(s.dist(70, 150)).toBe(0); // the upright
     expect(s.dist(200, 330)).toBe(0); // the foot
     expect(s.dist(200, 150)).toBeGreaterThan(90); // the empty corner of the box round them: 100 from the upright
@@ -91,28 +118,61 @@ describe('a silhouette read from pixels', () => {
   });
   it('places an anti-aliased edge to a fraction of a cell, not a whole one', () => {
     // 10 world units a pixel; the edge runs at x = 105.3 (a pixel column that is 53 percent covered), the same for every row
-    const w = 30, h = 30, p = new Uint8Array(w * h * 4);
+    const w = 30,
+      h = 30,
+      p = new Uint8Array(w * h * 4);
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) p[(y * w + x) * 4 + 3] = x < 10 ? 255 : x === 10 ? 135 : 0;
     const s = fieldShape(p, w, h, { x: 0, y: 0, w: 300, h: 300 }, { threshold: 128 })!;
     expect(s.dist(105, 150)).toBeLessThan(1.5);
     expect(s.dist(125, 150)).toBeGreaterThan(18);
     expect(s.dist(125, 150)).toBeLessThan(21.5);
     expect(s.dist(95, 150)).toBe(0);
-    const ring = s.outline(0)!.flat().filter(([, y]) => y > 60 && y < 240);
+    const ring = s
+      .outline(0)!
+      .flat()
+      .filter(([, y]) => y > 60 && y < 240);
     for (const [x] of ring) expect(Math.abs(x - 105.3)).toBeLessThan(2);
   });
   it('knows about how thick a thing is, and drops specks and pinholes from its ring', () => {
-    const w = 60, h = 60, cell = 10;
-    const stroke = fieldShape(pixels(w, h, (x, y) => y >= 28 && y < 31 && x > 5 && x < 55), w, h, { x: 0, y: 0, w: w * cell, h: h * cell })!;
+    const w = 60,
+      h = 60,
+      cell = 10;
+    const stroke = fieldShape(
+      pixels(w, h, (x, y) => y >= 28 && y < 31 && x > 5 && x < 55),
+      w,
+      h,
+      { x: 0, y: 0, w: w * cell, h: h * cell },
+    )!;
     expect(stroke.thickness!).toBeGreaterThan(18);
     expect(stroke.thickness!).toBeLessThan(45);
-    const block = fieldShape(pixels(w, h, (x, y) => x >= 5 && x < 55 && y >= 5 && y < 55), w, h, { x: 0, y: 0, w: w * cell, h: h * cell })!;
+    const block = fieldShape(
+      pixels(w, h, (x, y) => x >= 5 && x < 55 && y >= 5 && y < 55),
+      w,
+      h,
+      { x: 0, y: 0, w: w * cell, h: h * cell },
+    )!;
     expect(block.thickness!).toBeGreaterThan(stroke.thickness! * 3);
-    const speck = fieldShape(pixels(w, h, (x, y) => (x >= 10 && x < 40 && y >= 10 && y < 40 && !(x === 25 && y === 25)) || (x === 50 && y === 50)), w, h, { x: 0, y: 0, w: w * cell, h: h * cell })!;
+    const speck = fieldShape(
+      pixels(
+        w,
+        h,
+        (x, y) => (x >= 10 && x < 40 && y >= 10 && y < 40 && !(x === 25 && y === 25)) || (x === 50 && y === 50),
+      ),
+      w,
+      h,
+      { x: 0, y: 0, w: w * cell, h: h * cell },
+    )!;
     expect(speck.outline(0)!.length).toBe(1); // the body only: no ring for the one-cell dot or the one-cell hole
   });
   it('is null for nothing, and far away it is at least the margin', () => {
-    expect(fieldShape(pixels(8, 8, () => false), 8, 8, { x: 0, y: 0, w: 80, h: 80 })).toBeNull();
+    expect(
+      fieldShape(
+        pixels(8, 8, () => false),
+        8,
+        8,
+        { x: 0, y: 0, w: 80, h: 80 },
+      ),
+    ).toBeNull();
     const s = disc(200, 200, 100);
     expect(s.dist(5000, 200)).toBeGreaterThan(SHAPE_PAD);
   });
@@ -128,7 +188,10 @@ describe('a silhouette read from pixels', () => {
 describe('a shape built on first use', () => {
   it('is not built for a point far from it, and is once the point is near', () => {
     let built = 0;
-    const s = lazyShape({ x: 0, y: 0, w: 100, h: 100 }, () => { built++; return rectShape({ x: 0, y: 0, w: 100, h: 100 }); });
+    const s = lazyShape({ x: 0, y: 0, w: 100, h: 100 }, () => {
+      built++;
+      return rectShape({ x: 0, y: 0, w: 100, h: 100 });
+    });
     expect(s.dist(10000, 10000)).toBeGreaterThan(SHAPE_PAD);
     expect(built).toBe(0);
     expect(s.dist(50, 50)).toBe(0);
@@ -146,7 +209,8 @@ describe('picking', () => {
     expect(pick([tiny, big, back], 3000, 3000, 0.1)).toBe('big');
     expect(pick([tiny, big, back], 1050, 1050, 0.1)).toBe('tiny');
     expect(pick([big, tiny, back], 1050, 1050, 0.1)).toBe('big');
-    const a: Pickable = { id: 'a', rect: { x: 0, y: 0, w: 4000, h: 4000 } }, c: Pickable = { id: 'c', rect: { x: 100, y: 100, w: 3000, h: 3000 } };
+    const a: Pickable = { id: 'a', rect: { x: 0, y: 0, w: 4000, h: 4000 } },
+      c: Pickable = { id: 'c', rect: { x: 100, y: 100, w: 3000, h: 3000 } };
     expect(pick([a, c, back], 500, 500, 0.1)).toBe('a');
     expect(pick([c, a, back], 500, 500, 0.1)).toBe('c');
   });
@@ -158,7 +222,8 @@ describe('picking', () => {
     expect(pick([beside, big, back], 3500, 1050, 0.1)).toBe('big'); // not on the large one: the large one answers
   });
   it('a small target the pointer is on beats a nearer-looking miss on another small one', () => {
-    const a: Pickable = { id: 'a', rect: { x: 0, y: 0, w: 100, h: 100 } }, b: Pickable = { id: 'b', rect: { x: 130, y: 0, w: 100, h: 100 } };
+    const a: Pickable = { id: 'a', rect: { x: 0, y: 0, w: 100, h: 100 } },
+      b: Pickable = { id: 'b', rect: { x: 130, y: 0, w: 100, h: 100 } };
     expect(pick([a, b], 140, 50, 0.1)).toBe('b');
     expect(pick([a, b], 90, 50, 0.1)).toBe('a');
   });
@@ -175,12 +240,12 @@ describe('picking', () => {
     expect(pick([tiny], 1300, 1050, 0.1)).toBeNull();
   });
   it('the nearest of two small targets within reach wins', () => {
-    const a: Pickable = { id: 'a', rect: { x: 0, y: 0, w: 100, h: 100 } }, b: Pickable = { id: 'b', rect: { x: 300, y: 0, w: 100, h: 100 } };
+    const a: Pickable = { id: 'a', rect: { x: 0, y: 0, w: 100, h: 100 } },
+      b: Pickable = { id: 'b', rect: { x: 300, y: 0, w: 100, h: 100 } };
     expect(pick([a, b], 160, 50, 0.1)).toBe('a'); // 60 from a, 140 from b (out of its reach)
     expect(pick([a, b], 240, 50, 0.1)).toBe('b'); // 60 from b
     expect(pick([a, b], 200, 50, 0.1)).toBe('a'); // 100 from both: the front one
     expect(pick([b, a], 200, 50, 0.1)).toBe('b');
-
   });
   it('a near miss on a small target beats the backdrop it sits on, but being on the backdrop beats nothing', () => {
     expect(pick([tiny, back], 1150, 1050, 0.1)).toBe('tiny');
@@ -190,7 +255,12 @@ describe('picking', () => {
     expect(pick([tiny, back], 1050, 1050, 0.1, (h) => h.id === 'tiny')).toBe('back');
   });
   it('picks by silhouette: the empty corner of a lamp-shaped box is not the lamp', () => {
-    const L = fieldShape(pixels(40, 40, (x, y) => (x >= 5 && x < 10 && y >= 5 && y < 35) || (x >= 5 && x < 30 && y >= 30 && y < 35)), 40, 40, { x: 0, y: 0, w: 4000, h: 4000 })!;
+    const L = fieldShape(
+      pixels(40, 40, (x, y) => (x >= 5 && x < 10 && y >= 5 && y < 35) || (x >= 5 && x < 30 && y >= 30 && y < 35)),
+      40,
+      40,
+      { x: 0, y: 0, w: 4000, h: 4000 },
+    )!;
     const lamp: Pickable = { id: 'lamp', rect: { x: 0, y: 0, w: 4000, h: 4000 }, shape: L };
     expect(pick([lamp, back], 750, 1500, 0.1)).toBe('lamp');
     expect(pick([lamp, back], 2500, 1500, 0.1)).toBe('back');
@@ -199,7 +269,14 @@ describe('picking', () => {
 
 describe('pathShape / cordShape', () => {
   it('is 0 on the cord, grows off it, and the ring runs round the cord and its plug', () => {
-    const s = cordShape([[0, 0], [1000, 0]], 100, { x: 1000, y: -150, w: 300, h: 300 });
+    const s = cordShape(
+      [
+        [0, 0],
+        [1000, 0],
+      ],
+      100,
+      { x: 1000, y: -150, w: 300, h: 300 },
+    );
     expect(s.dist(500, 0)).toBe(0);
     expect(s.dist(500, 50)).toBe(0);
     expect(s.dist(500, 150)).toBeCloseTo(100, 0);

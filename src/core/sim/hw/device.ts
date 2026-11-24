@@ -1,4 +1,4 @@
-import type { Rate } from "./clock";
+import type { Rate } from './clock';
 
 /** A memory-mapped device. Access is byte-granular; addr is an offset from `base`. */
 export interface Device {
@@ -16,7 +16,11 @@ export interface Device {
 /** Plain byte storage mapped at a range (e.g. status registers). */
 export class RamDevice implements Device {
   readonly bytes: Uint8Array;
-  constructor(readonly name: string, readonly base: number, readonly size: number) {
+  constructor(
+    readonly name: string,
+    readonly base: number,
+    readonly size: number,
+  ) {
     this.bytes = new Uint8Array(size);
   }
   read(addr: number): number {

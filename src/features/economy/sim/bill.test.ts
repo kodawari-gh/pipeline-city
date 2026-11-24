@@ -1,17 +1,19 @@
-import { describe, expect, it } from "vitest";
-import { Game } from "@/worker/game/game";
+import { describe, expect, it } from 'vitest';
+import { Game } from '@/worker/game/game';
 
 const ECO = { powerRatePerWh: 1, billPeriodTicks: 100, billGraceTicks: 20, startQueue: [] };
-const run = (g: Game, n: number) => { for (let i = 0; i < n; i++) g.advanceBaseTick(); };
+const run = (g: Game, n: number) => {
+  for (let i = 0; i < n; i++) g.advanceBaseTick();
+};
 const game = (money: number) => new Game({ seed: 1, preassembled: true, economy: { ...ECO, startMoney: money } });
 
-describe("the power bill", () => {
-  it("is off with no rate and in the sandbox", () => {
+describe('the power bill', () => {
+  it('is off with no rate and in the sandbox', () => {
     expect(new Game({ seed: 1, preassembled: true }).snapshot().bill).toBeNull();
     expect(new Game({ seed: 1, sandbox: true, economy: ECO }).snapshot().bill).toBeNull();
   });
 
-  it("accrues, is issued each period and is paid from the money by itself", () => {
+  it('accrues, is issued each period and is paid from the money by itself', () => {
     const g = game(1000);
     run(g, 60);
     const mid = g.snapshot();
@@ -29,7 +31,7 @@ describe("the power bill", () => {
     expect(s.powered).toBe(true);
   });
 
-  it("cuts the wall after the grace for an unpaid bill, and restores it once the money is there", () => {
+  it('cuts the wall after the grace for an unpaid bill, and restores it once the money is there', () => {
     const g = game(0);
     run(g, 101);
     expect(g.snapshot().bill!.unpaid).toBeGreaterThan(0);
@@ -50,7 +52,7 @@ describe("the power bill", () => {
     expect(g.powerButton()).toMatchObject({ ok: true, powered: true });
   });
 
-  it("a payment inside the grace period avoids the cut", () => {
+  it('a payment inside the grace period avoids the cut', () => {
     const g = game(0);
     run(g, 101);
     g.money = 1000;
@@ -60,7 +62,7 @@ describe("the power bill", () => {
     expect(g.snapshot().powered).toBe(true);
   });
 
-  it("survives a save", () => {
+  it('survives a save', () => {
     const g = game(0);
     run(g, 130);
     const before = g.snapshot().bill!;

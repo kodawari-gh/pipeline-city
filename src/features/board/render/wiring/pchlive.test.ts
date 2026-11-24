@@ -7,16 +7,37 @@ import { chipLegOf, legGlow, ledOf, pchLedAt } from './pchlive';
 describe('chipLegOf', () => {
   it('finds the leg a lane ends on, and which way a packet arrives', () => {
     setLayoutTier(2);
-    const chip = BR.chip, [x, y] = legsOf(chip, 'n')[2]!;
-    const into = chipLegOf(chip, mkLane([[x, y - 300], [x, y]]));
+    const chip = BR.chip,
+      [x, y] = legsOf(chip, 'n')[2]!;
+    const into = chipLegOf(
+      chip,
+      mkLane([
+        [x, y - 300],
+        [x, y],
+      ]),
+    );
     expect(into).toMatchObject({ side: 'n', x, y, arrives: 1 });
-    const out = chipLegOf(chip, mkLane([[x, y], [x, y - 300]]));
+    const out = chipLegOf(
+      chip,
+      mkLane([
+        [x, y],
+        [x, y - 300],
+      ]),
+    );
     expect(out).toMatchObject({ side: 'n', arrives: -1 });
   });
 
   it('ignores a lane that does not land on the chip', () => {
     setLayoutTier(2);
-    expect(chipLegOf(BR.chip, mkLane([[-1000, -1000], [-900, -1000]]))).toBeNull();
+    expect(
+      chipLegOf(
+        BR.chip,
+        mkLane([
+          [-1000, -1000],
+          [-900, -1000],
+        ]),
+      ),
+    ).toBeNull();
   });
 
   it.each([0, 1, 2, 3])('tier %i: the chipset buses land on its legs, the CPU buses do not', (tier) => {
@@ -59,7 +80,8 @@ describe('ledOf', () => {
 it('the LED sits on the face of the package, well in from the east edge and clear of the label', () => {
   for (const tier of [0, 1, 2, 3]) {
     setLayoutTier(tier);
-    const c = BR.chip, p = pchLedAt(c);
+    const c = BR.chip,
+      p = pchLedAt(c);
     expect(p.x).toBeLessThanOrEqual(c.x + c.w - 60);
     expect(p.x).toBeGreaterThan(c.x + c.w * 0.7);
   }

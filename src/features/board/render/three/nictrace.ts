@@ -14,9 +14,17 @@ export const LIT_W = 5;
 const PULSE_GAP = 140;
 
 /** Where the camera is over a card's copper: the zoom (screen pixels per layout unit) and whether the face is seen at all. */
-export interface TraceSight { zoom: number; shown: boolean }
+export interface TraceSight {
+  zoom: number;
+  shown: boolean;
+}
 
-interface Card { lanes: NicLanes; flow: BusFlow; sight: TraceSight; /** When each bus last had a packet (the view's clock). */ last: { host: number; mem: number } }
+interface Card {
+  lanes: NicLanes;
+  flow: BusFlow;
+  sight: TraceSight;
+  /** When each bus last had a packet (the view's clock). */ last: { host: number; mem: number };
+}
 
 export class NicTraceView {
   readonly root = new Container();
@@ -54,7 +62,8 @@ export class NicTraceView {
    * pairs run toward the controller, and once the die has passed it the jack's pairs run out. Returns how long the copper before the die takes, which the die's packets wait.
    */
   launch(slot: string, dir: NicDir, at: number, total: number): number {
-    const c = this.cards.get(slot), T = this.T;
+    const c = this.cards.get(slot),
+      T = this.T;
     if (!c || !T) return 0;
     const lead = this.lead(slot, dir);
     if (dir === 'rx') c.flow.send(c.lanes.media, 1, T.alu, at, LIT_W);
@@ -70,11 +79,13 @@ export class NicTraceView {
    * or the memory bus (`mem`: 1 from the die to the memory, -1 back). A bus has a packet at most every `PULSE_GAP` ms, so a busy card shows a stream, not a wall.
    */
   pulse(slot: string, bus: 'host' | 'mem', dir: 1 | -1): void {
-    const c = this.cards.get(slot), T = this.T;
+    const c = this.cards.get(slot),
+      T = this.T;
     if (!c || !T || !c.sight.shown || this.clock - c.last[bus] < PULSE_GAP) return;
     c.last[bus] = this.clock;
     const lanes = bus === 'host' ? c.lanes.host : c.lanes.media;
-    if (lanes.length) c.flow.send(lanes, dir, bus === 'host' ? (dir > 0 ? T.alu : T.st) : dir > 0 ? T.st : T.ld, this.clock, LIT_W);
+    if (lanes.length)
+      c.flow.send(lanes, dir, bus === 'host' ? (dir > 0 ? T.alu : T.st) : dir > 0 ? T.st : T.ld, this.clock, LIT_W);
   }
 
   /** The camera's zoom and view over the card's copper (`Chips3D.frame` reads it from the card's own frame: the card folds down). */

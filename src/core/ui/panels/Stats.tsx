@@ -15,9 +15,16 @@ function Sparkline() {
   const ht = 36;
   const max = Math.max(1, ...h.map((x) => Math.max(x.retired, x.stalls)));
   const pts = (key: 'retired' | 'stalls') =>
-    h.map((x, i) => `${((i / (h.length - 1)) * w).toFixed(1)},${(ht - 2 - (x[key] / max) * (ht - 4)).toFixed(1)}`).join(' ');
+    h
+      .map((x, i) => `${((i / (h.length - 1)) * w).toFixed(1)},${(ht - 2 - (x[key] / max) * (ht - 4)).toFixed(1)}`)
+      .join(' ');
   return (
-    <svg class="spark" viewBox={`0 0 ${w} ${ht}`} role="img" aria-label="Instructions retired and stall cycles per tick, last minute">
+    <svg
+      class="spark"
+      viewBox={`0 0 ${w} ${ht}`}
+      role="img"
+      aria-label="Instructions retired and stall cycles per tick, last minute"
+    >
       <polyline class="s-ok" points={pts('retired')} fill="none" />
       <polyline class="s-warn" points={pts('stalls')} fill="none" stroke-dasharray="3 2" />
     </svg>
@@ -25,10 +32,25 @@ function Sparkline() {
 }
 
 /** A section of the drawer. The main ones stay open; the others fold behind a one-line summary, so the drawer is short at first sight. */
-function Fold({ title, hint, note, open, children }: { title: string; hint?: string; note?: string; open?: boolean; children: ComponentChildren }) {
+function Fold({
+  title,
+  hint,
+  note,
+  open,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  note?: string;
+  open?: boolean;
+  children: ComponentChildren;
+}) {
   return (
     <details class="stat-fold" open={open}>
-      <summary title={hint}><h3>{title}</h3>{note && <span class="mute">{note}</span>}</summary>
+      <summary title={hint}>
+        <h3>{title}</h3>
+        {note && <span class="mute">{note}</span>}
+      </summary>
       {children}
     </details>
   );
@@ -48,15 +70,34 @@ export function Stats() {
     <div class="stats">
       <h2>Stats</h2>
       <section>
-        <h3 title="Cycles per instruction and its inverse. Lower CPI is better; 1.0 is the ideal for a simple pipeline.">Speed</h3>
-        <div class="kv"><span>CPI</span><b>{perf ? fmtNum(perf.cpi, 2) : '-'}</b></div>
-        <div class="kv"><span>IPC</span><b>{perf ? fmtNum(perf.ipc, 2) : '-'}</b></div>
-        <div class="kv"><span>retired</span><b>{c.retired ?? 0}</b></div>
-        <div class="kv"><span>cycles</span><b>{c.cycles ?? 0}</b></div>
-        <div class="kv" title="Mispredicted branches that threw away work"><span>flushes</span><b>{c.flushes ?? 0}</b></div>
+        <h3 title="Cycles per instruction and its inverse. Lower CPI is better; 1.0 is the ideal for a simple pipeline.">
+          Speed
+        </h3>
+        <div class="kv">
+          <span>CPI</span>
+          <b>{perf ? fmtNum(perf.cpi, 2) : '-'}</b>
+        </div>
+        <div class="kv">
+          <span>IPC</span>
+          <b>{perf ? fmtNum(perf.ipc, 2) : '-'}</b>
+        </div>
+        <div class="kv">
+          <span>retired</span>
+          <b>{c.retired ?? 0}</b>
+        </div>
+        <div class="kv">
+          <span>cycles</span>
+          <b>{c.cycles ?? 0}</b>
+        </div>
+        <div class="kv" title="Mispredicted branches that threw away work">
+          <span>flushes</span>
+          <b>{c.flushes ?? 0}</b>
+        </div>
       </section>
       <section>
-        <h3>Stalls <span class="mute">({totalStalls(c)})</span></h3>
+        <h3>
+          Stalls <span class="mute">({totalStalls(c)})</span>
+        </h3>
         {stalls.map((x) => (
           <div class="bar-row" key={x.key} title={x.hint}>
             <span>{x.label}</span>
@@ -66,71 +107,177 @@ export function Stats() {
         ))}
       </section>
       <Fold title="Cache" note={hit === null ? undefined : `${(hit * 100).toFixed(0)}% hit`}>
-        <div class="kv"><span>hits</span><b>{c.cacheHits ?? 0}</b></div>
-        <div class="kv"><span>misses</span><b>{c.cacheMisses ?? 0}</b></div>
-        <div class="kv"><span>hit rate</span><b>{hit === null ? '-' : `${(hit * 100).toFixed(0)}%`}</b></div>
+        <div class="kv">
+          <span>hits</span>
+          <b>{c.cacheHits ?? 0}</b>
+        </div>
+        <div class="kv">
+          <span>misses</span>
+          <b>{c.cacheMisses ?? 0}</b>
+        </div>
+        <div class="kv">
+          <span>hit rate</span>
+          <b>{hit === null ? '-' : `${(hit * 100).toFixed(0)}%`}</b>
+        </div>
       </Fold>
       <section>
         <h3>Power</h3>
         <div class="bar-row" title="Total draw against what the power supply can deliver.">
           <span>load</span>
-          <Meter value={power.totalW} max={Math.max(power.budgetW, power.totalW, 1)} mark={power.budgetW} level={powerLevel(power.totalW, power.budgetW)}
-            label="Power load against budget" text={`${power.totalW.toFixed(0)} of ${power.budgetW} watts`} />
-          <b>{power.totalW.toFixed(0)}/{power.budgetW} W</b>
+          <Meter
+            value={power.totalW}
+            max={Math.max(power.budgetW, power.totalW, 1)}
+            mark={power.budgetW}
+            level={powerLevel(power.totalW, power.budgetW)}
+            label="Power load against budget"
+            text={`${power.totalW.toFixed(0)} of ${power.budgetW} watts`}
+          />
+          <b>
+            {power.totalW.toFixed(0)}/{power.budgetW} W
+          </b>
         </div>
       </section>
       {vrm && (
-        <Fold title={vrm.sink ? 'VRM (heatsink)' : 'VRM'} hint={VRM_ZONE_HELP[vrmZone(vrm.loadRatio)]} note={vrm.burnt ? 'burnt out' : `${Math.round(vrm.loadRatio * 100)}% load`} open={vrm.zone !== 'safe' || vrm.burnt}>
-          <div class="bar-row" title={`Demand ${vrm.demandA.toFixed(1)} A of ${vrm.capacityA} A. ${VRM_ZONE_HELP[vrmZone(vrm.loadRatio)]}`}>
+        <Fold
+          title={vrm.sink ? 'VRM (heatsink)' : 'VRM'}
+          hint={VRM_ZONE_HELP[vrmZone(vrm.loadRatio)]}
+          note={vrm.burnt ? 'burnt out' : `${Math.round(vrm.loadRatio * 100)}% load`}
+          open={vrm.zone !== 'safe' || vrm.burnt}
+        >
+          <div
+            class="bar-row"
+            title={`Demand ${vrm.demandA.toFixed(1)} A of ${vrm.capacityA} A. ${VRM_ZONE_HELP[vrmZone(vrm.loadRatio)]}`}
+          >
             <span>load</span>
-            <Meter value={vrm.loadRatio} max={vrm.barMax} mark={1} level={vrm.zone === 'overload' ? 'bad' : vrm.zone === 'busy' ? 'warn' : 'ok'}
-              label="VRM load against its rating" text={`${Math.round(vrm.loadRatio * 100)} percent of rating`} />
+            <Meter
+              value={vrm.loadRatio}
+              max={vrm.barMax}
+              mark={1}
+              level={vrm.zone === 'overload' ? 'bad' : vrm.zone === 'busy' ? 'warn' : 'ok'}
+              label="VRM load against its rating"
+              text={`${Math.round(vrm.loadRatio * 100)} percent of rating`}
+            />
             <b>{Math.round(vrm.loadRatio * 100)}%</b>
           </div>
-          <div class="bar-row" title={`Temperature. Throttles at ${vrm.throttleC} C, unstable at ${vrm.unstableC} C, burns at ${vrm.damageC} C.`}>
+          <div
+            class="bar-row"
+            title={`Temperature. Throttles at ${vrm.throttleC} C, unstable at ${vrm.unstableC} C, burns at ${vrm.damageC} C.`}
+          >
             <span>temp</span>
-            <Meter value={vrm.tempC} max={vrm.damageC} mark={vrm.throttleC} level={vrm.tempLevel} label="VRM temperature" text={`${vrm.tempC.toFixed(0)} °C`} />
+            <Meter
+              value={vrm.tempC}
+              max={vrm.damageC}
+              mark={vrm.throttleC}
+              level={vrm.tempLevel}
+              label="VRM temperature"
+              text={`${vrm.tempC.toFixed(0)} °C`}
+            />
             <b>{vrm.tempC.toFixed(0)} °C</b>
           </div>
-          <div class="kv" title={describeId('vrm.efficiency', s)?.plain}><span>efficiency</span><b>{Math.round(vrm.efficiency * 100)}%</b></div>
-          <div class="kv" title="Throttle: the regulator's heat holds the processor back by this much (100% is none)."><span>throttle</span><b>{Math.round(vrm.throttle * 100)}%</b></div>
-          <div class="kv" title="Chance per busy tick that voltage droop crashes the machine."><span>crash chance</span><b>{(vrm.errProb * 100).toFixed(1)}%</b></div>
-          <div class="kv" title={describeId('vrm.heat', s)?.plain}><span>heat</span><b>{vrm.lossW.toFixed(1)} W</b></div>
-          <div class="kv" title={describeId('vrm.ripple', s)?.plain}><span>ripple</span><b>{vrm.ripple.toFixed(2)}</b></div>
-          {vrm.burnt && <div class="kv bad"><span>state</span><b>burnt out</b></div>}
+          <div class="kv" title={describeId('vrm.efficiency', s)?.plain}>
+            <span>efficiency</span>
+            <b>{Math.round(vrm.efficiency * 100)}%</b>
+          </div>
+          <div class="kv" title="Throttle: the regulator's heat holds the processor back by this much (100% is none).">
+            <span>throttle</span>
+            <b>{Math.round(vrm.throttle * 100)}%</b>
+          </div>
+          <div class="kv" title="Chance per busy tick that voltage droop crashes the machine.">
+            <span>crash chance</span>
+            <b>{(vrm.errProb * 100).toFixed(1)}%</b>
+          </div>
+          <div class="kv" title={describeId('vrm.heat', s)?.plain}>
+            <span>heat</span>
+            <b>{vrm.lossW.toFixed(1)} W</b>
+          </div>
+          <div class="kv" title={describeId('vrm.ripple', s)?.plain}>
+            <span>ripple</span>
+            <b>{vrm.ripple.toFixed(2)}</b>
+          </div>
+          {vrm.burnt && (
+            <div class="kv bad">
+              <span>state</span>
+              <b>burnt out</b>
+            </div>
+          )}
         </Fold>
       )}
-      <Fold title="Boot (POST)" hint="POST: what the machine does at every cold boot before it looks for a program. A no-OS machine pays it for every job." note={`${post.total} s`}>
-        {post.parts.map((p) => <div class="kv" key={p.label} title={p.hint}><span>{p.label}</span><b>{p.ticks} s</b></div>)}
+      <Fold
+        title="Boot (POST)"
+        hint="POST: what the machine does at every cold boot before it looks for a program. A no-OS machine pays it for every job."
+        note={`${post.total} s`}
+      >
+        {post.parts.map((p) => (
+          <div class="kv" key={p.label} title={p.hint}>
+            <span>{p.label}</span>
+            <b>{p.ticks} s</b>
+          </div>
+        ))}
       </Fold>
       <Fold title="Clients" note={`${s.completed} served`} open={s.expired > 0}>
-        <div class="kv" title="Jobs finished and paid"><span>served</span><b>{s.completed}</b></div>
-        <div class="kv" title="Jobs the machine could not run, taken back by the client at their deadline. Each one costs reputation."><span>expired</span><b class={s.expired > 0 ? 'warn' : ''}>{s.expired}</b></div>
-        <div class="kv" title="Jobs you sent away yourself. Each costs a little reputation (free in the sandbox)."><span>declined</span><b>{s.declined}</b></div>
+        <div class="kv" title="Jobs finished and paid">
+          <span>served</span>
+          <b>{s.completed}</b>
+        </div>
+        <div
+          class="kv"
+          title="Jobs the machine could not run, taken back by the client at their deadline. Each one costs reputation."
+        >
+          <span>expired</span>
+          <b class={s.expired > 0 ? 'warn' : ''}>{s.expired}</b>
+        </div>
+        <div class="kv" title="Jobs you sent away yourself. Each costs a little reputation (free in the sandbox).">
+          <span>declined</span>
+          <b>{s.declined}</b>
+        </div>
       </Fold>
       <section>
         <h3>Devices</h3>
-        {s.devices.filter((d) => d.kind !== 'cooler' && d.kind !== 'psu').map((d) => {
-          const spec = getSpec(d.spec);
-          const max = spec ? spec.thermal.damageC : 100;
-          const name = splitName(d.name);
-          return (
-            <div class="dev" key={d.id}>
-              <div class="kv"><span title={name.detail || undefined}>{name.title}</span><b>{d.burnt ? 'burnt' : `${d.effectiveClock.toFixed(2)}x`}</b></div>
-              <div class="bar-row" title={spec ? `Throttles at ${spec.thermal.throttleC} C, unstable at ${spec.thermal.unstableC} C, burns at ${spec.thermal.damageC} C` : ''}>
-                <span>temp</span>
-                <Meter value={d.tempC} max={max} mark={spec?.thermal.throttleC} level={d.burnt ? 'bad' : tempLevel(d.tempC, spec)} label={`${d.name} temperature`} text={`${d.tempC.toFixed(0)} °C`} />
-                <b>{d.tempC.toFixed(0)} °C</b>
+        {s.devices
+          .filter((d) => d.kind !== 'cooler' && d.kind !== 'psu')
+          .map((d) => {
+            const spec = getSpec(d.spec);
+            const max = spec ? spec.thermal.damageC : 100;
+            const name = splitName(d.name);
+            return (
+              <div class="dev" key={d.id}>
+                <div class="kv">
+                  <span title={name.detail || undefined}>{name.title}</span>
+                  <b>{d.burnt ? 'burnt' : `${d.effectiveClock.toFixed(2)}x`}</b>
+                </div>
+                <div
+                  class="bar-row"
+                  title={
+                    spec
+                      ? `Throttles at ${spec.thermal.throttleC} C, unstable at ${spec.thermal.unstableC} C, burns at ${spec.thermal.damageC} C`
+                      : ''
+                  }
+                >
+                  <span>temp</span>
+                  <Meter
+                    value={d.tempC}
+                    max={max}
+                    mark={spec?.thermal.throttleC}
+                    level={d.burnt ? 'bad' : tempLevel(d.tempC, spec)}
+                    label={`${d.name} temperature`}
+                    text={`${d.tempC.toFixed(0)} °C`}
+                  />
+                  <b>{d.tempC.toFixed(0)} °C</b>
+                </div>
+                <div class="kv sub">
+                  <span>power</span>
+                  <b>{d.powerW.toFixed(1)} W</b>
+                </div>
               </div>
-              <div class="kv sub"><span>power</span><b>{d.powerW.toFixed(1)} W</b></div>
-            </div>
-          );
-        })}
+            );
+          })}
       </section>
       <section>
         <h3>Last minute</h3>
         <Sparkline />
-        <div class="legend"><span class="key ok" /> retired <span class="key warn" /> stalls</div>
+        <div class="legend">
+          <span class="key ok" /> retired <span class="key warn" /> stalls
+        </div>
       </section>
     </div>
   );

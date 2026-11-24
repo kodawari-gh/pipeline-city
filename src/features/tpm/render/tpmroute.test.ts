@@ -4,7 +4,8 @@ import { tpmPlan } from './tpmplans';
 import { tpmRoute } from './tpmroute';
 
 const plan = tpmPlan({ hashStages: 4, quoteRounds: 3, keys: 8 });
-const ids = (cmd: number, phase: 'in' | 'work' | 'out') => tpmRoute(plan, cmd, phase).map((h) => `${h.reverse ? '<' : ''}${h.link.id}`);
+const ids = (cmd: number, phase: 'in' | 'work' | 'out') =>
+  tpmRoute(plan, cmd, phase).map((h) => `${h.reverse ? '<' : ''}${h.link.id}`);
 
 describe('the way a command goes through the module', () => {
   it('comes in over the link to the registers and the sequencer, whatever the command', () => {

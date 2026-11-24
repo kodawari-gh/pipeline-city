@@ -18,24 +18,43 @@ mkdirSync(outDir, { recursive: true });
 
 if (PROD) {
   const b = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'build'], { stdio: 'inherit' });
-  if (await new Promise((r) => b.on('exit', r))) { console.log('the build failed'); process.exit(1); }
+  if (await new Promise((r) => b.on('exit', r))) {
+    console.log('the build failed');
+    process.exit(1);
+  }
 }
 let server = null;
-const up = async () => { try { return (await fetch(url)).ok; } catch { return false; } };
+const up = async () => {
+  try {
+    return (await fetch(url)).ok;
+  } catch {
+    return false;
+  }
+};
 if (!(await up())) {
-  server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', ...(PROD ? ['preview'] : []), '--port', String(PORT), '--strictPort'], { stdio: 'ignore' });
+  server = spawn(
+    process.execPath,
+    ['node_modules/vite/bin/vite.js', ...(PROD ? ['preview'] : []), '--port', String(PORT), '--strictPort'],
+    { stdio: 'ignore' },
+  );
   for (let i = 0; i < 100 && !(await up()); i++) await new Promise((r) => setTimeout(r, 300));
 }
-const stop = () => { try { server?.kill(); } catch { /* gone */ } };
+const stop = () => {
+  try {
+    server?.kill();
+  } catch {
+    /* gone */
+  }
+};
 process.on('exit', stop);
 
 const browser = FIREFOX
   ? await firefox.launch({ headless: true, firefoxUserPrefs: { 'webgl.force-enabled': true } })
   : await chromium.launch({
-    headless: true,
-    ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
-    args: ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'],
-  });
+      headless: true,
+      ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
+      args: ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'],
+    });
 let code = 0;
 try {
   const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
@@ -48,10 +67,16 @@ try {
     return ext ? String(g.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : 'unknown';
   });
   console.log(`GL renderer: ${gl}`);
-  if (/swiftshader|software/i.test(gl)) { console.log('software GL: nothing checked'); code = 2; }
-  else {
+  if (/swiftshader|software/i.test(gl)) {
+    console.log('software GL: nothing checked');
+    code = 2;
+  } else {
     // open Build my PC through its own control, then wait for the stage to draw
-    await page.getByRole('button', { name: /build/i }).first().click({ timeout: 15000 }).catch(() => {});
+    await page
+      .getByRole('button', { name: /build/i })
+      .first()
+      .click({ timeout: 15000 })
+      .catch(() => {});
     await page.waitForSelector('.build.mode .bld-host canvas', { timeout: 60000 }).catch(() => {});
     await page.waitForTimeout(3000);
     const png = await page.screenshot({ type: 'png' });
@@ -63,19 +88,25 @@ try {
       img.src = `data:image/png;base64,${b64}`;
       await img.decode();
       const c = document.createElement('canvas');
-      c.width = img.width; c.height = img.height;
+      c.width = img.width;
+      c.height = img.height;
       const g = c.getContext('2d', { willReadFrequently: true });
       g.drawImage(img, 0, 0);
       const d = g.getImageData(0, 0, c.width, c.height).data;
       let navy = 0;
       for (let i = 0; i < d.length; i += 4) {
-        const r = d[i], gg = d[i + 1], b = d[i + 2];
+        const r = d[i],
+          gg = d[i + 1],
+          b = d[i + 2];
         if (b < 110 && b - r > 12 && b - gg > 6 && b > 20) navy++;
       }
       return navy / (d.length / 4);
     }, png.toString('base64'));
     console.log(`navy share: ${(share * 100).toFixed(2)} % (limit ${MAX_NAVY * 100} %), screenshot ${out}`);
-    if (share >= MAX_NAVY) { console.log('FAIL navy covers too much of the Build screenshot'); code = 1; }
+    if (share >= MAX_NAVY) {
+      console.log('FAIL navy covers too much of the Build screenshot');
+      code = 1;
+    }
   }
 } finally {
   await browser.close();

@@ -1,15 +1,38 @@
 import { describe, expect, it } from 'vitest';
 import { BoxGeometry, Group, InstancedMesh, Matrix4, Mesh, Raycaster, Vector3, type Material } from 'three';
 import { mat, own } from './materials';
-import { LOD_BAND, LOD_OVERVIEW, LOD_PX, LOD_RADII, PartLod, drawnMeshes, farClasses, heldBy, lodSources, sizeClass, standInDraws } from './partlod';
+import {
+  LOD_BAND,
+  LOD_OVERVIEW,
+  LOD_PX,
+  LOD_RADII,
+  PartLod,
+  drawnMeshes,
+  farClasses,
+  heldBy,
+  lodSources,
+  sizeClass,
+  standInDraws,
+} from './partlod';
 import { UNDRAWN } from './pick';
 
-const box = (s: number, m = mat(0x808080), x = 0) => { const o = new Mesh(new BoxGeometry(s, s, s), m); o.position.x = x; return o; };
+const box = (s: number, m = mat(0x808080), x = 0) => {
+  const o = new Mesh(new BoxGeometry(s, s, s), m);
+  o.position.x = x;
+  return o;
+};
 
 /** A model: two parts of small still meshes, a skin over two meshes, a fade group, a rotor, a large panel. */
 function model() {
-  const root = new Group(), a = new Group(), b = new Group(), fade = new Group(), rotor = new Group(), skin = own(mat(0x204060));
-  a.userData.id = 'a'; b.userData.id = 'b'; rotor.userData.spin = true;
+  const root = new Group(),
+    a = new Group(),
+    b = new Group(),
+    fade = new Group(),
+    rotor = new Group(),
+    skin = own(mat(0x204060));
+  a.userData.id = 'a';
+  b.userData.id = 'b';
+  rotor.userData.spin = true;
   a.add(box(10, mat(0xff0000), 0), box(10, mat(0x00ff00), 40), box(12, skin, 80), box(12, skin, 120));
   b.add(box(10, mat(0x0000ff), 200), box(60, mat(0x333333), 300), box(60, mat(0x444444), 400));
   fade.add(box(10, mat(0x111111), 500), box(10, mat(0x222222), 540));
@@ -33,11 +56,12 @@ describe('the distance LOD rule (PERF6)', () => {
     expect(farClasses(at * (1 + LOD_BAND) * 1.01, [true])[0]).toBe(false);
     // a ceiling: no class far from it in, and the dead band stays under it
     expect(farClasses(0.05, [true, true, true, true], 0.05).some(Boolean)).toBe(false);
-    expect(farClasses(0.05 / (1 + LOD_BAND) * 0.99, [], 0.05).every(Boolean)).toBe(true);
+    expect(farClasses((0.05 / (1 + LOD_BAND)) * 0.99, [], 0.05).every(Boolean)).toBe(true);
   });
 
   it('takes the small still meshes, by anchor, and leaves the rest', () => {
-    const { root, fade } = model(), src = lodSources(root, { anchors: [fade] });
+    const { root, fade } = model(),
+      src = lodSources(root, { anchors: [fade] });
     expect(src.length).toBe(11); // (not the rotor's two; the panel is in the overview's class)
     expect(src.filter((s) => s.cls === 4).length).toBe(1);
     expect(src.filter((s) => s.anchor === fade).length).toBe(2);
@@ -45,8 +69,12 @@ describe('the distance LOD rule (PERF6)', () => {
   });
 
   it('switches with a dead band, never flips at a steady zoom, and does no work at an unchanged zoom', () => {
-    const { root, fade, a } = model(), lod = new PartLod(root, () => ({ anchors: [fade] })), at = LOD_PX / LOD_RADII[0], hi = at * (1 + LOD_BAND);
-    const part = a.children[0] as Mesh, standIn = lod.standIns.find((s) => lod.sourcesOf(s).includes(part))!;
+    const { root, fade, a } = model(),
+      lod = new PartLod(root, () => ({ anchors: [fade] })),
+      at = LOD_PX / LOD_RADII[0],
+      hi = at * (1 + LOD_BAND);
+    const part = a.children[0] as Mesh,
+      standIn = lod.standIns.find((s) => lod.sourcesOf(s).includes(part))!;
     const drawsAsStandIn = () => !(part.layers.mask & 1) && !!(standIn.layers.mask & 1);
     lod.update(at * 1.5);
     expect(lod.farNow[0]).toBe(false);
@@ -71,7 +99,8 @@ describe('the distance LOD rule (PERF6)', () => {
   });
 
   it('holds a part and all under it', () => {
-    const { root, a } = model(), m = a.children[0]!;
+    const { root, a } = model(),
+      m = a.children[0]!;
     expect(heldBy(m, new Set([a]))).toBe(true);
     expect(heldBy(m, new Set([root.children[1]!]))).toBe(false);
     expect(standInDraws(true, [m], new Set([a]))).toBe(false);
@@ -79,7 +108,9 @@ describe('the distance LOD rule (PERF6)', () => {
   });
 
   it('draws fewer meshes far, the same near, with the state material itself, and the parts still answer a ray', () => {
-    const { root, a, fade, skin } = model(), near = drawnMeshes(root), lod = new PartLod(root, () => ({ anchors: [fade] }));
+    const { root, a, fade, skin } = model(),
+      near = drawnMeshes(root),
+      lod = new PartLod(root, () => ({ anchors: [fade] }));
     expect(drawnMeshes(root)).toBe(near);
     lod.update(0.01);
     expect(lod.farNow.every(Boolean)).toBe(true);
@@ -105,12 +136,14 @@ describe('the distance LOD rule (PERF6)', () => {
     expect(lod.standIns.every((s) => !lod.sourcesOf(s).includes(a.children[0] as Mesh))).toBe(true);
     a.children[0]!.visible = true;
     // near again, with the dead band; then freed
-    lod.update(LOD_PX / LOD_RADII[0] * 2);
+    lod.update((LOD_PX / LOD_RADII[0]) * 2);
     expect(drawnMeshes(root)).toBe(near);
     lod.dispose();
     expect(lod.standIns.length).toBe(0);
     let left = 0;
-    root.traverse((o) => { if (o.userData.standIn) left++; });
+    root.traverse((o) => {
+      if (o.userData.standIn) left++;
+    });
     expect(left).toBe(0);
   });
 
@@ -118,13 +151,25 @@ describe('the distance LOD rule (PERF6)', () => {
     // a box whose x faces draw with the first material and its other faces with the second (as the RAM chips)
     const two = (m0: Material, m1: Material, x: number) => {
       const g = new BoxGeometry(10, 10, 10);
-      g.clearGroups(); g.addGroup(0, 12, 0); g.addGroup(12, 24, 1);
-      const o = new Mesh(g, [m0, m1]); o.position.x = x; return o;
+      g.clearGroups();
+      g.addGroup(0, 12, 0);
+      g.addGroup(12, 24, 1);
+      const o = new Mesh(g, [m0, m1]);
+      o.position.x = x;
+      return o;
     };
-    const root = new Group(), c = new Group(), d = new Group(), skin = own(mat(0x204060)), m = two(mat(0xff0000), skin, 0), x = box(10, mat(0x00ff00), 40), y = box(10, skin, 80);
+    const root = new Group(),
+      c = new Group(),
+      d = new Group(),
+      skin = own(mat(0x204060)),
+      m = two(mat(0xff0000), skin, 0),
+      x = box(10, mat(0x00ff00), 40),
+      y = box(10, skin, 80);
     const lone = two(own(mat(0x101010)), own(mat(0x202020)), 120);
-    c.userData.id = 'c'; d.userData.id = 'd';
-    c.add(m, x, lone); d.add(y);
+    c.userData.id = 'c';
+    d.userData.id = 'd';
+    c.add(m, x, lone);
+    d.add(y);
     root.add(c, d);
     expect(lodSources(root).map((s) => s.mesh)).toContain(m);
     expect(lodSources(root).map((s) => s.mesh)).toContain(lone);
@@ -133,7 +178,11 @@ describe('the distance LOD rule (PERF6)', () => {
     // the red faces join the green box, the skin's faces the skin's box: two stand-ins draw for the three meshes, with every triangle
     const of = (o: Mesh) => lod.standIns.filter((s) => lod.sourcesOf(s).includes(o));
     expect(of(m).length).toBe(2);
-    expect(of(m).map((s) => s.geometry.attributes.position!.count).sort((p, q) => p - q)).toEqual([36 + 12, 36 + 24]);
+    expect(
+      of(m)
+        .map((s) => s.geometry.attributes.position!.count)
+        .sort((p, q) => p - q),
+    ).toEqual([36 + 12, 36 + 24]);
     expect(of(m).find((s) => s.material === skin)).toBeDefined();
     expect([m, x, y].every((o) => !(o.layers.mask & 1))).toBe(true);
     // the lone two-material mesh joins nothing and draws as it is

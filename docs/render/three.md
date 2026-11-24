@@ -10,19 +10,19 @@ Figures are for `03fe0bc` (origin/main, 2026-11-14), on an RTX 5080 at 1920x1080
 
 `PRESETS` in `src/app/graphics.ts`. High is the default.
 
-| Option | Low | Medium | High | Ultra |
-|---|---|---|---|---|
-| `scale` (render size) | 0.75 | 0.75 | 1 | 1 |
-| `msaa` | 0 | 2 | 4 | 8 |
-| `ao` | 0 | 0 | 2 | 3 |
-| `bloom` | 0 | 1 | 2 | 2 |
-| `shadows` (sun map, room maps) | 0 (off) | 2 | 3 | 4 |
-| `lights` (room lamp cap; 0 = all) | 4 | 0 | 0 | 0 |
-| `lightShadows` | 0 | 0 | 1 | 1 |
-| `textures` | 0 | 1 | 2 | 3 |
-| `filtering` (anisotropy) | 2 | 4 | 8 | 16 |
-| `live` | 0 | 1 | 2 | 3 |
-| `particles` | 0 | 1 | 2 | 2 |
+| Option                            | Low     | Medium | High | Ultra |
+| --------------------------------- | ------- | ------ | ---- | ----- |
+| `scale` (render size)             | 0.75    | 0.75   | 1    | 1     |
+| `msaa`                            | 0       | 2      | 4    | 8     |
+| `ao`                              | 0       | 0      | 2    | 3     |
+| `bloom`                           | 0       | 1      | 2    | 2     |
+| `shadows` (sun map, room maps)    | 0 (off) | 2      | 3    | 4     |
+| `lights` (room lamp cap; 0 = all) | 4       | 0      | 0    | 0     |
+| `lightShadows`                    | 0       | 0      | 1    | 1     |
+| `textures`                        | 0       | 1      | 2    | 3     |
+| `filtering` (anisotropy)          | 2       | 4      | 8    | 16    |
+| `live`                            | 0       | 1      | 2    | 3     |
+| `particles`                       | 0       | 1      | 2    | 2     |
 
 Rules:
 
@@ -37,12 +37,12 @@ Rules:
 - A capped light is hidden (`visible = false`). Its fixture still glows. Its baked direct map takes its place on the still meshes (`<id>-direct`); with no direct map its bounce is lifted (`CAPPED_BOUNCE` 2.5).
 - Room shadow maps by level (`SHADOW_LEVELS`, `room3d.ts:63-65`), in px: key / sun / desk / bedside (cube) / floor (cube) / arc.
 
-| Level | key | sun | desk | bedside | floor | arc | Used by |
-|---|---|---|---|---|---|---|---|
-| 0 Off | none | none | none | none | none | none | Low |
-| 2 Med | 2048 | 1024 | 1024 | 512 | 512 | 1024 | Medium |
-| 3 High | 4096 | 2048 | 1024 | 1024 | 1024 | 2048 | High |
-| 4 Ultra | 8192 | 4096 | 2048 | 2048 | 2048 | 4096 | Ultra |
+| Level   | key  | sun  | desk | bedside | floor | arc  | Used by |
+| ------- | ---- | ---- | ---- | ------- | ----- | ---- | ------- |
+| 0 Off   | none | none | none | none    | none  | none | Low     |
+| 2 Med   | 2048 | 1024 | 1024 | 512     | 512   | 1024 | Medium  |
+| 3 High  | 4096 | 2048 | 1024 | 1024    | 1024  | 2048 | High    |
+| 4 Ultra | 8192 | 4096 | 2048 | 2048    | 2048  | 4096 | Ultra   |
 
 - The city has one shadow caster, the sun. Its map is 0 / 2048 / 4096 / 4096 for Low / Medium / High / Ultra (`SHADOW_LEVELS`, `outside/view.ts:42`). The city has no other tier hook.
 - Lightmaps: 12 room maps, each 994x1152, RGBM, no mips, nearest filter. The machine and the city have no lightmaps. No `LightProbe` or SH grid exists.
@@ -59,18 +59,18 @@ Parts, the room and the city each use a different method. Full bands are in [`lo
 
 ## Merges
 
-| Merge | Where | Effect |
-|---|---|---|
-| `mergeStatic` | room, at build (`room3d.ts:742`, `merge.ts:47`) | one mesh per material |
-| `mergePalette` | room (`PALETTE_CELL` 2 m, `room3d.ts:138`) | per-cell meshes, so the frustum can still cull them |
-| `mergeSiblings` + `shareMaterials` | machine, once at build (`machine3d.ts:262-266`) | still meshes of one parent become one palette mesh; gated by the `merge` flag only, not by tier. `mergeSiblingsSteps` is the same a set at a time (it yields after each), for `Machine3D.make` |
-| `shareMaterials(…, { across: true })` | Low only: the machine (`Machine3D.share`, PHONE-01) | equal still materials of different parts become one (a fade subtree still shares only inside itself); Build my PC at Low, 424 materials to 362 (the 217 distinct looks are not all reachable: the rest carry a fade or a writer's state); zoom frame 28.7–29.5 to 31.3–32.1 fps at CPU /4 on its own. High keeps one set per part. A part that goes away disposes a material the others use: three sets it up again at the next draw |
-| `mergeStatic(prop, { own: true, ok: glows })` | Low only: the router's status lights and its jacks' lenses (`room3d.ts`, CITY-06) | the glowing meshes of one material under a prop with its own id become one mesh, so a pick still finds the prop; one writer sets a material's glow, merged or not |
-| `mergeWithin` | Low only: the monitor housing (`props3d.ts`) and the architect lamp (`room3d.ts`, CITY-06; `pbr` keeps its steel's reflection). Every tier: the room's key rack, router, mailbox and wall socket plate (MACH-02, `room3d.ts`); cable plugs, cord ends and grommets (LPC5, `cablerig3d.ts`); machine wires (`machine3d.ts`) | still meshes under one parent become one mesh; the machine key carries `|low` and the room's key carries it too (`rebuild` in `board3d.ts`), so a tier change across the Low line rebuilds both |
-| stand-ins (`standIns`, `merge.ts`) | far machine parts | a stand-in set of merged meshes |
-| `Sweep` | city buildings and trees (`sweep.ts`) | one draw per ring, cut to the camera's frustum |
-| `sweptMerge` | city street (`CELL` 24 m, `sweep.ts`) | street pieces merged per material, in bearing order |
-| instancing | room books, city cars, signal lamps, swept rings, machine fixings | no `BatchedMesh` is used anywhere |
+| Merge                                         | Where                                                                                                                                                                                                                                                                                                                      | Effect                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mergeStatic`                                 | room, at build (`room3d.ts:742`, `merge.ts:47`)                                                                                                                                                                                                                                                                            | one mesh per material                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `mergePalette`                                | room (`PALETTE_CELL` 2 m, `room3d.ts:138`)                                                                                                                                                                                                                                                                                 | per-cell meshes, so the frustum can still cull them                                                                                                                                                                                                                                                                                                                                                                                  |
+| `mergeSiblings` + `shareMaterials`            | machine, once at build (`machine3d.ts:262-266`)                                                                                                                                                                                                                                                                            | still meshes of one parent become one palette mesh; gated by the `merge` flag only, not by tier. `mergeSiblingsSteps` is the same a set at a time (it yields after each), for `Machine3D.make`                                                                                                                                                                                                                                       |
+| `shareMaterials(…, { across: true })`         | Low only: the machine (`Machine3D.share`, PHONE-01)                                                                                                                                                                                                                                                                        | equal still materials of different parts become one (a fade subtree still shares only inside itself); Build my PC at Low, 424 materials to 362 (the 217 distinct looks are not all reachable: the rest carry a fade or a writer's state); zoom frame 28.7–29.5 to 31.3–32.1 fps at CPU /4 on its own. High keeps one set per part. A part that goes away disposes a material the others use: three sets it up again at the next draw |
+| `mergeStatic(prop, { own: true, ok: glows })` | Low only: the router's status lights and its jacks' lenses (`room3d.ts`, CITY-06)                                                                                                                                                                                                                                          | the glowing meshes of one material under a prop with its own id become one mesh, so a pick still finds the prop; one writer sets a material's glow, merged or not                                                                                                                                                                                                                                                                    |
+| `mergeWithin`                                 | Low only: the monitor housing (`props3d.ts`) and the architect lamp (`room3d.ts`, CITY-06; `pbr` keeps its steel's reflection). Every tier: the room's key rack, router, mailbox and wall socket plate (MACH-02, `room3d.ts`); cable plugs, cord ends and grommets (LPC5, `cablerig3d.ts`); machine wires (`machine3d.ts`) | still meshes under one parent become one mesh; the machine key carries `                                                                                                                                                                                                                                                                                                                                                             | low` and the room's key carries it too (`rebuild`in`board3d.ts`), so a tier change across the Low line rebuilds both |
+| stand-ins (`standIns`, `merge.ts`)            | far machine parts                                                                                                                                                                                                                                                                                                          | a stand-in set of merged meshes                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `Sweep`                                       | city buildings and trees (`sweep.ts`)                                                                                                                                                                                                                                                                                      | one draw per ring, cut to the camera's frustum                                                                                                                                                                                                                                                                                                                                                                                       |
+| `sweptMerge`                                  | city street (`CELL` 24 m, `sweep.ts`)                                                                                                                                                                                                                                                                                      | street pieces merged per material, in bearing order                                                                                                                                                                                                                                                                                                                                                                                  |
+| instancing                                    | room books, city cars, signal lamps, swept rings, machine fixings                                                                                                                                                                                                                                                          | no `BatchedMesh` is used anywhere                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 **One material for most machine parts (MACH-01). Decided 2026-11-17: not started.** Measured in a sandbox game (1600x900, real GPU, dev server, 25 s after the start): the machine has 105 materials on 214 meshes at High and 98 on 229 at Low. Of the 105, 34 carry a painted map and 71 are plain; the 71 fall into 14 groups by roughness, metalness and the `pal` hook (rounded to 0.25 and 0.5). So colour in vertices would take the machine to about 48 materials, still over the target of 40: the rest is an atlas for the 34 painted sheets (dies, labels, PCBs), which is a second job of the same size. The costs are every part builder's material calls, the rounding of roughness and metalness (it moves each pixel of the machine at High, so `highident` is regenerated and the owner looks at every part), and the program variants that each patch adds (GFX-05). The gain is not measured and has a ceiling: the parts that move (fans, panels, strips) cannot merge whatever their material. The look is the product at High (graphics priority, `art-style.md`) and phone cost no longer constrains a decision (TODO, 2026-11-15), so the rewrite is not worth its risk now. Take it up again if a profile shows High limited by the machine's material count (the share of the two uniform functions in the profile), and then start with Low, which has no `highident` to keep.
 
@@ -84,16 +84,17 @@ Measured:
 
 **Repeated meshes left after the merges (LPC3 count, 2026-11-14, `repeats.test.ts`, `REPEATS_DUMP=1` lists them).** Equal meshes (same vertices, size and look) that draw more than 4 times, High, maxed machine plus room, 942 draws in all:
 
-| Where | Sets | Draws to save | Largest sets |
-|---|---|---|---|
-| Machine | 11 | 60 | 6 perforated tray floors, 8 merged pieces of 1,836 vertices, 6 fans of 120 mm (4 meshes each), 8 + 6 + 6 see-through or cable boxes |
-| Room | 3 | 18 | 10 meshes under `tray`, 6 under `router` |
+| Where   | Sets | Draws to save | Largest sets                                                                                                                        |
+| ------- | ---- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Machine | 11   | 60            | 6 perforated tray floors, 8 merged pieces of 1,836 vertices, 6 fans of 120 mm (4 meshes each), 8 + 6 + 6 see-through or cable boxes |
+| Room    | 3    | 18            | 10 meshes under `tray`, 6 under `router`                                                                                            |
 
 A set of 16 merged case pieces is gone: each mesh that no ray stops at (`seeThrough`) had its own ray function, and `mergeSiblings` keeps different ray functions apart, so none of them merged. They now share `NO_RAY` (`pick.ts`): the maxed machine draws 640 meshes near, was 678. Any new "no ray" mesh must use `seeThrough` or `NO_RAY`, never a new function. The 18 standoff marks of the tray were one quad a position; they are now one mesh a word (`mounts`, `casetray3d.ts`): 628 draws near. The empty drive trays and the Velcro straps were groups of their own, and `mergeSiblings` merges by parent; their meshes now go straight into the cage and the tray group (`driveCage`, `trayDetail`): 611 draws near. Rule: a still sub-assembly that nothing finds, moves or fades alone adds its meshes to its parent, not a group.
 
 So instancing can save at most 78 draws. The six fans carry the most vertices (24,288 each, merged); they are in six part scopes (`userData.id`), which fade and outline alone, so an instanced set needs a per-instance fade first. The test holds the count: it may only fall.
 
 **Decision (MACH-02, 2026-11-16): merge a set that shares one scope, at every tier; build no per-instance pick or fade.**
+
 - The count was high: 12 of the machine's "draws" were the pick boxes of the empty bays and slots (`trayHit`, on the undrawn layer). `repeats.test.ts` now counts drawn meshes only, as `highident` does: machine 44, room 18.
 - The room's sets each sat in one scope: the key rack's 10 hooks (`tray`), the router's 6 vents, the mailbox. `mergeWithin` already took them at Low; it now takes them at every tier. High: `tray` 16 draws to 1, `router` 24 to 11, `mail` 8 to 2 (34 draws less; room sets left: 4 draws, five small meshes straight under the room's root at x -4450 to -3970, which no merge by parent takes). A High room shot at 14:00 matches the old one (router crop L .069 to .070); the room links 6 programs more (182 to 188), which MACH-01's shared material takes back.
 - The machine's sets are left: the fans (20 draws), a flat quad in each of the 8 parts `dev23` to `dev30` (7), 8 merged 1,836-point pieces in 8 groups (7), the fan plugs on their cables (5) each sit in their own part scope, which picks, outlines and fades alone, and the fans' rotors spin. Instances of them need an id map for the pick, an opacity per instance in a patched material, and a sync of each rotor's matrix: a lot of new code for 39 draws of about 600, and the stand-ins already join them at a distance (MACH-06). The case's 6 perforated tray floors (5 draws) keep their perforation material, which no merge takes; MACH-01's one material is where they join.
@@ -165,21 +166,21 @@ Firefox numbers (desktop geo run, 4K, `bfe11c6`):
 
 The overlay is in `src/app/debug/` (`overlay.ts`, `controls.ts`, `city-layers.ts`, `stats.ts`). The toggles exist only with `?debug`. Nothing they set is saved. **Auto** turns them all off.
 
-| Toggle | Hides | How |
-|---|---|---|
-| Hide city | the whole city | window quad `visible = false`, so `outsideDraws()` is false |
-| Hide machine | the machine root | `setRootHidden` |
-| No city lights | lamps, windows, sign light, glow, emissives | lamps hidden, sign layer moved, `key = -1` |
-| No buildings | buildings only | moved to layer 30 |
-| No trees | street and park trees only | moved to layer 30 |
-| No streets | streets and the land under them | moved to layer 30 |
-| Freeze city | clock stops: traffic, leaves, clouds, steam | `off` flag |
-| No cars | cars and signal lamps | layer 30 |
-| No city sky | sky dome | layer 30 |
-| No glow | glow chain | `key = -1` |
-| No steam | steam mesh | layer 30 |
-| No mirror | room in the glass | `key = -1` |
-| City 1x | not a hide: draws the city at 1 px per screen pixel instead of `SUPER` (2) | `flat` flag |
+| Toggle         | Hides                                                                      | How                                                         |
+| -------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Hide city      | the whole city                                                             | window quad `visible = false`, so `outsideDraws()` is false |
+| Hide machine   | the machine root                                                           | `setRootHidden`                                             |
+| No city lights | lamps, windows, sign light, glow, emissives                                | lamps hidden, sign layer moved, `key = -1`                  |
+| No buildings   | buildings only                                                             | moved to layer 30                                           |
+| No trees       | street and park trees only                                                 | moved to layer 30                                           |
+| No streets     | streets and the land under them                                            | moved to layer 30                                           |
+| Freeze city    | clock stops: traffic, leaves, clouds, steam                                | `off` flag                                                  |
+| No cars        | cars and signal lamps                                                      | layer 30                                                    |
+| No city sky    | sky dome                                                                   | layer 30                                                    |
+| No glow        | glow chain                                                                 | `key = -1`                                                  |
+| No steam       | steam mesh                                                                 | layer 30                                                    |
+| No mirror      | room in the glass                                                          | `key = -1`                                                  |
+| City 1x        | not a hide: draws the city at 1 px per screen pixel instead of `SUPER` (2) | `flat` flag                                                 |
 
 Notes:
 
@@ -192,17 +193,17 @@ The stats overlay shows fps, average and p95 frame time, draw calls, and city tr
 
 ## Measurement and tools
 
-| Command | File | What it does |
-|---|---|---|
-| `npm run bench:3d` | `tools/bench3d.mjs` | Plays the idle views, the flights, the door, the hover, a cable, a lifted part and the running machine with the real pointer. Reports frame times, GPU time per pass, scene and shadow passes per frame, draw calls, programs, textures (count), CPU time per part, rebuilds and hot functions. |
-| `npm run bench:4k` | `tools/bench3d.mjs` | 2560x1355 at DPR 1.5, Medium, `room night hover`. |
-| `npm run bench:modes` | `tools/bench-modes.mjs` | Same runs in Firefox (`--firefox`) or on a phone profile; `--query "citycuts=…"` sets the page's query. Reports only. |
-| `npm run shot` | `tools/shot.mjs` | Headless Chrome on the real GPU (`--firefox`: Firefox). Flags: `--view cpu\|board\|x,y,z`, `--clip hud`, `--preset`, `--prod`, `--hour`, `--look`, `--query`. Stops if the GL renderer is SwiftShader (unless `SOFTWARE=1`). |
-| `npm run animcheck` | `tools/animcheck.mjs` | Build my PC's jobs (fit, remove, Undo, swap; `--phases build,remove,undo,fans` adds the heatsink, mount fans, monitor and loop) on each case and board tier, then checks what each leaves behind: parts displaced, turned or hidden against a fresh build, RAM latches, the side panel, refusals. 10 to 30 min; it found the fan and monitor turn bug (2026-11-19). Flags: `--combos`, `--kinds`, `--phases`, `--speed`, `--out`. |
-| `npm run stills` | `tools/stills.mjs` | Renders parts headless to `public/stills/` with a hash manifest. |
-| (no npm script) | `tools/bench-costs.mjs` | Phone sweeps (Razr, Low) used for the toggle numbers above. |
-| (no npm script) | `tools/bench-groups.mjs` | Wraps the renderer in the page (dev server only, via `window.__board`) and files each draw by group: machine, room, scene, shadow, post, city, mirror, probe, other. It prints a table and writes JSON. Flags: `[out.json] [--device razr-fold-folded] [--preset low] [--views idle,zoom]`. It changes no game code. |
-| (no npm script) | `tools/shot-case.mjs` | Opens the sandbox with the assembled machine and frames one device from its own box (`--part cooler\|nvme2\|ram`, plus `--preset`, `--yaw`, `--pitch`, `--fill`). Uses the dev hook `__board.frameSpec` (`board3d.ts`), which sets the view with `jumpRaw` and skips the room clamp. Any flight or input turns the clamp back on. The hook is dev only: `devhook.test.ts` checks that the prod source has no `jumpRaw` or `frameSpec` outside the DEV object. |
+| Command               | File                     | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| --------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run bench:3d`    | `tools/bench3d.mjs`      | Plays the idle views, the flights, the door, the hover, a cable, a lifted part and the running machine with the real pointer. Reports frame times, GPU time per pass, scene and shadow passes per frame, draw calls, programs, textures (count), CPU time per part, rebuilds and hot functions.                                                                                                                                                               |
+| `npm run bench:4k`    | `tools/bench3d.mjs`      | 2560x1355 at DPR 1.5, Medium, `room night hover`.                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `npm run bench:modes` | `tools/bench-modes.mjs`  | Same runs in Firefox (`--firefox`) or on a phone profile; `--query "citycuts=…"` sets the page's query. Reports only.                                                                                                                                                                                                                                                                                                                                         |
+| `npm run shot`        | `tools/shot.mjs`         | Headless Chrome on the real GPU (`--firefox`: Firefox). Flags: `--view cpu\|board\|x,y,z`, `--clip hud`, `--preset`, `--prod`, `--hour`, `--look`, `--query`. Stops if the GL renderer is SwiftShader (unless `SOFTWARE=1`).                                                                                                                                                                                                                                  |
+| `npm run animcheck`   | `tools/animcheck.mjs`    | Build my PC's jobs (fit, remove, Undo, swap; `--phases build,remove,undo,fans` adds the heatsink, mount fans, monitor and loop) on each case and board tier, then checks what each leaves behind: parts displaced, turned or hidden against a fresh build, RAM latches, the side panel, refusals. 10 to 30 min; it found the fan and monitor turn bug (2026-11-19). Flags: `--combos`, `--kinds`, `--phases`, `--speed`, `--out`.                             |
+| `npm run stills`      | `tools/stills.mjs`       | Renders parts headless to `public/stills/` with a hash manifest.                                                                                                                                                                                                                                                                                                                                                                                              |
+| (no npm script)       | `tools/bench-costs.mjs`  | Phone sweeps (Razr, Low) used for the toggle numbers above.                                                                                                                                                                                                                                                                                                                                                                                                   |
+| (no npm script)       | `tools/bench-groups.mjs` | Wraps the renderer in the page (dev server only, via `window.__board`) and files each draw by group: machine, room, scene, shadow, post, city, mirror, probe, other. It prints a table and writes JSON. Flags: `[out.json] [--device razr-fold-folded] [--preset low] [--views idle,zoom]`. It changes no game code.                                                                                                                                          |
+| (no npm script)       | `tools/shot-case.mjs`    | Opens the sandbox with the assembled machine and frames one device from its own box (`--part cooler\|nvme2\|ram`, plus `--preset`, `--yaw`, `--pitch`, `--fill`). Uses the dev hook `__board.frameSpec` (`board3d.ts`), which sets the view with `jumpRaw` and skips the room clamp. Any flight or input turns the clamp back on. The hook is dev only: `devhook.test.ts` checks that the prod source has no `jumpRaw` or `frameSpec` outside the DEV object. |
 
 `bench:3d` flags: `--preset High|Low`, `--only "a,b"` (scenario names such as `room idle`, `board idle`, `cpu idle`, `door first open`, `running room`, `room night hover`), `--size`, `--dpr`, `--gpu <regex>`, `--need-timers`, `--no-profile`, `--baseline old.json`, `--lowpower`. A portrait screen (a phone) skips `room night hover`: there the overview does not hold the case. It starts its own dev server on port 5197. `shot` uses port 5199. Both take `PORT`.
 
@@ -210,12 +211,12 @@ The stats overlay shows fps, average and p95 frame time, draw calls, and city tr
 
 Last RTX 5080 run (`03fe0bc`, Chrome / ANGLE D3D11, GPU timers on, Auto-adjust off):
 
-| View | High GPU ms | High calls | High programs | Low GPU ms | Low calls | Low programs |
-|---|---|---|---|---|---|---|
-| Room idle | 9.0 | 968 | 127 | 4.3 | 930 | 203 |
-| Board idle | 7.9 | 891 | 127 | 3.9 | 866 | 203 |
-| CPU idle | 2.8 | 163 | 127 | 0.6 | 130 | 202 |
-| Door first open | 9.7 | 1,057 | 128 | 4.4 | 923 | 203 |
+| View            | High GPU ms | High calls | High programs | Low GPU ms | Low calls | Low programs |
+| --------------- | ----------- | ---------- | ------------- | ---------- | --------- | ------------ |
+| Room idle       | 9.0         | 968        | 127           | 4.3        | 930       | 203          |
+| Board idle      | 7.9         | 891        | 127           | 3.9        | 866       | 203          |
+| CPU idle        | 2.8         | 163        | 127           | 0.6        | 130       | 202          |
+| Door first open | 9.7         | 1,057      | 128           | 4.4        | 923       | 203          |
 
 Room idle, High: 1,715k triangles drawn, 3.16 shadow maps per frame. Low: 1,611k triangles, no shadow maps. GTAO takes about 0.5 ms of High room time (half size, bilateral upsample). Medium runs GTAO at half size too, about 0.2 ms. Low has no GTAO.
 
@@ -225,14 +226,14 @@ The city in the window costs 0.7 ms GPU at High and 0.1 ms at Low on the RTX (do
 
 Razr (motorola razr fold, Low, 485x997 at DPR 2.225, frame time under the 60 Hz cap, `03fe0bc`):
 
-| Setting | Mean fps | Avg ms | City tris |
-|---|---|---|---|
-| Base | 45.8 | 21.9 | 869,016 |
-| No city lights | 58.6 | 17.0 | 867,109 |
-| No buildings | 60.1 | 16.6 | 93,679 |
-| No cars | 49.9 | 20.1 | 781,146 |
-| Hide city | 59.9 | 16.7 | 868,338 |
-| City 1x | 41.0 | 26.7 | 871,062 |
+| Setting        | Mean fps | Avg ms | City tris |
+| -------------- | -------- | ------ | --------- |
+| Base           | 45.8     | 21.9   | 869,016   |
+| No city lights | 58.6     | 17.0   | 867,109   |
+| No buildings   | 60.1     | 16.6   | 93,679    |
+| No cars        | 49.9     | 20.1   | 781,146   |
+| Hide city      | 59.9     | 16.7   | 868,338   |
+| City 1x        | 41.0     | 26.7   | 871,062   |
 
 The same commit read 16.8 fps in a later bake session. The two sessions are not averaged. The cause is not known.
 

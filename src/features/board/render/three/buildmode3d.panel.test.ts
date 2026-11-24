@@ -13,20 +13,41 @@ vi.mock('@/core/render/three/init', async (orig) => {
       camera: new PerspectiveCamera(30, 1, 10, 1e6),
       renderer: {
         domElement: { width: 400, height: 400, addEventListener() {}, removeEventListener() {} },
-        setOpaqueSort() {}, getPixelRatio: () => 1, setSize() {}, properties: { get: () => ({}) }, compile: () => new Set(), getRenderTarget: () => null, setRenderTarget() {},
+        setOpaqueSort() {},
+        getPixelRatio: () => 1,
+        setSize() {},
+        properties: { get: () => ({}) },
+        compile: () => new Set(),
+        getRenderTarget: () => null,
+        setRenderTarget() {},
       },
     }),
   };
 });
 vi.mock('@/core/render/three/post', () => ({
   Post: class {
-    render() {} refine = () => false; meter = () => null; metered = () => null;
-    setEye() {} setReach() {} setDark() {} setOpaqueSort() {} apply() {} setSize() {}
+    render() {}
+    refine = () => false;
+    meter = () => null;
+    metered = () => null;
+    setEye() {}
+    setReach() {}
+    setDark() {}
+    setOpaqueSort() {}
+    apply() {}
+    setSize() {}
     startPrograms = () => [];
   },
 }));
-vi.mock('./lens3d', () => ({ Lens3D: class { frame() {} } }));
-vi.mock('@/app/audio/engine', async (orig) => ({ ...(await orig<typeof import('@/app/audio/engine')>()), playCue: vi.fn() }));
+vi.mock('./lens3d', () => ({
+  Lens3D: class {
+    frame() {}
+  },
+}));
+vi.mock('@/app/audio/engine', async (orig) => ({
+  ...(await orig<typeof import('@/app/audio/engine')>()),
+  playCue: vi.fn(),
+}));
 
 import { BuildStage } from './buildmode3d';
 import { isPanelId } from './casetray3d';
@@ -47,20 +68,52 @@ interface Inside {
 const hid = (s: BuildStage): Inside => s as unknown as Inside;
 
 /** The hand's host callbacks as the stage built them (the real hand's, kept before the test puts its stub in place). */
-interface PlugHost { connect(id: string, port?: string): void; disconnect(id: string): void }
-interface Fake { calls: string[]; synced: number[]; held: string[][]; host?: PlugHost }
+interface PlugHost {
+  connect(id: string, port?: string): void;
+  disconnect(id: string): void;
+}
+interface Fake {
+  calls: string[];
+  synced: number[];
+  held: string[][];
+  host?: PlugHost;
+}
 
 /** A stage with the full rig and no 3D: the machine's drawing is stubbed (it has the four leads), the hand only writes down what it was asked. */
 function stage(): { s: BuildStage; fake: Fake } {
   const fake: Fake = { calls: [], synced: [], held: [] };
-  const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({ clientWidth: 400, clientHeight: 800 });
+  const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
+    clientWidth: 400,
+    clientHeight: 800,
+  });
   s._machine = {
-    moving: false, doorOpen: false, frame() {}, setOpen() {}, closeDoor() {}, holdDetail() {}, lod() {}, root: new Group(), boardRoots: () => [], caseRoots: [],
-    rig: (id: string) => (isPanelId(id) ? { name: `the ${id} header` } : null), holdBack(ids: Iterable<string>) { fake.held.push([...ids]); }, letRun() {}, isHeldBack: () => false,
-    panelIds: () => LEADS, syncPanel(out: ReadonlySet<string>) { fake.synced.push(out.size); },
+    moving: false,
+    doorOpen: false,
+    frame() {},
+    setOpen() {},
+    closeDoor() {},
+    holdDetail() {},
+    lod() {},
+    root: new Group(),
+    boardRoots: () => [],
+    caseRoots: [],
+    rig: (id: string) => (isPanelId(id) ? { name: `the ${id} header` } : null),
+    holdBack(ids: Iterable<string>) {
+      fake.held.push([...ids]);
+    },
+    letRun() {},
+    isHeldBack: () => false,
+    panelIds: () => LEADS,
+    syncPanel(out: ReadonlySet<string>) {
+      fake.synced.push(out.size);
+    },
   };
   s._game = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
-  s.rebuild = s.rebuildAll = function (this: { snaps: { drop(): void }; board: { tier: number; caseTier: number }; holdReeled(): void }) {
+  s.rebuild = s.rebuildAll = function (this: {
+    snaps: { drop(): void };
+    board: { tier: number; caseTier: number };
+    holdReeled(): void;
+  }) {
     this.snaps.drop();
     setLayoutTier(this.board.tier, Math.max(this.board.tier, this.board.caseTier));
     this.holdReeled(); // (what a build of the machine does: the cables the job holds back stay out of sight)
@@ -71,10 +124,25 @@ function stage(): { s: BuildStage; fake: Fake } {
   const t = s as unknown as Inside;
   fake.host = (t.hand as { host: PlugHost }).host;
   s.hand = {
-    root: new Group(), kind: null, cancel() {},
-    pullOut: (id: string) => { if (!isPanelId(id)) return Promise.resolve(false); fake.calls.push(`pull ${id}`); t.plugPanelLead(id, false); return Promise.resolve(true); },
-    stow: (id: string) => { if (!isPanelId(id)) return Promise.resolve(false); fake.calls.push(`stow ${id}`); return Promise.resolve(true); },
-    feed: (id: string, plug: boolean) => { fake.calls.push(`feed ${id}${plug ? ' in' : ''}`); if (plug) t.plugPanelLead(id, true); return Promise.resolve(true); },
+    root: new Group(),
+    kind: null,
+    cancel() {},
+    pullOut: (id: string) => {
+      if (!isPanelId(id)) return Promise.resolve(false);
+      fake.calls.push(`pull ${id}`);
+      t.plugPanelLead(id, false);
+      return Promise.resolve(true);
+    },
+    stow: (id: string) => {
+      if (!isPanelId(id)) return Promise.resolve(false);
+      fake.calls.push(`stow ${id}`);
+      return Promise.resolve(true);
+    },
+    feed: (id: string, plug: boolean) => {
+      fake.calls.push(`feed ${id}${plug ? ' in' : ''}`);
+      if (plug) t.plugPanelLead(id, true);
+      return Promise.resolve(true);
+    },
     plugIn: () => Promise.resolve(false),
   };
   return { s: s as unknown as BuildStage, fake };
@@ -82,20 +150,32 @@ function stage(): { s: BuildStage; fake: Fake } {
 
 describe('the front-panel leads', () => {
   beforeEach(() => {
-    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {});
   });
 
   it('are in their headers on a machine the game built, and the hand reads them as cables', () => {
-    const { s } = stage(), snap = hid(s).handSnapshot();
-    for (const id of LEADS) expect(snap.cables.find((c) => c.id === id), id).toMatchObject({ connected: true });
+    const { s } = stage(),
+      snap = hid(s).handSnapshot();
+    for (const id of LEADS)
+      expect(
+        snap.cables.find((c) => c.id === id),
+        id,
+      ).toMatchObject({ connected: true });
     // (the game's own cables are all still there)
     expect(snap.cables.some((c) => c.id === 'atx')).toBe(true);
   });
 
   it('read as unplugged while the stage says they are out, and as plugged again when the hand pushes one in', () => {
-    const { s } = stage(), t = hid(s);
+    const { s } = stage(),
+      t = hid(s);
     t.plugPanelLead('panel:USB_3', false);
     expect(t.handSnapshot().cables.find((c) => c.id === 'panel:USB_3')?.connected).toBe(false);
     expect(t.handSnapshot().cables.find((c) => c.id === 'panel:F_PANEL')?.connected).toBe(true);
@@ -122,7 +202,8 @@ describe('the front-panel leads', () => {
     await s.fit('board3');
     fake.calls.length = 0;
     await s.fit('board2');
-    const pulls = LEADS.flatMap((id) => [`pull ${id}`, `stow ${id}`]), feeds = LEADS.map((id) => `feed ${id} in`);
+    const pulls = LEADS.flatMap((id) => [`pull ${id}`, `stow ${id}`]),
+      feeds = LEADS.map((id) => `feed ${id} in`);
     // each lead is pulled off its header and taken back, one after the other; then the new board's come out (the machine stub has the same four)
     expect(fake.calls).toEqual([...pulls, ...feeds]);
     expect(hid(s).panelOut.size).toBe(0);
@@ -138,7 +219,8 @@ describe('the front-panel leads', () => {
   });
 
   it('play the cable connect cue when the hand pushes a front-panel lead in, and the disconnect cue when it pulls one out', () => {
-    const { s, fake } = stage(), t = hid(s);
+    const { s, fake } = stage(),
+      t = hid(s);
     vi.mocked(playCue).mockClear();
     // (the hand's own callbacks, as a plug in or out calls them: a lead out of its header, then back into it)
     fake.host!.disconnect('panel:USB_3');

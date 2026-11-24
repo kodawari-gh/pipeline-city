@@ -19,7 +19,12 @@ export const bandAlpha = (z: number, band: readonly [number, number]): number =>
 export const SHOWN = 0.01;
 
 /** World rectangle. */
-export interface LodRect { x: number; y: number; w: number; h: number }
+export interface LodRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 /**
  * The one base ladder every device shares, in camera zoom: `fade` is the band a lid, shroud or cover fades over, `text` / `detail` are where the
@@ -49,7 +54,17 @@ export const seenZoom = (zoom: number, focus = 1): number => zoom * (FAR_ZOOM + 
 /** The stages, in camera zoom (see `BASE_LOD`). Each device adds its own extra stages after the base ones. */
 export const DEVICE_LOD = {
   /** `core`: a multicore die deeper than this shows only the core tile at the centre of the view (the others and the shared part fade out). */
-  die: { ...BASE_LOD, core: [3, 4], packets: 0.2, wires: 0.25, cells: 0.3, legend: 0.5, texts: BASE_LOD.text, dataTexts: 0.85, subs: 1.2 },
+  die: {
+    ...BASE_LOD,
+    core: [3, 4],
+    packets: 0.2,
+    wires: 0.25,
+    cells: 0.3,
+    legend: 0.5,
+    texts: BASE_LOD.text,
+    dataTexts: 0.85,
+    subs: 1.2,
+  },
   /** The cooler fades out over its band as the die fades in. */
   cooler: { fade: [0.3, 0.5] },
   gpu: { ...BASE_LOD, fan: 0.3, lens: 3 },
@@ -76,24 +91,40 @@ export const TEXT_BAND = 1.15;
 export const onBand = (z0: number): readonly [number, number] => [z0, z0 * TEXT_BAND];
 
 /** Where a device is relative to the view: `onScreen` (with a margin), `focus` 1 where the view centre is on the device falling to 0 near the corners. */
-export interface Placement { onScreen: boolean; focus: number }
+export interface Placement {
+  onScreen: boolean;
+  focus: number;
+}
 
 /** `near`: the focus is read at the device's point nearest the view centre, not at its middle (3D: a long card is read where the view is on it). */
 export function deviceLod(rect: LodRect, view: LodRect, pad = 0.1, near = false): Placement {
-  const px = view.w * pad, py = view.h * pad;
-  const onScreen = rect.x < view.x + view.w + px && rect.x + rect.w > view.x - px && rect.y < view.y + view.h + py && rect.y + rect.h > view.y - py;
+  const px = view.w * pad,
+    py = view.h * pad;
+  const onScreen =
+    rect.x < view.x + view.w + px &&
+    rect.x + rect.w > view.x - px &&
+    rect.y < view.y + view.h + py &&
+    rect.y + rect.h > view.y - py;
   // the distance from the view centre to the middle of the device (or its nearest point), in half-diagonals of the view
-  const cx = view.x + view.w / 2, cy = view.y + view.h / 2;
-  const dx = near ? Math.max(rect.x - cx, 0, cx - (rect.x + rect.w)) : rect.x + rect.w / 2 - cx, dy = near ? Math.max(rect.y - cy, 0, cy - (rect.y + rect.h)) : rect.y + rect.h / 2 - cy;
+  const cx = view.x + view.w / 2,
+    cy = view.y + view.h / 2;
+  const dx = near ? Math.max(rect.x - cx, 0, cx - (rect.x + rect.w)) : rect.x + rect.w / 2 - cx,
+    dy = near ? Math.max(rect.y - cy, 0, cy - (rect.y + rect.h)) : rect.y + rect.h / 2 - cy;
   const d = Math.hypot(dx, dy) / (Math.hypot(view.w, view.h) / 2 || 1);
   return { onScreen, focus: onScreen ? 1 - smooth(0, 0.8, d) : 0 };
 }
 
 /** A device that wants its top tier this frame, and how close to the focus it is. */
-export interface Candidate { id: string; focus: number }
+export interface Candidate {
+  id: string;
+  focus: number;
+}
 
 /** What a card view is told each frame: the world rectangle in view, and the devices that may show their top tier. */
-export interface CardLod { view: LodRect; top: ReadonlySet<string> }
+export interface CardLod {
+  view: LodRect;
+  top: ReadonlySet<string>;
+}
 
 /**
  * Which devices may sit in their top tier. At most `max` at once, the ones nearest the focus; a holder keeps its slot until a challenger
@@ -101,7 +132,10 @@ export interface CardLod { view: LodRect; top: ReadonlySet<string> }
  */
 export class TierBudget {
   private top = new Set<string>();
-  constructor(private max = 2, private margin = 0.15) {}
+  constructor(
+    private max = 2,
+    private margin = 0.15,
+  ) {}
 
   assign(wants: readonly Candidate[]): ReadonlySet<string> {
     const focus = new Map(wants.map((w) => [w.id, w.focus]));
@@ -109,17 +143,31 @@ export class TierBudget {
     const order = [...wants].sort((a, b) => b.focus - a.focus);
     for (const w of order) {
       if (this.top.has(w.id)) continue;
-      if (this.top.size < this.max) { this.top.add(w.id); continue; }
-      let weakest = '', f = Infinity;
-      for (const id of this.top) { const v = focus.get(id)!; if (v < f) { f = v; weakest = id; } }
-      if (w.focus > f + this.margin) { this.top.delete(weakest); this.top.add(w.id); }
+      if (this.top.size < this.max) {
+        this.top.add(w.id);
+        continue;
+      }
+      let weakest = '',
+        f = Infinity;
+      for (const id of this.top) {
+        const v = focus.get(id)!;
+        if (v < f) {
+          f = v;
+          weakest = id;
+        }
+      }
+      if (w.focus > f + this.margin) {
+        this.top.delete(weakest);
+        this.top.add(w.id);
+      }
     }
     return this.top;
   }
 }
 
 /** Zoom where the replay starts to slow (the die starts to read as a machine, well before the names), and from where it is slowest. */
-export const SLOW_FROM = 0.3, SLOW_TO = 1;
+export const SLOW_FROM = 0.3,
+  SLOW_TO = 1;
 /** The slowest the replay crawls, in seconds per cycle, from `SLOW_TO` up: at any game speed. */
 export const DEEP_CYCLE_S = 1;
 

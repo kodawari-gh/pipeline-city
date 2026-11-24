@@ -5,15 +5,20 @@
 
 export interface Persp {
   /** The vanishing point (world). */
-  vx: number; yH: number;
+  vx: number;
+  yH: number;
 }
 
 /** How far up the wall the eye is, as a part of the wall's height (floor to ceiling). */
 export const EYE = 0.58;
 /** The scale of the depth the things on the desk stand at (the middle of the desk top), and of the desk's front edge. */
-export const S_FEET = 1.08, S_FRONT = 1.16;
+export const S_FEET = 1.08,
+  S_FRONT = 1.16;
 
-export const roomPersp = (B: { ceil: number; floor: number; x0: number; x1: number }): Persp => ({ vx: (B.x0 + B.x1) / 2, yH: B.floor - EYE * (B.floor - B.ceil) });
+export const roomPersp = (B: { ceil: number; floor: number; x0: number; x1: number }): Persp => ({
+  vx: (B.x0 + B.x1) / 2,
+  yH: B.floor - EYE * (B.floor - B.ceil),
+});
 export const spreadX = (P: Persp, x: number, s: number) => P.vx + (x - P.vx) * s;
 export const spreadY = (P: Persp, y: number, s: number) => P.yH + (y - P.yH) * s;
 /** The scale of the floor plane at world y (1 at the wall's foot, growing toward the viewer). */
@@ -22,11 +27,14 @@ export const floorScale = (P: Persp, floor: number, y: number) => (y - P.yH) / (
 export interface DeskGeo {
   P: Persp;
   /** The line the things on the desk stand on, and the floor line (where the wall meets the floor). */
-  ys: number; floor: number;
+  ys: number;
+  floor: number;
   /** The top's far edge (against the wall) and its near edge (the front). */
-  yBack: number; yFront: number;
+  yBack: number;
+  yFront: number;
   /** The front face of the slab, and its bottom edge. */
-  slab: number; yBottom: number;
+  slab: number;
+  yBottom: number;
   /** Where the legs meet the floor, at the front. */
   floorFront: number;
   /** The x of a coordinate given at the depth the things stand at, brought to the scale `s` (1: the wall, `S_FRONT`: the front). */
@@ -39,9 +47,17 @@ export interface DeskGeo {
 export const SLAB_FRONT = 440;
 
 export function deskGeo(P: Persp, ys: number, floor: number): DeskGeo {
-  const yBack = spreadY(P, ys, 1 / S_FEET), yFront = spreadY(P, yBack, S_FRONT);
+  const yBack = spreadY(P, ys, 1 / S_FEET),
+    yFront = spreadY(P, yBack, S_FRONT);
   return {
-    P, ys, floor, yBack, yFront, slab: SLAB_FRONT, yBottom: yFront + SLAB_FRONT, floorFront: spreadY(P, floor, S_FRONT),
+    P,
+    ys,
+    floor,
+    yBack,
+    yFront,
+    slab: SLAB_FRONT,
+    yBottom: yFront + SLAB_FRONT,
+    floorFront: spreadY(P, floor, S_FRONT),
     xAt: (x, s) => spreadX(P, x, s / S_FEET),
     toWall: (x) => spreadX(P, x, 1 / S_FRONT),
   };

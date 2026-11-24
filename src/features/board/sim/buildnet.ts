@@ -26,11 +26,19 @@ export const netName = (id: string): string => (getRouterSpec(id) ?? getIspSpec(
 export type NetState = Record<NetKind, string | null>;
 
 export function netState(g: Game): NetState {
-  return { os: g.os?.spec.id ?? null, router: routerByTier(g.routerTier)?.id ?? null, isp: ispByTier(g.ispTier)?.id ?? null };
+  return {
+    os: g.os?.spec.id ?? null,
+    router: routerByTier(g.routerTier)?.id ?? null,
+    isp: ispByTier(g.ispTier)?.id ?? null,
+  };
 }
 
 /** The same, from a snapshot (the panel reads what the stage drew, not the game). */
-export const netOfSnap = (s: Pick<Snapshot, 'os' | 'net'>): NetState => ({ os: s.os?.spec ?? null, router: s.net.router?.id ?? null, isp: s.net.isp?.id ?? null });
+export const netOfSnap = (s: Pick<Snapshot, 'os' | 'net'>): NetState => ({
+  os: s.os?.spec ?? null,
+  router: s.net.router?.id ?? null,
+  isp: s.net.isp?.id ?? null,
+});
 
 /** Buy an item and fit it: the game's own `purchase` and `install` (a plan is an account purchase: it applies at once and has nothing to install). */
 function put(g: Game, id: string): Result {
@@ -55,16 +63,28 @@ export function setNet(g: Game, kind: NetKind, id: string | null): Result {
     return put(g, id);
   }
   if (kind === 'router') {
-    if (id === null) { const r = g.uninstall('router'); return r.ok ? { ok: true } : r; }
+    if (id === null) {
+      const r = g.uninstall('router');
+      return r.ok ? { ok: true } : r;
+    }
     const r = put(g, id);
     if (r.ok && !g.cables.lan) g.connectLan(); // (a refusal here, no jack on the board and no card, is the machine's to answer: the cable waits)
     return r;
   }
   const old = g.os?.spec.id ?? null;
   // (an OS left in the bag is put back on a drive when a job ends, `Game.keepOs`: that is for an OS whose drive left, not for one the player chose to take out)
-  const bag = (): void => { g.inventory = g.inventory.filter((i) => !getOsSpec(i.spec)); };
-  if (id === null) { const r = g.uninstallOs(); if (r.ok) bag(); return r.ok ? { ok: true } : r; }
-  if (old) { const r = g.uninstallOs(); if (!r.ok) return r; }
+  const bag = (): void => {
+    g.inventory = g.inventory.filter((i) => !getOsSpec(i.spec));
+  };
+  if (id === null) {
+    const r = g.uninstallOs();
+    if (r.ok) bag();
+    return r.ok ? { ok: true } : r;
+  }
+  if (old) {
+    const r = g.uninstallOs();
+    if (!r.ok) return r;
+  }
   const r = put(g, id);
   if (!r.ok && old) put(g, old); // (the OS that was there comes back)
   bag();

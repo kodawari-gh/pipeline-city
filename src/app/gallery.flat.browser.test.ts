@@ -31,7 +31,10 @@ function flatProblems(maxRadius: number): string[] {
     const cs = getComputedStyle(h);
     const r = h.getBoundingClientRect();
     if (cs.display === 'none' || cs.visibility === 'hidden' || r.width === 0 || r.height === 0) continue;
-    const name = `${h.tagName.toLowerCase()}.${String(h.getAttribute('class') ?? '').trim().split(/\s+/).join('.')}`;
+    const name = `${h.tagName.toLowerCase()}.${String(h.getAttribute('class') ?? '')
+      .trim()
+      .split(/\s+/)
+      .join('.')}`;
     for (const side of ['Top', 'Right', 'Bottom', 'Left']) {
       const style = cs.getPropertyValue(`border-${side.toLowerCase()}-style`);
       const width = parseFloat(cs.getPropertyValue(`border-${side.toLowerCase()}-width`));
@@ -52,22 +55,39 @@ function flatProblems(maxRadius: number): string[] {
 }
 
 describe.skipIf(!GATE)('Gallery flat look in the browser (ticket #71)', () => {
-  beforeAll(async () => { dev = await startServer(); }, 120_000);
-  afterAll(() => { killTree(dev?.child); dev = null; });
-  beforeEach(async () => { process.stderr.write(`  running: ${expect.getState().currentTestName}\n`); browser = await launchChrome(); }, 60_000);
-  afterEach(async () => { await browser?.close().catch(() => {}); browser = null; }, 60_000);
+  beforeAll(async () => {
+    dev = await startServer();
+  }, 120_000);
+  afterAll(() => {
+    killTree(dev?.child);
+    dev = null;
+  });
+  beforeEach(async () => {
+    process.stderr.write(`  running: ${expect.getState().currentTestName}\n`);
+    browser = await launchChrome();
+  }, 60_000);
+  afterEach(async () => {
+    await browser?.close().catch(() => {});
+    browser = null;
+  }, 60_000);
 
   for (const vp of SIZES) {
-    it(`${vp.w} x ${vp.h}: no Gallery element has a border, a radius over 4 px, a box-shadow, a backdrop-filter, a text-shadow or a gradient`, async () => {
-      const errors: string[] = [];
-      const { page, ctxClose } = await openBooted(browser!, dev!, vp.w, vp.h, errors);
-      try {
-        await page.getByRole('button', { name: /^Gallery/ }).click();
-        await page.waitForSelector('.gallery .bld-tile');
-        await page.waitForTimeout(2000);
-        const problems = await page.evaluate(flatProblems, MAX_RADIUS_PX);
-        expect(problems.slice(0, 25), `${problems.length} flat-look breaches`).toEqual([]);
-      } finally { await ctxClose().catch(() => {}); }
-    }, TEST_MS);
+    it(
+      `${vp.w} x ${vp.h}: no Gallery element has a border, a radius over 4 px, a box-shadow, a backdrop-filter, a text-shadow or a gradient`,
+      async () => {
+        const errors: string[] = [];
+        const { page, ctxClose } = await openBooted(browser!, dev!, vp.w, vp.h, errors);
+        try {
+          await page.getByRole('button', { name: /^Gallery/ }).click();
+          await page.waitForSelector('.gallery .bld-tile');
+          await page.waitForTimeout(2000);
+          const problems = await page.evaluate(flatProblems, MAX_RADIUS_PX);
+          expect(problems.slice(0, 25), `${problems.length} flat-look breaches`).toEqual([]);
+        } finally {
+          await ctxClose().catch(() => {});
+        }
+      },
+      TEST_MS,
+    );
   }
 });

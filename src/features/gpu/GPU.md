@@ -52,11 +52,11 @@ createGpu(cfg: GpuConfig): GpuEngine        // like engines/index.ts createEngin
 
 ## 4. The tiers
 
-| id | Engine | SMs x warps x lanes | Pipeline | Memory path |
-|---|---|---|---|---|
-| `gpu1` | `simd` | 1 x 1 x 8 | none: one instruction at a time (today) | 1 bank, no latency, no coalescing |
-| `gpu2` | `warp` | 1 x 2 x 8 (16 lanes) | fetch, decode, issue (scoreboard), execute, memory/writeback | 2 banks, global latency 6 cycles, coalescing into lines |
-| `gpu3` | `multi` | 2 x 2 x 8 (32 lanes) | as `gpu2`, per SM | 4 banks per SM, a tag-only L1 per SM, one shared L2, coalescing |
+| id     | Engine  | SMs x warps x lanes  | Pipeline                                                     | Memory path                                                     |
+| ------ | ------- | -------------------- | ------------------------------------------------------------ | --------------------------------------------------------------- |
+| `gpu1` | `simd`  | 1 x 1 x 8            | none: one instruction at a time (today)                      | 1 bank, no latency, no coalescing                               |
+| `gpu2` | `warp`  | 1 x 2 x 8 (16 lanes) | fetch, decode, issue (scoreboard), execute, memory/writeback | 2 banks, global latency 6 cycles, coalescing into lines         |
+| `gpu3` | `multi` | 2 x 2 x 8 (32 lanes) | as `gpu2`, per SM                                            | 4 banks per SM, a tag-only L1 per SM, one shared L2, coalescing |
 
 Numbers are first guesses for the balance pass (T56). Prices, levels, watts and clocks stay as in ACCEL.md until the owner says otherwise.
 
@@ -80,19 +80,19 @@ The lanes are split into warps of `lanes / warps` lanes. **Each warp has its own
 
 ## 5. Timing rules (written once, tested once)
 
-| Event | Cost |
-|---|---|
-| ALU, mask, branch, `lane`, `vli` | 1 issue slot; result next cycle |
-| `vld`, `simd` | 1 + `bankCycles` (as today) |
-| `vld`, `warp` | 1 issue slot, then `rounds` (arbiter) + `globalLatency` until the register is ready |
-| `vld`, `multi` | as `warp`, but an L1 hit replaces `globalLatency` by `l1Hit`; an L1 miss pays the L2 (`l2Hit` or `globalLatency`) and queues on the L2 port |
-| `vst` | 1 issue slot + `rounds`; write-through to L1 and L2 |
-| `bar` | warp waits until the SM's warps arrive |
-| `halt` | warp done; the launch ends when every warp is done and the pipeline is empty |
-| fill, drain | the first issue is in cycle 2 (fetch, decode), the card is done 2 cycles after the last issue (execute, write-back); `WARP_FILL`, `WARP_DRAIN` in `gpu/warp.ts` |
-| taken `bany` / `jmp` | the warp cannot issue for 2 more cycles (`WARP_BRANCH_PENALTY`); a branch that falls through costs nothing |
-| register hazard | an instruction that reads or writes a register a load has not returned waits (scoreboard); ALU results are forwarded, so ALU work never waits |
-| memory unit | busy for the rounds of a `vld` / `vst`; a second memory instruction waits, ALU work does not |
+| Event                            | Cost                                                                                                                                                            |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ALU, mask, branch, `lane`, `vli` | 1 issue slot; result next cycle                                                                                                                                 |
+| `vld`, `simd`                    | 1 + `bankCycles` (as today)                                                                                                                                     |
+| `vld`, `warp`                    | 1 issue slot, then `rounds` (arbiter) + `globalLatency` until the register is ready                                                                             |
+| `vld`, `multi`                   | as `warp`, but an L1 hit replaces `globalLatency` by `l1Hit`; an L1 miss pays the L2 (`l2Hit` or `globalLatency`) and queues on the L2 port                     |
+| `vst`                            | 1 issue slot + `rounds`; write-through to L1 and L2                                                                                                             |
+| `bar`                            | warp waits until the SM's warps arrive                                                                                                                          |
+| `halt`                           | warp done; the launch ends when every warp is done and the pipeline is empty                                                                                    |
+| fill, drain                      | the first issue is in cycle 2 (fetch, decode), the card is done 2 cycles after the last issue (execute, write-back); `WARP_FILL`, `WARP_DRAIN` in `gpu/warp.ts` |
+| taken `bany` / `jmp`             | the warp cannot issue for 2 more cycles (`WARP_BRANCH_PENALTY`); a branch that falls through costs nothing                                                      |
+| register hazard                  | an instruction that reads or writes a register a load has not returned waits (scoreboard); ALU results are forwarded, so ALU work never waits                   |
+| memory unit                      | busy for the rounds of a `vld` / `vst`; a second memory instruction waits, ALU work does not                                                                    |
 
 Open numbers for the balance pass: `globalLatency` 6, `l1Hit` 2, `l2Hit` 4, `lineWords` 8, `l1Lines` 16, `l2Lines` 64.
 
@@ -103,14 +103,14 @@ Open numbers for the balance pass: `globalLatency` 6, `l1Hit` 2, `l2Hit` 4, `lin
 - `GpuStep` (one issued instruction) gains the raw `word`, `maskAfter`, `stackDepth`, `startCycle`, `sm`, `warp` and a `stall` reason; `kind` and `banks` mean what they meant.
 - `GpuView.sms?: { warps: { pc, mask, stack[], state: 'ready' | 'wait-mem' | 'barrier' | 'done' }[], l1?: tags }[]` and `l2?: tags` for the tiers that have them; a pipeline ring of stage codes like `engines/view.ts` for the stage lamps.
 - The trace ring grows from 24 to 64 entries; a paused card keeps the window that one stepping request produced.
-- `GpuView.code?: number[]`: the kernel as it sits in card memory (`GPU_CODE`, address 0 up to its last non-zero word; empty before the CPU has copied one in). The Trace panel's *Kernel* button lists it (`gpuListing`) with the instruction the card is at marked; the almanac's *GPU kernel* tab shows the same kernel by job (src/features/jobs/JOBS.md "Reading the code"). A step's `pc` is a byte address.
+- `GpuView.code?: number[]`: the kernel as it sits in card memory (`GPU_CODE`, address 0 up to its last non-zero word; empty before the CPU has copied one in). The Trace panel's _Kernel_ button lists it (`gpuListing`) with the instruction the card is at marked; the almanac's _GPU kernel_ tab shows the same kernel by job (src/features/jobs/JOBS.md "Reading the code"). A step's `pc` is a byte address.
 - `GpuStep.mem?: { addrs, data, at, around }`: what a `vld` / `vst` moved (byte address and word per active lane, in lane order) and the 9 words of card memory around the first address after it ran. `GpuStep.vals?: { a, b, d }` (+ `lane0`): the vector registers the instruction read (`a` = rs1, `b` = rs2, as they were) and wrote (`d`), one word per lane of its unit, the unit's first lane being `lane0`. `GpuView.caches?: { level: 'L1' | 'L2', sm?, lineWords, lines[] }[]`: each cache's slots with the line held and its words (read from card memory: the caches are tag-only and write-through). `GpuView.fill?: number[]`: a map of card memory, the non-zero words in each 4. The memory parts of the card view are drawn from these (`render/gpu/gpumem.ts`).
 
 ## 7. The card view
 
-*Memory in motion* (`gpumem.ts`, drawn over the symbols like the front end's live layer; the RAM sticks of src/features/cpu/DIE.md "Memory" are the model, there are no pop-ups): card memory is a map of cells tinted by what lives there (kernel code, launch words, the picture, work) and as strong as they are full; an access lights the cells it reached and opens a row into the row buffer under the map, whose nine slots read out the words of that row (address over value, code as its mnemonic), the touched ones lit. Each bank lights the word line of the line it serves, with the word beside it, one round a cycle (a conflict shows as the lines coming up one after another). A cache prints its lines' tags, and a line an access hit lights up and prints its words. The register file prints the lanes of the rows the instruction reads (A, B) and writes, masked-off lanes left out. The row buffer and the bank lines keep the last access, dimmer, once the instruction has moved on. Card memory also has the one magnifier the RAM has (`gpulensview.ts`, zoom 1.2 and up, `gpuLensRows`): above the memory block, nine rows around the touched address (address, word, the full instruction with its class pill or the number), the instruction in flight and its address beside the title, the region named, and a thread line down to the touched cell. The other parts have no pop-up: their data fits in them.
+_Memory in motion_ (`gpumem.ts`, drawn over the symbols like the front end's live layer; the RAM sticks of src/features/cpu/DIE.md "Memory" are the model, there are no pop-ups): card memory is a map of cells tinted by what lives there (kernel code, launch words, the picture, work) and as strong as they are full; an access lights the cells it reached and opens a row into the row buffer under the map, whose nine slots read out the words of that row (address over value, code as its mnemonic), the touched ones lit. Each bank lights the word line of the line it serves, with the word beside it, one round a cycle (a conflict shows as the lines coming up one after another). A cache prints its lines' tags, and a line an access hit lights up and prints its words. The register file prints the lanes of the rows the instruction reads (A, B) and writes, masked-off lanes left out. The row buffer and the bank lines keep the last access, dimmer, once the instruction has moved on. Card memory also has the one magnifier the RAM has (`gpulensview.ts`, zoom 1.2 and up, `gpuLensRows`): above the memory block, nine rows around the touched address (address, word, the full instruction with its class pill or the number), the instruction in flight and its address beside the title, the region named, and a thread line down to the touched cell. The other parts have no pop-up: their data fits in them.
 
-*As built:* the die is dressed like the CPU package, its blocks carry the names and memory map of src/features/cpu/DIE.md "Inside the blocks", and the live layer reuses the CPU die's code (`planFar`/`planNear`, `glyph`, `diepulse`): the decoder splits the real word and lights its control lines, and packets with trails run the wires of `gpuroute.ts`.
+_As built:_ the die is dressed like the CPU package, its blocks carry the names and memory map of src/features/cpu/DIE.md "Inside the blocks", and the live layer reuses the CPU die's code (`planFar`/`planNear`, `glyph`, `diepulse`): the decoder splits the real word and lights its control lines, and packets with trails run the wires of `gpuroute.ts`.
 
 The card gets a die plan in the style of [`DIE.md`](DIE.md): a data model (`gpuplan.ts`: blocks, routed links, per-tier variants), the same slicing layout and channel router (generalised, T137), block symbols instead of cell fields (lane ALU column, warp scheduler with scoreboard and warp cards, coalescer, bank arbiter, mask and stack strips, cache lines with tags), pulses that travel exactly along the routed wires, an instruction shown inside the block that holds it, a history with a scrubber, and the Trace panel with a card selector. Blocks per tier: PCIe link and launch registers (west), pc, fetch, decode, scheduler, register file, lanes, mask and stack, coalescer, arbiter, banks, L1 and L2 where present, card memory, the frame region. The fans stay art along the top edge. Hover ids are generated from the plan, `pcie<k>.<part>` with an index suffix for lane, warp, bank and SM; the closed regexes in `ui/panels/gpudesc.ts` and `render/interact.ts` are updated in the same commit (T142). The card is 6 to 9 times wider than tall and the body under the fans is about 160 px high, so the card must grow. **Decided (T136, owner):** the floorplans in `src/features/gpu/render/plan/gpuplans.ts` (the mock-up layouts) are approved; the cards became much taller (built: 600 high, the die 440) and the PCIe pitch grows with them, and the card art copies the CPU die's (`dieart.ts`, `blockart.ts`), not a new style.
 

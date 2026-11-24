@@ -13,15 +13,16 @@ describe('the side panel opening', () => {
     }
   });
 
-  it('undoes the Mini\'s thumbscrews and slides its panel back before it swings', () => {
-    const early = doorPose('oem', 0.3), mid = doorPose('oem', 0.36);
+  it("undoes the Mini's thumbscrews and slides its panel back before it swings", () => {
+    const early = doorPose('oem', 0.3),
+      mid = doorPose('oem', 0.36);
     expect(early.screws).toBe(1);
     expect(early.swing).toBe(0);
     expect(mid.slide).toBeGreaterThan(200);
     expect(mid.swing).toBe(0);
   });
 
-  it('pops the Micro\'s panel off its latches first, and lets the Mid\'s glass overshoot a little', () => {
+  it("pops the Micro's panel off its latches first, and lets the Mid's glass overshoot a little", () => {
     expect(doorPose('matte', 0.1).out).toBeGreaterThan(30);
     expect(doorPose('matte', 0.1).swing).toBe(0);
     const peak = Math.max(...Array.from({ length: 101 }, (_, i) => doorPose('gamer', i / 100).swing));
@@ -39,7 +40,7 @@ describe('how long a step waits for the panel', () => {
       expect(doorPose(k, w).swing, k).toBeGreaterThanOrEqual(0.75 * SWING - 1e-9);
     }
   });
-  it('keeps the share the Full tower\'s glass door always had, and gives the steel panels longer', () => {
+  it("keeps the share the Full tower's glass door always had, and gives the steel panels longer", () => {
     expect(doorWait('show')).toBe(0.4);
     expect(doorWait('gamer')).toBe(0.4);
     expect(doorWait('matte')).toBeGreaterThan(0.6);

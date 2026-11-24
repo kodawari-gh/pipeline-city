@@ -14,7 +14,11 @@ describe('CPU descriptions', () => {
   });
 
   it('the optional parts are named', () => {
-    expect(cpuFeatures(getSpec('cpu2f')!.kind === 'cpu' ? (getSpec('cpu2f') as never as { engine: never }).engine : (null as never)).join(' | ')).toMatch(/instruction cache.*2-bit predictor/);
+    expect(
+      cpuFeatures(
+        getSpec('cpu2f')!.kind === 'cpu' ? (getSpec('cpu2f') as never as { engine: never }).engine : (null as never),
+      ).join(' | '),
+    ).toMatch(/instruction cache.*2-bit predictor/);
     const m = describeSpec(getSpec('cpu3m')!).nerd;
     expect(m).toMatch(/4-way/);
     expect(m).toMatch(/L2/);

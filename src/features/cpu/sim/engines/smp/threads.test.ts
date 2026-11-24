@@ -1,18 +1,19 @@
 // Switch-on-miss threads in the in-order engine (docs/MULTICORE.md section 5).
 
-import { describe, expect, it } from "vitest";
-import { assemble } from "../../asm";
-import { INTC_BASE, INTC_REG, IRQ } from "@/core/sim/memmap";
-import { Machine } from "@/core/sim";
-import { createEngine, type EngineConfig } from "../index";
-import { Counter } from "../view";
+import { describe, expect, it } from 'vitest';
+import { assemble } from '../../asm';
+import { INTC_BASE, INTC_REG, IRQ } from '@/core/sim/memmap';
+import { Machine } from '@/core/sim';
+import { createEngine, type EngineConfig } from '../index';
+import { Counter } from '../view';
 
-const CFG: EngineConfig = { kind: "inorder", forwarding: true, cacheLines: 8, missPenalty: 12 };
+const CFG: EngineConfig = { kind: 'inorder', forwarding: true, cacheLines: 8, missPenalty: 12 };
 const OUT = 0x3000;
 const word = (m: Machine, a: number) => new DataView(m.ram.buffer).getInt32(a, true);
 
 /** Sum `lines` words, one per 16-byte line from `base` (every load a miss on a small cache), and store the sum at `out`. */
-const scan = (base: number, lines: number, out: number) => assemble(`
+const scan = (base: number, lines: number, out: number) =>
+  assemble(`
     li s3, ${base}
     li t1, ${lines * 16}
     li t2, 0
@@ -28,7 +29,8 @@ const scan = (base: number, lines: number, out: number) => assemble(`
     ecall`).program;
 
 /** Pure arithmetic: no loads at all. */
-const spin = (n: number, out: number) => assemble(`
+const spin = (n: number, out: number) =>
+  assemble(`
     li s0, 0
     li t1, ${n}
   again:
@@ -44,7 +46,11 @@ function fill(m: Machine, base: number, lines: number, seed: number): void {
 }
 
 /** One thread alone on a plain engine: its cycles and its stored value. */
-function alone(p: Uint32Array, fills: [number, number, number][], out: number): { cycles: number; value: number; m: Machine } {
+function alone(
+  p: Uint32Array,
+  fills: [number, number, number][],
+  out: number,
+): { cycles: number; value: number; m: Machine } {
   const m = new Machine();
   const e = createEngine(CFG);
   m.attach(e, p);
@@ -55,7 +61,11 @@ function alone(p: Uint32Array, fills: [number, number, number][], out: number): 
 }
 
 /** Two threads on one core. */
-function pair(a: Uint32Array, b: Uint32Array, fills: [number, number, number][]): { m: Machine; cycles: number; e: ReturnType<typeof createEngine> } {
+function pair(
+  a: Uint32Array,
+  b: Uint32Array,
+  fills: [number, number, number][],
+): { m: Machine; cycles: number; e: ReturnType<typeof createEngine> } {
   const m = new Machine({ cores: 2 });
   const e = createEngine(CFG);
   m.attach(e, a);
@@ -68,11 +78,16 @@ function pair(a: Uint32Array, b: Uint32Array, fills: [number, number, number][])
 
 const counters = (e: unknown) => (e as { view: { counters: Float64Array } }).view.counters;
 
-describe("switch-on-miss threads", () => {
-  const A = 0x8000, B = 0xa000, LINES = 40;
-  const fills: [number, number, number][] = [[A, LINES, 1], [B, LINES, 1000]];
+describe('switch-on-miss threads', () => {
+  const A = 0x8000,
+    B = 0xa000,
+    LINES = 40;
+  const fills: [number, number, number][] = [
+    [A, LINES, 1],
+    [B, LINES, 1000],
+  ];
 
-  it("a second thread that never runs leaves the cycles exactly as they were", () => {
+  it('a second thread that never runs leaves the cycles exactly as they were', () => {
     const solo = alone(scan(A, LINES, OUT), fills, OUT);
     const m = new Machine({ cores: 2 });
     const e = createEngine(CFG);
@@ -87,9 +102,11 @@ describe("switch-on-miss threads", () => {
     expect(counters(e)[Counter.ThreadSwitches]).toBe(0);
   });
 
-  it("two memory-bound threads finish sooner than one after the other, with the values the reference gives", () => {
-    const pa = scan(A, LINES, OUT), pb = scan(B, LINES, OUT + 0x100);
-    const a = alone(pa, fills, OUT), b = alone(pb, fills, OUT + 0x100);
+  it('two memory-bound threads finish sooner than one after the other, with the values the reference gives', () => {
+    const pa = scan(A, LINES, OUT),
+      pb = scan(B, LINES, OUT + 0x100);
+    const a = alone(pa, fills, OUT),
+      b = alone(pb, fills, OUT + 0x100);
     const both = pair(pa, pb, fills);
     expect(word(both.m, OUT)).toBe(a.value);
     expect(word(both.m, OUT + 0x100)).toBe(b.value);
@@ -97,10 +114,10 @@ describe("switch-on-miss threads", () => {
     expect(counters(both.e)[Counter.ThreadSwitches]).toBeGreaterThan(5);
   });
 
-  it("agrees with the reference interpreter", () => {
+  it('agrees with the reference interpreter', () => {
     const run = (p: Uint32Array, base: number, seed: number, out: number): number => {
       const m = new Machine();
-      const e = createEngine({ kind: "ref" });
+      const e = createEngine({ kind: 'ref' });
       m.attach(e, p);
       fill(m, base, LINES, seed);
       while (!e.halted) m.stepCpu();
@@ -111,9 +128,11 @@ describe("switch-on-miss threads", () => {
     expect(word(both.m, OUT + 0x100)).toBe(run(scan(B, LINES, OUT + 0x100), B, 1000, OUT + 0x100));
   });
 
-  it("a compute-bound pair gains nothing, and still gets its values", () => {
-    const pa = spin(300, OUT), pb = spin(300, OUT + 0x100);
-    const a = alone(pa, [], OUT), b = alone(pb, [], OUT + 0x100);
+  it('a compute-bound pair gains nothing, and still gets its values', () => {
+    const pa = spin(300, OUT),
+      pb = spin(300, OUT + 0x100);
+    const a = alone(pa, [], OUT),
+      b = alone(pb, [], OUT + 0x100);
     const both = pair(pa, pb, []);
     expect(word(both.m, OUT)).toBe(900);
     expect(word(both.m, OUT + 0x100)).toBe(900);
@@ -121,7 +140,7 @@ describe("switch-on-miss threads", () => {
     expect(counters(both.e)[Counter.ThreadSwitches]).toBeGreaterThanOrEqual(1); // the first thread ends, and the timeout hands the pipeline over now and then
   });
 
-  it("a parked thread woken by an interrupt gets the core from a thread that never misses, runs its handler and parks again", () => {
+  it('a parked thread woken by an interrupt gets the core from a thread that never misses, runs its handler and parks again', () => {
     const m = new Machine({ cores: 2 });
     const e = createEngine(CFG);
     const main = assemble(`
@@ -165,7 +184,7 @@ describe("switch-on-miss threads", () => {
     expect(counters(e)[Counter.ThreadSwitches]).toBeGreaterThanOrEqual(2);
   });
 
-  it("is deterministic", () => {
+  it('is deterministic', () => {
     const run = () => pair(scan(A, LINES, OUT), scan(B, LINES, OUT + 0x100), fills).cycles;
     expect(run()).toBe(run());
   });

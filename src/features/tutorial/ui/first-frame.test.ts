@@ -16,8 +16,12 @@ import { TutorialCard } from './TutorialCard';
 
 const hooks = vi.hoisted(() => ({ effects: [] as (() => unknown)[] }));
 vi.mock('preact/hooks', () => ({
-  useEffect: (fn: () => unknown) => { hooks.effects.push(fn); },
-  useLayoutEffect: (fn: () => unknown) => { hooks.effects.push(fn); },
+  useEffect: (fn: () => unknown) => {
+    hooks.effects.push(fn);
+  },
+  useLayoutEffect: (fn: () => unknown) => {
+    hooks.effects.push(fn);
+  },
   useRef: (v: unknown) => ({ current: v ?? null }),
   useState: (v: unknown) => [typeof v === 'function' ? (v as () => unknown)() : v, () => {}],
   useMemo: (f: () => unknown) => f(),
@@ -45,7 +49,11 @@ function elements(outs: Out[]): Array<{ tag: string; props: Record<string, any>;
 }
 function flushEffects() {
   for (const fn of hooks.effects.splice(0)) {
-    try { fn(); } catch { /* the DOM-only effects (camera, pointer loop) have no DOM here */ }
+    try {
+      fn();
+    } catch {
+      /* the DOM-only effects (camera, pointer loop) have no DOM here */
+    }
   }
 }
 
@@ -72,7 +80,8 @@ describe('first frame: the tutorial card (ticket #44, SPEC §5.11)', () => {
       if (!text.includes(pagesOf(step.text)[0]!)) problems.push(`${step.id}: first page of the text not on the card`);
       flushEffects();
       const want = step.targets(snapshot.value!, null);
-      if (JSON.stringify(highlight.value) !== JSON.stringify(want)) problems.push(`${step.id}: highlight ${JSON.stringify(highlight.value)}, want ${JSON.stringify(want)}`);
+      if (JSON.stringify(highlight.value) !== JSON.stringify(want))
+        problems.push(`${step.id}: highlight ${JSON.stringify(highlight.value)}, want ${JSON.stringify(want)}`);
     }
     expect(problems).toEqual([]);
   });

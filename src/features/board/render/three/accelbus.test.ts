@@ -16,7 +16,7 @@ describe("a card's buses", () => {
     expect([...busesOf([hop('cardmem', 'tiles')])]).toEqual([['mem', -1]]);
   });
 
-  it('a CPU word into the AI card\'s memory crosses the host link and the memory bus; a route inside the die touches neither', () => {
+  it("a CPU word into the AI card's memory crosses the host link and the memory bus; a route inside the die touches neither", () => {
     const b = busesOf([hop('host', 'cardmem')]);
     expect(b.get('host')).toBe(1);
     expect(b.get('mem')).toBe(1);

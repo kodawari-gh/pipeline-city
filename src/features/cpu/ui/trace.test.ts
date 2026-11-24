@@ -6,7 +6,10 @@ import { decodeEvent, decodeEvents, gpuLines, TraceBuffer } from './trace';
 
 describe('trace decoding', () => {
   it('says what the OS and the MMU did in words', () => {
-    expect(decodeEvent(10, Ev.Irq, 0, 0x1054, 0xc2a0, 0)).toMatchObject({ group: 'os', text: expect.stringMatching(/interrupt timer.*0x1054.*0xc2a0/) });
+    expect(decodeEvent(10, Ev.Irq, 0, 0x1054, 0xc2a0, 0)).toMatchObject({
+      group: 'os',
+      text: expect.stringMatching(/interrupt timer.*0x1054.*0xc2a0/),
+    });
     expect(decodeEvent(11, Ev.Iret, 0x1054, 0, 0, 0)!.text).toMatch(/iret: back to 0x1054/);
     expect(decodeEvent(12, Ev.Space, 0xb000, 0, 0, 0)!.text).toMatch(/new address space.*0xb000/);
     expect(decodeEvent(13, Ev.Tlb, 2, 0, 0x40, 1)!.text).toMatch(/page fault at 0x4000: no page/);
@@ -41,14 +44,26 @@ describe('trace decoding', () => {
 });
 
 describe('card trace lines', () => {
-  const st = (pc: number, o: Partial<GpuStep> = {}): GpuStep => ({ pc, name: 'vadd', kind: 'alu', mask: 0xff, cost: 1, banks: null, dest: 1, ...o });
+  const st = (pc: number, o: Partial<GpuStep> = {}): GpuStep => ({
+    pc,
+    name: 'vadd',
+    kind: 'alu',
+    mask: 0xff,
+    cost: 1,
+    banks: null,
+    dest: 1,
+    ...o,
+  });
   it('groups a window into launch, mask, mem, reg and sched lines on the window clock', () => {
-    const lines = gpuLines([
-      st(0, { startCycle: 5, sm: 0, warp: 0 }),
-      st(4, { startCycle: 6, sm: 0, warp: 1, name: 'vld', kind: 'ld', cost: 3, banks: [2, 0], stall: 'bank' }),
-      st(8, { startCycle: 9, sm: 0, warp: 1, name: 'mpush', kind: 'mask', mask: 0xff, maskAfter: 0x0f }),
-      st(12, { startCycle: 10, sm: 0, warp: 1, name: 'halt', kind: 'sys' }),
-    ], 2);
+    const lines = gpuLines(
+      [
+        st(0, { startCycle: 5, sm: 0, warp: 0 }),
+        st(4, { startCycle: 6, sm: 0, warp: 1, name: 'vld', kind: 'ld', cost: 3, banks: [2, 0], stall: 'bank' }),
+        st(8, { startCycle: 9, sm: 0, warp: 1, name: 'mpush', kind: 'mask', mask: 0xff, maskAfter: 0x0f }),
+        st(12, { startCycle: 10, sm: 0, warp: 1, name: 'halt', kind: 'sys' }),
+      ],
+      2,
+    );
     expect(lines[0]).toMatchObject({ cycle: 0, group: 'launch' });
     expect(lines.map((l) => l.group)).toEqual(['launch', 'reg', 'sched', 'mem', 'sched', 'mask', 'launch']);
     expect(lines.find((l) => l.group === 'mem')).toMatchObject({ cycle: 1 });

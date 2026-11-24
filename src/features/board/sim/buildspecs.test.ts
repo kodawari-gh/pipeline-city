@@ -25,7 +25,8 @@ describe('specSheet', () => {
 
   it('sums the price and the draw, and rates the load against the supply', () => {
     const s = specSheet({ boardTier: 1, caseTier: 1, specs: ['cpu1', 'psu1', 'nope'] });
-    const cpu = getSpec('cpu1')!, psu = getSpec('psu1')!;
+    const cpu = getSpec('cpu1')!,
+      psu = getSpec('psu1')!;
     expect(s.parts).toBe(4);
     expect(s.budget).toBe(BOARD_TIERS[1]!.price + CASE_TIERS[1]!.price + cpu.price + psu.price);
     expect(s.loadW).toBe(cpu.loadW + psu.loadW);

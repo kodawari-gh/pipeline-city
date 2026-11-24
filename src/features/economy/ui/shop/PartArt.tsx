@@ -1,5 +1,12 @@
 import type { JSX } from 'preact';
-import { BOARD_TIERS, getSpec, type CpuSpec, type FanSpec, type PsuSpec, type RamSpec } from '@/features/board/sim/specs';
+import {
+  BOARD_TIERS,
+  getSpec,
+  type CpuSpec,
+  type FanSpec,
+  type PsuSpec,
+  type RamSpec,
+} from '@/features/board/sim/specs';
 import { getOsSpec } from '@/features/os/sim';
 import { getIspSpec, getRouterSpec } from '@/features/network/sim/specs';
 import { goodness } from './picker';
@@ -17,14 +24,20 @@ function Cpu({ spec }: { spec: CpuSpec }) {
   const pins = Array.from({ length: 7 }, (_, i) => 26 + i * 11);
   return (
     <>
-      {pins.map((x) => <rect key={`t${x}`} x={x} y={6} width={4} height={6} class="pin" />)}
-      {pins.map((x) => <rect key={`b${x}`} x={x} y={72} width={4} height={6} class="pin" />)}
+      {pins.map((x) => (
+        <rect key={`t${x}`} x={x} y={6} width={4} height={6} class="pin" />
+      ))}
+      {pins.map((x) => (
+        <rect key={`b${x}`} x={x} y={72} width={4} height={6} class="pin" />
+      ))}
       <rect x={14} y={12} width={92} height={60} rx={6} class="plate edge" />
       <rect x={24} y={20} width={72} height={44} rx={3} class="die" />
       {e.kind === 'unpipelined' ? (
         <>
           <rect x={32} y={30} width={56} height={24} rx={2} class="ink" />
-          {[0, 1, 2, 3, 4].map((i) => <rect key={i} x={36 + i * 10} y={36} width={6} height={12} rx={1} class="ink-on" />)}
+          {[0, 1, 2, 3, 4].map((i) => (
+            <rect key={i} x={36 + i * 10} y={36} width={6} height={12} rx={1} class="ink-on" />
+          ))}
         </>
       ) : (
         <>
@@ -65,10 +78,21 @@ function Ram({ spec }: { spec: RamSpec }) {
         </g>
       ))}
       <path d={arc} pathLength={100} class="gauge-track" fill="none" stroke-width={5} stroke-linecap="round" />
-      <path d={arc} pathLength={100} class="gauge-fill" fill="none" stroke-width={5} stroke-linecap="round"
-        stroke-dasharray={`${Math.max(2, g * 100)} 100`} />
-      <text x={98} y={70} class="gauge-txt" font-size={12}>{spec.latency}</text>
-      <text x={98} y={52} class="gauge-lab" font-size={7}>lat</text>
+      <path
+        d={arc}
+        pathLength={100}
+        class="gauge-fill"
+        fill="none"
+        stroke-width={5}
+        stroke-linecap="round"
+        stroke-dasharray={`${Math.max(2, g * 100)} 100`}
+      />
+      <text x={98} y={70} class="gauge-txt" font-size={12}>
+        {spec.latency}
+      </text>
+      <text x={98} y={52} class="gauge-lab" font-size={7}>
+        lat
+      </text>
     </>
   );
 }
@@ -78,28 +102,43 @@ function Cooler({ tier }: { tier: number }) {
     <>
       <circle cx={cx} cy={cy} r={r} class="fanring" />
       <circle cx={cx} cy={cy} r={r * 0.3} class="ink" />
-      <path d={`M${cx} ${cy - r * 0.3}a${r * 0.3} ${r * 0.3} 0 0 1 ${r * 0.3} ${r * 0.3}M${cx + r * 0.3} ${cy}a${r * 0.3} ${r * 0.3} 0 0 1-${r * 0.3} ${r * 0.3}M${cx} ${cy + r * 0.3}a${r * 0.3} ${r * 0.3} 0 0 1-${r * 0.3}-${r * 0.3}M${cx - r * 0.3} ${cy}a${r * 0.3} ${r * 0.3} 0 0 1 ${r * 0.3}-${r * 0.3}`} class="blade" />
+      <path
+        d={`M${cx} ${cy - r * 0.3}a${r * 0.3} ${r * 0.3} 0 0 1 ${r * 0.3} ${r * 0.3}M${cx + r * 0.3} ${cy}a${r * 0.3} ${r * 0.3} 0 0 1-${r * 0.3} ${r * 0.3}M${cx} ${cy + r * 0.3}a${r * 0.3} ${r * 0.3} 0 0 1-${r * 0.3}-${r * 0.3}M${cx - r * 0.3} ${cy}a${r * 0.3} ${r * 0.3} 0 0 1 ${r * 0.3}-${r * 0.3}`}
+        class="blade"
+      />
     </>
   );
   const stack = (x: number) => (
     <>
       <rect x={x} y={14} width={14} height={56} rx={2} class="plate edge" />
-      {Array.from({ length: 7 }, (_, i) => <rect key={i} x={x + 1.5} y={17 + i * 7.5} width={11} height={2} rx={1} class="fin" />)}
+      {Array.from({ length: 7 }, (_, i) => (
+        <rect key={i} x={x + 1.5} y={17 + i * 7.5} width={11} height={2} rx={1} class="fin" />
+      ))}
     </>
   );
-  if (tier === 0) { // a plate with a radial-vaned fan
+  if (tier === 0) {
+    // a plate with a radial-vaned fan
     return (
       <>
         <rect x={20} y={10} width={80} height={64} rx={5} class="plate edge" />
         {Array.from({ length: 12 }, (_, i) => {
           const th = (i / 12) * Math.PI * 2;
-          return <path key={i} d={`M${60 + Math.cos(th) * 18} ${42 + Math.sin(th) * 18}L${60 + Math.cos(th) * 28} ${42 + Math.sin(th) * 28}`} class="fin" stroke-width={2} fill="none" />;
+          return (
+            <path
+              key={i}
+              d={`M${60 + Math.cos(th) * 18} ${42 + Math.sin(th) * 18}L${60 + Math.cos(th) * 28} ${42 + Math.sin(th) * 28}`}
+              class="fin"
+              stroke-width={2}
+              fill="none"
+            />
+          );
         })}
         {vanes(60, 42, 17)}
       </>
     );
   }
-  if (tier === 1) { // two fin stacks, copper pipes between them, a frame fan
+  if (tier === 1) {
+    // two fin stacks, copper pipes between them, a frame fan
     return (
       <>
         {stack(14)}
@@ -110,13 +149,16 @@ function Cooler({ tier }: { tier: number }) {
       </>
     );
   }
-  return ( // an all-in-one: the pump on the CPU, two tubes up to a radiator with a fan
+  return (
+    // an all-in-one: the pump on the CPU, two tubes up to a radiator with a fan
     <>
       <rect x={14} y={58} width={34} height={20} rx={5} class="ink2" />
       <circle cx={31} cy={68} r={7} class="fanring" />
       <path d="M22 58V36C22 22 34 22 34 14M40 58V44C40 26 52 26 52 14" class="tube" fill="none" stroke-width={3} />
       <rect x={28} y={6} width={84} height={12} rx={3} class="plate edge" />
-      {Array.from({ length: 10 }, (_, i) => <rect key={i} x={46 + i * 6} y={8} width={2} height={8} class="fin" />)}
+      {Array.from({ length: 10 }, (_, i) => (
+        <rect key={i} x={46 + i * 6} y={8} width={2} height={8} class="fin" />
+      ))}
       {vanes(96, 12, 5)}
     </>
   );
@@ -124,14 +166,27 @@ function Cooler({ tier }: { tier: number }) {
 
 /** A fan from its intake: the square frame with four screw bosses, the ring, the blades and the hub. A bigger fan draws bigger; high-airflow has more blades. */
 function Fan({ spec }: { spec: FanSpec }) {
-  const side = 30 + (spec.size - 40) * 0.46, h = side / 2, r = side * 0.44, cx = 60, cy = 42, n = spec.tier > 0 ? 9 : 7;
+  const side = 30 + (spec.size - 40) * 0.46,
+    h = side / 2,
+    r = side * 0.44,
+    cx = 60,
+    cy = 42,
+    n = spec.tier > 0 ? 9 : 7;
   return (
     <>
       <rect x={cx - h} y={cy - h} width={side} height={side} rx={side * 0.1} class="plate edge" />
-      {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sy], i) => <circle key={i} cx={cx + sx! * h * 0.8} cy={cy + sy! * h * 0.8} r={side * 0.035} class="ink" />)}
+      {[
+        [-1, -1],
+        [1, -1],
+        [-1, 1],
+        [1, 1],
+      ].map(([sx, sy], i) => (
+        <circle key={i} cx={cx + sx! * h * 0.8} cy={cy + sy! * h * 0.8} r={side * 0.035} class="ink" />
+      ))}
       <circle cx={cx} cy={cy} r={r} class="fanring" />
       {Array.from({ length: n }, (_, i) => {
-        const th = (i / n) * Math.PI * 2, at = (rad: number, turn: number) => `${cx + Math.cos(th + turn) * rad} ${cy + Math.sin(th + turn) * rad}`;
+        const th = (i / n) * Math.PI * 2,
+          at = (rad: number, turn: number) => `${cx + Math.cos(th + turn) * rad} ${cy + Math.sin(th + turn) * rad}`;
         return <path key={i} d={`M${at(r * 0.3, 0)}Q${at(r * 0.72, 0.1)} ${at(r * 0.92, 0.62)}`} class="blade" />;
       })}
       <circle cx={cx} cy={cy} r={r * 0.3} class="ink" />
@@ -146,10 +201,21 @@ function Psu({ spec }: { spec: PsuSpec }) {
     <>
       <rect x={10} y={10} width={100} height={64} rx={6} class="plate edge" />
       <path d={arc} pathLength={100} class="gauge-track" fill="none" stroke-width={7} stroke-linecap="round" />
-      <path d={arc} pathLength={100} class="gauge-fill" fill="none" stroke-width={7} stroke-linecap="round"
-        stroke-dasharray={`${Math.max(3, frac * 100)} 100`} />
-      <text x={60} y={60} class="dial-txt" font-size={15}>{spec.watts}</text>
-      <text x={60} y={70} class="dial-lab" font-size={8}>watts</text>
+      <path
+        d={arc}
+        pathLength={100}
+        class="gauge-fill"
+        fill="none"
+        stroke-width={7}
+        stroke-linecap="round"
+        stroke-dasharray={`${Math.max(3, frac * 100)} 100`}
+      />
+      <text x={60} y={60} class="dial-txt" font-size={15}>
+        {spec.watts}
+      </text>
+      <text x={60} y={70} class="dial-lab" font-size={8}>
+        watts
+      </text>
     </>
   );
 }
@@ -162,7 +228,9 @@ function GpuCard({ tier }: { tier: number }) {
     <>
       <rect x={10} y={22} width={100} height={40} rx={4} class="plate edge" />
       <rect x={4} y={18} width={6} height={48} rx={1} class="ink2" />
-      {[0, 1, 2].map((i) => <rect key={i} x={0} y={26 + i * 12} width={5} height={7} rx={1} class="jack" />)}
+      {[0, 1, 2].map((i) => (
+        <rect key={i} x={0} y={26 + i * 12} width={5} height={7} rx={1} class="jack" />
+      ))}
       <rect x={18} y={27} width={84} height={30} rx={3} class="ink" />
       {Array.from({ length: n }, (_, i) => {
         const cx = 22 + w * (i + 0.5);
@@ -175,14 +243,18 @@ function GpuCard({ tier }: { tier: number }) {
       })}
       <rect x={88} y={16} width={14} height={7} rx={1.5} class="jack" />
       {tier >= 3 && <rect x={70} y={16} width={14} height={7} rx={1.5} class="jack" />}
-      {Array.from({ length: 8 }, (_, i) => <rect key={i} x={30 + i * 3.5} y={62} width={2} height={6} class="pin" />)}
+      {Array.from({ length: 8 }, (_, i) => (
+        <rect key={i} x={30 + i * 3.5} y={62} width={2} height={6} class="pin" />
+      ))}
     </>
   );
 }
 
 /** An AI card: a die made of a grid of multiply-accumulate cells (4 x 4 or 8 x 8), a heatsink on the big one. */
 function NpuCard({ tier }: { tier: number }) {
-  const k = tier >= 2 ? 8 : 4, size = tier >= 2 ? 34 : 28, c = size / k;
+  const k = tier >= 2 ? 8 : 4,
+    size = tier >= 2 ? 34 : 28,
+    c = size / k;
   return (
     <>
       <rect x={10} y={22} width={100} height={40} rx={4} class="plate edge" />
@@ -190,11 +262,23 @@ function NpuCard({ tier }: { tier: number }) {
       <circle cx={2.5} cy={42} r={1.8} class="led-on" />
       <rect x={20} y={42 - size / 2 - 3} width={size + 6} height={size + 6} rx={3} class="ink" />
       {Array.from({ length: k * k }, (_, i) => (
-        <rect key={i} x={23 + (i % k) * c + 0.5} y={42 - size / 2 + Math.floor(i / k) * c + 0.5} width={c - 1} height={c - 1} class="ink-on" />
+        <rect
+          key={i}
+          x={23 + (i % k) * c + 0.5}
+          y={42 - size / 2 + Math.floor(i / k) * c + 0.5}
+          width={c - 1}
+          height={c - 1}
+          class="ink-on"
+        />
       ))}
-      {tier >= 2 && Array.from({ length: 7 }, (_, i) => <rect key={i} x={62 + i * 5} y={30} width={2.6} height={24} rx={0.8} class="fin" />)}
+      {tier >= 2 &&
+        Array.from({ length: 7 }, (_, i) => (
+          <rect key={i} x={62 + i * 5} y={30} width={2.6} height={24} rx={0.8} class="fin" />
+        ))}
       {tier >= 2 && <rect x={90} y={16} width={14} height={7} rx={1.5} class="jack" />}
-      {Array.from({ length: 8 }, (_, i) => <rect key={i} x={30 + i * 3.5} y={62} width={2} height={6} class="pin" />)}
+      {Array.from({ length: 8 }, (_, i) => (
+        <rect key={i} x={30 + i * 3.5} y={62} width={2} height={6} class="pin" />
+      ))}
     </>
   );
 }
@@ -207,8 +291,12 @@ function TpmModule({ tier }: { tier: number }) {
       <rect x={38} y={22} width={30} height={26} rx={2} class="ink" />
       <circle cx={43} cy={27} r={1.6} class="ink-on" />
       {tier >= 2 && <rect x={72} y={22} width={14} height={16} rx={2} class="ink2" />}
-      {Array.from({ length: 6 }, (_, i) => <rect key={i} x={35 + i * 9} y={60} width={4} height={8} class="pin" />)}
-      <text x={60} y={56} class="gauge-lab" font-size={7}>TPM</text>
+      {Array.from({ length: 6 }, (_, i) => (
+        <rect key={i} x={35 + i * 9} y={60} width={4} height={8} class="pin" />
+      ))}
+      <text x={60} y={56} class="gauge-lab" font-size={7}>
+        TPM
+      </text>
     </>
   );
 }
@@ -254,8 +342,12 @@ function SsdSata() {
   return (
     <>
       <rect x={18} y={14} width={84} height={56} rx={4} class="plate edge" />
-      {[0, 1, 2, 3].map((i) => <rect key={i} x={28 + i * 17} y={24} width={12} height={16} rx={1.5} class="stick" />)}
-      {[0, 1, 2, 3].map((i) => <rect key={i} x={28 + i * 17} y={46} width={12} height={5} rx={1} class="chipd" />)}
+      {[0, 1, 2, 3].map((i) => (
+        <rect key={i} x={28 + i * 17} y={24} width={12} height={16} rx={1.5} class="stick" />
+      ))}
+      {[0, 1, 2, 3].map((i) => (
+        <rect key={i} x={28 + i * 17} y={46} width={12} height={5} rx={1} class="chipd" />
+      ))}
       <rect x={22} y={60} width={62} height={6} rx={1} class="ink2" />
       <rect x={86} y={62} width={14} height={8} rx={1.5} class="pin" />
     </>
@@ -267,7 +359,9 @@ function SsdNvme() {
   return (
     <>
       <rect x={10} y={34} width={100} height={18} rx={2} class="plate edge" />
-      {[0, 1, 2, 3, 4].map((i) => <rect key={i} x={22 + i * 15} y={39} width={10} height={8} rx={1} class="chipd" />)}
+      {[0, 1, 2, 3, 4].map((i) => (
+        <rect key={i} x={22 + i * 15} y={39} width={10} height={8} rx={1} class="chipd" />
+      ))}
       <rect x={98} y={34} width={12} height={18} rx={1} class="ink2" />
       <rect x={10} y={52} width={100} height={3} rx={1} class="pin" />
     </>
@@ -285,10 +379,11 @@ function OsDisc({ tier }: { tier: number }) {
       ))}
       <path d="M60 22 L68 42 L60 62 L52 42 Z" class="ink" />
       <circle cx={60} cy={42} r={3} class="ink-on" />
-      {tier >= 3 && Array.from({ length: 4 }, (_, i) => {
-        const a = (i * Math.PI) / 2;
-        return <circle key={i} cx={60 + Math.cos(a) * 20} cy={42 + Math.sin(a) * 20} r={2.2} class="ink-on" />;
-      })}
+      {tier >= 3 &&
+        Array.from({ length: 4 }, (_, i) => {
+          const a = (i * Math.PI) / 2;
+          return <circle key={i} cx={60 + Math.cos(a) * 20} cy={42 + Math.sin(a) * 20} r={2.2} class="ink-on" />;
+        })}
     </>
   );
 }
@@ -298,13 +393,17 @@ function OsDisc({ tier }: { tier: number }) {
  * The base sits on a row of MOSFET blocks so it reads as "on the board's voltage regulators".
  */
 function VrmSink({ tier }: { tier: number }) {
-  const mosfets = [0, 1, 2, 3, 4].map((i) => <rect key={i} x={26 + i * 15} y={66} width={10} height={8} rx={1.5} class="chipd" />);
+  const mosfets = [0, 1, 2, 3, 4].map((i) => (
+    <rect key={i} x={26 + i * 15} y={66} width={10} height={8} rx={1.5} class="chipd" />
+  ));
   if (tier === 0) {
     return (
       <>
         {mosfets}
         <rect x={22} y={56} width={76} height={8} rx={2} class="ink2" />
-        {Array.from({ length: 6 }, (_, i) => <rect key={i} x={26 + i * 12} y={28} width={4} height={28} rx={1} class="fin" />)}
+        {Array.from({ length: 6 }, (_, i) => (
+          <rect key={i} x={26 + i * 12} y={28} width={4} height={28} rx={1} class="fin" />
+        ))}
       </>
     );
   }
@@ -313,7 +412,9 @@ function VrmSink({ tier }: { tier: number }) {
       <>
         {mosfets}
         <rect x={18} y={52} width={84} height={12} rx={2} class="ink2" />
-        {Array.from({ length: 7 }, (_, i) => <rect key={i} x={22 + i * 11} y={14} width={6} height={38} rx={1.5} class="fin" />)}
+        {Array.from({ length: 7 }, (_, i) => (
+          <rect key={i} x={22 + i * 11} y={14} width={6} height={38} rx={1.5} class="fin" />
+        ))}
       </>
     );
   }
@@ -321,7 +422,9 @@ function VrmSink({ tier }: { tier: number }) {
     <>
       {mosfets}
       <rect x={14} y={54} width={62} height={10} rx={2} class="ink2" />
-      {Array.from({ length: 4 }, (_, i) => <rect key={i} x={18 + i * 13} y={26} width={5} height={28} rx={1} class="fin" />)}
+      {Array.from({ length: 4 }, (_, i) => (
+        <rect key={i} x={18 + i * 13} y={26} width={5} height={28} rx={1} class="fin" />
+      ))}
       <circle cx={92} cy={38} r={20} class="fanring" />
       <circle cx={92} cy={38} r={5} class="ink" />
       <path d="M92 33a5 5 0 0 1 5 5M97 38a5 5 0 0 1-5 5M92 43a5 5 0 0 1-5-5M87 38a5 5 0 0 1 5-5" class="blade" />
@@ -334,7 +437,9 @@ function Display() {
     <>
       <rect x={20} y={12} width={80} height={52} rx={4} class="plate edge" />
       <rect x={26} y={18} width={68} height={40} rx={2} class="screen" />
-      {[0, 1, 2, 3].map((i) => <rect key={i} x={32} y={24 + i * 8} width={38 - i * 6} height={3} rx={1} class="scrtxt" />)}
+      {[0, 1, 2, 3].map((i) => (
+        <rect key={i} x={32} y={24 + i * 8} width={38 - i * 6} height={3} rx={1} class="scrtxt" />
+      ))}
       <rect x={52} y={64} width={16} height={6} class="ink2" />
       <rect x={36} y={70} width={48} height={4} rx={2} class="ink2" />
     </>
@@ -349,7 +454,9 @@ function Display() {
 function NicCard({ tier }: { tier: number }) {
   return (
     <>
-      {Array.from({ length: 12 }, (_, i) => <rect key={i} x={14 + i * 6.4} y={64} width={3.6} height={7} rx={0.6} class="pin" />)}
+      {Array.from({ length: 12 }, (_, i) => (
+        <rect key={i} x={14 + i * 6.4} y={64} width={3.6} height={7} rx={0.6} class="pin" />
+      ))}
       <rect x={8} y={18} width={92} height={46} rx={3} class="plate edge" />
       <rect x={100} y={12} width={6} height={58} rx={1} class="ink2" />
       {tier >= 3 ? (
@@ -381,7 +488,9 @@ function NicCard({ tier }: { tier: number }) {
       {tier === 2 && (
         <>
           <rect x={22} y={26} width={36} height={28} rx={2} class="ink2" />
-          {Array.from({ length: 7 }, (_, i) => <rect key={i} x={25 + i * 4.8} y={22} width={2.6} height={32} rx={0.8} class="fin" />)}
+          {Array.from({ length: 7 }, (_, i) => (
+            <rect key={i} x={25 + i * 4.8} y={22} width={2.6} height={32} rx={0.8} class="fin" />
+          ))}
           <rect x={64} y={32} width={9} height={9} rx={1} class="chipd" />
           <rect x={64} y={44} width={9} height={5} rx={1} class="chipd" />
         </>
@@ -389,10 +498,14 @@ function NicCard({ tier }: { tier: number }) {
       {tier >= 3 && (
         <>
           <rect x={14} y={24} width={44} height={32} rx={2} class="ink2" />
-          {Array.from({ length: 9 }, (_, i) => <rect key={i} x={17 + i * 4.7} y={18} width={2.6} height={38} rx={0.8} class="fin" />)}
+          {Array.from({ length: 9 }, (_, i) => (
+            <rect key={i} x={17 + i * 4.7} y={18} width={2.6} height={38} rx={0.8} class="fin" />
+          ))}
           <path d="M58 34 C68 34 68 44 78 44" class="tube" fill="none" stroke-width={2.6} />
           <rect x={66} y={34} width={18} height={20} rx={2} class="ink2" />
-          {Array.from({ length: 4 }, (_, i) => <rect key={i} x={68 + i * 4} y={30} width={2} height={24} rx={0.7} class="fin" />)}
+          {Array.from({ length: 4 }, (_, i) => (
+            <rect key={i} x={68 + i * 4} y={30} width={2} height={24} rx={0.7} class="fin" />
+          ))}
           <circle cx={40} cy={40} r={9} class="fanring" />
           <circle cx={40} cy={40} r={2.4} class="ink" />
         </>
@@ -401,7 +514,9 @@ function NicCard({ tier }: { tier: number }) {
   );
 }
 
-const led = (x: number, y: number, on = true) => <circle key={`l${x}`} cx={x} cy={y} r={1.5} class={on ? 'led-on' : 'led-on dim'} />;
+const led = (x: number, y: number, on = true) => (
+  <circle key={`l${x}`} cx={x} cy={y} r={1.5} class={on ? 'led-on' : 'led-on dim'} />
+);
 
 /** The four routers: a small home box with antennas, a dark gigabit box, a brushed 10G box with its row of jacks, a 1U rack unit with five QSFP+ cages. */
 function RouterArt({ tier }: { tier: number }) {
@@ -412,7 +527,9 @@ function RouterArt({ tier }: { tier: number }) {
         <rect x={20} y={40} width={80} height={26} rx={6} class="plate edge" />
         {[0, 1, 2].map((i) => led(32 + i * 8, 49, i < 2))}
         <rect x={34} y={58} width={8} height={5} rx={1} class="jack" />
-        {[0, 1].map((i) => <rect key={i} x={70 + i * 12} y={58} width={8} height={5} rx={1} class="jack" />)}
+        {[0, 1].map((i) => (
+          <rect key={i} x={70 + i * 12} y={58} width={8} height={5} rx={1} class="jack" />
+        ))}
         <rect x={52} y={46} width={30} height={4} rx={2} class="vent" />
       </>
     );
@@ -425,7 +542,9 @@ function RouterArt({ tier }: { tier: number }) {
         <rect x={12} y={38} width={96} height={4} rx={2} class="accent-bar" />
         {[0, 1, 2, 3].map((i) => led(24 + i * 8, 50, i !== 3))}
         <rect x={22} y={58} width={9} height={6} rx={1} class="jack" />
-        {[0, 1, 2, 3].map((i) => <rect key={i} x={50 + i * 12} y={58} width={9} height={6} rx={1} class="jack" />)}
+        {[0, 1, 2, 3].map((i) => (
+          <rect key={i} x={50 + i * 12} y={58} width={9} height={6} rx={1} class="jack" />
+        ))}
         <rect x={72} y={46} width={28} height={4} rx={2} class="vent" />
       </>
     );
@@ -434,11 +553,15 @@ function RouterArt({ tier }: { tier: number }) {
     return (
       <>
         <rect x={8} y={32} width={104} height={38} rx={4} class="plate edge" />
-        {Array.from({ length: 6 }, (_, i) => <rect key={i} x={14 + i * 9} y={37} width={6} height={2} rx={1} class="vent" />)}
+        {Array.from({ length: 6 }, (_, i) => (
+          <rect key={i} x={14 + i * 9} y={37} width={6} height={2} rx={1} class="vent" />
+        ))}
         <rect x={72} y={36} width={32} height={12} rx={1.5} class="ink2" />
         <rect x={76} y={40} width={24} height={4} class="screen" />
         {[0, 1, 2, 3].map((i) => led(16 + i * 7, 48, i < 3))}
-        {Array.from({ length: 8 }, (_, i) => <rect key={i} x={14 + i * 11} y={56} width={8} height={7} rx={1} class="jack" />)}
+        {Array.from({ length: 8 }, (_, i) => (
+          <rect key={i} x={14 + i * 11} y={56} width={8} height={7} rx={1} class="jack" />
+        ))}
       </>
     );
   }
@@ -447,9 +570,15 @@ function RouterArt({ tier }: { tier: number }) {
       <rect x={4} y={34} width={112} height={34} rx={2} class="plate edge" />
       <rect x={4} y={34} width={9} height={34} class="ink2" />
       <rect x={107} y={34} width={9} height={34} class="ink2" />
-      {[40, 60].map((y) => <circle key={`a${y}`} cx={8.5} cy={y} r={1.6} class="screw" />)}
-      {[40, 60].map((y) => <circle key={`b${y}`} cx={111.5} cy={y} r={1.6} class="screw" />)}
-      {Array.from({ length: 10 }, (_, i) => <rect key={i} x={18 + i * 5} y={38} width={2.4} height={10} rx={1} class="vent" />)}
+      {[40, 60].map((y) => (
+        <circle key={`a${y}`} cx={8.5} cy={y} r={1.6} class="screw" />
+      ))}
+      {[40, 60].map((y) => (
+        <circle key={`b${y}`} cx={111.5} cy={y} r={1.6} class="screw" />
+      ))}
+      {Array.from({ length: 10 }, (_, i) => (
+        <rect key={i} x={18 + i * 5} y={38} width={2.4} height={10} rx={1} class="vent" />
+      ))}
       {[0, 1, 2, 3, 4].map((i) => led(76 + i * 6, 42, i !== 4))}
       <rect x={18} y={52} width={84} height={13} rx={1} class="ink2" />
       {/* five QSFP+ cages in one row, the WAN port and the four LAN ports: a wide flat mouth each */}
@@ -473,10 +602,22 @@ function PlanPlate({ tier, down }: { tier: number; down: number }) {
   return (
     <>
       <rect x={14} y={6} width={92} height={72} rx={9} class="plate edge" />
-      {Array.from({ length: 5 }, (_, i) => <circle key={i} cx={36 + i * 12} cy={16} r={2.4} class={i < tier ? 'pip-on' : 'pip'} />)}
+      {Array.from({ length: 5 }, (_, i) => (
+        <circle key={i} cx={36 + i * 12} cy={16} r={2.4} class={i < tier ? 'pip-on' : 'pip'} />
+      ))}
       <path d={arc} pathLength={100} class="gauge-track" fill="none" stroke-width={6} stroke-linecap="round" />
-      <path d={arc} pathLength={100} class="gauge-fill" fill="none" stroke-width={6} stroke-linecap="round" stroke-dasharray={`${frac * 100} 100`} />
-      <text x={60} y={55} class="dial-txt" font-size={13}>{plateSpeed(down)}</text>
+      <path
+        d={arc}
+        pathLength={100}
+        class="gauge-fill"
+        fill="none"
+        stroke-width={6}
+        stroke-linecap="round"
+        stroke-dasharray={`${frac * 100} 100`}
+      />
+      <text x={60} y={55} class="dial-txt" font-size={13}>
+        {plateSpeed(down)}
+      </text>
       <rect x={50} y={64} width={20} height={9} rx={2} class="jack" />
       <rect x={54} y={66} width={12} height={5} rx={1} class="screen" />
     </>
@@ -491,7 +632,16 @@ export function PartArt({ id, size = 64, label, fill }: { id: string; size?: num
   // (`fill`: as wide as its box, whatever that is; else `size` design units)
   const width = fill ? '100%' : rem(size);
   if (url) {
-    return <img class="art art-img" src={url} alt={label ?? id} draggable={false} decoding="async" style={{ width, aspectRatio: `${VB.w} / ${VB.h}` }} />;
+    return (
+      <img
+        class="art art-img"
+        src={url}
+        alt={label ?? id}
+        draggable={false}
+        decoding="async"
+        style={{ width, aspectRatio: `${VB.w} / ${VB.h}` }}
+      />
+    );
   }
   let body: JSX.Element | null = null;
   const bm = /^board(\d+)$/.exec(id);
@@ -506,17 +656,40 @@ export function PartArt({ id, size = 64, label, fill }: { id: string; size?: num
     const spec = getSpec(id);
     if (spec) {
       switch (spec.kind) {
-        case 'cpu': body = <Cpu spec={spec} />; break;
-        case 'ram': body = <Ram spec={spec} />; break;
-        case 'cooler': body = <Cooler tier={spec.tier} />; break;
-        case 'fan': body = <Fan spec={spec} />; break;
-        case 'psu': body = <Psu spec={spec} />; break;
-        case 'display': body = <Display />; break;
-        case 'vrm-sink': case 'ram-sink': body = <VrmSink tier={spec.tier} />; break;
-        case 'nic': body = <NicCard tier={spec.tier} />; break;
-        case 'gpu': body = <GpuCard tier={spec.tier} />; break;
-        case 'npu': body = <NpuCard tier={spec.tier} />; break;
-        case 'tpm': body = <TpmModule tier={spec.tier} />; break;
+        case 'cpu':
+          body = <Cpu spec={spec} />;
+          break;
+        case 'ram':
+          body = <Ram spec={spec} />;
+          break;
+        case 'cooler':
+          body = <Cooler tier={spec.tier} />;
+          break;
+        case 'fan':
+          body = <Fan spec={spec} />;
+          break;
+        case 'psu':
+          body = <Psu spec={spec} />;
+          break;
+        case 'display':
+          body = <Display />;
+          break;
+        case 'vrm-sink':
+        case 'ram-sink':
+          body = <VrmSink tier={spec.tier} />;
+          break;
+        case 'nic':
+          body = <NicCard tier={spec.tier} />;
+          break;
+        case 'gpu':
+          body = <GpuCard tier={spec.tier} />;
+          break;
+        case 'npu':
+          body = <NpuCard tier={spec.tier} />;
+          break;
+        case 'tpm':
+          body = <TpmModule tier={spec.tier} />;
+          break;
         case 'storage':
           body = spec.visual === 'hdd' ? <Hdd /> : spec.visual === 'ssd-nvme' ? <SsdNvme /> : <SsdSata />;
           break;
@@ -525,8 +698,13 @@ export function PartArt({ id, size = 64, label, fill }: { id: string; size?: num
   }
   if (!body) return null;
   return (
-    <svg class="art" style={{ width, aspectRatio: `${VB.w} / ${VB.h}` }} viewBox={`0 0 ${VB.w} ${VB.h}`}
-      role="img" aria-label={label ?? id}>
+    <svg
+      class="art"
+      style={{ width, aspectRatio: `${VB.w} / ${VB.h}` }}
+      viewBox={`0 0 ${VB.w} ${VB.h}`}
+      role="img"
+      aria-label={label ?? id}
+    >
       {body}
     </svg>
   );

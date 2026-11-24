@@ -5,13 +5,21 @@ import { labelDisc } from './fans3d';
 
 describe('labelDisc', () => {
   it('maps the print as the cap of a cylinder turned to face +z', () => {
-    const r = 50, t = 4, z = 10, sides = 16;
+    const r = 50,
+      t = 4,
+      z = 10,
+      sides = 16;
     const [rim, top] = labelDisc(r, t, z, sides, new MeshStandardMaterial(), new MeshStandardMaterial());
     // the old part: a full cylinder, its +y cap turned to +z
-    const old = new CylinderGeometry(r, r, t, sides).rotateX(Math.PI / 2), op = old.attributes.position!, ou = old.attributes.uv!, on = old.attributes.normal!;
+    const old = new CylinderGeometry(r, r, t, sides).rotateX(Math.PI / 2),
+      op = old.attributes.position!,
+      ou = old.attributes.uv!,
+      on = old.attributes.normal!;
     const cap: { x: number; y: number; u: number; v: number }[] = [];
-    for (let i = 0; i < op.count; i++) if (on.getZ(i) > 0.9) cap.push({ x: op.getX(i), y: op.getY(i), u: ou.getX(i), v: ou.getY(i) });
-    const p = top!.geometry.attributes.position!, uv = top!.geometry.attributes.uv!;
+    for (let i = 0; i < op.count; i++)
+      if (on.getZ(i) > 0.9) cap.push({ x: op.getX(i), y: op.getY(i), u: ou.getX(i), v: ou.getY(i) });
+    const p = top!.geometry.attributes.position!,
+      uv = top!.geometry.attributes.uv!;
     expect(cap.length).toBeGreaterThan(sides);
     for (let i = 0; i < p.count; i++) {
       expect(p.getZ(i)).toBeCloseTo(z + t / 2, 6);

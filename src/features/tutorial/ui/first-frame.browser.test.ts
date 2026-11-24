@@ -82,24 +82,42 @@ const PLAY_ROUNDS = Math.ceil(PLAY_STEP_MS / 500);
 const PLAY_RUN_MS = E2E_MS - 60_000;
 const PLAY_QUIET_MS = PLAY_STEP_MS + 90_000;
 
-const freePort = (): Promise<number> => new Promise((res, rej) => {
-  const s = createServer();
-  s.once('error', rej);
-  s.listen(0, () => { const p = s.address().port; s.close(() => res(p)); });
-});
+const freePort = (): Promise<number> =>
+  new Promise((res, rej) => {
+    const s = createServer();
+    s.once('error', rej);
+    s.listen(0, () => {
+      const p = s.address().port;
+      s.close(() => res(p));
+    });
+  });
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-const answers = async (url: string): Promise<boolean> => { try { return (await fetch(url)).ok; } catch { return false; } };
+const answers = async (url: string): Promise<boolean> => {
+  try {
+    return (await fetch(url)).ok;
+  } catch {
+    return false;
+  }
+};
 
 /** Start the dev server on a free port (`--strictPort`) and wait until it answers. Returns the child and the page URL. */
 async function startServer(): Promise<{ child: any; url: string; exited: () => number | null }> {
   const port = await freePort();
   const url = `http://localhost:${port}/`;
-  const child = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(port), '--strictPort'], { cwd: ROOT, stdio: 'ignore' });
+  const child = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(port), '--strictPort'], {
+    cwd: ROOT,
+    stdio: 'ignore',
+  });
   let code: number | null = null;
-  child.on('exit', (c: number | null) => { code = c ?? -1; });
+  child.on('exit', (c: number | null) => {
+    code = c ?? -1;
+  });
   for (let i = 0; !(await answers(url)); i++) {
     if (code !== null) throw new Error(`the dev server exited with ${code}`);
-    if (i > 100) { killTree(child); throw new Error('the dev server did not start'); }
+    if (i > 100) {
+      killTree(child);
+      throw new Error('the dev server did not start');
+    }
     await sleep(300);
   }
   return { child, url, exited: () => code };
@@ -112,12 +130,18 @@ function killTree(child: any): void {
   else child.kill();
 }
 
-const launchChrome = (): Promise<Browser> => chromium.launch({
-  headless: true,
-  ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
-  // The real GPU, headless too (as tools/shot.mjs and the e2e): software GL is several times slower at 1920 x 1080.
-  args: [...(process.env.SOFTWARE ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] : ['--enable-gpu', '--use-angle=d3d11', '--enable-gpu-rasterization']), '--ignore-gpu-blocklist'],
-});
+const launchChrome = (): Promise<Browser> =>
+  chromium.launch({
+    headless: true,
+    ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
+    // The real GPU, headless too (as tools/shot.mjs and the e2e): software GL is several times slower at 1920 x 1080.
+    args: [
+      ...(process.env.SOFTWARE
+        ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader']
+        : ['--enable-gpu', '--use-angle=d3d11', '--enable-gpu-rasterization']),
+      '--ignore-gpu-blocklist',
+    ],
+  });
 
 // The shared dev server and this test's own Chrome (set by the hooks of the "first frame" describe).
 let dev: { child: any; url: string; exited: () => number | null } | null = null;
@@ -151,7 +175,11 @@ async function firstFrame(w: number, h: number): Promise<Page> {
 }
 
 /** A playthrough that has ended: its exit code, its output (the last 60 KB) and, when this test stopped it, why. */
-interface E2eRun { status: number | null; out: string; stopped: string | null }
+interface E2eRun {
+  status: number | null;
+  out: string;
+  stopped: string | null;
+}
 
 /** A step line of the playthrough's log ("step firstNetJob game  904s  money $77  wall 156s  heap 750MB"): one for each new step it shows. */
 const STEP_LINE = /^step (\S+)\s+game\s+(\d+)s\s+money \$(-?\d+)\s+wall\s+(\d+)s/gm;
@@ -164,29 +192,47 @@ function runE2e(port: number): Promise<E2eRun> {
     const child = spawn(process.execPath, ['e2e/tutorial.e2e.mjs'], {
       cwd: ROOT,
       env: {
-        ...process.env, HEADLESS: '1', SHOTS_DIR: SHOTS, PORT: String(port),
-        STEP_MS: String(PLAY_STEP_MS), STEP_TRIES: String(PLAY_ROUNDS), RUN_MS: String(PLAY_RUN_MS),
+        ...process.env,
+        HEADLESS: '1',
+        SHOTS_DIR: SHOTS,
+        PORT: String(port),
+        STEP_MS: String(PLAY_STEP_MS),
+        STEP_TRIES: String(PLAY_ROUNDS),
+        RUN_MS: String(PLAY_RUN_MS),
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
-    let out = '', stopped: string | null = null, stepAt = Date.now();
+    let out = '',
+      stopped: string | null = null,
+      stepAt = Date.now();
     const keep = (d: unknown) => {
       const text = String(d);
       if (text.search(STEP_LINE) >= 0) stepAt = Date.now();
       // Progress, as it comes: the playthrough takes three minutes, and the runner prints no result of a passing test before it ends (see "Progress" above).
-      for (const m of text.matchAll(STEP_LINE)) process.stderr.write(`  playthrough: step ${m[1]} at game second ${m[2]}, wall second ${m[4]}\n`);
+      for (const m of text.matchAll(STEP_LINE))
+        process.stderr.write(`  playthrough: step ${m[1]} at game second ${m[2]}, wall second ${m[4]}\n`);
       out = (out + text).slice(-60_000);
     };
     child.stdout.on('data', keep);
     child.stderr.on('data', keep);
     // A hung playthrough is stopped with all its children (its server and its Chrome): at the hard limit, or when no new step shows for too long.
-    const stop = (why: string) => { if (stopped === null) { stopped = why; killTree(child); } };
+    const stop = (why: string) => {
+      if (stopped === null) {
+        stopped = why;
+        killTree(child);
+      }
+    };
     const hard = setTimeout(() => stop(`the playthrough took more than ${E2E_MS / 1000} s`), E2E_MS);
     const quiet = setInterval(() => {
       const idle = Date.now() - stepAt;
-      if (!ENDED.test(out) && idle > PLAY_QUIET_MS) stop(`no new step for ${Math.round(idle / 1000)} s (the page may be frozen)`);
+      if (!ENDED.test(out) && idle > PLAY_QUIET_MS)
+        stop(`no new step for ${Math.round(idle / 1000)} s (the page may be frozen)`);
     }, 5000);
-    const end = (status: number | null, more = '') => { clearTimeout(hard); clearInterval(quiet); res({ status, out: out + more, stopped }); };
+    const end = (status: number | null, more = '') => {
+      clearTimeout(hard);
+      clearInterval(quiet);
+      res({ status, out: out + more, stopped });
+    };
     child.on('error', (e: Error) => end(null, `\n${e.message}`));
     child.on('close', (status: number | null) => end(status));
   });
@@ -204,16 +250,32 @@ function playthroughReport(r: E2eRun): string {
   const slow = /RUN TIMEOUT on (\S+)/.exec(r.out);
   const id = stuck?.[1] ?? slow?.[1] ?? last?.[1] ?? null;
   const def = STEPS.find((s) => s.id === id);
-  const waits = def ? `its card, "${def.title}", stays until ${def.flag ? `progress.${def.flag} is set` : 'its live test passes (tutorial.ts)'}` : 'no such step in tutorial.ts';
+  const waits = def
+    ? `its card, "${def.title}", stays until ${def.flag ? `progress.${def.flag} is set` : 'its live test passes (tutorial.ts)'}`
+    : 'no such step in tutorial.ts';
   const out: string[] = [];
-  if (stuck) out.push(`STALLED on step "${stuck[1]}": the card was still on screen after ${stuck[2]?.trim()}; ${waits}`);
+  if (stuck)
+    out.push(`STALLED on step "${stuck[1]}": the card was still on screen after ${stuck[2]?.trim()}; ${waits}`);
   else if (slow) out.push(`the run reached its own limit of ${PLAY_RUN_MS / 1000} s on step "${slow[1]}"; ${waits}`);
-  else if (r.stopped) out.push(`this test stopped the run: ${r.stopped}; ${id ? `the last step shown was "${id}"; ${waits}` : 'no step had shown yet'}`);
+  else if (r.stopped)
+    out.push(
+      `this test stopped the run: ${r.stopped}; ${id ? `the last step shown was "${id}"; ${waits}` : 'no step had shown yet'}`,
+    );
   else if (/PAGE CRASHED/.test(r.out)) out.push(`the browser tab crashed${id ? ` on step "${id}"` : ''}`);
-  else if (/main menu never came/.test(r.out)) out.push('the page never showed the main menu, so no step had shown yet');
-  else out.push(`the playthrough failed (exit ${r.status})${id ? `; the last step shown was "${id}"` : '; no step had shown yet'}`);
-  if (last) out.push(`the last step line: "${last[1]}" began at game second ${last[2]}, wall second ${last[4]}, money $${last[3]}`);
-  const problems = r.out.split('\n').filter((l) => /^\s*PROBLEM /.test(l)).map((l) => l.trim());
+  else if (/main menu never came/.test(r.out))
+    out.push('the page never showed the main menu, so no step had shown yet');
+  else
+    out.push(
+      `the playthrough failed (exit ${r.status})${id ? `; the last step shown was "${id}"` : '; no step had shown yet'}`,
+    );
+  if (last)
+    out.push(
+      `the last step line: "${last[1]}" began at game second ${last[2]}, wall second ${last[4]}, money $${last[3]}`,
+    );
+  const problems = r.out
+    .split('\n')
+    .filter((l) => /^\s*PROBLEM /.test(l))
+    .map((l) => l.trim());
   if (problems.length) out.push(`problems found on the way: ${problems.join(' | ')}`);
   const errors = /page errors (\[.*\])/.exec(r.out)?.[1];
   if (errors && errors !== '[]') out.push(`page errors: ${errors}`);
@@ -226,23 +288,24 @@ function playthroughReport(r: E2eRun): string {
  * Visible HUD controls outside the tutorial card, in the viewport, as a kind: "money" ($ text), "menu" (text Menu),
  * "inventory" (the Inventory dock item, by its aria-label; its count is not read) or the control's label for anything else.
  */
-const hudControls = (page: Page) => page.evaluate(() => {
-  const out: string[] = [];
-  const els = document.querySelectorAll('[data-hud], .invbtn, button');
-  for (const el of Array.from(els)) {
-    if (el.closest('[data-step]')) continue;
-    const r = el.getBoundingClientRect();
-    const st = getComputedStyle(el);
-    if (r.width <= 0 || r.height <= 0 || st.visibility === 'hidden' || st.display === 'none') continue;
-    const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const aria = el.getAttribute('aria-label') ?? '';
-    if (/^Inventory\b/i.test(aria)) out.push('inventory');
-    else if (/^\$/.test(text)) out.push('money');
-    else if (/^menu$/i.test(text) || /^menu$/i.test(aria)) out.push('menu');
-    else if (text || aria) out.push(aria || text);
-  }
-  return out;
-});
+const hudControls = (page: Page) =>
+  page.evaluate(() => {
+    const out: string[] = [];
+    const els = document.querySelectorAll('[data-hud], .invbtn, button');
+    for (const el of Array.from(els)) {
+      if (el.closest('[data-step]')) continue;
+      const r = el.getBoundingClientRect();
+      const st = getComputedStyle(el);
+      if (r.width <= 0 || r.height <= 0 || st.visibility === 'hidden' || st.display === 'none') continue;
+      const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+      const aria = el.getAttribute('aria-label') ?? '';
+      if (/^Inventory\b/i.test(aria)) out.push('inventory');
+      else if (/^\$/.test(text)) out.push('money');
+      else if (/^menu$/i.test(text) || /^menu$/i.test(aria)) out.push('menu');
+      else if (text || aria) out.push(aria || text);
+    }
+    return out;
+  });
 
 // The helpers below read the app's own modules in the page (`/src/...`, the same instances the game runs on, as e2e/tutorial.e2e.mjs does). They are
 // strings, not functions: the test runner rewrites a `import()` in a function, and a function is sent to the page as its text.
@@ -254,21 +317,33 @@ const hudControls = (page: Page) => page.evaluate(() => {
  */
 async function cameraStill(page: Page, quiet = 1500, max = 45_000): Promise<number | null> {
   const t0 = Date.now();
-  let last = -1, since = t0;
+  let last = -1,
+    since = t0;
   while (Date.now() - t0 < max) {
-    const rev = (await page.evaluate("(async () => (await import('/src/app/interaction.ts')).cameraRev.value)()")) as number;
-    if (rev !== last) { last = rev; since = Date.now(); } else if (Date.now() - since >= quiet) return Date.now() - t0;
+    const rev = (await page.evaluate(
+      "(async () => (await import('/src/app/interaction.ts')).cameraRev.value)()",
+    )) as number;
+    if (rev !== last) {
+      last = rev;
+      since = Date.now();
+    } else if (Date.now() - since >= quiet) return Date.now() - t0;
     await page.waitForTimeout(250);
   }
   return null;
 }
 
-interface Rect { x: number; y: number; w: number; h: number }
+interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 /**
  * The machine's case on the screen (the 3D scene's own answer, `anchorOf('case')`), the boxes the HUD draws over the scene (the top tabs, the
  * dock, the instruction tab: the visible ones), the HUD's inset as the camera was told, and the camera (the dev hook `window.__board`), in client px.
  */
-const sceneBoxes = (page: Page) => page.evaluate(`(async () => {
+const sceneBoxes = (page: Page) =>
+  page.evaluate(`(async () => {
   const { anchorOf } = await import('/src/features/tutorial/ui/anchor.ts');
   const { viewInset } = await import('/src/app/hover.ts');
   const shown = (el) => { const r = el.getBoundingClientRect(), st = getComputedStyle(el); return r.width > 0 && r.height > 0 && st.visibility !== 'hidden' && st.display !== 'none' && Number(st.opacity) > 0.05; };
@@ -279,14 +354,22 @@ const sceneBoxes = (page: Page) => page.evaluate(`(async () => {
     ...[...document.querySelectorAll('[data-step]')].filter(shown).map((el) => box('instruction tab', el)),
   ];
   return { caseBox: anchorOf('case'), hud, inset: { ...viewInset.value }, vw: innerWidth, vh: innerHeight, view: window.__board?.view?.() ?? null };
-})()`) as Promise<{ caseBox: Rect | null; hud: Array<Rect & { name: string }>; inset: Record<string, number>; vw: number; vh: number; view: Record<string, number> | null }>;
+})()`) as Promise<{
+    caseBox: Rect | null;
+    hud: Array<Rect & { name: string }>;
+    inset: Record<string, number>;
+    vw: number;
+    vh: number;
+    view: Record<string, number> | null;
+  }>;
 
 /**
  * What the active step points at in the scene: its first world target (`highlight`: not the inventory, a tile or a HUD button), that target's
  * screen rect, the lit trace's last point (the pointer's end, `.pointer .ptr-path`), the HUD's inset, the card, the shelf, and whether the card
  * offers "Show me" (the guidance offers it when the target is not comfortably in view).
  */
-const stepTarget = (page: Page) => page.evaluate(`(async () => {
+const stepTarget = (page: Page) =>
+  page.evaluate(`(async () => {
   const { anchorOf } = await import('/src/features/tutorial/ui/anchor.ts');
   const { viewInset } = await import('/src/app/hover.ts');
   const { highlight } = await import('/src/app/interaction.ts');
@@ -302,33 +385,59 @@ const stepTarget = (page: Page) => page.evaluate(`(async () => {
     showMe: [...document.querySelectorAll('[data-step] button.link')].some((b) => /show me/i.test(b.textContent ?? '')),
   };
 })()`) as Promise<{
-  ids: string[]; world: string | null; anchor: Rect | null; inset: Record<string, number>; vw: number; vh: number; trace: number[] | null;
-  traceShown: boolean; card: Rect | null; shelf: Rect | null; showMe: boolean;
-}>;
+    ids: string[];
+    world: string | null;
+    anchor: Rect | null;
+    inset: Record<string, number>;
+    vw: number;
+    vh: number;
+    trace: number[] | null;
+    traceShown: boolean;
+    card: Rect | null;
+    shelf: Rect | null;
+    showMe: boolean;
+  }>;
 
 // Criteria 2 and 1 (issue #44): the existing tutorial end-to-end playthrough still passes; every step still shows its card.
 // Its own describe: it needs nothing from the shared dev server below, because the script starts and stops its own server and Chrome.
 describe.skipIf(!GATE)('tutorial end-to-end (ticket #44)', () => {
-  it('2. the tutorial end-to-end playthrough still passes', async () => {
-    process.stderr.write('  running: 2. the tutorial end-to-end playthrough (about three minutes; its steps follow)\n');
-    rmSync(SHOTS, { recursive: true, force: true });
-    const port = await freePort();
-    const r = await runE2e(port);
-    // The script stops its own server, also when it fails. A server left on the port would keep taking CPU from the next test.
-    for (let i = 0; i < 50 && (await answers(`http://localhost:${port}/`)); i++) await sleep(300);
-    const left = await answers(`http://localhost:${port}/`);
-    // (a failure says which step it stalled on and what the step waits for, not only the end of the log)
-    expect(r.status, playthroughReport(r)).toBe(0);
-    expect(left, 'the e2e left its dev server running').toBe(false);
-  }, E2E_MS + 60_000);
+  it(
+    '2. the tutorial end-to-end playthrough still passes',
+    async () => {
+      process.stderr.write(
+        '  running: 2. the tutorial end-to-end playthrough (about three minutes; its steps follow)\n',
+      );
+      rmSync(SHOTS, { recursive: true, force: true });
+      const port = await freePort();
+      const r = await runE2e(port);
+      // The script stops its own server, also when it fails. A server left on the port would keep taking CPU from the next test.
+      for (let i = 0; i < 50 && (await answers(`http://localhost:${port}/`)); i++) await sleep(300);
+      const left = await answers(`http://localhost:${port}/`);
+      // (a failure says which step it stalled on and what the step waits for, not only the end of the log)
+      expect(r.status, playthroughReport(r)).toBe(0);
+      expect(left, 'the e2e left its dev server running').toBe(false);
+    },
+    E2E_MS + 60_000,
+  );
 });
 
 describe.skipIf(!GATE)('first frame in the browser (ticket #44)', () => {
-  beforeAll(async () => { dev = await startServer(); }, 120_000);
-  afterAll(() => { killTree(dev?.child); dev = null; });
+  beforeAll(async () => {
+    dev = await startServer();
+  }, 120_000);
+  afterAll(() => {
+    killTree(dev?.child);
+    dev = null;
+  });
   // Each test gets its own Chrome: nothing a test leaves open (a page, its game worker, its GL context) can slow the next one.
-  beforeEach(async () => { process.stderr.write(`  running: ${expect.getState().currentTestName}\n`); browser = await launchChrome(); }, 60_000);
-  afterEach(async () => { await browser?.close().catch(() => {}); browser = null; }, 60_000);
+  beforeEach(async () => {
+    process.stderr.write(`  running: ${expect.getState().currentTestName}\n`);
+    browser = await launchChrome();
+  }, 60_000);
+  afterEach(async () => {
+    await browser?.close().catch(() => {});
+    browser = null;
+  }, 60_000);
 
   // Criterion 3 (issue #44): the staged HUD on step 1 is explained and does not hide controls without a reason.
   // Assumed: the reason is the first step (SPEC §5.11); the explanation wording is not fixed by the spec, so the check looks
@@ -336,10 +445,14 @@ describe.skipIf(!GATE)('first frame in the browser (ticket #44)', () => {
   it('3. the staged HUD on step 1 is explained and only hides the controls the staging names', async () => {
     const page = await firstFrame(1920, 1080);
     const staged = await hudControls(page);
-    for (const kind of staged) expect(['money', 'menu', 'inventory'], `unstaged control on step 1: "${kind}"`).toContain(kind);
+    for (const kind of staged)
+      expect(['money', 'menu', 'inventory'], `unstaged control on step 1: "${kind}"`).toContain(kind);
     expect(staged, 'money shows').toContain('money');
     expect(staged, 'menu shows').toContain('menu');
-    expect(staged.filter((k) => k === 'inventory'), 'the dock is the one Inventory item').toHaveLength(1);
+    expect(
+      staged.filter((k) => k === 'inventory'),
+      'the dock is the one Inventory item',
+    ).toHaveLength(1);
     const note = await page.textContent('[data-step="welcome"]');
     expect(note ?? '', 'the card explains the staged HUD').toMatch(/hidden|for now|later|until|more controls/i);
     await page.click('[data-step="welcome"] .pactions button:has-text("Next")');
@@ -359,8 +472,14 @@ describe.skipIf(!GATE)('first frame in the browser (ticket #44)', () => {
     const box = await page.locator('[data-step="welcome"]').boundingBox();
     expect(box, 'the card is on screen').not.toBeNull();
     const content = await page.evaluate(() => {
-      const boxes = Array.from(document.querySelectorAll('[data-step="welcome"] .tut-in > *')).map((el) => el.getBoundingClientRect());
-      return { count: boxes.length, left: Math.min(...boxes.map((b) => b.left)), right: Math.max(...boxes.map((b) => b.right)) };
+      const boxes = Array.from(document.querySelectorAll('[data-step="welcome"] .tut-in > *')).map((el) =>
+        el.getBoundingClientRect(),
+      );
+      return {
+        count: boxes.length,
+        left: Math.min(...boxes.map((b) => b.left)),
+        right: Math.max(...boxes.map((b) => b.right)),
+      };
     });
     expect(content.count, 'the card content is on screen').toBeGreaterThan(0);
     expect(content.left, 'card content left edge (16 px gutter)').toBeGreaterThanOrEqual(15);
@@ -406,7 +525,10 @@ describe.skipIf(!GATE)('first frame in the browser (ticket #44)', () => {
       const svg = document.querySelector('.pointer') as SVGElement | null;
       const p = svg?.querySelector('.ptr-path') as SVGPolylineElement | null;
       if (!svg || !p) return null;
-      const pts = (p.getAttribute('points') ?? '').trim().split(/\s+/).map((s) => s.split(',').map(Number) as [number, number]);
+      const pts = (p.getAttribute('points') ?? '')
+        .trim()
+        .split(/\s+/)
+        .map((s) => s.split(',').map(Number) as [number, number]);
       return { pts, shown: getComputedStyle(svg).opacity !== '0' };
     });
     expect(trace, 'the lit trace is drawn').not.toBeNull();
@@ -424,7 +546,9 @@ describe.skipIf(!GATE)('first frame in the browser (ticket #44)', () => {
     expect(inside(c![0], c![1], inv!), 'trace ends on Inventory 1').toBe(true);
     expect(Math.abs(b![1] - a![1]), 'first leg runs along the line of Next (flat)').toBeLessThanOrEqual(1);
     expect(b![0], 'first leg runs right').toBeGreaterThan(a![0]);
-    expect(Math.abs(Math.abs(c![0] - b![0]) - Math.abs(c![1] - b![1])), 'second leg is 45 degrees').toBeLessThanOrEqual(2);
+    expect(Math.abs(Math.abs(c![0] - b![0]) - Math.abs(c![1] - b![1])), 'second leg is 45 degrees').toBeLessThanOrEqual(
+      2,
+    );
     expect(c![1], 'second leg goes down').toBeGreaterThan(b![1]);
   }, 180_000);
 
@@ -434,7 +558,7 @@ describe.skipIf(!GATE)('first frame in the browser (ticket #44)', () => {
   // screen and under no HUD box. With a view framed into a band too narrow for the room, the eye is pulled into the room and the view
   // shrinks to a close-up of the desk: the case then lies far outside the screen and the first frame shows no machine at all.
   // The camera lives in the board mount (`overview`, `inFree`: closures over the WebGL scene), so only a browser can check it.
-  it('9. the first frame shows the machine\'s case whole and under no HUD box (desktop 1920 x 1080)', async () => {
+  it("9. the first frame shows the machine's case whole and under no HUD box (desktop 1920 x 1080)", async () => {
     const page = await firstFrame(1920, 1080);
     const still = await cameraStill(page);
     const scene = await sceneBoxes(page);
@@ -443,9 +567,15 @@ describe.skipIf(!GATE)('first frame in the browser (ticket #44)', () => {
     expect(a, `the case is in front of the eye (${seen})`).not.toBeNull();
     const tol = 2;
     const problems: string[] = [];
-    if (a!.x < -tol || a!.y < -tol || a!.x + a!.w > scene.vw + tol || a!.y + a!.h > scene.vh + tol) problems.push(`the case is not all on screen (${Math.round(a!.x)},${Math.round(a!.y)} ${Math.round(a!.w)}x${Math.round(a!.h)} on ${scene.vw}x${scene.vh})`);
+    if (a!.x < -tol || a!.y < -tol || a!.x + a!.w > scene.vw + tol || a!.y + a!.h > scene.vh + tol)
+      problems.push(
+        `the case is not all on screen (${Math.round(a!.x)},${Math.round(a!.y)} ${Math.round(a!.w)}x${Math.round(a!.h)} on ${scene.vw}x${scene.vh})`,
+      );
     for (const b of scene.hud) {
-      if (a!.x < b.x + b.w - tol && a!.x + a!.w > b.x + tol && a!.y < b.y + b.h - tol && a!.y + a!.h > b.y + tol) problems.push(`the case is under the ${b.name} (${Math.round(b.x)},${Math.round(b.y)} ${Math.round(b.w)}x${Math.round(b.h)})`);
+      if (a!.x < b.x + b.w - tol && a!.x + a!.w > b.x + tol && a!.y < b.y + b.h - tol && a!.y + a!.h > b.y + tol)
+        problems.push(
+          `the case is under the ${b.name} (${Math.round(b.x)},${Math.round(b.y)} ${Math.round(b.w)}x${Math.round(b.h)})`,
+        );
     }
     if (a!.w < 100 || a!.h < 100) problems.push('the case is a speck (under 100 px)');
     expect(problems, seen).toEqual([]);
@@ -457,24 +587,34 @@ describe.skipIf(!GATE)('first frame in the browser (ticket #44)', () => {
   // of the free area (the card's own rule, `comfortablyVisible`), so not under a top tab and not behind the instruction tab or the shelf, with the
   // trace's end on it, and no "Show me" after the camera's own flight. A target whose rect only meets the free area (`anchor.visible`, what the
   // playthrough checks) can still have its centre under the top bar.
-  it('10. after Next the camera leaves the step\'s scene target in the free scene area and the lit trace ends on it (desktop 1920 x 1080)', async () => {
+  it("10. after Next the camera leaves the step's scene target in the free scene area and the lit trace ends on it (desktop 1920 x 1080)", async () => {
     const page = await firstFrame(1920, 1080);
     await page.click('[data-step="welcome"] .pactions button:has-text("Next")');
     await page.waitForSelector('[data-step="cpu"]');
     const still = await cameraStill(page);
     const t = await stepTarget(page);
-    const free = { x: t.inset.left!, y: t.inset.top!, w: t.vw - t.inset.left! - t.inset.right!, h: t.vh - t.inset.top! - t.inset.bottom! };
+    const free = {
+      x: t.inset.left!,
+      y: t.inset.top!,
+      w: t.vw - t.inset.left! - t.inset.right!,
+      h: t.vh - t.inset.top! - t.inset.bottom!,
+    };
     const seen = `target ${t.world} ${JSON.stringify(t.anchor)}; free area ${JSON.stringify(free)}; trace end ${JSON.stringify(t.trace)} (shown ${t.traceShown}); card ${JSON.stringify(t.card)}; shelf ${JSON.stringify(t.shelf)}; Show me ${t.showMe}; camera still after ${still ?? 'never (45 s)'} ms`;
     expect(t.world, `step 2 has a target in the scene (${seen})`).not.toBeNull();
     expect(t.anchor, `the target is in front of the eye (${seen})`).not.toBeNull();
     const problems: string[] = [];
     const a = t.anchor!;
-    if (!comfortablyVisible(a, free)) problems.push(`the target's centre (${Math.round(a.x + a.w / 2)}, ${Math.round(a.y + a.h / 2)}) is not in the inner 80% of the free area`);
+    if (!comfortablyVisible(a, free))
+      problems.push(
+        `the target's centre (${Math.round(a.x + a.w / 2)}, ${Math.round(a.y + a.h / 2)}) is not in the inner 80% of the free area`,
+      );
     if (!t.trace || !t.traceShown) problems.push('no lit trace is drawn');
     else {
       const [x, y] = t.trace as [number, number];
-      if (x < free.x || x > free.x + free.w || y < free.y || y > free.y + free.h) problems.push(`the lit trace ends at (${Math.round(x)}, ${Math.round(y)}), outside the free area`);
-      if (Math.hypot(x - (a.x + a.w / 2), y - (a.y + a.h / 2)) > 3) problems.push(`the lit trace does not end on the target's centre (${Math.round(x)}, ${Math.round(y)})`);
+      if (x < free.x || x > free.x + free.w || y < free.y || y > free.y + free.h)
+        problems.push(`the lit trace ends at (${Math.round(x)}, ${Math.round(y)}), outside the free area`);
+      if (Math.hypot(x - (a.x + a.w / 2), y - (a.y + a.h / 2)) > 3)
+        problems.push(`the lit trace does not end on the target's centre (${Math.round(x)}, ${Math.round(y)})`);
     }
     if (t.showMe) problems.push('the card offers "Show me" after the camera flew to the target');
     expect(problems, seen).toEqual([]);
@@ -489,11 +629,25 @@ describe('the playthrough report (ticket #44)', () => {
     'step linkUp      game  858s  money $77  wall 150s  heap 721MB',
     'step firstNetJob game  904s  money $77  wall 156s  heap 750MB',
   ];
-  const run = (lines: string[], status: number | null, stopped: string | null = null): E2eRun => ({ status, out: `${lines.join('\n')}\n`, stopped });
+  const run = (lines: string[], status: number | null, stopped: string | null = null): E2eRun => ({
+    status,
+    out: `${lines.join('\n')}\n`,
+    stopped,
+  });
 
   it('a stall names the step, what the step waits for, how long it waited and where its picture is', () => {
     // the end of the run that stalled on the last lesson's first online job, as the playthrough logged it
-    const r = run([...reached, 'STUCK on firstNetJob after 15 tries, 16s', 'seen    cpu > cooler > firstNetJob', 'missing ["done"]  out of order []  page errors []', 'problems []', 'E2E FAIL'], 1);
+    const r = run(
+      [
+        ...reached,
+        'STUCK on firstNetJob after 15 tries, 16s',
+        'seen    cpu > cooler > firstNetJob',
+        'missing ["done"]  out of order []  page errors []',
+        'problems []',
+        'E2E FAIL',
+      ],
+      1,
+    );
     const say = playthroughReport(r);
     expect(say).toContain('STALLED on step "firstNetJob"');
     expect(say).toContain('after 15 tries, 16s');
@@ -505,7 +659,9 @@ describe('the playthrough report (ticket #44)', () => {
   });
 
   it('a stall that the script counts in game ticks reads the same way', () => {
-    const say = playthroughReport(run([...reached, 'STUCK on firstNetJob after 1204 game ticks, game clock standing still for 4s', 'E2E FAIL'], 1));
+    const say = playthroughReport(
+      run([...reached, 'STUCK on firstNetJob after 1204 game ticks, game clock standing still for 4s', 'E2E FAIL'], 1),
+    );
     expect(say).toContain('STALLED on step "firstNetJob"');
     expect(say).toContain('after 1204 game ticks, game clock standing still for 4s');
     expect(say).toContain('progress.firstNetJob is set');
@@ -518,10 +674,19 @@ describe('the playthrough report (ticket #44)', () => {
   });
 
   it('a run that reached the end with problems or page errors lists them, and is no stall', () => {
-    const say = playthroughReport(run([
-      ...reached, 'step done        game 1105s  money $221  wall 174s  heap 865MB', '  PROBLEM cpu: the card is partly off screen',
-      'missing []  out of order []  page errors ["console: boom"]', 'problems ["cpu: the card is partly off screen"]', 'E2E FAIL',
-    ], 1));
+    const say = playthroughReport(
+      run(
+        [
+          ...reached,
+          'step done        game 1105s  money $221  wall 174s  heap 865MB',
+          '  PROBLEM cpu: the card is partly off screen',
+          'missing []  out of order []  page errors ["console: boom"]',
+          'problems ["cpu: the card is partly off screen"]',
+          'E2E FAIL',
+        ],
+        1,
+      ),
+    );
     expect(say).toContain('PROBLEM cpu: the card is partly off screen');
     expect(say).toContain('page errors: ["console: boom"]');
     expect(say).not.toContain('STALLED');
@@ -529,18 +694,27 @@ describe('the playthrough report (ticket #44)', () => {
 
   it('says when the run hit its own limit, when the page crashed and when no menu came', () => {
     expect(playthroughReport(run([...reached, 'RUN TIMEOUT on firstNetJob', 'E2E FAIL'], 1))).toContain('own limit');
-    expect(playthroughReport(run(['!!! PAGE CRASHED: the browser tab died', ...reached], 2))).toContain('the browser tab crashed on step "firstNetJob"');
+    expect(playthroughReport(run(['!!! PAGE CRASHED: the browser tab died', ...reached], 2))).toContain(
+      'the browser tab crashed on step "firstNetJob"',
+    );
     expect(playthroughReport(run(['the main menu never came'], 3))).toContain('never showed the main menu');
     expect(playthroughReport(run(['the main menu never came'], 3))).toContain('no step had shown yet');
   });
 
   it('a pass says so, and a step the tutorial does not have is named as such', () => {
     expect(playthroughReport(run(['E2E PASS'], 0))).toBe('the playthrough passed');
-    expect(playthroughReport(run(['step nowhere game 1s  money $0  wall 1s  heap 1MB', 'STUCK on nowhere after 3 tries, 4s'], 1))).toContain('no such step in tutorial.ts');
+    expect(
+      playthroughReport(
+        run(['step nowhere game 1s  money $0  wall 1s  heap 1MB', 'STUCK on nowhere after 3 tries, 4s'], 1),
+      ),
+    ).toContain('no such step in tutorial.ts');
   });
 
   it('the bounds nest: no round count ends a step first, a step ends before the run, the run before the hard stop', () => {
-    expect(PLAY_STEP_MS, 'a step may wait longer than the bot test allows at the playthrough\'s pace (660 game s, about 60 s)').toBeGreaterThanOrEqual(90_000);
+    expect(
+      PLAY_STEP_MS,
+      "a step may wait longer than the bot test allows at the playthrough's pace (660 game s, about 60 s)",
+    ).toBeGreaterThanOrEqual(90_000);
     expect(PLAY_ROUNDS * 500, 'rounds last 500 ms or more').toBeGreaterThanOrEqual(PLAY_STEP_MS);
     expect(PLAY_QUIET_MS, 'a step and its checks end before the quiet bound').toBeGreaterThan(PLAY_STEP_MS + 30_000);
     expect(PLAY_RUN_MS).toBeLessThan(E2E_MS);
@@ -550,10 +724,25 @@ describe('the playthrough report (ticket #44)', () => {
   it('the playthrough script still has the bounds this test sets and the lines the report reads', () => {
     const e2e: string = readFileSync(resolve(ROOT, 'e2e/tutorial.e2e.mjs'), 'utf8');
     const has = (s: string) => e2e.includes(s);
-    for (const name of ['RUN_MS', 'SHOTS_DIR', 'PORT', 'HEADLESS']) expect(has(`process.env.${name}`), `the script reads ${name}`).toBe(true);
+    for (const name of ['RUN_MS', 'SHOTS_DIR', 'PORT', 'HEADLESS'])
+      expect(has(`process.env.${name}`), `the script reads ${name}`).toBe(true);
     // a step is bounded in game ticks (STEP_TICKS), or in wall time and rounds (STEP_MS and STEP_TRIES): the two sets this test knows
-    expect(has('process.env.STEP_TICKS') || (has('process.env.STEP_MS') && has('process.env.STEP_TRIES')), 'the script bounds a step by a variable this test knows').toBe(true);
-    for (const phrase of ['STUCK on', 'RUN TIMEOUT on', 'PAGE CRASHED', 'the main menu never came', 'E2E PASS', 'E2E FAIL']) expect(has(phrase), `the script says "${phrase}"`).toBe(true);
-    expect(/log\(`step [^`]*game [^`]*money [^`]*wall [^`]*`\)/.test(e2e), 'the script logs a step line: step, game, money, wall').toBe(true);
+    expect(
+      has('process.env.STEP_TICKS') || (has('process.env.STEP_MS') && has('process.env.STEP_TRIES')),
+      'the script bounds a step by a variable this test knows',
+    ).toBe(true);
+    for (const phrase of [
+      'STUCK on',
+      'RUN TIMEOUT on',
+      'PAGE CRASHED',
+      'the main menu never came',
+      'E2E PASS',
+      'E2E FAIL',
+    ])
+      expect(has(phrase), `the script says "${phrase}"`).toBe(true);
+    expect(
+      /log\(`step [^`]*game [^`]*money [^`]*wall [^`]*`\)/.test(e2e),
+      'the script logs a step line: step, game, money, wall',
+    ).toBe(true);
   });
 });

@@ -8,7 +8,16 @@
 //     Space or Enter down holds it, and their up lets go.
 //   settingsOpener (signal), openSettings(from), closeSettings(): Back returns to the screen that opened Settings.
 import { beforeEach, describe, expect, it } from 'vitest';
-import { closeSettings, openSettings, peekHeld, railMove, rowMove, SETTINGS_ROWS, SETTINGS_TABS, settingsOpener } from './settingsnav';
+import {
+  closeSettings,
+  openSettings,
+  peekHeld,
+  railMove,
+  rowMove,
+  SETTINGS_ROWS,
+  SETTINGS_TABS,
+  settingsOpener,
+} from './settingsnav';
 
 describe('the tab model', () => {
   it('has the five tabs in order, Quality first', () => {
@@ -19,13 +28,29 @@ describe('the tab model', () => {
     // The Graphics modal's Display, Light and Detail rows, and the UI size slider of the main menu's card.
     const labels = Object.values(SETTINGS_ROWS).flat();
     for (const name of [
-      'Render scale', 'Frame limit', 'Brightness', 'Auto-adjust',
-      'Shadows', 'Room lamps', 'Lamp shadows', 'Ambient occlusion', 'Bloom',
-      'Anti-aliasing', 'Textures', 'Filtering', 'Live chips', 'Particles',
-      'UI size', 'Mute', 'Master', 'Music', 'Sounds', 'Ambience',
-    ]) expect(labels, name).toContain(name);
+      'Render scale',
+      'Frame limit',
+      'Brightness',
+      'Auto-adjust',
+      'Shadows',
+      'Room lamps',
+      'Lamp shadows',
+      'Ambient occlusion',
+      'Bloom',
+      'Anti-aliasing',
+      'Textures',
+      'Filtering',
+      'Live chips',
+      'Particles',
+      'UI size',
+      'Mute',
+      'Master',
+      'Music',
+      'Sounds',
+      'Ambience',
+    ])
+      expect(labels, name).toContain(name);
   });
-
 });
 
 describe('← → move the tab only while the tab list has the focus', () => {
@@ -38,7 +63,6 @@ describe('← → move the tab only while the tab list has the focus', () => {
     expect(railMove(1, 5, 'ArrowRight', false)).toBe(1);
     expect(railMove(2, 5, 'ArrowLeft', false)).toBe(2);
   });
-
 });
 
 describe('↑ ↓ move the rows inside a tab', () => {
@@ -88,11 +112,12 @@ describe('Peek is held while the pointer, a finger or a key is down', () => {
     expect(peekHeld(true, { type: 'keyup', key: ' ' })).toBe(false);
     expect(peekHeld(true, { type: 'keyup', key: 'Enter' })).toBe(false);
   });
-
 });
 
 describe('Back returns to the screen that opened Settings', () => {
-  beforeEach(() => { settingsOpener.value = null; });
+  beforeEach(() => {
+    settingsOpener.value = null;
+  });
 
   it('opened from the main menu, Back goes to the main menu', () => {
     openSettings('menu');

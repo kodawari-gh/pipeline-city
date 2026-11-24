@@ -29,14 +29,16 @@ const VEIL = POWER_VEIL;
  * The words of detail (each part's draw) show while the case takes more than `BIG` of the view's height, and go while it takes less than `SMALL`: in the room's view the
  * machine is small and a dozen pills would cover it. The two differ so that a view that rests between them does not flicker.
  */
-const BIG = 0.52, SMALL = 0.45;
+const BIG = 0.52,
+  SMALL = 0.45;
 
 /** The eight corners of the case's box (the machine without its cords): the lens measures how big the machine is on the screen by them. */
 function caseCorners(machine: Machine3D): Vector3[] {
   const box = new Box3();
   for (const o of machine.caseRoots) box.expandByObject(o);
   if (box.isEmpty()) return [];
-  const a = box.min, b = box.max;
+  const a = box.min,
+    b = box.max;
   return [0, 1, 2, 3, 4, 5, 6, 7].map((i) => new Vector3(i & 1 ? b.x : a.x, i & 2 ? b.y : a.y, i & 4 ? b.z : a.z));
 }
 
@@ -61,28 +63,45 @@ export class PowerView3D {
   /** Milliseconds a frame of the lens takes on the main thread, smoothed (a new machine's shape included). */
   cost = 0;
 
-  constructor(scene: Scene, private readonly dom: HTMLElement | null = null) {
+  constructor(
+    scene: Scene,
+    private readonly dom: HTMLElement | null = null,
+  ) {
     this.group.add(this.veil);
     this.group.visible = false;
     scene.add(this.group);
-    if (import.meta.env.DEV && typeof window !== 'undefined') (window as unknown as { __power?: PowerView3D }).__power = this;
+    if (import.meta.env.DEV && typeof window !== 'undefined')
+      (window as unknown as { __power?: PowerView3D }).__power = this;
   }
 
   // (for the developer: `window.__power`)
-  get shapeNow(): PowerShape | null { return this.shape; }
-  get drawNow(): PowerDraw | null { return this.drawn; }
-  get flowsNow(): PowerFlows | null { return this.flows; }
+  get shapeNow(): PowerShape | null {
+    return this.shape;
+  }
+  get drawNow(): PowerDraw | null {
+    return this.drawn;
+  }
+  get flowsNow(): PowerFlows | null {
+    return this.flows;
+  }
   /** The words pinned now: those of detail only while the machine is big on the screen. */
-  get wordsNow(): PowerDraw['tags'] { return this.words(); }
+  get wordsNow(): PowerDraw['tags'] {
+    return this.words();
+  }
 
   /** Is the lens drawing? */
-  get shown(): boolean { return this.group.visible; }
+  get shown(): boolean {
+    return this.group.visible;
+  }
 
   hide(): void {
     this.group.visible = false;
     this.tags.show(false);
     // (the parts take their own look back)
-    if (this.glowing) { this.machine?.powerGlow(null); this.glowing = false; }
+    if (this.glowing) {
+      this.machine?.powerGlow(null);
+      this.glowing = false;
+    }
   }
 
   /** The board's traces for this tier and case. */
@@ -96,7 +115,16 @@ export class PowerView3D {
   private rebuild(s: Snapshot, machine: Machine3D): void {
     this.flows?.dispose();
     // (the source is the real wall plate, the studio's or the room's: the lens's plate takes its outline, lying just over its face)
-    const shape = powerShape({ s, runs: machine.cableRuns(), buses: this.busesFor(), slots: slotRects(s), psu: psuBay(s), boardZ: BOARD_Z, hubZ: CASE_Z + 290, outlet: { box: machine.outlet, lift: 14 } });
+    const shape = powerShape({
+      s,
+      runs: machine.cableRuns(),
+      buses: this.busesFor(),
+      slots: slotRects(s),
+      psu: psuBay(s),
+      boardZ: BOARD_Z,
+      hubZ: CASE_Z + 290,
+      outlet: { box: machine.outlet, lift: 14 },
+    });
     this.shape = shape;
     this.flows = new PowerFlows(shape);
     this.group.add(this.flows.mesh);
@@ -109,7 +137,10 @@ export class PowerView3D {
   private share(cam: PerspectiveCamera): number {
     cam.updateMatrixWorld();
     cam.matrixWorldInverse.copy(cam.matrixWorld).invert();
-    let lo = Infinity, hi = -Infinity, left = Infinity, right = -Infinity;
+    let lo = Infinity,
+      hi = -Infinity,
+      left = Infinity,
+      right = -Infinity;
     for (const c of this.corners) {
       this.p.copy(c).applyMatrix4(cam.matrixWorldInverse);
       if (this.p.z > -cam.near) return 1;
@@ -131,18 +162,27 @@ export class PowerView3D {
 
   /** Per frame, after the camera. `dt`: game seconds (0 holds the pulses); `pxH`: the view's height in pixels. */
   frame(cam: PerspectiveCamera, pxH: number, snap: Snapshot | null, machine: Machine3D | null, dt: number): void {
-    if (!snap || !machine) { this.hide(); return; }
+    if (!snap || !machine) {
+      this.hide();
+      return;
+    }
     const t0 = performance.now();
     this.clock = t0 / 1000;
     const key = `${LAYOUT_TIER}|${LAYOUT_CASE}|${snap.devices.map((d) => `${d.spec}@${d.slot}`).join(',')}|${snap.cables.map((c) => c.id).join(',')}`;
     if (!this.shape || machine !== this.machine || machine.cablesRev !== this.rev || key !== this.key) {
-      if (machine !== this.machine && this.glowing) { this.machine?.powerGlow(null); this.glowing = false; }
+      if (machine !== this.machine && this.glowing) {
+        this.machine?.powerGlow(null);
+        this.glowing = false;
+      }
       this.machine = machine;
       this.rev = machine.cablesRev;
       this.key = key;
       this.rebuild(snap, machine);
     }
-    const shape = this.shape!, flows = this.flows!, held = machine.heldCables(), heldKey = [...held].sort().join(',');
+    const shape = this.shape!,
+      flows = this.flows!,
+      held = machine.heldCables(),
+      heldKey = [...held].sort().join(',');
     if (snap !== this.seen || heldKey !== this.held) {
       if (snap !== this.seen) {
         this.seen = snap;
@@ -158,13 +198,24 @@ export class PowerView3D {
     flows.frame(cam, pxH, dt, this.clock);
     // (the words of detail come and go with the machine's size on the screen)
     if (this.corners.length) {
-      const share = this.share(cam), detail = share > (this.detail ? SMALL : BIG);
-      if (detail !== this.detail) { this.detail = detail; this.tags.set(this.words(), this.clock); }
+      const share = this.share(cam),
+        detail = share > (this.detail ? SMALL : BIG);
+      if (detail !== this.detail) {
+        this.detail = detail;
+        this.tags.set(this.words(), this.clock);
+      }
     }
     this.group.visible = true;
     this.tags.show(true);
     const r = this.dom?.getBoundingClientRect();
-    if (r) this.tags.frame(cam, { left: r.left, top: r.top, width: r.width, height: r.height, minTop: viewInset.peek().top });
+    if (r)
+      this.tags.frame(cam, {
+        left: r.left,
+        top: r.top,
+        width: r.width,
+        height: r.height,
+        minTop: viewInset.peek().top,
+      });
     this.cost += (performance.now() - t0 - this.cost) * 0.05;
   }
 

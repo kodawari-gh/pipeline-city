@@ -2,7 +2,23 @@ import { describe, expect, it } from 'vitest';
 import { Game } from '@/worker/game/game';
 import { deviceSpec } from '@/features/board/sim/board';
 import { BUILD_PRESETS, specSheet } from '@/features/board/sim/buildspecs';
-import { countNames, freeName, groupByKind, hintLine, linkLine, pillOf, pips, plural, powerMeter, presetBits, priceOf, rate, readiness, type Alert, type HintState } from './buildhud';
+import {
+  countNames,
+  freeName,
+  groupByKind,
+  hintLine,
+  linkLine,
+  pillOf,
+  pips,
+  plural,
+  powerMeter,
+  presetBits,
+  priceOf,
+  rate,
+  readiness,
+  type Alert,
+  type HintState,
+} from './buildhud';
 
 const full = () => new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
 
@@ -37,19 +53,32 @@ describe('readiness', () => {
 });
 
 describe('the pill', () => {
-  const alert = (id: string, level: 'bad' | 'warn', title: string): Alert => ({ id, level, title, text: `${title}: the whole sentence.`, part: null });
+  const alert = (id: string, level: 'bad' | 'warn', title: string): Alert => ({
+    id,
+    level,
+    title,
+    text: `${title}: the whole sentence.`,
+    part: null,
+  });
 
   it('is green when there is nothing to say', () => {
     expect(pillOf([])).toMatchObject({ tone: 'ok', label: 'Ready to start', alerts: [] });
   });
 
   it('gives one problem its own words, in the colour of its level: amber when the machine runs badly or lacks a part, red when it breaks', () => {
-    expect(pillOf([alert('boot', 'warn', 'No CPU installed')])).toMatchObject({ tone: 'warn', label: 'No CPU installed', title: 'No CPU installed: the whole sentence.' });
+    expect(pillOf([alert('boot', 'warn', 'No CPU installed')])).toMatchObject({
+      tone: 'warn',
+      label: 'No CPU installed',
+      title: 'No CPU installed: the whole sentence.',
+    });
     expect(pillOf([alert('psu-trip', 'bad', 'Supply trips')])).toMatchObject({ tone: 'bad', label: 'Supply trips' });
   });
 
   it('counts several, and is red when any of them breaks', () => {
-    expect(pillOf([alert('a', 'warn', 'A'), alert('b', 'warn', 'B')])).toMatchObject({ tone: 'warn', label: '2 warnings' });
+    expect(pillOf([alert('a', 'warn', 'A'), alert('b', 'warn', 'B')])).toMatchObject({
+      tone: 'warn',
+      label: '2 warnings',
+    });
     const two = pillOf([alert('a', 'bad', 'A'), alert('b', 'warn', 'B')]);
     expect(two).toMatchObject({ tone: 'bad', label: '2 problems' });
     expect(two.title).toBe('A: A: the whole sentence.\nB: B: the whole sentence.');
@@ -68,10 +97,11 @@ describe('powerMeter', () => {
     expect(powerMeter({ headroom: 0.9 })).toEqual({ pct: 90, tone: 'warn' });
     expect(powerMeter({ headroom: 1.3 })).toEqual({ pct: 100, tone: 'bad' });
   });
-  it('is red from the first watt over the supply, and a sheet that is given the machine\'s own draw (what the regulators waste too) says so', () => {
+  it("is red from the first watt over the supply, and a sheet that is given the machine's own draw (what the regulators waste too) says so", () => {
     expect(powerMeter({ headroom: 1.01 })).toEqual({ pct: 100, tone: 'bad' });
     const parts = { boardTier: 0, caseTier: 0, specs: ['psu0', 'cpu0'] };
-    const listed = specSheet(parts), drawn = specSheet({ ...parts, drawW: listed.psuW + 1 });
+    const listed = specSheet(parts),
+      drawn = specSheet({ ...parts, drawW: listed.psuW + 1 });
     expect(drawn.loadW).toBe(listed.psuW + 1);
     expect(powerMeter(drawn).tone).toBe('bad');
     expect(powerMeter(listed).tone).not.toBe('bad');
@@ -110,8 +140,12 @@ describe('priceOf and pips', () => {
 
 describe('rate and linkLine', () => {
   const net = (o: Partial<Parameters<typeof linkLine>[0]>): Parameters<typeof linkLine>[0] => ({
-    state: 'link-up', reason: null, bandwidth: { downMbps: 100, upMbps: 10, clients: 2, binding: 'router' },
-    router: { id: 'router1', name: 'Home router', mbps: 100, clients: 2, visual: 'router-home' }, isp: { id: 'isp2', name: 'Cable', downMbps: 200, upMbps: 50, clients: 4 }, ...o,
+    state: 'link-up',
+    reason: null,
+    bandwidth: { downMbps: 100, upMbps: 10, clients: 2, binding: 'router' },
+    router: { id: 'router1', name: 'Home router', mbps: 100, clients: 2, visual: 'router-home' },
+    isp: { id: 'isp2', name: 'Cable', downMbps: 200, upMbps: 50, clients: 4 },
+    ...o,
   });
 
   it('writes a speed in Mbit/s, and in Gbit/s from a thousand', () => {
@@ -122,11 +156,25 @@ describe('rate and linkLine', () => {
   });
 
   it('says what is missing, in amber, in the words of the shelf: the router, the plan, the cable, the OS', () => {
-    expect(linkLine(net({ state: 'no-device', router: null, reason: 'no router: install one next to the monitor' }))).toEqual({ tone: 'warn', text: 'No router: pick one from the shelf' });
-    expect(linkLine(net({ state: 'no-device', isp: null }))).toEqual({ tone: 'warn', text: 'No internet plan: pick one from the shelf' });
-    expect(linkLine(net({ state: 'no-device', router: null, isp: null }))).toEqual({ tone: 'warn', text: 'No router and no internet plan: pick them from the shelf' });
-    expect(linkLine(net({ state: 'no-cable' }))).toEqual({ tone: 'warn', text: 'The ethernet cable is not plugged in' });
-    expect(linkLine(net({ state: 'no-os', reason: 'needs an OS: the network runs inside it' }))).toEqual({ tone: 'warn', text: 'needs an OS: the network runs inside it' });
+    expect(
+      linkLine(net({ state: 'no-device', router: null, reason: 'no router: install one next to the monitor' })),
+    ).toEqual({ tone: 'warn', text: 'No router: pick one from the shelf' });
+    expect(linkLine(net({ state: 'no-device', isp: null }))).toEqual({
+      tone: 'warn',
+      text: 'No internet plan: pick one from the shelf',
+    });
+    expect(linkLine(net({ state: 'no-device', router: null, isp: null }))).toEqual({
+      tone: 'warn',
+      text: 'No router and no internet plan: pick them from the shelf',
+    });
+    expect(linkLine(net({ state: 'no-cable' }))).toEqual({
+      tone: 'warn',
+      text: 'The ethernet cable is not plugged in',
+    });
+    expect(linkLine(net({ state: 'no-os', reason: 'needs an OS: the network runs inside it' }))).toEqual({
+      tone: 'warn',
+      text: 'needs an OS: the network runs inside it',
+    });
   });
 
   it('says the speed and what holds it back once the link is up, in green', () => {
@@ -159,7 +207,9 @@ describe('hintLine', () => {
     expect(hintLine({ ...base, on: true, picked: true })).toMatch(/Delete/);
     expect(hintLine({ ...base, on: true, holding: true })).toMatch(/plug to its socket/);
     // (a step that plays still comes first)
-    expect(hintLine({ ...base, on: true, holding: true, busy: true, step: 'Unscrew the cooler' })).toBe('Unscrew the cooler');
+    expect(hintLine({ ...base, on: true, holding: true, busy: true, step: 'Unscrew the cooler' })).toBe(
+      'Unscrew the cooler',
+    );
   });
 
   it('takes an OS, a router or a plan whatever stands on the stage: it fits the room, not a socket', () => {
@@ -194,7 +244,12 @@ describe('hintLine', () => {
 describe('the words of the right panel', () => {
   it('counts what a preset fits besides the tiered parts', () => {
     expect(presetBits({ name: 'a', level: 0.3, ram: 1, storage: 1, gpus: 0, npus: 0 })).toEqual(['1 RAM', '1 drive']);
-    expect(presetBits({ name: 'b', level: 1, ram: 8, storage: 4, gpus: 2, npus: 1 })).toEqual(['8 RAM', '4 drives', '2 GPU', 'AI card']);
+    expect(presetBits({ name: 'b', level: 1, ram: 8, storage: 4, gpus: 2, npus: 1 })).toEqual([
+      '8 RAM',
+      '4 drives',
+      '2 GPU',
+      'AI card',
+    ]);
   });
 
   it('says the ready-made machines rise from a little to a lot', () => {

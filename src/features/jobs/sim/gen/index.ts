@@ -1,15 +1,26 @@
 // Program generator: generate(template, seed, params) -> real assembly + assembled program.
 // Same (template, seed, params) always gives byte-identical assembly. See docs/GEN.md.
 
-import { assemble } from "@/features/cpu/sim/asm";
-import { Prng } from "@/core/sim/prng";
-import { ROM_DONE_VECTOR } from "@/core/sim/memmap";
-import { RefCpu, RefMemory } from "@/features/cpu/sim/ref";
-import type { Kernel, Mix } from "./kernels";
-import { MAX_CODE_BYTES, TEMPLATES, type GenParams, type ResolvedParams } from "./templates";
+import { assemble } from '@/features/cpu/sim/asm';
+import { Prng } from '@/core/sim/prng';
+import { ROM_DONE_VECTOR } from '@/core/sim/memmap';
+import { RefCpu, RefMemory } from '@/features/cpu/sim/ref';
+import type { Kernel, Mix } from './kernels';
+import { MAX_CODE_BYTES, TEMPLATES, type GenParams, type ResolvedParams } from './templates';
 
-export * from "./kernels";
-export { TEMPLATES, gpuPicture, BUF_BASE, HEAP_BASE, indexBytes, type GenParams, type GpuTarget, type NpuTarget, type ResolvedParams, type TemplateFn } from "./templates";
+export * from './kernels';
+export {
+  TEMPLATES,
+  gpuPicture,
+  BUF_BASE,
+  HEAP_BASE,
+  indexBytes,
+  type GenParams,
+  type GpuTarget,
+  type NpuTarget,
+  type ResolvedParams,
+  type TemplateFn,
+} from './templates';
 
 export interface KernelInfo {
   kernel: string;
@@ -52,14 +63,27 @@ export function generate(template: string, seed: number, params: GenParams = {})
   const rng = new Prng(seed);
   const jobId = params.jobId ?? rng.nextInt(100);
   if (!Number.isInteger(jobId) || jobId < 0 || jobId > 99) throw new RangeError(`jobId ${jobId}`);
-  const resolved: ResolvedParams = { scale, row: params.row ?? 0, jobId, ...(params.gpu ? { gpu: params.gpu } : {}), ...(params.npu ? { npu: params.npu } : {}) };
+  const resolved: ResolvedParams = {
+    scale,
+    row: params.row ?? 0,
+    jobId,
+    ...(params.gpu ? { gpu: params.gpu } : {}),
+    ...(params.npu ? { npu: params.npu } : {}),
+  };
   const built = fn(rng, resolved);
   // Builder.finish ends main with a lone `ecall` line; a hosted program returns to the ROM instead.
-  const asm = params.hosted ? built.asm.replace("\n  ecall\n", `\n  li t0, ${ROM_DONE_VECTOR}\n  jalr zero, t0, 0\n`) : built.asm;
+  const asm = params.hosted
+    ? built.asm.replace('\n  ecall\n', `\n  li t0, ${ROM_DONE_VECTOR}\n  jalr zero, t0, 0\n`)
+    : built.asm;
   const { program, symbols } = assemble(asm);
-  if (program.length * 4 > MAX_CODE_BYTES) throw new RangeError("generated program too large");
-  const kernels: KernelInfo[] = built.kernels.map((k: Kernel) => ({ kernel: k.name, ns: k.ns, mix: k.mix, footprintBytes: k.footprintBytes }));
-  const mix = [...new Set<Mix>(["alu", "branch", ...kernels.flatMap((k) => k.mix)])];
+  if (program.length * 4 > MAX_CODE_BYTES) throw new RangeError('generated program too large');
+  const kernels: KernelInfo[] = built.kernels.map((k: Kernel) => ({
+    kernel: k.name,
+    ns: k.ns,
+    mix: k.mix,
+    footprintBytes: k.footprintBytes,
+  }));
+  const mix = [...new Set<Mix>(['alu', 'branch', ...kernels.flatMap((k) => k.mix)])];
   return {
     asm,
     program,

@@ -3,21 +3,64 @@ import type { OsSnap, StorageSnap } from '@/worker/game/game';
 import { dev, snap } from '@/core/ui/testdata';
 import { bottleneck, resourceRows, spoolModel } from './osui';
 
-const drive = (o: Partial<StorageSnap> = {}): StorageSnap => ({
-  deviceId: 'd1', slot: 'sata0', spec: 'ssd1', name: 'SATA SSD', hasOs: true, burnt: false, capacityBytes: 100_000, usedBytes: 10_000,
-  busy: false, bytesPerSecond: 50_000, queued: 0, queueDepth: 4, wearPct: 0, ...o,
-} as StorageSnap);
+const drive = (o: Partial<StorageSnap> = {}): StorageSnap =>
+  ({
+    deviceId: 'd1',
+    slot: 'sata0',
+    spec: 'ssd1',
+    name: 'SATA SSD',
+    hasOs: true,
+    burnt: false,
+    capacityBytes: 100_000,
+    usedBytes: 10_000,
+    busy: false,
+    bytesPerSecond: 50_000,
+    queued: 0,
+    queueDepth: 4,
+    wearPct: 0,
+    ...o,
+  }) as StorageSnap;
 
-const os = (o: Partial<OsSnap> = {}): OsSnap => ({
-  spec: 'os2', tier: 2, name: 'Paged OS 2.0', deviceId: 'd1', slot: 'sata0', programSlots: 1, queueSlots: 4, up: true, queue: [], runningKeyId: null,
-  spool: { slotBytes: 4096, slots: 4, used: 1, freeBytes: 0, full: false },
-  config: { spoolWanted: null, spoolMax: 8, drives: [{ deviceId: 'd1', slot: 'sata0', name: 'SATA SSD', tier: 2, home: true, on: true, why: null, slots: 4, freeBytes: 90_000 }] },
-  ...o,
-} as OsSnap);
+const os = (o: Partial<OsSnap> = {}): OsSnap =>
+  ({
+    spec: 'os2',
+    tier: 2,
+    name: 'Paged OS 2.0',
+    deviceId: 'd1',
+    slot: 'sata0',
+    programSlots: 1,
+    queueSlots: 4,
+    up: true,
+    queue: [],
+    runningKeyId: null,
+    spool: { slotBytes: 4096, slots: 4, used: 1, freeBytes: 0, full: false },
+    config: {
+      spoolWanted: null,
+      spoolMax: 8,
+      drives: [
+        {
+          deviceId: 'd1',
+          slot: 'sata0',
+          name: 'SATA SSD',
+          tier: 2,
+          home: true,
+          on: true,
+          why: null,
+          slots: 4,
+          freeBytes: 90_000,
+        },
+      ],
+    },
+    ...o,
+  }) as OsSnap;
 
 describe('OS panel: resource monitor', () => {
   it('lists the CPU, the regulator, each drive and the queue, and finds no bottleneck on a calm machine', () => {
-    const s = snap({ devices: [dev({ kind: 'cpu', name: 'Tiny CPU', effectiveClock: 1 })], storage: [drive()], os: os() });
+    const s = snap({
+      devices: [dev({ kind: 'cpu', name: 'Tiny CPU', effectiveClock: 1 })],
+      storage: [drive()],
+      os: os(),
+    });
     const rows = resourceRows(s);
     expect(rows.map((r) => r.id)).toEqual(expect.arrayContaining(['cpu', 'vrm', 'disk:d1', 'queue']));
     expect(bottleneck(rows)).toBeNull();
@@ -31,7 +74,10 @@ describe('OS panel: resource monitor', () => {
   });
 
   it('a full spool is the bottleneck and says how to add slots', () => {
-    const s = snap({ storage: [drive()], os: os({ spool: { slotBytes: 4096, slots: 4, used: 4, freeBytes: 0, full: true } }) });
+    const s = snap({
+      storage: [drive()],
+      os: os({ spool: { slotBytes: 4096, slots: 4, used: 4, freeBytes: 0, full: true } }),
+    });
     const b = bottleneck(resourceRows(s));
     expect(b).toMatchObject({ id: 'queue' });
     expect(b!.text).toMatch(/slots/);
@@ -65,10 +111,19 @@ describe('OS panel: spool settings', () => {
   });
   it('a drive with a reason cannot be switched on, but one that is on can always be switched off', () => {
     const cfg = os().config!;
-    const m = spoolModel(snap({ os: os({ config: { ...cfg, drives: [
-      { ...cfg.drives[0]!, why: 'not formatted clean', on: true },
-      { ...cfg.drives[0]!, deviceId: 'd2', why: 'not formatted clean', on: false },
-    ] } }) }))!;
+    const m = spoolModel(
+      snap({
+        os: os({
+          config: {
+            ...cfg,
+            drives: [
+              { ...cfg.drives[0]!, why: 'not formatted clean', on: true },
+              { ...cfg.drives[0]!, deviceId: 'd2', why: 'not formatted clean', on: false },
+            ],
+          },
+        }),
+      }),
+    )!;
     expect(m.drives[0]!.canToggle).toBe(true);
     expect(m.drives[1]!.canToggle).toBe(false);
   });

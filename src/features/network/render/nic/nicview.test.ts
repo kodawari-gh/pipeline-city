@@ -14,29 +14,53 @@ const ISP = { id: 'isp2', name: 'Cable', downMbps: 200, upMbps: 50, clients: 4 }
 function game(tick: number, rx: number, tx: number, plugged = true): Snapshot {
   const base = snap();
   return snap({
-    baseTick: tick, powered: true,
-    devices: [dev({ id: 'n1', spec: 'nic2', kind: 'nic', slot: 'pcie1', tempC: 41, powerW: 6.5, throttle: 1, burnt: false })],
+    baseTick: tick,
+    powered: true,
+    devices: [
+      dev({ id: 'n1', spec: 'nic2', kind: 'nic', slot: 'pcie1', tempC: 41, powerW: 6.5, throttle: 1, burnt: false }),
+    ],
     net: {
-      ...base.net!, state: 'link-up', reason: null, port: plugged ? { kind: 'nic', deviceId: 'n1', mbps: 10000 } : { kind: null, deviceId: null, mbps: 0 },
-      router: ROUTER, isp: ISP, bandwidth: { downMbps: 200, upMbps: 50, clients: 4, binding: 'isp' }, transfers: [], uploadsWaiting: 0,
-      frames: { rx, tx }, counters: { delivered: 3, downloaded: 7, uploaded: 5, lost: 0 },
+      ...base.net!,
+      state: 'link-up',
+      reason: null,
+      port: plugged ? { kind: 'nic', deviceId: 'n1', mbps: 10000 } : { kind: null, deviceId: null, mbps: 0 },
+      router: ROUTER,
+      isp: ISP,
+      bandwidth: { downMbps: 200, upMbps: 50, clients: 4, binding: 'isp' },
+      transfers: [],
+      uploadsWaiting: 0,
+      frames: { rx, tx },
+      counters: { delivered: 3, downloaded: 7, uploaded: 5, lost: 0 },
     },
   });
 }
 
-interface Launch { slot: string; dir: string; at: number; total: number }
+interface Launch {
+  slot: string;
+  dir: string;
+  at: number;
+  total: number;
+}
 /** A view of the card in pcie1 that has read two snapshots (a tick apart: `rx` and `tx` frames came in that tick), and records what it launches; `lead` is what the copper answers. */
-function view(rx: number, tx: number, o: { plugged?: boolean; lead?: number } = {}): { v: NicView; launches: Launch[]; packets: () => { t0: number }[] } {
-  const v = new NicView(), launches: Launch[] = [];
+function view(
+  rx: number,
+  tx: number,
+  o: { plugged?: boolean; lead?: number } = {},
+): { v: NicView; launches: Launch[]; packets: () => { t0: number }[] } {
+  const v = new NicView(),
+    launches: Launch[] = [];
   v.setScene(builtinTheme(), [{ slot: 'pcie1', visual: 'nic-10g', index: 1 }]);
-  v.onLaunch = (slot, dir, at, total) => { launches.push({ slot, dir, at, total }); return o.lead ?? 0; };
+  v.onLaunch = (slot, dir, at, total) => {
+    launches.push({ slot, dir, at, total });
+    return o.lead ?? 0;
+  };
   v.update(game(1, 0, 0, o.plugged ?? true));
   v.update(game(2, rx, tx, o.plugged ?? true));
   return { v, launches, packets: () => (v as unknown as { cards: { packets: { t0: number }[] }[] }).cards[0]!.packets };
 }
 
 describe("the NIC die's view launches the card's frames", () => {
-  it('launches a frame for each way that carries frames, on the view\'s clock, whether the die is seen or not', () => {
+  it("launches a frame for each way that carries frames, on the view's clock, whether the die is seen or not", () => {
     const { v, launches } = view(1000, 100);
     expect(v.clock).toBe(0);
     v.frame(0.016, true);
@@ -50,7 +74,8 @@ describe("the NIC die's view launches the card's frames", () => {
       expect(l.total).toBeLessThanOrEqual(1500);
     }
     // the busier way goes through quicker
-    const rx = launches.find((l) => l.dir === 'rx')!, tx = launches.find((l) => l.dir === 'tx')!;
+    const rx = launches.find((l) => l.dir === 'rx')!,
+      tx = launches.find((l) => l.dir === 'tx')!;
     expect(rx.total).toBeLessThan(tx.total);
   });
 
@@ -85,7 +110,7 @@ describe("the NIC die's view launches the card's frames", () => {
     expect(held.v.clock).toBe(0);
   });
 
-  it('makes the die\'s packets wait for the copper\'s answer, and makes none when the die is not seen', () => {
+  it("makes the die's packets wait for the copper's answer, and makes none when the die is not seen", () => {
     const away = view(1000, 0, { lead: 250 });
     away.v.frame(0.016, true);
     expect(away.launches).toHaveLength(1);
@@ -93,7 +118,8 @@ describe("the NIC die's view launches the card's frames", () => {
     const seen = view(1000, 0, { lead: 250 });
     seen.v.setSight('pcie1', { zoom: 1, view: null, shown: true });
     seen.v.frame(0.016, true);
-    const at = seen.launches[0]!.at, packets = seen.packets();
+    const at = seen.launches[0]!.at,
+      packets = seen.packets();
     expect(packets.length).toBeGreaterThan(1);
     // the first hop leaves the die's edge when the frame gets there; each next one follows it
     expect(packets[0]!.t0).toBeCloseTo(at + 250, 6);

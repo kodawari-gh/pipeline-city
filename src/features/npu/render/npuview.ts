@@ -24,11 +24,17 @@ import { cardCandidates, cardText } from '@/core/render/lod/lodcard';
 
 // Zoom levels (board scale; the die is 1200 to 1600 units across): the lid fades 0.4 -> 0.7, the traces and symbols come with it, the names at 0.75, the
 // second lines and the sums in the cells at 1.5.
-const [FADE_FROM, FADE_TO] = DEVICE_LOD.npu.fade, TEXT_Z = DEVICE_LOD.npu.text, DETAIL_Z = DEVICE_LOD.npu.detail;
+const [FADE_FROM, FADE_TO] = DEVICE_LOD.npu.fade,
+  TEXT_Z = DEVICE_LOD.npu.text,
+  DETAIL_Z = DEVICE_LOD.npu.detail;
 /** How long a hop of a live launch's packet takes (ms): the card's own phases are far shorter than a frame. */
 const LIVE_HOP_MS = 420;
 
-export interface NpuScene { slot: string; visual: string; origin: { x: number; y: number } }
+export interface NpuScene {
+  slot: string;
+  visual: string;
+  origin: { x: number; y: number };
+}
 
 interface CardView {
   slot: string;
@@ -61,7 +67,9 @@ interface CardView {
 }
 
 /** How long a CPU access stays lit in the die (ms), the least gap between two packets of the same kind, and the longest stretch of card memory shown as one access (bytes). */
-const TOUCH_MS = 900, HOST_GAP_MS = 140, TOUCH_SPAN = 256;
+const TOUCH_MS = 900,
+  HOST_GAP_MS = 140,
+  TOUCH_SPAN = 256;
 
 /** A route's hops, as the board's live layer lights the card's copper from them (`board/three/accelbus.ts`). */
 export type TrafficHops = readonly { link: { from: string; to: string }; reverse: boolean }[];
@@ -97,22 +105,53 @@ export class NpuCardView {
   }
 
   private build(T: Theme, s: NpuScene): CardView {
-    const geo = npuGeo(s.visual), plan = geo.plan, root = new Container(), die = new Container(), plate = new Graphics();
+    const geo = npuGeo(s.visual),
+      plan = geo.plan,
+      root = new Container(),
+      die = new Container(),
+      plate = new Graphics();
     root.position.set(s.origin.x, s.origin.y);
     die.position.set(geo.origin.x, geo.origin.y);
     npuFar(plate, T, plan);
     const near = npuNear(T, plan);
     die.addChild(plate, near.wires, near.cells);
-    const glowG = new Graphics(), litG = new Graphics(), texts = new Container(), trailG = new Graphics(), packetG = new Graphics();
+    const glowG = new Graphics(),
+      litG = new Graphics(),
+      texts = new Container(),
+      trailG = new Graphics(),
+      packetG = new Graphics();
     die.addChild(glowG, litG, texts, trailG, packetG, near.names, near.subs);
     const cover = npuCover(T, geo);
     root.addChild(die, cover);
     if (this.bare) for (const n of [plate, near.wires, near.cells, near.names, near.subs, cover]) n.renderable = false;
     this.root.addChild(root);
-    const areas = plan.blocks.flatMap((b) => { const a = npuGlyphArea(b); return a ? [{ b, a }] : []; });
+    const areas = plan.blocks.flatMap((b) => {
+      const a = npuGlyphArea(b);
+      return a ? [{ b, a }] : [];
+    });
     return {
-      slot: s.slot, geo, root, die, cover, glowG, litG, texts, trailG, packetG, names: near.names, subs: near.subs, cellTexts: new Map(), packets: [], trails: new Map(),
-      glow: new Map(), sent: '', areas, player: new NpuPlayer(), touch: null, sentAt: new Map(), sig: '',
+      slot: s.slot,
+      geo,
+      root,
+      die,
+      cover,
+      glowG,
+      litG,
+      texts,
+      trailG,
+      packetG,
+      names: near.names,
+      subs: near.subs,
+      cellTexts: new Map(),
+      packets: [],
+      trails: new Map(),
+      glow: new Map(),
+      sent: '',
+      areas,
+      player: new NpuPlayer(),
+      touch: null,
+      sentAt: new Map(),
+      sig: '',
     };
   }
 
@@ -122,11 +161,15 @@ export class NpuCardView {
    * the die, and a packet runs the wire it takes inside the card (npu/npuroute.ts `npuHostRoute`).
    */
   touch(slot: string, store: boolean, off: number): void {
-    const c = this.cards.find((x) => x.slot === slot), T = this.T;
+    const c = this.cards.find((x) => x.slot === slot),
+      T = this.T;
     if (!c || !T) return;
-    const now = this.now, t = c.touch, mem = off >= NPU_MEM;
+    const now = this.now,
+      t = c.touch,
+      mem = off >= NPU_MEM;
     if (mem) {
-      const lo = (off - NPU_MEM) & ~3, hi = lo + 4;
+      const lo = (off - NPU_MEM) & ~3,
+        hi = lo + 4;
       // accesses in a row of one kind, close together, are one stretch (a copy loop); only the newest stretch of it stays lit
       if (t && t.reg < 0 && t.store === store && now - t.at < 400 && lo <= t.hi + 64 && hi >= t.lo - 64) {
         const top = Math.max(t.hi, hi);
@@ -166,17 +209,25 @@ export class NpuCardView {
     this.root.visible = inner && this.cards.length > 0;
     if (!this.root.visible || !this.T) return;
     // a paused game has no game time, but a replay still plays: it runs on the wall clock then
-    const wall = performance.now(), wdt = Math.min(0.1, Math.max(0, (wall - this.lastWall) / 1000));
+    const wall = performance.now(),
+      wdt = Math.min(0.1, Math.max(0, (wall - this.lastWall) / 1000));
     this.lastWall = wall;
     const step = (paused ? wdt : dt) * 1000;
     this.now += step;
     const T = this.T;
     for (const c of this.cards) {
       c.player.advance(step);
-      const base = c.player.show(this.now), fresh = c.touch ? 1 - (this.now - c.touch.at) / TOUCH_MS : 0;
+      const base = c.player.show(this.now),
+        fresh = c.touch ? 1 - (this.now - c.touch.at) / TOUCH_MS : 0;
       if (c.touch && fresh <= 0) c.touch = null;
-      const show = base && c.touch ? { ...base, touch: { store: c.touch.store, reg: c.touch.reg, lo: c.touch.lo, hi: c.touch.hi, fresh } } : base;
-      const pl = this.rects.place(c, c.root, lod?.view), on = pl.onScreen, z = seenZoom(this.zoom, pl.focus), fade = smooth(FADE_FROM, FADE_TO, z);
+      const show =
+        base && c.touch
+          ? { ...base, touch: { store: c.touch.store, reg: c.touch.reg, lo: c.touch.lo, hi: c.touch.hi, fresh } }
+          : base;
+      const pl = this.rects.place(c, c.root, lod?.view),
+        on = pl.onScreen,
+        z = seenZoom(this.zoom, pl.focus),
+        fade = smooth(FADE_FROM, FADE_TO, z);
       c.root.visible = on;
       c.cover.alpha = 1 - fade;
       c.die.alpha = fade;
@@ -188,8 +239,12 @@ export class NpuCardView {
       c.subs.visible = showDetail;
       c.subs.alpha = da;
       // an idle card only needs a redraw when something it shows changes (the clock lane blinks every 160 ms)
-      const still = !show || (show.phase === 'idle' && !c.touch && c.packets.length === 0 && c.trails.size === 0 && c.glow.size === 0);
-      const sig = still ? `${show ? `${show.cycles}|${show.count}|${show.done ? 1 : 0}${show.error ? 1 : 0}|${show.tiles.map((t) => (t ? 1 : 0)).join('')}|${show.acc.reduce((n, x) => (n * 31 + x) | 0, 7)}|${show.fill.reduce((n, x) => (n * 31 + Math.round(x * 16)) | 0, 5)}` : '-'}|${Math.floor(this.now / 160)}|${showText ? 1 : 0}${showDetail ? 1 : 0}` : '';
+      const still =
+        !show ||
+        (show.phase === 'idle' && !c.touch && c.packets.length === 0 && c.trails.size === 0 && c.glow.size === 0);
+      const sig = still
+        ? `${show ? `${show.cycles}|${show.count}|${show.done ? 1 : 0}${show.error ? 1 : 0}|${show.tiles.map((t) => (t ? 1 : 0)).join('')}|${show.acc.reduce((n, x) => (n * 31 + x) | 0, 7)}|${show.fill.reduce((n, x) => (n * 31 + Math.round(x * 16)) | 0, 5)}` : '-'}|${Math.floor(this.now / 160)}|${showText ? 1 : 0}${showDetail ? 1 : 0}`
+        : '';
       if (still && sig === c.sig) continue;
       c.sig = sig;
       this.animate(T, c, show);
@@ -198,23 +253,37 @@ export class NpuCardView {
 
   /** The colour of a descriptor's packets: loads amber, products purple, the bias cyan, the relu pink, stores green. */
   private stepColor(T: Theme, op: number): string {
-    return op === NpuOp.Load ? T.ld : op === NpuOp.Bias ? T.alu : op === NpuOp.Relu ? T.br : op === NpuOp.Store ? T.st : T.mul;
+    return op === NpuOp.Load
+      ? T.ld
+      : op === NpuOp.Bias
+        ? T.alu
+        : op === NpuOp.Relu
+          ? T.br
+          : op === NpuOp.Store
+            ? T.st
+            : T.mul;
   }
 
   /** Send the step the launch has reached along its route: a packet on each wire in turn, in its colour (once per launch, phase and descriptor). */
   private fly(c: CardView, show: NpuShow): void {
     const phase = show.phase;
-    if (phase === 'idle') { c.sent = ''; return; }
+    if (phase === 'idle') {
+      c.sent = '';
+      return;
+    }
     const key = `${c.player.token}:${phase}:${show.index}`;
     if (c.sent === key) return;
     c.sent = key;
-    const T = this.T!, op = show.step?.op ?? 0;
+    const T = this.T!,
+      op = show.step?.op ?? 0;
     if (phase === 'run' && !show.step) return;
     const route = npuRoute(c.geo.plan, op, phase);
     if (route.length === 0) return;
     this.onTraffic?.(c.slot, route);
     const color = phase === 'in' ? T.alu : phase === 'out' ? T.st : this.stepColor(T, op);
-    const total = !show.replay ? LIVE_HOP_MS : phase === 'run' ? replayStepMs(show.step!) : REPLAY_HOP_MS, sp = (total * 0.9) / route.length, dur = Math.max(sp * 1.1, 200);
+    const total = !show.replay ? LIVE_HOP_MS : phase === 'run' ? replayStepMs(show.step!) : REPLAY_HOP_MS,
+      sp = (total * 0.9) / route.length,
+      dur = Math.max(sp * 1.1, 200);
     route.forEach((h, i) => {
       const o = { id: h.link.id, lanes: h.link.lanes, pts: h.link.pts as Pt[] };
       const { packet, trail } = packetOn(o, h.reverse, this.now + i * sp, dur, color);
@@ -227,10 +296,17 @@ export class NpuCardView {
   private active(show: NpuShow | null): Map<string, number> {
     const out = new Map<string, number>();
     if (!show || show.phase === 'idle') return out;
-    if (show.phase === 'in' || show.phase === 'out') { out.set('host', 1); out.set('ctl', 1); if (show.phase === 'in') out.set('desc', 0.5); return out; }
+    if (show.phase === 'in' || show.phase === 'out') {
+      out.set('host', 1);
+      out.set('ctl', 1);
+      if (show.phase === 'in') out.set('desc', 0.5);
+      return out;
+    }
     out.set('desc', 1);
     const op = show.step?.op ?? 0;
-    const of = (...ids: string[]) => { for (const id of ids) out.set(id, 1); };
+    const of = (...ids: string[]) => {
+      for (const id of ids) out.set(id, 1);
+    };
     if (op === NpuOp.Load) of('cardmem', 'tiles');
     else if (op === NpuOp.Matmul || op === NpuOp.Macc) of('tiles', 'array');
     else if (op === NpuOp.Bias) of('cardmem', 'post');
@@ -243,17 +319,31 @@ export class NpuCardView {
   /** The moving parts: packets on the wires, the glow of the blocks the launch is in, the lit parts and the numbers of the symbols. */
   private animate(T: Theme, c: CardView, show: NpuShow | null): void {
     const now = this.now;
-    if (!show) { c.packets = []; c.trails.clear(); c.sent = ''; } else this.fly(c, show);
-    const want = this.active(show), kind = (id: string) => c.geo.plan.blocks.find((b) => b.id === id)!.kind;
-    for (const [id, k] of want) c.glow.set(id, { v: Math.min(1, (c.glow.get(id)?.v ?? 0) + 0.25 * k), color: T[NPU_KIND_COLOR[kind(id)]] });
-    for (const [id, g] of c.glow) if (!want.has(id)) { g.v *= 0.9; if (g.v < 0.02) c.glow.delete(id); }
-    const lit: { rect: Rect; color: string; a: number; ring: boolean }[] = [], used = new Set<string>();
+    if (!show) {
+      c.packets = [];
+      c.trails.clear();
+      c.sent = '';
+    } else this.fly(c, show);
+    const want = this.active(show),
+      kind = (id: string) => c.geo.plan.blocks.find((b) => b.id === id)!.kind;
+    for (const [id, k] of want)
+      c.glow.set(id, { v: Math.min(1, (c.glow.get(id)?.v ?? 0) + 0.25 * k), color: T[NPU_KIND_COLOR[kind(id)]] });
+    for (const [id, g] of c.glow)
+      if (!want.has(id)) {
+        g.v *= 0.9;
+        if (g.v < 0.02) c.glow.delete(id);
+      }
+    const lit: { rect: Rect; color: string; a: number; ring: boolean }[] = [],
+      used = new Set<string>();
     if (show) {
       for (const { b, a } of c.areas) {
         const live = npuLive(b, a, show);
         for (const l of live.lit) if (l.a > 0) lit.push({ rect: l.rect, color: T[l.color], a: l.a, ring: !!l.ring });
         let ct = c.cellTexts.get(b.id);
-        if (!ct) { ct = new CellTexts(c.texts); c.cellTexts.set(b.id, ct); }
+        if (!ct) {
+          ct = new CellTexts(c.texts);
+          c.cellTexts.set(b.id, ct);
+        }
         used.add(b.id);
         live.texts.forEach((x, n) => ct!.line(n, x.top, x.rect, x.ink ? T.ink : T.on, x.fit));
         ct.hideFrom(live.texts.length);
@@ -265,10 +355,26 @@ export class NpuCardView {
     gg.clear();
     for (const [id, g] of c.glow) {
       const b = byId.get(id);
-      if (b) box(gg, b.rect.x, b.rect.y, b.rect.w, b.rect.h, 3, { fill: g.color, fa: 0.14 * g.v, stroke: g.color, lw: 2.5, sa: 0.55 * g.v });
+      if (b)
+        box(gg, b.rect.x, b.rect.y, b.rect.w, b.rect.h, 3, {
+          fill: g.color,
+          fa: 0.14 * g.v,
+          stroke: g.color,
+          lw: 2.5,
+          sa: 0.55 * g.v,
+        });
     }
     c.litG.clear();
-    for (const l of lit) box(c.litG, l.rect.x, l.rect.y, l.rect.w, l.rect.h, 1.5, l.ring ? { stroke: l.color, lw: 1.5, sa: l.a } : { fill: l.color, fa: l.a });
+    for (const l of lit)
+      box(
+        c.litG,
+        l.rect.x,
+        l.rect.y,
+        l.rect.w,
+        l.rect.h,
+        1.5,
+        l.ring ? { stroke: l.color, lw: 1.5, sa: l.a } : { fill: l.color, fa: l.a },
+      );
     drawTrails(c.trailG, c.trails, now, 1);
     c.packets = drawPackets(c.packetG, c.packets, now, 1, T.ink);
   }

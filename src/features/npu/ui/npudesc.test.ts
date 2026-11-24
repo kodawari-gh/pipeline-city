@@ -10,10 +10,25 @@ import { isNpuId } from './npudesc';
 describe('the words for the AI card', () => {
   it('describes every part the board writes, with the card on and off', () => {
     for (const spec of specsOfKind('npu')) {
-      const K = spec.npu!.grid, run = sampleRun();
+      const K = spec.npu!.grid,
+        run = sampleRun();
       const s = snap({
         devices: [dev({ id: 'n1', spec: spec.id, kind: 'npu', slot: 'pcie1', tempC: 41 })],
-        npus: [sampleView({ grid: K, memBytes: spec.npu!.memBytes, phase: 'run', busy: true, count: 3, index: 1, run: 1, list: run.map((e) => ({ op: e.op, a: e.a, b: e.b, c: 0 })), log: run, tiles: [true, false, false, false], acc: new Array<number>(K * K).fill(-3) })],
+        npus: [
+          sampleView({
+            grid: K,
+            memBytes: spec.npu!.memBytes,
+            phase: 'run',
+            busy: true,
+            count: 3,
+            index: 1,
+            run: 1,
+            list: run.map((e) => ({ op: e.op, a: e.a, b: e.b, c: 0 })),
+            log: run,
+            tiles: [true, false, false, false],
+            acc: new Array<number>(K * K).fill(-3),
+          }),
+        ],
       });
       const ids = npuIds(spec.visual, 'pcie1');
       // every cell of the array, the four tiles, the rows of the queue, the seven blocks and the lid
@@ -30,9 +45,23 @@ describe('the words for the AI card', () => {
     }
   });
 
-  it('says what the card is doing now, and leaves the graphics cards\' and other ids alone', () => {
+  it("says what the card is doing now, and leaves the graphics cards' and other ids alone", () => {
     const run = sampleRun();
-    const s = snap({ devices: [dev({ id: 'n1', spec: 'npu1', kind: 'npu', slot: 'pcie1' })], npus: [sampleView({ phase: 'run', busy: true, count: 3, index: 1, run: 1, list: run.map((e) => ({ op: e.op, a: e.a, b: e.b, c: 0 })), log: run, acc: Array.from({ length: 16 }, (_, k) => 100 + k) })] });
+    const s = snap({
+      devices: [dev({ id: 'n1', spec: 'npu1', kind: 'npu', slot: 'pcie1' })],
+      npus: [
+        sampleView({
+          phase: 'run',
+          busy: true,
+          count: 3,
+          index: 1,
+          run: 1,
+          list: run.map((e) => ({ op: e.op, a: e.a, b: e.b, c: 0 })),
+          log: run,
+          acc: Array.from({ length: 16 }, (_, k) => 100 + k),
+        }),
+      ],
+    });
     expect(describeId('pcie1.mac2x3', s)!.nerd).toMatch(/sum 111 \| cell 11 of 16/);
     expect(describeId('pcie1.entry1', s)!.plain).toMatch(/matmul multiplies two tiles/);
     expect(describeId('pcie1.entry1', s)!.nerd).toMatch(/matmul.*14 ticks.*on it now/);

@@ -10,14 +10,14 @@ An eye that renders: a lens with a lit pupil that looks ahead. OCULA is the loud
 
 ## Colours
 
-| Role | Hex | Note |
-|---|---|---|
-| accent | `#a8ff55` | lime, the pupil |
-| light | `#e2eaff` | pale ink on dark |
-| dark | `#131518` | black ink on light |
-| plate | `#131518` | black badge ground |
-| body | `#1d1e22` | charcoal shroud |
-| trim | `#4e5360` | gunmetal |
+| Role   | Hex       | Note               |
+| ------ | --------- | ------------------ |
+| accent | `#a8ff55` | lime, the pupil    |
+| light  | `#e2eaff` | pale ink on dark   |
+| dark   | `#131518` | black ink on light |
+| plate  | `#131518` | black badge ground |
+| body   | `#1d1e22` | charcoal shroud    |
+| trim   | `#4e5360` | gunmetal           |
 
 ## Type
 

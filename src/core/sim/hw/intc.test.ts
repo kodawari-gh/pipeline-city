@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { INTC_BASE, INTC_REG, IRQ } from "../memmap";
-import { Machine } from "../machine";
-import { RefEngine } from "@/features/cpu/sim/refEngine";
+import { describe, expect, it } from 'vitest';
+import { INTC_BASE, INTC_REG, IRQ } from '../memmap';
+import { Machine } from '../machine';
+import { RefEngine } from '@/features/cpu/sim/refEngine';
 
-describe("interrupt controller", () => {
+describe('interrupt controller', () => {
   it("sits on every machine's bus and resets quiet", () => {
     const m = new Machine();
     expect(m.bus.load32(INTC_BASE + INTC_REG.PENDING)).toBe(0);
@@ -12,7 +12,7 @@ describe("interrupt controller", () => {
     expect(m.intc.next()).toBe(-1);
   });
 
-  it("a raised line is pending until acknowledged, and only deliverable when masked in and interrupts are on", () => {
+  it('a raised line is pending until acknowledged, and only deliverable when masked in and interrupts are on', () => {
     const m = new Machine();
     m.intc.raise(IRQ.NIC);
     expect(m.bus.load32(INTC_BASE + INTC_REG.PENDING)).toBe(2);
@@ -26,7 +26,7 @@ describe("interrupt controller", () => {
     expect(m.intc.next()).toBe(-1);
   });
 
-  it("ack clears only the bits written; the lowest line wins", () => {
+  it('ack clears only the bits written; the lowest line wins', () => {
     const m = new Machine();
     m.intc.mask = 0xff;
     m.intc.ie = true;
@@ -39,7 +39,7 @@ describe("interrupt controller", () => {
     expect(m.intc.next()).toBe(3);
   });
 
-  it("word stores and byte stores reach the registers", () => {
+  it('word stores and byte stores reach the registers', () => {
     const m = new Machine();
     m.bus.store32(INTC_BASE + INTC_REG.VECTOR, 0x1234_5678);
     expect(m.intc.vector).toBe(0x1234_5678);
@@ -54,7 +54,7 @@ describe("interrupt controller", () => {
     expect(m.intc.taken).toBe(0);
   });
 
-  it("attaching an engine (a power-on) resets it", () => {
+  it('attaching an engine (a power-on) resets it', () => {
     const m = new Machine();
     m.intc.raise(IRQ.NIC);
     m.intc.mask = 2;
@@ -63,11 +63,13 @@ describe("interrupt controller", () => {
     m.intc.enter(IRQ.NIC, 8, 4);
     m.intc.ie = true;
     m.attach(new RefEngine(), new Uint32Array(1));
-    expect([m.intc.pending, m.intc.mask, m.intc.vector, m.intc.epc, m.intc.taken, m.intc.maxLatency]).toEqual([0, 0, 0, 0, 0, 0]);
+    expect([m.intc.pending, m.intc.mask, m.intc.vector, m.intc.epc, m.intc.taken, m.intc.maxLatency]).toEqual([
+      0, 0, 0, 0, 0, 0,
+    ]);
     expect(m.intc.ie).toBe(false);
   });
 
-  it("entry records the return address and the cause, turns interrupts off, and counts latency", () => {
+  it('entry records the return address and the cause, turns interrupts off, and counts latency', () => {
     const m = new Machine();
     m.intc.ie = true;
     m.intc.enter(IRQ.NIC, 0x80, 5);

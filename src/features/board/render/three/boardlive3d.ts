@@ -8,7 +8,15 @@
 // Two things the 2D board did for `Live` are done here (docs/render/live.md "Activity"): it runs on the world's clock, the one the dies replay on (a
 // pause stops it, the fast speeds do not blur it, a close zoom slows it), and the CPU's replay (`DieTraffic`) tells it what the core reaches for and
 // which interrupts it takes, so the sticks, the drives and the cards answer on their own lanes while the machine runs, not only while it boots.
-import { Mesh, MeshBasicMaterial, AdditiveBlending, PlaneGeometry, type CanvasTexture, type PerspectiveCamera, type Scene } from 'three';
+import {
+  Mesh,
+  MeshBasicMaterial,
+  AdditiveBlending,
+  PlaneGeometry,
+  type CanvasTexture,
+  type PerspectiveCamera,
+  type Scene,
+} from 'three';
 import type { Snapshot } from '@/worker/protocol';
 import { builtinTheme } from '@/core/render/theme';
 import { Live } from '@/core/render/live';
@@ -42,7 +50,15 @@ export class BoardLive3D {
   /** What the CPU reaches for, replayed with nothing drawn: each reach lights the lanes of the stick or the device that answers (`Live.touchRam`). */
   private readonly traffic = new DieTraffic();
   private cpuKey = '';
-  private readonly mat = new MeshBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false, blending: AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  private readonly mat = new MeshBasicMaterial({
+    transparent: true,
+    depthWrite: false,
+    toneMapped: false,
+    blending: AdditiveBlending,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  });
   private readonly mesh = seeThrough(new Mesh(new PlaneGeometry(1, 1), this.mat));
   private canvas: HTMLCanvasElement | null = null;
   private tex: CanvasTexture | null = null;
@@ -74,37 +90,87 @@ export class BoardLive3D {
     const dimms = s.devices.filter((d) => d.kind === 'ram').map((d) => idx(d.slot));
     const disp = s.devices.find((d) => d.kind === 'display');
     // (a drive with no art: `Live` reads its busy flag and its byte counters from every snapshot, and lights its lanes while it moves data)
-    const drives = (s.storage ?? []).map((d) => ({ slot: d.slot, deviceId: d.deviceId, kind: driveKindOf((getSpec(d.spec) as { visual?: string } | undefined)?.visual ?? ''), body: NO_BODY, g: null, lane: null }));
-    this.live.setScene(this.T, [], buildBuses(), [], [], [], dimms, { psu: s.devices.some((d) => d.kind === 'psu'), display: !!disp, gfx: !!(getSpec(disp?.spec ?? '') as { graphics?: boolean } | undefined)?.graphics }, drives);
+    const drives = (s.storage ?? []).map((d) => ({
+      slot: d.slot,
+      deviceId: d.deviceId,
+      kind: driveKindOf((getSpec(d.spec) as { visual?: string } | undefined)?.visual ?? ''),
+      body: NO_BODY,
+      g: null,
+      lane: null,
+    }));
+    this.live.setScene(
+      this.T,
+      [],
+      buildBuses(),
+      [],
+      [],
+      [],
+      dimms,
+      {
+        psu: s.devices.some((d) => d.kind === 'psu'),
+        display: !!disp,
+        gfx: !!(getSpec(disp?.spec ?? '') as { graphics?: boolean } | undefined)?.graphics,
+      },
+      drives,
+    );
     this.live.setConnected(new Set(s.cables.filter((c) => c.connected).map((c) => c.id)) as never);
     this.sceneKey = this.keyOf(s);
     // the CPU's replay follows the CPU: a new one, a new plan (the cycles it was playing are the old one's)
-    const cpu = s.devices.find((d) => d.kind === 'cpu'), spec = cpu ? getSpec(cpu.spec) : undefined, key = spec?.kind === 'cpu' ? cpu!.spec : '';
-    if (key !== this.cpuKey) { this.cpuKey = key; this.traffic.setPlan(key ? planOf(spec as CpuSpec) : null); }
+    const cpu = s.devices.find((d) => d.kind === 'cpu'),
+      spec = cpu ? getSpec(cpu.spec) : undefined,
+      key = spec?.kind === 'cpu' ? cpu!.spec : '';
+    if (key !== this.cpuKey) {
+      this.cpuKey = key;
+      this.traffic.setPlan(key ? planOf(spec as CpuSpec) : null);
+    }
     // (a new scene and a new replay start from the snapshot as it stands: a paused game sends no other)
     this.lastSnap = null;
   }
 
-  private keyOf(s: Snapshot): string { return `${LAYOUT_TIER}|${LAYOUT_CASE}|${s.devices.map((d) => `${d.spec}@${d.slot}`).join(',')}|${s.cables.map((c) => +c.connected).join('')}`; }
+  private keyOf(s: Snapshot): string {
+    return `${LAYOUT_TIER}|${LAYOUT_CASE}|${s.devices.map((d) => `${d.spec}@${d.slot}`).join(',')}|${s.cables.map((c) => +c.connected).join('')}`;
+  }
 
   /**
    * Per frame (after the camera): advance the board's animation and draw it over the part of the board in view. `gdt` is the world's step (s: the
    * game's pace as the dies replay it, 0 while paused), which the board's clock sums up.
    */
-  frame(cam: PerspectiveCamera, H: number, s: Snapshot | null, gdt: number, paused: boolean, dpr: number, on: boolean): void {
-    if (!s || !on) { this.mesh.visible = false; this.screen = null; return; }
+  frame(
+    cam: PerspectiveCamera,
+    H: number,
+    s: Snapshot | null,
+    gdt: number,
+    paused: boolean,
+    dpr: number,
+    on: boolean,
+  ): void {
+    if (!s || !on) {
+      this.mesh.visible = false;
+      this.screen = null;
+      return;
+    }
     if (!this.live || this.sceneKey !== this.keyOf(s)) this.build(s);
     const live = this.live;
-    if (!live) { this.mesh.visible = false; return; }
+    if (!live) {
+      this.mesh.visible = false;
+      return;
+    }
     this.t += gdt * 1000;
     this.owed += gdt;
     cam.updateMatrixWorld();
     // (a view corner that looks past the board's plane, a steep side view on a wide screen, has no rect: the plane is still in view at the centre, so all of the face is drawn)
-    const v = viewOn(cam, H, Z), view = v.zoom > 0 ? v.rect ?? BD : null, crop = view ? liveCrop(BD, view, 0.05) : null;
+    const v = viewOn(cam, H, Z),
+      view = v.zoom > 0 ? (v.rect ?? BD) : null,
+      crop = view ? liveCrop(BD, view, 0.05) : null;
     live.setZoom(v.zoom);
     if (view) live.setView(view);
     live.setInterior(!!crop);
-    if (this.lastSnap !== s) { live.update(s, this.t); live.setPlugged(!!s.plugged); this.traffic.update(s); this.lastSnap = s; }
+    if (this.lastSnap !== s) {
+      live.update(s, this.t);
+      live.setPlugged(!!s.plugged);
+      this.traffic.update(s);
+      this.lastSnap = s;
+    }
     this.traffic.frame(this.t, paused);
     // `Live`'s frame and the drawing of its layer go together, at most once per `level.ms`: a frame in between would only build the packets' strokes
     // for the next one to wipe (the strokes are rebuilt, and cut into triangles, on every frame `Live` runs)
@@ -116,11 +182,20 @@ export class BoardLive3D {
       this.fresh = true;
     }
     this.drawScreen(live, s);
-    if (!crop) { this.mesh.visible = false; return; }
-    if (!this.fresh) { this.mesh.visible = true; return; }
+    if (!crop) {
+      this.mesh.visible = false;
+      return;
+    }
+    if (!this.fresh) {
+      this.mesh.visible = true;
+      return;
+    }
     const canvas = (this.canvas ??= document.createElement('canvas'));
     const got = drawLive(live.root, crop, livePx(crop, v.zoom * dpr, this.level.px, TRACE_SIDE), canvas);
-    if (!got) { this.mesh.visible = false; return; }
+    if (!got) {
+      this.mesh.visible = false;
+      return;
+    }
     this.fresh = false;
     const size = `${canvas.width}x${canvas.height}`;
     if (!this.tex || this.size !== size) {
@@ -146,7 +221,10 @@ export class BoardLive3D {
   private screenAt = -Infinity;
 
   private drawScreen(live: Live, s: Snapshot): void {
-    if (!s.monitorPowered || !s.devices.some((d) => d.kind === 'display')) { this.screen = null; return; }
+    if (!s.monitorPowered || !s.devices.some((d) => d.kind === 'display')) {
+      this.screen = null;
+      return;
+    }
     const now = performance.now();
     if (this.screen && now - this.screenAt < 66) return;
     const canvas = (this.screenCanvas ??= document.createElement('canvas'));
@@ -155,7 +233,10 @@ export class BoardLive3D {
     if (got) {
       // the 2D screen is drawn over the panel's dark glass: under a blank screen's faint art the texture would be clear, and its colour alone (no alpha) would show
       const c = canvas.getContext('2d')!;
-      c.globalCompositeOperation = 'destination-over'; c.fillStyle = '#0d1116'; c.fillRect(0, 0, got.w, got.h); c.globalCompositeOperation = 'source-over';
+      c.globalCompositeOperation = 'destination-over';
+      c.fillStyle = '#0d1116';
+      c.fillRect(0, 0, got.w, got.h);
+      c.globalCompositeOperation = 'source-over';
     }
     this.screenAt = now;
   }
@@ -166,7 +247,12 @@ export class BoardLive3D {
     this.tex?.dispose();
     this.mat.dispose();
     // (Build my PC makes one per open: what Pixi kept for the layer goes with it)
-    try { this.live?.root.destroy({ children: true }); this.live?.ext.destroy({ children: true }); } catch { /* already freed */ }
+    try {
+      this.live?.root.destroy({ children: true });
+      this.live?.ext.destroy({ children: true });
+    } catch {
+      /* already freed */
+    }
     this.live = null;
     this.screen = null;
     this.canvas = this.screenCanvas = null;

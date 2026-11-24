@@ -17,14 +17,24 @@ export function Notice() {
   useEffect(() => {
     if (!err) return;
     playCue('ui_error');
-    const t = setTimeout(() => { lastError.value = null; }, NOTICE_MS);
+    const t = setTimeout(() => {
+      lastError.value = null;
+    }, NOTICE_MS);
     return () => clearTimeout(t);
   }, [err]);
   if (!err) return null;
   return (
     <div class="card notice" role="alert" data-cue="ui_error">
       <span>{friendlyError(err)}</span>
-      <button class="link" aria-label="Dismiss" onClick={() => { lastError.value = null; }}>x</button>
+      <button
+        class="link"
+        aria-label="Dismiss"
+        onClick={() => {
+          lastError.value = null;
+        }}
+      >
+        x
+      </button>
     </div>
   );
 }
@@ -45,7 +55,9 @@ export function Toasts() {
         <div class="card toast" key={t.id} role="status" data-cue="ui_warn">
           <Icon name="warn" size={13} />
           <span>{t.text}</span>
-          <button class="icon" onClick={() => dismissToast(t.id)} aria-label="Dismiss hint" title="Dismiss"><Icon name="close" size={11} /></button>
+          <button class="icon" onClick={() => dismissToast(t.id)} aria-label="Dismiss hint" title="Dismiss">
+            <Icon name="close" size={11} />
+          </button>
         </div>
       ))}
     </div>

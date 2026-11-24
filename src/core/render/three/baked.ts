@@ -9,7 +9,9 @@ import { BASIS_PATH } from './gltf';
 /** Where the set is served from. */
 export const BAKED_URL = `${import.meta.env.BASE_URL}tex/`;
 /** `manifest.json`: the keys of the set; `<key>.ktx2` is the file of each. */
-export interface BakedManifest { keys: string[] }
+export interface BakedManifest {
+  keys: string[];
+}
 
 const BAKED = new Map<string, Texture>();
 let loading: Promise<void> | null = null;
@@ -43,7 +45,17 @@ export function loadBaked(renderer: WebGLRenderer): Promise<void> {
     const l = await ktx2Loader(renderer);
     // (the transcoder first, before the 20 files: the last map then stands 0.15 to 0.35 s after the loader, in place of 0.43 to 0.53 s)
     await l.init();
-    await Promise.all(keys.map((k) => l.loadAsync(`${BAKED_URL}${k}.ktx2`).then((t) => { t.name = `baked:${k}`; BAKED.set(k, t); }, () => {})));
+    await Promise.all(
+      keys.map((k) =>
+        l.loadAsync(`${BAKED_URL}${k}.ktx2`).then(
+          (t) => {
+            t.name = `baked:${k}`;
+            BAKED.set(k, t);
+          },
+          () => {},
+        ),
+      ),
+    );
     l.dispose();
   })().catch(() => {}));
 }

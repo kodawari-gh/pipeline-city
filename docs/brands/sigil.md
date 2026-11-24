@@ -10,14 +10,14 @@ A seal with a lit keyhole: a hexagon that only one key opens. SIGIL is the forma
 
 ## Colours
 
-| Role | Hex | Note |
-|---|---|---|
-| accent | `#6dffa6` | mint, the keyhole |
-| light | `#e2eaff` | pale ink on dark |
-| dark | `#131518` | black ink on light |
-| plate | `#131518` | black badge ground |
-| body | `#173d29` | green solder mask of its module |
-| trim | `#d4af5f` | gold contacts |
+| Role   | Hex       | Note                            |
+| ------ | --------- | ------------------------------- |
+| accent | `#6dffa6` | mint, the keyhole               |
+| light  | `#e2eaff` | pale ink on dark                |
+| dark   | `#131518` | black ink on light              |
+| plate  | `#131518` | black badge ground              |
+| body   | `#173d29` | green solder mask of its module |
+| trim   | `#d4af5f` | gold contacts                   |
 
 ## Type
 

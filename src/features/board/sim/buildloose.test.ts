@@ -33,7 +33,8 @@ const step = (g: Game, loads: Record<string, number>): ThermalModel => {
 describe('Build my PC fits by shape alone', () => {
   it('a part that overloads the supply goes in, where a sandbox game refuses it', () => {
     // 40 W supply, a 35 W CPU and a 3 W monitor: the memory (7 W) makes it 45 W
-    const strict = rig(['psu0', 'cpu2', 'display0'], false), loose = rig(['psu0', 'cpu2', 'display0'], true);
+    const strict = rig(['psu0', 'cpu2', 'display0'], false),
+      loose = rig(['psu0', 'cpu2', 'display0'], true);
     expect(put(strict, 'ram2')).toMatchObject({ ok: false, reason: expect.stringMatching(/PSU gives 40 W/) });
     expect(put(loose, 'ram2')).toMatchObject({ ok: true });
     // (a supply too small for what is in is fitted as well)
@@ -105,7 +106,10 @@ describe('the OS follows its drive', () => {
 
   it('the drive that holds it comes out in Build my PC, and not in a sandbox game', async () => {
     const strict = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
-    expect(strict.uninstall(strict.os!.deviceId)).toMatchObject({ ok: false, reason: expect.stringMatching(/uninstall the OS first/) });
+    expect(strict.uninstall(strict.os!.deviceId)).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/uninstall the OS first/),
+    });
     const g = await presetGame(BUILD_PRESETS[0]!);
     expect(g.snapshot().os).not.toBeNull();
     expect(g.uninstall(drive(g).id)).toMatchObject({ ok: true });
@@ -115,7 +119,8 @@ describe('the OS follows its drive', () => {
 
   it('waits in the inventory with no drive, then goes on the drive that goes in (the socket it left first)', async () => {
     const g = await presetGame(BUILD_PRESETS[1]!);
-    const old = drive(g), slot = old.slot;
+    const old = drive(g),
+      slot = old.slot;
     g.uninstall(old.id);
     g.keepOs();
     expect(g.snapshot().os).toBeNull(); // no drive to hold it
@@ -127,9 +132,10 @@ describe('the OS follows its drive', () => {
     expect(g.snapshot().os).toMatchObject({ slot });
   });
 
-  it('a drive put in the OS drive\'s socket takes its place, and the OS goes on it', async () => {
+  it("a drive put in the OS drive's socket takes its place, and the OS goes on it", async () => {
     const g = await presetGame(BUILD_PRESETS[0]!); // Budget: a SATA SSD in sata0
-    const old = drive(g), slot = old.slot;
+    const old = drive(g),
+      slot = old.slot;
     expect(old.spec).not.toBe('hdd0');
     expect(put(g, 'hdd0', slot)).toMatchObject({ ok: true });
     expect(g.snapshot().os).toBeNull();
@@ -143,7 +149,8 @@ describe('the OS follows its drive', () => {
     const drives = g.board.devices.filter((d) => deviceSpec(d).kind === 'storage');
     expect(drives.length).toBeGreaterThan(1);
     const home = drives.find((d) => d.id === g.os!.deviceId)!;
-    const spec = home.spec, slot = home.slot;
+    const spec = home.spec,
+      slot = home.slot;
     g.uninstall(home.id);
     expect(put(g, spec, slot)).toMatchObject({ ok: true });
     g.keepOs();

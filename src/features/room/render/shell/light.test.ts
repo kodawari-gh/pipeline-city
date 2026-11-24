@@ -2,9 +2,22 @@ import { describe, expect, it, vi } from 'vitest';
 import { Container } from 'pixi.js';
 
 // The labels go through Pixi's Text (a canvas): the room only needs its shapes here.
-vi.mock('@/core/render/ink', async (orig) => ({ ...(await orig<typeof import('@/core/render/ink')>()), label: () => new Container() }));
+vi.mock('@/core/render/ink', async (orig) => ({
+  ...(await orig<typeof import('@/core/render/ink')>()),
+  label: () => new Container(),
+}));
 
-import { BEAM, LIGHT_RES, ambientOf, emittersOf, focusAt, lightKey, shiftEmitter, type LightGeo, type LightIn } from './light';
+import {
+  BEAM,
+  LIGHT_RES,
+  ambientOf,
+  emittersOf,
+  focusAt,
+  lightKey,
+  shiftEmitter,
+  type LightGeo,
+  type LightIn,
+} from './light';
 import { beamsAt, roomBakeRect, roomGeo } from './room';
 
 const CASE = { x: 0, y: 0, w: 8000, h: 6000 };
@@ -97,8 +110,20 @@ describe('the light layer of the room', () => {
 describe('the lights as data', () => {
   const geo = roomGeo();
   const G: LightGeo = {
-    window: geo.window, region: roomBakeRect(geo), case: CASE, inner: { x: 100, y: 100, w: 5000, h: 4000 }, monitor: { x: -20000, y: 1000, w: 9000, h: 5000 }, screen: { x: -19500, y: 1400, w: 8000, h: 4000 },
-    router: { x: 0, y: 0, w: 10, h: 10 }, clock: geo.clock, mouth: geo.lamp.mouth, dir: { x: 0.8, y: 0.6 }, ys: geo.ys, keyboard: { x: -18000, y: 7500, w: 5000, h: 330 }, deskTop: 8500, deskBack: 6500,
+    window: geo.window,
+    region: roomBakeRect(geo),
+    case: CASE,
+    inner: { x: 100, y: 100, w: 5000, h: 4000 },
+    monitor: { x: -20000, y: 1000, w: 9000, h: 5000 },
+    screen: { x: -19500, y: 1400, w: 8000, h: 4000 },
+    router: { x: 0, y: 0, w: 10, h: 10 },
+    clock: geo.clock,
+    mouth: geo.lamp.mouth,
+    dir: { x: 0.8, y: 0.6 },
+    ys: geo.ys,
+    keyboard: { x: -18000, y: 7500, w: 5000, h: 330 },
+    deskTop: 8500,
+    deskBack: 6500,
   };
   const night: LightIn = { ...day, night: 1 };
   const byId = (i: LightIn, g = G) => Object.fromEntries(emittersOf(i, g).map((e) => [e.id, e]));
@@ -122,15 +147,26 @@ describe('the lights as data', () => {
     expect(tintOf({ ...day, night: 0 })).toBeLessThan(tintOf(night));
   });
   it('follows the items: the screen light moves with the screen and the keyboard lift with the keyboard', () => {
-    const at = (g: LightGeo) => byId(night, g).screen!.lit.map((l) => (l.shape.k === 'blob' ? l.shape.x : l.shape.k === 'rect' ? l.shape.r.x : 0));
-    const a = at(G), b = at({ ...G, screen: { ...G.screen, x: G.screen.x + 700 }, monitor: { ...G.monitor, x: G.monitor.x + 700 }, keyboard: { ...G.keyboard, x: G.keyboard.x + 700 } });
+    const at = (g: LightGeo) =>
+      byId(night, g).screen!.lit.map((l) =>
+        l.shape.k === 'blob' ? l.shape.x : l.shape.k === 'rect' ? l.shape.r.x : 0,
+      );
+    const a = at(G),
+      b = at({
+        ...G,
+        screen: { ...G.screen, x: G.screen.x + 700 },
+        monitor: { ...G.monitor, x: G.monitor.x + 700 },
+        keyboard: { ...G.keyboard, x: G.keyboard.x + 700 },
+      });
     expect(b.every((x, j) => Math.abs(x - a[j]! - 700) < 1e-6)).toBe(true);
   });
   it('moves every piece of a light by an offset, and by nothing as the same light', () => {
-    const e = byId(night).lamp!, m = shiftEmitter(e, 300, -200);
+    const e = byId(night).lamp!,
+      m = shiftEmitter(e, 300, -200);
     expect(shiftEmitter(e, 0, 0)).toBe(e);
     expect(m.clip!.x).toBe(e.clip!.x + 300);
-    const c0 = e.lit[0]!.shape, c1 = m.lit[0]!.shape;
+    const c0 = e.lit[0]!.shape,
+      c1 = m.lit[0]!.shape;
     expect(c0.k).toBe('cone');
     if (c0.k === 'cone' && c1.k === 'cone') expect([c1.x - c0.x, c1.y - c0.y]).toEqual([300, -200]);
   });

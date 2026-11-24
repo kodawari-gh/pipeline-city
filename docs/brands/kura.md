@@ -10,14 +10,14 @@ A kura (a Japanese storehouse) built of stacked layers, the layer that is writte
 
 ## Colours
 
-| Role | Hex | Note |
-|---|---|---|
+| Role   | Hex       | Note                     |
+| ------ | --------- | ------------------------ |
 | accent | `#9ab8ff` | azure, the written layer |
-| light | `#e2eaff` | pale ink on dark |
-| dark | `#0a0e22` | navy ink on light |
-| plate | `#0d1636` | deep navy badge ground |
-| body | `#4e5360` | gunmetal drive shell |
-| trim | `#959aa3` | nickel |
+| light  | `#e2eaff` | pale ink on dark         |
+| dark   | `#0a0e22` | navy ink on light        |
+| plate  | `#0d1636` | deep navy badge ground   |
+| body   | `#4e5360` | gunmetal drive shell     |
+| trim   | `#959aa3` | nickel                   |
 
 ## Type
 

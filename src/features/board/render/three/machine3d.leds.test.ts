@@ -10,7 +10,8 @@ import { buildMachine, quietCanvas } from './testutil';
 quietCanvas();
 
 /** The lights' colours: the board's own jack (`jackLook`), and a network card's (`nicParts`). */
-const BOARD = { link: 0x58e08a, act: 0xffb547 }, CARD = { link: 0x5cff9a, act: 0xffc247 };
+const BOARD = { link: 0x58e08a, act: 0xffb547 },
+  CARD = { link: 0x5cff9a, act: 0xffc247 };
 
 /** The glow of the lights of one colour: the strongest intensity of the materials that draw with it, or null when none is built. */
 function glow(root: Object3D, hex: number): number | null {
@@ -22,10 +23,18 @@ function glow(root: Object3D, hex: number): number | null {
   });
   return best;
 }
-const level = (link: number, act: number): LinkLevels => ({ pc: { link, act }, lan: { link, act }, wan: { link, act }, moving: false });
+const level = (link: number, act: number): LinkLevels => ({
+  pc: { link, act },
+  lan: { link, act },
+  wan: { link, act },
+  moving: false,
+});
 
-describe.each([['merged', true], ['unmerged', false]] as const)('the jacks\' lights on the %s machine', (_name, merge) => {
-  it('light the board\'s jack from the levels, link and activity each by itself, while the cable is in it', () => {
+describe.each([
+  ['merged', true],
+  ['unmerged', false],
+] as const)("the jacks' lights on the %s machine", (_name, merge) => {
+  it("light the board's jack from the levels, link and activity each by itself, while the cable is in it", () => {
     const s = netRig('ssd1').snapshot();
     expect(s.net.port.kind).toBe('board');
     const m = buildMachine(s, merge);
@@ -44,7 +53,8 @@ describe.each([['merged', true], ['unmerged', false]] as const)('the jacks\' lig
   });
 
   it('are dark with no levels given, and with no game', () => {
-    const s = netRig('ssd1').snapshot(), m = buildMachine(s, merge);
+    const s = netRig('ssd1').snapshot(),
+      m = buildMachine(s, merge);
     m.frame(s, 0.016, 0.016, level(1, 1));
     m.frame(s, 0.016);
     expect(glow(m.root, BOARD.link)).toBe(0);
@@ -55,7 +65,7 @@ describe.each([['merged', true], ['unmerged', false]] as const)('the jacks\' lig
     expect(glow(m.root, BOARD.act)).toBe(0);
   });
 
-  it('light the card\'s jack when the cable is in the card, and leave the board\'s jack dark', () => {
+  it("light the card's jack when the cable is in the card, and leave the board's jack dark", () => {
     const s = netRig('ssd1', { port: 'nic1' }).snapshot();
     expect(s.net.port.kind).toBe('nic');
     const m = buildMachine(s, merge);
@@ -71,14 +81,16 @@ describe.each([['merged', true], ['unmerged', false]] as const)('the jacks\' lig
     const out: Snapshot = { ...s, net: { ...s.net, port: { kind: null, deviceId: null, mbps: 0 } } };
     const m = buildMachine(out, merge);
     m.frame(out, 0.016, 0.016, level(1, 1));
-    for (const hex of [BOARD.link, BOARD.act, CARD.link, CARD.act]) expect(glow(m.root, hex) ?? 0, hex.toString(16)).toBe(0);
+    for (const hex of [BOARD.link, BOARD.act, CARD.link, CARD.act])
+      expect(glow(m.root, hex) ?? 0, hex.toString(16)).toBe(0);
   });
 });
 
-describe('the jacks\' lights from a running game', () => {
+describe("the jacks' lights from a running game", () => {
   it('follow the frames of a download: lit while it moves data, out again once it is done, with nothing set by hand', () => {
     const g = netRig('ssd1');
-    const m = buildMachine(g.snapshot(), true), leds = new LinkLeds();
+    const m = buildMachine(g.snapshot(), true),
+      leds = new LinkLeds();
     const lit = (): number => glow(m.root, BOARD.act) ?? 0;
     const run = (n: number, dt: number): number => {
       let seen = 0;
@@ -94,7 +106,12 @@ describe('the jacks\' lights from a running game', () => {
     expect(run(3, 0.1)).toBe(0);
     expect(glow(m.root, BOARD.link)).toBeCloseTo(JACK_GLOW.link, 9);
     // (a download at the plan's speed: the frames come close, the light stays on for as long as it moves)
-    (g as unknown as { enqueue(t: string, s: number, c: string | undefined, n: boolean): boolean }).enqueue('cli.log', 1, undefined, true);
+    (g as unknown as { enqueue(t: string, s: number, c: string | undefined, n: boolean): boolean }).enqueue(
+      'cli.log',
+      1,
+      undefined,
+      true,
+    );
     expect(run(2, 0.1)).toBe(2);
     // (the job has run and its result is out, the link is idle: the amber light goes)
     for (let i = 0; i < 3000 && !g.snapshot().progress.firstNetJob; i++) g.advanceBaseTick();

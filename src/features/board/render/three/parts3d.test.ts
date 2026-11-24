@@ -11,18 +11,28 @@ import { chipset, coinCell, m2Standoff, PCH_OVER, type Raise } from './parts3d';
 /** A `Raise` that only stands the box up (no art in a test), and keeps what it raised. */
 const raiser = () => {
   const raised: RectLike[] = [];
-  const raise: Raise = (parent, r, z0, z1, side: Material) => { raised.push(r); const g = new Group(); g.add(softBox(r, z0, z1, side as never, 0)); parent.add(g); return g; };
+  const raise: Raise = (parent, r, z0, z1, side: Material) => {
+    raised.push(r);
+    const g = new Group();
+    g.add(softBox(r, z0, z1, side as never, 0));
+    parent.add(g);
+    return g;
+  };
   return { raise, raised };
 };
 
 describe('the 3D board parts', () => {
   it('lays an NVMe stick on its socket and standoff: its fingers in the connector, its notch over the standoff', () => {
     setLayoutTier(3, 3);
-    const m = M2_SLOTS[0]!, b = driveBody('ssd-nvme', 'm20'), post = new Box3().setFromObject(m2Standoff(m)), so = m2Socket(m);
+    const m = M2_SLOTS[0]!,
+      b = driveBody('ssd-nvme', 'm20'),
+      post = new Box3().setFromObject(m2Standoff(m)),
+      so = m2Socket(m);
     for (const heatsink of [false, true]) {
       const g = new Group();
       nvmeStick(g, b, { name: 'NVMe SSD 128K', capacityBytes: 128 * 1024, heatsink });
-      const pcb = new Box3().setFromObject(g.getObjectByName('nvme-pcb')!), box = new Box3().setFromObject(g);
+      const pcb = new Box3().setFromObject(g.getObjectByName('nvme-pcb')!),
+        box = new Box3().setFromObject(g);
       // a real M.2 2280: 80 x 22 mm, 0.8 mm thick, from the fingers (in the socket's mouth) to the notch, the notch centred on the standoff
       expect(pcb.min.x).toBeGreaterThan(so.x);
       expect(pcb.min.x).toBeLessThan(so.x + so.w);
@@ -38,10 +48,12 @@ describe('the 3D board parts', () => {
     }
   });
 
-  it('leaves the Starter\'s chipset bare and covers the others, legs and all, with a low heat sink', () => {
+  it("leaves the Starter's chipset bare and covers the others, legs and all, with a low heat sink", () => {
     for (const tier of [0, 1, 2, 3]) {
       setLayoutTier(tier, tier);
-      const q = GEO.chip, { root, glow } = chipset(q, tier, raiser().raise), b = new Box3().setFromObject(root);
+      const q = GEO.chip,
+        { root, glow } = chipset(q, tier, raiser().raise),
+        b = new Box3().setFromObject(root);
       // a real chipset sink is low: well under the PCIe cards and the M.2 sticks' neighbours
       expect(b.max.z - BOARD_Z, `tier ${tier}`).toBeLessThan(260);
       expect(b.max.z - BOARD_Z, `tier ${tier}`).toBeGreaterThan(tier === 0 ? 40 : 110);
@@ -55,7 +67,8 @@ describe('the 3D board parts', () => {
 
   it('sits the coin cell in its holder over its 2D spot', () => {
     setLayoutTier(3, 3);
-    const c = new Box3().setFromObject(coinCell(GEO.bat)), r = GEO.bat;
+    const c = new Box3().setFromObject(coinCell(GEO.bat)),
+      r = GEO.bat;
     expect(Math.abs((c.min.y + c.max.y) / 2 + (r.y + r.h / 2))).toBeLessThan(2);
     expect(c.min.z).toBeCloseTo(BOARD_Z, 0);
   });

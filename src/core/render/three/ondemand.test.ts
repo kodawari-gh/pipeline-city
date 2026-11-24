@@ -29,8 +29,10 @@ describe('DrawGate', () => {
   });
 
   it('a scene change from outside draws the next tick of every gate', () => {
-    const a = new DrawGate(), b = new DrawGate();
-    a.want(0); b.want(0);
+    const a = new DrawGate(),
+      b = new DrawGate();
+    a.want(0);
+    b.want(0);
     sceneChanged();
     expect(a.want(16)).toBe(true);
     expect(b.want(16)).toBe(true);
@@ -52,7 +54,10 @@ describe('DrawGate', () => {
     g.want(0);
     let drawn = 0;
     // a tile bakes each 16 ms tick for a second
-    for (let t = 16; t < 1000; t += 16) { sceneChanged(); if (g.want(t, false, true)) drawn++; }
+    for (let t = 16; t < 1000; t += 16) {
+      sceneChanged();
+      if (g.want(t, false, true)) drawn++;
+    }
     expect(drawn).toBeGreaterThanOrEqual(4);
     expect(drawn).toBeLessThanOrEqual(Math.ceil(1000 / BATCH_MS));
     // the queue is empty: the tiles not yet shown draw now, then nothing
@@ -97,7 +102,8 @@ describe('DrawGate', () => {
 });
 
 describe('ViewWatch', () => {
-  const W = 1000, H = 800;
+  const W = 1000,
+    H = 800;
   const cam = (): PerspectiveCamera => {
     const c = new PerspectiveCamera(28, W / H, 4, 100000);
     c.position.set(0, 0, 0);
@@ -107,29 +113,33 @@ describe('ViewWatch', () => {
   };
 
   it('has no shift to give before a mark, or after a new size', () => {
-    const w = new ViewWatch(), c = cam();
+    const w = new ViewWatch(),
+      c = cam();
     expect(w.shift(c, W, H, 100, 300)).toBe(Infinity);
     w.mark(c, W, H);
     expect(w.shift(c, W + 2, H, 100, 300)).toBe(Infinity);
   });
 
   it('a camera that stands gives no shift', () => {
-    const w = new ViewWatch(), c = cam();
+    const w = new ViewWatch(),
+      c = cam();
     w.mark(c, W, H);
     expect(w.shift(c, W, H, 100, 300)).toBeLessThan(1e-6);
   });
 
   it('a side step moves the near points the most, by the step over the depth', () => {
-    const w = new ViewWatch(), c = cam();
+    const w = new ViewWatch(),
+      c = cam();
     w.mark(c, W, H);
     c.position.x = 0.5;
     const p00 = c.projectionMatrix.elements[0];
-    expect(w.shift(c, W, H, 100, 300)).toBeCloseTo((0.5 / 100) * p00 * W / 2, 6);
-    expect(w.shift(c, W, H, 200, 300)).toBeCloseTo((0.5 / 200) * p00 * W / 2, 6);
+    expect(w.shift(c, W, H, 100, 300)).toBeCloseTo(((0.5 / 100) * p00 * W) / 2, 6);
+    expect(w.shift(c, W, H, 200, 300)).toBeCloseTo(((0.5 / 200) * p00 * W) / 2, 6);
   });
 
   it('a small turn moves the picture a little, a turn behind the eye is a full redraw', () => {
-    const w = new ViewWatch(), c = cam();
+    const w = new ViewWatch(),
+      c = cam();
     w.mark(c, W, H);
     c.rotation.y = 1e-4;
     const s = w.shift(c, W, H, 100, 300);

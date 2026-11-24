@@ -7,7 +7,10 @@ import type { BuildPreset, Shown, SpecSheet } from '@/features/board/sim/buildsp
 import { getSpec } from '@/features/board/sim/specs';
 import type { NetSnap } from '@/worker/game/types';
 
-export interface Readiness { ok: boolean; line: string }
+export interface Readiness {
+  ok: boolean;
+  line: string;
+}
 
 const sentence = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -31,7 +34,12 @@ export type { Alert, AlertLevel } from '@/features/board/sim/buildalerts';
 export type Tone = 'none' | 'ok' | 'warn' | 'bad';
 
 /** The pill at the top: the machine's state at a glance, in one colour and a few words. `alerts` are the list the panel shows. */
-export interface Pill { tone: 'ok' | 'warn' | 'bad'; label: string; title: string; alerts: readonly Alert[] }
+export interface Pill {
+  tone: 'ok' | 'warn' | 'bad';
+  label: string;
+  title: string;
+  alerts: readonly Alert[];
+}
 
 /**
  * What the summary's pill says of `alerts` (`BuildStage.alerts`). Green: it starts and nothing is overloaded. Amber: a part is missing, or it runs badly. Red:
@@ -42,10 +50,21 @@ export function pillOf(alerts: readonly Alert[], shown: Shown = 'machine'): Pill
     const line = shown === 'nothing' ? 'No case' : 'No motherboard';
     return { tone: 'warn', label: line, title: `${line}: there is no machine to start yet.`, alerts: [] };
   }
-  if (!alerts.length) return { tone: 'ok', label: 'Ready to start', title: 'Every part the power-on test needs is fitted, and nothing is overloaded.', alerts };
+  if (!alerts.length)
+    return {
+      tone: 'ok',
+      label: 'Ready to start',
+      title: 'Every part the power-on test needs is fitted, and nothing is overloaded.',
+      alerts,
+    };
   const tone = alerts.some((a) => a.level === 'bad') ? 'bad' : 'warn';
   const one = alerts.length === 1;
-  return { tone, label: one ? alerts[0]!.title : `${alerts.length} ${tone === 'bad' ? 'problems' : 'warnings'}`, title: one ? alerts[0]!.text : alerts.map((a) => `${a.title}: ${a.text}`).join('\n'), alerts };
+  return {
+    tone,
+    label: one ? alerts[0]!.title : `${alerts.length} ${tone === 'bad' ? 'problems' : 'warnings'}`,
+    title: one ? alerts[0]!.text : alerts.map((a) => `${a.title}: ${a.text}`).join('\n'),
+    alerts,
+  };
 }
 
 /** The power meter: how full the supply is at full load (in percent, held at 100 for the bar), and the colour that says so: red from the first watt over (the machine slows down). */
@@ -56,13 +75,19 @@ export function powerMeter(sheet: Pick<SpecSheet, 'headroom'>): { pct: number; t
 }
 
 /** The devices grouped by kind, in the order of `order` (a kind it does not list goes last); each group keeps the devices' own order. */
-export function groupByKind<D extends { spec: string }>(devices: readonly D[], order: readonly string[]): { kind: string; items: D[] }[] {
+export function groupByKind<D extends { spec: string }>(
+  devices: readonly D[],
+  order: readonly string[],
+): { kind: string; items: D[] }[] {
   const by = new Map<string, D[]>();
   for (const d of devices) {
     const k = getSpec(d.spec)?.kind ?? 'other';
     (by.get(k) ?? by.set(k, []).get(k)!).push(d);
   }
-  const rank = (k: string): number => { const i = order.indexOf(k); return i < 0 ? order.length : i; };
+  const rank = (k: string): number => {
+    const i = order.indexOf(k);
+    return i < 0 ? order.length : i;
+  };
   return [...by].map(([kind, items]) => ({ kind, items })).sort((a, b) => rank(a.kind) - rank(b.kind));
 }
 
@@ -95,18 +120,27 @@ export function freeName(taken: readonly string[], base = 'My build'): string {
 }
 
 /** A speed in Mbit/s, in Gbit/s from a thousand. */
-export const rate = (mbps: number): string => (mbps >= 1000 ? `${+(mbps / 1000).toFixed(1)} Gbit/s` : `${Math.round(mbps)} Mbit/s`);
+export const rate = (mbps: number): string =>
+  mbps >= 1000 ? `${+(mbps / 1000).toFixed(1)} Gbit/s` : `${Math.round(mbps)} Mbit/s`;
 
 /**
  * What the machine's link says (the network rows' last line): the speed it gets and what holds it back, or what is missing (a router, a plan, an OS, the
  * cable). `tone`: amber while something is missing or the machine is off, green once the link is up.
  */
-export function linkLine(n: Pick<NetSnap, 'state' | 'reason' | 'bandwidth' | 'router' | 'isp'>): { tone: 'ok' | 'warn'; text: string } {
+export function linkLine(n: Pick<NetSnap, 'state' | 'reason' | 'bandwidth' | 'router' | 'isp'>): {
+  tone: 'ok' | 'warn';
+  text: string;
+} {
   // (the game's words say "buy one" and "install one next to the monitor": here the shelf has them)
-  if (!n.router || !n.isp) return { tone: 'warn', text: `No ${!n.router && !n.isp ? 'router and no internet plan' : !n.router ? 'router' : 'internet plan'}: pick ${!n.router && !n.isp ? 'them' : 'one'} from the shelf` };
+  if (!n.router || !n.isp)
+    return {
+      tone: 'warn',
+      text: `No ${!n.router && !n.isp ? 'router and no internet plan' : !n.router ? 'router' : 'internet plan'}: pick ${!n.router && !n.isp ? 'them' : 'one'} from the shelf`,
+    };
   if (n.state === 'no-cable') return { tone: 'warn', text: 'The ethernet cable is not plugged in' };
   if (n.state === 'no-os') return { tone: 'warn', text: n.reason ?? 'The OS is missing' };
-  const b = n.bandwidth, off = n.state === 'down';
+  const b = n.bandwidth,
+    off = n.state === 'down';
   const speed = `${rate(b.downMbps)} down · ${rate(b.upMbps)} up${b.binding ? ` · held back by the ${b.binding}` : ''}`;
   return { tone: off ? 'warn' : 'ok', text: off && n.reason ? `${speed} (${n.reason})` : speed };
 }
@@ -140,11 +174,23 @@ export interface HintState {
 export function hintLine(h: HintState): string {
   if (h.busy) return h.step || 'Working…';
   if (h.holding) return 'Carry the plug to its socket and let go · Esc drops it';
-  if (h.dragging === 'shelf' && h.shell === 'net') return h.over === 'stage' ? 'Let go to fit it' : 'Drag it onto the stage';
-  if (h.dragging === 'shelf' && h.shown === 'nothing') return h.shell === 'case' ? (h.over === 'stage' ? 'Let go to bring the case in' : 'Drag it onto the stage') : 'Fit a case first: every part goes in it';
-  if (h.dragging === 'shelf' && h.shown === 'case') return h.shell ? (h.over === 'stage' ? 'Let go on the case to fit it' : 'Drag it onto the case') : 'Fit a motherboard first: every other part plugs into it';
+  if (h.dragging === 'shelf' && h.shell === 'net')
+    return h.over === 'stage' ? 'Let go to fit it' : 'Drag it onto the stage';
+  if (h.dragging === 'shelf' && h.shown === 'nothing')
+    return h.shell === 'case'
+      ? h.over === 'stage'
+        ? 'Let go to bring the case in'
+        : 'Drag it onto the stage'
+      : 'Fit a case first: every part goes in it';
+  if (h.dragging === 'shelf' && h.shown === 'case')
+    return h.shell
+      ? h.over === 'stage'
+        ? 'Let go on the case to fit it'
+        : 'Drag it onto the case'
+      : 'Fit a motherboard first: every other part plugs into it';
   if (h.dragging === 'shelf') return h.over === 'stage' ? 'Let go on a lit socket to fit it' : 'Drag it onto the PC';
-  if (h.dragging === 'machine') return h.over === 'bin' ? 'Let go to take it out' : 'Drop it on the shelf to take it out';
+  if (h.dragging === 'machine')
+    return h.over === 'bin' ? 'Let go to take it out' : 'Drop it on the shelf to take it out';
   if (h.shown === 'nothing') return 'The stage is empty. Click a case on the shelf to bring it in.';
   if (h.shown === 'case') return 'The case is empty. Drag a motherboard from the shelf onto it.';
   if (h.fitted === 0) return 'The case is empty. Drag a part from the shelf onto the PC.';

@@ -14,7 +14,14 @@ const fs = fsMod as any;
 const GOLDEN: string = urlMod.fileURLToPath(new URL('./highident.expected.json', import.meta.url));
 
 /** One group's fingerprint: its meshes, the meshes a camera draws, the triangles those draw (instances counted), its vertices and instances, and a hash of them. */
-interface Row { meshes: number; draws: number; tris: number; verts: number; instances: number; sum: string }
+interface Row {
+  meshes: number;
+  draws: number;
+  tris: number;
+  verts: number;
+  instances: number;
+  sum: string;
+}
 
 /** A 32-bit hash of rounded numbers, in the order they are added. */
 class Hash {
@@ -24,10 +31,19 @@ class Hash {
     this.h = Math.imul(this.h ^ q, 0x01000193);
     this.h ^= this.h >>> 15;
   }
-  hex(): string { return (this.h >>> 0).toString(16).padStart(8, '0'); }
+  hex(): string {
+    return (this.h >>> 0).toString(16).padStart(8, '0');
+  }
 }
 
-interface Acc { meshes: number; draws: number; tris: number; verts: number; instances: number; h: Hash }
+interface Acc {
+  meshes: number;
+  draws: number;
+  tris: number;
+  verts: number;
+  instances: number;
+  h: Hash;
+}
 
 /** The top-level child of the scene that holds an object: its name (or type) and its index, so a group keeps its key while it keeps its place. */
 function groupOf(scene: Object3D, o: Object3D): string {
@@ -40,7 +56,8 @@ function groupOf(scene: Object3D, o: Object3D): string {
 /** Each group of the scene, fingerprinted: each mesh's world-space vertex positions, its instances' world matrices, and whether a camera draws it. */
 function fingerprint(scene: Scene): Record<string, Row> {
   const acc = new Map<string, Acc>();
-  const pos = new Matrix4(), inst = new Matrix4();
+  const pos = new Matrix4(),
+    inst = new Matrix4();
   scene.updateMatrixWorld(true);
   scene.traverse((o) => {
     if (!(o as Mesh).isMesh) return;
@@ -53,14 +70,19 @@ function fingerprint(scene: Scene): Record<string, Row> {
     const copies = im.isInstancedMesh ? im.count : 1;
     const indices = drawn(mesh.geometry);
     const drawnHere = mesh.visible && indices > 0;
-    if (drawnHere) { g.draws += 1; g.tris += (indices / 3) * copies; }
+    if (drawnHere) {
+      g.draws += 1;
+      g.tris += (indices / 3) * copies;
+    }
     g.h.add(drawnHere ? 1 : 0);
     const attr = mesh.geometry.attributes.position as BufferAttribute | undefined;
     if (attr) {
       g.verts += attr.count;
       const e = pos.copy(mesh.matrixWorld).elements;
       for (let i = 0; i < attr.count; i++) {
-        const x = attr.getX(i), y = attr.getY(i), z = attr.getZ(i);
+        const x = attr.getX(i),
+          y = attr.getY(i),
+          z = attr.getZ(i);
         g.h.add(e[0]! * x + e[4]! * y + e[8]! * z + e[12]!);
         g.h.add(e[1]! * x + e[5]! * y + e[9]! * z + e[13]!);
         g.h.add(e[2]! * x + e[6]! * y + e[10]! * z + e[14]!);
@@ -74,8 +96,21 @@ function fingerprint(scene: Scene): Record<string, Row> {
       }
     }
   });
-  return Object.fromEntries([...acc].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([k, g]) => [k, { meshes: g.meshes, draws: g.draws, tris: Math.round(g.tris), verts: g.verts, instances: g.instances, sum: g.h.hex() }]));
+  return Object.fromEntries(
+    [...acc]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, g]) => [
+        k,
+        {
+          meshes: g.meshes,
+          draws: g.draws,
+          tris: Math.round(g.tris),
+          verts: g.verts,
+          instances: g.instances,
+          sum: g.h.hex(),
+        },
+      ]),
+  );
 }
 
 /** The golden, or null while it is unwritten or empty. */
@@ -97,14 +132,19 @@ describe('High builds the same city', () => {
     const got = measure();
     const rows = Object.values(got);
     const sum = (f: (r: Row) => number) => rows.reduce((n, r) => n + f(r), 0);
-    console.log(`High city identity: ${rows.length} groups, ${sum((r) => r.meshes)} meshes, ${sum((r) => r.draws)} draws, ${sum((r) => r.tris)} tris, ${sum((r) => r.verts)} verts, ${sum((r) => r.instances)} instances`);
+    console.log(
+      `High city identity: ${rows.length} groups, ${sum((r) => r.meshes)} meshes, ${sum((r) => r.draws)} draws, ${sum((r) => r.tris)} tris, ${sum((r) => r.verts)} verts, ${sum((r) => r.instances)} instances`,
+    );
     const env = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process.env;
     if (env.UPDATE_HIGH_GOLDEN === '1') {
       fs.writeFileSync(GOLDEN, `${JSON.stringify(got, null, 2)}\n`);
       return;
     }
     const want = readGolden();
-    expect(want, 'no High city golden yet: fill highident.expected.json (UPDATE_HIGH_GOLDEN=1 npx vitest run src/features/room/render/three/outside/highident.test.ts)').not.toBeNull();
+    expect(
+      want,
+      'no High city golden yet: fill highident.expected.json (UPDATE_HIGH_GOLDEN=1 npx vitest run src/features/room/render/three/outside/highident.test.ts)',
+    ).not.toBeNull();
     expect(got).toEqual(want);
   }, 180000);
 });

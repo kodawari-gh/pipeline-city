@@ -14,7 +14,13 @@ vi.mock('@/core/render/three/init', async (orig) => {
       camera: new PerspectiveCamera(30, 1, 10, 1e6),
       renderer: {
         domElement: { width: 400, height: 400, addEventListener() {}, removeEventListener() {} },
-        setOpaqueSort() {}, getPixelRatio: () => 1, setSize() {}, properties: { get: () => ({}) }, compile: () => new Set(), getRenderTarget: () => null, setRenderTarget() {},
+        setOpaqueSort() {},
+        getPixelRatio: () => 1,
+        setSize() {},
+        properties: { get: () => ({}) },
+        compile: () => new Set(),
+        getRenderTarget: () => null,
+        setRenderTarget() {},
       },
     }),
   };
@@ -25,11 +31,20 @@ vi.mock('@/core/render/three/post', () => ({
     refine = rig.refine;
     meter = () => null;
     metered = () => rig.lum;
-    setEye() {} setReach() {} setDark() {} setOutlined() {} apply() {} setSize() {}
+    setEye() {}
+    setReach() {}
+    setDark() {}
+    setOutlined() {}
+    apply() {}
+    setSize() {}
     startPrograms = () => [];
   },
 }));
-vi.mock('./lens3d', () => ({ Lens3D: class { frame() {} } }));
+vi.mock('./lens3d', () => ({
+  Lens3D: class {
+    frame() {}
+  },
+}));
 
 import { BuildStage } from './buildmode3d';
 import { BASE_EXPOSURE } from '@/core/render/three/init';
@@ -42,17 +57,43 @@ const TICK = 17; // ms; a little over 1/60 s, so the 60 fps gate lets every tick
 describe('BuildStage.frame when idle', () => {
   let stage: { frame: (now: number) => void };
   let now: number;
-  const tick = (n = 1) => { for (let i = 0; i < n; i++) { now += TICK; stage.frame(now); } };
-  const draws = (n: number) => { rig.render.mockClear(); tick(n); return rig.render.mock.calls.length; };
+  const tick = (n = 1) => {
+    for (let i = 0; i < n; i++) {
+      now += TICK;
+      stage.frame(now);
+    }
+  };
+  const draws = (n: number) => {
+    rig.render.mockClear();
+    tick(n);
+    return rig.render.mock.calls.length;
+  };
 
   beforeEach(() => {
     rig.lum = null;
     rig.render.mockClear();
-    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {});
-    const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({ clientWidth: 400, clientHeight: 800 });
-    s._machine = { moving: false, doorOpen: false, frame() {}, setOpen() {}, holdDetail() {}, lod() {}, root: new Group() };
+    const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
+      clientWidth: 400,
+      clientHeight: 800,
+    });
+    s._machine = {
+      moving: false,
+      doorOpen: false,
+      frame() {},
+      setOpen() {},
+      holdDetail() {},
+      lod() {},
+      root: new Group(),
+    };
     s._game = {}; // (the snapshot getter wants a game; the stub below gives the snapshot)
     s.snaps = { of: () => ({}), drop() {} };
     stage = s as unknown as { frame: (now: number) => void };
@@ -65,7 +106,7 @@ describe('BuildStage.frame when idle', () => {
     expect(draws(120)).toBe(0);
   });
 
-  it('offers each idle tick to the still view\'s refinement (the chain bounds its frames)', () => {
+  it("offers each idle tick to the still view's refinement (the chain bounds its frames)", () => {
     rig.refine.mockClear();
     tick(5);
     expect(rig.refine.mock.calls.length).toBe(5);
@@ -90,30 +131,56 @@ describe('BuildStage.frame when idle', () => {
 
 describe('BuildStage.frame and the distance stand-ins (PHONE-01)', () => {
   const hold = vi.fn();
-  let stage: { frame: (now: number) => void; status: { value: { busy: boolean; step: string; log: string[]; rev: number } } };
+  let stage: {
+    frame: (now: number) => void;
+    status: { value: { busy: boolean; step: string; log: string[]; rev: number } };
+  };
   let machineRoot: Group;
   let now = 1000;
 
   beforeEach(() => {
     hold.mockClear();
-    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {});
-    const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({ clientWidth: 400, clientHeight: 800 });
+    const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
+      clientWidth: 400,
+      clientHeight: 800,
+    });
     machineRoot = new Group();
-    s._machine = { moving: false, doorOpen: false, frame() {}, setOpen() {}, holdDetail: hold, lod() {}, root: machineRoot };
+    s._machine = {
+      moving: false,
+      doorOpen: false,
+      frame() {},
+      setOpen() {},
+      holdDetail: hold,
+      lod() {},
+      root: machineRoot,
+    };
     s._game = {};
     s.snaps = { of: () => ({}), drop() {} };
     stage = s as unknown as typeof stage;
     now = 1000;
   });
-  afterEach(() => { setLowDetail(false); });
-
-  const lastHold = (): { held: unknown[]; ceil: number | undefined } => { const c = hold.mock.calls.at(-1)!; return { held: c[0] as unknown[], ceil: c[1] as number | undefined }; };
-
-  it('High keeps every part itself from the stage\'s own zoom in, and holds nothing by hand', () => {
+  afterEach(() => {
     setLowDetail(false);
-    now += TICK; stage.frame(now);
+  });
+
+  const lastHold = (): { held: unknown[]; ceil: number | undefined } => {
+    const c = hold.mock.calls.at(-1)!;
+    return { held: c[0] as unknown[], ceil: c[1] as number | undefined };
+  };
+
+  it("High keeps every part itself from the stage's own zoom in, and holds nothing by hand", () => {
+    setLowDetail(false);
+    now += TICK;
+    stage.frame(now);
     const { held, ceil } = lastHold();
     expect(held).toEqual([]);
     expect(ceil).toBeGreaterThan(0);
@@ -122,13 +189,16 @@ describe('BuildStage.frame and the distance stand-ins (PHONE-01)', () => {
 
   it('Low lets the stand-ins draw at any zoom, and holds the whole machine only while a step runs', () => {
     setLowDetail(true);
-    now += TICK; stage.frame(now);
+    now += TICK;
+    stage.frame(now);
     expect(lastHold()).toEqual({ held: [], ceil: undefined });
     stage.status.value = { ...stage.status.value, busy: true };
-    now += TICK; stage.frame(now);
+    now += TICK;
+    stage.frame(now);
     expect(lastHold()).toEqual({ held: [machineRoot], ceil: undefined });
     stage.status.value = { ...stage.status.value, busy: false };
-    now += TICK; stage.frame(now);
+    now += TICK;
+    stage.frame(now);
     expect(lastHold().held).toEqual([]);
   });
 });
@@ -136,14 +206,26 @@ describe('BuildStage.frame and the distance stand-ins (PHONE-01)', () => {
 describe('BuildStage.frame and the shut side panel', () => {
   it('lets the panel take a click while no step plays, and not while one does (machine3d.ts: the plate over it answers a ray only then)', () => {
     const setOpen = vi.fn();
-    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {});
-    const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({ clientWidth: 400, clientHeight: 800 });
+    const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
+      clientWidth: 400,
+      clientHeight: 800,
+    });
     s._machine = { moving: false, doorOpen: false, frame() {}, setOpen, holdDetail() {}, lod() {}, root: new Group() };
     s._game = {};
     s.snaps = { of: () => ({}), drop() {} };
-    const stage = s as unknown as { frame: (now: number) => void; status: { value: { busy: boolean; step: string; log: string[]; rev: number } } };
+    const stage = s as unknown as {
+      frame: (now: number) => void;
+      status: { value: { busy: boolean; step: string; log: string[]; rev: number } };
+    };
     stage.frame(1000 + TICK);
     expect(setOpen).toHaveBeenLastCalledWith(false, false);
     stage.status.value = { ...stage.status.value, busy: true };

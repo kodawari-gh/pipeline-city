@@ -3,10 +3,16 @@ import { assemble } from '../../sim/asm';
 import { fieldsOf, idColor, pcText, readsOf, seqText, slotValues, writesOf } from './tokentext';
 
 // What the die shows of one instruction (docs/DIE.md "Instructions on the die").
-const word = (src: string) => { const p = assemble(src).program; return new DataView(p.buffer, p.byteOffset).getUint32(0, true) >>> 0; };
+const word = (src: string) => {
+  const p = assemble(src).program;
+  return new DataView(p.buffer, p.byteOffset).getUint32(0, true) >>> 0;
+};
 
 describe('token text', () => {
-  const add = word('add t4, t1, t2'), lw = word('lw a0, 8(t2)'), sw = word('sw t1, 4(sp)'), bne = word('loop:\nbne t0, t1, loop');
+  const add = word('add t4, t1, t2'),
+    lw = word('lw a0, 8(t2)'),
+    sw = word('sw t1, 4(sp)'),
+    bne = word('loop:\nbne t0, t1, loop');
 
   it('knows what an instruction reads and writes', () => {
     expect(readsOf(add)).toEqual([8, 9]);

@@ -19,7 +19,12 @@ describe('PowerView3D', () => {
     const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
     // (the machine runs: every part draws, so every kind of part has its words)
     const s = g.snapshot();
-    snap = { ...s, powered: true, power: { ...s.power, off: false, totalW: 120 }, devices: s.devices.map((d) => ({ ...d, powerW: d.kind === 'display' ? 3 : 8 })) };
+    snap = {
+      ...s,
+      powered: true,
+      power: { ...s.power, off: false, totalW: 120 },
+      devices: s.devices.map((d) => ({ ...d, powerW: d.kind === 'display' ? 3 : 8 })),
+    };
     machine = new Machine3D(snap, roomGeo(), new BakeQueue(), null, false);
     const box = new Box3();
     for (const o of machine.caseRoots) box.expandByObject(o);
@@ -38,7 +43,8 @@ describe('PowerView3D', () => {
   const texts = (v: PowerView3D): string[] => v.wordsNow.map((t) => t.text);
 
   it('builds the shape of the machine and draws it on the first frame', () => {
-    const scene = new Scene(), v = new PowerView3D(scene);
+    const scene = new Scene(),
+      v = new PowerView3D(scene);
     expect(v.shown).toBe(false);
     v.frame(cameraAt(0.8), 900, snap, machine, 0.016);
     expect(v.shown).toBe(true);
@@ -53,7 +59,11 @@ describe('PowerView3D', () => {
     const v = new PowerView3D(new Scene());
     v.frame(cameraAt(0.8), 900, snap, machine, 0.016);
     const t = texts(v);
-    for (const w of ['WALL', 'SUPPLY', 'CPU', 'RAM']) expect(t.some((x) => x.startsWith(w)), w).toBe(true);
+    for (const w of ['WALL', 'SUPPLY', 'CPU', 'RAM'])
+      expect(
+        t.some((x) => x.startsWith(w)),
+        w,
+      ).toBe(true);
     v.dispose();
   });
 
@@ -64,7 +74,11 @@ describe('PowerView3D', () => {
     expect(t.some((x) => x.startsWith('WALL'))).toBe(true);
     expect(t.some((x) => x.startsWith('SUPPLY'))).toBe(true);
     expect(t.includes('')).toBe(true);
-    for (const w of ['CPU', 'RAM', 'DRIVE', 'FAN HUB']) expect(t.some((x) => x.startsWith(w)), w).toBe(false);
+    for (const w of ['CPU', 'RAM', 'DRIVE', 'FAN HUB'])
+      expect(
+        t.some((x) => x.startsWith(w)),
+        w,
+      ).toBe(false);
     v.dispose();
   });
 

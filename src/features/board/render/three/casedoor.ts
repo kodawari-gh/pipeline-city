@@ -5,7 +5,12 @@
 import type { CaseKind } from '@/features/room/render/shell/casedecor';
 
 /** `slide`: units the panel moves back (toward the rear wall, -x); `out`: units it comes off the body (+z); `swing`: radians about its front edge; `screws`: 0..1 how far the thumbscrews are undone. */
-export interface DoorPose { slide: number; out: number; swing: number; screws: number }
+export interface DoorPose {
+  slide: number;
+  out: number;
+  swing: number;
+  screws: number;
+}
 
 /** How long a full opening takes, in seconds. */
 export const DOOR_SECONDS: Record<CaseKind, number> = { oem: 1.3, matte: 1.0, gamer: 0.9, show: 1.3 };
@@ -39,15 +44,27 @@ const span = (t: number, a: number, b: number) => clamp((t - a) / (b - a));
 const inOut = (u: number) => u * u * (3 - 2 * u);
 const outCubic = (u: number) => 1 - (1 - u) ** 3;
 /** Ends at 1 after a small overshoot (a door on free hinges). */
-const outBack = (u: number) => { const c = 1.4; return 1 + (c + 1) * (u - 1) ** 3 + c * (u - 1) ** 2; };
+const outBack = (u: number) => {
+  const c = 1.4;
+  return 1 + (c + 1) * (u - 1) ** 3 + c * (u - 1) ** 2;
+};
 
 export function doorPose(kind: CaseKind, t: number): DoorPose {
   const u = clamp(t);
   switch (kind) {
-    case 'oem': return { screws: inOut(span(u, 0, 0.16)), slide: 240 * inOut(span(u, 0.14, 0.34)), out: 70 * inOut(span(u, 0.32, 0.4)), swing: SWING * inOut(span(u, 0.38, 1)) };
-    case 'matte': return { screws: 0, slide: 0, out: 45 * outCubic(span(u, 0, 0.18)), swing: SWING * inOut(span(u, 0.12, 1)) };
-    case 'gamer': return { screws: 0, slide: 0, out: 0, swing: SWING * outBack(u) };
-    case 'show': return { screws: 0, slide: 0, out: 0, swing: SWING * outCubic(u) };
+    case 'oem':
+      return {
+        screws: inOut(span(u, 0, 0.16)),
+        slide: 240 * inOut(span(u, 0.14, 0.34)),
+        out: 70 * inOut(span(u, 0.32, 0.4)),
+        swing: SWING * inOut(span(u, 0.38, 1)),
+      };
+    case 'matte':
+      return { screws: 0, slide: 0, out: 45 * outCubic(span(u, 0, 0.18)), swing: SWING * inOut(span(u, 0.12, 1)) };
+    case 'gamer':
+      return { screws: 0, slide: 0, out: 0, swing: SWING * outBack(u) };
+    case 'show':
+      return { screws: 0, slide: 0, out: 0, swing: SWING * outCubic(u) };
   }
 }
 

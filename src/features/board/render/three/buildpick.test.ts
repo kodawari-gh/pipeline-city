@@ -8,7 +8,7 @@ import { deviceFor, fitSlots, screenRect, socketFor } from './buildpick';
 const full = () => new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
 
 describe('fitSlots: the sockets a dragged part would fit', () => {
-  it('lists only sockets of the part\'s own kind', () => {
+  it("lists only sockets of the part's own kind", () => {
     const g = full();
     const { free, swap } = fitSlots(g.board, 'ram0');
     const kind = getSpec('ram0')!.slot;
@@ -46,7 +46,7 @@ describe('deviceFor and socketFor: what an id of the scene stands for', () => {
     if (gpu) expect(deviceFor(`${gpu.slot}.lane3`, g.board)).toBe(gpu);
   });
 
-  it('answers the power supply\'s stand-in, and nothing for a cable, a socket or the case', () => {
+  it("answers the power supply's stand-in, and nothing for a cable, a socket or the case", () => {
     const g = full();
     expect(deviceFor('psu', g.board)).toBe(g.board.devices.find((d) => deviceSpec(d).kind === 'psu'));
     expect(deviceFor('cable.atx', g.board)).toBeNull();

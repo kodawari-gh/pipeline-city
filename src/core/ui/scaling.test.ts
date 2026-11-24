@@ -28,7 +28,12 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 const isUi = (p: string) => /\/(ui|app)\//.test(p) && !p.includes('/render/') && !p.includes('/sim/');
-const names = [...walk(`${ROOT}src`).map((p) => p.slice(ROOT.length)).filter((p) => isUi('/' + p)), 'index.html'].sort();
+const names = [
+  ...walk(`${ROOT}src`)
+    .map((p) => p.slice(ROOT.length))
+    .filter((p) => isUi('/' + p)),
+  'index.html',
+].sort();
 const raw: Record<string, string> = {};
 for (const n of names) raw[`/${n}`] = fs.readFileSync(`${ROOT}${n}`, 'utf8');
 const files = Object.keys(raw);
@@ -59,7 +64,9 @@ export function violations(path: string, text: string): string[] {
   // Preact turns a number in a style object into px.
   if (path.endsWith('.tsx')) {
     clean.split('\n').forEach((line, i) => {
-      for (const m of line.matchAll(/\b(width|height|top|left|right|bottom|fontSize|gap|margin\w*|padding\w*|borderRadius|min\w*(?:Width|Height)|max\w*(?:Width|Height))\s*:\s*(?!0\s*[,}])-?\d+(\.\d+)?\s*[,}]/g)) {
+      for (const m of line.matchAll(
+        /\b(width|height|top|left|right|bottom|fontSize|gap|margin\w*|padding\w*|borderRadius|min\w*(?:Width|Height)|max\w*(?:Width|Height))\s*:\s*(?!0\s*[,}])-?\d+(\.\d+)?\s*[,}]/g,
+      )) {
         out.push(`${i + 1}: numeric style value (becomes px): ${m[0]}`);
       }
     });
@@ -102,8 +109,12 @@ describe('UI scaling: no fixed pixel sizes', () => {
     expect(violations('a.css', '.a { border: 1px solid red; outline: 0px; width: 3rem; }')).toEqual([]);
     expect(violations('a.css', `html { font-size: ${ROOT_CLAMP}; }`)).toEqual([]);
     expect(violations('a.css', '/* a 12px note */ .a { width: 1.5em; } @media (max-width: 48em) {}')).toEqual([]);
-    expect(violations('a.tsx', '<svg style={{ width: rem(14) }} viewBox="0 0 16 16"><rect width={4} height={6}/></svg>')).toEqual([]);
-    expect(violations('a.tsx', '<div style={{ transform: `translate(${x}px, ${y}px)`, width: `${w}%` }} />')).toEqual([]);
+    expect(
+      violations('a.tsx', '<svg style={{ width: rem(14) }} viewBox="0 0 16 16"><rect width={4} height={6}/></svg>'),
+    ).toEqual([]);
+    expect(violations('a.tsx', '<div style={{ transform: `translate(${x}px, ${y}px)`, width: `${w}%` }} />')).toEqual(
+      [],
+    );
     expect(violations('a.tsx', '// 12px in a comment\nconst a = 1;')).toEqual([]);
   });
 });

@@ -27,13 +27,28 @@ export function routerGeo(tier: number): RouterGeo {
 }
 
 /** A hoverable part of the die: the id (`router.pkt`) and its rectangle in the die's frame. */
-export interface RouterPart { id: string; rect: Rect }
+export interface RouterPart {
+  id: string;
+  rect: Rect;
+}
 
 /** Every block of the die with an id: the blocks and the SoC's frame (the smallest rectangle under the pointer wins). */
-export const routerParts = (g: RouterGeo): RouterPart[] => g.plan.blocks.map((b) => ({ id: `router.${b.id}`, rect: b.rect }));
+export const routerParts = (g: RouterGeo): RouterPart[] =>
+  g.plan.blocks.map((b) => ({ id: `router.${b.id}`, rect: b.rect }));
 
 /** The parts of the router that are 3D bodies on its board, not blocks of the die (routerboard3d.ts): the ids their picks and flights carry. The radio is the home routers' only. */
-export const ROUTER_BODIES = ['router.dram', 'router.flash', 'router.wanphy', 'router.lanphy', 'router.radio', 'router.power', 'router.label'] as const;
+export const ROUTER_BODIES = [
+  'router.dram',
+  'router.flash',
+  'router.wanphy',
+  'router.lanphy',
+  'router.radio',
+  'router.power',
+  'router.label',
+] as const;
 
 /** The ids of every part of the router of `tier`, for the hover table and its test: the 3D bodies on its board (the radio on the tiers that have one) and the die's blocks. */
-export const routerIds = (tier: number): string[] => [...ROUTER_BODIES.filter((id) => id !== 'router.radio' || routerPlan(tier).input.radio !== null), ...routerPlan(tier).blocks.map((b) => `router.${b.id}`)];
+export const routerIds = (tier: number): string[] => [
+  ...ROUTER_BODIES.filter((id) => id !== 'router.radio' || routerPlan(tier).input.radio !== null),
+  ...routerPlan(tier).blocks.map((b) => `router.${b.id}`),
+];

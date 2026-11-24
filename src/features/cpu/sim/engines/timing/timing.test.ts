@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { assemble } from "../../asm";
-import { Machine } from "@/core/sim";
-import { Cause, Counter, InOrderEngine, SlotKind, Stage, UnpipelinedEngine, type InOrderSettings } from "../index";
-import type { PipelineEngine } from "../common";
-import { runEngine } from "../testutil";
+import { describe, expect, it } from 'vitest';
+import { assemble } from '../../asm';
+import { Machine } from '@/core/sim';
+import { Cause, Counter, InOrderEngine, SlotKind, Stage, UnpipelinedEngine, type InOrderSettings } from '../index';
+import type { PipelineEngine } from '../common';
+import { runEngine } from '../testutil';
 
 const io = (s: InOrderSettings = {}) => new InOrderEngine({ missPenalty: 0, ...s });
 const C = Counter;
@@ -14,20 +14,20 @@ function run(e: PipelineEngine, src: string) {
   return { cycles: o.cycles, c };
 }
 
-describe("in-order hazards (width 1)", () => {
-  it("hazard-free code takes n + 4 cycles", () => {
+describe('in-order hazards (width 1)', () => {
+  it('hazard-free code takes n + 4 cycles', () => {
     const r = run(io(), `addi t0, zero, 1\naddi t1, zero, 2\naddi t2, zero, 3\necall`);
     expect(r.cycles).toBe(4 + 4);
     expect(r.c[C.Retired]).toBe(4);
   });
 
-  it("ALU RAW with forwarding costs 0 bubbles", () => {
-    const r = run(io(), `li t0, 1\nadd t1, t0, t0\nadd t2, t1, t1\nsw t2, 0(sp)\necall`.replace("0(sp)", "-4(sp)"));
+  it('ALU RAW with forwarding costs 0 bubbles', () => {
+    const r = run(io(), `li t0, 1\nadd t1, t0, t0\nadd t2, t1, t1\nsw t2, 0(sp)\necall`.replace('0(sp)', '-4(sp)'));
     expect(r.c[C.StallLoad]! + r.c[C.StallData]!).toBe(0);
     expect(r.cycles).toBe(5 + 4);
   });
 
-  it("load-use with forwarding costs exactly 1 bubble; one filler instruction hides it", () => {
+  it('load-use with forwarding costs exactly 1 bubble; one filler instruction hides it', () => {
     const base = `li s3, 4096\nlw t0, 0(s3)\n`;
     const a = run(io(), base + `add t1, t0, t0\necall`);
     expect(a.c[C.StallLoad]).toBe(1);
@@ -38,7 +38,7 @@ describe("in-order hazards (width 1)", () => {
     expect(b.cycles).toBe(5 + 4);
   });
 
-  it("without forwarding, RAW costs 2 / 1 / 0 bubbles at distance 1 / 2 / 3", () => {
+  it('without forwarding, RAW costs 2 / 1 / 0 bubbles at distance 1 / 2 / 3', () => {
     const nf = () => io({ forwarding: false });
     const d1 = run(nf(), `li t0, 1\nadd t1, t0, t0\necall`);
     expect(d1.c[C.StallData]).toBe(2);
@@ -50,7 +50,7 @@ describe("in-order hazards (width 1)", () => {
     expect(d3.cycles).toBe(5 + 4);
   });
 
-  it("taken branch mispredicted (predict not-taken) flushes 2 bubbles; correct prediction flushes none", () => {
+  it('taken branch mispredicted (predict not-taken) flushes 2 bubbles; correct prediction flushes none', () => {
     const src = `li t0, 1\nbne t0, zero, skip\naddi a0, a0, 1\naddi a0, a0, 2\nskip:\necall`;
     const miss = run(io(), src);
     expect(miss.c[C.Flushes]).toBe(1);
@@ -65,7 +65,7 @@ describe("in-order hazards (width 1)", () => {
     expect(e.cycle).toBe(3 + 4);
   });
 
-  it("not-taken branch is free when predicted not-taken, and a 1-bit predictor learns a loop", () => {
+  it('not-taken branch is free when predicted not-taken, and a 1-bit predictor learns a loop', () => {
     const nt = run(io(), `li t0, 0\nbne t0, zero, skip\naddi a0, a0, 1\nskip:\necall`);
     expect(nt.c[C.Flushes]).toBe(0);
     // Loop of 5 iterations: first taken mispredicts (cold), then predicted taken until the exit mispredicts.
@@ -74,13 +74,13 @@ describe("in-order hazards (width 1)", () => {
     expect(loop.c[C.BranchMispredicts]).toBe(2);
   });
 
-  it("jal is free (predecoded), ret costs a flush", () => {
+  it('jal is free (predecoded), ret costs a flush', () => {
     const r = run(io(), `call f\necall\nf:\nret`);
     expect(r.c[C.Flushes]).toBe(1);
     expect(r.c[C.StallFlush]).toBe(2);
   });
 
-  it("shared memory port costs one struct bubble when fetch collides with a load", () => {
+  it('shared memory port costs one struct bubble when fetch collides with a load', () => {
     const src = `li s3, 4096\nlw t0, 0(s3)\naddi t1, zero, 1\naddi t2, zero, 2\naddi t3, zero, 3\necall`;
     const a = run(io(), src);
     const b = run(io({ sharedPort: true }), src);
@@ -90,9 +90,9 @@ describe("in-order hazards (width 1)", () => {
   });
 });
 
-describe("data cache", () => {
+describe('data cache', () => {
   const src = `li s3, 4096\nlw t0, 0(s3)\nlw t1, 4(s3)\necall`;
-  it("a miss freezes the in-order pipe for exactly missPenalty cycles; the same line then hits", () => {
+  it('a miss freezes the in-order pipe for exactly missPenalty cycles; the same line then hits', () => {
     for (const p of [1, 4, 9]) {
       const r = run(new InOrderEngine({ missPenalty: p }), src);
       expect(r.c[C.CacheMisses]).toBe(1);
@@ -102,34 +102,37 @@ describe("data cache", () => {
     }
   });
 
-  it("unpipelined: 5 cycles per instruction plus the miss penalty in MEM", () => {
+  it('unpipelined: 5 cycles per instruction plus the miss penalty in MEM', () => {
     const r = run(new UnpipelinedEngine({ missPenalty: 6 }), src);
     expect(r.c[C.StallCache]).toBe(6);
     expect(r.cycles).toBe(4 * 5 + 6);
   });
 
-  it("invalidateCache() mid-run forces another miss", () => {
+  it('invalidateCache() mid-run forces another miss', () => {
     const e = new InOrderEngine({ missPenalty: 3 });
     const m = new Machine();
     m.attach(e, assemble(`li s3, 4096\nlw t0, 0(s3)\nlw t1, 0(s3)\nlw t2, 0(s3)\nlw t3, 0(s3)\necall`).program);
     let invalidated = false;
     while (!e.halted) {
       e.step();
-      if (!invalidated && e.view.counters[C.CacheHits]! >= 1) { e.invalidateCache(); invalidated = true; }
+      if (!invalidated && e.view.counters[C.CacheHits]! >= 1) {
+        e.invalidateCache();
+        invalidated = true;
+      }
     }
     expect(e.view.counters[C.CacheMisses]).toBe(2);
     expect(e.view.counters[C.StallCache]).toBe(6);
   });
 
-  it("direct-mapped conflict: two addresses one cache apart evict each other", () => {
+  it('direct-mapped conflict: two addresses one cache apart evict each other', () => {
     const e = new InOrderEngine({ missPenalty: 2, cacheLines: 4, cacheLineBytes: 16 }); // 64 bytes
     const r = run(e, `li s3, 4096\nlw t0, 0(s3)\nlw t1, 64(s3)\nlw t2, 0(s3)\necall`);
     expect(r.c[C.CacheMisses]).toBe(3);
   });
 });
 
-describe("unpipelined", () => {
-  it("takes 5 cycles per instruction with no branch penalty", () => {
+describe('unpipelined', () => {
+  it('takes 5 cycles per instruction with no branch penalty', () => {
     const r = run(new UnpipelinedEngine({ missPenalty: 0 }), `li t0, 3\nl:\naddi t0, t0, -1\nbne t0, zero, l\necall`);
     expect(r.c[C.Retired]).toBe(1 + 3 * 2 + 1);
     expect(r.cycles).toBe(5 * r.c[C.Retired]!);
@@ -137,8 +140,8 @@ describe("unpipelined", () => {
   });
 });
 
-describe("view", () => {
-  it("shows occupants, bubble causes and timeline codes", () => {
+describe('view', () => {
+  it('shows occupants, bubble causes and timeline codes', () => {
     const e = io();
     const m = new Machine();
     m.attach(e, assemble(`li s3, 4096\nlw t0, 0(s3)\nadd t1, t0, t0\necall`).program);
@@ -161,7 +164,7 @@ describe("view", () => {
     expect(t.pc[1]).toBe(4);
   });
 
-  it("timeline ring recycles rows and columns", () => {
+  it('timeline ring recycles rows and columns', () => {
     const e = new InOrderEngine({ timelineRows: 8, timelineCols: 8, missPenalty: 0 });
     const m = new Machine();
     m.attach(e, assemble(`li t0, 30\nl:\naddi t0, t0, -1\nbne t0, zero, l\necall`).program);

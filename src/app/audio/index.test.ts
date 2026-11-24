@@ -11,28 +11,55 @@ const rel = (p: string): string => p.replace(/^\/?audio\//, '');
 class Param {
   log: number[] = [];
   private v = 1;
-  get value(): number { return this.v; }
-  set value(x: number) { this.v = x; this.log.push(x); }
-  setTargetAtTime(x: number): this { this.log.push(x); return this; }
-  setValueAtTime(x: number): this { this.log.push(x); return this; }
-  linearRampToValueAtTime(x: number): this { this.log.push(x); return this; }
-  cancelScheduledValues(): this { return this; }
+  get value(): number {
+    return this.v;
+  }
+  set value(x: number) {
+    this.v = x;
+    this.log.push(x);
+  }
+  setTargetAtTime(x: number): this {
+    this.log.push(x);
+    return this;
+  }
+  setValueAtTime(x: number): this {
+    this.log.push(x);
+    return this;
+  }
+  linearRampToValueAtTime(x: number): this {
+    this.log.push(x);
+    return this;
+  }
+  cancelScheduledValues(): this {
+    return this;
+  }
 }
 class Node {
-  connect<T>(n: T): T { return n; }
+  connect<T>(n: T): T {
+    return n;
+  }
   disconnect(): void {}
 }
-class Gain extends Node { gain = new Param(); }
+class Gain extends Node {
+  gain = new Param();
+}
 /** A lowpass filter stand-in: engine.ts sets its type and cutoff per music voice. */
-class Filter extends Node { type = ""; frequency = new Param(); }
+class Filter extends Node {
+  type = '';
+  frequency = new Param();
+}
 class Source extends Node {
   buffer: { path: string } | null = null;
   playbackRate = new Param();
   onended: (() => void) | null = null;
   started = false;
   stopped = false;
-  start(): void { this.started = true; }
-  stop(): void { this.stopped = true; }
+  start(): void {
+    this.started = true;
+  }
+  stop(): void {
+    this.stopped = true;
+  }
 }
 class FakeCtx {
   static last: FakeCtx | null = null;
@@ -41,17 +68,39 @@ class FakeCtx {
   destination = new Node();
   gains: Gain[] = [];
   sources: Source[] = [];
-  constructor() { FakeCtx.last = this; }
-  createGain(): Gain { const g = new Gain(); this.gains.push(g); return g; }
-  createDelay() { return Object.assign(new Gain(), { delayTime: new Param() }); }
-  createBufferSource(): Source { const s = new Source(); this.sources.push(s); return s; }
-  createBiquadFilter(): Filter { return new Filter(); }
-  resume(): Promise<void> { this.state = 'running'; return Promise.resolve(); }
-  suspend(): Promise<void> { this.state = 'suspended'; return Promise.resolve(); }
+  constructor() {
+    FakeCtx.last = this;
+  }
+  createGain(): Gain {
+    const g = new Gain();
+    this.gains.push(g);
+    return g;
+  }
+  createDelay() {
+    return Object.assign(new Gain(), { delayTime: new Param() });
+  }
+  createBufferSource(): Source {
+    const s = new Source();
+    this.sources.push(s);
+    return s;
+  }
+  createBiquadFilter(): Filter {
+    return new Filter();
+  }
+  resume(): Promise<void> {
+    this.state = 'running';
+    return Promise.resolve();
+  }
+  suspend(): Promise<void> {
+    this.state = 'suspended';
+    return Promise.resolve();
+  }
 }
 /** A stand-in OfflineAudioContext: engine.ts decodes each fetched file with it. The decoded "buffer" keeps the path. */
 class FakeOffline {
-  decodeAudioData(data: { path: string }): Promise<{ path: string }> { return Promise.resolve(data); }
+  decodeAudioData(data: { path: string }): Promise<{ path: string }> {
+    return Promise.resolve(data);
+  }
 }
 
 const fetched: string[] = [];
@@ -69,7 +118,9 @@ async function fakeFetch(url: string) {
 
 let target: EventTarget;
 const gesture = (type: string): boolean => target.dispatchEvent(new Event(type));
-const flush = async (): Promise<void> => { for (let i = 0; i < 30; i++) await new Promise((r) => setTimeout(r, 0)); };
+const flush = async (): Promise<void> => {
+  for (let i = 0; i < 30; i++) await new Promise((r) => setTimeout(r, 0));
+};
 /** The sources started so far. None exist before the first gesture (no context yet). */
 const started = (): Source[] => FakeCtx.last?.sources.filter((s) => s.started) ?? [];
 const playedFiles = (): (string | undefined)[] => started().map((s) => s.buffer?.path);
@@ -202,7 +253,10 @@ describe('?debug cue board: files wait for booted', () => {
     Object.assign(new EventTarget(), { id: '', type: '', textContent: '', style: {}, setAttribute() {}, append() {} });
 
   it('fetches no cue file before booted; after booted the board files load', async () => {
-    vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'visible', createElement: fakeEl, body: { append() {} } }));
+    vi.stubGlobal(
+      'document',
+      Object.assign(new EventTarget(), { visibilityState: 'visible', createElement: fakeEl, body: { append() {} } }),
+    );
     const idx = await import('./index');
     const boot = await import('../boot');
     await import('./cueBoard'); // loaded now, so the board's dynamic import resolves within the flushes below
@@ -276,7 +330,9 @@ describe('ticket #58: the room loop waits for the boot screen', () => {
   it('a gesture before booted does not start the room loop; booted then starts it', async () => {
     const idx = await import('./index');
     const boot = await import('../boot');
-    idx.initAudio(undefined, undefined, () => idx.sceneOf({ booted: boot.booted.value, build: false, gallery: false, game: false }));
+    idx.initAudio(undefined, undefined, () =>
+      idx.sceneOf({ booted: boot.booted.value, build: false, gallery: false, game: false }),
+    );
     gesture('pointerdown');
     await flush();
     expect(roomStarted()).toBe(false);

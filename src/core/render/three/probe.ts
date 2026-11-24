@@ -2,7 +2,22 @@
 // materials take it for their ambient light and their reflections, so the light that falls into the room bounces off what is in it: the wood's
 // warmth on the plaster, the window in the desk's varnish, the dark of the night on the case. Each capture sees the last one on the walls, so a
 // few captures add a bounce each. A capture draws one face a frame: a sixth of a scene draw at a time, never the six in one frame.
-import { BackSide, BoxGeometry, CubeCamera, HalfFloatType, Mesh, Scene, ShaderMaterial, WebGLCubeRenderTarget, type Camera, type CubeTexture, type Light, type LightShadow, type Object3D, type WebGLRenderer } from 'three';
+import {
+  BackSide,
+  BoxGeometry,
+  CubeCamera,
+  HalfFloatType,
+  Mesh,
+  Scene,
+  ShaderMaterial,
+  WebGLCubeRenderTarget,
+  type Camera,
+  type CubeTexture,
+  type Light,
+  type LightShadow,
+  type Object3D,
+  type WebGLRenderer,
+} from 'three';
 import { startPrograms, type Program } from './compile';
 
 /** The cube's size: the PMREM's least (256), the same as the studio environment's, so a material keeps its program when it changes to the probe. */
@@ -16,8 +31,8 @@ const SIZE = 256;
 export const PROBE_CALM = 0.55;
 
 // the calm pass: a box round a second cube camera, each texel the capture's in the same direction with a share of its colour taken away
-const CALM_VERT = /* glsl */`varying vec3 vDir; void main() { vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
-const CALM_FRAG = /* glsl */`
+const CALM_VERT = /* glsl */ `varying vec3 vDir; void main() { vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+const CALM_FRAG = /* glsl */ `
 uniform samplerCube env; uniform float calm; varying vec3 vDir;
 void main() { vec3 c = textureCube(env, vDir).rgb; gl_FragColor = vec4(mix(c, vec3(dot(c, vec3(0.2126, 0.7152, 0.0722))), calm), 1.0); }`;
 
@@ -29,39 +44,60 @@ void main() { vec3 c = textureCube(env, vDir).rgb; gl_FragColor = vec4(mix(c, ve
  */
 export function leaveOut(root: Object3D): () => void {
   const lights: (Light & { shadow?: LightShadow })[] = [];
-  root.traverseVisible((o) => { if ((o as Light).isLight) lights.push(o as Light); });
+  root.traverseVisible((o) => {
+    if ((o as Light).isLight) lights.push(o as Light);
+  });
   if (!lights.length) {
     const shown = root.visible;
     root.visible = false;
-    return () => { root.visible = shown; };
+    return () => {
+      root.visible = shown;
+    };
   }
   // what leads to a light stays in three's walk; the rest is hidden whole
   const kept = new Set<Object3D>();
-  for (const l of lights) for (let o: Object3D | null = l; o && !kept.has(o); o = o === root ? null : o.parent) kept.add(o);
-  const hidden: Object3D[] = [], layers: [Object3D, number][] = [];
+  for (const l of lights)
+    for (let o: Object3D | null = l; o && !kept.has(o); o = o === root ? null : o.parent) kept.add(o);
+  const hidden: Object3D[] = [],
+    layers: [Object3D, number][] = [];
   const walk = (o: Object3D): void => {
     for (const c of o.children) {
-      if (!kept.has(c)) { if (c.visible) { c.visible = false; hidden.push(c); } continue; }
+      if (!kept.has(c)) {
+        if (c.visible) {
+          c.visible = false;
+          hidden.push(c);
+        }
+        continue;
+      }
       // an object over a light leaves by its layers: three does not draw it and still walks to its children
-      if (!(c as Light).isLight) { layers.push([c, c.layers.mask]); c.layers.mask = 0; }
+      if (!(c as Light).isLight) {
+        layers.push([c, c.layers.mask]);
+        c.layers.mask = 0;
+      }
       walk(c);
     }
   };
   walk(root);
   // a shadow map owed is drawn by the next frame, with the root in it
-  const strengths = lights.map((l) => l.intensity), owed = lights.filter((l) => l.shadow?.needsUpdate);
+  const strengths = lights.map((l) => l.intensity),
+    owed = lights.filter((l) => l.shadow?.needsUpdate);
   for (const l of lights) l.intensity = 0;
   for (const l of owed) l.shadow!.needsUpdate = false;
   return () => {
     for (const o of hidden) o.visible = true;
     for (const [o, mask] of layers) o.layers.mask = mask;
-    lights.forEach((l, i) => { l.intensity = strengths[i]!; });
+    lights.forEach((l, i) => {
+      l.intensity = strengths[i]!;
+    });
     for (const l of owed) l.shadow!.needsUpdate = true;
   };
 }
 
 /** What a probe draws with: the renderer's target and its draw (a stub in the tests). */
-type Drawer = Pick<WebGLRenderer, 'getRenderTarget' | 'getActiveCubeFace' | 'getActiveMipmapLevel' | 'setRenderTarget' | 'render' | 'coordinateSystem'>;
+type Drawer = Pick<
+  WebGLRenderer,
+  'getRenderTarget' | 'getActiveCubeFace' | 'getActiveMipmapLevel' | 'setRenderTarget' | 'render' | 'coordinateSystem'
+>;
 
 export class Probe {
   private target = new WebGLCubeRenderTarget(SIZE, { type: HalfFloatType });
@@ -84,19 +120,35 @@ export class Probe {
     if (calm > 0) {
       this.out = new WebGLCubeRenderTarget(SIZE, { type: HalfFloatType });
       this.outCam = new CubeCamera(0.1, 10, this.out);
-      const box = new Mesh(new BoxGeometry(2, 2, 2), new ShaderMaterial({ uniforms: { env: { value: this.target.texture }, calm: { value: calm } }, vertexShader: CALM_VERT, fragmentShader: CALM_FRAG, side: BackSide, depthTest: false, depthWrite: false }));
+      const box = new Mesh(
+        new BoxGeometry(2, 2, 2),
+        new ShaderMaterial({
+          uniforms: { env: { value: this.target.texture }, calm: { value: calm } },
+          vertexShader: CALM_VERT,
+          fragmentShader: CALM_FRAG,
+          side: BackSide,
+          depthTest: false,
+          depthWrite: false,
+        }),
+      );
       this.wash = new Scene().add(box);
     }
   }
 
   /** Starts linking the calm pass's program (`compile.ts`): the first capture's end would link it then, in a frame of the page. */
-  startPrograms(r: WebGLRenderer): Program[] { return this.wash && this.outCam ? startPrograms(r, this.wash, this.outCam.children[0] as Camera) : []; }
+  startPrograms(r: WebGLRenderer): Program[] {
+    return this.wash && this.outCam ? startPrograms(r, this.wash, this.outCam.children[0] as Camera) : [];
+  }
 
   /** The cube a material takes as its `envMap` (once `ready`): three prefilters it again after each capture. */
-  get texture(): CubeTexture { return (this.out ?? this.target).texture; }
+  get texture(): CubeTexture {
+    return (this.out ?? this.target).texture;
+  }
 
   /** Is a capture under way? */
-  get busy(): boolean { return this.face >= 0; }
+  get busy(): boolean {
+    return this.face >= 0;
+  }
 
   /** The point it sees from (world). */
   at(x: number, y: number, z: number): void {
@@ -116,8 +168,13 @@ export class Probe {
    */
   step(renderer: Drawer, scene: Object3D, hide: Object3D | null = null): boolean {
     if (this.face < 0) return false;
-    if (this.cam.coordinateSystem !== renderer.coordinateSystem) { this.cam.coordinateSystem = renderer.coordinateSystem; this.cam.updateCoordinateSystem(); }
-    const was = renderer.getRenderTarget(), wasFace = renderer.getActiveCubeFace(), wasLevel = renderer.getActiveMipmapLevel();
+    if (this.cam.coordinateSystem !== renderer.coordinateSystem) {
+      this.cam.coordinateSystem = renderer.coordinateSystem;
+      this.cam.updateCoordinateSystem();
+    }
+    const was = renderer.getRenderTarget(),
+      wasFace = renderer.getActiveCubeFace(),
+      wasLevel = renderer.getActiveMipmapLevel();
     const back = hide ? leaveOut(hide) : null;
     renderer.setRenderTarget(this.target, this.face);
     renderer.render(scene, this.cam.children[this.face] as Camera);
@@ -126,8 +183,14 @@ export class Probe {
     if (++this.face < 6) return false;
     if (this.out && this.outCam && this.wash) {
       // the calm pass: six small draws of one box, at the capture's end only
-      if (this.outCam.coordinateSystem !== renderer.coordinateSystem) { this.outCam.coordinateSystem = renderer.coordinateSystem; this.outCam.updateCoordinateSystem(); }
-      for (let i = 0; i < 6; i++) { renderer.setRenderTarget(this.out, i); renderer.render(this.wash, this.outCam.children[i] as Camera); }
+      if (this.outCam.coordinateSystem !== renderer.coordinateSystem) {
+        this.outCam.coordinateSystem = renderer.coordinateSystem;
+        this.outCam.updateCoordinateSystem();
+      }
+      for (let i = 0; i < 6; i++) {
+        renderer.setRenderTarget(this.out, i);
+        renderer.render(this.wash, this.outCam.children[i] as Camera);
+      }
       renderer.setRenderTarget(was, wasFace, wasLevel);
     }
     this.texture.needsPMREMUpdate = true;
@@ -141,6 +204,9 @@ export class Probe {
     this.target.dispose();
     this.out?.dispose();
     const box = this.wash?.children[0] as Mesh | undefined;
-    if (box) { box.geometry.dispose(); (box.material as ShaderMaterial).dispose(); }
+    if (box) {
+      box.geometry.dispose();
+      (box.material as ShaderMaterial).dispose();
+    }
   }
 }

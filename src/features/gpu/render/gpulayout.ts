@@ -1,6 +1,12 @@
 import { specsOfKind } from '../../board/sim/specs';
 import type { Pt } from '../../cpu/render/core/cpuplan';
-import { gpuPlanInput, type GpuBlock, type GpuLinkKind, type GpuPlan as DiePlan, type GpuPlanInput } from './plan/gpuplan';
+import {
+  gpuPlanInput,
+  type GpuBlock,
+  type GpuLinkKind,
+  type GpuPlan as DiePlan,
+  type GpuPlanInput,
+} from './plan/gpuplan';
 import { DIE_GAP, gpuCells, GPU_DIE, GPU_MEM, gpuPlan as dieOf, maskParts } from './plan/gpuplans';
 import type { Rect } from '../../board/render/layout/layout';
 
@@ -10,7 +16,13 @@ import type { Rect } from '../../board/render/layout/layout';
 // `cpuplan` for the die: the tooltip test enumerates the ids from here, so a part cannot be drawn without a description.
 
 /** The PCB: a fan band over the dies, a margin all round, the host side and the power plugs at the ends. */
-const SHROUD_X = 150, TAIL = 180, MARGIN = 12, FAN_Y = 4, FAN_H = 130, FAN_W = 900, DIE_Y = 138;
+const SHROUD_X = 150,
+  TAIL = 180,
+  MARGIN = 12,
+  FAN_Y = 4,
+  FAN_H = 130,
+  FAN_W = 900,
+  DIE_Y = 138;
 /** How far a card's north edge is above its slot's rail: a card hangs mostly below the rail, away from the CPU. */
 export const CARD_TOP = 150;
 
@@ -18,14 +30,22 @@ export const CARD_TOP = 150;
 const dieSpan = (kind: GpuPlanInput['kind']): number => GPU_DIE[kind].w + DIE_GAP + GPU_MEM.w;
 
 /** Card size by the spec's `visual` key; the card hangs from its slot's rail (`CARD_TOP`): the fans over the dies, the main die as tall as the card. */
-export const GPU_LEN: Record<string, number> = Object.fromEntries(specsOfKind('gpu').map((s) => [s.visual, dieSpan(gpuPlanInput(s.gpu!).kind) + 2 * MARGIN + SHROUD_X + TAIL]));
-export const GPU_H: Record<string, number> = Object.fromEntries(specsOfKind('gpu').map((s) => [s.visual, DIE_Y + GPU_DIE[gpuPlanInput(s.gpu!).kind].h + MARGIN]));
+export const GPU_LEN: Record<string, number> = Object.fromEntries(
+  specsOfKind('gpu').map((s) => [s.visual, dieSpan(gpuPlanInput(s.gpu!).kind) + 2 * MARGIN + SHROUD_X + TAIL]),
+);
+export const GPU_H: Record<string, number> = Object.fromEntries(
+  specsOfKind('gpu').map((s) => [s.visual, DIE_Y + GPU_DIE[gpuPlanInput(s.gpu!).kind].h + MARGIN]),
+);
 
 /** A fan module seen edge-on, like the case fans (card-local rectangle, long side along x). */
 export type GpuFan = Rect;
 
 /** One SM's vector registers on the card: `rows[r]` is register r's strip, `cols` lanes wide, the first lane `lane0`. */
-export interface RegSet { lane0: number; cols: number; rows: Rect[] }
+export interface RegSet {
+  lane0: number;
+  cols: number;
+  rows: Rect[];
+}
 
 export interface GpuPlan {
   visual: string;
@@ -76,7 +96,17 @@ export interface GpuPlan {
   mem: Rect;
 }
 
-const FALLBACK: GpuPlanInput = { kind: 'simd', sms: 1, warps: 1, lanes: 8, banks: 1, memBytes: 8192, lineWords: 1, l1Lines: 0, l2Lines: 0 };
+const FALLBACK: GpuPlanInput = {
+  kind: 'simd',
+  sms: 1,
+  warps: 1,
+  lanes: 8,
+  banks: 1,
+  memBytes: 8192,
+  lineWords: 1,
+  l1Lines: 0,
+  l2Lines: 0,
+};
 
 /** The plan input of a card, from its spec (so a new tier needs no change here). */
 export function gpuInputOf(visual: string): GpuPlanInput {
@@ -98,50 +128,105 @@ const cache = new Map<string, GpuPlan>();
 export function gpuPlan(visual: string): GpuPlan {
   const hit = cache.get(visual);
   if (hit) return hit;
-  const input = gpuInputOf(visual), die = dieOf(input), { lanes, banks, memBytes } = input;
-  const w = GPU_LEN[visual] ?? SHROUD_X + 2 * MARGIN + die.die.w + TAIL, h = GPU_H[visual] ?? DIE_Y + die.die.h + MARGIN;
+  const input = gpuInputOf(visual),
+    die = dieOf(input),
+    { lanes, banks, memBytes } = input;
+  const w = GPU_LEN[visual] ?? SHROUD_X + 2 * MARGIN + die.die.w + TAIL,
+    h = GPU_H[visual] ?? DIE_Y + die.die.h + MARGIN;
   const shroud: Rect = { x: SHROUD_X, y: MARGIN, w: die.die.w + 2 * MARGIN, h: h - 2 * MARGIN };
-  const n = gpuFanCount(visual), cell = shroud.w / n;
+  const n = gpuFanCount(visual),
+    cell = shroud.w / n;
   const fans: GpuFan[] = Array.from({ length: n }, (_, k) => {
     const fw = Math.min(FAN_W, cell - 120);
     return { x: shroud.x + cell * (k + 0.5) - fw / 2, y: FAN_Y, w: fw, h: FAN_H };
   });
-  const origin = { x: SHROUD_X + MARGIN, y: DIE_Y }, body: Rect = { x: origin.x, y: origin.y, w: die.die.w, h: die.die.h };
+  const origin = { x: SHROUD_X + MARGIN, y: DIE_Y },
+    body: Rect = { x: origin.x, y: origin.y, w: die.die.w, h: die.die.h };
   const mv = (r: Rect): Rect => ({ x: r.x + origin.x, y: r.y + origin.y, w: r.w, h: r.h });
   const get = (id: string): GpuBlock => die.blocks.find((b) => b.id === id)!;
-  const per = lanes / input.sms, laneCells: Rect[] = [], maskBits: Rect[] = [], regSets: RegSet[] = [], warpCells: GpuPlan['warpCells'] = [];
+  const per = lanes / input.sms,
+    laneCells: Rect[] = [],
+    maskBits: Rect[] = [],
+    regSets: RegSet[] = [],
+    warpCells: GpuPlan['warpCells'] = [];
   let first: { lanes: Rect; regs: Rect; mask: ReturnType<typeof maskParts>; pc: Rect; banks: Rect[] } | null = null;
   for (let k = 0; k < input.sms; k++) {
-    const p = input.sms > 1 ? `sm${k}.` : '', lb = get(`${p}lanes`), rb = get(`${p}regs`), mb = get(`${p}mask`);
+    const p = input.sms > 1 ? `sm${k}.` : '',
+      lb = get(`${p}lanes`),
+      rb = get(`${p}regs`),
+      mb = get(`${p}mask`);
     laneCells.push(...gpuCells(lb).map(mv));
     const m = maskParts(mb.rect, per);
     maskBits.push(...m.bits.map(mv));
-    const rc = gpuCells(rb), rows = Array.from({ length: 8 }, (_, r): Rect => {
-      const a = rc[r * per]!, z = rc[r * per + per - 1]!;
-      return mv({ x: a.x, y: a.y, w: z.x + z.w - a.x, h: a.h });
-    });
+    const rc = gpuCells(rb),
+      rows = Array.from({ length: 8 }, (_, r): Rect => {
+        const a = rc[r * per]!,
+          z = rc[r * per + per - 1]!;
+        return mv({ x: a.x, y: a.y, w: z.x + z.w - a.x, h: a.h });
+      });
     regSets.push({ lane0: k * per, cols: per, rows });
     const wb = die.blocks.find((b) => b.id === `${p}warps`);
     if (wb) gpuCells(wb).forEach((r, warp) => warpCells.push({ sm: k, warp, rect: mv(r) }));
     if (!first) {
       const bb = die.blocks.find((b) => b.id === `${p}banks`) ?? get(`${p}arb`);
-      first = { lanes: mv(lb.rect), regs: mv(rb.rect), mask: { ...m, strip: mv(m.strip), stack: mv(m.stack), slots: m.slots.map(mv) }, pc: mv((die.blocks.find((b) => b.id === 'pc') ?? get(`${p}fetch`)).rect), banks: gpuCells(bb).map(mv) };
+      first = {
+        lanes: mv(lb.rect),
+        regs: mv(rb.rect),
+        mask: { ...m, strip: mv(m.strip), stack: mv(m.stack), slots: m.slots.map(mv) },
+        pc: mv((die.blocks.find((b) => b.id === 'pc') ?? get(`${p}fetch`)).rect),
+        banks: gpuCells(bb).map(mv),
+      };
     }
   }
   const f = first!;
   const plan: GpuPlan = {
-    visual, lanes, banks, memBytes, w, h, shroud, body, fans, die, origin, core: mv(die.core), memory: mv(die.memory),
+    visual,
+    lanes,
+    banks,
+    memBytes,
+    w,
+    h,
+    shroud,
+    body,
+    fans,
+    die,
+    origin,
+    core: mv(die.core),
+    memory: mv(die.memory),
     blocks: die.blocks.map((b) => ({ id: b.id, kind: b.kind, rect: mv(b.rect), sm: b.sm })),
-    links: die.links.map((l) => ({ id: l.id, kind: l.kind, lanes: l.lanes, pts: l.pts.map((p): Pt => [p[0] + origin.x, p[1] + origin.y]) })),
-    link: mv(get('pcie').rect), pc: f.pc, laneCells, lanesBlock: f.lanes, mask: f.mask.strip, maskBits, maskStack: f.mask.stack, maskSlots: f.mask.slots,
-    regs: f.regs, regRows: regSets[0]!.rows, regSets, perSm: per, decode: mv(get(input.sms > 1 ? 'sm0.decode' : 'decode').rect), warpCells, bankBars: f.banks, mem: mv(get('dram').rect),
+    links: die.links.map((l) => ({
+      id: l.id,
+      kind: l.kind,
+      lanes: l.lanes,
+      pts: l.pts.map((p): Pt => [p[0] + origin.x, p[1] + origin.y]),
+    })),
+    link: mv(get('pcie').rect),
+    pc: f.pc,
+    laneCells,
+    lanesBlock: f.lanes,
+    mask: f.mask.strip,
+    maskBits,
+    maskStack: f.mask.stack,
+    maskSlots: f.mask.slots,
+    regs: f.regs,
+    regRows: regSets[0]!.rows,
+    regSets,
+    perSm: per,
+    decode: mv(get(input.sms > 1 ? 'sm0.decode' : 'decode').rect),
+    warpCells,
+    bankBars: f.banks,
+    mem: mv(get('dram').rect),
   };
   cache.set(visual, plan);
   return plan;
 }
 
 /** A hoverable part: the id without its slot (`lane3`; the full id is `pcie1.lane3`), its card-local rectangle, and whether it is a part of the zoomed-in view (the fans are seen from afar). */
-export interface GpuPart { id: string; rect: Rect; inner: boolean }
+export interface GpuPart {
+  id: string;
+  rect: Rect;
+  inner: boolean;
+}
 
 /** Every part with an id, most specific first (the first hit wins): the fans, a lane, a bank, a warp, the mask stack, then each block of the die by its plan id
  * (`pcie`, `fetch`, `regs`, `sm0.lanes`...), the SM frames, and the shroud last. */
@@ -160,7 +245,13 @@ export function gpuParts(p: GpuPlan): GpuPart[] {
 }
 
 /** The ids of every part of a card in PCIe slot `slot` (`pcie0`..), for the hover table and its test. */
-export const gpuIds = (visual: string, slot: string): string[] => gpuParts(gpuPlan(visual)).map((x) => `${slot}.${x.id}`);
+export const gpuIds = (visual: string, slot: string): string[] =>
+  gpuParts(gpuPlan(visual)).map((x) => `${slot}.${x.id}`);
 
 /** The card-local rectangle moved to board space, given the card's north-west corner. */
-export const moveRect = (r: Rect, o: { x: number; y: number }): Rect => ({ x: r.x + o.x, y: r.y + o.y, w: r.w, h: r.h });
+export const moveRect = (r: Rect, o: { x: number; y: number }): Rect => ({
+  x: r.x + o.x,
+  y: r.y + o.y,
+  w: r.w,
+  h: r.h,
+});

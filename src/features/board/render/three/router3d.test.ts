@@ -3,10 +3,29 @@ import { describe, expect, it } from 'vitest';
 import { Box3, Mesh, MeshStandardMaterial, type Object3D } from 'three';
 import { ROUTER_SPOT, setLayoutTier } from '../layout/layout';
 import { MM } from './pcbkit3d';
-import { CAGE, LED_ON, PITCH, qsfpPorts, RJ, ROUTER_BODY, ROUTER_SIZE, ROUTER_UNDER, routerFit, routerJack, routerModel, routerTier } from './router3d';
+import {
+  CAGE,
+  LED_ON,
+  PITCH,
+  qsfpPorts,
+  RJ,
+  ROUTER_BODY,
+  ROUTER_SIZE,
+  ROUTER_UNDER,
+  routerFit,
+  routerJack,
+  routerModel,
+  routerTier,
+} from './router3d';
 
 const TIERS = [1, 2, 3, 4];
-const meshes = (o: Object3D): Mesh[] => { const out: Mesh[] = []; o.traverse((c) => { if ((c as Mesh).isMesh) out.push(c as Mesh); }); return out; };
+const meshes = (o: Object3D): Mesh[] => {
+  const out: Mesh[] = [];
+  o.traverse((c) => {
+    if ((c as Mesh).isMesh) out.push(c as Mesh);
+  });
+  return out;
+};
 const boxOf = (o: Object3D): Box3 => new Box3().setFromObject(o);
 /** A light that gives light: a colour and an intensity. */
 const lit = (m: MeshStandardMaterial): boolean => m.emissive.getHex() !== 0 && m.emissiveIntensity > 0;
@@ -23,7 +42,9 @@ describe('routerTier', () => {
 describe('the four routers', () => {
   it('stand on the shelf with their east end at x = 0, the body the size of its tier', () => {
     for (const t of TIERS) {
-      const m = routerModel(t), b = boxOf(m.root), { w, h } = ROUTER_SIZE[t]!;
+      const m = routerModel(t),
+        b = boxOf(m.root),
+        { w, h } = ROUTER_SIZE[t]!;
       expect(m.size, `tier ${t}`).toEqual({ w, h, depth: ROUTER_BODY });
       expect(b.min.y, `tier ${t} feet on the shelf`).toBeCloseTo(0, 3);
       expect(b.max.y, `tier ${t} top`).toBeGreaterThanOrEqual(h);
@@ -33,7 +54,10 @@ describe('the four routers', () => {
       expect(b.max.x, `tier ${t} east end`).toBeLessThanOrEqual(out + 1e-6);
       expect(b.min.x, `tier ${t} west end`).toBeLessThanOrEqual(-w + 1e-6);
       expect(b.min.x, `tier ${t} west end`).toBeGreaterThanOrEqual(-w - out - 1e-6);
-      if (t >= 3) { expect(b.max.x, `tier ${t}`).toBeCloseTo(out, 3); expect(b.min.x, `tier ${t}`).toBeCloseTo(-w - out, 3); }
+      if (t >= 3) {
+        expect(b.max.x, `tier ${t}`).toBeCloseTo(out, 3);
+        expect(b.min.x, `tier ${t}`).toBeCloseTo(-w - out, 3);
+      }
     }
   });
 
@@ -46,7 +70,8 @@ describe('the four routers', () => {
   });
 
   it('keep the lit bar and the fins within 60 of the top, where there are no aerials', () => {
-    for (const t of [3, 4]) expect(boxOf(routerModel(t).root).max.y, `tier ${t}`).toBeLessThanOrEqual(ROUTER_SIZE[t]!.h + 60);
+    for (const t of [3, 4])
+      expect(boxOf(routerModel(t).root).max.y, `tier ${t}`).toBeLessThanOrEqual(ROUTER_SIZE[t]!.h + 60);
   });
 
   it('give the home and the gigabit router two aerials that reach over the body, and the others none', () => {
@@ -97,19 +122,27 @@ describe('the front jacks', () => {
 
   it('have two lights of their own on each jack, all out as built: the link and its frames light them, never the model', () => {
     for (const t of TIERS) {
-      const m = routerModel(t), j = m.jacks as { link: MeshStandardMaterial; act: MeshStandardMaterial }[];
+      const m = routerModel(t),
+        j = m.jacks as { link: MeshStandardMaterial; act: MeshStandardMaterial }[];
       expect(j, `tier ${t}`).toHaveLength(5);
       expect(new Set(j.flatMap((x) => [x.link, x.act])).size, `tier ${t}`).toBe(10);
       for (const x of j) expect(lit(x.link) || lit(x.act), `tier ${t}`).toBe(false);
       // (each light is a lens on the front: some mesh draws with it)
       const used = new Set(meshes(m.root).map((c) => c.material));
-      for (const x of j) { expect(used.has(x.link), `tier ${t} link`).toBe(true); expect(used.has(x.act), `tier ${t} act`).toBe(true); }
+      for (const x of j) {
+        expect(used.has(x.link), `tier ${t} link`).toBe(true);
+        expect(used.has(x.act), `tier ${t} act`).toBe(true);
+      }
     }
   });
 
   it('have lights only on the jacks the scene drives: a plain dark lens, with no glow to draw, on the others', () => {
-    const glowing = (o: Object3D): number => meshes(o).filter((c) => (c.material as MeshStandardMaterial).emissive.getHex() !== 0).length;
-    const none = routerModel(3, { drive: [] }), wan = routerModel(3, { drive: [4] }), both = routerModel(3, { drive: [0, 4] }), all = routerModel(3);
+    const glowing = (o: Object3D): number =>
+      meshes(o).filter((c) => (c.material as MeshStandardMaterial).emissive.getHex() !== 0).length;
+    const none = routerModel(3, { drive: [] }),
+      wan = routerModel(3, { drive: [4] }),
+      both = routerModel(3, { drive: [0, 4] }),
+      all = routerModel(3);
     expect(none.jacks).toEqual([null, null, null, null, null]);
     expect(wan.jacks.map((x) => x !== null)).toEqual([false, false, false, false, true]);
     expect(both.jacks.map((x) => x !== null)).toEqual([true, false, false, false, true]);
@@ -128,7 +161,7 @@ describe("the edge router's QSFP+ ports", () => {
     expect(qsfpPorts(5)).toBe(0);
   });
 
-  it('are real cages, 18.95 x 10 mm, in the 19.13 mm of the jacks\' pitch and inside the front like the jacks', () => {
+  it("are real cages, 18.95 x 10 mm, in the 19.13 mm of the jacks' pitch and inside the front like the jacks", () => {
     expect(CAGE.w / MM).toBeCloseTo(18.95, 5);
     expect(CAGE.h / MM).toBeCloseTo(10, 5);
     expect(CAGE.w).toBeLessThan(PITCH);
@@ -144,13 +177,20 @@ describe("the edge router's QSFP+ ports", () => {
     }
   });
 
-  it('put each port\'s two lenses in the bezel over its cage, 5.3 mm either side of its middle, the link light west', () => {
-    const m = routerModel(4), j = m.jacks as { link: MeshStandardMaterial; act: MeshStandardMaterial }[];
+  it("put each port's two lenses in the bezel over its cage, 5.3 mm either side of its middle, the link light west", () => {
+    const m = routerModel(4),
+      j = m.jacks as { link: MeshStandardMaterial; act: MeshStandardMaterial }[];
     // (the jacks stand in a turned group: its matrices first, so a mesh's box is where it stands in the router)
     m.root.updateMatrixWorld(true);
-    const lens = (mat: MeshStandardMaterial) => { const b = new Box3(); for (const c of meshes(m.root)) if (c.material === mat) b.expandByObject(c); return b; };
+    const lens = (mat: MeshStandardMaterial) => {
+      const b = new Box3();
+      for (const c of meshes(m.root)) if (c.material === mat) b.expandByObject(c);
+      return b;
+    };
     for (let k = 0; k < qsfpPorts(4); k++) {
-      const [x, y] = routerJack(k), link = lens(j[k]!.link), act = lens(j[k]!.act);
+      const [x, y] = routerJack(k),
+        link = lens(j[k]!.link),
+        act = lens(j[k]!.act);
       expect((link.min.x + link.max.x) / 2, `cage ${k} link`).toBeCloseTo(x - 5.3 * MM, 3);
       expect((act.min.x + act.max.x) / 2, `cage ${k} act`).toBeCloseTo(x + 5.3 * MM, 3);
       // (clear over the cage's top edge, and standing in the front, not in its mouth)
@@ -161,15 +201,17 @@ describe("the edge router's QSFP+ ports", () => {
       }
     }
     // (the other tiers' lights are in the RJ45's own face: under the top of its mouth)
-    const rj = routerModel(3), jj = rj.jacks as { link: MeshStandardMaterial }[];
+    const rj = routerModel(3),
+      jj = rj.jacks as { link: MeshStandardMaterial }[];
     rj.root.updateMatrixWorld(true);
     const b3 = new Box3();
     for (const c of meshes(rj.root)) if (c.material === jj[0]!.link) b3.expandByObject(c);
     expect(b3.max.y, 'tier 3').toBeLessThan(routerJack(0)[1] + RJ.h / 2);
   });
 
-  it('leave the cages\' connectors out at the fine setting off, as the jacks\' springs', () => {
-    const fine = meshes(routerModel(4, { fine: true }).root).length, plain = meshes(routerModel(4, { fine: false }).root).length;
+  it("leave the cages' connectors out at the fine setting off, as the jacks' springs", () => {
+    const fine = meshes(routerModel(4, { fine: true }).root).length,
+      plain = meshes(routerModel(4, { fine: false }).root).length;
     // (three draws a cage: its connector's housing, its slot, its 38 contacts)
     expect(fine - plain).toBeGreaterThanOrEqual(3 * qsfpPorts(4));
   });
@@ -205,28 +247,34 @@ describe('the options', () => {
 
   it('add a back panel unless it is left out', () => {
     for (const t of TIERS) {
-      const withBack = routerModel(t), without = routerModel(t, { rear: false });
+      const withBack = routerModel(t),
+        without = routerModel(t, { rear: false });
       expect(meshes(withBack.root).length, `tier ${t}`).toBeGreaterThan(meshes(without.root).length);
       expect(boxOf(withBack.root).min.z, `tier ${t}`).toBeLessThan(boxOf(without.root).min.z);
     }
   });
 
   it('leave out the springs and the comb of the jacks at the fine setting off', () => {
-    for (const t of TIERS) expect(meshes(routerModel(t, { fine: false }).root).length, `tier ${t}`).toBeLessThan(meshes(routerModel(t, { fine: true }).root).length);
+    for (const t of TIERS)
+      expect(meshes(routerModel(t, { fine: false }).root).length, `tier ${t}`).toBeLessThan(
+        meshes(routerModel(t, { fine: true }).root).length,
+      );
   });
 
   it('build the same router twice, and free it without a trace', () => {
-    const a = routerModel(4), b = routerModel(4);
+    const a = routerModel(4),
+      b = routerModel(4);
     expect(meshes(a.root).length).toBe(meshes(b.root).length);
     expect(boxOf(a.root).equals(boxOf(b.root))).toBe(true);
   });
 });
 
 describe('where the room stands the router', () => {
-  it('fits the box of each tier in the spot at one scale, its east end and its shelf on the spot\'s, and gives the front bezel from the shell\'s underside to the top', () => {
+  it("fits the box of each tier in the spot at one scale, its east end and its shelf on the spot's, and gives the front bezel from the shell's underside to the top", () => {
     const spot = { x: -8000, y: -4000, w: 2320, h: 609 };
     for (const t of TIERS) {
-      const { k, front, face } = routerFit(t, spot), { w, h } = ROUTER_SIZE[t]!;
+      const { k, front, face } = routerFit(t, spot),
+        { w, h } = ROUTER_SIZE[t]!;
       expect(k, `tier ${t}`).toBeCloseTo(Math.min(spot.w / w, spot.h / h), 9);
       expect(k * w, `tier ${t} across`).toBeLessThanOrEqual(spot.w + 1e-6);
       expect(k * h, `tier ${t} up`).toBeLessThanOrEqual(spot.h + 1e-6);
@@ -240,9 +288,10 @@ describe('where the room stands the router', () => {
     }
   });
 
-  it('reads the room\'s router spot when none is given, and has a tier it does not know as the home router', () => {
+  it("reads the room's router spot when none is given, and has a tier it does not know as the home router", () => {
     setLayoutTier(3, 3);
-    const a = routerFit(2), b = routerFit(2, ROUTER_SPOT);
+    const a = routerFit(2),
+      b = routerFit(2, ROUTER_SPOT);
     expect(a).toEqual(b);
     expect(routerFit(99)).toEqual(routerFit(1));
   });

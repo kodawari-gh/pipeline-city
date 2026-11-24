@@ -1,20 +1,29 @@
 // Trivial functional reference interpreter: one instruction per step, no timing.
 // Ground truth for the timed engines.
 
-import { decode, REG_COUNT, REG_SP } from "../isa/isa";
+import { decode, REG_COUNT, REG_SP } from '../isa/isa';
 import {
-  DISPLAY_BASE, DISPLAY_COLS, DISPLAY_ROWS, DISPLAY_SIZE,
-  RAM_BASE, RAM_DEFAULT_SIZE, STATUS_BASE, STATUS_SIZE,
-} from "@/core/sim/memmap";
+  DISPLAY_BASE,
+  DISPLAY_COLS,
+  DISPLAY_ROWS,
+  DISPLAY_SIZE,
+  RAM_BASE,
+  RAM_DEFAULT_SIZE,
+  STATUS_BASE,
+  STATUS_SIZE,
+} from '@/core/sim/memmap';
 
-import type { Device } from "@/core/sim/hw/device";
-import { Prng } from "@/core/sim/prng";
-import { TpmPort } from "@/features/tpm/sim/tpm";
+import type { Device } from '@/core/sim/hw/device';
+import { Prng } from '@/core/sim/prng';
+import { TpmPort } from '@/features/tpm/sim/tpm';
 
 export class RefFault extends Error {
-  constructor(public pc: number, msg: string) {
+  constructor(
+    public pc: number,
+    msg: string,
+  ) {
     super(`pc=0x${pc.toString(16)}: ${msg}`);
-    this.name = "RefFault";
+    this.name = 'RefFault';
   }
 }
 
@@ -81,7 +90,14 @@ export class RefMemory {
     const r = this.find(addr, 4);
     if (!r) {
       const d = this.device(addr, 4);
-      if (d) return (d.read(addr - d.base) | (d.read(addr - d.base + 1) << 8) | (d.read(addr - d.base + 2) << 16) | (d.read(addr - d.base + 3) << 24)) >>> 0;
+      if (d)
+        return (
+          (d.read(addr - d.base) |
+            (d.read(addr - d.base + 1) << 8) |
+            (d.read(addr - d.base + 2) << 16) |
+            (d.read(addr - d.base + 3) << 24)) >>>
+          0
+        );
       throw new RangeError(`load32 from unmapped address 0x${addr.toString(16)}`);
     }
     return r.view.getUint32(addr - r.base, true);
@@ -117,15 +133,15 @@ export class RefMemory {
   displayText(): string {
     const rows: string[] = [];
     for (let y = 0; y < DISPLAY_ROWS; y++) {
-      let s = "";
+      let s = '';
       for (let x = 0; x < DISPLAY_COLS; x++) {
         const b = this.display.bytes[y * DISPLAY_COLS + x]!;
-        s += b === 0 ? " " : String.fromCharCode(b);
+        s += b === 0 ? ' ' : String.fromCharCode(b);
       }
       rows.push(s.trimEnd());
     }
-    while (rows.length > 0 && rows[rows.length - 1] === "") rows.pop();
-    return rows.join("\n");
+    while (rows.length > 0 && rows[rows.length - 1] === '') rows.pop();
+    return rows.join('\n');
   }
 }
 
@@ -184,57 +200,133 @@ export class RefCpu {
     let res: number | null = null; // value to write to rd
 
     switch (i.name) {
-      case "add": res = a + b; break;
-      case "sub": res = a - b; break;
-      case "and": res = a & b; break;
-      case "or": res = a | b; break;
-      case "xor": res = a ^ b; break;
-      case "sll": res = a << (b & 31); break;
-      case "srl": res = a >>> (b & 31); break;
-      case "sra": res = a >> (b & 31); break;
-      case "slt": res = a < b ? 1 : 0; break;
-      case "sltu": res = a >>> 0 < b >>> 0 ? 1 : 0; break;
-      case "mul": res = Math.imul(a, b); break;
-      case "addi": res = a + i.imm; break;
-      case "andi": res = a & i.imm; break;
-      case "ori": res = a | i.imm; break;
-      case "xori": res = a ^ i.imm; break;
-      case "slli": res = a << i.imm; break;
-      case "srli": res = a >>> i.imm; break;
-      case "srai": res = a >> i.imm; break;
-      case "slti": res = a < i.imm ? 1 : 0; break;
-      case "sltiu": res = a >>> 0 < i.imm >>> 0 ? 1 : 0; break;
-      case "lw": res = this.mem.load32((a + i.imm) >>> 0); break;
-      case "lb": res = (this.mem.load8((a + i.imm) >>> 0) << 24) >> 24; break;
-      case "lbu": res = this.mem.load8((a + i.imm) >>> 0); break;
-      case "sw": this.mem.store32((a + i.imm) >>> 0, b); break;
-      case "sb": this.mem.store8((a + i.imm) >>> 0, b); break;
-      case "amoadd":
-      case "amoswap": {
+      case 'add':
+        res = a + b;
+        break;
+      case 'sub':
+        res = a - b;
+        break;
+      case 'and':
+        res = a & b;
+        break;
+      case 'or':
+        res = a | b;
+        break;
+      case 'xor':
+        res = a ^ b;
+        break;
+      case 'sll':
+        res = a << (b & 31);
+        break;
+      case 'srl':
+        res = a >>> (b & 31);
+        break;
+      case 'sra':
+        res = a >> (b & 31);
+        break;
+      case 'slt':
+        res = a < b ? 1 : 0;
+        break;
+      case 'sltu':
+        res = a >>> 0 < b >>> 0 ? 1 : 0;
+        break;
+      case 'mul':
+        res = Math.imul(a, b);
+        break;
+      case 'addi':
+        res = a + i.imm;
+        break;
+      case 'andi':
+        res = a & i.imm;
+        break;
+      case 'ori':
+        res = a | i.imm;
+        break;
+      case 'xori':
+        res = a ^ i.imm;
+        break;
+      case 'slli':
+        res = a << i.imm;
+        break;
+      case 'srli':
+        res = a >>> i.imm;
+        break;
+      case 'srai':
+        res = a >> i.imm;
+        break;
+      case 'slti':
+        res = a < i.imm ? 1 : 0;
+        break;
+      case 'sltiu':
+        res = a >>> 0 < i.imm >>> 0 ? 1 : 0;
+        break;
+      case 'lw':
+        res = this.mem.load32((a + i.imm) >>> 0);
+        break;
+      case 'lb':
+        res = (this.mem.load8((a + i.imm) >>> 0) << 24) >> 24;
+        break;
+      case 'lbu':
+        res = this.mem.load8((a + i.imm) >>> 0);
+        break;
+      case 'sw':
+        this.mem.store32((a + i.imm) >>> 0, b);
+        break;
+      case 'sb':
+        this.mem.store8((a + i.imm) >>> 0, b);
+        break;
+      case 'amoadd':
+      case 'amoswap': {
         const addr = a >>> 0;
-        if (!this.mem.isRamWord(addr)) throw new RangeError(`${i.name} needs a word-aligned RAM address, got 0x${addr.toString(16)}`);
+        if (!this.mem.isRamWord(addr))
+          throw new RangeError(`${i.name} needs a word-aligned RAM address, got 0x${addr.toString(16)}`);
         const old = this.mem.load32(addr) | 0;
-        this.mem.store32(addr, i.name === "amoadd" ? old + b : b);
+        this.mem.store32(addr, i.name === 'amoadd' ? old + b : b);
         res = old;
         break;
       }
-      case "beq": if (a === b) next = (pc + i.imm) >>> 0; break;
-      case "bne": if (a !== b) next = (pc + i.imm) >>> 0; break;
-      case "blt": if (a < b) next = (pc + i.imm) >>> 0; break;
-      case "bge": if (a >= b) next = (pc + i.imm) >>> 0; break;
-      case "bltu": if (a >>> 0 < b >>> 0) next = (pc + i.imm) >>> 0; break;
-      case "bgeu": if (a >>> 0 >= b >>> 0) next = (pc + i.imm) >>> 0; break;
-      case "lui": res = i.imm << 11; break;
-      case "auipc": res = pc + (i.imm << 11); break;
-      case "jal": res = pc + 4; next = (pc + i.imm) >>> 0; break;
-      case "jalr": res = pc + 4; next = ((a + i.imm) & ~3) >>> 0; break;
-      case "ecall": this.halted = true; break;
-      case "iret":
-        if (!this.intc) throw new RefFault(pc, "iret without an interrupt controller");
+      case 'beq':
+        if (a === b) next = (pc + i.imm) >>> 0;
+        break;
+      case 'bne':
+        if (a !== b) next = (pc + i.imm) >>> 0;
+        break;
+      case 'blt':
+        if (a < b) next = (pc + i.imm) >>> 0;
+        break;
+      case 'bge':
+        if (a >= b) next = (pc + i.imm) >>> 0;
+        break;
+      case 'bltu':
+        if (a >>> 0 < b >>> 0) next = (pc + i.imm) >>> 0;
+        break;
+      case 'bgeu':
+        if (a >>> 0 >= b >>> 0) next = (pc + i.imm) >>> 0;
+        break;
+      case 'lui':
+        res = i.imm << 11;
+        break;
+      case 'auipc':
+        res = pc + (i.imm << 11);
+        break;
+      case 'jal':
+        res = pc + 4;
+        next = (pc + i.imm) >>> 0;
+        break;
+      case 'jalr':
+        res = pc + 4;
+        next = ((a + i.imm) & ~3) >>> 0;
+        break;
+      case 'ecall':
+        this.halted = true;
+        break;
+      case 'iret':
+        if (!this.intc) throw new RefFault(pc, 'iret without an interrupt controller');
         next = this.intc.epc >>> 0;
         this.intc.leave();
         break;
-      default: throw new RefFault(pc, `unimplemented '${i.name}'`);
+      default:
+        throw new RefFault(pc, `unimplemented '${i.name}'`);
     }
     if (res !== null && i.rd !== 0) R[i.rd] = res; // Int32Array wraps to 32 bits
     this.pc = next;

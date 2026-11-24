@@ -20,7 +20,9 @@ export function LoadConfirm() {
   const tp = !matchMedia(PHONE_QUERY).matches;
 
   const focusRow = (g: number) => root.current?.querySelector<HTMLElement>(`[data-group="${g}"]`)?.focus();
-  const cancel = () => { loadOffer.value = null; };
+  const cancel = () => {
+    loadOffer.value = null;
+  };
   const replace = () => {
     if (!save) return;
     loadOffer.value = null;
@@ -39,7 +41,11 @@ export function LoadConfirm() {
   if (!save) return null;
 
   const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') { e.preventDefault(); cancel(); return; }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      cancel();
+      return;
+    }
     if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) return;
     e.preventDefault();
     lastKey.current = Date.now();
@@ -48,11 +54,15 @@ export function LoadConfirm() {
     setAt(next);
     focusRow(next);
   };
-  const hover = (g: number) => { if (mouseMayMoveFocus(lastKey.current, Date.now())) setAt(g); };
+  const hover = (g: number) => {
+    if (mouseMayMoveFocus(lastKey.current, Date.now())) setAt(g);
+  };
 
   // SAVE is the autosave the replacement takes the place of; FILE is the picked file.
-  const saveLine = !offer ? 'none'
-    : autosaveAt.value === null ? saveFacts(offer)
+  const saveLine = !offer
+    ? 'none'
+    : autosaveAt.value === null
+      ? saveFacts(offer)
       : `${saveFacts(offer)} · saved ${fmtAgo(Date.now() - autosaveAt.value)}`;
 
   return (
@@ -60,20 +70,40 @@ export function LoadConfirm() {
       <div class="pl-stack">
         <DisplayTitle lines={['Load this', 'game?']} lit={4} meta="WB · load file · replaces your autosave" />
         <div class="pl-facts">
-          <p><b>SAVE</b>{saveLine}</p>
-          <p><b>FILE</b>{saveFacts(save)}</p>
+          <p>
+            <b>SAVE</b>
+            {saveLine}
+          </p>
+          <p>
+            <b>FILE</b>
+            {saveFacts(save)}
+          </p>
         </div>
         <nav class="pl-spine" aria-label="Load this game">
-          <button class={`pl-row ${at === CANCEL ? 'pl-chip' : ''}`} data-group={CANCEL} data-tag="NOP" data-cue="ui_back" onClick={cancel}
-            onFocus={() => setAt(CANCEL)} onPointerEnter={() => hover(CANCEL)}>
+          <button
+            class={`pl-row ${at === CANCEL ? 'pl-chip' : ''}`}
+            data-group={CANCEL}
+            data-tag="NOP"
+            data-cue="ui_back"
+            onClick={cancel}
+            onFocus={() => setAt(CANCEL)}
+            onPointerEnter={() => hover(CANCEL)}
+          >
             <span class="pl-tag" data-tag="NOP" aria-hidden="true" />
             <span class="pl-text">
               <span class="pl-label">Cancel</span>
               <span class="pl-meta-row">keep your save</span>
             </span>
           </button>
-          <button class={`pl-row hero bad ${at === REPLACE ? 'pl-chip' : ''}`} data-group={REPLACE} data-tag="WB" data-cue="ui_confirm" onClick={replace}
-            onFocus={() => setAt(REPLACE)} onPointerEnter={() => hover(REPLACE)}>
+          <button
+            class={`pl-row hero bad ${at === REPLACE ? 'pl-chip' : ''}`}
+            data-group={REPLACE}
+            data-tag="WB"
+            data-cue="ui_confirm"
+            onClick={replace}
+            onFocus={() => setAt(REPLACE)}
+            onPointerEnter={() => hover(REPLACE)}
+          >
             <span class="pl-tag" data-tag="WB" aria-hidden="true" />
             <span class="pl-text">
               <span class="pl-label">Replace save and load</span>
@@ -81,7 +111,7 @@ export function LoadConfirm() {
           </button>
           {tp && <TestPoint />}
         </nav>
-        <p class="pl-hints">↑ ↓ choose   Enter confirm   Esc cancel</p>
+        <p class="pl-hints">↑ ↓ choose Enter confirm Esc cancel</p>
         <TraceLayer root={root} at={at} source={4} tp={tp} />
       </div>
     </div>

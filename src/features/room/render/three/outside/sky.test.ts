@@ -4,7 +4,9 @@ import { moonDir, skyFragment, skyMaterial } from './sky';
 
 describe('the moon', () => {
   it('moves with the hour: east in the evening, over the town near midnight, low in the west at dawn', () => {
-    const dusk = moonDir(20), late = moonDir(23), dawn = moonDir(6.2);
+    const dusk = moonDir(20),
+      late = moonDir(23),
+      dawn = moonDir(6.2);
     expect(dusk.x).toBeGreaterThan(late.x);
     expect(late.x).toBeGreaterThan(dawn.x);
     expect(dusk.x).toBeGreaterThan(0);
@@ -24,7 +26,7 @@ describe('the moon', () => {
   });
 });
 
-describe('the sky\'s clouds and moon seas: live at High, baked at Low', () => {
+describe("the sky's clouds and moon seas: live at High, baked at Low", () => {
   const LOOP = 'for (int i = 0; i < 5; i++)';
 
   it('High keeps the live fbm: five octaves per call, and no baked map', () => {
@@ -39,7 +41,8 @@ describe('the sky\'s clouds and moon seas: live at High, baked at Low', () => {
     const src = skyFragment(true);
     expect(src).not.toContain(LOOP);
     expect(src).toContain('texture2D(tNoise');
-    for (const keep of ['sunDir', 'moonDir', 'for (int k = 0; k < 3', 'float hash3(vec3 p)', 'float noise(vec2 p)']) expect(src).toContain(keep);
+    for (const keep of ['sunDir', 'moonDir', 'for (int k = 0; k < 3', 'float hash3(vec3 p)', 'float noise(vec2 p)'])
+      expect(src).toContain(keep);
     const u = skyMaterial(true).uniforms;
     expect(u.tNoise!.value).toBeInstanceOf(DataTexture);
   });

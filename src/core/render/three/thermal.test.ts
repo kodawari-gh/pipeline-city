@@ -14,7 +14,11 @@ describe('the thermal scale', () => {
   it('clamps outside 0 and 1, and every place is a colour', () => {
     expect(thermalHex(-3)).toBe(thermalHex(0));
     expect(thermalHex(4)).toBe(thermalHex(1));
-    for (let i = 0; i <= 100; i++) { const c = thermalHex(i / 100); expect(c).toBeGreaterThanOrEqual(0); expect(c).toBeLessThanOrEqual(0xffffff); }
+    for (let i = 0; i <= 100; i++) {
+      const c = thermalHex(i / 100);
+      expect(c).toBeGreaterThanOrEqual(0);
+      expect(c).toBeLessThanOrEqual(0xffffff);
+    }
   });
 
   it('maps a temperature to a place and back, and bends the first kelvins up', () => {

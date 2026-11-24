@@ -8,21 +8,21 @@ The code is the source of truth. Each brand is one module in `src/core/render/br
 
 ## Roster
 
-| Brand | Makes | Mark | Accent | Sheet |
-|---|---|---|---|---|
-| AXIOM | processors, chipsets | a delta with its apex lit | cyan `#3be3ff` | [axiom](axiom.md) |
-| OCULA | graphics cards | an eye with a lit pupil | lime `#a8ff55` | [ocula](ocula.md) |
-| synapta | neural accelerators | two nerve ends, the signal lit between | violet `#a68bff` | [synapta](synapta.md) |
-| SIGIL | security modules (TPM) | a hexagon seal with a lit keyhole | mint `#6dffa6` | [sigil](sigil.md) |
-| KAIJU | memory | three claw marks, the middle one lit | red `#ff5a78` | [kaiju](kaiju.md) |
-| kura | drives | a storehouse of layers, one lit | azure `#9ab8ff` | [kura](kura.md) |
-| RAIDEN | power supplies | a lit bolt through a drum ring | amber `#ffc247` | [raiden](raiden.md) |
-| FUJIN | coolers, fans, radiators | three tomoe round a lit hub | frost `#8fd9e6` | [fujin](fujin.md) |
-| KITSUNE | motherboards | a fox mask with lit eyes | magenta `#ff55dc` | [kitsune](kitsune.md) |
-| relay | network cards and routers | two chevrons, the second lit | warm `#ffc27d` | [relay](relay.md) |
-| HAKO | cases | a box from its corner, its top lit | white `#e2eaff` | [hako](hako.md) |
-| hikari | monitors | a sun in scan lines, its rim lit | cyan `#3be3ff` | [hikari](hikari.md) |
-| PIPELINE CITY | the game itself | a P routed as a trace, a lit via | violet `#a68bff` | [pipeline](pipeline.md) |
+| Brand         | Makes                     | Mark                                   | Accent            | Sheet                   |
+| ------------- | ------------------------- | -------------------------------------- | ----------------- | ----------------------- |
+| AXIOM         | processors, chipsets      | a delta with its apex lit              | cyan `#3be3ff`    | [axiom](axiom.md)       |
+| OCULA         | graphics cards            | an eye with a lit pupil                | lime `#a8ff55`    | [ocula](ocula.md)       |
+| synapta       | neural accelerators       | two nerve ends, the signal lit between | violet `#a68bff`  | [synapta](synapta.md)   |
+| SIGIL         | security modules (TPM)    | a hexagon seal with a lit keyhole      | mint `#6dffa6`    | [sigil](sigil.md)       |
+| KAIJU         | memory                    | three claw marks, the middle one lit   | red `#ff5a78`     | [kaiju](kaiju.md)       |
+| kura          | drives                    | a storehouse of layers, one lit        | azure `#9ab8ff`   | [kura](kura.md)         |
+| RAIDEN        | power supplies            | a lit bolt through a drum ring         | amber `#ffc247`   | [raiden](raiden.md)     |
+| FUJIN         | coolers, fans, radiators  | three tomoe round a lit hub            | frost `#8fd9e6`   | [fujin](fujin.md)       |
+| KITSUNE       | motherboards              | a fox mask with lit eyes               | magenta `#ff55dc` | [kitsune](kitsune.md)   |
+| relay         | network cards and routers | two chevrons, the second lit           | warm `#ffc27d`    | [relay](relay.md)       |
+| HAKO          | cases                     | a box from its corner, its top lit     | white `#e2eaff`   | [hako](hako.md)         |
+| hikari        | monitors                  | a sun in scan lines, its rim lit       | cyan `#3be3ff`    | [hikari](hikari.md)     |
+| PIPELINE CITY | the game itself           | a P routed as a trace, a lit via       | violet `#a68bff`  | [pipeline](pipeline.md) |
 
 `MAKER` in `index.ts` maps a part's kind to its brand. Two brands share a neon only where their marks never meet on the board: AXIOM and hikari (the monitor sits outside the case), synapta and PIPELINE CITY (the game's own mark is on screens and signs). The test `brands.test.ts` checks that no two makers on the board share a neon.
 
@@ -42,14 +42,14 @@ These follow `docs/art-style.md` §2 and §4.
 
 Every brand has six colours (`BrandColors` in `kit.ts`), all from the palette:
 
-| Role | Use |
-|---|---|
+| Role     | Use                                                                   |
+| -------- | --------------------------------------------------------------------- |
 | `accent` | its one neon: the lit part of the mark, lit letters, its LEDs and RGB |
-| `light` | ink on dark: prints on metal and on its plate |
-| `dark` | ink on light: prints on a white sticker |
-| `plate` | the near-black its badges and stickers sit on |
-| `body` | the base finish of its parts (shroud, lid, spreader, frame) |
-| `trim` | the real metal it trims with |
+| `light`  | ink on dark: prints on metal and on its plate                         |
+| `dark`   | ink on light: prints on a white sticker                               |
+| `plate`  | the near-black its badges and stickers sit on                         |
+| `body`   | the base finish of its parts (shroud, lid, spreader, frame)           |
+| `trim`   | the real metal it trims with                                          |
 
 Use `body` and `trim` for per-brand parts and UI. They are proposals for the parts' finish; the parts do not read them yet.
 
@@ -57,16 +57,16 @@ Use `body` and `trim` for per-brand parts and UI. They are proposals for the par
 
 All wordmarks are cuts of one family, drawn as vector skeletons in `type.ts` (A–Z, a–z, 0–9, space and `- / . + ×`). A cut (`TypeStyle`) sets:
 
-| Field | Meaning |
-|---|---|
-| `s` | stroke weight, as a part of the cap height |
-| `round` | corner radius: 0 square, 1 full round |
-| `wide` | glyph width factor |
-| `slant` | lean (shear) |
-| `track` | letter spacing, as a part of the cap height |
-| `xh` | x-height for lowercase words |
-| `ends` | `'soft'` for round stroke ends |
-| `alt` | alternate glyphs (AXIOM's A has no bar) |
+| Field            | Meaning                                                                            |
+| ---------------- | ---------------------------------------------------------------------------------- |
+| `s`              | stroke weight, as a part of the cap height                                         |
+| `round`          | corner radius: 0 square, 1 full round                                              |
+| `wide`           | glyph width factor                                                                 |
+| `slant`          | lean (shear)                                                                       |
+| `track`          | letter spacing, as a part of the cap height                                        |
+| `xh`             | x-height for lowercase words                                                       |
+| `ends`           | `'soft'` for round stroke ends                                                     |
+| `alt`            | alternate glyphs (AXIOM's A has no bar)                                            |
 | `lit`, `litDots` | letters, or the dots of i and j, printed in the accent (the brand's own word only) |
 
 ## API

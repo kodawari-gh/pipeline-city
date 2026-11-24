@@ -2,42 +2,72 @@
 // into card memory, so the listing of the CPU program only shows it as data. Here the kernel is assembled for a card of some lane count and run once on the
 // reference card, counting how often each instruction ran. Pure: no sim state, nothing is changed by looking.
 
-import { assembleGpu } from "./isa/asm";
-import { frameParams, framesOf, GPU_TASK_KERNELS, gpuKernelSource, KERNEL_LAYOUT, PICTURE_LEN, type GpuKernelName } from "./kernels";
-import { gpuDecode, gpuDisassemble } from "./isa/isa";
-import { GpuRef } from "./isa/ref";
-import type { CodeLine, OpClass } from "../../jobs/sim/jobcode";
+import { assembleGpu } from './isa/asm';
+import {
+  frameParams,
+  framesOf,
+  GPU_TASK_KERNELS,
+  gpuKernelSource,
+  KERNEL_LAYOUT,
+  PICTURE_LEN,
+  type GpuKernelName,
+} from './kernels';
+import { gpuDecode, gpuDisassemble } from './isa/isa';
+import { GpuRef } from './isa/ref';
+import type { CodeLine, OpClass } from '../../jobs/sim/jobcode';
 
 /** The kernel a job template runs on the card (`gpu.blur3` -> `blur3`), or null for a job that has none. */
-export const gpuKernelOf = (template: string): GpuKernelName | null => GPU_TASK_KERNELS.find((k) => template === `gpu.${k}`) ?? null;
+export const gpuKernelOf = (template: string): GpuKernelName | null =>
+  GPU_TASK_KERNELS.find((k) => template === `gpu.${k}`) ?? null;
 
 /** What a GPU instruction is for the listing's colours (the CPU's classes): the multiply, memory, mask and branch instructions stand out from plain arithmetic. */
 export function gpuOpClass(name: string): OpClass {
-  if (name === "vld") return "ld";
-  if (name === "vst") return "st";
-  if (name === "vmul") return "mul";
-  if (/^(mset|mpush|mpop|melse|bany|jmp)/.test(name)) return "br";
-  if (name === "bar" || name === "halt") return "sys";
-  return "alu";
+  if (name === 'vld') return 'ld';
+  if (name === 'vst') return 'st';
+  if (name === 'vmul') return 'mul';
+  if (/^(mset|mpush|mpop|melse|bany|jmp)/.test(name)) return 'br';
+  if (name === 'bar' || name === 'halt') return 'sys';
+  return 'alu';
 }
 
 /**
  * Words of GPU code as listing lines: address, word, the instruction (a branch shows the label it goes to) and the labels at each address. `symbols` are the
  * assembler's names; a branch target without one is named `L` and its address. `counts` (per word) fills how often each instruction ran.
  */
-export function gpuListing(words: readonly number[], symbols?: ReadonlyMap<string, number>, counts?: ArrayLike<number>): CodeLine[] {
+export function gpuListing(
+  words: readonly number[],
+  symbols?: ReadonlyMap<string, number>,
+  counts?: ArrayLike<number>,
+): CodeLine[] {
   const names = new Map<number, string[]>();
-  for (const [n, a] of symbols ?? []) { const l = names.get(a) ?? []; l.push(n); names.set(a, l); }
+  for (const [n, a] of symbols ?? []) {
+    const l = names.get(a) ?? [];
+    l.push(n);
+    names.set(a, l);
+  }
   const target = (k: number, imm: number): number => 4 * k + imm;
   words.forEach((w, k) => {
     const i = gpuDecode(w);
-    if (i && (i.name === "bany" || i.name === "jmp")) { const t = target(k, i.imm); if (t >= 0 && t < 4 * words.length && !names.has(t)) names.set(t, [`L${t.toString(16)}`]); }
+    if (i && (i.name === 'bany' || i.name === 'jmp')) {
+      const t = target(k, i.imm);
+      if (t >= 0 && t < 4 * words.length && !names.has(t)) names.set(t, [`L${t.toString(16)}`]);
+    }
   });
   return words.map((w, k) => {
     const i = gpuDecode(w);
     let text = gpuDisassemble(w);
-    if (i && (i.name === "bany" || i.name === "jmp")) { const t = names.get(target(k, i.imm)); if (t) text = `${i.name} ${t[0]}`; }
-    return { addr: 4 * k, word: w >>> 0, text, cls: i ? gpuOpClass(i.name) : "alu", count: counts?.[k] ?? 0, labels: names.get(4 * k) ?? [] };
+    if (i && (i.name === 'bany' || i.name === 'jmp')) {
+      const t = names.get(target(k, i.imm));
+      if (t) text = `${i.name} ${t[0]}`;
+    }
+    return {
+      addr: 4 * k,
+      word: w >>> 0,
+      text,
+      cls: i ? gpuOpClass(i.name) : 'alu',
+      count: counts?.[k] ?? 0,
+      labels: names.get(4 * k) ?? [],
+    };
   });
 }
 
@@ -70,7 +100,8 @@ export function gpuKernelProfile(template: string, lanes: number): GpuKernelProf
   const f = frameParams(kernel, 0, 0, framesOf(1));
   ref.load([f.phase, f.level], KERNEL_LAYOUT.param);
   ref.reset(0, lanes);
-  const counts = new Uint32Array(program.length), mix: Record<OpClass, number> = { alu: 0, ld: 0, st: 0, mul: 0, br: 0, sys: 0 };
+  const counts = new Uint32Array(program.length),
+    mix: Record<OpClass, number> = { alu: 0, ld: 0, st: 0, mul: 0, br: 0, sys: 0 };
   let out: GpuKernelProfile | null = null;
   try {
     for (let n = 0; !ref.halted && n < 2_000_000; n++) {
@@ -80,10 +111,17 @@ export function gpuKernelProfile(template: string, lanes: number): GpuKernelProf
       mix[gpuOpClass(s.name)]++;
     }
     out = {
-      kernel, lanes, asm, lines: gpuListing(Array.from(program), symbols, counts), mix, instructions: ref.instructions,
+      kernel,
+      lanes,
+      asm,
+      lines: gpuListing(Array.from(program), symbols, counts),
+      mix,
+      instructions: ref.instructions,
       laneUse: ref.instructions === 0 ? 1 : 1 - ref.idleLaneSlots / (ref.instructions * lanes),
     };
-  } catch { out = null; }
+  } catch {
+    out = null;
+  }
   cache.set(key, out);
   return out;
 }

@@ -5,13 +5,24 @@ import { dashSig, frameColor, type DashModel, type FrameModel, type Tone } from 
 // The graphics display's screen (docs/render/live.md "Screen modes"): the OS dashboard drawn at the screen's design size
 // (SCREEN_D, 3120x1755) with a Graphics for gauges and pooled Texts for the words. It repaints only when the model changes.
 
-const INK = '#7dffb0', DIM = '#52a981', RULE = '#2f5a46', AMBER = '#ffc247', CYAN = '#4fe3ff', RED = '#ff6b5e', TRACK = '#16241e';
+const INK = '#7dffb0',
+  DIM = '#52a981',
+  RULE = '#2f5a46',
+  AMBER = '#ffc247',
+  CYAN = '#4fe3ff',
+  RED = '#ff6b5e',
+  TRACK = '#16241e';
 const TONE: Record<Tone, string> = { ok: INK, warn: AMBER, bad: RED, dim: DIM };
 
-const W = 3120, X0 = 90, X1 = W - 90;
+const W = 3120,
+  X0 = 90,
+  X1 = W - 90;
 /** Left column (machine gauges) and right column (process table). */
-const LX = X0, LR = 1340, RX = 1440;
-const BAR_X = 540, BAR_W = 360;
+const LX = X0,
+  LR = 1340,
+  RX = 1440;
+const BAR_X = 540,
+  BAR_W = 360;
 
 export class ScreenView extends Container {
   private g = new Graphics();
@@ -28,7 +39,10 @@ export class ScreenView extends Container {
   /** Show the dashboard for `m` (null hides it). */
   show(m: DashModel | null) {
     this.visible = !!m;
-    if (!m) { this.sig = ''; return; }
+    if (!m) {
+      this.sig = '';
+      return;
+    }
     const sig = dashSig(m);
     if (sig === this.sig) return;
     this.sig = sig;
@@ -38,7 +52,11 @@ export class ScreenView extends Container {
   private put(str: string, x: number, y: number, size: number, color: string, right = false, weight = '600') {
     let t = this.pool[this.used++];
     if (!t) {
-      t = new Text({ text: '', style: { fontFamily: MONO, fontSize: size, fontWeight: weight as TextStyleFontWeight, fill: color }, resolution: 2 });
+      t = new Text({
+        text: '',
+        style: { fontFamily: MONO, fontSize: size, fontWeight: weight as TextStyleFontWeight, fill: color },
+        resolution: 2,
+      });
       this.pool.push(t);
       this.addChild(t);
     }
@@ -68,7 +86,8 @@ export class ScreenView extends Container {
     for (const b of m.bars) {
       this.put(b.label, LX, y + 14, 70, DIM);
       g.roundRect(BAR_X, y + 20, BAR_W, 56, 14).fill({ color: TRACK });
-      if (b.frac > 0) g.roundRect(BAR_X, y + 20, Math.max(28, BAR_W * b.frac), 56, 14).fill({ color: TONE[b.tone], alpha: 0.9 });
+      if (b.frac > 0)
+        g.roundRect(BAR_X, y + 20, Math.max(28, BAR_W * b.frac), 56, 14).fill({ color: TONE[b.tone], alpha: 0.9 });
       if (b.mark !== undefined) g.rect(BAR_X + BAR_W * b.mark - 3, y + 8, 6, 80).fill({ color: AMBER, alpha: 0.9 });
       this.put(b.text, LR, y + 14, 70, TONE[b.tone === 'ok' ? 'dim' : b.tone], true);
       y += 120;
@@ -80,7 +99,8 @@ export class ScreenView extends Container {
       g.roundRect(BAR_X, y + 20, BAR_W, 56, 14).fill({ color: TRACK });
       for (const p of m.mem.parts) {
         const w = BAR_W * Math.max(0, p.frac);
-        if (p.tone !== 'free' && w > 0) g.rect(x, y + 20, Math.max(4, w), 56).fill({ color: p.tone === 'sys' ? DIM : CYAN, alpha: 0.9 });
+        if (p.tone !== 'free' && w > 0)
+          g.rect(x, y + 20, Math.max(4, w), 56).fill({ color: p.tone === 'sys' ? DIM : CYAN, alpha: 0.9 });
         x += w;
       }
       this.put(m.mem.text, LX, y + 100, 56, DIM);
@@ -88,18 +108,27 @@ export class ScreenView extends Container {
     }
     // IPC sparkline
     this.put(m.ipcText, LX, y, 64, INK);
-    const gy = y + 90, gh = 200, gw = LR - LX;
+    const gy = y + 90,
+      gh = 200,
+      gw = LR - LX;
     g.rect(LX, gy, gw, gh).fill({ color: TRACK });
     if (m.ipc.length > 1) {
-      const top = Math.max(1, ...m.ipc) * 1.15, step = gw / Math.max(1, m.ipc.length - 1);
-      m.ipc.forEach((v, i) => { const px = LX + i * step, py = gy + gh - 10 - (gh - 20) * (v / top); if (i) g.lineTo(px, py); else g.moveTo(px, py); });
+      const top = Math.max(1, ...m.ipc) * 1.15,
+        step = gw / Math.max(1, m.ipc.length - 1);
+      m.ipc.forEach((v, i) => {
+        const px = LX + i * step,
+          py = gy + gh - 10 - (gh - 20) * (v / top);
+        if (i) g.lineTo(px, py);
+        else g.moveTo(px, py);
+      });
       g.stroke({ width: 7, color: INK, alpha: 0.95 });
     }
     this.put(m.net, LX, gy + gh + 50, 64, DIM);
 
     // process table
     g.rect(RX - 30, 330, 5, 1090).fill({ color: RULE });
-    const hy = 330, cols = { pid: RX, name: RX + 200, state: RX + 740, mem: RX + 950, time: X1 };
+    const hy = 330,
+      cols = { pid: RX, name: RX + 200, state: RX + 740, mem: RX + 950, time: X1 };
     this.put('PID', cols.pid, hy, 64, DIM);
     this.put('NAME', cols.name, hy, 64, DIM);
     this.put('STATE', cols.state, hy, 64, DIM);
@@ -120,7 +149,16 @@ export class ScreenView extends Container {
     if (m.more) this.put(`+${m.more} MORE`, cols.name, ry, 66, DIM);
 
     // the line at the bottom
-    if (m.prompt) this.put(m.prompt, X0, 1590, 90, m.promptTone === 'warn' ? AMBER : m.promptTone === 'ok' ? INK : DIM, false, '700');
+    if (m.prompt)
+      this.put(
+        m.prompt,
+        X0,
+        1590,
+        90,
+        m.promptTone === 'warn' ? AMBER : m.promptTone === 'ok' ? INK : DIM,
+        false,
+        '700',
+      );
 
     for (let i = this.used; i < this.pool.length; i++) this.pool[i]!.visible = false;
   }
@@ -132,7 +170,11 @@ export class ScreenView extends Container {
  */
 export class FrameView extends Container {
   private g = new Graphics();
-  private strip = new Text({ text: '', style: { fontFamily: MONO, fontSize: 46, fontWeight: '600' as TextStyleFontWeight, fill: INK }, resolution: 2 });
+  private strip = new Text({
+    text: '',
+    style: { fontFamily: MONO, fontSize: 46, fontWeight: '600' as TextStyleFontWeight, fill: INK },
+    resolution: 2,
+  });
   private sig = '';
 
   constructor() {
@@ -143,19 +185,31 @@ export class FrameView extends Container {
 
   show(m: FrameModel | null) {
     this.visible = !!m;
-    if (!m) { this.sig = ''; return; }
+    if (!m) {
+      this.sig = '';
+      return;
+    }
     const sig = m.status + '|' + m.cells.map((c) => Math.round(c * 255)).join(',');
     if (sig === this.sig) return;
     this.sig = sig;
-    const g = this.g, area = { x: RX, y: 940, w: X1 - RX, h: 690 }; // the 64 x 40 picture (16:10) takes the rest of the screen's height
+    const g = this.g,
+      area = { x: RX, y: 940, w: X1 - RX, h: 690 }; // the 64 x 40 picture (16:10) takes the rest of the screen's height
     const cell = Math.min(area.w / m.cols, area.h / m.rows);
-    const ox = area.x + (area.w - cell * m.cols) / 2, oy = area.y;
+    const ox = area.x + (area.w - cell * m.cols) / 2,
+      oy = area.y;
     g.clear();
     g.rect(RX, 900, X1 - RX, 5).fill({ color: RULE });
-    g.rect(ox - 10, oy - 10, cell * m.cols + 20, cell * m.rows + 20).fill({ color: TRACK }).stroke({ width: 4, color: RULE });
+    g.rect(ox - 10, oy - 10, cell * m.cols + 20, cell * m.rows + 20)
+      .fill({ color: TRACK })
+      .stroke({ width: 4, color: RULE });
     // a seamless picture (no gaps), with a dark line under every row like a scanline
-    m.cells.forEach((v, i) => g.rect(ox + (i % m.cols) * cell, oy + Math.floor(i / m.cols) * cell, cell + 0.5, cell + 0.5).fill({ color: frameColor(v) }));
-    for (let r = 0; r < m.rows; r++) g.rect(ox, oy + r * cell + cell * 0.8, cell * m.cols, cell * 0.2).fill({ color: 0x000000, alpha: 0.18 });
+    m.cells.forEach((v, i) =>
+      g
+        .rect(ox + (i % m.cols) * cell, oy + Math.floor(i / m.cols) * cell, cell + 0.5, cell + 0.5)
+        .fill({ color: frameColor(v) }),
+    );
+    for (let r = 0; r < m.rows; r++)
+      g.rect(ox, oy + r * cell + cell * 0.8, cell * m.cols, cell * 0.2).fill({ color: 0x000000, alpha: 0.18 });
     this.strip.position.set(RX, oy + cell * m.rows + 36);
     this.strip.text = m.status;
     this.strip.style.fill = m.status.includes('FAULT') ? RED : m.status.includes('DRAWING') ? CYAN : INK;

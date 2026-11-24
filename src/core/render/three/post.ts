@@ -5,7 +5,22 @@
 // Each full-screen pass writes a target that a phone's tile GPU sends out to memory and reads back (PERF21): the chain runs only the passes
 // that are on (`steps`), the AO and the outline draw on the scene's picture in one target, and the grade, the eye and the tone mapping are one
 // draw to the screen (`LocalEye.draw`). At Low with nothing picked: the scene, the eye's three small passes, the finish.
-import { DepthTexture, FloatType, HalfFloatType, InstancedMesh, Mesh, NoBlending, Scene, ShaderMaterial, UniformsUtils, Vector2, WebGLRenderTarget, type Object3D, type PerspectiveCamera, type WebGLRenderer } from 'three';
+import {
+  DepthTexture,
+  FloatType,
+  HalfFloatType,
+  InstancedMesh,
+  Mesh,
+  NoBlending,
+  Scene,
+  ShaderMaterial,
+  UniformsUtils,
+  Vector2,
+  WebGLRenderTarget,
+  type Object3D,
+  type PerspectiveCamera,
+  type WebGLRenderer,
+} from 'three';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
@@ -20,16 +35,28 @@ import { HIGH_C, LocalEye, MID, type Look } from './localeye';
 /** Draws the scene into a target of its own: the multisampling and the depth stay here, so the screen passes after it pay for neither. */
 class ScenePass extends RenderPass {
   readonly target: WebGLRenderTarget;
-  private copy = new ShaderMaterial({ ...CopyShader, uniforms: UniformsUtils.clone(CopyShader.uniforms), blending: NoBlending, depthTest: false, depthWrite: false });
+  private copy = new ShaderMaterial({
+    ...CopyShader,
+    uniforms: UniformsUtils.clone(CopyShader.uniforms),
+    blending: NoBlending,
+    depthTest: false,
+    depthWrite: false,
+  });
   private quad = new FullScreenQuad(this.copy);
 
   constructor(scene: Scene, camera: PerspectiveCamera, w: number, h: number) {
     super(scene, camera);
-    this.target = new WebGLRenderTarget(w, h, { type: HalfFloatType, samples: 4, depthTexture: new DepthTexture(w, h) });
+    this.target = new WebGLRenderTarget(w, h, {
+      type: HalfFloatType,
+      samples: 4,
+      depthTexture: new DepthTexture(w, h),
+    });
     this.copy.uniforms.tDiffuse!.value = this.target.texture;
   }
 
-  override setSize(w: number, h: number): void { this.target.setSize(w, h); }
+  override setSize(w: number, h: number): void {
+    this.target.setSize(w, h);
+  }
 
   override dispose(): void {
     this.target.depthTexture?.dispose();
@@ -39,7 +66,9 @@ class ScenePass extends RenderPass {
   }
 
   /** Draws the scene into its target. */
-  draw(renderer: WebGLRenderer): void { this.render(renderer, this.target, this.target, 0, false); }
+  draw(renderer: WebGLRenderer): void {
+    this.render(renderer, this.target, this.target, 0, false);
+  }
 
   /** Copies the picture to `to`, for the passes that draw on it: they cannot draw on a target whose depth they read, nor on multisamples. */
   copyTo(renderer: WebGLRenderer, to: WebGLRenderTarget): void {
@@ -49,11 +78,16 @@ class ScenePass extends RenderPass {
 }
 
 /** Is it drawn? Its own flag and all those above it. */
-const shown = (o: Object3D): boolean => { for (let p: Object3D | null = o; p; p = p.parent) if (!p.visible) return false; return true; };
+const shown = (o: Object3D): boolean => {
+  for (let p: Object3D | null = o; p; p = p.parent) if (!p.visible) return false;
+  return true;
+};
 
 /** A stand-in for a picked mesh, in the outline's own small scene. It shares the mesh's matrix, so it follows without an update of its own. */
 function standIn(m: Mesh): Mesh {
-  const c = (m as InstancedMesh).isInstancedMesh ? new InstancedMesh(m.geometry, m.material, 0) : new Mesh(m.geometry, m.material);
+  const c = (m as InstancedMesh).isInstancedMesh
+    ? new InstancedMesh(m.geometry, m.material, 0)
+    : new Mesh(m.geometry, m.material);
   c.matrixWorld = m.matrixWorld;
   c.matrixAutoUpdate = c.matrixWorldAutoUpdate = c.frustumCulled = false;
   return c;
@@ -84,20 +118,30 @@ class PickOutline extends OutlinePass {
     this.renderTargetDepthBuffer.setSize(1, 1);
   }
 
-  override setSize(w: number, h: number): void { super.setSize(w, h); this.renderTargetDepthBuffer.setSize(1, 1); }
+  override setSize(w: number, h: number): void {
+    super.setSize(w, h);
+    this.renderTargetDepthBuffer.setSize(1, 1);
+  }
 
   /** Outline these (meshes, or groups of them), as they stand this frame. */
   pick(objects: Object3D[]): void {
     const meshes: Mesh[] = [];
-    for (const o of objects) if (shown(o)) o.traverseVisible((m) => { if ((m as Mesh).isMesh) meshes.push(m as Mesh); });
+    for (const o of objects)
+      if (shown(o))
+        o.traverseVisible((m) => {
+          if ((m as Mesh).isMesh) meshes.push(m as Mesh);
+        });
     const stage = this.renderScene;
     stage.clear();
     this.selectedObjects = meshes.map((m) => {
       let c = this.standIns.get(m);
-      if (!c) this.standIns.set(m, c = standIn(m));
+      if (!c) this.standIns.set(m, (c = standIn(m)));
       c.geometry = m.geometry;
       c.material = m.material;
-      if ((m as InstancedMesh).isInstancedMesh) { (c as InstancedMesh).instanceMatrix = (m as InstancedMesh).instanceMatrix; (c as InstancedMesh).count = (m as InstancedMesh).count; }
+      if ((m as InstancedMesh).isInstancedMesh) {
+        (c as InstancedMesh).instanceMatrix = (m as InstancedMesh).instanceMatrix;
+        (c as InstancedMesh).count = (m as InstancedMesh).count;
+      }
       stage.add(c);
       return c;
     });
@@ -123,7 +167,7 @@ export const roomness = (height: number): number => Math.min(1, Math.max(0, (hei
  * its grid and its finish (`LocalEye`): it was a full-screen pass of its own.
  */
 const grade = (): Look => ({
-  glsl: /* glsl */`
+  glsl: /* glsl */ `
     uniform float k;
     vec3 look(vec3 c, vec2 uv) {
       vec2 d = uv - 0.5;
@@ -156,12 +200,13 @@ export function steps(on: { ao: boolean; outline: boolean; bloom: boolean; eye: 
 }
 
 /** The light meter's grid (`Post.meter`): each cell the mean log luminance of its block of the scene, from 8 x 8 taps. */
-const METER_W = 16, METER_H = 9;
+const METER_W = 16,
+  METER_H = 9;
 const METER = {
   name: 'Meter',
   uniforms: { tDiffuse: { value: null } },
-  vertexShader: /* glsl */`varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-  fragmentShader: /* glsl */`
+  vertexShader: /* glsl */ `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse;
     varying vec2 vUv;
     void main() {
@@ -177,11 +222,16 @@ const METER = {
 
 /** The meter's reading from its grid (`cells`: RGBA floats, the mean log luminance in red): the mean weighted to the picture's middle, as a luminance. */
 export function meterMean(cells: ArrayLike<number>, w: number, h: number): number {
-  let s = 0, sum = 0;
-  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
-    const dx = (i + 0.5) / w - 0.5, dy = (j + 0.5) / h - 0.5, k = Math.exp(-(dx * dx + dy * dy) / 0.08);
-    s += k * cells[4 * (i + w * j)]!; sum += k;
-  }
+  let s = 0,
+    sum = 0;
+  for (let j = 0; j < h; j++)
+    for (let i = 0; i < w; i++) {
+      const dx = (i + 0.5) / w - 0.5,
+        dy = (j + 0.5) / h - 0.5,
+        k = Math.exp(-(dx * dx + dy * dy) / 0.08);
+      s += k * cells[4 * (i + w * j)]!;
+      sum += k;
+    }
   return Math.exp(s / sum);
 }
 
@@ -195,7 +245,7 @@ const AO_SCALE = 0.5;
  * is near (a sharp edge), the bilinear share alone keeps the blend whole. `intensity` mixes it toward white, as three's blend does.
  * A NaN or Inf sum gives white (no occlusion) for that pixel: one bad value would otherwise blank the frame (Medium, 0.75 scale).
  */
-const AO_UPSAMPLE = /* glsl */`
+const AO_UPSAMPLE = /* glsl */ `
   #include <packing>
   uniform sampler2D tDiffuse;
   uniform sampler2D tDepth;
@@ -223,7 +273,15 @@ const AO_UPSAMPLE = /* glsl */`
   }`;
 /** The frames a still view adds up (`Post.refine`). */
 export const REFINE = 16;
-const halton = (i: number, b: number): number => { let f = 1, v = 0; for (let n = i; n > 0; n = Math.floor(n / b)) { f /= b; v += f * (n % b); } return v; };
+const halton = (i: number, b: number): number => {
+  let f = 1,
+    v = 0;
+  for (let n = i; n > 0; n = Math.floor(n / b)) {
+    f /= b;
+    v += f * (n % b);
+  }
+  return v;
+};
 /** The projection's offset, in pixels, of a still view's frame `n`: none for the first (it is the picture on the screen), then a Halton (2, 3) point in the pixel. */
 export const jitter = (n: number): [number, number] => (n ? [halton(n, 2) - 0.5, halton(n, 3) - 0.5] : [0, 0]);
 /** The bloom's strength at each level (0: the pass is off). */
@@ -245,7 +303,9 @@ export class Post {
   private brightness = 1;
   private eye = 1;
   private meterTarget = new WebGLRenderTarget(METER_W, METER_H, { type: FloatType, depthBuffer: false });
-  private meterQuad = new FullScreenQuad(new ShaderMaterial({ ...METER, uniforms: UniformsUtils.clone(METER.uniforms) }));
+  private meterQuad = new FullScreenQuad(
+    new ShaderMaterial({ ...METER, uniforms: UniformsUtils.clone(METER.uniforms) }),
+  );
   private meterCells = new Float32Array(METER_W * METER_H * 4);
   private meterFrame = 0;
   private metering = false;
@@ -256,7 +316,13 @@ export class Post {
   private meanQuad: FullScreenQuad | null = null;
   private refined = 0;
 
-  constructor(private renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, w: number, h: number) {
+  constructor(
+    private renderer: WebGLRenderer,
+    scene: Scene,
+    camera: PerspectiveCamera,
+    w: number,
+    h: number,
+  ) {
     this.camera = camera;
     this.scene = new ScenePass(scene, camera, w, h);
     this.work = new WebGLRenderTarget(w, h, { type: HalfFloatType, depthBuffer: false });
@@ -284,7 +350,10 @@ export class Post {
     // high-pass reads a sane colour: a NaN or Inf becomes black, and a bright pixel is capped at 4 (a tiny very bright pixel flickers and
     // blooms into a firefly).
     const hp = this.bloom.materialHighPassFilter;
-    hp.fragmentShader = hp.fragmentShader.replace('vec4 texel = texture2D( tDiffuse, vUv );', 'vec4 texel = texture2D( tDiffuse, vUv );\n\t\t\ttexel = any( isnan( texel ) ) || any( isinf( texel ) ) ? vec4( 0.0, 0.0, 0.0, 1.0 ) : min( texel, vec4( 4.0 ) );');
+    hp.fragmentShader = hp.fragmentShader.replace(
+      'vec4 texel = texture2D( tDiffuse, vUv );',
+      'vec4 texel = texture2D( tDiffuse, vUv );\n\t\t\ttexel = any( isnan( texel ) ) || any( isinf( texel ) ) ? vec4( 0.0, 0.0, 0.0, 1.0 ) : min( texel, vec4( 4.0 ) );',
+    );
     this.local = new LocalEye(w, h, this.look);
     this.local.output(renderer);
     this.setSize(w, h);
@@ -299,12 +368,18 @@ export class Post {
   apply(g: PostOptions, renderer: WebGLRenderer, w: number, h: number): void {
     const ao = AO_LEVELS[g.ao] ?? 0;
     this.ao.enabled = ao > 0;
-    if (ao) { this.ao.updateGtaoMaterial({ samples: ao }); this.ao.updatePdMaterial({ samples: ao }); }
+    if (ao) {
+      this.ao.updateGtaoMaterial({ samples: ao });
+      this.ao.updatePdMaterial({ samples: ao });
+    }
     const bloom = BLOOM_LEVELS[g.bloom] ?? 0;
     this.bloom.enabled = bloom > 0;
     this.bloom.strength = bloom;
     const t = this.scene.target;
-    if (t.samples !== g.msaa) { t.samples = g.msaa; t.dispose(); }
+    if (t.samples !== g.msaa) {
+      t.samples = g.msaa;
+      t.dispose();
+    }
     const ratio = pixelRatio(g.scale);
     this.brightness = g.brightness;
     this.expose();
@@ -320,7 +395,8 @@ export class Post {
    * out on the way in. The local eye falls to `BOARD_EYE` and stays: from the board view in the metered eye sets the mean (`board3d.ts`).
    */
   setReach(height: number): void {
-    const k = roomness(height), r = Math.round(900 + k * 3100);
+    const k = roomness(height),
+      r = Math.round(900 + k * 3100);
     this.look.uniforms.k!.value = k;
     this.local.strength = this.dark ? 0 : BOARD_EYE + (1 - BOARD_EYE) * k;
     if (this.reach === r) return;
@@ -341,7 +417,9 @@ export class Post {
    * Put the local eye out while a lens darkens the picture on purpose (`on`): it lifts the dark by most of its distance from middle grey (`SHADOW_C`), which would give the
    * veil back. The host holds the metered eye too (`Eye.hold`). Takes effect from the next `setReach`, which the host calls each frame.
    */
-  setDark(on: boolean): void { this.dark = on; }
+  setDark(on: boolean): void {
+    this.dark = on;
+  }
 
   /** The eye's adaptation (`board3d.ts`): the exposure's factor `k` over the base and the player's brightness, the local eye's `key` and `high`. */
   setEye(k: number, key = MID, high = HIGH_C): void {
@@ -367,8 +445,15 @@ export class Post {
       r.setRenderTarget(was);
       this.metering = true;
       r.readRenderTargetPixelsAsync(this.meterTarget, 0, 0, METER_W, METER_H, this.meterCells)
-        .then(() => { if (!this.gone) this.meterRead = meterMean(this.meterCells, METER_W, METER_H); }, () => {})
-        .finally(() => { this.metering = false; });
+        .then(
+          () => {
+            if (!this.gone) this.meterRead = meterMean(this.meterCells, METER_W, METER_H);
+          },
+          () => {},
+        )
+        .finally(() => {
+          this.metering = false;
+        });
     }
     return this.metered();
   }
@@ -387,12 +472,15 @@ export class Post {
 
   /** The size in CSS pixels: each target and pass takes it times the renderer's pixel ratio. */
   setSize(w: number, h: number): void {
-    const ratio = this.renderer.getPixelRatio(), pw = w * ratio, ph = h * ratio;
+    const ratio = this.renderer.getPixelRatio(),
+      pw = w * ratio,
+      ph = h * ratio;
     this.scene.setSize(pw, ph);
     this.work.setSize(pw, ph);
     this.mean?.setSize(pw, ph);
     this.refined = 0;
-    const aw = Math.ceil(pw * AO_SCALE), ah = Math.ceil(ph * AO_SCALE);
+    const aw = Math.ceil(pw * AO_SCALE),
+      ah = Math.ceil(ph * AO_SCALE);
     this.ao.setSize(aw, ah);
     (this.ao.blendMaterial.uniforms.aoSize!.value as Vector2).set(aw, ah);
     // the outline's edge is found at half size (the pass's default), so 0.5 texel there is about 1 pixel of the screen
@@ -415,10 +503,23 @@ export class Post {
    */
   refine(): boolean {
     if (this.refined >= REFINE) return false;
-    const r = this.renderer, cam = this.camera, s = this.scene.target, n = this.refined++, [jx, jy] = jitter(n), was = r.getRenderTarget();
+    const r = this.renderer,
+      cam = this.camera,
+      s = this.scene.target,
+      n = this.refined++,
+      [jx, jy] = jitter(n),
+      was = r.getRenderTarget();
     if (!this.mean) {
       this.mean = new WebGLRenderTarget(s.width, s.height, { type: HalfFloatType, depthBuffer: false });
-      this.meanQuad = new FullScreenQuad(new ShaderMaterial({ ...CopyShader, uniforms: UniformsUtils.clone(CopyShader.uniforms), blending: NoBlending, depthTest: false, depthWrite: false }));
+      this.meanQuad = new FullScreenQuad(
+        new ShaderMaterial({
+          ...CopyShader,
+          uniforms: UniformsUtils.clone(CopyShader.uniforms),
+          blending: NoBlending,
+          depthTest: false,
+          depthWrite: false,
+        }),
+      );
     }
     cam.setViewOffset(s.width, s.height, jx, jy, s.width, s.height);
     this.draw(this.mean, 1 / (n + 1));
@@ -436,18 +537,33 @@ export class Post {
   }
 
   private draw(to: WebGLRenderTarget | null, weight: number): void {
-    const r = this.renderer, was = r.getRenderTarget();
+    const r = this.renderer,
+      was = r.getRenderTarget();
     let picture = this.scene.target;
     this.nearFar.value.set(this.camera.near, this.camera.far);
     for (const s of this.steps()) {
       switch (s) {
-        case 'scene': this.scene.draw(r); break;
-        case 'ao': this.ao.render(r, this.work, picture, 0, false); picture = this.work; break;
-        case 'copy': this.scene.copyTo(r, this.work); picture = this.work; break;
+        case 'scene':
+          this.scene.draw(r);
+          break;
+        case 'ao':
+          this.ao.render(r, this.work, picture, 0, false);
+          picture = this.work;
+          break;
+        case 'copy':
+          this.scene.copyTo(r, this.work);
+          picture = this.work;
+          break;
         // (these two draw on the picture: their write target goes unused)
-        case 'outline': this.outline.render(r, this.work, picture, 0, false); break;
-        case 'bloom': this.bloom.render(r, this.work, picture, 0, false); break;
-        case 'eye': this.local.adapt(r, picture.texture); break;
+        case 'outline':
+          this.outline.render(r, this.work, picture, 0, false);
+          break;
+        case 'bloom':
+          this.bloom.render(r, this.work, picture, 0, false);
+          break;
+        case 'eye':
+          this.local.adapt(r, picture.texture);
+          break;
         case 'finish': {
           const auto = r.autoClear;
           if (weight < 1) r.autoClear = false; // (the finish mixes into what `to` holds: a clear would empty it)

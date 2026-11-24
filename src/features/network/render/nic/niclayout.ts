@@ -14,7 +14,12 @@ export const NIC_FACE = { north: 150, south: 450 } as const;
 /** The card's flat strip, the area its flat pose covers (board space): from the jack's west end to the PCB's far end, from the finger tab's north edge to the body's south edge. */
 export const nicFaceRect = (slot: number, visual: string): Rect => {
   const j = nicJack(slot);
-  return { x: j.x, y: nicY(slot) - NIC_FACE.north, w: BD.x - j.x + (NIC_LEN[visual] ?? 1500), h: NIC_FACE.north + NIC_FACE.south };
+  return {
+    x: j.x,
+    y: nicY(slot) - NIC_FACE.north,
+    w: BD.x - j.x + (NIC_LEN[visual] ?? 1500),
+    h: NIC_FACE.north + NIC_FACE.south,
+  };
 };
 
 /** The distance between two cards' bands in the die's frame (plan units): wider than a plan. */
@@ -38,9 +43,17 @@ const cache = new Map<string, NicGeo>();
 
 /** The geometry of the controller of the card of look `visual` in PCIe slot `slot` (the chip on the motherboard: its look, `BOARD_BAND`). */
 export function nicGeo(visual: string, slot: number): NicGeo {
-  const key = `${visual}|${slot}`, hit = cache.get(key);
+  const key = `${visual}|${slot}`,
+    hit = cache.get(key);
   if (hit) return hit;
-  const origin = { x: slot * NIC_BAND, y: 0 }, geo: NicGeo = { visual, face: visual in BOARD_LINK ? null : nicFaceRect(slot, visual), origin, die: { x: origin.x, y: origin.y, ...nicDieSize(visual) }, plan: nicPlan(visual) };
+  const origin = { x: slot * NIC_BAND, y: 0 },
+    geo: NicGeo = {
+      visual,
+      face: visual in BOARD_LINK ? null : nicFaceRect(slot, visual),
+      origin,
+      die: { x: origin.x, y: origin.y, ...nicDieSize(visual) },
+      plan: nicPlan(visual),
+    };
   cache.set(key, geo);
   return geo;
 }
@@ -49,16 +62,22 @@ export function nicGeo(visual: string, slot: number): NicGeo {
 export const moveBy = (r: Rect, o: { x: number; y: number }): Rect => ({ x: r.x + o.x, y: r.y + o.y, w: r.w, h: r.h });
 
 /** A hoverable part of the die: the id without its slot (`nic-mac`; the full id is `pcie2.nic-mac`) and its rectangle in the die's frame. */
-export interface NicPart { id: string; rect: Rect }
+export interface NicPart {
+  id: string;
+  rect: Rect;
+}
 
 /** Every block of the die with an id: the blocks and the controller's frame (the smallest rectangle under the pointer wins). */
-export const nicParts = (g: NicGeo): NicPart[] => g.plan.blocks.map((b) => ({ id: `nic-${b.id}`, rect: moveBy(b.rect, g.origin) }));
+export const nicParts = (g: NicGeo): NicPart[] =>
+  g.plan.blocks.map((b) => ({ id: `nic-${b.id}`, rect: moveBy(b.rect, g.origin) }));
 
 /** The parts of the card that are 3D bodies, not blocks of the die (nic3d.ts): the ids their picks and flights carry. */
 export const NIC_BODIES = ['nic-jack', 'nic-edge', 'nic-xtal', 'nic-nvm', 'nic-vreg', 'nic-label'] as const;
 
 /** The ids of every part of a card in PCIe slot `slot` (its id, e.g. `pcie2`), for the hover table and its test: the 3D bodies and the die's blocks. */
-export const nicIds = (visual: string, slotId: string, slot: number): string[] => [...NIC_BODIES, ...nicParts(nicGeo(visual, slot)).map((p) => p.id)].map((id) => `${slotId}.${id}`);
+export const nicIds = (visual: string, slotId: string, slot: number): string[] =>
+  [...NIC_BODIES, ...nicParts(nicGeo(visual, slot)).map((p) => p.id)].map((id) => `${slotId}.${id}`);
 
 /** The ids of every part of the Ethernet chip on the motherboard of look `visual` (`board.nic-ctl` and the blocks of its die): the same, for the hover table and its test. */
-export const boardNicIds = (visual: string): string[] => nicParts(nicGeo(visual, BOARD_BAND)).map((p) => `${BOARD_NIC}.${p.id}`);
+export const boardNicIds = (visual: string): string[] =>
+  nicParts(nicGeo(visual, BOARD_BAND)).map((p) => `${BOARD_NIC}.${p.id}`);

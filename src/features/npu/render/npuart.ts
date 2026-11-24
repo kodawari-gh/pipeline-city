@@ -13,15 +13,28 @@ import { DIE_MARGIN } from './npuplans';
 type Key = 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'bad' | 'mute';
 
 /** The accent of each block kind (the theme token it is drawn with: the host link cyan, registers green, control pink, memory amber, compute purple). */
-export const NPU_KIND_COLOR: Record<NpuBlockKind, Key> = { host: 'alu', ctl: 'st', desc: 'br', tiles: 'ld', array: 'mul', post: 'mul', cardmem: 'ld' };
+export const NPU_KIND_COLOR: Record<NpuBlockKind, Key> = {
+  host: 'alu',
+  ctl: 'st',
+  desc: 'br',
+  tiles: 'ld',
+  array: 'mul',
+  post: 'mul',
+  cardmem: 'ld',
+};
 export const NPU_LINK_COLOR: Record<NpuLinkKind, Key> = { host: 'alu', control: 'mute', data: 'mul', mem: 'ld' };
 
 /** The line under the die's name: what the card is made of. */
-export const npuTitle = (plan: NpuPlan): string => `AI CARD · ${plan.input.grid} x ${plan.input.grid} MAC array · ${Math.round(plan.input.memBytes / 1024)}K memory`;
+export const npuTitle = (plan: NpuPlan): string =>
+  `AI CARD · ${plan.input.grid} x ${plan.input.grid} MAC array · ${Math.round(plan.input.memBytes / 1024)}K memory`;
 
 /** The legend of the colours. */
 export const NPU_LEGEND: { text: string; key: Key }[] = [
-  { text: 'HOST', key: 'alu' }, { text: 'REGISTERS', key: 'st' }, { text: 'CONTROL', key: 'br' }, { text: 'MEMORY', key: 'ld' }, { text: 'COMPUTE', key: 'mul' },
+  { text: 'HOST', key: 'alu' },
+  { text: 'REGISTERS', key: 'st' },
+  { text: 'CONTROL', key: 'br' },
+  { text: 'MEMORY', key: 'ld' },
+  { text: 'COMPUTE', key: 'mul' },
 ];
 
 /** How the card is drawn: the CPU die's art (`planFar`, `planNear`) with the card's colours and symbols. */
@@ -39,14 +52,29 @@ export function npuStyle(plan: NpuPlan): PlanStyle<NpuBlock, NpuLink> {
 
 /** The two dies' floors, the blocks, the bond pads round the edges (the host edge in the link's colour) and the pin-1 mark: the far view. The main die and the card memory are two chips. */
 export function npuFar(g: Graphics, T: Theme, plan: NpuPlan): void {
-  const D = plan.core, Mm = plan.memory, floor = mix(T.die, '#000000', 0.25);
-  g.roundRect(D.x, D.y, D.w, D.h, 6).fill({ color: floor }).stroke({ width: 3, color: mix(T.line, T.mul, 0.6) });
-  g.roundRect(Mm.x, Mm.y, Mm.w, Mm.h, 6).fill({ color: floor }).stroke({ width: 3, color: mix(T.line, T.ld, 0.6) });
-  for (let x = Mm.x + DIE_MARGIN.x; x + 6 <= Mm.x + Mm.w - DIE_MARGIN.x; x += 12) { g.rect(x, Mm.y + 8, 6, 6); g.rect(x, Mm.y + Mm.h - 14, 6, 6); }
+  const D = plan.core,
+    Mm = plan.memory,
+    floor = mix(T.die, '#000000', 0.25);
+  g.roundRect(D.x, D.y, D.w, D.h, 6)
+    .fill({ color: floor })
+    .stroke({ width: 3, color: mix(T.line, T.mul, 0.6) });
+  g.roundRect(Mm.x, Mm.y, Mm.w, Mm.h, 6)
+    .fill({ color: floor })
+    .stroke({ width: 3, color: mix(T.line, T.ld, 0.6) });
+  for (let x = Mm.x + DIE_MARGIN.x; x + 6 <= Mm.x + Mm.w - DIE_MARGIN.x; x += 12) {
+    g.rect(x, Mm.y + 8, 6, 6);
+    g.rect(x, Mm.y + Mm.h - 14, 6, 6);
+  }
   g.fill({ color: T.pin, alpha: 0.7 });
   g.poly([Mm.x + 6, Mm.y + 6, Mm.x + 22, Mm.y + 6, Mm.x + 6, Mm.y + 22]).fill({ color: T.ld, alpha: 0.9 });
-  const x0 = D.x + DIE_MARGIN.x, x1 = D.x + D.w - DIE_MARGIN.x, y0 = D.y + DIE_MARGIN.top, y1 = D.y + D.h - DIE_MARGIN.bottom;
-  for (let x = x0; x + 6 <= x1; x += 12) { g.rect(x, D.y + 8, 6, 6); g.rect(x, D.y + D.h - 14, 6, 6); }
+  const x0 = D.x + DIE_MARGIN.x,
+    x1 = D.x + D.w - DIE_MARGIN.x,
+    y0 = D.y + DIE_MARGIN.top,
+    y1 = D.y + D.h - DIE_MARGIN.bottom;
+  for (let x = x0; x + 6 <= x1; x += 12) {
+    g.rect(x, D.y + 8, 6, 6);
+    g.rect(x, D.y + D.h - 14, 6, 6);
+  }
   for (let y = y0 + 12; y + 6 <= y1; y += 12) g.rect(D.x + D.w - 14, y, 6, 6);
   g.fill({ color: T.pin, alpha: 0.7 });
   g.poly([D.x + 6, D.y + 6, D.x + 22, D.y + 6, D.x + 6, D.y + 22]).fill({ color: T.mul, alpha: 0.9 });
@@ -62,7 +90,9 @@ export function npuFar(g: Graphics, T: Theme, plan: NpuPlan): void {
 /** Traces, symbols and names of a plan, and the strip under the blocks. */
 export function npuNear(T: Theme, plan: NpuPlan): DieArt {
   const art = planNear(T, plan, npuStyle(plan));
-  const D = plan.core, sy = D.y + D.h - DIE_MARGIN.bottom + 15, names = art.names;
+  const D = plan.core,
+    sy = D.y + D.h - DIE_MARGIN.bottom + 15,
+    names = art.names;
   names.addChild(label(npuTitle(plan), D.x + DIE_MARGIN.x, sy, 13, T.mute, { weight: '700', a: 0.85 }));
   const legend = new Graphics();
   names.addChild(legend);

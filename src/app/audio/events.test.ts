@@ -160,14 +160,16 @@ function callSites(src: string): { notes: { kind: string; text: string }[]; othe
   let other = 0;
   for (const m of src.matchAll(/\.note\(/g)) {
     let i = m.index! + m[0].length;
-    if (src[i] !== '"') {
+    while (/\s/.test(src[i] ?? '')) i++;
+    const quote = src[i]!;
+    if (quote !== '"' && quote !== "'") {
       other++;
       continue;
     }
-    const kindEnd = endOf(src, i, '"');
+    const kindEnd = endOf(src, i, quote);
     const kind = src.slice(i + 1, kindEnd);
     i = src.indexOf(',', kindEnd) + 1;
-    while (src[i] === ' ') i++;
+    while (/\s/.test(src[i] ?? '')) i++;
     let depth = 0;
     let j = i;
     for (; j < src.length; j++) {
@@ -180,7 +182,15 @@ function callSites(src: string): { notes: { kind: string; text: string }[]; othe
         depth--;
       } else if (c === ',' && depth === 0) break;
     }
-    const text = src.slice(i, j).replace(/\$\{[^}]*\}/g, '{}').replace(/["`]/g, '').trim();
+    // String literals lose their quotes (either style: the formatter picks one), template parts become `{}`, and a wrapped argument reads as one line.
+    const text = src
+      .slice(i, j)
+      .replace(/\$\{[^}]*\}/g, '{}')
+      .replace(/(["'])((?:\\.|(?!\1)[^\\])*)\1/g, '$2')
+      .replace(/`/g, '')
+      .replace(/\s+/g, ' ')
+      .replace(/,\s*$/, '')
+      .trim();
     notes.push({ kind, text });
   }
   return { notes, other };
@@ -192,7 +202,11 @@ function scanSim() {
   const sites: { file: string; kind: string; text: string }[] = [];
   const other: Record<string, number> = {};
   for (const p of files) {
-    const file = p.slice(SRC.length).split('\\').join('/').replace(/^features\//, '');
+    const file = p
+      .slice(SRC.length)
+      .split('\\')
+      .join('/')
+      .replace(/^features\//, '');
     const r = callSites(fs.readFileSync(p, 'utf8'));
     for (const n of r.notes) sites.push({ file, ...n });
     if (r.other) other[file] = r.other;
@@ -206,48 +220,174 @@ function scanSim() {
  */
 const LOG_NOTES: [string, string, string, string, string | null][] = [
   // board/game/machine.ts
-  ['board/sim/game/machine.ts', 'fault', 'hard power-off: the job on key {} is lost (it restarts at the next boot)', 'hard power-off: the job on key 2 is lost (it restarts at the next boot)', 'fault_hard'],
+  [
+    'board/sim/game/machine.ts',
+    'fault',
+    'hard power-off: the job on key {} is lost (it restarts at the next boot)',
+    'hard power-off: the job on key 2 is lost (it restarts at the next boot)',
+    'fault_hard',
+  ],
   ['board/sim/game/machine.ts', 'power', 'powered off', 'powered off', 'power_off'],
   ['board/sim/game/machine.ts', 'power', 'powered on', 'powered on', 'power_on'],
   ['board/sim/game/machine.ts', 'fault', 'POST failed: {}', 'POST failed: no memory', 'fault_soft'],
-  ['board/sim/game/machine.ts', 'fault', 'the VRM burnt out: board dead: replace the board', 'the VRM burnt out: board dead: replace the board', 'fault_hard'],
-  ['board/sim/game/machine.ts', 'fault', '{}: the machine crashed and rebooted', 'CPU: the machine crashed and rebooted', 'fault_crash'],
+  [
+    'board/sim/game/machine.ts',
+    'fault',
+    'the VRM burnt out: board dead: replace the board',
+    'the VRM burnt out: board dead: replace the board',
+    'fault_hard',
+  ],
+  [
+    'board/sim/game/machine.ts',
+    'fault',
+    '{}: the machine crashed and rebooted',
+    'CPU: the machine crashed and rebooted',
+    'fault_crash',
+  ],
   // board/game/parts.ts
-  ['board/sim/game/parts.ts', 'install', '{} installed: the board and every part moved in', 'Tower case installed: the board and every part moved in', 'install'],
+  [
+    'board/sim/game/parts.ts',
+    'install',
+    '{} installed: the board and every part moved in',
+    'Tower case installed: the board and every part moved in',
+    'install',
+  ],
   ['board/sim/game/parts.ts', 'install', '{} installed', 'Board installed', 'install'],
   ['board/sim/game/parts.ts', 'install', '{} installed in {}', 'RAM installed in slot 2', 'install'],
-  ['board/sim/game/parts.ts', 'install', '{} will be swapped in as soon as the job is done', 'CPU will be swapped in as soon as the job is done', 'swap_queued'],
-  ['board/sim/game/parts.ts', 'install', 'cancelled === 1 ? queued install cancelled : {} queued installs cancelled', 'queued install cancelled', 'swap_cancelled'],
-  ['board/sim/game/parts.ts', 'install', 'a queued swap was dropped: it no longer fits', 'a queued swap was dropped: it no longer fits', 'swap_cancelled'],
-  ['board/sim/game/parts.ts', 'fault', '{} could not be fitted: {}', 'Cache could not be fitted: no slot', 'fault_soft'],
+  [
+    'board/sim/game/parts.ts',
+    'install',
+    '{} will be swapped in as soon as the job is done',
+    'CPU will be swapped in as soon as the job is done',
+    'swap_queued',
+  ],
+  [
+    'board/sim/game/parts.ts',
+    'install',
+    'cancelled === 1 ? queued install cancelled : {} queued installs cancelled',
+    'queued install cancelled',
+    'swap_cancelled',
+  ],
+  [
+    'board/sim/game/parts.ts',
+    'install',
+    'a queued swap was dropped: it no longer fits',
+    'a queued swap was dropped: it no longer fits',
+    'swap_cancelled',
+  ],
+  [
+    'board/sim/game/parts.ts',
+    'fault',
+    '{} could not be fitted: {}',
+    'Cache could not be fitted: no slot',
+    'fault_soft',
+  ],
   ['board/sim/game/parts.ts', 'fault', 'r.reason', 'no room for that part', 'fault_soft'],
-  ['board/sim/game/parts.ts', 'install', '{} placed next to the monitor', 'Webcam placed next to the monitor', 'install'],
+  [
+    'board/sim/game/parts.ts',
+    'install',
+    '{} placed next to the monitor',
+    'Webcam placed next to the monitor',
+    'install',
+  ],
   ['board/sim/game/parts.ts', 'install', '{} removed', 'Cache removed', 'uninstall'],
   ['board/sim/game/parts.ts', 'install', '{} removed with the CPU', 'Cache removed with the CPU', 'uninstall'],
   ['board/sim/game/parts.ts', 'install', '{} removed', 'Cache removed', 'uninstall'],
   ['board/sim/game/parts.ts', 'cable', '{} connected', 'USB cable connected', 'cable_connect'],
-  ['board/sim/game/parts.ts', 'cable', 'Ethernet cable connected to {}', 'Ethernet cable connected to the board jack', 'cable_connect'],
-  ['board/sim/game/parts.ts', 'cable', 'Ethernet cable disconnected', 'Ethernet cable disconnected', 'cable_disconnect'],
+  [
+    'board/sim/game/parts.ts',
+    'cable',
+    'Ethernet cable connected to {}',
+    'Ethernet cable connected to the board jack',
+    'cable_connect',
+  ],
+  [
+    'board/sim/game/parts.ts',
+    'cable',
+    'Ethernet cable disconnected',
+    'Ethernet cable disconnected',
+    'cable_disconnect',
+  ],
   ['board/sim/game/parts.ts', 'cable', '{} disconnected', 'USB cable disconnected', 'cable_disconnect'],
-  ['board/sim/game/parts.ts', 'fault', 'the power cord was pulled: the machine lost power', 'the power cord was pulled: the machine lost power', 'fault_hard'],
-  ['board/sim/game/parts.ts', 'install', '{} came off: its spot is gone', 'Cache came off: its spot is gone', 'uninstall'],
-  ['board/sim/game/parts.ts', 'cable', 'Ethernet cable came unplugged', 'Ethernet cable came unplugged', 'cable_unplugged'],
+  [
+    'board/sim/game/parts.ts',
+    'fault',
+    'the power cord was pulled: the machine lost power',
+    'the power cord was pulled: the machine lost power',
+    'fault_hard',
+  ],
+  [
+    'board/sim/game/parts.ts',
+    'install',
+    '{} came off: its spot is gone',
+    'Cache came off: its spot is gone',
+    'uninstall',
+  ],
+  [
+    'board/sim/game/parts.ts',
+    'cable',
+    'Ethernet cable came unplugged',
+    'Ethernet cable came unplugged',
+    'cable_unplugged',
+  ],
   ['board/sim/game/parts.ts', 'cable', 'Video cable came unplugged', 'Video cable came unplugged', 'cable_unplugged'],
   ['board/sim/game/parts.ts', 'cable', '{} came unplugged', 'USB cable came unplugged', 'cable_unplugged'],
   // economy
   ['economy/sim/bill.ts', 'bill', 'power bill: ${} for {} Wh', 'power bill: $12 for 3.4 Wh', 'bill_issued'],
   ['economy/sim/bill.ts', 'bill', 'paid the power bill: ${}', 'paid the power bill: $12', 'bill_paid'],
-  ['economy/sim/bill.ts', 'power', 'the power company reconnected the wall (press power to start)', 'the power company reconnected the wall (press power to start)', 'power_on'],
-  ['economy/sim/bill.ts', 'fault', 'the power company cut the wall: the ${} bill is unpaid', 'the power company cut the wall: the $12 bill is unpaid', 'fault_hard'],
-  ['economy/sim/clients.ts', 'drop', 'net ? offer list full: a client gave up : tray full: a client gave up', 'tray full: a client gave up', 'client_drop'],
-  ['economy/sim/clients.ts', 'expire', 'a client took back job {} ({}): the machine cannot run it', 'a client took back job 4 (video): the machine cannot run it', 'job_expired'],
+  [
+    'economy/sim/bill.ts',
+    'power',
+    'the power company reconnected the wall (press power to start)',
+    'the power company reconnected the wall (press power to start)',
+    'power_on',
+  ],
+  [
+    'economy/sim/bill.ts',
+    'fault',
+    'the power company cut the wall: the ${} bill is unpaid',
+    'the power company cut the wall: the $12 bill is unpaid',
+    'fault_hard',
+  ],
+  [
+    'economy/sim/clients.ts',
+    'drop',
+    'net ? offer list full: a client gave up : tray full: a client gave up',
+    'tray full: a client gave up',
+    'client_drop',
+  ],
+  [
+    'economy/sim/clients.ts',
+    'expire',
+    'a client took back job {} ({}): the machine cannot run it',
+    'a client took back job 4 (video): the machine cannot run it',
+    'job_expired',
+  ],
   ['economy/sim/clients.ts', 'level', 'Level {}: {}', 'Level 2: Desk', null],
-  ['economy/sim/cloud.ts', 'contract', '{}: {} accepted on {}', 'Acme: Backup accepted on drive A', 'contract_accepted'],
+  [
+    'economy/sim/cloud.ts',
+    'contract',
+    '{}: {} accepted on {}',
+    'Acme: Backup accepted on drive A',
+    'contract_accepted',
+  ],
   ['economy/sim/cloud.ts', 'contract', '{}: {} {}', 'Acme: Backup ended', 'contract_ended'],
   ['economy/sim/keys.ts', 'key', 'key {} refused: needs {}', 'key 3 refused: needs CPU', 'key_refused'],
   ['economy/sim/keys.ts', 'key', 'key {} plugged in', 'key 3 plugged in', 'key_plug'],
-  ['economy/sim/keys.ts', 'key', 'key {} pulled before the job finished', 'key 3 pulled before the job finished', 'key_refused'],
-  ['economy/sim/keys.ts', 'key', 'your first client told two friends: new keys are in the tray', 'your first client told two friends: new keys are in the tray', 'new_clients'],
+  [
+    'economy/sim/keys.ts',
+    'key',
+    'key {} pulled before the job finished',
+    'key 3 pulled before the job finished',
+    'key_refused',
+  ],
+  [
+    'economy/sim/keys.ts',
+    'key',
+    'your first client told two friends: new keys are in the tray',
+    'your first client told two friends: new keys are in the tray',
+    'new_clients',
+  ],
   ['economy/sim/keys.ts', 'payout', 'key {} {}: ${}{}', 'key 3 paid: $120 (late)', 'payout_late'],
   ['economy/sim/keys.ts', 'decline', 'declined job {}{}', 'declined job 5', 'job_declined'],
   ['economy/sim/keys.ts', 'job', 'key {} holds its result: {}', 'key 3 holds its result: 42', 'job_fulfilled'],
@@ -257,20 +397,68 @@ const LOG_NOTES: [string, string, string, string, string | null][] = [
   ['economy/sim/shop.ts', 'purchase', 'sold {} for ${}', 'sold Cache for $40', 'sell'],
   // memory, network, os, sandbox
   ['memory/sim/memory.ts', 'ecc', 'ECC corrected a flipped bit at 0x{}', 'ECC corrected a flipped bit at 0x1f', 'ecc'],
-  ['memory/sim/memory.ts', 'fault', 'a bit flipped in memory at 0x{}: no ECC', 'a bit flipped in memory at 0x1f: no ECC', 'fault_soft'],
-  ['memory/sim/memory.ts', 'fault', 'memory fault: {} {} at 0x{} and was killed by the OS', 'memory fault: sort touched memory it has no right to at 0x1f and was killed by the OS', 'fault_soft'],
-  ['network/sim/network.ts', 'net', 'the USB keys left behind are retired: they no longer hold reputation', 'the USB keys left behind are retired: they no longer hold reputation', 'ui_notify'],
-  ['network/sim/network.ts', 'net', 'link up: {} Mbit down, {} up (limited by {})', 'link up: 100 Mbit down, 20 up (limited by the modem)', null],
-  ['network/sim/network.ts', 'net', 'download #{} failed: the machine did not answer, it goes back to the offers', 'download #07 failed: the machine did not answer, it goes back to the offers', 'ui_notify'],
+  [
+    'memory/sim/memory.ts',
+    'fault',
+    'a bit flipped in memory at 0x{}: no ECC',
+    'a bit flipped in memory at 0x1f: no ECC',
+    'fault_soft',
+  ],
+  [
+    'memory/sim/memory.ts',
+    'fault',
+    'memory fault: {} {} at 0x{} and was killed by the OS',
+    'memory fault: sort touched memory it has no right to at 0x1f and was killed by the OS',
+    'fault_soft',
+  ],
+  [
+    'network/sim/network.ts',
+    'net',
+    'the USB keys left behind are retired: they no longer hold reputation',
+    'the USB keys left behind are retired: they no longer hold reputation',
+    'ui_notify',
+  ],
+  [
+    'network/sim/network.ts',
+    'net',
+    'link up: {} Mbit down, {} up (limited by {})',
+    'link up: 100 Mbit down, 20 up (limited by the modem)',
+    null,
+  ],
+  [
+    'network/sim/network.ts',
+    'net',
+    'download #{} failed: the machine did not answer, it goes back to the offers',
+    'download #07 failed: the machine did not answer, it goes back to the offers',
+    'ui_notify',
+  ],
   ['os/sim/os.ts', 'install', '{} installed on {}', 'Linux installed on Processor', 'install'],
   ['os/sim/os.ts', 'install', '{} formatted', 'Disk formatted', 'install'],
   ['os/sim/os.ts', 'install', '{} removed', 'Linux removed', 'uninstall'],
   ['sandbox/sim/sandbox.ts', 'sandbox', 'spawned key {} ({} x{})', 'spawned key 7 (sort x2)', 'ui_notify'],
   ['sandbox/sim/sandbox.ts', 'sandbox', 'rules level set to {} ({})', 'rules level set to 3 (Level 3)', 'ui_notify'],
-  ['sandbox/sim/sandbox.ts', 'sandbox', 'this.sandboxOff.size ? arrivals off: {} : every job class arrives again', 'every job class arrives again', 'ui_notify'],
-  ['sandbox/sim/sandbox.ts', 'sandbox', 'this.sandboxKindsOff.size ? {} kinds of job off : every kind of job arrives again', 'every kind of job arrives again', 'ui_notify'],
+  [
+    'sandbox/sim/sandbox.ts',
+    'sandbox',
+    'this.sandboxOff.size ? arrivals off: {} : every job class arrives again',
+    'every job class arrives again',
+    'ui_notify',
+  ],
+  [
+    'sandbox/sim/sandbox.ts',
+    'sandbox',
+    'this.sandboxKindsOff.size ? {} kinds of job off : every kind of job arrives again',
+    'every kind of job arrives again',
+    'ui_notify',
+  ],
   ['sandbox/sim/sandbox.ts', 'sandbox', 'tray cleared ({} keys)', 'tray cleared (3 keys)', 'ui_notify'],
-  ['sandbox/sim/sandbox.ts', 'sandbox', 'repaired everything ({} burnt parts{})', 'repaired everything (2 burnt parts)', 'ui_notify'],
+  [
+    'sandbox/sim/sandbox.ts',
+    'sandbox',
+    'repaired everything ({} burnt parts{})',
+    'repaired everything (2 burnt parts)',
+    'ui_notify',
+  ],
   ['sandbox/sim/sandbox.ts', 'sandbox', 'reputation set to {}', 'reputation set to 0.50', 'ui_notify'],
 ];
 

@@ -1,6 +1,6 @@
 ---
 name: setup-khalil-skills
-description: "Configure this repo for the engineering skills: issue tracker, triage labels, domain docs, project board, and code search. Run once before first use of the other engineering skills."
+description: 'Configure this repo for the engineering skills: issue tracker, triage labels, domain docs, project board, and code search. Run once before first use of the other engineering skills.'
 disable-model-invocation: true
 ---
 

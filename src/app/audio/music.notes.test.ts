@@ -64,7 +64,10 @@ describe('music notes: the event map (director, fake backend)', () => {
   });
 
   it('expire plays low 2 then low 0 (A2, then F2 at level 1)', () => {
-    expect(notesIn(one('expire', 'client took back job 1').ids())).toEqual([`${NOTE_PREFIX}low_A2`, `${NOTE_PREFIX}low_F2`]);
+    expect(notesIn(one('expire', 'client took back job 1').ids())).toEqual([
+      `${NOTE_PREFIX}low_A2`,
+      `${NOTE_PREFIX}low_F2`,
+    ]);
   });
 
   it('cable connected plays two plucks rising (pluck 0 then 4)', () => {

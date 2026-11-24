@@ -3,7 +3,7 @@
 // is too coarse for a fold). Each face takes its own side's value, so a double-sided cloth is dark where it lies on the chair and in its folds.
 import type { Material, WebGLProgramParametersWithUniforms, WebGLRenderer } from 'three';
 
-const shade = (direct: number) => /* glsl */`
+const shade = (direct: number) => /* glsl */ `
 #include <aomap_fragment>
 float bakedAo = gl_FrontFacing ? vBakedAo.x : vBakedAo.y;
 reflectedLight.indirectDiffuse *= bakedAo;
@@ -20,7 +20,8 @@ reflectedLight.directDiffuse *= mix( 1.0, bakedAo, ${direct.toFixed(3)} );
 export function bakedAo(m: Material, direct = 0.5): void {
   if (m.userData.bakedAo) return;
   m.userData.bakedAo = true;
-  const prev = m.onBeforeCompile.bind(m), key = `${m.customProgramCacheKey()}|ao${direct}`;
+  const prev = m.onBeforeCompile.bind(m),
+    key = `${m.customProgramCacheKey()}|ao${direct}`;
   m.onBeforeCompile = (sh: WebGLProgramParametersWithUniforms, r: WebGLRenderer) => {
     prev(sh, r);
     sh.vertexShader = sh.vertexShader

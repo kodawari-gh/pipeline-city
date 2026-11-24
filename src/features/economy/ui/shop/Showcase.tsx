@@ -12,7 +12,15 @@ type Build = (specId: string) => import('three').Object3D | null;
  * `studio`: the Gallery's look (the stage fills the screen, its bar is the studio's pill bar with Graphics, and the part is framed in the box
  * `frame` names: the viewer's insets are that box's edges measured from the stage).
  */
-export function Showcase({ specId, onClose, studio }: { specId: string; onClose: () => void; studio?: { frame: () => HTMLElement | null } }) {
+export function Showcase({
+  specId,
+  onClose,
+  studio,
+}: {
+  specId: string;
+  onClose: () => void;
+  studio?: { frame: () => HTMLElement | null };
+}) {
   const host = useRef<HTMLDivElement>(null);
   const viewer = useRef<Viewer | null>(null);
   const build = useRef<Build | null>(null);
@@ -20,31 +28,50 @@ export function Showcase({ specId, onClose, studio }: { specId: string; onClose:
   const [turning, setTurning] = useState(true);
 
   useEffect(() => {
-    let dead = false, ro: ResizeObserver | null = null;
-    Promise.all([import('@/core/render/three/viewer'), import('@/features/board/render/three/showcase')]).then(([v, sc]) => {
-      if (dead || !host.current) return;
-      try {
-        const el = host.current, vw = v.mountViewer(el);
-        viewer.current = vw;
-        build.current = sc.buildShowcaseModel;
-        // (the panels' own size changes too: the dock grows with a part's variants)
-        const fit = () => {
+    let dead = false,
+      ro: ResizeObserver | null = null;
+    Promise.all([import('@/core/render/three/viewer'), import('@/features/board/render/three/showcase')])
+      .then(([v, sc]) => {
+        if (dead || !host.current) return;
+        try {
+          const el = host.current,
+            vw = v.mountViewer(el);
+          viewer.current = vw;
+          build.current = sc.buildShowcaseModel;
+          // (the panels' own size changes too: the dock grows with a part's variants)
+          const fit = () => {
+            const f = studio?.frame();
+            if (studio && f) {
+              const s = el.getBoundingClientRect(),
+                b = f.getBoundingClientRect();
+              vw.setInsets({
+                left: Math.max(0, b.left - s.left),
+                right: Math.max(0, s.right - b.right),
+                top: Math.max(0, b.top - s.top),
+                bottom: Math.max(0, s.bottom - b.bottom),
+              });
+            }
+            vw.resize();
+          };
+          ro = new ResizeObserver(fit);
+          ro.observe(el);
           const f = studio?.frame();
-          if (studio && f) {
-            const s = el.getBoundingClientRect(), b = f.getBoundingClientRect();
-            vw.setInsets({ left: Math.max(0, b.left - s.left), right: Math.max(0, s.right - b.right), top: Math.max(0, b.top - s.top), bottom: Math.max(0, s.bottom - b.bottom) });
-          }
-          vw.resize();
-        };
-        ro = new ResizeObserver(fit);
-        ro.observe(el);
-        const f = studio?.frame();
-        if (f) ro.observe(f);
-        fit();
-        setState('ready');
-      } catch { setState('failed'); }
-    }).catch(() => { if (!dead) setState('failed'); });
-    return () => { dead = true; ro?.disconnect(); viewer.current?.dispose(); viewer.current = null; };
+          if (f) ro.observe(f);
+          fit();
+          setState('ready');
+        } catch {
+          setState('failed');
+        }
+      })
+      .catch(() => {
+        if (!dead) setState('failed');
+      });
+    return () => {
+      dead = true;
+      ro?.disconnect();
+      viewer.current?.dispose();
+      viewer.current = null;
+    };
   }, []);
 
   useEffect(() => {
@@ -54,11 +81,26 @@ export function Showcase({ specId, onClose, studio }: { specId: string; onClose:
     setState(model ? 'ready' : 'none');
   }, [specId, state === 'loading' || state === 'failed']);
 
-  useEffect(() => { viewer.current?.setAutoTurn(turning); }, [turning, state]);
+  useEffect(() => {
+    viewer.current?.setAutoTurn(turning);
+  }, [turning, state]);
 
   // (in the studio the buttons carry an icon, as Build my PC's view options do)
-  const spin = <button class={turning ? 'on' : ''} aria-pressed={turning} title="Turn by itself" onClick={() => setTurning(!turning)}>{studio && <Icon name="spin" size={12} />}Spin</button>;
-  const reset = <button title="Reset the view (double-click)" onClick={() => viewer.current?.reset()}>{studio && <Icon name="reset" size={12} />}Reset</button>;
+  const spin = (
+    <button
+      class={turning ? 'on' : ''}
+      aria-pressed={turning}
+      title="Turn by itself"
+      onClick={() => setTurning(!turning)}
+    >
+      {studio && <Icon name="spin" size={12} />}Spin
+    </button>
+  );
+  const reset = (
+    <button title="Reset the view (double-click)" onClick={() => viewer.current?.reset()}>
+      {studio && <Icon name="reset" size={12} />}Reset
+    </button>
+  );
   return (
     <div class={`showcase ${studio ? 'studio' : ''}`} role="group" aria-label="3D view">
       <div class="showcase-host" ref={host} />
@@ -70,14 +112,29 @@ export function Showcase({ specId, onClose, studio }: { specId: string; onClose:
           {spin}
           {reset}
           <i class="mode-sep" aria-hidden="true" />
-          <button class={settingsOpen.value ? 'on' : ''} aria-haspopup="dialog" title="Picture, light and detail settings" onClick={() => openSettings('studio')}><Icon name="sliders" size={12} />Settings</button>
+          <button
+            class={settingsOpen.value ? 'on' : ''}
+            aria-haspopup="dialog"
+            title="Picture, light and detail settings"
+            onClick={() => openSettings('studio')}
+          >
+            <Icon name="sliders" size={12} />
+            Settings
+          </button>
         </div>
       ) : (
         <div class="showcase-bar">
-          <span class="mute showcase-hint" title="Drag: pan. Right-drag, or two fingers swiped together: turn. Scroll or pinch: zoom. Double-click or double-tap: reset.">Pan · turn · zoom</span>
+          <span
+            class="mute showcase-hint"
+            title="Drag: pan. Right-drag, or two fingers swiped together: turn. Scroll or pinch: zoom. Double-click or double-tap: reset."
+          >
+            Pan · turn · zoom
+          </span>
           {spin}
           {reset}
-          <button title="Back to the picture" aria-label="Close 3D view" onClick={onClose}><Icon name="close" size={12} /></button>
+          <button title="Back to the picture" aria-label="Close 3D view" onClick={onClose}>
+            <Icon name="close" size={12} />
+          </button>
         </div>
       )}
     </div>

@@ -10,14 +10,14 @@ A P routed as a board trace: 45° bends, a pad at its foot and a lit via at its 
 
 ## Colours
 
-| Role | Hex | Note |
-|---|---|---|
+| Role   | Hex       | Note                                  |
+| ------ | --------- | ------------------------------------- |
 | accent | `#a68bff` | violet, the via (the PC's own colour) |
-| light | `#e2eaff` | pale ink on dark |
-| dark | `#0a0e22` | navy ink on light |
-| plate | `#0a0e22` | navy ground |
-| body | `#0d1636` | deep navy |
-| trim | `#b9babf` | aluminium |
+| light  | `#e2eaff` | pale ink on dark                      |
+| dark   | `#0a0e22` | navy ink on light                     |
+| plate  | `#0a0e22` | navy ground                           |
+| body   | `#0d1636` | deep navy                             |
+| trim   | `#b9babf` | aluminium                             |
 
 synapta also uses violet. The game's mark is on screens and signs, not on the board, so the two marks never meet.
 

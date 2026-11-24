@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { assemble } from "../../cpu/sim/asm";
-import { TPM_BASE, TPM_HOP_TICKS, TPM_REG, TPM_SEAL_TICKS, TpmCmd, TpmFault, TpmStatus } from "@/core/sim/memmap";
-import { Machine } from "@/core/sim/machine";
-import { RefEngine } from "../../cpu/sim/refEngine";
-import { TpmPort, wordHash, type TpmConfig } from "./tpm";
+import { describe, expect, it } from 'vitest';
+import { assemble } from '../../cpu/sim/asm';
+import { TPM_BASE, TPM_HOP_TICKS, TPM_REG, TPM_SEAL_TICKS, TpmCmd, TpmFault, TpmStatus } from '@/core/sim/memmap';
+import { Machine } from '@/core/sim/machine';
+import { RefEngine } from '../../cpu/sim/refEngine';
+import { TpmPort, wordHash, type TpmConfig } from './tpm';
 
 const TPM1: TpmConfig = { measureTicks: 4, attestTicks: 60, surcharge: 2 };
 const TPM2: TpmConfig = { measureTicks: 1, attestTicks: 20, surcharge: 1 };
@@ -14,7 +14,7 @@ function rig(cfg: TpmConfig | null = TPM1, seed = 1) {
   const m = new Machine({ ramSize: 16 * 1024, seed });
   const tpm = new TpmPort(m.bus, m.ram, m.prng);
   m.addDevice(tpm);
-  m.clock.setRate("tpm", { mul: 1, div: 1 });
+  m.clock.setRate('tpm', { mul: 1, div: 1 });
   tpm.configure(cfg);
   const status = () => m.bus.load32(R(TPM_REG.STATUS));
   /** Run a command and tick until it is done; returns the ticks it took. */
@@ -23,7 +23,10 @@ function rig(cfg: TpmConfig | null = TPM1, seed = 1) {
     m.bus.store32(R(TPM_REG.ARG1), a1);
     m.bus.store32(R(TPM_REG.CMD), cmd);
     let n = 0;
-    while (status() & TpmStatus.Busy) { m.advanceBaseTick(); if (++n > 100000) throw new Error("tpm never finished"); }
+    while (status() & TpmStatus.Busy) {
+      m.advanceBaseTick();
+      if (++n > 100000) throw new Error('tpm never finished');
+    }
     return n;
   };
   const result = () => m.bus.load32(R(TPM_REG.RESULT));
@@ -31,8 +34,8 @@ function rig(cfg: TpmConfig | null = TPM1, seed = 1) {
   return { m, tpm, status, run, result, fault };
 }
 
-describe("TPM on the bus", () => {
-  it("reports presence and an idle status; an empty header reads as nothing", () => {
+describe('TPM on the bus', () => {
+  it('reports presence and an idle status; an empty header reads as nothing', () => {
     expect(rig().status()).toBe(TpmStatus.Present);
     const none = rig(null);
     expect(none.status()).toBe(0);
@@ -51,22 +54,27 @@ describe("TPM on the bus", () => {
     expect(run(TpmCmd.Measure, 0x1000, 10)).toBe(2 * TPM_HOP_TICKS + 40); // cost scales with the range
   });
 
-  it("the better module measures and attests faster", () => {
-    const a = rig(TPM1), b = rig(TPM2);
+  it('the better module measures and attests faster', () => {
+    const a = rig(TPM1),
+      b = rig(TPM2);
     expect(a.run(TpmCmd.Measure, 0x1000, 8)).toBe(2 * TPM_HOP_TICKS + 32);
     expect(b.run(TpmCmd.Measure, 0x1000, 8)).toBe(2 * TPM_HOP_TICKS + 8);
     expect(a.run(TpmCmd.Attest, 5)).toBe(2 * TPM_HOP_TICKS + 60);
     expect(b.run(TpmCmd.Attest, 5)).toBe(2 * TPM_HOP_TICKS + 20);
   });
 
-  it("the quote is deterministic per machine seed and follows the nonce", () => {
-    const quote = (seed: number, nonce: number) => { const r = rig(TPM1, seed); r.run(TpmCmd.Attest, nonce); return r.result(); };
+  it('the quote is deterministic per machine seed and follows the nonce', () => {
+    const quote = (seed: number, nonce: number) => {
+      const r = rig(TPM1, seed);
+      r.run(TpmCmd.Attest, nonce);
+      return r.result();
+    };
     expect(quote(5, 100)).toBe(quote(5, 100));
     expect(quote(5, 100)).not.toBe(quote(6, 100));
     expect((quote(5, 100) ^ quote(5, 101)) >>> 0).toBe(100 ^ 101);
   });
 
-  it("attest is the only command that touches the machine PRNG", () => {
+  it('attest is the only command that touches the machine PRNG', () => {
     const { m, run } = rig(TPM1, 9);
     const before = m.prng.getState();
     run(TpmCmd.Measure, 0x1000, 4);
@@ -79,7 +87,7 @@ describe("TPM on the bus", () => {
     expect(m.prng.getState()).not.toBe(before);
   });
 
-  it("seal and unseal keep a value under a handle, across a power cycle; an unknown handle is refused", () => {
+  it('seal and unseal keep a value under a handle, across a power cycle; an unknown handle is refused', () => {
     const { tpm, run, result, status, fault } = rig();
     expect(run(TpmCmd.Seal, 7, 0xabcd)).toBe(2 * TPM_HOP_TICKS + TPM_SEAL_TICKS);
     tpm.reset();
@@ -94,7 +102,7 @@ describe("TPM on the bus", () => {
     expect(fault()).toBe(TpmFault.NoSuchKey); // taking the module out loses its secrets
   });
 
-  it("refuses a bad range, an unknown command and a command while busy", () => {
+  it('refuses a bad range, an unknown command and a command while busy', () => {
     const { m, run, fault, status } = rig();
     run(TpmCmd.Measure, 0x1000, 0);
     expect(fault()).toBe(TpmFault.BadRange);
@@ -113,7 +121,7 @@ describe("TPM on the bus", () => {
   });
 });
 
-describe("TPM protected mode", () => {
+describe('TPM protected mode', () => {
   /** Protect [0x1000, 0x1100) and return the rig. */
   function protectedRig(cfg = TPM1) {
     const r = rig(cfg);
@@ -121,7 +129,7 @@ describe("TPM protected mode", () => {
     return r;
   }
 
-  it("is on after Protect and off after Unprotect, and shows in the status", () => {
+  it('is on after Protect and off after Unprotect, and shows in the status', () => {
     const r = protectedRig();
     expect(r.status() & TpmStatus.Protected).toBeTruthy();
     r.run(TpmCmd.Unprotect);
@@ -129,7 +137,7 @@ describe("TPM protected mode", () => {
     expect(r.m.bus.guard).toBeNull();
   });
 
-  it("charges the surcharge per RAM access inside the range, and nothing for devices", () => {
+  it('charges the surcharge per RAM access inside the range, and nothing for devices', () => {
     const r = protectedRig();
     r.m.bus.guardOn = true; // as while the CPU runs
     r.m.bus.stallCycles = 0;
@@ -147,14 +155,15 @@ describe("TPM protected mode", () => {
     expect(better.m.bus.stallCycles).toBe(1);
   });
 
-  it("guards only the address space that asked for it: the kernel and other programs on other cores read RAM freely", () => {
+  it('guards only the address space that asked for it: the kernel and other programs on other cores read RAM freely', () => {
     // A multicore machine: core 0 runs the secure job in its own address space; the others run the kernel (translation off) and another job.
     const m = new Machine({ ramSize: 16 * 1024, seed: 1, cores: 3 });
     const tpm = new TpmPort(m.bus, m.ram, m.prng);
     m.addDevice(tpm);
-    m.clock.setRate("tpm", { mul: 1, div: 1 });
+    m.clock.setRate('tpm', { mul: 1, div: 1 });
     tpm.configure(TPM1);
-    const as = (k: number, table: number | null) => { // serve core k, in the address space `table` (null: translation off)
+    const as = (k: number, table: number | null) => {
+      // serve core k, in the address space `table` (null: translation off)
       const c = m.cores[k]!;
       c.mmu.enabled = table !== null;
       c.mmu.table = table ?? 0;
@@ -188,9 +197,11 @@ describe("TPM protected mode", () => {
     const m = new Machine({ ramSize: 16 * 1024, seed: 1 });
     const tpm = new TpmPort(m.bus, m.ram, m.prng);
     m.addDevice(tpm);
-    m.clock.setRate("tpm", { mul: 1, div: 1 });
+    m.clock.setRate('tpm', { mul: 1, div: 1 });
     tpm.configure(TPM1);
-    const L1 = 0x100, L2 = 0x200, RWX = 7;
+    const L1 = 0x100,
+      L2 = 0x200,
+      RWX = 7;
     const pte = (frame: number) => ((frame << 8) | RWX) >>> 0;
     m.bus.store32(L1, ((L2 >> 8) << 8) | 1); // level 1 entry 0 -> the level 2 table
     const map = (vpn: number, frame: number) => m.bus.store32(L2 + 4 * (vpn & 63), pte(frame));
@@ -245,7 +256,7 @@ describe("TPM protected mode", () => {
     expect(tpm.takeViolation()).toBe(true);
   });
 
-  it("refuses RAM access outside the range: reads give 0, writes are dropped, and the job is marked for death", () => {
+  it('refuses RAM access outside the range: reads give 0, writes are dropped, and the job is marked for death', () => {
     const r = protectedRig();
     r.m.bus.guardOn = true;
     r.m.ram[0x2000] = 0xaa;
@@ -258,22 +269,25 @@ describe("TPM protected mode", () => {
     expect(r.status() & TpmStatus.Error).toBeTruthy();
   });
 
-  it("the machine waits out the surcharge: a CPU loop touching RAM in protected mode runs slower", () => {
-    const prog = assemble("li t0, 4096\nli t1, 50\nloop: lw t2, 0(t0)\naddi t1, t1, -1\nbne t1, zero, loop\necall").program;
+  it('the machine waits out the surcharge: a CPU loop touching RAM in protected mode runs slower', () => {
+    const prog = assemble(
+      'li t0, 4096\nli t1, 50\nloop: lw t2, 0(t0)\naddi t1, t1, -1\nbne t1, zero, loop\necall',
+    ).program;
     const ticks = (guarded: boolean): number => {
       const r = rig();
-      if (guarded) r.run(TpmCmd.Protect, 0x0, 16 * 1024 / 4 - 1);
+      if (guarded) r.run(TpmCmd.Protect, 0x0, (16 * 1024) / 4 - 1);
       r.m.attach(new RefEngine(), prog);
       const t0 = r.m.clock.baseTicks;
       while (!r.m.engine!.halted) r.m.advanceBaseTick();
       return r.m.clock.baseTicks - t0;
     };
-    const free = ticks(false), slow = ticks(true);
+    const free = ticks(false),
+      slow = ticks(true);
     expect(slow).toBeGreaterThan(free);
     expect(slow - free).toBeGreaterThanOrEqual(2 * 50); // every load pays its two extra cycles at least
   });
 
-  it("a reset (power-on) ends protected mode", () => {
+  it('a reset (power-on) ends protected mode', () => {
     const r = protectedRig();
     r.tpm.reset();
     expect(r.status()).toBe(TpmStatus.Present);
@@ -282,13 +296,16 @@ describe("TPM protected mode", () => {
 });
 
 describe("the reference interpreter's fake TPM (instant)", () => {
-  it("finishes at once with the same results", () => {
+  it('finishes at once with the same results', () => {
     const m = new Machine({ ramSize: 16 * 1024, seed: 4 });
     const tpm = new TpmPort(null, m.ram, m.prng, true);
     tpm.configure(TPM1);
     [1, 2, 3].forEach((w, k) => m.bus.store32(0x1000 + 4 * k, w));
-    const word = (reg: number) => (tpm.read(reg) | (tpm.read(reg + 1) << 8) | (tpm.read(reg + 2) << 16) | (tpm.read(reg + 3) << 24)) >>> 0;
-    const put = (reg: number, v: number) => { for (let k = 0; k < 4; k++) tpm.write(reg + k, (v >>> (8 * k)) & 0xff); };
+    const word = (reg: number) =>
+      (tpm.read(reg) | (tpm.read(reg + 1) << 8) | (tpm.read(reg + 2) << 16) | (tpm.read(reg + 3) << 24)) >>> 0;
+    const put = (reg: number, v: number) => {
+      for (let k = 0; k < 4; k++) tpm.write(reg + k, (v >>> (8 * k)) & 0xff);
+    };
     put(TPM_REG.ARG0, 0x1000);
     put(TPM_REG.ARG1, 3);
     put(TPM_REG.CMD, TpmCmd.Measure);
@@ -299,7 +316,7 @@ describe("the reference interpreter's fake TPM (instant)", () => {
 });
 
 describe("the module's view", () => {
-  it("has none without a module, and logs each command with its work time and result", () => {
+  it('has none without a module, and logs each command with its work time and result', () => {
     expect(rig(null).tpm.view()).toBeNull();
     const { m, tpm, run, result } = rig();
     [5, 6, 7].forEach((w, k) => m.bus.store32(0x1000 + 4 * k, w));
@@ -307,14 +324,21 @@ describe("the module's view", () => {
     run(TpmCmd.Seal, 9, 1234);
     const v = tpm.view()!;
     expect(v.log.map((e) => e.cmd)).toEqual([TpmCmd.Measure, TpmCmd.Seal]);
-    expect(v.log[0]).toMatchObject({ seq: 1, arg0: 0x1000, arg1: 3, result: wordHash([5, 6, 7]), ticks: 12, fault: TpmFault.None });
+    expect(v.log[0]).toMatchObject({
+      seq: 1,
+      arg0: 0x1000,
+      arg1: 3,
+      result: wordHash([5, 6, 7]),
+      ticks: 12,
+      fault: TpmFault.None,
+    });
     expect(v.log[1]!.ticks).toBe(TPM_SEAL_TICKS);
     expect(v.sealed).toEqual([{ handle: 9, value: 1234 }]);
     expect(result()).toBe(wordHash([5, 6, 7]));
     expect(v.busy).toBe(false);
   });
 
-  it("shows the running hash while a measure is in its work phase", () => {
+  it('shows the running hash while a measure is in its work phase', () => {
     const { m, tpm } = rig();
     const words = [11, 22, 33, 44];
     words.forEach((w, k) => m.bus.store32(0x1000 + 4 * k, w));
@@ -323,13 +347,13 @@ describe("the module's view", () => {
     m.bus.store32(R(TPM_REG.CMD), TpmCmd.Measure);
     for (let n = 0; n < TPM_HOP_TICKS + 9; n++) m.advanceBaseTick(); // two words (8 ticks) into the work
     const v = tpm.view()!;
-    expect(v.phase).toBe("work");
+    expect(v.phase).toBe('work');
     expect(v.hashed).toBe(2);
     expect(v.partial).toBe(wordHash(words.slice(0, 2)));
     expect(v.span).toBe(16);
   });
 
-  it("reports protected mode with its range, and logs a refused command with its fault", () => {
+  it('reports protected mode with its range, and logs a refused command with its fault', () => {
     const { tpm, run } = rig();
     run(TpmCmd.Protect, 0x2000, 16);
     expect(tpm.view()!.range).toEqual({ lo: 0x2000, hi: 0x2040 });

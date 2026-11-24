@@ -14,19 +14,37 @@ vi.mock('@/core/render/three/init', async (orig) => {
       camera: new PerspectiveCamera(30, 1, 10, 1e6),
       renderer: {
         domElement: { width: 400, height: 400, addEventListener() {}, removeEventListener() {} },
-        setOpaqueSort() {}, getPixelRatio: () => 1, setSize() {}, properties: { get: () => ({}) }, compile: () => new Set(), getRenderTarget: () => null, setRenderTarget() {},
+        setOpaqueSort() {},
+        getPixelRatio: () => 1,
+        setSize() {},
+        properties: { get: () => ({}) },
+        compile: () => new Set(),
+        getRenderTarget: () => null,
+        setRenderTarget() {},
       },
     }),
   };
 });
 vi.mock('@/core/render/three/post', () => ({
   Post: class {
-    render() {} refine = () => false; meter = () => null; metered = () => null;
-    setEye() {} setReach() {} setDark() {} setOpaqueSort() {} apply() {} setSize() {}
+    render() {}
+    refine = () => false;
+    meter = () => null;
+    metered = () => null;
+    setEye() {}
+    setReach() {}
+    setDark() {}
+    setOpaqueSort() {}
+    apply() {}
+    setSize() {}
     startPrograms = () => [];
   },
 }));
-vi.mock('./lens3d', () => ({ Lens3D: class { frame() {} } }));
+vi.mock('./lens3d', () => ({
+  Lens3D: class {
+    frame() {}
+  },
+}));
 
 import { BuildStage } from './buildmode3d';
 import { setLayoutTier } from '../layout/layout';
@@ -43,7 +61,11 @@ interface Inside {
 }
 const hid = (s: BuildStage): Inside => s as unknown as Inside;
 
-interface Fake { calls: string[]; held: string[][]; heldBack: Set<string> }
+interface Fake {
+  calls: string[];
+  held: string[][];
+  heldBack: Set<string>;
+}
 
 /**
  * A stage with the full rig and no 3D. The machine has a rig for every cable and writes down what is held back; the hand writes down what it was asked and
@@ -51,14 +73,40 @@ interface Fake { calls: string[]; held: string[][]; heldBack: Set<string> }
  */
 function stage(): { s: BuildStage; fake: Fake } {
   const fake: Fake = { calls: [], held: [], heldBack: new Set() };
-  const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({ clientWidth: 400, clientHeight: 800 });
+  const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
+    clientWidth: 400,
+    clientHeight: 800,
+  });
   s._machine = {
-    moving: false, doorOpen: false, frame() {}, setOpen() {}, closeDoor() {}, holdDetail() {}, lod() {}, root: new Group(), boardRoots: () => [], caseRoots: [],
-    rig: () => ({ name: 'its socket' }), holdBack(ids: Iterable<string>) { const l = [...ids]; fake.held.push(l); for (const id of l) fake.heldBack.add(id); },
-    letRun(ids: Iterable<string>) { for (const id of ids) fake.heldBack.delete(id); }, isHeldBack: (id: string) => fake.heldBack.has(id), panelIds: () => [], syncPanel() {},
+    moving: false,
+    doorOpen: false,
+    frame() {},
+    setOpen() {},
+    closeDoor() {},
+    holdDetail() {},
+    lod() {},
+    root: new Group(),
+    boardRoots: () => [],
+    caseRoots: [],
+    rig: () => ({ name: 'its socket' }),
+    holdBack(ids: Iterable<string>) {
+      const l = [...ids];
+      fake.held.push(l);
+      for (const id of l) fake.heldBack.add(id);
+    },
+    letRun(ids: Iterable<string>) {
+      for (const id of ids) fake.heldBack.delete(id);
+    },
+    isHeldBack: (id: string) => fake.heldBack.has(id),
+    panelIds: () => [],
+    syncPanel() {},
   };
   s._game = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
-  s.rebuild = s.rebuildAll = function (this: { snaps: { drop(): void }; board: { tier: number; caseTier: number }; holdReeled(): void }) {
+  s.rebuild = s.rebuildAll = function (this: {
+    snaps: { drop(): void };
+    board: { tier: number; caseTier: number };
+    holdReeled(): void;
+  }) {
     this.snaps.drop();
     setLayoutTier(this.board.tier, Math.max(this.board.tier, this.board.caseTier));
     this.holdReeled();
@@ -67,11 +115,30 @@ function stage(): { s: BuildStage; fake: Fake } {
   s.door = () => Promise.resolve();
   const t = s as unknown as Inside;
   s.hand = {
-    root: new Group(), kind: null, cancel() {},
-    pullOut: (id: string) => { fake.calls.push(`pull ${id}`); t.edit((g) => g.disconnectCable(id)); return Promise.resolve(true); },
-    stow: (id: string) => { fake.calls.push(`stow ${id}`); fake.heldBack.add(id); return Promise.resolve(true); },
-    feed: (id: string, plug: boolean) => { fake.calls.push(`feed ${id}${plug ? ' in' : ' loose'}`); if (plug) t.edit((g) => g.connectCable(id)); fake.heldBack.delete(id); return Promise.resolve(true); },
-    plugIn: (id: string) => { fake.calls.push(`carry ${id}`); t.edit((g) => g.connectCable(id)); return Promise.resolve(true); },
+    root: new Group(),
+    kind: null,
+    cancel() {},
+    pullOut: (id: string) => {
+      fake.calls.push(`pull ${id}`);
+      t.edit((g) => g.disconnectCable(id));
+      return Promise.resolve(true);
+    },
+    stow: (id: string) => {
+      fake.calls.push(`stow ${id}`);
+      fake.heldBack.add(id);
+      return Promise.resolve(true);
+    },
+    feed: (id: string, plug: boolean) => {
+      fake.calls.push(`feed ${id}${plug ? ' in' : ' loose'}`);
+      if (plug) t.edit((g) => g.connectCable(id));
+      fake.heldBack.delete(id);
+      return Promise.resolve(true);
+    },
+    plugIn: (id: string) => {
+      fake.calls.push(`carry ${id}`);
+      t.edit((g) => g.connectCable(id));
+      return Promise.resolve(true);
+    },
   };
   return { s: s as unknown as BuildStage, fake };
 }
@@ -80,13 +147,20 @@ const kindOf = (s: BuildStage, kind: string) => s.board.devices.find((d) => devi
 
 describe('the cables that go with their part', () => {
   beforeEach(() => {
-    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {});
   });
 
   it('are taken back into their hole, the plugged ones pulled first, before the supply comes out', async () => {
-    const { s, fake } = stage(), psu = kindOf(s, 'psu');
+    const { s, fake } = stage(),
+      psu = kindOf(s, 'psu');
     const lost = cablesLost(s.board, psu.id) as string[];
     expect(lost.length).toBeGreaterThan(2);
     expect(lost).toEqual(expect.arrayContaining(['atx', 'cpu', 'pcmains']));
@@ -96,21 +170,26 @@ describe('the cables that go with their part', () => {
     expect(s.board.devices.some((d) => d.id === psu.id)).toBe(false);
     for (const id of lost) expect(fake.calls, id).toContain(`stow ${id}`);
     // (a cable that was plugged was pulled before it was taken back: a cable is never taken back while it is in)
-    for (const id of plugged) expect(fake.calls.indexOf(`pull ${id}`), id).toBeLessThan(fake.calls.indexOf(`stow ${id}`));
+    for (const id of plugged)
+      expect(fake.calls.indexOf(`pull ${id}`), id).toBeLessThan(fake.calls.indexOf(`stow ${id}`));
     // (and none of them is stowed that goes on without the supply: the monitor's cables stay)
     expect(fake.calls.join()).not.toMatch(/stow (video|monmains)/);
     for (const id of lost) expect(s.cables[id], id).toBeFalsy();
   });
 
   it('are held out of sight while their part goes in, then run out to their sockets, and each cord plugged', async () => {
-    const { s, fake } = stage(), psu = kindOf(s, 'psu'), spec = psu.spec;
+    const { s, fake } = stage(),
+      psu = kindOf(s, 'psu'),
+      spec = psu.spec;
     await s.remove(devNode(psu.id));
     fake.calls.length = 0;
     fake.held.length = 0;
     await s.fit(spec);
     expect(s.board.devices.some((d) => deviceSpec(d).kind === 'psu')).toBe(true);
     // the supply's leads and cord came with it: they were held back until it was in, and each ran out of its hole to its socket
-    const born = (cablesOf(s.board).map((c) => c.id) as string[]).filter((id) => ['atx', 'cpu', 'pcmains'].includes(id));
+    const born = (cablesOf(s.board).map((c) => c.id) as string[]).filter((id) =>
+      ['atx', 'cpu', 'pcmains'].includes(id),
+    );
     expect(born).toEqual(expect.arrayContaining(['atx', 'cpu', 'pcmains']));
     for (const id of born) {
       expect(fake.held.flat(), `${id} held back`).toContain(id);
@@ -123,8 +202,9 @@ describe('the cables that go with their part', () => {
     expect(fake.heldBack.size).toBe(0);
   });
 
-  it('are the monitor\'s only with a monitor: the video cable and the monitor\'s cord go with it, and the cord is plugged to the wall', async () => {
-    const { s, fake } = stage(), mon = kindOf(s, 'display');
+  it("are the monitor's only with a monitor: the video cable and the monitor's cord go with it, and the cord is plugged to the wall", async () => {
+    const { s, fake } = stage(),
+      mon = kindOf(s, 'display');
     const lost = cablesLost(s.board, mon.id) as string[];
     expect(lost).toEqual(expect.arrayContaining(['video', 'monmains']));
     await s.remove(devNode(mon.id));

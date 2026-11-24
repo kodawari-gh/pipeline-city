@@ -38,8 +38,15 @@ export interface TileModel {
 }
 
 const hsl = (h: number, s: number, l: number): string => {
-  const f = (n: number) => { const k = (n + h * 12) % 12; const a = s * Math.min(l, 1 - l); return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
-  const c = (v: number) => Math.round(v * 255).toString(16).padStart(2, '0');
+  const f = (n: number) => {
+    const k = (n + h * 12) % 12;
+    const a = s * Math.min(l, 1 - l);
+    return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+  };
+  const c = (v: number) =>
+    Math.round(v * 255)
+      .toString(16)
+      .padStart(2, '0');
   return '#' + c(f(0)) + c(f(8)) + c(f(4));
 };
 
@@ -63,17 +70,41 @@ export function coreColor(core: number): string {
 }
 
 /** One structure of the out-of-order engine as a gauge: `used` of `cap` slots (each the class of the instruction in it, `done` when it has finished), and why it made no progress this cycle. */
-export interface OooGauge { name: string; used: number; cap: number; slots: { cls: TileCell; done: boolean }[]; stall: string | null }
+export interface OooGauge {
+  name: string;
+  used: number;
+  cap: number;
+  slots: { cls: TileCell; done: boolean }[];
+  stall: string | null;
+}
 
 /** An execution unit: the class of the instruction in it and how far through its latency it is (0..1). */
-export interface OooUnit { name: string; cls: TileCell; progress: number }
+export interface OooUnit {
+  name: string;
+  cls: TileCell;
+  progress: number;
+}
 
 /** What an out-of-order core is doing, per structure: the front end, the scheduler, the reorder buffer and the units. */
-export interface OooStages { gauges: OooGauge[]; units: OooUnit[] }
+export interface OooStages {
+  gauges: OooGauge[];
+  units: OooUnit[];
+}
 
-const FETCH_WHY: Record<number, string> = { [FetchStall.QueueFull]: 'queue full', [FetchStall.Stopped]: 'stopped', [FetchStall.ICache]: 'I-cache miss' };
-const DISPATCH_WHY: Record<number, string> = { [DispatchStall.Empty]: 'starved', [DispatchStall.RobFull]: 'ROB full', [DispatchStall.SchedFull]: 'sched full' };
-const COMMIT_WHY: Record<number, string> = { [CommitStall.Empty]: 'nothing to retire', [CommitStall.HeadPending]: 'head waiting' };
+const FETCH_WHY: Record<number, string> = {
+  [FetchStall.QueueFull]: 'queue full',
+  [FetchStall.Stopped]: 'stopped',
+  [FetchStall.ICache]: 'I-cache miss',
+};
+const DISPATCH_WHY: Record<number, string> = {
+  [DispatchStall.Empty]: 'starved',
+  [DispatchStall.RobFull]: 'ROB full',
+  [DispatchStall.SchedFull]: 'sched full',
+};
+const COMMIT_WHY: Record<number, string> = {
+  [CommitStall.Empty]: 'nothing to retire',
+  [CommitStall.HeadPending]: 'head waiting',
+};
 const UNIT_NAMES = ['ALU0', 'ALU1', 'MUL', 'LSU'];
 
 const clsOf = (op: string): TileCell => (op ? opClass(op) : null);
@@ -87,12 +118,40 @@ export function oooStages(o: OooSnap): OooStages {
   const rob = o.rob.filter((s) => s.op !== '');
   return {
     gauges: [
-      { name: 'FETCH', used: o.fetchQ.length, cap: fetchCap, slots: o.fetchQ.map((op) => ({ cls: clsOf(op), done: false })), stall: FETCH_WHY[fs] ?? null },
-      { name: 'DECODE', used: decoded.length, cap: Math.max(1, o.decode.length), slots: decoded.map((op) => ({ cls: clsOf(op), done: false })), stall: DISPATCH_WHY[ds] ?? null },
-      { name: 'SCHED', used: sched.length, cap: Math.max(1, o.sched.length), slots: sched.map((s) => ({ cls: clsOf(s.op), done: false })), stall: null },
-      { name: 'ROB', used: rob.length, cap: Math.max(1, o.rob.length), slots: rob.map((s) => ({ cls: clsOf(s.op), done: s.state >= 3 })), stall: COMMIT_WHY[cs] ?? null },
+      {
+        name: 'FETCH',
+        used: o.fetchQ.length,
+        cap: fetchCap,
+        slots: o.fetchQ.map((op) => ({ cls: clsOf(op), done: false })),
+        stall: FETCH_WHY[fs] ?? null,
+      },
+      {
+        name: 'DECODE',
+        used: decoded.length,
+        cap: Math.max(1, o.decode.length),
+        slots: decoded.map((op) => ({ cls: clsOf(op), done: false })),
+        stall: DISPATCH_WHY[ds] ?? null,
+      },
+      {
+        name: 'SCHED',
+        used: sched.length,
+        cap: Math.max(1, o.sched.length),
+        slots: sched.map((s) => ({ cls: clsOf(s.op), done: false })),
+        stall: null,
+      },
+      {
+        name: 'ROB',
+        used: rob.length,
+        cap: Math.max(1, o.rob.length),
+        slots: rob.map((s) => ({ cls: clsOf(s.op), done: s.state >= 3 })),
+        stall: COMMIT_WHY[cs] ?? null,
+      },
     ],
-    units: o.units.map((u, k) => ({ name: UNIT_NAMES[k] ?? 'U' + k, cls: clsOf(u.op), progress: u.op && u.total > 0 ? Math.min(1, (u.total - u.left) / u.total) : 0 })),
+    units: o.units.map((u, k) => ({
+      name: UNIT_NAMES[k] ?? 'U' + k,
+      cls: clsOf(u.op),
+      progress: u.op && u.total > 0 ? Math.min(1, (u.total - u.left) / u.total) : 0,
+    })),
   };
 }
 
@@ -100,7 +159,10 @@ export function oooStages(o: OooSnap): OooStages {
 export function pipeCells(p: PipeSnap | undefined): { cells: TileCell[]; fill: number } {
   if (!p) return { cells: [], fill: 0 };
   if (p.ooo) {
-    return { cells: p.ooo.units.map((u) => (u.op ? opClass(u.op) : null)), fill: p.ooo.rob.length ? p.ooo.robCount / p.ooo.rob.length : 0 };
+    return {
+      cells: p.ooo.units.map((u) => (u.op ? opClass(u.op) : null)),
+      fill: p.ooo.rob.length ? p.ooo.robCount / p.ooo.rob.length : 0,
+    };
   }
   return { cells: p.stages.map((s) => (s.kind === SlotKind.Instr && s.op ? opClass(s.op) : null)), fill: 0 };
 }
@@ -109,12 +171,23 @@ export function pipeCells(p: PipeSnap | undefined): { cells: TileCell[]; fill: n
 export function tileModels(c: CoresSnap, rates: readonly CoreRate[] = []): TileModel[] {
   return c.live.map((l) => {
     const { cells, fill } = pipeCells(c.tiles[l.hw]);
-    const running = l.job !== 0, asleep = l.parked && !running, r = rates[l.hw];
+    const running = l.job !== 0,
+      asleep = l.parked && !running,
+      r = rates[l.hw];
     return {
-      core: l.core, hw: l.hw, parked: l.parked, selected: l.core === c.selected, job: l.job, thread: l.thread,
+      core: l.core,
+      hw: l.hw,
+      parked: l.parked,
+      selected: l.core === c.selected,
+      job: l.job,
+      thread: l.thread,
       tint: running ? threadTint(l.job, l.thread) : null,
-      color: coreColor(l.core), ipc: asleep ? 0 : r?.ipc ?? 0, stall: asleep ? 0 : r?.stall ?? 0,
-      cells: asleep ? cells.map(() => null) : cells, fill, ooo: c.tiles[l.hw]?.ooo && !asleep ? oooStages(c.tiles[l.hw]!.ooo!) : null,
+      color: coreColor(l.core),
+      ipc: asleep ? 0 : (r?.ipc ?? 0),
+      stall: asleep ? 0 : (r?.stall ?? 0),
+      cells: asleep ? cells.map(() => null) : cells,
+      fill,
+      ooo: c.tiles[l.hw]?.ooo && !asleep ? oooStages(c.tiles[l.hw]!.ooo!) : null,
       label: 'C' + l.core,
       sub: running ? 'T' + l.thread : l.parked ? 'parked' : 'kernel',
     };
@@ -122,20 +195,35 @@ export function tileModels(c: CoresSnap, rates: readonly CoreRate[] = []): TileM
 }
 
 /** Where tile `k` of `n` goes in a row `w` wide (a gap of `gap` between tiles; they shrink to fit, up to `maxW`). */
-export function tileRect(k: number, n: number, w: number, gap: number, maxW: number, h: number): { x: number; y: number; w: number; h: number } {
+export function tileRect(
+  k: number,
+  n: number,
+  w: number,
+  gap: number,
+  maxW: number,
+  h: number,
+): { x: number; y: number; w: number; h: number } {
   const tw = Math.min(maxW, (w - gap * (n - 1)) / n);
   return { x: k * (tw + gap), y: 0, w: tw, h };
 }
 
 /** What the wash of one hardware core's tile shows: the logical cores on it. */
-export interface WashModel { hw: number; selected: boolean; models: TileModel[] }
+export interface WashModel {
+  hw: number;
+  selected: boolean;
+  models: TileModel[];
+}
 
 /** The logical cores grouped by hardware core, in tile order. */
 export function washModels(c: CoresSnap, rates: readonly CoreRate[] = []): WashModel[] {
-  const all = tileModels(c, rates), out: WashModel[] = [];
+  const all = tileModels(c, rates),
+    out: WashModel[] = [];
   for (const m of all) {
     let w = out.find((x) => x.hw === m.hw);
-    if (!w) { w = { hw: m.hw, selected: false, models: [] }; out.push(w); }
+    if (!w) {
+      w = { hw: m.hw, selected: false, models: [] };
+      out.push(w);
+    }
     w.models.push(m);
     if (m.selected) w.selected = true;
   }

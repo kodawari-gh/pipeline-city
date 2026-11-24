@@ -2,11 +2,18 @@ import { BoxGeometry, Mesh, SphereGeometry } from 'three';
 import { describe, expect, it } from 'vitest';
 import { DepthMap, Taut, arc, bake, convexHull } from './contact';
 
-const lowest = (g: BoxGeometry | SphereGeometry, axis: 0 | 1 | 2) => { g.computeBoundingBox(); return g.boundingBox!.min.getComponent(axis); };
+const lowest = (g: BoxGeometry | SphereGeometry, axis: 0 | 1 | 2) => {
+  g.computeBoundingBox();
+  return g.boundingBox!.min.getComponent(axis);
+};
 
 describe('contact', () => {
   it('sets a thing down on a flat face and on what is already there', () => {
-    const floor = new DepthMap(1, 1, [-1000, 0, -1000], [1000, 0, 1000], 20).face(0, [-1000, 0, -1000], [1000, 0, 1000]);
+    const floor = new DepthMap(1, 1, [-1000, 0, -1000], [1000, 0, 1000], 20).face(
+      0,
+      [-1000, 0, -1000],
+      [1000, 0, 1000],
+    );
     const box = new BoxGeometry(200, 200, 200).translate(0, 900, 0);
     expect(floor.settle(box)).toBeCloseTo(-800);
     expect(lowest(box, 1)).toBeCloseTo(0);
@@ -27,13 +34,21 @@ describe('contact', () => {
   });
 
   it('presses soft cloth flat where it meets the support, not past it', () => {
-    const floor = new DepthMap(1, 1, [-1000, 0, -1000], [1000, 0, 1000], 10).face(0, [-1000, 0, -1000], [1000, 0, 1000]);
+    const floor = new DepthMap(1, 1, [-1000, 0, -1000], [1000, 0, 1000], 10).face(
+      0,
+      [-1000, 0, -1000],
+      [1000, 0, 1000],
+    );
     const ball = new SphereGeometry(300, 24, 16).translate(0, 300, 0);
     floor.settle(ball, -60);
     floor.conform(ball, 10);
     const p = ball.attributes.position!;
-    let min = Infinity, flat = 0;
-    for (let i = 0; i < p.count; i++) { min = Math.min(min, p.getY(i)); if (p.getY(i) < 12) flat++; }
+    let min = Infinity,
+      flat = 0;
+    for (let i = 0; i < p.count; i++) {
+      min = Math.min(min, p.getY(i));
+      if (p.getY(i) < 12) flat++;
+    }
     expect(min).toBeGreaterThanOrEqual(0);
     expect(flat).toBeGreaterThan(10);
     // the top is untouched
@@ -43,7 +58,8 @@ describe('contact', () => {
 
   it('moves a mesh into its geometry', () => {
     const m = new Mesh(new BoxGeometry(10, 10, 10));
-    m.position.set(100, 0, 0); m.rotation.set(0, Math.PI / 2, 0);
+    m.position.set(100, 0, 0);
+    m.rotation.set(0, Math.PI / 2, 0);
     const g = bake(m);
     g.computeBoundingBox();
     expect(g.boundingBox!.min.x).toBeCloseTo(95);
@@ -51,7 +67,12 @@ describe('contact', () => {
   });
 
   it('walks a taut cloth over a box from its top to its far side, out by its offset', () => {
-    const box = [[0, 0], [100, 0], [100, 50], [0, 50]] as const;
+    const box = [
+      [0, 0],
+      [100, 0],
+      [100, 50],
+      [0, 50],
+    ] as const;
     const t = new Taut(box, [0, 50], [100, 0], 5);
     // from the top's edge (straight up by the offset), over the corner, down the side to its foot
     expect(t.at(0)).toMatchObject({ x: expect.closeTo(0, 3), y: expect.closeTo(55, 3) });
@@ -67,10 +88,20 @@ describe('contact', () => {
   });
 
   it('bridges a step: the cloth goes from the top edge to the lower ledge straight, never into the corner between', () => {
-    const pts = [...arc(0, 90, 10, Math.PI / 2, 0), [10, 40] as const, [30, 40] as const, [30, 0] as const, [-50, 0] as const, [-50, 100] as const];
+    const pts = [
+      ...arc(0, 90, 10, Math.PI / 2, 0),
+      [10, 40] as const,
+      [30, 40] as const,
+      [30, 0] as const,
+      [-50, 0] as const,
+      [-50, 100] as const,
+    ];
     const t = new Taut(pts, [0, 100], [30, 0], 0);
     // between the top's edge and the ledge it runs on the straight line from one to the other, never down into the corner
-    for (let s = 0; s < t.length; s += 2) { const p = t.at(s); if (p.x > 10.5 && p.x < 29.5) expect(p.y).toBeGreaterThan(90 - (p.x - 10) * 2.5 - 0.5); }
+    for (let s = 0; s < t.length; s += 2) {
+      const p = t.at(s);
+      if (p.x > 10.5 && p.x < 29.5) expect(p.y).toBeGreaterThan(90 - (p.x - 10) * 2.5 - 0.5);
+    }
     expect(convexHull(pts).some(([x, y]) => x === 10 && y === 40)).toBe(false);
   });
 });

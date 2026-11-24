@@ -1,7 +1,15 @@
 // The sky's cloud and moon-sea noise, baked once for Low. It is the live `fbm` of `sky.ts` (five octaves, the same weights), made periodic:
 // the base lattice has `NOISE_PERIOD` cells per period, and each octave doubles the cells, so every octave repeats with the map. The map
 // is sampled with wrap and mipmaps, so the clouds drift on without a seam and the far ones do not shimmer. Built on first use, then shared.
-import { DataTexture, LinearFilter, LinearMipmapLinearFilter, NoColorSpace, RepeatWrapping, RGBAFormat, UnsignedByteType } from 'three';
+import {
+  DataTexture,
+  LinearFilter,
+  LinearMipmapLinearFilter,
+  NoColorSpace,
+  RepeatWrapping,
+  RGBAFormat,
+  UnsignedByteType,
+} from 'three';
 
 /** Texels per side of the baked map. */
 export const NOISE_SIZE = 256;
@@ -19,14 +27,22 @@ function hash(x: number, y: number): number {
 
 /** Periodic value noise at (u, v), in lattice cells, the lattice `cells` across. Smooth-stepped, as the live `noise`. */
 function vnoise(u: number, v: number, cells: number): number {
-  const iu = Math.floor(u), iv = Math.floor(v);
-  let fu = u - iu, fv = v - iv;
+  const iu = Math.floor(u),
+    iv = Math.floor(v);
+  let fu = u - iu,
+    fv = v - iv;
   fu = fu * fu * (3 - 2 * fu);
   fv = fv * fv * (3 - 2 * fv);
-  const x0 = ((iu % cells) + cells) % cells, y0 = ((iv % cells) + cells) % cells;
-  const x1 = (x0 + 1) % cells, y1 = (y0 + 1) % cells;
-  const a = hash(x0, y0), b = hash(x1, y0), c = hash(x0, y1), d = hash(x1, y1);
-  const low = a + (b - a) * fu, high = c + (d - c) * fu;
+  const x0 = ((iu % cells) + cells) % cells,
+    y0 = ((iv % cells) + cells) % cells;
+  const x1 = (x0 + 1) % cells,
+    y1 = (y0 + 1) % cells;
+  const a = hash(x0, y0),
+    b = hash(x1, y0),
+    c = hash(x0, y1),
+    d = hash(x1, y1);
+  const low = a + (b - a) * fu,
+    high = c + (d - c) * fu;
   return low + (high - low) * fv;
 }
 
@@ -38,13 +54,16 @@ export function bakeFbm(size = NOISE_SIZE, period = NOISE_PERIOD): Uint8Array {
   const out = new Uint8Array(size * size * 4);
   for (let j = 0; j < size; j++) {
     for (let i = 0; i < size; i++) {
-      let s = 0, a = 0.5, cells = period;
+      let s = 0,
+        a = 0.5,
+        cells = period;
       for (let o = 0; o < OCTAVES; o++) {
         s += a * vnoise((i / size) * cells, (j / size) * cells, cells);
         cells *= 2;
         a *= 0.5;
       }
-      const q = Math.round(s * 255), k = (j * size + i) * 4;
+      const q = Math.round(s * 255),
+        k = (j * size + i) * 4;
       out[k] = out[k + 1] = out[k + 2] = out[k + 3] = q;
     }
   }

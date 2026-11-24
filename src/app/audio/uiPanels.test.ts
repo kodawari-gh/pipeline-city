@@ -88,13 +88,18 @@ describe('panels', () => {
 
   it('the Build my PC row does not play a transition cue over the open cue', () => {
     // (the menu rows share one button: only New game and Gallery name a transition)
-    expect(src('src/core/ui/panels/MainMenu.tsx')).toContain("data-cue-next={r.key === 'new' || r.key === 'gallery' ? 'ui_transition_in' : undefined}");
+    expect(src('src/core/ui/panels/MainMenu.tsx')).toContain(
+      "data-cue-next={r.key === 'new' || r.key === 'gallery' ? 'ui_transition_in' : undefined}",
+    );
   });
 
   // The machine list has no close X of its own: the Build flyout's X closes it. The Paused menu closes with Resume (ui_back).
-  it.each(PANELS.filter(([name]) => name !== 'machine list' && name !== 'Paused menu'))('the %s panel plays ui_panel_close', (_name, file) => {
-    expect(src(file)).toMatch(/data-cue="ui_panel_close"/);
-  });
+  it.each(PANELS.filter(([name]) => name !== 'machine list' && name !== 'Paused menu'))(
+    'the %s panel plays ui_panel_close',
+    (_name, file) => {
+      expect(src(file)).toMatch(/data-cue="ui_panel_close"/);
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -155,7 +160,9 @@ describe('sliders', () => {
   it.each(SLIDER_FILES)('every range slider in the %s carries data-cue="ui_slider_tick"', (_name, file) => {
     const tags = openingTags(src(file), 'input').filter((t) => /type="range"/.test(t));
     expect(tags.length).toBeGreaterThan(0);
-    const bare = tags.filter((t) => !/data-cue="ui_slider_tick"/.test(t)).map((t) => t.replace(/\s+/g, ' ').slice(0, 90));
+    const bare = tags
+      .filter((t) => !/data-cue="ui_slider_tick"/.test(t))
+      .map((t) => t.replace(/\s+/g, ' ').slice(0, 90));
     expect(bare).toEqual([]);
   });
 });

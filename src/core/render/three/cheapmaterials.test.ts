@@ -1,5 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BoxGeometry, Color, DoubleSide, Group, Material, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshPhysicalMaterial, MeshStandardMaterial, Object3D, ShaderMaterial, Texture } from 'three';
+import {
+  BoxGeometry,
+  Color,
+  DoubleSide,
+  Group,
+  Material,
+  Mesh,
+  MeshBasicMaterial,
+  MeshLambertMaterial,
+  MeshPhysicalMaterial,
+  MeshStandardMaterial,
+  Object3D,
+  ShaderMaterial,
+  Texture,
+} from 'three';
 import { fadeTree } from './artlod';
 import { cheapMaterials, probePlan } from './cheapmaterials';
 
@@ -7,15 +21,30 @@ const geo = new BoxGeometry();
 /** The distinct Lamberts under `o` (a Lambert shared by two meshes counts once). */
 const lamberts = (o: Object3D): Material[] => {
   const out = new Set<Material>();
-  o.traverse((x) => { const m = (x as Mesh).material; for (const mm of Array.isArray(m) ? m : [m]) if (mm instanceof MeshLambertMaterial) out.add(mm); });
+  o.traverse((x) => {
+    const m = (x as Mesh).material;
+    for (const mm of Array.isArray(m) ? m : [m]) if (mm instanceof MeshLambertMaterial) out.add(mm);
+  });
   return [...out];
 };
 
 describe('cheapMaterials', () => {
   it('swaps a plain standard material for a Lambert that keeps its look, one per source', () => {
-    const map = new Texture(), std = new MeshStandardMaterial({ color: 0x336699, map, emissive: new Color(0x110000), emissiveIntensity: 2, transparent: true, opacity: 0.5, side: DoubleSide, alphaTest: 0.2 });
+    const map = new Texture(),
+      std = new MeshStandardMaterial({
+        color: 0x336699,
+        map,
+        emissive: new Color(0x110000),
+        emissiveIntensity: 2,
+        transparent: true,
+        opacity: 0.5,
+        side: DoubleSide,
+        alphaTest: 0.2,
+      });
     std.userData.tag = 1;
-    const a = new Mesh(geo, std), b = new Mesh(geo, std), root = new Group().add(a, b);
+    const a = new Mesh(geo, std),
+      b = new Mesh(geo, std),
+      root = new Group().add(a, b);
     cheapMaterials(root);
     const l = a.material as unknown as MeshLambertMaterial;
     expect(l.isMeshLambertMaterial).toBe(true);
@@ -34,7 +63,11 @@ describe('cheapMaterials', () => {
   });
   it('a metal source gives a darker Lambert colour (toward dark metal), a non-metal keeps its own hex, and the source colour is not changed', () => {
     const lum = (c: Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
-    const lambertOfSource = (m: MeshStandardMaterial) => { const a = new Mesh(geo, m); cheapMaterials(a); return a.material as unknown as MeshLambertMaterial; };
+    const lambertOfSource = (m: MeshStandardMaterial) => {
+      const a = new Mesh(geo, m);
+      cheapMaterials(a);
+      return a.material as unknown as MeshLambertMaterial;
+    };
     const teal = new MeshStandardMaterial({ color: 0x3ea486, metalness: 0.9 });
     const lt = lambertOfSource(teal);
     expect(lum(lt.color)).toBeLessThan(lum(new Color(0x3ea486)));
@@ -47,14 +80,16 @@ describe('cheapMaterials', () => {
       expect(lambertOfSource(plain).color.getHex(), `metalness ${metalness}`).toBe(0x3ea486);
     }
     // copper and gold keep their own colour
-    expect(lambertOfSource(new MeshStandardMaterial({ color: 0xc0793a, metalness: 0.9 })).color.getHex()).toBe(0xc0793a);
+    expect(lambertOfSource(new MeshStandardMaterial({ color: 0xc0793a, metalness: 0.9 })).color.getHex()).toBe(
+      0xc0793a,
+    );
     expect(lambertOfSource(new MeshStandardMaterial({ color: 0xd9b25e, metalness: 1 })).color.getHex()).toBe(0xd9b25e);
     // it follows the source's tint live
     teal.color.set(0xffffff);
     expect(lum(lt.color)).toBeLessThan(1);
     expect(lum(lt.color)).toBeGreaterThan(lum(new Color(0x2a2d32)) - 1e-6);
   });
-  it('the Lambert reads the source\'s polygon offset live (a label draws over its decal)', () => {
+  it("the Lambert reads the source's polygon offset live (a label draws over its decal)", () => {
     const src = new MeshStandardMaterial({ polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
     const a = new Mesh(geo, src);
     cheapMaterials(a);
@@ -62,10 +97,13 @@ describe('cheapMaterials', () => {
     expect([l.polygonOffset, l.polygonOffsetFactor, l.polygonOffsetUnits]).toEqual([true, -4, -4]);
   });
   it('strips the PBR maps of a patched one and keeps it; a light map counts as patched', () => {
-    const n = new Texture(), r = new Texture(), m = new MeshStandardMaterial({ normalMap: n, roughnessMap: r, metalnessMap: r, aoMap: r, bumpMap: r });
+    const n = new Texture(),
+      r = new Texture(),
+      m = new MeshStandardMaterial({ normalMap: n, roughnessMap: r, metalnessMap: r, aoMap: r, bumpMap: r });
     m.onBeforeCompile = () => undefined;
     const lit = new MeshStandardMaterial({ normalMap: n, lightMap: r });
-    const a = new Mesh(geo, m), b = new Mesh(geo, lit);
+    const a = new Mesh(geo, m),
+      b = new Mesh(geo, lit);
     cheapMaterials(new Group().add(a, b));
     expect(a.material).toBe(m);
     expect([m.normalMap, m.roughnessMap, m.metalnessMap, m.aoMap, m.bumpMap]).toEqual([null, null, null, null, null]);
@@ -74,15 +112,21 @@ describe('cheapMaterials', () => {
     expect(lit.lightMap).toBe(r);
   });
   it('leaves Basic, Shader and stand-ins alone', () => {
-    const basic = new MeshBasicMaterial(), sh = new ShaderMaterial(), std = new MeshStandardMaterial();
-    const a = new Mesh(geo, basic), b = new Mesh(geo, sh), c = new Mesh(geo, std);
+    const basic = new MeshBasicMaterial(),
+      sh = new ShaderMaterial(),
+      std = new MeshStandardMaterial();
+    const a = new Mesh(geo, basic),
+      b = new Mesh(geo, sh),
+      c = new Mesh(geo, std);
     c.userData.standIn = true;
     cheapMaterials(new Group().add(a, b, c));
     expect([a.material, b.material, c.material]).toEqual([basic, sh, std]);
   });
-  it('the Lambert follows the game\'s writes on the source live, with no sync call', () => {
+  it("the Lambert follows the game's writes on the source live, with no sync call", () => {
     const src = new MeshStandardMaterial({ color: 0x111111, emissive: new Color(0xff0000), emissiveIntensity: 0 });
-    const a = new Mesh(geo, src), h = cheapMaterials(a), l = a.material as unknown as MeshLambertMaterial;
+    const a = new Mesh(geo, src),
+      h = cheapMaterials(a),
+      l = a.material as unknown as MeshLambertMaterial;
     src.emissiveIntensity = 3;
     src.color.set(0x00ff00);
     src.opacity = 0.25;
@@ -96,7 +140,10 @@ describe('cheapMaterials', () => {
     h.undo();
   });
   it('sync asks for a new program only when transparent, side, alphaTest or a map changes', () => {
-    const src = new MeshStandardMaterial(), a = new Mesh(geo, src), h = cheapMaterials(a), l = a.material as unknown as MeshLambertMaterial;
+    const src = new MeshStandardMaterial(),
+      a = new Mesh(geo, src),
+      h = cheapMaterials(a),
+      l = a.material as unknown as MeshLambertMaterial;
     const v = l.version;
     src.emissiveIntensity = 2;
     h.sync();
@@ -113,10 +160,14 @@ describe('cheapMaterials', () => {
     expect(l.version).toBe(v + 2);
   });
   it('undo puts back the originals and their maps', () => {
-    const n = new Texture(), patched = new MeshStandardMaterial({ normalMap: n });
+    const n = new Texture(),
+      patched = new MeshStandardMaterial({ normalMap: n });
     patched.onBeforeCompile = () => undefined;
-    const plain = new MeshStandardMaterial(), multi = new MeshStandardMaterial();
-    const a = new Mesh(geo, patched), b = new Mesh(geo, plain), c = new Mesh(geo, [multi, plain]);
+    const plain = new MeshStandardMaterial(),
+      multi = new MeshStandardMaterial();
+    const a = new Mesh(geo, patched),
+      b = new Mesh(geo, plain),
+      c = new Mesh(geo, [multi, plain]);
     const { undo } = cheapMaterials(new Group().add(a, b, c));
     expect(b.material).not.toBe(plain);
     expect((c.material as MeshStandardMaterial[])[0]).not.toBe(multi);
@@ -127,7 +178,10 @@ describe('cheapMaterials', () => {
   });
   it('a fade through the cheap mesh lands on the source; fading back restores it', () => {
     const src = new MeshStandardMaterial({ opacity: 1, depthWrite: true });
-    const a = new Mesh(geo, src), root = new Group().add(a), h = cheapMaterials(root), l = a.material as unknown as MeshLambertMaterial;
+    const a = new Mesh(geo, src),
+      root = new Group().add(a),
+      h = cheapMaterials(root),
+      l = a.material as unknown as MeshLambertMaterial;
     fadeTree(root, 0.5);
     expect([l.opacity, l.depthWrite, l.transparent]).toEqual([0.5, false, true]);
     expect([src.opacity, src.depthWrite, src.transparent]).toEqual([0.5, false, true]);
@@ -137,7 +191,9 @@ describe('cheapMaterials', () => {
     h.undo();
   });
   it('sync swaps in the meshes a rebuild added, and drops the ones it removed', () => {
-    const a = new Mesh(geo, new MeshStandardMaterial()), root = new Group().add(a), h = cheapMaterials(root);
+    const a = new Mesh(geo, new MeshStandardMaterial()),
+      root = new Group().add(a),
+      h = cheapMaterials(root);
     const b = new Mesh(geo, new MeshStandardMaterial());
     root.add(b);
     h.sync();
@@ -154,18 +210,26 @@ describe('cheapMaterials', () => {
   });
   it('a round trip keeps the Lambert count of a fresh pass, disposes every old Lambert, and swaps each source once', () => {
     const shared = new MeshStandardMaterial({ color: 0x123456 });
-    const build = () => new Group().add(
-      new Mesh(geo, shared), new Mesh(geo, shared), new Mesh(geo, new MeshStandardMaterial()), new Mesh(geo, new MeshStandardMaterial({ map: new Texture() })),
-    );
+    const build = () =>
+      new Group().add(
+        new Mesh(geo, shared),
+        new Mesh(geo, shared),
+        new Mesh(geo, new MeshStandardMaterial()),
+        new Mesh(geo, new MeshStandardMaterial({ map: new Texture() })),
+      );
     const late = () => new Mesh(geo, new MeshStandardMaterial({ emissive: new Color(0xff0000), emissiveIntensity: 1 }));
     // the fresh pass: the same tree (the late mesh included), cheapened once
-    const freshRoot = build().add(late()), fresh = cheapMaterials(freshRoot), want = lamberts(freshRoot).length;
+    const freshRoot = build().add(late()),
+      fresh = cheapMaterials(freshRoot),
+      want = lamberts(freshRoot).length;
     fresh.undo();
     // the first pass, then a rebuild adds a mesh that the pass must take in
-    const root = build(), first = cheapMaterials(root);
+    const root = build(),
+      first = cheapMaterials(root);
     root.add(late());
     first.sync();
-    const old = lamberts(root), spies = old.map((l) => vi.spyOn(l, 'dispose'));
+    const old = lamberts(root),
+      spies = old.map((l) => vi.spyOn(l, 'dispose'));
     expect(old).toHaveLength(want);
     first.undo();
     expect(spies.map((s) => s.mock.calls.length)).toEqual(old.map(() => 1));

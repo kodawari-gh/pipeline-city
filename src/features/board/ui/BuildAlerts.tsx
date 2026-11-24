@@ -17,14 +17,26 @@ export function BuildAlerts({ stage, alerts }: { stage: Stage | null; alerts: re
           const body = (
             <>
               <Icon name="warn" size={13} class="bld-ai" />
-              <span class="bld-at"><b>{a.title}</b><em>{a.text}</em></span>
+              <span class="bld-at">
+                <b>{a.title}</b>
+                <em>{a.text}</em>
+              </span>
             </>
           );
           return (
             <li key={`${a.id}:${a.part ?? ''}`} class={`bld-al ${a.level}`}>
-              {a.part && stage
-                ? <button title="Pick the part this is about" onPointerEnter={() => stage.glow(a.part)} onPointerLeave={() => stage.glow(null)} onClick={() => stage.select(a.part)}>{body}</button>
-                : <div>{body}</div>}
+              {a.part && stage ? (
+                <button
+                  title="Pick the part this is about"
+                  onPointerEnter={() => stage.glow(a.part)}
+                  onPointerLeave={() => stage.glow(null)}
+                  onClick={() => stage.select(a.part)}
+                >
+                  {body}
+                </button>
+              ) : (
+                <div>{body}</div>
+              )}
             </li>
           );
         })}

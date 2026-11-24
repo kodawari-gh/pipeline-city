@@ -6,8 +6,26 @@ import { MIX, type CueId } from './mixTokens';
 import { keyName, keyPcForLevel } from './keys';
 import { cueForNote, createNoteTracker } from './events';
 import { createAmbience, type AmbienceSink, type FanDevice } from './ambience';
-import { BEAT_S, createMusic, EVENT_NOTES_PER_BEAT, NEUTRAL_SPEED, speedMix, type Music, type MusicFeed, type MusicSink } from './music';
-import { createNoteVoices, noteGainDb, noteId, noteMidi, noteSpecFor, NOTE_DUR_S, type MusicNoteSink, type NoteSpec } from './musicNotes';
+import {
+  BEAT_S,
+  createMusic,
+  EVENT_NOTES_PER_BEAT,
+  NEUTRAL_SPEED,
+  speedMix,
+  type Music,
+  type MusicFeed,
+  type MusicSink,
+} from './music';
+import {
+  createNoteVoices,
+  noteGainDb,
+  noteId,
+  noteMidi,
+  noteSpecFor,
+  NOTE_DUR_S,
+  type MusicNoteSink,
+  type NoteSpec,
+} from './musicNotes';
 import { stressAmount, type StressSnap } from './stress';
 import type { StudioMachine } from './studio';
 import type { GameEvent, KeyActivity, LinkState, Phase } from '../../worker/game/types';
@@ -146,7 +164,8 @@ export function musicFeed(s: DirectorSnap): MusicFeed {
   const up = link === 'link-up' || link === 'saturated';
   const transfers = (s.net?.transfers?.length ?? 0) > 0;
   const plugged = s.plugged;
-  const ingest = s.keyActivity === 'ingesting' ||
+  const ingest =
+    s.keyActivity === 'ingesting' ||
     (typeof plugged === 'object' && plugged !== null && (plugged as { stage?: unknown }).stage === 'ingesting');
   return {
     flowing: up || transfers || ingest,
@@ -166,7 +185,12 @@ const hasAmbience = (s: object): s is AmbienceSink =>
 
 /** A sink without the music calls (a cue-only fixture) is never asked for them: the music stays silent. */
 const silentMusic: MusicSink = {
-  startMusic() {}, stopMusic() {}, setMusicGain() {}, preloadMusic() {}, decodeKey() {}, releaseKey() {},
+  startMusic() {},
+  stopMusic() {},
+  setMusicGain() {},
+  preloadMusic() {},
+  decodeKey() {},
+  releaseKey() {},
 };
 const hasMusic = (s: object): s is MusicSink =>
   ['startMusic', 'stopMusic', 'setMusicGain', 'preloadMusic', 'decodeKey', 'releaseKey'].every((k) => k in s);
@@ -332,8 +356,13 @@ export function createDirector(
       music.onScene(next);
       syncStudio();
       // Into a studio: its key (F). Out of one: the game's key back (kept from the last snapshot).
-      if (isStudio && !wasStudio) { setKey(STUDIO_KEY_PC); music.onKey(STUDIO_KEY_PC, false); }
-      else if (!isStudio && wasStudio && gameKeyPc !== null) { setKey(gameKeyPc); music.onKey(gameKeyPc, false); }
+      if (isStudio && !wasStudio) {
+        setKey(STUDIO_KEY_PC);
+        music.onKey(STUDIO_KEY_PC, false);
+      } else if (!isStudio && wasStudio && gameKeyPc !== null) {
+        setKey(gameKeyPc);
+        music.onKey(gameKeyPc, false);
+      }
     },
     onStudio(m) {
       studioMachine = m;

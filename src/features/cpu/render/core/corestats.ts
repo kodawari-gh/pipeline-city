@@ -22,9 +22,14 @@ export class CoreRateTracker {
 
   /** The rates after reading `cur` (one entry per hardware core). A paused machine (no cycles passed) keeps its rates; counters that went backwards (a reset) start over. */
   update(cur: CoreStats[] | undefined): CoreRate[] {
-    if (!cur) { this.prev = []; this.rates = []; return this.rates; }
+    if (!cur) {
+      this.prev = [];
+      this.rates = [];
+      return this.rates;
+    }
     this.rates = cur.map((c, k) => {
-      const p = this.prev[k], was = this.rates[k] ?? NONE;
+      const p = this.prev[k],
+        was = this.rates[k] ?? NONE;
       if (!p || c.cycles < p.cycles) return NONE;
       const dc = c.cycles - p.cycles;
       if (dc <= 0) return was;

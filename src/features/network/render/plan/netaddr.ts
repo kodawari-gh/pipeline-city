@@ -12,13 +12,24 @@ import { linkOf } from '../jackleds';
 import { macOf } from '../nic/nicmac';
 
 /** An address and a port: one end of a connection. */
-export interface Endpoint { ip: string; port: number }
+export interface Endpoint {
+  ip: string;
+  port: number;
+}
 
 /** What a job's connection speaks: the protocol, the port the server listens on and its name. */
-export interface Service { proto: 'TCP' | 'UDP'; port: number; name: string }
+export interface Service {
+  proto: 'TCP' | 'UDP';
+  port: number;
+  name: string;
+}
 
 /** An entry of an ARP table: an IP address, the MAC address it was answered with, and whose it is in words. */
-export interface Neighbour { ip: string; mac: string; what: string }
+export interface Neighbour {
+  ip: string;
+  mac: string;
+  what: string;
+}
 
 /** One of the PC's network jacks: the board's (`eth0`) or a card's (`eth1`..), its own MAC, and the IP address while the cable is in it and the link is up. */
 export interface Iface {
@@ -31,19 +42,53 @@ export interface Iface {
 }
 
 /** What the router's DHCP gives the PC while its link is up. */
-export interface Host { iface: string; mac: string; ip: string; prefix: number; mask: string; gateway: string; dns: string; lease: string }
+export interface Host {
+  iface: string;
+  mac: string;
+  ip: string;
+  prefix: number;
+  mask: string;
+  gateway: string;
+  dns: string;
+  lease: string;
+}
 
 /** The router's LAN side: its address (the PC's gateway), the network it makes, the pool it hands out and its MAC. */
-export interface Lan { ip: string; prefix: number; mask: string; net: string; broadcast: string; mac: string; pool: { first: string; last: string }; lease: string }
+export interface Lan {
+  ip: string;
+  prefix: number;
+  mask: string;
+  net: string;
+  broadcast: string;
+  mac: string;
+  pool: { first: string; last: string };
+  lease: string;
+}
 
 /** The router's WAN side: the public address the plan gives, the ISP's gateway beyond it, and the ISP's name servers. */
-export interface Wan { ip: string; prefix: number; mask: string; mac: string; gateway: Neighbour; dns: string[] }
+export interface Wan {
+  ip: string;
+  prefix: number;
+  mask: string;
+  mac: string;
+  gateway: Neighbour;
+  dns: string[];
+}
 
 /**
  * One connection of a job in flight, at its places: the PC's end on the LAN, the router's end on the WAN (what NAT made of it), and the server's. `peer` is whom the PC addresses on the
  * LAN wire. It is the server itself, except for DNS: the PC asks its resolver, the router (the name server DHCP gave it), and the router asks the ISP's name server from its own address.
  */
-export interface Conn { jobId: number; dir: 'down' | 'up'; label: string; service: Service; lan: Endpoint; wan: Endpoint; peer: Endpoint; server: Endpoint }
+export interface Conn {
+  jobId: number;
+  dir: 'down' | 'up';
+  label: string;
+  service: Service;
+  lan: Endpoint;
+  wan: Endpoint;
+  peer: Endpoint;
+  server: Endpoint;
+}
 
 export interface NetAddrs {
   /** The PC's jacks, the board's first, then the cards in slot order. */
@@ -68,7 +113,10 @@ export interface NetAddrs {
 /** FNV-1a: the same text gives the same number. */
 export function hash32(s: string): number {
   let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
   return h >>> 0;
 }
 
@@ -85,7 +133,10 @@ export const maskOf = (prefix: number): string => ipStr(maskBits(prefix));
 /** Is this text a MAC address? (Six pairs of hex digits, colons between.) */
 export const isMac = (s: string): boolean => /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(s);
 /** Is this text a dotted IPv4 address? */
-export const isIp = (s: string): boolean => { const p = s.split('.'); return p.length === 4 && p.every((x) => /^\d{1,3}$/.test(x) && Number(x) <= 255); };
+export const isIp = (s: string): boolean => {
+  const p = s.split('.');
+  return p.length === 4 && p.every((x) => /^\d{1,3}$/.test(x) && Number(x) <= 255);
+};
 
 // ---------------------------------------------------------------- what the game's parts are called
 
@@ -107,7 +158,8 @@ const ISP_NET = ipv4(203, 0, 113, 0);
 const SERVER_NET = ipv4(198, 51, 100, 0);
 
 /** The router's two MACs, by tier: the maker's initials (RL) after the locally administered 02, the tier, then 01 for the WAN jack and 02 for the LAN jack. */
-export const routerMac = (tier: number, lan: boolean): string => macOfBytes([0x02, 0x52, 0x4c, tier, 0x00, lan ? 2 : 1]);
+export const routerMac = (tier: number, lan: boolean): string =>
+  macOfBytes([0x02, 0x52, 0x4c, tier, 0x00, lan ? 2 : 1]);
 /** The ISP gateway's MAC, by the plan's tier (the initials ISP). */
 const gatewayMac = (tier: number): string => macOfBytes([0x02, 0x49, 0x53, 0x50, 0x00, tier]);
 /** The board's own jack: the initials HAKO's board, its tier. */
@@ -123,11 +175,15 @@ function jacksOf(s: Snapshot): { id: string; port: string; mac: string }[] {
   const num = (slot: string) => Number(/(\d+)$/.exec(slot)?.[1] ?? 0);
   const out: { id: string; port: string; mac: string }[] = [];
   // (a cable in the board's jack is proof enough that it has one)
-  if (s.board.features.ethernetMbps > 0 || s.net?.port.kind === 'board') out.push({ id: 'eth0', port: 'board', mac: boardMac(s.board.tier) });
-  s.devices.filter((d) => d.kind === 'nic').sort((a, b) => num(a.slot) - num(b.slot)).forEach((d, i) => {
-    const spec = getSpec(d.spec) as NicSpec | undefined;
-    out.push({ id: `eth${i + 1}`, port: d.id, mac: macOf(spec?.visual ?? 'nic-gbe') });
-  });
+  if (s.board.features.ethernetMbps > 0 || s.net?.port.kind === 'board')
+    out.push({ id: 'eth0', port: 'board', mac: boardMac(s.board.tier) });
+  s.devices
+    .filter((d) => d.kind === 'nic')
+    .sort((a, b) => num(a.slot) - num(b.slot))
+    .forEach((d, i) => {
+      const spec = getSpec(d.spec) as NicSpec | undefined;
+      out.push({ id: `eth${i + 1}`, port: d.id, mac: macOf(spec?.visual ?? 'nic-gbe') });
+    });
   return out;
 }
 
@@ -138,36 +194,96 @@ export function netAddrs(s: Snapshot | null | undefined): NetAddrs | null {
   if (!s || !s.net) return null;
   const hit = cache.get(s);
   if (hit) return hit;
-  const n = s.net, link = linkOf(s), spec = n.router ? getRouterSpec(n.router.id) : undefined, tier = spec?.tier ?? (n.router ? Number(/\d+$/.exec(n.router.id)?.[0]) || 1 : 0);
-  const lan: Lan | null = n.router ? (() => {
-    const plan = LAN[tier] ?? LAN[1]!, mask = maskBits(plan.prefix), net = (plan.base & mask) >>> 0;
-    return {
-      ip: ipStr(net + 1), prefix: plan.prefix, mask: ipStr(mask), net: ipStr(net), broadcast: ipStr((net | ~mask) >>> 0), mac: routerMac(tier, true),
-      pool: { first: ipStr(net + 100), last: ipStr(net + 199) }, lease: LEASE,
-    };
-  })() : null;
-  const ispSpec = n.isp ? getIspSpec(n.isp.id) : undefined, ispTier = ispSpec?.tier ?? (n.isp ? Number(/\d+$/.exec(n.isp.id)?.[0]) || 1 : 0);
-  const wan: Wan | null = n.router && n.isp ? {
-    ip: ipStr(ISP_NET + 101 + (hash32(n.isp.id) % 100)), prefix: 24, mask: maskOf(24), mac: routerMac(tier, false),
-    gateway: { ip: ipStr(ISP_NET + 1), mac: gatewayMac(ispTier), what: 'the ISP gateway' }, dns: [ipStr(ISP_NET + 53), ipStr(ISP_NET + 54)],
-  } : null;
-  const jacks = jacksOf(s), pcJack = n.port.kind === null ? undefined : jacks.find((j) => j.port === (n.port.kind === 'board' ? 'board' : n.port.deviceId));
+  const n = s.net,
+    link = linkOf(s),
+    spec = n.router ? getRouterSpec(n.router.id) : undefined,
+    tier = spec?.tier ?? (n.router ? Number(/\d+$/.exec(n.router.id)?.[0]) || 1 : 0);
+  const lan: Lan | null = n.router
+    ? (() => {
+        const plan = LAN[tier] ?? LAN[1]!,
+          mask = maskBits(plan.prefix),
+          net = (plan.base & mask) >>> 0;
+        return {
+          ip: ipStr(net + 1),
+          prefix: plan.prefix,
+          mask: ipStr(mask),
+          net: ipStr(net),
+          broadcast: ipStr((net | ~mask) >>> 0),
+          mac: routerMac(tier, true),
+          pool: { first: ipStr(net + 100), last: ipStr(net + 199) },
+          lease: LEASE,
+        };
+      })()
+    : null;
+  const ispSpec = n.isp ? getIspSpec(n.isp.id) : undefined,
+    ispTier = ispSpec?.tier ?? (n.isp ? Number(/\d+$/.exec(n.isp.id)?.[0]) || 1 : 0);
+  const wan: Wan | null =
+    n.router && n.isp
+      ? {
+          ip: ipStr(ISP_NET + 101 + (hash32(n.isp.id) % 100)),
+          prefix: 24,
+          mask: maskOf(24),
+          mac: routerMac(tier, false),
+          gateway: { ip: ipStr(ISP_NET + 1), mac: gatewayMac(ispTier), what: 'the ISP gateway' },
+          dns: [ipStr(ISP_NET + 53), ipStr(ISP_NET + 54)],
+        }
+      : null;
+  const jacks = jacksOf(s),
+    pcJack =
+      n.port.kind === null
+        ? undefined
+        : jacks.find((j) => j.port === (n.port.kind === 'board' ? 'board' : n.port.deviceId));
   const hostIp = lan && link.pc ? lan.pool.first : null;
-  const ifaces: Iface[] = jacks.map((j) => ({ id: j.id, port: j.port, mac: j.mac, plugged: j === pcJack, ip: j === pcJack ? hostIp : null }));
+  const ifaces: Iface[] = jacks.map((j) => ({
+    id: j.id,
+    port: j.port,
+    mac: j.mac,
+    plugged: j === pcJack,
+    ip: j === pcJack ? hostIp : null,
+  }));
   const pc = ifaces.find((i) => i.plugged) ?? null;
-  const host: Host | null = lan && pc && hostIp ? { iface: pc.id, mac: pc.mac, ip: hostIp, prefix: lan.prefix, mask: lan.mask, gateway: lan.ip, dns: lan.ip, lease: LEASE } : null;
-  const conns: Conn[] = host && wan ? n.transfers.map((t) => {
-    const service = serviceOf(t.label), key = `${t.jobId}|${t.dir}`;
-    // (a DNS job asks the PC's name server, the router; the router asks the first name server of the plan. Any other job speaks to its own server.)
-    const server: Endpoint = service.name === 'DNS' ? { ip: wan.dns[0]!, port: service.port } : { ip: ipStr(SERVER_NET + 2 + (hash32(`srv|${t.jobId}`) % 250)), port: service.port };
-    return {
-      jobId: t.jobId, dir: t.dir, label: t.label, service,
-      lan: { ip: host.ip, port: 49152 + (hash32(`${key}|lan`) % 16384) }, wan: { ip: wan.ip, port: 1024 + (hash32(`${key}|wan`) % 48000) },
-      peer: service.name === 'DNS' ? { ip: host.dns, port: service.port } : server, server,
-    };
-  }) : [];
+  const host: Host | null =
+    lan && pc && hostIp
+      ? {
+          iface: pc.id,
+          mac: pc.mac,
+          ip: hostIp,
+          prefix: lan.prefix,
+          mask: lan.mask,
+          gateway: lan.ip,
+          dns: lan.ip,
+          lease: LEASE,
+        }
+      : null;
+  const conns: Conn[] =
+    host && wan
+      ? n.transfers.map((t) => {
+          const service = serviceOf(t.label),
+            key = `${t.jobId}|${t.dir}`;
+          // (a DNS job asks the PC's name server, the router; the router asks the first name server of the plan. Any other job speaks to its own server.)
+          const server: Endpoint =
+            service.name === 'DNS'
+              ? { ip: wan.dns[0]!, port: service.port }
+              : { ip: ipStr(SERVER_NET + 2 + (hash32(`srv|${t.jobId}`) % 250)), port: service.port };
+          return {
+            jobId: t.jobId,
+            dir: t.dir,
+            label: t.label,
+            service,
+            lan: { ip: host.ip, port: 49152 + (hash32(`${key}|lan`) % 16384) },
+            wan: { ip: wan.ip, port: 1024 + (hash32(`${key}|wan`) % 48000) },
+            peer: service.name === 'DNS' ? { ip: host.dns, port: service.port } : server,
+            server,
+          };
+        })
+      : [];
   const out: NetAddrs = {
-    ifaces, pc, host, lan, wan, conns,
+    ifaces,
+    pc,
+    host,
+    lan,
+    wan,
+    conns,
     router: n.router ? { wan: routerMac(tier, false), lan: routerMac(tier, true) } : null,
     arp: {
       host: host && lan ? [{ ip: lan.ip, mac: lan.mac, what: 'the router' }] : [],
@@ -186,10 +302,17 @@ export const ifaceOf = (a: NetAddrs | null, port: string): Iface | undefined => 
  * The headers a connection's frames carry on one wire, for a frame going `toward` the PC (a download's data) or away from it: the Ethernet addresses of the two jacks that wire joins, the IP
  * addresses (the PC's private one on the LAN, the router's public one on the WAN: the NAT) and the ports. The MACs change at each wire, the IPs at the router only.
  */
-export interface Frame { srcMac: string; dstMac: string; src: Endpoint; dst: Endpoint }
+export interface Frame {
+  srcMac: string;
+  dstMac: string;
+  src: Endpoint;
+  dst: Endpoint;
+}
 export function frameOn(a: NetAddrs, c: Conn, wire: 'lan' | 'wan', toward: boolean): Frame | null {
   if (!a.host || !a.lan || !a.wan) return null;
-  const mine = wire === 'lan' ? c.lan : c.wan, far = wire === 'lan' ? c.peer : c.server, near = wire === 'lan' ? { mac: a.host.mac, peer: a.lan.mac } : { mac: a.wan.mac, peer: a.wan.gateway.mac };
+  const mine = wire === 'lan' ? c.lan : c.wan,
+    far = wire === 'lan' ? c.peer : c.server,
+    near = wire === 'lan' ? { mac: a.host.mac, peer: a.lan.mac } : { mac: a.wan.mac, peer: a.wan.gateway.mac };
   // (the near end is the PC on the LAN wire and the router's WAN jack on the other; the far end is the router's LAN jack, and the ISP's gateway)
   return toward
     ? { srcMac: near.peer, dstMac: near.mac, src: far, dst: mine }
@@ -203,6 +326,7 @@ export const isProxied = (c: Conn): boolean => c.peer.ip !== c.server.ip;
  * A connection of the NAT table as one line: the protocol, the PC's address and port, the public address and port the router made of it, and the server's. A proxied one (DNS) names the
  * router's resolver the PC asked before the router's own question: the PC's end, then the router, then the router's WAN end and the name server.
  */
-export const natLine = (c: Conn): string => isProxied(c)
-  ? `${c.service.proto} ${c.lan.ip}:${c.lan.port} > ${c.peer.ip}:${c.peer.port} | ${c.wan.ip}:${c.wan.port} > ${c.server.ip}:${c.server.port}`
-  : `${c.service.proto} ${c.lan.ip}:${c.lan.port} > ${c.wan.ip}:${c.wan.port} > ${c.server.ip}:${c.server.port}`;
+export const natLine = (c: Conn): string =>
+  isProxied(c)
+    ? `${c.service.proto} ${c.lan.ip}:${c.lan.port} > ${c.peer.ip}:${c.peer.port} | ${c.wan.ip}:${c.wan.port} > ${c.server.ip}:${c.server.port}`
+    : `${c.service.proto} ${c.lan.ip}:${c.lan.port} > ${c.wan.ip}:${c.wan.port} > ${c.server.ip}:${c.server.port}`;

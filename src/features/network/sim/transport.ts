@@ -52,7 +52,11 @@ export function lossRoll(seed: number, transfer: number, seq: number, attempt: n
 }
 
 /** A segment the flow puts on the wire this tick: which one, which send of it (0: the first) and whether the wire loses it. */
-export interface Send { seq: number; attempt: number; lost: boolean }
+export interface Send {
+  seq: number;
+  attempt: number;
+  lost: boolean;
+}
 
 /**
  * What a sender has learned of the round trip to a receiver: the smoothed time and its mean deviation (RFC 6298). Until the first sample it holds a guess. The flows of a link share one, so what
@@ -71,7 +75,9 @@ export class RttEstimate {
 
   /** The timeout this round trip gives, in ticks and before any backoff: a multiple of the guess until the first sample, then `srtt + 4 x rttvar`. */
   get rto(): number {
-    const base = this.sampled ? Math.ceil(this.srtt + TRANSPORT.rttvarMul * this.rttvar) : Math.ceil(TRANSPORT.rtoMul * this.srtt);
+    const base = this.sampled
+      ? Math.ceil(this.srtt + TRANSPORT.rttvarMul * this.rttvar)
+      : Math.ceil(TRANSPORT.rtoMul * this.srtt);
     return Math.min(TRANSPORT.rtoMax, Math.max(TRANSPORT.rtoMin, base));
   }
 
@@ -139,29 +145,51 @@ export class Flow {
     this.segs = Math.max(1, init.segs);
     this.segMB = Math.max(0, init.segMB);
     this.loss = Math.min(1, Math.max(0, init.loss));
-    this.est = typeof init.rtt === "number" ? new RttEstimate(init.rtt) : init.rtt;
+    this.est = typeof init.rtt === 'number' ? new RttEstimate(init.rtt) : init.rtt;
     this.cwnd = Math.min(TRANSPORT.cwndMax, Math.max(2, init.cwnd));
     this.tries = new Array<number>(this.segs).fill(0);
   }
 
-  get srtt(): number { return this.est.srtt; }
-  get rttvar(): number { return this.est.rttvar; }
+  get srtt(): number {
+    return this.est.srtt;
+  }
+  get rttvar(): number {
+    return this.est.rttvar;
+  }
   /** Whole segments the window allows in flight. */
-  get window(): number { return Math.max(1, Math.floor(this.cwnd)); }
-  get inflight(): number { return this.next - this.acked; }
+  get window(): number {
+    return Math.max(1, Math.floor(this.cwnd));
+  }
+  get inflight(): number {
+    return this.next - this.acked;
+  }
   /** Every segment is in the receiver's hands. */
-  get done(): boolean { return this.acked >= this.segs; }
+  get done(): boolean {
+    return this.acked >= this.segs;
+  }
   /** The flow still has segments to put on the wire (new ones, or one to send again): it holds a client slot. */
-  get sending(): boolean { return !this.failed && !this.done && (this.next < this.segs || this.resend); }
+  get sending(): boolean {
+    return !this.failed && !this.done && (this.next < this.segs || this.resend);
+  }
   /** The flow has a segment to send and room for it (a resend ignores the window): it takes a share of the line. */
-  get moving(): boolean { return this.sending && (this.resend || this.inflight < this.window); }
+  get moving(): boolean {
+    return this.sending && (this.resend || this.inflight < this.window);
+  }
   /** The timeout now, in ticks. */
-  get rto(): number { return Math.min(TRANSPORT.rtoMax, this.est.rto * this.backoff); }
+  get rto(): number {
+    return Math.min(TRANSPORT.rtoMax, this.est.rto * this.backoff);
+  }
   /** Line time the flow still needs to send what is left (MB). */
-  get need(): number { return this.segMB > 0 ? Math.max(0, (this.segs - this.next + (this.resend ? 1 : 0)) * this.segMB - this.credit) : 0; }
+  get need(): number {
+    return this.segMB > 0 ? Math.max(0, (this.segs - this.next + (this.resend ? 1 : 0)) * this.segMB - this.credit) : 0;
+  }
   /** The line time the transfer has used so far, and all it will use if nothing more is lost (MB): the progress the player sees. */
-  get carriedMB(): number { return this.stats.sent * this.segMB + (this.moving ? this.credit : 0); }
-  get workMB(): number { return (this.stats.sent + (this.segs - this.next) + (this.resend ? 1 : 0)) * this.segMB; }
+  get carriedMB(): number {
+    return this.stats.sent * this.segMB + (this.moving ? this.credit : 0);
+  }
+  get workMB(): number {
+    return (this.stats.sent + (this.segs - this.next) + (this.resend ? 1 : 0)) * this.segMB;
+  }
 
   /**
    * One tick: a timeout if one is due, the line time earned from `shareMB`, and the segments the line time and the window allow. Returns what goes on the wire.
@@ -173,7 +201,10 @@ export class Flow {
     if (this.failed || this.done) return out;
     if (this.timer >= 0 && now >= this.timer && this.inflight > 0) {
       this.stats.timeouts++;
-      if (this.tries[this.acked]! > TRANSPORT.maxRetries) { this.failed = true; return out; }
+      if (this.tries[this.acked]! > TRANSPORT.maxRetries) {
+        this.failed = true;
+        return out;
+      }
       this.ssthresh = Math.max(2, Math.floor(this.cwnd / 2));
       this.cwnd = 1;
       this.backoff = Math.min(this.backoff * 2, TRANSPORT.rtoMax);
@@ -185,7 +216,10 @@ export class Flow {
       this.credit += this.earned;
     }
     // the first unacknowledged segment again, if a timeout asked for it, then new segments as the window allows
-    while ((this.resend || (this.next < this.segs && this.inflight < this.window)) && (this.segMB === 0 || this.credit >= this.segMB - EPS)) {
+    while (
+      (this.resend || (this.next < this.segs && this.inflight < this.window)) &&
+      (this.segMB === 0 || this.credit >= this.segMB - EPS)
+    ) {
       let seq = this.acked;
       if (this.resend) this.resend = false;
       else seq = this.next++;
@@ -210,7 +244,8 @@ export class Flow {
     const upto = Math.min(next, this.segs);
     this.est.sample(Math.max(1, rtt));
     this.backoff = 1;
-    for (let i = this.acked; i < upto; i++) this.cwnd = Math.min(TRANSPORT.cwndMax, this.cwnd < this.ssthresh ? this.cwnd + 1 : this.cwnd + 1 / this.cwnd);
+    for (let i = this.acked; i < upto; i++)
+      this.cwnd = Math.min(TRANSPORT.cwndMax, this.cwnd < this.ssthresh ? this.cwnd + 1 : this.cwnd + 1 / this.cwnd);
     this.acked = upto;
     if (this.next < this.acked) this.next = this.acked; // an old copy got through after a timeout: do not send what is acknowledged
     this.resend = false; // the segment that was to go again is in the receiver's hands; if the next one is lost, its own timeout comes

@@ -1,7 +1,7 @@
 // VRM maths (see docs/VRM.md): pure functions, no state. The thermal model owns the VRM's temperature and stress.
 // All numbers are placeholders.
 
-import type { VrmSpec } from "./specs";
+import type { VrmSpec } from './specs';
 
 /** Per-phase load above which the VRM is overloaded (unstable). */
 export const VRM_OVERLOAD = 1;

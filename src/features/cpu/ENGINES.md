@@ -3,8 +3,8 @@
 Code: `src/features/cpu/sim/engines` (import from `src/features/cpu/sim/engines`). No DOM imports. The timed engines (unpipelined, in-order of width 1 or 2, out-of-order) implement `Engine` from `src/core/sim/engine.ts` (unchanged) and also `PipelineEngine`: `view`, `invalidateCache()`, `flipPredictor(pc?)`.
 
 ```ts
-import { createEngine } from "src/features/cpu/sim/engines";
-machine.attach(createEngine({ kind: "inorder", forwarding: true, sharedPort: false }), program);
+import { createEngine } from 'src/features/cpu/sim/engines';
+machine.attach(createEngine({ kind: 'inorder', forwarding: true, sharedPort: false }), program);
 ```
 
 `EngineConfig` is plain data: `{kind: "ref"}` (RefEngine), `{kind: "unpipelined", ...EngineSettings}`, `{kind: "inorder", ...InOrderSettings}`, `{kind: "inorder2", ...InOrderSettings}` (the in-order engine at width 2), `{kind: "ooo", ...OooSettings}`. The game does not use inorder2 / ooo yet (board specs and save still know only the first three).
@@ -44,17 +44,17 @@ One instruction at a time: 5 cycles each (F D X M W), plus `missPenalty` extra M
 
 Documented in `src/features/cpu/sim/engines/view.ts`. Nothing is allocated per step. The renderer should read, never write.
 
-| Field | Type | Meaning |
-|---|---|---|
-| `width` | number | lanes per stage (1; 2 for inorder2). Stage arrays are indexed `stage * width + lane`, lane 0 oldest; a bubble sits in lane 0 |
-| `stageKind[5*width]` | Uint8Array | per stage IF ID EX MEM WB: `SlotKind` Empty 0 / Instr 1 / Bubble 2 |
-| `stageId[5*width]` | Int32Array | dynamic instruction id (-1 for none or bubble) |
-| `stagePc[5*width]` | Uint32Array | pc of the occupant |
-| `stageCause[5*width]` | Uint8Array | bubble cause: `Cause` None 0, Load 1, Data 2, Flush 3, Struct 4 |
-| `stageStalled[5*width]` | Uint8Array | 1 if the occupant is held this cycle (ID hazard stall, pairing hold, cache freeze) |
-| `counters` | Float64Array | indexed by `Counter` (below) |
-| `timeline` | views | ring buffer of the last `rows` instructions |
-| `nextId` | number | ids handed out; newest id is `nextId - 1` |
+| Field                   | Type         | Meaning                                                                                                                      |
+| ----------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `width`                 | number       | lanes per stage (1; 2 for inorder2). Stage arrays are indexed `stage * width + lane`, lane 0 oldest; a bubble sits in lane 0 |
+| `stageKind[5*width]`    | Uint8Array   | per stage IF ID EX MEM WB: `SlotKind` Empty 0 / Instr 1 / Bubble 2                                                           |
+| `stageId[5*width]`      | Int32Array   | dynamic instruction id (-1 for none or bubble)                                                                               |
+| `stagePc[5*width]`      | Uint32Array  | pc of the occupant                                                                                                           |
+| `stageCause[5*width]`   | Uint8Array   | bubble cause: `Cause` None 0, Load 1, Data 2, Flush 3, Struct 4                                                              |
+| `stageStalled[5*width]` | Uint8Array   | 1 if the occupant is held this cycle (ID hazard stall, pairing hold, cache freeze)                                           |
+| `counters`              | Float64Array | indexed by `Counter` (below)                                                                                                 |
+| `timeline`              | views        | ring buffer of the last `rows` instructions                                                                                  |
+| `nextId`                | number       | ids handed out; newest id is `nextId - 1`                                                                                    |
 
 `Counter`: Cycles, Retired, StallLoad, StallData, StallFlush, StallStruct, StallCache, Flushes (mispredicted branch/jalr), FlushedInstrs (squashed wrong-path instructions), Branches, BranchMispredicts, CacheHits, CacheMisses, then the wide-engine counters StallRobFull, StallSchedFull, Issued, LoadForwards, LoadWaits, RobOccupancySum, SchedOccupancySum (ooo) and DualIssues, PairBreaks (inorder width > 1); counters an engine does not use stay 0. Names in `COUNTER_NAMES`. IPC = Retired / Cycles; average ROB occupancy = RobOccupancySum / Cycles. Stall counters count bubbles (or frozen cycles for the cache), by cause.
 
@@ -78,16 +78,16 @@ Pipeline: fetch queue (F) -> decode (D, up to `width` entries) -> dispatch (rena
 
 Same `counters` and `timeline` as above; the inherited `stage*` arrays are unused (empty). Everything is a live typed array, ids are dynamic instruction ids (-1 = empty), nothing is allocated per step.
 
-| Field | Meaning |
-|---|---|
-| `fetchId/fetchPc[fetchQueueSize]` | fetch queue, oldest first |
-| `decodeId/decodePc[width]` | decode queue, oldest first |
-| `robId/robPc/robState[robSize]` | the ROB as a ring: logical entry k (0 = oldest) is at `(occ[Occ.RobHead] + k) % robSize` for k < `occ[Occ.Rob]`. `RobState`: Empty 0, Waiting 1 (in the scheduler), Executing 2, Done 3 |
-| `schedId/schedPc/schedWhy[schedSize]` | scheduler slots (fixed position until issue). `SchedWhy`: None 0, Operands 1 (waiting for a producer), Memory 2 (load behind an older store), Unit 3 (ready, unit busy), Head 4 (device load waiting to be oldest) |
-| `unitId/unitPc/unitLeft/unitTotal[4]` | ALU0 ALU1 MUL LSU (`Unit`): occupant, cycles left, total latency (progress = 1 - left / total) |
-| `occ[6]` | counts, indexed by `Occ`: Fetch, Decode, Rob, Sched, Units, RobHead |
-| `stall[3]` | why a part made no progress this cycle, indexed by `OooPart` (Fetch, Dispatch, Commit): `FetchStall` None / QueueFull / Stopped (after ecall), `DispatchStall` None / Empty / RobFull / SchedFull, `CommitStall` None / Empty / HeadPending (oldest not done yet) |
-| `robSize, schedSize, fetchQueueSize, width` | the configuration |
+| Field                                       | Meaning                                                                                                                                                                                                                                                           |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fetchId/fetchPc[fetchQueueSize]`           | fetch queue, oldest first                                                                                                                                                                                                                                         |
+| `decodeId/decodePc[width]`                  | decode queue, oldest first                                                                                                                                                                                                                                        |
+| `robId/robPc/robState[robSize]`             | the ROB as a ring: logical entry k (0 = oldest) is at `(occ[Occ.RobHead] + k) % robSize` for k < `occ[Occ.Rob]`. `RobState`: Empty 0, Waiting 1 (in the scheduler), Executing 2, Done 3                                                                           |
+| `schedId/schedPc/schedWhy[schedSize]`       | scheduler slots (fixed position until issue). `SchedWhy`: None 0, Operands 1 (waiting for a producer), Memory 2 (load behind an older store), Unit 3 (ready, unit busy), Head 4 (device load waiting to be oldest)                                                |
+| `unitId/unitPc/unitLeft/unitTotal[4]`       | ALU0 ALU1 MUL LSU (`Unit`): occupant, cycles left, total latency (progress = 1 - left / total)                                                                                                                                                                    |
+| `occ[6]`                                    | counts, indexed by `Occ`: Fetch, Decode, Rob, Sched, Units, RobHead                                                                                                                                                                                               |
+| `stall[3]`                                  | why a part made no progress this cycle, indexed by `OooPart` (Fetch, Dispatch, Commit): `FetchStall` None / QueueFull / Stopped (after ecall), `DispatchStall` None / Empty / RobFull / SchedFull, `CommitStall` None / Empty / HeadPending (oldest not done yet) |
+| `robSize, schedSize, fetchQueueSize, width` | the configuration                                                                                                                                                                                                                                                 |
 
 Timeline lifecycle of an instruction: `F` in the fetch queue, `D` in decode, `S` waiting in the scheduler, `X` in a unit (one letter per cycle of latency), `R` result ready waiting for commit, `C` the commit cycle, `x` the cycle it was squashed. Example (the load misses; dependents wait, the ecall is already done):
 
@@ -110,17 +110,18 @@ A store that commits to the MMU registers also flushes everything younger in its
 
 Engine settings that a CPU spec can turn on (src/features/economy/TECHTREE.md, src/features/cpu/DIE.md); with them off an engine is exactly as described above (the golden timings do not move; `features.test.ts` "off means off" checks counters too).
 
-| Setting | Default | What it does |
-|---|---|---|
-| `ways` | 1 | Data cache lines per set (power of two, at most `cacheLines`); least recently used replacement. 1 = direct mapped. |
-| `icacheLines` | 0 | Instruction cache (same line size as the data cache; tags only). Fetch that carries on in sequence is a stream and always free (the line is filled on the way); only a **jump** (taken branch, jump, flush, interrupt) has to find its target: a hit is free, a miss waits the miss cost (the L2's if it holds the line, else RAM's; `StallIFetch` counts the cycles, `ICacheHits`/`ICacheMisses` the lookups), then the line is filled; a redirect during the wait starts a new lookup. Not on the unpipelined engine. On the out-of-order engine the stall shows as `FetchStall.ICache`. |
-| `redirectPenalty` | 0 | What a jump costs **without** an instruction cache: it waits this many cycles for its target (counted in `StallIFetch`). Default 0 = ideal instruction memory (the engine tests); the specs from `cpu2` up set 2, which is what an instruction cache saves. `cpu0` and `cpu1` leave it 0, so the tutorial's CPUs keep their timings. |
-| `l2Lines`, `l2Penalty` | 0, 2 | One L2 (4-way) behind both L1 caches. An L1 miss that hits it costs `l2Penalty` cycles instead of `missPenalty`; an L2 miss costs `missPenalty` and fills the L2 (`L2Hits`/`L2Misses`). |
-| `predEntries`, `predBits` | 64, 1 | The branch predictor table: entries and bits per entry. 2 bits = saturating counters (predict taken from 2), which stop a loop exit from flipping the next entry's prediction. `flipPredictor` toggles the prediction and keeps the strength. |
+| Setting                   | Default | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ways`                    | 1       | Data cache lines per set (power of two, at most `cacheLines`); least recently used replacement. 1 = direct mapped.                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `icacheLines`             | 0       | Instruction cache (same line size as the data cache; tags only). Fetch that carries on in sequence is a stream and always free (the line is filled on the way); only a **jump** (taken branch, jump, flush, interrupt) has to find its target: a hit is free, a miss waits the miss cost (the L2's if it holds the line, else RAM's; `StallIFetch` counts the cycles, `ICacheHits`/`ICacheMisses` the lookups), then the line is filled; a redirect during the wait starts a new lookup. Not on the unpipelined engine. On the out-of-order engine the stall shows as `FetchStall.ICache`. |
+| `redirectPenalty`         | 0       | What a jump costs **without** an instruction cache: it waits this many cycles for its target (counted in `StallIFetch`). Default 0 = ideal instruction memory (the engine tests); the specs from `cpu2` up set 2, which is what an instruction cache saves. `cpu0` and `cpu1` leave it 0, so the tutorial's CPUs keep their timings.                                                                                                                                                                                                                                                       |
+| `l2Lines`, `l2Penalty`    | 0, 2    | One L2 (4-way) behind both L1 caches. An L1 miss that hits it costs `l2Penalty` cycles instead of `missPenalty`; an L2 miss costs `missPenalty` and fills the L2 (`L2Hits`/`L2Misses`).                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `predEntries`, `predBits` | 64, 1   | The branch predictor table: entries and bits per entry. 2 bits = saturating counters (predict taken from 2), which stop a loop exit from flipping the next entry's prediction. `flipPredictor` toggles the prediction and keeps the strength.                                                                                                                                                                                                                                                                                                                                              |
 
 **`MemSystem`** (`memsys.ts`, [`MULTICORE.md`](MULTICORE.md) section 2) holds the L2 and the DRAM and answers `missCost(addr, cycle, counters, events)`: the L2's hit time, or RAM's cost (flat penalty or the DRAM's) with the line filled into the L2. An engine builds its own from its settings, so a single core is unchanged. `useMemSystem(mem)` (before `reset`) hands it one shared with other cores; the engine then does not reset it (its owner does), and `L2Hits`, `L2Misses` and the events go to the asking engine. The L1 caches and the predictor stay in the engine.
 
 **Shared system (several cores)**, switched on by `Machine` (`mem.shared`, only with more than one core; a single core's system never does any of this, so goldens are unchanged):
+
 - **One L2 port.** `missCost` queues each L2 lookup behind the last: one per cycle, on the machine's cycle count (`mem.now`, which `Machine.stepCpu` advances; the cores' own counts differ when one is stalled). The wait is added to the miss cost and counted in `StallL2Port`; every lookup counts in `L2PortBusy` (the sum over cores is `mem.portBusy`). The order a collision is decided in is the step order, which rotates (`Machine` starts at core `now % cores`), so no core always wins. The queue is also in front of the DRAM, which keeps its own per-channel and per-bank queues.
 - **Invalidate on write.** An engine that joins the system (`join`, at reset) is told of every store by the others: the store's `logMem(1, ...)` calls `storeLanded`, which drops the line from every other core's L1 D and L1 I (`DataCache.drop`) and logs `Ev.Inval` (which cache, slot, line, writing core) to the victim. `CoherenceInvals` counts lines dropped from this core; `CoherenceMisses` counts its L1 misses on a line dropped that way (`takeDropped`, consumed once). The L2 is never invalidated. Data always comes from RAM, so values are right regardless; this is the timing rule. Two cores writing different words of one line ping-pong it (`coherence.test.ts`).
 
@@ -130,11 +131,11 @@ Counters 22 to 26 are the new ones (`view.ts`). Interrupts stay precise with eve
 
 Cycles per retired instruction, mean of 12 seeds, default settings (cache 8x16 B, miss penalty 4), standalone programs (no boot ROM). `ooo` is robSize 8 / schedSize 6 / fetchQueue 4; `ooo32` is 32 / 16 / 8 with commitWidth 4.
 
-| Program | unpipelined | inorder | inorder2 | ooo | ooo32 |
-|---|---|---|---|---|---|
-| cli (log, calc, checksum mix) | 5.03 | 1.30 | 1.03 | 0.95 | 0.92 |
-| cli.log | 5.00 | 1.32 | 1.08 | 0.95 | 0.91 |
-| cli.scan x4 (cache hostile) | 5.30 | 1.45 | 1.15 | 0.96 | 0.93 |
+| Program                       | unpipelined | inorder | inorder2 | ooo  | ooo32 |
+| ----------------------------- | ----------- | ------- | -------- | ---- | ----- |
+| cli (log, calc, checksum mix) | 5.03        | 1.30    | 1.03     | 0.95 | 0.92  |
+| cli.log                       | 5.00        | 1.32    | 1.08     | 0.95 | 0.91  |
+| cli.scan x4 (cache hostile)   | 5.30        | 1.45    | 1.15     | 0.96 | 0.93  |
 
 The programs are short and branchy, so the wide engines are bound by fetch (one group per cycle, ended by every control instruction) rather than by the execution units; the gain of ooo over inorder2 is mostly miss overlap on scan.
 

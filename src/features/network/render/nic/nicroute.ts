@@ -6,14 +6,27 @@ import type { NicLink, NicPlan } from './nicplan';
 // testable; the die's view sends packets along it (nicview.ts) at the rate of the frames the port really carries.
 
 /** One wire on the way, and whether the packet runs it against its direction. */
-export interface NicHop { link: NicLink; reverse: boolean }
+export interface NicHop {
+  link: NicLink;
+  reverse: boolean;
+}
 
 export type NicDir = 'rx' | 'tx';
 
 /** The wires of each way, in the order a frame meets them (`true`: the wire is run from its `to` end to its `from` end). */
 const WAYS: Record<NicDir, [id: string, reverse: boolean][]> = {
-  rx: [['phy-mac', false], ['mac-rxq', false], ['rxq-dma', false], ['dma-pcie', false]],
-  tx: [['dma-pcie', true], ['txq-dma', true], ['mac-txq', true], ['phy-mac', true]],
+  rx: [
+    ['phy-mac', false],
+    ['mac-rxq', false],
+    ['rxq-dma', false],
+    ['dma-pcie', false],
+  ],
+  tx: [
+    ['dma-pcie', true],
+    ['txq-dma', true],
+    ['mac-txq', true],
+    ['phy-mac', true],
+  ],
 };
 
 /** The blocks each way goes through, in order (the glow of the view follows them). */
@@ -25,6 +38,9 @@ export const BLOCKS: Record<NicDir, string[]> = {
 /** The links a frame running the way `dir` takes, in order. */
 export function nicRoute(plan: Pick<NicPlan, 'links'>, dir: NicDir): NicHop[] {
   const out: NicHop[] = [];
-  for (const [id, reverse] of WAYS[dir]) { const link = plan.links.find((l) => l.id === id); if (link) out.push({ link, reverse }); }
+  for (const [id, reverse] of WAYS[dir]) {
+    const link = plan.links.find((l) => l.id === id);
+    if (link) out.push({ link, reverse });
+  }
   return out;
 }

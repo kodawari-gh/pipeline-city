@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { HUB, hubHex, levelOf, POWER, POWER_LIFT, POWER_VEIL, powerGlsl, powerGradient, powerHex, ROLE_HEX, roleScaleHex, SOURCE, sourceHex, WARN, wattsAt } from './powerscale';
+import {
+  HUB,
+  hubHex,
+  levelOf,
+  POWER,
+  POWER_LIFT,
+  POWER_VEIL,
+  powerGlsl,
+  powerGradient,
+  powerHex,
+  ROLE_HEX,
+  roleScaleHex,
+  SOURCE,
+  sourceHex,
+  WARN,
+  wattsAt,
+} from './powerscale';
 
 describe('the power scale', () => {
   it('runs from a dark amber to a pale hot yellow, and each stop is its own colour', () => {
@@ -14,7 +30,11 @@ describe('the power scale', () => {
   it('clamps outside 0 and 1, and every place is a colour', () => {
     expect(powerHex(-2)).toBe(powerHex(0));
     expect(powerHex(9)).toBe(powerHex(1));
-    for (let i = 0; i <= 100; i++) { const c = powerHex(i / 100); expect(c).toBeGreaterThanOrEqual(0); expect(c).toBeLessThanOrEqual(0xffffff); }
+    for (let i = 0; i <= 100; i++) {
+      const c = powerHex(i / 100);
+      expect(c).toBeGreaterThanOrEqual(0);
+      expect(c).toBeLessThanOrEqual(0xffffff);
+    }
   });
 
   it('maps a draw to a place by a square root and back: a few watts still show beside a hundred', () => {
@@ -38,7 +58,9 @@ describe('the power scale', () => {
   });
 
   it('gives each role its own colour family: a source white, a hub cyan, a use amber', () => {
-    const r = (c: number) => c >> 16, g = (c: number) => (c >> 8) & 255, b = (c: number) => c & 255;
+    const r = (c: number) => c >> 16,
+      g = (c: number) => (c >> 8) & 255,
+      b = (c: number) => c & 255;
     for (const h of [0.3, 0.62, 1]) {
       // (a hub is blue over red, a use is red over blue, a source is near white: its channels stay close)
       expect(b(hubHex(h))).toBeGreaterThan(r(hubHex(h)));
@@ -48,7 +70,8 @@ describe('the power scale', () => {
     expect(hubHex(0)).toBe(HUB[0]![1]);
     expect(hubHex(1)).toBe(HUB[HUB.length - 1]![1]);
     expect(sourceHex(1)).toBe(SOURCE[SOURCE.length - 1]![1]);
-    for (const role of ['source', 'hub', 'use'] as const) expect(roleScaleHex(role, 0.5)).toBe({ source: sourceHex, hub: hubHex, use: powerHex }[role](0.5));
+    for (const role of ['source', 'hub', 'use'] as const)
+      expect(roleScaleHex(role, 0.5)).toBe({ source: sourceHex, hub: hubHex, use: powerHex }[role](0.5));
     // (the chips of the legend are each role's colour, all different)
     expect(new Set(Object.values(ROLE_HEX)).size).toBe(3);
   });

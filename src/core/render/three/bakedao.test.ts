@@ -6,9 +6,15 @@ describe('baked occlusion', () => {
   it("patches three's physical shader where it applies occlusion, and keeps the material's own patch", () => {
     const m = new MeshPhysicalMaterial({ sheen: 1 });
     let own = 0;
-    m.onBeforeCompile = () => { own++; };
+    m.onBeforeCompile = () => {
+      own++;
+    };
     bakedAo(m, 0.4);
-    const sh = { vertexShader: ShaderLib.physical.vertexShader, fragmentShader: ShaderLib.physical.fragmentShader, uniforms: {} } as unknown as WebGLProgramParametersWithUniforms;
+    const sh = {
+      vertexShader: ShaderLib.physical.vertexShader,
+      fragmentShader: ShaderLib.physical.fragmentShader,
+      uniforms: {},
+    } as unknown as WebGLProgramParametersWithUniforms;
     m.onBeforeCompile(sh, {} as WebGLRenderer);
     expect(own).toBe(1);
     expect(sh.vertexShader).toContain('attribute vec2 _ao;');
@@ -20,8 +26,13 @@ describe('baked occlusion', () => {
 
   it('patches a material once (a room built again shares its pots)', () => {
     const m = new MeshPhysicalMaterial();
-    bakedAo(m); bakedAo(m);
-    const sh = { vertexShader: ShaderLib.physical.vertexShader, fragmentShader: ShaderLib.physical.fragmentShader, uniforms: {} } as unknown as WebGLProgramParametersWithUniforms;
+    bakedAo(m);
+    bakedAo(m);
+    const sh = {
+      vertexShader: ShaderLib.physical.vertexShader,
+      fragmentShader: ShaderLib.physical.fragmentShader,
+      uniforms: {},
+    } as unknown as WebGLProgramParametersWithUniforms;
     m.onBeforeCompile(sh, {} as WebGLRenderer);
     expect(sh.vertexShader.split('attribute vec2 _ao;').length).toBe(2);
     expect(m.customProgramCacheKey().split('|ao').length).toBe(2);

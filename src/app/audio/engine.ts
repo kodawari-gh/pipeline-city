@@ -80,10 +80,12 @@ interface Loop {
   voice: Voice | null;
 }
 const HUM: LoopId = 'amb_machine_hum_loop';
-const loops = new Map<LoopId, Loop>(LOOP_IDS.map((id): [LoopId, Loop] => [
-  id,
-  { want: false, fadeInMs: 0, fadeOutMs: 0, gainDb: 0, rate: 1, dipDb: 0, level: null, dip: null, voice: null },
-]));
+const loops = new Map<LoopId, Loop>(
+  LOOP_IDS.map((id): [LoopId, Loop] => [
+    id,
+    { want: false, fadeInMs: 0, fadeOutMs: 0, gainDb: 0, rate: 1, dipDb: 0, level: null, dip: null, voice: null },
+  ]),
+);
 const loopPath = (id: LoopId): string => `ambience/${id}.ogg`;
 /** Loops whose decoded length differs from the manifest count: one warning each. */
 const warnedLength = new Set<string>();
@@ -93,9 +95,18 @@ const warnedLength = new Set<string>();
 const probe = (globalThis as { __audioProbe?: Record<string, () => number> }).__audioProbe;
 if (probe) {
   probe.voices = () => pool.list.length;
-  probe.stemKeys = () => new Set([...ready.keys()]
-    .filter((p) => p.includes('/music/stems/') && !p.includes(MENU_ID))
-    .map((p) => p.replace(/\.ogg$/, '').split('_').pop() ?? '')).size;
+  probe.stemKeys = () =>
+    new Set(
+      [...ready.keys()]
+        .filter((p) => p.includes('/music/stems/') && !p.includes(MENU_ID))
+        .map(
+          (p) =>
+            p
+              .replace(/\.ogg$/, '')
+              .split('_')
+              .pop() ?? '',
+        ),
+    ).size;
 }
 
 function openGraph(): Graph | null {
@@ -126,7 +137,16 @@ function openGraph(): Graph | null {
     l.level.connect(l.dip);
     l.dip.connect(ambDuck);
   }
-  const g: Graph = { ctx, bus, fade, queued: new Map(), duckNodes: [md, ambDuck], musicDuck: md, ambDuck, noteBus: openNoteBus(ctx, bus.music) };
+  const g: Graph = {
+    ctx,
+    bus,
+    fade,
+    queued: new Map(),
+    duckNodes: [md, ambDuck],
+    musicDuck: md,
+    ambDuck,
+    noteBus: openNoteBus(ctx, bus.music),
+  };
   applyBuses(g, audioMix.peek(), false);
   return g;
 }

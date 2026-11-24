@@ -21,10 +21,18 @@ export interface LinkSource {
 }
 
 /** One jack's two lights, each 0 (out) or 1 (lit). */
-export interface JackLevels { link: number; act: number }
+export interface JackLevels {
+  link: number;
+  act: number;
+}
 
 /** The three jacks the network lights. `moving`: a light changes by itself (frames blink one by one), so a renderer that draws on demand keeps drawing. */
-export interface LinkLevels { pc: JackLevels; lan: JackLevels; wan: JackLevels; moving: boolean }
+export interface LinkLevels {
+  pc: JackLevels;
+  lan: JackLevels;
+  wan: JackLevels;
+  moving: boolean;
+}
 
 const OUT: JackLevels = { link: 0, act: 0 };
 /** Every light out: no game. */
@@ -40,7 +48,10 @@ export function linkOf(s: LinkSource | null): { pc: boolean; wan: boolean } {
 }
 
 /** Sets a jack's two lamps from its levels (a lamp is anything with an emissive intensity: a material). */
-export function lightJack(j: { link: { emissiveIntensity: number }; act: { emissiveIntensity: number } } | null | undefined, v: JackLevels): void {
+export function lightJack(
+  j: { link: { emissiveIntensity: number }; act: { emissiveIntensity: number } } | null | undefined,
+  v: JackLevels,
+): void {
   if (!j) return;
   j.link.emissiveIntensity = v.link * JACK_GLOW.link;
   j.act.emissiveIntensity = v.act * JACK_GLOW.act;
@@ -60,18 +71,37 @@ export class LinkLeds {
   private phase = 0;
 
   /** The rate of frames the port carries now, a tick. */
-  get framesPerTick(): number { return this.rate; }
+  get framesPerTick(): number {
+    return this.rate;
+  }
 
   step(s: LinkSource | null, dt: number): LinkLevels {
     const n = s?.net;
-    if (!s || !n) { this.tick = Number.NaN; this.rate = 0; this.phase = 0; return DARK; }
+    if (!s || !n) {
+      this.tick = Number.NaN;
+      this.rate = 0;
+      this.phase = 0;
+      return DARK;
+    }
     const total = n.frames.rx + n.frames.tx;
-    if (Number.isNaN(this.tick) || s.baseTick < this.tick || total < this.total) { this.tick = s.baseTick; this.total = total; this.rate = 0; this.phase = 0; }
-    else if (s.baseTick > this.tick) { this.rate = (total - this.total) / (s.baseTick - this.tick); this.tick = s.baseTick; this.total = total; }
-    const link = linkOf(s), rate = link.pc ? this.rate : 0, duty = rate * STRETCH;
-    let act = 0, moving = false;
+    if (Number.isNaN(this.tick) || s.baseTick < this.tick || total < this.total) {
+      this.tick = s.baseTick;
+      this.total = total;
+      this.rate = 0;
+      this.phase = 0;
+    } else if (s.baseTick > this.tick) {
+      this.rate = (total - this.total) / (s.baseTick - this.tick);
+      this.tick = s.baseTick;
+      this.total = total;
+    }
+    const link = linkOf(s),
+      rate = link.pc ? this.rate : 0,
+      duty = rate * STRETCH;
+    let act = 0,
+      moving = false;
     if (rate <= 0) this.phase = 0;
-    else if (duty >= 1) act = 1; // (the frames follow each other closer than a stretch: it stays lit)
+    else if (duty >= 1)
+      act = 1; // (the frames follow each other closer than a stretch: it stays lit)
     else {
       this.phase = (this.phase + rate * Math.max(0, dt)) % 1;
       act = this.phase < duty ? 1 : 0;

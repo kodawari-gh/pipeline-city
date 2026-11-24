@@ -15,13 +15,18 @@ const LOOKS = ['board-fe', 'board-ge'];
 /** The chip over the board's own rectangle for it (a tier with an Ethernet chip), with its plan and a floorplan that only records how it was put on. */
 function chip(look: string, seen: { frame: Group; scale: number }[] = [], root = new Group()) {
   setLayoutTier(3, 3);
-  return phyChip(GEO.phy!, look, ID, nicGeo(look, BOARD_BAND).die, (frame, scale) => { seen.push({ frame, scale }); return { root, z: 3 / scale }; });
+  return phyChip(GEO.phy!, look, ID, nicGeo(look, BOARD_BAND).die, (frame, scale) => {
+    seen.push({ frame, scale });
+    return { root, z: 3 / scale };
+  });
 }
 
 describe('the Ethernet chip on the motherboard, in 3D', () => {
-  it('stands over the rectangle the board draws for it, a quad flat package as tall as the board\'s other small chips, tagged with its part id', () => {
+  it("stands over the rectangle the board draws for it, a quad flat package as tall as the board's other small chips, tagged with its part id", () => {
     for (const look of LOOKS) {
-      const c = chip(look), r = GEO.phy!, b = new Box3().setFromObject(c.root);
+      const c = chip(look),
+        r = GEO.phy!,
+        b = new Box3().setFromObject(c.root);
       // (the board's own frame: layout y is the negative of the world's y, depth up from the board's face)
       expect(b.min.x, look).toBeCloseTo(r.x, 3);
       expect(b.max.x, look).toBeCloseTo(r.x + r.w, 3);
@@ -37,9 +42,11 @@ describe('the Ethernet chip on the motherboard, in 3D', () => {
     }
   });
 
-  it('has its die as wide as the pad, in the middle of the chip, the die\'s rectangle in layout units as the board\'s', () => {
+  it("has its die as wide as the pad, in the middle of the chip, the die's rectangle in layout units as the board's", () => {
     for (const look of LOOKS) {
-      const c = chip(look), r = GEO.phy!, plan = nicGeo(look, BOARD_BAND).die;
+      const c = chip(look),
+        r = GEO.phy!,
+        plan = nicGeo(look, BOARD_BAND).die;
       // (no bare package round the floorplan: the die has the plan's shape and fills the chip to a rim of 3 % at most)
       expect(c.rect.w / c.rect.h, look).toBeCloseTo(plan.w / plan.h, 6);
       expect(c.rect.w / r.w, look).toBeGreaterThan(0.97);
@@ -57,9 +64,11 @@ describe('the Ethernet chip on the motherboard, in 3D', () => {
     }
   });
 
-  it('puts the floorplan on the die: its frame is placed so the plan\'s middle lies on the die\'s, drawn at the die\'s scale, face up', () => {
+  it("puts the floorplan on the die: its frame is placed so the plan's middle lies on the die's, drawn at the die's scale, face up", () => {
     for (const look of LOOKS) {
-      const seen: { frame: Group; scale: number }[] = [], c = chip(look, seen), p = c.plan;
+      const seen: { frame: Group; scale: number }[] = [],
+        c = chip(look, seen),
+        p = c.plan;
       expect(seen, look).toHaveLength(1);
       const f = seen[0]!.frame;
       expect(f.scale.x, look).toBeCloseTo(c.scale, 9);
@@ -76,9 +85,10 @@ describe('the Ethernet chip on the motherboard, in 3D', () => {
     }
   });
 
-  it('shows the mould far away and the floorplan close in: the lid fades with the zoom, the die\'s face shows when it has gone', () => {
+  it("shows the mould far away and the floorplan close in: the lid fades with the zoom, the die's face shows when it has gone", () => {
     for (const look of LOOKS) {
-      const root = new Group(), c = chip(look, [], root);
+      const root = new Group(),
+        c = chip(look, [], root);
       c.lod(0.05);
       expect(c.lid.visible, look).toBe(true);
       expect(root.visible, look).toBe(false);
@@ -88,7 +98,9 @@ describe('the Ethernet chip on the motherboard, in 3D', () => {
       // (the mould is in the root, tagged with the part's id, so a pick on it names the controller)
       expect(findById(c.root, ID)).toBe(c.root);
       let n = 0;
-      c.lid.traverse((o) => { if ((o as Mesh).isMesh) n++; });
+      c.lid.traverse((o) => {
+        if ((o as Mesh).isMesh) n++;
+      });
       expect(n, look).toBeGreaterThan(0);
     }
   });

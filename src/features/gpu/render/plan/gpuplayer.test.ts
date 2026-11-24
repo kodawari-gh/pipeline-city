@@ -4,10 +4,32 @@ import type { GpuSnap } from '@/worker/game/types';
 import { CYCLES_PER_SEC } from '@/features/cpu/render/die/diemotion';
 import { bankState, conflicted, GpuPlayer, laneActive, stepText } from './gpuplayer';
 
-const step = (pc: number, o: Partial<GpuStep> = {}): GpuStep => ({ pc, name: 'vadd', kind: 'alu', mask: 0xff, cost: 1, banks: null, dest: 1, ...o });
+const step = (pc: number, o: Partial<GpuStep> = {}): GpuStep => ({
+  pc,
+  name: 'vadd',
+  kind: 'alu',
+  mask: 0xff,
+  cost: 1,
+  banks: null,
+  dest: 1,
+  ...o,
+});
 const snap = (trace: GpuStep[], o: Partial<GpuSnap> = {}): GpuSnap => ({
-  slot: 'pcie0', lanes: 8, banks: 4, memBytes: 8192, phase: 'run', mask: 0xff, stack: [], pc: 0, regs: [], trace, launches: 1, error: false, frame: [],
-  stats: { instructions: trace.length, idleLaneSlots: 0, conflictCycles: 0, cycles: trace.length }, ...o,
+  slot: 'pcie0',
+  lanes: 8,
+  banks: 4,
+  memBytes: 8192,
+  phase: 'run',
+  mask: 0xff,
+  stack: [],
+  pc: 0,
+  regs: [],
+  trace,
+  launches: 1,
+  error: false,
+  frame: [],
+  stats: { instructions: trace.length, idleLaneSlots: 0, conflictCycles: 0, cycles: trace.length },
+  ...o,
 });
 /** Seconds one cycle of the replay lasts. */
 const CYC = 1 / CYCLES_PER_SEC;
@@ -26,7 +48,13 @@ describe('GPU replay', () => {
 
   it('walks the window one instruction per cycle, and a conflicted access lasts its cost', () => {
     const p = new GpuPlayer();
-    p.feed(snap([step(0), step(4, { name: 'vld', kind: 'ld', cost: 3, banks: [3, 0, 0, 0] }), step(8, { name: 'halt', kind: 'sys' })]));
+    p.feed(
+      snap([
+        step(0),
+        step(4, { name: 'vld', kind: 'ld', cost: 3, banks: [3, 0, 0, 0] }),
+        step(8, { name: 'halt', kind: 'sys' }),
+      ]),
+    );
     expect(p.advance(0)).toMatchObject({ index: 0, length: 3, playing: true });
     expect(p.advance(CYC * 1.5)).toMatchObject({ index: 1, round: 0 }); // 1.5 cycles in: half-way through the first round of the load
     expect(p.advance(CYC * 1)).toMatchObject({ index: 1, round: 1 });
@@ -41,7 +69,11 @@ describe('GPU replay', () => {
     p.feed(snap([step(0), step(4), step(8)]));
     expect(p.advance(0, true)).toMatchObject({ index: 2, playing: false }); // a first window lands on its last cycle, nothing plays
     // a step: the window now ends one instruction later; the card moves on by that one instruction, not by replaying the window
-    p.feed(snap([step(0), step(4), step(8), step(12, { name: 'vld', kind: 'ld' })], { stats: { instructions: 4, idleLaneSlots: 0, conflictCycles: 0, cycles: 4 } }));
+    p.feed(
+      snap([step(0), step(4), step(8), step(12, { name: 'vld', kind: 'ld' })], {
+        stats: { instructions: 4, idleLaneSlots: 0, conflictCycles: 0, cycles: 4 },
+      }),
+    );
     expect(p.advance(0, true)).toMatchObject({ index: 3, length: 4, playing: false });
     expect(p.advance(0, true).step?.name).toBe('vld');
     // the same card running (not paused) plays the new window from its start instead
@@ -54,8 +86,12 @@ describe('GPU replay', () => {
     const p = new GpuPlayer();
     p.feed(snap([step(0), step(4)], { stats: { instructions: 2, idleLaneSlots: 0, conflictCycles: 0, cycles: 2 } }));
     p.advance(CYC * 0.5);
-    p.feed(snap([step(100), step(104)], { stats: { instructions: 4, idleLaneSlots: 0, conflictCycles: 0, cycles: 4 } }));
-    p.feed(snap([step(200), step(204)], { stats: { instructions: 6, idleLaneSlots: 0, conflictCycles: 0, cycles: 6 } }));
+    p.feed(
+      snap([step(100), step(104)], { stats: { instructions: 4, idleLaneSlots: 0, conflictCycles: 0, cycles: 4 } }),
+    );
+    p.feed(
+      snap([step(200), step(204)], { stats: { instructions: 6, idleLaneSlots: 0, conflictCycles: 0, cycles: 6 } }),
+    );
     expect(p.advance(0).step?.pc).toBe(0); // the first window is not cut short
     expect(p.advance(CYC * 5).playing).toBe(false);
     expect(p.advance(0.6).step?.pc).toBe(200); // held, then the newest
@@ -85,18 +121,27 @@ describe('GPU replay', () => {
 
   it('runs on the card clock: a second warp issues while a load waits, each SM shows its own instruction', () => {
     const p = new GpuPlayer();
-    p.feed(snap([
-      step(0, { name: 'vld', kind: 'ld', cost: 6, startCycle: 10, sm: 0, warp: 0, banks: [1, 0, 0, 0] }),
-      step(0, { startCycle: 11, sm: 0, warp: 1, maskAfter: 0x0f }),
-      step(0, { startCycle: 11, sm: 1, warp: 0 }),
-      step(4, { startCycle: 12, sm: 0, warp: 1 }),
-    ]));
+    p.feed(
+      snap([
+        step(0, { name: 'vld', kind: 'ld', cost: 6, startCycle: 10, sm: 0, warp: 0, banks: [1, 0, 0, 0] }),
+        step(0, { startCycle: 11, sm: 0, warp: 1, maskAfter: 0x0f }),
+        step(0, { startCycle: 11, sm: 1, warp: 0 }),
+        step(4, { startCycle: 12, sm: 0, warp: 1 }),
+      ]),
+    );
     p.advance(CYC * 2.5); // card cycle 2 of the window, on the first warp's load
     const t = p.advance(0);
     expect(t.cycle).toBeCloseTo(2.5, 5);
     expect(t.index).toBe(3); // the newest to have issued
-    expect(t.sms.map((s) => [s.sm, s.index])).toEqual([[0, 3], [1, 2]]);
-    expect(t.warps.map((w) => [w.sm, w.warp, w.index, w.busy])).toEqual([[0, 0, 0, true], [0, 1, 3, true], [1, 0, 2, false]]);
+    expect(t.sms.map((s) => [s.sm, s.index])).toEqual([
+      [0, 3],
+      [1, 2],
+    ]);
+    expect(t.warps.map((w) => [w.sm, w.warp, w.index, w.busy])).toEqual([
+      [0, 0, 0, true],
+      [0, 1, 3, true],
+      [1, 0, 2, false],
+    ]);
     const early = p.seek(0, 0.5);
     expect(early.index).toBe(0);
     expect(early.warps).toHaveLength(1);
@@ -126,7 +171,8 @@ describe('GPU scrubbing a stepped card', () => {
     expect(p.span).toBe(1);
     p.feed(snap(run(11)));
     expect(p.span).toBe(11);
-    const early = p.seek(0, 1), late = p.seek(0, 11);
+    const early = p.seek(0, 1),
+      late = p.seek(0, 11);
     expect(early.cycle).toBe(1);
     expect(early.step?.pc).toBe(4);
     expect(late.step?.pc).toBe(40);

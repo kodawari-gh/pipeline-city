@@ -45,7 +45,10 @@ describe('core tiles', () => {
   });
 
   it('carries the rates of its hardware core, none for a parked idle core', () => {
-    const t = tileModels(snap(), [{ ipc: 0.8, stall: 0.25, l2Wait: 0 }, { ipc: 1.5, stall: 0, l2Wait: 0 }]);
+    const t = tileModels(snap(), [
+      { ipc: 0.8, stall: 0.25, l2Wait: 0 },
+      { ipc: 1.5, stall: 0, l2Wait: 0 },
+    ]);
     expect([t[0]!.ipc, t[0]!.stall]).toEqual([0.8, 0.25]);
     expect(t[1]!.ipc).toBe(1.5);
     expect([t[2]!.ipc, t[2]!.stall]).toEqual([0, 0]);
@@ -55,11 +58,15 @@ describe('core tiles', () => {
   it('tints a thread by its job and its number: one family per job, a different one for another job', () => {
     const hue = (hex: string) => {
       const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number];
-      const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+      const mx = Math.max(r, g, b),
+        mn = Math.min(r, g, b),
+        d = mx - mn;
       const h = d === 0 ? 0 : mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
       return Math.round(h * 60);
     };
-    const a0 = threadTint(4096, 0), a5 = threadTint(4096, 5), b0 = threadTint(4096 + 64, 0);
+    const a0 = threadTint(4096, 0),
+      a5 = threadTint(4096, 5),
+      b0 = threadTint(4096 + 64, 0);
     expect(a0).toMatch(/^#[0-9a-f]{6}$/);
     expect(a0).not.toBe(a5); // another thread of the job: another shade
     expect(Math.abs(hue(a0) - hue(a5))).toBeLessThanOrEqual(2); // the same hue
@@ -67,10 +74,25 @@ describe('core tiles', () => {
   });
 
   it('reads the out-of-order engine as its four units and the reorder buffer fill', () => {
-    const p: PipeSnap = { width: 2, stages: [], ooo: {
-      fetchQ: [], decode: [], rob: Array.from({ length: 8 }, () => ({ op: '', state: 0 })), robHead: 0, robCount: 6, sched: [],
-      units: [{ op: 'add', left: 1, total: 1 }, { op: '', left: 0, total: 0 }, { op: 'mul', left: 2, total: 3 }, { op: 'lw', left: 1, total: 1 }], stall: [0, 0, 0],
-    } };
+    const p: PipeSnap = {
+      width: 2,
+      stages: [],
+      ooo: {
+        fetchQ: [],
+        decode: [],
+        rob: Array.from({ length: 8 }, () => ({ op: '', state: 0 })),
+        robHead: 0,
+        robCount: 6,
+        sched: [],
+        units: [
+          { op: 'add', left: 1, total: 1 },
+          { op: '', left: 0, total: 0 },
+          { op: 'mul', left: 2, total: 3 },
+          { op: 'lw', left: 1, total: 1 },
+        ],
+        stall: [0, 0, 0],
+      },
+    };
     expect(pipeCells(p)).toEqual({ cells: ['alu', null, 'mul', 'ld'], fill: 0.75 });
     expect(pipeCells(undefined)).toEqual({ cells: [], fill: 0 });
   });
@@ -85,19 +107,46 @@ describe('core tiles', () => {
 describe('washModels', () => {
   it('groups the logical cores by the hardware core they share, in tile order, and marks the tile of the selected core', () => {
     const w = washModels(snap());
-    expect(w.map((x) => [x.hw, x.models.map((m) => m.core), x.selected])).toEqual([[0, [0, 2], false], [1, [1], true]]);
+    expect(w.map((x) => [x.hw, x.models.map((m) => m.core), x.selected])).toEqual([
+      [0, [0, 2], false],
+      [1, [1], true],
+    ]);
   });
 });
 
 describe('oooStages', () => {
   const o = {
-    fetchQ: ['add', 'ld'], decode: ['add', ''], rob: [{ op: 'add', state: 3 }, { op: 'ld', state: 1 }, { op: '', state: 0 }, { op: '', state: 0 }],
-    robHead: 0, robCount: 2, sched: [{ op: 'ld', state: 2 }, { op: '', state: 0 }], units: [{ op: 'add', left: 1, total: 4 }, { op: '', left: 0, total: 0 }, { op: '', left: 0, total: 0 }, { op: 'ld', left: 0, total: 3 }],
-    fetchCap: 8, stall: [1, 0, 2] as [number, number, number],
+    fetchQ: ['add', 'ld'],
+    decode: ['add', ''],
+    rob: [
+      { op: 'add', state: 3 },
+      { op: 'ld', state: 1 },
+      { op: '', state: 0 },
+      { op: '', state: 0 },
+    ],
+    robHead: 0,
+    robCount: 2,
+    sched: [
+      { op: 'ld', state: 2 },
+      { op: '', state: 0 },
+    ],
+    units: [
+      { op: 'add', left: 1, total: 4 },
+      { op: '', left: 0, total: 0 },
+      { op: '', left: 0, total: 0 },
+      { op: 'ld', left: 0, total: 3 },
+    ],
+    fetchCap: 8,
+    stall: [1, 0, 2] as [number, number, number],
   };
   it('counts what each structure holds against its size', () => {
     const s = oooStages(o);
-    expect(s.gauges.map((g) => [g.name, g.used, g.cap])).toEqual([['FETCH', 2, 8], ['DECODE', 1, 2], ['SCHED', 1, 2], ['ROB', 2, 4]]);
+    expect(s.gauges.map((g) => [g.name, g.used, g.cap])).toEqual([
+      ['FETCH', 2, 8],
+      ['DECODE', 1, 2],
+      ['SCHED', 1, 2],
+      ['ROB', 2, 4],
+    ]);
   });
   it('names why the front end and commit are stuck', () => {
     const s = oooStages(o);

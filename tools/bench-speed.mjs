@@ -1,19 +1,19 @@
 // `npm run bench:speed`: runs the sandbox speed benchmark (src/features/sandbox/sim/speed.ts) through Vite's SSR loader, so it
 // needs no test runner and `npm test` never runs it. Prints "SPEED" lines; see src/features/sandbox/SANDBOX.md.
-import { createServer } from "vite";
-import { fileURLToPath } from "node:url";
+import { createServer } from 'vite';
+import { fileURLToPath } from 'node:url';
 
 const server = await createServer({
   configFile: false,
   root: process.cwd(),
-  resolve: { alias: { "@": fileURLToPath(new URL("../src", import.meta.url)) } },
-  logLevel: "error",
-  appType: "custom",
+  resolve: { alias: { '@': fileURLToPath(new URL('../src', import.meta.url)) } },
+  logLevel: 'error',
+  appType: 'custom',
   server: { middlewareMode: true, hmr: false },
   optimizeDeps: { noDiscovery: true, include: [] },
 });
 try {
-  const mod = await server.ssrLoadModule("/src/features/sandbox/sim/speed.ts");
+  const mod = await server.ssrLoadModule('/src/features/sandbox/sim/speed.ts');
   await mod.main();
 } finally {
   await server.close();

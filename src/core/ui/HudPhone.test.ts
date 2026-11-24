@@ -29,7 +29,11 @@ function render(v: Node, depth = 0): Kid[] {
   if (typeof el.type === 'function') {
     if (depth > 80) return [];
     let out: unknown;
-    try { out = (el.type as (p: Record<string, unknown>) => unknown)(el.props); } catch { return []; }
+    try {
+      out = (el.type as (p: Record<string, unknown>) => unknown)(el.props);
+    } catch {
+      return [];
+    }
     return render(out as Node, depth + 1);
   }
   return [{ tag: String(el.type), props: el.props, kids: render(el.props.children as Node, depth + 1) }];
@@ -81,11 +85,17 @@ async function loadHud(phoneQuery = true, width = 1920): Promise<void> {
     getElementById: () => null,
     querySelector: () => null,
     querySelectorAll: () => [],
-    documentElement: { setAttribute: () => {}, style: { setProperty: () => {} }, classList: { toggle: () => {}, add: () => {}, remove: () => {} } },
+    documentElement: {
+      setAttribute: () => {},
+      style: { setProperty: () => {} },
+      classList: { toggle: () => {}, add: () => {}, remove: () => {} },
+    },
   });
   vi.stubGlobal('window', {
-    innerWidth: width, innerHeight: 844,
-    addEventListener: () => {}, removeEventListener: () => {},
+    innerWidth: width,
+    innerHeight: 844,
+    addEventListener: () => {},
+    removeEventListener: () => {},
     matchMedia: (q: string) => ({ matches: phoneQuery && q === '(max-width: 48em)', addEventListener: () => {} }),
   });
   ({ Hud } = (await import('@/core/ui/Hud')) as unknown as { Hud: () => unknown });
@@ -141,8 +151,14 @@ describe('HUD on a phone: the top tab, the dock and the taps', () => {
 
   it('the level, the pause control and the Menu are in the top tab with the money', () => {
     const h = hud();
-    expect(find(h.topTab, (b) => /^Level \d+,/.test(labelOf(b))), 'the level is in the top tab').toBeDefined();
-    expect(find(h.topTab, (b) => /^(Pause|Resume|Held)$/.test(labelOf(b))), 'the pause control is in the top tab').toBeDefined();
+    expect(
+      find(h.topTab, (b) => /^Level \d+,/.test(labelOf(b))),
+      'the level is in the top tab',
+    ).toBeDefined();
+    expect(
+      find(h.topTab, (b) => /^(Pause|Resume|Held)$/.test(labelOf(b))),
+      'the pause control is in the top tab',
+    ).toBeDefined();
     expect(hostsIn(h.topTab).includes(h.menu), 'the Menu is in the top tab').toBe(true);
   });
 
@@ -150,11 +166,26 @@ describe('HUD on a phone: the top tab, the dock and the taps', () => {
     const h = hud();
     expect(hostsIn(h.topTab).includes(h.shop), 'the Shop is not in the top tab').toBe(false);
     const inDock = (ok: (b: Box) => boolean) => find(h.dock, ok) !== undefined;
-    expect(inDock((b) => b.tag === 'button' && /^Inventory, /.test(labelOf(b))), 'Inventory is in the dock').toBe(true);
-    expect(inDock((b) => b.props['data-hud'] === 'shop'), 'Shop is in the dock').toBe(true);
-    expect(inDock((b) => b.props['data-hud'] === 'lens'), 'Power lens (the Lens branch) is in the dock').toBe(true);
-    expect(inDock((b) => b.props['data-hud'] === 'almanac'), 'Almanac is in the dock').toBe(true);
-    expect(inDock((b) => b.props['data-hud'] === 'joblog'), 'Job log is in the dock').toBe(true);
+    expect(
+      inDock((b) => b.tag === 'button' && /^Inventory, /.test(labelOf(b))),
+      'Inventory is in the dock',
+    ).toBe(true);
+    expect(
+      inDock((b) => b.props['data-hud'] === 'shop'),
+      'Shop is in the dock',
+    ).toBe(true);
+    expect(
+      inDock((b) => b.props['data-hud'] === 'lens'),
+      'Power lens (the Lens branch) is in the dock',
+    ).toBe(true);
+    expect(
+      inDock((b) => b.props['data-hud'] === 'almanac'),
+      'Almanac is in the dock',
+    ).toBe(true);
+    expect(
+      inDock((b) => b.props['data-hud'] === 'joblog'),
+      'Job log is in the dock',
+    ).toBe(true);
     expect(hostsIn(h.dock).includes(h.money), 'the money is not in the dock').toBe(false);
   });
 

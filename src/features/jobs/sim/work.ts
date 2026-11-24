@@ -23,7 +23,7 @@ export interface WorkSource<J extends Job = Job> {
 
 /** Keys lying in a tray next to the monitor. */
 export class UsbTray<J extends Job> implements WorkSource<J> {
-  readonly name = "usb-tray";
+  readonly name = 'usb-tray';
   private keys: J[] = [];
   constructor(readonly cap: number) {}
 

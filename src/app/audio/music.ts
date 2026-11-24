@@ -140,9 +140,19 @@ const PRE_BOOT: ReadonlySet<string> = new Set(['off', 'posting', 'mounting', 'lo
 type State = 'off' | 'boot' | 'idle' | 'running';
 const PHASE_STATE: Readonly<Record<string, State>> = {
   off: 'off',
-  posting: 'boot', mounting: 'boot', loading: 'boot', 'booting-os': 'boot',
-  'idle-os': 'idle', halted: 'idle', 'waiting-for-key': 'idle', 'done-remove-key': 'idle',
-  running: 'running', 'running-os': 'running', ingesting: 'running', flashing: 'running', writing: 'running',
+  posting: 'boot',
+  mounting: 'boot',
+  loading: 'boot',
+  'booting-os': 'boot',
+  'idle-os': 'idle',
+  halted: 'idle',
+  'waiting-for-key': 'idle',
+  'done-remove-key': 'idle',
+  running: 'running',
+  'running-os': 'running',
+  ingesting: 'running',
+  flashing: 'running',
+  writing: 'running',
 };
 const STATE_TARGETS: Readonly<Record<State, Readonly<Record<Layer, number>>>> = {
   off: { bed: 0.5, pluck: 0, bass: 0, pausebed: 0 },
@@ -267,7 +277,8 @@ export function createMusic(sink: MusicSink): Music {
         active.set(id, null);
         hzOf.delete(id);
       }
-      if (l === 'pluck') setLowpass(id, stopped ? MIX.pause.musicHold.lowpassHz : OPEN_HZ, TIMING.pauseFadeMs, q, force);
+      if (l === 'pluck')
+        setLowpass(id, stopped ? MIX.pause.musicHold.lowpassHz : OPEN_HZ, TIMING.pauseFadeMs, q, force);
       const dip = l === 'pluck' && stopped ? MIX.pause.musicHold.pluckDb : 0;
       const db = round1(MIX.music.layerGainDb[l] + linearDb(to) + (l === 'bass' ? speed.bassDb : 0) + dip);
       if (active.get(id) !== db) {
@@ -318,7 +329,14 @@ export function createMusic(sink: MusicSink): Music {
     if (set === null || set === 'menu') return;
     const sat = feed.saturated;
     const shimmerDb = MIX.music.layerGainDb.shimmer + speed.shimmerDb + (sat ? SATURATED_DB : 0);
-    setData(`music_shimmer_${set}`, feed.flowing && !stopped, round1(shimmerDb), sat ? FILTER.saturated : OPEN_HZ, fadeMs, force);
+    setData(
+      `music_shimmer_${set}`,
+      feed.flowing && !stopped,
+      round1(shimmerDb),
+      sat ? FILTER.saturated : OPEN_HZ,
+      fadeMs,
+      force,
+    );
     // The stress target is a linear multiplier on the token (music-spec.json stress.gain): dB = token + 20 log10(stress^1.5).
     const stressDb = feed.stress > 0 ? round1(MIX.music.layerGainDb.stress + linearDb(feed.stress ** 1.5)) : 0;
     setData(`music_stress_${set}`, feed.stress > 0 && !stopped, stressDb, OPEN_HZ, fadeMs, force);
@@ -501,7 +519,10 @@ export function nextOnGrid(t: number, t0: number, step: number): number {
 export const PAD = MIX.music.loopPadSamples;
 
 /** The loop region of a stem with `loopSamples` of loop: [start, end) in samples inside the decoded buffer. */
-export const loopRegion = (loopSamples: number): { start: number; end: number } => ({ start: PAD, end: PAD + loopSamples });
+export const loopRegion = (loopSamples: number): { start: number; end: number } => ({
+  start: PAD,
+  end: PAD + loopSamples,
+});
 
 /**
  * Stitch a decoded stem once, in place (IMPLEMENTATION §7.3): the last `n` samples before loopEnd fade into the pre-roll copy,

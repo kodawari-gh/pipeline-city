@@ -19,8 +19,11 @@ const FALLBACK_MM = 16;
 
 /** The package's markings by card, over the lid. */
 const MARK: Record<string, readonly string[]> = {
-  'gpu-1': ['OCULA', 'OG108', 'SIMD'], 'gpu-2': ['OCULA', 'OG116', 'WARP'], 'gpu-3': ['OCULA', 'OG132', 'MULTI'],
-  'npu-1': ['SYNAPTA', 'SN4x4', 'MAC'], 'npu-2': ['SYNAPTA', 'SN8x8', 'MAC'],
+  'gpu-1': ['OCULA', 'OG108', 'SIMD'],
+  'gpu-2': ['OCULA', 'OG116', 'WARP'],
+  'gpu-3': ['OCULA', 'OG132', 'MULTI'],
+  'npu-1': ['SYNAPTA', 'SN4x4', 'MAC'],
+  'npu-2': ['SYNAPTA', 'SN8x8', 'MAC'],
 };
 
 export interface AccelDie {
@@ -63,42 +66,84 @@ export interface AccelSpec {
 
 /** The packages and the power stage of a card, on the PCB's top face at depth `Z`, into `g` (a group in the lying card's frame). */
 export function accelParts(g: Group, s: AccelSpec, Z: number): AccelOut {
-  const top = new Group(), dies: AccelDie[] = [];
+  const top = new Group(),
+    dies: AccelDie[] = [];
   g.add(top);
-  const mainSide = (MAIN_MM[s.visual] ?? FALLBACK_MM) * MM, memSide = MEM_MM * MM;
+  const mainSide = (MAIN_MM[s.visual] ?? FALLBACK_MM) * MM,
+    memSide = MEM_MM * MM;
   const place = (part: AccelPart, side: number, cx: number, cy: number, marks: readonly string[]): AccelDie => {
-    const plan = s.plans[part], dh = (plan.h / plan.w) * side, k = 1 / DIE_FILL;
+    const plan = s.plans[part],
+      dh = (plan.h / plan.w) * side,
+      k = 1 / DIE_FILL;
     const pkgRect = { x: cx - (side * k) / 2, y: cy - (dh * k) / 2, w: side * k, h: dh * k };
     const chip = nicChip(top, mirror(pkgRect), false, Z, marks, mirror, plan, s.floor(part), { die: side });
     return { part, chip, rect: mirror(chip.rect), plan };
   };
   const core = place('core', mainSide, s.at.x, s.at.y, MARK[s.visual] ?? ['CARD']);
-  const gap = 7 * MM, memX = Math.min(s.at.x + (mainSide / DIE_FILL) / 2 + gap + (memSide / DIE_FILL) / 2, s.x1 - 8 * MM - memSide / 2);
+  const gap = 7 * MM,
+    memX = Math.min(s.at.x + mainSide / DIE_FILL / 2 + gap + memSide / DIE_FILL / 2, s.x1 - 8 * MM - memSide / 2);
   const mem = place('mem', memSide, memX, s.at.y, ['GDDR', 'MEM']);
   dies.push(core, mem);
   // the power stage: a block of inductors west of the main die, in two rows, and the decoupling rows along the dies' north and south edges
-  const west = core.rect.x - 0.03 * core.rect.w - 6 * MM, ph = 5 * MM, rows = [s.at.y - 4 * MM, s.at.y + 4 * MM], coils: RectLike[] = [];
-  for (const y of rows) for (let k = 0; k < 3; k++) {
-    const x = west - k * 7 * MM;
-    if (x - ph > s.x0 + 6 * MM) { const r = { x: x - ph / 2, y: y - ph / 2, w: ph, h: ph }; coils.push(r); inductor(top, r, Z, 2 * MM, k % 2 ? '1R0' : 'R47'); }
-  }
+  const west = core.rect.x - 0.03 * core.rect.w - 6 * MM,
+    ph = 5 * MM,
+    rows = [s.at.y - 4 * MM, s.at.y + 4 * MM],
+    coils: RectLike[] = [];
+  for (const y of rows)
+    for (let k = 0; k < 3; k++) {
+      const x = west - k * 7 * MM;
+      if (x - ph > s.x0 + 6 * MM) {
+        const r = { x: x - ph / 2, y: y - ph / 2, w: ph, h: ph };
+        coils.push(r);
+        inductor(top, r, Z, 2 * MM, k % 2 ? '1R0' : 'R47');
+      }
+    }
   const caps: Passive[] = [];
   const row = (d: AccelDie, n: number) => {
-    const r = d.rect, step = 1.6 * MM;
-    for (const y of [r.y - 2.4 * MM, r.y + r.h + 2.4 * MM]) caps.push(...passiveRow(r.x + (r.w - (n - 1) * step) / 2, y, n, step, '0603', 'cap'));
+    const r = d.rect,
+      step = 1.6 * MM;
+    for (const y of [r.y - 2.4 * MM, r.y + r.h + 2.4 * MM])
+      caps.push(...passiveRow(r.x + (r.w - (n - 1) * step) / 2, y, n, step, '0603', 'cap'));
   };
   row(core, Math.max(4, Math.floor(core.rect.w / (1.6 * MM)) - 2));
   row(mem, Math.max(3, Math.floor(mem.rect.w / (1.6 * MM)) - 2));
   passives(top, caps, Z);
   // the copper under the mask on the PCB's face: the slot's receive pairs, the memory bus, the power runs, a ground pour round them
   const copper = accelCopper({ tab: s.tab, y0: s.y0, core: core.rect, mem: mem.rect, inductors: coils });
-  const b = s.board, ref = (MARK[s.visual] ?? ['CARD']).slice(0, 2).join(' ');
-  top.add(maskTop(`accel-top:${s.visual}:${s.slot}`, b, Z, {
-    ...s.mask, seed: 0, parts: [], text: [{ x: b.x + 3 * MM, y: b.y + 3 * MM, s: `${ref} REV A`, mm: 1.6 }, { x: b.x + 3 * MM, y: b.y + 5.6 * MM, s: 'PCIE X16', mm: 1.2 }],
-    copper: {
-      traces: copper.traces.map((t) => ({ pts: t.pts, w: t.w })), vias: [], via: CU.via, drill: CU.drill, ring: CU.via, hole: CU.drill,
-      keep: dies.map((d) => d.rect), pour: { clear: POUR_CLEAR, edge: CU.edge, round: 0 },
-    },
-  }, { px: 24 }));
-  return { dies, floors: dies.map((d) => ({ part: d.part, root: d.chip.die })), copper, lanes: accelLanes(copper, s.slot, b.x), top };
+  const b = s.board,
+    ref = (MARK[s.visual] ?? ['CARD']).slice(0, 2).join(' ');
+  top.add(
+    maskTop(
+      `accel-top:${s.visual}:${s.slot}`,
+      b,
+      Z,
+      {
+        ...s.mask,
+        seed: 0,
+        parts: [],
+        text: [
+          { x: b.x + 3 * MM, y: b.y + 3 * MM, s: `${ref} REV A`, mm: 1.6 },
+          { x: b.x + 3 * MM, y: b.y + 5.6 * MM, s: 'PCIE X16', mm: 1.2 },
+        ],
+        copper: {
+          traces: copper.traces.map((t) => ({ pts: t.pts, w: t.w })),
+          vias: [],
+          via: CU.via,
+          drill: CU.drill,
+          ring: CU.via,
+          hole: CU.drill,
+          keep: dies.map((d) => d.rect),
+          pour: { clear: POUR_CLEAR, edge: CU.edge, round: 0 },
+        },
+      },
+      { px: 24 },
+    ),
+  );
+  return {
+    dies,
+    floors: dies.map((d) => ({ part: d.part, root: d.chip.die })),
+    copper,
+    lanes: accelLanes(copper, s.slot, b.x),
+    top,
+  };
 }

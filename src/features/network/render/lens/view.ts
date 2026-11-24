@@ -16,9 +16,11 @@ import { netDraw, netShape, type NetAnchors, type NetDraw, type NetShape } from 
 
 /** The path's places for this machine, from the room's props and the machine's own lead. */
 export function anchorsOf(s: Snapshot, machine: Machine3D): NetAnchors {
-  const plate = ispPlate(), rs = ROUTER_SPOT;
+  const plate = ispPlate(),
+    rs = ROUTER_SPOT;
   const lan = machine.cableRuns().find((r) => r.id === 'lan');
-  const os = s.storage.find((d) => d.hasOs), box = os ? machine.partBox(os.deviceId) : null;
+  const os = s.storage.find((d) => d.hasOs),
+    box = os ? machine.partBox(os.deviceId) : null;
   return {
     plate: { at: [plate.x + plate.w / 2, -(plate.y + plate.h / 2), 96], hw: plate.w / 2, hh: plate.h / 2 },
     router: { at: [rs.x + rs.w / 2, -(rs.y + rs.h / 2), 800], hw: rs.w / 2, hh: rs.h / 2 },
@@ -42,7 +44,10 @@ export class NetView3D {
   /** Milliseconds a frame of the lens takes on the main thread, smoothed (a new machine's shape included). */
   cost = 0;
 
-  constructor(scene: Scene, private readonly dom: HTMLElement | null = null) {
+  constructor(
+    scene: Scene,
+    private readonly dom: HTMLElement | null = null,
+  ) {
     this.group.add(this.veil);
     this.group.visible = false;
     scene.add(this.group);
@@ -50,13 +55,23 @@ export class NetView3D {
   }
 
   // (for the developer: `window.__net`)
-  get shapeNow(): NetShape | null { return this.shape; }
-  get drawNow(): NetDraw | null { return this.drawn; }
-  get anchorsNow(): NetAnchors | null { return this.anchors; }
-  get flowsNow(): NetFlows | null { return this.flows; }
+  get shapeNow(): NetShape | null {
+    return this.shape;
+  }
+  get drawNow(): NetDraw | null {
+    return this.drawn;
+  }
+  get anchorsNow(): NetAnchors | null {
+    return this.anchors;
+  }
+  get flowsNow(): NetFlows | null {
+    return this.flows;
+  }
 
   /** Is the lens drawing? */
-  get shown(): boolean { return this.group.visible; }
+  get shown(): boolean {
+    return this.group.visible;
+  }
 
   hide(): void {
     this.group.visible = false;
@@ -75,7 +90,10 @@ export class NetView3D {
 
   /** Per frame, after the camera. `dt`: game seconds (0 holds the comets); `pxH`: the view's height in pixels. */
   frame(cam: PerspectiveCamera, pxH: number, snap: Snapshot | null, machine: Machine3D | null, dt: number): void {
-    if (!snap || !machine || !netLensReady(snap)) { this.hide(); return; }
+    if (!snap || !machine || !netLensReady(snap)) {
+      this.hide();
+      return;
+    }
     const t0 = performance.now();
     this.clock = t0 / 1000;
     if (!this.shape || machine !== this.machine || machine.cablesRev !== this.rev) {
@@ -83,7 +101,8 @@ export class NetView3D {
       this.rev = machine.cablesRev;
       this.rebuild(snap, machine);
     }
-    const shape = this.shape!, flows = this.flows!;
+    const shape = this.shape!,
+      flows = this.flows!;
     if (snap !== this.seen) {
       this.seen = snap;
       // (a part fitted or taken out moves the drive's place: the words follow it)
@@ -96,7 +115,14 @@ export class NetView3D {
     this.group.visible = true;
     this.tags.show(true);
     const r = this.dom?.getBoundingClientRect();
-    if (r) this.tags.frame(cam, { left: r.left, top: r.top, width: r.width, height: r.height, minTop: viewInset.peek().top });
+    if (r)
+      this.tags.frame(cam, {
+        left: r.left,
+        top: r.top,
+        width: r.width,
+        height: r.height,
+        minTop: viewInset.peek().top,
+      });
     this.cost += (performance.now() - t0 - this.cost) * 0.05;
   }
 

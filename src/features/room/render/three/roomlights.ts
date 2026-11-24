@@ -1,7 +1,23 @@
 // Which of the scene's lights stay real-time under the graphics settings' cap (`lights`, `lightShadows`; light.md "The lamp cap"). Pure: no Three.js.
 
 /** One entry a light, but `sconce` (its two spots) and `strips` (the shelves' strips), which the room drives as one. */
-export type LightId = 'key' | 'sun' | 'arc' | 'case' | 'spill' | 'desk' | 'floor' | 'bedside' | 'sconce' | 'screen' | 'deskLed' | 'picture' | 'ledHalo' | 'ledUnder' | 'bias' | 'strips';
+export type LightId =
+  | 'key'
+  | 'sun'
+  | 'arc'
+  | 'case'
+  | 'spill'
+  | 'desk'
+  | 'floor'
+  | 'bedside'
+  | 'sconce'
+  | 'screen'
+  | 'deskLed'
+  | 'picture'
+  | 'ledHalo'
+  | 'ledUnder'
+  | 'bias'
+  | 'strips';
 
 /**
  * Every real-time light of the scene by what the look loses without each, the first kept longest. The choice depends on the cap alone, not
@@ -22,7 +38,24 @@ export type LightId = 'key' | 'sun' | 'arc' | 'case' | 'spill' | 'desk' | 'floor
  * - `deskLed`, `picture`, `ledHalo`, `ledUnder`, `bias`, `strips`: accents. Each has a glowing line at its source and a short reach, so
  *   its baked light stands in for it best. The strips are many lights for one soft wash: last.
  */
-export const LIGHT_ORDER: readonly LightId[] = ['key', 'arc', 'case', 'spill', 'sun', 'desk', 'floor', 'bedside', 'sconce', 'screen', 'deskLed', 'picture', 'ledHalo', 'ledUnder', 'bias', 'strips'];
+export const LIGHT_ORDER: readonly LightId[] = [
+  'key',
+  'arc',
+  'case',
+  'spill',
+  'sun',
+  'desk',
+  'floor',
+  'bedside',
+  'sconce',
+  'screen',
+  'deskLed',
+  'picture',
+  'ledHalo',
+  'ledUnder',
+  'bias',
+  'strips',
+];
 
 /** The machine's lights (`Machine3D.setLights`): in the cap, but not the room's; the board hands the room's choice on to the machine. */
 export const MACHINE_LIGHTS: readonly LightId[] = ['case', 'spill'];
@@ -60,7 +93,9 @@ export interface LightChoice {
  * fit: none after it comes in, so a higher cap only ever adds lights.
  */
 export function chooseLights(cap: number, lampShadows: boolean, count: (id: LightId) => number = () => 1): LightChoice {
-  const live = new Set<LightId>(), shadows = new Set<LightId>(), small = new Set<LightId>();
+  const live = new Set<LightId>(),
+    shadows = new Set<LightId>(),
+    small = new Set<LightId>();
   let n = 0;
   for (const id of LIGHT_ORDER) {
     const c = count(id);
@@ -68,10 +103,14 @@ export function chooseLights(cap: number, lampShadows: boolean, count: (id: Ligh
     n += c;
     live.add(id);
     if (WINDOW_LIGHTS.includes(id) || (lampShadows && LAMP_CASTERS.includes(id))) shadows.add(id);
-    else if (ALWAYS_CASTS.includes(id)) { shadows.add(id); small.add(id); }
+    else if (ALWAYS_CASTS.includes(id)) {
+      shadows.add(id);
+      small.add(id);
+    }
   }
   return { live, shadows, small };
 }
 
 /** How many times over a light group's baked bounce shows with `capped` of its `total` lights out of the scene. */
-export const bounceLift = (capped: number, total: number): number => (total > 0 ? 1 + (CAPPED_BOUNCE - 1) * (capped / total) : 1);
+export const bounceLift = (capped: number, total: number): number =>
+  total > 0 ? 1 + (CAPPED_BOUNCE - 1) * (capped / total) : 1;

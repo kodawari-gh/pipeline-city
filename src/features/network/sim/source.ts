@@ -1,10 +1,10 @@
 // The network WorkSource (docs/NETWORK.md): offers waiting at the ISP side. Same contract as the USB tray; the Game
 // downloads an offer (take), and a download that was lost goes back (giveBack, keeping its arrival order).
 
-import type { Job, WorkSource } from "../../jobs/sim/work";
+import type { Job, WorkSource } from '../../jobs/sim/work';
 
 export class NetworkSource<J extends Job> implements WorkSource<J> {
-  readonly name = "network";
+  readonly name = 'network';
   private list: J[] = [];
   constructor(readonly cap: number) {}
 
@@ -35,14 +35,17 @@ export class NetworkSource<J extends Job> implements WorkSource<J> {
  * in arrival order, so "oldest" is the first of equals. Returns undefined when none may start.
  */
 export function pickOffer<J extends Job & { cls: string }>(
-  offers: readonly J[], now: number, bandTicks: number, mayStart: (j: J) => boolean,
+  offers: readonly J[],
+  now: number,
+  bandTicks: number,
+  mayStart: (j: J) => boolean,
 ): J | undefined {
   let best: J | undefined;
   let bestBand = -1;
   for (const j of offers) {
     if (!mayStart(j)) continue;
     const band = Math.floor(Math.max(0, now - j.arrival) / bandTicks);
-    if (!best || band > bestBand || (band === bestBand && j.cls === "web" && best.cls !== "web")) {
+    if (!best || band > bestBand || (band === bestBand && j.cls === 'web' && best.cls !== 'web')) {
       best = j;
       bestBand = band;
     }

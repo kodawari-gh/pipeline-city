@@ -12,16 +12,48 @@ vi.mock('@/core/render/three/init', async (orig) => {
       camera: new PerspectiveCamera(30, 1, 10, 1e6),
       pmrem: { dispose() {} },
       renderer: {
-        domElement: { width: 400, height: 400, addEventListener() {}, removeEventListener() {}, getBoundingClientRect: () => ({ left: 0, top: 0, width: 400, height: 400 }), remove() {} },
-        setOpaqueSort() {}, getPixelRatio: () => 1, setSize() {}, properties: { get: () => ({}) }, compile: () => new Set(), getRenderTarget: () => null, setRenderTarget() {}, forceContextLoss() {}, dispose() {},
+        domElement: {
+          width: 400,
+          height: 400,
+          addEventListener() {},
+          removeEventListener() {},
+          getBoundingClientRect: () => ({ left: 0, top: 0, width: 400, height: 400 }),
+          remove() {},
+        },
+        setOpaqueSort() {},
+        getPixelRatio: () => 1,
+        setSize() {},
+        properties: { get: () => ({}) },
+        compile: () => new Set(),
+        getRenderTarget: () => null,
+        setRenderTarget() {},
+        forceContextLoss() {},
+        dispose() {},
       },
     }),
   };
 });
 vi.mock('@/core/render/three/post', () => ({
-  Post: class { render() {} meter = () => null; metered = () => null; setEye() {} setReach() {} setDark() {} setOutlined() {} apply() {} setSize() {} dispose() {} startPrograms = () => []; },
+  Post: class {
+    render() {}
+    meter = () => null;
+    metered = () => null;
+    setEye() {}
+    setReach() {}
+    setDark() {}
+    setOutlined() {}
+    apply() {}
+    setSize() {}
+    dispose() {}
+    startPrograms = () => [];
+  },
 }));
-vi.mock('./lens3d', () => ({ Lens3D: class { frame() {} dispose() {} } }));
+vi.mock('./lens3d', () => ({
+  Lens3D: class {
+    frame() {}
+    dispose() {}
+  },
+}));
 vi.mock('./bake', async (orig) => ({ ...(await orig<typeof import('./bake')>()), startBaker: () => {} })); // (no Pixi renderer in a test)
 
 import { BuildStage } from './buildmode3d';
@@ -32,22 +64,37 @@ quietCanvas();
 
 type Steps = { buildBoard(...a: unknown[]): unknown };
 
-describe('BuildStage.open when the player leaves during the machine\'s build', () => {
+describe("BuildStage.open when the player leaves during the machine's build", () => {
   beforeEach(() => {
-    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {});
     vi.stubGlobal('window', {}); // (the dev build's `__build` hook)
   });
-  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
 
   it('comes back closed with no machine, builds no further than the next turn, and its second half of the close runs clean', async () => {
     // (the clock moves 40 ms a look, so every step of the build is past its budget and gives the page a turn)
     let now = 0;
     vi.spyOn(performance, 'now').mockImplementation(() => (now += 40));
-    const ctl = new AbortController(), steps = Machine3D.prototype as unknown as Steps, buildBoard = steps.buildBoard;
+    const ctl = new AbortController(),
+      steps = Machine3D.prototype as unknown as Steps,
+      buildBoard = steps.buildBoard;
     let built = 0;
-    vi.spyOn(steps, 'buildBoard').mockImplementation(function (this: Machine3D, ...a: unknown[]) { built++; ctl.abort(); return buildBoard.apply(this, a); });
+    vi.spyOn(steps, 'buildBoard').mockImplementation(function (this: Machine3D, ...a: unknown[]) {
+      built++;
+      ctl.abort();
+      return buildBoard.apply(this, a);
+    });
     const stage = await BuildStage.open({ clientWidth: 400, clientHeight: 800 } as HTMLElement, ctl.signal);
     expect(built).toBe(1);
     const s = stage as unknown as { dead: boolean; _machine: unknown; _game: unknown };

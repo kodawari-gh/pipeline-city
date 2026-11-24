@@ -2,9 +2,9 @@
 // address cost". An engine builds its own from its settings (a single-core CPU, every timing as before); a multicore Machine builds one and hands it
 // to every engine, so the cores share one L2 and one set of banks. Events and counters go to the asking engine's log and view.
 
-import { DataCache, Ev, Which, type EventLog } from "../../cpu/sim/engines/common";
-import { Dram, type DramSettings } from "./dram";
-import { Counter } from "../../cpu/sim/engines/view";
+import { DataCache, Ev, Which, type EventLog } from '../../cpu/sim/engines/common';
+import { Dram, type DramSettings } from './dram';
+import { Counter } from '../../cpu/sim/engines/view';
 
 export interface MemSettings {
   /** Bytes per line (the L1 line size). */
@@ -49,7 +49,8 @@ export class MemSystem {
     this.l2 = s.l2Lines ? new DataCache(s.l2Lines, s.lineBytes, s.missPenalty, Math.min(4, s.l2Lines)) : null;
     this.l2Penalty = s.l2Penalty;
     this.dram = s.dram ? new Dram(s.dram) : null;
-    if (!Number.isInteger(this.l2Penalty) || this.l2Penalty < 0) throw new RangeError("l2Penalty must be an integer >= 0");
+    if (!Number.isInteger(this.l2Penalty) || this.l2Penalty < 0)
+      throw new RangeError('l2Penalty must be an integer >= 0');
   }
 
   /** Cold L2 and closed rows, no cores joined. */
@@ -63,7 +64,9 @@ export class MemSystem {
   }
 
   /** Drop every L2 line. */
-  invalidate(): void { this.l2?.invalidate(); }
+  invalidate(): void {
+    this.l2?.invalidate();
+  }
 
   /** A core's caches take part in the coherence rule (an engine calls this from its reset when the system is shared). */
   join(core: CoreCaches): void {
@@ -89,7 +92,11 @@ export class MemSystem {
       counters[Counter.L2PortBusy]!++;
       counters[Counter.StallL2Port]! += wait;
     }
-    if (l2.hit(addr)) { counters[Counter.L2Hits]!++; events.push(logCycle, Ev.Hit, Which.L2, l2.lastSlot, addr >>> l2.lineShift, 0); return wait + this.l2Penalty; }
+    if (l2.hit(addr)) {
+      counters[Counter.L2Hits]!++;
+      events.push(logCycle, Ev.Hit, Which.L2, l2.lastSlot, addr >>> l2.lineShift, 0);
+      return wait + this.l2Penalty;
+    }
     counters[Counter.L2Misses]!++;
     l2.fill(addr);
     events.push(logCycle, Ev.Fill, Which.L2, l2.lastSlot, addr >>> l2.lineShift, l2.lastEvicted);
@@ -120,7 +127,9 @@ export class MemSystem {
   private ramCost(addr: number, cycle: number, counters: Float64Array, events: EventLog, logCycle: number): number {
     const d = this.dram;
     if (!d) return this.missPenalty;
-    const a = d.access(addr, cycle, (cyc, bank, row, prev, outcome) => events.push(this.shared ? logCycle : cyc, Ev.Row, bank, row, prev, outcome));
+    const a = d.access(addr, cycle, (cyc, bank, row, prev, outcome) =>
+      events.push(this.shared ? logCycle : cyc, Ev.Row, bank, row, prev, outcome),
+    );
     counters[a.outcome === 0 ? Counter.RowHits : a.outcome === 1 ? Counter.RowEmpty : Counter.RowConflicts]!++;
     return a.cycles;
   }

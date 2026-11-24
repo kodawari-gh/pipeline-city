@@ -28,23 +28,101 @@ export function tabOf(slot: number, x1: number, lanes: number): { x: number; w: 
 /** Pin `p`'s middle along the tab from its bracket end (1 mm apart, the key between 11 and 12). */
 export const pinAt = (p: number) => (p <= 11 ? (p - 0.5) * MM : KEY.at + KEY.w + (p - 11.5) * MM);
 /** Side B's PETp pin of lane `k` (its PETn the next one). */
-export const txPin = (k: number) => (k === 0 ? 14 : k < 4 ? 19 + 4 * (k - 1) : k < 8 ? 33 + 4 * (k - 4) : 50 + 4 * (k - 8));
+export const txPin = (k: number) =>
+  k === 0 ? 14 : k < 4 ? 19 + 4 * (k - 1) : k < 8 ? 33 + 4 * (k - 4) : 50 + 4 * (k - 8);
 /** Side A's PERp pin of lane `k` (its PERn the next one). */
-export const rxPin = (k: number) => (k === 0 ? 16 : k < 4 ? 21 + 4 * (k - 1) : k < 8 ? 35 + 4 * (k - 4) : 52 + 4 * (k - 8));
+export const rxPin = (k: number) =>
+  k === 0 ? 16 : k < 4 ? 21 + 4 * (k - 1) : k < 8 ? 35 + 4 * (k - 4) : 52 + 4 * (k - 8);
 
 const lane = (side: 'PER' | 'PET', k: number) => [`${side}${k}+`, `${side}${k}-`];
 const G = 'GND';
 /** Side A, pins 1 to 49 (an x8 edge; an x1 or x4 one stops at 18 or 32). */
 export const SIDE_A: readonly string[] = [
-  'PRSNT1#', '+12V', '+12V', G, 'TCK', 'TDI', 'TDO', 'TMS', '+3V3', '+3V3', 'PERST#', G, 'REFCLK+', 'REFCLK-', G, ...lane('PER', 0), G,
-  'RSVD', G, ...lane('PER', 1), G, G, ...lane('PER', 2), G, G, ...lane('PER', 3), G, 'RSVD',
-  'RSVD', G, ...lane('PER', 4), G, G, ...lane('PER', 5), G, G, ...lane('PER', 6), G, G, ...lane('PER', 7), G,
+  'PRSNT1#',
+  '+12V',
+  '+12V',
+  G,
+  'TCK',
+  'TDI',
+  'TDO',
+  'TMS',
+  '+3V3',
+  '+3V3',
+  'PERST#',
+  G,
+  'REFCLK+',
+  'REFCLK-',
+  G,
+  ...lane('PER', 0),
+  G,
+  'RSVD',
+  G,
+  ...lane('PER', 1),
+  G,
+  G,
+  ...lane('PER', 2),
+  G,
+  G,
+  ...lane('PER', 3),
+  G,
+  'RSVD',
+  'RSVD',
+  G,
+  ...lane('PER', 4),
+  G,
+  G,
+  ...lane('PER', 5),
+  G,
+  G,
+  ...lane('PER', 6),
+  G,
+  G,
+  ...lane('PER', 7),
+  G,
 ];
 /** Side B, pins 1 to 49. */
 export const SIDE_B: readonly string[] = [
-  '+12V', '+12V', '+12V', G, 'SMCLK', 'SMDAT', G, '+3V3', 'TRST#', '+3VAUX', 'WAKE#', 'RSVD', G, ...lane('PET', 0), G, 'PRSNT2#', G,
-  ...lane('PET', 1), G, G, ...lane('PET', 2), G, G, ...lane('PET', 3), G, 'RSVD', 'PRSNT2#', G,
-  ...lane('PET', 4), G, G, ...lane('PET', 5), G, G, ...lane('PET', 6), G, G, ...lane('PET', 7), G, 'PRSNT2#', G,
+  '+12V',
+  '+12V',
+  '+12V',
+  G,
+  'SMCLK',
+  'SMDAT',
+  G,
+  '+3V3',
+  'TRST#',
+  '+3VAUX',
+  'WAKE#',
+  'RSVD',
+  G,
+  ...lane('PET', 0),
+  G,
+  'PRSNT2#',
+  G,
+  ...lane('PET', 1),
+  G,
+  G,
+  ...lane('PET', 2),
+  G,
+  G,
+  ...lane('PET', 3),
+  G,
+  'RSVD',
+  'PRSNT2#',
+  G,
+  ...lane('PET', 4),
+  G,
+  G,
+  ...lane('PET', 5),
+  G,
+  G,
+  ...lane('PET', 6),
+  G,
+  G,
+  ...lane('PET', 7),
+  G,
+  'PRSNT2#',
+  G,
 ];
 
 /**

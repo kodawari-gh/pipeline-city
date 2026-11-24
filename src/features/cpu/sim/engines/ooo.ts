@@ -21,13 +21,38 @@
 // `slotId[slot]` is the dynamic instruction id shown in the view. The view's id arrays are derived from the slot
 // queues once per cycle (snapshot).
 
-import { MMU_BASE, MMU_SIZE } from "@/core/sim/memmap";
-import type { Core } from "../core";
-import { F, F_MEM, OPF, OP_ECALL, OP_IRET, OP_LB, OP_LW, OP_MUL, OP_SW, St, EngineBase, type EngineSettings } from "./common";
+import { MMU_BASE, MMU_SIZE } from '@/core/sim/memmap';
+import type { Core } from '../core';
 import {
-  CommitStall, Counter, DispatchStall, FetchStall, Fate, OooPart, OooViewState, Occ, RobState, SchedWhy, StageCode, Unit,
-  UNIT_COUNT, type OooView,
-} from "./view";
+  F,
+  F_MEM,
+  OPF,
+  OP_ECALL,
+  OP_IRET,
+  OP_LB,
+  OP_LW,
+  OP_MUL,
+  OP_SW,
+  St,
+  EngineBase,
+  type EngineSettings,
+} from './common';
+import {
+  CommitStall,
+  Counter,
+  DispatchStall,
+  FetchStall,
+  Fate,
+  OooPart,
+  OooViewState,
+  Occ,
+  RobState,
+  SchedWhy,
+  StageCode,
+  Unit,
+  UNIT_COUNT,
+  type OooView,
+} from './view';
 
 export interface OooSettings extends EngineSettings {
   /** Reorder buffer entries. Default 8. */
@@ -70,17 +95,31 @@ class Lane {
   stopped = false;
   hold = false;
   halted = false;
-  constructor(readonly t: number, fq: number, width: number, rob: number) {
-    this.fq = new Int32Array(fq); this.dq = new Int32Array(width); this.rob = new Int32Array(rob);
+  constructor(
+    readonly t: number,
+    fq: number,
+    width: number,
+    rob: number,
+  ) {
+    this.fq = new Int32Array(fq);
+    this.dq = new Int32Array(width);
+    this.rob = new Int32Array(rob);
   }
   reset(pc: number): void {
-    this.fq.fill(-1); this.dq.fill(-1); this.rob.fill(-1); this.rat.fill(-1);
-    this.fw[0] = -1; this.fw[1] = 0; this.fw[2] = 0;
+    this.fq.fill(-1);
+    this.dq.fill(-1);
+    this.rob.fill(-1);
+    this.rat.fill(-1);
+    this.fw[0] = -1;
+    this.fw[1] = 0;
+    this.fw[2] = 0;
     this.fqN = this.dqN = this.robN = this.robHead = 0;
     this.pc = pc >>> 0;
     this.stopped = this.hold = this.halted = false;
   }
-  get inflight(): number { return this.fqN + this.dqN + this.robN; }
+  get inflight(): number {
+    return this.fqN + this.dqN + this.robN;
+  }
 }
 
 export class OooEngine extends EngineBase {
@@ -128,30 +167,55 @@ export class OooEngine extends EngineBase {
     const fq = settings.fetchQueue ?? 4;
     const commitWidth = settings.commitWidth ?? width;
     const threads = settings.threads ?? 1;
-    if (!Number.isInteger(width) || width < 1 || width > 4) throw new RangeError("width must be 1..4");
-    if (!Number.isInteger(commitWidth) || commitWidth < 1 || commitWidth > 8) throw new RangeError("commitWidth must be 1..8");
-    if (!Number.isInteger(robSize) || robSize < 2 || robSize > 256) throw new RangeError("robSize must be 2..256");
-    if (!Number.isInteger(schedSize) || schedSize < 1 || schedSize > 128) throw new RangeError("schedSize must be 1..128");
-    if (!Number.isInteger(fq) || fq < width || fq > 64) throw new RangeError("fetchQueue must be width..64");
-    if (!Number.isInteger(threads) || threads < 1 || threads > MAX_SMT_THREADS) throw new RangeError(`threads must be 1..${MAX_SMT_THREADS}`);
-    if (threads > 1 && (robSize < 2 * threads || fq < width * threads)) throw new RangeError("the ROB and the fetch queue have to split between the threads");
+    if (!Number.isInteger(width) || width < 1 || width > 4) throw new RangeError('width must be 1..4');
+    if (!Number.isInteger(commitWidth) || commitWidth < 1 || commitWidth > 8)
+      throw new RangeError('commitWidth must be 1..8');
+    if (!Number.isInteger(robSize) || robSize < 2 || robSize > 256) throw new RangeError('robSize must be 2..256');
+    if (!Number.isInteger(schedSize) || schedSize < 1 || schedSize > 128)
+      throw new RangeError('schedSize must be 1..128');
+    if (!Number.isInteger(fq) || fq < width || fq > 64) throw new RangeError('fetchQueue must be width..64');
+    if (!Number.isInteger(threads) || threads < 1 || threads > MAX_SMT_THREADS)
+      throw new RangeError(`threads must be 1..${MAX_SMT_THREADS}`);
+    if (threads > 1 && (robSize < 2 * threads || fq < width * threads))
+      throw new RangeError('the ROB and the fetch queue have to split between the threads');
     const size = fq + width * threads + robSize; // at most this many instructions are in flight
-    const view = new OooViewState(settings.timelineRows ?? Math.max(32, 2 * size), settings.timelineCols ?? 64, width, robSize, schedSize, fq, threads);
+    const view = new OooViewState(
+      settings.timelineRows ?? Math.max(32, 2 * size),
+      settings.timelineCols ?? 64,
+      width,
+      robSize,
+      schedSize,
+      fq,
+      threads,
+    );
     super(settings, size, view);
     this.ov = view;
-    this.width = width; this.commitWidth = commitWidth; this.robSize = robSize; this.schedSize = schedSize; this.fetchQueueSize = fq;
-    this.rcap = robSize; this.fqCap = fq;
-    this.slotId = new Int32Array(size); this.ost = new Uint8Array(size);
-    this.prodSA = new Int32Array(size); this.prodIA = new Int32Array(size);
-    this.prodSB = new Int32Array(size); this.prodIB = new Int32Array(size);
-    this.rsPos = new Int32Array(size); this.actual = new Uint32Array(size);
+    this.width = width;
+    this.commitWidth = commitWidth;
+    this.robSize = robSize;
+    this.schedSize = schedSize;
+    this.fetchQueueSize = fq;
+    this.rcap = robSize;
+    this.fqCap = fq;
+    this.slotId = new Int32Array(size);
+    this.ost = new Uint8Array(size);
+    this.prodSA = new Int32Array(size);
+    this.prodIA = new Int32Array(size);
+    this.prodSB = new Int32Array(size);
+    this.prodIB = new Int32Array(size);
+    this.rsPos = new Int32Array(size);
+    this.actual = new Uint32Array(size);
     this.freeSlots = new Int32Array(size);
     this.lanes = Array.from({ length: threads }, (_, t) => new Lane(t, fq, width, robSize));
     this.rsS = new Int32Array(schedSize);
-    this.ordS = new Int32Array(robSize); this.ordL = new Int32Array(robSize); this.ordK = new Int32Array(robSize);
+    this.ordS = new Int32Array(robSize);
+    this.ordL = new Int32Array(robSize);
+    this.ordK = new Int32Array(robSize);
   }
 
-  override get view(): OooView { return this.ov; }
+  override get view(): OooView {
+    return this.ov;
+  }
 
   /** Nothing in the fetch queue, decode, or the ROB (units and the scheduler only hold ROB entries): of the thread chosen with `selectThread`. */
   get drained(): boolean {
@@ -159,24 +223,41 @@ export class OooEngine extends EngineBase {
     return L.robN === 0 && L.fqN === 0 && L.dqN === 0;
   }
 
-  override get pc(): number { return this.lanes[this.cur]!.pc; }
-  override holdFetch(on: boolean): void { this.lanes[this.cur]!.hold = on; }
-  override redirect(pc: number): void { this.lanes[this.cur]!.pc = pc >>> 0; }
+  override get pc(): number {
+    return this.lanes[this.cur]!.pc;
+  }
+  override holdFetch(on: boolean): void {
+    this.lanes[this.cur]!.hold = on;
+  }
+  override redirect(pc: number): void {
+    this.lanes[this.cur]!.pc = pc >>> 0;
+  }
 
   // ---- threads (full SMT) ----
 
-  get concurrent(): boolean { return true; }
-  selectThread(t: number): void { this.cur = t; }
-  threadHalted(t: number): boolean { return this.lanes[t]!.halted; }
+  get concurrent(): boolean {
+    return true;
+  }
+  selectThread(t: number): void {
+    this.cur = t;
+  }
+  threadHalted(t: number): boolean {
+    return this.lanes[t]!.halted;
+  }
 
   override addThread(core: Core): void {
     const t = this.cores.length;
-    if (t >= this.lanes.length) throw new RangeError(`at most ${this.lanes.length} threads on this core (the engine was built for ${this.lanes.length})`);
+    if (t >= this.lanes.length)
+      throw new RangeError(
+        `at most ${this.lanes.length} threads on this core (the engine was built for ${this.lanes.length})`,
+      );
     this.cores.push(core);
     this.lanes[t]!.reset(core.entry);
     this.rcap = Math.floor(this.robSize / this.cores.length);
     this.fqCap = Math.floor(this.fetchQueueSize / this.cores.length);
-    this.ov.lanes = this.cores.length; this.ov.robCap = this.rcap; this.ov.fetchCap = this.fqCap;
+    this.ov.lanes = this.cores.length;
+    this.ov.robCap = this.rcap;
+    this.ov.fetchCap = this.fqCap;
   }
 
   /** Make thread `t` the one the helpers (registers, MMU, interrupt state, the protection unit) act for. A core with one thread has nothing to switch. */
@@ -188,28 +269,41 @@ export class OooEngine extends EngineBase {
   }
 
   protected override onReset(): void {
-    this.slotId.fill(-1); this.ost.fill(0); this.prodSA.fill(-1); this.prodSB.fill(-1); this.rsPos.fill(-1);
-    this.rsS.fill(-1); this.unitS.fill(-1);
+    this.slotId.fill(-1);
+    this.ost.fill(0);
+    this.prodSA.fill(-1);
+    this.prodSB.fill(-1);
+    this.rsPos.fill(-1);
+    this.rsS.fill(-1);
+    this.unitS.fill(-1);
     for (const L of this.lanes) L.reset(this.fetchPc);
     for (let i = 0; i < this.freeSlots.length; i++) this.freeSlots[i] = i;
     this.freeN = this.freeSlots.length;
     this.rsN = 0;
-    this.rcap = this.robSize; this.fqCap = this.fetchQueueSize; this.cur = 0;
+    this.rcap = this.robSize;
+    this.fqCap = this.fetchQueueSize;
+    this.cur = 0;
     this.snapshot();
   }
 
-  override flipPredictor(pc?: number): void { this.pred.flip(pc); }
+  override flipPredictor(pc?: number): void {
+    this.pred.flip(pc);
+  }
 
   /** The lane whose oldest instruction is finished, the older one if both are; null when none can retire. */
   private commitLane(): Lane | null {
-    let best: Lane | null = null, bid = 0;
+    let best: Lane | null = null,
+      bid = 0;
     for (let i = 0; i < this.cores.length; i++) {
       const L = this.lanes[i]!;
       if (L.robN === 0) continue;
       const s = L.rob[L.robHead]!;
       if (this.ost[s] !== Os.Done) continue;
       const id = this.slotId[s]!;
-      if (best === null || id < bid) { best = L; bid = id; }
+      if (best === null || id < bid) {
+        best = L;
+        bid = id;
+      }
     }
     return best;
   }
@@ -222,8 +316,15 @@ export class OooEngine extends EngineBase {
 
   step(): void {
     if (this.isHalted) return;
-    const v = this.ov, p = this.pool, c = v.counters, W = this.width, rs = this.rcap, nl = this.cores.length, lanes = this.lanes;
-    const slotId = this.slotId, ost = this.ost;
+    const v = this.ov,
+      p = this.pool,
+      c = v.counters,
+      W = this.width,
+      rs = this.rcap,
+      nl = this.cores.length,
+      lanes = this.lanes;
+    const slotId = this.slotId,
+      ost = this.ost;
     this.cycleNo++;
     c[Counter.Cycles]!++;
     v.beginCycle(this.cycleNo);
@@ -239,7 +340,10 @@ export class OooEngine extends EngineBase {
       const s = L.rob[L.robHead]!;
       const id = slotId[s]!;
       const op = p.op[s]!;
-      if (p.fault[s]) { this.faultAtCommit(L, s, id); return; } // a page fault, now known to be on the right path: it is the oldest of its thread, everything older has retired
+      if (p.fault[s]) {
+        this.faultAtCommit(L, s, id);
+        return;
+      } // a page fault, now known to be on the right path: it is the oldest of its thread, everything older has retired
       if (op === 0) this.execute(s); // illegal instruction reached commit: throws RangeError
       this.on(L.t);
       L.rob[L.robHead] = -1;
@@ -257,7 +361,7 @@ export class OooEngine extends EngineBase {
         if (op === OP_SW) this.bus.store32(p.addr[s]!, p.b[s]!);
         else this.bus.store8(p.addr[s]!, p.b[s]!);
         this.logMem(1, p.addr[s]!, p.b[s]!);
-        mmuWrite = p.addr[s]! - MMU_BASE >>> 0 < MMU_SIZE;
+        mmuWrite = (p.addr[s]! - MMU_BASE) >>> 0 < MMU_SIZE;
       } else if (f & F.Writes && p.rd[s] !== 0) {
         this.writeReg(p.rd[s]!, p.res[s]!);
         if (L.rat[p.rd[s]!] === s) L.rat[p.rd[s]!] = -1;
@@ -301,8 +405,13 @@ export class OooEngine extends EngineBase {
       // insertion sort by id (oldest first)
       const id = slotId[s]!;
       let k = nf++;
-      while (k > 0 && this.finId[k - 1]! > id) { this.finId[k] = this.finId[k - 1]!; this.finU[k] = this.finU[k - 1]!; k--; }
-      this.finId[k] = id; this.finU[k] = u;
+      while (k > 0 && this.finId[k - 1]! > id) {
+        this.finId[k] = this.finId[k - 1]!;
+        this.finU[k] = this.finU[k - 1]!;
+        k--;
+      }
+      this.finId[k] = id;
+      this.finU[k] = u;
     }
     for (let k = 0; k < nf; k++) {
       const u = this.finU[k]!;
@@ -313,12 +422,15 @@ export class OooEngine extends EngineBase {
       ost[s] = Os.Done;
       v.mark(id, StageCode.R);
       const f = OPF[p.op[s]!]!;
-      if (p.state[s]! & St.Missing) { this.dFill(p.addr[s]!); p.state[s]! &= ~St.Missing; }
+      if (p.state[s]! & St.Missing) {
+        this.dFill(p.addr[s]!);
+        p.state[s]! &= ~St.Missing;
+      }
       if (f & F_CTRL) {
         const next = this.actual[s]!;
         if (f & F.Branch) {
           c[Counter.Branches]!++;
-          this.trainPred(p.pc[s]!, next !== ((p.pc[s]! + 4) >>> 0));
+          this.trainPred(p.pc[s]!, next !== (p.pc[s]! + 4) >>> 0);
         }
         if (next !== p.predNext[s]) {
           const L = lanes[p.thread[s]!]!;
@@ -334,16 +446,27 @@ export class OooEngine extends EngineBase {
     // ISSUE: oldest ready scheduler entry first (of both lanes), onto a free unit.
     const total = this.agedEntries();
     for (let i = 0; i < total; i++) {
-      const s = this.ordS[i]!, L = lanes[this.ordL[i]!]!, k = this.ordK[i]!;
+      const s = this.ordS[i]!,
+        L = lanes[this.ordL[i]!]!,
+        k = this.ordK[i]!;
       if (ost[s] !== Os.Wait) continue;
       const pos = this.rsPos[s]!;
-      if (!this.ready(this.prodSA[s]!, this.prodIA[s]!) || !this.ready(this.prodSB[s]!, this.prodIB[s]!)) { v.schedWhy[pos] = SchedWhy.Operands; continue; }
+      if (!this.ready(this.prodSA[s]!, this.prodIA[s]!) || !this.ready(this.prodSB[s]!, this.prodIB[s]!)) {
+        v.schedWhy[pos] = SchedWhy.Operands;
+        continue;
+      }
       const op = p.op[s]!;
       // iret reads the interrupt controller's EPC, which older stores may still be writing: it runs when it is the oldest.
-      if (op === OP_IRET && k !== 0) { v.schedWhy[pos] = SchedWhy.Head; continue; }
+      if (op === OP_IRET && k !== 0) {
+        v.schedWhy[pos] = SchedWhy.Head;
+        continue;
+      }
       const f = OPF[op]!;
       // an atomic reads and writes memory in one step, so it waits until it is the oldest (every older store has committed): never speculative
-      if (f & F.Amo && k !== 0) { v.schedWhy[pos] = SchedWhy.Head; continue; }
+      if (f & F.Amo && k !== 0) {
+        v.schedWhy[pos] = SchedWhy.Head;
+        continue;
+      }
       let u: number;
       if (f & F_MEM) u = this.unitS[Unit.LSU]! < 0 ? Unit.LSU : -1;
       else if (op === OP_MUL) u = this.unitS[Unit.MUL]! < 0 ? Unit.MUL : -1;
@@ -358,19 +481,27 @@ export class OooEngine extends EngineBase {
       p.b[s] = f & F.Rs2 ? this.value(this.prodSB[s]!, this.prodIB[s]!, p.rs2[s]!) : 0;
       this.actual[s] = this.execute(s);
       let lat = 1;
-      if (p.fault[s]) { /* the MMU refused the access: it completes as nothing and the fault is taken at commit */ }
-      else if (f & F.Amo) {
+      if (p.fault[s]) {
+        /* the MMU refused the access: it completes as nothing and the fault is taken at commit */
+      } else if (f & F.Amo) {
         // always through the L2 (never the L1): the access costs the miss cost; the word is read and written now
         this.amoCheck(p.addr[s]!, p.pc[s]!);
         this.amoApply(s);
         lat = HIT_LAT + this.missCost(p.addr[s]!);
       } else if (f & F.Load) {
         lat = this.issueLoad(L, k, s);
-        if (lat < 0) { v.schedWhy[pos] = this.why; c[Counter.LoadWaits]!++; continue; }
+        if (lat < 0) {
+          v.schedWhy[pos] = this.why;
+          c[Counter.LoadWaits]!++;
+          continue;
+        }
       } else if (op === OP_MUL) lat = 3;
-      this.rsS[pos] = -1; v.schedWhy[pos] = SchedWhy.None;
+      this.rsS[pos] = -1;
+      v.schedWhy[pos] = SchedWhy.None;
       this.rsN--;
-      this.unitS[u] = s; v.unitLeft[u] = lat; v.unitTotal[u] = lat;
+      this.unitS[u] = s;
+      v.unitLeft[u] = lat;
+      v.unitTotal[u] = lat;
       ost[s] = Os.Issued;
       v.mark(slotId[s]!, StageCode.X);
       c[Counter.Issued]!++;
@@ -380,7 +511,9 @@ export class OooEngine extends EngineBase {
     // DISPATCH (rename): ROB slot + scheduler slot, operand sources through the lane's RAT. Each slot goes to the first lane (in turn) that can take its next instruction.
     this.seen.fill(0);
     for (let n = 0; n < W; n++) {
-      let did = false, anyDq = false, why = 0;
+      let did = false,
+        anyDq = false,
+        why = 0;
       for (let i = 0; i < nl && !did; i++) {
         const L = lanes[(this.cycleNo + n + i) % nl]!;
         if (L.dqN === 0) continue;
@@ -389,12 +522,18 @@ export class OooEngine extends EngineBase {
         const op = p.op[s]!;
         const instant = op === 0 || op === OP_ECALL; // nothing to execute: done on arrival (ecall halts / illegal throws at commit)
         if (L.robN >= rs) {
-          if (!this.seen[L.t]) { this.seen[L.t] = 1; c[Counter.StallRobFull]!++; }
+          if (!this.seen[L.t]) {
+            this.seen[L.t] = 1;
+            c[Counter.StallRobFull]!++;
+          }
           why = DispatchStall.RobFull;
           continue;
         }
         if (!instant && this.rsN >= this.schedSize) {
-          if (!this.seen[L.t]) { this.seen[L.t] = 1; c[Counter.StallSchedFull]!++; }
+          if (!this.seen[L.t]) {
+            this.seen[L.t] = 1;
+            c[Counter.StallSchedFull]!++;
+          }
           why ||= DispatchStall.SchedFull;
           continue;
         }
@@ -403,8 +542,10 @@ export class OooEngine extends EngineBase {
         const f = OPF[op]!;
         const pa = f & F.Rs1 && p.rs1[s] !== 0 ? L.rat[p.rs1[s]!]! : -1;
         const pb = f & F.Rs2 && p.rs2[s] !== 0 ? L.rat[p.rs2[s]!]! : -1;
-        this.prodSA[s] = pa; this.prodIA[s] = pa >= 0 ? slotId[pa]! : -1;
-        this.prodSB[s] = pb; this.prodIB[s] = pb >= 0 ? slotId[pb]! : -1;
+        this.prodSA[s] = pa;
+        this.prodIA[s] = pa >= 0 ? slotId[pa]! : -1;
+        this.prodSB[s] = pb;
+        this.prodIB[s] = pb >= 0 ? slotId[pb]! : -1;
         if (f & F.Writes && p.rd[s] !== 0) L.rat[p.rd[s]!] = s;
         L.rob[(L.robHead + L.robN) % rs] = s;
         L.robN++;
@@ -412,7 +553,8 @@ export class OooEngine extends EngineBase {
         else {
           let pos = 0;
           while (this.rsS[pos]! >= 0) pos++;
-          this.rsS[pos] = s; v.schedWhy[pos] = SchedWhy.None;
+          this.rsS[pos] = s;
+          v.schedWhy[pos] = SchedWhy.None;
           this.rsPos[s] = pos;
           this.rsN++;
           ost[s] = Os.Wait;
@@ -421,8 +563,9 @@ export class OooEngine extends EngineBase {
         did = true;
       }
       if (!did) {
-        if (!anyDq) { if (n === 0) v.stall[OooPart.Dispatch] = DispatchStall.Empty; }
-        else v.stall[OooPart.Dispatch] = why;
+        if (!anyDq) {
+          if (n === 0) v.stall[OooPart.Dispatch] = DispatchStall.Empty;
+        } else v.stall[OooPart.Dispatch] = why;
         break;
       }
     }
@@ -440,18 +583,32 @@ export class OooEngine extends EngineBase {
     }
 
     // FETCH: a group of up to `width` for one lane, ended by any control instruction. The lane with fewer instructions in flight goes first; one that cannot fetch (stopped, queue full, waiting for the instruction cache) leaves the turn to the other.
-    const first = nl > 1 && (lanes[1]!.inflight < lanes[0]!.inflight || (lanes[1]!.inflight === lanes[0]!.inflight && (this.cycleNo & 1) === 1)) ? 1 : 0;
+    const first =
+      nl > 1 &&
+      (lanes[1]!.inflight < lanes[0]!.inflight ||
+        (lanes[1]!.inflight === lanes[0]!.inflight && (this.cycleNo & 1) === 1))
+        ? 1
+        : 0;
     let fetched = false;
     for (let i = 0; i < nl && !fetched; i++) {
       const L = lanes[(first + i) % nl]!;
       if (L.halted) continue;
-      if (L.stopped || L.hold) { v.stall[OooPart.Fetch] = FetchStall.Stopped; continue; }
-      if (L.fqN + W > this.fqCap) { v.stall[OooPart.Fetch] = FetchStall.QueueFull; continue; }
+      if (L.stopped || L.hold) {
+        v.stall[OooPart.Fetch] = FetchStall.Stopped;
+        continue;
+      }
+      if (L.fqN + W > this.fqCap) {
+        v.stall[OooPart.Fetch] = FetchStall.QueueFull;
+        continue;
+      }
       v.stall[OooPart.Fetch] = 0;
       this.on(L.t);
       if (nl > 1) this.swapFetchWait(L.fw);
       for (let l = 0; l < W; l++) {
-        if (!this.fetchReady(L.pc)) { v.stall[OooPart.Fetch] = FetchStall.ICache; break; }
+        if (!this.fetchReady(L.pc)) {
+          v.stall[OooPart.Fetch] = FetchStall.ICache;
+          break;
+        }
         fetched = true;
         if (this.fetchOne(L)) break;
       }
@@ -478,32 +635,50 @@ export class OooEngine extends EngineBase {
 
   /** Fill `ordS`/`ordL`/`ordK` with every ROB entry of every lane, oldest first, and return how many. */
   private agedEntries(): number {
-    const nl = this.cores.length, rs = this.rcap, lanes = this.lanes;
+    const nl = this.cores.length,
+      rs = this.rcap,
+      lanes = this.lanes;
     let total = 0;
     if (nl === 1) {
       const L = lanes[0]!;
-      for (let k = 0; k < L.robN; k++) { this.ordS[total] = L.rob[(L.robHead + k) % rs]!; this.ordL[total] = 0; this.ordK[total] = k; total++; }
+      for (let k = 0; k < L.robN; k++) {
+        this.ordS[total] = L.rob[(L.robHead + k) % rs]!;
+        this.ordL[total] = 0;
+        this.ordK[total] = k;
+        total++;
+      }
       return total;
     }
     const at = [0, 0];
     for (;;) {
-      let best = -1, bid = 0;
+      let best = -1,
+        bid = 0;
       for (let t = 0; t < nl; t++) {
         const L = lanes[t]!;
         if (at[t]! >= L.robN) continue;
         const id = this.slotId[L.rob[(L.robHead + at[t]!) % rs]!]!;
-        if (best < 0 || id < bid) { best = t; bid = id; }
+        if (best < 0 || id < bid) {
+          best = t;
+          bid = id;
+        }
       }
       if (best < 0) return total;
       const L = lanes[best]!;
-      this.ordS[total] = L.rob[(L.robHead + at[best]!) % rs]!; this.ordL[total] = best; this.ordK[total] = at[best]!; total++;
+      this.ordS[total] = L.rob[(L.robHead + at[best]!) % rs]!;
+      this.ordL[total] = best;
+      this.ordK[total] = at[best]!;
+      total++;
       at[best]!++;
     }
   }
 
   /** A ready instruction found its unit busy: whether the instruction holding it (or one of the two ALUs) belongs to the other thread. */
   private heldByOther(f: number, op: number, t: number): boolean {
-    const p = this.pool, held = (u: number): boolean => { const s = this.unitS[u]!; return s >= 0 && p.thread[s] !== t; };
+    const p = this.pool,
+      held = (u: number): boolean => {
+        const s = this.unitS[u]!;
+        return s >= 0 && p.thread[s] !== t;
+      };
     if (f & F_MEM) return held(Unit.LSU);
     if (op === OP_MUL) return held(Unit.MUL);
     return held(Unit.ALU0) || held(Unit.ALU1);
@@ -526,13 +701,19 @@ export class OooEngine extends EngineBase {
    * Fills res (and the Missing state for cache misses). Only the thread's own older stores are looked at (the other thread's land in memory when they commit).
    */
   private issueLoad(L: Lane, k: number, s: number): number {
-    const p = this.pool, c = this.ov.counters, rs = this.rcap;
-    const op = p.op[s]!, addr = p.addr[s]!;
+    const p = this.pool,
+      c = this.ov.counters,
+      rs = this.rcap;
+    const op = p.op[s]!,
+      addr = p.addr[s]!;
     const size = op === OP_LW ? 4 : 1;
     const ramSafe = op === OP_LW ? (addr & 3) === 0 && addr + 4 <= this.ramSize : addr < this.ramSize;
     if (!ramSafe) {
       // Device / faulting access: only when it is the oldest instruction of its thread, so it is never speculative.
-      if (k !== 0) { this.why = SchedWhy.Head; return -1; }
+      if (k !== 0) {
+        this.why = SchedWhy.Head;
+        return -1;
+      }
       p.res[s] = this.load(op, addr);
       this.logMem(0, addr, p.res[s]!); // (the board shows what the CPU reads from a device: a block from a drive, the key, a status)
       return HIT_LAT;
@@ -541,14 +722,21 @@ export class OooEngine extends EngineBase {
     for (let j = 0; j < k; j++) {
       const js = L.rob[(L.robHead + j) % rs]!;
       if (!(OPF[p.op[js]!]! & F.Store)) continue;
-      if (this.ost[js] !== Os.Done || p.addr[js]! >= this.ramSize) { this.why = SchedWhy.Memory; return -1; }
+      if (this.ost[js] !== Os.Done || p.addr[js]! >= this.ramSize) {
+        this.why = SchedWhy.Memory;
+        return -1;
+      }
       if (OPF[p.op[js]!]! & F.Amo) continue; // an atomic has already written RAM: read it from there, never forward its operand
       const sz = p.op[js] === OP_SW ? 4 : 1;
       if (p.addr[js]! < addr + size && addr < p.addr[js]! + sz) fwd = js; // youngest overlapping older store wins
     }
     if (fwd >= 0) {
-      const sa = p.addr[fwd]!, sz = p.op[fwd] === OP_SW ? 4 : 1;
-      if (!(sa <= addr && addr + size <= sa + sz)) { this.why = SchedWhy.Memory; return -1; } // partial overlap: wait for the commit
+      const sa = p.addr[fwd]!,
+        sz = p.op[fwd] === OP_SW ? 4 : 1;
+      if (!(sa <= addr && addr + size <= sa + sz)) {
+        this.why = SchedWhy.Memory;
+        return -1;
+      } // partial overlap: wait for the commit
       const word = p.b[fwd]!;
       if (op === OP_LW) p.res[s] = word | 0;
       else {
@@ -560,7 +748,10 @@ export class OooEngine extends EngineBase {
     }
     p.res[s] = this.load(op, addr);
     this.logMem(0, addr, p.res[s]!);
-    if (this.dHit(addr)) { c[Counter.CacheHits]!++; return HIT_LAT; }
+    if (this.dHit(addr)) {
+      c[Counter.CacheHits]!++;
+      return HIT_LAT;
+    }
     c[Counter.CacheMisses]!++;
     p.state[s]! |= St.Missing;
     return HIT_LAT + this.missCost(addr);
@@ -579,18 +770,31 @@ export class OooEngine extends EngineBase {
 
   /** Squash everything of lane `L` younger than id `bid`: ROB tail, queues, units; rebuild the RAT from what remains. */
   private squashAfter(L: Lane, bid: number): void {
-    const v = this.ov, p = this.pool, rs = this.rcap;
+    const v = this.ov,
+      p = this.pool,
+      rs = this.rcap;
     while (L.robN > 0) {
       const idx = (L.robHead + L.robN - 1) % rs;
       const s = L.rob[idx]!;
       if (this.slotId[s]! <= bid) break;
-      if (this.ost[s] === Os.Wait) { const pos = this.rsPos[s]!; this.rsS[pos] = -1; v.schedWhy[pos] = SchedWhy.None; this.rsN--; }
+      if (this.ost[s] === Os.Wait) {
+        const pos = this.rsPos[s]!;
+        this.rsS[pos] = -1;
+        v.schedWhy[pos] = SchedWhy.None;
+        this.rsN--;
+      }
       this.kill(s);
       L.rob[idx] = -1;
       L.robN--;
     }
-    for (let i = 0; i < L.dqN; i++) { this.kill(L.dq[i]!); L.dq[i] = -1; }
-    for (let i = 0; i < L.fqN; i++) { this.kill(L.fq[i]!); L.fq[i] = -1; }
+    for (let i = 0; i < L.dqN; i++) {
+      this.kill(L.dq[i]!);
+      L.dq[i] = -1;
+    }
+    for (let i = 0; i < L.fqN; i++) {
+      this.kill(L.fq[i]!);
+      L.fq[i] = -1;
+    }
     L.dqN = L.fqN = 0;
     for (let u = 0; u < UNIT_COUNT; u++) {
       const s = this.unitS[u]!;
@@ -604,7 +808,8 @@ export class OooEngine extends EngineBase {
   }
 
   private kill(s: number): void {
-    const v = this.ov, id = this.slotId[s]!;
+    const v = this.ov,
+      id = this.slotId[s]!;
     v.mark(id, StageCode.Flushed);
     v.setFate(id, Fate.Flushed);
     v.counters[Counter.FlushedInstrs]!++;
@@ -614,7 +819,8 @@ export class OooEngine extends EngineBase {
 
   /** Fetch one instruction of lane `L` into its fetch queue; returns true if the fetch group ends (control instruction). */
   private fetchOne(L: Lane): boolean {
-    const v = this.ov, p = this.pool;
+    const v = this.ov,
+      p = this.pool;
     const s = this.freeSlots[--this.freeN]!;
     const id = v.nextId++;
     const pc = L.pc;
@@ -635,25 +841,43 @@ export class OooEngine extends EngineBase {
     this.ost[s] = Os.Fetched;
     this.prodSA[s] = this.prodSB[s] = -1;
     L.fq[L.fqN++] = s;
-    if (p.op[s] === OP_ECALL) { L.stopped = true; return true; }
+    if (p.op[s] === OP_ECALL) {
+      L.stopped = true;
+      return true;
+    }
     return (f & F_CTRL) !== 0;
   }
 
   /** Fill the view arrays (ids, pcs, states, counts) from the slot structures. Thread t's part of each array starts at t times its share (see `OooView.lanes`). */
   private snapshot(): void {
-    const v = this.ov, p = this.pool, nl = this.cores.length, lanes = this.lanes;
-    const fc = this.fqCap, W = this.width, rc = this.rcap;
+    const v = this.ov,
+      p = this.pool,
+      nl = this.cores.length,
+      lanes = this.lanes;
+    const fc = this.fqCap,
+      W = this.width,
+      rc = this.rcap;
     for (let i = 0; i < v.fetchId.length; i++) {
-      const t = Math.floor(i / fc), s = t < nl ? lanes[t]!.fq[i % fc]! : -1;
-      v.fetchId[i] = s >= 0 ? this.slotId[s]! : -1; v.fetchPc[i] = s >= 0 ? p.pc[s]! : 0;
+      const t = Math.floor(i / fc),
+        s = t < nl ? lanes[t]!.fq[i % fc]! : -1;
+      v.fetchId[i] = s >= 0 ? this.slotId[s]! : -1;
+      v.fetchPc[i] = s >= 0 ? p.pc[s]! : 0;
     }
     for (let i = 0; i < v.decodeId.length; i++) {
-      const t = Math.floor(i / W), s = t < nl ? lanes[t]!.dq[i % W]! : -1;
-      v.decodeId[i] = s >= 0 ? this.slotId[s]! : -1; v.decodePc[i] = s >= 0 ? p.pc[s]! : 0;
+      const t = Math.floor(i / W),
+        s = t < nl ? lanes[t]!.dq[i % W]! : -1;
+      v.decodeId[i] = s >= 0 ? this.slotId[s]! : -1;
+      v.decodePc[i] = s >= 0 ? p.pc[s]! : 0;
     }
     for (let i = 0; i < v.robId.length; i++) {
-      const t = Math.floor(i / rc), s = t < nl ? lanes[t]!.rob[i % rc]! : -1;
-      if (s < 0) { v.robId[i] = -1; v.robPc[i] = 0; v.robState[i] = RobState.Empty; continue; }
+      const t = Math.floor(i / rc),
+        s = t < nl ? lanes[t]!.rob[i % rc]! : -1;
+      if (s < 0) {
+        v.robId[i] = -1;
+        v.robPc[i] = 0;
+        v.robState[i] = RobState.Empty;
+        continue;
+      }
       v.robId[i] = this.slotId[s]!;
       v.robPc[i] = p.pc[s]!;
       const st = this.ost[s];
@@ -661,21 +885,33 @@ export class OooEngine extends EngineBase {
     }
     for (let i = 0; i < v.schedId.length; i++) {
       const s = this.rsS[i]!;
-      v.schedId[i] = s >= 0 ? this.slotId[s]! : -1; v.schedPc[i] = s >= 0 ? p.pc[s]! : 0;
+      v.schedId[i] = s >= 0 ? this.slotId[s]! : -1;
+      v.schedPc[i] = s >= 0 ? p.pc[s]! : 0;
       if (s < 0) v.schedWhy[i] = SchedWhy.None;
     }
     let busy = 0;
     for (let u = 0; u < UNIT_COUNT; u++) {
       const s = this.unitS[u]!;
-      v.unitId[u] = s >= 0 ? this.slotId[s]! : -1; v.unitPc[u] = s >= 0 ? p.pc[s]! : 0;
-      if (s < 0) { v.unitLeft[u] = 0; v.unitTotal[u] = 0; } else busy++;
+      v.unitId[u] = s >= 0 ? this.slotId[s]! : -1;
+      v.unitPc[u] = s >= 0 ? p.pc[s]! : 0;
+      if (s < 0) {
+        v.unitLeft[u] = 0;
+        v.unitTotal[u] = 0;
+      } else busy++;
     }
     const L0 = lanes[0]!;
-    v.occ[Occ.Fetch] = L0.fqN; v.occ[Occ.Decode] = L0.dqN; v.occ[Occ.Rob] = L0.robN;
-    v.occ[Occ.Sched] = this.rsN; v.occ[Occ.Units] = busy; v.occ[Occ.RobHead] = L0.robHead;
+    v.occ[Occ.Fetch] = L0.fqN;
+    v.occ[Occ.Decode] = L0.dqN;
+    v.occ[Occ.Rob] = L0.robN;
+    v.occ[Occ.Sched] = this.rsN;
+    v.occ[Occ.Units] = busy;
+    v.occ[Occ.RobHead] = L0.robHead;
     for (let t = 0; t < nl; t++) {
       const L = lanes[t]!;
-      v.laneOcc[4 * t] = L.fqN; v.laneOcc[4 * t + 1] = L.dqN; v.laneOcc[4 * t + 2] = L.robN; v.laneOcc[4 * t + 3] = L.robHead;
+      v.laneOcc[4 * t] = L.fqN;
+      v.laneOcc[4 * t + 1] = L.dqN;
+      v.laneOcc[4 * t + 2] = L.robN;
+      v.laneOcc[4 * t + 3] = L.robHead;
     }
   }
 }

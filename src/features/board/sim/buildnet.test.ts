@@ -7,7 +7,11 @@ import { NET_KINDS, netKindOf, netName, netState, setNet } from './buildnet';
 /** The full rig as the stage opens its game (`looseFit`): the best OS, router and plan are in, and the ethernet cable is on the network card. */
 const full = (): Game => new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
 /** The same rig with none of the three in place (a drive, RAM and a card are there for them). */
-const rig = (): Game => { const g = full(); for (const k of NET_KINDS) setNet(g, k, null); return g; };
+const rig = (): Game => {
+  const g = full();
+  for (const k of NET_KINDS) setNet(g, k, null);
+  return g;
+};
 
 describe('netKindOf', () => {
   it('knows the three choices by their catalogue ids, and no other id', () => {

@@ -113,18 +113,18 @@ RAM specs: `ram0` latency 200 (RAM ticks; doubled from 100 when the boot made jo
 
 Measured time from plugging the key to its result (seconds, nothing else running):
 
-| job | base | +cpu1 | +ram1 | +cpu1+ram1 |
-|---|---|---|---|---|
-| `cli.log` | 35 | 7 | 35 | 7 |
-| `cli.scan` scale 4 | 182 | 105 | 95 | 19 |
+| job                | base | +cpu1 | +ram1 | +cpu1+ram1 |
+| ------------------ | ---- | ----- | ----- | ---------- |
+| `cli.log`          | 35   | 7     | 35    | 7          |
+| `cli.scan` scale 4 | 182  | 105   | 95    | 19         |
 
 CPU is the big win for log (and shortens the boot of every job), RAM is the big win for scan, and scan needs both to really fly. Which first purchase pays more over time depends on the mix (`tradeoff.test.ts`, 800 ticks, mean of 6 seeds, bot player with 2 s reaction per manual step, income = money earned including what was spent on the two parts; first purchase bought as soon as affordable, installed by the bot with a power cycle, then the other):
 
-| mix | nothing | cpu1 only | ram1 only | cpu1 then ram1 | ram1 then cpu1 |
-|---|---|---|---|---|---|
-| log only | $451 | $1693 | $469 | $1724 | $1241 |
-| starting (33% scan, ramped in) | $442 | $780 | $720 | $3261 | $3105 |
-| scan heavy (80% scan, no ramp) | $471 | $743 | $811 | $2458 | $3683 |
+| mix                            | nothing | cpu1 only | ram1 only | cpu1 then ram1 | ram1 then cpu1 |
+| ------------------------------ | ------- | --------- | --------- | -------------- | -------------- |
+| log only                       | $451    | $1693     | $469      | $1724          | $1241          |
+| starting (33% scan, ramped in) | $442    | $780      | $720      | $3261          | $3105          |
+| scan heavy (80% scan, no ramp) | $471    | $743      | $811      | $2458          | $3683          |
 
 Log-heavy traffic: CPU first by a wide margin. Starting mix: no dominant choice (the two orders within about 5%, the single parts within about 8%; the test asserts a 0.65 to 1.5 band). Scan-heavy: RAM first. Balance numbers (`payMul`, scan scale, RAM latencies and prices) are placeholders.
 

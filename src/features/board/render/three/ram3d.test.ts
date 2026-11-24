@@ -8,8 +8,9 @@ import { SLOT_H, SLOT_W, STICK, STICK_MM, dimmSlot, ramStick, stickLook, stickTi
 
 describe('the 3D memory sticks', () => {
   it('gives each tier its look: bare, a low plate, a full plate, then a plate under a light bar', () => {
-    expect(['dimm-basic', 'dimm-fast', 'dimm-ddr3', 'dimm-lowlat', 'dimm-ecc', 'dimm-ddr5', 'dimm-ddr5ecc'].map(stickLook))
-      .toEqual(['bare', 'low', 'flat', 'rgb', 'rgb', 'rgb', 'rgb']);
+    expect(
+      ['dimm-basic', 'dimm-fast', 'dimm-ddr3', 'dimm-lowlat', 'dimm-ecc', 'dimm-ddr5', 'dimm-ddr5ecc'].map(stickLook),
+    ).toEqual(['bare', 'low', 'flat', 'rgb', 'rgb', 'rgb', 'rgb']);
   });
 
   it('climbs one linear ladder: the tier numbers follow the shop, and each light-bar tier stands higher than the last', () => {
@@ -20,14 +21,17 @@ describe('the 3D memory sticks', () => {
     expect(tops[3]!).toBeGreaterThan(tops[2]!);
   });
 
-  it('keeps a real stick\'s proportions: 31.25 mm tall to its 133.35 mm, 3.3 mm thick bare, 5 to 8 mm under a spreader, 41 mm with a light bar', () => {
+  it("keeps a real stick's proportions: 31.25 mm tall to its 133.35 mm, 3.3 mm thick bare, 5 to 8 mm under a spreader, 41 mm with a light bar", () => {
     setLayoutTier(3, 3);
-    const r = GEO.dimm[0]!.rect, pitch = GEO.dimm[1]!.rect.x - r.x, mm = 23;
+    const r = GEO.dimm[0]!.rect,
+      pitch = GEO.dimm[1]!.rect.x - r.x,
+      mm = 23;
     expect(STICK.h / DIMM_H).toBeCloseTo(31.25 / 133.35, 2);
     expect(STICK.t / mm).toBeCloseTo(3.27, 1);
     expect((stickTop('dimm-ddr5') - STICK.z0) / STICK_MM).toBeCloseTo(41.25, 0);
     for (const visual of ['dimm-fast', 'dimm-ddr3', 'dimm-ecc', 'dimm-ddr5', 'dimm-ddr5ecc']) {
-      const b = new Box3().setFromObject(ramStick(visual, false, r, 'DDR5 256K').root), w = (b.max.x - b.min.x) / mm;
+      const b = new Box3().setFromObject(ramStick(visual, false, r, 'DDR5 256K').root),
+        w = (b.max.x - b.min.x) / mm;
       expect(w, visual).toBeGreaterThan(5);
       expect(w, visual).toBeLessThan(8);
       // a gap to the next stick
@@ -37,9 +41,11 @@ describe('the 3D memory sticks', () => {
 
   it('stands a stick in its socket: as wide as the socket bare, its fingers down in the groove, its top where the look says', () => {
     setLayoutTier(3, 3);
-    const r = GEO.dimm[0]!.rect, cx = r.x + r.w / 2;
+    const r = GEO.dimm[0]!.rect,
+      cx = r.x + r.w / 2;
     for (const visual of ['dimm-basic', 'dimm-fast', 'dimm-ddr3', 'dimm-ecc', 'dimm-ddr5', 'dimm-ddr5ecc']) {
-      const s = ramStick(visual, false, r), b = new Box3().setFromObject(s.root);
+      const s = ramStick(visual, false, r),
+        b = new Box3().setFromObject(s.root);
       expect(b.max.x - b.min.x, visual).toBeLessThan(visual === 'dimm-basic' ? SLOT_W : r.w);
       expect(Math.abs((b.min.x + b.max.x) / 2 - cx), visual).toBeLessThan(1);
       expect(b.min.z, visual).toBeLessThan(BOARD_Z + SLOT_H);
@@ -60,7 +66,9 @@ describe('the 3D memory sticks', () => {
 
   it('puts a die on each DRAM chip face: eight data chips, two faces each, a ninth chip on an ECC stick; the live map only on the east faces of the data chips', () => {
     setLayoutTier(3, 3);
-    const r = GEO.dimm[0]!.rect, art = new ArtSet(), T = builtinTheme();
+    const r = GEO.dimm[0]!.rect,
+      art = new ArtSet(),
+      T = builtinTheme();
     const plain = ramStick('dimm-ddr5', false, r, '', { art, T, spec: { banks: 32, bankGroups: 8, subChannels: 2 } });
     expect(plain.dies).toHaveLength(16);
     expect(plain.mapFaces).toHaveLength(8);

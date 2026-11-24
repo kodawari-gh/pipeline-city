@@ -4,13 +4,30 @@
 // need them. A shared queue bakes a few per frame, the most wanted first. `fadeTree` fades a lid or a shroud away to show what is under it.
 // The baking itself is the caller's (`Bake`): this file knows only three.
 import {
-  Box3, CanvasTexture, Frustum, Group, Matrix4, Mesh, MeshStandardMaterial, NoColorSpace, PlaneGeometry, Vector3,
-  type Material, type Object3D, type PerspectiveCamera, type Texture,
+  Box3,
+  CanvasTexture,
+  Frustum,
+  Group,
+  Matrix4,
+  Mesh,
+  MeshStandardMaterial,
+  NoColorSpace,
+  PlaneGeometry,
+  Vector3,
+  type Material,
+  type Object3D,
+  type PerspectiveCamera,
+  type Texture,
 } from 'three';
 import { anisotropy } from './geometry';
 import { sceneChanged } from './ondemand';
 
-export interface Rect { x: number; y: number; w: number; h: number }
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 /** Draw the art inside `frame` (layout units) at `px` texture pixels per unit. Null while the baker is not ready (the job is tried again). */
 export type Bake = (frame: Rect, px: number) => HTMLCanvasElement | null;
@@ -20,14 +37,18 @@ export const TILE_PX = 2048;
 
 /** The tiles a rect splits into at `px` texture pixels per unit, none wider or taller than `tile` pixels. */
 export function tilesOf(r: Rect, px: number, tile = TILE_PX): Rect[] {
-  const nx = Math.max(1, Math.ceil((r.w * px) / tile)), ny = Math.max(1, Math.ceil((r.h * px) / tile));
+  const nx = Math.max(1, Math.ceil((r.w * px) / tile)),
+    ny = Math.max(1, Math.ceil((r.h * px) / tile));
   const out: Rect[] = [];
-  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) out.push({ x: r.x + (i * r.w) / nx, y: r.y + (j * r.h) / ny, w: r.w / nx, h: r.h / ny });
+  for (let j = 0; j < ny; j++)
+    for (let i = 0; i < nx; i++)
+      out.push({ x: r.x + (i * r.w) / nx, y: r.y + (j * r.h) / ny, w: r.w / nx, h: r.h / ny });
   return out;
 }
 
 /** Screen pixels per layout unit at distance `d` (a perspective camera, vertical fov in degrees, viewport `H` pixels high): the 2D renderer's zoom. */
-export const screenPx = (d: number, fov: number, H: number): number => H / (2 * Math.max(1, d) * Math.tan((fov * Math.PI) / 360));
+export const screenPx = (d: number, fov: number, H: number): number =>
+  H / (2 * Math.max(1, d) * Math.tan((fov * Math.PI) / 360));
 
 /**
  * The art's density at each level of the graphics settings (`textures`), as a share of what the screen needs (`ArtSurface.update`'s `dpr` is the
@@ -46,7 +67,11 @@ const KEEP_MS = 2500;
 /** How long the camera must stay at a level before its tiles bake (ms): a flight or a wheel spin passes the levels between without baking them. */
 const SETTLE_MS = 150;
 
-interface Job { key: string; pri: number; run: () => boolean }
+interface Job {
+  key: string;
+  pri: number;
+  run: () => boolean;
+}
 
 /** The bake jobs of every surface: `run` does the most wanted ones within a time budget each frame. */
 export class BakeQueue {
@@ -55,24 +80,41 @@ export class BakeQueue {
 
   add(key: string, pri: number, run: () => boolean): void {
     const j = this.jobs.find((x) => x.key === key);
-    if (j) { if (pri < j.pri) { j.pri = pri; this.dirty = true; } return; }
+    if (j) {
+      if (pri < j.pri) {
+        j.pri = pri;
+        this.dirty = true;
+      }
+      return;
+    }
     this.jobs.push({ key, pri, run });
     this.dirty = true;
   }
 
   /** Forget the jobs whose key starts with `prefix` (a surface that was taken down). */
-  drop(prefix: string): void { this.jobs = this.jobs.filter((j) => !j.key.startsWith(prefix)); }
+  drop(prefix: string): void {
+    this.jobs = this.jobs.filter((j) => !j.key.startsWith(prefix));
+  }
 
-  get size(): number { return this.jobs.length; }
+  get size(): number {
+    return this.jobs.length;
+  }
 
   run(budgetMs = 6): void {
     if (!this.jobs.length) return;
-    if (this.dirty) { this.jobs.sort((a, b) => a.pri - b.pri); this.dirty = false; }
+    if (this.dirty) {
+      this.jobs.sort((a, b) => a.pri - b.pri);
+      this.dirty = false;
+    }
     const t0 = performance.now();
     while (this.jobs.length && performance.now() - t0 < budgetMs) {
       const j = this.jobs[0]!;
       let done = true;
-      try { done = j.run(); } catch { done = true; }
+      try {
+        done = j.run();
+      } catch {
+        done = true;
+      }
       if (!done) return; // the baker is not ready yet: try again next frame
       this.jobs.shift();
       sceneChanged(); // a baked tile or face shows: views drawn on demand draw it
@@ -89,9 +131,17 @@ export function fadeTree(o: Object3D, a: number): void {
     const m = (x as Mesh).material as Material | Material[] | undefined;
     if (!m) return;
     for (const mm of Array.isArray(m) ? m : [m]) {
-      const base = (mm.userData.base ??= { opacity: mm.opacity, transparent: mm.transparent, depthWrite: mm.depthWrite }) as { opacity: number; transparent: boolean; depthWrite: boolean };
-      const clear = a < 0.999, tr = base.transparent || clear;
-      if (mm.transparent !== tr) { mm.transparent = tr; mm.needsUpdate = true; }
+      const base = (mm.userData.base ??= {
+        opacity: mm.opacity,
+        transparent: mm.transparent,
+        depthWrite: mm.depthWrite,
+      }) as { opacity: number; transparent: boolean; depthWrite: boolean };
+      const clear = a < 0.999,
+        tr = base.transparent || clear;
+      if (mm.transparent !== tr) {
+        mm.transparent = tr;
+        mm.needsUpdate = true;
+      }
       mm.opacity = base.opacity * a;
       mm.depthWrite = clear ? false : base.depthWrite;
     }
@@ -104,7 +154,8 @@ export function fadeTree(o: Object3D, a: number): void {
  */
 export function ownMaterials(o: Object3D): void {
   o.traverse((x) => {
-    const m = x as Mesh, mt = m.material as Material | Material[] | undefined;
+    const m = x as Mesh,
+      mt = m.material as Material | Material[] | undefined;
     if (mt) m.material = Array.isArray(mt) ? mt.map((c) => c.clone()) : mt.clone();
   });
 }
@@ -154,7 +205,7 @@ export const FINISH = {
  * The finish's shader helpers: the colour tests read an sRGB-ish value (hue, saturation, brightness the way the art was drawn); the height is the
  * brightness of the texel as drawn (the texture holds the sRGB values: `rawSrgb`).
  */
-const ART_GLSL = /* glsl */`
+const ART_GLSL = /* glsl */ `
 uniform float artGloss;
 uniform float artMetal;
 uniform float artShine;
@@ -184,10 +235,20 @@ export const DECODE_SRGB = { DECODE_VIDEO_TEXTURE: '', DECODE_VIDEO_TEXTURE_EMIS
  */
 export function artMaterial(map: Texture, f: Finish, level = 0): MeshStandardMaterial {
   const m = new MeshStandardMaterial({
-    map, bumpMap: map, bumpScale: f.bump, roughness: 1, metalness: 0, alphaTest: 0.4, alphaToCoverage: true,
-    emissive: f.glow ? 0xffffff : 0x000000, emissiveMap: f.glow ? map : null, emissiveIntensity: f.glow,
+    map,
+    bumpMap: map,
+    bumpScale: f.bump,
+    roughness: 1,
+    metalness: 0,
+    alphaTest: 0.4,
+    alphaToCoverage: true,
+    emissive: f.glow ? 0xffffff : 0x000000,
+    emissiveMap: f.glow ? map : null,
+    emissiveIntensity: f.glow,
     // each level sits a hair above the one under it
-    polygonOffset: true, polygonOffsetFactor: -1 - level, polygonOffsetUnits: -2 - 2 * level,
+    polygonOffset: true,
+    polygonOffsetFactor: -1 - level,
+    polygonOffsetUnits: -2 - 2 * level,
   });
   m.defines = { ...DECODE_SRGB };
   m.onBeforeCompile = (sh) => {
@@ -198,8 +259,13 @@ export function artMaterial(map: Texture, f: Finish, level = 0): MeshStandardMat
       // the height is the brightness, not the red channel
       .replace(/texture2D\( bumpMap, ([^)]+) \)\.x/g, 'artHeight( texture2D( bumpMap, $1 ) )')
       // far out a screen pixel covers many texels: the relief fades out there (it would only shimmer), and is whole from one texel per pixel in
-      .replace('return vec2( dBx, dBy );', 'float tpp = length( dSTdx * vec2( textureSize( bumpMap, 0 ) ) ) + 1e-4;\n\t\treturn vec2( dBx, dBy ) * clamp( 1.5 / tpp - 0.5, 0.0, 1.0 );')
-      .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
+      .replace(
+        'return vec2( dBx, dBy );',
+        'float tpp = length( dSTdx * vec2( textureSize( bumpMap, 0 ) ) ) + 1e-4;\n\t\treturn vec2( dBx, dBy ) * clamp( 1.5 / tpp - 0.5, 0.0, 1.0 );',
+      )
+      .replace(
+        '#include <metalnessmap_fragment>',
+        `#include <metalnessmap_fragment>
       {
         vec3 s = artSrgb(diffuseColor.rgb);
         float mx = max(s.r, max(s.g, s.b)), mn = min(s.r, min(s.g, s.b)), sat = mx > 0.0 ? (mx - mn) / mx : 0.0;
@@ -209,13 +275,23 @@ export function artMaterial(map: Texture, f: Finish, level = 0): MeshStandardMat
         float ink = (1.0 - smoothstep(0.1, 0.35, sat)) * smoothstep(0.3, 0.6, mx);
         metalnessFactor = artMetalK;
         roughnessFactor = mix(mix(artGloss, 0.62, ink), 0.38, artMetalK);
-      }`)
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance *= 1.0 - artMetalK;')
+      }`,
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        '#include <emissivemap_fragment>\ntotalEmissiveRadiance *= 1.0 - artMetalK;',
+      )
       // the environment lifts the mask little (it stays dark and glossy) and the metal a lot (gold and copper read as metal, not paint)
       // (capped under the bloom's threshold: a field of gold pins seen face-on would glow like a lamp)
-      .replace('#include <lights_fragment_maps>', '#include <lights_fragment_maps>\niblIrradiance *= 0.45;\nradiance = min( radiance * mix(0.25, artShine, artMetalK), vec3( 0.8 ) );')
+      .replace(
+        '#include <lights_fragment_maps>',
+        '#include <lights_fragment_maps>\niblIrradiance *= 0.45;\nradiance = min( radiance * mix(0.25, artShine, artMetalK), vec3( 0.8 ) );',
+      )
       // a lamp's highlight would wash the whole mask grey when it faces the camera: the mask keeps a faint sheen, the metal its glint
-      .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nreflectedLight.directSpecular *= mix(0.3, 0.45, artMetalK);\nreflectedLight.directDiffuse *= artLit;\nreflectedLight.indirectDiffuse *= artLit;');
+      .replace(
+        '#include <lights_fragment_end>',
+        '#include <lights_fragment_end>\nreflectedLight.directSpecular *= mix(0.3, 0.45, artMetalK);\nreflectedLight.directDiffuse *= artLit;\nreflectedLight.indirectDiffuse *= artLit;',
+      );
     sh.uniforms.artShine = { value: f.shine };
     sh.uniforms.artLit = { value: f.lit };
   };
@@ -224,7 +300,13 @@ export function artMaterial(map: Texture, f: Finish, level = 0): MeshStandardMat
 }
 
 /** When a tile was last in view (ms). */
-interface Tile { rect: Rect; mesh: Mesh | null; queued: boolean; box: Box3; seen: number }
+interface Tile {
+  rect: Rect;
+  mesh: Mesh | null;
+  queued: boolean;
+  box: Box3;
+  seen: number;
+}
 
 let nextId = 0;
 
@@ -245,9 +327,23 @@ export class ArtSurface {
   private opacity = 1;
   private readonly box: Box3;
 
-  constructor(readonly rect: Rect, readonly z: number, private bake: Bake, private q: BakeQueue, private o: SurfaceOpts) {
+  constructor(
+    readonly rect: Rect,
+    readonly z: number,
+    private bake: Bake,
+    private q: BakeQueue,
+    private o: SurfaceOpts,
+  ) {
     this.box = new Box3(new Vector3(rect.x, -(rect.y + rect.h), z), new Vector3(rect.x + rect.w, -rect.y, z));
-    this.tiles = o.levels.map((px) => tilesOf(rect, px).map((r) => ({ rect: r, mesh: null, queued: false, box: new Box3(new Vector3(r.x, -(r.y + r.h), z), new Vector3(r.x + r.w, -r.y, z)), seen: 0 })));
+    this.tiles = o.levels.map((px) =>
+      tilesOf(rect, px).map((r) => ({
+        rect: r,
+        mesh: null,
+        queued: false,
+        box: new Box3(new Vector3(r.x, -(r.y + r.h), z), new Vector3(r.x + r.w, -r.y, z)),
+        seen: 0,
+      })),
+    );
   }
 
   private request(level: number, k: number, pri: number) {
@@ -281,30 +377,46 @@ export class ArtSurface {
   update(cam: PerspectiveCamera, frustum: Frustum, H: number, dpr: number, now: number): void {
     if (!shown(this.root)) return;
     this.root.updateWorldMatrix(true, false);
-    const m = this.root.matrixWorld, box = AT_BOX.copy(this.box).applyMatrix4(m), tile = (t: Tile) => AT_TILE.copy(t.box).applyMatrix4(m);
+    const m = this.root.matrixWorld,
+      box = AT_BOX.copy(this.box).applyMatrix4(m),
+      tile = (t: Tile) => AT_TILE.copy(t.box).applyMatrix4(m);
     if (!frustum.intersectsBox(box)) return;
-    const d = box.distanceToPoint(cam.position), need = levelFor(this.o.levels, screenPx(d, cam.fov, H) * dpr);
-    if (need !== this.need) { this.need = need; this.needSince = now; }
-    if (need >= this.keep) { this.keep = need; this.lowSince = 0; }
-    else if (!this.lowSince) this.lowSince = now;
-    else if (now - this.lowSince > KEEP_MS) { this.keep = need; this.lowSince = 0; }
-    const keep = this.keep, settled = now - this.needSince >= SETTLE_MS, seen = (t: Tile) => frustum.intersectsBox(tile(t));
+    const d = box.distanceToPoint(cam.position),
+      need = levelFor(this.o.levels, screenPx(d, cam.fov, H) * dpr);
+    if (need !== this.need) {
+      this.need = need;
+      this.needSince = now;
+    }
+    if (need >= this.keep) {
+      this.keep = need;
+      this.lowSince = 0;
+    } else if (!this.lowSince) this.lowSince = now;
+    else if (now - this.lowSince > KEEP_MS) {
+      this.keep = need;
+      this.lowSince = 0;
+    }
+    const keep = this.keep,
+      settled = now - this.needSince >= SETTLE_MS,
+      seen = (t: Tile) => frustum.intersectsBox(tile(t));
     this.request(0, 0, -1e9 + d);
     // only the needed level bakes: the jobs of a level the camera passed are dropped
     for (let l = 1; l < this.tiles.length; l++) if (l !== need || !settled) this.unqueue(l);
     // under a kept level, a tile bakes only where the kept tiles in view do not cover it (out of a wheel wobble, nothing does)
-    const covered = (t: Tile) => keep > need && this.tiles[keep]!.every((u) => u.mesh || !u.box.intersectsBox(t.box) || !seen(u));
-    if (need > 0 && settled) this.tiles[need]!.forEach((t, k) => {
-      if (!seen(t)) return;
-      const pri = need * 1e6 + AT_TILE.distanceToPoint(cam.position);
-      if (!covered(t)) this.request(need, k, pri);
-    });
+    const covered = (t: Tile) =>
+      keep > need && this.tiles[keep]!.every((u) => u.mesh || !u.box.intersectsBox(t.box) || !seen(u));
+    if (need > 0 && settled)
+      this.tiles[need]!.forEach((t, k) => {
+        if (!seen(t)) return;
+        const pri = need * 1e6 + AT_TILE.distanceToPoint(cam.position);
+        if (!covered(t)) this.request(need, k, pri);
+      });
     for (let l = keep + 1; l < this.tiles.length; l++) this.free(l);
     // a pan at a fine level leaves tiles behind: each goes once it has been out of view for a while (level 0 stays: it is the fallback)
-    for (let l = 1; l <= keep; l++) for (const t of this.tiles[l]!) {
-      if (frustum.intersectsBox(tile(t))) t.seen = now;
-      else if (t.mesh && now - t.seen > KEEP_MS) this.dropTile(t);
-    }
+    for (let l = 1; l <= keep; l++)
+      for (const t of this.tiles[l]!) {
+        if (frustum.intersectsBox(tile(t))) t.seen = now;
+        else if (t.mesh && now - t.seen > KEEP_MS) this.dropTile(t);
+      }
   }
 
   private dropTile(t: Tile) {
@@ -340,7 +452,8 @@ export class ArtSurface {
 }
 
 /** The surface's and a tile's box where its parents put them (`update`). */
-const AT_BOX = new Box3(), AT_TILE = new Box3();
+const AT_BOX = new Box3(),
+  AT_TILE = new Box3();
 
 function disposeMesh(m: Mesh) {
   m.geometry.dispose();

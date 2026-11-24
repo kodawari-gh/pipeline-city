@@ -22,13 +22,42 @@
 //   Total draw > 1.5x PSU watts (or a burnt PSU) -> hard trip: everything off (clock 0) until powerCycle().
 //   No PSU installed -> machine is off (not latched).
 
-import type { Prng } from "@/core/sim/prng";
-import { deviceSpec, fanAir, fanHost, fansOn, findDevices, fittedRadiator, hostSpots, installedPsu, type Board, type InstalledDevice } from "./board";
-import { AMBIENT_C, BOARD_TIERS, DAMAGE_TICKS, fanShare, type CoolerSpec, type DeviceKind, type RadiatorSpec } from "./specs";
-import { AIR_ZONES, cageShade, zoneAir, zoneOf, type AirZoneId, type BayDrive, type ZoneAir } from "./airflow";
-import { currentDemand, efficiency, errorProb, lossW, loadRatio, ramDemand, VRM_BURN_RATIO, VRM_HOT_STRESS, VRM_OVERLOAD } from "./vrm";
+import type { Prng } from '@/core/sim/prng';
+import {
+  deviceSpec,
+  fanAir,
+  fanHost,
+  fansOn,
+  findDevices,
+  fittedRadiator,
+  hostSpots,
+  installedPsu,
+  type Board,
+  type InstalledDevice,
+} from './board';
+import {
+  AMBIENT_C,
+  BOARD_TIERS,
+  DAMAGE_TICKS,
+  fanShare,
+  type CoolerSpec,
+  type DeviceKind,
+  type RadiatorSpec,
+} from './specs';
+import { AIR_ZONES, cageShade, zoneAir, zoneOf, type AirZoneId, type BayDrive, type ZoneAir } from './airflow';
+import {
+  currentDemand,
+  efficiency,
+  errorProb,
+  lossW,
+  loadRatio,
+  ramDemand,
+  VRM_BURN_RATIO,
+  VRM_HOT_STRESS,
+  VRM_OVERLOAD,
+} from './vrm';
 
-type VrmSpecOf = (typeof BOARD_TIERS)[number]["vrm"];
+type VrmSpecOf = (typeof BOARD_TIERS)[number]['vrm'];
 
 export const THROTTLE_MIN = 0.8;
 export const TRIP_RATIO = 1.5;
@@ -74,7 +103,16 @@ export interface VrmThermal {
   errProb: number;
 }
 
-const freshVrm = (): VrmThermal => ({ tempC: AMBIENT_C, heatW: 0, loadRatio: 0, efficiency: 1, throttle: 1, unstable: false, stress: 0, errProb: 0 });
+const freshVrm = (): VrmThermal => ({
+  tempC: AMBIENT_C,
+  heatW: 0,
+  loadRatio: 0,
+  efficiency: 1,
+  throttle: 1,
+  unstable: false,
+  stress: 0,
+  errProb: 0,
+});
 
 export interface PowerReport {
   totalW: number;
@@ -92,7 +130,7 @@ export interface PowerReport {
 export const CASE_HEAT_C_PER_W = 0.05;
 /** The share of its fans' cooling a card keeps in a case with no air moving in its area (they only stir the trapped air). */
 const CARD_FAN_AIR_MIN = 0.4;
-const isCard =(kind: DeviceKind): boolean => kind === "gpu" || kind === "npu";
+const isCard = (kind: DeviceKind): boolean => kind === 'gpu' || kind === 'npu';
 
 export type Loads = Partial<Record<DeviceKind, number>>;
 
@@ -101,7 +139,10 @@ export type Loads = Partial<Record<DeviceKind, number>>;
  * board says which fans are on it). `caseFans` counts the case fans that turn (their own cable and the hub's).
  */
 export interface FanPower {
-  cpu: boolean; vrm: boolean; ram: boolean; caseFans: number;
+  cpu: boolean;
+  vrm: boolean;
+  ram: boolean;
+  caseFans: number;
   /** The ids of the case fans that turn (`front0`, `top1`, `rear`: their own cable and the hub's). With it the case's air is worked out per area (airflow.ts); without it every area gets `caseFans`. */
   mounts?: string[];
   /** The airflow of the fan on each turning mount (absent: a basic fan of the case's size). */
@@ -109,7 +150,7 @@ export interface FanPower {
   /** What the fitted radiator adds to a liquid loop, W/C (0 with none). The Game works it out: full with its fan plugged, `UNFANNED_SHARE` of it without. */
   loopK?: number;
   /** The side of the case the radiator is on (`front` takes in room air and warms the case with its heat, `top` blows out of the case). Unset: looked up from the board. */
-  radSide?: "front" | "top";
+  radSide?: 'front' | 'top';
 }
 /** The default for a model with no cables to look at: every part's fan turns, no case fans counted, and a liquid loop runs the fitted radiator (if any) at full fan. */
 export const FANS_ON: FanPower = { cpu: true, vrm: true, ram: true, caseFans: 0 };
@@ -129,7 +170,7 @@ export const LOOP_FLOW_CP = 15;
 const LOOP_FLOW_EASE = 0.4;
 const LOOP_MAX_RISE_C = 30;
 /** W per degree C each turning case fan adds to every part's own cooling (airflow through the case). */
-export const CASE_FAN_K = 0.01;/** A heatsink with a fan whose fan is not plugged in still works as fins: this share of its cooling is left. */
+export const CASE_FAN_K = 0.01; /** A heatsink with a fan whose fan is not plugged in still works as fins: this share of its cooling is left. */
 export const UNFANNED_SHARE = 0.5;
 
 export class ThermalModel {
@@ -150,7 +191,7 @@ export class ThermalModel {
   loopHotC = AMBIENT_C;
   loopColdC = AMBIENT_C;
   /** Which side of the case the radiator that does it is on (null: no loop or no radiator). */
-  loopSide: "front" | "top" | null = null;
+  loopSide: 'front' | 'top' | null = null;
   /** The case's air by area, last tick (airflow.ts). */
   air: Record<AirZoneId, ZoneAir> = zoneAir(0, undefined, 0, 0, 0);
 
@@ -220,26 +261,43 @@ export class ThermalModel {
     const psu = installedPsu(board);
     const tripped = this.power.tripped;
     const live = powered && !!psu && !psu.dev.burnt && !tripped && !board.burnt;
-    const vspec = BOARD_TIERS[board.tier]!.vrm, rspec = BOARD_TIERS[board.tier]!.ramVrm;
+    const vspec = BOARD_TIERS[board.tier]!.vrm,
+      rspec = BOARD_TIERS[board.tier]!.ramVrm;
     // Accelerators idle until something drives them (docs/ACCEL.md); every other kind defaults to full load.
-    const load = (d: InstalledDevice): number => { const k = deviceSpec(d).kind; return loads[k] ?? (k === "gpu" || k === "npu" || k === "tpm" ? 0 : 1); };
-    const cpuLoad = Math.max(0, ...findDevices(board, "cpu").map(load));
+    const load = (d: InstalledDevice): number => {
+      const k = deviceSpec(d).kind;
+      return loads[k] ?? (k === 'gpu' || k === 'npu' || k === 'tpm' ? 0 : 1);
+    };
+    const cpuLoad = Math.max(0, ...findDevices(board, 'cpu').map(load));
 
     // Thermal factor from last tick's temperatures.
     const therm = new Map<string, number>();
     for (const d of board.devices) {
       const st = this.ensure(d);
       const t = deviceSpec(d).thermal;
-      therm.set(d.id, st.tempC <= t.throttleC ? 1 : Math.max(THROTTLE_MIN, 1 - (1 - THROTTLE_MIN) * (st.tempC - t.throttleC) / (t.unstableC - t.throttleC)));
+      therm.set(
+        d.id,
+        st.tempC <= t.throttleC
+          ? 1
+          : Math.max(THROTTLE_MIN, 1 - ((1 - THROTTLE_MIN) * (st.tempC - t.throttleC)) / (t.unstableC - t.throttleC)),
+      );
     }
     // The VRM's thermal factor (last tick's temperature) trims the CPU on top of its own.
-    const throttleOf = (v: VrmThermal, s: VrmSpecOf) => (v.tempC <= s.throttleC ? 1 : Math.max(THROTTLE_MIN, 1 - (1 - THROTTLE_MIN) * (v.tempC - s.throttleC) / (s.unstableC - s.throttleC)));
-    const vrmThrottle = throttleOf(this.vrm, vspec), ramThrottle = throttleOf(this.ramVrm, rspec);
+    const throttleOf = (v: VrmThermal, s: VrmSpecOf) =>
+      v.tempC <= s.throttleC
+        ? 1
+        : Math.max(THROTTLE_MIN, 1 - ((1 - THROTTLE_MIN) * (v.tempC - s.throttleC)) / (s.unstableC - s.throttleC));
+    const vrmThrottle = throttleOf(this.vrm, vspec),
+      ramThrottle = throttleOf(this.ramVrm, rspec);
     // Forget removed devices.
     for (const id of [...this.devices.keys()]) if (!board.devices.some((d) => d.id === id)) this.devices.delete(id);
 
     // A fan turns with its header: a heatsink's on the heatsink's cable, a case fan while its mount turns (every one, with no layout given).
-    const hostOn: Partial<Record<DeviceKind, boolean>> = { cooler: fans.cpu, "vrm-sink": fans.vrm, "ram-sink": fans.ram };
+    const hostOn: Partial<Record<DeviceKind, boolean>> = {
+      cooler: fans.cpu,
+      'vrm-sink': fans.vrm,
+      'ram-sink': fans.ram,
+    };
     const turns = (d: InstalledDevice): boolean => {
       const host = fanHost(d.slot);
       if (host === null) return fans.mounts ? fans.mounts.includes(d.slot) : true;
@@ -249,19 +307,28 @@ export class ThermalModel {
     const powerOf = (d: InstalledDevice, psuFactor: number): { w: number; clk: number } => {
       const spec = deviceSpec(d);
       if (!live || d.burnt) return { w: 0, clk: 0 };
-      if (spec.kind === "nic" || spec.kind === "tpm") return { w: spec.idleW + (spec.loadW - spec.idleW) * load(d), clk: 0 };
+      if (spec.kind === 'nic' || spec.kind === 'tpm')
+        return { w: spec.idleW + (spec.loadW - spec.idleW) * load(d), clk: 0 };
       if (!spec.clock) {
         // A pump or a fan follows the CPU load (a fan only while it turns); the PSU draws nothing of its own in this model.
-        const follows = spec.kind === "cooler" || spec.kind === "vrm-sink" || spec.kind === "ram-sink" || (spec.kind === "fan" && turns(d));
+        const follows =
+          spec.kind === 'cooler' ||
+          spec.kind === 'vrm-sink' ||
+          spec.kind === 'ram-sink' ||
+          (spec.kind === 'fan' && turns(d));
         return { w: follows ? spec.idleW + (spec.loadW - spec.idleW) * cpuLoad : 0, clk: 0 };
       }
-      const clk = (d.clock ?? spec.clock.base) * therm.get(d.id)! * (spec.kind === "cpu" ? vrmThrottle : spec.kind === "ram" ? ramThrottle : 1) * psuFactor;
+      const clk =
+        (d.clock ?? spec.clock.base) *
+        therm.get(d.id)! *
+        (spec.kind === 'cpu' ? vrmThrottle : spec.kind === 'ram' ? ramThrottle : 1) *
+        psuFactor;
       const r = clk / spec.clock.base;
       return { w: clockPowerW(spec, r, load(d)), clk };
     };
 
     // The VRM between PSU and CPU: the CPU's power at this PSU factor, the current it needs, and what the VRM wastes.
-    const cpuDev = findDevices(board, "cpu").find((d) => !d.burnt);
+    const cpuDev = findDevices(board, 'cpu').find((d) => !d.burnt);
     const vrmAt = (psuFactor: number): { ratio: number; eff: number; loss: number } => {
       if (!cpuDev || !live) return { ratio: 0, eff: vspec.peakEfficiency, loss: 0 };
       const cs = deviceSpec(cpuDev);
@@ -271,11 +338,16 @@ export class ThermalModel {
       return { ratio, eff, loss: lossW(p.w, eff) };
     };
     // The memory regulator: every DIMM power at the mean clock ratio, over 1.2 V.
-    const ramDevs = findDevices(board, "ram").filter((d) => !d.burnt);
+    const ramDevs = findDevices(board, 'ram').filter((d) => !d.burnt);
     const ramAt = (psuFactor: number): { ratio: number; eff: number; loss: number } => {
       if (!ramDevs.length || !live) return { ratio: 0, eff: rspec.peakEfficiency, loss: 0 };
-      let w = 0, r = 0;
-      for (const d of ramDevs) { const p = powerOf(d, psuFactor); w += p.w; r += p.clk / deviceSpec(d).clock!.base; }
+      let w = 0,
+        r = 0;
+      for (const d of ramDevs) {
+        const p = powerOf(d, psuFactor);
+        w += p.w;
+        r += p.clk / deviceSpec(d).clock!.base;
+      }
       const ratio = loadRatio(rspec, ramDemand(w, r / ramDevs.length));
       const eff = efficiency(rspec, ratio);
       return { ratio, eff, loss: lossW(w, eff) };
@@ -296,38 +368,61 @@ export class ThermalModel {
 
     // Case heat (docs/ACCEL.md): a working card warms the air every other part breathes, CASE_HEAT_C_PER_W degrees per watt it draws.
     let cardW = 0;
-    if (effLive) for (const d of board.devices) if (isCard(deviceSpec(d).kind) && !d.burnt) cardW += powerOf(d, psuFactor).w;
+    if (effLive)
+      for (const d of board.devices) if (isCard(deviceSpec(d).kind) && !d.burnt) cardW += powerOf(d, psuFactor).w;
     // The case's air by area (airflow.ts): how many fans' worth cool each area and how much the cards warm it. With no fan layout known every area is the same.
     // A radiator on the FRONT takes in room air and gives its heat to it: that air crosses the case, so the heat counts like the cards' (last tick's value).
-    const radFit = fittedRadiator(board), radSide = fans.radSide ?? radFit?.side ?? null;
-    const airW = cardW + (radSide === "front" ? this.loopRejectW : 0);
+    const radFit = fittedRadiator(board),
+      radSide = fans.radSide ?? radFit?.side ?? null;
+    const airW = cardW + (radSide === 'front' ? this.loopRejectW : 0);
     // The drives in the main cage stand in the front fans' air (a dead drive blocks it as well).
-    const drives = board.devices.flatMap((d): BayDrive[] => { const m = /^sata(\d+)$/.exec(d.slot), s = deviceSpec(d); return m && s.kind === "storage" ? [{ bay: Number(m[1]), hdd: s.visual !== "ssd-sata" }] : []; });
-    const air = zoneAir(board.caseTier, fans.mounts, fans.caseFans, airW, CASE_HEAT_C_PER_W, fans.mountFlow, cageShade(board.caseTier, drives));
+    const drives = board.devices.flatMap((d): BayDrive[] => {
+      const m = /^sata(\d+)$/.exec(d.slot),
+        s = deviceSpec(d);
+      return m && s.kind === 'storage' ? [{ bay: Number(m[1]), hdd: s.visual !== 'ssd-sata' }] : [];
+    });
+    const air = zoneAir(
+      board.caseTier,
+      fans.mounts,
+      fans.caseFans,
+      airW,
+      CASE_HEAT_C_PER_W,
+      fans.mountFlow,
+      cageShade(board.caseTier, drives),
+    );
     this.air = air;
     const caseRiseC = fans.mounts ? (air.north.riseC + air.bay.riseC) / 2 : CASE_HEAT_C_PER_W * airW;
     this.caseRiseC = caseRiseC;
     const meanFans = AIR_ZONES.reduce((a, z) => a + air[z].fans, 0) / AIR_ZONES.length;
     /** The case-fan cooling and the air's warmth for a part of this kind (a cooler, the PSU, the monitor: the case average). */
-    const airOf = (kind: DeviceKind) => { const z = zoneOf(kind); return { k: effLive ? (z ? air[z].fans : meanFans) * CASE_FAN_K : 0, rise: z ? air[z].riseC : caseRiseC }; };
+    const airOf = (kind: DeviceKind) => {
+      const z = zoneOf(kind);
+      return { k: effLive ? (z ? air[z].fans : meanFans) * CASE_FAN_K : 0, rise: z ? air[z].riseC : caseRiseC };
+    };
 
-    const cooler = findDevices(board, "cooler").find((d) => !d.burnt);
+    const cooler = findDevices(board, 'cooler').find((d) => !d.burnt);
     const coolerSpec = cooler ? (deviceSpec(cooler) as CoolerSpec) : null;
     // An AIO's pump moves heat only as far as its radiator: without one it is the pump alone.
     const rad = coolerSpec?.loop && fans.loopK === undefined ? fittedRadiator(board) : null;
     const loopK = fans.loopK ?? (rad && !rad.dev.burnt ? (deviceSpec(rad.dev) as RadiatorSpec).coolingPerC : 0);
     // A liquid loop: the CPU gives its heat to the coolant through the block (needs the pump), the coolant gives it to the air through the pump housing
     // and the radiator (`loopK`, by the share of its fans that turn). A front radiator breathes room air; a top one breathes the hot air of the case.
-    const loop = coolerSpec?.loop, pumping = !!loop && effLive && fans.cpu;
+    const loop = coolerSpec?.loop,
+      pumping = !!loop && effLive && fans.cpu;
     const blockK = pumping ? LOOP_BLOCK_K : 0;
     const radK = pumping ? loopK : 0;
-    const airInC = AMBIENT_C + (radSide === "top" ? air.north.riseC : 0);
+    const airInC = AMBIENT_C + (radSide === 'top' ? air.north.riseC : 0);
     const rejectW = loop ? Math.max(0, loop.pumpPerC * (this.loopC - AMBIENT_C) + radK * (this.loopC - airInC)) : 0;
     const cpus: { st: DeviceThermal; mass: number }[] = [];
     // an air heatsink: its rating by the share its turning fans give (`fanShare`: some of it bare, all of it with one basic fan)
     const cpuAir = cooler && fans.cpu ? fanAir(fansOn(board, cooler.slot)) : 0;
     const coolerBase = loop ? 0 : (coolerSpec?.coolingPerC ?? 0);
-    const coolerK = effLive && coolerSpec?.fanSpots ? coolerBase * fanShare(coolerSpec.fanSpots.bare, cpuAir) : effLive && fans.cpu ? coolerBase : 0;
+    const coolerK =
+      effLive && coolerSpec?.fanSpots
+        ? coolerBase * fanShare(coolerSpec.fanSpots.bare, cpuAir)
+        : effLive && fans.cpu
+          ? coolerBase
+          : 0;
     for (const d of board.devices) {
       const spec = deviceSpec(d);
       const st = this.ensure(d);
@@ -338,10 +433,14 @@ export class ThermalModel {
       // a card's own fans follow its last temperature; they push the card's air, so a starved case (area "cards") makes them less effective
       st.fan = effLive && !d.burnt && spec.thermal.fanPerC ? cardFan(st.tempC, spec.thermal.throttleC) : 0;
       const cardAir = isCard(spec.kind) ? CARD_FAN_AIR_MIN + (1 - CARD_FAN_AIR_MIN) * air.cards.flow : 1;
-      const k = spec.thermal.passive + around.k + (spec.kind === "cpu" ? coolerK : 0) + st.fan * (spec.thermal.fanPerC ?? 0) * cardAir;
+      const k =
+        spec.thermal.passive +
+        around.k +
+        (spec.kind === 'cpu' ? coolerK : 0) +
+        st.fan * (spec.thermal.fanPerC ?? 0) * cardAir;
       st.powerW = p.w;
       st.heatW = heat;
-      if (spec.kind === "cpu") cpus.push({ st, mass: spec.thermal.mass });
+      if (spec.kind === 'cpu') cpus.push({ st, mass: spec.thermal.mass });
       st.tempC += (heat - k * (st.tempC - (AMBIENT_C + (isCard(spec.kind) ? 0 : around.rise)))) / spec.thermal.mass;
       st.effClock = p.clk;
       st.throttle = therm.get(d.id)!;
@@ -354,35 +453,83 @@ export class ThermalModel {
     // the coolant: what the block brought in less what the radiator gave away
     let blockW = 0;
     if (loop) {
-      for (let sub = 0; sub < LOOP_SUBSTEPS; sub++) for (const c of cpus) {
-        const q = (blockK * (c.st.tempC - this.loopC)) / LOOP_SUBSTEPS;
-        c.st.tempC -= q / c.mass;
-        this.loopC += q / LOOP_MASS;
-        blockW += q;
-      }
+      for (let sub = 0; sub < LOOP_SUBSTEPS; sub++)
+        for (const c of cpus) {
+          const q = (blockK * (c.st.tempC - this.loopC)) / LOOP_SUBSTEPS;
+          c.st.tempC -= q / c.mass;
+          this.loopC += q / LOOP_MASS;
+          blockW += q;
+        }
       this.loopC -= rejectW / LOOP_MASS;
     } else this.loopC = AMBIENT_C;
     // the water's way round: the pump's flow eases up and down with its power; the heat the block hands over this tick warms the water that crosses it, so
     // the hot leg (block to radiator) and the cold leg (radiator to block) sit either side of the bulk coolant by half the rise each (heat / (flow x CP))
     this.loopFlow = loop ? this.loopFlow + ((pumping ? 1 : 0) - this.loopFlow) * LOOP_FLOW_EASE : 0;
-    const carried = Math.max(0, blockW), rise = this.loopFlow > 0.05 ? Math.min(LOOP_MAX_RISE_C, carried / (LOOP_FLOW_CP * this.loopFlow)) : 0;
+    const carried = Math.max(0, blockW),
+      rise = this.loopFlow > 0.05 ? Math.min(LOOP_MAX_RISE_C, carried / (LOOP_FLOW_CP * this.loopFlow)) : 0;
     this.loopHotC = loop ? this.loopC + rise / 2 : AMBIENT_C;
     this.loopColdC = loop ? this.loopC - rise / 2 : AMBIENT_C;
     this.loopRejectW = rejectW;
     this.loopSide = loop && radFit ? radSide : null;
     // both regulators sit in the north area, with the processor and the memory
     const north = { k: effLive ? air.north.fans * CASE_FAN_K : 0, rise: air.north.riseC };
-    this.stepVrm(board, this.vrm, vspec, vrmNow, vrmThrottle, effLive, "vrm-sink", north.rise, fans.vrm, cpuAir, north.k);
-    this.stepVrm(board, this.ramVrm, rspec, ramNow, ramThrottle, effLive, "ram-sink", north.rise, fans.ram, cpuAir, north.k);
-    this.power = { totalW: drawn, vrmLossW: effLive ? vrmNow.loss + ramNow.loss : 0, budgetW: budget, psuFactor, off: !effLive, tripped: nowTripped };
+    this.stepVrm(
+      board,
+      this.vrm,
+      vspec,
+      vrmNow,
+      vrmThrottle,
+      effLive,
+      'vrm-sink',
+      north.rise,
+      fans.vrm,
+      cpuAir,
+      north.k,
+    );
+    this.stepVrm(
+      board,
+      this.ramVrm,
+      rspec,
+      ramNow,
+      ramThrottle,
+      effLive,
+      'ram-sink',
+      north.rise,
+      fans.ram,
+      cpuAir,
+      north.k,
+    );
+    this.power = {
+      totalW: drawn,
+      vrmLossW: effLive ? vrmNow.loss + ramNow.loss : 0,
+      budgetW: budget,
+      psuFactor,
+      off: !effLive,
+      tripped: nowTripped,
+    };
   }
 
   /** `sinkFanOn`: the sink's fan header is plugged; `cpuAir`: the airflow of the CPU heatsink's turning fans (they blow over the regulator too). */
-  private stepVrm(board: Board, v: VrmThermal, vspec: VrmSpecOf, now: { ratio: number; eff: number; loss: number }, throttle: number, live: boolean, sinkKind: "vrm-sink" | "ram-sink", caseRiseC: number, sinkFanOn: boolean, cpuAir: number, caseAirK: number): void {
+  private stepVrm(
+    board: Board,
+    v: VrmThermal,
+    vspec: VrmSpecOf,
+    now: { ratio: number; eff: number; loss: number },
+    throttle: number,
+    live: boolean,
+    sinkKind: 'vrm-sink' | 'ram-sink',
+    caseRiseC: number,
+    sinkFanOn: boolean,
+    cpuAir: number,
+    caseAirK: number,
+  ): void {
     const sink = live ? findDevices(board, sinkKind).find((d) => !d.burnt) : undefined;
-    const cooler = live ? findDevices(board, "cooler").find((d) => !d.burnt) : undefined;
-    const sinkSpec = sink ? (deviceSpec(sink) as { coolingPerC: number }) : undefined, spots = sink ? hostSpots(sink) : null;
-    const sinkK = sinkSpec ? sinkSpec.coolingPerC * (spots ? fanShare(spots.bare, sinkFanOn ? fanAir(fansOn(board, sink!.slot)) : 0) : 1) : 0;
+    const cooler = live ? findDevices(board, 'cooler').find((d) => !d.burnt) : undefined;
+    const sinkSpec = sink ? (deviceSpec(sink) as { coolingPerC: number }) : undefined,
+      spots = sink ? hostSpots(sink) : null;
+    const sinkK = sinkSpec
+      ? sinkSpec.coolingPerC * (spots ? fanShare(spots.bare, sinkFanOn ? fanAir(fansOn(board, sink!.slot)) : 0) : 1)
+      : 0;
     const airK = cooler ? (deviceSpec(cooler) as { vrmAirPerC: number }).vrmAirPerC * Math.min(1, cpuAir) : 0;
     v.heatW = now.loss;
     v.tempC += (now.loss - (vspec.passive + sinkK + airK + caseAirK) * (v.tempC - AMBIENT_C - caseRiseC)) / vspec.mass;
@@ -401,7 +548,17 @@ export class ThermalModel {
   private ensure(d: InstalledDevice): DeviceThermal {
     let s = this.devices.get(d.id);
     if (!s) {
-      s = { tempC: AMBIENT_C, powerW: 0, heatW: 0, effClock: 0, throttle: 1, unstable: false, stress: 0, errProb: 0, fan: 0 };
+      s = {
+        tempC: AMBIENT_C,
+        powerW: 0,
+        heatW: 0,
+        effClock: 0,
+        throttle: 1,
+        unstable: false,
+        stress: 0,
+        errProb: 0,
+        fan: 0,
+      };
       this.devices.set(d.id, s);
     }
     return s;

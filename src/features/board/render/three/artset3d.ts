@@ -9,12 +9,14 @@ import { ArtBaker, startBaker } from './bake';
 import type { Raise } from './parts3d';
 
 /** The texture densities (pixels per unit) of the board's own face and of a part raised off it, rising. */
-export const LV_BOARD = [0.2, 0.8, 2.4, 7], LV_RAISED = [0.6, 2.4, 7];
+export const LV_BOARD = [0.2, 0.8, 2.4, 7],
+  LV_RAISED = [0.6, 2.4, 7];
 /**
  * The same for a part's face and for the dies (their names are 9 to 14 units high). The finest is for the closest view (`LIMITS.heightMin`:
  * about 10 screen pixels per unit), where the silkscreen and the die names stay sharp.
  */
-export const LV_PART = [0.4, 1.4, 3, 8], LV_DIE = [0.5, 1.6, 4.5, 10];
+export const LV_PART = [0.4, 1.4, 3, 8],
+  LV_DIE = [0.5, 1.6, 4.5, 10];
 
 const AT = new Vector3();
 
@@ -25,7 +27,9 @@ export class ArtSet {
   private readonly frustum = new Frustum();
 
   /** `q`: the queue that bakes the tiles (the live machine's, run by its view); none: its own, run by `frame`. */
-  constructor(private readonly q = new BakeQueue()) { startBaker(); }
+  constructor(private readonly q = new BakeQueue()) {
+    startBaker();
+  }
 
   /** One piece of 2D art, built now (with the layout as it is now). */
   baker(build: () => Container): ArtBaker {
@@ -35,7 +39,14 @@ export class ArtSet {
   }
 
   /** A flat face at depth `z` over `r` that wears the art of `bake`. */
-  surface(parent: Object3D, bake: Bake, r: RectLike, z: number, levels: readonly number[], finish: Finish = FINISH.board): ArtSurface {
+  surface(
+    parent: Object3D,
+    bake: Bake,
+    r: RectLike,
+    z: number,
+    levels: readonly number[],
+    finish: Finish = FINISH.board,
+  ): ArtSurface {
     const s = new ArtSurface(r, z, bake, this.q, { levels, finish });
     this.surfaces.push(s);
     parent.add(s.root);
@@ -49,11 +60,23 @@ export class ArtSet {
     s.root.removeFromParent();
     s.dispose();
     const j = b ? this.bakers.indexOf(b) : -1;
-    if (b && j >= 0) { this.bakers.splice(j, 1); b.dispose(); }
+    if (b && j >= 0) {
+      this.bakers.splice(j, 1);
+      b.dispose();
+    }
   }
 
   /** A box whose top wears the art of its own rect: the flat drawing stood up into a part; `bevel` rounds its edges. */
-  raised(parent: Object3D, b: ArtBaker, r: RectLike, z0: number, z1: number, side: Material, levels: readonly number[] = LV_RAISED, bevel = 0): Group {
+  raised(
+    parent: Object3D,
+    b: ArtBaker,
+    r: RectLike,
+    z0: number,
+    z1: number,
+    side: Material,
+    levels: readonly number[] = LV_RAISED,
+    bevel = 0,
+  ): Group {
     const g = new Group();
     g.add(bevel > 0 ? softBox(r, z0, z1, side, bevel) : rectBox(r, z0, z1, side));
     this.surface(g, b.bake, r, z1, levels);
@@ -70,12 +93,17 @@ export class ArtSet {
   reveal(at: Object3D, apply: (zoom: number) => void): () => void {
     const r = { at, apply };
     this.reveals.push(r);
-    return () => { const i = this.reveals.indexOf(r); if (i >= 0) this.reveals.splice(i, 1); };
+    return () => {
+      const i = this.reveals.indexOf(r);
+      if (i >= 0) this.reveals.splice(i, 1);
+    };
   }
 
   /** Show the part as from up close from now on, whatever the zoom: its reveals done (a CPU's lid gone, its die's floorplan showing). */
   private opened = false;
-  readonly open = (): void => { this.opened = true; };
+  readonly open = (): void => {
+    this.opened = true;
+  };
 
   /** Each face asks for the tiles the camera needs (`H`: the view's height in device pixels). */
   update(cam: PerspectiveCamera, frustum: Frustum, H: number, dpr: number, now: number): void {
@@ -83,12 +111,17 @@ export class ArtSet {
   }
 
   /** Hand the set to the viewer on the part's root. */
-  attach(o: Object3D): void { o.userData.frame = this.frame; o.userData.dispose = this.dispose; o.userData.open = this.open; }
+  attach(o: Object3D): void {
+    o.userData.frame = this.frame;
+    o.userData.dispose = this.dispose;
+    o.userData.open = this.open;
+  }
 
   /** Per frame under a host that runs the queue (the Build stage's wall, with the stage's own queue): the reveals, then the faces' tiles. */
   readonly look = (cam: PerspectiveCamera, H: number, dpr: number): void => {
     const now = performance.now();
-    for (const r of this.reveals) r.apply(this.opened ? Infinity : screenPx(cam.position.distanceTo(r.at.getWorldPosition(AT)), cam.fov, H));
+    for (const r of this.reveals)
+      r.apply(this.opened ? Infinity : screenPx(cam.position.distanceTo(r.at.getWorldPosition(AT)), cam.fov, H));
     frustumOf(cam, this.frustum);
     this.update(cam, this.frustum, H, dpr, now);
   };

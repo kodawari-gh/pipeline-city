@@ -11,10 +11,12 @@ export const FAN_MAX = 12;
 export const FAN_FULL_LEVEL = 7;
 
 /** Whether the machine is running: on, not tripped, board not dead. No fan turns while it is not (the motors coast down). */
-export const machineLive = (s: Snapshot | null | undefined): boolean => !!s && s.powered && !s.power.off && !s.power.tripped && !s.board?.burnt;
+export const machineLive = (s: Snapshot | null | undefined): boolean =>
+  !!s && s.powered && !s.power.off && !s.power.tripped && !s.board?.burnt;
 
 /** Seconds a fan takes to settle toward a faster speed (spin-up) or a slower one (coasting down). Critically damped: no jump, no overshoot. */
-const UP_S = 1.1, DOWN_S = 2.4;
+const UP_S = 1.1,
+  DOWN_S = 2.4;
 /** Below this speed a fan that is told to stop is still. */
 const STILL = 0.04;
 
@@ -23,40 +25,72 @@ export class FanMotor {
   private vel = 0;
 
   /** `start`: the speed the fan already has (a rebuilt scene hands the old speed from `fanBank`, so a fan never restarts from still). */
-  constructor(start = 0) { this.speed = start; }
+  constructor(start = 0) {
+    this.speed = start;
+  }
 
   /** Advance `dt` seconds (game time) toward `target`; returns the speed. A paused game (dt 0) holds the fan. */
   step(dt: number, target: number): number {
     if (dt <= 0) return this.speed;
     dt = Math.min(dt, 0.1);
-    const goal = Math.max(0, target), time = goal > this.speed ? UP_S : DOWN_S, omega = 2 / time, x = omega * dt;
-    const k = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x), change = this.speed - goal, temp = (this.vel + omega * change) * dt;
+    const goal = Math.max(0, target),
+      time = goal > this.speed ? UP_S : DOWN_S,
+      omega = 2 / time,
+      x = omega * dt;
+    const k = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x),
+      change = this.speed - goal,
+      temp = (this.vel + omega * change) * dt;
     this.vel = (this.vel - omega * temp) * k;
     let out = goal + (change + temp) * k;
-    if (goal - this.speed > 0 === out > goal) { out = goal; this.vel = 0; } // never past the target
+    if (goal - this.speed > 0 === out > goal) {
+      out = goal;
+      this.vel = 0;
+    } // never past the target
     this.speed = Math.max(0, out);
-    if (goal === 0 && this.speed < STILL) { this.speed = 0; this.vel = 0; }
+    if (goal === 0 && this.speed < STILL) {
+      this.speed = 0;
+      this.vel = 0;
+    }
     return this.speed;
   }
 }
 
 /** The liquid loop's water now (`board.loop` of the snapshot, written by live.ts): the board's coolant overlay reads it. Null with no loop. */
-export interface LoopWater { coolantC: number; hotC: number; coldC: number; flow: number }
+export interface LoopWater {
+  coolantC: number;
+  hotC: number;
+  coldC: number;
+  flow: number;
+}
 let water: LoopWater | null = null;
 export const loopBank = {
-  set(w: LoopWater | null) { water = w; },
-  get(): LoopWater | null { return water; },
+  set(w: LoopWater | null) {
+    water = w;
+  },
+  get(): LoopWater | null {
+    return water;
+  },
 };
 
 const speeds = new Map<string, number>();
 /** The speed each fan has right now, by id (`case:front0`, `cooler`, `radiator:top1`, `vrm`, `ramvrm`, `psu`, `gpu:pcie0`). Written by the views that own the fans. */
 export const fanBank = {
-  set(id: string, speed: number) { speeds.set(id, speed); },
+  set(id: string, speed: number) {
+    speeds.set(id, speed);
+  },
   /** A fan that has only a share of full speed (the 3D machine's fans: 0 still, 1 at speed). */
-  setLevel(id: string, level: number) { speeds.set(id, Math.max(0, level) * FAN_FULL_LEVEL); },
+  setLevel(id: string, level: number) {
+    speeds.set(id, Math.max(0, level) * FAN_FULL_LEVEL);
+  },
   /** 0 for a fan nobody has published. */
-  get(id: string): number { return speeds.get(id) ?? 0; },
+  get(id: string): number {
+    return speeds.get(id) ?? 0;
+  },
   /** 0 (still) to 1 (full speed). */
-  level(id: string): number { return Math.min(1, (speeds.get(id) ?? 0) / FAN_FULL_LEVEL); },
-  clear() { speeds.clear(); },
+  level(id: string): number {
+    return Math.min(1, (speeds.get(id) ?? 0) / FAN_FULL_LEVEL);
+  },
+  clear() {
+    speeds.clear();
+  },
 };

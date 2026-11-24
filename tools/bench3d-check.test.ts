@@ -15,7 +15,9 @@ describe('assertRecording', () => {
 
   it('throws when --need-timers is set and the GPU pass times are missing', () => {
     expect(() => assertRecording({ ...ok, gpu: {} }, { needTimers: true })).toThrow(/no GPU pass times were recorded/);
-    expect(() => assertRecording({ ...ok, gpu: { Scene: 0 } }, { needTimers: true })).toThrow(/no GPU pass times were recorded/);
+    expect(() => assertRecording({ ...ok, gpu: { Scene: 0 } }, { needTimers: true })).toThrow(
+      /no GPU pass times were recorded/,
+    );
     expect(() => assertRecording({ ...ok, gpu: {} })).not.toThrow();
   });
 

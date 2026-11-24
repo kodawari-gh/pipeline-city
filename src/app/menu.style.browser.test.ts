@@ -11,7 +11,13 @@ import { BOOT_MS, GATE, STEP_MS, type Dev, killTree, launchChrome, openBooted, s
 
 declare const process: any;
 const TEST_MS = 150_000 + BOOT_MS + 10 * STEP_MS;
-const FIVE = [{ w: 1920, h: 1080 }, { w: 390, h: 844 }, { w: 360, h: 800 }, { w: 412, h: 915 }, { w: 844, h: 390 }];
+const FIVE = [
+  { w: 1920, h: 1080 },
+  { w: 390, h: 844 },
+  { w: 360, h: 800 },
+  { w: 412, h: 915 },
+  { w: 844, h: 390 },
+];
 
 let dev: Dev | null = null;
 let browser: Browser | null = null;
@@ -31,12 +37,22 @@ function styleBreaches(): string[] {
     const isFrame = /\b(orn|ornament|k[1-7])\b/.test(cls);
     const isWash = /scrim|ramp/.test(cls);
     // rule 5: borders
-    if (!isFrame && sides.some((s) => parseFloat(cs.getPropertyValue(`border-${s}-width`)) > 0 && cs.getPropertyValue(`border-${s}-style`) !== 'none')) {
+    if (
+      !isFrame &&
+      sides.some(
+        (s) =>
+          parseFloat(cs.getPropertyValue(`border-${s}-width`)) > 0 &&
+          cs.getPropertyValue(`border-${s}-style`) !== 'none',
+      )
+    ) {
       out.add(`rule 5 border: ${name}`);
     }
     // rule 5: radius
     const radius = Math.max(...corners.map((c) => parseFloat(cs.getPropertyValue(`border-${c}-radius`)) || 0));
-    const filled = cs.backgroundImage !== 'none' || /rgba?\(\s*\d+,\s*\d+,\s*\d+,\s*(0?\.\d+|1)\)/.test(cs.backgroundColor) && cs.backgroundColor !== 'rgba(0, 0, 0, 0)';
+    const filled =
+      cs.backgroundImage !== 'none' ||
+      (/rgba?\(\s*\d+,\s*\d+,\s*\d+,\s*(0?\.\d+|1)\)/.test(cs.backgroundColor) &&
+        cs.backgroundColor !== 'rgba(0, 0, 0, 0)');
     if (isChip && radius > 4.01) out.add(`rule 5 radius over 4px on a chip: ${name}`);
     if (!isChip && radius > 0 && filled) out.add(`rule 5 radius on a filled box: ${name}`);
     // rule 6: glass, shadows, glow, gradients
@@ -57,7 +73,9 @@ async function intoGame(page: Page): Promise<void> {
   await page.waitForTimeout(1500);
   const skip = page.locator('button', { hasText: /^Skip$/ });
   if (await skip.count()) await skip.first().click();
-  await page.waitForFunction(() => !document.querySelector('.modal-back.dlg-back'), null, { timeout: STEP_MS }).catch(() => {});
+  await page
+    .waitForFunction(() => !document.querySelector('.modal-back.dlg-back'), null, { timeout: STEP_MS })
+    .catch(() => {});
 }
 
 /** Opens the Paused menu from the HUD (Esc). */
@@ -67,58 +85,84 @@ async function openPaused(page: Page): Promise<void> {
 }
 
 describe.skipIf(!GATE)('in-game menus and HUD: no rule 5 or 6 breaks (ticket #72)', () => {
-  beforeAll(async () => { dev = await startServer(); }, 120_000);
-  afterAll(() => { killTree(dev?.child); dev = null; });
-  beforeEach(async () => { process.stderr.write(`  running: ${expect.getState().currentTestName}\n`); browser = await launchChrome(); }, 60_000);
-  afterEach(async () => { await browser?.close().catch(() => {}); browser = null; }, 60_000);
+  beforeAll(async () => {
+    dev = await startServer();
+  }, 120_000);
+  afterAll(() => {
+    killTree(dev?.child);
+    dev = null;
+  });
+  beforeEach(async () => {
+    process.stderr.write(`  running: ${expect.getState().currentTestName}\n`);
+    browser = await launchChrome();
+  }, 60_000);
+  afterEach(async () => {
+    await browser?.close().catch(() => {});
+    browser = null;
+  }, 60_000);
 
   for (const vp of FIVE) {
-    it(`${vp.w} x ${vp.h}: HUD, Paused, Settings, Controls and New game in game have no rule 5 or 6 breaks`, async () => {
-      const errors: string[] = [];
-      const { page, ctxClose } = await openBooted(browser!, dev!, vp.w, vp.h, errors);
-      const report: Record<string, string[]> = {};
-      const check = async (screen: string) => {
-        const breaches = await page.evaluate(styleBreaches);
-        if (breaches.length) report[screen] = breaches;
-      };
-      try {
-        await intoGame(page);
-        await page.waitForTimeout(400);
-        await check('HUD');
+    it(
+      `${vp.w} x ${vp.h}: HUD, Paused, Settings, Controls and New game in game have no rule 5 or 6 breaks`,
+      async () => {
+        const errors: string[] = [];
+        const { page, ctxClose } = await openBooted(browser!, dev!, vp.w, vp.h, errors);
+        const report: Record<string, string[]> = {};
+        const check = async (screen: string) => {
+          const breaches = await page.evaluate(styleBreaches);
+          if (breaches.length) report[screen] = breaches;
+        };
+        try {
+          await intoGame(page);
+          await page.waitForTimeout(400);
+          await check('HUD');
 
-        await openPaused(page);
-        await check('Paused');
+          await openPaused(page);
+          await check('Paused');
 
-        // Settings, opened from the Paused row, then Escape back to Paused
-        await page.locator('.pl-menu.paused .pl-row', { hasText: /^Settings/ }).first().click();
-        await page.waitForTimeout(400);
-        await check('Settings (in game)');
-        await page.keyboard.press('Escape');
-        await page.waitForSelector('.pl-menu.paused');
-
-        // Controls, opened from the Paused row, then Escape
-        await page.locator('.pl-menu.paused .pl-row', { hasText: /^Controls/ }).first().click();
-        await page.waitForSelector('[aria-label="Controls"]');
-        await page.waitForTimeout(400);
-        await check('Controls');
-        await page.keyboard.press('Escape');
-        await page.waitForSelector('[aria-label="Controls"]', { state: 'detached' }).catch(() => {});
-
-        // New game, opened from a Paused utility list (Files, Tools or Help), then Escape
-        for (const list of [/^Files/, /^Tools/, /^Help/]) {
-          const row = page.locator('.pl-menu.paused .pl-util', { hasText: list }).first();
-          if (!(await row.count())) continue;
-          await row.click();
-          const ng = page.locator('.pl-menu.paused .pl-sub-item', { hasText: /^New game/ }).first();
-          if (await ng.count()) { await ng.click(); break; }
+          // Settings, opened from the Paused row, then Escape back to Paused
+          await page
+            .locator('.pl-menu.paused .pl-row', { hasText: /^Settings/ })
+            .first()
+            .click();
+          await page.waitForTimeout(400);
+          await check('Settings (in game)');
           await page.keyboard.press('Escape');
+          await page.waitForSelector('.pl-menu.paused');
+
+          // Controls, opened from the Paused row, then Escape
+          await page
+            .locator('.pl-menu.paused .pl-row', { hasText: /^Controls/ })
+            .first()
+            .click();
+          await page.waitForSelector('[aria-label="Controls"]');
+          await page.waitForTimeout(400);
+          await check('Controls');
+          await page.keyboard.press('Escape');
+          await page.waitForSelector('[aria-label="Controls"]', { state: 'detached' }).catch(() => {});
+
+          // New game, opened from a Paused utility list (Files, Tools or Help), then Escape
+          for (const list of [/^Files/, /^Tools/, /^Help/]) {
+            const row = page.locator('.pl-menu.paused .pl-util', { hasText: list }).first();
+            if (!(await row.count())) continue;
+            await row.click();
+            const ng = page.locator('.pl-menu.paused .pl-sub-item', { hasText: /^New game/ }).first();
+            if (await ng.count()) {
+              await ng.click();
+              break;
+            }
+            await page.keyboard.press('Escape');
+          }
+          await page.waitForSelector('.pl-menu.newgame', { timeout: STEP_MS });
+          await page.waitForTimeout(400);
+          await check('New game (in game)');
+        } finally {
+          await ctxClose().catch(() => {});
         }
-        await page.waitForSelector('.pl-menu.newgame', { timeout: STEP_MS });
-        await page.waitForTimeout(400);
-        await check('New game (in game)');
-      } finally { await ctxClose().catch(() => {}); }
-      expect(errors, 'page errors').toEqual([]);
-      expect(report, 'rule 5 or 6 breaks, by screen').toEqual({});
-    }, TEST_MS);
+        expect(errors, 'page errors').toEqual([]);
+        expect(report, 'rule 5 or 6 breaks, by screen').toEqual({});
+      },
+      TEST_MS,
+    );
   }
 });

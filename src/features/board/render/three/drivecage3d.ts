@@ -36,38 +36,71 @@ const PIN_Z = [HDD_MM.l - 130.1, HDD_MM.l - 28.5].map((v) => DRIVE_Z + v * MM);
 const CAGE_TONE: Record<CaseKind, number> = { oem: 0x4e5360, matte: 0x1b1c20, gamer: 0x232838, show: 0x17181b };
 const TRAY_TONE: Record<CaseKind, number> = { oem: 0xc3c5bd, matte: 0x2f3136, gamer: 0x3a4050, show: 0x222328 };
 /** The sheet's finish: bare zinc in the Mini, paint in the Micro and Mid, black powder coat in the Full (matt, so it does not take the room's warm light as tan). */
-const sheet = (kind: CaseKind) => (kind === 'oem' ? { metalness: 0.6, roughness: 0.45 } : kind === 'show' ? { metalness: 0.1, roughness: 0.7 } : { metalness: 0.3, roughness: 0.45 });
+const sheet = (kind: CaseKind) =>
+  kind === 'oem'
+    ? { metalness: 0.6, roughness: 0.45 }
+    : kind === 'show'
+      ? { metalness: 0.1, roughness: 0.7 }
+      : { metalness: 0.3, roughness: 0.45 };
 
 /** A tray's place: its west edge, its floor's bottom (world y), its back (z); slot sata<slot>. */
-export interface TraySpot { slot: number; x: number; y: number; z: number }
+export interface TraySpot {
+  slot: number;
+  x: number;
+  y: number;
+  z: number;
+}
 
 export interface CagePlan {
   /** The cage's box: layout x and y (y down), depth z. */
-  x0: number; x1: number; top: number; bottom: number; z0: number; z1: number;
+  x0: number;
+  x1: number;
+  top: number;
+  bottom: number;
+  z0: number;
+  z1: number;
   trays: TraySpot[];
 }
 
 /** A cage over some of the bay cells (`from` to `to`, the slots), from the tray sheet to `z1`, each tray's floor on its cell's bottom line, its bottom on `floor` or lower. */
 function planOf(cells: readonly RectLike[], from: number, to: number, floor: number, z1: number): CagePlan {
-  const mine = cells.slice(from, to), x0 = mine[0]?.x ?? 0, x1 = x0 + CAGE_W;
-  const top = Math.min(...mine.map((c) => c.y)) - 70, bottom = Math.max(floor, ...mine.map((c) => c.y + c.h + 60));
-  const tx = x0 + (CAGE_W - TRAY.w) / 2, tz = z1 - 15 - TRAY.l;
-  return { x0, x1, top, bottom, z0: TRAY_Z, z1, trays: mine.map((c, i) => ({ slot: from + i, x: tx, y: -(c.y + c.h), z: tz })) };
+  const mine = cells.slice(from, to),
+    x0 = mine[0]?.x ?? 0,
+    x1 = x0 + CAGE_W;
+  const top = Math.min(...mine.map((c) => c.y)) - 70,
+    bottom = Math.max(floor, ...mine.map((c) => c.y + c.h + 60));
+  const tx = x0 + (CAGE_W - TRAY.w) / 2,
+    tz = z1 - 15 - TRAY.l;
+  return {
+    x0,
+    x1,
+    top,
+    bottom,
+    z0: TRAY_Z,
+    z1,
+    trays: mine.map((c, i) => ({ slot: from + i, x: tx, y: -(c.y + c.h), z: tz })),
+  };
 }
 
 /** The main cage and its trays: over the main bays, from the tray sheet to the glass. It stands on the shroud's shelf (`basement3d.ts`), as a
  *  Define 7's cage on its shroud: its bottom on the shroud's top. */
-export const cagePlan = (cells: readonly RectLike[] = BAY_CELLS): CagePlan => planOf(cells, BASE_BAYS, cells.length, PSU.y, FRONT - 95);
+export const cagePlan = (cells: readonly RectLike[] = BAY_CELLS): CagePlan =>
+  planOf(cells, BASE_BAYS, cells.length, PSU.y, FRONT - 95);
 
 /** The basement's cage under the main one: its two bays, on the basement's floor (its bottom cell's line), behind the shroud's folded edge at the glass side. */
-export const baseCagePlan = (cells: readonly RectLike[] = BAY_CELLS): CagePlan => planOf(cells, 0, BASE_BAYS, -Infinity, FRONT - 120);
+export const baseCagePlan = (cells: readonly RectLike[] = BAY_CELLS): CagePlan =>
+  planOf(cells, 0, BASE_BAYS, -Infinity, FRONT - 120);
 
 /** The tray of a bay, in whichever cage holds it. */
-export const traySpot = (plans: readonly CagePlan[], slot: number): TraySpot | undefined => plans.flatMap((p) => p.trays).find((t) => t.slot === slot);
+export const traySpot = (plans: readonly CagePlan[], slot: number): TraySpot | undefined =>
+  plans.flatMap((p) => p.trays).find((t) => t.slot === slot);
 
 /** Where a drive lies in its tray (the tray's frame): centred across it, its connector end at the back, on the pins or on the floor. */
-export const onTray = (hdd: boolean): { x: number; y: number; z: number } =>
-  ({ x: (TRAY.w - (hdd ? HDD_MM.w : SSD_MM.w) * MM) / 2, y: hdd ? HDD_LIFT : TRAY.floor, z: DRIVE_Z });
+export const onTray = (hdd: boolean): { x: number; y: number; z: number } => ({
+  x: (TRAY.w - (hdd ? HDD_MM.w : SSD_MM.w) * MM) / 2,
+  y: hdd ? HDD_LIFT : TRAY.floor,
+  z: DRIVE_Z,
+});
 
 /** A bay seen through the glass (layout coordinates): its tray's width, from the floor to a hard disk's top. The lenses mark the drive in it with this. */
 export function bayRect(slot: number, plans: readonly CagePlan[] = [baseCagePlan(), cagePlan()]): RectLike | null {
@@ -78,12 +111,19 @@ export function bayRect(slot: number, plans: readonly CagePlan[] = [baseCagePlan
 }
 
 /** A circle in a sheet's (x, z) plane. */
-const hole = (x: number, z: number, r: number, n = 16): Vector2[] => Array.from({ length: n }, (_, k) => new Vector2(x + Math.cos((k / n) * Math.PI * 2) * r, z + Math.sin((k / n) * Math.PI * 2) * r));
+const hole = (x: number, z: number, r: number, n = 16): Vector2[] =>
+  Array.from(
+    { length: n },
+    (_, k) => new Vector2(x + Math.cos((k / n) * Math.PI * 2) * r, z + Math.sin((k / n) * Math.PI * 2) * r),
+  );
 
 /** Where the SSD's four screws go through the floor: under its bottom holes (4.07 mm in from its sides, 14 and 90.6 mm from its front). */
 function ssdScrews(): { x: number; z: number }[] {
-  const o = onTray(false), w = SSD_MM.w * MM;
-  return [SSD_MM.l - 14, SSD_MM.l - 90.6].flatMap((z) => [4.07 * MM, w - 4.07 * MM].map((x) => ({ x: o.x + x, z: o.z + z * MM })));
+  const o = onTray(false),
+    w = SSD_MM.w * MM;
+  return [SSD_MM.l - 14, SSD_MM.l - 90.6].flatMap((z) =>
+    [4.07 * MM, w - 4.07 * MM].map((x) => ({ x: o.x + x, z: o.z + z * MM })),
+  );
 }
 
 /**
@@ -91,31 +131,64 @@ function ssdScrews(): { x: number; z: number }[] {
  * fixings its drive takes: the SSD's four screws under the floor.
  */
 export function trayModel(kind: CaseKind, fitted: 'hdd' | 'ssd' | null = null): Group {
-  const g = new Group(), steel = mat(TRAY_TONE[kind], sheet(kind)), rubber = mat(0x131518, { roughness: 0.9 });
-  const pinM = mat(0xb9babf, { metalness: 0.88, roughness: 0.3 }), latch = mat(0x131518, { roughness: 0.55 });
+  const g = new Group(),
+    steel = mat(TRAY_TONE[kind], sheet(kind)),
+    rubber = mat(0x131518, { roughness: 0.9 });
+  const pinM = mat(0xb9babf, { metalness: 0.88, roughness: 0.3 }),
+    latch = mat(0x131518, { roughness: 0.55 });
   const { w: W, l: L, floor: F, rail: R, railH: H, handleH: HH } = TRAY;
   // the floor: the SSD's screw holes stay (real fixings); the two air windows and the row of slots by each rail are perforated sheets
   const holes = ssdScrews().map((s) => hole(s.x, s.z, 1.8 * MM));
   g.add(flat(xz(0, 0, W, L - 26, 26), 0, F, steel, 3, holes));
-  const fp = { metal: sheet(kind).metalness, rough: sheet(kind).roughness }, ft = TRAY_TONE[kind];
-  const rows: [number, number, number, number][] = [[700, W - 700, 420, 1780], [700, W - 700, 2240, 3180]];
+  const fp = { metal: sheet(kind).metalness, rough: sheet(kind).roughness },
+    ft = TRAY_TONE[kind];
+  const rows: [number, number, number, number][] = [
+    [700, W - 700, 420, 1780],
+    [700, W - 700, 2240, 3180],
+  ];
   for (let z = 520; z + 260 < L - 300; z += 420) rows.push([150, 330, z, z + 260], [W - 330, W - 150, z, z + 260]);
   g.add(...perforatedFlatRun(F, rows, 'slot', 110, ft, fp).children); // (its two meshes, not their group: they merge with the other trays')
   // the rails, folded up from the floor, a long window in each between its pins
   const win: Span = { y0: -(H - 70), y1: -(F + 80), z0: PIN_Z[0]! + 260, z1: PIN_Z[1]! - 260, r: 40 };
   for (const x of [0, W - R]) g.add(wallX(x, x + R, { y0: -H, y1: 0, z0: 40, z1: L - 26 }, [win], steel, 3));
   // the pins, through a rubber ring on each rail's inner face, pointing at the drive's side holes
-  const pin = (dir: 1 | -1) => new CylinderGeometry(1.5 * MM, 1.5 * MM, 4 * MM, SEG.post).rotateZ(Math.PI / 2).translate((dir * 4 * MM) / 2, 0, 0);
-  const ring = (dir: 1 | -1) => new CylinderGeometry(4 * MM, 4 * MM, 1.2 * MM, SEG.disc).rotateZ(Math.PI / 2).translate((dir * 1.2 * MM) / 2, 0, 0);
-  for (const [x, dir] of [[R, 1], [W - R, -1]] as const) {
+  const pin = (dir: 1 | -1) =>
+    new CylinderGeometry(1.5 * MM, 1.5 * MM, 4 * MM, SEG.post).rotateZ(Math.PI / 2).translate((dir * 4 * MM) / 2, 0, 0);
+  const ring = (dir: 1 | -1) =>
+    new CylinderGeometry(4 * MM, 4 * MM, 1.2 * MM, SEG.disc).rotateZ(Math.PI / 2).translate((dir * 1.2 * MM) / 2, 0, 0);
+  for (const [x, dir] of [
+    [R, 1],
+    [W - R, -1],
+  ] as const) {
     const at = PIN_Z.map((z) => ({ x, y: PIN_Y, z }));
-    g.add(instanced(ring(dir), rubber, at), instanced(pin(dir), pinM, at.map((p) => ({ ...p, x: p.x + dir * 1.2 * MM }))));
+    g.add(
+      instanced(ring(dir), rubber, at),
+      instanced(
+        pin(dir),
+        pinM,
+        at.map((p) => ({ ...p, x: p.x + dir * 1.2 * MM })),
+      ),
+    );
   }
   // the handle across the front: a plate with a finger hole, the latch's grip at its east end with its ribs
   g.add(slab(shapeOf(xy(0, 0, W, HH, 30), [xy(W / 2 - 420, 120, W / 2 + 420, 245, 62)]), L - 26, L, steel, 4));
   g.add(box(W - 430, W - 90, 60, 270, L, L + 22, latch));
-  g.add(instanced(new CylinderGeometry(9, 9, 160, SEG.rod), latch, [0, 1, 2, 3].map((i) => ({ x: W - 380 + i * 80, y: 165, z: L + 26 }))));
-  if (fitted === 'ssd') g.add(screws(ssdScrews().map((s): Spot => ({ x: s.x, y: 0, z: s.z })), 'y-', 2.4 * MM, mat(0x2a2d32, { metalness: 0.7, roughness: 0.4 })));
+  g.add(
+    instanced(
+      new CylinderGeometry(9, 9, 160, SEG.rod),
+      latch,
+      [0, 1, 2, 3].map((i) => ({ x: W - 380 + i * 80, y: 165, z: L + 26 })),
+    ),
+  );
+  if (fitted === 'ssd')
+    g.add(
+      screws(
+        ssdScrews().map((s): Spot => ({ x: s.x, y: 0, z: s.z })),
+        'y-',
+        2.4 * MM,
+        mat(0x2a2d32, { metalness: 0.7, roughness: 0.4 }),
+      ),
+    );
   return g;
 }
 
@@ -131,40 +204,92 @@ export function trayAt(kind: CaseKind, spot: TraySpot, fitted: 'hdd' | 'ssd' | n
  * the bottom with their slots, the folds at the front, the flanges screwed to the tray sheet at the back; and an empty tray in each bay not in `filled`.
  */
 export function driveCage(p: CagePlan, kind: CaseKind = 'gamer', filled: ReadonlySet<string> = new Set()): Group {
-  const g = new Group(), steel = mat(CAGE_TONE[kind], sheet(kind)), bolt = mat(kind === 'oem' ? 0x959aa3 : 0x62666e, { metalness: 0.8, roughness: 0.35 });
-  const wins: Span[] = p.trays.map((t) => ({ y0: -t.y - CELL_H + 90, y1: -t.y - 100, z0: p.z0 + 300, z1: p.z1 - 240, r: 60 }));
-  for (const x of [p.x0, p.x1 - SHEET]) g.add(wallX(x, x + SHEET, { y0: p.top, y1: p.bottom, z0: p.z0, z1: p.z1 }, wins, steel, 2));
+  const g = new Group(),
+    steel = mat(CAGE_TONE[kind], sheet(kind)),
+    bolt = mat(kind === 'oem' ? 0x959aa3 : 0x62666e, { metalness: 0.8, roughness: 0.35 });
+  const wins: Span[] = p.trays.map((t) => ({
+    y0: -t.y - CELL_H + 90,
+    y1: -t.y - 100,
+    z0: p.z0 + 300,
+    z1: p.z1 - 240,
+    r: 60,
+  }));
+  for (const x of [p.x0, p.x1 - SHEET])
+    g.add(wallX(x, x + SHEET, { y0: p.top, y1: p.bottom, z0: p.z0, z1: p.z1 }, wins, steel, 2));
   // the guides under each tray's rails
-  for (const t of p.trays) for (const x of [p.x0 + SHEET, p.x1 - SHEET - 46]) g.add(rectBox({ x, y: -t.y, w: 46, h: 16 }, p.z0 + 140, p.z1 - 30, steel));
+  for (const t of p.trays)
+    for (const x of [p.x0 + SHEET, p.x1 - SHEET - 46])
+      g.add(rectBox({ x, y: -t.y, w: 46, h: 16 }, p.z0 + 140, p.z1 - 30, steel));
   // the top and the bottom, slotted
   // one hole method: the plates stay whole; their slotted areas are perforated sheets on a dark backing (casekit3d `perforatedFlat`)
-  g.add(plateY(p.x0, p.x1, p.z0, p.z1, p.top, SHEET, [], steel, 3), plateY(p.x0, p.x1, p.z0, p.z1, p.bottom - SHEET, SHEET, [], steel, 3));
-  const sx0 = p.x0 + 220, sx1 = p.x1 - 180, sz0 = p.z0 + 300, sz1 = p.z1 - 200, sheetTone = CAGE_TONE[kind], so = sheet(kind);
+  g.add(
+    plateY(p.x0, p.x1, p.z0, p.z1, p.top, SHEET, [], steel, 3),
+    plateY(p.x0, p.x1, p.z0, p.z1, p.bottom - SHEET, SHEET, [], steel, 3),
+  );
+  const sx0 = p.x0 + 220,
+    sx1 = p.x1 - 180,
+    sz0 = p.z0 + 300,
+    sz1 = p.z1 - 200,
+    sheetTone = CAGE_TONE[kind],
+    so = sheet(kind);
   const perf = { metal: so.metalness, rough: so.roughness };
-  g.add(perforatedFlatRun(-p.top, [[sx0, sx1, sz0, sz1], [sx0, sx1, sz0, sz1, -(p.bottom - SHEET)]], 'slot', 110, sheetTone, perf));
+  g.add(
+    perforatedFlatRun(
+      -p.top,
+      [
+        [sx0, sx1, sz0, sz1],
+        [sx0, sx1, sz0, sz1, -(p.bottom - SHEET)],
+      ],
+      'slot',
+      110,
+      sheetTone,
+      perf,
+    ),
+  );
   // the folds down the front edges, the flanges at the back and their screws into the tray sheet
-  for (const x of [p.x0, p.x1 - 30]) g.add(rectBox({ x, y: p.top, w: 30, h: p.bottom - p.top }, p.z1 - SHEET, p.z1, steel));
+  for (const x of [p.x0, p.x1 - 30])
+    g.add(rectBox({ x, y: p.top, w: 30, h: p.bottom - p.top }, p.z1 - SHEET, p.z1, steel));
   const flange = (y: number) => rectBox({ x: p.x0 - 60, y, w: p.x1 - p.x0 + 120, h: 130 }, p.z0, p.z0 + SHEET, steel);
   g.add(flange(p.top), flange(p.bottom - 130));
-  const heads: Spot[] = [p.top + 65, p.bottom - 65].flatMap((y) => [p.x0 + 120, (p.x0 + p.x1) / 2, p.x1 - 120].map((x) => ({ x, y: -y, z: p.z0 + SHEET })));
+  const heads: Spot[] = [p.top + 65, p.bottom - 65].flatMap((y) =>
+    [p.x0 + 120, (p.x0 + p.x1) / 2, p.x1 - 120].map((x) => ({ x, y: -y, z: p.z0 + SHEET })),
+  );
   g.add(screws(heads, 'z+', 2.8 * MM, bolt));
   // (an empty tray's meshes go straight into the cage, in its frame: the still ones of all the trays then merge with the cage's, `mergeSiblings`)
   for (const t of p.trays) {
     if (filled.has(`sata${t.slot}`)) continue;
     const tray = trayAt(kind, t);
     tray.updateMatrix();
-    for (const c of [...tray.children]) { c.applyMatrix4(tray.matrix); g.add(c); }
+    for (const c of [...tray.children]) {
+      c.applyMatrix4(tray.matrix);
+      g.add(c);
+    }
   }
   return g;
 }
 
 /** The cage's box, for the cables to keep clear of. */
-export const cageBox = (p: CagePlan) => ({ min: [p.x0, -p.bottom, p.z0] as [number, number, number], max: [p.x1, -p.top, p.z1] as [number, number, number] });
+export const cageBox = (p: CagePlan) => ({
+  min: [p.x0, -p.bottom, p.z0] as [number, number, number],
+  max: [p.x1, -p.top, p.z1] as [number, number, number],
+});
 
 /** The unseen box an empty bay is picked by: its tray and the room over it. */
 export function trayHit(t: TraySpot): Mesh {
-  return unseen(rectBox({ x: t.x, y: -(t.y + CELL_H - 40), w: TRAY.w, h: CELL_H - 40 }, t.z, t.z + TRAY.l + 30, mat(0, { transparent: true, opacity: 0, depthWrite: false })));
+  return unseen(
+    rectBox(
+      { x: t.x, y: -(t.y + CELL_H - 40), w: TRAY.w, h: CELL_H - 40 },
+      t.z,
+      t.z + TRAY.l + 30,
+      mat(0, { transparent: true, opacity: 0, depthWrite: false }),
+    ),
+  );
 }
 
 /** The rubber-lined slot in the tray sheet behind the cage the drives' cables go back through: by their plugs, clear of the sheet's beads and lacing slots. */
-export const cageGrommet = (p: CagePlan): RectLike => ({ x: p.x0 + 900, y: p.top + 220, w: 240, h: Math.max(240, p.bottom - p.top - 440) });
+export const cageGrommet = (p: CagePlan): RectLike => ({
+  x: p.x0 + 900,
+  y: p.top + 220,
+  w: 240,
+  h: Math.max(240, p.bottom - p.top - 440),
+});

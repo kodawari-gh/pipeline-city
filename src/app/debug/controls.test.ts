@@ -1,9 +1,38 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CHOICES, DEFAULTS, debugOverride, effective, graphics, loadStart, PRESETS, resetTierSteps, setAutoTier, setGraphic, setPreset, setTier, stepTier, tierRecord } from '../graphics';
-import { backToAuto, lightsNow, nextLights, overridden, postOn, SCALES, setLights, setPost, setRootHidden, setScale, setShadowsOn } from './controls';
+import {
+  CHOICES,
+  DEFAULTS,
+  debugOverride,
+  effective,
+  graphics,
+  loadStart,
+  PRESETS,
+  resetTierSteps,
+  setAutoTier,
+  setGraphic,
+  setPreset,
+  setTier,
+  stepTier,
+  tierRecord,
+} from '../graphics';
+import {
+  backToAuto,
+  lightsNow,
+  nextLights,
+  overridden,
+  postOn,
+  SCALES,
+  setLights,
+  setPost,
+  setRootHidden,
+  setScale,
+  setShadowsOn,
+} from './controls';
 
 // The overlay's toggles sit on top of the player's settings (`debugOverride`): `graphics` and the stored settings never see them.
-beforeEach(() => { debugOverride.value = {}; });
+beforeEach(() => {
+  debugOverride.value = {};
+});
 
 describe('SCALES', () => {
   it('lists the render scales the panel offers, all within the graphics range', () => {
@@ -59,7 +88,7 @@ describe('setPost', () => {
     expect(overridden()).toBe(false);
   });
 
-  it('on from Low (all post off) turns on Medium\'s msaa and bloom', () => {
+  it("on from Low (all post off) turns on Medium's msaa and bloom", () => {
     setPreset('low');
     setPost(true);
     const g = effective.value;
@@ -86,7 +115,7 @@ describe('setPost', () => {
     expect(tierRecord.value.mode).toBe('auto');
   });
 
-  it('from the real Low tier (tierGraphics, not PRESETS.low): post on gives Medium\'s ao, bloom and msaa and leaves every other setting as it was', () => {
+  it("from the real Low tier (tierGraphics, not PRESETS.low): post on gives Medium's ao, bloom and msaa and leaves every other setting as it was", () => {
     setAutoTier({ tier: 'low', reason: 'test' });
     const before = { ...effective.value };
     expect([before.scale, before.shadows, before.fps]).toEqual([0.75, 0, 60]);
@@ -116,7 +145,7 @@ describe('backToAuto', () => {
 describe('setShadowsOn', () => {
   beforeEach(() => setPreset('high'));
 
-  it('off sets the applied sun shadow to 0, on puts the player\'s value back', () => {
+  it("off sets the applied sun shadow to 0, on puts the player's value back", () => {
     setShadowsOn(false);
     expect(effective.value.shadows).toBe(0);
     expect(graphics.value.shadows).toBe(PRESETS.high.shadows);
@@ -180,7 +209,8 @@ describe('setLights', () => {
   beforeEach(() => setPreset('high'));
 
   it('4, 1 and All reach the renderers (effective) and leave the setting and the tier as they were', () => {
-    const before = graphics.value, tier = tierRecord.value;
+    const before = graphics.value,
+      tier = tierRecord.value;
     for (const v of [4, 1, 0]) {
       setLights(v);
       expect(effective.value.lights).toBe(v);
@@ -193,7 +223,10 @@ describe('setLights', () => {
   it('the toggle walks 4, 1, 0, 4 from the applied value', () => {
     setLights(4);
     const seen = [lightsNow()];
-    for (let i = 0; i < 3; i++) { setLights(nextLights(lightsNow())); seen.push(effective.value.lights); }
+    for (let i = 0; i < 3; i++) {
+      setLights(nextLights(lightsNow()));
+      seen.push(effective.value.lights);
+    }
     expect(seen).toEqual([4, 1, 0, 4]);
   });
 
@@ -209,7 +242,13 @@ describe('setLights', () => {
 describe('the toggles are never saved', () => {
   const store = new Map<string, string>();
   const writes: string[] = [];
-  const stub = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { writes.push(k); store.set(k, v); } };
+  const stub = {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => {
+      writes.push(k);
+      store.set(k, v);
+    },
+  };
   const detect = () => ({ tier: 'high' as const, reason: 'test' });
   beforeEach(() => {
     store.clear();
@@ -220,7 +259,8 @@ describe('the toggles are never saved', () => {
   });
 
   it('every toggle leaves storage untouched, and a load without ?debug starts as before', () => {
-    const stored = new Map(store), start = loadStart(stub, '', detect);
+    const stored = new Map(store),
+      start = loadStart(stub, '', detect);
     setScale(0.5);
     setPost(false);
     setShadowsOn(false);
@@ -241,7 +281,12 @@ describe('the toggles are never saved', () => {
     setScale(0.5);
     setGraphic('textures', 1);
     const saved = JSON.parse(store.get('pipeline-city.graphics')!);
-    expect(saved).toMatchObject({ textures: 1, shadows: PRESETS.high.shadows, lights: PRESETS.high.lights, scale: PRESETS.high.scale });
+    expect(saved).toMatchObject({
+      textures: 1,
+      shadows: PRESETS.high.shadows,
+      lights: PRESETS.high.lights,
+      scale: PRESETS.high.scale,
+    });
   });
 
   it('a tier step is not read from a toggled picture', () => {
@@ -268,7 +313,8 @@ describe('setRootHidden', () => {
   });
 
   it('touches no saved setting', () => {
-    const before = graphics.value, tier = tierRecord.value;
+    const before = graphics.value,
+      tier = tierRecord.value;
     setRootHidden({ visible: true }, true);
     expect(graphics.value).toBe(before);
     expect(tierRecord.value).toBe(tier);

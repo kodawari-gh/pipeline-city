@@ -1,12 +1,22 @@
 // Game feature: the installed hardware as the machine's bus sees it. Drives and their media, the GPU, NPU and TPM ports, ECC,
 // the MMU, the OS's boot port, and the memory the sticks add up to. Every export is a `Game` method (see game.ts).
 
-import { cardPowered, deviceSpec, findDevices, type CardSpec, type CpuSpec, type InstalledDevice, type RamSpec, type StorageSpec, type TpmSpec } from "..";
-import type { GpuTarget, NpuTarget } from "@/features/jobs/sim/gen";
-import { GPU_BASE, GPU_PORTS, GPU_STRIDE, NPU_BASE, NPU_STRIDE } from "@/core/sim/memmap";
-import { Disk, type StoragePort } from "@/core/sim";
-import type { Game } from "@/worker/game/game";
-import type { GpuSnap, NpuSnap } from "@/worker/game/types";
+import {
+  cardPowered,
+  deviceSpec,
+  findDevices,
+  type CardSpec,
+  type CpuSpec,
+  type InstalledDevice,
+  type RamSpec,
+  type StorageSpec,
+  type TpmSpec,
+} from '..';
+import type { GpuTarget, NpuTarget } from '@/features/jobs/sim/gen';
+import { GPU_BASE, GPU_PORTS, GPU_STRIDE, NPU_BASE, NPU_STRIDE } from '@/core/sim/memmap';
+import { Disk, type StoragePort } from '@/core/sim';
+import type { Game } from '@/worker/game/game';
+import type { GpuSnap, NpuSnap } from '@/worker/game/types';
 
 /** The drive's media for an installed storage device (created blank the first time). */
 export function diskFor(this: Game, d: InstalledDevice): Disk {
@@ -14,7 +24,11 @@ export function diskFor(this: Game, d: InstalledDevice): Disk {
   if (!disk) {
     const s = deviceSpec(d) as StorageSpec;
     disk = new Disk(s.capacityBytes, s.latencyTicks, s.blockTicks, {
-      enduranceBlocks: s.enduranceBlocks, queueDepth: s.queueDepth, seekByDistance: s.seekByDistance, mechBadRate: s.mechBadRate, mirror: s.mirror,
+      enduranceBlocks: s.enduranceBlocks,
+      queueDepth: s.queueDepth,
+      seekByDistance: s.seekByDistance,
+      mechBadRate: s.mechBadRate,
+      mirror: s.mirror,
       seed: hashSeed(d.id),
     });
     this.disks.set(d.id, disk);
@@ -31,9 +45,10 @@ function hashSeed(id: string): number {
 
 /** Attach each working drive to its port (a burnt or removed drive drops off the bus). A burnt drive loses every dataset on it. */
 export function syncStorage(this: Game): void {
-  for (const d of this.board.devices) if (d.burnt && deviceSpec(d).kind === "storage") this.disks.get(d.id)?.fs.loseKind("dataset");
+  for (const d of this.board.devices)
+    if (d.burnt && deviceSpec(d).kind === 'storage') this.disks.get(d.id)?.fs.loseKind('dataset');
   for (const port of this.ports) {
-    const d = this.board.devices.find((x) => x.slot === port.name && deviceSpec(x).kind === "storage" && !x.burnt);
+    const d = this.board.devices.find((x) => x.slot === port.name && deviceSpec(x).kind === 'storage' && !x.burnt);
     port.attach(d ? this.diskFor(d) : null);
   }
 }
@@ -41,27 +56,33 @@ export function syncStorage(this: Game): void {
 /** Put each working NPU on the bus (port npuK for the card in slot pcieK). */
 export function syncNpus(this: Game): void {
   this.npus.forEach((port, k) => {
-    const d = this.board.devices.find((x) => x.slot === `pcie${k}` && deviceSpec(x).kind === "npu" && !x.burnt);
-    port.configure(d ? (deviceSpec(d) as CardSpec).npu ? { grid: (deviceSpec(d) as CardSpec).npu!.grid, memBytes: (deviceSpec(d) as CardSpec).npu!.memBytes } : null : null);
+    const d = this.board.devices.find((x) => x.slot === `pcie${k}` && deviceSpec(x).kind === 'npu' && !x.burnt);
+    port.configure(
+      d
+        ? (deviceSpec(d) as CardSpec).npu
+          ? { grid: (deviceSpec(d) as CardSpec).npu!.grid, memBytes: (deviceSpec(d) as CardSpec).npu!.memBytes }
+          : null
+        : null,
+    );
   });
 }
 
 /** Every working memory stick has error correction (and there is at least one). */
 export function eccInstalled(this: Game): boolean {
-  const sticks = this.board.devices.filter((d) => !d.burnt && deviceSpec(d).kind === "ram");
+  const sticks = this.board.devices.filter((d) => !d.burnt && deviceSpec(d).kind === 'ram');
   return sticks.length > 0 && sticks.every((d) => (deviceSpec(d) as RamSpec).ecc === true);
 }
 
 /** The TPM on the header (a burnt or removed module drops off the bus). */
 export function syncTpm(this: Game): void {
-  const d = this.board.devices.find((x) => !x.burnt && deviceSpec(x).kind === "tpm");
+  const d = this.board.devices.find((x) => !x.burnt && deviceSpec(x).kind === 'tpm');
   // the module encrypts memory: it only works when every stick can correct errors
   this.tpm.configure(d && this.eccInstalled() ? ((deviceSpec(d) as TpmSpec).tpm ?? null) : null);
 }
 
 /** The first working GPU as a job generator sees it (undefined without one, or while its power lead is unplugged): `gpu.render` programs offload to it. */
 export function gpuTarget(this: Game): GpuTarget | undefined {
-  const d = this.board.devices.find((x) => !x.burnt && deviceSpec(x).kind === "gpu");
+  const d = this.board.devices.find((x) => !x.burnt && deviceSpec(x).kind === 'gpu');
   const spec = d && (deviceSpec(d) as CardSpec);
   const k = d ? GPU_PORTS.indexOf(d.slot) : -1;
   if (!d || !spec?.gpu || k < 0 || !cardPowered(this.board, this.cables, d)) return undefined;
@@ -70,7 +91,7 @@ export function gpuTarget(this: Game): GpuTarget | undefined {
 
 /** The first working NPU as a job generator sees it (undefined without one, or while its power lead is unplugged). */
 export function npuTarget(this: Game): NpuTarget | undefined {
-  const d = this.board.devices.find((x) => !x.burnt && deviceSpec(x).kind === "npu");
+  const d = this.board.devices.find((x) => !x.burnt && deviceSpec(x).kind === 'npu');
   const spec = d && (deviceSpec(d) as CardSpec);
   const k = d ? GPU_PORTS.indexOf(d.slot) : -1;
   if (!d || !spec?.npu || k < 0 || !cardPowered(this.board, this.cables, d)) return undefined;
@@ -80,7 +101,7 @@ export function npuTarget(this: Game): NpuTarget | undefined {
 /** Put each working GPU on the bus in its PCIe slot (a burnt or removed card drops off). */
 export function syncGpus(this: Game): void {
   for (const port of this.gpus) {
-    const d = this.board.devices.find((x) => x.slot === port.name && deviceSpec(x).kind === "gpu" && !x.burnt);
+    const d = this.board.devices.find((x) => x.slot === port.name && deviceSpec(x).kind === 'gpu' && !x.burnt);
     const cfg = d ? (deviceSpec(d) as CardSpec).gpu : undefined;
     port.configure(cfg ?? null);
   }
@@ -128,32 +149,35 @@ export function stepGpu(this: Game, slot: string, cycles: number): number {
     return port.isBusy ? 1 : 0;
   }
   let ran = 0;
-  while (ran < n && port.isBusy) { port.tick(); ran++; }
+  while (ran < n && port.isBusy) {
+    port.tick();
+    ran++;
+  }
   return ran;
 }
 
 /** The working graphics card the video cable is plugged into (the GPU in slot `this.video`), or null when it goes to the board, or that card is gone or burnt. */
 export function videoCard(this: Game): InstalledDevice | null {
-  if (this.video === "board") return null;
-  const d = this.board.devices.find((x) => x.slot === this.video && deviceSpec(x).kind === "gpu");
+  if (this.video === 'board') return null;
+  const d = this.board.devices.find((x) => x.slot === this.video && deviceSpec(x).kind === 'gpu');
   return d && !d.burnt ? d : null;
 }
 
 /** The installed CPU has an MMU (docs/VM.md). */
 export function cpuHasMmu(this: Game): boolean {
-  const cpu = findDevices(this.board, "cpu").find((d) => !d.burnt);
+  const cpu = findDevices(this.board, 'cpu').find((d) => !d.burnt);
   return !!cpu && ((deviceSpec(cpu) as CpuSpec).mmu?.tlb ?? 0) > 0;
 }
 
 /** Hardware cores of the installed CPU (1 for a single-core part or none). */
 export function cpuCores(this: Game): number {
-  const cpu = findDevices(this.board, "cpu").find((d) => !d.burnt);
-  return cpu ? (deviceSpec(cpu) as CpuSpec).cores ?? 1 : 1;
+  const cpu = findDevices(this.board, 'cpu').find((d) => !d.burnt);
+  return cpu ? ((deviceSpec(cpu) as CpuSpec).cores ?? 1) : 1;
 }
 
 /** Logical cores of the installed CPU: its hardware cores times their threads (what the OS sees as processors). */
 export function cpuLogicalCores(this: Game): number {
-  const cpu = findDevices(this.board, "cpu").find((d) => !d.burnt);
+  const cpu = findDevices(this.board, 'cpu').find((d) => !d.burnt);
   if (!cpu) return 1;
   const spec = deviceSpec(cpu) as CpuSpec;
   return (spec.cores ?? 1) * (spec.threads ?? 1);
@@ -177,5 +201,7 @@ export function installedMemory(this: Game): Uint8Array {
 }
 
 export function installedRamBytes(this: Game): number {
-  return findDevices(this.board, "ram").filter((d) => !d.burnt).reduce((n, d) => n + (deviceSpec(d) as RamSpec).sizeBytes, 0);
+  return findDevices(this.board, 'ram')
+    .filter((d) => !d.burnt)
+    .reduce((n, d) => n + (deviceSpec(d) as RamSpec).sizeBytes, 0);
 }

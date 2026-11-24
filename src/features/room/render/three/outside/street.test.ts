@@ -12,7 +12,9 @@ const withDetail = street as (k: Kit, ts: readonly Tree[], detail?: CityDetail) 
 /** The small things of the kit's iron (drains, grilles): their distance from the window (m). */
 function furniture(o: Out, k: Kit): number[] {
   o.group.updateMatrixWorld(true);
-  const out: number[] = [], c = new Vector3(), s = new Vector3();
+  const out: number[] = [],
+    c = new Vector3(),
+    s = new Vector3();
   o.group.traverse((m) => {
     if (!(m as Mesh).isMesh || (m as Mesh).material !== k.iron) return;
     const b = new Box3().setFromObject(m);
@@ -22,11 +24,22 @@ function furniture(o: Out, k: Kit): number[] {
   });
   return out;
 }
-const meshes = (o: Out): number => { let n = 0; o.group.traverse((m) => { if ((m as Mesh).isMesh) n++; }); return n; };
+const meshes = (o: Out): number => {
+  let n = 0;
+  o.group.traverse((m) => {
+    if ((m as Mesh).isMesh) n++;
+  });
+  return n;
+};
 
 describe('street detail', () => {
   let k: Kit, ts: Tree[], high: Out, low: Out;
-  beforeAll(() => { k = makeKit(); ts = trees(); high = street(k, ts); low = withDetail(k, ts, 'low'); }, 60000);
+  beforeAll(() => {
+    k = makeKit();
+    ts = trees();
+    high = street(k, ts);
+    low = withDetail(k, ts, 'low');
+  }, 60000);
 
   it('lock: High is the same with the detail omitted or "high"', () => {
     const again = withDetail(k, ts, 'high');
@@ -44,7 +57,7 @@ describe('street detail', () => {
     expect(furniture(low, k).some((d) => d <= LOW_FURNITURE_M)).toBe(true);
   });
 
-  it('Low: the lamps\' lights and the signals are unchanged', () => {
+  it("Low: the lamps' lights and the signals are unchanged", () => {
     expect(low.lights.map((v) => v.toArray())).toEqual(high.lights.map((v) => v.toArray()));
     expect(low.signals).toEqual(high.signals);
   });

@@ -7,15 +7,22 @@ import type { Color, Material, Vector3 } from 'three';
 
 /** The haze's uniforms: its colour, the sun's light in it and the sun's way, its density at the street (per m) and its fall with height (per m), the low mist's colour and density at the street (per m), the clock. */
 export interface HazeUniforms {
-  hzCol: { value: Color }; hzSun: { value: Color }; hzDir: { value: Vector3 }; hzDensity: { value: number }; hzFall: { value: number };
-  hzMist: { value: Color }; hzMistD: { value: number }; hzTime: { value: number };
+  hzCol: { value: Color };
+  hzSun: { value: Color };
+  hzDir: { value: Vector3 };
+  hzDensity: { value: number };
+  hzFall: { value: number };
+  hzMist: { value: Color };
+  hzMistD: { value: number };
+  hzTime: { value: number };
 }
 
 /** The low mist's fall with height (per m), and how wide its banks are (per m). */
-const MIST_FALL = 1 / 70, MIST_BANK = 1 / 760;
+const MIST_FALL = 1 / 70,
+  MIST_BANK = 1 / 760;
 
 /** The haze's maths for a fragment shader: how much of it lies between the eye and a world point, its colour that way. */
-export const HAZE_FN = /* glsl */`
+export const HAZE_FN = /* glsl */ `
 uniform vec3 hzCol, hzSun, hzDir, hzMist;
 uniform float hzDensity, hzFall, hzMistD, hzTime;
 float hzOd(vec3 r, float fall, float density) {
@@ -42,7 +49,7 @@ vec3 hzApply(vec3 c, vec3 w) {
 }`;
 
 /** A world point for the haze: the vertex where it stands (each instance too). */
-const VERT = /* glsl */`
+const VERT = /* glsl */ `
 vec4 hzP = vec4(transformed, 1.0);
 #ifdef USE_INSTANCING
 hzP = instanceMatrix * hzP;
@@ -55,11 +62,14 @@ const patched = new WeakSet<Material>();
 export function withHaze(m: Material, u: HazeUniforms): void {
   if (patched.has(m) || (m as { isShaderMaterial?: boolean }).isShaderMaterial) return;
   patched.add(m);
-  const prev = m.onBeforeCompile, key = `${m.customProgramCacheKey()}|haze`;
+  const prev = m.onBeforeCompile,
+    key = `${m.customProgramCacheKey()}|haze`;
   m.onBeforeCompile = (sh, r) => {
     prev.call(m, sh, r);
     Object.assign(sh.uniforms, u);
-    sh.vertexShader = sh.vertexShader.replace('#include <fog_pars_vertex>', 'varying vec3 vHzW;').replace('#include <fog_vertex>', VERT);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <fog_pars_vertex>', 'varying vec3 vHzW;')
+      .replace('#include <fog_vertex>', VERT);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <fog_pars_fragment>', `varying vec3 vHzW;\n${HAZE_FN}`)
       .replace('#include <fog_fragment>', 'gl_FragColor.rgb = hzApply(gl_FragColor.rgb, vHzW);');

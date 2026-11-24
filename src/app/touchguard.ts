@@ -5,11 +5,16 @@
 
 type Hook = Pick<Document, 'addEventListener'>;
 
-const stop = (e: Event): void => { if (e.cancelable) e.preventDefault(); };
-const manyFingers = (e: TouchEvent): void => { if (e.touches.length > 1) stop(e); };
+const stop = (e: Event): void => {
+  if (e.cancelable) e.preventDefault();
+};
+const manyFingers = (e: TouchEvent): void => {
+  if (e.touches.length > 1) stop(e);
+};
 
 /** Stops the page's pinch zoom (not the browser's own page zoom by the keyboard or the menu, a choice of the player's). */
 export function guardPage(doc: Hook = document): void {
-  for (const type of ['gesturestart', 'gesturechange', 'gestureend']) doc.addEventListener(type, stop, { passive: false });
+  for (const type of ['gesturestart', 'gesturechange', 'gestureend'])
+    doc.addEventListener(type, stop, { passive: false });
   doc.addEventListener('touchmove', manyFingers as EventListener, { passive: false });
 }

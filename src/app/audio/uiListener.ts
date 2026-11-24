@@ -7,7 +7,8 @@ const CUE_SELECTOR = `[${CUE_ATTR}]`;
 /** Esc plays Back while one of these is open (checked in the capture phase, before the handler closes it). */
 const OPEN_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"]';
 
-const cueOf = (t: EventTarget | null): HTMLElement | null => (t instanceof Element ? t.closest<HTMLElement>(CUE_SELECTOR) : null);
+const cueOf = (t: EventTarget | null): HTMLElement | null =>
+  t instanceof Element ? t.closest<HTMLElement>(CUE_SELECTOR) : null;
 
 /** The tag name of a key target. Without one, a role other than "button" means an element that makes no click of its own. */
 function tagOf(t: Element | null): string {
@@ -21,14 +22,20 @@ export function installUiCues(doc: Document = document, win: Window = window): (
   const hover = typeof win.matchMedia === 'function' ? win.matchMedia('(hover: hover)') : null;
   // Keyboard focus moves play the focus cue; a pointer press turns that off until the next key.
   let keyboard = false;
-  const play = (steps: CueStep[]) => { for (const s of steps) playCue(s.id, { delayS: s.delayS }); };
+  const play = (steps: CueStep[]) => {
+    for (const s of steps) playCue(s.id, { delayS: s.delayS });
+  };
 
   // The last 5 % step each range input showed. A pointer press or focus records it, so the first move compares with it.
   const steps = new WeakMap<Element, number>();
   const remember = (t: EventTarget | null) => {
-    if (t instanceof HTMLInputElement && t.type === 'range') steps.set(t, sliderStep(Number(t.min), Number(t.max), Number(t.value)));
+    if (t instanceof HTMLInputElement && t.type === 'range')
+      steps.set(t, sliderStep(Number(t.min), Number(t.max), Number(t.value)));
   };
-  const onPointerDown = (e: Event) => { keyboard = false; remember(e.target); };
+  const onPointerDown = (e: Event) => {
+    keyboard = false;
+    remember(e.target);
+  };
   const onInput = (e: Event) => {
     const t = e.target;
     if (!(t instanceof HTMLInputElement) || t.type !== 'range') return;

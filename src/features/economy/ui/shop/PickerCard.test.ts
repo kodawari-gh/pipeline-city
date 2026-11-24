@@ -13,7 +13,10 @@ import * as fsMod from 'node:fs';
 import * as urlMod from 'node:url';
 const fs = fsMod as any;
 
-const css: string = fs.readFileSync(urlMod.fileURLToPath(new URL('../../../../core/ui/ui.css', import.meta.url)), 'utf8');
+const css: string = fs.readFileSync(
+  urlMod.fileURLToPath(new URL('../../../../core/ui/ui.css', import.meta.url)),
+  'utf8',
+);
 
 /** One style rule, with the `@media` queries it sits under (outermost first). */
 type Rule = { media: string[]; selectors: string[]; decls: Record<string, string>; order: number };
@@ -38,12 +41,25 @@ function rulesOf(text: string): Rule[] {
   let i = 0;
   while (i < src.length) {
     const c = src.charAt(i++);
-    if (c === ';') { buf = ''; continue; }
-    if (c === '}') { media.pop(); buf = ''; continue; }
-    if (c !== '{') { buf += c; continue; }
+    if (c === ';') {
+      buf = '';
+      continue;
+    }
+    if (c === '}') {
+      media.pop();
+      buf = '';
+      continue;
+    }
+    if (c !== '{') {
+      buf += c;
+      continue;
+    }
     const head = buf.trim();
     buf = '';
-    if (head.startsWith('@media')) { media.push(head.slice('@media'.length).trim()); continue; }
+    if (head.startsWith('@media')) {
+      media.push(head.slice('@media'.length).trim());
+      continue;
+    }
     if (head.startsWith('@')) {
       for (let depth = 1; depth > 0 && i < src.length;) {
         const d = src.charAt(i++);
@@ -54,7 +70,12 @@ function rulesOf(text: string): Rule[] {
     }
     const end = src.indexOf('}', i);
     if (end < 0) break;
-    out.push({ media: [...media], selectors: head.split(',').map((s) => s.trim()), decls: declsOf(src.slice(i, end)), order: out.length });
+    out.push({
+      media: [...media],
+      selectors: head.split(',').map((s) => s.trim()),
+      decls: declsOf(src.slice(i, end)),
+      order: out.length,
+    });
     i = end + 1;
   }
   return out;
@@ -70,17 +91,24 @@ function featureHolds(feature: string, c: Ctx): boolean {
   const value = m[2] ?? '';
   const px = (v: string) => (/em$/.test(v) ? parseFloat(v) * 16 : parseFloat(v));
   switch (name) {
-    case 'max-width': return c.w <= px(value);
-    case 'min-width': return c.w >= px(value);
-    case 'max-height': return c.h <= px(value);
-    case 'min-height': return c.h >= px(value);
+    case 'max-width':
+      return c.w <= px(value);
+    case 'min-width':
+      return c.w >= px(value);
+    case 'max-height':
+      return c.h <= px(value);
+    case 'min-height':
+      return c.h >= px(value);
     case 'max-aspect-ratio': {
       const [a, b] = value.split('/').map(Number);
       return c.w / c.h <= (a ?? NaN) / (b ?? 1);
     }
-    case 'orientation': return value === (c.w > c.h ? 'landscape' : 'portrait');
-    case 'pointer': return value === (c.coarse ? 'coarse' : 'fine');
-    default: return false;
+    case 'orientation':
+      return value === (c.w > c.h ? 'landscape' : 'portrait');
+    case 'pointer':
+      return value === (c.coarse ? 'coarse' : 'fine');
+    default:
+      return false;
   }
 }
 
@@ -98,7 +126,8 @@ function cascade(prop: string, selectors: string[], c: Ctx): string | undefined 
       const value = selectors.includes(sel) ? r.decls[prop] : undefined;
       if (value === undefined) continue;
       const spec = (sel.match(/[.#][\w-]+/g) ?? []).length;
-      if (!best || spec > best.spec || (spec === best.spec && r.order > best.order)) best = { spec, order: r.order, value };
+      if (!best || spec > best.spec || (spec === best.spec && r.order > best.order))
+        best = { spec, order: r.order, value };
     }
   }
   return best?.value;
@@ -126,10 +155,14 @@ function lengthPx(v: string, c: Ctx): number {
   if (!m) return NaN;
   const n = Number(m[1]);
   switch (m[2]) {
-    case 'px': return n;
-    case 'rem': return n * remPx(c);
-    case 'vw': return (n * c.w) / 100;
-    default: return (n * c.h) / 100;
+    case 'px':
+      return n;
+    case 'rem':
+      return n * remPx(c);
+    case 'vw':
+      return (n * c.w) / 100;
+    default:
+      return (n * c.h) / 100;
   }
 }
 
@@ -152,11 +185,15 @@ describe('the part picker card look (ui.css, ticket #78)', () => {
   describe.each(SIZES)('at %s', (_name, c) => {
     it('is flat: no border (SPEC §1 rule 5)', () => {
       expect(isNone(cascade('border', PICKER, c)), `border: ${cascade('border', PICKER, c)}`).toBe(true);
-      expect(isNone(cascade('border-width', PICKER, c)), `border-width: ${cascade('border-width', PICKER, c)}`).toBe(true);
+      expect(isNone(cascade('border-width', PICKER, c)), `border-width: ${cascade('border-width', PICKER, c)}`).toBe(
+        true,
+      );
     });
 
     it('has no radius: the card is a square edge tab (SPEC §1 rule 5, radius on chips only)', () => {
-      expect(isNone(cascade('border-radius', PICKER, c)), `border-radius: ${cascade('border-radius', PICKER, c)}`).toBe(true);
+      expect(isNone(cascade('border-radius', PICKER, c)), `border-radius: ${cascade('border-radius', PICKER, c)}`).toBe(
+        true,
+      );
     });
 
     it('has no shadow, text shadow, glow or drop shadow (SPEC §1 rule 6)', () => {
@@ -165,15 +202,24 @@ describe('the part picker card look (ui.css, ticket #78)', () => {
     });
 
     it('has no glass blur (SPEC §1 rule 6, ADR 0001)', () => {
-      expect(isNone(cascade('backdrop-filter', PICKER, c)), `backdrop-filter: ${cascade('backdrop-filter', PICKER, c)}`).toBe(true);
-      expect(isNone(cascade('-webkit-backdrop-filter', PICKER, c)), `-webkit-backdrop-filter: ${cascade('-webkit-backdrop-filter', PICKER, c)}`).toBe(true);
+      expect(
+        isNone(cascade('backdrop-filter', PICKER, c)),
+        `backdrop-filter: ${cascade('backdrop-filter', PICKER, c)}`,
+      ).toBe(true);
+      expect(
+        isNone(cascade('-webkit-backdrop-filter', PICKER, c)),
+        `-webkit-backdrop-filter: ${cascade('-webkit-backdrop-filter', PICKER, c)}`,
+      ).toBe(true);
     });
 
     it('fills with the neutral shade, not a gradient, glass or navy (SPEC §1 rules 6 and 7, §4.11)', () => {
       const bg = cascade('background', PICKER, c) ?? '';
       const bgColor = cascade('background-color', PICKER, c) ?? bg;
       const bgImage = cascade('background-image', PICKER, c) ?? '';
-      expect(bgImage.includes('gradient') || bg.includes('gradient'), `background: ${bg}; background-image: ${bgImage}`).toBe(false);
+      expect(
+        bgImage.includes('gradient') || bg.includes('gradient'),
+        `background: ${bg}; background-image: ${bgImage}`,
+      ).toBe(false);
       expect(bgColor, `background colour: ${bgColor}`).toContain('--c-shade-86');
       expect(bgColor, `background colour: ${bgColor}`).not.toMatch(/navy|--panel|--glass/);
     });

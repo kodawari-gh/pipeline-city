@@ -58,10 +58,25 @@ describe('studio: Esc', () => {
 
 describe('studio: the cue ids the issue names exist in the cue table', () => {
   it.each([
-    'install', 'uninstall', 'cable_connect', 'cable_disconnect', 'power_on', 'power_off',
-    'speed_up', 'speed_down', 'job_fulfilled', 'ui_confirm', 'ui_click', 'ui_tab_switch',
-    'ui_value_change', 'ui_panel_open', 'ui_panel_close', 'ui_pickup', 'ui_transition_in',
-    'ui_hover', 'ui_focus_move',
+    'install',
+    'uninstall',
+    'cable_connect',
+    'cable_disconnect',
+    'power_on',
+    'power_off',
+    'speed_up',
+    'speed_down',
+    'job_fulfilled',
+    'ui_confirm',
+    'ui_click',
+    'ui_tab_switch',
+    'ui_value_change',
+    'ui_panel_open',
+    'ui_panel_close',
+    'ui_pickup',
+    'ui_transition_in',
+    'ui_hover',
+    'ui_focus_move',
   ])('%s is a cue', (id) => {
     expect(isCueId(id)).toBe(true);
   });

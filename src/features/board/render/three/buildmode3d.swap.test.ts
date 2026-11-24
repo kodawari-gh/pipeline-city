@@ -13,19 +13,37 @@ vi.mock('@/core/render/three/init', async (orig) => {
       camera: new PerspectiveCamera(30, 1, 10, 1e6),
       renderer: {
         domElement: { width: 400, height: 400, addEventListener() {}, removeEventListener() {} },
-        setOpaqueSort() {}, getPixelRatio: () => 1, setSize() {}, properties: { get: () => ({}) }, compile: () => new Set(), getRenderTarget: () => null, setRenderTarget() {},
+        setOpaqueSort() {},
+        getPixelRatio: () => 1,
+        setSize() {},
+        properties: { get: () => ({}) },
+        compile: () => new Set(),
+        getRenderTarget: () => null,
+        setRenderTarget() {},
       },
     }),
   };
 });
 vi.mock('@/core/render/three/post', () => ({
   Post: class {
-    render() {} refine = () => false; meter = () => null; metered = () => null;
-    setEye() {} setReach() {} setDark() {} setOutlined() {} apply() {} setSize() {}
+    render() {}
+    refine = () => false;
+    meter = () => null;
+    metered = () => null;
+    setEye() {}
+    setReach() {}
+    setDark() {}
+    setOutlined() {}
+    apply() {}
+    setSize() {}
     startPrograms = () => [];
   },
 }));
-vi.mock('./lens3d', () => ({ Lens3D: class { frame() {} } }));
+vi.mock('./lens3d', () => ({
+  Lens3D: class {
+    frame() {}
+  },
+}));
 
 import { BuildStage } from './buildmode3d';
 import { Game } from '@/worker/game/game';
@@ -34,10 +52,23 @@ type Stage = BuildStage;
 
 /** A stage with the full rig and no 3D: the machine's drawing is stubbed, the game and the history are the real ones. */
 function stage(): Stage {
-  const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({ clientWidth: 400, clientHeight: 800 });
-  s._machine = { moving: false, doorOpen: false, frame() {}, setOpen() {}, holdDetail() {}, lod() {}, root: new Group() };
+  const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
+    clientWidth: 400,
+    clientHeight: 800,
+  });
+  s._machine = {
+    moving: false,
+    doorOpen: false,
+    frame() {},
+    setOpen() {},
+    holdDetail() {},
+    lod() {},
+    root: new Group(),
+  };
   s._game = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
-  s.rebuild = function (this: { snaps: { drop(): void } }) { this.snaps.drop(); };
+  s.rebuild = function (this: { snaps: { drop(): void } }) {
+    this.snaps.drop();
+  };
   return s as unknown as Stage;
 }
 
@@ -45,13 +76,21 @@ const fitted = (s: Stage): number => s.board.devices.length;
 
 describe('BuildStage swaps and Undo', () => {
   beforeEach(() => {
-    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {});
   });
 
   it('brings the old machine back on Undo, and the new one on Redo', async () => {
-    const s = stage(), full = fitted(s), game = s.game;
+    const s = stage(),
+      full = fitted(s),
+      game = s.game;
     expect(s.canUndo).toBe(false);
     await s.clear();
     expect(fitted(s)).toBe(0);
@@ -69,7 +108,8 @@ describe('BuildStage swaps and Undo', () => {
   });
 
   it('undoes a chain of swaps one machine at a time', async () => {
-    const s = stage(), full = fitted(s);
+    const s = stage(),
+      full = fitted(s);
     await s.buildPreset(BUILD_PRESETS[0]!);
     const budget = fitted(s);
     expect(budget).toBeGreaterThan(0);
@@ -87,7 +127,8 @@ describe('BuildStage swaps and Undo', () => {
   });
 
   it('counts each swap, Undo included, so a line about one swap is stale after the next', async () => {
-    const s = stage(), at = s.swaps;
+    const s = stage(),
+      at = s.swaps;
     await s.clear();
     expect(s.swaps).toBe(at + 1);
     await s.undo();
@@ -107,7 +148,10 @@ describe('BuildStage swaps and Undo', () => {
     const s = stage();
     for (let i = 0; i < 12; i++) await s.clear();
     let undone = 0;
-    while (s.canUndo && undone < 20) { await s.undo(); undone++; }
+    while (s.canUndo && undone < 20) {
+      await s.undo();
+      undone++;
+    }
     expect(undone).toBe(8);
   });
 
@@ -135,7 +179,8 @@ describe('BuildStage swaps and Undo', () => {
   it('lets a refusal go after a few seconds from the end of the job, and at once for the next job or machine', async () => {
     vi.useFakeTimers();
     try {
-      const s = stage(), caseId = `case${s.board.caseTier}`;
+      const s = stage(),
+        caseId = `case${s.board.caseTier}`;
       await s.fit(caseId);
       expect(s.refusal.peek()).not.toBeNull();
       vi.advanceTimersByTime(5900);
@@ -148,7 +193,9 @@ describe('BuildStage swaps and Undo', () => {
       expect(s.refusal.peek()?.n).toBeGreaterThan(first!.n);
       await s.clear(); // (a new machine: what was refused belonged to the old one)
       expect(s.refusal.peek()).toBeNull();
-    } finally { vi.useRealTimers(); }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('keeps the scores of the machine it leaves as the ones to compare with', async () => {

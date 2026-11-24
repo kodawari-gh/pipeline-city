@@ -119,8 +119,18 @@ describe('music under pause and hold: the clock stopped', () => {
     const from = b.calls.length;
     d.onUi(PAUSED);
     expect(PAUSE_FADE_MS).toBe(1000);
-    expect(b.stops(from)).toContainEqual({ kind: 'stop', id: keyed('bed', 1), fadeOutMs: PAUSE_FADE_MS, quantise: 'beat' });
-    expect(b.starts(from)).toContainEqual({ kind: 'start', id: keyed('pausebed', 1), fadeInMs: PAUSE_FADE_MS, quantise: 'beat' });
+    expect(b.stops(from)).toContainEqual({
+      kind: 'stop',
+      id: keyed('bed', 1),
+      fadeOutMs: PAUSE_FADE_MS,
+      quantise: 'beat',
+    });
+    expect(b.starts(from)).toContainEqual({
+      kind: 'start',
+      id: keyed('pausebed', 1),
+      fadeInMs: PAUSE_FADE_MS,
+      quantise: 'beat',
+    });
     expect(b.gains(keyed('pausebed', 1)).at(-1)).toEqual(
       expect.objectContaining({ gainDb: 1 * tokenDb('pausebed'), fadeMs: PAUSE_FADE_MS, quantise: 'beat' }),
     );
@@ -145,7 +155,12 @@ describe('music under pause and hold: the clock stopped', () => {
     const { b, d } = inGame(1, 'running');
     const from = b.calls.length;
     d.onUi(PAUSED);
-    expect(b.stops(from)).toContainEqual({ kind: 'stop', id: keyed('bass', 1), fadeOutMs: expect.any(Number), quantise: 'beat' });
+    expect(b.stops(from)).toContainEqual({
+      kind: 'stop',
+      id: keyed('bass', 1),
+      fadeOutMs: expect.any(Number),
+      quantise: 'beat',
+    });
     expect(b.starts(from).some((c) => c.id === keyed('bass', 1))).toBe(false);
     expect(b.gains(keyed('bass', 1))).toEqual([expect.objectContaining({ gainDb: 1 * tokenDb('bass') })]);
   });
@@ -172,9 +187,21 @@ describe('music under pause and hold: the clock stopped', () => {
     d.onUi(PAUSED);
     const from = b.calls.length;
     d.onUi(RUNNING);
-    expect(b.stops(from)).toContainEqual({ kind: 'stop', id: keyed('pausebed', 1), fadeOutMs: PAUSE_FADE_MS, quantise: 'beat' });
-    expect(b.starts(from)).toContainEqual({ kind: 'start', id: keyed('bed', 1), fadeInMs: PAUSE_FADE_MS, quantise: 'beat' });
-    expect(b.tones(keyed('pluck', 1)).at(-1)).toEqual(expect.objectContaining({ hz: OPEN_HZ, fadeMs: PAUSE_FADE_MS, quantise: 'beat' }));
+    expect(b.stops(from)).toContainEqual({
+      kind: 'stop',
+      id: keyed('pausebed', 1),
+      fadeOutMs: PAUSE_FADE_MS,
+      quantise: 'beat',
+    });
+    expect(b.starts(from)).toContainEqual({
+      kind: 'start',
+      id: keyed('bed', 1),
+      fadeInMs: PAUSE_FADE_MS,
+      quantise: 'beat',
+    });
+    expect(b.tones(keyed('pluck', 1)).at(-1)).toEqual(
+      expect.objectContaining({ hz: OPEN_HZ, fadeMs: PAUSE_FADE_MS, quantise: 'beat' }),
+    );
     expect(b.gains(keyed('pluck', 1)).at(-1)!.gainDb).toBeCloseTo(1 * tokenDb('pluck'), 9);
   });
 
@@ -195,7 +222,12 @@ describe('music on failure', () => {
     expect(b.starts(from)).toEqual([
       { kind: 'start', id: keyed('pausebed', 1), fadeInMs: ERROR_FADE_MS, quantise: 'bar' },
     ]);
-    expect(b.stops(from).map((c) => c.id).sort()).toEqual([keyed('bass', 1), keyed('bed', 1), keyed('pluck', 1)].sort());
+    expect(
+      b
+        .stops(from)
+        .map((c) => c.id)
+        .sort(),
+    ).toEqual([keyed('bass', 1), keyed('bed', 1), keyed('pluck', 1)].sort());
     expect(b.gains(keyed('pausebed', 1)).at(-1)!.gainDb).toBeCloseTo(1 * tokenDb('pausebed'), 9);
   });
 
@@ -290,7 +322,11 @@ describe('music while the tab is hidden', () => {
     const from = b.calls.length;
     d.onHidden(false);
     expect(b.gains(keyed('pluck', 1)).at(-1)).toEqual(
-      expect.objectContaining({ gainDb: Math.round((tokenDb('pluck') + 20 * Math.log10(0.6)) * 10) / 10, fadeMs: 0, quantise: 'now' }),
+      expect.objectContaining({
+        gainDb: Math.round((tokenDb('pluck') + 20 * Math.log10(0.6)) * 10) / 10,
+        fadeMs: 0,
+        quantise: 'now',
+      }),
     );
     expect(b.stops(from)).toContainEqual({ kind: 'stop', id: keyed('bass', 1), fadeOutMs: 0, quantise: 'now' });
   });
@@ -336,7 +372,9 @@ describe('music while the tab is hidden', () => {
     const from = b.calls.length;
     d.onHidden(false);
     expect(b.starts(from)).toContainEqual({ kind: 'start', id: keyed('pausebed', 1), fadeInMs: 0, quantise: 'now' });
-    expect(b.tones(keyed('pluck', 1)).at(-1)).toEqual(expect.objectContaining({ hz: LOW_HZ, fadeMs: 0, quantise: 'now' }));
+    expect(b.tones(keyed('pluck', 1)).at(-1)).toEqual(
+      expect.objectContaining({ hz: LOW_HZ, fadeMs: 0, quantise: 'now' }),
+    );
   });
 
   it('a screen change while hidden is applied on return: the menu loop starts at once', () => {
@@ -353,7 +391,12 @@ describe('music while the tab is hidden', () => {
     d.onHidden(true, true);
     const from = b.calls.length;
     d.onHidden(false);
-    expect(b.starts(from).map((c) => c.id).sort()).toEqual([keyed('bed', 1), keyed('pluck', 1)].sort());
+    expect(
+      b
+        .starts(from)
+        .map((c) => c.id)
+        .sort(),
+    ).toEqual([keyed('bed', 1), keyed('pluck', 1)].sort());
     expect(b.starts(from).every((c) => c.fadeInMs === 0 && c.quantise === 'now')).toBe(true);
     expect(b.stops(from)).toContainEqual({ kind: 'stop', id: keyed('bass', 1), fadeOutMs: 0, quantise: 'now' });
   });

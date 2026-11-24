@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { clockZones, compareRows, estTempC, goodness, ladderFor, osSection, pickerFor, specBrief, statsOf, zoneOf } from './picker';
+import {
+  clockZones,
+  compareRows,
+  estTempC,
+  goodness,
+  ladderFor,
+  osSection,
+  pickerFor,
+  specBrief,
+  statsOf,
+  zoneOf,
+} from './picker';
 import { getSpec } from '@/features/board/sim/specs';
 import { dev, key, PURCHASES, snap, STARTER_CRATE } from '@/core/ui/testdata';
 import type { KeySnap, OsJobSnap, OsSnap, Snapshot, StorageSnap } from '@/worker/game/game';
@@ -23,7 +34,11 @@ describe('picker contents per id', () => {
     expect(m.device).toBeUndefined();
     expect(m.clock).toBe(false);
     expect(m.current).toBeNull();
-    expect(m.ladder.map((r) => [r.specId, r.state]).slice(0, 3)).toEqual([['cpu0', 'crate'], ['cpu1', 'poor'], ['cpu2', 'blocked']]);
+    expect(m.ladder.map((r) => [r.specId, r.state]).slice(0, 3)).toEqual([
+      ['cpu0', 'crate'],
+      ['cpu1', 'poor'],
+      ['cpu2', 'blocked'],
+    ]);
     expect(m.ladder[1]).toMatchObject({ price: 200, reason: 'Need $200 more' });
     expect(m.ladder[2]!.reason).toBe('needs a 100 W power supply');
   });
@@ -52,27 +67,41 @@ describe('picker contents per id', () => {
     expect(m.ladder.find((r) => r.specId === 'ram1')).toBeUndefined();
     expect(m.lines).toEqual([]);
 
-    const hot = pickerFor('dev1', snap({
-      devices: [dev({ id: 'dev1', tempC: 88, unstable: true })],
-      cpuClock: { value: 1.5, min: 0.25, max: 1.5 },
-    }))!;
+    const hot = pickerFor(
+      'dev1',
+      snap({
+        devices: [dev({ id: 'dev1', tempC: 88, unstable: true })],
+        cpuClock: { value: 1.5, min: 0.25, max: 1.5 },
+      }),
+    )!;
     expect(hot.lines.some((l) => l.level === 'bad' && /Unstable/.test(l.text))).toBe(true);
   });
 
   it('a fitted part offers Remove (by its slot, its device id or its world id); an empty socket and a spare do not', () => {
     const s = snap({
       devices: [dev({ id: 'dev9', spec: 'display0', kind: 'display', slot: 'display0', name: 'CLI monitor' })],
-      slots: [{ id: 'display0', type: 'display', deviceId: 'dev9' }, { id: 'cpu0', type: 'cpu', deviceId: null }],
-      powered: false, phase: 'off',
+      slots: [
+        { id: 'display0', type: 'display', deviceId: 'dev9' },
+        { id: 'cpu0', type: 'cpu', deviceId: null },
+      ],
+      powered: false,
+      phase: 'off',
     });
     for (const id of ['display0', 'dev9', 'monitor']) {
-      expect(pickerFor(id, s)!.actions).toEqual([expect.objectContaining({ id: 'uninstall', deviceId: 'dev9', label: 'Remove CLI monitor' })]);
+      expect(pickerFor(id, s)!.actions).toEqual([
+        expect.objectContaining({ id: 'uninstall', deviceId: 'dev9', label: 'Remove CLI monitor' }),
+      ]);
       expect(pickerFor(id, s)!.actions[0]!.why).toBeUndefined();
     }
     expect(pickerFor('cpu0', s)!.actions).toEqual([]);
     expect(pickerFor('inv:inv3', s)!.actions).toEqual([]);
     expect(pickerFor('dev9', { ...s, powered: true })!.actions[0]!.why).toMatch(/Power the machine off/);
-    const burnt = snap({ devices: [dev({ id: 'dev9', spec: 'display0', kind: 'display', slot: 'display0', name: 'CLI monitor', burnt: true })], slots: s.slots });
+    const burnt = snap({
+      devices: [
+        dev({ id: 'dev9', spec: 'display0', kind: 'display', slot: 'display0', name: 'CLI monitor', burnt: true }),
+      ],
+      slots: s.slots,
+    });
     expect(pickerFor('dev9', burnt)!.actions[0]!.label).toBe('Scrap CLI monitor');
   });
 
@@ -100,7 +129,15 @@ describe('picker contents per id', () => {
   });
 
   it('key in the tray: job details and a plug action', () => {
-    const k = key({ id: 7, label: '#80 calc', type: 'calc', age: 40, deadlineTick: 100, arrivalTick: 60, payoutEstimate: 75 });
+    const k = key({
+      id: 7,
+      label: '#80 calc',
+      type: 'calc',
+      age: 40,
+      deadlineTick: 100,
+      arrivalTick: 60,
+      payoutEstimate: 75,
+    });
     const m = pickerFor('key:7', snap({ tray: [k], baseTick: 90 }))!;
     expect(m.kind).toBe('key');
     expect(m.title).toBe('Client key #80 calc');
@@ -118,7 +155,9 @@ describe('picker contents per id', () => {
   it('finished key in the port: remove action, result shown', () => {
     const k = key({ id: 3, done: true, result: '#72 mul=31 OK' });
     const m = pickerFor('key:3', snap({ plugged: k }))!;
-    expect(m.actions).toEqual([expect.objectContaining({ id: 'eject', label: 'Remove key (get paid)', primary: true })]);
+    expect(m.actions).toEqual([
+      expect.objectContaining({ id: 'eject', label: 'Remove key (get paid)', primary: true }),
+    ]);
     expect(m.lines.some((l) => /#72 mul=31 OK/.test(l.text))).toBe(true);
   });
 
@@ -140,7 +179,12 @@ describe('picker contents per id', () => {
   });
 
   it('power button after a PSU trip: power cycle comes first', () => {
-    const s = snap({ power: { vrmLossW: 0, totalW: 90, budgetW: 40, psuFactor: 0, off: false, tripped: true }, powered: true, phase: 'error', phaseReason: 'power supply tripped' });
+    const s = snap({
+      power: { vrmLossW: 0, totalW: 90, budgetW: 40, psuFactor: 0, off: false, tripped: true },
+      powered: true,
+      phase: 'error',
+      phaseReason: 'power supply tripped',
+    });
     const m = pickerFor('power', s)!;
     expect(m.actions.map((a) => a.id)).toEqual(['powerCycle', 'power']);
     expect(m.lines[0]!.level).toBe('bad');
@@ -156,7 +200,13 @@ describe('picker contents per id', () => {
     const m = pickerFor('psu', s)!;
     expect(m.kind).toBe('psu');
     expect(m.lines.some((l) => l.level === 'bad' && /95 W of 40 W/.test(l.text))).toBe(true);
-    expect(m.ladder.map((r) => [r.specId, r.state])).toEqual([['psu0', 'installed'], ['psu1', 'ready'], ['psu2', 'level'], ['psu3', 'level'], ['psu4', 'level']]);
+    expect(m.ladder.map((r) => [r.specId, r.state])).toEqual([
+      ['psu0', 'installed'],
+      ['psu1', 'ready'],
+      ['psu2', 'level'],
+      ['psu3', 'level'],
+      ['psu4', 'level'],
+    ]);
     expect(m.actions[0]!.id).toBe('powerCycle');
   });
 
@@ -183,17 +233,27 @@ describe('picker contents per id', () => {
   });
 
   it('monitor: explanation, and no upgrades to buy yet when only the starter monitor is installed (the graphics display waits for its level)', () => {
-    const m = pickerFor('monitor', snap({ devices: [dev({ id: 'dev3', spec: 'display0', kind: 'display', name: 'CLI monitor' })] }))!;
+    const m = pickerFor(
+      'monitor',
+      snap({ devices: [dev({ id: 'dev3', spec: 'display0', kind: 'display', name: 'CLI monitor' })] }),
+    )!;
     expect(m.kind).toBe('display');
     expect(m.ladder.map((r) => r.state)).toEqual(['installed', 'level']);
     expect(m.emptyText).toBeUndefined(); // the locked graphics display is the next upgrade
   });
 
   it('board: the ladder offers the next motherboard tier, with its price', () => {
-    const s = snap({ purchases: [...PURCHASES, { id: 'board1', name: 'ATX+ board', kind: 'board', price: 300, affordable: false }] });
+    const s = snap({
+      purchases: [...PURCHASES, { id: 'board1', name: 'ATX+ board', kind: 'board', price: 300, affordable: false }],
+    });
     const m = pickerFor('board', s)!;
     expect(m.kind).toBe('board');
-    expect(m.ladder.map((r) => [r.specId, r.state])).toEqual([['board0', 'installed'], ['board1', 'poor'], ['board2', 'level'], ['board3', 'level']]);
+    expect(m.ladder.map((r) => [r.specId, r.state])).toEqual([
+      ['board0', 'installed'],
+      ['board1', 'poor'],
+      ['board2', 'level'],
+      ['board3', 'level'],
+    ]);
   });
 });
 
@@ -201,20 +261,51 @@ describe('upgrade ladder', () => {
   it('lists every tier, the lower ones too: nothing is outgrown', () => {
     const s = snap({ devices: [dev({ id: 'dev1', spec: 'cpu1', kind: 'cpu' })], inventory: [] });
     const lad = ladderFor(s, 'cpu');
-    expect(lad.map((r) => r.specId)).toEqual(['cpu0', 'cpu1', 'cpu2', 'cpu3', 'cpu2d', 'cpu2f', 'cpu2m', 'cpu3t', 'cpu4', 'cpu3f', 'cpu3m', 'cpu5s', 'cpu5h', 'cpu4f', 'cpu4m', 'cpu4w']);
+    expect(lad.map((r) => r.specId)).toEqual([
+      'cpu0',
+      'cpu1',
+      'cpu2',
+      'cpu3',
+      'cpu2d',
+      'cpu2f',
+      'cpu2m',
+      'cpu3t',
+      'cpu4',
+      'cpu3f',
+      'cpu3m',
+      'cpu5s',
+      'cpu5h',
+      'cpu4f',
+      'cpu4m',
+      'cpu4w',
+    ]);
     expect(lad.find((r) => r.specId === 'cpu1')!.state).toBe('installed');
   });
 
   it('a part you own offers another copy: the tile keeps its buy-another price, and counts the spares', () => {
     const s = snap({
       devices: [dev({ id: 'dev1', spec: 'cpu1', kind: 'cpu' })],
-      inventory: [{ ...STARTER_CRATE[0]!, id: 'inv8', spec: 'cpu1', kind: 'cpu', name: getSpec('cpu1')!.name }, { ...STARTER_CRATE[0]!, id: 'inv9', spec: 'cpu2', kind: 'cpu', name: getSpec('cpu2')!.name }],
-      purchases: [{ id: 'cpu1', name: 'x', kind: 'cpu', price: 60, affordable: true }, { id: 'cpu2', name: 'y', kind: 'cpu', price: 120, affordable: false }],
+      inventory: [
+        { ...STARTER_CRATE[0]!, id: 'inv8', spec: 'cpu1', kind: 'cpu', name: getSpec('cpu1')!.name },
+        { ...STARTER_CRATE[0]!, id: 'inv9', spec: 'cpu2', kind: 'cpu', name: getSpec('cpu2')!.name },
+      ],
+      purchases: [
+        { id: 'cpu1', name: 'x', kind: 'cpu', price: 60, affordable: true },
+        { id: 'cpu2', name: 'y', kind: 'cpu', price: 120, affordable: false },
+      ],
       money: 10,
     });
     const lad = ladderFor(s, 'cpu');
-    expect(lad.find((r) => r.specId === 'cpu1')).toMatchObject({ state: 'installed', spares: 1, more: { state: 'ready', price: 60 } });
-    expect(lad.find((r) => r.specId === 'cpu2')).toMatchObject({ state: 'crate', spares: 1, more: { state: 'poor', price: 120 } });
+    expect(lad.find((r) => r.specId === 'cpu1')).toMatchObject({
+      state: 'installed',
+      spares: 1,
+      more: { state: 'ready', price: 60 },
+    });
+    expect(lad.find((r) => r.specId === 'cpu2')).toMatchObject({
+      state: 'crate',
+      spares: 1,
+      more: { state: 'poor', price: 120 },
+    });
   });
 
   it('a spare part of a newer tier is a crate rung', () => {
@@ -225,7 +316,13 @@ describe('upgrade ladder', () => {
 
 describe('part stats and before/after', () => {
   it('summarises each part with numbers the bars can use', () => {
-    expect(statsOf('ram0').map((x) => [x.key, x.value])).toEqual([['size', 16], ['latency', 200], ['banks', 2], ['lanes', 1], ['power', 2]]);
+    expect(statsOf('ram0').map((x) => [x.key, x.value])).toEqual([
+      ['size', 16],
+      ['latency', 200],
+      ['banks', 2],
+      ['lanes', 1],
+      ['power', 2],
+    ]);
     expect(statsOf('psu1')).toEqual([expect.objectContaining({ key: 'watts', value: 100, higherIsBetter: true })]);
     expect(statsOf('cpu2')[0]!.value).toBeGreaterThan(statsOf('cpu1')[0]!.value);
     expect(statsOf('nope')).toEqual([]);
@@ -239,7 +336,12 @@ describe('part stats and before/after', () => {
 
   it('compares the option with the current part: better, worse, same, with the delta', () => {
     const rows = compareRows('ram', 'ram0', 'ram1');
-    expect(rows.find((r) => r.key === 'size')).toMatchObject({ trend: 'better', deltaText: '+16 K', curText: '16 K', optText: '32 K' });
+    expect(rows.find((r) => r.key === 'size')).toMatchObject({
+      trend: 'better',
+      deltaText: '+16 K',
+      curText: '16 K',
+      optText: '32 K',
+    });
     expect(rows.find((r) => r.key === 'latency')).toMatchObject({ trend: 'better', deltaText: '-188 ticks' });
     const back = compareRows('ram', 'ram1', 'ram0');
     expect(back.find((r) => r.key === 'size')!.trend).toBe('worse');
@@ -264,8 +366,8 @@ describe('overclock zones (the same steady-state heat model as thermal.ts)', () 
     // 10 W at base clock, 0.15 + 0.35 W/C to the case: 25 + 10 / 0.5 = 45 C at stock.
     expect(estTempC(cpuSpec, stockCooler, 1)).toBeCloseTo(45, 6);
     const z = clockZones(cpuSpec, stockCooler);
-    expect(z.throttleAt).toBeCloseTo(Math.cbrt(45 * 0.5 / 10), 6); // about 1.31x: 70 C
-    expect(z.unstableAt).toBeCloseTo(Math.cbrt(60 * 0.5 / 10), 6); // about 1.44x: 85 C
+    expect(z.throttleAt).toBeCloseTo(Math.cbrt((45 * 0.5) / 10), 6); // about 1.31x: 70 C
+    expect(z.unstableAt).toBeCloseTo(Math.cbrt((60 * 0.5) / 10), 6); // about 1.44x: 85 C
     expect(zoneOf(z, 1)).toBe('safe');
     expect(zoneOf(z, 1.4)).toBe('throttle');
     expect(zoneOf(z, 1.5)).toBe('unstable');
@@ -279,26 +381,76 @@ describe('overclock zones (the same steady-state heat model as thermal.ts)', () 
 
 describe('the OS section (the OS badge and the drive that hosts it)', () => {
   const hdd: StorageSnap = {
-    deviceId: 'dev-hdd', slot: 'sata0', spec: 'hdd0', name: 'HDD 96K', burnt: false, capacityBytes: 96 * 1024,
-    usedBytes: 12 * 1024, bytesRead: 0, bytesWritten: 0, busy: false, latencyTicks: 720, blockTicks: 72, bytesPerSecond: 3600, hasOs: true,
+    deviceId: 'dev-hdd',
+    slot: 'sata0',
+    spec: 'hdd0',
+    name: 'HDD 96K',
+    burnt: false,
+    capacityBytes: 96 * 1024,
+    usedBytes: 12 * 1024,
+    bytesRead: 0,
+    bytesWritten: 0,
+    busy: false,
+    latencyTicks: 720,
+    blockTicks: 72,
+    bytesPerSecond: 3600,
+    hasOs: true,
     fs: { runs: [], fragmentation: 0, byKind: { os: 0, spool: 0, program: 0, dataset: 0, meta: 0 }, files: [] },
-    wear: [], headLba: 0, cmds: [],
-    wearPct: 0, badGroups: 0, lostBlocks: 0, queueDepth: 2, queued: 0, mirror: false,
-    mount: { state: 'clean', phase: 'mounted', progress: 1 }, format: { why: 'this drive holds the OS', datasets: 0 },
+    wear: [],
+    headLba: 0,
+    cmds: [],
+    wearPct: 0,
+    badGroups: 0,
+    lostBlocks: 0,
+    queueDepth: 2,
+    queued: 0,
+    mirror: false,
+    mount: { state: 'clean', phase: 'mounted', progress: 1 },
+    format: { why: 'this drive holds the OS', datasets: 0 },
   };
-  const job = (o: Partial<OsJobSnap>): OsJobSnap => ({ slot: 0, keyId: 1, label: '#1 log', state: 'queued', persisted: true, ahead: 0, ...o });
+  const job = (o: Partial<OsJobSnap>): OsJobSnap => ({
+    slot: 0,
+    keyId: 1,
+    label: '#1 log',
+    state: 'queued',
+    persisted: true,
+    ahead: 0,
+    ...o,
+  });
   const osOn = (queue: OsJobSnap[] = [], o: Partial<OsSnap> = {}): OsSnap => ({
-    spec: 'os1', tier: 1, name: 'Resident OS 1.0', deviceId: 'dev-hdd', slot: 'sata0', programSlots: 1, queueSlots: 4,
-    up: true, queue, runningKeyId: null, spool: { slotBytes: 4096, slots: 4, used: 0, freeBytes: 0, full: false }, ...o,
+    spec: 'os1',
+    tier: 1,
+    name: 'Resident OS 1.0',
+    deviceId: 'dev-hdd',
+    slot: 'sata0',
+    programSlots: 1,
+    queueSlots: 4,
+    up: true,
+    queue,
+    runningKeyId: null,
+    spool: { slotBytes: 4096, slots: 4, used: 0, freeBytes: 0, full: false },
+    ...o,
   });
   const withOs = (queue: OsJobSnap[] = [], extra: Parameters<typeof snap>[0] = {}) =>
     snap({
-      storage: [hdd], devices: [dev({ id: 'dev-hdd', spec: 'hdd0', kind: 'storage', slot: 'sata0', name: 'HDD 96K' })],
-      os: osOn(queue), powered: true, phase: 'running-os',
-      purchases: [...PURCHASES, {
-        id: 'os2', name: 'Cooperative OS', kind: 'os', price: 600, affordable: false, later: true,
-        blocked: 'planned: not available yet', description: 'Cooperative multitasking: several programs resident at once. Planned.',
-      }],
+      storage: [hdd],
+      devices: [dev({ id: 'dev-hdd', spec: 'hdd0', kind: 'storage', slot: 'sata0', name: 'HDD 96K' })],
+      os: osOn(queue),
+      powered: true,
+      phase: 'running-os',
+      purchases: [
+        ...PURCHASES,
+        {
+          id: 'os2',
+          name: 'Cooperative OS',
+          kind: 'os',
+          price: 600,
+          affordable: false,
+          later: true,
+          blocked: 'planned: not available yet',
+          description: 'Cooperative multitasking: several programs resident at once. Planned.',
+        },
+      ],
       ...extra,
     });
 
@@ -318,20 +470,29 @@ describe('the OS section (the OS badge and the drive that hosts it)', () => {
 
   it('lists queue rows with the job type and how many are ahead; the running job is named', () => {
     const keys: KeySnap[] = [key({ id: 7, label: '#7 scan', type: 'scan', stage: 'queued' })];
-    const s = withOs([
-      job({ keyId: 5, label: '#5 log', state: 'running', ahead: 0 }),
-      job({ keyId: 7, label: '#7 scan', state: 'queued', ahead: 1, slot: 1 }),
-      job({ keyId: 9, label: '#9 calc', state: 'queued', ahead: 2, slot: 2 }),
-    ], { tray: keys });
+    const s = withOs(
+      [
+        job({ keyId: 5, label: '#5 log', state: 'running', ahead: 0 }),
+        job({ keyId: 7, label: '#7 scan', state: 'queued', ahead: 1, slot: 1 }),
+        job({ keyId: 9, label: '#9 calc', state: 'queued', ahead: 2, slot: 2 }),
+      ],
+      { tray: keys },
+    );
     const sec = osSection(s)!;
     expect(sec.running).toBe('#5 log');
-    expect(sec.queue.map((q) => [q.label, q.text])).toEqual([['#5 log', 'running now'], ['#7 scan', '1 ahead'], ['#9 calc', '2 ahead']]);
+    expect(sec.queue.map((q) => [q.label, q.text])).toEqual([
+      ['#5 log', 'running now'],
+      ['#7 scan', '1 ahead'],
+      ['#9 calc', '2 ahead'],
+    ]);
     expect(sec.queue[1]!.type).toBe('scan');
     expect(sec.queue.length).toBe(3);
   });
 
   it('a finished result waits in the queue as done', () => {
-    const s = withOs([job({ keyId: 3, label: '#3 log', state: 'result', ahead: -1 })], { tray: [key({ id: 3, label: '#3 log', stage: 'result' })] });
+    const s = withOs([job({ keyId: 3, label: '#3 log', state: 'result', ahead: -1 })], {
+      tray: [key({ id: 3, label: '#3 log', stage: 'result' })],
+    });
     expect(osSection(s)!.queue[0]!.text).toBe('done');
   });
 
@@ -350,8 +511,13 @@ describe('the OS section (the OS badge and the drive that hosts it)', () => {
     const other: StorageSnap = { ...hdd, deviceId: 'dev-ssd', slot: 'sata1', spec: 'ssd1', hasOs: false };
     const s2 = snap({
       storage: [hdd, other],
-      devices: [dev({ id: 'dev-hdd', spec: 'hdd0', kind: 'storage', slot: 'sata0' }), dev({ id: 'dev-ssd', spec: 'ssd1', kind: 'storage', slot: 'sata1' })],
-      os: osOn(), powered: false, phase: 'off',
+      devices: [
+        dev({ id: 'dev-hdd', spec: 'hdd0', kind: 'storage', slot: 'sata0' }),
+        dev({ id: 'dev-ssd', spec: 'ssd1', kind: 'storage', slot: 'sata1' }),
+      ],
+      os: osOn(),
+      powered: false,
+      phase: 'off',
     });
     expect(pickerFor('dev-ssd', s2)!.osSection).toBeFalsy();
     expect(pickerFor('dev-ssd', s2)!.actions.map((a) => a.id)).not.toContain('uninstallOs');
@@ -372,7 +538,9 @@ describe('the OS section (the OS badge and the drive that hosts it)', () => {
   });
 
   it('the drive that hosts the OS cannot be removed until the OS is', () => {
-    const a = pickerFor('dev-hdd', withOs([], { powered: false, phase: 'off' }))!.actions.find((x) => x.id === 'uninstall')!;
+    const a = pickerFor('dev-hdd', withOs([], { powered: false, phase: 'off' }))!.actions.find(
+      (x) => x.id === 'uninstall',
+    )!;
     expect(a.why).toMatch(/uninstall the OS first/);
   });
 
@@ -391,12 +559,22 @@ describe('the OS section (the OS badge and the drive that hosts it)', () => {
 });
 
 describe('network parts on the shelf (nic, router, isp rows)', () => {
-  const buy = (id: string, kind: 'nic' | 'router' | 'isp', price: number) => ({ id, name: id, kind, price, affordable: true });
+  const buy = (id: string, kind: 'nic' | 'router' | 'isp', price: number) => ({
+    id,
+    name: id,
+    kind,
+    price,
+    affordable: true,
+  });
   const withLevel = (level: number) => ({ ...snap().level, level });
 
   it('a part above the player level is a level row with its lock, before money and hardware', () => {
     const s = snap({ money: 99999 });
-    for (const [kind, id] of [['nic', 'nic1'], ['router', 'router1'], ['isp', 'isp1']] as const) {
+    for (const [kind, id] of [
+      ['nic', 'nic1'],
+      ['router', 'router1'],
+      ['isp', 'isp1'],
+    ] as const) {
       const row = ladderFor(s, kind).find((r) => r.specId === id)!;
       expect(row, id).toMatchObject({ state: 'level' });
       expect(row.lock!.level, id).toBeGreaterThan(1);
@@ -405,7 +583,11 @@ describe('network parts on the shelf (nic, router, isp rows)', () => {
   });
 
   it('an unlocked part is a ready row; plans apply at once, and a missing OS, RAM or jack shows as the row warning', () => {
-    const s = snap({ money: 1000, level: withLevel(20), purchases: [buy('nic1', 'nic', 120), buy('router1', 'router', 60), buy('isp1', 'isp', 150)] });
+    const s = snap({
+      money: 1000,
+      level: withLevel(20),
+      purchases: [buy('nic1', 'nic', 120), buy('router1', 'router', 60), buy('isp1', 'isp', 150)],
+    });
     const nic = ladderFor(s, 'nic').find((r) => r.specId === 'nic1')!;
     const isp = ladderFor(s, 'isp').find((r) => r.specId === 'isp1')!;
     const router = ladderFor(s, 'router').find((r) => r.specId === 'router1')!;
@@ -420,7 +602,11 @@ describe('network parts on the shelf (nic, router, isp rows)', () => {
 
   it('an owned router reads Placed, an active plan reads Active, and a short purse is a poor row', () => {
     const purchases = [{ ...buy('router2', 'router', 400), affordable: false }, buy('isp2', 'isp', 300)];
-    const net = { ...snap().net, router: { id: 'router1', name: 'Router 1' }, isp: { id: 'isp1', name: 'Dial' } } as unknown as Snapshot['net'];
+    const net = {
+      ...snap().net,
+      router: { id: 'router1', name: 'Router 1' },
+      isp: { id: 'isp1', name: 'Dial' },
+    } as unknown as Snapshot['net'];
     const s = snap({ level: withLevel(20), purchases, net });
     expect(ladderFor(s, 'router')[0]).toMatchObject({ specId: 'router1', state: 'installed', fittedLabel: 'Placed' });
     expect(ladderFor(s, 'isp')[0]).toMatchObject({ specId: 'isp1', state: 'installed', fittedLabel: 'Active' });

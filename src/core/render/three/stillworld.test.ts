@@ -4,26 +4,40 @@ import { syncWorld } from './stillworld';
 
 /** A small tree: a scene, a turned and scaled group, a moved mesh in it with a child, and a second group. */
 function tree() {
-  const scene = new Scene(), a = new Group(), b = new Mesh(), c = new Object3D(), d = new Group();
-  a.position.set(10, 20, 30); a.rotation.set(0.3, -0.7, 1.1); a.scale.set(2, 2, 2);
-  b.position.set(-5, 1, 4); b.rotation.y = 0.5;
+  const scene = new Scene(),
+    a = new Group(),
+    b = new Mesh(),
+    c = new Object3D(),
+    d = new Group();
+  a.position.set(10, 20, 30);
+  a.rotation.set(0.3, -0.7, 1.1);
+  a.scale.set(2, 2, 2);
+  b.position.set(-5, 1, 4);
+  b.rotation.y = 0.5;
   c.position.x = 7;
   d.position.z = -50;
-  scene.add(a, d); a.add(b); b.add(c);
+  scene.add(a, d);
+  a.add(b);
+  b.add(c);
   return { scene, a, b, c, d };
 }
 
 /** The world matrices three's own update gives for the tree as it stands. */
 function expected(scene: Scene): number[][] {
-  const copy = scene.clone(true), out: number[][] = [];
+  const copy = scene.clone(true),
+    out: number[][] = [];
   copy.updateMatrixWorld(true);
   copy.traverse((o) => out.push([...o.matrixWorld.elements]));
   return out;
 }
-const worlds = (scene: Scene): number[][] => { const out: number[][] = []; scene.traverse((o) => out.push([...o.matrixWorld.elements])); return out; };
+const worlds = (scene: Scene): number[][] => {
+  const out: number[][] = [];
+  scene.traverse((o) => out.push([...o.matrixWorld.elements]));
+  return out;
+};
 
 describe('syncWorld', () => {
-  it('gives the matrices of three\'s own update', () => {
+  it("gives the matrices of three's own update", () => {
     const { scene } = tree();
     const want = expected(scene);
     syncWorld(scene);
@@ -68,9 +82,11 @@ describe('syncWorld', () => {
   it('follows a part moved, updated by three and moved back between two calls', () => {
     const { scene, a, b } = tree();
     syncWorld(scene);
-    b.position.x += 100; a.rotation.x += 1;
+    b.position.x += 100;
+    a.rotation.x += 1;
     scene.updateMatrixWorld(true);
-    b.position.x -= 100; a.rotation.x -= 1;
+    b.position.x -= 100;
+    a.rotation.x -= 1;
     syncWorld(scene);
     expect(worlds(scene)).toEqual(expected(scene));
     b.position.x += 100;
@@ -102,7 +118,9 @@ describe('syncWorld', () => {
     const copy = scene.clone(true);
     copy.updateMatrixWorld(true);
     let twin: PerspectiveCamera | null = null;
-    copy.traverse((o) => { if ((o as PerspectiveCamera).isPerspectiveCamera) twin = o as PerspectiveCamera; });
+    copy.traverse((o) => {
+      if ((o as PerspectiveCamera).isPerspectiveCamera) twin = o as PerspectiveCamera;
+    });
     expect([...cam.matrixWorldInverse.elements]).toEqual([...twin!.matrixWorldInverse.elements]);
   });
 });

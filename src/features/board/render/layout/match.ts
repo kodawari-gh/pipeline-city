@@ -8,11 +8,16 @@ export type Pt = [number, number];
 
 export interface SerpOpts {
   /** Bundle pitch of the lanes, the stroke width and the clear gap kept between lanes. */
-  pitch: number; w: number; gap?: number;
+  pitch: number;
+  w: number;
+  gap?: number;
   /** Lane pitch in the flared stretch (default `pitch` + 12): a lane's teeth are as high as the room this leaves, `flare - w - gap`. */
   flare?: number;
   /** Bevel of a tooth's corners, the flat on top of a tooth and the flat between two teeth, the straight lead kept at both ends of the stretch used. */
-  bevel?: number; flat?: number; space?: number; margin?: number;
+  bevel?: number;
+  flat?: number;
+  space?: number;
+  margin?: number;
   /** Lanes within this much of the longest are left alone. */
   tol?: number;
   /** Use only a stretch along this axis ('h' runs along x). */
@@ -21,16 +26,29 @@ export interface SerpOpts {
   side?: 'low' | 'high';
 }
 
-export const lengthOf = (pts: Pt[]): number => pts.reduce((a, p, i) => (i ? a + Math.hypot(p[0] - pts[i - 1]![0], p[1] - pts[i - 1]![1]) : 0), 0);
+export const lengthOf = (pts: Pt[]): number =>
+  pts.reduce((a, p, i) => (i ? a + Math.hypot(p[0] - pts[i - 1]![0], p[1] - pts[i - 1]![1]) : 0), 0);
 
-interface Seg { j: number; axis: 'h' | 'v'; c: number; a: number; b: number; dir: 1 | -1 }
+interface Seg {
+  j: number;
+  axis: 'h' | 'v';
+  c: number;
+  a: number;
+  b: number;
+  dir: 1 | -1;
+}
 
 function segsOf(pts: Pt[]): Seg[] {
   const out: Seg[] = [];
   for (let j = 0; j + 1 < pts.length; j++) {
-    const p = pts[j]!, q = pts[j + 1]!, dx = q[0] - p[0], dy = q[1] - p[1];
-    if (Math.abs(dy) < 1e-6 && Math.abs(dx) > 1e-6) out.push({ j, axis: 'h', c: p[1], a: p[0], b: q[0], dir: dx > 0 ? 1 : -1 });
-    else if (Math.abs(dx) < 1e-6 && Math.abs(dy) > 1e-6) out.push({ j, axis: 'v', c: p[0], a: p[1], b: q[1], dir: dy > 0 ? 1 : -1 });
+    const p = pts[j]!,
+      q = pts[j + 1]!,
+      dx = q[0] - p[0],
+      dy = q[1] - p[1];
+    if (Math.abs(dy) < 1e-6 && Math.abs(dx) > 1e-6)
+      out.push({ j, axis: 'h', c: p[1], a: p[0], b: q[0], dir: dx > 0 ? 1 : -1 });
+    else if (Math.abs(dx) < 1e-6 && Math.abs(dy) > 1e-6)
+      out.push({ j, axis: 'v', c: p[0], a: p[1], b: q[1], dir: dy > 0 ? 1 : -1 });
   }
   return out;
 }
@@ -41,8 +59,12 @@ export const BEV = 8 - 4 * Math.SQRT2;
 
 /** The tooth that adds exactly `e` to a lane: its height and bevel. */
 export function toothFor(e: number, b0: number, Amax: number): { A: number; b: number } {
-  let b = b0, A = (e + b * BEV) / 2;
-  if (A > Amax) { A = Amax; b = (2 * A - e) / BEV; } // (a taller tooth than the room allows: the corners shrink instead)
+  let b = b0,
+    A = (e + b * BEV) / 2;
+  if (A > Amax) {
+    A = Amax;
+    b = (2 * A - e) / BEV;
+  } // (a taller tooth than the room allows: the corners shrink instead)
   if (A >= 2 * b + 2 && b >= 1.5) return { A, b };
   // a notch: A = 2b, extra = 2A - b * BEV = A * (2 - BEV / 2)
   const An = e / (2 - BEV / 2);
@@ -50,17 +72,41 @@ export function toothFor(e: number, b0: number, Amax: number): { A: number; b: n
 }
 
 /** The points of one tooth at distance `a` along a run: `P` maps a distance along the run and a height over it to the board; its base stands at height `d`, `h` tall, `flat` across its top. */
-export const toothPts = (P: (t: number, q: number) => Pt, a: number, d: number, b: number, h: number, flat: number): Pt[] =>
-  [P(a, d), P(a + b, d + b), P(a + b, d + h - b), P(a + 2 * b, d + h), P(a + 2 * b + flat, d + h), P(a + 3 * b + flat, d + h - b), P(a + 3 * b + flat, d + b), P(a + 4 * b + flat, d)];
+export const toothPts = (
+  P: (t: number, q: number) => Pt,
+  a: number,
+  d: number,
+  b: number,
+  h: number,
+  flat: number,
+): Pt[] => [
+  P(a, d),
+  P(a + b, d + b),
+  P(a + b, d + h - b),
+  P(a + 2 * b, d + h),
+  P(a + 2 * b + flat, d + h),
+  P(a + 3 * b + flat, d + h - b),
+  P(a + 3 * b + flat, d + b),
+  P(a + 4 * b + flat, d),
+];
 
 /**
  * Make every lane of the bundle as long as the longest. `lines` are the lanes (first end to last), parallel over a straight stretch.
  * Returns the lanes unchanged when they already match, or when no stretch is long enough (a test then flags the skew).
  */
 export function serpentine(lines: Pt[][], o: SerpOpts): Pt[][] {
-  const n = lines.length, tol = o.tol ?? 0.4, gap = o.gap ?? 8, b0 = o.bevel ?? 5, margin = o.margin ?? 40, clear = o.w + gap;
-  const flat = o.flat ?? 6, space = o.space ?? 6, Pf = o.flare ?? o.pitch + 12, Amax = Pf - clear;
-  const lens = lines.map(lengthOf), tgt = Math.max(...lens);
+  const n = lines.length,
+    tol = o.tol ?? 0.4,
+    gap = o.gap ?? 8,
+    b0 = o.bevel ?? 5,
+    margin = o.margin ?? 40,
+    clear = o.w + gap;
+  const flat = o.flat ?? 6,
+    space = o.space ?? 6,
+    Pf = o.flare ?? o.pitch + 12,
+    Amax = Pf - clear;
+  const lens = lines.map(lengthOf),
+    tgt = Math.max(...lens);
   if (n < 2 || tgt - Math.min(...lens) < tol) return lines;
 
   // the straight stretch every lane has in common (same axis, same direction, side by side): the longest one
@@ -71,15 +117,26 @@ export function serpentine(lines: Pt[][], o: SerpOpts): Pt[][] {
     const picks: Seg[] = [s0];
     let [lo, hi] = span(s0);
     for (let i = 1; i < n && picks.length === i; i++) {
-      let pick: Seg | null = null, ov = 0;
+      let pick: Seg | null = null,
+        ov = 0;
       for (const s of segs[i]!) {
         if (s.axis !== s0.axis || s.dir !== s0.dir || Math.abs(s.c - s0.c) > 4 * (n - 1) * o.pitch) continue;
-        const [a, b] = span(s), m = Math.min(b, hi) - Math.max(a, lo);
-        if (m > ov) { ov = m; pick = s; }
+        const [a, b] = span(s),
+          m = Math.min(b, hi) - Math.max(a, lo);
+        if (m > ov) {
+          ov = m;
+          pick = s;
+        }
       }
-      if (pick) { picks.push(pick); const [a, b] = span(pick); lo = Math.max(lo, a); hi = Math.min(hi, b); }
+      if (pick) {
+        picks.push(pick);
+        const [a, b] = span(pick);
+        lo = Math.max(lo, a);
+        hi = Math.min(hi, b);
+      }
     }
-    if (picks.length === n && hi - lo > 0 && (!best || hi - lo > best.hi - best.lo)) best = { picks, lo, hi, axis: s0.axis, dir: s0.dir };
+    if (picks.length === n && hi - lo > 0 && (!best || hi - lo > best.hi - best.lo))
+      best = { picks, lo, hi, axis: s0.axis, dir: s0.dir };
   }
   if (!best) return lines;
   const { picks, lo, hi, axis, dir } = best;
@@ -107,18 +164,27 @@ export function serpentine(lines: Pt[][], o: SerpOpts): Pt[][] {
   const need = Math.max(0, ...plan.map((p) => (p ? p.m * pitchOf(p.b) - space : 0)));
   const room = hi - lo - 2 * margin - 2 * dMax;
   if (need > room) return lines;
-  const base = dir > 0 ? lo : hi, A = (t: number) => base + dir * t;
-  const t0 = margin, t1 = hi - lo - margin, mid = (t0 + t1) / 2;
+  const base = dir > 0 ? lo : hi,
+    A = (t: number) => base + dir * t;
+  const t0 = margin,
+    t1 = hi - lo - margin,
+    mid = (t0 + t1) / 2;
 
   return lines.map((pts, i) => {
-    const s = picks[i]!, d = delta[i]!, c = s.c, p = plan[i];
+    const s = picks[i]!,
+      d = delta[i]!,
+      c = s.c,
+      p = plan[i];
     const P = (t: number, q: number): Pt => (axis === 'h' ? [A(t), c + sgn * q] : [c + sgn * q, A(t)]);
     const mid2: Pt[] = [];
     if (d > 1e-6) mid2.push(P(t0, 0), P(t0 + d, d));
     if (p) {
-      const pt = pitchOf(p.b), total = p.m * pt - space;
+      const pt = pitchOf(p.b),
+        total = p.m * pt - space;
       for (let j = 0; j < p.m; j++) {
-        const a = mid - total / 2 + j * pt, b = p.b, h = p.A;
+        const a = mid - total / 2 + j * pt,
+          b = p.b,
+          h = p.A;
         mid2.push(...toothPts(P, a, d, b, h, flat));
       }
     }
@@ -136,10 +202,23 @@ export function serpentine(lines: Pt[][], o: SerpOpts): Pt[][] {
 export function tuneBump(pts: Pt[], s: number, side: 1 | -1, h = 6, half = 18): Pt[] {
   let c = 0;
   for (let i = 1; i < pts.length; i++) {
-    const a = pts[i - 1]!, b = pts[i]!, l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const a = pts[i - 1]!,
+      b = pts[i]!,
+      l = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (s - half >= c + 4 && s + half <= c + l - 4) {
-      const ux = (b[0] - a[0]) / l, uy = (b[1] - a[1]) / l, nx = -uy * side, ny = ux * side, at = (t: number, o: number): Pt => [a[0] + ux * (t - c) + nx * o, a[1] + uy * (t - c) + ny * o];
-      return [...pts.slice(0, i), at(s - half, 0), at(s - half + h, h), at(s + half - h, h), at(s + half, 0), ...pts.slice(i)];
+      const ux = (b[0] - a[0]) / l,
+        uy = (b[1] - a[1]) / l,
+        nx = -uy * side,
+        ny = ux * side,
+        at = (t: number, o: number): Pt => [a[0] + ux * (t - c) + nx * o, a[1] + uy * (t - c) + ny * o];
+      return [
+        ...pts.slice(0, i),
+        at(s - half, 0),
+        at(s - half + h, h),
+        at(s + half - h, h),
+        at(s + half, 0),
+        ...pts.slice(i),
+      ];
     }
     c += l;
   }

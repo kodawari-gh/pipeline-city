@@ -20,33 +20,48 @@ export class AirSim {
   inflow = 0;
   private lastLevels = '';
 
-  constructor(readonly plan: AirPlan, cells?: number) {
+  constructor(
+    readonly plan: AirPlan,
+    cells?: number,
+  ) {
     this.grid = new AirGrid(plan.min, plan.max, plan.boxes, cells);
-    const g = this.grid, defs: AirFanDef[] = [];
+    const g = this.grid,
+      defs: AirFanDef[] = [];
     this.exits = new Uint8Array(g.cells);
     for (const v of plan.vents) {
       g.vent(v.wall, v.centre, v.shape, v.open);
-      const axis = (v.wall >> 1) as 0 | 1 | 2, hi = (v.wall & 1) === 1, half = g.h[axis]! / 2, at: V3 = [v.centre[0], v.centre[1], v.centre[2]];
+      const axis = (v.wall >> 1) as 0 | 1 | 2,
+        hi = (v.wall & 1) === 1,
+        half = g.h[axis]! / 2,
+        at: V3 = [v.centre[0], v.centre[1], v.centre[2]];
       at[axis] = hi ? g.max[axis] : g.min[axis];
       for (const c of g.footprint(at, axis, v.shape, hi ? -half : half).cells) this.exits[c] = v.wall + 1;
     }
     for (const f of plan.fans) {
-      const def = f.kind === 'wall' ? wallFan(g, f.id, f.wall, f.centre, { r: f.r }, f.into, f.q, STIFF * f.r) : innerFan(g, f.id, f.at, f.axis, f.dir, { r: f.r }, f.q);
+      const def =
+        f.kind === 'wall'
+          ? wallFan(g, f.id, f.wall, f.centre, { r: f.r }, f.into, f.q, STIFF * f.r)
+          : innerFan(g, f.id, f.at, f.axis, f.dir, { r: f.r }, f.q);
       if (!def.cells.length) continue;
       defs.push(def);
       this.banks.push(f.bank);
       if (f.kind !== 'wall') continue;
       def.cells.forEach((c, n) => {
-        if (f.into) this.inlets.push({ c, fan: defs.length - 1, share: Math.abs(def.w[n]!) * f.q, vent: false, wall: f.wall });
+        if (f.into)
+          this.inlets.push({ c, fan: defs.length - 1, share: Math.abs(def.w[n]!) * f.q, vent: false, wall: f.wall });
         else this.exits[c] = f.wall + 1;
       });
     }
-    for (let c = 0; c < g.cells; c++) if (g.ground[c]! > 0 && this.exits[c]) this.inlets.push({ c, fan: -1, share: g.ground[c]!, vent: true, wall: this.exits[c]! - 1 });
+    for (let c = 0; c < g.cells; c++)
+      if (g.ground[c]! > 0 && this.exits[c])
+        this.inlets.push({ c, fan: -1, share: g.ground[c]!, vent: true, wall: this.exits[c]! - 1 });
     this.field = new AirField(g, defs);
   }
 
   /** Solve for up to `ms`: the plan's fans one by one. True when all are done. */
-  run(ms: number): boolean { return this.field.run(ms); }
+  run(ms: number): boolean {
+    return this.field.run(ms);
+  }
 
   /** Set every fan's speed (`levelOf` its bank's id), mix the field, and work out where air comes in. Returns whether the field changed. */
   levels(levelOf: (bank: string) => number): boolean {
@@ -71,8 +86,13 @@ export class AirSim {
   inlet(r: number): { c: number; wall: number } | null {
     if (this.inflow <= 0) return null;
     const x = r * this.inflow;
-    let lo = 0, hi = this.cum.length - 1;
-    while (lo < hi) { const m = (lo + hi) >> 1; if (this.cum[m]! < x) lo = m + 1; else hi = m; }
+    let lo = 0,
+      hi = this.cum.length - 1;
+    while (lo < hi) {
+      const m = (lo + hi) >> 1;
+      if (this.cum[m]! < x) lo = m + 1;
+      else hi = m;
+    }
     const n = this.inlets[lo]!;
     return { c: n.c, wall: n.wall };
   }

@@ -12,11 +12,11 @@
 //   branches   a taken branch is known at execute: the warp cannot issue for BRANCH_PENALTY cycles (another warp fills them)
 //   bar        a warp that issues `bar` waits until every warp of its SM that is not done has reached it
 
-import { GPU_OPS, gpuDecode, type GpuInstr } from "../isa/isa";
-import { GpuRef, type GpuStep } from "../isa/ref";
-import type { DataCache } from "@/features/cpu/sim/engines/common";
-import type { GpuCacheView, GpuEngine, GpuSmView, GpuWarpView, WarpConfig } from "./engine";
-import { GpuMemSystem, type GpuMemConfig } from "./memsys";
+import { GPU_OPS, gpuDecode, type GpuInstr } from '../isa/isa';
+import { GpuRef, type GpuStep } from '../isa/ref';
+import type { DataCache } from '@/features/cpu/sim/engines/common';
+import type { GpuCacheView, GpuEngine, GpuSmView, GpuWarpView, WarpConfig } from './engine';
+import { GpuMemSystem, type GpuMemConfig } from './memsys';
 
 /** Cycles before the first issue (fetch and decode of the first instruction) and after the last (execute, write-back). */
 export const WARP_FILL = 2;
@@ -24,7 +24,7 @@ export const WARP_DRAIN = 2;
 /** Cycles a warp cannot issue after a taken branch. */
 export const WARP_BRANCH_PENALTY = 2;
 
-type State = "ready" | "barrier" | "done";
+type State = 'ready' | 'barrier' | 'done';
 
 interface Warp {
   ref: GpuRef;
@@ -34,7 +34,7 @@ interface Warp {
   /** Cycle at which each vector register's data is back (0 = not pending). */
   pending: number[];
   /** Why the warp could not issue in the last scheduler pass. */
-  blocked: "mem" | "branch" | "unit" | null;
+  blocked: 'mem' | 'branch' | 'unit' | null;
 }
 
 const SPEC = new Map(GPU_OPS.map((o) => [o.name, o]));
@@ -43,12 +43,17 @@ const SPEC = new Map(GPU_OPS.map((o) => [o.name, o]));
 function regUse(i: GpuInstr): { reads: number[]; writes: number | null } {
   const f = SPEC.get(i.name)?.fmt;
   switch (f) {
-    case "R": return { reads: [i.rs1, i.rs2], writes: i.rd };
-    case "I": return { reads: i.name === "vli" ? [] : [i.rs1], writes: i.rd };
-    case "D": return { reads: [], writes: i.rd };
-    case "S":
-    case "M": return { reads: [i.rs1, i.rs2], writes: null };
-    default: return { reads: [], writes: null };
+    case 'R':
+      return { reads: [i.rs1, i.rs2], writes: i.rd };
+    case 'I':
+      return { reads: i.name === 'vli' ? [] : [i.rs1], writes: i.rd };
+    case 'D':
+      return { reads: [], writes: i.rd };
+    case 'S':
+    case 'M':
+      return { reads: [i.rs1, i.rs2], writes: null };
+    default:
+      return { reads: [], writes: null };
   }
 }
 
@@ -71,23 +76,38 @@ export class SmCore {
   private last = -1;
   private memFree = 0;
 
-  constructor(readonly index: number, readonly mem: Uint32Array, readonly memsys: GpuMemSystem, readonly nWarps: number, readonly warpLanes: number, laneBase: number, banks: number) {
+  constructor(
+    readonly index: number,
+    readonly mem: Uint32Array,
+    readonly memsys: GpuMemSystem,
+    readonly nWarps: number,
+    readonly warpLanes: number,
+    laneBase: number,
+    banks: number,
+  ) {
     this.warps = Array.from({ length: nWarps }, (_, k) => ({
       ref: new GpuRef({ lanes: warpLanes, memBytes: mem.length * 4, banks, mem, laneBase: laneBase + k * warpLanes }),
-      state: "done" as State, nextIssue: 0, pending: new Array<number>(8).fill(0), blocked: null,
+      state: 'done' as State,
+      nextIssue: 0,
+      pending: new Array<number>(8).fill(0),
+      blocked: null,
     }));
     this.issued = new Array<number>(nWarps).fill(0);
   }
 
-  get lanes(): number { return this.nWarps * this.warpLanes; }
-  get done(): boolean { return this.warps.every((x) => x.state === "done"); }
+  get lanes(): number {
+    return this.nWarps * this.warpLanes;
+  }
+  get done(): boolean {
+    return this.warps.every((x) => x.state === 'done');
+  }
 
   /** `activeLanes` = the launch's lanes that fall on this SM. */
   reset(pc: number, activeLanes: number): void {
     this.warps.forEach((wp, k) => {
       const n = Math.max(0, Math.min(this.warpLanes, activeLanes - k * this.warpLanes));
       wp.ref.reset(pc, n);
-      wp.state = n > 0 ? "ready" : "done";
+      wp.state = n > 0 ? 'ready' : 'done';
       wp.nextIssue = WARP_FILL;
       wp.pending.fill(0);
       wp.blocked = null;
@@ -102,8 +122,17 @@ export class SmCore {
   views(): GpuSmView {
     return {
       warps: this.warps.map((wp): GpuWarpView => ({
-        pc: wp.ref.pc, mask: wp.ref.mask, stack: [...wp.ref.stack],
-        state: wp.state === "done" ? "done" : wp.state === "barrier" ? "barrier" : wp.blocked === "mem" ? "wait-mem" : "ready",
+        pc: wp.ref.pc,
+        mask: wp.ref.mask,
+        stack: [...wp.ref.stack],
+        state:
+          wp.state === 'done'
+            ? 'done'
+            : wp.state === 'barrier'
+              ? 'barrier'
+              : wp.blocked === 'mem'
+                ? 'wait-mem'
+                : 'ready',
       })),
     };
   }
@@ -117,15 +146,24 @@ export class SmCore {
   /** Whether the warp can issue its next instruction this cycle; records why not. */
   private ready(wp: Warp, cycle: number): boolean {
     wp.blocked = null;
-    if (wp.state !== "ready") return false;
-    if (cycle < wp.nextIssue) { wp.blocked = "branch"; return false; }
+    if (wp.state !== 'ready') return false;
+    if (cycle < wp.nextIssue) {
+      wp.blocked = 'branch';
+      return false;
+    }
     const i = this.peek(wp);
     if (!i) return true; // an illegal fetch faults when it issues
     const { reads, writes } = regUse(i);
     for (const r of writes === null ? reads : [...reads, writes]) {
-      if (wp.pending[r]! > cycle) { wp.blocked = "mem"; return false; }
+      if (wp.pending[r]! > cycle) {
+        wp.blocked = 'mem';
+        return false;
+      }
     }
-    if ((i.name === "vld" || i.name === "vst") && this.memFree > cycle) { wp.blocked = "unit"; return false; }
+    if ((i.name === 'vld' || i.name === 'vst') && this.memFree > cycle) {
+      wp.blocked = 'unit';
+      return false;
+    }
     return true;
   }
 
@@ -134,13 +172,17 @@ export class SmCore {
     let pick = -1;
     for (let n = 1; n <= this.nWarps; n++) {
       const k = (this.last + n + this.nWarps) % this.nWarps;
-      if (this.ready(this.warps[k]!, cycle)) { pick = k; break; }
+      if (this.ready(this.warps[k]!, cycle)) {
+        pick = k;
+        break;
+      }
     }
     if (pick < 0) {
       if (!this.done) this.stallCycles++;
       return null;
     }
-    const wp = this.warps[pick]!, ref = wp.ref;
+    const wp = this.warps[pick]!,
+      ref = wp.ref;
     const before = ref.pc;
     const i = this.peek(wp);
     ref.step();
@@ -150,32 +192,48 @@ export class SmCore {
     this.issued[pick]!++;
     this.idleLaneSlots += this.warpLanes - popcount(s.mask);
     this.drainAt = Math.max(this.drainAt, cycle + 1 + WARP_DRAIN);
-    let cost = 1, banks: number[] | null = null, stall: GpuStep["stall"] = null;
+    let cost = 1,
+      banks: number[] | null = null,
+      stall: GpuStep['stall'] = null;
 
-    if (i && (s.name === "vld" || s.name === "vst")) {
-      const acc = s.name === "vld" ? this.memsys.load(this.index, ref.lastAddrs, cycle) : this.memsys.store(ref.lastAddrs);
+    if (i && (s.name === 'vld' || s.name === 'vst')) {
+      const acc =
+        s.name === 'vld' ? this.memsys.load(this.index, ref.lastAddrs, cycle) : this.memsys.store(ref.lastAddrs);
       cost = acc.rounds;
       banks = acc.perBank;
       this.memFree = cycle + acc.rounds;
       this.conflictCycles += acc.rounds - 1;
-      if (acc.rounds > 1) stall = "bank";
-      if (s.name === "vld" && acc.latency > 0) wp.pending[i.rd] = cycle + acc.latency;
-    } else if (s.name === "jmp" || (s.name === "bany" && ref.pc !== before + 4)) {
+      if (acc.rounds > 1) stall = 'bank';
+      if (s.name === 'vld' && acc.latency > 0) wp.pending[i.rd] = cycle + acc.latency;
+    } else if (s.name === 'jmp' || (s.name === 'bany' && ref.pc !== before + 4)) {
       wp.nextIssue = cycle + 1 + WARP_BRANCH_PENALTY;
-    } else if (s.name === "bar") {
-      wp.state = "barrier";
-    } else if (s.name === "halt") {
-      wp.state = "done";
+    } else if (s.name === 'bar') {
+      wp.state = 'barrier';
+    } else if (s.name === 'halt') {
+      wp.state = 'done';
     }
     this.release(cycle);
-    return { ...s, cost, banks, stall, startCycle: cycle, sm: this.index, warp: pick, stackDepth: ref.stack.length, maskAfter: ref.mask };
+    return {
+      ...s,
+      cost,
+      banks,
+      stall,
+      startCycle: cycle,
+      sm: this.index,
+      warp: pick,
+      stackDepth: ref.stack.length,
+      maskAfter: ref.mask,
+    };
   }
 
   /** Let the warps go once every warp that is not done waits at the barrier. */
   private release(cycle: number): void {
-    const live = this.warps.filter((x) => x.state !== "done");
-    if (live.length === 0 || !live.every((x) => x.state === "barrier")) return;
-    for (const x of live) { x.state = "ready"; x.nextIssue = cycle + 1; }
+    const live = this.warps.filter((x) => x.state !== 'done');
+    if (live.length === 0 || !live.every((x) => x.state === 'barrier')) return;
+    for (const x of live) {
+      x.state = 'ready';
+      x.nextIssue = cycle + 1;
+    }
   }
 }
 
@@ -186,7 +244,7 @@ export interface SmEngineShape {
   lanes: number;
   memBytes: number;
   banks: number;
-  mem: Omit<GpuMemConfig, "banks" | "sms">;
+  mem: Omit<GpuMemConfig, 'banks' | 'sms'>;
 }
 
 /** One or more SMs on one card memory, stepped together one cycle at a time (SM 0 first). */
@@ -206,25 +264,41 @@ export class SmEngine implements GpuEngine {
 
   constructor(shape: SmEngineShape) {
     const { sms, warps, lanes } = shape;
-    if (!Number.isInteger(warps) || warps < 1 || !Number.isInteger(sms) || sms < 1 || lanes % (sms * warps) !== 0) throw new RangeError(`${lanes} lanes do not split into ${sms} SMs of ${warps} warps`);
+    if (!Number.isInteger(warps) || warps < 1 || !Number.isInteger(sms) || sms < 1 || lanes % (sms * warps) !== 0)
+      throw new RangeError(`${lanes} lanes do not split into ${sms} SMs of ${warps} warps`);
     this.lanes = lanes;
     this.banks = Math.max(1, shape.banks);
     this.mem = new Uint32Array(shape.memBytes / 4);
     this.memsys = new GpuMemSystem({ ...shape.mem, banks: this.banks, sms });
     const warpLanes = lanes / (sms * warps);
-    this.cores = Array.from({ length: sms }, (_, k) => new SmCore(k, this.mem, this.memsys, warps, warpLanes, k * warps * warpLanes, this.banks));
+    this.cores = Array.from(
+      { length: sms },
+      (_, k) => new SmCore(k, this.mem, this.memsys, warps, warpLanes, k * warps * warpLanes, this.banks),
+    );
     this.all = this.cores.flatMap((c) => c.warps);
     this.regsOut = Array.from({ length: this.all[0]!.ref.regs.length }, () => new Int32Array(lanes));
     this.reset();
   }
 
-  get warps(): number { return this.cores[0]!.nWarps; }
-  get warpLanes(): number { return this.cores[0]!.warpLanes; }
-  get instructions(): number { return this.cores.reduce((n, c) => n + c.instructions, 0); }
-  get conflictCycles(): number { return this.cores.reduce((n, c) => n + c.conflictCycles, 0); }
-  get idleLaneSlots(): number { return this.cores.reduce((n, c) => n + c.idleLaneSlots, 0); }
+  get warps(): number {
+    return this.cores[0]!.nWarps;
+  }
+  get warpLanes(): number {
+    return this.cores[0]!.warpLanes;
+  }
+  get instructions(): number {
+    return this.cores.reduce((n, c) => n + c.instructions, 0);
+  }
+  get conflictCycles(): number {
+    return this.cores.reduce((n, c) => n + c.conflictCycles, 0);
+  }
+  get idleLaneSlots(): number {
+    return this.cores.reduce((n, c) => n + c.idleLaneSlots, 0);
+  }
   /** Cycles in which an SM had live warps and issued nothing (summed over SMs). */
-  get stallCycles(): number { return this.cores.reduce((n, c) => n + c.stallCycles, 0); }
+  get stallCycles(): number {
+    return this.cores.reduce((n, c) => n + c.stallCycles, 0);
+  }
 
   get regs(): Int32Array[] {
     const wl = this.warpLanes;
@@ -239,11 +313,17 @@ export class SmEngine implements GpuEngine {
   get stack(): readonly number[] {
     const wl = this.warpLanes;
     const depth = Math.max(...this.all.map((wp) => wp.ref.stack.length));
-    return Array.from({ length: depth }, (_, d) => this.all.reduce((m, wp, k) => (m | ((wp.ref.stack[d] ?? 0) << (k * wl))) >>> 0, 0));
+    return Array.from({ length: depth }, (_, d) =>
+      this.all.reduce((m, wp, k) => (m | ((wp.ref.stack[d] ?? 0) << (k * wl))) >>> 0, 0),
+    );
   }
-  get pc(): number { return this.all[this.last]!.ref.pc; }
+  get pc(): number {
+    return this.all[this.last]!.ref.pc;
+  }
   get halted(): boolean {
-    return this.started && this.cores.every((c) => c.done) && this.cycles >= Math.max(...this.cores.map((c) => c.drainAt));
+    return (
+      this.started && this.cores.every((c) => c.done) && this.cycles >= Math.max(...this.cores.map((c) => c.drainAt))
+    );
   }
 
   reset(pc = 0, activeLanes = this.lanes): void {
@@ -261,13 +341,22 @@ export class SmEngine implements GpuEngine {
   }
 
   cacheViews(): GpuCacheView[] {
-    const { lineWords } = this.memsys.cfg, out: GpuCacheView[] = [];
-    const of = (level: GpuCacheView["level"], c: DataCache, sm?: number): GpuCacheView => ({
-      level, ...(sm === undefined ? {} : { sm }), lineWords,
-      lines: c.dump().map((line) => (line < 0 ? null : { line, words: Array.from(this.mem.subarray(line * lineWords, (line + 1) * lineWords)) })),
+    const { lineWords } = this.memsys.cfg,
+      out: GpuCacheView[] = [];
+    const of = (level: GpuCacheView['level'], c: DataCache, sm?: number): GpuCacheView => ({
+      level,
+      ...(sm === undefined ? {} : { sm }),
+      lineWords,
+      lines: c
+        .dump()
+        .map((line) =>
+          line < 0 ? null : { line, words: Array.from(this.mem.subarray(line * lineWords, (line + 1) * lineWords)) },
+        ),
     });
-    this.memsys.l1.forEach((c, k) => { if (c) out.push(of("L1", c, k)); });
-    if (this.memsys.l2) out.push(of("L2", this.memsys.l2));
+    this.memsys.l1.forEach((c, k) => {
+      if (c) out.push(of('L1', c, k));
+    });
+    if (this.memsys.l2) out.push(of('L2', this.memsys.l2));
     return out;
   }
 
@@ -289,8 +378,17 @@ export class SmEngine implements GpuEngine {
 /** gpu2: one SM, no caches. */
 export class WarpEngine extends SmEngine {
   constructor(cfg: WarpConfig) {
-    super({ sms: 1, warps: cfg.warps, lanes: cfg.lanes, memBytes: cfg.memBytes, banks: cfg.banks, mem: { lineWords: cfg.lineWords, globalLatency: cfg.globalLatency } });
+    super({
+      sms: 1,
+      warps: cfg.warps,
+      lanes: cfg.lanes,
+      memBytes: cfg.memBytes,
+      banks: cfg.banks,
+      mem: { lineWords: cfg.lineWords, globalLatency: cfg.globalLatency },
+    });
   }
   /** Instructions issued by each warp. */
-  get issued(): number[] { return this.cores[0]!.issued; }
+  get issued(): number[] {
+    return this.cores[0]!.issued;
+  }
 }

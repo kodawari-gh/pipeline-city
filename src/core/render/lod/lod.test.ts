@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { DEVICE_LOD, DIE_SHOW, FAR_ZOOM, TierBudget, bandAlpha, deviceLod, dieShow, dieZoom, onBand, seenZoom, smooth, zoomSlow } from './lod';
+import {
+  DEVICE_LOD,
+  DIE_SHOW,
+  FAR_ZOOM,
+  TierBudget,
+  bandAlpha,
+  deviceLod,
+  dieShow,
+  dieZoom,
+  onBand,
+  seenZoom,
+  smooth,
+  zoomSlow,
+} from './lod';
 
 describe('the lid rule', () => {
   it('opens a die over the same on-screen width, whatever its size', () => {
@@ -34,7 +47,8 @@ describe('DEVICE_LOD', () => {
     }
   });
   it('lets the insides take hits only once the lid has started to fade', () => {
-    for (const d of [DEVICE_LOD.gpu, DEVICE_LOD.npu, DEVICE_LOD.tpm, DEVICE_LOD.disk, DEVICE_LOD.die]) expect(d.hover).toBeGreaterThanOrEqual(d.fade[0]);
+    for (const d of [DEVICE_LOD.gpu, DEVICE_LOD.npu, DEVICE_LOD.tpm, DEVICE_LOD.disk, DEVICE_LOD.die])
+      expect(d.hover).toBeGreaterThanOrEqual(d.fade[0]);
   });
   it('shows names before counters on every card', () => {
     for (const d of [DEVICE_LOD.gpu, DEVICE_LOD.npu, DEVICE_LOD.tpm, DEVICE_LOD.disk]) {
@@ -69,7 +83,8 @@ describe('the shared ladder', () => {
   });
   it('gives a big and a small device the same focus at the same distance from the centre', () => {
     const view = { x: 0, y: 0, w: 1000, h: 600 };
-    const small = deviceLod({ x: 780, y: 280, w: 40, h: 40 }, view).focus, big = deviceLod({ x: 500, y: 100, w: 600, h: 400 }, view).focus;
+    const small = deviceLod({ x: 780, y: 280, w: 40, h: 40 }, view).focus,
+      big = deviceLod({ x: 500, y: 100, w: 600, h: 400 }, view).focus;
     expect(small).toBeCloseTo(big, 5);
   });
 });
@@ -86,7 +101,9 @@ describe('zoomSlow', () => {
     }
   });
   it('slows steadily as the camera comes in', () => {
-    const a = zoomSlow(0.4, 4.5, 2), b = zoomSlow(0.6, 4.5, 2), c = zoomSlow(0.9, 4.5, 2);
+    const a = zoomSlow(0.4, 4.5, 2),
+      b = zoomSlow(0.6, 4.5, 2),
+      c = zoomSlow(0.9, 4.5, 2);
     expect(a).toBeGreaterThan(b);
     expect(b).toBeGreaterThan(c);
   });
@@ -124,18 +141,38 @@ describe('deviceLod', () => {
 describe('TierBudget', () => {
   it('lets the devices nearest the focus take the slots', () => {
     const b = new TierBudget(2);
-    const top = b.assign([{ id: 'a', focus: 0.2 }, { id: 'b', focus: 0.9 }, { id: 'c', focus: 0.6 }]);
+    const top = b.assign([
+      { id: 'a', focus: 0.2 },
+      { id: 'b', focus: 0.9 },
+      { id: 'c', focus: 0.6 },
+    ]);
     expect([...top].sort()).toEqual(['b', 'c']);
   });
   it('keeps a holder until a challenger leads by the margin', () => {
     const b = new TierBudget(1, 0.15);
-    b.assign([{ id: 'a', focus: 0.5 }, { id: 'b', focus: 0.4 }]);
-    expect([...b.assign([{ id: 'a', focus: 0.5 }, { id: 'b', focus: 0.6 }])]).toEqual(['a']); // 0.1 ahead: not enough
-    expect([...b.assign([{ id: 'a', focus: 0.5 }, { id: 'b', focus: 0.8 }])]).toEqual(['b']);
+    b.assign([
+      { id: 'a', focus: 0.5 },
+      { id: 'b', focus: 0.4 },
+    ]);
+    expect([
+      ...b.assign([
+        { id: 'a', focus: 0.5 },
+        { id: 'b', focus: 0.6 },
+      ]),
+    ]).toEqual(['a']); // 0.1 ahead: not enough
+    expect([
+      ...b.assign([
+        { id: 'a', focus: 0.5 },
+        { id: 'b', focus: 0.8 },
+      ]),
+    ]).toEqual(['b']);
   });
   it('drops a tier that is no longer wanted at once', () => {
     const b = new TierBudget(2);
-    b.assign([{ id: 'a', focus: 1 }, { id: 'b', focus: 1 }]);
+    b.assign([
+      { id: 'a', focus: 1 },
+      { id: 'b', focus: 1 },
+    ]);
     expect([...b.assign([{ id: 'b', focus: 1 }])]).toEqual(['b']);
   });
 });

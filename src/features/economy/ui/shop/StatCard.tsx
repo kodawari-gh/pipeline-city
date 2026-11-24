@@ -12,7 +12,17 @@ const shortName = (name: string) => name.split(' (')[0]!;
  * A part's stats as bars: the part against the one fitted now (grey), each row an icon, a bar and a delta. Used by the
  * inventory's side card and the shop. `fit` adds one line saying whether it can go in right now.
  */
-export function StatCard({ s, specId, fit, onPreview }: { s: Snapshot; specId: string; fit?: { ok: boolean; text: string }; onPreview?: () => void }) {
+export function StatCard({
+  s,
+  specId,
+  fit,
+  onPreview,
+}: {
+  s: Snapshot;
+  specId: string;
+  fit?: { ok: boolean; text: string };
+  onPreview?: () => void;
+}) {
   const kind = kindOf(specId, s);
   const current = kind ? currentSpecFor(s, kind) : null;
   const rows = kind ? compareRows(kind, current, specId) : [];
@@ -26,15 +36,20 @@ export function StatCard({ s, specId, fit, onPreview }: { s: Snapshot; specId: s
         <div class="sc-title">
           <b title={d?.plain}>{shortName(d?.title ?? specId)}</b>
           <span class="mute">
-            {kind && <Icon name={kindIcon(kind)} size={11} />} {kind ? kindLabel(kind) : ''}{tier !== null ? ` · Tier ${tier}` : ''}
+            {kind && <Icon name={kindIcon(kind)} size={11} />} {kind ? kindLabel(kind) : ''}
+            {tier !== null ? ` · Tier ${tier}` : ''}
           </span>
         </div>
       </header>
       {onPreview && hasModel(kind) && (
-        <button class="sc-3d" title="Look at it in 3D: turn and zoom" onClick={onPreview}><Icon name="box" size={12} /> 3D view</button>
+        <button class="sc-3d" title="Look at it in 3D: turn and zoom" onClick={onPreview}>
+          <Icon name="box" size={12} /> 3D view
+        </button>
       )}
       {fit && (
-        <div class={`pline ${fit.ok ? 'ok' : 'warn'}`}><Icon name={fit.ok ? 'check' : 'lock'} size={11} /> {fit.text}</div>
+        <div class={`pline ${fit.ok ? 'ok' : 'warn'}`}>
+          <Icon name={fit.ok ? 'check' : 'lock'} size={11} /> {fit.text}
+        </div>
       )}
       {current && current !== specId && <div class="sc-vs mute">Grey bars: what is fitted now.</div>}
       <Compare rows={rows} option={specId} />

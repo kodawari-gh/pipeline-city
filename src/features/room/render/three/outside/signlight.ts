@@ -4,12 +4,25 @@ import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, DoubleSide, M
 import { HAZE_FN, type HazeUniforms } from './haze';
 
 /** A sign on a wall: the wall's plane (x or z fixed, at `at`, facing `out`), the board's middle along it and its half width, its heights, colour (sRGB hex), seed, lit box or neon. */
-export interface SignWash { fixed: 'x' | 'z'; at: number; out: number; mid: number; half: number; y0: number; y1: number; colour: number; seed: number; box: boolean }
+export interface SignWash {
+  fixed: 'x' | 'z';
+  at: number;
+  out: number;
+  mid: number;
+  half: number;
+  y0: number;
+  y1: number;
+  colour: number;
+  seed: number;
+  box: boolean;
+}
 
 /** How far the card stands off the wall (m), how far the light reaches past the board (m), its strength. */
-const OFF = 0.25, REACH = 2.5, LIGHT = 0.16;
+const OFF = 0.25,
+  REACH = 2.5,
+  LIGHT = 0.16;
 
-const VERT = /* glsl */`
+const VERT = /* glsl */ `
 attribute vec2 pl;
 attribute vec4 hs;
 attribute vec3 tone;
@@ -23,7 +36,7 @@ void main() {
   gl_Position = projectionMatrix * viewMatrix * vec4(vW, 1.0);
 }`;
 
-const FRAG = /* glsl */`
+const FRAG = /* glsl */ `
 uniform float night;
 varying vec2 vP;
 varying vec4 vH;
@@ -40,12 +53,29 @@ void main() {
 
 /** The cards for these signs, in one mesh. `night`: the facade's own share of the night, so they come on with the signs. */
 export function signWashes(all: readonly SignWash[], haze: HazeUniforms, night: { value: number }): Mesh {
-  const pos: number[] = [], pl: number[] = [], hs: number[] = [], tone: number[] = [], index: number[] = [], c = new Color();
+  const pos: number[] = [],
+    pl: number[] = [],
+    hs: number[] = [],
+    tone: number[] = [],
+    index: number[] = [],
+    c = new Color();
   all.forEach((s, i) => {
-    const hw = s.half, hh = (s.y1 - s.y0) / 2, r = REACH + 0.35 * Math.min(Math.max(hw * 2, 1), hh * 2), ym = (s.y0 + s.y1) / 2, a = hw + r, b = hh + r, at = s.at + s.out * OFF;
+    const hw = s.half,
+      hh = (s.y1 - s.y0) / 2,
+      r = REACH + 0.35 * Math.min(Math.max(hw * 2, 1), hh * 2),
+      ym = (s.y0 + s.y1) / 2,
+      a = hw + r,
+      b = hh + r,
+      at = s.at + s.out * OFF;
     c.setHex(s.colour).multiplyScalar(LIGHT * (s.box ? 1.5 : 1));
-    for (const [u, v] of [[-a, -b], [a, -b], [a, b], [-a, b]] as const) {
-      if (s.fixed === 'z') pos.push(s.mid + u, ym + v, at); else pos.push(at, ym + v, s.mid + u);
+    for (const [u, v] of [
+      [-a, -b],
+      [a, -b],
+      [a, b],
+      [-a, b],
+    ] as const) {
+      if (s.fixed === 'z') pos.push(s.mid + u, ym + v, at);
+      else pos.push(at, ym + v, s.mid + u);
       pl.push(u, v);
       hs.push(hw, hh, r, s.seed);
       tone.push(c.r, c.g, c.b);
@@ -60,8 +90,16 @@ export function signWashes(all: readonly SignWash[], haze: HazeUniforms, night: 
   g.setAttribute('tone', new BufferAttribute(new Float32Array(tone), 3));
   g.setIndex(index);
   const mat = new ShaderMaterial({
-    vertexShader: VERT, fragmentShader: FRAG, uniforms: { ...haze, night }, transparent: true, depthWrite: false, blending: AdditiveBlending, side: DoubleSide,
-    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8,
+    vertexShader: VERT,
+    fragmentShader: FRAG,
+    uniforms: { ...haze, night },
+    transparent: true,
+    depthWrite: false,
+    blending: AdditiveBlending,
+    side: DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -8,
   });
   const mesh = new Mesh(g, mat);
   mesh.frustumCulled = false;

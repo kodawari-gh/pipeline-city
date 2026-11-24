@@ -1,7 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import type { Snapshot } from '@/worker/game/game';
 import { levelRows } from '../../sim/levels';
-import { cannotRunText, celebrationFor, DECLINE_ARM_MS, deadlineInfo, declineStep, declineWords, hasArt, isNextLevelLock, levelBar, lockBadge, lockTooltip, milestoneRows, needChips, postBreakdown, reconcileSeen, unlockedFirst } from './levelui';
+import {
+  cannotRunText,
+  celebrationFor,
+  DECLINE_ARM_MS,
+  deadlineInfo,
+  declineStep,
+  declineWords,
+  hasArt,
+  isNextLevelLock,
+  levelBar,
+  lockBadge,
+  lockTooltip,
+  milestoneRows,
+  needChips,
+  postBreakdown,
+  reconcileSeen,
+  unlockedFirst,
+} from './levelui';
 import { osSection, pickerFor } from '../shop/picker';
 import { boardCards } from '@/features/board/ui/vrm';
 import { dev, key, snap } from '@/core/ui/testdata';
@@ -110,8 +127,11 @@ describe('locked items', () => {
 
   it('shelf order: open items first, then the gated ones by level, stably', () => {
     const items = [
-      { id: 'a', lock: { level: 8, name: 'x' } }, { id: 'b' }, { id: 'c', lock: { level: 3, name: 'x' } },
-      { id: 'd' }, { id: 'e', lock: { level: 3, name: 'x' } },
+      { id: 'a', lock: { level: 8, name: 'x' } },
+      { id: 'b' },
+      { id: 'c', lock: { level: 3, name: 'x' } },
+      { id: 'd' },
+      { id: 'e', lock: { level: 3, name: 'x' } },
     ];
     expect(unlockedFirst(items, (i) => i.lock).map((i) => i.id)).toEqual(['b', 'd', 'c', 'e', 'a']);
   });
@@ -119,8 +139,23 @@ describe('locked items', () => {
   it('a gated purchase is a visible "level" rung with the lock, before money and hardware reasons', () => {
     const s = snap({
       purchases: [
-        { id: 'cpu1', name: 'Tiny-5', kind: 'cpu', price: 200, affordable: false, blocked: 'needs a 100 W power supply', locked: lock },
-        { id: 'cpu2', name: 'Tiny-5F', kind: 'cpu', price: 800, affordable: false, locked: { level: 6, name: 'Neighbourhood' } },
+        {
+          id: 'cpu1',
+          name: 'Tiny-5',
+          kind: 'cpu',
+          price: 200,
+          affordable: false,
+          blocked: 'needs a 100 W power supply',
+          locked: lock,
+        },
+        {
+          id: 'cpu2',
+          name: 'Tiny-5F',
+          kind: 'cpu',
+          price: 800,
+          affordable: false,
+          locked: { level: 6, name: 'Neighbourhood' },
+        },
       ],
     });
     const m = pickerFor('cpu1', s)!;
@@ -131,17 +166,33 @@ describe('locked items', () => {
     expect(r1.reason).toContain('needs a 100 W power supply');
     expect(r1.soon).toBe(false);
     expect(snap({ level: { ...s.level, level: 3 }, purchases: s.purchases }).purchases[0]!.locked).toBeDefined();
-    const r3 = pickerFor('cpu1', snap({ level: { ...s.level, level: 3 }, purchases: s.purchases }))!.ladder.find((r) => r.specId === 'cpu1')!;
+    const r3 = pickerFor('cpu1', snap({ level: { ...s.level, level: 3 }, purchases: s.purchases }))!.ladder.find(
+      (r) => r.specId === 'cpu1',
+    )!;
     expect(r3.soon).toBe(true);
   });
 
   it('nothing is locked in the sandbox (the sim sends no lock): the rung is a normal buy', () => {
-    const s = snap({ sandbox: true, purchases: [{ id: 'cpu1', name: 'Tiny-5', kind: 'cpu', price: 200, affordable: true }] });
+    const s = snap({
+      sandbox: true,
+      purchases: [{ id: 'cpu1', name: 'Tiny-5', kind: 'cpu', price: 200, affordable: true }],
+    });
     expect(pickerFor('cpu1', s)!.ladder.find((r) => r.specId === 'cpu1')!.state).toBe('ready');
   });
 
   it('a locked motherboard tier is a "level" card', () => {
-    const s = snap({ purchases: [{ id: 'board1', name: 'Board 1', kind: 'board', price: 100, affordable: true, locked: { level: 2, name: 'Hobby Shop' } }] });
+    const s = snap({
+      purchases: [
+        {
+          id: 'board1',
+          name: 'Board 1',
+          kind: 'board',
+          price: 100,
+          affordable: true,
+          locked: { level: 2, name: 'Hobby Shop' },
+        },
+      ],
+    });
     const c = boardCards(s).find((x) => x.id === 'board1')!;
     expect(c.state).toBe('level');
     expect(c.canBuy).toBe(false);
@@ -151,7 +202,8 @@ describe('locked items', () => {
 });
 
 describe('level-up celebration', () => {
-  const up = (o: Partial<Snapshot['level']> = {}) => at({ level: 4, name: 'Small Office', leveledUpAt: 900, recentlyUnlocked: levelRows()[3]!.unlocks, ...o });
+  const up = (o: Partial<Snapshot['level']> = {}) =>
+    at({ level: 4, name: 'Small Office', leveledUpAt: 900, recentlyUnlocked: levelRows()[3]!.unlocks, ...o });
 
   it('shows once for a level above the seen one, with what it unlocked', () => {
     const c = celebrationFor(up(), 3)!;
@@ -182,12 +234,20 @@ describe('level-up celebration', () => {
 
 describe('job needs, deadlines and declining', () => {
   const job = (o: Partial<Parameters<typeof needChips>[0] & Parameters<typeof deadlineInfo>[0]> = {}) => ({
-    needs: ['OS', 'SSD'], missing: ['a SATA SSD or better'], runnable: false, arrivalTick: 100, expiresTick: 300, ...o,
+    needs: ['OS', 'SSD'],
+    missing: ['a SATA SSD or better'],
+    runnable: false,
+    arrivalTick: 100,
+    expiresTick: 300,
+    ...o,
   });
 
   it('shows one chip per need with a device icon; the unmet ones are marked missing', () => {
     const chips = needChips(job());
-    expect(chips.map((c) => [c.short, c.icon, c.missing])).toEqual([['OS', 'cpu', false], ['SSD', 'disk', true]]);
+    expect(chips.map((c) => [c.short, c.icon, c.missing])).toEqual([
+      ['OS', 'cpu', false],
+      ['SSD', 'disk', true],
+    ]);
     expect(needChips({ needs: [], missing: [] })).toEqual([]);
     expect(needChips({ needs: ['GPU'], missing: ['a GPU'] })[0]!.icon).toBe('screen');
   });
@@ -222,7 +282,15 @@ describe('job needs, deadlines and declining', () => {
   });
 
   it('the key card carries the job, blocks plugging an unrunnable key and shows the expiry', () => {
-    const k = key({ id: 7, cls: 'gpu', needs: ['GPU'], missing: ['a GPU'], runnable: false, arrivalTick: 0, expiresTick: 400 });
+    const k = key({
+      id: 7,
+      cls: 'gpu',
+      needs: ['GPU'],
+      missing: ['a GPU'],
+      runnable: false,
+      arrivalTick: 0,
+      expiresTick: 400,
+    });
     const m = pickerFor('key:7', snap({ tray: [k], baseTick: 100 }))!;
     expect(m.job).toMatchObject({ id: 7, declinable: true, runnable: false });
     const plug = m.actions.find((a) => a.id === 'plug')!;
@@ -237,8 +305,18 @@ describe('job needs, deadlines and declining', () => {
     const k = key({ id: 3, stage: 'queued', needs: ['OS'], missing: [], declinable: true });
     const s = snap({
       tray: [k],
-      os: { spec: 'os1', tier: 1, name: 'Mini OS', deviceId: 'd', slot: 'sata0', programSlots: 1, queueSlots: 2, up: true, runningKeyId: null,
-        queue: [{ slot: 0, keyId: 3, label: '#3 log', state: 'queued', ahead: 0 }] } as unknown as Snapshot['os'],
+      os: {
+        spec: 'os1',
+        tier: 1,
+        name: 'Mini OS',
+        deviceId: 'd',
+        slot: 'sata0',
+        programSlots: 1,
+        queueSlots: 2,
+        up: true,
+        runningKeyId: null,
+        queue: [{ slot: 0, keyId: 3, label: '#3 log', state: 'queued', ahead: 0 }],
+      } as unknown as Snapshot['os'],
     });
     const row = osSection(s)!.queue[0]!;
     expect(row.job).toMatchObject({ id: 3, declinable: true, needs: ['OS'] });

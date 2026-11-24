@@ -6,7 +6,20 @@
 import type { WebGLRenderer } from 'three';
 import type { OutsideView } from '@/features/room/render/three/outside/view';
 import { CHOICES, effective, tierRecord } from '../graphics';
-import { backToAuto, lightsNow, overridden, nextLights, postOn, SCALES, setLights, setPost, setRootHidden, setScale, setShadowsOn, shadowsOn } from './controls';
+import {
+  backToAuto,
+  lightsNow,
+  overridden,
+  nextLights,
+  postOn,
+  SCALES,
+  setLights,
+  setPost,
+  setRootHidden,
+  setScale,
+  setShadowsOn,
+  shadowsOn,
+} from './controls';
 import { debugLayer, debugStats } from './city-layers';
 import { DrawnFrames, statsText, viewportOf, type StatsSnapshot } from './stats';
 
@@ -15,8 +28,17 @@ export type HideRoot = { visible: boolean };
 
 /** The city's layer toggles: the layer's key (`debugLayer`, `city-layers.ts`) and its button's label. Each is its own button; lit when the layer is off. */
 export const CITY_LAYERS: readonly (readonly [string, string])[] = [
-  ['lights', 'No city lights'], ['buildings', 'No buildings'], ['trees', 'No trees'], ['streets', 'No streets'], ['freeze', 'Freeze city'], ['cars', 'No cars'],
-  ['sky', 'No city sky'], ['glow', 'No glow'], ['steam', 'No steam'], ['mirror', 'No mirror'], ['flat', 'City 1x'],
+  ['lights', 'No city lights'],
+  ['buildings', 'No buildings'],
+  ['trees', 'No trees'],
+  ['streets', 'No streets'],
+  ['freeze', 'Freeze city'],
+  ['cars', 'No cars'],
+  ['sky', 'No city sky'],
+  ['glow', 'No glow'],
+  ['steam', 'No steam'],
+  ['mirror', 'No mirror'],
+  ['flat', 'City 1x'],
 ];
 
 /** The readout is redrawn this often (ms). */
@@ -30,14 +52,21 @@ const SHOW_MS = 250;
 export const PANEL_MAX_WIDTH = 'calc(50vw - 9.5rem)';
 
 // tap targets: 3rem is 44px or more at the smallest root font (15px, ui.css)
-const BTN = 'min-width:3rem;min-height:3rem;padding:0 0.5rem;margin:0.15rem;font:inherit;color:#fff;background:#223;border:1px solid #889;border-radius:0.25rem;';
+const BTN =
+  'min-width:3rem;min-height:3rem;padding:0 0.5rem;margin:0.15rem;font:inherit;color:#fff;background:#223;border:1px solid #889;border-radius:0.25rem;';
 const ON = 'background:#3a7d44;';
 
 /**
  * `roots`: the city's and the machine's roots, now (the machine's changes when it is rebuilt). Without it the hides have nothing to hide.
  */
-export function mountDebug({ renderer, canvas, roots }: {
-  renderer: WebGLRenderer; canvas: HTMLCanvasElement; roots?: () => { city: HideRoot | null; machine: HideRoot | null; layers?: OutsideView | null };
+export function mountDebug({
+  renderer,
+  canvas,
+  roots,
+}: {
+  renderer: WebGLRenderer;
+  canvas: HTMLCanvasElement;
+  roots?: () => { city: HideRoot | null; machine: HideRoot | null; layers?: OutsideView | null };
 }): void {
   // the city's layers that are off, and the city they were last applied to. Not saved.
   const layerOff = new Set<string>();
@@ -52,8 +81,9 @@ export function mountDebug({ renderer, canvas, roots }: {
   let drawCalls = 0;
 
   const panel = document.createElement('div');
-  panel.style.cssText = `position:fixed;top:4.5rem;left:0.25rem;z-index:10000;box-sizing:border-box;max-width:${PANEL_MAX_WIDTH};padding:0.4rem;border-radius:0.4rem;`
-    + 'background:rgba(0,0,0,0.6);color:#fff;font:0.8rem/1.35 ui-monospace,Menlo,Consolas,monospace;touch-action:manipulation;';
+  panel.style.cssText =
+    `position:fixed;top:4.5rem;left:0.25rem;z-index:10000;box-sizing:border-box;max-width:${PANEL_MAX_WIDTH};padding:0.4rem;border-radius:0.4rem;` +
+    'background:rgba(0,0,0,0.6);color:#fff;font:0.8rem/1.35 ui-monospace,Menlo,Consolas,monospace;touch-action:manipulation;';
   const readout = document.createElement('pre');
   readout.style.cssText = 'margin:0 0 0.25rem;font:inherit;white-space:pre;';
   panel.append(readout);
@@ -67,15 +97,47 @@ export function mountDebug({ renderer, canvas, roots }: {
     return b;
   };
 
-  const postBtn = button('Post', () => { setPost(!postOn(effective.peek())); show(); });
-  const scaleBtns = SCALES.map((v) => button(String(v), () => { setScale(v); show(); }));
-  const shadowBtn = button('Shadows', () => { setShadowsOn(!shadowsOn(effective.peek())); show(); });
-  const lightsBtn = button('Lights', () => { setLights(nextLights(lightsNow())); show(); });
-  const cityBtn = button('Hide city', () => { hideRoot('city'); show(); });
-  const machineBtn = button('Hide machine', () => { hideRoot('machine'); show(); });
-  const layerBtns = CITY_LAYERS.map(([k, label]) => button(label, () => { toggleLayer(k); show(); }));
-  const autoBtn = button('Auto', () => { backToAuto(); showRoots(); layersOn(); show(); });
-  const copyBtn = button('Copy', () => { void copy(); });
+  const postBtn = button('Post', () => {
+    setPost(!postOn(effective.peek()));
+    show();
+  });
+  const scaleBtns = SCALES.map((v) =>
+    button(String(v), () => {
+      setScale(v);
+      show();
+    }),
+  );
+  const shadowBtn = button('Shadows', () => {
+    setShadowsOn(!shadowsOn(effective.peek()));
+    show();
+  });
+  const lightsBtn = button('Lights', () => {
+    setLights(nextLights(lightsNow()));
+    show();
+  });
+  const cityBtn = button('Hide city', () => {
+    hideRoot('city');
+    show();
+  });
+  const machineBtn = button('Hide machine', () => {
+    hideRoot('machine');
+    show();
+  });
+  const layerBtns = CITY_LAYERS.map(([k, label]) =>
+    button(label, () => {
+      toggleLayer(k);
+      show();
+    }),
+  );
+  const autoBtn = button('Auto', () => {
+    backToAuto();
+    showRoots();
+    layersOn();
+    show();
+  });
+  const copyBtn = button('Copy', () => {
+    void copy();
+  });
   const controls = document.createElement('div');
   controls.append(postBtn, ...scaleBtns, shadowBtn, lightsBtn, cityBtn, ...layerBtns, machineBtn, autoBtn, copyBtn);
   panel.append(controls);
@@ -83,7 +145,8 @@ export function mountDebug({ renderer, canvas, roots }: {
   /** Flips one city layer and applies it to the city now (a city not built yet gets it when it is: `syncHides`). */
   const toggleLayer = (k: string) => {
     const off = !layerOff.has(k);
-    if (off) layerOff.add(k); else layerOff.delete(k);
+    if (off) layerOff.add(k);
+    else layerOff.delete(k);
     const now = roots?.().layers ?? null;
     if (now) debugLayer(now, k, off);
     layersAt = now;
@@ -133,20 +196,34 @@ export function mountDebug({ renderer, canvas, roots }: {
   panel.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
 
   const snap = (): StatsSnapshot => {
-    const g = effective.peek(), t = tierRecord.peek();
+    const g = effective.peek(),
+      t = tierRecord.peek();
     const v = roots?.().layers;
     const city = v ? debugStats(v) : null;
     return {
       ...(city ? { cityTris: city.tris, cityCalls: city.calls } : {}),
-      fps: drawn.fps(), avgMs: drawn.avg(), p95Ms: drawn.p95(), tier: t.tier, reason: t.reason, mode: t.mode,
-      dpr: window.devicePixelRatio || 1, ratio: renderer.getPixelRatio(), w: canvas.width, h: canvas.height,
-      calls: drawCalls, scale: g.scale, post: postOn(g),
-      shadows: g.shadows, lights: lightsNow(), ...viewportOf(window, window.screen ?? {}),
+      fps: drawn.fps(),
+      avgMs: drawn.avg(),
+      p95Ms: drawn.p95(),
+      tier: t.tier,
+      reason: t.reason,
+      mode: t.mode,
+      dpr: window.devicePixelRatio || 1,
+      ratio: renderer.getPixelRatio(),
+      w: canvas.width,
+      h: canvas.height,
+      calls: drawCalls,
+      scale: g.scale,
+      post: postOn(g),
+      shadows: g.shadows,
+      lights: lightsNow(),
+      ...viewportOf(window, window.screen ?? {}),
     };
   };
 
   const show = () => {
-    const s = snap(), g = effective.peek();
+    const s = snap(),
+      g = effective.peek();
     readout.textContent = statsText(s);
     postBtn.textContent = `Post ${s.post ? 'on' : 'off'}`;
     postBtn.style.cssText = BTN + (s.post ? ON : '');
@@ -161,7 +238,9 @@ export function mountDebug({ renderer, canvas, roots }: {
     lightsBtn.textContent = `Lights ${CHOICES.lights.find(([v]) => v === s.lights)?.[1] ?? s.lights}`;
     cityBtn.style.cssText = BTN + (hide.city ? ON : '');
     machineBtn.style.cssText = BTN + (hide.machine ? ON : '');
-    CITY_LAYERS.forEach(([k], i) => { layerBtns[i]!.style.cssText = BTN + (layerOff.has(k) ? ON : ''); });
+    CITY_LAYERS.forEach(([k], i) => {
+      layerBtns[i]!.style.cssText = BTN + (layerOff.has(k) ? ON : '');
+    });
     autoBtn.style.cssText = BTN + (tierRecord.peek().mode === 'auto' && !overridden() ? ON : '');
   };
 
@@ -171,18 +250,26 @@ export function mountDebug({ renderer, canvas, roots }: {
     try {
       await navigator.clipboard.writeText(text);
       done = true;
-    } catch { /* no clipboard API here: the fallback below */ }
+    } catch {
+      /* no clipboard API here: the fallback below */
+    }
     if (!done) {
       const ta = document.createElement('textarea');
       ta.value = text;
       ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
       document.body.append(ta);
       ta.select();
-      try { done = document.execCommand('copy'); } catch { /* not copied */ }
+      try {
+        done = document.execCommand('copy');
+      } catch {
+        /* not copied */
+      }
       ta.remove();
     }
     copyBtn.textContent = done ? 'Copied' : 'Copy';
-    setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1000);
+    setTimeout(() => {
+      copyBtn.textContent = 'Copy';
+    }, 1000);
   };
 
   document.body.append(panel);
@@ -195,7 +282,10 @@ export function mountDebug({ renderer, canvas, roots }: {
     drawn.tick(now, n);
     if (n > 0) drawCalls = n;
     syncHides();
-    if (now - lastShow >= SHOW_MS) { lastShow = now; show(); }
+    if (now - lastShow >= SHOW_MS) {
+      lastShow = now;
+      show();
+    }
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);

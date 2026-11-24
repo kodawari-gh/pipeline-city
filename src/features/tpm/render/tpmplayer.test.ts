@@ -3,10 +3,42 @@ import type { TpmLogEntry, TpmView } from '../sim/tpm';
 import { TpmCmd, TpmFault } from '@/core/sim/memmap';
 import { liveShow, REPLAY_HOP_MS, REPLAY_QUEUE, replayLength, replayShow, replayWorkMs, TpmPlayer } from './tpmplayer';
 
-const entry = (seq: number, o: Partial<TpmLogEntry> = {}): TpmLogEntry => ({ seq, cmd: TpmCmd.Measure, arg0: 0x1000, arg1: 8, result: 0xabcd1234, fault: 0, ticks: 32, ...o });
+const entry = (seq: number, o: Partial<TpmLogEntry> = {}): TpmLogEntry => ({
+  seq,
+  cmd: TpmCmd.Measure,
+  arg0: 0x1000,
+  arg1: 8,
+  result: 0xabcd1234,
+  fault: 0,
+  ticks: 32,
+  ...o,
+});
 const view = (o: Partial<TpmView> = {}): TpmView => ({
-  phase: 'idle', cmd: 0, arg0: 0, arg1: 0, result: 0, fault: 0, busy: false, error: false, done: false, wait: 0, span: 0, range: null, hashed: 0, partial: 0,
-  sealed: [], log: [], commands: 0, measuredWords: 0, guardedAccesses: 0, lastViolation: -1, measureTicks: 4, attestTicks: 60, surcharge: 2, ramBytes: 16384, ...o,
+  phase: 'idle',
+  cmd: 0,
+  arg0: 0,
+  arg1: 0,
+  result: 0,
+  fault: 0,
+  busy: false,
+  error: false,
+  done: false,
+  wait: 0,
+  span: 0,
+  range: null,
+  hashed: 0,
+  partial: 0,
+  sealed: [],
+  log: [],
+  commands: 0,
+  measuredWords: 0,
+  guardedAccesses: 0,
+  lastViolation: -1,
+  measureTicks: 4,
+  attestTicks: 60,
+  surcharge: 2,
+  ramBytes: 16384,
+  ...o,
 });
 
 describe('liveShow', () => {
@@ -19,17 +51,30 @@ describe('liveShow', () => {
 
 describe('replayShow', () => {
   it('walks in, work, out; the answer shows only at the end, a measure counts its words through the work', () => {
-    const e = entry(1), w = replayWorkMs(e.ticks), v = view();
+    const e = entry(1),
+      w = replayWorkMs(e.ticks),
+      v = view();
     expect(replayShow(e, v, 10, 0)).toMatchObject({ phase: 'in', result: 0, hashed: 0, replay: true });
     const mid = replayShow(e, v, REPLAY_HOP_MS + w / 2, 0);
     expect(mid).toMatchObject({ phase: 'work', result: 0, partial: 0 });
     expect(mid.hashed).toBe(4);
-    expect(replayShow(e, v, REPLAY_HOP_MS + w + 10, 0)).toMatchObject({ phase: 'out', result: e.result, hashed: 8, done: true, error: false });
+    expect(replayShow(e, v, REPLAY_HOP_MS + w + 10, 0)).toMatchObject({
+      phase: 'out',
+      result: e.result,
+      hashed: 8,
+      done: true,
+      error: false,
+    });
   });
   it('a refused command has no work phase and ends in its fault', () => {
     const e = entry(1, { ticks: 0, fault: TpmFault.BadRange });
     expect(replayLength(e)).toBe(2 * REPLAY_HOP_MS);
-    expect(replayShow(e, view(), REPLAY_HOP_MS + 1, 0)).toMatchObject({ phase: 'out', fault: TpmFault.BadRange, error: true, done: false });
+    expect(replayShow(e, view(), REPLAY_HOP_MS + 1, 0)).toMatchObject({
+      phase: 'out',
+      fault: TpmFault.BadRange,
+      error: true,
+      done: false,
+    });
   });
 });
 
@@ -39,7 +84,9 @@ describe('TpmPlayer', () => {
     p.feed(view({ log: [entry(1)] }));
     p.advance(100);
     expect(p.replaying).toBe(false);
-    p.feed(view({ log: [entry(1), entry(2, { cmd: TpmCmd.Seal, ticks: 10 }), entry(3, { cmd: TpmCmd.Attest, ticks: 60 })] }));
+    p.feed(
+      view({ log: [entry(1), entry(2, { cmd: TpmCmd.Seal, ticks: 10 }), entry(3, { cmd: TpmCmd.Attest, ticks: 60 })] }),
+    );
     p.advance(10);
     expect(p.replaying).toBe(true);
     expect(p.show(0)!.cmd).toBe(TpmCmd.Seal);
@@ -68,7 +115,13 @@ describe('TpmPlayer', () => {
     p.feed(view({ log: [entry(1)] }));
     p.feed(view({ log: [1, 2, 3, 4, 5, 6].map((n) => entry(n)) }));
     let n = 0;
-    for (let k = 0; k < 10; k++) { p.advance(1); if (p.replaying) { n++; p.advance(10_000); } }
+    for (let k = 0; k < 10; k++) {
+      p.advance(1);
+      if (p.replaying) {
+        n++;
+        p.advance(10_000);
+      }
+    }
     expect(n).toBe(REPLAY_QUEUE);
     p.feed(undefined);
     expect(p.show(0)).toBeNull();

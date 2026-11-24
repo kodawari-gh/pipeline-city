@@ -5,13 +5,23 @@
 import { ShaderChunk, Vector3, type Material, type WebGLProgramParametersWithUniforms } from 'three';
 
 /** The box and the probe's point (world), shared by all the materials it patches; `on` is 0 until the probe holds the room. */
-export interface BoxEnv { min: { value: Vector3 }; max: { value: Vector3 }; at: { value: Vector3 }; on: { value: number } }
-
-export function boxEnv(min: readonly number[], max: readonly number[], at: readonly number[]): BoxEnv {
-  return { min: { value: new Vector3(...min) }, max: { value: new Vector3(...max) }, at: { value: new Vector3(...at) }, on: { value: 0 } };
+export interface BoxEnv {
+  min: { value: Vector3 };
+  max: { value: Vector3 };
+  at: { value: Vector3 };
+  on: { value: number };
 }
 
-const PARS = /* glsl */`
+export function boxEnv(min: readonly number[], max: readonly number[], at: readonly number[]): BoxEnv {
+  return {
+    min: { value: new Vector3(...min) },
+    max: { value: new Vector3(...max) },
+    at: { value: new Vector3(...at) },
+    on: { value: 0 },
+  };
+}
+
+const PARS = /* glsl */ `
 uniform vec3 boxMin, boxMax, boxAt;
 uniform float boxOn;
 varying vec3 vBoxPos;
@@ -44,7 +54,8 @@ const hasBox = (m: Material): boolean => patched.has(m) || m.customProgramCacheK
 export function boxProjected(m: Material, box: BoxEnv): void {
   if (hasBox(m)) return;
   patched.add(m);
-  const prev = m.onBeforeCompile.bind(m), key = m.customProgramCacheKey() + '|box';
+  const prev = m.onBeforeCompile.bind(m),
+    key = m.customProgramCacheKey() + '|box';
   m.onBeforeCompile = (sh: WebGLProgramParametersWithUniforms, r) => {
     prev(sh, r);
     Object.assign(sh.uniforms, { boxMin: box.min, boxMax: box.max, boxAt: box.at, boxOn: box.on });

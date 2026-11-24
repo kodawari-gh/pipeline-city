@@ -5,9 +5,11 @@ import { HAZE_FN, type HazeUniforms } from './haze';
 import { rng, topOf, type Building } from './plan';
 
 /** The share of the buildings with a plume, and the heights they stand between (m). */
-const SHARE = 0.05, LOW = 22, HIGH = 240;
+const SHARE = 0.05,
+  LOW = 22,
+  HIGH = 240;
 
-const VERT = /* glsl */`
+const VERT = /* glsl */ `
 attribute vec4 plume;
 attribute float seed;
 varying vec2 vP;
@@ -22,7 +24,7 @@ void main() {
   gl_Position = projectionMatrix * viewMatrix * vec4(vW, 1.0);
 }`;
 
-const FRAG = /* glsl */`
+const FRAG = /* glsl */ `
 uniform vec3 stCol, stLow;
 uniform float stTime;
 varying vec2 vP;
@@ -41,27 +43,53 @@ void main() {
  * The plumes' colours, set with the hour: high up, and low down where the streets light them at night. `time`: the plumes' own clock (s), set
  * each frame by the view (`view.ts`, frozen at Low); the haze's clock stays with the mist, so the plumes can stand still without it.
  */
-export interface SteamUniforms { stCol: { value: Color }; stLow: { value: Color }; time: { value: number } }
+export interface SteamUniforms {
+  stCol: { value: Color };
+  stLow: { value: Color };
+  time: { value: number };
+}
 
 /** The plumes' uniforms, all at zero, for a view with no plumes in it. */
-export const steamUniforms = (): SteamUniforms => ({ stCol: { value: new Color() }, stLow: { value: new Color() }, time: { value: 0 } });
+export const steamUniforms = (): SteamUniforms => ({
+  stCol: { value: new Color() },
+  stLow: { value: new Color() },
+  time: { value: 0 },
+});
 
 /** The plumes over these buildings, in one mesh. */
 export function roofSteam(all: readonly Building[], haze: HazeUniforms): { mesh: Mesh; u: SteamUniforms } {
-  const plumes: number[] = [], seeds: number[] = [];
+  const plumes: number[] = [],
+    seeds: number[] = [];
   for (const b of all) {
-    const r = rng(b.seed ^ 0x57ea), t = b.tiers[b.tiers.length - 1]!, h = topOf(b);
+    const r = rng(b.seed ^ 0x57ea),
+      t = b.tiers[b.tiers.length - 1]!,
+      h = topOf(b);
     if (r() > SHARE || h < LOW || h > HIGH || b.crown === 'spire' || b.crown === 'lantern') continue;
-    plumes.push(t.x0 + (t.x1 - t.x0) * (0.25 + 0.5 * r()), h, t.z0 + (t.z1 - t.z0) * (0.25 + 0.5 * r()), 14 + 18 * r() + h * 0.04);
+    plumes.push(
+      t.x0 + (t.x1 - t.x0) * (0.25 + 0.5 * r()),
+      h,
+      t.z0 + (t.z1 - t.z0) * (0.25 + 0.5 * r()),
+      14 + 18 * r() + h * 0.04,
+    );
     seeds.push(r() * 100);
   }
-  const quad = new PlaneGeometry(1, 1).translate(0, 0.5, 0), g = new InstancedBufferGeometry().copy(quad as unknown as InstancedBufferGeometry);
+  const quad = new PlaneGeometry(1, 1).translate(0, 0.5, 0),
+    g = new InstancedBufferGeometry().copy(quad as unknown as InstancedBufferGeometry);
   quad.dispose();
   g.setAttribute('plume', new InstancedBufferAttribute(new Float32Array(plumes), 4));
   g.setAttribute('seed', new InstancedBufferAttribute(new Float32Array(seeds), 1));
   g.instanceCount = seeds.length;
   const u = steamUniforms();
-  const mesh = new Mesh(g, new ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, uniforms: { ...haze, stCol: u.stCol, stLow: u.stLow, stTime: u.time }, transparent: true, depthWrite: false }));
+  const mesh = new Mesh(
+    g,
+    new ShaderMaterial({
+      vertexShader: VERT,
+      fragmentShader: FRAG,
+      uniforms: { ...haze, stCol: u.stCol, stLow: u.stLow, stTime: u.time },
+      transparent: true,
+      depthWrite: false,
+    }),
+  );
   mesh.frustumCulled = false;
   return { mesh, u };
 }

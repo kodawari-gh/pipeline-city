@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { airflowLens, networkLens, powerLens } from './hover';
 
 describe('the lenses', () => {
-  afterEach(() => { powerLens.value = false; airflowLens.value = false; networkLens.value = false; });
+  afterEach(() => {
+    powerLens.value = false;
+    airflowLens.value = false;
+    networkLens.value = false;
+  });
 
   it('share the screen: turning one on turns the others off', () => {
     powerLens.value = true;

@@ -7,18 +7,29 @@ export type Pt = [number, number];
 export type Side = 'n' | 's' | 'e' | 'w';
 
 // ---- the CPU package's pins: three rows round its edge (see `cpuArt` in devices.ts), 20 apart, the outer row 24 inside the edge ----
-export const PKG_PIN = 20, PKG_ROW = 24;
+export const PKG_PIN = 20,
+  PKG_ROW = 24;
 /** `n` pads of one of the package's pin rows (`row` 0 the outer one) on one side, `step` pins apart, centred on `at` (a y for the east and west sides, an x for north and south). */
 export function pkgPads(pkg: Rect, side: Side, at: number, n: number, step = 1, row = 0): Pt[] {
-  const across = side === 'n' || side === 's', base = (across ? pkg.x : pkg.y) + 70, last = Math.floor(((across ? pkg.w : pkg.h) - 140) / PKG_PIN);
-  const first = Math.max(0, Math.min(last - (n - 1) * step, Math.round((at - ((n - 1) * step * PKG_PIN) / 2 - base) / PKG_PIN))), inset = PKG_ROW + row * PKG_PIN;
+  const across = side === 'n' || side === 's',
+    base = (across ? pkg.x : pkg.y) + 70,
+    last = Math.floor(((across ? pkg.w : pkg.h) - 140) / PKG_PIN);
+  const first = Math.max(
+      0,
+      Math.min(last - (n - 1) * step, Math.round((at - ((n - 1) * step * PKG_PIN) / 2 - base) / PKG_PIN)),
+    ),
+    inset = PKG_ROW + row * PKG_PIN;
   return Array.from({ length: n }, (_, i) => {
     const c = base + PKG_PIN * (first + i * step);
     switch (side) {
-      case 'e': return [pkg.x + pkg.w - inset, c] as Pt;
-      case 'w': return [pkg.x + inset, c] as Pt;
-      case 'n': return [c, pkg.y + inset] as Pt;
-      default: return [c, pkg.y + pkg.h - inset] as Pt;
+      case 'e':
+        return [pkg.x + pkg.w - inset, c] as Pt;
+      case 'w':
+        return [pkg.x + inset, c] as Pt;
+      case 'n':
+        return [c, pkg.y + inset] as Pt;
+      default:
+        return [c, pkg.y + pkg.h - inset] as Pt;
     }
   });
 }
@@ -33,15 +44,23 @@ export const legCount = (len: number, pitch = LEG_PITCH) => Math.max(1, Math.flo
 export function legAt(r: Rect, side: Side, i: number, n: number, pitch = LEG_PITCH): Pt {
   const t = (i - (n - 1) / 2) * pitch;
   switch (side) {
-    case 'n': return [r.x + r.w / 2 + t, r.y - LEG_OUT];
-    case 's': return [r.x + r.w / 2 + t, r.y + r.h + LEG_OUT];
-    case 'w': return [r.x - LEG_OUT, r.y + r.h / 2 + t];
-    default: return [r.x + r.w + LEG_OUT, r.y + r.h / 2 + t];
+    case 'n':
+      return [r.x + r.w / 2 + t, r.y - LEG_OUT];
+    case 's':
+      return [r.x + r.w / 2 + t, r.y + r.h + LEG_OUT];
+    case 'w':
+      return [r.x - LEG_OUT, r.y + r.h / 2 + t];
+    default:
+      return [r.x + r.w + LEG_OUT, r.y + r.h / 2 + t];
   }
 }
 /** Every leg of a side. */
-export const legsOf = (r: Rect, side: Side, n = legCount(side === 'n' || side === 's' ? r.w : r.h), pitch = LEG_PITCH): Pt[] =>
-  Array.from({ length: n }, (_, i) => legAt(r, side, i, n, pitch));
+export const legsOf = (
+  r: Rect,
+  side: Side,
+  n = legCount(side === 'n' || side === 's' ? r.w : r.h),
+  pitch = LEG_PITCH,
+): Pt[] => Array.from({ length: n }, (_, i) => legAt(r, side, i, n, pitch));
 /** `k` consecutive legs of a side from leg index `first`. */
 export const legsFrom = (r: Rect, side: Side, first: number, k: number, pitch = LEG_PITCH): Pt[] => {
   const n = legCount(side === 'n' || side === 's' ? r.w : r.h, pitch);
@@ -74,7 +93,10 @@ export const pciePadMax = (r: Rect) => Math.floor((r.w - 120) / PCIE_PAD);
 /** `n` pads on the top (`side` 'n') or bottom ('s') edge, ending at the slot's latch end (or `back` pads before it). */
 export function pciePads(r: Rect, n: number, side: 'n' | 's', back = 0): Pt[] {
   const last = pciePadMax(r) - back;
-  return Array.from({ length: n }, (_, j) => [pciePadX(r, last - (n - 1) + j) + (side === 's' ? 20 : 0), side === 'n' ? r.y : r.y + r.h] as Pt);
+  return Array.from(
+    { length: n },
+    (_, j) => [pciePadX(r, last - (n - 1) + j) + (side === 's' ? 20 : 0), side === 'n' ? r.y : r.y + r.h] as Pt,
+  );
 }
 
 /**
@@ -82,8 +104,15 @@ export function pciePads(r: Rect, n: number, side: 'n' | 's', back = 0): Pt[] {
  * other direction) run on under the slot and come back onto the far side's pads from outside, `dx` along.
  */
 export function slotLanding(r: Rect, n: number, near: 'n' | 's'): { x: number; pad: Pt; far: boolean; dx: number }[] {
-  const a = pciePads(r, n / 2, near), b = pciePads(r, n / 2, near === 'n' ? 's' : 'n'), dx = near === 'n' ? 40 : -40;
-  return a.flatMap((p, j) => [{ x: p[0], pad: p, far: false, dx: 0 }, { x: b[j]![0] - dx, pad: b[j]!, far: true, dx }]).sort((p, q) => p.x - q.x);
+  const a = pciePads(r, n / 2, near),
+    b = pciePads(r, n / 2, near === 'n' ? 's' : 'n'),
+    dx = near === 'n' ? 40 : -40;
+  return a
+    .flatMap((p, j) => [
+      { x: p[0], pad: p, far: false, dx: 0 },
+      { x: b[j]![0] - dx, pad: b[j]!, far: true, dx },
+    ])
+    .sort((p, q) => p.x - q.x);
 }
 
 // ---- M.2 2280 slots: the 3.3 V tie at the west edge, then the socket (24 mm across), then the stick (80 x 22 mm) from its fingers in the
@@ -92,42 +121,67 @@ export function slotLanding(r: Rect, n: number, near: 'n' | 's'): { x: number; p
 /** The stick's length and width (80 x 22 mm), and where its fingers start, from the slot's west edge. */
 export const M2_STICK = { len: 80 * 23, w: 22 * 23, at: 118 } as const;
 /** A slot's size: the tie, the socket and the stick, and the standoff's head past its end. */
-export const M2_W = M2_STICK.at + M2_STICK.len + 40, M2_H = 560;
+export const M2_W = M2_STICK.at + M2_STICK.len + 40,
+  M2_H = 560;
 /** The socket's housing. */
 export const m2Socket = (m: Rect): Rect => ({ x: m.x + 60, y: m.y + 2, w: 120, h: m.h - 4 });
 /** A fitted stick's PCB, fingers to notch. */
-export const m2Stick = (m: Rect): Rect => ({ x: m.x + M2_STICK.at, y: m.y + (m.h - M2_STICK.w) / 2, w: M2_STICK.len, h: M2_STICK.w });
+export const m2Stick = (m: Rect): Rect => ({
+  x: m.x + M2_STICK.at,
+  y: m.y + (m.h - M2_STICK.w) / 2,
+  w: M2_STICK.len,
+  h: M2_STICK.w,
+});
 /** The standoff positions for 42, 60 and 80 mm sticks; the last is the one fitted (a 2280 stick screws to it through its notch). */
-export const m2Standoffs = (m: Rect): Pt[] => [42, 60, 80].map((mm) => [m.x + M2_STICK.at + mm * 23, m.y + m.h / 2] as Pt);
-export const M2_PITCH = 22, M2_CONTACTS = 9;
+export const m2Standoffs = (m: Rect): Pt[] =>
+  [42, 60, 80].map((mm) => [m.x + M2_STICK.at + mm * 23, m.y + m.h / 2] as Pt);
+export const M2_PITCH = 22,
+  M2_CONTACTS = 9;
 /** All nine contacts of a socket (x is where the pad sits, just inside the housing's west edge). */
 export function m2Contacts(m: Rect): Pt[] {
-  return Array.from({ length: M2_CONTACTS }, (_, k) => [m.x + 92, m.y + m.h / 2 + (k - (M2_CONTACTS - 1) / 2) * M2_PITCH] as Pt);
+  return Array.from(
+    { length: M2_CONTACTS },
+    (_, k) => [m.x + 92, m.y + m.h / 2 + (k - (M2_CONTACTS - 1) / 2) * M2_PITCH] as Pt,
+  );
 }
 export const m2Pads = (m: Rect): Pt[] => m2Contacts(m).slice(3, 6);
 
-
 // ---- SATA ports: three signal pads on the west edge, 26 apart ----
-export const SATA_LANES = 3, SATA_PAD = 26;
-export const sataPads = (p: Rect): Pt[] => Array.from({ length: SATA_LANES }, (_, k) => [p.x + 8, p.y + p.h / 2 + (k - 1) * SATA_PAD] as Pt);
+export const SATA_LANES = 3,
+  SATA_PAD = 26;
+export const sataPads = (p: Rect): Pt[] =>
+  Array.from({ length: SATA_LANES }, (_, k) => [p.x + 8, p.y + p.h / 2 + (k - 1) * SATA_PAD] as Pt);
 
 // ---- pin headers: pins on a 52 grid (see `header()` in boardParts.ts) ----
 export const HDR_PITCH = 52;
 /** Centre of the pin at column i, row j of a header at (x, y). */
-export const headerPin = (x: number, y: number, i: number, j: number): Pt => [x + 12 + i * HDR_PITCH + 24, y + 12 + j * HDR_PITCH + 24];
+export const headerPin = (x: number, y: number, i: number, j: number): Pt => [
+  x + 12 + i * HDR_PITCH + 24,
+  y + 12 + j * HDR_PITCH + 24,
+];
 
 // ---- the CR2032 cell: two pads on its top arc (the chipset's RTC lanes), two on its side (the clear-CMOS jumper's) ----
 /** The point of the cell's rim `dx` right of its centre, on its top (`top`) or, for a side lane, at height `dy` off its centre on the west (`west`) or east side. */
-export const cellTop = (b: Rect, dx: number): Pt => [b.x + b.w / 2 + dx, b.y + b.h / 2 - Math.sqrt((b.w / 2) ** 2 - dx * dx) + 6];
-export const cellSide = (b: Rect, dy: number, west: boolean): Pt => [b.x + b.w / 2 + (west ? -1 : 1) * (Math.sqrt((b.w / 2) ** 2 - dy * dy) - 6), b.y + b.h / 2 + dy];
+export const cellTop = (b: Rect, dx: number): Pt => [
+  b.x + b.w / 2 + dx,
+  b.y + b.h / 2 - Math.sqrt((b.w / 2) ** 2 - dx * dx) + 6,
+];
+export const cellSide = (b: Rect, dy: number, west: boolean): Pt => [
+  b.x + b.w / 2 + (west ? -1 : 1) * (Math.sqrt((b.w / 2) ** 2 - dy * dy) - 6),
+  b.y + b.h / 2 + dy,
+];
 
 // ---- power ties, crystals ----
 /** Where a slot's supply ties into the board's plane: a patch of copper with vias east of its latch end (a short stub from the slot's tab runs to it: east for the slots after the first, down for the x16 slot, whose east side is the chipset's and the lanes'). */
-export const slotTie = (r: Rect, i: number): Rect => (i === 0 ? { x: r.x + r.w - 170, y: r.y + r.h + 70, w: 110, h: 48 } : { x: r.x + r.w + 50, y: r.y + r.h / 2 - 24, w: 110, h: 48 });
+export const slotTie = (r: Rect, i: number): Rect =>
+  i === 0
+    ? { x: r.x + r.w - 170, y: r.y + r.h + 70, w: 110, h: 48 }
+    : { x: r.x + r.w + 50, y: r.y + r.h / 2 - 24, w: 110, h: 48 };
 /** The same for an M.2 socket: a patch west of the housing's north end. */
 export const m2Tie = (m: Rect): Rect => ({ x: m.x + 4, y: m.y + 12, w: 48, h: 100 });
 /** The two pads of a crystal on its top (`'n'`) or bottom (`'s'`) edge, `2 * half` apart, centred. */
-export const xtalPads = (r: Rect, edge: 'n' | 's', half = 10): Pt[] => [-half, half].map((d) => [r.x + r.w / 2 + d, edge === 'n' ? r.y : r.y + r.h] as Pt);
+export const xtalPads = (r: Rect, edge: 'n' | 's', half = 10): Pt[] =>
+  [-half, half].map((d) => [r.x + r.w / 2 + d, edge === 'n' ? r.y : r.y + r.h] as Pt);
 
 // ---- power connectors ----
 /** The PCIe slot's power tab at its latch end (the 12 V feed of a slot). */
@@ -143,9 +197,18 @@ export function cpuPowerPins(r: Rect): Pt[] {
 export const atx12v = (r: Rect): Pt => [r.x + 75, r.y + 66];
 
 // ---- rear I/O: connectors on the west edge, mouths facing west ----
-export interface IoPort { id: string; kind: 'jack' | 'rj45' | 'hdmi' | 'dp' | 'usb'; x: number; y: number; w: number; h: number; tone?: string }
+export interface IoPort {
+  id: string;
+  kind: 'jack' | 'rj45' | 'hdmi' | 'dp' | 'usb';
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  tone?: string;
+}
 /** n pads, 26 apart, centred on a connector's row, just behind its rear (east) end, where its traces arrive. */
-export const ioPads = (p: IoPort, n: number): Pt[] => Array.from({ length: n }, (_, k) => [p.x + p.w + 2, p.y + (k - (n - 1) / 2) * 26] as Pt);
+export const ioPads = (p: IoPort, n: number): Pt[] =>
+  Array.from({ length: n }, (_, k) => [p.x + p.w + 2, p.y + (k - (n - 1) / 2) * 26] as Pt);
 
 // ---- VRM power stages: seven legs down the west side (see `powerStage` in boardParts.ts) ----
 /** The tip of west leg i of a power stage at (x, y), size s. */

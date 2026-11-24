@@ -23,16 +23,23 @@ export class PartFade {
         copy.set(m, c);
         // (the fade's start: a material another fade left half-way is not one this sees; `fadeTree` keeps the true start in `userData.base`)
         const base = m.userData.base as { opacity: number; transparent: boolean; depthWrite: boolean } | undefined;
-        this.copies.push({ m: c, opacity: base?.opacity ?? m.opacity, transparent: base?.transparent ?? m.transparent, depthWrite: base?.depthWrite ?? m.depthWrite });
+        this.copies.push({
+          m: c,
+          opacity: base?.opacity ?? m.opacity,
+          transparent: base?.transparent ?? m.transparent,
+          depthWrite: base?.depthWrite ?? m.depthWrite,
+        });
       }
       return c;
     };
-    for (const root of objs) root.traverse((x) => {
-      const o = x as Drawn, was = o.material;
-      if (!was) return;
-      this.meshes.push({ o, was });
-      o.material = Array.isArray(was) ? was.map(own) : own(was);
-    });
+    for (const root of objs)
+      root.traverse((x) => {
+        const o = x as Drawn,
+          was = o.material;
+        if (!was) return;
+        this.meshes.push({ o, was });
+        o.material = Array.isArray(was) ? was.map(own) : own(was);
+      });
   }
 
   /** How solid the part is drawn: 1 as it was, 0 not at all. A solid part keeps writing depth, so it reads as one body fading, not as its insides. */
@@ -40,7 +47,10 @@ export class PartFade {
     if (this.ended) return;
     for (const c of this.copies) {
       const tr = c.transparent || a < 0.999;
-      if (c.m.transparent !== tr) { c.m.transparent = tr; c.m.needsUpdate = true; }
+      if (c.m.transparent !== tr) {
+        c.m.transparent = tr;
+        c.m.needsUpdate = true;
+      }
       c.m.opacity = c.opacity * Math.max(0, Math.min(1, a));
       c.m.depthWrite = c.depthWrite;
     }
@@ -55,5 +65,7 @@ export class PartFade {
   }
 
   /** The meshes under the fade. */
-  get size(): number { return this.meshes.length; }
+  get size(): number {
+    return this.meshes.length;
+  }
 }

@@ -27,10 +27,44 @@ loop:
 
 const CONFIGS: { name: string; cfg: EngineConfig; plan: PlanInput }[] = [
   { name: 'unpipelined', cfg: { kind: 'unpipelined' }, plan: planInput({ kind: 'unpipelined' }) },
-  { name: 'inorder', cfg: { kind: 'inorder', forwarding: false }, plan: planInput({ kind: 'inorder', forwarding: false, cacheLines: 8 }) },
-  { name: 'inorder2 +caches', cfg: { kind: 'inorder2', forwarding: true, cacheLines: 16, icacheLines: 8, l2Lines: 32 }, plan: planInput({ kind: 'inorder2', forwarding: true, cacheLines: 16, icacheLines: 8, l2Lines: 32 }) },
-  { name: 'ooo', cfg: { kind: 'ooo', robSize: 8, commitWidth: 4, cacheLines: 16 }, plan: planInput({ kind: 'ooo', robSize: 8, commitWidth: 4, cacheLines: 16 }) },
-  { name: 'ooo wide', cfg: { kind: 'ooo', width: 4, robSize: 32, schedSize: 16, fetchQueue: 8, cacheLines: 64, icacheLines: 32, l2Lines: 128 }, plan: planInput({ kind: 'ooo', width: 4, robSize: 32, schedSize: 16, fetchQueue: 8, cacheLines: 64, icacheLines: 32, l2Lines: 128 }) },
+  {
+    name: 'inorder',
+    cfg: { kind: 'inorder', forwarding: false },
+    plan: planInput({ kind: 'inorder', forwarding: false, cacheLines: 8 }),
+  },
+  {
+    name: 'inorder2 +caches',
+    cfg: { kind: 'inorder2', forwarding: true, cacheLines: 16, icacheLines: 8, l2Lines: 32 },
+    plan: planInput({ kind: 'inorder2', forwarding: true, cacheLines: 16, icacheLines: 8, l2Lines: 32 }),
+  },
+  {
+    name: 'ooo',
+    cfg: { kind: 'ooo', robSize: 8, commitWidth: 4, cacheLines: 16 },
+    plan: planInput({ kind: 'ooo', robSize: 8, commitWidth: 4, cacheLines: 16 }),
+  },
+  {
+    name: 'ooo wide',
+    cfg: {
+      kind: 'ooo',
+      width: 4,
+      robSize: 32,
+      schedSize: 16,
+      fetchQueue: 8,
+      cacheLines: 64,
+      icacheLines: 32,
+      l2Lines: 128,
+    },
+    plan: planInput({
+      kind: 'ooo',
+      width: 4,
+      robSize: 32,
+      schedSize: 16,
+      fetchQueue: 8,
+      cacheLines: 64,
+      icacheLines: 32,
+      l2Lines: 128,
+    }),
+  },
 ];
 
 function trace(cfg: EngineConfig, cycles: number): TraceSnap {
@@ -51,9 +85,11 @@ describe.each(CONFIGS)('motion: $name', ({ cfg, plan: pi }) => {
     for (const r of tr.rows) {
       const op = r.text.split(' ')[0]!;
       for (let k = 0; k + 1 < tr.n; k++) {
-        const a = r.codes[k]!, b = r.codes[k + 1]!;
+        const a = r.codes[k]!,
+          b = r.codes[k + 1]!;
         if (a === ' ' || b === ' ' || a === 'x' || b === 'x' || a === b) continue;
-        const ha = H.host(a, 0, op, r.id), hb = H.host(b, 0, op, r.id);
+        const ha = H.host(a, 0, op, r.id),
+          hb = H.host(b, 0, op, r.id);
         expect(ha, `${a} host`).not.toBeNull();
         expect(hb, `${b} host`).not.toBeNull();
         const rt = routeBetween(plan, ha!.block.id, hb!.block.id);
@@ -69,12 +105,19 @@ describe.each(CONFIGS)('motion: $name', ({ cfg, plan: pi }) => {
     const p = new Player(plan);
     p.push(tr);
     const segs: [number, number, number, number][] = [];
-    for (const l of plan.links) for (let i = 1; i < l.pts.length; i++) segs.push([l.pts[i - 1]![0], l.pts[i - 1]![1], l.pts[i]![0], l.pts[i]![1]]);
-    const near = (x: number, y: number) => segs.some(([ax, ay, bx, by]) => {
-      const dx = bx - ax, dy = by - ay, t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
-      return Math.hypot(x - (ax + t * dx), y - (ay + t * dy)) < 0.5;
-    });
-    let now = 1000, seen = 0, off = 0;
+    for (const l of plan.links)
+      for (let i = 1; i < l.pts.length; i++)
+        segs.push([l.pts[i - 1]![0], l.pts[i - 1]![1], l.pts[i]![0], l.pts[i]![1]]);
+    const near = (x: number, y: number) =>
+      segs.some(([ax, ay, bx, by]) => {
+        const dx = bx - ax,
+          dy = by - ay,
+          t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
+        return Math.hypot(x - (ax + t * dx), y - (ay + t * dy)) < 0.5;
+      });
+    let now = 1000,
+      seen = 0,
+      off = 0;
     for (let f = 0; f < 600; f++) {
       now += 16;
       for (const c of p.update(now).chips) {
@@ -92,7 +135,8 @@ describe.each(CONFIGS)('motion: $name', ({ cfg, plan: pi }) => {
     p.push(tr);
     let now = 1000;
     let prev = new Map<string, { x: number; y: number }>();
-    let moved = 0, frames = 0;
+    let moved = 0,
+      frames = 0;
     for (let f = 0; f < 600; f++) {
       now += 16;
       const fr = p.update(now);
@@ -123,10 +167,14 @@ describe.each(CONFIGS)('motion: $name', ({ cfg, plan: pi }) => {
   it('plays CYCLES_PER_SEC cycles a second and ticks once per cycle', () => {
     const p = new Player(plan);
     p.push(tr);
-    let now = 5000, ticks = 0;
+    let now = 5000,
+      ticks = 0;
     p.update(now);
     const t0 = p.update(now + 1).tau;
-    for (let i = 0; i < 60; i++) { now += 1000 / 60; if (p.update(now).tick) ticks++; }
+    for (let i = 0; i < 60; i++) {
+      now += 1000 / 60;
+      if (p.update(now).tick) ticks++;
+    }
     const dt = p.update(now + 1).tau - t0;
     expect(dt).toBeGreaterThan(CYCLES_PER_SEC * 0.9);
     expect(dt).toBeLessThan(CYCLES_PER_SEC * 1.2);
@@ -139,7 +187,12 @@ describe.each(CONFIGS)('motion: $name', ({ cfg, plan: pi }) => {
       const p = new Player(plan);
       p.push(tr);
       const out: string[] = [];
-      for (let f = 1; f <= 200; f++) out.push(JSON.stringify(p.update(f * 16).chips.map((c) => [c.key, Math.round(c.x), Math.round(c.y), c.alpha.toFixed(2)])));
+      for (let f = 1; f <= 200; f++)
+        out.push(
+          JSON.stringify(
+            p.update(f * 16).chips.map((c) => [c.key, Math.round(c.x), Math.round(c.y), c.alpha.toFixed(2)]),
+          ),
+        );
       return out.join('|');
     };
     expect(run()).toBe(run());
@@ -167,31 +220,39 @@ describe.each(CONFIGS)('motion: $name', ({ cfg, plan: pi }) => {
 
 describe('the window handover', () => {
   const plan = cpuPlan(CONFIGS[1]!.plan);
-  const a = trace(CONFIGS[1]!.cfg, 100), b = trace(CONFIGS[1]!.cfg, 160);
+  const a = trace(CONFIGS[1]!.cfg, 100),
+    b = trace(CONFIGS[1]!.cfg, 160);
 
   it('waits for the window to finish, then starts the newest with the old one fading', () => {
     const p = new Player(plan);
     p.push(a);
     let now = 0;
-    p.update(now += 16);
+    p.update((now += 16));
     p.push(b); // arrives while the first still plays
-    const w0 = p.update(now += 16).window;
-    let fading = 0, w1 = w0;
-    for (let f = 0; f < 600 && w1 === w0; f++) { const fr = p.update(now += 16); w1 = fr.window; if (fr.fading.length) fading++; }
+    const w0 = p.update((now += 16)).window;
+    let fading = 0,
+      w1 = w0;
+    for (let f = 0; f < 600 && w1 === w0; f++) {
+      const fr = p.update((now += 16));
+      w1 = fr.window;
+      if (fr.fading.length) fading++;
+    }
     expect(w1).not.toBe(w0);
     // after the switch the old window fades for about half a second
-    for (let f = 0; f < 20; f++) { if (p.update(now += 16).fading.length) fading++; }
+    for (let f = 0; f < 20; f++) {
+      if (p.update((now += 16)).fading.length) fading++;
+    }
     expect(fading).toBeGreaterThan(5);
     // the new window starts at its first cycle
-    expect(p.update(now += 16).tau).toBeLessThan(CYCLES_PER_SEC);
+    expect(p.update((now += 16)).tau).toBeLessThan(CYCLES_PER_SEC);
   });
 
   it('with nothing newer it holds the last frame instead of looping', () => {
     const p = new Player(plan);
     p.push(a);
     let now = 0;
-    let fr = p.update(now += 16);
-    for (let f = 0; f < 1200; f++) fr = p.update(now += 16);
+    let fr = p.update((now += 16));
+    for (let f = 0; f < 1200; f++) fr = p.update((now += 16));
     expect(fr.window).toBe(1);
     expect(fr.tau).toBeLessThan(a.n + 1);
   });
@@ -206,8 +267,12 @@ describe('the window handover', () => {
 
   it('ignores a trace it already has and an empty one', () => {
     const p = new Player(plan);
-    p.push(a); p.push(a); p.push(undefined); p.push({ end: 5, n: 24, rows: [] });
-    p.update(0); p.update(100);
+    p.push(a);
+    p.push(a);
+    p.push(undefined);
+    p.push({ end: 5, n: 24, rows: [] });
+    p.update(0);
+    p.update(100);
     expect(p.update(200).window).toBe(1);
   });
 });
@@ -222,7 +287,11 @@ describe('routes and points', () => {
   });
 
   it('pointAt walks a polyline by length', () => {
-    const pts: [number, number][] = [[0, 0], [10, 0], [10, 10]];
+    const pts: [number, number][] = [
+      [0, 0],
+      [10, 0],
+      [10, 10],
+    ];
     expect(pointAt(pts, 0)).toEqual([0, 0]);
     expect(pointAt(pts, 0.5)).toEqual([10, 0]);
     expect(pointAt(pts, 1)).toEqual([10, 10]);
@@ -236,18 +305,24 @@ describe('routes and points', () => {
 });
 
 describe('stepping a paused die', () => {
-  const win = (end: number, n = 24) => ({ end, n, rows: [{ id: end, pc: 0, text: 'addi a0, a0, 1', codes: 'F'.repeat(n) }] });
+  const win = (end: number, n = 24) => ({
+    end,
+    n,
+    rows: [{ id: end, pc: 0, text: 'addi a0, a0, 1', codes: 'F'.repeat(n) }],
+  });
   it('shows a window that arrives while paused at once, at its last cycle, and keeps a history to seek in', () => {
     const plan = cpuPlan(CONFIGS[1]!.plan);
     const p = new Player(plan);
     let now = 0;
-    p.push(win(100)); p.update(now += 16, true);
+    p.push(win(100));
+    p.update((now += 16), true);
     expect(p.shown()).toBe(100);
-    p.push(win(101)); p.update(now += 16, true);
+    p.push(win(101));
+    p.update((now += 16), true);
     expect(p.shown()).toBe(101); // the step moved the die, though game time did not run
     expect(p.range()).toEqual({ lo: 77, hi: 101 });
     expect(p.seek(90)).toBe(true);
-    p.update(now += 16, true);
+    p.update((now += 16), true);
     expect(p.shown()).toBe(90);
     expect(p.seek(500)).toBe(false);
   });

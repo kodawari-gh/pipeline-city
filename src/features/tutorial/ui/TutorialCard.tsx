@@ -5,7 +5,16 @@ import { viewInset } from '@/app/hover';
 import { cameraRev, dragging, highlight } from '@/app/interaction';
 import { snapshot } from '@/app/store';
 import {
-  ackStep, declineOsLesson, levelUp, finishTutorial, inventoryOpen, pauseForTutorialPopup, skipTutorial, startTutorial, takeOsLesson, tutorial,
+  ackStep,
+  declineOsLesson,
+  levelUp,
+  finishTutorial,
+  inventoryOpen,
+  pauseForTutorialPopup,
+  skipTutorial,
+  startTutorial,
+  takeOsLesson,
+  tutorial,
 } from '@/core/ui/state';
 import { currentStep, offerNextLesson, stepCount, stepProblem } from './tutorial';
 import { CHAR_MS, pagesOf } from './dialogue';
@@ -24,11 +33,27 @@ function Dialogue({ text, onEnd }: { text: string; onEnd?: (atEnd: boolean) => v
   const [page, setPage] = useState(0);
   const [n, setN] = useState(0);
   const cur = pages[Math.min(page, pages.length - 1)]!;
-  useEffect(() => { setPage(0); setN(0); }, [text]);
   useEffect(() => {
-    if (reducedMotion()) { setN(cur.length); return; }
+    setPage(0);
     setN(0);
-    const id = setInterval(() => setN((k) => { if (k >= cur.length) { clearInterval(id); return k; } return k + 1; }), CHAR_MS);
+  }, [text]);
+  useEffect(() => {
+    if (reducedMotion()) {
+      setN(cur.length);
+      return;
+    }
+    setN(0);
+    const id = setInterval(
+      () =>
+        setN((k) => {
+          if (k >= cur.length) {
+            clearInterval(id);
+            return k;
+          }
+          return k + 1;
+        }),
+      CHAR_MS,
+    );
     return () => clearInterval(id);
   }, [cur]);
   // One tick per third character as the text types (a skip to the end plays none: only single steps count).
@@ -40,14 +65,28 @@ function Dialogue({ text, onEnd }: { text: string; onEnd?: (atEnd: boolean) => v
   }, [n]);
   const done = n >= cur.length;
   const more = page < pages.length - 1;
-  useEffect(() => { onEnd?.(done && !more); }, [done, more, text]);
-  const advance = () => { if (!done) setN(cur.length); else if (more) setPage(page + 1); };
+  useEffect(() => {
+    onEnd?.(done && !more);
+  }, [done, more, text]);
+  const advance = () => {
+    if (!done) setN(cur.length);
+    else if (more) setPage(page + 1);
+  };
   return (
-    <button type="button" class="dlg" data-cue="ui_click" onClick={advance} aria-label={more || !done ? 'Next' : 'Dialogue'}>
+    <button
+      type="button"
+      class="dlg"
+      data-cue="ui_click"
+      onClick={advance}
+      aria-label={more || !done ? 'Next' : 'Dialogue'}
+    >
       <span class="dlg-text" aria-live="polite">
-        <span>{cur.slice(0, n)}</span><span class="dlg-rest">{cur.slice(n)}</span>
+        <span>{cur.slice(0, n)}</span>
+        <span class="dlg-rest">{cur.slice(n)}</span>
       </span>
-      <span class={`dlg-next ${done && more ? 'on' : ''}`} aria-hidden="true">Click to continue</span>
+      <span class={`dlg-next ${done && more ? 'on' : ''}`} aria-hidden="true">
+        Click to continue
+      </span>
       <span class={`dlg-arrow ${done ? (more ? 'more' : 'end') : ''}`} aria-hidden="true" />
     </button>
   );
@@ -60,7 +99,9 @@ function AckDialogue({ id, text }: { id: string; text: string }) {
     <>
       <Dialogue text={text} onEnd={setAtEnd} />
       <div class={`pactions dlg-actions ${atEnd ? 'on' : ''}`}>
-        <button class="primary" data-cue="ui_confirm" onClick={() => ackStep(id)}>Got it</button>
+        <button class="primary" data-cue="ui_confirm" onClick={() => ackStep(id)}>
+          Got it
+        </button>
       </div>
     </>
   );
@@ -73,7 +114,10 @@ function Pointer({ svgRef }: { svgRef: { current: SVGSVGElement | null } }) {
       <polyline class="ptr-path" points="0,0 0,0" />
       <line class="ptr-line" x1="0" y1="0" x2="0" y2="0" />
       <circle class="ptr-dot" cx="0" cy="0" />
-      <g class="ptr-ghost" style="opacity:0"><circle class="gh-ring" r="14" /><circle class="gh-core" r="6" /></g>
+      <g class="ptr-ghost" style="opacity:0">
+        <circle class="gh-ring" r="14" />
+        <circle class="gh-core" r="6" />
+      </g>
     </svg>
   );
 }
@@ -82,8 +126,20 @@ function Pointer({ svgRef }: { svgRef: { current: SVGSVGElement | null } }) {
  * The next-lesson offer: the instruction tab (desktop, bottom left) or the ramp block (phone), over a dimmed
  * board; the buttons appear when the last page is written. `pointer` draws the lead line inside the dim layer.
  */
-function PopupDialogue({ label, title, text, name, pointer, children }: {
-  label: string; title: string; text: string; name: string; pointer?: ComponentChildren; children: ComponentChildren;
+function PopupDialogue({
+  label,
+  title,
+  text,
+  name,
+  pointer,
+  children,
+}: {
+  label: string;
+  title: string;
+  text: string;
+  name: string;
+  pointer?: ComponentChildren;
+  children: ComponentChildren;
 }) {
   const [atEnd, setAtEnd] = useState(false);
   return (
@@ -91,7 +147,9 @@ function PopupDialogue({ label, title, text, name, pointer, children }: {
       {pointer}
       <div class="tut dlg-popup" role="dialog" aria-modal="true" aria-label={name} data-step={name}>
         <div class="tut-in">
-          <div class="thead"><span class="mute">{label}</span></div>
+          <div class="thead">
+            <span class="mute">{label}</span>
+          </div>
           <div class="ptitle">{title}</div>
           <Dialogue text={text} onEnd={setAtEnd} />
           <div class={`pactions dlg-actions ${atEnd ? 'on' : ''}`}>{children}</div>
@@ -105,7 +163,11 @@ function PopupDialogue({ label, title, text, name, pointer, children }: {
 const isWaiting = (t: string) => /^(No key yet|Waiting for|Need \S+ more)|still starting/i.test(t);
 
 const reducedMotion = () => {
-  try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; }
+  try {
+    return matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
 };
 
 /** Screen rect of a DOM element, in the same shape as an anchor. */
@@ -116,7 +178,8 @@ const domRect = (el: Element | null): Rect | null => {
 };
 
 /** Is `id` something the camera can fly to (a world id, not an inventory tile or the HUD button)? */
-const isWorldId = (id: string) => id !== 'inventory' && !id.startsWith('inv:') && !id.startsWith('buy:') && !id.startsWith('hud:');
+const isWorldId = (id: string) =>
+  id !== 'inventory' && !id.startsWith('inv:') && !id.startsWith('buy:') && !id.startsWith('hud:');
 
 /**
  * What the tutorial points at right now: the first world target that is on screen, else the first inventory tile, else
@@ -159,8 +222,10 @@ function ghostPath(targets: string[]): { from: Rect; to: Rect } | null {
   }
   const key = targets.find((t) => t.startsWith('key:'));
   if (key) {
-    const k = anchorOf(key), u = anchorOf('usb');
-    if (k && k.visible && u && u.visible) return { from: { x: k.x, y: k.y, w: k.w, h: k.h }, to: { x: u.x, y: u.y, w: u.w, h: u.h } };
+    const k = anchorOf(key),
+      u = anchorOf('usb');
+    if (k && k.visible && u && u.visible)
+      return { from: { x: k.x, y: k.y, w: k.w, h: k.h }, to: { x: u.x, y: u.y, w: u.w, h: u.h } };
   }
   return null;
 }
@@ -178,13 +243,20 @@ const freeRect = (): Rect => {
  * the object while the camera moves; (c) the card lifts when it would cover the target. Interactive guidance: it keeps
  * running while the game is paused. `prefers-reduced-motion` turns the glides into jumps.
  */
-function useGuidance(active: boolean, targets: string[], cardRef: { current: HTMLElement | null }, svgRef: { current: SVGSVGElement | null }) {
+function useGuidance(
+  active: boolean,
+  targets: string[],
+  cardRef: { current: HTMLElement | null },
+  svgRef: { current: SVGSVGElement | null },
+) {
   const key = targets.join('|');
   const [offscreen, setOffscreen] = useState(false);
   const state = useRef({ x: 0, y: 0, sx: 0, sy: 0, shown: false, lift: 0, key: '', idleAt: performance.now() });
   const targetsRef = useRef(targets);
   targetsRef.current = targets;
-  useEffect(() => { state.current.idleAt = performance.now(); }, [key]);
+  useEffect(() => {
+    state.current.idleAt = performance.now();
+  }, [key]);
 
   // Fly to the new step's target when it is not already comfortably visible.
   useEffect(() => {
@@ -193,34 +265,48 @@ function useGuidance(active: boolean, targets: string[], cardRef: { current: HTM
     if (!world || dragging.peek()) return;
     const a = anchorOf(world);
     if (a && a.visible && comfortablyVisible(a, freeRect())) return;
-    const t = setTimeout(() => { flyTo(world, { smooth: !reducedMotion() }); }, 350);
+    const t = setTimeout(() => {
+      flyTo(world, { smooth: !reducedMotion() });
+    }, 350);
     return () => clearTimeout(t);
   }, [active, key]);
 
   // The pointer and the "Show me" flag follow the camera every frame while a step is active.
   useEffect(() => {
     if (!active) return;
-    let raf = 0, last = performance.now();
+    let raf = 0,
+      last = performance.now();
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       const st = state.current;
-      const card = cardRef.current, svg = svgRef.current;
+      const card = cardRef.current,
+        svg = svgRef.current;
       const tg = resolveTarget(targetsRef.current);
       const cardRect = domRect(card);
       // After a few idle seconds a ghost hand shows the drag: press on the tile, glide to the target, let go. Any drag by the player hides it.
       const ghost = svg?.querySelector('.ptr-ghost') as SVGGElement | null;
       if (dragging.peek()) st.idleAt = now;
       if (ghost) {
-        const path = !reducedMotion() && now - st.idleAt > GHOST_AFTER_MS && !dragging.peek() ? ghostPath(targetsRef.current) : null;
+        const path =
+          !reducedMotion() && now - st.idleAt > GHOST_AFTER_MS && !dragging.peek()
+            ? ghostPath(targetsRef.current)
+            : null;
         if (path) {
-          const T = 2400, u = ((now - st.idleAt - GHOST_AFTER_MS) % T) / T;
+          const T = 2400,
+            u = ((now - st.idleAt - GHOST_AFTER_MS) % T) / T;
           const ease = (x: number) => x * x * (3 - 2 * x);
           const k = u < 0.15 ? 0 : u < 0.7 ? ease((u - 0.15) / 0.55) : 1;
-          const fx = path.from.x + path.from.w / 2, fy = path.from.y + path.from.h / 2, tx = path.to.x + path.to.w / 2, ty = path.to.y + path.to.h / 2;
+          const fx = path.from.x + path.from.w / 2,
+            fy = path.from.y + path.from.h / 2,
+            tx = path.to.x + path.to.w / 2,
+            ty = path.to.y + path.to.h / 2;
           const alpha = u < 0.08 ? u / 0.08 : u > 0.88 ? (1 - u) / 0.12 : 1;
-          ghost.setAttribute('transform', `translate(${fx + (tx - fx) * k} ${fy + (ty - fy) * k}) scale(${u > 0.1 && u < 0.7 ? 1 : 0.8})`);
+          ghost.setAttribute(
+            'transform',
+            `translate(${fx + (tx - fx) * k} ${fy + (ty - fy) * k}) scale(${u > 0.1 && u < 0.7 ? 1 : 0.8})`,
+          );
           ghost.style.opacity = String(Math.max(0, Math.min(1, alpha)));
         } else ghost.style.opacity = '0';
       }
@@ -228,32 +314,58 @@ function useGuidance(active: boolean, targets: string[], cardRef: { current: HTM
         const line = svg.querySelector('.ptr-line') as SVGLineElement;
         const dot = svg.querySelector('.ptr-dot') as SVGCircleElement;
         if (tg && cardRect) {
-          const cx = tg.rect.x + tg.rect.w / 2, cy = tg.rect.y + tg.rect.h / 2;
+          const cx = tg.rect.x + tg.rect.w / 2,
+            cy = tg.rect.y + tg.rect.h / 2;
           // A HUD readout far from the card (the money at the top left) pulses by itself: a connector across the whole scene would only clutter it.
-          if (tg.hud && Math.hypot(cx - (cardRect.x + cardRect.w / 2), cy - (cardRect.y + cardRect.h / 2)) > window.innerHeight * 0.45) {
-            svg.classList.remove('on'); st.shown = false; return;
+          if (
+            tg.hud &&
+            Math.hypot(cx - (cardRect.x + cardRect.w / 2), cy - (cardRect.y + cardRect.h / 2)) >
+              window.innerHeight * 0.45
+          ) {
+            svg.classList.remove('on');
+            st.shown = false;
+            return;
           }
           // The lead starts at the card's cue (the Next button on step 1, else the bottom right of the dialogue), else at the card edge nearest the target.
           const cueBtn = domRect(card?.querySelector('.pactions .primary') ?? null);
           const cue = cueBtn ?? domRect(card?.querySelector('.dlg') ?? null);
           const above = cy < cardRect.y + cardRect.h / 2;
           const sx = cue ? cue.x + cue.w : Math.min(cardRect.x + cardRect.w - 24, Math.max(cardRect.x + 24, cx));
-          const sy = cue ? (cue === cueBtn ? cue.y + cue.h / 2 : cue.y + cue.h) : above ? cardRect.y : cardRect.y + cardRect.h;
-          if (!st.shown || reducedMotion()) { st.x = cx; st.y = cy; st.sx = sx; st.sy = sy; }
-          else {
+          const sy = cue
+            ? cue === cueBtn
+              ? cue.y + cue.h / 2
+              : cue.y + cue.h
+            : above
+              ? cardRect.y
+              : cardRect.y + cardRect.h;
+          if (!st.shown || reducedMotion()) {
+            st.x = cx;
+            st.y = cy;
+            st.sx = sx;
+            st.sy = sy;
+          } else {
             // Short time constant: the pointer glides between steps but stays glued to the target while the camera moves.
             const k = 1 - Math.exp(-dt / 0.03);
-            st.x += (cx - st.x) * k; st.y += (cy - st.y) * k;
-            st.sx += (sx - st.sx) * k; st.sy += (sy - st.sy) * k;
+            st.x += (cx - st.x) * k;
+            st.y += (cy - st.y) * k;
+            st.sx += (sx - st.sx) * k;
+            st.sy += (sy - st.sy) * k;
           }
           st.shown = true;
-          line.setAttribute('x1', String(st.sx)); line.setAttribute('y1', String(st.sy));
-          line.setAttribute('x2', String(st.x)); line.setAttribute('y2', String(st.y));
+          line.setAttribute('x1', String(st.sx));
+          line.setAttribute('y1', String(st.sy));
+          line.setAttribute('x2', String(st.x));
+          line.setAttribute('y2', String(st.y));
           // SPEC 5.11: from the button right along its line, then 45 degrees down into the target; else straight.
-          const dy = st.y - st.sy, bend = st.x - dy;
-          const pts = cue === cueBtn && dy > 0 && bend > st.sx ? `${st.sx},${st.sy} ${bend},${st.sy} ${st.x},${st.y}` : `${st.sx},${st.sy} ${st.x},${st.y}`;
+          const dy = st.y - st.sy,
+            bend = st.x - dy;
+          const pts =
+            cue === cueBtn && dy > 0 && bend > st.sx
+              ? `${st.sx},${st.sy} ${bend},${st.sy} ${st.x},${st.y}`
+              : `${st.sx},${st.sy} ${st.x},${st.y}`;
           svg.querySelector('.ptr-path')?.setAttribute('points', pts);
-          dot.setAttribute('cx', String(st.x)); dot.setAttribute('cy', String(st.y));
+          dot.setAttribute('cx', String(st.x));
+          dot.setAttribute('cy', String(st.y));
           svg.classList.add('on');
         } else {
           svg.classList.remove('on');
@@ -262,16 +374,27 @@ function useGuidance(active: boolean, targets: string[], cardRef: { current: HTM
       }
     };
     raf = requestAnimationFrame(loop);
-    return () => { cancelAnimationFrame(raf); state.current.shown = false; svgRef.current?.classList.remove('on'); };
+    return () => {
+      cancelAnimationFrame(raf);
+      state.current.shown = false;
+      svgRef.current?.classList.remove('on');
+    };
   }, [active]);
 
   // "Show me" is offered when the world target is not comfortably in view (re-evaluated when the camera moves).
   useEffect(() => {
-    if (!active) { setOffscreen(false); return; }
+    if (!active) {
+      setOffscreen(false);
+      return;
+    }
     return effect(() => {
-      cameraRev.value; viewInset.value;
+      cameraRev.value;
+      viewInset.value;
       const world = targetsRef.current.find((t) => isWorldId(t) && hasTarget(t));
-      if (!world) { setOffscreen(false); return; }
+      if (!world) {
+        setOffscreen(false);
+        return;
+      }
       const a = anchorOf(world);
       setOffscreen(!(a && a.visible && comfortablyVisible(a, freeRect())));
     });
@@ -342,7 +465,12 @@ export function TutorialCard() {
     else if (!modal && !drag) inventoryOpen.value = false;
     // `targets` is derived from `key`; re-run only when the ids change.
   }, [key, modal]);
-  useEffect(() => () => { highlight.value = []; }, []);
+  useEffect(
+    () => () => {
+      highlight.value = [];
+    },
+    [],
+  );
 
   // The welcome (step 1) guides too: its lead runs from "Next" to the inventory button.
   const welcomeNow = !!s && welcome && !holdForLevelUp;
@@ -360,16 +488,27 @@ export function TutorialCard() {
   // A tutorial popup holds the game, like the level-up.
   // The welcome and the explain-only steps hold the game as well: the player reads at their own pace.
   const hold = (modal || welcome || !!step?.ack) && !!s;
-  useEffect(() => { pauseForTutorialPopup(hold); }, [hold]);
+  useEffect(() => {
+    pauseForTutorialPopup(hold);
+  }, [hold]);
   useEffect(() => () => pauseForTutorialPopup(false), []);
 
   if (holdForLevelUp) return null;
   if (offer && s) {
     return (
-      <PopupDialogue label="Next lesson" title="The operating system" name="offer" pointer={pointer}
-        text="With an operating system the machine stays on and runs jobs from the drive, instead of rebooting for every job. Drives, an OS and the new steps are in the shop.">
-        <button data-cue="ui_back" onClick={declineOsLesson} title="Not now. This card will not come back.">Not now</button>
-        <button class="primary" data-cue="ui_confirm" onClick={takeOsLesson}>Start the lesson</button>
+      <PopupDialogue
+        label="Next lesson"
+        title="The operating system"
+        name="offer"
+        pointer={pointer}
+        text="With an operating system the machine stays on and runs jobs from the drive, instead of rebooting for every job. Drives, an OS and the new steps are in the shop."
+      >
+        <button data-cue="ui_back" onClick={declineOsLesson} title="Not now. This card will not come back.">
+          Not now
+        </button>
+        <button class="primary" data-cue="ui_confirm" onClick={takeOsLesson}>
+          Start the lesson
+        </button>
       </PopupDialogue>
     );
   }
@@ -384,30 +523,82 @@ export function TutorialCard() {
     <>
       {pointer}
       <aside class="card tut" ref={cardRef} aria-label="Tutorial" data-step={step.id}>
-        {tip && !problem && <div class="tut-tip" role="note">Tip: press and hold the glowing part, move it to the glowing spot, then let go. On a touch screen, drag with your finger.</div>}
-        {praise && <div class="tut-praise" role="status" key={praise}>✓ {praise}: done</div>}
+        {tip && !problem && (
+          <div class="tut-tip" role="note">
+            Tip: press and hold the glowing part, move it to the glowing spot, then let go. On a touch screen, drag with
+            your finger.
+          </div>
+        )}
+        {praise && (
+          <div class="tut-praise" role="status" key={praise}>
+            ✓ {praise}: done
+          </div>
+        )}
         <div class="tut-in">
           <div class="thead">
             <span class="mute">{label}</span>
             <span class="tbtns">
-              {offscreen && <button class="link" data-cue="ui_click" onClick={showMe} title="Fly the camera to what this step is about">Show me</button>}
-              <button class="link" data-cue="ui_back" onClick={skipTutorial} title="Hide the tutorial. Replay it from the menu.">Skip</button>
+              {offscreen && (
+                <button
+                  class="link"
+                  data-cue="ui_click"
+                  onClick={showMe}
+                  title="Fly the camera to what this step is about"
+                >
+                  Show me
+                </button>
+              )}
+              <button
+                class="link"
+                data-cue="ui_back"
+                onClick={skipTutorial}
+                title="Hide the tutorial. Replay it from the menu."
+              >
+                Skip
+              </button>
             </span>
           </div>
           <div class="tut-text" key={step.id}>
             <div class="ptitle">{step.title}</div>
             {step.ack ? <AckDialogue id={step.id} text={step.text} /> : <Dialogue text={step.text} />}
             {meter && (
-              <div class="tmeter" role="progressbar" aria-valuenow={Math.round(meter.pct)} aria-valuemin={0} aria-valuemax={100} title={`Client base ${meter.label}`}>
-                <span class="tbar"><i style={{ width: `${meter.pct}%` }} /></span>
+              <div
+                class="tmeter"
+                role="progressbar"
+                aria-valuenow={Math.round(meter.pct)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                title={`Client base ${meter.label}`}
+              >
+                <span class="tbar">
+                  <i style={{ width: `${meter.pct}%` }} />
+                </span>
                 <span class="mute">{meter.label}</span>
               </div>
             )}
-            {welcomeNow && <div class="tut-stage" role="note">Only the money, the menu and the dock are on for now. The other controls come in after this step.</div>}
-            {problem && <div class={`pline ${isWaiting(problem) ? 'wait' : 'warn'}`} role="status">{problem}</div>}
-            {welcome && <div class="pactions"><button class="primary" data-cue="ui_confirm" onClick={startTutorial}>Next</button></div>}
+            {welcomeNow && (
+              <div class="tut-stage" role="note">
+                Only the money, the menu and the dock are on for now. The other controls come in after this step.
+              </div>
+            )}
+            {problem && (
+              <div class={`pline ${isWaiting(problem) ? 'wait' : 'warn'}`} role="status">
+                {problem}
+              </div>
+            )}
+            {welcome && (
+              <div class="pactions">
+                <button class="primary" data-cue="ui_confirm" onClick={startTutorial}>
+                  Next
+                </button>
+              </div>
+            )}
             {step.id === 'done' && (
-              <div class="pactions"><button class="primary" data-cue="ui_confirm" onClick={finishTutorial}>Got it</button></div>
+              <div class="pactions">
+                <button class="primary" data-cue="ui_confirm" onClick={finishTutorial}>
+                  Got it
+                </button>
+              </div>
             )}
           </div>
         </div>

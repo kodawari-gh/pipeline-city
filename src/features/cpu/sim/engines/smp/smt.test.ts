@@ -1,28 +1,48 @@
 // Full SMT in the out-of-order engine (docs/MULTICORE.md section 5): two threads in the pipeline at once, sharing the scheduler and the units.
 
-import { afterAll, describe, expect, it } from "vitest";
-import { assemble } from "../../asm";
-import { generate, TEMPLATES } from "@/features/jobs/sim/gen";
-import { parSum } from "@/features/jobs/sim/gen/threadtest";
-import { INTC_BASE, INTC_REG, IRQ } from "@/core/sim/memmap";
-import { REG_NAMES } from "../../isa/isa";
-import { Machine } from "@/core/sim";
-import { RefThreads } from "../../ref";
-import { createEngine, type EngineConfig } from "../index";
-import { Counter } from "../view";
+import { afterAll, describe, expect, it } from 'vitest';
+import { assemble } from '../../asm';
+import { generate, TEMPLATES } from '@/features/jobs/sim/gen';
+import { parSum } from '@/features/jobs/sim/gen/threadtest';
+import { INTC_BASE, INTC_REG, IRQ } from '@/core/sim/memmap';
+import { REG_NAMES } from '../../isa/isa';
+import { Machine } from '@/core/sim';
+import { RefThreads } from '../../ref';
+import { createEngine, type EngineConfig } from '../index';
+import { Counter } from '../view';
 
-TEMPLATES["test.parS2"] = parSum(2);
-afterAll(() => { delete TEMPLATES["test.parS2"]; });
+TEMPLATES['test.parS2'] = parSum(2);
+afterAll(() => {
+  delete TEMPLATES['test.parS2'];
+});
 
-const SMT: EngineConfig = { kind: "ooo", width: 2, robSize: 16, schedSize: 8, fetchQueue: 8, cacheLines: 8, missPenalty: 12, threads: 2 };
-const PLAIN: EngineConfig = { kind: "ooo", width: 2, robSize: 16, schedSize: 8, fetchQueue: 8, cacheLines: 8, missPenalty: 12 };
+const SMT: EngineConfig = {
+  kind: 'ooo',
+  width: 2,
+  robSize: 16,
+  schedSize: 8,
+  fetchQueue: 8,
+  cacheLines: 8,
+  missPenalty: 12,
+  threads: 2,
+};
+const PLAIN: EngineConfig = {
+  kind: 'ooo',
+  width: 2,
+  robSize: 16,
+  schedSize: 8,
+  fetchQueue: 8,
+  cacheLines: 8,
+  missPenalty: 12,
+};
 const OUT = 0x3000;
 const word = (m: Machine, a: number) => new DataView(m.ram.buffer).getInt32(a, true);
 const counters = (e: unknown) => (e as { view: { counters: Float64Array } }).view.counters;
 const view = (e: unknown) => (e as { view: { threadRetired: Float64Array; threadIssued: Float64Array } }).view;
 
 /** Sum `lines` words, one per 16-byte line from `base` (every load a miss on a small cache), and store the sum at `out`. */
-const scan = (base: number, lines: number, out: number) => assemble(`
+const scan = (base: number, lines: number, out: number) =>
+  assemble(`
     li s3, ${base}
     li t1, ${lines * 16}
     li t2, 0
@@ -38,7 +58,8 @@ const scan = (base: number, lines: number, out: number) => assemble(`
     ecall`).program;
 
 /** A dependent chain through the multiplier: one thread cannot fill both ALUs with it. */
-const chain = (n: number, out: number) => assemble(`
+const chain = (n: number, out: number) =>
+  assemble(`
     li s0, 3
     li s1, 5
     li t1, ${n}
@@ -79,20 +100,28 @@ function pair(a: Uint32Array, b: Uint32Array, fills: [number, number, number][] 
   return { m, e, cycles: e.cycle };
 }
 
-describe("full SMT in the out-of-order engine", () => {
-  const A = 0x8000, B = 0xa000, LINES = 40;
-  const fills: [number, number, number][] = [[A, LINES, 1], [B, LINES, 1000]];
+describe('full SMT in the out-of-order engine', () => {
+  const A = 0x8000,
+    B = 0xa000,
+    LINES = 40;
+  const fills: [number, number, number][] = [
+    [A, LINES, 1],
+    [B, LINES, 1000],
+  ];
 
-  it("one thread is cycle-identical to the plain engine, counters and all", () => {
+  it('one thread is cycle-identical to the plain engine, counters and all', () => {
     for (const p of [chain(200, OUT), scan(A, LINES, OUT)]) {
-      const plain = alone(PLAIN, p, fills), one = alone(SMT, p, fills);
+      const plain = alone(PLAIN, p, fills),
+        one = alone(SMT, p, fills);
       expect(one.cycles).toBe(plain.cycles);
-      expect(one.counters.slice(0, Counter.SmtUnitConflicts)).toEqual(plain.counters.slice(0, Counter.SmtUnitConflicts));
+      expect(one.counters.slice(0, Counter.SmtUnitConflicts)).toEqual(
+        plain.counters.slice(0, Counter.SmtUnitConflicts),
+      );
       expect(word(one.m, OUT)).toBe(word(plain.m, OUT));
     }
   });
 
-  it("a second thread that never runs leaves the values as they were", () => {
+  it('a second thread that never runs leaves the values as they were', () => {
     const plain = alone(PLAIN, chain(200, OUT));
     const m = new Machine({ cores: 2 });
     const e = createEngine(SMT);
@@ -120,20 +149,21 @@ describe("full SMT in the out-of-order engine", () => {
     expect(v.threadIssued[1]).toBeGreaterThan(0);
   });
 
-  it("two memory-bound threads are no slower than one after the other (one load at a time in the unit), with the values the plain engine gives", () => {
-    const a = alone(PLAIN, scan(A, LINES, OUT), fills), b = alone(PLAIN, scan(B, LINES, OUT + 0x100), fills);
+  it('two memory-bound threads are no slower than one after the other (one load at a time in the unit), with the values the plain engine gives', () => {
+    const a = alone(PLAIN, scan(A, LINES, OUT), fills),
+      b = alone(PLAIN, scan(B, LINES, OUT + 0x100), fills);
     const both = pair(scan(A, LINES, OUT), scan(B, LINES, OUT + 0x100), fills);
     expect(word(both.m, OUT)).toBe(word(a.m, OUT));
     expect(word(both.m, OUT + 0x100)).toBe(word(b.m, OUT + 0x100));
     expect(both.cycles).toBeLessThanOrEqual(a.cycles + b.cycles);
   });
 
-  it("the threads fight for the units", () => {
+  it('the threads fight for the units', () => {
     const both = pair(chain(300, OUT), chain(300, OUT + 0x100));
     expect(counters(both.e)[Counter.SmtUnitConflicts]).toBeGreaterThan(0);
   });
 
-  it("a parked thread woken by an interrupt runs its handler alongside the other thread and parks again", () => {
+  it('a parked thread woken by an interrupt runs its handler alongside the other thread and parks again', () => {
     const m = new Machine({ cores: 2 });
     const e = createEngine(SMT);
     const main = assemble(`
@@ -177,22 +207,27 @@ describe("full SMT in the out-of-order engine", () => {
   });
 
   it("runs a threaded program on both threads of a core with the reference's text", () => {
-    const A0 = REG_NAMES.indexOf("a0"), A1 = REG_NAMES.indexOf("a1");
-    const g = generate("test.parS2", 5, { row: 0, jobId: 3, scale: 2 });
+    const A0 = REG_NAMES.indexOf('a0'),
+      A1 = REG_NAMES.indexOf('a1');
+    const g = generate('test.parS2', 5, { row: 0, jobId: 3, scale: 2 });
     const m = new Machine({ cores: 2 });
     const e = createEngine(SMT);
     const top = m.ram.length;
     m.attach(e, g.program);
     m.attachThread(1, 0, g.program, { entry: 0, stackTop: top - 0x1000 });
-    for (let k = 0; k < 2; k++) { m.cores[k]!.regs[A0] = k; m.cores[k]!.regs[A1] = 2; m.cores[k]!.regs[2] = top - k * 0x1000; }
+    for (let k = 0; k < 2; k++) {
+      m.cores[k]!.regs[A0] = k;
+      m.cores[k]!.regs[A1] = 2;
+      m.cores[k]!.regs[2] = top - k * 0x1000;
+    }
     for (let i = 0; i < 400_000 && !e.halted; i++) m.stepCpu();
     expect(e.halted).toBe(true);
     for (let i = 0; i < 2000; i++) m.stepCpu();
-    expect(m.display.text()).toBe(new RefThreads(g.program, 2).run({ kind: "random", seed: 9 }));
+    expect(m.display.text()).toBe(new RefThreads(g.program, 2).run({ kind: 'random', seed: 9 }));
     expect(m.display.text()).toBe(g.meta.expectedText);
   });
 
-  it("is deterministic", () => {
+  it('is deterministic', () => {
     const run = () => pair(scan(A, LINES, OUT), chain(100, OUT + 0x100), fills).cycles;
     expect(run()).toBe(run());
   });

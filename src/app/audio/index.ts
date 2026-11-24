@@ -33,7 +33,9 @@ export function initAudio(search?: string, readUi?: () => UiInput, readScene?: (
   };
   hide(document.visibilityState === 'hidden');
   document.addEventListener('visibilitychange', () => hide(document.visibilityState === 'hidden'));
-  effect(() => { applyMix(audioMix.value); });
+  effect(() => {
+    applyMix(audioMix.value);
+  });
   const query = search ?? (typeof location === 'undefined' ? '' : location.search);
   let loading = false;
   effect(() => {
@@ -48,8 +50,16 @@ export function initAudio(search?: string, readUi?: () => UiInput, readScene?: (
     if (s) director.onSnapshot(s);
     else director.reset();
   });
-  if (readUi) effect(() => { director.onUi(readUi()); });
-  if (readScene) effect(() => { director.onScene(readScene()); });
+  if (readUi)
+    effect(() => {
+      director.onUi(readUi());
+    });
+  if (readScene)
+    effect(() => {
+      director.onScene(readScene());
+    });
   // The studio's machine (Build my PC sets it while its machine shows): the hum follows it (ticket #66).
-  effect(() => { director.onStudio(studioMachine.value); });
+  effect(() => {
+    director.onStudio(studioMachine.value);
+  });
 }

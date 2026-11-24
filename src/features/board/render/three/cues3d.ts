@@ -4,7 +4,11 @@
 import type { Snapshot } from '@/worker/protocol';
 import type { Anchor } from '../board';
 
-interface Cue { id: string; kind: 'key' | 'swap'; veil: boolean }
+interface Cue {
+  id: string;
+  kind: 'key' | 'swap';
+  veil: boolean;
+}
 
 const CSS = `
 @keyframes cue3d-beat { 0%, 100% { opacity: 0.45; transform: scale(1); } 50% { opacity: 1; transform: scale(1.04); } }
@@ -23,7 +27,8 @@ export function cuesOf(s: Snapshot | null): Cue[] {
   const keys = [];
   if (s.phase === 'done-remove-key' && s.plugged) keys.push(s.plugged);
   if (s.plugged && s.keyActivity === 'done' && s.plugged.stage !== 'done') keys.push(s.plugged);
-  for (const k of keys) if (!out.some((c) => c.id === 'key:' + k.id)) out.push({ id: 'key:' + k.id, kind: 'key', veil: false });
+  for (const k of keys)
+    if (!out.some((c) => c.id === 'key:' + k.id)) out.push({ id: 'key:' + k.id, kind: 'key', veil: false });
   for (const p of s.pendingSwaps) out.push({ id: p.replacesId ?? p.target, kind: 'swap', veil: !!p.replacesId });
   return out;
 }
@@ -43,17 +48,29 @@ export class Cues3D {
   frame(s: Snapshot | null): void {
     if (typeof document === 'undefined') return;
     const placed: { c: Cue; a: Anchor }[] = [];
-    for (const c of cuesOf(s)) { const a = this.anchorsOf(c.id)[0]; if (a && a.visible) placed.push({ c, a }); }
-    const key = placed.map(({ c, a }) => `${c.id}${c.veil}${Math.round(a.x)},${Math.round(a.y)},${Math.round(a.w)},${Math.round(a.h)}`).join('|');
+    for (const c of cuesOf(s)) {
+      const a = this.anchorsOf(c.id)[0];
+      if (a && a.visible) placed.push({ c, a });
+    }
+    const key = placed
+      .map(({ c, a }) => `${c.id}${c.veil}${Math.round(a.x)},${Math.round(a.y)},${Math.round(a.w)},${Math.round(a.h)}`)
+      .join('|');
     if (key === this.key) return;
     this.key = key;
     // (a veil and its ring are two boxes: the veil under, the ring over, so the arc turns in the part's middle)
     const want = placed.reduce((n, { c }) => n + (c.veil ? 2 : 1), 0);
-    while (this.boxes.length < want) { const d = document.createElement('div'); d.className = 'cue3d'; document.body.appendChild(d); this.boxes.push(d); }
+    while (this.boxes.length < want) {
+      const d = document.createElement('div');
+      d.className = 'cue3d';
+      document.body.appendChild(d);
+      this.boxes.push(d);
+    }
     let i = 0;
     for (const { c, a } of placed) {
       const pad = c.kind === 'key' ? 10 : 6;
-      if (c.veil) { this.set(this.boxes[i++]!, 'veil', a, 0, false); }
+      if (c.veil) {
+        this.set(this.boxes[i++]!, 'veil', a, 0, false);
+      }
       this.set(this.boxes[i++]!, c.kind, a, pad, c.kind === 'swap');
     }
     for (; i < this.boxes.length; i++) this.boxes[i]!.style.display = 'none';
@@ -62,9 +79,15 @@ export class Cues3D {
   private set(d: HTMLDivElement, kind: string, a: Anchor, pad: number, spinner: boolean): void {
     d.className = `cue3d ${kind}`;
     d.style.display = '';
-    d.style.left = `${a.x - pad}px`; d.style.top = `${a.y - pad}px`; d.style.width = `${a.w + 2 * pad}px`; d.style.height = `${a.h + 2 * pad}px`;
+    d.style.left = `${a.x - pad}px`;
+    d.style.top = `${a.y - pad}px`;
+    d.style.width = `${a.w + 2 * pad}px`;
+    d.style.height = `${a.h + 2 * pad}px`;
     d.innerHTML = spinner ? '<i></i>' : '';
   }
 
-  dispose(): void { for (const d of this.boxes) d.remove(); this.boxes.length = 0; }
+  dispose(): void {
+    for (const d of this.boxes) d.remove();
+    this.boxes.length = 0;
+  }
 }

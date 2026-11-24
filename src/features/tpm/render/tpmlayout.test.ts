@@ -4,7 +4,8 @@ import { headerRect, tpmHeader, tpmRect } from '@/core/render/accelart';
 import { blockRect, tpmGeo, tpmIds, tpmParts, tpmPlanOf } from './tpmlayout';
 import { setLayoutTier, type Rect } from '../../board/render/layout/layout';
 
-const inside = (r: Rect, o: Rect): boolean => r.x >= o.x - 0.01 && r.y >= o.y - 0.01 && r.x + r.w <= o.x + o.w + 0.01 && r.y + r.h <= o.y + o.h + 0.01;
+const inside = (r: Rect, o: Rect): boolean =>
+  r.x >= o.x - 0.01 && r.y >= o.y - 0.01 && r.x + r.w <= o.x + o.w + 0.01 && r.y + r.h <= o.y + o.h + 0.01;
 
 function header(): Rect {
   setLayoutTier(3, 3);
@@ -42,14 +43,24 @@ describe('the secure module on its header', () => {
     expect(ids.every((i) => i.startsWith('tpm0.'))).toBe(true);
     expect(ids).toEqual(expect.arrayContaining(['tpm0.regs', 'tpm0.hash', 'tpm0.vault', 'tpm0.guard', 'tpm0.lid']));
     expect(ids[ids.length - 1]).toBe('tpm0.lid');
-    expect(tpmParts(tpmGeo('tpm-1', header())).filter((p) => !p.inner).map((p) => p.id)).toEqual(['lid']);
+    expect(
+      tpmParts(tpmGeo('tpm-1', header()))
+        .filter((p) => !p.inner)
+        .map((p) => p.id),
+    ).toEqual(['lid']);
   });
 
   it('keeps the blocks apart, so a hover lands on one part', () => {
-    const g = tpmGeo('tpm-1', header()), rs = g.plan.blocks.map((b) => blockRect(g, b));
-    for (let i = 0; i < rs.length; i++) for (let j = i + 1; j < rs.length; j++) {
-      const a = rs[i]!, c = rs[j]!;
-      expect(a.x < c.x + c.w && c.x < a.x + a.w && a.y < c.y + c.h && c.y < a.y + a.h, `${g.plan.blocks[i]!.id} / ${g.plan.blocks[j]!.id}`).toBe(false);
-    }
+    const g = tpmGeo('tpm-1', header()),
+      rs = g.plan.blocks.map((b) => blockRect(g, b));
+    for (let i = 0; i < rs.length; i++)
+      for (let j = i + 1; j < rs.length; j++) {
+        const a = rs[i]!,
+          c = rs[j]!;
+        expect(
+          a.x < c.x + c.w && c.x < a.x + a.w && a.y < c.y + c.h && c.y < a.y + a.h,
+          `${g.plan.blocks[i]!.id} / ${g.plan.blocks[j]!.id}`,
+        ).toBe(false);
+      }
   });
 });

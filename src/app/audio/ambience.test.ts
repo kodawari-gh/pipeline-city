@@ -22,11 +22,18 @@ function fakeSink() {
 const HUM = 'amb_machine_hum_loop';
 const ROOM = 'amb_room_city_loop';
 const lastHum = (calls: Call[]) => calls.filter((c): c is Extract<Call, { kind: 'hum' }> => c.kind === 'hum').pop()!;
-const loopCalls = (calls: Call[], id: LoopId) => calls.filter((c) => (c.kind === 'start' || c.kind === 'stop') && c.id === id);
+const loopCalls = (calls: Call[], id: LoopId) =>
+  calls.filter((c) => (c.kind === 'start' || c.kind === 'stop') && c.id === id);
 
 describe('fanSpeed', () => {
   it('is the mean of the fan-bearing devices', () => {
-    expect(fanSpeed([{ kind: 'gpu', fan: 0.2 }, { kind: 'npu', fan: 0.6 }, { kind: 'cpu', fan: 0 }])).toBeCloseTo(0.4);
+    expect(
+      fanSpeed([
+        { kind: 'gpu', fan: 0.2 },
+        { kind: 'npu', fan: 0.6 },
+        { kind: 'cpu', fan: 0 },
+      ]),
+    ).toBeCloseTo(0.4);
   });
   it('is 0.5 when no device has a fan', () => {
     expect(fanSpeed([{ kind: 'cpu', fan: 0 }])).toBe(0.5);
@@ -79,9 +86,19 @@ describe('createAmbience', () => {
     const { sink, calls } = fakeSink();
     const a = createAmbience(sink);
     a.onSnapshot({ powered: true, devices: [{ kind: 'gpu', fan: 1 }] });
-    expect(lastHum(calls)).toEqual({ kind: 'hum', gainDb: humGainDb(1), rate: humRate(1), smoothMs: MIX.ambience[HUM].fanFollow.smoothMs });
+    expect(lastHum(calls)).toEqual({
+      kind: 'hum',
+      gainDb: humGainDb(1),
+      rate: humRate(1),
+      smoothMs: MIX.ambience[HUM].fanFollow.smoothMs,
+    });
     a.onSnapshot({ powered: true, devices: [] });
-    expect(lastHum(calls)).toEqual({ kind: 'hum', gainDb: humGainDb(0.5), rate: humRate(0.5), smoothMs: MIX.ambience[HUM].fanFollow.smoothMs });
+    expect(lastHum(calls)).toEqual({
+      kind: 'hum',
+      gainDb: humGainDb(0.5),
+      rate: humRate(0.5),
+      smoothMs: MIX.ambience[HUM].fanFollow.smoothMs,
+    });
   });
 
   it('dips the hum by the pause token once when the clock stops, and lifts it on resume', () => {

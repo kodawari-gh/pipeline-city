@@ -14,7 +14,9 @@ quietCanvas();
 const stage = (s: Snapshot): Machine3D => new Machine3D(s, roomGeo(), new BakeQueue(), null, false);
 const lever = (m: Machine3D): number[] => {
   const r: number[] = [];
-  m.root.traverse((o) => { if (o.userData.leverOf === 'cpu0') r.push(o.rotation.y); });
+  m.root.traverse((o) => {
+    if (o.userData.leverOf === 'cpu0') r.push(o.rotation.y);
+  });
   return r;
 };
 
@@ -25,7 +27,8 @@ describe('the CPU socket lever', () => {
     for (const d of g.snapshot().devices.filter((x) => x.kind === 'radiator' || x.kind === 'cooler')) g.uninstall(d.id);
     const m = stage(g.snapshot());
     expect(lever(m), 'a CPU in').toEqual([0]);
-    const cpu = g.snapshot().devices.find((x) => x.kind === 'cpu')!, out = g.uninstall(cpu.id);
+    const cpu = g.snapshot().devices.find((x) => x.kind === 'cpu')!,
+      out = g.uninstall(cpu.id);
     if (!out.ok) throw new Error(out.reason);
     expect(m.patch(g.snapshot(), roomGeo()), 'a patch for the removal').toBe(true);
     expect(lever(m), 'patched bare').toEqual([LEVER_OPEN]);

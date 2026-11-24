@@ -14,7 +14,13 @@ vi.mock('@/core/render/three/init', async (orig) => {
       camera: new PerspectiveCamera(30, 1, 10, 1e6),
       renderer: {
         domElement: { width: 400, height: 400, addEventListener() {}, removeEventListener() {} },
-        setOpaqueSort() {}, getPixelRatio: () => 1, setSize() {}, properties: { get: () => ({}) }, compile: () => new Set(), getRenderTarget: () => null, setRenderTarget() {},
+        setOpaqueSort() {},
+        getPixelRatio: () => 1,
+        setSize() {},
+        properties: { get: () => ({}) },
+        compile: () => new Set(),
+        getRenderTarget: () => null,
+        setRenderTarget() {},
       },
     }),
   };
@@ -25,12 +31,24 @@ vi.mock('@/core/render/three/post', () => ({
     refine = () => false;
     meter = () => null;
     metered = () => null;
-    setEye() {} setReach() {} setDark() {} setOutlined() {} apply() {} setSize() {}
+    setEye() {}
+    setReach() {}
+    setDark() {}
+    setOutlined() {}
+    apply() {}
+    setSize() {}
     /** One program that links when the test says so, and counts its first use. */
-    startPrograms = () => { rig.started(); return [{ isReady: () => rig.ready, getUniforms: rig.used }]; };
+    startPrograms = () => {
+      rig.started();
+      return [{ isReady: () => rig.ready, getUniforms: rig.used }];
+    };
   },
 }));
-vi.mock('./lens3d', () => ({ Lens3D: class { frame() {} } }));
+vi.mock('./lens3d', () => ({
+  Lens3D: class {
+    frame() {}
+  },
+}));
 
 import { BuildStage } from './buildmode3d';
 
@@ -42,7 +60,13 @@ describe('BuildStage first picture', () => {
   let stage: Stage;
   let clock: number;
   let now: number;
-  const tick = (n = 1) => { for (let i = 0; i < n; i++) { now += TICK; clock = now; stage.frame(now); } };
+  const tick = (n = 1) => {
+    for (let i = 0; i < n; i++) {
+      now += TICK;
+      clock = now;
+      stage.frame(now);
+    }
+  };
 
   beforeEach(() => {
     rig.ready = false;
@@ -51,20 +75,42 @@ describe('BuildStage first picture', () => {
     rig.used.mockClear();
     clock = now = 1000;
     vi.spyOn(performance, 'now').mockImplementation(() => clock);
-    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {});
-    const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({ clientWidth: 400, clientHeight: 800 });
-    s._machine = { moving: false, doorOpen: false, frame() {}, setOpen() {}, holdDetail() {}, lod() {}, root: new Group() };
+    const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
+      clientWidth: 400,
+      clientHeight: 800,
+    });
+    s._machine = {
+      moving: false,
+      doorOpen: false,
+      frame() {},
+      setOpen() {},
+      holdDetail() {},
+      lod() {},
+      root: new Group(),
+    };
     s._game = {};
     s.snaps = { of: () => ({}), drop() {} };
     stage = s as unknown as Stage;
   });
-  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
 
   it('draws nothing while the programs link, starts them once, and draws when they have linked', async () => {
     let done = false;
-    void stage.picture.then(() => { done = true; });
+    void stage.picture.then(() => {
+      done = true;
+    });
     tick(30);
     expect(rig.render).not.toHaveBeenCalled();
     expect(rig.started).toHaveBeenCalledTimes(1);

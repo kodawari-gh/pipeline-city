@@ -29,7 +29,9 @@ function fakeSink() {
     keys: () => log.filter((r): r is Extract<Rec, { kind: 'key' }> => r.kind === 'key').map((r) => r.pc),
     /** The `quantise` of each level_up played, in order. */
     stingerQuantise: () =>
-      log.filter((r): r is Extract<Rec, { kind: 'cue' }> => r.kind === 'cue' && r.id === 'level_up').map((r) => r.quantise),
+      log
+        .filter((r): r is Extract<Rec, { kind: 'cue' }> => r.kind === 'cue' && r.id === 'level_up')
+        .map((r) => r.quantise),
   };
 }
 
@@ -234,5 +236,7 @@ describe('level-up stinger: the level-up popup', () => {
 });
 
 describe('level-up stinger: todo (the music, not built yet)', () => {
-  it.todo('the music key change and chord start on the same beat as the stinger (the music tickets use the beat clock hook)');
+  it.todo(
+    'the music key change and chord start on the same beat as the stinger (the music tickets use the beat clock hook)',
+  );
 });

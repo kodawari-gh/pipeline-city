@@ -30,7 +30,8 @@ describe('per-cue cap (maxVoices)', () => {
 describe('global cap (voices.global)', () => {
   // sfx and ui reach 12 + 6 = 18 at most, so the global cap binds only with a third bus. Fill it with music voices.
   const fill = (pool: VoicePool) => {
-    for (let i = 0; i < MIX.voices.global; i++) pool.add({ cue: 'payout', bus: 'music', prio: 3, t: i, stop: () => {} });
+    for (let i = 0; i < MIX.voices.global; i++)
+      pool.add({ cue: 'payout', bus: 'music', prio: 3, t: i, stop: () => {} });
   };
 
   it('a higher-priority cue steals the oldest lowest-priority voice and the pool stays at MIX.voices.global', () => {

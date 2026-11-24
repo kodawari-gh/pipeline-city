@@ -32,11 +32,16 @@ export const SETTINGS_ROWS: Record<SettingsTabId, readonly string[]> = {
 export function railMove(at: number, count: number, key: string, railFocused: boolean): number {
   if (!railFocused || count < 1) return at;
   switch (key) {
-    case 'ArrowRight': return (at + 1) % count;
-    case 'ArrowLeft': return (at - 1 + count) % count;
-    case 'Home': return 0;
-    case 'End': return count - 1;
-    default: return at;
+    case 'ArrowRight':
+      return (at + 1) % count;
+    case 'ArrowLeft':
+      return (at - 1 + count) % count;
+    case 'Home':
+      return 0;
+    case 'End':
+      return count - 1;
+    default:
+      return at;
   }
 }
 
@@ -46,7 +51,11 @@ export function railMove(at: number, count: number, key: string, railFocused: bo
 export const rowMove = (count: number, at: number, key: string): number => moveFocus(count, at, key);
 
 /** An event that can change Peek: a pointer, a key, or the window losing focus. */
-export interface PeekEvent { type: string; pointerType?: string; key?: string }
+export interface PeekEvent {
+  type: string;
+  pointerType?: string;
+  key?: string;
+}
 
 const isPeekKey = (key?: string) => key === ' ' || key === 'Enter';
 
@@ -56,14 +65,19 @@ const isPeekKey = (key?: string) => key === ' ' || key === 'Enter';
  */
 export function peekHeld(held: boolean, ev: PeekEvent): boolean {
   switch (ev.type) {
-    case 'pointerdown': return true;
+    case 'pointerdown':
+      return true;
     case 'pointerup':
     case 'pointercancel':
     case 'pointerleave':
-    case 'blur': return false;
-    case 'keydown': return isPeekKey(ev.key) ? true : held;
-    case 'keyup': return isPeekKey(ev.key) ? false : held;
-    default: return held;
+    case 'blur':
+      return false;
+    case 'keydown':
+      return isPeekKey(ev.key) ? true : held;
+    case 'keyup':
+      return isPeekKey(ev.key) ? false : held;
+    default:
+      return held;
   }
 }
 

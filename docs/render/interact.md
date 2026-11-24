@@ -6,27 +6,27 @@ The 2D Pixi camera, hit order and hover rings are removed. The 3D renderer (`src
 
 ## Files
 
-| File | Role |
-|---|---|
-| `src/features/board/render/board.ts` | the bridge: `anchorOf`, `anchorsOf`, `flyTo`, `hasTarget`; forwards to the 3D world |
-| `src/features/board/render/three/board3d.ts` | the 3D world: its flights, its screen anchors and its outlines of the drag targets |
-| `src/core/render/three/pick.ts` | raycast picking: the nearest object with an id (`userData.id`) answers the hover id |
-| `src/core/render/three/pad.ts`, `gesture.ts` | the pointers of every stage: mouse, touch, wheel into pan, turn, zoom, twist, tap and focus calls on the stage (`Camera` below) |
-| `src/features/board/render/three/drag3d.ts` | the drag gestures in 3D: parts, installed parts back to the shelf, keys, cable plugs |
-| `src/core/render/camera.ts` | keeps the `View`, `Inset`, `Rect` and `FlyOpts` types, `currentTextResolution`, and the label sweep (`registerLabel`, `sweepLabels`) (`camera.test.ts`); the 2D `Camera` class was removed |
-| `src/core/render/shape.ts`, `capture.ts` | a `Shape` read from an object's own art (`captureShape`) |
+| File                                         | Role                                                                                                                                                                                       |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/features/board/render/board.ts`         | the bridge: `anchorOf`, `anchorsOf`, `flyTo`, `hasTarget`; forwards to the 3D world                                                                                                        |
+| `src/features/board/render/three/board3d.ts` | the 3D world: its flights, its screen anchors and its outlines of the drag targets                                                                                                         |
+| `src/core/render/three/pick.ts`              | raycast picking: the nearest object with an id (`userData.id`) answers the hover id                                                                                                        |
+| `src/core/render/three/pad.ts`, `gesture.ts` | the pointers of every stage: mouse, touch, wheel into pan, turn, zoom, twist, tap and focus calls on the stage (`Camera` below)                                                            |
+| `src/features/board/render/three/drag3d.ts`  | the drag gestures in 3D: parts, installed parts back to the shelf, keys, cable plugs                                                                                                       |
+| `src/core/render/camera.ts`                  | keeps the `View`, `Inset`, `Rect` and `FlyOpts` types, `currentTextResolution`, and the label sweep (`registerLabel`, `sweepLabels`) (`camera.test.ts`); the 2D `Camera` class was removed |
+| `src/core/render/shape.ts`, `capture.ts`     | a `Shape` read from an object's own art (`captureShape`)                                                                                                                                   |
 
 ## Camera
 
 One camera model on every stage: the game's board (`board3d.ts`), Build my PC (`buildmode3d.ts`) and the Gallery's viewer (`viewer.ts`). The view is an orbit (`three/camera.ts`). The pointers are read by one pad (`three/pad.ts`, the maths in `three/gesture.ts`), so they mean the same everywhere. A stage only decides what a drag that starts on a part lifts.
 
-| | mouse | touch |
-|---|---|---|
-| pan | drag, middle-drag | one finger |
-| turn | right-drag, shift-drag | two fingers swiped together; a twist turns the yaw |
-| zoom | wheel, trackpad pinch (ctrl + wheel), toward the surface under the pointer | pinch, toward the surface under the fingers (they drag the view along) |
-| focus | double-click | double-tap |
-| lift a part | drag from it | hold 400 ms on it, then drag |
+|             | mouse                                                                      | touch                                                                  |
+| ----------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| pan         | drag, middle-drag                                                          | one finger                                                             |
+| turn        | right-drag, shift-drag                                                     | two fingers swiped together; a twist turns the yaw                     |
+| zoom        | wheel, trackpad pinch (ctrl + wheel), toward the surface under the pointer | pinch, toward the surface under the fingers (they drag the view along) |
+| focus       | double-click                                                               | double-tap                                                             |
+| lift a part | drag from it                                                               | hold 400 ms on it, then drag                                           |
 
 - **Surface under the pointer.** A pan holds the surface it started on (the content follows the pointer at that depth); a zoom goes toward the surface under the pointer (`zoomOn`; the Gallery's `zoomAbout`, which turns all the way round). A zoom never goes against the way asked at a height limit (a plain clamp backed off from a surface in front of the target's plane).
 - **Turn.** It pivots about the surface in the middle of the free window and puts back the height and field of view it started with, so turning does not shrink the room view. A wall or a piece of furniture **stops** a turn (`turnReach` in `three/camera.ts`, used by `turnStep` in `board3d.ts`): it goes on while the room leaves the view within 20 % of its height and moves the eye like a plain orbit (no jump); past that it stops where it was and slides on the other angle. Each step stops at the end of the one before, so a turn never snaps back, never shrinks into a wall and never throws the eye to the far side of a piece.

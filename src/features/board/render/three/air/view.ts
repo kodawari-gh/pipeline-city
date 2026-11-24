@@ -21,7 +21,17 @@ import { AirTags3D, type AirTag } from './airtags';
 import { AirSim } from './build';
 import { planLines } from './debug';
 import { AirParticles } from './particles';
-import { airParts, airPlan, airReference, planKey, PSU_BANK, psuBay, surfaceTemps, type AirPart, type AirPlan } from './plan';
+import {
+  airParts,
+  airPlan,
+  airReference,
+  planKey,
+  PSU_BANK,
+  psuBay,
+  surfaceTemps,
+  type AirPart,
+  type AirPlan,
+} from './plan';
 import { makeVeil, Ribbons } from './ribbons';
 import { Water } from './water';
 import { waterNet } from './waternet';
@@ -34,7 +44,8 @@ const COUNT = 260;
 /** Milliseconds a frame may spend on solving the flow of a new machine. */
 const SOLVE_MS = 4;
 /** The thermal scale runs from the room's temperature to the hottest part's, over at least this many kelvins (so a cool machine does not look hot) and at most that many. */
-const SPAN_MIN = 30, SPAN_MAX = 70;
+const SPAN_MIN = 30,
+  SPAN_MAX = 70;
 /** Seconds the scale's top takes to follow the hottest part (so the colours do not jump). */
 const SCALE_TAU = 1.5;
 
@@ -77,7 +88,10 @@ export class AirView3D {
   /** Milliseconds a frame of the lens takes on the main thread, smoothed (the solve of a new machine included). */
   cost = 0;
 
-  constructor(private readonly scene: Scene, private readonly dom: HTMLElement | null = null) {
+  constructor(
+    private readonly scene: Scene,
+    private readonly dom: HTMLElement | null = null,
+  ) {
     this.group.add(this.veil);
     this.group.visible = false;
     scene.add(this.group);
@@ -86,17 +100,36 @@ export class AirView3D {
   }
 
   // (for the developer: `window.__air`)
-  get planNow(): AirPlan | null { return this.plan; }
-  get simNow(): AirSim | null { return this.sim; }
-  get particlesNow(): AirParticles | null { return this.particles; }
-  get partsNow(): readonly AirPart[] { return this.parts; }
+  get planNow(): AirPlan | null {
+    return this.plan;
+  }
+  get simNow(): AirSim | null {
+    return this.sim;
+  }
+  get particlesNow(): AirParticles | null {
+    return this.particles;
+  }
+  get partsNow(): readonly AirPart[] {
+    return this.parts;
+  }
   /** The thermal scale now: its foot and its top, C. */
-  get scaleNow(): [number, number] { return [AMBIENT_C, this.hi]; }
-  set debug(on: boolean) { this.wantDebug = on; this.syncDebug(); }
-  get debug(): boolean { return this.wantDebug; }
+  get scaleNow(): [number, number] {
+    return [AMBIENT_C, this.hi];
+  }
+  set debug(on: boolean) {
+    this.wantDebug = on;
+    this.syncDebug();
+  }
+  get debug(): boolean {
+    return this.wantDebug;
+  }
 
   private syncDebug(): void {
-    for (const l of this.debugLines) { l.removeFromParent(); l.geometry.dispose(); (l.material as { dispose(): void }).dispose(); }
+    for (const l of this.debugLines) {
+      l.removeFromParent();
+      l.geometry.dispose();
+      (l.material as { dispose(): void }).dispose();
+    }
     this.debugLines = [];
     if (!this.wantDebug || !this.plan) return;
     this.debugLines = planLines(this.plan, this.sim ?? undefined);
@@ -104,26 +137,40 @@ export class AirView3D {
   }
 
   /** Is the lens drawing? */
-  get shown(): boolean { return this.group.visible; }
+  get shown(): boolean {
+    return this.group.visible;
+  }
 
   hide(): void {
     this.group.visible = false;
     this.tags.show(false);
     // (the parts take their own look back)
-    if (this.glowing) { this.machine?.thermal(null); this.glowing = false; }
+    if (this.glowing) {
+      this.machine?.thermal(null);
+      this.glowing = false;
+    }
   }
 
   /** Make the air of a new machine: the plan, the grid, the particles. */
   private rebuild(snap: Snapshot, bodies: ReturnType<Machine3D['airBodies']>): void {
     this.release();
-    const plan = airPlan(snap, bodies), sim = new AirSim(plan), dens = DENSITY[effective.peek().particles] ?? 1, particles = new AirParticles(sim, Math.round(COUNT * dens), 7);
+    const plan = airPlan(snap, bodies),
+      sim = new AirSim(plan),
+      dens = DENSITY[effective.peek().particles] ?? 1,
+      particles = new AirParticles(sim, Math.round(COUNT * dens), 7);
     this.plan = plan;
     this.sim = sim;
     this.particles = particles;
     this.ribbons = new Ribbons(particles);
     // the supply's unit hides what it holds: the air in it is drawn over the casing, a little past it
     const bay = psuBay(snap);
-    if (bay) { const m = 150; this.ribbons.xray([bay.min[0] - m, bay.min[1] - m, bay.min[2] - m], [bay.max[0] + m, bay.max[1] + m, bay.max[2] + m]); }
+    if (bay) {
+      const m = 150;
+      this.ribbons.xray(
+        [bay.min[0] - m, bay.min[1] - m, bay.min[2] - m],
+        [bay.max[0] + m, bay.max[1] + m, bay.max[2] + m],
+      );
+    }
     this.group.add(this.ribbons.mesh);
     this.filled = false;
     this.scaled = false;
@@ -144,44 +191,87 @@ export class AirView3D {
 
   /** The words: the 2D model's tags, pinned to the case's glass. */
   private words(snap: Snapshot): void {
-    const dev = snap.devices.find((d) => d.kind === 'radiator'), span = dev ? radiatorSpan(dev.slot === 'rad-front' ? 'front' : 'top') : null;
+    const dev = snap.devices.find((d) => d.kind === 'radiator'),
+      span = dev ? radiatorSpan(dev.slot === 'rad-front' ? 'front' : 'top') : null;
     const model = airflowModel({
-      s: snap, mounts: fanMounts(), radiator: span ? { side: span.side as 'front' | 'top', ids: span.ids, rect: span.rect } : null,
-      rearFitted: REAR_FAN_FITTED, rear: REAR_FAN, glass: CASE_GLASS, slots: slotRects(snap), sources: AIR_SOURCES,
+      s: snap,
+      mounts: fanMounts(),
+      radiator: span ? { side: span.side as 'front' | 'top', ids: span.ids, rect: span.rect } : null,
+      rearFitted: REAR_FAN_FITTED,
+      rear: REAR_FAN,
+      glass: CASE_GLASS,
+      slots: slotRects(snap),
+      sources: AIR_SOURCES,
     });
     this.model = model;
     const z = CASE_FRONT - 150;
-    this.words3 = model.tags.map((t): AirTag => ({ id: t.id, at: [t.at[0], -t.at[1], z], text: t.text, tone: t.tone, anchor: t.anchor, ...(t.tempC !== undefined ? { tempC: t.tempC } : {}) }));
+    this.words3 = model.tags.map((t): AirTag => ({
+      id: t.id,
+      at: [t.at[0], -t.at[1], z],
+      text: t.text,
+      tone: t.tone,
+      anchor: t.anchor,
+      ...(t.tempC !== undefined ? { tempC: t.tempC } : {}),
+    }));
     this.shownHi = NaN;
     this.pushTags();
   }
 
   /** The words and, under the room's, the thermal scale (its top is the hottest part's temperature, in whole degrees). */
   private pushTags(): void {
-    const room = this.words3.find((t) => t.id === 'g.room') ?? this.words3[0], hi = Math.round(this.hi);
+    const room = this.words3.find((t) => t.id === 'g.room') ?? this.words3[0],
+      hi = Math.round(this.hi);
     this.shownHi = hi;
-    this.tags.set(room ? [...this.words3, { id: 'g.scale', at: room.at, text: '', tone: 'dim', anchor: room.anchor, scale: [AMBIENT_C, hi], under: room.id }] : this.words3, this.t);
+    this.tags.set(
+      room
+        ? [
+            ...this.words3,
+            {
+              id: 'g.scale',
+              at: room.at,
+              text: '',
+              tone: 'dim',
+              anchor: room.anchor,
+              scale: [AMBIENT_C, hi],
+              under: room.id,
+            },
+          ]
+        : this.words3,
+      this.t,
+    );
   }
 
   /** Per frame, after the camera. `dt`: game seconds (0 holds the air); `pxH`: the view's height in pixels. */
   frame(cam: PerspectiveCamera, pxH: number, snap: Snapshot | null, machine: Machine3D | null, dt: number): void {
-    if (!snap || !machine) { this.hide(); return; }
+    if (!snap || !machine) {
+      this.hide();
+      return;
+    }
     const t0 = performance.now();
     this.t += dt;
     const bodies = machine.airBodies();
     if (!this.plan || machine !== this.machine || planKey(snap, bodies) !== this.plan.key) {
-      if (machine !== this.machine && this.glowing) { this.machine?.thermal(null); this.glowing = false; }
+      if (machine !== this.machine && this.glowing) {
+        this.machine?.thermal(null);
+        this.glowing = false;
+      }
       this.machine = machine;
       this.rebuild(snap, bodies);
     }
-    const plan = this.plan!, sim = this.sim!, particles = this.particles!;
+    const plan = this.plan!,
+      sim = this.sim!,
+      particles = this.particles!;
     // the supply's fan turns here: the 3D machine has none (it blows by what it draws)
-    const running = machineLive(snap), load = snap.power.budgetW > 0 ? Math.min(1, Math.max(0, snap.power.totalW / snap.power.budgetW)) : 0;
+    const running = machineLive(snap),
+      load = snap.power.budgetW > 0 ? Math.min(1, Math.max(0, snap.power.totalW / snap.power.budgetW)) : 0;
     this.psuLevel = blow(Math.min(1, this.psuFan.step(dt, running ? 1 + 8 * load : 0) / FAN_FULL_LEVEL));
     // the flow of each fan, a slice a frame; the case fills the moment it is all solved
     if (!sim.field.ready) sim.run(SOLVE_MS);
     if (sim.field.ready) {
-      if (sim.levels(this.levelFor) && !this.filled && sim.inflow > 0) { particles.fill(AMBIENT_C); this.filled = true; }
+      if (sim.levels(this.levelFor) && !this.filled && sim.inflow > 0) {
+        particles.fill(AMBIENT_C);
+        this.filled = true;
+      }
     }
     if (snap !== this.seen) {
       this.seen = snap;
@@ -206,7 +296,10 @@ export class AirView3D {
     if (loop && !this.water && !this.waterTried) {
       this.waterTried = true;
       const net = waterNet(machine.loopPaths(), machine.loopRadiator(), COOLER_AIR.pump);
-      if (net) { this.water = new Water(net); this.group.add(this.water.mesh); }
+      if (net) {
+        this.water = new Water(net);
+        this.group.add(this.water.mesh);
+      }
     }
     if (this.water) {
       this.water.mesh.visible = !!loop;
@@ -216,14 +309,24 @@ export class AirView3D {
     this.tags.show(true);
     if (Math.round(this.hi) !== this.shownHi) this.pushTags();
     const r = this.dom?.getBoundingClientRect();
-    if (r) this.tags.frame(cam, { left: r.left, top: r.top, width: r.width, height: r.height, minTop: viewInset.peek().top }); // (a label under the HUD bar cannot be read)
+    if (r)
+      this.tags.frame(cam, {
+        left: r.left,
+        top: r.top,
+        width: r.width,
+        height: r.height,
+        minTop: viewInset.peek().top,
+      }); // (a label under the HUD bar cannot be read)
     this.cost += (performance.now() - t0 - this.cost) * 0.05;
   }
 
   dispose(): void {
     this.hide();
     this.release();
-    for (const l of this.debugLines) { l.geometry.dispose(); (l.material as { dispose(): void }).dispose(); }
+    for (const l of this.debugLines) {
+      l.geometry.dispose();
+      (l.material as { dispose(): void }).dispose();
+    }
     this.group.removeFromParent();
     (this.veil.material as { dispose(): void }).dispose();
     this.veil.geometry.dispose();

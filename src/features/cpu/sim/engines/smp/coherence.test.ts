@@ -1,20 +1,21 @@
 // Shared L2 port and the invalidate-on-write rule (docs/MULTICORE.md sections 2 and 3).
 
-import { describe, expect, it } from "vitest";
-import { assemble } from "../../asm";
-import { Machine } from "@/core/sim";
-import { DataCache, EventLog, Ev } from "../common";
-import { createEngine, type EngineConfig } from "../index";
-import { MemSystem } from "@/features/memory/sim/memsys";
-import { COUNTER_COUNT, Counter } from "../view";
+import { describe, expect, it } from 'vitest';
+import { assemble } from '../../asm';
+import { Machine } from '@/core/sim';
+import { DataCache, EventLog, Ev } from '../common';
+import { createEngine, type EngineConfig } from '../index';
+import { MemSystem } from '@/features/memory/sim/memsys';
+import { COUNTER_COUNT, Counter } from '../view';
 
 const MEM = { lineBytes: 16, missPenalty: 4, l2Lines: 32, l2Penalty: 2 } as const;
-const CFG: EngineConfig = { kind: "inorder", forwarding: true, cacheLines: 8, l2Lines: 32 };
+const CFG: EngineConfig = { kind: 'inorder', forwarding: true, cacheLines: 8, l2Lines: 32 };
 const B_AT = 0x1000;
 const word = (m: Machine, a: number) => new DataView(m.ram.buffer).getUint32(a, true);
 
 /** Load a word, add one, store it back, `n` times: the address is the core's own counter. */
-const bump = (addr: number, n: number) => assemble(`
+const bump = (addr: number, n: number) =>
+  assemble(`
     li s3, ${addr}
     li s2, ${n}
     li s1, 0
@@ -27,7 +28,8 @@ const bump = (addr: number, n: number) => assemble(`
     ecall`).program;
 
 /** Read `n` lines starting at `base`, one word per line. */
-const scan = (base: number, lines: number) => assemble(`
+const scan = (base: number, lines: number) =>
+  assemble(`
     li s3, ${base}
     li t1, ${lines * 16}
     li t2, 0
@@ -50,20 +52,21 @@ function twoCores(a: Uint32Array, b: Uint32Array, cfg = CFG): { m: Machine; mem:
   return { m, mem, cycles: [m.cores[0]!.engine!.cycle, m.cores[1]!.engine!.cycle] };
 }
 
-const counters = (m: Machine, k: number) => (m.cores[k]!.engine as unknown as { view: { counters: Float64Array } }).view.counters;
+const counters = (m: Machine, k: number) =>
+  (m.cores[k]!.engine as unknown as { view: { counters: Float64Array } }).view.counters;
 
 /** The same program on a one-core machine with the reference interpreter: the values a correct machine must end with. */
 function reference(p: Uint32Array, addr: number): number {
   const m = new Machine();
-  const e = createEngine({ kind: "ref" });
+  const e = createEngine({ kind: 'ref' });
   m.attach(e, p);
   while (!e.halted) m.stepCpu();
   return word(m, addr);
 }
 
-describe("false sharing", () => {
+describe('false sharing', () => {
   const N = 20;
-  it("two cores bumping different words of one line ping-pong it", () => {
+  it('two cores bumping different words of one line ping-pong it', () => {
     const { m, cycles } = twoCores(bump(0x3000, N), bump(0x3004, N));
     expect(word(m, 0x3000)).toBe(reference(bump(0x3000, N), 0x3000));
     expect(word(m, 0x3004)).toBe(N);
@@ -96,11 +99,22 @@ describe("false sharing", () => {
 
   it("a store from one core drops the line from the other core's L1 D and L1 I, not its own, and keeps the L2", () => {
     const mem = new MemSystem(MEM);
-    const port = () => ({ cache: new DataCache(8, 16, 4), icache: new DataCache(8, 16, 4), counters: new Float64Array(COUNTER_COUNT), events: new EventLog() });
-    const a = port(), b = port();
+    const port = () => ({
+      cache: new DataCache(8, 16, 4),
+      icache: new DataCache(8, 16, 4),
+      counters: new Float64Array(COUNTER_COUNT),
+      events: new EventLog(),
+    });
+    const a = port(),
+      b = port();
     mem.shared = true;
-    mem.join(a); mem.join(b);
-    for (const p of [a, b]) { p.cache.fill(0x3000); p.icache.fill(0x3000); p.cache.fill(0x3040); }
+    mem.join(a);
+    mem.join(b);
+    for (const p of [a, b]) {
+      p.cache.fill(0x3000);
+      p.icache.fill(0x3000);
+      p.cache.fill(0x3040);
+    }
     mem.missCost(0x3000, 0, a.counters, a.events); // the line is in the L2
     mem.storeLanded(a, 0x3004, 5);
     expect(a.cache.hit(0x3000) && a.icache.hit(0x3000)).toBe(true);
@@ -116,9 +130,10 @@ describe("false sharing", () => {
   });
 });
 
-describe("shared L2 port", () => {
-  it("cores missing in the same cycle queue for the L2, one lookup per cycle", () => {
-    const a = scan(0x4000, 16), b = scan(0x5000, 16);
+describe('shared L2 port', () => {
+  it('cores missing in the same cycle queue for the L2, one lookup per cycle', () => {
+    const a = scan(0x4000, 16),
+      b = scan(0x5000, 16);
     const { m, mem, cycles } = twoCores(a, b);
     const total = counters(m, 0)[Counter.StallL2Port]! + counters(m, 1)[Counter.StallL2Port]!;
     expect(total).toBeGreaterThan(0);
@@ -133,30 +148,36 @@ describe("shared L2 port", () => {
     expect(e.cycle).toBeLessThanOrEqual(cycles[0]);
   });
 
-  it("a collision costs the loser one cycle, once: it is then a cycle behind and they no longer collide", () => {
+  it('a collision costs the loser one cycle, once: it is then a cycle behind and they no longer collide', () => {
     const { m } = twoCores(scan(0x4000, 16), scan(0x5000, 16));
     const s = [counters(m, 0)[Counter.StallL2Port]!, counters(m, 1)[Counter.StallL2Port]!];
     expect(s[0]! + s[1]!).toBe(1);
   });
 
-  it("a second lookup in the same cycle waits one cycle; one a cycle later does not", () => {
+  it('a second lookup in the same cycle waits one cycle; one a cycle later does not', () => {
     const mem = new MemSystem(MEM);
     mem.shared = true;
-    const c = new Float64Array(COUNTER_COUNT), ev = new EventLog();
+    const c = new Float64Array(COUNTER_COUNT),
+      ev = new EventLog();
     mem.missCost(0x100, 10, c, ev);
     expect(mem.missCost(0x200, 10, c, ev)).toBe(4 + 1); // the missPenalty (no DRAM) plus a cycle of waiting
-    mem.reset(); mem.shared = true;
+    mem.reset();
+    mem.shared = true;
     mem.missCost(0x100, 10, c, ev);
     expect(mem.missCost(0x300, 11, c, ev)).toBe(4); // a lookup a cycle later does not wait
   });
 
-  it("is deterministic", () => {
+  it('is deterministic', () => {
     const run = () => twoCores(scan(0x4000, 16), bump(0x3000, 10)).cycles;
     expect(run()).toEqual(run());
   });
 
-  it("values equal the reference whatever the timing", () => {
-    for (const cfg of [CFG, { kind: "ooo", width: 2, robSize: 16, schedSize: 8, fetchQueue: 8, cacheLines: 4, l2Lines: 32 } as EngineConfig, { kind: "unpipelined", cacheLines: 4, l2Lines: 32 } as EngineConfig]) {
+  it('values equal the reference whatever the timing', () => {
+    for (const cfg of [
+      CFG,
+      { kind: 'ooo', width: 2, robSize: 16, schedSize: 8, fetchQueue: 8, cacheLines: 4, l2Lines: 32 } as EngineConfig,
+      { kind: 'unpipelined', cacheLines: 4, l2Lines: 32 } as EngineConfig,
+    ]) {
       const { m } = twoCores(bump(0x3000, 15), bump(0x3004, 9), cfg);
       expect(word(m, 0x3000), cfg.kind).toBe(15);
       expect(word(m, 0x3004), cfg.kind).toBe(9);

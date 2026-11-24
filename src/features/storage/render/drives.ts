@@ -10,7 +10,8 @@ import { armTip } from './diskplan';
 
 export type DriveKind = 'hdd' | 'ssd-sata' | 'ssd-nvme';
 
-export const driveKindOf = (visual: string): DriveKind => (visual === 'ssd-nvme' ? 'ssd-nvme' : visual === 'ssd-sata' ? 'ssd-sata' : 'hdd');
+export const driveKindOf = (visual: string): DriveKind =>
+  visual === 'ssd-nvme' ? 'ssd-nvme' : visual === 'ssd-sata' ? 'ssd-sata' : 'hdd';
 
 /** Index of a slot id: sata3 -> 3, m21 -> 1 (the number after the type). */
 export const slotIndex = (slot: string): number => Number(slot.replace(/^(sata|m2)/, '')) || 0;
@@ -19,7 +20,8 @@ export const slotIndex = (slot: string): number => Number(slot.replace(/^(sata|m
 const DESIGN = { w: 700, h: 500 };
 export const driveScale = () => CELL_W / DESIGN.w;
 /** Body of a SATA drive in design coordinates (relative to its cell). */
-const bodyLocal = (kind: DriveKind): Rect => (kind === 'hdd' ? { x: 46, y: 28, w: 640, h: 444 } : { x: 46, y: 78, w: 520, h: 344 });
+const bodyLocal = (kind: DriveKind): Rect =>
+  kind === 'hdd' ? { x: 46, y: 28, w: 640, h: 444 } : { x: 46, y: 78, w: 520, h: 344 };
 
 /** How far an NVMe stick's gold fingers reach west of its body (into the socket). */
 export const NVME_FINGERS = 46;
@@ -29,8 +31,13 @@ export const NVME_FINGERS = 46;
  * of the fingers (`m2Stick` less `NVME_FINGERS`): 80 x 22 mm in all, its notch on the slot's standoff.
  */
 export function driveBody(kind: DriveKind, slot: string): Rect {
-  if (kind === 'ssd-nvme') { const s = m2Stick(M2_SLOTS[slotIndex(slot)] ?? M2_SLOTS[0]!); return { x: s.x + NVME_FINGERS, y: s.y, w: s.w - NVME_FINGERS, h: s.h }; }
-  const c = BAY_CELLS[slotIndex(slot)]!, k = driveScale(), b = bodyLocal(kind);
+  if (kind === 'ssd-nvme') {
+    const s = m2Stick(M2_SLOTS[slotIndex(slot)] ?? M2_SLOTS[0]!);
+    return { x: s.x + NVME_FINGERS, y: s.y, w: s.w - NVME_FINGERS, h: s.h };
+  }
+  const c = BAY_CELLS[slotIndex(slot)]!,
+    k = driveScale(),
+    b = bodyLocal(kind);
   return { x: c.x + b.x * k, y: c.y + b.y * k, w: b.w * k, h: b.h * k };
 }
 
@@ -43,7 +50,10 @@ export function nvmeParts(b: Rect): { ctrl: Rect; dram: Rect; nand: Rect[]; sink
   return {
     ctrl: { x: b.x + 110, y: cy - 150, w: 300, h: 300 },
     dram: { x: b.x + 500, y: cy - 110, w: 220, h: 220 },
-    nand: [{ x: b.x + 780, y: cy - 180, w: 400, h: 360 }, { x: b.x + 1240, y: cy - 180, w: 400, h: 360 }],
+    nand: [
+      { x: b.x + 780, y: cy - 180, w: 400, h: 360 },
+      { x: b.x + 1240, y: cy - 180, w: 400, h: 360 },
+    ],
     sink: { x: b.x + 470, y: b.y + 24, w: b.w - 564, h: b.h - 48 },
   };
 }
@@ -55,11 +65,14 @@ export function nvmeParts(b: Rect): { ctrl: Rect; dram: Rect; nand: Rect[]; sink
 export function osBadgeRect(kind: DriveKind, slot: string): Rect {
   const b = driveBody(kind, slot);
   const k = kind === 'ssd-nvme' ? 1 : driveScale();
-  return kind === 'ssd-nvme' ? { x: b.x + 560, y: b.y + 18, w: 140, h: 62 } : { x: b.x + 14 * k, y: b.y + 12 * k, w: 140 * k, h: 62 * k };
+  return kind === 'ssd-nvme'
+    ? { x: b.x + 560, y: b.y + 18, w: 140, h: 62 }
+    : { x: b.x + 14 * k, y: b.y + 12 * k, w: 140 * k, h: 62 * k };
 }
 
 /** Cell/slot rect that a drive of this slot occupies (drop target). */
-export const slotRect = (slot: string): Rect => (slot.startsWith('m2') ? M2_SLOTS[slotIndex(slot)]! : BAY_CELLS[slotIndex(slot)]!);
+export const slotRect = (slot: string): Rect =>
+  slot.startsWith('m2') ? M2_SLOTS[slotIndex(slot)]! : BAY_CELLS[slotIndex(slot)]!;
 
 const metal = (T: Theme) => '#2c3548';
 const metalHi = (T: Theme) => '#3a4660';
@@ -74,34 +87,47 @@ export function driveArt(T: Theme, kind: DriveKind, slot: string, capLabel: stri
     const b = driveBody(kind, slot);
     // M.2 2280 stick lying along the slot: gold fingers in the socket (west, the M key's gap in them), the controller and its passives by them,
     // a finned spreader over the DRAM and the NAND, a notch at the east end where the standoff's screw holds it down
-    const p = nvmeParts(b), pcb = '#142330';
+    const p = nvmeParts(b),
+      pcb = '#142330';
     box(g, b.x + 8, b.y + 12, b.w, b.h, 12, { fill: '#000000', fa: 0.28 });
-    g.roundRect(b.x, b.y, b.w, b.h, 12).fill({ color: pcb }).stroke({ width: 5, color: mix(pcb, '#ffffff', 0.25), alpha: 0.8 });
+    g.roundRect(b.x, b.y, b.w, b.h, 12)
+      .fill({ color: pcb })
+      .stroke({ width: 5, color: mix(pcb, '#ffffff', 0.25), alpha: 0.8 });
     g.circle(b.x + b.w, b.y + b.h / 2, 40).fill({ color: '#05070c' }); // the notch (the screw sits in it)
-    const pads = 38, pitch = 11.5, y0 = b.y + (b.h - pads * pitch) / 2;
-    for (let i = 0; i < pads; i++) if (i < 29 || i > 32) g.rect(b.x - NVME_FINGERS, y0 + i * pitch, NVME_FINGERS + 16, pitch - 4);
+    const pads = 38,
+      pitch = 11.5,
+      y0 = b.y + (b.h - pads * pitch) / 2;
+    for (let i = 0; i < pads; i++)
+      if (i < 29 || i > 32) g.rect(b.x - NVME_FINGERS, y0 + i * pitch, NVME_FINGERS + 16, pitch - 4);
     g.fill({ color: T.pin, alpha: 0.9 });
     for (const r of [p.dram, ...p.nand]) box(g, r.x, r.y, r.w, r.h, 6, { fill: '#10151e', stroke: T.line, lw: 3 });
     const c = p.ctrl;
     box(g, c.x, c.y, c.w, c.h, 8, { fill: mix('#10151e', T.alu, 0.12), stroke: T.alu, lw: 3, sa: 0.5 }); // controller
     disc(g, c.x + 34, c.y + c.h - 34, 9, { fill: T.alu, fa: 0.5 });
     // its decoupling: a column west of it, a row south of it
-    for (let k = 0; k < 6; k++) g.rect(b.x + 40, c.y + 10 + k * 48, 36, 20).rect(c.x + 20 + k * 46, c.y + c.h + 22, 20, 36);
+    for (let k = 0; k < 6; k++)
+      g.rect(b.x + 40, c.y + 10 + k * 48, 36, 20).rect(c.x + 20 + k * 46, c.y + c.h + 22, 20, 36);
     g.fill({ color: '#8a6a4a' });
-    const sp = p.sink, fins = Math.floor((sp.w - 80) / 50) + 1;
+    const sp = p.sink,
+      fins = Math.floor((sp.w - 80) / 50) + 1;
     box(g, sp.x, sp.y, sp.w, sp.h, 10, { fill: '#3d4249', stroke: '#8d939b', lw: 4, sa: 0.6 }); // gunmetal, as the board's sinks
     for (let k = 0; k < fins; k++) g.moveTo(sp.x + 40 + k * 50, sp.y + 14).lineTo(sp.x + 40 + k * 50, sp.y + sp.h - 14);
     g.stroke({ width: 6, color: '#000000', alpha: 0.3 });
     return root;
   }
   // a SATA drive is drawn at its design size from the cell's corner and scaled to the cell of the cage
-  const cell0 = { x: 0, y: 0, w: DESIGN.w, h: DESIGN.h }, cell = slotRect(slot), b = { ...bodyLocal(kind) };
-  root.position.set(cell.x, cell.y); root.scale.set(driveScale());
+  const cell0 = { x: 0, y: 0, w: DESIGN.w, h: DESIGN.h },
+    cell = slotRect(slot),
+    b = { ...bodyLocal(kind) };
+  root.position.set(cell.x, cell.y);
+  root.scale.set(driveScale());
   // SATA data and power connectors on the west edge of the casing
   const connectors = () => {
     const cell = cell0;
     box(g, cell.x - 4, cell.y + 112, 52, 46, 6, { fill: '#0b0f18', stroke: T.line, lw: 3 });
-    g.rect(cell.x + 8, cell.y + 124, 28, 8).rect(cell.x + 8, cell.y + 140, 28, 8).fill({ color: T.pin, alpha: 0.8 });
+    g.rect(cell.x + 8, cell.y + 124, 28, 8)
+      .rect(cell.x + 8, cell.y + 140, 28, 8)
+      .fill({ color: T.pin, alpha: 0.8 });
     box(g, cell.x - 4, cell.y + 300, 52, 118, 6, { fill: '#0b0f18', stroke: T.line, lw: 3 });
     for (let i = 0; i < 5; i++) g.rect(cell.x + 8, cell.y + 312 + i * 21, 28, 9);
     g.fill({ color: T.pin, alpha: 0.8 });
@@ -115,10 +141,18 @@ export function driveArt(T: Theme, kind: DriveKind, slot: string, capLabel: stri
     disc(g, b.x + 235, b.y + 222, 200, { fill: '#0d121c', stroke: mix(T.line, T.mute, 0.4), lw: 6 });
     // label sticker
     box(g, b.x + 465, b.y + 40, 150, 360, 10, { fill: '#d6dcec', fa: 0.82, stroke: T.line, lw: 3 });
-    g.rect(b.x + 485, b.y + 62, 110, 12).rect(b.x + 485, b.y + 90, 70, 12).fill({ color: '#334', alpha: 0.5 });
+    g.rect(b.x + 485, b.y + 62, 110, 12)
+      .rect(b.x + 485, b.y + 90, 70, 12)
+      .fill({ color: '#334', alpha: 0.5 });
     root.addChild(label(capLabel, b.x + 540, b.y + 200, 52, '#243', { anchor: [0.5, 0.5], head: true, a: 0.9 }));
     root.addChild(label('HDD', b.x + 540, b.y + 330, 40, '#445', { anchor: [0.5, 0.5], a: 0.8 }));
-    for (const [sx, sy] of [[b.x + 36, b.y + 36], [b.x + 36, b.y + b.h - 36], [b.x + b.w - 36, b.y + 36], [b.x + b.w - 36, b.y + b.h - 36]] as const) disc(g, sx, sy, 11, { fill: mix(T.line, '#000000', 0.4) });
+    for (const [sx, sy] of [
+      [b.x + 36, b.y + 36],
+      [b.x + 36, b.y + b.h - 36],
+      [b.x + b.w - 36, b.y + 36],
+      [b.x + b.w - 36, b.y + b.h - 36],
+    ] as const)
+      disc(g, sx, sy, 11, { fill: mix(T.line, '#000000', 0.4) });
   } else {
     // SATA SSD: slim 2.5" casing with a window onto the PCB: controller, NAND, a status LED
     box(g, b.x + 8, b.y + 12, b.w, b.h, 22, { fill: '#000000', fa: 0.25 });
@@ -127,13 +161,21 @@ export function driveArt(T: Theme, kind: DriveKind, slot: string, capLabel: stri
     const w = { x: b.x + 40, y: b.y + 70, w: 300, h: 204 };
     box(g, w.x, w.y, w.w, w.h, 10, { fill: '#142330', stroke: T.line, lw: 4 });
     box(g, w.x + 24, w.y + 28, 100, 100, 8, { fill: '#10151e', stroke: T.mul, lw: 4, sa: 0.9 }); // controller
-    g.rect(w.x + 160, w.y + 30, 112, 56).rect(w.x + 160, w.y + 112, 112, 56).fill({ color: '#10151e' });
+    g.rect(w.x + 160, w.y + 30, 112, 56)
+      .rect(w.x + 160, w.y + 112, 112, 56)
+      .fill({ color: '#10151e' });
     g.stroke({ width: 3, color: T.line });
     for (let i = 0; i < 8; i++) g.rect(w.x + 40 + i * 28, w.y + w.h - 26, 14, 14);
     g.fill({ color: T.pin, alpha: 0.7 });
     root.addChild(label('SSD', b.x + 420, b.y + 120, 56, ink, { anchor: [0.5, 0.5], head: true, a: 0.75 }));
     root.addChild(label(capLabel, b.x + 420, b.y + 215, 40, ink, { anchor: [0.5, 0.5], a: 0.6 }));
-    for (const [sx, sy] of [[b.x + 24, b.y + 24], [b.x + 24, b.y + b.h - 24], [b.x + b.w - 24, b.y + 24], [b.x + b.w - 24, b.y + b.h - 24]] as const) disc(g, sx, sy, 8, { fill: mix(T.line, '#000000', 0.4) });
+    for (const [sx, sy] of [
+      [b.x + 24, b.y + 24],
+      [b.x + 24, b.y + b.h - 24],
+      [b.x + b.w - 24, b.y + 24],
+      [b.x + b.w - 24, b.y + b.h - 24],
+    ] as const)
+      disc(g, sx, sy, 8, { fill: mix(T.line, '#000000', 0.4) });
   }
   return root;
 }
@@ -151,31 +193,86 @@ export interface DriveLiveState {
 export function drawDriveLive(g: Graphics, T: Theme, kind: DriveKind, slot: string, st: DriveLiveState) {
   g.clear();
   // a SATA drive is drawn in design coordinates from its cell's corner, scaled to the cell; the M.2 stick in world coordinates
-  const sata = kind !== 'ssd-nvme', cell = sata ? slotRect(slot) : null;
-  g.position.set(cell?.x ?? 0, cell?.y ?? 0); g.scale.set(sata ? driveScale() : 1);
+  const sata = kind !== 'ssd-nvme',
+    cell = sata ? slotRect(slot) : null;
+  g.position.set(cell?.x ?? 0, cell?.y ?? 0);
+  g.scale.set(sata ? driveScale() : 1);
   const b = sata ? bodyLocal(kind) : driveBody(kind, slot);
   if (kind === 'hdd') {
-    const cx = b.x + 235, cy = b.y + 222, R = 190, rim = mix(T.line, T.alu, 0.5);
+    const cx = b.x + 235,
+      cy = b.y + 222,
+      R = 190,
+      rim = mix(T.line, T.alu, 0.5);
     // the platter: a mirror disc whose sheen wedges, clamp screws and index mark turn with `spin`, so the turning shows even at speed
     disc(g, cx, cy, R, { fill: '#1b2333', stroke: rim, lw: 4 });
     for (const rr of [172, 140, 108, 80]) g.circle(cx, cy, rr);
     g.stroke({ width: 2, color: T.alu, alpha: 0.2 });
     for (let k = 0; k < 2; k++) {
       const a0 = st.spin * 1 + k * Math.PI;
-      g.moveTo(cx, cy).arc(cx, cy, R - 4, a0 - 0.28, a0 + 0.28).closePath().fill({ color: '#ffffff', alpha: 0.07 });
-      g.moveTo(cx, cy).arc(cx, cy, R - 4, a0 + 0.9 - 0.08, a0 + 0.9 + 0.08).closePath().fill({ color: '#ffffff', alpha: 0.04 });
+      g.moveTo(cx, cy)
+        .arc(cx, cy, R - 4, a0 - 0.28, a0 + 0.28)
+        .closePath()
+        .fill({ color: '#ffffff', alpha: 0.07 });
+      g.moveTo(cx, cy)
+        .arc(cx, cy, R - 4, a0 + 0.9 - 0.08, a0 + 0.9 + 0.08)
+        .closePath()
+        .fill({ color: '#ffffff', alpha: 0.04 });
     }
     disc(g, cx, cy, 56, { fill: mix('#1b2333', T.ink, 0.12), stroke: T.line, lw: 3 }); // the clamp ring
-    for (let k = 0; k < 6; k++) { const a = st.spin + (k * Math.PI) / 3; disc(g, cx + Math.cos(a) * 42, cy + Math.sin(a) * 42, k === 0 ? 7 : 5, { fill: k === 0 ? T.ld : metalHi(T), stroke: T.line, lw: 1.5 }); }
+    for (let k = 0; k < 6; k++) {
+      const a = st.spin + (k * Math.PI) / 3;
+      disc(g, cx + Math.cos(a) * 42, cy + Math.sin(a) * 42, k === 0 ? 7 : 5, {
+        fill: k === 0 ? T.ld : metalHi(T),
+        stroke: T.line,
+        lw: 1.5,
+      });
+    }
     disc(g, cx, cy, 16, { fill: metal(T), stroke: T.line, lw: 3 });
     // the head arm swings on an arc: a fixed length on its pivot, so the tip runs the rings from the rim (parked) in towards the hub
-    const px = b.x + 410, py = b.y + 398, len = Math.hypot(cx - px, cy - py) - 40;
-    const tip = armTip(px, py, len, cx, cy, 182 - 128 * st.head), ux = (tip.x - px) / len, uy = (tip.y - py) / len, nx = -uy, ny = ux;
+    const px = b.x + 410,
+      py = b.y + 398,
+      len = Math.hypot(cx - px, cy - py) - 40;
+    const tip = armTip(px, py, len, cx, cy, 182 - 128 * st.head),
+      ux = (tip.x - px) / len,
+      uy = (tip.y - py) / len,
+      nx = -uy,
+      ny = ux;
     // the voice coil on the far side of the pivot
-    g.poly([px + nx * 20 - ux * 12, py + ny * 20 - uy * 12, px + nx * 30 - ux * 74, py + ny * 30 - uy * 74, px - nx * 30 - ux * 74, py - ny * 30 - uy * 74, px - nx * 20 - ux * 12, py - ny * 20 - uy * 12]).fill({ color: mix(T.ld, '#000000', 0.35) }).stroke({ width: 3, color: T.ld, alpha: 0.7 });
-    g.poly([px + nx * 17, py + ny * 17, tip.x + nx * 5, tip.y + ny * 5, tip.x - nx * 5, tip.y - ny * 5, px - nx * 17, py - ny * 17]).fill({ color: mix(T.mute, T.ink, 0.35), alpha: 0.97 }).stroke({ width: 3, color: mix(T.line, T.ink, 0.3) });
+    g.poly([
+      px + nx * 20 - ux * 12,
+      py + ny * 20 - uy * 12,
+      px + nx * 30 - ux * 74,
+      py + ny * 30 - uy * 74,
+      px - nx * 30 - ux * 74,
+      py - ny * 30 - uy * 74,
+      px - nx * 20 - ux * 12,
+      py - ny * 20 - uy * 12,
+    ])
+      .fill({ color: mix(T.ld, '#000000', 0.35) })
+      .stroke({ width: 3, color: T.ld, alpha: 0.7 });
+    g.poly([
+      px + nx * 17,
+      py + ny * 17,
+      tip.x + nx * 5,
+      tip.y + ny * 5,
+      tip.x - nx * 5,
+      tip.y - ny * 5,
+      px - nx * 17,
+      py - ny * 17,
+    ])
+      .fill({ color: mix(T.mute, T.ink, 0.35), alpha: 0.97 })
+      .stroke({ width: 3, color: mix(T.line, T.ink, 0.3) });
     g.moveTo(px, py).lineTo(tip.x, tip.y).stroke({ width: 4, color: '#ffffff', alpha: 0.16 });
-    g.poly([tip.x + nx * 11, tip.y + ny * 11, tip.x + ux * 20 + nx * 8, tip.y + uy * 20 + ny * 8, tip.x + ux * 20 - nx * 8, tip.y + uy * 20 - ny * 8, tip.x - nx * 11, tip.y - ny * 11]).fill({ color: st.led > 0.02 ? T.ld : mix(T.mute, T.ink, 0.4) }); // the head slider
+    g.poly([
+      tip.x + nx * 11,
+      tip.y + ny * 11,
+      tip.x + ux * 20 + nx * 8,
+      tip.y + uy * 20 + ny * 8,
+      tip.x + ux * 20 - nx * 8,
+      tip.y + uy * 20 - ny * 8,
+      tip.x - nx * 11,
+      tip.y - ny * 11,
+    ]).fill({ color: st.led > 0.02 ? T.ld : mix(T.mute, T.ink, 0.4) }); // the head slider
     disc(g, px, py, 24, { fill: metalHi(T), stroke: T.line, lw: 4 });
     disc(g, px, py, 8, { fill: metal(T), stroke: T.line, lw: 2 });
     led(g, T, b.x + b.w - 36, b.y + b.h - 78, st);
@@ -186,12 +283,17 @@ export function drawDriveLive(g: Graphics, T: Theme, kind: DriveKind, slot: stri
   }
   if (st.burnt) {
     box(g, b.x, b.y, b.w, b.h, 18, { fill: T.bg, fa: 0.6 });
-    g.moveTo(b.x + b.w * 0.2, b.y + b.h * 0.2).lineTo(b.x + b.w * 0.8, b.y + b.h * 0.8).moveTo(b.x + b.w * 0.8, b.y + b.h * 0.2).lineTo(b.x + b.w * 0.2, b.y + b.h * 0.8);
+    g.moveTo(b.x + b.w * 0.2, b.y + b.h * 0.2)
+      .lineTo(b.x + b.w * 0.8, b.y + b.h * 0.8)
+      .moveTo(b.x + b.w * 0.8, b.y + b.h * 0.2)
+      .lineTo(b.x + b.w * 0.2, b.y + b.h * 0.8);
     g.stroke({ width: 16, color: T.bad, alpha: 0.85, cap: 'round' });
   }
 }
 
 function led(g: Graphics, T: Theme, x: number, y: number, st: DriveLiveState) {
   if (st.led > 0.02) g.circle(x, y, 34).fill({ color: T.ld, alpha: 0.3 * st.led });
-  g.circle(x, y, 15).fill({ color: st.led > 0.02 ? T.ld : mix(T.ld, T.bg, 0.8), alpha: st.led > 0.02 ? 0.4 + 0.6 * st.led : 0.7 }).stroke({ width: 4, color: T.line, alpha: 0.8 });
+  g.circle(x, y, 15)
+    .fill({ color: st.led > 0.02 ? T.ld : mix(T.ld, T.bg, 0.8), alpha: st.led > 0.02 ? 0.4 + 0.6 * st.led : 0.7 })
+    .stroke({ width: 4, color: T.line, alpha: 0.8 });
 }

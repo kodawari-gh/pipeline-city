@@ -21,8 +21,19 @@ const LEG_TURN = { e: 0, n: Math.PI / 2, w: Math.PI, s: -Math.PI / 2 } as const;
  */
 export function gullWing(width: number): BufferGeometry {
   const s = new Shape();
-  s.moveTo(-10, 30).lineTo(2, 30).lineTo(7, 6).lineTo(14, 6).lineTo(14, 0).lineTo(3, 0).lineTo(-2, 24).lineTo(-10, 24).closePath();
-  return withLow(new ExtrudeGeometry(s, { depth: width, bevelEnabled: false }).rotateX(Math.PI / 2).translate(0, width / 2, 0), () => new BoxGeometry(24, width, 30).translate(2, 0, 15));
+  s.moveTo(-10, 30)
+    .lineTo(2, 30)
+    .lineTo(7, 6)
+    .lineTo(14, 6)
+    .lineTo(14, 0)
+    .lineTo(3, 0)
+    .lineTo(-2, 24)
+    .lineTo(-10, 24)
+    .closePath();
+  return withLow(
+    new ExtrudeGeometry(s, { depth: width, bevelEnabled: false }).rotateX(Math.PI / 2).translate(0, width / 2, 0),
+    () => new BoxGeometry(24, width, 30).translate(2, 0, 15),
+  );
 }
 
 /** A can's height for its radius: the big filter caps are tall, the small polymer ones squat. */
@@ -32,11 +43,24 @@ export const canHeight = (r: number): number => r * (r >= 50 ? 2.5 : 2.1);
 function canTop() {
   return paint(128, 128, (c, w, h) => {
     const g = c.createRadialGradient(w * 0.4, h * 0.35, 4, w / 2, h / 2, w / 2);
-    g.addColorStop(0, '#e9edf2'); g.addColorStop(1, '#9aa3ad');
-    c.fillStyle = g; c.fillRect(0, 0, w, h);
-    c.strokeStyle = 'rgba(40,46,56,0.75)'; c.lineWidth = 7; c.lineCap = 'round';
-    c.beginPath(); c.moveTo(w * 0.3, h / 2); c.lineTo(w * 0.7, h / 2); c.moveTo(w / 2, h * 0.3); c.lineTo(w / 2, h * 0.7); c.stroke();
-    c.fillStyle = 'rgba(30,34,40,0.55)'; c.beginPath(); c.arc(w / 2, h / 2, w * 0.47, 2.3, 3.9); c.arc(w / 2, h / 2, w * 0.38, 3.9, 2.3, true); c.fill();
+    g.addColorStop(0, '#e9edf2');
+    g.addColorStop(1, '#9aa3ad');
+    c.fillStyle = g;
+    c.fillRect(0, 0, w, h);
+    c.strokeStyle = 'rgba(40,46,56,0.75)';
+    c.lineWidth = 7;
+    c.lineCap = 'round';
+    c.beginPath();
+    c.moveTo(w * 0.3, h / 2);
+    c.lineTo(w * 0.7, h / 2);
+    c.moveTo(w / 2, h * 0.3);
+    c.lineTo(w / 2, h * 0.7);
+    c.stroke();
+    c.fillStyle = 'rgba(30,34,40,0.55)';
+    c.beginPath();
+    c.arc(w / 2, h / 2, w * 0.47, 2.3, 3.9);
+    c.arc(w / 2, h / 2, w * 0.38, 3.9, 2.3, true);
+    c.fill();
   });
 }
 
@@ -46,8 +70,16 @@ function canTop() {
  */
 export function buildSolids(solids: readonly Solid[], socketEmpty: boolean, capSleeve: string | null = null): Group {
   const out = new Group();
-  const caps: Item[] = [], capTops: Item[] = [], bands: Item[] = [], bodies: Item[] = [], ends: Item[] = [], legs: Item[] = [], pins: Item[] = [], lga: Item[] = [];
-  const washers: Item[] = [], heads: Item[] = [];
+  const caps: Item[] = [],
+    capTops: Item[] = [],
+    bands: Item[] = [],
+    bodies: Item[] = [],
+    ends: Item[] = [],
+    legs: Item[] = [],
+    pins: Item[] = [],
+    lga: Item[] = [];
+  const washers: Item[] = [],
+    heads: Item[] = [];
   for (const s of solids) {
     const y = -s.y;
     switch (s.kind) {
@@ -60,34 +92,67 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean, capS
       }
       case 'smd': {
         // a ceramic body between two tinned ends, as high as it is narrow
-        const along = s.w >= s.h, L = along ? s.w : s.h, W = along ? s.h : s.w, t = Math.min(W * 0.75, 16), e = L * 0.24;
+        const along = s.w >= s.h,
+          L = along ? s.w : s.h,
+          W = along ? s.h : s.w,
+          t = Math.min(W * 0.75, 16),
+          e = L * 0.24;
         bodies.push({ x: s.x, y, z: BOARD_Z + t / 2, sx: along ? L - 2 * e : W, sy: along ? W : L - 2 * e, sz: t });
-        for (const k of [-1, 1]) ends.push({ x: s.x + (along ? k * (L - e) / 2 : 0), y: y + (along ? 0 : k * (L - e) / 2), z: BOARD_Z + t / 2, sx: along ? e : W, sy: along ? W : e, sz: t + 1 });
+        for (const k of [-1, 1])
+          ends.push({
+            x: s.x + (along ? (k * (L - e)) / 2 : 0),
+            y: y + (along ? 0 : (k * (L - e)) / 2),
+            z: BOARD_Z + t / 2,
+            sx: along ? e : W,
+            sy: along ? W : e,
+            sz: t + 1,
+          });
         break;
       }
-      case 'leg': legs.push({ x: s.x, y, z: BOARD_Z, sx: 1, sy: 1, sz: 1, rz: LEG_TURN[s.side] }); break;
-      case 'pin': pins.push({ x: s.x, y, z: BOARD_Z + 140, sx: s.s, sy: s.s, sz: 280 }); break;
-      case 'lga': if (socketEmpty) lga.push({ x: s.x, y, z: BOARD_Z + 76, sx: s.s, sy: s.s, sz: 12 }); break;
+      case 'leg':
+        legs.push({ x: s.x, y, z: BOARD_Z, sx: 1, sy: 1, sz: 1, rz: LEG_TURN[s.side] });
+        break;
+      case 'pin':
+        pins.push({ x: s.x, y, z: BOARD_Z + 140, sx: s.s, sy: s.s, sz: 280 });
+        break;
+      case 'lga':
+        if (socketEmpty) lga.push({ x: s.x, y, z: BOARD_Z + 76, sx: s.s, sy: s.s, sz: 12 });
+        break;
       case 'screw': {
         // the mounting screw over its standoff: a washer and a pan head with its cross slot
         washers.push({ x: s.x, y, z: BOARD_Z + 5, sx: s.r * 0.78, sy: s.r * 0.78, sz: 10 });
         heads.push({ x: s.x, y, z: BOARD_Z + 22, sx: s.r * 0.58, sy: s.r * 0.58, sz: 24 });
         break;
       }
-      default: break; // chokes and power stages are raised with their own art (machine3d.ts)
+      default:
+        break; // chokes and power stages are raised with their own art (machine3d.ts)
     }
   }
   // (a can's lower detail level, LOD-05: half the sides)
   const drumOf = (sides: number) => new CylinderGeometry(1, 1, 1, sides).rotateX(Math.PI / 2);
-  const box = new BoxGeometry(1, 1, 1), can = withLow(drumOf(SEG.drum), () => drumOf(lowSides(SEG.drum)));
+  const box = new BoxGeometry(1, 1, 1),
+    can = withLow(drumOf(SEG.drum), () => drumOf(lowSides(SEG.drum)));
   // (satin: the legs and pins sit right under the lamp, mirror metal flares white there)
-  const tinned = mat(0xb9babf, { metalness: 0.75, roughness: 0.42 }), gold = mat(0xd4af5f, { metalness: 0.9, roughness: 0.34 });
-  const add = (items: Item[], g: BufferGeometry, m: ReturnType<typeof mat>) => { if (items.length) out.add(instanced(g, m, items)); };
-  add(caps, can, capSleeve ? mat(parseInt(capSleeve.slice(1), 16), { roughness: 0.32 }) : mat(0x959aa3, { metalness: 0.6, roughness: 0.45 }));
+  const tinned = mat(0xb9babf, { metalness: 0.75, roughness: 0.42 }),
+    gold = mat(0xd4af5f, { metalness: 0.9, roughness: 0.34 });
+  const add = (items: Item[], g: BufferGeometry, m: ReturnType<typeof mat>) => {
+    if (items.length) out.add(instanced(g, m, items));
+  };
+  add(
+    caps,
+    can,
+    capSleeve
+      ? mat(parseInt(capSleeve.slice(1), 16), { roughness: 0.32 })
+      : mat(0x959aa3, { metalness: 0.6, roughness: 0.45 }),
+  );
   // (satin, as the coin cell's: a mirror top flares white under the lamp up close)
   add(capTops, can, mat(0xffffff, { map: canTop(), metalness: 0.65, roughness: 0.46 }));
   // the polarity stripe printed down the sleeve: a sliver of a slightly larger can
-  add(bands, new CylinderGeometry(1, 1, 1, SEG.midRound, 1, true, 2.2, 0.8).rotateX(Math.PI / 2), mat(0xb9babf, { roughness: 0.4, side: DoubleSide }));
+  add(
+    bands,
+    new CylinderGeometry(1, 1, 1, SEG.midRound, 1, true, 2.2, 0.8).rotateX(Math.PI / 2),
+    mat(0xb9babf, { roughness: 0.4, side: DoubleSide }),
+  );
   add(bodies, box, mat(CERAMIC, { roughness: 0.55 }));
   add(ends, box, tinned);
   add(legs, gullWing(8), tinned);
@@ -95,7 +160,11 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean, capS
   add(lga, box, gold);
   add(washers, can, mat(0x4e5360, { metalness: 0.8, roughness: 0.4 }));
   const side = mat(0x959aa3, { metalness: 0.85, roughness: 0.32 });
-  add(heads, new CylinderGeometry(1, 1, 1, SEG.drum).rotateX(Math.PI / 2), [side, mat(0xffffff, { map: screwTop(), metalness: 0.8, roughness: 0.35 }), side] as unknown as ReturnType<typeof mat>);
+  add(heads, new CylinderGeometry(1, 1, 1, SEG.drum).rotateX(Math.PI / 2), [
+    side,
+    mat(0xffffff, { map: screwTop(), metalness: 0.8, roughness: 0.35 }),
+    side,
+  ] as unknown as ReturnType<typeof mat>);
   return out;
 }
 
@@ -103,9 +172,18 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean, capS
 function screwTop() {
   return paint(64, 64, (c, w, h) => {
     const g = c.createRadialGradient(w * 0.38, h * 0.35, 2, w / 2, h / 2, w / 2);
-    g.addColorStop(0, '#d5dbe3'); g.addColorStop(1, '#6f7884');
-    c.fillStyle = g; c.fillRect(0, 0, w, h);
-    c.strokeStyle = 'rgba(20,24,30,0.8)'; c.lineWidth = 7; c.lineCap = 'round';
-    c.beginPath(); c.moveTo(w * 0.24, h / 2); c.lineTo(w * 0.76, h / 2); c.moveTo(w / 2, h * 0.24); c.lineTo(w / 2, h * 0.76); c.stroke();
+    g.addColorStop(0, '#d5dbe3');
+    g.addColorStop(1, '#6f7884');
+    c.fillStyle = g;
+    c.fillRect(0, 0, w, h);
+    c.strokeStyle = 'rgba(20,24,30,0.8)';
+    c.lineWidth = 7;
+    c.lineCap = 'round';
+    c.beginPath();
+    c.moveTo(w * 0.24, h / 2);
+    c.lineTo(w * 0.76, h / 2);
+    c.moveTo(w / 2, h * 0.24);
+    c.lineTo(w / 2, h * 0.76);
+    c.stroke();
   });
 }

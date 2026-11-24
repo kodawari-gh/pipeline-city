@@ -22,9 +22,15 @@ const MIN_REM = 1;
 const MIN_CONTRAST = 4.5;
 
 const css = fs.readFileSync(`${ROOT}src/core/ui/ui.css`, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '') as string;
-const html = fs.readFileSync(`${ROOT}index.html`, 'utf8').replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '') as string;
+const html = fs
+  .readFileSync(`${ROOT}index.html`, 'utf8')
+  .replace(/<!--[\s\S]*?-->/g, '')
+  .replace(/\/\*[\s\S]*?\*\//g, '') as string;
 
-interface Rule { selector: string; body: string }
+interface Rule {
+  selector: string;
+  body: string;
+}
 
 /** Every rule with a body, also the ones inside @media (an inner rule has no brace in its body). */
 function rules(text: string): Rule[] {
@@ -48,7 +54,8 @@ const VARS = rootVars(css);
 /** A value with its var(--x) replaced from :root (a few levels deep). */
 function resolve(value: string): string {
   let v = value.trim();
-  for (let i = 0; i < 6 && /var\(/.test(v); i++) v = v.replace(/var\((--[\w-]+)\s*(?:,[^)]*)?\)/g, (_, n: string) => VARS.get(n) ?? '0');
+  for (let i = 0; i < 6 && /var\(/.test(v); i++)
+    v = v.replace(/var\((--[\w-]+)\s*(?:,[^)]*)?\)/g, (_, n: string) => VARS.get(n) ?? '0');
   return v;
 }
 
@@ -60,11 +67,16 @@ function minRem(value: string): number {
   const v = resolve(value).trim();
   const fn = /^(max|clamp|min)\((.*)\)$/.exec(v);
   if (fn) {
-    const args: string[] = []; let depth = 0, cur = '';
+    const args: string[] = [];
+    let depth = 0,
+      cur = '';
     for (const ch of fn[2]!) {
       if (ch === '(') depth++;
       if (ch === ')') depth--;
-      if (ch === ',' && depth === 0) { args.push(cur); cur = ''; } else cur += ch;
+      if (ch === ',' && depth === 0) {
+        args.push(cur);
+        cur = '';
+      } else cur += ch;
     }
     args.push(cur);
     const nums = args.map(minRem);
@@ -91,14 +103,19 @@ function sizesOf(body: string): string[] {
 
 /** Every font size the rules for these selectors set (a selector matches when it is the target itself or ends in it, as `.modal .pplain`). */
 function sizesFor(text: string, matches: (selector: string) => boolean): { selector: string; size: string }[] {
-  return rules(text).filter((r) => matches(r.selector)).flatMap((r) => sizesOf(r.body).map((size) => ({ selector: r.selector, size })));
+  return rules(text)
+    .filter((r) => matches(r.selector))
+    .flatMap((r) => sizesOf(r.body).map((size) => ({ selector: r.selector, size })));
 }
 
 function expectBigEnough(text: string, what: string, matches: (selector: string) => boolean): void {
   const found = sizesFor(text, matches);
   expect(found.length, `${what}: no rule sets a font size, so the size is the page's small default`).toBeGreaterThan(0);
   for (const f of found) {
-    expect(minRem(f.size), `${what}: "${f.selector}" sets font-size ${f.size} (${resolve(f.size)}), under ${MIN_REM}rem`).toBeGreaterThanOrEqual(MIN_REM);
+    expect(
+      minRem(f.size),
+      `${what}: "${f.selector}" sets font-size ${f.size} (${resolve(f.size)}), under ${MIN_REM}rem`,
+    ).toBeGreaterThanOrEqual(MIN_REM);
   }
 }
 
@@ -112,7 +129,9 @@ describe('the text of a message that decides an action is 1 rem or larger', () =
   });
 
   it('the crash screen: the plain message and the headline', () => {
-    expectBigEnough(css, 'the crash message (.pplain in the crash modal)', (s) => /(\.modal|\.crash)\b.*\.pplain$/.test(s));
+    expectBigEnough(css, 'the crash message (.pplain in the crash modal)', (s) =>
+      /(\.modal|\.crash)\b.*\.pplain$/.test(s),
+    );
     expectBigEnough(css, 'the crash headline', (s) => s === '.crash-line');
   });
 
@@ -139,7 +158,9 @@ describe('the text of a message that decides an action is 1 rem or larger', () =
 
 /** WCAG relative luminance of a #rrggbb colour. */
 function luminance(hex: string): number {
-  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  const c = [1, 3, 5]
+    .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
   return 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
 }
 function contrast(a: string, b: string): number {
@@ -152,7 +173,8 @@ describe('the text of those messages has contrast on the panel behind it', () =>
   const panel = VARS.get('--menu-solid')!;
 
   it('the page declares the colours this test reads', () => {
-    for (const n of ['--ink', '--mute', '--warn', '--bad', '--menu-solid']) expect(VARS.get(n), n).toMatch(/^#[0-9a-f]{6}$/i);
+    for (const n of ['--ink', '--mute', '--warn', '--bad', '--menu-solid'])
+      expect(VARS.get(n), n).toMatch(/^#[0-9a-f]{6}$/i);
   });
 
   it('the notice colour (warn), the crash headline (bad), body text (ink) and the quiet text (mute) all reach 4.5 : 1', () => {
@@ -162,7 +184,11 @@ describe('the text of those messages has contrast on the panel behind it', () =>
   });
 
   it('the notice and the crash headline use one of those colours', () => {
-    const colour = (sel: string) => rules(css).filter((r) => r.selector === sel).map((r) => /(?:^|;)\s*color\s*:\s*var\((--[\w-]+)\)/.exec(r.body)?.[1]).find(Boolean);
+    const colour = (sel: string) =>
+      rules(css)
+        .filter((r) => r.selector === sel)
+        .map((r) => /(?:^|;)\s*color\s*:\s*var\((--[\w-]+)\)/.exec(r.body)?.[1])
+        .find(Boolean);
     expect(colour('.notice')).toMatch(/^--(warn|bad|ink)$/);
     expect(colour('.crash-line')).toMatch(/^--(warn|bad|ink)$/);
   });

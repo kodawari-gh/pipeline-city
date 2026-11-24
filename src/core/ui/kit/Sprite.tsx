@@ -16,16 +16,34 @@ export function spriteFor(id: string): Sprite | null {
 }
 
 /** A fixed pattern for a job with no program: the shape of something not known yet. */
-const MYSTERY: Sprite = { cols: 10, rows: 4, cells: Array.from({ length: 34 }, (_, i) => ({ cls: 'alu' as const, heat: 0.4 + ((i * 7) % 5) / 10 })) };
+const MYSTERY: Sprite = {
+  cols: 10,
+  rows: 4,
+  cells: Array.from({ length: 34 }, (_, i) => ({ cls: 'alu' as const, heat: 0.4 + ((i * 7) % 5) / 10 })),
+};
 
 export function JobSprite({ id, silhouette, class: cls }: { id: string; silhouette?: boolean; class?: string }) {
   const sp = spriteFor(id) ?? MYSTERY;
   const pad = 0.12;
   return (
-    <svg class={`spr ${silhouette ? 'sil' : ''} ${cls ?? ''}`} viewBox={`0 0 ${sp.cols} ${sp.rows}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label={silhouette ? 'A job you have not met' : 'The job as a picture of its program'}>
+    <svg
+      class={`spr ${silhouette ? 'sil' : ''} ${cls ?? ''}`}
+      viewBox={`0 0 ${sp.cols} ${sp.rows}`}
+      preserveAspectRatio="xMidYMid meet"
+      role="img"
+      aria-label={silhouette ? 'A job you have not met' : 'The job as a picture of its program'}
+    >
       {sp.cells.map((c, i) => (
-        <rect key={i} class={`c-${c.cls}`} x={(i % sp.cols) + pad} y={Math.floor(i / sp.cols) + pad} width={1 - 2 * pad} height={1 - 2 * pad} rx={0.18}
-          style={silhouette ? undefined : { opacity: 0.3 + 0.7 * c.heat }} />
+        <rect
+          key={i}
+          class={`c-${c.cls}`}
+          x={(i % sp.cols) + pad}
+          y={Math.floor(i / sp.cols) + pad}
+          width={1 - 2 * pad}
+          height={1 - 2 * pad}
+          rx={0.18}
+          style={silhouette ? undefined : { opacity: 0.3 + 0.7 * c.heat }}
+        />
       ))}
     </svg>
   );
@@ -33,22 +51,46 @@ export function JobSprite({ id, silhouette, class: cls }: { id: string; silhouet
 
 /** The icon for the part of the machine a tip is about. */
 export const PART_ICON: Record<TipPart, IconName> = {
-  clock: 'gauge', cpu: 'cpu', ram: 'memory', bank: 'slot', cache: 'box', display: 'screen', tlb: 'grid', os: 'layers', drive: 'disk',
-  gpu: 'card', npu: 'bolt', tpm: 'lock', predictor: 'clock', net: 'net', none: 'check',
+  clock: 'gauge',
+  cpu: 'cpu',
+  ram: 'memory',
+  bank: 'slot',
+  cache: 'box',
+  display: 'screen',
+  tlb: 'grid',
+  os: 'layers',
+  drive: 'disk',
+  gpu: 'card',
+  npu: 'bolt',
+  tpm: 'lock',
+  predictor: 'clock',
+  net: 'net',
+  none: 'check',
 };
 
 /** The icon for a need of a job class. */
 export function needIcon(kind: string): IconName {
   switch (kind) {
-    case 'os': return 'layers';
-    case 'storage': case 'fs': return 'disk';
-    case 'net': return 'net';
-    case 'tpm': return 'slot';
-    case 'ecc': return 'memory';
-    case 'ram': return 'stick';
-    case 'gpu': return 'card';
-    case 'npu': return 'bolt';
-    case 'cores': return 'cpu';
-    default: return 'check';
+    case 'os':
+      return 'layers';
+    case 'storage':
+    case 'fs':
+      return 'disk';
+    case 'net':
+      return 'net';
+    case 'tpm':
+      return 'slot';
+    case 'ecc':
+      return 'memory';
+    case 'ram':
+      return 'stick';
+    case 'gpu':
+      return 'card';
+    case 'npu':
+      return 'bolt';
+    case 'cores':
+      return 'cpu';
+    default:
+      return 'check';
   }
 }

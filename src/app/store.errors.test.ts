@@ -8,7 +8,9 @@ class FakeWorker {
   static made: FakeWorker[] = [];
   onmessage: unknown = null;
   onerror: (() => void) | null = null;
-  constructor() { FakeWorker.made.push(this); }
+  constructor() {
+    FakeWorker.made.push(this);
+  }
   postMessage(): void {}
   terminate(): void {}
 }
@@ -43,13 +45,17 @@ describe('the browser goes offline', () => {
     vi.resetModules();
     offlineListeners = [];
     vi.stubGlobal('window', {
-      addEventListener: (type: string, fn: () => void) => { if (type === 'offline') offlineListeners.push(fn); },
+      addEventListener: (type: string, fn: () => void) => {
+        if (type === 'offline') offlineListeners.push(fn);
+      },
       removeEventListener: () => {},
     });
     vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {}, removeItem: () => {} });
   });
 
-  afterEach(() => { vi.unstubAllGlobals(); });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('says so in plain words, with a way forward, and not as a raw error', async () => {
     const store = await import('./store');
@@ -57,7 +63,9 @@ describe('the browser goes offline', () => {
     const { friendlyError } = await import('@/core/ui/logic');
     store.watchConnection(); // (main.tsx calls it once, when the page starts: importing the store alone listens to nothing)
     for (const fn of offlineListeners) fn();
-    const said = [store.lastError.value && friendlyError(store.lastError.value), ...toasts.value.map((t) => t.text)].filter(Boolean).join(' ');
+    const said = [store.lastError.value && friendlyError(store.lastError.value), ...toasts.value.map((t) => t.text)]
+      .filter(Boolean)
+      .join(' ');
     expect(said).toMatch(/offline/i);
     expect(said).toMatch(/still|keep|menu|online|reconnect|try/i);
     expect(said).not.toMatch(/^Not now:/);

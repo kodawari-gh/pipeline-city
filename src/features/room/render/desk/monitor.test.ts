@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { monitorView, screenMode, standbyLook, type MonitorInput } from './monitor';
 
-const base: MonitorInput = { hasDisplay: true, powered: true, monitorLive: true, phase: 'running', postFailed: false, display: 'HELLO' };
+const base: MonitorInput = {
+  hasDisplay: true,
+  powered: true,
+  monitorLive: true,
+  phase: 'running',
+  postFailed: false,
+  display: 'HELLO',
+};
 
 describe('monitorView', () => {
   it('shows the sim text when live and healthy', () => {
@@ -14,7 +21,10 @@ describe('monitorView', () => {
     expect(monitorView({ ...base, monitorLive: false, display: '' })).toEqual({ text: '', noSignal: true });
   });
   it('keeps a POST error text on screen', () => {
-    expect(monitorView({ ...base, phase: 'error', postFailed: true, display: 'NO CPU' })).toEqual({ text: 'NO CPU', noSignal: false });
+    expect(monitorView({ ...base, phase: 'error', postFailed: true, display: 'NO CPU' })).toEqual({
+      text: 'NO CPU',
+      noSignal: false,
+    });
   });
   it('stays black when off, and has no NO SIGNAL without a monitor', () => {
     expect(monitorView({ ...base, powered: false, phase: 'off' }).noSignal).toBe(false);
@@ -23,7 +33,10 @@ describe('monitorView', () => {
 });
 
 describe('standbyLook', () => {
-  const look = (m: Partial<MonitorInput>, osOn = false) => { const i = { ...base, ...m }; return standbyLook(i, monitorView(i), osOn); };
+  const look = (m: Partial<MonitorInput>, osOn = false) => {
+    const i = { ...base, ...m };
+    return standbyLook(i, monitorView(i), osOn);
+  };
   it('is the standby screen while the machine is off', () => {
     expect(look({ powered: false, phase: 'off', display: '' })).toBe('off');
   });

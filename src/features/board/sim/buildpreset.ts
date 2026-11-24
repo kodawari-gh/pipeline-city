@@ -47,7 +47,8 @@ function addSoftware(g: Game, s: { os: number; router: number; isp: number }): v
 
 /** Plug every cable the machine needs (the ones outside the case too): a finished machine, as a player leaves it. */
 export function plugCables(g: Game): void {
-  for (const c of cablesOf(g.board)) if (!OUTSIDE.has(c.id) && cableNeeded(g.board, c.id) && !cableBlocked(g.board, c.id)) g.connectCable(c.id);
+  for (const c of cablesOf(g.board))
+    if (!OUTSIDE.has(c.id) && cableNeeded(g.board, c.id) && !cableBlocked(g.board, c.id)) g.connectCable(c.id);
   for (const c of OUTSIDE) if (cableNeeded(g.board, c as never)) g.connectCable(c);
 }
 
@@ -57,7 +58,10 @@ export function plugCables(g: Game): void {
  */
 export async function bareGame(caseTier = 0): Promise<Game> {
   const g = await fresh();
-  if (caseTier !== g.board.caseTier) { const b = g.purchase(`case${caseTier}`); if (b.ok) g.install(b.invId); }
+  if (caseTier !== g.board.caseTier) {
+    const b = g.purchase(`case${caseTier}`);
+    if (b.ok) g.install(b.invId);
+  }
   return g;
 }
 
@@ -76,19 +80,35 @@ export async function fullGame(): Promise<Game> {
 export async function presetGame(p: BuildPreset): Promise<Game> {
   const g = await fresh();
   // (a RAID module holds data only: no OS boots from it, so the benchmark's jobs could not run)
-  const ladder = (kind: DeviceKind) => [...specsOfKind(kind as never)].filter((s) => !(s as { mirror?: boolean }).mirror).sort((a, b) => a.tier - b.tier || a.price - b.price) as DeviceSpec[];
+  const ladder = (kind: DeviceKind) =>
+    [...specsOfKind(kind as never)]
+      .filter((s) => !(s as { mirror?: boolean }).mirror)
+      .sort((a, b) => a.tier - b.tier || a.price - b.price) as DeviceSpec[];
   // (a drive rounds up: the slowest drives make every job wait on the disk)
-  const levelAt = (kind: DeviceKind, n: number): number => { const at = p.level * (n - 1); return Math.min(n - 1, kind === 'storage' ? Math.ceil(at) : Math.round(at)); };
-  const pick = (kind: DeviceKind): string | null => { const all = ladder(kind); return all.length ? all[levelAt(kind, all.length)]!.id : null; };
+  const levelAt = (kind: DeviceKind, n: number): number => {
+    const at = p.level * (n - 1);
+    return Math.min(n - 1, kind === 'storage' ? Math.ceil(at) : Math.round(at));
+  };
+  const pick = (kind: DeviceKind): string | null => {
+    const all = ladder(kind);
+    return all.length ? all[levelAt(kind, all.length)]!.id : null;
+  };
   const shell = (list: readonly { tier: number }[]) => Math.round(p.level * (list.length - 1));
   put(g, `case${shell(CASE_TIERS)}`);
   put(g, `board${shell(BOARD_TIERS)}`);
   const fill = (kind: DeviceKind, n: number): void => {
-    const id = pick(kind), spec = id ? getSpec(id) : undefined;
-    for (let i = 0; spec && i < n; i++) { const free = freeSlots(g.board, spec.slot, spec)[0]; if (!free || !put(g, id, free.id)) break; }
+    const id = pick(kind),
+      spec = id ? getSpec(id) : undefined;
+    for (let i = 0; spec && i < n; i++) {
+      const free = freeSlots(g.board, spec.slot, spec)[0];
+      if (!free || !put(g, id, free.id)) break;
+    }
   };
   // the processors the level allows, the best first: the level's pick and each one below it that the board's regulator can feed (one it overloads crashes the machine, or burns the board)
-  const boardTier = g.board.tier, cpus = ladder('cpu').slice(0, levelAt('cpu', ladder('cpu').length) + 1).reverse();
+  const boardTier = g.board.tier,
+    cpus = ladder('cpu')
+      .slice(0, levelAt('cpu', ladder('cpu').length) + 1)
+      .reverse();
   const options = cpus.filter((s) => vrmRatioOf(boardTier, s as CpuSpec) <= VRM_OVERLOAD);
   if (!options.length && cpus.length) options.push(cpus[cpus.length - 1]!);
   const cpuSlot = freeSlots(g.board, 'cpu')[0]?.id;
@@ -96,23 +116,39 @@ export async function presetGame(p: BuildPreset): Promise<Game> {
   fill('cooler', 1);
   // (a loop's pump alone gives it little cooling: its radiator goes in with it, on the top, where it blows the heat out of the case)
   if (g.board.devices.some((d) => (deviceSpec(d) as { loop?: unknown }).loop)) {
-    const rad = pick('radiator'), spec = rad ? getSpec(rad) : undefined, spots = spec ? freeSlots(g.board, spec.slot, spec) : [];
+    const rad = pick('radiator'),
+      spec = rad ? getSpec(rad) : undefined,
+      spots = spec ? freeSlots(g.board, spec.slot, spec) : [];
     put(g, rad, (spots.find((s) => s.id === 'rad-top') ?? spots[0])?.id);
   }
-  fill('ram', p.ram); fill('storage', p.storage); fill('gpu', p.gpus); fill('npu', p.npus);
-  fill('nic', 1); fill('display', 1);
+  fill('ram', p.ram);
+  fill('storage', p.storage);
+  fill('gpu', p.gpus);
+  fill('npu', p.npus);
+  fill('nic', 1);
+  fill('display', 1);
   // fans come in sizes (a heatsink takes 40 mm, a case mount its own): from the chosen tier down, each spec goes in every spot that takes it
   const fans = [...specsOfKind('fan')].sort((a, b) => a.tier - b.tier || a.price - b.price);
   for (const f of fans.slice(0, 1 + Math.round(p.level * (fans.length - 1))).reverse()) {
-    for (let i = 0; i < 40; i++) { const free = freeSlots(g.board, f.slot, f)[0]; if (!free || !put(g, f.id, free.id)) break; }
+    for (let i = 0; i < 40; i++) {
+      const free = freeSlots(g.board, f.slot, f)[0];
+      if (!free || !put(g, f.id, free.id)) break;
+    }
   }
   // the supply: the level's pick, or when that is too small the smallest that carries the machine with a fifth to spare and has the leads its cards need
   const supply = (): void => {
     const old = g.board.devices.find((d) => deviceSpec(d).kind === 'psu');
     if (old) g.uninstall(old.id); // (the sockets of a bigger supply are not the sockets of a small one)
-    const all = specsOfKind('psu'), need = fullDrawW(g.board) * 1.2, leads = pcieLeadsNeeded(g.board), asked = all.find((s) => s.id === pick('psu'));
-    const fitting = all.filter((s) => freeSlots(g.board, s.slot, s).length > 0), strong = fitting.filter((s) => s.pcieLeads >= leads);
-    const psu = strong.find((s) => s.watts >= Math.max(need, asked?.watts ?? 0)) ?? strong[strong.length - 1] ?? fitting[fitting.length - 1];
+    const all = specsOfKind('psu'),
+      need = fullDrawW(g.board) * 1.2,
+      leads = pcieLeadsNeeded(g.board),
+      asked = all.find((s) => s.id === pick('psu'));
+    const fitting = all.filter((s) => freeSlots(g.board, s.slot, s).length > 0),
+      strong = fitting.filter((s) => s.pcieLeads >= leads);
+    const psu =
+      strong.find((s) => s.watts >= Math.max(need, asked?.watts ?? 0)) ??
+      strong[strong.length - 1] ??
+      fitting[fitting.length - 1];
     put(g, psu?.id ?? old?.spec ?? null, psu ? freeSlots(g.board, psu.slot, psu)[0]?.id : old?.slot);
   };
   supply();
@@ -120,7 +156,14 @@ export async function presetGame(p: BuildPreset): Promise<Game> {
   addSoftware(g, { os: t(3), router: t(4), isp: t(5) });
   plugCables(g);
   // a ready-made machine does not run hot: while the processor (or the board's regulator) throttles at full load, the next processor down goes in, and the supply follows it
-  for (let k = 1; k < options.length && heatAlerts(g.board, g.fanPower()).some((a) => !a.part || a.part === g.board.devices.find((d) => deviceSpec(d).kind === 'cpu')?.id); k++) {
+  for (
+    let k = 1;
+    k < options.length &&
+    heatAlerts(g.board, g.fanPower()).some(
+      (a) => !a.part || a.part === g.board.devices.find((d) => deviceSpec(d).kind === 'cpu')?.id,
+    );
+    k++
+  ) {
     put(g, options[k]!.id, g.board.devices.find((d) => deviceSpec(d).kind === 'cpu')?.slot);
     supply();
     plugCables(g);
@@ -153,9 +196,17 @@ export async function startGame(key: string): Promise<{ game: Game; shown: Shown
  * A baked picture records the recipe it was taken from; one that no longer matches is stale (`buildstills.test.ts`).
  */
 export function recipeOf(g: Game, shown: Shown = 'machine'): string {
-  const parts = g.board.devices.map((d) => `${d.spec}@${d.slot}`).sort().join(',');
-  const key = [shown, g.board.caseTier, g.board.tier, parts, g.snapshot().os?.tier ?? 0, g.routerTier, g.ispTier].join('|');
+  const parts = g.board.devices
+    .map((d) => `${d.spec}@${d.slot}`)
+    .sort()
+    .join(',');
+  const key = [shown, g.board.caseTier, g.board.tier, parts, g.snapshot().os?.tier ?? 0, g.routerTier, g.ispTier].join(
+    '|',
+  );
   let h = 0x811c9dc5;
-  for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
   return (h >>> 0).toString(16).padStart(8, '0');
 }

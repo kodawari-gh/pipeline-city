@@ -27,7 +27,8 @@ describe('build hash', () => {
   });
 
   it('a .d.ts declares __BUILD__ as a string for the TypeScript check', () => {
-    const decls = walk(`${ROOT}src`).filter((p) => p.endsWith('.d.ts'))
+    const decls = walk(`${ROOT}src`)
+      .filter((p) => p.endsWith('.d.ts'))
       .map((p) => fs.readFileSync(p, 'utf8'));
     expect(decls.some((t) => /declare const __BUILD__:\s*string/.test(t))).toBe(true);
   });

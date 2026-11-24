@@ -10,14 +10,14 @@ The thunder drum struck: a lit bolt that breaks through its ring. RAIDEN is the 
 
 ## Colours
 
-| Role | Hex | Note |
-|---|---|---|
-| accent | `#ffc247` | amber, the bolt |
-| light | `#e2eaff` | pale ink on dark |
-| dark | `#131518` | black ink on light |
-| plate | `#131518` | black badge ground |
-| body | `#1d1e22` | charcoal PSU shell |
-| trim | `#4e5360` | gunmetal |
+| Role   | Hex       | Note               |
+| ------ | --------- | ------------------ |
+| accent | `#ffc247` | amber, the bolt    |
+| light  | `#e2eaff` | pale ink on dark   |
+| dark   | `#131518` | black ink on light |
+| plate  | `#131518` | black badge ground |
+| body   | `#1d1e22` | charcoal PSU shell |
+| trim   | `#4e5360` | gunmetal           |
 
 ## Type
 

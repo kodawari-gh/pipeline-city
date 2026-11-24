@@ -10,14 +10,14 @@ The hand-off: one chevron passes the signal to the next one, which is lit. relay
 
 ## Colours
 
-| Role | Hex | Note |
-|---|---|---|
+| Role   | Hex       | Note                           |
+| ------ | --------- | ------------------------------ |
 | accent | `#ffc27d` | warm amber, the second chevron |
-| light | `#e2eaff` | pale ink on dark |
-| dark | `#0a0e22` | navy ink on light |
-| plate | `#16294d` | the blue of its boards |
-| body | `#16294d` | blue solder mask |
-| trim | `#959aa3` | nickel of the ports |
+| light  | `#e2eaff` | pale ink on dark               |
+| dark   | `#0a0e22` | navy ink on light              |
+| plate  | `#16294d` | the blue of its boards         |
+| body   | `#16294d` | blue solder mask               |
+| trim   | `#959aa3` | nickel of the ports            |
 
 RAIDEN uses amber `#ffc247`. relay's accent is warmer and paler, so the two read apart.
 

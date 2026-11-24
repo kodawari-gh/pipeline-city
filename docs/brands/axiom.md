@@ -10,14 +10,14 @@ A delta with its apex lit: the first principle that everything else rests on. AX
 
 ## Colours
 
-| Role | Hex | Note |
-|---|---|---|
-| accent | `#3be3ff` | cyan, the apex |
-| light | `#e2eaff` | pale ink on dark |
-| dark | `#0a0e22` | navy ink on light |
-| plate | `#0d1636` | deep navy badge ground |
-| body | `#959aa3` | the nickel of a heat spreader |
-| trim | `#b9babf` | aluminium |
+| Role   | Hex       | Note                          |
+| ------ | --------- | ----------------------------- |
+| accent | `#3be3ff` | cyan, the apex                |
+| light  | `#e2eaff` | pale ink on dark              |
+| dark   | `#0a0e22` | navy ink on light             |
+| plate  | `#0d1636` | deep navy badge ground        |
+| body   | `#959aa3` | the nickel of a heat spreader |
+| trim   | `#b9babf` | aluminium                     |
 
 ## Type
 

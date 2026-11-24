@@ -14,15 +14,24 @@ export class SunMap {
   /** The hour as the frame sets it: a new step asks for a map. */
   frame(hour: number): void {
     const s = Math.round(hour * SUN_STEPS);
-    if (s !== this.step) { this.step = s; this.owed = true; }
+    if (s !== this.step) {
+      this.step = s;
+      this.owed = true;
+    }
   }
 
   /** The map is to be drawn again (its size changed). */
-  ask(): void { this.owed = true; }
+  ask(): void {
+    this.owed = true;
+  }
 
   /** Is the map drawn on this draw: one is owed, the sun casts shadows, and it is lit. */
-  due(casts: boolean, intensity: number): boolean { return this.owed && casts && intensity > 0; }
+  due(casts: boolean, intensity: number): boolean {
+    return this.owed && casts && intensity > 0;
+  }
 
   /** The map was drawn. */
-  drawn(): void { this.owed = false; }
+  drawn(): void {
+    this.owed = false;
+  }
 }

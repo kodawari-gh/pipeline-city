@@ -11,7 +11,9 @@ describe('ArtSet reveals', () => {
   };
 
   it('runs each reveal with the zoom seen at its point (pixels per unit), nearer is larger', () => {
-    const art = new ArtSet(), at = new Object3D(), seen: number[] = [];
+    const art = new ArtSet(),
+      at = new Object3D(),
+      seen: number[] = [];
     art.reveal(at, (z) => seen.push(z));
     art.look(camAt(4000), 900, 1);
     art.look(camAt(1000), 900, 1);
@@ -21,9 +23,12 @@ describe('ArtSet reveals', () => {
   });
 
   it('takes a reveal away with the function it gives back', () => {
-    const art = new ArtSet(), at = new Object3D();
+    const art = new ArtSet(),
+      at = new Object3D();
     let n = 0;
-    const undo = art.reveal(at, () => { n++; });
+    const undo = art.reveal(at, () => {
+      n++;
+    });
     art.look(camAt(1000), 900, 1);
     undo();
     art.look(camAt(1000), 900, 1);
@@ -32,9 +37,12 @@ describe('ArtSet reveals', () => {
   });
 
   it('shows the part as from up close once opened, whatever the camera', () => {
-    const art = new ArtSet(), at = new Object3D();
+    const art = new ArtSet(),
+      at = new Object3D();
     let z = 0;
-    art.reveal(at, (v) => { z = v; });
+    art.reveal(at, (v) => {
+      z = v;
+    });
     art.open();
     art.look(camAt(60000), 900, 1);
     expect(z).toBe(Infinity);

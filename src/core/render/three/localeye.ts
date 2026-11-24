@@ -12,29 +12,57 @@
 // mapping and the screen's colour space (as three's OutputPass). Each was a full-screen pass of its own, into a half-float target; a phone's
 // tile GPU writes each such target out to memory and reads it back. The math and its order are as they were; only the half-float steps between are gone.
 import {
-  ACESFilmicToneMapping, AgXToneMapping, CineonToneMapping, ColorManagement, ConstantAlphaFactor, CustomBlending, CustomToneMapping, HalfFloatType, LinearFilter, LinearToneMapping,
-  NearestFilter, NeutralToneMapping, NoBlending, OneMinusConstantAlphaFactor, RawShaderMaterial, ReinhardToneMapping, ShaderMaterial, SRGBTransfer, WebGLRenderTarget, type IUniform, type Texture, type WebGLRenderer,
+  ACESFilmicToneMapping,
+  AgXToneMapping,
+  CineonToneMapping,
+  ColorManagement,
+  ConstantAlphaFactor,
+  CustomBlending,
+  CustomToneMapping,
+  HalfFloatType,
+  LinearFilter,
+  LinearToneMapping,
+  NearestFilter,
+  NeutralToneMapping,
+  NoBlending,
+  OneMinusConstantAlphaFactor,
+  RawShaderMaterial,
+  ReinhardToneMapping,
+  ShaderMaterial,
+  SRGBTransfer,
+  WebGLRenderTarget,
+  type IUniform,
+  type Texture,
+  type WebGLRenderer,
 } from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 
 /** A grid cell's side (pixels), the picture's step down before the grid (each grid cell reads `CELL / DOWN` squared of its pixels). */
-export const CELL = 32, DOWN = 4;
+export const CELL = 32,
+  DOWN = 4;
 /** The grid's bins: one a stop, from `LO` (2^-18, a black) to `LO + BINS - 1` (2^5, a bulb). */
-export const LO = -18, BINS = 24;
+export const LO = -18,
+  BINS = 24;
 /**
  * The base's distance from middle grey keeps this share below it (the dark is lifted) and above it (the bright is held back). Above it by
  * day: the bright glass held back; at night the eye keeps more of it (`LocalEye.high`).
  */
-export const SHADOW_C = 0.18, HIGH_C = 0.4;
+export const SHADOW_C = 0.18,
+  HIGH_C = 0.4;
 /** At most this many stops up or down. */
-export const MAX_UP = 9, MAX_DOWN = 3;
+export const MAX_UP = 9,
+  MAX_DOWN = 3;
 /** The share of its colour a pixel loses when the eye lifts it by `CALM_STOPS` stops or more (less below, in proportion). */
-export const CALM = 0.4, CALM_STOPS = 4;
+export const CALM = 0.4,
+  CALM_STOPS = 4;
 /** The scene's luminance that shows as middle grey at an exposure of 1 (ACES: 0.18 out at 0.22 in, after its own 1 / 0.6). */
 export const MID = 0.13;
 
 /** The grid's cells across and down for a picture `w` x `h` pixels. */
-export const gridSize = (w: number, h: number): [number, number] => [Math.max(1, Math.ceil(w / CELL)), Math.max(1, Math.ceil(h / CELL))];
+export const gridSize = (w: number, h: number): [number, number] => [
+  Math.max(1, Math.ceil(w / CELL)),
+  Math.max(1, Math.ceil(h / CELL)),
+];
 
 /**
  * The stops a pixel whose base is `base` (log2 luminance) is lifted (or lowered, below 0) at exposure `exposure`, the eye adapted to `key`
@@ -49,16 +77,19 @@ export function lift(base: number, exposure: number, key = MID, high = HIGH_C): 
  * A look the picture takes before the eye sees it, in the scene's light (the room's grade, `post.ts`): GLSL that defines
  * `vec3 look(vec3 c, vec2 uv)` for a pixel of colour `c` at `uv`, and its uniforms.
  */
-export interface Look { glsl: string; uniforms: Record<string, IUniform> }
-const SAME: Look = { glsl: /* glsl */`vec3 look(vec3 c, vec2 uv) { return c; }`, uniforms: {} };
+export interface Look {
+  glsl: string;
+  uniforms: Record<string, IUniform>;
+}
+const SAME: Look = { glsl: /* glsl */ `vec3 look(vec3 c, vec2 uv) { return c; }`, uniforms: {} };
 
-const VERT = /* glsl */`varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
-const LUM = /* glsl */`dot(c.rgb, vec3(0.2126, 0.7152, 0.0722))`;
+const VERT = /* glsl */ `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
+const LUM = /* glsl */ `dot(c.rgb, vec3(0.2126, 0.7152, 0.0722))`;
 const f = (n: number) => n.toFixed(1);
 
 // the picture's log luminance at a quarter of its size: four taps, each the mean of four pixels. The picture is the one after the look: each
 // texel takes it at its own middle (as a pass of its own over the picture did), then the four round a tap mix as the GPU's linear filter mixes them.
-const downFrag = (look: Look) => /* glsl */`
+const downFrag = (look: Look) => /* glsl */ `
 uniform sampler2D tDiffuse;
 uniform vec2 px;
 varying vec2 vUv;
@@ -78,7 +109,7 @@ void main() {
 
 // a grid texel (its cell, its bin): the sum of its cell's log luminances, each weighed by how near it is to the bin, and the sum of the weights,
 // both over the cell's texel count (the targets are half floats: a plain sum would overflow in the blur)
-const GRID_FRAG = /* glsl */`
+const GRID_FRAG = /* glsl */ `
 uniform sampler2D tLum;
 uniform vec2 lumSize;
 uniform float gx;
@@ -96,7 +127,7 @@ void main() {
 }`;
 
 // the grid blurred: five cells each way across the picture (1 4 6 4 1), three bins (1 2 1)
-const BLUR_FRAG = /* glsl */`
+const BLUR_FRAG = /* glsl */ `
 uniform sampler2D tGrid;
 uniform vec2 grid;
 float g(int i) { return i == 0 ? 6.0 : (i == 1 || i == -1) ? 4.0 : 1.0; }
@@ -115,7 +146,7 @@ void main() {
 // luminance where the bin is near empty) and the lift (`lift` above), while the eye is on; then the tone mapping and the colour space, as
 // three's OutputShader (`TONE`: the renderer's tone mapping function, `SRGB_TRANSFER`: an sRGB screen). A raw shader: the program is the same
 // whether it draws to a target or to the screen, so `startPrograms` (`compile.ts`) links the one the screen will use.
-const finishFrag = (look: Look) => /* glsl */`
+const finishFrag = (look: Look) => /* glsl */ `
 precision highp float;
 uniform sampler2D tDiffuse;
 uniform sampler2D tGrid;
@@ -157,7 +188,7 @@ void main() {
   vec2 q = gl_FragCoord.xy;
   gl_FragColor.rgb += (vec3(ign(q), ign(q + vec2(3.0, 7.0)), ign(q + vec2(11.0, 5.0))) - vec3(ign(q + vec2(19.0, 2.0)), ign(q + vec2(23.0, 13.0)), ign(q + vec2(29.0, 17.0)))) / 255.0;
 }`;
-const FINISH_VERT = /* glsl */`
+const FINISH_VERT = /* glsl */ `
 precision highp float;
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
@@ -168,12 +199,23 @@ void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(
 
 /** The GLSL tone mapping function of each of three's tone mappings (as OutputPass picks them). */
 const TONE: Record<number, string> = {
-  [LinearToneMapping]: 'LinearToneMapping', [ReinhardToneMapping]: 'ReinhardToneMapping', [CineonToneMapping]: 'CineonToneMapping', [ACESFilmicToneMapping]: 'ACESFilmicToneMapping',
-  [AgXToneMapping]: 'AgXToneMapping', [NeutralToneMapping]: 'NeutralToneMapping', [CustomToneMapping]: 'CustomToneMapping',
+  [LinearToneMapping]: 'LinearToneMapping',
+  [ReinhardToneMapping]: 'ReinhardToneMapping',
+  [CineonToneMapping]: 'CineonToneMapping',
+  [ACESFilmicToneMapping]: 'ACESFilmicToneMapping',
+  [AgXToneMapping]: 'AgXToneMapping',
+  [NeutralToneMapping]: 'NeutralToneMapping',
+  [CustomToneMapping]: 'CustomToneMapping',
 };
 
 const target = (w: number, h: number, filter: typeof LinearFilter | typeof NearestFilter) =>
-  new WebGLRenderTarget(w, h, { type: HalfFloatType, depthBuffer: false, magFilter: filter, minFilter: filter, generateMipmaps: false });
+  new WebGLRenderTarget(w, h, {
+    type: HalfFloatType,
+    depthBuffer: false,
+    magFilter: filter,
+    minFilter: filter,
+    generateMipmaps: false,
+  });
 
 /** The eye's local adaptation, and the chain's last pass: the look, the lift, the tone mapping. */
 export class LocalEye {
@@ -192,8 +234,16 @@ export class LocalEye {
   private grid = target(1, 1, NearestFilter);
   private blur = target(1, 1, LinearFilter);
   private down: ShaderMaterial;
-  private build = new ShaderMaterial({ uniforms: { tLum: { value: this.lum.texture }, lumSize: { value: [1, 1] }, gx: { value: 1 } }, vertexShader: VERT, fragmentShader: GRID_FRAG });
-  private smooth = new ShaderMaterial({ uniforms: { tGrid: { value: this.grid.texture }, grid: { value: [1, 1] } }, vertexShader: VERT, fragmentShader: BLUR_FRAG });
+  private build = new ShaderMaterial({
+    uniforms: { tLum: { value: this.lum.texture }, lumSize: { value: [1, 1] }, gx: { value: 1 } },
+    vertexShader: VERT,
+    fragmentShader: GRID_FRAG,
+  });
+  private smooth = new ShaderMaterial({
+    uniforms: { tGrid: { value: this.grid.texture }, grid: { value: [1, 1] } },
+    vertexShader: VERT,
+    fragmentShader: BLUR_FRAG,
+  });
   private finish: RawShaderMaterial;
   private quad = new FullScreenQuad();
   /** The renderer's tone mapping and colour space that the finish's defines stand for. */
@@ -201,14 +251,26 @@ export class LocalEye {
 
   /** `look` (the room's grade): its uniforms are shared, so a value set on them holds in the eye's grid and in the finish alike. */
   constructor(w: number, h: number, look: Look = SAME) {
-    this.down = new ShaderMaterial({ uniforms: { tDiffuse: { value: null }, px: { value: [0, 0] }, ...look.uniforms }, vertexShader: VERT, fragmentShader: downFrag(look) });
+    this.down = new ShaderMaterial({
+      uniforms: { tDiffuse: { value: null }, px: { value: [0, 0] }, ...look.uniforms },
+      vertexShader: VERT,
+      fragmentShader: downFrag(look),
+    });
     this.finish = new RawShaderMaterial({
       name: 'Finish',
       uniforms: {
-        tDiffuse: { value: null }, tGrid: { value: this.blur.texture }, size: { value: [1, 1] }, grid: { value: [1, 1] }, midLog: { value: 0 }, strength: { value: 1 },
-        keep: { value: [SHADOW_C, HIGH_C, MAX_UP, MAX_DOWN] }, toneMappingExposure: { value: 1 }, ...look.uniforms,
+        tDiffuse: { value: null },
+        tGrid: { value: this.blur.texture },
+        size: { value: [1, 1] },
+        grid: { value: [1, 1] },
+        midLog: { value: 0 },
+        strength: { value: 1 },
+        keep: { value: [SHADOW_C, HIGH_C, MAX_UP, MAX_DOWN] },
+        toneMappingExposure: { value: 1 },
+        ...look.uniforms,
       },
-      vertexShader: FINISH_VERT, fragmentShader: finishFrag(look),
+      vertexShader: FINISH_VERT,
+      fragmentShader: finishFrag(look),
     });
     this.setSize(w, h);
   }
@@ -218,7 +280,8 @@ export class LocalEye {
     const key = `${r.toneMapping}|${r.outputColorSpace}`;
     if (key === this.outputKey) return;
     this.outputKey = key;
-    const d: Record<string, string> = {}, tone = TONE[r.toneMapping];
+    const d: Record<string, string> = {},
+      tone = TONE[r.toneMapping];
     if (tone) d.TONE = tone;
     if (ColorManagement.getTransfer(r.outputColorSpace) === SRGBTransfer) d.SRGB_TRANSFER = '';
     this.finish.defines = d;
@@ -226,7 +289,9 @@ export class LocalEye {
   }
 
   setSize(w: number, h: number): void {
-    const lw = Math.max(1, Math.ceil(w / DOWN)), lh = Math.max(1, Math.ceil(h / DOWN)), [gx, gy] = gridSize(w, h);
+    const lw = Math.max(1, Math.ceil(w / DOWN)),
+      lh = Math.max(1, Math.ceil(h / DOWN)),
+      [gx, gy] = gridSize(w, h);
     this.lum.setSize(lw, lh);
     this.grid.setSize(gx * BINS, gy);
     this.blur.setSize(gx * BINS, gy);
@@ -239,7 +304,9 @@ export class LocalEye {
   }
 
   /** Is the eye on? Then `adapt` must run before each `draw`. */
-  get on(): boolean { return this.strength > 0; }
+  get on(): boolean {
+    return this.strength > 0;
+  }
 
   private step(renderer: WebGLRenderer, m: ShaderMaterial, to: WebGLRenderTarget | null): void {
     this.quad.material = m;
@@ -264,7 +331,9 @@ export class LocalEye {
     this.output(renderer);
     const f = this.finish;
     f.blending = weight < 1 ? CustomBlending : NoBlending;
-    f.blendSrc = ConstantAlphaFactor; f.blendDst = OneMinusConstantAlphaFactor; f.blendAlpha = weight;
+    f.blendSrc = ConstantAlphaFactor;
+    f.blendDst = OneMinusConstantAlphaFactor;
+    f.blendAlpha = weight;
     const a = this.finish.uniforms;
     a.tDiffuse!.value = picture;
     a.midLog!.value = Math.log2(this.key / this.exposure);

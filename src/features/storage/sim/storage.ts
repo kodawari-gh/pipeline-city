@@ -4,17 +4,21 @@
 // block, e.g. a sequential read) plus `blockTicks` to move one block, and the CPU polls STATUS.busy. Registers and
 // the buffer window are in src/sim/isa/memmap.ts; see docs/BOARD.md.
 
-import { BLOCK_BYTES, STORAGE_BASE, STORAGE_BUF, STORAGE_REG, STORAGE_STRIDE, StorageStatus } from "@/core/sim/memmap";
-import type { Rate } from "@/core/sim/hw/clock";
-import type { Device } from "@/core/sim/hw/device";
-import { DiskFs, type MountState } from "./fs";
-import { Prng } from "@/core/sim/prng";
+import { BLOCK_BYTES, STORAGE_BASE, STORAGE_BUF, STORAGE_REG, STORAGE_STRIDE, StorageStatus } from '@/core/sim/memmap';
+import type { Rate } from '@/core/sim/hw/clock';
+import type { Device } from '@/core/sim/hw/device';
+import { DiskFs, type MountState } from './fs';
+import { Prng } from '@/core/sim/prng';
 
 /** Blocks per wear group: the wear counters and the bad-block marks are kept per group. */
 export const GROUP_BLOCKS = 8;
 
 /** What a save keeps of the physical media: wear per group (sparse `[group, writes]`), bad groups and the mechanical-fault stream's state. */
-export interface DiskMediaState { wear: [number, number][]; bad: number[]; rng: number }
+export interface DiskMediaState {
+  wear: [number, number][];
+  bad: number[];
+  rng: number;
+}
 
 export interface DiskOpts {
   /** Writes one 8-block group takes before it turns bad (each group varies by up to 20% around it). Default: never wears out. */
@@ -47,7 +51,7 @@ export class Disk {
   /** Which files own which blocks (docs/OS.md). The media always has it; only an OS allocates on it. */
   readonly fs: DiskFs;
   /** The superblock's verdict. Stays with the drive; `formatOs` sets `clean`, a power cut during a write sets `dirty`. */
-  mount: MountState = "unformatted";
+  mount: MountState = 'unformatted';
 
   /** Requests waiting at the drive (reads the game queued, see `Game.canServe`). */
   queued = 0;
@@ -66,7 +70,12 @@ export class Disk {
   private readonly mechBadRate: number;
   private readonly rng: Prng;
 
-  constructor(readonly capacityBytes: number, readonly latencyTicks: number, readonly blockTicks: number, opts: DiskOpts = {}) {
+  constructor(
+    readonly capacityBytes: number,
+    readonly latencyTicks: number,
+    readonly blockTicks: number,
+    opts: DiskOpts = {},
+  ) {
     this.blocks = Math.floor(capacityBytes / BLOCK_BYTES);
     this.data = new Uint8Array(this.blocks * BLOCK_BYTES);
     this.used = new Uint8Array(this.blocks);
@@ -81,7 +90,13 @@ export class Disk {
     this.bad = new Uint8Array(groups);
     this.limit = new Uint32Array(groups);
     this.rng = new Prng(this.seed);
-    this.twin = opts.mirror ? new Disk(capacityBytes, latencyTicks, blockTicks, { ...opts, mirror: false, seed: (this.seed ^ 0x9e3779b9) >>> 0 }) : null;
+    this.twin = opts.mirror
+      ? new Disk(capacityBytes, latencyTicks, blockTicks, {
+          ...opts,
+          mirror: false,
+          seed: (this.seed ^ 0x9e3779b9) >>> 0,
+        })
+      : null;
     if (this.twin) this.twin.partner = this;
   }
 
@@ -109,7 +124,10 @@ export class Disk {
   limitOf(g: number): number {
     let l = this.limit[g]!;
     if (l === 0) {
-      l = Math.max(1, Math.round(this.enduranceBlocks * (0.8 + 0.4 * new Prng((this.seed + g * 2654435761) >>> 0).next())));
+      l = Math.max(
+        1,
+        Math.round(this.enduranceBlocks * (0.8 + 0.4 * new Prng((this.seed + g * 2654435761) >>> 0).next())),
+      );
       this.limit[g] = l;
     }
     return l;
@@ -128,7 +146,8 @@ export class Disk {
     const g = Math.floor(lba / GROUP_BLOCKS);
     if (this.bad[g]) return;
     this.wear[g]!++;
-    if (this.wear[g]! >= this.limitOf(g) || (this.mechBadRate > 0 && this.rng.next() < this.mechBadRate)) this.failGroup(g);
+    if (this.wear[g]! >= this.limitOf(g) || (this.mechBadRate > 0 && this.rng.next() < this.mechBadRate))
+      this.failGroup(g);
   }
 
   /** Wear of each group as a percent of its endurance, whole numbers (the worse member of a mirror). For the art. */
@@ -159,7 +178,11 @@ export class Disk {
     this.bad.fill(0);
     this.badGroups = 0;
     for (const [g, n] of s.wear) if (g >= 0 && g < this.groups) this.wear[g] = n;
-    for (const g of s.bad) if (g >= 0 && g < this.groups && !this.bad[g]) { this.bad[g] = 1; this.badGroups++; }
+    for (const g of s.bad)
+      if (g >= 0 && g < this.groups && !this.bad[g]) {
+        this.bad[g] = 1;
+        this.badGroups++;
+      }
     this.rng.setState(s.rng);
   }
 
@@ -208,7 +231,7 @@ export class Disk {
     this.used.fill(0);
     this.usedBlocks = 0;
     this.fs.clear();
-    this.mount = "unformatted";
+    this.mount = 'unformatted';
     this.queued = 0;
     this.twin?.format();
   }
@@ -228,7 +251,7 @@ export class Disk {
 export interface StorageCmd {
   /** Counts up for ever: the view replays the commands it has not seen. */
   seq: number;
-  op: "r" | "w";
+  op: 'r' | 'w';
   lba: number;
   /** Ticks of seek (0 when the block follows the last one) and of transfer. */
   seek: number;
@@ -261,7 +284,10 @@ export class StoragePort implements Device {
   /** Set by every command, cleared by `takeActivity` (the game reads it for the thermal load and the LED). */
   active = false;
 
-  constructor(readonly name: string, index: number) {
+  constructor(
+    readonly name: string,
+    index: number,
+  ) {
     this.base = STORAGE_BASE + index * STORAGE_STRIDE;
   }
 
@@ -275,7 +301,7 @@ export class StoragePort implements Device {
 
   /** The power went (or the drive dropped off the bus) with a write in flight: the torn write leaves the drive `dirty`. */
   cutPower(): void {
-    if (this.busy > 0 && this.cmd === 2 && this.media?.mount === "clean") this.media.mount = "dirty";
+    if (this.busy > 0 && this.cmd === 2 && this.media?.mount === 'clean') this.media.mount = 'dirty';
   }
 
   /** Power-on reset: no command in flight, head position forgotten. */
@@ -310,7 +336,9 @@ export class StoragePort implements Device {
 
   private get lba(): number {
     // (the top byte is the kernel's drive tag for a spool block, not part of the address)
-    return this.regs[STORAGE_REG.LBA]! | (this.regs[STORAGE_REG.LBA + 1]! << 8) | (this.regs[STORAGE_REG.LBA + 2]! << 16);
+    return (
+      this.regs[STORAGE_REG.LBA]! | (this.regs[STORAGE_REG.LBA + 1]! << 8) | (this.regs[STORAGE_REG.LBA + 2]! << 16)
+    );
   }
 
   read(off: number): number {
@@ -318,9 +346,18 @@ export class StoragePort implements Device {
     const reg = off & ~3;
     let w = 0;
     switch (reg) {
-      case STORAGE_REG.STATUS: w = (this.busy > 0 ? StorageStatus.Busy : 0) | (this.error ? StorageStatus.Error : 0) | (this.media ? StorageStatus.Present : 0); break;
-      case STORAGE_REG.LBA: w = this.lba; break;
-      case STORAGE_REG.BLOCKS: w = this.media?.blocks ?? 0; break;
+      case STORAGE_REG.STATUS:
+        w =
+          (this.busy > 0 ? StorageStatus.Busy : 0) |
+          (this.error ? StorageStatus.Error : 0) |
+          (this.media ? StorageStatus.Present : 0);
+        break;
+      case STORAGE_REG.LBA:
+        w = this.lba;
+        break;
+      case STORAGE_REG.BLOCKS:
+        w = this.media?.blocks ?? 0;
+        break;
     }
     return (w >>> (8 * (off & 3))) & 0xff;
   }
@@ -330,7 +367,12 @@ export class StoragePort implements Device {
       if (off < STORAGE_BUF + BLOCK_BYTES) this.buf[off - STORAGE_BUF] = val & 0xff;
       return;
     }
-    if (off === STORAGE_REG.LBA || off === STORAGE_REG.LBA + 1 || off === STORAGE_REG.LBA + 2 || off === STORAGE_REG.LBA + 3) {
+    if (
+      off === STORAGE_REG.LBA ||
+      off === STORAGE_REG.LBA + 1 ||
+      off === STORAGE_REG.LBA + 2 ||
+      off === STORAGE_REG.LBA + 3
+    ) {
       this.regs[off] = val & 0xff;
     } else if (off === STORAGE_REG.CMD) {
       this.start(val & 0xff); // the command fires on the low byte, after the LBA word has landed
@@ -348,9 +390,17 @@ export class StoragePort implements Device {
     this.cmd = cmd;
     this.active = true;
     if (cmd === 2) this.latch.set(this.buf);
-    const seq = lba === this.lastLba + 1, seek = seq ? 0 : m.seekTicks(this.head, lba);
+    const seq = lba === this.lastLba + 1,
+      seek = seq ? 0 : m.seekTicks(this.head, lba);
     this.busy = seek + m.blockTicks;
-    this.log.push({ seq: ++this.seq, op: cmd === 2 ? "w" : "r", lba, seek, xfer: m.blockTicks, queued: this.queueLoad() - 1 });
+    this.log.push({
+      seq: ++this.seq,
+      op: cmd === 2 ? 'w' : 'r',
+      lba,
+      seek,
+      xfer: m.blockTicks,
+      queued: this.queueLoad() - 1,
+    });
     if (this.log.length > CMD_LOG) this.log.shift();
     m.commands++;
   }

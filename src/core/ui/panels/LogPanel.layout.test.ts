@@ -34,12 +34,25 @@ function rulesOf(text: string): Rule[] {
   let i = 0;
   while (i < src.length) {
     const c = src.charAt(i++);
-    if (c === ';') { buf = ''; continue; }
-    if (c === '}') { media.pop(); buf = ''; continue; }
-    if (c !== '{') { buf += c; continue; }
+    if (c === ';') {
+      buf = '';
+      continue;
+    }
+    if (c === '}') {
+      media.pop();
+      buf = '';
+      continue;
+    }
+    if (c !== '{') {
+      buf += c;
+      continue;
+    }
     const head = buf.trim();
     buf = '';
-    if (head.startsWith('@media')) { media.push(head.slice('@media'.length).trim()); continue; }
+    if (head.startsWith('@media')) {
+      media.push(head.slice('@media'.length).trim());
+      continue;
+    }
     if (head.startsWith('@')) {
       for (let depth = 1; depth > 0 && i < src.length;) {
         const d = src.charAt(i++);
@@ -50,7 +63,12 @@ function rulesOf(text: string): Rule[] {
     }
     const end = src.indexOf('}', i);
     if (end < 0) break;
-    out.push({ media: [...media], selectors: head.split(',').map((s) => s.trim()), decls: declsOf(src.slice(i, end)), order: out.length });
+    out.push({
+      media: [...media],
+      selectors: head.split(',').map((s) => s.trim()),
+      decls: declsOf(src.slice(i, end)),
+      order: out.length,
+    });
     i = end + 1;
   }
   return out;
@@ -65,13 +83,20 @@ function featureHolds(feature: string, c: Ctx): boolean {
   const value = m[2] ?? '';
   const px = (v: string) => (/em$/.test(v) ? parseFloat(v) * 16 : parseFloat(v));
   switch (name) {
-    case 'max-width': return c.w <= px(value);
-    case 'min-width': return c.w >= px(value);
-    case 'max-height': return c.h <= px(value);
-    case 'min-height': return c.h >= px(value);
-    case 'orientation': return value === (c.w > c.h ? 'landscape' : 'portrait');
-    case 'pointer': return value === (c.coarse ? 'coarse' : 'fine');
-    default: return false;
+    case 'max-width':
+      return c.w <= px(value);
+    case 'min-width':
+      return c.w >= px(value);
+    case 'max-height':
+      return c.h <= px(value);
+    case 'min-height':
+      return c.h >= px(value);
+    case 'orientation':
+      return value === (c.w > c.h ? 'landscape' : 'portrait');
+    case 'pointer':
+      return value === (c.coarse ? 'coarse' : 'fine');
+    default:
+      return false;
   }
 }
 
@@ -96,14 +121,23 @@ function cascade(prop: string, selectors: string[], c: Ctx): string | undefined 
       const value = selectors.includes(sel) ? valueOf(r.decls, prop) : undefined;
       if (value === undefined) continue;
       const spec = (sel.match(/[.#][\w-]+/g) ?? []).length;
-      if (!best || spec > best.spec || (spec === best.spec && r.order > best.order)) best = { spec, order: r.order, value };
+      if (!best || spec > best.spec || (spec === best.spec && r.order > best.order))
+        best = { spec, order: r.order, value };
     }
   }
   return best?.value;
 }
 
 /** The selectors that reach the Log card (LogPanel.tsx: `card almanac joblog`), at any state of its list. */
-const LOG = ['.card', '.almanac', '.joblog', '.card.almanac', '.almanac.joblog', '.card.almanac.joblog', '.card.almanac.joblog.jl-none'];
+const LOG = [
+  '.card',
+  '.almanac',
+  '.joblog',
+  '.card.almanac',
+  '.almanac.joblog',
+  '.card.almanac.joblog',
+  '.card.almanac.joblog.jl-none',
+];
 /** Three sizes: a desktop, a phone in portrait, and a phone in landscape (touch). */
 const CONTEXTS: Ctx[] = [
   { w: 1920, h: 1080, coarse: false },
@@ -137,7 +171,9 @@ describe('the Log panel look (ui.css, ADR 0001, SPEC §1 rules 5 to 7)', () => {
       const bg = cascade('background-color', LOG, c) ?? '';
       expect(bg, `background-color at ${at}`).toBe('var(--c-shade-86)');
       expect(cascade('background-image', LOG, c) ?? 'none', `background-image at ${at}`).toBe('none');
-      expect(cascade('background', LOG, c) ?? '', `background at ${at}`).not.toMatch(/gradient|--c-void|--c-stage|--c-panel/);
+      expect(cascade('background', LOG, c) ?? '', `background at ${at}`).not.toMatch(
+        /gradient|--c-void|--c-stage|--c-panel/,
+      );
     });
   }
 });

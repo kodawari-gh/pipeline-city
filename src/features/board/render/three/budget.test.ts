@@ -25,7 +25,8 @@ const SLACK = 1.05;
 
 /** Draws and drawn vertices of the meshes under each root, counted as `highident.test.ts` counts a draw. */
 function countMachineRoom(roots: Object3D[]): { draws: number; verts: number } {
-  let draws = 0, verts = 0;
+  let draws = 0,
+    verts = 0;
   for (const root of roots) {
     root.updateMatrixWorld(true);
     root.traverse((o) => {

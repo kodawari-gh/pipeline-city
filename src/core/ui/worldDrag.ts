@@ -5,7 +5,9 @@
 let override: ((inventoryId: string, event: PointerEvent) => void) | null = null;
 
 /** The 3D renderer registers its drag handler here (`board3d.ts`). */
-export function setPartDragHandler(h: ((inventoryId: string, event: PointerEvent) => void) | null): void { override = h; }
+export function setPartDragHandler(h: ((inventoryId: string, event: PointerEvent) => void) | null): void {
+  override = h;
+}
 
 /** Start dragging an inventory part onto the board (no-op until the 3D world is mounted). */
 export function beginPartDrag(inventoryId: string, event: PointerEvent): void {

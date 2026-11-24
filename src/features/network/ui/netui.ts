@@ -20,7 +20,11 @@ export const linkUsable = (s: Snapshot): boolean => LINK_OK.includes(s.net.state
 
 // ---------- the state chip ----------
 
-export interface NetChip { text: string; level: ChipLevel; title: string }
+export interface NetChip {
+  text: string;
+  level: ChipLevel;
+  title: string;
+}
 
 /** The link state in one chip: no cable, link up, link down (with its reason), saturated. Null with no network at all. */
 export function netStateChip(s: Snapshot): NetChip | null {
@@ -28,15 +32,38 @@ export function netStateChip(s: Snapshot): NetChip | null {
   const n = s.net;
   const why = n.reason ? ` ${n.reason.charAt(0).toUpperCase()}${n.reason.slice(1)}.` : '';
   switch (n.state) {
-    case 'no-device': return { text: 'No service', level: 'idle', title: `The network needs a router and an internet plan.${why}` };
-    case 'no-cable': return { text: 'No cable', level: 'warn', title: `The router and plan are there, but no ethernet cable is plugged into a jack.${why}` };
-    case 'no-os': return { text: 'Setup needed', level: 'warn', title: `The cable is in, but the OS cannot run the link yet.${why}` };
-    case 'down': return {
-      text: 'Link down', level: s.powered ? 'bad' : 'warn',
-      title: `The link is down.${why} Jobs already on the drive are safe.`,
-    };
-    case 'link-up': return { text: 'Link up', level: 'ok', title: 'The link is up: jobs download in the background, run on the OS and upload when done.' };
-    case 'saturated': return { text: 'Saturated', level: 'warn', title: `Every client slot or the spool is full.${why} More bandwidth does not help while the OS or the drive is the limit.` };
+    case 'no-device':
+      return { text: 'No service', level: 'idle', title: `The network needs a router and an internet plan.${why}` };
+    case 'no-cable':
+      return {
+        text: 'No cable',
+        level: 'warn',
+        title: `The router and plan are there, but no ethernet cable is plugged into a jack.${why}`,
+      };
+    case 'no-os':
+      return {
+        text: 'Setup needed',
+        level: 'warn',
+        title: `The cable is in, but the OS cannot run the link yet.${why}`,
+      };
+    case 'down':
+      return {
+        text: 'Link down',
+        level: s.powered ? 'bad' : 'warn',
+        title: `The link is down.${why} Jobs already on the drive are safe.`,
+      };
+    case 'link-up':
+      return {
+        text: 'Link up',
+        level: 'ok',
+        title: 'The link is up: jobs download in the background, run on the OS and upload when done.',
+      };
+    case 'saturated':
+      return {
+        text: 'Saturated',
+        level: 'warn',
+        title: `Every client slot or the spool is full.${why} More bandwidth does not help while the OS or the drive is the limit.`,
+      };
   }
 }
 
@@ -46,11 +73,18 @@ export function hudNetChip(s: Snapshot): (NetChip & { icon: IconName }) | null {
   const c = netStateChip(s)!;
   const n = s.net;
   const bw = n.bandwidth.downMbps;
-  const text = n.state === 'link-up' ? fmtMbit(bw)
-    : n.state === 'saturated' ? `${fmtMbit(bw)} full`
-    : n.state === 'no-cable' ? 'no cable'
-    : n.state === 'down' ? 'down'
-    : n.state === 'no-os' ? 'setup' : 'no plan';
+  const text =
+    n.state === 'link-up'
+      ? fmtMbit(bw)
+      : n.state === 'saturated'
+        ? `${fmtMbit(bw)} full`
+        : n.state === 'no-cable'
+          ? 'no cable'
+          : n.state === 'down'
+            ? 'down'
+            : n.state === 'no-os'
+              ? 'setup'
+              : 'no plan';
   return { ...c, text, icon: 'net', title: `${c.title} Click for the network panel.` };
 }
 
@@ -82,20 +116,31 @@ export interface LimiterLadder {
 /** The OS drive's network sink rate (Mbit/s), or null with no OS. */
 export function diskMbps(s: Snapshot): number | null {
   const host = s.storage.find((d) => d.hasOs);
-  return host ? DISK_NET_MBPS[host.spec] ?? 80 : null;
+  return host ? (DISK_NET_MBPS[host.spec] ?? 80) : null;
 }
 
 /** The speed of the jack the cable is in; with no cable, the best jack the machine could use (shown dimmed). */
 function portSpeed(s: Snapshot): { mbps: number | null; plugged: boolean; label: string } {
   const p = s.net.port;
-  if (p.kind) return { mbps: p.mbps, plugged: true, label: p.kind === 'board' ? 'Board jack' : (s.devices.find((d) => d.id === p.deviceId)?.name ?? 'Network card') };
+  if (p.kind)
+    return {
+      mbps: p.mbps,
+      plugged: true,
+      label: p.kind === 'board' ? 'Board jack' : (s.devices.find((d) => d.id === p.deviceId)?.name ?? 'Network card'),
+    };
   const board = s.board.features.ethernetMbps;
-  const nic = Math.max(0, ...nicsInOrder(s).filter((d) => !d.burnt).map((d) => (getSpec(d.spec) as NicSpec | undefined)?.mbps ?? 0));
+  const nic = Math.max(
+    0,
+    ...nicsInOrder(s)
+      .filter((d) => !d.burnt)
+      .map((d) => (getSpec(d.spec) as NicSpec | undefined)?.mbps ?? 0),
+  );
   const best = Math.max(board, nic);
   return { mbps: best > 0 ? best : null, plugged: false, label: best > 0 ? 'Not plugged in' : 'No jack' };
 }
 
-const logFrac = (v: number, top: number): number => (v > 0 && top > 0 ? Math.min(1, Math.max(0.04, Math.log10(1 + v) / Math.log10(1 + top))) : 0);
+const logFrac = (v: number, top: number): number =>
+  v > 0 && top > 0 ? Math.min(1, Math.max(0.04, Math.log10(1 + v) / Math.log10(1 + top))) : 0;
 
 /**
  * The four limits side by side, in the order data flows: port, router, plan, drive. The binding one is the slowest of
@@ -106,23 +151,53 @@ export function limiterLadder(s: Snapshot): LimiterLadder {
   const port = portSpeed(s);
   const disk = diskMbps(s);
   const raw: Array<{ id: LimiterId; label: string; mbps: number | null; detail: string }> = [
-    { id: 'port', label: 'Port', mbps: port.mbps, detail: port.plugged ? port.label : port.mbps ? `${port.label} (best jack)` : port.label },
-    { id: 'router', label: 'Router', mbps: n.router?.mbps ?? null, detail: n.router ? `${n.router.name}, ${n.router.clients} clients` : 'No router' },
-    { id: 'isp', label: 'Plan', mbps: n.isp?.downMbps ?? null, detail: n.isp ? `${n.isp.name}, ${fmtMbit(n.isp.upMbps)} up` : 'No plan' },
-    { id: 'disk', label: 'Drive', mbps: disk, detail: disk === null ? 'No OS drive' : s.storage.find((d) => d.hasOs)?.name ?? 'Drive' },
+    {
+      id: 'port',
+      label: 'Port',
+      mbps: port.mbps,
+      detail: port.plugged ? port.label : port.mbps ? `${port.label} (best jack)` : port.label,
+    },
+    {
+      id: 'router',
+      label: 'Router',
+      mbps: n.router?.mbps ?? null,
+      detail: n.router ? `${n.router.name}, ${n.router.clients} clients` : 'No router',
+    },
+    {
+      id: 'isp',
+      label: 'Plan',
+      mbps: n.isp?.downMbps ?? null,
+      detail: n.isp ? `${n.isp.name}, ${fmtMbit(n.isp.upMbps)} up` : 'No plan',
+    },
+    {
+      id: 'disk',
+      label: 'Drive',
+      mbps: disk,
+      detail: disk === null ? 'No OS drive' : (s.storage.find((d) => d.hasOs)?.name ?? 'Drive'),
+    },
   ];
   let found: LimiterId | null = null;
   let min = Infinity;
-  for (const r of raw) if (r.mbps !== null && r.mbps < min) { min = r.mbps; found = r.id; }
+  for (const r of raw)
+    if (r.mbps !== null && r.mbps < min) {
+      min = r.mbps;
+      found = r.id;
+    }
   const binding: LimiterId | null = n.bandwidth.binding ?? (raw.every((r) => r.mbps !== null) ? found : null);
   const top = Math.max(...raw.map((r) => r.mbps ?? 0));
   return {
     binding,
-    downMbps: n.bandwidth.downMbps, upMbps: n.bandwidth.upMbps, clients: n.bandwidth.clients,
+    downMbps: n.bandwidth.downMbps,
+    upMbps: n.bandwidth.upMbps,
+    clients: n.bandwidth.clients,
     segs: raw.map((r) => ({
-      id: r.id, label: r.label, mbps: r.mbps, detail: r.detail,
+      id: r.id,
+      label: r.label,
+      mbps: r.mbps,
+      detail: r.detail,
       text: r.mbps === null ? '-' : fmtMbit(r.mbps),
-      binding: r.id === binding, frac: r.mbps === null ? 0 : logFrac(r.mbps, top),
+      binding: r.id === binding,
+      frac: r.mbps === null ? 0 : logFrac(r.mbps, top),
     })),
   };
 }
@@ -135,7 +210,9 @@ export function uploadLimiter(s: Snapshot): { id: 'port' | 'router' | 'isp'; tex
   const n = s.net;
   if (!linkUsable(s) || n.bandwidth.upMbps <= 0) return null;
   const legs: Array<{ id: 'port' | 'router' | 'isp'; mbps: number }> = [
-    { id: 'port', mbps: n.port.mbps }, { id: 'router', mbps: n.router?.mbps ?? 0 }, { id: 'isp', mbps: n.isp?.upMbps ?? 0 },
+    { id: 'port', mbps: n.port.mbps },
+    { id: 'router', mbps: n.router?.mbps ?? 0 },
+    { id: 'isp', mbps: n.isp?.upMbps ?? 0 },
   ];
   let best = legs[0]!;
   for (const l of legs) if (l.mbps < best.mbps) best = l;
@@ -145,20 +222,32 @@ export function uploadLimiter(s: Snapshot): { id: 'port' | 'router' | 'isp'; tex
 /** What to upgrade to speed the line up, in plain words (the binding limiter), or null when nothing is binding. */
 export function limiterAdvice(l: LimiterLadder): string | null {
   switch (l.binding) {
-    case 'port': return 'The port is the slowest link: a better board jack or a network card speeds it up.';
-    case 'router': return 'The router is the slowest link: a faster router speeds it up.';
-    case 'isp': return 'The plan is the slowest link: a faster plan speeds it up.';
-    case 'disk': return 'The drive is the slowest link: a faster drive speeds it up.';
-    default: return null;
+    case 'port':
+      return 'The port is the slowest link: a better board jack or a network card speeds it up.';
+    case 'router':
+      return 'The router is the slowest link: a faster router speeds it up.';
+    case 'isp':
+      return 'The plan is the slowest link: a faster plan speeds it up.';
+    case 'disk':
+      return 'The drive is the slowest link: a faster drive speeds it up.';
+    default:
+      return null;
   }
 }
 
 // ---------- the link checklist ----------
 
-export interface CheckItem { id: 'plan' | 'router' | 'jack' | 'cable' | 'os' | 'ram'; label: string; ok: boolean; why: string }
+export interface CheckItem {
+  id: 'plan' | 'router' | 'jack' | 'cable' | 'os' | 'ram';
+  label: string;
+  ok: boolean;
+  why: string;
+}
 
 const ramK = (s: Snapshot): number =>
-  s.devices.filter((d) => d.kind === 'ram' && !d.burnt).reduce((n, d) => n + ((getSpec(d.spec) as { sizeBytes?: number } | undefined)?.sizeBytes ?? 0) / 1024, 0);
+  s.devices
+    .filter((d) => d.kind === 'ram' && !d.burnt)
+    .reduce((n, d) => n + ((getSpec(d.spec) as { sizeBytes?: number } | undefined)?.sizeBytes ?? 0) / 1024, 0);
 
 /** The things a working link needs, each ok or missing with the reason in words (hover text). */
 export function linkChecklist(s: Snapshot): CheckItem[] {
@@ -166,12 +255,44 @@ export function linkChecklist(s: Snapshot): CheckItem[] {
   const lan = s.cables.find((c) => c.id === 'lan');
   const need = NET.minRamBytes / 1024;
   const items: CheckItem[] = [
-    { id: 'plan', label: 'Plan', ok: !!s.net.isp, why: s.net.isp ? s.net.isp.name : 'needs an internet plan: click the wall socket' },
-    { id: 'router', label: 'Router', ok: !!s.net.router, why: s.net.router ? s.net.router.name : 'needs a router next to the monitor' },
-    { id: 'jack', label: 'Jack', ok: jack, why: jack ? 'a network jack is there' : 'needs a network jack: a Basic or better board, or a network card (needs a PCIe slot)' },
-    { id: 'cable', label: 'Cable', ok: !!lan?.connected, why: lan?.connected ? 'the ethernet cable is plugged in' : lan?.blocked ?? 'plug the ethernet cable into a jack' },
+    {
+      id: 'plan',
+      label: 'Plan',
+      ok: !!s.net.isp,
+      why: s.net.isp ? s.net.isp.name : 'needs an internet plan: click the wall socket',
+    },
+    {
+      id: 'router',
+      label: 'Router',
+      ok: !!s.net.router,
+      why: s.net.router ? s.net.router.name : 'needs a router next to the monitor',
+    },
+    {
+      id: 'jack',
+      label: 'Jack',
+      ok: jack,
+      why: jack
+        ? 'a network jack is there'
+        : 'needs a network jack: a Basic or better board, or a network card (needs a PCIe slot)',
+    },
+    {
+      id: 'cable',
+      label: 'Cable',
+      ok: !!lan?.connected,
+      why: lan?.connected
+        ? 'the ethernet cable is plugged in'
+        : (lan?.blocked ?? 'plug the ethernet cable into a jack'),
+    },
     { id: 'os', label: 'OS', ok: !!s.os, why: s.os ? s.os.name : 'needs an OS: it runs the link' },
-    { id: 'ram', label: `${need}K RAM`, ok: ramK(s) >= need, why: ramK(s) >= need ? `${Math.round(ramK(s))}K installed` : `needs ${need}K of RAM (you have ${Math.round(ramK(s))}K)` },
+    {
+      id: 'ram',
+      label: `${need}K RAM`,
+      ok: ramK(s) >= need,
+      why:
+        ramK(s) >= need
+          ? `${Math.round(ramK(s))}K installed`
+          : `needs ${need}K of RAM (you have ${Math.round(ramK(s))}K)`,
+    },
   ];
   // The network asks for no memory beyond the OS's own (NET.minRamBytes is 0): the row only exists if that is ever raised.
   return need > 0 ? items : items.filter((c) => c.id !== 'ram');
@@ -181,7 +302,14 @@ export function linkChecklist(s: Snapshot): CheckItem[] {
 export function stillNeeds(s: Snapshot, skip: CheckItem['id'][] = []): string {
   const miss = linkChecklist(s).filter((c) => !c.ok && !skip.includes(c.id));
   if (!miss.length) return 'Everything it needs is in place.';
-  const words: Record<CheckItem['id'], string> = { plan: 'a plan', router: 'a router', jack: 'a network jack', cable: 'the cable', os: 'an OS', ram: `${NET.minRamBytes / 1024}K of RAM` };
+  const words: Record<CheckItem['id'], string> = {
+    plan: 'a plan',
+    router: 'a router',
+    jack: 'a network jack',
+    cable: 'the cable',
+    os: 'an OS',
+    ram: `${NET.minRamBytes / 1024}K of RAM`,
+  };
   const list = miss.map((c) => words[c.id]);
   return `To use it you still need ${list.length > 1 ? `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}` : list[0]}.`;
 }
@@ -201,7 +329,9 @@ export function netStateLines(s: Snapshot): PickerLine[] {
   const chip = netStateChip(s);
   if (!chip) return [];
   const n = s.net;
-  const lines: PickerLine[] = [{ level: chip.level === 'idle' ? 'info' : chip.level, text: `${chip.text}${n.reason ? `: ${n.reason}` : ''}` }];
+  const lines: PickerLine[] = [
+    { level: chip.level === 'idle' ? 'info' : chip.level, text: `${chip.text}${n.reason ? `: ${n.reason}` : ''}` },
+  ];
   if (linkUsable(s)) {
     const lim: Record<Binding, string> = { port: 'the port', router: 'the router', isp: 'the plan', disk: 'the drive' };
     const b = n.bandwidth;
@@ -220,9 +350,13 @@ export function nicLines(s: Snapshot, dev: { id: string; throttle: number; burnt
   const out: PickerLine[] = [
     plugged
       ? { level: 'ok', text: `The ethernet cable is plugged into this card (${fmtMbit(s.net.port.mbps)}).` }
-      : { level: 'info', text: `Its jack is eth${n + 1}. Drag the ethernet plug onto it to use this card instead of the board jack.` },
+      : {
+          level: 'info',
+          text: `Its jack is eth${n + 1}. Drag the ethernet plug onto it to use this card instead of the board jack.`,
+        },
   ];
-  if (!dev.burnt && dev.throttle < 1) out.push({ level: 'warn', text: 'Too hot: the card runs at half speed. Better airflow or a slower card helps.' });
+  if (!dev.burnt && dev.throttle < 1)
+    out.push({ level: 'warn', text: 'Too hot: the card runs at half speed. Better airflow or a slower card helps.' });
   return out;
 }
 
@@ -231,16 +365,34 @@ export function nicLines(s: Snapshot, dev: { id: string; throttle: number; burnt
 /** Numeric stats of a router or plan spec for the before/after bars (log scale for the speeds), or null for other ids. */
 export function netStats(specId: string): Stat[] | null {
   const r = getRouterSpec(specId);
-  if (r) return [
-    { key: 'bandwidth', label: 'Port speed', icon: 'net', value: r.mbps, unit: 'Mbit', higherIsBetter: true, log: true },
-    { key: 'clients', label: 'Clients at once', icon: 'slot', value: r.clients, unit: '', higherIsBetter: true },
-  ];
+  if (r)
+    return [
+      {
+        key: 'bandwidth',
+        label: 'Port speed',
+        icon: 'net',
+        value: r.mbps,
+        unit: 'Mbit',
+        higherIsBetter: true,
+        log: true,
+      },
+      { key: 'clients', label: 'Clients at once', icon: 'slot', value: r.clients, unit: '', higherIsBetter: true },
+    ];
   const p = getIspSpec(specId);
-  if (p) return [
-    { key: 'bandwidth', label: 'Download', icon: 'down', value: p.downMbps, unit: 'Mbit', higherIsBetter: true, log: true },
-    { key: 'upload', label: 'Upload', icon: 'up', value: p.upMbps, unit: 'Mbit', higherIsBetter: true, log: true },
-    { key: 'clients', label: 'Clients at once', icon: 'slot', value: p.clients, unit: '', higherIsBetter: true },
-  ];
+  if (p)
+    return [
+      {
+        key: 'bandwidth',
+        label: 'Download',
+        icon: 'down',
+        value: p.downMbps,
+        unit: 'Mbit',
+        higherIsBetter: true,
+        log: true,
+      },
+      { key: 'upload', label: 'Upload', icon: 'up', value: p.upMbps, unit: 'Mbit', higherIsBetter: true, log: true },
+      { key: 'clients', label: 'Clients at once', icon: 'slot', value: p.clients, unit: '', higherIsBetter: true },
+    ];
   return null;
 }
 
@@ -249,7 +401,14 @@ export function nicStats(spec: NicSpec): Stat[] {
   return [
     { key: 'bandwidth', label: 'Speed', icon: 'net', value: spec.mbps, unit: 'Mbit', higherIsBetter: true, log: true },
     { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
-    { key: 'throttle', label: 'Throttles at', icon: 'flame', value: spec.thermal.throttleC, unit: 'C', higherIsBetter: true },
+    {
+      key: 'throttle',
+      label: 'Throttles at',
+      icon: 'flame',
+      value: spec.thermal.throttleC,
+      unit: 'C',
+      higherIsBetter: true,
+    },
   ];
 }
 
@@ -277,8 +436,8 @@ export function effectOf(s: Snapshot, specId: string): Effect | null {
   const n = s.net;
   const port = portSpeed(s).mbps ?? 0;
   const disk = diskMbps(s) ?? Infinity;
-  const router = n.router ? getRouterSpec(n.router.id) ?? null : null;
-  const isp = n.isp ? getIspSpec(n.isp.id) ?? null : null;
+  const router = n.router ? (getRouterSpec(n.router.id) ?? null) : null;
+  const isp = n.isp ? (getIspSpec(n.isp.id) ?? null) : null;
   const calc = (p: number, r: typeof router, i: typeof isp) => {
     const b = bandwidth(p, r, i, disk);
     return { downMbps: b.downMbps, binding: b.binding, clients: b.clients };
@@ -305,23 +464,35 @@ export function effectLine(e: Effect): { text: string; same: boolean; better: bo
   const by = e.after.binding ? `, limited by ${lim[e.after.binding]}` : '';
   return {
     text: same ? `Your download stays ${a}${by}.` : `Your download: ${a} -> ${b}${by}.`,
-    same, better: e.after.downMbps > e.before.downMbps,
+    same,
+    better: e.after.downMbps > e.before.downMbps,
   };
 }
 
 // ---------- the network panel ----------
 
 export type StageId = 'offer' | 'downloading' | 'spooled' | 'uploading';
-export interface StageCount { id: StageId; label: string; count: number; dir: 'down' | 'up' | null }
+export interface StageCount {
+  id: StageId;
+  label: string;
+  count: number;
+  dir: 'down' | 'up' | null;
+}
 
 /** The latency SLA of a web offer: how long it still pays in full, then that the pay is falling. */
-export interface SlaModel { left: number; over: boolean; text: string }
+export interface SlaModel {
+  left: number;
+  over: boolean;
+  text: string;
+}
 
 /** The SLA countdown of a job (`KeySnap.slaTick`, web only), or null for a job without one. */
 export function slaModel(k: KeySnap, now: number): SlaModel | null {
   if (k.slaTick === undefined) return null;
   const left = k.slaTick - now;
-  return left > 0 ? { left, over: false, text: `full pay for ${fmtTicks(left)}` } : { left: 0, over: true, text: 'pay is falling' };
+  return left > 0
+    ? { left, over: false, text: `full pay for ${fmtTicks(left)}` }
+    : { left: 0, over: true, text: 'pay is falling' };
 }
 
 export interface OfferRow {
@@ -349,17 +520,52 @@ export interface TransferRow {
 }
 
 /** One line of the panel's packet section: what it counts, its value, the words behind it and how it looks (`warn`: something is going wrong). */
-export interface StackRow { id: 'rtt' | 'loss' | 'segments' | 'nic'; label: string; text: string; title: string; level: 'info' | 'warn' }
-export interface StackModel { rows: StackRow[] }
-export interface SpoolRow { key: KeySnap; label: string; state: string; level: 'info' | 'ok' | 'warn' }
-export interface UsbModel { state: 'retired' | 'waiting' | 'fallback'; text: string; detail: string | null; level: ChipLevel; countdown: number | null }
+export interface StackRow {
+  id: 'rtt' | 'loss' | 'segments' | 'nic';
+  label: string;
+  text: string;
+  title: string;
+  level: 'info' | 'warn';
+}
+export interface StackModel {
+  rows: StackRow[];
+}
+export interface SpoolRow {
+  key: KeySnap;
+  label: string;
+  state: string;
+  level: 'info' | 'ok' | 'warn';
+}
+export interface UsbModel {
+  state: 'retired' | 'waiting' | 'fallback';
+  text: string;
+  detail: string | null;
+  level: ChipLevel;
+  countdown: number | null;
+}
 
 /** One place on the path that has an address: its name, its IP address (null: none now), its MAC and the words that say where the address comes from. */
-export interface AddrRow { id: 'pc' | 'lan' | 'wan' | 'gateway'; label: string; ip: string | null; mac: string; note: string }
+export interface AddrRow {
+  id: 'pc' | 'lan' | 'wan' | 'gateway';
+  label: string;
+  ip: string | null;
+  mac: string;
+  note: string;
+}
 /** One line of the router's NAT table: the job, what it speaks, the server's end, the two ports the router swaps (the PC's and its own) and the whole line for a tooltip. */
-export interface NatRow { key: string; label: string; proto: 'TCP' | 'UDP'; server: string; ports: string; line: string }
+export interface NatRow {
+  key: string;
+  label: string;
+  proto: 'TCP' | 'UDP';
+  server: string;
+  ports: string;
+  line: string;
+}
 /** The addresses of the panel (`netAddrs`): the places on the path from the PC to the ISP, and the NAT table of the jobs in flight. Both are empty with nothing to name. */
-export interface AddrModel { rows: AddrRow[]; nat: NatRow[] }
+export interface AddrModel {
+  rows: AddrRow[];
+  nat: NatRow[];
+}
 
 export interface NetPanelModel {
   chip: NetChip;
@@ -397,18 +603,35 @@ const SPOOL_STATE: Record<string, { text: string; level: SpoolRow['level'] }> = 
 export function usbModel(s: Snapshot): UsbModel | null {
   const f = s.net.usbFallback;
   switch (f.state) {
-    case 'off': return null;
-    case 'retired': return {
-      state: 'retired', text: 'USB keys retired', level: 'idle', countdown: null,
-      detail: s.net.retiredKeys > 0 ? `${s.net.retiredKeys} leftover key${s.net.retiredKeys === 1 ? '' : 's'} expire without penalty` : 'clients send jobs over the wire now',
-    };
-    case 'waiting': return {
-      state: 'waiting', text: f.startsIn !== null ? `Keys return in ${fmtTicks(f.startsIn)}` : 'Keys return soon', level: 'warn',
-      countdown: f.startsIn, detail: 'the link is down; after 5 minutes clients send keys again at a third of the rate',
-    };
-    case 'fallback': return {
-      state: 'fallback', text: 'Keys are back at 1/3 rate', level: 'warn', countdown: null, detail: 'offers are paused until the link is up',
-    };
+    case 'off':
+      return null;
+    case 'retired':
+      return {
+        state: 'retired',
+        text: 'USB keys retired',
+        level: 'idle',
+        countdown: null,
+        detail:
+          s.net.retiredKeys > 0
+            ? `${s.net.retiredKeys} leftover key${s.net.retiredKeys === 1 ? '' : 's'} expire without penalty`
+            : 'clients send jobs over the wire now',
+      };
+    case 'waiting':
+      return {
+        state: 'waiting',
+        text: f.startsIn !== null ? `Keys return in ${fmtTicks(f.startsIn)}` : 'Keys return soon',
+        level: 'warn',
+        countdown: f.startsIn,
+        detail: 'the link is down; after 5 minutes clients send keys again at a third of the rate',
+      };
+    case 'fallback':
+      return {
+        state: 'fallback',
+        text: 'Keys are back at 1/3 rate',
+        level: 'warn',
+        countdown: null,
+        detail: 'offers are paused until the link is up',
+      };
   }
 }
 
@@ -429,30 +652,57 @@ export function addressModel(s: Snapshot): AddrModel {
   const rows: AddrRow[] = [];
   if (a.pc) {
     rows.push({
-      id: 'pc', label: `PC · ${a.pc.id}`, ip: a.host ? `${a.host.ip}/${a.host.prefix}` : null, mac: a.pc.mac,
-      note: a.host ? `The router's DHCP gave it this address for ${a.host.lease}. Gateway and name server ${a.host.gateway}, mask ${a.host.mask}.` : noAddressWhy(s),
+      id: 'pc',
+      label: `PC · ${a.pc.id}`,
+      ip: a.host ? `${a.host.ip}/${a.host.prefix}` : null,
+      mac: a.pc.mac,
+      note: a.host
+        ? `The router's DHCP gave it this address for ${a.host.lease}. Gateway and name server ${a.host.gateway}, mask ${a.host.mask}.`
+        : noAddressWhy(s),
     });
   }
   if (a.lan) {
     rows.push({
-      id: 'lan', label: 'Router · LAN', ip: `${a.lan.ip}/${a.lan.prefix}`, mac: a.lan.mac,
+      id: 'lan',
+      label: 'Router · LAN',
+      ip: `${a.lan.ip}/${a.lan.prefix}`,
+      mac: a.lan.mac,
       note: `The PC's gateway and name server. Its DHCP gives out ${a.lan.pool.first} to ${a.lan.pool.last} for ${a.lan.lease}.`,
     });
   }
   if (a.wan) {
-    rows.push({ id: 'wan', label: 'Router · WAN', ip: `${a.wan.ip}/${a.wan.prefix}`, mac: a.wan.mac, note: 'The public address the plan gave. NAT swaps the PC\'s address and port for this one on the way out.' });
-    rows.push({ id: 'gateway', label: 'ISP gateway', ip: a.wan.gateway.ip, mac: a.wan.gateway.mac, note: `The first hop on the plan's line. Name servers ${a.wan.dns.join(' and ')}: the router asks them for the PC.` });
+    rows.push({
+      id: 'wan',
+      label: 'Router · WAN',
+      ip: `${a.wan.ip}/${a.wan.prefix}`,
+      mac: a.wan.mac,
+      note: "The public address the plan gave. NAT swaps the PC's address and port for this one on the way out.",
+    });
+    rows.push({
+      id: 'gateway',
+      label: 'ISP gateway',
+      ip: a.wan.gateway.ip,
+      mac: a.wan.gateway.mac,
+      note: `The first hop on the plan's line. Name servers ${a.wan.dns.join(' and ')}: the router asks them for the PC.`,
+    });
   }
   const nat: NatRow[] = a.conns.map((c) => ({
-    key: `${c.jobId}${c.dir}`, label: `${c.dir === 'down' ? 'down' : 'up'} ${c.label}`, proto: c.service.proto, server: `${c.server.ip}:${c.server.port}`,
+    key: `${c.jobId}${c.dir}`,
+    label: `${c.dir === 'down' ? 'down' : 'up'} ${c.label}`,
+    proto: c.service.proto,
+    server: `${c.server.ip}:${c.server.port}`,
     // (a DNS query stops at the router's resolver: the router asks the name server itself, from its own port)
-    ports: isProxied(c) ? `PC :${c.lan.port} > router :${c.peer.port} | router :${c.wan.port} > name server` : `PC :${c.lan.port} > router :${c.wan.port}`, line: natLine(c),
+    ports: isProxied(c)
+      ? `PC :${c.lan.port} > router :${c.peer.port} | router :${c.wan.port} > name server`
+      : `PC :${c.lan.port} > router :${c.wan.port}`,
+    line: natLine(c),
   }));
   return { rows, nat };
 }
 
 /** A share of segments in words: `0%`, `0.5%`, `4.0%`, `12%`. */
-export const fmtLoss = (f: number): string => (f <= 0 ? '0%' : f < 0.1 ? `${(f * 100).toFixed(f < 0.01 ? 2 : 1)}%` : `${Math.round(f * 100)}%`);
+export const fmtLoss = (f: number): string =>
+  f <= 0 ? '0%' : f < 0.1 ? `${(f * 100).toFixed(f < 0.01 ? 2 : 1)}%` : `${Math.round(f * 100)}%`;
 
 /**
  * The transport and the NIC as the panel's lines (docs/NETSTACK.md 3.7): the round trip the senders measured, the chance the line loses a segment now, the segments sent and sent
@@ -466,20 +716,42 @@ export function stackModel(s: Snapshot): StackModel | null {
   const rows: StackRow[] = [
     k.rtt
       ? {
-        id: 'rtt', label: 'Round trip', text: fmtTicks(k.rtt.srtt), level: 'info',
-        title: `How long a segment takes to be answered, as the senders measured it (smoothed). The kernel answers when its loop gets to the card, so a job that runs on OS 1 or 2 makes it longer. A sender waits ${fmtTicks(k.rtt.rto)} for an answer before it sends a segment again.`,
-      }
-      : { id: 'rtt', label: 'Round trip', text: '-', level: 'info', title: 'No segment has been answered yet. Each download sends its first segments with a short timer, then learns the real round trip.' },
+          id: 'rtt',
+          label: 'Round trip',
+          text: fmtTicks(k.rtt.srtt),
+          level: 'info',
+          title: `How long a segment takes to be answered, as the senders measured it (smoothed). The kernel answers when its loop gets to the card, so a job that runs on OS 1 or 2 makes it longer. A sender waits ${fmtTicks(k.rtt.rto)} for an answer before it sends a segment again.`,
+        }
+      : {
+          id: 'rtt',
+          label: 'Round trip',
+          text: '-',
+          level: 'info',
+          title:
+            'No segment has been answered yet. Each download sends its first segments with a short timer, then learns the real round trip.',
+        },
     {
-      id: 'loss', label: 'Loss chance', text: fmtLoss(k.loss), level: k.loss >= 0.03 ? 'warn' : 'info',
-      title: 'The chance the line loses a segment now: the plan\'s line, the router, and a card that has gone too hot (unstable). A lost segment is sent again after the timeout. A better plan and router lose fewer.',
+      id: 'loss',
+      label: 'Loss chance',
+      text: fmtLoss(k.loss),
+      level: k.loss >= 0.03 ? 'warn' : 'info',
+      title:
+        "The chance the line loses a segment now: the plan's line, the router, and a card that has gone too hot (unstable). A lost segment is sent again after the timeout. A better plan and router lose fewer.",
     },
     {
-      id: 'segments', label: 'Segments', text: `${k.sent} sent${k.resent > 0 ? ` · ${k.resent} again` : ''}`, level: again >= 0.1 ? 'warn' : 'info',
+      id: 'segments',
+      label: 'Segments',
+      text: `${k.sent} sent${k.resent > 0 ? ` · ${k.resent} again` : ''}`,
+      level: again >= 0.1 ? 'warn' : 'info',
       title: `A job's program travels in segments of one drive block. ${k.sent} put on the wire since the game started, ${k.resent} of them sent again (${k.timeouts} timers fired), ${k.lost} lost by the line itself. A segment is sent again when the line lost it, when the card dropped it because the kernel was busy, or when the answer came too late.`,
     },
     {
-      id: 'nic', label: 'Card buffer', text: !nic.enabled ? 'card off' : `${nic.fifo}/${nic.fifoSegs} waiting · ring ${nic.rxUsed}/${nic.rxSlots}${nic.drops > 0 ? ` · ${nic.drops} dropped` : ''}`, level: nic.drops > 0 ? 'warn' : 'info',
+      id: 'nic',
+      label: 'Card buffer',
+      text: !nic.enabled
+        ? 'card off'
+        : `${nic.fifo}/${nic.fifoSegs} waiting · ring ${nic.rxUsed}/${nic.rxSlots}${nic.drops > 0 ? ` · ${nic.drops} dropped` : ''}`,
+      level: nic.drops > 0 ? 'warn' : 'info',
       title: nic.enabled
         ? `The card holds ${nic.fifoSegs} segments in its own buffer (a bigger card holds more) until the kernel has a free slot in the receive ring in RAM (${nic.rxSlots} slots). A segment that finds the buffer full is dropped and sent again after the timeout: the kernel was busy, usually with a job on OS 1 or 2. ${nic.rx} taken in, ${nic.drops} dropped, ${nic.tx} packets sent (answers and results).`
         : 'The kernel sets the card up when it boots. Until then the card takes nothing.',
@@ -493,7 +765,8 @@ function flowRow(t: TransferSnap): TransferRow['flow'] {
   const f = t.flow;
   if (!f) return null;
   return {
-    text: `${f.acked} of ${f.segs} segments in · window ${f.window}`, resent: f.resent,
+    text: `${f.acked} of ${f.segs} segments in · window ${f.window}`,
+    resent: f.resent,
     title: `${f.acked} of ${f.segs} segments acknowledged, ${f.inflight} on the way. The window is how many it may send before an answer comes (it opens with each answer and closes after a timeout). ${f.timeouts} timers fired. It waits ${fmtTicks(f.rto)} for an answer.`,
   };
 }
@@ -509,8 +782,14 @@ export function netPanel(s: Snapshot): NetPanelModel | null {
   const spooled = n.spooled.filter((k) => k.stage !== 'uploading');
   const busyJobs = new Set(n.transfers.map((t) => t.jobId));
   const row = (t: TransferSnap): TransferRow => ({
-    jobId: t.jobId, label: t.label, dir: t.dir, pct: Math.min(100, Math.max(0, t.percent)),
-    etaText: t.etaTicks > 0 ? fmtTicks(t.etaTicks) : 'now', doneMB: t.doneMB, totalMB: t.totalMB, flow: flowRow(t),
+    jobId: t.jobId,
+    label: t.label,
+    dir: t.dir,
+    pct: Math.min(100, Math.max(0, t.percent)),
+    etaText: t.etaTicks > 0 ? fmtTicks(t.etaTicks) : 'now',
+    doneMB: t.doneMB,
+    totalMB: t.totalMB,
+    flow: flowRow(t),
   });
   return {
     chip,
@@ -527,14 +806,23 @@ export function netPanel(s: Snapshot): NetPanelModel | null {
       { id: 'uploading', label: 'Uploading', count: ups.length, dir: 'up' },
     ],
     offers: n.offers.map((k) => ({
-      key: k, label: k.label, type: k.type, payout: k.payoutEstimate, left: Math.max(0, k.deadlineTick - now), late: k.late, retired: !!k.retired, sla: slaModel(k, now),
+      key: k,
+      label: k.label,
+      type: k.type,
+      payout: k.payoutEstimate,
+      left: Math.max(0, k.deadlineTick - now),
+      late: k.late,
+      retired: !!k.retired,
+      sla: slaModel(k, now),
     })),
     transfers: n.transfers.map(row),
     spooled: n.spooled.map((k) => {
       const st = SPOOL_STATE[k.stage] ?? SPOOL_STATE.spooled!;
       return { key: k, label: k.label, state: st.text, level: st.level };
     }),
-    spool: s.os?.spool ? { used: s.os.spool.used, slots: s.os.spool.slots, full: !!(s.os.spoolFull ?? s.os.spool.full) } : null,
+    spool: s.os?.spool
+      ? { used: s.os.spool.used, slots: s.os.spool.slots, full: !!(s.os.spoolFull ?? s.os.spool.full) }
+      : null,
     usb: usbModel(s),
     retiredKeys: n.retiredKeys,
     delivered: n.counters.delivered,
