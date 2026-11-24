@@ -602,14 +602,25 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
       return r.length ? r : workers;
     };
     let relaunch = T.findings.length ? routed(T.findings) : workers;
+    const merge = this.wt(n, 'merge');
+    this.clean(merge);
+    // Resume after an interrupted round merge: review the role commits already made before any agent reruns.
+    let pending =
+      T.rounds > 0 && workers.some((r) => !gitOk(merge, 'merge-base', '--is-ancestor', this.br(n, r), 'HEAD'));
     for (;;) {
       const tier = tierAt(planned, T.failures);
       if (!tier) {
         throw new Stop('ladder exhausted', 'exhausted');
       }
-      T.rounds++;
-      this.save();
-      this.emit(`#${n} round ${T.rounds} ${tierName(tier)}: ${relaunch.join(' + ')}`);
+      if (pending) {
+        this.emit(`#${n} round ${T.rounds} resumes at the round merge`);
+        relaunch = [];
+      } else {
+        T.rounds++;
+        this.save();
+        this.emit(`#${n} round ${T.rounds} ${tierName(tier)}: ${relaunch.join(' + ')}`);
+      }
+      pending = false;
       const findingsText = T.findings.length
         ? `Reviewer findings to fix on your branch:\n${T.findings
             .filter((f) => T.noTests || relaunch.includes(f.role))
@@ -619,7 +630,6 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
             )
             .join('\n')}\n`
         : '';
-      const merge = this.wt(n, 'merge');
       const tip = git(merge, 'rev-parse', 'HEAD');
       const jobs = relaunch.map(async (role) => {
         const p = this.wt(n, role);
