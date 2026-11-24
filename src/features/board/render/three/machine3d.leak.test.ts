@@ -157,21 +157,35 @@ const cases: Case[] = [
   { name: 'a heatsink fan', setup: none, pick: (d) => d.kind === 'fan' && /-sink\d+\.fan/u.test(d.slot) },
 ];
 
-describe('a part patched away leaves nothing behind', () => {
+/** The power lens on every part: the power skins and roots a part adds show in the lists and the tagged ids. */
+const lens = (m: Machine3D, s: Snapshot): void => {
+  m.powerGlow(new Map(s.devices.map((d) => [d.id, 0.5])));
+};
+
+describe.each([
+  ['the build', false],
+  ['the power lens', true],
+])('a part patched away leaves nothing behind in %s', (_label, lit) => {
+  const seen = (m: Machine3D, g: Game): Record<string, string[]> => {
+    if (lit) {
+      lens(m, g.snapshot());
+    }
+    return view(m);
+  };
   it.each(cases)(
     'patches $name away and back as a fresh build',
     ({ name, setup, pick }) => {
       const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
       setup(g);
       const m = stage(g.snapshot());
-      const fresh = (): Record<string, string[]> => view(stage(g.snapshot()));
+      const fresh = (): Record<string, string[]> => seen(stage(g.snapshot()), g);
       const { part, inv } = takeOut(g, pick, name);
       expect(devs(g).map((d) => d.id)).not.toContain(part.id);
       expect(m.patch(g.snapshot(), roomGeo()), `${name}: a patch for the removal`).toBe(true);
-      expect(view(m), `${name} out`).toStrictEqual(fresh());
+      expect(seen(m, g), `${name} out`).toStrictEqual(fresh());
       ok(g.install(inv, part.slot), `${name} back`);
       expect(m.patch(g.snapshot(), roomGeo()), `${name}: a patch for the fit`).toBe(true);
-      expect(view(m), `${name} back`).toStrictEqual(fresh());
+      expect(seen(m, g), `${name} back`).toStrictEqual(fresh());
     },
     60_000,
   );

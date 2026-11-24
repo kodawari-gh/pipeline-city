@@ -155,9 +155,22 @@ describe('Machine3D.powerGlow', () => {
       power: { ...snap.power, off: false, tripped: false },
       cables: snap.cables.map((c) => ({ ...c, connected: true })),
     };
-    const fans = (m as unknown as { fans: { ring: MeshStandardMaterial | null }[] }).fans.filter((f) => f.ring);
+    const fans = ids('fan')
+      .slice(1)
+      .map((id) => findById(m.root, id)!);
     expect(fans.length).toBeGreaterThan(0);
-    const ring = (): number => Math.max(...fans.map((f) => f.ring!.emissiveIntensity));
+    // (the ring of light is the brightest glow the fans' meshes carry; the first fan is the one the lens lights, so it stays out)
+    const ring = (): number =>
+      Math.max(
+        0,
+        ...fans.flatMap((f) =>
+          f
+            .getObjectsByProperty('isMesh', true)
+            .flatMap((o) =>
+              [Reflect.get(o, 'material')].flat().map((x) => Number(Reflect.get(x, 'emissiveIntensity'))),
+            ),
+        ),
+      );
     m.powerGlow(null);
     // (the fans spin up: their rings shine)
     for (let i = 0; i < 80; i++) m.frame(on, 0.1);

@@ -319,7 +319,7 @@ export class Machine3D {
   private skins = new Map<string, PartSkin>();
   /** The sockets' rects by slot id (a model is fitted to its part's). */
   private rects = new Map<string, RectLike>();
-  private fans: Fan[] = [];
+  readonly fans: Fan[] = [];
   private rgb = new PointLight(0x8b5cff, 0, 9000, 0);
   /**
    * The RGB's light out through the glass, on the desk and the wall beside the case. No work light: the board reads by the room's lamps and
@@ -342,7 +342,7 @@ export class Machine3D {
   /** The 2D art the parts wear, baked on the view's queue. */
   private readonly art: ArtSet;
   /** What changes with the camera: a point and what to do with the zoom seen there (`seenZoom`, the 2D bands' unit). */
-  private reveals: Reveal[] = [];
+  readonly reveals: Reveal[] = [];
   /**
    * By `spec@slot`: what each part added (`buildPart`), the only per-part state. The lists, the skins, the cards, the bank and the cooler are
    * computed from these and the machine's own pieces (`relist`); a patch drops a part's entry.
