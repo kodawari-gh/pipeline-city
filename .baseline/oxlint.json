@@ -15,7 +15,7 @@
   "eslint(no-use-before-define)": 2,
   "eslint(prefer-destructuring)": 1,
   "eslint(prefer-named-capture-group)": 11,
-  "eslint(require-unicode-regexp)": 4,
+  "eslint(require-unicode-regexp)": 3,
   "unicorn(explicit-length-check)": 1,
   "unicorn(import-style)": 1,
   "unicorn(no-array-sort)": 1

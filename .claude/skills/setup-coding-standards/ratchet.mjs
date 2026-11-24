@@ -14,9 +14,12 @@ import { join, relative, resolve, isAbsolute } from 'node:path';
 const root = spawnSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).stdout.trim() || process.cwd();
 const rel = (f) => relative(root, isAbsolute(f) ? f : resolve(root, f)).replaceAll('\\', '/');
 
+let stdoutOnly = '';
+
+// JSON checkers print JSON on stdout. Stderr can hold tool noise (uvx "Downloading ruff"), so read stdout first.
 function jsonOf(out) {
-  const i = out.search(/[[{]/);
-  return JSON.parse(out.slice(i));
+  const src = stdoutOnly.includes('[') || stdoutOnly.includes('{') ? stdoutOnly : out;
+  return JSON.parse(src.slice(src.search(/[[{]/u)));
 }
 
 const PARSERS = {
@@ -92,6 +95,7 @@ function main(argv) {
   }
   const cmd = argv.slice(sep + 1).join(' ');
   const r = spawnSync(cmd, { cwd: root, shell: true, encoding: 'utf8', maxBuffer: 1 << 30 });
+  stdoutOnly = r.stdout;
   const out = `${r.stdout}\n${r.stderr}`;
   let entries;
   try {
