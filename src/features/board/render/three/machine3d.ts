@@ -43,7 +43,6 @@ import { nicFaceRect, nicGeo } from '@/features/network/render/nic/niclayout';
 import { nicInput } from '@/features/network/render/nic/nicplan';
 import { routerDie } from '@/features/network/render/router/routerart';
 import { routerGeo } from '@/features/network/render/router/routerlayout';
-import { driveKindOf } from '@/features/storage/render/drives';
 import { fanMounts, hubHeaders, radiatorSpan, type FanMount } from '@/features/room/render/desk/props/case';
 import {
   BOARD_Z,
@@ -115,7 +114,16 @@ import { DOOR_SECONDS, doorPose, stepDoor } from './casedoor';
 import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor';
 import { stripModeOf, type StripMode } from '@/features/room/render/shell/exterior';
 import { SHROUD, basementPlan, shroud } from './basement3d';
-import { baseCagePlan, cageBox, cageGrommet, cagePlan, driveCage, trayHit, type CagePlan } from './drivecage3d';
+import {
+  baseCagePlan,
+  cageBox,
+  cageGrommet,
+  cagePlan,
+  driveCage,
+  trayHit,
+  traySpot,
+  type CagePlan,
+} from './drivecage3d';
 import { footShade } from './footshade3d';
 import { drivePlug } from './drive3d';
 import { mainsInlet, mainsPlug, PLUG_TAIL } from './psu3d';
@@ -253,7 +261,7 @@ const markSpin = (s: Spin): void => {
 
 const keyOf = (d: { spec: string; slot: string }): string => `${d.spec}@${d.slot}`;
 /**
- * The parts a patch may add or take away: a stick, an M.2 drive, a card, the CPU, an air cooler, a VRM or memory heat sink, and a fan on one of those
+ * The parts a patch may add or take away: a stick, an M.2 or SATA drive, a card, the CPU, an air cooler, a VRM or memory heat sink, and a fan on one of those
  * (the host is built again with it). Not a liquid loop's pump (the hoses join it), a radiator, a case fan, a PSU, a cable or a case or board.
  */
 const patchable = (d: DeviceSnap): boolean => {
@@ -272,7 +280,7 @@ const patchable = (d: DeviceSnap): boolean => {
     case 'fan':
       return fanHost(d.slot) !== null;
     case 'storage':
-      return driveKindOf(spec?.visual ?? '') === 'ssd-nvme';
+      return true;
     default:
       return false;
   }
@@ -1063,8 +1071,24 @@ export class Machine3D {
         this.root.add(b);
       }
     });
-    for (const t of this.cages.flatMap((c) => c.trays))
-      if (!filled.has(`sata${t.slot}`)) this.root.add(tag(trayHit(t), `sata${t.slot}`));
+    this.trayPicks(filled);
+  }
+
+  /** The unseen box over each bare tray: a drop lands on it. */
+  private trayPicks(filled: ReadonlySet<string>): void {
+    for (const t of this.cages.flatMap((c) => c.trays)) {
+      const id = `sata${t.slot}`;
+      if (!filled.has(id)) {
+        this.trayPick(t);
+      }
+    }
+  }
+
+  private trayPick(t: CagePlan['trays'][number]): void {
+    const id = `sata${t.slot}`,
+      b = tag(trayHit(t), id);
+    this.picks.set(id, b);
+    this.root.add(b);
   }
 
   /**
@@ -2089,7 +2113,7 @@ export class Machine3D {
 
   // ------------------------------------------------------------------ patch
   /**
-   * Bring the machine in line with a snapshot that differs from it by whole sticks, M.2 drives or cards (Build my PC: a fit or a removal builds no
+   * Bring the machine in line with a snapshot that differs from it by whole sticks, drives or cards (Build my PC: a fit or a removal builds no
    * new machine). A part that goes is hidden (the stand-ins of `partLod` know a part by its hiding) and its entries leave the shared lists; a part
    * that comes is built alone and merged alone, as the build does it; the sockets they take or free change their look; the cables hang again.
    * False, with nothing changed, when the change is more than that (another kind of part, a host's fans, a new board or case, a grave grown
@@ -2215,6 +2239,19 @@ export class Machine3D {
         freeBox(pick);
         this.picks.delete(slot);
       } else if (!filled && !pick && r) this.pickBox(r, BOARD_Z, BOARD_Z + 40, slot);
+      return;
+    }
+    const tray = /^sata(?<n>\d+)$/u.exec(slot);
+    if (tray) {
+      // the bare tray's drop box: gone with a drive on the tray, back when it leaves
+      const pick = this.picks.get(slot),
+        t = traySpot(this.cages, Number(tray.groups?.['n']));
+      if (filled && pick) {
+        freeBox(pick);
+        this.picks.delete(slot);
+      } else if (!filled && !pick && t) {
+        this.trayPick(t);
+      }
       return;
     }
     const m = /^(dimm|m2|pcie)(\d+)$/.exec(slot);

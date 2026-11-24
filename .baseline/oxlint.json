@@ -5528,7 +5528,7 @@
  "src/features/board/render/three/machine3d.ts": {
   "eslint(class-methods-use-this)": 2,
   "eslint(complexity)": 8,
-  "eslint(curly)": 168,
+  "eslint(curly)": 166,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 8,
   "eslint(max-params)": 13,

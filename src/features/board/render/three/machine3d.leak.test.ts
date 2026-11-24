@@ -117,6 +117,20 @@ const cases: Case[] = [
   },
   { name: 'a NIC', setup: none, pick: (d) => d.kind === 'nic' },
   { name: 'an NVMe drive', setup: none, pick: (d) => d.kind === 'storage' && d.slot.startsWith('m2') },
+  {
+    name: 'a SATA SSD',
+    setup: (g) => {
+      buy(g, 'ssd1', 'sata0');
+    },
+    pick: (d) => d.kind === 'storage' && d.slot.startsWith('sata'),
+  },
+  {
+    name: 'a hard drive',
+    setup: (g) => {
+      buy(g, 'hdd0', 'sata0');
+    },
+    pick: (d) => d.kind === 'storage' && d.slot.startsWith('sata'),
+  },
   { name: 'the CPU', setup: noLoop, pick: (d) => d.kind === 'cpu' },
   {
     name: 'a VRM sink',
