@@ -7,7 +7,7 @@ description: Read and update the repo's GitHub Projects board with board.mjs: st
 
 Use `board.mjs` (this folder) for every board read and write. It reads `docs/agents/board.json`, verifies each write by re-reading it, and takes order only from GitHub's blocked-by links.
 
-```
+```text
 B=.claude/skills/update-gh-board/board.mjs
 node $B show <n>                  # status, planned, rounds, cost, open blockers, children
 node $B status <n> <Status>       # Backlog | Ready | In progress | In review | Done

@@ -68,7 +68,7 @@ Money and the real hardware rules (slots, PSU watts, cooling, VRM, RAM minimum, 
 
 ## The score: CLIENT BASE
 
-```
+```text
 points(job)  = clamp(reputation at delivery, 0.5, 2.0)
 clientBase   = sum of points(job) over every job delivered, lifetime
 level        = the highest n with clientBase >= threshold[n]      (thresholds below)
@@ -111,7 +111,7 @@ Time estimate: for a competent player at 1x (the bots in `patience.test.ts` and 
 
 ## What each level changes (the config row)
 
-```
+```text
 level  patienceMul  payMul  demandMul   target(s)  deadline(s)
  1     4.00         1.00    1.00        240        720
  2     4.00         1.11    1.12        240        720
@@ -172,7 +172,7 @@ Notes on the table:
   - network minimum (strict): board 1 $150 + `os1` $150 + two `ram1` $200 + `hdd0` $40 + `router1` $60 + `isp1` $150 = **$750**;
   - typical kit: the minimum plus `cpu1` $200, `psu1` $60, `vsink0` $30 = **$1,040**;
   - everything in the level 1 to 4 rows: the typical kit plus `cooler1` $50, `vsink1` $70, `ssd1` $150 = **$1,310**.
-  - Income estimate (an estimate, plus or minus 40%; `src/features/economy/GAME.md` gives the starting machine about $0.6/s, the first $100 at a median of about 165 s): about **$0.6/s until the OS** (about $720 by 20 minutes), then about **$1.2/s** with the OS and a second stick (about $1,100 more by 35 minutes): about **$1,800 by level 4** (range $1,100 to $2,600).
+  - Income estimate (an estimate, plus or minus 40%; `src/features/economy/GAME.md` gives the starting machine about $0.6/s, the first $100 at a median of about 165 s): about **$0.6/s until the OS** (about $720 by 20 minutes), then about **\$1.2/s** with the OS and a second stick (about $1,100 more by 35 minutes): about **$1,800 by level 4** (range $1,100 to $2,600).
   - Result: the strict network set is affordable at about 21 minutes, the typical kit at about 25 and the whole level 1 to 4 list at about 28 minutes, all before level 4 (35 minutes). At the low end of the range the strict set is done at about 27 minutes and the whole list at about 40, so `ssd1` and `vsink1` slip about five minutes past level 4; the network does not. The network items are cheap for their level: `isp1` is about 2 minutes of income at level 4.
   - Later bands (estimate): level 5 ($950 of board, PSU and RAM) is about 50% of a 20 minute band at $1.5/s; level 6 ($1,300) about 45% of a 25 minute band at $2/s; level 7 ($1,160) about 40% of a 20 minute band at $2.5/s. Re-measure with the Operator bot (test 9).
 - **Level only gates what the player can buy.** A part already installed (a loaded old save, a sandbox, the start crate) keeps working whatever the level.
@@ -288,7 +288,7 @@ A player who switches to the network with USB keys still in the tray should not 
 
 The fixed `coldBootTicks` 30 becomes a function so a bigger machine takes longer to start (more RAM to count, drives to spin up, cards to initialise), which also makes an upgrade a small trade-off at power-on and rewards the OS (one boot) more.
 
-```
+```text
 coldBoot(machine) = min(90, 22
                         + min(40, 0.25 * totalRamKiB)
                         + 2 * ramSticks

@@ -64,7 +64,7 @@ Then run `board.mjs sync <parent>` and `board.mjs show <parent>`. Done when the 
 
 ## Parent
 
-#<parent> (omit when there is no parent).
+`#<parent>` (omit when there is no parent).
 
 ## What to build
 

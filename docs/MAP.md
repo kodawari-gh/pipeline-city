@@ -12,7 +12,7 @@ Use the `cocoindex-code` MCP tool (`mcp__cocoindex-code__search`) before Grep or
 
 ## The layers
 
-```
+```text
  main thread                                   web worker
  ┌─────────────────────────────────────┐       ┌───────────────────────────────┐
  │ features/*/ui     Preact panels     │ ToSim │ worker/worker.ts  message loop │

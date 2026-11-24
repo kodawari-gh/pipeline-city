@@ -90,9 +90,12 @@ Escalation table: see `.claude/skills/ticket-swarm/SKILL.md`.
 | #44    | 7           | sonnet max    | FAIL            | merge c0e14646; devhook test stale; browser run hung                                                                                                                                                        |
 | #44    | 8           | sonnet max    | PASS            | merge 7a1746ef; squashed ae59127a on ui-rework; closed Done                                                                                                                                                 |
 
-#33 is not recorded: no spawn records found in the transcript.
+`#33` is not recorded: no spawn records found in the transcript.
 "(inferred)" means the round and tier come from transcript spawn records and the PASS verdict is inferred from the squash.
 | #94 | 1 | sonnet medium | PASS | npm run check: all 10 gates ok (format, types, lint, css, md, dead, spell, py, pytypes, editor); npm run check:css: ok, 414 baselined; .baseline/stylelint.json diff shows only removals; npx vitest run |
 | #95 | 1 | sonnet medium | PASS | npm run check: all 10 gates ok (format, types, lint, css, md, dead, spell, py, pytypes, editor); npm run check:css: ok (0 baselined); .baseline/stylelint.json is now {} (diff is removals only); npx vi |
 | #97 | 1 | haiku medium | PASS | gh issue view 97 --repo kodawari-gh/pipeline-city --json title,body: read ticket; acceptance = .baseline/cspell.json empty; git diff parent/88...HEAD --stat: 5 files; .baseline/cspell.json now {} (onl |
 | #98 | 1 | haiku medium | PASS | npm run check:py -> ok (0 baselined); .baseline/ruff.json is {}; npm run check:pytypes (basedpyright) -> 0 errors, 0 warnings, 0 notes; .basedpyright/baseline.json is {"files": {}}; npm run check -> o |
+| #96 | 1 | haiku medium | FAIL | src/features/economy/PROGRESSION.md: Unrelated wording change. Original text was 'about **$1.2/s** with the OS' and 'about $1,800 by level 4' with bold. Branch rewrote it to 'about $1.2 per second', dropped the bold, and removed the bold on the $1,800 value. Markdownlint does not require this (the f |
+| #96 | 2 | haiku high | FAIL | .claude/skills/to-questionnaire/SKILL.md: Template title changed from H1 to H2 (`## \`<Questionnaire title>\``, line 25) and theme heading also set to H2 (line 39). The generated questionnaire now has its title at the same level as every theme section, so the document hierarchy changes. The H1 was c |
+| #96 | 3 | haiku xhigh | PASS | gh issue view 96 --repo kodawari-gh/pipeline-city --json title,body: read ticket; acceptance is .baseline/markdownlint.json empty; checks are npm run check, npm run check:md, npm run test:fast.; git d |

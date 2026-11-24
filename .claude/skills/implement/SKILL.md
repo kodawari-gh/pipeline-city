@@ -4,6 +4,8 @@ description: 'Implement a piece of work based on a spec or set of tickets.'
 disable-model-invocation: true
 ---
 
+# Implement
+
 Implement the work described by the user in the spec or tickets.
 
 If the user passes a ticket reference, fetch it from the issue tracker and state its title before starting. If the reference is ambiguous, ask.

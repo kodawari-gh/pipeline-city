@@ -30,7 +30,7 @@ One VRM per board, described by a `VrmSpec` that belongs to the **board tier** (
 
 Per tick, with `P` the CPU's power in W this tick (same power model as everything else) and `r` = CPU effective clock / CPU base clock:
 
-```
+```text
 vcore       = 1.0 + 0.3 * (r - 1)             volts, floored at 0.7  (voltage rises with clock)
 demand      = P / vcore                       amps  (1 W at 1 V is 1 A; r^3 power over a rising voltage: demand grows ~ r^2)
 capacity    = phases * ampsPerPhase           amps

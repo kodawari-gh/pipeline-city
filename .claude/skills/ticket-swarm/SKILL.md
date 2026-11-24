@@ -7,7 +7,7 @@ description: Build tracker tickets with a swarm of headless subagents (coder and
 
 `swarm.mjs` (this folder) runs the whole loop. You start it, watch its events, and act only on the events listed below. Config: `docs/agents/board.json` (see `update-gh-board`).
 
-```
+```text
 node .claude/skills/ticket-swarm/swarm.mjs ticket <n>[,<n>...] [--base <branch>]
 node .claude/skills/ticket-swarm/swarm.mjs run <parent> [--base <branch>] [--slots <k>]
 node .claude/skills/ticket-swarm/swarm.mjs status | gc | lock -- <cmd>
