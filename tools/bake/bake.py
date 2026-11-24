@@ -1,31 +1,55 @@
-# The light bake's Blender side (`src/features/room/light.md`, "Offline bakes"; T179). `bake.mjs` runs it:
-#   blender -b --factory-startup -P tools/bake/bake.py -- <work dir> [group ...]
-# It reads the room that `bake.mjs` wrote (`scene.json`, `scene.bin`), bakes each light group's indirect light (the window's sky and city:
-# all their light) into one float lightmap with Cycles (the receivers share one atlas), denoises it, and writes `<group>.f32` (RGB float32,
-# rows from the bottom) back into the work dir.
-# The light reaches the lightmaps in the game's units: the irradiance its shader adds (a lamp's: what its real-time light would give once it
-# bounced; the sky's and the city's: for a radiance of 1 in their half of the sky; the sun's: for an irradiance of 1). A first bake of one
-# lit plane measures what each kind of Blender light gives (`calibrate`).
-import bpy, json, math, os, sys, time
+"""The light bake's Blender side.
+
+Source: `src/features/room/light.md`, "Offline bakes" (T179). `bake.mjs` runs it:
+  blender -b --factory-startup -P tools/bake/bake.py -- <work dir> [group ...]
+It reads the room that `bake.mjs` wrote (`scene.json`, `scene.bin`), bakes each light group's indirect light
+(the window's sky and city: all their light) into one float lightmap with Cycles (the receivers share one atlas),
+denoises it, and writes `<group>.f32` (RGB float32, rows from the bottom) back into the work dir.
+
+The light reaches the lightmaps in the game's units: the irradiance its shader adds (a lamp's: what its real-time
+light would give once it bounced; the sky's and the city's: for a radiance of 1 in their half of the sky; the sun's:
+for an irradiance of 1). A first bake of one lit plane measures what each kind of Blender light gives (`calibrate`).
+
+Blender's `bpy` and `mathutils` ship no type stubs, so their values are typed `Any` here. The pyright and ruff rules
+that fire only on those untyped values are off for this file.
+"""
+
+# pyright: reportAny=false, reportExplicitAny=false, reportUnknownMemberType=false
+# pyright: reportUnknownVariableType=false, reportUnknownArgumentType=false, reportUnknownParameterType=false
+# pyright: reportUnknownLambdaType=false, reportMissingImports=false
+# ruff: noqa: INP001, CPY001, ANN401  # A Blender script run with -P: not a package; no copyright headers; Any is bpy's.
+import json
+import math
+import sys
+import time
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any
+
+import bpy
 import numpy as np
+import numpy.typing as npt
 from mathutils import Matrix, Vector
 
 ARGS = sys.argv[sys.argv.index("--") + 1 :]
 WORK, ONLY, PREVIEW = ARGS[0], {a for a in ARGS[1:] if not a.startswith("--")}, "--preview" in ARGS
-CFG = json.load(open(os.path.join(WORK, "scene.json")))
-BLOB = open(os.path.join(WORK, "scene.bin"), "rb").read()
+with Path(WORK, "scene.json").open(encoding="utf-8") as f:
+    CFG: dict[str, Any] = json.load(f)
+BLOB = Path(WORK, "scene.bin").read_bytes()
 scene = bpy.context.scene
 
 
-def log(*a):
-    print("[bake]", *a, flush=True)
+def log(*a: object) -> None:
+    """Print one log line to Blender's console, prefixed `[bake]`."""
+    print("[bake]", *a, flush=True)  # noqa: T201  # Blender's console is the log
 
 
-def arr(off, n, dt):
+def arr(off: int, n: int, dt: str) -> npt.NDArray[Any]:
+    """Read `n` values of dtype `dt` from the scene blob, from byte `off`."""
     return np.frombuffer(BLOB, dtype=dt, count=n, offset=off)
 
 
-def cycles(samples):
+def cycles(samples: int) -> list[str]:
     """Cycles on the GPU (OptiX), no clamp, no caustics: light as it is, the denoiser takes the noise."""
     scene.render.engine = "CYCLES"
     prefs = bpy.context.preferences.addons["cycles"].preferences
@@ -52,13 +76,15 @@ def cycles(samples):
     return [d.name for d in prefs.devices if d.use] or ["CPU"]
 
 
-def tree(idb):
+def tree(idb: Any) -> Any:
+    """Return the node tree of a material or a world, making one if it has none."""
     if idb.node_tree is None:
         idb.use_nodes = True
     return idb.node_tree
 
 
-def float_image(name, w, h):
+def float_image(name: str, w: int, h: int) -> Any:
+    """Make a float image `name`, `w` by `h` pixels, in a colour space that keeps its numbers as they are."""
     img = bpy.data.images.new(name, w, h, float_buffer=True, alpha=False)
     for cs in ("Non-Color", "Data"):
         try:
@@ -69,8 +95,8 @@ def float_image(name, w, h):
     return img
 
 
-def material(name, colour, rough, metal, image):
-    """A Principled surface; a receiver's also holds the bake's image (its active node: Cycles bakes into it)."""
+def material(name: str, colour: Sequence[float], rough: float, metal: float, image: Any) -> Any:
+    """Make a Principled surface; a receiver's also holds the bake's image (its active node: Cycles bakes into it)."""
     m = bpy.data.materials.new(name)
     nt = tree(m)
     b = nt.nodes.get("Principled BSDF") or nt.nodes.new("ShaderNodeBsdfPrincipled")
@@ -84,16 +110,25 @@ def material(name, colour, rough, metal, image):
     return m
 
 
-def joined(name, parts, materials):
+def joined(name: str, parts: list[dict[str, Any]], materials: list[Any]) -> Any:
+    """Join many meshes into one object.
+
+    Blender bakes object by object, each a new Cycles session: one object bakes in one. A part: its positions (in
+    Blender's frame: metres, z up), normals, triangles and material slot; a receiver's also its lightmap UVs and its
+    charts, a value a corner.
     """
-    One object of many meshes (Blender bakes object by object, each a new Cycles session: one object bakes in one). A part: its positions (in
-    Blender's frame: metres, z up), normals, triangles and material slot; a receiver's also its lightmap UVs and its charts, a value a corner.
-    """
-    pos, tri, nrm, mats, uvs, charts, base = [], [], [], [], [], [], 0
+    pos: list[npt.NDArray[Any]] = []
+    tri: list[npt.NDArray[Any]] = []
+    nrm: list[npt.NDArray[Any]] = []
+    mats: list[npt.NDArray[Any]] = []
+    uvs: list[npt.NDArray[Any]] = []
+    charts: list[npt.NDArray[Any]] = []
+    base = 0
     for p in parts:
         t = p["idx"].reshape(-1, 3).astype(np.int64)
         v = p["pos"].reshape(-1, 3)
-        # three's front face is its counter-clockwise side; a mesh drawn mirrored (or wound the other way) turns so its faces look where its normals do
+        # three's front face is its counter-clockwise side; a mesh drawn mirrored (or wound the other way) turns so its
+        # faces look where its normals do
         face = np.cross(v[t[:, 1]] - v[t[:, 0]], v[t[:, 2]] - v[t[:, 0]])
         vn = p["nrm"].reshape(-1, 3)[t].sum(axis=1)
         turn = [0, 2, 1] if (np.einsum("ij,ij->i", face, vn) < 0).sum() > len(t) / 2 else [0, 1, 2]
@@ -106,20 +141,21 @@ def joined(name, parts, materials):
             uvs.append(p["uv"].reshape(-1, 3, 2)[:, turn].reshape(-1, 2))
             charts.append(p["chart"].reshape(-1, 3)[:, turn].ravel())
         base += len(v)
-    pos, tri = np.concatenate(pos).astype(np.float32), np.concatenate(tri).astype(np.int32).ravel()
+    positions = np.concatenate(pos).astype(np.float32)
+    corners = np.concatenate(tri).astype(np.int32).ravel()
     me = bpy.data.meshes.new(name)
-    me.vertices.add(len(pos))
-    me.vertices.foreach_set("co", pos.ravel())
-    me.loops.add(len(tri))
-    me.loops.foreach_set("vertex_index", tri)
-    me.polygons.add(len(tri) // 3)
-    me.polygons.foreach_set("loop_start", np.arange(0, len(tri), 3, dtype=np.int32))
+    me.vertices.add(len(positions))
+    me.vertices.foreach_set("co", positions.ravel())
+    me.loops.add(len(corners))
+    me.loops.foreach_set("vertex_index", corners)
+    me.polygons.add(len(corners) // 3)
+    me.polygons.foreach_set("loop_start", np.arange(0, len(corners), 3, dtype=np.int32))
     me.polygons.foreach_set("material_index", np.concatenate(mats))
     me.update(calc_edges=True)
     if uvs:
         me.uv_layers.new(name="lm").data.foreach_set("uv", np.concatenate(uvs).astype(np.float32).ravel())
         rnd = (np.concatenate(charts).astype(np.uint64) * 2654435761) & 0xFFFFFFFF
-        col = np.ones((len(tri), 4), np.float32)
+        col = np.ones((len(corners), 4), np.float32)
         for k in range(3):
             col[:, k] = 0.15 + 0.85 * ((rnd >> np.uint64(8 * k)) & np.uint64(255)) / 255.0
         me.color_attributes.new("chart", "FLOAT_COLOR", "CORNER").data.foreach_set("color", col.ravel())
@@ -131,8 +167,11 @@ def joined(name, parts, materials):
     return ob
 
 
-def world(mode, strength):
-    """The world: dark, or a radiance of `strength` over its upper half (the sky) or its lower half (the city's glow)."""
+def world(mode: str, strength: float) -> None:
+    """Set the world: dark, or a radiance of `strength` over its upper half (the sky) or its lower half (the glow).
+
+    The lower half is the city's glow.
+    """
     w = scene.world or bpy.data.worlds.new("bake")
     scene.world = w
     nt = tree(w)
@@ -159,25 +198,34 @@ def world(mode, strength):
     nt.links.new(bg.outputs[0], out.inputs["Surface"])
 
 
-def light(kind, name, at=(0, 0, 0), rot=Matrix.Identity(3)):
+def light(kind: str, name: str, at: Sequence[float] = (0, 0, 0), rot: Any = None) -> Any:
+    """Add a Blender light of `kind` at `at`, turned by `rot` (no turn when `rot` is None)."""
     data = bpy.data.lights.new(name, {"point": "POINT", "spot": "SPOT", "area": "AREA", "sun": "SUN"}[kind])
     if kind in ("point", "spot"):
         data.shadow_soft_size = 0.0
         if hasattr(data, "use_soft_falloff"):
             data.use_soft_falloff = False
     ob = bpy.data.objects.new(name, data)
-    ob.matrix_world = Matrix.Translation(Vector(at)) @ rot.to_4x4()
+    turn = Matrix.Identity(3) if rot is None else rot
+    ob.matrix_world = Matrix.Translation(Vector(at)) @ turn.to_4x4()
     scene.collection.objects.link(ob)
     return ob
 
 
-def bake(receivers, pass_filter, kind="DIFFUSE"):
+def bake(receivers: list[Any], pass_filter: set[str] | None, kind: str = "DIFFUSE") -> None:
+    """Bake `kind` of the `receivers` into their lightmap image."""
     for o in scene.objects:
-        o.select_set(False)
+        o.select_set(state=False)
     for o in receivers:
-        o.select_set(True)
+        o.select_set(state=True)
     bpy.context.view_layer.objects.active = receivers[0]
-    opts = dict(type=kind, use_clear=True, margin=CFG["padding"], margin_type="EXTEND", target="IMAGE_TEXTURES")
+    opts: dict[str, Any] = {
+        "type": kind,
+        "use_clear": True,
+        "margin": CFG["padding"],
+        "margin_type": "EXTEND",
+        "target": "IMAGE_TEXTURES",
+    }
     if kind == "DIFFUSE":
         opts["pass_filter"] = pass_filter
     if kind == "NORMAL":
@@ -185,34 +233,35 @@ def bake(receivers, pass_filter, kind="DIFFUSE"):
     bpy.ops.object.bake(**opts)
 
 
-def pixels(img):
+def pixels(img: Any) -> npt.NDArray[np.float32]:
+    """Return the pixels of `img` as rows, columns and RGBA channels."""
     a = np.empty(img.size[0] * img.size[1] * 4, np.float32)
     img.pixels.foreach_get(a)
     return a.reshape(img.size[1], img.size[0], 4)
 
 
-def calibrate():
-    """What each kind of Blender light gives a white plane 1 m off (the direct light only), in the bake's own numbers."""
-    cycles(256)
+def calibrate() -> dict[str, float]:
+    """Measure what each Blender light gives a white plane 1 m off (direct light only), in the bake's own numbers."""
+    _ = cycles(256)
     img = float_image("cal", 17, 17)  # odd: a texel's centre is the plane's centre
     pos = np.array([-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0], np.float32)
     plane = joined(
         "cal",
         [
-            dict(
-                pos=pos,
-                nrm=np.tile([0, 0, 1], 4).astype(np.float32),
-                idx=np.array([0, 1, 2, 0, 2, 3]),
-                mat=0,
-                uv=np.array([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1], np.float32),
-                chart=np.zeros(6, np.uint32),
-            )
+            {
+                "pos": pos,
+                "nrm": np.tile([0, 0, 1], 4).astype(np.float32),
+                "idx": np.array([0, 1, 2, 0, 2, 3]),
+                "mat": 0,
+                "uv": np.array([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1], np.float32),
+                "chart": np.zeros(6, np.uint32),
+            }
         ],
         [material("cal", (1, 1, 1), 0.5, 0.0, img)],
     )
     down = Matrix.Identity(3)  # a light looks down its -z
 
-    def measure(ob, whole=False):
+    def measure(ob: Any, *, whole: bool = False) -> float:
         bake([plane], {"DIRECT"})
         px = pixels(img)[..., 0]
         if ob is not None:
@@ -238,43 +287,47 @@ def calibrate():
     u.data.angle = 0
     v_sun = measure(u)
     world("sky", 1.0)
-    v_w = measure(None, True)
+    v_w = measure(None, whole=True)
     world("city", 1.0)
-    v_c = measure(None, True)
+    v_c = measure(None, whole=True)
     world("dark", 0)
     bpy.data.objects.remove(plane)
-    cal = dict(point=v_pt, spot=v_sp, area=v_ar, sun=v_sun, sky=v_w, city_on_up_plane=v_c)
+    cal = {"point": v_pt, "spot": v_sp, "area": v_ar, "sun": v_sun, "sky": v_w, "city_on_up_plane": v_c}
     log("calibration", cal)
     if v_c > 0.02 * v_w:
-        raise RuntimeError("the city's half of the world lights an upward plane: the world mask is wrong")
+        msg = "the city's half of the world lights an upward plane: the world mask is wrong"
+        raise RuntimeError(msg)
     return cal
 
 
-def lamp(g, k, l, cal, live=False):
-    """One of the game's lights as a Blender light of the same power: a point's or a spot's intensity (per m²), an area's radiance.
+def lamp(g: str, k: int, lt: dict[str, Any], cal: dict[str, float], *, live: bool = False) -> Any:
+    """Make one of the game's lights as a Blender light of the same power.
 
-    `live`: the light stands in for the game's own (a `direct` group). The game's area light casts no shadow, so this one casts none: the
-    monitor's bias light, behind its housing, gave the wall a fifth of what High's live light gives it.
+    A point's or a spot's intensity (per m²), an area's radiance.
+
+    `live`: the light stands in for the game's own (a `direct` group). The game's area light casts no shadow, so
+    this one casts none: the monitor's bias light, behind its housing, gave the wall a fifth of what High's live light
+    gives it.
     """
     rot = Matrix.Identity(3)
-    if l["kind"] == "spot":
-        rot = Vector(l["dir"]).to_track_quat("-Z", "Y").to_matrix()
-    if l["kind"] == "area":
-        x, y = Vector(l["x"]), Vector(l["y"])
+    if lt["kind"] == "spot":
+        rot = Vector(lt["dir"]).to_track_quat("-Z", "Y").to_matrix()
+    if lt["kind"] == "area":
+        x, y = Vector(lt["x"]), Vector(lt["y"])
         rot = Matrix((x, y, x.cross(y))).transposed()
-    ob = light(l["kind"], f"{g}-{k}", l["pos"], rot)
+    ob = light(lt["kind"], f"{g}-{k}", lt["pos"], rot)
     d = ob.data
-    d.color = l["colour"]
-    if l["kind"] == "point":
-        d.energy = l["power"] / cal["point"]
-    elif l["kind"] == "spot":
-        d.energy = l["power"] / cal["spot"]
-        d.spot_size = min(math.pi, 2 * l["angle"])
-        c0, c1 = math.cos(l["angle"]), math.cos(l["angle"] * (1 - l["penumbra"]))
+    d.color = lt["colour"]
+    if lt["kind"] == "point":
+        d.energy = lt["power"] / cal["point"]
+    elif lt["kind"] == "spot":
+        d.energy = lt["power"] / cal["spot"]
+        d.spot_size = min(math.pi, 2 * lt["angle"])
+        c0, c1 = math.cos(lt["angle"]), math.cos(lt["angle"] * (1 - lt["penumbra"]))
         d.spot_blend = max(0.0, min(1.0, (c1 - c0) / (1 - c0)))
     else:
-        d.shape, d.size, d.size_y = "RECTANGLE", l["w"], l["h"]
-        d.energy = l["power"] * l["w"] * l["h"] / cal["area"]
+        d.shape, d.size, d.size_y = "RECTANGLE", lt["w"], lt["h"]
+        d.energy = lt["power"] * lt["w"] * lt["h"] / cal["area"]
         if live:
             d.use_shadow = False
             if hasattr(d, "cycles") and hasattr(d.cycles, "cast_shadow"):
@@ -282,13 +335,16 @@ def lamp(g, k, l, cal, live=False):
     return ob
 
 
-def denoiser(W, H):
-    """A compositor scene that denoises the lightmap (OIDN), steered by the charts' colours and the normals so no chart bleeds into the next."""
+def denoiser(width: int, height: int) -> tuple[Any, dict[str, Any]]:
+    """Make a compositor scene that denoises the lightmap (OIDN).
+
+    It is steered by the charts' colours and the normals, so no chart bleeds into the next.
+    """
     s = bpy.data.scenes.new("denoise")
     ng = bpy.data.node_groups.new("denoise", "CompositorNodeTree")
     s.compositing_node_group = ng
     s.render.use_compositing = True
-    s.render.resolution_x, s.render.resolution_y, s.render.resolution_percentage = W, H, 100
+    s.render.resolution_x, s.render.resolution_y, s.render.resolution_percentage = width, height, 100
     s.render.compositor_denoise_final_quality = "HIGH"
     ins = {k: ng.nodes.new("CompositorNodeImage") for k in ("lm", "albedo", "normal")}
     d = ng.nodes.new("CompositorNodeDenoise")
@@ -305,22 +361,24 @@ def denoiser(W, H):
     return s, ins
 
 
-def denoise(s, ins, img):
+def denoise(s: Any, ins: dict[str, Any], img: Any) -> npt.NDArray[np.float32]:
+    """Denoise the lightmap `img` with the compositor scene `s` and return its pixels."""
     ins["lm"].image = img
-    path = os.path.join(WORK, "denoisedout.exr")
-    if os.path.exists(path):
-        os.remove(path)
+    path = Path(WORK) / "denoisedout.exr"
+    if path.exists():
+        path.unlink()
     bpy.ops.render.render(scene=s.name)
-    out = bpy.data.images.load(path, check_existing=False)
+    out = bpy.data.images.load(str(path), check_existing=False)
     px = pixels(out)
     bpy.data.images.remove(out)
     return px
 
 
-def preview(rec, blockers, img, px, path):
-    """
-    A look at one group's lightmap (`--preview`): the receivers glow with it (as white surfaces would, at an exposure that shows its shape),
-    the blockers hidden, from the bed's foot toward the west wall's corner by the glass (the floor lantern's).
+def preview(rec: Any, blockers: Any, img: Any, px: npt.NDArray[np.float32], path: str) -> None:
+    """Render a look at one group's lightmap (`--preview`) to `path`.
+
+    The receivers glow with it (as white surfaces would, at an exposure that shows its shape), the blockers hidden,
+    from the bed's foot toward the west wall's corner by the glass (the floor lantern's).
     """
     cam = bpy.data.objects.get("preview")
     if cam is None:
@@ -370,17 +428,12 @@ def preview(rec, blockers, img, px, path):
         rec.data.materials[i] = mm
 
 
-def main():
-    t0 = time.time()
-    for o in list(bpy.data.objects):  # the start-up scene's cube, lamp and camera
-        bpy.data.objects.remove(o)
-    cal = calibrate()
-    devices = cycles(CFG["samples"])
-    log("devices", devices, "samples", CFG["samples"])
-    W, H = CFG["width"], CFG["height"]
-    lm = float_image("lm", W, H)
+def build_objects(lm: Any, t0: float) -> tuple[list[Any], Any]:
+    """Build the receivers (one object, lit by `lm`) and the blockers (another) from the scene blob."""
+    keys: dict[tuple[object, ...], int] = {}
+    slots: dict[bool, list[Any]] = {True: [], False: []}
+    parts: dict[bool, list[dict[str, Any]]] = {True: [], False: []}
     # the receivers in one object, the blockers in another; the surfaces of one look share a material
-    keys, slots, parts = {}, {True: [], False: []}, {True: [], False: []}
     for m in CFG["meshes"]:
         n, r = m["verts"], m["receiver"]
         key = (r, *(round(c, 4) for c in m["colour"]), round(m["roughness"], 3), round(m["metalness"], 3))
@@ -395,22 +448,28 @@ def main():
                     lm if r else None,
                 )
             )
-        part = dict(
-            pos=arr(m["pos"], 3 * n, "<f4"),
-            nrm=arr(m["nrm"], 3 * n, "<f4"),
-            mat=keys[key],
-            idx=arr(m["index"], m["corners"], "<u4") if m["index"] >= 0 else np.arange(n, dtype=np.uint32),
-        )
+        part: dict[str, Any] = {
+            "pos": arr(m["pos"], 3 * n, "<f4"),
+            "nrm": arr(m["nrm"], 3 * n, "<f4"),
+            "mat": keys[key],
+            "idx": arr(m["index"], m["corners"], "<u4") if m["index"] >= 0 else np.arange(n, dtype=np.uint32),
+        }
         if r:
             part["uv"], part["chart"] = arr(m["uv"], 2 * m["corners"], "<f4"), arr(m["chart"], m["corners"], "<u4")
         parts[r].append(part)
     receivers = [joined("receivers", parts[True], slots[True])]
     blockers = joined("blockers", parts[False], slots[False])
-    log(
-        f"{len(CFG['meshes'])} meshes ({len(parts[True])} receivers), {len(slots[True]) + len(slots[False])} materials, built in {time.time() - t0:.0f} s"
-    )
+    n_mats = len(slots[True]) + len(slots[False])
+    n_recv = len(parts[True])
+    log(f"{len(CFG['meshes'])} meshes ({n_recv} receivers), {n_mats} materials, built in {time.time() - t0:.0f} s")
+    return receivers, blockers
 
-    # the denoiser's guides: each chart's colour (an emission bake) and the normals, through one shared material for the moment
+
+def guides(receivers: list[Any], width: int, height: int) -> tuple[Any, Any]:
+    """Bake the denoiser's guides: each chart's colour (an emission bake) and the normals.
+
+    The guides go through one shared material for the moment. Return the albedo and the normal images.
+    """
     aux = bpy.data.materials.new("aux")
     nt = tree(aux)
     nt.nodes.clear()
@@ -428,7 +487,7 @@ def main():
     for i in range(len(own)):
         receivers[0].data.materials[i] = aux
     scene.cycles.samples = 4
-    albedo, normal = float_image("albedo", W, H), float_image("normal", W, H)
+    albedo, normal = float_image("albedo", width, height), float_image("normal", width, height)
     tex.image = albedo
     bake(receivers, None, "EMIT")
     tex.image = normal
@@ -439,45 +498,77 @@ def main():
     for i, m in enumerate(own):
         receivers[0].data.materials[i] = m
     scene.cycles.samples = CFG["samples"]
-    dn, ins = denoiser(W, H)
-    ins["albedo"].image, ins["normal"].image = albedo, normal
+    return albedo, normal
 
-    lights = {}
+
+def make_lights(cal: dict[str, float]) -> dict[str, list[Any]]:
+    """Make the lights of every group. A group's lights show alone when it bakes."""
+    lights: dict[str, list[Any]] = {}
     for g in CFG["groups"]:
         if g["kind"] in ("lamp", "direct"):
-            lights[g["id"]] = [lamp(g["id"], k, l, cal, g["kind"] == "direct") for k, l in enumerate(g["lights"])]
+            lights[g["id"]] = [
+                lamp(g["id"], k, lt, cal, live=g["kind"] == "direct") for k, lt in enumerate(g["lights"])
+            ]
         elif g["kind"] == "sun":
             ob = light("sun", g["id"], (0, 0, 5), Vector(g["dir"]).to_track_quat("Z", "Y").to_matrix())
             ob.data.energy, ob.data.angle = 1 / cal["sun"], math.radians(0.53)
             lights[g["id"]] = [ob]
         else:
             lights[g["id"]] = []
+    return lights
+
+
+def show_group(lights: dict[str, list[Any]], gid: str) -> None:
+    """Show only the lights of group `gid`."""
+    for k, obs in lights.items():
+        for ob in obs:
+            ob.hide_render = k != gid
+
+
+def group_passes(kind: str) -> set[str]:
+    """Return the light passes a group bakes.
+
+    The window (its sky and its city) has no live light on the still meshes: the game's `key` stands in for it only
+    on what moves. So it is baked whole, direct and bounced. A lamp's and the sun's direct light is live, so only
+    their bounce is baked. A `direct` group is a lamp group's direct light alone, for when the game's lamp cap takes
+    its lights out of the scene.
+    """
+    if kind in ("sky", "city"):
+        return {"DIRECT", "INDIRECT"}
+    if kind == "direct":
+        return {"DIRECT"}
+    return {"INDIRECT"}
+
+
+def main() -> None:
+    """Bake the lightmap of each group (only the groups named, when any are), denoise it and write it."""
+    t0 = time.time()
+    for o in list(bpy.data.objects):  # the start-up scene's cube, lamp and camera
+        bpy.data.objects.remove(o)
+    cal = calibrate()
+    devices = cycles(CFG["samples"])
+    log("devices", devices, "samples", CFG["samples"])
+    width, height = CFG["width"], CFG["height"]
+    lm = float_image("lm", width, height)
+    receivers, blockers = build_objects(lm, t0)
+    albedo, normal = guides(receivers, width, height)
+    dn, ins = denoiser(width, height)
+    ins["albedo"].image, ins["normal"].image = albedo, normal
+    lights = make_lights(cal)
     for g in CFG["groups"]:
         if ONLY and g["id"] not in ONLY:
             continue
         t1 = time.time()
-        for k, obs in lights.items():
-            for ob in obs:
-                ob.hide_render = k != g["id"]
+        show_group(lights, g["id"])
         world(g["kind"], math.pi / cal["sky"])
-        # the window (its sky and its city) has no live light on the still meshes (the game's `key` stands in for it only on what moves): it
-        # is baked whole, direct and bounced; a lamp's and the sun's direct light is live, so only their bounce is baked. A `direct` group is
-        # a lamp group's direct light alone, for when the game's lamp cap takes its lights out of the scene
-        bake(
-            receivers,
-            {"DIRECT", "INDIRECT"}
-            if g["kind"] in ("sky", "city")
-            else {"DIRECT"}
-            if g["kind"] == "direct"
-            else {"INDIRECT"},
-        )
+        bake(receivers, group_passes(g["kind"]))
         raw = pixels(lm)
         out = denoise(dn, ins, lm) if CFG["denoise"] else raw
-        out[..., :3].astype("<f4").tofile(os.path.join(WORK, f"{g['id']}.f32"))
+        out[..., :3].astype("<f4").tofile(str(Path(WORK) / f"{g['id']}.f32"))
         if PREVIEW:
-            show = bpy.data.images.get("show") or float_image("show", W, H)
+            show = bpy.data.images.get("show") or float_image("show", width, height)
             show.pixels.foreach_set(out.ravel())
-            preview(receivers[0], blockers, show, out, os.path.join(WORK, f"preview-{g['id']}.png"))
+            preview(receivers[0], blockers, show, out, str(Path(WORK) / f"preview-{g['id']}.png"))
         log(f"{g['id']}: {time.time() - t1:.0f} s, mean {raw[..., :3].mean():.4g}, max {raw[..., :3].max():.4g}")
     log(f"done in {time.time() - t0:.0f} s")
 
