@@ -455,6 +455,8 @@ class Swarm {
 ${(issue.body ?? '').trim()}
 </ticket>
 Your worktree (cwd): ${this.wt(n, at)}
+Commands already run in this worktree. Run each one bare, with no "cd ... &&" prefix and no "&&" chain: allow rules match only a bare command, and a chained one is refused.
+Commit hooks always run. When a hook fails, fix the cause (a hook that says to update a baseline means run that update) and commit again.
 Your branch: ${this.br(n, at)}
 Base branch: ${this.base}
 Round ${this.t(n).rounds}, tier ${tierName(tier)}.
