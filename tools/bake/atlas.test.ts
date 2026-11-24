@@ -32,13 +32,13 @@ describe('weld', () => {
   it('joins the corners at one place', () => {
     const w = weld(box([0, 0, 0], [1, 1, 1]), null);
     expect(w.pos.length / 3).toBe(8);
-    expect(w.index.length).toBe(36);
+    expect(w.index).toHaveLength(36);
   });
 });
 
 describe('chartTexels', () => {
   // a triangle over the atlas's bottom left, 8 x 8 of 16 x 16 texels (v up: the bottom rows are the last)
-  const uv = new Uint16Array([0, 0, 32768, 0, 0, 32768]);
+  const uv = new Uint16Array([0, 0, 32_768, 0, 0, 32_768]);
 
   it('marks the texels under a triangle, rows from the top', () => {
     const k = chartTexels(uv, 16, 16, 0);
@@ -67,13 +67,14 @@ describe('buildAtlas', () => {
     const a = await buildAtlas(meshes, 40, 2);
     expect(a.width).toBeGreaterThan(0);
     for (const [k, m] of a.meshes.entries()) {
-      expect(m.uv.length).toBe((meshes[k]!.pos.length / 3) * 2);
+      expect(m.uv).toHaveLength((meshes[k]!.pos.length / 3) * 2);
       for (const v of m.uv) {
         expect(v).toBeGreaterThanOrEqual(0);
         expect(v).toBeLessThanOrEqual(1);
       }
-      for (let t = 0; t < m.uv.length / 6; t++)
+      for (let t = 0; t < m.uv.length / 6; t++) {
         expect(area2(m.uv, 6 * t, a.width, a.height) / (area3(meshes[k]!.pos, 9 * t) * 40 * 40)).toBeCloseTo(1, 0);
+      }
     }
   });
 
@@ -94,15 +95,18 @@ describe('buildAtlas', () => {
         const [y0, y1] = [Math.floor(Math.min(...P.map((p) => p[1]))), Math.ceil(Math.max(...P.map((p) => p[1])))];
         const edge = (a: readonly number[], b: readonly number[], x: number, y: number) =>
           (b[0]! - a[0]!) * (y - a[1]!) - (b[1]! - a[1]!) * (x - a[0]!);
-        for (let y = y0; y < y1; y++)
+        for (let y = y0; y < y1; y++) {
           for (let x = x0; x < x1; x++) {
             const e = [
               edge(P[0]!, P[1]!, x + 0.5, y + 0.5),
               edge(P[1]!, P[2]!, x + 0.5, y + 0.5),
               edge(P[2]!, P[0]!, x + 0.5, y + 0.5),
             ];
-            if (e.every((v) => v > 1e-6) || e.every((v) => v < -1e-6)) hits[y * a.width + x]!++;
+            if (e.every((v) => v > 1e-6) || e.every((v) => v < -1e-6)) {
+              hits[y * a.width + x]!++;
+            }
           }
+        }
       }
     }
     expect(Math.max(...hits)).toBe(1);
@@ -119,7 +123,9 @@ describe('buildAtlas', () => {
     );
     const first = new Set(a.meshes[0]!.chart),
       second = new Set(a.meshes[1]!.chart);
-    for (const c of second) expect(first.has(c)).toBe(false);
+    for (const c of second) {
+      expect(first.has(c)).toBe(false);
+    }
     expect(first.has(0)).toBe(false);
   });
 });
