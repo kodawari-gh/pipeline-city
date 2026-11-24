@@ -894,16 +894,16 @@ export class Room3D {
     R.add(shell(wall({ x: WEST_X - 1200, y: CEIL_Y, w: 1200, h: H }, -WALL_T, FRONT_Z + 1200)));
     R.add(shell(wall({ x: EAST_X, y: CEIL_Y, w: 1200, h: H }, -WALL_T, FRONT_Z + 1200)));
     R.add(shell(wall({ x: WEST_X - 1200, y: CEIL_Y, w: EAST_X - WEST_X + 2400, h: H }, FRONT_Z, FRONT_Z + 1200)));
-    R.add(
-      shell(
-        rectBox(
-          { x: WEST_X - 1200, y: CEIL_Y - 1200, w: EAST_X - WEST_X + 2400, h: 1200 },
-          -WALL_T,
-          FRONT_Z + 1200,
-          mat(CEILING, { roughness: 0.95 }),
-        ),
+    const ceiling = shell(
+      rectBox(
+        { x: WEST_X - 1200, y: CEIL_Y - 1200, w: EAST_X - WEST_X + 2400, h: 1200 },
+        -WALL_T,
+        FRONT_Z + 1200,
+        mat(CEILING, { roughness: 0.95 }),
       ),
     );
+    ceiling.name = 'ceiling';
+    R.add(ceiling);
     // a low flush skirting, square-edged, and a shadow gap where the walls meet the ceiling (no cornice); the door breaks the skirting on the west wall
     const skirt = (r: Rect, z0: number, z1: number, m: Material = trim) => R.add(shell(softBox(r, z0, z1, m, 20)));
     const SK = 1100,
@@ -927,7 +927,9 @@ export class Room3D {
     skirt({ x: EAST_X - 40, y: CEIL_Y, w: 40, h: 220 }, 0, FRONT_Z, gap);
 
     // ---- the floor: long smoked oak planks; a flat charcoal rug under the bed's west side (`RUG`) ----
-    R.add(oakFloor());
+    const floor = oakFloor();
+    floor.name = 'oak floor';
+    R.add(floor);
     const pile = shareTex(bakedTex('room-rug')) ?? rugMap();
     const rug = softBox(
       { x: RUG.x0, y: fl - RUG.h, w: RUG.x1 - RUG.x0, h: RUG.h },
@@ -937,6 +939,7 @@ export class Room3D {
       140,
     );
     rug.castShadow = false;
+    rug.name = 'rug';
     R.add(rug);
 
     // ---- the glass wall: slim black aluminium frames set back in the reveal, a pane a bay (the column parts two bays, a mullion parts the west
@@ -992,17 +995,21 @@ export class Room3D {
     // the bench along the glass west of the desk: a slab of dark stone at seat height on a plinth set in, in the trim's tone; the aloe on it
     const B = BENCH,
       stone = mat(STONE, { roughness: 0.3 });
-    R.add(softBox({ x: B.x0, y: B.top, w: B.x1 - B.x0, h: 600 }, B.z0, B.z1, stone, 60));
-    R.add(
-      softBox(
-        { x: B.x0 + 500, y: B.top + 600, w: B.x1 - B.x0 - 1000, h: fl - B.top - 600 },
-        B.z0 + 300,
-        B.z1 - 700,
-        trim,
-        40,
-      ),
+    const slab = softBox({ x: B.x0, y: B.top, w: B.x1 - B.x0, h: 600 }, B.z0, B.z1, stone, 60);
+    slab.name = 'bench slab';
+    R.add(slab);
+    const plinth = softBox(
+      { x: B.x0 + 500, y: B.top + 600, w: B.x1 - B.x0 - 1000, h: fl - B.top - 600 },
+      B.z0 + 300,
+      B.z1 - 700,
+      trim,
+      40,
     );
-    R.add(aloe(B.x1 - 2600, B.top, (B.z0 + B.z1) / 2));
+    plinth.name = 'bench plinth';
+    R.add(plinth);
+    const aloeOnBench = aloe(B.x1 - 2600, B.top, (B.z0 + B.z1) / 2);
+    aloeOnBench.name = 'aloe';
+    R.add(aloeOnBench);
     yield;
 
     // ---- the furniture: the bed and its LED strips, the bedside drawer and its lantern, the bookcase, the door, the ceiling light, a print over
@@ -1043,20 +1050,37 @@ export class Room3D {
     this.floorLight.shadow.bias = -0.002;
     this.floorLight.shadow.normalBias = 20;
     const top = ceilingLight(4000, CEIL_Y, 30000);
+    const bookshelf = bookcase(),
+      dr = door(),
+      plant = floorPlant(FIG_AT.x, FIG_AT.z),
+      ew = eastWall();
+    bd.root.name = 'bed';
+    ns.root.name = 'nightstand';
+    bookshelf.name = 'bookcase';
+    dr.name = 'door';
+    top.root.name = 'ceiling light';
+    plant.name = 'floor plant';
+    ew.name = 'east wall';
+    this.floorLamp.root.name = 'floor lamp';
     R.add(
       bd.root,
       ns.root,
-      bookcase(),
-      door(),
+      bookshelf,
+      dr,
       top.root,
-      floorPlant(FIG_AT.x, FIG_AT.z),
-      eastWall(),
+      plant,
+      ew,
       this.bedLight,
       this.floorLamp.root,
       this.floorLight,
       this.strips.root,
     );
-    R.add(print(PRINT, 0), this.picture.root, this.sconce.root, this.arc.root);
+    const printed = print(PRINT, 0);
+    printed.name = 'print';
+    this.picture.root.name = 'picture';
+    this.sconce.root.name = 'sconce';
+    this.arc.root.name = 'arc lamp';
+    R.add(printed, this.picture.root, this.sconce.root, this.arc.root);
     // (the arc lamp's shadow reaches from its dome to the floor)
     const al = this.arc.light;
     Object.assign(al.shadow.camera, { near: 300, far: 60000 });
@@ -1067,15 +1091,18 @@ export class Room3D {
     // ---- the desk: a smoked oak top (the floor's and the slats' wood) on two round black steel legs at the west end and a black-brown drawer
     // unit at the east end, a cable tray under its back edge ----
     const legH = fl - ys - DESK_TOP;
-    R.add(deskSlab(g));
+    const desk = deskSlab(g);
+    desk.name = 'desk top';
+    R.add(desk);
     // the legs: round steel tubes screwed into plates under the top, a plastic foot on each
     const steel = mat(STEEL, { roughness: 0.45, metalness: 0.4 }),
       tx = g.desk.x0 + 1000;
-    for (const z of [1000, DESK_D - 1000]) {
-      R.add(
-        post(tx, fl - 200, z, 280, legH - 200, steel, SEG.drum),
-        post(tx, fl, z, 300, 200, mat(0x131518, { roughness: 0.8 }), SEG.drum),
-      );
+    for (const [j, z] of [1000, DESK_D - 1000].entries()) {
+      const leg = post(tx, fl - 200, z, 280, legH - 200, steel, SEG.drum),
+        foot = post(tx, fl, z, 300, 200, mat(0x131518, { roughness: 0.8 }), SEG.drum);
+      leg.name = `desk leg ${j}`;
+      foot.name = `desk foot ${j}`;
+      R.add(leg, foot);
       R.add(softBox({ x: tx - 600, y: ys + DESK_TOP, w: 1200, h: 60 }, z - 600, z + 600, steel, 20));
     }
     // the drawer unit at the east end
@@ -1100,7 +1127,9 @@ export class Room3D {
     const knee0 = g.desk.x0 + 600,
       knee1 = pedX - 200,
       lit1 = pedX - 2200;
-    R.add(rectBox({ x: knee0, y: under, w: knee1 - knee0, h: 120 }, DESK_D - 700, DESK_D - 540, this.ledGlow));
+    const knee = rectBox({ x: knee0, y: under, w: knee1 - knee0, h: 120 }, DESK_D - 700, DESK_D - 540, this.ledGlow);
+    knee.name = 'desk knee';
+    R.add(knee);
     this.deskLed.width = lit1 - knee0;
     this.deskLed.height = 1600;
     this.deskLed.position.set((knee0 + lit1) / 2, -under - 200, DESK_D - 1400);
@@ -1129,17 +1158,22 @@ export class Room3D {
       c.strokeRect(9, 9, w - 18, h - 18);
     });
     const matEnd = kx + 4800;
-    R.add(
-      softBox(
-        { x: kx - 5200, y: ys - 40, w: matEnd - (kx - 5200), h: 40 },
-        kz - 2100,
-        kz + 2100,
-        mat(0xffffff, { map: felt, roughness: 0.97 }),
-        20,
-      ),
+    const matFelt = softBox(
+      { x: kx - 5200, y: ys - 40, w: matEnd - (kx - 5200), h: 40 },
+      kz - 2100,
+      kz + 2100,
+      mat(0xffffff, { map: felt, roughness: 0.97 }),
+      20,
     );
+    matFelt.name = 'desk mat';
+    R.add(matFelt);
     this.mouse = mouse(kx + 4100, ys, kz + 200, (o) => this.envs.adopt(o), until);
-    R.add(keyboard(kx, ys, kz), this.mouse, notebook(-16600, ys, 10000, 0.22));
+    const kb = keyboard(kx, ys, kz),
+      pad = notebook(-16600, ys, 10000, 0.22);
+    kb.name = 'keyboard';
+    this.mouse.name = 'mouse';
+    pad.name = 'notebook';
+    R.add(kb, this.mouse, pad);
     // the grommet the keyboard's cable goes down through, near the wall: a black cap on the top, its sleeve under it, over the tray
     const grommet = { x: kx + KEY_LEAD[0], z: kz + KEY_LEAD[1] },
       cap = mat(0x131518, { roughness: 0.6 });
@@ -1148,11 +1182,16 @@ export class Room3D {
       post(grommet.x, under + 300, grommet.z, 300, 300, cap, SEG.disc),
     );
     // the chair, half under the desk west of the keyboard, turned toward the window as left after use
-    R.add(deskChair(kx - 7500, DESK_D + 2600, -0.3, (o) => this.envs.adopt(o), until));
+    const chair = deskChair(kx - 7500, DESK_D + 2600, -0.3, (o) => this.envs.adopt(o), until);
+    chair.name = 'desk chair';
+    R.add(chair);
     // the things about: a backpack against the drawer unit, the power strip in the tray and its leads, books on the bench
-    R.add(mess(pedX, under, grommet));
+    const litter = mess(pedX, under, grommet);
+    litter.name = 'floor mess';
+    R.add(litter);
     // (the tea by the mat's end: west of the PC's mains cord, which runs from the case's side to the desk's grommet and must stay in view)
     this.cup = teaCup(matEnd + 560, ys, MONITOR_Z + 3200);
+    this.cup.root.name = 'tea cup';
     R.add(this.cup.root);
 
     // ---- the architect lamp ----
@@ -1200,8 +1239,11 @@ export class Room3D {
     stand.position.set(KEY_STAND.x - kr.x, foot - ys, KEY_STAND.z);
     mergeWithin(rack, { twin: this.envTwin }); // (the rack's bars and hooks in a few draws, every tier: MACH-02, docs/render/three.md "Merges")
     stand.add(rack, this.keys);
+    stand.name = 'key stand';
     R.add(stand);
-    R.add(softBox({ x: ROUTER_SPOT.x - 300, y: SHELF_Y, w: ROUTER_SPOT.w + 600, h: 140 }, 0, 1700, dark, 30));
+    const shelf = softBox({ x: ROUTER_SPOT.x - 300, y: SHELF_Y, w: ROUTER_SPOT.w + 600, h: 140 }, 0, 1700, dark, 30);
+    shelf.name = 'router shelf';
+    R.add(shelf);
     // the router: black, as the other things on the wall
     const router = tag(new Group(), 'router');
     // (its baked occlusion, 3 cm out: the antennas' hinges, its foot on the shelf; `vertexao.ts`)
@@ -1358,6 +1400,7 @@ export class Room3D {
         SEG.smallDisc,
       );
       this.ispDots.push(m);
+      d.name = `isp dot ${k}`;
       R.add(d);
     }
     // the plan's name under the lights, small print on the plate (drawn on a canvas when the plan changes)

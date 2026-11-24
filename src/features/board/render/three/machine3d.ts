@@ -19,26 +19,18 @@ import {
   type PerspectiveCamera,
 } from 'three';
 import type { DeviceSnap, Snapshot } from '@/worker/game/types';
-import {
-  BOARD_TIERS,
-  getSpec,
-  type CpuSpec,
-  type FanSpec,
-  type RamSpec,
-  type StorageSpec,
-} from '@/features/board/sim/specs';
+import { BOARD_TIERS, getSpec, type FanSpec } from '@/features/board/sim/specs';
 import type { Shown } from '@/features/board/sim/buildspecs';
 import { netPropsVisible } from '@/features/network/render/netvis';
 import { DARK, lightJack, type LinkLevels } from '@/features/network/render/jackleds';
 import type { JackLamps } from './rj45jack3d';
-import { cardOrigin, tpmRect } from '@/core/render/accelart';
 import { fanBank } from '@/core/render/fanmotor';
 import { DEVICE_LOD, dieZoom, seenZoom, smooth } from '@/core/render/lod/lod';
 import { builtinTheme } from '@/core/render/theme';
-import { FINISH, fadeTree, frustumOf, screenPx, type ArtSurface, type BakeQueue } from '@/core/render/three/artlod';
+import { FINISH, frustumOf, screenPx, type ArtSurface, type BakeQueue } from '@/core/render/three/artlod';
 import { setCaseShade, type CasePass } from '@/core/render/three/caseshade';
 import { lowDetail } from '@/core/render/three/detail';
-import { SEG, disposeTree, post, rectBox, rounded, tornDown, type RectLike } from '@/core/render/three/geometry';
+import { SEG, disposeTree, post, rectBox, rounded, type RectLike } from '@/core/render/three/geometry';
 import type { RopeEnd, Plane as RopePlane, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
 import { PartSkin, mat, own, shareMaterials, type PartState } from '@/core/render/three/materials';
 import type { Role } from '@/core/render/three/powerscale';
@@ -47,12 +39,9 @@ import { mergeSiblings, mergeSiblingsSteps } from '@/core/render/three/merge';
 import { hexNum } from '../skins';
 import { PartLod, type LodScope } from '@/core/render/three/partlod';
 import { findById, seeThrough, tag, unseen } from '@/core/render/three/pick';
-import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
-import { npuGeo } from '@/features/npu/render/npulayout';
-import { BOARD_NIC, nicInput } from '@/features/network/render/nic/nicplan';
+import { nicInput } from '@/features/network/render/nic/nicplan';
 import { routerDie } from '@/features/network/render/router/routerart';
 import { routerGeo } from '@/features/network/render/router/routerlayout';
-import { driveBody, driveKindOf } from '@/features/storage/render/drives';
 import { fanMounts, hubHeaders, radiatorSpan, type FanMount } from '@/features/room/render/desk/props/case';
 import {
   BOARD_Z,
@@ -72,12 +61,6 @@ import {
   CASE_GLASS,
   CASE_IN,
   COOLER,
-  DIE,
-  DIE_PLAN,
-  DIMM_H,
-  DIMM_W,
-  DIMM_X,
-  DIMM_Y,
   FAN_HUB,
   FAN_SLOT,
   FOOT,
@@ -103,35 +86,29 @@ import { isPcieKind } from '../wiring/routes';
 import { ArtSet, LV_DIE } from './artset3d';
 import type { ArtBaker } from './bake';
 import { routerPort, routerStand } from './router3d';
-import { routerBoard, type Lying, type RouterBoard } from './routerboard3d';
+import { routerBoard, type RouterBoard } from './routerboard3d';
 import { LEVER_OPEN } from './boardhw3d';
 import { boardModel } from './boardmodel3d';
-import type { PhyChip } from './phychip3d';
-import { CPU_Z, cpuModel } from './cpu3d';
 import {
   HOSE_COLD,
   HOSE_HOT,
   LoopHoses,
   coolerFanBox,
   coolerFanLead,
-  coolerFoot,
-  coolerModel,
   hoseEnds,
   radiatorFlow,
-  radiatorModel,
-  type Model,
   type RadiatorAt,
   type RadiatorFlow,
 } from './cooler3d';
 import type { AirBody } from './air/plan';
-import { caseFan, fanDepth, fanPart, type FanFit, type Spin } from './fans3d';
+import type { Spin } from './fans3d';
 import { CARD_PLUG, standingPlug } from './cables3d';
-import { HINGE_Z, cardModel, gpuVideoAt, nicJackAt, slotBlank, standIn, type Card3D } from './card3d';
+import { gpuVideoAt, nicJackAt, slotBlank, type Card3D } from './card3d';
 import type { Rail } from '@/core/render/three/rails';
 import type { Chips3D } from './chips3d';
 import { caseModel, innerStrips, stripLight, type CaseModel } from './case3d';
-import { GROMMETS, rearFanScrews, SLOT_BLANK } from './casedetail3d';
-import { SINK_FAN_MID, sinkBody } from './sink3d';
+import { GROMMETS, SLOT_BLANK } from './casedetail3d';
+import { SINK_FAN_MID } from './sink3d';
 import { DOOR_SECONDS, doorPose, stepDoor } from './casedoor';
 import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor';
 import { stripModeOf, type StripMode } from '@/features/room/render/shell/exterior';
@@ -142,16 +119,13 @@ import {
   cageGrommet,
   cagePlan,
   driveCage,
-  onTray,
-  trayAt,
   trayHit,
   traySpot,
   type CagePlan,
 } from './drivecage3d';
 import { footShade } from './footshade3d';
-import { COVER_BAND, DRIVE_DIE_ZOOM } from './chipdie3d';
-import { drivePlug, sataDriveModel } from './drive3d';
-import { mainsInlet, mainsPlug, PLUG_TAIL, psuUnit } from './psu3d';
+import { drivePlug } from './drive3d';
+import { mainsInlet, mainsPlug, PLUG_TAIL } from './psu3d';
 import { fanHub } from './fanhub3d';
 import { isPanelId, leadCoil, panelRigs } from './casetray3d';
 import {
@@ -194,33 +168,30 @@ import {
 import { ROOM_SOCKET } from './swisssocket3d';
 import { JACK_SINK, MM as WALL_MM, routerSolid, routerTier, type StageWall } from './studiowall3d';
 import { sleeveOf } from '@/core/render/cable';
-import { useModel } from '@/core/render/three/gltf';
-import { modelOf } from './models3d';
 import { slotRects } from './slots3d';
-import { nvmeLook, nvmeStick } from './nvme3d';
-import { tpmDieFace, tpmDieFade, tpmModel, TPM_Z } from './tpm3d';
-import {
-  RAM_DIE_ZOOM,
-  RAM_FACE_AT,
-  RAM_FACE_PITCH,
-  RAM_FACE_YAW,
-  SLOT_H,
-  dieShown,
-  ramStick,
-  stickFade,
-} from './ram3d';
+import { RAM_DIE_ZOOM, RAM_FACE_AT, RAM_FACE_PITCH, RAM_FACE_YAW, SLOT_H, dieShown } from './ram3d';
 import { RamMap3D } from './rammap3d';
+import {
+  buildPart,
+  dimmRect,
+  emptyLists,
+  grow,
+  idx,
+  lieAt,
+  phyBits,
+  railAt,
+  renamePart,
+  revealAt,
+  revealOver,
+  union,
+  type Lists,
+  type PartBuild,
+  type PartContext,
+  type Reveal,
+} from './parts';
 
 /** The network lead's light blue (a common patch-cable colour). */
 export const LAN_LEAD = '#8cc3e0';
-const grow = (r: RectLike, e: number): RectLike => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
-const union = (a: RectLike, b: RectLike): RectLike => {
-  const x = Math.min(a.x, b.x),
-    y = Math.min(a.y, b.y);
-  return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
-};
-/** The RAM band (`DEVICE_LOD.ram.show` on): the spreaders fade over it and the chips' dies come in. A flight to the bank ends at its far end. */
-const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
 /** The zoom (in parts of the board view's zoom, seen at the side) under which the side panel shuts again, and over which it opens. */
 const DOOR_ZOOM = [0.82, 0.92] as const;
 /** What a fan's ring of light is multiplied by while the power lens shows: it is a decoration, so it goes low (it would read as the fan's power). */
@@ -239,13 +210,7 @@ const SHADE_IN = 60,
  * Low's contact shade (`footShade`): how far out a skirt reaches and how dark it starts, as High's occlusion pass shades round the cooler on the
  * board (the board beside the pump's base L 0.035 at High, 0.052 at Low without it) and round a cage on its shelf.
  */
-const COOLER_SHADE = { reach: 320, peak: 0.42 },
-  CAGE_SHADE = { reach: 240, peak: 0.3 };
-/** A skirt on the board's face. */
-const onBoard = (m: Mesh): Mesh => {
-  m.position.z = BOARD_Z + 2;
-  return m;
-};
+const CAGE_SHADE = { reach: 240, peak: 0.3 };
 /** A skirt on the floor a cage stands on (its bottom), the cage's footprint between the tray sheet and its front. */
 const underCage = (c: CagePlan): Mesh => {
   const m = footShade({ x: c.x0, y: c.z0, w: c.x1 - c.x0, h: c.z1 - c.z0 }, CAGE_SHADE.reach, CAGE_SHADE.peak);
@@ -282,28 +247,20 @@ function stateOf(s: Snapshot, d: DeviceSnap): PartState {
 }
 
 type Fan = Spin & { speed: number };
-type Reveal = { at: Vector3; apply: (z: number) => void; anywhere: boolean; area?: RectLike; box?: Box3 };
-
-/** What one built part added to the machine's shared lists: a patch (`Machine3D.patch`) takes exactly this away, or adds it for a new part. */
-interface Owned {
-  id: string;
-  kind: string;
-  slot: string;
-  roots: Object3D[];
-  reveals: Reveal[];
-  fades: Object3D[];
-  apart: Object3D[];
-  still: Object3D[];
-  fans: Fan[];
-  obstacles: Object3D[];
-  keep: Object3D[];
-  caseRoots: Object3D[];
-  rails: Rail[];
-}
+/** Fill `list` in place with `items` (the public lists keep their identity). */
+const refill = <T>(list: T[], items: readonly T[]): void => {
+  list.length = 0;
+  for (const x of items) list.push(x);
+};
+/** Mark a spin's rotor as one that turns, and give its ring its own material (its glow is its own). */
+const markSpin = (s: Spin): void => {
+  s.rotor.userData['spin'] = true;
+  if (s.ring) own(s.ring);
+};
 
 const keyOf = (d: { spec: string; slot: string }): string => `${d.spec}@${d.slot}`;
 /**
- * The parts a patch may add or take away: a stick, an M.2 drive, a card, the CPU, an air cooler, a VRM or memory heat sink, and a fan on one of those
+ * The parts a patch may add or take away: a stick, an M.2 or SATA drive, a card, the CPU, an air cooler, a VRM or memory heat sink, and a fan on one of those
  * (the host is built again with it). Not a liquid loop's pump (the hoses join it), a radiator, a case fan, a PSU, a cable or a case or board.
  */
 const patchable = (d: DeviceSnap): boolean => {
@@ -322,7 +279,7 @@ const patchable = (d: DeviceSnap): boolean => {
     case 'fan':
       return fanHost(d.slot) !== null;
     case 'storage':
-      return driveKindOf(spec?.visual ?? '') === 'ssd-nvme';
+      return true;
     default:
       return false;
   }
@@ -361,7 +318,7 @@ export class Machine3D {
   private skins = new Map<string, PartSkin>();
   /** The sockets' rects by slot id (a model is fitted to its part's). */
   private rects = new Map<string, RectLike>();
-  private fans: Fan[] = [];
+  readonly fans: Fan[] = [];
   private rgb = new PointLight(0x8b5cff, 0, 9000, 0);
   /**
    * The RGB's light out through the glass, on the desk and the wall beside the case. No work light: the board reads by the room's lamps and
@@ -384,9 +341,20 @@ export class Machine3D {
   /** The 2D art the parts wear, baked on the view's queue. */
   private readonly art: ArtSet;
   /** What changes with the camera: a point and what to do with the zoom seen there (`seenZoom`, the 2D bands' unit). */
-  private reveals: Reveal[] = [];
-  /** By `spec@slot`: what each part added (`patch`). */
-  private readonly owned = new Map<string, Owned>();
+  readonly reveals: Reveal[] = [];
+  /**
+   * By `spec@slot`: what each part added (`buildPart`), the only per-part state. The lists, the skins, the cards, the bank and the cooler are
+   * computed from these and the machine's own pieces (`relist`); a patch drops a part's entry.
+   */
+  private readonly parts = new Map<string, PartBuild>();
+  /** The machine's own pieces in the lists (the case, the board): before the parts. */
+  private readonly head: Lists = emptyLists();
+  /** The board's Ethernet jack's lamps, if it has one. */
+  private boardLan: JackLamps | null = null;
+  /** The loop's hoses' skins (the airflow lens). */
+  private hoseSkins: [string, PartSkin][] = [];
+  /** Each spin's live entry (its speed), made once. */
+  private readonly fanOf = new WeakMap<Spin, Fan>();
   /** Parts a patch took away: hidden, not freed (the stand-ins of `partLod` know them by their hiding), freed with the machine. */
   private readonly graveyard: Object3D[] = [];
   /** The unseen box of each empty socket (a drop lands on it), and the plate over each empty PCIe slot, by socket id. */
@@ -643,13 +611,16 @@ export class Machine3D {
     yield;
     if (this.shown === 'case') this.buildEmpty();
     else if (this.shown === 'machine') this.buildBoard(s);
+    this.relist();
     yield;
     if (s && this.shown === 'machine') {
       this.rects = slotRects(s);
+      const ctx = this.partContext();
       for (const d of s.devices) {
-        this.build(d);
+        this.addPart(d, ctx);
         yield;
       }
+      this.relist();
       this.buildRamMap();
       this.root.updateMatrixWorld(true);
       for (const o of this.obstacles) {
@@ -667,16 +638,16 @@ export class Machine3D {
         );
         this.hosePaths = h.paths();
         // (each hose's sleeve glows by its own water in the thermal view: the hot one first)
-        h.skins.forEach((m, i) => this.thermalSkin(i ? HOSE_COLD : HOSE_HOT, m));
+        this.hoseSkins = h.skins.map((m, i) => [i ? HOSE_COLD : HOSE_HOT, new PartSkin([m], 1, false)]);
         if (this.inRoom && this.cooler) this.cooler.add(h.body);
         else {
           this.hoses = h;
-          this.keep.push(h.root);
-          this.fades.push(h.body);
           this.root.add(h.root);
         }
+        this.relist();
         yield;
       }
+      this.wires.name = 'wires';
       this.root.add(this.wires);
       yield* this.cablesSteps(s, geo);
     }
@@ -749,12 +720,16 @@ export class Machine3D {
     if (lowDetail()) shell.add(...this.cages.map(underCage));
     // light strips along the inside of the top and the front (`innerStrips`)
     const strips = innerStrips(kind, cm);
-    for (const m of strips.roots) this.root.add(m);
-    this.caseRoots.push(...strips.roots);
+    for (const [i, m] of strips.roots.entries()) {
+      m.name = `case strip ${i}`;
+      this.root.add(m);
+    }
+    this.head.caseRoots.push(...strips.roots);
     for (const l of strips.spins) this.spin(l);
     shell.add(fanHub());
+    cm.door.name = 'case door';
     this.root.add(shell, cm.door);
-    this.caseRoots.push(shell, cm.door);
+    this.head.caseRoots.push(shell, cm.door);
     this.grommets = GROMMETS[kind];
     // the side panel opens (casedoor.ts) from the board view in, for a drag or a tutorial target inside, or on a click on it (`toggleDoor`)
     this.door = { kind, cm, t: 0, zoom: 0, board: 0.13, zoomOpen: false, manual: null, inside: false, busy: false };
@@ -769,14 +744,126 @@ export class Machine3D {
     this.leds = cm.leds;
     for (const m of Object.values(cm.leds)) own(m);
     own(cm.strip);
-    this.keep.push(...cm.screws);
+    this.head.keep.push(...cm.screws);
   }
 
-  /** The fans fitted on these spots, as their hosts build them. */
-  private fanFits(on: (slot: string) => boolean): FanFit[] {
-    return this.devs
-      .filter((d) => d.kind === 'fan' && on(d.slot))
-      .map((d) => ({ id: d.id, slot: d.slot, spec: getSpec(d.spec) as FanSpec }));
+  /** What the part builders read from the machine (`buildPart`): made again for each build or patch, as the parts fitted change. */
+  private partContext(): PartContext {
+    return {
+      art: this.art,
+      T: this.T,
+      live: !!this.chips,
+      fans: this.devs
+        .filter((d) => d.kind === 'fan')
+        .map((d) => ({ id: d.id, slot: d.slot, spec: getSpec(d.spec) as FanSpec })),
+      rad: this.rad,
+      cages: this.cages,
+      plan: this.plan,
+      rects: this.rects,
+      caseRgb: this.caseRgb,
+      hoses: () => this.hoses?.body ?? null,
+    };
+  }
+
+  /** Build the part `d`, apply its spins and live chip faces, and add it to the machine (its roots on the root, its entry in `parts`). */
+  private addPart(d: DeviceSnap, ctx: PartContext): PartBuild {
+    const b = buildPart(d, ctx);
+    for (const s of b.spins) markSpin(s);
+    this.liveChips(b.chips);
+    if (this.powerOn) for (const [id, r] of b.powerRoots) this.splitPart(id, r);
+    if (b.roots.length > 0) this.root.add(...b.roots);
+    this.parts.set(keyOf(d), b);
+    return b;
+  }
+
+  /** Give the live chips layer the faces and the copper a build lists (none runs where there are no live chips: Build my PC). */
+  private liveChips(list: PartBuild['chips']): void {
+    if (!this.chips) return;
+    for (const c of list) {
+      if ('face' in c) this.chips.face(...c.face);
+      else this.chips.traces(...c.traces);
+    }
+  }
+
+  /** Add what a piece of the board lists (`phyBits`) to the machine's own lists and the live chips. */
+  private addHead(b: ReturnType<typeof phyBits>): void {
+    this.head.apart.push(...b.apart);
+    this.head.reveals.push(...b.reveals);
+    this.head.rails.push(...b.rails);
+    this.liveChips(b.chips);
+  }
+
+  /** The part builds in the order of the parts fitted (a fresh build's order, whatever order a patch added them in). */
+  private builds(): PartBuild[] {
+    const out: PartBuild[] = [];
+    for (const d of this.devs) {
+      const b = this.parts.get(keyOf(d));
+      if (b) out.push(b);
+    }
+    return out;
+  }
+
+  /**
+   * Compute the flat lists and the machine-wide values from the machine's own pieces and the part builds: the case's and the board's first, then
+   * the parts', then the memory map's, the loop's hoses' and the router's (a fresh build's order). Run after each build or patch.
+   */
+  private relist(): void {
+    const parts = this.builds(),
+      h = this.head,
+      all = <T>(pick: (l: Lists) => readonly T[]): T[] => [...pick(h), ...parts.flatMap((b) => pick(b))];
+    const hoses = this.hoses,
+      router = this.routerBits;
+    refill(this.reveals, [
+      ...all((l) => l.reveals),
+      ...(this.ramBits ? [this.ramBits.reveal] : []),
+      ...(router?.reveals ?? []),
+    ]);
+    refill(this.rails, [
+      ...all((l) => l.rails),
+      ...(this.ramBits ? [this.ramBits.rail] : []),
+      ...(router?.rails ?? []),
+    ]);
+    refill(this.fades, [...all((l) => l.fades), ...(hoses ? [hoses.body] : [])]);
+    refill(this.keep, [...all((l) => l.keep), ...(hoses ? [hoses.root] : [])]);
+    refill(this.apart, [...all((l) => l.apart), ...(router ? [router.board.root, router.board.lid] : [])]);
+    refill(
+      this.still,
+      all((l) => l.still),
+    );
+    refill(
+      this.obstacles,
+      all((l) => l.obstacles),
+    );
+    refill(
+      this.caseRoots,
+      all((l) => l.caseRoots),
+    );
+    refill(
+      this.fans,
+      all((l) => l.spins).map((s) => {
+        let f = this.fanOf.get(s);
+        if (!f) this.fanOf.set(s, (f = { ...s, speed: 0 }));
+        return f;
+      }),
+    );
+    for (const o of this.solids.keys()) if (!this.obstacles.includes(o)) this.solids.delete(o);
+    this.skins = new Map([...parts.flatMap((b) => b.skins), ...this.hoseSkins]);
+    this.powerRoots = new Map(parts.flatMap((b) => b.powerRoots));
+    for (const id of this.powerSkins.keys()) if (!this.powerRoots.has(id)) this.powerSkins.delete(id);
+    this.lan = new Map([
+      ...(this.boardLan ? [['board', this.boardLan] as [string, JackLamps]] : []),
+      ...parts.flatMap((b) => b.lan),
+    ]);
+    this.cards = new Map(parts.flatMap((b) => (b.card ? [[b.slot, b.card] as [string, Card3D]] : [])));
+    this.driveSockets = new Map(
+      parts.flatMap((b) => (b.drive ? [[b.slot, b.drive] as [string, { data: V3; power: V3 }]] : [])),
+    );
+    this.ramSticks = parts.flatMap((b) => (b.stick ? [b.stick] : []));
+    this.ram = null;
+    for (const x of this.ramSticks) this.ram = this.ram ? union(this.ram, dimmRect(x.idx)) : dimmRect(x.idx);
+    const cooler = parts.find((b) => b.cooler)?.cooler ?? null;
+    this.cooler = cooler?.group ?? null;
+    this.pump = !!cooler?.pump;
   }
 
   /** The unseen drop box of each free fan spot, as big as the fan it takes: a case mount's in the case (a radiator leaves its side's fans on their mounts); a heatsink's on its end or over its top. */
@@ -824,18 +911,10 @@ export class Machine3D {
     return [this.wires];
   }
 
-  /** Let the live frame drive a fan or a light. */
+  /** Let the live frame drive a fan or a light of the machine's own pieces (the case, the board). */
   private spin(s: Spin) {
-    s.rotor.userData['spin'] = true;
-    if (s.ring) own(s.ring);
-    this.fans.push({ ...s, speed: 0 });
-  }
-
-  /** Add a built model to `g` and let the live frame drive its fans and lights. */
-  private model(g: Group, m: Model): Model {
-    g.add(m.root);
-    for (const s of m.spins) this.spin(s);
-    return m;
+    markSpin(s);
+    this.head.spins.push(s);
   }
 
   // ------------------------------------------------------------------ art
@@ -843,72 +922,8 @@ export class Machine3D {
    * Run `apply` every frame with the zoom seen at the centre of `r` (depth `z`). `anywhere`: the camera zoom there, wherever the view centre is.
    * `area`: the zoom seen at the point of `r` nearest the view's centre instead (a long card: the view may hold only one end of it).
    */
-  private reveal(r: RectLike, z: number, apply: (z: number) => void, anywhere = false, area = false): Reveal {
-    const v: Reveal = {
-      at: new Vector3(r.x + r.w / 2, -(r.y + r.h / 2), z),
-      apply,
-      anywhere,
-      ...(area ? { area: r } : {}),
-    };
-    this.reveals.push(v);
-    return v;
-  }
-
-  /** The same for a face that stands (a card on edge: `standIn`) or lies, not one on the board's plane: the zoom is seen at the point of its box nearest the view's centre line. */
-  private revealOn(l: Lying, apply: (z: number) => void): Reveal {
-    const box = new Box3(new Vector3(l.x, l.y, l.z - l.d / 2), new Vector3(l.x + l.w, l.y, l.z + l.d / 2));
-    const v: Reveal = { at: box.getCenter(new Vector3()), apply, anywhere: false, box };
-    this.reveals.push(v);
-    return v;
-  }
-
-  /** A part's detailed view: its face `r` at depth `z`, its detail all in from `zoom` (screen pixels per world unit: the end of its fade, so no lid
-   * half covers it); a double click flies the view to it. */
-  private rail(id: string, r: RectLike, z: number, zoom: number, angle?: Rail['angle']): Rail {
-    const v: Rail = { id, rect: { x: r.x, y: r.y, w: r.w, h: r.h }, z, zoom, ...(angle ? { angle } : {}) };
-    this.rails.push(v);
-    return v;
-  }
-
-  /** The same for a part that lies on a shelf (the router's board and its parts): the flight looks down on its top (`Rail.lie`). */
-  private lie(id: string, b: Lying, zoom: number): Rail {
-    const v: Rail = { id, rect: { x: b.x, y: -b.y, w: b.w, h: 0 }, z: b.z, zoom, lie: { y: b.y, d: b.d } };
-    this.rails.push(v);
-    return v;
-  }
-
-  /** `buildDevice`, noting what it added to the shared lists (`owned`). */
-  private build(d: DeviceSnap): Owned | null {
-    const n = {
-      roots: this.root.children.length,
-      reveals: this.reveals.length,
-      fades: this.fades.length,
-      apart: this.apart.length,
-      still: this.still.length,
-      fans: this.fans.length,
-      obstacles: this.obstacles.length,
-      keep: this.keep.length,
-      caseRoots: this.caseRoots.length,
-      rails: this.rails.length,
-    };
-    this.buildDevice(d);
-    const o: Owned = {
-      id: d.id,
-      kind: d.kind,
-      slot: d.slot,
-      roots: this.root.children.slice(n.roots),
-      reveals: this.reveals.slice(n.reveals),
-      fades: this.fades.slice(n.fades),
-      apart: this.apart.slice(n.apart),
-      still: this.still.slice(n.still),
-      fans: this.fans.slice(n.fans),
-      obstacles: this.obstacles.slice(n.obstacles),
-      keep: this.keep.slice(n.keep),
-      caseRoots: this.caseRoots.slice(n.caseRoots),
-      rails: this.rails.slice(n.rails),
-    };
-    this.owned.set(keyOf(d), o);
-    return o;
+  private reveal(r: RectLike, z: number, apply: (z: number) => void, anywhere = false, area = false): void {
+    this.head.reveals.push({ ...(area ? revealOver : revealAt)(r, z, apply), anywhere });
   }
 
   /**
@@ -916,22 +931,21 @@ export class Machine3D {
    * Made again when a stick comes or goes (the old map's reveal and rail go).
    */
   private buildRamMap(): void {
-    if (this.ramBits) {
-      this.reveals.splice(this.reveals.indexOf(this.ramBits.reveal), 1);
-      this.rails.splice(this.rails.indexOf(this.ramBits.rail), 1);
-      this.ramBits = null;
-    }
+    this.ramBits = null;
     this.ramMap?.dispose();
     this.ramMap = null;
-    if (!this.ram || !this.ramSticks.length) return;
-    const map = (this.ramMap = new RamMap3D(this.ramSticks, this.T));
-    this.ramBits = {
-      reveal: this.reveal(this.ram, BOARD_Z + 200, (z) => map.show(dieShown(z)), false, true),
-      rail: this.rail('ram', this.ram, BOARD_Z + RAM_FACE_AT, RAM_DIE_ZOOM, {
-        yaw: RAM_FACE_YAW,
-        pitch: RAM_FACE_PITCH,
-      }),
-    };
+    if (this.ram && this.ramSticks.length) {
+      const map = (this.ramMap = new RamMap3D(this.ramSticks, this.T));
+      this.ramBits = {
+        reveal: revealOver(this.ram, BOARD_Z + 200, (z) => map.show(dieShown(z))),
+        rail: railAt('ram', this.ram, {
+          z: BOARD_Z + RAM_FACE_AT,
+          zoom: RAM_DIE_ZOOM,
+          angle: { yaw: RAM_FACE_YAW, pitch: RAM_FACE_PITCH },
+        }),
+      };
+    }
+    this.relist();
   }
 
   /**
@@ -945,23 +959,12 @@ export class Machine3D {
     if (tier === (this.routerBits?.tier ?? null)) return;
     const old = this.routerBits;
     if (old) {
-      for (const r of old.reveals) {
-        const k = this.reveals.indexOf(r);
-        if (k !== -1) this.reveals.splice(k, 1);
-      }
-      for (const r of old.rails) {
-        const k = this.rails.indexOf(r);
-        if (k !== -1) this.rails.splice(k, 1);
-      }
-      for (const o of [old.board.root, old.board.lid]) {
-        const k = this.apart.indexOf(o);
-        if (k !== -1) this.apart.splice(k, 1);
-      }
       old.board.root.removeFromParent();
       disposeTree(old.board.root);
       if (old.surface) this.art.drop(old.surface, old.art);
       this.onRouterShell?.(1);
       this.routerBits = null;
+      this.relist();
     }
     if (tier === null || !this.chips) {
       this.chips?.setRouter(null);
@@ -980,10 +983,9 @@ export class Machine3D {
     // (hidden until the shell is going: no stand-in is made for it, and it draws nothing from afar)
     board.root.visible = false;
     this.root.add(board.root);
-    this.apart.push(board.root, board.lid);
     if (this.merged && this.shared) {
       const skip = [...this.keep],
-        apart = [...this.fades, ...this.apart];
+        apart = [...this.fades, ...this.apart, board.root, board.lid];
       mergeSiblings(board.root, { skip, apart, pbr: true });
       shareMaterials(board.root, { skip, apart, across: lowDetail() });
     }
@@ -991,74 +993,23 @@ export class Machine3D {
     if (board.die) this.chips.face(board.die.root, 'router', board.die.rect, board.die.z);
     const fade = DEVICE_LOD.router.fade;
     const reveals = [
-      this.reveal(
-        stand.face,
-        stand.front,
-        (zoom) => {
-          const f = smooth(fade[0], fade[1], zoom);
-          board.root.visible = f > 0.01;
-          board.show(f);
-          this.onRouterShell?.(1 - f);
-        },
-        false,
-        true,
-      ),
+      revealOver(stand.face, stand.front, (zoom) => {
+        const f = smooth(fade[0], fade[1], zoom);
+        board.root.visible = f > 0.01;
+        board.show(f);
+        this.onRouterShell?.(1 - f);
+      }),
     ];
-    const rails = [this.lie('router', board.face, fade[1])];
+    const rails = [lieAt('router', board.face, fade[1])];
     for (const b of board.bodies)
-      if (!(board.die && b.id === 'router.soc')) rails.push(this.lie(b.id, b, DEVICE_LOD.router.detail));
+      if (!(board.die && b.id === 'router.soc')) rails.push(lieAt(b.id, b, DEVICE_LOD.router.detail));
     if (board.die) {
       const at = board.die.at;
-      reveals.push(this.reveal({ x: at.x, y: -at.y, w: at.w, h: 0 }, at.z, board.lod));
-      rails.push(this.lie('router.soc', at, dieZoom(board.die.scale * board.die.rect.w)));
+      reveals.push(revealAt({ x: at.x, y: -at.y, w: at.w, h: 0 }, at.z, board.lod));
+      rails.push(lieAt('router.soc', at, dieZoom(board.die.scale * board.die.rect.w)));
     }
     this.routerBits = { tier, board, art, surface: held.surface, reveals, rails };
-  }
-
-  /**
-   * A NIC's detailed view (docs/render/net.md "Inside the NIC and the router"): the card and each of its parts is a flight (a double click, to an angled view of the standing card's face) and, once its cooler has gone, can be pointed at; the
-   * controller's die wears the floorplan, which its lid hides until the zoom takes the lid away (the live layer runs on the die's face, `Chips3D`). The lid fades alone, so its materials are its own.
-   */
-  private nicBits(d: DeviceSnap, c: Card3D, _i: number, _visual: string): void {
-    const turn = DEVICE_LOD.nic.parts[1];
-    this.lie(d.id, c.face, turn);
-    for (const b of c.bodies) if (!(c.die && b.id.endsWith('.nic-ctl'))) this.lie(b.id, b.lie, turn);
-    // (the parts are a stand-in anchor of their own: the card's tree is left out of the distance level of detail, and three cards' parts would draw one by one at the overview)
-    if (c.parts) this.still.push(c.parts);
-    this.apart.push(...c.lids);
-    // (the card's copper lights with the frames the die's view launches, over the mask of its component side)
-    if (c.copper) this.chips?.traces(c.copper.root, d.slot, c.copper.lanes, c.copper.z, c.copper.band);
-    if (!c.die) return;
-    this.chips?.face(c.die.root, 'nic', c.die.rect, c.die.z, d.slot);
-    this.revealOn(c.die.stand, c.lod);
-    this.lie(`${d.slot}.nic-ctl`, c.die.stand, dieZoom(c.die.scale * c.die.rect.w));
-  }
-
-  /**
-   * A GPU's or an AI card's two dies (`accelparts3d.ts`): each lid fades over the die's own band, the floorplan on it shows live (`Chips3D`) and a double click flies to it (`<slot>.gpu-core`, `<slot>.gpu-mem`; the AI card's: `npu-`).
-   * The lids fade alone, so their materials are their own.
-   */
-  private accelBits(d: DeviceSnap, c: Card3D, kind: 'gpu' | 'npu'): void {
-    this.apart.push(...c.lids);
-    // (the card's copper lights with the words the dies' views send, over the mask of its component side)
-    if (c.copper) this.chips?.traces(c.copper.root, d.slot, c.copper.lanes, c.copper.z, c.copper.band);
-    for (const die of c.dies) {
-      this.chips?.face(die.root, kind, die.rect, die.z, d.slot);
-      this.revealOn(die.stand, die.lod);
-      this.lie(`${d.slot}.${kind}-${die.part}`, die.stand, dieZoom(die.scale * die.rect.w));
-    }
-  }
-
-  /**
-   * The Ethernet chip on the board (docs/render/net.md "Inside the NIC and the router"): as a NIC's controller (`nicBits`), its mould fades over the die's own band and the floorplan on the
-   * die shows, live (`Chips3D`); a double click flies to the die. The mould fades alone, so its materials are its own.
-   */
-  private phyBits(p: PhyChip): void {
-    this.apart.push(p.lid);
-    if (!p.die) return;
-    this.chips?.face(p.die.root, 'nic', p.plan, p.die.z, BOARD_NIC);
-    this.reveal(p.rect, BOARD_Z + p.dieTop, p.lod);
-    this.rail(`${BOARD_NIC}.nic-ctl`, p.rect, BOARD_Z + p.dieTop, dieZoom(p.scale * p.plan.w));
+    this.relist();
   }
 
   /**
@@ -1072,13 +1023,6 @@ export class Machine3D {
     return card && card.detail() < 0.9 ? (this.devs.find((d) => d.slot === m![1])?.id ?? id) : id;
   }
 
-  /** The same for a built object: its box as seen from the glass, its face the box's front. */
-  private railOf(id: string, o: Object3D, zoom: number) {
-    const b = new Box3().setFromObject(o);
-    if (!b.isEmpty())
-      this.rail(id, { x: b.min.x, y: -b.max.y, w: b.max.x - b.min.x, h: b.max.y - b.min.y }, b.max.z, zoom);
-  }
-
   // ------------------------------------------------------------------ board
   private buildBoard(s: Snapshot | null) {
     // the board of this tier (boardmodel3d.ts: the same model the gallery shows); an empty socket is tagged for picking, its lights follow the power
@@ -1086,17 +1030,17 @@ export class Machine3D {
     const b = boardModel(this.art, this.T, GEO.tier, { filled, ...(s ? { feat: s.board.features } : {}) });
     this.sockets = b.sockets;
     this.contacts = b.contacts;
-    if (b.lan) this.lan.set('board', b.lan);
-    else this.lan.delete('board');
+    this.boardLan = b.lan ?? null;
     for (const [id, o] of b.sockets) if (!filled.has(id)) tag(o, id);
     for (const l of b.lights) this.spin(l);
+    b.root.name = 'board part';
     this.root.add(b.root);
     // far out the flat drawing is enough: the small parts stand up only up close
     this.small = b.small;
     this.reveal(BD, BOARD_Z, (z) => {
       b.small.visible = z > DEVICE_LOD.labels.board;
     });
-    if (b.phy) this.phyBits(b.phy);
+    if (b.phy) this.addHead(phyBits(b.phy));
     // an empty memory socket, M.2 slot, header or seat is picked by an unseen box over its rect; the USB port by one in front of the cover, where a key is dropped
     const clear = mat(0, { transparent: true, opacity: 0, depthWrite: false });
     const pickBox = (this.pickBox = (r: RectLike, z0: number, z1: number, id: string) => {
@@ -1121,12 +1065,29 @@ export class Machine3D {
     PCIE_RAILS.forEach((_, i) => {
       if (!filled.has(`pcie${i}`)) {
         const b = slotBlank(nicY(i), blank);
+        b.name = `pcie blank ${i}`;
         this.blanks.set(`pcie${i}`, b);
         this.root.add(b);
       }
     });
-    for (const t of this.cages.flatMap((c) => c.trays))
-      if (!filled.has(`sata${t.slot}`)) this.root.add(tag(trayHit(t), `sata${t.slot}`));
+    this.trayPicks(filled);
+  }
+
+  /** The unseen box over each bare tray: a drop lands on it. */
+  private trayPicks(filled: ReadonlySet<string>): void {
+    for (const t of this.cages.flatMap((c) => c.trays)) {
+      const id = `sata${t.slot}`;
+      if (!filled.has(id)) {
+        this.trayPick(t);
+      }
+    }
+  }
+
+  private trayPick(t: CagePlan['trays'][number]): void {
+    const id = `sata${t.slot}`,
+      b = tag(trayHit(t), id);
+    this.picks.set(id, b);
+    this.root.add(b);
   }
 
   /**
@@ -1137,14 +1098,15 @@ export class Machine3D {
   private buildEmpty() {
     const coil = leadCoil();
     this.root.add(coil);
-    this.caseRoots.push(coil);
+    this.head.caseRoots.push(coil);
     const blank = SLOT_BLANK[CASE_KIND[LAYOUT_CASE] ?? 'gamer'];
     this.blankTone = blank;
     PCIE_RAILS.forEach((_, i) => {
       const b = slotBlank(nicY(i), blank);
+      b.name = `pcie blank ${i}`;
       this.blanks.set(`pcie${i}`, b);
       this.root.add(b);
-      this.caseRoots.push(b);
+      this.head.caseRoots.push(b);
     });
   }
 
@@ -1173,7 +1135,7 @@ export class Machine3D {
     });
     const out: AirBody[] = [{ id: 'board', kind: 'board', ...box(BD, CASE_Z, BOARD_Z) }, ...this.solidBodies()];
     if (this.ram) out.push({ id: 'ram', kind: 'ram', ...box(this.ram, BOARD_Z, BOARD_Z + 380) });
-    for (const o of this.owned.values())
+    for (const o of this.builds())
       for (const ob of o.obstacles) {
         const b = this.solids.get(ob);
         if (b) out.push({ id: o.id, kind: o.kind, slot: o.slot, min: [...b.min] as V3, max: [...b.max] as V3 });
@@ -1257,15 +1219,6 @@ export class Machine3D {
   /** Does the lens show (are the parts split)? */
   private powerOn = false;
 
-  /**
-   * Note a part that the power lens lights alone (`id`, standing in `root`). Its skin is made only while the lens shows: a material no other part shares costs a draw
-   * for each part (a fan's frame is one material for every fan, and the build draws them together), so the other views keep the shared ones.
-   */
-  private powerSkin(id: string, root: Object3D): void {
-    this.powerRoots.set(id, root);
-    if (this.powerOn) this.splitPart(id, root);
-  }
-
   /** The part tagged `id` inside `root` gets a copy of each of its materials that no other part shares, so the lens can light one fan alone. A glow of the part's own (a fan's ring of light) is left as it is. */
   private splitPart(id: string, root: Object3D): void {
     const part = findById(root, id);
@@ -1300,248 +1253,6 @@ export class Machine3D {
     for (const c of copies) c.dispose();
     this.powerWas.clear();
     this.powerSkins.clear();
-  }
-
-  // ------------------------------------------------------------------ parts
-  private skin(id: string, ...mats: MeshStandardMaterial[]) {
-    this.skins.set(id, new PartSkin(mats));
-  }
-  /** The same with a soft glow: a part with wide faces keeps its own colours under the state's (`PartSkin` gain). */
-  private softSkin(id: string, ...mats: MeshStandardMaterial[]) {
-    this.skins.set(id, new PartSkin(mats, 0.3));
-  }
-  /** A skin of the airflow lens alone: a part that has no state look of its own (a radiator, a heatsink, a hose) glows by its heat there and nowhere else. */
-  private thermalSkin(id: string, ...mats: MeshStandardMaterial[]) {
-    this.skins.set(id, new PartSkin(mats, 1, false));
-  }
-
-  private buildDevice(d: DeviceSnap) {
-    const spec = getSpec(d.spec);
-    if (!spec) return;
-    const visual = (spec as { visual?: string }).visual ?? '';
-    const g = tag(new Group(), d.id);
-    const T = this.T;
-    switch (spec.kind) {
-      case 'cpu': {
-        // the package, its die and its lid (`cpuModel`); the live die runs on the die's face, in the die's own frame (the faces' views carry
-        // their parent's transform, as a card's do); the lid fades away over the die view's band
-        const c = cpuModel(this.art, T, spec as CpuSpec);
-        g.add(c.root);
-        this.chips?.face(c.die.root, 'die', DIE_PLAN, c.die.z);
-        this.fades.push(c.lid);
-        this.reveal(DIE, CPU_Z.top - 60, c.lod);
-        this.rail(d.id, DIE, CPU_Z.die, dieZoom(DIE.w));
-        this.skin(d.id, ...c.skin);
-        break;
-      }
-      case 'cooler': {
-        // the 2D cooler's look stood up (`coolerModel`); it fades out over the 2D band as the die comes in, and the loop's tubes cross the
-        // board, so any close look fades them
-        // (the zoom fades a group inside the part: `fadeTree` sets `visible` each frame, and Build my PC hides the part itself while it is off)
-        const fade = new Group();
-        g.add(fade);
-        const hosted = this.fanFits((slot) => fanHost(slot) === d.slot),
-          m = this.model(fade, coolerModel(visual, hosted));
-        for (const f of hosted) this.powerSkin(f.id, fade);
-        if (lowDetail()) {
-          const f = coolerFoot(visual);
-          fade.add(onBoard(footShade(f.r, COOLER_SHADE.reach, COOLER_SHADE.peak, f.round)));
-        }
-        this.fades.push(fade);
-        this.pump = !!(spec as { loop?: unknown }).loop;
-        this.cooler = fade;
-        this.reveal(
-          COOLER,
-          BOARD_Z + 400,
-          (z) => {
-            const a = 1 - smooth(DEVICE_LOD.cooler.fade[0], DEVICE_LOD.cooler.fade[1], z);
-            fadeTree(fade, a);
-            if (this.hoses) fadeTree(this.hoses.body, a);
-          },
-          this.pump,
-        );
-        this.softSkin(d.id, ...m.skin);
-        this.obstacles.push(m.root);
-        m.root.userData['cooler'] = true;
-        break;
-      }
-      case 'ram': {
-        // the stick stands in its socket (`ramStick`); its spreader fades in the RAM band, as the camera leans to read the faces (board3d.ts)
-        const i = idx(d.slot),
-          r = { x: DIMM_X(i), y: DIMM_Y(i), w: DIMM_W, h: DIMM_H },
-          rs = spec as RamSpec;
-        const st = ramStick(rs.visual, !!rs.ecc, r, rs.name, { art: this.art, T: this.T, spec: rs });
-        g.add(st.root);
-        for (const s of st.spins) this.spin(s);
-        this.fades.push(st.spreader);
-        // (the spreader goes, and the chips' dies come in where it was)
-        this.reveal(r, BOARD_Z + 200, (z) => stickFade(st, dieShown(z)));
-        this.root.add(g, tag(st.hit, d.id));
-        this.ram = this.ram ? union(this.ram, r) : r;
-        this.ramSticks.push({ idx: i, bytes: rs.sizeBytes, faces: st.mapFaces, plan: st.plan });
-        this.softSkin(d.id, ...st.skin);
-        return;
-      }
-      case 'gpu':
-      case 'npu':
-      case 'nic': {
-        // the card stands in its slot (`card3d`) and stays there: up close its cooler fades and its face shows. A GPU shows the shop picture's art (the die with its
-        // floorplan), an AI card its die without the lid (`npuFace`), and the dies run on them. A NIC shows its parts, which are in 3D (`nicBits`). The face looks north: the player turns the view
-        // to it, or a double click flies to its angled view (`focusPart`: the face is a `Lying` rail)
-        const i = idx(d.slot),
-          kind = spec.kind;
-        const c = cardModel(this.art, T, kind, visual, i, d.slot);
-        this.model(g, c);
-        c.pose(0);
-        this.obstacles.push(c.root);
-        this.fades.push(c.root);
-        this.revealOn(c.face, c.pose);
-        if (kind === 'nic') this.nicBits(d, c, i, visual);
-        else {
-          this.lie(d.id, standIn(i, chipRect(kind, visual, i), HINGE_Z), DEVICE_LOD[kind].fade[1]);
-          this.accelBits(d, c, kind);
-        }
-        this.cards.set(d.slot, c);
-        if (c.lan) this.lan.set(d.id, c.lan);
-        this.apart.push(c.fades);
-        this.softSkin(d.id, ...c.skin);
-        break;
-      }
-      case 'tpm': {
-        // the module on its header (tpm3d.ts); its die runs over its chip, its LED shows protected mode (chips3d.ts). Where no live view runs (Build my
-        // PC) the die's still is baked there and fades in as the camera comes in, as the live die does
-        const face = (top: Group, r: RectLike, z: number, part: 'die' | 'lens') => {
-          if (this.chips) this.chips.face(top, 'tpm', r, z + 2, d.slot);
-          else if (part === 'die') {
-            const root = tpmDieFace(this.art, this.T, visual, top, r, z + 2);
-            this.reveal(r, z + 2, (zoom) => tpmDieFade(root, zoom, r.w), false, true);
-          }
-        };
-        if (tpmModel(g, visual, face)) this.rail(d.id, tpmRect(GEO.tier)!, TPM_Z.top, DEVICE_LOD.tpm.lid);
-        this.powerSkin(d.id, g);
-        break;
-      }
-      case 'psu': {
-        // at the basement's back corner, by its mains inlet (`psuUnit`); the shroud's panel over it answers the click
-        const u = psuUnit(
-          this.plan,
-          visual,
-          (spec as { fan?: boolean }).fan !== false,
-          (spec as { watts?: number }).watts ?? 0,
-        );
-        g.add(u.root);
-        tag(g, 'psu');
-        this.softSkin(d.id, u.body);
-        break;
-      }
-      case 'storage': {
-        const kind = driveKindOf(visual),
-          b = driveBody(kind, d.slot);
-        // an M.2 stick lies on its socket and standoff; a SATA drive (drive3d.ts, at its real size) lies on its tray in its bay of the cage, the tray with it
-        if (kind === 'ssd-nvme') {
-          // (its label or heat sink fades as the camera comes in, then each package's cap: the dies show, `chipdie3d.ts`)
-          this.softSkin(
-            d.id,
-            nvmeStick(g, b, nvmeLook(spec as StorageSpec), {
-              art: this.art,
-              T: this.T,
-              reveal: (r, z, apply) => {
-                this.reveal(r, z, apply);
-              },
-            }),
-          );
-          this.railOf(d.id, g, DRIVE_DIE_ZOOM);
-          break;
-        }
-        const spot = traySpot(this.cages, idx(d.slot));
-        if (!spot) break;
-        // (its cover fades as the camera comes in and its inside shows: the platters and the actuator, or the board and its packages' dies, `driveinner3d.ts`; a place of its own frame is the machine's by the tray's spot)
-        const hdd = kind === 'hdd',
-          o = onTray(hdd);
-        const dm = sataDriveModel(
-          hdd,
-          { name: spec.name, capacityBytes: (spec as StorageSpec).capacityBytes },
-          {
-            art: this.art,
-            T: this.T,
-            reveal: (p, apply) => {
-              this.reveal(
-                { x: spot.x + o.x + p[0], y: -(spot.y + o.y + p[1]), w: 0, h: 0 },
-                spot.z + o.z + p[2],
-                apply,
-              );
-            },
-          },
-        );
-        const tray = trayAt(CASE_KIND[LAYOUT_CASE] ?? 'gamer', spot, hdd ? 'hdd' : 'ssd');
-        dm.root.position.set(o.x, o.y, o.z);
-        tray.add(dm.root);
-        g.add(tray);
-        this.skin(d.id, dm.body);
-        this.railOf(d.id, tray, hdd ? COVER_BAND[1] : DRIVE_DIE_ZOOM);
-        // its receptacles at its back, toward the tray sheet: the cables plug in there (`setCables`)
-        const w = (p: V3): V3 => [spot.x + o.x + p[0], spot.y + o.y + p[1], spot.z + o.z + p[2]];
-        this.driveSockets.set(d.slot, { data: w(dm.data), power: w(dm.power) });
-        break;
-      }
-      case 'vrm-sink':
-      case 'ram-sink': {
-        // as a real regulator sink (sink3d.ts); its fan sits in the housing over the fins, blowing down into them
-        g.userData['sink'] = true;
-        this.obstacles.push(g);
-        const { spot, foot, skin } = sinkBody(g, T, spec.kind, visual);
-        this.thermalSkin(d.id, ...skin);
-        const fit = this.fanFits((slot) => fanHost(slot) === d.slot)[0];
-        if (fit && spot) {
-          const depth = fanDepth(fit.spec.size),
-            fan = fanPart(fit.spec, spot.w, depth);
-          fan.root.position.set(spot.x + spot.w / 2, -(spot.y + spot.h / 2), foot + depth / 2);
-          g.add(tag(fan.root, fit.id));
-          this.powerSkin(fit.id, g);
-          this.spin({ ...fan.spin, needs: spec.kind === 'vrm-sink' ? 'vrmfan' : 'ramfan' });
-        }
-        break;
-      }
-      case 'radiator': {
-        // bolted along the side the player chose, over that side's fan mounts; each fan fitted on them runs on its mount's cable
-        if (this.rad) {
-          const { fit, span } = this.rad,
-            m = this.model(g, radiatorModel(fit, radiatorGrade(visual), span.ids));
-          m.root.userData['radiator'] = true;
-          this.obstacles.push(m.root);
-          this.thermalSkin(d.id, ...m.skin);
-        }
-        break;
-      }
-      case 'fan': {
-        // on a case mount (a radiator's side keeps its fans on their mounts); a heatsink builds the fans on its own spots
-        const m = fanMounts().find((x) => x.id === d.slot);
-        if (!m) return;
-        const f = caseFan(
-          { slot: d.slot, spec: spec as FanSpec },
-          m.side,
-          m.rect,
-          m.side === 'rear' ? REAR_ZC : FAN_ZC,
-          FAN_MAX,
-        );
-        g.add(f.root);
-        if (m.side === 'rear') g.add(rearFanScrews());
-        this.spin(this.caseRgb ? f.spin : { ...f.spin, gain: 0 }); // the plain cases' fans have no light
-        this.powerSkin(d.id, g);
-        this.caseRoots.push(g);
-        break;
-      }
-      default:
-        return; // the display is the room's (Room3D shows it)
-    }
-    // a part with a glTF model wears it over its slot's rect in place of the primitives built above
-    const model = modelOf(visual, spec.kind),
-      fit = model ? this.rects.get(d.slot) : undefined;
-    if (model && fit) {
-      this.keep.push(g); // (the model hides the children it replaces: they stay as they are)
-      useModel(g, model.url, fit, BOARD_Z + 180, BOARD_Z + 580, [...g.children], () => !tornDown(g), model.stretch);
-    }
-    this.root.add(g);
   }
 
   // ------------------------------------------------------------------ cables
@@ -2401,7 +2112,7 @@ export class Machine3D {
 
   // ------------------------------------------------------------------ patch
   /**
-   * Bring the machine in line with a snapshot that differs from it by whole sticks, M.2 drives or cards (Build my PC: a fit or a removal builds no
+   * Bring the machine in line with a snapshot that differs from it by whole sticks, drives or cards (Build my PC: a fit or a removal builds no
    * new machine). A part that goes is hidden (the stand-ins of `partLod` know a part by its hiding) and its entries leave the shared lists; a part
    * that comes is built alone and merged alone, as the build does it; the sockets they take or free change their look; the cables hang again.
    * False, with nothing changed, when the change is more than that (another kind of part, a host's fans, a new board or case, a grave grown
@@ -2426,85 +2137,42 @@ export class Machine3D {
       if (is && !came.includes(is)) came.push(is);
     }
     for (const d of [...gone, ...came]) if (!patchable(d)) return false;
-    if (gone.some((d) => !this.owned.has(keyOf(d)))) return false;
-    // ---- what goes
-    const drop = <T>(list: T[], out: readonly T[]): void => {
-      for (const x of out) {
-        const i = list.indexOf(x);
-        if (i !== -1) list.splice(i, 1);
-      }
-    };
+    if (gone.some((d) => !this.parts.has(keyOf(d)))) return false;
+    // ---- what goes: its part build (the lists, skins, cards, bank and cooler are computed from what stays)
     for (const d of gone) {
-      const o = this.owned.get(keyOf(d))!;
+      const b = this.parts.get(keyOf(d))!;
       // (a hidden part answers to no id: a host built again keeps its id, and a lookup must find the new one, never the copy left here)
-      for (const r of o.roots) {
+      for (const r of b.roots) {
         r.visible = false;
         untag(r);
         this.graveyard.push(r);
       }
-      drop(this.reveals, o.reveals);
-      drop(this.fades, o.fades);
-      drop(this.apart, o.apart);
-      drop(this.still, o.still);
-      drop(this.fans, o.fans);
-      drop(this.obstacles, o.obstacles);
-      drop(this.keep, o.keep);
-      drop(this.caseRoots, o.caseRoots);
-      drop(this.rails, o.rails);
-      for (const ob of o.obstacles) this.solids.delete(ob);
-      this.skins.delete(o.id);
-      this.powerSkins.delete(o.id);
-      this.powerRoots.delete(o.id);
-      if (d.kind === 'ram') this.ramSticks = this.ramSticks.filter((x) => x.idx !== idx(d.slot));
-      this.cards.delete(d.slot);
-      this.lan.delete(o.id);
-      if (d.kind === 'cooler') {
-        this.cooler = null;
-        this.pump = false;
-      }
-      this.owned.delete(keyOf(d));
+      this.parts.delete(keyOf(d));
     }
     // (a part that stands as it was under a new id, a refit one: its look follows the new id)
     for (const [k, d] of nxt) {
-      const o = this.owned.get(k);
-      if (!o || o.id === d.id) continue;
-      const sk = this.skins.get(o.id);
-      if (sk) {
-        this.skins.delete(o.id);
-        this.skins.set(d.id, sk);
-      }
-      const ps = this.powerSkins.get(o.id);
+      const b = this.parts.get(k);
+      if (!b || b.id === d.id) continue;
+      this.parts.set(k, renamePart(b, d.id));
+      const ps = this.powerSkins.get(b.id);
       if (ps) {
-        this.powerSkins.delete(o.id);
+        this.powerSkins.delete(b.id);
         this.powerSkins.set(d.id, ps);
       }
-      const pr = this.powerRoots.get(o.id);
-      if (pr) {
-        this.powerRoots.delete(o.id);
-        this.powerRoots.set(d.id, pr);
-      }
-      const lan = this.lan.get(o.id);
-      if (lan) {
-        this.lan.delete(o.id);
-        this.lan.set(d.id, lan);
-      }
-      o.id = d.id;
-    }
-    this.ram = null;
-    for (const x of this.ramSticks) {
-      const r = { x: DIMM_X(x.idx), y: DIMM_Y(x.idx), w: DIMM_W, h: DIMM_H };
-      this.ram = this.ram ? union(this.ram, r) : r;
     }
     // ---- what comes
     this.devs = s.devices;
     this.rects = slotRects(s);
-    const made = came.map((d) => this.build(d)!),
-      added: Object3D[] = made.flatMap((o) => o.roots);
-    for (const o of made)
-      for (const ob of o.obstacles) {
+    const ctx = this.partContext(),
+      made = came.map((d) => this.addPart(d, ctx)),
+      added: Object3D[] = made.flatMap((b) => b.roots);
+    this.relist();
+    for (const b of made)
+      for (const ob of b.obstacles) {
         ob.updateWorldMatrix(true, true);
-        const b = new Box3().setFromObject(ob);
-        if (!b.isEmpty()) this.solids.set(ob, { min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z] });
+        const box = new Box3().setFromObject(ob);
+        if (!box.isEmpty())
+          this.solids.set(ob, { min: [box.min.x, box.min.y, box.min.z], max: [box.max.x, box.max.y, box.max.z] });
       }
     if (gone.some((d) => d.kind === 'ram') || came.some((d) => d.kind === 'ram')) this.buildRamMap();
     for (const d of gone) this.fill(d.slot, false, added);
@@ -2572,6 +2240,19 @@ export class Machine3D {
       } else if (!filled && !pick && r) this.pickBox(r, BOARD_Z, BOARD_Z + 40, slot);
       return;
     }
+    const tray = /^sata(?<n>\d+)$/u.exec(slot);
+    if (tray) {
+      // the bare tray's drop box: gone with a drive on the tray, back when it leaves
+      const pick = this.picks.get(slot),
+        t = traySpot(this.cages, Number(tray.groups?.['n']));
+      if (filled && pick) {
+        freeBox(pick);
+        this.picks.delete(slot);
+      } else if (!filled && !pick && t) {
+        this.trayPick(t);
+      }
+      return;
+    }
     const m = /^(dimm|m2|pcie)(\d+)$/.exec(slot);
     if (!m) return;
     const i = Number(m[2]),
@@ -2588,6 +2269,7 @@ export class Machine3D {
         this.blanks.delete(slot);
       } else if (!filled && !b) {
         const n = slotBlank(nicY(i), this.blankTone);
+        n.name = `pcie blank ${i}`;
         this.blanks.set(slot, n);
         this.root.add(n);
         added.push(n);
@@ -2805,12 +2487,6 @@ export class Machine3D {
     this.partLod?.dispose();
     disposeTree(this.root);
   }
-}
-
-/** What a card's detailed view flies to (`Chips3D` runs it): the GPU's body, the AI card's die, a little grown (the GPU's memory magnifier stands by its cell). */
-function chipRect(kind: 'gpu' | 'npu', visual: string, i: number): RectLike {
-  const o = cardOrigin(i, visual);
-  return kind === 'gpu' ? grow(moveRect(gpuPlan(visual).body, o), 40) : grow(moveRect(npuGeo(visual).die, o), 30);
 }
 
 const LOD_AT = new Vector3(),
