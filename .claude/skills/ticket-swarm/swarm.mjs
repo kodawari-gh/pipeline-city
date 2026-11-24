@@ -799,8 +799,11 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
     const merge = this.wt(n, int);
     this.clean(merge);
     // Resume after an interrupted round merge: review the role commits already made before any agent reruns.
+    // A review cut off by a stop resumes at the review: the same merge, no new round.
     let pending =
-      T.rounds > 0 && workers.some((r) => !gitOk(merge, 'merge-base', '--is-ancestor', this.br(n, r), 'HEAD'));
+      T.rounds > 0 &&
+      (T.reviewHead === git(merge, 'rev-parse', 'HEAD') ||
+        workers.some((r) => !gitOk(merge, 'merge-base', '--is-ancestor', this.br(n, r), 'HEAD')));
     for (;;) {
       const tier = tierAt(planned, T.failures);
       if (!tier) {
@@ -875,6 +878,8 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
       }
 
       const head = git(merge, 'rev-parse', 'HEAD');
+      T.reviewHead = head;
+      this.save();
       const rv = await this.agent(
         'swarm-reviewer',
         n,
@@ -883,6 +888,7 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
         this.facts(n, issue, 'reviewer', tier, this.reviewTask(n)),
         REVIEW_SCHEMA,
       );
+      delete T.reviewHead;
       if (git(merge, 'rev-parse', 'HEAD') !== head || git(merge, 'status', '--porcelain', '--untracked-files=no')) {
         this.emit(`#${n} reviewer changed the worktree; reset`);
         git(merge, 'reset', '--hard', head);
