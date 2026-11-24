@@ -277,8 +277,8 @@ function opacityOf(g: Object3D): number {
 function aim(m: Machine3D, f: Object3D): Vector3 {
   const o = [
     ...(
-      m as unknown as { owned: Map<string, { id: string; kind: string; reveals: { at: Vector3 }[] }> }
-    ).owned.values(),
+      m as unknown as { parts: Map<string, { id: string; kind: string; reveals: { at: Vector3 }[] }> }
+    ).parts.values(),
   ].find((x) => x.id === idOf(f) && x.kind === 'ram');
   if (o?.reveals.length) return o.reveals[0]!.at.clone();
   const r = m.rails.find((x) => x.id === idOf(f) && x.id.endsWith('.nic-ctl'));

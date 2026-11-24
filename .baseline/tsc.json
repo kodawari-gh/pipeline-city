@@ -383,8 +383,7 @@
  },
  "src/features/board/render/three/machine3d.ts": {
   "TS2379": 2,
-  "TS4111": 17,
-  "TS6133": 3,
+  "TS4111": 13,
   "TS6192": 1
  },
  "src/features/board/render/three/machine3d.wall.test.ts": {

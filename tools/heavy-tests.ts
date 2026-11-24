@@ -12,6 +12,7 @@ export const HEAVY_TESTS: readonly string[] = [
   'src/features/board/render/three/lodreach.test.ts',
   'src/features/board/render/three/lowmerge.test.ts',
   'src/features/board/render/three/machine3d.clip.test.ts',
+  'src/features/board/render/three/machine3d.leak.test.ts',
   'src/features/board/render/three/machine3d.leds.test.ts',
   'src/features/board/render/three/machine3d.lever.test.ts',
   'src/features/board/render/three/machine3d.make.test.ts',
