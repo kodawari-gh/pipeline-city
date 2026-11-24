@@ -29,7 +29,8 @@
   },
   "swarm": {
     "log": "docs/agents/swarm-log.md",
-    "install": "npm ci",
+    "install": "npm ci --prefer-offline --no-audit --no-fund",
+    "shareDeps": { "keys": ["package-lock.json"], "dirs": ["node_modules"] },
     "testFile": "\\.(test|spec)\\.[cm]?[jt]sx?$",
     "locked": ["npm run shot", "npm run test:browser", "npm run test:heavy", "npm run prod"],
     "slots": 2,

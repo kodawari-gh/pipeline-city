@@ -962,6 +962,8 @@ webglcontextlost
 webglcontextrestored
 wordmark
 wordmarks
+worktree
+worktrees
 worldpos
 writeback
 wsum

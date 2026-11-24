@@ -94,6 +94,20 @@
         "unicorn/no-process-exit": "off",
         "eslint/no-await-in-loop": "off"
       }
+    },
+    {
+      "files": [".claude/**/*.mjs"],
+      "rules": {
+        "typescript/no-unsafe-argument": "off",
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-call": "off",
+        "typescript/no-unsafe-member-access": "off",
+        "typescript/no-unsafe-return": "off",
+        "typescript/strict-boolean-expressions": "off",
+        "typescript/prefer-nullish-coalescing": "off",
+        "typescript/no-confusing-void-expression": "off",
+        "typescript/restrict-template-expressions": "off"
+      }
     }
   ]
 }

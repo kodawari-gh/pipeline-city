@@ -25,6 +25,8 @@ function buildHash(): string {
 // base './' so the build works from any path (GitHub Pages, file://, artifact)
 export default defineConfig(({ command }) => ({
   base: './',
+  // Per checkout, not in node_modules: swarm worktrees share one node_modules through a link (docs/agents/board.json shareDeps).
+  cacheDir: '.cache/vite',
   plugins: [preact()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   worker: { format: 'es' },

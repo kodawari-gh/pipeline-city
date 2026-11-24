@@ -10,18 +10,16 @@ The runner script does the loop, the board, the ladder and the cleanup. You keep
 ## Steps
 
 1. **Check the parent.** `node .claude/skills/update-gh-board/board.mjs sync <parent> --dry`. Set every missing planned model (rubric in `update-gh-board`).
-2. **Make the parent branch.** If `parent/<parent>` does not exist, create it from the default branch: `git branch parent/<parent> <default>`. Do not check it out. This is the base for every ticket.
-3. **Start the runner** in the background: `node .claude/skills/ticket-swarm/swarm.mjs run <parent> --base parent/<parent>`.
-4. **Watch it** with the Monitor tool on `.claude/swarm/p<parent>.log`, filtered to `NEED|STOP|denial|FINISHED|DONE|failed`.
-5. **Act on events** as the table in `ticket-swarm` says. A stopped ticket leaves the others running.
-6. **When the runner exits**, read `swarm.mjs status p<parent>`. If tickets are still open and unblocked (a planned model was set late, a blocker was fixed), start the runner again: it resumes from its state file.
-7. **Clean up.** Run `swarm.mjs gc`, then `git worktree list` and `git branch --list 'ticket/*'`. Only open tickets may still have entries.
+2. **Start the runner** in the background from the default branch: `node .claude/skills/ticket-swarm/swarm.mjs run <parent>`. It makes `parent/<parent>` from the current branch if missing (`--from <ref>` to pick another) and uses it as the base.
+3. **Watch it** with the Monitor tool on `.claude/swarm/p<parent>.log`, filtered to `NEED|STOP|denial|FINISHED|DONE|failed`.
+4. **Act on events** as the table in `ticket-swarm` says. A stopped ticket leaves the others running.
+5. **When the runner exits**, read `swarm.mjs status p<parent>`. If tickets are still open and unblocked (a planned model was set late, a blocker was fixed), start the runner again: it resumes from its state file. Its `gc:` lines show the cleanup it did.
 
 Done when every child is Done, or each remaining child is held, blocked by a stopped ticket, or waiting on the user. Report each ticket's squash commit, rounds and cost.
 
 ## Branches and worktrees
 
-The runner makes these. Do not make or delete them by hand while it runs.
+The runner makes and removes all of these. Do not make or delete them by hand.
 
 | Branch              | Worktree                        | Made from         | Used by                        |
 | ------------------- | ------------------------------- | ----------------- | ------------------------------ |
@@ -35,7 +33,7 @@ The runner makes these. Do not make or delete them by hand while it runs.
 - **Done.** The runner squashes `ticket/<n>` onto the base as one commit. Then it removes the three worktrees (`git worktree remove --force`), deletes the three branches (`git branch -D`) and runs `git worktree prune`.
 - **Stopped** (blocked or exhausted). The runner removes the worktrees but keeps the branches. The work stays on `ticket/<n>` for a person to read.
 - **Critical.** The runner keeps worktrees and branches for diagnosis. A rerun resumes in them.
-- **Leftovers.** `swarm.mjs gc` removes the worktrees and branches of every closed ticket. It keeps those of open tickets.
+- **Leftovers.** At the end of each run, the runner removes the worktrees and branches of every closed ticket and keeps those of open tickets. `swarm.mjs gc` does the same by hand.
 
 ## Rules
 
