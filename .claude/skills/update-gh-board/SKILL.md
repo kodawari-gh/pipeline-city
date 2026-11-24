@@ -41,4 +41,6 @@ Then read the swarm log (`swarm.log` in `board.json`) and the repo notes in `doc
 
 Backlog: blocked, held, or stopped. Ready: open with every blocker closed. In progress: a swarm round is running. In review: the reviewer passed, squash pending. Done: squashed and closed, with `Rounds` (reviewer verdicts, the PASS included) and `Cost`.
 
+`sync` also moves the parent: In progress once a child started, In review once every child is Done (its PR waits on the user), Done once the parent is closed.
+
 Other sessions share the board. Leave tickets another session has In progress alone.
