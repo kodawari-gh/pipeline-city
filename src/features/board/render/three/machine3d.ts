@@ -40,7 +40,7 @@ import { hexNum } from '../skins';
 import { PartLod, type LodScope } from '@/core/render/three/partlod';
 import { findById, seeThrough, tag, unseen } from '@/core/render/three/pick';
 import { nicFaceRect, nicGeo } from '@/features/network/render/nic/niclayout';
-import { BOARD_NIC, nicInput } from '@/features/network/render/nic/nicplan';
+import { nicInput } from '@/features/network/render/nic/nicplan';
 import { routerDie } from '@/features/network/render/router/routerart';
 import { routerGeo } from '@/features/network/render/router/routerlayout';
 import { driveKindOf } from '@/features/storage/render/drives';
@@ -91,7 +91,6 @@ import { routerPort, routerStand } from './router3d';
 import { routerBoard, type RouterBoard } from './routerboard3d';
 import { LEVER_OPEN } from './boardhw3d';
 import { boardModel } from './boardmodel3d';
-import type { PhyChip } from './phychip3d';
 import {
   HOSE_COLD,
   HOSE_HOT,
@@ -172,6 +171,7 @@ import {
   grow,
   idx,
   lieAt,
+  phyBits,
   railAt,
   renamePart,
   revealAt,
@@ -762,15 +762,28 @@ export class Machine3D {
   private addPart(d: DeviceSnap, ctx: PartContext): PartBuild {
     const b = buildPart(d, ctx);
     for (const s of b.spins) markSpin(s);
-    if (this.chips)
-      for (const c of b.chips) {
-        if ('face' in c) this.chips.face(...c.face);
-        else this.chips.traces(...c.traces);
-      }
+    this.liveChips(b.chips);
     if (this.powerOn) for (const [id, r] of b.powerRoots) this.splitPart(id, r);
     if (b.roots.length > 0) this.root.add(...b.roots);
     this.parts.set(keyOf(d), b);
     return b;
+  }
+
+  /** Give the live chips layer the faces and the copper a build lists (none runs where there are no live chips: Build my PC). */
+  private liveChips(list: PartBuild['chips']): void {
+    if (!this.chips) return;
+    for (const c of list) {
+      if ('face' in c) this.chips.face(...c.face);
+      else this.chips.traces(...c.traces);
+    }
+  }
+
+  /** Add what a piece of the board lists (`phyBits`) to the machine's own lists and the live chips. */
+  private addHead(b: ReturnType<typeof phyBits>): void {
+    this.head.apart.push(...b.apart);
+    this.head.reveals.push(...b.reveals);
+    this.head.rails.push(...b.rails);
+    this.liveChips(b.chips);
   }
 
   /** The part builds in the order of the parts fitted (a fresh build's order, whatever order a patch added them in). */
@@ -906,11 +919,6 @@ export class Machine3D {
     this.head.reveals.push({ ...(area ? revealOver : revealAt)(r, z, apply), anywhere });
   }
 
-  /** A detailed view of the board's (`railAt`): a double click flies the view to it. */
-  private rail(id: string, r: RectLike, z: number, zoom: number): void {
-    this.head.rails.push(railAt(id, r, { z, zoom }));
-  }
-
   /**
    * The live memory map over the bank of sticks: it comes in as the spreaders go, and the bank is one detailed view a double click flies to.
    * Made again when a stick comes or goes (the old map's reveal and rail go).
@@ -998,18 +1006,6 @@ export class Machine3D {
   }
 
   /**
-   * The Ethernet chip on the board (docs/render/net.md "Inside the NIC and the router"): as a NIC's controller (`nicBits` in parts.ts.ts), its mould fades over the die's own band and the floorplan on the
-   * die shows, live (`Chips3D`); a double click flies to the die. The mould fades alone, so its materials are its own.
-   */
-  private phyBits(p: PhyChip): void {
-    this.head.apart.push(p.lid);
-    if (!p.die) return;
-    this.chips?.face(p.die.root, 'nic', p.plan, p.die.z, BOARD_NIC);
-    this.reveal(p.rect, BOARD_Z + p.dieTop, p.lod);
-    this.rail(`${BOARD_NIC}.nic-ctl`, p.rect, BOARD_Z + p.dieTop, dieZoom(p.scale * p.plan.w));
-  }
-
-  /**
    * What a pick of `id` means: a part of a NIC (`pcie2.nic-xtal`) is the card itself until its cooler has gone and it shows its parts. The die's blocks (`pcie2.nic-mac`) are not asked: they are hit only through the live layer, once the lid is gone.
    */
   pickId(id: string | null): string | null {
@@ -1037,7 +1033,7 @@ export class Machine3D {
     this.reveal(BD, BOARD_Z, (z) => {
       b.small.visible = z > DEVICE_LOD.labels.board;
     });
-    if (b.phy) this.phyBits(b.phy);
+    if (b.phy) this.addHead(phyBits(b.phy));
     // an empty memory socket, M.2 slot, header or seat is picked by an unseen box over its rect; the USB port by one in front of the cover, where a key is dropped
     const clear = mat(0, { transparent: true, opacity: 0, depthWrite: false });
     const pickBox = (this.pickBox = (r: RectLike, z0: number, z1: number, id: string) => {

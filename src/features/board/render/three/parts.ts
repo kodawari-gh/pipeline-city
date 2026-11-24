@@ -22,6 +22,7 @@ import type { V3 } from '@/core/render/three/rope';
 import { useModel } from '@/core/render/three/gltf';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { npuGeo } from '@/features/npu/render/npulayout';
+import { BOARD_NIC } from '@/features/network/render/nic/nicplan';
 import { driveBody, driveKindOf } from '@/features/storage/render/drives';
 import { fanMounts } from '@/features/room/render/desk/props/case';
 import type { FanMount } from '@/features/room/render/desk/props/case';
@@ -34,6 +35,7 @@ import type { ArtSet } from './artset3d';
 import type { Lying } from './routerboard3d';
 import type { JackLamps } from './rj45jack3d';
 import type { Chips3D } from './chips3d';
+import type { PhyChip } from './phychip3d';
 import { CPU_Z, cpuModel } from './cpu3d';
 import { coolerFoot, coolerModel, radiatorModel } from './cooler3d';
 import type { Model, RadiatorAt } from './cooler3d';
@@ -608,6 +610,27 @@ function nicBits(b: PartBuild, c: Card3D): void {
   b.chips.push({ face: [c.die.root, 'nic', c.die.rect, c.die.z, b.slot] });
   b.reveals.push(revealOnBox(c.die.stand, c.lod));
   b.rails.push(lieAt(`${b.slot}.nic-ctl`, c.die.stand, dieZoom(c.die.scale * c.die.rect.w)));
+}
+
+/**
+ * The Ethernet chip on the board (docs/render/net.md "Inside the NIC and the router"): as a NIC's controller (`nicBits`), its mould fades over the die's own band and the floorplan on the
+ * die shows, live (`Chips3D`); a double click flies to the die. The mould fades alone, so its materials are its own. It is the board's, not a part's:
+ * `Machine3D` adds what this lists to the machine's own lists.
+ */
+export function phyBits(p: PhyChip): Pick<PartBuild, 'apart' | 'reveals' | 'rails' | 'chips'> {
+  const out: Pick<PartBuild, 'apart' | 'reveals' | 'rails' | 'chips'> = {
+    apart: [p.lid],
+    reveals: [],
+    rails: [],
+    chips: [],
+  };
+  if (p.die) {
+    const z = BOARD_Z + p.dieTop;
+    out.chips.push({ face: [p.die.root, 'nic', p.plan, p.die.z, BOARD_NIC] });
+    out.reveals.push(revealAt(p.rect, z, p.lod));
+    out.rails.push(railAt(`${BOARD_NIC}.nic-ctl`, p.rect, { z, zoom: dieZoom(p.scale * p.plan.w) }));
+  }
+  return out;
 }
 
 /**

@@ -799,7 +799,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       // a double click on a part brings it up, aligned; on the board it fits the board, anywhere else it frames the room again (as in Build my PC and the Gallery)
       const id = idAt(e),
         dev = deviceOf(id, snapshot.peek());
-      // a part with a detailed view of its own has a flight of its own: a NIC's parts and its controller's die (`Machine3D.nicBits`), the router's blocks (`Machine3D.buildRouter`)
+      // a part with a detailed view of its own has a flight of its own: a NIC's parts and its controller's die (`nicBits` in `parts.ts`), the router's blocks (`Machine3D.buildRouter`)
       if (id && machine?.rails.some((r) => r.id === id) && focusPart(id)) return;
       if (dev && focusPart(dev.id)) return;
       if (id === 'board') flyToBoard();
