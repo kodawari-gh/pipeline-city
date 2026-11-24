@@ -53,6 +53,8 @@
   --d-loop-slow: 1600ms; /* ambient pulses and marches (they never end on their own) */
 
   color-scheme: dark;
+
+  --pop: color-mix(in srgb, var(--panel) 18%, var(--menu-solid));
 }
 
 /* THE ROOT SIZE RULE (docs/UI.md, "Scaling"). Every other length in the UI is rem/em/%/vw/vh/vmin or a clamp of those.
@@ -92,16 +94,7 @@ body {
   pointer-events: none;
 }
 
-#hud > *,
-#hud .hud-side,
-#hud .dock,
-#hud .picker {
-  pointer-events: auto;
-}
-
-#hud > .stack,
-#hud > .pointer-layer,
-#hud > .title {
+#hud > .pointer-layer {
   pointer-events: none;
 }
 
@@ -144,7 +137,6 @@ button,
     color var(--d-med);
 }
 
-button:hover:not(:disabled),
 .btn:hover {
   border-color: color-mix(in srgb, var(--accent) 60%, transparent);
   background: color-mix(in srgb, var(--accent) 8%, var(--glass-hi));
@@ -285,6 +277,10 @@ button.bad {
   backdrop-filter: none;
 }
 
+#hud .hud-side {
+  pointer-events: auto;
+}
+
 /* the fill is a pseudo-element, so the tab's own box does not clip the menus that open from it */
 .hud-side::before {
   content: '';
@@ -297,6 +293,9 @@ button.bad {
 
 .hud-left {
   --tab-clip: polygon(0 0, 100% 0, 100% calc(100% - 0.9rem), calc(100% - 0.9rem) 100%, 0 100%);
+
+  gap: 0.4rem 0.8rem;
+  padding-left: 0.8rem;
 }
 
 .hud-center {
@@ -308,10 +307,22 @@ button.bad {
     0.9rem 100%,
     0 calc(100% - 0.9rem)
   );
+
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
 }
 
 .hud-right {
   --tab-clip: polygon(0 0, 100% 0, 100% 100%, 0.9rem 100%, 0 calc(100% - 0.9rem));
+
+  margin-left: auto;
+  justify-content: flex-end;
+  position: relative;
+  z-index: 2;
+  gap: 0.15rem;
+  padding: 0.267rem;
 }
 
 .slow-note {
@@ -323,13 +334,6 @@ button.bad {
 
 .slow-note .mute {
   color: var(--mute);
-}
-
-.hud-right {
-  margin-left: auto;
-  justify-content: flex-end;
-  position: relative;
-  z-index: 2;
 } /* (its menu opens over the level card, which sits later in the bar) */
 
 /* The level sits alone at the top centre, out of the stats bar. */
@@ -338,7 +342,7 @@ button.bad {
 .speedctl {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.15rem;
 }
 
 .speedctl .pp,
@@ -354,30 +358,12 @@ button.bad {
 }
 
 .speedctl .zs[aria-pressed='false'] {
-  opacity: 0.5;
+  opacity: 0.55;
 }
 
 .speedctl .zs[aria-pressed='true'] {
   color: var(--accent);
   border-color: var(--accent);
-}
-
-.speedctl .speeds > button:not(.on) {
-  display: none;
-}
-
-.speedctl:hover .speeds > button,
-.speedctl:focus-within .speeds > button,
-.speedctl.open .speeds > button {
-  display: inline-block;
-  animation: fade-in var(--d-med) ease both;
-}
-
-.hud-center {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  transform: translateX(-50%);
 }
 
 @media (width <= 82em) {
@@ -408,10 +394,6 @@ button.bad {
 
 .stat .value {
   font: 700 0.8rem var(--mono);
-}
-
-.stat.bad .value {
-  color: var(--bad);
 }
 
 /* A chip is a quiet pill: a faint fill, no outline. Only its meaning colours it (ok, warn, bad: a tint and a coloured word), never decoration. */
@@ -520,7 +502,7 @@ button.chip[aria-pressed='true'] {
   width: 1px;
   height: 1px;
   overflow: hidden;
-  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   white-space: nowrap;
 }
 
@@ -568,16 +550,6 @@ button.chip[aria-pressed='true'] {
   animation: pulse var(--d-loop) ease-in-out infinite;
 }
 
-/* Sim-activity animations (the OS chip): paused with the game, see state.ts. Interactive feedback keeps running. */
-.chip.live::before {
-  content: '';
-  width: 0.4rem;
-  height: 0.4rem;
-  border-radius: 50%;
-  background: currentcolor;
-  animation: live var(--d-loop) ease-in-out infinite;
-}
-
 @keyframes live {
   0%,
   100% {
@@ -589,7 +561,6 @@ button.chip[aria-pressed='true'] {
   }
 }
 
-.paused .chip.live::before,
 .paused .sim-anim {
   animation-play-state: paused;
 }
@@ -643,12 +614,13 @@ button.chip[aria-pressed='true'] {
   align-items: center;
   gap: 0.133rem;
   padding: 0.233rem;
-  border-radius: 0.95rem;
-  box-shadow:
-    0 0.8rem 1.8rem rgb(0 0 0 / 28%),
-    inset 0 1px 0 rgb(255 255 255 / 6%);
   max-width: 100%;
   box-sizing: border-box;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
 }
 
 .dockbar .invbtn {
@@ -913,16 +885,16 @@ button.chip[aria-pressed='true'] {
     transform var(--d-med) linear,
     height var(--d-trace) ease;
   will-change: transform;
-}
-
-/* ADR 0001 / SPEC §1 rules 5 to 7: the picker card is an edge tab (#78): flat, square, neutral --c-shade-86 fill, no glass. */
-.picker {
   border: 0;
   border-radius: 0;
   box-shadow: none;
   filter: none;
   backdrop-filter: none;
   background: var(--c-shade-86);
+}
+
+#hud .picker {
+  pointer-events: auto;
 }
 
 .picker.nomove {
@@ -955,38 +927,6 @@ button.chip[aria-pressed='true'] {
   height: 1.3rem;
   background: color-mix(in srgb, var(--accent) 70%, var(--bg));
   pointer-events: none;
-}
-
-.picker[data-side='dock'] .tail {
-  display: none;
-}
-
-.picker[data-side='right'] .tail {
-  left: -0.78rem;
-  top: calc(var(--tail) - 0.65rem);
-  clip-path: polygon(0 50%, 100% 0, 100% 100%);
-}
-
-.picker[data-side='left'] .tail {
-  right: -0.78rem;
-  top: calc(var(--tail) - 0.65rem);
-  clip-path: polygon(100% 50%, 0 0, 0 100%);
-}
-
-.picker[data-side='below'] .tail {
-  top: -0.78rem;
-  left: calc(var(--tail) - 0.65rem);
-  width: 1.3rem;
-  height: 0.8rem;
-  clip-path: polygon(50% 0, 0 100%, 100% 100%);
-}
-
-.picker[data-side='above'] .tail {
-  bottom: -0.78rem;
-  left: calc(var(--tail) - 0.65rem);
-  width: 1.3rem;
-  height: 0.8rem;
-  clip-path: polygon(50% 100%, 0 0, 100% 0);
 }
 
 .picker .close,
@@ -1101,18 +1041,9 @@ button.chip[aria-pressed='true'] {
   position: relative;
 }
 
-.rung:hover {
-  border-color: var(--accent);
-}
-
 .rung.picked {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent);
-}
-
-.rung.installed .art,
-.rung.crate .art {
-  opacity: 1;
 }
 
 .rung.blocked,
@@ -1120,24 +1051,10 @@ button.chip[aria-pressed='true'] {
   opacity: 0.7;
 }
 
-.rung.locked .art {
-  filter: grayscale(0.9);
-  opacity: 0.6;
-}
-
 .rung.level {
   opacity: 0.8;
   background: transparent;
   border-style: dashed;
-}
-
-.rung.level .art {
-  filter: grayscale(0.85) saturate(0.6);
-  opacity: 0.5;
-}
-
-.rung.level .rname {
-  color: var(--mute);
 }
 
 .rung.soon,
@@ -1195,7 +1112,7 @@ button.buy.more {
   gap: 0.4rem;
   align-items: baseline;
   font-size: 0.733rem;
-  padding: 0.133rem 0;
+  padding: 0.2rem 0;
 }
 
 .os-sec .osrow .oname {
@@ -1207,11 +1124,6 @@ button.buy.more {
 
 .os-sec .osrow .ok {
   color: var(--ok);
-}
-
-/* Jobs (Jobs.tsx): needs chips, the deadline of an unrunnable job, the Decline button. */
-.os-sec .osrow {
-  padding: 0.2rem 0;
 }
 
 .osrow-sub {
@@ -1263,13 +1175,6 @@ button.buy.more {
   overflow: hidden;
 }
 
-.deadline .dl-bar i {
-  display: block;
-  height: 100%;
-  background: var(--ok);
-  border-radius: 0.2rem;
-}
-
 .deadline .dl-t {
   display: inline-flex;
   align-items: center;
@@ -1280,16 +1185,8 @@ button.buy.more {
   color: var(--warn);
 }
 
-.deadline.warn .dl-bar i {
-  background: var(--warn);
-}
-
 .deadline.bad {
   color: var(--bad);
-}
-
-.deadline.bad .dl-bar i {
-  background: var(--bad);
 }
 
 button.decline {
@@ -1300,12 +1197,6 @@ button.decline {
 button.decline:hover:not(:disabled) {
   color: var(--bad);
   border-color: var(--bad);
-}
-
-button.decline.armed {
-  color: var(--bad);
-  border-color: var(--bad);
-  background: color-mix(in srgb, var(--bad) 12%, transparent);
 }
 
 button.decline.compact {
@@ -1404,27 +1295,6 @@ button.buy {
   background: transparent;
 }
 
-.bar.cur i {
-  background: var(--mute);
-  opacity: 0.55;
-}
-
-.bar.opt i {
-  background: var(--accent);
-}
-
-.bar.opt.better i {
-  background: var(--ok);
-}
-
-.bar.opt.worse i {
-  background: var(--bad);
-}
-
-.bar.opt.same i {
-  background: var(--mute);
-}
-
 .ctext {
   display: flex;
   justify-content: space-between;
@@ -1433,18 +1303,6 @@ button.buy {
 
 .bar.load {
   margin-top: 0.533rem;
-}
-
-.bar.load i {
-  background: var(--alu);
-}
-
-.bar.load.warn i {
-  background: var(--warn);
-}
-
-.bar.load.bad i {
-  background: var(--bad);
 }
 
 /* VRM readout (picker, stats drawer): load bar with the safe, busy and overload zones, then icon chips. */
@@ -1506,21 +1364,17 @@ button.buy {
   margin-top: 0.4rem;
 }
 
-.kv.bad b {
-  color: var(--bad);
-}
-
-.rung.level .rwarn,
-.rung.locked .rwarn {
-  display: none;
-}
-
 .rwarn {
   position: absolute;
   top: 0.25rem;
   right: 0.25rem;
   color: var(--warn);
   line-height: 0;
+}
+
+.rung.level .rwarn,
+.rung.locked .rwarn {
+  display: none;
 }
 
 /* Motherboard tier cards (picker, `board`): two per row in the 22rem card */
@@ -1562,11 +1416,6 @@ button.buy {
   background: transparent;
 }
 
-.bcard.level .bart {
-  filter: grayscale(0.85) saturate(0.6);
-  opacity: 0.5;
-}
-
 .bhead {
   display: flex;
   align-items: baseline;
@@ -1579,9 +1428,18 @@ button.buy {
   font-size: 0.733rem;
 }
 
+.rung.level .rname {
+  color: var(--mute);
+}
+
 .bart {
   display: flex;
   justify-content: center;
+}
+
+.bcard.level .bart {
+  filter: grayscale(0.85) saturate(0.6);
+  opacity: 0.5;
 }
 
 .bslots {
@@ -1707,6 +1565,10 @@ button.buy {
   font-size: 0.8rem;
 }
 
+.stat.bad .value {
+  color: var(--bad);
+}
+
 .readout {
   display: inline-flex;
   align-items: center;
@@ -1767,10 +1629,6 @@ button.buy {
   content: '+ ';
 }
 
-.nerdwrap[open] summary::before {
-  content: '- ';
-}
-
 .nerd {
   margin-top: 0.267rem;
   font: 0.7rem/1.4 var(--mono);
@@ -1805,22 +1663,6 @@ button.buy {
   transition: opacity var(--d-med) ease;
 }
 
-.tut .tut-in {
-  padding: 1.975rem 3.2rem 1.975rem 2.963rem;
-}
-
-.tut .thead {
-  font-family: var(--f-mono);
-  font-size: var(--t-xs);
-  line-height: 1.35;
-  letter-spacing: 0.04em;
-  color: var(--c-mute);
-}
-
-.tut .thead .link {
-  color: var(--c-mute);
-}
-
 .tut .ptitle {
   font-family: var(--f-cond);
   font-weight: 600;
@@ -1832,21 +1674,6 @@ button.buy {
   margin: 0.99rem 0;
 }
 
-.tut .dlg {
-  font-family: var(--f-sans), sans-serif;
-  font-size: var(--t-md);
-  line-height: 1.4;
-  color: var(--c-ink);
-}
-
-.tut .dlg-next {
-  color: var(--c-mute);
-}
-
-.tut .dlg-arrow {
-  border-top-color: var(--c-mute);
-}
-
 .tut-stage {
   margin-top: 0.8rem;
   font-family: var(--f-mono);
@@ -1855,60 +1682,11 @@ button.buy {
   color: var(--c-mute);
 }
 
-/* Tutorial step 1 stages the HUD (SPEC.md §5.11): hidden, not removed, so the layout does not jump when it comes back. */
-#hud.staged .hud-sys,
-#hud.staged .hud-sep,
-#hud.staged .time,
-#hud.staged .stat,
-#hud.staged .bill,
-#hud.staged .hud-sbx,
-#hud.staged .hud-center,
-#hud.staged .speedctl,
-#hud.staged .slow-note {
-  visibility: hidden;
-}
-
-/* The staged dock is the one "Inventory" tab (SPEC 5.11: 150 wide, centred): its other items are not drawn, so the tab does not run under the card. */
-#hud.staged .dockbar > :not(:first-child) {
-  display: none;
-}
-
 /* Landscape: the instruction tab (bottom left, 700 wide) never covers the shelf or the dock. The bottom stack starts right of it, so the tile a step
    points at stays reachable (the staged first step keeps the dock centred). */
 @media (width >= 48.01em) and (aspect-ratio >= 1/1) {
   #hud:not(.staged):has(aside.tut) .stack {
     padding-left: 44.4rem;
-  }
-}
-
-/* Phone: the same card is the ramp block at the bottom (SPEC.md §4.13, screen 11), 16 px gutters, clear of the dock tab. */
-@media (width <= 48em) {
-  .tut {
-    left: 1.067rem;
-    right: 1.067rem;
-    bottom: 4.267rem;
-    width: auto;
-    clip-path: none;
-    background: linear-gradient(0deg, var(--c-shade-86) 0, var(--c-shade-86) 72%, rgb(10 10 12 / 0%) 100%);
-  }
-
-  .tut .tut-in {
-    padding: 2.4rem 1.067rem 0.8rem;
-  }
-
-  .tut .ptitle {
-    font-size: var(--t-display-sm);
-    margin: 0.8rem 0;
-  }
-
-  .tut .dlg {
-    font-size: var(--t-sm);
-    min-height: 0;
-  }
-
-  .tut .thead,
-  .tut-stage {
-    font-size: var(--t-xs);
   }
 }
 
@@ -1921,31 +1699,18 @@ button.buy {
 #hud:has(.pl-menu.paused) .tut {
   opacity: 0;
   pointer-events: none;
-} /* (a paused game shows its menu alone: the card would ghost through the scrim) */
-#hud:has(.picker) .pointer {
-  opacity: 0 !important;
 }
 
 .tut-in {
   padding: 0.55rem 1rem 0.7rem;
 }
 
+.tut .tut-in {
+  padding: 1.975rem 3.2rem 1.975rem 2.963rem;
+}
+
 .tut-text {
   animation: tut-in var(--d-slow) ease both;
-}
-
-.tut .ptitle {
-  font-size: var(--t-display-md);
-  margin: 0.99rem 0;
-  letter-spacing: 0;
-  color: var(--c-ink);
-}
-
-@media (width <= 48em) {
-  .tut .ptitle {
-    font-size: var(--t-display-sm);
-    margin: 0.8rem 0;
-  }
 }
 
 .dlg {
@@ -1965,6 +1730,13 @@ button.buy {
   color: var(--ink);
 }
 
+.tut .dlg {
+  font-family: var(--f-sans), sans-serif;
+  font-size: var(--t-md);
+  line-height: 1.4;
+  color: var(--c-ink);
+}
+
 .dlg-rest {
   opacity: 0;
 }
@@ -1981,6 +1753,10 @@ button.buy {
   opacity: 0;
 }
 
+.tut .dlg-arrow {
+  border-top-color: var(--c-mute);
+}
+
 .dlg-arrow.more {
   opacity: 1;
   animation: dlg-bob var(--d-long) ease-in-out infinite;
@@ -1993,6 +1769,10 @@ button.buy {
   color: var(--accent);
   letter-spacing: 0.04em;
   visibility: hidden;
+}
+
+.tut .dlg-next {
+  color: var(--c-mute);
 }
 
 .dlg-next.on {
@@ -2043,6 +1823,52 @@ button.buy {
   letter-spacing: 0.08em;
 }
 
+.tut .thead {
+  font-family: var(--f-mono);
+  font-size: var(--t-xs);
+  line-height: 1.35;
+  letter-spacing: 0.04em;
+  color: var(--c-mute);
+}
+
+/* Phone: the same card is the ramp block at the bottom (SPEC.md §4.13, screen 11), 16 px gutters, clear of the dock tab. */
+@media (width <= 48em) {
+  .tut {
+    left: 1.067rem;
+    right: 1.067rem;
+    bottom: 4.267rem;
+    width: auto;
+    clip-path: none;
+    background: linear-gradient(0deg, var(--c-shade-86) 0, var(--c-shade-86) 72%, rgb(10 10 12 / 0%) 100%);
+  }
+
+  .tut .tut-in {
+    padding: 2.4rem 1.067rem 0.8rem;
+  }
+
+  .tut .ptitle {
+    font-size: var(--t-display-sm);
+    margin: 0.8rem 0;
+  }
+
+  .tut .dlg {
+    font-size: var(--t-sm);
+    min-height: 0;
+  }
+
+  .tut .thead,
+  .tut-stage {
+    font-size: var(--t-xs);
+  }
+}
+
+@media (width <= 48em) {
+  .tut .ptitle {
+    font-size: var(--t-display-sm);
+    margin: 0.8rem 0;
+  }
+}
+
 .thead .link {
   font-size: 0.75rem;
   padding: 0;
@@ -2082,6 +1908,9 @@ button.buy {
   transition: opacity var(--d-trace) ease;
   pointer-events: none !important;
   overflow: visible;
+} /* (a paused game shows its menu alone: the card would ghost through the scrim) */
+#hud:has(.picker) .pointer {
+  opacity: 0 !important;
 }
 
 .pointer.on {
@@ -2230,12 +2059,11 @@ button.buy {
   display: flex;
   align-items: center;
   gap: 0.3rem;
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--mute);
-  font-weight: 600;
   margin: 0 0 0.3rem 0.15rem;
+  font: 650 var(--fs-label) var(--ui);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--mute);
 }
 
 .inv-tiles {
@@ -2286,16 +2114,6 @@ button.buy {
     border-color var(--d-med) ease;
 }
 
-.tile:hover {
-  border-color: var(--accent);
-  transform: translateY(-0.25rem);
-}
-
-.tile:active {
-  cursor: grabbing;
-  transform: translateY(-0.1rem) scale(0.98);
-}
-
 .tile.sel {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent);
@@ -2309,17 +2127,6 @@ button.buy {
     0 0 1rem color-mix(in srgb, var(--accent) 45%, transparent);
   overflow: hidden;
   animation: tile-queued var(--d-loop-slow) ease-in-out infinite;
-}
-
-.tile.queued::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  height: 0.25rem;
-  width: 40%;
-  background: var(--accent);
-  animation: tile-sweep var(--d-loop-slow) ease-in-out infinite;
 }
 
 .tile .tqueue {
@@ -2415,14 +2222,6 @@ button.buy {
   transition: opacity var(--d-med) ease;
 }
 
-.tile:hover .tgrab {
-  opacity: 1;
-}
-
-.tile.dim:hover .tgrab {
-  opacity: 0;
-}
-
 .invbtn.pulse {
   outline-offset: 0.15rem;
 }
@@ -2438,6 +2237,10 @@ button.buy {
   z-index: 20;
   padding: 0.667rem 0.733rem;
   scrollbar-width: thin;
+}
+
+#hud .dock {
+  pointer-events: auto;
 }
 
 .dock h2 {
@@ -2502,12 +2305,6 @@ button.buy {
   display: none;
 }
 
-.stat-fold > summary h3 {
-  display: flex;
-  align-items: baseline;
-  margin: 0.467rem 0 0.267rem;
-}
-
 .stat-fold > summary h3::before {
   content: '›';
   display: inline-block;
@@ -2517,14 +2314,6 @@ button.buy {
 
 .stat-fold[open] > summary h3::before {
   transform: rotate(90deg);
-}
-
-.stat-fold > summary .mute {
-  font: 0.667rem var(--mono);
-}
-
-.stat-fold:not([open]) > summary:hover h3 {
-  color: var(--ink);
 }
 
 .dev {
@@ -2801,14 +2590,6 @@ button.buy {
   user-select: text;
 }
 
-.modal.crash .chips .chip {
-  font-size: 1rem;
-}
-
-.modal.crash button {
-  font-size: 1rem;
-}
-
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -2857,8 +2638,6 @@ button.buy {
   transition-duration: var(--d-fast);
 }
 
-/* Before a game the dialogs dim the room less: it is the title screen's picture. */
-.title:not(.gone) ~ .ng-back,
 .title:not(.gone) ~ .modal-back {
   background: radial-gradient(ellipse 80% 70% at 50% 58%, rgb(4 8 24 / 12%), rgb(4 8 24 / 60%));
 }
@@ -2980,11 +2759,11 @@ button.buy {
 .ctl kbd {
   font-size: 0.78rem;
   padding: 0.1rem 0.45rem;
-}
-
-.modal button.danger {
-  color: var(--bad);
-  border-color: color-mix(in srgb, var(--bad) 55%, transparent);
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
 }
 
 .mm-card {
@@ -3007,6 +2786,10 @@ button.buy {
 .hud,
 .stack {
   animation: hud-in var(--d-long) ease var(--d-trace) backwards;
+}
+
+#hud > .stack {
+  pointer-events: none;
 } /* (backwards: a finished opacity animation that keeps its fill would keep the bar a backdrop root, and the glass inside it could not blur) */
 
 @keyframes hud-in {
@@ -3017,9 +2800,6 @@ button.buy {
   to {
     opacity: 1;
   }
-}
-
-.hide-narrow {
 }
 
 /* Tall screens (portrait tablets and up): the inventory docks at the right edge, tiles in a grid. */
@@ -3120,6 +2900,12 @@ button.buy {
   backdrop-filter: blur(0.3rem);
 }
 
+/* Before a game the dialogs dim the room less: it is the title screen's picture. */
+
+.title:not(.gone) ~ .ng-back {
+  background: radial-gradient(ellipse 80% 70% at 50% 58%, rgb(4 8 24 / 12%), rgb(4 8 24 / 60%));
+}
+
 .ng {
   display: flex;
   flex-direction: column;
@@ -3151,10 +2937,10 @@ button.buy {
   text-align: left;
   padding: 0.9rem;
   border: 1px solid var(--glass-line);
-  border-radius: 0.6rem;
-  background: var(--glass-hi);
   color: var(--ink);
   cursor: pointer;
+  border-radius: 0.8rem;
+  background: var(--veil);
 }
 
 .ng-choice:focus-visible {
@@ -3163,8 +2949,9 @@ button.buy {
 }
 
 .ng-choice.on {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--veil));
+  box-shadow: inset 0 0 0 1px var(--sel-line);
+  border-color: transparent;
 }
 
 .ng-choice .t {
@@ -3227,10 +3014,6 @@ button.buy {
   height: 0.733rem;
   box-sizing: border-box;
   background: var(--c-trace);
-}
-
-.lvl-cells i.on {
-  background: var(--c-ink);
 }
 
 .lvl-n {
@@ -3570,14 +3353,14 @@ button.buy {
   flex-wrap: wrap;
 }
 
-.sbx-row select,
-.sbx-row input[type='number'] {
+.sbx-row select {
   font: inherit;
   color: var(--ink);
-  background: var(--tile);
+  font-size: 0.75rem;
+  background: var(--veil);
   border: 1px solid var(--glass-line);
-  border-radius: 0.267rem;
-  padding: 0.2rem 0.3rem;
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.45rem;
 }
 
 .sbx-row input[type='range'] {
@@ -3691,10 +3474,6 @@ button.buy {
   margin-left: auto;
   color: var(--mute);
   transition: transform var(--d-med) ease;
-}
-
-.sbj-group.open .sbj-fold .chev {
-  transform: rotate(90deg);
 }
 
 .sbj-count {
@@ -3857,20 +3636,11 @@ button.buy {
   background: color-mix(in srgb, var(--warn) 12%, transparent);
 }
 
-.net-seg.binding .kv span,
-.net-seg.binding .kv b {
-  color: var(--warn);
-}
-
 .net-seg i {
   display: block;
   height: 0.267rem;
   border-radius: 0.133rem;
   background: var(--accent);
-}
-
-.net-seg.binding i {
-  background: var(--warn);
 }
 
 .net-limit {
@@ -3946,10 +3716,6 @@ button.buy {
   color: var(--mute);
 }
 
-.net-step.live b {
-  color: var(--accent);
-}
-
 .net-step small {
   font-size: 0.58rem;
   line-height: 1.2;
@@ -3962,14 +3728,6 @@ button.buy {
   padding: 0.2rem 0;
   font-size: 0.72rem;
   color: var(--mute);
-}
-
-.net-more[open] summary {
-  color: var(--ink);
-}
-
-.netpanel .chip b {
-  font-family: var(--mono);
 }
 
 .netpanel .kv.warn,
@@ -4005,10 +3763,6 @@ button.buy {
   height: min(100%, 40rem);
 }
 
-.ospanel .alm-head {
-  flex-wrap: wrap;
-}
-
 .ospanel .sub {
   font-size: 0.7rem;
   margin: 0.133rem 0;
@@ -4040,12 +3794,6 @@ button.buy {
 
 .os-body > section {
   min-width: 0;
-}
-
-.os-body > .os-perf,
-.os-body > .os-table,
-.os-body > .os-procs {
-  grid-column: 1 / -1;
 }
 
 .os-procs {
@@ -4084,10 +3832,6 @@ button.buy {
     inset 0 0 0 1px var(--edge, var(--hair));
 }
 
-.os-tile:hover {
-  background: color-mix(in srgb, var(--ink) 7%, transparent);
-}
-
 .os-tile.sel {
   --edge: var(--sel-line);
 
@@ -4100,14 +3844,6 @@ button.buy {
 
 .os-tile.bad {
   --tint: var(--bad);
-}
-
-.os-tile .os-graph {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0.5;
 }
 
 .os-tile-txt {
@@ -4146,10 +3882,6 @@ button.buy {
   border-radius: 0.7rem;
   background: color-mix(in srgb, var(--ok) 10%, transparent);
   font-size: 0.75rem;
-}
-
-.os-banner > span:not(.os-pulse) {
-  color: var(--mute);
 }
 
 .os-banner.warn {
@@ -4249,6 +3981,14 @@ button.buy {
   height: 100%;
 }
 
+.os-tile .os-graph {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.5;
+}
+
 .os-graph .ln {
   fill: none;
   stroke: var(--accent);
@@ -4319,6 +4059,12 @@ button.buy {
   background: var(--veil);
   box-shadow: inset 0 0 0 1px var(--hair);
   overflow: hidden;
+}
+
+.os-body > .os-perf,
+.os-body > .os-table,
+.os-body > .os-procs {
+  grid-column: 1 / -1;
 }
 
 .os-tr {
@@ -4685,32 +4431,6 @@ button.buy {
   margin-top: 1rem !important;
 }
 
-.lvlmodal .lvl-actions button {
-  background: none;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  padding: 0.2rem 0;
-  font: 600 var(--t-md) / 1.3 var(--f-sans);
-  letter-spacing: 0;
-  color: var(--c-ink);
-}
-
-.lvlmodal .lvl-actions button.link {
-  color: var(--c-mute);
-}
-
-.lvlmodal .lvl-actions button:hover:not(:disabled) {
-  background: none;
-  border-color: transparent;
-  color: var(--c-accent);
-}
-
-.lvlmodal .lvl-actions button:focus-visible {
-  outline: 0.133rem solid var(--c-accent);
-  outline-offset: 0.2rem;
-}
-
 .lvlmodal .lvl-actions .primary {
   min-width: 6rem;
 }
@@ -4844,10 +4564,6 @@ button.buy {
   gap: 0.25rem;
 }
 
-.inv-chips button.ic span {
-  font-size: var(--fs-label, 0.7rem);
-}
-
 /* The shelf's stat card: opens to the left of the shelf on a tile's selection, or after a tiny hover delay. */
 .inv-info {
   position: absolute;
@@ -4962,8 +4678,11 @@ button.buy {
 /* The shop: a near full-screen modal in three fixed zones: category rail, items, the picked part (3D view over its stat bars). */
 .shop-back {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: flex-end;
+  padding: 0;
+  background: none;
+  backdrop-filter: none;
 }
 
 .shop {
@@ -5034,28 +4753,6 @@ button.buy {
   border-radius: var(--r-tile, 0.5rem);
 }
 
-.shop-rail button span {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.shop-rail button em {
-  font-style: normal;
-  font-size: var(--fs-label, 0.7rem);
-  color: var(--mute);
-}
-
-.shop-rail button:hover {
-  background: var(--panel-hi, rgb(255 255 255 / 6%));
-}
-
-.shop-rail button.on em {
-  color: inherit;
-}
-
 .shop-list {
   flex: 1;
   min-width: 0;
@@ -5072,9 +4769,9 @@ button.buy {
   align-items: center;
   gap: 0.35rem;
   margin: 0 0 0.4rem;
-  font-size: 0.7rem;
+  font: 650 var(--fs-label) var(--ui);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.18em;
   color: var(--mute);
 }
 
@@ -5091,6 +4788,8 @@ button.buy {
 
 .shop-detail .showcase-host {
   height: clamp(14rem, 42vh, 28rem);
+  border-radius: 0;
+  background: none;
 }
 
 @media (width <= 62em) {
@@ -5133,16 +4832,6 @@ button.buy {
   }
 }
 
-/* The shop as an edge tab (#73, SPEC §4.11, ADR 0001): flat, flush to the right edge, chamfered on its free left corners (20 px; 10 px on phone).
-   No glass, border, radius, shadow or gradient, and no navy behind the 3D view: the backing is --c-shade-86. */
-.shop-back {
-  align-items: stretch;
-  justify-content: flex-end;
-  padding: 0;
-  background: none;
-  backdrop-filter: none;
-}
-
 .shop.card {
   width: min(100%, 92rem);
   height: 100%;
@@ -5167,45 +4856,6 @@ button.buy {
       0 var(--ch-sm)
     );
   }
-}
-
-.shop .shop-rail button {
-  border-radius: 0;
-}
-
-.shop .shop-rail button:hover {
-  background: color-mix(in srgb, var(--c-shade-86) 88%, var(--c-ink));
-}
-
-.shop .shop-rail button.on {
-  color: var(--ink);
-  font-weight: 600;
-}
-
-.shop .rung {
-  border: 0;
-  border-radius: 0;
-  background: var(--c-shade-86);
-}
-
-.shop .rung.picked {
-  background: color-mix(in srgb, var(--c-shade-86) 88%, var(--c-ink));
-  box-shadow: none;
-}
-
-.shop .bld-bar {
-  border-radius: 0;
-  background: color-mix(in srgb, var(--c-shade-86) 88%, var(--c-ink));
-}
-
-.shop .bld-bar i {
-  border-radius: 0;
-  background: var(--g, var(--accent));
-}
-
-.shop-detail .showcase-host {
-  border-radius: 0;
-  background: none;
 }
 
 /* Short landscape screens (a phone on its side): the shelf moves to the right edge as a column and the tutorial box stays
@@ -5379,6 +5029,7 @@ button.buy {
   padding: 0.2rem 0.3rem;
   font-size: 0.7rem;
   border-width: 0.0625rem;
+  border-left: 0.25rem solid var(--core, var(--line));
 }
 
 .tracedock .tcore[aria-pressed='true'] {
@@ -5388,10 +5039,6 @@ button.buy {
 
 .tracedock .tcore.idle {
   opacity: 0.55;
-}
-
-.tracedock .tcore {
-  border-left: 0.25rem solid var(--core, var(--line));
 } /* the core's own colour, the same as its badge on the die */
 .tracedock .tcore .trate {
   font-size: 0.6rem;
@@ -5402,14 +5049,6 @@ button.buy {
   display: flex;
   gap: 0.0625rem;
   width: 100%;
-}
-
-.tracedock .tcells i {
-  flex: 1;
-  height: 0.3rem;
-  border-radius: 0.0625rem;
-  background: var(--line);
-  opacity: 0.4;
 }
 
 .tracedock .tcells .tc-alu {
@@ -5461,33 +5100,15 @@ button.buy {
   min-width: 0;
 }
 
-.tracedock .trace-scrub button {
-  padding: 0.1rem 0.4rem;
-  font-size: 0.7rem;
-}
-
 .tracedock .tl.now {
   background: var(--glass-line);
 }
 
 .tracedock .tl {
   cursor: default;
-}
-
-.tracedock .trace-steps button,
-.tracedock .trace-filter button {
-  padding: 0.15rem 0.5rem;
-  font-size: 0.72rem;
-}
-
-.tracedock .trace-filter button.on {
-  background: var(--glass-line);
-  border-color: var(--ink);
-  color: var(--ink);
-}
-
-.tracedock .trace-filter button {
-  color: var(--mute);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tracedock .trace-lines {
@@ -5495,12 +5116,6 @@ button.buy {
   min-height: 5rem;
   font-family: ui-monospace, Consolas, monospace;
   line-height: 1.35;
-}
-
-.tracedock .tl {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .tracedock .tc {
@@ -5549,10 +5164,6 @@ button.buy {
 
 .tracedock .tl-k-mul {
   color: #3aa8d9;
-}
-
-.tracedock .trace-filter button:disabled {
-  opacity: 0.45;
 }
 
 .tracedock .trace-health,
@@ -5611,6 +5222,10 @@ button.buy {
   flex-wrap: wrap;
 }
 
+.ospanel .alm-head {
+  flex-wrap: wrap;
+}
+
 .alm-head .close {
   position: absolute;
   right: 0;
@@ -5650,9 +5265,9 @@ button.buy {
 
 .almanac h4 {
   margin: 0.6rem 0 0.25rem;
-  font-size: 0.68rem;
+  font: 650 var(--fs-label) var(--ui);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.18em;
   color: var(--mute);
 }
 
@@ -5694,26 +5309,10 @@ button.buy {
   .almanac-back.alm-edge {
     padding: 3.5rem 0;
   }
-} /* (a phone or a short landscape screen: the HUD bar and the dock keep their rows) */
-.almanac.alm-edge button {
-  border: 0;
 }
 
 .almanac.alm-edge .close {
   border-radius: 0;
-}
-
-.almanac.alm-edge .seg > button,
-.almanac.alm-edge .seg > :first-child,
-.almanac.alm-edge .seg > :last-child {
-  border-radius: 0;
-  margin-left: 0;
-}
-
-.alm-edge .dx-gchip,
-.alm-edge .dx-need,
-.alm-edge .dx-tip {
-  border-radius: 0.25rem;
 }
 
 .dx-prog {
@@ -5729,12 +5328,6 @@ button.buy {
   height: 0.5rem;
   background: var(--glass-line);
   overflow: hidden;
-}
-
-.dx-prog .bar i {
-  display: block;
-  height: 100%;
-  background: var(--accent);
 }
 
 /* the collection */
@@ -5778,6 +5371,10 @@ button.buy {
   font-weight: 700;
 }
 
+.sbj-group.open .sbj-fold .chev {
+  transform: rotate(90deg);
+}
+
 .dx-group:not(.shut) .dx-ghead .chev {
   transform: rotate(90deg);
 }
@@ -5791,13 +5388,6 @@ button.buy {
 .dx-ghead .pips {
   display: inline-flex;
   gap: 0.12rem;
-}
-
-.dx-ghead .pips i {
-  width: 0.4rem;
-  height: 0.4rem;
-  border-radius: 50%;
-  border: 1px solid var(--g);
 }
 
 .dx-ghead .pips i.half {
@@ -5855,13 +5445,6 @@ button.buy {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.dx-tile.st-unseen .nm,
-.dx-tile.st-planned .nm {
-  color: var(--mute);
-  letter-spacing: 0.15em;
-  font-weight: 400;
 }
 
 .dx-tile .lk {
@@ -6015,12 +5598,6 @@ button.buy {
   letter-spacing: 0.08em;
 }
 
-.dx-gchip .dot {
-  width: 0.45rem;
-  height: 0.45rem;
-  border-radius: 50%;
-}
-
 .dx-blurb {
   margin: 0;
   line-height: 1.35;
@@ -6163,22 +5740,6 @@ button.buy {
   color: var(--g);
 }
 
-.dx-codebar .seg button {
-  padding: 0.15rem 0.6rem;
-  font-size: 0.72rem;
-  color: var(--mute);
-}
-
-.dx-codebar .seg button.on {
-  color: var(--accent);
-  background: var(--sel-bg);
-  border-color: var(--sel-line);
-}
-
-.dx-codebar .seg button.off {
-  opacity: 0.55;
-}
-
 .dx-view {
   margin-left: auto;
 }
@@ -6200,18 +5761,6 @@ button.buy {
   letter-spacing: 0.08em;
   color: var(--mute);
   font-weight: 700;
-}
-
-.dx-scale .seg button {
-  padding: 0.12rem 0.5rem;
-  font-size: 0.7rem;
-  color: var(--mute);
-  text-transform: none;
-}
-
-.dx-scale .seg button.on {
-  color: var(--ink);
-  background: var(--glass-line);
 }
 
 .dx-nums {
@@ -6242,13 +5791,6 @@ button.buy {
   object-fit: contain;
   image-rendering: pixelated;
   background: #060418;
-}
-
-.dx-code .alm-code {
-  max-height: 17rem;
-  border: 0;
-  border-radius: 0;
-  background: none;
 }
 
 .dx-lock {
@@ -6295,6 +5837,12 @@ button.buy {
   background: color-mix(in srgb, var(--g) 16%, transparent);
   font-size: 0.74rem;
   font-weight: 600;
+}
+
+.alm-edge .dx-gchip,
+.alm-edge .dx-need,
+.alm-edge .dx-tip {
+  border-radius: 0.25rem;
 }
 
 .dx-tip.on {
@@ -6365,13 +5913,11 @@ button.buy {
   gap: 0.25rem;
 }
 
-.alm-tabs button.on {
-  color: var(--ink);
-  border-color: var(--ink);
-  background: var(--glass-line);
+.alm-tabs button.off {
+  opacity: 0.55;
 }
 
-.alm-tabs button.off {
+.dx-codebar .seg button.off {
   opacity: 0.55;
 }
 
@@ -6380,17 +5926,6 @@ button.buy {
   gap: 0.6rem;
   flex-wrap: wrap;
   margin-bottom: 0.4rem;
-}
-
-.alm-ctl .seg button {
-  padding: 0.12rem 0.5rem;
-  font-size: 0.7rem;
-  color: var(--mute);
-}
-
-.alm-ctl .seg button.on {
-  color: var(--ink);
-  background: var(--glass-line);
 }
 
 .alm-note {
@@ -6436,6 +5971,12 @@ button.buy {
   vertical-align: -0.05rem;
 }
 
+.dx-gchip .dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+}
+
 .alm-rely {
   display: flex;
   flex-direction: column;
@@ -6455,13 +5996,6 @@ button.buy {
   background: var(--glass-line);
   border-radius: 0.2rem;
   overflow: hidden;
-}
-
-.alm-rely .b i {
-  display: block;
-  height: 100%;
-  background: var(--ink);
-  opacity: 0.75;
 }
 
 .alm-rely .v {
@@ -6516,6 +6050,13 @@ button.buy {
   overflow: auto;
 }
 
+.dx-code .alm-code {
+  max-height: 17rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
 /* the kernel of a graphics job: lanes picker, the busy numbers and its instruction mix, then the instruction set under the listing */
 .dx-kstats {
   display: flex;
@@ -6523,17 +6064,6 @@ button.buy {
   gap: 0.6rem;
   flex-wrap: wrap;
   padding: 0.4rem 0.6rem;
-}
-
-.dx-kstats .seg button {
-  padding: 0.15rem 0.5rem;
-  font-size: 0.72rem;
-  color: var(--mute);
-}
-
-.dx-kstats .seg button.on {
-  color: var(--ink);
-  background: var(--glass-line);
 }
 
 .dx-kstats .alm-bar {
@@ -6616,11 +6146,6 @@ button.buy {
   height: 0.4rem;
   background: var(--glass-line);
   overflow: hidden;
-}
-
-.alm-listing .hc i {
-  display: block;
-  height: 100%;
 }
 
 .alm-listing .ct {
@@ -6761,12 +6286,6 @@ button.buy {
   border-radius: 0.25rem;
 }
 
-.jl-filter button.on {
-  color: var(--ink);
-  font-weight: 600;
-  background: none;
-}
-
 /* a job's time: the waiting is grey, the work is colour (so a long wait does not look like an alarm, and the tags that are one stand out) */
 .jl-wait {
   background: color-mix(in srgb, var(--mute) 55%, transparent);
@@ -6810,9 +6329,6 @@ button.buy {
   padding: 0.25rem 0.5rem;
   text-align: left;
   color: var(--ink);
-}
-
-.jl-row {
   background: transparent;
   border: 0;
   border-radius: 0;
@@ -6989,12 +6505,6 @@ button.buy {
   color: var(--mute);
 }
 
-.jl-head h3 b {
-  color: var(--ink);
-  font: 700 1.15rem var(--mono);
-  margin-left: 0.2rem;
-}
-
 .jl-cap {
   display: flex;
   align-items: center;
@@ -7069,20 +6579,12 @@ button.buy {
   transition: transform var(--d-med) ease;
 }
 
+.nerdwrap[open] summary::before {
+  content: '- ';
+}
+
 .jl-inside[open] summary::before {
   transform: rotate(90deg);
-}
-
-.jl-inside summary > span:first-child {
-  flex: 1;
-}
-
-.jl-inside summary .mute {
-  font-weight: 400;
-}
-
-.jl-inside .jl-stalls {
-  margin-top: 0.6rem;
 }
 
 /* bars: what the cycles went on */
@@ -7091,6 +6593,10 @@ button.buy {
   flex-direction: column;
   gap: 0.3rem;
   max-width: 44rem;
+}
+
+.jl-inside .jl-stalls {
+  margin-top: 0.6rem;
 }
 
 .jl-stalls .row {
@@ -7110,13 +6616,6 @@ button.buy {
   background: var(--glass-line);
   border-radius: 0;
   overflow: hidden;
-}
-
-.jl-stalls .b i {
-  display: block;
-  height: 100%;
-  background: var(--k);
-  border-radius: 0;
 }
 
 .jl-stalls .v {
@@ -7183,6 +6682,13 @@ button.buy {
   align-items: center;
   gap: 0.5rem;
   font-weight: 600;
+}
+
+.dx-tile.st-unseen .nm,
+.dx-tile.st-planned .nm {
+  color: var(--mute);
+  letter-spacing: 0.15em;
+  font-weight: 400;
 }
 
 .jl-kind .cnt {
@@ -7253,15 +6759,6 @@ button.buy {
   margin: 0 0 0.1rem;
 }
 
-.jl-now h4 .count {
-  font: 700 0.68rem var(--mono);
-  color: var(--ink);
-  background: var(--veil);
-  padding: 0 0.4rem;
-  border-radius: 0.25rem;
-  letter-spacing: 0;
-}
-
 .jl-now-row {
   display: grid;
   grid-template-columns: 2.6rem 9rem 10rem 1fr 3.4rem 7rem 1.6rem;
@@ -7293,10 +6790,6 @@ button.buy {
 .jl-live {
   position: relative;
   height: 0.65rem;
-}
-
-.jl-live.late u {
-  background: var(--warn);
 }
 
 .jl-live u {
@@ -7332,12 +6825,26 @@ button.buy {
   margin: 0;
 }
 
+.stat-fold > summary h3 {
+  display: flex;
+  align-items: baseline;
+  margin: 0.467rem 0 0.267rem;
+}
+
+.stat-fold:not([open]) > summary:hover h3 {
+  color: var(--ink);
+}
+
 .jl-dhead .jl-cap {
   margin-top: 0.25rem;
 }
 
 .jl-dhead .link {
   margin-left: auto;
+}
+
+.tut .thead .link {
+  color: var(--c-mute);
 }
 
 .jl-pay {
@@ -7538,12 +7045,6 @@ button.buy {
   clip-path: polygon(var(--ch) 0, 100% 0, 100% 100%, var(--ch) 100%, 0 calc(100% - var(--ch)), 0 var(--ch));
 }
 
-.joblog .alm-head .close,
-.joblog button.link {
-  background: none;
-  border-radius: 0;
-}
-
 .joblog .chip {
   border: 0;
   border-radius: 0.25rem;
@@ -7563,13 +7064,6 @@ button.buy {
   }
 }
 
-/* One look for the panels (shop, inventory, almanac, OS): the same tile corner, the same hover and selected states, the same section label. */
-.rung:hover,
-.tile:hover,
-.os-tile:hover {
-  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
-}
-
 .rung,
 .tile,
 .os-tile {
@@ -7577,6 +7071,37 @@ button.buy {
     border-color var(--d-med),
     background var(--d-med),
     box-shadow var(--d-med);
+}
+
+.rung:hover {
+  border-color: var(--accent);
+}
+
+.tile:hover {
+  border-color: var(--accent);
+  transform: translateY(-0.25rem);
+}
+
+.tile:active {
+  cursor: grabbing;
+  transform: translateY(-0.1rem) scale(0.98);
+}
+
+.os-tile:hover {
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+.shop .rung {
+  border: 0;
+  border-radius: 0;
+  background: var(--c-shade-86);
+}
+
+/* One look for the panels (shop, inventory, almanac, OS): the same tile corner, the same hover and selected states, the same section label. */
+.rung:hover,
+.tile:hover,
+.os-tile:hover {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 .rung.picked,
@@ -7587,13 +7112,9 @@ button.buy {
   background: color-mix(in srgb, var(--accent) 14%, var(--glass-hi));
 }
 
-.inv-gname,
-.shop-sec h3,
-.almanac h4 {
-  font: 650 var(--fs-label) var(--ui);
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: var(--mute);
+.shop .rung.picked {
+  background: color-mix(in srgb, var(--c-shade-86) 88%, var(--c-ink));
+  box-shadow: none;
 }
 
 .shop-title,
@@ -7634,9 +7155,7 @@ button.buy {
   --m-r-card: 0.8rem;
   --m-r-row: 0.6rem;
   --m-r-pill: 99rem;
-}
 
-.mode {
   position: fixed;
   inset: 0;
   z-index: 70;
@@ -7726,22 +7245,6 @@ button.buy {
     transform var(--d-med);
 }
 
-.mode button:hover:not(:disabled) {
-  background: rgb(255 255 255 / 9%);
-  border-color: rgb(150 170 255 / 35%);
-}
-
-.mode button:focus-visible {
-  outline: 0.133rem solid var(--accent);
-  outline-offset: 0.1rem;
-}
-
-.mode button.on {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-}
-
 .mode .mode-close {
   position: absolute;
   top: 1rem;
@@ -7768,12 +7271,6 @@ button.buy {
   border-radius: 1.4rem;
 }
 
-.mode .mode-bar button {
-  padding: 0.4rem 0.9rem;
-  font-size: var(--m-sm);
-  border-radius: var(--m-r-pill);
-}
-
 .mode-bar .seg {
   gap: 0.1rem;
   padding: 0.15rem;
@@ -7795,31 +7292,20 @@ button.buy {
   background: var(--c-shade-86);
 }
 
-.build .mode-bar.bld-run-sheet,
-.build .bld-tools,
-.build .bld-views,
-.build .bld-run,
-.build .bld-panes,
-.build .bld-dock .mode-bar {
+.build .bld-tools {
   background: none;
 }
 
-.build .mode-bar button,
-.build .mode-bar .seg {
-  border-radius: 0;
+.build .bld-views {
+  background: none;
 }
 
-.mode .mode-bar .seg > button {
-  margin: 0;
-  padding: 0.25rem 0.6rem;
-  border-color: transparent;
-  background: transparent;
-  font-family: var(--mono);
+.build .bld-run {
+  background: none;
 }
 
-.mode .mode-bar .seg > button.on {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+.build .bld-panes {
+  background: none;
 }
 
 .mode-sep {
@@ -7840,6 +7326,8 @@ button.buy {
   gap: 0.4rem 1.1rem;
   font-size: var(--m-xs);
   color: var(--mute);
+  opacity: 0.62;
+  transition: opacity var(--d-med) ease;
 }
 
 /* a screen with no mouse (`pointer: coarse`) reads the fingers' words in place of the keys, and no hint for a key that has no finger (`kit/ModeKit.tsx`) */
@@ -7899,33 +7387,16 @@ button.buy {
 /* the flat studio: no backdrop gradient and no vignette, and neutral glass (a blue tint in the panels reads as navy on the stage) */
 .gallery {
   background: var(--c-studio);
+
+  --panel: rgb(30 30 31 / 86%);
+  --glass-line: rgb(255 255 255 / 14%);
+  --bld-l: 22.5rem;
+  --bld-r: 25rem;
+  --bld-u: 25rem;
 }
 
 .gallery::after {
   display: none;
-}
-
-.gallery {
-  --panel: rgb(30 30 31 / 86%);
-  --glass-line: rgb(255 255 255 / 14%);
-}
-
-/* at rest nothing is cyan here: the selected category, the kind and the lit buttons are ink on grey (cyan is for focus, SPEC §1) */
-.gallery .gal-kind {
-  color: var(--ink);
-  background: var(--glass-hi);
-}
-
-.gallery .bld-rail button.on {
-  color: var(--ink);
-  background: var(--glass-hi);
-}
-
-.gallery .showcase-bar button.on,
-.gallery .mode-bar button.on {
-  color: var(--ink);
-  background: rgb(255 255 255 / 12%);
-  border-color: var(--glass-line);
 }
 
 /* the K1 brackets: four corners round the free box the viewer frames the part in (its insets are this box's edges, `Showcase.tsx`) */
@@ -7952,8 +7423,10 @@ button.buy {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
-.gal-read .bld-fig .bld-pips {
-  margin: 0.3rem 0 0.15rem;
+/* at rest nothing is cyan here: the selected category, the kind and the lit buttons are ink on grey (cyan is for focus, SPEC §1) */
+.gallery .gal-kind {
+  color: var(--ink);
+  background: var(--glass-hi);
 }
 
 /* the right column is as tall as the screen (so the part keeps clear of all of it) and holds the card at its top */
@@ -7982,10 +7455,6 @@ button.buy {
   gap: 0.9rem;
 }
 
-.gal-part .mode-head b {
-  overflow-wrap: anywhere;
-}
-
 .gal-detail {
   font-size: var(--m-sm);
   line-height: 1.35;
@@ -8008,22 +7477,8 @@ button.buy {
   gap: 0.25rem 0.6rem;
 }
 
-.gal-stat > span:first-child {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font: 650 var(--m-xs) var(--ui);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--mute);
-}
-
 .gal-stat > b {
   font: 650 var(--m-md) var(--mono);
-}
-
-.gal-stat .bld-bar {
-  grid-column: 1 / -1;
 }
 
 .gal-step {
@@ -8064,12 +7519,6 @@ button.buy {
   text-align: left;
 }
 
-.gallery .gal-row:hover:not(:disabled) {
-  color: var(--ink);
-  background: var(--glass-hi);
-  border-color: transparent;
-}
-
 .gallery .gal-row.on {
   color: var(--ink);
   background: var(--glass-hi);
@@ -8090,22 +7539,6 @@ button.buy {
 .gal-count {
   font: 500 var(--m-sm) var(--mono);
   color: var(--mute);
-}
-
-/* the Gallery's shelf has no rail beside it: one column of parts, and the list scrolls inside its row */
-.gallery .gal-shelf .bld-shelf {
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 24rem);
-}
-
-/* the chips: Build my PC's presets */
-.mode .bld-presets button {
-  padding: 0.3rem 0.75rem;
-  border-radius: var(--m-r-pill);
-}
-
-.build .bld-presets button {
-  border-radius: 0;
 }
 
 @media (width <= 52em) {
@@ -8161,17 +7594,18 @@ button.buy {
 
 /* Gallery on a phone, portrait or landscape (SPEC 6.5): Back, Spin, Reset, Settings and the stepper are pinned and never scroll away. The stage holds the
    first four (its toolbar), the foot holds the stepper; only `.gal-scroll` (the category list, the shelf and the numbers) scrolls, inside its own tab. */
+
 @media (width <= 52em), (height <= 30em) {
   .gallery.mode {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(12rem, 42%) minmax(0, 1fr) auto;
-    grid-template-areas: 'stage' 'scroll' 'foot';
+    grid-template: 'stage' minmax(12rem, 42%) 'scroll' minmax(0, 1fr) 'foot' auto / minmax(0, 1fr);
     gap: 0.6rem;
     padding: 0.8rem;
     overflow: hidden;
   }
+}
 
+@media (width <= 52em), (height <= 30em) {
   .gallery .gal-main {
     grid-area: stage;
     position: relative;
@@ -8180,44 +7614,38 @@ button.buy {
     min-height: 0;
     flex: none;
   }
+}
 
+@media (width <= 52em), (height <= 30em) {
   .gallery .gal-main .mode-top {
     top: 0.4rem;
     right: 3.6rem;
   }
+}
 
+@media (width <= 52em), (height <= 30em) {
   .gallery .gal-main,
   .gallery .gal-main .showcase-host {
     border: 0;
     border-radius: 0;
     overflow: hidden;
   }
+}
 
-  /* SPEC 4.7 and 5.8 phone: flat. The toolbar, the stepper and the panels are no cards: no border, radius, blur, shadow or gradient (chips keep 4px). */
-  .gallery .mode-panel,
-  .gallery .mode-bar,
-  .gallery .gal-main .showcase-bar {
-    border: 0;
-    border-radius: 0;
-    background: none;
-    box-shadow: none;
-    backdrop-filter: none;
-  }
-
-  .gallery .mode-bar .seg {
-    border-radius: 0;
-    background: none;
-  }
-
+@media (width <= 52em), (height <= 30em) {
   .gallery .gal-kind,
   .gallery .gal-row {
     border-radius: 0.27rem;
   }
+}
 
+@media (width <= 52em), (height <= 30em) {
   .gallery .gal-brackets {
     inset: 3.4rem 1rem 1rem;
   }
+}
 
+@media (width <= 52em), (height <= 30em) {
   .gallery .mode-close {
     position: relative;
     top: auto;
@@ -8226,7 +7654,9 @@ button.buy {
     place-self: start end;
     margin: 0.4rem;
   }
+}
 
+@media (width <= 52em), (height <= 30em) {
   .gallery .gal-scroll {
     grid-area: scroll;
     min-height: 0;
@@ -8237,7 +7667,9 @@ button.buy {
     scrollbar-width: thin;
     overscroll-behavior: contain;
   }
+}
 
+@media (width <= 52em), (height <= 30em) {
   .gallery .gal-scroll > * {
     position: static;
     width: auto;
@@ -8246,44 +7678,62 @@ button.buy {
     flex: none;
     pointer-events: auto;
   }
+}
 
+@media (width <= 52em), (height <= 30em) {
   .gallery .bld-read {
     order: 1;
     flex-wrap: wrap;
     justify-content: center;
     gap: 0.5rem 0.9rem;
   }
+}
 
+@media (width <= 52em), (height <= 30em) {
   .gallery .bld-read .mode-sep {
     display: none;
   }
+}
 
+@media (width <= 52em), (height <= 30em) {
   .gallery .gal-spine {
     order: 2;
   }
+}
 
+@media (width <= 52em), (height <= 30em) {
   .gallery .bld-bin {
     order: 3;
     overflow: visible;
   }
+}
 
+@media (width <= 52em), (height <= 30em) {
   .gallery .gal-side {
     order: 4;
   }
+}
 
+@media (width <= 52em), (height <= 30em) {
   .gallery .gal-side > .mode-panel {
     overflow: visible;
   }
+}
 
+@media (width <= 52em), (height <= 30em) {
   .gallery .bld-shelf {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto;
   }
+}
 
+@media (width <= 52em), (height <= 30em) {
   .gallery .bld-tiles {
     grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
   }
+}
 
+@media (width <= 52em), (height <= 30em) {
   .gallery .gal-foot {
     grid-area: foot;
     position: static;
@@ -8291,7 +7741,9 @@ button.buy {
     max-width: none;
     margin: 0;
   }
+}
 
+@media (width <= 52em), (height <= 30em) {
   .gallery .gal-foot .bld-hint,
   .gallery .gal-foot .mode-keys {
     display: none;
@@ -8300,151 +7752,27 @@ button.buy {
 
 @media (height <= 30em) and (width >= 52.0625em) {
   .gallery.mode {
-    grid-template-columns: minmax(0, 1fr) minmax(16rem, 24rem);
-    grid-template-rows: minmax(0, 1fr) auto;
-    grid-template-areas: 'stage scroll' 'foot foot';
+    grid-template: 'stage scroll' minmax(0, 1fr) 'foot foot' auto / minmax(0, 1fr) minmax(16rem, 24rem);
   }
-}
-
-/* Gallery on a desktop screen (SPEC 5.8, the 1920 x 1080 layout): the category spine at the left, the part's card at the top right and the category's parts
-   under it, all on the flat studio. The card and the shelf paint no panel (the stage shows between their text), and the rows are the only controls on the
-   stage. The card and the shelf scroll inside themselves. */
-@media (width >= 52.0625em) and (height >= 30.0625em) {
-  .gallery .gal-spine {
-    position: absolute;
-    z-index: 3;
-    left: 1.98rem;
-    top: 11.73rem;
-    width: 14.81rem;
-    flex-flow: column nowrap;
-    gap: 0;
-  }
-
-  .gallery .gal-row {
-    height: 2.41rem;
-    padding: 0 0.6rem 0 0.5rem;
-    grid-template-columns: 2.6rem minmax(0, 1fr) auto;
-  }
-
-  .gallery .gal-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .gallery .gal-side {
-    inset: 9.26rem 1.85rem auto auto;
-    width: 20.37rem;
-    max-height: 20.5rem;
-    overflow-y: auto;
-  }
-
-  .gallery .gal-part {
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: none;
-    box-shadow: none;
-    backdrop-filter: none;
-  }
-
-  .gallery .gal-shelf {
-    inset: 32.1rem 1.85rem 6rem auto;
-    width: 20.37rem;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: none;
-    box-shadow: none;
-    backdrop-filter: none;
-  }
-
-  .gallery .gal-shelf .bld-shelf {
-    grid-template-rows: minmax(0, 1fr);
-  }
-
-  .gallery .gal-shelf .bld-tiles {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0.4rem;
-  }
-
-  .gallery .gal-shelf .bld-tile {
-    box-sizing: border-box;
-    display: grid;
-    grid-template-columns: 3.95rem minmax(0, 1fr);
-    grid-template-rows: auto auto;
-    align-items: center;
-    gap: 0.1rem 0.7rem;
-    height: 3.83rem;
-    padding: 0.35rem 0.5rem 0.35rem 0.35rem;
-  }
-
-  /* (the hint is a line of text on the stage, as SPEC 5.8 sets it, not a bar) */
-  .gallery .bld-hint {
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: none;
-    box-shadow: none;
-    backdrop-filter: none;
-    text-shadow: 0 0.1rem 0.5rem #000;
-  }
-
-  .gallery .gal-shelf .bld-art {
-    grid-column: 1;
-    grid-row: 1 / span 2;
-    width: 3.95rem;
-    height: 2.78rem;
-  }
-
-  .gallery .gal-shelf .bld-tname {
-    grid-column: 2;
-    grid-row: 1;
-    min-height: 0;
-  }
-
-  .gallery .gal-shelf .bld-tmeta {
-    grid-column: 2;
-    grid-row: 2;
-    padding: 0;
-  }
-}
-
-/* Gallery is flat (#71, SPEC §1 rules 5 and 6): no border, radius, shadow, blur, text shadow or gradient. Chips and bars are text lines. Selectors
-   carry `.gallery.mode` so they win over the kit's rules (`.mode .mode-bar button` and the like). */
-.gallery.mode *,
-.gallery.mode *::before,
-.gallery.mode *::after {
-  text-shadow: none;
-}
-
-.gallery.mode :is(.mode-panel, .mode-bar) {
-  border-width: 0;
-  border-radius: 0;
-  box-shadow: none;
-  backdrop-filter: none;
-  background: none;
 }
 
 .gallery.mode .mode-panel {
   background: var(--c-shade-86);
 }
 
-.gallery.mode button,
-.gallery.mode .mode-close,
-.gallery.mode .bld-ico,
-.gallery.mode kbd {
+.gallery.mode .mode-close {
   border-width: 0;
   border-radius: 0;
   box-shadow: none;
   backdrop-filter: none;
-}
-
-.gallery.mode kbd {
-  border-bottom-width: 0;
-}
-
-.gallery.mode .mode-close {
   background: none;
+}
+
+.gallery.mode .bld-ico {
+  border-width: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .gallery.mode .gal-kind {
@@ -8455,64 +7783,14 @@ button.buy {
   color: var(--ink);
 }
 
-.gallery.mode .mode-bar .bld-ico {
-  border-radius: 0;
-}
-
-.gallery.mode .bld-foot .mode-keys {
-  text-shadow: none;
-}
-
-.gallery.mode .bld-hint > i {
-  border-radius: 0;
-  box-shadow: none;
-}
-
 .gallery.mode .gal-row {
   border-radius: 0;
 }
 
-.gallery.mode .bld-tile,
-.gallery.mode .bld-tile:hover,
-.gallery.mode .bld-tile:focus-visible,
-.gallery.mode .bld-tile.on {
-  border-width: 0;
-  border-radius: 0;
-  box-shadow: none;
-  background: none;
-  transform: none;
-}
-
-.gallery.mode .bld-tile.on {
+.gallery .gal-row:hover:not(:disabled) {
   color: var(--ink);
-}
-
-.gallery.mode .bld-art {
-  border-radius: 0;
-  background: none;
-}
-
-.gallery.mode .bld-bar,
-.gallery.mode .bld-bar i {
-  border-radius: 0;
-}
-
-.gallery.mode .bld-bar i {
-  background: var(--ink);
-}
-
-.gallery.mode .bld-pips i,
-.gallery.mode .bld-pips i.on {
-  border-radius: 0;
-  box-shadow: none;
-}
-
-.gallery.mode .bld-pips i {
-  background: rgb(255 255 255 / 20%);
-}
-
-.gallery.mode .bld-pips i.on {
-  background: var(--ink);
+  background: var(--glass-hi);
+  border-color: transparent;
 }
 
 /* Build my PC (features/board/ui/Build*.tsx): the machine alone on a stage. Left: the shelf of parts. Top: the summary of the machine, and the view options.
@@ -8525,26 +7803,9 @@ button.buy {
   --panel: rgb(14 14 16 / 60%); /* neutral glass on Build only: the navy tint failed the studio's navy limit */
 }
 
-/* the Gallery's free box is the K1 box (SPEC §5.8: 380 to 1500 by 140 to 900 at 1920 x 1080): its panels are narrower than Build's */
-.gallery {
-  --bld-l: 22.5rem;
-  --bld-r: 25rem;
-  --bld-u: 25rem;
-}
-
 .bld-host {
   position: absolute;
   inset: 0;
-}
-
-.bld-host.drop::after {
-  content: '';
-  position: absolute;
-  inset: 0.5rem;
-  border: 0.133rem solid var(--accent);
-  border-radius: 1.2rem;
-  box-shadow: 0 0 2rem color-mix(in srgb, var(--accent) 35%, transparent);
-  pointer-events: none;
 }
 
 .bld-note {
@@ -8564,17 +7825,6 @@ button.buy {
   letter-spacing: 0.03em;
   color: var(--ink);
   text-shadow: 0 0.1rem 0.8rem rgb(2 6 18 / 80%);
-}
-
-/* The right panel's rows while the stage opens: they pulse (opacity only), and are not rows to grab. */
-.bld-list li.bld-skel {
-  height: 2.4rem;
-  padding: 0;
-  cursor: default;
-  pointer-events: none;
-  background: var(--glass-hi);
-  border-color: var(--glass-line);
-  animation: bld-pulse var(--d-loop) ease-in-out infinite alternate;
 }
 
 @keyframes bld-pulse {
@@ -8624,27 +7874,18 @@ button.buy {
   gap: 0.6rem;
 }
 
+/* the Gallery's shelf has no rail beside it: one column of parts, and the list scrolls inside its row */
+.gallery .gal-shelf .bld-shelf {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 24rem);
+}
+
 .bld-rail {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
   overflow-y: auto;
   scrollbar-width: none;
-}
-
-/* (a category: its icon and its short name, so the rail reads without a hover; the tooltip and the heading say the full name) */
-.mode .bld-rail button {
-  position: relative;
-  flex: none;
-  height: 2.4rem;
-  padding: 0 0.3rem 0 0.7rem;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 0.5rem;
-  color: var(--mute);
-  background: transparent;
-  border-color: transparent;
 }
 
 .bld-rl {
@@ -8656,25 +7897,9 @@ button.buy {
   letter-spacing: 0.01em;
 }
 
-.bld-rail button svg {
-  flex: none;
-}
-
 /* (the opcode tag: shown on the desk's rail only, where the icon and the name do not fit beside each other) */
 .bld-tag {
   display: none;
-}
-
-.mode .bld-rail button:hover:not(:disabled) {
-  color: var(--ink);
-  background: var(--glass-hi);
-  border-color: transparent;
-}
-
-.mode .bld-rail button.on {
-  color: var(--accent);
-  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 20%, transparent), transparent 90%);
-  border-color: transparent;
 }
 
 .bld-rail button.on::before {
@@ -8689,15 +7914,6 @@ button.buy {
   box-shadow: 0 0 0.6rem var(--accent);
 }
 
-.build .bld-rail button.on {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-}
-
-.build .bld-parts {
-  border-radius: 0;
-  background: none;
-}
-
 .bld-parts {
   min-height: 0;
   overflow-y: auto;
@@ -8707,6 +7923,11 @@ button.buy {
   margin-right: -0.3rem;
   padding-right: 0.3rem;
   scrollbar-width: thin;
+}
+
+.build .bld-parts {
+  border-radius: 0;
+  background: none;
 }
 
 .bld-sub {
@@ -8779,16 +8000,18 @@ button.buy {
   background: transparent;
 }
 
-.build .bld-tile:hover,
-.build .bld-tile:focus-visible {
-  transform: none;
-  background: var(--glass-hi);
-  box-shadow: none;
-}
-
 .build .bld-tile.on {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   box-shadow: none;
+}
+
+.gallery.mode .bld-tile.on {
+  border-width: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: none;
+  transform: none;
+  color: var(--ink);
 }
 
 .bld-art {
@@ -8804,10 +8027,33 @@ button.buy {
   background: none;
 }
 
+.gallery.mode .bld-art {
+  border-radius: 0;
+  background: none;
+}
+
 .bld-art .art {
   display: block;
   width: 100%;
   height: auto;
+}
+
+.rung.installed .art {
+  opacity: 1;
+}
+
+.rung.crate .art {
+  opacity: 1;
+}
+
+.rung.locked .art {
+  filter: grayscale(0.9);
+  opacity: 0.6;
+}
+
+.rung.level .art {
+  filter: grayscale(0.85) saturate(0.6);
+  opacity: 0.5;
 }
 
 .bld-tname {
@@ -8836,21 +8082,6 @@ button.buy {
   height: 0.22rem;
   border-radius: 99rem;
   background: rgb(255 255 255 / 14%);
-}
-
-.bld-pips i.on {
-  background: var(--accent);
-}
-
-.build .bld-pips i {
-  border-radius: 0;
-  box-shadow: none;
-  background: rgb(255 255 255 / 20%);
-}
-
-.build .bld-pips i.on {
-  background: var(--accent);
-  box-shadow: none;
 }
 
 .bld-price {
@@ -8896,6 +8127,10 @@ button.buy {
   color: var(--mute);
 }
 
+.build .bld-bin-note {
+  background: var(--c-shade-86);
+}
+
 .bld-bin.taking .bld-bin-note {
   opacity: 1;
 }
@@ -8904,31 +8139,7 @@ button.buy {
   background: color-mix(in srgb, var(--accent) 16%, #0a0e22);
 }
 
-.bld-bin.drop .bld-bin-note b {
-  color: var(--ink);
-}
-
-.bld-bin.drop .bld-bin-note::before {
-  border-style: solid;
-  border-color: var(--accent);
-}
-
-.build .bld-bin-note {
-  background: var(--c-shade-86);
-}
-
 .build .bld-bin.drop .bld-bin-note {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-}
-
-.build .bld-bin-note::before {
-  border-width: 0;
-}
-
-.build .bld-host.drop::after {
-  border-width: 0;
-  border-radius: 0;
-  box-shadow: none;
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
@@ -9037,34 +8248,6 @@ button.buy {
   background: none;
 }
 
-.build .bld-meter i {
-  background: var(--g, var(--ok));
-}
-
-.bld-power.none .bld-meter i {
-  background: var(--mute);
-}
-
-.bld-power.warn .bld-meter i {
-  background: var(--warn);
-}
-
-.bld-power.bad .bld-meter i {
-  background: var(--bad);
-}
-
-.bld-power.warn b {
-  color: var(--warn);
-}
-
-.bld-power.bad b {
-  color: var(--bad);
-}
-
-.bld-power.bad em {
-  color: var(--bad);
-}
-
 .mode .bld-read .bld-bench-btn {
   padding: 0.45rem 0.9rem;
   font-weight: 650;
@@ -9084,12 +8267,6 @@ button.buy {
 
 .bld-util {
   flex-wrap: nowrap;
-}
-
-.mode .bld-util button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
 }
 
 /* What is in the machine (`BuildMachine.tsx`): the header with its Start from button, the starting points (`BuildStart.tsx`), the parts by kind (a group of more than three folds to a line),
@@ -9159,10 +8336,6 @@ button.buy {
   transform: none;
 }
 
-.build [aria-expanded='true'] > .bld-chev {
-  transform: rotate(180deg);
-}
-
 [aria-expanded='true'] > .bld-chev {
   transform: translateY(0.1rem) rotate(-135deg);
 }
@@ -9171,12 +8344,6 @@ button.buy {
 .bld-presets {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
-}
-
-.mode .bld-presets button {
-  display: inline-flex;
-  align-items: center;
   gap: 0.3rem;
 }
 
@@ -9216,22 +8383,6 @@ button.buy {
   background: linear-gradient(180deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 2%));
 }
 
-.mode .bld-srow:hover:not(:disabled) {
-  transform: translateY(-0.08rem);
-  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
-  box-shadow:
-    0 0.5rem 1rem rgb(0 0 0 / 30%),
-    0 0 0.9rem color-mix(in srgb, var(--accent) 10%, transparent);
-}
-
-.mode .bld-srow:active:not(:disabled) {
-  transform: none;
-}
-
-.mode .bld-srow:disabled {
-  opacity: 0.5;
-}
-
 .build .bld-srow {
   border-width: 0;
   border-radius: 0;
@@ -9239,10 +8390,8 @@ button.buy {
   box-shadow: none;
 }
 
-.build .bld-srow:hover:not(:disabled) {
-  background: var(--glass-hi);
-  transform: none;
-  box-shadow: none;
+.mode .bld-srow:disabled {
+  opacity: 0.5;
 }
 
 .bld-sico {
@@ -9319,9 +8468,8 @@ button.buy {
   flex: none;
 }
 
-.bld-srow .bld-pips i {
-  width: 0.6rem;
-  height: 0.26rem;
+.gal-read .bld-fig .bld-pips {
+  margin: 0.3rem 0 0.15rem;
 }
 
 .bld-svrow {
@@ -9332,6 +8480,24 @@ button.buy {
 .mode .bld-svrow .bld-srow {
   flex: 1;
   width: auto;
+}
+
+.mode .bld-srow:hover:not(:disabled) {
+  transform: translateY(-0.08rem);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow:
+    0 0.5rem 1rem rgb(0 0 0 / 30%),
+    0 0 0.9rem color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.mode .bld-srow:active:not(:disabled) {
+  transform: none;
+}
+
+.build .bld-srow:hover:not(:disabled) {
+  background: var(--glass-hi);
+  transform: none;
+  box-shadow: none;
 }
 
 .mode .bld-del {
@@ -9364,12 +8530,12 @@ button.buy {
   font: 600 var(--m-sm) var(--ui);
 }
 
-.mode .bld-save:hover:not(:disabled) {
-  color: var(--ink);
-}
-
 .mode .bld-save:disabled {
   opacity: 0.5;
+}
+
+.mode .bld-save:hover:not(:disabled) {
+  color: var(--ink);
 }
 
 .bld-saveform {
@@ -9387,16 +8553,6 @@ button.buy {
   color: var(--ink);
   font: 500 var(--m-md) var(--ui);
   outline: none;
-}
-
-.bld-saveform input:focus {
-  box-shadow: 0 0 0 0.133rem color-mix(in srgb, var(--accent) 30%, transparent);
-}
-
-.mode .bld-saveform button {
-  padding: 0 0.7rem;
-  border-radius: var(--m-r-card);
-  font: 650 var(--m-sm) var(--ui);
 }
 
 .mode .bld-saveform button[type='submit'] {
@@ -9417,14 +8573,23 @@ button.buy {
   overflow: hidden;
 }
 
+.shop .bld-bar {
+  border-radius: 0;
+  background: color-mix(in srgb, var(--c-shade-86) 88%, var(--c-ink));
+}
+
+.gal-stat .bld-bar {
+  grid-column: 1 / -1;
+}
+
+.gallery.mode .bld-bar {
+  border-radius: 0;
+}
+
 .bld-bar i {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--g, var(--accent));
-}
-
-.build .bld-bar i {
   background: var(--g, var(--accent));
 }
 
@@ -9447,7 +8612,6 @@ button.buy {
   scrollbar-width: thin;
 }
 
-.mode .bld-al > button,
 .bld-al > div {
   width: 100%;
   display: flex;
@@ -9456,34 +8620,7 @@ button.buy {
   padding: 0.45rem 0.65rem 0.5rem 0.55rem;
   text-align: left;
   border-radius: var(--m-r-card);
-}
-
-.bld-al > div {
   border: 1px solid transparent;
-}
-
-.mode .bld-al.warn > button,
-.bld-al.warn > div {
-  color: var(--warn);
-  background: color-mix(in srgb, var(--warn) 9%, transparent);
-  border-color: color-mix(in srgb, var(--warn) 40%, transparent);
-}
-
-.mode .bld-al.bad > button,
-.bld-al.bad > div {
-  color: var(--bad);
-  background: color-mix(in srgb, var(--bad) 10%, transparent);
-  border-color: color-mix(in srgb, var(--bad) 48%, transparent);
-}
-
-.mode .bld-al.warn > button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--warn) 16%, transparent);
-  border-color: var(--warn);
-}
-
-.mode .bld-al.bad > button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--bad) 17%, transparent);
-  border-color: var(--bad);
 }
 
 .bld-ai {
@@ -9529,10 +8666,6 @@ button.buy {
 
 .bld-grp .bld-flag {
   margin-left: auto;
-}
-
-.bld-grp .bld-flag ~ .bld-gp {
-  margin-left: 0.4rem;
 }
 
 .bld-part.flagged.warn {
@@ -9586,7 +8719,14 @@ button.buy {
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
-.bld-part.shell,
+.bld-part.shell {
+  padding: 0;
+  cursor: default;
+  touch-action: auto;
+  background: none;
+  border-color: transparent;
+}
+
 .bld-part.shell:hover {
   padding: 0;
   cursor: default;
@@ -9627,14 +8767,14 @@ button.buy {
   border-radius: var(--m-r-row);
 }
 
-.mode .bld-shellbtn:hover:not(:disabled) {
-  background: var(--glass-hi);
-  border-color: var(--glass-line);
-}
-
 .build .bld-shellbtn {
   border-width: 0;
   border-radius: 0;
+}
+
+.mode .bld-shellbtn:hover:not(:disabled) {
+  background: var(--glass-hi);
+  border-color: var(--glass-line);
 }
 
 .build .bld-shellbtn:hover:not(:disabled) {
@@ -9648,15 +8788,6 @@ button.buy {
 
 .mode .bld-part.vacant .bld-shellbtn:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--warn) 75%, transparent);
-}
-
-.bld-part.vacant .bld-thumb {
-  color: var(--warn);
-  background: color-mix(in srgb, var(--warn) 9%, transparent);
-}
-
-.bld-part.vacant .bld-name {
-  color: var(--warn);
 }
 
 .bld-go {
@@ -9690,28 +8821,6 @@ button.buy {
   text-transform: uppercase;
 }
 
-.mode .bld-grp button {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.2rem 0.3rem;
-  border-color: transparent;
-  border-radius: var(--m-r-row);
-  background: none;
-  color: var(--mute);
-  font: 650 var(--m-xs) var(--ui);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  text-align: left;
-}
-
-.mode .bld-grp button:hover:not(:disabled) {
-  color: var(--ink);
-  background: var(--glass-hi);
-  border-color: transparent;
-}
-
 .bld-gk {
   display: inline-flex;
   align-items: center;
@@ -9729,8 +8838,16 @@ button.buy {
   margin-left: auto;
 }
 
+.bld-grp .bld-flag ~ .bld-gp {
+  margin-left: 0.4rem;
+}
+
 .bld-grp button .bld-chev {
   margin-left: 0.2rem;
+}
+
+.build [aria-expanded='true'] > .bld-chev {
+  transform: rotate(180deg);
 }
 
 .bld-fold {
@@ -9826,16 +8943,16 @@ button.buy {
   text-overflow: ellipsis;
 }
 
-.bld-row em:empty {
-  display: none;
-}
-
 .bld-name {
   font-size: var(--m-md);
   line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.bld-part.vacant .bld-name {
+  color: var(--warn);
 }
 
 .bld-cost {
@@ -9848,6 +8965,11 @@ button.buy {
 .build .bld-thumb {
   border-radius: 0;
   background: transparent;
+}
+
+.bld-part.vacant .bld-thumb {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 9%, transparent);
 }
 
 .mode .bld-out {
@@ -9864,6 +8986,12 @@ button.buy {
   opacity: 0;
 }
 
+.build .bld-out {
+  border-width: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
 .bld-part:hover .bld-out,
 .bld-part.on .bld-out,
 .mode .bld-out:focus-visible {
@@ -9874,12 +9002,6 @@ button.buy {
   color: var(--bad);
   background: color-mix(in srgb, var(--bad) 14%, transparent);
   border-color: color-mix(in srgb, var(--bad) 50%, transparent);
-}
-
-.build .bld-out {
-  border-width: 0;
-  border-radius: 0;
-  background: transparent;
 }
 
 @media (hover: none) {
@@ -9940,24 +9062,11 @@ button.buy {
   margin-left: auto;
 }
 
-.mode .bld-bacts button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.3rem 0.65rem;
-  border-radius: var(--m-r-pill);
-  font: 600 var(--m-sm) var(--ui);
-}
-
 .mode .bld-bacts button.primary {
   color: var(--on);
   background: var(--accent);
   border-color: var(--accent);
   font-weight: 700;
-}
-
-.mode .bld-bacts button.primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 82%, #fff);
 }
 
 .bld-history {
@@ -9979,6 +9088,10 @@ button.buy {
   text-transform: uppercase;
 }
 
+.net-more[open] summary {
+  color: var(--ink);
+}
+
 .bld-history summary::-webkit-details-marker {
   display: none;
 }
@@ -9996,12 +9109,6 @@ button.buy {
 
 .bld-history[open] summary::after {
   transform: translateY(0.1rem) rotate(-135deg);
-}
-
-.bld-history summary em {
-  font: normal var(--m-xs) var(--mono);
-  letter-spacing: 0;
-  opacity: 0.75;
 }
 
 .build .bld-bench,
@@ -10082,36 +9189,9 @@ button.buy {
   padding-right: 0.4rem;
 }
 
-.bld-hint.busy > i {
-  animation: bld-pulse var(--d-loop) ease-in-out infinite;
-}
-
 /* a refusal ("it fits no socket"): amber, with a × to let it go; it goes by itself after a few seconds */
 .bld-hint.warn {
   border-color: color-mix(in srgb, var(--warn) 55%, transparent);
-}
-
-.bld-hint.warn > i {
-  background: var(--warn);
-  box-shadow: 0 0 0.6rem var(--warn);
-}
-
-.build .bld-hint {
-  border-width: 0;
-  border-radius: 0;
-  box-shadow: none;
-  backdrop-filter: none;
-  background: none;
-}
-
-.build .bld-hint > i {
-  border-radius: 0;
-  box-shadow: none;
-  background: var(--accent);
-}
-
-.build .bld-hint.warn > i {
-  background: var(--warn);
 }
 
 .mode .bld-hint button.bld-x {
@@ -10119,12 +9199,6 @@ button.buy {
   place-items: center;
   padding: 0.3rem;
   line-height: 0;
-}
-
-.mode .bld-hint button {
-  padding: 0.25rem 0.7rem;
-  font-size: var(--m-sm);
-  border-radius: var(--m-r-pill);
 }
 
 @keyframes bld-pulse {
@@ -10160,11 +9234,6 @@ button.buy {
   color: var(--mute);
 }
 
-.bld-door.on em {
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
-  color: var(--accent);
-}
-
 .mode .mode-bar .bld-ico {
   width: 2.1rem;
   height: 2.1rem;
@@ -10172,6 +9241,10 @@ button.buy {
   display: grid;
   place-items: center;
   border-radius: 50%;
+}
+
+.gallery.mode .mode-bar .bld-ico {
+  border-radius: 0;
 }
 
 /* The machine's life (`RunBar`): the power button (lit green while the machine is on), the chip that says what it does (off, busy, settled, stopped), its speed, the OS sheet's button. */
@@ -10221,30 +9294,12 @@ button.buy {
   color: var(--warn);
 }
 
-.bld-chip.busy > i {
-  animation: bld-pulse var(--d-loop) ease-in-out infinite;
-}
-
 .bld-chip.ok {
   color: var(--ok);
 }
 
 .bld-chip.bad {
   color: var(--bad);
-}
-
-.build :is(.bld-chip, .bld-ready, .bld-door em, .bld-os em) {
-  border-radius: 0.24rem;
-}
-
-.build .bld-chip > i {
-  border-radius: 0;
-  background: currentcolor;
-  box-shadow: none;
-}
-
-.build :is(.bld-wait, .bld-overall b, .bld-foot .mode-keys) {
-  text-shadow: none;
 }
 
 .bld-foot .mode-keys {
@@ -10297,6 +9352,14 @@ button.buy {
   font-size: var(--m-sm);
 }
 
+.stat-fold > summary .mute {
+  font: 0.667rem var(--mono);
+}
+
+.jl-inside summary .mute {
+  font-weight: 400;
+}
+
 .bld-cstats {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -10332,19 +9395,16 @@ button.buy {
   margin-top: 0.8rem;
 }
 
-.mode .bld-cacts button {
-  flex: 1;
-  justify-content: center;
-  padding: 0.4rem 0.6rem;
-  font-size: var(--m-sm);
-}
-
 .mode .bld-cacts button.primary {
   flex: 1.5;
   color: var(--on);
   background: var(--accent);
   border-color: var(--accent);
   font-weight: 700;
+}
+
+.mode .bld-bacts button.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 82%, #fff);
 }
 
 .mode .bld-cacts button.primary:hover:not(:disabled) {
@@ -10412,16 +9472,8 @@ button.buy {
     0 0.6rem 1.6rem rgb(0 0 0 / 50%);
 }
 
-.bld-ghost.ok em {
-  color: var(--ok);
-}
-
 .bld-ghost.no {
   border-color: var(--bad);
-}
-
-.bld-ghost.no em {
-  color: var(--bad);
 }
 
 .bld-toast {
@@ -10498,9 +9550,38 @@ button.buy {
   color: var(--mute);
 }
 
-.bench-total .bench-delta {
-  grid-column: 1 / -1;
-  justify-self: end;
+.shop-rail button span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.os-banner > span:not(.os-pulse) {
+  color: var(--mute);
+}
+
+.gal-stat > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font: 650 var(--m-xs) var(--ui);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+.inv-chips button.ic span {
+  font-size: var(--fs-label, 0.7rem);
+}
+
+.jl-inside summary > span:first-child {
+  flex: 1;
+}
+
+.net-seg.binding .kv span {
+  color: var(--warn);
 }
 
 .mode .bench-close {
@@ -10527,16 +9608,6 @@ button.buy {
   min-width: 8rem;
 }
 
-.mode .bench-bar button,
-.mode .bench-foot button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.3rem 0.8rem;
-  border-radius: var(--m-r-pill);
-  font-size: var(--m-sm);
-}
-
 .bench-bar em,
 .bench-foot em {
   font: normal var(--m-xs) var(--mono);
@@ -10547,27 +9618,6 @@ button.buy {
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
-}
-
-.mode .bench-tabs button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.3rem 0.7rem;
-  border-radius: var(--m-r-pill);
-  font-size: var(--m-sm);
-  color: var(--mute);
-  background: transparent;
-}
-
-.mode .bench-tabs button:hover:not(:disabled) {
-  color: var(--ink);
-}
-
-.mode .bench-tabs button.on {
-  color: var(--ink);
-  background: color-mix(in srgb, var(--g) 16%, transparent);
-  border-color: color-mix(in srgb, var(--g) 60%, transparent);
 }
 
 .bench-tabs i {
@@ -10629,11 +9679,6 @@ button.buy {
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
-.bench-row.off .bench-pick,
-.bench-row.off .bench-name {
-  opacity: 0.5;
-}
-
 .bench-pick {
   display: grid;
   place-items: center;
@@ -10649,6 +9694,10 @@ button.buy {
   cursor: pointer;
 }
 
+.bld-saveform input:focus {
+  box-shadow: 0 0 0 0.133rem color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
 .bench-pick input:disabled {
   cursor: default;
 }
@@ -10658,6 +9707,11 @@ button.buy {
   display: flex;
   flex-direction: column;
   gap: 0.05rem;
+}
+
+.bench-row.off .bench-pick,
+.bench-row.off .bench-name {
+  opacity: 0.5;
 }
 
 .bench-name b {
@@ -10735,6 +9789,11 @@ button.buy {
   color: var(--mute);
 }
 
+.bench-total .bench-delta {
+  grid-column: 1 / -1;
+  justify-self: end;
+}
+
 .bench-delta.up {
   color: var(--ok);
 }
@@ -10758,6 +9817,10 @@ button.buy {
 }
 
 .bench-why svg {
+  flex: none;
+}
+
+.bld-rail button svg {
   flex: none;
 }
 
@@ -10859,16 +9922,6 @@ button.buy {
   justify-content: flex-start;
 }
 
-.mode-bar.bld-run-sheet {
-  position: static;
-  flex: none;
-  padding: 0;
-  border: 0;
-  background: none;
-  box-shadow: none;
-  backdrop-filter: none;
-}
-
 .os-sheet-tabs {
   --g: var(--accent);
 }
@@ -10949,6 +10002,34 @@ button.buy {
   color: var(--ok);
 }
 
+.shop-rail button em {
+  font-style: normal;
+  font-size: var(--fs-label, 0.7rem);
+  color: var(--mute);
+}
+
+.bld-history summary em {
+  font: normal var(--m-xs) var(--mono);
+  letter-spacing: 0;
+  opacity: 0.75;
+}
+
+.bld-power.bad em {
+  color: var(--bad);
+}
+
+.bld-row em:empty {
+  display: none;
+}
+
+.bld-ghost.ok em {
+  color: var(--ok);
+}
+
+.bld-ghost.no em {
+  color: var(--bad);
+}
+
 .os-card .sub {
   flex: 1;
   margin: 0;
@@ -11008,10 +10089,6 @@ button.buy {
   font-weight: 700;
 }
 
-.mode .os-act.primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 82%, #fff);
-}
-
 /* the logical cores of the processor: those that share a hardware core side by side, lit while a job runs on one */
 .os-cores {
   display: flex;
@@ -11050,18 +10127,6 @@ button.buy {
   border-radius: 0.15rem;
   border: 1px solid var(--glass-line);
   background: transparent;
-}
-
-.os-core i.busy {
-  background: var(--accent);
-  border-color: var(--accent);
-  box-shadow: 0 0 0.5rem color-mix(in srgb, var(--accent) 60%, transparent);
-}
-
-.os-core i.parked {
-  background: rgb(255 255 255 / 6%);
-  border-style: dashed;
-  opacity: 0.6;
 }
 
 .build :is(.os-card, .os-core) {
@@ -11149,152 +10214,6 @@ button.buy {
   }
 }
 
-@media (width <= 52em) {
-  .bld-host {
-    position: relative;
-    inset: auto;
-    height: 60vh;
-    flex: none;
-    order: 0;
-  }
-
-  .bld-read,
-  .bld-foot {
-    position: static;
-    width: auto;
-    max-width: none;
-    margin: 0;
-  }
-
-  .bld-read {
-    order: 1;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  .bld-foot {
-    order: 2;
-  }
-
-  .bld-bin {
-    order: 3;
-  }
-
-  .bld-inst {
-    order: 4;
-  }
-
-  .bld-shelf {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 24rem);
-  }
-
-  .bld-rail {
-    flex-flow: row wrap;
-  }
-
-  .mode .bld-rail button {
-    width: auto;
-    padding: 0 0.7rem;
-  }
-
-  .mode .bld-rail button.on {
-    background: color-mix(in srgb, var(--accent) 14%, transparent);
-  }
-
-  .bld-rail button.on::before {
-    inset: auto 22% 0;
-    width: auto;
-    height: 0.2rem;
-  }
-
-  .bld-tiles {
-    grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
-  }
-
-  .bld-list {
-    flex: none;
-    max-height: 18rem;
-  }
-
-  .bld-dock {
-    max-width: 100%;
-  }
-
-  .bld-dock .mode-bar {
-    flex-wrap: wrap;
-    max-width: 100%;
-  }
-
-  .bld-start {
-    max-height: none;
-  }
-
-  .bld-from {
-    display: inline;
-  }
-
-  /* (the benchmark sheet is a page over the page here: the panels are not beside it) */
-  .bench-scrim {
-    position: fixed;
-  }
-
-  .bench {
-    position: fixed;
-    inset: 0.6rem;
-    max-width: none;
-    margin: 0;
-  }
-}
-
-@media (width <= 36em) {
-  /* a phone: the summary is a small card, the ready line over three figures over the benchmark */
-  .bld-read {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    justify-items: center;
-    gap: 0.6rem 0.4rem;
-    padding: 0.6rem;
-  }
-
-  .bld-read .mode-sep,
-  .bld-tools .mode-sep {
-    display: none;
-  }
-
-  .bld-read .bld-ready,
-  .bld-read .bld-bench-btn,
-  .bld-read .gal-kind {
-    grid-column: 1 / -1;
-    justify-self: center;
-  }
-
-  /* a task row takes two lines: its name and its button, then its result under the name */
-  .bench-row {
-    grid-template-columns: 1.4rem minmax(0, 1fr) 1.9rem;
-    row-gap: 0.3rem;
-  }
-
-  .bench-row > :nth-child(3) {
-    grid-column: 2 / 4;
-    grid-row: 2;
-    justify-self: start;
-  }
-
-  .bench-row > .bench-one {
-    grid-column: 3;
-    grid-row: 1;
-  }
-
-  .bench-out {
-    grid-template-columns: 3.4rem minmax(0, 1fr) 2.6rem 3rem;
-  }
-
-  .bench-total span {
-    display: none;
-  }
-}
-
 /* The SETTINGS screen (panels/Settings.tsx, ticket #38): the Pipeline menu's frame, a rail of five tabs, then one list of rows for the tab. Each row
    is a box: its name and help on the left, its control on the right (a set of values, a slider or a button). The focused row is the chip.
    Peek fades the whole screen while it is held, so the picture behind it shows. The screen keeps its pointer events while it fades: the
@@ -11307,11 +10226,6 @@ button.buy {
 } /* (the menu's fade-in fills forward: its opacity would win over Peek's) */
 .pl-menu.settings.peek {
   opacity: 0;
-}
-
-.pl-menu.settings .pl-stack {
-  overflow-y: auto;
-  padding-bottom: 2rem;
 }
 
 .st-stack {
@@ -11352,6 +10266,9 @@ button.buy {
 .st-tab[aria-selected='true'] {
   color: var(--c-ink);
   border-color: var(--c-accent);
+  text-decoration: underline;
+  text-decoration-color: var(--c-accent);
+  text-underline-offset: 0.3rem;
 }
 
 .st-tab[aria-selected='true'] .st-tag {
@@ -11380,17 +10297,20 @@ button.buy {
   width: 100%;
   box-sizing: border-box;
   padding: 0.55rem 0.75rem;
-  border: 1px solid transparent;
-  border-radius: 0.3rem;
   background: rgb(255 255 255 / 2%);
   color: var(--c-ink);
   font: inherit;
   text-align: left;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
 }
 
 .st-row.on {
   border-color: var(--c-accent);
-  background: rgb(255 255 255 / 5%);
+  background: rgb(255 255 255 / 10%);
 }
 
 .st-row:focus-visible {
@@ -11555,78 +10475,6 @@ button.buy {
   touch-action: none;
   user-select: none;
   -webkit-touch-callout: none;
-}
-
-.pl-menu.settings .pl-hints {
-  margin-left: 4.26rem;
-}
-
-@media (width <= 52em) {
-  .pl-menu.settings .pl-stack {
-    padding: 3.4rem 1.6rem 1.6rem;
-  }
-
-  .st-rail,
-  .st-list,
-  .st-foot,
-  .pl-menu.settings .pl-hints {
-    margin-left: 0;
-  }
-
-  .st-rail {
-    gap: 0.15rem;
-  }
-
-  .st-tab {
-    flex: 1 1 0;
-    padding: 0.3rem 0.2rem;
-    gap: 0.2rem;
-    font-size: 0.78rem;
-  }
-
-  .st-tab .st-tag {
-    display: none;
-  }
-
-  .st-row,
-  .st-row[role='slider'] {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .st-vals {
-    justify-content: flex-start;
-  }
-
-  .st-track {
-    width: 100%;
-  }
-
-  .pl-menu.settings .pl-title {
-    font-size: 2.6rem;
-  }
-}
-
-@media (height <= 34em) {
-  .st-list {
-    gap: 0.2rem;
-    margin-top: 0.5rem;
-  }
-
-  .st-help {
-    display: none;
-  }
-
-  .pl-menu.settings .pl-stack {
-    padding-top: 3.6rem;
-  }
-}
-
-/* ===== Design pass (2026-11-20): calmer chrome. docs/UI.md, "Look".
-   The interface is glass and type. Fills and outlines are rare, so the few that stay mean something:
-   cyan text or a cyan tint = you can use it or it is chosen; green, amber, red = state; a solid cyan fill = the one main action of a view.
-   Later rules win over the same selectors above, so this block restyles without touching the structure. ===== */
-:root {
-  --pop: color-mix(in srgb, var(--panel) 18%, var(--menu-solid));
 } /* a popover inside a bar: the bar's blur cannot reach it, so it is nearly opaque */
 
 /* The top bar: what you earn and spend | what the machine does | (sandbox) its tools. A hairline between the groups. */
@@ -11645,13 +10493,21 @@ button.buy {
   background: var(--glass-line);
 }
 
-.hud-left {
-  gap: 0.4rem 0.8rem;
-  padding-left: 0.8rem;
-}
-
 .hud-sbx {
   gap: 0.3rem;
+}
+
+/* Tutorial step 1 stages the HUD (SPEC.md §5.11): hidden, not removed, so the layout does not jump when it comes back. */
+#hud.staged .hud-sys,
+#hud.staged .hud-sep,
+#hud.staged .time,
+#hud.staged .stat,
+#hud.staged .bill,
+#hud.staged .hud-sbx,
+#hud.staged .hud-center,
+#hud.staged .speedctl,
+#hud.staged .slow-note {
+  visibility: hidden;
 }
 
 .hud .money {
@@ -11688,26 +10544,6 @@ button.buy {
   }
 }
 
-/* Pause, the slow-motion switch and the speed: bare icons that light up on hover; the running speed and a pressed switch are tinted. */
-.hud-right {
-  gap: 0.15rem;
-  padding: 0.267rem;
-}
-
-.hud-right button:not(.on) {
-  background: transparent;
-  border-color: transparent;
-}
-
-.hud-right button:hover:not(:disabled):not(.on) {
-  background: var(--veil);
-  border-color: transparent;
-}
-
-.speedctl {
-  gap: 0.15rem;
-}
-
 .speedctl .pp[aria-pressed='true'],
 .speedctl .zs[aria-pressed='true'] {
   color: var(--accent);
@@ -11715,22 +10551,19 @@ button.buy {
   border-color: transparent;
 }
 
-.speedctl .zs[aria-pressed='false'] {
-  opacity: 0.55;
-}
-
 .speedctl .seg {
   gap: 0.1rem;
 }
 
-.speedctl .seg > button {
-  margin: 0;
-  border-radius: 0.5rem;
-  font-size: 0.7rem;
+.build .mode-bar .seg {
+  border-radius: 0;
 }
 
-.hud-right button.on {
-  border-color: transparent;
+@media (width <= 52em), (height <= 30em) {
+  .gallery .mode-bar .seg {
+    border-radius: 0;
+    background: none;
+  }
 }
 
 /* Popovers that open from the bar (menu, sandbox tools, jobs, power bill). */
@@ -11750,6 +10583,7 @@ button.buy {
   gap: 0.5rem;
 }
 
+/* stylelint-disable-next-line no-duplicate-selectors -- the two blocks cannot merge: rules between them set the same properties at equal specificity, so moving either would change the cascade */
 .sbx-pop {
   max-height: calc(100vh - 5.5rem);
   overflow-y: auto;
@@ -11768,22 +10602,6 @@ button.buy {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--mute);
-}
-
-.sbx-pop h4:not(:first-child),
-.sbj-pop h4:not(:first-child) {
-  margin-top: 0.3rem;
-  padding-top: 0.6rem;
-  border-top: 1px solid var(--hair);
-}
-
-.sbx-row select,
-.sbx-row input[type='number'] {
-  font-size: 0.75rem;
-  background: var(--veil);
-  border: 1px solid var(--glass-line);
-  border-radius: 0.5rem;
-  padding: 0.25rem 0.45rem;
 }
 
 .sbx-row select:focus-visible,
@@ -11930,20 +10748,421 @@ button.buy {
     color-mix(in srgb, var(--menu-solid) 93%, transparent);
 }
 
-.ng-actions button,
-.modal .pactions button {
+.ng-actions button {
   padding: 0.4rem 1rem;
 }
 
-.ng-choice {
-  border-radius: 0.8rem;
-  background: var(--veil);
+button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--glass-hi));
 }
 
-.ng-choice.on {
-  background: color-mix(in srgb, var(--accent) 10%, var(--veil));
-  box-shadow: inset 0 0 0 1px var(--sel-line);
+/* Sim-activity animations (the OS chip): paused with the game, see state.ts. Interactive feedback keeps running. */
+.chip.live::before {
+  content: '';
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: currentcolor;
+  animation: live var(--d-loop) ease-in-out infinite;
+}
+
+.paused .chip.live::before {
+  animation-play-state: paused;
+}
+
+button.decline.armed {
+  color: var(--bad);
+  border-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+}
+
+.tile.queued::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 0.25rem;
+  width: 40%;
+  background: var(--accent);
+  animation: tile-sweep var(--d-loop-slow) ease-in-out infinite;
+}
+
+.modal.crash button {
+  font-size: 1rem;
+}
+
+.modal button.danger {
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 55%, transparent);
+}
+
+.lvl-cells i.on {
+  background: var(--c-ink);
+}
+
+.sbx-row input[type='number'] {
+  font: inherit;
+  color: var(--ink);
+  font-size: 0.75rem;
+  background: var(--veil);
+  border: 1px solid var(--glass-line);
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.45rem;
+}
+
+.lvlmodal .lvl-actions button {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0.2rem 0;
+  font: 600 var(--t-md) / 1.3 var(--f-sans);
+  letter-spacing: 0;
+  color: var(--c-ink);
+}
+
+.shop-rail button:hover {
+  background: var(--panel-hi, rgb(255 255 255 / 6%));
+}
+
+.shop .shop-rail button {
+  border-radius: 0;
+}
+
+.tracedock .trace-scrub button {
+  padding: 0.1rem 0.4rem;
+  font-size: 0.7rem;
+}
+
+.tracedock .trace-steps button {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.72rem;
+}
+
+.tracedock .trace-filter button {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.72rem;
+  color: var(--mute);
+} /* (a phone or a short landscape screen: the HUD bar and the dock keep their rows) */
+.almanac.alm-edge button {
+  border: 0;
+}
+
+.dx-codebar .seg button {
+  padding: 0.15rem 0.6rem;
+  font-size: 0.72rem;
+  color: var(--mute);
+}
+
+.dx-scale .seg button {
+  padding: 0.12rem 0.5rem;
+  font-size: 0.7rem;
+  color: var(--mute);
+  text-transform: none;
+}
+
+.alm-tabs button.on {
+  color: var(--ink);
+  border-color: var(--ink);
+  background: var(--glass-line);
+}
+
+.alm-ctl .seg button {
+  padding: 0.12rem 0.5rem;
+  font-size: 0.7rem;
+  color: var(--mute);
+}
+
+.dx-kstats .seg button {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.72rem;
+  color: var(--mute);
+}
+
+.jl-filter button.on {
+  color: var(--ink);
+  font-weight: 600;
+  background: none;
+}
+
+.jl-now h4 .count {
+  font: 700 0.68rem var(--mono);
+  color: var(--ink);
+  background: var(--veil);
+  padding: 0 0.4rem;
+  border-radius: 0.25rem;
+  letter-spacing: 0;
+}
+
+.jl-live.late u {
+  background: var(--warn);
+}
+
+.joblog .alm-head .close,
+.joblog button.link {
+  background: none;
+  border-radius: 0;
+}
+
+.lvlmodal .lvl-actions button.link {
+  color: var(--c-mute);
+}
+
+.mode button:focus-visible {
+  outline: 0.133rem solid var(--accent);
+  outline-offset: 0.1rem;
+}
+
+.mode button.on {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.mode .mode-bar button {
+  padding: 0.4rem 0.9rem;
+  font-size: var(--m-sm);
+  border-radius: var(--m-r-pill);
+}
+
+.build .mode-bar button {
+  border-radius: 0;
+}
+
+/* the chips: Build my PC's presets */
+.mode .bld-presets button {
+  padding: 0.3rem 0.75rem;
+  border-radius: var(--m-r-pill);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.build .bld-presets button {
+  border-radius: 0;
+}
+
+.gallery.mode button {
+  border-width: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.gallery.mode kbd {
+  border-width: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.bld-host.drop::after {
+  content: '';
+  position: absolute;
+  inset: 0.5rem;
+  border: 0.133rem solid var(--accent);
+  border-radius: 1.2rem;
+  box-shadow: 0 0 2rem color-mix(in srgb, var(--accent) 35%, transparent);
+  pointer-events: none;
+}
+
+.build .bld-host.drop::after {
+  border-width: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* The right panel's rows while the stage opens: they pulse (opacity only), and are not rows to grab. */
+.bld-list li.bld-skel {
+  height: 2.4rem;
+  padding: 0;
+  cursor: default;
+  pointer-events: none;
+  background: var(--glass-hi);
+  border-color: var(--glass-line);
+  animation: bld-pulse var(--d-loop) ease-in-out infinite alternate;
+}
+
+/* (a category: its icon and its short name, so the rail reads without a hover; the tooltip and the heading say the full name) */
+.mode .bld-rail button {
+  position: relative;
+  flex: none;
+  height: 2.4rem;
+  padding: 0 0.3rem 0 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  color: var(--mute);
+  background: transparent;
   border-color: transparent;
+}
+
+.bld-pips i.on {
+  background: var(--accent);
+}
+
+.build .bld-bin-note::before {
+  border-width: 0;
+}
+
+.bld-bin.drop .bld-bin-note::before {
+  border-style: solid;
+  border-color: var(--accent);
+}
+
+.mode .bld-util button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.mode .bld-saveform button {
+  padding: 0 0.7rem;
+  border-radius: var(--m-r-card);
+  font: 650 var(--m-sm) var(--ui);
+}
+
+.mode .bld-al > button {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.45rem 0.65rem 0.5rem 0.55rem;
+  text-align: left;
+  border-radius: var(--m-r-card);
+}
+
+.bld-al.warn > div {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 9%, transparent);
+  border-color: color-mix(in srgb, var(--warn) 40%, transparent);
+}
+
+.bld-al.bad > div {
+  color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+  border-color: color-mix(in srgb, var(--bad) 48%, transparent);
+}
+
+.mode .bld-grp button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.3rem;
+  border-color: transparent;
+  border-radius: var(--m-r-row);
+  background: none;
+  color: var(--mute);
+  font: 650 var(--m-xs) var(--ui);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+.mode .bld-bacts button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--m-r-pill);
+  font: 600 var(--m-sm) var(--ui);
+}
+
+.mode .bld-hint button {
+  padding: 0.25rem 0.7rem;
+  font-size: var(--m-sm);
+  border-radius: var(--m-r-pill);
+}
+
+.bld-door.on em {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent);
+}
+
+.shop-rail button.on em {
+  color: inherit;
+}
+
+.build :is(.bld-chip, .bld-ready, .bld-door em, .bld-os em) {
+  border-radius: 0.24rem;
+}
+
+.mode .bld-cacts button {
+  flex: 1;
+  justify-content: center;
+  padding: 0.4rem 0.6rem;
+  font-size: var(--m-sm);
+}
+
+.mode .bench-bar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: var(--m-r-pill);
+  font-size: var(--m-sm);
+}
+
+.mode .bench-foot button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: var(--m-r-pill);
+  font-size: var(--m-sm);
+}
+
+.mode .bench-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--m-r-pill);
+  font-size: var(--m-sm);
+  color: var(--mute);
+  background: transparent;
+}
+
+.os-core i.busy {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0.5rem color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.os-core i.parked {
+  background: rgb(255 255 255 / 6%);
+  border-style: dashed;
+  opacity: 0.6;
+}
+
+.hud-right button:not(.on) {
+  background: transparent;
+  border-color: transparent;
+}
+
+.speedctl .seg > button {
+  margin: 0;
+  border-radius: 0.5rem;
+  font-size: 0.7rem;
+}
+
+.hud-right button.on {
+  border-color: transparent;
+}
+
+.sbx-pop h4:not(:first-child),
+.sbj-pop h4:not(:first-child) {
+  margin-top: 0.3rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--hair);
+}
+
+.modal .pactions button {
+  padding: 0.4rem 1rem;
 }
 
 /* The main menu (screens 01 to 03, panels/MainMenu.tsx, SPEC §5.1 to §5.3): a full-screen scrim, the display title at the top and a spine of
@@ -11982,6 +11201,11 @@ button.buy {
   width: 100%;
 }
 
+.pl-menu.settings .pl-stack {
+  overflow-y: auto;
+  padding-bottom: 2rem;
+}
+
 .pl-head {
   flex: none;
 }
@@ -12013,6 +11237,179 @@ button.buy {
   width: 0.926rem;
   height: 0.926rem;
   background: var(--c-trace);
+}
+
+.deadline .dl-bar i {
+  display: block;
+  height: 100%;
+  background: var(--ok);
+  border-radius: 0.2rem;
+}
+
+.bar.cur i {
+  background: var(--mute);
+  opacity: 0.55;
+}
+
+.bar.opt i {
+  background: var(--accent);
+}
+
+.bar.load i {
+  background: var(--alu);
+}
+
+.net-seg.binding i {
+  background: var(--warn);
+}
+
+.shop .bld-bar i {
+  border-radius: 0;
+  background: var(--g, var(--accent));
+}
+
+.tracedock .tcells i {
+  flex: 1;
+  height: 0.3rem;
+  border-radius: 0.0625rem;
+  background: var(--line);
+  opacity: 0.4;
+}
+
+.dx-prog .bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.dx-ghead .pips i {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  border: 1px solid var(--g);
+}
+
+.alm-rely .b i {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+  opacity: 0.75;
+}
+
+.alm-listing .hc i {
+  display: block;
+  height: 100%;
+}
+
+.jl-stalls .b i {
+  display: block;
+  height: 100%;
+  background: var(--k);
+  border-radius: 0;
+}
+
+.build .bld-pips i {
+  border-radius: 0;
+  box-shadow: none;
+  background: rgb(255 255 255 / 20%);
+}
+
+.build .bld-meter i {
+  background: var(--g, var(--ok));
+}
+
+.bld-srow .bld-pips i {
+  width: 0.6rem;
+  height: 0.26rem;
+}
+
+.build .bld-bar i {
+  background: var(--g, var(--accent));
+}
+
+.bld-hint.busy > i {
+  animation: bld-pulse var(--d-loop) ease-in-out infinite;
+}
+
+.bld-hint.warn > i {
+  background: var(--warn);
+  box-shadow: 0 0 0.6rem var(--warn);
+}
+
+.build .bld-hint > i {
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--accent);
+}
+
+.bld-chip.busy > i {
+  animation: bld-pulse var(--d-loop) ease-in-out infinite;
+}
+
+.build .bld-chip > i {
+  border-radius: 0;
+  background: currentcolor;
+  box-shadow: none;
+}
+
+.deadline.warn .dl-bar i {
+  background: var(--warn);
+}
+
+.deadline.bad .dl-bar i {
+  background: var(--bad);
+}
+
+.bar.opt.better i {
+  background: var(--ok);
+}
+
+.bar.opt.worse i {
+  background: var(--bad);
+}
+
+.bar.opt.same i {
+  background: var(--mute);
+}
+
+.bar.load.warn i {
+  background: var(--warn);
+}
+
+.bar.load.bad i {
+  background: var(--bad);
+}
+
+.gallery.mode .bld-hint > i {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.gallery.mode .bld-bar i {
+  border-radius: 0;
+  background: var(--ink);
+}
+
+.gallery.mode .bld-pips i {
+  border-radius: 0;
+  box-shadow: none;
+  background: rgb(255 255 255 / 20%);
+}
+
+.bld-power.none .bld-meter i {
+  background: var(--mute);
+}
+
+.bld-power.warn .bld-meter i {
+  background: var(--warn);
+}
+
+.bld-power.bad .bld-meter i {
+  background: var(--bad);
+}
+
+.build .bld-hint.warn > i {
+  background: var(--warn);
 }
 
 .pl-strip i.brand {
@@ -12117,24 +11514,6 @@ button.buy {
   color: var(--c-mute);
 }
 
-.pl-row.hero .pl-label {
-  font-size: 2.667rem;
-  line-height: 1.05;
-  color: var(--c-ink);
-}
-
-.pl-row.pl-chip .pl-label {
-  color: var(--c-ink);
-}
-
-.pl-row.bad .pl-label {
-  color: var(--c-bad);
-}
-
-.pl-row:disabled .pl-label {
-  color: var(--c-mute);
-}
-
 .pl-row:not(.hero) .pl-meta-row {
   font:
     500 0.8rem/1.35 var(--f-mono),
@@ -12155,14 +11534,6 @@ button.buy {
 .pl-row:focus-visible,
 .pl-row:focus-visible .pl-tag {
   outline: none;
-}
-
-.pl-row:focus-visible .pl-label {
-  color: var(--c-ink);
-  text-decoration: underline;
-  text-decoration-color: var(--c-accent);
-  text-decoration-thickness: 0.125rem;
-  text-underline-offset: 0.25rem;
 }
 
 .pl-util {
@@ -12218,6 +11589,70 @@ button.buy {
   opacity: 0.7;
 }
 
+.pl-menu.settings .pl-hints {
+  margin-left: 4.26rem;
+}
+
+@media (width <= 52em) {
+  .pl-menu.settings .pl-stack {
+    padding: 3.4rem 1.6rem 1.6rem;
+  }
+
+  .st-rail,
+  .st-list,
+  .st-foot,
+  .pl-menu.settings .pl-hints {
+    margin-left: 0;
+  }
+
+  .st-rail {
+    gap: 0.15rem;
+  }
+
+  .st-tab {
+    flex: 1 1 0;
+    padding: 0.3rem 0.2rem;
+    gap: 0.2rem;
+    font-size: 0.78rem;
+  }
+
+  .st-tab .st-tag {
+    display: none;
+  }
+
+  .st-row,
+  .st-row[role='slider'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .st-vals {
+    justify-content: flex-start;
+  }
+
+  .st-track {
+    width: 100%;
+  }
+
+  .pl-menu.settings .pl-title {
+    font-size: 2.6rem;
+  }
+}
+
+@media (height <= 34em) {
+  .st-list {
+    gap: 0.2rem;
+    margin-top: 0.5rem;
+  }
+
+  .st-help {
+    display: none;
+  }
+
+  .pl-menu.settings .pl-stack {
+    padding-top: 3.6rem;
+  }
+}
+
 .pl-trace {
   position: absolute;
   inset: 0;
@@ -12252,114 +11687,10 @@ button.buy {
   display: none;
 }
 
-/* Phone and short landscape screens (SPEC §6.1, §6.5): one bottom-anchored stack at the phone margins; the title steps to the phone size. */
-@media (width <= 48em), (aspect-ratio <= 3/4), (height <= 37.5em) and (orientation: landscape) {
-  .pl-menu {
-    background: linear-gradient(to top, rgb(4 6 15 / 88%) 0%, rgb(4 6 15 / 88%) 46%, rgb(4 6 15 / 0%) 63%);
-  }
-
-  .pl-menu.loading::before {
-    background: rgb(4 6 15 / 55%);
-  }
-
-  .pl-stack {
-    padding: 3.4rem 1.6rem 1.6rem;
-  }
-
-  .pl-title {
-    font-size: 5.333rem;
-  }
-
-  .pl-spine {
-    width: 100%;
-  }
-
-  .pl-row:not(.hero) .pl-text {
-    flex-direction: column;
-    gap: 0;
-  }
-
-  .pl-strip {
-    margin-left: 0.6rem;
-  }
-
-  .pl-label {
-    font-size: 1.6rem;
-  }
-
-  .pl-row.hero .pl-label {
-    font-size: 2.133rem;
-  }
-
-  .pl-row {
-    min-height: 3.2rem;
-  }
-
-  .pl-row.hero {
-    min-height: 5.33rem;
-  }
-
-  .pl-row {
-    min-height: 3.2rem;
-  }
-
-  .pl-row .pl-text {
-    margin-left: 1.6rem;
-  }
-
-  .pl-spine {
-    column-gap: 1.6rem;
-  }
-
-  .pl-hints,
-  .pl-menu .pl-tp {
-    display: none;
-  }
-
-  .pl-row:disabled .pl-tag {
-    opacity: 0.6;
-  }
-}
-
-/* Short landscape phones (about 390 px tall): the title and the rows step down so the spine fits the screen. */
-@media (height <= 37.5em) and (orientation: landscape) {
-  .pl-stack {
-    padding: 1.6rem 1.6rem 1.2rem;
-  }
-
-  .pl-title {
-    font-size: 3.2rem;
-  }
-
-  .pl-label {
-    font-size: 1.4rem;
-  }
-
-  .pl-row.hero .pl-label {
-    font-size: 1.8rem;
-  }
-
-  .pl-row {
-    min-height: 2.4rem;
-  }
-
-  .pl-row.hero {
-    min-height: 3.6rem;
-  }
-}
-
 /* New game (panels/NewGame.tsx, SPEC §5.4) and Load confirm (panels/LoadConfirm.tsx, §5.5): the same spine. A branch row holds its values on a
    rail with a 2 px trace between them; the meta line sits under the values. */
 .pl-strip i.lit {
   background: var(--c-accent);
-}
-
-/* Paused (panels/Paused.ts, SPEC §5.10): the main menu's spine over the game, on the pause ramp. The layer sits under the HUD bar (z 30), so the
-   tabs stay live; `#hud > *` would catch clicks on the whole layer, so the layer lets them through and its spine and hints take them back.
-   Desktop (SPEC §6.3): the spine and hints are bottom-anchored (the last row 9.26 rem above the bottom, the hints 4.32 rem below the spine); the
-   title block sits 8.32 rem above the spine, so at 1920 x 1080 its top is y 300. The stack's top padding is a floor, not a position. */
-#hud > .pl-menu.paused {
-  pointer-events: none;
 }
 
 .pl-menu.paused {
@@ -12610,12 +11941,6 @@ button.buy {
   color: var(--c-mute);
 }
 
-.pl-row.branch .pl-text {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.3rem;
-}
-
 .pl-vals {
   display: flex;
   flex-wrap: wrap;
@@ -12628,6 +11953,127 @@ button.buy {
   color: var(--c-mute);
 }
 
+.pl-row.hero .pl-label {
+  font-size: 2.667rem;
+  line-height: 1.05;
+  color: var(--c-ink);
+}
+
+.pl-row.pl-chip .pl-label {
+  color: var(--c-ink);
+}
+
+.pl-row.bad .pl-label {
+  color: var(--c-bad);
+}
+
+.pl-row:disabled .pl-label {
+  color: var(--c-mute);
+}
+
+.pl-row:focus-visible .pl-label {
+  color: var(--c-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--c-accent);
+  text-decoration-thickness: 0.125rem;
+  text-underline-offset: 0.25rem;
+}
+
+/* Phone and short landscape screens (SPEC §6.1, §6.5): one bottom-anchored stack at the phone margins; the title steps to the phone size. */
+@media (width <= 48em), (aspect-ratio <= 3/4), (height <= 37.5em) and (orientation: landscape) {
+  .pl-menu {
+    background: linear-gradient(to top, rgb(4 6 15 / 88%) 0%, rgb(4 6 15 / 88%) 46%, rgb(4 6 15 / 0%) 63%);
+  }
+
+  .pl-menu.loading::before {
+    background: rgb(4 6 15 / 55%);
+  }
+
+  .pl-stack {
+    padding: 3.4rem 1.6rem 1.6rem;
+  }
+
+  .pl-title {
+    font-size: 5.333rem;
+  }
+
+  .pl-spine {
+    width: 100%;
+    column-gap: 1.6rem;
+  }
+
+  .pl-strip {
+    margin-left: 0.6rem;
+  }
+
+  .pl-label {
+    font-size: 1.6rem;
+  }
+
+  .pl-row.hero .pl-label {
+    font-size: 2.133rem;
+  }
+
+  .pl-row {
+    min-height: 3.2rem;
+  }
+
+  .pl-row.hero {
+    min-height: 5.33rem;
+  }
+
+  .pl-row .pl-text {
+    margin-left: 1.6rem;
+  }
+
+  .pl-row:not(.hero) .pl-text {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .pl-hints,
+  .pl-menu .pl-tp {
+    display: none;
+  }
+
+  .pl-row:disabled .pl-tag {
+    opacity: 0.6;
+  }
+}
+
+/* Short landscape phones (about 390 px tall): the title and the rows step down so the spine fits the screen. */
+@media (height <= 37.5em) and (orientation: landscape) {
+  .pl-stack {
+    padding: 1.6rem 1.6rem 1.2rem;
+  }
+
+  .pl-title {
+    font-size: 3.2rem;
+  }
+
+  .pl-label {
+    font-size: 1.4rem;
+  }
+
+  .pl-row.hero .pl-label {
+    font-size: 1.8rem;
+  }
+
+  .pl-row {
+    min-height: 2.4rem;
+  }
+
+  .pl-row.hero {
+    min-height: 3.6rem;
+  }
+}
+
+.pl-row.branch .pl-text {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+}
+
 .pl-val {
   min-height: 3rem;
   padding: 0.4rem 0;
@@ -12638,12 +12084,6 @@ button.buy {
     sans-serif;
   color: var(--c-mute);
   cursor: pointer;
-}
-
-.pl-val:hover:not(:disabled) {
-  background: none;
-  border-color: transparent;
-  color: var(--c-ink);
 }
 
 .pl-val[aria-checked='true'] {
@@ -12666,6 +12106,12 @@ button.buy {
   text-decoration-color: var(--c-accent);
   text-decoration-thickness: 0.125rem;
   text-underline-offset: 0.25rem;
+}
+
+.pl-val:hover:not(:disabled) {
+  background: none;
+  border-color: transparent;
+  color: var(--c-ink);
 }
 
 /* The WB row and its warn line under it (SPEC §5.4): the warn sits outside the button, at the label's x (4.26 rem desktop, 4.6 rem phone). */
@@ -12702,6 +12148,36 @@ button.buy {
   width: 4.2rem;
   font-weight: 600;
   color: var(--c-ink);
+}
+
+.jl-head h3 b {
+  color: var(--ink);
+  font: 700 1.15rem var(--mono);
+  margin-left: 0.2rem;
+}
+
+.kv.bad b {
+  color: var(--bad);
+}
+
+.net-step.live b {
+  color: var(--accent);
+}
+
+.netpanel .chip b {
+  font-family: var(--mono);
+}
+
+.gal-part .mode-head b {
+  overflow-wrap: anywhere;
+}
+
+.bld-power.warn b {
+  color: var(--warn);
+}
+
+.bld-power.bad b {
+  color: var(--bad);
 }
 
 @media (width <= 48em), (aspect-ratio <= 3/4), (height <= 37.5em) and (orientation: landscape) {
@@ -12744,9 +12220,17 @@ button.buy {
     color var(--d-med) ease;
 }
 
-.rung:hover button.buy:not(:disabled),
-.rung.picked button.buy:not(:disabled),
 .rung button.buy:focus-visible {
+  background: var(--accent);
+  color: var(--on);
+}
+
+.rung:hover button.buy:not(:disabled) {
+  background: var(--accent);
+  color: var(--on);
+}
+
+.rung.picked button.buy:not(:disabled) {
   background: var(--accent);
   color: var(--on);
 }
@@ -12760,29 +12244,111 @@ button.buy {
   letter-spacing: 0.06em;
 }
 
-/* Studio screens (Build my PC, Gallery): a bar is one glass pill with bare buttons in it; the pressed one is tinted. The key hints sit back. */
-.mode .mode-bar button:not(.on):not(.bld-bench-btn) {
-  background: transparent;
+.tile:hover .tgrab {
+  opacity: 1;
+}
+
+.tile.dim:hover .tgrab {
+  opacity: 0;
+}
+
+/* stylelint-disable-next-line no-duplicate-selectors -- the two blocks cannot merge: rules between them set the same properties at equal specificity, so moving either would change the cascade */
+.mode button.on {
   border-color: transparent;
 }
 
-.mode .mode-bar button:hover:not(:disabled):not(.on):not(.bld-bench-btn) {
-  background: var(--veil);
+.shop .shop-rail button.on {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.tracedock .trace-filter button.on {
+  background: var(--glass-line);
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.dx-codebar .seg button.on {
+  color: var(--accent);
+  background: var(--sel-bg);
+  border-color: var(--sel-line);
+}
+
+.dx-scale .seg button.on {
+  color: var(--ink);
+  background: var(--glass-line);
+}
+
+.alm-ctl .seg button.on {
+  color: var(--ink);
+  background: var(--glass-line);
+}
+
+.dx-kstats .seg button.on {
+  color: var(--ink);
+  background: var(--glass-line);
+}
+
+.gallery .bld-rail button.on {
+  color: var(--ink);
+  background: var(--glass-hi);
+}
+
+.gallery .showcase-bar button.on {
+  color: var(--ink);
+  background: rgb(255 255 255 / 12%);
+  border-color: var(--glass-line);
+}
+
+.gallery .mode-bar button.on {
+  color: var(--ink);
+  background: rgb(255 255 255 / 12%);
+  border-color: var(--glass-line);
+}
+
+.mode .bld-rail button.on {
+  color: var(--accent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 20%, transparent), transparent 90%);
   border-color: transparent;
 }
 
-.mode button.on,
+.build .bld-rail button.on {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.build .bld-pips i.on {
+  background: var(--accent);
+  box-shadow: none;
+}
+
+.mode .bench-tabs button.on {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--g) 16%, transparent);
+  border-color: color-mix(in srgb, var(--g) 60%, transparent);
+}
+
+.mode .mode-bar .seg > button.on {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.gallery.mode .bld-pips i.on {
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--ink);
+}
+
+/* stylelint-disable-next-line no-duplicate-selectors -- the two blocks cannot merge: rules between them set the same properties at equal specificity, so moving either would change the cascade */
 .mode .mode-bar .seg > button.on {
   border-color: transparent;
 }
 
-.mode-keys {
-  opacity: 0.62;
-  transition: opacity var(--d-med) ease;
-}
-
 .mode:hover .mode-keys {
   opacity: 0.9;
+}
+
+.gallery.mode .bld-foot .mode-keys {
+  text-shadow: none;
 }
 
 /* Build my PC as edge tabs (#41): the summary, the lens and the bars are #39's tabs (`.hud-side`), each on its own edge. The shelf and the machine are
@@ -12800,22 +12366,14 @@ button.buy {
   display: none;
 }
 
-.build.bld-tabs .bld-read,
-.build.bld-tabs .bld-lens {
-  background: none;
-  border: 0;
-  box-shadow: none;
-  backdrop-filter: none;
-}
-
 .build.bld-tabs .bld-read::before,
 .build.bld-tabs .bld-lens::before {
   content: '';
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: var(--c-shade-86);
   clip-path: var(--tab-clip, none);
+  background: var(--c-shade-86);
 }
 
 .build.bld-tabs .bld-read {
@@ -12844,15 +12402,6 @@ button.buy {
   gap: 0.4rem;
 }
 
-/* Desk: the summary top left, the lens top right, the machine a tab on the right that opens into its panel. */
-.build.bld-tabs[data-layout='desk'] .bld-read {
-  left: 1rem;
-  top: 1rem;
-  right: auto;
-  margin: 0;
-  max-width: calc(100% - 2rem);
-}
-
 /* (the shelf starts under the summary bar, at the machine tab's top: a wrapped bar does not cover it) */
 
 /* (the rail: a tab on the left edge, 96 px wide, its tags 42 px apart from 178 px. Its parts are a flyout beside the chosen tag: shown on hover, focus or a
@@ -12870,6 +12419,14 @@ button.buy {
   box-shadow: none;
   backdrop-filter: none;
   overflow: visible;
+  clip-path: polygon(
+    0 0,
+    calc(100% - 0.9rem) 0,
+    100% 0.9rem,
+    100% calc(100% - 0.9rem),
+    calc(100% - 0.9rem) 100%,
+    0 100%
+  );
 }
 
 .build.bld-tabs[data-layout='desk'] .bld-shelf {
@@ -12881,17 +12438,6 @@ button.buy {
   height: 100%;
   padding: 1.73rem 0 0;
   gap: 0.2rem;
-}
-
-.build.bld-tabs[data-layout='desk'] .bld-rail button {
-  width: 100%;
-  height: 2.4rem;
-  padding: 0;
-  justify-content: center;
-}
-
-/* (SPEC 6.4 step 5a: a rail too tall for its tab shrinks its rows to 34 px on a fine pointer, then scrolls inside the tab, with a 24 px fade on the cut edge) */
-.build.bld-tabs[data-layout='desk'] .bld-rail {
   box-sizing: border-box;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -12926,50 +12472,9 @@ button.buy {
   letter-spacing: 0.04em;
 }
 
-.build.bld-tabs[data-layout='desk'] .bld-parts {
-  position: absolute;
-  left: 100%;
-  top: min(var(--seltop, calc(1.36rem + var(--sel, 0) * 2.6rem)), calc(100vh - 9.26rem - 16.7rem));
-  z-index: 3;
-  width: 18.5rem;
-  height: 16.2rem;
-  margin: 0;
-  padding: 0.6rem;
-  background: var(--c-shade-86);
-  visibility: hidden;
-  opacity: 0;
-  transition:
-    opacity var(--d-med) var(--d-slow),
-    visibility var(--d-none) linear var(--d-slow);
-}
-
-.build.bld-tabs[data-layout='desk'] .bld-bin:hover .bld-parts,
-.build.bld-tabs[data-layout='desk'] .bld-bin:focus-within .bld-parts,
-.build.bld-tabs[data-layout='desk'] .bld-bin.lift .bld-parts {
-  visibility: visible;
-  opacity: 1;
-  transition:
-    opacity var(--d-med),
-    visibility var(--d-none);
-}
-
-.build.bld-tabs[data-layout='desk'] .bld-bin.taking .bld-parts {
-  visibility: hidden;
-  opacity: 0;
-  transition: none;
-}
-
 .build.bld-tabs[data-layout='desk'] .bld-tiles {
   grid-template-columns: minmax(0, 1fr);
   gap: 0.3rem;
-}
-
-.build.bld-tabs[data-layout='desk'] .bld-tile {
-  display: grid;
-  grid-template-columns: 5rem minmax(0, 1fr);
-  grid-template-areas: 'art name' 'art meta';
-  align-items: center;
-  column-gap: 0.6rem;
 }
 
 .build.bld-tabs[data-layout='desk'] .bld-art {
@@ -12997,30 +12502,22 @@ button.buy {
   height: 16.2rem;
 }
 
-.build.bld-tabs[data-layout='desk'] .bld-lens {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  margin: 0;
-  width: max-content;
-}
-
 .build.bld-tabs[data-layout='desk'] .bld-mtog {
   display: flex;
   position: absolute;
   top: 8.75rem;
-  right: 1rem;
   width: 13rem;
   align-items: center;
   gap: 0.5rem;
   padding: 0.7rem 1rem;
   border: 0;
   background: var(--c-shade-86);
-  clip-path: polygon(0.9rem 0, 100% 0, 100% 100%, 0 100%, 0 0.9rem);
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
+  right: 0;
+  clip-path: polygon(0.9rem 0, 100% 0, 100% 100%, 0.9rem 100%, 0 calc(100% - 0.9rem), 0 0.9rem);
 }
 
 .build.bld-tabs[data-layout='desk'] .bld-mtog-eye {
@@ -13029,38 +12526,16 @@ button.buy {
 }
 
 .build.bld-tabs[data-layout='desk'] .bld-inst.closed {
-  right: 1rem;
-  top: 8.75rem;
   bottom: auto;
-  width: 13rem;
   height: auto;
-  background: none;
   border: 0;
   box-shadow: none;
   overflow: visible;
-}
-
-.build.bld-tabs[data-layout='desk'] .bld-inst.closed > :not(.bld-mtog) {
-  display: none;
-}
-
-/* (the shut tab stacks its summary over its name: the two do not fit on one line of 13.6 rem) */
-.build.bld-tabs[data-layout='desk'] .bld-inst.closed .bld-mtog {
-  width: 13.6rem;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.2rem;
-}
-
-.build.bld-tabs[data-layout='desk'] .bld-inst.closed .bld-mtog {
-  display: flex;
-}
-
-.build.bld-tabs[data-layout='desk'] .bld-inst.open .bld-mtog {
-  display: flex;
-  position: static;
-  width: auto;
-  margin-bottom: 0.5rem;
+  right: 0;
+  top: 8.75rem;
+  width: 14rem;
+  background: none;
+  padding: 0;
 }
 
 /* Phone: one pane at a time, the foot at the bottom. The stage fills the screen behind the panes. */
@@ -13071,40 +12546,8 @@ button.buy {
   flex: none;
 }
 
-/* (relative, not static: the bar's ::before shade then sits in the bar. On a static bar its containing block was the whole screen, and it took the taps on the pane tabs) */
-.build.bld-tabs[data-layout='phone'] .bld-read {
-  position: relative;
-  inset: auto;
-  width: auto;
-  max-width: none;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.build.bld-tabs[data-layout='phone'] .bld-lens {
-  position: absolute;
-  top: 4.2rem;
-  right: 0.5rem;
-}
-
-.build.bld-tabs[data-layout='phone'] .bld-foot {
-  position: absolute;
-  left: 0.5rem;
-  right: 0.5rem;
-  bottom: 0.5rem;
-  width: auto;
-  max-width: none;
-  margin: 0;
-}
-
 .build.bld-tabs[data-layout='phone'] .bld-dock {
   display: contents;
-}
-
-/* (the bars wrap inside the foot, never past it: the foot clips what leaves its box, and the landscape foot is 14 rem wide, so the OS button was cut off and could not be tapped) */
-.build.bld-tabs[data-layout='phone'] .bld-dock .mode-bar {
-  flex-wrap: wrap;
-  max-width: 100%;
 }
 
 .build.bld-tabs[data-layout='phone'] .bld-panes {
@@ -13137,18 +12580,11 @@ button.buy {
   max-height: 17rem;
 }
 
-.build.bld-tabs[data-layout='phone']:not([data-shelf='open']) .bld-parts {
-  display: none;
-}
-
-.build.bld-tabs[data-layout='phone']:not([data-shelf='open']) .bld-shelf {
-  grid-template-rows: auto;
-  gap: 0;
-}
-
 /* (the rail's rows show whole: as a scroll box the grid shrank it under the parts, and its last rows were cut with no bar to say so) */
 .build.bld-tabs[data-layout='phone'] .bld-rail {
-  overflow: visible;
+  flex-flow: row nowrap;
+  overflow: auto hidden;
+  scrollbar-width: none;
 }
 
 /* (the drop note fills the thin rail tab: its text is cut inside the note, it must not stretch the tab's scroll height) */
@@ -13163,8 +12599,682 @@ button.buy {
   max-height: 46vh;
 }
 
+.build.bld-tabs[data-layout='phone'] .bld-mtog {
+  display: none;
+}
+
 .build.bld-tabs[data-layout='phone'] .bld-inst > .bld-mtog {
   display: none;
+}
+
+/* (the shut tab stacks its summary over its name: the two do not fit on one line of 13.6 rem) */
+.build.bld-tabs[data-layout='desk'] .bld-inst.closed .bld-mtog {
+  width: 13.6rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  display: flex;
+}
+
+.build.bld-tabs[data-layout='desk'] .bld-inst.open .bld-mtog {
+  display: flex;
+  position: static;
+  width: auto;
+  margin-bottom: 0.5rem;
+}
+
+.build.bld-tabs[data-layout='phone'] .bld-shelf {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.build.bld-tabs[data-layout='phone']:not([data-shelf='open']) .bld-shelf {
+  grid-template-rows: auto;
+  gap: 0;
+}
+
+.build.bld-tabs[data-layout='phone'] .bld-tiles {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: 10rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+/* The Back tab (SPEC 5.7): the one way out of Build my PC besides Esc; a tab top left, and on desk the summary starts after it. */
+.build.bld-tabs .bld-back {
+  position: absolute;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 0;
+  background: var(--c-shade-86);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 0.9rem), calc(100% - 0.9rem) 100%, 0 100%);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  padding: 1.55rem 0.9rem 0.55rem 1.9rem;
+}
+
+.build.bld-tabs .bld-back em {
+  font: normal var(--m-xs) var(--mono);
+  opacity: 0.6;
+}
+
+/* (phone: the picked part's card is a sheet over the pane, above the bottom bar) */
+.build.bld-tabs[data-layout='phone'] .bld-card {
+  position: absolute;
+  z-index: 5;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.build.bld-tabs[data-layout='phone'] .bld-back {
+  top: 1.5rem;
+  left: 1.4rem;
+  background: none;
+  clip-path: none;
+  padding: 0.2rem 0.4rem;
+}
+
+/* Build my PC tabs (#70): flat, flush with the screen edge, chamfered where a corner is free. */
+.build .bld-foot {
+  background: var(--c-shade-86);
+  padding: 0.8rem 1.4rem 0.6rem;
+  clip-path: polygon(0.9rem 0, calc(100% - 0.9rem) 0, 100% 0.9rem, 100% 100%, 0 100%, 0 0.9rem);
+}
+
+.build.bld-tabs[data-layout='phone'] .bld-foot {
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  width: auto;
+  max-width: none;
+  margin: 0;
+}
+
+.build .bench-scrim {
+  background: var(--c-shade-86);
+}
+
+/* The OS sheet (#76, SPEC §4.11, ADR 0001): an edge tab. Desk: flush to the right edge, chamfers on the two free corners. Phone: flush to the bottom, chamfers on the top two. No scrim over the 3D view: the scrim stays, clear, as the click-off target. */
+.build .os-scrim {
+  background: transparent;
+}
+
+.build .bld-os-sheet .os-sheet-tabs {
+  gap: 0.2rem 1.1rem;
+}
+
+.build .bld-os-sheet .os-sheet-tabs button.on {
+  background: none;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.build .bld-os-sheet .os-card.on {
+  background: none;
+}
+
+.build .bld-os-sheet .os-card-head em {
+  background: none;
+  padding: 0;
+  color: var(--ok);
+}
+
+.build.bld-tabs[data-layout='phone'] .bld-back em {
+  display: none;
+}
+
+.build .bld-os-sheet .os-act.primary {
+  background: none;
+  color: var(--accent);
+}
+
+.mode .os-act.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 82%, #fff);
+}
+
+.build .bld-os-sheet .os-act.primary:hover:not(:disabled) {
+  background: none;
+  text-decoration: underline;
+}
+
+.build .bld-os-sheet .os-banner,
+.build .bld-os-sheet .os-tile,
+.build .bld-os-sheet .os-chart {
+  background: none;
+}
+
+.build .bld-os-sheet :is(.os-diskbar, .os-legend) .rsv {
+  background: color-mix(in srgb, var(--ok) 45%, transparent);
+}
+
+/* stylelint-disable-next-line no-duplicate-selectors -- the two blocks cannot merge: rules between them set the same properties at equal specificity, so moving either would change the cascade */
+.build.bld-tabs[data-layout='desk'] .bld-inst.closed .bld-mtog {
+  width: 14rem;
+  padding-right: 2rem;
+}
+
+.build.bld-tabs[data-layout='desk'] .bld-inst.open {
+  right: 0;
+  bottom: 0;
+  width: var(--bld-r);
+  padding-right: 1.9rem;
+  padding-bottom: 1.9rem;
+  clip-path: polygon(0.9rem 0, 100% 0, 100% 100%, 0.9rem 100%, 0 calc(100% - 0.9rem), 0 0.9rem);
+}
+
+.build.bld-tabs[data-layout='phone'] {
+  padding: 0;
+}
+
+/* Flat buttons in the panels (no radius, chips excepted). Last, so these win the ties with the .mode rules above. */
+
+.build.mode button {
+  border-radius: 0;
+}
+
+.speedctl .speeds > button:not(.on) {
+  display: none;
+}
+
+.speedctl:hover .speeds > button {
+  display: inline-block;
+  animation: fade-in var(--d-med) ease both;
+}
+
+.speedctl:focus-within .speeds > button {
+  display: inline-block;
+  animation: fade-in var(--d-med) ease both;
+}
+
+.speedctl.open .speeds > button {
+  display: inline-block;
+  animation: fade-in var(--d-med) ease both;
+}
+
+.lvlmodal .lvl-actions button:focus-visible {
+  outline: 0.133rem solid var(--c-accent);
+  outline-offset: 0.2rem;
+}
+
+.shop .shop-rail button:hover {
+  background: color-mix(in srgb, var(--c-shade-86) 88%, var(--c-ink));
+}
+
+.tracedock .trace-filter button:disabled {
+  opacity: 0.45;
+}
+
+.almanac.alm-edge .seg > button {
+  border-radius: 0;
+  margin-left: 0;
+}
+
+.mode button:hover:not(:disabled) {
+  background: rgb(255 255 255 / 9%);
+  border-color: rgb(150 170 255 / 35%);
+}
+
+.mode .mode-bar .seg > button {
+  margin: 0;
+  padding: 0.25rem 0.6rem;
+  border-color: transparent;
+  background: transparent;
+  font-family: var(--mono);
+}
+
+.mode .bld-al.warn > button {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 9%, transparent);
+  border-color: color-mix(in srgb, var(--warn) 40%, transparent);
+}
+
+.mode .bld-al.bad > button {
+  color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+  border-color: color-mix(in srgb, var(--bad) 48%, transparent);
+}
+
+.build .bld-os-sheet .os-sheet-tabs button {
+  padding: 0.3rem 0;
+  background: none;
+  color: var(--mute);
+}
+
+.lvlmodal .lvl-actions button:hover:not(:disabled) {
+  background: none;
+  border-color: transparent;
+  color: var(--c-accent);
+}
+
+.mode .bld-rail button:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--glass-hi);
+  border-color: transparent;
+}
+
+.mode .bld-grp button:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--glass-hi);
+  border-color: transparent;
+}
+
+.mode .bench-tabs button:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+/* stylelint-disable-next-line selector-not-notation -- the chained :not() keeps the specificity; :not(a, b) would lower it */
+.hud-right button:hover:not(:disabled):not(.on) {
+  background: var(--veil);
+  border-color: transparent;
+}
+
+/* Studio screens (Build my PC, Gallery): a bar is one glass pill with bare buttons in it; the pressed one is tinted. The key hints sit back. */
+/* stylelint-disable-next-line selector-not-notation -- the chained :not() keeps the specificity; :not(a, b) would lower it */
+.mode .mode-bar button:not(.on):not(.bld-bench-btn) {
+  background: transparent;
+  border-color: transparent;
+}
+
+.build.bld-tabs[data-layout='desk'] .bld-rail button {
+  width: 100%;
+  height: 2.4rem;
+  padding: 0;
+  justify-content: center;
+}
+
+.build.bld-tabs[data-layout='phone'] .bld-rail button {
+  flex: none;
+  height: 2.2rem;
+}
+
+.mode .bld-al.warn > button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  border-color: var(--warn);
+}
+
+.mode .bld-al.bad > button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--bad) 17%, transparent);
+  border-color: var(--bad);
+}
+
+/* stylelint-disable-next-line selector-not-notation -- the chained :not() keeps the specificity; :not(a, b) would lower it */
+.mode .mode-bar button:hover:not(:disabled):not(.on):not(.bld-bench-btn) {
+  background: var(--veil);
+  border-color: transparent;
+}
+
+.build.mode .mode-bar .bld-ico {
+  border-radius: 0;
+}
+
+.build.mode .bld-startbtn {
+  border-radius: 0;
+}
+
+.build.bld-tabs .bld-parts {
+  border-radius: 0;
+}
+
+.build.bld-tabs[data-layout='desk'] .bld-parts {
+  position: absolute;
+  left: 100%;
+  top: min(var(--seltop, calc(1.36rem + var(--sel, 0) * 2.6rem)), calc(100vh - 9.26rem - 16.7rem));
+  z-index: 3;
+  width: 18.5rem;
+  height: 16.2rem;
+  margin: 0;
+  padding: 0.6rem;
+  background: var(--c-shade-86);
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity var(--d-med) var(--d-slow),
+    visibility var(--d-none) linear var(--d-slow);
+  clip-path: polygon(0 0, calc(100% - 0.9rem) 0, 100% 0.9rem, 100% 100%, 0 100%);
+}
+
+.build.bld-tabs[data-layout='desk'] .bld-foot {
+  bottom: 0;
+  right: calc(var(--bld-r) + 1rem);
+  max-width: calc(100% - var(--bld-l) - var(--bld-r) - 2rem);
+  box-sizing: border-box;
+}
+
+/* The part picker is an edge tab (#78, ADR 0001, SPEC §1 rules 5 and 6, §4.11): a flat --c-shade-86 fill, no border, radius, shadow, blur or
+   gradient. Radius 4 px on chips only. Docked, it touches the right edge (the placement margin is cancelled) and has a chamfer on each free corner.
+   Last in the file, so these win the ties with the glass rules above. */
+
+.part-picker {
+  border-width: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  backdrop-filter: none !important;
+  background-image: none !important;
+}
+
+.part-picker * {
+  border-width: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  backdrop-filter: none !important;
+  background-image: none !important;
+}
+
+/* Gallery is flat (#71, SPEC §1 rules 5 and 6): no border, radius, shadow, blur, text shadow or gradient. Chips and bars are text lines. Selectors
+   carry `.gallery.mode` so they win over the kit's rules (`.mode .mode-bar button` and the like). */
+
+.gallery.mode * {
+  text-shadow: none;
+}
+
+/* ADR 0001 / SPEC rule 6: no glow, shadow, gradient or glass on any part of the sheet; corners at most a 4 px chip */
+.build .bld-os-sheet * {
+  border-radius: 0.2rem;
+  box-shadow: none;
+  text-shadow: none;
+  background-image: none;
+  backdrop-filter: none;
+}
+
+.part-picker *::before {
+  border-width: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  backdrop-filter: none !important;
+  background-image: none !important;
+}
+
+.gallery.mode *::before {
+  text-shadow: none;
+}
+
+.part-picker *::after {
+  border-width: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  backdrop-filter: none !important;
+  background-image: none !important;
+}
+
+.gallery.mode *::after {
+  text-shadow: none;
+}
+
+/* stylelint-disable-next-line no-duplicate-selectors -- the two blocks cannot merge: rules between them set the same properties at equal specificity, so moving either would change the cascade */
+.part-picker {
+  background: var(--c-shade-86) !important;
+}
+
+.part-picker .rung.picked {
+  background: var(--sel-bg) !important;
+}
+
+.part-picker :is(.chip, .zchip, button.lockbadge, .need-chip) {
+  border-radius: 0.24rem !important;
+}
+
+.gallery.mode :is(.mode-panel, .mode-bar) {
+  border-width: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  background: none;
+}
+
+.build :is(.bld-wait, .bld-overall b, .bld-foot .mode-keys) {
+  text-shadow: none;
+}
+
+/* (the tabs under the sheet hide: their text would show through its 86 % backing) */
+.build:has(> .bld-os-sheet) :is(.bld-lens, .bld-inst, .bld-foot) {
+  visibility: hidden;
+}
+
+.part-picker .zchip {
+  background: color-mix(in srgb, currentcolor 14%, transparent) !important;
+}
+
+.part-picker .tail {
+  display: none;
+}
+
+.picker[data-side='dock'] .tail {
+  display: none;
+}
+
+.picker[data-side='right'] .tail {
+  left: -0.78rem;
+  top: calc(var(--tail) - 0.65rem);
+  clip-path: polygon(0 50%, 100% 0, 100% 100%);
+}
+
+.picker[data-side='left'] .tail {
+  right: -0.78rem;
+  top: calc(var(--tail) - 0.65rem);
+  clip-path: polygon(100% 50%, 0 0, 0 100%);
+}
+
+.picker[data-side='below'] .tail {
+  top: -0.78rem;
+  left: calc(var(--tail) - 0.65rem);
+  width: 1.3rem;
+  height: 0.8rem;
+  clip-path: polygon(50% 0, 0 100%, 100% 100%);
+}
+
+.picker[data-side='above'] .tail {
+  bottom: -0.78rem;
+  left: calc(var(--tail) - 0.65rem);
+  width: 1.3rem;
+  height: 0.8rem;
+  clip-path: polygon(50% 100%, 0 0, 100% 0);
+}
+
+.part-picker[data-side='dock'] {
+  translate: 0.5rem 0;
+  clip-path: polygon(var(--ch) 0, 100% 0, 100% 100%, var(--ch) 100%, 0 calc(100% - var(--ch)), 0 var(--ch));
+}
+
+/* ADR 0001 / SPEC rules 5 and 6 for the in-game family (#72): the HUD, the dock, Paused, Settings, Controls and New game in game have no border, glass,
+   shadow, glow or gradient, and no radius above a 4 px chip. A chosen state shows by its tint or its underline. */
+.title,
+.hud .money {
+  text-shadow: none !important;
+}
+
+#hud > .title {
+  pointer-events: none;
+}
+
+:is(.hud, .dockbar, .ctl, .pl-menu.settings) :is(button, .chip, kbd, .st-row, .st-val) {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* stylelint-disable-next-line selector-not-notation -- the chained :not() keeps the specificity; :not(a, b) would lower it */
+.part-picker :is(.rung, .bcard, .pline, .pk-body, button:not(.primary):not(.on)) {
+  background: transparent !important;
+}
+
+.almanac.alm-edge .seg > :first-child {
+  border-radius: 0;
+  margin-left: 0;
+}
+
+.almanac.alm-edge .seg > :last-child {
+  border-radius: 0;
+  margin-left: 0;
+}
+
+.part-picker :is(.rung, button:not(.primary)):hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
+}
+
+.build.bld-tabs[data-layout='desk'] .bld-inst.closed > :not(.bld-mtog) {
+  display: none;
+}
+
+/* The staged dock is the one "Inventory" tab (SPEC 5.11: 150 wide, centred): its other items are not drawn, so the tab does not run under the card. */
+#hud.staged .dockbar > :not(:first-child) {
+  display: none;
+}
+
+.hud .chip {
+  border-radius: 0.2rem;
+}
+
+.modal.crash .chips .chip {
+  font-size: 1rem;
+}
+
+.card.modal.mm-card.ctl {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+}
+
+.modal-back.ctl-back {
+  backdrop-filter: none !important;
+}
+
+.pl-menu.paused,
+.pl-menu.settings,
+.pl-menu.newgame.ingame {
+  background: var(--c-shade-86);
+}
+
+/* Paused (panels/Paused.ts, SPEC §5.10): the main menu's spine over the game, on the pause ramp. The layer sits under the HUD bar (z 30), so the
+   tabs stay live; `#hud > *` would catch clicks on the whole layer, so the layer lets them through and its spine and hints take them back.
+   Desktop (SPEC §6.3): the spine and hints are bottom-anchored (the last row 9.26 rem above the bottom, the hints 4.32 rem below the spine); the
+   title block sits 8.32 rem above the spine, so at 1920 x 1080 its top is y 300. The stack's top padding is a floor, not a position. */
+#hud > .pl-menu.paused {
+  pointer-events: none;
+}
+
+.pl-menu .pl-row.hero.pl-chip {
+  border-radius: 0.2rem;
+}
+
+/* Menu feedback toast (SPEC 4.10): a plateless line at the menu position, never in the bottom stack. Phone: x 16, y 140, under the HUD tab. */
+.toast.menu-toast {
+  position: fixed;
+  left: 3.2rem;
+  top: 6.7rem;
+  z-index: 30;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: none;
+  backdrop-filter: none;
+  font: 500 1rem/1.3 var(--mono);
+  color: var(--c-ink);
+  pointer-events: none;
+}
+
+.toast.menu-toast b {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.net-seg.binding .kv b {
+  color: var(--warn);
+}
+
+.bld-bin.drop .bld-bin-note b {
+  color: var(--ink);
+}
+
+.build .bld-os-sheet .os-tile.sel .os-tile-txt b {
+  font-weight: 600;
+}
+
+@media (width <= 48em), (height <= 30em) {
+  .toast.menu-toast {
+    left: 1.1rem;
+    top: 9.4rem;
+  }
+}
+
+/* (the bars wrap inside the foot, never past it: the foot clips what leaves its box, and the landscape foot is 14 rem wide, so the OS button was cut off and could not be tapped) */
+.build.bld-tabs[data-layout='phone'] .bld-dock .mode-bar {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.build.bld-tabs[data-layout='desk'] .bld-tile {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  grid-template-areas: 'art name' 'art meta';
+  align-items: center;
+  column-gap: 0.6rem;
+}
+
+/* Desk: the summary top left, the lens top right, the machine a tab on the right that opens into its panel. */
+.build.bld-tabs[data-layout='desk'] .bld-read {
+  right: auto;
+  margin: 0;
+  left: 8rem;
+  max-width: calc(100% - 9rem);
+  top: 0;
+  padding-top: 1.35rem;
+  padding-left: 0.85rem;
+
+  --tab-clip: polygon(
+    0 0,
+    100% 0,
+    100% calc(100% - 0.9rem),
+    calc(100% - 0.9rem) 100%,
+    0.9rem 100%,
+    0 calc(100% - 0.9rem)
+  );
+}
+
+.build.bld-tabs[data-layout='desk'] .bld-lens {
+  position: absolute;
+  margin: 0;
+  width: max-content;
+  top: 0;
+  right: 0;
+  padding: 1.35rem 1.4rem 0.35rem 0.85rem;
+}
+
+/* (relative, not static: the bar's ::before shade then sits in the bar. On a static bar its containing block was the whole screen, and it took the taps on the pane tabs) */
+.build.bld-tabs[data-layout='phone'] .bld-read {
+  position: relative;
+  inset: auto;
+  width: auto;
+  max-width: none;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 0;
+  padding-top: 0.6rem;
+
+  --tab-clip: polygon(0 0, 100% 0, 100% calc(100% - 0.9rem), calc(100% - 0.9rem) 100%, 0 100%);
+}
+
+.build.bld-tabs[data-layout='phone'] .bld-lens {
+  position: absolute;
+  top: 4.2rem;
+  right: 0;
+
+  --tab-clip: polygon(0 0, 100% 0, 100% 100%, 0.9rem 100%, 0 calc(100% - 0.9rem));
 }
 
 /* (the run pane's foot is tall: the lens sits under the summary and above it, not on the pane tabs and the bars) */
@@ -13177,35 +13287,6 @@ button.buy {
 
 .build.bld-tabs[data-layout='phone']:not([data-pane='run']) .bld-lens {
   display: none;
-}
-
-.build.bld-tabs[data-layout='phone'] .bld-mtog {
-  display: none;
-}
-
-.build.bld-tabs[data-layout='phone'] .bld-shelf {
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 0.5rem;
-}
-
-.build.bld-tabs[data-layout='phone'] .bld-rail {
-  flex-flow: row nowrap;
-  overflow: auto hidden;
-  scrollbar-width: none;
-}
-
-.build.bld-tabs[data-layout='phone'] .bld-rail button {
-  flex: none;
-  height: 2.2rem;
-}
-
-.build.bld-tabs[data-layout='phone'] .bld-tiles {
-  grid-template-columns: none;
-  grid-auto-flow: column;
-  grid-auto-columns: 10rem;
-  overflow-x: auto;
-  scrollbar-width: none;
 }
 
 /* (landscape phone: the summary is one row and the foot starts low, so the shelf and the machine sit between them) */
@@ -13297,264 +13378,7 @@ button.buy {
   }
 }
 
-/* The Back tab (SPEC 5.7): the one way out of Build my PC besides Esc; a tab top left, and on desk the summary starts after it. */
-.build.bld-tabs .bld-back {
-  position: absolute;
-  z-index: 4;
-  top: 1rem;
-  left: 1rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.55rem 0.9rem;
-  border: 0;
-  background: var(--c-shade-86);
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 0.9rem), calc(100% - 0.9rem) 100%, 0 100%);
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.build.bld-tabs .bld-back em {
-  font: normal var(--m-xs) var(--mono);
-  opacity: 0.6;
-}
-
-.build.bld-tabs[data-layout='desk'] .bld-read {
-  left: 8rem;
-  max-width: calc(100% - 9rem);
-}
-
-/* (phone: the picked part's card is a sheet over the pane, above the bottom bar) */
-.build.bld-tabs[data-layout='phone'] .bld-card {
-  position: absolute;
-  z-index: 5;
-  max-height: 40vh;
-  overflow-y: auto;
-}
-
-.build.bld-tabs[data-layout='phone'] .bld-back {
-  top: 1.5rem;
-  left: 1.4rem;
-  background: none;
-  clip-path: none;
-  padding: 0.2rem 0.4rem;
-}
-
-.build.bld-tabs[data-layout='phone'] .bld-back em {
-  display: none;
-}
-
-/* Build my PC tabs (#70): flat, flush with the screen edge, chamfered where a corner is free. */
-.build .bld-foot {
-  background: var(--c-shade-86);
-  padding: 0.8rem 1.4rem 0.6rem;
-  clip-path: polygon(0.9rem 0, calc(100% - 0.9rem) 0, 100% 0.9rem, 100% 100%, 0 100%, 0 0.9rem);
-}
-
-.build .bench-scrim {
-  background: var(--c-shade-86);
-}
-
-.build.bld-tabs .bld-read,
-.build.bld-tabs .bld-lens {
-  background: none;
-}
-
-.build.bld-tabs .bld-read::before,
-.build.bld-tabs .bld-lens::before {
-  background: var(--c-shade-86);
-}
-
-/* (flush with the screen edge: the tab keeps its text where it was, with the old gap as padding) */
-.build.bld-tabs .bld-back {
-  top: 0;
-  left: 0;
-  padding: 1.55rem 0.9rem 0.55rem 1.9rem;
-}
-
-.build.bld-tabs[data-layout='desk'] .bld-read {
-  top: 0;
-  padding-top: 1.35rem;
-  padding-left: 0.85rem;
-
-  --tab-clip: polygon(
-    0 0,
-    100% 0,
-    100% calc(100% - 0.9rem),
-    calc(100% - 0.9rem) 100%,
-    0.9rem 100%,
-    0 calc(100% - 0.9rem)
-  );
-}
-
-.build.bld-tabs[data-layout='desk'] .bld-lens {
-  top: 0;
-  right: 0;
-  padding: 1.35rem 1.4rem 0.35rem 0.85rem;
-}
-
-.build.bld-tabs[data-layout='desk'] .bld-inst.closed {
-  right: 0;
-  top: 8.75rem;
-  width: 14rem;
-  background: none;
-  padding: 0;
-}
-
-/* The OS sheet (#76, SPEC §4.11, ADR 0001): an edge tab. Desk: flush to the right edge, chamfers on the two free corners. Phone: flush to the bottom, chamfers on the top two. No scrim over the 3D view: the scrim stays, clear, as the click-off target. */
-.build .os-scrim {
-  background: transparent;
-}
-
-/* (the tabs under the sheet hide: their text would show through its 86 % backing) */
-.build:has(> .bld-os-sheet) :is(.bld-lens, .bld-inst, .bld-foot) {
-  visibility: hidden;
-}
-
-.build.bld-tabs[data-layout='desk'] .bld-os-sheet {
-  inset: 0 0 0 auto;
-  width: 44rem;
-  max-width: 100%;
-  margin: 0;
-  padding: 1.35rem 1.4rem 1rem 1.9rem;
-  clip-path: polygon(var(--ch) 0, 100% 0, 100% 100%, var(--ch) 100%, 0 calc(100% - var(--ch)), 0 var(--ch));
-}
-
-.build.bld-tabs[data-layout='phone'] .bld-os-sheet {
-  inset: 2.5rem 0 0;
-  width: auto;
-  max-width: none;
-  margin: 0;
-  padding: 1rem 1rem 0.9rem;
-  clip-path: polygon(var(--ch-sm) 0, calc(100% - var(--ch-sm)) 0, 100% var(--ch-sm), 100% 100%, 0 100%, 0 var(--ch-sm));
-}
-
-/* (the sheet's own parts: text on the tab, no plate, no pill; the selected page is ink, not a tinted button) */
-
-/* SPEC rule 5: no borders on the sheet or in it */
-.build .bld-os-sheet,
-.build .bld-os-sheet * {
-  border: 0;
-}
-
-.build .bld-os-sheet .os-sheet-tabs {
-  gap: 0.2rem 1.1rem;
-}
-
-.build .bld-os-sheet .os-sheet-tabs button {
-  padding: 0.3rem 0;
-  background: none;
-  color: var(--mute);
-}
-
-.build .bld-os-sheet .os-sheet-tabs button.on {
-  background: none;
-  color: var(--ink);
-  font-weight: 600;
-}
-
-.build .bld-os-sheet .os-card.on {
-  background: none;
-}
-
-.build .bld-os-sheet .os-card-head em {
-  background: none;
-  padding: 0;
-  color: var(--ok);
-}
-
-.build .bld-os-sheet .os-act.primary {
-  background: none;
-  color: var(--accent);
-}
-
-.build .bld-os-sheet .os-act.primary:hover:not(:disabled) {
-  background: none;
-  text-decoration: underline;
-}
-
-.build .bld-os-sheet .os-banner,
-.build .bld-os-sheet .os-tile,
-.build .bld-os-sheet .os-chart {
-  background: none;
-}
-
-.build .bld-os-sheet .os-tile.sel .os-tile-txt b {
-  font-weight: 600;
-}
-
-/* ADR 0001 / SPEC rule 6: no glow, shadow, gradient or glass on any part of the sheet; corners at most a 4 px chip */
-.build .bld-os-sheet * {
-  border-radius: 0.2rem;
-  box-shadow: none;
-  text-shadow: none;
-  background-image: none;
-  backdrop-filter: none;
-}
-
-.build .bld-os-sheet :is(.os-diskbar, .os-legend) .rsv {
-  background: color-mix(in srgb, var(--ok) 45%, transparent);
-}
-
-.build.bld-tabs[data-layout='desk'] .bld-inst.closed .bld-mtog {
-  width: 14rem;
-  padding-right: 2rem;
-}
-
-.build.bld-tabs[data-layout='desk'] .bld-mtog {
-  right: 0;
-  clip-path: polygon(0.9rem 0, 100% 0, 100% 100%, 0.9rem 100%, 0 calc(100% - 0.9rem), 0 0.9rem);
-}
-
-.build.bld-tabs[data-layout='desk'] .bld-inst.open {
-  right: 0;
-  bottom: 0;
-  width: var(--bld-r);
-  padding-right: 1.9rem;
-  padding-bottom: 1.9rem;
-  clip-path: polygon(0.9rem 0, 100% 0, 100% 100%, 0.9rem 100%, 0 calc(100% - 0.9rem), 0 0.9rem);
-}
-
-.build.bld-tabs[data-layout='desk'] .bld-bin {
-  clip-path: polygon(
-    0 0,
-    calc(100% - 0.9rem) 0,
-    100% 0.9rem,
-    100% calc(100% - 0.9rem),
-    calc(100% - 0.9rem) 100%,
-    0 100%
-  );
-}
-
-.build.bld-tabs[data-layout='desk'] .bld-foot {
-  bottom: 0;
-  right: calc(var(--bld-r) + 1rem);
-  max-width: calc(100% - var(--bld-l) - var(--bld-r) - 2rem);
-  box-sizing: border-box;
-}
-
-.build.bld-tabs[data-layout='desk'] .bld-parts {
-  clip-path: polygon(0 0, calc(100% - 0.9rem) 0, 100% 0.9rem, 100% 100%, 0 100%);
-}
-
-.build.bld-tabs[data-layout='phone'] {
-  padding: 0;
-}
-
-.build.bld-tabs[data-layout='phone'] .bld-read {
-  margin: 0;
-  padding-top: 0.6rem;
-
-  --tab-clip: polygon(0 0, 100% 0, 100% calc(100% - 0.9rem), calc(100% - 0.9rem) 100%, 0 100%);
-}
-
-.build.bld-tabs[data-layout='phone'] .bld-lens {
-  right: 0;
-
-  --tab-clip: polygon(0 0, 100% 0, 100% 100%, 0.9rem 100%, 0 calc(100% - 0.9rem));
-}
-
+/* stylelint-disable-next-line no-duplicate-selectors -- the two blocks cannot merge: rules between them set the same properties at equal specificity, so moving either would change the cascade */
 .build.bld-tabs[data-layout='phone'] .bld-foot {
   left: 0;
   right: 0;
@@ -13587,144 +13411,394 @@ button.buy {
   }
 }
 
-/* Flat buttons in the panels (no radius, chips excepted). Last, so these win the ties with the .mode rules above. */
-.build.mode button,
-.build.mode .mode-bar .bld-ico,
-.build.mode .bld-startbtn {
-  border-radius: 0;
-}
-
-.build.bld-tabs .bld-parts,
 .build.bld-tabs[data-layout='phone'] .bld-parts {
   border-radius: 0;
 }
 
-/* The part picker is an edge tab (#78, ADR 0001, SPEC §1 rules 5 and 6, §4.11): a flat --c-shade-86 fill, no border, radius, shadow, blur or
-   gradient. Radius 4 px on chips only. Docked, it touches the right edge (the placement margin is cancelled) and has a chamfer on each free corner.
-   Last in the file, so these win the ties with the glass rules above. */
-.part-picker,
-.part-picker *,
-.part-picker *::before,
-.part-picker *::after {
-  border-width: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  text-shadow: none !important;
-  backdrop-filter: none !important;
-  background-image: none !important;
-}
-
-.part-picker {
-  background: var(--c-shade-86) !important;
-}
-
-.part-picker :is(.rung, .bcard, .pline, .pk-body, button:not(.primary):not(.on)) {
-  background: transparent !important;
-}
-
-.part-picker :is(.rung, button:not(.primary)):hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
-}
-
-.part-picker .rung.picked {
-  background: var(--sel-bg) !important;
-}
-
-.part-picker :is(.chip, .zchip, button.lockbadge, .need-chip) {
-  border-radius: 0.24rem !important;
-}
-
-.part-picker .zchip {
-  background: color-mix(in srgb, currentcolor 14%, transparent) !important;
-}
-
-.part-picker .tail {
+.build.bld-tabs[data-layout='phone']:not([data-shelf='open']) .bld-parts {
   display: none;
 }
 
-.part-picker[data-side='dock'] {
-  translate: 0.5rem 0;
-  clip-path: polygon(var(--ch) 0, 100% 0, 100% 100%, var(--ch) 100%, 0 calc(100% - var(--ch)), 0 var(--ch));
+.build.bld-tabs[data-layout='desk'] .bld-bin:hover .bld-parts,
+.build.bld-tabs[data-layout='desk'] .bld-bin:focus-within .bld-parts,
+.build.bld-tabs[data-layout='desk'] .bld-bin.lift .bld-parts {
+  visibility: visible;
+  opacity: 1;
+  transition:
+    opacity var(--d-med),
+    visibility var(--d-none);
 }
 
-/* ADR 0001 / SPEC rules 5 and 6 for the in-game family (#72): the HUD, the dock, Paused, Settings, Controls and New game in game have no border, glass,
-   shadow, glow or gradient, and no radius above a 4 px chip. A chosen state shows by its tint or its underline. */
-.title,
-.hud .money {
-  text-shadow: none !important;
+.build.bld-tabs[data-layout='desk'] .bld-bin.taking .bld-parts {
+  visibility: hidden;
+  opacity: 0;
+  transition: none;
 }
 
-:is(.hud, .dockbar, .ctl, .pl-menu.settings) :is(button, .chip, kbd, .st-row, .st-val) {
-  border: 0 !important;
-  box-shadow: none !important;
+.build .mode-bar.bld-run-sheet {
+  background: none;
 }
 
-.hud .chip {
-  border-radius: 0.2rem;
+/* stylelint-disable-next-line no-descending-specificity -- moving this rule earlier would change the cascade: it must follow a same-property rule of equal specificity */
+.build .bld-dock .mode-bar {
+  background: none;
 }
 
-.dockbar,
-.card.modal.mm-card.ctl,
-.ctl kbd,
-.st-row {
-  border: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  background-image: none !important;
-  backdrop-filter: none !important;
+@media (width <= 52em), (height <= 30em) {
+  .gallery .mode-panel,
+  .gallery .mode-bar,
+  .gallery .gal-main .showcase-bar {
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
 }
 
-.modal-back.ctl-back {
-  backdrop-filter: none !important;
+/* Gallery on a desktop screen (SPEC 5.8, the 1920 x 1080 layout): the category spine at the left, the part's card at the top right and the category's parts
+   under it, all on the flat studio. The card and the shelf paint no panel (the stage shows between their text), and the rows are the only controls on the
+   stage. The card and the shelf scroll inside themselves. */
+@media (width >= 52.0625em) and (height >= 30.0625em) {
+  .gallery .gal-spine {
+    position: absolute;
+    z-index: 3;
+    left: 1.98rem;
+    top: 11.73rem;
+    width: 14.81rem;
+    flex-flow: column nowrap;
+    gap: 0;
+  }
+
+  .gallery .gal-row {
+    height: 2.41rem;
+    padding: 0 0.6rem 0 0.5rem;
+    grid-template-columns: 2.6rem minmax(0, 1fr) auto;
+  }
+
+  .gallery .gal-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .gallery .gal-side {
+    inset: 9.26rem 1.85rem auto auto;
+    width: 20.37rem;
+    max-height: 20.5rem;
+    overflow-y: auto;
+  }
+
+  .gallery .gal-part {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .gallery .gal-shelf {
+    inset: 32.1rem 1.85rem 6rem auto;
+    width: 20.37rem;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .gallery .gal-shelf .bld-shelf {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .gallery .gal-shelf .bld-tiles {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.4rem;
+  }
+
+  .gallery .gal-shelf .bld-tile {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: 3.95rem minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-items: center;
+    gap: 0.1rem 0.7rem;
+    height: 3.83rem;
+    padding: 0.35rem 0.5rem 0.35rem 0.35rem;
+  }
+
+  /* (the hint is a line of text on the stage, as SPEC 5.8 sets it, not a bar) */
+  .gallery .bld-hint {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    backdrop-filter: none;
+    text-shadow: 0 0.1rem 0.5rem #000;
+  }
+
+  .gallery .gal-shelf .bld-art {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    width: 3.95rem;
+    height: 2.78rem;
+  }
+
+  .gallery .gal-shelf .bld-tname {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 0;
+  }
+
+  .gallery .gal-shelf .bld-tmeta {
+    grid-column: 2;
+    grid-row: 2;
+    padding: 0;
+  }
 }
 
-.pl-menu.paused,
-.pl-menu.settings,
-.pl-menu.newgame.ingame {
-  background: var(--c-shade-86);
-}
-
-.pl-menu .pl-row.hero.pl-chip {
-  border-radius: 0.2rem;
-}
-
-.st-tab[aria-selected='true'] {
-  text-decoration: underline;
-  text-decoration-color: var(--c-accent);
-  text-underline-offset: 0.3rem;
-}
-
-.st-row.on {
-  background: rgb(255 255 255 / 10%);
-}
-
-/* Menu feedback toast (SPEC 4.10): a plateless line at the menu position, never in the bottom stack. Phone: x 16, y 140, under the HUD tab. */
-.toast.menu-toast {
-  position: fixed;
-  left: 3.2rem;
-  top: 6.7rem;
-  z-index: 30;
-  display: flex;
-  gap: 0.5rem;
-  padding: 0;
-  border: 0;
+/* stylelint-disable-next-line no-descending-specificity -- moving this rule earlier would change the cascade: it must follow a same-property rule of equal specificity */
+.gallery.mode .bld-tile {
+  border-width: 0;
   border-radius: 0;
   box-shadow: none;
   background: none;
+  transform: none;
+}
+
+/* stylelint-disable-next-line no-descending-specificity -- moving this rule earlier would change the cascade: it must follow a same-property rule of equal specificity */
+.build .bld-tile:hover {
+  transform: none;
+  background: var(--glass-hi);
+  box-shadow: none;
+}
+
+/* stylelint-disable-next-line no-descending-specificity -- moving this rule earlier would change the cascade: it must follow a same-property rule of equal specificity */
+.build .bld-tile:focus-visible {
+  transform: none;
+  background: var(--glass-hi);
+  box-shadow: none;
+}
+
+.gallery.mode .bld-tile:hover {
+  border-width: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: none;
+  transform: none;
+}
+
+.gallery.mode .bld-tile:focus-visible {
+  border-width: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: none;
+  transform: none;
+}
+
+.build .bld-hint {
+  border-width: 0;
+  border-radius: 0;
+  box-shadow: none;
   backdrop-filter: none;
-  font: 500 1rem/1.3 var(--mono);
-  color: var(--c-ink);
-  pointer-events: none;
+  background: none;
 }
 
-.toast.menu-toast b {
-  color: var(--ok);
-  font-weight: 600;
+/* stylelint-disable-next-line no-descending-specificity -- moving this rule earlier would change the cascade: it must follow a same-property rule of equal specificity */
+.mode-bar.bld-run-sheet {
+  position: static;
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
-@media (width <= 48em), (height <= 30em) {
-  .toast.menu-toast {
-    left: 1.1rem;
-    top: 9.4rem;
+@media (width <= 52em) {
+  .bld-host {
+    position: relative;
+    inset: auto;
+    height: 60vh;
+    flex: none;
+    order: 0;
   }
+
+  .bld-read,
+  .bld-foot {
+    position: static;
+    width: auto;
+    max-width: none;
+    margin: 0;
+  }
+
+  .bld-read {
+    order: 1;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .bld-foot {
+    order: 2;
+  }
+
+  .bld-bin {
+    order: 3;
+  }
+
+  .bld-inst {
+    order: 4;
+  }
+
+  .bld-shelf {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 24rem);
+  }
+
+  .bld-rail {
+    flex-flow: row wrap;
+  }
+
+  .mode .bld-rail button {
+    width: auto;
+    padding: 0 0.7rem;
+  }
+
+  .mode .bld-rail button.on {
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+
+  .bld-rail button.on::before {
+    inset: auto 22% 0;
+    width: auto;
+    height: 0.2rem;
+  }
+
+  .bld-tiles {
+    grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  }
+
+  .bld-list {
+    flex: none;
+    max-height: 18rem;
+  }
+
+  .bld-dock {
+    max-width: 100%;
+  }
+
+  .bld-dock .mode-bar {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+
+  .bld-start {
+    max-height: none;
+  }
+
+  .bld-from {
+    display: inline;
+  }
+
+  /* (the benchmark sheet is a page over the page here: the panels are not beside it) */
+  .bench-scrim {
+    position: fixed;
+  }
+
+  .bench {
+    position: fixed;
+    inset: 0.6rem;
+    max-width: none;
+    margin: 0;
+  }
+}
+
+@media (width <= 36em) {
+  /* a phone: the summary is a small card, the ready line over three figures over the benchmark */
+  .bld-read {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    justify-items: center;
+    gap: 0.6rem 0.4rem;
+    padding: 0.6rem;
+  }
+
+  .bld-read .mode-sep,
+  .bld-tools .mode-sep {
+    display: none;
+  }
+
+  .bld-read .bld-ready,
+  .bld-read .bld-bench-btn,
+  .bld-read .gal-kind {
+    grid-column: 1 / -1;
+    justify-self: center;
+  }
+
+  /* a task row takes two lines: its name and its button, then its result under the name */
+  .bench-row {
+    grid-template-columns: 1.4rem minmax(0, 1fr) 1.9rem;
+    row-gap: 0.3rem;
+  }
+
+  .bench-row > :nth-child(3) {
+    grid-column: 2 / 4;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .bench-row > .bench-one {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .bench-out {
+    grid-template-columns: 3.4rem minmax(0, 1fr) 2.6rem 3rem;
+  }
+
+  .bench-total span {
+    display: none;
+  }
+}
+
+/* stylelint-disable-next-line no-descending-specificity -- moving this rule earlier would change the cascade: it must follow a same-property rule of equal specificity */
+.build.bld-tabs .bld-read,
+/* stylelint-disable-next-line no-descending-specificity -- moving this rule earlier would change the cascade: it must follow a same-property rule of equal specificity */
+.build.bld-tabs .bld-lens {
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  background: none;
+}
+
+/* (the sheet's own parts: text on the tab, no plate, no pill; the selected page is ink, not a tinted button) */
+
+/* SPEC rule 5: no borders on the sheet or in it */
+.build .bld-os-sheet,
+.build .bld-os-sheet * {
+  border: 0;
+}
+
+#hud > * {
+  pointer-events: auto;
+}
+
+.build.bld-tabs[data-layout='desk'] .bld-os-sheet {
+  inset: 0 0 0 auto;
+  width: 44rem;
+  max-width: 100%;
+  margin: 0;
+  padding: 1.35rem 1.4rem 1rem 1.9rem;
+  clip-path: polygon(var(--ch) 0, 100% 0, 100% 100%, var(--ch) 100%, 0 calc(100% - var(--ch)), 0 var(--ch));
+}
+
+.build.bld-tabs[data-layout='phone'] .bld-os-sheet {
+  inset: 2.5rem 0 0;
+  width: auto;
+  max-width: none;
+  margin: 0;
+  padding: 1rem 1rem 0.9rem;
+  clip-path: polygon(var(--ch-sm) 0, calc(100% - var(--ch-sm)) 0, 100% var(--ch-sm), 100% 100%, 0 100%, 0 var(--ch-sm));
 }
