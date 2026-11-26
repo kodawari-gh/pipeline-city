@@ -7,7 +7,7 @@ import { RefCpu } from '../ref';
 import { InOrderEngine, type InOrderSettings } from './inorder';
 import { STAGE_CODE_CHARS, type EngineView } from './view';
 import { UnpipelinedEngine } from './unpipelined';
-import type { PipelineEngine } from './common';
+import type { PipelineEngine } from './contract';
 import { DATA_BASE, DATA_SIZE } from './testgen';
 import { Prng } from '@/core/sim/prng';
 
@@ -128,7 +128,7 @@ export function chart(engine: PipelineEngine, src: string, summary?: (counters: 
 // ---- Wide engines (inorder2, ooo) ----
 
 import { OooEngine, type OooSettings } from './ooo';
-import type { EngineSettings } from './common';
+import type { EngineSettings } from './contract';
 
 export interface WideConfig {
   name: string;
