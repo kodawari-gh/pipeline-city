@@ -2,13 +2,21 @@ import { describe, expect, it } from 'vitest';
 import { assemble } from '../asm';
 import { RefCpu, RefFault } from './index';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 function run(src: string, maxSteps?: number): RefCpu {
   const cpu = new RefCpu();
   cpu.load(assemble(src).program);
   cpu.run(maxSteps);
   return cpu;
 }
-const reg = (cpu: RefCpu, n: number): number => cpu.regs[n]!;
+const reg = (cpu: RefCpu, n: number): number => must(cpu.regs[n]);
 
 describe('reference interpreter', () => {
   it('sums 1..10 in a loop', () => {
@@ -88,7 +96,7 @@ describe('reference interpreter', () => {
       zeroed: addi zero, zero, 5
       ecall
     `);
-    expect(reg(cpu, 3) >>> 0).toBe(0xdeadbeef);
+    expect(reg(cpu, 3) >>> 0).toBe(0xde_ad_be_ef);
     expect(reg(cpu, 5)).toBe(-4);
     expect(reg(cpu, 6)).toBe(15);
     expect(reg(cpu, 8)).toBe(1);
@@ -116,8 +124,8 @@ describe('reference interpreter', () => {
 
   it('faults on bad access, illegal opcode and runaway loops', () => {
     expect(() => run('li a0, 0x20000000\nlw a1, 0(a0)')).toThrow(RefFault);
-    expect(() => run('li a0, 1\nlw a1, 0(a0)')).toThrow(/misaligned/);
-    expect(() => run('.word 0')).toThrow(/illegal/);
-    expect(() => run('l: j l', 100)).toThrow(/exceeded/);
+    expect(() => run('li a0, 1\nlw a1, 0(a0)')).toThrow(/misaligned/u);
+    expect(() => run('.word 0')).toThrow(/illegal/u);
+    expect(() => run('l: j l', 100)).toThrow(/exceeded/u);
   });
 });

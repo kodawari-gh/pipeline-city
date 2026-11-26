@@ -3,14 +3,27 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { disassemble } from '../isa';
 import { generate, TEMPLATES } from '@/features/jobs/sim/gen';
 import { parSum, THREAD_TOTAL } from '@/features/jobs/sim/gen/threadtest';
-import { RefThreads, type Interleaving } from './threads';
+import { RefThreads } from './threads';
+import type * as threadTypes from './threads';
 
-for (const t of [1, 2, 3, 4, 8]) TEMPLATES[`test.par${t}`] = parSum(t);
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+for (const t of [1, 2, 3, 4, 8]) {
+  TEMPLATES[`test.par${t}`] = parSum(t);
+}
 afterAll(() => {
-  for (const t of [1, 2, 3, 4, 8]) delete TEMPLATES[`test.par${t}`];
+  for (const t of [1, 2, 3, 4, 8]) {
+    delete TEMPLATES[`test.par${t}`];
+  }
 });
 
-const WAYS: Interleaving[] = [
+const WAYS: threadTypes.Interleaving[] = [
   { kind: 'round-robin' },
   { kind: 'burst', n: 5 },
   { kind: 'burst', n: 200 },
@@ -23,7 +36,7 @@ describe('threaded jobs', () => {
   it('a threaded program starts with the nop addi zero, zero, T and its meta says how many threads', () => {
     const g = generate('test.par3', 4, { row: 2, jobId: 5 });
     expect(g.meta.threads).toBe(3);
-    expect(disassemble(g.program[0]!)).toBe('addi zero, zero, 3');
+    expect(disassemble(must(g.program[0]))).toBe('addi zero, zero, 3');
     expect(generate('cli.calc', 4).meta.threads).toBe(1);
     expect(generate('cli.calc', 4).asm).not.toContain('thread_end');
   });
@@ -35,7 +48,7 @@ describe('threaded jobs', () => {
       expect(run.run(how)).toBe(g.meta.expectedText);
       // the partials add up to the total, whoever ran when
       const dv = new DataView(run.mem.ram.bytes.buffer);
-      const parts = Array.from({ length: t }, (_, k) => dv.getUint32(0x7f40 + 4 * k, true));
+      const parts = Array.from({ length: t }, (_, k) => dv.getUint32(0x7f_40 + 4 * k, true));
       expect(parts.reduce((s, v) => s + v, 0)).toBe(dv.getUint32(THREAD_TOTAL, true));
     });
   });
@@ -48,7 +61,7 @@ describe('threaded jobs', () => {
   it('threads that wait for each other never finish on their own: a missing thread ends in a fault, not a hang', () => {
     const g = generate('test.par2', 3, { row: 0, jobId: 1 });
     const run = new RefThreads(g.program, 2);
-    run.cpus[1]!.halted = true; // the second thread never arrives
-    expect(() => run.run({ kind: 'round-robin' }, 20_000)).toThrow(/exceeded/);
+    must(run.cpus[1]).halted = true; // the second thread never arrives
+    expect(() => run.run({ kind: 'round-robin' }, 20_000)).toThrow(/exceeded/u);
   });
 });

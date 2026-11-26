@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { InOrderEngine, OooEngine } from './engines';
 import { getSpec } from '../../board/sim/specs';
 import { createBoard, install } from '../../board/sim/board';
@@ -6,6 +6,31 @@ import { isPlannedItem, unlockLevelOf } from '../../economy/sim/levels';
 import { engineConfigFor } from '../../board/sim/apply';
 import { ECONOMY } from '../../economy/sim/economy';
 import { rig } from '@/worker/game/testkit';
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+/** A rig with CPU `cpu` and no OS, its first key plugged, powered on and ticked until the job halts (at most 6000 ticks). */
+function runFirstJob(cpu: string) {
+  const g = rig('hdd0', { os: false, cpu });
+  const key = must(g.trayKeyIds()[0]);
+  expect(g.plugKey(key).ok).toBe(true);
+  g.powerButton();
+  for (let i = 0; i < 6000 && g.currentPhase() !== 'halted'; i++) {
+    g.advanceBaseTick();
+  }
+  return g;
+}
+
+/** Why the install failed, or `false` when it succeeded. */
+function failureOf(r: ReturnType<typeof install>): string | false {
+  return !r.ok && r.reason;
+}
 
 // Hardware tests: every item is buyable.
 ECONOMY.levelGating = false;
@@ -17,14 +42,13 @@ describe('cpu3 (inorder2)', () => {
   });
 
   it('builds a machine with a 2-wide engine and runs a job to completion', () => {
-    const g = rig('hdd0', { os: false, cpu: 'cpu3' });
+    const g = runFirstJob('cpu3');
     expect(engineConfigFor(g.board)).toMatchObject({ kind: 'inorder2', forwarding: true });
-    expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
-    g.powerButton();
-    for (let i = 0; i < 6000 && g.currentPhase() !== 'halted'; i++) g.advanceBaseTick();
     expect(g.currentPhase()).toBe('halted');
     expect(g.snapshot().haltReason).toBe('job-done');
-    expect((g.machine!.engine as InOrderEngine).width).toBe(2);
+    const e = g.machine.engine;
+    assert.instanceOf(e, InOrderEngine);
+    expect(e.width).toBe(2);
     expect(g.ejectKey()).toMatchObject({ ok: true, done: true });
   });
 });
@@ -39,14 +63,12 @@ describe('cpu4 (ooo, ROB 8, 4-wide commit)', () => {
   });
 
   it('builds a machine with an ooo engine and runs a job to completion', () => {
-    const g = rig('hdd0', { os: false, cpu: 'cpu4' });
+    const g = runFirstJob('cpu4');
     expect(engineConfigFor(g.board)).toMatchObject({ kind: 'ooo', robSize: 8, commitWidth: 4 });
-    expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
-    g.powerButton();
-    for (let i = 0; i < 6000 && g.currentPhase() !== 'halted'; i++) g.advanceBaseTick();
     expect(g.currentPhase()).toBe('halted');
     expect(g.snapshot().haltReason).toBe('job-done');
-    const e = g.machine!.engine as OooEngine;
+    const e = g.machine.engine;
+    assert.instanceOf(e, OooEngine);
     expect(e.robSize).toBe(8);
     expect(e.commitWidth).toBe(4);
     expect(g.ejectKey()).toMatchObject({ ok: true, done: true });
@@ -59,13 +81,17 @@ describe('accelerator specs (docs/ACCEL.md tables)', () => {
     expect(getSpec('gpu1')).toMatchObject({ kind: 'gpu', slot: 'pcie', idleW: 4, loadW: 40, clock: { base: 2 } });
     expect(getSpec('npu1')).toMatchObject({ kind: 'npu', slot: 'pcie', idleW: 2, loadW: 15 });
     expect(getSpec('psu3')).toMatchObject({ kind: 'psu', slot: 'atx-plus', watts: 500, pcieLeads: 2 });
-    for (const id of ['tpm1', 'gpu1', 'npu1', 'psu3', 'display1']) expect(isPlannedItem(id)).toBe(false);
+    for (const id of ['tpm1', 'gpu1', 'npu1', 'psu3', 'display1']) {
+      expect(isPlannedItem(id)).toBe(false);
+    }
   });
 
   it('unlock levels match PROGRESSION.md', () => {
-    expect(['tpm1', 'gpu1', 'psu3', 'npu1'].map(unlockLevelOf)).toEqual([9, 10, 10, 12]);
-    expect(['tpm2', 'gpu2', 'psu4', 'gpu3', 'npu2'].map(unlockLevelOf)).toEqual([13, 14, 15, 16, 16]);
-    for (const id of ['tpm2', 'gpu2', 'psu4', 'gpu3', 'npu2']) expect(isPlannedItem(id)).toBe(false);
+    expect(['tpm1', 'gpu1', 'psu3', 'npu1'].map((id) => unlockLevelOf(id))).toStrictEqual([9, 10, 10, 12]);
+    expect(['tpm2', 'gpu2', 'psu4', 'gpu3', 'npu2'].map((id) => unlockLevelOf(id))).toStrictEqual([13, 14, 15, 16, 16]);
+    for (const id of ['tpm2', 'gpu2', 'psu4', 'gpu3', 'npu2']) {
+      expect(isPlannedItem(id)).toBe(false);
+    }
   });
 
   it('the later tiers follow the ACCEL.md tables', () => {
@@ -73,13 +99,13 @@ describe('accelerator specs (docs/ACCEL.md tables)', () => {
       clock: { base: 3 },
       idleW: 8,
       loadW: 90,
-      gpu: { kind: 'warp', warps: 2, lanes: 16, memBytes: 32768, banks: 2 },
+      gpu: { kind: 'warp', warps: 2, lanes: 16, memBytes: 32_768, banks: 2 },
     });
     expect(getSpec('gpu3')).toMatchObject({
       clock: { base: 4 },
       idleW: 12,
       loadW: 180,
-      gpu: { kind: 'multi', sms: 2, warps: 2, lanes: 32, memBytes: 65536, banks: 4 },
+      gpu: { kind: 'multi', sms: 2, warps: 2, lanes: 32, memBytes: 65_536, banks: 4 },
     });
     expect(getSpec('npu2')).toMatchObject({ idleW: 5, loadW: 45, npu: { grid: 8 } });
     expect(getSpec('npu1')).toMatchObject({ npu: { grid: 4 } });
@@ -93,13 +119,17 @@ describe('accelerator specs (docs/ACCEL.md tables)', () => {
     expect(install(small, 'psu2').ok).toBe(true); // one lead
     const r = install(small, 'gpu3');
     expect(r.ok).toBe(false);
-    expect(!r.ok && r.reason).toMatch(/2 PCIe power leads but the PSU has 1/);
+    expect(failureOf(r)).toMatch(/2 PCIe power leads but the PSU has 1/u);
     const big = createBoard(3);
-    for (const id of ['psu4', 'gpu3', 'gpu2', 'gpu1']) expect(install(big, id).ok, id).toBe(true);
+    for (const id of ['psu4', 'gpu3', 'gpu2', 'gpu1']) {
+      expect(install(big, id).ok, `item ${id}`).toBe(true);
+    }
   });
 
   it('each installs on an Enthusiast board with the 500 W supply', () => {
     const b = createBoard(3);
-    for (const id of ['psu3', 'tpm1', 'gpu1', 'npu1']) expect(install(b, id).ok, id).toBe(true);
+    for (const id of ['psu3', 'tpm1', 'gpu1', 'npu1']) {
+      expect(install(b, id).ok, `item ${id}`).toBe(true);
+    }
   });
 });

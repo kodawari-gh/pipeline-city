@@ -12,7 +12,6 @@ import {
   PCH_RESULT_WORDS,
   ROM_DONE_VECTOR,
 } from '@/core/sim/memmap';
-import { JT_BASE } from '@/features/os/sim';
 import {
   bootBlocksFor,
   FMAP,
@@ -26,16 +25,25 @@ import {
   PCBS,
   RESERVED_FRAME,
   SPOOL_BLOCKS_PER_JOB,
+  JT_BASE,
 } from '@/features/os/sim';
 import { ECONOMY } from '@/features/economy/sim/economy';
 import { Game } from '@/worker/game/game';
 import { econ } from '@/worker/game/testkit';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 ECONOMY.levelGating = false;
 ECONOMY.caseGating = false;
 
 // long compute jobs, so that several are alive together (the generator's calc job with many more rounds)
-const calcTemplate = TEMPLATES['cli.calc']!;
+const calcTemplate = must(TEMPLATES['cli.calc']);
 TEMPLATES['cli.calc'] = (rng, p) => calcTemplate(rng, { ...p, scale: p.scale * 500 });
 
 /** Cores seen running a program (the claim word of a program context holds its core plus one): filled while `until` steps. */
@@ -46,7 +54,9 @@ const until = (g: Game, done: () => boolean, max = 9000): void => {
     g.advanceBaseTick();
     for (let c = 0; c < 8; c++) {
       const w = dv.getUint32(PCBS + c * PCB.BYTES + PCB.CORE, true);
-      if (w) ran.add(w - 1);
+      if (w) {
+        ran.add(w - 1);
+      }
     }
   }
   expect(done()).toBe(true);
@@ -59,30 +69,37 @@ function machine(cpu: string): Game {
   g.powerButton();
   for (const id of ['board1', 'board2', 'board3', 'psu2', cpu, 'cooler2', 'rad2']) {
     const b = g.purchase(id);
-    if (!b.ok) throw new Error(`purchase ${id}: ${b.reason}`);
+    if (!b.ok) {
+      throw new Error(`purchase ${id}: ${b.reason}`);
+    }
     const r = g.install(b.invId);
-    if (!r.ok) throw new Error(`install ${id}: ${r.reason}`);
+    if (!r.ok) {
+      throw new Error(`install ${id}: ${r.reason}`);
+    }
   }
-  for (const d of g.board.devices.filter((x) => x.spec.startsWith('ram'))) g.uninstall(d.id);
+  for (const d of g.board.devices.filter((x) => x.spec.startsWith('ram'))) {
+    g.uninstall(d.id);
+  }
   for (const id of ['ram4', 'nvme2', 'os3']) {
     const b = g.purchase(id);
-    if (!b.ok) throw new Error(`purchase ${id}: ${b.reason}`);
+    if (!b.ok) {
+      throw new Error(`purchase ${id}: ${b.reason}`);
+    }
     const r = g.install(b.invId);
-    if (!r.ok) throw new Error(`install ${id}: ${r.reason}`);
+    if (!r.ok) {
+      throw new Error(`install ${id}: ${r.reason}`);
+    }
   }
   return g;
 }
 
 /** Put programs into the kernel's table as if they had been ingested (the spool is on the drive, the table in RAM). */
 function submit(g: Game, programs: Uint32Array[]) {
-  const priv = g as unknown as {
-    os: { deviceId: string };
-    diskFor(d: unknown): { poke(block: number, bytes: Uint8Array): void };
-  };
-  const disk = priv.diskFor(g.board.devices.find((d) => d.id === priv.os.deviceId));
-  const spool = Math.ceil(getOsSpec('os3')!.diskBytes / BLOCK_BYTES);
+  const osDevice = must(g.os).deviceId;
+  const disk = g.diskFor(must(g.board.devices.find((d) => d.id === osDevice)));
+  const spool = Math.ceil(must(getOsSpec('os3')).diskBytes / BLOCK_BYTES);
   const dv = new DataView(g.machine.ram.buffer);
-  programs.forEach((program, k) => {
+  for (const [k, program] of programs.entries()) {
     const lba = spool + k * SPOOL_BLOCKS_PER_JOB,
       at = JT_BASE + k * KSLOT_BYTES;
     disk.poke(lba, new Uint8Array(program.buffer, program.byteOffset, program.length * 4));
@@ -91,14 +108,14 @@ function submit(g: Game, programs: Uint32Array[]) {
     dv.setUint32(at + KSLOT.LBA, lba, true);
     dv.setUint32(at + KSLOT.SEQ, k + 1, true);
     dv.setUint32(at + KSLOT.STATE, JobState.Queued, true);
-  });
+  }
   return { dv, states: () => programs.map((_, k) => dv.getUint32(JT_BASE + k * KSLOT_BYTES + KSLOT.STATE, true)) };
 }
 
 const resultText = (dv: DataView, k: number): string => {
   const at = JT_BASE + k * KSLOT_BYTES + KSLOT.RESULT;
   return Array.from({ length: PCH_RESULT_WORDS * 4 }, (_, i) => dv.getUint8(at + i))
-    .map((c) => (c ? String.fromCharCode(c) : ' '))
+    .map((c) => (c ? String.fromCodePoint(c) : ' '))
     .join('')
     .trim();
 };
@@ -127,15 +144,9 @@ function eight(): { texts: string[]; expected: string[]; signature: string; g: G
     g,
     gens.map((x) => x.program),
   );
-  until(g, () => states().every((x) => x === JobState.Result), 80000);
+  until(g, () => states().every((x) => x === JobState.Result), 80_000);
   const texts = gens.map((_, k) => resultText(dv, k));
-  const expected = gens.map((x) =>
-    x.meta.expectedText
-      .split('\n')
-      .filter((l) => l.trim())
-      .pop()!
-      .trim(),
-  );
+  const expected = gens.map((x) => must(x.meta.expectedText.split('\n').findLast((l) => l.trim() !== '')).trim());
   const signature = [
     g.snapshot().cycle,
     ...g.machine.cores.map((c) => `${c.intc.taken}/${c.mmu.hits}/${c.mmu.misses}`),
@@ -155,10 +166,13 @@ describe('the preemptive OS on every logical core', { timeout: 120_000 }, () => 
     const { g, texts, expected, dv } = eight();
     expect(g.machine.cores).toHaveLength(4);
     expect(g.cpuLogicalCores()).toBe(4);
-    expect(texts).toEqual(expected);
+    expect(texts).toStrictEqual(expected);
     expect(g.snapshot().faults).toBe(0);
     expect(g.errors).toBe(0);
-    expect([...ran].sort(), 'programs ran on every logical core').toEqual([0, 1, 2, 3]);
+    expect(
+      [...ran].toSorted((a, b) => a - b),
+      'programs ran on every logical core',
+    ).toStrictEqual([0, 1, 2, 3]);
     // everything is given back: the frames, the claims on the contexts, the lock
     until(g, () => g.currentPhase() === 'idle-os');
     expect(framesInUse(dv)).toBe(0);
@@ -179,14 +193,10 @@ describe('the preemptive OS on every logical core', { timeout: 120_000 }, () => 
   sw t0, 0x3000(zero)
 spin:
   j spin`).program;
-    const { dv, states } = submit(g, [good.program, bad, good.program, bad, burn(20000)]);
-    until(g, () => states().every((x) => x === JobState.Result), 60000);
-    const want = good.meta.expectedText
-      .split('\n')
-      .filter((l) => l.trim())
-      .pop()!
-      .trim();
-    expect([0, 1, 2, 3].map((k) => resultText(dv, k))).toEqual([want, 'SEGFAULT', want, 'SEGFAULT']);
+    const { dv, states } = submit(g, [good.program, bad, good.program, bad, burn(20_000)]);
+    until(g, () => states().every((x) => x === JobState.Result), 60_000);
+    const want = must(good.meta.expectedText.split('\n').findLast((l) => l.trim() !== '')).trim();
+    expect([0, 1, 2, 3].map((k) => resultText(dv, k))).toStrictEqual([want, 'SEGFAULT', want, 'SEGFAULT']);
     expect(g.snapshot().faults).toBe(2);
     until(g, () => g.currentPhase() === 'idle-os');
     expect(framesInUse(dv)).toBe(0);
@@ -203,16 +213,10 @@ spin:
       g,
       gens.map((x) => x.program),
     );
-    until(g, () => states().every((x) => x === JobState.Result), 60000);
-    gens.forEach((x, k) =>
-      expect(resultText(dv, k)).toBe(
-        x.meta.expectedText
-          .split('\n')
-          .filter((l) => l.trim())
-          .pop()!
-          .trim(),
-      ),
-    );
-    expect([...ran].sort()).toEqual([0, 1]);
+    until(g, () => states().every((x) => x === JobState.Result), 60_000);
+    for (const [k, x] of gens.entries()) {
+      expect(resultText(dv, k)).toBe(must(x.meta.expectedText.split('\n').findLast((l) => l.trim() !== '')).trim());
+    }
+    expect([...ran].toSorted((a, b) => a - b)).toStrictEqual([0, 1]);
   });
 });

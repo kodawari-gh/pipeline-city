@@ -1,13 +1,33 @@
 // The DRAM behind the caches (docs/RAM.md): rows, banks, the open row. Timing only: every program must still match the reference, and an
 // engine without a `dram` setting must not move.
 import { describe, expect, it } from 'vitest';
-import { Dram, RowOutcome, type DramSettings } from '@/features/memory/sim/dram';
-import { createEngine, Counter, type EngineConfig, type PipelineEngine } from './index';
+import { Dram, RowOutcome } from '@/features/memory/sim/dram';
+import type * as dramTypes from '@/features/memory/sim/dram';
+import { createEngine, Counter } from './index';
+import type * as engineTypes from './index';
 import { Ev } from './events';
 import { genData, genProgram } from './testgen';
 import { firstMemDiff, runEngine, runRef } from './testutil';
+import { EngineRoot } from './root';
 
-const S: DramSettings = {
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+/** The timed engine `cfg` builds (every kind but the reference one is one). */
+function pipelineOf(cfg: engineTypes.EngineConfig): engineTypes.PipelineEngine {
+  const e = createEngine(cfg);
+  if (!(e instanceof EngineRoot)) {
+    throw new TypeError(`${cfg.kind} is not a timed engine`);
+  }
+  return e;
+}
+
+const S: dramTypes.DramSettings = {
   channels: 1,
   banks: 4,
   bankGroups: 2,
@@ -26,11 +46,11 @@ const S: DramSettings = {
 describe('the DRAM model', () => {
   it('interleaves pages over channels, then banks: consecutive pages are in different places', () => {
     const d = new Dram({ ...S, channels: 2 });
-    expect(d.locate(0)).toEqual({ channel: 0, bank: 0, row: 0 });
-    expect(d.locate(255)).toEqual({ channel: 0, bank: 0, row: 0 });
-    expect(d.locate(256)).toEqual({ channel: 1, bank: 4, row: 0 });
-    expect(d.locate(512)).toEqual({ channel: 0, bank: 1, row: 0 });
-    expect(d.locate(2 * 4 * 256)).toEqual({ channel: 0, bank: 0, row: 1 });
+    expect(d.locate(0)).toStrictEqual({ channel: 0, bank: 0, row: 0 });
+    expect(d.locate(255)).toStrictEqual({ channel: 0, bank: 0, row: 0 });
+    expect(d.locate(256)).toStrictEqual({ channel: 1, bank: 4, row: 0 });
+    expect(d.locate(512)).toStrictEqual({ channel: 0, bank: 1, row: 0 });
+    expect(d.locate(2 * 4 * 256)).toStrictEqual({ channel: 0, bank: 0, row: 1 });
     // pageOf inverts it
     for (const page of [0, 1, 2, 7, 8, 9, 31, 64]) {
       const l = d.locate(page * 256);
@@ -49,7 +69,7 @@ describe('the DRAM model', () => {
       prev: 0,
     });
     expect(d.access(256, 300)).toMatchObject({ cycles: 5 + 3 + 2, outcome: RowOutcome.Empty, bank: 1 });
-    expect(d.openRows()).toEqual([1, 0, -1, -1]);
+    expect(d.openRows()).toStrictEqual([1, 0, -1, -1]);
   });
 
   it("back to back misses queue on the channel's bus; another bank group is cheaper than the same one", () => {
@@ -90,11 +110,15 @@ describe('the DRAM model', () => {
 
   it("a refresh closes one bank's row in turn and keeps the bank busy for tRFC", () => {
     const d = new Dram({ ...S, refreshEvery: 100 });
-    for (let b = 0; b < 4; b++) d.access(b * 256, 0);
+    for (let b = 0; b < 4; b++) {
+      d.access(b * 256, 0);
+    }
     const log: [number, number, number][] = [];
-    const seen = (c: number, bank: number, row: number) => log.push([c, bank, row]);
+    const seen = (c: number, bank: number, row: number) => {
+      log.push([c, bank, row]);
+    };
     const r = d.access(0, 101, seen); // bank 0 was refreshed at 100: its row is gone and the bank is busy until 110
-    expect(log[0]).toEqual([100, 0, -1]);
+    expect(log[0]).toStrictEqual([100, 0, -1]);
     expect(r.outcome).toBe(RowOutcome.Empty);
     expect(r.cycles).toBeGreaterThanOrEqual(110 - 101 + 5 + 3);
     expect(d.openRows()[1]).toBe(0);
@@ -108,7 +132,7 @@ describe('the DRAM model', () => {
   });
 });
 
-const DRAM: DramSettings = {
+const DRAM: dramTypes.DramSettings = {
   channels: 2,
   banks: 4,
   bankGroups: 2,
@@ -123,7 +147,7 @@ const DRAM: DramSettings = {
   tRFC: 5,
   policy: 'adaptive',
 };
-const KINDS: { name: string; cfg: EngineConfig }[] = [
+const KINDS: { name: string; cfg: engineTypes.EngineConfig }[] = [
   { name: 'inorder', cfg: { kind: 'inorder', forwarding: true, cacheLines: 8, dram: DRAM } },
   {
     name: 'inorder2 + L2',
@@ -131,8 +155,37 @@ const KINDS: { name: string; cfg: EngineConfig }[] = [
   },
   { name: 'ooo', cfg: { kind: 'ooo', width: 2, robSize: 16, schedSize: 8, fetchQueue: 8, cacheLines: 16, dram: DRAM } },
 ];
-const make = (cfg: EngineConfig, extra: Record<string, unknown> = {}) =>
-  createEngine({ ...cfg, ...extra } as EngineConfig) as PipelineEngine;
+const make = (cfg: engineTypes.EngineConfig, extra: Record<string, unknown> = {}) => pipelineOf({ ...cfg, ...extra });
+
+/**
+ * How many misses must reach RAM, given the view counters `c` and the `reach` the row counters add up to: every L1 miss on the
+ * in-order engine of these tests, the L2 misses on the others (all of `reach` when they count none).
+ */
+function missesReachingRam(kind: engineTypes.EngineConfig['kind'], c: Float64Array, reach: number): number {
+  if (kind === 'inorder') {
+    return must(c[Counter.CacheMisses]) + must(c[Counter.ICacheMisses]);
+  }
+  const l2m = must(c[Counter.L2Misses]);
+  return l2m === 0 ? reach : l2m;
+}
+
+/** The open row of each bank as the last Row event of the flat event log `ev` says. */
+function openRowsFromLog(ev: number[]): Map<number, number> {
+  const rows = new Map<number, number>();
+  for (let k = 0; k < ev.length; k += 6) {
+    if (ev[k + 1] === Ev.Row) {
+      rows.set(must(ev[k + 2]), must(ev[k + 3]));
+    }
+  }
+  return rows;
+}
+
+/** Runs `src` on a forwarding in-order engine with a small cache and `extra` settings: its cycles and its view counters. */
+function cycles(src: string, extra: Record<string, unknown>) {
+  const e = make({ kind: 'inorder', forwarding: true, cacheLines: 8, missPenalty: 7 }, extra);
+  runEngine(e, src);
+  return { n: e.cycle, c: e.view.counters };
+}
 
 describe.each(KINDS)('with a DRAM, programs stay correct: $name', ({ cfg }) => {
   it('random programs match the reference', () => {
@@ -141,7 +194,7 @@ describe.each(KINDS)('with a DRAM, programs stay correct: $name', ({ cfg }) => {
         data = genData(seed),
         ref = runRef(src, data);
       const got = runEngine(make(cfg), src, data, { seed: seed + 1, p: 0.1 });
-      expect(got.regs, `seed ${seed}`).toEqual(ref.regs);
+      expect(got.regs, `seed ${seed}`).toStrictEqual(ref.regs);
       expect(firstMemDiff(got.mem, ref.mem), `seed ${seed}`).toBe(-1);
     }
   });
@@ -150,18 +203,16 @@ describe.each(KINDS)('with a DRAM, programs stay correct: $name', ({ cfg }) => {
     const e = make(cfg);
     runEngine(e, genProgram(7, 60), genData(7));
     const c = e.view.counters;
-    const reach = c[Counter.RowHits]! + c[Counter.RowEmpty]! + c[Counter.RowConflicts]!;
+    const reach = must(c[Counter.RowHits]) + must(c[Counter.RowEmpty]) + must(c[Counter.RowConflicts]);
     expect(reach).toBeGreaterThan(0);
-    const l2m = c[Counter.L2Misses]!;
-    expect(reach).toBe(cfg.kind === 'inorder' ? c[Counter.CacheMisses]! + c[Counter.ICacheMisses]! : l2m || reach);
+    expect(reach).toBe(missesReachingRam(cfg.kind, c, reach));
     const st = e.storedState();
     expect(st.dram).toMatchObject({ channels: 2, banks: 4, rowBytes: 64 });
-    expect(st.dram!.open).toHaveLength(8);
+    expect(must(st.dram).open).toHaveLength(8);
     // the last Row event of each bank says which row is open
-    const rows = new Map<number, number>();
-    const ev = st.events.since(0);
-    for (let k = 0; k < ev.length; k += 6) if (ev[k + 1] === Ev.Row) rows.set(ev[k + 2]!, ev[k + 3]!);
-    for (const [bank, row] of rows) expect(st.dram!.open[bank]).toBe(row);
+    for (const [bank, row] of openRowsFromLog(st.events.since(0))) {
+      expect(must(st.dram).open[bank]).toBe(row);
+    }
   });
 });
 
@@ -192,25 +243,21 @@ describe('what a row buffer does to timing', () => {
     addi t0, t0, 1
     bne t0, t1, loop
     ecall`;
-  const cycles = (src: string, extra: Record<string, unknown>) => {
-    const e = make({ kind: 'inorder', forwarding: true, cacheLines: 8, missPenalty: 7 }, extra);
-    runEngine(e, src);
-    return { n: e.cycle, c: e.view.counters };
-  };
 
   it('a sequential scan stays on open rows; scattered accesses keep opening new ones', () => {
     const seq = cycles(SCAN, { dram: DRAM }),
       rnd = cycles(RANDOM, { dram: DRAM });
     const hitRate = (x: typeof seq) =>
-      x.c[Counter.RowHits]! / Math.max(1, x.c[Counter.RowHits]! + x.c[Counter.RowEmpty]! + x.c[Counter.RowConflicts]!);
+      must(x.c[Counter.RowHits]) /
+      Math.max(1, must(x.c[Counter.RowHits]) + must(x.c[Counter.RowEmpty]) + must(x.c[Counter.RowConflicts]));
     expect(hitRate(seq)).toBeGreaterThan(0.6);
     expect(hitRate(rnd)).toBeLessThan(hitRate(seq));
-    expect(rnd.c[Counter.RowConflicts]!).toBeGreaterThan(seq.c[Counter.RowConflicts]!);
+    expect(must(rnd.c[Counter.RowConflicts])).toBeGreaterThan(must(seq.c[Counter.RowConflicts]));
   });
 
   it('without a dram setting the flat penalty applies and nothing is counted', () => {
     const flat = cycles(SCAN, {});
-    expect(flat.c[Counter.RowHits]! + flat.c[Counter.RowEmpty]! + flat.c[Counter.RowConflicts]!).toBe(0);
+    expect(must(flat.c[Counter.RowHits]) + must(flat.c[Counter.RowEmpty]) + must(flat.c[Counter.RowConflicts])).toBe(0);
     const again = cycles(SCAN, {});
     expect(again.n).toBe(flat.n);
   });

@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import type { PlanInput } from '../core/cpuplan';
+import type { CpuPlan, PlanInput } from '../core/cpuplan';
 import { cpuPlan } from '../core/cpuplans';
 import { cellRects, isTall, laneLines, LANE_GAP, offsetPts } from './dieart';
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
 
 // The geometry the die art shares with the live view (docs/DIE.md): cell rectangles and trace bundles.
 
@@ -22,26 +30,38 @@ const INPUTS: PlanInput[] = [
   },
 ];
 
+const ALL_BLOCKS = INPUTS.flatMap((i) => cpuPlan(i).blocks);
+
+/** Every block with a grid whose cells are shown (a block too small to show them has none), with the grid and the cells. */
+const SHOWN = ALL_BLOCKS.flatMap((b) => {
+  const cs = cellRects(b);
+  return b.grid !== undefined && cs.length > 0 ? [{ b, grid: b.grid, cs }] : [];
+});
+
+/** The block `id` of plan `p`. */
+const blockOf = (p: CpuPlan, id: string) => must(p.blocks.find((b) => b.id === id));
+
+/** +1 for a positive `x`, -1 otherwise. */
+const sideOf = (x: number) => (x > 0 ? 1 : -1);
+
 describe('cellRects', () => {
   it("a block has exactly its grid's cells (or none when too small to show them), all inside the block and apart", () => {
-    for (const i of INPUTS) {
-      for (const b of cpuPlan(i).blocks) {
-        const cs = cellRects(b);
-        if (!b.grid) {
-          expect(cs, b.id).toEqual([]);
-          continue;
-        }
-        if (cs.length === 0) continue;
-        expect(cs.length, b.id).toBe(b.grid.count);
-        for (const c of cs) {
-          expect(c.x, b.id).toBeGreaterThanOrEqual(b.rect.x);
-          expect(c.y, b.id).toBeGreaterThanOrEqual(b.rect.y);
-          expect(c.x + c.w, b.id).toBeLessThanOrEqual(b.rect.x + b.rect.w + 0.01);
-          expect(c.y + c.h, b.id).toBeLessThanOrEqual(b.rect.y + b.rect.h + 0.01);
-        }
-        // a row of cells is a row: same y, increasing x
-        const first = cs.slice(0, b.grid.cols);
-        for (const c of first) expect(c.y).toBeCloseTo(first[0]!.y, 6);
+    for (const b of ALL_BLOCKS.filter((x) => x.grid === undefined)) {
+      expect(cellRects(b), `block ${b.id}`).toStrictEqual([]);
+    }
+    expect(SHOWN.length).toBeGreaterThan(0);
+    for (const { b, grid, cs } of SHOWN) {
+      expect(cs).toHaveLength(grid.count);
+      for (const c of cs) {
+        expect(c.x, `block ${b.id}`).toBeGreaterThanOrEqual(b.rect.x);
+        expect(c.y, `block ${b.id}`).toBeGreaterThanOrEqual(b.rect.y);
+        expect(c.x + c.w, `block ${b.id}`).toBeLessThanOrEqual(b.rect.x + b.rect.w + 0.01);
+        expect(c.y + c.h, `block ${b.id}`).toBeLessThanOrEqual(b.rect.y + b.rect.h + 0.01);
+      }
+      // a row of cells is a row: same y, increasing x
+      const first = cs.slice(0, grid.cols);
+      for (const c of first) {
+        expect(c.y).toBeCloseTo(must(first[0]).y, 6);
       }
     }
   });
@@ -53,16 +73,17 @@ describe('cellRects', () => {
       ['sched', 6],
       ['fq', 4],
     ] as const) {
-      expect(cellRects(p.blocks.find((b) => b.id === id)!), id).toHaveLength(n);
+      expect(cellRects(blockOf(p, id)), `block ${id}`).toHaveLength(n);
     }
   });
 
   it('a tall, narrow block keeps its name in a left strip, so the cells do not sit under it', () => {
-    const fq = cpuPlan({ arch: 'ooo', width: 2, robSize: 8, schedSize: 6, fetchQueue: 4, cacheLines: 16 }).blocks.find(
-      (b) => b.id === 'fq',
-    )!;
+    const fq = blockOf(
+      cpuPlan({ arch: 'ooo', width: 2, robSize: 8, schedSize: 6, fetchQueue: 4, cacheLines: 16 }),
+      'fq',
+    );
     expect(isTall(fq)).toBe(true);
-    expect(cellRects(fq)[0]!.x).toBeGreaterThanOrEqual(fq.rect.x + 22);
+    expect(must(cellRects(fq)[0]).x).toBeGreaterThanOrEqual(fq.rect.x + 22);
   });
 });
 
@@ -71,8 +92,10 @@ describe('trace bundles', () => {
     for (const i of INPUTS) {
       for (const l of cpuPlan(i).links) {
         const lines = laneLines(l);
-        expect(lines, l.id).toHaveLength(l.lanes);
-        for (const line of lines) expect(line, l.id).toHaveLength(l.pts.length);
+        expect(lines, `link ${l.id}`).toHaveLength(l.lanes);
+        for (const line of lines) {
+          expect(line, `link ${l.id}`).toHaveLength(l.pts.length);
+        }
       }
     }
   });
@@ -85,10 +108,10 @@ describe('trace bundles', () => {
       ],
       LANE_GAP,
     );
-    expect(line[0]![1]).toBeCloseTo(LANE_GAP * (line[0]![1] > 0 ? 1 : -1), 6);
-    expect(line[1]![1]).toBeCloseTo(line[0]![1], 6);
-    expect(line[0]![0]).toBe(0);
-    expect(line[1]![0]).toBe(100);
+    expect(must(line[0])[1]).toBeCloseTo(LANE_GAP * sideOf(must(line[0])[1]), 6);
+    expect(must(line[1])[1]).toBeCloseTo(must(line[0])[1], 6);
+    expect(must(line[0])[0]).toBe(0);
+    expect(must(line[1])[0]).toBe(100);
   });
 
   it('a corner keeps both legs parallel to the centre line (a miter)', () => {
@@ -100,7 +123,7 @@ describe('trace bundles', () => {
       ],
       4,
     );
-    expect(line[0]![1]).toBeCloseTo(line[1]![1], 6);
-    expect(line[1]![0]).toBeCloseTo(line[2]![0], 6);
+    expect(must(line[0])[1]).toBeCloseTo(must(line[1])[1], 6);
+    expect(must(line[1])[0]).toBeCloseTo(must(line[2])[0], 6);
   });
 });
