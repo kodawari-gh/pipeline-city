@@ -44,7 +44,9 @@ export function fingerCentres(L: number, notchU: number, pins: number): number[]
   const pitch = (L - 2 * FINGER_MARGIN - KEY_GAP) / pins,
     out: number[] = [];
   for (let k = 0, u = FINGER_MARGIN; k < pins; k++, u += pitch) {
-    if (Math.abs(u + pitch / 2 - notchU) < 12) u += KEY_GAP;
+    if (Math.abs(u + pitch / 2 - notchU) < 12) {
+      u += KEY_GAP;
+    }
     out.push(u + pitch / 2);
   }
   return out;
@@ -75,7 +77,9 @@ export function ramRoutes(a: FaceIn): Routes {
       .filter((x) => owner[x.k]! < 0 && x.d <= reach)
       .sort((p, q) => p.d - q.d)
       .slice(0, TAKES[f.kind]);
-    for (const x of near) owner[x.k] = i;
+    for (const x of near) {
+      owner[x.k] = i;
+    }
   }
   const lines: Pt[][] = [],
     pads: Pt[] = [],
@@ -83,7 +87,9 @@ export function ramRoutes(a: FaceIn): Routes {
   a.foot.forEach((f, i) => {
     const mine = fingers.map((u, k) => ({ u, k })).filter((x) => owner[x.k] === i);
     const n = mine.length;
-    if (!n) return;
+    if (!n) {
+      return;
+    }
     const w = f.u1 - f.u0,
       span = Math.min(w * 0.84, Math.max(0, n - 1) * 11),
       c = mid(f),
@@ -157,7 +163,9 @@ export function ramFace(color: string, a: FaceIn, marks: readonly string[]): Tex
     px = (u: number) => (u / a.L) * W,
     k = W / a.L;
   const key = `${color}|${a.L}|${a.notchU}|${a.pins}|${a.foot.map((f) => `${f.kind}${f.u0 | 0},${f.v0 | 0}`).join(';')}|${marks.join('/')}|${sheetCut(W, H)}`;
-  if (cache.has(key)) return cache.get(key)!;
+  if (cache.has(key)) {
+    return cache.get(key)!;
+  }
   const r = ramRoutes(a),
     copper = lift(color, 0.2),
     shade = 'rgba(0,0,0,0.38)',
@@ -215,16 +223,24 @@ export function ramFace(color: string, a: FaceIn, marks: readonly string[]): Tex
       [copper, 0],
     ] as const) {
       c.strokeStyle = paint;
-      for (const p of r.lines) stroke(p, 3, dy);
-      for (const p of bus) stroke(p, 3.4, dy);
-      for (const p of stubs) stroke(p, 2.4, dy);
+      for (const p of r.lines) {
+        stroke(p, 3, dy);
+      }
+      for (const p of bus) {
+        stroke(p, 3.4, dy);
+      }
+      for (const p of stubs) {
+        stroke(p, 2.4, dy);
+      }
     }
     // vias and the pads that end the runs: a ring of copper, a drill
     for (const p of r.vias) {
       dot(p, 5, copper);
       dot(p, 2.2, 'rgba(0,0,0,0.7)');
     }
-    for (const p of r.pads) dot(p, 3.2, copper);
+    for (const p of r.pads) {
+      dot(p, 3.2, copper);
+    }
     for (const g of gaps) {
       dot([g - 4, top - 20], 3.4, copper);
       dot([g + 4, top - 9], 3.4, copper);
@@ -239,7 +255,9 @@ export function ramFace(color: string, a: FaceIn, marks: readonly string[]): Tex
       c.arc(px(f.u0 - 5), py(f.v1 + 5), Math.max(1.6, 3.5 * k), 0, Math.PI * 2);
       c.fill();
     }
-    for (let u = 140; u < a.L - 100; u += 190) dot([u, a.H - 46], 3.6, '#d4af5f');
+    for (let u = 140; u < a.L - 100; u += 190) {
+      dot([u, a.H - 46], 3.6, '#d4af5f');
+    }
     c.fillStyle = silk;
     c.font = `${Math.round(30 * k)}px monospace`;
     c.textBaseline = 'middle';
@@ -249,10 +267,13 @@ export function ramFace(color: string, a: FaceIn, marks: readonly string[]): Tex
     c.fillRect(0, py(a.sink + 12), W, 3);
     const pitch = (a.L - 2 * FINGER_MARGIN - KEY_GAP) / a.pins;
     c.fillStyle = '#d4af5f';
-    for (const u of r.fingers)
+    for (const u of r.fingers) {
       c.fillRect(px(u - pitch * 0.32), py(a.sink + 3), px(pitch * 0.64), py(4) - py(a.sink + 3));
+    }
   });
-  if (t) t.repeat.set(1 / a.L, 1 / a.H);
+  if (t) {
+    t.repeat.set(1 / a.L, 1 / a.H);
+  }
   cache.set(key, shareTex(t));
   return t;
 }
@@ -283,7 +304,9 @@ export function plateFace(a: PlateIn): Texture | null {
     k = W / a.L,
     py = (v: number) => H - v * k;
   const key = `${a.color}|${a.L}|${a.top}|${a.lines.map((l) => `${l.v}${l.ink}`).join(',')}|${a.band}|${a.text}|${a.textInk}|${a.flip}|${sheetCut(W, H)}`;
-  if (plates.has(key)) return plates.get(key)!;
+  if (plates.has(key)) {
+    return plates.get(key)!;
+  }
   const t = paintLow(W, H, (c) => {
     if (a.flip) {
       c.translate(W, 0);
@@ -293,7 +316,7 @@ export function plateFace(a: PlateIn): Texture | null {
     c.fillRect(0, 0, W, H);
     // the brushed streaks: a fixed sequence, so every plate of a tier is the same
     let s = 7;
-    const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    const rnd = () => (s = (s * 16_807) % 2_147_483_647) / 2_147_483_647;
     for (let i = 0; i < 700; i++) {
       const x = rnd() * W,
         y = rnd() * H,
@@ -328,7 +351,9 @@ export function plateFace(a: PlateIn): Texture | null {
       c.restore();
     }
   });
-  if (t) t.repeat.set(1 / a.L, 1 / a.top);
+  if (t) {
+    t.repeat.set(1 / a.L, 1 / a.top);
+  }
   plates.set(key, shareTex(t));
   return t;
 }

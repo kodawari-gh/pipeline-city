@@ -6,16 +6,10 @@
 import type { CanvasTexture, Mesh, MeshBasicMaterial } from 'three';
 import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
 import type { RamMap } from '@/features/cpu/sim/pipesnap';
-import {
-  PAGE,
-  chipLayout,
-  ownerMap,
-  pageCells,
-  regionColor,
-  type ChipSlot,
-  type Stick,
-} from '@/features/memory/render/ramlayout';
-import { bankCell, pageSlot, type RamDiePlan } from '@/features/memory/render/ramdie';
+import { PAGE, chipLayout, ownerMap, pageCells, regionColor } from '@/features/memory/render/ramlayout';
+import type * as ramlayoutTypes from '@/features/memory/render/ramlayout';
+import { bankCell, pageSlot } from '@/features/memory/render/ramdie';
+import type * as ramdieTypes from '@/features/memory/render/ramdie';
 import { mix } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
 
@@ -30,16 +24,44 @@ export interface PageAt {
 
 interface Face {
   mesh: Mesh;
-  plan: RamDiePlan;
+  plan: ramdieTypes.RamDiePlan;
   canvas: HTMLCanvasElement | null;
   tex: CanvasTexture | null;
-  slot: ChipSlot | null;
+  slot: ramlayoutTypes.ChipSlot | null;
   at: PageAt[];
   rows: number;
 }
 
+type CellAt = (q: number) => { x: number; y: number; w: number; h: number } | null;
+
+/** The row open in each bank (the inverse of Dram.locate), as on the 2D sticks. */
+function paintOpenRows(
+  c: CanvasRenderingContext2D,
+  args: { m: RamMap; slot: ramlayoutTypes.ChipSlot; pages: number; cell: CellAt; T: Theme },
+): void {
+  const { m, slot, pages, cell, T } = args;
+  const d = m.dram;
+  if (!d || d.rowBytes !== PAGE) {
+    return;
+  }
+  c.strokeStyle = T.ink;
+  c.lineWidth = 0.7;
+  d.open.forEach((row, bank) => {
+    if (row < 0) {
+      return;
+    }
+    const ch = Math.floor(bank / d.banks),
+      b = bank % d.banks,
+      off = (row * d.banks + b) * d.channels + ch - slot.lo / PAGE;
+    const r = off >= 0 && off < pages ? cell(off) : null;
+    if (r) {
+      c.strokeRect(r.x + 0.35, r.y + 0.35, r.w - 0.7, Math.max(0.5, r.h - 0.7));
+    }
+  });
+}
+
 /** The sticks whose maps are painted: in device order, with the plan of their dies and their map faces (one per data chip). */
-export type MapStick = Stick & { faces: Mesh[]; plan: RamDiePlan | null };
+export type MapStick = ramlayoutTypes.Stick & { faces: Mesh[]; plan: ramdieTypes.RamDiePlan | null };
 
 /**
  * Where each of `pages` pages of a window lies on a die of `banks` banks, the controller's `channels` and `ctlBanks` giving the bank (`pageSlot`); and the most cells a bank holds.
@@ -77,17 +99,20 @@ export class RamMap3D {
     private sticks: MapStick[],
     private T: Theme,
   ) {
-    for (const s of sticks)
-      if (s.plan)
-        for (const mesh of s.faces)
+    for (const s of sticks) {
+      if (s.plan) {
+        for (const mesh of s.faces) {
           this.faces.push({ mesh, plan: s.plan, canvas: null, tex: null, slot: null, at: [], rows: 1 });
+        }
+      }
+    }
   }
 
   /** How visible the maps are (0 to 1: they come in as the spreaders go). */
   show(a: number): void {
     this.shown = a;
     for (const f of this.faces) {
-      f.mesh.visible = a > 0.01 && !!f.tex;
+      f.mesh.visible = a > 0.01 && Boolean(f.tex);
       (f.mesh.material as MeshBasicMaterial).opacity = a;
     }
   }
@@ -97,7 +122,9 @@ export class RamMap3D {
    * times a second: a running program writes all the time.
    */
   update(m: RamMap | null, now: number): void {
-    if (!m?.image || this.faces.length === 0 || this.shown <= 0.01 || now - this.last < 200) return;
+    if (!m?.image || this.faces.length === 0 || this.shown <= 0.01 || now - this.last < 200) {
+      return;
+    }
     // where each chip's window is: laid out again when the size changes; the owners again when the regions change
     const d = m.dram,
       csig = d ? `${d.channels}:${d.banks}` : '';
@@ -115,17 +142,23 @@ export class RamMap3D {
       this.prev = null;
     }
     let changed = !this.prev || osig !== this.osig;
-    if (!changed)
-      for (let a = 0; a < m.image.length; a++)
+    if (!changed) {
+      for (let a = 0; a < m.image.length; a++) {
         if (this.prev![a] !== m.image[a]) {
           changed = true;
           break;
         }
-    if (!changed) return;
+      }
+    }
+    if (!changed) {
+      return;
+    }
     this.last = now;
     this.osig = osig;
     this.prev = m.image;
-    for (const f of this.faces) this.paint(f, m);
+    for (const f of this.faces) {
+      this.paint(f, m);
+    }
     this.show(this.shown);
   }
 
@@ -136,7 +169,9 @@ export class RamMap3D {
       slots = chipLayout(rects, sticks, m.bytes);
     this.faces.forEach((f, i) => {
       f.slot = slots[i] ?? null;
-      if (!f.slot || typeof document === 'undefined') return;
+      if (!f.slot || typeof document === 'undefined') {
+        return;
+      }
       const pages = Math.ceil((f.slot.hi - f.slot.lo) / PAGE),
         d = m.dram,
         on = pagesOnDie(pages, d?.channels ?? 1, d?.banks ?? f.plan.banks.length, f.plan.banks.length);
@@ -161,8 +196,10 @@ export class RamMap3D {
   private paint(f: Face, m: RamMap): void {
     const c = f.canvas?.getContext('2d'),
       s = f.slot,
-      T = this.T;
-    if (!c || !s || !f.tex) return;
+      { T } = this;
+    if (!c || !s || !f.tex) {
+      return;
+    }
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.clearRect(0, 0, f.canvas!.width, f.canvas!.height);
     c.setTransform(PX, 0, 0, PX, 0, 0);
@@ -176,34 +213,27 @@ export class RamMap3D {
     c.globalAlpha = 0.5;
     for (let q = 0; q < pages; q++) {
       const r = cell(q);
-      if (r) c.fillRect(r.x, r.y + 0.15, r.w, Math.max(0.5, r.h - 0.3));
+      if (r) {
+        c.fillRect(r.x, r.y + 0.15, r.w, Math.max(0.5, r.h - 0.3));
+      }
     }
     for (const { page, best, strength } of pageCells(m.image, this.own, s)) {
       const r = cell(page);
-      if (!r) continue;
+      if (!r) {
+        continue;
+      }
       c.globalAlpha = Math.min(1, 0.25 + strength * 0.75);
       c.fillStyle = best ? regionColor(m.regions[best - 1]!, T) : T.mute;
       c.fillRect(r.x, r.y + 0.15, r.w, Math.max(0.5, r.h - 0.3));
     }
     c.globalAlpha = 1;
-    // the row open in each bank (the inverse of Dram.locate), as on the 2D sticks
-    const d = m.dram;
-    if (d && d.rowBytes === PAGE) {
-      c.strokeStyle = T.ink;
-      c.lineWidth = 0.7;
-      d.open.forEach((row, bank) => {
-        if (row < 0) return;
-        const ch = Math.floor(bank / d.banks),
-          b = bank % d.banks,
-          off = (row * d.banks + b) * d.channels + ch - s.lo / PAGE;
-        const r = off >= 0 && off < pages ? cell(off) : null;
-        if (r) c.strokeRect(r.x + 0.35, r.y + 0.35, r.w - 0.7, Math.max(0.5, r.h - 0.7));
-      });
-    }
+    paintOpenRows(c, { m, slot: s, pages, cell, T });
     f.tex.needsUpdate = true;
   }
 
   dispose(): void {
-    for (const f of this.faces) f.tex?.dispose();
+    for (const f of this.faces) {
+      f.tex?.dispose();
+    }
   }
 }

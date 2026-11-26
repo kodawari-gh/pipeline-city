@@ -1,7 +1,8 @@
 // The board's small parts stood up in 3D (docs/render/three.md). The 2D drawers report every part they draw (`Solid`,
 // boardParts.ts) while the board art is built for the texture, so the 3D parts sit exactly on their drawings: capacitor cans, SMD passives with
 // their metal ends, chip legs, header pins and the CPU socket's contacts. Each kind is one instanced mesh: a few thousand parts, a few draw calls.
-import { BoxGeometry, CylinderGeometry, DoubleSide, ExtrudeGeometry, Group, Shape, type BufferGeometry } from 'three';
+import { BoxGeometry, CylinderGeometry, DoubleSide, ExtrudeGeometry, Group, Shape } from 'three';
+import type * as threeTypes from 'three';
 import { SEG, instanced, lowSides, paint, withLow } from '@/core/render/three/geometry';
 import { CERAMIC, mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
@@ -19,7 +20,7 @@ const LEG_TURN = { e: 0, n: Math.PI / 2, w: Math.PI, s: -Math.PI / 2 } as const;
  * A gull-wing leg leaving a chip's edge (x = 0) toward +x: out of the body's side, bent down to a foot on its pad. `width` across, centred.
  * Its lower detail level (LOD-05) is the box round it: a leg is under a pixel wide from far, and the same from above.
  */
-export function gullWing(width: number): BufferGeometry {
+export function gullWing(width: number): threeTypes.BufferGeometry {
   const s = new Shape();
   s.moveTo(-10, 30)
     .lineTo(2, 30)
@@ -98,7 +99,7 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean, capS
           t = Math.min(W * 0.75, 16),
           e = L * 0.24;
         bodies.push({ x: s.x, y, z: BOARD_Z + t / 2, sx: along ? L - 2 * e : W, sy: along ? W : L - 2 * e, sz: t });
-        for (const k of [-1, 1])
+        for (const k of [-1, 1]) {
           ends.push({
             x: s.x + (along ? (k * (L - e)) / 2 : 0),
             y: y + (along ? 0 : (k * (L - e)) / 2),
@@ -107,25 +108,32 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean, capS
             sy: along ? W : e,
             sz: t + 1,
           });
+        }
         break;
       }
-      case 'leg':
+      case 'leg': {
         legs.push({ x: s.x, y, z: BOARD_Z, sx: 1, sy: 1, sz: 1, rz: LEG_TURN[s.side] });
         break;
-      case 'pin':
+      }
+      case 'pin': {
         pins.push({ x: s.x, y, z: BOARD_Z + 140, sx: s.s, sy: s.s, sz: 280 });
         break;
-      case 'lga':
-        if (socketEmpty) lga.push({ x: s.x, y, z: BOARD_Z + 76, sx: s.s, sy: s.s, sz: 12 });
+      }
+      case 'lga': {
+        if (socketEmpty) {
+          lga.push({ x: s.x, y, z: BOARD_Z + 76, sx: s.s, sy: s.s, sz: 12 });
+        }
         break;
+      }
       case 'screw': {
         // the mounting screw over its standoff: a washer and a pan head with its cross slot
         washers.push({ x: s.x, y, z: BOARD_Z + 5, sx: s.r * 0.78, sy: s.r * 0.78, sz: 10 });
         heads.push({ x: s.x, y, z: BOARD_Z + 22, sx: s.r * 0.58, sy: s.r * 0.58, sz: 24 });
         break;
       }
-      default:
+      default: {
         break; // chokes and power stages are raised with their own art (machine3d.ts)
+      }
     }
   }
   // (a can's lower detail level, LOD-05: half the sides)
@@ -133,36 +141,38 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean, capS
   const box = new BoxGeometry(1, 1, 1),
     can = withLow(drumOf(SEG.drum), () => drumOf(lowSides(SEG.drum)));
   // (satin: the legs and pins sit right under the lamp, mirror metal flares white there)
-  const tinned = mat(0xb9babf, { metalness: 0.75, roughness: 0.42 }),
-    gold = mat(0xd4af5f, { metalness: 0.9, roughness: 0.34 });
-  const add = (items: Item[], g: BufferGeometry, m: ReturnType<typeof mat>) => {
-    if (items.length) out.add(instanced(g, m, items));
+  const tinned = mat(0xb9_ba_bf, { metalness: 0.75, roughness: 0.42 }),
+    gold = mat(0xd4_af_5f, { metalness: 0.9, roughness: 0.34 });
+  const add = (items: Item[], g: threeTypes.BufferGeometry, m: ReturnType<typeof mat>) => {
+    if (items.length > 0) {
+      out.add(instanced(g, m, items));
+    }
   };
   add(
     caps,
     can,
     capSleeve
       ? mat(Number.parseInt(capSleeve.slice(1), 16), { roughness: 0.32 })
-      : mat(0x959aa3, { metalness: 0.6, roughness: 0.45 }),
+      : mat(0x95_9a_a3, { metalness: 0.6, roughness: 0.45 }),
   );
   // (satin, as the coin cell's: a mirror top flares white under the lamp up close)
-  add(capTops, can, mat(0xffffff, { map: canTop(), metalness: 0.65, roughness: 0.46 }));
+  add(capTops, can, mat(0xff_ff_ff, { map: canTop(), metalness: 0.65, roughness: 0.46 }));
   // the polarity stripe printed down the sleeve: a sliver of a slightly larger can
   add(
     bands,
     new CylinderGeometry(1, 1, 1, SEG.midRound, 1, true, 2.2, 0.8).rotateX(Math.PI / 2),
-    mat(0xb9babf, { roughness: 0.4, side: DoubleSide }),
+    mat(0xb9_ba_bf, { roughness: 0.4, side: DoubleSide }),
   );
   add(bodies, box, mat(CERAMIC, { roughness: 0.55 }));
   add(ends, box, tinned);
   add(legs, gullWing(8), tinned);
   add(pins, box, gold);
   add(lga, box, gold);
-  add(washers, can, mat(0x4e5360, { metalness: 0.8, roughness: 0.4 }));
-  const side = mat(0x959aa3, { metalness: 0.85, roughness: 0.32 });
+  add(washers, can, mat(0x4e_53_60, { metalness: 0.8, roughness: 0.4 }));
+  const side = mat(0x95_9a_a3, { metalness: 0.85, roughness: 0.32 });
   add(heads, new CylinderGeometry(1, 1, 1, SEG.drum).rotateX(Math.PI / 2), [
     side,
-    mat(0xffffff, { map: screwTop(), metalness: 0.8, roughness: 0.35 }),
+    mat(0xff_ff_ff, { map: screwTop(), metalness: 0.8, roughness: 0.35 }),
     side,
   ] as unknown as ReturnType<typeof mat>);
   return out;
