@@ -8,17 +8,15 @@
 // Prints one line per pair, then `N machines, M with problems` (exit code 1 when there are problems). Takes about 1 minute for ten pairs.
 // Options: --combos case:board pairs to run; --shots a folder to save two pictures of each pair in (`power-<case><board>.png`, and `power-<case><board>-out.png` with the cables
 // out; keep it outside the repo). Env: PORT (default 5245; it starts vite when nothing answers). Software GL (SwiftShader, llvmpipe) stops the run.
-import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { chromium } from 'playwright-core';
 
 const REPO = fileURLToPath(new URL('..', import.meta.url))
   .replace(/\\/g, '/')
   .replace(/\/$/, '');
-const require = createRequire(REPO + '/package.json');
-const { chromium } = require('playwright-core');
 const args = process.argv.slice(2);
 const flag = (n, d) => {
   const i = args.indexOf('--' + n);

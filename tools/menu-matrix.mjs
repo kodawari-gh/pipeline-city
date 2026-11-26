@@ -98,6 +98,9 @@ const SAVE_AT_KEY = 'pipeline-city.autosave.at';
 const RED = 'rgb(255, 90, 120)'; // --c-bad #ff5a78
 let fixture = null;
 
+/**
+ * @param {import('playwright-core').Browser} b
+ */
 async function getFixture(b) {
   const ctx = await b.newContext();
   const p = await ctx.newPage();
