@@ -40,7 +40,9 @@ export function nicRoute(plan: Pick<NicPlan, 'links'>, dir: NicDir): NicHop[] {
   const out: NicHop[] = [];
   for (const [id, reverse] of WAYS[dir]) {
     const link = plan.links.find((l) => l.id === id);
-    if (link) out.push({ link, reverse });
+    if (link) {
+      out.push({ link, reverse });
+    }
   }
   return out;
 }

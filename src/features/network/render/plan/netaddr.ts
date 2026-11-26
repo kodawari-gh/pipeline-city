@@ -6,7 +6,7 @@
 // and the router's ARP table and the PC's hold one another's. Pure (no Pixi, no DOM): `netAddrs(snapshot)` is the one reading; the NIC's and the router's views, the hover words, the
 // network panel and the lens take it.
 import type { Snapshot } from '@/worker/protocol';
-import { getSpec, type NicSpec } from '../../../board/sim/specs';
+import * as specs from '../../../board/sim/specs';
 import { getIspSpec, getRouterSpec } from '../../sim/specs';
 import { linkOf } from '../jackleds';
 import { macOf } from '../nic/nicmac';
@@ -112,10 +112,10 @@ export interface NetAddrs {
 
 /** FNV-1a: the same text gives the same number. */
 export function hash32(s: string): number {
-  let h = 0x811c9dc5;
+  let h = 0x81_1c_9d_c5;
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
+    h = Math.imul(h, 0x01_00_01_93);
   }
   return h >>> 0;
 }
@@ -126,16 +126,16 @@ const macOfBytes = (b: readonly number[]): string => b.map(hex2).join(':');
 /** An IPv4 address from the four bytes (a 32 bit number is split in four). */
 export const ipv4 = (a: number, b: number, c: number, d: number): number => (((a * 256 + b) * 256 + c) * 256 + d) >>> 0;
 export const ipStr = (n: number): string => [24, 16, 8, 0].map((s) => (n >>> s) & 255).join('.');
-const maskBits = (prefix: number): number => (prefix <= 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0);
+const maskBits = (prefix: number): number => (prefix <= 0 ? 0 : (0xff_ff_ff_ff << (32 - prefix)) >>> 0);
 /** The dotted mask of a prefix length (24: 255.255.255.0). */
 export const maskOf = (prefix: number): string => ipStr(maskBits(prefix));
 
 /** Is this text a MAC address? (Six pairs of hex digits, colons between.) */
-export const isMac = (s: string): boolean => /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(s);
+export const isMac = (s: string): boolean => /^(?:[0-9A-F]{2}:){5}[0-9A-F]{2}$/u.test(s);
 /** Is this text a dotted IPv4 address? */
 export const isIp = (s: string): boolean => {
   const p = s.split('.');
-  return p.length === 4 && p.every((x) => /^\d{1,3}$/.test(x) && Number(x) <= 255);
+  return p.length === 4 && p.every((x) => /^\d{1,3}$/u.test(x) && Number(x) <= 255);
 };
 
 // ---------------------------------------------------------------- what the game's parts are called
@@ -168,20 +168,22 @@ const boardMac = (tier: number): string => macOfBytes([0x02, 0x48, 0x41, 0x4b, t
 /** The services a job's connection speaks to, by the job's type (the word after the number in its label): DNS jobs are UDP on 53, all others HTTPS on 443. */
 const SERVICES: Record<string, Service> = { dns: { proto: 'UDP', port: 53, name: 'DNS' } };
 const HTTPS: Service = { proto: 'TCP', port: 443, name: 'HTTPS' };
-export const serviceOf = (label: string): Service => SERVICES[/^#\d+\s+(\S+)/.exec(label)?.[1] ?? ''] ?? HTTPS;
+export const serviceOf = (label: string): Service =>
+  SERVICES[/^#\d+\s+(?<name>\S+)/u.exec(label)?.groups?.['name'] ?? ''] ?? HTTPS;
 
 /** The PC's jacks in the order the game numbers them: the board's `eth0` when it has one, then each card in slot order as `eth1`.. (as `jackIds` of the words). */
 function jacksOf(s: Snapshot): { id: string; port: string; mac: string }[] {
-  const num = (slot: string) => Number(/(\d+)$/.exec(slot)?.[1] ?? 0);
+  const num = (slot: string) => Number(/(?<num>\d+)$/u.exec(slot)?.groups?.['num'] ?? 0);
   const out: { id: string; port: string; mac: string }[] = [];
   // (a cable in the board's jack is proof enough that it has one)
-  if (s.board.features.ethernetMbps > 0 || s.net?.port.kind === 'board')
+  if (s.board.features.ethernetMbps > 0 || s.net?.port.kind === 'board') {
     out.push({ id: 'eth0', port: 'board', mac: boardMac(s.board.tier) });
+  }
   s.devices
     .filter((d) => d.kind === 'nic')
     .sort((a, b) => num(a.slot) - num(b.slot))
     .forEach((d, i) => {
-      const spec = getSpec(d.spec) as NicSpec | undefined;
+      const spec = specs.getSpec(d.spec) as specs.NicSpec | undefined;
       out.push({ id: `eth${i + 1}`, port: d.id, mac: macOf(spec?.visual ?? 'nic-gbe') });
     });
   return out;
@@ -191,13 +193,17 @@ const cache = new WeakMap<object, NetAddrs>();
 
 /** The addresses of the game in this snapshot, or null with no network block. The same snapshot gives the same object. */
 export function netAddrs(s: Snapshot | null | undefined): NetAddrs | null {
-  if (!s || !s.net) return null;
+  if (!s || !s.net) {
+    return null;
+  }
   const hit = cache.get(s);
-  if (hit) return hit;
+  if (hit) {
+    return hit;
+  }
   const n = s.net,
     link = linkOf(s),
     spec = n.router ? getRouterSpec(n.router.id) : undefined,
-    tier = spec?.tier ?? (n.router ? Number(/\d+$/.exec(n.router.id)?.[0]) || 1 : 0);
+    tier = spec?.tier ?? (n.router ? Number(/\d+$/u.exec(n.router.id)?.[0]) || 1 : 0);
   const lan: Lan | null = n.router
     ? (() => {
         const plan = LAN[tier] ?? LAN[1]!,
@@ -216,7 +222,7 @@ export function netAddrs(s: Snapshot | null | undefined): NetAddrs | null {
       })()
     : null;
   const ispSpec = n.isp ? getIspSpec(n.isp.id) : undefined,
-    ispTier = ispSpec?.tier ?? (n.isp ? Number(/\d+$/.exec(n.isp.id)?.[0]) || 1 : 0);
+    ispTier = ispSpec?.tier ?? (n.isp ? Number(/\d+$/u.exec(n.isp.id)?.[0]) || 1 : 0);
   const wan: Wan | null =
     n.router && n.isp
       ? {
@@ -270,8 +276,8 @@ export function netAddrs(s: Snapshot | null | undefined): NetAddrs | null {
             dir: t.dir,
             label: t.label,
             service,
-            lan: { ip: host.ip, port: 49152 + (hash32(`${key}|lan`) % 16384) },
-            wan: { ip: wan.ip, port: 1024 + (hash32(`${key}|wan`) % 48000) },
+            lan: { ip: host.ip, port: 49_152 + (hash32(`${key}|lan`) % 16_384) },
+            wan: { ip: wan.ip, port: 1024 + (hash32(`${key}|wan`) % 48_000) },
             peer: service.name === 'DNS' ? { ip: host.dns, port: service.port } : server,
             server,
           };
@@ -309,7 +315,9 @@ export interface Frame {
   dst: Endpoint;
 }
 export function frameOn(a: NetAddrs, c: Conn, wire: 'lan' | 'wan', toward: boolean): Frame | null {
-  if (!a.host || !a.lan || !a.wan) return null;
+  if (!a.host || !a.lan || !a.wan) {
+    return null;
+  }
   const mine = wire === 'lan' ? c.lan : c.wan,
     far = wire === 'lan' ? c.peer : c.server,
     near = wire === 'lan' ? { mac: a.host.mac, peer: a.lan.mac } : { mac: a.wan.mac, peer: a.wan.gateway.mac };

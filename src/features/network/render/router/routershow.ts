@@ -5,10 +5,10 @@
 // serves are the transfers in flight (`NetSnap.transfers`), against the slots it has (the smaller of the router's and the plan's clients). Pure (no Pixi): the glyphs read it
 // (routerglyph.ts) and the tests build it.
 import type { Snapshot } from '@/worker/protocol';
-import { getRouterSpec, type Binding } from '../../sim/specs';
+import * as specs from '../../sim/specs';
 import { linkOf } from '../jackleds';
-import { netAddrs, type NetAddrs } from '../plan/netaddr';
-import { busy, fmtSpeed, lineFrames, loadOf, type FrameMeter } from '../plan/netmeter';
+import * as netaddr from '../plan/netaddr';
+import * as netmeter from '../plan/netmeter';
 
 /** A transfer in flight through the router: its job's name and how far it is. */
 interface RouterFlow {
@@ -52,48 +52,55 @@ export interface RouterShow {
   used: number;
   slots: number;
   /** Which limit sets the speed (`NetSnap.bandwidth.binding`) and the speed that gives. */
-  binding: Binding | null;
+  binding: specs.Binding | null;
   limitMbps: number;
   /** The addresses the game gives (`netaddr.ts`): the LAN and WAN sides, what the PC was given, the connections in flight; null with no network. */
-  addr: NetAddrs | null;
+  addr: netaddr.NetAddrs | null;
   /** The visual clock (ms): the motion runs on it. */
   ms: number;
 }
 
 /** What limits the speed now, in words: the router's own, the plan's, the drive's or the port's. */
 export function limitWords(s: Pick<RouterShow, 'binding' | 'limitMbps'>): string {
-  const sp = fmtSpeed(s.limitMbps);
+  const sp = netmeter.fmtSpeed(s.limitMbps);
   switch (s.binding) {
-    case 'router':
+    case 'router': {
       return `the router, ${sp}`;
-    case 'isp':
+    }
+    case 'isp': {
       return `the plan, ${sp}`;
-    case 'disk':
+    }
+    case 'disk': {
       return `the drive, ${sp}`;
-    case 'port':
+    }
+    case 'port': {
       return `the PC's port, ${sp}`;
-    default:
+    }
+    default: {
       return 'none';
+    }
   }
 }
 
 /** The router in the snapshot as the view shows it, or null when no router stands. */
 export function routerShow(
   s: Snapshot | null | undefined,
-  meter: Pick<FrameMeter, 'rx' | 'tx'>,
+  meter: Pick<netmeter.FrameMeter, 'rx' | 'tx'>,
   ms: number,
 ): RouterShow | null {
   const net = s?.net,
     r = net?.router;
-  if (!s || !net || !r) return null;
-  const spec = getRouterSpec(r.id),
-    tier = spec?.tier ?? (Number(/\d+$/.exec(r.id)?.[0]) || 1),
+  if (!s || !net || !r) {
+    return null;
+  }
+  const spec = specs.getRouterSpec(r.id),
+    tier = spec?.tier ?? (Number(/\d+$/u.exec(r.id)?.[0]) || 1),
     link = linkOf(s),
     flow = link.pc && link.wan,
-    line = lineFrames(r.mbps);
+    line = netmeter.lineFrames(r.mbps);
   const rx = flow ? meter.rx : 0,
     tx = flow ? meter.tx : 0,
-    isp = net.isp;
+    { isp } = net;
   const flows = (dir: 'down' | 'up'): RouterFlow[] =>
     net.transfers
       .filter((t) => t.dir === dir)
@@ -116,17 +123,17 @@ export function routerShow(
     tx,
     rxTotal: net.frames.rx,
     txTotal: net.frames.tx,
-    rxLoad: loadOf(rx, line),
-    txLoad: loadOf(tx, line),
-    rxAct: busy(rx, line),
-    txAct: busy(tx, line),
+    rxLoad: netmeter.loadOf(rx, line),
+    txLoad: netmeter.loadOf(tx, line),
+    rxAct: netmeter.busy(rx, line),
+    txAct: netmeter.busy(tx, line),
     downs: flows('down'),
     ups: flows('up'),
     used: net.transfers.length,
     slots: Math.min(r.clients, isp?.clients ?? r.clients),
     binding: net.bandwidth.binding,
     limitMbps: net.bandwidth.downMbps,
-    addr: netAddrs(s),
+    addr: netaddr.netAddrs(s),
     ms,
   };
 }

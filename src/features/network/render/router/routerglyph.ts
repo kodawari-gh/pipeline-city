@@ -1,12 +1,12 @@
 import type { Graphics } from 'pixi.js';
 import type { Theme } from '@/core/render/theme';
-import { glyphKit, type Put } from '../../../cpu/render/die/blockart';
-import { FRAME_FIELDS, type LiveKey, type NicLive } from '../nic/nicglyph';
+import * as blockart from '../../../cpu/render/die/blockart';
+import * as nicglyph from '../nic/nicglyph';
 import { natLine } from '../plan/netaddr';
 import { fmtFrames, fmtPct, fmtSpeed } from '../plan/netmeter';
 import type { Rect } from '../plan/netplan';
 import type { RouterBlock, RouterPlanInput } from './routerplan';
-import { limitWords, type RouterShow } from './routershow';
+import * as routershow from './routershow';
 
 // What is inside a block of the router SoC's die (docs/render/net.md "Inside the NIC and the router"): the schematic an engineer would draw for the block, drawn with the CPU die's
 // own tools (`glyphKit`) so the router, the card and the CPU's die read as one family. The WAN MAC is an Ethernet frame as its fields, with the address the plan gives; the CPU its
@@ -19,7 +19,9 @@ export const ROUTER_GLYPH_KINDS = new Set<RouterBlock['kind']>(['cpu', 'mem', 'w
 
 /** The area a symbol may use: the block under its name, or null for the SoC's frame (it holds blocks) and for a block too small. */
 export function routerGlyphArea(b: Pick<RouterBlock, 'kind' | 'rect'>): Rect | null {
-  if (!ROUTER_GLYPH_KINDS.has(b.kind)) return null;
+  if (!ROUTER_GLYPH_KINDS.has(b.kind)) {
+    return null;
+  }
   const r = b.rect,
     head = r.h >= 70 ? 44 : r.h * 0.55;
   const a = { x: r.x + 8, y: r.y + head, w: r.w - 16, h: r.y + r.h - 6 - (r.y + head) };
@@ -36,10 +38,10 @@ const PKT_STAGES = ['PARSE', 'LOOKUP', 'REWRITE', 'QUEUE'] as const;
 
 /** The WAN MAC: the frame as its fields, the lane a received frame runs along and the lane a sent one runs along under it, then the address the plan gives and the MAC address of the jack. */
 export function wanGeom(a: Rect) {
-  const total = FRAME_FIELDS.reduce((s, f) => s + f[1], 0),
+  const total = nicglyph.FRAME_FIELDS.reduce((s, f) => s + f[1], 0),
     fh = 20;
-  let x = a.x;
-  const fields = FRAME_FIELDS.map((f) => {
+  let { x } = a;
+  const fields = nicglyph.FRAME_FIELDS.map((f) => {
     const w = (a.w * f[1]) / total,
       r = R(x, a.y + 2, w - 1.5, fh);
     x += w;
@@ -151,10 +153,19 @@ export function statGeom(a: Rect) {
 // ---------------------------------------------------------------- the static symbols
 
 /** Draw the symbol of block `b` into `g`; `put` adds a label. `input` is the plan's. */
-export function routerGlyph(g: Graphics, T: Theme, b: RouterBlock, c: string, put: Put, input: RouterPlanInput): void {
+export function routerGlyph(
+  g: Graphics,
+  T: Theme,
+  b: RouterBlock,
+  c: string,
+  put: blockart.Put,
+  input: RouterPlanInput,
+): void {
   const a = routerGlyphArea(b);
-  if (!a) return;
-  const kit = glyphKit(g, T, c, put),
+  if (!a) {
+    return;
+  }
+  const kit = blockart.glyphKit(g, T, c, put),
     { solid, soft, line, rect, stub } = kit;
   const outline = (r: Rect) => {
     g.roundRect(r.x, r.y, r.w, r.h, 1.5).stroke({ width: 1, color: line, alpha: 0.85 });
@@ -168,7 +179,7 @@ export function routerGlyph(g: Graphics, T: Theme, b: RouterBlock, c: string, pu
       const q = wanGeom(a);
       q.fields.forEach((r, k) => {
         rect(r.x, r.y, r.w, r.h, k % 2 ? solid : soft);
-        put(FRAME_FIELDS[k]![0], r.x + r.w / 2, r.y + r.h / 2, Math.min(LAB - 2, r.w * 0.3, r.h * 0.45));
+        put(nicglyph.FRAME_FIELDS[k]![0], r.x + r.w / 2, r.y + r.h / 2, Math.min(LAB - 2, r.w * 0.3, r.h * 0.45));
       });
       for (const [r, t] of [
         [q.rx, 'rx'],
@@ -196,7 +207,9 @@ export function routerGlyph(g: Graphics, T: Theme, b: RouterBlock, c: string, pu
         outline(r);
         put(`CH${k}`, r.x + r.w / 2, r.y + r.h / 2, Math.min(LAB, r.h * 0.45, r.w * 0.3));
       });
-      for (const r of q.cells) rect(r.x, r.y, r.w, r.h, soft);
+      for (const r of q.cells) {
+        rect(r.x, r.y, r.w, r.h, soft);
+      }
       outline(q.ringBox);
       break;
     }
@@ -206,9 +219,13 @@ export function routerGlyph(g: Graphics, T: Theme, b: RouterBlock, c: string, pu
         rect(r.x, r.y, r.w, r.h, k % 2 ? solid : soft);
         outline(r);
         put(PKT_STAGES[k]!, r.x + r.w / 2, r.y + r.h / 2, Math.min(LAB, r.h * 0.4, r.w * 0.17));
-        if (k < 3) arrow(r.x + r.w + 1, r.y + r.h / 2, q.stages[k + 1]!.x - 1);
+        if (k < 3) {
+          arrow(r.x + r.w + 1, r.y + r.h / 2, q.stages[k + 1]!.x - 1);
+        }
       });
-      for (const r of q.cells) rect(r.x, r.y, r.w, r.h, soft);
+      for (const r of q.cells) {
+        rect(r.x, r.y, r.w, r.h, soft);
+      }
       outline(q.table);
       put(
         'NAT: PRIVATE ADDRESS : PORT  >  PUBLIC ADDRESS : PORT  >  SERVER',
@@ -249,18 +266,20 @@ export function routerGlyph(g: Graphics, T: Theme, b: RouterBlock, c: string, pu
       for (const [r, t] of [
         [q.rx, 'rx'],
         [q.tx, 'tx'],
-      ] as [Rect, string][])
+      ] as [Rect, string][]) {
         put(t, a.x + 12, r.y + r.h / 2, LAB + 2);
+      }
       break;
     }
-    default:
+    default: {
       break;
+    }
   }
 }
 
 // ---------------------------------------------------------------- the live symbols
 
-export type RouterLive = NicLive;
+export type RouterLive = nicglyph.NicLive;
 
 /** The right part of a block's name strip, from `from` of its width (a small block puts its number beside its name, where the symbol has no room for it). */
 const head = (r: Rect, from: number): Rect => R(r.x + r.w * from, r.y + 5, r.w * (1 - from) - 8, 22);
@@ -275,7 +294,7 @@ export { natLine };
 export function routerLive(
   b: Pick<RouterBlock, 'kind' | 'rect'>,
   a: Rect,
-  s: RouterShow,
+  s: routershow.RouterShow,
   input: RouterPlanInput,
 ): RouterLive {
   const out: RouterLive = { texts: [], lit: [] };
@@ -283,11 +302,10 @@ export function routerLive(
     tx = s.txAct,
     any = Math.max(rx, tx),
     flow = s.pc && s.wan,
-    ms = s.ms,
-    ad = s.addr;
+    { ms, addr: ad } = s;
   const txt = (r: Rect, t: string, fit?: number) =>
     out.texts.push({ rect: r, top: t, ink: true, ...(fit !== undefined ? { fit } : {}) });
-  const lit = (rect: Rect, color: LiveKey, al: number) => out.lit.push({ rect, color, a: al });
+  const lit = (rect: Rect, color: nicglyph.LiveKey, al: number) => out.lit.push({ rect, color, a: al });
   switch (b.kind) {
     case 'wanmac': {
       const q = wanGeom(a);
@@ -295,7 +313,9 @@ export function routerLive(
         const u = (ms / (1600 - 1300 * rx)) % 1;
         lit({ ...q.rx, w: q.rx.w * u }, 'alu', 0.12 + 0.18 * rx);
         q.fields.forEach((f, k) => {
-          if (Math.floor(u * q.fields.length) === k) lit(f, 'alu', 0.2);
+          if (Math.floor(u * q.fields.length) === k) {
+            lit(f, 'alu', 0.2);
+          }
         });
       }
       if (flow && tx > 0) {
@@ -316,32 +336,45 @@ export function routerLive(
     case 'mem': {
       const q = memGeom(a, input.dram.chips);
       q.cells.forEach((r, k) => {
-        if (flow && any > 0 && Math.floor(wave(ms, k, 1 + any) * 2) === 1) lit(r, 'ld', 0.35);
+        if (flow && any > 0 && Math.floor(wave(ms, k, 1 + any) * 2) === 1) {
+          lit(r, 'ld', 0.35);
+        }
       });
-      if (flow && any > 0) q.chips.forEach((r, k) => lit(r, 'ld', 0.1 * wave(ms, k * 2, 1 + any)));
+      if (flow && any > 0) {
+        q.chips.forEach((r, k) => lit(r, 'ld', 0.1 * wave(ms, k * 2, 1 + any)));
+      }
       txt(q.note, flow ? `${fmtFrames(s.rx + s.tx)} frames /s` : 'no frames', 17);
       break;
     }
     case 'pkt': {
       const q = pktGeom(a, routerSlots(input));
-      if (flow && any > 0) q.stages.forEach((r, k) => lit(r, 'st', 0.12 * any * wave(ms, k * 1.4, 1.2 + any)));
+      if (flow && any > 0) {
+        q.stages.forEach((r, k) => lit(r, 'st', 0.12 * any * wave(ms, k * 1.4, 1.2 + any)));
+      }
       // a cell for each client in service: the table is the slots the router and the plan give, the transfers in flight are the clients
       q.cells.forEach((r, k) => {
-        if (k < s.used) lit(r, 'st', 0.5);
+        if (k < s.used) {
+          lit(r, 'st', 0.5);
+        }
       });
       txt(head(b.rect, 0.5), `${s.used} of ${s.slots} clients`, 18);
       const flows = [...s.downs, ...s.ups];
       q.flows.forEach((f, k) => {
         const t = flows[k];
-        if (!t) return;
+        if (!t) {
+          return;
+        }
         const conn = ad?.conns.find((c) => c.jobId === t.jobId && c.dir === t.dir);
         lit({ ...f.bar, w: f.bar.w * Math.min(1, t.percent / 100) }, t.dir === 'down' ? 'alu' : 'mul', 0.5);
         const line = conn ? natLine(conn) : `${t.dir === 'down' ? 'v' : '^'} ${t.label}`;
         txt(f.label, line, Math.max(70, line.length));
         txt(f.pct, `${Math.round(t.percent)}%`, 5);
       });
-      if (flows.length > q.flows.length) txt(q.more, `+ ${flows.length - q.flows.length} more`, 20);
-      else if (flows.length === 0) txt(q.flows[0]?.label ?? q.more, 'no connection: the table is empty', 36);
+      if (flows.length > q.flows.length) {
+        txt(q.more, `+ ${flows.length - q.flows.length} more`, 20);
+      } else if (flows.length === 0) {
+        txt(q.flows[0]?.label ?? q.more, 'no connection: the table is empty', 36);
+      }
       break;
     }
     case 'sw': {
@@ -349,9 +382,12 @@ export function routerLive(
       if (flow && any > 0) {
         lit(q.up, 'st', 0.1 + 0.3 * any);
         lit(q.ports[0]!, 'st', 0.1 + 0.3 * any);
-      } else if (s.pc) lit(q.ports[0]!, 'st', 0.1);
-      if (flow && rx > 0)
+      } else if (s.pc) {
+        lit(q.ports[0]!, 'st', 0.1);
+      }
+      if (flow && rx > 0) {
         lit({ ...q.fabric, w: q.fabric.w * ((ms / (1600 - 1300 * rx)) % 1) }, 'alu', 0.05 + 0.07 * rx);
+      }
       // the MAC address table: the address learned on each port (the game's one cable is in port 1)
       q.ports.forEach((r, k) => txt(r, k === 0 && ad?.host ? `P1 ${ad.host.mac}` : `P${k + 1} -`, 24));
       txt(q.note, ad?.router && s.pc ? `${ad.router.lan} · ${fmtSpeed(s.lanMbps)}` : 'no port up', 34);
@@ -367,7 +403,7 @@ export function routerLive(
       txt(
         q.lines[1]!,
         flow
-          ? `LAN ${fmtSpeed(s.lanMbps)} · limit: ${limitWords(s)}`
+          ? `LAN ${fmtSpeed(s.lanMbps)} · limit: ${routershow.limitWords(s)}`
           : s.pc
             ? `LAN ${fmtSpeed(s.lanMbps)} · rx ${fmtPct(s.rxLoad)}`
             : 'LAN no link',
@@ -375,8 +411,9 @@ export function routerLive(
       );
       break;
     }
-    default:
+    default: {
       break;
+    }
   }
   return out;
 }

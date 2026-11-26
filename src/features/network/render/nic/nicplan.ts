@@ -5,14 +5,14 @@
 // tests check it. A frame comes in from the PHY (the line side) to the MAC with the counters, into the receive queue, over the DMA engine and the PCIe core out to the host
 // bus, and goes the other way for a frame to send; the heat sensor sits by the DMA engine and throttles the link.
 
-import { col, leaf, row, type Node, type Spec, type WireSpec } from '../../../cpu/render/core/cpufloor';
+import * as cpufloor from '../../../cpu/render/core/cpufloor';
 import { NIC_FIFO } from '../../sim/specs';
-import { layPlan, type Margins, type NetBlock, type NetLink, type NetPlan } from '../plan/netplan';
+import * as netplan from '../plan/netplan';
 
 export type NicBlockKind = 'ctl' | 'phy' | 'mac' | 'stats' | 'rxq' | 'txq' | 'dma' | 'pcie' | 'temp';
 export type NicLinkKind = 'line' | 'data' | 'host' | 'control';
-export type NicBlock = NetBlock<NicBlockKind>;
-export type NicLink = NetLink<NicLinkKind>;
+export type NicBlock = netplan.NetBlock<NicBlockKind>;
+export type NicLink = netplan.NetLink<NicLinkKind>;
 
 /** What the die's floorplan depends on: which card it is (its tier), nothing else. */
 export interface NicPlanInput {
@@ -34,7 +34,7 @@ export interface NicPlanInput {
   /** What the host link goes to (the second line of its block). */
   host: string;
 }
-export type NicPlan = NetPlan<NicBlockKind, NicLinkKind, NicPlanInput>;
+export type NicPlan = netplan.NetPlan<NicBlockKind, NicLinkKind, NicPlanInput>;
 
 /** The three cards: the chip each carries, its standard, its edge, its jacks, its queues. The 3D card is built the same (`NIC_LANES` in niccopper.ts, `jacksOf` in nic3d.ts, `CTRL` there for the chip). */
 export const NIC_LINK: Record<string, NicPlanInput> = {
@@ -120,25 +120,25 @@ export const NIC_DIE = { w: 680, h: 680 };
 export const BOARD_DIE = { w: 680, h: 810 };
 /** The size of the die's plan of look `visual`. */
 export const nicDieSize = (visual: string): { w: number; h: number } => (visual in BOARD_LINK ? BOARD_DIE : NIC_DIE);
-const M: Margins = { x: 10, top: 10, bottom: 30 };
+const M: netplan.Margins = { x: 10, top: 10, bottom: 30 };
 
 type K = NicBlockKind;
-type N = Node<K>;
-type Opt = Partial<Spec<K>> & { f?: number; px?: number };
-const L = (id: string, kind: K, label: string, o: Opt = {}): N => leaf<K>(id, kind, label, o);
+type N = cpufloor.Node<K>;
+type Opt = Partial<cpufloor.Spec<K>> & { f?: number; px?: number };
+const L = (id: string, kind: K, label: string, o: Opt = {}): N => cpufloor.leaf<K>(id, kind, label, o);
 
 type W = [id: string, kind: NicLinkKind, from: string, to: string, lanes?: 1 | 2 | 3 | 4];
-const wires = (a: W[]): WireSpec<NicLinkKind>[] =>
+const wires = (a: W[]): cpufloor.WireSpec<NicLinkKind>[] =>
   a.map(([id, kind, from, to, lanes]) => ({ id, kind, from, to, ...(lanes ? { lanes } : {}) }));
 
-function build(i: NicPlanInput): { tree: N; specs: WireSpec<NicLinkKind>[] } {
-  const ctl: Spec<K> = { id: 'ctl', kind: 'ctl', label: `${i.chip} CONTROLLER`, sub: i.std };
-  const tree = col<K>(
+function build(i: NicPlanInput): { tree: N; specs: cpufloor.WireSpec<NicLinkKind>[] } {
+  const ctl: cpufloor.Spec<K> = { id: 'ctl', kind: 'ctl', label: `${i.chip} CONTROLLER`, sub: i.std };
+  const tree = cpufloor.col<K>(
     [
-      row<K>(
+      cpufloor.row<K>(
         [
           L('phy', 'phy', 'PHY', { sub: `${i.std} line side`, f: 1.15 }),
-          col<K>(
+          cpufloor.col<K>(
             [
               L('mac', 'mac', 'MAC', { sub: 'frames, CRC, flow control', f: 1.5 }),
               L('stats', 'stats', 'STATISTICS', { sub: 'the port counters', f: 0.8 }),
@@ -148,14 +148,14 @@ function build(i: NicPlanInput): { tree: N; specs: WireSpec<NicLinkKind>[] } {
         ],
         { f: 1.3 },
       ),
-      row<K>(
+      cpufloor.row<K>(
         [
           L('rxq', 'rxq', 'RX QUEUE', { sub: 'frames in, downloads in flight', f: 1 }),
           L('txq', 'txq', 'TX QUEUE', { sub: 'frames out, uploads in flight', f: 1 }),
         ],
         { f: 0.95 },
       ),
-      row<K>(
+      cpufloor.row<K>(
         [
           L('dma', 'dma', 'DMA', { sub: 'moves frames to and from RAM', f: 1.2 }),
           L('pcie', 'pcie', `PCIe x${i.lanes}`, { sub: i.host, f: 1 }),
@@ -183,5 +183,13 @@ function build(i: NicPlanInput): { tree: N; specs: WireSpec<NicLinkKind>[] } {
 export function nicPlan(visual: string): NicPlan {
   const i = nicInput(visual),
     { tree, specs } = build(i);
-  return layPlan<K, NicLinkKind, NicPlanInput>(`nicdie|${visual}`, i, nicDieSize(visual), M, tree, specs, 'nicplan');
+  return netplan.layPlan<K, NicLinkKind, NicPlanInput>(
+    `nicdie|${visual}`,
+    i,
+    nicDieSize(visual),
+    M,
+    tree,
+    specs,
+    'nicplan',
+  );
 }

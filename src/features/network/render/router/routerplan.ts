@@ -5,13 +5,13 @@
 // engine, which finds the client it is for (the NAT table), and on through the LAN switch, whose ports leave the chip for the LAN PHY; a frame to send goes the other way. The CPU runs the
 // firmware (DHCP, the firewall, a new connection's entry in the engine) and the memory controller feeds the DRAM chips beside the SoC.
 
-import { col, leaf, row, type Node, type Spec, type WireSpec } from '../../../cpu/render/core/cpufloor';
-import { layPlan, type Margins, type NetBlock, type NetLink, type NetPlan } from '../plan/netplan';
+import * as cpufloor from '../../../cpu/render/core/cpufloor';
+import * as netplan from '../plan/netplan';
 
 export type RouterBlockKind = 'soc' | 'cpu' | 'mem' | 'wanmac' | 'pkt' | 'sw' | 'stat';
 export type RouterLinkKind = 'data' | 'control' | 'memory';
-export type RouterBlock = NetBlock<RouterBlockKind>;
-export type RouterLink = NetLink<RouterLinkKind>;
+export type RouterBlock = netplan.NetBlock<RouterBlockKind>;
+export type RouterLink = netplan.NetLink<RouterLinkKind>;
 
 /** What the router's floorplan depends on: which router it is (its tier) and the parts that tier is built from. */
 export interface RouterPlanInput {
@@ -33,7 +33,7 @@ export interface RouterPlanInput {
   /** The power input. */
   inlet: string;
 }
-export type RouterPlan = NetPlan<RouterBlockKind, RouterLinkKind, RouterPlanInput>;
+export type RouterPlan = netplan.NetPlan<RouterBlockKind, RouterLinkKind, RouterPlanInput>;
 
 /**
  * The four routers' parts, by tier (`ROUTER_SPECS` in network/sim/specs.ts: Home 100 Mbit, Gigabit, 10G switch-router, Edge 40G). The names and sizes are what the parts are made of, in
@@ -98,30 +98,30 @@ export const routerInput = (tier: number): RouterPlanInput => ROUTER_PARTS[tier]
 
 /** The die's plan is this big (plan units): square, as a die is. The blocks are sized for it: a symbol fits a block of about 200 by 150. */
 export const ROUTER_DIE = { w: 680, h: 680 };
-const M: Margins = { x: 10, top: 10, bottom: 30 };
+const M: netplan.Margins = { x: 10, top: 10, bottom: 30 };
 
 type K = RouterBlockKind;
-type N = Node<K>;
-type Opt = Partial<Spec<K>> & { f?: number; px?: number };
-const L = (id: K, label: string, o: Opt = {}): N => leaf<K>(id, id, label, o);
+type N = cpufloor.Node<K>;
+type Opt = Partial<cpufloor.Spec<K>> & { f?: number; px?: number };
+const L = (id: K, label: string, o: Opt = {}): N => cpufloor.leaf<K>(id, id, label, o);
 
 type W = [id: string, kind: RouterLinkKind, from: string, to: string, lanes?: 1 | 2 | 3 | 4];
-const wires = (a: W[]): WireSpec<RouterLinkKind>[] =>
+const wires = (a: W[]): cpufloor.WireSpec<RouterLinkKind>[] =>
   a.map(([id, kind, from, to, lanes]) => ({ id, kind, from, to, ...(lanes ? { lanes } : {}) }));
 
 /** A memory size in words: 64 MB, 1 GB. */
-export const fmtSize = (mb: number): string => (mb >= 1024 ? `${+(mb / 1024).toFixed(1)} GB` : `${mb} MB`);
+export const fmtSize = (mb: number): string => (mb >= 1024 ? `${Number((mb / 1024).toFixed(1))} GB` : `${mb} MB`);
 
-function build(i: RouterPlanInput): { tree: N; specs: WireSpec<RouterLinkKind>[] } {
-  const soc: Spec<K> = {
+function build(i: RouterPlanInput): { tree: N; specs: cpufloor.WireSpec<RouterLinkKind>[] } {
+  const soc: cpufloor.Spec<K> = {
     id: 'soc',
     kind: 'soc',
     label: `${i.soc} SoC`,
     sub: `${i.cores} core${i.cores === 1 ? '' : 's'} · ${i.mhz} MHz`,
   };
-  const tree = col<K>(
+  const tree = cpufloor.col<K>(
     [
-      row<K>(
+      cpufloor.row<K>(
         [
           L('wanmac', 'WAN MAC', { sub: "the line side: the plan's address", f: 1 }),
           L('cpu', 'CPU', { sub: 'runs the firmware', f: 1.15 }),
@@ -129,8 +129,8 @@ function build(i: RouterPlanInput): { tree: N; specs: WireSpec<RouterLinkKind>[]
         ],
         { f: 1 },
       ),
-      row<K>([L('pkt', i.engine, { sub: 'finds the client of each frame: the NAT table', f: 1 })], { f: 1.5 }),
-      row<K>(
+      cpufloor.row<K>([L('pkt', i.engine, { sub: 'finds the client of each frame: the NAT table', f: 1 })], { f: 1.5 }),
+      cpufloor.row<K>(
         [
           L('sw', 'LAN SWITCH', { sub: `${i.lan} ports, ${i.std}`, f: 1.25 }),
           L('stat', 'TRAFFIC', { sub: 'what the router carries now', f: 1 }),
@@ -155,7 +155,7 @@ function build(i: RouterPlanInput): { tree: N; specs: WireSpec<RouterLinkKind>[]
 export function routerPlan(tier: number): RouterPlan {
   const i = routerInput(tier),
     { tree, specs } = build(i);
-  return layPlan<K, RouterLinkKind, RouterPlanInput>(
+  return netplan.layPlan<K, RouterLinkKind, RouterPlanInput>(
     `routerdie|${i.tier}`,
     i,
     ROUTER_DIE,

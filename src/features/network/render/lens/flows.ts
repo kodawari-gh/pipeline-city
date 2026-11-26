@@ -3,16 +3,7 @@
 // cyan comet that runs along the line toward the machine, results that go out are violet comets that run back; the faster the link, the faster and closer the comets. With
 // the link up and nothing moving, a faint slow trickle shows it lives. A line that is out (the lead unplugged, the link down) pulses red and does not move. The lines are
 // drawn with the depth test, lifted a little toward the eye (a cable is seen where it runs, and goes behind what stands in front of it).
-import {
-  AdditiveBlending,
-  DoubleSide,
-  Float32BufferAttribute,
-  InstancedBufferAttribute,
-  InstancedBufferGeometry,
-  Mesh,
-  ShaderMaterial,
-  type PerspectiveCamera,
-} from 'three';
+import * as THREE from 'three';
 import { seedOf } from '@/features/board/render/three/power/flows';
 import type { NetDraw, NetShape } from './shape';
 
@@ -34,9 +25,11 @@ export interface NetStrips {
   count: Int32Array;
 }
 function netStrips(shape: NetShape): NetStrips {
-  const lines = shape.lines;
+  const { lines } = shape;
   let cap = 0;
-  for (const l of lines) cap += Math.max(0, l.pts.length - 1);
+  for (const l of lines) {
+    cap += Math.max(0, l.pts.length - 1);
+  }
   const a = new Float32Array(4 * cap),
     b = new Float32Array(4 * cap),
     look = new Float32Array(4 * cap),
@@ -52,7 +45,9 @@ function netStrips(shape: NetShape): NetStrips {
       const p = l.pts[j - 1]!,
         q = l.pts[j]!,
         len = Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]);
-      if (!(len > 1e-3)) continue;
+      if (!(len > 1e-3)) {
+        continue;
+      }
       a.set([p[0], p[1], p[2], s], 4 * k);
       b.set([q[0], q[1], q[2], s + len], 4 * k);
       look.set([l.width, seed, l.lift, 0], 4 * k);
@@ -138,41 +133,41 @@ void main() {
 
 /** The lines of one shape. */
 export class NetFlows {
-  readonly mesh: Mesh;
-  private readonly geo = new InstancedBufferGeometry();
-  private readonly mat: ShaderMaterial;
+  readonly mesh: THREE.Mesh;
+  private readonly geo = new THREE.InstancedBufferGeometry();
+  private readonly mat: THREE.ShaderMaterial;
   private readonly state: Float32Array;
-  private readonly attr: InstancedBufferAttribute;
+  private readonly attr: THREE.InstancedBufferAttribute;
   private readonly s: NetStrips;
   private t = 0;
 
   constructor(private readonly shape: NetShape) {
     const s = (this.s = netStrips(shape));
     // one strip: two ends, two sides
-    this.geo.setAttribute('corner', new Float32BufferAttribute([0, -1, 0, 1, 1, -1, 1, 1], 2));
+    this.geo.setAttribute('corner', new THREE.Float32BufferAttribute([0, -1, 0, 1, 1, -1, 1, 1], 2));
     // (`position` is needed for the draw count; the shader does not read it)
-    this.geo.setAttribute('position', new Float32BufferAttribute(new Float32Array(12), 3));
+    this.geo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(12), 3));
     this.geo.setIndex([0, 1, 2, 1, 3, 2]);
-    this.geo.setAttribute('iA', new InstancedBufferAttribute(s.a, 4));
-    this.geo.setAttribute('iB', new InstancedBufferAttribute(s.b, 4));
-    this.geo.setAttribute('iLook', new InstancedBufferAttribute(s.look, 4));
+    this.geo.setAttribute('iA', new THREE.InstancedBufferAttribute(s.a, 4));
+    this.geo.setAttribute('iB', new THREE.InstancedBufferAttribute(s.b, 4));
+    this.geo.setAttribute('iLook', new THREE.InstancedBufferAttribute(s.look, 4));
     this.state = new Float32Array(3 * Math.max(1, s.n));
-    this.attr = new InstancedBufferAttribute(this.state, 3);
+    this.attr = new THREE.InstancedBufferAttribute(this.state, 3);
     this.geo.setAttribute('iState', this.attr);
     this.geo.instanceCount = s.n;
-    this.mat = new ShaderMaterial({
+    this.mat = new THREE.ShaderMaterial({
       // (added to the picture: two strips that overlap at a bend, or the strands of a lead at its plug, add up; both faces, a strip's winding turns with its run's way)
       vertexShader: VERT,
       fragmentShader: FRAG,
       transparent: true,
       depthWrite: false,
       depthTest: true,
-      blending: AdditiveBlending,
+      blending: THREE.AdditiveBlending,
       toneMapped: false,
-      side: DoubleSide,
+      side: THREE.DoubleSide,
       uniforms: { uPixel: { value: 0.002 }, uT: { value: 0 }, uClock: { value: 0 }, uStrength: { value: STRENGTH } },
     });
-    this.mesh = new Mesh(this.geo, this.mat);
+    this.mesh = new THREE.Mesh(this.geo, this.mat);
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 1002;
     this.mesh.raycast = () => {};
@@ -181,8 +176,7 @@ export class NetFlows {
 
   /** A new snapshot: each strip's pace and state. */
   set(draw: NetDraw): void {
-    const st = this.state,
-      s = this.s;
+    const { state: st, s } = this;
     this.shape.lines.forEach((_, i) => {
       for (let k = s.first[i]!, e = k + s.count[i]!; k < e; k++) {
         st[3 * k] = draw.down[i]!;
@@ -194,8 +188,8 @@ export class NetFlows {
   }
 
   /** Per frame: `dt` game seconds (0 holds the comets), `clock` real seconds (the red pulse goes on while the game is paused). */
-  frame(cam: PerspectiveCamera, pxHeight: number, dt: number, clock: number): void {
-    this.t = (this.t + dt) % 10000;
+  frame(cam: THREE.PerspectiveCamera, pxHeight: number, dt: number, clock: number): void {
+    this.t = (this.t + dt) % 10_000;
     const u = this.mat.uniforms;
     u['uPixel']!.value = 2 / (cam.projectionMatrix.elements[5]! * Math.max(1, pxHeight));
     u['uT']!.value = this.t;

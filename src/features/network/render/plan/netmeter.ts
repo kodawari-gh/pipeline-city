@@ -56,7 +56,9 @@ export const lineFrames = (mbps: number): number => (mbps > 0 ? ((mbps / 8) * 1e
 
 /** How busy a lane looks for `rate` frames a tick on a link that carries `line` at most: 0 with no frames, else on a log scale from a faint 0.12 to 1 (a load of a thousandth is still seen). */
 export function busy(rate: number, line: number): number {
-  if (!(rate > 0) || !(line > 0)) return 0;
+  if (!(rate > 0) || !(line > 0)) {
+    return 0;
+  }
   const f = Math.log10(1 + rate) / Math.log10(1 + Math.max(rate, line));
   return Math.min(1, 0.12 + 0.88 * f);
 }
@@ -66,7 +68,7 @@ export const loadOf = (rate: number, line: number): number => (line > 0 ? Math.m
 
 /** A link speed in short words: 100 Mb, 1 Gb, 2.5 Gb, 40 Gb (a Mbit a second). */
 export const fmtSpeed = (mbps: number): string =>
-  mbps >= 1000 ? `${+(mbps / 1000).toFixed(1)} Gb` : `${+mbps.toFixed(0)} Mb`;
+  mbps >= 1000 ? `${Number((mbps / 1000).toFixed(1))} Gb` : `${Number(mbps.toFixed(0))} Mb`;
 
 /** A share of the line rate: 0.4 %, 12 %, 100 %. */
 export const fmtPct = (f: number): string =>
@@ -80,10 +82,20 @@ export const fmtPct = (f: number): string =>
 
 /** A number of frames in short words: 950, 4.2 k, 83 k, 1.2 M. */
 export function fmtFrames(n: number): string {
-  if (!Number.isFinite(n) || n < 0) return '0';
-  if (n < 1000) return `${Math.round(n)}`;
-  if (n < 1e4) return `${(n / 1e3).toFixed(1)} k`;
-  if (n < 1e6) return `${Math.round(n / 1e3)} k`;
-  if (n < 1e7) return `${(n / 1e6).toFixed(1)} M`;
+  if (!Number.isFinite(n) || n < 0) {
+    return '0';
+  }
+  if (n < 1000) {
+    return `${Math.round(n)}`;
+  }
+  if (n < 1e4) {
+    return `${(n / 1e3).toFixed(1)} k`;
+  }
+  if (n < 1e6) {
+    return `${Math.round(n / 1e3)} k`;
+  }
+  if (n < 1e7) {
+    return `${(n / 1e6).toFixed(1)} M`;
+  }
   return `${Math.round(n / 1e6)} M`;
 }
