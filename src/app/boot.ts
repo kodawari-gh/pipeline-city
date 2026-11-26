@@ -16,10 +16,14 @@ export function bootStage(label: string, at: number): void {
   share = Math.max(share, Math.min(1, at));
   bootProgress.value = { label, share };
   const el = typeof document === 'undefined' ? null : document.getElementById('boot');
-  if (!el) return;
+  if (!el) {
+    return;
+  }
   el.style.setProperty('--boot', share.toFixed(3));
   const t = el.querySelector('.boot-stage');
-  if (t && t.textContent !== label) t.textContent = label;
+  if (t && t.textContent !== label) {
+    t.textContent = label;
+  }
   logStage(el, label);
 }
 
@@ -29,7 +33,9 @@ const done: string[] = [];
 /** The stages so far, as a short boot log under the bar: the older ones done, the newest lit. */
 function logStage(el: HTMLElement, label: string): void {
   const log = el.querySelector('.boot-log');
-  if (!log || done[done.length - 1] === label) return;
+  if (!log || done.at(-1) === label) {
+    return;
+  }
   done.push(label);
   log.replaceChildren(
     ...done.slice(-LOG_LINES).map((l, i, all) => {
@@ -46,16 +52,22 @@ const STILL_KEY = 'pc.bootStill';
 /** Keeps a small still of the canvas for the next boot screen. Call right after a draw, in the same task: the buffer is not kept. */
 export function saveStill(src: HTMLCanvasElement): void {
   try {
-    if (!src.width || !src.height) return;
+    if (!src.width || !src.height) {
+      return;
+    }
     const w = 480,
       c = document.createElement('canvas');
     c.width = w;
     c.height = Math.max(1, Math.round((w * src.height) / src.width));
     const g = c.getContext('2d');
-    if (!g) return;
+    if (!g) {
+      return;
+    }
     g.drawImage(src, 0, 0, c.width, c.height);
     const url = c.toDataURL('image/jpeg', 0.62);
-    if (url.length > 20 && url.startsWith('data:image/jpeg')) localStorage.setItem(STILL_KEY, url);
+    if (url.length > 20 && url.startsWith('data:image/jpeg')) {
+      localStorage.setItem(STILL_KEY, url);
+    }
   } catch {
     /* no storage, or a tainted canvas: the next boot has no still */
   }
@@ -67,15 +79,19 @@ export function saveStill(src: HTMLCanvasElement): void {
  */
 export function bootFail(error: unknown): void {
   const el = typeof document === 'undefined' ? null : document.getElementById('boot');
-  if (!el) return;
+  if (!el) {
+    return;
+  }
   const text = error instanceof Error ? error.message : String(error);
-  const webgl = /webgl/i.test(text);
+  const webgl = /webgl/iu.test(text);
   // (the screen covers the menu again: a game started now could never show)
   el.classList.remove('menu');
   el.classList.add('fail');
   const stage = el.querySelector('.boot-stage'),
     help = el.querySelector('.boot-help');
-  if (stage) stage.textContent = webgl ? 'WebGL is not available' : 'The 3D world could not start';
+  if (stage) {
+    stage.textContent = webgl ? 'WebGL is not available' : 'The 3D world could not start';
+  }
   if (help) {
     help.textContent = webgl
       ? 'Pipeline City draws its world with WebGL 2. Your browser has it switched off, or does not support it. Turn on hardware acceleration in the browser settings, or try another browser.'
@@ -88,15 +104,21 @@ export function bootFail(error: unknown): void {
  * screen keeps its picture and a thin line of progress at its foot. A game chosen now starts when the screen goes (`startSim`).
  */
 export function bootMenu(): void {
-  if (typeof document !== 'undefined') document.getElementById('boot')?.classList.add('menu');
+  if (typeof document !== 'undefined') {
+    document.getElementById('boot')?.classList.add('menu');
+  }
 }
 
 /** The board can be seen: the boot screen fades out and goes. */
 export function bootDone(): void {
-  if (booted.peek()) return;
+  if (booted.peek()) {
+    return;
+  }
   booted.value = true;
   const el = typeof document === 'undefined' ? null : document.getElementById('boot');
-  if (!el) return;
+  if (!el) {
+    return;
+  }
   bootStage('Ready', 1);
   el.classList.add('done');
   // Reduced motion: no fade, so no transition ends; the screen goes at once.
@@ -112,7 +134,9 @@ export function bootDone(): void {
   }
   // (the bar's own transition ends inside it)
   el.addEventListener('transitionend', (e) => {
-    if (e.target === el && e.propertyName === 'opacity') el.remove();
+    if (e.target === el && e.propertyName === 'opacity') {
+      el.remove();
+    }
   });
   setTimeout(() => el.remove(), 2000);
 }

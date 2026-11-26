@@ -6,10 +6,10 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 // @ts-ignore
 import { createServer } from 'node:net';
-import { chromium, type Browser, type Page } from 'playwright-core';
+import * as playwright from 'playwright-core';
 
 declare const process: any;
-export const GATE = !!process.env.T44_BROWSER;
+export const GATE = Boolean(process.env.T44_BROWSER);
 const ROOT: string = fileURLToPath(new URL('../../', import.meta.url));
 export const LOAD_MS = 60_000;
 export const BOOT_MS = 60_000;
@@ -34,9 +34,14 @@ const answers = async (url: string): Promise<boolean> => {
 };
 
 export function killTree(child: any): void {
-  if (!child?.pid || child.exitCode !== null) return;
-  if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
-  else child.kill();
+  if (!child?.pid || child.exitCode !== null) {
+    return;
+  }
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+  } else {
+    child.kill();
+  }
 }
 
 export interface Dev {
@@ -57,7 +62,9 @@ export async function startServer(): Promise<Dev> {
     code = c ?? -1;
   });
   for (let i = 0; !(await answers(url)); i++) {
-    if (code !== null) throw new Error(`the dev server exited with ${code}`);
+    if (code !== null) {
+      throw new Error(`the dev server exited with ${code}`);
+    }
     if (i > 100) {
       killTree(child);
       throw new Error('the dev server did not start');
@@ -67,8 +74,8 @@ export async function startServer(): Promise<Dev> {
   return { child, url, exited: () => code };
 }
 
-export const launchChrome = (): Promise<Browser> =>
-  chromium.launch({
+export const launchChrome = (): Promise<playwright.Browser> =>
+  playwright.chromium.launch({
     headless: true,
     ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
     args: [
@@ -81,16 +88,18 @@ export const launchChrome = (): Promise<Browser> =>
 
 /** Opens a page at a size (with an optional UI size, 0.8 to 1.5) and waits until the main menu is booted. */
 export async function openBooted(
-  browser: Browser,
+  browser: playwright.Browser,
   dev: Dev,
   w: number,
   h: number,
   errors: string[],
   uiScale?: number,
-): Promise<{ page: Page; ctxClose: () => Promise<void> }> {
-  if (dev.exited() !== null) throw new Error(`the dev server is gone (exit ${dev.exited()})`);
+): Promise<{ page: playwright.Page; ctxClose: () => Promise<void> }> {
+  if (dev.exited() !== null) {
+    throw new Error(`the dev server is gone (exit ${dev.exited()})`);
+  }
   const ctx = await browser.newContext({ viewport: { width: w, height: h } });
-  if (uiScale)
+  if (uiScale) {
     await ctx.addInitScript((v: number) => {
       try {
         localStorage.setItem('pipeline-city.uiScale', String(v));
@@ -98,6 +107,7 @@ export async function openBooted(
         /* none */
       }
     }, uiScale);
+  }
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(e.message.slice(0, 200)));
   page.on('crash', () => errors.push('PAGE CRASHED'));

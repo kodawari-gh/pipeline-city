@@ -21,7 +21,8 @@ import {
   shadowsOn,
 } from './controls';
 import { debugLayer, debugStats } from './city-layers';
-import { DrawnFrames, statsText, viewportOf, type StatsSnapshot } from './stats';
+import * as stats from './stats';
+import { BTN, ON, debugButton } from './buttons';
 
 /** A root the overlay can hide: its visibility only. */
 export type HideRoot = { visible: boolean };
@@ -51,11 +52,6 @@ const SHOW_MS = 250;
  */
 export const PANEL_MAX_WIDTH = 'calc(50vw - 9.5rem)';
 
-// tap targets: 3rem is 44px or more at the smallest root font (15px, ui.css)
-const BTN =
-  'min-width:3rem;min-height:3rem;padding:0 0.5rem;margin:0.15rem;font:inherit;color:#fff;background:#223;border:1px solid #889;border-radius:0.25rem;';
-const ON = 'background:#3a7d44;';
-
 /**
  * `roots`: the city's and the machine's roots, now (the machine's changes when it is rebuilt). Without it the hides have nothing to hide.
  */
@@ -71,7 +67,7 @@ export function mountDebug({
   // the city's layers that are off, and the city they were last applied to. Not saved.
   const layerOff = new Set<string>();
   let layersAt: OutsideView | null = null;
-  const drawn = new DrawnFrames();
+  const drawn = new stats.DrawnFrames();
   // the hides: on or off, and the root each was last applied to (a hidden root that is replaced is hidden again). Not saved.
   const hide = { city: false, machine: false };
   const applied: Record<'city' | 'machine', HideRoot | null> = { city: null, machine: null };
@@ -88,54 +84,45 @@ export function mountDebug({
   readout.style.cssText = 'margin:0 0 0.25rem;font:inherit;white-space:pre;';
   panel.append(readout);
 
-  const button = (label: string, onClick: () => void): HTMLButtonElement => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = label;
-    b.style.cssText = BTN;
-    b.addEventListener('click', onClick);
-    return b;
-  };
-
-  const postBtn = button('Post', () => {
+  const postBtn = debugButton('Post', () => {
     setPost(!postOn(effective.peek()));
     show();
   });
   const scaleBtns = SCALES.map((v) =>
-    button(String(v), () => {
+    debugButton(String(v), () => {
       setScale(v);
       show();
     }),
   );
-  const shadowBtn = button('Shadows', () => {
+  const shadowBtn = debugButton('Shadows', () => {
     setShadowsOn(!shadowsOn(effective.peek()));
     show();
   });
-  const lightsBtn = button('Lights', () => {
+  const lightsBtn = debugButton('Lights', () => {
     setLights(nextLights(lightsNow()));
     show();
   });
-  const cityBtn = button('Hide city', () => {
+  const cityBtn = debugButton('Hide city', () => {
     hideRoot('city');
     show();
   });
-  const machineBtn = button('Hide machine', () => {
+  const machineBtn = debugButton('Hide machine', () => {
     hideRoot('machine');
     show();
   });
   const layerBtns = CITY_LAYERS.map(([k, label]) =>
-    button(label, () => {
+    debugButton(label, () => {
       toggleLayer(k);
       show();
     }),
   );
-  const autoBtn = button('Auto', () => {
+  const autoBtn = debugButton('Auto', () => {
     backToAuto();
     showRoots();
     layersOn();
     show();
   });
-  const copyBtn = button('Copy', () => {
+  const copyBtn = debugButton('Copy', () => {
     void copy();
   });
   const controls = document.createElement('div');
@@ -145,16 +132,25 @@ export function mountDebug({
   /** Flips one city layer and applies it to the city now (a city not built yet gets it when it is: `syncHides`). */
   const toggleLayer = (k: string) => {
     const off = !layerOff.has(k);
-    if (off) layerOff.add(k);
-    else layerOff.delete(k);
+    if (off) {
+      layerOff.add(k);
+    } else {
+      layerOff.delete(k);
+    }
     const now = roots?.().layers ?? null;
-    if (now) debugLayer(now, k, off);
+    if (now) {
+      debugLayer(now, k, off);
+    }
     layersAt = now;
   };
   /** Auto: every city layer on again. */
   const layersOn = () => {
     const now = roots?.().layers ?? null;
-    for (const k of layerOff) if (now) debugLayer(now, k, false);
+    for (const k of layerOff) {
+      if (now) {
+        debugLayer(now, k, false);
+      }
+    }
     layerOff.clear();
     layersAt = now;
   };
@@ -178,15 +174,23 @@ export function mountDebug({
   };
   /** Each frame: a hidden root that is new (the machine was rebuilt, the city was built after the hide) is hidden. A shown one is left to the game. */
   const syncHides = () => {
-    if (roots && layerOff.size) {
+    if (roots && layerOff.size > 0) {
       const l = roots().layers ?? null;
-      if (l && l !== layersAt) for (const k of layerOff) debugLayer(l, k, true);
+      if (l && l !== layersAt) {
+        for (const k of layerOff) {
+          debugLayer(l, k, true);
+        }
+      }
       layersAt = l;
     }
-    if (!roots || !(hide.city || hide.machine)) return;
+    if (!roots || !(hide.city || hide.machine)) {
+      return;
+    }
     const now = roots();
     for (const k of ['city', 'machine'] as const) {
-      if (hide[k] && now[k] !== applied[k]) setRootHidden(now[k], true);
+      if (hide[k] && now[k] !== applied[k]) {
+        setRootHidden(now[k], true);
+      }
       applied[k] = now[k];
     }
   };
@@ -195,7 +199,7 @@ export function mountDebug({
   panel.addEventListener('pointerdown', (e) => e.stopPropagation());
   panel.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
 
-  const snap = (): StatsSnapshot => {
+  const snap = (): stats.StatsSnapshot => {
     const g = effective.peek(),
       t = tierRecord.peek();
     const v = roots?.().layers;
@@ -217,14 +221,14 @@ export function mountDebug({
       post: postOn(g),
       shadows: g.shadows,
       lights: lightsNow(),
-      ...viewportOf(window, window.screen ?? {}),
+      ...stats.viewportOf(globalThis.window, globalThis.window.screen ?? {}),
     };
   };
 
   const show = () => {
     const s = snap(),
       g = effective.peek();
-    readout.textContent = statsText(s);
+    readout.textContent = stats.statsText(s);
     postBtn.textContent = `Post ${s.post ? 'on' : 'off'}`;
     postBtn.style.cssText = BTN + (s.post ? ON : '');
     SCALES.forEach((v, i) => {
@@ -245,7 +249,7 @@ export function mountDebug({
   };
 
   const copy = async () => {
-    const text = statsText(snap());
+    const text = stats.statsText(snap());
     let done = false;
     try {
       await navigator.clipboard.writeText(text);
@@ -280,7 +284,9 @@ export function mountDebug({
     const n = renderer.info.render.calls;
     renderer.info.reset();
     drawn.tick(now, n);
-    if (n > 0) drawCalls = n;
+    if (n > 0) {
+      drawCalls = n;
+    }
     syncHides();
     if (now - lastShow >= SHOW_MS) {
       lastShow = now;

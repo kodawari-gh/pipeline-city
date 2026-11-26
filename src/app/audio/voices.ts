@@ -1,11 +1,11 @@
 // Voice policy: rate limit, burst collapse, per-cue, per-bus and global caps, and stealing. Pure: no AudioContext here (engine.ts owns the nodes).
-import { MIX, type BusId, type CueId } from './mixTokens';
+import * as tokens from './mixTokens';
 import type { Cue } from './keys';
 
 /** One voice that plays now. `stop` fades it out and takes it off the pool. */
 export interface VoiceRec {
-  cue: CueId;
-  bus: BusId;
+  cue: tokens.CueId;
+  bus: tokens.BusId;
   prio: number;
   /** Start time (ms, performance.now). */
   t: number;
@@ -34,25 +34,32 @@ export class VoicePool {
    */
   admit(c: Cue, now: number): Admit {
     const prev = this.last.get(c.id) ?? -Infinity;
-    if (now - prev < Math.max(c.minIntervalMs, c.collapseMs)) return { ok: false };
+    if (now - prev < Math.max(c.minIntervalMs, c.collapseMs)) {
+      return { ok: false };
+    }
 
     const same = this.list.filter((v) => v.cue === c.id);
     const sameVictim = same.length >= c.maxVoices ? oldest(same) : undefined;
     const rest = this.list.filter((v) => v !== sameVictim);
 
-    const cap = c.bus === 'ui' ? MIX.voices.ui : c.bus === 'music' ? MIX.voices.music : MIX.voices.sfx;
+    const cap =
+      c.bus === 'ui' ? tokens.MIX.voices.ui : c.bus === 'music' ? tokens.MIX.voices.music : tokens.MIX.voices.sfx;
     const onBus = rest.filter((v) => v.bus === c.bus);
     const busFull = onBus.length >= cap;
-    const globalFull = rest.length >= MIX.voices.global;
+    const globalFull = rest.length >= tokens.MIX.voices.global;
 
     let steal: VoiceRec | undefined;
     if (busFull || globalFull) {
       steal = weakest(busFull ? onBus : rest);
-      if (!steal || steal.prio > c.priority) return { ok: false }; // everything playing matters more
+      if (!steal || steal.prio > c.priority) {
+        return { ok: false };
+      } // everything playing matters more
     }
 
-    const evict = [sameVictim, steal].filter((v): v is VoiceRec => !!v);
-    for (const v of evict) this.remove(v);
+    const evict = [sameVictim, steal].filter((v): v is VoiceRec => Boolean(v));
+    for (const v of evict) {
+      this.remove(v);
+    }
     this.last.set(c.id, now);
     return { ok: true, evict };
   }
@@ -63,6 +70,8 @@ export class VoicePool {
 
   remove(v: VoiceRec): void {
     const i = this.list.indexOf(v);
-    if (i !== -1) this.list.splice(i, 1);
+    if (i !== -1) {
+      this.list.splice(i, 1);
+    }
   }
 }

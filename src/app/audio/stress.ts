@@ -40,7 +40,11 @@ const scaled = (raw: number): number => Math.min(1, Math.max(0, raw / STRESS_SCA
 /** The four terms of a snapshot, each 0..1 (`amount` is their max). */
 export function stressTerms(s: StressSnap): StressTerms {
   let worst = 1;
-  for (const d of s.devices ?? []) if (finite(d.throttle)) worst = Math.min(worst, d.throttle);
+  for (const d of s.devices ?? []) {
+    if (finite(d.throttle)) {
+      worst = Math.min(worst, d.throttle);
+    }
+  }
   const throttle = scaled(1 - worst);
 
   const v = s.vrm ?? s.board?.vrm ?? null;
@@ -50,7 +54,9 @@ export function stressTerms(s: StressSnap): StressTerms {
     if (finite(v.tempC) && finite(v.throttleC) && finite(v.damageC) && v.damageC > v.throttleC) {
       temp = scaled((v.tempC - v.throttleC) / (v.damageC - v.throttleC));
     }
-    if (finite(v.loadRatio)) vrm = scaled(v.loadRatio - 1);
+    if (finite(v.loadRatio)) {
+      vrm = scaled(v.loadRatio - 1);
+    }
   }
 
   const p = s.power ?? null;
