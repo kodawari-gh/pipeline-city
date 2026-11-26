@@ -13,22 +13,11 @@ import {
   Mesh,
   TorusGeometry,
   Vector2,
-  type BufferGeometry,
-  type Material,
-  type MeshStandardMaterial,
-  type Object3D,
 } from 'three';
+import type * as threeTypes from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import {
-  FAN_SCREW,
-  FAN_THROAT,
-  SEG,
-  fanFlange,
-  fanRotor,
-  fanSides,
-  place,
-  type RectLike,
-} from '@/core/render/three/geometry';
+import { FAN_SCREW, FAN_THROAT, SEG, fanFlange, fanRotor, fanSides, place } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import type { FanSpec } from '@/features/board/sim/specs';
@@ -39,8 +28,8 @@ import { badgeTex } from './casekit3d';
  * light keeps this colour instead of cycling; `gain`: its full brightness (a wide diffuser glows softer than a thin ring).
  */
 export interface Spin {
-  rotor: Object3D;
-  ring: MeshStandardMaterial | null;
+  rotor: threeTypes.Object3D;
+  ring: threeTypes.MeshStandardMaterial | null;
   needs: string | null;
   fixed?: number;
   gain?: number;
@@ -54,7 +43,7 @@ export interface FanFit {
 }
 
 /** A light alone (a strip, a ring): it follows the fans but has nothing to spin. */
-export const light = (ring: MeshStandardMaterial, fixed?: number, gain?: number): Spin => ({
+export const light = (ring: threeTypes.MeshStandardMaterial, fixed?: number, gain?: number): Spin => ({
   rotor: new Group(),
   ring,
   needs: null,
@@ -63,19 +52,19 @@ export const light = (ring: MeshStandardMaterial, fixed?: number, gain?: number)
 });
 
 /** An emissive part that is dark until the machine runs. `base`: the colour it shows switched off. */
-export const glowMat = (color: number, base = 0x111111): MeshStandardMaterial =>
+export const glowMat = (color: number, base = 0x11_11_11): threeTypes.MeshStandardMaterial =>
   mat(base, { emissive: new Color(color), emissiveIntensity: 0, roughness: 0.4 });
 
-const blades = (tone = 0x2c2e34) => mat(tone, { roughness: 0.45, side: DoubleSide });
+const blades = (tone = 0x2c_2e_34) => mat(tone, { roughness: 0.45, side: DoubleSide });
 // (two-sided as the blades are: the rotor's hub, blades and label rim draw as one mesh)
-const hubM = () => mat(0x2a2d32, { roughness: 0.4, side: DoubleSide });
+const hubM = () => mat(0x2a_2d_32, { roughness: 0.4, side: DoubleSide });
 
 /** Units per millimetre (23): a fan's size in units becomes its diameter in mm for `fanSides`. */
 const UNITS_PER_MM = 23;
 
 /** A fan's motor mount behind its rotor (round z, `depth` deep): a hub plate on `n` struts to the frame. `sides`: the hub's round count. */
 export function motor(holder: Group, r: number, depth: number, n = 3, sides: number = SEG.drum): void {
-  const m = mat(0x1d1e22, { roughness: 0.55 }),
+  const m = mat(0x1d_1e_22, { roughness: 0.55 }),
     z = -depth * 0.42;
   const hub = place(new Mesh(new CylinderGeometry(r * 0.32, r * 0.32, depth * 0.16, sides).rotateX(Math.PI / 2), m));
   hub.position.z = z;
@@ -90,7 +79,7 @@ export function motor(holder: Group, r: number, depth: number, n = 3, sides: num
 }
 
 /** A solid of turning round the z axis from a closed outline of (radius, z) points: walk its outer wall toward +z first, so its faces look out. */
-const lathe = (outline: readonly (readonly [number, number])[], seg: number): BufferGeometry =>
+const lathe = (outline: readonly (readonly [number, number])[], seg: number): threeTypes.BufferGeometry =>
   new LatheGeometry(
     outline.map(([r, z]) => new Vector2(r, z)),
     seg,
@@ -123,7 +112,7 @@ const CORNERS = [
  * The fan's housing, one geometry: a flange on each face, the round wall between them with its throat narrowing to a waist round the blades (a
  * venturi), and a screw post in each corner with a rib to the wall. The screw holes run right through.
  */
-function housing(d: number, depth: number, sides: number, small: number, steps = 10): BufferGeometry {
+function housing(d: number, depth: number, sides: number, small: number, steps = 10): threeTypes.BufferGeometry {
   const t = Math.min(depth * 0.16, d * 0.04),
     half = depth / 2,
     inner = half - t + 1,
@@ -174,14 +163,14 @@ function housing(d: number, depth: number, sides: number, small: number, steps =
 }
 
 /** The soft pads round a high-airflow fan's screw holes, on both faces. */
-function pads(d: number, depth: number, small: number): BufferGeometry {
+function pads(d: number, depth: number, small: number): threeTypes.BufferGeometry {
   const r0 = d * 0.024,
     r1 = d * 0.052,
     g = d * 0.003,
     at = d * FAN_SCREW,
-    parts: BufferGeometry[] = [];
-  for (const [x, y] of CORNERS)
-    for (const side of [1, -1])
+    parts: threeTypes.BufferGeometry[] = [];
+  for (const [x, y] of CORNERS) {
+    for (const side of [1, -1]) {
       parts.push(
         lathe(
           [
@@ -194,6 +183,8 @@ function pads(d: number, depth: number, small: number): BufferGeometry {
           small,
         ).translate(x * at, y * at, (side * depth) / 2),
       );
+    }
+  }
   return mergeGeometries(parts, false)!;
 }
 
@@ -201,8 +192,8 @@ function pads(d: number, depth: number, small: number): BufferGeometry {
  * The maker's label on the hub: its colour tells the grade. Two meshes for the rotor: the rim in the hub's material (it merges with the hub)
  * and the printed face, one draw.
  */
-function hubLabel(R: number, fast: boolean, small: number, edge: Material): Mesh[] {
-  const face = mat(0xffffff, {
+function hubLabel(R: number, fast: boolean, small: number, edge: threeTypes.Material): Mesh[] {
+  const face = mat(0xff_ff_ff, {
     map: badgeTex(
       fast ? 'fan-fast' : 'fan',
       128,
@@ -219,7 +210,14 @@ function hubLabel(R: number, fast: boolean, small: number, edge: Material): Mesh
 }
 
 /** A printed disc round z, `t` thick, centred `z` high: its open rim (`edge`) and its face (`face`, the print upright as on a cylinder's cap). */
-export function labelDisc(r: number, t: number, z: number, sides: number, edge: Material, face: Material): Mesh[] {
+export function labelDisc(
+  r: number,
+  t: number,
+  z: number,
+  sides: number,
+  edge: threeTypes.Material,
+  face: threeTypes.Material,
+): Mesh[] {
   const rim = new Mesh(new CylinderGeometry(r, r, t, sides, 1, true).rotateX(Math.PI / 2).translate(0, 0, z), edge);
   rim.geometry.deleteAttribute('uv'); // (as the hub and the blades: one mesh)
   const top = new Mesh(new CircleGeometry(r, sides).rotateZ(-Math.PI / 2).translate(0, 0, z + t / 2), face);
@@ -248,7 +246,7 @@ export function fanPart(
     sides = fanLodSides(full, level),
     small = Math.max(8, sides / 2),
     steps = FAN_STEPS[level];
-  const frame = mat(0x1d1e22, { roughness: 0.62 });
+  const frame = mat(0x1d_1e_22, { roughness: 0.62 });
   if (level === 0) {
     const body = place(new Mesh(housing(d, depth, sides, small), frame));
     body.geometry.userData['low'] = housing(
@@ -272,10 +270,14 @@ export function fanPart(
     ];
     root.add(place(new Mesh(mergeGeometries(still, false)!, frame)));
   }
-  if (fast) root.add(place(new Mesh(pads(d, depth, small), mat(0x4e5360, { roughness: 0.85 }))));
-  if (level === 0) motor(root, d * 0.47, depth, 4, small);
+  if (fast) {
+    root.add(place(new Mesh(pads(d, depth, small), mat(0x4e_53_60, { roughness: 0.85 }))));
+  }
+  if (level === 0) {
+    motor(root, d * 0.47, depth, 4, small);
+  }
   const hub = hubM();
-  const rotor = fanRotor(R, fast ? 9 : 7, blades(fast ? 0x3a3c46 : 0x2c2e34), hub, {
+  const rotor = fanRotor(R, fast ? 9 : 7, blades(fast ? 0x3a_3c_46 : 0x2c_2e_34), hub, {
     ...(fast ? { chord: 0.6, pitch: 0.85 } : { chord: 0.66 }),
     ...(level ? { sides, rings: level === 1 ? 4 : 2 } : {}),
   });
@@ -284,9 +286,9 @@ export function fanPart(
   rotor.scale.z = Math.min(1, (depth * 0.42) / (R * 0.22));
   rotor.position.z = depth * 0.04;
   root.add(rotor);
-  let ring: MeshStandardMaterial | null = null;
+  let ring: threeTypes.MeshStandardMaterial | null = null;
   if (spec.size > 40) {
-    ring = glowMat(0xa68bff);
+    ring = glowMat(0xa6_8b_ff);
     const t = new Mesh(new TorusGeometry(d * (FAN_THROAT + 0.006), d * 0.011, level ? 4 : 8, sides), ring);
     t.position.z = (ringSide * depth) / 2;
     root.add(seeThrough(t));
@@ -301,7 +303,7 @@ export function fanPart(
 export function caseFan(
   fit: Pick<FanFit, 'slot' | 'spec'>,
   side: 'front' | 'top' | 'rear',
-  r: RectLike,
+  r: geometryTypes.RectLike,
   zc: number,
   maxD: number,
 ): { root: Group; spin: Spin } {
@@ -311,7 +313,10 @@ export function caseFan(
   // built round z, then turned: its +z to world +x (the front's outside, the rear's inside) or to world -y (the top's inside)
   const f = fanPart(fit.spec, d, depth, side === 'front' ? -1 : 1);
   f.root.position.set(r.x + r.w / 2, -(r.y + r.h / 2), zc);
-  if (axis === 'x') f.root.rotation.y = Math.PI / 2;
-  else f.root.rotation.x = Math.PI / 2;
+  if (axis === 'x') {
+    f.root.rotation.y = Math.PI / 2;
+  } else {
+    f.root.rotation.x = Math.PI / 2;
+  }
   return { root: f.root, spin: { ...f.spin, needs: `fan:${fit.slot}` } };
 }

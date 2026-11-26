@@ -49,7 +49,9 @@ export function footShade(r: RectLike, reach: number, peak: number, round = 0): 
     }
   }
   // the middle's fan, then each band between two rings
-  for (let j = 0; j < per; j++) idx.push(0, 1 + j, 1 + ((j + 1) % per));
+  for (let j = 0; j < per; j++) {
+    idx.push(0, 1 + j, 1 + ((j + 1) % per));
+  }
   for (let i = 0; i + 1 < RINGS.length; i++) {
     const a = 1 + i * per,
       b = a + per;
@@ -65,7 +67,7 @@ export function footShade(r: RectLike, reach: number, peak: number, round = 0): 
   const m = new Mesh(
     geo,
     new MeshBasicMaterial({
-      color: 0x000000,
+      color: 0x00_00_00,
       vertexColors: true,
       transparent: true,
       depthWrite: false,
