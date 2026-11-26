@@ -34,9 +34,13 @@ export function specsOfKind<K extends DeviceKind>(kind: K): (DeviceSpec & { kind
 }
 
 /** The basic fan of a size (the one a migrated save and the starting machine get). */
-export const basicFan = (size: FanSize): FanSpec =>
-  // oxlint-disable-next-line typescript/no-non-null-assertion -- every FanSize has a tier 0 fan in FAN_SPECS (fans.test.ts)
-  specList.find((s): s is FanSpec => s.kind === 'fan' && s.size === size && s.tier === 0)!;
+export const basicFan = (size: FanSize): FanSpec => {
+  const fan = specList.find((s): s is FanSpec => s.kind === 'fan' && s.size === size && s.tier === 0);
+  if (fan === undefined) {
+    throw new Error(`No tier 0 fan of size ${size} in the catalog`);
+  }
+  return fan;
+};
 
 /**
  * The share of a heatsink's rated cooling it gives with `air` of fans turning on it (the summed `airflow`): `bare` with none, 1 with one basic fan, and a
