@@ -1,20 +1,8 @@
 import { mix } from '@/core/render/ink';
 import type { Beam } from './light';
 import { FADE } from './shell';
-import { roomPersp, type Persp } from './persp';
-import {
-  CASE,
-  DESK_SLAB,
-  DESK_UNDER,
-  DESK_Y,
-  FLOOR_Y,
-  FOOT,
-  MONITOR,
-  POWER_PLATE,
-  ROUTER_SPOT,
-  TRAY,
-  type Rect,
-} from '@/features/board/render/layout/layout';
+import * as perspective from './persp';
+import * as layout from '@/features/board/render/layout/layout';
 
 // The room the machine lives in (docs/render/room/room.md "The room"): a bedroom wall, a long desk and what stands on it, seen from the front
 // like the rest of the world. It is all scenery behind the machine: one static art container plus a few live parts (the sky in
@@ -22,8 +10,8 @@ import {
 // window blind are the only things that answer a click.
 
 /** The desk's slab and the height of the space under it, and the feet the case stands on (all in `layout.ts`: the monitor, the riser, the router and the plates follow the same desk top). */
-export const DESK = { slab: DESK_SLAB, under: DESK_UNDER };
-export { FOOT };
+export const DESK = { slab: layout.DESK_SLAB, under: layout.DESK_UNDER };
+export { FOOT } from '@/features/board/render/layout/layout';
 /** How far the desk reaches west of the lamp (which stands at its very west end) and east of the case (which is the last thing on it). */
 const DESK_WEST = 1500,
   DESK_EAST = 500;
@@ -40,7 +28,7 @@ const SIDE = 1,
 const LAMP = { head: { x: 1400 * SIDE, y: -7600 }, reach: 1500 };
 
 /** Y of the desk's top surface: the case stands on it, so it follows the case (a taller case sits lower on the desk). */
-export const deskY = () => DESK_Y;
+export const deskY = () => layout.DESK_Y;
 
 export interface RoomGeo {
   /** The desk's top surface, the floor, and the desk's west and east ends (the east end follows the case's width). */
@@ -49,26 +37,26 @@ export interface RoomGeo {
   /** Where the wall meets the ceiling. */
   ceil: number;
   /** The room's one perspective (`persp.ts`): the floor, the desk and the window's recess meet at its vanishing point. */
-  persp: Persp;
+  persp: perspective.Persp;
   desk: { x0: number; x1: number };
   /** The mug's centre x (east of the case; the steam rises from it). */
   mug: number;
   /** The wall socket under the desk (its plate and its two outlets, left for the monitor, right for the PC). */
-  socket: { plate: Rect; mon: { x: number; y: number }; pc: { x: number; y: number } };
+  socket: { plate: layout.Rect; mon: { x: number; y: number }; pc: { x: number; y: number } };
   /** The window (its glass) and the blind that covers it. */
-  window: Rect;
+  window: layout.Rect;
   /** The digital wall clock's body, above the case. */
-  clock: Rect;
+  clock: layout.Rect;
   /** The desk lamp: its base x, and the box that answers a click. */
-  lamp: { x: number; head: { x: number; y: number }; mouth: { x: number; y: number }; rect: Rect };
+  lamp: { x: number; head: { x: number; y: number }; mouth: { x: number; y: number }; rect: layout.Rect };
   /** The key rack on the wall above the monitor: two rails with five hooks each, the sticks hang from them on lanyards. */
-  keyRack: Rect;
+  keyRack: layout.Rect;
   /** The corner of the router shelf (the room draws the plank under the router). */
   top: number;
 }
 
 /** The camera cap: the zoom-out stops where this box fills the screen, and panning stays inside it: the desk and the window with a little wall beyond, from just above the router shelf (or the window) to just under the wall socket (no floor, no ceiling; the wall itself reaches much further). Follows the case. */
-export function roomBox(geo: RoomGeo = roomGeo()): Rect {
+export function roomBox(geo: RoomGeo = roomGeo()): layout.Rect {
   const bottom = geo.floor + BOX_BELOW,
     top = geo.top - BOX_TOP_ABOVE,
     x0 = Math.min(geo.desk.x0, geo.window.x - 420) - BOX_SIDE;
@@ -77,7 +65,7 @@ export function roomBox(geo: RoomGeo = roomGeo()): Rect {
 
 /** The room's static art (the wall, the desk) is baked to two textures while the camera is far out: the region they cover (the camera box and some wall around it, for a screen that is wider or taller than the box), and the texture's pixels per world unit. */
 export const ROOM_BAKE_RES = 0.09;
-export const roomBakeRect = (geo: RoomGeo = roomGeo()): Rect => {
+export const roomBakeRect = (geo: RoomGeo = roomGeo()): layout.Rect => {
   const b = roomBox(geo),
     y0 = geo.ceil - FADE.ceil - 500,
     y1 = geo.floor + FADE.floor + 500;
@@ -85,7 +73,7 @@ export const roomBakeRect = (geo: RoomGeo = roomGeo()): Rect => {
 };
 
 /** Whether the baked art fits `view` (a world rect) at zoom `z` on a display with `dpr` pixels per css pixel: the view lies inside the region and is no finer than the texture. */
-export function roomBakeFits(view: Rect, z: number, dpr: number, geo: RoomGeo = roomGeo()): boolean {
+export function roomBakeFits(view: layout.Rect, z: number, dpr: number, geo: RoomGeo = roomGeo()): boolean {
   const r = roomBakeRect(geo);
   return (
     z * dpr <= ROOM_BAKE_RES * 1.2 &&
@@ -97,7 +85,7 @@ export function roomBakeFits(view: Rect, z: number, dpr: number, geo: RoomGeo = 
 }
 
 /** Whether `view` lies inside `cover` (shrunk by `margin`): the case's interior fills the screen there, so the room behind it need not be drawn. */
-export function roomHidden(view: Rect, cover: Rect, margin = 200): boolean {
+export function roomHidden(view: layout.Rect, cover: layout.Rect, margin = 200): boolean {
   return (
     view.x >= cover.x + margin &&
     view.y >= cover.y + margin &&
@@ -110,35 +98,42 @@ export function roomHidden(view: Rect, cover: Rect, margin = 200): boolean {
  * The window's light at height `y` below the glass, for a light that moves `slant` units west for every unit down (negative: east): the x
  * span of the shaft, whose edges are the rays from the glass's top-left and bottom-right corners (top-right and bottom-left when it runs east).
  */
-export function shaftSpan(w: Rect, y: number, slant: number): { xl: number; xr: number } {
+export function shaftSpan(w: layout.Rect, y: number, slant: number): { xl: number; xr: number } {
   const dx = slant * (y - w.y),
     dxb = slant * (y - w.y - w.h),
     below = y >= w.y + w.h;
-  if (slant >= 0) return { xl: w.x - dx, xr: below ? w.x + w.w - dxb : w.x };
+  if (slant >= 0) {
+    return { xl: w.x - dx, xr: below ? w.x + w.w - dxb : w.x };
+  }
   return { xl: below ? w.x - dxb : w.x + w.w, xr: w.x + w.w - dx };
 }
 
 export function roomGeo(): RoomGeo {
   const ys = deskY(),
-    east = CASE.x + CASE.w,
-    lx = MONITOR.x - 3600,
-    plate = POWER_PLATE;
+    east = layout.CASE.x + layout.CASE.w,
+    lx = layout.MONITOR.x - 3600,
+    plate = layout.POWER_PLATE;
   // the window: west of the desk, the whole height of the wall: from just under the top of the highest thing on it (the key rack) down to its sill, which is just above the desk top's height
-  const clock: Rect = { x: CASE.x + CASE.w / 2 - 1500, y: Math.min(-5500, CASE.y - 1500), w: 3000, h: 1100 };
+  const clock: layout.Rect = {
+    x: layout.CASE.x + layout.CASE.w / 2 - 1500,
+    y: Math.min(-5500, layout.CASE.y - 1500),
+    w: 3000,
+    h: 1100,
+  };
   const WIN_W = 5600,
-    winTop = Math.min(clock.y, ROUTER_SPOT.y, TRAY.y) + 190,
+    winTop = Math.min(clock.y, layout.ROUTER_SPOT.y, layout.TRAY.y) + 190,
     WIN_H = ys - 700 - winTop;
-  const window: Rect = { x: lx - DESK_WEST - 250 - WIN_W, y: winTop, w: WIN_W, h: WIN_H };
+  const window: layout.Rect = { x: lx - DESK_WEST - 250 - WIN_W, y: winTop, w: WIN_W, h: WIN_H };
   const head = { x: lx + LAMP.head.x, y: ys + LAMP.head.y };
-  const ceil = Math.min(window.y - 190, clock.y, ROUTER_SPOT.y, TRAY.y) - CEIL_ABOVE,
+  const ceil = Math.min(window.y - 190, clock.y, layout.ROUTER_SPOT.y, layout.TRAY.y) - CEIL_ABOVE,
     desk = { x0: lx - DESK_WEST, x1: east + DESK_EAST };
   return {
     ys,
-    floor: FLOOR_Y,
+    floor: layout.FLOOR_Y,
     ceil,
-    persp: roomPersp({ ceil, floor: FLOOR_Y, ...desk }),
+    persp: perspective.roomPersp({ ceil, floor: layout.FLOOR_Y, ...desk }),
     desk,
-    mug: MONITOR.x + MONITOR.w + 710,
+    mug: layout.MONITOR.x + layout.MONITOR.w + 710,
     socket: {
       plate,
       mon: { x: plate.x + plate.w * 0.28, y: plate.y + plate.h / 2 },
@@ -152,8 +147,8 @@ export function roomGeo(): RoomGeo {
       mouth: { x: head.x + LAMP_D.x * LAMP.reach, y: head.y + LAMP_D.y * LAMP.reach },
       rect: { x: lx - 1900, y: ys - 8300, w: 6600, h: 8300 },
     },
-    keyRack: TRAY,
-    top: Math.min(window.y - 190, clock.y, ROUTER_SPOT.y, TRAY.y),
+    keyRack: layout.TRAY,
+    top: Math.min(window.y - 190, clock.y, layout.ROUTER_SPOT.y, layout.TRAY.y),
   };
 }
 
@@ -184,11 +179,15 @@ const save = () => {
 };
 /** A click on a room prop (`lamp`, `blind`). Returns whether the id was one. */
 export function roomClick(id: string): boolean {
-  if (id === 'lamp') roomState.lamp = !roomState.lamp;
-  else if (id === 'blind') roomState.blind = !roomState.blind;
-  else if (id === 'clock' || id === 'mail')
+  if (id === 'lamp') {
+    roomState.lamp = !roomState.lamp;
+  } else if (id === 'blind') {
+    roomState.blind = !roomState.blind;
+  } else if (id === 'clock' || id === 'mail') {
     return true; // scenery that only answers the pointer: it has a ring and a tip, no state
-  else return false;
+  } else {
+    return false;
+  }
   save();
   return true;
 }
@@ -223,7 +222,9 @@ const SKY: { h: number; top: string; hor: string }[] = [
 /** The sky's top and horizon colours at an hour. */
 export function skyAt(h: number): { top: string; hor: string } {
   let i = 0;
-  while (i < SKY.length - 2 && h >= SKY[i + 1]!.h) i++;
+  while (i < SKY.length - 2 && h >= SKY[i + 1]!.h) {
+    i++;
+  }
   const a = SKY[i]!,
     b = SKY[i + 1]!,
     t = (h - a.h) / (b.h - a.h);
@@ -256,8 +257,12 @@ export function lightsAt(h: number): { body: 'sun' | 'moon'; slant: number; stre
       color: color(el),
     });
   };
-  if (b.sun !== null) one('sun', b.sun, 0.17, (el) => mix('#ffa060', '#fff0c8', el ** 0.5));
-  if (b.moon !== null) one('moon', b.moon, 0.05, () => '#aebfff');
+  if (b.sun !== null) {
+    one('sun', b.sun, 0.17, (el) => mix('#ffa060', '#fff0c8', el ** 0.5));
+  }
+  if (b.moon !== null) {
+    one('moon', b.moon, 0.05, () => '#aebfff');
+  }
   return out;
 }
 
@@ -268,11 +273,13 @@ export function lightsAt(h: number): { body: 'sun' | 'moon'; slant: number; stre
  */
 export function beamsAt(geo: RoomGeo, h: number, blind: number): Beam[] {
   const w = geo.window,
-    ys = geo.ys,
+    { ys } = geo,
     out: Beam[] = [];
   for (const L of lightsAt(h)) {
     const a = L.strength * (1 - blind);
-    if (a < 0.003) continue;
+    if (a < 0.003) {
+      continue;
+    }
     const yb = w.y + w.h,
       ya0 = [w.y, yb, ...Array.from({ length: 12 }, (_, k) => yb + ((ys - yb) * (k + 1)) / 12)],
       quads: Beam['quads'] = [];
