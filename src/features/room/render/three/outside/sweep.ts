@@ -11,10 +11,8 @@ import {
   Mesh,
   Sphere,
   Vector3,
-  type Frustum,
-  type Material,
-  type Object3D,
 } from 'three';
+import type * as threeTypes from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GRID } from './plan';
 
@@ -50,17 +48,22 @@ export class Sweep {
    * Each mesh draws the run of pieces from the first that `seen` (the camera's frustum) holds to the last; with no `seen`, every piece. `also`: a
    * second frustum whose pieces join the run (the sun's shadow box, on a frame that draws its map: the pieces behind the camera that cast into it).
    */
-  cut(seen?: Frustum, also?: Frustum): void {
+  cut(seen?: threeTypes.Frustum, also?: threeTypes.Frustum): void {
     let a = 0,
       b = this.balls.length;
     if (seen) {
       a = b = -1;
-      for (let k = 0; k < this.balls.length; k++)
+      for (let k = 0; k < this.balls.length; k++) {
         if (seen.intersectsSphere(this.balls[k]!) || (also && also.intersectsSphere(this.balls[k]!))) {
-          if (a < 0) a = k;
+          if (a < 0) {
+            a = k;
+          }
           b = k + 1;
         }
-      if (a < 0) a = b = 0;
+      }
+      if (a < 0) {
+        a = b = 0;
+      }
     }
     for (const { mesh, at } of this.runs) {
       const s = at[a]!,
@@ -82,8 +85,8 @@ const CELL = 24;
  * sends a material it cannot take (a packed or interleaved attribute, a morph target) here. The tests hold the two to the same result.
  */
 export function sweptMergeReference(
-  root: Object3D,
-  mats: readonly Material[],
+  root: threeTypes.Object3D,
+  mats: readonly threeTypes.Material[],
   cell = CELL,
   keep: readonly string[] = [],
 ): Sweep[] {
@@ -95,13 +98,24 @@ export function sweptMergeReference(
     const cells = new Map<string, { ms: Mesh[]; gs: BufferGeometry[]; x: number; z: number; b: number }>();
     root.traverse((o) => {
       const m = o as Mesh;
-      if (!m.isMesh || m.material !== mat) return;
+      if (!m.isMesh || m.material !== mat) {
+        return;
+      }
       let g = m.geometry.clone().applyMatrix4(new Matrix4().multiplyMatrices(toRoot, m.matrixWorld));
-      if (g.index) g = g.toNonIndexed();
-      for (const k of Object.keys(g.attributes)) if (!KEEP.has(k) && !keep.includes(k)) g.deleteAttribute(k);
-      if (!g.attributes['normal']) g.computeVertexNormals();
-      if (!g.attributes['uv'])
+      if (g.index) {
+        g = g.toNonIndexed();
+      }
+      for (const k of Object.keys(g.attributes)) {
+        if (!KEEP.has(k) && !keep.includes(k)) {
+          g.deleteAttribute(k);
+        }
+      }
+      if (!g.attributes['normal']) {
+        g.computeVertexNormals();
+      }
+      if (!g.attributes['uv']) {
         g.setAttribute('uv', new Float32BufferAttribute(new Float32Array(g.attributes['position']!.count * 2), 2));
+      }
       g.clearGroups();
       g.computeBoundingSphere();
       const c = g.boundingSphere!.center,
@@ -115,18 +129,27 @@ export function sweptMergeReference(
     });
     // the cells in bearing order, each a piece of the one mesh
     const pieces = [...cells.values()];
-    for (const p of pieces) p.b = bearing(p.x / p.ms.length, p.z / p.ms.length);
+    for (const p of pieces) {
+      p.b = bearing(p.x / p.ms.length, p.z / p.ms.length);
+    }
     pieces.sort((p, q) => p.b - q.b);
     const gs = pieces.flatMap((p) => p.gs),
       g = gs.length > 1 ? mergeGeometries(gs, false) : null;
-    if (!g) continue;
+    if (!g) {
+      continue;
+    }
     const at = [0],
       pos = g.attributes['position']!.array,
       mesh = new Mesh(g, mat),
       first = pieces[0]!.ms[0]!;
-    for (const p of pieces)
-      at.push(at[at.length - 1]! + p.gs.reduce((n, pg) => n + pg.attributes['position']!.count, 0));
-    for (const p of pieces) for (const m of p.ms) m.parent?.remove(m);
+    for (const p of pieces) {
+      at.push(at.at(-1)! + p.gs.reduce((n, pg) => n + pg.attributes['position']!.count, 0));
+    }
+    for (const p of pieces) {
+      for (const m of p.ms) {
+        m.parent?.remove(m);
+      }
+    }
     mesh.castShadow = first.castShadow;
     mesh.receiveShadow = first.receiveShadow;
     root.add(mesh);
@@ -142,17 +165,29 @@ export function sweptMergeReference(
 
 /** What a mesh holds once merged: its attributes and their item sizes, as the reference leaves them (the kept ones in their order, then a normal and a uv if it had none). Null: plain floats it is not. */
 export function columnsOf(g: BufferGeometry, keep: readonly string[]): Map<string, number> | null {
-  if (Object.keys(g.morphAttributes).length) return null;
+  if (Object.keys(g.morphAttributes).length > 0) {
+    return null;
+  }
   const cols = new Map<string, number>();
   for (const k of Object.keys(g.attributes)) {
-    if (!KEEP.has(k) && !keep.includes(k)) continue;
+    if (!KEEP.has(k) && !keep.includes(k)) {
+      continue;
+    }
     const a = g.attributes[k] as BufferAttribute & { isInterleavedBufferAttribute?: boolean };
-    if (a.isInterleavedBufferAttribute || !(a.array instanceof Float32Array) || a.normalized) return null;
+    if (a.isInterleavedBufferAttribute || !(a.array instanceof Float32Array) || a.normalized) {
+      return null;
+    }
     cols.set(k, a.itemSize);
   }
-  if (cols.get('position') !== 3 || (cols.has('normal') && cols.get('normal') !== 3)) return null;
-  if (!cols.has('normal')) cols.set('normal', 3);
-  if (!cols.has('uv')) cols.set('uv', 2);
+  if (cols.get('position') !== 3 || (cols.has('normal') && cols.get('normal') !== 3)) {
+    return null;
+  }
+  if (!cols.has('normal')) {
+    cols.set('normal', 3);
+  }
+  if (!cols.has('uv')) {
+    cols.set('uv', 2);
+  }
   return cols;
 }
 
@@ -174,8 +209,8 @@ interface Part {
  * `applyNormalMatrix` on each point.
  */
 export function sweptMerge(
-  root: Object3D,
-  mats: readonly Material[],
+  root: threeTypes.Object3D,
+  mats: readonly threeTypes.Material[],
   cell = CELL,
   keep: readonly string[] = [],
 ): Sweep[] {
@@ -189,12 +224,16 @@ export function sweptMerge(
     const meshes: Mesh[] = [];
     root.traverse((o) => {
       const m = o as Mesh;
-      if (m.isMesh && m.material === mat) meshes.push(m);
+      if (m.isMesh && m.material === mat) {
+        meshes.push(m);
+      }
     });
     // (one mesh is not a merge)
-    if (meshes.length < 2) continue;
+    if (meshes.length < 2) {
+      continue;
+    }
     const all = meshes.map((m) => columnsOf(m.geometry, keep)),
-      first = all[0];
+      [first] = all;
     const sizes =
       first && all.every((c) => c && c.size === first.size && [...first].every(([k, s]) => c.get(k) === s))
         ? first
@@ -246,12 +285,16 @@ export function sweptMerge(
       for (const [k, size] of sizes) {
         const a = g.attributes[k],
           col = apart.get(k)!;
-        if (k === 'position' || k === 'normal' || !a) continue;
+        if (k === 'position' || k === 'normal' || !a) {
+          continue;
+        }
         const from = a.array as Float32Array;
         for (let j = 0; j < n; j++) {
           const s = size * (idx ? idx[j]! : j),
             d = size * (at + j);
-          for (let c = 0; c < size; c++) col[d + c] = from[s + c]!;
+          for (let c = 0; c < size; c++) {
+            col[d + c] = from[s + c]!;
+          }
         }
       }
       let x0 = Infinity,
@@ -261,10 +304,18 @@ export function sweptMerge(
       for (let j = at; j < at + n; j++) {
         const x = pos[3 * j]!,
           z = pos[3 * j + 2]!;
-        if (x < x0) x0 = x;
-        if (x > x1) x1 = x;
-        if (z < z0) z0 = z;
-        if (z > z1) z1 = z;
+        if (x < x0) {
+          x0 = x;
+        }
+        if (x > x1) {
+          x1 = x;
+        }
+        if (z < z0) {
+          z0 = z;
+        }
+        if (z > z1) {
+          z1 = z;
+        }
       }
       parts.push({
         mesh: m,
@@ -287,7 +338,9 @@ export function sweptMerge(
       c.z += p.z;
     }
     const pieces = [...cells.values()];
-    for (const p of pieces) p.b = bearing(p.x / p.ps.length, p.z / p.ps.length);
+    for (const p of pieces) {
+      p.b = bearing(p.x / p.ps.length, p.z / p.ps.length);
+    }
     pieces.sort((p, q) => p.b - q.b);
     // the pieces' vertices in their order, the attributes in the order of the first piece's first mesh (as `mergeGeometries`)
     const g = new BufferGeometry(),
@@ -297,15 +350,22 @@ export function sweptMerge(
       const col = new Float32Array(total * size),
         from = apart.get(k)!;
       let o = 0;
-      for (const p of pieces)
+      for (const p of pieces) {
         for (const q of p.ps) {
           col.set(from.subarray(size * q.from, size * q.to), size * o);
           o += q.to - q.from;
         }
+      }
       g.setAttribute(k, new BufferAttribute(col, size));
     }
-    for (const p of pieces) at2.push(at2[at2.length - 1]! + p.ps.reduce((n, q) => n + q.to - q.from, 0));
-    for (const p of pieces) for (const q of p.ps) q.mesh.parent?.remove(q.mesh);
+    for (const p of pieces) {
+      at2.push(at2.at(-1)! + p.ps.reduce((n, q) => n + q.to - q.from, 0));
+    }
+    for (const p of pieces) {
+      for (const q of p.ps) {
+        q.mesh.parent?.remove(q.mesh);
+      }
+    }
     const mesh = new Mesh(g, mat),
       merged = g.attributes['position']!.array;
     mesh.castShadow = first0.mesh.castShadow;

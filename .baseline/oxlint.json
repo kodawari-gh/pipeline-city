@@ -10190,14 +10190,12 @@
  },
  "src/features/room/render/three/outside/cars.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 29,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 3,
   "eslint(max-params)": 9,
   "eslint(no-multi-assign)": 3,
   "eslint(no-nested-ternary)": 2,
   "eslint(no-shadow)": 2,
-  "import(consistent-type-specifier-style)": 8,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-non-null-assertion)": 31,
   "typescript(no-unnecessary-type-assertion)": 2,
@@ -10205,21 +10203,16 @@
   "typescript(no-unsafe-type-assertion)": 14,
   "typescript(prefer-readonly)": 17,
   "unicorn(consistent-function-scoping)": 1,
-  "unicorn(explicit-length-check)": 2,
   "unicorn(no-array-for-each)": 2,
   "unicorn(no-new-array)": 2,
-  "unicorn(numeric-separators-style)": 6,
   "unicorn(prefer-single-call)": 4
  },
  "src/features/room/render/three/outside/city.ts": {
-  "eslint(curly)": 5,
   "eslint(max-lines-per-function)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-non-null-assertion)": 1,
   "typescript(no-unsafe-class-instance-assignment)": 1,
   "typescript(no-unsafe-type-assertion)": 3,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(numeric-separators-style)": 11
+  "unicorn(consistent-function-scoping)": 1
  },
  "src/features/room/render/three/outside/detail.test.ts": {
   "eslint(curly)": 1,
@@ -10228,21 +10221,16 @@
   "vitest(prefer-strict-equal)": 9
  },
  "src/features/room/render/three/outside/detail.ts": {
-  "eslint(curly)": 2,
   "typescript(no-unsafe-type-assertion)": 1
  },
  "src/features/room/render/three/outside/glow.ts": {
-  "eslint(curly)": 4,
   "eslint(max-params)": 2,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 3,
   "typescript(no-non-null-assertion)": 9,
   "typescript(no-unsafe-type-assertion)": 2,
   "typescript(prefer-readonly)": 4,
   "unicorn(no-array-for-each)": 1
  },
  "src/features/room/render/three/outside/haze.ts": {
-  "eslint(curly)": 1,
   "typescript(no-unsafe-type-assertion)": 1,
   "typescript(strict-boolean-expressions)": 1,
   "typescript(unbound-method)": 1
@@ -10272,11 +10260,8 @@
   "vitest(prefer-strict-equal)": 1
  },
  "src/features/room/render/three/outside/kit.ts": {
-  "eslint(curly)": 5,
-  "import(consistent-type-specifier-style)": 4,
   "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(no-unsafe-type-assertion)": 4,
-  "unicorn(numeric-separators-style)": 14
+  "typescript(no-unsafe-type-assertion)": 4
  },
  "src/features/room/render/three/outside/lamplight.ts": {
   "typescript(unbound-method)": 1
@@ -10300,14 +10285,12 @@
  },
  "src/features/room/render/three/outside/lowfacade.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 5,
   "eslint(max-depth)": 4,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 3,
   "eslint(no-multi-assign)": 5,
   "typescript(no-non-null-assertion)": 1,
-  "typescript(prefer-nullish-coalescing)": 1,
-  "unicorn(numeric-separators-style)": 4
+  "typescript(prefer-nullish-coalescing)": 1
  },
  "src/features/room/render/three/outside/mirror.test.ts": {
   "typescript(consistent-type-imports)": 1,
@@ -10316,14 +10299,11 @@
  },
  "src/features/room/render/three/outside/mirror.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 7,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 2,
-  "eslint(no-implicit-coercion)": 1,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 1,
   "eslint(no-use-before-define)": 2,
-  "import(consistent-type-specifier-style)": 8,
   "typescript(no-non-null-assertion)": 7,
   "typescript(no-unnecessary-type-assertion)": 6,
   "typescript(no-unnecessary-type-conversion)": 1,
@@ -10334,9 +10314,7 @@
   "unicorn(no-array-for-each)": 1
  },
  "src/features/room/render/three/outside/parts.ts": {
-  "eslint(curly)": 3,
   "eslint(max-params)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-non-null-assertion)": 3
  },
  "src/features/room/render/three/outside/plan.test.ts": {
@@ -10351,17 +10329,14 @@
  },
  "src/features/room/render/three/outside/plan.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 31,
-  "eslint(max-depth)": 3,
+  "eslint(max-depth)": 2,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 2,
   "eslint(no-nested-ternary)": 6,
   "typescript(no-non-null-assertion)": 5,
   "typescript(prefer-nullish-coalescing)": 1,
-  "typescript(strict-boolean-expressions)": 4,
-  "unicorn(numeric-separators-style)": 51,
-  "unicorn(prefer-at)": 2
+  "typescript(strict-boolean-expressions)": 4
  },
  "src/features/room/render/three/outside/sight.test.ts": {
   "eslint(curly)": 10,
@@ -10372,15 +10347,12 @@
   "vitest(prefer-to-have-length)": 1
  },
  "src/features/room/render/three/outside/sight.ts": {
-  "eslint(curly)": 6,
   "eslint(no-multi-assign)": 3,
   "typescript(no-non-null-assertion)": 2,
   "typescript(strict-boolean-expressions)": 2
  },
  "src/features/room/render/three/outside/signlight.ts": {
-  "eslint(curly)": 2,
   "eslint(max-lines-per-function)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "unicorn(no-array-for-each)": 1
  },
  "src/features/room/render/three/outside/sky.test.ts": {
@@ -10401,16 +10373,11 @@
  },
  "src/features/room/render/three/outside/skynoise.ts": {
   "eslint(no-multi-assign)": 4,
-  "unicorn(numeric-separators-style)": 4,
   "unicorn(prefer-math-trunc)": 1
  },
  "src/features/room/render/three/outside/steam.ts": {
-  "eslint(curly)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-non-null-assertion)": 1,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "unicorn(numeric-separators-style)": 1,
-  "unicorn(prefer-at)": 1
+  "typescript(no-unsafe-type-assertion)": 1
  },
  "src/features/room/render/three/outside/street.test.ts": {
   "eslint(curly)": 3,
@@ -10423,17 +10390,14 @@
  },
  "src/features/room/render/three/outside/street.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 20,
   "eslint(max-depth)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 2,
   "eslint(no-nested-ternary)": 1,
   "eslint(no-shadow)": 1,
-  "import(consistent-type-specifier-style)": 3,
   "typescript(no-non-null-assertion)": 3,
   "typescript(prefer-readonly)": 1,
-  "unicorn(no-array-for-each)": 2,
-  "unicorn(numeric-separators-style)": 1
+  "unicorn(no-array-for-each)": 2
  },
  "src/features/room/render/three/outside/sunmap.test.ts": {
   "eslint(curly)": 2,
@@ -10456,22 +10420,17 @@
  },
  "src/features/room/render/three/outside/sweep.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 33,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 3,
   "eslint(max-params)": 2,
   "eslint(no-multi-assign)": 2,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 3,
   "typescript(no-non-null-assertion)": 43,
   "typescript(no-unnecessary-type-assertion)": 4,
   "typescript(no-unsafe-class-instance-assignment)": 2,
   "typescript(no-unsafe-type-assertion)": 7,
   "typescript(prefer-readonly)": 2,
   "typescript(strict-boolean-expressions)": 2,
-  "unicorn(explicit-length-check)": 1,
-  "unicorn(no-array-for-each)": 1,
-  "unicorn(prefer-at)": 2
+  "unicorn(no-array-for-each)": 1
  },
  "src/features/room/render/three/outside/textures.ts": {
   "eslint(curly)": 7,

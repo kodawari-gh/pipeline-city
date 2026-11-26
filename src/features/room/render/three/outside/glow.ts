@@ -1,17 +1,8 @@
 // The city's soft glow (`view.ts`): the light a night photo spreads round every bright thing. The picture's bright parts go down a chain of
 // targets, each half the last and blurred on the way, then back up it, each step added to the sharper one above. So a lit window has a tight
 // halo, a lit street a wide one. The window's quad adds the result to the picture.
-import {
-  AdditiveBlending,
-  HalfFloatType,
-  NoBlending,
-  ShaderMaterial,
-  Vector2,
-  WebGLRenderTarget,
-  type Blending,
-  type Texture,
-  type WebGLRenderer,
-} from 'three';
+import { AdditiveBlending, HalfFloatType, NoBlending, ShaderMaterial, Vector2, WebGLRenderTarget } from 'three';
+import type * as threeTypes from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 
 /** The chain's length: its last target is 1/32 of the picture each way. */
@@ -54,7 +45,7 @@ void main() {
   gl_FragColor = vec4((side + corner * 2.0) / 12.0, 1.0);
 }`;
 
-const step = (fragmentShader: string, blending: Blending): ShaderMaterial =>
+const step = (fragmentShader: string, blending: threeTypes.Blending): ShaderMaterial =>
   new ShaderMaterial({
     vertexShader: VERT,
     fragmentShader,
@@ -73,12 +64,12 @@ export class CityGlow {
   private quad = new FullScreenQuad(this.bright);
 
   /** The glow, the size of half the picture. */
-  get texture(): Texture | null {
+  get texture(): threeTypes.Texture | null {
     return this.levels[0]?.texture ?? null;
   }
 
   /** The glow of `source`, whose first `w` by `h` pixels hold the picture. */
-  run(renderer: WebGLRenderer, source: WebGLRenderTarget, w: number, h: number): void {
+  run(renderer: threeTypes.WebGLRenderer, source: WebGLRenderTarget, w: number, h: number): void {
     this.fit(source.width, source.height);
     const auto = renderer.autoClear,
       sizes: [number, number][] = [];
@@ -95,7 +86,7 @@ export class CityGlow {
       fw = tw;
       fh = th;
     });
-    for (let i = LEVELS - 2; i >= 0; i--)
+    for (let i = LEVELS - 2; i >= 0; i--) {
       this.pass(
         renderer,
         this.up,
@@ -106,11 +97,12 @@ export class CityGlow {
         sizes[i]![0],
         sizes[i]![1],
       );
+    }
     renderer.autoClear = auto;
   }
 
   private pass(
-    renderer: WebGLRenderer,
+    renderer: threeTypes.WebGLRenderer,
     mat: ShaderMaterial,
     from: WebGLRenderTarget,
     fw: number,
@@ -132,11 +124,15 @@ export class CityGlow {
 
   /** The chain for a picture of this size: it only changes with the picture's target. */
   private fit(w: number, h: number): void {
-    const first = this.levels[0],
+    const [first] = this.levels,
       tw = Math.ceil(w / 2),
       th = Math.ceil(h / 2);
-    if (first && first.width === tw && first.height === th) return;
-    for (const t of this.levels) t.dispose();
+    if (first && first.width === tw && first.height === th) {
+      return;
+    }
+    for (const t of this.levels) {
+      t.dispose();
+    }
     this.levels = [];
     let lw = w,
       lh = h;
@@ -148,7 +144,9 @@ export class CityGlow {
   }
 
   dispose(): void {
-    for (const t of this.levels) t.dispose();
+    for (const t of this.levels) {
+      t.dispose();
+    }
     this.bright.dispose();
     this.down.dispose();
     this.up.dispose();
