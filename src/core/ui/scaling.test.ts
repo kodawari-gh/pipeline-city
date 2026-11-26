@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 
 // "Every size is relative; this test fails the build otherwise." (docs/UI.md, Scaling.)
 // Scans every .css / .ts / .tsx file under src/ui (tests excluded), src/app/main.tsx and index.html.
@@ -17,33 +17,61 @@ import * as fsMod from 'node:fs';
 // @ts-ignore
 import * as urlMod from 'node:url';
 
-const fs = fsMod as any;
-const ROOT: string = urlMod.fileURLToPath(new URL('../../../', import.meta.url));
+interface DirEntry {
+  name: string;
+  isDirectory: () => boolean;
+}
+
+interface NodeFs {
+  readFileSync: (path: string, encoding: 'utf8') => string;
+  readdirSync: (path: string, options: { withFileTypes: true }) => DirEntry[];
+}
+
+interface NodeUrl {
+  fileURLToPath: (url: URL) => string;
+}
+const isNodeUrl = (mod: unknown): mod is NodeUrl => typeof mod === 'object' && mod !== null && 'fileURLToPath' in mod;
+const isNodeFs = (mod: unknown): mod is NodeFs => typeof mod === 'object' && mod !== null && 'readFileSync' in mod;
+assert(isNodeUrl(urlMod), 'node:url loads');
+assert(isNodeFs(fsMod), 'node:fs loads');
+const nodeUrl = urlMod;
+
+const fs = fsMod;
+const ROOT: string = nodeUrl.fileURLToPath(new URL('../../../', import.meta.url));
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = `${dir}/${e.name}`;
-    if (e.isDirectory()) walk(p, out);
-    else if (/\.(css|ts|tsx)$/.test(e.name) && !/\.test\.ts$/.test(e.name) && e.name !== 'testdata.ts') out.push(p);
+    if (e.isDirectory()) {
+      walk(p, out);
+    } else if (/\.(?:css|ts|tsx)$/u.test(e.name) && !e.name.endsWith('.test.ts') && e.name !== 'testdata.ts') {
+      out.push(p);
+    }
   }
   return out;
 }
-const isUi = (p: string) => /\/(ui|app)\//.test(p) && !p.includes('/render/') && !p.includes('/sim/');
+const isUi = (p: string) => /\/(?:ui|app)\//u.test(p) && !p.includes('/render/') && !p.includes('/sim/');
 const names = [
   ...walk(`${ROOT}src`)
     .map((p) => p.slice(ROOT.length))
     .filter((p) => isUi(`/${p}`)),
   'index.html',
-].sort();
+].toSorted();
 const raw: Record<string, string> = {};
-for (const n of names) raw[`/${n}`] = fs.readFileSync(`${ROOT}${n}`, 'utf8');
+for (const n of names) {
+  raw[`/${n}`] = fs.readFileSync(`${ROOT}${n}`, 'utf8');
+}
 const files = Object.keys(raw);
 
 /** Remove comments so prose such as "a 12px icon" cannot trip the scan. */
 function strip(path: string, text: string): string {
-  let t = text.replaceAll(/\/\*[\s\S]*?\*\//g, (m) => m.replaceAll(/[^\n]/g, ' '));
-  if (!path.endsWith('.css')) t = t.replaceAll(/(^|[^:'"`])\/\/.*$/gm, '$1');
-  if (path.endsWith('.html')) t = t.replaceAll(/<!--[\s\S]*?-->/g, (m) => m.replaceAll(/[^\n]/g, ' '));
+  let t = text.replaceAll(/\/\*[\s\S]*?\*\//gu, (m) => m.replaceAll(/[^\n]/gu, ' '));
+  if (!path.endsWith('.css')) {
+    t = t.replaceAll(/(?<before>^|[^:'"`])\/\/.*$/gmu, '$<before>');
+  }
+  if (path.endsWith('.html')) {
+    t = t.replaceAll(/<!--[\s\S]*?-->/gu, (m) => m.replaceAll(/[^\n]/gu, ' '));
+  }
   return t;
 }
 
@@ -53,20 +81,22 @@ export function violations(path: string, text: string): string[] {
   const out: string[] = [];
   const lines = clean.split('\n');
   lines.forEach((line, i) => {
-    for (const m of line.matchAll(/(?<![\w.-])-?(\d*\.?\d+)\s*px\b/g)) {
+    for (const m of line.matchAll(/(?<![\w.-])-?(?<amount>\d*\.?\d+)\s*px\b/gu)) {
       const v = Number(m[1]);
-      if (v !== 1 && v !== 0) out.push(`${i + 1}: fixed pixel length: ${m[0]}`);
+      if (v !== 1 && v !== 0) {
+        out.push(`${i + 1}: fixed pixel length: ${m[0]}`);
+      }
     }
   });
   // Numeric width/height attributes on the <svg> element itself (the viewBox coordinates inside are fine).
-  for (const m of clean.matchAll(/<svg\b[^>]*?\s(width|height)\s*=\s*(\{\s*)?["']?\d[^>]*>/g)) {
+  for (const m of clean.matchAll(/<svg\b[^>]*?\s(?<attr>width|height)\s*=\s*(?:\{\s*)?["']?\d[^>]*>/gu)) {
     out.push(`svg: numeric ${m[1]} attribute: ${m[0].slice(0, 60)}`);
   }
   // Preact turns a number in a style object into px.
   if (path.endsWith('.tsx')) {
     clean.split('\n').forEach((line, i) => {
       for (const m of line.matchAll(
-        /\b(width|height|top|left|right|bottom|fontSize|gap|margin\w*|padding\w*|borderRadius|min\w*(?:Width|Height)|max\w*(?:Width|Height))\s*:\s*(?!0\s*[,}])-?\d+(\.\d+)?\s*[,}]/g,
+        /\b(?:width|height|top|left|right|bottom|fontSize|gap|margin\w*|padding\w*|borderRadius|min\w*(?:Width|Height)|max\w*(?:Width|Height))\s*:\s*(?!0\s*[,}])-?\d+(?:\.\d+)?\s*[,}]/gu,
       )) {
         out.push(`${i + 1}: numeric style value (becomes px): ${m[0]}`);
       }
@@ -85,14 +115,17 @@ describe('UI scaling: no fixed pixel sizes', () => {
   });
 
   it('the root font-size rule is the one allowed clamp', () => {
-    const css = raw['/src/core/ui/ui.css']!;
+    const css = raw['/src/core/ui/ui.css'];
+    assert.exists(css);
     expect(css).toContain(`font-size: calc(var(--ui-scale, 1) * ${ROOT_CLAMP})`);
   });
 
   for (const f of files) {
     const name = f.slice(1);
     it(`${name} has only relative sizes`, () => {
-      expect(violations(f, raw[f]!)).toEqual([]);
+      const rawItem = raw[f];
+      assert.exists(rawItem);
+      expect(violations(f, rawItem)).toStrictEqual([]);
     });
   }
 
@@ -107,15 +140,15 @@ describe('UI scaling: no fixed pixel sizes', () => {
   });
 
   it('allows what it should', () => {
-    expect(violations('a.css', '.a { border: 1px solid red; outline: 0px; width: 3rem; }')).toEqual([]);
-    expect(violations('a.css', `html { font-size: ${ROOT_CLAMP}; }`)).toEqual([]);
-    expect(violations('a.css', '/* a 12px note */ .a { width: 1.5em; } @media (max-width: 48em) {}')).toEqual([]);
+    expect(violations('a.css', '.a { border: 1px solid red; outline: 0px; width: 3rem; }')).toStrictEqual([]);
+    expect(violations('a.css', `html { font-size: ${ROOT_CLAMP}; }`)).toStrictEqual([]);
+    expect(violations('a.css', '/* a 12px note */ .a { width: 1.5em; } @media (max-width: 48em) {}')).toStrictEqual([]);
     expect(
       violations('a.tsx', '<svg style={{ width: rem(14) }} viewBox="0 0 16 16"><rect width={4} height={6}/></svg>'),
-    ).toEqual([]);
-    expect(violations('a.tsx', '<div style={{ transform: `translate(${x}px, ${y}px)`, width: `${w}%` }} />')).toEqual(
-      [],
-    );
-    expect(violations('a.tsx', '// 12px in a comment\nconst a = 1;')).toEqual([]);
+    ).toStrictEqual([]);
+    expect(
+      violations('a.tsx', '<div style={{ transform: `translate(${x}px, ${y}px)`, width: `${w}%` }} />'),
+    ).toStrictEqual([]);
+    expect(violations('a.tsx', '// 12px in a comment\nconst a = 1;')).toStrictEqual([]);
   });
 });

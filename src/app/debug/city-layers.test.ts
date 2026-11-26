@@ -1,5 +1,5 @@
 import { Object3D } from 'three';
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { debugLayer } from './city-layers';
 import type { OutsideView } from '@/features/room/render/three/outside/view';
 
@@ -23,13 +23,17 @@ describe('debugLayer: buildings, trees and streets hide alone', () => {
       const { v, parts } = stub();
       debugLayer(v, k, true);
       expect(v.off.has(k)).toBe(true);
-      expect(parts[k][0]!.layers.mask).toBe(1 << HIDDEN);
+      const [firstPart] = parts[k];
+      assert.exists(firstPart);
+      expect(firstPart.layers.mask).toBe(1 << HIDDEN);
       for (const other of ['streets', 'buildings', 'trees', 'cars'] as const) {
-        if (other !== k) expect(shown(parts[other]), other).toEqual([true]);
+        if (other !== k) {
+          expect(shown(parts[other]), other).toStrictEqual([true]);
+        }
       }
       debugLayer(v, k, false);
       expect(v.off.has(k)).toBe(false);
-      expect(shown(parts[k])).toEqual([true]);
+      expect(shown(parts[k])).toStrictEqual([true]);
     });
   }
 });

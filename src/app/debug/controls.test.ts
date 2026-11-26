@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CHOICES,
   DEFAULTS,
@@ -36,12 +36,14 @@ beforeEach(() => {
 
 describe('SCALES', () => {
   it('lists the render scales the panel offers, all within the graphics range', () => {
-    expect(SCALES).toEqual([0.5, 0.6, 0.75, 0.85, 1]);
+    expect(SCALES).toStrictEqual([0.5, 0.6, 0.75, 0.85, 1]);
   });
 });
 
 describe('setScale', () => {
-  beforeEach(() => setPreset('high'));
+  beforeEach(() => {
+    setPreset('high');
+  });
 
   it('changes the applied scale, not the setting', () => {
     const was = graphics.value.scale;
@@ -69,12 +71,14 @@ describe('postOn', () => {
 });
 
 describe('setPost', () => {
-  beforeEach(() => setPreset('high'));
+  beforeEach(() => {
+    setPreset('high');
+  });
 
   it('off zeroes the applied ao, bloom and msaa', () => {
     setPost(false);
     const g = effective.value;
-    expect([g.ao, g.bloom, g.msaa]).toEqual([0, 0, 0]);
+    expect([g.ao, g.bloom, g.msaa]).toStrictEqual([0, 0, 0]);
     expect(postOn(g)).toBe(false);
     expect(postOn(graphics.value)).toBe(true);
   });
@@ -84,7 +88,7 @@ describe('setPost', () => {
     setPost(false);
     setPost(true);
     const g = effective.value;
-    expect([g.ao, g.bloom, g.msaa]).toEqual([PRESETS.ultra.ao, PRESETS.ultra.bloom, PRESETS.ultra.msaa]);
+    expect([g.ao, g.bloom, g.msaa]).toStrictEqual([PRESETS.ultra.ao, PRESETS.ultra.bloom, PRESETS.ultra.msaa]);
     expect(overridden()).toBe(false);
   });
 
@@ -105,7 +109,7 @@ describe('setPost', () => {
     setPost(false);
     setPost(true);
     const g = effective.value;
-    expect([g.ao, g.bloom, g.msaa]).toEqual([PRESETS.ultra.ao, PRESETS.ultra.bloom, PRESETS.ultra.msaa]);
+    expect([g.ao, g.bloom, g.msaa]).toStrictEqual([PRESETS.ultra.ao, PRESETS.ultra.bloom, PRESETS.ultra.msaa]);
   });
 
   it('leaves the tier as it was', () => {
@@ -118,17 +122,23 @@ describe('setPost', () => {
   it("from the real Low tier (tierGraphics, not PRESETS.low): post on gives Medium's ao, bloom and msaa and leaves every other setting as it was", () => {
     setAutoTier({ tier: 'low', reason: 'test' });
     const before = { ...effective.value };
-    expect([before.scale, before.shadows, before.fps]).toEqual([0.75, 0, 60]);
+    expect([before.scale, before.shadows, before.fps]).toStrictEqual([0.75, 0, 60]);
     setPost(true);
     const after = effective.value;
-    expect([after.ao, after.bloom, after.msaa]).toEqual([PRESETS.medium.ao, PRESETS.medium.bloom, PRESETS.medium.msaa]);
+    expect([after.ao, after.bloom, after.msaa]).toStrictEqual([
+      PRESETS.medium.ao,
+      PRESETS.medium.bloom,
+      PRESETS.medium.msaa,
+    ]);
     const others = (g: typeof after) => ({ ...g, ao: 0, bloom: 0, msaa: 0 });
-    expect(others(after)).toEqual(others(before));
+    expect(others(after)).toStrictEqual(others(before));
   });
 });
 
 describe('backToAuto', () => {
-  beforeEach(() => setAutoTier({ tier: 'low', reason: 'test' }));
+  beforeEach(() => {
+    setAutoTier({ tier: 'low', reason: 'test' });
+  });
 
   it('from auto Low: scale and post toggles are dropped, and Low and auto are back', () => {
     setScale(0.5);
@@ -143,7 +153,9 @@ describe('backToAuto', () => {
 });
 
 describe('setShadowsOn', () => {
-  beforeEach(() => setPreset('high'));
+  beforeEach(() => {
+    setPreset('high');
+  });
 
   it("off sets the applied sun shadow to 0, on puts the player's value back", () => {
     setShadowsOn(false);
@@ -201,12 +213,14 @@ describe('nextLights', () => {
   });
 
   it('leaves the panel choices alone: 1 is not one of them', () => {
-    expect(CHOICES.lights.map(([v]) => v)).toEqual([4, 8, 0]);
+    expect(CHOICES.lights.map(([v]) => v)).toStrictEqual([4, 8, 0]);
   });
 });
 
 describe('setLights', () => {
-  beforeEach(() => setPreset('high'));
+  beforeEach(() => {
+    setPreset('high');
+  });
 
   it('4, 1 and All reach the renderers (effective) and leave the setting and the tier as they were', () => {
     const before = graphics.value,
@@ -227,13 +241,13 @@ describe('setLights', () => {
       setLights(nextLights(lightsNow()));
       seen.push(effective.value.lights);
     }
-    expect(seen).toEqual([4, 1, 0, 4]);
+    expect(seen).toStrictEqual([4, 1, 0, 4]);
   });
 
   it('Auto drops the toggle and restores the tier lamp cap', () => {
     setLights(1);
     backToAuto({ tier: 'high', reason: 'test' });
-    expect(debugOverride.value).toEqual({});
+    expect(debugOverride.value).toStrictEqual({});
     expect(effective.value.lights).toBe(PRESETS.high.lights);
     expect(tierRecord.value.mode).toBe('auto');
   });
@@ -264,13 +278,15 @@ describe('the toggles are never saved', () => {
     setScale(0.5);
     setPost(false);
     setShadowsOn(false);
-    for (const v of [4, 1, 0]) setLights(v);
+    for (const v of [4, 1, 0]) {
+      setLights(v);
+    }
     expect(overridden()).toBe(true);
-    expect(writes).toEqual([]);
-    expect(new Map(store)).toEqual(stored);
+    expect(writes).toStrictEqual([]);
+    expect(new Map(store)).toStrictEqual(stored);
     const after = loadStart(stub, '', detect);
-    expect(after).toEqual(start);
-    expect(after.g).toEqual(graphics.value);
+    expect(after).toStrictEqual(start);
+    expect(after.g).toStrictEqual(graphics.value);
     expect(after.g.shadows).toBe(PRESETS.high.shadows);
     expect(after.g.lights).toBe(PRESETS.high.lights);
   });
@@ -280,7 +296,9 @@ describe('the toggles are never saved', () => {
     setLights(0);
     setScale(0.5);
     setGraphic('textures', 1);
-    const saved = JSON.parse(store.get('pipeline-city.graphics')!);
+    const graphicsValue = store.get('pipeline-city.graphics');
+    assert.exists(graphicsValue);
+    const saved = JSON.parse(graphicsValue);
     expect(saved).toMatchObject({
       textures: 1,
       shadows: PRESETS.high.shadows,
@@ -296,7 +314,7 @@ describe('the toggles are never saved', () => {
     writes.length = 0;
     setLights(0);
     expect(stepTier('down', 'high')).toBe(false);
-    expect(writes).toEqual([]);
+    expect(writes).toStrictEqual([]);
     backToAuto({ tier: 'high', reason: 'test' });
     resetTierSteps();
     expect(stepTier('down', 'high')).toBe(true);
@@ -321,6 +339,8 @@ describe('setRootHidden', () => {
   });
 
   it('a missing root is a no-op', () => {
-    expect(() => setRootHidden(null, true)).not.toThrow();
+    expect(() => {
+      setRootHidden(null, true);
+    }).not.toThrow();
   });
 });

@@ -3,19 +3,24 @@
 // the master fades back to its mix level over fadeInMs. Cues asked for while hidden are dropped. A Pause or a Hold never
 // suspends the context (only a hidden tab does). The tests use a fake AudioContext with a timeline for each gain param,
 // a fake document, and fake timers. The clock is stepped 1 ms at a time, so each ramp is sampled at its own time.
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { assert, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { signal } from '@preact/signals';
 import { MIX } from './mixTokens';
 import { busGains, defaultVolumes } from './volume';
 
-const rel = (p: string): string => p.replace(/^\/?audio\//, '');
-const filesOf = (id: string): string[] => (MIX.cues.find((c) => c.id === id)?.files ?? []).map(rel);
+const rel = (p: string): string => p.replace(/^\/?audio\//u, '');
+const filesOf = (id: string): string[] => (MIX.cues.find((c) => c.id === id)?.files ?? []).map((file) => rel(file));
 
 /** Fake time in seconds. The fake context and the fake timers both read it. */
 const clock = { t: 0 };
 
 /** One scheduled automation event on a gain param. */
-type Ev = { kind: 'set' | 'linear' | 'target'; t: number; v: number; tc?: number };
+interface Ev {
+  kind: 'set' | 'linear' | 'target';
+  t: number;
+  v: number;
+  tc?: number;
+}
 
 /**
  * The value of a param at time `T`, from its events (the first `n` of them). `linear` ramps from the previous event's
@@ -23,23 +28,30 @@ type Ev = { kind: 'set' | 'linear' | 'target'; t: number; v: number; tc?: number
  */
 function gainAt(evs: Ev[], T: number, n = evs.length): number {
   let k = n;
-  for (let i = 0; i < n; i++)
-    if (evs[i]!.t > T) {
+  for (let i = 0; i < n; i++) {
+    const evsItem = evs[i];
+    assert.exists(evsItem);
+    if (evsItem.t > T) {
       k = i;
       break;
     }
-  if (k < n && evs[k]!.kind === 'linear') {
-    const e = evs[k]!;
-    const startT = k > 0 ? evs[k - 1]!.t : 0;
+  }
+  const next = k < n ? evs[k] : undefined;
+  if (next?.kind === 'linear') {
+    const startT = evs[k - 1]?.t ?? 0;
     const start = k > 0 ? gainAt(evs, startT, k) : 1;
-    return start + (e.v - start) * ((T - startT) / (e.t - startT));
+    return start + (next.v - start) * ((T - startT) / (next.t - startT));
   }
   const idx = k - 1;
-  if (idx < 0) return 1;
-  const e = evs[idx]!;
+  if (idx < 0) {
+    return 1;
+  }
+  const e = evs[idx];
+  assert.exists(e);
   if (e.kind === 'target') {
     const start = gainAt(evs, e.t, idx);
-    return e.v + (start - e.v) * Math.exp(-(T - e.t) / e.tc!);
+    assert.exists(e.tc);
+    return e.v + (start - e.v) * Math.exp(-(T - e.t) / e.tc);
   }
   return e.v;
 }
@@ -75,7 +87,9 @@ class Node {
   connect<T>(n: T): T {
     return n;
   }
-  disconnect(): void {}
+  disconnect(): void {
+    /* no-op */
+  }
 }
 class Gain extends Node {
   gain = new Param();
@@ -144,7 +158,9 @@ let doc: EventTarget & { visibilityState: string };
 const gesture = (type: string): boolean => target.dispatchEvent(new Event(type));
 /** Microtasks only (fake timers stop setTimeout). Enough for the fake fetch and decode to settle. */
 const flushMicrotasks = async (): Promise<void> => {
-  for (let i = 0; i < 50; i++) await Promise.resolve();
+  for (let i = 0; i < 50; i++) {
+    await Promise.resolve();
+  }
 };
 /** Step the fake clock and the fake timers together, 1 ms at a time. */
 function advance(ms: number): void {
@@ -161,9 +177,16 @@ const show = (): void => {
   doc.visibilityState = 'visible';
   doc.dispatchEvent(new Event('visibilitychange'));
 };
-const ctx = (): FakeCtx => FakeCtx.last!;
+const ctx = (): FakeCtx => {
+  assert.exists(FakeCtx.last);
+  return FakeCtx.last;
+};
 /** The master bus is the first gain node the engine makes (openGraph creates it before the other buses). */
-const master = (): Gain => ctx().gains[0]!;
+const master = (): Gain => {
+  const [firstGain] = ctx().gains;
+  assert.exists(firstGain);
+  return firstGain;
+};
 /** The master level at the player's default mix, from the mix tokens (busGains reads the bus defaults). */
 const masterLevel = (): number => busGains(defaultVolumes()).master;
 const playedFiles = (): (string | undefined)[] =>
@@ -177,14 +200,22 @@ beforeEach(() => {
   target = new EventTarget();
   doc = Object.assign(new EventTarget(), { visibilityState: 'visible' });
   vi.stubGlobal('window', target);
-  vi.stubGlobal('addEventListener', (t: string, f: any, o?: any) => target.addEventListener(t, f, o));
-  vi.stubGlobal('removeEventListener', (t: string, f: any, o?: any) => target.removeEventListener(t, f, o));
+  vi.stubGlobal('addEventListener', (t: string, f: any, o?: any) => {
+    target.addEventListener(t, f, o);
+  });
+  vi.stubGlobal('removeEventListener', (t: string, f: any, o?: any) => {
+    target.removeEventListener(t, f, o);
+  });
   vi.stubGlobal('document', doc);
   vi.stubGlobal('AudioContext', FakeCtx);
   vi.stubGlobal('OfflineAudioContext', FakeOffline);
   vi.stubGlobal('fetch', vi.fn(fakeFetch));
-  vi.spyOn(console, 'warn').mockImplementation(() => {});
-  vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'warn').mockImplementation(() => {
+    /* no-op */
+  });
+  vi.spyOn(console, 'error').mockImplementation(() => {
+    /* no-op */
+  });
   FakeCtx.last = null;
   vi.resetModules();
 });
@@ -200,7 +231,9 @@ async function openAudio(readUi?: () => any): Promise<void> {
   const eng = await import('./engine');
   idx.initAudio('', readUi);
   gesture('pointerdown');
-  for (const id of ['payout', 'level_up']) await eng.preload(filesOf(id));
+  for (const id of ['payout', 'level_up']) {
+    await eng.preload(filesOf(id));
+  }
   await flushMicrotasks();
 }
 
@@ -228,7 +261,7 @@ describe('hidden tab: the context suspends 2 s after hiding', () => {
     expect(suspend).not.toHaveBeenCalled();
     advance(1);
     expect(ctx().state).toBe('suspended');
-    expect(suspend).toHaveBeenCalledTimes(1);
+    expect(suspend).toHaveBeenCalledOnce();
   });
 });
 
@@ -283,7 +316,7 @@ describe('cues queued while hidden are dropped', () => {
     show();
     await flushMicrotasks();
     advance(2000);
-    expect(playedFiles().length).toBe(before);
+    expect(playedFiles()).toHaveLength(before);
   });
 });
 
@@ -302,10 +335,10 @@ describe('a Pause or a Hold never suspends the context', () => {
     expect(suspend).not.toHaveBeenCalled();
     expect(ctx().state).toBe('running');
     expect(master().gain.value).toBeCloseTo(level, 6);
-    expect(ui.value).toEqual({ speed: 0, hold: 'menu', crashed: false }); // the audio does not write the clock
+    expect(ui.value).toStrictEqual({ speed: 0, hold: 'menu', crashed: false }); // the audio does not write the clock
 
     hide();
     advance(2000);
-    expect(suspend).toHaveBeenCalledTimes(1);
+    expect(suspend).toHaveBeenCalledOnce();
   });
 });

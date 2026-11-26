@@ -21,7 +21,7 @@ import {
 
 describe('the tab model', () => {
   it('has the five tabs in order, Quality first', () => {
-    expect(SETTINGS_TABS.map((t) => t.name)).toEqual(['Quality', 'Display', 'Light', 'Detail', 'Interface']);
+    expect(SETTINGS_TABS.map((t) => t.name)).toStrictEqual(['Quality', 'Display', 'Light', 'Detail', 'Interface']);
   });
 
   it('every setting the two old screens had is on a tab', () => {
@@ -48,8 +48,9 @@ describe('the tab model', () => {
       'Music',
       'Sounds',
       'Ambience',
-    ])
+    ]) {
       expect(labels, name).toContain(name);
+    }
   });
 });
 

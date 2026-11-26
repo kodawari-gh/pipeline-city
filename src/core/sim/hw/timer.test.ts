@@ -8,16 +8,22 @@ describe('interval timer', () => {
   it('is off until programmed, then raises the timer line every INTERVAL cycles', () => {
     const m = new Machine();
     m.attach(new RefEngine(), assemble('spin:\n  j spin').program);
-    for (let i = 0; i < 50; i++) m.stepCpu();
+    for (let i = 0; i < 50; i++) {
+      m.stepCpu();
+    }
     expect(m.intc.pending).toBe(0);
     m.bus.store32(TIMER_BASE + TIMER_REG.INTERVAL, 10);
-    for (let i = 0; i < 25; i++) m.stepCpu();
+    for (let i = 0; i < 25; i++) {
+      m.stepCpu();
+    }
     expect(m.bus.load32(TIMER_BASE + TIMER_REG.COUNT)).toBe(2);
     expect(m.intc.pending & (1 << IRQ.TIMER)).not.toBe(0);
     m.bus.store32(INTC_BASE + INTC_REG.ACK, 1 << IRQ.TIMER);
     expect(m.intc.pending).toBe(0);
     m.bus.store32(TIMER_BASE + TIMER_REG.INTERVAL, 0);
-    for (let i = 0; i < 50; i++) m.stepCpu();
+    for (let i = 0; i < 50; i++) {
+      m.stepCpu();
+    }
     expect(m.intc.pending).toBe(0);
   });
 

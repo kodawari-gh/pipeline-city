@@ -3,7 +3,9 @@
 // is the same one a player's Esc reaches. Rows come from the exported MOUSE, TOUCH and KEYS lists.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Game } from '@/worker/game/game';
-import type { Snapshot } from '@/worker/protocol';
+import type * as controlsApi from '@/core/ui/panels/Controls';
+import type * as stateApi from '@/core/ui/state';
+import type * as storeApi from '@/app/store';
 
 const hooks = vi.hoisted(() => ({ effect: null as null | (() => unknown) }));
 vi.mock('preact/hooks', () => ({
@@ -13,9 +15,9 @@ vi.mock('preact/hooks', () => ({
 }));
 
 type Rows = readonly (readonly [keys: readonly string[], does: string])[];
-type Controls = typeof import('@/core/ui/panels/Controls');
-type State = typeof import('@/core/ui/state');
-type Store = typeof import('@/app/store');
+type Controls = typeof controlsApi;
+type State = typeof stateApi;
+type Store = typeof storeApi;
 
 let ctl: Controls;
 let st: State;
@@ -34,22 +36,42 @@ beforeEach(async () => {
     activeElement: null,
     contains: () => false,
     documentElement: {
-      setAttribute: () => {},
-      style: { setProperty: () => {} },
-      classList: { toggle: () => {}, add: () => {}, remove: () => {} },
+      setAttribute: () => {
+        /* no-op */
+      },
+      style: {
+        setProperty: () => {
+          /* no-op */
+        },
+      },
+      classList: {
+        toggle: () => {
+          /* no-op */
+        },
+        add: () => {
+          /* empty */
+        },
+        remove: () => {
+          /* empty */
+        },
+      },
     },
   });
   keydowns = [];
   vi.stubGlobal('window', {
     addEventListener: (type: string, fn: (e: unknown) => void) => {
-      if (type === 'keydown') keydowns.push(fn as never);
+      if (type === 'keydown') {
+        keydowns.push(fn);
+      }
     },
-    removeEventListener: () => {},
+    removeEventListener: () => {
+      /* no-op */
+    },
   });
   ctl = await import('@/core/ui/panels/Controls');
   st = await import('@/core/ui/state');
   store = await import('@/app/store');
-  store.snapshot.value = new Game({ seed: 7 }).snapshot() as Snapshot;
+  store.snapshot.value = new Game({ seed: 7 }).snapshot();
 });
 
 /** Renders the panel the way Preact would: the component runs, then its effect is attached to the window. */
@@ -59,7 +81,9 @@ function openPanel() {
 }
 const press = (key: string) => {
   const e = { key, preventDefault: vi.fn(), stopPropagation: vi.fn() };
-  for (const fn of keydowns) fn(e);
+  for (const fn of keydowns) {
+    fn(e);
+  }
   return e;
 };
 const keysOf = (rows: Rows) => rows.flatMap(([k]) => [...k]);
@@ -78,7 +102,7 @@ describe('mouse list', () => {
 
 describe('touch list', () => {
   it('shows every current gesture: pan, pinch, two-finger turn, double-tap, tap and hold-drag', () => {
-    expect(keysOf(ctl.TOUCH)).toEqual(
+    expect(keysOf(ctl.TOUCH)).toStrictEqual(
       expect.arrayContaining(['1 finger', 'Pinch', '2 fingers', 'Double-tap', 'Tap', 'Hold, drag']),
     );
     expect(ctl.TOUCH).toHaveLength(6);

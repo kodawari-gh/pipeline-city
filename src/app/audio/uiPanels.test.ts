@@ -5,24 +5,42 @@
 import * as fsMod from 'node:fs';
 // @ts-ignore
 import * as urlMod from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { cueForNote } from './events';
 
-const ROOT: string = urlMod.fileURLToPath(new URL('../../../', import.meta.url));
-const src = (p: string): string => (fsMod as any).readFileSync(`${ROOT}${p}`, 'utf8');
+interface NodeFs {
+  readFileSync: (path: string, encoding: 'utf8') => string;
+}
+
+interface NodeUrl {
+  fileURLToPath: (url: URL) => string;
+}
+const isNodeUrl = (mod: unknown): mod is NodeUrl => typeof mod === 'object' && mod !== null && 'fileURLToPath' in mod;
+const isNodeFs = (mod: unknown): mod is NodeFs => typeof mod === 'object' && mod !== null && 'readFileSync' in mod;
+assert(isNodeUrl(urlMod), 'node:url loads');
+assert(isNodeFs(fsMod), 'node:fs loads');
+const fs = fsMod;
+const nodeUrl = urlMod;
+
+const ROOT: string = nodeUrl.fileURLToPath(new URL('../../../', import.meta.url));
+const src = (p: string): string => fs.readFileSync(`${ROOT}${p}`, 'utf8');
 
 /** Opening tags `<tag ...>` of a source, scanning past `{...}` so an arrow `=>` in a handler does not end the tag. */
 function openingTags(code: string, tag: string): string[] {
   const out: string[] = [];
-  const re = new RegExp(`<${tag}(?=[\\s>])`, 'g');
+  const re = new RegExp(`<${tag}(?=[\\s>])`, 'gu');
   for (let m = re.exec(code); m; m = re.exec(code)) {
     let depth = 0;
     let i = m.index;
     for (; i < code.length; i++) {
       const c = code[i];
-      if (c === '{') depth++;
-      else if (c === '}') depth--;
-      else if (c === '>' && depth === 0 && code[i - 1] !== '=') break;
+      if (c === '{') {
+        depth++;
+      } else if (c === '}') {
+        depth--;
+      } else if (c === '>' && depth === 0 && code[i - 1] !== '=') {
+        break;
+      }
     }
     out.push(code.slice(m.index, i + 1));
   }
@@ -77,12 +95,12 @@ const PANELS: [string, string][] = [
 describe('panels', () => {
   // (Paused.ts builds its tree with h(): the marker reads 'data-cue': 'ui_panel_open')
   it.each(PANELS)('the %s panel plays ui_panel_open', (_name, file) => {
-    expect(src(file)).toMatch(/data-cue(="|': ')ui_panel_open/);
+    expect(src(file)).toMatch(/data-cue(?:="|': ')ui_panel_open/u);
   });
 
   it('the panel watcher plays ui_panel_open for the Build flyout flag (buildOpen)', () => {
     const code = src('src/core/ui/panelCues.ts');
-    expect(code).toMatch(/PANELS: .* = \[[^\]]*\bbuildOpen\b[^\]]*\];/);
+    expect(code).toMatch(/PANELS: .* = \[[^\]]*\bbuildOpen\b[^\]]*\];/u);
     expect(code).toContain("playCue('ui_panel_open')");
   });
 
@@ -97,7 +115,7 @@ describe('panels', () => {
   it.each(PANELS.filter(([name]) => name !== 'machine list' && name !== 'Paused menu'))(
     'the %s panel plays ui_panel_close',
     (_name, file) => {
-      expect(src(file)).toMatch(/data-cue="ui_panel_close"/);
+      expect(src(file)).toMatch(/data-cue="ui_panel_close"/u);
     },
   );
 });
@@ -111,7 +129,7 @@ describe('drag', () => {
     const code = src('src/features/board/render/three/drag3d.ts');
     expect(code).toContain('ui_pickup');
     // Each place a part drag starts (dragging.value = { kind: 'part', ... }) must have the pickup cue close by.
-    const starts = [...code.matchAll(/dragging\.value = \{ kind: 'part'/g)].map((m) => m.index ?? 0);
+    const starts = [...code.matchAll(/dragging\.value = \{ kind: 'part'/gu)].map((m) => m.index ?? 0);
     expect(starts.length).toBeGreaterThan(0);
     for (const at of starts) {
       const window = code.slice(Math.max(0, at - 300), at + 300);
@@ -162,7 +180,7 @@ describe('sliders', () => {
     expect(tags.length).toBeGreaterThan(0);
     const bare = tags
       .filter((t) => !t.includes('data-cue="ui_slider_tick"'))
-      .map((t) => t.replaceAll(/\s+/g, ' ').slice(0, 90));
-    expect(bare).toEqual([]);
+      .map((t) => t.replaceAll(/\s+/gu, ' ').slice(0, 90));
+    expect(bare).toStrictEqual([]);
   });
 });

@@ -2,8 +2,8 @@
 // Seen through the director with a fake backend: the speed comes in on `onUi`. The map is read from the spec's numbers:
 // shimmer dB and bass dB per speed (1, 2, 4, 8, 12, 16, 64), ramps of 0.5 s. The map's offsets are compared as differences
 // from speed 4 (the map's base), so the test does not depend on how the token dB is folded in.
-import { describe, expect, it } from 'vitest';
-import { createDirector, type DirectorSnap, type UiInput } from './director';
+import { assert, describe, expect, it } from 'vitest';
+import * as audioDirector from './director';
 import { keyName, keyPcForLevel } from './keys';
 
 interface Rec {
@@ -13,20 +13,28 @@ interface Rec {
 
 function recordingBackend() {
   const calls: Rec[] = [];
-  const sink = new Proxy({} as Record<string, (...a: unknown[]) => void>, {
-    get: (_t, name) => (typeof name === 'string' ? (...args: unknown[]) => void calls.push({ name, args }) : undefined),
-    has: () => true,
-  });
+  const sink = new Proxy(
+    {},
+    {
+      get: (_t, name) =>
+        typeof name === 'string' ? (...args: unknown[]) => void calls.push({ name, args }) : undefined,
+      has: () => true,
+    },
+  );
   return {
-    sink: sink as unknown as Parameters<typeof createDirector>[0],
+    sink: sink as unknown as Parameters<typeof audioDirector.createDirector>[0],
     calls,
     lastGain: (id: string): number | undefined => {
       const g = calls.filter((c) => c.name === 'setMusicGain' && c.args[0] === id);
-      return g.length ? (g.at(-1)!.args[1] as number) : undefined;
+      return g.at(-1)?.args[1] as number | undefined;
     },
     lastOn: (id: string): 'start' | 'stop' | undefined => {
       const on = calls.filter((c) => (c.name === 'startMusic' || c.name === 'stopMusic') && c.args[0] === id);
-      return on.length ? (on.at(-1)!.name === 'startMusic' ? 'start' : 'stop') : undefined;
+      const latest = on.at(-1);
+      if (latest === undefined) {
+        return undefined;
+      }
+      return latest.name === 'startMusic' ? 'start' : 'stop';
     },
   };
 }
@@ -39,7 +47,7 @@ const RAMP_MS = 500;
 /** A running game at level 1 with the link up (shimmer on) and the bass in play. */
 function running() {
   const b = recordingBackend();
-  const d = createDirector(b.sink);
+  const d = audioDirector.createDirector(b.sink);
   const snap = {
     log: [],
     level: { level: 1 },
@@ -47,11 +55,11 @@ function running() {
     net: { state: 'link-up', transfers: [] },
     devices: [],
     power: { totalW: 10, budgetW: 100, tripped: false },
-  } as unknown as DirectorSnap;
+  } as unknown as audioDirector.DirectorSnap;
   d.onUnlock();
   d.onScene('game');
   d.onSnapshot(snap);
-  const ui = (speed: number): UiInput => ({ speed, hold: null, crashed: false });
+  const ui = (speed: number): audioDirector.UiInput => ({ speed, hold: null, crashed: false });
   d.onUi(ui(4));
   return { b, d, ui };
 }
@@ -60,7 +68,11 @@ function running() {
 function atSpeed(speed: number) {
   const r = running();
   r.d.onUi(r.ui(speed));
-  return { shimmer: r.b.lastGain(SHIMMER)!, bass: r.b.lastGain(BASS)!, bassOn: r.b.lastOn(BASS) };
+  const lastGainResult = r.b.lastGain(SHIMMER);
+  assert.exists(lastGainResult);
+  const lastGainResult2 = r.b.lastGain(BASS);
+  assert.exists(lastGainResult2);
+  return { shimmer: lastGainResult, bass: lastGainResult2, bassOn: r.b.lastOn(BASS) };
 }
 
 describe('speed map: shimmer and bass offsets', () => {
@@ -111,7 +123,9 @@ describe('speed: density and brightness only, never tempo', () => {
   it('a speed change never starts, stops, decodes or re-times a stem', () => {
     const r = running();
     const from = r.b.calls.length;
-    for (const s of SPEEDS) r.d.onUi(r.ui(s));
+    for (const s of SPEEDS) {
+      r.d.onUi(r.ui(s));
+    }
     const names = new Set(r.b.calls.slice(from).map((c) => c.name));
     for (const bad of ['startMusic', 'stopMusic', 'preloadMusic', 'decodeKey', 'releaseKey']) {
       if (names.has(bad)) {
@@ -128,9 +142,11 @@ describe('speed: density and brightness only, never tempo', () => {
   it('no sink call carries a tempo or playback rate', () => {
     const r = running();
     const from = r.b.calls.length;
-    for (const s of SPEEDS) r.d.onUi(r.ui(s));
+    for (const s of SPEEDS) {
+      r.d.onUi(r.ui(s));
+    }
     const names = r.b.calls.slice(from).map((c) => c.name);
-    expect(names.filter((n) => /rate|tempo|bpm|pitch/i.test(n))).toEqual([]);
+    expect(names.filter((n) => /rate|tempo|bpm|pitch/iu.test(n))).toStrictEqual([]);
   });
 
   it('speed ramps over 0.5 s', () => {
@@ -139,7 +155,9 @@ describe('speed: density and brightness only, never tempo', () => {
     r.d.onUi(r.ui(12));
     const gains = r.b.calls.slice(from).filter((c) => c.name === 'setMusicGain' && c.args[0] === SHIMMER);
     expect(gains.length).toBeGreaterThan(0);
-    for (const g of gains) expect(g.args[2]).toBe(RAMP_MS);
+    for (const g of gains) {
+      expect(g.args[2]).toBe(RAMP_MS);
+    }
   });
 });
 
@@ -164,7 +182,7 @@ describe('speed: event notes per beat follow the density', () => {
       net: { state: 'link-up', transfers: [] },
       devices: [],
       power: { totalW: 10, budgetW: 100, tripped: false },
-    } as unknown as DirectorSnap);
+    } as unknown as audioDirector.DirectorSnap);
     return r.b.calls
       .slice(from)
       .filter((c) => c.name === 'playCue' && c.args[0] === 'payout')
@@ -172,19 +190,23 @@ describe('speed: event notes per beat follow the density', () => {
   };
 
   it('speed 1, 2 and 4 have the base density: 4 notes per beat', () => {
-    for (const s of [1, 2, 4]) expect(capsAt(s)).toEqual(Array(6).fill(4));
+    for (const s of [1, 2, 4]) {
+      expect(capsAt(s)).toStrictEqual(Array(6).fill(4));
+    }
   });
 
   it('speed 8 doubles it (8 notes per beat), speed 12 and up triple it (12)', () => {
-    expect(capsAt(8)).toEqual(Array(6).fill(8));
-    for (const s of [12, 16, 64]) expect(capsAt(s)).toEqual(Array(6).fill(12));
+    expect(capsAt(8)).toStrictEqual(Array(6).fill(8));
+    for (const s of [12, 16, 64]) {
+      expect(capsAt(s)).toStrictEqual(Array(6).fill(12));
+    }
   });
 });
 
 describe('pause: shimmer and stress are silent while stopped', () => {
   it('both go off at speed 0 and start again when the speed returns', () => {
     const b = recordingBackend();
-    const d = createDirector(b.sink);
+    const d = audioDirector.createDirector(b.sink);
     d.onUnlock();
     d.onScene('game');
     d.onSnapshot({
@@ -195,9 +217,9 @@ describe('pause: shimmer and stress are silent while stopped', () => {
       devices: [],
       vrm: { loadRatio: 1.15 },
       power: { totalW: 10, budgetW: 100, tripped: false },
-    } as unknown as DirectorSnap);
+    } as unknown as audioDirector.DirectorSnap);
     const STRESS = `music_stress_${KEY}`;
-    const ui = (speed: number): UiInput => ({ speed, hold: null, crashed: false });
+    const ui = (speed: number): audioDirector.UiInput => ({ speed, hold: null, crashed: false });
     d.onUi(ui(4));
     expect(b.lastOn(SHIMMER)).toBe('start');
     expect(b.lastOn(STRESS)).toBe('start');
@@ -207,8 +229,9 @@ describe('pause: shimmer and stress are silent while stopped', () => {
     // The stop is the 1.0 s pause fade, on the next beat.
     for (const id of [SHIMMER, STRESS]) {
       const stop = b.calls.filter((c) => c.name === 'stopMusic' && c.args[0] === id).at(-1);
-      expect(stop!.args[1] as number).toBeCloseTo(1000, 0);
-      expect(stop!.args[2]).toBe('beat');
+      assert.exists(stop);
+      expect(stop.args[1] as number).toBeCloseTo(1000, 0);
+      expect(stop.args[2]).toBe('beat');
     }
     d.onUi(ui(4));
     expect(b.lastOn(SHIMMER)).toBe('start');

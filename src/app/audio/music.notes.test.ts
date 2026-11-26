@@ -4,29 +4,31 @@
 // gets explicit times (a fake clock). No AudioContext here.
 // Contract assumed (the coder adds it): note cues are entries of MIX.cues with id `music_note_<family>_<NOTE>`, bus `music`,
 // one file each (`pickFile` returns rate 1, never rate-shifted), and the director plays them through `playCue`.
-import { describe, expect, it } from 'vitest';
-import { createDirector, type CueSink } from './director';
+import { assert, describe, expect, it } from 'vitest';
+import * as audioDirector from './director';
 import { cueForNote } from './events';
-import { keyName, keyPcForLevel, pickFile, type Cue } from './keys';
+import * as keyFiles from './keys';
 import { MIX } from './mixTokens';
-import { VoicePool, type VoiceRec } from './voices';
+import { VoicePool } from './voices';
 import type { GameEvent } from '../../worker/game/types';
 
 const NOTE_PREFIX = 'music_note_';
 const FAMILIES = ['pluck', 'glint', 'low'] as const;
 
 /** The note cues in the mix tokens (the music lane's one-shots). */
-const noteCues = (): Cue[] => MIX.cues.filter((c) => c.id.startsWith(NOTE_PREFIX));
+const noteCues = (): keyFiles.Cue[] => MIX.cues.filter((c) => c.id.startsWith(NOTE_PREFIX));
 /** The note ids a list of play ids holds, in order. */
 const notesIn = (ids: string[]): string[] => ids.filter((id) => id.startsWith(NOTE_PREFIX));
 
 function fakeSink() {
   const plays: { id: string; delayS: number }[] = [];
-  const sink: CueSink = {
+  const sink: audioDirector.CueSink = {
     playCue(id, opts) {
       plays.push({ id, delayS: opts?.delayS ?? 0 });
     },
-    setKeyPc() {},
+    setKeyPc() {
+      /* no-op */
+    },
   };
   return { plays, sink, ids: () => plays.map((p) => p.id) };
 }
@@ -37,7 +39,7 @@ const snap = (log: GameEvent[], level = 1) => ({ log, level: { level } });
 /** A director with the level's key, past its first snapshot, then one snapshot with `log` (the new notes). */
 function play(log: GameEvent[], level = 1) {
   const f = fakeSink();
-  const d = createDirector(f.sink);
+  const d = audioDirector.createDirector(f.sink);
   d.onSnapshot(snap([], level));
   d.onSnapshot(snap(log, level));
   return f;
@@ -51,20 +53,20 @@ describe('music notes: the event map (director, fake backend)', () => {
     const f = one('install', 'CPU installed in socket');
     const cue = cueForNote(note(5, 'install', 'CPU installed in socket'));
     expect(cue).not.toBeNull();
-    expect(f.ids()).toEqual(expect.arrayContaining([cue as string, `${NOTE_PREFIX}pluck_F4`]));
-    expect(notesIn(f.ids())).toEqual([`${NOTE_PREFIX}pluck_F4`]);
+    expect(f.ids()).toStrictEqual(expect.arrayContaining([cue as string, `${NOTE_PREFIX}pluck_F4`]));
+    expect(notesIn(f.ids())).toStrictEqual([`${NOTE_PREFIX}pluck_F4`]);
   });
 
   it('key plays the pluck on scale step 2 in the flow register (A5 at level 1)', () => {
-    expect(notesIn(one('key', 'key 1 plugged in').ids())).toEqual([`${NOTE_PREFIX}pluck_A5`]);
+    expect(notesIn(one('key', 'key 1 plugged in').ids())).toStrictEqual([`${NOTE_PREFIX}pluck_A5`]);
   });
 
   it('job plays the root pluck in the flow register (F5 at level 1)', () => {
-    expect(notesIn(one('job', 'key 1 holds its result').ids())).toEqual([`${NOTE_PREFIX}pluck_F5`]);
+    expect(notesIn(one('job', 'key 1 holds its result').ids())).toStrictEqual([`${NOTE_PREFIX}pluck_F5`]);
   });
 
   it('expire plays low 2 then low 0 (A2, then F2 at level 1)', () => {
-    expect(notesIn(one('expire', 'client took back job 1').ids())).toEqual([
+    expect(notesIn(one('expire', 'client took back job 1').ids())).toStrictEqual([
       `${NOTE_PREFIX}low_A2`,
       `${NOTE_PREFIX}low_F2`,
     ]);
@@ -97,20 +99,20 @@ describe('music notes: the event map (director, fake backend)', () => {
   it('ecc plays one glint (scale step 3, the Lydian #4)', () => {
     const ids = notesIn(one('ecc', 'ECC corrected a flipped bit').ids());
     expect(ids).toHaveLength(1);
-    expect(ids[0]).toMatch(new RegExp(`^${NOTE_PREFIX}glint_`));
+    expect(ids[0]).toMatch(new RegExp(`^${NOTE_PREFIX}glint_`, 'u'));
   });
 
   it('a kind with no music map plays no note (purchase)', () => {
-    expect(notesIn(one('purchase', 'bought a CPU').ids())).toEqual([]);
+    expect(notesIn(one('purchase', 'bought a CPU').ids())).toStrictEqual([]);
   });
 });
 
 describe('music notes: the key', () => {
   it('the same event plays its note in the level key (install: F4 at level 1, G4 at level 3)', () => {
-    expect(keyName(keyPcForLevel(1))).toBe('F');
-    expect(keyName(keyPcForLevel(3))).toBe('G');
-    expect(notesIn(one('install', 'CPU installed in socket', 1).ids())).toEqual([`${NOTE_PREFIX}pluck_F4`]);
-    expect(notesIn(one('install', 'CPU installed in socket', 3).ids())).toEqual([`${NOTE_PREFIX}pluck_G4`]);
+    expect(keyFiles.keyName(keyFiles.keyPcForLevel(1))).toBe('F');
+    expect(keyFiles.keyName(keyFiles.keyPcForLevel(3))).toBe('G');
+    expect(notesIn(one('install', 'CPU installed in socket', 1).ids())).toStrictEqual([`${NOTE_PREFIX}pluck_F4`]);
+    expect(notesIn(one('install', 'CPU installed in socket', 3).ids())).toStrictEqual([`${NOTE_PREFIX}pluck_G4`]);
   });
 });
 
@@ -122,7 +124,9 @@ describe('music notes: the mix tokens', () => {
       const of = notes.filter((c) => c.id.startsWith(`${NOTE_PREFIX}${fam}_`));
       expect(of.length, fam).toBeGreaterThan(0);
     }
-    for (const c of notes) expect(c.bus, c.id).toBe('music');
+    for (const c of notes) {
+      expect(c.bus, c.id).toBe('music');
+    }
   });
 
   it('each note sits quieter than a game cue: music bus, trim and family gain stay under the sfx bus (0 dB)', () => {
@@ -148,7 +152,8 @@ describe('music notes: the mix tokens', () => {
     for (const [kind, text] of kinds) {
       const id = cueForNote(note(5, kind, text));
       expect(id, kind).not.toBeNull();
-      const cue = MIX.cues.find((c) => c.id === id)!;
+      const cue = MIX.cues.find((c) => c.id === id);
+      assert.exists(cue);
       expect(cue.duckClass, kind).not.toBeNull();
       expect(MIX.ducking.cueDuckDb[cue.duckClass as keyof typeof MIX.ducking.cueDuckDb], kind).toBeLessThan(0);
     }
@@ -158,7 +163,7 @@ describe('music notes: the mix tokens', () => {
     expect(noteCues().length).toBeGreaterThan(0);
     for (const c of noteCues()) {
       for (let pc = 0; pc < 12; pc++) {
-        const pick = pickFile(c, pc, new Map());
+        const pick = keyFiles.pickFile(c, pc, new Map());
         expect(pick.rate, `${c.id} in pc ${pc}`).toBe(1);
         expect(pick.path, c.id).toContain(c.id);
       }
@@ -168,14 +173,24 @@ describe('music notes: the mix tokens', () => {
 
 describe('music notes: the voice cap (8 note voices, oldest stolen first)', () => {
   /** Admit `c` at `now` as the engine does: an admitted cue adds its own voice. */
-  function admit(pool: VoicePool, c: Cue, now: number) {
+  function admit(pool: VoicePool, c: keyFiles.Cue, now: number) {
     const adm = pool.admit(c, now);
-    if (adm.ok) pool.add({ cue: c.id, bus: c.bus, prio: c.priority, t: now, stop: () => {} } as VoiceRec);
+    if (adm.ok) {
+      pool.add({
+        cue: c.id,
+        bus: c.bus,
+        prio: c.priority,
+        t: now,
+        stop: () => {
+          /* no-op */
+        },
+      });
+    }
     return adm;
   }
 
   /** Nine distinct pluck notes of one priority, 1 s apart (no rate limit between them). */
-  const nine = (): Cue[] => {
+  const nine = (): keyFiles.Cue[] => {
     const same = noteCues().filter((c) => c.id.startsWith(`${NOTE_PREFIX}pluck_`));
     const pr = same[0]?.priority;
     return same.filter((c) => c.priority === pr).slice(0, 9);
@@ -185,22 +200,35 @@ describe('music notes: the voice cap (8 note voices, oldest stolen first)', () =
     const cs = nine();
     expect(cs).toHaveLength(9);
     const pool = new VoicePool();
-    for (let i = 0; i < 8; i++) expect(admit(pool, cs[i]!, 1000 + i * 1000).ok).toBe(true);
-    expect(pool.list.length).toBe(8);
-    const adm = admit(pool, cs[8]!, 9000);
+    for (let i = 0; i < 8; i++) {
+      const csItem = cs[i];
+      assert.exists(csItem);
+      expect(admit(pool, csItem, 1000 + i * 1000).ok).toBe(true);
+    }
+    expect(pool.list).toHaveLength(8);
+    assert.exists(cs[8]);
+    const adm = admit(pool, cs[8], 9000);
     expect(adm.ok).toBe(true);
-    expect(adm.ok ? adm.evict.map((v) => v.t) : null).toEqual([1000]);
-    expect(pool.list.map((v) => v.t).sort((a, b) => a - b)).toEqual([2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000]);
+    expect(adm.ok ? adm.evict.map((v) => v.t) : null).toStrictEqual([1000]);
+    expect(pool.list.map((v) => v.t).toSorted((a, b) => a - b)).toStrictEqual([
+      2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000,
+    ]);
   });
 
   it('the next note steals the next oldest; the pool never holds more than eight', () => {
     const cs = nine();
     const pool = new VoicePool();
-    for (let i = 0; i < 8; i++) admit(pool, cs[i]!, 1000 + i * 1000);
-    admit(pool, cs[8]!, 9000);
-    const adm = admit(pool, cs[0]!, 10000);
+    for (let i = 0; i < 8; i++) {
+      const csItem2 = cs[i];
+      assert.exists(csItem2);
+      admit(pool, csItem2, 1000 + i * 1000);
+    }
+    assert.exists(cs[8]);
+    admit(pool, cs[8], 9000);
+    assert.exists(cs[0]);
+    const adm = admit(pool, cs[0], 10_000);
     expect(adm.ok).toBe(true);
-    expect(adm.ok ? adm.evict.map((v) => v.t) : null).toEqual([2000]);
+    expect(adm.ok ? adm.evict.map((v) => v.t) : null).toStrictEqual([2000]);
     expect(pool.list.length).toBeLessThanOrEqual(8);
   });
 });

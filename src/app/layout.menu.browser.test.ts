@@ -7,11 +7,11 @@
 // Gated: runs only with T44_BROWSER=1 (like layout.browser.test.ts). The harness is layout.harness.ts.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Browser, Page } from 'playwright-core';
-import { type Box, containedIn, freeWidth, missingNames, outsideViewport, overlaps } from './layoutRects';
-import { BOOT_MS, GATE, STEP_MS, type Dev, killTree, launchChrome, openBooted, startServer } from './layout.harness';
+import * as layoutRects from './layoutRects';
+import * as harness from './layout.harness';
 
 declare const process: any;
-const TEST_MS = 60_000 + BOOT_MS + 10 * STEP_MS;
+const TEST_MS = 60_000 + harness.BOOT_MS + 10 * harness.STEP_MS;
 const PHONES = [
   { w: 360, h: 800 },
   { w: 390, h: 844 },
@@ -40,11 +40,11 @@ const CATEGORIES = [
   'ISP',
 ];
 
-let dev: Dev | null = null;
+let dev: harness.Dev | null = null;
 let browser: Browser | null = null;
 
 /** Runs in the page: the boxes of the visible elements that match a selector. */
-function boxesOf(sel: string): Box[] {
+function boxesOf(sel: string): layoutRects.Box[] {
   return [...document.querySelectorAll(sel)]
     .filter((e) => {
       const cs = getComputedStyle(e);
@@ -59,32 +59,38 @@ function boxesOf(sel: string): Box[] {
 
 /** Starts a campaign game and gets past the welcome card to the bare HUD. */
 async function intoGame(page: Page): Promise<void> {
-  await page.getByRole('button', { name: /^New game/ }).click();
+  await page.getByRole('button', { name: /^New game/u }).click();
   await page.waitForSelector('.pl-menu.newgame .pl-row.hero');
   await page.click('.pl-menu.newgame .pl-row.hero');
-  await page.waitForSelector('header.hud', { timeout: BOOT_MS });
+  await page.waitForSelector('header.hud', { timeout: harness.BOOT_MS });
   await page.waitForTimeout(1500);
-  const skip = page.locator('button', { hasText: /^Skip$/ });
-  if (await skip.count()) await skip.first().click();
+  const skip = page.locator('button', { hasText: /^Skip$/u });
+  if (await skip.count()) {
+    await skip.first().click();
+  }
   await page
-    .waitForFunction(() => !document.querySelector('.modal-back.dlg-back'), null, { timeout: STEP_MS })
-    .catch(() => {});
+    .waitForFunction(() => !document.querySelector('.modal-back.dlg-back'), null, { timeout: harness.STEP_MS })
+    .catch(() => {
+      /* no-op */
+    });
 }
 
-describe.skipIf(!GATE)('round 5 layout checks in the browser (ticket #47)', () => {
+describe.skipIf(!harness.GATE)('round 5 layout checks in the browser (ticket #47)', () => {
   beforeAll(async () => {
-    dev = await startServer();
+    dev = await harness.startServer();
   }, 120_000);
   afterAll(() => {
-    killTree(dev?.child);
+    harness.killTree(dev?.child);
     dev = null;
   });
   beforeEach(async () => {
     process.stderr.write(`  running: ${expect.getState().currentTestName}\n`);
-    browser = await launchChrome();
+    browser = await harness.launchChrome();
   }, 60_000);
   afterEach(async () => {
-    await browser?.close().catch(() => {});
+    await browser?.close().catch(() => {
+      /* no-op */
+    });
     browser = null;
   }, 60_000);
 
@@ -93,36 +99,44 @@ describe.skipIf(!GATE)('round 5 layout checks in the browser (ticket #47)', () =
       `${vp.w} x ${vp.h}: no toast covers a Paused row, and every row is on screen`,
       async () => {
         const errors: string[] = [];
-        const { page, ctxClose } = await openBooted(browser!, dev!, vp.w, vp.h, errors);
+        const { page, ctxClose } = await harness.openBooted(browser!, dev!, vp.w, vp.h, errors);
         try {
           await intoGame(page);
           await page.keyboard.press('Escape');
           await page.waitForSelector('.pl-menu.paused');
           // menu feedback: "Save now" raises a "saved" toast at the menu position
-          const save = page.locator('.pl-menu.paused .pl-row', { hasText: /Save now/ });
-          if (await save.count()) await save.first().click();
+          const save = page.locator('.pl-menu.paused .pl-row', { hasText: /Save now/u });
+          if (await save.count()) {
+            await save.first().click();
+          }
           await page.waitForTimeout(600);
           const rows = await page.evaluate(boxesOf, '.pl-menu.paused .pl-row');
           const toasts = await page.evaluate(boxesOf, '.toast, .toasts > *, .notice');
           expect(rows.length).toBeGreaterThan(0);
-          const hits = toasts.filter((t) => rows.some((r) => overlaps(t, r)));
-          expect(hits, 'a toast overlaps a Paused row').toEqual([]);
+          const hits = toasts.filter((t) => rows.some((r) => layoutRects.overlaps(t, r)));
+          expect(hits, 'a toast overlaps a Paused row').toStrictEqual([]);
           // a row below the fold is fine when it scrolls into view (SPEC 6.5: the content column scrolls)
           const lost = await page.evaluate(
             () =>
               [...document.querySelectorAll('.pl-menu.paused .pl-row')].filter((row) => {
                 const r = row.getBoundingClientRect();
-                if (r.top >= 0 && r.bottom <= window.innerHeight) return false;
+                if (r.top >= 0 && r.bottom <= window.innerHeight) {
+                  return false;
+                }
                 for (let e = row.parentElement; e; e = e.parentElement) {
                   const cs = getComputedStyle(e);
-                  if (/(auto|scroll)/.test(cs.overflowY) && e.scrollHeight > e.clientHeight) return false;
+                  if (/(?:auto|scroll)/u.test(cs.overflowY) && e.scrollHeight > e.clientHeight) {
+                    return false;
+                  }
                 }
                 return true;
               }).length,
           );
           expect(lost, 'a Paused row is outside the window and cannot scroll into view').toBe(0);
         } finally {
-          await ctxClose().catch(() => {});
+          await ctxClose().catch(() => {
+            /* no-op */
+          });
         }
       },
       TEST_MS,
@@ -132,16 +146,16 @@ describe.skipIf(!GATE)('round 5 layout checks in the browser (ticket #47)', () =
       `${vp.w} x ${vp.h}: Gallery pinned controls are fully on screen`,
       async () => {
         const errors: string[] = [];
-        const { page, ctxClose } = await openBooted(browser!, dev!, vp.w, vp.h, errors);
+        const { page, ctxClose } = await harness.openBooted(browser!, dev!, vp.w, vp.h, errors);
         try {
-          await page.getByRole('button', { name: /^Gallery/ }).click();
+          await page.getByRole('button', { name: /^Gallery/u }).click();
           await page.waitForSelector('.gallery .bld-tile');
           await page.waitForTimeout(2000);
           const pinned = await page.evaluate(() => {
             const out: { name: string; box: { x: number; y: number; r: number; b: number } | null }[] = [];
             const buttons = [...document.querySelectorAll('.gallery button')];
             for (const name of ['Close', 'Spin', 'Reset', 'Settings', 'Previous', 'Next']) {
-              const re = new RegExp(`\\b${name}\\b`, 'i');
+              const re = new RegExp(`\\b${name}\\b`, 'iu');
               const el = buttons.find((e) =>
                 re.test(
                   `${(e as HTMLElement).innerText} ${e.getAttribute('aria-label') ?? ''} ${e.getAttribute('title') ?? ''}`,
@@ -154,11 +168,13 @@ describe.skipIf(!GATE)('round 5 layout checks in the browser (ticket #47)', () =
           });
           for (const p of pinned.out) {
             expect(p.box, `${p.name} exists`).not.toBeNull();
-            expect(outsideViewport(p.box!, vp.w, vp.h), `${p.name} is fully on screen`).toBe(false);
+            expect(layoutRects.outsideViewport(p.box!, vp.w, vp.h), `${p.name} is fully on screen`).toBe(false);
           }
           expect(pinned.sw <= vp.w && pinned.sh <= vp.h, 'no page scroll').toBe(true);
         } finally {
-          await ctxClose().catch(() => {});
+          await ctxClose().catch(() => {
+            /* no-op */
+          });
         }
       },
       TEST_MS,
@@ -170,9 +186,9 @@ describe.skipIf(!GATE)('round 5 layout checks in the browser (ticket #47)', () =
       `${vp.w} x ${vp.h}: the Gallery stage outside the part is 17,17,19 within 2`,
       async () => {
         const errors: string[] = [];
-        const { page, ctxClose } = await openBooted(browser!, dev!, vp.w, vp.h, errors);
+        const { page, ctxClose } = await harness.openBooted(browser!, dev!, vp.w, vp.h, errors);
         try {
-          await page.getByRole('button', { name: /^Gallery/ }).click();
+          await page.getByRole('button', { name: /^Gallery/u }).click();
           await page.waitForSelector('.gallery .bld-tile');
           await page.waitForTimeout(2500);
           // hide the UI, keep the stage; the part sits inside the K1 bracket box, so only pixels outside that box are judged
@@ -197,11 +213,13 @@ describe.skipIf(!GATE)('round 5 layout checks in the browser (ticket #47)', () =
               let n = 0;
               let worst = 0;
               let at = '';
-              for (let y = 0; y < c.height; y += 2)
+              for (let y = 0; y < c.height; y += 2) {
                 for (let x = 0; x < c.width; x += 2) {
                   const cx = x / k,
                     cy = y / k;
-                  if (cx >= box.x && cx <= box.r && cy >= box.y && cy <= box.b) continue;
+                  if (cx >= box.x && cx <= box.r && cy >= box.y && cy <= box.b) {
+                    continue;
+                  }
                   const i = (y * c.width + x) * 4;
                   const off = Math.max(Math.abs(d[i]! - 17), Math.abs(d[i + 1]! - 17), Math.abs(d[i + 2]! - 19));
                   if (off > 2) {
@@ -212,13 +230,16 @@ describe.skipIf(!GATE)('round 5 layout checks in the browser (ticket #47)', () =
                     }
                   }
                 }
+              }
               return { n, worst, at };
             },
             { b64: shot, box: bracket },
           );
           expect(bad.n, `pixels off 17,17,19 by more than 2 (worst ${bad.worst} at ${bad.at})`).toBe(0);
         } finally {
-          await ctxClose().catch(() => {});
+          await ctxClose().catch(() => {
+            /* no-op */
+          });
         }
       },
       TEST_MS,
@@ -229,33 +250,36 @@ describe.skipIf(!GATE)('round 5 layout checks in the browser (ticket #47)', () =
     '1366 x 768 at UI size 150 %: every Build rail category, RTR included, is reachable',
     async () => {
       const errors: string[] = [];
-      const { page, ctxClose } = await openBooted(browser!, dev!, 1366, 768, errors, 1.5);
+      const { page, ctxClose } = await harness.openBooted(browser!, dev!, 1366, 768, errors, 1.5);
       try {
-        await page.getByRole('button', { name: /^Build my PC/ }).click();
+        await page.getByRole('button', { name: /^Build my PC/u }).click();
         await page.waitForSelector('.build.mode .bld-rail [role="tab"]');
         await page.waitForTimeout(1500);
         const tags = await page.evaluate(() =>
           [...document.querySelectorAll('.build .bld-rail [role="tab"] .bld-tag')].map((e) => e.textContent ?? ''),
         );
-        expect(missingNames(CATEGORIES, tags), 'categories missing from the rail').toEqual([]);
+        expect(layoutRects.missingNames(CATEGORIES, tags), 'categories missing from the rail').toStrictEqual([]);
         // pick RTR: scroll it into view the way a player does, then click it
         const rtr = page.locator('.build .bld-rail [role="tab"]', {
-          has: page.locator('.bld-tag', { hasText: /^RTR$/ }),
+          has: page.locator('.bld-tag', { hasText: /^RTR$/u }),
         });
         await rtr.scrollIntoViewIfNeeded();
         await rtr.click();
         await expect.poll(async () => rtr.getAttribute('aria-selected')).toBe('true');
         const [rail] = await page.evaluate(boxesOf, '.build .bld-rail');
         const [sel] = await page.evaluate(boxesOf, '.build .bld-rail [role="tab"][aria-selected="true"]');
-        expect(!!sel && !!rail && containedIn(sel, rail), 'the selected tag is inside the rail box (in view)').toBe(
-          true,
-        );
+        expect(
+          sel !== undefined && rail !== undefined && layoutRects.containedIn(sel, rail),
+          'the selected tag is inside the rail box (in view)',
+        ).toBe(true);
         expect(
           await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight),
           'no page scroll',
         ).toBe(true);
       } finally {
-        await ctxClose().catch(() => {});
+        await ctxClose().catch(() => {
+          /* no-op */
+        });
       }
     },
     TEST_MS,
@@ -265,12 +289,12 @@ describe.skipIf(!GATE)('round 5 layout checks in the browser (ticket #47)', () =
     '844 x 390: the parts row open keeps the rail and the bar visible, and the machine 40 % of the width',
     async () => {
       const errors: string[] = [];
-      const { page, ctxClose } = await openBooted(browser!, dev!, 844, 390, errors);
+      const { page, ctxClose } = await harness.openBooted(browser!, dev!, 844, 390, errors);
       try {
-        await page.getByRole('button', { name: /^Build my PC/ }).click();
+        await page.getByRole('button', { name: /^Build my PC/u }).click();
         await page.waitForSelector('.build.mode .bld-rail [role="tab"]');
         await page.waitForTimeout(1500);
-        await page.locator('.build .bld-foot [role="tab"]', { hasText: /^Parts$/ }).click();
+        await page.locator('.build .bld-foot [role="tab"]', { hasText: /^Parts$/u }).click();
         await page.waitForSelector('.build[data-shelf="open"]');
         await page.waitForTimeout(800);
         const rail = await page.evaluate(boxesOf, '.build .bld-rail');
@@ -278,13 +302,15 @@ describe.skipIf(!GATE)('round 5 layout checks in the browser (ticket #47)', () =
         expect(rail.length, 'the rail is visible').toBeGreaterThan(0);
         expect(bar.length, 'the bar is visible').toBeGreaterThan(0);
         expect(
-          outsideViewport(rail[0]!, 844, 390) || outsideViewport(bar[0]!, 844, 390),
+          layoutRects.outsideViewport(rail[0]!, 844, 390) || layoutRects.outsideViewport(bar[0]!, 844, 390),
           'rail or bar is cut by the window',
         ).toBe(false);
         const tabs = await page.evaluate(boxesOf, '.build .bld-bin, .build .bld-inst.open');
-        expect(freeWidth(844, tabs) / 844, 'the machine share of the width').toBeGreaterThanOrEqual(0.4);
+        expect(layoutRects.freeWidth(844, tabs) / 844, 'the machine share of the width').toBeGreaterThanOrEqual(0.4);
       } finally {
-        await ctxClose().catch(() => {});
+        await ctxClose().catch(() => {
+          /* no-op */
+        });
       }
     },
     TEST_MS,

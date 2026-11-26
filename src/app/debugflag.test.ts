@@ -5,12 +5,42 @@ import * as fsMod from 'node:fs';
 import * as pathMod from 'node:path';
 // @ts-ignore
 import * as urlMod from 'node:url';
-import { describe, expect, it, vi } from 'vitest';
+import { assert, describe, expect, it, vi } from 'vitest';
 import { debugOn, whenDebug } from './debugflag';
 
-const fs = fsMod as any;
-const path = pathMod as any;
-const SRC: string = urlMod.fileURLToPath(new URL('../', import.meta.url));
+interface DirEntry {
+  name: string;
+  isDirectory: () => boolean;
+}
+
+interface NodeFs {
+  readFileSync: (path: string, encoding: 'utf8') => string;
+  readdirSync: (path: string, options: { withFileTypes: true }) => DirEntry[];
+}
+
+interface NodePath {
+  dirname: (path: string) => string;
+  join: (...parts: string[]) => string;
+  normalize: (path: string) => string;
+  relative: (from: string, to: string) => string;
+  resolve: (...parts: string[]) => string;
+  sep: string;
+}
+
+interface NodeUrl {
+  fileURLToPath: (url: URL) => string;
+}
+const isNodeUrl = (mod: unknown): mod is NodeUrl => typeof mod === 'object' && mod !== null && 'fileURLToPath' in mod;
+const isNodeFs = (mod: unknown): mod is NodeFs => typeof mod === 'object' && mod !== null && 'readFileSync' in mod;
+const isNodePath = (mod: unknown): mod is NodePath => typeof mod === 'object' && mod !== null && 'join' in mod;
+assert(isNodeUrl(urlMod), 'node:url loads');
+assert(isNodeFs(fsMod), 'node:fs loads');
+assert(isNodePath(pathMod), 'node:path loads');
+const nodeUrl = urlMod;
+
+const fs = fsMod;
+const path = pathMod;
+const SRC: string = nodeUrl.fileURLToPath(new URL('../', import.meta.url));
 
 describe('debugOn', () => {
   it('is off without the debug param', () => {
@@ -27,19 +57,21 @@ describe('debugOn', () => {
 
 describe('whenDebug', () => {
   it('never calls load without the debug param and returns null', () => {
-    const load = vi.fn(async () => ({ mountDebug: vi.fn() }));
+    const load = vi.fn<() => Promise<{ mountDebug: (ctx: unknown) => void }>>().mockResolvedValue({
+      mountDebug: vi.fn<(ctx: unknown) => void>(),
+    });
     expect(whenDebug('?tier=low', load, { x: 1 })).toBeNull();
     expect(load).not.toHaveBeenCalled();
   });
 
   it('calls load once and mounts with the ctx when debug is on', async () => {
-    const mountDebug = vi.fn();
-    const load = vi.fn(async () => ({ mountDebug }));
+    const mountDebug = vi.fn<(ctx: unknown) => void>();
+    const load = vi.fn<() => Promise<{ mountDebug: typeof mountDebug }>>().mockResolvedValue({ mountDebug });
     const ctx = { x: 1 };
     const p = whenDebug('?debug', load, ctx);
     expect(p).toBeInstanceOf(Promise);
     await p;
-    expect(load).toHaveBeenCalledTimes(1);
+    expect(load).toHaveBeenCalledOnce();
     expect(mountDebug).toHaveBeenCalledWith(ctx);
   });
 });
@@ -47,18 +79,25 @@ describe('whenDebug', () => {
 function walk(dir: string, out: string[] = []): string[] {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = `${dir}${e.name}`;
-    if (e.isDirectory()) walk(`${p}/`, out);
-    else if (/\.(ts|tsx)$/.test(e.name) && !/\.test\.(ts|tsx)$/.test(e.name)) out.push(p);
+    if (e.isDirectory()) {
+      walk(`${p}/`, out);
+    } else if (/\.(?:ts|tsx)$/u.test(e.name) && !/\.test\.(?:ts|tsx)$/u.test(e.name)) {
+      out.push(p);
+    }
   }
   return out;
 }
 
-const SPEC = /(?:\bfrom\s*|\bimport\s+)(['"])([^'"]+)\1/g;
+const SPEC = /(?:\bfrom\s*|\bimport\s+)(?<quote>['"])(?<spec>[^'"]+)\k<quote>/gu;
 
 /** The absolute path a static import names, or null for a package. */
 function resolveSpec(file: string, spec: string): string | null {
-  if (spec.startsWith('@/')) return path.join(SRC, spec.slice(2));
-  if (spec.startsWith('.')) return path.resolve(path.dirname(file), spec);
+  if (spec.startsWith('@/')) {
+    return path.join(SRC, spec.slice(2));
+  }
+  if (spec.startsWith('.')) {
+    return path.resolve(path.dirname(file), spec);
+  }
   return null;
 }
 
@@ -68,32 +107,33 @@ describe('the debug overlay is only loaded dynamically', () => {
   it('no module outside src/app/debug imports it statically', () => {
     const offenders: string[] = [];
     for (const file of walk(SRC)) {
-      if ((path.normalize(file) as string).startsWith(debugDir)) continue; // (`walk` joins with `/`; on Windows the folder has `\`)
-      const text = fs.readFileSync(file, 'utf8') as string;
+      if (path.normalize(file).startsWith(debugDir)) {
+        continue;
+      } // (`walk` joins with `/`; on Windows the folder has `\`)
+      const text = fs.readFileSync(file, 'utf8');
       for (const m of text.matchAll(SPEC)) {
-        const target = resolveSpec(file, m[2]!);
-        if (target && (target + path.sep).startsWith(debugDir))
+        assert.exists(m[2]);
+        const target = resolveSpec(file, m[2]);
+        if (target && (target + path.sep).startsWith(debugDir)) {
           offenders.push(`${path.relative(SRC, file)} -> ${m[2]}`);
+        }
       }
     }
-    expect(offenders).toEqual([]);
+    expect(offenders).toStrictEqual([]);
   });
 
   it('the 3D world (world/start.ts) loads the overlay by a dynamic import behind whenDebug', () => {
-    const text = fs.readFileSync(
-      path.join(SRC, 'features', 'board', 'render', 'three', 'world', 'start.ts'),
-      'utf8',
-    ) as string;
+    const text = fs.readFileSync(path.join(SRC, 'features', 'board', 'render', 'three', 'world', 'start.ts'), 'utf8');
     // (the lint makes the loader an `async` arrow: the same dynamic import)
-    expect(text.replaceAll(/\s+/g, ' ')).toMatch(
+    expect(text.replaceAll(/\s+/gu, ' ')).toMatch(
       /void whenDebug\(location\.search, (?:async )?\(\) => import\('@\/app\/debug\/overlay'\), \{ renderer, canvas, roots:/u,
     );
   });
 
   it('debugflag.ts has no top-level statements besides its exports and imports', () => {
-    const lines = (fs.readFileSync(path.join(SRC, 'app', 'debugflag.ts'), 'utf8') as string).split('\n');
+    const lines = fs.readFileSync(path.join(SRC, 'app', 'debugflag.ts'), 'utf8').split('\n');
     // A line that opens with `)` closes a signature that the formatter wrapped: it is not a statement.
-    const bad = lines.filter((l) => /^\S/.test(l) && !/^(\/\/|\/\*|\*|\}|\)|import\b|export\b)/.test(l));
-    expect(bad).toEqual([]);
+    const bad = lines.filter((l) => /^\S/u.test(l) && !/^(?:\/\/|\/\*|\*|\}|\)|import\b|export\b)/u.test(l));
+    expect(bad).toStrictEqual([]);
   });
 });

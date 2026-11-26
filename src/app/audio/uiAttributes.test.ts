@@ -4,30 +4,48 @@
 import * as fsMod from 'node:fs';
 // @ts-ignore
 import * as urlMod from 'node:url';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { assert, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+interface NodeFs {
+  readFileSync: (path: string, encoding: 'utf8') => string;
+}
+
+interface NodeUrl {
+  fileURLToPath: (url: URL) => string;
+}
+const isNodeUrl = (mod: unknown): mod is NodeUrl => typeof mod === 'object' && mod !== null && 'fileURLToPath' in mod;
+const isNodeFs = (mod: unknown): mod is NodeFs => typeof mod === 'object' && mod !== null && 'readFileSync' in mod;
+assert(isNodeUrl(urlMod), 'node:url loads');
+assert(isNodeFs(fsMod), 'node:fs loads');
+const fs = fsMod;
+const nodeUrl = urlMod;
 
 const played: string[] = [];
-vi.mock('./engine', () => ({
+vi.mock(import('./engine'), () => ({
   playCue: (id: string) => {
     played.push(id);
   },
 }));
 
-const ROOT: string = urlMod.fileURLToPath(new URL('../../../', import.meta.url));
-const src = (p: string): string => (fsMod as any).readFileSync(`${ROOT}${p}`, 'utf8');
+const ROOT: string = nodeUrl.fileURLToPath(new URL('../../../', import.meta.url));
+const src = (p: string): string => fs.readFileSync(`${ROOT}${p}`, 'utf8');
 
 /** Opening tags `<tag ...>` of a source, scanning past `{...}` so an arrow `=>` in a handler does not end the tag. */
 function openingTags(code: string, tag: string): string[] {
   const out: string[] = [];
-  const re = new RegExp(`<${tag}(?=[\\s>])`, 'g');
+  const re = new RegExp(`<${tag}(?=[\\s>])`, 'gu');
   for (let m = re.exec(code); m; m = re.exec(code)) {
     let depth = 0;
     let i = m.index;
     for (; i < code.length; i++) {
       const c = code[i];
-      if (c === '{') depth++;
-      else if (c === '}') depth--;
-      else if (c === '>' && depth === 0 && code[i - 1] !== '=') break;
+      if (c === '{') {
+        depth++;
+      } else if (c === '}') {
+        depth--;
+      } else if (c === '>' && depth === 0 && code[i - 1] !== '=') {
+        break;
+      }
     }
     out.push(code.slice(m.index, i + 1));
   }
@@ -71,8 +89,18 @@ class FakeTarget {
     );
   }
   dispatch(type: string, ev: Record<string, unknown> = {}): void {
-    const e = { type, target: null, relatedTarget: null, ...ev, preventDefault() {} };
-    for (const f of [...(this.h.get(type) ?? [])]) f(e);
+    const e = {
+      type,
+      target: null,
+      relatedTarget: null,
+      ...ev,
+      preventDefault() {
+        /* no-op */
+      },
+    };
+    for (const f of [...(this.h.get(type) ?? [])]) {
+      f(e);
+    }
   }
   querySelector(): null {
     return null;
@@ -107,7 +135,7 @@ describe('the listener: keyboard and mouse activation', () => {
 
   it('a mouse click on a data-cue element plays its cue once', () => {
     doc.dispatch('click', { target: choice });
-    expect(played).toEqual(['ui_value_change']);
+    expect(played).toStrictEqual(['ui_value_change']);
   });
 
   it.each(['Enter', ' '])('key %j on a focused data-cue element plays the cue once', (key) => {
@@ -172,8 +200,8 @@ describe('every button has a data-cue attribute', () => {
   ])('%s', (file) => {
     const tags = openingTags(src(file), 'button');
     expect(tags.length).toBeGreaterThan(0);
-    const bare = tags.filter((t) => !t.includes('data-cue=')).map((t) => t.replaceAll(/\s+/g, ' ').slice(0, 90));
-    expect(bare).toEqual([]);
+    const bare = tags.filter((t) => !t.includes('data-cue=')).map((t) => t.replaceAll(/\s+/gu, ' ').slice(0, 90));
+    expect(bare).toStrictEqual([]);
   });
 });
 
@@ -195,8 +223,8 @@ describe('every button and input in the menus and the HUD has a data-cue attribu
     const code = src(file);
     const tags = [...openingTags(code, 'button'), ...openingTags(code, 'input')];
     expect(tags.length).toBeGreaterThan(0);
-    const bare = tags.filter((t) => !t.includes('data-cue=')).map((t) => t.replaceAll(/\s+/g, ' ').slice(0, 90));
-    expect(bare).toEqual([]);
+    const bare = tags.filter((t) => !t.includes('data-cue=')).map((t) => t.replaceAll(/\s+/gu, ' ').slice(0, 90));
+    expect(bare).toStrictEqual([]);
   });
 });
 
@@ -223,7 +251,9 @@ describe('Settings and Graphics: open, value and back cues', () => {
       t.includes('role="radio"'),
     );
     expect(tags.length).toBeGreaterThan(0);
-    for (const t of tags) expect(t).toContain('data-cue="ui_value_change"');
+    for (const t of tags) {
+      expect(t).toContain('data-cue="ui_value_change"');
+    }
   });
 });
 
@@ -233,6 +263,6 @@ describe('the OS window close button', () => {
       t.includes('onClick={closeOs}'),
     );
     expect(tag).toBeDefined();
-    expect(tag).toMatch(/data-cue="(ui_panel_close|ui_back)"/);
+    expect(tag).toMatch(/data-cue="(?:ui_panel_close|ui_back)"/u);
   });
 });

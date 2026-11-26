@@ -1,9 +1,12 @@
 // HUD in Edge tabs (ticket #39). Same node seam as Hud.test.ts: Hud is called as a plain function, its child components are
 // found in the tree and called by hand, and their effects are run. Covered here: the speed rail (steps, pause state, slow
 // motion) and the inset reporter (the bar's box is reported so cards and the camera keep clear of it).
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Game } from '@/worker/game/game';
 import type { Snapshot } from '@/worker/protocol';
+import type * as stateApi from '@/core/ui/state';
+import type * as storeApi from '@/app/store';
+import type * as hoverApi from '@/app/hover';
 
 const hooks = vi.hoisted(() => ({ effects: [] as (() => unknown)[] }));
 vi.mock('preact/hooks', () => ({
@@ -11,15 +14,27 @@ vi.mock('preact/hooks', () => ({
     hooks.effects.push(fn);
   },
   useRef: () => ({ current: null }),
-  useState: (v: unknown) => [v, () => {}],
+  useState: (v: unknown) => [
+    v,
+    () => {
+      /* no-op */
+    },
+  ],
 }));
 
-type VEl = { type: unknown; props: Record<string, any> };
+interface VEl {
+  type: unknown;
+  props: Record<string, any>;
+}
 type Node = VEl | string | number | boolean | null | undefined | Node[];
 
 const elements = (v: Node): VEl[] => {
-  if (Array.isArray(v)) return v.flatMap(elements);
-  if (v && typeof v === 'object' && 'props' in v) return [v];
+  if (Array.isArray(v)) {
+    return v.flatMap((child) => elements(child));
+  }
+  if (v && typeof v === 'object' && 'props' in v) {
+    return [v];
+  }
   return [];
 };
 function all(v: Node): VEl[] {
@@ -27,16 +42,22 @@ function all(v: Node): VEl[] {
 }
 /** Text content of a node, for reading what the player sees. */
 function text(v: Node): string {
-  if (Array.isArray(v)) return v.map(text).join('');
-  if (v && typeof v === 'object' && 'props' in v) return text(v.props['children'] as Node);
-  if (typeof v === 'string' || typeof v === 'number') return String(v);
+  if (Array.isArray(v)) {
+    return v.map((child) => text(child)).join('');
+  }
+  if (v && typeof v === 'object' && 'props' in v) {
+    return text(v.props['children'] as Node);
+  }
+  if (typeof v === 'string' || typeof v === 'number') {
+    return String(v);
+  }
   return '';
 }
 
 let Hud: () => unknown;
-let st: typeof import('@/core/ui/state');
-let store: typeof import('@/app/store');
-let hover: typeof import('@/app/hover');
+let st: typeof stateApi;
+let store: typeof storeApi;
+let hover: typeof hoverApi;
 let base: Snapshot;
 
 beforeEach(async () => {
@@ -53,17 +74,42 @@ beforeEach(async () => {
     querySelector: () => null,
     querySelectorAll: () => [],
     documentElement: {
-      setAttribute: () => {},
-      style: { setProperty: () => {} },
-      classList: { toggle: () => {}, add: () => {}, remove: () => {} },
+      setAttribute: () => {
+        /* no-op */
+      },
+      style: {
+        setProperty: () => {
+          /* no-op */
+        },
+      },
+      classList: {
+        toggle: () => {
+          /* no-op */
+        },
+        add: () => {
+          /* empty */
+        },
+        remove: () => {
+          /* empty */
+        },
+      },
     },
   });
   vi.stubGlobal('window', {
     innerWidth: 1920,
     innerHeight: 1080,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    matchMedia: () => ({ matches: false, addEventListener: () => {} }),
+    addEventListener: () => {
+      /* no-op */
+    },
+    removeEventListener: () => {
+      /* no-op */
+    },
+    matchMedia: () => ({
+      matches: false,
+      addEventListener: () => {
+        /* no-op */
+      },
+    }),
   });
   hooks.effects = [];
   ({ Hud } = (await import('@/core/ui/Hud')) as unknown as { Hud: () => unknown });
@@ -76,13 +122,16 @@ beforeEach(async () => {
 
 /** Finds a child component by its function name in the HUD tree, and runs it with its effects. */
 function mount(name: string): VEl {
-  const el = all(Hud() as unknown as Node).find(
+  const el = all(Hud() as Node).find(
     (e) => typeof e.type === 'function' && (e.type as { name?: string }).name === name,
   );
   expect(el, `${name} is in the HUD`).toBeDefined();
   hooks.effects = [];
-  const out = (el!.type as (p: Record<string, unknown>) => unknown)(el!.props) as Node;
-  for (const fn of hooks.effects) fn();
+  assert.exists(el);
+  const out = (el.type as (p: Record<string, unknown>) => unknown)(el.props) as Node;
+  for (const fn of hooks.effects) {
+    fn();
+  }
   return { type: 'out', props: { children: out } };
 }
 
@@ -90,7 +139,8 @@ const rail = (): VEl => mount('SpeedControl');
 const button = (root: VEl, pred: (p: Record<string, any>) => boolean): VEl => {
   const b = all(root.props['children'] as Node).find((e) => e.type === 'button' && pred(e.props));
   expect(b, 'the control is on the rail').toBeDefined();
-  return b!;
+  assert.exists(b);
+  return b;
 };
 
 describe('HUD speed rail keeps its controls', () => {
@@ -98,7 +148,7 @@ describe('HUD speed rail keeps its controls', () => {
     const labels = all(rail().props['children'] as Node)
       .filter((e) => e.type === 'button' && String(e.props['title'] ?? '').startsWith('Run at '))
       .map((e) => text(e.props['children'] as Node).trim());
-    expect(labels).toEqual(['0.25x', '0.5x', '1x', '2x', '3x']);
+    expect(labels).toStrictEqual(['0.25x', '0.5x', '1x', '2x', '3x']);
   });
 
   it('a speed step runs the game at that speed', () => {
@@ -141,26 +191,56 @@ describe('HUD reports its tabs to the inset reporter', () => {
   it('the bar bottom plus half a rem is the top inset, so the overview frames under it', () => {
     const bar = {
       getBoundingClientRect: () => ({ top: 0, bottom: 84, height: 84, left: 0, right: 1920, width: 1920 }),
-      style: { setProperty: () => {} },
+      style: {
+        setProperty: () => {
+          /* no-op */
+        },
+      },
       classList: { contains: () => false },
     };
     vi.stubGlobal('document', {
       activeElement: null,
-      getElementById: () => ({ style: { setProperty: () => {} } }),
+      getElementById: () => ({
+        style: {
+          setProperty: () => {
+            /* no-op */
+          },
+        },
+      }),
       querySelector: () => null,
       querySelectorAll: (sel: string) => (sel === '.hud-side' ? [bar] : []),
       documentElement: {
-        setAttribute: () => {},
-        style: { setProperty: () => {} },
-        classList: { toggle: () => {}, add: () => {}, remove: () => {} },
+        setAttribute: () => {
+          /* no-op */
+        },
+        style: {
+          setProperty: () => {
+            /* no-op */
+          },
+        },
+        classList: {
+          toggle: () => {
+            /* no-op */
+          },
+          add: () => {
+            /* empty */
+          },
+          remove: () => {
+            /* empty */
+          },
+        },
       },
     });
     vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
     vi.stubGlobal(
       'MutationObserver',
       class {
-        observe() {}
-        disconnect() {}
+        observe() {
+          /* no-op */
+        }
+        disconnect() {
+          /* no-op */
+        }
       },
     );
     hover.viewInset.value = { top: 0, right: 0, bottom: 0, left: 0 };

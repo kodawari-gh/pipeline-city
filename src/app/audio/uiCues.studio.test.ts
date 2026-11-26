@@ -43,7 +43,7 @@ describe('studio: the Gallery turntable is silent', () => {
 
 describe('studio: entering a studio', () => {
   it('the Build my PC or Gallery button plays its click, then the transition 70 ms later', () => {
-    expect(clickSteps('ui_click', 'ui_transition_in')).toEqual([
+    expect(clickSteps('ui_click', 'ui_transition_in')).toStrictEqual([
       { id: 'ui_click', delayS: 0 },
       { id: 'ui_transition_in', delayS: NEXT_DELAY_S },
     ]);

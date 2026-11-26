@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { Game } from './game';
 import { Operator, play } from '../../features/economy/sim/operator';
 import { migrate, parseSave, SAVE_VERSION } from './save';
@@ -9,7 +9,9 @@ ECONOMY.caseGating = false;
 const isFan = (spec: string) => spec.startsWith('fan');
 
 const run = (g: Game, n: number) => {
-  for (let i = 0; i < n; i++) g.advanceBaseTick();
+  for (let i = 0; i < n; i++) {
+    g.advanceBaseTick();
+  }
 };
 const json = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 
@@ -58,8 +60,8 @@ describe('save/load v2', () => {
     expect(save.version).toBe(SAVE_VERSION);
     expect(SAVE_VERSION).toBe(5);
     const text = JSON.stringify(save);
-    expect(JSON.parse(text)).toEqual(save);
-    expect(text).not.toMatch(/"(regs|ram|pipeline|program|registers)"/i);
+    expect(JSON.parse(text)).toStrictEqual(save);
+    expect(text).not.toMatch(/"(?:regs|ram|pipeline|program|registers)"/iu);
     expect(text.length).toBeLessThan(5000);
   });
 
@@ -69,10 +71,12 @@ describe('save/load v2', () => {
     g.install('inv2');
     g.connectCable('atx');
     const l = Game.fromSave(json(g.toSave()));
-    expect(l.toSave()).toEqual(g.toSave());
+    expect(l.toSave()).toStrictEqual(g.toSave());
     const s = l.snapshot();
-    expect(s.inventory.map((i) => i.spec)).toEqual(['ram0', 'display0', 'cooler0', 'fan92']);
-    expect(s.cables.find((c) => c.id === 'atx')!.connected).toBe(true);
+    expect(s.inventory.map((i) => i.spec)).toStrictEqual(['ram0', 'display0', 'cooler0', 'fan92']);
+    const atxCable = s.cables.find((c) => c.id === 'atx');
+    assert.exists(atxCable);
+    expect(atxCable.connected).toBe(true);
     expect(s.progress).toMatchObject({ cpuInstalled: true, psuInstalled: true, atxConnected: true, poweredOn: false });
     expect(s.tray).toHaveLength(1);
     expect(s.phase).toBe('off');
@@ -86,11 +90,11 @@ describe('save/load v2', () => {
     g.setCpuClock(0.5);
     const l = Game.fromSave(json(g.toSave()));
     const a = g.toSave();
-    expect(l.toSave()).toEqual({ ...a, plugged: l.toSave().plugged });
+    expect(l.toSave()).toStrictEqual({ ...a, plugged: l.toSave().plugged });
     expect(l.money).toBe(g.money);
     expect(l.baseTick).toBe(g.baseTick);
-    expect(l.board).toEqual(g.board);
-    expect(l.snapshot().cpuClock).toEqual(g.snapshot().cpuClock);
+    expect(l.board).toStrictEqual(g.board);
+    expect(l.snapshot().cpuClock).toStrictEqual(g.snapshot().cpuClock);
   });
 
   it('loads powered off whatever it was doing, with the tray, the inventory and the plugged key kept', () => {
@@ -104,7 +108,9 @@ describe('save/load v2', () => {
     g.purchase('ram1');
     for (let i = 0; i < 600; i++) {
       g.advanceBaseTick();
-      if (g.pluggedKey() && g.currentPhase() === 'running') break;
+      if (g.pluggedKey() && g.currentPhase() === 'running') {
+        break;
+      }
       op.step();
     }
     expect(g.currentPhase()).toBe('running');
@@ -118,10 +124,12 @@ describe('save/load v2', () => {
       money: was.money,
       queueLength: was.queueLength,
     });
-    expect(s.plugged!.id).toBe(was.plugged!.id);
-    expect(s.plugged!.done).toBe(false);
-    expect(s.inventory.map((i) => i.spec)).toEqual(was.inventory.map((i) => i.spec));
-    expect(s.tray.map((k) => k.id)).toEqual(was.tray.map((k) => k.id));
+    assert.exists(s.plugged);
+    assert.exists(was.plugged);
+    expect(s.plugged.id).toBe(was.plugged.id);
+    expect(s.plugged.done).toBe(false);
+    expect(s.inventory.map((i) => i.spec)).toStrictEqual(was.inventory.map((i) => i.spec));
+    expect(s.tray.map((k) => k.id)).toStrictEqual(was.tray.map((k) => k.id));
     // The job restarts from boot: power on and it completes, the key still plugged.
     l.powerButton();
     const seen = new Set<string>();
@@ -129,18 +137,24 @@ describe('save/load v2', () => {
       l.advanceBaseTick();
       seen.add(l.currentPhase());
     }
-    expect([...seen]).toEqual(expect.arrayContaining(['posting', 'loading', 'running']));
+    expect([...seen]).toStrictEqual(expect.arrayContaining(['posting', 'loading', 'running']));
     expect(l.ejectKey()).toMatchObject({ ok: true, done: true });
   });
 
   it('a finished key waiting to be removed stays finished across a save', () => {
     const g = new Game({ seed: 2, preassembled: true, economy: { baseDemandPerTick: 0 } });
     g.powerButton();
-    g.plugKey(g.trayKeyIds()[0]!);
+    const [firstTrayKeyId] = g.trayKeyIds();
+    assert.exists(firstTrayKeyId);
+    g.plugKey(firstTrayKeyId);
     g.powerButton();
-    while (g.currentPhase() !== 'halted') g.advanceBaseTick();
+    while (g.currentPhase() !== 'halted') {
+      g.advanceBaseTick();
+    }
     const l = Game.fromSave(json(g.toSave()), { baseDemandPerTick: 0 });
-    expect(l.snapshot().plugged).toMatchObject({ done: true, result: g.snapshot().plugged!.result });
+    const { plugged } = g.snapshot();
+    assert.exists(plugged);
+    expect(l.snapshot().plugged).toMatchObject({ done: true, result: plugged.result });
     expect(l.ejectKey()).toMatchObject({ ok: true, done: true });
     expect(l.money).toBeGreaterThan(0);
   });
@@ -154,7 +168,7 @@ describe('save/load v2', () => {
       a.powerButton();
       a.powerButton(); // the same power cycle the loaded game goes through
       b.powerButton();
-      expect(core(b)).toEqual(core(a));
+      expect(core(b)).toStrictEqual(core(a));
       const oa = new Operator(a, 1);
       const ob = new Operator(b, 1);
       for (let i = 0; i < 500; i++) {
@@ -163,7 +177,7 @@ describe('save/load v2', () => {
         b.advanceBaseTick();
         ob.step();
       }
-      expect(core(b)).toEqual(core(a));
+      expect(core(b)).toStrictEqual(core(a));
       expect(b.snapshot().display).toBe(a.snapshot().display);
     }
   });
@@ -178,7 +192,7 @@ describe('save/load v2', () => {
       play(g, 150, 1);
       return core(g);
     };
-    expect(runIt()).toEqual(runIt());
+    expect(runIt()).toStrictEqual(runIt());
   });
 
   it('a loaded game keeps earning', () => {
@@ -198,13 +212,15 @@ describe('save/load v2', () => {
     a.powerButton(); // boards are installed while powered off
     expect(a.purchase('board1').ok).toBe(true);
     const b = Game.fromSave(json(a.toSave()), { baseDemandPerTick: 0.2 });
-    expect(b.snapshot().inventory.map((i) => i.spec)).toEqual(['board1']);
+    expect(b.snapshot().inventory.map((i) => i.spec)).toStrictEqual(['board1']);
     expect(b.snapshot().boardTier).toBe(0);
-    expect(b.install(b.snapshot().inventory[0]!.id).ok).toBe(true);
+    const [firstInventory] = b.snapshot().inventory;
+    assert.exists(firstInventory);
+    expect(b.install(firstInventory.id).ok).toBe(true);
     const c = Game.fromSave(json(b.toSave()), { baseDemandPerTick: 0.2 });
     expect(c.snapshot().boardTier).toBe(1);
     expect(c.snapshot().devices.some((d) => d.spec === 'psu0' && d.slot === 'atx0')).toBe(true);
-    expect(c.snapshot().inventory.map((i) => i.spec)).toEqual(['board0']); // the Starter board it replaced is a spare
+    expect(c.snapshot().inventory.map((i) => i.spec)).toStrictEqual(['board0']); // the Starter board it replaced is a spare
   });
 });
 
@@ -216,26 +232,26 @@ describe('validation', () => {
   });
 
   it('rejects malformed input with clear messages', () => {
-    expect(() => Game.fromSave(null)).toThrow(/not an object/);
-    expect(() => Game.fromSave('x')).toThrow(/not an object/);
-    expect(() => Game.fromSave({})).toThrow(/version/);
-    expect(() => Game.fromSave({ ...good(), version: 99 })).toThrow(/newer/);
-    expect(() => Game.fromSave({ ...good(), version: 0 })).toThrow(/unknown version/);
-    expect(() => Game.fromSave({ ...good(), money: 'lots' })).toThrow(/money/);
-    expect(() => Game.fromSave({ ...good(), money: Number.NaN })).toThrow(/money/);
+    expect(() => Game.fromSave(null)).toThrow(/not an object/u);
+    expect(() => Game.fromSave('x')).toThrow(/not an object/u);
+    expect(() => Game.fromSave({})).toThrow(/version/u);
+    expect(() => Game.fromSave({ ...good(), version: 99 })).toThrow(/newer/u);
+    expect(() => Game.fromSave({ ...good(), version: 0 })).toThrow(/unknown version/u);
+    expect(() => Game.fromSave({ ...good(), money: 'lots' })).toThrow(/money/u);
+    expect(() => Game.fromSave({ ...good(), money: Number.NaN })).toThrow(/money/u);
     expect(() =>
       Game.fromSave({ ...good(), board: { tier: 0, nextId: 1, devices: [{ id: 'd', spec: 'nope', slot: 'cpu0' }] } }),
-    ).toThrow(/board/);
-    expect(() => Game.fromSave({ ...good(), inventory: [{ id: 'inv1', spec: 'nope' }] })).toThrow(/inventory/);
-    expect(() => Game.fromSave({ ...good(), inventory: [{ id: 'inv1', spec: 'board9' }] })).toThrow(/inventory/);
-    expect(() => Game.fromSave({ ...good(), cables: { atx: true } })).toThrow(/cables/);
-    expect(() => Game.fromSave({ ...good(), progress: {} })).toThrow(/progress/);
+    ).toThrow(/board/u);
+    expect(() => Game.fromSave({ ...good(), inventory: [{ id: 'inv1', spec: 'nope' }] })).toThrow(/inventory/u);
+    expect(() => Game.fromSave({ ...good(), inventory: [{ id: 'inv1', spec: 'board9' }] })).toThrow(/inventory/u);
+    expect(() => Game.fromSave({ ...good(), cables: { atx: true } })).toThrow(/cables/u);
+    expect(() => Game.fromSave({ ...good(), progress: {} })).toThrow(/progress/u);
     expect(() =>
       Game.fromSave({ ...good(), tray: [{ id: 1, template: 'bogus', seed: 1, scale: 1, arrival: 0, deadline: 1 }] }),
-    ).toThrow(/template/);
+    ).toThrow(/template/u);
     const noTray = good();
     delete noTray['tray'];
-    expect(() => Game.fromSave(noTray)).toThrow(/tray/);
+    expect(() => Game.fromSave(noTray)).toThrow(/tray/u);
   });
 });
 
@@ -243,7 +259,7 @@ describe('validation', () => {
 const V1 = {
   version: 1,
   seed: 11,
-  prngState: 123456789,
+  prngState: 123_456_789,
   money: 321,
   baseTick: 500,
   nextReqId: 9,
@@ -299,18 +315,22 @@ describe('migration v1 -> v2', () => {
       s.devices
         .filter((d) => !isFan(d.spec))
         .map((d) => d.spec)
-        .sort(),
-    ).toEqual(['cooler1', 'cpu1', 'display0', 'psu1', 'ram0']);
+        .toSorted(),
+    ).toStrictEqual(['cooler1', 'cpu1', 'display0', 'psu1', 'ram0']);
     // the v5 step gives every case mount a basic fan and the tower heatsink the one fan it had built in
     const fans = s.devices.filter((d) => isFan(d.spec)).map((d) => [d.slot, d.spec]);
-    expect(fans).toEqual([
-      ...caseMounts(l.board.caseTier).map((m) => [m, basicFan(CASE_TIERS[l.board.caseTier]!.fanSize).id]),
-      [`${s.devices.find((d) => d.spec === 'cooler1')!.slot}.fan0`, 'fan120'],
+    const caseTier = CASE_TIERS[l.board.caseTier];
+    assert.exists(caseTier);
+    const cooler = s.devices.find((d) => d.spec === 'cooler1');
+    assert.exists(cooler);
+    expect(fans).toStrictEqual([
+      ...caseMounts(l.board.caseTier).map((m) => [m, basicFan(caseTier.fanSize).id]),
+      [`${cooler.slot}.fan0`, 'fan120'],
     ]);
     expect(s.cables.filter((c) => c.id !== 'lan').every((c) => c.connected)).toBe(true);
-    expect(s.tray.map((k) => k.id)).toEqual([7, 8, 9]); // the in-flight request first, then the queue
+    expect(s.tray.map((k) => k.id)).toStrictEqual([7, 8, 9]); // the in-flight request first, then the queue
     expect(s.plugged).toBeNull();
-    expect(s.inventory.map((i) => i.spec)).toEqual(['ram1']); // the purchase that was waiting for the next request
+    expect(s.inventory.map((i) => i.spec)).toStrictEqual(['ram1']); // the purchase that was waiting for the next request
     expect(s.progress.poweredOn).toBe(true);
     // An existing player skips the tutorial: every milestone that existed in v1 is reached (the v3 storage/OS ones are not).
     const {
@@ -324,18 +344,19 @@ describe('migration v1 -> v2', () => {
       firstNetJob,
       ...legacy
     } = s.progress;
-    expect([storageInstalled, osInstalled, firstOsJob]).toEqual([false, false, false]);
+    expect([storageInstalled, osInstalled, firstOsJob]).toStrictEqual([false, false, false]);
     expect(Object.values(legacy).every((v) => v)).toBe(true);
     expect(s.lastCompleted).toMatchObject({ id: 6, payout: 61 });
-    expect(l.machine.prng.getState()).toBe(123456789);
-    expect(s.cpuClock!.value).toBe(2);
+    expect(l.machine.prng.getState()).toBe(123_456_789);
+    assert.exists(s.cpuClock);
+    expect(s.cpuClock.value).toBe(2);
   });
 
   it('produces a valid current save that round-trips, and the migrated game plays', () => {
     const m = migrate(json(V1)) as { version: number };
     expect(m.version).toBe(5);
     const l = Game.fromSave(json(V1));
-    expect(Game.fromSave(json(l.toSave())).toSave()).toEqual(l.toSave());
+    expect(Game.fromSave(json(l.toSave())).toSave()).toStrictEqual(l.toSave());
     const op = new Operator(l, 1);
     for (let t = 0; t < 200; t++) {
       l.advanceBaseTick();
@@ -346,8 +367,8 @@ describe('migration v1 -> v2', () => {
   });
 
   it('rejects a damaged v1 save', () => {
-    expect(() => Game.fromSave({ ...json(V1), queue: undefined })).toThrow(/version 1/);
-    expect(() => Game.fromSave({ ...json(V1), pending: ['nope'] })).toThrow(/inventory/);
+    expect(() => Game.fromSave({ ...json(V1), queue: undefined })).toThrow(/version 1/u);
+    expect(() => Game.fromSave({ ...json(V1), pending: ['nope'] })).toThrow(/inventory/u);
   });
 });
 
@@ -398,8 +419,8 @@ describe('migration v2 -> v3', () => {
       s.devices
         .filter((d) => !isFan(d.spec))
         .map((d) => d.spec)
-        .sort(),
-    ).toEqual(g2specs(v2));
+        .toSorted(),
+    ).toStrictEqual(g2specs(v2));
     expect(l.toSave().version).toBe(5);
   });
 
@@ -417,12 +438,12 @@ describe('migration v2 -> v3', () => {
   });
 
   it('rejects a damaged v2 save', () => {
-    expect(() => Game.fromSave({ ...json(v2Save()), progress: undefined })).toThrow(/version 2/);
+    expect(() => Game.fromSave({ ...json(v2Save()), progress: undefined })).toThrow(/version 2/u);
   });
 });
 
 function g2specs(v2: Record<string, unknown>): string[] {
-  return (v2['board'] as { devices: { spec: string }[] }).devices.map((d) => d.spec).sort();
+  return (v2['board'] as { devices: { spec: string }[] }).devices.map((d) => d.spec).toSorted();
 }
 
 /** A version 3 save as the previous build wrote it: the old tier numbering (0 = 2 DIMM board, 1 = ATX+ board). */
@@ -442,7 +463,7 @@ describe('migration v3 -> v4', () => {
     };
     expect(a.version).toBe(5);
     expect(a.board.tier).toBe(1);
-    expect(a.inventory.map((i) => i.spec)).toEqual(['board2']);
+    expect(a.inventory.map((i) => i.spec)).toStrictEqual(['board2']);
     const b = migrate(json(v3Save(1))) as { board: { tier: number } };
     expect(b.board.tier).toBe(2);
   });
@@ -453,7 +474,7 @@ describe('migration v3 -> v4', () => {
     expect(s).toMatchObject({ boardTier: 1, powered: false });
     expect(s.board.name).toBe('Basic');
     expect(s.board.burnt).toBe(false);
-    expect(s.inventory.map((i) => i.spec)).toEqual(['board2']);
+    expect(s.inventory.map((i) => i.spec)).toStrictEqual(['board2']);
     expect(l.toSave().version).toBe(5);
   });
 });
@@ -495,16 +516,23 @@ describe('fan cables in saves', () => {
     const g = new Game({ seed: 3 });
     const save = json(g.toSave());
     expect(save.cables['fan:front0']).toBe(false);
-    expect(
-      Game.fromSave(save)
-        .snapshot()
-        .cables.find((c) => c.id === 'fan:front0')!.connected,
-    ).toBe(false);
+    const fanFront0Cable = Game.fromSave(save)
+      .snapshot()
+      .cables.find((c) => c.id === 'fan:front0');
+    assert.exists(fanFront0Cable);
+    expect(fanFront0Cable.connected).toBe(false);
     const old = json(g.toSave()) as { cables: Record<string, boolean> };
-    for (const k of Object.keys(old.cables))
-      if (k === 'sysfan' || k === 'cpufan' || k.startsWith('fan:')) delete old.cables[k];
+    for (const k of Object.keys(old.cables)) {
+      if (k === 'sysfan' || k === 'cpufan' || k.startsWith('fan:')) {
+        delete old.cables[k];
+      }
+    }
     const l = Game.fromSave(parseSave(old));
-    expect(l.snapshot().cables.find((c) => c.id === 'sysfan')!.connected).toBe(true);
-    expect(l.snapshot().cables.find((c) => c.id === 'fan:front1')!.connected).toBe(true);
+    const sysfanCable = l.snapshot().cables.find((c) => c.id === 'sysfan');
+    assert.exists(sysfanCable);
+    expect(sysfanCable.connected).toBe(true);
+    const fanFront1Cable = l.snapshot().cables.find((c) => c.id === 'fan:front1');
+    assert.exists(fanFront1Cable);
+    expect(fanFront1Cable.connected).toBe(true);
   });
 });

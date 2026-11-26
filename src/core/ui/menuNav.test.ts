@@ -56,17 +56,17 @@ describe('the mouse stops moving focus for one second after a key press', () => 
   });
 
   it('the mouse does not move focus during the second after a key press', () => {
-    expect(mouseMayMoveFocus(5_000, 5_000)).toBe(false);
-    expect(mouseMayMoveFocus(5_000, 5_500)).toBe(false);
-    expect(mouseMayMoveFocus(5_000, 5_999)).toBe(false);
+    expect(mouseMayMoveFocus(5000, 5000)).toBe(false);
+    expect(mouseMayMoveFocus(5000, 5500)).toBe(false);
+    expect(mouseMayMoveFocus(5000, 5999)).toBe(false);
   });
 
   it('the mouse moves focus again one second after the key press', () => {
-    expect(mouseMayMoveFocus(5_000, 6_000)).toBe(true);
-    expect(mouseMayMoveFocus(5_000, 9_000)).toBe(true);
+    expect(mouseMayMoveFocus(5000, 6000)).toBe(true);
+    expect(mouseMayMoveFocus(5000, 9000)).toBe(true);
   });
 
   it('a new key press starts the second again', () => {
-    expect(mouseMayMoveFocus(7_000, 7_400)).toBe(false);
+    expect(mouseMayMoveFocus(7000, 7400)).toBe(false);
   });
 });
