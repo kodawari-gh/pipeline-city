@@ -140,13 +140,19 @@ describe('contract model', () => {
 
   it('economy helpers: hot pays more, mirrored pays a bonus, a breach costs less than a loss', () => {
     const kib = kibOf(16);
-    expect(holdPay(ECONOMY, kib, true, false)).toBeGreaterThan(holdPay(ECONOMY, kib, false, false));
-    expect(holdPay(ECONOMY, kib, false, true)).toBeCloseTo(
-      holdPay(ECONOMY, kib, false, false) * (1 + ECONOMY.contracts.mirrorBonus),
+    expect(holdPay({ cfg: ECONOMY, kib, hot: true, mirrored: false })).toBeGreaterThan(
+      holdPay({ cfg: ECONOMY, kib, hot: false, mirrored: false }),
+    );
+    expect(holdPay({ cfg: ECONOMY, kib, hot: false, mirrored: true })).toBeCloseTo(
+      holdPay({ cfg: ECONOMY, kib, hot: false, mirrored: false }) * (1 + ECONOMY.contracts.mirrorBonus),
     );
     expect(readFee(ECONOMY, true)).toBeGreaterThan(readFee(ECONOMY, false));
-    expect(lossPenalty(ECONOMY, kib, 1, true)).toBeLessThan(lossPenalty(ECONOMY, kib, 1));
-    expect(holdPay(ECONOMY, kib, false, false, 2)).toBeCloseTo(2 * holdPay(ECONOMY, kib, false, false));
+    expect(lossPenalty({ cfg: ECONOMY, kib, levelPay: 1, breach: true })).toBeLessThan(
+      lossPenalty({ cfg: ECONOMY, kib, levelPay: 1 }),
+    );
+    expect(holdPay({ cfg: ECONOMY, kib, hot: false, mirrored: false, levelPay: 2 })).toBeCloseTo(
+      2 * holdPay({ cfg: ECONOMY, kib, hot: false, mirrored: false }),
+    );
   });
 });
 
@@ -231,7 +237,7 @@ describe('accepting', () => {
     expect([id, must(g.os).deviceId]).toContain(c.deviceId);
     expect(c.endsAt - c.startedAt).toBe(600);
     expect(c.mirrored).toBe(false);
-    expect(c.rate).toBeCloseTo(holdPay(ECONOMY, kibOf(16), false, false, 1));
+    expect(c.rate).toBeCloseTo(holdPay({ cfg: ECONOMY, kib: kibOf(16), hot: false, mirrored: false, levelPay: 1 }));
   });
 
   it('is refused when the drive has no room', () => {
@@ -418,8 +424,8 @@ describe('mirrored storage', () => {
     expect(g.acceptContract(o.id, id).ok).toBe(true);
     const c = must(g.contracts[0]);
     expect(c.mirrored).toBe(true);
-    expect(c.rate).toBeCloseTo(holdPay(ECONOMY, kibOf(16), false, true, 1));
-    expect(c.rate).toBeGreaterThan(holdPay(ECONOMY, kibOf(16), false, false, 1));
+    expect(c.rate).toBeCloseTo(holdPay({ cfg: ECONOMY, kib: kibOf(16), hot: false, mirrored: true, levelPay: 1 }));
+    expect(c.rate).toBeGreaterThan(holdPay({ cfg: ECONOMY, kib: kibOf(16), hot: false, mirrored: false, levelPay: 1 }));
     const disk = must(g.disks.get(id));
     disk.failGroup(firstGroup(disk, c.fileId));
     ticks(g, 5);
@@ -485,7 +491,9 @@ describe('the fs need and the caps', () => {
     expect(dexEntry('cloud.archive')).toMatchObject({ cls: 'cloud', contract: true });
     expect(must(dexEntry('cloud.hot')).needs).toContainEqual({ kind: 'storage', minTier: 1 });
     for (let lvl = 1; lvl <= 18; lvl++) {
-      expect(jobMix(lvl, 1, {}, 0).some(([c]) => c.id === 'cloud')).toBe(false);
+      expect(jobMix({ level: lvl, reputation: 1, levelTicks: {}, tick: 0 }).some(([c]) => c.id === 'cloud')).toBe(
+        false,
+      );
     }
   });
 });

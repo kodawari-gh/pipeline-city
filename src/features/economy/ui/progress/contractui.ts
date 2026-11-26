@@ -77,21 +77,22 @@ export interface ActiveView {
   mirrored: boolean;
 }
 
+const ACTIVE_HEALTH: Record<ContractSnap['health'], ActiveView['health']> = {
+  ok: { tone: 'compute', label: 'Serving', hint: 'Reads are served: the OS is up and the drive is mounted.' },
+  unservable: {
+    tone: 'queue',
+    label: 'Cannot serve',
+    hint: 'The OS is down, the drive is not mounted or its queue is full: reads are missed and cost a fee.',
+  },
+  lost: {
+    tone: 'lost',
+    label: 'Data lost',
+    hint: 'The data is gone. The contract ends with a penalty at the next tick.',
+  },
+};
+
 export function activeView(c: ContractSnap): ActiveView {
-  const health: ActiveView['health'] =
-    c.health === 'ok'
-      ? { tone: 'compute', label: 'Serving', hint: 'Reads are served: the OS is up and the drive is mounted.' }
-      : c.health === 'unservable'
-        ? {
-            tone: 'queue',
-            label: 'Cannot serve',
-            hint: 'The OS is down, the drive is not mounted or its queue is full: reads are missed and cost a fee.',
-          }
-        : {
-            tone: 'lost',
-            label: 'Data lost',
-            hint: 'The data is gone. The contract ends with a penalty at the next tick.',
-          };
+  const health = ACTIVE_HEALTH[c.health];
   return {
     title: c.name,
     client: c.client,
@@ -128,7 +129,8 @@ export interface FinishedView {
 
 export function finishedView(e: JobLogEntry): FinishedView {
   const c = e.contract!;
-  const label = e.outcome === 'completed' ? 'Held' : e.outcome === 'lost' ? 'Data lost' : 'Breached';
+  const labels: Record<string, string> = { completed: 'Held', lost: 'Data lost', breached: 'Breached' };
+  const label = labels[e.outcome] ?? 'Breached';
   const tone: Tone = e.outcome === 'completed' ? 'compute' : 'lost';
   const net = `${e.payout < 0 ? '-' : ''}${fmtMoney(Math.abs(e.payout))}`;
   return {

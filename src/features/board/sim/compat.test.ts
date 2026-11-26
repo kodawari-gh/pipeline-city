@@ -69,7 +69,7 @@ describe('compatibility checks', () => {
       cpu = must(findDevices(b, 'cpu')[0]);
     const th = new ThermalModel(new Prng(1));
     const load = cpuFullLoad(specOf(deviceSpec(cpu), 'cpu'));
-    th.step(b, { cpu: load }, true, { ...FANS_ON, caseFans: 0 });
+    th.step(b, { loads: { cpu: load }, powered: true, fans: { ...FANS_ON, caseFans: 0 } });
     expect(cpuVrmRatio(b, cpu.id)).toBeCloseTo(th.vrm.loadRatio, 2);
   });
 
@@ -94,7 +94,7 @@ describe('compatibility checks', () => {
         load = cpuFullLoad(specOf(deviceSpec(cpu), 'cpu'));
       let unstable = false;
       for (let i = 0; i < 5; i++) {
-        th.step(b, { cpu: load }, true, { ...FANS_ON, caseFans: 0 });
+        th.step(b, { loads: { cpu: load }, powered: true, fans: { ...FANS_ON, caseFans: 0 } });
         unstable ||= th.vrm.unstable;
       } // the first ticks: the CPU has not heated up and throttled yet
       return unstable;
@@ -127,7 +127,7 @@ describe('compatibility checks', () => {
 const loose = (tier: number, parts: string[]) => {
   const b = createBoard(tier);
   for (const s of parts) {
-    expect(install(b, s, undefined, { power: false }).ok, `for ${s}`).toBe(true);
+    expect(install(b, s, { power: false }).ok, `for ${s}`).toBe(true);
   }
   return b;
 };

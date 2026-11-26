@@ -32,7 +32,7 @@ function stateOf(
 const all = (tier: number) => caseMounts(tier);
 const without = (tier: number, ...ids: string[]) => all(tier).filter((m) => !ids.includes(m));
 const air = (tier: number, turning: string[] | undefined, cardW = 0) =>
-  zoneAir(tier, turning, turning?.length ?? 0, cardW, CASE_HEAT_C_PER_W);
+  zoneAir({ tier, turning, caseFans: turning?.length ?? 0, cardW, heatPerW: CASE_HEAT_C_PER_W });
 
 const tops = (t: number) => all(t).filter((m) => m.startsWith('top'));
 
@@ -52,7 +52,7 @@ describe('airflow zones', () => {
   });
 
   it("with no fan layout known every area gets the fan count and the cards' heat, as before zones", () => {
-    const a = zoneAir(2, undefined, 3, 180, CASE_HEAT_C_PER_W);
+    const a = zoneAir({ tier: 2, caseFans: 3, cardW: 180, heatPerW: CASE_HEAT_C_PER_W });
     for (const z of AIR_ZONES) {
       expect(a[z]).toMatchObject({ fans: 3, flow: 1, riseC: 9 });
     }
@@ -70,7 +70,14 @@ describe('airflow zones', () => {
       }
     }
     // high-airflow fans cool more, but the area is no better ventilated than designed
-    const strong = zoneAir(2, all(2), 0, 0, CASE_HEAT_C_PER_W, Object.fromEntries(all(2).map((m) => [m, 1.5])));
+    const strong = zoneAir({
+      tier: 2,
+      turning: all(2),
+      caseFans: 0,
+      cardW: 0,
+      heatPerW: CASE_HEAT_C_PER_W,
+      flowOf: Object.fromEntries(all(2).map((m) => [m, 1.5])),
+    });
     for (const z of AIR_ZONES) {
       expect(strong[z].flow).toBe(1);
       expect(strong[z].fans).toBeGreaterThan(all(2).length * 1.4 * QUALITY[z]);
@@ -157,7 +164,7 @@ const settle = (fans: thermalTypes.FanPower) => {
   const b = rig(),
     th = new ThermalModel(new Prng(1));
   for (let k = 0; k < 600; k++) {
-    th.step(b, { cpu: 1 }, true, fans);
+    th.step(b, { loads: { cpu: 1 }, powered: true, fans });
   }
   return { cpu: stateOf(th, b, 'cpu').tempC, vrm: th.vrm.tempC, th };
 };
@@ -206,7 +213,7 @@ const cardTemp = (drives: number, from: number, mounts = caseMounts(3)) => {
   const th = new ThermalModel(new Prng(1)),
     { id } = must(findDevices(b, 'gpu')[0]);
   for (let k = 0; k < 800; k++) {
-    th.step(b, { cpu: 1, gpu: 1 }, true, { ...FANS_ON, caseFans: mounts.length, mounts });
+    th.step(b, { loads: { cpu: 1, gpu: 1 }, powered: true, fans: { ...FANS_ON, caseFans: mounts.length, mounts } });
   }
   return must(th.state(id)).tempC;
 };
@@ -242,14 +249,28 @@ describe('the drive cages', () => {
     for (let tier = 1; tier < CASE_TIERS.length; tier++) {
       const free = air(tier, all(tier)),
         shade = cageShade(tier, hdds(must(BAY_SHADE[tier]).hdd.length));
-      const full = zoneAir(tier, all(tier), all(tier).length, 0, CASE_HEAT_C_PER_W, undefined, shade);
+      const full = zoneAir({
+        tier,
+        turning: all(tier),
+        caseFans: all(tier).length,
+        cardW: 0,
+        heatPerW: CASE_HEAT_C_PER_W,
+        shade,
+      });
       expect(full.cards.flow).toBeLessThan(0.9);
       expect(full.north.flow).toBeLessThan(free.north.flow);
       expect(full.north.flow).toBeGreaterThan(full.cards.flow);
       expect(full.bay.flow).toBeCloseTo(free.bay.flow, 6);
       // an empty cage is the case as designed
       expect(
-        zoneAir(tier, all(tier), all(tier).length, 0, CASE_HEAT_C_PER_W, undefined, cageShade(tier, [])),
+        zoneAir({
+          tier,
+          turning: all(tier),
+          caseFans: all(tier).length,
+          cardW: 0,
+          heatPerW: CASE_HEAT_C_PER_W,
+          shade: cageShade(tier, []),
+        }),
       ).toStrictEqual(free);
     }
   });
@@ -300,7 +321,7 @@ const settleCard = (fans: thermalTypes.FanPower, k0 = 800) => {
     th = new ThermalModel(new Prng(1)),
     { id } = must(findDevices(b, 'gpu')[0]);
   for (let k = 0; k < k0; k++) {
-    th.step(b, { cpu: 1, gpu: 1 }, true, fans);
+    th.step(b, { loads: { cpu: 1, gpu: 1 }, powered: true, fans });
   }
   return must(th.state(id));
 };
@@ -334,9 +355,9 @@ describe("a card's own fans", () => {
     const b = gpuRig(),
       th = new ThermalModel(new Prng(1));
     for (let k = 0; k < 300; k++) {
-      th.step(b, { gpu: 1 }, true, { ...FANS_ON, caseFans: mounts.length, mounts });
+      th.step(b, { loads: { gpu: 1 }, powered: true, fans: { ...FANS_ON, caseFans: mounts.length, mounts } });
     }
-    th.step(b, { gpu: 1 }, false);
+    th.step(b, { loads: { gpu: 1 }, powered: false });
     expect(stateOf(th, b, 'gpu').fan).toBe(0);
   });
 });

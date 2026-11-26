@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createBoard, install } from './board';
+import { createBoard } from './board';
+import { install } from './boardEdit';
 import type * as boardTypes from './board';
 import { noCables } from './cables';
 import type * as cablesTypes from './cables';

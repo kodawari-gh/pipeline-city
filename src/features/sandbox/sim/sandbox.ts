@@ -28,9 +28,9 @@ export function spawnKey(this: Game, template: string, scale = 1): Result<{ keyI
   const keyId = this.nextKeyId;
   try {
     if (cls) {
-      this.enqueue(cls.template, cls.scale, cls.id);
+      this.enqueue({ template: cls.template, scale: cls.scale, cls: cls.id });
     } else {
-      this.enqueue(template, scale);
+      this.enqueue({ template, scale });
     }
   } catch (e) {
     if (e instanceof RangeError) {

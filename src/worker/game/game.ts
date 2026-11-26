@@ -48,10 +48,17 @@ import { newContractRng } from '../../features/economy/sim/contracts';
 import * as keys from '../../features/economy/sim/keys';
 import * as levelTable from '../../features/economy/sim/levels';
 import * as machine from '../../features/board/sim/game/machine';
+import * as machineBoot from '../../features/board/sim/game/machineBoot';
+import * as machineTick from '../../features/board/sim/game/machineTick';
 import * as memory from '../../features/memory/sim/memory';
 import * as network from '../../features/network/sim/network';
 import * as os from '../../features/os/sim/os';
 import * as parts from '../../features/board/sim/game/parts';
+import * as partsCables from '../../features/board/sim/game/partsCables';
+import * as partsInstall from '../../features/board/sim/game/partsInstall';
+import * as partsInventory from '../../features/board/sim/game/partsInventory';
+import * as partsPlace from '../../features/board/sim/game/partsPlace';
+import * as partsSwap from '../../features/board/sim/game/partsSwap';
 import * as persist from './persist';
 import { TRACE_CYCLES } from '../../features/cpu/sim/pipesnap';
 import * as sandbox from '../../features/sandbox/sim/sandbox';
@@ -66,9 +73,16 @@ export type { GameOptions };
 
 /** The feature files' exports, which `Game` has as methods. */
 type Features = typeof parts &
+  typeof partsInstall &
+  typeof partsSwap &
+  typeof partsCables &
+  typeof partsInventory &
+  typeof partsPlace &
   typeof shop &
   typeof sandbox &
   typeof machine &
+  typeof machineBoot &
+  typeof machineTick &
   typeof bill &
   typeof keys &
   typeof clients &
@@ -296,18 +310,18 @@ export class Game {
     this.thermal = new boardSim.ThermalModel(this.machine.prng);
     // The case comes with two basic fans on its front mounts (their cables still out).
     for (const m of ['front0', 'front1']) {
-      this.mustInstall('fan92', undefined, m);
+      this.mustInstall('fan92', { slot: m });
     }
     // The crate: CPU, PSU, RAM, monitor, stock heatsink and its fan (last, so the older item ids stay inv1..inv4). Nothing else is mounted at the start.
     for (const spec of ['cpu0', 'psu0', 'ram0', 'display0', 'cooler0', 'fan92']) {
       this.inventory.push({ id: `inv${this.nextInvId++}`, spec });
     }
     for (const q of this.cfg.startQueue) {
-      this.enqueue(q.template, q.scale);
+      this.enqueue({ template: q.template, scale: q.scale });
     }
     if (opts.preassembled) {
       for (const it of [...this.inventory]) {
-        this.mustInstall(it.spec, it.id);
+        this.mustInstall(it.spec, { invId: it.id });
       }
       this.cables = boardSim.allCables(this.board);
       this.progress = saveFormat.newProgress(true);
@@ -363,9 +377,16 @@ export class Game {
 Object.assign(
   Game.prototype,
   parts,
+  partsInstall,
+  partsSwap,
+  partsCables,
+  partsInventory,
+  partsPlace,
   shop,
   sandbox,
   machine,
+  machineBoot,
+  machineTick,
   bill,
   keys,
   clients,

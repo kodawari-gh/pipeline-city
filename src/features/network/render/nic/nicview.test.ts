@@ -64,7 +64,7 @@ function view(
   v.update(game({ tick: 2, rx, tx, plugged }));
   return {
     v,
-    launches: () => onLaunch.mock.calls.map(([slot, dir, at, total]) => ({ slot, dir, at, total })),
+    launches: () => onLaunch.mock.calls.map(([opts]) => opts),
     packets: () => firstCardPackets(v),
   };
 }

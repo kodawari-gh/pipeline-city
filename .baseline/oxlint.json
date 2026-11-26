@@ -2235,7 +2235,7 @@
   "eslint(complexity)": 2,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
-  "eslint(max-params)": 8,
+  "eslint(max-params)": 7,
   "eslint(no-duplicate-imports)": 1,
   "eslint(no-multi-assign)": 1,
   "eslint(no-nested-ternary)": 10,
@@ -2800,7 +2800,6 @@
   "typescript(no-non-null-assertion)": 3
  },
  "src/features/board/sim/airflow.ts": {
-  "eslint(max-params)": 1,
   "eslint(no-duplicate-imports)": 1,
   "typescript(no-non-null-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 2,
@@ -2816,110 +2815,68 @@
   "unicorn(no-array-reduce)": 1
  },
  "src/features/board/sim/board.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(max-params)": 1,
-  "eslint(no-negated-condition)": 1,
-  "eslint(no-nested-ternary)": 2,
-  "eslint(no-use-before-define)": 5,
-  "typescript(no-non-null-assertion)": 7,
-  "typescript(no-unnecessary-type-assertion)": 5,
-  "typescript(no-unsafe-type-assertion)": 5,
-  "typescript(strict-boolean-expressions)": 7,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-array-callback-reference)": 1,
-  "unicorn(no-array-sort)": 3,
-  "unicorn(prefer-structured-clone)": 1
+  "eslint(no-use-before-define)": 4,
+  "typescript(no-non-null-assertion)": 2,
+  "typescript(no-unnecessary-type-assertion)": 2,
+  "typescript(no-unsafe-type-assertion)": 4,
+  "typescript(strict-boolean-expressions)": 2,
+  "unicorn(no-array-sort)": 1
  },
  "src/features/board/sim/buildalerts.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(max-params)": 1,
   "typescript(no-non-null-assertion)": 2,
   "typescript(strict-boolean-expressions)": 5,
   "unicorn(no-array-callback-reference)": 1,
-  "unicorn(no-array-sort)": 2
+  "unicorn(no-array-sort)": 1
  },
  "src/features/board/sim/buildnet.ts": {
-  "eslint(no-nested-ternary)": 2,
   "typescript(strict-boolean-expressions)": 3
  },
  "src/features/board/sim/buildpreset.ts": {
-  "eslint(max-lines-per-function)": 1,
   "eslint(no-unmodified-loop-condition)": 1,
   "typescript(no-non-null-assertion)": 3,
-  "typescript(no-unsafe-type-assertion)": 5,
-  "typescript(strict-boolean-expressions)": 8,
-  "unicorn(consistent-function-scoping)": 1,
+  "typescript(no-unsafe-type-assertion)": 3,
+  "typescript(strict-boolean-expressions)": 7,
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-reverse)": 2,
-  "unicorn(no-array-sort)": 3,
+  "unicorn(no-array-sort)": 2,
   "unicorn(prefer-code-point)": 1
  },
  "src/features/board/sim/cables.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines)": 1,
-  "eslint(no-use-before-define)": 1,
-  "typescript(no-unsafe-type-assertion)": 5,
+  "typescript(no-unsafe-type-assertion)": 4,
   "typescript(strict-boolean-expressions)": 18,
-  "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-sort)": 1
  },
  "src/features/board/sim/compat.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines-per-function)": 1,
   "eslint(no-duplicate-imports)": 1,
-  "eslint(no-negated-condition)": 3,
+  "eslint(no-negated-condition)": 2,
   "typescript(no-non-null-assertion)": 9,
   "typescript(no-unnecessary-type-assertion)": 4,
-  "typescript(no-unsafe-type-assertion)": 12,
-  "typescript(strict-boolean-expressions)": 6,
-  "unicorn(max-nested-calls)": 1,
+  "typescript(no-unsafe-type-assertion)": 9,
+  "typescript(strict-boolean-expressions)": 5,
   "unicorn(no-array-sort)": 1
  },
  "src/features/board/sim/game/hardware.ts": {
-  "eslint(no-nested-ternary)": 1,
-  "typescript(no-non-null-assertion)": 3,
-  "typescript(no-unsafe-type-assertion)": 13,
+  "typescript(no-non-null-assertion)": 1,
+  "typescript(no-unsafe-type-assertion)": 11,
   "typescript(strict-boolean-expressions)": 16,
   "unicorn(no-array-for-each)": 2,
   "unicorn(prefer-code-point)": 1
  },
  "src/features/board/sim/game/machine.ts": {
-  "eslint(complexity)": 3,
-  "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 2,
-  "eslint(no-nested-ternary)": 4,
-  "typescript(no-non-null-assertion)": 4,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(strict-boolean-expressions)": 19,
-  "typescript(switch-exhaustiveness-check)": 1,
-  "unicorn(no-array-callback-reference)": 1,
-  "unicorn(no-array-reduce)": 3
+  "typescript(no-non-null-assertion)": 3,
+  "typescript(no-unsafe-type-assertion)": 1,
+  "typescript(strict-boolean-expressions)": 13,
+  "unicorn(no-array-callback-reference)": 1
  },
  "src/features/board/sim/game/parts.ts": {
-  "eslint(complexity)": 2,
-  "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 2,
-  "eslint(max-params)": 4,
-  "eslint(no-negated-condition)": 4,
-  "eslint(no-nested-ternary)": 1,
-  "oxc(no-map-spread)": 1,
-  "typescript(no-non-null-assertion)": 20,
-  "typescript(no-unsafe-type-assertion)": 7,
-  "typescript(strict-boolean-expressions)": 28,
-  "unicorn(max-nested-calls)": 1,
-  "unicorn(no-array-reverse)": 1,
-  "unicorn(no-array-sort)": 2,
-  "unicorn(prefer-array-find)": 1
+  "typescript(no-unsafe-type-assertion)": 2,
+  "typescript(strict-boolean-expressions)": 5
  },
  "src/features/board/sim/index.ts": {
   "oxc(no-barrel-file)": 1
  },
  "src/features/board/sim/pch/pch.ts": {
   "eslint(class-methods-use-this)": 1,
-  "eslint(complexity)": 1,
   "eslint(default-case)": 1,
   "eslint(no-empty-function)": 1,
   "typescript(no-non-null-assertion)": 1,
@@ -2927,8 +2884,6 @@
   "unicorn(prefer-code-point)": 1
  },
  "src/features/board/sim/removal.ts": {
-  "eslint(max-params)": 1,
-  "eslint(no-nested-ternary)": 3,
   "eslint(no-use-before-define)": 1,
   "typescript(no-unsafe-type-assertion)": 2,
   "typescript(prefer-string-starts-ends-with)": 1,
@@ -2936,20 +2891,6 @@
   "unicorn(no-array-callback-reference)": 4,
   "unicorn(no-array-reverse)": 1,
   "unicorn(prefer-string-starts-ends-with)": 1
- },
- "src/features/board/sim/thermal.ts": {
-  "eslint(class-methods-use-this)": 1,
-  "eslint(complexity)": 1,
-  "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(max-params)": 2,
-  "eslint(no-nested-ternary)": 2,
-  "typescript(no-non-null-assertion)": 7,
-  "typescript(no-unsafe-type-assertion)": 4,
-  "typescript(strict-boolean-expressions)": 17,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-array-callback-reference)": 1,
-  "unicorn(no-useless-spread)": 1
  },
  "src/features/board/ui/BuildAlerts.tsx": {
   "react(button-has-type)": 1,
@@ -3495,64 +3436,15 @@
   "typescript(prefer-readonly)": 1
  },
  "src/features/economy/sim/clients.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-params)": 1,
-  "eslint(no-nested-ternary)": 1,
-  "eslint(no-param-reassign)": 2,
   "eslint(no-shadow)": 3,
-  "typescript(no-non-null-assertion)": 1,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 5,
+  "typescript(strict-boolean-expressions)": 4,
   "unicorn(no-array-reduce)": 1,
   "unicorn(no-useless-undefined)": 1
- },
- "src/features/economy/sim/cloud.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 3,
-  "eslint(no-nested-ternary)": 2,
-  "typescript(no-non-null-assertion)": 17,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 6,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(no-immediate-mutation)": 1,
-  "unicorn(no-useless-spread)": 1
  },
  "src/features/economy/sim/contracts.ts": {
   "typescript(no-non-null-assertion)": 1
  },
- "src/features/economy/sim/economy.ts": {
-  "eslint(max-lines)": 1,
-  "eslint(max-params)": 5,
-  "eslint(no-negated-condition)": 1,
-  "eslint(no-use-before-define)": 1,
-  "typescript(no-non-null-assertion)": 1,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 2,
-  "unicorn(consistent-function-scoping)": 1
- },
- "src/features/economy/sim/keys.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines)": 1,
-  "eslint(max-params)": 1,
-  "eslint(no-negated-condition)": 1,
-  "eslint(no-nested-ternary)": 1,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(strict-boolean-expressions)": 1,
-  "unicorn(catch-error-name)": 1,
-  "unicorn(prefer-spread)": 1
- },
- "src/features/economy/sim/levels.ts": {
-  "eslint(default-case)": 2,
-  "eslint(max-lines)": 1,
-  "eslint(max-params)": 2,
-  "eslint(no-nested-ternary)": 1,
-  "typescript(consistent-return)": 2,
-  "typescript(no-non-null-assertion)": 2,
-  "typescript(strict-boolean-expressions)": 4
- },
  "src/features/economy/sim/operator.ts": {
-  "eslint(max-params)": 1,
   "typescript(no-confusing-void-expression)": 9,
   "typescript(no-non-null-assertion)": 4,
   "typescript(strict-boolean-expressions)": 2,
@@ -3562,8 +3454,6 @@
   "typescript(strict-boolean-expressions)": 3
  },
  "src/features/economy/ui/progress/ContractsSection.tsx": {
-  "eslint(max-lines-per-function)": 2,
-  "eslint(no-nested-ternary)": 1,
   "jsx-a11y(prefer-tag-over-role)": 1,
   "react(button-has-type)": 2,
   "typescript(explicit-module-boundary-types)": 1,
@@ -3587,8 +3477,6 @@
   "typescript(strict-boolean-expressions)": 3
  },
  "src/features/economy/ui/progress/PowerBill.tsx": {
-  "eslint(max-lines-per-function)": 1,
-  "eslint(no-nested-ternary)": 1,
   "jsx-a11y(prefer-tag-over-role)": 1,
   "react(button-has-type)": 1,
   "typescript(consistent-return)": 1,
@@ -3597,26 +3485,14 @@
   "unicorn(consistent-function-scoping)": 1
  },
  "src/features/economy/ui/progress/contractui.ts": {
-  "eslint(no-nested-ternary)": 2,
   "typescript(no-non-null-assertion)": 1,
   "unicorn(no-array-callback-reference)": 1,
-  "unicorn(no-array-sort)": 1
- },
- "src/features/economy/ui/progress/levelui.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines)": 1,
-  "eslint(no-nested-ternary)": 4,
-  "eslint(no-shadow)": 1,
-  "oxc(no-map-spread)": 2,
-  "typescript(no-non-null-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 5,
   "unicorn(no-array-sort)": 1
  },
  "src/features/economy/ui/shop/Gallery.acceptance.test.ts": {
   "vitest(prefer-import-in-mock)": 1
  },
  "src/features/economy/ui/shop/Gallery.tsx": {
-  "eslint(max-lines-per-function)": 1,
   "jsx-a11y(prefer-tag-over-role)": 1,
   "react(button-has-type)": 1,
   "typescript(consistent-return)": 1,
@@ -3706,9 +3582,7 @@
   "unicorn(prefer-number-coercion)": 1
  },
  "src/features/economy/ui/shop/Shop.tsx": {
-  "eslint(max-lines-per-function)": 1,
   "eslint(no-negated-condition)": 1,
-  "eslint(no-nested-ternary)": 1,
   "import(first)": 4,
   "jsx-a11y(click-events-have-key-events)": 1,
   "jsx-a11y(no-static-element-interactions)": 1,
@@ -3723,12 +3597,10 @@
   "typescript(strict-boolean-expressions)": 5
  },
  "src/features/economy/ui/shop/Showcase.tsx": {
-  "eslint(max-lines-per-function)": 1,
   "jsx-a11y(prefer-tag-over-role)": 1,
   "promise(always-return)": 1,
   "promise(prefer-await-to-then)": 2,
   "react(button-has-type)": 4,
-  "react(todo)": 2,
   "react-hooks(exhaustive-deps)": 3,
   "typescript(consistent-type-imports)": 2,
   "typescript(explicit-module-boundary-types)": 1,
@@ -4150,33 +4022,22 @@
   "typescript(no-non-null-assertion)": 4
  },
  "src/features/network/render/lens/flows.ts": {
-  "eslint(max-params)": 1,
   "eslint(no-empty-function)": 1,
-  "eslint(no-multi-assign)": 1,
   "typescript(no-non-null-assertion)": 12,
   "typescript(no-unnecessary-type-assertion)": 2,
   "unicorn(no-array-for-each)": 2
  },
  "src/features/network/render/lens/shape.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(max-params)": 1,
   "typescript(no-non-null-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 2,
-  "typescript(switch-exhaustiveness-check)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-array-for-each)": 2
+  "unicorn(no-array-for-each)": 1
  },
  "src/features/network/render/lens/view.ts": {
-  "eslint(max-params)": 1,
   "import(max-dependencies)": 1,
   "typescript(method-signature-style)": 1,
   "typescript(no-non-null-assertion)": 2,
   "typescript(no-unsafe-type-assertion)": 2
  },
  "src/features/network/render/net.ts": {
-  "eslint(max-lines-per-function)": 2,
-  "eslint(no-nested-ternary)": 2,
   "eslint(no-use-before-define)": 1,
   "typescript(no-non-null-assertion)": 2,
   "unicorn(no-array-fill-with-reference-type)": 7
@@ -4189,68 +4050,36 @@
   "unicorn(no-array-for-each)": 1
  },
  "src/features/network/render/nic/nicglyph.ts": {
-  "eslint(complexity)": 2,
-  "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 2,
-  "eslint(max-params)": 4,
-  "eslint(no-negated-condition)": 1,
-  "eslint(no-nested-ternary)": 2,
-  "typescript(explicit-module-boundary-types)": 7,
-  "typescript(no-confusing-void-expression)": 2,
   "typescript(no-non-null-assertion)": 3,
-  "typescript(strict-void-return)": 1,
-  "typescript(switch-exhaustiveness-check)": 2,
   "unicorn(no-array-fill-with-reference-type)": 4,
-  "unicorn(no-array-for-each)": 10
+  "unicorn(no-array-for-each)": 2
  },
  "src/features/network/render/nic/nicmac.ts": {
   "typescript(no-non-null-assertion)": 1
  },
  "src/features/network/render/nic/nicplan.ts": {
-  "eslint(max-params)": 1,
   "typescript(no-non-null-assertion)": 6,
   "unicorn(max-nested-calls)": 2
  },
  "src/features/network/render/nic/nicshow.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(max-params)": 1,
   "typescript(no-non-null-assertion)": 1,
   "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 1
  },
  "src/features/network/render/nic/nicview.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-depth)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(max-params)": 2,
   "import(max-dependencies)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 1,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 1,
   "unicorn(no-array-fill-with-reference-type)": 1,
-  "unicorn(no-array-for-each)": 2
+  "unicorn(no-array-for-each)": 1
  },
  "src/features/network/render/plan/netaddr.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(max-params)": 2,
   "typescript(no-non-null-assertion)": 2,
   "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 2,
   "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-for-each)": 1,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(prefer-code-point)": 1
- },
- "src/features/network/render/plan/netmeter.ts": {
-  "eslint(no-nested-ternary)": 2
+  "unicorn(no-array-sort)": 1
  },
  "src/features/network/render/plan/netplan.ts": {
-  "eslint(max-params)": 2,
+  "eslint(max-params)": 1,
   "oxc(no-map-spread)": 1,
   "typescript(no-unnecessary-type-arguments)": 2,
   "typescript(no-unnecessary-type-assertion)": 2,
@@ -4266,70 +4095,28 @@
   "unicorn(no-array-for-each)": 1
  },
  "src/features/network/render/router/routerglyph.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 2,
-  "eslint(max-params)": 3,
-  "eslint(no-negated-condition)": 1,
-  "eslint(no-nested-ternary)": 3,
-  "eslint(no-use-before-define)": 1,
-  "typescript(explicit-module-boundary-types)": 6,
-  "typescript(no-non-null-assertion)": 7,
-  "typescript(strict-void-return)": 4,
-  "typescript(switch-exhaustiveness-check)": 2,
+  "typescript(no-non-null-assertion)": 3,
   "unicorn(no-array-fill-with-reference-type)": 1,
-  "unicorn(no-array-for-each)": 13,
-  "unicorn(prefer-export-from)": 1
+  "unicorn(no-array-for-each)": 5
  },
  "src/features/network/render/router/routerplan.ts": {
   "typescript(no-non-null-assertion)": 1,
   "unicorn(max-nested-calls)": 1
  },
  "src/features/network/render/router/routershow.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines-per-function)": 1,
   "typescript(switch-exhaustiveness-check)": 1
  },
  "src/features/network/render/router/routerview.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines-per-function)": 1,
   "import(max-dependencies)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 1,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 1,
   "unicorn(no-array-fill-with-reference-type)": 1,
-  "unicorn(no-array-for-each)": 2
- },
- "src/features/network/sim/network.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(no-negated-condition)": 2,
-  "eslint(no-nested-ternary)": 3,
-  "typescript(no-non-null-assertion)": 10,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 14,
-  "unicorn(no-useless-spread)": 3,
-  "unicorn(prefer-code-point)": 1
- },
- "src/features/network/sim/nic.ts": {
-  "eslint(max-lines)": 1,
-  "eslint(no-multi-assign)": 11,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 2
- },
- "src/features/network/sim/source.ts": {
-  "eslint(max-params)": 1
+  "unicorn(no-array-for-each)": 1
  },
  "src/features/network/sim/specs.ts": {
-  "eslint(max-params)": 1,
   "typescript(no-non-null-assertion)": 3,
   "typescript(no-unnecessary-type-assertion)": 1
  },
  "src/features/network/sim/transport.ts": {
   "eslint(max-classes-per-file)": 1,
-  "eslint(max-params)": 1,
   "eslint(no-negated-condition)": 1,
   "eslint(no-param-reassign)": 5,
   "typescript(no-non-null-assertion)": 2,
@@ -4337,58 +4124,23 @@
   "unicorn(prefer-math-trunc)": 1
  },
  "src/features/network/ui/NetPanel.tsx": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(no-use-before-define)": 8,
-  "jsx-a11y(prefer-tag-over-role)": 2,
   "react(button-has-type)": 1,
-  "typescript(explicit-module-boundary-types)": 1,
-  "typescript(no-non-null-assertion)": 2,
-  "typescript(strict-boolean-expressions)": 7
+  "typescript(explicit-module-boundary-types)": 1
  },
  "src/features/network/ui/netdesc.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(no-nested-ternary)": 2,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 2,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(no-array-sort)": 1,
   "unicorn(prefer-export-from)": 1
  },
- "src/features/network/ui/netui.ts": {
-  "eslint(default-case)": 2,
-  "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 4,
-  "eslint(no-negated-condition)": 2,
-  "eslint(no-nested-ternary)": 6,
-  "typescript(consistent-return)": 2,
-  "typescript(no-non-null-assertion)": 3,
-  "typescript(no-unnecessary-type-conversion)": 1,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(prefer-nullish-coalescing)": 1,
-  "typescript(strict-boolean-expressions)": 5,
-  "typescript(switch-exhaustiveness-check)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(prefer-export-from)": 1,
-  "unicorn(prefer-set-has)": 1,
-  "unicorn(prefer-single-call)": 1
- },
  "src/features/network/ui/nicdesc.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(no-nested-ternary)": 5,
-  "typescript(no-non-null-assertion)": 17,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 4
+  "typescript(no-non-null-assertion)": 4,
+  "typescript(no-unsafe-type-assertion)": 1
  },
  "src/features/network/ui/routerdesc.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(no-nested-ternary)": 1,
   "typescript(no-non-null-assertion)": 3,
-  "typescript(strict-boolean-expressions)": 3
+  "typescript(strict-boolean-expressions)": 1
  },
  "src/features/npu/render/npuart.ts": {
   "eslint(max-params)": 1,

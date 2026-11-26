@@ -83,16 +83,20 @@ export function limitWords(s: Pick<RouterShow, 'binding' | 'limitMbps'>): string
 }
 
 /** The router in the snapshot as the view shows it, or null when no router stands. */
-export function routerShow(
-  s: Snapshot | null | undefined,
-  meter: Pick<netmeter.FrameMeter, 'rx' | 'tx'>,
-  ms: number,
-): RouterShow | null {
-  const net = s?.net,
-    r = net?.router;
-  if (!s || !net || !r) {
-    return null;
-  }
+function routerFlows(net: NonNullable<Snapshot['net']>, dir: 'down' | 'up'): RouterFlow[] {
+  return net.transfers
+    .filter((t) => t.dir === dir)
+    .map((t) => ({ label: t.label, percent: t.percent, jobId: t.jobId, dir: t.dir }));
+}
+
+function routerShowOf(opts: {
+  s: Snapshot;
+  net: NonNullable<Snapshot['net']>;
+  r: NonNullable<NonNullable<Snapshot['net']>['router']>;
+  meter: Pick<netmeter.FrameMeter, 'rx' | 'tx'>;
+  ms: number;
+}): RouterShow {
+  const { s, net, r, meter, ms } = opts;
   const spec = specs.getRouterSpec(r.id),
     tier = spec?.tier ?? (Number(/\d+$/u.exec(r.id)?.[0]) || 1),
     link = linkOf(s),
@@ -101,10 +105,6 @@ export function routerShow(
   const rx = flow ? meter.rx : 0,
     tx = flow ? meter.tx : 0,
     { isp } = net;
-  const flows = (dir: 'down' | 'up'): RouterFlow[] =>
-    net.transfers
-      .filter((t) => t.dir === dir)
-      .map((t) => ({ label: t.label, percent: t.percent, jobId: t.jobId, dir: t.dir }));
   return {
     tier,
     name: r.name,
@@ -127,8 +127,8 @@ export function routerShow(
     txLoad: netmeter.loadOf(tx, line),
     rxAct: netmeter.busy(rx, line),
     txAct: netmeter.busy(tx, line),
-    downs: flows('down'),
-    ups: flows('up'),
+    downs: routerFlows(net, 'down'),
+    ups: routerFlows(net, 'up'),
     used: net.transfers.length,
     slots: Math.min(r.clients, isp?.clients ?? r.clients),
     binding: net.bandwidth.binding,
@@ -136,4 +136,17 @@ export function routerShow(
     addr: netaddr.netAddrs(s),
     ms,
   };
+}
+
+export function routerShow(
+  s: Snapshot | null | undefined,
+  meter: Pick<netmeter.FrameMeter, 'rx' | 'tx'>,
+  ms: number,
+): RouterShow | null {
+  const net = s?.net,
+    r = net?.router;
+  if (!s || !net || !r) {
+    return null;
+  }
+  return routerShowOf({ s, net, r, meter, ms });
 }

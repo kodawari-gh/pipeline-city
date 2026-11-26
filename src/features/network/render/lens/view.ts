@@ -91,7 +91,14 @@ export class NetView3D {
   }
 
   /** Per frame, after the camera. `dt`: game seconds (0 holds the comets); `pxH`: the view's height in pixels. */
-  frame(cam: THREE.PerspectiveCamera, pxH: number, snap: Snapshot | null, machine: Machine3D | null, dt: number): void {
+  frame(opts: {
+    cam: THREE.PerspectiveCamera;
+    pxH: number;
+    snap: Snapshot | null;
+    machine: Machine3D | null;
+    dt: number;
+  }): void {
+    const { cam, pxH, snap, machine, dt } = opts;
     if (!snap || !machine || !netLensReady(snap)) {
       this.hide();
       return;
@@ -113,7 +120,7 @@ export class NetView3D {
       this.tags.set(this.drawn.tags, this.clock);
       flows.set(this.drawn);
     }
-    flows.frame(cam, pxH, dt, this.clock);
+    flows.frame({ cam, pxHeight: pxH, dt, clock: this.clock });
     this.group.visible = true;
     this.tags.show(true);
     const r = this.dom?.getBoundingClientRect();

@@ -125,7 +125,8 @@ const M: netplan.Margins = { x: 10, top: 10, bottom: 30 };
 type K = NicBlockKind;
 type N = cpufloor.Node<K>;
 type Opt = Partial<cpufloor.Spec<K>> & { f?: number; px?: number };
-const L = (id: string, kind: K, label: string, o: Opt = {}): N => cpufloor.leaf<K>(id, kind, label, o);
+const L = (opts: { id: string; kind: K; label: string } & Opt): N =>
+  cpufloor.leaf<K>(opts.id, opts.kind, opts.label, opts);
 
 type W = [id: string, kind: NicLinkKind, from: string, to: string, lanes?: 1 | 2 | 3 | 4];
 const wires = (a: W[]): cpufloor.WireSpec<NicLinkKind>[] =>
@@ -137,11 +138,11 @@ function build(i: NicPlanInput): { tree: N; specs: cpufloor.WireSpec<NicLinkKind
     [
       cpufloor.row<K>(
         [
-          L('phy', 'phy', 'PHY', { sub: `${i.std} line side`, f: 1.15 }),
+          L({ id: 'phy', kind: 'phy', label: 'PHY', sub: `${i.std} line side`, f: 1.15 }),
           cpufloor.col<K>(
             [
-              L('mac', 'mac', 'MAC', { sub: 'frames, CRC, flow control', f: 1.5 }),
-              L('stats', 'stats', 'STATISTICS', { sub: 'the port counters', f: 0.8 }),
+              L({ id: 'mac', kind: 'mac', label: 'MAC', sub: 'frames, CRC, flow control', f: 1.5 }),
+              L({ id: 'stats', kind: 'stats', label: 'STATISTICS', sub: 'the port counters', f: 0.8 }),
             ],
             { f: 1 },
           ),
@@ -150,16 +151,16 @@ function build(i: NicPlanInput): { tree: N; specs: cpufloor.WireSpec<NicLinkKind
       ),
       cpufloor.row<K>(
         [
-          L('rxq', 'rxq', 'RX QUEUE', { sub: 'frames in, downloads in flight', f: 1 }),
-          L('txq', 'txq', 'TX QUEUE', { sub: 'frames out, uploads in flight', f: 1 }),
+          L({ id: 'rxq', kind: 'rxq', label: 'RX QUEUE', sub: 'frames in, downloads in flight', f: 1 }),
+          L({ id: 'txq', kind: 'txq', label: 'TX QUEUE', sub: 'frames out, uploads in flight', f: 1 }),
         ],
         { f: 0.95 },
       ),
       cpufloor.row<K>(
         [
-          L('dma', 'dma', 'DMA', { sub: 'moves frames to and from RAM', f: 1.2 }),
-          L('pcie', 'pcie', `PCIe x${i.lanes}`, { sub: i.host, f: 1 }),
-          ...(i.heat ? [L('temp', 'temp', 'HEAT SENSOR', { sub: 'throttles the link', f: 0.8 })] : []),
+          L({ id: 'dma', kind: 'dma', label: 'DMA', sub: 'moves frames to and from RAM', f: 1.2 }),
+          L({ id: 'pcie', kind: 'pcie', label: `PCIe x${i.lanes}`, sub: i.host, f: 1 }),
+          ...(i.heat ? [L({ id: 'temp', kind: 'temp', label: 'HEAT SENSOR', sub: 'throttles the link', f: 0.8 })] : []),
         ],
         { f: 0.75 },
       ),
@@ -183,13 +184,13 @@ function build(i: NicPlanInput): { tree: N; specs: cpufloor.WireSpec<NicLinkKind
 export function nicPlan(visual: string): NicPlan {
   const i = nicInput(visual),
     { tree, specs } = build(i);
-  return netplan.layPlan<K, NicLinkKind, NicPlanInput>(
-    `nicdie|${visual}`,
-    i,
-    nicDieSize(visual),
-    M,
+  return netplan.layPlan<K, NicLinkKind, NicPlanInput>({
+    key: `nicdie|${visual}`,
+    input: i,
+    size: nicDieSize(visual),
+    margins: M,
     tree,
     specs,
-    'nicplan',
-  );
+    tag: 'nicplan',
+  });
 }

@@ -160,12 +160,30 @@ export class Operator {
 }
 
 /** Drive `g` for `ticks` base ticks with a bot player (`reaction` ticks of delay per manual step). */
-export function play(g: Game, ticks: number, reaction = 0, each?: (g: Game, t: number) => void): Operator {
-  const op = new Operator(g, reaction);
+export function play(g: Game, ticks: number, reaction = 0): Operator {
+  return playTicks(g, ticks, { reaction });
+}
+
+interface PlayTicksOpts {
+  reaction?: number;
+  each?: (g: Game, t: number) => void;
+}
+
+function playTicks(g: Game, ticks: number, opts: PlayTicksOpts): Operator {
+  const op = new Operator(g, opts.reaction ?? 0);
   for (let t = 1; t <= ticks; t++) {
     g.advanceBaseTick();
     op.step();
-    each?.(g, t);
+    opts.each?.(g, t);
   }
   return op;
+}
+
+/** Like `play`, and calls `each` after every tick. */
+export function playEach(
+  g: Game,
+  ticks: number,
+  opts: { reaction?: number; each: (g: Game, t: number) => void },
+): Operator {
+  return playTicks(g, ticks, opts);
 }

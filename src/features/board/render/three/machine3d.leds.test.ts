@@ -141,7 +141,7 @@ function assert_follow_the_frames_of_a_download_lit_while_it_mov(): void {
   expect(run(3, 0.1)).toBe(0);
   expect(glow(m.root, BOARD.link)).toBeCloseTo(jackleds.JACK_GLOW.link, 9);
   // (a download at the plan's speed: the frames come close, the light stays on for as long as it moves)
-  g.enqueue('cli.log', 1, undefined, true);
+  g.enqueue({ template: 'cli.log', scale: 1, net: true });
   expect(run(2, 0.1)).toBe(2);
   // (the job has run and its result is out, the link is idle: the amber light goes)
   for (let i = 0; i < 3000 && !g.snapshot().progress.firstNetJob; i++) {

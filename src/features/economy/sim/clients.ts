@@ -2,64 +2,35 @@
 // reputation, the client base and the level. Every export is a `Game` method (see game.ts).
 
 import { deviceSpec } from '../../board/sim';
-import { generate, runReference } from '../../jobs/sim/gen';
-import { demandRate, payMulFor, payout, pickTemplate, reputation as reputationOf, slaFactor } from './economy';
+import { demandRate, payout, pickTemplate, reputation as reputationOf, slaFactor } from './economy';
 import type { Game } from '@/worker/game/game';
 import type { Key } from '@/worker/game/internal';
-import { classBlocked, pickTask, taskNeeds, taskOfTemplate } from '../../jobs/sim/jobdex';
+import { classBlocked, pickTask } from '../../jobs/sim/jobdex';
 import * as levelsSim from './levels';
-import type { SavedKey } from '@/worker/game/save';
 
-export function rebuild(this: Game, r: SavedKey): Key {
-  const g = generate(r.template, r.seed, { scale: r.scale });
-  const known = taskOfTemplate(r.template);
-  const clsId = r.cls ?? known?.cls ?? levelsSim.classOfTemplate(r.template);
-  const cls = levelsSim.jobClass(clsId);
-  // The kind of job is the one whose template made the key (a key of another class, such as an old web key that ran the calculation, keeps its class).
-  const task = known && known.cls === clsId ? known : undefined;
-  // A test-override mix carries its own payout multipliers; otherwise the class does (when the key is the class's own job, or one of the kinds it sends).
-  const own =
-    cls && (task ? r.scale === (task.scale ?? cls.scale) : cls.template === r.template && cls.scale === r.scale);
-  const payMul = this.cfg.mix ? payMulFor(this.cfg, r.template, r.scale) : own ? cls.payMul * (task?.payMul ?? 1) : 1;
-  const parsed = /^# (?:\S*\.)?(?<kind>\w+) request/u.exec(g.asm)?.[1] ?? 'cli';
-  // `work` (a reference run of the whole program, up to 3M steps, 25-100 ms for a gpu job) is worked out on first read. A key nobody prices or pays never costs it.
-  let work: number | undefined;
-  return {
-    id: r.id,
-    arrival: r.arrival,
-    template: r.template,
-    seed: r.seed,
-    scale: r.scale,
-    deadline: r.deadline,
-    get work(): number {
-      return (work ??= runReference(g).steps);
-    },
-    set work(v: number) {
-      work = v;
-    },
-    type: task?.id ?? (clsId === 'cli' || clsId === 'scan' ? parsed : clsId),
-    jobNo: g.meta.params.jobId,
-    cls: clsId,
-    needs: task ? taskNeeds(task) : (cls?.needs ?? []),
-    payMul,
-    attempts: 1,
-    pluggedAt: r.pluggedAt ?? 0,
-    done: false,
-    doneAt: 0,
-    result: '',
-    retired: r.retired === true,
-  };
+export { rebuild } from './clientsRebuild';
+
+interface EnqueueOpts {
+  template: string;
+  scale?: number | undefined;
+  cls?: string | undefined;
+  net?: boolean | undefined;
+  pick?: boolean | undefined;
 }
 
 /** A key arrives from a client: it goes in the tray, or the client gives up if the tray is full. */
-export function enqueue(this: Game, template: string, scale = 1, cls?: string, net = false, pick = false): boolean {
+export function enqueue(this: Game, opts: EnqueueOpts): boolean {
+  let { template, scale = 1 } = opts;
+  const { cls } = opts;
+  const net = opts.net === true;
+  const pick = opts.pick === true;
   const seed = this.machine.prng.nextU32();
   // A class with several kinds of job sends one the player's level has reached, chosen by the seed (no extra draw: the PRNG stream does not depend on it).
   const c = pick && cls ? levelsSim.jobClass(cls) : undefined;
   const task = c && pickTask(c, this.level, { seed, off: this.sandbox ? this.sandboxKindsOff : undefined });
   if (task) {
     ({ template } = task);
-    scale = task.scale ?? c!.scale;
+    scale = task.scale ?? c.scale;
   }
   const src = net ? this.offersQ : this.tray;
   if (src.waiting().length >= this.cfg.queueCap) {
@@ -103,12 +74,12 @@ export function arrivals(this: Game): void {
     }
     const toNet = this.networkLinked && !fallback;
     if (this.cfg.mix) {
-      const m = pickTemplate(this.cfg.mix, this.installedRamBytes(), r, this.baseTick);
-      this.enqueue(m.template, m.scale, undefined, toNet);
+      const m = pickTemplate({ mix: this.cfg.mix, ramBytes: this.installedRamBytes(), r, tick: this.baseTick });
+      this.enqueue({ template: m.template, scale: m.scale, net: toNet });
     } else {
       // The web class needs a plan and has no share while no client is on the wire (no plan, or a long dead link).
       const mix = levelsSim
-        .jobMix(this.level, this.reputation(), this.levelTicks, this.baseTick)
+        .jobMix({ level: this.level, reputation: this.reputation(), levelTicks: this.levelTicks, tick: this.baseTick })
         .filter(
           ([c]) =>
             (c.id !== 'web' || (this.ispTier > 0 && !fallback)) &&
@@ -119,7 +90,7 @@ export function arrivals(this: Game): void {
         return; // the sandbox switched off every class (or every kind of them) of this level
       }
       const c: levelsSim.JobClassDef = levelsSim.pickClass(mix, r);
-      this.enqueue(c.template, c.scale, c.id, toNet || c.id === 'web', true);
+      this.enqueue({ template: c.template, scale: c.scale, cls: c.id, net: toNet || c.id === 'web', pick: true });
     }
   }
 }
@@ -175,7 +146,7 @@ export function expireKeys(this: Game): void {
     this.tray.take(k.id);
     this.offersQ.take(k.id);
     this.expired++;
-    this.addLog(k, 'expired', 0, true);
+    this.addLog({ k, outcome: 'expired', pay: 0, late: true });
     this.avgTurnaround += this.cfg.emaAlpha * (this.cfg.giveUpTurnaround * this.patience() - this.avgTurnaround);
     this.note('expire', `a client took back job ${k.id} (${k.type}): the machine cannot run it`);
   }
@@ -253,10 +224,24 @@ export function slaOf(this: Game, k: Key): number | null {
 
 /** What the job pays if served on target now; for a job with an SLA it falls once the SLA has run out. */
 export function estimate(this: Game, k: Key): number {
-  const full = payout(this.cfg, k.work * k.payMul, this.cfg.targetTurnaround, false, levelsSim.levelPayMul(this.level));
+  const full = payout({
+    cfg: this.cfg,
+    work: k.work * k.payMul,
+    turnaround: this.cfg.targetTurnaround,
+    late: false,
+    levelPay: levelsSim.levelPayMul(this.level),
+  });
   const sla = this.slaOf(k);
   if (sla === null || !this.progress.poweredOn) {
     return full;
   }
-  return Math.round(full * slaFactor(this.cfg, this.baseTick - k.arrival, sla, k.deadline - k.arrival));
+  return Math.round(
+    full *
+      slaFactor({
+        cfg: this.cfg,
+        turnaround: this.baseTick - k.arrival,
+        slaTicks: sla,
+        deadlineTicks: k.deadline - k.arrival,
+      }),
+  );
 }

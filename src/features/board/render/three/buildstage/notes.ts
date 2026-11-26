@@ -70,7 +70,11 @@ export abstract class StageNotes extends StagePrograms {
         .join(',')}`,
       shown = this.shown.peek();
     if (!this.alertMemo || this.alertMemo.rev !== rev || this.alertMemo.shown !== shown) {
-      this.alertMemo = { rev, shown, list: buildAlerts(this.board, this.cables, shown, this.game.fanPower()) };
+      this.alertMemo = {
+        rev,
+        shown,
+        list: buildAlerts({ board: this.board, cables: this.cables, shown, fans: this.game.fanPower() }),
+      };
     }
     return this.alertMemo.list;
   }

@@ -45,7 +45,7 @@ const jsonData = (save: unknown): unknown => {
 /** The game as it comes back from its save. */
 const reload = (g: Game): Game => Game.fromSave(jsonData(g.toSave()));
 /** Offers a key the way the network does: it lands in the spool. */
-const offer = (g: Game, template: string, scale = 1): boolean => g.enqueue(template, scale, undefined, true);
+const offer = (g: Game, template: string, scale = 1): boolean => g.enqueue({ template, scale, net: true });
 
 /** The index of a counter in a reading. */
 const counterAt = (name: (typeof COUNTER_NAMES)[number]): number => COUNTER_NAMES.indexOf(name);
@@ -305,7 +305,7 @@ describe('jobs on the machine now', () => {
 describe('a job that was in the spool when the game was saved', () => {
   it('keeps the tick the machine took it, so the log does not read its run as the whole game', () => {
     const g = netRig('ssd1', { keys: [] });
-    g.enqueue('cli.log', 1, undefined, true);
+    g.enqueue({ template: 'cli.log', scale: 1, net: true });
     tickWhile(g, () => g.toSave().net?.spool.length === 0, { max: 3000 });
     const saved = g.toSave();
     assert.exists(saved.net);
