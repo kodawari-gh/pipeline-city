@@ -7,10 +7,24 @@ const studio = new Texture(),
   probe = new Texture();
 const room = (...ms: MeshStandardMaterial[]) => {
   const g = new Group();
-  for (const m of ms) g.add(new Mesh(new PlaneGeometry(), m));
+  for (const m of ms) {
+    g.add(new Mesh(new PlaneGeometry(), m));
+  }
   return g;
 };
 const fresh = () => new RoomEnv(studio, boxEnv([0, 0, 0], [1, 1, 1], [0.5, 0.5, 0.5]));
+
+/** The shader patch a material carries as its own: its compile hook and its program's cache key. */
+function patchOf(m: object): Record<string, unknown> {
+  const own = new Map<string, unknown>(Object.entries(m)),
+    patch: Record<string, unknown> = {};
+  for (const k of ['onBeforeCompile', 'customProgramCacheKey']) {
+    if (own.has(k)) {
+      patch[k] = own.get(k);
+    }
+  }
+  return patch;
+}
 
 describe("the room's reflections", () => {
   it('a material that comes late takes the map, the strength and the box of the rest', () => {
@@ -44,14 +58,13 @@ describe("the room's reflections", () => {
     e.adopt(room(wall));
     e.setStrength(0.5);
     const lit = wall.clone();
-    lit.onBeforeCompile = wall.onBeforeCompile;
-    lit.customProgramCacheKey = wall.customProgramCacheKey;
+    Object.assign(lit, patchOf(wall));
     e.twin(wall, lit);
     e.adopt(room(lit));
     e.setMap(probe);
     expect(lit.envMap).toBe(probe);
     expect(lit.envMapIntensity).toBe(0.5);
-    expect(lit.customProgramCacheKey().split('|box').length).toBe(2);
+    expect(lit.customProgramCacheKey().split('|box')).toHaveLength(2);
     e.twin(new MeshStandardMaterial(), new MeshStandardMaterial());
     expect(e.mats.size).toBe(2);
   });
@@ -66,6 +79,6 @@ describe("the room's reflections", () => {
     e.adopt(g);
     expect(mirror.envMap).toBe(own);
     expect(e.mats.has(mirror)).toBe(false);
-    expect(plain.customProgramCacheKey().split('|box').length).toBe(2);
+    expect(plain.customProgramCacheKey().split('|box')).toHaveLength(2);
   });
 });

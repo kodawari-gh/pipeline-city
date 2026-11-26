@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { DataTexture } from 'three';
 import { moonDir, skyFragment, skyMaterial } from './sky';
 
@@ -22,7 +22,9 @@ describe('the moon', () => {
   });
 
   it('is under the horizon by day', () => {
-    for (const h of [9, 12, 15]) expect(moonDir(h).y).toBeLessThan(0);
+    for (const h of [9, 12, 15]) {
+      expect(moonDir(h).y).toBeLessThan(0);
+    }
   });
 });
 
@@ -41,15 +43,17 @@ describe("the sky's clouds and moon seas: live at High, baked at Low", () => {
     const src = skyFragment(true);
     expect(src).not.toContain(LOOP);
     expect(src).toContain('texture2D(tNoise');
-    for (const keep of ['sunDir', 'moonDir', 'for (int k = 0; k < 3', 'float hash3(vec3 p)', 'float noise(vec2 p)'])
+    for (const keep of ['sunDir', 'moonDir', 'for (int k = 0; k < 3', 'float hash3(vec3 p)', 'float noise(vec2 p)']) {
       expect(src).toContain(keep);
+    }
     const u = skyMaterial(true).uniforms;
-    expect(u['tNoise']!.value).toBeInstanceOf(DataTexture);
+    assert.exists(u['tNoise']);
+    expect(u['tNoise'].value).toBeInstanceOf(DataTexture);
   });
 
   it('Low has the same uniforms as High, plus the map', () => {
-    const high = Object.keys(skyMaterial().uniforms).sort();
-    const low = Object.keys(skyMaterial(true).uniforms).sort();
-    expect(low).toEqual([...high, 'tNoise'].sort());
+    const high = Object.keys(skyMaterial().uniforms).toSorted();
+    const low = Object.keys(skyMaterial(true).uniforms).toSorted();
+    expect(low).toStrictEqual([...high, 'tNoise'].toSorted());
   });
 });

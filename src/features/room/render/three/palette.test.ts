@@ -5,7 +5,7 @@ const rgb = (c: number): [number, number, number] => [c >> 16, (c >> 8) & 255, c
 
 describe('kelvin', () => {
   it('is white at the white balance', () => {
-    expect(kelvin(WHITE_K)).toBe(0xffffff);
+    expect(kelvin(WHITE_K)).toBe(0xff_ff_ff);
   });
   it('is warm under it, warmer the lower, and pale blue over it', () => {
     const [r27, g27, b27] = rgb(kelvin(2700)),
