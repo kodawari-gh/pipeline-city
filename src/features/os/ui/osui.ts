@@ -34,8 +34,12 @@ const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 export function fmtBytes(n: number): string {
-  if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-  if (n >= 1024) return `${Math.round(n / 1024)} KB`;
+  if (n >= 1024 * 1024) {
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  if (n >= 1024) {
+    return `${Math.round(n / 1024)} KB`;
+  }
   return `${Math.round(n)} B`;
 }
 
@@ -44,12 +48,14 @@ const shareLevel = (v: number): Level => (v >= 1 ? 'bad' : v >= 0.85 ? 'warn' : 
 
 function cpuRow(s: Snapshot): ResRow | null {
   const d = s.devices.find((x) => x.kind === 'cpu');
-  if (!d) return null;
+  if (!d) {
+    return null;
+  }
   const live = s.cores?.live;
   const active = live ? live.filter((c) => !c.parked) : [];
   const busy = active.filter((c) => c.job !== 0).length;
-  const running = !!s.os?.runningKeyId || s.phase === 'running';
-  const load = !s.powered ? 0 : active.length ? busy / active.length : running ? 1 : 0;
+  const running = (s.os?.runningKeyId ?? 0) !== 0 || s.phase === 'running';
+  const load = !s.powered ? 0 : active.length > 0 ? busy / active.length : running ? 1 : 0;
   const clk = s.cpuClock;
   const clockText = clk
     ? `${d.effectiveClock.toFixed(2)} of ${clk.max.toFixed(2)} GHz`
@@ -74,7 +80,7 @@ function cpuRow(s: Snapshot): ResRow | null {
     level,
     advice,
     text: s.powered ? `${pct(load)} busy` : 'off',
-    detail: `${clockText} | ${Math.round(d.tempC)} °C | ${d.powerW.toFixed(1)} W${active.length ? ` | ${busy}/${active.length} cores working` : ''}`,
+    detail: `${clockText} | ${Math.round(d.tempC)} °C | ${d.powerW.toFixed(1)} W${active.length > 0 ? ` | ${busy}/${active.length} cores working` : ''}`,
   };
 }
 
@@ -93,7 +99,9 @@ function vrmRow(s: Snapshot): ResRow {
   } else if (v.throttle < 0.98) {
     level = 'warn';
     advice = 'The regulator runs hot and slows the CPU. A heatsink on it helps.';
-  } else if (level === 'warn') advice = 'Most of the regulator rating is in use. Keep the clock near stock.';
+  } else if (level === 'warn') {
+    advice = 'Most of the regulator rating is in use. Keep the clock near stock.';
+  }
   return {
     id: 'vrm',
     label: 'Power regulator',
@@ -109,12 +117,14 @@ function vrmRow(s: Snapshot): ResRow {
 function ramRow(s: Snapshot): ResRow | null {
   const m = s.ram;
   const sticks = s.devices.filter((d) => d.kind === 'ram');
-  if (!m && sticks.length === 0) return null;
-  const filled = m && m.filled.length ? m.filled.reduce((a, b) => a + b, 0) / (m.filled.length * 255) : 0;
+  if (!m && sticks.length === 0) {
+    return null;
+  }
+  const filled = m && m.filled.length > 0 ? m.filled.reduce((a, b) => a + b, 0) / (m.filled.length * 255) : 0;
   const level = shareLevel(filled);
   return {
     id: 'ram',
-    label: `Memory${sticks.length ? ` (${sticks.length} stick${sticks.length === 1 ? '' : 's'})` : ''}`,
+    label: `Memory${sticks.length > 0 ? ` (${sticks.length} stick${sticks.length === 1 ? '' : 's'})` : ''}`,
     icon: 'memory',
     load: filled,
     level,
@@ -144,8 +154,9 @@ function diskRows(s: Snapshot): ResRow[] {
     } else if (q >= 1) {
       level = 'warn';
       advice = 'Requests queue up at this drive. A faster drive, or another drive for the spool, spreads the work.';
-    } else if (level !== 'ok') advice = 'The drive is nearly full. Free space or add a drive.';
-    else if (d.wearPct >= 70) {
+    } else if (level !== 'ok') {
+      advice = 'The drive is nearly full. Free space or add a drive.';
+    } else if (d.wearPct >= 70) {
       level = 'warn';
       advice = 'The drive is wearing out. Plan a replacement.';
     }
@@ -163,7 +174,9 @@ function diskRows(s: Snapshot): ResRow[] {
 }
 
 function netRow(s: Snapshot): ResRow | null {
-  if (!s.net.router && !s.net.isp) return null;
+  if (!s.net.router && !s.net.isp) {
+    return null;
+  }
   const lad = limiterLadder(s);
   const slow = lad.segs.find((g) => g.binding);
   const usable = linkUsable(s);
@@ -193,14 +206,18 @@ function netRow(s: Snapshot): ResRow | null {
 
 function psuRow(s: Snapshot): ResRow | null {
   const p = s.power;
-  if (!(p.budgetW > 0)) return null;
+  if (!(p.budgetW > 0)) {
+    return null;
+  }
   const load = clamp(p.totalW / p.budgetW);
   let level = shareLevel(p.totalW / p.budgetW);
   let advice: string | undefined;
   if (p.tripped) {
     level = 'bad';
     advice = 'The power supply tripped. Cut the load or buy a bigger supply.';
-  } else if (level !== 'ok') advice = 'The power supply is near its limit. A bigger supply leaves room to add parts.';
+  } else if (level !== 'ok') {
+    advice = 'The power supply is near its limit. A bigger supply leaves room to add parts.';
+  }
   return {
     id: 'psu',
     label: 'Power supply',
@@ -214,10 +231,12 @@ function psuRow(s: Snapshot): ResRow | null {
 }
 
 function queueRow(s: Snapshot): ResRow | null {
-  const os = s.os;
-  if (!os) return null;
+  const { os } = s;
+  if (!os) {
+    return null;
+  }
   const used = os.spool.slots > 0 ? os.spool.used / os.spool.slots : 0;
-  const full = os.spool.full;
+  const { full } = os.spool;
   return {
     id: 'queue',
     label: 'Job queue',
@@ -235,7 +254,7 @@ function queueRow(s: Snapshot): ResRow | null {
 /** Every part of the machine, in the order data and work flow through it. Empty without a CPU. */
 export function resourceRows(s: Snapshot): ResRow[] {
   return [cpuRow(s), vrmRow(s), ramRow(s), ...diskRows(s), netRow(s), queueRow(s), psuRow(s)].filter(
-    (r): r is ResRow => !!r,
+    (r): r is ResRow => r !== null,
   );
 }
 
@@ -245,13 +264,16 @@ const RANK: Record<Level, number> = { ok: 0, warn: 1, bad: 2 };
 export function bottleneck(rows: ResRow[]): Bottleneck | null {
   let best: ResRow | null = null;
   for (const r of rows) {
-    if (r.level === 'ok') continue;
+    if (r.level === 'ok') {
+      continue;
+    }
     if (
       !best ||
       RANK[r.level] > RANK[best.level] ||
       (RANK[r.level] === RANK[best.level] && (r.load ?? 0) > (best.load ?? 0))
-    )
+    ) {
       best = r;
+    }
   }
   return best && { id: best.id, label: best.label, level: best.level, text: best.advice ?? best.text };
 }
@@ -281,8 +303,10 @@ export interface SpoolModel {
 }
 
 export function spoolModel(s: Snapshot): SpoolModel | null {
-  const os = s.os;
-  if (!os?.config) return null;
+  const { os } = s;
+  if (!os?.config) {
+    return null;
+  }
   const c = os.config;
   return {
     slots: os.spool.slots,
@@ -340,9 +364,11 @@ export interface AllocModel {
 }
 
 export function allocModel(s: Snapshot): AllocModel | null {
-  const os = s.os;
-  if (!os?.config) return null;
-  const slotBytes = os.spool.slotBytes;
+  const { os } = s;
+  if (!os?.config) {
+    return null;
+  }
+  const { slotBytes } = os.spool;
   const drives = os.config.drives.map((d): AllocDrive => {
     const spoolBytes = d.slots * slotBytes;
     const other = Math.max(0, d.usedBytes - d.osBytes - d.dataBytes);

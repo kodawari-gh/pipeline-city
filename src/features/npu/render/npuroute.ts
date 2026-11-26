@@ -41,7 +41,9 @@ export function npuRoute(plan: Pick<NpuPlan, 'links'>, op: number, phase: Phase)
   const out: NpuHop[] = [];
   const hop = (id: string, reverse = false) => {
     const link = plan.links.find((l) => l.id === id);
-    if (link) out.push({ link, reverse });
+    if (link) {
+      out.push({ link, reverse });
+    }
   };
   if (phase === 'in') {
     hop('host-ctl');
@@ -54,6 +56,8 @@ export function npuRoute(plan: Pick<NpuPlan, 'links'>, op: number, phase: Phase)
     return out;
   }
   hop('desc-mem', true); // the descriptor is read out of card memory first
-  for (const [id, reverse] of STEP[op] ?? []) hop(id, reverse);
+  for (const [id, reverse] of STEP[op] ?? []) {
+    hop(id, reverse);
+  }
   return out;
 }

@@ -1,7 +1,7 @@
 import { Graphics } from 'pixi.js';
 import { label, mix } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
-import { planFar, planNear, type DieArt, type PlanStyle } from '../../cpu/render/die/dieart';
+import * as dieart from '../../cpu/render/die/dieart';
 import type { NpuBlock, NpuBlockKind, NpuLink, NpuLinkKind, NpuPlan } from './npuplan';
 import { npuGlyph, npuGlyphArea } from './npuglyph';
 import { DIE_MARGIN } from './npuplans';
@@ -38,7 +38,7 @@ const NPU_LEGEND: { text: string; key: Key }[] = [
 ];
 
 /** How the card is drawn: the CPU die's art (`planFar`, `planNear`) with the card's colours and symbols. */
-function npuStyle(plan: NpuPlan): PlanStyle<NpuBlock, NpuLink> {
+function npuStyle(plan: NpuPlan): dieart.PlanStyle<NpuBlock, NpuLink> {
   const opt = { grid: plan.input.grid, memBytes: plan.input.memBytes };
   return {
     color: (T, b) => T[NPU_KIND_COLOR[b.kind]],
@@ -75,24 +75,28 @@ export function npuFar(g: Graphics, T: Theme, plan: NpuPlan): void {
     g.rect(x, D.y + 8, 6, 6);
     g.rect(x, D.y + D.h - 14, 6, 6);
   }
-  for (let y = y0 + 12; y + 6 <= y1; y += 12) g.rect(D.x + D.w - 14, y, 6, 6);
+  for (let y = y0 + 12; y + 6 <= y1; y += 12) {
+    g.rect(D.x + D.w - 14, y, 6, 6);
+  }
   g.fill({ color: T.pin, alpha: 0.7 });
   g.poly([D.x + 6, D.y + 6, D.x + 22, D.y + 6, D.x + 6, D.y + 22]).fill({ color: T.mul, alpha: 0.9 });
   const host = plan.blocks.find((b) => b.kind === 'host');
   if (host) {
     const n = Math.floor((host.rect.h - 20) / 12);
-    for (let k = 0; k < n; k++) g.rect(D.x + 9, host.rect.y + 10 + k * 12, 6, 6);
+    for (let k = 0; k < n; k++) {
+      g.rect(D.x + 9, host.rect.y + 10 + k * 12, 6, 6);
+    }
     g.fill({ color: T.alu, alpha: 0.8 });
   }
-  planFar(g, T, plan.blocks, npuStyle(plan));
+  dieart.planFar(g, T, plan.blocks, npuStyle(plan));
 }
 
 /** Traces, symbols and names of a plan, and the strip under the blocks. */
-export function npuNear(T: Theme, plan: NpuPlan): DieArt {
-  const art = planNear(T, plan, npuStyle(plan));
+export function npuNear(T: Theme, plan: NpuPlan): dieart.DieArt {
+  const art = dieart.planNear(T, plan, npuStyle(plan));
   const D = plan.core,
     sy = D.y + D.h - DIE_MARGIN.bottom + 15,
-    names = art.names;
+    { names } = art;
   names.addChild(label(npuTitle(plan), D.x + DIE_MARGIN.x, sy, 13, T.mute, { weight: '700', a: 0.85 }));
   const legend = new Graphics();
   names.addChild(legend);

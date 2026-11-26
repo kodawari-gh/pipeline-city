@@ -11,7 +11,9 @@ export const STATUS_ROW = 5;
  * skipped placeholders. Clobbers t0.
  */
 export function textStores(off: number, text: string, base = 's0'): string[] {
-  if (off % 4 !== 0) throw new RangeError('text must start on a word boundary');
+  if (off % 4 !== 0) {
+    throw new RangeError('text must start on a word boundary');
+  }
   const out: string[] = [];
   for (let w = 0; w * 4 < text.length; w++) {
     let val = 0;
@@ -23,7 +25,9 @@ export function textStores(off: number, text: string, base = 's0'): string[] {
         any = true;
       }
     }
-    if (any) out.push(`  li t0, ${val >>> 0}`, `  sw t0, ${off + 4 * w}(${base})`);
+    if (any) {
+      out.push(`  li t0, ${val >>> 0}`, `  sw t0, ${off + 4 * w}(${base})`);
+    }
   }
   return out;
 }
