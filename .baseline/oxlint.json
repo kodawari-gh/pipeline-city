@@ -3280,11 +3280,9 @@
   "vitest(valid-expect)": 7
  },
  "src/features/board/render/three/casedoor.ts": {
-  "eslint(curly)": 2,
   "eslint(default-case)": 1,
   "eslint(max-params)": 1,
-  "typescript(consistent-return)": 1,
-  "unicorn(switch-case-braces)": 4
+  "typescript(consistent-return)": 1
  },
  "src/features/board/render/three/casekit3d.test.ts": {
   "eslint(curly)": 2,
@@ -3295,7 +3293,6 @@
  },
  "src/features/board/render/three/casekit3d.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 34,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 3,
   "eslint(max-params)": 20,
@@ -3303,7 +3300,6 @@
   "eslint(no-param-reassign)": 1,
   "eslint(no-shadow)": 1,
   "eslint(no-use-before-define)": 5,
-  "import(consistent-type-specifier-style)": 9,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(method-signature-style)": 3,
   "typescript(no-non-null-assertion)": 38,
@@ -3312,13 +3308,10 @@
   "typescript(no-unsafe-type-assertion)": 3,
   "typescript(strict-boolean-expressions)": 6,
   "unicorn(consistent-function-scoping)": 3,
-  "unicorn(explicit-length-check)": 5,
   "unicorn(max-nested-calls)": 15,
   "unicorn(no-array-callback-reference)": 3,
   "unicorn(no-array-for-each)": 3,
-  "unicorn(no-array-reduce)": 1,
-  "unicorn(numeric-separators-style)": 34,
-  "unicorn(prefer-at)": 2
+  "unicorn(no-array-reduce)": 1
  },
  "src/features/board/render/three/casemat.test.ts": {
   "eslint(curly)": 2,
@@ -3344,25 +3337,19 @@
   "vitest(valid-expect)": 12
  },
  "src/features/board/render/three/casetray3d.ts": {
-  "eslint(curly)": 23,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 3,
   "eslint(max-params)": 3,
   "eslint(no-nested-ternary)": 1,
   "eslint(no-use-before-define)": 1,
-  "eslint(prefer-destructuring)": 2,
-  "import(consistent-type-specifier-style)": 7,
   "import(max-dependencies)": 1,
   "oxc(no-map-spread)": 1,
   "typescript(no-non-null-assertion)": 16,
   "unicorn(consistent-function-scoping)": 1,
-  "unicorn(explicit-length-check)": 2,
   "unicorn(max-nested-calls)": 5,
   "unicorn(no-array-for-each)": 2,
   "unicorn(no-array-sort)": 1,
-  "unicorn(no-useless-spread)": 1,
-  "unicorn(numeric-separators-style)": 22,
-  "unicorn(prefer-at)": 2
+  "unicorn(no-useless-spread)": 1
  },
  "src/features/board/render/three/chipdie3d.test.ts": {
   "eslint(curly)": 3,
@@ -3383,13 +3370,9 @@
   "vitest(prefer-strict-equal)": 1
  },
  "src/features/board/render/three/chipdie3d.ts": {
-  "eslint(curly)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 1,
-  "eslint(no-implicit-coercion)": 1,
-  "import(consistent-type-specifier-style)": 3,
-  "typescript(strict-boolean-expressions)": 4,
-  "unicorn(numeric-separators-style)": 2
+  "typescript(strict-boolean-expressions)": 3
  },
  "src/features/board/render/three/chips3d.test.ts": {
   "eslint(max-params)": 1,
@@ -3404,25 +3387,18 @@
  },
  "src/features/board/render/three/chips3d.ts": {
   "eslint(class-methods-use-this)": 1,
-  "eslint(complexity)": 3,
-  "eslint(curly)": 27,
+  "eslint(complexity)": 2,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
   "eslint(max-params)": 8,
   "eslint(no-duplicate-imports)": 1,
-  "eslint(no-implicit-coercion)": 1,
   "eslint(no-multi-assign)": 1,
   "eslint(no-nested-ternary)": 10,
-  "eslint(prefer-destructuring)": 2,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 11,
   "import(max-dependencies)": 1,
   "import(no-duplicates)": 1,
   "typescript(no-non-null-assertion)": 1,
   "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 7,
-  "unicorn(explicit-length-check)": 2,
-  "unicorn(prefer-at)": 1
+  "typescript(strict-boolean-expressions)": 7
  },
  "src/features/board/render/three/cooler3d.test.ts": {
   "eslint(curly)": 5,
@@ -3439,14 +3415,11 @@
   "vitest(valid-expect)": 30
  },
  "src/features/board/render/three/cpu3d.ts": {
-  "eslint(curly)": 4,
   "eslint(max-lines-per-function)": 1,
   "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 3,
   "import(max-dependencies)": 1,
   "typescript(no-non-null-assertion)": 1,
   "unicorn(max-nested-calls)": 4,
-  "unicorn(numeric-separators-style)": 9,
   "unicorn(prefer-code-point)": 1
  },
  "src/features/board/render/three/cues3d.test.ts": {
@@ -3455,12 +3428,8 @@
  },
  "src/features/board/render/three/cues3d.ts": {
   "eslint(class-methods-use-this)": 1,
-  "eslint(curly)": 12,
   "eslint(max-params)": 1,
-  "eslint(no-implicit-coercion)": 1,
-  "eslint(prefer-destructuring)": 1,
   "typescript(no-non-null-assertion)": 3,
-  "typescript(strict-boolean-expressions)": 1,
   "unicorn(prefer-dom-node-append)": 2
  },
  "src/features/board/render/three/devhook.test.ts": {
@@ -3481,40 +3450,31 @@
  "src/features/board/render/three/drag3d.ts": {
   "eslint(class-methods-use-this)": 1,
   "eslint(complexity)": 3,
-  "eslint(curly)": 45,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 2,
-  "eslint(no-implicit-coercion)": 8,
   "eslint(no-nested-ternary)": 4,
   "eslint(no-use-before-define)": 5,
-  "eslint(prefer-named-capture-group)": 2,
-  "eslint(require-unicode-regexp)": 6,
   "typescript(explicit-module-boundary-types)": 3,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-non-null-assertion)": 5,
   "typescript(no-unsafe-type-assertion)": 1,
   "typescript(prefer-readonly)": 6,
-  "typescript(strict-boolean-expressions)": 30,
-  "unicorn(prefer-dom-node-append)": 2,
-  "unicorn(prefer-global-this)": 9
+  "typescript(strict-boolean-expressions)": 25,
+  "unicorn(prefer-dom-node-append)": 2
  },
  "src/features/board/render/three/drive3d.ts": {
-  "eslint(curly)": 5,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 6,
   "eslint(max-params)": 12,
-  "import(consistent-type-specifier-style)": 6,
   "import(max-dependencies)": 1,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-confusing-void-expression)": 7,
   "typescript(no-non-null-assertion)": 8,
   "typescript(no-unsafe-type-assertion)": 1,
   "unicorn(consistent-function-scoping)": 2,
-  "unicorn(explicit-length-check)": 1,
   "unicorn(max-nested-calls)": 41,
-  "unicorn(no-array-for-each)": 7,
-  "unicorn(numeric-separators-style)": 15
+  "unicorn(no-array-for-each)": 7
  },
  "src/features/board/render/three/drivecage3d.test.ts": {
   "eslint(curly)": 3,
@@ -3523,11 +3483,9 @@
   "vitest(prefer-strict-equal)": 3
  },
  "src/features/board/render/three/drivecage3d.ts": {
-  "eslint(curly)": 9,
   "eslint(max-lines-per-function)": 2,
   "eslint(max-params)": 2,
   "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 3,
   "import(max-dependencies)": 1,
   "oxc(no-map-spread)": 1,
   "typescript(consistent-type-imports)": 1,
@@ -3535,8 +3493,7 @@
   "typescript(no-non-null-assertion)": 2,
   "unicorn(consistent-function-scoping)": 2,
   "unicorn(max-nested-calls)": 2,
-  "unicorn(no-useless-spread)": 1,
-  "unicorn(numeric-separators-style)": 14
+  "unicorn(no-useless-spread)": 1
  },
  "src/features/board/render/three/driveinner3d.test.ts": {
   "eslint(curly)": 2,
