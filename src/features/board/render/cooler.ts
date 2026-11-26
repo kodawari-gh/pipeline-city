@@ -1,9 +1,9 @@
 import { Container, Graphics } from 'pixi.js';
 import type { CoolerSpec, FanSpec } from '../sim/specs';
-import { BR, COOLER, FAN_LEN, RAD_GAP, RAD_T, RAD_TANK, type Rect } from './layout/layout';
+import * as layout from './layout/layout';
 import { box, dashed, disc, lgrad, mix, rgrad } from '@/core/render/ink';
-import { EdgeFan, radiatorSpan, type FanMount } from '../../room/render/desk/props/case';
-import { blades, type Part } from './devices';
+import * as caseProps from '../../room/render/desk/props/case';
+import * as devices from './devices';
 import type { Theme } from '@/core/render/theme';
 
 // The CPU cooler (docs/render/board.md "Cooler"): three looks on the same mounting plate (`COOLER`), which is the hit area, the empty-slot
@@ -37,7 +37,9 @@ function tube(g: Graphics, T: Theme, pts: Pt[], tint: string): void {
   const path = pts;
   const stroke = (dx: number, dy: number, w: number, color: string, alpha: number) => {
     g.moveTo(path[0]![0] + dx, path[0]![1] + dy);
-    for (const p of path.slice(1)) g.lineTo(p[0] + dx, p[1] + dy);
+    for (const p of path.slice(1)) {
+      g.lineTo(p[0] + dx, p[1] + dy);
+    }
     g.stroke({ width: w, color, alpha, join: 'round', cap: 'butt' });
   };
   stroke(10, 18, TUBE_W + 2, '#000000', 0.32);
@@ -70,7 +72,7 @@ function tube(g: Graphics, T: Theme, pts: Pt[], tint: string): void {
         .stroke({ width: 8, color: '#000000', alpha: 0.5, cap: 'round' });
     };
   clamp(path[0]!, path[1]!);
-  clamp(path[path.length - 1]!, path[path.length - 2]!);
+  clamp(path.at(-1)!, path.at(-2)!);
 }
 
 /** A tube fitting: a collar with a lip at its far end. `dir` is the way it points from the part (-1 north, 1 south), `y` where it leaves it. */
@@ -87,7 +89,7 @@ function fitting(g: Graphics, T: Theme, x: number, y: number, dir: -1 | 1): void
  * tank, or the far one: north / west for a top mount) and its core's thickness (`t`, `RAD_T` by grade).
  */
 export interface RadiatorFit {
-  mount: FanMount;
+  mount: caseProps.FanMount;
   end: 'start' | 'end';
   t: number;
 }
@@ -101,33 +103,33 @@ export interface Frame {
   L: number;
   S: number;
   P: (u: number, v: number) => Pt;
-  rect: (u: number, v: number, du: number, dv: number) => Rect;
+  rect: (u: number, v: number, du: number, dv: number) => layout.Rect;
   inward: Pt;
 }
 
 /** A radiator's end tank: how far it reaches past the fans at each end. */
-export const TANK = RAD_TANK;
+export const TANK = layout.RAD_TANK;
 
 /** Where the radiator's core is across its frame: from its face against the fans (`v0`) to its inboard face (`v1`). */
 export const radiatorCore = (f: RadiatorFit): { v0: number; v1: number } => {
   const S = f.mount.side === 'top' ? f.mount.rect.h : f.mount.rect.w;
-  return { v0: S + RAD_GAP, v1: S + RAD_GAP + f.t };
+  return { v0: S + layout.RAD_GAP, v1: S + layout.RAD_GAP + f.t };
 };
 
 /** The radiator itself seen edge-on: its core and its two end tanks (which stand 10 proud of the core's faces), without the fans or the fittings. */
-export function radiatorRect(f: RadiatorFit): Rect {
+export function radiatorRect(f: RadiatorFit): layout.Rect {
   const { v0, v1 } = radiatorCore(f);
   return frameOf(f.mount, f.end).rect(-TANK, v0 - 10, frameOf(f.mount, f.end).L + 2 * TANK, v1 - v0 + 20);
 }
 
 /** The fans of a radiator's side along its frame: `count` mounts of the case's fan size, evenly from one end to the other (`FAN_LEN`). */
 export function radiatorFanUs(L: number, count: number): number[] {
-  const len = Math.min(FAN_LEN, L),
+  const len = Math.min(layout.FAN_LEN, L),
     pitch = count > 1 ? (L - len) / (count - 1) : 0;
   return Array.from({ length: count }, (_, k) => k * pitch);
 }
 
-export function frameOf(m: FanMount, end: 'start' | 'end'): Frame {
+export function frameOf(m: caseProps.FanMount, end: 'start' | 'end'): Frame {
   const r = m.rect,
     top = m.side === 'top',
     L = top ? r.w : r.h,
@@ -158,9 +160,11 @@ export function frameOf(m: FanMount, end: 'start' | 'end'): Frame {
  * A radiator of this grade on a side (`m`, `radiatorSpan`), taking the tubes at the tank nearer the pump (a top radiator has a tank at each end;
  * a front one takes them at its north end).
  */
-export function radiatorFit(m: FanMount, pumpX: number, grade: 1 | 2 | 3 = 2): RadiatorFit {
-  const t = RAD_T[grade - 1]!;
-  if (m.side !== 'top') return { mount: m, end: 'start', t };
+export function radiatorFit(m: caseProps.FanMount, pumpX: number, grade: 1 | 2 | 3 = 2): RadiatorFit {
+  const t = layout.RAD_T[grade - 1]!;
+  if (m.side !== 'top') {
+    return { mount: m, end: 'start', t };
+  }
   const r = m.rect;
   return {
     mount: m,
@@ -198,7 +202,7 @@ export function radiatorArt(
   f: RadiatorFit,
   grade: 1 | 2 | 3 = 2,
   count = 1,
-): { root: Container; fans: EdgeFan[] } {
+): { root: Container; fans: caseProps.EdgeFan[] } {
   const root = new Container(),
     g = new Graphics();
   root.addChild(g);
@@ -219,9 +223,13 @@ export function radiatorArt(
   const core = fr.rect(0, v0, L, t);
   g.roundRect(core.x, core.y, core.w, core.h, 10).fill(lgrad(m.hi, m.lo)).stroke({ width: 5, color: edge });
   const pitch = FIN_PITCH[grade - 1]!;
-  for (let u = 14; u < L - 10; u += pitch) line(u, v0 + 10, u, v1 - 10);
+  for (let u = 14; u < L - 10; u += pitch) {
+    line(u, v0 + 10, u, v1 - 10);
+  }
   g.stroke({ width: 8, color: '#000000', alpha: 0.32 });
-  for (let u = 14; u < L - 10; u += pitch) line(u + 5, v0 + 10, u + 5, v1 - 10);
+  for (let u = 14; u < L - 10; u += pitch) {
+    line(u + 5, v0 + 10, u + 5, v1 - 10);
+  }
   g.stroke({ width: 2, color: '#ffffff', alpha: 0.16 });
   const lit = fr.rect(8, v0 + 4, L - 16, 5);
   g.rect(lit.x, lit.y, lit.w, lit.h).fill({ color: '#ffffff', alpha: 0.16 });
@@ -238,7 +246,7 @@ export function radiatorArt(
     line(gu, v0 + 8, gu, v1 - 8);
     g.stroke({ width: 6, color: '#000000', alpha: 0.3 });
   }
-  const strips = radiatorFanUs(L, count).map((u) => fr.rect(u, 0, Math.min(FAN_LEN, L), S));
+  const strips = radiatorFanUs(L, count).map((u) => fr.rect(u, 0, Math.min(layout.FAN_LEN, L), S));
   const fill = fr.P(L + TANK / 2, v1 - 60);
   screw(g, T, fill[0], fill[1], 20); // the fill port
   // the barbs on the inboard face of the tank the tubes come to
@@ -250,7 +258,7 @@ export function radiatorArt(
     fitting(fg, T, 0, 0, 1);
     root.addChild(fg);
   });
-  return { root, fans: strips.map((r) => new EdgeFan(r, T)) };
+  return { root, fans: strips.map((r) => new caseProps.EdgeFan(r, T)) };
 }
 
 /**
@@ -258,7 +266,7 @@ export function radiatorArt(
  * corner into a sweep that stays inside the polyline, so a route laid round obstacles keeps clear of them.
  */
 function smooth(ctrl: Pt[], per = 14): Pt[] {
-  const p = [ctrl[0]!, ctrl[0]!, ...ctrl, ctrl[ctrl.length - 1]!, ctrl[ctrl.length - 1]!],
+  const p = [ctrl[0]!, ctrl[0]!, ...ctrl, ctrl.at(-1)!, ctrl.at(-1)!],
     out: Pt[] = [];
   for (let i = 0; i + 3 < p.length; i++) {
     for (let k = i === 0 ? 0 : 1; k <= per; k++) {
@@ -276,7 +284,7 @@ function smooth(ctrl: Pt[], per = 14): Pt[] {
     }
   }
   out[0] = ctrl[0]!;
-  out[out.length - 1] = ctrl[ctrl.length - 1]!; // exactly the ends, not their float shadow
+  out[out.length - 1] = ctrl.at(-1)!; // exactly the ends, not their float shadow
   return out;
 }
 
@@ -304,8 +312,8 @@ export function tubeRoutes(f: RadiatorFit, a: Pt, b: Pt): [Pt[], Pt[]] {
   }
   // the front's barbs face west, far across the board: the tubes run along their lanes under the regulator, cross the memory sockets low, then climb the free strip
   // between the M.2 sockets and the ATX plug and land level on their barbs. The upper lane turns first (nearer the sockets) and takes the northern barb, so the pair nests.
-  const m2 = BR.m2,
-    gap = BR.atx.x - (m2.x + m2.w),
+  const { m2 } = layout.BR,
+    gap = layout.BR.atx.x - (m2.x + m2.w),
     xa = m2.x + m2.w + gap * 0.02,
     xb = m2.x + m2.w + gap * 0.3,
     mid = (y0: number, y1: number): number => (y0 + y1) / 2;
@@ -322,28 +330,28 @@ export const STOCK_VANES_R = 630;
 const COOLER_FANS = { stock: { r: 300, blades: 7 }, liquid: { r: 360, blades: 5 } } as const;
 
 /** A tower fan, seen edge-on: a slab on an end of the cooler, as tall as its fins. Both blow west: spot 0 on the east end pushes through the fins, spot 1 on the west end pulls. */
-export const towerFanRect = (spot = 0): Rect => ({
-  x: spot ? COOLER.x + 40 : COOLER.x + COOLER.w - 40 - 170,
-  y: COOLER.y + 50,
+export const towerFanRect = (spot = 0): layout.Rect => ({
+  x: spot ? layout.COOLER.x + 40 : layout.COOLER.x + layout.COOLER.w - 40 - 170,
+  y: layout.COOLER.y + 50,
   w: 170,
-  h: COOLER.h - 160,
+  h: layout.COOLER.h - 160,
 });
 
 /** Where a round cooler's fan sits and how big it is (`visual` is the cooler spec's: `cooler-liquid` the pump, else the stock one; the tower's is `towerFanRect`). */
 export function coolerFanAt(visual: string): { x: number; y: number; r: number; blades: number } {
-  const c = COOLER,
+  const c = layout.COOLER,
     cx = c.x + c.w / 2,
     cy = c.y + c.h / 2;
   return { x: cx, y: cy, ...(visual === 'cooler-liquid' ? COOLER_FANS.liquid : COOLER_FANS.stock) };
 }
 
 /** The cooler on the CPU. `rad` is the radiator the loop's tubes run to (only a liquid cooler uses it; with none the pump's ports are bare). */
-export function coolerArt(T: Theme, spec: CoolerSpec, rad: RadiatorFit | null = null): Part {
+export function coolerArt(T: Theme, spec: CoolerSpec, rad: RadiatorFit | null = null): devices.Part {
   const root = new Container(),
     g = new Graphics();
   root.addChild(g);
   const kind = spec.visual === 'cooler-liquid' ? 'liquid' : spec.visual === 'cooler-tower' ? 'tower' : 'stock';
-  const c: Rect = COOLER,
+  const c: layout.Rect = layout.COOLER,
     cx = c.x + c.w / 2,
     cy = c.y + c.h / 2;
   const m = metals(T),
@@ -386,13 +394,15 @@ export function coolerArt(T: Theme, spec: CoolerSpec, rad: RadiatorFit | null = 
     }
     g.stroke({ width: 7, color: m.hi, alpha: 0.75 });
     disc(g, cx, cy, bezel, { fill: T.sub, stroke: m.metal, lw: 12 });
+    // push pins
     for (const [x, y] of [
       [c.x + 100, c.y + 100],
       [c.x + c.w - 100, c.y + 100],
       [c.x + 100, c.y + c.h - 100],
       [c.x + c.w - 100, c.y + c.h - 100],
-    ] as const)
-      screw(g, T, x, y, 34); // push pins
+    ] as const) {
+      screw(g, T, x, y, 34);
+    }
   } else if (kind === 'tower') {
     // a stack of fins with copper heat pipes standing through them, the fan on its east end, edge-on, blowing west along the fin channels
     const slab = towerFanRect(),
@@ -402,10 +412,13 @@ export function coolerArt(T: Theme, spec: CoolerSpec, rad: RadiatorFit | null = 
       .stroke({ width: 5, color: mix(T.line, m.metal, 0.5) });
     const pitch = 40,
       rail = 22;
-    for (let y = fin.y + 14; y + rail < fin.y + fin.h - 8; y += pitch) g.roundRect(fin.x + 12, y, fin.w - 24, rail, 6);
+    for (let y = fin.y + 14; y + rail < fin.y + fin.h - 8; y += pitch) {
+      g.roundRect(fin.x + 12, y, fin.w - 24, rail, 6);
+    }
     g.fill(lgrad(m.hi, m.metal, [0, 1]));
-    for (let y = fin.y + 14; y + rail < fin.y + fin.h - 8; y += pitch)
+    for (let y = fin.y + 14; y + rail < fin.y + fin.h - 8; y += pitch) {
       g.moveTo(fin.x + 20, y + 4).lineTo(fin.x + fin.w - 20, y + 4);
+    }
     g.stroke({ width: 3, color: '#ffffff', alpha: 0.2 });
     for (let k = 0; k < 3; k++) {
       const px = fin.x + fin.w * (0.2 + k * 0.28);
@@ -421,7 +434,7 @@ export function coolerArt(T: Theme, spec: CoolerSpec, rad: RadiatorFit | null = 
     // the fan's frame; the blades (an `EdgeFan`, as on the case's fans) slide along it
     box(g, slab.x + 10, slab.y + 16, slab.w, slab.h, 30, { fill: '#000000', fa: 0.3 });
     box(g, slab.x, slab.y, slab.w, slab.h, 30, { fill: T.sub, stroke: accent, lw: 8, sa: 0.9 });
-    const edge = new EdgeFan(slab, T);
+    const edge = new caseProps.EdgeFan(slab, T);
     root.addChild(edge);
     return { root, fan: edge };
   } else {
@@ -436,8 +449,9 @@ export function coolerArt(T: Theme, spec: CoolerSpec, rad: RadiatorFit | null = 
       [c.x + c.w - 100, c.y + 100],
       [c.x + 100, c.y + c.h - 100],
       [c.x + c.w - 100, c.y + c.h - 100],
-    ] as const)
+    ] as const) {
       screw(g, T, x, y, 34);
+    }
     if (rad) {
       // two tubes up from the ports to the radiator the player bolted on, nested so they do not cross
       const [ta, tb] = tubeRoutes(rad, [cx - 120, -520], [cx + 120, -520]);
@@ -450,12 +464,16 @@ export function coolerArt(T: Theme, spec: CoolerSpec, rad: RadiatorFit | null = 
       .stroke({ width: 8, color: mix('#14161b', accent, 0.35) });
     g.circle(cx, cy, 528).fill(lgrad('#dfe3e8', '#8a9099', [1, 1]));
     g.circle(cx, cy, 500).fill(rgrad('#a3a8b1', '#4e535c', [0.38, 0.32], 0.75));
-    for (const rr of [440, 380, 310, 190, 140]) g.circle(cx, cy, rr);
+    for (const rr of [440, 380, 310, 190, 140]) {
+      g.circle(cx, cy, rr);
+    }
     g.stroke({ width: 2, color: '#ffffff', alpha: 0.07 });
     g.circle(cx, cy, 240).stroke({ width: 5, color: '#000000', alpha: 0.32 });
     g.circle(cx, cy, 246).stroke({ width: 3, color: '#ffffff', alpha: 0.16 });
     disc(g, cx, cy, 100, { fill: '#2a2d34', stroke: '#c4c9d1', lw: 14 });
-    for (const sx of [-120, 120]) fitting(g, T, cx + sx, cy - 528, -1);
+    for (const sx of [-120, 120]) {
+      fitting(g, T, cx + sx, cy - 528, -1);
+    }
   }
 
   const fan = new Container();
@@ -465,10 +483,12 @@ export function coolerArt(T: Theme, spec: CoolerSpec, rad: RadiatorFit | null = 
   // the stock fan's blades (the pump's impeller is inside its head: nothing to draw, its `fan` turns unseen)
   fan.addChild(fg);
   root.addChild(fan);
-  if (kind === 'liquid') return { root, fan };
+  if (kind === 'liquid') {
+    return { root, fan };
+  }
   disc(g, cx, cy, bezel - 24, { fill: T.dot });
   disc(fg, 0, 0, fr + 24, { fill: mix(T.dot, '#000000', 0.2) });
-  blades(fg, nBlades, 54, fr, T.tile, accent, 4);
+  devices.blades(fg, nBlades, 54, fr, T.tile, accent, 4);
 
   // the hub stays still above the spinning blades
   const hub = new Graphics();
@@ -513,8 +533,12 @@ export function fanKitArt(T: Theme, spec: FanSpec): Container {
     accent = spec.tier > 0 ? T.st : T.alu;
   box(g, -h, -h, side, side, side * 0.09, { fill: T.sub, stroke: mix(T.line, m.metal, 0.5), lw: 8 });
   disc(g, 0, 0, r, { fill: T.dot, stroke: m.lo, lw: 10 });
-  for (const sx of [-1, 1]) for (const sy of [-1, 1]) screw(g, T, sx * h * 0.82, sy * h * 0.82, side * 0.035);
-  blades(g, spec.tier > 0 ? 9 : 7, r * 0.26, r * 0.95, T.tile, accent, 4);
+  for (const sx of [-1, 1]) {
+    for (const sy of [-1, 1]) {
+      screw(g, T, sx * h * 0.82, sy * h * 0.82, side * 0.035);
+    }
+  }
+  devices.blades(g, spec.tier > 0 ? 9 : 7, r * 0.26, r * 0.95, T.tile, accent, 4);
   g.circle(0, 0, r * 0.3)
     .fill(rgrad(m.hi, m.lo, [0.4, 0.35], 0.75))
     .stroke({ width: 6, color: accent });
@@ -527,8 +551,8 @@ export function fanKitArt(T: Theme, spec: FanSpec): Container {
  * many fans as that side holds. Null for a case with no mount for one.
  */
 export function kitFit(grade: 1 | 2 | 3 = 2): { fit: RadiatorFit; ids: string[] } | null {
-  const span = radiatorSpan('top') ?? radiatorSpan('front');
-  return span ? { fit: radiatorFit(span, COOLER.x + COOLER.w / 2, grade), ids: span.ids } : null;
+  const span = caseProps.radiatorSpan('top') ?? caseProps.radiatorSpan('front');
+  return span ? { fit: radiatorFit(span, layout.COOLER.x + layout.COOLER.w / 2, grade), ids: span.ids } : null;
 }
 
 /** A picture of a radiator for a shop tile: the slab alone, its fans switched off. */
@@ -536,7 +560,9 @@ export function radiatorKitArt(T: Theme, visual: string): Container {
   const holder = new Container(),
     grade = radiatorGrade(visual),
     kit = kitFit(grade);
-  if (!kit) return holder;
+  if (!kit) {
+    return holder;
+  }
   const ra = radiatorArt(T, kit.fit, grade, kit.ids.length);
   holder.addChild(ra.root, ...ra.fans);
   return holder;

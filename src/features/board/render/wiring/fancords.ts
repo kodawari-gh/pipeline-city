@@ -1,5 +1,5 @@
 import { fanMounts, hubHeaders } from '@/features/room/render/desk/props/case';
-import { CASE_BD, COOLER, FAN_HUB, FAN_SLOT, GEO, type Rect } from '../layout/layout';
+import * as layout from '../layout/layout';
 import type { Pt } from './routes';
 
 // The fans' cables (docs/render/board.md "Fan cables"): the CPU cooler's, the two heatsink fans', the fan hub's control cable and one cable per
@@ -20,20 +20,20 @@ export interface FanCordPlan {
   /** Where the plug lies when it is out. */
   rest: Pt;
   /** The header the plug seats on (highlight ring). */
-  header: Rect;
+  header: layout.Rect;
   /** How close (world units) the plug's centre must be to the seat for a drop to seat it. */
   seatR: number;
   /** The plug on the fixed end, if that end shows one. */
-  endPlug: Rect | null;
+  endPlug: layout.Rect | null;
   /** Sleeve width. */
   width: number;
 }
 
-const hdrRect = (name: string): Rect | null => {
-  const h = GEO.hdrs.find((q) => q.name === name);
+const hdrRect = (name: string): layout.Rect | null => {
+  const h = layout.GEO.hdrs.find((q) => q.name === name);
   return h ? { x: h.x, y: h.y, w: h.cols * 52 + 24, h: h.rows * 52 + 24 } : null;
 };
-const mid = (r: Rect): Pt => [r.x + r.w / 2, r.y + r.h / 2];
+const mid = (r: layout.Rect): Pt => [r.x + r.w / 2, r.y + r.h / 2];
 
 /** Every fan cable the current layout can have (the pure geometry, tested): the view draws the ones the machine lists. */
 export function fanCordPlans(): FanCordPlan[] {
@@ -42,7 +42,7 @@ export function fanCordPlans(): FanCordPlan[] {
   const cf = hdrRect('CPU_FAN');
   if (cf) {
     const seat = mid(cf),
-      x1 = COOLER.x + 70;
+      x1 = layout.COOLER.x + 70;
     out.push({
       id: 'cpufan',
       anchor: [x1, seat[1]],
@@ -61,8 +61,10 @@ export function fanCordPlans(): FanCordPlan[] {
   // and down onto it
   for (const which of ['vrm', 'ram'] as const) {
     const h = hdrRect(which === 'vrm' ? 'VRM_FAN' : 'RAM_FAN');
-    if (!h) continue;
-    const f = which === 'vrm' ? GEO.vrmFan : GEO.dFan,
+    if (!h) {
+      continue;
+    }
+    const f = which === 'vrm' ? layout.GEO.vrmFan : layout.GEO.dFan,
       west = h.x < f.x,
       sx = h.x + h.w / 2,
       ay = Math.min(Math.max(h.y - 60, f.y + 120), f.y + f.h - 120);
@@ -86,9 +88,9 @@ export function fanCordPlans(): FanCordPlan[] {
   const sf = hdrRect('SYS_FAN');
   if (sf) {
     const cx = sf.x + sf.w / 2,
-      south = CASE_BD.y + CASE_BD.h,
-      hx = FAN_HUB.x + 90,
-      anchor: Pt = [hx, FAN_HUB.y + 4],
+      south = layout.CASE_BD.y + layout.CASE_BD.h,
+      hx = layout.FAN_HUB.x + 90,
+      anchor: Pt = [hx, layout.FAN_HUB.y + 4],
       seat = mid(sf);
     out.push({
       id: 'sysfan',
@@ -100,7 +102,7 @@ export function fanCordPlans(): FanCordPlan[] {
       rest: [cx, sf.y + sf.h + 330],
       header: sf,
       seatR: 190,
-      endPlug: { x: hx - 36, y: FAN_HUB.y - 24, w: 72, h: 44 },
+      endPlug: { x: hx - 36, y: layout.FAN_HUB.y - 24, w: 72, h: 44 },
       width: 24,
     });
   }
@@ -108,8 +110,10 @@ export function fanCordPlans(): FanCordPlan[] {
   const hubs = hubHeaders();
   fanMounts().forEach((m, i) => {
     const p = hubs[i];
-    if (!p) return;
-    const anchor: Pt = [p.x, FAN_SLOT.y + FAN_SLOT.h * 0.5],
+    if (!p) {
+      return;
+    }
+    const anchor: Pt = [p.x, layout.FAN_SLOT.y + layout.FAN_SLOT.h * 0.5],
       seat: Pt = [p.x, p.y - 6];
     out.push({
       id: `fan:${m.id}`,

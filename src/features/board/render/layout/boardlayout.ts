@@ -1,6 +1,6 @@
 import { BOARD_TIERS } from '../../sim/specs';
 import type { Rect } from './layout';
-import { M2_H, M2_W, PKG_PIN, legRun, legsFrom, legsOf, memLanes, type IoPort } from './pins';
+import * as pins from './pins';
 
 // Per-tier motherboard geometry (pure data, no Pixi). The CPU socket is the origin on every board, the rear I/O sits on the west
 // edge and the power connectors on the east / top edges, as on a real board seen through the side glass of a case. Each tier is
@@ -168,14 +168,14 @@ const HUB = R(IO_X + 960, -130, 260, 260);
 /** The rear I/O's shield plate (the connectors sit on it with their mouths facing west; the traces arrive at its east edge). */
 const IO_PLATE = R(IO_X, -2000, 400, 2450);
 /** Every connector the rear I/O can carry; a tier fits the first of each kind (the others are drawn as bare outlines). Mouths face west. */
-export const IO_PORTS: IoPort[] = [
+export const IO_PORTS: pins.IoPort[] = [
   { id: 'line-out', kind: 'jack', x: IO_X + 30, y: -1928, w: 200, h: 70, tone: 'st' },
   { id: 'line-in', kind: 'jack', x: IO_X + 30, y: -1850, w: 200, h: 70, tone: 'br' },
   { id: 'mic', kind: 'jack', x: IO_X + 30, y: -1772, w: 200, h: 70, tone: 'ld' },
   { id: 'eth', kind: 'rj45', x: IO_X + 10, y: -1560, w: 170, h: 124 },
   { id: 'hdmi', kind: 'hdmi', x: IO_X, y: -1150, w: 240, h: 120 },
   { id: 'dp', kind: 'dp', x: IO_X, y: -930, w: 240, h: 120 },
-  ...[0, 1, 2, 3].map((i): IoPort => ({
+  ...[0, 1, 2, 3].map((i): pins.IoPort => ({
     id: `usb${i}`,
     kind: 'usb',
     x: IO_X + 18,
@@ -185,7 +185,7 @@ export const IO_PORTS: IoPort[] = [
     tone: 'alu',
   })),
 ];
-export const ioPort = (id: string): IoPort => IO_PORTS.find((p) => p.id === id)!;
+export const ioPort = (id: string): pins.IoPort => IO_PORTS.find((p) => p.id === id)!;
 
 interface Spec {
   tier: number;
@@ -298,7 +298,7 @@ const MEM_X = 676,
   TOOTH = 32;
 
 function build(s: Spec): TierGeo {
-  const bd = s.bd,
+  const { bd } = s,
     east = bd.x + bd.w,
     south = bd.y + bd.h;
   // ---- CPU VRM: phases over the CPU (centred, or `vdx` east of it), the PWM controller at the west end ----
@@ -311,18 +311,18 @@ function build(s: Spec): TierGeo {
   const vrmSink = R(vx0 - 10, vy + 18, s.phases * VRM_PITCH - 20, 360);
   // ---- memory: one bank of sticks east of the CPU, each the length of a real DIMM, room for the memory regulator above it; the lanes' rows stack on the
   // CPU's east edge and spread along the sticks ----
-  const lanes = memLanes(s.dimms),
+  const lanes = pins.memLanes(s.dimms),
     n = s.dimms,
     X0 = Math.max(s.bank.x, vrm.x + vrm.w + BANK_GAP),
     top0 = bd.y + s.bank.top;
   const dimm: DimmGeo[] = Array.from({ length: n }, (_, i) => ({
     rect: R(X0 + i * DIMM_PITCH, top0, DIMM_W0, DIMM_H0),
   }));
-  const step = Math.max((n + 2) * PKG_PIN, 140),
+  const step = Math.max((n + 2) * pins.PKG_PIN, 140),
     mid = top0 + DIMM_H0 / 2,
     spread = s.bank.span / lanes;
   // (the rows sit as near the bank's middle as the edge's 460 of pins lets them: the shorter the fan, the more room it leaves the zigzags)
-  const free = 460 - ((lanes - 1) * step + (n - 1) * PKG_PIN) / 2,
+  const free = 460 - ((lanes - 1) * step + (n - 1) * pins.PKG_PIN) / 2,
     lean = Math.max(-free, Math.min(free, mid));
   const rowOf = (r: number) => r - (lanes - 1) / 2,
     onPkg = (r: number) => lean + rowOf(r) * step,
@@ -330,7 +330,7 @@ function build(s: Spec): TierGeo {
   const memFrom = Array.from({ length: n }, (_, i) =>
     Array.from(
       { length: lanes },
-      (_, r) => PKG_PIN * Math.floor((onPkg(r) + (i - (n - 1) / 2) * PKG_PIN) / PKG_PIN + 0.5),
+      (_, r) => pins.PKG_PIN * Math.floor((onPkg(r) + (i - (n - 1) / 2) * pins.PKG_PIN) / pins.PKG_PIN + 0.5),
     ),
   );
   // on the bank a lane keeps room for its zigzag above it: the more length it has to make up and the less room its row's fan leaves, the taller
@@ -385,7 +385,7 @@ function build(s: Spec): TierGeo {
   // the I/O controller sits west of the chipset, level with the last four of its west legs (a straight link of four lanes); the pin headers
   // stand in a row to its west, the last of them 50 from it and 40 apart (the top board then keeps its RGB lane clear of the south-west hole),
   // and a trunk below the row serves them all
-  const sioLegs = legsFrom(s.chip, 'w', s.west.sio, 4),
+  const sioLegs = pins.legsFrom(s.chip, 'w', s.west.sio, 4),
     sio = R(s.chip.x - 520, sioLegs.reduce((a, p) => a + p[1], 0) / 4 - 75, 150, 150);
   const hdrY = south - 520,
     hw = (cols: number) => cols * 52 + 24;
@@ -497,11 +497,11 @@ function build(s: Spec): TierGeo {
     io: IO_PLATE,
     pcieLinks: BOARD_TIERS[s.tier]!.pcieWidths.map((w) => ({ pairs: 2 * Math.min(w, 16), cpu: w >= 8 })),
     chip: s.chip,
-    dmiX: legRun(s.chip, 'n', 6).reduce((a, p) => a + p[0], 0) / 6,
+    dmiX: pins.legRun(s.chip, 'n', 6).reduce((a, p) => a + p[0], 0) / 6,
     hub: HUB, // 8 legs a side, 26 apart, centred on y 0: the CPU's four lanes on the east side, two per port on the west
     usb: s.usb,
     dp: s.dp,
-    bios: R(s.chip.x - 250, legsFrom(s.chip, 'w', s.west.bios, 4)[0]![1] + 39 - 45, 170, 90),
+    bios: R(s.chip.x - 250, pins.legsFrom(s.chip, 'w', s.west.bios, 4)[0]![1] + 39 - 45, 170, 90),
     west: s.west,
     codec: R(IO_X + 470, -1967, 230, 234), // seven legs on its west side: the three jacks sit on the 1st, 4th and 7th
     phy: s.tier >= 1 ? R(IO_X + 710, -1690, 220, 260) : null, // eight legs: the jack's four pads sit on the middle ones
@@ -527,7 +527,7 @@ function build(s: Spec): TierGeo {
     memLanes: lanes,
     pcie: pcieRails(s.tier),
     // the M.2 2280 slots (pins.ts `M2_STICK`) end where the cooler's hoses climb, west of the ATX plug's column
-    m2: s.m2Y.map((y) => R(2910 - M2_W, y, M2_W, M2_H)),
+    m2: s.m2Y.map((y) => R(2910 - pins.M2_W, y, pins.M2_W, pins.M2_H)),
     sata: sataRects.slice(0, s.sata),
     // the sticker patch: along the bottom edge under the header trunk, or (on the top board, whose header bus runs there) in the free corner by the rear I/O, beside the top hole
     // and above the audio capacitors
@@ -540,9 +540,9 @@ function build(s: Spec): TierGeo {
     hdrs,
     // the crystals: the CPU's under its socket (west of the x16 lanes), the chipset's above its last north legs (east of the DMI lanes)
     xtalCpu: R(-640, 650, 100, 56),
-    xtalPch: R(legsOf(s.chip, 'n').at(-2)![0] + 13 - 50, s.chip.y - 150, 100, 56),
+    xtalPch: R(pins.legsOf(s.chip, 'n').at(-2)![0] + 13 - 50, s.chip.y - 150, 100, 56),
     // the top board: a two-digit debug display under the chipset (fed from its south legs) and an RGB strip along the bottom edge
-    dbg: s.tier >= 3 ? R(legRun(s.chip, 's', 4, -7)[0]![0] + 39 - 150, s.chip.y + s.chip.h + 110, 300, 170) : null,
+    dbg: s.tier >= 3 ? R(pins.legRun(s.chip, 's', 4, -7)[0]![0] + 39 - 150, s.chip.y + s.chip.h + 110, 300, 170) : null,
     rgb: s.tier >= 3 ? R(bd.x + 700, south - 82, bd.w - 1400, 44) : null,
     passives,
     holes,

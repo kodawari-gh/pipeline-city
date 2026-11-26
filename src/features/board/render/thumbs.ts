@@ -2,7 +2,7 @@ import { signal } from '@preact/signals';
 import type { Renderer } from 'pixi.js';
 import { getSpec } from '../sim/specs';
 import { getIspSpec, getRouterSpec } from '../../network/sim/specs';
-import { drawThumb, type ThumbJob, type ThumbReply } from './thumbart';
+import * as thumbart from './thumbart';
 import { readTheme } from '@/core/render/theme';
 
 // Pictures of the parts for the shop, the inventory and the picker: the same art the board draws, rendered to a small image, so a
@@ -22,9 +22,9 @@ const epoch = 0;
 const cache = new Map<string, string>();
 const failed = new Set<string>();
 /** Jobs asked of the worker and not answered yet, by key (moved to `queue` if the worker dies). */
-const sent = new Map<string, ThumbJob>();
+const sent = new Map<string, thumbart.ThumbJob>();
 /** Jobs for the main-thread fallback. */
-const queue: ThumbJob[] = [];
+const queue: thumbart.ThumbJob[] = [];
 let busy = false;
 /** Bumped when a new picture is ready or the theme changed: read it in a component to re-render. */
 export const thumbsVersion = signal(0);
@@ -42,19 +42,25 @@ function prefetchStills(): void {
       img.decoding = 'async';
       img.src = url;
     }
-    if (todo.length) setTimeout(step, 50);
+    if (todo.length > 0) {
+      setTimeout(step, 50);
+    }
   };
   setTimeout(step, 0);
 }
 
 /** Load the list of the baked stills (once). */
 function loadStills(): void {
-  if (stillsAsked || typeof document === 'undefined') return;
+  if (stillsAsked || typeof document === 'undefined') {
+    return;
+  }
   stillsAsked = true;
   void fetch(`${STILLS}manifest.json`)
     .then(async (r) => (r.ok ? ((await r.json()) as { stills?: Record<string, string> }).stills : null))
     .catch((e: unknown) => {
-      if (import.meta.env.DEV) console.warn('the shop stills did not load:', e);
+      if (import.meta.env.DEV) {
+        console.warn('the shop stills did not load:', e);
+      }
       return null;
     })
     .then((m) => {
@@ -67,31 +73,41 @@ function loadStills(): void {
 export function initThumbs(r: Renderer): void {
   const first = !renderer;
   renderer = r;
-  if (first) loadStills();
+  if (first) {
+    loadStills();
+  }
 }
 
 /** The drawing worker starts with the first picture that needs a drawing, not with the game: its code (Pixi, 0.5 MB) is a first-start download, and the stills cover most tiles (PHONE-05). */
 let workerTried = false;
 function startWorker(): void {
-  if (workerTried) return;
+  if (workerTried) {
+    return;
+  }
   workerTried = true;
-  if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') return;
+  if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') {
+    return;
+  }
   try {
     worker = new Worker(new URL('thumbs.worker.ts', import.meta.url), { type: 'module' });
   } catch {
     return;
   }
-  worker.onmessage = (e: MessageEvent<ThumbReply>) => {
+  worker.onmessage = (e: MessageEvent<thumbart.ThumbReply>) => {
     const m = e.data;
     if ('dead' in m) {
       fallBack();
       return;
     }
-    if (m.epoch !== epoch || !sent.delete(m.key)) return;
+    if (m.epoch !== epoch || !sent.delete(m.key)) {
+      return;
+    }
     if (m.png) {
       cache.set(m.key, URL.createObjectURL(m.png));
       thumbsVersion.value += 1;
-    } else failed.add(m.key);
+    } else {
+      failed.add(m.key);
+    }
   };
   worker.onerror = () => fallBack();
 }
@@ -107,26 +123,40 @@ function fallBack() {
 
 /** Can a picture be made for this id at all? (a part, a board, a case, a router, a plan; not an OS) */
 function hasThumb(id: string): boolean {
-  if (/^(board|case)\d+$/.test(id)) return true;
-  if (getRouterSpec(id) || getIspSpec(id)) return true;
+  if (/^(?:board|case)\d+$/u.test(id)) {
+    return true;
+  }
+  if (getRouterSpec(id) || getIspSpec(id)) {
+    return true;
+  }
   const k = getSpec(id)?.kind;
-  return !!k;
+  return Boolean(k);
 }
 
 /** The picture of an id in the current theme, or null while it is being made (or cannot be made): read `thumbsVersion` to be told. */
 export function thumbOf(id: string): string | null {
   // The stills need no renderer: the list loads with the first tile, not when the 3D renderer is up.
   loadStills();
-  if (!stills || !hasThumb(id)) return null;
+  if (!stills || !hasThumb(id)) {
+    return null;
+  }
   const still = stills[id];
-  if (still) return `${STILLS}${id}.webp?${still}`;
-  if (!renderer) return null;
+  if (still) {
+    return `${STILLS}${id}.webp?${still}`;
+  }
+  if (!renderer) {
+    return null;
+  }
   const theme = readTheme(),
     key = id;
   const hit = cache.get(key);
-  if (hit) return hit;
-  if (failed.has(key) || sent.has(key) || queue.some((j) => j.key === key)) return null;
-  const job: ThumbJob = { key, id, theme, epoch };
+  if (hit) {
+    return hit;
+  }
+  if (failed.has(key) || sent.has(key) || queue.some((j) => j.key === key)) {
+    return null;
+  }
+  const job: thumbart.ThumbJob = { key, id, theme, epoch };
   startWorker();
   if (worker) {
     sent.set(key, job);
@@ -140,23 +170,30 @@ export function thumbOf(id: string): string | null {
 
 /** The main-thread fallback: one picture per idle slice. */
 function pump() {
-  if (busy || !queue.length) return;
+  if (busy || queue.length === 0) {
+    return;
+  }
   busy = true;
   const next = () => {
     const j = queue.shift();
     if (j && j.epoch === epoch) {
       try {
-        const c = renderer && drawThumb(renderer, j.id, j.theme);
+        const c = renderer && thumbart.drawThumb(renderer, j.id, j.theme);
         if (c) {
           cache.set(j.key, (c as HTMLCanvasElement).toDataURL('image/png'));
           thumbsVersion.value += 1;
-        } else failed.add(j.key);
+        } else {
+          failed.add(j.key);
+        }
       } catch {
         failed.add(j.key);
       }
     }
-    if (queue.length) setTimeout(next, 0);
-    else busy = false;
+    if (queue.length > 0) {
+      setTimeout(next, 0);
+    } else {
+      busy = false;
+    }
   };
   setTimeout(next, 0);
 }
