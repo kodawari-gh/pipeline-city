@@ -11305,13 +11305,10 @@
   "unicorn(prefer-at)": 2
  },
  "src/features/room/render/three/outside/textures.ts": {
-  "eslint(curly)": 7,
   "eslint(max-params)": 6,
   "eslint(no-multi-assign)": 4,
   "eslint(operator-assignment)": 3,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 7,
-  "unicorn(numeric-separators-style)": 1
+  "typescript(no-non-null-assertion)": 7
  },
  "src/features/room/render/three/outside/towers.test.ts": {
   "eslint(complexity)": 1,
@@ -11345,17 +11342,14 @@
  },
  "src/features/room/render/three/outside/traffic.ts": {
   "eslint(class-methods-use-this)": 2,
-  "eslint(curly)": 13,
   "eslint(max-depth)": 1,
   "eslint(max-params)": 2,
   "eslint(no-multi-assign)": 3,
   "eslint(no-nested-ternary)": 3,
   "eslint(no-use-before-define)": 2,
-  "eslint(prefer-destructuring)": 2,
   "typescript(no-non-null-assertion)": 11,
   "typescript(prefer-readonly)": 1,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(prefer-at)": 1
+  "unicorn(no-array-sort)": 1
  },
  "src/features/room/render/three/outside/trees.test.ts": {
   "eslint(curly)": 3,
@@ -11367,15 +11361,12 @@
  },
  "src/features/room/render/three/outside/trees.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 9,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 5,
   "eslint(max-params)": 4,
   "eslint(no-multi-assign)": 1,
   "eslint(no-negated-condition)": 2,
   "eslint(no-nested-ternary)": 4,
-  "eslint(prefer-destructuring)": 12,
-  "import(consistent-type-specifier-style)": 4,
   "typescript(no-non-null-assertion)": 16,
   "typescript(no-unnecessary-type-assertion)": 3,
   "typescript(no-unsafe-enum-assignment)": 1,
@@ -11383,8 +11374,7 @@
   "typescript(prefer-for-of)": 1,
   "typescript(prefer-readonly)": 1,
   "typescript(strict-boolean-expressions)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(explicit-length-check)": 1
+  "unicorn(consistent-function-scoping)": 1
  },
  "src/features/room/render/three/outside/view.test.ts": {
   "eslint(curly)": 10,
@@ -11414,18 +11404,14 @@
  },
  "src/features/room/render/three/outside/view.ts": {
   "eslint(complexity)": 2,
-  "eslint(curly)": 22,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 3,
   "eslint(max-params)": 3,
   "eslint(no-await-in-loop)": 2,
-  "eslint(no-implicit-coercion)": 2,
   "eslint(no-multi-assign)": 7,
   "eslint(no-nested-ternary)": 1,
   "eslint(no-param-reassign)": 1,
   "eslint(no-use-before-define)": 7,
-  "eslint(prefer-destructuring)": 2,
-  "import(consistent-type-specifier-style)": 20,
   "import(max-dependencies)": 1,
   "typescript(no-confusing-void-expression)": 3,
   "typescript(no-non-null-assertion)": 19,
@@ -11436,8 +11422,7 @@
   "typescript(prefer-readonly)": 26,
   "typescript(strict-boolean-expressions)": 5,
   "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(numeric-separators-style)": 12
+  "unicorn(no-array-sort)": 1
  },
  "src/features/room/render/three/palette.test.ts": {
   "unicorn(numeric-separators-style)": 1

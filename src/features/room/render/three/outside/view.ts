@@ -31,37 +31,49 @@ import {
   Vector4,
   WebGLCubeRenderTarget,
   WebGLRenderTarget,
-  type Camera,
-  type Material,
-  type Object3D,
-  type WebGLRenderer,
 } from 'three';
+import type * as threeTypes from 'three';
 import { mergePalette, mergeStatic } from '@/core/render/three/merge';
-import { startPrograms, startShadowPrograms, type Program } from '@/core/render/three/compile';
+import { startPrograms, startShadowPrograms } from '@/core/render/three/compile';
+import type * as compileTypes from '@/core/render/three/compile';
 import { skyAt } from '../../shell/room';
 import { daylight, sunDir } from '../roomplan';
-import { Fleet, type CarLight } from './cars';
+import { Fleet } from './cars';
+import type * as carsTypes from './cars';
 import { withCanyon } from './canyon';
 import { land } from './city';
-import { LOW_CELL, LOW_EVERY, LOW_FLEET, cityCuts, type CityCuts, type CityDetail } from './detail';
+import { LOW_CELL, LOW_EVERY, LOW_FLEET, cityCuts } from './detail';
+import type * as detailTypes from './detail';
 import { CityGlow } from './glow';
-import { withHaze, type HazeUniforms } from './haze';
-import { disposeKit, makeKit, type Kit } from './kit';
-import { withLampLight, type LampUniforms } from './lamplight';
+import { withHaze } from './haze';
+import type * as hazeTypes from './haze';
+import { disposeKit, makeKit } from './kit';
+import type * as kitTypes from './kit';
+import { withLampLight } from './lamplight';
+import type * as lamplightTypes from './lamplight';
 import { GlassMirror } from './mirror';
-import { GRID, M, buildings, parked, toOutside, trees, type Building } from './plan';
-import { Sight, outsideDraws, type QueryGL } from './sight';
-import { EARTH_SHADOW, moonDir, skyDome, skyMaterial, type SkyUniforms } from './sky';
-import { signWashes, type SignWash } from './signlight';
-import { roofSteam, steamUniforms, type SteamUniforms } from './steam';
+import { GRID, M, buildings, parked, toOutside, trees } from './plan';
+import type * as planTypes from './plan';
+import { Sight, outsideDraws } from './sight';
+import type * as sightTypes from './sight';
+import { EARTH_SHADOW, moonDir, skyDome, skyMaterial } from './sky';
+import type * as skyTypes from './sky';
+import { signWashes } from './signlight';
+import type * as signlightTypes from './signlight';
+import { roofSteam, steamUniforms } from './steam';
+import type * as steamTypes from './steam';
 import { Signals, street } from './street';
 import { SunMap } from './sunmap';
 import { Sweep, sweptMerge } from './sweep';
-import { lowFacadeMaterial, type LowLamps } from './lowfacade';
-import { facadeMaterial, type FacadeUniforms } from './towers/facade';
-import { massGeometries, massSteps, type MassRing } from './towers/rings';
+import { lowFacadeMaterial } from './lowfacade';
+import type * as lowfacadeTypes from './lowfacade';
+import { facadeMaterial } from './towers/facade';
+import type * as facadeTypes from './towers/facade';
+import { massGeometries, massSteps } from './towers/rings';
+import type * as ringsTypes from './towers/rings';
 import { Traffic } from './traffic';
-import { plantTrees, type LeafUniforms } from './trees';
+import { plantTrees } from './trees';
+import type * as treesTypes from './trees';
 
 /** The sun's shadow map at each level of the graphics settings (0: none). */
 const SHADOW_LEVELS = [0, 1024, 2048, 4096, 4096];
@@ -96,8 +108,8 @@ const NIGHT_TOP = new Color(0.00035, 0.0007, 0.0032),
 /** The sun's light low down, where it has crossed the most air. */
 const SUN_LOW = new Color(1, 0.2, 0.045),
   STEAM_LOW = new Color(0.2, 0.125, 0.1),
-  HOR_CLEAR = new Color(0xc2e7ff),
-  BOUNCE_LATE = new Color(0xffc48f);
+  HOR_CLEAR = new Color(0xc2_e7_ff),
+  BOUNCE_LATE = new Color(0xff_c4_8f);
 /** The haze toward a low sun: the rose over the ember, so the far towers fade rose in front of the fire on the horizon. */
 const DUSK_ROSE = new Color(0.56, 0.2, 0.25);
 /** The warm hour's share of the sky at an hour, its bands' brightness as the light goes, how bright the haze is against them. */
@@ -207,7 +219,7 @@ export class OutsideView {
   /** The scale (`SUPER` or 1) the target was made at. */
   private targetSS = 1;
   // (the fields set in `build` carry a `!`: the geometry is made there, a step at a time or all at once)
-  private kit!: Kit;
+  private kit!: kitTypes.Kit;
   private sky!: ShaderMaterial;
   private dome!: Mesh;
   private env = new WebGLCubeRenderTarget(128, { type: HalfFloatType });
@@ -217,17 +229,17 @@ export class OutsideView {
   // (the sky's environment, filtered: made here and freed in `dispose`; a scene's own cube target would keep its filtered copy for good)
   private pmrem: PMREMGenerator | null = null;
   private envMap: WebGLCubeRenderTarget | null = null;
-  private sun = new DirectionalLight(0xffffff, 0);
-  private bounce = new DirectionalLight(0xfff1e2, 0);
+  private sun = new DirectionalLight(0xff_ff_ff, 0);
+  private bounce = new DirectionalLight(0xff_f1_e2, 0);
   /** The moon's light at night, a faint blue from the sky (it casts no glints, which a moon as a light would on every roof). */
-  private moon = new HemisphereLight(0x5a6fa8, 0x1c1e26, 0);
+  private moon = new HemisphereLight(0x5a_6f_a8, 0x1c_1e_26, 0);
   lamps: PointLight[] = [];
   /** Low's buildings' analytic lamp term (null at High, where the PointLights light the walls). */
-  lowLamps: LowLamps | null = null;
-  private leaf!: LeafUniforms;
-  private facade!: FacadeUniforms;
-  private steam!: SteamUniforms;
-  private haze: HazeUniforms = {
+  lowLamps: lowfacadeTypes.LowLamps | null = null;
+  private leaf!: treesTypes.LeafUniforms;
+  private facade!: facadeTypes.FacadeUniforms;
+  private steam!: steamTypes.SteamUniforms;
+  private haze: hazeTypes.HazeUniforms = {
     hzCol: { value: new Color() },
     hzSun: { value: new Color() },
     hzDir: { value: new Vector3(0, 1, 0) },
@@ -238,8 +250,8 @@ export class OutsideView {
     hzTime: { value: 0 },
   };
   private traffic = new Traffic();
-  private carLight: CarLight = { night: { value: 0 } };
-  private lampLight: LampUniforms = { lampNight: { value: 0 } };
+  private carLight: carsTypes.CarLight = { night: { value: 0 } };
+  private lampLight: lamplightTypes.LampUniforms = { lampNight: { value: 0 } };
   private fleet!: Fleet;
   private signals!: Signals;
   private glow = new CityGlow();
@@ -250,17 +262,17 @@ export class OutsideView {
   private clock = 0;
   private ran = -1;
   /** Materials of the view's own, outside the kit. */
-  private disposables: Material[] = [];
+  private disposables: threeTypes.Material[] = [];
   key = -1;
   /** When the sun's shadow map is drawn: on its steps, and not while it is at 0 (`sunmap.ts`). */
   private sunMap = new SunMap();
   /** The camera the window's picture is drawn for this frame: the quad shows the picture only to it. */
-  private live: Camera | null = null;
+  private live: threeTypes.Camera | null = null;
   /** Whether the eye sees the window; the eye (its whole view and the frame's size) at the last draw. */
   private sight = new Sight();
   /** The canvas whose context loss `sight` hears, and that context. The handlers are fields so `dispose` can take them off the canvas: it outlives the view. */
   private sightCanvas: HTMLCanvasElement | null = null;
-  private sightGl: QueryGL | null = null;
+  private sightGl: sightTypes.QueryGL | null = null;
   private readonly onLost = (): void => this.sight.lose();
   private readonly onRestored = (): void => this.sight.restore();
   private eye = new Matrix4();
@@ -277,7 +289,11 @@ export class OutsideView {
   private sunOf = new Matrix4();
   private sweeps: Sweep[] = [];
   /** The buildings' geometry, built before the textures were in (`massing`): `build` takes it in place of building it. */
-  private early: { blocks: Building[]; washes: SignWash[]; rings: MassRing[] } | null = null;
+  private early: {
+    blocks: planTypes.Building[];
+    washes: signlightTypes.SignWash[];
+    rings: ringsTypes.MassRing[];
+  } | null = null;
   /** The camera's view at the last cut, and whether that cut kept all of it (for the sun's shadows). */
   private cutOf = new Matrix4();
   private cutAll = false;
@@ -287,7 +303,7 @@ export class OutsideView {
   age = 0;
   /** `?debug` only (`app/debug/city-layers.ts`): the layers that are off, and the objects of those that hide objects. Empty unless the overlay turns one off. */
   off = new Set<string>();
-  parts: Record<string, Object3D[]> = {};
+  parts: Record<string, threeTypes.Object3D[]> = {};
   /** The picture is due for its next draw (each `EVERY` ticks): a frame drawn on demand (docs/render/load.md) draws on this beat. */
   get due(): boolean {
     return this.age >= this.every;
@@ -307,8 +323,8 @@ export class OutsideView {
     w: number,
     h: number,
     z: number,
-    readonly detail: CityDetail = 'high',
-    private readonly cuts: CityCuts = cityCuts(detail),
+    readonly detail: detailTypes.CityDetail = 'high',
+    private readonly cuts: detailTypes.CityCuts = cityCuts(detail),
     defer = false,
   ) {
     this.quad = new ShaderMaterial({
@@ -339,9 +355,11 @@ export class OutsideView {
     this.mesh.onBeforeRender = (r, _s, camera) => {
       const live = camera === this.live && this.target;
       this.quad.uniforms['live']!.value = live ? 1 : 0;
-      if (live) this.sight.begin(r.getContext() as QueryGL);
+      if (live) {
+        this.sight.begin(r.getContext() as sightTypes.QueryGL);
+      }
     };
-    this.mesh.onAfterRender = (r) => this.sight.end(r.getContext() as QueryGL);
+    this.mesh.onAfterRender = (r) => this.sight.end(r.getContext() as sightTypes.QueryGL);
     if (!defer) {
       const run = this.build();
       while (!run.next().done) {
@@ -356,7 +374,7 @@ export class OutsideView {
    */
   private *massing(): Generator<void> {
     const blocks = buildings(),
-      washes: SignWash[] = [];
+      washes: signlightTypes.SignWash[] = [];
     this.early = {
       blocks,
       washes,
@@ -374,7 +392,7 @@ export class OutsideView {
     // the streets merged by material (their many small things in bearing order, cut by a sweep); the buildings on their facade's material,
     // ring by ring, the trees and the land in their own
     // (each Low cut by its flag, `detail.ts`: High has none)
-    const on = (c: boolean): CityDetail => (c ? 'low' : 'high');
+    const on = (c: boolean): detailTypes.CityDetail => (c ? 'low' : 'high');
     this.every = cuts.cadence ? LOW_EVERY : EVERY;
     this.clockCut = cuts.clock;
     const k = (this.kit = makeKit()),
@@ -384,11 +402,13 @@ export class OutsideView {
     still.add(st.group);
     // (with the palette cut the plain materials, which differ only in colour and shine, are palette meshes; each is swept like the plain ones, or it would draw whole)
     yield { label: 'Merging the streets', share: 0.2 };
-    const palette: Material[] = [];
+    const palette: threeTypes.Material[] = [];
     if (cuts.palette) {
       mergePalette(still);
       still.traverse((o) => {
-        if (o.name === 'merged') palette.push((o as Mesh).material as Material);
+        if (o.name === 'merged') {
+          palette.push((o as Mesh).material as threeTypes.Material);
+        }
       });
     }
     const cell = cuts.streets ? LOW_CELL : undefined;
@@ -405,9 +425,9 @@ export class OutsideView {
       facade = lowFac ?? facadeMaterial();
     this.lowLamps = lowFac?.lamps ?? null;
     yield { label: 'Raising the towers', share: 0.4 };
-    const early = this.early,
+    const { early } = this,
       blocks = early?.blocks ?? buildings(),
-      washes: SignWash[] = early?.washes ?? [],
+      washes: signlightTypes.SignWash[] = early?.washes ?? [],
       steam = cuts.steam ? null : roofSteam(blocks, this.haze);
     const mass = (early?.rings ?? massGeometries(blocks, washes, on(cuts.far))).map((r) => {
       const m = new Mesh(r.geometry, facade.mat);
@@ -445,18 +465,26 @@ export class OutsideView {
 
     // the sky round the camera, and its small copy the environment sees
     this.sky = skyMaterial(cuts.sky);
-    this.dome = skyDome(this.sky, 15000);
+    this.dome = skyDome(this.sky, 15_000);
     this.scene.add(this.dome);
     this.parts['sky'] = [this.dome];
     this.envScene.add(skyDome(this.sky, 100));
-    this.disposables.push(facade.mat, signLight.material as Material);
-    if (steam) this.disposables.push(steam.mesh.material as Material);
+    this.disposables.push(facade.mat, signLight.material as threeTypes.Material);
+    if (steam) {
+      this.disposables.push(steam.mesh.material as threeTypes.Material);
+    }
     // the lamps' pools on the ground, the haze on every material in place of fog
-    for (const m of [k.asphalt, k.paving, k.kerb]) withLampLight(m, this.lampLight);
-    for (const m of [k.asphalt, k.paving, k.kerb, k.paint, k.yellow, ...palette]) withCanyon(m);
+    for (const m of [k.asphalt, k.paving, k.kerb]) {
+      withLampLight(m, this.lampLight);
+    }
+    for (const m of [k.asphalt, k.paving, k.kerb, k.paint, k.yellow, ...palette]) {
+      withCanyon(m);
+    }
     this.disposables.push(...palette);
     this.scene.traverse((o) => {
-      for (const m of [(o as Mesh).material ?? []].flat()) withHaze(m, this.haze);
+      for (const m of [(o as Mesh).material ?? []].flat()) {
+        withHaze(m, this.haze);
+      }
     });
 
     // the lights: the sun (its shadow over the near blocks), our tower's light thrown back, the lamps the window looks at
@@ -475,7 +503,7 @@ export class OutsideView {
     this.bounce.position.set(0.15, 0.35, 1).multiplyScalar(300);
     this.scene.add(this.sun, this.sun.target, this.bounce, this.moon);
     for (const p of lampAt) {
-      const l = new PointLight(0xffc98a, 0, 45, 2);
+      const l = new PointLight(0xff_c9_8a, 0, 45, 2);
       l.position.copy(p);
       this.lamps.push(l);
       this.scene.add(l);
@@ -494,7 +522,7 @@ export class OutsideView {
     w: number,
     h: number,
     z: number,
-    detail: CityDetail,
+    detail: detailTypes.CityDetail,
     between: (label: string, share: number) => Promise<void>,
     early?: { until: Promise<void>; turn: () => Promise<void> },
   ): Promise<OutsideView> {
@@ -502,11 +530,15 @@ export class OutsideView {
     if (early) {
       // the buildings need no texture: they build in slices while the textures (`until`) load, a turn between for that load to go on
       const mass = view.massing();
-      for (let step = mass.next(); !step.done; step = mass.next()) await early.turn();
+      for (let step = mass.next(); !step.done; step = mass.next()) {
+        await early.turn();
+      }
       await early.until;
     }
     const run = view.build();
-    for (let step = run.next(); !step.done; step = run.next()) await between(step.value.label, step.value.share);
+    for (let step = run.next(); !step.done; step = run.next()) {
+      await between(step.value.label, step.value.share);
+    }
     return view;
   }
 
@@ -519,7 +551,9 @@ export class OutsideView {
       sh.map?.dispose();
       sh.map = null;
     }
-    if (size) sh.mapSize.set(size, size);
+    if (size) {
+      sh.mapSize.set(size, size);
+    }
     sh.radius = 2;
     this.sunMap.ask();
   }
@@ -528,8 +562,10 @@ export class OutsideView {
   frame(hour: number, t: number): void {
     this.age++;
     // (debug: frozen animations keep the clock where the toggle found it)
-    if (this.off.has('freeze')) t = this.clock;
-    const u = this.sky.uniforms as unknown as SkyUniforms;
+    if (this.off.has('freeze')) {
+      t = this.clock;
+    }
+    const u = this.sky.uniforms as unknown as skyTypes.SkyUniforms;
     u.time.value = t;
     // at Low the steam and the leaves hold still (their clock stands at `STILL_T`); the sky, the facade's beacons and the haze keep the clock
     const still = this.clockCut ? STILL_T : t;
@@ -539,7 +575,9 @@ export class OutsideView {
     this.haze.hzTime.value = t;
     this.clock = t;
     const key = Math.round(hour * 30);
-    if (key === this.key) return;
+    if (key === this.key) {
+      return;
+    }
     this.key = key;
     this.envDirty = true;
     const s = skyAt(hour),
@@ -568,14 +606,14 @@ export class OutsideView {
     // the sun's light: white overhead, a burning orange low down; gone under the horizon
     const low = 1 - smooth(0.1, 0.75, sd[1]),
       up = smooth(-0.03, 0.12, sd[1]);
-    const sunCol = new Color(0xfff4e2).lerp(SUN_LOW, low * 0.85);
+    const sunCol = new Color(0xff_f4_e2).lerp(SUN_LOW, low * 0.85);
     u.sunCol.value.copy(sunCol).multiplyScalar(day);
     this.sun.color.copy(sunCol);
     this.sun.intensity = 5.6 * day * up;
     this.sun.position.set(sd[0], sd[1], sd[2]).multiplyScalar(1600).add(SHADOW_AT);
     // what the sun's side of the city throws back on the walls in its shade: the window sees those all the late afternoon, so more, and warm
     const late = smooth(14.5, 16.5, hour) * (1 - smooth(18.5, 20, hour));
-    this.bounce.color.set(0xfff1e2).lerp(BOUNCE_LATE, late);
+    this.bounce.color.set(0xff_f1_e2).lerp(BOUNCE_LATE, late);
     this.bounce.intensity = (0.55 + 0.85 * late) * day * up;
     this.moon.intensity = MOON * night;
     this.scene.environmentIntensity = 1;
@@ -596,13 +634,19 @@ export class OutsideView {
     hz.hzMist.value.copy(MIST);
     hz.hzMistD.value = MIST_DENSITY * mist;
     u.mist.value.copy(MIST).multiplyScalar(mist);
-    u.ground.value.copy(hor).lerp(new Color(0x4a5242), 0.55).multiplyScalar(0.45).lerp(hz.hzCol.value, dusk);
+    u.ground.value.copy(hor).lerp(new Color(0x4a_52_42), 0.55).multiplyScalar(0.45).lerp(hz.hzCol.value, dusk);
     this.leaf.glow.value.copy(sunCol).multiplyScalar(this.sun.intensity * 0.22);
     // the lamps, the cars' lights and the windows come on as the sky darkens; the room shows in the glass only once the daylight has gone
     const lights = this.off.has('lights') ? 0 : lightsAt(hour);
-    for (const l of this.lamps) l.intensity = 70 * lights;
-    if (this.lowLamps) this.lowLamps.k.value = 70 * lights;
-    for (const n of this.kit.night) n.mat.emissiveIntensity = n.k * lights;
+    for (const l of this.lamps) {
+      l.intensity = 70 * lights;
+    }
+    if (this.lowLamps) {
+      this.lowLamps.k.value = 70 * lights;
+    }
+    for (const n of this.kit.night) {
+      n.mat.emissiveIntensity = n.k * lights;
+    }
     this.facade.night.value = lights;
     this.facade.sun.value.set(sd[0], sd[1], sd[2]);
     this.facade.sunCol.value.copy(sunCol).multiplyScalar(day * up);
@@ -627,8 +671,8 @@ export class OutsideView {
    * screen, and the room in the glass as the light goes. Call it before the frame's own draw. `room`: the scene the window stands in; `samples`:
    * the multisampling of the frame's scene target.
    */
-  draw(renderer: WebGLRenderer, room: Scene, camera: PerspectiveCamera, samples: number): void {
-    if (!outsideDraws(!!this.mesh.parent, this.mesh.visible)) {
+  draw(renderer: threeTypes.WebGLRenderer, room: Scene, camera: PerspectiveCamera, samples: number): void {
+    if (!outsideDraws(Boolean(this.mesh.parent), this.mesh.visible)) {
       this.live = null;
       this.age = 0;
       return;
@@ -649,11 +693,11 @@ export class OutsideView {
       // a lost context takes the query with it (see `Sight.lose`)
       this.unwatch();
       const el = (this.sightCanvas = renderer.domElement);
-      this.sightGl = renderer.getContext() as QueryGL;
+      this.sightGl = renderer.getContext() as sightTypes.QueryGL;
       el.addEventListener('webglcontextlost', this.onLost);
       el.addEventListener('webglcontextrestored', this.onRestored);
     }
-    this.sight.frame(renderer.getContext() as QueryGL, moved);
+    this.sight.frame(renderer.getContext() as sightTypes.QueryGL, moved);
     // the eye sees no window, and has not moved: the picture stands as it is, ready when something moves off the window
     if (this.sight.hidden && this.live === camera) {
       this.age = 0;
@@ -729,7 +773,7 @@ export class OutsideView {
       rh = (rb - ry) * ss;
     let t = this.target;
     if (!t || this.targetSS !== ss || t.width < rw || t.height < rh || t.samples !== ms) {
-      const same = !!t && this.targetSS === ss;
+      const same = Boolean(t) && this.targetSS === ss;
       const w = same ? Math.max(rw, t!.width) : rw,
         h = same ? Math.max(rh, t!.height) : rh;
       t?.dispose();
@@ -746,7 +790,7 @@ export class OutsideView {
     c.aspect = camera.aspect;
     c.zoom = camera.zoom;
     c.near = Math.min(100, Math.max(0.03, (nearest / M) * 0.95));
-    c.far = 20000;
+    c.far = 20_000;
     c.setViewOffset(fw * ss, fh * ss, rx * ss, ry * ss, rw, rh);
     c.updateMatrixWorld();
     // (at Low, half a window pixel at any scale: a thin thing grows to one pixel of the window, as High's supersampled one; a whole 1x
@@ -761,7 +805,7 @@ export class OutsideView {
     // not 0.47 M). A sun at 0 draws none: its map waits for its first lit frame, `sunmap.ts`)
     const shadowNow = this.sunMap.due(this.sun.castShadow, this.sun.intensity);
     this.seen.setFromProjectionMatrix(this.seenOf.multiplyMatrices(c.projectionMatrix, c.matrixWorldInverse));
-    const seen = this.seen;
+    const { seen } = this;
     let also: Frustum | undefined;
     if (shadowNow) {
       this.sun.updateMatrixWorld();
@@ -773,7 +817,9 @@ export class OutsideView {
       );
     }
     if (shadowNow || this.cutAll || !nearly(this.seenOf, this.cutOf)) {
-      for (const s of this.sweeps) s.cut(seen, also);
+      for (const s of this.sweeps) {
+        s.cut(seen, also);
+      }
       this.fleet.park(seen, GRID.av0, 0, also);
       this.cutOf.copy(this.seenOf);
       this.cutAll = shadowNow;
@@ -807,8 +853,9 @@ export class OutsideView {
     }
     // the room in the glass (it does not see the window's own quad, whose back is to it); the eye still, only each few frames: it is a faint ghost
     const qu = this.quad.uniforms;
-    if (this.mirrorAt <= 0) this.mirrorShown = false;
-    else if (moved || !this.mirrorShown || ++this.mirrorAge >= MIRROR_EVERY) {
+    if (this.mirrorAt <= 0) {
+      this.mirrorShown = false;
+    } else if (moved || !this.mirrorShown || ++this.mirrorAge >= MIRROR_EVERY) {
       this.mirrorAge = 0;
       const n = (qu['glassN']!.value as Vector3).set(0, 0, 1).transformDirection(this.mesh.matrixWorld);
       // the window itself out of that picture: it samples the picture, and the glass does not mirror what lies past it
@@ -824,7 +871,9 @@ export class OutsideView {
     qu['mirrorK']!.value = this.mirrorShown ? this.mirrorAt : 0;
     renderer.setRenderTarget(was);
     this.sun.shadow.autoUpdate = false;
-    if (shadowNow) this.sunMap.drawn();
+    if (shadowNow) {
+      this.sunMap.drawn();
+    }
     this.quad.uniforms['off']!.value.set(rx, fh - rb);
     this.quad.uniforms['ss']!.value = ss;
     this.quad.uniforms['inv']!.value.set(1 / t.width, 1 / t.height);
@@ -835,7 +884,7 @@ export class OutsideView {
    * Starts linking the programs the view draws with (`compile.ts`): its city's and its sky's, those of its sun's shadow (drawn with the city, with
    * the city's own lights: other keys than the room's), and with the `room` it stands in, its glass's.
    */
-  startPrograms(r: WebGLRenderer, room?: Scene): Program[] {
+  startPrograms(r: threeTypes.WebGLRenderer, room?: Scene): compileTypes.Program[] {
     this.standEnv(r);
     return [
       ...startPrograms(r, this.scene, this.cam),
@@ -850,8 +899,10 @@ export class OutsideView {
    * by it (`envMapMode`, its size): programs started with none were made again, each at its first draw, and those links held the page for
    * 3 s (docs/render/load.md). The PMREM's own programs link here, before the batch: a wait for one program is a wait for all before it.
    */
-  private standEnv(r: WebGLRenderer): void {
-    if (this.envMap) return;
+  private standEnv(r: threeTypes.WebGLRenderer): void {
+    if (this.envMap) {
+      return;
+    }
     this.pmrem ??= new PMREMGenerator(r);
     this.envMap = this.pmrem.fromCubemap(this.env.texture, this.envMap);
     this.scene.environment = this.envMap.texture;
@@ -865,7 +916,9 @@ export class OutsideView {
   }
 
   dispose(): void {
-    if (this.sightGl) this.sight.dispose(this.sightGl);
+    if (this.sightGl) {
+      this.sight.dispose(this.sightGl);
+    }
     this.sightGl = null;
     this.unwatch();
     this.target?.dispose();
@@ -877,14 +930,19 @@ export class OutsideView {
     this.glow.dispose();
     this.mirror.dispose();
     this.signals.mesh.dispose();
-    (this.signals.mesh.material as Material).dispose();
-    for (const s of [this.scene, this.envScene])
+    (this.signals.mesh.material as threeTypes.Material).dispose();
+    for (const s of [this.scene, this.envScene]) {
       s.traverse((o) => {
-        if ((o as Mesh).isMesh) (o as Mesh).geometry.dispose();
+        if ((o as Mesh).isMesh) {
+          (o as Mesh).geometry.dispose();
+        }
       });
+    }
     this.mesh.geometry.dispose();
     this.sky.dispose();
-    for (const m of this.disposables) m.dispose();
+    for (const m of this.disposables) {
+      m.dispose();
+    }
     disposeKit(this.kit);
     this.quad.dispose();
   }

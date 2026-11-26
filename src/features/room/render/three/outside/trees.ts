@@ -4,22 +4,15 @@
 // darker inside and under. The shader (`leafShader`) breaks the mass up: clumps of leaves in their own greens, its outline bitten away leaf by
 // leaf; the sun behind it shines through its edge, and the wind stirs them. The trees are two meshes per ring of detail, the bark and
 // the leaves, each tree in turn round the window, so `sweep.ts` draws only the run of them the camera sees.
-import {
-  BufferAttribute,
-  BufferGeometry,
-  Color,
-  IcosahedronGeometry,
-  Mesh,
-  Vector3,
-  type MeshStandardMaterial,
-  type Sphere,
-} from 'three';
+import { BufferAttribute, BufferGeometry, Color, IcosahedronGeometry, Mesh, Vector3 } from 'three';
+import type * as threeTypes from 'three';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { SEG } from '@/core/render/three/geometry';
 import { taperTube } from '@/core/render/three/loft';
 import type { Kit } from './kit';
 import type { CityDetail } from './detail';
-import { CURB, GRID, rng, type Tree, type TreeKind } from './plan';
+import { CURB, GRID, rng } from './plan';
+import type * as planTypes from './plan';
 import { ballOf, bearing, drawn, Sweep } from './sweep';
 
 type V3 = [number, number, number];
@@ -61,7 +54,7 @@ interface Habit {
   bumps: number;
 }
 
-const HABIT: Record<TreeKind, Habit> = {
+const HABIT: Record<planTypes.TreeKind, Habit> = {
   plane: { bole: 0.3, spread: 0.36, limbs: 5, girth: 0.021, leader: false, tint: [0.085, 0.13, 0.06], bumps: 0.07 },
   lime: { bole: 0.26, spread: 0.24, limbs: 6, girth: 0.019, leader: true, tint: [0.09, 0.145, 0.065], bumps: 0.06 },
   shrub: { bole: 0, spread: 0.62, limbs: 0, girth: 0, leader: false, tint: [0.06, 0.1, 0.05], bumps: 0.05 },
@@ -133,7 +126,9 @@ class Lumps {
     const b = BALLS[level]!,
       base = this.n,
       f = [5.1 + (seed % 1.7), 4.3 + ((seed * 7) % 1.9), 6.2 + ((seed * 3) % 1.3)];
-    while (base + b.pos.length / 3 > this.room) this.grow();
+    while (base + b.pos.length / 3 > this.room) {
+      this.grow();
+    }
     const { pos, nor, col, wind, lump } = this;
     for (let i = 0; i < b.pos.length; i += 3) {
       const d: V3 = [b.pos[i]!, b.pos[i + 1]!, b.pos[i + 2]!];
@@ -148,23 +143,17 @@ class Lumps {
       const q = add(p, d, k),
         [n, c] = shade(q, d),
         at = base + i / 3;
-      pos[3 * at] = q[0];
-      pos[3 * at + 1] = q[1];
-      pos[3 * at + 2] = q[2];
-      nor[3 * at] = n[0];
-      nor[3 * at + 1] = n[1];
-      nor[3 * at + 2] = n[2];
-      col[3 * at] = c[0];
-      col[3 * at + 1] = c[1];
-      col[3 * at + 2] = c[2];
+      [pos[3 * at], pos[3 * at + 1], pos[3 * at + 2]] = q;
+      [nor[3 * at], nor[3 * at + 1], nor[3 * at + 2]] = n;
+      [col[3 * at], col[3 * at + 1], col[3 * at + 2]] = c;
       wind[2 * at] = swing;
       wind[2 * at + 1] = phase;
-      lump[3 * at] = d[0];
-      lump[3 * at + 1] = d[1];
-      lump[3 * at + 2] = d[2];
+      [lump[3 * at], lump[3 * at + 1], lump[3 * at + 2]] = d;
     }
     this.n += b.pos.length / 3;
-    for (let i = 0; i < b.idx.length; i++) this.idx.push(base + b.idx[i]!);
+    for (let i = 0; i < b.idx.length; i++) {
+      this.idx.push(base + b.idx[i]!);
+    }
   }
 
   /** The vertices and the indices so far, and the vertices' places. */
@@ -202,7 +191,9 @@ function limb(pts: V3[], r0: number, r1: number, sides: number, segs: number): B
     l += Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
   }
   const round = Math.PI * (r0 + r1);
-  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * l, uv.getY(i) * round);
+  for (let i = 0; i < uv.count; i++) {
+    uv.setXY(i, uv.getX(i) * l, uv.getY(i) * round);
+  }
   return g;
 }
 
@@ -278,7 +269,7 @@ function crown(
 }
 
 /** One tree: its bark into `bark`, its leaves into the lumps. */
-function grow(t: Tree, cards: Lumps, bark: BufferGeometry[], detail: Detail): void {
+function grow(t: planTypes.Tree, cards: Lumps, bark: BufferGeometry[], detail: Detail): void {
   const h = HABIT[t.kind],
     r = rng(t.seed),
     H = t.h,
@@ -354,12 +345,13 @@ function grow(t: Tree, cards: Lumps, bark: BufferGeometry[], detail: Detail): vo
     }
     const span = len([end[0] - from[0], end[1] - from[1], end[2] - from[2]]),
       mid = add(lerp(from, end, 0.45), [0, span * 0.14, 0]);
-    if (wood)
+    if (wood) {
       bark.push(
         near
           ? limb([from, mid, end], r0 * (h.leader ? 0.38 : 0.55), 0.03, SEG.limbNearBranch, SEG.limbNearBranchSteps)
           : limb([from, mid, end], r0 * (h.leader ? 0.38 : 0.55), 0.03, SEG.limbBranch, SEG.limbBranchSteps),
       );
+    }
     cl.push({ p: end, r: R * (detail === Detail.Sparse ? 0.52 : 0.42) });
     // its branches, off its outer half, each fanned a little from it and up
     for (let j = 0, m = 2 + (r() < 0.5 ? 1 : 0); j < m; j++) {
@@ -367,13 +359,19 @@ function grow(t: Tree, cards: Lumps, bark: BufferGeometry[], detail: Detail): vo
         f = 0.4 + r() * 0.45,
         s = f < 0.5 ? lerp(from, mid, f * 2) : lerp(mid, end, f * 2 - 1);
       const tip = add(add(s, [Math.cos(a), 0, Math.sin(a)], R * (0.3 + r() * 0.2)), [0, R * (0.12 + r() * 0.2), 0]);
-      if (near) bark.push(limb([s, lerp(s, tip, 0.5), tip], 0.05, 0.015, SEG.limbTwig, SEG.limbTwigSteps));
-      if (detail !== Detail.Sparse && (detail !== Detail.Coarse || j < 2)) cl.push({ p: tip, r: R * 0.36, tip: true });
+      if (near) {
+        bark.push(limb([s, lerp(s, tip, 0.5), tip], 0.05, 0.015, SEG.limbTwig, SEG.limbTwigSteps));
+      }
+      if (detail !== Detail.Sparse && (detail !== Detail.Coarse || j < 2)) {
+        cl.push({ p: tip, r: R * 0.36, tip: true });
+      }
     }
   }
   // the crown's top, and a fill in its middle so it is not seen through between the lumps
   cl.push({ p: h.leader ? lead : add(o, [0, rad[1] * 0.55, 0]), r: R * 0.48 });
-  if (detail !== Detail.Sparse) cl.push({ p: o, r: R * 0.6 });
+  if (detail !== Detail.Sparse) {
+    cl.push({ p: o, r: R * 0.6 });
+  }
   crown(cards, cl, o, rad, h, tint, H, detail, r);
 }
 
@@ -393,7 +391,7 @@ export interface LeafUniforms {
  * the eye. Each scale fades to its average where a pixel covers it, so a far tree stays clean. At night the street's lamps light a crown from
  * under and the city's glow its top, so it stays a soft mass and not a black hole in the view.
  */
-function leafShader(m: MeshStandardMaterial): LeafUniforms {
+function leafShader(m: threeTypes.MeshStandardMaterial): LeafUniforms {
   const u: LeafUniforms = {
     time: { value: 0 },
     sunView: { value: new Vector3(0, 1, 0) },
@@ -479,14 +477,14 @@ float leafNoise(vec3 p) {
  * a piece, `sweep.ts`), and their leaves' uniforms. Far from the window they are sparser (`Detail`).
  */
 export function plantTrees(
-  list: readonly Tree[],
+  list: readonly planTypes.Tree[],
   k: Kit,
   city: CityDetail = 'high',
 ): { meshes: Mesh[]; sweeps: Sweep[]; leaf: LeafUniforms } {
-  const rings = new Map<Detail, Tree[]>(),
+  const rings = new Map<Detail, planTypes.Tree[]>(),
     low = city === 'low';
   // (at Low every ring is one mesh pair: the trees keep the coarse look their distance gives them, none finer than `Coarse`)
-  const own = (t: Tree): Detail =>
+  const own = (t: planTypes.Tree): Detail =>
     low
       ? Math.max(detailAt(Math.hypot(t.x - GRID.av0, t.z)), Detail.Coarse)
       : detailAt(Math.hypot(t.x - GRID.av0, t.z));
@@ -496,7 +494,9 @@ export function plantTrees(
     const raw = detailAt(Math.hypot(t.x - GRID.av0, t.z)),
       d = low && raw < Detail.Coarse ? Detail.Round : raw;
     let r = rings.get(d);
-    if (!r) rings.set(d, (r = []));
+    if (!r) {
+      rings.set(d, (r = []));
+    }
     r.push(t);
   }
   const meshes: Mesh[] = [],
@@ -505,7 +505,7 @@ export function plantTrees(
     ts.sort((a, b) => bearing(a.x, a.z) - bearing(b.x, b.z));
     const cards = new Lumps(),
       wood: BufferGeometry[] = [],
-      balls: Sphere[] = [],
+      balls: threeTypes.Sphere[] = [],
       leafAt = [0],
       barkAt = [0];
     let bark = 0;
@@ -524,7 +524,7 @@ export function plantTrees(
     }
     const leaves = new Mesh(cards.geometry(), k.leaves),
       runs = [{ mesh: leaves, at: leafAt }];
-    if (wood.length) {
+    if (wood.length > 0) {
       const b = new Mesh(mergeGeometries(wood, false)!, k.bark);
       meshes.push(b);
       runs.push({ mesh: b, at: barkAt });
@@ -532,12 +532,14 @@ export function plantTrees(
     meshes.push(leaves);
     sweeps.push(new Sweep(balls, runs));
   }
-  for (const m of meshes) m.castShadow = m.receiveShadow = true;
+  for (const m of meshes) {
+    m.castShadow = m.receiveShadow = true;
+  }
   return { meshes, sweeps, leaf: leafShader(k.leaves) };
 }
 
 /** The triangles of one tree as built  metres from the window (the caps' test). */
-export function treeTriangles(t: Tree, away: number): number {
+export function treeTriangles(t: planTypes.Tree, away: number): number {
   const cards = new Lumps(),
     wood: BufferGeometry[] = [];
   grow(t, cards, wood, detailAt(away));
