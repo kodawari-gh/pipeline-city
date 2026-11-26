@@ -38,9 +38,13 @@ const cuts = (on: boolean | ReadonlySet<string>): CityCuts =>
  * only those named (`none`, an empty list or unknown names: no cut).
  */
 export function parseCityCuts(search: string, detail: CityDetail): CityCuts {
-  if (detail !== 'low') return cuts(false);
+  if (detail !== 'low') {
+    return cuts(false);
+  }
   const q = new URLSearchParams(search).get('citycuts');
-  if (q === null) return cuts(true);
+  if (q === null) {
+    return cuts(true);
+  }
   return cuts(new Set(q.split(',').map((s) => s.trim().toLowerCase())));
 }
 

@@ -79,11 +79,11 @@ const RIB_LIT = 1.3;
 function rng(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
+    a = (a + 0x6d_2b_79_f5) >>> 0;
     let t = a;
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
   };
 }
 
@@ -99,14 +99,18 @@ export interface LowFacadeMaps {
 /** The day atlas, baked once and shared. */
 let baked: LowFacadeMaps | null = null;
 export function lowFacadeMaps(): LowFacadeMaps {
-  if (!baked) baked = bakeFacadeMaps();
+  if (!baked) {
+    baked = bakeFacadeMaps();
+  }
   return baked;
 }
 
 /** A linear RGBA half-float texture: no colour conversion, filtered with mipmaps. */
 function atlas(data: Float32Array): DataTexture {
   const half = new Uint16Array(data.length);
-  for (let i = 0; i < data.length; i++) half[i] = DataUtils.toHalfFloat(data[i]!);
+  for (let i = 0; i < data.length; i++) {
+    half[i] = DataUtils.toHalfFloat(data[i]!);
+  }
   const t = new DataTexture(half, SIZE, SIZE, RGBAFormat, HalfFloatType);
   t.colorSpace = NoColorSpace;
   t.wrapS = t.wrapT = ClampToEdgeWrapping;
@@ -136,10 +140,13 @@ function bakeFacadeMaps(): LowFacadeMaps {
           const inW = u > WIN.u0 && u < WIN.u1 && v > WIN.v0 && v < WIN.v1;
           // the frame: the wall's own colour, shaded by the slab above the window and the reveal beside it, lighter on the sill
           let ao = 1;
-          if (!inW && v >= WIN.v1 && v < WIN.v1 + 0.07 && u > WIN.u0 - 0.03 && u < WIN.u1 + 0.03)
+          if (!inW && v >= WIN.v1 && v < WIN.v1 + 0.07 && u > WIN.u0 - 0.03 && u < WIN.u1 + 0.03) {
             ao = 0.6 + 0.4 * smooth(WIN.v1, WIN.v1 + 0.07, v);
-          else if (!inW && v <= WIN.v0 && v > WIN.v0 - 0.06) ao = 0.92;
-          else if (!inW && u > WIN.u0 - 0.04 && u < WIN.u1 + 0.04 && v > WIN.v0 && v < WIN.v1) ao = 0.78;
+          } else if (!inW && v <= WIN.v0 && v > WIN.v0 - 0.06) {
+            ao = 0.92;
+          } else if (!inW && u > WIN.u0 - 0.04 && u < WIN.u1 + 0.04 && v > WIN.v0 && v < WIN.v1) {
+            ao = 0.78;
+          }
           let r = frame * ao,
             g = frame * ao,
             b = frame * ao,
@@ -196,10 +203,10 @@ export function lowFacadeMaterial(lampAt: Vector3[] = []): {
   const far = new Vector3(0, -1e5, 0);
   const lamps: LowLamps = {
     k: { value: 0 },
-    col: { value: new Color(0xffc98a) },
+    col: { value: new Color(0xff_c9_8a) },
     pos: { value: Array.from({ length: LOW_LAMPS }, (_, i) => lampAt[i]?.clone() ?? far.clone()) },
   };
-  const mat = new MeshLambertMaterial({ vertexColors: true, map: day, emissive: new Color(0xffffff) });
+  const mat = new MeshLambertMaterial({ vertexColors: true, map: day, emissive: new Color(0xff_ff_ff) });
   mat.onBeforeCompile = (sh) => {
     sh.uniforms['fNight'] = u.night;
     sh.uniforms['fTime'] = u.time;

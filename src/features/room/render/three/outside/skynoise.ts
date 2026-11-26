@@ -20,9 +20,9 @@ const OCTAVES = 5;
 
 /** A hash of a lattice point to [0, 1). */
 function hash(x: number, y: number): number {
-  let h = (Math.imul(x, 374761393) + Math.imul(y, 668265263)) | 0;
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  let h = (Math.imul(x, 374_761_393) + Math.imul(y, 668_265_263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1_274_126_177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4_294_967_296;
 }
 
 /** Periodic value noise at (u, v), in lattice cells, the lattice `cells` across. Smooth-stepped, as the live `noise`. */

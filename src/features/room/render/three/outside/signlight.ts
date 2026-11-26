@@ -1,7 +1,8 @@
 // A sign's light on the wall behind it (`view.ts`): at night each sign fixed to a wall (`towers/signs.ts`) lays a soft wash of its colour on it, strongest
 // at its edge, stuttering with it. One flat card per sign, a little off the wall, added over what is there.
 import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, DoubleSide, Mesh, ShaderMaterial } from 'three';
-import { HAZE_FN, type HazeUniforms } from './haze';
+import { HAZE_FN } from './haze';
+import type * as hazeTypes from './haze';
 
 /** A sign on a wall: the wall's plane (x or z fixed, at `at`, facing `out`), the board's middle along it and its half width, its heights, colour (sRGB hex), seed, lit box or neon. */
 export interface SignWash {
@@ -52,7 +53,7 @@ void main() {
 }`;
 
 /** The cards for these signs, in one mesh. `night`: the facade's own share of the night, so they come on with the signs. */
-export function signWashes(all: readonly SignWash[], haze: HazeUniforms, night: { value: number }): Mesh {
+export function signWashes(all: readonly SignWash[], haze: hazeTypes.HazeUniforms, night: { value: number }): Mesh {
   const pos: number[] = [],
     pl: number[] = [],
     hs: number[] = [],
@@ -74,8 +75,11 @@ export function signWashes(all: readonly SignWash[], haze: HazeUniforms, night: 
       [a, b],
       [-a, b],
     ] as const) {
-      if (s.fixed === 'z') pos.push(s.mid + u, ym + v, at);
-      else pos.push(at, ym + v, s.mid + u);
+      if (s.fixed === 'z') {
+        pos.push(s.mid + u, ym + v, at);
+      } else {
+        pos.push(at, ym + v, s.mid + u);
+      }
       pl.push(u, v);
       hs.push(hw, hh, r, s.seed);
       tone.push(c.r, c.g, c.b);

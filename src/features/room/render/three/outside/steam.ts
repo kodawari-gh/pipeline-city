@@ -1,8 +1,10 @@
 // Steam over the city's roofs (`view.ts`): here and there a roof's plant breathes out a slow plume that leans with the wind and thins as it
 // rises, pale in the sun by day, at night lit from below by the streets. Each is a quad turned to the eye, its plume drawn by its shader.
 import { Color, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, PlaneGeometry, ShaderMaterial } from 'three';
-import { HAZE_FN, type HazeUniforms } from './haze';
-import { rng, topOf, type Building } from './plan';
+import { HAZE_FN } from './haze';
+import type * as hazeTypes from './haze';
+import { rng, topOf } from './plan';
+import type * as planTypes from './plan';
 
 /** The share of the buildings with a plume, and the heights they stand between (m). */
 const SHARE = 0.05,
@@ -57,14 +59,19 @@ export const steamUniforms = (): SteamUniforms => ({
 });
 
 /** The plumes over these buildings, in one mesh. */
-export function roofSteam(all: readonly Building[], haze: HazeUniforms): { mesh: Mesh; u: SteamUniforms } {
+export function roofSteam(
+  all: readonly planTypes.Building[],
+  haze: hazeTypes.HazeUniforms,
+): { mesh: Mesh; u: SteamUniforms } {
   const plumes: number[] = [],
     seeds: number[] = [];
   for (const b of all) {
-    const r = rng(b.seed ^ 0x57ea),
-      t = b.tiers[b.tiers.length - 1]!,
+    const r = rng(b.seed ^ 0x57_ea),
+      t = b.tiers.at(-1)!,
       h = topOf(b);
-    if (r() > SHARE || h < LOW || h > HIGH || b.crown === 'spire' || b.crown === 'lantern') continue;
+    if (r() > SHARE || h < LOW || h > HIGH || b.crown === 'spire' || b.crown === 'lantern') {
+      continue;
+    }
     plumes.push(
       t.x0 + (t.x1 - t.x0) * (0.25 + 0.5 * r()),
       h,

@@ -60,7 +60,9 @@ const patched = new WeakSet<Material>();
 
 /** Give a built-in material the haze in place of three's fog (its own `onBeforeCompile` still runs first). */
 export function withHaze(m: Material, u: HazeUniforms): void {
-  if (patched.has(m) || (m as { isShaderMaterial?: boolean }).isShaderMaterial) return;
+  if (patched.has(m) || (m as { isShaderMaterial?: boolean }).isShaderMaterial) {
+    return;
+  }
   patched.add(m);
   const prev = m.onBeforeCompile,
     key = `${m.customProgramCacheKey()}|haze`;

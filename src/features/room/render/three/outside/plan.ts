@@ -5,7 +5,7 @@
 import { FLOOR_Y, WALL_T } from '../roomplan';
 
 /** Room units per metre: the room is built at real sizes. */
-export const M = 18700;
+export const M = 18_700;
 /** The room's floor above the street (m): the fifteenth floor. */
 export const FLOOR_UP = 45;
 
@@ -20,11 +20,11 @@ export const toOutside = (x: number, y: number, z: number): [number, number, num
 export function rng(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
+    a = (a + 0x6d_2b_79_f5) >>> 0;
     let t = a;
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
   };
 }
 
@@ -69,7 +69,9 @@ const CORES = [
 /** How downtown a point is (0 out in the city, 1 in the core's middle). */
 export function downtown(x: number, z: number): number {
   let v = 0;
-  for (const c of CORES) v = Math.max(v, c.k * Math.exp(-((x - c.x) ** 2 + (z - c.z) ** 2) / (c.r * c.r)));
+  for (const c of CORES) {
+    v = Math.max(v, c.k * Math.exp(-((x - c.x) ** 2 + (z - c.z) ** 2) / (c.r * c.r)));
+  }
   return v;
 }
 
@@ -106,27 +108,27 @@ export interface Building {
 }
 
 /** The height of a building's top. */
-export const topOf = (b: Building): number => b.tiers[b.tiers.length - 1]!.y1;
+export const topOf = (b: Building): number => b.tiers.at(-1)!.y1;
 
 const FRAMES: Record<Style, readonly number[]> = {
-  glass: [0x2c3138, 0x3c434b, 0x8e969e, 0x1e2226, 0x23282e],
-  grid: [0xc9c6bf, 0xa9a7a2, 0xdcdad5, 0x7f7f7c, 0x5a5d60],
-  tile: [0xc4b9a7, 0xa39a8e, 0xdbd5ca, 0x7a736c, 0x5f5a56, 0x9a5a40],
-  band: [0xd9d9d4, 0xa8aaa8, 0xbdbab3, 0x6a6e72, 0x4c5055],
+  glass: [0x2c_31_38, 0x3c_43_4b, 0x8e_96_9e, 0x1e_22_26, 0x23_28_2e],
+  grid: [0xc9_c6_bf, 0xa9_a7_a2, 0xdc_da_d5, 0x7f_7f_7c, 0x5a_5d_60],
+  tile: [0xc4_b9_a7, 0xa3_9a_8e, 0xdb_d5_ca, 0x7a_73_6c, 0x5f_5a_56, 0x9a_5a_40],
+  band: [0xd9_d9_d4, 0xa8_aa_a8, 0xbd_ba_b3, 0x6a_6e_72, 0x4c_50_55],
 };
 const TINTS: Record<Style, readonly number[]> = {
-  glass: [0x5f7f96, 0x4f7c7a, 0x6c7a8c, 0x3f5a78, 0x7d8b93, 0x2f3c48],
-  grid: [0x3a4450, 0x4a5058, 0x34404a],
-  tile: [0x2a2e33, 0x33373b],
-  band: [0x41566a, 0x3d4a50, 0x55626e],
+  glass: [0x5f_7f_96, 0x4f_7c_7a, 0x6c_7a_8c, 0x3f_5a_78, 0x7d_8b_93, 0x2f_3c_48],
+  grid: [0x3a_44_50, 0x4a_50_58, 0x34_40_4a],
+  tile: [0x2a_2e_33, 0x33_37_3b],
+  band: [0x41_56_6a, 0x3d_4a_50, 0x55_62_6e],
 };
 
 /** The tall landmarks, set by hand in the middles of their blocks (i, j): the footprint's half sizes, the height, the crown, the light. */
 const LANDMARKS = [
-  { i: -2, j: 35, hx: 26, hz: 26, h: 410, crown: 'spire', light: 0xffe0b4 },
-  { i: 0, j: 30, hx: 30, hz: 22, h: 300, crown: 'lantern', light: 0xffb062 },
-  { i: -3, j: 39, hx: 24, hz: 26, h: 360, crown: 'mast', light: 0x6fdcff },
-  { i: 6, j: 41, hx: 28, hz: 26, h: 290, crown: 'mast', light: 0xff7a52 },
+  { i: -2, j: 35, hx: 26, hz: 26, h: 410, crown: 'spire', light: 0xff_e0_b4 },
+  { i: 0, j: 30, hx: 30, hz: 22, h: 300, crown: 'lantern', light: 0xff_b0_62 },
+  { i: -3, j: 39, hx: 24, hz: 26, h: 360, crown: 'mast', light: 0x6f_dc_ff },
+  { i: 6, j: 41, hx: 28, hz: 26, h: 290, crown: 'mast', light: 0xff_7a_52 },
   { i: 1, j: 9, hx: 20, hz: 20, h: 105, crown: 'lantern' },
 ] as const;
 
@@ -147,7 +149,9 @@ function building(
   const tower = forced || r() < 0.035 * out + 0.6 * d;
   let h = forced?.h ?? (tower ? 50 + r() * 60 * out + d * (60 + r() * 170) : 11 + r() * (14 + 22 * out) + d * 30);
   // out of the core a tower stays under the line from the window to the sky over the city, so the skyline is the downtown's
-  if (!forced && d < 0.3) h = Math.min(h, 38 + 0.075 * Math.hypot(cx - GRID.av0, cz));
+  if (!forced && d < 0.3) {
+    h = Math.min(h, 38 + 0.075 * Math.hypot(cx - GRID.av0, cz));
+  }
   const style: Style = tower
     ? r() < 0.66
       ? 'glass'
@@ -179,13 +183,15 @@ function building(
     tiers.push({ ...shaft, y0: pod, y1: at(top) });
     const form = r(),
       k = 2 + r() * 3;
-    if (form < 0.45)
+    if (form < 0.45) {
       tiers.push({ x0: shaft.x0 + k, x1: shaft.x1 - k, z0: shaft.z0 + k, z1: shaft.z1 - k, y0: tiers[1]!.y1, y1: h });
-    else if (form < 0.75 && Math.min(shaft.x1 - shaft.x0, shaft.z1 - shaft.z0) > 6 * k) {
+    } else if (form < 0.75 && Math.min(shaft.x1 - shaft.x0, shaft.z1 - shaft.z0) > 6 * k) {
       for (let n = 1; n <= 3; n++) {
-        const below = tiers[tiers.length - 1]!,
+        const below = tiers.at(-1)!,
           y1 = n === 3 ? h : at(top + ((h - top) * n) / 3);
-        if (y1 <= below.y1) continue;
+        if (y1 <= below.y1) {
+          continue;
+        }
         tiers.push({
           x0: below.x0 + k * 0.7,
           x1: below.x1 - k * 0.7,
@@ -195,8 +201,12 @@ function building(
           y1,
         });
       }
-    } else tiers[1]!.y1 = h;
-  } else tiers.push({ ...lot, y0: 0, y1: h });
+    } else {
+      tiers[1]!.y1 = h;
+    }
+  } else {
+    tiers.push({ ...lot, y0: 0, y1: h });
+  }
   const crown: Building['crown'] =
     forced?.crown ?? (h > 120 && r() < 0.45 ? 'mast' : h > 150 && r() < 0.3 ? 'lantern' : 'none');
   return {
@@ -222,13 +232,17 @@ const isPark = (i: number, j: number): boolean => PARKS.some(([a, b]) => a === i
 export function buildings(): Building[] {
   const r = rng(13),
     out: Building[] = [];
-  for (let j = 0; j < GRID.rows; j++)
+  for (let j = 0; j < GRID.rows; j++) {
     for (let i = -GRID.cols; i < GRID.cols; i++) {
-      if (isPark(i, j)) continue;
+      if (isPark(i, j)) {
+        continue;
+      }
       const b = blockRect(i, j),
         mid: [number, number] = [(b.x0 + b.x1) / 2, (b.z0 + b.z1) / 2];
       // far out the city thins to the edge of the view
-      if (Math.hypot(mid[0] * 0.8, mid[1]) > 4300) continue;
+      if (Math.hypot(mid[0] * 0.8, mid[1]) > 4300) {
+        continue;
+      }
       const mark = LANDMARKS.find((l) => l.i === i && l.j === j);
       if (mark) {
         const [x, z] = mid;
@@ -243,24 +257,34 @@ export function buildings(): Building[] {
         for (const [x0, x1] of [
           [b.x0, b.x0 + 18],
           [b.x1 - 18, b.x1],
-        ] as const)
+        ] as const) {
           out.push(building({ x0, x1, z0: b.z0, z1: b.z1 }, r, { h: 14 + r() * 10, crown: 'none' }));
+        }
         continue;
       }
-      // lots: two or three rows along z, cut across x in widths of 14 to 40 m; a tower takes a deeper lot
-      const rows = r() < 0.5 ? 2 : 1,
-        depth = (b.z1 - b.z0) / rows;
-      for (let q = 0; q < rows; q++) {
-        const z0 = b.z0 + q * depth,
-          z1 = z0 + depth;
-        for (let x = b.x0; x < b.x1 - 6;) {
-          let w = 14 + r() * 26;
-          if (b.x1 - (x + w) < 12) w = b.x1 - x;
-          out.push(building({ x0: x, x1: x + w, z0, z1 }, r));
-          x += w;
-        }
-      }
+      out.push(...lots(b, r));
     }
+  }
+  return out;
+}
+
+/** A plain block's buildings. Lots: two or three rows along z, cut across x in widths of 14 to 40 m; a tower takes a deeper lot. */
+function lots(b: Rect, r: () => number): Building[] {
+  const out: Building[] = [],
+    rows = r() < 0.5 ? 2 : 1,
+    depth = (b.z1 - b.z0) / rows;
+  for (let q = 0; q < rows; q++) {
+    const z0 = b.z0 + q * depth,
+      z1 = z0 + depth;
+    for (let x = b.x0; x < b.x1 - 6;) {
+      let w = 14 + r() * 26;
+      if (b.x1 - (x + w) < 12) {
+        w = b.x1 - x;
+      }
+      out.push(building({ x0: x, x1: x + w, z0, z1 }, r));
+      x += w;
+    }
+  }
   return out;
 }
 
@@ -292,7 +316,7 @@ export interface Car {
 
 /** The paint colours of the cars: silvers, charcoals and muted cool tones (art-style v3: no red, no yellow in the view out; LPC11). */
 export const CAR_COLOURS = [
-  0xb9bdc3, 0x1c2633, 0x4e5360, 0xe9e7e2, 0x2e4a3b, 0x17191c, 0x4c6c8e, 0x8c8f93, 0x3a4a5c,
+  0xb9_bd_c3, 0x1c_26_33, 0x4e_53_60, 0xe9_e7_e2, 0x2e_4a_3b, 0x17_19_1c, 0x4c_6c_8e, 0x8c_8f_93, 0x3a_4a_5c,
 ] as const;
 
 /** How far from the window the street's detail reaches (m): the trees, the lamps, the cars, the road's paint. */
@@ -306,26 +330,34 @@ export function trees(): Tree[] {
   const add = (x: number, z: number, kind: TreeKind, h: number) =>
     out.push({ x, z, kind, h, seed: Math.floor(r() * 1e6) });
   const kerb = GRID.walk - 1.2;
-  for (let i = -3; i <= 3; i++)
+  for (let i = -3; i <= 3; i++) {
     for (const side of [-1, 1]) {
       const x = avenueX(i) + side * (GRID.avenue / 2 - kerb);
       for (let j = 0; j < GRID.rows; j++) {
         const z1 = streetZ(j) - GRID.street / 2,
           z0 = streetZ(j + 1) + GRID.street / 2;
-        for (let z = z1 - 6; z > z0 + 4; z -= 9 + r() * 3)
-          if (nearby(x, z) && r() < 0.85) add(x + (r() - 0.5) * 0.4, z, 'plane', 9 + r() * 4);
+        for (let z = z1 - 6; z > z0 + 4; z -= 9 + r() * 3) {
+          if (nearby(x, z) && r() < 0.85) {
+            add(x + (r() - 0.5) * 0.4, z, 'plane', 9 + r() * 4);
+          }
+        }
       }
     }
-  for (let j = 1; j < GRID.rows; j++)
+  }
+  for (let j = 1; j < GRID.rows; j++) {
     for (const side of [-1, 1]) {
       const z = streetZ(j) + side * (GRID.street / 2 - kerb);
       for (let i = -4; i < 4; i++) {
         const x0 = avenueX(i) + GRID.avenue / 2,
           x1 = avenueX(i + 1) - GRID.avenue / 2;
-        for (let x = x0 + 6; x < x1 - 4; x += 10 + r() * 4)
-          if (nearby(x, z) && r() < 0.7) add(x, z + (r() - 0.5) * 0.4, 'lime', 7.5 + r() * 3);
+        for (let x = x0 + 6; x < x1 - 4; x += 10 + r() * 4) {
+          if (nearby(x, z) && r() < 0.7) {
+            add(x, z + (r() - 0.5) * 0.4, 'lime', 7.5 + r() * 3);
+          }
+        }
       }
     }
+  }
   for (const [i, j] of PARKS) {
     const b = blockRect(i, j);
     for (let n = 0; n < 70; n++) {
@@ -341,19 +373,29 @@ export function trees(): Tree[] {
 export function lamps(): Lamp[] {
   const out: Lamp[] = [],
     kerb = GRID.walk - 0.5;
-  for (let i = -2; i <= 2; i++)
+  for (let i = -2; i <= 2; i++) {
     for (const side of [-1, 1]) {
       const x = avenueX(i) + side * (GRID.avenue / 2 - kerb);
-      for (let z = -30; z > -DETAIL * 1.4; z -= 28)
-        if (nearby(x, z) && !onCrossing(x, z)) out.push({ x, z, rot: side > 0 ? Math.PI : 0 });
+      for (let z = -30; z > -DETAIL * 1.4; z -= 28) {
+        if (nearby(x, z) && !onCrossing(x, z)) {
+          out.push({ x, z, rot: side > 0 ? Math.PI : 0 });
+        }
+      }
     }
-  for (let j = 0; j < 6; j++)
+  }
+  for (let j = 0; j < 6; j++) {
     for (const side of [-1, 1]) {
-      if (j === 0 && side > 0) continue;
+      if (j === 0 && side > 0) {
+        continue;
+      }
       const z = streetZ(j) + side * (GRID.street / 2 - kerb);
-      for (let x = -460; x < 400; x += 30)
-        if (nearby(x, z) && !onCrossing(x, z)) out.push({ x, z, rot: side > 0 ? Math.PI / 2 : -Math.PI / 2 });
+      for (let x = -460; x < 400; x += 30) {
+        if (nearby(x, z) && !onCrossing(x, z)) {
+          out.push({ x, z, rot: side > 0 ? Math.PI / 2 : -Math.PI / 2 });
+        }
+      }
     }
+  }
   return out;
 }
 
@@ -385,7 +427,9 @@ export function parked(): Car[] {
     const len = 4.1 + r() * 0.6,
       hx = dx * (len / 2 + 0.5),
       hz = dz * (len / 2 + 0.5);
-    if (!nearby(x, z) || onCrossing(x + hx, z + hz) || onCrossing(x - hx, z - hz)) return;
+    if (!nearby(x, z) || onCrossing(x + hx, z + hz) || onCrossing(x - hx, z - hz)) {
+      return;
+    }
     out.push({
       x,
       z,
@@ -395,15 +439,23 @@ export function parked(): Car[] {
       seed: Math.floor(r() * 1e6),
     });
   };
-  for (let i = -2; i <= 2; i++)
+  for (let i = -2; i <= 2; i++) {
     for (const side of [-1, 1]) {
-      for (let z = -6 - r() * 8; z > -DETAIL * 1.4; z -= 5.4 + r() * 5)
-        if (r() < 0.62) put(avenueX(i) + side * LANES.avenue.park, z, 0, -side);
+      for (let z = -6 - r() * 8; z > -DETAIL * 1.4; z -= 5.4 + r() * 5) {
+        if (r() < 0.62) {
+          put(avenueX(i) + side * LANES.avenue.park, z, 0, -side);
+        }
+      }
     }
-  for (let j = 0; j < 6; j++)
+  }
+  for (let j = 0; j < 6; j++) {
     for (const side of [-1, 1]) {
-      for (let x = -480 + r() * 10; x < 420; x += 5.4 + r() * 6)
-        if (r() < 0.55) put(x, streetZ(j) + side * LANES.street.park, side, 0);
+      for (let x = -480 + r() * 10; x < 420; x += 5.4 + r() * 6) {
+        if (r() < 0.55) {
+          put(x, streetZ(j) + side * LANES.street.park, side, 0);
+        }
+      }
     }
+  }
   return out;
 }

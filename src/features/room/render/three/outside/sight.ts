@@ -49,21 +49,29 @@ export class Sight {
 
   /** The view is gone: frees the query (a lost context took it already). */
   dispose(gl: QueryGL): void {
-    if (this.query && !this.lost) gl.deleteQuery(this.query);
+    if (this.query && !this.lost) {
+      gl.deleteQuery(this.query);
+    }
     this.lose();
   }
 
   /** Each frame, before anything is drawn: hears the answer if it has come. `moved`: the eye is not where it was last frame. */
   frame(gl: QueryGL, moved: boolean): void {
-    if (this.lost) return;
+    if (this.lost) {
+      return;
+    }
     if (moved) {
       this.hidden = false;
       this.old = this.waiting;
     }
-    if (this.waiting) this.age++;
+    if (this.waiting) {
+      this.age++;
+    }
     if (this.waiting && this.age >= 2 && gl.getQueryParameter(this.query!, gl.QUERY_RESULT_AVAILABLE)) {
       this.waiting = false;
-      if (!this.old) this.hidden = !gl.getQueryParameter(this.query!, gl.QUERY_RESULT);
+      if (!this.old) {
+        this.hidden = !gl.getQueryParameter(this.query!, gl.QUERY_RESULT);
+      }
       this.old = false;
     }
     this.armed = !this.waiting;
@@ -71,7 +79,9 @@ export class Sight {
 
   /** Just before the quad's draw. */
   begin(gl: QueryGL): void {
-    if (this.lost || !this.armed) return;
+    if (this.lost || !this.armed) {
+      return;
+    }
     this.armed = false;
     this.asking = true;
     gl.beginQuery(gl.ANY_SAMPLES_PASSED_CONSERVATIVE, (this.query ??= gl.createQuery()));
@@ -79,7 +89,9 @@ export class Sight {
 
   /** Just after the quad's draw. */
   end(gl: QueryGL): void {
-    if (this.lost || !this.asking) return;
+    if (this.lost || !this.asking) {
+      return;
+    }
     this.asking = false;
     this.waiting = true;
     this.age = 0;
