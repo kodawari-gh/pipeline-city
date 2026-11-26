@@ -6259,20 +6259,15 @@
   "vitest(prefer-to-have-length)": 2
  },
  "src/features/board/sim/airflow.ts": {
-  "eslint(curly)": 5,
   "eslint(max-params)": 1,
   "eslint(no-duplicate-imports)": 1,
   "typescript(no-non-null-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 2,
   "typescript(switch-exhaustiveness-check)": 1,
   "unicorn(no-array-for-each)": 1,
-  "unicorn(no-new-array)": 1,
-  "unicorn(switch-case-braces)": 4
+  "unicorn(no-new-array)": 1
  },
  "src/features/board/sim/apply.ts": {
-  "eslint(curly)": 11,
-  "eslint(prefer-destructuring)": 4,
-  "import(consistent-type-specifier-style)": 3,
   "typescript(no-non-null-assertion)": 2,
   "typescript(no-unsafe-type-assertion)": 5,
   "typescript(strict-boolean-expressions)": 1,
@@ -6322,17 +6317,12 @@
  },
  "src/features/board/sim/board.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 48,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 1,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 2,
   "eslint(no-use-before-define)": 5,
-  "eslint(prefer-destructuring)": 2,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 2,
-  "import(consistent-type-specifier-style)": 5,
   "typescript(no-non-null-assertion)": 7,
   "typescript(no-unnecessary-type-assertion)": 5,
   "typescript(no-unsafe-type-assertion)": 5,
@@ -6358,11 +6348,8 @@
  },
  "src/features/board/sim/buildalerts.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 11,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 6,
   "typescript(no-non-null-assertion)": 2,
   "typescript(strict-boolean-expressions)": 5,
   "unicorn(no-array-callback-reference)": 1,
@@ -6386,7 +6373,6 @@
   "vitest(prefer-strict-equal)": 11
  },
  "src/features/board/sim/buildnet.ts": {
-  "eslint(curly)": 6,
   "eslint(no-nested-ternary)": 2,
   "typescript(strict-boolean-expressions)": 3
  },
@@ -6401,21 +6387,15 @@
   "vitest(valid-expect)": 1
  },
  "src/features/board/sim/buildpreset.ts": {
-  "eslint(curly)": 21,
   "eslint(max-lines-per-function)": 1,
   "eslint(no-unmodified-loop-condition)": 1,
-  "eslint(prefer-destructuring)": 2,
-  "import(consistent-type-specifier-style)": 6,
   "typescript(no-non-null-assertion)": 3,
   "typescript(no-unsafe-type-assertion)": 5,
   "typescript(strict-boolean-expressions)": 8,
   "unicorn(consistent-function-scoping)": 1,
-  "unicorn(explicit-length-check)": 3,
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-reverse)": 2,
   "unicorn(no-array-sort)": 3,
-  "unicorn(numeric-separators-style)": 2,
-  "unicorn(prefer-at)": 3,
   "unicorn(prefer-code-point)": 1
  },
  "src/features/board/sim/buildrun.test.ts": {
@@ -6423,15 +6403,9 @@
   "unicorn(no-array-sort)": 1,
   "vitest(prefer-strict-equal)": 1
  },
- "src/features/board/sim/buildrun.ts": {
-  "eslint(curly)": 1
- },
  "src/features/board/sim/buildspecs.test.ts": {
   "typescript(no-non-null-assertion)": 7,
   "vitest(prefer-strict-equal)": 1
- },
- "src/features/board/sim/buildspecs.ts": {
-  "eslint(curly)": 3
  },
  "src/features/board/sim/buildstills.test.ts": {
   "eslint(curly)": 1,
@@ -6461,16 +6435,10 @@
  },
  "src/features/board/sim/cables.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 32,
   "eslint(max-lines)": 1,
   "eslint(no-use-before-define)": 1,
-  "eslint(prefer-destructuring)": 3,
-  "eslint(prefer-named-capture-group)": 3,
-  "eslint(require-unicode-regexp)": 2,
-  "import(consistent-type-specifier-style)": 5,
   "typescript(no-unsafe-type-assertion)": 5,
   "typescript(strict-boolean-expressions)": 18,
-  "unicorn(explicit-length-check)": 2,
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-sort)": 1
  },
@@ -6507,19 +6475,14 @@
  },
  "src/features/board/sim/compat.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 18,
   "eslint(max-lines-per-function)": 1,
   "eslint(no-duplicate-imports)": 1,
   "eslint(no-negated-condition)": 3,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 9,
   "typescript(no-unnecessary-type-assertion)": 4,
   "typescript(no-unsafe-type-assertion)": 12,
   "typescript(strict-boolean-expressions)": 6,
-  "unicorn(explicit-length-check)": 3,
   "unicorn(max-nested-calls)": 1,
-  "unicorn(no-array-reduce)": 1,
   "unicorn(no-array-sort)": 1
  },
  "src/features/board/sim/fanparts.test.ts": {
@@ -6548,34 +6511,24 @@
   "vitest(prefer-strict-equal)": 3
  },
  "src/features/board/sim/game/hardware.ts": {
-  "eslint(curly)": 15,
-  "eslint(no-implicit-coercion)": 1,
   "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 7,
   "typescript(no-non-null-assertion)": 3,
   "typescript(no-unsafe-type-assertion)": 13,
   "typescript(strict-boolean-expressions)": 16,
   "unicorn(no-array-for-each)": 2,
-  "unicorn(numeric-separators-style)": 3,
   "unicorn(prefer-code-point)": 1
  },
  "src/features/board/sim/game/machine.ts": {
   "eslint(complexity)": 3,
-  "eslint(curly)": 28,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
-  "eslint(no-implicit-coercion)": 5,
   "eslint(no-nested-ternary)": 4,
-  "eslint(prefer-destructuring)": 4,
-  "import(consistent-type-specifier-style)": 3,
   "typescript(no-non-null-assertion)": 4,
   "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(strict-boolean-expressions)": 24,
+  "typescript(strict-boolean-expressions)": 19,
   "typescript(switch-exhaustiveness-check)": 1,
   "unicorn(no-array-callback-reference)": 1,
-  "unicorn(no-array-reduce)": 3,
-  "unicorn(numeric-separators-style)": 1,
-  "unicorn(switch-case-braces)": 19
+  "unicorn(no-array-reduce)": 3
  },
  "src/features/board/sim/game/parts.ts": {
   "eslint(complexity)": 2,

@@ -15,10 +15,8 @@ import {
   fittedRadiator,
   mountFan,
   UNFANNED_SHARE,
-  type FanPower,
-  type RadiatorSpec,
-  type RamSpec,
 } from '..';
+import type * as boardSimTypes from '..';
 import { BLOCK_BYTES, PchPhase } from '@/core/sim/memmap';
 import { bootBlocksFor } from '@/features/os/sim';
 import { ROM_IMAGE } from '../pch';
@@ -48,7 +46,9 @@ export function powerButton(this: Game): Result<{ powered: boolean }> {
     this.powered = false;
     this.postError = null;
     this.machine.engine = null;
-    for (const p of this.ports) p.cutPower(); // a write in flight tears: the drive is dirty
+    for (const p of this.ports) {
+      p.cutPower(); // a write in flight tears: the drive is dirty
+    }
     this.mounts.clear();
     this.pch.powerOff();
     this.machine.display.clear();
@@ -58,9 +58,13 @@ export function powerButton(this: Game): Result<{ powered: boolean }> {
     return { ok: true, powered: false };
   }
   const cut = this.cutReason();
-  if (cut) return { ok: false, reason: `no power: ${cut}` };
+  if (cut) {
+    return { ok: false, reason: `no power: ${cut}` };
+  }
   const chk = bootCheck(this.board, this.cables);
-  if (chk.noPower) return { ok: false, reason: `no power: ${chk.noPower}` };
+  if (chk.noPower) {
+    return { ok: false, reason: `no power: ${chk.noPower}` };
+  }
   this.powered = true;
   this.note('power', 'powered on');
   this.coldBoot();
@@ -70,7 +74,9 @@ export function powerButton(this: Game): Result<{ powered: boolean }> {
 /** Clear a PSU hard trip and reboot (the player flips the switch). */
 export function powerCycle(this: Game): void {
   this.thermal.powerCycle();
-  if (this.powered) this.coldBoot();
+  if (this.powered) {
+    this.coldBoot();
+  }
 }
 
 /** Power-on reset: blank RAM, run the PCH self-test, shadow the ROM into RAM and start the CPU on it. */
@@ -84,13 +90,15 @@ export function coldBoot(this: Game): void {
   this.postError = bootCheck(this.board, this.cables).post;
   if (this.postError) {
     this.pch.powerOff();
-    if (this.bootDelay === 0) this.showPostError(); // no wait configured: the text is there at once
+    if (this.bootDelay === 0) {
+      this.showPostError(); // no wait configured: the text is there at once
+    }
     this.note('fault', `POST failed: ${this.postError.reason}`);
     return;
   }
   const ram = findDevices(this.board, 'ram')
     .filter((d) => !d.burnt)
-    .reduce((n, d) => n + (deviceSpec(d) as RamSpec).sizeBytes, 0);
+    .reduce((n, d) => n + (deviceSpec(d) as boardSimTypes.RamSpec).sizeBytes, 0);
   const cpu = findDevices(this.board, 'cpu')[0]!;
   this.pch.powerOn(ram >> 10, deviceSpec(cpu).tier);
   // A bootable OS drive: the ROM loads the kernel from it. USB then has latency (enumerating, flashing).
@@ -100,10 +108,14 @@ export function coldBoot(this: Game): void {
   this.syncTpm();
   for (const p of this.ports) {
     p.cutPower();
+    p.reset(); // a crash reboot tears a write in flight too
+  }
+  for (const p of this.gpus) {
     p.reset();
-  } // a crash reboot tears a write in flight too
-  for (const p of this.gpus) p.reset();
-  for (const p of this.npus) p.reset();
+  }
+  for (const p of this.npus) {
+    p.reset();
+  }
   this.tpm.reset();
   this.nic.reset();
   this.refreshBootImage();
@@ -111,12 +123,16 @@ export function coldBoot(this: Game): void {
   this.pch.bootDev = boot ? boot.base : 0;
   this.pch.enumTicks = boot ? this.cfg.usbEnumTicks : 0;
   this.pch.flashTicks = boot ? this.cfg.usbFlashTicks : 0;
-  if (boot && this.pchKey) this.pch.plug(this.pchKey); // the plugged key enumerates again
+  if (boot && this.pchKey) {
+    this.pch.plug(this.pchKey); // the plugged key enumerates again
+  }
   this.bootRead0 = boot?.media?.bytesRead ?? 0;
   this.startMountScan(); // the OS probes the drives once POST is over (see advanceBaseTick)
   this.syncRates(false);
   applyEngine(this.board, this.machine, ROM_IMAGE);
-  if (this.progress.firstKeyEjected && this.plugged && !this.plugged.done) this.progress.firstManualCycle = true;
+  if (this.progress.firstKeyEjected && this.plugged && !this.plugged.done) {
+    this.progress.firstManualCycle = true;
+  }
   if (!this.progress.poweredOn) {
     // The first real boot starts the clock: keys waiting from the beginning arrive now, not while the player built the PC.
     this.progress.poweredOn = true;
@@ -130,57 +146,87 @@ export function coldBoot(this: Game): void {
 
 /** The POST error text on the monitor (the PCH's own message, no CPU involved). */
 export function showPostError(this: Game): void {
-  if (!this.postError) return;
+  if (!this.postError) {
+    return;
+  }
   this.machine.display.setText(['PCH BIOS 1.0', '', `POST FAILED: ${this.postError.short}`, '', 'POWER OFF TO FIX']);
+}
+
+/** The machine phase the PCH's own phase names, once the machine is on, sound and past the drive probe. */
+function pchPhase(g: Game): Phase {
+  switch (g.pch.phase) {
+    case PchPhase.Waiting: {
+      return 'waiting-for-key';
+    }
+    case PchPhase.Loading: {
+      return 'loading';
+    }
+    case PchPhase.Running: {
+      return 'running';
+    }
+    case PchPhase.Writing: {
+      return 'writing';
+    }
+    case PchPhase.Done: {
+      return 'done-remove-key';
+    }
+    // The ROM's last message can still sit in the monitor's write queue: the halt shows only once it has all landed.
+    case PchPhase.Halted:
+    case PchPhase.NoMedia: {
+      return g.machine.display.pending > 0 ? 'writing' : 'halted';
+    }
+    case PchPhase.OsBoot: {
+      return 'booting-os';
+    }
+    case PchPhase.OsIdle: {
+      return 'idle-os';
+    }
+    case PchPhase.OsIngest: {
+      return 'ingesting';
+    }
+    case PchPhase.OsRun: {
+      return 'running-os';
+    }
+    case PchPhase.OsFlash: {
+      return 'flashing';
+    }
+    default: {
+      return 'posting';
+    }
+  }
 }
 
 /** Current machine phase. */
 export function currentPhase(this: Game): Phase {
-  if (!this.powered) return 'off';
-  if (this.postError || this.fault()) return 'error';
-  if (this.bootDelay <= 0 && this.mountTicksLeft() > 0) return 'mounting'; // the OS probes the drives after POST
-  switch (this.pch.phase) {
-    case PchPhase.Waiting:
-      return 'waiting-for-key';
-    case PchPhase.Loading:
-      return 'loading';
-    case PchPhase.Running:
-      return 'running';
-    case PchPhase.Writing:
-      return 'writing';
-    case PchPhase.Done:
-      return 'done-remove-key';
-    // The ROM's last message can still sit in the monitor's write queue: the halt shows only once it has all landed.
-    case PchPhase.Halted:
-    case PchPhase.NoMedia:
-      return this.machine.display.pending > 0 ? 'writing' : 'halted';
-    case PchPhase.OsBoot:
-      return 'booting-os';
-    case PchPhase.OsIdle:
-      return 'idle-os';
-    case PchPhase.OsIngest:
-      return 'ingesting';
-    case PchPhase.OsRun:
-      return 'running-os';
-    case PchPhase.OsFlash:
-      return 'flashing';
-    default:
-      return 'posting';
+  if (!this.powered) {
+    return 'off';
   }
+  if (this.postError || this.fault()) {
+    return 'error';
+  }
+  if (this.bootDelay <= 0 && this.mountTicksLeft() > 0) {
+    return 'mounting'; // the OS probes the drives after POST
+  }
+  return pchPhase(this);
 }
 
 export function bootProgress(this: Game, phase: Phase): number {
   switch (phase) {
-    case 'posting':
+    case 'posting': {
       return (this.pch.progress / 4) * 0.4;
-    case 'mounting':
+    }
+    case 'mounting': {
       return 0.4 * this.mountProgress();
-    case 'waiting-for-key':
+    }
+    case 'waiting-for-key': {
       return 0.4;
-    case 'halted':
+    }
+    case 'halted': {
       return this.pch.phase === PchPhase.Halted ? 1 : 0.4;
-    case 'loading':
+    }
+    case 'loading': {
       return 0.4 + 0.6 * Math.min(1, this.pch.wordsRead / Math.max(1, this.pchKey?.program.length ?? 1));
+    }
     case 'booting-os': {
       const read = (this.osPort()?.media?.bytesRead ?? 0) - this.bootRead0;
       return (
@@ -198,30 +244,45 @@ export function bootProgress(this: Game, phase: Phase): number {
     case 'idle-os':
     case 'ingesting':
     case 'running-os':
-    case 'flashing':
+    case 'flashing': {
       return 1;
-    default:
+    }
+    default: {
       return 0;
+    }
   }
 }
 
 /** Why a powered machine is stopped (PSU trip, burnt CPU), or null. */
 export function fault(this: Game): string | null {
-  if (!this.powered) return null;
-  if (this.board.burnt) return 'board dead: replace the board';
-  if (this.thermal.power.tripped) return 'the PSU overloaded and tripped (power cycle to reset)';
-  const cpu = findDevices(this.board, 'cpu')[0];
-  if (cpu?.burnt) return 'the CPU burnt out';
-  const psu = findDevices(this.board, 'psu')[0];
-  if (psu?.burnt) return 'the PSU burnt out';
-  if (this.os && this.pch.osMode && this.board.devices.find((d) => d.id === this.os!.deviceId)?.burnt)
+  if (!this.powered) {
+    return null;
+  }
+  if (this.board.burnt) {
+    return 'board dead: replace the board';
+  }
+  if (this.thermal.power.tripped) {
+    return 'the PSU overloaded and tripped (power cycle to reset)';
+  }
+  const [cpu] = findDevices(this.board, 'cpu');
+  if (cpu?.burnt) {
+    return 'the CPU burnt out';
+  }
+  const [psu] = findDevices(this.board, 'psu');
+  if (psu?.burnt) {
+    return 'the PSU burnt out';
+  }
+  if (this.os && this.pch.osMode && this.board.devices.find((d) => d.id === this.os!.deviceId)?.burnt) {
     return 'the OS drive burnt out';
+  }
   return null;
 }
 
 export function monitorLive(this: Game): boolean {
-  const d = findDevices(this.board, 'display')[0];
-  if (!d || d.burnt || !this.cables['video'] || !this.cables['monmains']) return false;
+  const [d] = findDevices(this.board, 'display');
+  if (!d || d.burnt || !this.cables['video'] || !this.cables['monmains']) {
+    return false;
+  }
   return this.video === 'board' || this.videoCard() !== null;
 }
 
@@ -229,17 +290,17 @@ export function monitorLive(this: Game): boolean {
  * Which fans turn: the heatsinks' fans on their header's cable, and the case fans (a fan on the mount, its cable and the hub's, with the hub on the board's
  * SYS_FAN header). The board says which fans sit where.
  */
-export function fanPower(this: Game): FanPower {
+export function fanPower(this: Game): boardSimTypes.FanPower {
   const c = this.cables,
     b = this.board;
-  const hub = !!c['sysfan'];
+  const hub = c['sysfan'] === true;
   const rad = fittedRadiator(b);
-  const radSpec = rad ? (deviceSpec(rad.dev) as RadiatorSpec) : null;
+  const radSpec = rad ? (deviceSpec(rad.dev) as boardSimTypes.RadiatorSpec) : null;
   const flowOf = (m: string): number => {
     const f = mountFan(b, m);
     return f ? fanAir([f]) : 0;
   };
-  const turns = (m: string): boolean => hub && !!c[`fan:${m}`] && flowOf(m) > 0;
+  const turns = (m: string): boolean => hub && c[`fan:${m}`] === true && flowOf(m) > 0;
   // The radiator spans every mount of its side: those fans are not case fans, they push air through it, and the more air they move the nearer it gets
   // to its full cooling (none: UNFANNED_SHARE of it; a basic fan on every mount: all of it).
   const mounts = caseMounts(b.caseTier).filter((m) => !rad?.mounts.includes(m));
@@ -256,9 +317,9 @@ export function fanPower(this: Game): FanPower {
   const radSpinning = rad ? rad.mounts.filter(turns) : [];
   const all = [...spinning, ...radSpinning];
   return {
-    cpu: !!c['cpufan'],
-    vrm: !!c['vrmfan'],
-    ram: !!c['ramfan'],
+    cpu: c['cpufan'] === true,
+    vrm: c['vrmfan'] === true,
+    ram: c['ramfan'] === true,
     caseFans: spinning.length,
     mounts: all,
     mountFlow: Object.fromEntries(all.map((m) => [m, flowOf(m)])),
@@ -281,8 +342,9 @@ export function meterWall(this: Game): void {
 export function syncRates(this: Game, useThermal: boolean): void {
   applyRates(this.board, this.machine, useThermal ? this.thermal : undefined);
   // The NIC steps on its own fixed clock while the uplink port works (a dead card or no cable: it stands still).
-  if (this.machine.clock.hasDomain('nic'))
+  if (this.machine.clock.hasDomain('nic')) {
     this.machine.clock.setRate('nic', clockToRate(this.portInfo().mbps > 0 ? 1 : 0));
+  }
   for (const name of this.rateDomains) {
     const r = this.machine.clock.getRate(name);
     this.baseRates.set(name, r);
@@ -321,12 +383,15 @@ export function cycleNow(this: Game): number {
  */
 export function stepCycles(this: Game, cycles: number): number {
   const e = this.machine.engine;
-  const n = Math.max(1, Math.min(100000, Math.floor(cycles)));
-  if (!e || !this.powered || this.postError || this.bootDelay > 0 || this.mountTicksLeft() > 0 || this.fault())
+  const n = Math.max(1, Math.min(100_000, Math.floor(cycles)));
+  if (!e || !this.powered || this.postError || this.bootDelay > 0 || this.mountTicksLeft() > 0 || this.fault()) {
     return 0;
+  }
   const start = e.cycle,
     target = start + n;
-  for (let guard = 0; e.cycle < target && !e.halted && guard < 4_000_000; guard++) this.machine.clock.advance(1);
+  for (let guard = 0; e.cycle < target && !e.halted && guard < 4_000_000; guard++) {
+    this.machine.clock.advance(1);
+  }
   this.trackPages();
   this.checkFaults();
   return e.cycle - start;
@@ -342,13 +407,18 @@ export function advanceBaseTick(this: Game): void {
   this.contractTick();
   // A failed POST: the cold-boot wait runs first (the monitor is black), then the error text appears. The phase is
   // "error" from the press on, so the UI chip does not wait.
-  if (this.powered && this.postError && this.bootDelay > 0 && --this.bootDelay === 0) this.showPostError();
+  if (this.powered && this.postError && this.bootDelay > 0 && --this.bootDelay === 0) {
+    this.showPostError();
+  }
   const running = this.powered && !this.postError && !this.fault();
   // PSU power-good, fans, BIOS init, then the OS's boot probe of the drives: the CPU is not executing yet
   const delayed = running && (this.bootDelay > 0 || this.mountTicksLeft() > 0);
   if (delayed) {
-    if (this.bootDelay > 0) this.bootDelay--;
-    else this.mountTick();
+    if (this.bootDelay > 0) {
+      this.bootDelay--;
+    } else {
+      this.mountTick();
+    }
   } else if (running) {
     this.pch.usbTick();
     this.machine.advanceBaseTick();
@@ -389,10 +459,12 @@ export function advanceBaseTick(this: Game): void {
   this.syncNpus();
   this.syncTpm();
   const violated = this.tpm.takeViolation();
-  if (boardWasOk && this.board.burnt) this.note('fault', 'the VRM burnt out: board dead: replace the board');
+  if (boardWasOk && this.board.burnt) {
+    this.note('fault', 'the VRM burnt out: board dead: replace the board');
+  }
   if (this.powered && busy && !this.board.burnt) {
     // A thermal error or a VRM voltage droop crashes the machine: it reboots and the job restarts from the ROM; no payout for the attempt.
-    const cpu = findDevices(this.board, 'cpu')[0];
+    const [cpu] = findDevices(this.board, 'cpu');
     const why =
       cpu && this.thermal.errorRoll(cpu.id)
         ? 'thermal error'
@@ -405,7 +477,9 @@ export function advanceBaseTick(this: Game): void {
               : null;
     if (why) {
       this.errors++;
-      if (this.plugged && !this.plugged.done) this.plugged.attempts++;
+      if (this.plugged && !this.plugged.done) {
+        this.plugged.attempts++;
+      }
       this.note('fault', `${why}: the machine crashed and rebooted`);
       this.coldBoot();
     }

@@ -43,7 +43,9 @@ export const netOfSnap = (s: Pick<Snapshot, 'os' | 'net'>): NetState => ({
 /** Buy an item and fit it: the game's own `purchase` and `install` (a plan is an account purchase: it applies at once and has nothing to install). */
 function put(g: Game, id: string): Result {
   const b = g.purchase(id);
-  if (!b.ok || getIspSpec(id)) return b.ok ? { ok: true } : b;
+  if (!b.ok || getIspSpec(id)) {
+    return b.ok ? { ok: true } : b;
+  }
   const r = g.install(b.invId, getRouterSpec(id) ? 'router' : undefined);
   return r.ok ? { ok: true } : r;
 }
@@ -56,7 +58,9 @@ function put(g: Game, id: string): Result {
 export function setNet(g: Game, kind: NetKind, id: string | null): Result {
   if (kind === 'isp') {
     if (id === null) {
-      if (!g.ispTier) return { ok: false, reason: 'no internet plan is in place' };
+      if (!g.ispTier) {
+        return { ok: false, reason: 'no internet plan is in place' };
+      }
       g.ispTier = 0;
       return { ok: true };
     }
@@ -68,7 +72,9 @@ export function setNet(g: Game, kind: NetKind, id: string | null): Result {
       return r.ok ? { ok: true } : r;
     }
     const r = put(g, id);
-    if (r.ok && !g.cables['lan']) g.connectLan(); // (a refusal here, no jack on the board and no card, is the machine's to answer: the cable waits)
+    if (r.ok && !g.cables['lan']) {
+      g.connectLan(); // (a refusal here, no jack on the board and no card, is the machine's to answer: the cable waits)
+    }
     return r;
   }
   const old = g.os?.spec.id ?? null;
@@ -78,15 +84,21 @@ export function setNet(g: Game, kind: NetKind, id: string | null): Result {
   };
   if (id === null) {
     const r = g.uninstallOs();
-    if (r.ok) bag();
+    if (r.ok) {
+      bag();
+    }
     return r.ok ? { ok: true } : r;
   }
   if (old) {
     const r = g.uninstallOs();
-    if (!r.ok) return r;
+    if (!r.ok) {
+      return r;
+    }
   }
   const r = put(g, id);
-  if (!r.ok && old) put(g, old); // (the OS that was there comes back)
+  if (!r.ok && old) {
+    put(g, old); // (the OS that was there comes back)
+  }
   bag();
   return r;
 }

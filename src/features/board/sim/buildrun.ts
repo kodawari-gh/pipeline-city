@@ -37,7 +37,9 @@ export const OFF: RunState = { on: false, phase: 'off', text: 'Off', tone: 'off'
 
 /** The state for a snapshot's `powered`, `phase` and `phaseReason`. A machine that is off is `OFF` whatever its phase says. */
 export function runState(on: boolean, phase: Phase, reason: string | null): RunState {
-  if (!on) return OFF;
+  if (!on) {
+    return OFF;
+  }
   const w = WORDS[phase] ?? WORDS.posting;
   return { on: true, phase, text: w.text, tone: w.tone, why: phase === 'error' ? reason : null };
 }

@@ -27,17 +27,21 @@ export const AIR_ZONES: readonly AirZoneId[] = ['north', 'cards', 'bay'];
 export function zoneOf(kind: DeviceKind): AirZoneId | null {
   switch (kind) {
     case 'cpu':
-    case 'ram':
+    case 'ram': {
       return 'north';
+    }
     case 'gpu':
     case 'npu':
     case 'nic':
-    case 'tpm':
+    case 'tpm': {
       return 'cards';
-    case 'storage':
+    }
+    case 'storage': {
       return 'bay';
-    default:
+    }
+    default: {
       return null;
+    }
   }
 }
 
@@ -140,7 +144,9 @@ export function cageShade(tier: number, drives: readonly BayDrive[]): number[] {
   for (const d of drives) {
     const row = table && (d.hdd ? table.hdd : table.ssd)[d.bay - BASE_BAYS];
     row?.forEach((s, i) => {
-      if (i < out.length) out[i]! += s;
+      if (i < out.length) {
+        out[i]! += s;
+      }
     });
   }
   return out.map((s) => Math.min(1, s));
@@ -171,13 +177,18 @@ function supplyDraw(
       draw = PASSIVE * DRAW_REAR[z];
     for (const m of mounts) {
       const w = turning.get(m);
-      if (w === undefined) continue;
+      if (w === undefined) {
+        continue;
+      }
       if (m.startsWith('front')) {
         const i = Number(m.slice(5)),
           kept = z === 'bay' ? 1 : 1 - (shade?.[i] ?? 0);
         supply += w * REACH[z] * gauss((i + 0.5) / nFront, LEVEL[z]) * Math.max(0, kept);
-      } else if (m === 'rear') draw += w * DRAW_REAR[z];
-      else draw += w * DRAW_TOP[z];
+      } else if (m === 'rear') {
+        draw += w * DRAW_REAR[z];
+      } else {
+        draw += w * DRAW_TOP[z];
+      }
     }
     out[z] = { supply, draw };
   }
@@ -205,7 +216,9 @@ export function zoneAir(
 ): Record<AirZoneId, ZoneAir> {
   const out = {} as Record<AirZoneId, ZoneAir>;
   if (!turning) {
-    for (const z of AIR_ZONES) out[z] = { fans: caseFans, flow: 1, riseC: heatPerW * cardW };
+    for (const z of AIR_ZONES) {
+      out[z] = { fans: caseFans, flow: 1, riseC: heatPerW * cardW };
+    }
     return out;
   }
   const size = CASE_TIERS[tier]?.fanSize,
