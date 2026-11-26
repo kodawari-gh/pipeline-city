@@ -65,8 +65,9 @@ const nk = (k: keyof typeof NICK): number => NICA + NICK[k];
 const hdr = (k: keyof typeof OS_HEADER): number => 4 * OS_HEADER[k];
 
 /** The ring sizes are powers of two: the slot of an index is `index & (slots - 1)`. */
-if ((NIC_RX_SLOTS & (NIC_RX_SLOTS - 1)) !== 0 || (NIC_TX_SLOTS & (NIC_TX_SLOTS - 1)) !== 0)
+if ((NIC_RX_SLOTS & (NIC_RX_SLOTS - 1)) !== 0 || (NIC_TX_SLOTS & (NIC_TX_SLOTS - 1)) !== 0) {
   throw new Error('NIC rings must have a power of two slots');
+}
 
 /**
  * The lines for `kmain`: clear the driver's area, give the NIC its rings and turn it on. The NIC keeps its indexes across a restart of the kernel, so the kernel's side of each ring starts

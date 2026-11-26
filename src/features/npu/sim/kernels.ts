@@ -39,7 +39,9 @@ export function networkExpected(n: Network): number[] {
     for (let i = 0; i < M; i++) {
       for (let j = 0; j < M; j++) {
         let s = n.b[l]![i]!;
-        for (let k = 0; k < M; k++) s = (s + Math.imul(n.w[l]![i * M + k]!, x[k * M + j]!)) | 0;
+        for (let k = 0; k < M; k++) {
+          s = (s + Math.imul(n.w[l]![i * M + k]!, x[k * M + j]!)) | 0;
+        }
         out[i * M + j] = Math.max(0, s);
       }
     }
@@ -54,7 +56,7 @@ export const networkChecksum = (n: Network): number => networkExpected(n).reduce
 // ---------- NPU path: one Layer descriptor per layer ----------
 
 /** Card memory plan for the NPU path (byte addresses). Row-major, like the other paths. */
-export const NPU_LAYOUT = { x: [0x0, 0x100] as const, w: 0x200, b: 0x800, desc: 0x900 } as const;
+export const NPU_LAYOUT = { x: [0x0, 0x1_00] as const, w: 0x2_00, b: 0x8_00, desc: 0x9_00 } as const;
 
 /**
  * The NPU's whole program: `layers` Layer descriptors (4 words each) followed by their parameter blocks (NPU_LAYER_WORDS each), as
@@ -63,7 +65,9 @@ export const NPU_LAYOUT = { x: [0x0, 0x100] as const, w: 0x200, b: 0x800, desc: 
 export function npuProgram(n: Network): { words: number[]; count: number; finalAt: number } {
   const words: number[] = [];
   const blockAt = (l: number) => NPU_LAYOUT.desc + n.layers * NPU_DESC_WORDS * 4 + l * NPU_LAYER_WORDS * 4;
-  for (let l = 0; l < n.layers; l++) words.push(NpuOp.Layer, blockAt(l), 0, 0);
+  for (let l = 0; l < n.layers; l++) {
+    words.push(NpuOp.Layer, blockAt(l), 0, 0);
+  }
   for (let l = 0; l < n.layers; l++) {
     words.push(
       NPU_LAYOUT.w + l * M * M * 4,
@@ -83,14 +87,15 @@ export const npuBytes = (n: Network): number => NPU_LAYOUT.desc + 4 * npuProgram
 // ---------- GPU path: one kernel, one launch per layer ----------
 
 /** Card memory plan for the GPU path: 4 argument words just under the arrays, code below them. */
-export const GPU_NET_LAYOUT = { args: 0x1f0, x: [0x200, 0x300] as const, w: 0x400, b: 0xa00 } as const;
+export const GPU_NET_LAYOUT = { args: 0x1_f0, x: [0x2_00, 0x3_00] as const, w: 0x4_00, b: 0xa_00 } as const;
 
 /** The layer kernel: reads W, X, OUT and bias addresses from the argument words, so one upload serves every layer. */
 export function gpuLayerSource(lanes: number): string {
   const A = GPU_NET_LAYOUT.args;
   let k = '';
-  for (let i = 0; i < M; i++)
+  for (let i = 0; i < M; i++) {
     k += `        vld v5, ${4 * i}(v2)\n        vld v6, ${32 * i}(v3)\n        vmul v5, v5, v6\n        vadd v4, v4, v5\n`;
+  }
   return `
         lane v1
         mpush
@@ -130,8 +135,9 @@ export const gpuLayerCode = (lanes: number): Uint32Array => assembleGpu(gpuLayer
 /** cpu_layer(W = a0, X = a1, OUT = a2, bias = a3): one dense layer with relu, row-major. */
 export function cpuLayer(ns: string): Kernel {
   const body: string[] = ['li t4, 8', `${ns}_i:`, 'mv t3, a1', `${ns}_j:`, 'li t0, 0'];
-  for (let k = 0; k < M; k++)
+  for (let k = 0; k < M; k++) {
     body.push(`lw t2, ${4 * k}(a0)`, `lw t1, ${32 * k}(t3)`, 'mul t2, t2, t1', 'add t0, t0, t2');
+  }
   body.push(
     'lw t1, 0(a3)',
     'add t0, t0, t1',

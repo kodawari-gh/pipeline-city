@@ -1,6 +1,6 @@
 import type { Graphics } from 'pixi.js';
 import type { Rect } from '../../cpu/render/core/cpuplan';
-import { glyphKit, type Put } from '../../cpu/render/die/blockart';
+import * as blockart from '../../cpu/render/die/blockart';
 import type { Theme } from '@/core/render/theme';
 import type { NpuBlock } from './npuplan';
 import { GPU_HOP_TICKS, NPU_DESC_WORDS, NPU_NO_BIAS, NPU_TILES, NpuOp } from '@/core/sim/memmap';
@@ -18,7 +18,9 @@ const NPU_GLYPH_KINDS = new Set<NpuBlock['kind']>(['host', 'ctl', 'desc', 'tiles
 
 /** The area a symbol may use: the block under its name (the area the CPU die's cell grids fill), or null when the block is too small. */
 export function npuGlyphArea(b: Pick<NpuBlock, 'kind' | 'rect'>): Rect | null {
-  if (!NPU_GLYPH_KINDS.has(b.kind)) return null;
+  if (!NPU_GLYPH_KINDS.has(b.kind)) {
+    return null;
+  }
   const r = b.rect,
     head = r.h >= 70 ? 44 : r.h * 0.55;
   const a = { x: r.x + 8, y: r.y + head, w: r.w - 16, h: r.y + r.h - 6 - (r.y + head) };
@@ -243,19 +245,29 @@ export interface RegionEntry {
 export function regionsOf(entries: readonly RegionEntry[], K: number, descAt: number, count: number): NpuRegion[] {
   const out: NpuRegion[] = [],
     tile = K * K * 4;
-  if (count > 0) out.push({ lo: descAt, hi: descAt + count * NPU_DESC_WORDS * 4, kind: 'list' });
+  if (count > 0) {
+    out.push({ lo: descAt, hi: descAt + count * NPU_DESC_WORDS * 4, kind: 'list' });
+  }
   const layers = entries.filter((e) => e.op === NpuOp.Layer && e.layer && e.layer.n > 0);
   entries.forEach((e) => {
-    if (e.op === NpuOp.Load) out.push({ lo: e.b, hi: e.b + tile, kind: 'x' });
-    else if (e.op === NpuOp.Store) out.push({ lo: e.b, hi: e.b + tile, kind: 'out' });
-    else if (e.op === NpuOp.Bias) out.push({ lo: e.b, hi: e.b + K * 4, kind: 'bias' });
+    if (e.op === NpuOp.Load) {
+      out.push({ lo: e.b, hi: e.b + tile, kind: 'x' });
+    } else if (e.op === NpuOp.Store) {
+      out.push({ lo: e.b, hi: e.b + tile, kind: 'out' });
+    } else if (e.op === NpuOp.Bias) {
+      out.push({ lo: e.b, hi: e.b + K * 4, kind: 'bias' });
+    }
   });
   layers.forEach((e, l) => {
     const y = e.layer!,
       sz = y.n * y.n * 4;
     out.push({ lo: y.w, hi: y.w + sz, kind: 'w' });
-    if (y.bias !== NPU_NO_BIAS) out.push({ lo: y.bias, hi: y.bias + y.n * 4, kind: 'bias' });
-    if (l === 0) out.push({ lo: y.x, hi: y.x + sz, kind: 'x' });
+    if (y.bias !== NPU_NO_BIAS) {
+      out.push({ lo: y.bias, hi: y.bias + y.n * 4, kind: 'bias' });
+    }
+    if (l === 0) {
+      out.push({ lo: y.x, hi: y.x + sz, kind: 'x' });
+    }
     out.push({ lo: y.out, hi: y.out + sz, kind: l === layers.length - 1 ? 'out' : 'x' });
   });
   return out;
@@ -266,7 +278,11 @@ export function cellKind(i: number, regions: readonly NpuRegion[]): NpuRegion['k
   const bytes = NPU_CELL_WORDS * 4,
     lo = i * bytes,
     hi = lo + bytes;
-  for (const k of REGION_KINDS) if (regions.some((r) => r.kind === k.kind && r.lo < hi && r.hi > lo)) return k.kind;
+  for (const k of REGION_KINDS) {
+    if (regions.some((r) => r.kind === k.kind && r.lo < hi && r.hi > lo)) {
+      return k.kind;
+    }
+  }
   return null;
 }
 
@@ -278,13 +294,15 @@ export function npuGlyph(
   T: Theme,
   b: NpuBlock,
   c: string,
-  put: Put,
+  put: blockart.Put,
   opt: { grid: number; memBytes: number },
 ): void {
   const a = npuGlyphArea(b),
     K = opt.grid;
-  if (!a) return;
-  const kit = glyphKit(g, T, c, put);
+  if (!a) {
+    return;
+  }
+  const kit = blockart.glyphKit(g, T, c, put);
   const { solid, soft, line, rect, stub } = kit;
   const lab = (t: string, lx: number, ly: number, size = 7.5) => put(t, lx + (t.length * size * 0.6) / 2, ly, size);
   const outline = (r: Rect) => {
@@ -292,8 +310,11 @@ export function npuGlyph(
   };
   const arrow = (x0: number, y0: number, x1: number, y1: number) => {
     stub(x0, y0, x1, y1);
-    if (y0 === y1) g.poly([x1, y1, x1 - 3.5, y1 - 2.2, x1 - 3.5, y1 + 2.2]).fill({ color: line });
-    else g.poly([x1, y1, x1 - 2.2, y1 - 3.5, x1 + 2.2, y1 - 3.5]).fill({ color: line });
+    if (y0 === y1) {
+      g.poly([x1, y1, x1 - 3.5, y1 - 2.2, x1 - 3.5, y1 + 2.2]).fill({ color: line });
+    } else {
+      g.poly([x1, y1, x1 - 2.2, y1 - 3.5, x1 + 2.2, y1 - 3.5]).fill({ color: line });
+    }
   };
   switch (b.kind) {
     case 'host': {
@@ -301,7 +322,9 @@ export function npuGlyph(
       for (const p of q.pins) {
         lab(p.name, a.x, p.cy, 7);
         rect(p.lane.x, p.lane.y, p.lane.w, p.lane.h, soft);
-        for (const r of p.cells) g.rect(r.x, r.y, r.w, r.h).fill({ color: soft });
+        for (const r of p.cells) {
+          g.rect(r.x, r.y, r.w, r.h).fill({ color: soft });
+        }
         outline(p.lane);
       }
       rect(q.meter.x, q.meter.y, q.meter.w, q.meter.h, soft);
@@ -312,13 +335,13 @@ export function npuGlyph(
     case 'ctl': {
       ctlGeom(a).forEach((row, k) => {
         lab(row.name, a.x, row.y + row.h / 2, 7.5);
-        if (k === 0)
+        if (k === 0) {
           row.chips.forEach((r, j) => {
             rect(r.x, r.y, r.w, r.h, soft);
             outline(r);
             put(FLAGS[j]!, r.x + r.w / 2, r.y + r.h / 2, Math.min(7, row.h * 0.5));
           });
-        else {
+        } else {
           rect(row.value.x, row.value.y, row.value.w, row.value.h, soft);
           outline(row.value);
         }
@@ -342,7 +365,9 @@ export function npuGlyph(
         rect(t.box.x, t.box.y, t.box.w, t.box.h, T.die);
         outline(t.box);
         put(`t${k}`, t.name.x + t.name.w / 2, t.name.y + t.name.h / 2, Math.min(8, t.box.h * 0.4));
-        for (const r of t.cells) g.rect(r.x, r.y, r.w, r.h).fill({ color: soft });
+        for (const r of t.cells) {
+          g.rect(r.x, r.y, r.w, r.h).fill({ color: soft });
+        }
       });
       break;
     }
@@ -377,7 +402,9 @@ export function npuGlyph(
       for (const r of [q.inRow, q.outRow]) {
         rect(r.box.x, r.box.y, r.box.w, r.box.h, soft);
         outline(r.box);
-        for (const c2 of r.cells) g.rect(c2.x, c2.y, c2.w, c2.h).fill({ color: soft });
+        for (const c2 of r.cells) {
+          g.rect(c2.x, c2.y, c2.w, c2.h).fill({ color: soft });
+        }
       }
       arrow(q.inRow.box.x + q.inRow.box.w, q.cy, q.add.cx - q.add.r - 1, q.cy);
       kit.adder(q.add.cx, q.add.cy, q.add.r, []);
@@ -391,7 +418,9 @@ export function npuGlyph(
     }
     case 'cardmem': {
       const q = memGeom(a, opt.memBytes);
-      for (const r of q.cells) g.rect(r.x, r.y, r.w, r.h).fill({ color: soft });
+      for (const r of q.cells) {
+        g.rect(r.x, r.y, r.w, r.h).fill({ color: soft });
+      }
       outline(q.map);
       lab(`card memory, a cell per ${NPU_CELL_WORDS} words`, a.x, a.y + 5, 7.5);
       // the readout of what is read and written (the RAM sticks' key: a cyan outline reads, a magenta one writes), then the key of the colours
@@ -412,8 +441,9 @@ export function npuGlyph(
       }
       break;
     }
-    default:
+    default: {
       break;
+    }
   }
 }
 
@@ -521,18 +551,23 @@ export function wavefront(
 /** The operand a descriptor shows in a column: a tile register, an address, a block, or nothing. */
 export function operand(op: number, which: 'a' | 'b', v: number): string {
   switch (op) {
-    case NpuOp.Load:
+    case NpuOp.Load: {
       return which === 'a' ? `t${v}` : `@${hex(v, 4)}`;
+    }
     case NpuOp.Matmul:
-    case NpuOp.Macc:
+    case NpuOp.Macc: {
       return `t${v}`;
+    }
     case NpuOp.Bias:
-    case NpuOp.Store:
+    case NpuOp.Store: {
       return which === 'a' ? '' : `@${hex(v, 4)}`;
-    case NpuOp.Layer:
+    }
+    case NpuOp.Layer: {
       return which === 'a' ? `@${hex(v, 4)}` : '';
-    default:
+    }
+    default: {
       return '';
+    }
   }
 }
 
@@ -542,18 +577,20 @@ export function npuLive(b: Pick<NpuBlock, 'kind' | 'rect'>, a: Rect, s: NpuShow)
   const K = s.grid,
     st = s.step,
     op = st?.op ?? 0,
-    running = s.phase === 'run' && !!st,
+    running = s.phase === 'run' && st !== null,
     moving = s.phase === 'in' || s.phase === 'out';
   const num = (r: Rect, t: string, ink = true) => out.texts.push({ rect: r, top: t, small: true, ink });
   switch (b.kind) {
     case 'host': {
       const q = hostGeom(a);
       q.pins.forEach((p, k) => {
-        if (p.name === 'clk')
+        if (p.name === 'clk') {
           p.cells.forEach((r, j) => {
-            if ((j + Math.floor(s.ms / 160)) % 2 === 0) out.lit.push({ rect: r, color: 'alu', a: s.busy ? 0.7 : 0.28 });
+            if ((j + Math.floor(s.ms / 160)) % 2 === 0) {
+              out.lit.push({ rect: r, color: 'alu', a: s.busy ? 0.7 : 0.28 });
+            }
           });
-        else {
+        } else {
           // the launch comes in on the transmit lanes of the host, the answer goes out on the receive ones; so does a word the CPU just wrote or read
           const dir = moving
             ? s.phase === 'in'
@@ -565,14 +602,19 @@ export function npuLive(b: Pick<NpuBlock, 'kind' | 'rect'>, a: Rect, s: NpuShow)
                 : 'out'
               : null;
           const mine = dir === 'in' ? p.name.startsWith('tx') : dir === 'out' ? p.name.startsWith('rx') : false;
-          if (mine)
+          if (mine) {
             p.cells.forEach((r, j) => {
               const jj = dir === 'in' ? j : 9 - j;
-              if (Math.floor(wave(s.ms, jj + k) * 3) === 2) out.lit.push({ rect: r, color: 'mul', a: 0.8 });
+              if (Math.floor(wave(s.ms, jj + k) * 3) === 2) {
+                out.lit.push({ rect: r, color: 'mul', a: 0.8 });
+              }
             });
+          }
         }
       });
-      if (moving) out.lit.push({ rect: { ...q.meter, w: q.meter.w * s.progress }, color: 'mul', a: 0.75 });
+      if (moving) {
+        out.lit.push({ rect: { ...q.meter, w: q.meter.w * s.progress }, color: 'mul', a: 0.75 });
+      }
       // (on the right of the note's line: its left half says how long a hop takes)
       out.texts.push({
         rect: { ...q.note, x: q.note.x + q.note.w * 0.5, w: q.note.w * 0.5 },
@@ -599,23 +641,32 @@ export function npuLive(b: Pick<NpuBlock, 'kind' | 'rect'>, a: Rect, s: NpuShow)
         word = [0, s.descAt, s.count, s.cycles, s.fault, K];
       const on = [s.busy, s.error, s.done, true];
       rows[0]!.chips.forEach((r, j) => {
-        if (on[j]) out.lit.push({ rect: r, color: j === 1 ? 'bad' : 'st', a: 0.7 });
+        if (on[j]) {
+          out.lit.push({ rect: r, color: j === 1 ? 'bad' : 'st', a: 0.7 });
+        }
       });
       // the register the CPU just wrote or read lights (the command and the status share the first row)
-      if (s.touch && s.touch.reg >= 0 && s.touch.fresh > 0.05)
+      if (s.touch && s.touch.reg >= 0 && s.touch.fresh > 0.05) {
         out.lit.push({
           rect: rows[s.touch.reg]!.value,
           color: s.touch.store ? 'br' : 'alu',
           a: 0.55 * s.touch.fresh,
           ring: false,
         });
+      }
       rows.forEach((row, k) => {
-        if (k === 0) return;
-        if (s.phase === 'in' && k <= 2) out.lit.push({ rect: row.value, color: 'st', a: 0.25 + 0.2 * wave(s.ms, k) });
-        if (k === 4 && s.fault !== 0) out.lit.push({ rect: row.value, color: 'bad', a: 0.35 });
+        if (k === 0) {
+          return;
+        }
+        if (s.phase === 'in' && k <= 2) {
+          out.lit.push({ rect: row.value, color: 'st', a: 0.25 + 0.2 * wave(s.ms, k) });
+        }
+        if (k === 4 && s.fault !== 0) {
+          out.lit.push({ rect: row.value, color: 'bad', a: 0.35 });
+        }
         num(row.value, k === 1 ? `0x${hex(word[k]!, 4)}` : k === 5 ? `${K} x ${K}` : String(word[k]), true);
       });
-      if (s.error && s.fault)
+      if (s.error && s.fault) {
         out.texts.push({
           rect: { ...rows[0]!.value, y: rows[0]!.y + rows[0]!.h + 1, h: 8 },
           top: FAULT_NAMES[s.fault] ?? '',
@@ -623,30 +674,41 @@ export function npuLive(b: Pick<NpuBlock, 'kind' | 'rect'>, a: Rect, s: NpuShow)
           ink: true,
           fit: 12,
         });
+      }
       break;
     }
     case 'desc': {
       const q = descGeom(a);
       s.list.forEach((d, k) => {
         const r = q.rows[k];
-        if (!r) return;
+        if (!r) {
+          return;
+        }
         const cur = k === s.index && s.phase !== 'idle',
           done = s.index > k || (s.index === k && !running && s.phase === 'out') || (s.done && s.phase === 'idle');
-        if (cur) out.lit.push({ rect: r.row, color: 'br', a: 0.55 + 0.2 * wave(s.ms, 0) });
-        else if (done) out.lit.push({ rect: r.row, color: 'st', a: 0.16 });
-        if (cur && st)
+        if (cur) {
+          out.lit.push({ rect: r.row, color: 'br', a: 0.55 + 0.2 * wave(s.ms, 0) });
+        } else if (done) {
+          out.lit.push({ rect: r.row, color: 'st', a: 0.16 });
+        }
+        if (cur && st) {
           out.lit.push({
             rect: { ...r.row, w: r.row.w * st.progress, y: r.row.y + r.row.h - 2, h: 2 },
             color: 'br',
             a: 0.95,
           });
+        }
         num(r.op, OP_NAMES[d.op] ?? `OP ${d.op}`);
         const x = operand(d.op, 'a', d.a),
           y = operand(d.op, 'b', d.b);
-        if (x) num(r.a, x);
-        if (y) num(r.b, y);
+        if (x) {
+          num(r.a, x);
+        }
+        if (y) {
+          num(r.b, y);
+        }
       });
-      if (s.count > 0)
+      if (s.count > 0) {
         out.texts.push({
           rect: q.foot,
           top:
@@ -657,7 +719,9 @@ export function npuLive(b: Pick<NpuBlock, 'kind' | 'rect'>, a: Rect, s: NpuShow)
           ink: true,
           fit: 16,
         });
-      else out.texts.push({ rect: q.foot, top: 'no list yet', small: true, ink: true, fit: 12 });
+      } else {
+        out.texts.push({ rect: q.foot, top: 'no list yet', small: true, ink: true, fit: 12 });
+      }
       break;
     }
     case 'tiles': {
@@ -665,14 +729,21 @@ export function npuLive(b: Pick<NpuBlock, 'kind' | 'rect'>, a: Rect, s: NpuShow)
         const using = running && (op === NpuOp.Matmul || op === NpuOp.Macc) && (st!.a === k || st!.b === k),
           loading = running && op === NpuOp.Load && st!.a === k,
           layer = running && op === NpuOp.Layer;
-        if (s.tiles[k]) out.lit.push({ rect: t.box, color: 'ld', a: 0.16 });
+        if (s.tiles[k]) {
+          out.lit.push({ rect: t.box, color: 'ld', a: 0.16 });
+        }
         const fill = loading ? Math.floor(st!.progress * K * K) : s.tiles[k] ? K * K : 0;
         t.cells.forEach((r, j) => {
-          if (j < fill) out.lit.push({ rect: r, color: 'ld', a: loading && j >= fill - K ? 0.95 : 0.5 });
-          if (using || (layer && Math.floor(wave(s.ms, j + k, 1.4) * 2) === 1))
+          if (j < fill) {
+            out.lit.push({ rect: r, color: 'ld', a: loading && j >= fill - K ? 0.95 : 0.5 });
+          }
+          if (using || (layer && Math.floor(wave(s.ms, j + k, 1.4) * 2) === 1)) {
             out.lit.push({ rect: r, color: 'mul', a: using ? 0.8 : 0.4 });
+          }
         });
-        if (using || loading) out.lit.push({ rect: t.box, color: using ? 'mul' : 'ld', a: 0.2 + 0.15 * wave(s.ms, k) });
+        if (using || loading) {
+          out.lit.push({ rect: t.box, color: using ? 'mul' : 'ld', a: 0.2 + 0.15 * wave(s.ms, k) });
+        }
       });
       break;
     }
@@ -689,36 +760,57 @@ export function npuLive(b: Pick<NpuBlock, 'kind' | 'rect'>, a: Rect, s: NpuShow)
         if (wf) {
           const diff = d - wf.front;
           // the value changes as the wave passes; before it a cell still holds the sum from before this step
-          if (op !== NpuOp.Layer && diff + 2 > 0) shown = s.prevAcc[k] ?? 0;
+          if (op !== NpuOp.Layer && diff + 2 > 0) {
+            shown = s.prevAcc[k] ?? 0;
+          }
           if (Math.abs(diff) < 1.3) {
             out.lit.push({ rect: r, color: 'mul', a: 0.9 });
             out.lit.push({ rect: q.east[k]!, color: 'alu', a: 0.95 }, { rect: q.south[k]!, color: 'ld', a: 0.95 });
-          } else if (diff < 0) out.lit.push({ rect: r, color: 'mul', a: 0.22 });
+          } else if (diff < 0) {
+            out.lit.push({ rect: r, color: 'mul', a: 0.22 });
+          }
         } else if (running && op === NpuOp.Relu) {
           const done = i < p * K;
-          if (done && (s.prevAcc[k] ?? 0) < 0) out.lit.push({ rect: r, color: 'bad', a: 0.85 });
-          else if (done) out.lit.push({ rect: r, color: 'mul', a: 0.2 });
-          if (!done) shown = s.prevAcc[k] ?? 0;
+          if (done && (s.prevAcc[k] ?? 0) < 0) {
+            out.lit.push({ rect: r, color: 'bad', a: 0.85 });
+          } else if (done) {
+            out.lit.push({ rect: r, color: 'mul', a: 0.2 });
+          }
+          if (!done) {
+            shown = s.prevAcc[k] ?? 0;
+          }
         } else if (running && op === NpuOp.Bias) {
-          if (i < p * K) out.lit.push({ rect: r, color: 'alu', a: i === Math.floor(p * K) ? 0.85 : 0.25 });
-          else shown = s.prevAcc[k] ?? 0;
+          if (i < p * K) {
+            out.lit.push({ rect: r, color: 'alu', a: i === Math.floor(p * K) ? 0.85 : 0.25 });
+          } else {
+            shown = s.prevAcc[k] ?? 0;
+          }
         } else if (running && op === NpuOp.Store) {
-          if (i <= p * K) out.lit.push({ rect: r, color: 'st', a: i === Math.floor(p * K) ? 0.8 : 0.3 });
+          if (i <= p * K) {
+            out.lit.push({ rect: r, color: 'st', a: i === Math.floor(p * K) ? 0.8 : 0.3 });
+          }
         }
-        if (shown !== 0 || running)
+        if (shown !== 0 || running) {
           out.texts.push({
             rect: r,
             top: String(shown),
             ink: shown !== 0,
             fit: Math.max(3, Math.min(7, String(shown).length)),
           });
+        }
       });
       if (wf) {
         // the inputs: the activation rows from the west and the weight columns from the north, each while its data is on the way in
-        for (let i = 0; i < K; i++)
-          if (wf.front > i - 1 && wf.front < i + K + 1) out.lit.push({ rect: q.rowIn[i]!, color: 'alu', a: 0.9 });
-        for (let j = 0; j < K; j++)
-          if (wf.front > j - 1 && wf.front < j + K + 1) out.lit.push({ rect: q.colIn[j]!, color: 'ld', a: 0.9 });
+        for (let i = 0; i < K; i++) {
+          if (wf.front > i - 1 && wf.front < i + K + 1) {
+            out.lit.push({ rect: q.rowIn[i]!, color: 'alu', a: 0.9 });
+          }
+        }
+        for (let j = 0; j < K; j++) {
+          if (wf.front > j - 1 && wf.front < j + K + 1) {
+            out.lit.push({ rect: q.colIn[j]!, color: 'ld', a: 0.9 });
+          }
+        }
         out.texts.push({
           rect: q.cap,
           top:
@@ -729,7 +821,7 @@ export function npuLive(b: Pick<NpuBlock, 'kind' | 'rect'>, a: Rect, s: NpuShow)
           ink: true,
           fit: 30,
         });
-      } else if (running)
+      } else if (running) {
         out.texts.push({
           rect: q.cap,
           top:
@@ -744,15 +836,19 @@ export function npuLive(b: Pick<NpuBlock, 'kind' | 'rect'>, a: Rect, s: NpuShow)
           ink: true,
           fit: 30,
         });
+      }
       break;
     }
     case 'post': {
       const q = postGeom(a, K),
         p = st?.progress ?? 0;
-      if (running && (op === NpuOp.Matmul || op === NpuOp.Macc || op === NpuOp.Layer) && p > 0.55)
+      if (running && (op === NpuOp.Matmul || op === NpuOp.Macc || op === NpuOp.Layer) && p > 0.55) {
         q.inRow.cells.forEach((r, k) => {
-          if (k / K < (p - 0.55) / 0.45) out.lit.push({ rect: r, color: 'mul', a: 0.6 });
+          if (k / K < (p - 0.55) / 0.45) {
+            out.lit.push({ rect: r, color: 'mul', a: 0.6 });
+          }
         });
+      }
       if (running && op === NpuOp.Bias) {
         out.lit.push(
           {
@@ -763,11 +859,15 @@ export function npuLive(b: Pick<NpuBlock, 'kind' | 'rect'>, a: Rect, s: NpuShow)
           { rect: q.inRow.box, color: 'alu', a: 0.2 },
         );
       }
-      if (running && op === NpuOp.Relu) out.lit.push({ rect: q.relu, color: 'mul', a: 0.8 });
+      if (running && op === NpuOp.Relu) {
+        out.lit.push({ rect: q.relu, color: 'mul', a: 0.8 });
+      }
       if (running && (op === NpuOp.Store || op === NpuOp.Layer)) {
         out.lit.push({ rect: q.relu, color: 'mul', a: op === NpuOp.Layer ? 0.4 : 0 });
         q.outRow.cells.forEach((r, k) => {
-          if (k / K < p) out.lit.push({ rect: r, color: 'st', a: 0.7 });
+          if (k / K < p) {
+            out.lit.push({ rect: r, color: 'st', a: 0.7 });
+          }
         });
       }
       break;
@@ -780,7 +880,9 @@ export function npuLive(b: Pick<NpuBlock, 'kind' | 'rect'>, a: Rect, s: NpuShow)
           kind = cellKind(i, s.regions),
           color = kind ? REGION_KINDS.find((k) => k.kind === kind)!.color : 'mute';
         const al = f > 0 ? 0.14 + 0.55 * f : kind ? 0.07 : 0;
-        if (al > 0) out.lit.push({ rect: r, color, a: al });
+        if (al > 0) {
+          out.lit.push({ rect: r, color, a: al });
+        }
       });
       // the accesses: the card's own (the step on show) and the CPU's through the window, outlined as the RAM sticks do (a read cyan, a write magenta)
       let rd = 0,
@@ -788,8 +890,9 @@ export function npuLive(b: Pick<NpuBlock, 'kind' | 'rect'>, a: Rect, s: NpuShow)
         who = '';
       const ring = (lo: number, hi: number, store: boolean, k: number) => {
         const [c0, c1] = cellsOfRange(lo, hi, s.memBytes);
-        for (let c = c0; c <= c1; c++)
+        for (let c = c0; c <= c1; c++) {
           out.lit.push({ rect: q.cells[c]!, color: store ? 'br' : 'alu', a: Math.min(1, 0.55 + 0.4 * k), ring: true });
+        }
       };
       if (running && st) {
         for (const [lo, hi] of st.reads) {
@@ -804,8 +907,11 @@ export function npuLive(b: Pick<NpuBlock, 'kind' | 'rect'>, a: Rect, s: NpuShow)
       }
       if (s.touch && s.touch.reg < 0 && s.touch.fresh > 0.05) {
         ring(s.touch.lo, s.touch.hi, s.touch.store, s.touch.fresh);
-        if (s.touch.store) wr += s.touch.hi - s.touch.lo;
-        else rd += s.touch.hi - s.touch.lo;
+        if (s.touch.store) {
+          wr += s.touch.hi - s.touch.lo;
+        } else {
+          rd += s.touch.hi - s.touch.lo;
+        }
         who = who ? 'card + cpu' : 'cpu';
       }
       const label = (n: number, verb: string) => (n > 0 ? `${who} ${verb} ${n} B` : verb);
@@ -827,8 +933,9 @@ export function npuLive(b: Pick<NpuBlock, 'kind' | 'rect'>, a: Rect, s: NpuShow)
       );
       break;
     }
-    default:
+    default: {
       break;
+    }
   }
   return out;
 }

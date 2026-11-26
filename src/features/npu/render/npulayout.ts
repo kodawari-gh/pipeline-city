@@ -52,7 +52,9 @@ const cache = new Map<string, NpuGeo>();
 /** The geometry of a card by its spec's `visual` key. */
 export function npuGeo(visual: string): NpuGeo {
   const hit = cache.get(visual);
-  if (hit) return hit;
+  if (hit) {
+    return hit;
+  }
   const input = npuInputOf(visual),
     plan = npuPlan(input),
     d = plan.die;
@@ -96,19 +98,24 @@ export function npuParts(g: NpuGeo): NpuPart[] {
   const arr = npuGlyphArea(block('array')),
     tiles = npuGlyphArea(block('tiles')),
     desc = npuGlyphArea(block('desc'));
-  if (arr)
+  if (arr) {
     arrayGeom(arr, K).cells.forEach((r, k) =>
       out.push({ id: `mac${Math.floor(k / K)}x${k % K}`, rect: onCard(g, r), inner: true, fine: true }),
     );
-  if (tiles)
+  }
+  if (tiles) {
     tilesGeom(tiles, K)
       .slice(0, NPU_TILES)
       .forEach((t, k) => out.push({ id: `tile${k}`, rect: onCard(g, t.box), inner: true, fine: true }));
-  if (desc)
+  }
+  if (desc) {
     descGeom(desc)
       .rows.slice(0, NPU_LIST_SHOWN)
       .forEach((r, k) => out.push({ id: `entry${k}`, rect: onCard(g, r.row), inner: true, fine: true }));
-  for (const b of g.plan.blocks) out.push({ id: b.id, rect: onCard(g, b.rect), inner: true, fine: false });
+  }
+  for (const b of g.plan.blocks) {
+    out.push({ id: b.id, rect: onCard(g, b.rect), inner: true, fine: false });
+  }
   out.push({ id: 'lid', rect: g.lid, inner: false, fine: false });
   return out;
 }

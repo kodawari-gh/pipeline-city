@@ -2,12 +2,13 @@
 // register, each row of the descriptor queue and each multiply-accumulate cell of the array. An id is the card's slot and the part: `pcie1.array`,
 // `pcie1.mac2x3`. Pure. It imports nothing from logic.ts (logic.ts imports this).
 
-import { getSpec, pcieLabel, type CardSpec } from '../../board/sim/specs';
+import * as specs from '../../board/sim/specs';
 import type { Snapshot } from '@/worker/game/game';
 import { GPU_HOP_TICKS, NpuOp } from '@/core/sim/memmap';
 import type { Description } from '@/core/ui/regions';
 
-const ID = /^(pcie\d+)\.(lid|host|ctl|desc|tiles|array|post|cardmem|mac(\d+)x(\d+)|tile(\d+)|entry(\d+))$/;
+const ID =
+  /^(?<slot>pcie\d+)\.(?<part>lid|host|ctl|desc|tiles|array|post|cardmem|mac(?<macRow>\d+)x(?<macCol>\d+)|tile(?<tile>\d+)|entry(?<entry>\d+))$/u;
 
 /** Is this one of an AI card's part ids? */
 export const isNpuId = (id: string): boolean => ID.test(id);
@@ -30,26 +31,32 @@ const costOf = (op: number, K: number): string => {
   switch (op) {
     case NpuOp.Load:
     case NpuOp.Store:
-    case NpuOp.Bias:
+    case NpuOp.Bias: {
       return `${1 + K} ticks`;
+    }
     case NpuOp.Matmul:
-    case NpuOp.Macc:
+    case NpuOp.Macc: {
       return `${2 + 3 * K} ticks`;
-    case NpuOp.Relu:
+    }
+    case NpuOp.Relu: {
       return '2 ticks';
-    default:
+    }
+    default: {
       return 'by its size';
+    }
   }
 };
 
 /** Describe a card part by its id; null when the id is not one. `s` adds what the card is doing right now. */
 export function describeNpuId(id: string, s?: Snapshot | null): Description | null {
   const m = ID.exec(id);
-  if (!m) return null;
+  if (!m) {
+    return null;
+  }
   const slot = m[1]!,
     part = m[2]!;
   const dev = s?.devices.find((d) => d.slot === slot && d.kind === 'npu');
-  const spec = dev ? (getSpec(dev.spec) as CardSpec | undefined) : undefined;
+  const spec = dev ? (specs.getSpec(dev.spec) as specs.CardSpec | undefined) : undefined;
   const v = s?.npus?.find((x) => x.slot === slot);
   const K = v?.grid ?? spec?.npu?.grid,
     memK = Math.round((v?.memBytes ?? spec?.npu?.memBytes ?? 0) / 1024);
@@ -101,21 +108,23 @@ export function describeNpuId(id: string, s?: Snapshot | null): Description | nu
     };
   }
   switch (part) {
-    case 'lid':
+    case 'lid': {
       return {
         title: 'AI card',
         plain:
           'A card that does one thing fast: multiply grids of numbers, the heart of a neural network. The CPU leaves it a list of small jobs and starts it; it works down the list on its own. Zoom in and the lid fades away to show its parts.',
         nerd: `${card} | ${cells} multiply-accumulate cells${memK ? ` | ${memK}K card memory` : ''}${v ? ` | ${now} | ${v.launches} launches` : ''}${dev ? ` | ${dev.tempC.toFixed(0)} C` : ''}`,
       };
-    case 'host':
+    }
+    case 'host': {
       return {
         title: 'PCIe link',
         plain:
           "The card's connection to the machine through its slot. A launch crosses it on the way in and the answer on the way out, and it lights up while that happens. The CPU also fills card memory through it, before the launch.",
-        nerd: `${GPU_HOP_TICKS} card ticks each way${spec?.pcieWidth ? ` | ${pcieLabel(spec.pcieWidth)}` : ''}${v ? ` | now ${now}` : ''}`,
+        nerd: `${GPU_HOP_TICKS} card ticks each way${spec?.pcieWidth ? ` | ${specs.pcieLabel(spec.pcieWidth)}` : ''}${v ? ` | now ${now}` : ''}`,
       };
-    case 'ctl':
+    }
+    case 'ctl': {
       return {
         title: 'Control registers',
         plain:
@@ -124,14 +133,16 @@ export function describeNpuId(id: string, s?: Snapshot | null): Description | nu
           ? `status ${[v.busy && 'busy', v.error && 'error', v.done && 'done'].filter(Boolean).join(' ') || 'idle'} | desc ${hex(v.descAt)} | count ${v.count} | cycles ${v.cycles} | fault ${v.fault}`
           : 'status, cmd, desc, count, grid, memory size, cycles, fault | word access',
       };
-    case 'desc':
+    }
+    case 'desc': {
       return {
         title: 'Descriptor queue',
         plain:
           'The list of small jobs the CPU left in card memory: load a tile, multiply two tiles, add a bias, relu, store, or a whole layer at once. The card walks down it one row at a time. The bright row is the one it is on, the green ones are done.',
         nerd: `four words each: op, a, b, c | ${K ? `load, store, bias ${1 + K} ticks, matmul ${2 + 3 * K}, relu 2` : 'cost by the operation and the grid'}${v ? ` | ${now}` : ''}`,
       };
-    case 'tiles':
+    }
+    case 'tiles': {
       return {
         title: 'Tile registers',
         plain: `Four small registers, each holding a ${cells} tile of numbers. A load fills one from card memory; a matrix product reads two of them and feeds the array. A tile lights up once it holds something.`,
@@ -146,7 +157,8 @@ export function describeNpuId(id: string, s?: Snapshot | null): Description | nu
             : ''
         }`,
       };
-    case 'array':
+    }
+    case 'array': {
       return {
         title: 'MAC array',
         plain: `A grid of ${cells} cells that each multiply two numbers and add the product to a sum they keep. One tile comes in from the west and the other from the north, and the numbers pass from cell to cell, right and down, so every cell meets the right pair at the right moment. The wave of light is the data moving through. A bigger grid finishes a big product in fewer steps, but each step costs the same set-up.`,
@@ -154,14 +166,16 @@ export function describeNpuId(id: string, s?: Snapshot | null): Description | nu
           ? `${K * K} cells | a product takes ${2 + 3 * K} ticks: set-up 2, ${K} to fill, ${K} rows out, ${K} to drain${v ? ` | ${v.descriptors} descriptors run since power-on` : ''}`
           : 'set-up, fill, rows out, drain',
       };
-    case 'post':
+    }
+    case 'post': {
       return {
         title: 'Bias and relu',
         plain:
           'The stage the sums pass on their way out of the array. The bias unit adds one number to every cell of a row; the relu unit turns every negative sum into 0, which is what a neural network layer does after each product.',
         nerd: `bias: ${K ? 1 + K : 'K + 1'} ticks | relu: 2 ticks | out = max(0, sum + bias)`,
       };
-    case 'cardmem':
+    }
+    case 'cardmem': {
       return {
         title: 'Card memory',
         plain:
@@ -170,7 +184,9 @@ export function describeNpuId(id: string, s?: Snapshot | null): Description | nu
           ? `${memK}K | cleared at power-on${v && v.count > 0 ? ` | list at ${hex(v.descAt)}, ${v.count * 16} bytes` : ''}`
           : 'cleared at power-on',
       };
-    default:
+    }
+    default: {
       return null;
+    }
   }
 }
