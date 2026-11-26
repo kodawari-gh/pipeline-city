@@ -7437,31 +7437,23 @@
  },
  "src/features/cpu/sim/asm/assemble.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 44,
   "eslint(default-case)": 1,
   "eslint(max-depth)": 4,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
-  "eslint(prefer-named-capture-group)": 6,
-  "eslint(require-unicode-regexp)": 8,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 17,
-  "typescript(prefer-string-starts-ends-with)": 3,
+  "typescript(no-non-null-assertion)": 16,
+  "typescript(prefer-string-starts-ends-with)": 2,
   "typescript(strict-boolean-expressions)": 4,
   "unicorn(catch-error-name)": 1,
   "unicorn(no-array-for-each)": 3,
-  "unicorn(numeric-separators-style)": 4,
-  "unicorn(prefer-at)": 1,
   "unicorn(prefer-code-point)": 2,
-  "unicorn(prefer-math-trunc)": 2,
-  "unicorn(switch-case-braces)": 16
+  "unicorn(prefer-math-trunc)": 2
  },
  "src/features/cpu/sim/core.ts": {
   "eslint(class-methods-use-this)": 1,
   "eslint(max-classes-per-file)": 1,
   "eslint(no-empty-function)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 4,
   "unicorn(prefer-math-trunc)": 1
  },
@@ -7478,8 +7470,6 @@
   "vitest(valid-expect)": 2
  },
  "src/features/cpu/sim/cpuprofile.ts": {
-  "eslint(curly)": 3,
-  "import(consistent-type-specifier-style)": 3,
   "typescript(no-non-null-assertion)": 1,
   "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 4
@@ -7567,18 +7557,14 @@
  },
  "src/features/cpu/sim/engines/index.ts": {
   "eslint(default-case)": 1,
-  "import(consistent-type-specifier-style)": 3,
   "import(first)": 5,
-  "typescript(consistent-return)": 1,
-  "unicorn(switch-case-braces)": 5
+  "typescript(consistent-return)": 1
  },
  "src/features/cpu/sim/engines/inorder.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 91,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(no-nested-ternary)": 1,
-  "eslint(prefer-destructuring)": 13,
   "oxc(bad-bitwise-operator)": 1,
   "typescript(no-non-null-assertion)": 92,
   "typescript(strict-boolean-expressions)": 8

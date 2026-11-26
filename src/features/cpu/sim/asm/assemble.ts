@@ -1,4 +1,4 @@
-import { encode, fitsImm17, instr, parseReg, REG_RA, REG_ZERO, SPEC_BY_NAME, type Instr } from '../isa/isa';
+import * as isa from '../isa/isa';
 import { RAM_BASE } from '@/core/sim/memmap';
 
 export class AsmError extends Error {
@@ -37,10 +37,16 @@ export function stripComment(s: string): string {
   for (let i = 0; i < s.length; i++) {
     const c = s[i]!;
     if (q) {
-      if (c === '\\') i++;
-      else if (c === q) q = null;
-    } else if (c === '"' || c === "'") q = c;
-    else if (c === '#' || c === ';') return s.slice(0, i);
+      if (c === '\\') {
+        i++;
+      } else if (c === q) {
+        q = null;
+      }
+    } else if (c === '"' || c === "'") {
+      q = c;
+    } else if (c === '#' || c === ';') {
+      return s.slice(0, i);
+    }
   }
   return s;
 }
@@ -54,36 +60,48 @@ export function splitOps(s: string): string[] {
     const c = s[i]!;
     if (q) {
       cur += c;
-      if (c === '\\') cur += s[++i] ?? '';
-      else if (c === q) q = null;
+      if (c === '\\') {
+        cur += s[++i] ?? '';
+      } else if (c === q) {
+        q = null;
+      }
     } else if (c === '"' || c === "'") {
       q = c;
       cur += c;
     } else if (c === ',') {
       out.push(cur.trim());
       cur = '';
-    } else cur += c;
+    } else {
+      cur += c;
+    }
   }
-  if (cur.trim() !== '' || out.length > 0) out.push(cur.trim());
+  if (cur.trim() !== '' || out.length > 0) {
+    out.push(cur.trim());
+  }
   return out;
 }
 
 const ESC: Record<string, number> = { n: 10, t: 9, r: 13, '0': 0, '\\': 92, '"': 34, "'": 39 };
 
 function parseString(line: number, s: string): number[] {
-  if (s.length < 2 || s[0] !== '"' || s[s.length - 1] !== '"')
+  if (s.length < 2 || s[0] !== '"' || s.at(-1) !== '"') {
     throw new AsmError(line, `expected a "quoted string", got ${s}`);
+  }
   const bytes: number[] = [];
   for (let i = 1; i < s.length - 1; i++) {
     let c = s[i]!;
     if (c === '\\') {
       c = s[++i]!;
       const e = ESC[c];
-      if (e === undefined) throw new AsmError(line, `unknown escape \\${c}`);
+      if (e === undefined) {
+        throw new AsmError(line, `unknown escape \\${c}`);
+      }
       bytes.push(e);
     } else {
       const code = c.charCodeAt(0);
-      if (code > 127) throw new AsmError(line, 'only ASCII is supported in strings');
+      if (code > 127) {
+        throw new AsmError(line, 'only ASCII is supported in strings');
+      }
       bytes.push(code);
     }
   }
@@ -92,15 +110,14 @@ function parseString(line: number, s: string): number[] {
 
 /** Numeric literal (decimal, 0x, 0b, 'c') or null. */
 export function parseNum(s: string): number | null {
-  if (/^[-+]?(0x[0-9a-f]+|0b[01]+|\d+)$/i.test(s)) {
+  if (/^[-+]?(?:0x[0-9a-f]+|0b[01]+|\d+)$/iu.test(s)) {
     const neg = s[0] === '-';
-    const body = s.replace(/^[-+]/, '');
+    const body = s.replace(/^[-+]/u, '');
     const v = Number(body);
     return neg ? -v : v;
   }
-  const m = /^'(\\.|[^\\])'$/.exec(s);
-  if (m) {
-    const t = m[1]!;
+  const t = /^'(?<ch>\\.|[^\\])'$/u.exec(s)?.groups?.['ch'];
+  if (t !== undefined) {
     return t.length === 2 ? (ESC[t[1]!] ?? null) : t.charCodeAt(0);
   }
   return null;
@@ -108,8 +125,8 @@ export function parseNum(s: string): number | null {
 
 /** Split v into hi (21 bits, for lui/auipc) and signed 11-bit lo so that (hi << 11) + lo == v mod 2^32. */
 function splitHiLo(v: number): { hi: number; lo: number } {
-  const lo = ((v & 0x7ff) ^ 0x400) - 0x400;
-  const hi = (((v - lo) >>> 0) >>> 11) & 0x1fffff;
+  const lo = ((v & 0x7_ff) ^ 0x4_00) - 0x4_00;
+  const hi = (((v - lo) >>> 0) >>> 11) & 0x1f_ff_ff;
   return { hi, lo };
 }
 
@@ -117,11 +134,13 @@ const LI_MIN = -(2 ** 31);
 const LI_MAX = 2 ** 32 - 1;
 
 function liSize(v: number): number {
-  if (fitsImm17(v)) return 4;
+  if (isa.fitsImm17(v)) {
+    return 4;
+  }
   return splitHiLo(v | 0).lo === 0 ? 4 : 8;
 }
 
-export const LABEL_RE = /^[A-Za-z_.][\w.]*$/;
+export const LABEL_RE = /^[A-Za-z_.][\w.]*$/u;
 
 export function assemble(src: string, opts: AsmOptions = {}): AsmResult {
   const origin = opts.origin ?? RAM_BASE;
@@ -130,20 +149,26 @@ export function assemble(src: string, opts: AsmOptions = {}): AsmResult {
   let off = 0;
 
   // ---- pass 1: parse lines, assign offsets, collect labels
-  const lines = src.split(/\r?\n/);
+  const lines = src.split(/\r?\n/u);
   for (let n = 0; n < lines.length; n++) {
     const line = n + 1;
     let text = stripComment(lines[n]!).trim();
     for (;;) {
-      const m = /^([A-Za-z_.][\w.]*)\s*:\s*(.*)$/.exec(text);
-      if (!m) break;
-      const name = m[1]!;
-      if (symbols.has(name)) throw new AsmError(line, `duplicate label '${name}'`);
+      const label = /^(?<name>[A-Za-z_.][\w.]*)\s*:\s*(?<rest>.*)$/u.exec(text)?.groups;
+      if (!label) {
+        break;
+      }
+      const name = label['name']!;
+      if (symbols.has(name)) {
+        throw new AsmError(line, `duplicate label '${name}'`);
+      }
       symbols.set(name, origin + off);
-      text = m[2]!;
+      text = label['rest']!;
     }
-    if (text === '') continue;
-    const sp = text.search(/\s/);
+    if (text === '') {
+      continue;
+    }
+    const sp = text.search(/\s/u);
     const mnem = (sp < 0 ? text : text.slice(0, sp)).toLowerCase();
     const ops = sp < 0 ? [] : splitOps(text.slice(sp + 1).trim());
     const item: Item = { line, off, mnem, ops, size: 0 };
@@ -156,39 +181,56 @@ export function assemble(src: string, opts: AsmOptions = {}): AsmResult {
     const { line, mnem, ops } = it;
     switch (mnem) {
       case '.string': {
-        if (ops.length !== 1) throw new AsmError(line, '.string takes one quoted string');
+        if (ops.length !== 1) {
+          throw new AsmError(line, '.string takes one quoted string');
+        }
         return parseString(line, ops[0]!).length + 1;
       }
-      case '.byte':
+      case '.byte': {
         return ops.length;
-      case '.word':
+      }
+      case '.word': {
         requireAligned(it);
         return 4 * ops.length;
-      case '.align':
+      }
+      case '.align': {
         return (4 - (it.off % 4)) % 4;
+      }
       case 'li': {
-        if (ops.length !== 2) throw new AsmError(line, 'li takes: rd, number');
+        if (ops.length !== 2) {
+          throw new AsmError(line, 'li takes: rd, number');
+        }
         const v = parseNum(ops[1]!);
-        if (v === null) throw new AsmError(line, 'li needs a numeric literal (use la for labels)');
-        if (v < LI_MIN || v > LI_MAX) throw new AsmError(line, `li value ${v} does not fit in 32 bits`);
+        if (v === null) {
+          throw new AsmError(line, 'li needs a numeric literal (use la for labels)');
+        }
+        if (v < LI_MIN || v > LI_MAX) {
+          throw new AsmError(line, `li value ${v} does not fit in 32 bits`);
+        }
         requireAligned(it);
         return liSize(v);
       }
-      case 'la':
+      case 'la': {
         requireAligned(it);
         return 8;
-      default:
-        if (mnem.startsWith('.')) throw new AsmError(line, `unknown directive '${mnem}'`);
-        if (!SPEC_BY_NAME.has(mnem) && !['mv', 'j', 'ret', 'nop', 'call'].includes(mnem)) {
+      }
+      default: {
+        if (mnem.startsWith('.')) {
+          throw new AsmError(line, `unknown directive '${mnem}'`);
+        }
+        if (!isa.SPEC_BY_NAME.has(mnem) && !['mv', 'j', 'ret', 'nop', 'call'].includes(mnem)) {
           throw new AsmError(line, `unknown instruction '${mnem}'`);
         }
         requireAligned(it);
         return 4;
+      }
     }
   }
 
   function requireAligned(it: Item): void {
-    if (it.off % 4 !== 0) throw new AsmError(it.line, 'misaligned after data; add .align');
+    if (it.off % 4 !== 0) {
+      throw new AsmError(it.line, 'misaligned after data; add .align');
+    }
   }
 
   // ---- pass 2: emit
@@ -200,96 +242,133 @@ export function assemble(src: string, opts: AsmOptions = {}): AsmResult {
     const { line, mnem, ops } = it;
     const addr = origin + it.off;
     const reg = (s: string | undefined): number => {
-      if (s === undefined) throw new AsmError(line, `${mnem}: missing operand`);
-      const r = parseReg(s);
-      if (r < 0) throw new AsmError(line, `${mnem}: '${s}' is not a register`);
+      if (s === undefined) {
+        throw new AsmError(line, `${mnem}: missing operand`);
+      }
+      const r = isa.parseReg(s);
+      if (r < 0) {
+        throw new AsmError(line, `${mnem}: '${s}' is not a register`);
+      }
       return r;
     };
     const num = (s: string | undefined): number => {
-      if (s === undefined) throw new AsmError(line, `${mnem}: missing operand`);
+      if (s === undefined) {
+        throw new AsmError(line, `${mnem}: missing operand`);
+      }
       const v = parseNum(s);
-      if (v === null) throw new AsmError(line, `${mnem}: '${s}' is not a number`);
+      if (v === null) {
+        throw new AsmError(line, `${mnem}: '${s}' is not a number`);
+      }
       return v;
     };
     const sym = (s: string): number => {
       const v = symbols.get(s);
-      if (v === undefined) throw new AsmError(line, `undefined label '${s}'`);
+      if (v === undefined) {
+        throw new AsmError(line, `undefined label '${s}'`);
+      }
       return v;
     };
     /** Absolute value: number or label. */
     const value = (s: string): number => {
       const v = parseNum(s);
-      if (v !== null) return v;
-      if (LABEL_RE.test(s)) return sym(s);
+      if (v !== null) {
+        return v;
+      }
+      if (LABEL_RE.test(s)) {
+        return sym(s);
+      }
       throw new AsmError(line, `bad value '${s}'`);
     };
     /** Branch/jump operand: label (made relative to this instruction at pc) or a raw byte offset. */
     const target = (s: string | undefined, pc: number): number => {
-      if (s === undefined) throw new AsmError(line, `${mnem}: missing operand`);
+      if (s === undefined) {
+        throw new AsmError(line, `${mnem}: missing operand`);
+      }
       const v = parseNum(s);
-      if (v !== null) return v;
-      if (LABEL_RE.test(s) && parseReg(s) < 0) return sym(s) - pc;
+      if (v !== null) {
+        return v;
+      }
+      if (LABEL_RE.test(s) && isa.parseReg(s) < 0) {
+        return sym(s) - pc;
+      }
       throw new AsmError(line, `${mnem}: bad target '${s}'`);
     };
     const arity = (n: number): void => {
-      if (ops.length !== n) throw new AsmError(line, `${mnem} takes ${n} operand(s), got ${ops.length}`);
+      if (ops.length !== n) {
+        throw new AsmError(line, `${mnem} takes ${n} operand(s), got ${ops.length}`);
+      }
     };
     const memOp = (s: string | undefined): { imm: number; rs1: number } => {
-      const m = s === undefined ? null : /^(.*)\(\s*(\w+)\s*\)$/.exec(s);
-      if (!m) throw new AsmError(line, `${mnem}: expected imm(reg), got '${s ?? ''}'`);
-      const t = m[1]!.trim();
-      return { imm: t === '' ? 0 : num(t), rs1: reg(m[2]) };
+      const m = s === undefined ? undefined : /^(?<imm>.*)\(\s*(?<rs1>\w+)\s*\)$/u.exec(s)?.groups;
+      if (!m) {
+        throw new AsmError(line, `${mnem}: expected imm(reg), got '${s ?? ''}'`);
+      }
+      const t = m['imm']!.trim();
+      return { imm: t === '' ? 0 : num(t), rs1: reg(m['rs1']) };
     };
 
     if (mnem === '.string' || mnem === '.byte' || mnem === '.word' || mnem === '.align') {
-      if (mnem === '.string') bytes.set([...parseString(line, ops[0]!), 0], it.off);
-      else if (mnem === '.byte') {
+      if (mnem === '.string') {
+        bytes.set([...parseString(line, ops[0]!), 0], it.off);
+      } else if (mnem === '.byte') {
         ops.forEach((o, k) => {
           const v = num(o);
-          if (v < -128 || v > 255) throw new AsmError(line, `.byte value ${v} out of range`);
+          if (v < -128 || v > 255) {
+            throw new AsmError(line, `.byte value ${v} out of range`);
+          }
           bytes[it.off + k] = v & 0xff;
         });
       } else if (mnem === '.word') {
         ops.forEach((o, k) => {
           const v = value(o);
-          if (v < LI_MIN || v > LI_MAX) throw new AsmError(line, `.word value ${v} does not fit in 32 bits`);
+          if (v < LI_MIN || v > LI_MAX) {
+            throw new AsmError(line, `.word value ${v} does not fit in 32 bits`);
+          }
           dv.setUint32(it.off + 4 * k, v >>> 0, true);
         });
       }
       continue;
     }
 
-    const out: Instr[] = [];
+    const out: isa.Instr[] = [];
     try {
       switch (mnem) {
-        case 'nop':
+        case 'nop': {
           arity(0);
-          out.push(instr('addi'));
+          out.push(isa.instr('addi'));
           break;
-        case 'ret':
+        }
+        case 'ret': {
           arity(0);
-          out.push(instr('jalr', { rd: REG_ZERO, rs1: REG_RA }));
+          out.push(isa.instr('jalr', { rd: isa.REG_ZERO, rs1: isa.REG_RA }));
           break;
-        case 'mv':
+        }
+        case 'mv': {
           arity(2);
-          out.push(instr('addi', { rd: reg(ops[0]), rs1: reg(ops[1]) }));
+          out.push(isa.instr('addi', { rd: reg(ops[0]), rs1: reg(ops[1]) }));
           break;
-        case 'j':
+        }
+        case 'j': {
           arity(1);
-          out.push(instr('jal', { rd: REG_ZERO, imm: target(ops[0], addr) }));
+          out.push(isa.instr('jal', { rd: isa.REG_ZERO, imm: target(ops[0], addr) }));
           break;
-        case 'call':
+        }
+        case 'call': {
           arity(1);
-          out.push(instr('jal', { rd: REG_RA, imm: target(ops[0], addr) }));
+          out.push(isa.instr('jal', { rd: isa.REG_RA, imm: target(ops[0], addr) }));
           break;
+        }
         case 'li': {
           const rd = reg(ops[0]);
           const v = parseNum(ops[1]!)!;
-          if (fitsImm17(v)) out.push(instr('addi', { rd, imm: v }));
-          else {
+          if (isa.fitsImm17(v)) {
+            out.push(isa.instr('addi', { rd, imm: v }));
+          } else {
             const { hi, lo } = splitHiLo(v | 0);
-            out.push(instr('lui', { rd, imm: hi }));
-            if (lo !== 0) out.push(instr('addi', { rd, rs1: rd, imm: lo }));
+            out.push(isa.instr('lui', { rd, imm: hi }));
+            if (lo !== 0) {
+              out.push(isa.instr('addi', { rd, rs1: rd, imm: lo }));
+            }
           }
           break;
         }
@@ -297,66 +376,84 @@ export function assemble(src: string, opts: AsmOptions = {}): AsmResult {
           arity(2);
           const rd = reg(ops[0]);
           const s = ops[1]!;
-          if (!LABEL_RE.test(s)) throw new AsmError(line, 'la needs a label');
+          if (!LABEL_RE.test(s)) {
+            throw new AsmError(line, 'la needs a label');
+          }
           const { hi, lo } = splitHiLo(sym(s) - addr);
-          out.push(instr('auipc', { rd, imm: hi }), instr('addi', { rd, rs1: rd, imm: lo }));
+          out.push(isa.instr('auipc', { rd, imm: hi }), isa.instr('addi', { rd, rs1: rd, imm: lo }));
           break;
         }
         default: {
-          const spec = SPEC_BY_NAME.get(mnem)!;
+          const spec = isa.SPEC_BY_NAME.get(mnem)!;
           switch (spec.fmt) {
-            case 'N':
+            case 'N': {
               arity(0);
-              out.push(instr(mnem));
+              out.push(isa.instr(mnem));
               break;
-            case 'R':
+            }
+            case 'R': {
               arity(3);
               if (spec.amo) {
                 const m = memOp(ops[2]);
-                if (m.imm !== 0) throw new AsmError(line, `${mnem}: no offset, use (reg)`);
-                out.push(instr(mnem, { rd: reg(ops[0]), rs1: m.rs1, rs2: reg(ops[1]) }));
-              } else out.push(instr(mnem, { rd: reg(ops[0]), rs1: reg(ops[1]), rs2: reg(ops[2]) }));
+                if (m.imm !== 0) {
+                  throw new AsmError(line, `${mnem}: no offset, use (reg)`);
+                }
+                out.push(isa.instr(mnem, { rd: reg(ops[0]), rs1: m.rs1, rs2: reg(ops[1]) }));
+              } else {
+                out.push(isa.instr(mnem, { rd: reg(ops[0]), rs1: reg(ops[1]), rs2: reg(ops[2]) }));
+              }
               break;
-            case 'I':
+            }
+            case 'I': {
               if (spec.mem) {
                 arity(2);
                 const m = memOp(ops[1]);
-                out.push(instr(mnem, { rd: reg(ops[0]), rs1: m.rs1, imm: m.imm }));
+                out.push(isa.instr(mnem, { rd: reg(ops[0]), rs1: m.rs1, imm: m.imm }));
               } else {
                 arity(3);
-                out.push(instr(mnem, { rd: reg(ops[0]), rs1: reg(ops[1]), imm: num(ops[2]) }));
+                out.push(isa.instr(mnem, { rd: reg(ops[0]), rs1: reg(ops[1]), imm: num(ops[2]) }));
               }
               break;
+            }
             case 'S': {
               arity(2);
               const m = memOp(ops[1]);
-              out.push(instr(mnem, { rs2: reg(ops[0]), rs1: m.rs1, imm: m.imm }));
+              out.push(isa.instr(mnem, { rs2: reg(ops[0]), rs1: m.rs1, imm: m.imm }));
               break;
             }
-            case 'B':
+            case 'B': {
               arity(3);
-              out.push(instr(mnem, { rs1: reg(ops[0]), rs2: reg(ops[1]), imm: target(ops[2], addr) }));
+              out.push(isa.instr(mnem, { rs1: reg(ops[0]), rs2: reg(ops[1]), imm: target(ops[2], addr) }));
               break;
-            case 'U':
+            }
+            case 'U': {
               arity(2);
-              out.push(instr(mnem, { rd: reg(ops[0]), imm: num(ops[1]) }));
+              out.push(isa.instr(mnem, { rd: reg(ops[0]), imm: num(ops[1]) }));
               break;
-            case 'J':
+            }
+            case 'J': {
               arity(2);
-              out.push(instr(mnem, { rd: reg(ops[0]), imm: target(ops[1], addr) }));
+              out.push(isa.instr(mnem, { rd: reg(ops[0]), imm: target(ops[1], addr) }));
               break;
+            }
           }
         }
       }
-      out.forEach((i, k) => dv.setUint32(it.off + 4 * k, encode(i), true));
+      out.forEach((i, k) => dv.setUint32(it.off + 4 * k, isa.encode(i), true));
     } catch (e) {
-      if (e instanceof AsmError) throw e;
-      if (e instanceof RangeError) throw new AsmError(line, e.message);
+      if (e instanceof AsmError) {
+        throw e;
+      }
+      if (e instanceof RangeError) {
+        throw new AsmError(line, e.message);
+      }
       throw e;
     }
   }
 
   const program = new Uint32Array(total / 4);
-  for (let k = 0; k < program.length; k++) program[k] = dv.getUint32(4 * k, true);
+  for (let k = 0; k < program.length; k++) {
+    program[k] = dv.getUint32(4 * k, true);
+  }
   return { program, symbols };
 }

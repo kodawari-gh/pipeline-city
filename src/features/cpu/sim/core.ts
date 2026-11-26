@@ -6,14 +6,14 @@ import { REG_COUNT } from './isa/isa';
 import type { Bus } from '@/core/sim/hw/bus';
 import type { Device } from '@/core/sim/hw/device';
 import type { Engine } from '@/core/sim/engine';
-import { Intc, type IntcHub } from '@/core/sim/hw/intc';
+import * as intcHw from '@/core/sim/hw/intc';
 import { Mmu } from '../../memory/sim/mmu';
 import { Mpu } from '../../memory/sim/mpu';
 import { Timer } from '@/core/sim/hw/timer';
 
 export class Core {
   readonly regs = new Int32Array(REG_COUNT);
-  readonly intc: Intc;
+  readonly intc: intcHw.Intc;
   readonly mpu = new Mpu();
   readonly timer: Timer;
   readonly mmu: Mmu;
@@ -29,9 +29,9 @@ export class Core {
   constructor(
     readonly index: number,
     ram: Uint8Array,
-    hub?: IntcHub,
+    hub?: intcHw.IntcHub,
   ) {
-    this.intc = new Intc(index, hub);
+    this.intc = new intcHw.Intc(index, hub);
     this.timer = new Timer(this.intc);
     this.mmu = new Mmu(ram);
     this.stackTop = ram.length | 0;

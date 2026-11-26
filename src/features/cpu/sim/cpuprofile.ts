@@ -7,9 +7,9 @@
 // that will lean on it (docs/MULTICORE.md "hpc", longer scans) come later.
 
 import { assemble } from './asm';
-import { createEngine, type EngineConfig, type PipelineEngine } from './engines';
+import * as engines from './engines';
 import { Machine } from '@/core/sim';
-import { getSpec, type CpuSpec } from '../../board/sim/specs';
+import * as specs from '../../board/sim/specs';
 
 export interface CpuProfile {
   /** Arithmetic with long dependent chains and few branches. */
@@ -80,21 +80,29 @@ const MAX_CYCLES = 3_000_000;
 const memo = new Map<string, CpuProfile>();
 
 /** Instructions per cycle of one engine config on one benchmark. */
-function ipcOf(cfg: EngineConfig, kind: keyof CpuProfile): number {
-  const engine = createEngine(cfg.kind === 'ref' ? cfg : { ...cfg, missPenalty: MISS_PENALTY }) as PipelineEngine;
+function ipcOf(cfg: engines.EngineConfig, kind: keyof CpuProfile): number {
+  const engine = engines.createEngine(
+    cfg.kind === 'ref' ? cfg : { ...cfg, missPenalty: MISS_PENALTY },
+  ) as engines.PipelineEngine;
   const m = new Machine();
   m.attach(engine, PROGRAMS[kind]);
-  while (!engine.halted && engine.cycle < MAX_CYCLES) engine.step();
+  while (!engine.halted && engine.cycle < MAX_CYCLES) {
+    engine.step();
+  }
   return engine.cycle > 0 ? engine.view.counters[1]! / engine.cycle : 0;
 }
 
 /** Measured speed of a CPU spec on the three kinds of work, in instructions per base tick (clock times IPC), to two decimals. Memoised. */
 export function cpuProfile(specId: string): CpuProfile | null {
-  const spec = getSpec(specId);
-  if (!spec || spec.kind !== 'cpu') return null;
+  const spec = specs.getSpec(specId);
+  if (!spec || spec.kind !== 'cpu') {
+    return null;
+  }
   const hit = memo.get(specId);
-  if (hit) return hit;
-  const cpu = spec as CpuSpec;
+  if (hit) {
+    return hit;
+  }
+  const cpu = spec as specs.CpuSpec;
   const out = {} as CpuProfile;
   for (const k of Object.keys(BENCH) as (keyof CpuProfile)[]) {
     out[k] = Math.round(cpu.clock.base * ipcOf(cpu.engine, k) * 100) / 100;
