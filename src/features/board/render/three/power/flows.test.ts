@@ -36,31 +36,6 @@ const line = (id: string, pts: [number, number, number][], o: Partial<PowerLine>
   ...o,
 });
 
-function assert_is_a_number_in_0_1_that_the_name_decides(): void {
-  for (const id of ['atx#0', 'cpu#3', 'trace.pwrcpu.1', '']) {
-    const a = seedOf(id);
-    expect(a).toBeGreaterThanOrEqual(0);
-    expect(a).toBeLessThan(1);
-    expect(seedOf(id)).toBe(a);
-  }
-}
-
-function assert_keeps_the_width_the_seed_the_lift_and_the_fade_o(): void {
-  const l = line(
-    'a',
-    [
-      [0, 0, 0],
-      [10, 0, 0],
-      [10, 10, 0],
-    ],
-    { width: 22, lift: 70, fade: 1500 },
-  );
-  const s = strips([l]);
-  for (let k = 0; k < s.n; k++) {
-    expect([...s.look.slice(4 * k, 4 * k + 4)]).toStrictEqual([22, Math.fround(seedOf('a')), 70, 1500]);
-  }
-}
-
 const strength = (m: three.Mesh): number =>
   (m.material as unknown as { uniforms: { uStrength: { value: number } } }).uniforms.uStrength.value;
 
@@ -69,8 +44,12 @@ const clock = (m: three.Mesh): number =>
 
 describe('seedOf', () => {
   it('is a number in [0, 1) that the name decides', () => {
-    expect.hasAssertions();
-    assert_is_a_number_in_0_1_that_the_name_decides();
+    for (const id of ['atx#0', 'cpu#3', 'trace.pwrcpu.1', '']) {
+      const a = seedOf(id);
+      expect(a).toBeGreaterThanOrEqual(0);
+      expect(a).toBeLessThan(1);
+      expect(seedOf(id)).toBe(a);
+    }
   });
 
   it('differs between the strands of one cable, so they do not pulse as one', () => {
@@ -96,8 +75,19 @@ describe('strips', () => {
   });
 
   it('keeps the width, the seed, the lift and the fade of the line in each of its strips', () => {
-    expect.hasAssertions();
-    assert_keeps_the_width_the_seed_the_lift_and_the_fade_o();
+    const l = line(
+      'a',
+      [
+        [0, 0, 0],
+        [10, 0, 0],
+        [10, 10, 0],
+      ],
+      { width: 22, lift: 70, fade: 1500 },
+    );
+    const s = strips([l]);
+    for (let k = 0; k < s.n; k++) {
+      expect([...s.look.slice(4 * k, 4 * k + 4)]).toStrictEqual([22, Math.fround(seedOf('a')), 70, 1500]);
+    }
   });
 
   it('numbers where the strips of each line begin and how many there are, and skips a stretch with no length', () => {

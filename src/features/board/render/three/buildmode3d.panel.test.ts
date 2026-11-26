@@ -233,16 +233,6 @@ function stage(): { s: BuildStage; fake: Fake } {
   return { s: s as unknown as BuildStage, fake };
 }
 
-function assert_are_in_their_headers_on_a_machine_the_game_built(): void {
-  const { s } = stage(),
-    snap = hid(s).handSnapshot();
-  for (const id of LEADS) {
-    expect(snap.cables.find((c) => c.id === id)).toMatchObject({ connected: true });
-  }
-  // (the game's own cables are all still there)
-  expect(snap.cables.some((c) => c.id === 'atx')).toBe(true);
-}
-
 describe('the front-panel leads', () => {
   beforeEach(() => {
     vi.stubGlobal('ResizeObserver', ResizeObserverStub);
@@ -253,8 +243,13 @@ describe('the front-panel leads', () => {
   });
 
   it('are in their headers on a machine the game built, and the hand reads them as cables', () => {
-    expect.hasAssertions();
-    assert_are_in_their_headers_on_a_machine_the_game_built();
+    const { s } = stage(),
+      snap = hid(s).handSnapshot();
+    for (const id of LEADS) {
+      expect(snap.cables.find((c) => c.id === id)).toMatchObject({ connected: true });
+    }
+    // (the game's own cables are all still there)
+    expect(snap.cables.some((c) => c.id === 'atx')).toBe(true);
   });
 
   it('read as unplugged while the stage says they are out, and as plugged again when the hand pushes one in', () => {

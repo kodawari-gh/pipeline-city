@@ -23,48 +23,26 @@ function must<T>(value: T): NonNullable<T> {
   return value;
 }
 
-function assert_carries_the_plug_to_its_goal_on_a_spring_that_do(): void {
-  for (const dt of [1 / 30, 1 / 60, 1 / 144]) {
-    let x = 0,
-      v = 0,
-      max = 0;
-    for (let t = 0; t < 0.5; t += dt) {
-      [x, v] = springStep(x, v, 100, 25, dt);
-      max = Math.max(max, x);
-    }
-    expect(x, `dt ${dt}`).toBeGreaterThan(99);
-    expect(max, `dt ${dt}`).toBeLessThanOrEqual(100 + 1e-9);
-  }
-  // one long step lands where many short ones do
-  let a = 0,
-    va = 0;
-  for (let i = 0; i < 10; i++) {
-    [a, va] = springStep(a, va, 50, 25, 0.01);
-  }
-  expect(springStep(0, 0, 50, 25, 0.1)[0]).toBeCloseTo(a, 6);
-}
-
-function assert_goes_from_nothing_to_all_of_its_way_eased_at_bot(): void {
-  const run = 1,
-    at = (t: number): number => reelShare(t, run, 0, 1);
-  expect(at(0)).toBe(0);
-  expect(at(run)).toBeCloseTo(1);
-  expect(at(5)).toBeCloseTo(1);
-  let last = -1;
-  for (let t = 0; t <= run; t += 0.02) {
-    const k = at(t);
-    expect(k).toBeGreaterThanOrEqual(last);
-    last = k;
-  }
-  // (eased: slow at the start and the end)
-  expect(at(0.05)).toBeLessThan(0.05);
-  expect(at(run - 0.05)).toBeGreaterThan(0.95);
-}
-
 describe('the hand that holds a plug', () => {
   it('carries the plug to its goal on a spring that does not overshoot, at any frame rate', () => {
-    expect.hasAssertions();
-    assert_carries_the_plug_to_its_goal_on_a_spring_that_do();
+    for (const dt of [1 / 30, 1 / 60, 1 / 144]) {
+      let x = 0,
+        v = 0,
+        max = 0;
+      for (let t = 0; t < 0.5; t += dt) {
+        [x, v] = springStep(x, v, 100, 25, dt);
+        max = Math.max(max, x);
+      }
+      expect(x, `dt ${dt}`).toBeGreaterThan(99);
+      expect(max, `dt ${dt}`).toBeLessThanOrEqual(100 + 1e-9);
+    }
+    // one long step lands where many short ones do
+    let a = 0,
+      va = 0;
+    for (let i = 0; i < 10; i++) {
+      [a, va] = springStep(a, va, 50, 25, 0.01);
+    }
+    expect(springStep(0, 0, 50, 25, 0.1)[0]).toBeCloseTo(a, 6);
   });
 
   it('slides a plug in from its full engage to the latch, faster near the end, then clicks just past it and back', () => {
@@ -151,8 +129,20 @@ describe('a cable run out of its hole', () => {
   });
 
   it('goes from nothing to all of its way, eased at both ends and never back', () => {
-    expect.hasAssertions();
-    assert_goes_from_nothing_to_all_of_its_way_eased_at_bot();
+    const run = 1,
+      at = (t: number): number => reelShare(t, run, 0, 1);
+    expect(at(0)).toBe(0);
+    expect(at(run)).toBeCloseTo(1);
+    expect(at(5)).toBeCloseTo(1);
+    let last = -1;
+    for (let t = 0; t <= run; t += 0.02) {
+      const k = at(t);
+      expect(k).toBeGreaterThanOrEqual(last);
+      last = k;
+    }
+    // (eased: slow at the start and the end)
+    expect(at(0.05)).toBeLessThan(0.05);
+    expect(at(run - 0.05)).toBeGreaterThan(0.95);
   });
 
   it('runs to the share where the push-in starts, then pushes the plug home and no further', () => {

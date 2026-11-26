@@ -179,7 +179,7 @@ describe("the Ethernet chip on the motherboard's live layer", () => {
     ['board-ge', 3],
   ] as const;
 
-  function assert_shows_the_live_floorplan_once_the_mould_has_gone(): void {
+  it("shows the live floorplan once the mould has gone, and its blocks answer a hover with the board's ids", () => {
     for (const [look, tier] of LOOKS) {
       const c = new Chips3D();
       c.setScene(scene(tier));
@@ -189,14 +189,9 @@ describe("the Ethernet chip on the motherboard's live layer", () => {
       expect(boardNicIds(look)).toContain(id);
       expect(must(id).startsWith('board.nic-')).toBe(true);
     }
-  }
-
-  it("shows the live floorplan once the mould has gone, and its blocks answer a hover with the board's ids", () => {
-    expect.hasAssertions();
-    assert_shows_the_live_floorplan_once_the_mould_has_gone();
   });
 
-  function assert_answers_each_block_of_the_die_with_its_own_id_th(): void {
+  it("answers each block of the die with its own id: the smallest rectangle under the pointer wins over the controller's frame", () => {
     for (const [look, tier] of LOOKS) {
       const c = new Chips3D();
       c.setScene(scene(tier));
@@ -213,11 +208,6 @@ describe("the Ethernet chip on the motherboard's live layer", () => {
         expect(c.hitAt(cam, H, at.x, at.y), `${look} ${p.id}`).toBe(`${BOARD_NIC}.${p.id}`);
       }
     }
-  }
-
-  it("answers each block of the die with its own id: the smallest rectangle under the pointer wins over the controller's frame", () => {
-    expect.hasAssertions();
-    assert_answers_each_block_of_the_die_with_its_own_id_th();
   });
 
   it("has nothing to hit from far away: the zoom is under the part's hover zoom", () => {

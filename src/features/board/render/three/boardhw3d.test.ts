@@ -17,20 +17,17 @@ describe('the rear connectors behind the shield', () => {
   for (const [tier, spec] of BOARD_TIERS.entries()) {
     const feat = spec.features,
       shells = ioShells(feat, tier);
-    const assert_x_every_shell_goes_through_the_rear_wall_s_I_O_o = (): void => {
+
+    it(`${spec.name}: every shell goes through the rear wall's I/O opening`, () => {
       for (const s of shells) {
         expect(s.y0, `shell at y ${s.y0}`).toBeGreaterThanOrEqual(BR.io.y - 20);
         expect(s.y1, `shell at y ${s.y1}`).toBeLessThanOrEqual(BR.io.y + BR.io.h + 20);
         expect(s.z0).toBeGreaterThanOrEqual(BOARD_Z + 80);
         expect(s.z1).toBeLessThanOrEqual(BOARD_Z + 1220);
       }
-    };
-
-    it(`${spec.name}: every shell goes through the rear wall's I/O opening`, () => {
-      expect.hasAssertions();
-      assert_x_every_shell_goes_through_the_rear_wall_s_I_O_o();
     });
-    const assert_x_each_fitted_port_has_a_shell_round_its_centre_ = (): void => {
+
+    it(`${spec.name}: each fitted port has a shell round its centre, and the stacks hold every shell without meeting`, () => {
       for (const p of IO_PORTS) {
         if (fitted(p, feat)) {
           expect(shells.some((s) => s.y0 < p.y && p.y < s.y1)).toBe(true);
@@ -46,11 +43,6 @@ describe('the rear connectors behind the shield', () => {
           expect(st.top).toBeGreaterThan(s.z1);
         }
       }
-    };
-
-    it(`${spec.name}: each fitted port has a shell round its centre, and the stacks hold every shell without meeting`, () => {
-      expect.hasAssertions();
-      assert_x_each_fitted_port_has_a_shell_round_its_centre_();
     });
   }
 });

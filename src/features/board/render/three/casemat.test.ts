@@ -90,19 +90,14 @@ export function caseMaterials(tier: number): { objects: number; looks: number; m
 /** The cap of distinct looks per case (Mini, Micro, Mid, Full): 16 at LOD0 (§2). A new look needs a reason. */
 const CEILING = [16, 16, 16, 16];
 
-function assert_stay_under_the_ceiling_of_distinct_looks(): void {
-  for (const t of [0, 1, 2, 3]) {
-    const c = caseMaterials(t);
-    console.log(
-      `case ${t} (${CASE_KIND[t]}): ${c.meshes} meshes, ${c.objects} material objects, ${c.looks} distinct looks`,
-    );
-    expect(c.looks).toBeLessThanOrEqual(must(CEILING[t]));
-  }
-}
-
 describe("the case shell's materials", () => {
   it('stay under the ceiling of distinct looks', () => {
-    expect.hasAssertions();
-    assert_stay_under_the_ceiling_of_distinct_looks();
+    for (const t of [0, 1, 2, 3]) {
+      const c = caseMaterials(t);
+      console.log(
+        `case ${t} (${CASE_KIND[t]}): ${c.meshes} meshes, ${c.objects} material objects, ${c.looks} distinct looks`,
+      );
+      expect(c.looks).toBeLessThanOrEqual(must(CEILING[t]));
+    }
   });
 });

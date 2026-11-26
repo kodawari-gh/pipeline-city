@@ -17,76 +17,61 @@ const MM = 23;
 const fits = (caseTier: number): string[] =>
   caseTier >= 2 ? ['psu-basic', 'psu-mid', 'psu-big'] : ['psu-basic', 'psu-mid'];
 
-function assert_builds_the_small_supplies_as_SFX_units_and_the_b(): void {
-  for (const [k, mm] of [125, 63.5, 100].entries()) {
-    expect(must([PSU_FORM.sfx.w, PSU_FORM.sfx.h, PSU_FORM.sfx.d][k]) / MM).toBeCloseTo(mm, 1);
-  }
-  expect([PSU_FORM.atx.w, PSU_FORM.atx.h, PSU_FORM.atx.d].map((v) => v / MM)).toStrictEqual([150, 86, 140]);
-  expect(psuForm('psu-basic')).toBe(PSU_FORM.sfx);
-  expect(psuForm('psu-mid')).toBe(PSU_FORM.sfx);
-  expect(psuForm('psu-big')).toBe(PSU_FORM.atx);
-}
-
-function assert_stands_each_unit_in_its_bay_its_rear_on_the_rear(): void {
-  for (const t of [0, 1, 2, 3]) {
-    setLayoutTier(t, t);
-    const p = basementPlan(),
-      u = p.psu;
-    for (const v of fits(t)) {
-      const b = psuBox(u, v);
-      expect(b.x).toBe(u.x);
-      expect(b.x + b.w).toBeLessThanOrEqual(u.x + u.w);
-      expect(b.y + b.h).toBe(u.y + u.h);
-      expect(b.y).toBeGreaterThanOrEqual(u.y);
-      expect(b.z0).toBeGreaterThanOrEqual(u.z0);
-      expect(b.z1).toBeLessThanOrEqual(u.z1);
-      // the whole model stays in the basement: the screw heads on the case's back, the modular sockets 4 mm proud of the east end
-      const box = new Box3().setFromObject(psuUnit(p, v, v === 'psu-big', 500).root);
-      expect(box.min.x).toBeGreaterThan(CASE.x - 5 * MM);
-      expect(box.max.x).toBeLessThanOrEqual(u.x + u.w + 5 * MM);
-      expect(-box.max.y).toBeGreaterThan(p.top);
-      expect(-box.min.y).toBeLessThanOrEqual(p.floor);
-    }
-  }
-}
-
-function assert_puts_the_C14_inlet_in_the_rear_wall_s_opening_an(): void {
-  for (const t of [0, 3]) {
-    setLayoutTier(t, t);
-    const p = basementPlan(),
-      o = psuOpening(p.psu);
-    for (const v of fits(t)) {
-      const [x, y, z] = mainsInlet(p, v);
-      expect(x).toBeLessThan(CASE.x);
-      expect(-y).toBeGreaterThan(o.y0);
-      expect(-y).toBeLessThan(o.y1);
-      expect(z).toBeGreaterThan(o.z0);
-      expect(z).toBeLessThan(o.z1);
-      const box = new Box3().setFromObject(mainsPlug(p, v));
-      expect(box.min.x).toBeCloseTo(CASE.x - PLUG_TAIL, 0);
-      // the nose goes into the mouth, short of its floor
-      expect(box.max.x).toBeLessThan(CASE.x + 7 * MM);
-      expect(box.max.x).toBeGreaterThan(CASE.x);
-      // the grip: 22 mm tall, 30 mm wide round the inlet's middle
-      expect((box.max.y - box.min.y) / MM).toBeCloseTo(23, 0);
-      expect((box.max.z - box.min.z) / MM).toBeCloseTo(31, 0);
-    }
-  }
-}
-
 describe('the 3D power supply', () => {
   it('builds the small supplies as SFX units and the big one as an ATX unit, at their real sizes', () => {
-    expect.hasAssertions();
-    assert_builds_the_small_supplies_as_SFX_units_and_the_b();
+    for (const [k, mm] of [125, 63.5, 100].entries()) {
+      expect(must([PSU_FORM.sfx.w, PSU_FORM.sfx.h, PSU_FORM.sfx.d][k]) / MM).toBeCloseTo(mm, 1);
+    }
+    expect([PSU_FORM.atx.w, PSU_FORM.atx.h, PSU_FORM.atx.d].map((v) => v / MM)).toStrictEqual([150, 86, 140]);
+    expect(psuForm('psu-basic')).toBe(PSU_FORM.sfx);
+    expect(psuForm('psu-mid')).toBe(PSU_FORM.sfx);
+    expect(psuForm('psu-big')).toBe(PSU_FORM.atx);
   });
 
   it('stands each unit in its bay: its rear on the rear wall, its feet on the bay floor, inside the bay', () => {
-    expect.hasAssertions();
-    assert_stands_each_unit_in_its_bay_its_rear_on_the_rear();
+    for (const t of [0, 1, 2, 3]) {
+      setLayoutTier(t, t);
+      const p = basementPlan(),
+        u = p.psu;
+      for (const v of fits(t)) {
+        const b = psuBox(u, v);
+        expect(b.x).toBe(u.x);
+        expect(b.x + b.w).toBeLessThanOrEqual(u.x + u.w);
+        expect(b.y + b.h).toBe(u.y + u.h);
+        expect(b.y).toBeGreaterThanOrEqual(u.y);
+        expect(b.z0).toBeGreaterThanOrEqual(u.z0);
+        expect(b.z1).toBeLessThanOrEqual(u.z1);
+        // the whole model stays in the basement: the screw heads on the case's back, the modular sockets 4 mm proud of the east end
+        const box = new Box3().setFromObject(psuUnit(p, v, v === 'psu-big', 500).root);
+        expect(box.min.x).toBeGreaterThan(CASE.x - 5 * MM);
+        expect(box.max.x).toBeLessThanOrEqual(u.x + u.w + 5 * MM);
+        expect(-box.max.y).toBeGreaterThan(p.top);
+        expect(-box.min.y).toBeLessThanOrEqual(p.floor);
+      }
+    }
   });
 
   it("puts the C14 inlet in the rear wall's opening and seats the C13 plug in it, the cord leaving its tail", () => {
-    expect.hasAssertions();
-    assert_puts_the_C14_inlet_in_the_rear_wall_s_opening_an();
+    for (const t of [0, 3]) {
+      setLayoutTier(t, t);
+      const p = basementPlan(),
+        o = psuOpening(p.psu);
+      for (const v of fits(t)) {
+        const [x, y, z] = mainsInlet(p, v);
+        expect(x).toBeLessThan(CASE.x);
+        expect(-y).toBeGreaterThan(o.y0);
+        expect(-y).toBeLessThan(o.y1);
+        expect(z).toBeGreaterThan(o.z0);
+        expect(z).toBeLessThan(o.z1);
+        const box = new Box3().setFromObject(mainsPlug(p, v));
+        expect(box.min.x).toBeCloseTo(CASE.x - PLUG_TAIL, 0);
+        // the nose goes into the mouth, short of its floor
+        expect(box.max.x).toBeLessThan(CASE.x + 7 * MM);
+        expect(box.max.x).toBeGreaterThan(CASE.x);
+        // the grip: 22 mm tall, 30 mm wide round the inlet's middle
+        expect((box.max.y - box.min.y) / MM).toBeCloseTo(23, 0);
+        expect((box.max.z - box.min.z) / MM).toBeCloseTo(31, 0);
+      }
+    }
   });
 });

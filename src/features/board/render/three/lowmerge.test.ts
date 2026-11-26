@@ -57,7 +57,7 @@ const rigOf = (root: Object3D, id: string): Object3D | null => {
   return r;
 };
 
-function assert_every_tier_merges_the_router_the_key_rack_the_ma(): void {
+test('every tier merges the router, the key rack, the mailbox, the cable plugs and the wires', () => {
   const snap = maxedSnapshot();
   const build = (low: boolean) => {
     setLowDetail(low);
@@ -85,11 +85,6 @@ function assert_every_tier_merges_the_router_the_key_rack_the_ma(): void {
     // the plug draws in as few meshes at High as at Low
     expect(count(hr), `${id} plug's meshes`).toBe(count(lr));
   }
-}
-
-test('every tier merges the router, the key rack, the mailbox, the cable plugs and the wires', () => {
-  expect.hasAssertions();
-  assert_every_tier_merges_the_router_the_key_rack_the_ma();
 }, 120_000);
 
 test("the plug's static rig is merged at every tier (cablerig3d.ts `rigStatic`)", () => {
@@ -105,7 +100,7 @@ test("the plug's static rig is merged at every tier (cablerig3d.ts `rigStatic`)"
   expect(merged(rigAt(true)), 'rig merged at Low').toBeGreaterThan(0);
 }, 120_000);
 
-function assert_the_machine_s_wires_are_merged_at_every_tier_mac(): void {
+test("the machine's wires are merged at every tier (machine3d.ts, `mergeSiblings(this.wires)`)", () => {
   const snap = maxedSnapshot();
   const wiresAt = (low: boolean) => {
     setLowDetail(low);
@@ -130,9 +125,4 @@ function assert_the_machine_s_wires_are_merged_at_every_tier_mac(): void {
   };
   expect(wireOwn(wiresAt(false)), 'wires merged at High').toBeGreaterThan(0);
   expect(wireOwn(wiresAt(true)), 'wires merged at Low').toBeGreaterThan(0);
-}
-
-test("the machine's wires are merged at every tier (machine3d.ts, `mergeSiblings(this.wires)`)", () => {
-  expect.hasAssertions();
-  assert_the_machine_s_wires_are_merged_at_every_tier_mac();
 }, 120_000);

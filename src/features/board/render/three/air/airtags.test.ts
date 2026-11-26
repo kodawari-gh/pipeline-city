@@ -113,35 +113,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function assert_keeps_two_tags_at_the_same_point_apart(): void {
-  const t = make();
-  t.set([tag('a', [0, 0, 0], 'AAAA'), tag('b', [0, 0, 0], 'BBBB')], 0);
-  t.frame(makeCam(), VIEW);
-  const [a, b] = t.boxes();
-  const overlap =
-    must(a).left < must(b).left + must(b).width &&
-    must(b).left < must(a).left + must(a).width &&
-    must(a).top < must(b).top + must(b).height &&
-    must(b).top < must(a).top + must(a).height;
-  expect(overlap).toBe(false);
-}
-
-function assert_never_lets_a_pill_rise_past_minTop_the_HUD_bar_a(): void {
-  const t = make();
-  t.set([tag('a', [0, 0, 0], 'AAAA'), tag('b', [0, 0, 0], 'BBBB')], 0);
-  // the origin is at y 450; a bar that ends at y 480 is in the way of both
-  t.frame(makeCam(), { ...VIEW, minTop: 480 });
-  const [a, b] = t.boxes();
-  expect(must(a).top).toBeGreaterThanOrEqual(480);
-  expect(must(b).top).toBeGreaterThanOrEqual(480);
-  expect(must(a).top < must(b).top + must(b).height && must(b).top < must(a).top + must(a).height).toBe(false);
-  // a bar far above them changes nothing: the second one climbs, as it always did
-  t.frame(makeCam(), { ...VIEW, minTop: 100 });
-  const [c, d] = t.boxes();
-  expect(must(d).top).toBeLessThan(must(c).top);
-  expect(must(d).top).toBeGreaterThanOrEqual(100);
-}
-
 describe('AirTags3D', () => {
   it('puts a tag at the origin in the middle of the view', () => {
     const t = make();
@@ -164,13 +135,32 @@ describe('AirTags3D', () => {
   });
 
   it('keeps two tags at the same point apart', () => {
-    expect.hasAssertions();
-    assert_keeps_two_tags_at_the_same_point_apart();
+    const t = make();
+    t.set([tag('a', [0, 0, 0], 'AAAA'), tag('b', [0, 0, 0], 'BBBB')], 0);
+    t.frame(makeCam(), VIEW);
+    const [a, b] = t.boxes();
+    const overlap =
+      must(a).left < must(b).left + must(b).width &&
+      must(b).left < must(a).left + must(a).width &&
+      must(a).top < must(b).top + must(b).height &&
+      must(b).top < must(a).top + must(a).height;
+    expect(overlap).toBe(false);
   });
 
   it('never lets a pill rise past minTop (the HUD bar), and sends the one that clashes down, not up', () => {
-    expect.hasAssertions();
-    assert_never_lets_a_pill_rise_past_minTop_the_HUD_bar_a();
+    const t = make();
+    t.set([tag('a', [0, 0, 0], 'AAAA'), tag('b', [0, 0, 0], 'BBBB')], 0);
+    // the origin is at y 450; a bar that ends at y 480 is in the way of both
+    t.frame(makeCam(), { ...VIEW, minTop: 480 });
+    const [a, b] = t.boxes();
+    expect(must(a).top).toBeGreaterThanOrEqual(480);
+    expect(must(b).top).toBeGreaterThanOrEqual(480);
+    expect(must(a).top < must(b).top + must(b).height && must(b).top < must(a).top + must(a).height).toBe(false);
+    // a bar far above them changes nothing: the second one climbs, as it always did
+    t.frame(makeCam(), { ...VIEW, minTop: 100 });
+    const [c, d] = t.boxes();
+    expect(must(d).top).toBeLessThan(must(c).top);
+    expect(must(d).top).toBeGreaterThanOrEqual(100);
   });
 
   it('a scale tag shows the temperatures at the two ends of a bar, and sits right under the tag it names', () => {

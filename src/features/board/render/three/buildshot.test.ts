@@ -1,35 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import { SHOT_FILL, centred, fitFactor, pictureWindow, spanOf } from './buildshot';
 
-function assert_takes_the_biggest_window_of_the_picture_s_shape_(): void {
-  // a wide canvas: the window is as tall as the canvas
-  const wide = pictureWindow(1600, 900, 480 / 336);
-  expect(wide.h).toBeCloseTo(900);
-  expect(wide.w).toBeCloseTo(900 * (480 / 336));
-  expect(wide.y).toBeCloseTo(0);
-  // a tall canvas: the window is as wide as the canvas
-  const tall = pictureWindow(400, 800, 2);
-  expect(tall).toStrictEqual({ x: 0, y: 300, w: 400, h: 200 });
-  // (always inside the canvas, always of the shape asked)
-  for (const [cw, ch, a] of [
-    [1600, 900, 1.43],
-    [390, 844, 1.43],
-    [900, 900, 1],
-    [3200, 1800, 480 / 336],
-  ] as const) {
-    const w = pictureWindow(cw, ch, a);
-    expect(w.w / w.h).toBeCloseTo(a);
-    expect(w.x).toBeGreaterThanOrEqual(0);
-    expect(w.y).toBeGreaterThanOrEqual(0);
-    expect(w.x + w.w).toBeLessThanOrEqual(cw + 1e-9);
-    expect(w.y + w.h).toBeLessThanOrEqual(ch + 1e-9);
-  }
-}
-
 describe('the framing of a picture of the machine', () => {
   it("takes the biggest window of the picture's shape out of the middle of the canvas", () => {
-    expect.hasAssertions();
-    assert_takes_the_biggest_window_of_the_picture_s_shape_();
+    // a wide canvas: the window is as tall as the canvas
+    const wide = pictureWindow(1600, 900, 480 / 336);
+    expect(wide.h).toBeCloseTo(900);
+    expect(wide.w).toBeCloseTo(900 * (480 / 336));
+    expect(wide.y).toBeCloseTo(0);
+    // a tall canvas: the window is as wide as the canvas
+    const tall = pictureWindow(400, 800, 2);
+    expect(tall).toStrictEqual({ x: 0, y: 300, w: 400, h: 200 });
+    // (always inside the canvas, always of the shape asked)
+    for (const [cw, ch, a] of [
+      [1600, 900, 1.43],
+      [390, 844, 1.43],
+      [900, 900, 1],
+      [3200, 1800, 480 / 336],
+    ] as const) {
+      const w = pictureWindow(cw, ch, a);
+      expect(w.w / w.h).toBeCloseTo(a);
+      expect(w.x).toBeGreaterThanOrEqual(0);
+      expect(w.y).toBeGreaterThanOrEqual(0);
+      expect(w.x + w.w).toBeLessThanOrEqual(cw + 1e-9);
+      expect(w.y + w.h).toBeLessThanOrEqual(ch + 1e-9);
+    }
   });
 
   it('boxes the points', () => {

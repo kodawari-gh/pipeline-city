@@ -99,7 +99,7 @@ describe('ledOf', () => {
   });
 });
 
-function assert_the_LED_sits_on_the_face_of_the_package_well_in_(): void {
+test('the LED sits on the face of the package, well in from the east edge and clear of the label', () => {
   for (const tier of [0, 1, 2, 3]) {
     setLayoutTier(tier);
     const c = BR.chip,
@@ -107,9 +107,4 @@ function assert_the_LED_sits_on_the_face_of_the_package_well_in_(): void {
     expect(p.x).toBeLessThanOrEqual(c.x + c.w - 60);
     expect(p.x).toBeGreaterThan(c.x + c.w * 0.7);
   }
-}
-
-test('the LED sits on the face of the package, well in from the east edge and clear of the label', () => {
-  expect.hasAssertions();
-  assert_the_LED_sits_on_the_face_of_the_package_well_in_();
 });

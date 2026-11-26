@@ -138,7 +138,7 @@ describe('preview rebuild frees its textures', () => {
     });
   });
 
-  function assert_live_textures_stay_flat_across_preview_cycles(): void {
+  it('live textures stay flat across preview cycles', () => {
     const snap = maxedSnapshot();
     const counts: number[] = [];
     // one tier: the first build adds the shared, tier-sized caches and the city; later builds must add no unique textures
@@ -163,10 +163,5 @@ describe('preview rebuild frees its textures', () => {
     for (const c of counts.slice(1)) {
       expect(c - must(counts[0])).toBeLessThanOrEqual(2);
     }
-  }
-
-  it('live textures stay flat across preview cycles', () => {
-    expect.hasAssertions();
-    assert_live_textures_stay_flat_across_preview_cycles();
   }, 180_000);
 });

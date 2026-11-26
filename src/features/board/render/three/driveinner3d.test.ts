@@ -69,36 +69,24 @@ const meshes = (o: three.Object3D): three.Mesh[] => {
 };
 const look = { name: 'Drive', capacityBytes: 96 * 1024 };
 
-function assert_stands_in_the_drive_a_package_for_each_die_contr(): void {
-  const h = host(),
-    b = driveinner3d.ssdBoard(h, 100, 70, 200);
-  expect(h.asks).toHaveLength(6);
-  const box = boxOf(b);
-  // (the board's x runs across the drive, its y along it, its depth up: nothing leaves the 2.5 in. drive's box)
-  expect(box.min.x).toBeGreaterThanOrEqual(100 - 1);
-  expect(box.max.x).toBeLessThanOrEqual(100 + 65 * MM + 1);
-  expect(box.min.y).toBeGreaterThanOrEqual(70 - 1);
-  expect(box.max.y).toBeLessThan(SSD_MM.t * MM);
-  expect(box.min.z).toBeGreaterThanOrEqual(200 - 1);
-  expect(box.max.z).toBeLessThanOrEqual(200 + 90 * MM + 1);
-  for (const a of h.asks) {
-    expect(a.at[0]).toBeGreaterThan(100);
-    expect(a.at[2]).toBeGreaterThan(200);
-  }
-  h.art.dispose();
-}
-
-function assert_builds_the_old_solid_drive_without_a_host_no_ins(): void {
-  for (const hdd of [true, false]) {
-    const dm = sataDriveModel(hdd, look);
-    expect(dm.root.children.every((c) => c.visible)).toBe(true);
-  }
-}
-
 describe('the SSD board', () => {
   it('stands in the drive, a package for each die: controller, DRAM and four NAND ask for their zoom where they stand', () => {
-    expect.hasAssertions();
-    assert_stands_in_the_drive_a_package_for_each_die_contr();
+    const h = host(),
+      b = driveinner3d.ssdBoard(h, 100, 70, 200);
+    expect(h.asks).toHaveLength(6);
+    const box = boxOf(b);
+    // (the board's x runs across the drive, its y along it, its depth up: nothing leaves the 2.5 in. drive's box)
+    expect(box.min.x).toBeGreaterThanOrEqual(100 - 1);
+    expect(box.max.x).toBeLessThanOrEqual(100 + 65 * MM + 1);
+    expect(box.min.y).toBeGreaterThanOrEqual(70 - 1);
+    expect(box.max.y).toBeLessThan(SSD_MM.t * MM);
+    expect(box.min.z).toBeGreaterThanOrEqual(200 - 1);
+    expect(box.max.z).toBeLessThanOrEqual(200 + 90 * MM + 1);
+    for (const a of h.asks) {
+      expect(a.at[0]).toBeGreaterThan(100);
+      expect(a.at[2]).toBeGreaterThan(200);
+    }
+    h.art.dispose();
   });
 });
 
@@ -124,7 +112,7 @@ describe('the hard disk inside', () => {
     h.art.dispose();
   });
 
-  function assert_puts_the_head_over_the_data_band_the_arm_reaches(): void {
+  it('puts the head over the data band: the arm reaches from the pivot to between the hub and the rim', () => {
     const h = host(),
       g = driveinner3d.hddInside(h, fit),
       act = g.children.find((c) => c.type === 'Group' && c.position.x === fit.pivot.x);
@@ -138,11 +126,6 @@ describe('the hard disk inside', () => {
     expect(r).toBeGreaterThan(0.3 * 45);
     expect(r).toBeLessThan(0.97 * 45);
     h.art.dispose();
-  }
-
-  it('puts the head over the data band: the arm reaches from the pivot to between the hub and the rim', () => {
-    expect.hasAssertions();
-    assert_puts_the_head_over_the_data_band_the_arm_reaches();
   });
 });
 
@@ -168,7 +151,7 @@ describe('a SATA drive with its inside', () => {
       h.art.dispose();
     });
 
-    const assert_x_asks_for_its_zoom_at_several_places_along_it_t = (): void => {
+    it(`${name}: asks for its zoom at several places along it, the highest zoom taking the cover off`, () => {
       const h = host(),
         dm = sataDriveModel(hdd, look, h);
       const covers = h.asks.filter((a) => a.at[1] === dm.t / 2);
@@ -187,13 +170,9 @@ describe('a SATA drive with its inside', () => {
       const lid = asGroup(dm.root.children.at(-1));
       expect(lid.visible).toBe(false);
       h.art.dispose();
-    };
-
-    it(`${name}: asks for its zoom at several places along it, the highest zoom taking the cover off`, () => {
-      expect.hasAssertions();
-      assert_x_asks_for_its_zoom_at_several_places_along_it_t();
     });
-    const assert_x_the_lid_has_materials_of_its_own_and_the_machine = (): void => {
+
+    it(`${name}: the lid has materials of its own, and the machine's body material is one of the visible shell's`, () => {
       const h = host(),
         dm = sataDriveModel(hdd, look, h),
         lid = asGroup(dm.root.children.at(-1));
@@ -206,14 +185,9 @@ describe('a SATA drive with its inside', () => {
       // the hard disk's casting stays when the cover goes; the SSD's body is its top shell, which goes with the lid
       expect((hdd ? restMats : lidMats).has(dm.body)).toBe(true);
       h.art.dispose();
-    };
-
-    it(`${name}: the lid has materials of its own, and the machine's body material is one of the visible shell's`, () => {
-      expect.hasAssertions();
-      assert_x_the_lid_has_materials_of_its_own_and_the_machine();
     });
 
-    const assert_x_stays_in_the_size_of_the_drive = (): void => {
+    it(`${name}: stays in the size of the drive`, () => {
       const h = host(),
         dm = sataDriveModel(hdd, look, h),
         plain = sataDriveModel(hdd, look),
@@ -224,16 +198,13 @@ describe('a SATA drive with its inside', () => {
         expect(a.max[k]).toBeCloseTo(b.max[k], 0);
       }
       h.art.dispose();
-    };
-
-    it(`${name}: stays in the size of the drive`, () => {
-      expect.hasAssertions();
-      assert_x_stays_in_the_size_of_the_drive();
     });
   }
 
   it('builds the old solid drive without a host: no inside, no asks', () => {
-    expect.hasAssertions();
-    assert_builds_the_old_solid_drive_without_a_host_no_ins();
+    for (const hdd of [true, false]) {
+      const dm = sataDriveModel(hdd, look);
+      expect(dm.root.children.every((c) => c.visible)).toBe(true);
+    }
   });
 });

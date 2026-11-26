@@ -146,128 +146,113 @@ export function nearPairs(colours: number[], near: number): [number, number, num
   return out.toSorted((a, b) => a[2] - b[2]);
 }
 
-function assert_stay_under_the_ceiling(): void {
-  const machine = baseColours(buildMachine(maxedSnapshot(), false).root),
-    room = baseColours(new Room3D().root);
-  for (const [name, set] of [
-    ['machine', machine],
-    ['room', room],
-  ] as const) {
-    const list = [...set.keys()].toSorted((a, b) => a - b),
-      pairs = nearPairs(list, 12);
-    console.log(`${name}: ${list.length} base colours, ${pairs.length} pairs nearer than 12`);
-    if (env['PALETTE_DUMP'] === '1') {
-      console.log(list.map((c) => `${hex(c)} x${set.get(c)}`).join('\n'));
-      console.log(pairs.map(([a, b, k]) => `${hex(a)} ${hex(b)} ${k}`).join('\n'));
-    }
-    expect(list.length).toBeLessThanOrEqual(CEILING[name]);
-  }
-}
-
-function assert_every_mat_literal_is_a_family_colour(): void {
-  const allowed = new Set<number>([...FAMILY, 0xff_ff_ff, 0x00_00_00, 0x0d_16_36, 0x3b_e3_ff, 0xa6_8b_ff, ...OPEN]);
-  const bad: string[] = [];
-  let files = 0;
-  const scanFile = (at: URL) => {
-    files++;
-    for (const [i, line] of fs.readFileSync(at, 'utf8').split('\n').entries()) {
-      for (const m of line.matchAll(/\b(?:mat|cloth)\(0x([0-9a-fA-F]{6})\b/gu)) {
-        const v = Number.parseInt(must(m[1]), 16);
-        if (!allowed.has(v)) {
-          bad.push(`${at.pathname}:${i + 1} ${hex(v)}`);
-        }
-      }
-    }
-  };
-  const walk = (dir: URL) => {
-    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-      const at = new URL(e.name + (e.isDirectory() ? '/' : ''), dir);
-      if (e.isDirectory()) {
-        walk(at);
-      } else if (e.name.endsWith('.ts') && !e.name.endsWith('.test.ts')) {
-        scanFile(at);
-      }
-    }
-  };
-  walk(new URL('../../../../features/', import.meta.url));
-  walk(new URL('../../../../core/', import.meta.url));
-  expect(files, 'files read').toBeGreaterThan(100);
-  expect(bad).toStrictEqual([]);
-}
-
-function assert_every_base_colour_at_run_time_has_a_name(): void {
-  const h = (c: string | number): number => (typeof c === 'number' ? c : hexNum(c));
-  const theme = builtinTheme();
-  const named = new Set<number>([
-    ...FAMILY,
-    0xff_ff_ff,
-    0x00_00_00,
-    0x0d_16_36,
-    0x3b_e3_ff,
-    0xa6_8b_ff,
-    NYLON,
-    CERAMIC,
-    LAMINATE,
-    ...Object.values(JACK),
-    ...USB_TONGUE,
-    h(LAN_LEAD),
-    ...SKINS.map((sk) => hexNum(sk.accent)),
-    // (a case's accent is the theme's alu or mul colour, case3d.ts; its strap tab is that accent muted, casetray3d.ts)
-    h(theme.alu),
-    h(theme.mul),
-    strapTone(h(theme.alu)),
-    strapTone(h(theme.mul)),
-    ...[
-      WALL,
-      ROOM_CEILING,
-      TRIM,
-      VENEER,
-      VENEER_GRAIN,
-      OAK,
-      OAK_GRAIN,
-      STEEL,
-      SHEET,
-      DUVET,
-      RUNNER,
-      RUG_WOOL,
-      RUG_LINE,
-      STONE,
-      STONEWARE,
-      PAPER,
-      MANILA,
-      OPAL,
-      BARK,
-      STEM,
-      SOIL,
-      TEA,
-      KEY_ACCENT,
-      NEON,
-      NEON_WASH,
-      LANTERN,
-    ].map(h),
-    ...LEAF_TINTS,
-  ]);
-  const seen = [
-    ...baseColours(buildMachine(maxedSnapshot(), false).root).keys(),
-    ...baseColours(new Room3D().root).keys(),
-  ];
-  const unnamed = [...new Set(seen.filter((c) => !named.has(c)))].toSorted((a, b) => a - b);
-  expect(unnamed.map(hex)).toStrictEqual([]);
-}
-
 describe('the base colours', () => {
   it('stay under the ceiling', () => {
-    expect.hasAssertions();
-    assert_stay_under_the_ceiling();
+    const machine = baseColours(buildMachine(maxedSnapshot(), false).root),
+      room = baseColours(new Room3D().root);
+    for (const [name, set] of [
+      ['machine', machine],
+      ['room', room],
+    ] as const) {
+      const list = [...set.keys()].toSorted((a, b) => a - b),
+        pairs = nearPairs(list, 12);
+      console.log(`${name}: ${list.length} base colours, ${pairs.length} pairs nearer than 12`);
+      if (env['PALETTE_DUMP'] === '1') {
+        console.log(list.map((c) => `${hex(c)} x${set.get(c)}`).join('\n'));
+        console.log(pairs.map(([a, b, k]) => `${hex(a)} ${hex(b)} ${k}`).join('\n'));
+      }
+      expect(list.length).toBeLessThanOrEqual(CEILING[name]);
+    }
   }, 120_000);
 
   it('every mat() literal is a family colour', () => {
-    expect.hasAssertions();
-    assert_every_mat_literal_is_a_family_colour();
+    const allowed = new Set<number>([...FAMILY, 0xff_ff_ff, 0x00_00_00, 0x0d_16_36, 0x3b_e3_ff, 0xa6_8b_ff, ...OPEN]);
+    const bad: string[] = [];
+    let files = 0;
+    const scanFile = (at: URL) => {
+      files++;
+      for (const [i, line] of fs.readFileSync(at, 'utf8').split('\n').entries()) {
+        for (const m of line.matchAll(/\b(?:mat|cloth)\(0x([0-9a-fA-F]{6})\b/gu)) {
+          const v = Number.parseInt(must(m[1]), 16);
+          if (!allowed.has(v)) {
+            bad.push(`${at.pathname}:${i + 1} ${hex(v)}`);
+          }
+        }
+      }
+    };
+    const walk = (dir: URL) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const at = new URL(e.name + (e.isDirectory() ? '/' : ''), dir);
+        if (e.isDirectory()) {
+          walk(at);
+        } else if (e.name.endsWith('.ts') && !e.name.endsWith('.test.ts')) {
+          scanFile(at);
+        }
+      }
+    };
+    walk(new URL('../../../../features/', import.meta.url));
+    walk(new URL('../../../../core/', import.meta.url));
+    expect(files, 'files read').toBeGreaterThan(100);
+    expect(bad).toStrictEqual([]);
   });
 
   it('every base colour at run time has a name', () => {
-    expect.hasAssertions();
-    assert_every_base_colour_at_run_time_has_a_name();
+    const h = (c: string | number): number => (typeof c === 'number' ? c : hexNum(c));
+    const theme = builtinTheme();
+    const named = new Set<number>([
+      ...FAMILY,
+      0xff_ff_ff,
+      0x00_00_00,
+      0x0d_16_36,
+      0x3b_e3_ff,
+      0xa6_8b_ff,
+      NYLON,
+      CERAMIC,
+      LAMINATE,
+      ...Object.values(JACK),
+      ...USB_TONGUE,
+      h(LAN_LEAD),
+      ...SKINS.map((sk) => hexNum(sk.accent)),
+      // (a case's accent is the theme's alu or mul colour, case3d.ts; its strap tab is that accent muted, casetray3d.ts)
+      h(theme.alu),
+      h(theme.mul),
+      strapTone(h(theme.alu)),
+      strapTone(h(theme.mul)),
+      ...[
+        WALL,
+        ROOM_CEILING,
+        TRIM,
+        VENEER,
+        VENEER_GRAIN,
+        OAK,
+        OAK_GRAIN,
+        STEEL,
+        SHEET,
+        DUVET,
+        RUNNER,
+        RUG_WOOL,
+        RUG_LINE,
+        STONE,
+        STONEWARE,
+        PAPER,
+        MANILA,
+        OPAL,
+        BARK,
+        STEM,
+        SOIL,
+        TEA,
+        KEY_ACCENT,
+        NEON,
+        NEON_WASH,
+        LANTERN,
+      ].map(h),
+      ...LEAF_TINTS,
+    ]);
+    const seen = [
+      ...baseColours(buildMachine(maxedSnapshot(), false).root).keys(),
+      ...baseColours(new Room3D().root).keys(),
+    ];
+    const unnamed = [...new Set(seen.filter((c) => !named.has(c)))].toSorted((a, b) => a - b);
+    expect(unnamed.map(hex)).toStrictEqual([]);
   }, 120_000);
 });

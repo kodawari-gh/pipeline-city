@@ -55,7 +55,7 @@ const common = (a: ReturnType<typeof owned>, b: ReturnType<typeof owned>) => ({
   texs: [...a.texs].filter((t) => b.texs.has(t)).length,
 });
 
-function assert_the_Build_my_PC_scene_shares_no_material_or_text(): void {
+test('the Build my PC scene shares no material or texture with the live room or the live machine', () => {
   const snap = maxedSnapshot();
   const stage = new Machine3D(snap, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: false }),
     live = new Machine3D(snap, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: true });
@@ -72,9 +72,4 @@ function assert_the_Build_my_PC_scene_shares_no_material_or_text(): void {
       texs: 0,
     });
   }
-}
-
-test('the Build my PC scene shares no material or texture with the live room or the live machine', () => {
-  expect.hasAssertions();
-  assert_the_Build_my_PC_scene_shares_no_material_or_text();
 }, 180_000);

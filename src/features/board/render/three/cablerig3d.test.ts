@@ -42,91 +42,8 @@ function rig(): cablerig3d.CableRig {
   };
 }
 
-function assert_hangs_a_loose_cable_from_its_grommet_each_strand(): void {
-  const r = rig(),
-    ex = r.model().strands,
-    L = cablerig3d.lengthsOf(r, ex),
-    { rest, strands } = cablerig3d.looseState(r, ex, undefined);
-  for (const [i, s] of strands.entries()) {
-    expect(Math.abs(rope.lengthOf(s) / must(L[i]) - 1), `strand ${i}`).toBeLessThan(0.03);
-  }
-  expect(rest.pose.at[1]).toBeLessThan(-must(L[0]) * 0.5);
-  // a plug that came to rest keeps its strands as they lay
-  const kept = cablerig3d.looseState(r, ex, { pose: rest.pose, strands });
-  expect(kept.strands).toBe(strands);
-}
-
 const home = (r: cablerig3d.CableRig) => r.seated(r.model().strands),
   end = (r: cablerig3d.CableRig) => ({ at: [...r.seat.at] as rope.V3, q: new Quaternion() });
-
-function assert_takes_the_first_part_of_a_polyline_by_length_spr(): void {
-  const p: rope.V3[] = [
-    [0, 0, 0],
-    [100, 0, 0],
-    [100, 300, 0],
-  ];
-  expect(cablerig3d.along(p, 50)).toStrictEqual({ at: [50, 0, 0], dir: [1, 0, 0] });
-  expect(cablerig3d.along(p, 250).at).toStrictEqual([100, 150, 0]);
-  expect(cablerig3d.along(p, 250).dir).toStrictEqual([0, 1, 0]);
-  // held to its ends
-  expect(cablerig3d.along(p, -5).at).toStrictEqual([0, 0, 0]);
-  expect(cablerig3d.along(p, 9999).at).toStrictEqual([100, 300, 0]);
-  const half = cablerig3d.prefixOf(p, 0.5, 5);
-  expect(half).toHaveLength(5);
-  expect(half[0]).toStrictEqual([0, 0, 0]);
-  expect(rope.lengthOf(half)).toBeCloseTo(200);
-  expect(cablerig3d.prefixOf(p, 0, 4).every((q) => q[0] === 0 && q[1] === 0)).toBe(true);
-  expect(rope.lengthOf(cablerig3d.prefixOf(p, 1, 9))).toBeCloseTo(rope.lengthOf(p));
-}
-
-function assert_starts_with_the_plug_small_in_its_hole_every_str(): void {
-  const r = rig(),
-    ex = r.model().strands,
-    a = cablerig3d.reelAt(r, ex, home(r), end(r), 0);
-  expect(a.size).toBe(0);
-  for (const [i, s] of a.strands.entries()) {
-    expect(s[0], `strand ${i}`).toStrictEqual(must(r.fixed[i]).at);
-  }
-  expect(rope.lengthOf(must(a.strands[0]))).toBeLessThan(150);
-}
-
-function assert_ends_as_the_built_cable_stands_the_plug_seated_f(): void {
-  const r = rig(),
-    ex = r.model().strands,
-    path = home(r),
-    z = cablerig3d.reelAt(r, ex, path, end(r), 1);
-  expect(z.size).toBe(1);
-  expect(rope.dist(z.pose.at, r.seat.at)).toBeLessThan(1e-6);
-  expect(z.pose.q.angleTo(new Quaternion())).toBeLessThan(1e-6);
-  for (const [i, s] of z.strands.entries()) {
-    const homePath = must(path[i]);
-    const startAt = must(s[0]);
-    const endAt = must(s.at(-1));
-    const homeEnd = must(homePath[homePath.length - 1]);
-    expect(rope.dist(startAt, must(homePath[0]))).toBeLessThan(1e-6);
-    expect(rope.dist(endAt, homeEnd)).toBeLessThan(1e-6);
-    // (evenly spaced points cut the sharp corners of this crude path a little)
-    expect(Math.abs(rope.lengthOf(s) / rope.lengthOf(homePath) - 1)).toBeLessThan(0.05);
-  }
-}
-
-function assert_keeps_the_cable_whole_on_the_way_each_strand_end(): void {
-  const r = rig(),
-    ex = r.model().strands,
-    path = home(r);
-  let last = 0;
-  for (const f of [0.35, 0.5, 0.7, 0.9]) {
-    const a = cablerig3d.reelAt(r, ex, path, end(r), f);
-    expect(a.size).toBe(1);
-    for (const [i, s] of a.strands.entries()) {
-      const endAt = must(s.at(-1));
-      const exitAt = cablerig3d.exitAt(must(ex[i]), r.seat, a.pose).at;
-      expect(rope.dist(endAt, exitAt), `strand ${i} at ${f}`).toBeLessThan(1e-6);
-    }
-    expect(rope.lengthOf(must(a.strands[0]))).toBeGreaterThan(last);
-    last = rope.lengthOf(must(a.strands[0]));
-  }
-}
 
 describe('a cable rig', () => {
   it('keeps a point within reach of another', () => {
@@ -174,30 +91,88 @@ describe('a cable rig', () => {
   });
 
   it('hangs a loose cable from its grommet, each strand at the length it has seated and reaching its plug', () => {
-    expect.hasAssertions();
-    assert_hangs_a_loose_cable_from_its_grommet_each_strand();
+    const r = rig(),
+      ex = r.model().strands,
+      L = cablerig3d.lengthsOf(r, ex),
+      { rest, strands } = cablerig3d.looseState(r, ex, undefined);
+    for (const [i, s] of strands.entries()) {
+      expect(Math.abs(rope.lengthOf(s) / must(L[i]) - 1), `strand ${i}`).toBeLessThan(0.03);
+    }
+    expect(rest.pose.at[1]).toBeLessThan(-must(L[0]) * 0.5);
+    // a plug that came to rest keeps its strands as they lay
+    const kept = cablerig3d.looseState(r, ex, { pose: rest.pose, strands });
+    expect(kept.strands).toBe(strands);
   });
 });
 
 describe('a cable run out of its hole', () => {
   it('takes the first part of a polyline by length, spread evenly, and the point and the way at a length along it', () => {
-    expect.hasAssertions();
-    assert_takes_the_first_part_of_a_polyline_by_length_spr();
+    const p: rope.V3[] = [
+      [0, 0, 0],
+      [100, 0, 0],
+      [100, 300, 0],
+    ];
+    expect(cablerig3d.along(p, 50)).toStrictEqual({ at: [50, 0, 0], dir: [1, 0, 0] });
+    expect(cablerig3d.along(p, 250).at).toStrictEqual([100, 150, 0]);
+    expect(cablerig3d.along(p, 250).dir).toStrictEqual([0, 1, 0]);
+    // held to its ends
+    expect(cablerig3d.along(p, -5).at).toStrictEqual([0, 0, 0]);
+    expect(cablerig3d.along(p, 9999).at).toStrictEqual([100, 300, 0]);
+    const half = cablerig3d.prefixOf(p, 0.5, 5);
+    expect(half).toHaveLength(5);
+    expect(half[0]).toStrictEqual([0, 0, 0]);
+    expect(rope.lengthOf(half)).toBeCloseTo(200);
+    expect(cablerig3d.prefixOf(p, 0, 4).every((q) => q[0] === 0 && q[1] === 0)).toBe(true);
+    expect(rope.lengthOf(cablerig3d.prefixOf(p, 1, 9))).toBeCloseTo(rope.lengthOf(p));
   });
 
   it('starts with the plug small in its hole, every strand on its fixed end', () => {
-    expect.hasAssertions();
-    assert_starts_with_the_plug_small_in_its_hole_every_str();
+    const r = rig(),
+      ex = r.model().strands,
+      a = cablerig3d.reelAt(r, ex, home(r), end(r), 0);
+    expect(a.size).toBe(0);
+    for (const [i, s] of a.strands.entries()) {
+      expect(s[0], `strand ${i}`).toStrictEqual(must(r.fixed[i]).at);
+    }
+    expect(rope.lengthOf(must(a.strands[0]))).toBeLessThan(150);
   });
 
   it('ends as the built cable stands: the plug seated, full size, the strands along their paths', () => {
-    expect.hasAssertions();
-    assert_ends_as_the_built_cable_stands_the_plug_seated_f();
+    const r = rig(),
+      ex = r.model().strands,
+      path = home(r),
+      z = cablerig3d.reelAt(r, ex, path, end(r), 1);
+    expect(z.size).toBe(1);
+    expect(rope.dist(z.pose.at, r.seat.at)).toBeLessThan(1e-6);
+    expect(z.pose.q.angleTo(new Quaternion())).toBeLessThan(1e-6);
+    for (const [i, s] of z.strands.entries()) {
+      const homePath = must(path[i]);
+      const startAt = must(s[0]);
+      const endAt = must(s.at(-1));
+      const homeEnd = must(homePath[homePath.length - 1]);
+      expect(rope.dist(startAt, must(homePath[0]))).toBeLessThan(1e-6);
+      expect(rope.dist(endAt, homeEnd)).toBeLessThan(1e-6);
+      // (evenly spaced points cut the sharp corners of this crude path a little)
+      expect(Math.abs(rope.lengthOf(s) / rope.lengthOf(homePath) - 1)).toBeLessThan(0.05);
+    }
   });
 
   it('keeps the cable whole on the way: each strand ends on its exit of the plug, and the cable grows with the run', () => {
-    expect.hasAssertions();
-    assert_keeps_the_cable_whole_on_the_way_each_strand_end();
+    const r = rig(),
+      ex = r.model().strands,
+      path = home(r);
+    let last = 0;
+    for (const f of [0.35, 0.5, 0.7, 0.9]) {
+      const a = cablerig3d.reelAt(r, ex, path, end(r), f);
+      expect(a.size).toBe(1);
+      for (const [i, s] of a.strands.entries()) {
+        const endAt = must(s.at(-1));
+        const exitAt = cablerig3d.exitAt(must(ex[i]), r.seat, a.pose).at;
+        expect(rope.dist(endAt, exitAt), `strand ${i} at ${f}`).toBeLessThan(1e-6);
+      }
+      expect(rope.lengthOf(must(a.strands[0]))).toBeGreaterThan(last);
+      last = rope.lengthOf(must(a.strands[0]));
+    }
   });
 
   it('reels back along the way it was run: the same cable at the same place of the run', () => {

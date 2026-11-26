@@ -142,19 +142,6 @@ function stage(): Stage {
 
 const fitted = (s: Stage): number => s.board.devices.length;
 
-async function assert_keeps_only_the_last_few_machines(): Promise<void> {
-  const s = stage();
-  for (let i = 0; i < 12; i++) {
-    await s.clear();
-  }
-  let undone = 0;
-  while (s.canUndo && undone < 20) {
-    await s.undo();
-    undone++;
-  }
-  expect(undone).toBe(8);
-}
-
 describe('BuildStage swaps and Undo', () => {
   beforeEach(() => {
     vi.stubGlobal('ResizeObserver', ResizeObserverStub);
@@ -222,8 +209,16 @@ describe('BuildStage swaps and Undo', () => {
   });
 
   it('keeps only the last few machines', async () => {
-    expect.hasAssertions();
-    await assert_keeps_only_the_last_few_machines();
+    const s = stage();
+    for (let i = 0; i < 12; i++) {
+      await s.clear();
+    }
+    let undone = 0;
+    while (s.canUndo && undone < 20) {
+      await s.undo();
+      undone++;
+    }
+    expect(undone).toBe(8);
   });
 
   it('lets go of the picked part and its row of the old machine', async () => {

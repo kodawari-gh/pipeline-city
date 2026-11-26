@@ -13,21 +13,6 @@ const MIN: grid.V3 = [0, 0, 0],
   MAX: grid.V3 = [6000, 4000, 3000];
 const box = (id: string, min: grid.V3, max: grid.V3, k: grid.V3 = [0, 0, 0]): grid.AirBox => ({ id, min, max, k });
 
-function assert_gives_a_vent_its_conductance_by_area_and_distance(): void {
-  const g = new grid.AirGrid(MIN, MAX, [], 5000),
-    area = 1200 * 800,
-    open = 0.6;
-  g.vent(0, [0, 2000, 1500], { hw: 600, hh: 400 }, open);
-  let sum = 0;
-  for (let c = 0; c < g.cells; c++) {
-    sum += must(g.ground[c]);
-  }
-  expect(Math.abs(sum - (open * area) / (g.h[0] / 2)) / ((open * area) / (g.h[0] / 2))).toBeLessThan(0.08);
-  // only the cells at the -x wall have any
-  const far = g.cellAt(3000, 2000, 1500);
-  expect(g.ground[far]).toBe(0);
-}
-
 describe('AirGrid', () => {
   it('cuts the case into about the asked number of cells and covers it exactly', () => {
     const g = new grid.AirGrid(MIN, MAX, [], 5000);
@@ -96,7 +81,17 @@ describe('AirGrid', () => {
   });
 
   it('gives a vent its conductance by area and distance to the wall', () => {
-    expect.hasAssertions();
-    assert_gives_a_vent_its_conductance_by_area_and_distance();
+    const g = new grid.AirGrid(MIN, MAX, [], 5000),
+      area = 1200 * 800,
+      open = 0.6;
+    g.vent(0, [0, 2000, 1500], { hw: 600, hh: 400 }, open);
+    let sum = 0;
+    for (let c = 0; c < g.cells; c++) {
+      sum += must(g.ground[c]);
+    }
+    expect(Math.abs(sum - (open * area) / (g.h[0] / 2)) / ((open * area) / (g.h[0] / 2))).toBeLessThan(0.08);
+    // only the cells at the -x wall have any
+    const far = g.cellAt(3000, 2000, 1500);
+    expect(g.ground[far]).toBe(0);
   });
 });

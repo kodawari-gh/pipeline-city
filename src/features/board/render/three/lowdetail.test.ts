@@ -77,53 +77,6 @@ const labelMesh = (): three.Mesh => {
 };
 const label = (): three.PlaneGeometry => labelMesh().geometry as three.PlaneGeometry;
 
-function assert_the_pump_cap_keeps_High_s_polished_metal_at_Low_(): void {
-  interface M {
-    metalness: number;
-    roughness: number;
-    color: { getHex: () => number };
-  }
-  const mats = (g: three.Object3D, keep: (m: M) => boolean) =>
-    meshes(g)
-      .flatMap((m) => asList(m.material))
-      .filter((m) => keep(m as unknown as M)) as unknown as M[];
-  const cap = () => {
-    setLayoutTier(3, 3);
-    return mats(coolerModel('cooler-liquid').root, (m) => m.color.getHex() === 0xff_ff_ff && m.roughness === 0.3);
-  };
-  for (const build of [cap]) {
-    setLowDetail(false);
-    const high = build();
-    expect(high.some((m) => m.metalness > 0.4)).toBe(true);
-    setLowDetail(true);
-    const low = build();
-    expect(low).toHaveLength(high.length);
-    expect(high.length).toBeGreaterThan(0);
-    expect(low.every((m) => m.metalness > 0.4)).toBe(true);
-  }
-}
-
-function assert_the_sink_casting_and_its_fins_keep_metalness_0_5(): void {
-  const sink = (visual: string) => {
-    const g = new three.Group();
-    sinkBody(g, builtinTheme(), 'vrm-sink', visual);
-    return meshes(g)
-      .flatMap((m) => asList(m.material))
-      .filter((m) => asMeshStandardMaterial(m).roughness === 0.46) as three.MeshStandardMaterial[];
-  };
-  for (const visual of ['vrm-sink', 'vrm-sink-fan']) {
-    for (const low of [false, true]) {
-      setLowDetail(low);
-      const list = sink(visual);
-      expect(list.length, `${visual} at Low ${low}`).toBeGreaterThan(0);
-      expect(
-        list.every((m) => m.metalness === 0.5 && Object.keys(m.userData).length === 0),
-        `${visual} at Low ${low}`,
-      ).toBe(true);
-    }
-  }
-}
-
 const size = (t: ReturnType<typeof tex>) => (must(t).image as { width: number }).width;
 
 describe('Low builds coarser machine parts', () => {
@@ -166,13 +119,50 @@ describe('Low builds coarser machine parts', () => {
   });
 
   it("the pump cap keeps High's polished metal at Low (the machine keeps High's materials, `cheap` in board3d)", () => {
-    expect.hasAssertions();
-    assert_the_pump_cap_keeps_High_s_polished_metal_at_Low_();
+    interface M {
+      metalness: number;
+      roughness: number;
+      color: { getHex: () => number };
+    }
+    const mats = (g: three.Object3D, keep: (m: M) => boolean) =>
+      meshes(g)
+        .flatMap((m) => asList(m.material))
+        .filter((m) => keep(m as unknown as M)) as unknown as M[];
+    const cap = () => {
+      setLayoutTier(3, 3);
+      return mats(coolerModel('cooler-liquid').root, (m) => m.color.getHex() === 0xff_ff_ff && m.roughness === 0.3);
+    };
+    for (const build of [cap]) {
+      setLowDetail(false);
+      const high = build();
+      expect(high.some((m) => m.metalness > 0.4)).toBe(true);
+      setLowDetail(true);
+      const low = build();
+      expect(low).toHaveLength(high.length);
+      expect(high.length).toBeGreaterThan(0);
+      expect(low.every((m) => m.metalness > 0.4)).toBe(true);
+    }
   });
 
   it("the sink casting and its fins keep metalness 0.5 at High and at Low, with no userData flag (the machine keeps High's materials)", () => {
-    expect.hasAssertions();
-    assert_the_sink_casting_and_its_fins_keep_metalness_0_5();
+    const sink = (visual: string) => {
+      const g = new three.Group();
+      sinkBody(g, builtinTheme(), 'vrm-sink', visual);
+      return meshes(g)
+        .flatMap((m) => asList(m.material))
+        .filter((m) => asMeshStandardMaterial(m).roughness === 0.46) as three.MeshStandardMaterial[];
+    };
+    for (const visual of ['vrm-sink', 'vrm-sink-fan']) {
+      for (const low of [false, true]) {
+        setLowDetail(low);
+        const list = sink(visual);
+        expect(list.length, `${visual} at Low ${low}`).toBeGreaterThan(0);
+        expect(
+          list.every((m) => m.metalness === 0.5 && Object.keys(m.userData).length === 0),
+          `${visual} at Low ${low}`,
+        ).toBe(true);
+      }
+    }
   });
   it('the machine key changes when the detail does (so the machine is built again) and is unchanged at High', () => {
     const s = { boardTier: 1, caseTier: 1, devices: [] } as unknown as Snapshot;

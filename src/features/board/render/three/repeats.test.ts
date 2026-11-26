@@ -140,24 +140,19 @@ const env = or((globalThis as { process?: { env: Record<string, string | undefin
 /** The draws that instancing every set would save (members less one per set): the machine, the room. It may only fall. (49: the NAND packages of the three NVMe sticks are caps over dies, each with materials of its own. 64: the RAM sticks' chip and plate meshes, one set per stick, for the routed copper and tier ladder.) */
 const CEILING = { machine: 64, room: 4 };
 
-function assert_stay_under_the_ceiling_of_draws_to_save(): void {
-  for (const [name, root] of [
-    ['machine', buildMachine(maxedSnapshot(), true, true).root],
-    ['room', new Room3D().root],
-  ] as const) {
-    const sets = repeats(root),
-      save = sets.reduce((a, s) => a + s.n - 1, 0);
-    console.log(`${name}: ${sets.length} sets of more than 4 equal meshes, ${save} draws to save`);
-    if (env['REPEATS_DUMP'] === '1') {
-      console.log(sets.map((s) => `${s.n} x ${s.verts} verts  ${s.at}  ${s.key}  ${s.up}`).join('\n'));
-    }
-    expect(save).toBeLessThanOrEqual(CEILING[name]);
-  }
-}
-
 describe('the repeated meshes', () => {
   it('stay under the ceiling of draws to save', () => {
-    expect.hasAssertions();
-    assert_stay_under_the_ceiling_of_draws_to_save();
+    for (const [name, root] of [
+      ['machine', buildMachine(maxedSnapshot(), true, true).root],
+      ['room', new Room3D().root],
+    ] as const) {
+      const sets = repeats(root),
+        save = sets.reduce((a, s) => a + s.n - 1, 0);
+      console.log(`${name}: ${sets.length} sets of more than 4 equal meshes, ${save} draws to save`);
+      if (env['REPEATS_DUMP'] === '1') {
+        console.log(sets.map((s) => `${s.n} x ${s.verts} verts  ${s.at}  ${s.key}  ${s.up}`).join('\n'));
+      }
+      expect(save).toBeLessThanOrEqual(CEILING[name]);
+    }
   }, 120_000);
 });

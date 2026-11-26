@@ -34,38 +34,6 @@ const boxOf = (g: three.Group, m: three.Material) => {
   return { empty: b.isEmpty(), x0: b.min.x, x1: b.max.x, y0: -b.max.y, y1: -b.min.y, z0: b.min.z, z1: b.max.z };
 };
 
-function assert_stands_over_its_span_and_runs_back_to_its_depth_(): void {
-  for (const [, s] of [
-    ['card', card],
-    ['router', front],
-  ] as const) {
-    const g = new three.Group();
-    qsfpFace(g, 0, s, DEEP, look);
-    const b = boxOf(g, look.shell);
-    expect(b.x0).toBeCloseTo(0, 3);
-    expect(b.x1).toBeCloseTo(DEEP, 3);
-    expect(b.y0).toBeCloseTo(s.y0, 3);
-    expect(b.y1).toBeCloseTo(s.y1, 3);
-    expect(b.z0).toBeCloseTo(s.z0, 3);
-    expect(b.z1).toBeCloseTo(s.z1, 3);
-  }
-}
-
-function assert_draws_the_connector_its_housing_the_slot_and_the(): void {
-  const plain = new three.Group(),
-    fine = new three.Group();
-  qsfpFace(plain, 0, card, DEEP, look, false);
-  qsfpFace(fine, 0, card, DEEP, look, true);
-  expect(fine.children.length - plain.children.length).toBe(3);
-  // the gold: one instanced draw, 19 contacts a row
-  const gold = fine.children.find((o) => asMesh(o).material === look.gold) as
-    (three.Mesh & { count?: number }) | undefined;
-  expect(gold?.count).toBe(38);
-  expect(boxOf(plain, look.gold).empty).toBe(true);
-  // (the connector stands at the back, behind the mouth: nothing of it is in the first half)
-  expect(boxOf(fine, look.gold).x0).toBeGreaterThan(DEEP / 2);
-}
-
 describe("the QSFP+ cage's face", () => {
   it('is a real module and cage: the module fits the mouth, the mouth the cage (a sheet 0.2 mm at the sides, 0.6 over and under)', () => {
     expect(QSFP.module.w).toBeLessThan(QSFP.mouth.w);
@@ -77,13 +45,35 @@ describe("the QSFP+ cage's face", () => {
   });
 
   it('stands over its span and runs back to its depth, whichever way the span is wide', () => {
-    expect.hasAssertions();
-    assert_stands_over_its_span_and_runs_back_to_its_depth_();
+    for (const [, s] of [
+      ['card', card],
+      ['router', front],
+    ] as const) {
+      const g = new three.Group();
+      qsfpFace(g, 0, s, DEEP, look);
+      const b = boxOf(g, look.shell);
+      expect(b.x0).toBeCloseTo(0, 3);
+      expect(b.x1).toBeCloseTo(DEEP, 3);
+      expect(b.y0).toBeCloseTo(s.y0, 3);
+      expect(b.y1).toBeCloseTo(s.y1, 3);
+      expect(b.z0).toBeCloseTo(s.z0, 3);
+      expect(b.z1).toBeCloseTo(s.z1, 3);
+    }
   });
 
   it('draws the connector (its housing, the slot and the 38 gold contacts in two rows) only when it is fine', () => {
-    expect.hasAssertions();
-    assert_draws_the_connector_its_housing_the_slot_and_the();
+    const plain = new three.Group(),
+      fine = new three.Group();
+    qsfpFace(plain, 0, card, DEEP, look, false);
+    qsfpFace(fine, 0, card, DEEP, look, true);
+    expect(fine.children.length - plain.children.length).toBe(3);
+    // the gold: one instanced draw, 19 contacts a row
+    const gold = fine.children.find((o) => asMesh(o).material === look.gold) as
+      (three.Mesh & { count?: number }) | undefined;
+    expect(gold?.count).toBe(38);
+    expect(boxOf(plain, look.gold).empty).toBe(true);
+    // (the connector stands at the back, behind the mouth: nothing of it is in the first half)
+    expect(boxOf(fine, look.gold).x0).toBeGreaterThan(DEEP / 2);
   });
 
   it("puts the link light and the activity light 5.3 mm either side of the cage's middle, in a block over a card's cage", () => {

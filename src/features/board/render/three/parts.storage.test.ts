@@ -98,18 +98,14 @@ describe.each(['ssd1', 'hdd0'])('the SATA drive builder (%s)', (spec) => {
     expect(b.kind).toBe('storage');
     expect(b.roots).toHaveLength(1);
   });
-  function assert_lists_its_data_and_power_sockets_in_its_part_bui(): void {
+
+  it('lists its data and power sockets in its part build, as world points', () => {
     expect(b.drive).not.toBeNull();
     for (const p of [b.drive?.data, b.drive?.power]) {
       expect(p).toHaveLength(3);
       expect(p?.every((n) => Number.isFinite(n))).toBe(true);
     }
     expect(b.drive?.data).not.toStrictEqual(b.drive?.power);
-  }
-
-  it('lists its data and power sockets in its part build, as world points', () => {
-    expect.hasAssertions();
-    assert_lists_its_data_and_power_sockets_in_its_part_bui();
   });
   it('flies to itself on a rail, reveals its inside and has one skin', () => {
     expect(b.rails.map((r) => r.id)).toStrictEqual([d.id]);
@@ -118,17 +114,13 @@ describe.each(['ssd1', 'hdd0'])('the SATA drive builder (%s)', (spec) => {
     expect(b.stick).toBeNull();
     expect(b.card).toBeNull();
   });
-  function assert_is_the_only_builder_to_list_sockets(): void {
+
+  it('is the only builder to list sockets', () => {
     const s = maxed('ssd1'),
       c = context(s);
     for (const x of s.devices.filter((y) => !sata(y))) {
       expect(buildPart(x, c).drive).toBeNull();
     }
-  }
-
-  it('is the only builder to list sockets', () => {
-    expect.hasAssertions();
-    assert_is_the_only_builder_to_list_sockets();
   });
 });
 

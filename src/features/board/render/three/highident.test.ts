@@ -185,30 +185,25 @@ const measure = ({ machine, room }: ReturnType<typeof build>): Record<string, Ro
     ['room', room.root],
   ]);
 
-function assert_matches_highident_expected_json_group_by_group(): void {
-  const got = measure(build());
-  const rows = Object.values(got);
-  const sum = (f: (r: Row) => number) => rows.reduce((n, r) => n + f(r), 0);
-  console.log(
-    `High identity: ${rows.length} groups, ${sum((r) => r.meshes)} meshes, ${sum((r) => r.draws)} draws, ${sum((r) => r.verts)} verts, ${sum((r) => r.instances)} instances`,
-  );
-  const { env } = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process;
-  if (env['UPDATE_HIGH_GOLDEN'] === '1') {
-    fs.writeFileSync(GOLDEN, `${JSON.stringify(got, null, 2)}\n`);
-    return;
-  }
-  const want = readGolden();
-  expect(
-    want,
-    'no High golden yet: fill highident.expected.json from origin/main (UPDATE_HIGH_GOLDEN=1 npx vitest run highident.test.ts)',
-  ).not.toBeNull();
-  expect(got).toStrictEqual(want);
-}
-
 describe('High builds the same machine and room', () => {
   it('matches highident.expected.json, group by group', () => {
-    expect.hasAssertions();
-    assert_matches_highident_expected_json_group_by_group();
+    const got = measure(build());
+    const rows = Object.values(got);
+    const sum = (f: (r: Row) => number) => rows.reduce((n, r) => n + f(r), 0);
+    console.log(
+      `High identity: ${rows.length} groups, ${sum((r) => r.meshes)} meshes, ${sum((r) => r.draws)} draws, ${sum((r) => r.verts)} verts, ${sum((r) => r.instances)} instances`,
+    );
+    const { env } = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process;
+    if (env['UPDATE_HIGH_GOLDEN'] === '1') {
+      fs.writeFileSync(GOLDEN, `${JSON.stringify(got, null, 2)}\n`);
+      return;
+    }
+    const want = readGolden();
+    expect(
+      want,
+      'no High golden yet: fill highident.expected.json from origin/main (UPDATE_HIGH_GOLDEN=1 npx vitest run highident.test.ts)',
+    ).not.toBeNull();
+    expect(got).toStrictEqual(want);
   }, 120_000);
 
   it('names every top-level group, none by its position', () => {

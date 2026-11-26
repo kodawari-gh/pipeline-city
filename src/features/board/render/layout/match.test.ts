@@ -22,60 +22,29 @@ const bundle = (n: number, pitch: number): match.Pt[][] =>
       ] as match.Pt[],
   );
 
-function assert_makes_every_lane_as_long_as_the_longest_keeps_th(): void {
-  const lines = bundle(5, 18),
-    out = match.serpentine(lines, { pitch: 18, w: 9, flare: 30 });
-  const lens = out.map(match.lengthOf);
-  expect(Math.max(...lens) - Math.min(...lens)).toBeLessThan(1.5);
-  for (const [i, l] of out.entries()) {
-    expect(l[0]).toStrictEqual(must(lines[i])[0]);
-    expect(l.at(-1)).toStrictEqual(must(lines[i])[must(lines[i]).length - 1]);
-  }
-  for (const l of out) {
-    for (let i = 2; i < l.length; i++) {
-      const a = must(l[i - 2]),
-        p = must(l[i - 1]),
-        q = must(l[i]),
-        u = [p[0] - a[0], p[1] - a[1]],
-        v = [q[0] - p[0], q[1] - p[1]];
-      const cos =
-        (must(u[0]) * must(v[0]) + must(u[1]) * must(v[1])) /
-        (Math.hypot(must(u[0]), must(u[1])) * Math.hypot(must(v[0]), must(v[1])));
-      expect(cos).toBeGreaterThan(0.05);
-    }
-  }
-}
-
-function assert_keeps_the_lanes_apart_no_two_lanes_closer_than_t(): void {
-  const out = match.serpentine(bundle(6, 18), { pitch: 18, w: 9, flare: 30 });
-  const sd = (p: match.Pt, a: match.Pt, b: match.Pt) => {
-    const dx = b[0] - a[0],
-      dy = b[1] - a[1],
-      l2 = dx * dx + dy * dy || 1,
-      t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2));
-    return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
-  };
-  for (let a = 0; a < out.length; a++) {
-    for (let b = a + 1; b < out.length; b++) {
-      let m = 1e9;
-      for (let i = 1; i < must(out[a]).length; i++) {
-        for (let j = 1; j < must(out[b]).length; j++) {
-          const p = must(must(out[a])[i - 1]),
-            q = must(must(out[a])[i]),
-            r = must(must(out[b])[j - 1]),
-            t = must(must(out[b])[j]);
-          m = Math.min(m, sd(p, r, t), sd(q, r, t), sd(r, p, q), sd(t, p, q));
-        }
-      }
-      expect(m, `lanes ${a} and ${b}`).toBeGreaterThan(11);
-    }
-  }
-}
-
 describe('serpentine', () => {
   it('makes every lane as long as the longest, keeps the ends, 45 and 90 degrees, and never crosses itself', () => {
-    expect.hasAssertions();
-    assert_makes_every_lane_as_long_as_the_longest_keeps_th();
+    const lines = bundle(5, 18),
+      out = match.serpentine(lines, { pitch: 18, w: 9, flare: 30 });
+    const lens = out.map(match.lengthOf);
+    expect(Math.max(...lens) - Math.min(...lens)).toBeLessThan(1.5);
+    for (const [i, l] of out.entries()) {
+      expect(l[0]).toStrictEqual(must(lines[i])[0]);
+      expect(l.at(-1)).toStrictEqual(must(lines[i])[must(lines[i]).length - 1]);
+    }
+    for (const l of out) {
+      for (let i = 2; i < l.length; i++) {
+        const a = must(l[i - 2]),
+          p = must(l[i - 1]),
+          q = must(l[i]),
+          u = [p[0] - a[0], p[1] - a[1]],
+          v = [q[0] - p[0], q[1] - p[1]];
+        const cos =
+          (must(u[0]) * must(v[0]) + must(u[1]) * must(v[1])) /
+          (Math.hypot(must(u[0]), must(u[1])) * Math.hypot(must(v[0]), must(v[1])));
+        expect(cos).toBeGreaterThan(0.05);
+      }
+    }
   });
 
   it('leaves matched lanes alone, and a bundle with no room as it was', () => {
@@ -95,8 +64,29 @@ describe('serpentine', () => {
   });
 
   it('keeps the lanes apart: no two lanes closer than the stroke and the gap', () => {
-    expect.hasAssertions();
-    assert_keeps_the_lanes_apart_no_two_lanes_closer_than_t();
+    const out = match.serpentine(bundle(6, 18), { pitch: 18, w: 9, flare: 30 });
+    const sd = (p: match.Pt, a: match.Pt, b: match.Pt) => {
+      const dx = b[0] - a[0],
+        dy = b[1] - a[1],
+        l2 = dx * dx + dy * dy || 1,
+        t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2));
+      return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+    };
+    for (let a = 0; a < out.length; a++) {
+      for (let b = a + 1; b < out.length; b++) {
+        let m = 1e9;
+        for (let i = 1; i < must(out[a]).length; i++) {
+          for (let j = 1; j < must(out[b]).length; j++) {
+            const p = must(must(out[a])[i - 1]),
+              q = must(must(out[a])[i]),
+              r = must(must(out[b])[j - 1]),
+              t = must(must(out[b])[j]);
+            m = Math.min(m, sd(p, r, t), sd(q, r, t), sd(r, p, q), sd(t, p, q));
+          }
+        }
+        expect(m, `lanes ${a} and ${b}`).toBeGreaterThan(11);
+      }
+    }
   });
 });
 

@@ -38,18 +38,13 @@ const cross = (a: ramface3d.Pt, b: ramface3d.Pt, c: ramface3d.Pt, d: ramface3d.P
   return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0;
 };
 
-function assert_puts_the_fingers_in_an_even_row_with_a_gap_at_th(): void {
-  const f = ramface3d.fingerCentres(L, notchU, 144);
-  expect(f).toHaveLength(144);
-  const steps = f.slice(1).map((u, i) => u - must(f[i]));
-  expect(Math.max(...steps)).toBeGreaterThan(Math.min(...steps) * 2);
-  expect(f.every((u) => u > 0 && u < L)).toBe(true);
-}
-
 describe("the memory stick's copper", () => {
   it('puts the fingers in an even row with a gap at the key', () => {
-    expect.hasAssertions();
-    assert_puts_the_fingers_in_an_even_row_with_a_gap_at_th();
+    const f = ramface3d.fingerCentres(L, notchU, 144);
+    expect(f).toHaveLength(144);
+    const steps = f.slice(1).map((u, i) => u - must(f[i]));
+    expect(Math.max(...steps)).toBeGreaterThan(Math.min(...steps) * 2);
+    expect(f.every((u) => u > 0 && u < L)).toBe(true);
   });
 
   it.each([false, true])(

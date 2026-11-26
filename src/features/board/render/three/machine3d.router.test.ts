@@ -50,7 +50,7 @@ describe("the router's board on the machine", () => {
   const s = maxedSnapshot(),
     geo = roomGeo();
 
-  function assert_has_a_flight_to_the_board_and_to_each_part_of_th(): void {
+  it('has a flight to the board and to each part of the router the game has, all lying on the plinth behind the jacks', () => {
     const m = new Machine3D(s, geo, {
         q: new BakeQueue(),
         chips: new Chips3D(),
@@ -91,11 +91,6 @@ describe("the router's board on the machine", () => {
     // (the die's flight comes in where its lid is gone)
     expect(must(m.rails.find((r) => r.id === 'router.soc')).zoom).toBeGreaterThan(DEVICE_LOD.router.fade[1]);
     m.dispose();
-  }
-
-  it('has a flight to the board and to each part of the router the game has, all lying on the plinth behind the jacks', () => {
-    expect.hasAssertions();
-    assert_has_a_flight_to_the_board_and_to_each_part_of_th();
   });
 
   it('has none with no router, none on the Build my PC stage, and none without the live chips', () => {
@@ -146,7 +141,7 @@ describe("the router's board on the machine", () => {
     m.dispose();
   });
 
-  function assert_keeps_the_shell_whole_from_afar_and_takes_it_awa(): void {
+  it('keeps the shell whole from afar and takes it away as the camera comes in, the board lying where it is', () => {
     const m = new Machine3D(s, geo, {
         q: new BakeQueue(),
         chips: new Chips3D(),
@@ -194,10 +189,5 @@ describe("the router's board on the machine", () => {
     expect(m.pickId('router.soc')).toBe('router');
     expect(m.pickId('pcie0')).toBe('pcie0');
     m.dispose();
-  }
-
-  it('keeps the shell whole from afar and takes it away as the camera comes in, the board lying where it is', () => {
-    expect.hasAssertions();
-    assert_keeps_the_shell_whole_from_afar_and_takes_it_awa();
   });
 });

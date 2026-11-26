@@ -43,71 +43,61 @@ function trays(p: drivecage3d.CagePlan, t: number) {
   }
 }
 
-function assert_hold_a_tray_for_every_bay_the_first_two_in_the_b(): void {
-  for (const t of [0, 1, 2, 3]) {
-    setLayoutTier(t, t);
-    const p = drivecage3d.cagePlan(),
-      q = drivecage3d.baseCagePlan(),
-      b = basementPlan();
-    expect(
-      q.trays.map((s) => s.slot),
-      `tier ${t}`,
-    ).toStrictEqual(Array.from({ length: BASE_BAYS }, (_, i) => i));
-    expect(
-      p.trays.map((s) => s.slot),
-      `tier ${t}`,
-    ).toStrictEqual(Array.from({ length: BAY_CELLS.length - BASE_BAYS }, (_, i) => BASE_BAYS + i));
-    for (let i = 0; i < BAY_CELLS.length; i++) {
-      expect(drivecage3d.traySpot([q, p], i), `tier ${t} bay ${i}`).toBeDefined();
-    }
-    expect(p.x0, `tier ${t}`).toBeGreaterThan(GUTTER_X);
-    expect(p.top, `tier ${t}`).toBeGreaterThan(CASE_IN.y);
-    // the main cage stands on the shroud's shelf, which runs on past it to its slotted east wall, short of a front radiator; the fan cords pass under the shelf
-    expect(p.bottom, `tier ${t}`).toBe(b.top);
-    expect(p.x1, `tier ${t}`).toBeLessThan(b.east - 40);
-    expect(FAN_SLOT.y, `tier ${t} the fan cords pass under the shelf`).toBeGreaterThan(b.top + 30);
-    for (const f of frontFanRects()) {
-      expect(b.east, `tier ${t} clear of a front radiator`).toBeLessThan(f.x - RAD_ROOM + RAD_GAP);
-    }
-    // the basement's cage under it: on the floor, under the shroud's top, behind its folded edge at the glass side; the side panels end west of the hub, which is clear of the cage's flanges and of the supply's room
-    expect([q.x0, q.x1], `tier ${t}`).toStrictEqual([p.x0, p.x1]);
-    expect(q.bottom, `tier ${t}`).toBe(b.floor);
-    expect(q.top, `tier ${t}`).toBeGreaterThan(b.top + 30);
-    expect(q.z1, `tier ${t}`).toBeLessThan(FRONT - 110);
-    expect(b.shelf, `tier ${t}`).toBeLessThan(FAN_HUB.x);
-    expect(FAN_HUB.x + FAN_HUB.w, `tier ${t}`).toBeLessThan(q.x0 - 60);
-    expect(FAN_HUB.x, `tier ${t}`).toBeGreaterThan(b.vent.x);
-    expect(FAN_HUB.y + FAN_HUB.h, `tier ${t}`).toBeLessThan(b.floor);
-    trays(p, t);
-    trays(q, t);
-  }
-}
-
-function assert_fits_a_real_3_5_in_hard_disk_on_its_pins_and_a_2(): void {
-  for (const [hdd, d] of [
-    [true, HDD_MM],
-    [false, SSD_MM],
-  ] as const) {
-    const o = drivecage3d.onTray(hdd),
-      w = d.w * MM,
-      l = d.l * MM,
-      t = d.t * MM;
-    expect(o.x, `${hdd}`).toBeGreaterThan(drivecage3d.TRAY.rail);
-    expect(o.x + w, `${hdd}`).toBeLessThan(drivecage3d.TRAY.w - drivecage3d.TRAY.rail);
-    expect(o.y, `${hdd}`).toBeGreaterThanOrEqual(drivecage3d.TRAY.floor);
-    expect(o.z + l, `${hdd}`).toBeLessThan(drivecage3d.TRAY.l - 26);
-    expect(o.y + t, `${hdd} clears the tray above`).toBeLessThan(785 - 40);
-  }
-}
-
 describe('the 3D drive cages', () => {
   it('hold a tray for every bay, the first two in the basement, the rest in the main cage, inside the case between the gutter and the front fans', () => {
-    expect.hasAssertions();
-    assert_hold_a_tray_for_every_bay_the_first_two_in_the_b();
+    for (const t of [0, 1, 2, 3]) {
+      setLayoutTier(t, t);
+      const p = drivecage3d.cagePlan(),
+        q = drivecage3d.baseCagePlan(),
+        b = basementPlan();
+      expect(
+        q.trays.map((s) => s.slot),
+        `tier ${t}`,
+      ).toStrictEqual(Array.from({ length: BASE_BAYS }, (_, i) => i));
+      expect(
+        p.trays.map((s) => s.slot),
+        `tier ${t}`,
+      ).toStrictEqual(Array.from({ length: BAY_CELLS.length - BASE_BAYS }, (_, i) => BASE_BAYS + i));
+      for (let i = 0; i < BAY_CELLS.length; i++) {
+        expect(drivecage3d.traySpot([q, p], i), `tier ${t} bay ${i}`).toBeDefined();
+      }
+      expect(p.x0, `tier ${t}`).toBeGreaterThan(GUTTER_X);
+      expect(p.top, `tier ${t}`).toBeGreaterThan(CASE_IN.y);
+      // the main cage stands on the shroud's shelf, which runs on past it to its slotted east wall, short of a front radiator; the fan cords pass under the shelf
+      expect(p.bottom, `tier ${t}`).toBe(b.top);
+      expect(p.x1, `tier ${t}`).toBeLessThan(b.east - 40);
+      expect(FAN_SLOT.y, `tier ${t} the fan cords pass under the shelf`).toBeGreaterThan(b.top + 30);
+      for (const f of frontFanRects()) {
+        expect(b.east, `tier ${t} clear of a front radiator`).toBeLessThan(f.x - RAD_ROOM + RAD_GAP);
+      }
+      // the basement's cage under it: on the floor, under the shroud's top, behind its folded edge at the glass side; the side panels end west of the hub, which is clear of the cage's flanges and of the supply's room
+      expect([q.x0, q.x1], `tier ${t}`).toStrictEqual([p.x0, p.x1]);
+      expect(q.bottom, `tier ${t}`).toBe(b.floor);
+      expect(q.top, `tier ${t}`).toBeGreaterThan(b.top + 30);
+      expect(q.z1, `tier ${t}`).toBeLessThan(FRONT - 110);
+      expect(b.shelf, `tier ${t}`).toBeLessThan(FAN_HUB.x);
+      expect(FAN_HUB.x + FAN_HUB.w, `tier ${t}`).toBeLessThan(q.x0 - 60);
+      expect(FAN_HUB.x, `tier ${t}`).toBeGreaterThan(b.vent.x);
+      expect(FAN_HUB.y + FAN_HUB.h, `tier ${t}`).toBeLessThan(b.floor);
+      trays(p, t);
+      trays(q, t);
+    }
   });
 
   it('fits a real 3.5 in. hard disk on its pins and a 2.5 in. SSD on its floor, inside the rails and under the tray above', () => {
-    expect.hasAssertions();
-    assert_fits_a_real_3_5_in_hard_disk_on_its_pins_and_a_2();
+    for (const [hdd, d] of [
+      [true, HDD_MM],
+      [false, SSD_MM],
+    ] as const) {
+      const o = drivecage3d.onTray(hdd),
+        w = d.w * MM,
+        l = d.l * MM,
+        t = d.t * MM;
+      expect(o.x, `${hdd}`).toBeGreaterThan(drivecage3d.TRAY.rail);
+      expect(o.x + w, `${hdd}`).toBeLessThan(drivecage3d.TRAY.w - drivecage3d.TRAY.rail);
+      expect(o.y, `${hdd}`).toBeGreaterThanOrEqual(drivecage3d.TRAY.floor);
+      expect(o.z + l, `${hdd}`).toBeLessThan(drivecage3d.TRAY.l - 26);
+      expect(o.y + t, `${hdd} clears the tray above`).toBeLessThan(785 - 40);
+    }
   });
 });

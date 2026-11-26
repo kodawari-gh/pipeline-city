@@ -349,137 +349,6 @@ function look(root: three.Object3D, drawn = false): Map<string, number[]> {
   return out;
 }
 
-function assert_draws_far_fewer_meshes_with_far_fewer_materials(): void {
-  for (const s of [game().snapshot(), null]) {
-    const count = (m: Machine3D) => {
-      let n = 0;
-      const mats = new Set<three.Material>();
-      m.root.traverse((o) => {
-        if (isMesh(o)) {
-          n++;
-          for (const x of [asMesh(o).material].flat()) {
-            mats.add(x);
-          }
-        }
-      });
-      return { n, mats: mats.size };
-    };
-    const was = count(build(s, false)),
-      now = count(build(s, true));
-    expect(now.n).toBeLessThan(was.n * 0.6);
-    expect(now.mats).toBeLessThan(was.mats * 0.6);
-  }
-}
-
-function assert_shows_every_part_as_before_in_every_state_and_vi(): void {
-  const s = game().snapshot(),
-    was = build(s, false),
-    now = build(s, true);
-  for (const [ci, cam] of cameras().entries()) {
-    was.lod(cam, 1080, 1);
-    now.lod(cam, 1080, 1);
-    for (const [name, st] of states(s)) {
-      for (let i = 0; i < 4; i++) {
-        was.frame(st, { dt: 5 });
-        now.frame(st, { dt: 5 });
-      }
-      sameLook(look(was.root), look(now.root), `${name} from camera ${ci}`);
-    }
-  }
-}
-
-function assert_fades_each_lid_cooler_spreader_and_card_through_(): void {
-  const s = game().snapshot(),
-    was = build(s, false),
-    now = build(s, true);
-  // (a RAM stick of the maxed machine has no spreader: its fade holds nothing)
-  const roots = (m: Machine3D) =>
-    [...m.fades, ...m.apart].filter((g) => {
-      let n = 0;
-      g.traverse((o) => {
-        if (isMesh(o)) {
-          n++;
-        }
-      });
-      return n > 0;
-    });
-  const wf = roots(was),
-    nf = roots(now);
-  expect(nf).toHaveLength(wf.length);
-  expect(nf.length).toBeGreaterThan(3);
-  // the camera comes in on each faded part, from the board view to its face: on the way the level of detail fades it out
-  const half = new Set<number>();
-  for (const f of wf) {
-    const at = aim(was, f);
-    for (let d = 30_000; d > 300; d *= 0.95) {
-      const cam = new three.PerspectiveCamera(40, 16 / 9, 10, 200_000);
-      cam.position.set(at.x, at.y, at.z + d);
-      cam.lookAt(at);
-      cam.updateMatrixWorld();
-      was.lod(cam, 1080, 1);
-      now.lod(cam, 1080, 1);
-      let mid = false;
-      for (const [i, g] of wf.entries()) {
-        const a = g.visible ? opacityOf(g) : 0;
-        expect(must(nf[i]).visible ? opacityOf(must(nf[i])) : 0, `fade ${i} at ${Math.round(d)}`).toBeCloseTo(a, 6);
-        if (a > 0.02 && a < 0.98) {
-          half.add(i);
-          mid = true;
-        }
-      }
-      // (the whole look where a part is half faded: its see-through material must stay its own)
-      if (mid) {
-        sameLook(
-          look(was.root),
-          look(now.root),
-          `fades at ${Math.round(d)} over ${at.toArray().map(Math.round).join(',')}`,
-        );
-      }
-    }
-  }
-  // each faded part was seen half faded on the way
-  expect(half.size).toBe(wf.length);
-}
-
-function assert_answers_every_pick_as_before_part_by_part(): void {
-  const s = game().snapshot(),
-    was = build(s, false),
-    now = build(s, true);
-  for (const cam of cameras()) {
-    was.lod(cam, 1080, 1);
-    now.lod(cam, 1080, 1);
-    expect(picks(now.root, cam)).toStrictEqual(picks(was.root, cam));
-  }
-}
-
-function assert_keeps_every_state_look_on_materials_of_its_own_a(): void {
-  const s = game().snapshot(),
-    m = build(s, true),
-    run = must(states(s).find(([n]) => n === 'hot'))[1];
-  for (let i = 0; i < 4; i++) {
-    m.frame(run, { dt: 5 });
-  }
-  // each glowing material is used inside one part only
-  const users = new Map<three.Material, Set<string | null>>();
-  m.root.traverse((o) => {
-    if (!isMesh(o)) {
-      return;
-    }
-    const x = o;
-    for (const mm of [x.material].flat() as three.MeshStandardMaterial[]) {
-      if (mm.emissive && mm.emissiveIntensity > 0 && mm.emissive.getHex()) {
-        const u = or(users.get(mm), new Set());
-        u.add(idOf(o));
-        users.set(mm, u);
-      }
-    }
-  });
-  expect(users.size).toBeGreaterThan(0);
-  for (const [, u] of users) {
-    expect([...u]).toHaveLength(1);
-  }
-}
-
 const both = (s: Snapshot) => ({ was: build(s, true, false), now: build(s, true, true) });
 
 const lodOf = (m: Machine3D) => must(m.partLod);
@@ -505,31 +374,137 @@ const camFrom = (c: three.Vector3, d: number) => {
 
 describe('Machine3D merge and share (PERF22 part 2)', () => {
   it('draws far fewer meshes with far fewer materials', { timeout: 60_000 }, () => {
-    expect.hasAssertions();
-    assert_draws_far_fewer_meshes_with_far_fewer_materials();
+    for (const s of [game().snapshot(), null]) {
+      const count = (m: Machine3D) => {
+        let n = 0;
+        const mats = new Set<three.Material>();
+        m.root.traverse((o) => {
+          if (isMesh(o)) {
+            n++;
+            for (const x of [asMesh(o).material].flat()) {
+              mats.add(x);
+            }
+          }
+        });
+        return { n, mats: mats.size };
+      };
+      const was = count(build(s, false)),
+        now = count(build(s, true));
+      expect(now.n).toBeLessThan(was.n * 0.6);
+      expect(now.mats).toBeLessThan(was.mats * 0.6);
+    }
   });
 
   it('shows every part as before in every state and view: colour, glow, fade, shape', { timeout: 120_000 }, () => {
-    expect.hasAssertions();
-    assert_shows_every_part_as_before_in_every_state_and_vi();
+    const s = game().snapshot(),
+      was = build(s, false),
+      now = build(s, true);
+    for (const [ci, cam] of cameras().entries()) {
+      was.lod(cam, 1080, 1);
+      now.lod(cam, 1080, 1);
+      for (const [name, st] of states(s)) {
+        for (let i = 0; i < 4; i++) {
+          was.frame(st, { dt: 5 });
+          now.frame(st, { dt: 5 });
+        }
+        sameLook(look(was.root), look(now.root), `${name} from camera ${ci}`);
+      }
+    }
   });
 
   it('fades each lid, cooler, spreader and card through the zoom alone, as before', { timeout: 400_000 }, () => {
-    expect.hasAssertions();
-    assert_fades_each_lid_cooler_spreader_and_card_through_();
+    const s = game().snapshot(),
+      was = build(s, false),
+      now = build(s, true);
+    // (a RAM stick of the maxed machine has no spreader: its fade holds nothing)
+    const roots = (m: Machine3D) =>
+      [...m.fades, ...m.apart].filter((g) => {
+        let n = 0;
+        g.traverse((o) => {
+          if (isMesh(o)) {
+            n++;
+          }
+        });
+        return n > 0;
+      });
+    const wf = roots(was),
+      nf = roots(now);
+    expect(nf).toHaveLength(wf.length);
+    expect(nf.length).toBeGreaterThan(3);
+    // the camera comes in on each faded part, from the board view to its face: on the way the level of detail fades it out
+    const half = new Set<number>();
+    for (const f of wf) {
+      const at = aim(was, f);
+      for (let d = 30_000; d > 300; d *= 0.95) {
+        const cam = new three.PerspectiveCamera(40, 16 / 9, 10, 200_000);
+        cam.position.set(at.x, at.y, at.z + d);
+        cam.lookAt(at);
+        cam.updateMatrixWorld();
+        was.lod(cam, 1080, 1);
+        now.lod(cam, 1080, 1);
+        let mid = false;
+        for (const [i, g] of wf.entries()) {
+          const a = g.visible ? opacityOf(g) : 0;
+          expect(must(nf[i]).visible ? opacityOf(must(nf[i])) : 0, `fade ${i} at ${Math.round(d)}`).toBeCloseTo(a, 6);
+          if (a > 0.02 && a < 0.98) {
+            half.add(i);
+            mid = true;
+          }
+        }
+        // (the whole look where a part is half faded: its see-through material must stay its own)
+        if (mid) {
+          sameLook(
+            look(was.root),
+            look(now.root),
+            `fades at ${Math.round(d)} over ${at.toArray().map(Math.round).join(',')}`,
+          );
+        }
+      }
+    }
+    // each faded part was seen half faded on the way
+    expect(half.size).toBe(wf.length);
   });
 
   it('answers every pick as before, part by part', { timeout: 60_000 }, () => {
-    expect.hasAssertions();
-    assert_answers_every_pick_as_before_part_by_part();
+    const s = game().snapshot(),
+      was = build(s, false),
+      now = build(s, true);
+    for (const cam of cameras()) {
+      was.lod(cam, 1080, 1);
+      now.lod(cam, 1080, 1);
+      expect(picks(now.root, cam)).toStrictEqual(picks(was.root, cam));
+    }
   });
 
   it(
     'keeps every state look on materials of its own: a skin, a ring or an LED never lights another part',
     { timeout: 60_000 },
     () => {
-      expect.hasAssertions();
-      assert_keeps_every_state_look_on_materials_of_its_own_a();
+      const s = game().snapshot(),
+        m = build(s, true),
+        run = must(states(s).find(([n]) => n === 'hot'))[1];
+      for (let i = 0; i < 4; i++) {
+        m.frame(run, { dt: 5 });
+      }
+      // each glowing material is used inside one part only
+      const users = new Map<three.Material, Set<string | null>>();
+      m.root.traverse((o) => {
+        if (!isMesh(o)) {
+          return;
+        }
+        const x = o;
+        for (const mm of [x.material].flat() as three.MeshStandardMaterial[]) {
+          if (mm.emissive && mm.emissiveIntensity > 0 && mm.emissive.getHex()) {
+            const u = or(users.get(mm), new Set());
+            u.add(idOf(o));
+            users.set(mm, u);
+          }
+        }
+      });
+      expect(users.size).toBeGreaterThan(0);
+      for (const [, u] of users) {
+        expect([...u]).toHaveLength(1);
+      }
     },
   );
 });
@@ -545,26 +520,54 @@ describe('Machine3D distance stand-ins (PERF6)', () => {
   };
   const farCam = () => at(BD.x + BD.w / 2, -(BD.y + BD.h / 2), BOARD_Z, 60_000);
 
-  function assert_draws_every_part_as_it_looks_in_every_state_at_e(): void {
-    const s = game().snapshot(),
-      { was, now } = both(s);
-    for (const [ci, cam] of [farCam(), ...cameras().slice(0, 2)].entries()) {
-      was.lod(cam, H, 1);
-      now.lod(cam, H, 1);
-      if (ci === 0) {
-        expect(lodOf(now).farNow.every(Boolean)).toBe(true);
-      }
-      for (const [name, st] of states(s).filter(([n]) => ['off', 'running', 'hot', 'burnt'].includes(n))) {
-        for (let i = 0; i < 4; i++) {
-          was.frame(st, { dt: 5 });
-          now.frame(st, { dt: 5 });
+  it(
+    'draws every part as it looks, in every state, at every distance: colour, glow and fade',
+    { timeout: 180_000 },
+    () => {
+      const s = game().snapshot(),
+        { was, now } = both(s);
+      for (const [ci, cam] of [farCam(), ...cameras().slice(0, 2)].entries()) {
+        was.lod(cam, H, 1);
+        now.lod(cam, H, 1);
+        if (ci === 0) {
+          expect(lodOf(now).farNow.every(Boolean)).toBe(true);
         }
-        sameLook(look(was.root, true), look(now.root, true), `${name} from camera ${ci}`, true);
+        for (const [name, st] of states(s).filter(([n]) => ['off', 'running', 'hot', 'burnt'].includes(n))) {
+          for (let i = 0; i < 4; i++) {
+            was.frame(st, { dt: 5 });
+            now.frame(st, { dt: 5 });
+          }
+          sameLook(look(was.root, true), look(now.root, true), `${name} from camera ${ci}`, true);
+        }
       }
-    }
-  }
+    },
+  );
 
-  function assert_follows_each_fade_while_it_runs_from_the_board_v(): void {
+  it("keeps each state look on the stand-in: it draws with the part's own material", { timeout: 60_000 }, () => {
+    // (a burn is the one state that glows: a part that runs hot has no glow of its own, the lenses show that)
+    const s = game().snapshot(),
+      m = build(s, true, true),
+      burnt = must(states(s).find(([n]) => n === 'burnt'))[1];
+    m.lod(farCam(), H, 1);
+    for (let i = 0; i < 4; i++) {
+      m.frame(burnt, { dt: 5 });
+    }
+    let glowing = 0;
+    for (const si of lodOf(m).standIns) {
+      const src = lodOf(m).sourcesOf(si);
+      // (a palette stand-in has only still looks: no skin, no glow)
+      const e = asMeshStandardMaterial(si.material);
+      if (!(e.emissive.getHex() && e.emissiveIntensity > 0)) {
+        continue;
+      }
+      // (a source with a list of materials, as a RAM stick's board and its skin edge, has it in its list: MACH-06)
+      expect(src.every((x) => [x.material].flat().includes(asMeshStandardMaterial(si.material)))).toBe(true);
+      glowing++;
+    }
+    expect(glowing).toBeGreaterThan(0);
+  });
+
+  it("follows each fade while it runs, from the board view to the part's face", { timeout: 400_000 }, () => {
     const s = game().snapshot(),
       { was, now } = both(s);
     const roots = (m: Machine3D) =>
@@ -607,81 +610,34 @@ describe('Machine3D distance stand-ins (PERF6)', () => {
       }
     }
     expect(mids.size).toBe(wf.length);
-  }
-
-  it(
-    'draws every part as it looks, in every state, at every distance: colour, glow and fade',
-    { timeout: 180_000 },
-    () => {
-      expect.hasAssertions();
-      assert_draws_every_part_as_it_looks_in_every_state_at_e();
-    },
-  );
-  function assert_keeps_each_state_look_on_the_stand_in_it_draws_w(): void {
-    // (a burn is the one state that glows: a part that runs hot has no glow of its own, the lenses show that)
-    const s = game().snapshot(),
-      m = build(s, true, true),
-      burnt = must(states(s).find(([n]) => n === 'burnt'))[1];
-    m.lod(farCam(), H, 1);
-    for (let i = 0; i < 4; i++) {
-      m.frame(burnt, { dt: 5 });
-    }
-    let glowing = 0;
-    for (const si of lodOf(m).standIns) {
-      const src = lodOf(m).sourcesOf(si);
-      // (a palette stand-in has only still looks: no skin, no glow)
-      const e = asMeshStandardMaterial(si.material);
-      if (!(e.emissive.getHex() && e.emissiveIntensity > 0)) {
-        continue;
-      }
-      // (a source with a list of materials, as a RAM stick's board and its skin edge, has it in its list: MACH-06)
-      expect(src.every((x) => [x.material].flat().includes(asMeshStandardMaterial(si.material)))).toBe(true);
-      glowing++;
-    }
-    expect(glowing).toBeGreaterThan(0);
-  }
-
-  it("keeps each state look on the stand-in: it draws with the part's own material", { timeout: 60_000 }, () => {
-    expect.hasAssertions();
-    assert_keeps_each_state_look_on_the_stand_in_it_draws_w();
   });
-
-  it("follows each fade while it runs, from the board view to the part's face", { timeout: 400_000 }, () => {
-    expect.hasAssertions();
-    assert_follows_each_fade_while_it_runs_from_the_board_v();
-  });
-
-  function assert_draws_fewer_meshes_far_as_many_near_and_a_pick_f(): void {
-    const s = game().snapshot(),
-      { was, now } = both(s),
-      far = farCam(),
-      near = must(cameras()[2]);
-    expect(lodOf(now).standIns.length).toBeGreaterThan(5);
-    was.lod(near, H, 1);
-    now.lod(near, H, 1);
-    expect(lodOf(now).farNow.some(Boolean)).toBe(false);
-    expect(drawnMeshes(now.root)).toBe(drawnMeshes(was.root));
-    was.lod(far, H, 1);
-    now.lod(far, H, 1);
-    expect(drawnMeshes(now.root)).toBeLessThan(drawnMeshes(was.root));
-    const ids = grid(now, far);
-    expect(ids).toStrictEqual(grid(was, far));
-    const id = must(ids.find((x) => x !== null));
-    expect(findById(now.root, id)).not.toBeNull();
-    for (let y = -0.9; y <= 0.9; y += 0.3) {
-      for (let x = -0.9; x <= 0.9; x += 0.3) {
-        expect(pick(now.boardRoots(), far, x, y)?.userData['standIn']).toBeFalsy();
-      }
-    }
-    now.dispose();
-  }
 
   it(
     'draws fewer meshes far, as many near, and a pick, findById and the outline still find the parts',
     { timeout: 120_000 },
     () => {
-      expect.hasAssertions();
-      assert_draws_fewer_meshes_far_as_many_near_and_a_pick_f();
+      const s = game().snapshot(),
+        { was, now } = both(s),
+        far = farCam(),
+        near = must(cameras()[2]);
+      expect(lodOf(now).standIns.length).toBeGreaterThan(5);
+      was.lod(near, H, 1);
+      now.lod(near, H, 1);
+      expect(lodOf(now).farNow.some(Boolean)).toBe(false);
+      expect(drawnMeshes(now.root)).toBe(drawnMeshes(was.root));
+      was.lod(far, H, 1);
+      now.lod(far, H, 1);
+      expect(drawnMeshes(now.root)).toBeLessThan(drawnMeshes(was.root));
+      const ids = grid(now, far);
+      expect(ids).toStrictEqual(grid(was, far));
+      const id = must(ids.find((x) => x !== null));
+      expect(findById(now.root, id)).not.toBeNull();
+      for (let y = -0.9; y <= 0.9; y += 0.3) {
+        for (let x = -0.9; x <= 0.9; x += 0.3) {
+          expect(pick(now.boardRoots(), far, x, y)?.userData['standIn']).toBeFalsy();
+        }
+      }
+      now.dispose();
     },
   );
 
@@ -701,7 +657,7 @@ describe('Machine3D distance stand-ins (PERF6)', () => {
         return c;
       };
 
-    function assert_swaps_nothing_at_the_stage_s_own_view_or_closer_(): void {
+    it("swaps nothing at the stage's own view or closer, but does zoomed out", { timeout: 60_000 }, () => {
       const s = game().snapshot(),
         { was, now } = both(s);
       now.holdDetail([], ceil);
@@ -717,46 +673,36 @@ describe('Machine3D distance stand-ins (PERF6)', () => {
       now.lod(out, H, 1);
       expect(lodOf(now).farNow.some(Boolean)).toBe(true);
       expect(drawnMeshes(now.root)).toBeLessThan(drawnMeshes(was.root));
-    }
-
-    it("swaps nothing at the stage's own view or closer, but does zoomed out", { timeout: 60_000 }, () => {
-      expect.hasAssertions();
-      assert_swaps_nothing_at_the_stage_s_own_view_or_closer_();
     });
-
-    function assert_draws_no_stand_in_at_the_wheel_limit_in_a_tall_a(): void {
-      const s = game().snapshot(),
-        now = build(s, true, true),
-        seen: string[] = [];
-      for (const aspect of [0.5, 1, 16 / 9, 2.33]) {
-        const fit = fitRect(
-          { x: CASE_RECT.x, y: CASE_RECT.y, w: CASE_RECT.w, h: CASE_RECT.h },
-          BOARD_Z,
-          aspect,
-          view,
-          0.55,
-        );
-        const cam = new three.PerspectiveCamera();
-        applyView(cam, { ...fit, height: LIMITS.heightMax }, aspect);
-        cam.updateMatrixWorld();
-        now.holdDetail([], (LOD_CEIL * H) / fit.height);
-        now.lod(cam, H, 1);
-        seen.push(`${aspect.toFixed(2)}: ${lodOf(now).standIns.filter((x) => lodOf(now).draws(x)).length}`);
-      }
-      expect(seen.join(', ')).toBe('0.50: 0, 1.00: 0, 1.78: 0, 2.33: 0');
-      now.dispose();
-    }
 
     it(
       'draws no stand-in at the wheel limit, in a tall, a square, a 16:9 or an ultrawide view',
       { timeout: 60_000 },
       () => {
-        expect.hasAssertions();
-        assert_draws_no_stand_in_at_the_wheel_limit_in_a_tall_a();
+        const s = game().snapshot(),
+          now = build(s, true, true),
+          seen: string[] = [];
+        for (const aspect of [0.5, 1, 16 / 9, 2.33]) {
+          const fit = fitRect(
+            { x: CASE_RECT.x, y: CASE_RECT.y, w: CASE_RECT.w, h: CASE_RECT.h },
+            BOARD_Z,
+            aspect,
+            view,
+            0.55,
+          );
+          const cam = new three.PerspectiveCamera();
+          applyView(cam, { ...fit, height: LIMITS.heightMax }, aspect);
+          cam.updateMatrixWorld();
+          now.holdDetail([], (LOD_CEIL * H) / fit.height);
+          now.lod(cam, H, 1);
+          seen.push(`${aspect.toFixed(2)}: ${lodOf(now).standIns.filter((x) => lodOf(now).draws(x)).length}`);
+        }
+        expect(seen.join(', ')).toBe('0.50: 0, 1.00: 0, 1.78: 0, 2.33: 0');
+        now.dispose();
       },
     );
 
-    function assert_holds_the_part_under_the_pointer_and_the_whole_m(): void {
+    it('holds the part under the pointer, and the whole machine while a step runs', { timeout: 60_000 }, () => {
       const s = game().snapshot(),
         { was, now } = both(s),
         lod = lodOf(now),
@@ -797,46 +743,36 @@ describe('Machine3D distance stand-ins (PERF6)', () => {
       // no hold: the stand-ins draw again
       now.holdDetail([], ceil);
       expect(drawnMeshes(now.root)).toBe(far);
-    }
-
-    it('holds the part under the pointer, and the whole machine while a step runs', { timeout: 60_000 }, () => {
-      expect.hasAssertions();
-      assert_holds_the_part_under_the_pointer_and_the_whole_m();
     });
   });
 });
-
-function assert_stands_as_a_chip_with_a_die_on_a_board_with_a_ja(): void {
-  for (const merge of [false, true]) {
-    const s = game().snapshot(),
-      m = build(s, merge),
-      g = must(GEO.phy);
-    expect(s.board.features.ethernetMbps).toBeGreaterThan(0);
-    expect(lids(m)).toHaveLength(1);
-    const rails = m.rails.filter((r) => r.id === 'board.nic-ctl');
-    expect(rails).toHaveLength(1);
-    const r = must(rails[0]);
-    expect(r.rect.x + r.rect.w / 2).toBeCloseTo(g.x + g.w / 2, 3);
-    expect(r.rect.y + r.rect.h / 2).toBeCloseTo(g.y + g.h / 2, 3);
-    expect(r.rect.w).toBeGreaterThan(0.97 * g.w);
-    expect(r.rect.w).toBeLessThanOrEqual(g.w);
-    expect(r.z).toBeGreaterThan(BOARD_Z);
-    expect(r.z).toBeLessThan(BOARD_Z + CHIP_H);
-    expect(r.zoom).toBeGreaterThan(0);
-    for (const id of ['board.nic-ctl', 'board.nic-mac', 'board.nic-dma']) {
-      expect(m.pickId(id)).toBe(id);
-    }
-    expect(findById(m.root, 'board.nic-ctl')).not.toBeNull();
-  }
-}
 
 describe('Machine3D Ethernet chip on the motherboard', () => {
   it(
     'stands as a chip with a die on a board with a jack: its mould fades alone, and a flight rail leads to its die',
     { timeout: 60_000 },
     () => {
-      expect.hasAssertions();
-      assert_stands_as_a_chip_with_a_die_on_a_board_with_a_ja();
+      for (const merge of [false, true]) {
+        const s = game().snapshot(),
+          m = build(s, merge),
+          g = must(GEO.phy);
+        expect(s.board.features.ethernetMbps).toBeGreaterThan(0);
+        expect(lids(m)).toHaveLength(1);
+        const rails = m.rails.filter((r) => r.id === 'board.nic-ctl');
+        expect(rails).toHaveLength(1);
+        const r = must(rails[0]);
+        expect(r.rect.x + r.rect.w / 2).toBeCloseTo(g.x + g.w / 2, 3);
+        expect(r.rect.y + r.rect.h / 2).toBeCloseTo(g.y + g.h / 2, 3);
+        expect(r.rect.w).toBeGreaterThan(0.97 * g.w);
+        expect(r.rect.w).toBeLessThanOrEqual(g.w);
+        expect(r.z).toBeGreaterThan(BOARD_Z);
+        expect(r.z).toBeLessThan(BOARD_Z + CHIP_H);
+        expect(r.zoom).toBeGreaterThan(0);
+        for (const id of ['board.nic-ctl', 'board.nic-mac', 'board.nic-dma']) {
+          expect(m.pickId(id)).toBe(id);
+        }
+        expect(findById(m.root, 'board.nic-ctl')).not.toBeNull();
+      }
     },
   );
 

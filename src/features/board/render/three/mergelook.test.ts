@@ -126,44 +126,6 @@ const scene = () => {
   return { root, part, sub, cu, grey, black, label, label2, map };
 };
 
-function assert_a_stand_in_keeps_them_a_copper_mesh_with_the_sam(): void {
-  const s = scene();
-  s.root.updateMatrixWorld(true);
-  const made = standIns(s.root, [s.cu, s.grey, s.black, s.label, s.label2]);
-  expect(made.length).toBeGreaterThan(0);
-  for (const { mesh, sources } of made) {
-    const pc = mesh.geometry.attributes['_pc'] as three.BufferAttribute | undefined;
-    if (!pc) {
-      continue;
-    } // (a set that keeps its own material: it draws with it)
-    let at = 0;
-    for (const src of sources) {
-      const m = asMeshStandardMaterial(src.material),
-        n = src.geometry.index ? src.geometry.index.count : must(src.geometry.attributes['position']).count;
-      near(pc.getX(at), m.color.r, 'stand-in r');
-      near(pc.getY(at), m.color.g, 'stand-in g');
-      near(pc.getZ(at), m.color.b, 'stand-in b');
-      at += n;
-    }
-  }
-  expect(new three.Color(COPPER).r).toBeGreaterThan(new three.Color(COPPER).b); // (the copper is warm: a grey result would fail the checks above)
-}
-
-function assert_a_stand_in_of_plain_meshes_draws_with_a_PBR_pale(): void {
-  for (const low of [true, false]) {
-    setLowDetail(low);
-    const s = scene();
-    s.root.updateMatrixWorld(true);
-    const pals = standIns(s.root, [s.cu, s.grey, s.black, s.label, s.label2])
-      .filter((x) => x.mesh.geometry.attributes['_pc'])
-      .map((x) => asMeshStandardMaterial(x.mesh.material));
-    expect(pals.length, `Low ${low}`).toBeGreaterThan(0);
-    for (const m of pals) {
-      expect(m.customProgramCacheKey().endsWith('|keep'), `Low ${low}`).toBe(low);
-    }
-  }
-}
-
 describe("a palette merge keeps every source mesh's look", () => {
   it('mergeSiblings: copper stays copper beside grey metal and a black cable, and a mapped label keeps its uv and map', () => {
     const s = scene();
@@ -192,13 +154,41 @@ describe("a palette merge keeps every source mesh's look", () => {
   });
 
   it('a stand-in keeps them, a copper mesh with the same attributes as a grey one included', () => {
-    expect.hasAssertions();
-    assert_a_stand_in_keeps_them_a_copper_mesh_with_the_sam();
+    const s = scene();
+    s.root.updateMatrixWorld(true);
+    const made = standIns(s.root, [s.cu, s.grey, s.black, s.label, s.label2]);
+    expect(made.length).toBeGreaterThan(0);
+    for (const { mesh, sources } of made) {
+      const pc = mesh.geometry.attributes['_pc'] as three.BufferAttribute | undefined;
+      if (!pc) {
+        continue;
+      } // (a set that keeps its own material: it draws with it)
+      let at = 0;
+      for (const src of sources) {
+        const m = asMeshStandardMaterial(src.material),
+          n = src.geometry.index ? src.geometry.index.count : must(src.geometry.attributes['position']).count;
+        near(pc.getX(at), m.color.r, 'stand-in r');
+        near(pc.getY(at), m.color.g, 'stand-in g');
+        near(pc.getZ(at), m.color.b, 'stand-in b');
+        at += n;
+      }
+    }
+    expect(new three.Color(COPPER).r).toBeGreaterThan(new three.Color(COPPER).b); // (the copper is warm: a grey result would fail the checks above)
   });
 
   it("a stand-in of plain meshes draws with a PBR palette at Low, as the machine's palette meshes do (PHONE-01: the RAM chips went darker), and as before at High", () => {
-    expect.hasAssertions();
-    assert_a_stand_in_of_plain_meshes_draws_with_a_PBR_pale();
+    for (const low of [true, false]) {
+      setLowDetail(low);
+      const s = scene();
+      s.root.updateMatrixWorld(true);
+      const pals = standIns(s.root, [s.cu, s.grey, s.black, s.label, s.label2])
+        .filter((x) => x.mesh.geometry.attributes['_pc'])
+        .map((x) => asMeshStandardMaterial(x.mesh.material));
+      expect(pals.length, `Low ${low}`).toBeGreaterThan(0);
+      for (const m of pals) {
+        expect(m.customProgramCacheKey().endsWith('|keep'), `Low ${low}`).toBe(low);
+      }
+    }
   });
 });
 

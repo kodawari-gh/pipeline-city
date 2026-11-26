@@ -110,7 +110,7 @@ describe('BusFlow drawing', () => {
     [1000, 600],
   ]);
 
-  function assert_strokes_each_lit_lane_twice_a_trail_and_a_head_p(): void {
+  it('strokes each lit lane twice, a trail and a head, plain: square ends and mitred corners', () => {
     const f = new BusFlow();
     f.send([far, far], 1, '#3be3ff', 0, 9);
     f.frame(150, 1, true);
@@ -119,11 +119,6 @@ describe('BusFlow drawing', () => {
     expect(s.every((x) => x.cap === 'butt' && x.join === 'miter')).toBe(true);
     // (the head is brighter than the trail behind it)
     expect(must(s[1]).alpha).toBeGreaterThan(must(s[0]).alpha);
-  }
-
-  it('strokes each lit lane twice, a trail and a head, plain: square ends and mitred corners', () => {
-    expect.hasAssertions();
-    assert_strokes_each_lit_lane_twice_a_trail_and_a_head_p();
   });
 
   it('lights no more than MAX_LIT lanes of a wide link, spread over it', () => {

@@ -37,38 +37,6 @@ function running(over: Partial<Snapshot> = {}, cords = { pc: true, mon: true }):
   });
 }
 
-function assert_a_card_takes_its_watts_from_the_slot_and_its_PCI(): void {
-  const base = running();
-  const s = {
-    ...base,
-    devices: [...base.devices, dev({ id: 'gpu', kind: 'gpu', spec: 'gpu2', slot: 'pcie0', powerW: 60 })],
-    cables: [...base.cables, { id: 'pcie', name: 'PCIe 1', connected: true }] as Snapshot['cables'],
-  };
-  const l = powerLedger(s);
-  expect(l.cable.get('pcie')).toBe(30);
-  expect(l.board.get('gpu')).toBe(30); // the slot's share
-  expect(l.board.get('hdd')).toBe(0); // its own lead feeds the drive
-  expect(l.board.get('ram')).toBe(4);
-  expect(
-    must(l.cable.get('atx')) + must(l.cable.get('cpu')) + must(l.cable.get('hdd:power')) + must(l.cable.get('pcie')),
-  ).toBeCloseTo(must(l.cable.get('pcmains')), 9);
-  const open = powerLedger({ ...s, cables: s.cables.map((c) => (c.id === 'pcie' ? { ...c, connected: false } : c)) });
-  expect(open.state('pcie')).toBe('missing');
-  expect(open.cable.get('pcie')).toBe(0);
-  expect(open.missing('pcie')).toBe(true);
-  expect(open.missing('atx')).toBe(false);
-}
-
-function assert_a_supply_cable_that_is_out_is_missing(): void {
-  const base = running();
-  const l = powerLedger({
-    ...base,
-    cables: base.cables.map((c) => (c.id === 'atx' ? { ...c, connected: false } : c)) as Snapshot['cables'],
-  });
-  expect(l.state('atx')).toBe('missing');
-  expect(l.state('cpu')).toBe('on');
-}
-
 describe('the power ledger', () => {
   it('a running machine: the PC cord carries what the machine takes less the monitor, the monitor cord the monitor, the cables split the rest', () => {
     const l = powerLedger(running());
@@ -87,8 +55,25 @@ describe('the power ledger', () => {
   });
 
   it('a card takes its watts from the slot and its PCIe lead in equal shares, and the lead leaves the 24-pin its share', () => {
-    expect.hasAssertions();
-    assert_a_card_takes_its_watts_from_the_slot_and_its_PCI();
+    const base = running();
+    const s = {
+      ...base,
+      devices: [...base.devices, dev({ id: 'gpu', kind: 'gpu', spec: 'gpu2', slot: 'pcie0', powerW: 60 })],
+      cables: [...base.cables, { id: 'pcie', name: 'PCIe 1', connected: true }] as Snapshot['cables'],
+    };
+    const l = powerLedger(s);
+    expect(l.cable.get('pcie')).toBe(30);
+    expect(l.board.get('gpu')).toBe(30); // the slot's share
+    expect(l.board.get('hdd')).toBe(0); // its own lead feeds the drive
+    expect(l.board.get('ram')).toBe(4);
+    expect(
+      must(l.cable.get('atx')) + must(l.cable.get('cpu')) + must(l.cable.get('hdd:power')) + must(l.cable.get('pcie')),
+    ).toBeCloseTo(must(l.cable.get('pcmains')), 9);
+    const open = powerLedger({ ...s, cables: s.cables.map((c) => (c.id === 'pcie' ? { ...c, connected: false } : c)) });
+    expect(open.state('pcie')).toBe('missing');
+    expect(open.cable.get('pcie')).toBe(0);
+    expect(open.missing('pcie')).toBe(true);
+    expect(open.missing('atx')).toBe(false);
   });
 
   it('a cord that is out is missing and carries nothing; the other cord runs on', () => {
@@ -99,8 +84,13 @@ describe('the power ledger', () => {
   });
 
   it('a supply cable that is out is missing', () => {
-    expect.hasAssertions();
-    assert_a_supply_cable_that_is_out_is_missing();
+    const base = running();
+    const l = powerLedger({
+      ...base,
+      cables: base.cables.map((c) => (c.id === 'atx' ? { ...c, connected: false } : c)) as Snapshot['cables'],
+    });
+    expect(l.state('atx')).toBe('missing');
+    expect(l.state('cpu')).toBe('on');
   });
 
   it('a machine that is off carries nothing: every run idles, bar a cable that is out', () => {

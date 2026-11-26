@@ -166,13 +166,6 @@ const net = (s: BuildStage) => ({
   isp: s.snapshot.net.isp?.id ?? null,
 });
 
-function assert_takes_any_of_them_anywhere_on_the_stage_a_drop_a(): void {
-  const s = stage();
-  for (const id of ['os1', 'router3', 'isp2']) {
-    expect(s.dropTarget(id)).toBe(id);
-  }
-}
-
 describe('the shelf lists the network', () => {
   it('has every OS for sale, every router and every internet plan, each with its kind and tier', () => {
     const bin = binParts();
@@ -195,8 +188,10 @@ describe('the stage fits the network', () => {
   });
 
   it('takes any of them anywhere on the stage: a drop answers with the item itself', () => {
-    expect.hasAssertions();
-    assert_takes_any_of_them_anywhere_on_the_stage_a_drop_a();
+    const s = stage();
+    for (const id of ['os1', 'router3', 'isp2']) {
+      expect(s.dropTarget(id)).toBe(id);
+    }
   });
 
   it('puts a router in place of the one that stands, and the snapshot says so', async () => {

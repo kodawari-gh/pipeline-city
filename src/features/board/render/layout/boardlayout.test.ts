@@ -78,7 +78,8 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     expect(g.dPhases).toHaveLength(spec.ramVrm.phases);
     expect(g.memLand).toHaveLength(g.dimm.length);
   });
-  function assert_keeps_every_part_on_the_board_and_nothing_on_top(): void {
+
+  it('keeps every part on the board and nothing on top of anything else', () => {
     const g = sockets();
     const parts: [string, layout.Rect][] = [
       ['io', g.io],
@@ -153,19 +154,44 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
       expect(inside(p, g.dvrm)).toBe(true);
     }
     expect(inside(g.pwm, g.vrm)).toBe(true);
-  }
-
-  it('keeps every part on the board and nothing on top of anything else', () => {
-    expect.hasAssertions();
-    assert_keeps_every_part_on_the_board_and_nothing_on_top();
   });
 
   it("stands each sink fan, its housing round it, on the board and clear of the tall parts and of the cooler's shroud", () => {
-    expect.hasAssertions();
-    assert_stands_each_sink_fan_its_housing_round_it_on_the();
+    const g = sockets(),
+      rim = (r: layout.Rect) => ({
+        x: r.x - SINK_FAN_RIM,
+        y: r.y - SINK_FAN_RIM,
+        w: r.w + 2 * SINK_FAN_RIM,
+        h: r.h + 2 * SINK_FAN_RIM,
+      });
+    const tall: [string, layout.Rect][] = [
+      ['cpw', g.cpw],
+      ['atx', g.atx],
+      ['io', g.io],
+      ['shroud', { x: -1090, y: -1090, w: 2180, h: 2180 }],
+    ];
+    for (const [i, d] of g.dimm.entries()) {
+      tall.push([`dimm${i}`, d.rect]);
+    }
+    for (const [i, r] of g.pcie.entries()) {
+      tall.push([`pcie${i}`, r]);
+    }
+    for (const [name, f] of [
+      ['vrm', g.vrmFan],
+      ['ram', g.dFan],
+    ] as const) {
+      // (the mini-ITX's memory fan overhangs the board's top edge a little: boardlayout.ts)
+      const bd = tier === 0 && name === 'ram' ? { ...g.bd, y: g.bd.y - 100, h: g.bd.h + 100 } : g.bd;
+      expect(inside(rim(f), bd), `the ${name} sink fan on the board`).toBe(true);
+      expect(inside(rim(f), layout.CASE_IN), `the ${name} sink fan in the case`).toBe(true);
+      for (const [t, r] of tall) {
+        expect(overlap(rim(f), r), `the ${name} sink fan over ${t}`).toBe(false);
+      }
+    }
+    expect(overlap(rim(g.vrmFan), rim(g.dFan)), 'the two sink fans apart').toBe(false);
   });
 
-  function assert_keeps_the_decoupling_out_of_the_socket_s_printed(): void {
+  it("keeps the decoupling out of the socket's printed keep-out and from under the cooler's plate", () => {
     const g = sockets(),
       e = layout.SOCKET_E + layout.SOCKET_KEEP,
       x = Math.min(layout.PKG.x - e, layout.COOLER.x),
@@ -174,14 +200,9 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     for (const p of g.passives) {
       expect(overlap(passiveRect(p), keep), `passives at ${p.x},${p.y}`).toBe(false);
     }
-  }
-
-  it("keeps the decoupling out of the socket's printed keep-out and from under the cooler's plate", () => {
-    expect.hasAssertions();
-    assert_keeps_the_decoupling_out_of_the_socket_s_printed();
   });
 
-  function assert_routes_every_memory_bundle_without_crossing_another(): void {
+  it('routes every memory bundle without crossing another', () => {
     sockets();
     const mem = must(routes.buildBuses().find((b) => b.id === 'mem'));
     const taps = must(mem.taps);
@@ -195,13 +216,9 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
         }
       }
     }
-  }
-
-  it('routes every memory bundle without crossing another', () => {
-    expect.hasAssertions();
-    assert_routes_every_memory_bundle_without_crossing_another();
   });
-  function assert_gives_every_stick_its_lanes_along_its_length_non(): void {
+
+  it('gives every stick its lanes along its length, none of them showing on the surface under a socket before its own', () => {
     const g = sockets();
     const mem = must(routes.buildBuses().find((b) => b.id === 'mem'));
     for (const [i, t] of must(mem.taps).entries()) {
@@ -222,13 +239,9 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
         }
       }
     }
-  }
-
-  it('gives every stick its lanes along its length, none of them showing on the surface under a socket before its own', () => {
-    expect.hasAssertions();
-    assert_gives_every_stick_its_lanes_along_its_length_non();
   });
-  function assert_ends_every_signal_bus_on_a_footprint(): void {
+
+  it('ends every signal bus on a footprint', () => {
     const g = sockets();
     const buses = routes.buildBuses();
     const by = (id: routes.Bus['id']) => buses.find((b) => b.id === id);
@@ -318,395 +331,9 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
       expect(g.sata.some((p) => near(must(l.pts.at(-1)), p, 14)) && near(must(l.pts[0]), g.chip, 14)).toBe(true);
     }
     void ends;
-  }
-
-  it('ends every signal bus on a footprint', () => {
-    expect.hasAssertions();
-    assert_ends_every_signal_bus_on_a_footprint();
   });
 
   it('never runs a signal trace across a PCIe slot, a DIMM, the M.2 or another chip it does not end on', () => {
-    expect.hasAssertions();
-    assert_never_runs_a_signal_trace_across_a_PCIe_slot_a_D();
-  });
-
-  it('ends every signal lane exactly on a pin the art draws', () => {
-    expect.hasAssertions();
-    assert_ends_every_signal_lane_exactly_on_a_pin_the_art_();
-  });
-
-  function assert_never_doubles_a_lane_back_on_itself_and_keeps_ev(): void {
-    sockets();
-    for (const b of routes.buildBuses()) {
-      for (const l of b.lanes.concat(b.taps ? b.taps.flatMap((t) => t.lanes) : [])) {
-        for (let i = 2; i < l.pts.length; i++) {
-          const a = must(l.pts[i - 2]),
-            p = must(l.pts[i - 1]),
-            q = must(l.pts[i]);
-          const u = [p[0] - a[0], p[1] - a[1]],
-            v = [q[0] - p[0], q[1] - p[1]];
-          const lu = Math.hypot(must(u[0]), must(u[1])),
-            lv = Math.hypot(must(v[0]), must(v[1]));
-          if (lu < 1e-6 || lv < 1e-6) {
-            continue;
-          }
-          const cos = (must(u[0]) * must(v[0]) + must(u[1]) * must(v[1])) / (lu * lv);
-          expect(cos).toBeGreaterThan(0.05);
-          const ang = Math.round((Math.atan2(must(v[1]), must(v[0])) * 180) / Math.PI);
-          expect([0, 45, 90, 135, 180, -45, -90, -135, -180].some((d) => Math.abs(ang - d) <= 1)).toBe(true);
-        }
-      }
-    }
-  }
-
-  it('starts every lane that leaves the CPU on a pin of its package (one of its three rows, on the 20 grid), each pin used once', () => {
-    expect.hasAssertions();
-    assert_starts_every_lane_that_leaves_the_CPU_on_a_pin_o();
-  });
-
-  it('wires every controller, bridge and header to a pin the art draws', () => {
-    expect.hasAssertions();
-    assert_wires_every_controller_bridge_and_header_to_a_pi();
-  });
-
-  it('never doubles a lane back on itself, and keeps every bend at 45 or 90 degrees', () => {
-    expect.hasAssertions();
-    assert_never_doubles_a_lane_back_on_itself_and_keeps_ev();
-  });
-
-  it('crosses no two signal lanes of different buses, except where one dives under the other', () => {
-    expect.hasAssertions();
-    assert_crosses_no_two_signal_lanes_of_different_buses_e();
-  });
-
-  it('puts no hop via on a trace of another bus', () => {
-    expect.hasAssertions();
-    assert_puts_no_hop_via_on_a_trace_of_another_bus();
-  });
-
-  function assert_matches_the_length_of_every_group_of_lanes_that_(): void {
-    sockets();
-    for (const b of routes.buildBuses()) {
-      for (const grp of or(b.groups, [])) {
-        const lens = grp.map((l) => l.len),
-          skew = Math.max(...lens) - Math.min(...lens);
-        expect(
-          skew,
-          `${b.id} group of ${grp.length} (${Math.round(Math.max(...lens))} long) differs by ${skew.toFixed(1)}`,
-        ).toBeLessThan(1.5);
-      }
-    }
-  }
-
-  it('matches the length of every group of lanes that must arrive together', () => {
-    expect.hasAssertions();
-    assert_matches_the_length_of_every_group_of_lanes_that_();
-  });
-
-  it('keeps the traces of different buses apart (the junctions of the controller lines and the header trunk aside)', () => {
-    expect.hasAssertions();
-    assert_keeps_the_traces_of_different_buses_apart_the_ju();
-  });
-  function assert_lines_the_power_rails_up_every_phase_lands_on_it(): void {
-    const g = sockets();
-    const buses = routes.buildBuses(),
-      by = (id: routes.Bus['id']) => must(buses.find((b) => b.id === id));
-    // the 12 V run from the 24-pin arrives level with the memory regulator's input rail and covers every phase's input stub
-    const p12 = must(by('pwr12').lanes[0]),
-      rail12 = must(p12.pts[0])[1];
-    expect(rail12).toBeCloseTo(g.dRailY, 5);
-    for (const r of g.dPhases) {
-      expect(
-        must(p12.pts.at(-1))[0] <= r.x + routes.DRAM_IN_X + 1 && must(p12.pts[0])[0] >= r.x + routes.DRAM_IN_X,
-        'input stub on the 12 V run',
-      ).toBe(true);
-    }
-    // the memory rail: it starts before the first phase's output and ends after the last, every phase's output and every socket's drop lands on it
-    const vd = by('vdimm'),
-      runs = vd.lanes.slice(0, 2),
-      x0 = Math.min(...runs.map((l) => must(l.pts[0])[0])),
-      x1 = routes.vdimmEnd(g);
-    expect(x0).toBeLessThanOrEqual(must(g.dimm[0]).rect.x + 36);
-    for (const r of g.dPhases) {
-      const x = r.x + routes.DRAM_OUT_X;
-      expect(x >= x0 && x <= x1, 'phase output on the rail').toBe(true);
-    }
-    for (const [i, d] of g.dimm.entries()) {
-      const t = must(must(must(vd.taps)[i]).lanes[0]),
-        [cx] = must(t.pts[0]),
-        y0 = must(t.pts[0])[1];
-      expect(cx > d.rect.x && cx < d.rect.x + d.rect.w, `socket ${i}'s drop is on the socket`).toBe(true);
-      expect(y0, `socket ${i} drops from the rail`).toBeCloseTo(g.vdimmY, 5);
-      expect(cx >= x0 && cx <= x1, `socket ${i} is under the rail`).toBe(true);
-    }
-    // the core-voltage supply: the 8-pin's comb rail covers every phase's input stubs; each phase's output stub is inside its block
-    const comb = must(by('pwrcpu').lanes[0]),
-      railEnd = must(comb.pts.at(-1))[0];
-    expect(must(comb.pts.at(-1))[1]).toBeCloseTo(g.vrmRailY, 5);
-    for (const r of g.vrmPhases) {
-      expect(
-        railEnd >= r.x + 232 && Math.min(...comb.pts.map((q) => q[0])) <= r.x + 60,
-        'input stubs under the comb rail',
-      ).toBe(true);
-      expect(routes.VRM_OUT_X > 0 && routes.VRM_OUT_X < r.w, 'output stub inside the block').toBe(true);
-    }
-    // the 24-pin's 12 V pin sits on the memory regulator's rail
-    expect(atx12v(g.atx)[1]).toBeCloseTo(g.dRailY, 5);
-  }
-
-  it('lines the power rails up: every phase lands on its rail, every socket takes its voltage from the rail', () => {
-    expect.hasAssertions();
-    assert_lines_the_power_rails_up_every_phase_lands_on_it();
-  });
-
-  it('keeps every mounting hole clear: no part, lane or other hole within its keepout', () => {
-    expect.hasAssertions();
-    assert_keeps_every_mounting_hole_clear_no_part_lane_or_();
-  });
-
-  function assert_seats_every_cable_plug_on_its_connector(): void {
-    const g = sockets();
-    const cables = routes.buildCables();
-    const conn: Record<string, layout.Rect | null> = {
-      atx: g.atx,
-      cpu: g.cpw,
-      video: {
-        x: layout.HDMI_PORT.x - 20,
-        y: layout.HDMI_PORT.y - 20,
-        w: layout.HDMI_PORT.w + 40,
-        h: layout.HDMI_PORT.h + 40,
-      },
-    };
-    for (const c of cables) {
-      const want = conn[c.kind];
-      expect(want, `${c.kind} has a connector on this board`).toBeTruthy();
-      const plug = plugRect(routes.movablePlug(c));
-      expect(overlap(plug, must(want)), `${c.kind} plug sits on its connector`).toBe(true);
-    }
-    expect(
-      cables.some((c) => c.kind.startsWith('pcie')),
-      'no card, no PCIe lead',
-    ).toBe(false);
-  }
-
-  it('seats every cable plug on its connector', () => {
-    expect.hasAssertions();
-    assert_seats_every_cable_plug_on_its_connector();
-  });
-  function assert_plugs_every_PCIe_lead_into_a_power_socket_of_its(): void {
-    sockets();
-    // a two-socket card in slot 0 and a one-socket card in slot 1: leads 1, 2 and 3
-    const targets: routes.PcieTarget[] = [
-      { kind: 'pcie', x: -3400 + 2000, top: 980, plug: 0 },
-      { kind: 'pcie2', x: -3400 + 1860, top: 980, plug: 1 },
-      { kind: 'pcie3', x: -3400 + 1500, top: 1680, plug: 0 },
-    ];
-    const cables = routes.buildCables(targets).filter((c) => c.kind.startsWith('pcie'));
-    expect(cables.map((c) => c.kind).toSorted()).toStrictEqual(['pcie', 'pcie2', 'pcie3']);
-    for (const c of cables) {
-      const t = must(targets.find((q) => q.kind === c.kind)),
-        pr = plugRect(c.b);
-      expect(
-        pr.x < t.x && pr.x + pr.w > t.x && Math.abs(c.b.y - (t.top + 20)) < 1,
-        `${c.kind} plug sits on its card socket`,
-      ).toBe(true);
-      expect(
-        layout.PSU_PORTS.pcie.some((x) => x === c.a.x),
-        `${c.kind} leaves a PSU socket`,
-      ).toBe(true);
-    }
-    expect(new Set(cables.map((c) => c.a.x)).size, 'one PSU socket each').toBe(cables.length);
-    for (let i = 0; i < cables.length; i++) {
-      for (let j = i + 1; j < cables.length; j++) {
-        expect(lanesCross(must(cables[i]).path, must(cables[j]).path), `leads ${i} and ${j} cross`).toBe(false);
-      }
-    }
-  }
-
-  it('plugs every PCIe lead into a power socket of its card, on its own PSU socket, with no two leads crossing', () => {
-    expect.hasAssertions();
-    assert_plugs_every_PCIe_lead_into_a_power_socket_of_its();
-  });
-
-  it('puts a drive-cage cell, with a short cable that crosses no other of its cage, for every SATA port: the first in the basement, the rest in the main cage', () => {
-    expect.hasAssertions();
-    assert_puts_a_drive_cage_cell_with_a_short_cable_that_c();
-  });
-  function assert_lays_the_PSU_out_the_unit_under_the_cable_socket(): void {
-    sockets();
-    expect(inside(layout.PSU_UNIT, layout.PSU)).toBe(true);
-    for (const x of [...layout.PSU_PORTS.pcie, layout.PSU_PORTS.atx, layout.PSU_PORTS.cpu]) {
-      expect(x > layout.PSU_UNIT.x && x < layout.PSU_UNIT.x + layout.PSU_UNIT.w, 'socket on the unit').toBe(true);
-    }
-    const fan = {
-      x: layout.PSU_FAN.x - layout.PSU_FAN.r - 70,
-      y: layout.PSU_FAN.y - layout.PSU_FAN.r - 70,
-      w: 2 * layout.PSU_FAN.r + 140,
-      h: 2 * layout.PSU_FAN.r + 140,
-    };
-    for (const [n, r] of [
-      ['fan', fan],
-      ['label', layout.PSU_LABEL],
-    ] as const) {
-      expect(inside(r, layout.PSU_UNIT), `${n} on the unit`).toBe(true);
-    }
-    expect(overlap(fan, layout.PSU_LABEL), 'fan and label').toBe(false);
-    for (const [n, r] of [
-      ['panel', layout.PSU_PANEL],
-      ['vents', layout.VENTS],
-    ] as const) {
-      expect(inside(r, layout.PSU), `${n} in the strip`).toBe(true);
-      expect(overlap(r, layout.PSU_UNIT), `${n} off the unit`).toBe(false);
-    }
-    expect(overlap(layout.PSU_PANEL, layout.VENTS)).toBe(false);
-    expect(layout.VENTS.w, 'the shroud has room for vents').toBeGreaterThan(300);
-  }
-
-  it('lays the PSU out: the unit under the cable sockets, the shroud with the readout and the vents beside it, nothing overlapping', () => {
-    expect.hasAssertions();
-    assert_lays_the_PSU_out_the_unit_under_the_cable_socket();
-  });
-  function assert_puts_the_fan_hub_in_the_basement_inside_the_case(): void {
-    sockets();
-    expect(inside(layout.FAN_HUB, layout.CASE_IN), 'hub in the case').toBe(true);
-    expect(layout.FAN_HUB.y, 'under the shroud').toBeGreaterThan(layout.PSU.y + 30);
-    for (const [n, r] of [
-      ['cage', layout.BAY],
-      ['slot', layout.FAN_SLOT],
-      ...layout.BAY_CELLS.map((c, i) => [`cell ${i}`, c] as const),
-    ] as const) {
-      expect(overlap(layout.FAN_HUB, r), `hub and ${n}`).toBe(false);
-    }
-    for (const r of frontFanRects()) {
-      expect(overlap(layout.FAN_HUB, r), 'hub and a front fan').toBe(false);
-    }
-    expect(layout.FAN_HUB.x + layout.FAN_HUB.w, 'west of the cages').toBeLessThan(must(layout.BAY_CELLS[0]).x);
-    expect(
-      layout.HUB_POWER_Y > layout.FAN_HUB.y && layout.HUB_POWER_Y < layout.FAN_HUB.y + layout.FAN_HUB.h,
-      'its power cable runs straight in',
-    ).toBe(true);
-    expect(
-      inside(layout.FAN_SLOT, layout.CASE_IN) && layout.FAN_SLOT.y > layout.BAY.y + layout.BAY.h,
-      'the slot is under the cage',
-    ).toBe(true);
-    const stubs = fanStubs(),
-      hdrs = hubHeaders();
-    expect(stubs).toHaveLength(frontFanRects().length + layout.TOP_FANS.length + (layout.REAR_FAN_FITTED ? 1 : 0));
-    expect(hdrs).toHaveLength(stubs.length);
-    for (const h of hdrs) {
-      expect(
-        h.x - 40 > layout.FAN_HUB.x + 150 && h.x + 40 < layout.FAN_HUB.x + layout.FAN_HUB.w,
-        'header on the hub',
-      ).toBe(true);
-    }
-    for (let i = 1; i < hdrs.length; i++) {
-      expect(must(hdrs[i]).x - must(hdrs[i - 1]).x, 'headers do not touch').toBeGreaterThan(90);
-    }
-    for (const f of stubs) {
-      expect(
-        f.x + f.dx * 90 < layout.CASE_IN.x + layout.CASE_IN.w && f.y + f.dy * 90 < layout.CASE_IN.y + layout.CASE_IN.h,
-        'stub inside the case',
-      ).toBe(true);
-    }
-    const sysFan = must(layout.GEO.hdrs.find((h) => h.name === 'SYS_FAN'));
-    expect(sysFan.y + 100, 'the board has the header the hub is cabled to').toBeLessThan(layout.BD.y + layout.BD.h);
-  }
-
-  it('puts the fan hub in the basement: inside the case under the shroud, west of the basement cage and clear of the fans, a header and a stub for every fan', () => {
-    expect.hasAssertions();
-    assert_puts_the_fan_hub_in_the_basement_inside_the_case();
-  });
-  function assert_ties_every_slot_and_M_2_into_the_plane_clear_of_(): void {
-    const g = sockets();
-    const patches: [string, layout.Rect][] = [
-      ...g.pcie.map((r, i) => [`slot ${i}`, slotTie(r, i)] as [string, layout.Rect]),
-      ...g.m2.map((m, i) => [`m2 ${i}`, m2Tie(m)] as [string, layout.Rect]),
-    ];
-    const lanes = routes
-      .buildBuses()
-      .filter((b) => !['pwrpcie', 'vdimm', 'pwr12', 'pwrcpu', 'vcore'].includes(b.id))
-      .flatMap((b) => b.lanes.concat(b.taps ? b.taps.flatMap((t) => t.lanes) : []));
-    for (const [n, r] of patches) {
-      expect(inside(r, g.bd), `${n} tie on the board`).toBe(true);
-      const grown = { x: r.x - 14, y: r.y - 14, w: r.w + 28, h: r.h + 28 };
-      for (const l of lanes) {
-        for (const part of routes.visibleParts(l)) {
-          for (let i = 1; i < part.length; i++) {
-            const a = must(part[i - 1]),
-              b = must(part[i]),
-              x0 = Math.min(a[0], b[0]),
-              x1 = Math.max(a[0], b[0]),
-              y0 = Math.min(a[1], b[1]),
-              y1 = Math.max(a[1], b[1]);
-            if (n.startsWith('slot')) {
-              expect(
-                x1 > grown.x && x0 < grown.x + grown.w && y1 > grown.y && y0 < grown.y + grown.h,
-                `${n}'s tie meets a lane`,
-              ).toBe(false);
-            }
-          }
-        }
-      }
-    }
-    for (const [n, r] of patches) {
-      if (n.startsWith('slot')) {
-        for (const o of [...g.pcie.map((q) => q), ...g.m2, g.chip, g.hub, ...g.dimm.map((d) => d.rect)]) {
-          expect(overlap(r, o), `${n}'s tie sits on a part`).toBe(false);
-        }
-      }
-    }
-  }
-
-  it('ties every slot and M.2 into the plane clear of everything: the patch is on the board and no lane comes near it', () => {
-    expect.hasAssertions();
-    assert_ties_every_slot_and_M_2_into_the_plane_clear_of_();
-  });
-
-  it('puts the board inside the case, the PSU under it, the bay in the case, and everything in the world', () => {
-    sockets();
-    expect(inside(layout.BD, layout.CASE_GLASS)).toBe(true);
-    expect(layout.PSU.y).toBeGreaterThanOrEqual(layout.BD.y + layout.BD.h);
-    expect(layout.PORT_Y).toBe(layout.PSU.y);
-    expect(inside(layout.BAY, layout.CASE)).toBe(true);
-    expect(inside(layout.CASE, layout.WORLD)).toBe(true);
-    expect(layout.PSU.x + layout.PSU.w).toBeLessThanOrEqual(layout.BAY.x);
-  });
-  function assert_stands_each_sink_fan_its_housing_round_it_on_the(): void {
-    const g = sockets(),
-      rim = (r: layout.Rect) => ({
-        x: r.x - SINK_FAN_RIM,
-        y: r.y - SINK_FAN_RIM,
-        w: r.w + 2 * SINK_FAN_RIM,
-        h: r.h + 2 * SINK_FAN_RIM,
-      });
-    const tall: [string, layout.Rect][] = [
-      ['cpw', g.cpw],
-      ['atx', g.atx],
-      ['io', g.io],
-      ['shroud', { x: -1090, y: -1090, w: 2180, h: 2180 }],
-    ];
-    for (const [i, d] of g.dimm.entries()) {
-      tall.push([`dimm${i}`, d.rect]);
-    }
-    for (const [i, r] of g.pcie.entries()) {
-      tall.push([`pcie${i}`, r]);
-    }
-    for (const [name, f] of [
-      ['vrm', g.vrmFan],
-      ['ram', g.dFan],
-    ] as const) {
-      // (the mini-ITX's memory fan overhangs the board's top edge a little: boardlayout.ts)
-      const bd = tier === 0 && name === 'ram' ? { ...g.bd, y: g.bd.y - 100, h: g.bd.h + 100 } : g.bd;
-      expect(inside(rim(f), bd), `the ${name} sink fan on the board`).toBe(true);
-      expect(inside(rim(f), layout.CASE_IN), `the ${name} sink fan in the case`).toBe(true);
-      for (const [t, r] of tall) {
-        expect(overlap(rim(f), r), `the ${name} sink fan over ${t}`).toBe(false);
-      }
-    }
-    expect(overlap(rim(g.vrmFan), rim(g.dFan)), 'the two sink fans apart').toBe(false);
-  }
-
-  function assert_never_runs_a_signal_trace_across_a_PCIe_slot_a_D(): void {
     const g = sockets();
     const shrink = (r: layout.Rect, d: number): layout.Rect => ({
       x: r.x + d,
@@ -787,9 +414,9 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
         expect(ends || !hits(l, shrink(r, 4)), `${id} crosses ${name}`).toBe(true);
       }
     }
-  }
+  });
 
-  function assert_ends_every_signal_lane_exactly_on_a_pin_the_art_(): void {
+  it('ends every signal lane exactly on a pin the art draws', () => {
     const g = sockets();
     const buses = routes.buildBuses();
     const by = (id: routes.Bus['id']) => buses.find((b) => b.id === id);
@@ -902,9 +529,9 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     const pwr12Lane = must(must(by('pwr12')).lanes[0]);
     const pwr12Start = must(pwr12Lane.pts[0]);
     hit(pwr12Start, [atx12v(g.atx)], 'pwr12 starts on the 24-pin');
-  }
+  });
 
-  function assert_starts_every_lane_that_leaves_the_CPU_on_a_pin_o(): void {
+  it('starts every lane that leaves the CPU on a pin of its package (one of its three rows, on the 20 grid), each pin used once', () => {
     const g = sockets();
     const onPin = (p: [number, number]) => {
       const gx = (p[0] - (layout.PKG.x + 70)) / 20,
@@ -950,9 +577,9 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
       }
     }
     expect(new Set(starts).size, 'no two lanes on one pin').toBe(starts.length);
-  }
+  });
 
-  function assert_wires_every_controller_bridge_and_header_to_a_pi(): void {
+  it('wires every controller, bridge and header to a pin the art draws', () => {
     const g = sockets();
     const buses = routes.buildBuses();
     const hit = (p: [number, number], pins: [number, number][], what: string) => {
@@ -1097,9 +724,33 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
       expect(end(l)[0]).toBeCloseTo(g.rgb.x, 5);
       hit(must(l.pts[0]), [headerPin(argb.x, argb.y, 1, 0)], 'rgb starts on the ARGB data pin');
     }
-  }
+  });
 
-  function assert_crosses_no_two_signal_lanes_of_different_buses_e(): void {
+  it('never doubles a lane back on itself, and keeps every bend at 45 or 90 degrees', () => {
+    sockets();
+    for (const b of routes.buildBuses()) {
+      for (const l of b.lanes.concat(b.taps ? b.taps.flatMap((t) => t.lanes) : [])) {
+        for (let i = 2; i < l.pts.length; i++) {
+          const a = must(l.pts[i - 2]),
+            p = must(l.pts[i - 1]),
+            q = must(l.pts[i]);
+          const u = [p[0] - a[0], p[1] - a[1]],
+            v = [q[0] - p[0], q[1] - p[1]];
+          const lu = Math.hypot(must(u[0]), must(u[1])),
+            lv = Math.hypot(must(v[0]), must(v[1]));
+          if (lu < 1e-6 || lv < 1e-6) {
+            continue;
+          }
+          const cos = (must(u[0]) * must(v[0]) + must(u[1]) * must(v[1])) / (lu * lv);
+          expect(cos).toBeGreaterThan(0.05);
+          const ang = Math.round((Math.atan2(must(v[1]), must(v[0])) * 180) / Math.PI);
+          expect([0, 45, 90, 135, 180, -45, -90, -135, -180].some((d) => Math.abs(ang - d) <= 1)).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('crosses no two signal lanes of different buses, except where one dives under the other', () => {
     sockets();
     const groups: { id: string; l: routes.Lane }[] = [];
     for (const b of routes.buildBuses()) {
@@ -1123,9 +774,9 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
         }
       }
     }
-  }
+  });
 
-  function assert_puts_no_hop_via_on_a_trace_of_another_bus(): void {
+  it('puts no hop via on a trace of another bus', () => {
     sockets();
     const buses = routes.buildBuses(),
       lanesOf = (b: routes.Bus) => b.lanes.concat(b.taps ? b.taps.flatMap((t) => t.lanes) : []);
@@ -1166,9 +817,23 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
         }
       }
     }
-  }
+  });
 
-  function assert_keeps_the_traces_of_different_buses_apart_the_ju(): void {
+  it('matches the length of every group of lanes that must arrive together', () => {
+    sockets();
+    for (const b of routes.buildBuses()) {
+      for (const grp of or(b.groups, [])) {
+        const lens = grp.map((l) => l.len),
+          skew = Math.max(...lens) - Math.min(...lens);
+        expect(
+          skew,
+          `${b.id} group of ${grp.length} (${Math.round(Math.max(...lens))} long) differs by ${skew.toFixed(1)}`,
+        ).toBeLessThan(1.5);
+      }
+    }
+  });
+
+  it('keeps the traces of different buses apart (the junctions of the controller lines and the header trunk aside)', () => {
     sockets();
     const sd = (p: [number, number], a: [number, number], b: [number, number]) => {
       const dx = b[0] - a[0],
@@ -1211,9 +876,56 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
         ).toBeGreaterThan(12.5);
       }
     }
-  }
+  });
 
-  function assert_keeps_every_mounting_hole_clear_no_part_lane_or_(): void {
+  it('lines the power rails up: every phase lands on its rail, every socket takes its voltage from the rail', () => {
+    const g = sockets();
+    const buses = routes.buildBuses(),
+      by = (id: routes.Bus['id']) => must(buses.find((b) => b.id === id));
+    // the 12 V run from the 24-pin arrives level with the memory regulator's input rail and covers every phase's input stub
+    const p12 = must(by('pwr12').lanes[0]),
+      rail12 = must(p12.pts[0])[1];
+    expect(rail12).toBeCloseTo(g.dRailY, 5);
+    for (const r of g.dPhases) {
+      expect(
+        must(p12.pts.at(-1))[0] <= r.x + routes.DRAM_IN_X + 1 && must(p12.pts[0])[0] >= r.x + routes.DRAM_IN_X,
+        'input stub on the 12 V run',
+      ).toBe(true);
+    }
+    // the memory rail: it starts before the first phase's output and ends after the last, every phase's output and every socket's drop lands on it
+    const vd = by('vdimm'),
+      runs = vd.lanes.slice(0, 2),
+      x0 = Math.min(...runs.map((l) => must(l.pts[0])[0])),
+      x1 = routes.vdimmEnd(g);
+    expect(x0).toBeLessThanOrEqual(must(g.dimm[0]).rect.x + 36);
+    for (const r of g.dPhases) {
+      const x = r.x + routes.DRAM_OUT_X;
+      expect(x >= x0 && x <= x1, 'phase output on the rail').toBe(true);
+    }
+    for (const [i, d] of g.dimm.entries()) {
+      const t = must(must(must(vd.taps)[i]).lanes[0]),
+        [cx] = must(t.pts[0]),
+        y0 = must(t.pts[0])[1];
+      expect(cx > d.rect.x && cx < d.rect.x + d.rect.w, `socket ${i}'s drop is on the socket`).toBe(true);
+      expect(y0, `socket ${i} drops from the rail`).toBeCloseTo(g.vdimmY, 5);
+      expect(cx >= x0 && cx <= x1, `socket ${i} is under the rail`).toBe(true);
+    }
+    // the core-voltage supply: the 8-pin's comb rail covers every phase's input stubs; each phase's output stub is inside its block
+    const comb = must(by('pwrcpu').lanes[0]),
+      railEnd = must(comb.pts.at(-1))[0];
+    expect(must(comb.pts.at(-1))[1]).toBeCloseTo(g.vrmRailY, 5);
+    for (const r of g.vrmPhases) {
+      expect(
+        railEnd >= r.x + 232 && Math.min(...comb.pts.map((q) => q[0])) <= r.x + 60,
+        'input stubs under the comb rail',
+      ).toBe(true);
+      expect(routes.VRM_OUT_X > 0 && routes.VRM_OUT_X < r.w, 'output stub inside the block').toBe(true);
+    }
+    // the 24-pin's 12 V pin sits on the memory regulator's rail
+    expect(atx12v(g.atx)[1]).toBeCloseTo(g.dRailY, 5);
+  });
+
+  it('keeps every mounting hole clear: no part, lane or other hole within its keepout', () => {
     const g = sockets();
     const R = 66 + 34 + 8; // the hole, its clear ring and a margin
     const segDist = (p: [number, number], a: [number, number], b: [number, number]) => {
@@ -1325,9 +1037,64 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
         expect(Math.hypot(ox - hx, oy - hy), `cooler hole ${p} vs a board hole`).toBeGreaterThan(K + R);
       }
     }
-  }
+  });
 
-  function assert_puts_a_drive_cage_cell_with_a_short_cable_that_c(): void {
+  it('seats every cable plug on its connector', () => {
+    const g = sockets();
+    const cables = routes.buildCables();
+    const conn: Record<string, layout.Rect | null> = {
+      atx: g.atx,
+      cpu: g.cpw,
+      video: {
+        x: layout.HDMI_PORT.x - 20,
+        y: layout.HDMI_PORT.y - 20,
+        w: layout.HDMI_PORT.w + 40,
+        h: layout.HDMI_PORT.h + 40,
+      },
+    };
+    for (const c of cables) {
+      const want = conn[c.kind];
+      expect(want, `${c.kind} has a connector on this board`).toBeTruthy();
+      const plug = plugRect(routes.movablePlug(c));
+      expect(overlap(plug, must(want)), `${c.kind} plug sits on its connector`).toBe(true);
+    }
+    expect(
+      cables.some((c) => c.kind.startsWith('pcie')),
+      'no card, no PCIe lead',
+    ).toBe(false);
+  });
+
+  it('plugs every PCIe lead into a power socket of its card, on its own PSU socket, with no two leads crossing', () => {
+    sockets();
+    // a two-socket card in slot 0 and a one-socket card in slot 1: leads 1, 2 and 3
+    const targets: routes.PcieTarget[] = [
+      { kind: 'pcie', x: -3400 + 2000, top: 980, plug: 0 },
+      { kind: 'pcie2', x: -3400 + 1860, top: 980, plug: 1 },
+      { kind: 'pcie3', x: -3400 + 1500, top: 1680, plug: 0 },
+    ];
+    const cables = routes.buildCables(targets).filter((c) => c.kind.startsWith('pcie'));
+    expect(cables.map((c) => c.kind).toSorted()).toStrictEqual(['pcie', 'pcie2', 'pcie3']);
+    for (const c of cables) {
+      const t = must(targets.find((q) => q.kind === c.kind)),
+        pr = plugRect(c.b);
+      expect(
+        pr.x < t.x && pr.x + pr.w > t.x && Math.abs(c.b.y - (t.top + 20)) < 1,
+        `${c.kind} plug sits on its card socket`,
+      ).toBe(true);
+      expect(
+        layout.PSU_PORTS.pcie.some((x) => x === c.a.x),
+        `${c.kind} leaves a PSU socket`,
+      ).toBe(true);
+    }
+    expect(new Set(cables.map((c) => c.a.x)).size, 'one PSU socket each').toBe(cables.length);
+    for (let i = 0; i < cables.length; i++) {
+      for (let j = i + 1; j < cables.length; j++) {
+        expect(lanesCross(must(cables[i]).path, must(cables[j]).path), `leads ${i} and ${j} cross`).toBe(false);
+      }
+    }
+  });
+
+  it('puts a drive-cage cell, with a short cable that crosses no other of its cage, for every SATA port: the first in the basement, the rest in the main cage', () => {
     const g = sockets();
     expect(layout.BAY_CELLS.length).toBeGreaterThanOrEqual(g.sata.length);
     expect((layout.BAY_CELLS.length * 785) / layout.CASE_BD.h, 'the cages fill the case').toBeGreaterThan(0.6);
@@ -1359,7 +1126,134 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
         }
       }
     }
-  }
+  });
+
+  it('lays the PSU out: the unit under the cable sockets, the shroud with the readout and the vents beside it, nothing overlapping', () => {
+    sockets();
+    expect(inside(layout.PSU_UNIT, layout.PSU)).toBe(true);
+    for (const x of [...layout.PSU_PORTS.pcie, layout.PSU_PORTS.atx, layout.PSU_PORTS.cpu]) {
+      expect(x > layout.PSU_UNIT.x && x < layout.PSU_UNIT.x + layout.PSU_UNIT.w, 'socket on the unit').toBe(true);
+    }
+    const fan = {
+      x: layout.PSU_FAN.x - layout.PSU_FAN.r - 70,
+      y: layout.PSU_FAN.y - layout.PSU_FAN.r - 70,
+      w: 2 * layout.PSU_FAN.r + 140,
+      h: 2 * layout.PSU_FAN.r + 140,
+    };
+    for (const [n, r] of [
+      ['fan', fan],
+      ['label', layout.PSU_LABEL],
+    ] as const) {
+      expect(inside(r, layout.PSU_UNIT), `${n} on the unit`).toBe(true);
+    }
+    expect(overlap(fan, layout.PSU_LABEL), 'fan and label').toBe(false);
+    for (const [n, r] of [
+      ['panel', layout.PSU_PANEL],
+      ['vents', layout.VENTS],
+    ] as const) {
+      expect(inside(r, layout.PSU), `${n} in the strip`).toBe(true);
+      expect(overlap(r, layout.PSU_UNIT), `${n} off the unit`).toBe(false);
+    }
+    expect(overlap(layout.PSU_PANEL, layout.VENTS)).toBe(false);
+    expect(layout.VENTS.w, 'the shroud has room for vents').toBeGreaterThan(300);
+  });
+
+  it('puts the fan hub in the basement: inside the case under the shroud, west of the basement cage and clear of the fans, a header and a stub for every fan', () => {
+    sockets();
+    expect(inside(layout.FAN_HUB, layout.CASE_IN), 'hub in the case').toBe(true);
+    expect(layout.FAN_HUB.y, 'under the shroud').toBeGreaterThan(layout.PSU.y + 30);
+    for (const [n, r] of [
+      ['cage', layout.BAY],
+      ['slot', layout.FAN_SLOT],
+      ...layout.BAY_CELLS.map((c, i) => [`cell ${i}`, c] as const),
+    ] as const) {
+      expect(overlap(layout.FAN_HUB, r), `hub and ${n}`).toBe(false);
+    }
+    for (const r of frontFanRects()) {
+      expect(overlap(layout.FAN_HUB, r), 'hub and a front fan').toBe(false);
+    }
+    expect(layout.FAN_HUB.x + layout.FAN_HUB.w, 'west of the cages').toBeLessThan(must(layout.BAY_CELLS[0]).x);
+    expect(
+      layout.HUB_POWER_Y > layout.FAN_HUB.y && layout.HUB_POWER_Y < layout.FAN_HUB.y + layout.FAN_HUB.h,
+      'its power cable runs straight in',
+    ).toBe(true);
+    expect(
+      inside(layout.FAN_SLOT, layout.CASE_IN) && layout.FAN_SLOT.y > layout.BAY.y + layout.BAY.h,
+      'the slot is under the cage',
+    ).toBe(true);
+    const stubs = fanStubs(),
+      hdrs = hubHeaders();
+    expect(stubs).toHaveLength(frontFanRects().length + layout.TOP_FANS.length + (layout.REAR_FAN_FITTED ? 1 : 0));
+    expect(hdrs).toHaveLength(stubs.length);
+    for (const h of hdrs) {
+      expect(
+        h.x - 40 > layout.FAN_HUB.x + 150 && h.x + 40 < layout.FAN_HUB.x + layout.FAN_HUB.w,
+        'header on the hub',
+      ).toBe(true);
+    }
+    for (let i = 1; i < hdrs.length; i++) {
+      expect(must(hdrs[i]).x - must(hdrs[i - 1]).x, 'headers do not touch').toBeGreaterThan(90);
+    }
+    for (const f of stubs) {
+      expect(
+        f.x + f.dx * 90 < layout.CASE_IN.x + layout.CASE_IN.w && f.y + f.dy * 90 < layout.CASE_IN.y + layout.CASE_IN.h,
+        'stub inside the case',
+      ).toBe(true);
+    }
+    const sysFan = must(layout.GEO.hdrs.find((h) => h.name === 'SYS_FAN'));
+    expect(sysFan.y + 100, 'the board has the header the hub is cabled to').toBeLessThan(layout.BD.y + layout.BD.h);
+  });
+
+  it('ties every slot and M.2 into the plane clear of everything: the patch is on the board and no lane comes near it', () => {
+    const g = sockets();
+    const patches: [string, layout.Rect][] = [
+      ...g.pcie.map((r, i) => [`slot ${i}`, slotTie(r, i)] as [string, layout.Rect]),
+      ...g.m2.map((m, i) => [`m2 ${i}`, m2Tie(m)] as [string, layout.Rect]),
+    ];
+    const lanes = routes
+      .buildBuses()
+      .filter((b) => !['pwrpcie', 'vdimm', 'pwr12', 'pwrcpu', 'vcore'].includes(b.id))
+      .flatMap((b) => b.lanes.concat(b.taps ? b.taps.flatMap((t) => t.lanes) : []));
+    for (const [n, r] of patches) {
+      expect(inside(r, g.bd), `${n} tie on the board`).toBe(true);
+      const grown = { x: r.x - 14, y: r.y - 14, w: r.w + 28, h: r.h + 28 };
+      for (const l of lanes) {
+        for (const part of routes.visibleParts(l)) {
+          for (let i = 1; i < part.length; i++) {
+            const a = must(part[i - 1]),
+              b = must(part[i]),
+              x0 = Math.min(a[0], b[0]),
+              x1 = Math.max(a[0], b[0]),
+              y0 = Math.min(a[1], b[1]),
+              y1 = Math.max(a[1], b[1]);
+            if (n.startsWith('slot')) {
+              expect(
+                x1 > grown.x && x0 < grown.x + grown.w && y1 > grown.y && y0 < grown.y + grown.h,
+                `${n}'s tie meets a lane`,
+              ).toBe(false);
+            }
+          }
+        }
+      }
+    }
+    for (const [n, r] of patches) {
+      if (n.startsWith('slot')) {
+        for (const o of [...g.pcie.map((q) => q), ...g.m2, g.chip, g.hub, ...g.dimm.map((d) => d.rect)]) {
+          expect(overlap(r, o), `${n}'s tie sits on a part`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('puts the board inside the case, the PSU under it, the bay in the case, and everything in the world', () => {
+    sockets();
+    expect(inside(layout.BD, layout.CASE_GLASS)).toBe(true);
+    expect(layout.PSU.y).toBeGreaterThanOrEqual(layout.BD.y + layout.BD.h);
+    expect(layout.PORT_Y).toBe(layout.PSU.y);
+    expect(inside(layout.BAY, layout.CASE)).toBe(true);
+    expect(inside(layout.CASE, layout.WORLD)).toBe(true);
+    expect(layout.PSU.x + layout.PSU.w).toBeLessThanOrEqual(layout.BAY.x);
+  });
 });
 
 /** Do the segments (a,b) and (c,d) cross (properly)? */
@@ -1373,40 +1267,19 @@ function cross(a: [number, number], b: [number, number], c: [number, number], d:
   return d1 * d2 < 0 && d3 * d4 < 0;
 }
 
-function assert_grows_from_tier_to_tier(): void {
-  for (let t = 1; t < TIER_GEO.length; t++) {
-    expect(must(TIER_GEO[t]).bd.w * must(TIER_GEO[t]).bd.h).toBeGreaterThan(
-      must(TIER_GEO[t - 1]).bd.w * must(TIER_GEO[t - 1]).bd.h,
-    );
-    expect(must(TIER_GEO[t]).dimm.length).toBeGreaterThanOrEqual(must(TIER_GEO[t - 1]).dimm.length);
-  }
-}
-
-function assert_the_Micro_Mid_and_Full_carry_one_above_the_mains(): void {
-  for (const tier of [0, 1, 2, 3]) {
-    layout.setLayoutTier(tier, tier);
-    if (tier === 0) {
-      expect(layout.PSU_REAR_FAN).toBeNull();
-      continue;
-    }
-    const f = must(layout.PSU_REAR_FAN);
-    expect(f.y).toBeGreaterThanOrEqual(layout.PSU.y);
-    expect(f.y + f.h, 'the inlet is below the fan').toBeLessThan(layout.PC_POWER.y - 100);
-    expect(layout.PC_POWER.y).toBeLessThan(layout.CASE.y + layout.CASE.h);
-    expect(f.y + f.h, 'clear of the rear fan above').toBeLessThan(layout.PSU.y + layout.PSU.h);
-  }
-  layout.setLayoutTier(2, 2);
-}
-
 describe('board ladder', () => {
   it('grows from tier to tier', () => {
-    expect.hasAssertions();
-    assert_grows_from_tier_to_tier();
+    for (let t = 1; t < TIER_GEO.length; t++) {
+      expect(must(TIER_GEO[t]).bd.w * must(TIER_GEO[t]).bd.h).toBeGreaterThan(
+        must(TIER_GEO[t - 1]).bd.w * must(TIER_GEO[t - 1]).bd.h,
+      );
+      expect(must(TIER_GEO[t]).dimm.length).toBeGreaterThanOrEqual(must(TIER_GEO[t - 1]).dimm.length);
+    }
   });
 });
 
 describe.each(TIER_GEO.map((g) => g.tier))('tier %i: the far board texture', (tier) => {
-  function assert_covers_the_board_and_the_whole_rear_I_O_plate_wi(): void {
+  it('covers the board and the whole rear I/O plate with its ports, so the back panel shows at every zoom', () => {
     layout.setLayoutTier(tier);
     const f = layout.boardBakeFrame(layout.GEO.bd, layout.GEO.io);
     expect(inside(layout.GEO.bd, f)).toBe(true);
@@ -1415,17 +1288,23 @@ describe.each(TIER_GEO.map((g) => g.tier))('tier %i: the far board texture', (ti
       expect(inside({ x: p.x, y: p.y - p.h / 2, w: p.w, h: p.h }, f), `port ${p.id}`).toBe(true);
     }
     expect(f.x).toBeLessThanOrEqual(layout.CASE.x); // out to the case's west wall, where the plate stands
-  }
-
-  it('covers the board and the whole rear I/O plate with its ports, so the back panel shows at every zoom', () => {
-    expect.hasAssertions();
-    assert_covers_the_board_and_the_whole_rear_I_O_plate_wi();
   });
 });
 
 describe('the PSU exhaust fan in the rear wall', () => {
   it('the Micro, Mid and Full carry one above the mains inlet, the Mini none', () => {
-    expect.hasAssertions();
-    assert_the_Micro_Mid_and_Full_carry_one_above_the_mains();
+    for (const tier of [0, 1, 2, 3]) {
+      layout.setLayoutTier(tier, tier);
+      if (tier === 0) {
+        expect(layout.PSU_REAR_FAN).toBeNull();
+        continue;
+      }
+      const f = must(layout.PSU_REAR_FAN);
+      expect(f.y).toBeGreaterThanOrEqual(layout.PSU.y);
+      expect(f.y + f.h, 'the inlet is below the fan').toBeLessThan(layout.PC_POWER.y - 100);
+      expect(layout.PC_POWER.y).toBeLessThan(layout.CASE.y + layout.CASE.h);
+      expect(f.y + f.h, 'clear of the rear fan above').toBeLessThan(layout.PSU.y + layout.PSU.h);
+    }
+    layout.setLayoutTier(2, 2);
   });
 });

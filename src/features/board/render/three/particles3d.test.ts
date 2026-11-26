@@ -40,19 +40,6 @@ const run = (fx: Particles3D, s: Snapshot | null, secs: number): void => {
   }
 };
 
-function assert_stops_with_the_pause_the_smoke_hangs_where_it_is(): void {
-  const { fx, points } = stage();
-  run(fx, burnt, 2);
-  const before = inAir(points),
-    pos = [...(must(points.geometry.attributes['position']).array as Float32Array)];
-  for (let i = 0; i < 90; i++) {
-    fx.frame(burnt, 0);
-  }
-  expect(inAir(points)).toBe(before);
-  expect([...(must(points.geometry.attributes['position']).array as Float32Array)]).toStrictEqual(pos);
-  expect(points.visible).toBe(true);
-}
-
 describe('particles over the machine', () => {
   it('a part that runs hot sends up no haze, and the CPU no sparks', () => {
     const { fx, points } = stage();
@@ -73,8 +60,16 @@ describe('particles over the machine', () => {
   });
 
   it('stops with the pause: the smoke hangs where it is, and none is born', () => {
-    expect.hasAssertions();
-    assert_stops_with_the_pause_the_smoke_hangs_where_it_is();
+    const { fx, points } = stage();
+    run(fx, burnt, 2);
+    const before = inAir(points),
+      pos = [...(must(points.geometry.attributes['position']).array as Float32Array)];
+    for (let i = 0; i < 90; i++) {
+      fx.frame(burnt, 0);
+    }
+    expect(inAir(points)).toBe(before);
+    expect([...(must(points.geometry.attributes['position']).array as Float32Array)]).toStrictEqual(pos);
+    expect(points.visible).toBe(true);
   });
 
   it('draws none at density 0, and has no work with no smoke in the air', () => {

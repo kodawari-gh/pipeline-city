@@ -47,21 +47,8 @@ const size = (p: { x: number; y: number }[]): [number, number, number, number] =
   Math.max(...p.map((q) => q.y)),
 ];
 
-function assert_a_screw_a_rivet_a_thumbscrew_head_and_a_pad_each(): void {
-  const spot = [{ x: 10, y: 20, z: 30 }],
-    first = (g: { children: unknown[] }) => asMesh(g.children[0]).geometry;
-  for (const f of ['z+', 'z-', 'x+', 'x-', 'y+', 'y-'] as casekit3d.Facing[]) {
-    expectHalf(first(casekit3d.screws(spot, f, 65, m)), `screws ${f}`);
-    expectHalf(first(casekit3d.rivets(spot, f, 40, m)), `rivets ${f}`);
-    expectHalf(first(casekit3d.thumbscrews(spot, f, 56, 64, m)), `thumbscrews ${f}`);
-    const pad = first(casekit3d.pads(spot, f, 60, m));
-    expect(lowOf(pad), `pads ${f}`).toBeDefined();
-  }
-}
-
 describe('the lower detail level of the costly part shapes (LOD-05)', () => {
   it('a braided sleeve has a level of 6 sides and half the steps, in the same skin', () => {
-    expect.hasAssertions();
     const pts = [0, 1, 2, 3, 4].map((i) => new three.Vector3(i * 40, Math.sin(i) * 20, i * 10));
     const { mesh } = braidedTube(pts, 4, '#0c1226', '#464078');
     expectHalf(mesh.geometry, 'braidedTube');
@@ -70,12 +57,10 @@ describe('the lower detail level of the costly part shapes (LOD-05)', () => {
   });
 
   it('a fan-guard ring has a level of 4 sides round the wire and 24 along the ring', () => {
-    expect.hasAssertions();
     expectHalf(guardRing(60, 1.5), 'guardRing');
   });
 
   it('a heat pipe has a level of 24 steps and 6 sides on the same curve', () => {
-    expect.hasAssertions();
     const mesh = pipe(
       [
         [0, 0, 0],
@@ -90,12 +75,10 @@ describe('the lower detail level of the costly part shapes (LOD-05)', () => {
   });
 
   it('a pin coil has a level of 24 steps and 4 sides on the same curve', () => {
-    expect.hasAssertions();
     expectHalf(pinCoil(0, 0, 0, m).geometry, 'pinCoil');
   });
 
   it('an ATX cable (a sleeve of several strands) has a level of half the steps and 6 sides, on the same paths', () => {
-    expect.hasAssertions();
     const pts: [number, number, number][] = [0, 1, 2, 3, 4].map((i) => [i * 40, Math.sin(i) * 20, i * 10]);
     const mesh = cableMesh([pts, pts.map((p): [number, number, number] => [p[0], p[1] + 12, p[2]])], {
       r: 4,
@@ -108,12 +91,10 @@ describe('the lower detail level of the costly part shapes (LOD-05)', () => {
   });
 
   it('a solder fillet has a level of one band (a cone) on the same 6 sides and the same outer size', () => {
-    expect.hasAssertions();
     expectHalf(solderFillet(), 'solderFillet');
   });
 
   it('a coarse outline keeps its size: a small rounded corner becomes a chamfer, a wide round keeps its points, a circle two thirds of them', () => {
-    expect.hasAssertions();
     const small = casekit3d.outlinePts({ x: 0, y: 0, w: 400, h: 200 }, 20),
       wide = casekit3d.outlinePts({ x: 0, y: 0, w: 3000, h: 2600 }, 600),
       circle = casekit3d.wallCircle(0, 0, 1300);
@@ -125,7 +106,6 @@ describe('the lower detail level of the costly part shapes (LOD-05)', () => {
   });
 
   it('a wall and a slab with many rounded openings have a level; a plain plate has none', () => {
-    expect.hasAssertions();
     const holes = Array.from({ length: 12 }, (_, i) => ({ y0: i * 80, y1: i * 80 + 60, z0: 20, z1: 80, r: 14 }));
     expectHalf(casekit3d.wallX(0, 26, { y0: -20, y1: 980, z0: 0, z1: 100, r: 10 }, holes, m, 2).geometry, 'wallX');
     const cuts = Array.from({ length: 8 }, (_, i) =>
@@ -141,17 +121,22 @@ describe('the lower detail level of the costly part shapes (LOD-05)', () => {
   });
 
   it('a screw, a rivet, a thumbscrew head and a pad each have a level that turns with them', () => {
-    expect.hasAssertions();
-    assert_a_screw_a_rivet_a_thumbscrew_head_and_a_pad_each();
+    const spot = [{ x: 10, y: 20, z: 30 }],
+      first = (g: { children: unknown[] }) => asMesh(g.children[0]).geometry;
+    for (const f of ['z+', 'z-', 'x+', 'x-', 'y+', 'y-'] as casekit3d.Facing[]) {
+      expectHalf(first(casekit3d.screws(spot, f, 65, m)), `screws ${f}`);
+      expectHalf(first(casekit3d.rivets(spot, f, 40, m)), `rivets ${f}`);
+      expectHalf(first(casekit3d.thumbscrews(spot, f, 56, 64, m)), `thumbscrews ${f}`);
+      const pad = first(casekit3d.pads(spot, f, 60, m));
+      expect(lowOf(pad), `pads ${f}`).toBeDefined();
+    }
   });
 
   it("a chip's gull-wing leg has the box round it as its level", () => {
-    expect.hasAssertions();
     expectHalf(gullWing(8), 'gullWing');
   });
 
   it('a label draped over its parts has a level of three times the grain', () => {
-    expect.hasAssertions();
     const bumps = [
       { r: { x: 60, y: 50, w: 420, h: 380 }, top: 26, fall: 40 },
       { r: { x: 620, y: 50, w: 520, h: 380 }, top: 22, fall: 40 },

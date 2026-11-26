@@ -171,82 +171,6 @@ function stage(): BuildStage {
 const of = (s: BuildStage, kind: string) => s.board.devices.filter((d) => deviceSpec(d).kind === kind);
 const ids = (s: BuildStage): string[] => s.alerts.map((a) => a.id);
 
-async function assert_a_card_with_no_power_lead_goes_in_the_machine_wi(): Promise<void> {
-  const s = stage();
-  await s.clear();
-  for (const part of ['case1', 'board1', 'psu1', 'cpu1', 'cooler0', 'ram0']) {
-    await s.fit(part);
-  }
-  expect(s.refusal.peek()).toBeNull();
-  await s.fit('gpu2');
-  expect(of(s, 'gpu')).toHaveLength(1);
-  expect(ids(s)).toContain('pcie-leads');
-  expect(s.refusal.peek()?.text).toMatch(/power/iu);
-  await s.undo();
-  expect(of(s, 'gpu')).toHaveLength(0);
-  expect(ids(s)).not.toContain('pcie-leads');
-}
-
-async function assert_the_shape_still_decides_a_part_that_fits_no_sock(): Promise<void> {
-  const s = stage();
-  await s.clear();
-  for (const part of ['case1', 'board1']) {
-    await s.fit(part);
-  }
-  await s.fit('gpu3'); // (too wide for the sockets of this board)
-  expect(of(s, 'gpu')).toHaveLength(0);
-  expect(s.refusal.peek()?.text).toMatch(/fits no socket/u);
-}
-
-async function assert_Undo_of_a_removal_brings_back_what_the_removal_t(): Promise<void> {
-  const s = stage();
-  await s.clear();
-  for (const part of ['case1', 'board1', 'psu1', 'cpu1', 'cooler0', 'fan92', 'ram0']) {
-    await s.fit(part);
-  }
-  const seat = must(of(s, 'fan')[0]).slot,
-    home = must(of(s, 'cooler')[0]);
-  expect(seat).toBe(`${home.slot}.fan0`);
-  // the cooler comes out, and its fan with it: the fan has no spot without the heatsink, so it stays out
-  await s.remove(devNode(home.id));
-  expect(of(s, 'cooler')).toHaveLength(0);
-  expect(of(s, 'fan')).toHaveLength(0);
-  expect(s.refusal.peek()?.text).toMatch(/no longer fits: it stays out/u);
-  await s.undo();
-  expect(of(s, 'cooler').map((d) => d.spec)).toStrictEqual(['cooler0']);
-  expect(of(s, 'fan').map((d) => d.slot)).toStrictEqual([seat]);
-  // Redo takes both out again
-  await s.redo();
-  expect(of(s, 'cooler')).toHaveLength(0);
-  expect(of(s, 'fan')).toHaveLength(0);
-  await s.undo();
-  // the CPU comes out: the cooler mounts on it and the fan on the cooler, so both stay out
-  const cpu = must(of(s, 'cpu')[0]);
-  await s.remove(devNode(cpu.id));
-  expect(of(s, 'cpu')).toHaveLength(0);
-  expect(of(s, 'cooler')).toHaveLength(0);
-  expect(of(s, 'fan')).toHaveLength(0);
-  await s.undo();
-  expect(of(s, 'cpu').map((d) => d.spec)).toStrictEqual(['cpu1']);
-  expect(of(s, 'cooler').map((d) => d.spec)).toStrictEqual(['cooler0']);
-  expect(of(s, 'fan').map((d) => d.slot)).toStrictEqual([seat]);
-}
-
-async function assert_Undo_of_a_swap_brings_back_the_old_cooler_and_th(): Promise<void> {
-  const s = stage();
-  await s.clear();
-  for (const part of ['case1', 'board1', 'psu1', 'cpu1', 'cooler0', 'fan92', 'ram0']) {
-    await s.fit(part);
-  }
-  await s.fit('cooler1'); // (a tower heatsink: its spots take 120 mm fans, so the 92 mm fan stays out)
-  expect(of(s, 'cooler').map((d) => d.spec)).toStrictEqual(['cooler1']);
-  expect(of(s, 'fan')).toHaveLength(0);
-  await s.undo(); // (the new cooler out)
-  await s.undo(); // (the old cooler back, and the fan on it)
-  expect(of(s, 'cooler').map((d) => d.spec)).toStrictEqual(['cooler0']);
-  expect(of(s, 'fan').map((d) => d.spec)).toStrictEqual(['fan92']);
-}
-
 describe('the stage takes a part that fits, and says what the machine will do', () => {
   beforeEach(() => {
     vi.stubGlobal('ResizeObserver', ResizeObserverStub);
@@ -276,23 +200,79 @@ describe('the stage takes a part that fits, and says what the machine will do', 
   });
 
   it('a card with no power lead goes in: the machine will not start with it, and the list says so', async () => {
-    expect.hasAssertions();
-    await assert_a_card_with_no_power_lead_goes_in_the_machine_wi();
+    const s = stage();
+    await s.clear();
+    for (const part of ['case1', 'board1', 'psu1', 'cpu1', 'cooler0', 'ram0']) {
+      await s.fit(part);
+    }
+    expect(s.refusal.peek()).toBeNull();
+    await s.fit('gpu2');
+    expect(of(s, 'gpu')).toHaveLength(1);
+    expect(ids(s)).toContain('pcie-leads');
+    expect(s.refusal.peek()?.text).toMatch(/power/iu);
+    await s.undo();
+    expect(of(s, 'gpu')).toHaveLength(0);
+    expect(ids(s)).not.toContain('pcie-leads');
   });
 
   it('the shape still decides: a part that fits no socket is refused, and says so', async () => {
-    expect.hasAssertions();
-    await assert_the_shape_still_decides_a_part_that_fits_no_sock();
+    const s = stage();
+    await s.clear();
+    for (const part of ['case1', 'board1']) {
+      await s.fit(part);
+    }
+    await s.fit('gpu3'); // (too wide for the sockets of this board)
+    expect(of(s, 'gpu')).toHaveLength(0);
+    expect(s.refusal.peek()?.text).toMatch(/fits no socket/u);
   });
 
   it('Undo of a removal brings back what the removal took out for good: the fan that sat on the cooler, the cooler and the fan that sat on the CPU', async () => {
-    expect.hasAssertions();
-    await assert_Undo_of_a_removal_brings_back_what_the_removal_t();
+    const s = stage();
+    await s.clear();
+    for (const part of ['case1', 'board1', 'psu1', 'cpu1', 'cooler0', 'fan92', 'ram0']) {
+      await s.fit(part);
+    }
+    const seat = must(of(s, 'fan')[0]).slot,
+      home = must(of(s, 'cooler')[0]);
+    expect(seat).toBe(`${home.slot}.fan0`);
+    // the cooler comes out, and its fan with it: the fan has no spot without the heatsink, so it stays out
+    await s.remove(devNode(home.id));
+    expect(of(s, 'cooler')).toHaveLength(0);
+    expect(of(s, 'fan')).toHaveLength(0);
+    expect(s.refusal.peek()?.text).toMatch(/no longer fits: it stays out/u);
+    await s.undo();
+    expect(of(s, 'cooler').map((d) => d.spec)).toStrictEqual(['cooler0']);
+    expect(of(s, 'fan').map((d) => d.slot)).toStrictEqual([seat]);
+    // Redo takes both out again
+    await s.redo();
+    expect(of(s, 'cooler')).toHaveLength(0);
+    expect(of(s, 'fan')).toHaveLength(0);
+    await s.undo();
+    // the CPU comes out: the cooler mounts on it and the fan on the cooler, so both stay out
+    const cpu = must(of(s, 'cpu')[0]);
+    await s.remove(devNode(cpu.id));
+    expect(of(s, 'cpu')).toHaveLength(0);
+    expect(of(s, 'cooler')).toHaveLength(0);
+    expect(of(s, 'fan')).toHaveLength(0);
+    await s.undo();
+    expect(of(s, 'cpu').map((d) => d.spec)).toStrictEqual(['cpu1']);
+    expect(of(s, 'cooler').map((d) => d.spec)).toStrictEqual(['cooler0']);
+    expect(of(s, 'fan').map((d) => d.slot)).toStrictEqual([seat]);
   });
 
   it('Undo of a swap brings back the old cooler and the fan the new one had no spot for', async () => {
-    expect.hasAssertions();
-    await assert_Undo_of_a_swap_brings_back_the_old_cooler_and_th();
+    const s = stage();
+    await s.clear();
+    for (const part of ['case1', 'board1', 'psu1', 'cpu1', 'cooler0', 'fan92', 'ram0']) {
+      await s.fit(part);
+    }
+    await s.fit('cooler1'); // (a tower heatsink: its spots take 120 mm fans, so the 92 mm fan stays out)
+    expect(of(s, 'cooler').map((d) => d.spec)).toStrictEqual(['cooler1']);
+    expect(of(s, 'fan')).toHaveLength(0);
+    await s.undo(); // (the new cooler out)
+    await s.undo(); // (the old cooler back, and the fan on it)
+    expect(of(s, 'cooler').map((d) => d.spec)).toStrictEqual(['cooler0']);
+    expect(of(s, 'fan').map((d) => d.spec)).toStrictEqual(['fan92']);
   });
 
   it('the drive that holds the OS comes out: the OS moves to another drive, or waits and goes back on the drive that goes in', async () => {

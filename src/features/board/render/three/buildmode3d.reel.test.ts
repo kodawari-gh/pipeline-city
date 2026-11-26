@@ -229,73 +229,6 @@ function stage(): { s: BuildStage; fake: Fake } {
 
 const kindOf = (s: BuildStage, kind: string) => must(s.board.devices.find((d) => deviceSpec(d).kind === kind));
 
-async function assert_are_taken_back_into_their_hole_the_plugged_ones_(): Promise<void> {
-  const { s, fake } = stage(),
-    psu = kindOf(s, 'psu');
-  const lost = cablesLost(s.board, psu.id) as string[];
-  expect(lost.length).toBeGreaterThan(2);
-  expect(lost).toStrictEqual(expect.arrayContaining(['atx', 'cpu', 'pcmains']));
-  const plugged = lost.filter((id) => hid(s).cables[id]);
-  await s.remove(devNode(psu.id));
-  // the supply is out, and each of its cables was stowed
-  expect(s.board.devices.some((d) => d.id === psu.id)).toBe(false);
-  for (const id of lost) {
-    expect(fake.calls).toContain(`stow ${id}`);
-  }
-  // (a cable that was plugged was pulled before it was taken back: a cable is never taken back while it is in)
-  for (const id of plugged) {
-    expect(fake.calls.indexOf(`pull ${id}`)).toBeLessThan(fake.calls.indexOf(`stow ${id}`));
-  }
-  // (and none of them is stowed that goes on without the supply: the monitor's cables stay)
-  expect(fake.calls.join(',')).not.toMatch(/stow (?:video|monmains)/u);
-  for (const id of lost) {
-    expect(s.cables[id]).toBeFalsy();
-  }
-}
-
-async function assert_are_held_out_of_sight_while_their_part_goes_in_t(): Promise<void> {
-  const { s, fake } = stage(),
-    psu = kindOf(s, 'psu'),
-    { spec } = psu;
-  await s.remove(devNode(psu.id));
-  fake.calls.length = 0;
-  fake.held.length = 0;
-  await s.fit(spec);
-  expect(s.board.devices.some((d) => deviceSpec(d).kind === 'psu')).toBe(true);
-  // the supply's leads and cord came with it: they were held back until it was in, and each ran out of its hole to its socket
-  const born = (cablesOf(s.board).map((c) => c.id) as string[]).filter((id) => ['atx', 'cpu', 'pcmains'].includes(id));
-  expect(born).toStrictEqual(expect.arrayContaining(['atx', 'cpu', 'pcmains']));
-  for (const id of born) {
-    expect(fake.held.flat(), `${id} held back`).toContain(id);
-    expect(fake.calls, `${id} run out`).toContain(`feed ${id} in`);
-    expect(s.cables[id], `${id} plugged`).toBe(true);
-  }
-  // (nothing is carried by a hand that had no cable to carry: a cable that came with its part is run out, not carried)
-  expect(fake.calls.filter((c) => c.startsWith('carry'))).toStrictEqual([]);
-  // (the cables that were out of sight at the end of the job show as they stand)
-  expect(fake.heldBack.size).toBe(0);
-}
-
-async function assert_are_the_monitor_s_only_with_a_monitor_the_video_(): Promise<void> {
-  const { s, fake } = stage(),
-    mon = kindOf(s, 'display');
-  const lost = cablesLost(s.board, mon.id) as string[];
-  expect(lost).toStrictEqual(expect.arrayContaining(['video', 'monmains']));
-  await s.remove(devNode(mon.id));
-  for (const id of lost) {
-    expect(fake.calls).toContain(`stow ${id}`);
-  }
-  expect(s.cables['video']).toBeFalsy();
-  expect(s.cables['monmains']).toBeFalsy();
-  fake.calls.length = 0;
-  await s.fit(mon.spec);
-  // the cord goes to the wall socket and is pushed in; the video cable lies where it falls (the player plugs it)
-  expect(fake.calls).toContain('feed monmains in');
-  expect(fake.calls).toContain('feed video loose');
-  expect(s.cables['monmains']).toBe(true);
-  expect(s.cables['video']).toBeFalsy();
-}
-
 describe('the cables that go with their part', () => {
   beforeEach(() => {
     vi.stubGlobal('ResizeObserver', ResizeObserverStub);
@@ -306,17 +239,71 @@ describe('the cables that go with their part', () => {
   });
 
   it('are taken back into their hole, the plugged ones pulled first, before the supply comes out', async () => {
-    expect.hasAssertions();
-    await assert_are_taken_back_into_their_hole_the_plugged_ones_();
+    const { s, fake } = stage(),
+      psu = kindOf(s, 'psu');
+    const lost = cablesLost(s.board, psu.id) as string[];
+    expect(lost.length).toBeGreaterThan(2);
+    expect(lost).toStrictEqual(expect.arrayContaining(['atx', 'cpu', 'pcmains']));
+    const plugged = lost.filter((id) => hid(s).cables[id]);
+    await s.remove(devNode(psu.id));
+    // the supply is out, and each of its cables was stowed
+    expect(s.board.devices.some((d) => d.id === psu.id)).toBe(false);
+    for (const id of lost) {
+      expect(fake.calls).toContain(`stow ${id}`);
+    }
+    // (a cable that was plugged was pulled before it was taken back: a cable is never taken back while it is in)
+    for (const id of plugged) {
+      expect(fake.calls.indexOf(`pull ${id}`)).toBeLessThan(fake.calls.indexOf(`stow ${id}`));
+    }
+    // (and none of them is stowed that goes on without the supply: the monitor's cables stay)
+    expect(fake.calls.join(',')).not.toMatch(/stow (?:video|monmains)/u);
+    for (const id of lost) {
+      expect(s.cables[id]).toBeFalsy();
+    }
   });
 
   it('are held out of sight while their part goes in, then run out to their sockets, and each cord plugged', async () => {
-    expect.hasAssertions();
-    await assert_are_held_out_of_sight_while_their_part_goes_in_t();
+    const { s, fake } = stage(),
+      psu = kindOf(s, 'psu'),
+      { spec } = psu;
+    await s.remove(devNode(psu.id));
+    fake.calls.length = 0;
+    fake.held.length = 0;
+    await s.fit(spec);
+    expect(s.board.devices.some((d) => deviceSpec(d).kind === 'psu')).toBe(true);
+    // the supply's leads and cord came with it: they were held back until it was in, and each ran out of its hole to its socket
+    const born = (cablesOf(s.board).map((c) => c.id) as string[]).filter((id) =>
+      ['atx', 'cpu', 'pcmains'].includes(id),
+    );
+    expect(born).toStrictEqual(expect.arrayContaining(['atx', 'cpu', 'pcmains']));
+    for (const id of born) {
+      expect(fake.held.flat(), `${id} held back`).toContain(id);
+      expect(fake.calls, `${id} run out`).toContain(`feed ${id} in`);
+      expect(s.cables[id], `${id} plugged`).toBe(true);
+    }
+    // (nothing is carried by a hand that had no cable to carry: a cable that came with its part is run out, not carried)
+    expect(fake.calls.filter((c) => c.startsWith('carry'))).toStrictEqual([]);
+    // (the cables that were out of sight at the end of the job show as they stand)
+    expect(fake.heldBack.size).toBe(0);
   });
 
   it("are the monitor's only with a monitor: the video cable and the monitor's cord go with it, and the cord is plugged to the wall", async () => {
-    expect.hasAssertions();
-    await assert_are_the_monitor_s_only_with_a_monitor_the_video_();
+    const { s, fake } = stage(),
+      mon = kindOf(s, 'display');
+    const lost = cablesLost(s.board, mon.id) as string[];
+    expect(lost).toStrictEqual(expect.arrayContaining(['video', 'monmains']));
+    await s.remove(devNode(mon.id));
+    for (const id of lost) {
+      expect(fake.calls).toContain(`stow ${id}`);
+    }
+    expect(s.cables['video']).toBeFalsy();
+    expect(s.cables['monmains']).toBeFalsy();
+    fake.calls.length = 0;
+    await s.fit(mon.spec);
+    // the cord goes to the wall socket and is pushed in; the video cable lies where it falls (the player plugs it)
+    expect(fake.calls).toContain('feed monmains in');
+    expect(fake.calls).toContain('feed video loose');
+    expect(s.cables['monmains']).toBe(true);
+    expect(s.cables['video']).toBeFalsy();
   });
 });

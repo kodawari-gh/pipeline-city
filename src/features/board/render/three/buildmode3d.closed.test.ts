@@ -196,7 +196,8 @@ describe('a closed BuildStage', () => {
     expect((s as unknown as { dead: boolean }).dead).toBe(true);
     vi.runAllTimers(); // (the second half of its close)
   });
-  async function assert_answers_a_benchmark_a_plan_and_a_pointer_query_w(): Promise<void> {
+
+  it('answers a benchmark, a plan and a pointer query with nothing, whether or not its game is gone', async () => {
     stage.dispose();
     for (const freed of [false, true]) {
       if (freed) {
@@ -208,10 +209,5 @@ describe('a closed BuildStage', () => {
       expect(stage.partAt(10, 10)).toBeNull();
       expect(stage.slotAt(10, 10)).toBeNull();
     }
-  }
-
-  it('answers a benchmark, a plan and a pointer query with nothing, whether or not its game is gone', async () => {
-    expect.hasAssertions();
-    await assert_answers_a_benchmark_a_plan_and_a_pointer_query_w();
   });
 });

@@ -36,18 +36,6 @@ const view = (visual = 'nic-gbe', slot = 'pcie0'): { v: NicTraceView; lanes: Ret
   return { v, lanes };
 };
 
-function assert_times_the_copper_before_the_die_by_the_lanes_own(): void {
-  for (const visual of ['nic-gbe', 'nic-10g', 'nic-40g']) {
-    const { v, lanes } = view(visual);
-    expect(v.lead('pcie0', 'rx')).toBe(tripMs(lanes.media));
-    expect(v.lead('pcie0', 'tx')).toBe(tripMs(lanes.host));
-    for (const dir of ['rx', 'tx'] as const) {
-      expect(v.lead('pcie0', dir), `${visual} ${dir}`).toBeGreaterThanOrEqual(MIN_MS);
-      expect(v.lead('pcie0', dir), `${visual} ${dir}`).toBeLessThanOrEqual(MAX_MS);
-    }
-  }
-}
-
 describe("the network card's copper, alive", () => {
   it('has nothing lit until a frame leaves, and nothing for a card it was not given', () => {
     const { v } = view();
@@ -60,8 +48,15 @@ describe("the network card's copper, alive", () => {
   });
 
   it("times the copper before the die by the lanes' own length: the jack's pairs for a frame from the cable, the slot's for one from the host", () => {
-    expect.hasAssertions();
-    assert_times_the_copper_before_the_die_by_the_lanes_own();
+    for (const visual of ['nic-gbe', 'nic-10g', 'nic-40g']) {
+      const { v, lanes } = view(visual);
+      expect(v.lead('pcie0', 'rx')).toBe(tripMs(lanes.media));
+      expect(v.lead('pcie0', 'tx')).toBe(tripMs(lanes.host));
+      for (const dir of ['rx', 'tx'] as const) {
+        expect(v.lead('pcie0', dir), `${visual} ${dir}`).toBeGreaterThanOrEqual(MIN_MS);
+        expect(v.lead('pcie0', dir), `${visual} ${dir}`).toBeLessThanOrEqual(MAX_MS);
+      }
+    }
   });
 
   it("lights the jack's pairs for a frame from the cable, answers with their time, and lets them fade once it has arrived", () => {

@@ -55,35 +55,6 @@ const ALL_CHAINS: Record<string, busmap.Hop[]> = {
   chipCard: busmap.slotChain('pcie1', false),
 };
 
-function assert_finds_the_drive_card_or_key_a_bus_address_belong(): void {
-  expect(busmap.deviceAt(STORAGE_BASE)).toStrictEqual({ kind: 'drive', slot: 'sata0' });
-  expect(busmap.deviceAt(STORAGE_BASE + STORAGE_STRIDE * 2 + STORAGE_BUF + 8)).toStrictEqual({
-    kind: 'drive',
-    slot: 'm20',
-  }); // a word of port 2's block buffer
-  for (const [k, slot] of STORAGE_PORTS.entries()) {
-    expect(busmap.deviceAt(STORAGE_BASE + k * STORAGE_STRIDE + 4)).toStrictEqual({ kind: 'drive', slot });
-  }
-  expect(busmap.deviceAt(STORAGE_BASE + STORAGE_PORTS.length * STORAGE_STRIDE)).toBeNull();
-  for (const [k, slot] of GPU_PORTS.entries()) {
-    expect(busmap.deviceAt(GPU_BASE + k * GPU_STRIDE + 0x1_00_00)).toStrictEqual({ kind: 'card', slot });
-  } // card memory, behind the registers
-  expect(busmap.deviceAt(PCH_BASE + PCH_KEY_WINDOW + 4)).toStrictEqual({ kind: 'key' });
-  expect(busmap.deviceAt(PCH_BASE + PCH_RESULT_WINDOW)).toStrictEqual({ kind: 'key' });
-  for (const [k, _] of NPU_PORTS.entries()) {
-    expect(busmap.deviceAt(NPU_BASE + k * NPU_STRIDE + 8)).toStrictEqual({ kind: 'card', slot: `pcie${k}` });
-  }
-  expect(busmap.deviceAt(PCH_BASE + 0x28)).toStrictEqual({ kind: 'chipset' }); // the chipset's registers
-  expect(busmap.deviceAt(TPM_BASE + 4)).toStrictEqual({ kind: 'tpm' });
-  expect(busmap.deviceAt(DISPLAY_BASE + 70)).toStrictEqual({ kind: 'display' });
-  expect(busmap.deviceAt(INTC_BASE + 8)).toStrictEqual({ kind: 'intc' }); // on the CPU's die: no trace on the board, the die view lights them
-  expect(busmap.deviceAt(TIMER_BASE)).toStrictEqual({ kind: 'timer' });
-  expect(busmap.deviceAt(MPU_BASE)).toStrictEqual({ kind: 'mpu' });
-  expect(busmap.deviceAt(MMU_BASE)).toStrictEqual({ kind: 'mmu' });
-  expect(busmap.deviceAt(0x10_00)).toBeNull();
-  expect(busmap.deviceAt(0xc1_00)).toBeNull();
-}
-
 describe('npuAccess', () => {
   it('names the slot and the offset of an access to a card window, and nothing else', () => {
     expect(busmap.npuAccess(NPU_BASE + 3 * NPU_STRIDE + 0x10_08)).toStrictEqual({ slot: 'pcie3', off: 0x10_08 });
@@ -103,8 +74,32 @@ describe('hasTpm', () => {
 
 describe('deviceAt', () => {
   it('finds the drive, card or key a bus address belongs to, and nothing for RAM', () => {
-    expect.hasAssertions();
-    assert_finds_the_drive_card_or_key_a_bus_address_belong();
+    expect(busmap.deviceAt(STORAGE_BASE)).toStrictEqual({ kind: 'drive', slot: 'sata0' });
+    expect(busmap.deviceAt(STORAGE_BASE + STORAGE_STRIDE * 2 + STORAGE_BUF + 8)).toStrictEqual({
+      kind: 'drive',
+      slot: 'm20',
+    }); // a word of port 2's block buffer
+    for (const [k, slot] of STORAGE_PORTS.entries()) {
+      expect(busmap.deviceAt(STORAGE_BASE + k * STORAGE_STRIDE + 4)).toStrictEqual({ kind: 'drive', slot });
+    }
+    expect(busmap.deviceAt(STORAGE_BASE + STORAGE_PORTS.length * STORAGE_STRIDE)).toBeNull();
+    for (const [k, slot] of GPU_PORTS.entries()) {
+      expect(busmap.deviceAt(GPU_BASE + k * GPU_STRIDE + 0x1_00_00)).toStrictEqual({ kind: 'card', slot });
+    } // card memory, behind the registers
+    expect(busmap.deviceAt(PCH_BASE + PCH_KEY_WINDOW + 4)).toStrictEqual({ kind: 'key' });
+    expect(busmap.deviceAt(PCH_BASE + PCH_RESULT_WINDOW)).toStrictEqual({ kind: 'key' });
+    for (const [k, _] of NPU_PORTS.entries()) {
+      expect(busmap.deviceAt(NPU_BASE + k * NPU_STRIDE + 8)).toStrictEqual({ kind: 'card', slot: `pcie${k}` });
+    }
+    expect(busmap.deviceAt(PCH_BASE + 0x28)).toStrictEqual({ kind: 'chipset' }); // the chipset's registers
+    expect(busmap.deviceAt(TPM_BASE + 4)).toStrictEqual({ kind: 'tpm' });
+    expect(busmap.deviceAt(DISPLAY_BASE + 70)).toStrictEqual({ kind: 'display' });
+    expect(busmap.deviceAt(INTC_BASE + 8)).toStrictEqual({ kind: 'intc' }); // on the CPU's die: no trace on the board, the die view lights them
+    expect(busmap.deviceAt(TIMER_BASE)).toStrictEqual({ kind: 'timer' });
+    expect(busmap.deviceAt(MPU_BASE)).toStrictEqual({ kind: 'mpu' });
+    expect(busmap.deviceAt(MMU_BASE)).toStrictEqual({ kind: 'mmu' });
+    expect(busmap.deviceAt(0x10_00)).toBeNull();
+    expect(busmap.deviceAt(0xc1_00)).toBeNull();
   });
 });
 
@@ -121,7 +116,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('traffic on the tier %i board', (tier
     return { g: layout.GEO, buses, map };
   };
 
-  function assert_classifies_every_bus_the_board_has_and_only_mess(): void {
+  it('classifies every bus the board has, and only message buses appear in a chain', () => {
     const { buses } = setup();
     for (const b of buses) {
       expect(busmap.BUS_ROLE[b.id]).toBeDefined();
@@ -131,11 +126,6 @@ describe.each(TIER_GEO.map((g) => g.tier))('traffic on the tier %i board', (tier
         expect(busmap.isMessageBus(h.bus), `${name}: ${h.bus}`).toBe(true);
       }
     }
-  }
-
-  it('classifies every bus the board has, and only message buses appear in a chain', () => {
-    expect.hasAssertions();
-    assert_classifies_every_bus_the_board_has_and_only_mess();
   });
 
   it('sends a key over the hub uplink and its own port only', () => {
@@ -159,7 +149,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('traffic on the tier %i board', (tier
     expect(busmap.lanesOf(usb, { usbPort: g.usb })).toStrictEqual([]); // no such port
   });
 
-  function assert_puts_a_SATA_drive_on_its_port_and_DMI_an_M_2_str(): void {
+  it('puts a SATA drive on its port and DMI, an M.2 straight on the CPU', () => {
     const { g, map } = setup();
     for (const [i, _] of g.sata.entries()) {
       const legs = busmap.resolve(map, busmap.driveChain(`sata${i}`, false));
@@ -181,13 +171,9 @@ describe.each(TIER_GEO.map((g) => g.tier))('traffic on the tier %i board', (tier
       'sata',
     ); // a port the board lacks has no lanes to light
     expect(busmap.driveChain('cpu', false)).toStrictEqual([]);
-  }
-
-  it('puts a SATA drive on its port and DMI, an M.2 straight on the CPU', () => {
-    expect.hasAssertions();
-    assert_puts_a_SATA_drive_on_its_port_and_DMI_an_M_2_str();
   });
-  function assert_puts_a_card_in_a_x8_or_wider_slot_on_the_CPU_in_(): void {
+
+  it('puts a card in a x8 or wider slot on the CPU, in a x4 slot on the chipset and DMI, on all the pairs of its slot', () => {
     const { g, map } = setup();
     for (const [k, _] of g.pcie.entries()) {
       const legs = busmap.resolve(map, busmap.slotChain(`pcie${k}`, false)),
@@ -197,13 +183,9 @@ describe.each(TIER_GEO.map((g) => g.tier))('traffic on the tier %i board', (tier
       const slotLane = must(must(legs[0]).lanes[0]);
       expect(near(first(slotLane), cpu ? layout.PKG : g.chip, 120)).toBe(true);
     }
-  }
-
-  it('puts a card in a x8 or wider slot on the CPU, in a x4 slot on the chipset and DMI, on all the pairs of its slot', () => {
-    expect.hasAssertions();
-    assert_puts_a_card_in_a_x8_or_wider_slot_on_the_CPU_in_();
   });
-  function assert_routes_the_control_chains_from_the_part_that_spe(): void {
+
+  it('routes the control chains from the part that speaks to the part that listens', () => {
     const { g, map } = setup();
     const lane = (id: routes.BusKind, n = 0) => must(must(map.get(id)).lanes[n]);
     expect(busmap.resolve(map, busmap.BIOS_CHAIN).map((l) => l.bus)).toStrictEqual(['spi', 'dmi']);
@@ -229,13 +211,9 @@ describe.each(TIER_GEO.map((g) => g.tier))('traffic on the tier %i board', (tier
     if (g.dbg) {
       expect(near(first(lane('dbg')), g.chip, 140)).toBe(true);
     }
-  }
-
-  it('routes the control chains from the part that speaks to the part that listens', () => {
-    expect.hasAssertions();
-    assert_routes_the_control_chains_from_the_part_that_spe();
   });
-  function assert_lights_the_header_trunk_and_one_header_s_own_tap(): void {
+
+  it("lights the header trunk and one header's own tap, not every header", () => {
     const { g, map } = setup();
     const hdr = must(map.get('hdr'));
     expect(must(hdr.heads).map((h) => h.name)).toStrictEqual(
@@ -263,13 +241,9 @@ describe.each(TIER_GEO.map((g) => g.tier))('traffic on the tier %i board', (tier
       expect(tpm?.bus).not.toBe('hdr');
     } // no header, nothing to light
     expect(busmap.lanesOf(hdr, { header: 'NOPE' })).toStrictEqual([]);
-  }
-
-  it("lights the header trunk and one header's own tap, not every header", () => {
-    expect.hasAssertions();
-    assert_lights_the_header_trunk_and_one_header_s_own_tap();
   });
-  function assert_routes_the_board_ethernet_through_the_PHY_and_th(): void {
+
+  it('routes the board ethernet through the PHY and the hub, where the board has a jack', () => {
     const { g, map } = setup();
     const down = busmap.resolve(map, busmap.boardNetChain(true));
     expect(down.map((l) => l.bus)).toStrictEqual(g.phy ? ['lan', 'phyl', 'usb'] : ['usb']);
@@ -280,10 +254,5 @@ describe.each(TIER_GEO.map((g) => g.tier))('traffic on the tier %i board', (tier
       expect(near(first(phylLane), g.phy)).toBe(true);
       expect(near(last(phylLane), g.hub)).toBe(true);
     }
-  }
-
-  it('routes the board ethernet through the PHY and the hub, where the board has a jack', () => {
-    expect.hasAssertions();
-    assert_routes_the_board_ethernet_through_the_PHY_and_th();
   });
 });

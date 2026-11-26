@@ -17,37 +17,12 @@ function must<T>(value: T): NonNullable<T> {
 const isMesh = (o: unknown): o is three.Mesh =>
   typeof o === 'object' && o !== null && 'isMesh' in o && o.isMesh === true;
 
-function assert_lies_round_each_cooler_over_the_CPU_package_inside(): void {
-  for (const visual of ['cooler-liquid', 'cooler-tower', 'cooler-stock']) {
-    const { r: f } = coolerFoot(visual),
-      model = coolerModel(visual).root;
-    expect(f.x <= PKG.x && f.y <= PKG.y && f.x + f.w >= PKG.x + PKG.w && f.y + f.h >= PKG.y + PKG.h).toBe(true);
-    // what of the cooler stands low over the board (not the back plate behind it, not the fins or fans high over it): its mount's
-    // hardware at the four holes reaches furthest; the foot keeps within a little of it
-    const near = new three.Box3();
-    model.updateMatrixWorld(true);
-    model.traverse((o) => {
-      if (!isMesh(o)) {
-        return;
-      }
-      const b = new three.Box3().setFromObject(o);
-      if (b.max.z > BOARD_Z && b.min.z < CPU_Z.top + 120) {
-        near.union(b);
-      }
-    });
-    expect(f.x).toBeGreaterThanOrEqual(near.min.x - 160);
-    expect(f.x + f.w).toBeLessThanOrEqual(near.max.x + 160);
-    expect(f.y).toBeGreaterThanOrEqual(-near.max.y - 160);
-    expect(f.y + f.h).toBeLessThanOrEqual(-near.min.y + 160);
-  }
-}
-
 describe('Low contact shade', () => {
   const r = { x: 100, y: 200, w: 1000, h: 600 },
     reach = 300,
     peak = 0.4;
 
-  function assert_is_darkest_under_and_at_the_footprint_gone_at_it(): void {
+  it('is darkest under and at the footprint, gone at its reach, its outline the footprint grown by the reach', () => {
     const m = footShade(r, reach, peak, 50),
       pos = must(m.geometry.attributes['position']),
       col = must(m.geometry.attributes['color']);
@@ -66,14 +41,9 @@ describe('Low contact shade', () => {
     expect(b.max.x).toBeCloseTo(r.x + r.w + reach);
     expect(b.max.y).toBeCloseTo(-r.y + reach);
     expect(b.min.y).toBeCloseTo(-(r.y + r.h) - reach);
-  }
-
-  it('is darkest under and at the footprint, gone at its reach, its outline the footprint grown by the reach', () => {
-    expect.hasAssertions();
-    assert_is_darkest_under_and_at_the_footprint_gone_at_it();
   });
 
-  function assert_faces_z_draws_once_with_no_depth_write_and_is_no(): void {
+  it('faces +z, draws once with no depth write, and is not hit', () => {
     const m = footShade(r, reach, peak),
       pos = must(m.geometry.attributes['position']),
       ix = must(m.geometry.index);
@@ -90,15 +60,30 @@ describe('Low contact shade', () => {
     expect(m.material).toMatchObject({ transparent: true, depthWrite: false, vertexColors: true });
     const ray = new three.Raycaster(new three.Vector3(r.x + 10, -r.y - 10, 100), new three.Vector3(0, 0, -1));
     expect(ray.intersectObject(m)).toHaveLength(0);
-  }
-
-  it('faces +z, draws once with no depth write, and is not hit', () => {
-    expect.hasAssertions();
-    assert_faces_z_draws_once_with_no_depth_write_and_is_no();
   });
 
   it('lies round each cooler: over the CPU package, inside the reach of its mount on the board', () => {
-    expect.hasAssertions();
-    assert_lies_round_each_cooler_over_the_CPU_package_inside();
+    for (const visual of ['cooler-liquid', 'cooler-tower', 'cooler-stock']) {
+      const { r: f } = coolerFoot(visual),
+        model = coolerModel(visual).root;
+      expect(f.x <= PKG.x && f.y <= PKG.y && f.x + f.w >= PKG.x + PKG.w && f.y + f.h >= PKG.y + PKG.h).toBe(true);
+      // what of the cooler stands low over the board (not the back plate behind it, not the fins or fans high over it): its mount's
+      // hardware at the four holes reaches furthest; the foot keeps within a little of it
+      const near = new three.Box3();
+      model.updateMatrixWorld(true);
+      model.traverse((o) => {
+        if (!isMesh(o)) {
+          return;
+        }
+        const b = new three.Box3().setFromObject(o);
+        if (b.max.z > BOARD_Z && b.min.z < CPU_Z.top + 120) {
+          near.union(b);
+        }
+      });
+      expect(f.x).toBeGreaterThanOrEqual(near.min.x - 160);
+      expect(f.x + f.w).toBeLessThanOrEqual(near.max.x + 160);
+      expect(f.y).toBeGreaterThanOrEqual(-near.max.y - 160);
+      expect(f.y + f.h).toBeLessThanOrEqual(-near.min.y + 160);
+    }
   });
 });

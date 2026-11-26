@@ -74,7 +74,7 @@ describe('Machine3D.powerGlow', () => {
     settle();
   };
 
-  function assert_lights_a_fan_by_what_it_draws_and_one_fan_alone_(): void {
+  it('lights a fan by what it draws, and one fan alone: the fans share no material in the lens', () => {
     const fans = ids('fan');
     expect(fans.length).toBeGreaterThanOrEqual(2);
     const [a, b] = fans as [string, string];
@@ -91,11 +91,6 @@ describe('Machine3D.powerGlow', () => {
     }
     m.powerGlow(null);
     settle();
-  }
-
-  it('lights a fan by what it draws, and one fan alone: the fans share no material in the lens', () => {
-    expect.hasAssertions();
-    assert_lights_a_fan_by_what_it_draws_and_one_fan_alone_();
   });
 
   it("lights the module (the TPM) too, and gives the lens's glow back to nothing when it is off", () => {
@@ -109,7 +104,7 @@ describe('Machine3D.powerGlow', () => {
     expect(glow(must(tpm)).k).toBeLessThan(1e-3);
   });
 
-  function assert_gives_a_fan_materials_of_its_own_only_while_the_(): void {
+  it("gives a fan materials of its own only while the lens shows (a material that no other part shares costs a draw each: the other views keep the build's), and puts the build's back", () => {
     const fan = must(ids('fan')[0]);
     const mats = (): unknown[] => {
       const out: unknown[] = [];
@@ -138,11 +133,6 @@ describe('Machine3D.powerGlow', () => {
     m.powerGlow(null);
     settle();
     expect(mats().every((x, i) => x === before[i])).toBe(true);
-  }
-
-  it("gives a fan materials of its own only while the lens shows (a material that no other part shares costs a draw each: the other views keep the build's), and puts the build's back", () => {
-    expect.hasAssertions();
-    assert_gives_a_fan_materials_of_its_own_only_while_the_();
   });
 
   it('shows a use in amber, a hub in cyan and a source in white', () => {
@@ -189,7 +179,7 @@ describe('Machine3D.powerGlow', () => {
     expect(must(shroud).visible).toBe(true);
   });
 
-  function assert_puts_the_fans_rings_of_light_low_while_the_lens_(): void {
+  it("puts the fans' rings of light low while the lens shows: a decoration is no power", () => {
     const on = {
       ...snap,
       powered: true,
@@ -230,11 +220,6 @@ describe('Machine3D.powerGlow', () => {
     for (let i = 0; i < 80; i++) {
       m.frame(snap, { dt: 0.1 });
     }
-  }
-
-  it("puts the fans' rings of light low while the lens shows: a decoration is no power", () => {
-    expect.hasAssertions();
-    assert_puts_the_fans_rings_of_light_low_while_the_lens_();
   });
 
   it('keeps the own look of a part that has no role (a heatsink, a radiator), and brings every look back when the lens ends', () => {

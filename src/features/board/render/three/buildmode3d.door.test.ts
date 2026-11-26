@@ -165,71 +165,6 @@ function stage(): Stage {
   return s as unknown as Stage;
 }
 
-async function assert_waits_for_the_panel_to_swing_clear_before_the_wo(): Promise<void> {
-  vi.useFakeTimers();
-  try {
-    for (const tier of [3, 0]) {
-      setLayoutTier(tier, tier);
-      const kind = must(CASE_KIND[tier]),
-        s = stage();
-      let done = false;
-      const p = hid(s)
-        .door(true)
-        .then(() => {
-          done = true;
-        });
-      const ms = DOOR_SECONDS[kind] * 1000 * doorWait(kind);
-      await vi.advanceTimersByTimeAsync(ms - 50);
-      expect(done).toBe(false);
-      await vi.advanceTimersByTimeAsync(100);
-      expect(done).toBe(true);
-      await p;
-    }
-  } finally {
-    vi.useRealTimers();
-  }
-}
-
-async function assert_waits_for_the_panel_itself_when_a_slow_frame_lef(): Promise<void> {
-  vi.useFakeTimers();
-  try {
-    for (const tier of [3, 2, 1, 0]) {
-      setLayoutTier(tier, tier);
-      const kind = must(CASE_KIND[tier]),
-        s = stage(),
-        m = hid(s)._machine;
-      m.doorT = 0.1; // (a hitch in the frames: the panel is a tenth open when the clock says it is clear)
-      let done = false;
-      const p = hid(s)
-        .door(true)
-        .then(() => {
-          done = true;
-        });
-      await vi.advanceTimersByTimeAsync(DOOR_SECONDS[kind] * 1000 * doorWait(kind) + 200);
-      expect(done, `${kind}: the clock ran out, the panel did not`).toBe(false);
-      m.doorT = doorWait(kind); // (now it is clear)
-      await vi.advanceTimersByTimeAsync(40);
-      expect(done).toBe(true);
-      await p;
-    }
-  } finally {
-    vi.useRealTimers();
-  }
-}
-
-async function assert_keeps_a_steel_panel_open_when_a_job_ends_and_lea(): Promise<void> {
-  for (const tier of [0, 1, 2, 3]) {
-    setLayoutTier(tier, tier);
-    const s = stage();
-    hid(s)._machine.doorOpen = true;
-    await hid(s).job(async () => {
-      hid(s).jobOpen = true;
-    });
-    expect(hid(s).jobOpen, `case ${tier}`).toBe(false);
-    expect(hid(s).wantOpen, `case ${tier}`).toBe(tier < 2);
-  }
-}
-
 describe('BuildStage and the side panel', () => {
   beforeEach(() => {
     vi.stubGlobal('ResizeObserver', ResizeObserverStub);
@@ -240,13 +175,55 @@ describe('BuildStage and the side panel', () => {
   });
 
   it("waits for the panel to swing clear before the work starts: longer for the Mini's steel than for the Full tower's glass", async () => {
-    expect.hasAssertions();
-    await assert_waits_for_the_panel_to_swing_clear_before_the_wo();
+    vi.useFakeTimers();
+    try {
+      for (const tier of [3, 0]) {
+        setLayoutTier(tier, tier);
+        const kind = must(CASE_KIND[tier]),
+          s = stage();
+        let done = false;
+        const p = hid(s)
+          .door(true)
+          .then(() => {
+            done = true;
+          });
+        const ms = DOOR_SECONDS[kind] * 1000 * doorWait(kind);
+        await vi.advanceTimersByTimeAsync(ms - 50);
+        expect(done).toBe(false);
+        await vi.advanceTimersByTimeAsync(100);
+        expect(done).toBe(true);
+        await p;
+      }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('waits for the panel itself when a slow frame left it behind the clock', async () => {
-    expect.hasAssertions();
-    await assert_waits_for_the_panel_itself_when_a_slow_frame_lef();
+    vi.useFakeTimers();
+    try {
+      for (const tier of [3, 2, 1, 0]) {
+        setLayoutTier(tier, tier);
+        const kind = must(CASE_KIND[tier]),
+          s = stage(),
+          m = hid(s)._machine;
+        m.doorT = 0.1; // (a hitch in the frames: the panel is a tenth open when the clock says it is clear)
+        let done = false;
+        const p = hid(s)
+          .door(true)
+          .then(() => {
+            done = true;
+          });
+        await vi.advanceTimersByTimeAsync(DOOR_SECONDS[kind] * 1000 * doorWait(kind) + 200);
+        expect(done, `${kind}: the clock ran out, the panel did not`).toBe(false);
+        m.doorT = doorWait(kind); // (now it is clear)
+        await vi.advanceTimersByTimeAsync(40);
+        expect(done).toBe(true);
+        await p;
+      }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('waits for a panel the zoom is still opening, before a step moves a part through it', async () => {
@@ -348,8 +325,16 @@ describe('BuildStage and the side panel', () => {
   });
 
   it('keeps a steel panel open when a job ends, and leaves a glass one to the zoom', async () => {
-    expect.hasAssertions();
-    await assert_keeps_a_steel_panel_open_when_a_job_ends_and_lea();
+    for (const tier of [0, 1, 2, 3]) {
+      setLayoutTier(tier, tier);
+      const s = stage();
+      hid(s)._machine.doorOpen = true;
+      await hid(s).job(async () => {
+        hid(s).jobOpen = true;
+      });
+      expect(hid(s).jobOpen, `case ${tier}`).toBe(false);
+      expect(hid(s).wantOpen, `case ${tier}`).toBe(tier < 2);
+    }
   });
 
   it('does not hold a steel panel open that the job never opened', async () => {

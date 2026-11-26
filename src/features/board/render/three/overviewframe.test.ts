@@ -32,29 +32,19 @@ describe('the overview under a card at the bottom', () => {
     ).toBeGreaterThan(0);
   });
 
-  function assert_keeps_its_height_whatever_the_inset_moves_the_ta(): void {
+  it('keeps its height whatever the inset moves the target by', () => {
     for (const px of sweep) {
       const v = moved(px);
       expect(camera.keepWhole(v, room, opts).height, `the target ${px} px down`).toBeGreaterThan(whole(v) * 0.6);
     }
-  }
-
-  it('keeps its height whatever the inset moves the target by', () => {
-    expect.hasAssertions();
-    assert_keeps_its_height_whatever_the_inset_moves_the_ta();
   });
 
-  function assert_moves_the_target_a_little_under_a_twentieth_of_t(): void {
+  it('moves the target a little (under a twentieth of the picture), not into another place', () => {
     for (const px of sweep) {
       const v = moved(px),
         k = camera.keepWhole(v, room, opts);
       expect(Math.abs(k.y - v.y), `the target ${px} px down`).toBeLessThan(k.height / 20);
       expect([k.x, k.yaw, k.pitch]).toStrictEqual([v.x, v.yaw, v.pitch]);
     }
-  }
-
-  it('moves the target a little (under a twentieth of the picture), not into another place', () => {
-    expect.hasAssertions();
-    assert_moves_the_target_a_little_under_a_twentieth_of_t();
   });
 });

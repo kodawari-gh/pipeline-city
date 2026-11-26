@@ -2,15 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { BOARD_TIERS } from '../sim/specs';
 import { SKINS, skinOf, slotArmour } from './skins';
 
-function assert_climbs_the_market_ladder_the_armour_the_trim_and(): void {
-  const cover = { bare: 0, plain: 1, armour: 2 } as const;
-  for (let t = 1; t < SKINS.length; t++) {
-    expect(skinOf(t).armor).toBeGreaterThanOrEqual(skinOf(t - 1).armor);
-    expect(skinOf(t).trim).toBeGreaterThanOrEqual(skinOf(t - 1).trim);
-    expect(cover[skinOf(t).ioCover]).toBeGreaterThanOrEqual(cover[skinOf(t - 1).ioCover]);
-  }
-}
-
 describe('board skins', () => {
   it('gives every board tier a skin of its own: no two tiers share a mask', () => {
     expect(SKINS).toHaveLength(BOARD_TIERS.length);
@@ -19,8 +10,12 @@ describe('board skins', () => {
   });
 
   it('climbs the market ladder: the armour, the trim and the cover only grow with the tier', () => {
-    expect.hasAssertions();
-    assert_climbs_the_market_ladder_the_armour_the_trim_and();
+    const cover = { bare: 0, plain: 1, armour: 2 } as const;
+    for (let t = 1; t < SKINS.length; t++) {
+      expect(skinOf(t).armor).toBeGreaterThanOrEqual(skinOf(t - 1).armor);
+      expect(skinOf(t).trim).toBeGreaterThanOrEqual(skinOf(t - 1).trim);
+      expect(cover[skinOf(t).ioCover]).toBeGreaterThanOrEqual(cover[skinOf(t - 1).ioCover]);
+    }
   });
 
   it('armours the x16 from Mainstream up and every slot on the Enthusiast', () => {

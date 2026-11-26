@@ -231,264 +231,239 @@ function pieces(items: Item[]): (i: number) => number {
   return find;
 }
 
-function assert_wires_the_edge_as_the_CEM_pinout_has_it_at_the_s(): void {
-  for (const [visual, slot] of CASES) {
-    const { cu, items } = board(visual, slot),
-      n = edgePins(cu.lanes),
-      want = must(niccopper.NIC_LANES[visual]);
-    expect(cu.lanes, `${visual}@${slot}`).toBeLessThanOrEqual(want);
-    if (slot === 0) {
-      expect(cu.lanes).toBe(want);
-    }
-    for (const s of ['A', 'B'] as const) {
-      const got = cu.pads.filter((p) => p.edge && p.id.startsWith(s));
-      expect(
-        got.map((p) => p.id),
-        `${visual} side ${s}`,
-      ).toStrictEqual(Array.from({ length: n }, (_, i) => `${s}${i + 1}`));
-      for (const [i, p] of got.entries()) {
-        const e = edgeNet(s, i + 1, cu.lanes);
-        expect(p.face).toBe(s === 'B' ? 'top' : 'bottom');
-        if (p.net.startsWith('NC')) {
-          expect(e).not.toMatch(/^(?:GND|\+3V3|PE[RT]|REFCLK|PERST|WAKE)/u);
-        } else {
-          expect(p.net).toBe(e.startsWith('PRSNT') ? 'PRSNT#' : e);
-        }
-      }
-    }
-    // the controller's terminals: its pads, a BGA's balls' vias
-    const find = pieces(items),
-      u1 = new Set(
-        items.filter((it) => it.id.startsWith('U1.') || (it.term && it.id.startsWith('via'))).map((it) => it.net),
-      );
-    const lines = ['PERST#', 'WAKE#', 'REFCLK+', 'REFCLK-', 'XO', 'XI', 'SPI_CS#', 'SPI_DO', 'SPI_CLK', 'SPI_DI'];
-    for (let k = 0; k < cu.lanes; k++) {
-      lines.push(`PET${k}+`, `PET${k}-`, `TX${k}+`, `TX${k}-`);
-    }
-    for (const [j, _] of niccopper.jacksOf(visual, 0).entries()) {
-      lines.push(
-        ...[0, 1, 2, 3].flatMap((m) => [`J${j + 1}MDI${m}+`, `J${j + 1}MDI${m}-`]),
-        `J${j + 1}LG`,
-        `J${j + 1}LY`,
-      );
-    }
-    for (const net of lines) {
-      expect(u1.has(net), `${visual}@${slot} ${net} reaches U1`).toBe(true);
-    }
-    // each transmit pair through its capacitor to its finger on side A
-    for (let k = 0; k < cu.lanes; k++) {
-      for (const s of ['+', '-']) {
-        const c = cu.parts.find((p) => p.nets[0] === `PER${k}${s}`);
-        expect(c && c.face === 'bottom' && c.nets[1] === `TX${k}${s}`, `${visual} TX${k}${s}`).toBe(true);
-      }
-    }
-    // every net but the bare ones joins at least two terminals
-    for (const net of new Set(items.map((it) => it.net))) {
-      if (bare(net) || (niccopper.PLANES as readonly string[]).includes(net)) {
-        continue;
-      }
-      const t = items.filter((it) => it.net === net && it.term);
-      expect(t.length, `${visual} ${net} terminals`).toBeGreaterThanOrEqual(2);
-      expect(new Set(t.map((_, i) => find(items.indexOf(must(t[i]))))).size, `${visual} ${net} joined`).toBe(1);
-    }
-  }
-}
-
-function assert_starts_and_ends_every_run_on_its_own_net_s_coppe(): void {
-  for (const [visual, slot] of CASES) {
-    const { cu } = board(visual, slot);
-    for (const [k, t] of cu.traces.entries()) {
-      if (t.net === 'GND' && t.layer !== 'in1') {
-        return;
-      }
-      for (const e of [must(t.pts[0]), must(t.pts.at(-1))]) {
-        const onPad =
-          t.layer !== 'in1' && cu.pads.some((p) => p.net === t.net && p.face === t.layer && inRect(p.r, e, 1e-6));
-        const onDisc = [
-          ...cu.vias.map((v) => ({ ...v, r: niccopper.CU.via })),
-          ...cu.holes.map((h) => ({ ...h, r: h.ring })),
-        ].some((d) => d.net === t.net && Math.hypot(d.x - e[0], d.y - e[1]) <= d.r);
-        const onRun = cu.traces.some(
-          (o, j) =>
-            j !== k &&
-            o.net === t.net &&
-            o.layer === t.layer &&
-            o.pts.slice(1).some((b, i) => segPt(e, must(o.pts[i]), b) < 1e-6),
-        );
-        expect(
-          onPad || onDisc || onRun,
-          `${visual} ${t.net} run ${k} end ${e.map((v) => ((v - (v === e[0] ? layout.BD.x : layout.nicY(slot))) / MM).toFixed(2))}`,
-        ).toBe(true);
-      }
-    }
-  }
-}
-
-function assert_runs_every_line_at_0_45_or_90_degrees_bending_45(): void {
-  for (const [visual, slot] of CASES) {
-    for (const t of board(visual, slot).cu.traces) {
-      const dirs = t.pts.slice(1).map((b, i) => {
-        const a = must(t.pts[i]),
-          dx = b[0] - a[0],
-          dy = b[1] - a[1],
-          l = Math.hypot(dx, dy);
-        return [dx / l, dy / l] as const;
-      });
-      for (const [dx, dy] of dirs) {
-        expect(
-          Math.abs(dx) < 1e-6 || Math.abs(dy) < 1e-6 || Math.abs(Math.abs(dx) - Math.abs(dy)) < 1e-6,
-          `${visual} ${t.net}`,
-        ).toBe(true);
-      }
-      for (let i = 1; i < dirs.length; i++) {
-        expect(
-          must(dirs[i - 1])[0] * must(dirs[i])[0] + must(dirs[i - 1])[1] * must(dirs[i])[1],
-          `${visual} ${t.net} bend ${i}`,
-        ).toBeGreaterThan(Math.SQRT1_2 - 1e-6);
-      }
-    }
-  }
-}
-
-function assert_keeps_every_net_its_clearance_off_every_other_on(): void {
-  for (const [visual, slot] of CASES) {
-    const { items, cu } = board(visual, slot),
-      o = cu.outline;
-    for (let i = 0; i < items.length; i++) {
-      for (let j = i + 1; j < items.length; j++) {
-        const a = must(items[i]),
-          b = must(items[j]);
-        if (a.net === b.net || !near(a, b, niccopper.CU.clear) || !meet(a, b)) {
-          continue;
-        }
-        expect(gap(a.s, b.s), `${visual}@${slot} ${a.id} / ${b.id}`).toBeGreaterThanOrEqual(niccopper.CU.clear - 1e-6);
-      }
-    }
-    for (const it of items) {
-      const c: niccopper.Pt =
-        it.s.kind === 'seg'
-          ? it.s.a
-          : it.s.kind === 'disc'
-            ? it.s.c
-            : [it.s.r.x + it.s.r.w / 2, it.s.r.y + it.s.r.h / 2];
-      expect(inside(o, c), `${visual} ${it.id} on the board`).toBe(true);
-      if (it.edge) {
-        continue;
-      }
-      const d = Math.min(...o.map((p, k) => edgeGap(it.s, p, must(o[(k + 1) % o.length]))));
-      expect(d, `${visual}@${slot} ${it.id} off the edge`).toBeGreaterThanOrEqual(4 - 1e-6);
-    }
-  }
-}
-
-function assert_realises_the_netlist_each_net_one_piece_of_coppe(): void {
-  for (const [visual, slot] of CASES) {
-    const { items } = board(visual, slot),
-      find = pieces(items);
-    const nets = new Map<number, Set<string>>(),
-      parts = new Map<string, Set<number>>();
-    for (const [i, it] of items.entries()) {
-      const r = find(i);
-      nets.set(r, or(nets.get(r), new Set()).add(it.net));
-      parts.set(it.net, or(parts.get(it.net), new Set()).add(r));
-    }
-    for (const [, s] of nets) {
-      expect([...s], `${visual}@${slot}: a short`).toHaveLength(1);
-    }
-    for (const [net, s] of parts) {
-      if (!bare(net)) {
-        expect(s.size, `${visual}@${slot} ${net} in ${s.size} pieces`).toBe(1);
-      }
-    }
-    // the NC pins touch nothing at all
-    for (const it of items.filter((x) => x.net.startsWith('NC'))) {
-      expect(items.filter((o) => find(items.indexOf(o)) === find(items.indexOf(it)))).toHaveLength(1);
-    }
-    // the controller's power: every plane on it
-    const on = new Set(items.filter((it) => it.id.startsWith('U1.') || it.term).map((it) => it.net));
-    for (const p of niccopper.PLANES) {
-      expect(on.has(p), `${visual} U1 on ${p}`).toBe(true);
-    }
-  }
-}
-
-function assert_places_the_parts_apart_on_each_face_on_the_board(): void {
-  for (const [visual, slot] of CASES) {
-    const { cu, f } = board(visual, slot),
-      L = f.x1 - f.x0,
-      H = f.end - f.y0,
-      a = cu.at;
-    const body = (p: niccopper.NicCopper['parts'][number]): layout.Rect => {
-      const [l, w] = p.pkg === '0402' ? [1, 0.5] : [1.6, 0.8],
-        sx = (p.turn ? w : l) * MM,
-        sy = (p.turn ? l : w) * MM;
-      return { x: p.x - sx / 2, y: p.y - sy / 2, w: sx, h: sy };
-    };
-    // (a port's box: the RJ45 jack's, or the 40G card's QSFP+ cage, which is wider)
-    const P = niccopper.jackOf(visual),
-      jacks = niccopper
-        .jacksOf(visual, f.y0)
-        .map((y): layout.Rect => ({ x: f.x0, y, w: niccopper.JACK_X + P.d - f.x0, h: P.w }));
-    const top: [string, layout.Rect][] = [
-      ['U1', or(a.sink, a.chip)],
-      ['Y1', a.crystal],
-      ['U2', a.flash],
-      ['U3', a.reg],
-      ...a.inductors.map((r, k): [string, layout.Rect] => [`L${k + 1}`, r]),
-      ...a.cans.map((c): [string, layout.Rect] => [c.ref, { x: c.x - c.r, y: c.y - c.r, w: 2 * c.r, h: 2 * c.r }]),
-      ...jacks.map((r, k): [string, layout.Rect] => [`J${k + 1}`, r]),
-      ...cu.parts.filter((p) => p.face === 'top').map((p): [string, layout.Rect] => [p.ref, body(p)]),
-    ];
-    const bottom = cu.parts.filter((p) => p.face === 'bottom').map((p): [string, layout.Rect] => [p.ref, body(p)]);
-    for (const list of [top, bottom]) {
-      for (let i = 0; i < list.length; i++) {
-        const [n, r] = must(list[i]);
-        expect(
-          r.x >= f.x0 && r.y >= f.y0 + 0.3 * MM && r.x + r.w <= f.x0 + L - 0.3 * MM && r.y + r.h <= f.y0 + H - 0.3 * MM,
-          `${visual} ${n} on the board`,
-        ).toBe(true);
-        for (let j = i + 1; j < list.length; j++) {
-          expect(overlap(r, must(list[j])[1]), `${visual}@${slot} ${n} / ${must(list[j])[0]}`).toBe(false);
-        }
-      }
-    }
-    for (const h of cu.holes) {
-      expect(
-        jacks.some((r) => inRect(r, [h.x, h.y])),
-        `${visual} ${h.id} under its jack`,
-      ).toBe(true);
-    }
-  }
-}
-
 describe("the network card's routed copper", () => {
   it("wires the edge as the CEM pinout has it, at the slot's width, and every line through to the controller", () => {
-    expect.hasAssertions();
-    assert_wires_the_edge_as_the_CEM_pinout_has_it_at_the_s();
+    for (const [visual, slot] of CASES) {
+      const { cu, items } = board(visual, slot),
+        n = edgePins(cu.lanes),
+        want = must(niccopper.NIC_LANES[visual]);
+      expect(cu.lanes, `${visual}@${slot}`).toBeLessThanOrEqual(want);
+      if (slot === 0) {
+        expect(cu.lanes).toBe(want);
+      }
+      for (const s of ['A', 'B'] as const) {
+        const got = cu.pads.filter((p) => p.edge && p.id.startsWith(s));
+        expect(
+          got.map((p) => p.id),
+          `${visual} side ${s}`,
+        ).toStrictEqual(Array.from({ length: n }, (_, i) => `${s}${i + 1}`));
+        for (const [i, p] of got.entries()) {
+          const e = edgeNet(s, i + 1, cu.lanes);
+          expect(p.face).toBe(s === 'B' ? 'top' : 'bottom');
+          if (p.net.startsWith('NC')) {
+            expect(e).not.toMatch(/^(?:GND|\+3V3|PE[RT]|REFCLK|PERST|WAKE)/u);
+          } else {
+            expect(p.net).toBe(e.startsWith('PRSNT') ? 'PRSNT#' : e);
+          }
+        }
+      }
+      // the controller's terminals: its pads, a BGA's balls' vias
+      const find = pieces(items),
+        u1 = new Set(
+          items.filter((it) => it.id.startsWith('U1.') || (it.term && it.id.startsWith('via'))).map((it) => it.net),
+        );
+      const lines = ['PERST#', 'WAKE#', 'REFCLK+', 'REFCLK-', 'XO', 'XI', 'SPI_CS#', 'SPI_DO', 'SPI_CLK', 'SPI_DI'];
+      for (let k = 0; k < cu.lanes; k++) {
+        lines.push(`PET${k}+`, `PET${k}-`, `TX${k}+`, `TX${k}-`);
+      }
+      for (const [j, _] of niccopper.jacksOf(visual, 0).entries()) {
+        lines.push(
+          ...[0, 1, 2, 3].flatMap((m) => [`J${j + 1}MDI${m}+`, `J${j + 1}MDI${m}-`]),
+          `J${j + 1}LG`,
+          `J${j + 1}LY`,
+        );
+      }
+      for (const net of lines) {
+        expect(u1.has(net), `${visual}@${slot} ${net} reaches U1`).toBe(true);
+      }
+      // each transmit pair through its capacitor to its finger on side A
+      for (let k = 0; k < cu.lanes; k++) {
+        for (const s of ['+', '-']) {
+          const c = cu.parts.find((p) => p.nets[0] === `PER${k}${s}`);
+          expect(c && c.face === 'bottom' && c.nets[1] === `TX${k}${s}`, `${visual} TX${k}${s}`).toBe(true);
+        }
+      }
+      // every net but the bare ones joins at least two terminals
+      for (const net of new Set(items.map((it) => it.net))) {
+        if (bare(net) || (niccopper.PLANES as readonly string[]).includes(net)) {
+          continue;
+        }
+        const t = items.filter((it) => it.net === net && it.term);
+        expect(t.length, `${visual} ${net} terminals`).toBeGreaterThanOrEqual(2);
+        expect(new Set(t.map((_, i) => find(items.indexOf(must(t[i]))))).size, `${visual} ${net} joined`).toBe(1);
+      }
+    }
   });
 
   it("starts and ends every run on its own net's copper: a pad, a hole, a via, a run of the same net, or the ground pour", () => {
-    expect.hasAssertions();
-    assert_starts_and_ends_every_run_on_its_own_net_s_coppe();
+    for (const [visual, slot] of CASES) {
+      const { cu } = board(visual, slot);
+      for (const [k, t] of cu.traces.entries()) {
+        if (t.net === 'GND' && t.layer !== 'in1') {
+          return;
+        }
+        for (const e of [must(t.pts[0]), must(t.pts.at(-1))]) {
+          const onPad =
+            t.layer !== 'in1' && cu.pads.some((p) => p.net === t.net && p.face === t.layer && inRect(p.r, e, 1e-6));
+          const onDisc = [
+            ...cu.vias.map((v) => ({ ...v, r: niccopper.CU.via })),
+            ...cu.holes.map((h) => ({ ...h, r: h.ring })),
+          ].some((d) => d.net === t.net && Math.hypot(d.x - e[0], d.y - e[1]) <= d.r);
+          const onRun = cu.traces.some(
+            (o, j) =>
+              j !== k &&
+              o.net === t.net &&
+              o.layer === t.layer &&
+              o.pts.slice(1).some((b, i) => segPt(e, must(o.pts[i]), b) < 1e-6),
+          );
+          expect(
+            onPad || onDisc || onRun,
+            `${visual} ${t.net} run ${k} end ${e.map((v) => ((v - (v === e[0] ? layout.BD.x : layout.nicY(slot))) / MM).toFixed(2))}`,
+          ).toBe(true);
+        }
+      }
+    }
   });
 
   it('runs every line at 0, 45 or 90 degrees, bending 45 degrees at a time (right angles chamfered)', () => {
-    expect.hasAssertions();
-    assert_runs_every_line_at_0_45_or_90_degrees_bending_45();
+    for (const [visual, slot] of CASES) {
+      for (const t of board(visual, slot).cu.traces) {
+        const dirs = t.pts.slice(1).map((b, i) => {
+          const a = must(t.pts[i]),
+            dx = b[0] - a[0],
+            dy = b[1] - a[1],
+            l = Math.hypot(dx, dy);
+          return [dx / l, dy / l] as const;
+        });
+        for (const [dx, dy] of dirs) {
+          expect(
+            Math.abs(dx) < 1e-6 || Math.abs(dy) < 1e-6 || Math.abs(Math.abs(dx) - Math.abs(dy)) < 1e-6,
+            `${visual} ${t.net}`,
+          ).toBe(true);
+        }
+        for (let i = 1; i < dirs.length; i++) {
+          expect(
+            must(dirs[i - 1])[0] * must(dirs[i])[0] + must(dirs[i - 1])[1] * must(dirs[i])[1],
+            `${visual} ${t.net} bend ${i}`,
+          ).toBeGreaterThan(Math.SQRT1_2 - 1e-6);
+        }
+      }
+    }
   });
 
   it("keeps every net its clearance off every other on each layer, and all copper in from the board's edge (the gold fingers run to it)", () => {
-    expect.hasAssertions();
-    assert_keeps_every_net_its_clearance_off_every_other_on();
+    for (const [visual, slot] of CASES) {
+      const { items, cu } = board(visual, slot),
+        o = cu.outline;
+      for (let i = 0; i < items.length; i++) {
+        for (let j = i + 1; j < items.length; j++) {
+          const a = must(items[i]),
+            b = must(items[j]);
+          if (a.net === b.net || !near(a, b, niccopper.CU.clear) || !meet(a, b)) {
+            continue;
+          }
+          expect(gap(a.s, b.s), `${visual}@${slot} ${a.id} / ${b.id}`).toBeGreaterThanOrEqual(
+            niccopper.CU.clear - 1e-6,
+          );
+        }
+      }
+      for (const it of items) {
+        const c: niccopper.Pt =
+          it.s.kind === 'seg'
+            ? it.s.a
+            : it.s.kind === 'disc'
+              ? it.s.c
+              : [it.s.r.x + it.s.r.w / 2, it.s.r.y + it.s.r.h / 2];
+        expect(inside(o, c), `${visual} ${it.id} on the board`).toBe(true);
+        if (it.edge) {
+          continue;
+        }
+        const d = Math.min(...o.map((p, k) => edgeGap(it.s, p, must(o[(k + 1) % o.length]))));
+        expect(d, `${visual}@${slot} ${it.id} off the edge`).toBeGreaterThanOrEqual(4 - 1e-6);
+      }
+    }
   });
 
   it('realises the netlist: each net one piece of copper (the planes through their vias, ground poured), no two nets touching, the NC pins bare', () => {
-    expect.hasAssertions();
-    assert_realises_the_netlist_each_net_one_piece_of_coppe();
+    for (const [visual, slot] of CASES) {
+      const { items } = board(visual, slot),
+        find = pieces(items);
+      const nets = new Map<number, Set<string>>(),
+        parts = new Map<string, Set<number>>();
+      for (const [i, it] of items.entries()) {
+        const r = find(i);
+        nets.set(r, or(nets.get(r), new Set()).add(it.net));
+        parts.set(it.net, or(parts.get(it.net), new Set()).add(r));
+      }
+      for (const [, s] of nets) {
+        expect([...s], `${visual}@${slot}: a short`).toHaveLength(1);
+      }
+      for (const [net, s] of parts) {
+        if (!bare(net)) {
+          expect(s.size, `${visual}@${slot} ${net} in ${s.size} pieces`).toBe(1);
+        }
+      }
+      // the NC pins touch nothing at all
+      for (const it of items.filter((x) => x.net.startsWith('NC'))) {
+        expect(items.filter((o) => find(items.indexOf(o)) === find(items.indexOf(it)))).toHaveLength(1);
+      }
+      // the controller's power: every plane on it
+      const on = new Set(items.filter((it) => it.id.startsWith('U1.') || it.term).map((it) => it.net));
+      for (const p of niccopper.PLANES) {
+        expect(on.has(p), `${visual} U1 on ${p}`).toBe(true);
+      }
+    }
   });
 
   it("places the parts apart on each face, on the board, the jacks' pins under the jacks", () => {
-    expect.hasAssertions();
-    assert_places_the_parts_apart_on_each_face_on_the_board();
+    for (const [visual, slot] of CASES) {
+      const { cu, f } = board(visual, slot),
+        L = f.x1 - f.x0,
+        H = f.end - f.y0,
+        a = cu.at;
+      const body = (p: niccopper.NicCopper['parts'][number]): layout.Rect => {
+        const [l, w] = p.pkg === '0402' ? [1, 0.5] : [1.6, 0.8],
+          sx = (p.turn ? w : l) * MM,
+          sy = (p.turn ? l : w) * MM;
+        return { x: p.x - sx / 2, y: p.y - sy / 2, w: sx, h: sy };
+      };
+      // (a port's box: the RJ45 jack's, or the 40G card's QSFP+ cage, which is wider)
+      const P = niccopper.jackOf(visual),
+        jacks = niccopper
+          .jacksOf(visual, f.y0)
+          .map((y): layout.Rect => ({ x: f.x0, y, w: niccopper.JACK_X + P.d - f.x0, h: P.w }));
+      const top: [string, layout.Rect][] = [
+        ['U1', or(a.sink, a.chip)],
+        ['Y1', a.crystal],
+        ['U2', a.flash],
+        ['U3', a.reg],
+        ...a.inductors.map((r, k): [string, layout.Rect] => [`L${k + 1}`, r]),
+        ...a.cans.map((c): [string, layout.Rect] => [c.ref, { x: c.x - c.r, y: c.y - c.r, w: 2 * c.r, h: 2 * c.r }]),
+        ...jacks.map((r, k): [string, layout.Rect] => [`J${k + 1}`, r]),
+        ...cu.parts.filter((p) => p.face === 'top').map((p): [string, layout.Rect] => [p.ref, body(p)]),
+      ];
+      const bottom = cu.parts.filter((p) => p.face === 'bottom').map((p): [string, layout.Rect] => [p.ref, body(p)]);
+      for (const list of [top, bottom]) {
+        for (let i = 0; i < list.length; i++) {
+          const [n, r] = must(list[i]);
+          expect(
+            r.x >= f.x0 &&
+              r.y >= f.y0 + 0.3 * MM &&
+              r.x + r.w <= f.x0 + L - 0.3 * MM &&
+              r.y + r.h <= f.y0 + H - 0.3 * MM,
+            `${visual} ${n} on the board`,
+          ).toBe(true);
+          for (let j = i + 1; j < list.length; j++) {
+            expect(overlap(r, must(list[j])[1]), `${visual}@${slot} ${n} / ${must(list[j])[0]}`).toBe(false);
+          }
+        }
+      }
+      for (const h of cu.holes) {
+        expect(
+          jacks.some((r) => inRect(r, [h.x, h.y])),
+          `${visual} ${h.id} under its jack`,
+        ).toBe(true);
+      }
+    }
   });
 });

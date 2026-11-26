@@ -122,52 +122,16 @@ function flight(id: string, inset: Partial<Inset>, from: camera.OrbitView = STAR
 /** The air a box keeps from an inset when the inset forces it off the middle: some, not a lot. */
 const AIR = { min: 8, max: 48 };
 
-function assert_is_for_keys_only_every_other_id_keeps_the_view_i(): void {
-  for (const id of ['cpu', 'usb', 'tray', 'cable.lan', 'monitor', 'power', 'inv:key:3', 'key']) {
-    expect(flight(id, { top: 63, bottom: 369 }).to).toBe(START);
-  }
-  expect(flight('key:3', { top: 63, bottom: 369 }).to).not.toBe(START);
-}
-
-function assert_for_any_insets_the_box_is_never_under_one_and_it(): void {
-  const problems: string[] = [];
-  for (const h of [720, 900, 1080]) {
-    for (const top of [0, 63, 200, 400]) {
-      for (const bottom of [0, 100, 369, 600]) {
-        const f = flight('key:7', { top, bottom }, START, h);
-        const where = `${h} px, top ${top}, bottom ${bottom}: box ${Math.round(f.top)} to ${Math.round(f.bottom)}`;
-        // the box with the most air an inset can ask for still fits the band: it must be clear of both insets
-        if (f.boxPx + 2 * AIR.max > h - top - bottom) {
-          continue;
-        }
-        if (f.top < top || f.bottom > h - bottom) {
-          problems.push(`${where}: under an inset`);
-        }
-        const free = h / 2 - f.boxPx / 2 - AIR.max >= top && h / 2 + f.boxPx / 2 + AIR.max <= h - bottom;
-        const forced = h / 2 - f.boxPx / 2 - AIR.min < top || h / 2 + f.boxPx / 2 + AIR.min > h - bottom;
-        if (free && Math.abs(f.centre - h / 2) > 0.01) {
-          problems.push(`${where}: nothing forces it off the middle, but it is not there`);
-        }
-        if (forced) {
-          const rests = Math.abs(f.top - top) <= AIR.max || Math.abs(h - bottom - f.bottom) <= AIR.max;
-          if (!rests) {
-            problems.push(`${where}: an inset forces it off the middle, but it rests on neither inset`);
-          }
-        }
-      }
-    }
-  }
-  expect(problems).toStrictEqual([]);
-}
-
 describe('the key flight moves the eye no further than the HUD forces (world/flyToId.ts, ticket #44)', () => {
   it('finds the key flight statement in world/flyToId.ts', () => {
     expect(() => keyShift()).not.toThrow();
   });
 
   it('is for keys only: every other id keeps the view it was given', () => {
-    expect.hasAssertions();
-    assert_is_for_keys_only_every_other_id_keeps_the_view_i();
+    for (const id of ['cpu', 'usb', 'tray', 'cable.lan', 'monitor', 'power', 'inv:key:3', 'key']) {
+      expect(flight(id, { top: 63, bottom: 369 }).to).toBe(START);
+    }
+    expect(flight('key:3', { top: 63, bottom: 369 }).to).not.toBe(START);
   });
 
   it('does nothing when the HUD takes no room, or the same at both ends', () => {
@@ -216,7 +180,33 @@ describe('the key flight moves the eye no further than the HUD forces (world/fly
   });
 
   it('for any insets: the box is never under one, and it rests at the screen middle unless an inset forces it off', () => {
-    expect.hasAssertions();
-    assert_for_any_insets_the_box_is_never_under_one_and_it();
+    const problems: string[] = [];
+    for (const h of [720, 900, 1080]) {
+      for (const top of [0, 63, 200, 400]) {
+        for (const bottom of [0, 100, 369, 600]) {
+          const f = flight('key:7', { top, bottom }, START, h);
+          const where = `${h} px, top ${top}, bottom ${bottom}: box ${Math.round(f.top)} to ${Math.round(f.bottom)}`;
+          // the box with the most air an inset can ask for still fits the band: it must be clear of both insets
+          if (f.boxPx + 2 * AIR.max > h - top - bottom) {
+            continue;
+          }
+          if (f.top < top || f.bottom > h - bottom) {
+            problems.push(`${where}: under an inset`);
+          }
+          const free = h / 2 - f.boxPx / 2 - AIR.max >= top && h / 2 + f.boxPx / 2 + AIR.max <= h - bottom;
+          const forced = h / 2 - f.boxPx / 2 - AIR.min < top || h / 2 + f.boxPx / 2 + AIR.min > h - bottom;
+          if (free && Math.abs(f.centre - h / 2) > 0.01) {
+            problems.push(`${where}: nothing forces it off the middle, but it is not there`);
+          }
+          if (forced) {
+            const rests = Math.abs(f.top - top) <= AIR.max || Math.abs(h - bottom - f.bottom) <= AIR.max;
+            if (!rests) {
+              problems.push(`${where}: an inset forces it off the middle, but it rests on neither inset`);
+            }
+          }
+        }
+      }
+    }
+    expect(problems).toStrictEqual([]);
   });
 });

@@ -104,40 +104,6 @@ beforeAll(() => {
   setLayoutTier(2, 2);
 });
 
-function assert_the_mains_from_the_wall_are_a_source_s_lines_eve(): void {
-  const sh = net.powerShape(input(running()));
-  const tone = (id: string): string => must(sh.lines[lineOf(sh, id)]).tone;
-  expect(tone('pcmains#0')).toBe('source');
-  expect(tone('monmains#0')).toBe('source');
-  expect(tone('atx~0')).toBe('use');
-  for (const id of ['atx#0', 'cpu#0', 'hdd:power#0', 'trace.pwrcpu.0', 'trace.vdimm.0']) {
-    expect(tone(id)).toBe('use');
-  }
-}
-
-function assert_puts_a_plate_round_the_plugs_of_the_wall_a_source(): void {
-  const sh = net.powerShape(input(running()));
-  expect(sh.nodes.map((n) => n.id)).toStrictEqual(['node.wall', 'node.vrm', 'node.dvrm']);
-  const [wall, ...regs] = sh.nodes;
-  expect(must(wall).role).toBe('source');
-  // (it centres on the two plugs, at x 9000, y -5000 and -4000, just in front of them, and is bigger than they are apart)
-  expect(must(wall).at).toStrictEqual([9000, -4500, 1990]);
-  expect(must(wall).ex[0]).toBeGreaterThan(0);
-  expect(must(wall).ey[1]).toBeGreaterThan(500);
-  expect(regs.every((n) => n.role === 'hub')).toBe(true);
-  // (the regulators lie on the board's own, over its face)
-  expect(regs.every((n) => n.at[2] > 2460 && n.at[2] < 2520)).toBe(true);
-  expect(regs.every((n) => Number.isFinite(n.at[0]) && n.ex[0] > 0 && n.ey[1] > 0)).toBe(true);
-  const i = input(running());
-  const fan = net.powerShape({
-    ...i,
-    runs: [...i.runs, run('sysfan', [strand([1000, -1000, 2500], [1200, -900, 2500])])],
-  });
-  const hub = must(fan.nodes.find((n) => n.id === 'node.hub'));
-  expect(hub.role).toBe('hub');
-  expect(hub.at[2]).toBe(2490);
-}
-
 describe('the power shape', () => {
   it('has a line for each strand of each power cable, and none for the data cables', () => {
     const sh = net.powerShape(input(running()));
@@ -191,13 +157,37 @@ describe('the power shape', () => {
   });
 
   it("the mains from the wall are a source's lines; every other line takes its power from the supply or the board, and is a use", () => {
-    expect.hasAssertions();
-    assert_the_mains_from_the_wall_are_a_source_s_lines_eve();
+    const sh = net.powerShape(input(running()));
+    const tone = (id: string): string => must(sh.lines[lineOf(sh, id)]).tone;
+    expect(tone('pcmains#0')).toBe('source');
+    expect(tone('monmains#0')).toBe('source');
+    expect(tone('atx~0')).toBe('use');
+    for (const id of ['atx#0', 'cpu#0', 'hdd:power#0', 'trace.pwrcpu.0', 'trace.vdimm.0']) {
+      expect(tone(id)).toBe('use');
+    }
   });
 
   it('puts a plate round the plugs of the wall (a source) and one on each regulator (a hub); the fan hub has one when its cord is there', () => {
-    expect.hasAssertions();
-    assert_puts_a_plate_round_the_plugs_of_the_wall_a_source();
+    const sh = net.powerShape(input(running()));
+    expect(sh.nodes.map((n) => n.id)).toStrictEqual(['node.wall', 'node.vrm', 'node.dvrm']);
+    const [wall, ...regs] = sh.nodes;
+    expect(must(wall).role).toBe('source');
+    // (it centres on the two plugs, at x 9000, y -5000 and -4000, just in front of them, and is bigger than they are apart)
+    expect(must(wall).at).toStrictEqual([9000, -4500, 1990]);
+    expect(must(wall).ex[0]).toBeGreaterThan(0);
+    expect(must(wall).ey[1]).toBeGreaterThan(500);
+    expect(regs.every((n) => n.role === 'hub')).toBe(true);
+    // (the regulators lie on the board's own, over its face)
+    expect(regs.every((n) => n.at[2] > 2460 && n.at[2] < 2520)).toBe(true);
+    expect(regs.every((n) => Number.isFinite(n.at[0]) && n.ex[0] > 0 && n.ey[1] > 0)).toBe(true);
+    const i = input(running());
+    const fan = net.powerShape({
+      ...i,
+      runs: [...i.runs, run('sysfan', [strand([1000, -1000, 2500], [1200, -900, 2500])])],
+    });
+    const hub = must(fan.nodes.find((n) => n.id === 'node.hub'));
+    expect(hub.role).toBe('hub');
+    expect(hub.at[2]).toBe(2490);
   });
 
   it("lets the studio's wall set the source plate: its real outline, lying over the plugs' seat, with the words beside it; the room's socket stays as it was", () => {
@@ -277,7 +267,7 @@ describe('a snapshot on the shape', () => {
   };
   const state = (sh: net.PowerShape, d: ReturnType<typeof draw>['d'], id: string) => d.state[lineOf(sh, id)];
 
-  function assert_a_running_machine_cables_and_traces_on_the_busiest(): void {
+  it('a running machine: cables and traces on, the busiest run the hottest, every number a number', () => {
     const { sh, d } = draw(running());
     expect(state(sh, d, 'pcmains#0')).toBe(1);
     expect(state(sh, d, 'cpu#0')).toBe(1);
@@ -287,11 +277,6 @@ describe('a snapshot on the shape', () => {
     expect([...d.level].every((x) => Number.isFinite(x) && x >= 0 && x <= 1)).toBe(true);
     expect(d.open.every((x) => x === 0)).toBe(true);
     expect(d.refW).toBe(60);
-  }
-
-  it('a running machine: cables and traces on, the busiest run the hottest, every number a number', () => {
-    expect.hasAssertions();
-    assert_a_running_machine_cables_and_traces_on_the_busiest();
   });
 
   it('a machine that is off: every run idles, none glows', () => {
@@ -304,7 +289,7 @@ describe('a snapshot on the shape', () => {
     expect([...d.parts.values()].every((x) => x === 0)).toBe(true);
   });
 
-  function assert_the_plates_glow_by_what_passes_through_them_the_(): void {
+  it('the plates glow by what passes through them: the wall by the whole draw, a regulator by what it hands on', () => {
     const { sh, d } = draw(running());
     const at = (id: string): number => sh.nodes.findIndex((n) => n.id === id);
     expect([...d.nodeState]).toStrictEqual([1, 1, 1]);
@@ -312,14 +297,9 @@ describe('a snapshot on the shape', () => {
     expect(must(d.nodeLevel[at('node.vrm')])).toBeGreaterThan(must(d.nodeLevel[at('node.dvrm')]));
     expect(must(d.nodeLevel[at('node.dvrm')])).toBeGreaterThan(0);
     expect([...d.nodeLevel].every((x) => Number.isFinite(x) && x >= 0 && x <= 1)).toBe(true);
-  }
-
-  it('the plates glow by what passes through them: the wall by the whole draw, a regulator by what it hands on', () => {
-    expect.hasAssertions();
-    assert_the_plates_glow_by_what_passes_through_them_the_();
   });
 
-  function assert_a_plate_is_out_with_the_cable_that_feeds_it_the_(): void {
+  it('a plate is out with the cable that feeds it: the wall with a cord, the CPU regulator with the 8-pin, the memory regulator with the 24-pin', () => {
     const base = running();
     const out = (id: string) =>
       draw({
@@ -334,11 +314,6 @@ describe('a snapshot on the shape', () => {
     expect(stateOfNode(out('cpu'), 'node.dvrm')).toBe(1);
     expect(stateOfNode(out('atx'), 'node.dvrm')).toBe(2);
     expect(stateOfNode(out('atx'), 'node.vrm')).toBe(1);
-  }
-
-  it('a plate is out with the cable that feeds it: the wall with a cord, the CPU regulator with the 8-pin, the memory regulator with the 24-pin', () => {
-    expect.hasAssertions();
-    assert_a_plate_is_out_with_the_cable_that_feeds_it_the_();
   });
 
   it('says what a regulator hands on and what it wastes on the way, and keeps these among the words of detail', () => {
@@ -375,7 +350,7 @@ describe('a snapshot on the shape', () => {
     expect(d.roles.get('fan0')).toBe('use');
   });
 
-  function assert_a_cable_that_is_out_is_missing_with_a_ring_and_i(): void {
+  it('a cable that is out is missing, with a ring and its words at the socket; the rest run on', () => {
     const base = running();
     const { sh, d } = draw({
       ...base,
@@ -390,11 +365,6 @@ describe('a snapshot on the shape', () => {
     const warn = must(d.tags.find((t) => t.id === 'p.atx.warn'));
     expect(warn).toMatchObject({ text: 'NO MAIN POWER', tone: 'warn' });
     expect(warn.at.every(Number.isFinite)).toBe(true);
-  }
-
-  it('a cable that is out is missing, with a ring and its words at the socket; the rest run on', () => {
-    expect.hasAssertions();
-    assert_a_cable_that_is_out_is_missing_with_a_ring_and_i();
   });
 
   it('a cord that is out says to plug it in', () => {
@@ -419,7 +389,7 @@ describe('a snapshot on the shape', () => {
     expect(new Set(d.tags.map((t) => t.id)).size).toBe(d.tags.length);
   });
 
-  function assert_gives_every_word_the_role_of_the_thing_it_names_(): void {
+  it('gives every word the role of the thing it names: the wall a source, the supply a hub, the parts users', () => {
     const { d } = draw(running());
     const role = Object.fromEntries(d.tags.map((t) => [t.id, t.role]));
     expect(role['p.wall']).toBe('source');
@@ -431,11 +401,6 @@ describe('a snapshot on the shape', () => {
     expect(
       d.tags.filter((t) => t.tone === 'warn' || t.id === 'p.scale' || t.id === 'p.legend').every((t) => !t.role),
     ).toBe(true);
-  }
-
-  it('gives every word the role of the thing it names: the wall a source, the supply a hub, the parts users', () => {
-    expect.hasAssertions();
-    assert_gives_every_word_the_role_of_the_thing_it_names_();
   });
 
   it('parts glow by what they draw; a supply over its budget glows red', () => {

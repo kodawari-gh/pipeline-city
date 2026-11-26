@@ -190,79 +190,6 @@ async function pump(s: BuildStage, work: Promise<unknown>, onTick?: () => void):
 
 const of = (s: BuildStage, kind: string) => s.board.devices.filter((d) => deviceSpec(d).kind === kind);
 
-async function assert_a_fan_with_a_quarter_turn_keeps_it_while_it_come(): Promise<void> {
-  const s = stage();
-  const o = new Group();
-  o.rotation.y = Math.PI / 2;
-  o.position.set(100, 200, 300);
-  const turns: number[] = [];
-  const tick = () => turns.push(o.rotation.y);
-  await pump(s, hid(s)['playAll']([o], 'fan', 'in'), tick);
-  expect(turns.length).toBeGreaterThan(0);
-  for (const y of turns) {
-    expect(y).toBeCloseTo(Math.PI / 2, 5);
-  }
-  expect(o.rotation.y).toBeCloseTo(Math.PI / 2, 5);
-  expect(o.position.x).toBeCloseTo(100, 5);
-  expect(o.position.y).toBeCloseTo(200, 5);
-  expect(o.position.z).toBeCloseTo(300, 5);
-}
-
-async function assert_the_fans_on_the_two_ends_of_a_tower_heatsink_end(): Promise<void> {
-  setLayoutTier(3, 3);
-  const s = stage();
-  const fans = [0, 1].map((k) => ({
-    id: `d-${k}`,
-    slot: `cooler0.fan${k}`,
-    spec: specs.getSpec('fan120') as specs.FanSpec,
-  }));
-  const m = coolerModel('cooler-tower', fans);
-  const proud = 32; // (the fan's light stands a little proud of its face)
-  for (const [k, f] of fans.entries()) {
-    const o = must(findById(m.root, f.id)),
-      spot = must(coolerFanBox('cooler-tower', k));
-    // in: it ends at its seat, in its spot (a fan laid flat is 2760 wide along x and 600 thin along z: out of the spot on both)
-    await pump(s, hid(s)['playAll']([o], 'fan', 'in'));
-    let c = new Box3().setFromObject(o, true);
-    expect(c.min.x, `${f.slot} in`).toBeGreaterThanOrEqual(spot.r.x - proud);
-    expect(c.max.x, `${f.slot} in`).toBeLessThanOrEqual(spot.r.x + spot.r.w + proud);
-    expect(c.min.z, `${f.slot} in`).toBeGreaterThanOrEqual(spot.z0 - proud);
-    expect(c.max.z, `${f.slot} in`).toBeLessThanOrEqual(spot.z1 + proud);
-    // out: it leaves along z (hidden where its way ends) and is still as thin along x as its spot
-    await pump(s, hid(s)['playAll']([o], 'fan', 'out'));
-    c = new Box3().setFromObject(o, true);
-    expect(c.min.x, `${f.slot} out`).toBeGreaterThanOrEqual(spot.r.x - proud);
-    expect(c.max.x, `${f.slot} out`).toBeLessThanOrEqual(spot.r.x + spot.r.w + proud);
-  }
-}
-
-async function assert_Undo_of_a_removal_puts_a_fan_back_with_its_turn(): Promise<void> {
-  const s = stage();
-  await pump(
-    s,
-    (async () => {
-      await s.clear();
-      for (const part of ['case1', 'board1', 'psu1', 'cpu1', 'cooler0', 'ram0']) {
-        await s.fit(part);
-      }
-      await s.fit('fan92', 'front0');
-    })(),
-  );
-  const fan = must(of(s, 'fan')[0]);
-  expect(fan).toBeDefined();
-  // the fan's built object, turned a quarter as a case mount is built
-  const g = new Group();
-  g.userData['id'] = fan.id;
-  g.rotation.y = Math.PI / 2;
-  hid(s)['_machine'].root.add(g);
-  await pump(s, s.remove(devNode(fan.id)));
-  expect(of(s, 'fan')).toHaveLength(0);
-  await pump(s, s.undo());
-  expect(of(s, 'fan')).toHaveLength(1);
-  expect(g.rotation.y).toBeCloseTo(Math.PI / 2, 5);
-  expect(g.visible).toBe(true);
-}
-
 describe('a part keeps its own turn through its motion', () => {
   beforeEach(() => {
     vi.stubGlobal('ResizeObserver', ResizeObserverStub);
@@ -273,8 +200,21 @@ describe('a part keeps its own turn through its motion', () => {
   });
 
   it('a fan with a quarter turn keeps it while it comes in', async () => {
-    expect.hasAssertions();
-    await assert_a_fan_with_a_quarter_turn_keeps_it_while_it_come();
+    const s = stage();
+    const o = new Group();
+    o.rotation.y = Math.PI / 2;
+    o.position.set(100, 200, 300);
+    const turns: number[] = [];
+    const tick = () => turns.push(o.rotation.y);
+    await pump(s, hid(s)['playAll']([o], 'fan', 'in'), tick);
+    expect(turns.length).toBeGreaterThan(0);
+    for (const y of turns) {
+      expect(y).toBeCloseTo(Math.PI / 2, 5);
+    }
+    expect(o.rotation.y).toBeCloseTo(Math.PI / 2, 5);
+    expect(o.position.x).toBeCloseTo(100, 5);
+    expect(o.position.y).toBeCloseTo(200, 5);
+    expect(o.position.z).toBeCloseTo(300, 5);
   });
 
   it('a fan with a quarter turn keeps it when it goes out, and ends hidden', async () => {
@@ -288,8 +228,31 @@ describe('a part keeps its own turn through its motion', () => {
   });
 
   it('the fans on the two ends of a tower heatsink end inside their spots, edge-on to the fins, after a motion in and a motion out', async () => {
-    expect.hasAssertions();
-    await assert_the_fans_on_the_two_ends_of_a_tower_heatsink_end();
+    setLayoutTier(3, 3);
+    const s = stage();
+    const fans = [0, 1].map((k) => ({
+      id: `d-${k}`,
+      slot: `cooler0.fan${k}`,
+      spec: specs.getSpec('fan120') as specs.FanSpec,
+    }));
+    const m = coolerModel('cooler-tower', fans);
+    const proud = 32; // (the fan's light stands a little proud of its face)
+    for (const [k, f] of fans.entries()) {
+      const o = must(findById(m.root, f.id)),
+        spot = must(coolerFanBox('cooler-tower', k));
+      // in: it ends at its seat, in its spot (a fan laid flat is 2760 wide along x and 600 thin along z: out of the spot on both)
+      await pump(s, hid(s)['playAll']([o], 'fan', 'in'));
+      let c = new Box3().setFromObject(o, true);
+      expect(c.min.x, `${f.slot} in`).toBeGreaterThanOrEqual(spot.r.x - proud);
+      expect(c.max.x, `${f.slot} in`).toBeLessThanOrEqual(spot.r.x + spot.r.w + proud);
+      expect(c.min.z, `${f.slot} in`).toBeGreaterThanOrEqual(spot.z0 - proud);
+      expect(c.max.z, `${f.slot} in`).toBeLessThanOrEqual(spot.z1 + proud);
+      // out: it leaves along z (hidden where its way ends) and is still as thin along x as its spot
+      await pump(s, hid(s)['playAll']([o], 'fan', 'out'));
+      c = new Box3().setFromObject(o, true);
+      expect(c.min.x, `${f.slot} out`).toBeGreaterThanOrEqual(spot.r.x - proud);
+      expect(c.max.x, `${f.slot} out`).toBeLessThanOrEqual(spot.r.x + spot.r.w + proud);
+    }
   });
 
   it('a card still tips as it comes out, and comes level', async () => {
@@ -306,7 +269,29 @@ describe('a part keeps its own turn through its motion', () => {
   });
 
   it('Undo of a removal puts a fan back with its turn', async () => {
-    expect.hasAssertions();
-    await assert_Undo_of_a_removal_puts_a_fan_back_with_its_turn();
+    const s = stage();
+    await pump(
+      s,
+      (async () => {
+        await s.clear();
+        for (const part of ['case1', 'board1', 'psu1', 'cpu1', 'cooler0', 'ram0']) {
+          await s.fit(part);
+        }
+        await s.fit('fan92', 'front0');
+      })(),
+    );
+    const fan = must(of(s, 'fan')[0]);
+    expect(fan).toBeDefined();
+    // the fan's built object, turned a quarter as a case mount is built
+    const g = new Group();
+    g.userData['id'] = fan.id;
+    g.rotation.y = Math.PI / 2;
+    hid(s)['_machine'].root.add(g);
+    await pump(s, s.remove(devNode(fan.id)));
+    expect(of(s, 'fan')).toHaveLength(0);
+    await pump(s, s.undo());
+    expect(of(s, 'fan')).toHaveLength(1);
+    expect(g.rotation.y).toBeCloseTo(Math.PI / 2, 5);
+    expect(g.visible).toBe(true);
   });
 });

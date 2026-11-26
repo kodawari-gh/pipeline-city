@@ -66,7 +66,7 @@ describe('PowerView3D', () => {
     v.dispose();
   });
 
-  function assert_shows_every_word_while_the_machine_is_big_on_the(): void {
+  it('shows every word while the machine is big on the screen', () => {
     const v = new PowerView3D(new Scene());
     v.frame(cameraAt(0.8), 900, snap, machine, 0.016);
     const t = texts(v);
@@ -74,14 +74,9 @@ describe('PowerView3D', () => {
       expect(t.some((x) => x.startsWith(w))).toBe(true);
     }
     v.dispose();
-  }
-
-  it('shows every word while the machine is big on the screen', () => {
-    expect.hasAssertions();
-    assert_shows_every_word_while_the_machine_is_big_on_the();
   });
 
-  function assert_leaves_the_words_of_detail_out_while_the_machine(): void {
+  it('leaves the words of detail out while the machine is small, and keeps the main ones and the scale', () => {
     const v = new PowerView3D(new Scene());
     v.frame(cameraAt(0.2), 900, snap, machine, 0.016);
     const t = texts(v);
@@ -92,11 +87,6 @@ describe('PowerView3D', () => {
       expect(t.some((x) => x.startsWith(w))).toBe(false);
     }
     v.dispose();
-  }
-
-  it('leaves the words of detail out while the machine is small, and keeps the main ones and the scale', () => {
-    expect.hasAssertions();
-    assert_leaves_the_words_of_detail_out_while_the_machine();
   });
 
   it('brings the words of detail back as the machine grows, and does not flicker between the two sizes', () => {

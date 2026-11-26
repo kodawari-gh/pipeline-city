@@ -90,7 +90,7 @@ describe('Machine3D.make', () => {
     expect(turns).toBe(0);
   });
 
-  async function assert_gives_each_turn_to_the_page_before_it_goes_on_in(): Promise<void> {
+  it('gives each turn to the page before it goes on, in order', async () => {
     const log: string[] = [];
     await Machine3D.make(snap, roomGeo(), {
       q: new BakeQueue(),
@@ -108,11 +108,6 @@ describe('Machine3D.make', () => {
     for (let i = 0; i < log.length; i += 2) {
       expect([log[i], log[i + 1]]).toStrictEqual(['turn', 'back']);
     }
-  }
-
-  it('gives each turn to the page before it goes on, in order', async () => {
-    expect.hasAssertions();
-    await assert_gives_each_turn_to_the_page_before_it_goes_on_in();
   });
 
   it('stops at the next turn once the caller does not want it, and returns nothing', async () => {

@@ -90,7 +90,7 @@ describe("Machine3D on the studio's wall", () => {
     bare = machine(snap, null);
   });
 
-  function assert_plugs_the_PC_and_the_monitor_into_the_wall_s_two(): void {
+  it("plugs the PC and the monitor into the wall's two outlets, each in a plug of its own", () => {
     for (const id of ['pcmains', 'monmains'] as const) {
       const rig = must(m.rig(id));
       expect(rig).not.toBeNull();
@@ -102,11 +102,6 @@ describe("Machine3D on the studio's wall", () => {
       expect(rig.power?.out).toBe(true);
     }
     expect(must(m.rig('pcmains')).seat.at).not.toStrictEqual(must(m.rig('monmains')).seat.at);
-  }
-
-  it("plugs the PC and the monitor into the wall's two outlets, each in a plug of its own", () => {
-    expect.hasAssertions();
-    assert_plugs_the_PC_and_the_monitor_into_the_wall_s_two();
   });
 
   it("leaves the monitor's outlet empty when the stage has no monitor", () => {

@@ -39,43 +39,6 @@ afterEach(() => {
   setLayoutTier(...was);
 });
 
-function assert_a_card_covers_the_next_PCIe_slot_when_its_cooler(): void {
-  const FINGER = 15 * 23;
-  for (let t = 1; t < BOARD_TIERS.length; t++) {
-    const { pcie } = geoOf(t),
-      pitch = must(pcie[1]).y - must(pcie[0]).y;
-    for (const kind of ['gpu', 'npu', 'nic'] as const) {
-      const reach = Math.max(...[...specsOfKind(kind)].map((s) => card3d.cardReach(kind, s.visual).south));
-      const next = Math.max(
-        ...(['gpu', 'npu', 'nic'] as const).flatMap((k) =>
-          specsOfKind(k).map((s) => card3d.cardReach(k, s.visual).north),
-        ),
-      );
-      expect(reach + next, `${kind} on tier ${t}: reaches ${reach} into a ${pitch} pitch`).toBeLessThan(pitch - 20);
-      expect(or(COVERS[kind], 0), `${kind} on tier ${t}: reaches ${reach}, pitch ${pitch}`).toBe(
-        pitch - reach < FINGER ? 1 : 0,
-      );
-    }
-  }
-}
-
-function assert_a_NIC_s_jacks_stand_13_5_mm_up_its_top_face_toward(): void {
-  for (let t = 1; t < BOARD_TIERS.length; t++) {
-    const { pcie } = geoOf(t),
-      pitch = must(pcie[1]).y - must(pcie[0]).y;
-    for (const kind of ['gpu', 'npu'] as const) {
-      const reach = Math.max(...[...specsOfKind(kind)].map((s) => card3d.cardReach(kind, s.visual).south));
-      expect(
-        reach + JACK.h,
-        `${kind} on tier ${t}: a cooler of ${reach} over a jack of ${JACK.h} in a ${pitch} pitch`,
-      ).toBeGreaterThan(pitch - 20);
-    }
-  }
-  // (the jacks end west of where a cooler starts, and the cooler's start is no more than a finger from the bracket)
-  expect(JACK_X + JACK.d - BD.x).toBeLessThan(COOLER_FROM);
-  expect(COOLER_FROM).toBeLessThan(16 * 23);
-}
-
 function recordM2Overlaps(
   g: ReturnType<typeof geoOf>,
   foot: { x: number; y: number; w: number; h: number },
@@ -91,138 +54,141 @@ function recordM2Overlaps(
   }
 }
 
-function assert_the_cards_whose_coolers_stand_over_an_M_2_stick_(): void {
-  for (let t = 2; t < BOARD_TIERS.length; t++) {
-    const g = geoOf(t),
-      widths = must(BOARD_TIERS[t]).pcieWidths,
-      found: string[] = [],
-      rule: string[] = [];
-    for (const s of [...specsOfKind('gpu'), ...specsOfKind('npu'), ...specsOfKind('nic')]) {
-      const r = card3d.cardReach(s.kind, s.visual);
-      for (const [k, w] of widths.entries()) {
-        if (w < or(s.pcieWidth, 1)) {
-          continue;
-        }
-        const y0 = must(g.pcie[k]).y + 30,
-          foot = { x: BD.x, y: y0 - r.north, w: r.len, h: r.north + r.south };
-        recordM2Overlaps(g, foot, { id: s.id, k, found, rule });
-      }
-    }
-    expect(found.toSorted(), `tier ${t}`).toStrictEqual(rule.toSorted());
-  }
-}
-
-function assert_each_CPU_RAM_cooler_and_card_fits_the_board_tier(): void {
-  for (const k of ['cpu', 'ram', 'cooler', 'gpu', 'npu', 'nic', 'storage', 'tpm', 'vrm-sink', 'ram-sink'] as const) {
-    for (const s of specsOfKind(k)) {
-      const tiers = BOARD_TIERS.filter(
-        (b) =>
-          or(b.slots[s.slot], 0) > 0 && (s.pcieWidth === undefined || b.pcieWidths.some((w) => w >= must(s.pcieWidth))),
-      );
-      expect(tiers.length, `${s.id} fits no board`).toBeGreaterThan(0);
-    }
-  }
-}
-
-function assert_every_card_is_shorter_than_the_board_and_its_cas(): void {
-  for (const s of [...specsOfKind('gpu'), ...specsOfKind('npu')]) {
-    expect(CARD_LEN[s.visual]).toBeGreaterThan(0);
-  }
-  for (const b of BOARD_TIERS) {
-    expect(CASE_TIERS.some((c) => c.maxBoard >= b.tier)).toBe(true);
-  }
-}
-
-function assert_every_standing_card_is_lower_than_the_glass_and_(): void {
-  for (let t = 0; t < BOARD_TIERS.length; t++) {
-    setLayoutTier(t, t);
-    const glass = CASE_Z + CASE_D;
-    for (const kind of ['gpu', 'npu', 'nic'] as const) {
-      expect(card3d.HINGE_Z + card3d.STAND[kind], `${kind} in case ${t}`).toBeLessThan(glass - 200);
-    }
-    for (const s of [...specsOfKind('gpu'), ...specsOfKind('npu'), ...specsOfKind('nic')]) {
-      if (!must(BOARD_TIERS[t]).pcieWidths.some((w) => w >= or(s.pcieWidth, 1))) {
-        continue;
-      }
-      expect(BD.x + card3d.cardReach(s.kind, s.visual).len, `${s.id} on board ${t}`).toBeLessThan(GUTTER_X - 40);
-    }
-  }
-  expect(card3d.HINGE_Z).toBeGreaterThan(BOARD_Z);
-}
-
-function assert_the_share_of_each_front_fan_a_drive_in_the_main_(): void {
-  for (let t = 0; t < CASE_TIERS.length; t++) {
-    setLayoutTier(t, t);
-    const fans = frontFanRects();
-    for (const hdd of [true, false]) {
-      const d = hdd ? HDD_MM : SSD_MM,
-        o = onTray(hdd),
-        table = must(BAY_SHADE[t])[hdd ? 'hdd' : 'ssd'];
-      // the drive's cross-section across the air (layout y down, depth z) over each fan's face (its depth capped as the 3D fan is)
-      const got = cagePlan().trays.map((tr) => {
-        const y0 = -(tr.y + o.y) - d.t * 23,
-          y1 = y0 + d.t * 23,
-          z0 = tr.z + o.z,
-          z1 = z0 + d.l * 23;
-        return fans.map((f) => {
-          const s = Math.min(f.h, FAN_MAX),
-            a = FAN_ZC - s / 2;
-          return (
-            (Math.max(0, Math.min(y1, f.y + f.h) - Math.max(y0, f.y)) *
-              Math.max(0, Math.min(z1, a + s) - Math.max(z0, a))) /
-            (f.h * s)
-          );
-        });
-      });
-      expect(got).toHaveLength(table.length);
-      for (const [i, row] of got.entries()) {
-        for (const [k, v] of row.entries()) {
-          expect(v, `case ${t} ${hdd ? 'hdd' : 'ssd'} bay ${i} fan ${k}`).toBeCloseTo(must(must(table[i])[k]), 2);
-        }
-      }
-    }
-  }
-}
-
 describe('fit: the cover rules match the models', () => {
   it("a card covers the next PCIe slot when its cooler stands less than a finger from that slot's card, and never fouls it", () => {
-    expect.hasAssertions();
-    assert_a_card_covers_the_next_PCIe_slot_when_its_cooler();
+    const FINGER = 15 * 23;
+    for (let t = 1; t < BOARD_TIERS.length; t++) {
+      const { pcie } = geoOf(t),
+        pitch = must(pcie[1]).y - must(pcie[0]).y;
+      for (const kind of ['gpu', 'npu', 'nic'] as const) {
+        const reach = Math.max(...[...specsOfKind(kind)].map((s) => card3d.cardReach(kind, s.visual).south));
+        const next = Math.max(
+          ...(['gpu', 'npu', 'nic'] as const).flatMap((k) =>
+            specsOfKind(k).map((s) => card3d.cardReach(k, s.visual).north),
+          ),
+        );
+        expect(reach + next, `${kind} on tier ${t}: reaches ${reach} into a ${pitch} pitch`).toBeLessThan(pitch - 20);
+        expect(or(COVERS[kind], 0), `${kind} on tier ${t}: reaches ${reach}, pitch ${pitch}`).toBe(
+          pitch - reach < FINGER ? 1 : 0,
+        );
+      }
+    }
   });
 
   it("a NIC's jacks stand 13.5 mm up its top face, toward the slot north of it: they would foul the cooler of a card there, so a cooler starts east of them", () => {
-    expect.hasAssertions();
-    assert_a_NIC_s_jacks_stand_13_5_mm_up_its_top_face_toward();
+    for (let t = 1; t < BOARD_TIERS.length; t++) {
+      const { pcie } = geoOf(t),
+        pitch = must(pcie[1]).y - must(pcie[0]).y;
+      for (const kind of ['gpu', 'npu'] as const) {
+        const reach = Math.max(...[...specsOfKind(kind)].map((s) => card3d.cardReach(kind, s.visual).south));
+        expect(
+          reach + JACK.h,
+          `${kind} on tier ${t}: a cooler of ${reach} over a jack of ${JACK.h} in a ${pitch} pitch`,
+        ).toBeGreaterThan(pitch - 20);
+      }
+    }
+    // (the jacks end west of where a cooler starts, and the cooler's start is no more than a finger from the bracket)
+    expect(JACK_X + JACK.d - BD.x).toBeLessThan(COOLER_FROM);
+    expect(COOLER_FROM).toBeLessThan(16 * 23);
   });
 
   it('the cards whose coolers stand over an M.2 stick are exactly the ones in OVER_M2', () => {
-    expect.hasAssertions();
-    assert_the_cards_whose_coolers_stand_over_an_M_2_stick_();
+    for (let t = 2; t < BOARD_TIERS.length; t++) {
+      const g = geoOf(t),
+        widths = must(BOARD_TIERS[t]).pcieWidths,
+        found: string[] = [],
+        rule: string[] = [];
+      for (const s of [...specsOfKind('gpu'), ...specsOfKind('npu'), ...specsOfKind('nic')]) {
+        const r = card3d.cardReach(s.kind, s.visual);
+        for (const [k, w] of widths.entries()) {
+          if (w < or(s.pcieWidth, 1)) {
+            continue;
+          }
+          const y0 = must(g.pcie[k]).y + 30,
+            foot = { x: BD.x, y: y0 - r.north, w: r.len, h: r.north + r.south };
+          recordM2Overlaps(g, foot, { id: s.id, k, found, rule });
+        }
+      }
+      expect(found.toSorted(), `tier ${t}`).toStrictEqual(rule.toSorted());
+    }
   });
 });
 
 describe('fit: every part has a socket', () => {
   it('each CPU, RAM, cooler and card fits the board tiers that have its slot', () => {
-    expect.hasAssertions();
-    assert_each_CPU_RAM_cooler_and_card_fits_the_board_tier();
+    for (const k of ['cpu', 'ram', 'cooler', 'gpu', 'npu', 'nic', 'storage', 'tpm', 'vrm-sink', 'ram-sink'] as const) {
+      for (const s of specsOfKind(k)) {
+        const tiers = BOARD_TIERS.filter(
+          (b) =>
+            or(b.slots[s.slot], 0) > 0 &&
+            (s.pcieWidth === undefined || b.pcieWidths.some((w) => w >= must(s.pcieWidth))),
+        );
+        expect(tiers.length, `${s.id} fits no board`).toBeGreaterThan(0);
+      }
+    }
   });
 
   it('every card is shorter than the board and its case holds the board', () => {
-    expect.hasAssertions();
-    assert_every_card_is_shorter_than_the_board_and_its_cas();
+    for (const s of [...specsOfKind('gpu'), ...specsOfKind('npu')]) {
+      expect(CARD_LEN[s.visual]).toBeGreaterThan(0);
+    }
+    for (const b of BOARD_TIERS) {
+      expect(CASE_TIERS.some((c) => c.maxBoard >= b.tier)).toBe(true);
+    }
   });
 });
 
 describe('fit: parts stay inside the case', () => {
   it('every standing card is lower than the glass, and ends west of the cable gutter of the smallest case that takes it', () => {
-    expect.hasAssertions();
-    assert_every_standing_card_is_lower_than_the_glass_and_();
+    for (let t = 0; t < BOARD_TIERS.length; t++) {
+      setLayoutTier(t, t);
+      const glass = CASE_Z + CASE_D;
+      for (const kind of ['gpu', 'npu', 'nic'] as const) {
+        expect(card3d.HINGE_Z + card3d.STAND[kind], `${kind} in case ${t}`).toBeLessThan(glass - 200);
+      }
+      for (const s of [...specsOfKind('gpu'), ...specsOfKind('npu'), ...specsOfKind('nic')]) {
+        if (!must(BOARD_TIERS[t]).pcieWidths.some((w) => w >= or(s.pcieWidth, 1))) {
+          continue;
+        }
+        expect(BD.x + card3d.cardReach(s.kind, s.visual).len, `${s.id} on board ${t}`).toBeLessThan(GUTTER_X - 40);
+      }
+    }
+    expect(card3d.HINGE_Z).toBeGreaterThan(BOARD_Z);
   });
 });
 
 describe('fit: the drive cage in the air', () => {
   it('the share of each front fan a drive in the main cage blocks is the airflow table (sim/airflow.ts BAY_SHADE)', () => {
-    expect.hasAssertions();
-    assert_the_share_of_each_front_fan_a_drive_in_the_main_();
+    for (let t = 0; t < CASE_TIERS.length; t++) {
+      setLayoutTier(t, t);
+      const fans = frontFanRects();
+      for (const hdd of [true, false]) {
+        const d = hdd ? HDD_MM : SSD_MM,
+          o = onTray(hdd),
+          table = must(BAY_SHADE[t])[hdd ? 'hdd' : 'ssd'];
+        // the drive's cross-section across the air (layout y down, depth z) over each fan's face (its depth capped as the 3D fan is)
+        const got = cagePlan().trays.map((tr) => {
+          const y0 = -(tr.y + o.y) - d.t * 23,
+            y1 = y0 + d.t * 23,
+            z0 = tr.z + o.z,
+            z1 = z0 + d.l * 23;
+          return fans.map((f) => {
+            const s = Math.min(f.h, FAN_MAX),
+              a = FAN_ZC - s / 2;
+            return (
+              (Math.max(0, Math.min(y1, f.y + f.h) - Math.max(y0, f.y)) *
+                Math.max(0, Math.min(z1, a + s) - Math.max(z0, a))) /
+              (f.h * s)
+            );
+          });
+        });
+        expect(got).toHaveLength(table.length);
+        for (const [i, row] of got.entries()) {
+          for (const [k, v] of row.entries()) {
+            expect(v, `case ${t} ${hdd ? 'hdd' : 'ssd'} bay ${i} fan ${k}`).toBeCloseTo(must(must(table[i])[k]), 2);
+          }
+        }
+      }
+    }
   });
 });

@@ -68,28 +68,6 @@ const outline = (level: fans3d.FanLevel): number[] => reach(census(level).all.ma
 /** Screen pixels per unit when the fan's bbox diagonal (face on) is `px` pixels. */
 const scaleAt = (px: number): number => px / (D * Math.SQRT2);
 
-function assert_keeps_its_outline_within_1_px_of_the_full_part_a(): void {
-  const full = outline(0);
-  for (const level of [1, 2] as const) {
-    const low = outline(level),
-      k = scaleAt(must(fans3d.FAN_LOD_PX[level - 1]));
-    const err = Math.max(...full.map((r, i) => Math.abs(r - must(low[i])))) * k;
-    console.log(`level ${level} at ${fans3d.FAN_LOD_PX[level - 1]} px: outline error ${err.toFixed(2)} px`);
-    expect(err).toBeLessThanOrEqual(1);
-  }
-}
-
-function assert_keeps_its_round_wall_within_1_px_of_a_true_circle(): void {
-  // (the wall is under the flange in the outline above: a polygon of n sides falls short of its circle by r (1 - cos(pi / n)))
-  const sides = [32, 24, 16],
-    wall = D * 0.49;
-  for (const level of [1, 2] as const) {
-    expect(
-      wall * (1 - Math.cos(Math.PI / must(sides[level]))) * scaleAt(must(fans3d.FAN_LOD_PX[level - 1])),
-    ).toBeLessThanOrEqual(1);
-  }
-}
-
 describe('a fan at three detail levels', () => {
   it('takes its sides from the level: 32, 24, 16 for a 120 mm fan, never under 8', () => {
     expect([0, 1, 2].map((l) => fans3d.fanLodSides(32, l as fans3d.FanLevel))).toStrictEqual([32, 24, 16]);
@@ -111,13 +89,25 @@ describe('a fan at three detail levels', () => {
   });
 
   it('keeps its outline within 1 px of the full part at each switch size', () => {
-    expect.hasAssertions();
-    assert_keeps_its_outline_within_1_px_of_the_full_part_a();
+    const full = outline(0);
+    for (const level of [1, 2] as const) {
+      const low = outline(level),
+        k = scaleAt(must(fans3d.FAN_LOD_PX[level - 1]));
+      const err = Math.max(...full.map((r, i) => Math.abs(r - must(low[i])))) * k;
+      console.log(`level ${level} at ${fans3d.FAN_LOD_PX[level - 1]} px: outline error ${err.toFixed(2)} px`);
+      expect(err).toBeLessThanOrEqual(1);
+    }
   }, 20_000); // a long run: the default 5 s timed out when the whole suite ran in CI
 
   it('keeps its round wall within 1 px of a true circle at each switch size', () => {
-    expect.hasAssertions();
-    assert_keeps_its_round_wall_within_1_px_of_a_true_circle();
+    // (the wall is under the flange in the outline above: a polygon of n sides falls short of its circle by r (1 - cos(pi / n)))
+    const sides = [32, 24, 16],
+      wall = D * 0.49;
+    for (const level of [1, 2] as const) {
+      expect(
+        wall * (1 - Math.cos(Math.PI / must(sides[level]))) * scaleAt(must(fans3d.FAN_LOD_PX[level - 1])),
+      ).toBeLessThanOrEqual(1);
+    }
   });
 
   it('gives the overview stand-in its level 1 housing', () => {

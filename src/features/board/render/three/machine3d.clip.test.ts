@@ -67,7 +67,7 @@ describe("the cables and the machine's bodies", () => {
     games.push(['full', await fullGame()]);
   }, 120_000);
 
-  function assert_leaves_the_supply_s_leads_the_video_cable_and_th(): void {
+  it("leaves the supply's leads, the video cable and the mains cords clear of every part, in each ready-made machine", () => {
     for (const [name, g] of games) {
       const s = g.snapshot();
       setLayoutTier(s.boardTier, Math.max(s.boardTier, s.caseTier));
@@ -86,10 +86,5 @@ describe("the cables and the machine's bodies", () => {
         m.dispose();
       }
     }
-  }
-
-  it("leaves the supply's leads, the video cable and the mains cords clear of every part, in each ready-made machine", () => {
-    expect.hasAssertions();
-    assert_leaves_the_supply_s_leads_the_video_cable_and_th();
   }, 120_000);
 });
