@@ -1,6 +1,6 @@
 # Virtual memory
 
-Status: **built** — the MMU and TLB (`src/features/memory/sim/mmu.ts`), translation and precise page faults in all four engines, the paged OS 2 (`src/features/os/sim/kernel.ts`, `kernelSource(true)`), the TLB on the die and the VM line on the CLI monitor. Several programs at once is OS 3 (src/features/os/OS.md "OS 3: preemptive"). Not built: swap to the drive, address-space ids in the TLB, the page tables as a navigable view in the RAM magnifier.
+Status: **built** — the MMU and TLB (`src/features/memory/sim/mmu.ts`), translation and precise page faults in all four engines, the paged OS 2 (`src/features/os/sim/kernel/`, `kernelSource` with `paged`), the TLB on the die and the VM line on the CLI monitor. Several programs at once is OS 3 (src/features/os/OS.md "OS 3: preemptive"). Not built: swap to the drive, address-space ids in the TLB, the page tables as a navigable view in the RAM magnifier.
 
 ## The hardware
 
