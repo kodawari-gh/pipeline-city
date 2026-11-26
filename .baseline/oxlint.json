@@ -10761,19 +10761,6 @@
   "eslint(curly)": 2,
   "unicorn(prefer-code-point)": 1
  },
- "src/features/os/sim/kernel.ts": {
-  "eslint(complexity)": 2,
-  "eslint(curly)": 11,
-  "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 6,
-  "eslint(max-params)": 5,
-  "eslint(no-nested-ternary)": 10,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 1,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "unicorn(no-array-for-each)": 1,
-  "unicorn(numeric-separators-style)": 20
- },
  "src/features/os/sim/nicdriver.test.ts": {
   "vitest(valid-expect)": 1
  },
