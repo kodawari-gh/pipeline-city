@@ -1,7 +1,8 @@
 // synapta, neural accelerators (docs/brands/synapta.md).
-import { circle, fill, type Brand } from './kit';
+import { circle, fill } from './kit';
+import type * as kitTypes from './kit';
 
-export const synapta: Brand = {
+export const synapta: kitTypes.Brand = {
   id: 'synapta',
   word: 'synapta',
   makes: 'neural accelerators',

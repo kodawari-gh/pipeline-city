@@ -1,7 +1,8 @@
 // AXIOM, processors and chipsets (docs/brands/axiom.md).
-import { fill, knock, poly, type Brand } from './kit';
+import { fill, knock, poly } from './kit';
+import type * as kitTypes from './kit';
 
-export const axiom: Brand = {
+export const axiom: kitTypes.Brand = {
   id: 'axiom',
   word: 'AXIOM',
   makes: 'processors and chipsets',

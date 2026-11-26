@@ -1,19 +1,23 @@
 // FUJIN, coolers, fans and radiators (docs/brands/fujin.md).
-import { TAU, at, circle, fill, type Brand, type Ctx } from './kit';
+import { TAU, at, circle, fill } from './kit';
+import type * as kitTypes from './kit';
 
 /**
  * One tomoe's tail (a comma of the mitsudomoe crest): a band that leaves the head (radius `hr`, at radius `rh` and angle `a`) as wide as it,
  * sweeps `sweep` radians round and out toward the rim `R`, and thins to a point.
  */
-function tail(c: Ctx, cx: number, cy: number, a: number, R: number, rh: number, hr: number, sweep: number) {
+function tail(c: kitTypes.Ctx, cx: number, cy: number, a: number, R: number, rh: number, hr: number, sweep: number) {
   const N = 48,
     mid = (u: number) => rh + (R - 0.02 - rh) * (1 - (1 - u) ** 2),
     half = (u: number) => hr * (1 - u) ** 1.1;
   for (let i = 0; i <= N; i++) {
     const u = i / N,
       [x, y] = at(cx, cy, mid(u) + half(u), a + sweep * u);
-    if (i) c.lineTo(x, y);
-    else c.moveTo(x, y);
+    if (i) {
+      c.lineTo(x, y);
+    } else {
+      c.moveTo(x, y);
+    }
   }
   for (let i = N; i >= 0; i--) {
     const u = i / N,
@@ -23,7 +27,7 @@ function tail(c: Ctx, cx: number, cy: number, a: number, R: number, rh: number, 
   c.closePath();
 }
 
-export const fujin: Brand = {
+export const fujin: kitTypes.Brand = {
   id: 'fujin',
   word: 'FUJIN',
   makes: 'coolers, fans and radiators',

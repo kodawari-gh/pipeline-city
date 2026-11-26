@@ -1,9 +1,11 @@
 // RAIDEN, power supplies (docs/brands/raiden.md).
-import { circle, fill, knock, poly, stroke, type Brand, type Ctx } from './kit';
+import { circle, fill, knock, poly, stroke } from './kit';
+import type * as kitTypes from './kit';
 
-const bolt = (c: Ctx) => poly(c, [0.5, -0.04, 0.84, -0.04, 0.62, 0.4, 0.82, 0.4, 0.3, 1.04, 0.44, 0.56, 0.22, 0.56]);
+const bolt = (c: kitTypes.Ctx) =>
+  poly(c, [0.5, -0.04, 0.84, -0.04, 0.62, 0.4, 0.82, 0.4, 0.3, 1.04, 0.44, 0.56, 0.22, 0.56]);
 
-export const raiden: Brand = {
+export const raiden: kitTypes.Brand = {
   id: 'raiden',
   word: 'RAIDEN',
   makes: 'power supplies',

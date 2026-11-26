@@ -124,7 +124,9 @@ export function makePalette(T: Theme, mask?: string): Palette {
 function mixHex(a: string, b: string, t: number): string {
   const pa = rgb(a),
     pb = rgb(b);
-  if (!pa || !pb) return a;
+  if (!pa || !pb) {
+    return a;
+  }
   const k = Math.max(0, Math.min(1, t));
   return `#${pa
     .map((v, i) =>
@@ -135,14 +137,17 @@ function mixHex(a: string, b: string, t: number): string {
     .join('')}`;
 }
 function rgb(s: string): number[] | null {
-  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(s.trim());
-  if (!m) return null;
+  const m = /^#(?<hex>[0-9a-f]{3}|[0-9a-f]{6})$/iu.exec(s.trim());
+  if (!m) {
+    return null;
+  }
   let h = m[1]!;
-  if (h.length === 3)
+  if (h.length === 3) {
     h = h
       .split('')
       .map((c) => c + c)
       .join('');
+  }
   const n = Number.parseInt(h, 16);
   return [n >> 16, (n >> 8) & 255, n & 255];
 }
