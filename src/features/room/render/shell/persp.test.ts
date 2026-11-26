@@ -1,14 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Container } from 'pixi.js';
-
-vi.mock('@/core/render/ink', async (orig) => ({
-  ...(await orig<typeof import('@/core/render/ink')>()),
-  label: () => new Container(),
-}));
-
 import { setLayoutTier } from '@/features/board/render/layout/layout';
 import { roomGeo } from './room';
 import { EYE, S_FEET, S_FRONT, SLAB_FRONT, deskGeo, floorScale, roomPersp, spreadX, spreadY } from './persp';
+
+// Measuring text needs a canvas, which the tests do not have: labels are texts that never measure themselves here, with
+// empty bounds like the empty containers they stood in for before.
+vi.mock(import('@/core/render/ink'), async (orig) => {
+  const pixi = await import('pixi.js');
+  class BareText extends pixi.Text {
+    protected override updateBounds(): void {
+      this._bounds.clear();
+    }
+  }
+  return { ...(await orig()), label: (str: string) => new BareText({ text: str }) };
+});
 
 describe('the room perspective', () => {
   it('a point brought forward lands on the line from the vanishing point through it, and scale 1 is the wall', () => {
@@ -48,7 +53,7 @@ describe('the room perspective', () => {
     },
   );
   it('the vanishing point is the middle of the desk', () => {
-    const P = roomPersp({ ceil: -9000, floor: 7000, x0: -20000, x1: 14000 });
+    const P = roomPersp({ ceil: -9000, floor: 7000, x0: -20_000, x1: 14_000 });
     expect(P.vx).toBe(-3000);
   });
 });

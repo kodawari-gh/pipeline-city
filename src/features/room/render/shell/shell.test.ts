@@ -1,16 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Container, Graphics } from 'pixi.js';
-
-vi.mock('@/core/render/ink', async (orig) => ({
-  ...(await orig<typeof import('@/core/render/ink')>()),
-  label: () => new Container(),
-}));
-
+import { Graphics } from 'pixi.js';
 import { setLayoutTier } from '@/features/board/render/layout/layout';
 import { roomBakeRect, roomBox, roomGeo } from './room';
 import { BOARD, FADE, TRIM, boardTop, drawCeiling, drawCrown, drawFloor, shellLook } from './shell';
 import { floorScale } from './persp';
 import type { Theme } from '@/core/render/theme';
+
+// Measuring text needs a canvas, which the tests do not have: labels are texts that never measure themselves here, with
+// empty bounds like the empty containers they stood in for before.
+vi.mock(import('@/core/render/ink'), async (orig) => {
+  const pixi = await import('pixi.js');
+  class BareText extends pixi.Text {
+    protected override updateBounds(): void {
+      this._bounds.clear();
+    }
+  }
+  return { ...(await orig()), label: (str: string) => new BareText({ text: str }) };
+});
 
 const THEME: Theme = {
   bg: '#04060f',
@@ -68,16 +74,18 @@ describe('the room shell', () => {
       L = shellLook(T);
     for (const draw of [drawCeiling, drawCrown, drawFloor]) {
       const g = new Graphics();
-      expect(() => draw(g, T, B)).not.toThrow();
+      expect(() => {
+        draw(g, T, B);
+      }).not.toThrow();
       const b = g.getLocalBounds();
-      expect(b.width).toBeGreaterThan(100000);
+      expect(b.width).toBeGreaterThan(100_000);
     }
     const up = new Graphics(),
       down = new Graphics();
     drawCeiling(up, T, B);
     drawFloor(down, T, B);
-    expect(up.getLocalBounds().minY).toBeLessThan(B.ceil - 60000);
-    expect(down.getLocalBounds().maxY).toBeGreaterThan(B.floor + 60000);
+    expect(up.getLocalBounds().minY).toBeLessThan(B.ceil - 60_000);
+    expect(down.getLocalBounds().maxY).toBeGreaterThan(B.floor + 60_000);
     expect(L.ceilFar).not.toBe(L.ceilNear);
     expect(L.floorFar).not.toBe(L.floorNear);
   });

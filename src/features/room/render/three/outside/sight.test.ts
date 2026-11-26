@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { Sight, outsideDraws, type QueryGL } from './sight';
+import { Sight, outsideDraws } from './sight';
+import type * as sightTypes from './sight';
 
 describe('outsideDraws', () => {
   it('draws the city only when the window is in the room and visible', () => {
@@ -16,11 +17,15 @@ function fakeGl(samples: () => boolean, delay = 0) {
     answer = false,
     begun = 0,
     polls = 0;
-  const gl = {
-    ANY_SAMPLES_PASSED_CONSERVATIVE: 1,
-    QUERY_RESULT: 2,
-    QUERY_RESULT_AVAILABLE: 3,
+  const deleted: unknown[] = [];
+  const gl: sightTypes.QueryGL = {
+    ANY_SAMPLES_PASSED_CONSERVATIVE: 0x8d_6a,
+    QUERY_RESULT: 0x88_66,
+    QUERY_RESULT_AVAILABLE: 0x88_67,
     createQuery: () => q,
+    deleteQuery: (query) => {
+      deleted.push(query);
+    },
     beginQuery: () => {
       begun++;
     },
@@ -30,14 +35,14 @@ function fakeGl(samples: () => boolean, delay = 0) {
     },
     getQueryParameter: (_q: WebGLQuery, p: number) => {
       polls++;
-      return p === 3 ? left-- <= 0 : answer;
+      return p === 0x88_67 ? left-- <= 0 : answer;
     },
-  } as unknown as QueryGL;
-  return { gl, begun: () => begun, polls: () => polls };
+  };
+  return { gl, begun: () => begun, polls: () => polls, deleted };
 }
 
 /** A frame: hear the answer, then draw the quad. */
-const frame = (s: Sight, gl: QueryGL, moved = false) => {
+const frame = (s: Sight, gl: sightTypes.QueryGL, moved = false) => {
   s.frame(gl, moved);
   s.begin(gl);
   s.end(gl);
@@ -68,14 +73,18 @@ describe('Sight', () => {
   it('stays clear while samples pass', () => {
     const { gl } = fakeGl(() => true),
       s = new Sight();
-    for (let i = 0; i < 4; i++) frame(s, gl);
+    for (let i = 0; i < 4; i++) {
+      frame(s, gl);
+    }
     expect(s.hidden).toBe(false);
   });
 
   it('clears at once when the eye moves, and drops the answer about the old eye', () => {
     const { gl } = fakeGl(() => false, 1),
       s = new Sight();
-    for (let i = 0; i < 4; i++) frame(s, gl);
+    for (let i = 0; i < 4; i++) {
+      frame(s, gl);
+    }
     expect(s.hidden).toBe(true);
     s.frame(gl, true);
     expect(s.hidden).toBe(false);
@@ -88,10 +97,14 @@ describe('Sight', () => {
     let seen = false;
     const { gl } = fakeGl(() => seen),
       s = new Sight();
-    for (let i = 0; i < 3; i++) frame(s, gl);
+    for (let i = 0; i < 3; i++) {
+      frame(s, gl);
+    }
     expect(s.hidden).toBe(true);
     seen = true;
-    for (let i = 0; i < 3; i++) frame(s, gl);
+    for (let i = 0; i < 3; i++) {
+      frame(s, gl);
+    }
     s.frame(gl, false);
     expect(s.hidden).toBe(false);
   });
@@ -99,7 +112,9 @@ describe('Sight', () => {
   it('asks one query at a time', () => {
     const { gl, begun } = fakeGl(() => true, 2),
       s = new Sight();
-    for (let i = 0; i < 4; i++) frame(s, gl);
+    for (let i = 0; i < 4; i++) {
+      frame(s, gl);
+    }
     expect(begun()).toBe(1);
     frame(s, gl);
     expect(begun()).toBe(2);
@@ -108,43 +123,49 @@ describe('Sight', () => {
   it('on context loss drops the query, shows the window and asks a new one after restore', () => {
     const { gl, begun, polls } = fakeGl(() => false),
       s = new Sight();
-    for (let i = 0; i < 4; i++) frame(s, gl);
+    for (let i = 0; i < 4; i++) {
+      frame(s, gl);
+    }
     expect(s.hidden).toBe(true);
     s.lose();
     expect(s.hidden).toBe(false);
     const p = polls(),
       b = begun();
-    for (let i = 0; i < 4; i++) frame(s, gl);
-    expect([polls(), begun(), s.hidden]).toEqual([p, b, false]); // no call to a lost context
+    for (let i = 0; i < 4; i++) {
+      frame(s, gl);
+    }
+    expect([polls(), begun(), s.hidden]).toStrictEqual([p, b, false]); // no call to a lost context
     s.restore();
-    for (let i = 0; i < 4; i++) frame(s, gl);
+    for (let i = 0; i < 4; i++) {
+      frame(s, gl);
+    }
     expect(begun()).toBeGreaterThan(b);
     expect(s.hidden).toBe(true); // a fresh result
   });
 
   it('dispose frees the query once, and asks no more', () => {
-    const { gl, begun } = fakeGl(() => true),
-      s = new Sight(),
-      deleted: unknown[] = [];
-    (gl as unknown as { deleteQuery: (q: unknown) => void }).deleteQuery = (q) => deleted.push(q);
-    for (let i = 0; i < 2; i++) frame(s, gl);
+    const { gl, begun, deleted } = fakeGl(() => true),
+      s = new Sight();
+    for (let i = 0; i < 2; i++) {
+      frame(s, gl);
+    }
     s.dispose(gl);
     s.dispose(gl);
-    expect(deleted.length).toBe(1);
+    expect(deleted).toHaveLength(1);
     const b = begun();
-    for (let i = 0; i < 4; i++) frame(s, gl);
+    for (let i = 0; i < 4; i++) {
+      frame(s, gl);
+    }
     expect(begun()).toBe(b);
   });
 
   it('dispose after a context loss deletes nothing', () => {
-    const { gl } = fakeGl(() => true),
-      s = new Sight(),
-      deleted: unknown[] = [];
-    (gl as unknown as { deleteQuery: (q: unknown) => void }).deleteQuery = (q) => deleted.push(q);
+    const { gl, deleted } = fakeGl(() => true),
+      s = new Sight();
     frame(s, gl);
     s.lose();
     s.dispose(gl);
-    expect(deleted).toEqual([]);
+    expect(deleted).toStrictEqual([]);
   });
 
   it('on context loss never reads the pending query', () => {

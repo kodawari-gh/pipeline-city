@@ -8,17 +8,17 @@ const on = (s: string, d: 'low' | 'high' = 'low'): string[] =>
 
 describe('parseCityCuts', () => {
   it('Low with no flag: every cut (today)', () => {
-    expect(on('')).toEqual([...CITY_CUTS]);
-    expect(on('?tier=low&debug')).toEqual([...CITY_CUTS]);
+    expect(on('')).toStrictEqual([...CITY_CUTS]);
+    expect(on('?tier=low&debug')).toStrictEqual([...CITY_CUTS]);
   });
   it('Low with the flag: only the named cuts', () => {
-    expect(on('?citycuts=far,steam')).toEqual(['far', 'steam']);
-    expect(on('citycuts=Palette, fleet')).toEqual(['fleet', 'palette']);
+    expect(on('?citycuts=far,steam')).toStrictEqual(['far', 'steam']);
+    expect(on('citycuts=Palette, fleet')).toStrictEqual(['fleet', 'palette']);
   });
   it('none, an empty list or unknown names: no cut', () => {
-    expect(on('?citycuts=none')).toEqual([]);
-    expect(on('?citycuts=')).toEqual([]);
-    expect(on('?citycuts=bogus')).toEqual([]);
+    expect(on('?citycuts=none')).toStrictEqual([]);
+    expect(on('?citycuts=')).toStrictEqual([]);
+    expect(on('?citycuts=bogus')).toStrictEqual([]);
   });
   it('High ignores the flag', () => {
     for (const s of [
@@ -26,20 +26,23 @@ describe('parseCityCuts', () => {
       '?citycuts=far',
       '?citycuts=none',
       '?citycuts=cadence,far,streets,furniture,trees,steam,fleet,palette',
-    ])
-      expect(on(s, 'high')).toEqual([]);
+    ]) {
+      expect(on(s, 'high')).toStrictEqual([]);
+    }
   });
 });
 
+/** Stands in a browser by its user agent. */
+const agent = (ua: string) => vi.stubGlobal('navigator', { userAgent: ua });
+
 describe('no browser gate (cityCuts)', () => {
-  const agent = (ua: string) => vi.stubGlobal('navigator', { userAgent: ua });
   it("Low takes every cut on Firefox as on Chrome: the page's cuts do not read the user agent (CITY-05)", () => {
     agent('Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0');
     const fox = cityCuts('low');
     agent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0 Safari/537.36');
-    expect(cityCuts('low')).toEqual(fox);
+    expect(cityCuts('low')).toStrictEqual(fox);
     expect(Object.values(fox).every(Boolean)).toBe(true);
-    expect(fox.facade && fox.sky && fox.clock && fox.cadence).toBe(true);
+    expect([fox.facade, fox.sky, fox.clock, fox.cadence]).toStrictEqual([true, true, true, true]);
     vi.unstubAllGlobals();
   });
   it('High takes none on any browser', () => {

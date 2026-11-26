@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { Box3 } from 'three';
 import {
   DESK_Y,
@@ -9,11 +9,29 @@ import {
   VIDEO_SOCKET,
 } from '@/features/board/render/layout/layout';
 import { MONITOR_Z } from './roomplan';
-import { MONITOR_PLUG, monitorBody, monitorPlan, monitorSeats, type MonitorBox } from './monitor3d';
+import { MONITOR_PLUG, monitorBody, monitorPlan, monitorSeats } from './monitor3d';
+import type * as monitor3dTypes from './monitor3d';
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
 
 const MM = 23;
-const inside = (p: readonly number[], b: MonitorBox) =>
-  p[0]! > b.r.x && p[0]! < b.r.x + b.r.w && -p[1]! > b.r.y && -p[1]! < b.r.y + b.r.h && p[2]! > b.z0 && p[2]! < b.z1;
+const inside = (p: readonly number[], b: monitor3dTypes.MonitorBox) => {
+  assert.exists(p[0]);
+  return (
+    p[0] > b.r.x &&
+    must(p[0]) < b.r.x + b.r.w &&
+    -must(p[1]) > b.r.y &&
+    -must(p[1]) < b.r.y + b.r.h &&
+    must(p[2]) > b.z0 &&
+    must(p[2]) < b.z1
+  );
+};
 
 describe('the 3D monitor', () => {
   it('stands its column on the foot, the foot on the desk, and holds the panel at the bracket', () => {
@@ -47,8 +65,9 @@ describe('the 3D monitor', () => {
       expect(s.video.at[0]).toBeCloseTo(VIDEO_SOCKET.x);
       expect(s.power.at[0]).toBeCloseTo(MONITOR_POWER.x);
       for (const seat of [s.video, s.power]) {
-        for (const b of [p.panel, p.hump, p.boss, p.column, p.foot])
+        for (const b of [p.panel, p.hump, p.boss, p.column, p.foot]) {
           expect(inside(seat.at, b), `tier ${t}`).toBe(false);
+        }
         // the plug's end hangs under the panel, over the desk
         const end = -(seat.at[1] + seat.axis[1] * MONITOR_PLUG.l);
         expect(end).toBeGreaterThan(MONITOR.y + MONITOR.h);

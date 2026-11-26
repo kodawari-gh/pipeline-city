@@ -1,11 +1,17 @@
-import type { Material, Mesh, Object3D } from 'three';
+import { Material, Mesh } from 'three';
+import type * as threeTypes from 'three';
 import { describe, expect, it } from 'vitest';
 import { pothos } from './plants3d';
 
-const matsOf = (o: Object3D) => {
+/** Whether an object is a mesh. */
+const isMesh = (o: unknown): o is Mesh => o instanceof Mesh;
+
+const matsOf = (o: threeTypes.Object3D) => {
   const s = new Set<Material>();
   o.traverse((x) => {
-    if ((x as Mesh).isMesh) s.add((x as Mesh).material as Material);
+    if (isMesh(x) && x.material instanceof Material) {
+      s.add(x.material);
+    }
   });
   return s;
 };
@@ -25,9 +31,11 @@ describe('plant materials', () => {
     // the three leaf tones and the stoneware
     expect(shared).toHaveLength(4);
     // the room's dispose: the next room patches and registers its own (a kept one took a second box patch)
-    for (const m of a) m.dispose();
+    for (const m of a) {
+      m.dispose();
+    }
     const c = plant();
-    expect([...c].filter((m) => a.has(m))).toEqual([]);
+    expect([...c].filter((m) => a.has(m))).toStrictEqual([]);
     expect(plant().size).toBe(c.size);
     expect([...plant()].filter((m) => c.has(m))).toHaveLength(4);
   });

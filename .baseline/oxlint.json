@@ -10618,27 +10618,6 @@
   "typescript(strict-boolean-expressions)": 3,
   "unicorn(explicit-length-check)": 4
  },
- "src/features/room/render/desk/airflow.test.ts": {
-  "eslint(curly)": 5,
-  "import(consistent-type-specifier-style)": 2,
-  "import(first)": 8,
-  "typescript(consistent-type-imports)": 1,
-  "typescript(no-non-null-assertion)": 41,
-  "typescript(no-unsafe-assignment)": 1,
-  "typescript(no-unsafe-type-assertion)": 5,
-  "typescript(require-array-sort-compare)": 1,
-  "typescript(strict-boolean-expressions)": 5,
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(max-nested-calls)": 2,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(no-immediate-mutation)": 1,
-  "unicorn(prefer-at)": 4,
-  "vitest(no-conditional-in-test)": 10,
-  "vitest(prefer-import-in-mock)": 1,
-  "vitest(prefer-strict-equal)": 7,
-  "vitest(prefer-to-have-length)": 2,
-  "vitest(valid-expect)": 1
- },
  "src/features/room/render/desk/airflow.ts": {
   "eslint(complexity)": 1,
   "eslint(curly)": 16,
@@ -10659,22 +10638,8 @@
   "unicorn(no-useless-collection-argument)": 1,
   "unicorn(prefer-single-call)": 1
  },
- "src/features/room/render/desk/monitor.test.ts": {
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-confusing-void-expression)": 2,
-  "unicorn(consistent-function-scoping)": 1,
-  "vitest(prefer-strict-equal)": 4
- },
  "src/features/room/render/desk/monitor.ts": {
   "eslint(curly)": 3
- },
- "src/features/room/render/desk/peripherals.test.ts": {
-  "eslint(max-params)": 2,
-  "eslint(no-lone-blocks)": 1,
-  "import(first)": 5,
-  "typescript(consistent-type-imports)": 1,
-  "typescript(no-confusing-void-expression)": 2,
-  "vitest(prefer-import-in-mock)": 1
  },
  "src/features/room/render/desk/peripherals.ts": {
   "eslint(curly)": 12,
@@ -10690,14 +10655,6 @@
   "unicorn(no-array-sort)": 1,
   "unicorn(no-magic-array-flat-depth)": 1,
   "unicorn(prefer-at)": 4
- },
- "src/features/room/render/desk/props/case.test.ts": {
-  "eslint(curly)": 3,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 2,
-  "vitest(no-conditional-expect)": 6,
-  "vitest(no-conditional-in-test)": 7,
-  "vitest(prefer-strict-equal)": 1
  },
  "src/features/room/render/desk/props/case.ts": {
   "eslint(complexity)": 1,
@@ -10719,23 +10676,6 @@
   "unicorn(prefer-at)": 2,
   "unicorn(switch-case-braces)": 4
  },
- "src/features/room/render/desk/props/mail.test.ts": {
-  "eslint(curly)": 4,
-  "eslint(no-duplicate-imports)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "import(first)": 7,
-  "import(no-duplicates)": 1,
-  "typescript(consistent-type-imports)": 2,
-  "typescript(no-non-null-assertion)": 3,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "unicorn(consistent-function-scoping)": 2,
-  "vitest(no-conditional-expect)": 1,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-import-in-mock)": 2,
-  "vitest(prefer-strict-boolean-matchers)": 3,
-  "vitest(valid-expect)": 1
- },
  "src/features/room/render/desk/props/mail.ts": {
   "eslint(curly)": 4,
   "eslint(max-lines-per-function)": 1,
@@ -10756,20 +10696,6 @@
   "typescript(switch-exhaustiveness-check)": 1,
   "unicorn(no-array-fill-with-reference-type)": 10,
   "unicorn(switch-case-braces)": 7
- },
- "src/features/room/render/desk/screenmodel.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(max-params)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-confusing-void-expression)": 2,
-  "typescript(no-non-null-assertion)": 24,
-  "typescript(no-unsafe-assignment)": 7,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "unicorn(new-for-builtins)": 4,
-  "unicorn(no-useless-undefined)": 1,
-  "unicorn(numeric-separators-style)": 1,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 5
  },
  "src/features/room/render/desk/screenmodel.ts": {
   "eslint(complexity)": 1,
@@ -10803,9 +10729,6 @@
   "unicorn(no-array-for-each)": 2,
   "unicorn(numeric-separators-style)": 1
  },
- "src/features/room/render/shell/casedecor.test.ts": {
-  "vitest(prefer-strict-equal)": 6
- },
  "src/features/room/render/shell/casedecor.ts": {
   "eslint(curly)": 3,
   "eslint(max-params)": 7,
@@ -10828,24 +10751,6 @@
   "typescript(no-unsafe-type-assertion)": 3,
   "unicorn(no-array-fill-with-reference-type)": 16
  },
- "src/features/room/render/shell/light.test.ts": {
-  "eslint(curly)": 2,
-  "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 2,
-  "import(first)": 2,
-  "typescript(consistent-type-imports)": 1,
-  "typescript(no-non-null-assertion)": 25,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 1,
-  "unicorn(consistent-function-scoping)": 4,
-  "unicorn(no-array-callback-reference)": 1,
-  "unicorn(numeric-separators-style)": 19,
-  "vitest(no-conditional-expect)": 1,
-  "vitest(no-conditional-in-test)": 6,
-  "vitest(prefer-import-in-mock)": 1,
-  "vitest(prefer-strict-equal)": 3,
-  "vitest(prefer-to-have-length)": 4
- },
  "src/features/room/render/shell/light.ts": {
   "eslint(curly)": 6,
   "eslint(default-case)": 1,
@@ -10855,33 +10760,9 @@
   "unicorn(prefer-single-call)": 11,
   "unicorn(switch-case-braces)": 3
  },
- "src/features/room/render/shell/persp.test.ts": {
-  "import(first)": 3,
-  "typescript(consistent-type-imports)": 1,
-  "unicorn(numeric-separators-style)": 2,
-  "vitest(prefer-import-in-mock)": 1
- },
  "src/features/room/render/shell/persp.ts": {
   "typescript(explicit-module-boundary-types)": 3,
   "typescript(method-signature-style)": 2
- },
- "src/features/room/render/shell/room.test.ts": {
-  "eslint(curly)": 7,
-  "eslint(no-duplicate-imports)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "eslint(require-unicode-regexp)": 2,
-  "import(first)": 5,
-  "typescript(consistent-type-imports)": 1,
-  "typescript(no-non-null-assertion)": 11,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(max-nested-calls)": 1,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(prefer-at)": 1,
-  "vitest(no-conditional-expect)": 2,
-  "vitest(no-conditional-in-test)": 11,
-  "vitest(prefer-import-in-mock)": 1,
-  "vitest(prefer-strict-boolean-matchers)": 1,
-  "vitest(prefer-strict-equal)": 5
  },
  "src/features/room/render/shell/room.ts": {
   "eslint(curly)": 9,
@@ -10895,13 +10776,6 @@
   "typescript(no-unsafe-type-assertion)": 1,
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(prefer-export-from)": 1
- },
- "src/features/room/render/shell/shell.test.ts": {
-  "import(first)": 5,
-  "typescript(consistent-type-imports)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "unicorn(numeric-separators-style)": 3,
-  "vitest(prefer-import-in-mock)": 1
  },
  "src/features/room/render/shell/shell.ts": {
   "eslint(curly)": 4,
@@ -10948,24 +10822,7 @@
   "unicorn(numeric-separators-style)": 7
  },
  "src/features/room/render/three/furniture3d.test.ts": {
-  "eslint(curly)": 21,
-  "import(consistent-type-specifier-style)": 3,
-  "import(max-dependencies)": 1,
-  "typescript(consistent-type-definitions)": 1,
-  "typescript(no-non-null-assertion)": 45,
-  "typescript(no-unnecessary-boolean-literal-compare)": 1,
-  "typescript(no-unsafe-class-instance-assignment)": 18,
-  "typescript(no-unsafe-type-assertion)": 22,
-  "unicorn(consistent-function-scoping)": 9,
-  "unicorn(max-nested-calls)": 3,
-  "unicorn(no-array-callback-reference)": 4,
-  "unicorn(no-array-sort)": 2,
-  "unicorn(numeric-separators-style)": 1,
-  "vitest(no-conditional-expect)": 1,
-  "vitest(no-conditional-in-test)": 31,
-  "vitest(prefer-strict-equal)": 1,
-  "vitest(prefer-to-have-length)": 5,
-  "vitest(valid-expect)": 3
+  "import(max-dependencies)": 1
  },
  "src/features/room/render/three/hoodiecloth.ts": {
   "eslint(curly)": 1,
@@ -10977,11 +10834,6 @@
   "typescript(no-non-null-assertion)": 11,
   "typescript(no-unsafe-type-assertion)": 2,
   "unicorn(no-array-reverse)": 1
- },
- "src/features/room/render/three/monitor3d.test.ts": {
-  "eslint(curly)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 6
  },
  "src/features/room/render/three/monitor3d.ts": {
   "eslint(curly)": 8,
@@ -10997,27 +10849,6 @@
  },
  "src/features/room/render/three/outside/canyon.ts": {
   "typescript(unbound-method)": 1
- },
- "src/features/room/render/three/outside/cars.test.ts": {
-  "eslint(curly)": 32,
-  "eslint(max-depth)": 2,
-  "eslint(max-params)": 1,
-  "eslint(no-implicit-coercion)": 1,
-  "import(consistent-type-specifier-style)": 4,
-  "typescript(consistent-type-definitions)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 26,
-  "typescript(no-unsafe-type-assertion)": 16,
-  "unicorn(consistent-function-scoping)": 6,
-  "unicorn(explicit-length-check)": 1,
-  "unicorn(no-array-callback-reference)": 3,
-  "unicorn(no-array-for-each)": 3,
-  "unicorn(no-array-sort)": 10,
-  "unicorn(numeric-separators-style)": 4,
-  "unicorn(prefer-at)": 1,
-  "vitest(no-conditional-in-test)": 37,
-  "vitest(prefer-strict-equal)": 15,
-  "vitest(prefer-to-have-length)": 5
  },
  "src/features/room/render/three/outside/cars.ts": {
   "eslint(complexity)": 1,
@@ -11052,12 +10883,6 @@
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(numeric-separators-style)": 11
  },
- "src/features/room/render/three/outside/detail.test.ts": {
-  "eslint(curly)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-strict-equal)": 9
- },
  "src/features/room/render/three/outside/detail.ts": {
   "eslint(curly)": 2,
   "typescript(no-unsafe-type-assertion)": 1
@@ -11078,30 +10903,6 @@
   "typescript(strict-boolean-expressions)": 1,
   "typescript(unbound-method)": 1
  },
- "src/features/room/render/three/outside/highident.test.ts": {
-  "eslint(curly)": 5,
-  "eslint(no-console)": 1,
-  "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 4,
-  "typescript(ban-ts-comment)": 2,
-  "typescript(consistent-type-imports)": 1,
-  "typescript(no-explicit-any)": 1,
-  "typescript(no-non-null-assertion)": 12,
-  "typescript(no-unnecessary-type-assertion)": 12,
-  "typescript(no-unsafe-assignment)": 2,
-  "typescript(no-unsafe-call)": 4,
-  "typescript(no-unsafe-class-instance-assignment)": 3,
-  "typescript(no-unsafe-member-access)": 4,
-  "typescript(no-unsafe-type-assertion)": 8,
-  "typescript(prefer-ts-expect-error)": 2,
-  "typescript(strict-boolean-expressions)": 1,
-  "unicorn(explicit-length-check)": 1,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(numeric-separators-style)": 3,
-  "unicorn(prefer-math-trunc)": 1,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 1
- },
  "src/features/room/render/three/outside/kit.ts": {
   "eslint(curly)": 5,
   "import(consistent-type-specifier-style)": 4,
@@ -11111,23 +10912,6 @@
  },
  "src/features/room/render/three/outside/lamplight.ts": {
   "typescript(unbound-method)": 1
- },
- "src/features/room/render/three/outside/lowbake.test.ts": {
-  "eslint(curly)": 14,
-  "eslint(no-shadow)": 1,
-  "eslint(prefer-destructuring)": 3,
-  "eslint(require-unicode-regexp)": 2,
-  "import(consistent-type-specifier-style)": 4,
-  "typescript(method-signature-style)": 1,
-  "typescript(no-non-null-assertion)": 5,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(no-unsafe-class-instance-assignment)": 1,
-  "typescript(no-unsafe-type-assertion)": 49,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(numeric-separators-style)": 32,
-  "vitest(no-conditional-in-test)": 7,
-  "vitest(prefer-strict-equal)": 1,
-  "vitest(valid-expect)": 1
  },
  "src/features/room/render/three/outside/lowfacade.ts": {
   "eslint(complexity)": 1,
@@ -11139,11 +10923,6 @@
   "typescript(no-non-null-assertion)": 1,
   "typescript(prefer-nullish-coalescing)": 1,
   "unicorn(numeric-separators-style)": 4
- },
- "src/features/room/render/three/outside/mirror.test.ts": {
-  "typescript(consistent-type-imports)": 1,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "unicorn(numeric-separators-style)": 1
  },
  "src/features/room/render/three/outside/mirror.ts": {
   "eslint(complexity)": 1,
@@ -11170,16 +10949,6 @@
   "import(consistent-type-specifier-style)": 2,
   "typescript(no-non-null-assertion)": 3
  },
- "src/features/room/render/three/outside/plan.test.ts": {
-  "eslint(curly)": 1,
-  "typescript(no-non-null-assertion)": 6,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(max-nested-calls)": 1,
-  "unicorn(no-array-callback-reference)": 4,
-  "unicorn(no-array-for-each)": 1,
-  "vitest(no-conditional-expect)": 2,
-  "vitest(no-conditional-in-test)": 8
- },
  "src/features/room/render/three/outside/plan.ts": {
   "eslint(complexity)": 1,
   "eslint(curly)": 31,
@@ -11194,14 +10963,6 @@
   "unicorn(numeric-separators-style)": 51,
   "unicorn(prefer-at)": 2
  },
- "src/features/room/render/three/outside/sight.test.ts": {
-  "eslint(curly)": 10,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-unsafe-type-assertion)": 3,
-  "typescript(strict-void-return)": 2,
-  "vitest(prefer-strict-equal)": 2,
-  "vitest(prefer-to-have-length)": 1
- },
  "src/features/room/render/three/outside/sight.ts": {
   "eslint(curly)": 6,
   "eslint(no-multi-assign)": 3,
@@ -11214,21 +10975,9 @@
   "import(consistent-type-specifier-style)": 1,
   "unicorn(no-array-for-each)": 1
  },
- "src/features/room/render/three/outside/sky.test.ts": {
-  "eslint(curly)": 2,
-  "typescript(no-non-null-assertion)": 1,
-  "unicorn(no-array-sort)": 3,
-  "vitest(prefer-strict-equal)": 1
- },
  "src/features/room/render/three/outside/sky.ts": {
   "eslint(max-lines-per-function)": 1,
   "typescript(no-unsafe-type-assertion)": 1
- },
- "src/features/room/render/three/outside/skynoise.test.ts": {
-  "eslint(curly)": 2,
-  "typescript(no-non-null-assertion)": 3,
-  "vitest(prefer-strict-equal)": 1,
-  "vitest(prefer-to-have-length)": 1
  },
  "src/features/room/render/three/outside/skynoise.ts": {
   "eslint(no-multi-assign)": 4,
@@ -11243,15 +10992,6 @@
   "unicorn(numeric-separators-style)": 1,
   "unicorn(prefer-at)": 1
  },
- "src/features/room/render/three/outside/street.test.ts": {
-  "eslint(curly)": 3,
-  "import(consistent-type-specifier-style)": 4,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(no-unsafe-class-instance-assignment)": 3,
-  "typescript(no-unsafe-type-assertion)": 3,
-  "unicorn(numeric-separators-style)": 2,
-  "vitest(prefer-strict-equal)": 4
- },
  "src/features/room/render/three/outside/street.ts": {
   "eslint(complexity)": 1,
   "eslint(curly)": 20,
@@ -11265,25 +11005,6 @@
   "typescript(prefer-readonly)": 1,
   "unicorn(no-array-for-each)": 2,
   "unicorn(numeric-separators-style)": 1
- },
- "src/features/room/render/three/outside/sunmap.test.ts": {
-  "eslint(curly)": 2,
-  "eslint(max-params)": 1
- },
- "src/features/room/render/three/outside/sweep.test.ts": {
-  "eslint(curly)": 6,
-  "eslint(max-params)": 1,
-  "import(consistent-type-specifier-style)": 3,
-  "oxc(no-map-spread)": 1,
-  "typescript(no-non-null-assertion)": 13,
-  "typescript(no-unsafe-class-instance-assignment)": 7,
-  "typescript(no-unsafe-type-assertion)": 18,
-  "unicorn(consistent-function-scoping)": 9,
-  "unicorn(max-nested-calls)": 6,
-  "unicorn(no-useless-undefined)": 1,
-  "unicorn(prefer-at)": 1,
-  "vitest(no-conditional-in-test)": 6,
-  "vitest(prefer-strict-equal)": 8
  },
  "src/features/room/render/three/outside/sweep.ts": {
   "eslint(complexity)": 1,
@@ -11313,36 +11034,6 @@
   "typescript(no-non-null-assertion)": 7,
   "unicorn(numeric-separators-style)": 1
  },
- "src/features/room/render/three/outside/towers.test.ts": {
-  "eslint(complexity)": 1,
-  "eslint(curly)": 20,
-  "eslint(no-shadow)": 2,
-  "import(consistent-type-specifier-style)": 3,
-  "typescript(no-non-null-assertion)": 61,
-  "typescript(strict-boolean-expressions)": 1,
-  "unicorn(consistent-function-scoping)": 4,
-  "unicorn(explicit-length-check)": 3,
-  "unicorn(no-array-sort)": 3,
-  "unicorn(numeric-separators-style)": 12,
-  "unicorn(prefer-at)": 6,
-  "unicorn(prefer-spread)": 3,
-  "vitest(no-conditional-expect)": 2,
-  "vitest(no-conditional-in-test)": 33,
-  "vitest(prefer-strict-equal)": 12,
-  "vitest(prefer-to-have-length)": 5
- },
- "src/features/room/render/three/outside/traffic.test.ts": {
-  "eslint(curly)": 13,
-  "eslint(no-loop-func)": 1,
-  "eslint(no-negated-condition)": 1,
-  "typescript(no-non-null-assertion)": 14,
-  "typescript(strict-boolean-expressions)": 2,
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(no-array-for-each)": 4,
-  "unicorn(numeric-separators-style)": 2,
-  "vitest(no-conditional-in-test)": 14,
-  "vitest(prefer-strict-equal)": 2
- },
  "src/features/room/render/three/outside/traffic.ts": {
   "eslint(class-methods-use-this)": 2,
   "eslint(curly)": 13,
@@ -11356,14 +11047,6 @@
   "typescript(prefer-readonly)": 1,
   "unicorn(no-array-sort)": 1,
   "unicorn(prefer-at)": 1
- },
- "src/features/room/render/three/outside/trees.test.ts": {
-  "eslint(curly)": 3,
-  "eslint(no-console)": 1,
-  "typescript(no-non-null-assertion)": 3,
-  "unicorn(no-array-for-each)": 1,
-  "vitest(no-conditional-expect)": 1,
-  "vitest(no-conditional-in-test)": 1
  },
  "src/features/room/render/three/outside/trees.ts": {
   "eslint(complexity)": 1,
@@ -11385,32 +11068,6 @@
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(explicit-length-check)": 1
- },
- "src/features/room/render/three/outside/view.test.ts": {
-  "eslint(curly)": 10,
-  "eslint(no-empty-function)": 13,
-  "eslint(no-promise-executor-return)": 1,
-  "import(consistent-type-specifier-style)": 10,
-  "promise(param-names)": 2,
-  "typescript(consistent-type-definitions)": 2,
-  "typescript(consistent-type-imports)": 1,
-  "typescript(method-signature-style)": 3,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 26,
-  "typescript(no-unsafe-class-instance-assignment)": 9,
-  "typescript(no-unsafe-type-assertion)": 26,
-  "typescript(require-await)": 2,
-  "typescript(strict-void-return)": 2,
-  "unicorn(consistent-function-scoping)": 3,
-  "unicorn(max-nested-calls)": 5,
-  "unicorn(no-array-sort)": 2,
-  "unicorn(no-useless-spread)": 1,
-  "unicorn(numeric-separators-style)": 22,
-  "vitest(no-conditional-in-test)": 8,
-  "vitest(prefer-called-with)": 1,
-  "vitest(prefer-strict-equal)": 22,
-  "vitest(prefer-to-have-length)": 1,
-  "vitest(valid-expect)": 3
  },
  "src/features/room/render/three/outside/view.ts": {
   "eslint(complexity)": 2,
@@ -11439,9 +11096,6 @@
   "unicorn(no-array-sort)": 1,
   "unicorn(numeric-separators-style)": 12
  },
- "src/features/room/render/three/palette.test.ts": {
-  "unicorn(numeric-separators-style)": 1
- },
  "src/features/room/render/three/palette.ts": {
   "eslint(no-nested-ternary)": 1,
   "typescript(no-non-null-assertion)": 5,
@@ -11449,12 +11103,6 @@
   "unicorn(consistent-function-scoping)": 3,
   "unicorn(max-nested-calls)": 1,
   "unicorn(numeric-separators-style)": 15
- },
- "src/features/room/render/three/plants3d.test.ts": {
-  "eslint(curly)": 2,
-  "typescript(no-unsafe-class-instance-assignment)": 2,
-  "typescript(no-unsafe-type-assertion)": 3,
-  "vitest(prefer-strict-equal)": 1
  },
  "src/features/room/render/three/plants3d.ts": {
   "eslint(curly)": 7,
@@ -11470,11 +11118,6 @@
   "unicorn(no-array-for-each)": 1,
   "unicorn(numeric-separators-style)": 15,
   "unicorn(prefer-spread)": 1
- },
- "src/features/room/render/three/props3d.test.ts": {
-  "eslint(no-empty-function)": 1,
-  "typescript(no-unsafe-type-assertion)": 5,
-  "unicorn(consistent-function-scoping)": 1
  },
  "src/features/room/render/three/props3d.ts": {
   "eslint(curly)": 18,
@@ -11501,57 +11144,6 @@
   "unicorn(no-array-for-each)": 4,
   "unicorn(numeric-separators-style)": 21
  },
- "src/features/room/render/three/room3d.make.test.ts": {
-  "eslint(curly)": 2,
-  "eslint(no-empty-function)": 1,
-  "eslint(no-promise-executor-return)": 1,
-  "eslint(no-shadow)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "promise(always-return)": 1,
-  "promise(param-names)": 1,
-  "typescript(consistent-type-imports)": 1,
-  "typescript(no-non-null-assertion)": 2,
-  "typescript(no-unsafe-class-instance-assignment)": 2,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(promise-function-async)": 5,
-  "typescript(require-array-sort-compare)": 1,
-  "typescript(require-await)": 5,
-  "typescript(strict-void-return)": 1,
-  "unicorn(no-array-sort)": 3,
-  "unicorn(no-useless-undefined)": 2,
-  "unicorn(numeric-separators-style)": 3,
-  "unicorn(prefer-spread)": 1,
-  "vitest(consistent-test-it)": 3,
-  "vitest(no-conditional-expect)": 2,
-  "vitest(no-conditional-in-test)": 4,
-  "vitest(prefer-import-in-mock)": 1,
-  "vitest(prefer-strict-equal)": 5
- },
- "src/features/room/render/three/room3d.test.ts": {
-  "eslint(curly)": 8,
-  "eslint(no-await-in-loop)": 1,
-  "import(consistent-type-specifier-style)": 7,
-  "typescript(consistent-type-definitions)": 1,
-  "typescript(method-signature-style)": 3,
-  "typescript(no-confusing-void-expression)": 2,
-  "typescript(no-non-null-assertion)": 4,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(no-unsafe-class-instance-assignment)": 5,
-  "typescript(no-unsafe-type-assertion)": 15,
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(no-array-for-each)": 1,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(numeric-separators-style)": 7,
-  "vitest(consistent-test-it)": 9,
-  "vitest(no-conditional-in-test)": 12,
-  "vitest(prefer-called-once)": 1,
-  "vitest(prefer-strict-equal)": 14
- },
- "src/features/room/render/three/roomenv.test.ts": {
-  "eslint(curly)": 1,
-  "typescript(unbound-method)": 2,
-  "vitest(prefer-to-have-length)": 2
- },
  "src/features/room/render/three/roomenv.ts": {
   "eslint(curly)": 6,
   "eslint(no-nested-ternary)": 1,
@@ -11560,25 +11152,8 @@
   "typescript(no-unsafe-type-assertion)": 4,
   "typescript(strict-boolean-expressions)": 1
  },
- "src/features/room/render/three/roomlights.test.ts": {
-  "eslint(curly)": 6,
-  "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "unicorn(no-array-sort)": 2,
-  "vitest(prefer-strict-equal)": 8
- },
  "src/features/room/render/three/roomlights.ts": {
   "eslint(curly)": 2
- },
- "src/features/room/render/three/roomplan.test.ts": {
-  "eslint(curly)": 9,
-  "eslint(max-depth)": 2,
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-non-null-assertion)": 8,
-  "typescript(restrict-template-expressions)": 2,
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(numeric-separators-style)": 5,
-  "vitest(no-conditional-in-test)": 2
  },
  "src/features/room/render/three/roomplan.ts": {
   "eslint(max-params)": 2,

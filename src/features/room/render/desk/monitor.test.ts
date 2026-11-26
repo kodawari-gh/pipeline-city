@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { monitorView, screenMode, standbyLook, type MonitorInput } from './monitor';
+import { monitorView, screenMode, standbyLook } from './monitor';
+import type * as monitorTypes from './monitor';
 
-const base: MonitorInput = {
+const base: monitorTypes.MonitorInput = {
   hasDisplay: true,
   powered: true,
   monitorLive: true,
@@ -12,16 +13,16 @@ const base: MonitorInput = {
 
 describe('monitorView', () => {
   it('shows the sim text when live and healthy', () => {
-    expect(monitorView(base)).toEqual({ text: 'HELLO', noSignal: false });
+    expect(monitorView(base)).toStrictEqual({ text: 'HELLO', noSignal: false });
   });
   it('shows NO SIGNAL, not a blank screen, after a PSU trip or a burnt part (phase error, no POST failure)', () => {
-    expect(monitorView({ ...base, phase: 'error' })).toEqual({ text: '', noSignal: true });
+    expect(monitorView({ ...base, phase: 'error' })).toStrictEqual({ text: '', noSignal: true });
   });
   it('shows NO SIGNAL when the monitor itself is burnt (not live) while powered', () => {
-    expect(monitorView({ ...base, monitorLive: false, display: '' })).toEqual({ text: '', noSignal: true });
+    expect(monitorView({ ...base, monitorLive: false, display: '' })).toStrictEqual({ text: '', noSignal: true });
   });
   it('keeps a POST error text on screen', () => {
-    expect(monitorView({ ...base, phase: 'error', postFailed: true, display: 'NO CPU' })).toEqual({
+    expect(monitorView({ ...base, phase: 'error', postFailed: true, display: 'NO CPU' })).toStrictEqual({
       text: 'NO CPU',
       noSignal: false,
     });
@@ -32,11 +33,13 @@ describe('monitorView', () => {
   });
 });
 
+/** The standby look of the monitor, `m` over the base input. */
+const look = (m: Partial<monitorTypes.MonitorInput>, osOn = false) => {
+  const i = { ...base, ...m };
+  return standbyLook(i, monitorView(i), osOn);
+};
+
 describe('standbyLook', () => {
-  const look = (m: Partial<MonitorInput>, osOn = false) => {
-    const i = { ...base, ...m };
-    return standbyLook(i, monitorView(i), osOn);
-  };
   it('is the standby screen while the machine is off', () => {
     expect(look({ powered: false, phase: 'off', display: '' })).toBe('off');
   });
@@ -52,8 +55,12 @@ describe('standbyLook', () => {
 });
 
 describe('screenMode', () => {
-  it('shows text while the OS screen is off', () => expect(screenMode(false, true, 'idle-os')).toBe('text'));
-  it('shows the status screen on the plain display', () => expect(screenMode(true, false, 'running-os')).toBe('os'));
+  it('shows text while the OS screen is off', () => {
+    expect(screenMode(false, true, 'idle-os')).toBe('text');
+  });
+  it('shows the status screen on the plain display', () => {
+    expect(screenMode(true, false, 'running-os')).toBe('os');
+  });
   it('shows the dashboard on the graphics display once the OS is up, the status text while it boots', () => {
     expect(screenMode(true, true, 'running-os')).toBe('dash');
     expect(screenMode(true, true, 'booting-os')).toBe('os');
