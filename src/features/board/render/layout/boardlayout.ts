@@ -18,7 +18,7 @@ import { M2_H, M2_W, PKG_PIN, legRun, legsFrom, legsOf, memLanes, type IoPort } 
 // the CPU straight to the rear I/O.
 //
 // Memory is point-to-point: each stick has a lane in every row. The rows stack on the CPU's east edge and fan out along the sticks, as a real
-// board's byte lanes do, so a stick takes its pins along its length (`memFrom` and `memLand`, see `routes.ts`). The lanes of the nearer sticks carry
+// board's byte lanes do, so a stick takes its pins along its length (`memFrom` and `memLand`, see `wiring/memBus.ts`). The lanes of the nearer sticks carry
 // zigzags between the CPU and the bank, so every lane is as long as the longest, and a lane dives to an inner layer under the sockets before its own.
 
 interface Pt {
@@ -292,7 +292,7 @@ const pcieRails = (tier: number): Rect[] =>
   BOARD_TIERS[tier]!.pcieWidths.map((_, i) => R(PCIE_X0, PCIE_Y0 + i * PCIE_PITCH, PCIE_RAIL_LEN[i]!, 60));
 /** The memory bank's west edge is at least this far east of the core regulator's east end. */
 const BANK_GAP = 90;
-/** Where the memory lanes leave the socket (its east edge), their tightest pitch at the bank, and the pitch of a lane's zigzag (`routes.ts`). */
+/** Where the memory lanes leave the socket (its east edge), their tightest pitch at the bank, and the pitch of a lane's zigzag (`wiring/memBus.ts`). */
 const MEM_X = 676,
   MEM_MIN = 24,
   TOOTH = 32;
