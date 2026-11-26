@@ -1,10 +1,10 @@
 // Words for the network ids (docs/NETWORK.md, docs/render/net.md "Network"): router, wall, cable.lan, the jacks and the
 // router and plan specs. Pure. It imports nothing from logic.ts (logic.ts imports this), so the formatters live here.
 
-import { getSpec, type NicSpec } from '../../board/sim/specs';
+import * as boardSpecs from '../../board/sim/specs';
 import type { Snapshot } from '@/worker/game/game';
 import { getIspSpec, getRouterSpec } from '../sim/specs';
-import { ifaceOf, netAddrs, type Iface, type NetAddrs } from '../render/plan/netaddr';
+import * as netaddr from '../render/plan/netaddr';
 import type { Description } from '@/core/ui/regions';
 import { fmtMbit } from './fmt';
 import { describeNicId } from './nicdesc';
@@ -17,11 +17,11 @@ export const BANDWIDTH_NERD =
   'Bandwidth is how many megabits move per second (Mbit/s; a game MB is 8 Mbit). Effective speed is the slowest link of port, router, plan and the drive. Clients at once is the smaller of router and plan.';
 
 /** The jack ids: `eth0` is the board's, `eth1`.. are network cards in PCIe slot order. */
-export const isJackId = (id: string): boolean => /^eth\d+$/.test(id);
+export const isJackId = (id: string): boolean => /^eth\d+$/u.test(id);
 
 /** The network cards in PCIe slot order (the lowest slot is `eth1`). */
 export function nicsInOrder(s: Snapshot) {
-  const num = (slot: string) => Number(/(\d+)$/.exec(slot)?.[1] ?? 0);
+  const num = (slot: string) => Number(/(?<num>\d+)$/u.exec(slot)?.[1] ?? 0);
   return s.devices.filter((d) => d.kind === 'nic').sort((a, b) => num(a.slot) - num(b.slot));
 }
 
@@ -30,40 +30,50 @@ export function jackPort(
   s: Snapshot,
   id: string,
 ): { port: string; mbps: number; label: string; burnt: boolean } | null {
-  const m = /^eth(\d+)$/.exec(id);
-  if (!m) return null;
+  const m = /^eth(?<num>\d+)$/u.exec(id);
+  if (!m) {
+    return null;
+  }
   const n = Number(m[1]);
   if (n === 0) {
     const mbps = s.board.features.ethernetMbps;
     return mbps > 0 ? { port: 'board', mbps, label: 'Board jack', burnt: s.board.burnt } : null;
   }
   const d = nicsInOrder(s)[n - 1];
-  if (!d) return null;
-  const spec = getSpec(d.spec) as NicSpec | undefined;
+  if (!d) {
+    return null;
+  }
+  const spec = boardSpecs.getSpec(d.spec) as boardSpecs.NicSpec | undefined;
   return { port: d.id, mbps: spec?.mbps ?? 0, label: `${d.name} jack`, burnt: d.burnt };
 }
 
 const PLAN_NOTE = 'You buy a plan once, there is no bill. A better plan replaces it (no refund).';
 
 /** The router's two sides as words: the LAN address and the MAC of each side (the WAN only with a plan on the line). Empty with no router. */
-function routerAddrs(a: NetAddrs | null): string {
-  if (!a?.lan) return '';
+function routerAddrs(a: netaddr.NetAddrs | null): string {
+  if (!a?.lan) {
+    return '';
+  }
   const wan = a.wan ? `, WAN ${a.wan.ip}/${a.wan.prefix} (MAC ${a.wan.mac})` : '';
   return ` Addresses: LAN ${a.lan.ip}/${a.lan.prefix} (MAC ${a.lan.mac})${wan}.`;
 }
 
 /** What a jack of the PC has as words: its MAC address, and its IP address while the cable is in it and the link is up. */
-function jackAddrs(i: Iface | undefined): string {
-  if (!i) return '';
+function jackAddrs(i: netaddr.Iface | undefined): string {
+  if (!i) {
+    return '';
+  }
   return ` | MAC ${i.mac} | ${i.plugged ? (i.ip ? `IP ${i.ip} (the router's DHCP gave it)` : 'no IP address until the link is up') : 'the cable is not in it: no IP address'}`;
 }
 
 /** Description of a network id, or null when the id is not one of ours. */
 export function describeNet(id: string, s?: Snapshot | null): Description | null {
   const part = describeNicId(id, s) ?? describeRouterId(id, s);
-  if (part) return part;
+  if (part) {
+    return part;
+  }
   const net = s?.net,
-    a = netAddrs(s);
+    a = netaddr.netAddrs(s);
   switch (id) {
     case 'router': {
       const r = net?.router;
@@ -123,7 +133,7 @@ export function describeNet(id: string, s?: Snapshot | null): Description | null
           mbps > 0
             ? "The motherboard's own network jack. Plug the ethernet cable into it to reach the router; no extra card is needed. Every jack has its own MAC address, the name the router knows it by."
             : 'This board has no network jack. Buy a bigger board, or a network card for an expansion slot.',
-        nerd: `${mbps > 0 ? `${mbps} Mbit/s` : 'no jack on this tier'}${mbps > 0 ? jackAddrs(ifaceOf(a, 'board')) : ''}; the Basic and Mainstream boards have 100, the Enthusiast board 1000. ${BANDWIDTH_NERD}`,
+        nerd: `${mbps > 0 ? `${mbps} Mbit/s` : 'no jack on this tier'}${mbps > 0 ? jackAddrs(netaddr.ifaceOf(a, 'board')) : ''}; the Basic and Mainstream boards have 100, the Enthusiast board 1000. ${BANDWIDTH_NERD}`,
       };
     }
     const j = s ? jackPort(s, id) : null;
@@ -131,7 +141,7 @@ export function describeNet(id: string, s?: Snapshot | null): Description | null
       title: j ? j.label : 'Network card jack',
       plain:
         "The jack on a network card. Plug the ethernet cable into it: the card's speed then replaces the board jack's speed. The card's MAC address is burnt into its flash.",
-      nerd: `${j ? `${j.mbps} Mbit/s${jackAddrs(ifaceOf(a, j.port))}` : 'card speed'}; a card above its throttle temperature runs at half speed. ${BANDWIDTH_NERD}`,
+      nerd: `${j ? `${j.mbps} Mbit/s${jackAddrs(netaddr.ifaceOf(a, j.port))}` : 'card speed'}; a card above its throttle temperature runs at half speed. ${BANDWIDTH_NERD}`,
     };
   }
   const router = getRouterSpec(id);

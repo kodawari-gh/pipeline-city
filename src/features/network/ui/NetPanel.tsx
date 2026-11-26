@@ -2,14 +2,16 @@ import { snapshot } from '@/app/store';
 import { fmtTicks } from '@/core/ui/logic';
 import { Icon } from '@/core/ui/kit/Icons';
 import { Meter } from '@/core/ui/kit/Meter';
-import { fmtMbit, netPanel, netPanelShown, offerPay, type AddrRow, type NatRow, type OfferRow } from './netui';
+import * as netui from './netui';
 import { netOpen, toggleNet } from '@/core/ui/state';
 
 /** The network panel body: link state, bandwidth ladder, flow stages, offers, transfers, spool, USB fallback. */
 function NetPanel() {
   const s = snapshot.value;
-  const m = s ? netPanel(s) : null;
-  if (!m) return null;
+  const m = s ? netui.netPanel(s) : null;
+  if (!m) {
+    return null;
+  }
   const up = m.ladder.segs.length > 0;
   return (
     <div class="stats netpanel">
@@ -27,11 +29,11 @@ function NetPanel() {
         <div class="net-speed">
           <span title="How fast jobs come in">
             <small>Down</small>
-            <b>{up ? fmtMbit(m.ladder.downMbps) : '-'}</b>
+            <b>{up ? netui.fmtMbit(m.ladder.downMbps) : '-'}</b>
           </span>
           <span title="How fast answers go out">
             <small>Up</small>
-            <b>{up ? fmtMbit(m.ladder.upMbps) : '-'}</b>
+            <b>{up ? netui.fmtMbit(m.ladder.upMbps) : '-'}</b>
           </span>
         </div>
       </section>
@@ -224,7 +226,7 @@ const OFFER_ROWS = 4;
 const NAT_ROWS = 3;
 
 /** A place on the path: its name and IP address, its MAC under them, and (with no IP address) the reason. */
-function AddrLine({ r }: { r: AddrRow }) {
+function AddrLine({ r }: { r: netui.AddrRow }) {
   return (
     <div class="net-addr" title={r.note}>
       <div class="kv">
@@ -241,7 +243,7 @@ function AddrLine({ r }: { r: AddrRow }) {
 }
 
 /** A job's line of the NAT table: the job and the server it speaks to, then the two ports the router swaps. */
-function NatLine({ c }: { c: NatRow }) {
+function NatLine({ c }: { c: netui.NatRow }) {
   return (
     <div class="net-addr" title={c.line}>
       <div class="kv">
@@ -257,7 +259,7 @@ function NatLine({ c }: { c: NatRow }) {
   );
 }
 
-function OfferLine({ o }: { o: OfferRow }) {
+function OfferLine({ o }: { o: netui.OfferRow }) {
   return (
     <div
       class="kv"
@@ -268,7 +270,7 @@ function OfferLine({ o }: { o: OfferRow }) {
         {o.retired && <span class="chip idle"> retired</span>}
         {o.sla && <span class={`sla ${o.sla.over ? 'warn' : ''}`}> {o.sla.text}</span>}
       </span>
-      <b class={o.late ? 'warn' : ''}>{offerPay(o)}</b>
+      <b class={o.late ? 'warn' : ''}>{netui.offerPay(o)}</b>
     </div>
   );
 }
@@ -276,7 +278,9 @@ function OfferLine({ o }: { o: OfferRow }) {
 /** The dock that hosts the panel: shown while `netOpen` is set and a network exists. */
 export function NetDock() {
   const s = snapshot.value;
-  if (!s || !netPanelShown(netOpen.value, s)) return null;
+  if (!s || !netui.netPanelShown(netOpen.value, s)) {
+    return null;
+  }
   return (
     <aside class="dock" aria-label="Network">
       <button class="close" aria-label="Close network panel" onClick={toggleNet}>

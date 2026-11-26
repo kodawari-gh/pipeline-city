@@ -42,7 +42,7 @@ export const ROUTER_SPECS: readonly RouterSpec[] = [
     id: 'router3',
     tier: 3,
     name: '10G switch-router',
-    mbps: 10000,
+    mbps: 10_000,
     clients: 8,
     price: 700,
     visual: 'router-10g',
@@ -52,7 +52,7 @@ export const ROUTER_SPECS: readonly RouterSpec[] = [
     id: 'router4',
     tier: 4,
     name: 'Edge router',
-    mbps: 40000,
+    mbps: 40_000,
     clients: 16,
     price: 2500,
     visual: 'router-core',
@@ -65,7 +65,7 @@ export const ISP_SPECS: readonly IspSpec[] = [
   { id: 'isp2', tier: 2, name: 'Cable', downMbps: 200, upMbps: 50, clients: 4, price: 500, loss: 0.005 },
   { id: 'isp3', tier: 3, name: 'Fibre', downMbps: 1000, upMbps: 300, clients: 8, price: 1500, loss: 0.001 },
   { id: 'isp4', tier: 4, name: 'Business fibre', downMbps: 5000, upMbps: 1500, clients: 16, price: 5000, loss: 0.001 },
-  { id: 'isp5', tier: 5, name: 'Backbone', downMbps: 20000, upMbps: 10000, clients: 32, price: 15000, loss: 0.001 },
+  { id: 'isp5', tier: 5, name: 'Backbone', downMbps: 20_000, upMbps: 10_000, clients: 32, price: 15_000, loss: 0.001 },
 ];
 
 /**
@@ -99,24 +99,34 @@ export const WEB_SIZES: Readonly<Record<string, { downMB: number; upMB: number }
 };
 
 export function jobSizes(cls: string, type: string, scale: number): { downMB: number; upMB: number } {
-  if (cls === 'web' && WEB_SIZES[type]) return WEB_SIZES[type]!;
+  if (cls === 'web' && WEB_SIZES[type]) {
+    return WEB_SIZES[type]!;
+  }
   switch (cls) {
-    case 'scan':
+    case 'scan': {
       return { downMB: 75 * scale, upMB: 2.5 * scale };
-    case 'db':
+    }
+    case 'db': {
       return { downMB: 400, upMB: 80 };
-    case 'web':
+    }
+    case 'web': {
       return { downMB: 4, upMB: 25 };
-    case 'secure':
+    }
+    case 'secure': {
       return { downMB: 100, upMB: 10 };
-    case 'gpu':
+    }
+    case 'gpu': {
       return { downMB: 2000, upMB: 600 };
-    case 'npu':
+    }
+    case 'npu': {
       return { downMB: 1200, upMB: 40 };
-    case 'hpc':
+    }
+    case 'hpc': {
       return { downMB: 3000, upMB: 200 };
-    default:
+    }
+    default: {
       return { downMB: type === 'checksum' ? 30 : 24, upMB: 2 };
+    }
   }
 }
 
@@ -136,7 +146,9 @@ export function bandwidth(
   isp: IspSpec | null,
   diskMbps: number,
 ): Bandwidth {
-  if (!router || !isp || portMbps <= 0) return { downMbps: 0, upMbps: 0, clients: 0, binding: null };
+  if (!router || !isp || portMbps <= 0) {
+    return { downMbps: 0, upMbps: 0, clients: 0, binding: null };
+  }
   const lim: [Binding, number][] = [
     ['port', portMbps],
     ['router', router.mbps],
@@ -144,7 +156,11 @@ export function bandwidth(
     ['disk', diskMbps],
   ];
   let best = lim[0]!;
-  for (const l of lim) if (l[1] < best[1]) best = l;
+  for (const l of lim) {
+    if (l[1] < best[1]) {
+      best = l;
+    }
+  }
   return {
     downMbps: best[1],
     upMbps: Math.min(portMbps, router.mbps, isp.upMbps),
