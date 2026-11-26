@@ -40,7 +40,7 @@ Status: **design, not built** (T85). It is the plan for T53 (multicore) and T50 
 
 ## 2. Shared caches
 
-Today each engine owns its L1 D, optional I-cache, optional L2 and optional `Dram` (`EngineBase` in `src/features/cpu/sim/engines/common.ts`).
+Today each engine owns its L1 D, optional I-cache, optional L2 and optional `Dram` (`EngineRoot` in `src/features/cpu/sim/engines/root.ts`, which `EngineBase` extends).
 
 A new `MemSystem` (`src/features/memory/sim/memsys.ts`) holds the L2 and the `Dram` and answers "what does a miss at this address cost". The L1 caches stay in the engine (private to a core, shared by its threads). On a single-core CPU the engine builds its own `MemSystem` exactly as today, so **every golden timing stays the same**. On a multicore CPU the `Machine` builds one and hands it to every engine at `reset`.
 

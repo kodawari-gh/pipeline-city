@@ -2,6 +2,8 @@
 
 Code: `src/features/cpu/sim/engines` (import from `src/features/cpu/sim/engines`). No DOM imports. The timed engines (unpipelined, in-order of width 1 or 2, out-of-order) implement `Engine` from `src/core/sim/engine.ts` (unchanged) and also `PipelineEngine`: `view`, `invalidateCache()`, `flipPredictor(pc?)`.
 
+Shared engine code, one job per file: `contract.ts` (`PipelineEngine`, `EngineSettings`, the stored state), `ops.ts` (opcode flags, ALU, branch condition), `pool.ts` (`InstrPool`: in-flight instructions, fetch and decode), `cache.ts` (`DataCache`), `predictor.ts` (`Predictor`), `events.ts` (`Ev`, `EventLog`). The engines extend one class chain: `EngineRoot` (`root.ts`: shared state, reset, threads, logged writes, miss cost) <- `EngineFetch` (`fetch.ts`: fetch timing, address translation, page faults) <- `EngineBase` (`base.ts`: execute, memory step, atomics, retire).
+
 ```ts
 import { createEngine } from 'src/features/cpu/sim/engines';
 machine.attach(createEngine({ kind: 'inorder', forwarding: true, sharedPort: false }), program);

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { assemble } from '../asm';
 import { INTC_BASE, INTC_REG, IRQ, MMU_BASE, MMU_REG } from '@/core/sim/memmap';
 import { Machine } from '@/core/sim';
-import { Ev } from './common';
+import { Ev } from './events';
 import { CONFIGS } from './testutil';
 
 const SRC = `

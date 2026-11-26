@@ -14,7 +14,7 @@
 
 import { GPU_OPS, gpuDecode, type GpuInstr } from '../isa/isa';
 import { GpuRef, type GpuStep } from '../isa/ref';
-import type { DataCache } from '@/features/cpu/sim/engines/common';
+import type { DataCache } from '@/features/cpu/sim/engines/cache';
 import type { GpuCacheView, GpuEngine, GpuSmView, GpuWarpView, WarpConfig } from './engine';
 import { GpuMemSystem, type GpuMemConfig } from './memsys';
 

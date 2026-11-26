@@ -3,7 +3,8 @@
 import { describe, expect, it } from 'vitest';
 import { assemble } from '../../asm';
 import { Machine } from '@/core/sim';
-import { DataCache, EventLog, Ev } from '../common';
+import { DataCache } from '../cache';
+import { EventLog, Ev } from '../events';
 import { createEngine, type EngineConfig } from '../index';
 import { MemSystem } from '@/features/memory/sim/memsys';
 import { COUNTER_COUNT, Counter } from '../view';
@@ -100,8 +101,8 @@ describe('false sharing', () => {
   it("a store from one core drops the line from the other core's L1 D and L1 I, not its own, and keeps the L2", () => {
     const mem = new MemSystem(MEM);
     const port = () => ({
-      cache: new DataCache(8, 16, 4),
-      icache: new DataCache(8, 16, 4),
+      cache: new DataCache({ lines: 8, lineBytes: 16, missPenalty: 4 }),
+      icache: new DataCache({ lines: 8, lineBytes: 16, missPenalty: 4 }),
       counters: new Float64Array(COUNTER_COUNT),
       events: new EventLog(),
     });

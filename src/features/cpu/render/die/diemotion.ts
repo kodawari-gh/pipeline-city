@@ -1,5 +1,5 @@
 import type { Block, CpuPlan, Link, Pt } from '../core/cpuplan';
-import { Ev, Which } from '../../sim/engines/common';
+import { Ev, Which } from '../../sim/engines/events';
 import { REG_NAMES } from '../../sim/isa';
 import type { CacheSnap, StoredSnap, TraceSnap } from '../../sim/pipesnap';
 
