@@ -6524,13 +6524,6 @@
   "typescript(promise-function-async)": 4,
   "typescript(strict-boolean-expressions)": 5
  },
- "src/features/board/ui/benchhud.test.ts": {
-  "eslint(no-duplicate-imports)": 1,
-  "typescript(no-non-null-assertion)": 3,
-  "unicorn(max-nested-calls)": 2,
-  "unicorn(no-useless-undefined)": 1,
-  "vitest(prefer-strict-equal)": 3
- },
  "src/features/board/ui/benchhud.ts": {
   "typescript(no-non-null-assertion)": 2,
   "typescript(strict-boolean-expressions)": 4
@@ -6550,18 +6543,6 @@
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(consistent-function-scoping)": 1
  },
- "src/features/board/ui/buildhud.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(require-unicode-regexp)": 22,
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 4,
-  "unicorn(consistent-function-scoping)": 3,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(prefer-at)": 1,
-  "vitest(prefer-strict-equal)": 23,
-  "vitest(valid-expect)": 1
- },
  "src/features/board/ui/buildhud.ts": {
   "eslint(complexity)": 1,
   "eslint(no-negated-condition)": 1,
@@ -6577,54 +6558,13 @@
   "typescript(strict-boolean-expressions)": 1
  },
  "src/features/board/ui/buildtabs.test.ts": {
-  "eslint(curly)": 12,
-  "eslint(max-params)": 1,
-  "eslint(no-empty-function)": 10,
-  "eslint(no-implicit-coercion)": 3,
-  "eslint(prefer-named-capture-group)": 9,
-  "eslint(require-unicode-regexp)": 15,
-  "oxc(no-map-spread)": 1,
-  "typescript(ban-ts-comment)": 2,
-  "typescript(consistent-type-definitions)": 1,
-  "typescript(consistent-type-imports)": 6,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-explicit-any)": 6,
-  "typescript(no-non-null-assertion)": 4,
-  "typescript(no-unnecessary-type-assertion)": 2,
-  "typescript(no-unsafe-argument)": 1,
-  "typescript(no-unsafe-assignment)": 9,
-  "typescript(no-unsafe-call)": 4,
-  "typescript(no-unsafe-member-access)": 5,
-  "typescript(no-unsafe-return)": 1,
-  "typescript(no-unsafe-type-assertion)": 15,
-  "typescript(prefer-ts-expect-error)": 2,
-  "typescript(strict-boolean-expressions)": 6,
-  "unicorn(consistent-function-scoping)": 5,
-  "unicorn(no-array-callback-reference)": 4,
-  "unicorn(no-array-for-each)": 1,
-  "unicorn(no-array-sort)": 4,
-  "unicorn(prefer-array-find)": 1,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-import-in-mock)": 2,
-  "vitest(prefer-strict-equal)": 4
+  "typescript(no-unsafe-type-assertion)": 3,
+  "vitest(prefer-import-in-mock)": 1
  },
  "src/features/board/ui/savedbuilds.ts": {
   "typescript(no-unsafe-type-assertion)": 2,
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(no-array-callback-reference)": 1
- },
- "src/features/board/ui/vrm.test.ts": {
-  "eslint(curly)": 3,
-  "eslint(no-nested-ternary)": 1,
-  "eslint(require-unicode-regexp)": 9,
-  "typescript(no-non-null-assertion)": 43,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(max-nested-calls)": 6,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-strict-boolean-matchers)": 1,
-  "vitest(prefer-strict-equal)": 13,
-  "vitest(valid-expect)": 1
  },
  "src/features/board/ui/vrm.ts": {
   "eslint(complexity)": 1,
