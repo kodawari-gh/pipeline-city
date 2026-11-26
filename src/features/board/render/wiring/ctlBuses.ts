@@ -1,5 +1,3 @@
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
-import type { TierGeo } from '../layout/boardlayout';
 import { ioPort } from '../layout/boardlayout';
 import { PKG } from '../layout/layout';
 import {
@@ -14,10 +12,9 @@ import {
   legsOf,
   pkgPads,
 } from '../layout/pins';
-import type { Bus, Edges } from './bus';
 import { chamfer, mean, mk } from './bundle';
 import { mkLane, nth } from './lane';
-import type { Lane, Pt } from './lane';
+import type { Bus, Edges, Lane, Pt, TierGeo } from './types';
 
 /** The package's west edge, north to south: the SVID lanes (from the regulator's controller), the display lanes (their run, and the x where
  * they climb to the rear I/O), the USB lanes (on the CPU's centre line, to the hub). */

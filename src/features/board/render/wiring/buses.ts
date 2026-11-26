@@ -1,13 +1,10 @@
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
-import type { TierGeo } from '../layout/boardlayout';
 import { GEO, PKG, SOCKET_E } from '../layout/layout';
 import { SATA_LANES } from '../layout/pins';
 import { NVME_LANES, addHops } from './bus';
-import type { Bus, BusKind, Edges } from './bus';
 import { audioBus, lanBus } from './chipBuses';
-import type { Lane } from './lane';
 import { atxPowerBus, cpuPowerBus, slotPowerBus, vcoreBus, vdimmBus } from './powerBuses';
 import { signalBuses } from './signals';
+import type { Bus, BusKind, Edges, Lane, TierGeo } from './types';
 
 /** The buses drawn as differential pairs. */
 const PAIRED: ReadonlySet<BusKind> = new Set(['pcie', 'nvme', 'dmi', 'video', 'dp']);

@@ -1,25 +1,12 @@
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { drape, roundedPath } from '@/core/render/cable';
-import type { Clip } from '@/core/render/cable';
 import { BR, GEO, PORT_Y, PSU_PORTS, VIDEO_RUN_Y, VIDEO_SOCKET, VIDEO_TRUNK_X, VIDEO_Y } from '../layout/layout';
 import { mkLane, nth } from './lane';
-import type { Lane, Pt } from './lane';
+import type { Cable, CableKind, PcieKind, PcieTarget, Plug, Pt } from './types';
 
 // ---------------------------------------------------------------- cables (PSU to board, board to monitor)
 
-/** The PSU's PCIe leads are the cables `pcie`, `pcie2`, `pcie3` and `pcie4` (the sim's `PCIE_LEADS`): each plugs into one power socket of a card. */
-export type PcieKind = 'pcie' | 'pcie2' | 'pcie3' | 'pcie4';
-export type CableKind = 'atx' | 'cpu' | PcieKind | 'video';
 const PCIE_KINDS: ReadonlySet<string> = new Set<PcieKind>(['pcie', 'pcie2', 'pcie3', 'pcie4']);
 export const isPcieKind = (k: string): k is PcieKind => PCIE_KINDS.has(k);
-
-/** Where a PCIe lead plugs in: the card's power socket (`x` its centre), the card's north edge (`top`), and which socket of the card it is (`plug`, 0 = the first). */
-export interface PcieTarget {
-  kind: PcieKind;
-  x: number;
-  top: number;
-  plug: number;
-}
 
 /** The heights of the wall clips along a vertical run from `y0` to `y1` (world y): one about every 1500 units, clear of the bends at both ends. */
 const runClipYs = (y0: number, y1: number): number[] => {
@@ -33,29 +20,6 @@ const runClipYs = (y0: number, y1: number): number[] => {
   const n = Math.max(1, Math.round((b - a) / every));
   return Array.from({ length: n }, (_, k) => Math.round(a + ((b - a) * (k + 0.5)) / n));
 };
-
-export interface Cable {
-  kind: CableKind;
-  /** The wall clips that pin the cable (cables that run over the wall only). */
-  clips?: Clip[];
-  /** Cable centre line, dense and rounded (use for drawing, glow and hit rects). */
-  path: Lane;
-  /** Sleeve width. */
-  w: number;
-  /** Plug at the start (PSU / board end) and at the end. */
-  a: Plug;
-  b: Plug;
-}
-
-export interface Plug {
-  x: number;
-  y: number;
-  /** Direction the cable leaves the plug, unit axis vector. */ dx: number;
-  dy: number;
-  w: number;
-  l: number;
-  pins: [number, number];
-}
 
 /** How far below the bezel's edge the video cable starts, so that its round end tucks up under the edge (nothing of the monitor's end shows). */
 export const CABLE_HIDE = 40;
@@ -142,6 +106,9 @@ function pcieCable(t: PcieTarget, x: number, y: number): Cable {
   });
 }
 
+/** The height of the run over the board of the PCIe lead to `t`: above the card's socket, a second socket one step higher. */
+const leadRun = (t: PcieTarget): number => t.top - 150 - 110 * t.plug;
+
 /**
  * The PSU cables and the video cable. A PCIe lead is only drawn for a card socket that takes one (`pcie`: the cards' sockets, in lead order).
  * The 24-pin cable rises through the cable gutter and turns west into the east-edge connector; the 8-pin cable keeps
@@ -152,10 +119,9 @@ function pcieCable(t: PcieTarget, x: number, y: number): Cable {
  */
 export function buildCables(pcie: readonly PcieTarget[] = []): Cable[] {
   const out: Cable[] = [atxCable(), cpuCable()];
-  const run = (t: PcieTarget): number => t.top - 150 - 110 * t.plug,
-    byRun = pcie.toSorted((p, q) => run(q) - run(p));
+  const byRun = pcie.toSorted((p, q) => leadRun(q) - leadRun(p));
   for (const [k, t] of byRun.entries()) {
-    out.push(pcieCable(t, PSU_PORTS.pcie[k] ?? nth(PSU_PORTS.pcie, -1), run(t)));
+    out.push(pcieCable(t, PSU_PORTS.pcie[k] ?? nth(PSU_PORTS.pcie, -1), leadRun(t)));
   }
   out.push(videoCableAt(VIDEO_Y));
   return out;

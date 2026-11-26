@@ -1,10 +1,9 @@
-import type { TierGeo } from '../layout/boardlayout';
-import type { Bus, Edges } from './bus';
 import { clkBus, fanBuses, hubBuses, rtcBus, topBuses } from './chipBuses';
 import { cpuPwmBus, dramPwmBus, hdrBus, lpcBus, spiBus, svidBus, videoBuses } from './ctlBuses';
 import { dmiBus, nvmeBus, sataBus, usbBus } from './ioBuses';
 import { memBus } from './memBus';
 import { pcieBus } from './pcieBus';
+import type { Bus, Edges, TierGeo } from './types';
 
 /** The signal buses, in drawing order: memory, the serial links off the package, display, the controllers' and the chipset's links. */
 export function signalBuses(g: TierGeo, e: Edges): Bus[] {

@@ -1,15 +1,5 @@
-// A lane is a polyline with its segment lengths: the shape of one trace or cable, and the arc-length math on it.
-
-export type Pt = [number, number];
-
-export interface Lane {
-  pts: Pt[];
-  seg: number[];
-  len: number;
-  ph: number;
-  /** Stretches (arc length from, to) where the lane dives under what it crosses (a via at each end, nothing drawn between): only the buses of `HOP_BUSES` do. */
-  hops?: [number, number][];
-}
+// A lane is a polyline with its segment lengths (`Lane`, in `types.ts`): the shape of one trace or cable, and the arc-length math on it.
+import type { Lane, Pt } from './types';
 
 /** The item at index `i` (a negative index counts from the end). A missing item throws here, not as a crash further on. */
 export function nth<T>(xs: readonly T[], i: number): T {

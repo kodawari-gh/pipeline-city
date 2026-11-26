@@ -1,12 +1,9 @@
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
-import type { TierGeo } from '../layout/boardlayout';
 import { ioPort } from '../layout/boardlayout';
 import { PKG } from '../layout/layout';
 import { LEG_PITCH, cellSide, cellTop, headerPin, ioPads, legRun, legsOf, pkgPads, xtalPads } from '../layout/pins';
-import type { Bus } from './bus';
 import { chamfer, mean, mk } from './bundle';
 import { mkLane, nth } from './lane';
-import type { Lane, Pt } from './lane';
+import type { Bus, Lane, Pt, TierGeo } from './types';
 
 /** The pin header called `name`. */
 function header(g: TierGeo, name: string): TierGeo['hdrs'][number] {

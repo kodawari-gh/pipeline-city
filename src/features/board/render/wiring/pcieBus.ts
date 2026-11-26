@@ -1,11 +1,8 @@
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
-import type { TierGeo } from '../layout/boardlayout';
 import { PKG } from '../layout/layout';
 import { LEG_PITCH, legsFrom, pkgPads, slotLanding } from '../layout/pins';
-import type { Bus } from './bus';
 import { bundleOn, mean } from './bundle';
 import { mkLane, nth } from './lane';
-import type { Lane, Pt } from './lane';
+import type { Bus, Lane, Pt, TierGeo } from './types';
 
 /** x where the PCIe pins start on the package's south edge (west of the DMI column, see `DMI_X`). */
 const PCIE_X = -210;

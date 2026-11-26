@@ -1,9 +1,6 @@
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { serpentine } from '../layout/match';
-import type { SerpOpts } from '../layout/match';
-import type { Bus, BusKind } from './bus';
 import { mkLane, nth } from './lane';
-import type { Lane, Pt } from './lane';
+import type { Bus, BusKind, Ends, Lane, Pt, Run } from './types';
 
 // Orderly routing. A route is a centre line made of horizontal, vertical and 45 degree segments; a bundle is that
 // centre line copied n times at a fixed spacing (miter joins keep the spacing constant through bends). Corners that
@@ -60,13 +57,6 @@ export function offsetLine(pts: Pt[], d: number): Pt[] {
     ne = nth(nrm, n - 2);
   out.push([pe[0] + ne[0] * d, pe[1] + ne[1] * d]);
   return out;
-}
-
-/** A bundle's shape: n lanes, `spacing` apart, their corners chamfered with legs of `c`. */
-export interface Run {
-  n: number;
-  spacing: number;
-  c?: number;
 }
 
 /** n parallel lanes centred on the route, `spacing` apart. */
@@ -129,16 +119,6 @@ function land(
     out[lo.i] = reEnd(nth(ls, lo.i), nth(pads, nth(padOrder, rank).i), { ux, uy, lead });
   }
   return atEnd ? out : out.map((l) => l.toReversed());
-}
-
-/** Length matching of a bundle's lanes (`serpentine`): the stroke width and the room beside the bundle. */
-type Match = Omit<SerpOpts, 'pitch'>;
-/** Pads at the ends of a bundle (`from` at the first end, `to` at the last; none = free end), the straight `lead` into them and the length `match`. */
-export interface Ends {
-  from?: Pt[];
-  to?: Pt[];
-  lead?: number;
-  match?: Match;
 }
 
 /** A bundle of n lanes along a centre line whose ends land on pads (`ends`); `match` adds the serpentines that make the lanes equally long. */

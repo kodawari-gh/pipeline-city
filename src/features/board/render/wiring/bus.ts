@@ -1,8 +1,6 @@
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
-import type { TierGeo } from '../layout/boardlayout';
 import { dimmPowerPad } from '../layout/pins';
 import { crossings, nth, pointAt } from './lane';
-import type { Lane } from './lane';
+import type { Bus, BusKind, Lane, TierGeo } from './types';
 
 /** x (from a phase block's left edge) of its output stub, where the core-voltage run starts (CPU VRM, see `vrmPhaseArt`), and the memory regulator's output and input stubs (`dramPhaseArt`). */
 export const VRM_OUT_X = 265,
@@ -12,55 +10,8 @@ export const VRM_OUT_X = 265,
 /** Lanes in an NVMe bundle. */
 export const NVME_LANES = 3;
 
-export type BusKind =
-  | 'mem'
-  | 'nvme'
-  | 'dmi'
-  | 'pcie'
-  | 'sata'
-  | 'usb'
-  | 'video'
-  | 'dp'
-  | 'svid'
-  | 'pwmc'
-  | 'spi'
-  | 'hdr'
-  | 'rtc'
-  | 'pwr12'
-  | 'pwrcpu'
-  | 'vcore'
-  | 'vdimm'
-  | 'audio'
-  | 'lan'
-  | 'hda'
-  | 'phyl'
-  | 'lpc'
-  | 'dbg'
-  | 'rgb'
-  | 'fanc'
-  | 'pwrpcie'
-  | 'clk';
-
 /** Buses that may dive under what they cross (a via at each end of the hop), in rank order: a lane of a later bus hops over a lane of an earlier one. */
 export const HOP_BUSES: readonly BusKind[] = ['pwmc', 'hda', 'phyl', 'lpc', 'rgb', 'fanc', 'pwrpcie'];
-
-export interface Bus {
-  id: BusKind;
-  /** Lanes from the first end to the second. */
-  lanes: Lane[];
-  /** Lane stroke width in world units. */
-  w: number;
-  /** Width of the pad a lane ends on (default: twice the stroke). */
-  pad?: number;
-  /** Branches (one per DIMM) that light together with the main run when `tap(i)` is installed. */
-  taps?: { key: string; lanes: Lane[] }[];
-  /** The lanes that must arrive together (one memory channel, one M.2, one slot's lanes...): their lengths match. */
-  groups?: Lane[][];
-  /** Differential pairs: each lane is drawn as two tight strands (the fast serial buses). */
-  pair?: boolean;
-  /** The header trunk, by header: the trunk lane and that header's own tap (not length-matched, so not `groups`). */
-  heads?: { name: string; lanes: Lane[] }[];
-}
 
 /** x where the memory rail ends: past the bank's last socket and past the last phase's output, so every output lands on the rail. */
 export const vdimmEnd = (g: TierGeo): number => {
@@ -140,12 +91,4 @@ export function addHops(buses: Bus[]): void {
       l.hops = hops;
     }
   }
-}
-
-/** The socket's edges around the package: west (`px`), east (`qx`), south (`qy`) and north (`py`). */
-export interface Edges {
-  px: number;
-  qx: number;
-  qy: number;
-  py: number;
 }

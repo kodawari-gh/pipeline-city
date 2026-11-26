@@ -1,13 +1,10 @@
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
-import type { TierGeo } from '../layout/boardlayout';
 import { ioPort } from '../layout/boardlayout';
 import { PKG } from '../layout/layout';
 import { LEG_PITCH, SATA_LANES, ioPads, legRun, m2Pads, pkgPads, sataPads } from '../layout/pins';
 import { NVME_LANES } from './bus';
-import type { Bus, Edges } from './bus';
 import { bundleOn, mean, mk } from './bundle';
 import { mkLane, nth } from './lane';
-import type { Lane, Pt } from './lane';
+import type { Bus, Edges, Lane, Pt, TierGeo } from './types';
 
 /**
  * The columns that leave the south edge of the package, west to east: the CPU's clock (from its crystal), the PCIe pins (32 pairs, on the outer row for the first

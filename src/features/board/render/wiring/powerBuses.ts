@@ -1,12 +1,9 @@
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
-import type { TierGeo } from '../layout/boardlayout';
 import { PKG } from '../layout/layout';
 import { atx12v, atx12vSlots, cpuPowerPins, dimmPowerPad, m2Tie, pcieFeed, slotTie } from '../layout/pins';
 import { DRAM_IN_X, DRAM_OUT_X, VRM_OUT_X, vdimmEnd, vdimmStart } from './bus';
-import type { Bus, Edges } from './bus';
 import { bundle, chamfer, mk } from './bundle';
 import { mkLane, nth } from './lane';
-import type { Lane, Pt } from './lane';
+import type { Bus, Edges, Lane, Pt, TierGeo } from './types';
 
 /** How far in from the package's corners the core-voltage runs land on its north edge. */
 const VCORE_IN = 90;

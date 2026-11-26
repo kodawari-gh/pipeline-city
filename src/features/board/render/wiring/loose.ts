@@ -1,11 +1,9 @@
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { hangCable } from '@/core/render/cable';
 import { IO_X } from '../layout/boardlayout';
 import { GEO, PORT_Y, PSU_PORTS, VIDEO_RUN_Y, VIDEO_SOCKET } from '../layout/layout';
 import { CABLE_HIDE } from './cables';
-import type { Cable, CableKind, Plug } from './cables';
 import { mkLane, nth } from './lane';
-import type { Lane, Pt } from './lane';
+import type { Cable, CableKind, Lane, Plug, Pt } from './types';
 
 // ---------------------------------------------------------------- loose (unplugged) cables
 

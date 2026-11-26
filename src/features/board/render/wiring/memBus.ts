@@ -1,11 +1,8 @@
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
-import type { TierGeo } from '../layout/boardlayout';
 import { PKG } from '../layout/layout';
 import { BEV, toothFor, toothPts } from '../layout/match';
 import { dimmPinX, pkgPads } from '../layout/pins';
-import type { Bus } from './bus';
 import { mkLane, nth } from './lane';
-import type { Lane, Pt } from './lane';
+import type { Bus, Lane, Pt, TierGeo } from './types';
 
 /** How tall a memory lane's teeth may stand (the lane above keeps them lower), the room they leave under that lane, and where they end short of the bank. */
 const MEM_TOOTH_MAX = 70,
