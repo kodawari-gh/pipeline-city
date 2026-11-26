@@ -8,19 +8,25 @@ export class FrameWindow {
 
   push(ms: number): void {
     this.ms.push(ms);
-    if (this.ms.length > WINDOW) this.ms.shift();
+    if (this.ms.length > WINDOW) {
+      this.ms.shift();
+    }
   }
 
   avg(): number {
     const n = this.ms.length;
-    if (!n) return 0;
+    if (!n) {
+      return 0;
+    }
     return this.ms.reduce((a, b) => a + b, 0) / n;
   }
 
   /** Nearest rank: the value at sorted[ceil(0.95 n) - 1]. 0 when empty. */
   p95(): number {
     const n = this.ms.length;
-    if (!n) return 0;
+    if (!n) {
+      return 0;
+    }
     const sorted = [...this.ms].sort((a, b) => a - b);
     return sorted[Math.ceil(0.95 * n) - 1]!;
   }
@@ -47,9 +53,13 @@ export class DrawnFrames {
 
   tick(now: number, calls: number): void {
     this.at = now;
-    if (calls <= 0) return;
+    if (calls <= 0) {
+      return;
+    }
     const gap = now - this.anchor;
-    if (gap > 0 && gap <= STILL_MS) this.win.push(gap);
+    if (gap > 0 && gap <= STILL_MS) {
+      this.win.push(gap);
+    }
     this.anchor = now;
   }
 

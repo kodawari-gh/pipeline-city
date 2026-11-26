@@ -13,7 +13,7 @@ import { NOTE_CUES } from './tokens/notes';
 
 export const MIX = {
   version: 1,
-  sampleRate: 48000,
+  sampleRate: 48_000,
   codec: 'ogg-vorbis',
   basePath: 'audio/',
   buses: {
@@ -106,7 +106,7 @@ export const MIX = {
       fadeInMs: 2000,
       fadeOutMs: 1500,
       when: 'room scene visible (main menu and game; not Build/Gallery studio)',
-      samples: 1152000,
+      samples: 1_152_000,
     },
     amb_machine_hum_loop: {
       bus: 'ambience',
@@ -121,7 +121,7 @@ export const MIX = {
         rateAt1: 1.12,
         smoothMs: 800,
       },
-      samples: 576000,
+      samples: 576_000,
     },
   },
   levelUp: {
@@ -165,8 +165,8 @@ export const MIX = {
     bus: 'music',
     tempoBpm: 66,
     tempoFollowsSpeed: false,
-    loopSamples: 698182,
-    menuLoopSamples: 1396364,
+    loopSamples: 698_182,
+    menuLoopSamples: 1_396_364,
     loopPadSamples: 4800,
     levelupWithSfxDb: -6,
     levelupWithSfxDoc:

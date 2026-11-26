@@ -223,22 +223,22 @@ export function pickTier(d: DeviceInfo): { tier: Tier; reason: string } {
     short = Math.min(d.width, d.height),
     small = short > 0 && short < 500;
   let rank: number, why: string;
-  if (/swiftshader|llvmpipe|softpipe|basic render|software/.test(r)) {
+  if (/swiftshader|llvmpipe|softpipe|basic render|software/u.test(r)) {
     rank = 0;
     why = 'software rendering';
-  } else if (/adreno|mali|powervr|immortalis|videocore|xclipse/.test(r)) {
+  } else if (/adreno|mali|powervr|immortalis|videocore|xclipse/u.test(r)) {
     rank = 0;
     why = 'mobile GPU';
-  } else if (/apple m\d/.test(r)) {
+  } else if (/apple m\d/u.test(r)) {
     rank = 2;
     why = 'Apple M GPU';
   } else if (r.includes('apple')) {
     rank = small ? 0 : 1;
     why = small ? 'phone GPU' : 'Apple GPU';
-  } else if (/nvidia|geforce|rtx|gtx|radeon (rx|pro)|radeon\(tm\) (rx|pro)/.test(r)) {
+  } else if (/nvidia|geforce|rtx|gtx|radeon (?:rx|pro)|radeon\(tm\) (?:rx|pro)/u.test(r)) {
     rank = 2;
     why = 'discrete GPU';
-  } else if (/intel|uhd|iris|radeon|vega|integrated/.test(r)) {
+  } else if (/intel|uhd|iris|radeon|vega|integrated/u.test(r)) {
     rank = 1;
     why = 'integrated GPU';
   } else {
@@ -252,11 +252,18 @@ export function pickTier(d: DeviceInfo): { tier: Tier; reason: string } {
       caps.push(note);
     }
   };
-  if (d.cores > 0 && d.cores <= 2) cap(0, `${d.cores} cores`);
-  else if (d.memoryGb > 0 && d.memoryGb <= 2) cap(0, `${d.memoryGb} GB`);
-  else if (d.cores > 0 && d.cores <= 4) cap(1, `${d.cores} cores`);
-  else if (d.memoryGb > 0 && d.memoryGb <= 4) cap(1, `${d.memoryGb} GB`);
-  if (small) cap(1, 'small screen');
+  if (d.cores > 0 && d.cores <= 2) {
+    cap(0, `${d.cores} cores`);
+  } else if (d.memoryGb > 0 && d.memoryGb <= 2) {
+    cap(0, `${d.memoryGb} GB`);
+  } else if (d.cores > 0 && d.cores <= 4) {
+    cap(1, `${d.cores} cores`);
+  } else if (d.memoryGb > 0 && d.memoryGb <= 4) {
+    cap(1, `${d.memoryGb} GB`);
+  }
+  if (small) {
+    cap(1, 'small screen');
+  }
   return { tier: TIERS[rank]!, reason: [why, ...caps].join(', ') };
 }
 
@@ -309,8 +316,9 @@ export function parseTierRecord(raw: unknown): TierRecord | null {
     typeof o !== 'object' ||
     (o['mode'] !== 'auto' && o['mode'] !== 'manual') ||
     !TIERS.includes(o['tier'] as Tier)
-  )
+  ) {
     return null;
+  }
   const rec: TierRecord = {
     mode: o['mode'],
     tier: o['tier'] as Tier,
@@ -318,19 +326,29 @@ export function parseTierRecord(raw: unknown): TierRecord | null {
   };
   if (TIERS.includes(o['maxUp'] as Tier)) {
     rec.maxUp = o['maxUp'] as Tier;
-    if (typeof o['maxUpAt'] === 'number' && Number.isFinite(o['maxUpAt'])) rec.maxUpAt = o['maxUpAt'];
-    if (typeof o['maxUpFp'] === 'string') rec.maxUpFp = o['maxUpFp'];
+    if (typeof o['maxUpAt'] === 'number' && Number.isFinite(o['maxUpAt'])) {
+      rec.maxUpAt = o['maxUpAt'];
+    }
+    if (typeof o['maxUpFp'] === 'string') {
+      rec.maxUpFp = o['maxUpFp'];
+    }
   }
   return rec;
 }
 
 /** The record without a `maxUp` that is too old or from another device. An old record with no date or device is taken as set now. */
 function freshMaxUp(rec: TierRecord, env: StartEnv): TierRecord {
-  if (!rec.maxUp) return rec;
+  if (!rec.maxUp) {
+    return rec;
+  }
   const { maxUp, maxUpAt, maxUpFp, ...rest } = rec;
-  if (maxUpAt !== undefined && env.now - maxUpAt > MAX_UP_MS) return rest;
+  if (maxUpAt !== undefined && env.now - maxUpAt > MAX_UP_MS) {
+    return rest;
+  }
   const fp = env.fp();
-  if (maxUpFp !== undefined && maxUpFp !== fp) return rest;
+  if (maxUpFp !== undefined && maxUpFp !== fp) {
+    return rest;
+  }
   return { ...rest, maxUp, maxUpAt: maxUpAt ?? env.now, maxUpFp: maxUpFp ?? fp };
 }
 
@@ -348,20 +366,30 @@ const OLD_LOW = { scale: 0.6, shadows: 1 } as const;
  * picture that is not the old Low. An old save with no lamp keys still matches, as those keys come from the preset later.
  */
 function movedOldLow(saved: unknown): unknown {
-  if (!saved || typeof saved !== 'object') return saved;
+  if (!saved || typeof saved !== 'object') {
+    return saved;
+  }
   const o = saved as Record<string, unknown>;
-  if (typeof o['v'] === 'number' && o['v'] >= 4) return saved;
-  if (o['scale'] !== OLD_LOW.scale || o['shadows'] !== OLD_LOW.shadows) return saved;
+  if (typeof o['v'] === 'number' && o['v'] >= 4) {
+    return saved;
+  }
+  if (o['scale'] !== OLD_LOW.scale || o['shadows'] !== OLD_LOW.shadows) {
+    return saved;
+  }
   const same = (k: keyof PresetOptions) =>
     o[k] === PRESETS.low[k] || (o[k] === undefined && (k === 'lights' || k === 'lightShadows'));
-  if (!presetKeys.every((k) => k === 'scale' || k === 'shadows' || same(k))) return saved;
+  if (!presetKeys.every((k) => k === 'scale' || k === 'shadows' || same(k))) {
+    return saved;
+  }
   return { ...o, scale: PRESETS.low.scale, shadows: PRESETS.low.shadows };
 }
 
 // the touch default from before tiers: Low's values (scale 0.75, shadows 0), 30 fps, and no lamp keys
 function isOldTouchDefault(raw: unknown): boolean {
   const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-  if (o['lights'] !== undefined || o['lightShadows'] !== undefined) return false;
+  if (o['lights'] !== undefined || o['lightShadows'] !== undefined) {
+    return false;
+  }
   const want: Record<string, number> = { ...PRESETS.low, fps: 30, brightness: 1 };
   delete want['lights'];
   delete want['lightShadows'];
@@ -380,17 +408,20 @@ export function resolveStart(
   detect: () => { tier: Tier; reason: string },
   env: StartEnv = { now: Date.now(), fp: () => fingerprint(device()) },
 ): { g: Graphics; rec: TierRecord } {
-  const hasSave = !!saved && typeof saved === 'object',
+  const hasSave = saved !== null && typeof saved === 'object',
     stored = parseTierRecord(rec);
   // an old Low save (before v4) takes the new Low's scale and shadows first, so the checks below see the new Low
   const base = parseGraphics(movedOldLow(saved));
   const savedV = hasSave ? (saved as { v?: unknown }).v : undefined;
   const before = (n: number) => typeof savedV !== 'number' || savedV < n;
   // saves from before auto-adjust became opt-in (v1 and older) carry its old default: the player never chose it
-  if (hasSave && before(2)) base.auto = false;
+  if (hasSave && before(2)) {
+    base.auto = false;
+  }
   // Low drew at 30 fps before v3 and runs at 60 now: an old Low save with 30 moves to 60. A v3 save at 30 is the player's choice
-  if (hasSave && before(3) && base.fps === 30 && (stored ? stored.tier === 'low' : presetOf(base) === 'low'))
+  if (hasSave && before(3) && base.fps === 30 && (stored ? stored.tier === 'low' : presetOf(base) === 'low')) {
     base.fps = 60;
+  }
   let out: { g: Graphics; rec: TierRecord };
   if (hasSave && !stored && isOldTouchDefault(saved)) {
     // never the player's choice: Low's cap, and auto
@@ -414,8 +445,9 @@ export function resolveStart(
     out = { g: tierGraphics(d.tier, DEFAULTS), rec: { mode: 'auto', ...d } };
   }
   const q = new URLSearchParams(search).get('tier') as Tier | null;
-  if (q && TIERS.includes(q))
+  if (q && TIERS.includes(q)) {
     out = { g: tierGraphics(q, out.g), rec: { mode: 'manual', tier: q, reason: `?tier=${q}` } };
+  }
   return out;
 }
 
@@ -423,7 +455,11 @@ const presetKeys = Object.keys(PRESETS.high) as (keyof PresetOptions)[];
 
 /** The preset these settings are, or null: the player's own mix (the panel says Custom). */
 export function presetOf(g: Graphics): Preset | null {
-  for (const [id] of PRESET_NAMES) if (presetKeys.every((k) => g[k] === PRESETS[id][k])) return id;
+  for (const [id] of PRESET_NAMES) {
+    if (presetKeys.every((k) => g[k] === PRESETS[id][k])) {
+      return id;
+    }
+  }
   return null;
 }
 
@@ -433,9 +469,14 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, M
 export function parseGraphics(raw: unknown, base: Graphics = DEFAULTS): Graphics {
   const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>,
     out = { ...base };
-  for (const k of Object.keys(CHOICES) as Choice[]) if (CHOICES[k].some(([v]) => v === o[k])) out[k] = o[k] as number;
-  if (typeof o['scale'] === 'number' && Number.isFinite(o['scale']))
+  for (const k of Object.keys(CHOICES) as Choice[]) {
+    if (CHOICES[k].some(([v]) => v === o[k])) {
+      out[k] = o[k] as number;
+    }
+  }
+  if (typeof o['scale'] === 'number' && Number.isFinite(o['scale'])) {
     out.scale = clamp(o['scale'], SCALE_MIN, SCALE_MAX);
+  }
   // an old save has no lamp keys: take them from the preset its other keys match, so low stays low and medium stays medium
   if (o['lights'] === undefined && o['lightShadows'] === undefined) {
     const p = isOldTouchDefault(raw)
@@ -448,9 +489,12 @@ export function parseGraphics(raw: unknown, base: Graphics = DEFAULTS): Graphics
       out.lightShadows = PRESETS[p[0]].lightShadows;
     }
   }
-  if (typeof o['brightness'] === 'number' && Number.isFinite(o['brightness']))
+  if (typeof o['brightness'] === 'number' && Number.isFinite(o['brightness'])) {
     out.brightness = clamp(o['brightness'], BRIGHT_MIN, BRIGHT_MAX);
-  if (typeof o['auto'] === 'boolean') out.auto = o['auto'];
+  }
+  if (typeof o['auto'] === 'boolean') {
+    out.auto = o['auto'];
+  }
   return out;
 }
 
@@ -460,19 +504,25 @@ export function parseGraphics(raw: unknown, base: Graphics = DEFAULTS): Graphics
  * caps the frame limit at 30 (CPU-bound phones). A step only lowers: an option already below it stays where the player put it; a limit of 0 (none) becomes 30.
  */
 export function lowered(g: Graphics, step: number): Graphics {
-  if (step <= 0) return g;
+  if (step <= 0) {
+    return g;
+  }
   const out = { ...g, ao: 0 };
   if (step >= 2) {
     out.bloom = 0;
     out.msaa = 0;
     out.live = 0;
   }
-  if (step >= 3) out.scale = Math.min(out.scale, 0.75); // the resolution goes last: effects first
+  if (step >= 3) {
+    out.scale = Math.min(out.scale, 0.75);
+  } // the resolution goes last: effects first
   if (step >= 4) {
     out.shadows = 0;
     out.lightShadows = 0;
   }
-  if (step >= 5) out.fps = out.fps && out.fps <= 30 ? out.fps : 30;
+  if (step >= 5) {
+    out.fps = out.fps && out.fps <= 30 ? out.fps : 30;
+  }
   return out;
 }
 
@@ -483,7 +533,9 @@ export function nextStep(g: Graphics, step: number): number | null {
   const now = lowered(g, step);
   for (let s = step + 1; s <= AUTO_STEPS; s++) {
     const next = lowered(g, s);
-    if ((Object.keys(next) as (keyof Graphics)[]).some((k) => next[k] !== now[k])) return s;
+    if ((Object.keys(next) as (keyof Graphics)[]).some((k) => next[k] !== now[k])) {
+      return s;
+    }
   }
   return null;
 }
@@ -553,7 +605,7 @@ export const debugOverride = signal<Partial<Graphics>>({});
 export const effective = computed(() => {
   const g = graphics.value.auto ? lowered(graphics.value, autoStep.value) : graphics.value;
   const o = debugOverride.value;
-  return Object.keys(o).length ? { ...g, ...o } : g;
+  return Object.keys(o).length > 0 ? { ...g, ...o } : g;
 });
 
 function commit(next: Graphics, rec: TierRecord) {
@@ -577,8 +629,11 @@ export function setGraphic<K extends keyof Graphics>(key: K, value: Graphics[K])
 }
 /** A preset keeps the frame limit. Low is the Low tier's picture (`tierGraphics`), at the player's own limit. */
 export function setPreset(id: Preset) {
-  if (id === 'low') commit({ ...tierGraphics('low', graphics.value), fps: graphics.value.fps }, manual());
-  else commit({ ...graphics.value, ...PRESETS[id] }, manual());
+  if (id === 'low') {
+    commit({ ...tierGraphics('low', graphics.value), fps: graphics.value.fps }, manual());
+  } else {
+    commit({ ...graphics.value, ...PRESETS[id] }, manual());
+  }
 }
 /** The player picks a tier: manual. */
 export function setTier(tier: Tier) {
@@ -607,11 +662,15 @@ export function resetTierSteps() {
 export function stepTier(dir: 'down' | 'up', detectedTier: Tier = detect().tier): boolean {
   const rec = tierRecord.peek();
   // (a debug toggle changes the frame time: a step read from it would be saved)
-  if (rec.mode !== 'auto' || stepped || Object.keys(debugOverride.peek()).length) return false;
+  if (rec.mode !== 'auto' || stepped || Object.keys(debugOverride.peek()).length > 0) {
+    return false;
+  }
   const at = TIERS.indexOf(rec.tier),
     top = rec.maxUp ? TIERS.indexOf(rec.maxUp) : 2;
   const to = dir === 'down' ? at - 1 : Math.min(at + 1, TIERS.indexOf(detectedTier) + 1, top);
-  if (to < 0 || to === at) return false;
+  if (to < 0 || to === at) {
+    return false;
+  }
   stepped = true;
   const tier = TIERS[to]!;
   // a step down is remembered: auto does not go up past it on a later load
@@ -620,8 +679,11 @@ export function stepTier(dir: 'down' | 'up', detectedTier: Tier = detect().tier)
     tier,
     reason: `${dir === 'down' ? 'slow frames' : 'fast frames'}, was ${tierName(rec.tier)}`,
   };
-  if (dir === 'down') Object.assign(next, { maxUp: tier, maxUpAt: Date.now(), maxUpFp: fingerprint(device()) });
-  else if (rec.maxUp) Object.assign(next, { maxUp: rec.maxUp, maxUpAt: rec.maxUpAt, maxUpFp: rec.maxUpFp });
+  if (dir === 'down') {
+    Object.assign(next, { maxUp: tier, maxUpAt: Date.now(), maxUpFp: fingerprint(device()) });
+  } else if (rec.maxUp) {
+    Object.assign(next, { maxUp: rec.maxUp, maxUpAt: rec.maxUpAt, maxUpFp: rec.maxUpFp });
+  }
   commit(tierGraphics(tier, graphics.peek()), next);
   return true;
 }
@@ -649,7 +711,9 @@ export class FrameMeter {
     }
     this.n++;
     const span = now - this.t0;
-    if (span < 500) return;
+    if (span < 500) {
+      return;
+    }
     frameStats.value = { fps: (this.n * 1000) / span, ms: span / this.n, w, h };
     this.n = 0;
     this.t0 = now;
@@ -668,7 +732,9 @@ export class FrameGate {
     }
     const step = 1000 / fps,
       gone = now - this.last;
-    if (gone < step - 1) return false;
+    if (gone < step - 1) {
+      return false;
+    }
     // (a frame inside the slack owes its share of a step to the next one)
     this.last = !Number.isFinite(gone) ? now : gone < step ? this.last + step : now - ((gone - step) % step);
     return true;
@@ -683,7 +749,9 @@ const AWAY_FPS = 30;
  * without input lowers nothing (owner decision): a player who watches the city run keeps the full rate. A frame with nothing new is skipped elsewhere.
  */
 export function loopLimit(fps: number, focused: boolean): number {
-  if (focused) return fps;
+  if (focused) {
+    return fps;
+  }
   return fps && fps < AWAY_FPS ? fps : AWAY_FPS;
 }
 
@@ -745,7 +813,9 @@ export class TierWatch {
 
   /** A drawn frame of `real` seconds (its own `rawDt`) whose callback took `workMs`, at `now` (ms). Returns the one decision, once. */
   tick(real: number, workMs: number, now: number, fps: number): 'down' | 'up' | null {
-    if (this.done || now - this.since < SETTLE_MS) return null;
+    if (this.done || now - this.since < SETTLE_MS) {
+      return null;
+    }
     if (this.prev < 0) {
       this.prev = now;
       return null;
@@ -755,18 +825,23 @@ export class TierWatch {
     this.time += Math.min(real, HITCH_S);
     this.work += workMs;
     this.n++;
-    if (this.time < TIER_WINDOW_S) return null;
+    if (this.time < TIER_WINDOW_S) {
+      return null;
+    }
     this.done = true;
     const limit = fps || 60,
       rate = this.n / this.time,
       budget = 1000 / limit;
-    if (rate < Math.min(SLOW_FPS, limit * SLOW_SHARE)) return 'down';
+    if (rate < Math.min(SLOW_FPS, limit * SLOW_SHARE)) {
+      return 'down';
+    }
     if (
       rate >= limit * TIER_HOLD &&
       this.n / this.wall >= limit * TIER_HOLD &&
       this.work / this.n < budget * TIER_WORK_SHARE
-    )
+    ) {
       return 'up';
+    }
     return null;
   }
 }
@@ -784,11 +859,15 @@ export class SlowWatch {
 
   /** A frame that took `real` seconds. True: the frames have stayed slow, the picture should get cheaper. */
   tick(real: number, now: number, fps: number): boolean {
-    if (now - this.since < SETTLE_MS) return false;
+    if (now - this.since < SETTLE_MS) {
+      return false;
+    }
     const floor = fps ? Math.min(SLOW_FPS, fps * SLOW_SHARE) : SLOW_FPS;
     // a lone hitch (a shader compile, a bake) counts as at most HITCH_S: only slow frames in a row lower the picture
     this.slow = Math.max(0, this.slow + (real > 1 / floor ? Math.min(real, HITCH_S) : -real * 2));
-    if (this.slow <= SLOW_FOR_S) return false;
+    if (this.slow <= SLOW_FOR_S) {
+      return false;
+    }
     this.slow = 0;
     return true;
   }

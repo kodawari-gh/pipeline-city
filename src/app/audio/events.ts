@@ -1,16 +1,20 @@
 // Snapshot log notes to cue ids. The rules are `logRules` in mixTokens.ts (first match wins). No sound on the first snapshot of a game.
-import { MIX, type CueId } from './mixTokens';
+import * as tokens from './mixTokens';
 import type { GameEvent } from '../../worker/game/types';
 
-const RULES = MIX.logRules.map((r) => ({
+const RULES = tokens.MIX.logRules.map((r) => ({
   kind: r.kind,
-  cue: r.cue as CueId | null,
-  re: r.match ? new RegExp(r.match) : null,
+  cue: r.cue as tokens.CueId | null,
+  re: r.match ? new RegExp(r.match, 'u') : null,
 }));
 
 /** The cue a log note plays, or null (no rule, or a rule with no cue such as `level`, which the key logic handles). */
-export function cueForNote(e: Pick<GameEvent, 'kind' | 'text'>): CueId | null {
-  for (const r of RULES) if (r.kind === e.kind && (!r.re || r.re.test(e.text))) return r.cue;
+export function cueForNote(e: Pick<GameEvent, 'kind' | 'text'>): tokens.CueId | null {
+  for (const r of RULES) {
+    if (r.kind === e.kind && (!r.re || r.re.test(e.text))) {
+      return r.cue;
+    }
+  }
   return null;
 }
 
@@ -24,7 +28,7 @@ export function createNoteTracker() {
   let first = true;
 
   const mark = (log: GameEvent[]) => {
-    seenTick = log.length ? log[log.length - 1]!.tick : -1;
+    seenTick = log.length > 0 ? log.at(-1)!.tick : -1;
     seenAt = log.filter((e) => e.tick === seenTick).length;
   };
 
@@ -36,7 +40,7 @@ export function createNoteTracker() {
       seenAt = 0;
     },
     fresh(log: GameEvent[]): GameEvent[] {
-      if (first || (log.length && log[log.length - 1]!.tick < seenTick)) {
+      if (first || (log.length > 0 && log.at(-1)!.tick < seenTick)) {
         first = false;
         mark(log);
         return [];
@@ -44,8 +48,12 @@ export function createNoteTracker() {
       const out: GameEvent[] = [];
       let n = 0;
       for (const e of log) {
-        if (e.tick < seenTick) continue;
-        if (e.tick === seenTick && n++ < seenAt) continue;
+        if (e.tick < seenTick) {
+          continue;
+        }
+        if (e.tick === seenTick && n++ < seenAt) {
+          continue;
+        }
         out.push(e);
       }
       mark(log);

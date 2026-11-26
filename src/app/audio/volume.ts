@@ -64,7 +64,9 @@ export function readVolumes(store: KeyValueStore | null): Volumes {
   const d = defaultVolumes();
   try {
     const raw = store?.getItem(MIX.sliders.storageKey) ?? null;
-    if (!raw) return d;
+    if (!raw) {
+      return d;
+    }
     const o = JSON.parse(raw) as Partial<Record<keyof Volumes, unknown>>;
     return {
       master: snapPercent(o.master, d.master),

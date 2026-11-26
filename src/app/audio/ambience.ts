@@ -39,7 +39,9 @@ export function fanSpeed(devices: readonly FanDevice[]): number {
   let sum = 0;
   let n = 0;
   for (const d of devices) {
-    if (!hasFan(d)) continue;
+    if (!hasFan(d)) {
+      continue;
+    }
     sum += Math.min(1, Math.max(0, d.fan ?? 0));
     n++;
   }
@@ -88,17 +90,24 @@ export function createAmbience(sink: AmbienceSink): Ambience {
   /** The room loop plays while the room scene shows and after the gesture. */
   const syncRoom = () => {
     const want = room && unlocked;
-    if (want === roomOn) return;
+    if (want === roomOn) {
+      return;
+    }
     roomOn = want;
-    if (want) sink.startLoop(ROOM, MIX.ambience[ROOM].fadeInMs);
-    else sink.stopLoop(ROOM, MIX.ambience[ROOM].fadeOutMs);
+    if (want) {
+      sink.startLoop(ROOM, MIX.ambience[ROOM].fadeInMs);
+    } else {
+      sink.stopLoop(ROOM, MIX.ambience[ROOM].fadeOutMs);
+    }
   };
 
   /** The hum follows the mean fan speed. Sent only when its level or rate changes. */
   const syncHum = () => {
     const gainDb = humGainDb(fan);
     const rate = humRate(fan);
-    if (lastHum?.gainDb === gainDb && lastHum.rate === rate) return;
+    if (lastHum?.gainDb === gainDb && lastHum.rate === rate) {
+      return;
+    }
     lastHum = { gainDb, rate };
     sink.setHum(gainDb, rate, hum().smoothMs);
   };
@@ -110,8 +119,11 @@ export function createAmbience(sink: AmbienceSink): Ambience {
     fan = fanSpeed(s?.devices ?? []);
     if (on !== powered) {
       powered = on;
-      if (on) sink.startLoop(HUM, MIX.ambience[HUM].fadeInMs);
-      else sink.stopLoop(HUM, MIX.ambience[HUM].fadeOutMs);
+      if (on) {
+        sink.startLoop(HUM, MIX.ambience[HUM].fadeInMs);
+      } else {
+        sink.stopLoop(HUM, MIX.ambience[HUM].fadeOutMs);
+      }
     }
     syncHum();
   };
@@ -135,7 +147,9 @@ export function createAmbience(sink: AmbienceSink): Ambience {
     },
     onSpeed(speed) {
       const now = speed === 0;
-      if (now === stopped) return;
+      if (now === stopped) {
+        return;
+      }
       stopped = now;
       sink.duckHum(now ? MIX.pause.ambienceGainDb.amb_machine_hum_loop : 0, MIX.pause.fadeMs);
     },

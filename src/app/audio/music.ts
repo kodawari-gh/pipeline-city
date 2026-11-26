@@ -71,7 +71,7 @@ export interface Music {
 }
 
 /** The menu loop's id: the file's name without `.ogg` (`music_menu_F`). */
-export const MENU_ID = MIX.music.menu.file.replace(/^.*\//, '').replace(/\.ogg$/, '');
+export const MENU_ID = MIX.music.menu.file.replace(/^.*\//u, '').replace(/\.ogg$/u, '');
 export const LAYERS: readonly Layer[] = ['bed', 'pluck', 'bass', 'pausebed'];
 const DATA_LAYERS: readonly DataLayer[] = ['shimmer', 'stress'];
 
@@ -115,20 +115,26 @@ export const NEUTRAL_SPEED: SpeedMix = { bass: true, bassDb: 0, shimmerDb: 0, de
 /** Speed changes density and brightness, never tempo (the stems are fixed 66 bpm). 1: no bass, dim shimmer; 2: bass and shimmer down 3 dB; 8 and up: brighter, denser. */
 export function speedMix(speed: number | undefined): SpeedMix {
   switch (speed) {
-    case 1:
+    case 1: {
       return { bass: false, bassDb: 0, shimmerDb: -6, density: 1 };
-    case 2:
+    }
+    case 2: {
       return { bass: true, bassDb: -3, shimmerDb: -3, density: 1 };
-    case 4:
+    }
+    case 4: {
       return NEUTRAL_SPEED;
-    case 8:
+    }
+    case 8: {
       return { bass: true, bassDb: 0, shimmerDb: 2, density: 2 };
+    }
     case 12:
     case 16:
-    case 64:
+    case 64: {
       return { bass: true, bassDb: 1, shimmerDb: 3, density: 3 };
-    default:
+    }
+    default: {
       return NEUTRAL_SPEED;
+    }
   }
 }
 
@@ -168,11 +174,17 @@ const ERROR_TARGETS: Readonly<Record<Layer, number>> = { bed: 0, pluck: 0, bass:
  * and bass stays quiet; the pluck keeps its state target (it is dimmed in the mix, see `setLayers`).
  */
 function layerTargets(phase: string | undefined, stopped = false): Readonly<Record<Layer, number>> {
-  if (phase === 'error') return ERROR_TARGETS;
+  if (phase === 'error') {
+    return ERROR_TARGETS;
+  }
   const s = phase === undefined ? undefined : PHASE_STATE[phase];
-  if (s === undefined) return SILENT;
+  if (s === undefined) {
+    return SILENT;
+  }
   const t = STATE_TARGETS[s];
-  if (!stopped) return t;
+  if (!stopped) {
+    return t;
+  }
   return { bed: 0, pluck: t.pluck, bass: 0, pausebed: 1 };
 }
 
@@ -224,7 +236,9 @@ export function createMusic(sink: MusicSink): Music {
 
   /** The set that should play: nothing before the gesture or the boot screen; the game's key on the game screen once known; else the menu. */
   const wanted = (): string | null => {
-    if (!unlocked || scene === null || scene === 'boot') return null;
+    if (!unlocked || scene === null || scene === 'boot') {
+      return null;
+    }
     return scene === 'game' && key !== null ? key : 'menu';
   };
 
@@ -232,14 +246,18 @@ export function createMusic(sink: MusicSink): Music {
   const fb = (beats: number): number => (instant ? 0 : beats);
 
   const stopAll = (fadeMs: number, q: Quant = 'bar', beats = 0) => {
-    for (const id of active.keys()) sink.stopMusic(id, fx(fadeMs), fq(q), fb(beats));
+    for (const id of active.keys()) {
+      sink.stopMusic(id, fx(fadeMs), fq(q), fb(beats));
+    }
     active.clear();
     hzOf.clear();
   };
 
   /** A low-pass on a playing voice. Sent only when the cutoff changes (`force`: sent again, the record is not trusted). */
   const setLowpass = (id: string, hz: number, fadeMs: number, q: Quant = 'bar', force = false) => {
-    if (!active.has(id) || (!force && (hzOf.get(id) ?? OPEN_HZ) === hz)) return;
+    if (!active.has(id) || (!force && (hzOf.get(id) ?? OPEN_HZ) === hz)) {
+      return;
+    }
     hzOf.set(id, hz);
     sink.setMusicLowpass?.(id, hz, fx(fadeMs), fq(q));
   };
@@ -251,9 +269,13 @@ export function createMusic(sink: MusicSink): Music {
    * `pause.musicHold.pluckDb` and low-passed.
    */
   const setLayers = (fadeMs: number, q: Quant, force = false, beats = 0) => {
-    if (set === null || set === 'menu') return;
+    if (set === null || set === 'menu') {
+      return;
+    }
     const targets = { ...layerTargets(phase, stopped) };
-    if (!speed.bass) targets.bass = 0;
+    if (!speed.bass) {
+      targets.bass = 0;
+    }
     for (const l of LAYERS) {
       const id = `music_${l}_${set}`;
       const to = targets[l];
@@ -276,8 +298,9 @@ export function createMusic(sink: MusicSink): Music {
         active.set(id, null);
         hzOf.delete(id);
       }
-      if (l === 'pluck')
+      if (l === 'pluck') {
         setLowpass(id, stopped ? MIX.pause.musicHold.lowpassHz : OPEN_HZ, TIMING.pauseFadeMs, q, force);
+      }
       const dip = l === 'pluck' && stopped ? MIX.pause.musicHold.pluckDb : 0;
       const db = round1(MIX.music.layerGainDb[l] + linearDb(to) + (l === 'bass' ? speed.bassDb : 0) + dip);
       if (active.get(id) !== db) {
@@ -300,8 +323,11 @@ export function createMusic(sink: MusicSink): Music {
     if (!on) {
       if (active.has(id) || force) {
         // A pause stops it over the pause fade (1 s) on the next beat; a feed that stops asking stops it over a bar.
-        if (stopped) sink.stopMusic(id, fx(TIMING.pauseFadeMs), fq('beat'));
-        else sink.stopMusic(id, fx(BAR_MS), fq('bar'));
+        if (stopped) {
+          sink.stopMusic(id, fx(TIMING.pauseFadeMs), fq('beat'));
+        } else {
+          sink.stopMusic(id, fx(BAR_MS), fq('bar'));
+        }
         active.delete(id);
         hzOf.delete(id);
       }
@@ -325,7 +351,9 @@ export function createMusic(sink: MusicSink): Music {
 
   /** The shimmer (on while data flows, +2 dB and a 4 kHz low-pass when saturated) and the stress (a linear stress^1.5 on its token dB). */
   const setDataLayers = (fadeMs: number, force = false) => {
-    if (set === null || set === 'menu') return;
+    if (set === null || set === 'menu') {
+      return;
+    }
     const sat = feed.saturated;
     const shimmerDb = MIX.music.layerGainDb.shimmer + speed.shimmerDb + (sat ? SATURATED_DB : 0);
     setData(
@@ -347,11 +375,33 @@ export function createMusic(sink: MusicSink): Music {
     setDataLayers(fadeMs, force);
   };
 
+  /** Key to key: a level-up note walks one fifth per beat (step i on beat i - 1); any other change is one step on the next beat. */
+  const walkKey = (want: string, fromPc: number | null) => {
+    const base = fromPc ?? 0;
+    const to = targetPc ?? base;
+    const steps = stepped && fromPc !== null ? Math.max(1, fifthsBetween(base, to)) : 1;
+    for (let i = 1; i <= steps; i++) {
+      const last = i === steps;
+      const beats = i - 1;
+      set = last ? want : keyName((base + 7 * i) % 12);
+      stopAll(TIMING.keyChangeMs, 'beat', beats);
+      if (last) {
+        refresh(TIMING.keyChangeMs, 'beat', false, beats);
+      } else {
+        setLayers(TIMING.keyChangeMs, 'beat', false, beats);
+      }
+    }
+  };
+
   const sync = () => {
     const want = wanted();
-    if (want === null || want === set) return;
+    if (want === null || want === set) {
+      return;
+    }
     // A new key holds the old one until it is decoded: the next snapshot calls sync again (onFeed).
-    if (want !== 'menu' && sink.keyReady?.(want) === false) return;
+    if (want !== 'menu' && sink.keyReady?.(want) === false) {
+      return;
+    }
     const from = set;
     const fromPc = setPc;
     set = want;
@@ -378,18 +428,7 @@ export function createMusic(sink: MusicSink): Music {
       refresh(TIMING.stateFadeMs);
       return;
     }
-    // Key to key: a level-up note walks one fifth per beat (step i on beat i - 1); any other change is one step on the next beat.
-    const base = fromPc ?? 0;
-    const to = targetPc ?? base;
-    const steps = stepped && fromPc !== null ? Math.max(1, fifthsBetween(base, to)) : 1;
-    for (let i = 1; i <= steps; i++) {
-      const last = i === steps;
-      const beats = i - 1;
-      set = last ? want : keyName((base + 7 * i) % 12);
-      stopAll(TIMING.keyChangeMs, 'beat', beats);
-      if (last) refresh(TIMING.keyChangeMs, 'beat', false, beats);
-      else setLayers(TIMING.keyChangeMs, 'beat', false, beats);
-    }
+    walkKey(want, fromPc);
   };
 
   /** The same set, its layers and their gains at target, at once (the return from a hidden tab). Stems already playing keep playing. */
@@ -406,10 +445,15 @@ export function createMusic(sink: MusicSink): Music {
       // Every call of the set goes out again (a no-op in the engine where a stem already plays), and the old set stops.
       if (old !== null && old !== set) {
         const oldIds = old === 'menu' ? [MENU_ID] : [...LAYERS, ...DATA_LAYERS].map((l) => `music_${l}_${old}`);
-        for (const id of oldIds) sink.stopMusic(id, 0, 'now');
+        for (const id of oldIds) {
+          sink.stopMusic(id, 0, 'now');
+        }
       }
-      if (set === 'menu') sink.startMusic(MENU_ID, 0, 'now');
-      else refresh(0, 'bar', true);
+      if (set === 'menu') {
+        sink.startMusic(MENU_ID, 0, 'now');
+      } else {
+        refresh(0, 'bar', true);
+      }
     } finally {
       instant = false;
     }
@@ -418,11 +462,15 @@ export function createMusic(sink: MusicSink): Music {
   return {
     onScene(s) {
       scene = s;
-      if (!hidden) sync();
+      if (!hidden) {
+        sync();
+      }
     },
     onKey(pc, stepOn = false) {
       const k = keyName(pc);
-      if (k === key) return;
+      if (k === key) {
+        return;
+      }
       key = k;
       targetPc = pc;
       stepped = stepOn;
@@ -430,7 +478,9 @@ export function createMusic(sink: MusicSink): Music {
       const want = new Set(keysInMemory(pc));
       // The keys a walk passes through are decoded too: a step starts its stems on its own beat.
       if (stepOn && setPc !== null) {
-        for (let i = 1; i < fifthsBetween(setPc, pc); i++) want.add(keyName((setPc + 7 * i) % 12));
+        for (let i = 1; i < fifthsBetween(setPc, pc); i++) {
+          want.add(keyName((setPc + 7 * i) % 12));
+        }
       }
       for (const w of want) {
         if (!decoded.has(w)) {
@@ -444,7 +494,9 @@ export function createMusic(sink: MusicSink): Music {
           decoded.delete(d);
         }
       }
-      if (!hidden) sync();
+      if (!hidden) {
+        sync();
+      }
     },
     onPhase(p) {
       phase = p;
@@ -452,7 +504,9 @@ export function createMusic(sink: MusicSink): Music {
         preloaded = true;
         sink.preloadMusic(MENU_ID);
       }
-      if (!hidden) refresh(TIMING.stateFadeMs);
+      if (!hidden) {
+        refresh(TIMING.stateFadeMs);
+      }
     },
     onFeed(f) {
       feed = f;
@@ -464,10 +518,14 @@ export function createMusic(sink: MusicSink): Music {
     },
     onSpeed(s) {
       speed = speedMix(s);
-      if (!hidden) refresh(TIMING.speedFadeMs);
+      if (!hidden) {
+        refresh(TIMING.speedFadeMs);
+      }
     },
     onStopped(s) {
-      if (s === stopped) return;
+      if (s === stopped) {
+        return;
+      }
       stopped = s;
       // Pause and resume: the bed and pausebed crossfade over 1 s, on the next beat (the tempo does not change).
       if (!hidden) {
@@ -477,11 +535,15 @@ export function createMusic(sink: MusicSink): Music {
     },
     onFault() {
       // The fault stinger in the key that plays now, on the next beat. Nothing with no keyed set (the menu, no game).
-      if (hidden || set === null || set === 'menu') return;
+      if (hidden || set === null || set === 'menu') {
+        return;
+      }
       sink.playStinger?.(`music_fault_${set}`, 'beat');
     },
     onHidden(h, dropped = false) {
-      if (h === hidden) return;
+      if (h === hidden) {
+        return;
+      }
       hidden = h;
       if (h) {
         lost = dropped;
@@ -492,7 +554,9 @@ export function createMusic(sink: MusicSink): Music {
     },
     onUnlock() {
       unlocked = true;
-      if (!hidden) sync();
+      if (!hidden) {
+        sync();
+      }
     },
   };
 }

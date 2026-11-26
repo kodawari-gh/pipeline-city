@@ -11,6 +11,8 @@ export function whenDebug<C>(
   load: () => Promise<{ mountDebug(ctx: C): void }>,
   ctx: C,
 ): Promise<void> | null {
-  if (!debugOn(search)) return null;
+  if (!debugOn(search)) {
+    return null;
+  }
   return load().then((m) => m.mountDebug(ctx));
 }

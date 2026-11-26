@@ -1,6 +1,6 @@
 // The ?debug cue board: one button per cue, a click plays it at the current key. Plain DOM. Loaded only with `?debug` (index.ts).
 import { effect } from '@preact/signals';
-import { MIX, type CueId } from './mixTokens';
+import * as tokens from './mixTokens';
 import { loadAll, playCue } from './engine';
 import { stressTerms } from './stress';
 import { snapshot } from '../store';
@@ -30,11 +30,11 @@ export function mountCueBoard(): void {
     const f = (x: number) => x.toFixed(2);
     stress.textContent = `stress ${f(t.amount)} = max(throttle ${f(t.throttle)}, temp ${f(t.temp)}, vrm ${f(t.vrm)}, power ${f(t.power)})`;
   });
-  for (const c of MIX.cues) {
+  for (const c of tokens.MIX.cues) {
     const b = document.createElement('button');
     b.type = 'button';
     b.textContent = c.id;
-    b.addEventListener('click', () => playCue(c.id as CueId));
+    b.addEventListener('click', () => playCue(c.id as tokens.CueId));
     panel.append(b);
   }
   document.body.append(panel);

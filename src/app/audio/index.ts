@@ -4,16 +4,32 @@ import { effect } from '@preact/signals';
 import { booted } from '../boot';
 import { snapshot } from '../store';
 import { debugOn } from '../debugflag';
-import { createDirector, type Scene, type UiInput } from './director';
+import * as audioDirector from './director';
 import { applyMix, engineSink, setHidden, startLoading, unlockOnGesture } from './engine';
 import { audioMix } from './mix';
 import { studioMachine } from './studio';
 import { installUiCues } from './uiListener';
 
 /** The screen the room loop follows. Until the boot screen has gone there is no screen yet (`boot`): the room loop waits. */
-export function sceneOf(s: { booted: boolean; build: boolean; gallery: boolean; game: boolean }): Scene {
-  if (!s.booted) return 'boot';
+export function sceneOf(s: { booted: boolean; build: boolean; gallery: boolean; game: boolean }): audioDirector.Scene {
+  if (!s.booted) {
+    return 'boot';
+  }
   return s.build ? 'build' : s.gallery ? 'gallery' : s.game ? 'game' : 'menu';
+}
+
+/** Loads the sounds once the boot screen has gone (once), and with `?debug` in `query` the cue board too. */
+function loadAfterBoot(query: string): void {
+  let loading = false;
+  effect(() => {
+    if (booted.value && !loading) {
+      loading = true;
+      startLoading();
+      if (debugOn(query)) {
+        void import('./cueBoard').then((m) => m.mountCueBoard());
+      }
+    }
+  });
 }
 
 /**
@@ -21,8 +37,12 @@ export function sceneOf(s: { booted: boolean; build: boolean; gallery: boolean; 
  * `readUi` gives the clock's speed, the hold on it and a crash. `readScene` says which screen shows (the room loop plays in menu and game).
  * They run in effects, so the signals they read are followed.
  */
-export function initAudio(search?: string, readUi?: () => UiInput, readScene?: () => Scene): void {
-  const director = createDirector(engineSink);
+export function initAudio(
+  search?: string,
+  readUi?: () => audioDirector.UiInput,
+  readScene?: () => audioDirector.Scene,
+): void {
+  const director = audioDirector.createDirector(engineSink);
   unlockOnGesture(() => director.onUnlock());
   installUiCues();
   // The hidden tab fades the sound and suspends the context (engine.ts `setHidden`). Only visibility drives it.
@@ -36,28 +56,25 @@ export function initAudio(search?: string, readUi?: () => UiInput, readScene?: (
   effect(() => {
     applyMix(audioMix.value);
   });
-  const query = search ?? (typeof location === 'undefined' ? '' : location.search);
-  let loading = false;
-  effect(() => {
-    if (booted.value && !loading) {
-      loading = true;
-      startLoading();
-      if (debugOn(query)) void import('./cueBoard').then((m) => m.mountCueBoard());
-    }
-  });
+  loadAfterBoot(search ?? (typeof location === 'undefined' ? '' : location.search));
   effect(() => {
     const s = snapshot.value;
-    if (s) director.onSnapshot(s);
-    else director.reset();
+    if (s) {
+      director.onSnapshot(s);
+    } else {
+      director.reset();
+    }
   });
-  if (readUi)
+  if (readUi) {
     effect(() => {
       director.onUi(readUi());
     });
-  if (readScene)
+  }
+  if (readScene) {
     effect(() => {
       director.onScene(readScene());
     });
+  }
   // The studio's machine (Build my PC sets it while its machine shows): the hum follows it (ticket #66).
   effect(() => {
     director.onStudio(studioMachine.value);

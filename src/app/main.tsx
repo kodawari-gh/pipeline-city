@@ -47,14 +47,15 @@ bootMenu(); // (the menu shows at once, over the boot screen: the screen keeps i
 
 // No browser right-click menu anywhere in the game. Text fields keep theirs (copy and paste), and the dev server keeps it for Inspect.
 if (!import.meta.env.DEV) {
-  window.addEventListener('contextmenu', (e) => {
+  globalThis.addEventListener('contextmenu', (e) => {
     const t = e.target;
     if (
       t instanceof HTMLInputElement ||
       t instanceof HTMLTextAreaElement ||
       (t instanceof HTMLElement && t.isContentEditable)
-    )
+    ) {
       return;
+    }
     e.preventDefault();
   });
 }
