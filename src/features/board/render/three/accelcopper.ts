@@ -4,10 +4,13 @@
 // runs straight east across the gap from the main die to the memory die; each inductor feeds the die's west edge by a wide run. Nothing here crosses: the lines of one side jog at levels in order, so a
 // line's horizontal never meets another's vertical (`accelcopper.test.ts` checks it).
 import type { RectLike } from '@/core/render/three/geometry';
-import { chamfer, clean, type Pt, type Trace } from './niccopper';
+import { chamfer, clean } from './niccopper';
+import type * as niccopperTypes from './niccopper';
 import { pinAt, txPin } from './pcie';
-import { TRACE_BAND, type NicLanes } from './nicflow';
-import { mkLane, type Pt as LanePt } from '../wiring/routes';
+import { TRACE_BAND } from './nicflow';
+import type * as nicflowTypes from './nicflow';
+import { mkLane } from '../wiring/routes';
+import type * as routesTypes from '../wiring/routes';
 
 const MM = 23;
 /** The ground pour's clearance off a run (layout units). */
@@ -31,10 +34,10 @@ export interface AccelCopperIn {
 }
 
 export interface AccelCopper {
-  traces: Trace[];
+  traces: niccopperTypes.Trace[];
   /** The lit runs: the slot's receive lines (finger to die) and the memory bus (main die to memory die), each as a polyline. */
-  host: Pt[][];
-  mem: Pt[][];
+  host: niccopperTypes.Pt[][];
+  mem: niccopperTypes.Pt[][];
   /** How many receive pairs the tab carries (a tab cut short by the card's end or the slot carries fewer than 16). */
   lanes: number;
 }
@@ -44,7 +47,9 @@ export function hostFingers(tab: { x: number; w: number }): { net: string; x: nu
   const out: { net: string; x: number }[] = [];
   for (let k = 0; k < 16; k++) {
     const p = txPin(k);
-    if (pinAt(p + 1) > tab.w - 0.7 * MM) break;
+    if (pinAt(p + 1) > tab.w - 0.7 * MM) {
+      break;
+    }
     out.push({ net: `PET${k}+`, x: tab.x + pinAt(p) }, { net: `PET${k}-`, x: tab.x + pinAt(p + 1) });
   }
   return out;
@@ -63,15 +68,17 @@ function staircase(
   low: number,
   top: number,
   step: number,
-): { lines: Pt[][]; step: number } {
+): { lines: niccopperTypes.Pt[][]; step: number } {
   const n = xs.length,
-    out: Pt[][] = new Array(n);
+    out: niccopperTypes.Pt[][] = new Array(n);
   const east: number[] = [],
     west: number[] = [];
-  for (let i = 0; i < n; i++) (ts[i]! >= xs[i]! ? east : west).push(i);
+  for (let i = 0; i < n; i++) {
+    (ts[i]! >= xs[i]! ? east : west).push(i);
+  }
   west.reverse();
   const st = Math.min(step, (low - top) / Math.max(1, east.length - 1, west.length - 1));
-  for (const side of [east, west])
+  for (const side of [east, west]) {
     side.forEach((i, j) => {
       const y = low - j * st;
       out[i] = [
@@ -81,11 +88,12 @@ function staircase(
         [ts[i]!, yEnd],
       ];
     });
+  }
   return { lines: out.map((p) => chamfer(clean(p), 0.3 * MM)), step: st };
 }
 
 export function accelCopper(a: AccelCopperIn): AccelCopper {
-  const traces: Trace[] = [],
+  const traces: niccopperTypes.Trace[] = [],
     f = hostFingers(a.tab),
     { core, mem } = a;
   // ---- the slot's receive pairs: down from the fingers to the die's north edge, closing to a pitch the die takes (centred on it)
@@ -107,19 +115,19 @@ export function accelCopper(a: AccelCopperIn): AccelCopper {
   );
   // (the width follows the pitch the bus closes to and the levels' step: the lines' clearance holds on the tightest die)
   const w = Math.max(2.4, Math.min(SIG, pitch - CLEAR, step - CLEAR));
-  const host: Pt[][] = [];
+  const host: niccopperTypes.Pt[][] = [];
   lines.forEach((pts, i) => {
     traces.push({ net: f[i]!.net, layer: 'top', w, pts });
     host.push(pts);
   });
   // ---- the memory bus: straight east across the gap, at the memory die's pitch about the dies' common middle
   const cy = Math.min(Math.max(core.y + core.h / 2, mem.y + mem.h / 2 - 0.2 * MM), mem.y + mem.h / 2 + 0.2 * MM),
-    memLines: Pt[][] = [];
+    memLines: niccopperTypes.Pt[][] = [];
   const span = (MEM_LINES - 1) * MEM_PITCH * MM,
     fit = Math.min(1, (mem.h - 1.6 * MM) / span);
   for (let k = 0; k < MEM_LINES; k++) {
     const y = cy + (k - (MEM_LINES - 1) / 2) * MEM_PITCH * MM * fit,
-      pts: Pt[] = [
+      pts: niccopperTypes.Pt[] = [
         [core.x + core.w - 1.2 * MM, y],
         [mem.x + 1.2 * MM, y],
       ];
@@ -127,7 +135,7 @@ export function accelCopper(a: AccelCopperIn): AccelCopper {
     memLines.push(pts);
   }
   // ---- the power stage: each inductor's east end to the die's west edge, a wide run
-  for (const r of a.inductors)
+  for (const r of a.inductors) {
     traces.push({
       net: 'VCORE',
       layer: 'top',
@@ -137,6 +145,7 @@ export function accelCopper(a: AccelCopperIn): AccelCopper {
         [core.x + 1.2 * MM, r.y + r.h / 2],
       ],
     });
+  }
   return { traces, host, mem: memLines, lanes: n / 2 };
 }
 
@@ -144,13 +153,15 @@ export function accelCopper(a: AccelCopperIn): AccelCopper {
  * The lit lanes (`Chips3D.traces`): the receive lines (the slot's frames come down them toward the die) and the memory bus (from the die toward the memory), in the card's band of the shared drawing
  * (`TRACE_BAND`). `host` is the NIC's name for the same run; `media` carries the memory bus.
  */
-export function accelLanes(c: AccelCopper, slot: number, x0: number): NicLanes {
+export function accelLanes(c: AccelCopper, slot: number, x0: number): nicflowTypes.NicLanes {
   const off = slot * TRACE_BAND - x0,
-    to = (p: Pt): LanePt => [p[0] + off, p[1]];
+    to = (p: niccopperTypes.Pt): routesTypes.Pt => [p[0] + off, p[1]];
   const lanes = { media: c.mem.map((l) => mkLane(l.map(to))), host: c.host.map((l) => mkLane(l.map(to))) };
   const all = [...lanes.media, ...lanes.host].flatMap((l) => l.pts),
     M = 20;
-  if (!all.length) return { ...lanes, rect: { x: slot * TRACE_BAND, y: 0, w: 0, h: 0 }, off };
+  if (all.length === 0) {
+    return { ...lanes, rect: { x: slot * TRACE_BAND, y: 0, w: 0, h: 0 }, off };
+  }
   const xa = Math.min(...all.map((p) => p[0])) - M,
     ya = Math.min(...all.map((p) => p[1])) - M,
     xb = Math.max(...all.map((p) => p[0])) + M,

@@ -8,22 +8,16 @@
 // Two things the 2D board did for `Live` are done here (docs/render/live.md "Activity"): it runs on the world's clock, the one the dies replay on (a
 // pause stops it, the fast speeds do not blur it, a close zoom slows it), and the CPU's replay (`DieTraffic`) tells it what the core reaches for and
 // which interrupts it takes, so the sticks, the drives and the cards answer on their own lanes while the machine runs, not only while it boots.
-import {
-  Mesh,
-  MeshBasicMaterial,
-  AdditiveBlending,
-  PlaneGeometry,
-  type CanvasTexture,
-  type PerspectiveCamera,
-  type Scene,
-} from 'three';
+import { Mesh, MeshBasicMaterial, AdditiveBlending, PlaneGeometry } from 'three';
+import type * as threeTypes from 'three';
 import type { Snapshot } from '@/worker/protocol';
 import { builtinTheme } from '@/core/render/theme';
 import { Live } from '@/core/render/live';
 import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
 import { seeThrough } from '@/core/render/three/pick';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { getSpec, type CpuSpec } from '@/features/board/sim/specs';
+import { getSpec } from '@/features/board/sim/specs';
+import type * as specsTypes from '@/features/board/sim/specs';
 import { planOf } from '@/features/cpu/render/die/dieart';
 import { DieTraffic } from '@/features/cpu/render/die/dietraffic';
 import { driveKindOf } from '@/features/storage/render/drives';
@@ -38,7 +32,7 @@ const Z = BOARD_Z + 3;
 const TRACE_SIDE = 1024;
 /** The least gap between two drawings of the traces (ms): a packet's trip is 170 ms or more, so 30 a second is smooth; a finer "Live chips" level does not draw them faster. */
 const TRACE_MS = 33;
-const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
+const idx = (slot: string) => Number(/\d+$/u.exec(slot)?.[0] ?? 0);
 /** A drive that `Live` draws no art for (the 3D drives have their own look): it still lights its lanes. */
 const NO_BODY = { x: 0, y: 0, w: 0, h: 0 };
 
@@ -61,7 +55,7 @@ export class BoardLive3D {
   });
   private readonly mesh = seeThrough(new Mesh(new PlaneGeometry(1, 1), this.mat));
   private canvas: HTMLCanvasElement | null = null;
-  private tex: CanvasTexture | null = null;
+  private tex: threeTypes.CanvasTexture | null = null;
   private size = '';
   private sceneKey = '';
   /** When `Live` last ran its frame and the time it is owed (s): they run together, at most every `TRACE_MS` or `level.ms` (see `frame`). */
@@ -73,7 +67,7 @@ export class BoardLive3D {
   /** How often and how finely the traces draw: an entry of `LIVE_LEVELS` (the graphics settings; the game's and Build my PC's stages set it). */
   level: { ms: number; px: number } = LIVE_LEVELS[2];
 
-  constructor(scene: Scene) {
+  constructor(scene: threeTypes.Scene) {
     this.mesh.visible = false;
     this.mesh.renderOrder = 5;
     scene.add(this.mesh);
@@ -85,7 +79,9 @@ export class BoardLive3D {
   /** The scene Live draws for: rebuilt when the tier, the case or the installed parts change. */
   private build(s: Snapshot): void {
     const r = bakeRenderer();
-    if (!r) return;
+    if (!r) {
+      return;
+    }
     this.live ??= new Live(r);
     const dimms = s.devices.filter((d) => d.kind === 'ram').map((d) => idx(d.slot));
     const disp = s.devices.find((d) => d.kind === 'display');
@@ -108,8 +104,8 @@ export class BoardLive3D {
       dimms,
       flags: {
         psu: s.devices.some((d) => d.kind === 'psu'),
-        display: !!disp,
-        gfx: !!(getSpec(disp?.spec ?? '') as { graphics?: boolean } | undefined)?.graphics,
+        display: Boolean(disp),
+        gfx: Boolean((getSpec(disp?.spec ?? '') as { graphics?: boolean } | undefined)?.graphics),
       },
       drives,
     });
@@ -121,14 +117,14 @@ export class BoardLive3D {
       key = spec?.kind === 'cpu' ? cpu!.spec : '';
     if (key !== this.cpuKey) {
       this.cpuKey = key;
-      this.traffic.setPlan(key ? planOf(spec as CpuSpec) : null);
+      this.traffic.setPlan(key ? planOf(spec as specsTypes.CpuSpec) : null);
     }
     // (a new scene and a new replay start from the snapshot as it stands: a paused game sends no other)
     this.lastSnap = null;
   }
 
   private keyOf(s: Snapshot): string {
-    return `${LAYOUT_TIER}|${LAYOUT_CASE}|${s.devices.map((d) => `${d.spec}@${d.slot}`).join(',')}|${s.cables.map((c) => +c.connected).join('')}`;
+    return `${LAYOUT_TIER}|${LAYOUT_CASE}|${s.devices.map((d) => `${d.spec}@${d.slot}`).join(',')}|${s.cables.map((c) => Number(c.connected)).join('')}`;
   }
 
   /**
@@ -136,7 +132,7 @@ export class BoardLive3D {
    * game's pace as the dies replay it, 0 while paused), which the board's clock sums up.
    */
   frame(
-    cam: PerspectiveCamera,
+    cam: threeTypes.PerspectiveCamera,
     H: number,
     s: Snapshot | null,
     gdt: number,
@@ -149,8 +145,10 @@ export class BoardLive3D {
       this.screen = null;
       return;
     }
-    if (!this.live || this.sceneKey !== this.keyOf(s)) this.build(s);
-    const live = this.live;
+    if (!this.live || this.sceneKey !== this.keyOf(s)) {
+      this.build(s);
+    }
+    const { live } = this;
     if (!live) {
       this.mesh.visible = false;
       return;
@@ -163,11 +161,13 @@ export class BoardLive3D {
       view = v.zoom > 0 ? (v.rect ?? BD) : null,
       crop = view ? liveCrop(BD, view, 0.05) : null;
     live.setZoom(v.zoom);
-    if (view) live.setView(view);
-    live.setInterior(!!crop);
+    if (view) {
+      live.setView(view);
+    }
+    live.setInterior(Boolean(crop));
     if (this.lastSnap !== s) {
       live.update(s, this.t);
-      live.setPlugged(!!s.plugged);
+      live.setPlugged(Boolean(s.plugged));
       this.traffic.update(s);
       this.lastSnap = s;
     }
@@ -226,7 +226,9 @@ export class BoardLive3D {
       return;
     }
     const now = performance.now();
-    if (this.screen && now - this.screenAt < 66) return;
+    if (this.screen && now - this.screenAt < 66) {
+      return;
+    }
     const canvas = (this.screenCanvas ??= document.createElement('canvas'));
     const got = drawLive(live.ext, SCREEN, 1280 / SCREEN.w, canvas);
     this.screen = got ? { canvas, ...got, rev: ++this.screenRev } : null;

@@ -1,10 +1,13 @@
 // The 2D art a set of 3D parts wears: the bakers, the faces that wear them and the queue that bakes their tiles. The live machine keeps one
 // (machine3d.ts, its queue run by the board's view); a part shown on its own (the gallery's turntable, core/render/three/viewer.ts) keeps its
 // own, which the viewer runs with `frame` before each render and drops with `dispose` (`attach` hands both to it on the part's root).
-import { Frustum, Group, Vector3, type Material, type Object3D, type PerspectiveCamera } from 'three';
+import { Frustum, Group, Vector3 } from 'three';
+import type * as threeTypes from 'three';
 import type { Container } from 'pixi.js';
-import { ArtSurface, BakeQueue, FINISH, frustumOf, screenPx, type Bake, type Finish } from '@/core/render/three/artlod';
-import { rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { ArtSurface, BakeQueue, FINISH, frustumOf, screenPx } from '@/core/render/three/artlod';
+import type * as artlodTypes from '@/core/render/three/artlod';
+import { rectBox, softBox } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { ArtBaker, startBaker } from './bake';
 import type { Raise } from './parts3d';
 
@@ -23,7 +26,7 @@ const AT = new Vector3();
 export class ArtSet {
   private readonly bakers: ArtBaker[] = [];
   private readonly surfaces: ArtSurface[] = [];
-  private readonly reveals: { at: Object3D; apply: (zoom: number) => void }[] = [];
+  private readonly reveals: { at: threeTypes.Object3D; apply: (zoom: number) => void }[] = [];
   private readonly frustum = new Frustum();
 
   /** `q`: the queue that bakes the tiles (the live machine's, run by its view); none: its own, run by `frame`. */
@@ -40,12 +43,12 @@ export class ArtSet {
 
   /** A flat face at depth `z` over `r` that wears the art of `bake`. */
   surface(
-    parent: Object3D,
-    bake: Bake,
-    r: RectLike,
+    parent: threeTypes.Object3D,
+    bake: artlodTypes.Bake,
+    r: geometryTypes.RectLike,
     z: number,
     levels: readonly number[],
-    finish: Finish = FINISH.board,
+    finish: artlodTypes.Finish = FINISH.board,
   ): ArtSurface {
     const s = new ArtSurface(r, z, bake, this.q, { levels, finish });
     this.surfaces.push(s);
@@ -56,7 +59,9 @@ export class ArtSet {
   /** Take a face and its art away (a part built again alone): its tiles and its textures go. */
   drop(s: ArtSurface, b?: ArtBaker): void {
     const i = this.surfaces.indexOf(s);
-    if (i !== -1) this.surfaces.splice(i, 1);
+    if (i !== -1) {
+      this.surfaces.splice(i, 1);
+    }
     s.root.removeFromParent();
     s.dispose();
     const j = b ? this.bakers.indexOf(b) : -1;
@@ -68,12 +73,12 @@ export class ArtSet {
 
   /** A box whose top wears the art of its own rect: the flat drawing stood up into a part; `bevel` rounds its edges. */
   raised(
-    parent: Object3D,
+    parent: threeTypes.Object3D,
     b: ArtBaker,
-    r: RectLike,
+    r: geometryTypes.RectLike,
     z0: number,
     z1: number,
-    side: Material,
+    side: threeTypes.Material,
     levels: readonly number[] = LV_RAISED,
     bevel = 0,
   ): Group {
@@ -90,12 +95,14 @@ export class ArtSet {
   }
 
   /** On its own (`frame`): run `apply` every frame with the zoom seen at `at` (screen pixels per unit), as the machine's reveals do (a lid fades). */
-  reveal(at: Object3D, apply: (zoom: number) => void): () => void {
+  reveal(at: threeTypes.Object3D, apply: (zoom: number) => void): () => void {
     const r = { at, apply };
     this.reveals.push(r);
     return () => {
       const i = this.reveals.indexOf(r);
-      if (i !== -1) this.reveals.splice(i, 1);
+      if (i !== -1) {
+        this.reveals.splice(i, 1);
+      }
     };
   }
 
@@ -106,34 +113,41 @@ export class ArtSet {
   };
 
   /** Each face asks for the tiles the camera needs (`H`: the view's height in device pixels). */
-  update(cam: PerspectiveCamera, frustum: Frustum, H: number, dpr: number, now: number): void {
-    for (const s of this.surfaces) s.update(cam, frustum, H, dpr, now);
+  update(cam: threeTypes.PerspectiveCamera, frustum: Frustum, H: number, dpr: number, now: number): void {
+    for (const s of this.surfaces) {
+      s.update(cam, frustum, H, dpr, now);
+    }
   }
 
   /** Hand the set to the viewer on the part's root. */
-  attach(o: Object3D): void {
+  attach(o: threeTypes.Object3D): void {
     o.userData['frame'] = this.frame;
     o.userData['dispose'] = this.dispose;
     o.userData['open'] = this.open;
   }
 
   /** Per frame under a host that runs the queue (the Build stage's wall, with the stage's own queue): the reveals, then the faces' tiles. */
-  readonly look = (cam: PerspectiveCamera, H: number, dpr: number): void => {
+  readonly look = (cam: threeTypes.PerspectiveCamera, H: number, dpr: number): void => {
     const now = performance.now();
-    for (const r of this.reveals)
+    for (const r of this.reveals) {
       r.apply(this.opened ? Infinity : screenPx(cam.position.distanceTo(r.at.getWorldPosition(AT)), cam.fov, H));
+    }
     frustumOf(cam, this.frustum);
     this.update(cam, this.frustum, H, dpr, now);
   };
 
   /** Per frame, on its own: the reveals, then the faces' tiles; the queue bakes a few. */
-  readonly frame = (cam: PerspectiveCamera, H: number): void => {
+  readonly frame = (cam: threeTypes.PerspectiveCamera, H: number): void => {
     this.look(cam, H, 1);
     this.q.run(8);
   };
 
   readonly dispose = (): void => {
-    for (const s of this.surfaces) s.dispose();
-    for (const b of this.bakers) b.dispose();
+    for (const s of this.surfaces) {
+      s.dispose();
+    }
+    for (const b of this.bakers) {
+      b.dispose();
+    }
   };
 }

@@ -1,27 +1,10 @@
 // The board's hardware that stands up off the flat PCB, shared by the live board (machine3d.ts) and the showcase (showcase.ts): the rear I/O
 // (where each port sits in the shield, the connectors behind it and their cover by the tier's skin), and the slot hardware (PCIe armour and
 // latches, the CPU socket's load frame and lever).
-import {
-  BoxGeometry,
-  CylinderGeometry,
-  Group,
-  Mesh,
-  Path,
-  Shape,
-  type Material,
-  type MeshStandardMaterial,
-} from 'three';
-import {
-  SEG,
-  extrude,
-  instanced,
-  place,
-  rectBox,
-  rounded,
-  softBox,
-  tube,
-  type RectLike,
-} from '@/core/render/three/geometry';
+import { BoxGeometry, CylinderGeometry, Group, Mesh, Path, Shape } from 'three';
+import type * as threeTypes from 'three';
+import { SEG, extrude, instanced, place, rectBox, rounded, softBox, tube } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
@@ -32,7 +15,12 @@ import { hexNum, skinOf, slotArmour } from '../skins';
 import { brushed, outlinePts, shapeOf, slab, tiled, wallX } from './casekit3d';
 import { glowMat } from './fans3d';
 
-const grow = (r: RectLike, e: number): RectLike => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
+const grow = (r: geometryTypes.RectLike, e: number): geometryTypes.RectLike => ({
+  x: r.x - e,
+  y: r.y - e,
+  w: r.w + 2 * e,
+  h: r.h + 2 * e,
+});
 
 /** What the board's rear connectors are fitted with (the board tier's features). */
 export interface IoFeatures {
@@ -79,19 +67,21 @@ export interface LegacyPort {
 }
 /** The Starter has an old board's full set (PS/2 keyboard and mouse, serial, parallel); the Basic one PS/2 combo port, VGA and DVI. */
 export function legacyIo(tier: number): LegacyPort[] {
-  if (tier === 0)
+  if (tier === 0) {
     return [
       { kind: 'din', y: -1890, len: 0, tone: 'kb' },
       { kind: 'din', y: -1770, len: 0, tone: 'mouse' },
       { kind: 'dsub', y: -1460, len: 190, tone: 'serial' },
       { kind: 'dsub', y: -930, len: 470, tone: 'parallel' },
     ];
-  if (tier === 1)
+  }
+  if (tier === 1) {
     return [
       { kind: 'din', y: -1830, len: 0, tone: 'kb', half: 'mouse' },
       { kind: 'dsub', y: -1460, len: 190, tone: 'vga' },
       { kind: 'dsub', y: -980, len: 330, tone: 'dvi' },
     ];
+  }
   return [];
 }
 
@@ -115,22 +105,35 @@ export function ioShells(feat: IoFeatures, tier: number): IoShell[] {
   const rd = (y: number, z: number, r: number, m: IoShell['m']) =>
     out.push({ y0: y - r, y1: y + r, z0: Z + z - r, z1: Z + z + r, round: true, m });
   for (const p of IO_PORTS) {
-    if (!fitted(p, feat)) continue;
-    if (p.kind === 'jack') rd(p.y, IO_Z.jack, 26, 'plastic');
-    else if (p.kind === 'rj45') {
+    if (!fitted(p, feat)) {
+      continue;
+    }
+    if (p.kind === 'jack') {
+      rd(p.y, IO_Z.jack, 26, 'plastic');
+    } else if (p.kind === 'rj45') {
       sq(p.y, IO_HALF.rj45, ...IO_Z.rj45);
-      out[out.length - 1]!.hollow = true;
-    } else if (p.kind === 'usb') sq(p.y, IO_HALF.usb, ...IO_Z.usb);
-    else sq(p.y, IO_HALF.video, ...IO_Z.video);
+      out.at(-1)!.hollow = true;
+    } else if (p.kind === 'usb') {
+      sq(p.y, IO_HALF.usb, ...IO_Z.usb);
+    } else {
+      sq(p.y, IO_HALF.video, ...IO_Z.video);
+    }
   }
   for (const l of legacyIo(tier)) {
-    if (l.kind === 'din') rd(l.y, IO_Z.legacy, 34, 'steel');
-    else sq(l.y, l.len / 2 + 16, IO_Z.legacy - 60, IO_Z.legacy + 60);
+    if (l.kind === 'din') {
+      rd(l.y, IO_Z.legacy, 34, 'steel');
+    } else {
+      sq(l.y, l.len / 2 + 16, IO_Z.legacy - 60, IO_Z.legacy + 60);
+    }
   }
-  if (tier >= 2) rd(IO_EXTRA.bios, IO_Z.jack, 18, 'plastic');
+  if (tier >= 2) {
+    rd(IO_EXTRA.bios, IO_Z.jack, 18, 'plastic');
+  }
   if (tier >= 3) {
     rd(IO_EXTRA.clr, IO_Z.jack, 18, 'plastic');
-    for (const z of IO_EXTRA.wifi.z) rd(IO_EXTRA.wifi.y, z, 14, 'gold');
+    for (const z of IO_EXTRA.wifi.z) {
+      rd(IO_EXTRA.wifi.y, z, 14, 'gold');
+    }
     sq(IO_EXTRA.optical.y, 20, IO_EXTRA.optical.z - 20, IO_EXTRA.optical.z + 20, 'plastic');
     sq(IO_EXTRA.usbc.y, 20, ...IO_EXTRA.usbc.z);
   }
@@ -148,16 +151,18 @@ export interface IoStack {
 export function ioStacks(shells: IoShell[]): IoStack[] {
   const out: IoStack[] = [];
   for (const s of [...shells].sort((a, b) => a.y0 - b.y0)) {
-    const last = out[out.length - 1],
+    const last = out.at(-1),
       top = s.z1 + 24,
       base = s.m === 'plastic' ? top : 0;
-    if (last && s.y0 < last.y1 + 12)
+    if (last && s.y0 < last.y1 + 12) {
       Object.assign(last, {
         y1: Math.max(last.y1, s.y1),
         top: Math.max(last.top, top),
         base: Math.max(last.base, base),
       }).shells.push(s);
-    else out.push({ y0: s.y0, y1: s.y1, top, base, shells: [s] });
+    } else {
+      out.push({ y0: s.y0, y1: s.y1, top, base, shells: [s] });
+    }
   }
   return out;
 }
@@ -173,7 +178,7 @@ function barrel(
   y: number,
   z: number,
   r: number,
-  m: Material,
+  m: threeTypes.Material,
   sides: number = SEG.roundCap,
 ): Mesh {
   const o = new Mesh(new CylinderGeometry(r, r, x1 - x0, sides).rotateZ(Math.PI / 2), m);
@@ -190,21 +195,21 @@ function barrel(
  */
 export function ioCover(feat: IoFeatures = { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 }): {
   root: Group;
-  glow: MeshStandardMaterial | null;
+  glow: threeTypes.MeshStandardMaterial | null;
 } {
-  const sk = skinOf(GEO.tier),
-    tier = GEO.tier,
+  const { tier } = GEO,
+    sk = skinOf(tier),
     io = tag(new Group(), 'io'),
     ir = GEO.io,
     x0 = ir.x + WALL_T,
     xs = IO_X0(),
     xb = IO_XB(),
     Z = BOARD_Z;
-  let glow: MeshStandardMaterial | null = null;
-  const steelM = mat(0x959aa3, { metalness: 0.7, roughness: 0.42 }),
-    plastic = mat(0x131518, { roughness: 0.55 }),
-    dark = mat(0x2a2d32, { metalness: 0.5, roughness: 0.5 });
-  const shellM = { steel: steelM, plastic, gold: mat(0xd4af5f, { metalness: 0.9, roughness: 0.34 }) };
+  let glow: threeTypes.MeshStandardMaterial | null = null;
+  const steelM = mat(0x95_9a_a3, { metalness: 0.7, roughness: 0.42 }),
+    plastic = mat(0x13_15_18, { roughness: 0.55 }),
+    dark = mat(0x2a_2d_32, { metalness: 0.5, roughness: 0.5 });
+  const shellM = { steel: steelM, plastic, gold: mat(0xd4_af_5f, { metalness: 0.9, roughness: 0.34 }) };
   const shells = ioShells(feat, tier),
     stacks = ioStacks(shells.filter((s) => s.m !== 'gold'));
   const bare = sk.ioCover === 'bare',
@@ -212,44 +217,63 @@ export function ioCover(feat: IoFeatures = { ethernetMbps: 0, usbPorts: 1, displ
   // the shells through the wall, from the shield's back to the housing (or the cover) inside; the RJ45's a hollow sleeve round the jack's
   // insert, its mouth running deep inside (casedetail3d's `ioShield`)
   for (const s of shells) {
-    if (s.m === 'gold') continue;
-    if (s.hollow) io.add(wallX(xs, into, s, [{ y0: s.y0 + 4, y1: s.y1 - 4, z0: s.z0 + 4, z1: s.z1 - 4 }], shellM[s.m]));
-    else
+    if (s.m === 'gold') {
+      continue;
+    }
+    if (s.hollow) {
+      io.add(wallX(xs, into, s, [{ y0: s.y0 + 4, y1: s.y1 - 4, z0: s.z0 + 4, z1: s.z1 - 4 }], shellM[s.m]));
+    } else {
       io.add(
         s.round
           ? barrel(xs, into, (s.y0 + s.y1) / 2, (s.z0 + s.z1) / 2, (s.y1 - s.y0) / 2, shellM[s.m])
           : rectBox({ x: xs, y: s.y0, w: into - xs, h: s.y1 - s.y0 }, s.z0, s.z1, shellM[s.m]),
       );
+    }
   }
   const pins: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[] = [];
   /** A stack's housing from `from` up (the board, or inside a cover it rises through): steel over the black audio block where the stack starts with the jacks. */
   const housing = (st: IoStack, from: number) => {
     const foot = { x: x0 + 2, y: st.y0 - 4, w: xb - x0 - 2, h: st.y1 - st.y0 + 8 },
       low = from === Z;
-    if (st.base >= st.top) io.add(softBox(foot, from, st.top, plastic, 8));
-    else {
-      if (st.base > from) io.add(softBox(foot, from, st.base, plastic, 8));
+    if (st.base >= st.top) {
+      io.add(softBox(foot, from, st.top, plastic, 8));
+    } else {
+      if (st.base > from) {
+        io.add(softBox(foot, from, st.base, plastic, 8));
+      }
       io.add(softBox(foot, Math.max(from, st.base), st.top, steelM, 6));
     }
     // the seam under each stacked port, the spring tabs on top; on the board, a solder leg each side and the back's insert with its pins bent down
-    for (const s of st.shells)
-      if (s.z0 - 30 > Math.max(from, st.base) + 40) io.add(rectBox(grow(foot, 1.5), s.z0 - 34, s.z0 - 28, dark));
+    for (const s of st.shells) {
+      if (s.z0 - 30 > Math.max(from, st.base) + 40) {
+        io.add(rectBox(grow(foot, 1.5), s.z0 - 34, s.z0 - 28, dark));
+      }
+    }
     const n = Math.max(1, Math.round(foot.h / 140));
-    for (let k = 0; k < n; k++)
+    for (let k = 0; k < n; k++) {
       io.add(
         rectBox({ x: x0 + 26, y: foot.y + ((k + 0.5) * foot.h) / n - 12, w: 40, h: 24 }, st.top, st.top + 6, steelM),
       );
-    if (!low) return;
-    for (const y of [foot.y - 8, foot.y + foot.h]) io.add(rectBox({ x: xb - 80, y, w: 30, h: 8 }, Z, Z + 70, steelM));
+    }
+    if (!low) {
+      return;
+    }
+    for (const y of [foot.y - 8, foot.y + foot.h]) {
+      io.add(rectBox({ x: xb - 80, y, w: 30, h: 8 }, Z, Z + 70, steelM));
+    }
     io.add(rectBox({ x: xb - 2, y: foot.y + 14, w: 6, h: foot.h - 28 }, Z + 24, Z + 120, plastic));
-    for (let y = foot.y + 24; y < foot.y + foot.h - 20; y += 26)
+    for (let y = foot.y + 24; y < foot.y + foot.h - 20; y += 26) {
       pins.push(
         { x: xb + 10, y: -y, z: Z + 22, sx: 6, sy: 6, sz: 44 },
         { x: xb + 5, y: -y, z: Z + 42, sx: 14, sy: 6, sz: 5 },
       );
+    }
   };
-  if (bare) for (const st of stacks) housing(st, Z);
-  else {
+  if (bare) {
+    for (const st of stacks) {
+      housing(st, Z);
+    }
+  } else {
     // a moulded cover over them, as high as the port stacks: plain (Basic: black; Mainstream: a teal line down its inner edge), or the
     // Enthusiast's armour, a brushed silver plate with chamfered corners on top and a lit line that glows with the fans. A stack taller than
     // the cover (the Basic's legacy ports) rises through its top in bare steel.
@@ -258,11 +282,16 @@ export function ioCover(feat: IoFeatures = { ethernetMbps: 0, usbPorts: 1, displ
       body = { ...ir, x: x0, w: ir.w - WALL_T },
       coverM = mat(hexNum(sk.sink), { metalness: 0.4, roughness: 0.48 });
     io.add(softBox(body, Z, H, coverM, 30));
-    for (const st of stacks) if (st.top > H - 30) housing(st, H - 40);
+    for (const st of stacks) {
+      if (st.top > H - 30) {
+        housing(st, H - 40);
+      }
+    }
     const vents: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[] = [];
-    for (let y = ir.y + 140; y < ir.y + ir.h * (armour ? 0.3 : 1) - 140; y += 64)
+    for (let y = ir.y + 140; y < ir.y + ir.h * (armour ? 0.3 : 1) - 140; y += 64) {
       vents.push({ x: x0 + body.w * 0.45, y: -y, z: H, sx: body.w * 0.5, sy: 24, sz: 10 });
-    io.add(instanced(new BoxGeometry(1, 1, 1), mat(0x050608, { roughness: 0.7 }), vents));
+    }
+    io.add(instanced(new BoxGeometry(1, 1, 1), mat(0x05_06_08, { roughness: 0.7 }), vents));
     if (armour) {
       const plate = { x: x0 + 24, y: ir.y + ir.h * 0.3, w: body.w - 48, h: ir.h * 0.7 - 60 };
       io.add(
@@ -274,10 +303,10 @@ export function ioCover(feat: IoFeatures = { ethernetMbps: 0, usbPorts: 1, displ
           6,
         ),
       );
-      const line = glowMat(hexNum(sk.accent), 0x2a2550);
+      const line = glowMat(hexNum(sk.accent), 0x2a_25_50);
       io.add(seeThrough(rectBox({ x: x0 + body.w - 22, y: ir.y + 80, w: 12, h: ir.h - 160 }, H - 70, H + 2, line)));
       glow = line;
-    } else if (sk.accent && tier >= 2)
+    } else if (sk.accent && tier >= 2) {
       io.add(
         rectBox(
           { x: x0 + body.w - 20, y: ir.y + 120, w: 8, h: ir.h - 240 },
@@ -286,6 +315,7 @@ export function ioCover(feat: IoFeatures = { ethernetMbps: 0, usbPorts: 1, displ
           mat(hexNum(sk.accent), { roughness: 0.4 }),
         ),
       );
+    }
     // the Wi-Fi jacks over the cover: each barrel through the wall, its nut inside, and a black lead bent down into the cover to the module
     shells
       .filter((s) => s.m === 'gold')
@@ -309,13 +339,15 @@ export function ioCover(feat: IoFeatures = { ethernetMbps: 0, usbPorts: 1, displ
               SEG.cornerMid,
             ),
             9,
-            mat(0x1d1e22, { roughness: 0.6 }),
+            mat(0x1d_1e_22, { roughness: 0.6 }),
             SEG.frameBar,
           ),
         );
       });
   }
-  if (pins.length) io.add(instanced(new BoxGeometry(1, 1, 1), mat(0xb9babf, { metalness: 0.8, roughness: 0.3 }), pins));
+  if (pins.length > 0) {
+    io.add(instanced(new BoxGeometry(1, 1, 1), mat(0xb9_ba_bf, { metalness: 0.8, roughness: 0.3 }), pins));
+  }
   return { root: io, glow };
 }
 
@@ -330,19 +362,21 @@ export function slotHardware(cpuIn = true): Group {
   const g = new Group();
   const sk = skinOf(GEO.tier),
     latchM = mat(hexNum(sk.latch), { roughness: 0.5 }),
-    steel = mat(0x959aa3, { metalness: 0.75, roughness: 0.38, map: tiled(brushed(), 10, 1) });
+    steel = mat(0x95_9a_a3, { metalness: 0.75, roughness: 0.38, map: tiled(brushed(), 10, 1) });
   PCIE_RAILS.forEach((r, i) => {
     // the armour: a thin steel wall round the slot's sides, a little proud of it, its top edge rolled; the latch stands at the east end
     const t = 10,
       z0 = BOARD_Z + 10,
       z1 = BOARD_Z + 152;
-    if (slotArmour(GEO.tier, i))
+    if (slotArmour(GEO.tier, i)) {
       for (const s of [
         { x: r.x - t, y: r.y - t, w: r.w + 2 * t, h: t },
         { x: r.x - t, y: r.y + r.h, w: r.w + 2 * t, h: t },
         { x: r.x - t, y: r.y, w: t, h: r.h },
-      ])
+      ]) {
         g.add(softBox(s, z0, z1, steel, 4));
+      }
+    }
     g.add(softBox({ x: r.x + r.w, y: r.y - 16, w: 70, h: r.h + 32 }, BOARD_Z, BOARD_Z + 190, latchM, 10));
     g.add(rectBox({ x: r.x + r.w + 44, y: r.y - 16, w: 26, h: r.h + 32 }, BOARD_Z + 190, BOARD_Z + 240, latchM));
   });
@@ -379,7 +413,9 @@ export function slotHardware(cpuIn = true): Group {
   const lever = new Group();
   lever.position.set(lx, 0, zl);
   lever.userData['leverOf'] = 'cpu0';
-  if (!cpuIn) lever.rotation.y = LEVER_OPEN;
+  if (!cpuIn) {
+    lever.rotation.y = LEVER_OPEN;
+  }
   const arm = tube(
     rounded(
       [
