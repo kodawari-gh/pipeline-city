@@ -2,40 +2,51 @@
 // connector end): the SSD's board with its controller, DRAM and four NAND packages, each package a cap over a die that shows its floorplan once the cover is
 // gone (`chipdie3d.ts`); the hard disk's stack of platters on the spindle's hub, the top one wearing its tracks and servo wedges, and the actuator over it:
 // an arm with its head over the data band, the voice coil at its tail under a steel yoke. The drive fades its cover over `COVER_BAND` (`DriveHost.reveal`).
-import { CylinderGeometry, Group, Mesh, Vector2, type Material } from 'three';
+import { CylinderGeometry, Group, Mesh, Vector2 } from 'three';
+import type * as threeTypes from 'three';
 import { ramDieArt, ramDiePlan, RAM_DIE } from '@/features/memory/render/ramdie';
 import { CTRL_DIE, NAND_DIE, PLATTER, ctrlDieArt, nandDieArt, platterArt } from '@/features/storage/render/diskdie';
 import type { Theme } from '@/core/render/theme';
 import { FINISH } from '@/core/render/three/artlod';
-import { SEG, extrude, place, rectBox, type RectLike } from '@/core/render/three/geometry';
+import { SEG, extrude, place, rectBox } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import type { V3 } from '@/core/render/three/rope';
-import { LV_DIE, type ArtSet } from './artset3d';
+import { LV_DIE } from './artset3d';
+import type * as artset3dTypes from './artset3d';
 import { screws, shapeOf } from './casekit3d';
-import { dieInPackage, type DieHost } from './chipdie3d';
+import { dieInPackage } from './chipdie3d';
+import type * as chipdie3dTypes from './chipdie3d';
 import { MM, crystal, inductor, passiveRow, passives, pcbSlab, pkg } from './pcbkit3d';
 
 /** What a drive needs to show its inside: the set that bakes the art, the palette, and how it asks for a zoom at a place (a point in the drive's own frame). */
 export interface DriveHost {
-  art: ArtSet;
+  art: artset3dTypes.ArtSet;
   T: Theme;
   reveal: (at: V3, apply: (zoom: number) => void) => void;
 }
 
 const m = (v: number) => v * MM;
 /** A box over x0..x1, y0..y1 (up) and z0..z1, in the drive's frame. */
-const bx = (x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, mt: Material) =>
+const bx = (x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, mt: threeTypes.Material) =>
   rectBox({ x: x0, y: -y1, w: x1 - x0, h: y1 - y0 }, z0, z1, mt);
 
 /** A flat piece with the (x, z) outline `pts` from y0 up to y1. */
-function plate(pts: Vector2[], y0: number, y1: number, mt: Material, holes: Vector2[][] = []): Mesh {
+function plate(pts: Vector2[], y0: number, y1: number, mt: threeTypes.Material, holes: Vector2[][] = []): Mesh {
   const g = extrude(shapeOf(pts, holes), { depth: y1 - y0, bevelEnabled: false, curveSegments: SEG.holeCurve });
   g.rotateX(Math.PI / 2).translate(0, y1, 0);
   return place(new Mesh(g, mt));
 }
 
-const disc = (x: number, z: number, r: number, y0: number, y1: number, mt: Material, n: number = SEG.drum): Mesh =>
-  place(new Mesh(new CylinderGeometry(r, r, y1 - y0, n).translate(x, (y0 + y1) / 2, z), mt));
+const disc = (
+  x: number,
+  z: number,
+  r: number,
+  y0: number,
+  y1: number,
+  mt: threeTypes.Material,
+  n: number = SEG.drum,
+): Mesh => place(new Mesh(new CylinderGeometry(r, r, y1 - y0, n).translate(x, (y0 + y1) / 2, z), mt));
 
 // ------------------------------------------------------------------ the SSD's board
 /** The SSD's board in mm: 65 across, 90 long from its connector end; the packages' places in it. */
@@ -54,7 +65,12 @@ export function ssdBoard(host: DriveHost, x: number, y: number, z: number): Grou
   root.rotation.x = -Math.PI / 2;
   root.position.set(x, y, z);
   root.add(g);
-  const R = (a: number, b: number, c: number, d: number): RectLike => ({ x: m(a), y: m(b), w: m(c), h: m(d) });
+  const R = (a: number, b: number, c: number, d: number): geometryTypes.RectLike => ({
+    x: m(a),
+    y: m(b),
+    w: m(c),
+    h: m(d),
+  });
   g.add(
     pcbSlab(
       [
@@ -65,10 +81,10 @@ export function ssdBoard(host: DriveHost, x: number, y: number, z: number): Grou
       ],
       0,
       pt,
-      0x121519,
+      0x12_15_19,
     ),
   );
-  const die: DieHost = {
+  const die: chipdie3dTypes.DieHost = {
     art: host.art,
     T: host.T,
     reveal: (r, d, apply) => host.reveal([x + r.x + r.w / 2, y + d, z + r.y + r.h / 2], apply),
@@ -134,9 +150,9 @@ export function hddInside(host: DriveHost, f: HddFit): Group {
   const g = new Group(),
     R = m(PLATTER_R_MM),
     { x, z } = f.spin;
-  const glass = mat(0x2a2d32, { metalness: 0.85, roughness: 0.28 }),
-    steel = mat(0xb9babf, { metalness: 0.9, roughness: 0.32 }),
-    dark = mat(0x2a2d32, { metalness: 0.7, roughness: 0.4 });
+  const glass = mat(0x2a_2d_32, { metalness: 0.85, roughness: 0.28 }),
+    steel = mat(0xb9_ba_bf, { metalness: 0.9, roughness: 0.32 }),
+    dark = mat(0x2a_2d_32, { metalness: 0.7, roughness: 0.4 });
   // the platters, 0.8 mm each at a 4 mm pitch, the hub through them
   const tops = [3.4, 7.4, 11.4].map((v) => f.floor + m(v)),
     top = tops[2]!;
@@ -209,11 +225,13 @@ export function hddInside(host: DriveHost, f: HddFit): Group {
       ],
       y0,
       y1,
-      mat(0xc0793a, { metalness: 0.7, roughness: 0.4 }),
+      mat(0xc0_79_3a, { metalness: 0.7, roughness: 0.4 }),
     ),
   );
   act.add(bx(m(-6), m(6), y1 + m(0.8), y1 + m(2.2), m(-13), m(-1), steel));
-  for (const px of [-5, 5]) act.add(disc(m(px), m(-12), m(0.9), f.floor, y1 + m(0.8), steel, SEG.post));
+  for (const px of [-5, 5]) {
+    act.add(disc(m(px), m(-12), m(0.9), f.floor, y1 + m(0.8), steel, SEG.post));
+  }
   g.add(act);
   return g;
 }

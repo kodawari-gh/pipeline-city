@@ -42,12 +42,21 @@ export class Lens3D {
     dpr: number,
     machine: Machine3D | null = null,
   ): void {
-    if (airflowLens.peek() && s && machine) this.air.frame(cam, H * dpr, s, machine, dt);
-    else this.air.hide();
-    if (powerLens.peek() && s && machine) this.power.frame(cam, H * dpr, s, machine, dt);
-    else this.power.hide();
-    if (networkLens.peek() && s && machine) this.net.frame(cam, H * dpr, s, machine, dt);
-    else this.net.hide();
+    if (airflowLens.peek() && s && machine) {
+      this.air.frame(cam, H * dpr, s, machine, dt);
+    } else {
+      this.air.hide();
+    }
+    if (powerLens.peek() && s && machine) {
+      this.power.frame(cam, H * dpr, s, machine, dt);
+    } else {
+      this.power.hide();
+    }
+    if (networkLens.peek() && s && machine) {
+      this.net.frame(cam, H * dpr, s, machine, dt);
+    } else {
+      this.net.hide();
+    }
   }
 
   dispose(): void {

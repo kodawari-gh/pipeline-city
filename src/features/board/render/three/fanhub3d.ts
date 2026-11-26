@@ -3,12 +3,14 @@
 // top edge (the fan cords' plugs seat in these, `buildCables`: their seats do not move), the input header, the SATA power socket on the west edge, three
 // addressable-light outputs and the USB header along the bottom edge.
 import { BoxGeometry, CylinderGeometry, Group } from 'three';
-import { SEG, drum, instanced, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { SEG, drum, instanced, rectBox, softBox } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { CASE_Z } from '@/features/room/render/three/roomplan';
 import { hubHeaders } from '@/features/room/render/desk/props/case';
 import { FAN_HUB, HUB_POWER_Y } from '../layout/layout';
-import { decal, grow, outlinePts, screws, shapeOf, slab, tex, type Spot } from './casekit3d';
+import { decal, grow, outlinePts, screws, shapeOf, slab, tex } from './casekit3d';
+import type * as casekit3dTypes from './casekit3d';
 import { TRAY_Z } from './wires3d';
 
 /** The depth of the hub's board: under the plugs' middle line (CASE_Z + 240), which the side-entry headers stand on. */
@@ -25,7 +27,7 @@ interface Bit {
   sz: number;
 }
 /** A box as an instance: a layout rect and a depth range. */
-const bit = (r: RectLike, z0: number, z1: number): Bit => ({
+const bit = (r: geometryTypes.RectLike, z0: number, z1: number): Bit => ({
   x: r.x + r.w / 2,
   y: -(r.y + r.h / 2),
   z: (z0 + z1) / 2,
@@ -35,7 +37,7 @@ const bit = (r: RectLike, z0: number, z1: number): Bit => ({
 });
 
 /** The hub board's printed side: its labels and the copper traces under the mask, drawn over the board's green. */
-function silk(h: RectLike, headers: readonly { x: number }[]) {
+function silk(h: geometryTypes.RectLike, headers: readonly { x: number }[]) {
   return tex(`hub-${headers.length}`, 1024, Math.round((1024 * h.h) / h.w), (c, w, ch) => {
     const u = w / h.w,
       X = (x: number) => (x - h.x) * u,
@@ -82,7 +84,9 @@ function silk(h: RectLike, headers: readonly { x: number }[]) {
     c.fillText('FAN + LIGHTING', X(h.x + 150), Y(h.y + 250));
     c.fillText('CONTROLLER', X(h.x + 150), Y(h.y + 280));
     c.textAlign = 'center';
-    for (let k = 0; k < 3; k++) c.fillText(`ARGB${k + 1}`, X(h.x + 275 + k * 180), Y(h.y + h.h - 40));
+    for (let k = 0; k < 3; k++) {
+      c.fillText(`ARGB${k + 1}`, X(h.x + 275 + k * 180), Y(h.y + h.h - 40));
+    }
     c.fillText('USB 2.0', X(h.x + h.w - 240), Y(h.y + h.h - 176));
     c.fillText('12 V', X(h.x + 130), Y(HUB_POWER_Y));
     c.textAlign = 'right';
@@ -113,19 +117,19 @@ export function fanHub(): Group {
     floors: Bit[] = [],
     pins: Bit[] = [];
   // the board on its four standoffs and screws
-  g.add(slab(shapeOf(outlinePts(h, 26)), PCB_Z0, PCB_Z1, mat(0x1d1e22, { roughness: 0.55, metalness: 0.1 }), 3));
-  g.add(decal(grow(h, -8), z + 0.5, mat(0xffffff, { map: silk(h, headers), roughness: 0.55, metalness: 0.1 })));
-  const corners: Spot[] = [
+  g.add(slab(shapeOf(outlinePts(h, 26)), PCB_Z0, PCB_Z1, mat(0x1d_1e_22, { roughness: 0.55, metalness: 0.1 }), 3));
+  g.add(decal(grow(h, -8), z + 0.5, mat(0xff_ff_ff, { map: silk(h, headers), roughness: 0.55, metalness: 0.1 })));
+  const corners: casekit3dTypes.Spot[] = [
     [h.x + 46, h.y + 46],
     [h.x + h.w - 46, h.y + 46],
     [h.x + 46, h.y + h.h - 46],
     [h.x + h.w - 46, h.y + h.h - 46],
   ].map(([x, y]) => ({ x: x!, y: -y!, z: z + 1 }));
-  g.add(screws(corners, 'z+', 34, mat(0xb9babf, { metalness: 0.85, roughness: 0.3 })));
+  g.add(screws(corners, 'z+', 34, mat(0xb9_ba_bf, { metalness: 0.85, roughness: 0.3 })));
   g.add(
     instanced(
       new CylinderGeometry(30, 30, PCB_Z0 - TRAY_Z, SEG.joint).rotateX(Math.PI / 2),
-      mat(0xd4af5f, { metalness: 0.65, roughness: 0.5 }),
+      mat(0xd4_af_5f, { metalness: 0.65, roughness: 0.5 }),
       corners.map((c) => ({ ...c, z: (PCB_Z0 + TRAY_Z) / 2 })),
     ),
   );
@@ -141,13 +145,17 @@ export function fanHub(): Group {
       bit({ x: b - 9, y: h.y - 44, w: 9, h: 68 }, z, top),
     );
     floors.push(bit({ x: a + 9, y: h.y - 44, w: 70, h: 68 }, z, z + 6));
-    for (let k = 0; k < 4; k++) pins.push(bit({ x: hx - 26 + k * 16, y: h.y - 36, w: 6, h: 62 }, z + 41, z + 47));
+    for (let k = 0; k < 4; k++) {
+      pins.push(bit({ x: hx - 26 + k * 16, y: h.y - 36, w: 6, h: 62 }, z + 41, z + 47));
+    }
   };
-  for (const p of headers) sideEntry(p.x);
+  for (const p of headers) {
+    sideEntry(p.x);
+  }
   sideEntry(h.x + 90);
 
   // the top-entry headers along the bottom edge: a shell with a dark floor and upright pins
-  const topEntry = (r: RectLike, cols: number, rows: number) => {
+  const topEntry = (r: geometryTypes.RectLike, cols: number, rows: number) => {
     const t = 8,
       top = z + 62;
     shell.push(
@@ -157,8 +165,8 @@ export function fanHub(): Group {
       bit({ x: r.x + r.w - t, y: r.y + t, w: t, h: r.h - 2 * t }, z, top),
     );
     floors.push(bit(r, z, z + 8));
-    for (let i = 0; i < cols; i++)
-      for (let j = 0; j < rows; j++)
+    for (let i = 0; i < cols; i++) {
+      for (let j = 0; j < rows; j++) {
         pins.push(
           bit(
             { x: r.x + (r.w * (i + 0.5)) / cols - 5, y: r.y + (r.h * (j + 0.5)) / rows - 5, w: 10, h: 10 },
@@ -166,22 +174,28 @@ export function fanHub(): Group {
             z + 50,
           ),
         );
+      }
+    }
   };
-  for (let k = 0; k < 3; k++) topEntry({ x: h.x + 200 + k * 180, y: h.y + h.h - 130, w: 150, h: 56 }, 3, 1);
+  for (let k = 0; k < 3; k++) {
+    topEntry({ x: h.x + 200 + k * 180, y: h.y + h.h - 130, w: 150, h: 56 }, 3, 1);
+  }
   topEntry({ x: h.x + h.w - 380, y: h.y + h.h - 150, w: 280, h: 84 }, 5, 2);
 
   // the SATA power socket on the west edge, its mouth to the west
   const py = HUB_POWER_Y,
-    sock: RectLike = { x: h.x - 30, y: py - 170, w: 130, h: 340 };
-  g.add(softBox(sock, z, z + 80, mat(0x1d1e22, { roughness: 0.5 }), 8));
-  g.add(rectBox({ x: h.x - 33, y: py - 150, w: 8, h: 300 }, z + 22, z + 58, mat(0x050608, { roughness: 0.85 })));
-  for (let k = 0; k < 15; k++) pins.push(bit({ x: h.x - 35, y: py - 140 + k * 19.4, w: 4, h: 8 }, z + 34, z + 46));
+    sock: geometryTypes.RectLike = { x: h.x - 30, y: py - 170, w: 130, h: 340 };
+  g.add(softBox(sock, z, z + 80, mat(0x1d_1e_22, { roughness: 0.5 }), 8));
+  g.add(rectBox({ x: h.x - 33, y: py - 150, w: 8, h: 300 }, z + 22, z + 58, mat(0x05_06_08, { roughness: 0.85 })));
+  for (let k = 0; k < 15; k++) {
+    pins.push(bit({ x: h.x - 35, y: py - 140 + k * 19.4, w: 4, h: 8 }, z + 34, z + 46));
+  }
 
   // the controller, its legs, a crystal, the passives and two capacitors
   const mx = h.x + h.w / 2 - 80,
     my = h.y + 250;
-  g.add(softBox({ x: mx, y: my, w: 160, h: 160 }, z, z + 26, mat(0x050608, { roughness: 0.42 }), 4));
-  g.add(rectBox({ x: mx + 16, y: my + 16, w: 16, h: 16 }, z + 26, z + 26.5, mat(0x2a2d32, { roughness: 0.7 })));
+  g.add(softBox({ x: mx, y: my, w: 160, h: 160 }, z, z + 26, mat(0x05_06_08, { roughness: 0.42 }), 4));
+  g.add(rectBox({ x: mx + 16, y: my + 16, w: 16, h: 16 }, z + 26, z + 26.5, mat(0x2a_2d_32, { roughness: 0.7 })));
   const legs: Bit[] = [],
     chips: Bit[] = [],
     ends: Bit[] = [];
@@ -194,7 +208,7 @@ export function fanHub(): Group {
       bit({ x: mx + 158, y: my + o - 4, w: 14, h: 8 }, z, z + 8),
     );
   }
-  for (let k = 0; k < 5; k++)
+  for (let k = 0; k < 5; k++) {
     for (const [x, y] of [
       [mx - 260 + k * 50, my + 180],
       [mx + 240 + k * 50 - 80, my + 100],
@@ -202,36 +216,37 @@ export function fanHub(): Group {
       chips.push(bit({ x, y, w: 30, h: 18 }, z, z + 12));
       ends.push(bit({ x, y, w: 7, h: 18 }, z, z + 13), bit({ x: x + 23, y, w: 7, h: 18 }, z, z + 13));
     }
+  }
   g.add(
     softBox(
       { x: mx + 200, y: my + 10, w: 90, h: 46 },
       z,
       z + 26,
-      mat(0xb9babf, { metalness: 0.85, roughness: 0.32 }),
+      mat(0xb9_ba_bf, { metalness: 0.85, roughness: 0.32 }),
       12,
     ),
   );
   g.add(
-    instanced(box, mat(0xb9babf, { metalness: 0.8, roughness: 0.4 }), legs),
-    instanced(box, mat(0x131518, { roughness: 0.5 }), chips),
-    instanced(box, mat(0xb9babf, { metalness: 0.8, roughness: 0.4 }), ends),
+    instanced(box, mat(0xb9_ba_bf, { metalness: 0.8, roughness: 0.4 }), legs),
+    instanced(box, mat(0x13_15_18, { roughness: 0.5 }), chips),
+    instanced(box, mat(0xb9_ba_bf, { metalness: 0.8, roughness: 0.4 }), ends),
   );
   for (const x of [h.x + 180, h.x + 290]) {
     const y = my + 80;
     g.add(
-      drum(x, y, z, z + 96, 44, mat(0x131518, { roughness: 0.35, metalness: 0.2 }), SEG.disc),
-      drum(x, y, z + 96, z + 97, 38, mat(0xb9babf, { metalness: 0.8, roughness: 0.4 }), SEG.disc),
+      drum(x, y, z, z + 96, 44, mat(0x13_15_18, { roughness: 0.35, metalness: 0.2 }), SEG.disc),
+      drum(x, y, z + 96, z + 97, 38, mat(0xb9_ba_bf, { metalness: 0.8, roughness: 0.4 }), SEG.disc),
     );
     g.add(
-      rectBox({ x: x - 34, y: y - 2, w: 68, h: 4 }, z + 97, z + 97.5, mat(0x2a2d32, { roughness: 0.6 })),
-      rectBox({ x: x - 2, y: y - 34, w: 4, h: 68 }, z + 97, z + 97.5, mat(0x2a2d32, { roughness: 0.6 })),
+      rectBox({ x: x - 34, y: y - 2, w: 68, h: 4 }, z + 97, z + 97.5, mat(0x2a_2d_32, { roughness: 0.6 })),
+      rectBox({ x: x - 2, y: y - 34, w: 4, h: 68 }, z + 97, z + 97.5, mat(0x2a_2d_32, { roughness: 0.6 })),
     );
   }
 
   g.add(
-    instanced(box, mat(0x1d1e22, { roughness: 0.5 }), shell),
-    instanced(box, mat(0x050608, { roughness: 0.85 }), floors),
-    instanced(box, mat(0xd4af5f, { metalness: 0.95, roughness: 0.28 }), pins),
+    instanced(box, mat(0x1d_1e_22, { roughness: 0.5 }), shell),
+    instanced(box, mat(0x05_06_08, { roughness: 0.85 }), floors),
+    instanced(box, mat(0xd4_af_5f, { metalness: 0.95, roughness: 0.28 }), pins),
   );
   return g;
 }
