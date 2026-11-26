@@ -1,23 +1,81 @@
 import { describe, expect, it } from 'vitest';
 import { Prng } from '@/core/sim';
-import { caseMounts, deviceSpec, fittedRadiator, UNFANNED_SHARE, type RadiatorSpec } from '.';
-import { createBoard, findDevices, install, setClock, ThermalModel } from './index';
-import { FANS_ON, type FanPower } from './thermal';
+import {
+  caseMounts,
+  createBoard,
+  deviceSpec,
+  findDevices,
+  fittedRadiator,
+  install,
+  setClock,
+  ThermalModel,
+  UNFANNED_SHARE,
+} from '.';
+import type * as simTypes from '.';
+import { FANS_ON } from './thermal';
+import type * as thermalTypes from './thermal';
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+const ok = <T extends { ok: boolean }>(r: T): T => {
+  expect(r.ok).toBe(true);
+  return r;
+};
+
+type Kind = simTypes.DeviceSpec['kind'];
+type SpecOf<K extends Kind> = Extract<simTypes.DeviceSpec, { kind: K }>;
+
+/** Whether `spec` is a part of `kind`. */
+function isKind<K extends Kind>(spec: simTypes.DeviceSpec, kind: K): spec is SpecOf<K> {
+  return spec.kind === kind;
+}
+
+/** `spec` narrowed to its `kind`; fails the test when it is missing or some other part. */
+function specOf<K extends Kind>(spec: simTypes.DeviceSpec | undefined, kind: K): SpecOf<K> {
+  if (spec === undefined || !isKind(spec, kind)) {
+    throw new Error(`expected a ${kind} spec, got ${spec?.kind ?? 'nothing'}`);
+  }
+  return spec;
+}
+
+/** Id of the first installed device of `kind`; fails the test when there is none. */
+function firstId(board: simTypes.Board, kind: simTypes.DeviceSpec['kind']): string {
+  return must(findDevices(board, kind)[0]).id;
+}
+
+/** Thermal state of the first installed device of `kind`; fails the test when it is missing. */
+function stateOf(
+  th: simTypes.ThermalModel,
+  board: simTypes.Board,
+  kind: simTypes.DeviceSpec['kind'],
+): simTypes.DeviceThermal {
+  return must(th.state(firstId(board, kind)));
+}
 
 // The liquid loop: the CPU gives its heat to the coolant, the radiator gives it to the air (BOARD.md "Liquid loop").
 function rig(rad: string | null, side: 'rad-front' | 'rad-top' = 'rad-top') {
   const b = createBoard(2);
-  for (const s of ['cpu1', 'ram0', 'display0', 'cooler2', 'psu2']) expect(install(b, s).ok).toBe(true);
-  if (rad) expect(install(b, rad, side).ok).toBe(true);
-  expect(setClock(b, findDevices(b, 'cpu')[0]!.id, 3).ok).toBe(true);
+  for (const s of ['cpu1', 'ram0', 'display0', 'cooler2', 'psu2']) {
+    expect(install(b, s).ok).toBe(true);
+  }
+  if (rad !== null) {
+    ok(install(b, rad, side));
+  }
+  expect(setClock(b, firstId(b, 'cpu'), 3).ok).toBe(true);
   return b;
 }
-function fansOf(b: ReturnType<typeof createBoard>, turning: number, pump = true): FanPower {
+function fansOf(b: ReturnType<typeof createBoard>, turning: number, pump = true): thermalTypes.FanPower {
   const r = fittedRadiator(b),
     mounts = caseMounts(b.caseTier),
     radMounts = r?.mounts ?? [];
-  const share = r && radMounts.length ? turning / radMounts.length : 0;
-  const k = r ? (deviceSpec(r.dev) as RadiatorSpec).coolingPerC * (UNFANNED_SHARE + (1 - UNFANNED_SHARE) * share) : 0;
+  const share = r && radMounts.length > 0 ? turning / radMounts.length : 0;
+  const k = r ? specOf(deviceSpec(r.dev), 'radiator').coolingPerC * (UNFANNED_SHARE + (1 - UNFANNED_SHARE) * share) : 0;
   const caseOnly = mounts.filter((m) => !radMounts.includes(m));
   return {
     ...FANS_ON,
@@ -28,10 +86,12 @@ function fansOf(b: ReturnType<typeof createBoard>, turning: number, pump = true)
     ...(r ? { radSide: r.side } : {}),
   };
 }
-function settle(b: ReturnType<typeof createBoard>, f: FanPower, n = 1500) {
+function settle(b: ReturnType<typeof createBoard>, f: thermalTypes.FanPower, n = 1500) {
   const th = new ThermalModel(new Prng(1));
-  for (let i = 0; i < n; i++) th.step(b, { cpu: 1 }, true, f);
-  return { th, cpu: th.state(findDevices(b, 'cpu')[0]!.id)!.tempC };
+  for (let i = 0; i < n; i++) {
+    th.step(b, { cpu: 1 }, true, f);
+  }
+  return { th, cpu: stateOf(th, b, 'cpu').tempC };
 }
 
 describe('the liquid loop', () => {
@@ -106,14 +166,18 @@ describe('the liquid loop', () => {
 
   it('an air cooler has no coolant and no loop; the machine switched off lets the coolant cool down', () => {
     const b = createBoard(2);
-    for (const s of ['cpu1', 'ram0', 'display0', 'cooler1', 'psu2']) expect(install(b, s).ok).toBe(true);
+    for (const s of ['cpu1', 'ram0', 'display0', 'cooler1', 'psu2']) {
+      expect(install(b, s).ok).toBe(true);
+    }
     const a = settle(b, { ...FANS_ON, caseFans: 0 }, 50);
     expect(a.th.loopSide).toBeNull();
     expect(a.th.loopC).toBe(25);
     const l = rig('rad2'),
       s = settle(l, fansOf(l, 3), 400),
       hot = s.th.loopC;
-    for (let i = 0; i < 400; i++) s.th.step(l, {}, false, fansOf(l, 3));
+    for (let i = 0; i < 400; i++) {
+      s.th.step(l, {}, false, fansOf(l, 3));
+    }
     expect(s.th.loopC).toBeLessThan(hot);
   });
 });
