@@ -2,7 +2,8 @@
 // address cost". An engine builds its own from its settings (a single-core CPU, every timing as before); a multicore Machine builds one and hands it
 // to every engine, so the cores share one L2 and one set of banks. Events and counters go to the asking engine's log and view.
 
-import { DataCache, Ev, Which, type EventLog } from '../../cpu/sim/engines/common';
+import { DataCache } from '../../cpu/sim/engines/cache';
+import { Ev, Which, type EventLog } from '../../cpu/sim/engines/events';
 import { Dram, type DramSettings } from './dram';
 import { Counter } from '../../cpu/sim/engines/view';
 

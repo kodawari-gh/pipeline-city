@@ -2,7 +2,10 @@
 // No prediction: branches resolve in EX with no penalty. Work happens as the instruction enters each stage:
 // IF reads the word through the bus, ID decodes, EX reads registers and computes, MEM does the data access, WB writes back.
 
-import { EngineBase, F, OPF, OP_ECALL, POOL_MASK, type EngineSettings } from './common';
+import { EngineBase } from './base';
+import type { EngineSettings } from './contract';
+import { F, OPF, OP_ECALL } from './ops';
+import { POOL_MASK } from './pool';
 import { Cause, Counter, Fate, SlotKind, Stage, StageCode } from './view';
 
 export class UnpipelinedEngine extends EngineBase {

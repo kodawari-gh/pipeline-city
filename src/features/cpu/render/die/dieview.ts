@@ -1,6 +1,6 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { disassemble } from '../../sim/isa';
-import { Ev } from '../../sim/engines/common';
+import { Ev } from '../../sim/engines/events';
 import { IRQ } from '@/core/sim/memmap';
 import type { PipeSnap } from '../../sim/pipesnap';
 import { scrubCursor, scrubRange, scrubShown, scrubTarget } from '@/app/scrub';

@@ -1,5 +1,5 @@
 import type { Snapshot } from '@/worker/protocol';
-import { Ev } from '../../sim/engines/common';
+import { Ev } from '../../sim/engines/events';
 import type { CpuPlan } from '../core/cpuplan';
 import { splitPlan } from '../core/coreplan';
 import { CYCLES_PER_SEC, opClass, Player, type OpClass, type StoreEvent } from './diemotion';

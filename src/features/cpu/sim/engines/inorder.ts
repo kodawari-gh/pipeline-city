@@ -19,7 +19,10 @@
 
 import { CAUSE_COUNTER, Cause, Counter, Fate, SlotKind, Stage, StageCode, ViewState } from './view';
 import type { Core } from '../core';
-import { EngineBase, F, F_MEM, OPF, OP_ECALL, OP_IRET, St, type EngineSettings } from './common';
+import { EngineBase } from './base';
+import type { EngineSettings } from './contract';
+import { F, F_MEM, OPF, OP_ECALL, OP_IRET } from './ops';
+import { St } from './pool';
 
 export interface InOrderSettings extends EngineSettings {
   /** Bypass EX operands from the MEM latch; only load-use stalls remain. Off: wait until the producer has written back. Default true. */

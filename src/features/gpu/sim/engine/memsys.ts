@@ -6,7 +6,7 @@
 //   caches     optional tag-only L1 (one per SM) and one shared L2, on the CPU's `DataCache` (write-through, a store never fills a line);
 //              a line that hits in L1 returns after `l1Hit`, else asks the L2 (one request per cycle for the whole card), else card memory
 
-import { DataCache } from '@/features/cpu/sim/engines/common';
+import { DataCache } from '@/features/cpu/sim/engines/cache';
 
 export interface GpuMemConfig {
   /** Memory banks a memory unit has. */

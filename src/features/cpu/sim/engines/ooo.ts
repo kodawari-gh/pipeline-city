@@ -23,20 +23,10 @@
 
 import { MMU_BASE, MMU_SIZE } from '@/core/sim/memmap';
 import type { Core } from '../core';
-import {
-  F,
-  F_MEM,
-  OPF,
-  OP_ECALL,
-  OP_IRET,
-  OP_LB,
-  OP_LW,
-  OP_MUL,
-  OP_SW,
-  St,
-  EngineBase,
-  type EngineSettings,
-} from './common';
+import { EngineBase } from './base';
+import type { EngineSettings } from './contract';
+import { F, F_MEM, OPF, OP_ECALL, OP_IRET, OP_LB, OP_LW, OP_MUL, OP_SW } from './ops';
+import { St } from './pool';
 import {
   CommitStall,
   Counter,

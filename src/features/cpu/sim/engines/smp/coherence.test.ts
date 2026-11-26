@@ -3,7 +3,8 @@
 import { describe, expect, it } from 'vitest';
 import { assemble } from '../../asm';
 import { Machine } from '@/core/sim';
-import { DataCache, EventLog, Ev } from '../common';
+import { DataCache } from '../cache';
+import { EventLog, Ev } from '../events';
 import { createEngine, type EngineConfig } from '../index';
 import { MemSystem } from '@/features/memory/sim/memsys';
 import { COUNTER_COUNT, Counter } from '../view';
