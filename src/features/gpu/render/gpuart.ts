@@ -3,7 +3,7 @@ import { label, mix } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
 import { laneLines, planFar, planNear, type DieArt, type PlanStyle } from '../../cpu/render/die/dieart';
 import type { GpuBlock, GpuBlockKind, GpuLink, GpuLinkKind, GpuPlan } from './plan/gpuplan';
-import { gpuGlyph, gpuGlyphArea } from './gpuglyph';
+import { gpuGlyph, gpuGlyphArea } from './glyph';
 import { DIE_MARGIN, gpuCells } from './plan/gpuplans';
 
 // The static art of a GPU card's die, drawn from a `GpuPlan` in the CPU die's style (die/dieart.ts, docs/DIE.md): macro blocks tinted in their
@@ -101,7 +101,7 @@ const GPU_STYLE: PlanStyle<GpuBlock, GpuLink> = {
   linkColor: (T, l) => T[GPU_LINK_COLOR[l.kind]],
   frame: (b) => b.kind === 'sm',
   symbol: (b) => gpuGlyphArea(b),
-  draw: (g, T, b, _a, c, put) => gpuGlyph(g, T, b, c, put),
+  draw: (g, T, b, _a, c, put) => gpuGlyph(g, b, { T, c, put }),
   cells: gpuCells,
 };
 
