@@ -9,7 +9,7 @@ export class Prng {
 
   /** Next uint32. */
   nextU32(): number {
-    this.s = (this.s + 0x6d2b79f5) >>> 0;
+    this.s = (this.s + 0x6d_2b_79_f5) >>> 0;
     let t = this.s;
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
@@ -18,12 +18,14 @@ export class Prng {
 
   /** Float in [0, 1). */
   next(): number {
-    return this.nextU32() / 4294967296;
+    return this.nextU32() / 4_294_967_296;
   }
 
   /** Integer in [0, n). */
   nextInt(n: number): number {
-    if (!Number.isInteger(n) || n <= 0) throw new RangeError(`nextInt(${n})`);
+    if (!Number.isInteger(n) || n <= 0) {
+      throw new RangeError(`nextInt(${n})`);
+    }
     return Math.floor(this.next() * n);
   }
 

@@ -2581,7 +2581,6 @@
  },
  "src/core/sim/hw/bus.ts": {
   "eslint(class-methods-use-this)": 1,
-  "eslint(curly)": 14,
   "typescript(no-non-null-assertion)": 2,
   "typescript(strict-boolean-expressions)": 2,
   "unicorn(no-array-callback-reference)": 4,
@@ -2589,7 +2588,6 @@
  },
  "src/core/sim/hw/clock.ts": {
   "eslint(class-methods-use-this)": 1,
-  "eslint(curly)": 4,
   "typescript(no-non-null-assertion)": 2
  },
  "src/core/sim/hw/device.ts": {
@@ -2600,12 +2598,10 @@
  },
  "src/core/sim/hw/display.ts": {
   "eslint(class-methods-use-this)": 1,
-  "eslint(curly)": 7,
   "eslint(max-params)": 1,
   "typescript(no-non-null-assertion)": 3,
   "unicorn(no-array-for-each)": 1,
   "unicorn(no-object-as-default-parameter)": 1,
-  "unicorn(prefer-at)": 1,
   "unicorn(prefer-code-point)": 2
  },
  "src/core/sim/hw/intc.test.ts": {
@@ -2614,20 +2610,17 @@
  },
  "src/core/sim/hw/intc.ts": {
   "eslint(class-methods-use-this)": 1,
-  "eslint(curly)": 8,
   "eslint(max-classes-per-file)": 1,
   "eslint(no-empty-function)": 1,
   "eslint(no-multi-assign)": 7,
   "typescript(no-non-null-assertion)": 4,
-  "unicorn(prefer-math-trunc)": 1,
-  "unicorn(switch-case-braces)": 19
+  "unicorn(prefer-math-trunc)": 1
  },
  "src/core/sim/hw/timer.test.ts": {
   "eslint(curly)": 3
  },
  "src/core/sim/hw/timer.ts": {
   "eslint(class-methods-use-this)": 1,
-  "eslint(curly)": 2,
   "eslint(no-empty-function)": 1,
   "eslint(no-multi-assign)": 2,
   "eslint(no-nested-ternary)": 1,
@@ -2652,12 +2645,10 @@
  },
  "src/core/sim/machine.ts": {
   "eslint(class-methods-use-this)": 2,
-  "eslint(curly)": 36,
+  "eslint(curly)": 1,
   "eslint(max-depth)": 1,
   "eslint(max-lines)": 1,
   "eslint(max-params)": 2,
-  "eslint(prefer-destructuring)": 3,
-  "import(consistent-type-specifier-style)": 2,
   "import(max-dependencies)": 1,
   "typescript(no-confusing-void-expression)": 3,
   "typescript(no-non-null-assertion)": 16,
@@ -2666,12 +2657,7 @@
   "unicorn(prefer-math-trunc)": 1
  },
  "src/core/sim/memmap.ts": {
-  "eslint(max-lines)": 1,
-  "unicorn(numeric-separators-style)": 50
- },
- "src/core/sim/prng.ts": {
-  "eslint(curly)": 1,
-  "unicorn(numeric-separators-style)": 2
+  "eslint(max-lines)": 1
  },
  "src/core/ui/Hud.test.ts": {
   "eslint(curly)": 4,
@@ -2688,14 +2674,9 @@
   "vitest(prefer-import-in-mock)": 1
  },
  "src/core/ui/Hud.tsx": {
-  "eslint(curly)": 28,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 4,
-  "eslint(no-implicit-coercion)": 1,
   "eslint(no-nested-ternary)": 2,
-  "eslint(prefer-named-capture-group)": 2,
-  "eslint(require-unicode-regexp)": 2,
-  "import(consistent-type-specifier-style)": 1,
   "import(max-dependencies)": 1,
   "import(no-unassigned-import)": 1,
   "jsx-a11y(click-events-have-key-events)": 1,
@@ -2706,11 +2687,9 @@
   "typescript(explicit-module-boundary-types)": 2,
   "typescript(no-confusing-void-expression)": 2,
   "typescript(no-non-null-assertion)": 2,
-  "typescript(no-unnecessary-type-assertion)": 2,
   "typescript(no-unsafe-type-assertion)": 6,
   "typescript(strict-boolean-expressions)": 2,
   "unicorn(consistent-function-scoping)": 1,
-  "unicorn(explicit-length-check)": 2,
   "unicorn(prefer-global-this)": 7,
   "unicorn(prefer-number-coercion)": 1,
   "unicorn(prefer-query-selector)": 1
@@ -2796,9 +2775,6 @@
   "vitest(valid-expect)": 1
  },
  "src/core/ui/kit/Hover.tsx": {
-  "eslint(curly)": 2,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 1,
   "typescript(explicit-module-boundary-types)": 2,
   "typescript(strict-boolean-expressions)": 2
  },
@@ -2816,11 +2792,9 @@
   "typescript(strict-boolean-expressions)": 1
  },
  "src/core/ui/kit/Pipeline.tsx": {
-  "eslint(curly)": 4,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 1,
   "eslint(no-nested-ternary)": 2,
-  "eslint(prefer-destructuring)": 1,
   "promise(prefer-await-to-then)": 1,
   "react(only-export-components)": 2,
   "typescript(consistent-return)": 1,
@@ -2830,28 +2804,18 @@
   "typescript(no-non-null-assertion)": 7,
   "typescript(strict-boolean-expressions)": 2,
   "unicorn(no-array-callback-reference)": 2,
-  "unicorn(prefer-at)": 1,
   "unicorn(prefer-number-coercion)": 2
  },
  "src/core/ui/kit/Sprite.tsx": {
-  "eslint(curly)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "react(no-array-index-key)": 1,
   "react(only-export-components)": 2,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-non-null-assertion)": 2,
-  "typescript(strict-boolean-expressions)": 3,
-  "unicorn(switch-case-braces)": 10
+  "typescript(strict-boolean-expressions)": 3
  },
  "src/core/ui/kit/clearance.test.ts": {
   "eslint(max-params)": 1,
   "vitest(prefer-strict-equal)": 3
- },
- "src/core/ui/kit/clearance.ts": {
-  "eslint(curly)": 5
- },
- "src/core/ui/leave.ts": {
-  "eslint(curly)": 1
  },
  "src/core/ui/logic.test.ts": {
   "eslint(curly)": 3,
@@ -2871,8 +2835,7 @@
   "vitest(valid-expect)": 5
  },
  "src/core/ui/logic.ts": {
-  "eslint(complexity)": 5,
-  "eslint(curly)": 76,
+  "eslint(complexity)": 4,
   "eslint(default-case)": 1,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 4,
@@ -2880,20 +2843,13 @@
   "eslint(no-nested-ternary)": 8,
   "eslint(no-param-reassign)": 1,
   "eslint(no-shadow)": 1,
-  "eslint(prefer-named-capture-group)": 6,
-  "eslint(require-unicode-regexp)": 7,
-  "import(consistent-type-specifier-style)": 4,
   "typescript(consistent-return)": 1,
   "typescript(explicit-module-boundary-types)": 4,
   "typescript(no-non-null-assertion)": 6,
   "typescript(no-unnecessary-template-expression)": 1,
   "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(strict-boolean-expressions)": 14,
-  "unicorn(explicit-length-check)": 1,
-  "unicorn(numeric-separators-style)": 1,
-  "unicorn(prefer-export-from)": 1,
-  "unicorn(prefer-single-call)": 1,
-  "unicorn(switch-case-braces)": 22
+  "unicorn(prefer-single-call)": 1
  },
  "src/core/ui/menuNav.test.ts": {
   "unicorn(numeric-separators-style)": 12

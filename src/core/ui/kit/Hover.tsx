@@ -7,7 +7,7 @@ import { describeId } from '../logic';
 
 /** The first sentence only: a tooltip is a label, the card holds the rest. */
 const firstSentence = (t: string) => {
-  const i = t.search(/[.!?](\s|$)/);
+  const i = t.search(/[.!?](?:\s|$)/u);
   return i > 0 && i < t.length - 1 ? t.slice(0, i + 1) : t;
 };
 
@@ -32,7 +32,9 @@ export function TooltipBubble({
   const d = describeId(id, s);
   useLayoutEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el) {
+      return;
+    }
     const pad = 14;
     const w = el.offsetWidth;
     const ht = el.offsetHeight;
@@ -40,7 +42,9 @@ export function TooltipBubble({
     const top = y + pad + ht > window.innerHeight ? y - pad - ht : y + pad;
     el.style.transform = `translate(${Math.max(4, left)}px, ${Math.max(4, top)}px)`;
   });
-  if (!d) return null;
+  if (!d) {
+    return null;
+  }
   return (
     <div class="tooltip" ref={ref} role="tooltip">
       <b>{d.title}</b>

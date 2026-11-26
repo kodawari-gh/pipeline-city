@@ -39,11 +39,18 @@ export class Display implements Device {
   }
 
   write(addr: number, val: number): void {
-    if (!this.connected) return;
+    if (!this.connected) {
+      return;
+    }
     const a = this.at(addr);
-    if (a < 0) return;
-    if (this.writeLatency <= 0) this.cells[a] = val & 0xff;
-    else this.queue.push({ addr: a, val: val & 0xff });
+    if (a < 0) {
+      return;
+    }
+    if (this.writeLatency <= 0) {
+      this.cells[a] = val & 0xff;
+    } else {
+      this.queue.push({ addr: a, val: val & 0xff });
+    }
   }
 
   /** Writes accepted but not yet landed. */
@@ -59,7 +66,9 @@ export class Display implements Device {
   }
 
   tick(): void {
-    if (this.queue.length === 0) return;
+    if (this.queue.length === 0) {
+      return;
+    }
     if (++this.countdown >= this.writeLatency) {
       this.countdown = 0;
       const w = this.queue.shift()!;
@@ -71,8 +80,9 @@ export class Display implements Device {
   setText(lines: string[]): void {
     this.clear();
     lines.slice(0, this.rows).forEach((line, y) => {
-      for (let x = 0; x < Math.min(line.length, this.cols); x++)
+      for (let x = 0; x < Math.min(line.length, this.cols); x++) {
         this.cells[y * this.cols + x] = line.charCodeAt(x) & 0xff;
+      }
     });
   }
 
@@ -87,7 +97,9 @@ export class Display implements Device {
       }
       rows.push(s.trimEnd());
     }
-    while (rows.length > 0 && rows[rows.length - 1] === '') rows.pop();
+    while (rows.length > 0 && rows.at(-1) === '') {
+      rows.pop();
+    }
     return rows.join('\n');
   }
 }

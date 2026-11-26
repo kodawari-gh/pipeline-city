@@ -32,8 +32,9 @@ export function leaveGame(): void {
     almanacOpen,
     logOpen,
     traceOpen,
-  ])
+  ]) {
     open.value = false;
+  }
   milestones.value = null;
   selected.value = null;
   highlight.value = [];

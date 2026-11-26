@@ -30,7 +30,7 @@ import { Notice, Toasts } from './panels/Toasts';
 import { watchPanelCues } from './panelCues';
 import { NewGameScreen } from './panels/NewGame';
 import { MainMenu } from './panels/MainMenu';
-import { Paused, type PausedFeatures } from './panels/Paused';
+import * as pausedPanel from './panels/Paused';
 import { LoadConfirm } from './panels/LoadConfirm';
 import { Controls } from './panels/Controls';
 import { SandboxJobs } from '../../features/sandbox/ui/SandboxJobs';
@@ -59,7 +59,7 @@ import {
 } from './state';
 
 /** What the Paused screen needs from two features (it imports none itself). */
-const PAUSED_FEATURES: PausedFeatures = {
+const PAUSED_FEATURES: pausedPanel.PausedFeatures = {
   netChip: hudNetChip,
   tutorialOn: (s) => currentStep(s, tutorial.value) !== null,
 };
@@ -96,7 +96,9 @@ function SpeedControl() {
         title={v === 0 ? (held ? 'Held: a popup or the menu holds the clock' : 'Resume (Space)') : 'Pause (Space)'}
         aria-pressed={v === 0}
         onClick={() => {
-          if (!held) togglePause();
+          if (!held) {
+            togglePause();
+          }
         }}
       >
         <Icon name={v === 0 && !held ? 'play' : 'pause'} size={14} />
@@ -125,10 +127,14 @@ function SpeedControl() {
         onClick={(e) => {
           // phone: a tap on a step button is handled by that button; a tap on the gap between steps steps here
           if (phoneLayout()) {
-            if (!held && !(e.target as Element).closest('button')) runAt(nextSpeed(shown));
+            if (!held && !(e.target as Element).closest('button')) {
+              runAt(nextSpeed(shown));
+            }
           }
           // a speed button runs its speed and closes the rail (above): the click that bubbles here must not reopen it
-          else if (!(e.target as Element).closest('button')) setOpen(true);
+          else if (!(e.target as Element).closest('button')) {
+            setOpen(true);
+          }
         }}
       >
         {runSteps.map((x) => (
@@ -140,7 +146,9 @@ function SpeedControl() {
             title={speedTitle(x)}
             onClick={() => {
               if (phoneLayout()) {
-                if (!held) runAt(nextSpeed(shown));
+                if (!held) {
+                  runAt(nextSpeed(shown));
+                }
               } else {
                 runAt(x);
                 setOpen(false);
@@ -172,20 +180,32 @@ function Title({ on, quick = false }: { on: boolean; quick?: boolean }) {
 function PauseKey() {
   useEffect(() => {
     const mine = (e: KeyboardEvent) => {
-      if (e.code !== 'Space' || e.ctrlKey || e.metaKey || e.altKey) return false;
+      if (e.code !== 'Space' || e.ctrlKey || e.metaKey || e.altKey) {
+        return false;
+      }
       const t = e.target as HTMLElement | null;
-      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return false;
+      if (t && (t.isContentEditable || /^(?:INPUT|TEXTAREA|SELECT)$/u.test(t.tagName))) {
+        return false;
+      }
       return !document.querySelector('.modal-back, .ng-back, .pl-menu.paused, .pl-menu.settings');
     };
     const down = (e: KeyboardEvent) => {
-      if (!mine(e)) return;
+      if (!mine(e)) {
+        return;
+      }
       e.preventDefault();
-      if (e.repeat) return;
+      if (e.repeat) {
+        return;
+      }
       (document.activeElement as HTMLElement | null)?.blur?.(); // a focused button would also take the Space as a press
-      if (!holdActive.peek()) togglePause();
+      if (!holdActive.peek()) {
+        togglePause();
+      }
     };
     const up = (e: KeyboardEvent) => {
-      if (mine(e)) e.preventDefault();
+      if (mine(e)) {
+        e.preventDefault();
+      }
     };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
@@ -208,6 +228,24 @@ function SlowNote() {
   ) : null;
 }
 
+/** Sets the HUD's `--bar-h` and `--tabs-h` from the top bar's tabs and returns the top inset (0 with no tabs). */
+function measureTopBar(hud: HTMLElement | null, gap: number): number {
+  // The edge tabs (`.hud-side`) are the HUD's boxes: the bar itself spans the screen, so it is not measured.
+  const tabs = [...document.querySelectorAll<HTMLElement>('.hud-side')];
+  const sideTabs = tabs.filter((t) => !t.classList.contains('hud-center'));
+  const bottomOf = (els: HTMLElement[]) => Math.max(0, ...els.map((t) => t.getBoundingClientRect().bottom));
+  // the top-centre tab sits under the side tabs on a narrow screen (its top is the bar's bottom plus a gap)
+  if (sideTabs.length > 0) {
+    hud?.style.setProperty('--bar-h', `${bottomOf(sideTabs)}px`);
+  }
+  // `--tabs-h`: the bottom of the whole top bar (the phone's level row included), for a card that opens under it
+  if (tabs.length > 0) {
+    hud?.style.setProperty('--tabs-h', `${bottomOf(tabs)}px`);
+    return Math.ceil(bottomOf(tabs) + gap);
+  }
+  return 0;
+}
+
 /**
  * Tells the board camera how much of the screen the bar and the side cards cover, so the overview frames the board in
  * the free area. Re-measured whenever the HUD's contents change (a card opens, the tutorial moves on, a toast appears).
@@ -222,47 +260,50 @@ function InsetReporter() {
       const W = window.innerWidth,
         H = window.innerHeight;
       const gap = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.5;
-      const next = { top: 0, right: 0, bottom: 0, left: 0 };
-      // The edge tabs (`.hud-side`) are the HUD's boxes: the bar itself spans the screen, so it is not measured.
-      const tabs = [...document.querySelectorAll<HTMLElement>('.hud-side')];
-      const sideTabs = tabs.filter((t) => !t.classList.contains('hud-center'));
-      const bottomOf = (els: HTMLElement[]) => Math.max(0, ...els.map((t) => t.getBoundingClientRect().bottom));
-      // the top-centre tab sits under the side tabs on a narrow screen (its top is the bar's bottom plus a gap)
-      if (sideTabs.length) (hud as HTMLElement | null)?.style.setProperty('--bar-h', `${bottomOf(sideTabs)}px`);
-      // `--tabs-h`: the bottom of the whole top bar (the phone's level row included), for a card that opens under it
-      if (tabs.length) {
-        (hud as HTMLElement | null)?.style.setProperty('--tabs-h', `${bottomOf(tabs)}px`);
-        next.top = Math.ceil(bottomOf(tabs) + gap);
-      }
+      const next = { top: measureTopBar(hud, gap), right: 0, bottom: 0, left: 0 };
       let invSeen = false;
       for (const el of document.querySelectorAll('.dock, .inv, .invbar, .tut')) {
         const r = el.getBoundingClientRect();
-        if (r.width === 0) continue;
+        if (r.width === 0) {
+          continue;
+        }
         const side = r.height > H * 0.5 && r.width < W * 0.5;
         if (el.classList.contains('invbar')) {
           next.bottom = Math.max(next.bottom, Math.ceil(H - r.top + gap));
         } else if (el.classList.contains('inv')) {
           invSeen = true;
-          if (!el.classList.contains('away'))
+          if (!el.classList.contains('away')) {
             invKept = side
               ? { side: 'right', v: Math.ceil(W - r.left + gap) }
               : { side: 'bottom', v: Math.ceil(H - r.top + gap) };
-          if (invKept) next[invKept.side] = Math.max(next[invKept.side], invKept.v);
+          }
+          if (invKept) {
+            next[invKept.side] = Math.max(next[invKept.side], invKept.v);
+          }
         } else if (side) {
-          if (r.left + r.width / 2 < W / 2) next.left = Math.max(next.left, Math.ceil(r.right + gap));
-          else next.right = Math.max(next.right, Math.ceil(W - r.left + gap));
-        } else next.bottom = Math.max(next.bottom, Math.ceil(H - r.top + gap));
+          if (r.left + r.width / 2 < W / 2) {
+            next.left = Math.max(next.left, Math.ceil(r.right + gap));
+          } else {
+            next.right = Math.max(next.right, Math.ceil(W - r.left + gap));
+          }
+        } else {
+          next.bottom = Math.max(next.bottom, Math.ceil(H - r.top + gap));
+        }
       }
-      if (!invSeen) invKept = null;
+      if (!invSeen) {
+        invKept = null;
+      }
       const cur = viewInset.peek();
-      if (cur.top !== next.top || cur.right !== next.right || cur.bottom !== next.bottom || cur.left !== next.left)
+      if (cur.top !== next.top || cur.right !== next.right || cur.bottom !== next.bottom || cur.left !== next.left) {
         viewInset.value = next;
+      }
     };
     measure();
     const mo = hud ? new MutationObserver(measure) : null;
     // `style` too: the tutorial card's height is set in its style (its fit), and the picker moves by its style.
-    if (hud)
+    if (hud) {
       mo!.observe(hud, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+    }
     window.addEventListener('resize', measure);
     return () => {
       mo?.disconnect();
@@ -300,7 +341,9 @@ function PhaseChip({ s }: { s: NonNullable<typeof snapshot.value> }) {
 /** Network chip: appears once a router exists, shows the link speed or why there is none. Opens the network panel. */
 function NetChipButton({ s }: { s: NonNullable<typeof snapshot.value> }) {
   const c = hudNetChip(s);
-  if (!c) return null;
+  if (!c) {
+    return null;
+  }
   return (
     <button
       class={`chip ${c.level}`}
@@ -316,7 +359,9 @@ function NetChipButton({ s }: { s: NonNullable<typeof snapshot.value> }) {
 
 /** OS chip: appears once an OS is installed. Opens the OS panel (resource monitor, spool settings). */
 function OsChipButton({ s }: { s: NonNullable<typeof snapshot.value> }) {
-  if (!s.os) return null;
+  if (!s.os) {
+    return null;
+  }
   return (
     <button
       class="chip idle"
@@ -338,16 +383,27 @@ function OsChipButton({ s }: { s: NonNullable<typeof snapshot.value> }) {
 function MenuKeys() {
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || e.defaultPrevented) return;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || e.defaultPrevented) {
+        return;
+      }
       const t = e.target as HTMLElement | null;
-      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
-      const taken = !!document.querySelector('[role="dialog"], [role="alertdialog"], .pl-menu.paused');
+      if (t && (t.isContentEditable || /^(?:INPUT|TEXTAREA|SELECT)$/u.test(t.tagName))) {
+        return;
+      }
+      const taken = document.querySelector('[role="dialog"], [role="alertdialog"], .pl-menu.paused') !== null;
       if (e.key === '?') {
-        if (taken && !controlsOpen.peek()) return;
+        if (taken && !controlsOpen.peek()) {
+          return;
+        }
         e.preventDefault();
-        if (controlsOpen.peek()) closeControls();
-        else controlsOpen.value = true;
-      } else if (e.key === 'Escape' && !taken && !selected.peek() && !dragging.peek()) gameMenuOpen.value = true;
+        if (controlsOpen.peek()) {
+          closeControls();
+        } else {
+          controlsOpen.value = true;
+        }
+      } else if (e.key === 'Escape' && !taken && !selected.peek() && !dragging.peek()) {
+        gameMenuOpen.value = true;
+      }
     };
     window.addEventListener('keydown', down);
     return () => window.removeEventListener('keydown', down);
@@ -462,7 +518,7 @@ export function Hud() {
           <SlowNote />
         </div>
       </header>
-      <Paused features={PAUSED_FEATURES} />
+      <pausedPanel.Paused features={PAUSED_FEATURES} />
       <PickerCard />
       <NewGameScreen />
       <MilestoneScreen s={s} />

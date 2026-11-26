@@ -23,13 +23,20 @@ export interface Clearance {
 export function clearance(stage: Box, panels: readonly (Box | null)[], gap: number): Clearance {
   const out: Clearance = { left: 0, right: 0, top: 0, bottom: 0 };
   for (const p of panels) {
-    if (!p || p.right <= stage.left || p.left >= stage.right || p.bottom <= stage.top || p.top >= stage.bottom)
+    if (!p || p.right <= stage.left || p.left >= stage.right || p.bottom <= stage.top || p.top >= stage.bottom) {
       continue;
+    }
     if (p.bottom - p.top > p.right - p.left) {
-      if (p.left - stage.left <= stage.right - p.right) out.left = Math.max(out.left, p.right - stage.left + gap);
-      else out.right = Math.max(out.right, stage.right - p.left + gap);
-    } else if (p.top - stage.top <= stage.bottom - p.bottom) out.top = Math.max(out.top, p.bottom - stage.top + gap);
-    else out.bottom = Math.max(out.bottom, stage.bottom - p.top + gap);
+      if (p.left - stage.left <= stage.right - p.right) {
+        out.left = Math.max(out.left, p.right - stage.left + gap);
+      } else {
+        out.right = Math.max(out.right, stage.right - p.left + gap);
+      }
+    } else if (p.top - stage.top <= stage.bottom - p.bottom) {
+      out.top = Math.max(out.top, p.bottom - stage.top + gap);
+    } else {
+      out.bottom = Math.max(out.bottom, stage.bottom - p.top + gap);
+    }
   }
   return out;
 }
