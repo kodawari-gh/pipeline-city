@@ -2,21 +2,26 @@ import { BigPool, Container, Graphics, GraphicsContext, GraphicsContextRenderDat
 import { describe, expect, it, vi } from 'vitest';
 import { ArtBaker, freeBakePools } from './bake';
 
+function assert_destroys_each_Graphics_own_context_the_baker_s_r(): void {
+  const outer = new Graphics().rect(0, 0, 10, 10).fill(0xff_00_00),
+    inner = new Graphics().circle(5, 5, 3).fill(0x00_ff_00);
+  const ctxs = [outer.context, inner.context];
+  const art = new ArtBaker(() => {
+    const c = new Container();
+    c.addChild(outer, new Container().addChild(inner));
+    return c;
+  });
+  expect(ctxs.every((c) => c instanceof GraphicsContext && !c.destroyed)).toBe(true);
+  art.dispose();
+  expect(outer.destroyed && inner.destroyed).toBe(true);
+  expect(ctxs.map((c) => c.destroyed)).toStrictEqual([true, true]);
+  art.dispose(); // (twice is safe)
+}
+
 describe('ArtBaker.dispose (PERF12)', () => {
   it("destroys each Graphics' own context: the baker's renderer keeps every context it drew until then", () => {
-    const outer = new Graphics().rect(0, 0, 10, 10).fill(0xff_00_00),
-      inner = new Graphics().circle(5, 5, 3).fill(0x00_ff_00);
-    const ctxs = [outer.context, inner.context];
-    const art = new ArtBaker(() => {
-      const c = new Container();
-      c.addChild(outer, new Container().addChild(inner));
-      return c;
-    });
-    expect(ctxs.every((c) => c instanceof GraphicsContext && !c.destroyed)).toBe(true);
-    art.dispose();
-    expect(outer.destroyed && inner.destroyed).toBe(true);
-    expect(ctxs.map((c) => c.destroyed)).toStrictEqual([true, true]);
-    art.dispose(); // (twice is safe)
+    expect.hasAssertions();
+    assert_destroys_each_Graphics_own_context_the_baker_s_r();
   });
 
   it("frees Pixi's free pooled render data (each with its own batcher and buffers), not what is in use", () => {
@@ -40,6 +45,7 @@ describe('ArtBaker.dispose (PERF12)', () => {
 
   it('keeps the textures: the art may share them', () => {
     const tex = Texture.WHITE,
+      // oxlint-disable-next-line unicorn/no-array-fill-with-reference-type -- Graphics.fill takes a fill style, it is not Array.fill
       g = new Graphics().rect(0, 0, 4, 4).fill({ texture: tex });
     const art = new ArtBaker(() => g);
     art.dispose();

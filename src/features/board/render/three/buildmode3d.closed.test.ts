@@ -3,9 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Group, PerspectiveCamera, Scene } from 'three';
 // (no Pixi renderer in a test)
 
-import { BuildStage } from './buildmode3d';
-import type * as init from '@/core/render/three/init';
-import type * as bake from './bake';
+import { inside, newStage, openStage } from './buildmode3d.testkit';
 
 function createPost() {
   return {
@@ -63,8 +61,8 @@ function ResizeObserverStub() {
   };
 }
 
-vi.mock('@/core/render/three/init', async (orig) => {
-  const actual = await orig<typeof init>();
+vi.mock<Record<string, unknown>>(import('@/core/render/three/init'), async (orig) => {
+  const actual = await orig();
   return {
     ...actual,
     createRenderContext: () => ({
@@ -113,14 +111,14 @@ vi.mock('@/core/render/three/init', async (orig) => {
     }),
   };
 });
-vi.mock('@/core/render/three/post', () => ({
+vi.mock<Record<string, unknown>>(import('@/core/render/three/post'), () => ({
   Post,
 }));
-vi.mock('./lens3d', () => ({
+vi.mock<Record<string, unknown>>(import('./lens3d'), () => ({
   Lens3D,
 }));
-vi.mock('./bake', async (orig) => ({
-  ...(await orig<typeof bake>()),
+vi.mock<Record<string, unknown>>(import('./bake'), async (orig) => ({
+  ...(await orig()),
   startBaker: () => {
     /* no-op */
   },
@@ -135,6 +133,11 @@ interface Closed {
   benching: { value: unknown };
   picture: Promise<void>;
 }
+/** What an opened stage keeps to itself: its game, and whether it is closed. */
+interface Opened {
+  _game: unknown;
+  dead: boolean;
+}
 
 describe('a closed BuildStage', () => {
   let stage: Closed;
@@ -146,11 +149,11 @@ describe('a closed BuildStage', () => {
       /* no-op */
     });
     vi.stubGlobal('window', {}); // (the dev build's `__build` hook)
-    const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
+    const s = newStage({
       clientWidth: 400,
       clientHeight: 800,
     });
-    s['_machine'] = {
+    const machine = {
       moving: false,
       doorOpen: true,
       frame: () => {
@@ -171,14 +174,17 @@ describe('a closed BuildStage', () => {
         /* no-op */
       },
     };
-    s['_game'] = {};
-    s['snaps'] = {
-      of: () => ({}),
-      drop: () => {
-        /* no-op */
+    Object.assign(s, {
+      _machine: machine,
+      _game: {},
+      snaps: {
+        of: () => ({}),
+        drop: () => {
+          /* no-op */
+        },
       },
-    };
-    stage = s as unknown as Closed;
+    });
+    stage = inside<Closed>(s);
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -191,23 +197,30 @@ describe('a closed BuildStage', () => {
   });
 
   it('opens closed and at once for a signal that has aborted: no game, no machine, no wait (a player who left before the stage began)', async () => {
-    const s = await BuildStage.open({ clientWidth: 400, clientHeight: 800 } as HTMLElement, AbortSignal.abort());
-    expect((s as unknown as { _game: unknown })._game).toBeNull();
-    expect((s as unknown as { dead: boolean }).dead).toBe(true);
+    // (a stub host: `open` reads only its size, and the stage never reaches the page)
+    const s = await openStage({ clientWidth: 400, clientHeight: 800 }, AbortSignal.abort());
+    expect(inside<Opened>(s)._game).toBeNull();
+    expect(inside<Opened>(s).dead).toBe(true);
     vi.runAllTimers(); // (the second half of its close)
   });
+  async function assert_answers_a_benchmark_a_plan_and_a_pointer_query_w(): Promise<void> {
+    await expect(stage.runBenchmark()).resolves.toBeUndefined();
+    expect(stage.benching.value).toBeNull();
+    expect(stage.plan('dev:cpu0')).toStrictEqual([]);
+    expect(stage.partAt(10, 10)).toBeNull();
+    expect(stage.slotAt(10, 10)).toBeNull();
+  }
 
-  it('answers a benchmark, a plan and a pointer query with nothing, whether or not its game is gone', async () => {
+  it('answers a benchmark, a plan and a pointer query with nothing once it is closed', async () => {
+    expect.hasAssertions();
     stage.dispose();
-    for (const freed of [false, true]) {
-      if (freed) {
-        vi.runAllTimers();
-      } // (the second half of the close lets go of the game and the machine)
-      await expect(stage.runBenchmark()).resolves.toBeUndefined();
-      expect(stage.benching.value).toBeNull();
-      expect(stage.plan('dev:cpu0')).toStrictEqual([]);
-      expect(stage.partAt(10, 10)).toBeNull();
-      expect(stage.slotAt(10, 10)).toBeNull();
-    }
+    await assert_answers_a_benchmark_a_plan_and_a_pointer_query_w();
+  });
+
+  it('answers a benchmark, a plan and a pointer query with nothing once its game is gone', async () => {
+    expect.hasAssertions();
+    stage.dispose();
+    vi.runAllTimers(); // (the second half of the close lets go of the game and the machine)
+    await assert_answers_a_benchmark_a_plan_and_a_pointer_query_w();
   });
 });

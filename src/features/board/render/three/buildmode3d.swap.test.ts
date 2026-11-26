@@ -3,9 +3,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Group, PerspectiveCamera, Scene } from 'three';
 import { BUILD_PRESETS } from '@/features/board/sim/buildspecs';
-import { BuildStage } from './buildmode3d';
+import type { BuildStage } from './buildmode3d';
+import { newStage } from './buildmode3d.testkit';
 import { Game } from '@/worker/game/game';
-import type * as init from '@/core/render/three/init';
 
 function createPost() {
   return {
@@ -66,8 +66,8 @@ function must<T>(value: T): NonNullable<T> {
   return value;
 }
 
-vi.mock('@/core/render/three/init', async (orig) => {
-  const actual = await orig<typeof init>();
+vi.mock<Record<string, unknown>>(import('@/core/render/three/init'), async (orig) => {
+  const actual = await orig();
   return {
     ...actual,
     createRenderContext: () => ({
@@ -101,10 +101,10 @@ vi.mock('@/core/render/three/init', async (orig) => {
     }),
   };
 });
-vi.mock('@/core/render/three/post', () => ({
+vi.mock<Record<string, unknown>>(import('@/core/render/three/post'), () => ({
   Post,
 }));
-vi.mock('./lens3d', () => ({
+vi.mock<Record<string, unknown>>(import('./lens3d'), () => ({
   Lens3D,
 }));
 
@@ -112,11 +112,11 @@ type Stage = BuildStage;
 
 /** A stage with the full rig and no 3D: the machine's drawing is stubbed, the game and the history are the real ones. */
 function stage(): Stage {
-  const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
+  const s = newStage({
     clientWidth: 400,
     clientHeight: 800,
   });
-  s['_machine'] = {
+  const machine = {
     moving: false,
     doorOpen: false,
     frame: () => {
@@ -133,14 +133,44 @@ function stage(): Stage {
     },
     root: new Group(),
   };
-  s['_game'] = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
-  s['rebuild'] = function (this: { snaps: { drop: () => void } }) {
-    this.snaps.drop();
-  };
-  return s as unknown as Stage;
+  Object.assign(s, {
+    _machine: machine,
+    _game: new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true }),
+    rebuild,
+  });
+  return s;
+}
+
+/** The stage's rebuild without 3D. */
+function rebuild(this: { snaps: { drop: () => void } }): void {
+  this.snaps.drop();
 }
 
 const fitted = (s: Stage): number => s.board.devices.length;
+
+/** Clears the stage `n` times, one job after the other. */
+async function clearTimes(s: Stage, n: number): Promise<void> {
+  if (n <= 0) {
+    return;
+  }
+  await s.clear();
+  await clearTimes(s, n - 1);
+}
+
+/** Undoes while the stage can, at most `max` times, one step after the other; returns how many steps it undid. */
+async function undoAll(s: Stage, max: number): Promise<number> {
+  if (!s.canUndo || max <= 0) {
+    return 0;
+  }
+  await s.undo();
+  return 1 + (await undoAll(s, max - 1));
+}
+
+async function assert_keeps_only_the_last_few_machines(): Promise<void> {
+  const s = stage();
+  await clearTimes(s, 12);
+  await expect(undoAll(s, 20)).resolves.toBe(8);
+}
 
 describe('BuildStage swaps and Undo', () => {
   beforeEach(() => {
@@ -209,16 +239,8 @@ describe('BuildStage swaps and Undo', () => {
   });
 
   it('keeps only the last few machines', async () => {
-    const s = stage();
-    for (let i = 0; i < 12; i++) {
-      await s.clear();
-    }
-    let undone = 0;
-    while (s.canUndo && undone < 20) {
-      await s.undo();
-      undone++;
-    }
-    expect(undone).toBe(8);
+    expect.hasAssertions();
+    await assert_keeps_only_the_last_few_machines();
   });
 
   it('lets go of the picked part and its row of the old machine', async () => {
@@ -266,7 +288,7 @@ describe('BuildStage swaps and Undo', () => {
 
   it('keeps the scores of the machine it leaves as the ones to compare with', async () => {
     const s = stage();
-    s.bench.value = { t1: { id: 't1', score: 900 } as never };
+    s.bench.value = { t1: { id: 't1', score: 900, seconds: null } };
     await s.clear();
     expect(Object.keys(s.bench.peek())).toStrictEqual([]);
     expect(Object.keys(s.benchWas.peek())).toStrictEqual(['t1']);

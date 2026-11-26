@@ -39,19 +39,166 @@ const IN: studiowall3d.WallIn = { caseX: -2810, caseTop: 5350, caseW: 12_690, fl
 const p = studiowall3d.wallPlan(IN);
 const NET: studiowall3d.WallNet = { router: 3, isp: 3 };
 
-/** Every distinct material under an object. */
-const materials = (root: three.Object3D): three.MeshStandardMaterial[] => {
-  const seen = new Set<three.MeshStandardMaterial>();
+/** An angle wrapped into -pi to pi. */
+const wrap = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
+
+/** The plugs under an object, the plug itself first. */
+const kinds = (o: three.Object3D): string[] => {
+  const t: string[] = [];
+  o.traverse((x) => {
+    if (typeof x.userData['plug'] === 'string') {
+      t.push(x.userData['plug']);
+    }
+  });
+  return t;
+};
+
+function assert_puts_both_plates_on_the_wall_west_of_the_case_on(): void {
+  for (const b of [p.mains, p.isp]) {
+    expect(b.x0).toBeGreaterThanOrEqual(p.face.x0);
+    expect(b.x1).toBeLessThan(IN.caseX);
+    expect(b.y0).toBeGreaterThanOrEqual(p.face.y0);
+    expect(b.y1).toBeLessThanOrEqual(p.face.y1);
+  }
+  expect(p.isp.y0).toBeGreaterThan(p.mains.y1);
+  // (one column: the plates' middles are on the same line)
+  expect((p.isp.x0 + p.isp.x1) / 2).toBeCloseTo((p.mains.x0 + p.mains.x1) / 2, 5);
+}
+
+function assert_lays_the_plate_s_three_sockets_in_a_pinwheel_rou(): void {
+  const [x, y, z] = p.mains.screw,
+    s = p.mains.sockets;
+  expect(x).toBeCloseTo((p.mains.x0 + p.mains.x1) / 2, 5);
+  expect(y).toBeCloseTo((p.mains.y0 + p.mains.y1) / 2, 5);
+  expect(z).toBe(p.mains.z);
+  const turns = s.map((k) => Math.atan2(k.at[1] - y, k.at[0] - x));
+  for (const k of s) {
+    expect(k.at[2]).toBe(p.mains.z);
+    expect(Math.hypot(k.at[0] - x, k.at[1] - y) / studiowall3d.MM).toBeCloseTo(17.35, 2);
+  }
+  // (the top one, the lower left one, the lower right one: a plug's roll is the angle of its socket's outer side from straight up)
+  expect(turns[0]).toBeCloseTo(Math.PI / 2, 5);
+  expect(turns[1]).toBeCloseTo((210 * Math.PI) / 180 - 2 * Math.PI, 5);
+  expect(turns[2]).toBeCloseTo((330 * Math.PI) / 180 - 2 * Math.PI, 5);
+  for (const [i, k] of s.entries()) {
+    expect(wrap(k.roll - (must(turns[i]) - Math.PI / 2))).toBeCloseTo(0, 5);
+  }
+}
+
+function assert_keeps_the_router_between_the_ISP_s_plate_and_the(): void {
+  expect(p.router.east).toBeLessThan(IN.caseX);
+  expect(p.router.jacks).toHaveLength(5);
+  for (let k = 1; k < 5; k++) {
+    expect(must(p.router.jacks[k])[0]).toBeLessThan(must(p.router.jacks[k - 1])[0]);
+    expect(must(p.router.jacks[k])[1]).toBe(must(p.router.jacks[0])[1]);
+  }
+  expect(p.router.lan).toBe(p.router.jacks[0]);
+  expect(p.router.wan).toBe(p.router.jacks[4]);
+}
+
+function assert_puts_the_jacks_of_every_tier_inside_its_router_i(): void {
+  for (const t of studiowall3d.ROUTER_TIERS) {
+    const s = must(studiowall3d.ROUTER_SIZE[t]),
+      box = studiowall3d.routerSolid(p, t);
+    for (const j of p.router.jacks) {
+      expect(j[0] - 160, `tier ${t}`).toBeGreaterThan(p.router.east - s.w);
+      expect(j[0] + 160, `tier ${t}`).toBeLessThan(p.router.east);
+      expect(j[1], `tier ${t}`).toBeGreaterThan(p.router.base);
+      expect(j[1], `tier ${t}`).toBeLessThan(p.router.base + s.h);
+    }
+    expect(box.min[0], `tier ${t}`).toBeGreaterThan(p.isp.x1);
+    expect(box.min[1], `tier ${t}`).toBeGreaterThan(p.mains.y1);
+    expect(box.max[2], `tier ${t}`).toBeLessThan(p.router.front);
+  }
+}
+
+function assert_frames_the_plates_and_the_router_and_moves_its_k(): void {
+  for (const x of [p.mains.x0, p.isp.x0, p.router.east]) {
+    expect(x).toBeGreaterThanOrEqual(p.frame.x0);
+  }
+  expect(p.frame.x1).toBeGreaterThanOrEqual(p.router.east);
+  expect(p.frame.y0).toBeLessThanOrEqual(p.mains.y0);
+  expect(p.frame.y1).toBeGreaterThanOrEqual(p.isp.y1);
+  expect(studiowall3d.wallPlan(IN).key).toBe(p.key);
+  expect(studiowall3d.wallPlan({ ...IN, caseX: IN.caseX - 500 }).key).not.toBe(p.key);
+  expect(studiowall3d.wallPlan({ ...IN, caseTop: IN.caseTop + 500 }).key).not.toBe(p.key);
+}
+
+function assert_builds_with_a_router_of_every_tier_and_with_none(): void {
+  for (const router of [null, ...studiowall3d.ROUTER_TIERS]) {
+    const w = new studiowall3d.StudioWall(p, { router, isp: 2 });
+    expect(w.root.children.length, `router ${router}`).toBeGreaterThan(3);
+    const r = w.root.getObjectByName('wall.router');
+    expect(r !== undefined, `router ${router}`).toBe(router !== null);
+    w.dispose();
+  }
+  for (const router of studiowall3d.ROUTER_TIERS) {
+    const w = new studiowall3d.StudioWall(p, { router, isp: 2 });
+    const box = new three.Box3().setFromObject(must(w.root.getObjectByName('wall.router')));
+    expect(box.isEmpty(), `router ${router}`).toBe(false);
+    expect(box.max.x, `router ${router}`).toBeLessThan(IN.caseX);
+    expect(box.min.x, `router ${router}`).toBeGreaterThan(p.isp.x1);
+    expect(box.max.z, `router ${router}`).toBeLessThanOrEqual(p.router.front + 40);
+    w.dispose();
+  }
+}
+
+function assert_builds_the_router_that_is_set_another_tier_is_an(): void {
+  const w = new studiowall3d.StudioWall(p, { router: 1, isp: 1 });
+  const size = (): number[] | null => {
+    const r = w.root.getObjectByName('wall.router');
+    if (!r) {
+      return null;
+    }
+    const b = new three.Box3().setFromObject(r);
+    return [b.min.x, b.max.x, b.min.y, b.max.y];
+  };
+  const t1 = must(size());
+  w.set({ router: 4, isp: 1 });
+  expect(size()).not.toStrictEqual(t1);
+  w.set({ router: null, isp: 1 });
+  expect(size()).toBeNull();
+  w.set({ router: 1, isp: 1 });
+  expect(size()).toStrictEqual(t1);
+  w.dispose();
+}
+
+function assert_ends_the_patch_lead_as_its_ports_do_an_RJ45_plug(): void {
+  const w = new studiowall3d.StudioWall(p, { router: 2, isp: 2 });
+  // (the plugs of an end, the plug itself first: the lead's first end is at the ISP's plate, its second at the router's WAN port)
+  const ends = (): string[][] => {
+    const lead = must(w.root.getObjectByName('wall.lead'));
+    return [kinds(must(lead.children[0])), kinds(must(lead.children[1]))];
+  };
+  expect(ends()).toStrictEqual([['rj45'], ['rj45']]);
+  // the edge router's WAN port is a QSFP+ cage: a plan on the plate's RJ45 jack reaches it through an adapter
+  w.set({ router: 4, isp: 2 });
+  expect(ends()).toStrictEqual([['rj45'], ['adapter', 'rj45']]);
+  // the backbone plan arrives on a QSFP+ cage of the plate: a direct attach lead to the edge router, and an adapter at the plate for another tier's RJ45 jack
+  w.set({ router: 4, isp: 5 });
+  expect(ends()).toStrictEqual([['qsfp'], ['qsfp']]);
+  w.set({ router: 3, isp: 5 });
+  expect(ends()).toStrictEqual([['adapter', 'rj45'], ['rj45']]);
+  w.dispose();
+}
+
+/** A material that can glow: it has an emissive colour and intensity. */
+type Glowing = three.Material & { emissive: three.Color; emissiveIntensity: number };
+const canGlow = (x: three.Material): x is Glowing =>
+  'emissive' in x &&
+  x.emissive instanceof three.Color &&
+  'emissiveIntensity' in x &&
+  typeof x.emissiveIntensity === 'number';
+
+/** Every distinct material under an object that can glow. */
+const materials = (root: three.Object3D): Glowing[] => {
+  const seen = new Set<Glowing>();
   root.traverse((o) => {
     if (!isMesh(o)) {
       return;
     }
-    const m = o.material as three.MeshStandardMaterial | three.MeshStandardMaterial[] | undefined;
-    if (!m) {
-      return;
-    }
-    for (const x of asList(m)) {
-      if (x.emissive) {
+    for (const x of asList(o.material)) {
+      if (canGlow(x)) {
         seen.add(x);
       }
     }
@@ -59,8 +206,13 @@ const materials = (root: three.Object3D): three.MeshStandardMaterial[] => {
   return [...seen];
 };
 /** How much light the wall gives: the emissive intensities, summed. */
-const light = (root: three.Object3D): number =>
-  materials(root).reduce((t, m) => t + (m.emissive.getHex() ? m.emissiveIntensity : 0), 0);
+const light = (root: three.Object3D): number => {
+  let t = 0;
+  for (const m of materials(root)) {
+    t += m.emissive.getHex() === 0 ? 0 : m.emissiveIntensity;
+  }
+  return t;
+};
 /** The levels the PC's lights have: the router's LAN jack takes its PC's, `[link, activity]`. */
 const levels = (lan: [number, number], wan: [number, number]): jackleds.LinkLevels => ({
   pc: { link: lan[0], act: lan[1] },
@@ -84,17 +236,32 @@ const linkSource = (baseTick: number, rx: number, o: { on?: boolean } = {}): jac
 const lamps = (root: three.Object3D): number =>
   materials(root).filter((m) => m.emissive.getHex() === 0x3b_e3_ff && m.emissiveIntensity > 0).length;
 
+function assert_lights_as_many_lamps_on_the_ISP_s_plate_as_the_p(): void {
+  const w = new studiowall3d.StudioWall(p, { router: 3, isp: 1 });
+  for (const t of [1, 3, 5]) {
+    w.set({ router: 3, isp: t });
+    expect(lamps(w.root), `plan ${t}`).toBe(t);
+  }
+  w.set({ router: 3, isp: null });
+  expect(lamps(w.root)).toBe(0);
+  w.dispose();
+}
+
+function assert_builds_the_router_with_every_jack_light_out_noth(): void {
+  for (const router of studiowall3d.ROUTER_TIERS) {
+    const a = new studiowall3d.StudioWall(p, { router, isp: 3 }),
+      b = new studiowall3d.StudioWall(p, { router, isp: 3 });
+    b.lights(jackleds.DARK);
+    expect(light(a.root), `router ${router}`).toBeCloseTo(light(b.root), 9);
+    a.dispose();
+    b.dispose();
+  }
+}
+
 describe('wallPlan', () => {
   it('puts both plates on the wall, west of the case, one above the other', () => {
-    for (const b of [p.mains, p.isp]) {
-      expect(b.x0).toBeGreaterThanOrEqual(p.face.x0);
-      expect(b.x1).toBeLessThan(IN.caseX);
-      expect(b.y0).toBeGreaterThanOrEqual(p.face.y0);
-      expect(b.y1).toBeLessThanOrEqual(p.face.y1);
-    }
-    expect(p.isp.y0).toBeGreaterThan(p.mains.y1);
-    // (one column: the plates' middles are on the same line)
-    expect((p.isp.x0 + p.isp.x1) / 2).toBeCloseTo((p.mains.x0 + p.mains.x1) / 2, 5);
+    expect.hasAssertions();
+    assert_puts_both_plates_on_the_wall_west_of_the_case_on();
   });
 
   it("makes the plates the size of real ones: a Swiss triple socket 91 x 91 mm, the ISP's plate 80 x 80", () => {
@@ -106,24 +273,8 @@ describe('wallPlan', () => {
   });
 
   it("lays the plate's three sockets in a pinwheel round its screw, on its face, 120 degrees apart", () => {
-    const [x, y, z] = p.mains.screw,
-      s = p.mains.sockets;
-    expect(x).toBeCloseTo((p.mains.x0 + p.mains.x1) / 2, 5);
-    expect(y).toBeCloseTo((p.mains.y0 + p.mains.y1) / 2, 5);
-    expect(z).toBe(p.mains.z);
-    const turns = s.map((k) => Math.atan2(k.at[1] - y, k.at[0] - x));
-    for (const k of s) {
-      expect(k.at[2]).toBe(p.mains.z);
-      expect(Math.hypot(k.at[0] - x, k.at[1] - y) / studiowall3d.MM).toBeCloseTo(17.35, 2);
-    }
-    // (the top one, the lower left one, the lower right one: a plug's roll is the angle of its socket's outer side from straight up)
-    expect(turns[0]).toBeCloseTo(Math.PI / 2, 5);
-    expect(turns[1]).toBeCloseTo((210 * Math.PI) / 180 - 2 * Math.PI, 5);
-    expect(turns[2]).toBeCloseTo((330 * Math.PI) / 180 - 2 * Math.PI, 5);
-    const wrap = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
-    for (const [i, k] of s.entries()) {
-      expect(wrap(k.roll - (must(turns[i]) - Math.PI / 2))).toBeCloseTo(0, 5);
-    }
+    expect.hasAssertions();
+    assert_lays_the_plate_s_three_sockets_in_a_pinwheel_rou();
   });
 
   it("seats the monitor's plug in the lower left socket and the PC's in the lower right one, the top one free, each turned as its socket", () => {
@@ -161,42 +312,18 @@ describe('wallPlan', () => {
   });
 
   it("keeps the router between the ISP's plate and the case, with its jacks in a row, the first LAN east and the WAN west", () => {
-    expect(p.router.east).toBeLessThan(IN.caseX);
-    expect(p.router.jacks).toHaveLength(5);
-    for (let k = 1; k < 5; k++) {
-      expect(must(p.router.jacks[k])[0]).toBeLessThan(must(p.router.jacks[k - 1])[0]);
-      expect(must(p.router.jacks[k])[1]).toBe(must(p.router.jacks[0])[1]);
-    }
-    expect(p.router.lan).toBe(p.router.jacks[0]);
-    expect(p.router.wan).toBe(p.router.jacks[4]);
+    expect.hasAssertions();
+    assert_keeps_the_router_between_the_ISP_s_plate_and_the();
   });
 
   it("puts the jacks of every tier inside its router, in the same place, and the router clear of the ISP's plate and of the mains plate", () => {
-    for (const t of studiowall3d.ROUTER_TIERS) {
-      const s = must(studiowall3d.ROUTER_SIZE[t]),
-        box = studiowall3d.routerSolid(p, t);
-      for (const j of p.router.jacks) {
-        expect(j[0] - 160, `tier ${t}`).toBeGreaterThan(p.router.east - s.w);
-        expect(j[0] + 160, `tier ${t}`).toBeLessThan(p.router.east);
-        expect(j[1], `tier ${t}`).toBeGreaterThan(p.router.base);
-        expect(j[1], `tier ${t}`).toBeLessThan(p.router.base + s.h);
-      }
-      expect(box.min[0], `tier ${t}`).toBeGreaterThan(p.isp.x1);
-      expect(box.min[1], `tier ${t}`).toBeGreaterThan(p.mains.y1);
-      expect(box.max[2], `tier ${t}`).toBeLessThan(p.router.front);
-    }
+    expect.hasAssertions();
+    assert_puts_the_jacks_of_every_tier_inside_its_router_i();
   });
 
   it('frames the plates and the router, and moves its key with the case', () => {
-    for (const x of [p.mains.x0, p.isp.x0, p.router.east]) {
-      expect(x).toBeGreaterThanOrEqual(p.frame.x0);
-    }
-    expect(p.frame.x1).toBeGreaterThanOrEqual(p.router.east);
-    expect(p.frame.y0).toBeLessThanOrEqual(p.mains.y0);
-    expect(p.frame.y1).toBeGreaterThanOrEqual(p.isp.y1);
-    expect(studiowall3d.wallPlan(IN).key).toBe(p.key);
-    expect(studiowall3d.wallPlan({ ...IN, caseX: IN.caseX - 500 }).key).not.toBe(p.key);
-    expect(studiowall3d.wallPlan({ ...IN, caseTop: IN.caseTop + 500 }).key).not.toBe(p.key);
+    expect.hasAssertions();
+    assert_frames_the_plates_and_the_router_and_moves_its_k();
   });
 });
 
@@ -205,29 +332,15 @@ describe("the tiers of the game's ids", () => {
     expect(studiowall3d.routerTier('router1')).toBe(1);
     expect(studiowall3d.routerTier('router4')).toBe(4);
     expect(studiowall3d.ispTier('isp5')).toBe(5);
-    expect(studiowall3d.routerTier(null)).toBeNull();
-    expect(studiowall3d.routerTier(undefined)).toBeNull();
-    expect(studiowall3d.routerTier('isp2')).toBeNull();
+    expect([null, undefined, 'isp2'].map((id) => studiowall3d.routerTier(id))).toStrictEqual([null, null, null]);
     expect(studiowall3d.ispTier('router2')).toBeNull();
   });
 });
 
 describe('StudioWall', () => {
   it('builds with a router of every tier, and with none, all of it west of the case', () => {
-    for (const router of [null, ...studiowall3d.ROUTER_TIERS]) {
-      const w = new studiowall3d.StudioWall(p, { router, isp: 2 });
-      expect(w.root.children.length, `router ${router}`).toBeGreaterThan(3);
-      const r = w.root.getObjectByName('wall.router');
-      expect(Boolean(r), `router ${router}`).toBe(router !== null);
-      if (r) {
-        const box = new three.Box3().setFromObject(r);
-        expect(box.isEmpty(), `router ${router}`).toBe(false);
-        expect(box.max.x, `router ${router}`).toBeLessThan(IN.caseX);
-        expect(box.min.x, `router ${router}`).toBeGreaterThan(p.isp.x1);
-        expect(box.max.z, `router ${router}`).toBeLessThanOrEqual(p.router.front + 40);
-      }
-      w.dispose();
-    }
+    expect.hasAssertions();
+    assert_builds_with_a_router_of_every_tier_and_with_none();
   });
 
   it("builds the mains plate as a Swiss triple socket: a 91 mm frame standing off the wall to the plan's face", () => {
@@ -247,23 +360,8 @@ describe('StudioWall', () => {
   });
 
   it('builds the router that is set: another tier is another router, none takes it away', () => {
-    const w = new studiowall3d.StudioWall(p, { router: 1, isp: 1 });
-    const size = (): number[] | null => {
-      const r = w.root.getObjectByName('wall.router');
-      if (!r) {
-        return null;
-      }
-      const b = new three.Box3().setFromObject(r);
-      return [b.min.x, b.max.x, b.min.y, b.max.y];
-    };
-    const t1 = must(size());
-    w.set({ router: 4, isp: 1 });
-    expect(size()).not.toStrictEqual(t1);
-    w.set({ router: null, isp: 1 });
-    expect(size()).toBeNull();
-    w.set({ router: 1, isp: 1 });
-    expect(size()).toStrictEqual(t1);
-    w.dispose();
+    expect.hasAssertions();
+    assert_builds_the_router_that_is_set_another_tier_is_an();
   });
 
   it('lays the patch lead from the jack to the router only when both are there', () => {
@@ -286,35 +384,12 @@ describe('StudioWall', () => {
   });
 
   it('ends the patch lead as its ports do: an RJ45 plug at each of two jacks, an adapter in a QSFP+ cage that faces a jack, a direct attach lead between two cages', () => {
-    const w = new studiowall3d.StudioWall(p, { router: 2, isp: 2 });
-    // (the plugs of an end, the plug itself first: the lead's first end is at the ISP's plate, its second at the router's WAN port)
-    const kinds = (o: three.Object3D): string[] => {
-      const t: string[] = [];
-      o.traverse((x) => {
-        if (typeof x.userData['plug'] === 'string') {
-          t.push(x.userData['plug']);
-        }
-      });
-      return t;
-    };
-    const ends = (): string[][] => {
-      const lead = must(w.root.getObjectByName('wall.lead'));
-      return [kinds(must(lead.children[0])), kinds(must(lead.children[1]))];
-    };
-    expect(ends()).toStrictEqual([['rj45'], ['rj45']]);
-    // the edge router's WAN port is a QSFP+ cage: a plan on the plate's RJ45 jack reaches it through an adapter
-    w.set({ router: 4, isp: 2 });
-    expect(ends()).toStrictEqual([['rj45'], ['adapter', 'rj45']]);
-    // the backbone plan arrives on a QSFP+ cage of the plate: a direct attach lead to the edge router, and an adapter at the plate for another tier's RJ45 jack
-    w.set({ router: 4, isp: 5 });
-    expect(ends()).toStrictEqual([['qsfp'], ['qsfp']]);
-    w.set({ router: 3, isp: 5 });
-    expect(ends()).toStrictEqual([['adapter', 'rj45'], ['rj45']]);
-    w.dispose();
+    expect.hasAssertions();
+    assert_ends_the_patch_lead_as_its_ports_do_an_RJ45_plug();
   });
 
   it("gives the ISP's plate the port its plan arrives on: an RJ45 jack, a QSFP+ cage for the plan copper cannot carry", () => {
-    expect([null, 0, 1, 2, 3, 4].map(studiowall3d.ispPort)).toStrictEqual([
+    expect([null, 0, 1, 2, 3, 4].map((t) => studiowall3d.ispPort(t))).toStrictEqual([
       'rj45',
       'rj45',
       'rj45',
@@ -347,25 +422,13 @@ describe('StudioWall', () => {
   });
 
   it("lights as many lamps on the ISP's plate as the plan's tier", () => {
-    const w = new studiowall3d.StudioWall(p, { router: 3, isp: 1 });
-    for (const t of [1, 3, 5]) {
-      w.set({ router: 3, isp: t });
-      expect(lamps(w.root), `plan ${t}`).toBe(t);
-    }
-    w.set({ router: 3, isp: null });
-    expect(lamps(w.root)).toBe(0);
-    w.dispose();
+    expect.hasAssertions();
+    assert_lights_as_many_lamps_on_the_ISP_s_plate_as_the_p();
   });
 
   it('builds the router with every jack light out: nothing but the levels it is given lights one', () => {
-    for (const router of studiowall3d.ROUTER_TIERS) {
-      const a = new studiowall3d.StudioWall(p, { router, isp: 3 }),
-        b = new studiowall3d.StudioWall(p, { router, isp: 3 });
-      b.lights(jackleds.DARK);
-      expect(light(a.root), `router ${router}`).toBeCloseTo(light(b.root), 9);
-      a.dispose();
-      b.dispose();
-    }
+    expect.hasAssertions();
+    assert_builds_the_router_with_every_jack_light_out_noth();
   });
 
   it('lights the first LAN jack and the WAN jack from the levels it is given, each light by itself, and no other jack', () => {

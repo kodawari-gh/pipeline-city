@@ -56,8 +56,8 @@ const input = (k: string): accelcopper.AccelCopperIn => {
 };
 
 describe("a graphics card's and an AI card's copper", () => {
-  for (const k of Object.keys(CARDS)) {
-    it(`${k}: every receive line goes from its finger to the die's north edge, inside the package`, () => {
+  describe.each(Object.keys(CARDS))('%s', (k) => {
+    const assert_x_every_receive_line_goes_from_its_finger_to_the = (): void => {
       const a = input(k),
         cu = accelcopper.accelCopper(a),
         f = accelcopper.hostFingers(a.tab);
@@ -70,9 +70,13 @@ describe("a graphics card's and an AI card's copper", () => {
         expect(end[0]).toBeLessThan(a.core.x + a.core.w);
         expect(end[1]).toBeGreaterThan(a.core.y);
       }
-    });
+    };
 
-    it(`${k}: no two runs of different nets touch (their clearance holds), at 0 or 45 degrees`, () => {
+    it(`${k}: every receive line goes from its finger to the die's north edge, inside the package`, () => {
+      expect.hasAssertions();
+      assert_x_every_receive_line_goes_from_its_finger_to_the();
+    });
+    const assert_x_no_two_runs_of_different_nets_touch_their_clearance = (): void => {
       const cu = accelcopper.accelCopper(input(k)),
         t = cu.traces;
       for (const r of t) {
@@ -98,9 +102,14 @@ describe("a graphics card's and an AI card's copper", () => {
           }
         }
       }
+    };
+
+    it(`${k}: no two runs of different nets touch (their clearance holds), at 0 or 45 degrees`, () => {
+      expect.hasAssertions();
+      assert_x_no_two_runs_of_different_nets_touch_their_clearance();
     });
 
-    it(`${k}: the lit lanes are the receive lines and the memory bus, in the card's band`, () => {
+    const assert_x_the_lit_lanes_are_the_receive_lines_and_the_me = (): void => {
       const cu = accelcopper.accelCopper(input(k)),
         l = accelcopper.accelLanes(cu, 2, input(k).core.x - 10);
       expect(l.host).toHaveLength(cu.host.length);
@@ -111,6 +120,11 @@ describe("a graphics card's and an AI card's copper", () => {
           expect(p[0]).toBeGreaterThan(2 * 4000 - 3000);
         }
       }
+    };
+
+    it(`${k}: the lit lanes are the receive lines and the memory bus, in the card's band`, () => {
+      expect.hasAssertions();
+      assert_x_the_lit_lanes_are_the_receive_lines_and_the_me();
     });
-  }
+  });
 });

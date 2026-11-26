@@ -38,11 +38,11 @@ const owned = (o: three.Object3D) => {
     if (!isMesh(c)) {
       return;
     }
-    const m = asMesh(c).material as three.Material | three.Material[] | undefined;
-    for (const x of Array.isArray(m) ? m : m ? [m] : []) {
+    const m: three.Material | three.Material[] = asMesh(c).material;
+    for (const x of [m].flat()) {
       mats.add(x);
       for (const v of Object.values(x)) {
-        if ((v as three.Texture | null)?.isTexture) {
+        if (isTexture(v)) {
           texs.add(asTexture(v));
         }
       }

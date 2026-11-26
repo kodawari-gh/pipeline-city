@@ -1,6 +1,6 @@
 // The case shell's material count (docs/3D_STYLE.md "Asset standard" §2, ASR1). Materials that look the same must be one material: a
 // material costs a program bind and a uniform refresh each frame. The ceiling per case is today's count; the standard's target is 16.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { MeshStandardMaterial, Mesh, Material } from 'three';
 
 import { builtinTheme } from '@/core/render/theme';
@@ -23,6 +23,14 @@ function or<T>(value: T, fallback: NonNullable<T>): NonNullable<T> {
   }
   return value;
 }
+
+/** The part of `node:process` this test uses: the dump switch and the place the counts go. */
+interface NodeProcess {
+  env: Record<string, string | undefined>;
+  stdout: { write: (text: string) => boolean };
+}
+
+const { env, stdout } = await vi.importActual<NodeProcess>('node:process');
 
 const isMeshStandardMaterial = (o: unknown): o is MeshStandardMaterial =>
   typeof o === 'object' && o !== null && 'isMeshStandardMaterial' in o && o.isMeshStandardMaterial === true;
@@ -81,8 +89,8 @@ export function caseMaterials(tier: number): { objects: number; looks: number; m
     }
   });
   // CASEMAT_DUMP=1 lists each look (to find the ones to fold)
-  if ((globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env['CASEMAT_DUMP'] === '1') {
-    console.log([...looks].sort().join('\n'));
+  if (env['CASEMAT_DUMP'] === '1') {
+    stdout.write(`${[...looks].toSorted().join('\n')}\n`);
   }
   return { objects: objects.size, looks: looks.size, meshes };
 }
@@ -90,14 +98,19 @@ export function caseMaterials(tier: number): { objects: number; looks: number; m
 /** The cap of distinct looks per case (Mini, Micro, Mid, Full): 16 at LOD0 (§2). A new look needs a reason. */
 const CEILING = [16, 16, 16, 16];
 
+function assert_stay_under_the_ceiling_of_distinct_looks(): void {
+  for (const t of [0, 1, 2, 3]) {
+    const c = caseMaterials(t);
+    stdout.write(
+      `case ${t} (${CASE_KIND[t]}): ${c.meshes} meshes, ${c.objects} material objects, ${c.looks} distinct looks\n`,
+    );
+    expect(c.looks).toBeLessThanOrEqual(must(CEILING[t]));
+  }
+}
+
 describe("the case shell's materials", () => {
   it('stay under the ceiling of distinct looks', () => {
-    for (const t of [0, 1, 2, 3]) {
-      const c = caseMaterials(t);
-      console.log(
-        `case ${t} (${CASE_KIND[t]}): ${c.meshes} meshes, ${c.objects} material objects, ${c.looks} distinct looks`,
-      );
-      expect(c.looks).toBeLessThanOrEqual(must(CEILING[t]));
-    }
+    expect.hasAssertions();
+    assert_stay_under_the_ceiling_of_distinct_looks();
   });
 });

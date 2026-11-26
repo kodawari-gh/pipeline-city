@@ -1,10 +1,17 @@
 // A fan at its three detail levels (LOD-01, docs/render/lod.md): fewer triangles and draws at each, and an outline that stays within one
 // screen pixel of the full part's at the size where the level takes over. No WebGL: the outline is read from the vertices.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as three from 'three';
 import { lowOf, standIns } from '@/core/render/three/merge';
 import * as fans3d from './fans3d';
 import { quietCanvas } from './testutil';
+
+/** The part of `node:process` this test uses: the place the counts go. */
+interface NodeProcess {
+  stdout: { write: (text: string) => boolean };
+}
+
+const { stdout } = await vi.importActual<NodeProcess>('node:process');
 
 /** Returns `value`, or fails the test with a clear message when it is missing. */
 function must<T>(value: T): NonNullable<T> {
@@ -47,7 +54,7 @@ const census = (level: fans3d.FanLevel, tier = 0) => {
 };
 /** The outline seen along z, as its reach in 180 directions (the support function of the vertices), in units. */
 function reach(geos: readonly { g: three.BufferGeometry; m: three.Mesh }[]): number[] {
-  const out = new Array<number>(180).fill(-Infinity),
+  const out = Array.from({ length: 180 }, () => -Infinity),
     v = new three.Vector3();
   for (const { g, m } of geos) {
     const p = g.getAttribute('position');
@@ -68,17 +75,40 @@ const outline = (level: fans3d.FanLevel): number[] => reach(census(level).all.ma
 /** Screen pixels per unit when the fan's bbox diagonal (face on) is `px` pixels. */
 const scaleAt = (px: number): number => px / (D * Math.SQRT2);
 
+function assert_keeps_its_outline_within_1_px_of_the_full_part_a(): void {
+  const full = outline(0);
+  for (const level of [1, 2] as const) {
+    const low = outline(level),
+      k = scaleAt(must(fans3d.FAN_LOD_PX[level - 1]));
+    const err = Math.max(...full.map((r, i) => Math.abs(r - must(low[i])))) * k;
+    stdout.write(`level ${level} at ${fans3d.FAN_LOD_PX[level - 1]} px: outline error ${err.toFixed(2)} px\n`);
+    expect(err).toBeLessThanOrEqual(1);
+  }
+}
+
+function assert_keeps_its_round_wall_within_1_px_of_a_true_circle(): void {
+  // (the wall is under the flange in the outline above: a polygon of n sides falls short of its circle by r (1 - cos(pi / n)))
+  const sides = [32, 24, 16],
+    wall = D * 0.49;
+  for (const level of [1, 2] as const) {
+    expect(
+      wall * (1 - Math.cos(Math.PI / must(sides[level]))) * scaleAt(must(fans3d.FAN_LOD_PX[level - 1])),
+    ).toBeLessThanOrEqual(1);
+  }
+}
+
 describe('a fan at three detail levels', () => {
   it('takes its sides from the level: 32, 24, 16 for a 120 mm fan, never under 8', () => {
-    expect([0, 1, 2].map((l) => fans3d.fanLodSides(32, l as fans3d.FanLevel))).toStrictEqual([32, 24, 16]);
+    const levels: fans3d.FanLevel[] = [0, 1, 2];
+    expect(levels.map((l) => fans3d.fanLodSides(32, l))).toStrictEqual([32, 24, 16]);
     expect(fans3d.fanLodSides(16, 2)).toBe(8);
     expect(fans3d.fanLodSides(8, 2)).toBe(8);
   });
 
   it('has fewer triangles at each level, and its still parts in one or a few draws', () => {
     const [a, b, c] = [census(0), census(1), census(2)];
-    console.log(
-      `fan 120 mm: ${a.triangles} / ${b.triangles} / ${c.triangles} triangles; still meshes ${a.still.length} / ${b.still.length} / ${c.still.length}`,
+    stdout.write(
+      `fan 120 mm: ${a.triangles} / ${b.triangles} / ${c.triangles} triangles; still meshes ${a.still.length} / ${b.still.length} / ${c.still.length}\n`,
     );
     expect(b.triangles).toBeLessThan(a.triangles * 0.6);
     expect(c.triangles).toBeLessThan(b.triangles * 0.75);
@@ -89,25 +119,13 @@ describe('a fan at three detail levels', () => {
   });
 
   it('keeps its outline within 1 px of the full part at each switch size', () => {
-    const full = outline(0);
-    for (const level of [1, 2] as const) {
-      const low = outline(level),
-        k = scaleAt(must(fans3d.FAN_LOD_PX[level - 1]));
-      const err = Math.max(...full.map((r, i) => Math.abs(r - must(low[i])))) * k;
-      console.log(`level ${level} at ${fans3d.FAN_LOD_PX[level - 1]} px: outline error ${err.toFixed(2)} px`);
-      expect(err).toBeLessThanOrEqual(1);
-    }
+    expect.hasAssertions();
+    assert_keeps_its_outline_within_1_px_of_the_full_part_a();
   }, 20_000); // a long run: the default 5 s timed out when the whole suite ran in CI
 
   it('keeps its round wall within 1 px of a true circle at each switch size', () => {
-    // (the wall is under the flange in the outline above: a polygon of n sides falls short of its circle by r (1 - cos(pi / n)))
-    const sides = [32, 24, 16],
-      wall = D * 0.49;
-    for (const level of [1, 2] as const) {
-      expect(
-        wall * (1 - Math.cos(Math.PI / must(sides[level]))) * scaleAt(must(fans3d.FAN_LOD_PX[level - 1])),
-      ).toBeLessThanOrEqual(1);
-    }
+    expect.hasAssertions();
+    assert_keeps_its_round_wall_within_1_px_of_a_true_circle();
   });
 
   it('gives the overview stand-in its level 1 housing', () => {

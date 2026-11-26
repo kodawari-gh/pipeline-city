@@ -57,30 +57,115 @@ function running(more: ReturnType<typeof dev>[] = [], over: Partial<Snapshot> = 
   });
 }
 
+function assert_the_case_air_is_the_case_inside_tray_to_glass_wi(): void {
+  for (let a = 0; a < 3; a++) {
+    expect(must(d.max[a]) - must(d.min[a])).toBeGreaterThan(1000);
+  }
+}
+
+function assert_a_front_fan_blows_in_at_the_east_wall_the_top_an(): void {
+  const plan = planMod.airPlan(running(), bodies());
+  const front = plan.fans.filter((f) => f.kind === 'wall' && f.wall === 1),
+    top = plan.fans.filter((f) => f.kind === 'wall' && f.wall === 3),
+    rear = plan.fans.filter((f) => f.kind === 'wall' && f.wall === 0);
+  const mounts = fanMounts();
+  expect(front).toHaveLength(mounts.filter((m) => m.side === 'front').length);
+  expect(top).toHaveLength(mounts.filter((m) => m.side === 'top').length);
+  expect(rear).toHaveLength(mounts.filter((m) => m.side === 'rear').length);
+  for (const f of front) {
+    expect(f.kind === 'wall' && f.into).toBe(true);
+  }
+  for (const f of [...top, ...rear]) {
+    expect(f.kind === 'wall' && f.into).toBe(false);
+  }
+  expect(front.every((f) => f.bank.startsWith('case:front'))).toBe(true);
+  expect(front.every((f) => f.q > 0 && f.kind === 'wall' && f.r > 0)).toBe(true);
+}
+
+function assert_the_openings_the_front_and_the_top_are_meshes_th(): void {
+  const plan = planMod.airPlan(running(), bodies());
+  expect(plan.vents.map((v) => v.id)).toStrictEqual(expect.arrayContaining(['slots', 'front', 'top']));
+  const none = planMod.airPlan(running([], { devices: [dev({ id: 'cpu', kind: 'cpu', slot: 'cpu0' })] }), bodies());
+  expect(none.vents.some((v) => v.id === 'rear')).toBe(true);
+  for (const v of none.vents) {
+    expect(v.open).toBeGreaterThan(0);
+    expect(v.open).toBeLessThanOrEqual(1);
+  }
+}
+
+function assert_a_tower_cooler_is_a_block_of_fins_with_its_fans_(): void {
+  const tower = dev({ id: 'tw', kind: 'cooler', spec: 'cooler1', slot: 'cooler0' });
+  const fans = [
+    dev({ id: 'tf0', kind: 'fan', spec: 'fan120', slot: 'cooler0.fan0' }),
+    dev({ id: 'tf1', kind: 'fan', spec: 'fan120', slot: 'cooler0.fan1' }),
+  ];
+  const gpu = dev({ id: 'gp', kind: 'gpu', spec: 'gpu2', slot: 'pcie0', powerW: 60 });
+  const card: planMod.AirBody = {
+    id: 'gp',
+    kind: 'gpu',
+    slot: 'pcie0',
+    min: [-3000, -1500, BOARD_Z + 300],
+    max: [1500, -300, BOARD_Z + 2800],
+  };
+  const plan = planMod.airPlan(
+    running([tower, ...fans, gpu]),
+    bodies([{ id: 'tw', kind: 'cooler', min: [-700, -1100, BOARD_Z], max: [700, 1700, BOARD_Z + 2700] }, card]),
+  );
+  const inner = plan.fans.filter((f) => f.kind === 'inner');
+  const cooler = inner.filter((f) => f.bank === 'cooler'),
+    cards = inner.filter((f) => f.bank === 'gpu:pcie0');
+  expect(cooler).toHaveLength(2);
+  for (const f of cooler) {
+    expect(f.kind === 'inner' && f.axis === 0 && f.dir === -1).toBe(true);
+  }
+  expect(cards.length).toBeGreaterThan(0);
+  for (const f of cards) {
+    expect(f.kind === 'inner' && f.axis === 1 && f.dir === 1).toBe(true);
+    expect(f.kind === 'inner' && f.at[0]).toBeGreaterThan(card.min[0]);
+    expect(f.kind === 'inner' && f.at[0]).toBeLessThan(card.max[0]);
+  }
+  const fins = must(plan.boxes.find((b) => b.id === 'tw'));
+  expect(fins.k[2]).toBeLessThan(0.1);
+  expect(fins.k[0]).toBeGreaterThan(0.5);
+}
+
+function assert_a_neural_card_is_a_block_that_heats_the_air_but_(): void {
+  const npu = dev({ id: 'np', kind: 'npu', spec: 'npu2', slot: 'pcie1', powerW: 30, tempC: 60 });
+  const body: planMod.AirBody = {
+    id: 'np',
+    kind: 'npu',
+    slot: 'pcie1',
+    min: [-3000, -1500, BOARD_Z + 300],
+    max: [1500, -300, BOARD_Z + 2800],
+  };
+  const s = running([npu]),
+    plan = planMod.airPlan(s, bodies([body]));
+  expect(plan.fans.some((f) => f.bank === 'gpu:pcie1')).toBe(false);
+  expect(plan.boxes.some((b) => b.id === 'np')).toBe(true);
+  expect(planMod.airParts(s, plan).some((p) => p.id === 'np' && p.ua > 0)).toBe(true);
+}
+
+function assert_the_key_changes_with_a_part_fitted_and_with_a_bo(): void {
+  const a = running(),
+    b = bodies();
+  expect(planMod.planKey(a, b)).toBe(planMod.planKey(running(), bodies()));
+  const fitted = running([dev({ id: 'x', kind: 'ram', slot: 'dimm0' })]);
+  expect(planMod.planKey(fitted, b)).not.toBe(planMod.planKey(a, b));
+  const moved = bodies(),
+    cage = must(moved.find((x) => x.id === 'cage'));
+  cage.min = [cage.min[0] - 400, cage.min[1], cage.min[2]];
+  expect(planMod.planKey(a, moved)).not.toBe(planMod.planKey(a, b));
+}
+
 describe('the airflow plan', () => {
   it('the case air is the case inside, tray to glass, with positive size', () => {
-    for (let a = 0; a < 3; a++) {
-      expect(must(d.max[a]) - must(d.min[a])).toBeGreaterThan(1000);
-    }
+    expect.hasAssertions();
+    assert_the_case_air_is_the_case_inside_tray_to_glass_wi();
   });
 
   it('a front fan blows in at the east wall, the top and rear fans draw out through the top and the west wall', () => {
-    const plan = planMod.airPlan(running(), bodies());
-    const front = plan.fans.filter((f) => f.kind === 'wall' && f.wall === 1),
-      top = plan.fans.filter((f) => f.kind === 'wall' && f.wall === 3),
-      rear = plan.fans.filter((f) => f.kind === 'wall' && f.wall === 0);
-    const mounts = fanMounts();
-    expect(front).toHaveLength(mounts.filter((m) => m.side === 'front').length);
-    expect(top).toHaveLength(mounts.filter((m) => m.side === 'top').length);
-    expect(rear).toHaveLength(mounts.filter((m) => m.side === 'rear').length);
-    for (const f of front) {
-      expect(f.kind === 'wall' && f.into).toBe(true);
-    }
-    for (const f of [...top, ...rear]) {
-      expect(f.kind === 'wall' && f.into).toBe(false);
-    }
-    expect(front.every((f) => f.bank.startsWith('case:front'))).toBe(true);
-    expect(front.every((f) => f.q > 0 && f.kind === 'wall' && f.r > 0)).toBe(true);
+    expect.hasAssertions();
+    assert_a_front_fan_blows_in_at_the_east_wall_the_top_an();
   });
 
   it("the fans of the radiator side are published as the radiator's, and a mount with no fan has none", () => {
@@ -95,14 +180,8 @@ describe('the airflow plan', () => {
   });
 
   it('the openings: the front and the top are meshes, the slots leak, the rear is a grille only where no fan is fitted', () => {
-    const plan = planMod.airPlan(running(), bodies());
-    expect(plan.vents.map((v) => v.id)).toStrictEqual(expect.arrayContaining(['slots', 'front', 'top']));
-    const none = planMod.airPlan(running([], { devices: [dev({ id: 'cpu', kind: 'cpu', slot: 'cpu0' })] }), bodies());
-    expect(none.vents.some((v) => v.id === 'rear')).toBe(true);
-    for (const v of none.vents) {
-      expect(v.open).toBeGreaterThan(0);
-      expect(v.open).toBeLessThanOrEqual(1);
-    }
+    expect.hasAssertions();
+    assert_the_openings_the_front_and_the_top_are_meshes_th();
   });
 
   it('the bodies become boxes by their kind: the board and the basement stop the air, the drives and the sticks let some through', () => {
@@ -115,55 +194,13 @@ describe('the airflow plan', () => {
   });
 
   it('a tower cooler is a block of fins with its fans at its two faces, blowing toward the rear; a card has fans that blow up into it', () => {
-    const tower = dev({ id: 'tw', kind: 'cooler', spec: 'cooler1', slot: 'cooler0' });
-    const fans = [
-      dev({ id: 'tf0', kind: 'fan', spec: 'fan120', slot: 'cooler0.fan0' }),
-      dev({ id: 'tf1', kind: 'fan', spec: 'fan120', slot: 'cooler0.fan1' }),
-    ];
-    const gpu = dev({ id: 'gp', kind: 'gpu', spec: 'gpu2', slot: 'pcie0', powerW: 60 });
-    const card: planMod.AirBody = {
-      id: 'gp',
-      kind: 'gpu',
-      slot: 'pcie0',
-      min: [-3000, -1500, BOARD_Z + 300],
-      max: [1500, -300, BOARD_Z + 2800],
-    };
-    const plan = planMod.airPlan(
-      running([tower, ...fans, gpu]),
-      bodies([{ id: 'tw', kind: 'cooler', min: [-700, -1100, BOARD_Z], max: [700, 1700, BOARD_Z + 2700] }, card]),
-    );
-    const inner = plan.fans.filter((f) => f.kind === 'inner');
-    const cooler = inner.filter((f) => f.bank === 'cooler'),
-      cards = inner.filter((f) => f.bank === 'gpu:pcie0');
-    expect(cooler).toHaveLength(2);
-    for (const f of cooler) {
-      expect(f.kind === 'inner' && f.axis === 0 && f.dir === -1).toBe(true);
-    }
-    expect(cards.length).toBeGreaterThan(0);
-    for (const f of cards) {
-      expect(f.kind === 'inner' && f.axis === 1 && f.dir === 1).toBe(true);
-      expect(f.kind === 'inner' && f.at[0]).toBeGreaterThan(card.min[0]);
-      expect(f.kind === 'inner' && f.at[0]).toBeLessThan(card.max[0]);
-    }
-    const fins = must(plan.boxes.find((b) => b.id === 'tw'));
-    expect(fins.k[2]).toBeLessThan(0.1);
-    expect(fins.k[0]).toBeGreaterThan(0.5);
+    expect.hasAssertions();
+    assert_a_tower_cooler_is_a_block_of_fins_with_its_fans_();
   });
 
   it('a neural card is a block that heats the air but has no fan of its own', () => {
-    const npu = dev({ id: 'np', kind: 'npu', spec: 'npu2', slot: 'pcie1', powerW: 30, tempC: 60 });
-    const body: planMod.AirBody = {
-      id: 'np',
-      kind: 'npu',
-      slot: 'pcie1',
-      min: [-3000, -1500, BOARD_Z + 300],
-      max: [1500, -300, BOARD_Z + 2800],
-    };
-    const s = running([npu]),
-      plan = planMod.airPlan(s, bodies([body]));
-    expect(plan.fans.some((f) => f.bank === 'gpu:pcie1')).toBe(false);
-    expect(plan.boxes.some((b) => b.id === 'np')).toBe(true);
-    expect(planMod.airParts(s, plan).some((p) => p.id === 'np' && p.ua > 0)).toBe(true);
+    expect.hasAssertions();
+    assert_a_neural_card_is_a_block_that_heats_the_air_but_();
   });
 
   it('a pump head is solid and a stock heatsink blocks most of the air', () => {
@@ -181,15 +218,8 @@ describe('the airflow plan', () => {
   });
 
   it('the key changes with a part fitted and with a box that moves, and not otherwise', () => {
-    const a = running(),
-      b = bodies();
-    expect(planMod.planKey(a, b)).toBe(planMod.planKey(running(), bodies()));
-    const fitted = running([dev({ id: 'x', kind: 'ram', slot: 'dimm0' })]);
-    expect(planMod.planKey(fitted, b)).not.toBe(planMod.planKey(a, b));
-    const moved = bodies().map((x) =>
-      x.id === 'cage' ? { ...x, min: [x.min[0] - 400, x.min[1], x.min[2]] as V3 } : x,
-    );
-    expect(planMod.planKey(a, moved)).not.toBe(planMod.planKey(a, b));
+    expect.hasAssertions();
+    assert_the_key_changes_with_a_part_fitted_and_with_a_bo();
   });
 });
 
@@ -214,7 +244,7 @@ describe('the parts that heat the air', () => {
     expect(part.ua).toBeCloseTo(70 / (part.tempC - air), 3);
   });
 
-  it('a machine that is off moves no heat', () => {
+  function assert_a_machine_that_is_off_moves_no_heat(): void {
     const s = running(
       [tower],
       { powered: false, power: { vrmLossW: 0, totalW: 0, budgetW: 250, psuFactor: 1, off: true, tripped: false } },
@@ -223,6 +253,11 @@ describe('the parts that heat the air', () => {
     for (const p of planMod.airParts(s, planMod.airPlan(s, bodies([towerBody])))) {
       expect(p.ua).toBe(0);
     }
+  }
+
+  it('a machine that is off moves no heat', () => {
+    expect.hasAssertions();
+    assert_a_machine_that_is_off_moves_no_heat();
   });
 
   it('a liquid cooler has no fins: its heat goes into the coolant, not into the air at the pump', () => {
@@ -273,7 +308,7 @@ describe('the power supply in the air', () => {
   const psu = dev({ id: 'ps', kind: 'psu', spec: 'psu2', slot: 'atx-plus', tempC: 25 }),
     plain = dev({ id: 'ps', kind: 'psu', spec: 'psu1', slot: 'atx', tempC: 25 });
 
-  it('a supply fitted has a bay in the basement with its fan on the floor and its opening in the rear wall; none fitted, no bay', () => {
+  function assert_a_supply_fitted_has_a_bay_in_the_basement_with_i(): void {
     expect(planMod.psuBay(running())).toBeNull();
     const bay = must(planMod.psuBay(running([psu])));
     for (let a = 0; a < 3; a++) {
@@ -287,9 +322,13 @@ describe('the power supply in the air', () => {
     // a supply with no fan has the bay and no fan
     const plainBay = must(planMod.psuBay(running([plain])));
     expect(plainBay.fan).toBeNull();
-  });
+  }
 
-  it("the supply's unit is a part the air goes through, cut out of the basement; its fan blows up into it and its air leaves by the rear wall", () => {
+  it('a supply fitted has a bay in the basement with its fan on the floor and its opening in the rear wall; none fitted, no bay', () => {
+    expect.hasAssertions();
+    assert_a_supply_fitted_has_a_bay_in_the_basement_with_i();
+  });
+  function assert_the_supply_s_unit_is_a_part_the_air_goes_through(): void {
     const s = running([psu]),
       plan = planMod.airPlan(
         s,
@@ -323,10 +362,8 @@ describe('the power supply in the air', () => {
     // (the pieces of the basement left round it never cross it: its air is its own)
     const lap = (a: { min: V3; max: V3 }, b: { min: V3; max: V3 }): boolean =>
       [0, 1, 2].every((i) => Math.min(must(a.max[i]), must(b.max[i])) - Math.max(must(a.min[i]), must(b.min[i])) > 1);
-    for (const b of plan.boxes) {
-      if (b.id.startsWith('basement')) {
-        expect(lap(b, { min: bay.min, max: bay.max })).toBe(false);
-      }
+    for (const b of plan.boxes.filter((x) => x.id.startsWith('basement'))) {
+      expect(lap(b, { min: bay.min, max: bay.max })).toBe(false);
     }
     const fan = must(plan.fans.find((f) => f.bank === planMod.PSU_BANK));
     expect(fan).toBeDefined();
@@ -338,6 +375,11 @@ describe('the power supply in the air', () => {
     const p2 = planMod.airPlan(running([plain]), bodies());
     expect(p2.fans.some((f) => f.bank === planMod.PSU_BANK)).toBe(false);
     expect(p2.vents.some((v) => v.id === 'psu')).toBe(false);
+  }
+
+  it("the supply's unit is a part the air goes through, cut out of the basement; its fan blows up into it and its air leaves by the rear wall", () => {
+    expect.hasAssertions();
+    assert_the_supply_s_unit_is_a_part_the_air_goes_through();
   });
 
   it("the supply heats the air by what it loses, by the casing's temperature; a machine that is off moves none", () => {

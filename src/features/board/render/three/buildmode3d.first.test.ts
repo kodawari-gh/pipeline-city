@@ -2,8 +2,7 @@
 // drawn until they have, and `picture` (what `open` waits for) resolves with the first draw.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Group, PerspectiveCamera, Scene } from 'three';
-import { BuildStage } from './buildmode3d';
-import type * as init from '@/core/render/three/init';
+import { inside, newStage } from './buildmode3d.testkit';
 
 function createLens3D() {
   return {
@@ -14,7 +13,12 @@ function createLens3D() {
 }
 
 const { Post, Lens3D, rig } = vi.hoisted(() => {
-  const rigState = { ready: false, render: vi.fn(), started: vi.fn(), used: vi.fn() };
+  const rigState = {
+    ready: false,
+    render: vi.fn<() => void>(),
+    started: vi.fn<() => void>(),
+    used: vi.fn<() => void>(),
+  };
   function createPost() {
     return {
       render: rigState.render,
@@ -67,8 +71,8 @@ function must<T>(value: T): NonNullable<T> {
   return value;
 }
 
-vi.mock('@/core/render/three/init', async (orig) => {
-  const actual = await orig<typeof init>();
+vi.mock<Record<string, unknown>>(import('@/core/render/three/init'), async (orig) => {
+  const actual = await orig();
   return {
     ...actual,
     createRenderContext: () => ({
@@ -102,10 +106,10 @@ vi.mock('@/core/render/three/init', async (orig) => {
     }),
   };
 });
-vi.mock('@/core/render/three/post', () => ({
+vi.mock<Record<string, unknown>>(import('@/core/render/three/post'), () => ({
   Post,
 }));
-vi.mock('./lens3d', () => ({
+vi.mock<Record<string, unknown>>(import('./lens3d'), () => ({
   Lens3D,
 }));
 
@@ -133,18 +137,19 @@ describe('BuildStage first picture', () => {
     rig.render.mockClear();
     rig.started.mockClear();
     rig.used.mockClear();
-    clock = now = 1000;
+    now = 1000;
+    clock = now;
     vi.spyOn(performance, 'now').mockImplementation(() => clock);
     vi.stubGlobal('ResizeObserver', ResizeObserverStub);
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {
       /* no-op */
     });
-    const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
+    const s = newStage({
       clientWidth: 400,
       clientHeight: 800,
     });
-    s['_machine'] = {
+    const machine = {
       moving: false,
       doorOpen: false,
       frame: () => {
@@ -161,14 +166,17 @@ describe('BuildStage first picture', () => {
       },
       root: new Group(),
     };
-    s['_game'] = {};
-    s['snaps'] = {
-      of: () => ({}),
-      drop: () => {
-        /* no-op */
+    Object.assign(s, {
+      _machine: machine,
+      _game: {},
+      snaps: {
+        of: () => ({}),
+        drop: () => {
+          /* no-op */
+        },
       },
-    };
-    stage = s as unknown as Stage;
+    });
+    stage = inside<Stage>(s);
   });
   afterEach(() => {
     vi.restoreAllMocks();
@@ -177,9 +185,10 @@ describe('BuildStage first picture', () => {
 
   it('draws nothing while the programs link, starts them once, and draws when they have linked', async () => {
     let done = false;
-    void stage.picture.then(() => {
+    void (async (): Promise<void> => {
+      await stage.picture;
       done = true;
-    });
+    })();
     tick(30);
     expect(rig.render).not.toHaveBeenCalled();
     expect(rig.started).toHaveBeenCalledOnce();

@@ -1,7 +1,9 @@
 // The power lens's view of the parts (Machine3D.powerGlow, docs/render/power.md): a part glows by what it draws in the colour of its role, a fan or the module glows alone
 // (it has no skin in the other views), and the part's own look comes back.
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { Mesh, MeshStandardMaterial } from 'three';
+import { MeshLambertMaterial, MeshPhongMaterial, MeshStandardMaterial } from 'three';
+// oxlint-disable-next-line eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own
+import type { Mesh } from 'three';
 import { BakeQueue } from '@/core/render/three/artlod';
 import { findById, idOf } from '@/core/render/three/pick';
 import { roomGeo } from '@/features/room/render/shell/room';
@@ -25,6 +27,10 @@ function asMesh(o: unknown): Mesh {
   }
   return o;
 }
+
+/** Is `m` one material with an emissive colour (not a list of materials)? */
+const emissive = (m: Mesh['material']): m is MeshStandardMaterial | MeshLambertMaterial | MeshPhongMaterial =>
+  m instanceof MeshStandardMaterial || m instanceof MeshLambertMaterial || m instanceof MeshPhongMaterial;
 
 quietCanvas();
 
@@ -50,8 +56,8 @@ describe('Machine3D.powerGlow', () => {
       if (!isMesh(o)) {
         return;
       }
-      const mat = asMesh(o).material as MeshStandardMaterial | undefined;
-      if (!isMesh(o) || !mat || Array.isArray(mat) || !mat.emissive || idOf(o) !== tag) {
+      const mat = asMesh(o).material;
+      if (!emissive(mat) || idOf(o) !== tag) {
         return;
       }
       const k = mat.emissiveIntensity * Math.max(mat.emissive.r, mat.emissive.g, mat.emissive.b);
@@ -74,10 +80,11 @@ describe('Machine3D.powerGlow', () => {
     settle();
   };
 
-  it('lights a fan by what it draws, and one fan alone: the fans share no material in the lens', () => {
+  function assert_lights_a_fan_by_what_it_draws_and_one_fan_alone_(): void {
     const fans = ids('fan');
     expect(fans.length).toBeGreaterThanOrEqual(2);
-    const [a, b] = fans as [string, string];
+    const a = must(fans[0]),
+      b = must(fans[1]);
     lens([
       [a, 1],
       [b, 0.1],
@@ -91,10 +98,15 @@ describe('Machine3D.powerGlow', () => {
     }
     m.powerGlow(null);
     settle();
+  }
+
+  it('lights a fan by what it draws, and one fan alone: the fans share no material in the lens', () => {
+    expect.hasAssertions();
+    assert_lights_a_fan_by_what_it_draws_and_one_fan_alone_();
   });
 
   it("lights the module (the TPM) too, and gives the lens's glow back to nothing when it is off", () => {
-    const tpm = ids('tpm')[0];
+    const [tpm] = ids('tpm');
     expect(tpm).toBeDefined();
     expect(glow(must(tpm)).k).toBe(0);
     lens([[must(tpm), 0.6]]);
@@ -104,7 +116,7 @@ describe('Machine3D.powerGlow', () => {
     expect(glow(must(tpm)).k).toBeLessThan(1e-3);
   });
 
-  it("gives a fan materials of its own only while the lens shows (a material that no other part shares costs a draw each: the other views keep the build's), and puts the build's back", () => {
+  function assert_gives_a_fan_materials_of_its_own_only_while_the_(): void {
     const fan = must(ids('fan')[0]);
     const mats = (): unknown[] => {
       const out: unknown[] = [];
@@ -133,6 +145,11 @@ describe('Machine3D.powerGlow', () => {
     m.powerGlow(null);
     settle();
     expect(mats().every((x, i) => x === before[i])).toBe(true);
+  }
+
+  it("gives a fan materials of its own only while the lens shows (a material that no other part shares costs a draw each: the other views keep the build's), and puts the build's back", () => {
+    expect.hasAssertions();
+    assert_gives_a_fan_materials_of_its_own_only_while_the_();
   });
 
   it('shows a use in amber, a hub in cyan and a source in white', () => {
@@ -179,7 +196,7 @@ describe('Machine3D.powerGlow', () => {
     expect(must(shroud).visible).toBe(true);
   });
 
-  it("puts the fans' rings of light low while the lens shows: a decoration is no power", () => {
+  function assert_puts_the_fans_rings_of_light_low_while_the_lens_(): void {
     const on = {
       ...snap,
       powered: true,
@@ -220,6 +237,11 @@ describe('Machine3D.powerGlow', () => {
     for (let i = 0; i < 80; i++) {
       m.frame(snap, { dt: 0.1 });
     }
+  }
+
+  it("puts the fans' rings of light low while the lens shows: a decoration is no power", () => {
+    expect.hasAssertions();
+    assert_puts_the_fans_rings_of_light_low_while_the_lens_();
   });
 
   it('keeps the own look of a part that has no role (a heatsink, a radiator), and brings every look back when the lens ends', () => {

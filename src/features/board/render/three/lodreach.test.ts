@@ -15,14 +15,6 @@ function must<T>(value: T): NonNullable<T> {
   return value;
 }
 
-/** Returns `value` when it is present, otherwise `fallback`. */
-function or<T>(value: T, fallback: NonNullable<T>): NonNullable<T> {
-  if (value === undefined || value === null) {
-    return fallback;
-  }
-  return value;
-}
-
 const isMesh = (o: unknown): o is three.Mesh =>
   typeof o === 'object' && o !== null && 'isMesh' in o && o.isMesh === true;
 
@@ -50,67 +42,77 @@ function reach(g: three.BufferGeometry, m: three.Matrix4): number[] {
   return out;
 }
 
+/** Where an object is: the ids or names of it and its first parents, for the failure list. */
+function path(start: three.Object3D | null): string {
+  const s: string[] = [];
+  for (let o = start; o !== null; o = o.parent) {
+    const id: unknown = o.userData['id'];
+    const label = typeof id === 'string' && id !== '' ? id : o.name;
+    if (label !== '') {
+      s.push(label);
+    }
+  }
+  return s.slice(0, 3).join(' < ');
+}
+
+function assert_keep_their_outline_within_1_px_at_the_overview(): void {
+  const machine = buildMachine(maxedSnapshot(), false, false),
+    seen = new Set<three.BufferGeometry>(),
+    px = 1 / LOD_OVERVIEW;
+  machine.root.updateMatrixWorld(true);
+  let levels = 0,
+    worst = 0,
+    where = '';
+  const bad: string[] = [];
+  machine.root.traverse((o) => {
+    if (!isMesh(o)) {
+      return;
+    }
+    const mesh = o;
+    if (seen.has(mesh.geometry)) {
+      return;
+    }
+    seen.add(mesh.geometry);
+    const low = lowOf(mesh.geometry);
+    if (!low) {
+      return;
+    }
+    levels++;
+    // (an instanced mesh: its first copy stands for the rest, as they share the geometry and differ only in place)
+    const m = new three.Matrix4().copy(mesh.matrixWorld);
+    if (isInstancedMesh(mesh)) {
+      m.multiply(new three.Matrix4().fromArray(mesh.instanceMatrix.array, 0));
+    }
+    const a = reach(mesh.geometry, m),
+      b = reach(low, m);
+    const ds = a.map((r, k) => Math.abs(r - must(b[k]))),
+      d = Math.max(...ds),
+      k = ds.indexOf(d);
+    // (the levels past half a pixel, listed when the test fails: the shape, its vertices, the direction and where it is)
+    if (d > px / 2) {
+      bad.push(
+        `${d.toFixed(1)} ${mesh.geometry.type} ${mesh.geometry.getAttribute('position').count} ${must(DIRS[k])
+          .toArray()
+          .map((x) => x.toFixed(2))
+          .join(',')} ${path(o)}`,
+      );
+    }
+    if (d > worst) {
+      worst = d;
+      where = `${mesh.geometry.type} ${path(o)}`;
+    }
+  });
+  expect(levels).toBeGreaterThan(20);
+  expect(
+    worst / px,
+    `the worst: ${where}\n${bad.toSorted((x, y) => Number(y) - Number(x)).join('\n')}`,
+  ).toBeLessThanOrEqual(1);
+  machine.dispose();
+}
+
 describe('the levels of the maxed machine', () => {
   it('keep their outline within 1 px at the overview', () => {
-    const machine = buildMachine(maxedSnapshot(), false, false),
-      seen = new Set<three.BufferGeometry>(),
-      px = 1 / LOD_OVERVIEW;
-    machine.root.updateMatrixWorld(true);
-    let levels = 0,
-      worst = 0,
-      where = '';
-    const bad: string[] = [],
-      path = (o: three.Object3D | null): string => {
-        const s: string[] = [];
-        for (; o; o = o.parent) {
-          if (o.userData['id'] || o.name) {
-            s.push(String(or(o.userData['id'], o.name)));
-          }
-        }
-        return s.slice(0, 3).join(' < ');
-      };
-    machine.root.traverse((o) => {
-      if (!isMesh(o)) {
-        return;
-      }
-      const mesh = o;
-      if (seen.has(mesh.geometry)) {
-        return;
-      }
-      seen.add(mesh.geometry);
-      const low = lowOf(mesh.geometry);
-      if (!low) {
-        return;
-      }
-      levels++;
-      // (an instanced mesh: its first copy stands for the rest, as they share the geometry and differ only in place)
-      const m = new three.Matrix4().copy(mesh.matrixWorld);
-      if (isInstancedMesh(mesh)) {
-        m.multiply(new three.Matrix4().fromArray(mesh.instanceMatrix.array, 0));
-      }
-      const a = reach(mesh.geometry, m),
-        b = reach(low, m);
-      const ds = a.map((r, k) => Math.abs(r - must(b[k]))),
-        d = Math.max(...ds),
-        k = ds.indexOf(d);
-      // (the levels past half a pixel, listed when the test fails: the shape, its vertices, the direction and where it is)
-      if (d > px / 2) {
-        bad.push(
-          `${d.toFixed(1)} ${mesh.geometry.type} ${mesh.geometry.getAttribute('position').count} ${must(DIRS[k])
-            .toArray()
-            .map((x) => x.toFixed(2))} ${path(o)}`,
-        );
-      }
-      if (d > worst) {
-        worst = d;
-        where = `${mesh.geometry.type} ${path(o)}`;
-      }
-    });
-    expect(levels).toBeGreaterThan(20);
-    expect(
-      worst / px,
-      `the worst: ${where}\n${bad.toSorted((x, y) => Number(y) - Number(x)).join('\n')}`,
-    ).toBeLessThanOrEqual(1);
-    machine.dispose();
+    expect.hasAssertions();
+    assert_keep_their_outline_within_1_px_at_the_overview();
   }, 60_000);
 });

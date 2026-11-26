@@ -3,7 +3,7 @@
 // the Build my PC stage, none with no router, none with no live chips.
 import { PerspectiveCamera } from 'three';
 import { describe, expect, it } from 'vitest';
-import type { Snapshot } from '@/worker/protocol';
+
 import { BakeQueue } from '@/core/render/three/artlod';
 import { DEVICE_LOD } from '@/core/render/lod/lod';
 import { ROUTER_BODIES, routerIds } from '@/features/network/render/router/routerlayout';
@@ -23,6 +23,8 @@ function must<T>(value: T): NonNullable<T> {
 
 quietCanvas();
 
+type Snapshot = ReturnType<typeof maxedSnapshot>;
+
 const mine = (m: Machine3D): string[] =>
   m.rails.map((r) => r.id).filter((id) => id === 'router' || id.startsWith('router.'));
 /** The ids a tier's board offers a flight to: the board, its bodies (the SoC's last: its die's rail), no block of the die. */
@@ -37,7 +39,7 @@ const withRouter = (s: Snapshot, router: NonNullable<Snapshot['net']>['router'])
   net: { ...s.net, router },
 });
 /** A camera `d` in front of the point `at` (the room's frame: layout x, 3D y, depth), looking at it. */
-const camAt = (x: number, y: number, z: number, d: number): PerspectiveCamera => {
+const camAt = ([x, y, z]: [number, number, number], d: number): PerspectiveCamera => {
   const c = new PerspectiveCamera(40, 16 / 9, 10, 200_000);
   c.position.set(x, y, z + d);
   c.lookAt(x, y, z);
@@ -50,7 +52,7 @@ describe("the router's board on the machine", () => {
   const s = maxedSnapshot(),
     geo = roomGeo();
 
-  it('has a flight to the board and to each part of the router the game has, all lying on the plinth behind the jacks', () => {
+  function assert_has_a_flight_to_the_board_and_to_each_part_of_th(): void {
     const m = new Machine3D(s, geo, {
         q: new BakeQueue(),
         chips: new Chips3D(),
@@ -91,6 +93,11 @@ describe("the router's board on the machine", () => {
     // (the die's flight comes in where its lid is gone)
     expect(must(m.rails.find((r) => r.id === 'router.soc')).zoom).toBeGreaterThan(DEVICE_LOD.router.fade[1]);
     m.dispose();
+  }
+
+  it('has a flight to the board and to each part of the router the game has, all lying on the plinth behind the jacks', () => {
+    expect.hasAssertions();
+    assert_has_a_flight_to_the_board_and_to_each_part_of_th();
   });
 
   it('has none with no router, none on the Build my PC stage, and none without the live chips', () => {
@@ -141,7 +148,7 @@ describe("the router's board on the machine", () => {
     m.dispose();
   });
 
-  it('keeps the shell whole from afar and takes it away as the camera comes in, the board lying where it is', () => {
+  function assert_keeps_the_shell_whole_from_afar_and_takes_it_awa(): void {
     const m = new Machine3D(s, geo, {
         q: new BakeQueue(),
         chips: new Chips3D(),
@@ -163,7 +170,7 @@ describe("the router's board on the machine", () => {
       return { visible: o.visible, lying: Math.abs(must(o.children[0]).rotation.x + Math.PI / 2) < 1e-9 };
     };
     const seen = (d: number) => {
-      m.lod(camAt(cx, cy, stand.front, d), H, 1);
+      m.lod(camAt([cx, cy, stand.front], d), H, 1);
       return { ...boardRoot(), shell: must(alphas.at(-1)) };
     };
     expect(tier).toBeGreaterThan(0);
@@ -184,10 +191,15 @@ describe("the router's board on the machine", () => {
     }
     // (a part of the board is the router until the shell is gone: the pick of its parts follows)
     expect(m.pickId('router.dram')).toBe('router.dram');
-    m.lod(camAt(cx, cy, stand.front, 60_000), H, 1);
+    m.lod(camAt([cx, cy, stand.front], 60_000), H, 1);
     expect(m.pickId('router.dram')).toBe('router');
     expect(m.pickId('router.soc')).toBe('router');
     expect(m.pickId('pcie0')).toBe('pcie0');
     m.dispose();
+  }
+
+  it('keeps the shell whole from afar and takes it away as the camera comes in, the board lying where it is', () => {
+    expect.hasAssertions();
+    assert_keeps_the_shell_whole_from_afar_and_takes_it_awa();
   });
 });

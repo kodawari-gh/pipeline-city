@@ -11,7 +11,7 @@ function must<T>(value: T): NonNullable<T> {
 
 const MIN: grid.V3 = [0, 0, 0],
   MAX: grid.V3 = [6000, 4000, 3000];
-const box = (id: string, min: grid.V3, max: grid.V3, k: grid.V3 = [0, 0, 0]): grid.AirBox => ({ id, min, max, k });
+const box = (id: string, min: grid.V3, max: grid.V3): grid.AirBox => ({ id, min, max, k: [0, 0, 0] });
 
 describe('AirGrid', () => {
   it('cuts the case into about the asked number of cells and covers it exactly', () => {
@@ -53,7 +53,12 @@ describe('AirGrid', () => {
   });
 
   it('lets a porous box pass its share', () => {
-    const g = new grid.AirGrid(MIN, MAX, [box('fins', [2000, 1000, 500], [4000, 3000, 2500], [0.5, 0.5, 0.05])], 5000);
+    const g = new grid.AirGrid(
+      MIN,
+      MAX,
+      [{ ...box('fins', [2000, 1000, 500], [4000, 3000, 2500]), k: [0.5, 0.5, 0.05] }],
+      5000,
+    );
     const c = g.cellAt(3000, 2000, 1500);
     expect(must(g.open[0][c])).toBeCloseTo(0.5, 1);
     expect(must(g.open[2][c])).toBeLessThan(0.1);

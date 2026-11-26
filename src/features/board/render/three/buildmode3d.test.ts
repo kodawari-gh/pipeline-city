@@ -14,42 +14,67 @@ function must<T>(value: T): NonNullable<T> {
 const rig = () => new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
 
 const key = (g: Game) => machineKey(new SnapCache().of(g));
+function assert_keeps_the_machine_key_when_a_part_comes_out_and_(): void {
+  const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true }),
+    before = key(g);
+  const ram = must(g.snapshot().devices.find((d) => d.kind === 'ram'));
+  const out = g.uninstall(ram.id);
+  expect(out.ok).toBe(true);
+  expect(key(g)).not.toBe(before); // a part really gone is a build
+  expect(g.install(out.ok ? must(out.invId) : '', ram.slot).ok).toBe(true);
+  expect(key(g)).toBe(before); // put back: the machine on the stage is still right
+}
+
+function assert_builds_the_snapshot_once_while_the_game_stays_th(): void {
+  const g = rig(),
+    c = new SnapCache(),
+    spy = vi.spyOn(g, 'snapshot');
+  const a = c.of(g);
+  for (let i = 0; i < 10; i++) {
+    expect(c.of(g)).toBe(a);
+  }
+  expect(spy).toHaveBeenCalledOnce();
+}
+
+function assert_shows_an_uninstall_and_an_install_after_a_drop(): void {
+  const g = rig(),
+    c = new SnapCache();
+  const ram = must(c.of(g).devices.find((d) => d.kind === 'ram'));
+  expect(ram).toBeDefined();
+  const out = g.uninstall(ram.id);
+  expect(out.ok).toBe(true);
+  expect(c.of(g).devices.some((d) => d.id === ram.id)).toBe(true); // kept until the drop
+  c.drop();
+  expect(c.of(g).devices.some((d) => d.id === ram.id)).toBe(false);
+  const back = g.install(out.ok ? must(out.invId) : '', ram.slot);
+  expect(back.ok).toBe(true);
+  c.drop();
+  expect(c.of(g).devices.find((d) => d.slot === ram.slot)?.kind).toBe('ram');
+}
+
+function assert_shows_a_cable_change_after_a_drop(): void {
+  const g = rig(),
+    c = new SnapCache();
+  const cable = must(c.of(g).cables.find((x) => x.connected && x.id !== 'pcmains'));
+  g.disconnectCable(cable.id);
+  c.drop();
+  expect(c.of(g).cables.find((x) => x.id === cable.id)?.connected).toBe(false);
+}
 
 describe('SnapCache (PERF19: one snapshot per change, not per frame)', () => {
   it('builds the snapshot once while the game stays the same', () => {
-    const g = rig(),
-      c = new SnapCache(),
-      spy = vi.spyOn(g, 'snapshot');
-    const a = c.of(g);
-    for (let i = 0; i < 10; i++) {
-      expect(c.of(g)).toBe(a);
-    }
-    expect(spy).toHaveBeenCalledOnce();
+    expect.hasAssertions();
+    assert_builds_the_snapshot_once_while_the_game_stays_th();
   });
 
   it('shows an uninstall and an install after a drop', () => {
-    const g = rig(),
-      c = new SnapCache();
-    const ram = must(c.of(g).devices.find((d) => d.kind === 'ram'));
-    expect(ram).toBeDefined();
-    const out = g.uninstall(ram.id);
-    expect(out.ok).toBe(true);
-    expect(c.of(g).devices.some((d) => d.id === ram.id)).toBe(true); // kept until the drop
-    c.drop();
-    expect(c.of(g).devices.some((d) => d.id === ram.id)).toBe(false);
-    const back = g.install(out.ok ? must(out.invId) : '', ram.slot);
-    expect(back.ok).toBe(true);
-    c.drop();
-    expect(c.of(g).devices.find((d) => d.slot === ram.slot)?.kind).toBe('ram');
+    expect.hasAssertions();
+    assert_shows_an_uninstall_and_an_install_after_a_drop();
   });
 
   it('shows a cable change after a drop', () => {
-    const g = rig(),
-      c = new SnapCache();
-    const cable = must(c.of(g).cables.find((x) => x.connected && x.id !== 'pcmains'));
-    g.disconnectCable(cable.id);
-    c.drop();
-    expect(c.of(g).cables.find((x) => x.id === cable.id)?.connected).toBe(false);
+    expect.hasAssertions();
+    assert_shows_a_cable_change_after_a_drop();
   });
 
   it('starts over for another game without a drop', () => {
@@ -65,14 +90,8 @@ describe('SnapCache (PERF19: one snapshot per change, not per frame)', () => {
 
 describe('the stage skips a build that would change nothing (ANIM-02, ANIM-06)', () => {
   it('keeps the machine key when a part comes out and goes back in its socket', () => {
-    const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true }),
-      before = key(g);
-    const ram = must(g.snapshot().devices.find((d) => d.kind === 'ram'));
-    const out = g.uninstall(ram.id);
-    expect(out.ok).toBe(true);
-    expect(key(g)).not.toBe(before); // a part really gone is a build
-    expect(g.install(out.ok ? must(out.invId) : '', ram.slot).ok).toBe(true);
-    expect(key(g)).toBe(before); // put back: the machine on the stage is still right
+    expect.hasAssertions();
+    assert_keeps_the_machine_key_when_a_part_comes_out_and_();
   });
 
   it('keeps the machine key when a cable is plugged in or out (the cable builds itself)', () => {

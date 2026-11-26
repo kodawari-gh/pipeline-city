@@ -3,13 +3,12 @@
 // test is the order of the steps and the stage's own say of which leads are in (the hand reads it as the snapshot's cables).
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Group, PerspectiveCamera, Scene } from 'three';
-import { BuildStage } from './buildmode3d';
+import type { BuildStage } from './buildmode3d';
+import { inside, newStage } from './buildmode3d.testkit';
 import { isPanelId } from './casetray3d';
 import { setLayoutTier } from '../layout/layout';
 import { Game } from '@/worker/game/game';
 import { playCue } from '@/app/audio/engine';
-import type * as init from '@/core/render/three/init';
-import type * as engine from '@/app/audio/engine';
 
 function createPost() {
   return {
@@ -70,8 +69,8 @@ function must<T>(value: T): NonNullable<T> {
   return value;
 }
 
-vi.mock('@/core/render/three/init', async (orig) => {
-  const actual = await orig<typeof init>();
+vi.mock<Record<string, unknown>>(import('@/core/render/three/init'), async (orig) => {
+  const actual = await orig();
   return {
     ...actual,
     createRenderContext: () => ({
@@ -105,15 +104,15 @@ vi.mock('@/core/render/three/init', async (orig) => {
     }),
   };
 });
-vi.mock('@/core/render/three/post', () => ({
+vi.mock<Record<string, unknown>>(import('@/core/render/three/post'), () => ({
   Post,
 }));
-vi.mock('./lens3d', () => ({
+vi.mock<Record<string, unknown>>(import('./lens3d'), () => ({
   Lens3D,
 }));
-vi.mock('@/app/audio/engine', async (orig) => ({
-  ...(await orig<typeof engine>()),
-  playCue: vi.fn(),
+vi.mock<Record<string, unknown>>(import('@/app/audio/engine'), async (orig) => ({
+  ...(await orig()),
+  playCue: vi.fn<typeof playCue>(),
 }));
 
 const LEADS = ['panel:ARGB', 'panel:USB_3', 'panel:F_PANEL', 'panel:USB_2'];
@@ -124,14 +123,26 @@ interface Inside {
   reeled: Set<string>;
   handSnapshot: () => { cables: { id: string; connected: boolean }[] };
   plugPanelLead: (id: string, plugged: boolean) => void;
-  hand: unknown;
+  hand: { host: PlugHost; feed: (id: string, plug: boolean) => boolean | Promise<boolean> };
 }
-const hid = (s: BuildStage): Inside => s as unknown as Inside;
+/** The stage's private members that `Inside` names. */
+const hid = (s: BuildStage): Inside => inside<Inside>(s);
 
 /** The hand's host callbacks as the stage built them (the real hand's, kept before the test puts its stub in place). */
 interface PlugHost {
   connect: (id: string, port?: string) => void;
   disconnect: (id: string) => void;
+}
+
+/** The stage's rebuild without 3D: what a build of the machine does (the tiers, and the cables the job holds back stay out of sight). */
+function rebuild(this: {
+  snaps: { drop: () => void };
+  board: { tier: number; caseTier: number };
+  holdReeled: () => void;
+}): void {
+  this.snaps.drop();
+  setLayoutTier(this.board.tier, Math.max(this.board.tier, this.board.caseTier));
+  this.holdReeled();
 }
 interface Fake {
   calls: string[];
@@ -143,11 +154,11 @@ interface Fake {
 /** A stage with the full rig and no 3D: the machine's drawing is stubbed (it has the four leads), the hand only writes down what it was asked. */
 function stage(): { s: BuildStage; fake: Fake } {
   const fake: Fake = { calls: [], synced: [], held: [] };
-  const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
+  const s = newStage({
     clientWidth: 400,
     clientHeight: 800,
   });
-  s['_machine'] = {
+  const machine = {
     moving: false,
     doorOpen: false,
     frame: () => {
@@ -181,56 +192,54 @@ function stage(): { s: BuildStage; fake: Fake } {
       fake.synced.push(out.size);
     },
   };
-  s['_game'] = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
-  s['rebuild'] = s['rebuildAll'] = function (this: {
-    snaps: { drop: () => void };
-    board: { tier: number; caseTier: number };
-    holdReeled: () => void;
-  }) {
-    this.snaps.drop();
-    setLayoutTier(this.board.tier, Math.max(this.board.tier, this.board.caseTier));
-    this.holdReeled(); // (what a build of the machine does: the cables the job holds back stay out of sight)
-  };
-  s['playAll'] = async () => {
-    /* no-op */
-  };
-  s['door'] = async () => {
-    /* no-op */
-  };
   // the hand: a front-panel lead it pulls or runs goes out of or into its header as the real hand's host would say (`plugPanelLead`); no other cable has a rig
-  const t = s as unknown as Inside;
-  fake.host = (t.hand as { host: PlugHost }).host;
-  s['hand'] = {
+  // (the stage awaits each answer of the hand: a plain boolean is awaited as a promise of it would be)
+  const t = hid(s);
+  fake.host = t.hand.host;
+  const hand = {
     root: new Group(),
     kind: null,
     cancel: () => {
       /* no-op */
     },
-    pullOut: (id: string) => {
+    pullOut: (id: string): boolean => {
       if (!isPanelId(id)) {
-        return Promise.resolve(false);
+        return false;
       }
       fake.calls.push(`pull ${id}`);
       t.plugPanelLead(id, false);
-      return Promise.resolve(true);
+      return true;
     },
-    stow: (id: string) => {
+    stow: (id: string): boolean => {
       if (!isPanelId(id)) {
-        return Promise.resolve(false);
+        return false;
       }
       fake.calls.push(`stow ${id}`);
-      return Promise.resolve(true);
+      return true;
     },
-    feed: (id: string, plug: boolean) => {
+    feed: (id: string, plug: boolean): boolean => {
       fake.calls.push(`feed ${id}${plug ? ' in' : ''}`);
       if (plug) {
         t.plugPanelLead(id, true);
       }
-      return Promise.resolve(true);
+      return true;
     },
-    plugIn: () => Promise.resolve(false),
+    plugIn: (): boolean => false,
   };
-  return { s: s as unknown as BuildStage, fake };
+  Object.assign(s, {
+    _machine: machine,
+    _game: new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true }),
+    rebuild,
+    rebuildAll: rebuild,
+    playAll: async () => {
+      /* no-op */
+    },
+    door: async () => {
+      /* no-op */
+    },
+    hand,
+  });
+  return { s, fake };
 }
 
 describe('the front-panel leads', () => {
@@ -315,7 +324,7 @@ describe('the front-panel leads', () => {
     await s.clear();
     await s.fit('case3');
     // a hand that cannot run a lead (no rig for it): the job ends with every lead in
-    (s as unknown as { hand: { feed: () => Promise<boolean> } }).hand.feed = () => Promise.resolve(false);
+    hid(s).hand.feed = (): boolean => false;
     await s.fit('board3');
     expect(hid(s).panelOut.size).toBe(0);
     expect(fake.synced.at(-1)).toBe(0);

@@ -1,7 +1,6 @@
 // A machine on the studio's wall (Machine3D's `wall` option, studiowall3d.ts): its two mains cords go from its devices into the wall's outlets in real Swiss type 12 plugs, one in each of two sockets of its triple plate (the power
 // runs out of the plug), its LAN lead from the router's first jack to the case's network port, and a router of another tier builds the cords again.
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { Object3D } from 'three';
 import { BakeQueue } from '@/core/render/three/artlod';
 import { roomGeo } from '@/features/room/render/shell/room';
 import { setNet } from '@/features/board/sim/buildnet';
@@ -53,16 +52,18 @@ const machine = (s: Snapshot, w: studiowall3d.StageWall | null): Machine3D =>
   });
 
 /** The plugs of the LAN lead's two ends, the plug itself first: the router's end (fixed) and the PC's (the one the hand holds). */
+/** The plug kinds under `o`, in tree order. */
+function kinds(o: { traverse: (cb: (x: { userData: Record<string, unknown> }) => void) => void }): string[] {
+  const t: string[] = [];
+  o.traverse((x) => {
+    if (typeof x.userData['plug'] === 'string') {
+      t.push(x.userData['plug']);
+    }
+  });
+  return t;
+}
+
 const ends = (mc: Machine3D): { router: string[]; pc: string[] } => {
-  const kinds = (o: Object3D): string[] => {
-    const t: string[] = [];
-    o.traverse((x) => {
-      if (typeof x.userData['plug'] === 'string') {
-        t.push(x.userData['plug']);
-      }
-    });
-    return t;
-  };
   const lanCable = must(must(mc.cableGroup('lan')).children[0]);
   const lanRig = must(mc.rig('lan')).model().root;
   return { router: kinds(lanCable), pc: kinds(lanRig) };

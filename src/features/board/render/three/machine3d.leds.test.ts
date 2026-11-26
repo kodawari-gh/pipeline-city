@@ -1,7 +1,9 @@
 // The Ethernet jacks on the machine (Machine3D.frame, docs/render/net.md "LED meanings"): the jack the cable is in takes the levels the link's frames give (`LinkLeds`), every other
 // jack stays dark, and a jack lit by the levels is not a lamp the merges and the shares took away.
 import { describe, expect, it } from 'vitest';
-import type { Mesh, MeshStandardMaterial, Object3D } from 'three';
+import { MeshLambertMaterial, MeshPhongMaterial, MeshStandardMaterial } from 'three';
+// oxlint-disable-next-line eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own
+import type { Mesh, Object3D } from 'three';
 
 import * as jackleds from '@/features/network/render/jackleds';
 import { netRig } from '@/worker/game/testkit';
@@ -30,6 +32,10 @@ quietCanvas();
 const BOARD = { link: 0x58_e0_8a, act: 0xff_b5_47 },
   CARD = { link: 0x5c_ff_9a, act: 0xff_c2_47 };
 
+/** Is `m` one material with an emissive colour (not a list of materials)? */
+const emissive = (m: Mesh['material']): m is MeshStandardMaterial | MeshLambertMaterial | MeshPhongMaterial =>
+  m instanceof MeshStandardMaterial || m instanceof MeshLambertMaterial || m instanceof MeshPhongMaterial;
+
 /** The glow of the lights of one colour: the strongest intensity of the materials that draw with it, or null when none is built. */
 function glow(root: Object3D, hex: number): number | null {
   let best: number | null = null;
@@ -37,8 +43,8 @@ function glow(root: Object3D, hex: number): number | null {
     if (!isMesh(o)) {
       return;
     }
-    const m = asMesh(o).material as MeshStandardMaterial | undefined;
-    if (!isMesh(o) || !m || Array.isArray(m) || m.emissive?.getHex() !== hex) {
+    const m = asMesh(o).material;
+    if (!emissive(m) || m.emissive.getHex() !== hex) {
       return;
     }
     best = Math.max(or(best, 0), m.emissiveIntensity);
@@ -98,7 +104,7 @@ describe.each([
     expect(glow(m.root, BOARD.act)).toBe(0);
   });
 
-  it('light no jack when the cable is in none, whatever the levels say', () => {
+  function assert_light_no_jack_when_the_cable_is_in_none_whatever(): void {
     const s = netRig('ssd1', { port: 'nic1' }).snapshot();
     const out: Snapshot = { ...s, net: { ...s.net, port: { kind: null, deviceId: null, mbps: 0 } } };
     const m = buildMachine(out, merge);
@@ -106,44 +112,50 @@ describe.each([
     for (const hex of [BOARD.link, BOARD.act, CARD.link, CARD.act]) {
       expect(or(glow(m.root, hex), 0)).toBe(0);
     }
+  }
+
+  it('light no jack when the cable is in none, whatever the levels say', () => {
+    expect.hasAssertions();
+    assert_light_no_jack_when_the_cable_is_in_none_whatever();
   });
 });
 
+function assert_follow_the_frames_of_a_download_lit_while_it_mov(): void {
+  const g = netRig('ssd1');
+  const m = buildMachine(g.snapshot(), true),
+    leds = new jackleds.LinkLeds();
+  const lit = (): number => or(glow(m.root, BOARD.act), 0);
+  const run = (n: number, dt: number): number => {
+    let seen = 0;
+    for (let i = 0; i < n; i++) {
+      g.advanceBaseTick();
+      const s = g.snapshot();
+      m.frame(s, { dt, doorDt: dt, net: leds.step(s, dt) });
+      if (lit() > 0) {
+        seen++;
+      }
+    }
+    return seen;
+  };
+  // (an idle link: green, and no amber)
+  expect(run(3, 0.1)).toBe(0);
+  expect(glow(m.root, BOARD.link)).toBeCloseTo(jackleds.JACK_GLOW.link, 9);
+  // (a download at the plan's speed: the frames come close, the light stays on for as long as it moves)
+  g.enqueue('cli.log', 1, undefined, true);
+  expect(run(2, 0.1)).toBe(2);
+  // (the job has run and its result is out, the link is idle: the amber light goes)
+  for (let i = 0; i < 3000 && !g.snapshot().progress.firstNetJob; i++) {
+    g.advanceBaseTick();
+  }
+  expect(g.snapshot().progress.firstNetJob).toBe(true);
+  run(2, 0.1);
+  expect(run(3, 0.1)).toBe(0);
+  expect(glow(m.root, BOARD.link)).toBeCloseTo(jackleds.JACK_GLOW.link, 9);
+}
+
 describe("the jacks' lights from a running game", () => {
   it('follow the frames of a download: lit while it moves data, out again once it is done, with nothing set by hand', () => {
-    const g = netRig('ssd1');
-    const m = buildMachine(g.snapshot(), true),
-      leds = new jackleds.LinkLeds();
-    const lit = (): number => or(glow(m.root, BOARD.act), 0);
-    const run = (n: number, dt: number): number => {
-      let seen = 0;
-      for (let i = 0; i < n; i++) {
-        g.advanceBaseTick();
-        const s = g.snapshot();
-        m.frame(s, { dt, doorDt: dt, net: leds.step(s, dt) });
-        if (lit() > 0) {
-          seen++;
-        }
-      }
-      return seen;
-    };
-    // (an idle link: green, and no amber)
-    expect(run(3, 0.1)).toBe(0);
-    expect(glow(m.root, BOARD.link)).toBeCloseTo(jackleds.JACK_GLOW.link, 9);
-    // (a download at the plan's speed: the frames come close, the light stays on for as long as it moves)
-    const { enqueue } = g as unknown as { enqueue: unknown };
-    if (typeof enqueue !== 'function') {
-      throw new TypeError('enqueue');
-    }
-    enqueue.call(g, 'cli.log', 1, undefined, true);
-    expect(run(2, 0.1)).toBe(2);
-    // (the job has run and its result is out, the link is idle: the amber light goes)
-    for (let i = 0; i < 3000 && !g.snapshot().progress.firstNetJob; i++) {
-      g.advanceBaseTick();
-    }
-    expect(g.snapshot().progress.firstNetJob).toBeTruthy();
-    run(2, 0.1);
-    expect(run(3, 0.1)).toBe(0);
-    expect(glow(m.root, BOARD.link)).toBeCloseTo(jackleds.JACK_GLOW.link, 9);
+    expect.hasAssertions();
+    assert_follow_the_frames_of_a_download_lit_while_it_mov();
   });
 });

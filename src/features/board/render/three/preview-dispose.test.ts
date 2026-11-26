@@ -1,6 +1,6 @@
 // previewCase rebuilds the room and the machine: their textures must not outlive the rebuild (the shared caches may).
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import type { Mesh, Texture, LightShadow, Object3D } from 'three';
+import type { Mesh, Texture, Object3D } from 'three';
 
 import { quietCanvas, maxedSnapshot, buildMachine } from './testutil';
 import { Room3D } from '@/features/room/render/three/room3d';
@@ -45,19 +45,34 @@ const nothing: unknown = new Proxy(
     set: () => true,
   },
 );
+/** What the drawing context answers for a key: text sizes, a pixel, or another proxy. */
+function contextKey(k: string | symbol): unknown {
+  if (k === 'measureText') {
+    return () => ({ width: 1, actualBoundingBoxAscent: 1, actualBoundingBoxDescent: 1 });
+  }
+  if (k === 'getImageData') {
+    return () => ({ data: new Uint8ClampedArray(4) });
+  }
+  return nothing;
+}
 const context = () =>
   new Proxy(
     {},
     {
-      get: (_t, k) =>
-        k === 'measureText'
-          ? () => ({ width: 1, actualBoundingBoxAscent: 1, actualBoundingBoxDescent: 1 })
-          : k === 'getImageData'
-            ? () => ({ data: new Uint8ClampedArray(4) })
-            : nothing,
+      get: (_t, k) => contextKey(k),
       set: () => true,
     },
   );
+
+/** The shadow map of an object that casts a light's shadow, or null. */
+function shadowMapOf(o: Object3D): object | null {
+  const shadow: unknown = 'shadow' in o ? o.shadow : undefined;
+  if (typeof shadow !== 'object' || shadow === null || !('map' in shadow)) {
+    return null;
+  }
+  const { map } = shadow;
+  return typeof map === 'object' ? map : null;
+}
 const canvas = () => ({
   width: 1,
   height: 1,
@@ -101,16 +116,15 @@ describe('preview rebuild frees its textures', () => {
         return;
       }
       const m = asMesh(o);
-      const ms = Array.isArray(m.material) ? m.material : m.material ? [m.material] : [];
-      for (const x of ms) {
+      for (const x of [m.material].flat()) {
         for (const v of Object.values(x)) {
-          if ((v as Texture | null)?.isTexture) {
+          if (isTexture(v)) {
             track(asTexture(v));
           }
         }
       }
-      const sm = (o as { shadow?: LightShadow }).shadow?.map;
-      if (sm) {
+      const sm = shadowMapOf(o);
+      if (sm !== null) {
         track(sm);
       }
     });
@@ -138,7 +152,7 @@ describe('preview rebuild frees its textures', () => {
     });
   });
 
-  it('live textures stay flat across preview cycles', () => {
+  function assert_live_textures_stay_flat_across_preview_cycles(): void {
     const snap = maxedSnapshot();
     const counts: number[] = [];
     // one tier: the first build adds the shared, tier-sized caches and the city; later builds must add no unique textures
@@ -149,8 +163,8 @@ describe('preview rebuild frees its textures', () => {
       const machine = buildMachine(s, true);
       collect(room.root);
       collect(machine.root);
-      const { ispText } = room as unknown as { ispText: { tex: Texture } | null };
-      if (ispText) {
+      const { ispText } = room;
+      if (ispText !== null) {
         track(ispText.tex);
       }
       // as board3d.ts rebuild() and install() free them
@@ -163,5 +177,10 @@ describe('preview rebuild frees its textures', () => {
     for (const c of counts.slice(1)) {
       expect(c - must(counts[0])).toBeLessThanOrEqual(2);
     }
+  }
+
+  it('live textures stay flat across preview cycles', () => {
+    expect.hasAssertions();
+    assert_live_textures_stay_flat_across_preview_cycles();
   }, 180_000);
 });

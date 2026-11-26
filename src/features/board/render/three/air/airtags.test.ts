@@ -61,7 +61,7 @@ function installFakeDom(): void {
   vi.stubGlobal('document', {
     head,
     body,
-    createElement: (tag: string) => new FakeEl(tag),
+    createElement: (tagName: string) => new FakeEl(tagName),
     getElementById: (id: string) => head.children.find((c) => c.id === id) ?? null,
   });
 }
@@ -77,13 +77,9 @@ function makeCam(): PerspectiveCamera {
   return cam;
 }
 
-function tag(
-  id: string,
-  at: [number, number, number],
-  text = 'TAG',
-  extra: Partial<airtags.AirTag> = {},
-): airtags.AirTag {
-  return { id, at, text, tone: 'dim', ...extra };
+/** A tag `id` at `at`: the text "TAG" and a dim tone, unless `extra` gives others. */
+function tag(id: string, at: [number, number, number], extra: Partial<airtags.AirTag> = {}): airtags.AirTag {
+  return { id, at, text: 'TAG', tone: 'dim', ...extra };
 }
 
 /** The pills in the host, in creation order. */
@@ -93,7 +89,10 @@ function pills(host: FakeEl): FakeEl[] {
 
 let made: airtags.AirTags3D[] = [];
 let host: FakeEl;
+/** The text of the first pill in the host, or nothing. */
+const firstText = (): string => or(pills(host)[0]?.textContent, '');
 function make(): airtags.AirTags3D {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the test has no DOM: the fake element stands in for the host, with the members airtags.ts uses
   const t = new airtags.AirTags3D(host as unknown as HTMLElement);
   made.push(t);
   return t;
@@ -102,7 +101,8 @@ function make(): airtags.AirTags3D {
 beforeEach(() => {
   installFakeDom();
   host = new FakeEl('div');
-  body.appendChild(host);
+  body.children.push(host);
+  host.parent = body;
 });
 
 afterEach(() => {
@@ -113,10 +113,39 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+function assert_keeps_two_tags_at_the_same_point_apart(): void {
+  const t = make();
+  t.set([tag('a', [0, 0, 0], { text: 'AAAA' }), tag('b', [0, 0, 0], { text: 'BBBB' })], 0);
+  t.frame(makeCam(), VIEW);
+  const [a, b] = t.boxes();
+  const overlap =
+    must(a).left < must(b).left + must(b).width &&
+    must(b).left < must(a).left + must(a).width &&
+    must(a).top < must(b).top + must(b).height &&
+    must(b).top < must(a).top + must(a).height;
+  expect(overlap).toBe(false);
+}
+
+function assert_never_lets_a_pill_rise_past_minTop_the_HUD_bar_a(): void {
+  const t = make();
+  t.set([tag('a', [0, 0, 0], { text: 'AAAA' }), tag('b', [0, 0, 0], { text: 'BBBB' })], 0);
+  // the origin is at y 450; a bar that ends at y 480 is in the way of both
+  t.frame(makeCam(), { ...VIEW, minTop: 480 });
+  const [a, b] = t.boxes();
+  expect(must(a).top).toBeGreaterThanOrEqual(480);
+  expect(must(b).top).toBeGreaterThanOrEqual(480);
+  expect(must(a).top < must(b).top + must(b).height && must(b).top < must(a).top + must(a).height).toBe(false);
+  // a bar far above them changes nothing: the second one climbs, as it always did
+  t.frame(makeCam(), { ...VIEW, minTop: 100 });
+  const [c, d] = t.boxes();
+  expect(must(d).top).toBeLessThan(must(c).top);
+  expect(must(d).top).toBeGreaterThanOrEqual(100);
+}
+
 describe('AirTags3D', () => {
   it('puts a tag at the origin in the middle of the view', () => {
     const t = make();
-    t.set([tag('a', [0, 0, 0], 'CPU 71°C')], 0);
+    t.set([tag('a', [0, 0, 0], { text: 'CPU 71°C' })], 0);
     t.frame(makeCam(), VIEW);
     const b = must(t.boxes()[0]);
     expect(b.visible).toBe(true);
@@ -126,7 +155,7 @@ describe('AirTags3D', () => {
 
   it('slides a tag far to the right back inside the view', () => {
     const t = make();
-    t.set([tag('a', [50, 0, 0], 'NO EXHAUST: HOT AIR STAYS IN')], 0);
+    t.set([tag('a', [50, 0, 0], { text: 'NO EXHAUST: HOT AIR STAYS IN' })], 0);
     t.frame(makeCam(), VIEW);
     const b = must(t.boxes()[0]);
     expect(b.visible).toBe(true);
@@ -135,37 +164,24 @@ describe('AirTags3D', () => {
   });
 
   it('keeps two tags at the same point apart', () => {
-    const t = make();
-    t.set([tag('a', [0, 0, 0], 'AAAA'), tag('b', [0, 0, 0], 'BBBB')], 0);
-    t.frame(makeCam(), VIEW);
-    const [a, b] = t.boxes();
-    const overlap =
-      must(a).left < must(b).left + must(b).width &&
-      must(b).left < must(a).left + must(a).width &&
-      must(a).top < must(b).top + must(b).height &&
-      must(b).top < must(a).top + must(a).height;
-    expect(overlap).toBe(false);
+    expect.hasAssertions();
+    assert_keeps_two_tags_at_the_same_point_apart();
   });
 
   it('never lets a pill rise past minTop (the HUD bar), and sends the one that clashes down, not up', () => {
-    const t = make();
-    t.set([tag('a', [0, 0, 0], 'AAAA'), tag('b', [0, 0, 0], 'BBBB')], 0);
-    // the origin is at y 450; a bar that ends at y 480 is in the way of both
-    t.frame(makeCam(), { ...VIEW, minTop: 480 });
-    const [a, b] = t.boxes();
-    expect(must(a).top).toBeGreaterThanOrEqual(480);
-    expect(must(b).top).toBeGreaterThanOrEqual(480);
-    expect(must(a).top < must(b).top + must(b).height && must(b).top < must(a).top + must(a).height).toBe(false);
-    // a bar far above them changes nothing: the second one climbs, as it always did
-    t.frame(makeCam(), { ...VIEW, minTop: 100 });
-    const [c, d] = t.boxes();
-    expect(must(d).top).toBeLessThan(must(c).top);
-    expect(must(d).top).toBeGreaterThanOrEqual(100);
+    expect.hasAssertions();
+    assert_never_lets_a_pill_rise_past_minTop_the_HUD_bar_a();
   });
 
   it('a scale tag shows the temperatures at the two ends of a bar, and sits right under the tag it names', () => {
     const t = make();
-    t.set([tag('room', [0, 0, 0], 'ROOM 25°C'), tag('scale', [0, 0, 0], '', { scale: [25, 88.4], under: 'room' })], 0);
+    t.set(
+      [
+        tag('room', [0, 0, 0], { text: 'ROOM 25°C' }),
+        tag('scale', [0, 0, 0], { text: '', scale: [25, 88.4], under: 'room' }),
+      ],
+      0,
+    );
     t.frame(makeCam(), VIEW);
     const [room, scale] = t.boxes();
     expect(must(scale).visible).toBe(true);
@@ -176,7 +192,13 @@ describe('AirTags3D', () => {
     expect(pill.className).toContain('airtag-scale');
     expect(pill.textContent).toBe('25°C88°C');
     // a new top rewrites it, the same whole degrees do not
-    t.set([tag('room', [0, 0, 0], 'ROOM 25°C'), tag('scale', [0, 0, 0], '', { scale: [25, 61], under: 'room' })], 1);
+    t.set(
+      [
+        tag('room', [0, 0, 0], { text: 'ROOM 25°C' }),
+        tag('scale', [0, 0, 0], { text: '', scale: [25, 61], under: 'room' }),
+      ],
+      1,
+    );
     t.frame(makeCam(), VIEW);
     expect(must(pills(host)[1]).textContent).toBe('25°C61°C');
   });
@@ -185,8 +207,8 @@ describe('AirTags3D', () => {
     const t = make();
     t.set(
       [
-        tag('wall', [0, 0, 0], 'WALL 54 W', { tone: 'watts' }),
-        tag('scale', [0, 0, 0], '', { scale: [0, 175.2], unit: 'W', under: 'wall' }),
+        tag('wall', [0, 0, 0], { text: 'WALL 54 W', tone: 'watts' }),
+        tag('scale', [0, 0, 0], { text: '', scale: [0, 175.2], unit: 'W', under: 'wall' }),
       ],
       0,
     );
@@ -201,8 +223,8 @@ describe('AirTags3D', () => {
     // the same scale in degrees keeps the thermal bar: the key tells them apart, so a pill that changes unit is written again
     t.set(
       [
-        tag('wall', [0, 0, 0], 'WALL 54 W', { tone: 'watts' }),
-        tag('scale', [0, 0, 0], '', { scale: [0, 175], under: 'wall' }),
+        tag('wall', [0, 0, 0], { text: 'WALL 54 W', tone: 'watts' }),
+        tag('scale', [0, 0, 0], { text: '', scale: [0, 175], under: 'wall' }),
       ],
       1,
     );
@@ -216,10 +238,10 @@ describe('AirTags3D', () => {
     const t = make();
     t.set(
       [
-        tag('wall', [0, 0, 0], 'WALL 54 W', { tone: 'watts', role: 'source' }),
-        tag('psu', [0, 0, 0], 'SUPPLY 54 W', { tone: 'watts', role: 'hub' }),
-        tag('cpu', [0, 0, 0], 'CPU 13 W', { tone: 'watts', role: 'use' }),
-        tag('x', [0, 0, 0], 'CPU 13 W', { tone: 'watts' }),
+        tag('wall', [0, 0, 0], { text: 'WALL 54 W', tone: 'watts', role: 'source' }),
+        tag('psu', [0, 0, 0], { text: 'SUPPLY 54 W', tone: 'watts', role: 'hub' }),
+        tag('cpu', [0, 0, 0], { text: 'CPU 13 W', tone: 'watts', role: 'use' }),
+        tag('x', [0, 0, 0], { text: 'CPU 13 W', tone: 'watts' }),
       ],
       0,
     );
@@ -242,7 +264,7 @@ describe('AirTags3D', () => {
     const b = t.boxes();
     expect(must(b[2]).width).toBeGreaterThan(must(b[3]).width);
     // a warning keeps its own tone whatever its role
-    t.set([tag('w', [0, 0, 0], 'NO MAIN POWER', { tone: 'warn' })], 1);
+    t.set([tag('w', [0, 0, 0], { text: 'NO MAIN POWER', tone: 'warn' })], 1);
     t.frame(makeCam(), VIEW);
     expect(must(pills(host)[0]).className).toContain('airtag-warn');
   });
@@ -251,8 +273,8 @@ describe('AirTags3D', () => {
     const t = make();
     t.set(
       [
-        tag('wall', [0, 0, 0], 'WALL 54 W', { tone: 'watts', role: 'source' }),
-        tag('legend', [0, 0, 0], '', { legend: true, under: 'wall' }),
+        tag('wall', [0, 0, 0], { text: 'WALL 54 W', tone: 'watts', role: 'source' }),
+        tag('legend', [0, 0, 0], { text: '', legend: true, under: 'wall' }),
       ],
       0,
     );
@@ -269,11 +291,11 @@ describe('AirTags3D', () => {
     const [wall, legend] = t.boxes();
     expect(must(legend).left).toBe(must(wall).left);
     expect(must(legend).top).toBeGreaterThanOrEqual(must(wall).top + must(wall).height);
-    const first = pill.children[0];
+    const [first] = pill.children;
     t.set(
       [
-        tag('wall', [0, 0, 0], 'WALL 55 W', { tone: 'watts', role: 'source' }),
-        tag('legend', [0, 0, 0], '', { legend: true, under: 'wall' }),
+        tag('wall', [0, 0, 0], { text: 'WALL 55 W', tone: 'watts', role: 'source' }),
+        tag('legend', [0, 0, 0], { text: '', legend: true, under: 'wall' }),
       ],
       1,
     );
@@ -291,25 +313,25 @@ describe('AirTags3D', () => {
   it('shows an up arrow while a temperature climbs and a down arrow while it falls', () => {
     const t = make();
     const cam = makeCam();
-    const text = () => or(pills(host)[0]?.textContent, '');
-    t.set([tag('c', [0, 0, 0], 'CPU', { tempC: 30, tone: 'heat' })], 0);
+
+    t.set([tag('c', [0, 0, 0], { text: 'CPU', tempC: 30, tone: 'heat' })], 0);
     t.frame(cam, VIEW);
-    t.set([tag('c', [0, 0, 0], 'CPU', { tempC: 40, tone: 'heat' })], 5);
+    t.set([tag('c', [0, 0, 0], { text: 'CPU', tempC: 40, tone: 'heat' })], 5);
     t.frame(cam, VIEW);
-    expect(text()).toContain('▲');
-    t.set([tag('c', [0, 0, 0], 'CPU', { tempC: 30, tone: 'heat' })], 10);
+    expect(firstText()).toContain('▲');
+    t.set([tag('c', [0, 0, 0], { text: 'CPU', tempC: 30, tone: 'heat' })], 10);
     t.frame(cam, VIEW);
-    t.set([tag('c', [0, 0, 0], 'CPU', { tempC: 20, tone: 'heat' })], 20);
+    t.set([tag('c', [0, 0, 0], { text: 'CPU', tempC: 20, tone: 'heat' })], 20);
     t.frame(cam, VIEW);
-    expect(text()).toContain('▼');
+    expect(firstText()).toContain('▼');
   });
 
   it('shows no arrow when the temperature holds', () => {
     const t = make();
     const cam = makeCam();
-    t.set([tag('c', [0, 0, 0], 'CPU', { tempC: 30 })], 0);
+    t.set([tag('c', [0, 0, 0], { text: 'CPU', tempC: 30 })], 0);
     t.frame(cam, VIEW);
-    t.set([tag('c', [0, 0, 0], 'CPU', { tempC: 30 })], 5);
+    t.set([tag('c', [0, 0, 0], { text: 'CPU', tempC: 30 })], 5);
     t.frame(cam, VIEW);
     expect(pills(host)[0]?.textContent).toBe('CPU');
   });

@@ -28,12 +28,16 @@ describe('PowerView3D', () => {
   beforeAll(() => {
     const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
     // (the machine runs: every part draws, so every kind of part has its words)
-    const s = g.snapshot();
+    const s = g.snapshot(),
+      devices = structuredClone(s.devices);
+    for (const d of devices) {
+      d.powerW = d.kind === 'display' ? 3 : 8;
+    }
     snap = {
       ...s,
       powered: true,
       power: { ...s.power, off: false, totalW: 120 },
-      devices: s.devices.map((d) => ({ ...d, powerW: d.kind === 'display' ? 3 : 8 })),
+      devices,
     };
     machine = new Machine3D(snap, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: false });
     const box = new Box3();

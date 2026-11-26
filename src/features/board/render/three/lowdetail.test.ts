@@ -1,3 +1,4 @@
+/* oxlint-disable import/max-dependencies -- one test of the Low builds of many parts, each in its own module */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as three from 'three';
 import { byDetail, LOW_SHEET_PX, lowDetail, setLowDetail, sheetCut } from '@/core/render/three/detail';
@@ -10,7 +11,7 @@ import { machineKey } from './machine3d';
 import { nvmeStick } from './nvme3d';
 import { sinkBody } from './sink3d';
 import { builtinTheme } from '@/core/render/theme';
-import type { Snapshot } from '@/worker/protocol';
+import { maxedSnapshot } from './testutil';
 
 /** Returns `value`, or fails the test with a clear message when it is missing. */
 function must<T>(value: T): NonNullable<T> {
@@ -75,9 +76,74 @@ const labelMesh = (): three.Mesh => {
   expect(planes).toHaveLength(1);
   return must(planes[0]);
 };
-const label = (): three.PlaneGeometry => labelMesh().geometry as three.PlaneGeometry;
+/** The geometry of a plane mesh. */
+function planeOf(m: three.Mesh): three.PlaneGeometry {
+  const g = m.geometry;
+  if (!(g instanceof three.PlaneGeometry)) {
+    throw new TypeError('expected a PlaneGeometry');
+  }
+  return g;
+}
+const label = (): three.PlaneGeometry => planeOf(labelMesh());
 
-const size = (t: ReturnType<typeof tex>) => (must(t).image as { width: number }).width;
+/** The standard materials under `g` that `keep` picks. */
+const mats = (g: three.Object3D, keep: (m: three.MeshStandardMaterial) => boolean) =>
+  meshes(g)
+    .flatMap((m) => asList(m.material))
+    .filter((m) => isMeshStandardMaterial(m))
+    .filter((m) => keep(m));
+
+/** The sink's casting and fins (roughness 0.46) for a visual. */
+const sink = (visual: string) => {
+  const g = new three.Group();
+  sinkBody(g, builtinTheme(), 'vrm-sink', visual);
+  return meshes(g)
+    .flatMap((m) => asList(m.material))
+    .map((m) => asMeshStandardMaterial(m))
+    .filter((m) => m.roughness === 0.46);
+};
+
+/** The liquid cooler's pump cap: its white materials of roughness 0.3. */
+const cap = () => {
+  setLayoutTier(3, 3);
+  return mats(coolerModel('cooler-liquid').root, (m) => m.color.getHex() === 0xff_ff_ff && m.roughness === 0.3);
+};
+
+function assert_the_pump_cap_keeps_High_s_polished_metal_at_Low_(): void {
+  for (const build of [cap]) {
+    setLowDetail(false);
+    const high = build();
+    expect(high.some((m) => m.metalness > 0.4)).toBe(true);
+    setLowDetail(true);
+    const low = build();
+    expect(low).toHaveLength(high.length);
+    expect(high.length).toBeGreaterThan(0);
+    expect(low.every((m) => m.metalness > 0.4)).toBe(true);
+  }
+}
+
+function assert_the_sink_casting_and_its_fins_keep_metalness_0_5(): void {
+  for (const visual of ['vrm-sink', 'vrm-sink-fan']) {
+    for (const low of [false, true]) {
+      setLowDetail(low);
+      const list = sink(visual);
+      expect(list.length, `${visual} at Low ${low}`).toBeGreaterThan(0);
+      expect(
+        list.every((m) => m.metalness === 0.5 && Object.keys(m.userData).length === 0),
+        `${visual} at Low ${low}`,
+      ).toBe(true);
+    }
+  }
+}
+
+/** The width of a sheet's picture. */
+function size(t: ReturnType<typeof tex>): number {
+  const image: unknown = must(t).image;
+  if (typeof image !== 'object' || image === null || !('width' in image) || typeof image.width !== 'number') {
+    throw new TypeError('expected a picture with a width');
+  }
+  return image.width;
+}
 
 describe('Low builds coarser machine parts', () => {
   it('byDetail picks by the flag, and setLowDetail says when it changed', () => {
@@ -102,7 +168,7 @@ describe('Low builds coarser machine parts', () => {
     ]);
     setLowDetail(true);
     const lowMesh = labelMesh(),
-      low = (lowMesh.geometry as three.PlaneGeometry).parameters;
+      low = planeOf(lowMesh).parameters;
     expect([low.widthSegments, low.heightSegments, low.width, low.height]).toStrictEqual([
       1,
       1,
@@ -119,53 +185,16 @@ describe('Low builds coarser machine parts', () => {
   });
 
   it("the pump cap keeps High's polished metal at Low (the machine keeps High's materials, `cheap` in board3d)", () => {
-    interface M {
-      metalness: number;
-      roughness: number;
-      color: { getHex: () => number };
-    }
-    const mats = (g: three.Object3D, keep: (m: M) => boolean) =>
-      meshes(g)
-        .flatMap((m) => asList(m.material))
-        .filter((m) => keep(m as unknown as M)) as unknown as M[];
-    const cap = () => {
-      setLayoutTier(3, 3);
-      return mats(coolerModel('cooler-liquid').root, (m) => m.color.getHex() === 0xff_ff_ff && m.roughness === 0.3);
-    };
-    for (const build of [cap]) {
-      setLowDetail(false);
-      const high = build();
-      expect(high.some((m) => m.metalness > 0.4)).toBe(true);
-      setLowDetail(true);
-      const low = build();
-      expect(low).toHaveLength(high.length);
-      expect(high.length).toBeGreaterThan(0);
-      expect(low.every((m) => m.metalness > 0.4)).toBe(true);
-    }
+    expect.hasAssertions();
+    assert_the_pump_cap_keeps_High_s_polished_metal_at_Low_();
   });
 
   it("the sink casting and its fins keep metalness 0.5 at High and at Low, with no userData flag (the machine keeps High's materials)", () => {
-    const sink = (visual: string) => {
-      const g = new three.Group();
-      sinkBody(g, builtinTheme(), 'vrm-sink', visual);
-      return meshes(g)
-        .flatMap((m) => asList(m.material))
-        .filter((m) => asMeshStandardMaterial(m).roughness === 0.46) as three.MeshStandardMaterial[];
-    };
-    for (const visual of ['vrm-sink', 'vrm-sink-fan']) {
-      for (const low of [false, true]) {
-        setLowDetail(low);
-        const list = sink(visual);
-        expect(list.length, `${visual} at Low ${low}`).toBeGreaterThan(0);
-        expect(
-          list.every((m) => m.metalness === 0.5 && Object.keys(m.userData).length === 0),
-          `${visual} at Low ${low}`,
-        ).toBe(true);
-      }
-    }
+    expect.hasAssertions();
+    assert_the_sink_casting_and_its_fins_keep_metalness_0_5();
   });
   it('the machine key changes when the detail does (so the machine is built again) and is unchanged at High', () => {
-    const s = { boardTier: 1, caseTier: 1, devices: [] } as unknown as Snapshot;
+    const s = { ...maxedSnapshot(), boardTier: 1, caseTier: 1, devices: [] };
     const high = machineKey(s);
     expect(high).toBe('1|1|');
     setLowDetail(true);

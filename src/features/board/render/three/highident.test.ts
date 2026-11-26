@@ -1,29 +1,32 @@
 // High's identity: the maxed machine (merged, with LOD, as the room builds it) and the room's props, fingerprinted per group against
 // `highident.expected.json`. A change to what High draws fails here. Refresh the golden from main: UPDATE_HIGH_GOLDEN=1 npx vitest run <this file>.
-// @ts-ignore
-import * as fsMod from 'node:fs';
-// @ts-ignore
-import * as urlMod from 'node:url';
-import { assert, describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as three from 'three';
 import { Room3D } from '@/features/room/render/three/room3d';
 import { idOf, shown } from '@/core/render/three/pick';
 import { buildMachine, maxedSnapshot, quietCanvas } from './testutil';
 
+/** The parts of `node:fs` this test reads and writes the golden with. */
 interface NodeFs {
   existsSync: (path: string) => boolean;
   readFileSync: (path: string, encoding: 'utf8') => string;
   writeFileSync: (path: string, data: string, encoding?: string) => void;
 }
 
+/** The part of `node:url` this test uses. */
 interface NodeUrl {
   fileURLToPath: (url: URL) => string;
 }
-const isNodeUrl = (mod: unknown): mod is NodeUrl => typeof mod === 'object' && mod !== null && 'fileURLToPath' in mod;
-const isNodeFs = (mod: unknown): mod is NodeFs => typeof mod === 'object' && mod !== null && 'existsSync' in mod;
-assert(isNodeUrl(urlMod), 'node:url loads');
-assert(isNodeFs(fsMod), 'node:fs loads');
-const nodeUrl = urlMod;
+
+/** The parts of `node:process` this test uses: the switch that refreshes the golden, and the place the summary goes. */
+interface NodeProcess {
+  env: Record<string, string | undefined>;
+  stdout: { write: (text: string) => boolean };
+}
+
+const fs = await vi.importActual<NodeFs>('node:fs');
+const nodeUrl = await vi.importActual<NodeUrl>('node:url');
+const { env, stdout } = await vi.importActual<NodeProcess>('node:process');
 
 /** Returns `value` when it is present, otherwise `fallback`. */
 function or<T>(value: T, fallback: NonNullable<T>): NonNullable<T> {
@@ -47,7 +50,6 @@ const isInstancedMesh = (o: unknown): o is three.InstancedMesh =>
 
 quietCanvas();
 
-const fs = fsMod;
 const GOLDEN: string = nodeUrl.fileURLToPath(new URL('highident.expected.json', import.meta.url));
 
 /** One group's fingerprint: its meshes, the draws a camera on layer 0 makes (a Mesh or an InstancedMesh is one), its vertices and instances, and a hash of them. */
@@ -75,7 +77,7 @@ class Hash {
 /** The group a mesh belongs to: its nearest tagged ancestor's id, else the top-level child of its root that holds it (by name, or by index). */
 function groupOf(root: three.Object3D, prefix: string, o: three.Object3D): string {
   const id = idOf(o);
-  if (id) {
+  if (id !== null && id !== '') {
     return `${prefix}/${id}`;
   }
   let top: three.Object3D = o;
@@ -92,6 +94,24 @@ interface Acc {
   verts: number;
   instances: number;
   h: Hash;
+}
+
+/** Orders two keys by their code units (as a plain sort does). */
+function byCode(a: string, b: string): number {
+  if (a < b) {
+    return -1;
+  }
+  return a > b ? 1 : 0;
+}
+
+/** Whether a parsed value is a golden: an object of rows by group. */
+function isGolden(v: unknown): v is Record<string, Row> {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    !Array.isArray(v) &&
+    Object.values(v).every((r: unknown) => typeof r === 'object' && r !== null && 'sum' in r)
+  );
 }
 
 /** Each group of each root, fingerprinted: each mesh's world-space vertex positions, its instances' world matrices, and whether a camera draws it. */
@@ -115,8 +135,8 @@ function fingerprint(roots: [string, three.Object3D][]): Record<string, Row> {
         g.draws += 1;
       }
       g.h.add(drawn ? 1 : 0);
-      const attr = mesh.geometry.attributes['position'] as three.BufferAttribute | undefined;
-      if (attr) {
+      const attr = mesh.geometry.attributes['position'];
+      if (attr !== undefined) {
         g.verts += attr.count;
         const e = pos.copy(mesh.matrixWorld).elements;
         for (let i = 0; i < attr.count; i++) {
@@ -141,7 +161,7 @@ function fingerprint(roots: [string, three.Object3D][]): Record<string, Row> {
   }
   return Object.fromEntries(
     [...acc]
-      .toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .toSorted(([a], [b]) => byCode(a, b))
       .map(([k, g]) => [
         k,
         { meshes: g.meshes, draws: g.draws, verts: g.verts, instances: g.instances, sum: g.h.hex() },
@@ -158,7 +178,10 @@ function readGolden(): Record<string, Row> | null {
   if (!text) {
     return null;
   }
-  const parsed = JSON.parse(text) as Record<string, Row>;
+  const parsed: unknown = JSON.parse(text);
+  if (!isGolden(parsed)) {
+    throw new Error('highident.expected.json must be an object of rows by group');
+  }
   return Object.keys(parsed).length > 0 ? parsed : null;
 }
 
@@ -185,25 +208,29 @@ const measure = ({ machine, room }: ReturnType<typeof build>): Record<string, Ro
     ['room', room.root],
   ]);
 
+function assert_matches_highident_expected_json_group_by_group(): void {
+  const got = measure(build());
+  const rows = Object.values(got);
+  const sum = (f: (r: Row) => number) => rows.reduce((n, r) => n + f(r), 0);
+  stdout.write(
+    `High identity: ${rows.length} groups, ${sum((r) => r.meshes)} meshes, ${sum((r) => r.draws)} draws, ${sum((r) => r.verts)} verts, ${sum((r) => r.instances)} instances\n`,
+  );
+  if (env['UPDATE_HIGH_GOLDEN'] === '1') {
+    fs.writeFileSync(GOLDEN, `${JSON.stringify(got, null, 2)}\n`);
+    return;
+  }
+  const want = readGolden();
+  expect(
+    want,
+    'no High golden yet: fill highident.expected.json from origin/main (UPDATE_HIGH_GOLDEN=1 npx vitest run highident.test.ts)',
+  ).not.toBeNull();
+  expect(got).toStrictEqual(want);
+}
+
 describe('High builds the same machine and room', () => {
   it('matches highident.expected.json, group by group', () => {
-    const got = measure(build());
-    const rows = Object.values(got);
-    const sum = (f: (r: Row) => number) => rows.reduce((n, r) => n + f(r), 0);
-    console.log(
-      `High identity: ${rows.length} groups, ${sum((r) => r.meshes)} meshes, ${sum((r) => r.draws)} draws, ${sum((r) => r.verts)} verts, ${sum((r) => r.instances)} instances`,
-    );
-    const { env } = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process;
-    if (env['UPDATE_HIGH_GOLDEN'] === '1') {
-      fs.writeFileSync(GOLDEN, `${JSON.stringify(got, null, 2)}\n`);
-      return;
-    }
-    const want = readGolden();
-    expect(
-      want,
-      'no High golden yet: fill highident.expected.json from origin/main (UPDATE_HIGH_GOLDEN=1 npx vitest run highident.test.ts)',
-    ).not.toBeNull();
-    expect(got).toStrictEqual(want);
+    expect.hasAssertions();
+    assert_matches_highident_expected_json_group_by_group();
   }, 120_000);
 
   it('names every top-level group, none by its position', () => {

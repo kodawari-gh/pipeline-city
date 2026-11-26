@@ -1,5 +1,4 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { Snapshot } from '@/worker/protocol';
 import { boardSnap, dev, snap } from '@/core/ui/testdata';
 import type { Rect } from '@/core/render/camera';
 import type { V3 } from '@/core/render/three/rope';
@@ -10,12 +9,55 @@ import { powerLedger } from './ledger';
 import * as net from './net';
 import type { CableRun } from './runs';
 
+type Snapshot = ReturnType<typeof snap>;
+
 /** Returns `value`, or fails the test with a clear message when it is missing. */
 function must<T>(value: T): NonNullable<T> {
   if (value === undefined || value === null) {
     throw new Error('expected a value, got nothing');
   }
   return value;
+}
+
+/** The SATA drive `hdd` in `sata0`, idle and empty. */
+const sataDrive: Snapshot['storage'][number] = {
+  deviceId: 'hdd',
+  slot: 'sata0',
+  spec: 'hdd0',
+  name: 'hdd0',
+  burnt: false,
+  capacityBytes: 96 * 1024,
+  usedBytes: 0,
+  bytesRead: 0,
+  bytesWritten: 0,
+  busy: false,
+  latencyTicks: 720,
+  blockTicks: 72,
+  bytesPerSecond: 3600,
+  hasOs: true,
+  fs: { runs: [], fragmentation: 0, byKind: { os: 0, spool: 0, program: 0, dataset: 0, meta: 0 }, files: [] },
+  wear: [],
+  headLba: 0,
+  cmds: [],
+  wearPct: 0,
+  badGroups: 0,
+  lostBlocks: 0,
+  queueDepth: 2,
+  queued: 0,
+  mirror: false,
+  mount: { state: 'unformatted', phase: 'unmounted', progress: 0 },
+  format: { why: null, datasets: 0 },
+};
+
+/** A copy of `cables` with the cable `id` pulled out. */
+function unplug(cables: Snapshot['cables'], id: string): Snapshot['cables'] {
+  const out = structuredClone(cables);
+  for (const c of out) {
+    if (c.id === id) {
+      c.connected = false;
+    }
+  }
+  return out;
 }
 
 const BAY: PsuBay = {
@@ -37,11 +79,11 @@ const run = (id: string, strands: V3[][], over: Partial<CableRun> = {}): CableRu
   ...over,
 });
 
-/** A running machine: PSU, CPU, RAM, a SATA drive and a monitor, 54 W on the supply. */
-function running(over: Partial<Snapshot> = {}, cords = { pc: true, mon: true }): Snapshot {
+/** A running machine: PSU, CPU, RAM, a SATA drive and a monitor, 54 W on the supply; `pc` and `mon` say whether each mains cord is in. */
+function running(over: Partial<Snapshot> = {}, pc = true, mon = true): Snapshot {
   return snap({
     powered: true,
-    phase: 'idle-os' as never,
+    phase: 'idle-os',
     power: { vrmLossW: 2, totalW: 54, budgetW: 250, psuFactor: 1, off: false, tripped: false },
     energy: { wallW: 60, wh: 1 },
     devices: [
@@ -51,13 +93,13 @@ function running(over: Partial<Snapshot> = {}, cords = { pc: true, mon: true }):
       dev({ id: 'hdd', kind: 'storage', slot: 'sata0', powerW: 5 }),
       dev({ id: 'mon', kind: 'display', slot: 'display0', powerW: 1.2 }),
     ],
-    storage: [{ deviceId: 'hdd', slot: 'sata0' } as never],
+    storage: [sataDrive],
     cables: [
       { id: 'atx', name: 'ATX', connected: true },
       { id: 'cpu', name: 'CPU', connected: true },
       { id: 'video', name: 'Video', connected: true },
-      { id: 'pcmains', name: 'PC cord', connected: cords.pc },
-      { id: 'monmains', name: 'Monitor cord', connected: cords.mon },
+      { id: 'pcmains', name: 'PC cord', connected: pc },
+      { id: 'monmains', name: 'Monitor cord', connected: mon },
     ] as Snapshot['cables'],
     ...over,
   });
@@ -90,19 +132,59 @@ function input(s: Snapshot, over: Partial<net.ShapeIn> = {}): net.ShapeIn {
   return { s, runs, buses: buildBuses(), slots, psu: BAY, boardZ: 2460, hubZ: 2490, ...over };
 }
 
-const box = (id: string): { min: V3; max: V3 } | null =>
-  id === 'cpu'
-    ? { min: [0, -500, 2460], max: [500, 0, 2800] }
-    : id === 'ram'
-      ? { min: [800, -600, 2460], max: [900, 0, 2800] }
-      : id === 'hdd'
-        ? { min: [6000, -2000, 2500], max: [6800, -1700, 2900] }
-        : null;
+const BOXES = new Map<string, { min: V3; max: V3 }>([
+  ['cpu', { min: [0, -500, 2460], max: [500, 0, 2800] }],
+  ['ram', { min: [800, -600, 2460], max: [900, 0, 2800] }],
+  ['hdd', { min: [6000, -2000, 2500], max: [6800, -1700, 2900] }],
+]);
+const box = (id: string): { min: V3; max: V3 } | null => BOXES.get(id) ?? null;
 const lineOf = (sh: net.PowerShape, id: string) => sh.lines.findIndex((l) => l.id === id);
+/** The shape of `s` and the snapshot drawn on it. */
+function draw(
+  s: Snapshot,
+  over: Partial<net.ShapeIn> = {},
+): { sh: net.PowerShape; d: ReturnType<typeof net.powerDraw> } {
+  const sh = net.powerShape(input(s, over));
+  return { sh, d: net.powerDraw(sh, s, powerLedger(s), box) };
+}
 
 beforeAll(() => {
   setLayoutTier(2, 2);
 });
+
+function assert_the_mains_from_the_wall_are_a_source_s_lines_eve(): void {
+  const sh = net.powerShape(input(running()));
+  const tone = (id: string): string => must(sh.lines[lineOf(sh, id)]).tone;
+  expect(tone('pcmains#0')).toBe('source');
+  expect(tone('monmains#0')).toBe('source');
+  expect(tone('atx~0')).toBe('use');
+  for (const id of ['atx#0', 'cpu#0', 'hdd:power#0', 'trace.pwrcpu.0', 'trace.vdimm.0']) {
+    expect(tone(id)).toBe('use');
+  }
+}
+
+function assert_puts_a_plate_round_the_plugs_of_the_wall_a_source(): void {
+  const sh = net.powerShape(input(running()));
+  expect(sh.nodes.map((n) => n.id)).toStrictEqual(['node.wall', 'node.vrm', 'node.dvrm']);
+  const [wall, ...regs] = sh.nodes;
+  expect(must(wall).role).toBe('source');
+  // (it centres on the two plugs, at x 9000, y -5000 and -4000, just in front of them, and is bigger than they are apart)
+  expect(must(wall).at).toStrictEqual([9000, -4500, 1990]);
+  expect(must(wall).ex[0]).toBeGreaterThan(0);
+  expect(must(wall).ey[1]).toBeGreaterThan(500);
+  expect(regs.every((n) => n.role === 'hub')).toBe(true);
+  // (the regulators lie on the board's own, over its face)
+  expect(regs.every((n) => n.at[2] > 2460 && n.at[2] < 2520)).toBe(true);
+  expect(regs.every((n) => Number.isFinite(n.at[0]) && n.ex[0] > 0 && n.ey[1] > 0)).toBe(true);
+  const i = input(running());
+  const fan = net.powerShape({
+    ...i,
+    runs: [...i.runs, run('sysfan', [strand([1000, -1000, 2500], [1200, -900, 2500])])],
+  });
+  const hub = must(fan.nodes.find((n) => n.id === 'node.hub'));
+  expect(hub.role).toBe('hub');
+  expect(hub.at[2]).toBe(2490);
+}
 
 describe('the power shape', () => {
   it('has a line for each strand of each power cable, and none for the data cables', () => {
@@ -121,7 +203,9 @@ describe('the power shape', () => {
     expect(stubs.map((l) => l.id)).toStrictEqual(['atx~0', 'atx~1', 'hdd:power~0']);
     const g = must(stubs[0]);
     // (the first strand starts at [5000, -2000, 2500] heading to [5000, -2400, 2600]: it came from the other way)
-    const [back, root] = g.pts as [V3, V3];
+    expect(g.pts).toHaveLength(2);
+    const back = must(g.pts[0]),
+      root = must(g.pts[1]);
     expect(root).toStrictEqual([5000, -2000, 2500]);
     expect(Math.hypot(back[0] - root[0], back[1] - root[1], back[2] - root[2])).toBeCloseTo(1500, 6);
     expect(back[1]).toBeGreaterThan(root[1]);
@@ -129,11 +213,9 @@ describe('the power shape', () => {
     expect(g.fade).toBe(1500);
     expect(g.cable).toBe('atx');
     // a cable that is not from the supply (a cord, a lead the sim has no strand for) has none
-    expect(
-      net
-        .powerShape(input(running(), { runs: [run('cpu', [strand([1, 2, 3], [4, 5, 6])])] }))
-        .lines.some((l) => l.kind === 'ghost'),
-    ).toBe(false);
+    const lead = run('cpu', [strand([1, 2, 3], [4, 5, 6])]);
+    const bare = net.powerShape(input(running(), { runs: [lead] }));
+    expect(bare.lines.some((l) => l.kind === 'ghost')).toBe(false);
   });
 
   it("follows the board's own copper: the CPU rails, the memory rails and a drop into the stick, in world space over the board", () => {
@@ -150,55 +232,26 @@ describe('the power shape', () => {
     );
     const t = must(sh.lines[lineOf(sh, 'trace.pwrcpu.0')]);
     expect(t.pts.every((p) => p[2] === 2470)).toBe(true);
-    expect(t.pts.every((p) => p.every(Number.isFinite))).toBe(true);
+    expect(t.pts.every((p) => p.every((v) => Number.isFinite(v)))).toBe(true);
     // (layout y runs down, the world's runs up)
     const b = must(must(buildBuses().find((x) => x.id === 'pwrcpu')).lanes[0]);
     expect(must(t.pts[0])[1]).toBe(-must(b.pts[0])[1]);
   });
 
   it("the mains from the wall are a source's lines; every other line takes its power from the supply or the board, and is a use", () => {
-    const sh = net.powerShape(input(running()));
-    const tone = (id: string): string => must(sh.lines[lineOf(sh, id)]).tone;
-    expect(tone('pcmains#0')).toBe('source');
-    expect(tone('monmains#0')).toBe('source');
-    expect(tone('atx~0')).toBe('use');
-    for (const id of ['atx#0', 'cpu#0', 'hdd:power#0', 'trace.pwrcpu.0', 'trace.vdimm.0']) {
-      expect(tone(id)).toBe('use');
-    }
+    expect.hasAssertions();
+    assert_the_mains_from_the_wall_are_a_source_s_lines_eve();
   });
 
   it('puts a plate round the plugs of the wall (a source) and one on each regulator (a hub); the fan hub has one when its cord is there', () => {
-    const sh = net.powerShape(input(running()));
-    expect(sh.nodes.map((n) => n.id)).toStrictEqual(['node.wall', 'node.vrm', 'node.dvrm']);
-    const [wall, ...regs] = sh.nodes;
-    expect(must(wall).role).toBe('source');
-    // (it centres on the two plugs, at x 9000, y -5000 and -4000, just in front of them, and is bigger than they are apart)
-    expect(must(wall).at).toStrictEqual([9000, -4500, 1990]);
-    expect(must(wall).ex[0]).toBeGreaterThan(0);
-    expect(must(wall).ey[1]).toBeGreaterThan(500);
-    expect(regs.every((n) => n.role === 'hub')).toBe(true);
-    // (the regulators lie on the board's own, over its face)
-    expect(regs.every((n) => n.at[2] > 2460 && n.at[2] < 2520)).toBe(true);
-    expect(regs.every((n) => Number.isFinite(n.at[0]) && n.ex[0] > 0 && n.ey[1] > 0)).toBe(true);
-    const i = input(running());
-    const fan = net.powerShape({
-      ...i,
-      runs: [...i.runs, run('sysfan', [strand([1000, -1000, 2500], [1200, -900, 2500])])],
-    });
-    const hub = must(fan.nodes.find((n) => n.id === 'node.hub'));
-    expect(hub.role).toBe('hub');
-    expect(hub.at[2]).toBe(2490);
+    expect.hasAssertions();
+    assert_puts_a_plate_round_the_plugs_of_the_wall_a_source();
   });
 
   it("lets the studio's wall set the source plate: its real outline, lying over the plugs' seat, with the words beside it; the room's socket stays as it was", () => {
     const outlet = { padX: 860, padY: 920, lift: 14 };
-    const draw = (over: Partial<net.ShapeIn> = {}) => {
-      const s = running(),
-        sh = net.powerShape(input(s, over));
-      return { sh, d: net.powerDraw(sh, s, powerLedger(s), box) };
-    };
-    const room = draw(),
-      studio = draw({ outlet });
+    const room = draw(running()),
+      studio = draw(running(), { outlet });
     const a = must(room.sh.nodes[0]),
       b = must(studio.sh.nodes[0]);
     expect(b.id).toBe('node.wall');
@@ -230,14 +283,11 @@ describe('the power shape', () => {
     const base = running();
     const noCpu = { ...base, devices: base.devices.filter((d) => d.kind !== 'cpu') };
     expect(net.powerShape(input(noCpu)).nodes.map((n) => n.id)).toStrictEqual(['node.wall', 'node.dvrm']);
-    expect(
-      net.powerShape(input({ ...base, devices: base.devices.filter((d) => d.kind !== 'psu') })).nodes.map((n) => n.id),
-    ).toStrictEqual(['node.wall']);
-    expect(
-      net
-        .powerShape(input(base, { runs: input(base).runs.filter((r) => !r.id.endsWith('mains')) }))
-        .nodes.some((n) => n.id === 'node.wall'),
-    ).toBe(false);
+    const noPsu = { ...base, devices: base.devices.filter((d) => d.kind !== 'psu') };
+    expect(net.powerShape(input(noPsu)).nodes.map((n) => n.id)).toStrictEqual(['node.wall']);
+    const noCords = input(base).runs.filter((r) => !r.id.endsWith('mains'));
+    const unplugged = net.powerShape(input(base, { runs: noCords }));
+    expect(unplugged.nodes.some((n) => n.id === 'node.wall')).toBe(false);
   });
 
   it('a card is fed along its slot rail, a drive on its M.2 socket; with no supply there are no traces', () => {
@@ -252,31 +302,87 @@ describe('the power shape', () => {
     const feed = must(sh.lines[lineOf(sh, 'feed.pcie0')]);
     expect(feed.pts.length, 'a routed rail, not a straight line').toBeGreaterThan(3);
     expect(feed.branch).toBe(true);
-    expect(
-      net
-        .powerShape(input({ ...s, devices: s.devices.filter((d) => d.kind !== 'psu') }))
-        .lines.some((l) => l.kind === 'trace'),
-    ).toBe(false);
+    const noPsu = net.powerShape(input({ ...s, devices: s.devices.filter((d) => d.kind !== 'psu') }));
+    expect(noPsu.lines.some((l) => l.kind === 'trace')).toBe(false);
   });
 });
 
-describe('a snapshot on the shape', () => {
-  const draw = (s: Snapshot, over: Partial<net.ShapeIn> = {}) => {
-    const sh = net.powerShape(input(s, over));
-    return { sh, d: net.powerDraw(sh, s, powerLedger(s), box) };
-  };
-  const state = (sh: net.PowerShape, d: ReturnType<typeof draw>['d'], id: string) => d.state[lineOf(sh, id)];
+const state = (sh: net.PowerShape, d: ReturnType<typeof draw>['d'], id: string) => d.state[lineOf(sh, id)];
 
+function assert_a_running_machine_cables_and_traces_on_the_busiest(): void {
+  const { sh, d } = draw(running());
+  expect(state(sh, d, 'pcmains#0')).toBe(1);
+  expect(state(sh, d, 'cpu#0')).toBe(1);
+  expect(must(d.level[lineOf(sh, 'pcmains#0')])).toBeGreaterThan(must(d.level[lineOf(sh, 'cpu#0')]));
+  expect(must(d.level[lineOf(sh, 'cpu#0')])).toBeGreaterThan(must(d.level[lineOf(sh, 'hdd:power#0')]));
+  expect(must(d.level[lineOf(sh, 'trace.pwrcpu.0')])).toBeGreaterThan(must(d.level[lineOf(sh, 'trace.pwrcpu.1')]));
+  expect([...d.level].every((x) => Number.isFinite(x) && x >= 0 && x <= 1)).toBe(true);
+  expect(d.open.every((x) => x === 0)).toBe(true);
+  expect(d.refW).toBe(60);
+}
+
+function assert_the_plates_glow_by_what_passes_through_them_the_(): void {
+  const { sh, d } = draw(running());
+  const at = (id: string): number => sh.nodes.findIndex((n) => n.id === id);
+  expect([...d.nodeState]).toStrictEqual([1, 1, 1]);
+  expect(must(d.nodeLevel[at('node.wall')])).toBeGreaterThan(must(d.nodeLevel[at('node.vrm')]));
+  expect(must(d.nodeLevel[at('node.vrm')])).toBeGreaterThan(must(d.nodeLevel[at('node.dvrm')]));
+  expect(must(d.nodeLevel[at('node.dvrm')])).toBeGreaterThan(0);
+  expect([...d.nodeLevel].every((x) => Number.isFinite(x) && x >= 0 && x <= 1)).toBe(true);
+}
+
+function assert_a_plate_is_out_with_the_cable_that_feeds_it_the_(): void {
+  const base = running();
+  const out = (id: string) =>
+    draw({
+      ...base,
+      cables: unplug(base.cables, id),
+    });
+  const stateOfNode = (r: ReturnType<typeof out>, id: string): number | undefined =>
+    r.d.nodeState[r.sh.nodes.findIndex((n) => n.id === id)];
+  expect(stateOfNode(out('pcmains'), 'node.wall')).toBe(2);
+  expect(stateOfNode(out('monmains'), 'node.wall')).toBe(2);
+  expect(stateOfNode(out('cpu'), 'node.vrm')).toBe(2);
+  expect(stateOfNode(out('cpu'), 'node.dvrm')).toBe(1);
+  expect(stateOfNode(out('atx'), 'node.dvrm')).toBe(2);
+  expect(stateOfNode(out('atx'), 'node.vrm')).toBe(1);
+}
+
+function assert_a_cable_that_is_out_is_missing_with_a_ring_and_i(): void {
+  const base = running();
+  const { sh, d } = draw({
+    ...base,
+    cables: unplug(base.cables, 'atx'),
+  });
+  expect(state(sh, d, 'atx#0')).toBe(2);
+  expect(state(sh, d, 'atx#1')).toBe(2);
+  expect(d.level[lineOf(sh, 'atx#0')]).toBe(0);
+  expect(state(sh, d, 'cpu#0')).toBe(1);
+  expect(d.open[sh.rings.findIndex((r) => r.cable === 'atx')]).toBe(1);
+  expect(d.open.filter((x) => x === 1)).toHaveLength(1);
+  const warn = must(d.tags.find((t) => t.id === 'p.atx.warn'));
+  expect(warn).toMatchObject({ text: 'NO MAIN POWER', tone: 'warn' });
+  expect(warn.at.every(Number.isFinite)).toBe(true);
+}
+
+function assert_gives_every_word_the_role_of_the_thing_it_names_(): void {
+  const { d } = draw(running());
+  const role = Object.fromEntries(d.tags.map((t) => [t.id, t.role]));
+  expect(role['p.wall']).toBe('source');
+  expect(role['p.psu']).toBe('hub');
+  expect(role['p.monitor']).toBe('use');
+  expect(role['p.cpu']).toBe('use');
+  expect(role['p.hdd']).toBe('use');
+  // (the warnings, the scale and the legend are no node)
+  expect(
+    d.tags.filter((t) => t.tone === 'warn' || t.id === 'p.scale' || t.id === 'p.legend').every((t) => !t.role),
+  ).toBe(true);
+}
+
+describe('a snapshot on the shape', () => {
   it('a running machine: cables and traces on, the busiest run the hottest, every number a number', () => {
-    const { sh, d } = draw(running());
-    expect(state(sh, d, 'pcmains#0')).toBe(1);
-    expect(state(sh, d, 'cpu#0')).toBe(1);
-    expect(must(d.level[lineOf(sh, 'pcmains#0')])).toBeGreaterThan(must(d.level[lineOf(sh, 'cpu#0')]));
-    expect(must(d.level[lineOf(sh, 'cpu#0')])).toBeGreaterThan(must(d.level[lineOf(sh, 'hdd:power#0')]));
-    expect(must(d.level[lineOf(sh, 'trace.pwrcpu.0')])).toBeGreaterThan(must(d.level[lineOf(sh, 'trace.pwrcpu.1')]));
-    expect([...d.level].every((x) => Number.isFinite(x) && x >= 0 && x <= 1)).toBe(true);
-    expect(d.open.every((x) => x === 0)).toBe(true);
-    expect(d.refW).toBe(60);
+    expect.hasAssertions();
+    assert_a_running_machine_cables_and_traces_on_the_busiest();
   });
 
   it('a machine that is off: every run idles, none glows', () => {
@@ -290,30 +396,13 @@ describe('a snapshot on the shape', () => {
   });
 
   it('the plates glow by what passes through them: the wall by the whole draw, a regulator by what it hands on', () => {
-    const { sh, d } = draw(running());
-    const at = (id: string): number => sh.nodes.findIndex((n) => n.id === id);
-    expect([...d.nodeState]).toStrictEqual([1, 1, 1]);
-    expect(must(d.nodeLevel[at('node.wall')])).toBeGreaterThan(must(d.nodeLevel[at('node.vrm')]));
-    expect(must(d.nodeLevel[at('node.vrm')])).toBeGreaterThan(must(d.nodeLevel[at('node.dvrm')]));
-    expect(must(d.nodeLevel[at('node.dvrm')])).toBeGreaterThan(0);
-    expect([...d.nodeLevel].every((x) => Number.isFinite(x) && x >= 0 && x <= 1)).toBe(true);
+    expect.hasAssertions();
+    assert_the_plates_glow_by_what_passes_through_them_the_();
   });
 
   it('a plate is out with the cable that feeds it: the wall with a cord, the CPU regulator with the 8-pin, the memory regulator with the 24-pin', () => {
-    const base = running();
-    const out = (id: string) =>
-      draw({
-        ...base,
-        cables: base.cables.map((c) => (c.id === id ? { ...c, connected: false } : c)) as Snapshot['cables'],
-      });
-    const stateOfNode = (r: ReturnType<typeof out>, id: string): number | undefined =>
-      r.d.nodeState[r.sh.nodes.findIndex((n) => n.id === id)];
-    expect(stateOfNode(out('pcmains'), 'node.wall')).toBe(2);
-    expect(stateOfNode(out('monmains'), 'node.wall')).toBe(2);
-    expect(stateOfNode(out('cpu'), 'node.vrm')).toBe(2);
-    expect(stateOfNode(out('cpu'), 'node.dvrm')).toBe(1);
-    expect(stateOfNode(out('atx'), 'node.dvrm')).toBe(2);
-    expect(stateOfNode(out('atx'), 'node.vrm')).toBe(1);
+    expect.hasAssertions();
+    assert_a_plate_is_out_with_the_cable_that_feeds_it_the_();
   });
 
   it('says what a regulator hands on and what it wastes on the way, and keeps these among the words of detail', () => {
@@ -351,24 +440,12 @@ describe('a snapshot on the shape', () => {
   });
 
   it('a cable that is out is missing, with a ring and its words at the socket; the rest run on', () => {
-    const base = running();
-    const { sh, d } = draw({
-      ...base,
-      cables: base.cables.map((c) => (c.id === 'atx' ? { ...c, connected: false } : c)) as Snapshot['cables'],
-    });
-    expect(state(sh, d, 'atx#0')).toBe(2);
-    expect(state(sh, d, 'atx#1')).toBe(2);
-    expect(d.level[lineOf(sh, 'atx#0')]).toBe(0);
-    expect(state(sh, d, 'cpu#0')).toBe(1);
-    expect(d.open[sh.rings.findIndex((r) => r.cable === 'atx')]).toBe(1);
-    expect(d.open.filter((x) => x === 1)).toHaveLength(1);
-    const warn = must(d.tags.find((t) => t.id === 'p.atx.warn'));
-    expect(warn).toMatchObject({ text: 'NO MAIN POWER', tone: 'warn' });
-    expect(warn.at.every(Number.isFinite)).toBe(true);
+    expect.hasAssertions();
+    assert_a_cable_that_is_out_is_missing_with_a_ring_and_i();
   });
 
   it('a cord that is out says to plug it in', () => {
-    const { d } = draw(running({}, { pc: false, mon: false }));
+    const { d } = draw(running({}, false, false));
     expect(must(d.tags.find((t) => t.id === 'p.pcmains.warn')).text).toBe('PLUG THE PC IN');
     expect(must(d.tags.find((t) => t.id === 'p.monmains.warn')).text).toBe('PLUG THE MONITOR IN');
   });
@@ -390,17 +467,8 @@ describe('a snapshot on the shape', () => {
   });
 
   it('gives every word the role of the thing it names: the wall a source, the supply a hub, the parts users', () => {
-    const { d } = draw(running());
-    const role = Object.fromEntries(d.tags.map((t) => [t.id, t.role]));
-    expect(role['p.wall']).toBe('source');
-    expect(role['p.psu']).toBe('hub');
-    expect(role['p.monitor']).toBe('use');
-    expect(role['p.cpu']).toBe('use');
-    expect(role['p.hdd']).toBe('use');
-    // (the warnings, the scale and the legend are no node)
-    expect(
-      d.tags.filter((t) => t.tone === 'warn' || t.id === 'p.scale' || t.id === 'p.legend').every((t) => !t.role),
-    ).toBe(true);
+    expect.hasAssertions();
+    assert_gives_every_word_the_role_of_the_thing_it_names_();
   });
 
   it('parts glow by what they draw; a supply over its budget glows red', () => {

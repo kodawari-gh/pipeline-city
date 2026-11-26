@@ -3,10 +3,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Group, PerspectiveCamera, Scene } from 'three';
 import { BUILD_PRESETS } from '@/features/board/sim/buildspecs';
-import { BuildStage, binParts } from './buildmode3d';
+import { binParts } from './buildmode3d';
+import { newStage } from './buildmode3d.testkit';
 import { setLayoutTier } from '../layout/layout';
 import { Game } from '@/worker/game/game';
-import type * as init from '@/core/render/three/init';
+
+/** The stage these tests drive (its type, without a second import of the module). */
+type BuildStage = ReturnType<typeof newStage>;
 
 function createPost() {
   return {
@@ -67,8 +70,8 @@ function must<T>(value: T): NonNullable<T> {
   return value;
 }
 
-vi.mock('@/core/render/three/init', async (orig) => {
-  const actual = await orig<typeof init>();
+vi.mock<Record<string, unknown>>(import('@/core/render/three/init'), async (orig) => {
+  const actual = await orig();
   return {
     ...actual,
     createRenderContext: () => ({
@@ -102,20 +105,26 @@ vi.mock('@/core/render/three/init', async (orig) => {
     }),
   };
 });
-vi.mock('@/core/render/three/post', () => ({
+vi.mock<Record<string, unknown>>(import('@/core/render/three/post'), () => ({
   Post,
 }));
-vi.mock('./lens3d', () => ({
+vi.mock<Record<string, unknown>>(import('./lens3d'), () => ({
   Lens3D,
 }));
 
+/** The stage's rebuild without 3D: the real build sets the layout's tiers, which say what kind of case the stage shows. */
+function rebuild(this: { snaps: { drop: () => void }; board: { tier: number; caseTier: number } }): void {
+  this.snaps.drop();
+  setLayoutTier(this.board.tier, Math.max(this.board.tier, this.board.caseTier));
+}
+
 /** A stage with the full rig and no 3D: the machine's drawing is stubbed, the game and the history are the real ones. */
 function stage(): BuildStage {
-  const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
+  const s = newStage({
     clientWidth: 400,
     clientHeight: 800,
   });
-  s['_machine'] = {
+  const machine = {
     moving: false,
     doorOpen: false,
     frame: () => {
@@ -149,21 +158,19 @@ function stage(): BuildStage {
       /* no-op */
     },
   };
-  s['_game'] = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
-  s['rebuild'] = s['rebuildAll'] = function (this: {
-    snaps: { drop: () => void };
-    board: { tier: number; caseTier: number };
-  }) {
-    this.snaps.drop();
-    setLayoutTier(this.board.tier, Math.max(this.board.tier, this.board.caseTier));
-  };
-  s['playAll'] = async () => {
-    /* no-op */
-  };
-  s['door'] = async () => {
-    /* no-op */
-  };
-  return s as unknown as BuildStage;
+  Object.assign(s, {
+    _machine: machine,
+    _game: new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true }),
+    rebuild,
+    rebuildAll: rebuild,
+    playAll: async () => {
+      /* no-op */
+    },
+    door: async () => {
+      /* no-op */
+    },
+  });
+  return s;
 }
 
 const cpu = (): string => must(binParts().find((b) => b.kind === 'cpu')).id;

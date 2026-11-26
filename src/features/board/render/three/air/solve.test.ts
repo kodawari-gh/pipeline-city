@@ -54,47 +54,78 @@ function solved(boxes: grid.AirBox[], mk: (g: grid.AirGrid) => solve.AirFanDef[]
   return f;
 }
 
+function assert_carries_the_flow_of_an_intake_fan_on_one_wall_to(): void {
+  const f = solved([], (g) => [intake(g), exhaust(g)]);
+  const g = f.grid,
+    mid = Math.floor(g.n[0] / 2),
+    flux = fluxAcrossX(f, mid);
+  // (it flows west: toward -x)
+  expect(flux).toBeLessThan(0);
+  // the intake's flow is its full flow less what the pressure took off (the stiffness): a fair share of it crosses the middle
+  expect(Math.abs(flux)).toBeGreaterThan(0.5 * Q);
+  expect(Math.abs(flux)).toBeLessThan(1.05 * Q);
+  // the same flux crosses every plane between the fans: the air is conserved
+  for (const i of [2, mid, g.n[0] - 3]) {
+    expect(Math.abs(fluxAcrossX(f, i) - flux) / Math.abs(flux)).toBeLessThan(0.08);
+  }
+}
+
+/** One intake fan and one exhaust fan on the grid. */
+function pushPull(g: grid.AirGrid): solve.AirFanDef[] {
+  return [intake(g), exhaust(g)];
+}
+
+function assert_is_linear_in_the_fans_half_the_speed_half_the_air(): void {
+  const full = solved([], pushPull),
+    half = solved([], pushPull, [0.5, 0.5]),
+    i = Math.floor(full.grid.n[0] / 2);
+  expect(fluxAcrossX(half, i) / fluxAcrossX(full, i)).toBeCloseTo(0.5, 2);
+}
+
+function assert_sends_the_air_through_the_gap_of_a_wall_across_th(): void {
+  const wall: grid.AirBox = { id: 'wall', min: [3800, 0, 0], max: [4200, 5000, 4000], k: [0, 0, 0] };
+  // a gap high on the wall: cut it into two boxes
+  const gap = [
+    { ...wall, id: 'low', max: [4200, 2000, 4000] as grid.V3 },
+    { ...wall, id: 'high', min: [3800, 3200, 0] as grid.V3 },
+  ];
+  const f = solved(gap, (g) => [intake(g), exhaust(g)]),
+    g = f.grid;
+  const at = (x: number, y: number, z: number): number => must(f.u[3 * g.cellAt(x, y, z)]);
+  // in the gap the air goes faster toward the west than in the open case away from the wall
+  expect(at(4000, 2600, 2000)).toBeLessThan(0);
+  expect(Math.abs(at(4000, 2600, 2000))).toBeGreaterThan(Math.abs(at(6500, 2600, 2000)));
+  // inside the wall no air moves
+  const cell = 3 * g.cellAt(4000, 1000, 2000);
+  expect(Math.hypot(must(f.u[cell]), must(f.u[cell + 1]))).toBeLessThan(1);
+}
+
+function assert_keeps_every_speed_under_the_cap(): void {
+  const f = solved([{ id: 'plate', min: [3800, 0, 0], max: [4200, 5000, 4000], k: [0.001, 0, 0] }], (g) => [
+    intake(g),
+    exhaust(g),
+  ]);
+  let top = 0;
+  for (let c = 0; c < f.grid.cells; c++) {
+    top = Math.max(top, Math.hypot(must(f.u[3 * c]), must(f.u[3 * c + 1]), must(f.u[3 * c + 2])));
+  }
+  expect(top).toBeLessThanOrEqual(solve.V_MAX * 1.0001);
+}
+
 describe('AirField', () => {
   it('carries the flow of an intake fan on one wall to an exhaust fan on the other', () => {
-    const f = solved([], (g) => [intake(g), exhaust(g)]);
-    const g = f.grid,
-      mid = Math.floor(g.n[0] / 2),
-      flux = fluxAcrossX(f, mid);
-    // (it flows west: toward -x)
-    expect(flux).toBeLessThan(0);
-    // the intake's flow is its full flow less what the pressure took off (the stiffness): a fair share of it crosses the middle
-    expect(Math.abs(flux)).toBeGreaterThan(0.5 * Q);
-    expect(Math.abs(flux)).toBeLessThan(1.05 * Q);
-    // the same flux crosses every plane between the fans: the air is conserved
-    for (const i of [2, mid, g.n[0] - 3]) {
-      expect(Math.abs(fluxAcrossX(f, i) - flux) / Math.abs(flux)).toBeLessThan(0.08);
-    }
+    expect.hasAssertions();
+    assert_carries_the_flow_of_an_intake_fan_on_one_wall_to();
   });
 
   it('is linear in the fans: half the speed, half the air', () => {
-    const mk = (g: grid.AirGrid): solve.AirFanDef[] => [intake(g), exhaust(g)];
-    const full = solved([], mk),
-      half = solved([], mk, [0.5, 0.5]),
-      i = Math.floor(full.grid.n[0] / 2);
-    expect(fluxAcrossX(half, i) / fluxAcrossX(full, i)).toBeCloseTo(0.5, 2);
+    expect.hasAssertions();
+    assert_is_linear_in_the_fans_half_the_speed_half_the_air();
   });
 
   it('sends the air through the gap of a wall across the case', () => {
-    const wall: grid.AirBox = { id: 'wall', min: [3800, 0, 0], max: [4200, 5000, 4000], k: [0, 0, 0] };
-    // a gap high on the wall: cut it into two boxes
-    const gap = [
-      { ...wall, id: 'low', max: [4200, 2000, 4000] as grid.V3 },
-      { ...wall, id: 'high', min: [3800, 3200, 0] as grid.V3 },
-    ];
-    const f = solved(gap, (g) => [intake(g), exhaust(g)]),
-      g = f.grid;
-    const at = (x: number, y: number, z: number): number => must(f.u[3 * g.cellAt(x, y, z)]);
-    // in the gap the air goes faster toward the west than in the open case away from the wall
-    expect(at(4000, 2600, 2000)).toBeLessThan(0);
-    expect(Math.abs(at(4000, 2600, 2000))).toBeGreaterThan(Math.abs(at(6500, 2600, 2000)));
-    // inside the wall no air moves
-    const cell = 3 * g.cellAt(4000, 1000, 2000);
-    expect(Math.hypot(must(f.u[cell]), must(f.u[cell + 1]))).toBeLessThan(1);
+    expect.hasAssertions();
+    assert_sends_the_air_through_the_gap_of_a_wall_across_th();
   });
 
   it('draws the air in through a vent when a fan only blows out, and out when it only blows in', () => {
@@ -128,15 +159,8 @@ describe('AirField', () => {
   });
 
   it('keeps every speed under the cap', () => {
-    const f = solved([{ id: 'plate', min: [3800, 0, 0], max: [4200, 5000, 4000], k: [0.001, 0, 0] }], (g) => [
-      intake(g),
-      exhaust(g),
-    ]);
-    let top = 0;
-    for (let c = 0; c < f.grid.cells; c++) {
-      top = Math.max(top, Math.hypot(must(f.u[3 * c]), must(f.u[3 * c + 1]), must(f.u[3 * c + 2])));
-    }
-    expect(top).toBeLessThanOrEqual(solve.V_MAX * 1.0001);
+    expect.hasAssertions();
+    assert_keeps_every_speed_under_the_cap();
   });
 
   it('samples a point between cells and reads still air in a wall', () => {

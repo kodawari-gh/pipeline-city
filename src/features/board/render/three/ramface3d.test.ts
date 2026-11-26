@@ -13,7 +13,12 @@ function must<T>(value: T): NonNullable<T> {
 const L = 2384,
   H = 720,
   notchU = 1500;
-const chip = (y: number, h: number, kind: ramface3d.Foot['kind'], v0 = 480, v1 = 660): ramface3d.Foot => ({
+/** A part `h` long from `y` down the stick, between heights `v0` and `v1` (a chip's band by default). */
+const chip = (
+  [y, h]: [number, number],
+  kind: ramface3d.Foot['kind'],
+  [v0, v1]: [number, number] = [480, 660],
+): ramface3d.Foot => ({
   u0: L + 8 - y - h,
   u1: L + 8 - y,
   v0,
@@ -22,29 +27,36 @@ const chip = (y: number, h: number, kind: ramface3d.Foot['kind'], v0 = 480, v1 =
 });
 const foot = (ecc: boolean): ramface3d.Foot[] => {
   const d = Array.from({ length: 8 }, (_, j) =>
-    chip((j < 4 ? 80 : 2400 - 80 - 4 * 262 + 32) + (j % 4) * 262, 230, 'dram'),
+    chip([(j < 4 ? 80 : 2400 - 80 - 4 * 262 + 32) + (j % 4) * 262, 230], 'dram'),
   );
   const gy = (80 + 3 * 262 + 230 + 2400 - 80 - 4 * 262 + 32) / 2;
   if (ecc) {
-    d.push(chip(gy - 70, 140, 'reg'));
+    d.push(chip([gy - 70, 140], 'reg'));
   }
-  d.push(chip(gy + (ecc ? 72 : -23), 46, 'pmic', 360, 410), chip(gy + (ecc ? -97 : 59), 22, 'spd', 310, 340));
+  d.push(chip([gy + (ecc ? 72 : -23), 46], 'pmic', [360, 410]), chip([gy + (ecc ? -97 : 59), 22], 'spd', [310, 340]));
   return d;
 };
 
-const cross = (a: ramface3d.Pt, b: ramface3d.Pt, c: ramface3d.Pt, d: ramface3d.Pt): boolean => {
-  const o = (p: ramface3d.Pt, q: ramface3d.Pt, r: ramface3d.Pt) =>
-    (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
-  return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0;
-};
+type Seg = readonly [ramface3d.Pt, ramface3d.Pt];
+/** Which side of the line through `p` and `q` the point `r` is on (the sign of the turn). */
+const turn = (p: ramface3d.Pt, q: ramface3d.Pt, r: ramface3d.Pt) =>
+  (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+/** Whether two segments cross. */
+const cross = ([a, b]: Seg, [c, d]: Seg): boolean =>
+  turn(a, b, c) * turn(a, b, d) < 0 && turn(c, d, a) * turn(c, d, b) < 0;
+
+function assert_puts_the_fingers_in_an_even_row_with_a_gap_at_th(): void {
+  const f = ramface3d.fingerCentres(L, notchU, 144);
+  expect(f).toHaveLength(144);
+  const steps = f.slice(1).map((u, i) => u - must(f[i]));
+  expect(Math.max(...steps)).toBeGreaterThan(Math.min(...steps) * 2);
+  expect(f.every((u) => u > 0 && u < L)).toBe(true);
+}
 
 describe("the memory stick's copper", () => {
   it('puts the fingers in an even row with a gap at the key', () => {
-    const f = ramface3d.fingerCentres(L, notchU, 144);
-    expect(f).toHaveLength(144);
-    const steps = f.slice(1).map((u, i) => u - must(f[i]));
-    expect(Math.max(...steps)).toBeGreaterThan(Math.min(...steps) * 2);
-    expect(f.every((u) => u > 0 && u < L)).toBe(true);
+    expect.hasAssertions();
+    assert_puts_the_fingers_in_an_even_row_with_a_gap_at_th();
   });
 
   it.each([false, true])(
@@ -66,9 +78,8 @@ describe("the memory stick's copper", () => {
             for (let b = 1; b < must(r.lines[j]).length; b++) {
               const lineI = must(r.lines[i]);
               const lineJ = must(r.lines[j]);
-              expect(cross(must(lineI[a - 1]), must(lineI[a]), must(lineJ[b - 1]), must(lineJ[b])), `${i} x ${j}`).toBe(
-                false,
-              );
+              const crosses = cross([must(lineI[a - 1]), must(lineI[a])], [must(lineJ[b - 1]), must(lineJ[b])]);
+              expect(crosses, `${i} x ${j}`).toBe(false);
             }
           }
         }

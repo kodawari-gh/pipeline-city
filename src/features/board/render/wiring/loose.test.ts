@@ -15,43 +15,53 @@ function must<T>(value: T): NonNullable<T> {
   return value;
 }
 
+function assert_every_loose_PSU_lead_lies_on_the_roof_of_the_PSU(): void {
+  setLayoutTier(3, 3);
+  const loose = routes
+    .buildCables([
+      { kind: 'pcie', x: -1500, top: 980, plug: 0 },
+      { kind: 'pcie2', x: -1700, top: 980, plug: 1 },
+    ])
+    .filter((c) => c.kind !== 'video')
+    .map((c: routes.Cable) => ({ c, lo: routes.looseCable(c) }));
+  expect(loose.length).toBeGreaterThanOrEqual(4);
+  for (const { lo } of loose) {
+    const r = plugRect(lo.plug);
+    expect(r.y + r.h).toBeLessThanOrEqual(PORT_Y);
+    for (const p of lo.path.pts) {
+      expect(p[1]).toBeLessThanOrEqual(PORT_Y);
+    }
+    const end = must(lo.path.pts.at(-1));
+    expect(Math.abs(end[0] - (r.x + r.w / 2))).toBeLessThan(2);
+  }
+  for (const a of loose) {
+    for (const b of loose) {
+      if (a === b) {
+        continue;
+      }
+      const p = plugRect(a.lo.plug),
+        q = plugRect(b.lo.plug);
+      expect(p.x + p.w <= q.x || q.x + q.w <= p.x, `${a.c.kind} / ${b.c.kind}`).toBe(true);
+    }
+  }
+}
+
+function assert_a_fan_cord_that_is_out_hangs_on_a_cord_a_little_(): void {
+  setLayoutTier(3, 3);
+  for (const p of fanCordPlans()) {
+    expect(cordLen(p)).toBeGreaterThan(Math.hypot(p.rest[0] - p.anchor[0], p.rest[1] - p.anchor[1]));
+  }
+}
+
 describe('loose cables lie where they would', () => {
   it('every loose PSU lead lies on the roof of the PSU: its plug stands on it, no plug overlaps another, the cable never goes below the roof', () => {
-    setLayoutTier(3, 3);
-    const loose = routes
-      .buildCables([
-        { kind: 'pcie', x: -1500, top: 980, plug: 0 },
-        { kind: 'pcie2', x: -1700, top: 980, plug: 1 },
-      ])
-      .filter((c) => c.kind !== 'video')
-      .map((c: routes.Cable) => ({ c, lo: routes.looseCable(c) }));
-    expect(loose.length).toBeGreaterThanOrEqual(4);
-    for (const { lo } of loose) {
-      const r = plugRect(lo.plug);
-      expect(r.y + r.h).toBeLessThanOrEqual(PORT_Y);
-      for (const p of lo.path.pts) {
-        expect(p[1]).toBeLessThanOrEqual(PORT_Y);
-      }
-      const end = must(lo.path.pts.at(-1));
-      expect(Math.abs(end[0] - (r.x + r.w / 2))).toBeLessThan(2);
-    }
-    for (const a of loose) {
-      for (const b of loose) {
-        if (a === b) {
-          continue;
-        }
-        const p = plugRect(a.lo.plug),
-          q = plugRect(b.lo.plug);
-        expect(p.x + p.w <= q.x || q.x + q.w <= p.x, `${a.c.kind} / ${b.c.kind}`).toBe(true);
-      }
-    }
+    expect.hasAssertions();
+    assert_every_loose_PSU_lead_lies_on_the_roof_of_the_PSU();
   });
 
   it('a fan cord that is out hangs on a cord a little longer than the way from its fixed end to its rest place', () => {
-    setLayoutTier(3, 3);
-    for (const p of fanCordPlans()) {
-      expect(cordLen(p)).toBeGreaterThan(Math.hypot(p.rest[0] - p.anchor[0], p.rest[1] - p.anchor[1]));
-    }
+    expect.hasAssertions();
+    assert_a_fan_cord_that_is_out_hangs_on_a_cord_a_little_();
   });
 
   it('a wall cord seated runs straight into its boot; out, it keeps its run and hangs to the plug', () => {

@@ -79,8 +79,9 @@ describe('Machine3D.make', () => {
 
   it('gives the page a turn at many points of the build, and none while it is under its budget', async () => {
     let turns = 0;
-    const slice = async () => {
+    const slice = async (): Promise<void> => {
       turns++;
+      await Promise.resolve();
     };
     await Machine3D.make(snap, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: false, budget: 0, slice });
     expect(turns).toBeGreaterThan(20);
@@ -119,6 +120,7 @@ describe('Machine3D.make', () => {
       budget: 0,
       slice: async () => {
         turns++;
+        await Promise.resolve();
       },
       stop: () => turns >= 3,
     });

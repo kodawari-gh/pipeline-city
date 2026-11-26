@@ -1,6 +1,6 @@
 // The repeated meshes of the High machine and room (LPC3): equal meshes (same vertex count, same size, same material look) that draw more
 // than 4 times are the sets to instance. The count of draws they would save is held as a ceiling; `REPEATS_DUMP=1` lists the sets.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as three from 'three';
 import { Room3D } from '@/features/room/render/three/room3d';
 import { buildMachine, maxedSnapshot, quietCanvas } from './testutil';
@@ -99,8 +99,11 @@ export function repeats(
     } else {
       const path: string[] = [];
       for (let x: three.Object3D | null = o; x && path.length < 4; x = x.parent) {
-        if (x.name || typeof x.userData['id'] === 'string') {
-          path.push(x.name || (x.userData['id'] as string));
+        const id: unknown = x.userData['id'];
+        if (x.name !== '') {
+          path.push(x.name);
+        } else if (typeof id === 'string') {
+          path.push(id);
         }
       }
       sets.set(key, { n: 1, verts, at: path.toReversed().join('/'), ups: [new Set(), new Set()] });
@@ -116,7 +119,7 @@ export function repeats(
     const mesh = asMesh(o);
     if (
       !mesh.isMesh ||
-      (mesh as { isInstancedMesh?: boolean }).isInstancedMesh ||
+      ('isInstancedMesh' in mesh && mesh.isInstancedMesh === true) ||
       !shown(o) ||
       Array.isArray(mesh.material)
     ) {
@@ -131,28 +134,45 @@ export function repeats(
   root.traverse(recordDraw);
   return [...sets]
     .filter(([, s]) => s.n > min)
-    .map(([key, { ups, ...s }]) => ({ key, ...s, up: `${must(ups[0]).size} parents, ${must(ups[1]).size} above` }))
+    .map(([key, { ups, n, verts, at }]) => ({
+      key,
+      n,
+      verts,
+      at,
+      up: `${must(ups[0]).size} parents, ${must(ups[1]).size} above`,
+    }))
     .toSorted((a, b) => b.n - a.n);
 }
 
-const env = or((globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env, {});
+/** The parts of `node:process` this test uses: the dump switch and the place the report goes. */
+interface NodeProcess {
+  env: Record<string, string | undefined>;
+  stdout: { write: (text: string) => boolean };
+}
+
+const { env, stdout } = await vi.importActual<NodeProcess>('node:process');
 
 /** The draws that instancing every set would save (members less one per set): the machine, the room. It may only fall. (49: the NAND packages of the three NVMe sticks are caps over dies, each with materials of its own. 64: the RAM sticks' chip and plate meshes, one set per stick, for the routed copper and tier ladder.) */
 const CEILING = { machine: 64, room: 4 };
 
+function assert_stay_under_the_ceiling_of_draws_to_save(): void {
+  for (const [name, root] of [
+    ['machine', buildMachine(maxedSnapshot(), true, true).root],
+    ['room', new Room3D().root],
+  ] as const) {
+    const sets = repeats(root),
+      save = sets.reduce((a, s) => a + s.n - 1, 0);
+    stdout.write(`${name}: ${sets.length} sets of more than 4 equal meshes, ${save} draws to save\n`);
+    if (env['REPEATS_DUMP'] === '1') {
+      stdout.write(`${sets.map((s) => `${s.n} x ${s.verts} verts  ${s.at}  ${s.key}  ${s.up}`).join('\n')}\n`);
+    }
+    expect(save).toBeLessThanOrEqual(CEILING[name]);
+  }
+}
+
 describe('the repeated meshes', () => {
   it('stay under the ceiling of draws to save', () => {
-    for (const [name, root] of [
-      ['machine', buildMachine(maxedSnapshot(), true, true).root],
-      ['room', new Room3D().root],
-    ] as const) {
-      const sets = repeats(root),
-        save = sets.reduce((a, s) => a + s.n - 1, 0);
-      console.log(`${name}: ${sets.length} sets of more than 4 equal meshes, ${save} draws to save`);
-      if (env['REPEATS_DUMP'] === '1') {
-        console.log(sets.map((s) => `${s.n} x ${s.verts} verts  ${s.at}  ${s.key}  ${s.up}`).join('\n'));
-      }
-      expect(save).toBeLessThanOrEqual(CEILING[name]);
-    }
+    expect.hasAssertions();
+    assert_stay_under_the_ceiling_of_draws_to_save();
   }, 120_000);
 });

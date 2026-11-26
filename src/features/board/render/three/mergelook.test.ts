@@ -70,16 +70,17 @@ function expectKept(root: three.Object3D, what: string): number {
     }
     const out = asMesh(o),
       g = out.geometry,
-      pc = g.attributes['_pc'] as three.BufferAttribute,
-      prm = g.attributes['_prm'] as three.BufferAttribute,
-      uv = g.attributes['uv'] as three.BufferAttribute;
+      pc = must(g.attributes['_pc']),
+      prm = must(g.attributes['_prm']),
+      // (a merge of sources with no uv has none)
+      { uv } = g.attributes;
     const pal = asMeshStandardMaterial(out.material);
     let at = 0;
     for (const { mesh } of parts) {
       const src = asMeshStandardMaterial(mesh.material),
         sg = mesh.geometry,
         sidx = sg.index,
-        suv = sg.attributes['uv'] as three.BufferAttribute | undefined;
+        suv = sg.attributes['uv'];
       const n = sidx ? sidx.count : must(sg.attributes['position']).count;
       expect(pal.map, `${what}: map of ${src.color.getHexString()}`).toBe(src.map);
       expect(pal.side, `${what}: side`).toBe(src.side);
@@ -94,8 +95,8 @@ function expectKept(root: three.Object3D, what: string): number {
         near(prm.getY(v), src.metalness, `${what}: metalness`);
         if (suv) {
           const s = sidx ? sidx.getX(i) : i;
-          near(uv.getX(v), suv.getX(s), `${what}: u`);
-          near(uv.getY(v), suv.getY(s), `${what}: v`);
+          near(must(uv).getX(v), suv.getX(s), `${what}: u`);
+          near(must(uv).getY(v), suv.getY(s), `${what}: v`);
         }
       }
       at += n;
@@ -126,18 +127,56 @@ const scene = () => {
   return { root, part, sub, cu, grey, black, label, label2, map };
 };
 
+function assert_a_stand_in_keeps_them_a_copper_mesh_with_the_sam(): void {
+  const s = scene();
+  s.root.updateMatrixWorld(true);
+  const made = standIns(s.root, [s.cu, s.grey, s.black, s.label, s.label2]);
+  expect(made.length).toBeGreaterThan(0);
+  for (const { mesh, sources } of made) {
+    const pc = mesh.geometry.attributes['_pc'];
+    if (pc === undefined) {
+      continue;
+    } // (a set that keeps its own material: it draws with it)
+    let at = 0;
+    for (const src of sources) {
+      const m = asMeshStandardMaterial(src.material),
+        n = src.geometry.index ? src.geometry.index.count : must(src.geometry.attributes['position']).count;
+      near(pc.getX(at), m.color.r, 'stand-in r');
+      near(pc.getY(at), m.color.g, 'stand-in g');
+      near(pc.getZ(at), m.color.b, 'stand-in b');
+      at += n;
+    }
+  }
+  expect(new three.Color(COPPER).r).toBeGreaterThan(new three.Color(COPPER).b); // (the copper is warm: a grey result would fail the checks above)
+}
+
+function assert_a_stand_in_of_plain_meshes_draws_with_a_PBR_pale(): void {
+  for (const low of [true, false]) {
+    setLowDetail(low);
+    const s = scene();
+    s.root.updateMatrixWorld(true);
+    const pals = standIns(s.root, [s.cu, s.grey, s.black, s.label, s.label2])
+      .filter((x) => x.mesh.geometry.attributes['_pc'])
+      .map((x) => asMeshStandardMaterial(x.mesh.material));
+    expect(pals.length, `Low ${low}`).toBeGreaterThan(0);
+    for (const m of pals) {
+      expect(m.customProgramCacheKey().endsWith('|keep'), `Low ${low}`).toBe(low);
+    }
+  }
+}
+
 describe("a palette merge keeps every source mesh's look", () => {
   it('mergeSiblings: copper stays copper beside grey metal and a black cable, and a mapped label keeps its uv and map', () => {
     const s = scene();
     expect(mergeSiblings(s.root)).toBeGreaterThan(2);
     expect(expectKept(s.root, 'siblings')).toBe(5);
-    const merged = s.sub.children.filter((c) => partsOf(c).length) as three.Mesh[];
+    const merged = s.sub.children.filter((c) => partsOf(c).length > 0).map((c) => asMesh(c));
     // the copper and the grey are two sources of one palette, each with its own vertex colour
     const parts = merged.flatMap((m) => partsOf(m).map((p) => p.mesh));
     expect(parts).toContain(s.cu);
     expect(parts).toContain(s.grey);
     const labelMesh = must(merged.find((m) => asMeshStandardMaterial(m.material).map === s.map));
-    const uv = labelMesh.geometry.attributes['uv'] as three.BufferAttribute,
+    const uv = must(labelMesh.geometry.attributes['uv']),
       us = Array.from({ length: uv.count }, (_, i) => uv.getX(i)),
       vs = Array.from({ length: uv.count }, (_, i) => uv.getY(i));
     expect([Math.min(...us), Math.max(...us), Math.min(...vs), Math.max(...vs)]).toStrictEqual([0, 1, 0, 1]);
@@ -154,41 +193,13 @@ describe("a palette merge keeps every source mesh's look", () => {
   });
 
   it('a stand-in keeps them, a copper mesh with the same attributes as a grey one included', () => {
-    const s = scene();
-    s.root.updateMatrixWorld(true);
-    const made = standIns(s.root, [s.cu, s.grey, s.black, s.label, s.label2]);
-    expect(made.length).toBeGreaterThan(0);
-    for (const { mesh, sources } of made) {
-      const pc = mesh.geometry.attributes['_pc'] as three.BufferAttribute | undefined;
-      if (!pc) {
-        continue;
-      } // (a set that keeps its own material: it draws with it)
-      let at = 0;
-      for (const src of sources) {
-        const m = asMeshStandardMaterial(src.material),
-          n = src.geometry.index ? src.geometry.index.count : must(src.geometry.attributes['position']).count;
-        near(pc.getX(at), m.color.r, 'stand-in r');
-        near(pc.getY(at), m.color.g, 'stand-in g');
-        near(pc.getZ(at), m.color.b, 'stand-in b');
-        at += n;
-      }
-    }
-    expect(new three.Color(COPPER).r).toBeGreaterThan(new three.Color(COPPER).b); // (the copper is warm: a grey result would fail the checks above)
+    expect.hasAssertions();
+    assert_a_stand_in_keeps_them_a_copper_mesh_with_the_sam();
   });
 
   it("a stand-in of plain meshes draws with a PBR palette at Low, as the machine's palette meshes do (PHONE-01: the RAM chips went darker), and as before at High", () => {
-    for (const low of [true, false]) {
-      setLowDetail(low);
-      const s = scene();
-      s.root.updateMatrixWorld(true);
-      const pals = standIns(s.root, [s.cu, s.grey, s.black, s.label, s.label2])
-        .filter((x) => x.mesh.geometry.attributes['_pc'])
-        .map((x) => asMeshStandardMaterial(x.mesh.material));
-      expect(pals.length, `Low ${low}`).toBeGreaterThan(0);
-      for (const m of pals) {
-        expect(m.customProgramCacheKey().endsWith('|keep'), `Low ${low}`).toBe(low);
-      }
-    }
+    expect.hasAssertions();
+    assert_a_stand_in_of_plain_meshes_draws_with_a_PBR_pale();
   });
 });
 

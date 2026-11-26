@@ -4,7 +4,7 @@ import { mat } from '@/core/render/three/materials';
 import { outlinePts, ring, slab, shapeOf, wallCircle, wallX } from './casekit3d';
 
 /** The faces of a mesh that lie on the walls of a hole round the axis point `c` (within `r` of it, off the caps): each must face the hole's middle. */
-function holeWallsFaceIn(m: three.Mesh, c: three.Vector3, axis: 'x' | 'z', r: number): number {
+function holeWallsFaceIn(m: three.Mesh, { c, axis, r }: { c: three.Vector3; axis: 'x' | 'z'; r: number }): number {
   m.updateMatrixWorld(true);
   const g = m.geometry,
     p = g.getAttribute('position'),
@@ -46,8 +46,8 @@ describe('the case kit', () => {
         m,
       ).geometry,
     );
-    expect(holeWallsFaceIn(w, new three.Vector3(0, -300, 300), 'x', 160)).toBeGreaterThan(0);
-    expect(holeWallsFaceIn(w, new three.Vector3(0, -700, 600), 'x', 160)).toBeGreaterThan(0);
+    expect(holeWallsFaceIn(w, { c: new three.Vector3(0, -300, 300), axis: 'x', r: 160 })).toBeGreaterThan(0);
+    expect(holeWallsFaceIn(w, { c: new three.Vector3(0, -700, 600), axis: 'x', r: 160 })).toBeGreaterThan(0);
   });
   it('turns the walls of a slab’s and a ring’s openings toward the opening', () => {
     const s = slab(
@@ -57,8 +57,8 @@ describe('the case kit', () => {
       m,
       4,
     );
-    expect(holeWallsFaceIn(s, new three.Vector3(500, -500, 0), 'z', 150)).toBeGreaterThan(0);
+    expect(holeWallsFaceIn(s, { c: new three.Vector3(500, -500, 0), axis: 'z', r: 150 })).toBeGreaterThan(0);
     const r = ring({ x: 400, y: 400, w: 200, h: 200 }, 10, [0, 0, 0, 0], 60, 0, 30, m);
-    expect(holeWallsFaceIn(r, new three.Vector3(500, -500, 0), 'z', 145)).toBeGreaterThan(0);
+    expect(holeWallsFaceIn(r, { c: new three.Vector3(500, -500, 0), axis: 'z', r: 145 })).toBeGreaterThan(0);
   });
 });

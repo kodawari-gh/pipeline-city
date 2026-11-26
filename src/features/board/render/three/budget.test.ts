@@ -1,6 +1,6 @@
 // High's draw and triangle budget: the maxed machine, the room and the city, counted headless as `highident.test.ts` builds them. A count
 // may rise by at most 5 % over its row in `BUDGET`. A rise must be a decision: raise the row in the same commit, with the reason in the message.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Mesh, Object3D } from 'three';
 
 import { Room3D } from '@/features/room/render/three/room3d';
@@ -27,6 +27,13 @@ function asMesh(o: unknown): Mesh {
 
 quietCanvas();
 
+/** The part of `node:process` this test uses: the place the counts go. */
+interface NodeProcess {
+  stdout: { write: (text: string) => boolean };
+}
+
+const { stdout } = await vi.importActual<NodeProcess>('node:process');
+
 /** The budget: the High counts at the time of the last decision. Keep each row a number; a rise needs a reason in the commit. */
 export const BUDGET = {
   /** Machine and room: the draw calls a camera on layer 0 makes. */
@@ -42,23 +49,32 @@ const SLACK = 1.05;
 
 /** Draws and drawn vertices of the meshes under each root, counted as `highident.test.ts` counts a draw. */
 function countMachineRoom(roots: Object3D[]): { draws: number; verts: number } {
+  const total = { draws: 0, verts: 0 };
+  for (const root of roots) {
+    const got = countRoot(root);
+    total.draws += got.draws;
+    total.verts += got.verts;
+  }
+  return total;
+}
+
+/** Draws and drawn vertices of the meshes under one root. */
+function countRoot(root: Object3D): { draws: number; verts: number } {
   let draws = 0,
     verts = 0;
-  for (const root of roots) {
-    root.updateMatrixWorld(true);
-    root.traverse((o) => {
-      if (!isMesh(o)) {
-        return;
-      }
-      const mesh = asMesh(o);
-      const drawnHere = shown(o) && (mesh.layers.mask & 1) !== 0 && [mesh.material].flat().some((x) => x.visible);
-      if (!drawnHere) {
-        return;
-      }
-      draws += 1;
-      verts += or(mesh.geometry.attributes['position']?.count, 0);
-    });
-  }
+  root.updateMatrixWorld(true);
+  root.traverse((o) => {
+    if (!isMesh(o)) {
+      return;
+    }
+    const mesh = asMesh(o);
+    const drawnHere = shown(o) && (mesh.layers.mask & 1) !== 0 && [mesh.material].flat().some((x) => x.visible);
+    if (!drawnHere) {
+      return;
+    }
+    draws += 1;
+    verts += or(mesh.geometry.attributes['position']?.count, 0);
+  });
   return { draws, verts };
 }
 
@@ -75,7 +91,7 @@ function countCityTris(scene: Object3D): number {
     if (!mesh.visible || indices <= 0) {
       return;
     }
-    tris += (indices / 3) * (mesh.isInstancedMesh ? or(mesh.count, 1) : 1);
+    tris += (indices / 3) * (mesh.isInstancedMesh === true ? or(mesh.count, 1) : 1);
   });
   return Math.round(tris);
 }
@@ -88,15 +104,15 @@ describe('High draw and triangle budget', () => {
     const machine = buildMachine(maxedSnapshot(), true, true);
     const room = new Room3D();
     const { draws, verts } = countMachineRoom([machine.root, room.root]);
-    console.log(`High budget: machine+room ${draws} draws, ${verts} verts`);
+    stdout.write(`High budget: machine+room ${draws} draws, ${verts} verts\n`);
     expect(within(draws, BUDGET.machineRoomDraws), `draws ${draws} > ${BUDGET.machineRoomDraws} + 5 %`).toBe(true);
     expect(within(verts, BUDGET.machineRoomVerts), `verts ${verts} > ${BUDGET.machineRoomVerts} + 5 %`).toBe(true);
   }, 120_000);
 
   it('city triangles stay within BUDGET', () => {
     const view = new OutsideView(0, 0, 10, 10, 0);
-    const tris = countCityTris((view as unknown as { scene: Object3D }).scene);
-    console.log(`High budget: city ${tris} tris`);
+    const tris = countCityTris(view.scene);
+    stdout.write(`High budget: city ${tris} tris\n`);
     expect(within(tris, BUDGET.cityTris), `tris ${tris} > ${BUDGET.cityTris} + 5 %`).toBe(true);
   }, 180_000);
 });

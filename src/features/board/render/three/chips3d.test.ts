@@ -1,3 +1,4 @@
+/* oxlint-disable import/max-dependencies -- the chip test builds the network chip from its plan, its layout, its copper and the live view */
 import { describe, expect, it } from 'vitest';
 import * as three from 'three';
 import { screenPx } from '@/core/render/three/artlod';
@@ -63,7 +64,7 @@ const lanesOf = (visual: string, slot: number) => {
 const scene = (tier: number) => snap({ board: boardSnap({ tier }) });
 
 /** The chip as the machine builds it, its die's face handed to `c`, and a camera `k` times the zoom the die has shown at (a plain machine's world: layout y down as -y). */
-function over(c: Chips3D, tier: number, look: string, k: number) {
+function over(c: Chips3D, { tier, look, k }: { tier: number; look: string; k: number }) {
   setLayoutTier(tier, tier);
   const plan = nicGeo(look, BOARD_BAND).die,
     root = new three.Group();
@@ -183,7 +184,7 @@ describe("the Ethernet chip on the motherboard's live layer", () => {
     for (const [look, tier] of LOOKS) {
       const c = new Chips3D();
       c.setScene(scene(tier));
-      const { cam, H } = over(c, tier, look, 4);
+      const { cam, H } = over(c, { tier, look, k: 4 });
       const id = c.hitAt(cam, H, 0, 0);
       expect(id).not.toBeNull();
       expect(boardNicIds(look)).toContain(id);
@@ -195,7 +196,7 @@ describe("the Ethernet chip on the motherboard's live layer", () => {
     for (const [look, tier] of LOOKS) {
       const c = new Chips3D();
       c.setScene(scene(tier));
-      const { cam, H, chip } = over(c, tier, look, 4),
+      const { cam, H, chip } = over(c, { tier, look, k: 4 }),
         face = must(chip.die).root;
       face.updateWorldMatrix(true, false);
       const blocks = nicParts(nicGeo(look, BOARD_BAND)).filter((p) => p.id !== 'nic-ctl');
@@ -213,26 +214,26 @@ describe("the Ethernet chip on the motherboard's live layer", () => {
   it("has nothing to hit from far away: the zoom is under the part's hover zoom", () => {
     const c = new Chips3D();
     c.setScene(scene(3));
-    const { cam, H } = over(c, 3, 'board-ge', 0.02);
+    const { cam, H } = over(c, { tier: 3, look: 'board-ge', k: 0.02 });
     expect(c.hitAt(cam, H, 0, 0)).toBeNull();
   });
 
   it('has no board part on a board with no jack: a face of the board answers nothing', () => {
     const c = new Chips3D();
     c.setScene(scene(0));
-    const { cam, H } = over(c, 3, 'board-ge', 4);
+    const { cam, H } = over(c, { tier: 3, look: 'board-ge', k: 4 });
     expect(c.hitAt(cam, H, 0, 0)).toBeNull();
     // (with the board's jack the same view hits a block)
     const d = new Chips3D();
     d.setScene(scene(3));
-    const v = over(d, 3, 'board-ge', 4);
+    const v = over(d, { tier: 3, look: 'board-ge', k: 4 });
     expect(d.hitAt(v.cam, v.H, 0, 0)).not.toBeNull();
   });
 
   it("goes with the scene: a new scene takes the board chip's face away", () => {
     const c = new Chips3D();
     c.setScene(scene(3));
-    const { cam, H, chip } = over(c, 3, 'board-ge', 4);
+    const { cam, H, chip } = over(c, { tier: 3, look: 'board-ge', k: 4 });
     expect(must(chip.die).root.children).toHaveLength(1);
     expect(c.hitAt(cam, H, 0, 0)).not.toBeNull();
     c.setScene(null);

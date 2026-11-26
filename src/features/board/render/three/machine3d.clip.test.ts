@@ -31,8 +31,7 @@ const SLACK = 8;
 function depthIn(
   pts: readonly (readonly number[])[],
   r: number,
-  min: readonly number[],
-  max: readonly number[],
+  { min, max }: { readonly min: readonly number[]; readonly max: readonly number[] },
 ): number {
   let worst = 0;
   for (let i = 1; i < pts.length; i++) {
@@ -61,10 +60,10 @@ function depthIn(
 describe("the cables and the machine's bodies", () => {
   const games: [string, Game][] = [];
   beforeAll(async () => {
-    for (const p of BUILD_PRESETS) {
-      games.push([p.name, await presetGame(p)]);
-    }
-    games.push(['full', await fullGame()]);
+    const presets = await Promise.all(
+      BUILD_PRESETS.map(async (p): Promise<[string, Game]> => [p.name, await presetGame(p)]),
+    );
+    games.push(...presets, ['full', await fullGame()]);
   }, 120_000);
 
   it("leaves the supply's leads, the video cable and the mains cords clear of every part, in each ready-made machine", () => {
@@ -78,7 +77,7 @@ describe("the cables and the machine's bodies", () => {
         expect(runs.length, `${name}: its supply's leads`).toBeGreaterThan(1);
         for (const r of runs) {
           for (const b of bodies) {
-            const worst = Math.max(...r.strands.map((st) => depthIn(st, r.r, b.min, b.max)));
+            const worst = Math.max(...r.strands.map((st) => depthIn(st, r.r, b)));
             expect(worst, `${name}: ${r.id} in ${b.id} (${b.kind})`).toBeLessThanOrEqual(SLACK);
           }
         }

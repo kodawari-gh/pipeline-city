@@ -15,22 +15,17 @@ const lane = mkLane([
   [100, 0],
   [100, 100],
 ]);
-const length = (pts: number[][]) =>
-  pts.reduce(
-    (s, p, i) =>
-      i ? s + Math.hypot(must(p[0]) - must(must(pts[i - 1])[0]), must(p[1]) - must(must(pts[i - 1])[1])) : 0,
-    0,
-  );
+function length(pts: number[][]): number {
+  let s = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const p = must(pts[i]),
+      q = must(pts[i - 1]);
+    s += Math.hypot(must(p[0]) - must(q[0]), must(p[1]) - must(q[1]));
+  }
+  return s;
+}
 
-const strokes = (f: BusFlow) =>
-  (
-    f.g.context.instructions as {
-      action: string;
-      data: { style: { width: number; alpha: number; cap: string; join: string } };
-    }[]
-  )
-    .filter((i) => i.action === 'stroke')
-    .map((i) => i.data.style);
+const strokes = (f: BusFlow) => f.g.context.instructions.filter((i) => i.action === 'stroke').map((i) => i.data.style);
 
 describe('slice', () => {
   it('cuts a lane between two arc lengths, round a corner', () => {
@@ -110,7 +105,7 @@ describe('BusFlow drawing', () => {
     [1000, 600],
   ]);
 
-  it('strokes each lit lane twice, a trail and a head, plain: square ends and mitred corners', () => {
+  function assert_strokes_each_lit_lane_twice_a_trail_and_a_head_p(): void {
     const f = new BusFlow();
     f.send([far, far], 1, '#3be3ff', 0, 9);
     f.frame(150, 1, true);
@@ -119,6 +114,11 @@ describe('BusFlow drawing', () => {
     expect(s.every((x) => x.cap === 'butt' && x.join === 'miter')).toBe(true);
     // (the head is brighter than the trail behind it)
     expect(must(s[1]).alpha).toBeGreaterThan(must(s[0]).alpha);
+  }
+
+  it('strokes each lit lane twice, a trail and a head, plain: square ends and mitred corners', () => {
+    expect.hasAssertions();
+    assert_strokes_each_lit_lane_twice_a_trail_and_a_head_p();
   });
 
   it('lights no more than MAX_LIT lanes of a wide link, spread over it', () => {

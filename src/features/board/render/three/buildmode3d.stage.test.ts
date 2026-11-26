@@ -1,10 +1,9 @@
 // BuildStage.frame, idle path: a still stage draws nothing, and a late meter reading can wake it.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Group, PerspectiveCamera, Scene } from 'three';
-import { BuildStage } from './buildmode3d';
+import { inside, newStage } from './buildmode3d.testkit';
 import { BASE_EXPOSURE } from '@/core/render/three/init';
 import { setLowDetail } from '@/core/render/three/detail';
-import type * as init from '@/core/render/three/init';
 
 function createLens3D() {
   return {
@@ -16,7 +15,11 @@ function createLens3D() {
 
 // the controllable parts: what the meter says, and the draws
 const { Post, Lens3D, rig } = vi.hoisted(() => {
-  const rigState = { lum: null as number | null, render: vi.fn(), refine: vi.fn(() => false) };
+  const rigState = {
+    lum: null as number | null,
+    render: vi.fn<() => void>(),
+    refine: vi.fn<() => boolean>(() => false),
+  };
   function createPost() {
     return {
       render: rigState.render,
@@ -66,8 +69,8 @@ function must<T>(value: T): NonNullable<T> {
   return value;
 }
 
-vi.mock('@/core/render/three/init', async (orig) => {
-  const actual = await orig<typeof init>();
+vi.mock<Record<string, unknown>>(import('@/core/render/three/init'), async (orig) => {
+  const actual = await orig();
   return {
     ...actual,
     createRenderContext: () => ({
@@ -101,12 +104,34 @@ vi.mock('@/core/render/three/init', async (orig) => {
     }),
   };
 });
-vi.mock('@/core/render/three/post', () => ({
+vi.mock<Record<string, unknown>>(import('@/core/render/three/post'), () => ({
   Post,
 }));
-vi.mock('./lens3d', () => ({
+vi.mock<Record<string, unknown>>(import('./lens3d'), () => ({
   Lens3D,
 }));
+
+/** What the tests drive: the stage's protected frame, and its status. */
+interface Frame {
+  frame: (now: number) => void;
+  status: { value: { busy: boolean; step: string; log: string[]; rev: number } };
+}
+
+/** A stage on a stub host with `machine` as its machine: the snapshot getter wants a game, the snapshot cache below gives the snapshot. */
+function rigged(machine: object): Frame {
+  const s = newStage();
+  Object.assign(s, {
+    _machine: machine,
+    _game: {},
+    snaps: {
+      of: () => ({}),
+      drop: () => {
+        /* no-op */
+      },
+    },
+  });
+  return inside<Frame>(s);
+}
 
 /** The reading that holds the eye at its start goal of 1 (key / lum). */
 const HOLD = 0.04 / BASE_EXPOSURE; // (EYE_KEY over BASE_EXPOSURE in buildmode3d.ts)
@@ -135,11 +160,7 @@ describe('BuildStage.frame when idle', () => {
     vi.stubGlobal('cancelAnimationFrame', () => {
       /* no-op */
     });
-    const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
-      clientWidth: 400,
-      clientHeight: 800,
-    });
-    s['_machine'] = {
+    stage = rigged({
       moving: false,
       doorOpen: false,
       frame: () => {
@@ -155,15 +176,7 @@ describe('BuildStage.frame when idle', () => {
         /* no-op */
       },
       root: new Group(),
-    };
-    s['_game'] = {}; // (the snapshot getter wants a game; the stub below gives the snapshot)
-    s['snaps'] = {
-      of: () => ({}),
-      drop: () => {
-        /* no-op */
-      },
-    };
-    stage = s as unknown as { frame: (now: number) => void };
+    });
     now = 1000;
     rig.lum = HOLD;
     tick(20); // warm-up: the first ask and the eye settling
@@ -197,11 +210,8 @@ describe('BuildStage.frame when idle', () => {
 });
 
 describe('BuildStage.frame and the distance stand-ins (PHONE-01)', () => {
-  const hold = vi.fn();
-  let stage: {
-    frame: (now: number) => void;
-    status: { value: { busy: boolean; step: string; log: string[]; rev: number } };
-  };
+  const hold = vi.fn<(held: unknown[], ceil?: number) => void>();
+  let stage: Frame;
   let machineRoot: Group;
   let now = 1000;
 
@@ -212,12 +222,8 @@ describe('BuildStage.frame and the distance stand-ins (PHONE-01)', () => {
     vi.stubGlobal('cancelAnimationFrame', () => {
       /* no-op */
     });
-    const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
-      clientWidth: 400,
-      clientHeight: 800,
-    });
     machineRoot = new Group();
-    s['_machine'] = {
+    stage = rigged({
       moving: false,
       doorOpen: false,
       frame: () => {
@@ -231,15 +237,7 @@ describe('BuildStage.frame and the distance stand-ins (PHONE-01)', () => {
         /* no-op */
       },
       root: machineRoot,
-    };
-    s['_game'] = {};
-    s['snaps'] = {
-      of: () => ({}),
-      drop: () => {
-        /* no-op */
-      },
-    };
-    stage = s as unknown as typeof stage;
+    });
     now = 1000;
   });
   afterEach(() => {
@@ -248,7 +246,7 @@ describe('BuildStage.frame and the distance stand-ins (PHONE-01)', () => {
 
   const lastHold = (): { held: unknown[]; ceil: number | undefined } => {
     const c = must(hold.mock.calls.at(-1));
-    return { held: c[0] as unknown[], ceil: c[1] as number | undefined };
+    return { held: c[0], ceil: c[1] };
   };
 
   it("High keeps every part itself from the stage's own zoom in, and holds nothing by hand", () => {
@@ -279,17 +277,13 @@ describe('BuildStage.frame and the distance stand-ins (PHONE-01)', () => {
 
 describe('BuildStage.frame and the shut side panel', () => {
   it('lets the panel take a click while no step plays, and not while one does (machine3d.ts: the plate over it answers a ray only then)', () => {
-    const setOpen = vi.fn();
+    const setOpen = vi.fn<(open: boolean, clickable: boolean) => void>();
     vi.stubGlobal('ResizeObserver', ResizeObserverStub);
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {
       /* no-op */
     });
-    const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
-      clientWidth: 400,
-      clientHeight: 800,
-    });
-    s['_machine'] = {
+    const stage = rigged({
       moving: false,
       doorOpen: false,
       frame: () => {
@@ -303,18 +297,7 @@ describe('BuildStage.frame and the shut side panel', () => {
         /* no-op */
       },
       root: new Group(),
-    };
-    s['_game'] = {};
-    s['snaps'] = {
-      of: () => ({}),
-      drop: () => {
-        /* no-op */
-      },
-    };
-    const stage = s as unknown as {
-      frame: (now: number) => void;
-      status: { value: { busy: boolean; step: string; log: string[]; rev: number } };
-    };
+    });
     stage.frame(1000 + TICK);
     expect(setOpen).toHaveBeenLastCalledWith(false, false);
     stage.status.value = { ...stage.status.value, busy: true };

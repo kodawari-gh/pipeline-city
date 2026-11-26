@@ -1,3 +1,4 @@
+/* oxlint-disable import/max-dependencies -- the die test builds the die in every part that carries one, each in its own module */
 import { describe, expect, it } from 'vitest';
 import * as three from 'three';
 import { builtinTheme } from '@/core/render/theme';
@@ -58,6 +59,28 @@ function host(): chipdie3d.DieHost & {
   };
 }
 
+function assert_asks_for_a_place_for_its_label_or_sink_and_each_(): void {
+  const d = host(),
+    g = new three.Group(),
+    b = driveBody('ssd-nvme', 'm20');
+  nvmeStick(g, b, { name: 'NVMe', capacityBytes: 128 * 1024, heatsink: false }, d);
+  // the cover, the controller, the DRAM, two NAND packages
+  expect(d.asks).toHaveLength(5);
+  // (the packages ask as they are built, the cover last: it spans all of them)
+  const cover = must(d.asks.at(-1));
+  expect(cover.r.w).toBeGreaterThan(must(d.asks[0]).r.w * 3);
+  // before the cover band the whole stick stands; past it one group goes: the cover (the dies' frames follow the packages' asks, not this one)
+  const vis = () => g.children.map((c) => c.visible);
+  cover.apply(chipdie3d.COVER_BAND[0] - 0.1);
+  const before = vis();
+  cover.apply(chipdie3d.COVER_BAND[1] + 0.1);
+  const after = vis();
+  expect(before.map((v, i) => v && !must(after[i])).filter(Boolean)).toHaveLength(1);
+  d.art.dispose();
+  const plain = new three.Group();
+  expect(() => nvmeStick(plain, b, { name: 'NVMe', capacityBytes: 128 * 1024, heatsink: false })).not.toThrow();
+}
+
 describe('a chip package that shows its die', () => {
   const r: RectLike = { x: 100, y: 100, w: 18 * MM, h: 12 * MM };
   // (the die is the package's width, less its rim: the band is read on the die)
@@ -78,7 +101,8 @@ describe('a chip package that shows its die', () => {
     );
     // cap, substrate, silicon, frame
     expect(g.children).toHaveLength(4);
-    const [cap, , , frame] = g.children as [three.Group, three.Mesh, three.Mesh, three.Group];
+    const cap = must(g.children[0]),
+      frame = must(g.children[3]);
     expect(d.asks).toHaveLength(1);
     // (asked at the package's centre, a step over its top)
     expect(must(d.asks[0]).r).toStrictEqual(r);
@@ -95,7 +119,7 @@ describe('a chip package that shows its die', () => {
     d.art.dispose();
   });
 
-  it('keeps the die inside the package and gives the cap materials of its own (fading it leaves the neighbours alone)', () => {
+  function assert_keeps_the_die_inside_the_package_and_gives_the_c(): void {
     const d = host(),
       a = new three.Group(),
       b = new three.Group(),
@@ -108,11 +132,8 @@ describe('a chip package that shows its die', () => {
         if (!isMesh(x)) {
           return;
         }
-        const m = asMesh(x).material;
-        if (m) {
-          for (const k of asList(m)) {
-            out.add(k);
-          }
+        for (const k of asList(asMesh(x).material)) {
+          out.add(k);
         }
       });
       return out;
@@ -126,6 +147,11 @@ describe('a chip package that shows its die', () => {
     expect(-box.max.y).toBeGreaterThanOrEqual(r.y - 1);
     expect(-box.min.y).toBeLessThanOrEqual(r.y + r.h + 1);
     d.art.dispose();
+  }
+
+  it('keeps the die inside the package and gives the cap materials of its own (fading it leaves the neighbours alone)', () => {
+    expect.hasAssertions();
+    assert_keeps_the_die_inside_the_package_and_gives_the_c();
   });
 
   it('turns a die a quarter round to lie along a tall package', () => {
@@ -153,24 +179,7 @@ describe('a chip package that shows its die', () => {
 
 describe('the NVMe stick with its dies', () => {
   it('asks for a place for its label (or sink) and each package: the cover first, then the dies; a stick without the host has none', () => {
-    const d = host(),
-      g = new three.Group(),
-      b = driveBody('ssd-nvme', 'm20');
-    nvmeStick(g, b, { name: 'NVMe', capacityBytes: 128 * 1024, heatsink: false }, d);
-    // the cover, the controller, the DRAM, two NAND packages
-    expect(d.asks).toHaveLength(5);
-    // (the packages ask as they are built, the cover last: it spans all of them)
-    const cover = must(d.asks.at(-1));
-    expect(cover.r.w).toBeGreaterThan(must(d.asks[0]).r.w * 3);
-    // before the cover band the whole stick stands; past it one group goes: the cover (the dies' frames follow the packages' asks, not this one)
-    const vis = () => g.children.map((c) => c.visible);
-    cover.apply(chipdie3d.COVER_BAND[0] - 0.1);
-    const before = vis();
-    cover.apply(chipdie3d.COVER_BAND[1] + 0.1);
-    const after = vis();
-    expect(before.map((v, i) => v && !must(after[i])).filter(Boolean)).toHaveLength(1);
-    d.art.dispose();
-    const plain = new three.Group();
-    expect(() => nvmeStick(plain, b, { name: 'NVMe', capacityBytes: 128 * 1024, heatsink: false })).not.toThrow();
+    expect.hasAssertions();
+    assert_asks_for_a_place_for_its_label_or_sink_and_each_();
   });
 });

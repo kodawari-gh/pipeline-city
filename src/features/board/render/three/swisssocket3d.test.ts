@@ -85,7 +85,7 @@ const box = (p: { x: number; y: number }[]): { x0: number; x1: number; y0: numbe
 describe('the pinwheel', () => {
   const [top, left, right] = pinwheel();
 
-  it('turns the three sockets 120 degrees from each other round the screw, each 17.35 mm out', () => {
+  function assert_turns_the_three_sockets_120_degrees_from_each_ot(): void {
     for (const s of [top, left, right]) {
       expect(Math.hypot(s.x, s.y)).toBeCloseTo(TRIPLE.reach, 5);
     }
@@ -98,9 +98,14 @@ describe('the pinwheel', () => {
     expect(right.x).toBeGreaterThan(0);
     expect(left.y).toBeLessThan(0);
     expect(left.y).toBeCloseTo(right.y, 5);
+  }
+
+  it('turns the three sockets 120 degrees from each other round the screw, each 17.35 mm out', () => {
+    expect.hasAssertions();
+    assert_turns_the_three_sockets_120_degrees_from_each_ot();
   });
 
-  it("puts each socket's earth hole 11.8 mm from the screw and its live and neutral holes 19.3 mm, as a real one measures", () => {
+  function assert_puts_each_socket_s_earth_hole_11_8_mm_from_the_s(): void {
     for (const s of [top, left, right]) {
       const [l, n, e] = pinHoles(s);
       expect(Math.hypot(must(e)[0], must(e)[1])).toBeCloseTo(11.8, 1);
@@ -108,13 +113,18 @@ describe('the pinwheel', () => {
       expect(Math.hypot(must(n)[0], must(n)[1])).toBeCloseTo(19.3, 1);
       // (the pair 19 apart, the earth hole 5 from their line and on its screw side)
       expect(Math.hypot(must(l)[0] - must(n)[0], must(l)[1] - must(n)[1])).toBeCloseTo(19, 5);
-      const mid = [(must(l)[0] + must(n)[0]) / 2, (must(l)[1] + must(n)[1]) / 2];
-      expect(Math.hypot(must(e)[0] - must(mid[0]), must(e)[1] - must(mid[1]))).toBeCloseTo(5, 5);
-      expect(Math.hypot(...(mid as [number, number]))).toBeGreaterThan(Math.hypot(must(e)[0], must(e)[1]));
+      const mid: [number, number] = [(must(l)[0] + must(n)[0]) / 2, (must(l)[1] + must(n)[1]) / 2];
+      expect(Math.hypot(must(e)[0] - mid[0], must(e)[1] - mid[1])).toBeCloseTo(5, 5);
+      expect(Math.hypot(...mid)).toBeGreaterThan(Math.hypot(must(e)[0], must(e)[1]));
     }
+  }
+
+  it("puts each socket's earth hole 11.8 mm from the screw and its live and neutral holes 19.3 mm, as a real one measures", () => {
+    expect.hasAssertions();
+    assert_puts_each_socket_s_earth_hole_11_8_mm_from_the_s();
   });
 
-  it("leaves 3 mm of the insert between two recesses, and the recesses clear of the insert's edge", () => {
+  function assert_leaves_3_mm_of_the_insert_between_two_recesses_a(): void {
     const o = [top, left, right].map((s) => outline(s, 0));
     for (const [a, b] of [
       [0, 1],
@@ -129,9 +139,14 @@ describe('the pinwheel', () => {
         expect(Math.abs(y)).toBeLessThan(TRIPLE.insert / 2 - 1.5);
       }
     }
+  }
+
+  it("leaves 3 mm of the insert between two recesses, and the recesses clear of the insert's edge", () => {
+    expect.hasAssertions();
+    assert_leaves_3_mm_of_the_insert_between_two_recesses_a();
   });
 
-  it('lets a plug in each of the three sockets at once: the shoulders stand clear of each other', () => {
+  function assert_lets_a_plug_in_each_of_the_three_sockets_at_once(): void {
     // (a shoulder is the recess's outline a hair out: 0.6 mm each, of the 3 between two recesses)
     const sh = [top, left, right].map((s) => outline(s, -SWISS.shoulder.out));
     for (const [a, b] of [
@@ -141,6 +156,11 @@ describe('the pinwheel', () => {
     ] as const) {
       expect(gap(must(sh[a]), must(sh[b]))).toBeGreaterThan(1.5);
     }
+  }
+
+  it('lets a plug in each of the three sockets at once: the shoulders stand clear of each other', () => {
+    expect.hasAssertions();
+    assert_lets_a_plug_in_each_of_the_three_sockets_at_once();
   });
 });
 
@@ -165,7 +185,7 @@ describe('tripleSocket', () => {
     expect(b.max.z).toBeLessThanOrEqual(700 + 18 * MM + 1);
   });
 
-  it('cuts each recess down to its floor, 13 mm under the face, with three black holes in it', () => {
+  function assert_cuts_each_recess_down_to_its_floor_13_mm_under_t(): void {
     const { g } = build(),
       floor = 700 + (18 - T13.deep) * MM;
     const holes = g.children.filter(
@@ -181,19 +201,29 @@ describe('tripleSocket', () => {
       expect(b.max.z).toBeCloseTo(floor + 0.3 * MM, 0);
       expect((b.max.x - b.min.x) / MM).toBeCloseTo(T13.hole, 1);
     }
+  }
+
+  it('cuts each recess down to its floor, 13 mm under the face, with three black holes in it', () => {
+    expect.hasAssertions();
+    assert_cuts_each_recess_down_to_its_floor_13_mm_under_t();
   });
 });
 
+function assert_is_the_traced_hexagon_at_the_scale_it_is_drawn_a(): void {
+  for (const k of [14, 23]) {
+    const b = box(recessOutline({ x: 100, y: 200, roll: 0 }, k));
+    expect((b.x1 - b.x0) / k).toBeGreaterThan(38.5);
+    expect((b.x1 - b.x0) / k).toBeLessThan(39.5);
+    expect((b.y1 - b.y0) / k).toBeCloseTo(22.1, 1);
+    expect((b.x0 + b.x1) / 2).toBeCloseTo(100, 0);
+    expect((b.y0 + b.y1) / 2).toBeCloseTo(200, 0);
+  }
+}
+
 describe('a recess of a plate', () => {
   it('is the traced hexagon at the scale it is drawn at, 39 x 22.1 mm, round its middle', () => {
-    for (const k of [14, 23]) {
-      const b = box(recessOutline({ x: 100, y: 200, roll: 0 }, k));
-      expect((b.x1 - b.x0) / k).toBeGreaterThan(38.5);
-      expect((b.x1 - b.x0) / k).toBeLessThan(39.5);
-      expect((b.y1 - b.y0) / k).toBeCloseTo(22.1, 1);
-      expect((b.x0 + b.x1) / 2).toBeCloseTo(100, 0);
-      expect((b.y0 + b.y1) / 2).toBeCloseTo(200, 0);
-    }
+    expect.hasAssertions();
+    assert_is_the_traced_hexagon_at_the_scale_it_is_drawn_a();
   });
 
   it('turns with a plug: a quarter turn stands the hexagon on its end', () => {
@@ -241,7 +271,7 @@ describe('wallPlate', () => {
     expect(b.max.z).toBeGreaterThan(face - 2);
   });
 
-  it('cuts a recess for each outlet down to its floor, 13 mm under the face, with three black holes in it', () => {
+  function assert_cuts_a_recess_for_each_outlet_down_to_its_floor_(): void {
     const { plate } = build();
     const holes = plate.children.filter((o) => isMesh(o) && asMeshStandardMaterial(asMesh(o).material) === look.black);
     expect(holes).toHaveLength(6);
@@ -250,9 +280,14 @@ describe('wallPlate', () => {
       expect(b.max.z).toBeCloseTo(floor + 0.3 * k, 0);
       expect((b.max.x - b.min.x) / k).toBeCloseTo(T13.hole, 1);
     }
+  }
+
+  it('cuts a recess for each outlet down to its floor, 13 mm under the face, with three black holes in it', () => {
+    expect.hasAssertions();
+    assert_cuts_a_recess_for_each_outlet_down_to_its_floor_();
   });
 
-  it("fits the room's layout: both recesses upright on the plate at the outlets, a web between them, the frame clear of them", () => {
+  function assert_fits_the_room_s_layout_both_recesses_upright_on_(): void {
     const rs = [g.socket.mon, g.socket.pc].map((o) => recessOutline({ x: o.x, y: -o.y, roll: 0 }, k));
     const [a, c] = rs.map((r) => ({
       x0: Math.min(...r.map((q) => q.x)),
@@ -269,6 +304,11 @@ describe('wallPlate', () => {
       expect(r.y0).toBeGreaterThan(-(p.y + p.h) + 7 * k);
       expect(r.y1).toBeLessThan(-p.y - 7 * k);
     }
+  }
+
+  it("fits the room's layout: both recesses upright on the plate at the outlets, a web between them, the frame clear of them", () => {
+    expect.hasAssertions();
+    assert_fits_the_room_s_layout_both_recesses_upright_on_();
   });
 
   it('is deep enough for a plug: the head and the pins go in at most as far as the wall', () => {
