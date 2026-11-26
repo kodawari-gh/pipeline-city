@@ -52,7 +52,9 @@ const PRESET = flag('preset', 'Low');
 if (!['Low', 'Medium', 'High', 'Ultra'].includes(PRESET)) throw new Error('--preset Low|Medium|High|Ultra');
 const HOUR = flag('hour', '');
 if (HOUR !== '' && !(Number(HOUR) >= 0 && Number(HOUR) < 24)) throw new Error('--hour 0-23');
-const [W, H] = flag('size', '1600x900').split('x').map(Number);
+const sizeRaw = flag('size', '1600x900');
+const size = typeof sizeRaw === 'string' ? sizeRaw : '1600x900';
+const [W, H] = size.split('x').map(Number);
 // an angle: degrees, or radians with a trailing r (`--pitch 0.1r`); the default is in radians
 /** @type {(n: string, dRad: number) => number} */
 const angle = (n, dRad) => {

@@ -13,7 +13,9 @@ const flag = (n, d) => {
   return i < 0 ? d : args[i + 1];
 };
 const out = args.find((a, i) => !a.startsWith('--') && !(args[i - 1] ?? '').startsWith('--'));
-const [W, H] = flag('size', '1600x900').split('x').map(Number);
+const sizeRaw = flag('size', '1600x900');
+const size = typeof sizeRaw === 'string' ? sizeRaw : '1600x900';
+const [W, H] = size.split('x').map(Number);
 const PORT = Number(process.env.PORT || 5241),
   url = `http://localhost:${PORT}/`,
   TOP = Number(flag('top', 14));

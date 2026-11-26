@@ -8,9 +8,18 @@ import { resolve } from 'node:path';
 import { chromium, firefox, webkit } from 'playwright-core';
 
 const args = process.argv.slice(2);
+/**
+ * @param {string} n
+ * @param {string} d
+ * @returns {string}
+ */
 const flag = (n, d) => {
   const i = args.indexOf('--' + n);
-  return i < 0 ? d : args[i + 1];
+  if (i < 0) {
+    return d;
+  }
+  const v = args[i + 1];
+  return v ?? d;
 };
 const which = ['firefox', 'webkit'].find((b) => args.includes(b)) ?? 'chromium';
 const url = flag('url', 'http://localhost:5173') + (args.includes('--lowpower') ? '/?3d&lowpower' : '/?3d'); // --lowpower: the integrated GPU, where there is one
@@ -52,6 +61,7 @@ const snap = (f) =>
     const s = (await import('/src/app/store.ts')).snapshot.value;
     return eval(f);
   }, f);
+/** @returns {Promise<{ x: number, y: number } | null>} */
 const at = (id) => p.evaluate((id) => window.__board.screenOf(id), id);
 const view = async (v) => {
   await p.evaluate((v) => window.__board[v](), v);
@@ -82,13 +92,18 @@ console.log(
       }),
   ),
 );
+/**
+ * @param {{ x: number, y: number }} a
+ * @param {{ x: number, y: number }} z
+ * @param {number} [hold]
+ */
 const drag = async (a, z, hold = 0) => {
   await p.mouse.move(a.x, a.y);
   await p.mouse.down();
   await p.waitForTimeout(50);
   await p.mouse.move((a.x + z.x) / 2, (a.y + z.y) / 2, { steps: 6 });
   await p.mouse.move(z.x, z.y, { steps: 6 });
-  if (hold) await p.waitForTimeout(hold);
+  if (hold > 0) await p.waitForTimeout(hold);
   await p.mouse.up();
   await p.waitForTimeout(1200);
 };
