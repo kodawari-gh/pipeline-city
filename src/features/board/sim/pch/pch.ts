@@ -98,7 +98,9 @@ export class Pch implements Device {
   }
 
   unplug(): void {
-    if (this.key) this.removed = true;
+    if (this.key) {
+      this.removed = true;
+    }
     this.key = null;
     this.wordsRead = 0;
     this.ready = true;
@@ -108,8 +110,12 @@ export class Pch implements Device {
 
   /** USB timers, once per base tick: the plugged key finishes enumerating, a flash lands on the key. */
   usbTick(): void {
-    if (!this.key) return;
-    if (!this.ready && --this.enumLeft <= 0) this.ready = true;
+    if (!this.key) {
+      return;
+    }
+    if (!this.ready && --this.enumLeft <= 0) {
+      this.ready = true;
+    }
     if (this.flashing && --this.flashLeft <= 0) {
       this.flashing = false;
       this.key.done = true;
@@ -119,7 +125,7 @@ export class Pch implements Device {
 
   private reg(off: number): number {
     switch (off) {
-      case PCH_REG.STATUS:
+      case PCH_REG.STATUS: {
         return (
           (this.key ? 1 : 0) |
           (this.key?.done ? 2 : 0) |
@@ -127,24 +133,34 @@ export class Pch implements Device {
           (this.osMode && this.key && this.ready ? 8 : 0) |
           (this.flashing ? 16 : 0)
         );
-      case PCH_REG.BOOT_DEV:
+      }
+      case PCH_REG.BOOT_DEV: {
         return this.bootDev;
-      case PCH_REG.OS_MODE:
+      }
+      case PCH_REG.OS_MODE: {
         return this.osMode ? 1 : 0;
-      case PCH_REG.KEY_ID:
+      }
+      case PCH_REG.KEY_ID: {
         return this.key?.id ?? 0;
-      case PCH_REG.KEY_LEN:
+      }
+      case PCH_REG.KEY_LEN: {
         return this.key ? this.key.program.length : 0;
-      case PCH_REG.PHASE:
+      }
+      case PCH_REG.PHASE: {
         return this.phase;
-      case PCH_REG.RAM_KB:
+      }
+      case PCH_REG.RAM_KB: {
         return this.ramKB;
-      case PCH_REG.CPU_TIER:
+      }
+      case PCH_REG.CPU_TIER: {
         return this.cpuTier;
-      case PCH_REG.PROGRESS:
+      }
+      case PCH_REG.PROGRESS: {
         return this.progress;
-      default:
+      }
+      default: {
         return 0;
+      }
     }
   }
 
@@ -156,7 +172,9 @@ export class Pch implements Device {
     if (addr < PCH_KEY_WINDOW + PCH_KEY_WINDOW_SIZE) {
       const o = addr - PCH_KEY_WINDOW;
       const word = this.key?.program[o >> 2] ?? 0;
-      if ((o & 3) === 0 && this.key && o >> 2 >= this.wordsRead) this.wordsRead = (o >> 2) + 1;
+      if ((o & 3) === 0 && this.key && o >> 2 >= this.wordsRead) {
+        this.wordsRead = (o >> 2) + 1;
+      }
       return (word >>> (8 * (o & 3))) & 0xff;
     }
     return 0;
@@ -165,43 +183,61 @@ export class Pch implements Device {
   write(addr: number, val: number): void {
     // Register effects fire on the low byte of the word (store32 writes bytes 0..3 in order; all values are < 256).
     if (addr < PCH_KEY_WINDOW) {
-      if ((addr & 3) !== 0) return;
-      switch (addr) {
-        case PCH_REG.PHASE:
-          this.phase = val;
-          this.onPhase?.();
-          break;
-        case PCH_REG.PROGRESS:
-          this.progress = val;
-          break;
-        case PCH_REG.CTRL:
-          if (val & 1) this.display.clear();
-          if (val & 2) this.removed = false;
-          break;
-        case PCH_REG.RESULT_LEN:
-          this.resultLen = Math.min(val, PCH_RESULT_WORDS);
-          break;
-        case PCH_REG.OS_MODE:
-          this.osMode = (val & 1) !== 0;
-          break;
-        case PCH_REG.DONE:
-          if (val & 1 && this.key) {
-            if (this.flashTicks > 0 && this.osMode) {
-              // Under an OS the result takes a while to land on the key; pulling the key meanwhile loses it.
-              this.flashing = true;
-              this.flashLeft = this.flashTicks;
-              this.flashText = this.resultText();
-            } else {
-              this.key.done = true;
-              this.key.result = this.resultText();
-            }
-          }
-          break;
+      if ((addr & 3) !== 0) {
+        return;
       }
+      this.writeReg(addr, val);
       return;
     }
     const o = addr - PCH_RESULT_WINDOW;
-    if (o >= 0 && o < RESULT_BYTES) this.result[o] = val & 0xff;
+    if (o >= 0 && o < RESULT_BYTES) {
+      this.result[o] = val & 0xff;
+    }
+  }
+
+  private writeReg(addr: number, val: number): void {
+    switch (addr) {
+      case PCH_REG.PHASE: {
+        this.phase = val;
+        this.onPhase?.();
+        break;
+      }
+      case PCH_REG.PROGRESS: {
+        this.progress = val;
+        break;
+      }
+      case PCH_REG.CTRL: {
+        if (val & 1) {
+          this.display.clear();
+        }
+        if (val & 2) {
+          this.removed = false;
+        }
+        break;
+      }
+      case PCH_REG.RESULT_LEN: {
+        this.resultLen = Math.min(val, PCH_RESULT_WORDS);
+        break;
+      }
+      case PCH_REG.OS_MODE: {
+        this.osMode = (val & 1) !== 0;
+        break;
+      }
+      case PCH_REG.DONE: {
+        if (val & 1 && this.key) {
+          if (this.flashTicks > 0 && this.osMode) {
+            // Under an OS the result takes a while to land on the key; pulling the key meanwhile loses it.
+            this.flashing = true;
+            this.flashLeft = this.flashTicks;
+            this.flashText = this.resultText();
+          } else {
+            this.key.done = true;
+            this.key.result = this.resultText();
+          }
+        }
+        break;
+      }
+    }
   }
 
   tick(): void {}
@@ -211,7 +247,9 @@ export class Pch implements Device {
     let s = '';
     for (let i = 0; i < this.resultLen * 4; i++) {
       const b = this.result[i]!;
-      if (b === 0) break;
+      if (b === 0) {
+        break;
+      }
       s += String.fromCharCode(b);
     }
     return s.trimEnd();

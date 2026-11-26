@@ -34,14 +34,10 @@ import {
   uninstall as boardUninstall,
   upgradeBoard,
   upgradeCase,
-  type Board,
-  type CableId,
-  type DeviceKind,
-  type DisplaySpec,
-  type FanSpec,
-  type InstalledDevice,
 } from '..';
-import { getRouterSpec, ISP_SPECS, ROUTER_SPECS, routerByTier, type RouterSpec } from '@/features/network/sim';
+import type * as boardSimTypes from '..';
+import { getRouterSpec, ISP_SPECS, ROUTER_SPECS, routerByTier } from '@/features/network/sim';
+import type * as networkSimTypes from '@/features/network/sim';
 import { getOsSpec, OS_SPECS } from '@/features/os/sim';
 import { boardTierOf, caseTierOf, caseTooSmall, sellValue } from '@/features/economy/sim/economy';
 import type { Game } from '@/worker/game/game';
@@ -55,49 +51,109 @@ import type { InventorySnap, Result } from '@/worker/game/types';
  * best router and ISP plan, and the ethernet cable on the card. Left powered off, with the other cables connected. "Best" is the top of each part's ladder
  * (`specsOfKind`, the tier tables), so a new tier is picked up without touching this.
  */
+const mustOk = <T>(what: string, r: Result<T>): T => {
+  if (!r.ok) {
+    throw new Error(`maximum machine: ${what}: ${r.reason}`);
+  }
+  return r;
+};
+
+const buyAndInstall = (game: Game, spec: string, slot?: string) =>
+  mustOk(`install ${spec}`, game.install(mustOk(`buy ${spec}`, game.purchase(spec)).invId, slot));
+
+const topSpec = (kind: boardSimTypes.DeviceKind): string => {
+  const l = specsOfKind(kind as 'cpu');
+  return l.at(-1)!.id;
+};
+
 export function buildMaxRig(this: Game): void {
-  const ok = <T>(what: string, r: Result<T>): T => {
-    if (!r.ok) throw new Error(`maximum machine: ${what}: ${r.reason}`);
-    return r;
-  };
-  const put = (spec: string, slot?: string) =>
-    ok(`install ${spec}`, this.install(ok(`buy ${spec}`, this.purchase(spec)).invId, slot));
-  const top = (kind: DeviceKind): string => {
-    const l = specsOfKind(kind as 'cpu');
-    return l[l.length - 1]!.id;
-  };
-  const boardTier = BOARD_TIERS.length - 1,
-    slots = BOARD_TIERS[boardTier]!.slots;
-  put(`case${CASE_TIERS.length - 1}`);
-  put(`board${boardTier}`);
-  for (const kind of ['psu', 'cpu', 'cooler', 'vrm-sink', 'ram-sink'] as const) put(top(kind));
-  put(top('radiator'), 'rad-top');
+  const boardTier = BOARD_TIERS.length - 1;
+  const { slots } = BOARD_TIERS[boardTier]!;
+  buyAndInstall(this, `case${CASE_TIERS.length - 1}`);
+  buyAndInstall(this, `board${boardTier}`);
+  for (const kind of ['psu', 'cpu', 'cooler', 'vrm-sink', 'ram-sink'] as const) {
+    buyAndInstall(this, topSpec(kind));
+  }
+  buyAndInstall(this, topSpec('radiator'), 'rad-top');
   // every fan spot (the case mounts, the heatsinks' spots) gets the best fan of its size
   for (const s of fanSlots(this.board)) {
-    if (this.board.devices.some((d) => d.slot === s.id)) continue;
-    const best = specList
-      .filter((f): f is FanSpec => f.kind === 'fan' && f.size === s.size)
-      .sort((a, b) => b.airflow - a.airflow)[0];
-    if (best) put(best.id, s.id);
+    if (this.board.devices.some((d) => d.slot === s.id)) {
+      continue;
+    }
+    const [best] = specList
+      .filter((f): f is boardSimTypes.FanSpec => f.kind === 'fan' && f.size === s.size)
+      .sort((a, b) => b.airflow - a.airflow);
+    if (best) {
+      buyAndInstall(this, best.id, s.id);
+    }
   }
-  for (let i = 0; i < (slots.dimm ?? 0); i++) put(top('ram'), `dimm${i}`);
+  for (let i = 0; i < (slots.dimm ?? 0); i++) {
+    buyAndInstall(this, topSpec('ram'), `dimm${i}`);
+  }
   // the top plain drive: a RAID module cannot hold the OS
   const bootDrive = specsOfKind('storage')
     .filter((s) => !s.mirror)
     .pop()!.id;
-  for (let i = 0; i < (slots.m2 ?? 0); i++) put(bootDrive, `m2${i}`);
-  put(top('nic'));
+  for (let i = 0; i < (slots.m2 ?? 0); i++) {
+    buyAndInstall(this, bootDrive, `m2${i}`);
+  }
+  buyAndInstall(this, topSpec('nic'));
   const os = [...OS_SPECS].reverse().find((o) => !o.later);
-  if (os) put(os.id);
-  put(ROUTER_SPECS[ROUTER_SPECS.length - 1]!.id);
-  ok('buy the ISP plan', this.purchase(ISP_SPECS[ISP_SPECS.length - 1]!.id));
+  if (os) {
+    buyAndInstall(this, os.id);
+  }
+  buyAndInstall(this, ROUTER_SPECS.at(-1)!.id);
+  mustOk('buy the ISP plan', this.purchase(ISP_SPECS.at(-1)!.id));
   const nic = this.board.devices.find((d) => deviceSpec(d).kind === 'nic');
-  if (nic) ok('plug the ethernet cable', this.connectCable('lan', nic.id));
+  if (nic) {
+    mustOk('plug the ethernet cable', this.connectCable('lan', nic.id));
+  }
   // swaps can unplug a cable whose source part changed: plug the others again
-  for (const c of cablesOf(this.board))
-    if (c.id !== 'lan' && !this.cables[c.id] && cableNeeded(this.board, c.id))
-      ok(`plug ${c.id}`, this.connectCable(c.id));
+  for (const c of cablesOf(this.board)) {
+    if (c.id !== 'lan' && !this.cables[c.id] && cableNeeded(this.board, c.id)) {
+      mustOk(`plug ${c.id}`, this.connectCable(c.id));
+    }
+  }
   this.log = [];
+}
+
+function installCase(game: Game, item: InvItem, caseTier: number): Result<{ deviceId: string | null; slot: string }> {
+  const was = game.board.caseTier;
+  const r = upgradeCase(game.board, caseTier);
+  if (!r.ok) {
+    return r;
+  }
+  game.removeItem(item.id);
+  game.inventory.push({ id: `inv${game.nextInvId++}`, spec: `case${was}` }); // the case it replaced is a spare now
+  game.afterBoardChange(); // fans of another size come off the mounts
+  game.note('install', `${CASE_TIERS[caseTier]!.name} installed: the board and every part moved in`);
+  return { ok: true, deviceId: null, slot: 'case' };
+}
+
+function installBoardUpgrade(
+  game: Game,
+  item: InvItem,
+  tier: number,
+): Result<{ deviceId: string | null; slot: string }> {
+  const was = game.board.tier,
+    dead = game.board.burnt === true;
+  if (game.caseGated() && !caseHolds(game.board, tier)) {
+    return { ok: false, reason: caseTooSmall(game.board, tier) };
+  }
+  const r = upgradeBoard(game.board, tier);
+  if (!r.ok) {
+    return r;
+  }
+  if (!caseHolds(game.board, tier)) {
+    game.board.caseTier = caseFor(tier); // ungated: the case follows the board
+  }
+  game.removeItem(item.id);
+  if (!dead) {
+    game.inventory.push({ id: `inv${game.nextInvId++}`, spec: `board${was}` }); // the board it replaced is a spare now (a dead one is scrapped)
+  }
+  game.afterBoardChange();
+  game.note('install', `${BOARD_TIERS[tier]!.name} installed`);
+  return { ok: true, deviceId: null, slot: 'board' };
 }
 
 /**
@@ -108,45 +164,40 @@ export function buildMaxRig(this: Game): void {
  */
 export function install(this: Game, invId: string, slotId?: string): Result<{ deviceId: string | null; slot: string }> {
   const item = this.inventory.find((i) => i.id === invId);
-  if (!item) return { ok: false, reason: `no inventory item "${invId}"` };
+  if (!item) {
+    return { ok: false, reason: `no inventory item "${invId}"` };
+  }
   const routerSpec = getRouterSpec(item.spec);
-  if (routerSpec) return this.installRouter(item, routerSpec, slotId);
-  if (this.powered) return { ok: false, reason: 'power the machine off first' };
+  if (routerSpec) {
+    return this.installRouter(item, routerSpec, slotId);
+  }
+  if (this.powered) {
+    return { ok: false, reason: 'power the machine off first' };
+  }
   const osSpec = getOsSpec(item.spec);
-  if (osSpec) return this.installOs(item, osSpec, slotId);
+  if (osSpec) {
+    return this.installOs(item, osSpec, slotId);
+  }
   const caseTier = caseTierOf(item.spec);
   if (caseTier !== undefined) {
-    const was = this.board.caseTier;
-    const r = upgradeCase(this.board, caseTier);
-    if (!r.ok) return r;
-    this.removeItem(item.id);
-    this.inventory.push({ id: `inv${this.nextInvId++}`, spec: `case${was}` }); // the case it replaced is a spare now
-    this.afterBoardChange(); // fans of another size come off the mounts
-    this.note('install', `${CASE_TIERS[caseTier]!.name} installed: the board and every part moved in`);
-    return { ok: true, deviceId: null, slot: 'case' };
+    return installCase(this, item, caseTier);
   }
   const tier = boardTierOf(item.spec);
   if (tier !== undefined) {
-    const was = this.board.tier,
-      dead = !!this.board.burnt;
-    if (this.caseGated() && !caseHolds(this.board, tier)) return { ok: false, reason: caseTooSmall(this.board, tier) };
-    const r = upgradeBoard(this.board, tier);
-    if (!r.ok) return r;
-    if (!caseHolds(this.board, tier)) this.board.caseTier = caseFor(tier); // ungated: the case follows the board
-    this.removeItem(item.id);
-    if (!dead) this.inventory.push({ id: `inv${this.nextInvId++}`, spec: `board${was}` }); // the board it replaced is a spare now (a dead one is scrapped)
-    this.afterBoardChange();
-    this.note('install', `${BOARD_TIERS[tier]!.name} installed`);
-    return { ok: true, deviceId: null, slot: 'board' };
+    return installBoardUpgrade(this, item, tier);
   }
   const r = this.placeInto(this.board, item.spec, slotId);
-  if (!r.ok) return r;
+  if (!r.ok) {
+    return r;
+  }
   this.removeItem(item.id);
   if (r.replaced) {
     const old = r.replaced;
     this.releaseOs(old);
     this.disks.delete(old.id);
-    if (!old.burnt) this.inventory.push({ id: `inv${this.nextInvId++}`, spec: old.spec });
+    if (!old.burnt) {
+      this.inventory.push({ id: `inv${this.nextInvId++}`, spec: old.spec });
+    }
   }
   this.afterBoardChange();
   this.flagInstalled(getSpec(item.spec)!.kind);
@@ -161,21 +212,30 @@ export function install(this: Game, invId: string, slotId?: string): Result<{ de
  */
 export function swapInstall(this: Game, invId: string, slotId?: string): Result<{ pending: boolean }> {
   const item = this.inventory.find((i) => i.id === invId);
-  if (!item) return { ok: false, reason: `no inventory item "${invId}"` };
+  if (!item) {
+    return { ok: false, reason: `no inventory item "${invId}"` };
+  }
   if (getRouterSpec(item.spec) || !this.powered) {
     const r = this.install(invId, slotId);
     return r.ok ? { ok: true, pending: false } : r;
   }
   const snap = this.inventorySnap().find((i) => i.id === invId)!;
-  if (!snap.installable) return { ok: false, reason: snap.reason ?? 'nowhere to put this' };
+  if (!snap.installable) {
+    return { ok: false, reason: snap.reason ?? 'nowhere to put this' };
+  }
   if (this.jobInFlight()) {
-    if (this.pendingSwaps.some((p) => p.invId === invId))
+    if (this.pendingSwaps.some((p) => p.invId === invId)) {
       return { ok: false, reason: `${snap.name} is already waiting to be fitted` };
+    }
     // pick the slot now, so two queued parts never aim at the same one
     const taken = new Set(this.pendingSwaps.map((p) => p.slotId));
     const slot = slotId ?? [...snap.freeSlots, ...snap.swapSlots].find((s) => !taken.has(s));
-    if (!slot) return { ok: false, reason: 'every slot this part fits is already taken by a queued part' };
-    if (taken.has(slot)) return { ok: false, reason: `another queued part is already waiting for ${slot}` };
+    if (!slot) {
+      return { ok: false, reason: 'every slot this part fits is already taken by a queued part' };
+    }
+    if (taken.has(slot)) {
+      return { ok: false, reason: `another queued part is already waiting for ${slot}` };
+    }
     this.pendingSwaps.push({ invId, slotId: slot });
     this.note('install', `${snap.name} will be swapped in as soon as the job is done`);
     return { ok: true, pending: true };
@@ -188,15 +248,19 @@ export function cancelSwap(this: Game, invId?: string): Result<{ cancelled: numb
   const before = this.pendingSwaps.length;
   this.pendingSwaps = invId === undefined ? [] : this.pendingSwaps.filter((p) => p.invId !== invId);
   const cancelled = before - this.pendingSwaps.length;
-  if (!cancelled) return { ok: false, reason: 'no queued install to cancel' };
+  if (!cancelled) {
+    return { ok: false, reason: 'no queued install to cancel' };
+  }
   this.note('install', cancelled === 1 ? 'queued install cancelled' : `${cancelled} queued installs cancelled`);
   return { ok: true, cancelled };
 }
 
 /** A job the machine would lose (or hold up) if it powered off now. */
 export function jobInFlight(this: Game): boolean {
-  if (this.os && this.kernelJobs().length > 0) return true;
-  return !!this.plugged && !this.plugged.done;
+  if (this.os && this.kernelJobs().length > 0) {
+    return true;
+  }
+  return this.plugged !== null && !this.plugged.done;
 }
 
 /** Power off (paying a finished key first), install, and power back on when it was on. */
@@ -215,62 +279,85 @@ export function swapMany(
   this: Game,
   items: { invId: string; slotId?: string | undefined; name: string }[],
 ): Result<{ fitted: number }> {
-  if (this.plugged?.done) this.ejectKey();
+  if (this.plugged?.done) {
+    this.ejectKey();
+  }
   const wasOn = this.powered;
-  if (wasOn) this.powerButton();
+  if (wasOn) {
+    this.powerButton();
+  }
   let fitted = 0,
     why = '';
   for (const it of items) {
     const r = this.install(it.invId, it.slotId);
-    if (r.ok) fitted++;
-    else {
+    if (r.ok) {
+      fitted++;
+    } else {
       why = r.reason;
-      if (items.length > 1) this.note('fault', `${it.name} could not be fitted: ${r.reason}`);
+      if (items.length > 1) {
+        this.note('fault', `${it.name} could not be fitted: ${r.reason}`);
+      }
     }
   }
   if (!fitted) {
-    if (wasOn) this.powerButton();
+    if (wasOn) {
+      this.powerButton();
+    }
     return { ok: false, reason: why || 'nothing to fit' };
   }
   if (wasOn) {
     const on = this.powerButton();
-    if (!on.ok)
+    if (!on.ok) {
       return {
         ok: false,
         reason: `${items.map((i) => i.name).join(', ')} installed, but the machine cannot start: ${on.reason}`,
       };
+    }
   }
   return { ok: true, fitted };
 }
 
 export function applyPendingSwap(this: Game): void {
-  if (!this.pendingSwaps.length || this.jobInFlight()) return;
+  if (this.pendingSwaps.length === 0 || this.jobInFlight()) {
+    return;
+  }
   const queue = this.pendingSwaps;
   this.pendingSwaps = [];
   const items: { invId: string; slotId: string; name: string }[] = [];
   for (const p of queue) {
     const snap = this.inventorySnap().find((i) => i.id === p.invId);
-    if (!snap || !snap.installable) this.note('install', 'a queued swap was dropped: it no longer fits');
-    else items.push({ invId: p.invId, slotId: p.slotId, name: snap.name });
+    if (!snap || !snap.installable) {
+      this.note('install', 'a queued swap was dropped: it no longer fits');
+    } else {
+      items.push({ invId: p.invId, slotId: p.slotId, name: snap.name });
+    }
   }
-  if (!items.length) return;
+  if (items.length === 0) {
+    return;
+  }
   const r = this.swapMany(items);
-  if (!r.ok) this.note('fault', r.reason);
+  if (!r.ok) {
+    this.note('fault', r.reason);
+  }
 }
 
 /** The router is external (own power): it goes into its spot, or comes out, whether the PC is on or off. */
 export function installRouter(
   this: Game,
   item: InvItem,
-  r: RouterSpec,
+  r: networkSimTypes.RouterSpec,
   slotId?: string,
 ): Result<{ deviceId: string | null; slot: string }> {
-  if (slotId !== undefined && slotId !== 'router')
+  if (slotId !== undefined && slotId !== 'router') {
     return { ok: false, reason: `${r.name} goes into the router spot next to the monitor, not "${slotId}"` };
-  if (this.routerTier === r.tier)
+  }
+  if (this.routerTier === r.tier) {
     return { ok: false, reason: `a ${routerByTier(this.routerTier)!.name} is already in the router spot` };
+  }
   const old = routerByTier(this.routerTier);
-  if (old) this.inventory.push({ id: `inv${this.nextInvId++}`, spec: old.id });
+  if (old) {
+    this.inventory.push({ id: `inv${this.nextInvId++}`, spec: old.id });
+  }
   this.removeItem(item.id);
   this.routerTier = r.tier;
   this.progress.routerInstalled = true;
@@ -282,7 +369,9 @@ export function installRouter(
 export function uninstall(this: Game, deviceId: string): Result<{ invId: string | null }> {
   if (deviceId === 'router') {
     const old = routerByTier(this.routerTier);
-    if (!old) return { ok: false, reason: 'no router is installed' };
+    if (!old) {
+      return { ok: false, reason: 'no router is installed' };
+    }
     this.routerTier = 0;
     this.cables['lan'] = false;
     this.lan = null;
@@ -291,14 +380,21 @@ export function uninstall(this: Game, deviceId: string): Result<{ invId: string 
     this.note('install', `${old.name} removed`);
     return { ok: true, invId };
   }
-  if (this.powered) return { ok: false, reason: 'power the machine off first' };
+  if (this.powered) {
+    return { ok: false, reason: 'power the machine off first' };
+  }
   const dev = this.board.devices.find((d) => d.id === deviceId);
-  if (!dev) return { ok: false, reason: `no installed device "${deviceId}"` };
-  if (this.os?.deviceId === deviceId && !this.looseFit)
+  if (!dev) {
+    return { ok: false, reason: `no installed device "${deviceId}"` };
+  }
+  if (this.os?.deviceId === deviceId && !this.looseFit) {
     return { ok: false, reason: `the OS is installed on ${deviceSpec(dev).name}: uninstall the OS first` };
+  }
   this.releaseOs(dev);
   const r = boardUninstall(this.board, deviceId);
-  if (!r.ok) return r;
+  if (!r.ok) {
+    return r;
+  }
   this.disks.delete(deviceId);
   let invId: string | null = null;
   if (!dev.burnt) {
@@ -306,10 +402,12 @@ export function uninstall(this: Game, deviceId: string): Result<{ invId: string 
     this.inventory.push({ id: invId, spec: dev.spec });
   }
   // The cooler mounts on the CPU: taking the CPU out takes the cooler with it, back into the inventory.
-  if (deviceSpec(dev).kind === 'cpu' && !findDevices(this.board, 'cpu').length) {
+  if (deviceSpec(dev).kind === 'cpu' && findDevices(this.board, 'cpu').length === 0) {
     for (const c of findDevices(this.board, 'cooler')) {
       boardUninstall(this.board, c.id);
-      if (!c.burnt) this.inventory.push({ id: `inv${this.nextInvId++}`, spec: c.spec });
+      if (!c.burnt) {
+        this.inventory.push({ id: `inv${this.nextInvId++}`, spec: c.spec });
+      }
       this.note('install', `${deviceSpec(c).name} removed with the CPU`);
     }
   }
@@ -322,8 +420,10 @@ export function uninstall(this: Game, deviceId: string): Result<{ invId: string 
  * Build my PC (`looseFit`): the drive that holds the OS leaves, so the OS goes back to the inventory with a wiped drive, and the socket it left is
  * remembered (`keepOs` puts it back there). In any other game the drive is refused before this, and nothing happens.
  */
-export function releaseOs(this: Game, dev: InstalledDevice): void {
-  if (!this.looseFit || this.os?.deviceId !== dev.id) return;
+export function releaseOs(this: Game, dev: boardSimTypes.InstalledDevice): void {
+  if (!this.looseFit || this.os?.deviceId !== dev.id) {
+    return;
+  }
   this.osSlot = dev.slot;
   this.uninstallOs();
 }
@@ -334,60 +434,91 @@ export function releaseOs(this: Game, dev: InstalledDevice): void {
  * back, and the OS must land where it was). A game with no loose fit, a running machine or no OS item: nothing happens.
  */
 export function keepOs(this: Game): void {
-  if (!this.looseFit || this.os || this.powered) return;
+  if (!this.looseFit || this.os || this.powered) {
+    return;
+  }
   const item = this.inventory.find((i) => getOsSpec(i.spec));
   const spec = item && getOsSpec(item.spec);
-  if (!item || !spec) return;
+  if (!item || !spec) {
+    return;
+  }
   const drives = this.board.devices
     .filter((d) => deviceSpec(d).kind === 'storage')
     .sort((a, b) => Number(b.slot === this.osSlot) - Number(a.slot === this.osSlot));
   const home = drives.find((d) => !this.osBlock(spec, d));
-  if (home) this.installOs(item, spec, home.slot);
+  if (home) {
+    this.installOs(item, spec, home.slot);
+  }
 }
 
 /** Plug a cable in (needs its source part installed). Only while off. */
-export function connectCable(this: Game, cable: string, port?: string): Result<{ cable: CableId }> {
-  if (cable === 'lan') return this.connectLan(port);
+export function connectCable(this: Game, cable: string, port?: string): Result<{ cable: boardSimTypes.CableId }> {
+  if (cable === 'lan') {
+    return this.connectLan(port);
+  }
   const wall = cable === 'pcmains' || cable === 'monmains';
-  if (this.powered && !hotPluggable(cable))
+  if (this.powered && !hotPluggable(cable)) {
     return { ok: false, reason: 'power the machine off first: the PSU cables carry live power' };
+  }
   // The video cable goes to the board's HDMI port, or to a display port on a GPU's bracket (graphics display only).
   const to = cable === 'video' ? (port ?? 'board') : 'board';
   if (to !== 'board') {
     const card = this.board.devices.find((d) => d.slot === to && deviceSpec(d).kind === 'gpu');
-    if (!card || card.burnt) return { ok: false, reason: `no working graphics card in "${to}"` };
-    const disp = findDevices(this.board, 'display')[0];
-    if (!disp || !(deviceSpec(disp) as DisplaySpec).graphics)
+    if (!card || card.burnt) {
+      return { ok: false, reason: `no working graphics card in "${to}"` };
+    }
+    const [disp] = findDevices(this.board, 'display');
+    if (!disp || !(deviceSpec(disp) as boardSimTypes.DisplaySpec).graphics) {
       return {
         ok: false,
         reason: 'a text monitor has no picture to show a graphics card: install the graphics display',
       };
+    }
   }
   const r = boardConnect(this.board, this.cables, cable);
-  if (!r.ok) return r;
-  if (cable === 'video') this.video = to;
+  if (!r.ok) {
+    return r;
+  }
+  if (cable === 'video') {
+    this.video = to;
+  }
   const flag = ({ atx: 'atxConnected', cpu: 'cpuPowerConnected', video: 'videoConnected' } as Record<string, string>)[
     r.cable
   ] as keyof Progress | undefined;
-  if (flag) this.progress[flag] = true;
-  if (wall || cable === 'video') this.machine.display.connected = this.monitorLive();
-  if (wall && this.cables['pcmains'] && this.cables['monmains']) this.progress.mainsConnected = true;
-  if (this.powered && isFanCable(cable)) this.syncRates(true); // a fan plugged on a running machine spins up at once
+  if (flag) {
+    this.progress[flag] = true;
+  }
+  if (wall || cable === 'video') {
+    this.machine.display.connected = this.monitorLive();
+  }
+  if (wall && this.cables['pcmains'] && this.cables['monmains']) {
+    this.progress.mainsConnected = true;
+  }
+  if (this.powered && isFanCable(cable)) {
+    this.syncRates(true); // a fan plugged on a running machine spins up at once
+  }
   this.note('cable', `${cableName(r.cable)} connected`);
   return r;
 }
 
 /** The ethernet cable runs from a port (the board jack, or a NIC card jack) to the router. Allowed while the machine is on. */
-export function connectLan(this: Game, port?: string): Result<{ cable: CableId }> {
-  if (this.cables['lan']) return { ok: false, reason: 'Ethernet cable is already connected' };
-  if (!this.routerTier) return { ok: false, reason: 'needs a router: install one next to the monitor first' };
+export function connectLan(this: Game, port?: string): Result<{ cable: boardSimTypes.CableId }> {
+  if (this.cables['lan']) {
+    return { ok: false, reason: 'Ethernet cable is already connected' };
+  }
+  if (!this.routerTier) {
+    return { ok: false, reason: 'needs a router: install one next to the monitor first' };
+  }
   const nics = this.board.devices.filter((d) => deviceSpec(d).kind === 'nic' && !d.burnt);
   const onboard = BOARD_TIERS[this.board.tier]!.features.ethernetMbps > 0;
   const pick = port ?? (onboard ? 'board' : nics[0]?.id);
-  if (!pick)
+  if (!pick) {
     return { ok: false, reason: 'no network port: this board has no ethernet jack and no network card is installed' };
+  }
   if (pick === 'board') {
-    if (!onboard) return { ok: false, reason: `the ${BOARD_TIERS[this.board.tier]!.name} board has no ethernet jack` };
+    if (!onboard) {
+      return { ok: false, reason: `the ${BOARD_TIERS[this.board.tier]!.name} board has no ethernet jack` };
+    }
   } else if (!nics.some((d) => d.id === pick)) {
     return { ok: false, reason: `no working network card "${pick}"` };
   }
@@ -398,23 +529,34 @@ export function connectLan(this: Game, port?: string): Result<{ cable: CableId }
   return { ok: true, cable: 'lan' };
 }
 
-export function disconnectCable(this: Game, cable: string): Result<{ cable: CableId }> {
+export function disconnectCable(this: Game, cable: string): Result<{ cable: boardSimTypes.CableId }> {
   if (cable === 'lan') {
-    if (!this.cables['lan']) return { ok: false, reason: 'Ethernet cable is not connected' };
+    if (!this.cables['lan']) {
+      return { ok: false, reason: 'Ethernet cable is not connected' };
+    }
     this.cables['lan'] = false;
     this.lan = null;
     this.note('cable', 'Ethernet cable disconnected');
     return { ok: true, cable: 'lan' };
   }
   const wall = cable === 'pcmains' || cable === 'monmains';
-  if (this.powered && !hotPluggable(cable))
+  if (this.powered && !hotPluggable(cable)) {
     return { ok: false, reason: 'power the machine off first: the PSU cables carry live power' };
+  }
   const r = boardDisconnect(this.cables, cable, this.board);
-  if (!r.ok) return r;
-  if (r.cable === 'video') this.video = 'board';
+  if (!r.ok) {
+    return r;
+  }
+  if (r.cable === 'video') {
+    this.video = 'board';
+  }
   this.note('cable', `${cableName(r.cable)} disconnected`);
-  if (wall || cable === 'video') this.machine.display.connected = this.monitorLive();
-  if (this.powered && isFanCable(cable)) this.syncRates(true); // a fan pulled on a running machine stops: the parts heat up
+  if (wall || cable === 'video') {
+    this.machine.display.connected = this.monitorLive();
+  }
+  if (this.powered && isFanCable(cable)) {
+    this.syncRates(true); // a fan pulled on a running machine stops: the parts heat up
+  }
   // pulling the PC's cord on a running machine cuts its power: the same hard power-off as the button
   if (r.cable === 'pcmains' && this.powered) {
     this.powerButton();
@@ -425,30 +567,38 @@ export function disconnectCable(this: Game, cable: string): Result<{ cable: Cabl
 
 /** Set the requested CPU clock (overclock/underclock), in the spec's range. Takes effect on the next tick. */
 export function setCpuClock(this: Game, clock: number): { ok: true } | { ok: false; reason: string } {
-  const cpu = findDevices(this.board, 'cpu')[0];
-  if (!cpu) return { ok: false, reason: 'no CPU' };
+  const [cpu] = findDevices(this.board, 'cpu');
+  if (!cpu) {
+    return { ok: false, reason: 'no CPU' };
+  }
   const r = setClock(this.board, cpu.id, clock);
-  if (r.ok) this.syncRates(this.powered);
+  if (r.ok) {
+    this.syncRates(this.powered);
+  }
   return r;
 }
 
 /** Set the requested clock of one memory stick (RAM overclock/underclock), in its spec's range. */
 export function setRamClock(this: Game, deviceId: string, clock: number): { ok: true } | { ok: false; reason: string } {
   const d = this.board.devices.find((x) => x.id === deviceId);
-  if (!d || getSpec(d.spec)?.kind !== 'ram') return { ok: false, reason: 'no such memory stick' };
+  if (!d || getSpec(d.spec)?.kind !== 'ram') {
+    return { ok: false, reason: 'no such memory stick' };
+  }
   const r = setClock(this.board, d.id, clock);
-  if (r.ok) this.syncRates(this.powered);
+  if (r.ok) {
+    this.syncRates(this.powered);
+  }
   return r;
 }
 
 /** Whether `install(invId)` would succeed now (the machine must be off, so a powered one says no). */
 export function canInstall(this: Game, invId: string): boolean {
   const it = this.inventorySnap().find((i) => i.id === invId);
-  return !!it && it.installable;
+  return it !== undefined && it.installable;
 }
 
 /** Cables that could be plugged in (source part installed) but are not. */
-export function missingCables(this: Game): CableId[] {
+export function missingCables(this: Game): boardSimTypes.CableId[] {
   // The ethernet cable is the player's choice (a port, a router): never part of the bot's assembly.
   return cablesOf(this.board)
     .filter(
@@ -464,8 +614,12 @@ export function inventoryItems(this: Game): readonly { id: string; spec: string 
 
 export function mustInstall(this: Game, spec: string, invId?: string, slot?: string): void {
   const r = boardInstall(this.board, spec, slot);
-  if (!r.ok) throw new Error(`starting board: ${r.reason}`);
-  if (invId) this.removeItem(invId);
+  if (!r.ok) {
+    throw new Error(`starting board: ${r.reason}`);
+  }
+  if (invId) {
+    this.removeItem(invId);
+  }
   this.flagInstalled(getSpec(spec)!.kind);
 }
 
@@ -473,8 +627,8 @@ export function removeItem(this: Game, invId: string): void {
   this.inventory = this.inventory.filter((i) => i.id !== invId);
 }
 
-export function flagInstalled(this: Game, kind: DeviceKind): void {
-  const flag: Partial<Record<DeviceKind, keyof Progress>> = {
+export function flagInstalled(this: Game, kind: boardSimTypes.DeviceKind): void {
+  const flag: Partial<Record<boardSimTypes.DeviceKind, keyof Progress>> = {
     cpu: 'cpuInstalled',
     psu: 'psuInstalled',
     ram: 'ramInstalled',
@@ -483,11 +637,17 @@ export function flagInstalled(this: Game, kind: DeviceKind): void {
     cooler: 'coolerInstalled',
   };
   const f = flag[kind];
-  if (f) this.progress[f] = true;
+  if (f) {
+    this.progress[f] = true;
+  }
   // a sandbox machine is plugged into the wall as its parts go in (Build my PC plugs each cord by hand: the player watches it go in)
   if (this.sandbox && !this.looseFit) {
-    if (kind === 'psu') this.cables['pcmains'] = true;
-    if (kind === 'display') this.cables['monmains'] = true;
+    if (kind === 'psu') {
+      this.cables['pcmains'] = true;
+    }
+    if (kind === 'display') {
+      this.cables['monmains'] = true;
+    }
   }
 }
 
@@ -495,7 +655,9 @@ export function flagInstalled(this: Game, kind: DeviceKind): void {
 export function dropStrayFans(this: Game): void {
   for (const f of strayFans(this.board)) {
     boardUninstall(this.board, f.id);
-    if (!f.burnt) this.inventory.push({ id: `inv${this.nextInvId++}`, spec: f.spec });
+    if (!f.burnt) {
+      this.inventory.push({ id: `inv${this.nextInvId++}`, spec: f.spec });
+    }
     this.note('install', `${deviceSpec(f).name} came off: its spot is gone`);
   }
 }
@@ -505,8 +667,11 @@ export function afterBoardChange(this: Game): void {
   this.dropStrayFans();
   // the cable of a case mount that is gone (a smaller case) comes out
   const mounts = new Set<string>(cablesOf(this.board).map((c) => c.id));
-  for (const k of Object.keys(this.cables) as CableId[])
-    if (k.startsWith('fan:') && this.cables[k] && !mounts.has(k)) this.cables[k] = false;
+  for (const k of Object.keys(this.cables) as boardSimTypes.CableId[]) {
+    if (k.startsWith('fan:') && this.cables[k] && !mounts.has(k)) {
+      this.cables[k] = false;
+    }
+  }
   // A cable plugged into a network card that left the board comes out with it.
   if (this.lan && this.lan !== 'board' && !this.board.devices.some((d) => d.id === this.lan)) {
     this.lan = null;
@@ -515,39 +680,79 @@ export function afterBoardChange(this: Game): void {
   }
   // A video cable plugged into a card that left the board (or into a card while the display is no longer a graphics one) comes out too.
   if (this.video !== 'board') {
-    const disp = findDevices(this.board, 'display')[0];
-    if (!this.videoCard() || !disp || !(deviceSpec(disp) as DisplaySpec).graphics) {
+    const [disp] = findDevices(this.board, 'display');
+    if (!this.videoCard() || !disp || !(deviceSpec(disp) as boardSimTypes.DisplaySpec).graphics) {
       this.video = 'board';
       this.cables['video'] = false;
       this.note('cable', 'Video cable came unplugged');
     }
   }
-  for (const c of pruneCables(this.board, this.cables)) this.note('cable', `${cableName(c)} came unplugged`);
-  if (!this.cables['video']) this.video = 'board';
+  for (const c of pruneCables(this.board, this.cables)) {
+    this.note('cable', `${cableName(c)} came unplugged`);
+  }
+  if (!this.cables['video']) {
+    this.video = 'board';
+  }
 }
 
 /**
  * Put `specId` into a slot of `board` (mutates it, restoring it exactly on failure): the given slot, else the first
  * free compatible one, else swap with the installed part of the same kind. Returns the swapped-out device, if any.
  */
+function commitPlacement(opts: {
+  game: Game;
+  board: boardSimTypes.Board;
+  specId: string;
+  kind: boardSimTypes.DeviceKind;
+  slot: string;
+  occupant: boardSimTypes.InstalledDevice | undefined;
+}): Result<{ id: string; slot: string; replaced?: boardSimTypes.InstalledDevice }> {
+  const { game, board, specId, kind, slot, occupant } = opts;
+  if (occupant && occupant.id === game.os?.deviceId && !game.looseFit) {
+    return { ok: false, reason: `the OS is installed on ${deviceSpec(occupant).name}: uninstall the OS first` };
+  }
+  if (kind === 'cooler' && findDevices(board, 'cpu').length === 0) {
+    return { ok: false, reason: 'install the CPU first: the cooler mounts on it' };
+  }
+  const backup = boardToJson(board);
+  if (occupant) {
+    boardUninstall(board, occupant.id);
+  }
+  const r = boardInstall(board, specId, slot, { power: !game.looseFit });
+  if (!r.ok) {
+    const b = boardFromJson(backup);
+    board.devices = b.devices;
+    board.nextId = b.nextId;
+    return r;
+  }
+  return occupant ? { ...r, replaced: occupant } : r;
+}
+
 export function placeInto(
   this: Game,
-  board: Board,
+  board: boardSimTypes.Board,
   specId: string,
   slotId?: string,
-): Result<{ id: string; slot: string; replaced?: InstalledDevice }> {
+): Result<{ id: string; slot: string; replaced?: boardSimTypes.InstalledDevice }> {
   const spec = getSpec(specId);
-  if (!spec) return { ok: false, reason: `unknown device "${specId}"` };
+  if (!spec) {
+    return { ok: false, reason: `unknown device "${specId}"` };
+  }
   let slot = slotId;
-  let occupant: InstalledDevice | undefined;
+  let occupant: boardSimTypes.InstalledDevice | undefined;
   if (slot !== undefined) {
     const info = boardSlots(board).find((s) => s.id === slot);
-    if (!info) return { ok: false, reason: `board has no slot "${slot}"` };
+    if (!info) {
+      return { ok: false, reason: `board has no slot "${slot}"` };
+    }
     const refusal = slotRefusal(info, spec);
-    if (refusal) return { ok: false, reason: refusal };
+    if (refusal) {
+      return { ok: false, reason: refusal };
+    }
     occupant = board.devices.find((d) => d.slot === slot);
-    if (occupant && deviceSpec(occupant).kind !== spec.kind)
+    if (occupant && deviceSpec(occupant).kind !== spec.kind) {
       return { ok: false, reason: `slot "${slot}" is occupied by ${deviceSpec(occupant).name}` };
+    }
   } else {
     slot = freeSlots(board, spec.slot, spec)[0]?.id;
     if (slot === undefined) {
@@ -559,24 +764,13 @@ export function placeInto(
             spec,
           ) === null,
       );
-      if (!occupant) return boardInstall(board, specId, undefined, { power: !this.looseFit }); // fails with the board's own reason
-      slot = occupant.slot;
+      if (!occupant) {
+        return boardInstall(board, specId, undefined, { power: !this.looseFit }); // fails with the board's own reason
+      }
+      ({ slot } = occupant);
     }
   }
-  if (occupant && occupant.id === this.os?.deviceId && !this.looseFit)
-    return { ok: false, reason: `the OS is installed on ${deviceSpec(occupant).name}: uninstall the OS first` };
-  if (spec.kind === 'cooler' && !findDevices(board, 'cpu').length)
-    return { ok: false, reason: 'install the CPU first: the cooler mounts on it' };
-  const backup = boardToJson(board);
-  if (occupant) boardUninstall(board, occupant.id);
-  const r = boardInstall(board, specId, slot, { power: !this.looseFit });
-  if (!r.ok) {
-    const b = boardFromJson(backup);
-    board.devices = b.devices;
-    board.nextId = b.nextId;
-    return r;
-  }
-  return occupant ? { ...r, replaced: occupant } : r;
+  return commitPlacement({ game: this, board, specId, kind: spec.kind, slot, occupant });
 }
 
 /** Does a board need a case that holds it? Not in the sandbox (there the case follows the board) nor when the config says so. */
@@ -616,12 +810,19 @@ export function inventorySnap(this: Game): InventorySnap[] {
             : undefined;
         if (why === undefined) {
           for (const d of this.board.devices) {
-            if (deviceSpec(d).kind !== 'storage') continue;
+            if (deviceSpec(d).kind !== 'storage') {
+              continue;
+            }
             const block = this.osBlock(os, d);
-            if (block) why ??= block;
-            else free.push(d.slot);
+            if (block) {
+              why ??= block;
+            } else {
+              free.push(d.slot);
+            }
           }
-          if (free.length === 0) why ??= 'install a storage drive first';
+          if (free.length === 0) {
+            why ??= 'install a storage drive first';
+          }
         }
         const ok = free.length > 0 && off;
         return {
@@ -674,22 +875,30 @@ export function inventorySnap(this: Game): InventorySnap[] {
       const swap: string[] = [];
       let why: string | undefined;
       for (const s of boardSlots(this.board)) {
-        if (!slotAccepts(s.type, spec.slot)) continue;
+        if (!slotAccepts(s.type, spec.slot)) {
+          continue;
+        }
         if (!slotFits(s, spec)) {
           why ??= slotRefusal(s, spec)!;
           continue;
         }
         const occ = this.board.devices.find((d) => d.slot === s.id);
-        if (occ && deviceSpec(occ).kind !== spec.kind) continue;
+        if (occ && deviceSpec(occ).kind !== spec.kind) {
+          continue;
+        }
         const r = this.placeInto(boardFromJson(boardToJson(this.board)), it.spec, s.id);
-        if (r.ok) (occ ? swap : free).push(s.id);
-        else why ??= r.reason;
+        if (r.ok) {
+          (occ ? swap : free).push(s.id);
+        } else {
+          why ??= r.reason;
+        }
       }
-      if (free.length + swap.length === 0)
+      if (free.length + swap.length === 0) {
         why =
           spec.kind === 'fan'
             ? `nothing in this machine takes a ${spec.size} mm fan`
             : (why ?? `no ${spec.slot} slot for ${spec.name}`);
+      }
       const installable = free.length + swap.length > 0 && off;
       return {
         id: it.id,
