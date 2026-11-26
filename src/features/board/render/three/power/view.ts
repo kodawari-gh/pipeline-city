@@ -3,13 +3,13 @@
 // and faster the more watts (flows.ts). The parts glow by what they draw on the power scale (`Machine3D.powerGlow`), the room goes dark under a veil, a ring and words
 // mark every cable that is out. The words (`powerDraw`) are pinned to 3D points as light DOM pills, with a bar that tells the scale.
 // What is built once (the shape) changes only when a cable, a part or the board does; a snapshot only rewrites a few numbers.
-import { Box3, Group, Vector3, type PerspectiveCamera, type Scene } from 'three';
+import * as THREE from 'three';
 import type { Snapshot } from '@/worker/protocol';
 import { viewInset } from '@/app/hover';
 import { POWER_VEIL } from '@/core/render/three/powerscale';
 import { BOARD_Z, CASE_Z } from '@/features/room/render/three/roomplan';
 import { LAYOUT_CASE, LAYOUT_TIER } from '../../layout/layout';
-import { buildBuses, type Bus } from '../../wiring/routes';
+import * as routes from '../../wiring/routes';
 import { AirTags3D } from '../air/airtags';
 import { psuBay } from '../air/plan';
 import { makeVeil } from '../air/ribbons';
@@ -17,7 +17,7 @@ import type { Machine3D } from '../machine3d';
 import { slotRects } from '../slots3d';
 import { PowerFlows } from './flows';
 import { powerLedger } from './ledger';
-import { powerDraw, powerShape, type PowerDraw, type PowerShape } from './net';
+import * as net from './net';
 
 /**
  * What everything multiplies by under the lens: a near black with a little blue, so that only the power parts (their glow is lifted by the same veil,
@@ -33,59 +33,66 @@ const BIG = 0.52,
   SMALL = 0.45;
 
 /** The eight corners of the case's box (the machine without its cords): the lens measures how big the machine is on the screen by them. */
-function caseCorners(machine: Machine3D): Vector3[] {
-  const box = new Box3();
-  for (const o of machine.caseRoots) box.expandByObject(o);
-  if (box.isEmpty()) return [];
+function caseCorners(machine: Machine3D): THREE.Vector3[] {
+  const box = new THREE.Box3();
+  for (const o of machine.caseRoots) {
+    box.expandByObject(o);
+  }
+  if (box.isEmpty()) {
+    return [];
+  }
   const a = box.min,
     b = box.max;
-  return [0, 1, 2, 3, 4, 5, 6, 7].map((i) => new Vector3(i & 1 ? b.x : a.x, i & 2 ? b.y : a.y, i & 4 ? b.z : a.z));
+  return [0, 1, 2, 3, 4, 5, 6, 7].map(
+    (i) => new THREE.Vector3(i & 1 ? b.x : a.x, i & 2 ? b.y : a.y, i & 4 ? b.z : a.z),
+  );
 }
 
 export class PowerView3D {
-  private readonly group = new Group();
+  private readonly group = new THREE.Group();
   private readonly veil = makeVeil(VEIL);
   private readonly tags = new AirTags3D();
   private flows: PowerFlows | null = null;
-  private shape: PowerShape | null = null;
-  private drawn: PowerDraw | null = null;
+  private shape: net.PowerShape | null = null;
+  private drawn: net.PowerDraw | null = null;
   private machine: Machine3D | null = null;
   private seen: Snapshot | null = null;
   private key = '';
   private rev = -1;
   private held = '';
-  private buses: { key: string; list: Bus[] } | null = null;
+  private buses: { key: string; list: routes.Bus[] } | null = null;
   private glowing = false;
   private clock = 0;
-  private corners: Vector3[] = [];
+  private corners: THREE.Vector3[] = [];
   private detail = true;
-  private readonly p = new Vector3();
+  private readonly p = new THREE.Vector3();
   /** Milliseconds a frame of the lens takes on the main thread, smoothed (a new machine's shape included). */
   cost = 0;
 
   constructor(
-    scene: Scene,
+    scene: THREE.Scene,
     private readonly dom: HTMLElement | null = null,
   ) {
     this.group.add(this.veil);
     this.group.visible = false;
     scene.add(this.group);
-    if (import.meta.env.DEV && typeof window !== 'undefined')
-      (window as unknown as { __power?: PowerView3D }).__power = this;
+    if (import.meta.env.DEV && typeof window !== 'undefined') {
+      (globalThis as unknown as { __power?: PowerView3D }).__power = this;
+    }
   }
 
   // (for the developer: `window.__power`)
-  get shapeNow(): PowerShape | null {
+  get shapeNow(): net.PowerShape | null {
     return this.shape;
   }
-  get drawNow(): PowerDraw | null {
+  get drawNow(): net.PowerDraw | null {
     return this.drawn;
   }
   get flowsNow(): PowerFlows | null {
     return this.flows;
   }
   /** The words pinned now: those of detail only while the machine is big on the screen. */
-  get wordsNow(): PowerDraw['tags'] {
+  get wordsNow(): net.PowerDraw['tags'] {
     return this.words();
   }
 
@@ -105,9 +112,11 @@ export class PowerView3D {
   }
 
   /** The board's traces for this tier and case. */
-  private busesFor(): Bus[] {
+  private busesFor(): routes.Bus[] {
     const key = `${LAYOUT_TIER}|${LAYOUT_CASE}`;
-    if (!this.buses || this.buses.key !== key) this.buses = { key, list: buildBuses() };
+    if (!this.buses || this.buses.key !== key) {
+      this.buses = { key, list: routes.buildBuses() };
+    }
     return this.buses.list;
   }
 
@@ -115,7 +124,7 @@ export class PowerView3D {
   private rebuild(s: Snapshot, machine: Machine3D): void {
     this.flows?.dispose();
     // (the source is the real wall plate, the studio's or the room's: the lens's plate takes its outline, lying just over its face)
-    const shape = powerShape({
+    const shape = net.powerShape({
       s,
       runs: machine.cableRuns(),
       buses: this.busesFor(),
@@ -134,7 +143,7 @@ export class PowerView3D {
   }
 
   /** The share (0 to 1) of the view's height the case takes: its box's corners, projected, as much of it as is across the view. 1 when the eye is in or behind it. */
-  private share(cam: PerspectiveCamera): number {
+  private share(cam: THREE.PerspectiveCamera): number {
     cam.updateMatrixWorld();
     cam.matrixWorldInverse.copy(cam.matrixWorld).invert();
     let lo = Infinity,
@@ -143,7 +152,9 @@ export class PowerView3D {
       right = -Infinity;
     for (const c of this.corners) {
       this.p.copy(c).applyMatrix4(cam.matrixWorldInverse);
-      if (this.p.z > -cam.near) return 1;
+      if (this.p.z > -cam.near) {
+        return 1;
+      }
       const p = this.p.applyMatrix4(cam.projectionMatrix);
       lo = Math.min(lo, p.y);
       hi = Math.max(hi, p.y);
@@ -156,12 +167,12 @@ export class PowerView3D {
   }
 
   /** The words now: all of them while the machine is big on the screen, the main ones while it is small. */
-  private words(): PowerDraw['tags'] {
+  private words(): net.PowerDraw['tags'] {
     return this.drawn ? this.drawn.tags.filter((t) => this.detail || !t.minor) : [];
   }
 
   /** Per frame, after the camera. `dt`: game seconds (0 holds the pulses); `pxH`: the view's height in pixels. */
-  frame(cam: PerspectiveCamera, pxH: number, snap: Snapshot | null, machine: Machine3D | null, dt: number): void {
+  frame(cam: THREE.PerspectiveCamera, pxH: number, snap: Snapshot | null, machine: Machine3D | null, dt: number): void {
     if (!snap || !machine) {
       this.hide();
       return;
@@ -186,7 +197,7 @@ export class PowerView3D {
     if (snap !== this.seen || heldKey !== this.held) {
       if (snap !== this.seen) {
         this.seen = snap;
-        const draw = powerDraw(shape, snap, powerLedger(snap), (id) => machine.partBox(id));
+        const draw = net.powerDraw(shape, snap, powerLedger(snap), (id) => machine.partBox(id));
         this.drawn = draw;
         this.tags.set(this.words(), this.clock);
         machine.powerGlow(draw.parts, draw.warn, draw.roles);
@@ -197,7 +208,7 @@ export class PowerView3D {
     }
     flows.frame(cam, pxH, dt, this.clock);
     // (the words of detail come and go with the machine's size on the screen)
-    if (this.corners.length) {
+    if (this.corners.length > 0) {
       const share = this.share(cam),
         detail = share > (this.detail ? SMALL : BIG);
       if (detail !== this.detail) {
@@ -208,7 +219,7 @@ export class PowerView3D {
     this.group.visible = true;
     this.tags.show(true);
     const r = this.dom?.getBoundingClientRect();
-    if (r)
+    if (r) {
       this.tags.frame(cam, {
         left: r.left,
         top: r.top,
@@ -216,6 +227,7 @@ export class PowerView3D {
         height: r.height,
         minTop: viewInset.peek().top,
       });
+    }
     this.cost += (performance.now() - t0 - this.cost) * 0.05;
   }
 

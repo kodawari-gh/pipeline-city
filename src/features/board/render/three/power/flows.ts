@@ -4,18 +4,8 @@
 // the line keeps a steady glow, so it reads at a glance. A line with no draw is a dim thread, a cable that is out pulses red and does not move. The lines are drawn with
 // the depth test, lifted a little toward the eye (a cable is seen where it runs, and goes behind the parts that stand in front of it); the runs the machine does not
 // show (behind the tray) are drawn through everything, thin and dim. Rings on the open sockets are drawn through everything too.
-import {
-  AdditiveBlending,
-  DoubleSide,
-  Float32BufferAttribute,
-  Group,
-  InstancedBufferAttribute,
-  InstancedBufferGeometry,
-  Mesh,
-  ShaderMaterial,
-  type PerspectiveCamera,
-} from 'three';
-import { powerGlsl, type Role } from '@/core/render/three/powerscale';
+import * as THREE from 'three';
+import * as powerscale from '@/core/render/three/powerscale';
 import type { PowerDraw, PowerLine, PowerShape } from './net';
 
 /** The brightness of the lines over the picture. */
@@ -32,12 +22,12 @@ const HELD = 3;
 
 /** A number in [0, 1) from a name: where in its gap each line's pulses start, so the strands of a cable do not pulse as one. */
 export function seedOf(id: string): number {
-  let h = 2166136261;
+  let h = 2_166_136_261;
   for (let i = 0; i < id.length; i++) {
     h ^= id.charCodeAt(i);
-    h = Math.imul(h, 16777619);
+    h = Math.imul(h, 16_777_619);
   }
-  return ((h >>> 0) % 10007) / 10007;
+  return ((h >>> 0) % 10_007) / 10_007;
 }
 
 /** The straight stretches of some lines, as the buffers of a mesh: each strip's two ends (the fourth number: the arc length along its line), its width, its seed and its lift. */
@@ -51,7 +41,9 @@ export interface Strips {
 }
 export function strips(lines: readonly PowerLine[]): Strips {
   let cap = 0;
-  for (const l of lines) cap += Math.max(0, l.pts.length - 1);
+  for (const l of lines) {
+    cap += Math.max(0, l.pts.length - 1);
+  }
   const a = new Float32Array(4 * cap),
     b = new Float32Array(4 * cap),
     look = new Float32Array(4 * cap),
@@ -61,13 +53,15 @@ export function strips(lines: readonly PowerLine[]): Strips {
   lines.forEach((l, i) => {
     first[i] = k;
     const seed = seedOf(l.id),
-      lift = l.lift;
+      { lift } = l;
     let s = 0;
     for (let j = 1; j < l.pts.length; j++) {
       const p = l.pts[j - 1]!,
         q = l.pts[j]!,
         len = Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]);
-      if (!(len > 1e-3)) continue;
+      if (!(len > 1e-3)) {
+        continue;
+      }
       a.set([p[0], p[1], p[2], s], 4 * k);
       b.set([q[0], q[1], q[2], s + len], 4 * k);
       look.set([l.width, seed, lift, l.fade], 4 * k);
@@ -80,7 +74,7 @@ export function strips(lines: readonly PowerLine[]): Strips {
 }
 
 /** A line's tone in its strips' state: a use's amber, a hub's cyan, a source's white. */
-const TONE: Record<Role, number> = { use: 0, hub: 1, source: 2 };
+const TONE: Record<powerscale.Role, number> = { use: 0, hub: 1, source: 2 };
 
 const VERT = /* glsl */ `
 attribute vec2 corner;
@@ -123,7 +117,7 @@ vec3 role(float tone, float h) { return tone > 1.5 ? source(h) : (tone > 0.5 ? h
 const FRAG = /* glsl */ `
 uniform float uT, uClock, uStrength, uDim;
 varying float vS, vAcross, vLevel, vState, vSeed, vFade, vTone;
-${powerGlsl()}
+${powerscale.powerGlsl()}
 ${ROLE_GLSL}
 void main() {
   // a round line: a hot core, a soft edge
@@ -176,7 +170,7 @@ const RING_FRAG = /* glsl */ `
 uniform float uClock;
 varying vec2 vUv;
 varying float vSeed;
-${powerGlsl()}
+${powerscale.powerGlsl()}
 float band(float d, float at, float hw) { return 1.0 - smoothstep(hw * 0.4, hw, abs(d - at)); }
 void main() {
   float d = length(vUv), p = 0.5 + 0.5 * sin(uClock * 6.0 + vSeed * 6.2831853);
@@ -189,11 +183,11 @@ void main() {
 
 /** One mesh of strips: the lines of one kind of pass (depth-tested, or through everything). `index`: each line's place in the shape's. */
 class Layer {
-  readonly mesh: Mesh;
-  private readonly geo = new InstancedBufferGeometry();
-  private readonly mat: ShaderMaterial;
+  readonly mesh: THREE.Mesh;
+  private readonly geo = new THREE.InstancedBufferGeometry();
+  private readonly mat: THREE.ShaderMaterial;
   private readonly state: Float32Array;
-  private readonly attr: InstancedBufferAttribute;
+  private readonly attr: THREE.InstancedBufferAttribute;
   private readonly s: Strips;
 
   constructor(
@@ -204,27 +198,27 @@ class Layer {
   ) {
     const s = (this.s = strips(lines));
     // one strip: two ends, two sides
-    this.geo.setAttribute('corner', new Float32BufferAttribute([0, -1, 0, 1, 1, -1, 1, 1], 2));
+    this.geo.setAttribute('corner', new THREE.Float32BufferAttribute([0, -1, 0, 1, 1, -1, 1, 1], 2));
     // (`position` is needed for the draw count; the shader does not read it)
-    this.geo.setAttribute('position', new Float32BufferAttribute(new Float32Array(12), 3));
+    this.geo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(12), 3));
     this.geo.setIndex([0, 1, 2, 1, 3, 2]);
-    this.geo.setAttribute('iA', new InstancedBufferAttribute(s.a, 4));
-    this.geo.setAttribute('iB', new InstancedBufferAttribute(s.b, 4));
-    this.geo.setAttribute('iLook', new InstancedBufferAttribute(s.look, 4));
+    this.geo.setAttribute('iA', new THREE.InstancedBufferAttribute(s.a, 4));
+    this.geo.setAttribute('iB', new THREE.InstancedBufferAttribute(s.b, 4));
+    this.geo.setAttribute('iLook', new THREE.InstancedBufferAttribute(s.look, 4));
     this.state = new Float32Array(3 * Math.max(1, s.n));
-    this.attr = new InstancedBufferAttribute(this.state, 3);
+    this.attr = new THREE.InstancedBufferAttribute(this.state, 3);
     this.geo.setAttribute('iState', this.attr);
     this.geo.instanceCount = s.n;
-    this.mat = new ShaderMaterial({
+    this.mat = new THREE.ShaderMaterial({
       // (added to the picture: two strips that overlap at a bend, or the strands of a cable at its plug, add up; both faces, a strip's winding turns with its run's way)
       vertexShader: VERT,
       fragmentShader: FRAG,
       transparent: true,
       depthWrite: false,
       depthTest: depth,
-      blending: AdditiveBlending,
+      blending: THREE.AdditiveBlending,
       toneMapped: false,
-      side: DoubleSide,
+      side: THREE.DoubleSide,
       uniforms: {
         uPixel: { value: 0.002 },
         uT: { value: 0 },
@@ -233,7 +227,7 @@ class Layer {
         uDim: { value: 1 },
       },
     });
-    this.mesh = new Mesh(this.geo, this.mat);
+    this.mesh = new THREE.Mesh(this.geo, this.mat);
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = order;
     this.mesh.raycast = () => {};
@@ -242,8 +236,7 @@ class Layer {
 
   /** The new draw: each strip's place on the scale and its state. */
   set(draw: PowerDraw, held: ReadonlySet<string>, dim: number): void {
-    const st = this.state,
-      s = this.s;
+    const { state: st, s } = this;
     this.lines.forEach((l, i) => {
       const ix = this.index[i]!,
         lv = draw.level[ix]!,
@@ -279,36 +272,36 @@ class Layer {
 
 /** The rings on the sockets of cables that are out: one billboard each, drawn while open. */
 class Rings {
-  readonly mesh: Mesh;
-  private readonly geo = new InstancedBufferGeometry();
-  private readonly mat: ShaderMaterial;
+  readonly mesh: THREE.Mesh;
+  private readonly geo = new THREE.InstancedBufferGeometry();
+  private readonly mat: THREE.ShaderMaterial;
   private readonly open: Float32Array;
-  private readonly attr: InstancedBufferAttribute;
+  private readonly attr: THREE.InstancedBufferAttribute;
 
   constructor(shape: PowerShape) {
     const n = shape.rings.length,
       ring = new Float32Array(4 * n);
     shape.rings.forEach((r, i) => ring.set([r.at[0], r.at[1], r.at[2], r.r], 4 * i));
-    this.geo.setAttribute('corner', new Float32BufferAttribute([-1, -1, 1, -1, -1, 1, 1, 1], 2));
-    this.geo.setAttribute('position', new Float32BufferAttribute(new Float32Array(12), 3));
+    this.geo.setAttribute('corner', new THREE.Float32BufferAttribute([-1, -1, 1, -1, -1, 1, 1, 1], 2));
+    this.geo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(12), 3));
     this.geo.setIndex([0, 1, 2, 1, 3, 2]);
-    this.geo.setAttribute('iRing', new InstancedBufferAttribute(ring, 4));
+    this.geo.setAttribute('iRing', new THREE.InstancedBufferAttribute(ring, 4));
     this.open = new Float32Array(Math.max(1, n));
-    this.attr = new InstancedBufferAttribute(this.open, 1);
+    this.attr = new THREE.InstancedBufferAttribute(this.open, 1);
     this.geo.setAttribute('iOpen', this.attr);
     this.geo.instanceCount = n;
-    this.mat = new ShaderMaterial({
+    this.mat = new THREE.ShaderMaterial({
       vertexShader: RING_VERT,
       fragmentShader: RING_FRAG,
       transparent: true,
       depthWrite: false,
       depthTest: false,
-      blending: AdditiveBlending,
+      blending: THREE.AdditiveBlending,
       toneMapped: false,
-      side: DoubleSide,
+      side: THREE.DoubleSide,
       uniforms: { uPixel: { value: 0.002 }, uClock: { value: 0 } },
     });
-    this.mesh = new Mesh(this.geo, this.mat);
+    this.mesh = new THREE.Mesh(this.geo, this.mat);
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 1004;
     this.mesh.raycast = () => {};
@@ -316,7 +309,9 @@ class Rings {
   }
 
   set(open: Uint8Array): void {
-    for (let i = 0; i < open.length; i++) this.open[i] = open[i]!;
+    for (let i = 0; i < open.length; i++) {
+      this.open[i] = open[i]!;
+    }
     this.attr.needsUpdate = true;
   }
 
@@ -354,7 +349,7 @@ const NODE_FRAG = /* glsl */ `
 uniform float uClock, uStrength;
 varying vec2 vLocal, vHalf;
 varying float vRole, vLevel, vState, vRound, vSeed;
-${powerGlsl()}
+${powerscale.powerGlsl()}
 ${ROLE_GLSL}
 // the signed distance to a rounded box: negative inside
 float sdBox(vec2 p, vec2 b, float r) { vec2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
@@ -383,18 +378,33 @@ void main() {
   gl_FragColor = vec4(col * uStrength, a);
 }`;
 
+/** The plates' material: with `depthTest` a part in front hides a plate, without it the plate shows through everything. */
+function nodeMaterial(depthTest: boolean, strength: number): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    vertexShader: NODE_VERT,
+    fragmentShader: NODE_FRAG,
+    transparent: true,
+    depthWrite: false,
+    depthTest,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+    uniforms: { uClock: { value: 0 }, uStrength: { value: strength } },
+  });
+}
+
 /**
  * The plates of the nodes that are places (`PowerNode`): one quad each, lying where the thing is, drawn with the depth test so a part in front of it hides it. The colour is
  * the role (a hub cyan, a source white), the brightness what passes through; a hub whose feeding cable is out pulses red.
  */
 class Nodes {
-  readonly mesh: Mesh;
-  private readonly geo = new InstancedBufferGeometry();
-  private readonly mat: ShaderMaterial;
+  readonly mesh: THREE.Mesh;
+  private readonly geo = new THREE.InstancedBufferGeometry();
+  private readonly mat: THREE.ShaderMaterial;
   /** The same plates through everything, dim: a hub that stands behind a drive cage or a card is still where it is (as the runs behind the tray are drawn dim). */
-  private readonly hiddenMat: ShaderMaterial;
+  private readonly hiddenMat: THREE.ShaderMaterial;
   private readonly look: Float32Array;
-  private readonly attr: InstancedBufferAttribute;
+  private readonly attr: THREE.InstancedBufferAttribute;
   private readonly n: number;
 
   constructor(shape: PowerShape) {
@@ -410,43 +420,23 @@ class Nodes {
       this.look[4 * k] = TONE[nd.role];
       this.look[4 * k + 3] = nd.round;
     });
-    this.geo.setAttribute('corner', new Float32BufferAttribute([-1, -1, 1, -1, -1, 1, 1, 1], 2));
-    this.geo.setAttribute('position', new Float32BufferAttribute(new Float32Array(12), 3));
+    this.geo.setAttribute('corner', new THREE.Float32BufferAttribute([-1, -1, 1, -1, -1, 1, 1, 1], 2));
+    this.geo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(12), 3));
     this.geo.setIndex([0, 1, 2, 1, 3, 2]);
-    this.geo.setAttribute('iAt', new InstancedBufferAttribute(at, 3));
-    this.geo.setAttribute('iEx', new InstancedBufferAttribute(ex, 3));
-    this.geo.setAttribute('iEy', new InstancedBufferAttribute(ey, 3));
-    this.attr = new InstancedBufferAttribute(this.look, 4);
+    this.geo.setAttribute('iAt', new THREE.InstancedBufferAttribute(at, 3));
+    this.geo.setAttribute('iEx', new THREE.InstancedBufferAttribute(ex, 3));
+    this.geo.setAttribute('iEy', new THREE.InstancedBufferAttribute(ey, 3));
+    this.attr = new THREE.InstancedBufferAttribute(this.look, 4);
     this.geo.setAttribute('iLook', this.attr);
     this.geo.instanceCount = n;
-    this.mat = new ShaderMaterial({
-      vertexShader: NODE_VERT,
-      fragmentShader: NODE_FRAG,
-      transparent: true,
-      depthWrite: false,
-      depthTest: true,
-      blending: AdditiveBlending,
-      toneMapped: false,
-      side: DoubleSide,
-      uniforms: { uClock: { value: 0 }, uStrength: { value: STRENGTH } },
-    });
-    this.mesh = new Mesh(this.geo, this.mat);
+    this.mat = nodeMaterial(true, STRENGTH);
+    this.mesh = new THREE.Mesh(this.geo, this.mat);
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 1001;
     this.mesh.raycast = () => {};
     this.mesh.visible = n > 0;
-    this.hiddenMat = new ShaderMaterial({
-      vertexShader: NODE_VERT,
-      fragmentShader: NODE_FRAG,
-      transparent: true,
-      depthWrite: false,
-      depthTest: false,
-      blending: AdditiveBlending,
-      toneMapped: false,
-      side: DoubleSide,
-      uniforms: { uClock: { value: 0 }, uStrength: { value: STRENGTH * HIDDEN_PLATE } },
-    });
-    const hidden = new Mesh(this.geo, this.hiddenMat);
+    this.hiddenMat = nodeMaterial(false, STRENGTH * HIDDEN_PLATE);
+    const hidden = new THREE.Mesh(this.geo, this.hiddenMat);
     hidden.frustumCulled = false;
     hidden.renderOrder = 1000;
     hidden.raycast = () => {};
@@ -481,7 +471,7 @@ class Nodes {
 
 /** The lines, rings and plates of one shape. */
 export class PowerFlows {
-  readonly mesh = new Group();
+  readonly mesh = new THREE.Group();
   private readonly solid: Layer;
   private readonly ghost: Layer;
   private readonly rings: Rings;
@@ -520,8 +510,8 @@ export class PowerFlows {
   }
 
   /** Per frame: `dt` game seconds (0 holds the pulses), `clock` real seconds (the red pulse of what is wrong goes on while the game is paused). */
-  frame(cam: PerspectiveCamera, pxHeight: number, dt: number, clock: number): void {
-    this.t = (this.t + dt) % 10000;
+  frame(cam: THREE.PerspectiveCamera, pxHeight: number, dt: number, clock: number): void {
+    this.t = (this.t + dt) % 10_000;
     const pixel = 2 / (cam.projectionMatrix.elements[5]! * Math.max(1, pxHeight));
     this.solid.frame(pixel, this.t, clock);
     this.ghost.frame(pixel, this.t, clock);

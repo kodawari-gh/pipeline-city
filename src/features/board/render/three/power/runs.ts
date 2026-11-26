@@ -46,13 +46,18 @@ const d2 = (a: V3, b: V3): number => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (
 export function inFlowOrder(strands: readonly (readonly V3[])[], power: RigPower = {}): V3[][] {
   const lines = strands.map((s) => (power.out ? reversed(s) : [...s.map((p) => [...p] as V3)]));
   const tail = power.beyond;
-  if (tail && tail.length && lines.length) {
+  if (tail && tail.length > 0 && lines.length > 0) {
     const first = lines[0]!,
-      end = first[first.length - 1]!;
+      end = first.at(-1)!;
     // (the cable goes on from where the first strand ends: its run past the desk's hole, or its own piece when they do not meet)
-    if (d2(end, tail[0]!) < 60 * 60) first.push(...tail.slice(1).map((p) => [...p] as V3));
-    else lines.push(tail.map((p) => [...p] as V3));
+    if (d2(end, tail[0]!) < 60 * 60) {
+      first.push(...tail.slice(1).map((p) => [...p] as V3));
+    } else {
+      lines.push(tail.map((p) => [...p] as V3));
+    }
   }
-  for (const m of power.more ?? []) lines.push(m.map((p) => [...p] as V3));
+  for (const m of power.more ?? []) {
+    lines.push(m.map((p) => [...p] as V3));
+  }
   return lines;
 }
