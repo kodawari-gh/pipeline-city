@@ -22,8 +22,8 @@ export const netLensReady = (s: {
 }): boolean =>
   netPropsVisible({
     level: s.level.level,
-    hasRouter: !!s.net?.router,
-    hasIsp: !!s.net?.isp,
+    hasRouter: Boolean(s.net?.router),
+    hasIsp: Boolean(s.net?.isp),
     routerInInventory: s.inventory.some((i) => i.kind === 'router'),
-    lanConnected: !!s.cables.find((c) => c.id === 'lan')?.connected,
+    lanConnected: Boolean(s.cables.find((c) => c.id === 'lan')?.connected),
   });

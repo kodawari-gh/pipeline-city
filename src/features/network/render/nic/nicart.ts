@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { label, mix } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
-import { planFar, planNear, type DieArt, type PlanStyle } from '../../../cpu/render/die/dieart';
+import * as dieart from '../../../cpu/render/die/dieart';
 import { nicGlyph, nicGlyphArea } from './nicglyph';
 import { nicGeo } from './niclayout';
 import type { NicBlock, NicBlockKind, NicLink, NicLinkKind, NicPlan } from './nicplan';
@@ -42,11 +42,11 @@ const nicTitle = (plan: NicPlan): string => {
 };
 
 /** How the die is drawn: the CPU die's art (`planFar`, `planNear`) with the card's colours and symbols. */
-function nicStyle(plan: NicPlan): PlanStyle<NicBlock, NicLink> {
+function nicStyle(plan: NicPlan): dieart.PlanStyle<NicBlock, NicLink> {
   return {
     color: (T, b) => T[NIC_KIND_COLOR[b.kind]],
     linkColor: (T, l) => T[NIC_LINK_COLOR[l.kind]],
-    frame: (b) => !!b.frame,
+    frame: (b) => Boolean(b.frame),
     symbol: (b) => nicGlyphArea(b),
     draw: (g, T, b, _a, c, put) => nicGlyph(g, T, b, c, put, plan.input),
     cells: () => [],
@@ -59,15 +59,15 @@ function nicFar(g: Graphics, T: Theme, plan: NicPlan): void {
   g.roundRect(D.x, D.y, D.w, D.h, 8)
     .fill({ color: mix(T.die, '#000000', 0.3) })
     .stroke({ width: 2.5, color: mix(T.line, T.alu, 0.5) });
-  planFar(g, T, plan.blocks, nicStyle(plan));
+  dieart.planFar(g, T, plan.blocks, nicStyle(plan));
 }
 
 /** Traces, symbols and names of a plan, and the strip under the blocks. */
-function nicNear(T: Theme, plan: NicPlan): DieArt {
-  const art = planNear(T, plan, nicStyle(plan)),
+function nicNear(T: Theme, plan: NicPlan): dieart.DieArt {
+  const art = dieart.planNear(T, plan, nicStyle(plan)),
     D = plan.die,
     sy = D.y + D.h - 30 + 15,
-    names = art.names;
+    { names } = art;
   names.addChild(label(nicTitle(plan), D.x + 14, sy, 15, T.mute, { weight: '700', a: 0.9 }));
   const legend = new Graphics();
   names.addChild(legend);

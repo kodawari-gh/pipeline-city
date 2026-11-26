@@ -3,7 +3,7 @@
 // Pure geometry, no Pixi. `layPlan` is the one builder both parts use; the plans of the parts are in nic/nicplan.ts and router/routerplan.ts.
 
 import type { Grid, Pt, Rect } from '../../../cpu/render/core/cpuplan';
-import { placeTree, routeWires, type Node, type Spec, type WireSpec } from '../../../cpu/render/core/cpufloor';
+import * as cpufloor from '../../../cpu/render/core/cpufloor';
 
 export type { Rect };
 
@@ -57,32 +57,42 @@ export function layPlan<K extends string, L extends string, I>(
   input: I,
   size: { w: number; h: number },
   m: Margins,
-  tree: Node<K>,
-  specs: WireSpec<L>[],
+  tree: cpufloor.Node<K>,
+  specs: cpufloor.WireSpec<L>[],
   tag: string,
   extra?: (blocks: NetBlock<K>[]) => NetLink<L>[],
 ): NetPlan<K, L, I> {
   const hit = cache.get(key);
-  if (hit) return hit as NetPlan<K, L, I>;
+  if (hit) {
+    return hit as NetPlan<K, L, I>;
+  }
   const die: Rect = { x: 0, y: 0, w: size.w, h: size.h },
     blocks: NetBlock<K>[] = [];
-  placeTree<K, NetBlock<K>>(
+  cpufloor.placeTree<K, NetBlock<K>>(
     tree,
     { x: m.x, y: m.top, w: size.w - 2 * m.x, h: size.h - m.top - m.bottom },
     blocks,
-    (s: Spec<K>, r, parent, _zone, frame) => {
+    (s: cpufloor.Spec<K>, r, parent, _zone, frame) => {
       const b: NetBlock<K> = { id: s.id, kind: s.kind, label: s.label, rect: { ...r } };
-      if (s.sub) b.sub = s.sub;
-      if (parent) b.parent = parent;
-      if (frame) b.frame = true;
+      if (s.sub) {
+        b.sub = s.sub;
+      }
+      if (parent) {
+        b.parent = parent;
+      }
+      if (frame) {
+        b.frame = true;
+      }
       return b;
     },
   );
-  const links: NetLink<L>[] = routeWires<NetBlock<K>, L>(die, blocks, specs, undefined, tag).map((w) => ({
+  const links: NetLink<L>[] = cpufloor.routeWires<NetBlock<K>, L>(die, blocks, specs, undefined, tag).map((w) => ({
     ...w,
     lanes: w.lanes as 1 | 2 | 3 | 4,
   }));
-  if (extra) links.push(...extra(blocks));
+  if (extra) {
+    links.push(...extra(blocks));
+  }
   const plan: NetPlan<K, L, I> = { input, die, blocks, links };
   cache.set(key, plan as NetPlan<string, string>);
   return plan;

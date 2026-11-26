@@ -2,7 +2,7 @@
 // real LAN lead from the router to the machine's jack; data that comes in is a cyan comet, results that go out are violet, and the faster the link the faster the comets. The
 // room goes dark under a veil, and the four limits of the link (plan, router, port, drive: the same ladder as the network panel) are pinned to the pieces they belong to as
 // light DOM pills, the slowest tagged as the limit. What is built once (the shape) changes only when the lead or the machine does; a snapshot only rewrites a few numbers.
-import { Group, type PerspectiveCamera, type Scene } from 'three';
+import * as THREE from 'three';
 import type { Snapshot } from '@/worker/protocol';
 import { viewInset } from '@/app/hover';
 import { NET_VEIL } from '@/core/render/three/powerscale';
@@ -12,10 +12,10 @@ import { makeVeil } from '@/features/board/render/three/air/ribbons';
 import type { Machine3D } from '@/features/board/render/three/machine3d';
 import { netLensReady } from '../netvis';
 import { NetFlows } from './flows';
-import { netDraw, netShape, type NetAnchors, type NetDraw, type NetShape } from './shape';
+import * as shapeMod from './shape';
 
 /** The path's places for this machine, from the room's props and the machine's own lead. */
-function anchorsOf(s: Snapshot, machine: Machine3D): NetAnchors {
+function anchorsOf(s: Snapshot, machine: Machine3D): shapeMod.NetAnchors {
   const plate = ispPlate(),
     rs = ROUTER_SPOT;
   const lan = machine.cableRuns().find((r) => r.id === 'lan');
@@ -30,13 +30,13 @@ function anchorsOf(s: Snapshot, machine: Machine3D): NetAnchors {
 }
 
 export class NetView3D {
-  private readonly group = new Group();
+  private readonly group = new THREE.Group();
   private readonly veil = makeVeil(NET_VEIL);
   private readonly tags = new AirTags3D();
   private flows: NetFlows | null = null;
-  private shape: NetShape | null = null;
-  private anchors: NetAnchors | null = null;
-  private drawn: NetDraw | null = null;
+  private shape: shapeMod.NetShape | null = null;
+  private anchors: shapeMod.NetAnchors | null = null;
+  private drawn: shapeMod.NetDraw | null = null;
   private machine: Machine3D | null = null;
   private seen: Snapshot | null = null;
   private rev = -1;
@@ -45,23 +45,25 @@ export class NetView3D {
   cost = 0;
 
   constructor(
-    scene: Scene,
+    scene: THREE.Scene,
     private readonly dom: HTMLElement | null = null,
   ) {
     this.group.add(this.veil);
     this.group.visible = false;
     scene.add(this.group);
-    if (import.meta.env.DEV && typeof window !== 'undefined') (window as unknown as { __net?: NetView3D }).__net = this;
+    if (import.meta.env.DEV && typeof window !== 'undefined') {
+      (globalThis as unknown as { __net?: NetView3D }).__net = this;
+    }
   }
 
   // (for the developer: `window.__net`)
-  get shapeNow(): NetShape | null {
+  get shapeNow(): shapeMod.NetShape | null {
     return this.shape;
   }
-  get drawNow(): NetDraw | null {
+  get drawNow(): shapeMod.NetDraw | null {
     return this.drawn;
   }
-  get anchorsNow(): NetAnchors | null {
+  get anchorsNow(): shapeMod.NetAnchors | null {
     return this.anchors;
   }
   get flowsNow(): NetFlows | null {
@@ -82,14 +84,14 @@ export class NetView3D {
   private rebuild(s: Snapshot, machine: Machine3D): void {
     this.flows?.dispose();
     this.anchors = anchorsOf(s, machine);
-    this.shape = netShape(this.anchors);
+    this.shape = shapeMod.netShape(this.anchors);
     this.flows = new NetFlows(this.shape);
     this.group.add(this.flows.mesh);
     this.seen = null;
   }
 
   /** Per frame, after the camera. `dt`: game seconds (0 holds the comets); `pxH`: the view's height in pixels. */
-  frame(cam: PerspectiveCamera, pxH: number, snap: Snapshot | null, machine: Machine3D | null, dt: number): void {
+  frame(cam: THREE.PerspectiveCamera, pxH: number, snap: Snapshot | null, machine: Machine3D | null, dt: number): void {
     if (!snap || !machine || !netLensReady(snap)) {
       this.hide();
       return;
@@ -107,7 +109,7 @@ export class NetView3D {
       this.seen = snap;
       // (a part fitted or taken out moves the drive's place: the words follow it)
       this.anchors = anchorsOf(snap, machine);
-      this.drawn = netDraw(shape, snap, this.anchors);
+      this.drawn = shapeMod.netDraw(shape, snap, this.anchors);
       this.tags.set(this.drawn.tags, this.clock);
       flows.set(this.drawn);
     }
@@ -115,7 +117,7 @@ export class NetView3D {
     this.group.visible = true;
     this.tags.show(true);
     const r = this.dom?.getBoundingClientRect();
-    if (r)
+    if (r) {
       this.tags.frame(cam, {
         left: r.left,
         top: r.top,
@@ -123,6 +125,7 @@ export class NetView3D {
         height: r.height,
         minTop: viewInset.peek().top,
       });
+    }
     this.cost += (performance.now() - t0 - this.cost) * 0.05;
   }
 

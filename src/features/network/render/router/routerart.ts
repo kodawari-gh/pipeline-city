@@ -1,17 +1,10 @@
 import { Container, Graphics } from 'pixi.js';
 import { label, mix } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
-import { planFar, planNear, type DieArt, type PlanStyle } from '../../../cpu/render/die/dieart';
+import * as dieart from '../../../cpu/render/die/dieart';
 import { routerGeo } from './routerlayout';
 import { routerGlyph, routerGlyphArea } from './routerglyph';
-import {
-  fmtSize,
-  type RouterBlock,
-  type RouterBlockKind,
-  type RouterLink,
-  type RouterLinkKind,
-  type RouterPlan,
-} from './routerplan';
+import * as routerplan from './routerplan';
 
 // The static art of the router SoC's die (docs/render/net.md "Inside the NIC and the router"): the chip's plan drawn in the CPU die's style (die/dieart.ts, docs/DIE.md): macro blocks
 // tinted in their kind's colour with a rim line, the symbols of routerglyph.ts, trace bundles ending in solder pads, names and second lines. It is baked onto the die's top in 3D
@@ -20,7 +13,7 @@ import {
 type Key = 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'bad' | 'mute';
 
 /** The accent of each block kind (the theme token it is drawn with: the line side cyan, the forwarding green, the CPU purple, the memory amber). */
-export const ROUTER_KIND_COLOR: Record<RouterBlockKind, Key> = {
+export const ROUTER_KIND_COLOR: Record<routerplan.RouterBlockKind, Key> = {
   soc: 'mute',
   cpu: 'mul',
   mem: 'ld',
@@ -29,7 +22,7 @@ export const ROUTER_KIND_COLOR: Record<RouterBlockKind, Key> = {
   sw: 'st',
   stat: 'st',
 };
-const ROUTER_LINK_COLOR: Record<RouterLinkKind, Key> = { data: 'st', control: 'mute', memory: 'ld' };
+const ROUTER_LINK_COLOR: Record<routerplan.RouterLinkKind, Key> = { data: 'st', control: 'mute', memory: 'ld' };
 
 /** The legend of the colours. */
 const ROUTER_LEGEND: { text: string; key: Key }[] = [
@@ -40,17 +33,17 @@ const ROUTER_LEGEND: { text: string; key: Key }[] = [
 ];
 
 /** The line under the plan: what the router is. */
-const routerTitle = (plan: RouterPlan): string => {
+const routerTitle = (plan: routerplan.RouterPlan): string => {
   const i = plan.input;
-  return `${i.soc} · ${i.std} · ${i.cores} core${i.cores === 1 ? '' : 's'} ${i.mhz} MHz · ${fmtSize(i.dram.mb)}`;
+  return `${i.soc} · ${i.std} · ${i.cores} core${i.cores === 1 ? '' : 's'} ${i.mhz} MHz · ${routerplan.fmtSize(i.dram.mb)}`;
 };
 
 /** How the die is drawn: the CPU die's art (`planFar`, `planNear`) with the router's colours and symbols. */
-function routerStyle(plan: RouterPlan): PlanStyle<RouterBlock, RouterLink> {
+function routerStyle(plan: routerplan.RouterPlan): dieart.PlanStyle<routerplan.RouterBlock, routerplan.RouterLink> {
   return {
     color: (T, b) => T[ROUTER_KIND_COLOR[b.kind]],
     linkColor: (T, l) => T[ROUTER_LINK_COLOR[l.kind]],
-    frame: (b) => !!b.frame,
+    frame: (b) => Boolean(b.frame),
     symbol: (b) => routerGlyphArea(b),
     draw: (g, T, b, _a, c, put) => routerGlyph(g, T, b, c, put, plan.input),
     cells: () => [],
@@ -58,20 +51,20 @@ function routerStyle(plan: RouterPlan): PlanStyle<RouterBlock, RouterLink> {
 }
 
 /** The die's floor, the blocks and the SoC's frame: the far view. */
-function routerFar(g: Graphics, T: Theme, plan: RouterPlan): void {
+function routerFar(g: Graphics, T: Theme, plan: routerplan.RouterPlan): void {
   const D = plan.die;
   g.roundRect(D.x, D.y, D.w, D.h, 8)
     .fill({ color: mix(T.die, '#000000', 0.3) })
     .stroke({ width: 2.5, color: mix(T.line, T.alu, 0.5) });
-  planFar(g, T, plan.blocks, routerStyle(plan));
+  dieart.planFar(g, T, plan.blocks, routerStyle(plan));
 }
 
 /** Traces, symbols and names of a plan, and the strip under the blocks. */
-function routerNear(T: Theme, plan: RouterPlan): DieArt {
-  const art = planNear(T, plan, routerStyle(plan)),
+function routerNear(T: Theme, plan: routerplan.RouterPlan): dieart.DieArt {
+  const art = dieart.planNear(T, plan, routerStyle(plan)),
     D = plan.die,
     sy = D.y + D.h - 30 + 15,
-    names = art.names;
+    { names } = art;
   names.addChild(label(routerTitle(plan), D.x + 14, sy, 15, T.mute, { weight: '700', a: 0.9 }));
   const legend = new Graphics();
   names.addChild(legend);

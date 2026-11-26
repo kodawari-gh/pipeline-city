@@ -3,10 +3,10 @@
 // (`NetSnap.frames`) as a rate (`FrameMeter`); the transfers in flight are the sim's (`NetSnap.transfers`); the heat is the card's own (`DeviceSnap.tempC`,
 // `throttle`, `powerW`). Pure (no Pixi): the glyphs read it (nicglyph.ts) and the tests build it.
 import type { Snapshot } from '@/worker/protocol';
-import { getSpec, type NicSpec } from '../../../board/sim/specs';
+import * as specs from '../../../board/sim/specs';
 import type { Binding } from '../../sim/specs';
 import { linkOf } from '../jackleds';
-import { busy, lineFrames, loadOf, type FrameMeter } from '../plan/netmeter';
+import * as netmeter from '../plan/netmeter';
 import { BOARD_NIC } from './nicplan';
 
 /** A transfer in flight on the card: its job's name and how far it is. */
@@ -86,7 +86,7 @@ interface Port {
 
 /** The port of the card in header slot `slot` (`BOARD_NIC`: the chip on the motherboard, which has no heat of its own in the sim) or null when the snapshot has none. */
 function portOf(s: Snapshot, slot: string): Port | null {
-  const net = s.net;
+  const { net } = s;
   if (slot === BOARD_NIC) {
     const rated = s.board.features.ethernetMbps;
     return rated > 0
@@ -106,8 +106,10 @@ function portOf(s: Snapshot, slot: string): Port | null {
       : null;
   }
   const dev = s.devices.find((d) => d.slot === slot && d.kind === 'nic');
-  if (!dev) return null;
-  const spec = getSpec(dev.spec) as NicSpec | undefined;
+  if (!dev) {
+    return null;
+  }
+  const spec = specs.getSpec(dev.spec) as specs.NicSpec | undefined;
   return {
     plugged: net?.port.kind === 'nic' && net.port.deviceId === dev.id,
     rated: spec?.mbps ?? 0,
@@ -127,16 +129,18 @@ function portOf(s: Snapshot, slot: string): Port | null {
 export function nicShow(
   s: Snapshot | null | undefined,
   slot: string,
-  meter: Pick<FrameMeter, 'rx' | 'tx'>,
+  meter: Pick<netmeter.FrameMeter, 'rx' | 'tx'>,
   ms: number,
 ): NicShow | null {
   const p = s ? portOf(s, slot) : null;
-  if (!s || !p) return null;
-  const net = s.net,
+  if (!s || !p) {
+    return null;
+  }
+  const { net } = s,
     { plugged, rated } = p,
     link = plugged && linkOf(s).pc;
   const mbps = link ? net!.port.mbps : 0,
-    line = lineFrames(mbps),
+    line = netmeter.lineFrames(mbps),
     rx = link ? meter.rx : 0,
     tx = link ? meter.tx : 0;
   const flows = (dir: 'down' | 'up'): NicFlow[] =>
@@ -166,10 +170,10 @@ export function nicShow(
     tx,
     rxTotal: plugged ? (net?.frames.rx ?? 0) : 0,
     txTotal: plugged ? (net?.frames.tx ?? 0) : 0,
-    rxLoad: loadOf(rx, line),
-    txLoad: loadOf(tx, line),
-    rxAct: busy(rx, line),
-    txAct: busy(tx, line),
+    rxLoad: netmeter.loadOf(rx, line),
+    txLoad: netmeter.loadOf(tx, line),
+    rxAct: netmeter.busy(rx, line),
+    txAct: netmeter.busy(tx, line),
     downs: flows('down'),
     ups: flows('up'),
     waiting: plugged ? (net?.uploadsWaiting ?? 0) : 0,

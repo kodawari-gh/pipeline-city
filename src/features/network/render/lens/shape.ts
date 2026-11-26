@@ -5,7 +5,7 @@
 import type { Snapshot } from '@/worker/protocol';
 import type { V3 } from '@/core/render/three/rope';
 import type { AirTag } from '@/features/board/render/three/air/airtags';
-import { hasNetwork, limiterLadder, netStateChip, type LimiterId } from '../../ui/netui';
+import * as netui from '../../ui/netui';
 import { netAddrs } from '../plan/netaddr';
 
 /** The places the path runs through, in the machine's space (x east, y up, z toward the viewer). */
@@ -49,7 +49,7 @@ export function ispLine(a: NetAnchors): V3[] {
   const p = a.plate,
     r = a.router;
   const side = p.at[0] - p.hw,
-    mid = p.at[1];
+    [, mid] = p.at;
   const wanX = r.at[0] + r.hw - 260,
     wanY = r.at[1] - r.hh * 0.45,
     back = 300;
@@ -64,11 +64,13 @@ export function ispLine(a: NetAnchors): V3[] {
 /** The path of one machine: the plan's line, then the LAN lead's strands (the lead's order is the router's end first, the way the data comes in). */
 export function netShape(a: NetAnchors): NetShape {
   const lines: NetLine[] = [{ id: 'isp', pts: ispLine(a), width: W_ISP, lift: 0 }];
-  if (a.lan)
+  if (a.lan) {
     a.lan.strands.forEach((pts) => {
-      if (pts.length > 1)
+      if (pts.length > 1) {
         lines.push({ id: 'lan', pts: pts.map((p) => [...p] as V3), width: W_LAN, lift: a.lan!.r + LIFT_CLEAR });
+      }
     });
+  }
   return { lines };
 }
 
@@ -77,10 +79,12 @@ type LineState = 0 | 1 | 2;
 
 /** The slowest and the fastest link the pulses tell apart (Mbit/s): a pulse's pace and spacing follow a link's speed on a log scale between them. */
 const MBPS_FOOT = 10,
-  MBPS_TOP = 20000;
+  MBPS_TOP = 20_000;
 /** A link's speed as a place on the pulses' scale, 0.08 (the foot) to 1 (the top). */
 export function speedLevel(mbps: number): number {
-  if (!(mbps > 0)) return 0.08;
+  if (!(mbps > 0)) {
+    return 0.08;
+  }
   const f = Math.log(mbps / MBPS_FOOT) / Math.log(MBPS_TOP / MBPS_FOOT);
   return Math.min(1, Math.max(0.08, f));
 }
@@ -93,25 +97,32 @@ export interface NetDraw {
   state: Uint8Array;
   tags: AirTag[];
   /** The piece the words call the limit (`limiterLadder`), or null. */
-  limit: LimiterId | null;
+  limit: netui.LimiterId | null;
 }
 
-const LABEL: Record<LimiterId, string> = { port: 'Port', router: 'Router', isp: 'Plan', disk: 'Drive' };
+const LABEL: Record<netui.LimiterId, string> = { port: 'Port', router: 'Router', isp: 'Plan', disk: 'Drive' };
 
 /** The line `id` is in this state in this snapshot. The plan's line lives while a plan and a router are there; the lead while the link is up or saturated. */
 function lineState(id: NetLine['id'], s: Snapshot): LineState {
   const n = s.net;
-  if (id === 'isp') return n.isp && n.router ? 1 : 0;
+  if (id === 'isp') {
+    return n.isp && n.router ? 1 : 0;
+  }
   const lead = s.cables.find((c) => c.id === 'lan');
-  if (!lead?.connected) return n.router || n.isp ? 2 : 0;
+  if (!lead?.connected) {
+    return n.router || n.isp ? 2 : 0;
+  }
   switch (n.state) {
     case 'link-up':
-    case 'saturated':
+    case 'saturated': {
       return 1;
-    case 'down':
+    }
+    case 'down': {
       return 2;
-    default:
+    }
+    default: {
       return 0;
+    }
   }
 }
 
@@ -120,8 +131,8 @@ const above = (p: V3, dy: number): V3 => [p[0], p[1] + dy, p[2] + 60];
 /** One snapshot on the shape: each line's pace and state, and the words. */
 export function netDraw(shape: NetShape, s: Snapshot, a: NetAnchors): NetDraw {
   const n = s.net,
-    ladder = limiterLadder(s),
-    chip = netStateChip(s);
+    ladder = netui.limiterLadder(s),
+    chip = netui.netStateChip(s);
   const downs = n.transfers.filter((t) => t.dir === 'down').length,
     ups = n.transfers.filter((t) => t.dir === 'up').length;
   const down = new Float32Array(shape.lines.length),
@@ -129,16 +140,20 @@ export function netDraw(shape: NetShape, s: Snapshot, a: NetAnchors): NetDraw {
     state = new Uint8Array(shape.lines.length);
   shape.lines.forEach((l, i) => {
     state[i] = lineState(l.id, s);
-    if (state[i] !== 1) return;
+    if (state[i] !== 1) {
+      return;
+    }
     down[i] = downs > 0 ? speedLevel(ladder.downMbps) : 0;
     up[i] = ups > 0 ? speedLevel(ladder.upMbps) : 0;
   });
 
   const tags: AirTag[] = [];
-  const seg = (id: LimiterId) => ladder.segs.find((g) => g.id === id);
-  const word = (id: LimiterId, extra = ''): { text: string; tone: AirTag['tone'] } => {
+  const seg = (id: netui.LimiterId) => ladder.segs.find((g) => g.id === id);
+  const word = (id: netui.LimiterId, extra = ''): { text: string; tone: AirTag['tone'] } => {
     const g = seg(id);
-    if (!g || g.mbps === null) return { text: `${LABEL[id]} · none`, tone: 'warn' };
+    if (!g || g.mbps === null) {
+      return { text: `${LABEL[id]} · none`, tone: 'warn' };
+    }
     const hit = ladder.binding === id && ladder.downMbps > 0;
     return { text: `${LABEL[id]} · ${g.text}${extra}${hit ? ' · limit' : ''}`, tone: hit ? 'limit' : 'net' };
   };
@@ -149,10 +164,13 @@ export function netDraw(shape: NetShape, s: Snapshot, a: NetAnchors): NetDraw {
     planAt = above(plan.at, plan.hh + 150);
   if (n.isp) {
     tags.push({ id: 'plan', at: planAt, ...word('isp') });
-    if (addr?.wan)
+    if (addr?.wan) {
       tags.push(dim('plan-addr', 'plan', planAt, `gateway ${addr.wan.gateway.ip} · ${addr.wan.gateway.mac}`));
-  } else tags.push({ id: 'plan', at: planAt, text: 'No plan · click the plate', tone: 'warn' });
-  const router = a.router,
+    }
+  } else {
+    tags.push({ id: 'plan', at: planAt, text: 'No plan · click the plate', tone: 'warn' });
+  }
+  const { router } = a,
     busy = new Set(n.transfers.map((t) => t.jobId)).size,
     routerAt = above(router.at, router.hh + 120);
   /** The last pill of the router's stack: what goes under the router goes under it. */
@@ -171,21 +189,28 @@ export function netDraw(shape: NetShape, s: Snapshot, a: NetAnchors): NetDraw {
       tags.push(dim('router-wan', routerLast, routerAt, `WAN ${addr.wan.ip} · ${addr.wan.mac}`));
       routerLast = 'router-wan';
     }
-  } else tags.push({ id: 'router', at: routerAt, text: 'No router · drop one here', tone: 'warn' });
+  } else {
+    tags.push({ id: 'router', at: routerAt, text: 'No router · drop one here', tone: 'warn' });
+  }
   if (a.lan) {
     const port = seg('port'),
       portAt = above(a.lan.jack, 330);
     if (n.port.kind && port) {
       tags.push({ id: 'port', at: portAt, ...word('port') });
-      if (addr?.pc)
+      if (addr?.pc) {
         tags.push(
           dim('port-addr', 'port', portAt, `${addr.pc.id} · ${addr.pc.ip ?? 'no IP address'} · ${addr.pc.mac}`),
         );
-    } else if (chip) tags.push({ id: 'port', at: portAt, text: 'Port · plug the cable in', tone: 'warn' });
+      }
+    } else if (chip) {
+      tags.push({ id: 'port', at: portAt, text: 'Port · plug the cable in', tone: 'warn' });
+    }
   }
-  if (a.drive && seg('disk')?.mbps) tags.push({ id: 'drive', at: above(a.drive, 160), ...word('disk') });
+  if (a.drive && seg('disk')?.mbps) {
+    tags.push({ id: 'drive', at: above(a.drive, 160), ...word('disk') });
+  }
   // the link, when it is not up: what is wrong in the chip's words, under the router's
-  if (chip && (chip.level === 'warn' || chip.level === 'bad'))
+  if (chip && (chip.level === 'warn' || chip.level === 'bad')) {
     tags.push({
       id: 'link',
       at: routerAt,
@@ -193,6 +218,7 @@ export function netDraw(shape: NetShape, s: Snapshot, a: NetAnchors): NetDraw {
       tone: chip.level === 'bad' ? 'warn' : 'limit',
       under: routerLast,
     });
+  }
   tags.push({
     id: 'legend',
     at: routerAt,
@@ -201,5 +227,5 @@ export function netDraw(shape: NetShape, s: Snapshot, a: NetAnchors): NetDraw {
     legend: 'net',
     under: chip && (chip.level === 'warn' || chip.level === 'bad') ? 'link' : routerLast,
   });
-  return { down, up, state, tags, limit: hasNetwork(s) ? ladder.binding : null };
+  return { down, up, state, tags, limit: netui.hasNetwork(s) ? ladder.binding : null };
 }
