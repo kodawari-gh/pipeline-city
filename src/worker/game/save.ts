@@ -1,25 +1,14 @@
 // Save format: versioned plain JSON, config only (no pipeline, registers or RAM). See docs/SAVE.md.
 // No DOM imports; used by the worker and by the main thread (to validate imports).
 
-import {
-  basicFan,
-  boardFromJson,
-  CABLE_IDS,
-  CASE_TIERS,
-  caseMounts,
-  PCIE_LEADS,
-  getSpec,
-  isFanCable,
-  type BoardJson,
-  type Cables,
-} from '../../features/board/sim';
+import * as boardSim from '../../features/board/sim';
 import { getOsSpec } from '../../features/os/sim';
 import { offerPrice } from '../../features/economy/sim/economy';
 import { TEMPLATES } from '../../features/jobs/sim/gen';
 import { jobClass, MAX_LEVEL } from '../../features/economy/sim/levels';
-import { FILE_KINDS, type FsFileRecord, type MountState } from '../../features/storage/sim/fs';
+import * as fileSystem from '../../features/storage/sim/fs';
 import type { DiskMediaState } from '../../features/storage/sim/storage';
-import { CONTRACT_KINDS, type Contract, type ContractOffer } from '../../features/economy/sim/contracts';
+import * as contractBook from '../../features/economy/sim/contracts';
 
 export const SAVE_VERSION = 5;
 
@@ -183,11 +172,11 @@ export interface SaveV5 {
   avgTurnaround: number;
   lastCompleted: SavedCompleted | null;
   /** Installed parts. */
-  board: BoardJson;
+  board: boardSim.BoardJson;
   /** Owned, not installed: device spec ids or a board tier id like `board1`. */
   inventory: SavedInventoryItem[];
   nextInvId: number;
-  cables: Cables;
+  cables: boardSim.Cables;
   /** Keys lying in the tray, oldest first. */
   tray: SavedKey[];
   /** The key in the USB port. A job in progress restarts from boot on load (the machine loads powered off). */
@@ -250,8 +239,8 @@ export interface SavedDisk {
   /** The installed storage device. */
   deviceId: string;
   /** The superblock's verdict: `dirty` (power cut during a write) and `damaged` survive a save. */
-  mount: MountState;
-  files: FsFileRecord[];
+  mount: fileSystem.MountState;
+  files: fileSystem.FsFileRecord[];
   /** Blocks that hold data outside the files that reserve their blocks (written spool blocks, stray writes), as `[first, len]`. */
   written?: [number, number][];
   media: DiskMediaState;
@@ -263,8 +252,8 @@ interface SavedContracts {
   nextId: number;
   /** The offers' PRNG state. */
   rng: number;
-  offers: ContractOffer[];
-  active: Contract[];
+  offers: contractBook.ContractOffer[];
+  active: contractBook.Contract[];
 }
 
 /** The meter (Wh, all time) and the bill's state; `nextTick` and `unpaidSince` are base ticks. */
@@ -309,7 +298,7 @@ interface SaveV1 {
   dropped: number;
   avgTurnaround: number;
   lastCompleted: SavedCompleted | null;
-  board: BoardJson;
+  board: boardSim.BoardJson;
   pending: string[];
   queue: SavedKey[];
   current: (SavedKey & { startTick: number; attempts: number }) | null;
@@ -398,23 +387,23 @@ const MIGRATIONS: Record<number, (s: any) => any> = {
       throw new Error('save: not a valid version 4 save');
     }
     const b = s.board,
-      smallest = CASE_TIERS.findIndex((c) => c.maxBoard >= b.tier);
+      smallest = boardSim.CASE_TIERS.findIndex((c) => c.maxBoard >= b.tier);
     const caseTier = Math.max(typeof b.caseTier === 'number' ? b.caseTier : 0, smallest);
     let next = Math.max(
       typeof b.nextId === 'number' ? b.nextId : 1,
       ...b.devices.map((d) => Number(String(d.id).replaceAll(/\D/gu, '')) + 1),
       1,
     );
-    const fans: BoardJson['devices'] = [],
+    const fans: boardSim.BoardJson['devices'] = [],
       taken = new Set(b.devices.map((d) => d.slot));
     const fit = (spec: string, slot: string) => {
       if (!taken.has(slot)) {
         fans.push({ id: `dev${next++}`, spec, slot });
       }
     };
-    if (CASE_TIERS[caseTier]) {
-      for (const m of caseMounts(caseTier)) {
-        fit(basicFan(CASE_TIERS[caseTier]!.fanSize).id, m);
+    if (boardSim.CASE_TIERS[caseTier]) {
+      for (const m of boardSim.caseMounts(caseTier)) {
+        fit(boardSim.basicFan(boardSim.CASE_TIERS[caseTier]!.fanSize).id, m);
       }
     }
     const builtIn: Record<string, string> = { cooler0: 'fan92', cooler1: 'fan120', vsink2: 'fan40', rsink2: 'fan40' };
@@ -424,7 +413,7 @@ const MIGRATIONS: Record<number, (s: any) => any> = {
       }
     }
     const cables = { ...s.cables } as Record<string, boolean>;
-    const mounts = new Set(CASE_TIERS[caseTier] ? caseMounts(caseTier) : []);
+    const mounts = new Set(boardSim.CASE_TIERS[caseTier] ? boardSim.caseMounts(caseTier) : []);
     for (const k of Object.keys(cables)) {
       if (k.startsWith('fan:') && !mounts.has(k.slice(4))) {
         delete cables[k];
@@ -434,7 +423,7 @@ const MIGRATIONS: Record<number, (s: any) => any> = {
       ...s,
       version: 5,
       board: { ...b, devices: [...b.devices, ...fans], nextId: next },
-      cables: cables as Cables,
+      cables: cables as boardSim.Cables,
     };
   },
   /** v2 -> v3: no storage or OS yet, so the machine keeps the reboot-per-job flow; the three new milestones start false. */
@@ -492,7 +481,7 @@ export function parseSave(input: unknown): SaveV5 {
     s['progress'] = {
       ...s['progress'],
       coolerInstalled: (s['board']['devices'] as { spec?: unknown }[]).some(
-        (d) => typeof d.spec === 'string' && getSpec(d.spec)?.kind === 'cooler',
+        (d) => typeof d.spec === 'string' && boardSim.getSpec(d.spec)?.kind === 'cooler',
       ),
     };
   }
@@ -508,7 +497,7 @@ export function parseSave(input: unknown): SaveV5 {
   // the PCIe leads came later (pcie first, pcie2..4 with the lead model): a save without them has them unplugged
   if (isObj(s['cables'])) {
     const cables = s['cables'] as Record<string, unknown>;
-    for (const id of PCIE_LEADS) {
+    for (const id of boardSim.PCIE_LEADS) {
       if (cables[id] === undefined) {
         s['cables'] = { ...(s['cables'] as object), [id]: false };
       }
@@ -612,7 +601,7 @@ export function parseSave(input: unknown): SaveV5 {
     throw new Error('save: "board" missing');
   }
   try {
-    boardFromJson(s['board'] as unknown as BoardJson);
+    boardSim.boardFromJson(s['board'] as unknown as boardSim.BoardJson);
   } catch (e) {
     throw new Error(`save: invalid board (${(e as Error).message})`, { cause: e });
   }
@@ -630,12 +619,13 @@ export function parseSave(input: unknown): SaveV5 {
   }
   // the wall cords and their milestone came later: a save without them is read as plugged in (additive, no version bump)
   // and the fan cables later still: a save without them is read as plugged in (`Game.restore`)
-  const optional = (k: string) => k === 'pcmains' || k === 'monmains' || k === 'mainsConnected' || isFanCable(k);
+  const optional = (k: string) =>
+    k === 'pcmains' || k === 'monmains' || k === 'mainsConnected' || boardSim.isFanCable(k);
   const flag = (o: unknown, k: string) => {
     const v = (o as Record<string, unknown>)[k];
     return typeof v === 'boolean' || (optional(k) && v === undefined);
   };
-  if (!isObj(s['cables']) || CABLE_IDS.some((c) => !flag(s['cables'], c))) {
+  if (!isObj(s['cables']) || boardSim.CABLE_IDS.some((c) => !flag(s['cables'], c))) {
     throw new Error('save: "cables" must say whether each cable is connected');
   }
   if (!isObj(s['progress']) || PROGRESS_KEYS.some((k) => !flag(s['progress'], k))) {
@@ -670,8 +660,8 @@ export function parseSave(input: unknown): SaveV5 {
     if (!os || os.later) {
       throw new Error(`save: unknown OS "${String(o['spec'])}"`);
     }
-    const dev = (s['board'] as unknown as BoardJson).devices.find((d) => d.id === o['deviceId']);
-    if (!dev || getSpec(dev.spec)?.kind !== 'storage') {
+    const dev = (s['board'] as unknown as boardSim.BoardJson).devices.find((d) => d.id === o['deviceId']);
+    if (!dev || boardSim.getSpec(dev.spec)?.kind !== 'storage') {
       throw new Error('save: "os" must name an installed storage device');
     }
   }
@@ -699,7 +689,7 @@ export function parseSave(input: unknown): SaveV5 {
     if (!Array.isArray(s['disks'])) {
       throw new TypeError('save: "disks" must be a list');
     }
-    const { devices } = s['board'] as unknown as BoardJson;
+    const { devices } = s['board'] as unknown as boardSim.BoardJson;
     s['disks'].forEach((d, i) => checkDisk(d, `disks[${i}]`, devices));
   }
   if (s['contracts'] !== undefined) {
@@ -736,7 +726,7 @@ function checkDisk(d: unknown, where: string, devices: readonly { id: string; sp
     throw new Error(`save: ${where} must be an object`);
   }
   const dev = devices.find((x) => x.id === d['deviceId']);
-  if (!dev || getSpec(dev.spec)?.kind !== 'storage') {
+  if (!dev || boardSim.getSpec(dev.spec)?.kind !== 'storage') {
     throw new Error(`save: ${where}.deviceId must name an installed storage device`);
   }
   if (typeof d['mount'] !== 'string' || !MOUNTS.includes(d['mount'])) {
@@ -753,7 +743,7 @@ function checkDisk(d: unknown, where: string, devices: readonly { id: string; sp
       f['id'] < 1 ||
       typeof f['owner'] !== 'string' ||
       typeof f['kind'] !== 'string' ||
-      !(FILE_KINDS as readonly string[]).includes(f['kind']) ||
+      !(fileSystem.FILE_KINDS as readonly string[]).includes(f['kind']) ||
       !isPairList(f['extents']) ||
       f['extents'].length === 0
     ) {
@@ -778,7 +768,7 @@ function checkDisk(d: unknown, where: string, devices: readonly { id: string; sp
 }
 
 function checkTerms(c: Record<string, unknown>, where: string): void {
-  if (typeof c['kind'] !== 'string' || !CONTRACT_KINDS.some((k) => k.id === c['kind'])) {
+  if (typeof c['kind'] !== 'string' || !contractBook.CONTRACT_KINDS.some((k) => k.id === c['kind'])) {
     throw new Error(`save: ${where}.kind is not a contract kind`);
   }
   if (typeof c['client'] !== 'string') {

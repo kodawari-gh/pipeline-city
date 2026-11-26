@@ -3,7 +3,7 @@
 
 import { Game } from './game/game';
 import { CAMPAIGN_POWER_RATE, CAMPAIGN_START_MONEY } from '../features/economy/sim/economy';
-import { crashReport, type CrashReport } from './crash';
+import * as crashReports from './crash';
 import type { FromSim, Speed, ToSim } from './protocol';
 
 export interface HostState {
@@ -12,7 +12,7 @@ export interface HostState {
   /** Fractional base ticks owed (elapsed time x speed not yet simulated). */
   owed: number;
   /** A crash report not yet posted (`takeCrash`). */
-  crash: CrashReport | null;
+  crash: crashReports.CrashReport | null;
 }
 
 /** Catch-up cap per call. The worker calls every 100 ms, so this is far above what 64x needs (6.4 ticks per call). */
@@ -29,9 +29,9 @@ export function recordCrash(state: HostState, e: unknown): void {
     return;
   }
   try {
-    state.crash = crashReport(state.game, e);
+    state.crash = crashReports.crashReport(state.game, e);
   } catch {
-    state.crash = crashReport(null, e);
+    state.crash = crashReports.crashReport(null, e);
   }
 }
 

@@ -12836,7 +12836,6 @@
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(no-duplicate-imports)": 1,
-  "import(consistent-type-specifier-style)": 15,
   "import(max-dependencies)": 1,
   "oxc(no-barrel-file)": 1,
   "typescript(consistent-type-imports)": 1,
@@ -12850,15 +12849,11 @@
   "unicorn(no-useless-spread)": 1,
   "unicorn(prefer-export-from)": 1
  },
- "src/worker/game/internal.ts": {
-  "import(consistent-type-specifier-style)": 2
- },
  "src/worker/game/persist.ts": {
   "eslint(complexity)": 2,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
   "eslint(no-negated-condition)": 3,
-  "import(consistent-type-specifier-style)": 10,
   "import(max-dependencies)": 1,
   "typescript(no-non-null-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 10,
@@ -12894,7 +12889,6 @@
   "eslint(max-lines-per-function)": 1,
   "eslint(no-nested-ternary)": 1,
   "eslint(no-use-before-define)": 39,
-  "import(consistent-type-specifier-style)": 6,
   "typescript(consistent-type-imports)": 1,
   "typescript(no-confusing-void-expression)": 4,
   "typescript(no-dynamic-delete)": 1,
@@ -12918,7 +12912,6 @@
   "eslint(max-lines-per-function)": 2,
   "eslint(no-negated-condition)": 2,
   "eslint(no-nested-ternary)": 7,
-  "import(consistent-type-specifier-style)": 4,
   "import(max-dependencies)": 1,
   "oxc(no-map-spread)": 2,
   "typescript(no-non-null-assertion)": 7,
@@ -12953,7 +12946,6 @@
   "eslint(complexity)": 1,
   "eslint(default-case)": 1,
   "eslint(max-lines-per-function)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(consistent-return)": 1,
   "typescript(no-unsafe-type-assertion)": 1,
   "typescript(strict-boolean-expressions)": 1,
