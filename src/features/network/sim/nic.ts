@@ -84,9 +84,13 @@ export class Nic implements Device {
     return this.link;
   }
   set linkUp(up: boolean) {
-    if (up === this.link) return;
+    if (up === this.link) {
+      return;
+    }
     this.link = up;
-    if (this.enabled && this.ctrl & NicCtrl.LinkIrq) this.interrupt();
+    if (this.enabled && this.ctrl & NicCtrl.LinkIrq) {
+      this.interrupt();
+    }
   }
   private link = false;
   /** Where the packets the NIC sends go (the wire). */
@@ -140,7 +144,9 @@ export class Nic implements Device {
 
   /** The wire offers a segment: taken into the FIFO if the NIC runs, the link is up and there is room; false: not now, the wire keeps it and asks again. */
   accept(seg: NicSegment): boolean {
-    if (!this.enabled || !this.linkUp || this.fifo.length >= this.fifoSegs) return false;
+    if (!this.enabled || !this.linkUp || this.fifo.length >= this.fifoSegs) {
+      return false;
+    }
     this.fifo.push(seg);
     return true;
   }
@@ -183,17 +189,26 @@ export class Nic implements Device {
   // ---- the device's clock: one receive and one transmit step a tick
 
   tick(): void {
-    if (!this.enabled) return;
+    if (!this.enabled) {
+      return;
+    }
     // a segment arrives from the wire; the FIFO full, it is lost (the wire cannot wait: nothing tells it to)
     if (this.linkUp && this.pull) {
       const seg = this.pull();
       if (seg) {
-        if (this.fifo.length < this.fifoSegs) this.fifo.push(seg);
-        else this.drop();
+        if (this.fifo.length < this.fifoSegs) {
+          this.fifo.push(seg);
+        } else {
+          this.drop();
+        }
       }
     }
-    if (this.fifo.length > 0 && this.rxPending < this.rxSlots) this.receive(this.fifo.shift()!);
-    if (this.linkUp && this.txSlots > 0 && this.txPending > 0) this.transmit();
+    if (this.fifo.length > 0 && this.rxPending < this.rxSlots) {
+      this.receive(this.fifo.shift()!);
+    }
+    if (this.linkUp && this.txSlots > 0 && this.txPending > 0) {
+      this.transmit();
+    }
   }
 
   /** A segment found no room: counted, and the sticky `Dropped` bit set. */
@@ -213,27 +228,37 @@ export class Nic implements Device {
     w(NicRx.NWORDS, n);
     w(NicRx.TOTAL, seg.total);
     w(NicRx.FLAGS, seg.flags);
-    for (let i = 0; i < NIC_SEG_WORDS; i++) w(NIC_RX_HEAD_WORDS + i, i < n ? seg.words[i]! : 0);
+    for (let i = 0; i < NIC_SEG_WORDS; i++) {
+      w(NIC_RX_HEAD_WORDS + i, i < n ? seg.words[i]! : 0);
+    }
     this.dmaWords += NIC_RX_HEAD_WORDS + NIC_SEG_WORDS;
     this.rxHead = (this.rxHead + 1) >>> 0;
     this.statRx++;
-    if (this.ctrl & NicCtrl.RxIrq) this.interrupt();
+    if (this.ctrl & NicCtrl.RxIrq) {
+      this.interrupt();
+    }
   }
 
   /** DMA the next ready packet out of the transmit ring, hand it to the wire and write the slot's status back. */
   private transmit(): void {
     const at = this.txBase + (this.txHead % this.txSlots) * NIC_TX_SLOT_BYTES;
     const r = (i: number): number => this.view32.getUint32(at + 4 * i, true);
-    if (r(NicTxSlot.STATUS) !== NicTx.Ready) return; // the doorbell rang before the slot was whole: the kernel's bug, the NIC waits
+    if (r(NicTxSlot.STATUS) !== NicTx.Ready) {
+      return; // the doorbell rang before the slot was whole: the kernel's bug, the NIC waits
+    }
     const n = Math.min(r(NicTxSlot.NWORDS), PCH_RESULT_WORDS);
     const words = new Uint32Array(n);
-    for (let i = 0; i < n; i++) words[i] = r(NIC_TX_HEAD_WORDS + i);
+    for (let i = 0; i < n; i++) {
+      words[i] = r(NIC_TX_HEAD_WORDS + i);
+    }
     this.dmaWords += NIC_TX_HEAD_WORDS + n;
     this.onTransmit?.({ key: r(NicTxSlot.KEY), words, arg: r(NicTxSlot.ARG) });
     this.view32.setUint32(at + 4 * NicTxSlot.STATUS, NicTx.Done, true);
     this.txHead = (this.txHead + 1) >>> 0;
     this.statTx++;
-    if (this.ctrl & NicCtrl.TxIrq) this.interrupt();
+    if (this.ctrl & NicCtrl.TxIrq) {
+      this.interrupt();
+    }
   }
 
   private interrupt(): void {
@@ -243,44 +268,63 @@ export class Nic implements Device {
 
   // ---- the registers
 
+  private status(): number {
+    return (
+      (this.linkUp ? NicStatus.Link : 0) |
+      (this.rxPending > 0 ? NicStatus.RxPending : 0) |
+      (this.txPending > 0 ? NicStatus.TxBusy : 0) |
+      (this.dropped ? NicStatus.Dropped : 0) |
+      (this.enabled ? NicStatus.Enabled : 0)
+    );
+  }
+
   private word(reg: number): number {
     switch (reg) {
-      case NIC_REG.STATUS:
-        return (
-          (this.linkUp ? NicStatus.Link : 0) |
-          (this.rxPending > 0 ? NicStatus.RxPending : 0) |
-          (this.txPending > 0 ? NicStatus.TxBusy : 0) |
-          (this.dropped ? NicStatus.Dropped : 0) |
-          (this.enabled ? NicStatus.Enabled : 0)
-        );
-      case NIC_REG.CTRL:
+      case NIC_REG.STATUS: {
+        return this.status();
+      }
+      case NIC_REG.CTRL: {
         return this.ctrl;
-      case NIC_REG.RX_BASE:
+      }
+      case NIC_REG.RX_BASE: {
         return this.rxBase;
-      case NIC_REG.RX_SLOTS:
+      }
+      case NIC_REG.RX_SLOTS: {
         return this.rxSlots;
-      case NIC_REG.RX_HEAD:
+      }
+      case NIC_REG.RX_HEAD: {
         return this.rxHead;
-      case NIC_REG.RX_TAIL:
+      }
+      case NIC_REG.RX_TAIL: {
         return this.rxTail;
-      case NIC_REG.TX_BASE:
+      }
+      case NIC_REG.TX_BASE: {
         return this.txBase;
-      case NIC_REG.TX_SLOTS:
+      }
+      case NIC_REG.TX_SLOTS: {
         return this.txSlots;
-      case NIC_REG.TX_HEAD:
+      }
+      case NIC_REG.TX_HEAD: {
         return this.txHead;
-      case NIC_REG.TX_TAIL:
+      }
+      case NIC_REG.TX_TAIL: {
         return this.txTail;
-      case NIC_REG.STAT_RX:
+      }
+      case NIC_REG.STAT_RX: {
         return this.statRx;
-      case NIC_REG.STAT_DROP:
+      }
+      case NIC_REG.STAT_DROP: {
         return this.statDrop;
-      case NIC_REG.STAT_TX:
+      }
+      case NIC_REG.STAT_TX: {
         return this.statTx;
-      case NIC_REG.STAT_IRQ:
+      }
+      case NIC_REG.STAT_IRQ: {
         return this.statIrq;
-      default:
+      }
+      default: {
         return 0;
+      }
     }
   }
 
@@ -299,33 +343,51 @@ export class Nic implements Device {
       return;
     }
     this.partial.delete(reg);
+    this.store(reg, next);
+  }
+
+  /** A whole register write lands. */
+  private store(reg: number, next: number): void {
     switch (reg) {
-      case NIC_REG.CTRL:
+      case NIC_REG.CTRL: {
         this.ctrl = next & (NicCtrl.Enable | NicCtrl.RxIrq | NicCtrl.TxIrq | NicCtrl.LinkIrq);
         break;
-      case NIC_REG.RX_BASE:
+      }
+      case NIC_REG.RX_BASE: {
         this.rxBase = next;
         break;
-      case NIC_REG.RX_SLOTS:
+      }
+      case NIC_REG.RX_SLOTS: {
         this.rxSlots = next;
         break;
-      case NIC_REG.RX_TAIL:
+      }
+      case NIC_REG.RX_TAIL: {
         this.rxTail = next;
         break;
-      case NIC_REG.TX_BASE:
+      }
+      case NIC_REG.TX_BASE: {
         this.txBase = next;
         break;
-      case NIC_REG.TX_SLOTS:
+      }
+      case NIC_REG.TX_SLOTS: {
         this.txSlots = next;
         break;
-      case NIC_REG.TX_TAIL:
+      }
+      case NIC_REG.TX_TAIL: {
         this.txTail = next;
         break;
-      case NIC_REG.STATUS:
-        if (next & NicStatus.Dropped) this.dropped = false;
-        break; // write 1 to the sticky bit to clear it
-      default:
-        break; // the indexes and the counters the NIC owns are read only
+      }
+      case NIC_REG.STATUS: {
+        // write 1 to the sticky bit to clear it
+        if (next & NicStatus.Dropped) {
+          this.dropped = false;
+        }
+        break;
+      }
+      default: {
+        // the indexes and the counters the NIC owns are read only
+        break;
+      }
     }
   }
 }

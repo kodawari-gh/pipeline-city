@@ -35,20 +35,20 @@ const EPS = 1e-9;
 /** A 32-bit integer mixer (the finaliser of murmur3): a small change in the input changes every bit of the output. */
 function mix32(h: number): number {
   h ^= h >>> 16;
-  h = Math.imul(h, 0x85ebca6b);
+  h = Math.imul(h, 0x85_eb_ca_6b);
   h ^= h >>> 13;
-  h = Math.imul(h, 0xc2b2ae35);
+  h = Math.imul(h, 0xc2_b2_ae_35);
   h ^= h >>> 16;
   return h >>> 0;
 }
 
 /** The roll of one send of one segment: a number in [0,1) that depends only on the game's seed, the transfer, the segment and which send it is. */
 export function lossRoll(seed: number, transfer: number, seq: number, attempt: number): number {
-  let h = mix32((seed ^ 0x9e3779b9) >>> 0);
-  h = mix32((h + Math.imul(transfer | 0, 0x85ebca6b)) >>> 0);
-  h = mix32((h + Math.imul(seq + 1, 0xc2b2ae35)) >>> 0);
-  h = mix32((h + Math.imul(attempt + 1, 0x27d4eb2f)) >>> 0);
-  return h / 4294967296;
+  let h = mix32((seed ^ 0x9e_37_79_b9) >>> 0);
+  h = mix32((h + Math.imul(transfer | 0, 0x85_eb_ca_6b)) >>> 0);
+  h = mix32((h + Math.imul(seq + 1, 0xc2_b2_ae_35)) >>> 0);
+  h = mix32((h + Math.imul(attempt + 1, 0x27_d4_eb_2f)) >>> 0);
+  return h / 4_294_967_296;
 }
 
 /** A segment the flow puts on the wire this tick: which one, which send of it (0: the first) and whether the wire loses it. */
@@ -198,7 +198,9 @@ export class Flow {
   step(now: number, shareMB: number): Send[] {
     const out: Send[] = [];
     this.earned = 0;
-    if (this.failed || this.done) return out;
+    if (this.failed || this.done) {
+      return out;
+    }
     if (this.timer >= 0 && now >= this.timer && this.inflight > 0) {
       this.stats.timeouts++;
       if (this.tries[this.acked]! > TRANSPORT.maxRetries) {
@@ -221,15 +223,24 @@ export class Flow {
       (this.segMB === 0 || this.credit >= this.segMB - EPS)
     ) {
       let seq = this.acked;
-      if (this.resend) this.resend = false;
-      else seq = this.next++;
+      if (this.resend) {
+        this.resend = false;
+      } else {
+        seq = this.next++;
+      }
       const attempt = this.tries[seq]!++;
       this.credit = Math.max(0, this.credit - this.segMB);
       const lost = this.loss > 0 && lossRoll(this.seed, this.id, seq, attempt) < this.loss;
       this.stats.sent++;
-      if (attempt > 0) this.stats.resent++;
-      if (lost) this.stats.lost++;
-      if (this.timer < 0) this.timer = now + this.rto;
+      if (attempt > 0) {
+        this.stats.resent++;
+      }
+      if (lost) {
+        this.stats.lost++;
+      }
+      if (this.timer < 0) {
+        this.timer = now + this.rto;
+      }
       out.push({ seq, attempt, lost });
     }
     return out;
@@ -240,14 +251,19 @@ export class Flow {
    * acknowledgement changes nothing. One that makes progress is a round-trip sample, whichever send of the segment it answers, and ends the backoff.
    */
   ack(now: number, next: number, rtt: number): void {
-    if (this.failed || next <= this.acked) return;
+    if (this.failed || next <= this.acked) {
+      return;
+    }
     const upto = Math.min(next, this.segs);
     this.est.sample(Math.max(1, rtt));
     this.backoff = 1;
-    for (let i = this.acked; i < upto; i++)
+    for (let i = this.acked; i < upto; i++) {
       this.cwnd = Math.min(TRANSPORT.cwndMax, this.cwnd < this.ssthresh ? this.cwnd + 1 : this.cwnd + 1 / this.cwnd);
+    }
     this.acked = upto;
-    if (this.next < this.acked) this.next = this.acked; // an old copy got through after a timeout: do not send what is acknowledged
+    if (this.next < this.acked) {
+      this.next = this.acked; // an old copy got through after a timeout: do not send what is acknowledged
+    }
     this.resend = false; // the segment that was to go again is in the receiver's hands; if the next one is lost, its own timeout comes
     this.timer = this.inflight > 0 ? now + this.rto : -1;
   }

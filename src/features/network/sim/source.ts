@@ -9,7 +9,9 @@ export class NetworkSource<J extends Job> implements WorkSource<J> {
   constructor(readonly cap: number) {}
 
   offer(job: J): boolean {
-    if (this.list.length >= this.cap) return false;
+    if (this.list.length >= this.cap) {
+      return false;
+    }
     this.list.push(job);
     return true;
   }
@@ -43,7 +45,9 @@ export function pickOffer<J extends Job & { cls: string }>(
   let best: J | undefined;
   let bestBand = -1;
   for (const j of offers) {
-    if (!mayStart(j)) continue;
+    if (!mayStart(j)) {
+      continue;
+    }
     const band = Math.floor(Math.max(0, now - j.arrival) / bandTicks);
     if (!best || band > bestBand || (band === bestBand && j.cls === 'web' && best.cls !== 'web')) {
       best = j;

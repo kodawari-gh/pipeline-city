@@ -1,7 +1,7 @@
 // Game feature: the network (docs/NETWORK.md). The link state table, downloads and uploads, retiring the USB keys, the NIC
 // feed into the kernel, what a power loss does to it all, and the network snapshot. Every export is a `Game` method (see game.ts).
 
-import { BOARD_TIERS, deviceSpec, type NicSpec } from '../../board/sim';
+import * as boardSim from '../../board/sim';
 import { generate } from '../../jobs/sim/gen';
 import {
   JOB_ROW,
@@ -23,17 +23,22 @@ import type { FlowSnap, LinkState, NetSnap, NetStackSnap, TransferSnap } from '@
 
 /** The uplink port the cable is in: its speed (a hot NIC runs at half), or none. */
 export function portInfo(this: Game): Link['port'] {
-  if (!this.lan) return { kind: null, deviceId: null, mbps: 0 };
-  if (this.lan === 'board')
+  if (!this.lan) {
+    return { kind: null, deviceId: null, mbps: 0 };
+  }
+  if (this.lan === 'board') {
     return {
       kind: 'board',
       deviceId: null,
-      mbps: this.board.burnt ? 0 : BOARD_TIERS[this.board.tier]!.features.ethernetMbps,
+      mbps: this.board.burnt ? 0 : boardSim.BOARD_TIERS[this.board.tier]!.features.ethernetMbps,
     };
+  }
   const d = this.board.devices.find((x) => x.id === this.lan);
-  if (!d || d.burnt) return { kind: 'nic', deviceId: this.lan, mbps: 0 };
+  if (!d || d.burnt) {
+    return { kind: 'nic', deviceId: this.lan, mbps: 0 };
+  }
   const half = (this.thermal.state(d.id)?.throttle ?? 1) < 1;
-  return { kind: 'nic', deviceId: d.id, mbps: (deviceSpec(d) as NicSpec).mbps * (half ? 0.5 : 1) };
+  return { kind: 'nic', deviceId: d.id, mbps: (boardSim.deviceSpec(d) as boardSim.NicSpec).mbps * (half ? 0.5 : 1) };
 }
 
 /** Evaluate the link state table (docs/NETWORK.md "Link states") and the effective bandwidth. */
@@ -53,22 +58,36 @@ export function computeLink(this: Game): Link {
       bw: bwOn ? bandwidth(port.mbps, router, isp, disk) : { downMbps: 0, upMbps: 0, clients: 0, binding: null },
     };
   };
-  if (!router || !isp)
+  if (!router || !isp) {
     return mk('no-device', !isp ? 'no ISP plan: buy one' : 'no router: install one next to the monitor');
-  if (!this.lan) return mk('no-cable', 'plug the ethernet cable from the board jack into the router');
-  if (!this.os) return mk('no-os', 'needs an OS: the network runs inside it');
+  }
+  if (!this.lan) {
+    return mk('no-cable', 'plug the ethernet cable from the board jack into the router');
+  }
+  if (!this.os) {
+    return mk('no-os', 'needs an OS: the network runs inside it');
+  }
   const ram = this.installedRamBytes();
-  if (ram < NET.minRamBytes)
+  if (ram < NET.minRamBytes) {
     return mk('no-os', `needs ${NET.minRamBytes / 1024}K of RAM, only ${ram / 1024}K installed`);
-  if (this.os.queueSlots < 1) return mk('no-os', 'no free space on the OS drive for a spool slot');
-  if (port.mbps <= 0)
+  }
+  if (this.os.queueSlots < 1) {
+    return mk('no-os', 'no free space on the OS drive for a spool slot');
+  }
+  if (port.mbps <= 0) {
     return mk('down', this.lan === 'board' ? 'the board is dead' : 'the network card is burnt out', true);
-  if (!this.powered) return mk('down', 'the machine is off', true);
+  }
+  if (!this.powered) {
+    return mk('down', 'the machine is off', true);
+  }
   const fault = this.fault();
-  if (fault || this.postError) return mk('down', fault ?? 'the machine failed POST', true);
+  if (fault || this.postError) {
+    return mk('down', fault ?? 'the machine failed POST', true);
+  }
   const phase = this.currentPhase();
-  if (phase !== 'idle-os' && phase !== 'ingesting' && phase !== 'running-os' && phase !== 'flashing')
+  if (phase !== 'idle-os' && phase !== 'ingesting' && phase !== 'running-os' && phase !== 'flashing') {
     return mk('down', 'the OS is starting', true);
+  }
   const up = mk('link-up', null, true);
   const waiting = this.offersQ.waiting().some((k) => this.runnable(k, this.capsWith(true)));
   const slotsFull = this.activeTransfers() >= up.bw.clients;
@@ -100,7 +119,9 @@ export function wireLoss(this: Game): number {
  */
 export function netUtilisation(this: Game): number {
   const port = this.link.port.mbps;
-  if (port <= 0) return 0;
+  if (port <= 0) {
+    return 0;
+  }
   const down = this.downloads.length > 0 ? this.link.bw.downMbps : 0;
   const up = this.activeUploads().length > 0 ? this.link.bw.upMbps : 0;
   return Math.min(1, Math.max(down, up) / port);
@@ -129,9 +150,13 @@ export function resultWaiting(this: Game, k: Key): boolean {
  * reputation and expire without a penalty; they can still be served until their deadline.
  */
 export function retireUsbKeys(this: Game): void {
-  if (!this.cfg.retireUsbKeys) return;
+  if (!this.cfg.retireUsbKeys) {
+    return;
+  }
   for (const k of [...this.tray.waiting(), ...(this.plugged ? [this.plugged] : [])]) {
-    if (!this.resultWaiting(k)) k.retired = true;
+    if (!this.resultWaiting(k)) {
+      k.retired = true;
+    }
   }
   this.note('net', 'the USB keys left behind are retired: they no longer hold reputation');
 }
@@ -147,14 +172,17 @@ export function netTick(this: Game): void {
   this.link = this.computeLink();
   const usable = this.linkUsable;
   // The link arrives (first time, or back after a dead spell): the USB keys the client left behind retire.
-  if (usable && !this.linkWasUsable) this.retireUsbKeys();
+  if (usable && !this.linkWasUsable) {
+    this.retireUsbKeys();
+  }
   this.linkWasUsable = usable;
   if (usable) {
-    if (!this.progress.linkUp)
+    if (!this.progress.linkUp) {
       this.note(
         'net',
         `link up: ${this.link.bw.downMbps} Mbit down, ${this.link.bw.upMbps} up (limited by ${this.link.bw.binding})`,
       );
+    }
     this.progress.linkUp = true;
     this.networkLinked = true;
     this.deadTicks = 0;
@@ -163,10 +191,15 @@ export function netTick(this: Game): void {
   }
   this.nic.linkUp = usable;
   this.nic.fifoSegs = fifoSegsOf(this.board.devices.find((d) => d.id === this.link.port.deviceId)?.spec ?? null); // the chip the cable is in has its own packet buffer
-  if (usable) deliverAcks(this); // the answers reach their senders before the host adopts a job (the last acknowledgement of a download that is one segment long comes in the tick it is whole)
+  if (usable) {
+    deliverAcks(this); // the answers reach their senders before the host adopts a job (the last acknowledgement of a download that is one segment long comes in the tick it is whole)
+  }
   this.adoptReceived(); // what the kernel has whole is kept, whatever the link does next
-  if (!usable) this.loseTransfers();
-  else this.runTransfers();
+  if (!usable) {
+    this.loseTransfers();
+  } else {
+    this.runTransfers();
+  }
   this.feedKernel();
 }
 
@@ -202,18 +235,24 @@ function countFrames(f: { rx: number; tx: number }, mb: number, dir: 'rx' | 'tx'
  * sent come back first (`wireSend` queued them; `netTick` has handed over the ones that were due already, so this finds none unless it is called alone).
  */
 export function runTransfers(this: Game): void {
-  const bw = this.link.bw;
+  const { bw } = this.link;
   const slots = this.os?.queueSlots ?? 0;
   const caps = this.capsWith(true);
   deliverAcks(this);
   // A client slot serves one transfer of either direction. Results waiting to go out take the free slots first (they are paid work), in the order they were read out.
   for (const t of this.uploads) {
-    if (this.activeTransfers() >= bw.clients) break;
-    if (t.waiting) t.waiting = false;
+    if (this.activeTransfers() >= bw.clients) {
+      break;
+    }
+    if (t.waiting) {
+      t.waiting = false;
+    }
   }
   while (this.activeTransfers() < bw.clients && this.reserved() < slots) {
     const next = pickOffer(this.offersQ.waiting(), this.baseTick, NET.ageBandTicks, (k) => needsMet(k.needs, caps).ok);
-    if (!next) break;
+    if (!next) {
+      break;
+    }
     this.offersQ.take(next.id);
     next.pluggedAt = this.baseTick;
     next.c0 = this.countersNow();
@@ -224,33 +263,41 @@ export function runTransfers(this: Game): void {
   // The line's bytes are shared among the downloads that have segments to send and room in their window. Each flow puts on the wire what its share and its window allow.
   const moving = this.downloads.filter((t) => t.flow!.moving).length;
   const each = moving > 0 ? bw.downMbps / 8 / moving : 0;
-  for (const t of [...this.downloads, ...this.restores]) runFlow(this, t, each);
+  for (const t of [...this.downloads, ...this.restores]) {
+    runFlow(this, t, each);
+  }
   // A download is whole when the kernel has acknowledged every segment (it has queued the job: the receive window holds it until the host sees that); one the sender gave up goes back to the offers.
   for (const t of [...this.downloads]) {
-    if (t.flow!.failed) giveUp(this, t);
-    else if (t.flow!.done) {
+    if (t.flow!.failed) {
+      giveUp(this, t);
+    } else if (t.flow!.done) {
       this.downloads = this.downloads.filter((x) => x !== t);
       this.rx.push(t.key);
       this.netCount.downloaded++;
     }
   }
   this.restores = this.restores.filter((t) => !t.flow!.done && !t.flow!.failed);
-  const sending = this.activeUploads();
+  runUploads(this, bw.upMbps);
+}
+
+/** Move the bytes of the uploads that hold a client slot (they share the line's upload speed); a whole one is delivered. */
+function runUploads(g: Game, upMbps: number): void {
+  const sending = g.activeUploads();
   if (sending.length > 0) {
-    const each = bw.upMbps / 8 / sending.length;
+    const each = upMbps / 8 / sending.length;
     for (const t of sending) {
-      countFrames(this.netFrames, moved(t, each), 'tx');
+      countFrames(g.netFrames, moved(t, each), 'tx');
       t.doneMB += each;
     }
     for (const t of sending.filter((x) => x.doneMB >= x.totalMB)) {
-      this.uploads = this.uploads.filter((x) => x !== t);
-      this.spool = this.spool.filter((k) => k.id !== t.key.id); // delivery is the receipt: the spool slot is free
-      this.netCount.uploaded++;
-      this.netCount.delivered++;
+      g.uploads = g.uploads.filter((x) => x !== t);
+      g.spool = g.spool.filter((k) => k.id !== t.key.id); // delivery is the receipt: the spool slot is free
+      g.netCount.uploaded++;
+      g.netCount.delivered++;
       t.key.done = true;
-      this.progress.firstNetJob = true;
-      this.progress.firstOsJob = true;
-      this.deliver(t.key, 'delivered over the network');
+      g.progress.firstNetJob = true;
+      g.progress.firstOsJob = true;
+      g.deliver(t.key, 'delivered over the network');
     }
   }
 }
@@ -275,9 +322,13 @@ function newDownload(g: Game, key: Key, replay: boolean): Transfer {
 function runFlow(g: Game, t: Transfer, share: number): void {
   const f = t.flow!;
   const was = { ...f.stats };
-  if (!t.replay) f.loss = g.wireLoss(); // the line, the router and the card can change while a download runs (a card heats up)
+  if (!t.replay) {
+    f.loss = g.wireLoss(); // the line, the router and the card can change while a download runs (a card heats up)
+  }
   const sends = f.step(g.baseTick, f.moving ? share : 0);
-  for (const k of ['sent', 'resent', 'lost', 'timeouts'] as const) g.netWire[k] += f.stats[k] - was[k];
+  for (const k of ['sent', 'resent', 'lost', 'timeouts'] as const) {
+    g.netWire[k] += f.stats[k] - was[k];
+  }
   if (!t.replay) {
     countFrames(g.netFrames, f.earned, 'rx');
     t.doneMB = f.carriedMB;
@@ -286,7 +337,9 @@ function runFlow(g: Game, t: Transfer, share: number): void {
   const words = t.words!;
   const stamp = (g.baseTick & NIC_STAMP_MASK) << NIC_STAMP_SHIFT; // the clock the segment leaves by: the kernel echoes it in the acknowledgement
   for (const s of sends) {
-    if (s.lost) continue;
+    if (s.lost) {
+      continue;
+    }
     const seg: NicSegment = {
       key: t.key.id,
       seq: s.seq,
@@ -302,14 +355,17 @@ function runFlow(g: Game, t: Transfer, share: number): void {
 /** The acknowledgements that have reached their senders: each tells a flow which segment the kernel wants next, and (the echo of the segment's stamp) how long ago that segment left. */
 function deliverAcks(g: Game): void {
   const due = g.wireAcks.filter((a) => a.at <= g.baseTick);
-  if (due.length === 0) return;
+  if (due.length === 0) {
+    return;
+  }
   g.wireAcks = g.wireAcks.filter((a) => a.at > g.baseTick);
-  for (const a of due)
+  for (const a of due) {
     (g.downloads.find((t) => t.key.id === a.key) ?? g.restores.find((t) => t.key.id === a.key))?.flow?.ack(
       g.baseTick,
       a.next,
       (g.baseTick - a.stamp) & NIC_STAMP_MASK,
     );
+  }
 }
 
 /** A segment sent more times than the transport allows without an answer: the download fails. The offer goes back (attempts + 1) and a reset tells the kernel to free what it holds of the job. */
@@ -345,7 +401,9 @@ function resultText(words: Uint32Array): string {
   for (const w of words) {
     for (let i = 0; i < 4; i++) {
       const b = (w >>> (8 * i)) & 0xff;
-      if (b === 0) return s.trimEnd();
+      if (b === 0) {
+        return s.trimEnd();
+      }
       s += String.fromCharCode(b);
     }
   }
@@ -357,8 +415,10 @@ function resultText(words: Uint32Array): string {
  * the ones the wire loses never get here, and the NIC drops the ones that find its input full.
  */
 export function wirePull(this: Game): NicSegment | null {
-  const head = this.wireQ[0];
-  if (!head || head.at > this.baseTick) return null;
+  const [head] = this.wireQ;
+  if (!head || head.at > this.baseTick) {
+    return null;
+  }
   this.wireQ.shift();
   return head.seg;
 }
@@ -386,7 +446,9 @@ export function wireSend(this: Game, p: NicPacket): void {
     this.netCount.downloaded++;
   }
   const k = this.rx.find((x) => x.id === p.key) ?? this.spool.find((x) => x.id === p.key);
-  if (!k || this.uploads.some((t) => t.key.id === k.id)) return; // a result nobody waits for
+  if (!k || this.uploads.some((t) => t.key.id === k.id)) {
+    return; // a result nobody waits for
+  }
   if (this.rx.includes(k)) {
     this.rx = this.rx.filter((x) => x !== k);
     this.spool.push(k);
@@ -403,17 +465,23 @@ export function wireSend(this: Game, p: NicPacket): void {
  * are doing and whatever the link does next. That ends the transfer, with its flow, even if an acknowledgement is still on its way.
  */
 export function adoptReceived(this: Game): void {
-  if (this.rx.length === 0 && this.downloads.length === 0) return;
+  if (this.rx.length === 0 && this.downloads.length === 0) {
+    return;
+  }
   const jobs = this.kernelJobs();
   const whole = (k: Key): boolean => jobs.some((x) => x.net && x.key === k.id && x.state >= JobState.Queued);
   for (const t of [...this.downloads]) {
-    if (!whole(t.key)) continue;
+    if (!whole(t.key)) {
+      continue;
+    }
     this.downloads = this.downloads.filter((x) => x !== t);
     this.spool.push(t.key);
     this.netCount.downloaded++;
   }
   for (const k of [...this.rx]) {
-    if (!whole(k)) continue;
+    if (!whole(k)) {
+      continue;
+    }
     this.rx = this.rx.filter((x) => x !== k);
     this.spool.push(k);
   }
@@ -424,7 +492,9 @@ export function adoptReceived(this: Game): void {
  * from the spool. The kernel's driver does the work: the segments go to the ring, it writes them to the spool blocks again and queues the job.
  */
 export function feedKernel(this: Game): void {
-  if (!this.kernelUp() || !this.linkUsable) return;
+  if (!this.kernelUp() || !this.linkUsable) {
+    return;
+  }
   const jobs = this.kernelJobs();
   this.restores = this.restores.filter(
     (t) => !jobs.some((j) => j.net && j.key === t.key.id && j.state >= JobState.Queued),
@@ -434,8 +504,9 @@ export function feedKernel(this: Game): void {
       jobs.some((j) => j.key === k.id) ||
       this.uploads.some((t) => t.key.id === k.id) ||
       this.restores.some((t) => t.key.id === k.id)
-    )
+    ) {
       continue;
+    }
     this.restores.push(newDownload(this, k, true));
   }
 }
@@ -485,8 +556,14 @@ export function transferSnaps(this: Game): TransferSnap[] {
       ...(dir === 'down' && t.flow ? { flow: flowSnap(t.flow) } : {}),
     });
   };
-  for (const t of this.downloads) if (t.flow?.sending ?? true) add(t, 'down'); // one that has put every segment on the wire is the kernel's now (`stageOf`: ingesting)
-  for (const t of this.activeUploads()) add(t, 'up');
+  for (const t of this.downloads) {
+    if (t.flow?.sending ?? true) {
+      add(t, 'down'); // one that has put every segment on the wire is the kernel's now (`stageOf`: ingesting)
+    }
+  }
+  for (const t of this.activeUploads()) {
+    add(t, 'up');
+  }
   return out;
 }
 
