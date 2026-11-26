@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { netPropsVisible, type NetVisInput } from './netvis';
+import { netPropsVisible } from './netvis';
+import type * as netvisTypes from './netvis';
 
-const none: NetVisInput = { level: 1, hasRouter: false, hasIsp: false, routerInInventory: false, lanConnected: false };
+const none: netvisTypes.NetVisInput = {
+  level: 1,
+  hasRouter: false,
+  hasIsp: false,
+  routerInInventory: false,
+  lanConnected: false,
+};
 
 describe('netPropsVisible', () => {
   it('hides the router spot and wall plate before the network unlocks', () => {

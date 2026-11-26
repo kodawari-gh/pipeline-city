@@ -4,7 +4,16 @@ import { getSpec } from '../../board/sim';
 import { ECONOMY, slaFactor } from '../../economy/sim/economy';
 import { Game } from '@/worker/game/game';
 import { unlockLevelOf } from '../../economy/sim/levels';
+import type { Result } from '@/worker/game/types';
 import { econ, netRig, rig } from '@/worker/game/testkit';
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
 
 // Hardware tests: every item is buyable (levels have their own tests).
 ECONOMY.levelGating = false;
@@ -12,7 +21,9 @@ ECONOMY.caseGating = false;
 ECONOMY.lossTable = false; // these tests pin transfers to the tick: no segment is lost unless a test asks for it (`wire loss` below uses the table on purpose)
 
 const tick = (g: Game, n: number): void => {
-  for (let i = 0; i < n; i++) g.advanceBaseTick();
+  for (let i = 0; i < n; i++) {
+    g.advanceBaseTick();
+  }
 };
 function until(g: Game, done: () => boolean, max = 3000): number {
   let t = 0;
@@ -28,47 +39,134 @@ const nets = (g: Game) => net(g).state;
 
 /** Put a job straight into the offer list (the offers channel), as a client would. */
 function offer(g: Game, template = 'cli.log', scale = 1): void {
-  (g as unknown as { enqueue(t: string, s: number, c: string | undefined, n: boolean): boolean }).enqueue(
-    template,
-    scale,
-    undefined,
-    true,
-  );
+  g.enqueue(template, scale, undefined, true);
 }
+
+/** The inventory id of a purchase that went through; the test fails with the shop's reason otherwise. */
+function bought(r: Result<{ invId: string }>): string {
+  if (!r.ok) {
+    throw new Error(`the purchase was refused: ${r.reason}`);
+  }
+  return r.invId;
+}
+
+/** The reason an action was refused; the test fails when it went through. */
+function refusal(r: Result): string {
+  if (r.ok) {
+    throw new Error('expected the action to be refused');
+  }
+  return r.reason;
+}
+
+/** The download is done and the job sits in the OS queue. */
+const downloadedAndQueued = (g: Game): boolean =>
+  net(g).transfers.length === 0 && must(g.snapshot().os).queue.length > 0;
+
+/** Ticks `g` until it has completed three jobs (or 1500 ticks pass), watching how many programs run at once and whether a download moved while one ran. */
+function watchThreeJobs(g: Game): { maxRunning: number; sawBoth: boolean; completed: number; ticks: number } {
+  let maxRunning = 0,
+    sawBoth = false,
+    completed = 0,
+    ticks = 0;
+  for (; ticks < 1500 && completed < 3; ticks++) {
+    g.advanceBaseTick();
+    const s = g.snapshot(),
+      running = must(s.os).queue.filter((j) => j.state === 'running').length;
+    maxRunning = Math.max(maxRunning, running);
+    sawBoth ||= running > 0 && s.net.transfers.length > 0;
+    ({ completed } = s);
+  }
+  return { maxRunning, sawBoth, completed, ticks };
+}
+
+/** Ticks `g` until it has completed three jobs (or 4000 ticks pass), watching whether a result waited for a client slot and the most transfers at once. */
+function watchUploads(g: Game): { sawWaiting: boolean; maxActive: number } {
+  let sawWaiting = false,
+    maxActive = 0;
+  for (let i = 0; i < 4000 && g.snapshot().completed < 3; i++) {
+    g.advanceBaseTick();
+    const n = net(g);
+    sawWaiting ||= n.uploadsWaiting > 0;
+    maxActive = Math.max(maxActive, n.transfers.length);
+  }
+  return { sawWaiting, maxActive };
+}
+
+/** The payout of a web job, delivered on time or (with `stall`) late: the cable out until half way from its SLA to its deadline. */
+function webPayout(stall: boolean): number {
+  const g = netRig('ssd1', { isp: 'isp2', router: 'router2' });
+  if (stall) {
+    g.disconnectCable('lan');
+  }
+  offer(g, 'web.page', 2);
+  if (stall) {
+    const o = must(net(g).offers[0]);
+    until(g, () => g.snapshot().baseTick >= must(o.slaTick) + (o.deadlineTick - must(o.slaTick)) / 2, 2000);
+    g.connectCable('lan');
+  }
+  until(g, () => g.snapshot().progress.firstNetJob, 4000);
+  return must(g.snapshot().lastCompleted).payout;
+}
+
+/** The outcome of 800 ticks of a seeded rig with clients arriving. */
+function seededOutcome(): string {
+  const g = netRig('ssd1', { seed: 11 });
+  g.cfg.baseDemandPerTick = 0.1;
+  tick(g, 800);
+  const s = g.snapshot();
+  return JSON.stringify([s.money, s.completed, s.reputation, s.net.counters, s.baseTick]);
+}
+
+const frames = (g: Game) => net(g).frames;
+/** The frames `mb` megabytes make: the data one way, the acknowledgements the other. */
+const data = (mb: number): number => (mb * 1e6) / NET.frameBytes;
+
+const offerIds = (g: Game): number[] => net(g).offers.map((o) => o.id);
+const downloading = (g: Game): number[] =>
+  net(g)
+    .transfers.filter((t) => t.dir === 'down')
+    .map((t) => t.jobId);
+/** The SLA pay factor at tick `t` of a job with its SLA at 100 and its deadline at 300. */
+const slaAt = (t: number): number => slaFactor(ECONOMY, t, 100, 300);
+const pending = (id: number, arrival: number, cls: string) => ({ id, arrival, cls });
+const anyOffer = () => true;
+/** The OS queue holds `n` jobs again, or a job has already been delivered. */
+const queuedOrDelivered = (g: Game, n: number): boolean =>
+  g.snapshot().os?.queue.length === n || g.snapshot().completed > 0;
 
 describe('net specs and unlocks', () => {
   it('tiers are strictly increasing in speed, price and unlock level', () => {
-    for (const list of [ROUTER_SPECS, ISP_SPECS, ['nic1', 'nic2', 'nic3'].map((i) => getSpec(i)!)]) {
+    for (const list of [ROUTER_SPECS, ISP_SPECS, ['nic1', 'nic2', 'nic3'].map((i) => must(getSpec(i)))]) {
       for (let i = 1; i < list.length; i++) {
-        expect(list[i]!.price).toBeGreaterThan(list[i - 1]!.price);
-        expect(unlockLevelOf(list[i]!.id)).toBeGreaterThanOrEqual(unlockLevelOf(list[i - 1]!.id));
+        expect(list[i]?.price).toBeGreaterThan(must(list[i - 1]).price);
+        expect(unlockLevelOf(must(list[i]).id)).toBeGreaterThanOrEqual(unlockLevelOf(must(list[i - 1]).id));
       }
     }
     expect(unlockLevelOf('router1')).toBe(4);
     expect(unlockLevelOf('isp1')).toBe(4);
     expect(unlockLevelOf('nic1')).toBe(7);
-    expect(getRouterSpec('router3')!.mbps).toBeGreaterThan(getRouterSpec('router2')!.mbps);
-    expect(getIspSpec('isp5')!.downMbps).toBeGreaterThan(getIspSpec('isp4')!.downMbps);
+    expect(getRouterSpec('router3')?.mbps).toBeGreaterThan(must(getRouterSpec('router2')).mbps);
+    expect(getIspSpec('isp5')?.downMbps).toBeGreaterThan(must(getIspSpec('isp4')).downMbps);
   });
 
   it('effective bandwidth is the minimum and names the binding limiter', () => {
-    const r1 = getRouterSpec('router1')!,
-      r2 = getRouterSpec('router2')!;
-    const i1 = getIspSpec('isp1')!,
-      i3 = getIspSpec('isp3')!;
+    const r1 = must(getRouterSpec('router1')),
+      r2 = must(getRouterSpec('router2'));
+    const i1 = must(getIspSpec('isp1')),
+      i3 = must(getIspSpec('isp3'));
     expect(bandwidth(1000, r2, i3, 2000)).toMatchObject({ downMbps: 1000, binding: 'port' });
-    expect(bandwidth(10000, r1, i3, 2000)).toMatchObject({ downMbps: 100, binding: 'router' });
-    expect(bandwidth(10000, r2, i1, 2000)).toMatchObject({ downMbps: 50, upMbps: 10, binding: 'isp' });
-    expect(bandwidth(10000, r2, i3, 80)).toMatchObject({ downMbps: 80, binding: 'disk' });
-    expect(bandwidth(10000, r2, i3, 80).upMbps).toBe(300); // the disk only limits what is written
+    expect(bandwidth(10_000, r1, i3, 2000)).toMatchObject({ downMbps: 100, binding: 'router' });
+    expect(bandwidth(10_000, r2, i1, 2000)).toMatchObject({ downMbps: 50, upMbps: 10, binding: 'isp' });
+    expect(bandwidth(10_000, r2, i3, 80)).toMatchObject({ downMbps: 80, binding: 'disk' });
+    expect(bandwidth(10_000, r2, i3, 80).upMbps).toBe(300); // the disk only limits what is written
     expect(bandwidth(100, r2, i3, 2000).clients).toBe(4); // min of router (4) and plan (8)
     expect(bandwidth(0, r2, i3, 2000).downMbps).toBe(0);
   });
 
   it('job sizes grow with scale and match the design table', () => {
-    expect(jobSizes('cli', 'log', 1)).toEqual({ downMB: 24, upMB: 2 });
+    expect(jobSizes('cli', 'log', 1)).toStrictEqual({ downMB: 24, upMB: 2 });
     expect(jobSizes('cli', 'checksum', 1).downMB).toBe(30);
-    expect(jobSizes('scan', 'scan', 4)).toEqual({ downMB: 300, upMB: 10 });
+    expect(jobSizes('scan', 'scan', 4)).toStrictEqual({ downMB: 300, upMB: 10 });
     expect(jobSizes('web', 'web', 2).upMB).toBe(25);
   });
 
@@ -81,10 +179,10 @@ describe('net specs and unlocks', () => {
 describe('buying and installing the network parts', () => {
   it('a router goes to the inventory and into its own spot (also while the PC is on); the plan applies at once', () => {
     const g = new Game({ seed: 3, preassembled: true, economy: econ() });
-    g.money = 10000;
+    g.money = 10_000;
     const r = g.purchase('router1');
     expect(r.ok).toBe(true);
-    const inv = g.snapshot().inventory.find((i) => i.spec === 'router1')!;
+    const inv = must(g.snapshot().inventory.find((i) => i.spec === 'router1'));
     expect(inv).toMatchObject({ kind: 'router', freeSlots: ['router'], installable: true });
     expect(g.powered).toBe(true);
     expect(g.install(inv.id).ok).toBe(true); // external: allowed while powered
@@ -96,38 +194,40 @@ describe('buying and installing the network parts', () => {
     expect(g.purchase('isp1').ok).toBe(false); // owned
     expect(g.purchase('router1').ok).toBe(true); // another of the same: a spare
     expect(g.purchase('router2').ok).toBe(true);
-    const up = g.snapshot().inventory.find((i) => i.spec === 'router2')!;
+    const up = must(g.snapshot().inventory.find((i) => i.spec === 'router2'));
     expect(g.install(up.id).ok).toBe(true); // replaces: the old router returns to the inventory
     expect(g.snapshot().inventory.some((i) => i.spec === 'router1')).toBe(true);
   });
 
   it('level gating applies (router1 and isp1 need Level 4) and money is checked', () => {
     const g = new Game({ seed: 3, economy: { ...econ(), levelGating: true }, startLevel: 3 });
-    g.money = 10000;
-    expect(g.purchase('router1')).toMatchObject({ ok: false, reason: expect.stringMatching(/Level 4/) });
+    g.money = 10_000;
+    expect(refusal(g.purchase('router1'))).toMatch(/Level 4/u);
     const g4 = new Game({ seed: 3, economy: { ...econ(), levelGating: true }, startLevel: 4 });
-    expect(g4.purchase('isp1')).toMatchObject({ ok: false, reason: expect.stringMatching(/\$150/) });
-    g4.money = 10000;
+    expect(refusal(g4.purchase('isp1'))).toMatch(/\$150/u);
+    g4.money = 10_000;
     expect(g4.purchase('isp1').ok).toBe(true);
-    expect(g4.purchase('isp2')).toMatchObject({ ok: false, reason: expect.stringMatching(/Level 6/) });
+    expect(refusal(g4.purchase('isp2'))).toMatch(/Level 6/u);
   });
 
   it('the sandbox sells every tier for free', () => {
     const g = new Game({ seed: 3, sandbox: true, preassembled: true, economy: econ() });
     const ids = g.snapshot().purchases.map((p) => p.id);
-    for (const id of ['router1', 'router4', 'isp1', 'isp5', 'nic1', 'nic3']) expect(ids).toContain(id);
+    for (const id of ['router1', 'router4', 'isp1', 'isp5', 'nic1', 'nic3']) {
+      expect(ids).toContain(id);
+    }
     expect(g.purchase('isp5').ok).toBe(true);
-    expect(g.snapshot().purchases.find((p) => p.id === 'isp5')!.price).toBe(0);
+    expect(g.snapshot().purchases.find((p) => p.id === 'isp5')?.price).toBe(0);
   });
 
   it('a NIC card needs a PCIe slot and the cable follows the card', () => {
     const g = netRig('ssd1', { port: 'nic1', wait: false });
-    const nic = g.board.devices.find((d) => d.spec === 'nic1')!;
+    const nic = must(g.board.devices.find((d) => d.spec === 'nic1'));
     tick(g, 1);
     expect(net(g).port).toMatchObject({ kind: 'nic', deviceId: nic.id });
     g.powerButton(); // off
     expect(g.uninstall(nic.id).ok).toBe(true);
-    expect(g.snapshot().cables.find((c) => c.id === 'lan')!.connected).toBe(false);
+    expect(g.snapshot().cables.find((c) => c.id === 'lan')?.connected).toBe(false);
     const s = new Game({ seed: 1, preassembled: true, economy: econ() });
     s.money = 9999;
     expect(s.purchase('nic1').ok).toBe(true); // the Starter board has one PCIe slot, for a network card
@@ -136,13 +236,10 @@ describe('buying and installing the network parts', () => {
 
   it('the cable needs a router and a port; the Starter board has no jack', () => {
     const g = new Game({ seed: 3, preassembled: true, economy: econ() });
-    expect(g.connectCable('lan')).toMatchObject({ ok: false, reason: expect.stringMatching(/router/) });
+    expect(refusal(g.connectCable('lan'))).toMatch(/router/u);
     g.money = 999;
-    g.install((g.purchase('router1') as { invId: string }).invId);
-    expect(g.connectCable('lan')).toMatchObject({
-      ok: false,
-      reason: expect.stringMatching(/no network port|no ethernet jack/),
-    });
+    g.install(bought(g.purchase('router1')));
+    expect(refusal(g.connectCable('lan'))).toMatch(/no network port|no ethernet jack/u);
   });
 });
 
@@ -150,16 +247,17 @@ describe('link states and transitions', () => {
   it('walks no-device, no-cable, no-os, link-up with readable reasons', () => {
     const g = rig('ssd1', { os: false, keys: [] });
     g.purchase('ram2');
-    g.install(g.snapshot().inventory.find((i) => i.spec === 'ram2')!.id);
+    g.install(must(g.snapshot().inventory.find((i) => i.spec === 'ram2')).id);
     expect(nets(g)).toBe('no-device');
-    g.install((g.purchase('router1') as { invId: string }).invId);
+    g.install(bought(g.purchase('router1')));
     g.purchase('isp1');
     tick(g, 1);
     expect(nets(g)).toBe('no-cable');
     expect(g.connectCable('lan').ok).toBe(true);
     tick(g, 1);
-    expect(net(g)).toMatchObject({ state: 'no-os', reason: expect.stringMatching(/OS/) });
-    g.install((g.purchase('os1') as { invId: string }).invId);
+    expect(net(g).state).toBe('no-os');
+    expect(net(g).reason).toMatch(/OS/u);
+    g.install(bought(g.purchase('os1')));
     g.powerButton();
     expect(nets(g)).toBe('down'); // booting
     until(g, () => nets(g) === 'link-up', 600);
@@ -169,7 +267,7 @@ describe('link states and transitions', () => {
 
   it("the network needs no memory beyond the OS's own: an OS machine with 32K of RAM links up", () => {
     const g = rig('ssd1', { keys: [] });
-    g.install((g.purchase('router1') as { invId: string }).invId);
+    g.install(bought(g.purchase('router1')));
     g.purchase('isp1');
     g.connectCable('lan');
     g.powerButton();
@@ -178,7 +276,7 @@ describe('link states and transitions', () => {
       g.advanceBaseTick();
       seen.add(net(g).state);
     }
-    expect(seen.has('link-up') || seen.has('saturated')).toBe(true);
+    expect(['link-up', 'saturated'].some((state) => seen.has(state))).toBe(true);
   });
 
   it('power-off, PSU trip, cable pull and a removed router all take the link down', () => {
@@ -187,7 +285,8 @@ describe('link states and transitions', () => {
     expect(net(g).bandwidth).toMatchObject({ downMbps: 50, binding: 'isp' });
     g.powerButton();
     tick(g, 1);
-    expect(net(g)).toMatchObject({ state: 'down', reason: expect.stringMatching(/off/) });
+    expect(net(g).state).toBe('down');
+    expect(net(g).reason).toMatch(/off/u);
     g.powerButton();
     until(g, () => nets(g) === 'link-up', 600); // reboot: down until the OS is back
     // cable pulled while on, plugged back while on
@@ -210,9 +309,10 @@ describe('link states and transitions', () => {
   it('a burnt NIC card takes the link down with a reason', () => {
     const g = netRig('ssd1', { port: 'nic1' });
     expect(nets(g)).toBe('link-up');
-    g.board.devices.find((d) => d.spec === 'nic1')!.burnt = true;
+    must(g.board.devices.find((d) => d.spec === 'nic1')).burnt = true;
     tick(g, 1);
-    expect(net(g)).toMatchObject({ state: 'down', reason: expect.stringMatching(/burnt/) });
+    expect(net(g).state).toBe('down');
+    expect(net(g).reason).toMatch(/burnt/u);
   });
 
   it('each limiter binds in a real rig: isp, router, port(board), disk', () => {
@@ -234,17 +334,17 @@ describe('transfers and the flow of a job', () => {
     const money0 = g.money;
     offer(g, 'cli.log');
     tick(g, 1);
-    const t = net(g).transfers[0]!;
+    const t = must(net(g).transfers[0]);
     expect(t).toMatchObject({ dir: 'down', totalMB: 24 });
     // 50 Mbit = 6.25 MB per tick: 24 MB takes 4 ticks (one is already done)
     expect(t.etaTicks).toBe(3);
-    until(g, () => net(g).transfers.length === 0 && g.snapshot().os!.queue.length > 0, 200);
+    until(g, () => downloadedAndQueued(g), 200);
     expect(g.money).toBe(money0); // no payout yet
     until(g, () => g.snapshot().progress.firstNetJob, 3000);
     expect(g.money).toBeGreaterThan(money0);
     expect(g.snapshot().completed).toBe(1);
     expect(net(g).counters).toMatchObject({ downloaded: 1, uploaded: 1, delivered: 1 });
-    expect(g.snapshot().os!.spool.used).toBe(0); // the slot is freed at delivery
+    expect(g.snapshot().os?.spool.used).toBe(0); // the slot is freed at delivery
   });
 
   it('two concurrent downloads share the bandwidth (twice as long)', () => {
@@ -254,7 +354,7 @@ describe('transfers and the flow of a job', () => {
     tick(g, 1);
     const s = net(g).transfers;
     expect(s).toHaveLength(2);
-    expect(s[0]!.etaTicks).toBe(7); // 24 MB at 3.125 MB per tick each
+    expect(s[0]?.etaTicks).toBe(7); // 24 MB at 3.125 MB per tick each
   });
 
   it('downloads continue in the background while another job runs, and one program runs at a time', () => {
@@ -265,34 +365,29 @@ describe('transfers and the flow of a job', () => {
     // Proves: while a job runs, a download still moves (sawBoth); never two programs run at once (maxRunning); all three jobs finish.
     // It takes a snapshot per tick (the cost) up to the third completion, then ticks on to 1500 without them: no job runs again, none
     // completes a fourth time.
-    let maxRunning = 0,
-      sawBoth = false,
-      completed = 0,
-      i = 0;
-    for (; i < 1500 && completed < 3; i++) {
-      g.advanceBaseTick();
-      const s = g.snapshot();
-      maxRunning = Math.max(maxRunning, s.os!.queue.filter((j) => j.state === 'running').length);
-      if (s.os!.queue.some((j) => j.state === 'running') && s.net.transfers.length > 0) sawBoth = true;
-      completed = s.completed;
-    }
+    const { maxRunning, sawBoth, completed, ticks } = watchThreeJobs(g);
+    let i = ticks;
     expect(maxRunning).toBe(1);
     expect(sawBoth).toBe(true);
     expect(completed).toBe(3);
-    for (; i < 1500; i++) g.advanceBaseTick();
+    for (; i < 1500; i++) {
+      g.advanceBaseTick();
+    }
     const end = g.snapshot();
     expect(end.completed).toBe(3);
-    expect(end.os!.queue.filter((j) => j.state === 'running')).toHaveLength(0);
+    expect(end.os?.queue.filter((j) => j.state === 'running')).toHaveLength(0);
   });
 
   it('the reservation counts downloads: never more jobs than queue slots', () => {
     const g = netRig('ssd1');
-    for (let i = 0; i < 8; i++) offer(g);
+    for (let i = 0; i < 8; i++) {
+      offer(g);
+    }
     for (let i = 0; i < 300; i++) {
       g.advanceBaseTick();
       const s = g.snapshot();
       expect(s.net.transfers.filter((t) => t.dir === 'down').length + s.net.spooled.length).toBeLessThanOrEqual(
-        s.os!.queueSlots,
+        must(s.os).queueSlots,
       );
     }
   });
@@ -302,7 +397,7 @@ describe('transfers and the flow of a job', () => {
     offer(g);
     tick(g, 1);
     expect(net(g).bandwidth.binding).toBe('disk');
-    expect(net(g).transfers[0]!.etaTicks).toBe(2); // 24 MB at 10 MB per tick: three ticks in all
+    expect(net(g).transfers[0]?.etaTicks).toBe(2); // 24 MB at 10 MB per tick: three ticks in all
   });
 
   it('no USB waits apply to network jobs', () => {
@@ -315,23 +410,19 @@ describe('transfers and the flow of a job', () => {
 });
 
 describe("the uplink port's frames (the jacks' activity lights follow them)", () => {
-  const frames = (g: Game) => net(g).frames;
-  /** The frames `mb` megabytes make: the data one way, the acknowledgements the other. */
-  const data = (mb: number): number => (mb * 1e6) / NET.frameBytes;
-
   it('are counted from 0, and stay there while nothing moves', () => {
     const g = netRig('ssd1');
     tick(g, 5);
-    expect(frames(g)).toEqual({ rx: 0, tx: 0 });
+    expect(frames(g)).toStrictEqual({ rx: 0, tx: 0 });
   });
 
   it('follow a download as it moves: the data frames in, an acknowledgement out for every second one', () => {
     const g = netRig('ssd1');
     offer(g, 'cli.log');
     tick(g, 1); // 6.25 MB moved
-    expect(frames(g)).toEqual({ rx: Math.round(data(6.25)), tx: Math.round(data(6.25) / NET.ackEvery) });
+    expect(frames(g)).toStrictEqual({ rx: Math.round(data(6.25)), tx: Math.round(data(6.25) / NET.ackEvery) });
     tick(g, 1);
-    expect(frames(g)).toEqual({ rx: Math.round(data(12.5)), tx: Math.round(data(12.5) / NET.ackEvery) });
+    expect(frames(g)).toStrictEqual({ rx: Math.round(data(12.5)), tx: Math.round(data(12.5) / NET.ackEvery) });
   });
 
   it('count a whole download exactly, not a tick more: the last tick moves only what is left', () => {
@@ -339,7 +430,7 @@ describe("the uplink port's frames (the jacks' activity lights follow them)", ()
     offer(g, 'cli.log');
     until(g, () => net(g).counters.downloaded === 1, 50);
     // (24 MB at 6.25 MB a tick: three whole ticks and 5.25 MB of the fourth)
-    expect(frames(g)).toEqual({ rx: data(24), tx: data(24) / NET.ackEvery });
+    expect(frames(g)).toStrictEqual({ rx: data(24), tx: data(24) / NET.ackEvery });
   });
 
   it('count the result going out the other way: its data frames out, the acknowledgements in', () => {
@@ -347,7 +438,7 @@ describe("the uplink port's frames (the jacks' activity lights follow them)", ()
     offer(g, 'cli.log');
     until(g, () => g.snapshot().progress.firstNetJob, 3000);
     // (24 MB down, then the 2 MB result up)
-    expect(frames(g)).toEqual({
+    expect(frames(g)).toStrictEqual({
       rx: Math.round(data(24) + data(2) / NET.ackEvery),
       tx: Math.round(data(24) / NET.ackEvery + data(2)),
     });
@@ -361,7 +452,7 @@ describe("the uplink port's frames (the jacks' activity lights follow them)", ()
     offer(two);
     tick(one, 1);
     tick(two, 1);
-    expect(frames(two)).toEqual(frames(one));
+    expect(frames(two)).toStrictEqual(frames(one));
   });
 
   it('follow the bandwidth: a faster plan carries more frames in the same time', () => {
@@ -382,7 +473,7 @@ describe("the uplink port's frames (the jacks' activity lights follow them)", ()
     expect(before.rx).toBeGreaterThan(0);
     expect(g.disconnectCable('lan').ok).toBe(true);
     tick(g, 5);
-    expect(frames(g)).toEqual(before);
+    expect(frames(g)).toStrictEqual(before);
   });
 
   it('only grow, and are not saved: a loaded game counts from 0', () => {
@@ -395,8 +486,9 @@ describe("the uplink port's frames (the jacks' activity lights follow them)", ()
       last = frames(g).rx;
     }
     expect(last).toBeGreaterThan(0);
-    const h = Game.fromSave(JSON.parse(JSON.stringify(g.toSave())), { ...econ([]) });
-    expect(h.snapshot().net.frames).toEqual({ rx: 0, tx: 0 });
+    const stored = JSON.stringify(g.toSave()),
+      h = Game.fromSave(JSON.parse(stored), { ...econ([]) });
+    expect(h.snapshot().net.frames).toStrictEqual({ rx: 0, tx: 0 });
   });
 });
 
@@ -445,18 +537,18 @@ describe('spool and power loss', () => {
     offer(g, 'cli.scan', 4);
     offer(g, 'cli.log');
     // wait until the log job is spooled while the scan is still running or downloading
-    until(g, () => net(g).spooled.length >= 1, 800);
+    until(g, () => net(g).spooled.length > 0, 800);
     const spooledIds = net(g).spooled.map((k) => k.id);
-    const downloading = net(g)
-      .transfers.filter((t) => t.dir === 'down')
-      .map((t) => t.jobId);
+    const wereDownloading = downloading(g);
     g.powerButton(); // off
     const s = g.snapshot();
-    expect(s.net.spooled.map((k) => k.id)).toEqual(spooledIds); // still on the drive
+    expect(s.net.spooled.map((k) => k.id)).toStrictEqual(spooledIds); // still on the drive
     expect(s.net.transfers).toHaveLength(0);
-    for (const id of downloading) expect(s.net.offers.some((k) => k.id === id && k.attempts === 2)).toBe(true);
+    for (const id of wereDownloading) {
+      expect(s.net.offers.find((k) => k.id === id)?.attempts).toBe(2);
+    }
     g.powerButton();
-    until(g, () => g.snapshot().os?.queue.length === spooledIds.length || g.snapshot().completed > 0, 1200);
+    until(g, () => queuedOrDelivered(g, spooledIds.length), 1200);
     until(g, () => g.snapshot().completed >= 2, 4000);
     expect(g.snapshot().completed).toBeGreaterThanOrEqual(2);
   });
@@ -475,40 +567,39 @@ describe('spool and power loss', () => {
 
   it('disk full: a full spool keeps offers waiting (not refused) and never exceeds the slots', () => {
     const g = netRig('hdd0', { isp: 'isp1' });
-    const slots = g.snapshot().os!.queueSlots;
-    for (let i = 0; i < slots + 3; i++) offer(g);
+    const slots = must(g.snapshot().os).queueSlots;
+    for (let i = 0; i < slots + 3; i++) {
+      offer(g);
+    }
     tick(g, 5);
     const s = g.snapshot();
     expect(s.net.offers.length).toBeGreaterThan(0);
-    expect(s.os!.spool.used).toBeLessThanOrEqual(slots);
+    expect(s.os?.spool.used).toBeLessThanOrEqual(slots);
   });
 });
 
 describe('declining and expiry', () => {
   it('an offer or a spooled job can be declined, a running one cannot; web needs the link', () => {
     const g = netRig('ssd1');
-    const slots = g.snapshot().os!.queueSlots;
-    for (let i = 0; i < slots + 1; i++) offer(g);
+    const slots = must(g.snapshot().os).queueSlots;
+    for (let i = 0; i < slots + 1; i++) {
+      offer(g);
+    }
     tick(g, 2);
-    const waiting = net(g).offers[0]!;
+    const waiting = must(net(g).offers[0]);
     expect(waiting.declinable).toBe(true);
     expect(g.declineKey(waiting.id).ok).toBe(true);
     expect(g.snapshot().declined).toBe(1);
-    const dl = net(g).transfers[0]!;
+    const dl = must(net(g).transfers[0]);
     expect(g.declineKey(dl.jobId).ok).toBe(false); // downloading
   });
 
   it('an unrunnable offer (web, no link) expires with the penalty', () => {
     const g = netRig('ssd1', { wait: false });
     // never linked: a web offer sits and expires at its deadline
-    (g as unknown as { enqueue(t: string, s: number, c: string, n: boolean): boolean }).enqueue(
-      'cli.calc',
-      2,
-      'web',
-      true,
-    );
-    const dl = g.snapshot().net.offers[0]!.expiresTick;
-    expect(g.snapshot().net.offers[0]!.runnable).toBe(false);
+    g.enqueue('cli.calc', 2, 'web', true);
+    const dl = must(g.snapshot().net.offers[0]).expiresTick;
+    expect(g.snapshot().net.offers[0]?.runnable).toBe(false);
     g.disconnectCable('lan');
     tick(g, dl + 2);
     expect(g.snapshot().expired).toBe(1);
@@ -520,13 +611,14 @@ describe('save and determinism', () => {
     const g = netRig('ssd1');
     offer(g);
     offer(g);
-    until(g, () => net(g).spooled.length >= 1, 800);
-    const save = JSON.parse(JSON.stringify(g.toSave()));
+    until(g, () => net(g).spooled.length > 0, 800);
+    const save = g.toSave();
     expect(save.net).toMatchObject({ ispTier: 1, routerTier: 1, lan: 'board', networkLinked: true });
-    expect(save.cables.lan).toBe(true);
-    const h = Game.fromSave(save, { ...econ([]) });
+    expect(save.cables['lan']).toBe(true);
+    const stored = JSON.stringify(save),
+      h = Game.fromSave(JSON.parse(stored), { ...econ([]) });
     const s = h.snapshot();
-    expect(s.cables.find((c) => c.id === 'lan')!.connected).toBe(true);
+    expect(s.cables.find((c) => c.id === 'lan')?.connected).toBe(true);
     expect(s.net.usbRetired).toBe(true);
     expect(s.net.isp?.id).toBe('isp1');
     expect(s.net.spooled.length + s.net.offers.length).toBeGreaterThanOrEqual(2);
@@ -536,24 +628,21 @@ describe('save and determinism', () => {
 
   it('an old v4 save without a net block loads with defaults', () => {
     const g = rig('ssd1', { keys: [] });
-    const save = JSON.parse(JSON.stringify(g.toSave()));
-    delete save.net;
-    delete save.cables.lan;
-    for (const k of ['ispBought', 'routerInstalled', 'lanConnected', 'linkUp', 'firstNetJob']) delete save.progress[k];
-    const h = Game.fromSave(save, { ...econ([]) });
+    const full = g.toSave();
+    const netProgress = new Set(['ispBought', 'routerInstalled', 'lanConnected', 'linkUp', 'firstNetJob']);
+    const save = {
+      ...Object.fromEntries(Object.entries(full).filter(([k]) => k !== 'net')),
+      cables: Object.fromEntries(Object.entries(full.cables).filter(([k]) => k !== 'lan')),
+      progress: Object.fromEntries(Object.entries(full.progress).filter(([k]) => !netProgress.has(k))),
+    };
+    const stored = JSON.stringify(save),
+      h = Game.fromSave(JSON.parse(stored), { ...econ([]) });
     expect(h.snapshot().net.state).toBe('no-device');
     expect(h.snapshot().progress.linkUp).toBe(false);
   });
 
   it('is deterministic: the same seed gives the same outcome', () => {
-    const run = (): string => {
-      const g = netRig('ssd1', { seed: 11 });
-      g.cfg.baseDemandPerTick = 0.1;
-      tick(g, 800);
-      const s = g.snapshot();
-      return JSON.stringify([s.money, s.completed, s.reputation, s.net.counters, s.baseTick]);
-    };
-    expect(run()).toBe(run());
+    expect(seededOutcome()).toBe(seededOutcome());
   });
 });
 
@@ -562,9 +651,13 @@ describe('host messages', () => {
     const { handleMessage, newHost } = await import('@/worker/host');
     const st = newHost();
     handleMessage(st, { type: 'init', seed: 1, preassembled: true });
-    st.game!.money = 9999;
+    must(st.game).money = 9999;
     handleMessage(st, { type: 'purchase', id: 'router1' });
-    const inv = st.game!.snapshot().inventory.find((i) => i.spec === 'router1')!;
+    const inv = must(
+      must(st.game)
+        .snapshot()
+        .inventory.find((i) => i.spec === 'router1'),
+    );
     handleMessage(st, { type: 'install', invId: inv.id });
     const out = handleMessage(st, { type: 'connectCable', cable: 'lan', port: 'board' });
     expect(out.some((m) => m.type === 'error')).toBe(true); // the Starter board has no jack
@@ -572,21 +665,14 @@ describe('host messages', () => {
 });
 
 describe('web jobs: the SLA, the client slots and the admission order', () => {
-  const offerIds = (g: Game): number[] => net(g).offers.map((o) => o.id);
-  const downloading = (g: Game): number[] =>
-    net(g)
-      .transfers.filter((t) => t.dir === 'down')
-      .map((t) => t.jobId);
-
   it('the SLA pay factor is 1 within the SLA, falls in a line to the late factor at the deadline and stays there', () => {
-    const f = (t: number): number => slaFactor(ECONOMY, t, 100, 300);
-    expect(f(0)).toBe(1);
-    expect(f(100)).toBe(1);
-    expect(f(200)).toBeCloseTo((1 + ECONOMY.lateFactor) / 2);
-    expect(f(300)).toBe(ECONOMY.lateFactor);
-    expect(f(900)).toBe(ECONOMY.lateFactor);
-    expect(f(101)).toBeLessThan(1);
-    expect(f(101)).toBeGreaterThan(f(102));
+    expect(slaAt(0)).toBe(1);
+    expect(slaAt(100)).toBe(1);
+    expect(slaAt(200)).toBeCloseTo((1 + ECONOMY.lateFactor) / 2);
+    expect(slaAt(300)).toBe(ECONOMY.lateFactor);
+    expect(slaAt(900)).toBe(ECONOMY.lateFactor);
+    expect(slaAt(101)).toBeLessThan(1);
+    expect(slaAt(101)).toBeGreaterThan(slaAt(102));
   });
 
   it('only the web class has an SLA; its tick is the arrival plus the SLA scaled like the deadline', () => {
@@ -595,56 +681,48 @@ describe('web jobs: the SLA, the client slots and the admission order', () => {
     offer(g, 'web.page', 2);
     offer(g, 'cli.log');
     const [web, plain] = net(g).offers;
-    expect(web!.cls).toBe('web');
-    expect(plain!.slaTick).toBeUndefined();
-    const deadline = web!.deadlineTick - web!.arrivalTick;
-    expect(web!.slaTick! - web!.arrivalTick).toBe(Math.round((120 * deadline) / ECONOMY.deadlineTicks));
+    expect(web?.cls).toBe('web');
+    expect(must(plain).slaTick).toBeUndefined();
+    const deadline = must(web).deadlineTick - must(web).arrivalTick;
+    expect(must(must(web).slaTick) - must(web).arrivalTick).toBe(Math.round((120 * deadline) / ECONOMY.deadlineTicks));
   });
 
   it('the payout estimate holds until the SLA runs out, then falls to the late factor at the deadline', () => {
     const g = netRig('ssd1', { isp: 'isp2', router: 'router2' });
     g.disconnectCable('lan');
     offer(g, 'web.page', 2);
-    const o0 = net(g).offers[0]!;
+    const o0 = must(net(g).offers[0]);
     const full = o0.payoutEstimate;
-    until(g, () => g.snapshot().baseTick >= o0.slaTick!, 2000);
-    expect(net(g).offers[0]!.payoutEstimate).toBe(full);
-    tick(g, Math.round((o0.deadlineTick - o0.slaTick!) / 2));
-    const mid = net(g).offers[0]!.payoutEstimate;
+    until(g, () => g.snapshot().baseTick >= must(o0.slaTick), 2000);
+    expect(net(g).offers[0]?.payoutEstimate).toBe(full);
+    tick(g, Math.round((o0.deadlineTick - must(o0.slaTick)) / 2));
+    const mid = must(net(g).offers[0]).payoutEstimate;
     expect(mid).toBeLessThan(full);
     expect(mid).toBeGreaterThan(Math.round(full * ECONOMY.lateFactor));
     tick(g, o0.deadlineTick - g.snapshot().baseTick - 1);
-    expect(net(g).offers[0]!.payoutEstimate).toBeLessThanOrEqual(Math.round(full * (ECONOMY.lateFactor + 0.02)));
+    expect(net(g).offers[0]?.payoutEstimate).toBeLessThanOrEqual(Math.round(full * (ECONOMY.lateFactor + 0.02)));
   });
 
   it('a web job delivered late pays less than the same job delivered on time', () => {
-    const run = (stall: boolean): number => {
-      const g = netRig('ssd1', { isp: 'isp2', router: 'router2' });
-      if (stall) g.disconnectCable('lan');
-      offer(g, 'web.page', 2);
-      if (stall) {
-        const o = net(g).offers[0]!;
-        until(g, () => g.snapshot().baseTick >= o.slaTick! + (o.deadlineTick - o.slaTick!) / 2, 2000);
-        g.connectCable('lan');
-      }
-      until(g, () => g.snapshot().progress.firstNetJob, 4000);
-      return g.snapshot().lastCompleted!.payout;
-    };
-    const onTime = run(false),
-      late = run(true);
+    const onTime = webPayout(false),
+      late = webPayout(true);
     expect(late).toBeLessThan(onTime);
     expect(late).toBeGreaterThan(0);
   });
 
   it('router1 (2 clients) holds back a third transfer, router2 (4) does not', () => {
     const slow = netRig('ssd1', { isp: 'isp2', router: 'router1' });
-    for (let i = 0; i < 3; i++) offer(slow);
+    for (let i = 0; i < 3; i++) {
+      offer(slow);
+    }
     tick(slow, 1);
     expect(downloading(slow)).toHaveLength(2);
     expect(net(slow).offers).toHaveLength(1);
     expect(nets(slow)).toBe('saturated');
     const fast = netRig('ssd1', { isp: 'isp2', router: 'router2' });
-    for (let i = 0; i < 3; i++) offer(fast);
+    for (let i = 0; i < 3; i++) {
+      offer(fast);
+    }
     tick(fast, 1);
     expect(downloading(fast)).toHaveLength(3);
     expect(net(fast).offers).toHaveLength(0);
@@ -655,14 +733,7 @@ describe('web jobs: the SLA, the client slots and the admission order', () => {
     offer(g, 'cli.log');
     offer(g, 'cli.scan', 4);
     offer(g, 'cli.scan', 4);
-    let sawWaiting = false,
-      maxActive = 0;
-    for (let i = 0; i < 4000 && g.snapshot().completed < 3; i++) {
-      g.advanceBaseTick();
-      const n = net(g);
-      if (n.uploadsWaiting > 0) sawWaiting = true;
-      maxActive = Math.max(maxActive, n.transfers.length);
-    }
+    const { sawWaiting, maxActive } = watchUploads(g);
     expect(g.snapshot().completed).toBe(3);
     expect(sawWaiting).toBe(true);
     expect(maxActive).toBeLessThanOrEqual(2); // both directions count against the cap
@@ -676,8 +747,10 @@ describe('web jobs: the SLA, the client slots and the admission order', () => {
     tick(g, 1);
     offer(g, 'cli.log'); // older, not web
     offer(g, 'web.page', 2); // newer, web
-    const [older, newer] = offerIds(g) as [number, number];
-    const first = until(g, () => downloading(g).some((id) => id === older || id === newer), 200);
+    const [olderId, newerId] = offerIds(g),
+      older = must(olderId),
+      newer = must(newerId);
+    const first = until(g, () => downloading(g).some((id) => [older, newer].includes(id)), 200);
     expect(first).toBeGreaterThan(0);
     expect(downloading(g)).toContain(newer);
     expect(downloading(g)).not.toContain(older);
@@ -688,21 +761,30 @@ describe('web jobs: the SLA, the client slots and the admission order', () => {
     tick(h, 1);
     offer(h, 'cli.log');
     offer(h, 'cli.log');
-    const [a, b] = offerIds(h) as [number, number];
-    until(h, () => downloading(h).some((id) => id === a || id === b), 200);
+    const [aId, bId] = offerIds(h),
+      a = must(aId),
+      b = must(bId);
+    until(h, () => downloading(h).some((id) => [a, b].includes(id)), 200);
     expect(downloading(h)).toContain(a);
     expect(downloading(h)).not.toContain(b);
   });
 
   it('pickOffer: an older age band goes first, web first inside a band, then the oldest', () => {
-    const o = (id: number, arrival: number, cls: string) => ({ id, arrival, cls });
-    const any = () => true;
     const band = NET.ageBandTicks;
     const now = 10 * band;
-    expect(pickOffer([o(1, now - 3 * band - 10, 'cli'), o(2, now - 3 * band - 5, 'web')], now, band, any)!.id).toBe(2); // same band: web first
-    expect(pickOffer([o(1, now - 3 * band - 1, 'cli'), o(2, now - band, 'web')], now, band, any)!.id).toBe(1); // older band beats web
-    expect(pickOffer([o(1, now - 2 * band, 'cli'), o(2, now - 2 * band, 'cli')], now, band, any)!.id).toBe(1); // oldest first
-    expect(pickOffer([o(1, now - 2 * band, 'web'), o(2, now - 2 * band, 'web')], now, band, any)!.id).toBe(1);
-    expect(pickOffer([o(1, 0, 'cli')], now, band, () => false)).toBeUndefined();
+    expect(
+      pickOffer([pending(1, now - 3 * band - 10, 'cli'), pending(2, now - 3 * band - 5, 'web')], now, band, anyOffer)
+        ?.id,
+    ).toBe(2); // same band: web first
+    expect(
+      pickOffer([pending(1, now - 3 * band - 1, 'cli'), pending(2, now - band, 'web')], now, band, anyOffer)?.id,
+    ).toBe(1); // older band beats web
+    expect(
+      pickOffer([pending(1, now - 2 * band, 'cli'), pending(2, now - 2 * band, 'cli')], now, band, anyOffer)?.id,
+    ).toBe(1); // oldest first
+    expect(
+      pickOffer([pending(1, now - 2 * band, 'web'), pending(2, now - 2 * band, 'web')], now, band, anyOffer)?.id,
+    ).toBe(1);
+    expect(pickOffer([pending(1, 0, 'cli')], now, band, () => false)).toBeUndefined();
   });
 });
