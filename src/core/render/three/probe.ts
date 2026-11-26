@@ -11,14 +11,10 @@ import {
   Scene,
   ShaderMaterial,
   WebGLCubeRenderTarget,
-  type Camera,
-  type CubeTexture,
-  type Light,
-  type LightShadow,
-  type Object3D,
-  type WebGLRenderer,
 } from 'three';
-import { startPrograms, type Program } from './compile';
+import type * as threeTypes from 'three';
+import { startPrograms } from './compile';
+import type * as compileTypes from './compile';
 
 /** The cube's size: the PMREM's least (256), the same as the studio environment's, so a material keeps its program when it changes to the probe. */
 const SIZE = 256;
@@ -42,25 +38,32 @@ void main() { vec3 c = textureCube(env, vDir).rgb; gl_FragColor = vec4(mix(c, ve
  * again in that draw and in the next frame's (CITY-06: each of a capture's frames took twice a frame's script time). A light at no strength
  * lights as a hidden one does, so the capture is the same picture. A root with no shown light is hidden whole.
  */
-function leaveOut(root: Object3D): () => void {
-  const lights: (Light & { shadow?: LightShadow })[] = [];
+type Lit = threeTypes.Light & { shadow?: threeTypes.LightShadow };
+
+function leaveOut(root: threeTypes.Object3D): () => void {
+  const lights: Lit[] = [];
   root.traverseVisible((o) => {
-    if ((o as Light).isLight) lights.push(o as Light);
+    if ((o as threeTypes.Light).isLight) {
+      lights.push(o as threeTypes.Light);
+    }
   });
-  if (!lights.length) {
+  if (lights.length === 0) {
     const shown = root.visible;
     root.visible = false;
     return () => {
       root.visible = shown;
     };
   }
-  // what leads to a light stays in three's walk; the rest is hidden whole
-  const kept = new Set<Object3D>();
-  for (const l of lights)
-    for (let o: Object3D | null = l; o && !kept.has(o); o = o === root ? null : o.parent) kept.add(o);
-  const hidden: Object3D[] = [],
-    layers: [Object3D, number][] = [];
-  const walk = (o: Object3D): void => {
+  return leaveOutLit(root, lights);
+}
+
+function hideAside(
+  root: threeTypes.Object3D,
+  kept: Set<threeTypes.Object3D>,
+): { hidden: threeTypes.Object3D[]; layers: [threeTypes.Object3D, number][] } {
+  const hidden: threeTypes.Object3D[] = [],
+    layers: [threeTypes.Object3D, number][] = [];
+  const walk = (o: threeTypes.Object3D): void => {
     for (const c of o.children) {
       if (!kept.has(c)) {
         if (c.visible) {
@@ -70,7 +73,7 @@ function leaveOut(root: Object3D): () => void {
         continue;
       }
       // an object over a light leaves by its layers: three does not draw it and still walks to its children
-      if (!(c as Light).isLight) {
+      if (!(c as threeTypes.Light).isLight) {
         layers.push([c, c.layers.mask]);
         c.layers.mask = 0;
       }
@@ -78,24 +81,57 @@ function leaveOut(root: Object3D): () => void {
     }
   };
   walk(root);
+  return { hidden, layers };
+}
+
+function restoreOut(s: {
+  hidden: threeTypes.Object3D[];
+  layers: [threeTypes.Object3D, number][];
+  lights: Lit[];
+  strengths: number[];
+  owed: Lit[];
+}): void {
+  const { hidden, layers, lights, strengths, owed } = s;
+  for (const o of hidden) {
+    o.visible = true;
+  }
+  for (const [o, mask] of layers) {
+    o.layers.mask = mask;
+  }
+  lights.forEach((l, i) => {
+    l.intensity = strengths[i]!;
+  });
+  for (const l of owed) {
+    l.shadow!.needsUpdate = true;
+  }
+}
+
+function leaveOutLit(root: threeTypes.Object3D, lights: Lit[]): () => void {
+  // what leads to a light stays in three's walk; the rest is hidden whole
+  const kept = new Set<threeTypes.Object3D>();
+  for (const l of lights) {
+    for (let o: threeTypes.Object3D | null = l; o && !kept.has(o); o = o === root ? null : o.parent) {
+      kept.add(o);
+    }
+  }
+  const { hidden, layers } = hideAside(root, kept);
   // a shadow map owed is drawn by the next frame, with the root in it
   const strengths = lights.map((l) => l.intensity),
     owed = lights.filter((l) => l.shadow?.needsUpdate);
-  for (const l of lights) l.intensity = 0;
-  for (const l of owed) l.shadow!.needsUpdate = false;
+  for (const l of lights) {
+    l.intensity = 0;
+  }
+  for (const l of owed) {
+    l.shadow!.needsUpdate = false;
+  }
   return () => {
-    for (const o of hidden) o.visible = true;
-    for (const [o, mask] of layers) o.layers.mask = mask;
-    lights.forEach((l, i) => {
-      l.intensity = strengths[i]!;
-    });
-    for (const l of owed) l.shadow!.needsUpdate = true;
+    restoreOut({ hidden, layers, lights, strengths, owed });
   };
 }
 
 /** What a probe draws with: the renderer's target and its draw (a stub in the tests). */
 type Drawer = Pick<
-  WebGLRenderer,
+  threeTypes.WebGLRenderer,
   'getRenderTarget' | 'getActiveCubeFace' | 'getActiveMipmapLevel' | 'setRenderTarget' | 'render' | 'coordinateSystem'
 >;
 
@@ -136,12 +172,12 @@ export class Probe {
   }
 
   /** Starts linking the calm pass's program (`compile.ts`): the first capture's end would link it then, in a frame of the page. */
-  startPrograms(r: WebGLRenderer): Program[] {
-    return this.wash && this.outCam ? startPrograms(r, this.wash, this.outCam.children[0] as Camera) : [];
+  startPrograms(r: threeTypes.WebGLRenderer): compileTypes.Program[] {
+    return this.wash && this.outCam ? startPrograms(r, this.wash, this.outCam.children[0] as threeTypes.Camera) : [];
   }
 
   /** The cube a material takes as its `envMap` (once `ready`): three prefilters it again after each capture. */
-  get texture(): CubeTexture {
+  get texture(): threeTypes.CubeTexture {
     return (this.out ?? this.target).texture;
   }
 
@@ -158,16 +194,21 @@ export class Probe {
 
   /** Capture again; one under way ends first, then the new one starts. */
   request(): void {
-    if (this.face < 0) this.face = 0;
-    else this.again = true;
+    if (this.face < 0) {
+      this.face = 0;
+    } else {
+      this.again = true;
+    }
   }
 
   /**
    * Draws the capture's next face; true when that ended a capture (the texture is new). `hide` (the machine's root) is left out of the face's
    * draw only (`leaveOut`): it is put back in the same call, so the frame never sees it hidden and the case does not reflect itself.
    */
-  step(renderer: Drawer, scene: Object3D, hide: Object3D | null = null): boolean {
-    if (this.face < 0) return false;
+  step(renderer: Drawer, scene: threeTypes.Object3D, hide: threeTypes.Object3D | null = null): boolean {
+    if (this.face < 0) {
+      return false;
+    }
     if (this.cam.coordinateSystem !== renderer.coordinateSystem) {
       this.cam.coordinateSystem = renderer.coordinateSystem;
       this.cam.updateCoordinateSystem();
@@ -177,10 +218,12 @@ export class Probe {
       wasLevel = renderer.getActiveMipmapLevel();
     const back = hide ? leaveOut(hide) : null;
     renderer.setRenderTarget(this.target, this.face);
-    renderer.render(scene, this.cam.children[this.face] as Camera);
+    renderer.render(scene, this.cam.children[this.face] as threeTypes.Camera);
     renderer.setRenderTarget(was, wasFace, wasLevel);
     back?.();
-    if (++this.face < 6) return false;
+    if (++this.face < 6) {
+      return false;
+    }
     if (this.out && this.outCam && this.wash) {
       // the calm pass: six small draws of one box, at the capture's end only
       if (this.outCam.coordinateSystem !== renderer.coordinateSystem) {
@@ -189,7 +232,7 @@ export class Probe {
       }
       for (let i = 0; i < 6; i++) {
         renderer.setRenderTarget(this.out, i);
-        renderer.render(this.wash, this.outCam.children[i] as Camera);
+        renderer.render(this.wash, this.outCam.children[i] as threeTypes.Camera);
       }
       renderer.setRenderTarget(was, wasFace, wasLevel);
     }

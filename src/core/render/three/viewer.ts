@@ -11,7 +11,6 @@ import {
   Mesh,
   MeshStandardMaterial,
   NoColorSpace,
-  type Object3D,
   PCFShadowMap,
   PMREMGenerator,
   PerspectiveCamera,
@@ -20,16 +19,20 @@ import {
   Vector3,
   WebGLRenderer,
 } from 'three';
+import type * as threeTypes from 'three';
 import { effect } from '@preact/signals';
 import { effective, FrameGate, pixelRatio } from '@/app/graphics';
-import { applyView, stepView, zoomAbout, type OrbitView } from './camera';
+import { applyView, stepView, zoomAbout } from './camera';
+import type * as cameraTypes from './camera';
 import { ProgramGate, startPrograms, startShadowPrograms } from './compile';
 import { SEG, anisotropy, refilter } from './geometry';
 import { warmLateModels } from './gltf';
-import { turnOf, type Pt } from './gesture';
+import { turnOf } from './gesture';
+import type * as gestureTypes from './gesture';
 import { disposeRenderContext, restoreStudioEnv, studioEnv, trackRender } from './init';
 import { DrawGate, STILL_PX, ViewWatch, frameDt } from './ondemand';
-import { attachPad, type PadHost } from './pad';
+import { attachPad } from './pad';
+import type * as padTypes from './pad';
 import { pickPoint } from './pick';
 
 /** The strips of the stage that panels float over (CSS pixels): the part is framed and centred in what is left. */
@@ -42,7 +45,7 @@ export interface StageInsets {
 
 export interface Viewer {
   /** Show another part (null: an empty stage). The old one is disposed. */
-  setObject: (o: Object3D | null) => void;
+  setObject: (o: threeTypes.Object3D | null) => void;
   /** Keep the part clear of the panels over the stage (Gallery: the categories and the dock). Zero all round: the whole stage. */
   setInsets: (i: StageInsets) => void;
   /** Back to the first view. */
@@ -82,7 +85,7 @@ export function frameView(
   yaw: number,
   pitch: number,
   base = Math.max(size.x, size.y, size.z, 1) * 1.05,
-): OrbitView {
+): cameraTypes.OrbitView {
   return { x: centre.x, y: centre.y, z: centre.z, yaw, pitch, fov: FOV, height: base * zoom };
 }
 
@@ -109,12 +112,14 @@ export function holdHeight(size: Vector3, centre: Vector3, w: number, h: number,
         w / h,
       );
       probe.updateMatrixWorld(true);
-      for (const sx of [-0.5, 0.5])
-        for (const sy of [-0.5, 0.5])
+      for (const sx of [-0.5, 0.5]) {
+        for (const sy of [-0.5, 0.5]) {
           for (const sz of [-0.5, 0.5]) {
             corner.set(centre.x + sx * size.x, centre.y + sy * size.y, centre.z + sz * size.z).project(probe);
             widest = Math.max(widest, Math.abs(corner.x) / halfW, Math.abs(corner.y) / halfH);
           }
+        }
+      }
     }
     height *= Math.max(widest, 0.05) * FIT;
   }
@@ -137,14 +142,19 @@ function floorFade(): CanvasTexture {
   return t;
 }
 
-function disposeTree(o: Object3D): void {
+function disposeTree(o: threeTypes.Object3D): void {
   o.traverse((n) => {
     const m = n as Mesh;
-    if (!m.isMesh) return;
+    if (!m.isMesh) {
+      return;
+    }
     m.geometry.dispose();
     for (const x of Array.isArray(m.material) ? m.material : [m.material]) {
-      for (const v of Object.values(x))
-        if (v && typeof v === 'object' && 'isTexture' in v) (v as { dispose: () => void }).dispose();
+      for (const v of Object.values(x)) {
+        if (v && typeof v === 'object' && 'isTexture' in v) {
+          (v as { dispose: () => void }).dispose();
+        }
+      }
       x.dispose();
     }
   });
@@ -181,31 +191,52 @@ function studio(antialias: boolean, still = false) {
   );
   floor.receiveShadow = true;
   scene.add(floor);
-  /** Light a part of this size round this centre. */
-  const place = (size: Vector3, centre: Vector3) => {
-    const r = Math.max(size.x, size.y, size.z, 1);
-    floor.scale.setScalar(r * 1.5);
-    floor.position.set(centre.x, centre.y - size.y / 2 - r * 0.01, centre.z);
-    key.position.set(centre.x + r * 1.5, centre.y + r * 2, centre.z + r * 1.2);
-    key.target.position.copy(centre);
-    const s = r * 1.6;
-    Object.assign(key.shadow.camera, { left: -s, right: s, top: s, bottom: -s, near: 1, far: r * 8 });
-    key.shadow.camera.updateProjectionMatrix();
-    // flat panels shade themselves without a bias (stripes across a side panel)
-    key.shadow.bias = -0.0004;
-    key.shadow.normalBias = r * 0.004;
-    rim.position.set(centre.x - r * 2, centre.y + r, centre.z - r * 1.5);
-    rim.target.position.copy(centre);
-  };
   trackRender(renderer, scene);
-  return { renderer, scene, pmrem, key, floor, place };
+  return {
+    renderer,
+    scene,
+    pmrem,
+    key,
+    floor,
+    place: (size: Vector3, centre: Vector3) => {
+      placeStudio({ floor, key, rim }, size, centre);
+    },
+  };
+}
+
+/** Light a part of this size round this centre. */
+function placeStudio(
+  rig: { floor: Mesh; key: DirectionalLight; rim: DirectionalLight },
+  size: Vector3,
+  centre: Vector3,
+): void {
+  const { floor, key, rim } = rig;
+  const r = Math.max(size.x, size.y, size.z, 1);
+  floor.scale.setScalar(r * 1.5);
+  floor.position.set(centre.x, centre.y - size.y / 2 - r * 0.01, centre.z);
+  key.position.set(centre.x + r * 1.5, centre.y + r * 2, centre.z + r * 1.2);
+  key.target.position.copy(centre);
+  const s = r * 1.6;
+  Object.assign(key.shadow.camera, { left: -s, right: s, top: s, bottom: -s, near: 1, far: r * 8 });
+  key.shadow.camera.updateProjectionMatrix();
+  // flat panels shade themselves without a bias (stripes across a side panel)
+  key.shadow.bias = -0.0004;
+  key.shadow.normalBias = r * 0.004;
+  rim.position.set(centre.x - r * 2, centre.y + r, centre.z - r * 1.5);
+  rim.target.position.copy(centre);
 }
 
 /**
  * Aim a camera at a part. The depth range hugs the part: a near plane of 1 against a far plane of 100000 leaves the 24-bit depth about 10
  * units at the part, and its layers (panel, art, vents) fight.
  */
-function aim(camera: PerspectiveCamera, view: OrbitView, aspect: number, size: Vector3, centre: Vector3): void {
+function aim(
+  camera: PerspectiveCamera,
+  view: cameraTypes.OrbitView,
+  aspect: number,
+  size: Vector3,
+  centre: Vector3,
+): void {
   applyView(camera, view, aspect);
   const dist = camera.position.distanceTo(centre),
     reach = size.length();
@@ -218,9 +249,9 @@ function aim(camera: PerspectiveCamera, view: OrbitView, aspect: number, size: V
  * The still of a part on a shop tile (`tools/stills.mjs` bakes them): the showcase's first view of it, in the same studio without the floor,
  * on a clear ground, `w` x `h` pixels. The part is disposed after.
  */
-export async function renderStill(o: Object3D, w: number, h: number): Promise<HTMLCanvasElement> {
+export async function renderStill(o: threeTypes.Object3D, w: number, h: number): Promise<HTMLCanvasElement> {
   const { renderer, scene, pmrem, key, floor, place } = studio(true, true),
-    camera = new PerspectiveCamera(FOV, w / h, 1, 100000);
+    camera = new PerspectiveCamera(FOV, w / h, 1, 100_000);
   renderer.setPixelRatio(1);
   renderer.setSize(w, h, false);
   key.shadow.mapSize.set(2048, 2048);
@@ -228,9 +259,13 @@ export async function renderStill(o: Object3D, w: number, h: number): Promise<HT
   const hooks: PartHooks[] = [];
   o.traverse((n) => {
     n.castShadow = true;
-    if (n.userData['frame'] || n.userData['dispose']) hooks.push(n.userData as PartHooks);
+    if (n.userData['frame'] || n.userData['dispose']) {
+      hooks.push(n.userData as PartHooks);
+    }
   });
-  for (const k of hooks) k.open?.();
+  for (const k of hooks) {
+    k.open?.();
+  }
   scene.add(o);
   const b = new Box3().setFromObject(o),
     size = b.getSize(new Vector3()),
@@ -242,18 +277,22 @@ export async function renderStill(o: Object3D, w: number, h: number): Promise<HT
   for (let i = 0; i < 4; i++) {
     aim(camera, view, w / h, size, centre);
     let m = 0;
-    for (const x of [b.min.x, b.max.x])
-      for (const y of [b.min.y, b.max.y])
+    for (const x of [b.min.x, b.max.x]) {
+      for (const y of [b.min.y, b.max.y]) {
         for (const z of [b.min.z, b.max.z]) {
           v.set(x, y, z).project(camera);
           m = Math.max(m, Math.abs(v.x), Math.abs(v.y));
         }
+      }
+    }
     view = { ...view, height: (view.height * m) / STILL_FILL };
   }
   aim(camera, view, w / h, size, centre);
   // (a part's baked art comes in over a few frames: render until it has)
   for (let i = 0; i < 8; i++) {
-    for (const k of hooks) k.frame?.(camera, h);
+    for (const k of hooks) {
+      k.frame?.(camera, h);
+    }
     renderer.render(scene, camera);
     await new Promise((r) => setTimeout(r, 120));
   }
@@ -262,7 +301,9 @@ export async function renderStill(o: Object3D, w: number, h: number): Promise<HT
   out.height = h;
   out.getContext('2d')!.drawImage(renderer.domElement, 0, 0);
   scene.remove(o);
-  for (const k of hooks) k.dispose?.();
+  for (const k of hooks) {
+    k.dispose?.();
+  }
   disposeTree(o);
   floor.geometry.dispose();
   (floor.material as MeshStandardMaterial).dispose();
@@ -272,19 +313,18 @@ export async function renderStill(o: Object3D, w: number, h: number): Promise<HT
 
 export function mountViewer(host: HTMLElement): Viewer {
   const { renderer, scene, pmrem, key, floor, place: light } = studio(effective.peek().msaa > 0),
-    camera = new PerspectiveCamera(FOV, 1, 1, 100000);
+    camera = new PerspectiveCamera(FOV, 1, 1, 100_000);
   floor.visible = false; // flat studio (SPEC 5.8): no floor disc, no glow, the stage shows its flat colour
   renderer.setPixelRatio(pixelRatio(effective.peek().scale));
   renderer.domElement.style.cssText = 'width:100%;height:100%;display:block'; // (the pad takes the fingers: `attachPad`)
   host.appendChild(renderer.domElement);
 
   // a part that wears baked art (`ArtSet`) carries its per-frame work and its disposal in a node's userData
-  let obj: Object3D | null = null,
+  let obj: threeTypes.Object3D | null = null,
     hooks: PartHooks[] = [],
     size = new Vector3(1, 1, 1),
     centre = new Vector3();
-  let yaw = START.yaw,
-    pitch = START.pitch,
+  let { yaw, pitch } = START,
     zoom = 1,
     view = frameView(size, centre, zoom, yaw, pitch),
     auto = true,
@@ -313,7 +353,7 @@ export function mountViewer(host: HTMLElement): Viewer {
   const refit = () => {
     base = holdHeight(size, centre, stageW, stageH, freeW, freeH);
   };
-  const goal = (): OrbitView => frameView(size, at.copy(centre).add(pan), zoom, yaw, pitch, base);
+  const goal = (): cameraTypes.OrbitView => frameView(size, at.copy(centre).add(pan), zoom, yaw, pitch, base);
   const place = () => light(size, centre);
   // a part's programs link before it is drawn (docs/render/load.md): drawn unlinked, the ten and more of a lit part link at that draw and hold the page for 0.4 s
   const programs = new ProgramGate(() => [
@@ -329,10 +369,12 @@ export function mountViewer(host: HTMLElement): Viewer {
         ]
       : null,
   );
-  const setObject = (o: Object3D | null) => {
+  const setObject = (o: threeTypes.Object3D | null) => {
     if (obj) {
       scene.remove(obj);
-      for (const h of hooks) h.dispose?.();
+      for (const h of hooks) {
+        h.dispose?.();
+      }
       disposeTree(obj);
     }
     obj = o;
@@ -342,7 +384,9 @@ export function mountViewer(host: HTMLElement): Viewer {
     if (o) {
       o.traverse((n) => {
         n.castShadow = true;
-        if (n.userData['frame'] || n.userData['dispose']) hooks.push(n.userData as PartHooks);
+        if (n.userData['frame'] || n.userData['dispose']) {
+          hooks.push(n.userData as PartHooks);
+        }
       });
       scene.add(o);
       const b = new Box3().setFromObject(o);
@@ -372,8 +416,11 @@ export function mountViewer(host: HTMLElement): Viewer {
     freeH = stageH - t - b;
     midX = l + freeW / 2;
     midY = t + freeH / 2;
-    if (l || r || t || b) camera.setViewOffset(stageW, stageH, (r - l) / 2, (b - t) / 2, stageW, stageH);
-    else camera.clearViewOffset();
+    if (l || r || t || b) {
+      camera.setViewOffset(stageW, stageH, (r - l) / 2, (b - t) / 2, stageW, stageH);
+    } else {
+      camera.clearViewOffset();
+    }
     refit();
     demand.ask();
   };
@@ -393,25 +440,37 @@ export function mountViewer(host: HTMLElement): Viewer {
       key.shadow.map?.dispose();
       key.shadow.map = null;
     }
-    if (g.filtering !== anisotropy) refilter(scene, g.filtering);
+    if (g.filtering !== anisotropy) {
+      refilter(scene, g.filtering);
+    }
     resize();
   });
   const gate = new FrameGate();
   const frame = (now: number) => {
-    if (dead) return;
+    if (dead) {
+      return;
+    }
     raf = requestAnimationFrame(frame);
-    if (!gate.ready(now, effective.peek().fps)) return;
+    if (!gate.ready(now, effective.peek().fps)) {
+      return;
+    }
     const dt = frameDt(now, last);
     last = now;
     idle += dt;
-    if (auto && idle > 2) yaw += AUTO_SPEED * dt;
+    if (auto && idle > 2) {
+      yaw += AUTO_SPEED * dt;
+    }
     view = stepView(view, goal(), dt * 3);
     const W = renderer.domElement.width,
       H = renderer.domElement.height;
     aim(camera, view, W / Math.max(1, H), size, centre);
-    for (const h of hooks) h.frame?.(camera, H);
+    for (const h of hooks) {
+      h.frame?.(camera, H);
+    }
     // (the turntable and an eased drag move the picture; at rest it stands)
-    if (!demand.want(now, moved.shift(camera, W, H, camera.near, camera.far) >= STILL_PX)) return;
+    if (!demand.want(now, moved.shift(camera, W, H, camera.near, camera.far) >= STILL_PX)) {
+      return;
+    }
     // (the programs of a new part first: the ticks until they have linked draw nothing and ask again, the page alive)
     if (!programs.ready()) {
       demand.ask();
@@ -429,7 +488,7 @@ export function mountViewer(host: HTMLElement): Viewer {
   let grip: Vector3 | null = null;
   const holdPan = () => pan.clamp(at.copy(size).multiplyScalar(-0.5), FROM.copy(size).multiplyScalar(0.5));
   /** The part's surface under a client point; on the empty stage, the point of the target's plane there. */
-  const surfaceAt = (q: Pt): Vector3 => {
+  const surfaceAt = (q: gestureTypes.Pt): Vector3 => {
     const r = el.getBoundingClientRect(),
       x = q.x - r.left,
       y = q.y - r.top;
@@ -437,7 +496,9 @@ export function mountViewer(host: HTMLElement): Viewer {
     const hit = obj
       ? pickPoint([obj], camera, (x / Math.max(1, r.width)) * 2 - 1, 1 - (y / Math.max(1, r.height)) * 2)
       : null;
-    if (hit) return hit.clone();
+    if (hit) {
+      return hit.clone();
+    }
     const k = view.height / Math.max(1, stageH);
     RIGHT.setFromMatrixColumn(camera.matrixWorld, 0);
     UP.setFromMatrixColumn(camera.matrixWorld, 1);
@@ -445,7 +506,7 @@ export function mountViewer(host: HTMLElement): Viewer {
       .addScaledVector(RIGHT, (x - midX) * k)
       .addScaledVector(UP, (midY - y) * k);
   };
-  const gestures: PadHost = {
+  const gestures: padTypes.PadHost = {
     // (any press holds the turntable still for a moment: `idle`)
     press: () => {
       idle = 0;
@@ -494,20 +555,20 @@ export function mountViewer(host: HTMLElement): Viewer {
   };
   const pad = attachPad(el, gestures);
   const reset = () => {
-    yaw = START.yaw;
-    pitch = START.pitch;
+    ({ yaw, pitch } = START);
     zoom = 1;
     idle = 0;
     pan.set(0, 0, 0);
   };
-  if (import.meta.env.DEV)
-    (window as unknown as { __viewer?: unknown }).__viewer = {
+  if (import.meta.env.DEV) {
+    (globalThis as unknown as { __viewer?: unknown }).__viewer = {
       goal,
       view: () => view,
       camera,
       size: () => size,
       centre: () => centre,
     };
+  }
   // a restored context lost the studio's environment map: made again, then a frame
   el.addEventListener('webglcontextrestored', () => {
     restoreStudioEnv(scene, pmrem);
@@ -533,8 +594,12 @@ export function mountViewer(host: HTMLElement): Viewer {
       stopSettings();
       pad.dispose();
       cancelAnimationFrame(raf);
-      for (const h of hooks) h.dispose?.();
-      if (obj) disposeTree(obj);
+      for (const h of hooks) {
+        h.dispose?.();
+      }
+      if (obj) {
+        disposeTree(obj);
+      }
       floor.geometry.dispose();
       (floor.material as MeshStandardMaterial).alphaMap?.dispose();
       (floor.material as MeshStandardMaterial).dispose();

@@ -9,33 +9,33 @@
 
 /** The stops of the palette: where on the scale (0 nothing, 1 the most) and the colour there, as sRGB. */
 export const POWER: readonly (readonly [number, number])[] = [
-  [0, 0x7a4a10],
-  [0.3, 0xd98a14],
-  [0.62, 0xffa91a],
-  [0.86, 0xffcb3d],
-  [1, 0xffe58a],
+  [0, 0x7a_4a_10],
+  [0.3, 0xd9_8a_14],
+  [0.62, 0xff_a9_1a],
+  [0.86, 0xff_cb_3d],
+  [1, 0xff_e5_8a],
 ];
 /** The warning colour (a missing cable, a supply over its budget), as sRGB. */
-export const WARN = 0xff4a68;
+export const WARN = 0xff_4a_68;
 
 /** What a node does with power: it brings it in, hands it on, or uses it. */
 export type Role = 'source' | 'hub' | 'use';
 /** A hub's palette: a deep teal for a trickle through it, a pale ice at the most. */
 export const HUB: readonly (readonly [number, number])[] = [
-  [0, 0x0b4a5c],
-  [0.3, 0x1596b6],
-  [0.62, 0x2fc6ec],
-  [0.86, 0x86e6ff],
-  [1, 0xe2fbff],
+  [0, 0x0b_4a_5c],
+  [0.3, 0x15_96_b6],
+  [0.62, 0x2f_c6_ec],
+  [0.86, 0x86_e6_ff],
+  [1, 0xe2_fb_ff],
 ];
 /** A source's palette: a warm white, brighter with what it gives. */
 export const SOURCE: readonly (readonly [number, number])[] = [
-  [0, 0xb9ae96],
-  [0.5, 0xece4d0],
-  [1, 0xfffdf4],
+  [0, 0xb9_ae_96],
+  [0.5, 0xec_e4_d0],
+  [1, 0xff_fd_f4],
 ];
 /** The one colour of each role for a chip or a legend (sRGB). */
-export const ROLE_HEX: Readonly<Record<Role, number>> = { source: 0xfff6e0, hub: 0x2fc6ec, use: 0xffa91a };
+export const ROLE_HEX: Readonly<Record<Role, number>> = { source: 0xff_f6_e0, hub: 0x2f_c6_ec, use: 0xff_a9_1a };
 /** The words of each role in the legend. */
 export const ROLE_WORD: Readonly<Record<Role, string>> = { source: 'source', hub: 'hands on', use: 'uses' };
 
@@ -55,7 +55,9 @@ export const POWER_LIFT = 0.155 / ((POWER_VEIL[0] + POWER_VEIL[1] + POWER_VEIL[2
  * that takes a hundred (the width and speed of a flow follow the same root in the 2D lens it replaces).
  */
 export function levelOf(w: number, ref: number): number {
-  if (!(w > 0) || !(ref > 0)) return 0;
+  if (!(w > 0) || !(ref > 0)) {
+    return 0;
+  }
   return Math.min(1, Math.sqrt(w / ref) * 1.15);
 }
 
@@ -68,7 +70,9 @@ type Stops = readonly (readonly [number, number])[];
 function rampHex(stops: Stops, h: number): number {
   const x = Math.min(1, Math.max(0, h));
   let i = 1;
-  while (i < stops.length - 1 && stops[i]![0] < x) i++;
+  while (i < stops.length - 1 && stops[i]![0] < x) {
+    i++;
+  }
   const [t0, c0] = stops[i - 1]!,
     [t1, c1] = stops[i]!,
     k = Math.min(1, Math.max(0, (x - t0) / (t1 - t0)));
@@ -104,7 +108,7 @@ function glslRamp(name: string, stops: Stops): string {
     const [t0, c0] = stops[i]!;
     return `  ${i ? 'else ' : ''}if (h < ${t.toFixed(3)}) return mix(${glslColour(c0)}, ${glslColour(c)}, (h - ${t0.toFixed(3)}) / ${(t - t0).toFixed(3)});`;
   });
-  return `vec3 ${name}(float h) {\n  h = clamp(h, 0.0, 1.0);\n${lines.join('\n')}\n  return ${glslColour(stops[stops.length - 1]![1])};\n}`;
+  return `vec3 ${name}(float h) {\n  h = clamp(h, 0.0, 1.0);\n${lines.join('\n')}\n  return ${glslColour(stops.at(-1)![1])};\n}`;
 }
 
 /**

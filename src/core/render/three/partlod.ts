@@ -3,7 +3,8 @@
 // looks stay as they are: only the draw count falls. The parts stay in the tree on a layer no camera draws (`UNDRAWN`), so a ray, `findById`
 // and the outline find them as before. No WebGL here: the rule (which meshes, the size classes, the switch) is tested without a renderer.
 // docs/render/lod.md "The machine's stand-ins".
-import { Matrix4, type InstancedMesh, type Mesh, type MeshStandardMaterial, type Object3D } from 'three';
+import { Matrix4 } from 'three';
+import type * as threeTypes from 'three';
 import { standInKey, standIns } from './merge';
 import { UNDRAWN } from './pick';
 
@@ -34,13 +35,19 @@ export const sizeClass = (radius: number): number => LOD_RADII.findIndex((r) => 
 export function farClasses(zoom: number, was: readonly boolean[] = [], ceil = Infinity): boolean[] {
   return LOD_RADII.map((r, i) => {
     const at = Math.min(farAt(r), ceil / (1 + LOD_BAND));
-    return zoom < at ? true : zoom >= ceil || zoom > at * (1 + LOD_BAND) ? false : !!was[i];
+    return zoom < at ? true : zoom >= ceil || zoom > at * (1 + LOD_BAND) ? false : Boolean(was[i]);
   });
 }
 
 /** Is `o` held in full detail: it, or an object above it, is one of `holds` (a part the player points at, selects or drags, a part a step moves). */
-export function heldBy(o: Object3D, holds: ReadonlySet<Object3D>): boolean {
-  if (holds.size) for (let p: Object3D | null = o; p; p = p.parent) if (holds.has(p)) return true;
+export function heldBy(o: threeTypes.Object3D, holds: ReadonlySet<threeTypes.Object3D>): boolean {
+  if (holds.size > 0) {
+    for (let p: threeTypes.Object3D | null = o; p; p = p.parent) {
+      if (holds.has(p)) {
+        return true;
+      }
+    }
+  }
   return false;
 }
 
@@ -48,15 +55,20 @@ export function heldBy(o: Object3D, holds: ReadonlySet<Object3D>): boolean {
  * The hold rule: a stand-in draws only while its class is far and none of the meshes it draws for is held (`heldBy`). One held mesh sends
  * the whole stand-in back to its parts, so a held part is never half merged.
  */
-export const standInDraws = (far: boolean, sources: readonly Object3D[], holds: ReadonlySet<Object3D>): boolean =>
-  far && !sources.some((s) => heldBy(s, holds));
+export const standInDraws = (
+  far: boolean,
+  sources: readonly threeTypes.Object3D[],
+  holds: ReadonlySet<threeTypes.Object3D>,
+): boolean => far && !sources.some((s) => heldBy(s, holds));
 
 const COPY = new Matrix4();
 
 /** The world radius of a mesh: its geometry's sphere at its scale; for an instanced mesh, the radius of its largest copy. World matrices set. */
-function worldRadius(m: Mesh): number {
-  if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
-  const im = m as Partial<InstancedMesh> & Mesh;
+function worldRadius(m: threeTypes.Mesh): number {
+  if (!m.geometry.boundingSphere) {
+    m.geometry.computeBoundingSphere();
+  }
+  const im = m as Partial<threeTypes.InstancedMesh> & threeTypes.Mesh;
   let copy = 1;
   if (im.isInstancedMesh) {
     copy = 0;
@@ -73,15 +85,15 @@ export interface LodScope {
    * Subtrees that are shown, hidden, faded or moved as a whole after the build (a lid, a cooler, a group shown by zoom, a group built again
    * alone). The stand-ins of what is inside one are its children: they follow it, and a fade reaches their materials (`fadeTree`).
    */
-  anchors?: readonly Object3D[];
+  anchors?: readonly threeTypes.Object3D[];
   /** Subtrees left out: their meshes move one by one, or are built again alone. An anchor inside one is in again. */
-  skip?: readonly Object3D[];
+  skip?: readonly threeTypes.Object3D[];
 }
 
 /** A mesh that goes in a stand-in: its anchor (the nearest above it, else the root) and its size class. */
 export interface Source {
-  mesh: Mesh;
-  anchor: Object3D;
+  mesh: threeTypes.Mesh;
+  anchor: threeTypes.Object3D;
   cls: number;
 }
 
@@ -91,43 +103,51 @@ export interface Source {
  * cable's still rig (`userData.rig`) is in: the hand hides it while it holds the cable (the anchor is built again), and the owner builds
  * the anchor again when it builds the rig again (`Machine3D.setCable`).
  */
-export function lodSources(root: Object3D, o: LodScope = {}): Source[] {
+export function lodSources(root: threeTypes.Object3D, o: LodScope = {}): Source[] {
   root.updateWorldMatrix(true, true);
   const anchors = new Set(o.anchors ?? []),
     skip = new Set(o.skip ?? []),
     out: Source[] = [];
-  const walk = (x: Object3D, anchor: Object3D, off: boolean): void => {
+  const walk = (x: threeTypes.Object3D, anchor: threeTypes.Object3D, off: boolean): void => {
     const u = x.userData;
-    if (!x.visible || u['spin'] || u['live'] || u['standIn']) return;
+    if (!x.visible || u['spin'] || u['live'] || u['standIn']) {
+      return;
+    }
     const own = x !== root && anchors.has(x),
       a = own ? x : anchor,
       left = own ? false : off || skip.has(x),
-      m = x as Mesh;
+      m = x as threeTypes.Mesh;
     if (!left && !own && x !== root && m.isMesh) {
       const cls = sizeClass(worldRadius(m));
-      if (cls >= 0 && standInKey(m) !== null) out.push({ mesh: m, anchor: a, cls });
+      if (cls >= 0 && standInKey(m) !== null) {
+        out.push({ mesh: m, anchor: a, cls });
+      }
     }
-    for (const c of x.children) walk(c, a, left);
+    for (const c of x.children) {
+      walk(c, a, left);
+    }
   };
   walk(root, root, false);
   return out;
 }
 
 /** How many meshes under `root` a camera on layer 0 draws: shown, with a shown material, on that layer. */
-export function drawnMeshes(root: Object3D): number {
+export function drawnMeshes(root: threeTypes.Object3D): number {
   let n = 0;
   root.traverseVisible((o) => {
-    const m = o as Mesh;
-    if (m.isMesh && m.layers.mask & 1 && [m.material].flat().some((x) => x.visible)) n++;
+    const m = o as threeTypes.Mesh;
+    if (m.isMesh && m.layers.mask & 1 && [m.material].flat().some((x) => x.visible)) {
+      n++;
+    }
   });
   return n;
 }
 
 /** One stand-in as built: its mesh under its anchor, the meshes it draws for, their class and the layers they draw on. */
 interface Built {
-  mesh: Mesh;
-  sources: Mesh[];
-  anchor: Object3D;
+  mesh: threeTypes.Mesh;
+  sources: threeTypes.Mesh[];
+  anchor: threeTypes.Object3D;
   cls: number;
   mask: number;
   held: boolean;
@@ -141,12 +161,12 @@ interface Built {
 export class PartLod {
   private built: Built[] = [];
   /** By anchor: what was shown over each source when its stand-in was made. One of them hidden since: the anchor is built again. */
-  private guards = new Map<Object3D, Object3D[]>();
+  private guards = new Map<threeTypes.Object3D, threeTypes.Object3D[]>();
   /** By anchor: the palette materials made for its stand-ins, kept over a rebuild (their programs stay linked). */
-  private pals = new Map<Object3D, Map<string, MeshStandardMaterial>>();
+  private pals = new Map<threeTypes.Object3D, Map<string, threeTypes.MeshStandardMaterial>>();
   private far: boolean[] = LOD_RADII.map(() => false);
   /** What stays in full detail (`hold`), and the zoom from which all does. */
-  private holds: ReadonlySet<Object3D> = new Set();
+  private holds: ReadonlySet<threeTypes.Object3D> = new Set();
   private ceil = Infinity;
   /** The overview's stand-ins are not made yet (or not for each anchor): the next `update` at the overview makes them. */
   private owed = false;
@@ -155,14 +175,14 @@ export class PartLod {
 
   /** `scope`: the anchors and the left-out subtrees as they are now (asked on each build). */
   constructor(
-    private readonly root: Object3D,
+    private readonly root: threeTypes.Object3D,
     private readonly scope: () => LodScope = () => ({}),
   ) {
     this.build();
   }
 
   /** The stand-in meshes (of all the classes; `far` says which draw). */
-  get standIns(): readonly Mesh[] {
+  get standIns(): readonly threeTypes.Mesh[] {
     return this.built.map((b) => b.mesh);
   }
   /** Which classes draw as stand-ins now. */
@@ -170,26 +190,28 @@ export class PartLod {
     return this.far;
   }
   /** The meshes a stand-in draws for, or none. */
-  sourcesOf(standIn: Object3D): readonly Mesh[] {
+  sourcesOf(standIn: threeTypes.Object3D): readonly threeTypes.Mesh[] {
     return this.built.find((b) => b.mesh === standIn)?.sources ?? [];
   }
   /** Does this stand-in draw now (its parts do not)? */
-  draws(standIn: Object3D): boolean {
+  draws(standIn: threeTypes.Object3D): boolean {
     const b = this.built.find((x) => x.mesh === standIn);
-    return !!b && this.far[b.cls]! && !b.held;
+    return b !== undefined && this.far[b.cls]! && !b.held;
   }
   /** Is this stand-in held in full detail now (a mesh it draws for is held, or shares a stand-in with one)? */
-  held(standIn: Object3D): boolean {
-    return !!this.built.find((x) => x.mesh === standIn)?.held;
+  held(standIn: threeTypes.Object3D): boolean {
+    return Boolean(this.built.find((x) => x.mesh === standIn)?.held);
   }
 
   /**
    * Hold these objects in full detail, each with all under it (`standInDraws`), and all of the model from the zoom `ceil` in (`farClasses`).
    * The same holds as before: no work. The ceiling takes effect at the next `update`.
    */
-  hold(objects: readonly Object3D[], ceil = Infinity): void {
+  hold(objects: readonly threeTypes.Object3D[], ceil = Infinity): void {
     this.ceil = ceil;
-    if (objects.length === this.holds.size && objects.every((o) => this.holds.has(o))) return;
+    if (objects.length === this.holds.size && objects.every((o) => this.holds.has(o))) {
+      return;
+    }
     this.holds = new Set(objects);
     this.settle();
   }
@@ -200,16 +222,18 @@ export class PartLod {
    */
   private settle(fresh?: ReadonlySet<Built>): void {
     const held = new Set(this.built.filter((b) => !standInDraws(true, b.sources, this.holds)));
-    if (this.shared)
+    if (this.shared) {
       for (let grew = held.size > 0; grew;) {
         grew = false;
         const meshes = new Set([...held].flatMap((b) => b.sources));
-        for (const b of this.built)
+        for (const b of this.built) {
           if (!held.has(b) && b.sources.some((s) => meshes.has(s))) {
             held.add(b);
             grew = true;
           }
+        }
       }
+    }
     for (const b of this.built) {
       const h = held.has(b);
       if (h !== b.held || fresh?.has(b)) {
@@ -220,20 +244,26 @@ export class PartLod {
   }
 
   /** Make the stand-ins again as the model stands: all, or those of one anchor (`only`: its content changed). The old ones are freed. */
-  build(only?: Object3D): void {
+  build(only?: threeTypes.Object3D): void {
     this.drop(only);
-    const by = new Map<Object3D, Mesh[][]>(),
+    const by = new Map<threeTypes.Object3D, threeTypes.Mesh[][]>(),
       fresh = new Set<Built>();
     for (const s of lodSources(this.root, this.scope())) {
-      if (only && s.anchor !== only) continue;
+      if (only && s.anchor !== only) {
+        continue;
+      }
       let sets = by.get(s.anchor);
-      if (!sets) by.set(s.anchor, (sets = LOD_RADII.map(() => [])));
+      if (!sets) {
+        by.set(s.anchor, (sets = LOD_RADII.map(() => [])));
+      }
       sets[s.cls]!.push(s.mesh);
     }
     for (const [anchor, sets] of by) {
       let pals = this.pals.get(anchor);
-      if (!pals) this.pals.set(anchor, (pals = new Map()));
-      const guards = new Set<Object3D>();
+      if (!pals) {
+        this.pals.set(anchor, (pals = new Map()));
+      }
+      const guards = new Set<threeTypes.Object3D>();
       sets.forEach((meshes, cls) => {
         // the overview's class holds most of the model's triangles: it is made when the overview is first reached, not at each build
         if (cls === BIG && !this.far[BIG]) {
@@ -242,30 +272,41 @@ export class PartLod {
         }
         for (const { mesh, sources } of standIns(anchor, meshes, pals)) {
           const b: Built = { mesh, sources, anchor, cls, mask: mesh.layers.mask, held: false };
-          for (const s of sources) for (let p: Object3D | null = s; p && p !== anchor; p = p.parent) guards.add(p);
+          for (const s of sources) {
+            for (let p: threeTypes.Object3D | null = s; p && p !== anchor; p = p.parent) {
+              guards.add(p);
+            }
+          }
           this.built.push(b);
           fresh.add(b);
         }
       });
-      if (guards.size) this.guards.set(anchor, [...guards]);
+      if (guards.size > 0) {
+        this.guards.set(anchor, [...guards]);
+      }
     }
-    const seen = new Set<Mesh>();
+    const seen = new Set<threeTypes.Mesh>();
     this.shared = this.built.some((b) => b.sources.some((s) => seen.has(s) || !seen.add(s)));
     this.settle(fresh);
   }
 
   /** Take the stand-ins away (all, or one anchor's) and free their geometry: the parts draw again. Call it before an anchor's content is disposed. */
-  drop(only?: Object3D): void {
+  drop(only?: threeTypes.Object3D): void {
     this.built = this.built.filter((b) => {
-      if (only && b.anchor !== only) return true;
+      if (only && b.anchor !== only) {
+        return true;
+      }
       this.swap(b, false);
       b.mesh.removeFromParent();
       b.mesh.userData['standIn'] = false;
       b.mesh.geometry.dispose();
       return false;
     });
-    if (only) this.guards.delete(only);
-    else this.guards.clear();
+    if (only) {
+      this.guards.delete(only);
+    } else {
+      this.guards.clear();
+    }
   }
 
   /**
@@ -283,23 +324,37 @@ export class PartLod {
     }
     if (far.some(Boolean)) {
       const stale = [...this.guards].filter(([, nodes]) => nodes.some((o) => !o.visible)).map(([anchor]) => anchor);
-      for (const anchor of stale) this.build(anchor);
+      for (const anchor of stale) {
+        this.build(anchor);
+      }
     }
     far.forEach((f, cls) => {
-      if (f !== was[cls]) for (const b of this.built) if (b.cls === cls) this.swap(b);
+      if (f !== was[cls]) {
+        for (const b of this.built) {
+          if (b.cls === cls) {
+            this.swap(b);
+          }
+        }
+      }
     });
   }
 
   /** Put a stand-in and its parts on the layers of the side that draws (`far`: default as the class and the holds say). */
   private swap(b: Built, far = this.far[b.cls]! && !b.held): void {
     b.mesh.layers.mask = far ? b.mask : 1 << UNDRAWN;
-    for (const s of b.sources) s.layers.mask = far ? 1 << UNDRAWN : b.mask;
+    for (const s of b.sources) {
+      s.layers.mask = far ? 1 << UNDRAWN : b.mask;
+    }
   }
 
   /** Free the stand-ins and the palette materials made for them. */
   dispose(): void {
     this.drop();
-    for (const pals of this.pals.values()) for (const m of pals.values()) m.dispose();
+    for (const pals of this.pals.values()) {
+      for (const m of pals.values()) {
+        m.dispose();
+      }
+    }
     this.pals.clear();
   }
 }
