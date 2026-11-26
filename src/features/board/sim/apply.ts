@@ -1,10 +1,12 @@
 // Wiring: apply a Board (and its thermal state) to a Machine.
 
-import { createEngine, type EngineConfig } from '../../cpu/sim/engines';
+import { createEngine } from '../../cpu/sim/engines';
+import type * as enginesTypes from '../../cpu/sim/engines';
 import { GPU_PORTS, KERNEL_SECONDARY, NPU_PORTS, STORAGE_PORTS } from '@/core/sim/memmap';
 import type { Machine, MachineConfig } from '@/core/sim/machine';
 import type { Rate } from '@/core/sim/hw/clock';
-import { deviceSpec, findDevices, type Board, type InstalledDevice } from './board';
+import { deviceSpec, findDevices } from './board';
+import type * as boardTypes from './board';
 import type { CpuSpec, DisplaySpec, RamSpec } from './specs';
 import type { ThermalModel } from './thermal';
 
@@ -15,24 +17,33 @@ export function clockToRate(clock: number): Rate {
   return { mul: Math.max(0, Math.round(clock * CLOCK_SCALE)), div: CLOCK_SCALE };
 }
 
-function working(board: Board, kind: 'cpu' | 'ram' | 'display' | 'storage' | 'gpu' | 'npu' | 'tpm'): InstalledDevice[] {
+function working(
+  board: boardTypes.Board,
+  kind: 'cpu' | 'ram' | 'display' | 'storage' | 'gpu' | 'npu' | 'tpm',
+): boardTypes.InstalledDevice[] {
   return findDevices(board, kind).filter((d) => !d.burnt);
 }
 
 /** Effective clock: the thermal model's value if given, else the requested clock. */
-function clockOf(d: InstalledDevice, thermal?: ThermalModel): number {
-  if (thermal) return thermal.effectiveClock(d.id);
+function clockOf(d: boardTypes.InstalledDevice, thermal?: ThermalModel): number {
+  if (thermal) {
+    return thermal.effectiveClock(d.id);
+  }
   return d.clock ?? 0;
 }
 
 /** Construction-time machine settings from the board: total RAM, initial rates, display latency. */
-export function machineConfigFor(board: Board, seed?: number): MachineConfig {
+export function machineConfigFor(board: boardTypes.Board, seed?: number): MachineConfig {
   const ram = working(board, 'ram').reduce((n, d) => n + (deviceSpec(d) as RamSpec).sizeBytes, 0);
-  const disp = working(board, 'display')[0];
+  const [disp] = working(board, 'display');
   const cfg: MachineConfig = {};
-  if (seed !== undefined) cfg.seed = seed;
-  if (ram > 0) cfg.ramSize = ram;
-  const cpu = working(board, 'cpu')[0];
+  if (seed !== undefined) {
+    cfg.seed = seed;
+  }
+  if (ram > 0) {
+    cfg.ramSize = ram;
+  }
+  const [cpu] = working(board, 'cpu');
   cfg.cpuRate = clockToRate(cpu?.clock ?? 0);
   cfg.displayRate = clockToRate(disp?.clock ?? 0);
   cfg.displayLatency = disp ? (deviceSpec(disp) as DisplaySpec).writeLatency : 0;
@@ -44,10 +55,12 @@ export function machineConfigFor(board: Board, seed?: number): MachineConfig {
  * ThermalModel.step so throttled/browned-out rates take effect. Without `thermal`, requested clocks are used.
  * A missing or burnt device gets rate 0.
  */
-export function applyRates(board: Board, machine: Machine, thermal?: ThermalModel): void {
+export function applyRates(board: boardTypes.Board, machine: Machine, thermal?: ThermalModel): void {
   const set = (name: string, kind: 'cpu' | 'ram' | 'display'): void => {
-    if (!machine.clock.hasDomain(name)) return;
-    const d = working(board, kind)[0];
+    if (!machine.clock.hasDomain(name)) {
+      return;
+    }
+    const [d] = working(board, kind);
     machine.clock.setRate(name, clockToRate(d ? clockOf(d, thermal) : 0));
   };
   set('cpu', 'cpu');
@@ -55,22 +68,29 @@ export function applyRates(board: Board, machine: Machine, thermal?: ThermalMode
   set('ram', 'ram');
   // Storage ports: one clock domain per storage slot, driven by the drive installed there (0 when empty or burnt).
   for (const slot of STORAGE_PORTS) {
-    if (!machine.clock.hasDomain(slot)) continue;
+    if (!machine.clock.hasDomain(slot)) {
+      continue;
+    }
     const d = working(board, 'storage').find((x) => x.slot === slot);
     machine.clock.setRate(slot, clockToRate(d ? clockOf(d, thermal) : 0));
   }
   // NPU cards: the port npuK follows the card in slot pcieK.
   NPU_PORTS.forEach((port, k) => {
-    if (!machine.clock.hasDomain(port)) return;
+    if (!machine.clock.hasDomain(port)) {
+      return;
+    }
     const d = working(board, 'npu').find((x) => x.slot === `pcie${k}`);
     machine.clock.setRate(port, clockToRate(d ? clockOf(d, thermal) : 0));
   });
   // The TPM runs on one fixed slow clock while a module is installed (no overclock).
-  if (machine.clock.hasDomain('tpm'))
+  if (machine.clock.hasDomain('tpm')) {
     machine.clock.setRate('tpm', clockToRate(working(board, 'tpm').length > 0 ? 1 : 0));
+  }
   // GPU cards: one clock domain per PCIe slot, driven by the card installed there.
   for (const slot of GPU_PORTS) {
-    if (!machine.clock.hasDomain(slot)) continue;
+    if (!machine.clock.hasDomain(slot)) {
+      continue;
+    }
     const d = working(board, 'gpu').find((x) => x.slot === slot);
     machine.clock.setRate(slot, clockToRate(d ? clockOf(d, thermal) : 0));
   }
@@ -80,14 +100,16 @@ export function applyRates(board: Board, machine: Machine, thermal?: ThermalMode
  * Engine config for the installed CPU, with the cache miss penalty taken from the RAM: the RAM's access
  * latency (RAM ticks) converted to CPU cycles by the requested clock ratio (the slowest stick counts). Null if there is no working CPU.
  */
-export function engineConfigFor(board: Board): EngineConfig | null {
-  const cpuDev = working(board, 'cpu')[0];
-  if (!cpuDev) return null;
+export function engineConfigFor(board: boardTypes.Board): enginesTypes.EngineConfig | null {
+  const [cpuDev] = working(board, 'cpu');
+  if (!cpuDev) {
+    return null;
+  }
   const cpu = deviceSpec(cpuDev) as CpuSpec;
-  const cfg: EngineConfig = { ...cpu.engine };
+  const cfg: enginesTypes.EngineConfig = { ...cpu.engine };
   if (cfg.kind === 'ooo' && (cpu.threads ?? 1) > 1) {
-    cfg.threads = cpu.threads ?? 1;
-  } // the out-of-order core holds its threads in the pipeline together
+    cfg.threads = cpu.threads ?? 1; // the out-of-order core holds its threads in the pipeline together
+  }
   // Several sticks run at the speed of the slowest one: the miss penalty comes from the stick that costs most cycles.
   const cpuClock = cpuDev.clock ?? cpu.clock.base;
   const sticks = working(board, 'ram').map((d) => {
@@ -106,7 +128,9 @@ export function engineConfigFor(board: Board): EngineConfig | null {
       const mc = cpu.memory ?? { channels: 1, policy: 'open' as const };
       let channels = 1;
       const lanes = sticks.reduce((n, s) => n + (s.ram.subChannels ?? 1), 0); // a DDR5 stick brings two sub-channels
-      while (channels * 2 <= Math.min(mc.channels, lanes)) channels *= 2;
+      while (channels * 2 <= Math.min(mc.channels, lanes)) {
+        channels *= 2;
+      }
       cfg.dram = {
         channels,
         banks: Math.min(...sticks.map((s) => s.ram.banks)),
@@ -132,9 +156,11 @@ export function engineConfigFor(board: Board): EngineConfig | null {
  * the first engine's L2 and DRAM: core 0 runs the program, the others start parked with their interrupt vector at the kernel's secondary entry (what a
  * multicore OS wakes with an IPI; under the key loader or the first OS they stay asleep).
  */
-export function applyEngine(board: Board, machine: Machine, program: Uint32Array): boolean {
+export function applyEngine(board: boardTypes.Board, machine: Machine, program: Uint32Array): boolean {
   const cfg = engineConfigFor(board);
-  if (!cfg) return false;
+  if (!cfg) {
+    return false;
+  }
   const spec = deviceSpec(working(board, 'cpu')[0]!) as CpuSpec;
   // the MMU the CPU has (none: the unit cannot be switched on and the paged OS will not boot)
   machine.mmu.configure(spec.mmu?.tlb ?? 0);
