@@ -49,7 +49,7 @@ The CPU socket is the origin. West of the board: the **monitor** (an 18.5 inch, 
 
 ## Art and parts
 
-The 2D layer stack is removed. The 3D board draws the parts (`three/board3d.ts`, `three/machine3d.ts`). The 2D art is baked into textures for them: `buildBoard` (`boardArt.ts`) gives the PCB face (`three/boardmodel3d.ts`), and `cpuArt` gives the CPU package (`three/cpu3d.ts`).
+The 2D layer stack is removed. The 3D board draws the parts (`three/board3d.ts`, which re-exports `three/world/mount.ts`; `three/machine3d.ts`). `three/world/` holds the world's mount by part: the stage, what is built, the view and its flights, the pointer and the pad, the frame's steps and the dev hook. `three/cooler/` holds the coolers, the hoses and the radiator that `three/cooler3d.ts` re-exports. The 2D art is baked into textures for them: `buildBoard` (`boardArt.ts`) gives the PCB face (`three/boardmodel3d.ts`), and `cpuArt` gives the CPU package (`three/cpu3d.ts`).
 
 Rebuild happens only when the theme, `boardTier` or the set of `spec@slot` pairs changes. Temperature, clocks, power etc. never rebuild anything.
 

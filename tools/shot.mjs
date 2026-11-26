@@ -13,7 +13,7 @@
 //   --hour h              (dev server, --3d) pin the room's hour (`roomDebug.hour`), e.g. 23 or 14.2
 //   --query "a=b&c=d"     the page's query string, e.g. `citycuts=cadence,far` (the Low city's cuts by name, `outside/detail.ts`)
 //   --firefox             the same shot in Firefox (playwright's, headless, WebGL forced on), to see a shader as Firefox compiles it
-//   --look x,y,z,yaw,pitch,height (dev server, --3d) an exact 3D view (`window.__board.lookAt`); the room may move the eye to keep it inside.
+//   --look x,y,z,yaw,pitch,height (dev server, --3d) an exact 3D view (`window.__board.lookAt({ x, y, z, yaw, pitch, height })`); the room may move the eye to keep it inside.
 //                         Measure the picture with `node tools/lum.mjs <png> x,y,w,h ...`
 //   env: PORT (5199), CHROME_PATH (default: the installed Chrome), SOFTWARE=1
 import { spawn } from 'node:child_process';
@@ -158,7 +158,10 @@ try {
     const [x, y, z] = view.split(',').map(Number);
     await p.evaluate(([x, y, z]) => window.__board.camera.set({ x, y, z }), [x, y, z]);
   }
-  if (flag('look', '')) await p.evaluate((v) => window.__board.lookAt(...v), flag('look', '').split(',').map(Number));
+  if (flag('look', '')) {
+    const [x, y, z, yaw, pitch, height] = String(flag('look', '')).split(',').map(Number);
+    await p.evaluate((at) => window.__board.lookAt(at), { x, y, z, yaw, pitch, height });
+  }
   // a click on the picture must wait for the --view flight to land: during it, it hits the room, not the board
   if (view && (flag('tap', '') || flag('dblclick', ''))) await p.waitForTimeout(4000);
   // --tap "x,y" (repeatable by "x,y|x,y"): click these screen points in order, e.g. the power supply, whose popup has the power button (then --click "Power on")
