@@ -62,7 +62,7 @@ export const MACHINE_LIGHTS: readonly LightId[] = ['case', 'spill'];
 
 /** The window's lights: their shadows follow the `shadows` option alone. */
 export const WINDOW_LIGHTS: readonly LightId[] = ['key', 'sun'];
-/** The lamps that can cast a shadow (a point or a spot with a map: `SHADOW_LEVELS` in room3d.ts). */
+/** The lamps that can cast a shadow (a point or a spot with a map: `SHADOW_LEVELS` in room3d/consts.ts). */
 export const LAMP_CASTERS: readonly LightId[] = ['desk', 'bedside', 'floor', 'arc'];
 /**
  * The lamps that cast also with the lamps' shadows off, while they are live, at the smallest map (`LightChoice.small`).

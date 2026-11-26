@@ -6,7 +6,7 @@ import { ParametricGeometry } from 'three/addons/geometries/ParametricGeometry.j
 import { SEG, drum, healNormals, place, rectBox, rounded, softBox, tube } from '@/core/render/three/geometry';
 import { cloth, mat } from '@/core/render/three/materials';
 import { PAPER } from './palette';
-import { weave } from './furniture3d';
+import { weave } from './furniture/textures';
 import { BENCH, FLOOR_Y, PIER, TRAY } from './roomplan';
 
 /** Room units per millimetre. */

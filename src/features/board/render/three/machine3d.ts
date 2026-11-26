@@ -1669,7 +1669,7 @@ export class Machine3D {
       : null;
     if (has('video')) {
       // combed out of sight: from the monitor's back (its plug is built in), behind the stand, down through the keyboard's grommet by the wall
-      // (room3d.ts: the keyboard sits at MONITOR_Z + 3600), along under the top (over the tray) and up through the desk's grommet behind the
+      // (room3d/tabletop.ts: the keyboard sits at MONITOR_Z + 3600), along under the top (over the tray) and up through the desk's grommet behind the
       // case. What the player moves is the PC end: from that grommet over the desk to the board's HDMI port on the case's west side, or to a
       // graphics card's display port (a graphics display only), as the 2D game.
       const g = tag(new Group(), 'cable.video'),

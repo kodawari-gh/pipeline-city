@@ -261,7 +261,7 @@ export async function loadBake(base: string, renderer?: WebGLRenderer): Promise<
 }
 
 /**
- * A spot light with this decay stands in for a light the bake holds whole, direct and bounced (the room's window: `key` in `room3d.ts`). It
+ * A spot light with this decay stands in for a light the bake holds whole, direct and bounced (the room's window: `key` in `room3d/parts.ts`). It
  * lights what moves; a mesh with a light map skips it, as the map has its light already. No other light has this decay.
  */
 export const STAND_IN_DECAY = 0.8;

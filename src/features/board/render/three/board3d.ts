@@ -375,15 +375,13 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   bootStage('Building the world', 0.14);
   await nextPaint();
   // (the buildings need no texture: they build in slices while the baked ones load, and the first step that paints with them waits for them)
-  await prepareCity(
-    renderer,
-    effective.peek().shadows,
-    async (label, share) => {
+  await prepareCity(renderer, effective.peek().shadows, {
+    between: async (label, share) => {
       bootStage(label, 0.14 + 0.14 * share);
       await nextPaint();
     },
-    baked,
-  );
+    until: baked,
+  });
   setLowDetail(isLow(effective.peek())); // (before the first machine: Low builds coarser heat pipes and labels)
   bootStage('Furnishing the room', 0.3);
   await turn();
@@ -397,7 +395,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
         bootStage(label, 0.3 + 0.04 * share);
         await turn();
       },
-      turn,
+      { slice: turn },
     ),
     key: first.key,
   });
@@ -1370,7 +1368,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       applyView(camera, ov, aspect());
       post.setReach(h);
       eyeAt(nr);
-      room?.drawOutside(renderer, scene, camera, g.msaa);
+      room?.drawOutside(renderer, scene, { camera, samples: g.msaa });
       post.render();
       saveStill(canvas);
       applyView(camera, view, aspect());
@@ -1398,7 +1396,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       (moved && !swaying);
     const draw = demand.want(now, busy);
     if (draw) {
-      room?.drawOutside(renderer, scene, camera, g.msaa);
+      room?.drawOutside(renderer, scene, { camera, samples: g.msaa });
       post.render();
       shift.mark(camera, canvas.width, canvas.height);
     }
