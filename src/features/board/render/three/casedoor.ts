@@ -52,19 +52,23 @@ const outBack = (u: number) => {
 export function doorPose(kind: CaseKind, t: number): DoorPose {
   const u = clamp(t);
   switch (kind) {
-    case 'oem':
+    case 'oem': {
       return {
         screws: inOut(span(u, 0, 0.16)),
         slide: 240 * inOut(span(u, 0.14, 0.34)),
         out: 70 * inOut(span(u, 0.32, 0.4)),
         swing: SWING * inOut(span(u, 0.38, 1)),
       };
-    case 'matte':
+    }
+    case 'matte': {
       return { screws: 0, slide: 0, out: 45 * outCubic(span(u, 0, 0.18)), swing: SWING * inOut(span(u, 0.12, 1)) };
-    case 'gamer':
+    }
+    case 'gamer': {
       return { screws: 0, slide: 0, out: 0, swing: SWING * outBack(u) };
-    case 'show':
+    }
+    case 'show': {
       return { screws: 0, slide: 0, out: 0, swing: SWING * outCubic(u) };
+    }
   }
 }
 
@@ -73,6 +77,10 @@ export function doorPose(kind: CaseKind, t: number): DoorPose {
  * of its screws and slides off, so it takes the longest; a glass door that swings at once keeps the share it always had (`WAIT_MIN`).
  */
 export function doorWait(kind: CaseKind): number {
-  for (let i = 0; i <= 200; i++) if (doorPose(kind, i / 200).swing >= CLEAR * SWING) return Math.max(WAIT_MIN, i / 200);
+  for (let i = 0; i <= 200; i++) {
+    if (doorPose(kind, i / 200).swing >= CLEAR * SWING) {
+      return Math.max(WAIT_MIN, i / 200);
+    }
+  }
   return 1;
 }

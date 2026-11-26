@@ -22,14 +22,25 @@ const CSS = `
 
 /** What the snapshot has the player waiting on: the key to pull, and the installs queued behind the running job. */
 export function cuesOf(s: Snapshot | null): Cue[] {
-  if (!s) return [];
+  if (!s) {
+    return [];
+  }
   const out: Cue[] = [];
   const keys = [];
-  if (s.phase === 'done-remove-key' && s.plugged) keys.push(s.plugged);
-  if (s.plugged && s.keyActivity === 'done' && s.plugged.stage !== 'done') keys.push(s.plugged);
-  for (const k of keys)
-    if (!out.some((c) => c.id === `key:${k.id}`)) out.push({ id: `key:${k.id}`, kind: 'key', veil: false });
-  for (const p of s.pendingSwaps) out.push({ id: p.replacesId ?? p.target, kind: 'swap', veil: !!p.replacesId });
+  if (s.phase === 'done-remove-key' && s.plugged) {
+    keys.push(s.plugged);
+  }
+  if (s.plugged && s.keyActivity === 'done' && s.plugged.stage !== 'done') {
+    keys.push(s.plugged);
+  }
+  for (const k of keys) {
+    if (!out.some((c) => c.id === `key:${k.id}`)) {
+      out.push({ id: `key:${k.id}`, kind: 'key', veil: false });
+    }
+  }
+  for (const p of s.pendingSwaps) {
+    out.push({ id: p.replacesId ?? p.target, kind: 'swap', veil: Boolean(p.replacesId) });
+  }
   return out;
 }
 
@@ -38,7 +49,9 @@ export class Cues3D {
   private key = '';
 
   constructor(private readonly anchorsOf: (id: string) => Anchor[]) {
-    if (typeof document === 'undefined') return;
+    if (typeof document === 'undefined') {
+      return;
+    }
     const st = document.createElement('style');
     st.textContent = CSS;
     document.head.appendChild(st);
@@ -46,16 +59,22 @@ export class Cues3D {
 
   /** Place the cues over their parts' screen rectangles (called every frame; the DOM changes only when a rectangle moved). */
   frame(s: Snapshot | null): void {
-    if (typeof document === 'undefined') return;
+    if (typeof document === 'undefined') {
+      return;
+    }
     const placed: { c: Cue; a: Anchor }[] = [];
     for (const c of cuesOf(s)) {
-      const a = this.anchorsOf(c.id)[0];
-      if (a && a.visible) placed.push({ c, a });
+      const [a] = this.anchorsOf(c.id);
+      if (a && a.visible) {
+        placed.push({ c, a });
+      }
     }
     const key = placed
       .map(({ c, a }) => `${c.id}${c.veil}${Math.round(a.x)},${Math.round(a.y)},${Math.round(a.w)},${Math.round(a.h)}`)
       .join('|');
-    if (key === this.key) return;
+    if (key === this.key) {
+      return;
+    }
     this.key = key;
     // (a veil and its ring are two boxes: the veil under, the ring over, so the arc turns in the part's middle)
     const want = placed.reduce((n, { c }) => n + (c.veil ? 2 : 1), 0);
@@ -73,7 +92,9 @@ export class Cues3D {
       }
       this.set(this.boxes[i++]!, c.kind, a, pad, c.kind === 'swap');
     }
-    for (; i < this.boxes.length; i++) this.boxes[i]!.style.display = 'none';
+    for (; i < this.boxes.length; i++) {
+      this.boxes[i]!.style.display = 'none';
+    }
   }
 
   private set(d: HTMLDivElement, kind: string, a: Anchor, pad: number, spinner: boolean): void {
@@ -87,7 +108,9 @@ export class Cues3D {
   }
 
   dispose(): void {
-    for (const d of this.boxes) d.remove();
+    for (const d of this.boxes) {
+      d.remove();
+    }
     this.boxes.length = 0;
   }
 }
