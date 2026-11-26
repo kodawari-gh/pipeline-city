@@ -1,6 +1,6 @@
 // The failed-start state (ticket #45): when the sim worker errors, the game says so in plain words and tells the player how to go on (reload),
 // and the menu's "starting" line goes away. Written before the coder's changes: it passes only if the copy already matches. No DOM: the worker is a stand-in.
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { assert, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { booted } from './boot';
 import { lastError, startSim, starting } from './store';
 
@@ -11,14 +11,26 @@ class FakeWorker {
   constructor() {
     FakeWorker.made.push(this);
   }
-  postMessage(): void {}
-  terminate(): void {}
+  postMessage(): void {
+    /* no-op */
+  }
+  terminate(): void {
+    /* no-op */
+  }
 }
 
 describe('the game fails to start', () => {
   beforeEach(() => {
     vi.stubGlobal('Worker', FakeWorker);
-    vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {}, removeItem: () => {} });
+    vi.stubGlobal('localStorage', {
+      getItem: () => null,
+      setItem: () => {
+        /* no-op */
+      },
+      removeItem: () => {
+        /* empty */
+      },
+    });
     FakeWorker.made = [];
     booted.value = true;
     starting.value = false;
@@ -28,10 +40,12 @@ describe('the game fails to start', () => {
   it('says the game could not start and how to go on (reload), and clears "starting"', () => {
     startSim(null);
     expect(starting.value).toBe(true);
-    FakeWorker.made[0]!.onerror?.();
+    const [worker] = FakeWorker.made;
+    assert.exists(worker);
+    worker.onerror?.();
     expect(starting.value).toBe(false);
-    expect(lastError.value).toMatch(/could not start/i);
-    expect(lastError.value).toMatch(/reload the page and try again/i);
+    expect(lastError.value).toMatch(/could not start/iu);
+    expect(lastError.value).toMatch(/reload the page and try again/iu);
   });
 });
 
@@ -46,11 +60,23 @@ describe('the browser goes offline', () => {
     offlineListeners = [];
     vi.stubGlobal('window', {
       addEventListener: (type: string, fn: () => void) => {
-        if (type === 'offline') offlineListeners.push(fn);
+        if (type === 'offline') {
+          offlineListeners.push(fn);
+        }
       },
-      removeEventListener: () => {},
+      removeEventListener: () => {
+        /* no-op */
+      },
     });
-    vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {}, removeItem: () => {} });
+    vi.stubGlobal('localStorage', {
+      getItem: () => null,
+      setItem: () => {
+        /* no-op */
+      },
+      removeItem: () => {
+        /* empty */
+      },
+    });
   });
 
   afterEach(() => {
@@ -62,12 +88,14 @@ describe('the browser goes offline', () => {
     const { toasts } = await import('@/core/ui/state');
     const { friendlyError } = await import('@/core/ui/logic');
     store.watchConnection(); // (main.tsx calls it once, when the page starts: importing the store alone listens to nothing)
-    for (const fn of offlineListeners) fn();
+    for (const fn of offlineListeners) {
+      fn();
+    }
     const said = [store.lastError.value && friendlyError(store.lastError.value), ...toasts.value.map((t) => t.text)]
       .filter(Boolean)
       .join(' ');
-    expect(said).toMatch(/offline/i);
-    expect(said).toMatch(/still|keep|menu|online|reconnect|try/i);
-    expect(said).not.toMatch(/^Not now:/);
+    expect(said).toMatch(/offline/iu);
+    expect(said).toMatch(/still|keep|menu|online|reconnect|try/iu);
+    expect(said).not.toMatch(/^Not now:/u);
   });
 });

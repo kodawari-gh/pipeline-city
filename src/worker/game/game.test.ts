@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { getSpec } from '../../features/board/sim';
 import { ECONOMY } from '../../features/economy/sim/economy';
-import { Game, type GameOptions } from './game';
+import * as gameSim from './game';
 import { Operator, play } from '../../features/economy/sim/operator';
 import { rig } from './testkit';
 
@@ -11,7 +11,7 @@ ECONOMY.caseGating = false;
 
 /** One isolated job (no arrivals) on a machine with `items` bought and installed; returns the completion record. */
 function oneJob(items: string[], template: string, scale = 1, seed = 1) {
-  const g = new Game({
+  const g = new gameSim.Game({
     seed,
     preassembled: true, // raw hardware speed: the firmware boost and the auto-eject are off so cycle counts and manual steps stay comparable
     economy: { baseDemandPerTick: 0, startQueue: [{ template, scale }], firmwareBoost: 1, autoEjectTicks: 0 },
@@ -19,7 +19,9 @@ function oneJob(items: string[], template: string, scale = 1, seed = 1) {
   g.money = 1e6;
   for (const i of items) {
     const r = g.purchase(i);
-    if (!r.ok) throw new Error(`${i}: ${r.reason}`);
+    if (!r.ok) {
+      throw new Error(`${i}: ${r.reason}`);
+    }
   }
   const op = new Operator(g, 0);
   for (let k = 0; k < 5000 && g.completed === 0; k++) {
@@ -27,14 +29,19 @@ function oneJob(items: string[], template: string, scale = 1, seed = 1) {
     op.step();
   }
   expect(g.lastCompleted).not.toBeNull();
-  return g.lastCompleted!;
+  assert.exists(g.lastCompleted);
+  return g.lastCompleted;
 }
 
-const cpuOf = (g: Game) => g.snapshot().devices.find((d) => d.kind === 'cpu')!;
+const cpuOf = (g: gameSim.Game) => {
+  const cpuDevice = g.snapshot().devices.find((d) => d.kind === 'cpu');
+  assert.exists(cpuDevice);
+  return cpuDevice;
+};
 
 describe('pacing (real start: bare board, then the bot assembles the crate)', () => {
   it('first job (power on to payout) is about 15-30 s (POST 3 s, auto-eject), the first payout buys a part soon after', () => {
-    const g = new Game({ seed: 1 });
+    const g = new gameSim.Game({ seed: 1 });
     const op = new Operator(g, 2); // a human needs a couple of seconds per manual step
     let powerOnAt = 0;
     let payAt = 0;
@@ -45,18 +52,25 @@ describe('pacing (real start: bare board, then the bot assembles the crate)', ()
     for (let t = 1; t <= 600; t++) {
       g.advanceBaseTick();
       op.step();
-      if (!powerOnAt && g.powered) powerOnAt = t;
+      if (!powerOnAt && g.powered) {
+        powerOnAt = t;
+      }
       const s = g.snapshot();
       if (!payAt && s.completed > 0) {
         payAt = t;
-        firstPay = s.lastCompleted!.payout;
-        firstId = s.lastCompleted!.id;
+        assert.exists(s.lastCompleted);
+        firstPay = s.lastCompleted.payout;
+        firstId = s.lastCompleted.id;
       }
       const ok = s.purchases.filter(
-        (p) => p.affordable && !p.blocked && !/^(board|case)0$/.test(p.id) && (getSpec(p.id)?.tier ?? 1) > 0,
+        (p) => p.affordable && !p.blocked && !/^(?:board|case)0$/u.test(p.id) && (getSpec(p.id)?.tier ?? 1) > 0,
       ); // upgrades: the starter parts stay on sale for the floor price
-      if (!firstAffordable && ok.length) firstAffordable = t;
-      if (!firstTier && ok.some((p) => p.kind === 'cpu' || p.kind === 'ram')) firstTier = t;
+      if (!firstAffordable && ok.length > 0) {
+        firstAffordable = t;
+      }
+      if (!firstTier && ok.some((p) => p.kind === 'cpu' || p.kind === 'ram')) {
+        firstTier = t;
+      }
     }
     expect(powerOnAt).toBeLessThanOrEqual(12); // a few manual steps: install, plug a key, press power
     const firstJob = payAt - powerOnAt;
@@ -72,7 +86,7 @@ describe('pacing (real start: bare board, then the bot assembles the crate)', ()
   it('slow start: across 30 seeds the first $100 lands in a bounded time and the first job is unchanged', () => {
     const times: number[] = [];
     for (let seed = 1; seed <= 30; seed++) {
-      const g = new Game({ seed });
+      const g = new gameSim.Game({ seed });
       const op = new Operator(g, 2);
       let t100 = 0;
       let first = 0;
@@ -83,10 +97,13 @@ describe('pacing (real start: bare board, then the bot assembles the crate)', ()
           first = t;
           expect(first).toBeGreaterThanOrEqual(15);
           expect(first).toBeLessThanOrEqual(45);
-          expect(g.lastCompleted!.payout).toBeGreaterThanOrEqual(30);
-          expect(g.lastCompleted!.payout).toBeLessThanOrEqual(150); // the quick first cycle earns the full speed bonus
+          assert.exists(g.lastCompleted);
+          expect(g.lastCompleted.payout).toBeGreaterThanOrEqual(30);
+          expect(g.lastCompleted.payout).toBeLessThanOrEqual(150); // the quick first cycle earns the full speed bonus
         }
-        if (g.money >= 100) t100 = t;
+        if (g.money >= 100) {
+          t100 = t;
+        }
       }
       times.push(t100);
     }
@@ -95,24 +112,33 @@ describe('pacing (real start: bare board, then the bot assembles the crate)', ()
   });
 
   it('the first job leaves its text on the monitor and on the key', () => {
-    const g = new Game({ seed: 1, economy: { autoEjectTicks: 0 } }); // the key stays so the result can be read off it
+    const g = new gameSim.Game({ seed: 1, economy: { autoEjectTicks: 0 } }); // the key stays so the result can be read off it
     const op = new Operator(g, 6); // the human is slow to pull the key
     while (!(g.currentPhase() === 'halted' && g.pluggedKey()?.done)) {
       g.advanceBaseTick();
       op.step();
     }
-    for (let i = 0; i < 10; i++) g.advanceBaseTick(); // let the display drain
+    for (let i = 0; i < 10; i++) {
+      g.advanceBaseTick();
+    } // let the display drain
     const s = g.snapshot();
-    expect(s.display).toMatch(/#\d\d .+ OK/);
+    expect(s.display).toMatch(/#\d\d .+ OK/u);
     expect(s.display).toContain('JOB DONE');
-    expect(s.plugged!.result).toMatch(/^#\d\d .+ OK$/);
+    assert.exists(s.plugged);
+    expect(s.plugged.result).toMatch(/^#\d\d .+ OK$/u);
   });
 });
 
 describe('queue, reputation and demand', () => {
   it('the tray is capped; overflow counts as a drop and costs reputation', () => {
-    const g = new Game({ seed: 3, preassembled: true, economy: { baseDemandPerTick: 1, queueCap: 5, repMin: 1 } });
-    for (let t = 0; t < 40; t++) g.advanceBaseTick(); // nobody serves the keys
+    const g = new gameSim.Game({
+      seed: 3,
+      preassembled: true,
+      economy: { baseDemandPerTick: 1, queueCap: 5, repMin: 1 },
+    });
+    for (let t = 0; t < 40; t++) {
+      g.advanceBaseTick();
+    } // nobody serves the keys
     const s = g.snapshot();
     expect(s.queueLength).toBe(5);
     expect(s.dropped).toBeGreaterThan(0);
@@ -120,18 +146,21 @@ describe('queue, reputation and demand', () => {
   });
 
   it('keys sitting unserved lower reputation and demand', () => {
-    const g = new Game({ seed: 2, preassembled: true });
+    const g = new gameSim.Game({ seed: 2, preassembled: true });
     const fresh = g.snapshot();
-    for (let t = 0; t < 300; t++) g.advanceBaseTick(); // nobody touches the machine
+    for (let t = 0; t < 300; t++) {
+      g.advanceBaseTick();
+    } // nobody touches the machine
     const s = g.snapshot();
-    expect(s.tray[0]!.age).toBeGreaterThan(200);
+    assert.exists(s.tray[0]);
+    expect(s.tray[0].age).toBeGreaterThan(200);
     expect(s.reputation).toBeLessThan(fresh.reputation);
     expect(s.demandRate).toBeLessThan(fresh.demandRate);
   });
 
   it('slow service shrinks demand, fast service holds it up', () => {
     /** Mean reputation over the second half of a 1500 s run (a single instant is noisy: a lull freezes the average). */
-    const meanRep = (g: Game): number => {
+    const meanRep = (g: gameSim.Game): number => {
       let sum = 0;
       let n = 0;
       play(g, 1500, 2, (gg, t) => {
@@ -151,8 +180,8 @@ describe('queue, reputation and demand', () => {
     for (const seed of [2, 3, 4]) {
       // Both start at level 5 (patience 2): the level drives the clients' patience now, and a machine that serves faster would
       // climb to a stricter level during the run, which would blur the comparison of the service speed itself.
-      const slow = new Game({ seed, startLevel: 5 });
-      const fast = new Game({ seed, startLevel: 5 });
+      const slow = new gameSim.Game({ seed, startLevel: 5 });
+      const fast = new gameSim.Game({ seed, startLevel: 5 });
       fast.money = 1e6;
       fast.purchase('cpu1');
       fast.purchase('ram1');
@@ -164,39 +193,47 @@ describe('queue, reputation and demand', () => {
     expect(rs).toBeLessThan(0.6);
     expect(rf).toBeGreaterThan(rs * 1.25);
     expect(doneFast).toBeGreaterThan(doneSlow * 1.5);
-  }, 30000); // (about 2.5 s alone: the full suite's load made it time out at the default)
+  }, 30_000); // (about 2.5 s alone: the full suite's load made it time out at the default)
 
   it("no clients arrive before the first boot, and the first key's clock starts at the first boot", () => {
-    const g = new Game({ seed: 1 });
-    for (let t = 0; t < 200; t++) g.advanceBaseTick();
+    const g = new gameSim.Game({ seed: 1 });
+    for (let t = 0; t < 200; t++) {
+      g.advanceBaseTick();
+    }
     let s = g.snapshot();
     expect(s.tray).toHaveLength(1); // only the starter key
-    expect(s.tray[0]!.age).toBe(0);
+    assert.exists(s.tray[0]);
+    expect(s.tray[0].age).toBe(0);
     g.install('inv1');
     g.install('inv5');
     g.install('inv2');
     g.install('inv3');
     g.install('inv4');
-    for (const c of ['atx', 'cpu', 'cpufan', 'video', 'pcmains', 'monmains']) g.connectCable(c);
-    expect(g.powerButton()).toEqual({ ok: true, powered: true });
-    for (let t = 0; t < 10; t++) g.advanceBaseTick();
+    for (const c of ['atx', 'cpu', 'cpufan', 'video', 'pcmains', 'monmains']) {
+      g.connectCable(c);
+    }
+    expect(g.powerButton()).toStrictEqual({ ok: true, powered: true });
+    for (let t = 0; t < 10; t++) {
+      g.advanceBaseTick();
+    }
     s = g.snapshot();
-    expect(s.tray[0]!.age).toBe(10);
-    expect(s.tray[0]!.arrivalTick).toBe(200);
+    assert.exists(s.tray[0]);
+    expect(s.tray[0].age).toBe(10);
+    expect(s.tray[0].arrivalTick).toBe(200);
   });
 });
 
 describe('purchases go to the inventory', () => {
   it('rejects what you cannot afford and what is not for sale; the rest is sold, and the inventory says whether it fits', () => {
-    const g = new Game({ seed: 1, preassembled: true });
+    const g = new gameSim.Game({ seed: 1, preassembled: true });
     const poor = g.purchase('cpu1');
-    expect(!poor.ok && poor.reason).toMatch(/needs/);
+    expect(!poor.ok && poor.reason).toMatch(/needs/u);
     g.money = 1e6;
     const big = g.purchase('cpu2') as { invId: string }; // 41 W of rated load > the 40 W PSU: sold anyway, it just will not go in yet
     expect(big.invId).toBeTruthy();
     expect(g.snapshot().inventory.find((i) => i.id === big.invId)).toMatchObject({
       installable: false,
-      reason: expect.stringMatching(/PSU/),
+      reason: expect.stringMatching(/PSU/u),
     });
     expect(g.purchase('psu1').ok).toBe(true);
     expect(g.purchase('cpu1').ok).toBe(true); // any tier, and as many as you like
@@ -205,64 +242,78 @@ describe('purchases go to the inventory', () => {
   });
 
   it('a purchase is owned but not installed; the strict install needs the machine off', () => {
-    const g = new Game({ seed: 1, preassembled: true });
+    const g = new gameSim.Game({ seed: 1, preassembled: true });
     g.money = 1e6;
     const r = g.purchase('cpu1');
     expect(r.ok).toBe(true);
     expect(g.snapshot().progress.firstPurchase).toBe(true);
     expect(cpuOf(g).spec).toBe('cpu0');
     const inv = g.snapshot().inventory;
-    expect(inv.map((i) => i.spec)).toEqual(['cpu1']);
+    expect(inv.map((i) => i.spec)).toStrictEqual(['cpu1']);
     expect(inv[0]).toMatchObject({ installable: true, swapSlots: ['cpu0'], freeSlots: [] });
     const id = (r as { invId: string }).invId;
     expect(g.install(id)).toMatchObject({ ok: false, reason: 'power the machine off first' });
     g.powerButton();
     expect(g.install(id).ok).toBe(true);
     expect(cpuOf(g).spec).toBe('cpu1');
-    expect(g.snapshot().inventory.map((i) => i.spec)).toEqual(['cpu0']); // the old CPU came back
+    expect(g.snapshot().inventory.map((i) => i.spec)).toStrictEqual(['cpu0']); // the old CPU came back
   });
 
   it('plugAndBoot switches an off machine on', () => {
-    const g = new Game({ seed: 1, preassembled: true });
-    for (let i = 0; i < 400 && g.trayKeyIds().length === 0; i++) g.advanceBaseTick();
+    const g = new gameSim.Game({ seed: 1, preassembled: true });
+    for (let i = 0; i < 400 && g.trayKeyIds().length === 0; i++) {
+      g.advanceBaseTick();
+    }
     g.powerButton();
     expect(g.powered).toBe(false);
-    expect(g.plugAndBoot(g.trayKeyIds()[0]!).ok).toBe(true);
+    const [firstTrayKeyId] = g.trayKeyIds();
+    assert.exists(firstTrayKeyId);
+    expect(g.plugAndBoot(firstTrayKeyId).ok).toBe(true);
     expect(g.powered).toBe(true);
   });
 
   it('swapInstall on an idle machine powers off, installs and powers back on', () => {
-    const g = new Game({ seed: 1, preassembled: true });
+    const g = new gameSim.Game({ seed: 1, preassembled: true });
     g.money = 1e6;
     const id = (g.purchase('cpu1') as { invId: string }).invId;
     expect(g.powered).toBe(true);
     expect(g.swapInstall(id)).toMatchObject({ ok: true, pending: false });
     expect(cpuOf(g).spec).toBe('cpu1');
     expect(g.powered).toBe(true);
-    expect(g.snapshot().pendingSwaps).toEqual([]);
+    expect(g.snapshot().pendingSwaps).toStrictEqual([]);
   });
 
   it('swapInstall during a job waits for the job, then swaps and restarts', () => {
-    const g = new Game({ seed: 1, preassembled: true });
+    const g = new gameSim.Game({ seed: 1, preassembled: true });
     g.money = 1e6;
-    for (let i = 0; i < 400 && g.trayKeyIds().length === 0; i++) g.advanceBaseTick();
-    expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
+    for (let i = 0; i < 400 && g.trayKeyIds().length === 0; i++) {
+      g.advanceBaseTick();
+    }
+    const [firstTrayKeyId2] = g.trayKeyIds();
+    assert.exists(firstTrayKeyId2);
+    expect(g.plugKey(firstTrayKeyId2).ok).toBe(true);
     const id = (g.purchase('cpu1') as { invId: string }).invId;
     expect(g.swapInstall(id)).toMatchObject({ ok: true, pending: true });
     expect(g.snapshot().pendingSwaps).toMatchObject([{ invId: id }]);
     expect(cpuOf(g).spec).toBe('cpu0'); // not yet: the job is still on
-    for (let i = 0; i < 4000 && cpuOf(g).spec === 'cpu0'; i++) g.advanceBaseTick();
+    for (let i = 0; i < 4000 && cpuOf(g).spec === 'cpu0'; i++) {
+      g.advanceBaseTick();
+    }
     expect(g.completed).toBe(1); // the job finished and paid first
     expect(cpuOf(g).spec).toBe('cpu1');
     expect(g.powered).toBe(true);
-    expect(g.snapshot().pendingSwaps).toEqual([]);
+    expect(g.snapshot().pendingSwaps).toStrictEqual([]);
   });
 
   it('several swaps can wait behind one job, each for its own slot, and share one power cycle', () => {
-    const g = new Game({ seed: 1, preassembled: true });
+    const g = new gameSim.Game({ seed: 1, preassembled: true });
     g.money = 1e6;
-    for (let i = 0; i < 400 && g.trayKeyIds().length === 0; i++) g.advanceBaseTick();
-    expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
+    for (let i = 0; i < 400 && g.trayKeyIds().length === 0; i++) {
+      g.advanceBaseTick();
+    }
+    const [firstTrayKeyId3] = g.trayKeyIds();
+    assert.exists(firstTrayKeyId3);
+    expect(g.plugKey(firstTrayKeyId3).ok).toBe(true);
     const cpu = (g.purchase('cpu1') as { invId: string }).invId;
     const cpuB = (g.purchase('cpu1') as { invId: string }).invId;
     const ram = (g.purchase('ram1') as { invId: string }).invId;
@@ -270,37 +321,49 @@ describe('purchases go to the inventory', () => {
     expect(g.swapInstall(cpu)).toMatchObject({ ok: false }); // already queued
     expect(g.swapInstall(cpuB)).toMatchObject({ ok: false }); // the only CPU socket is taken by the first
     expect(g.swapInstall(ram)).toMatchObject({ ok: true, pending: true });
-    expect(g.snapshot().pendingSwaps.map((p) => p.invId)).toEqual([cpu, ram]);
-    for (let i = 0; i < 4000 && cpuOf(g).spec === 'cpu0'; i++) g.advanceBaseTick();
+    expect(g.snapshot().pendingSwaps.map((p) => p.invId)).toStrictEqual([cpu, ram]);
+    for (let i = 0; i < 4000 && cpuOf(g).spec === 'cpu0'; i++) {
+      g.advanceBaseTick();
+    }
     expect(cpuOf(g).spec).toBe('cpu1');
     expect(g.snapshot().devices.some((d) => d.spec === 'ram1')).toBe(true);
-    expect(g.snapshot().pendingSwaps).toEqual([]);
+    expect(g.snapshot().pendingSwaps).toStrictEqual([]);
     expect(g.powered).toBe(true);
   });
 
   it('a queued swap can be cancelled one by one or all at once; the part stays in the inventory', () => {
-    const g = new Game({ seed: 1, preassembled: true });
+    const g = new gameSim.Game({ seed: 1, preassembled: true });
     g.money = 1e6;
-    for (let i = 0; i < 400 && g.trayKeyIds().length === 0; i++) g.advanceBaseTick();
-    expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
+    for (let i = 0; i < 400 && g.trayKeyIds().length === 0; i++) {
+      g.advanceBaseTick();
+    }
+    const [firstTrayKeyId4] = g.trayKeyIds();
+    assert.exists(firstTrayKeyId4);
+    expect(g.plugKey(firstTrayKeyId4).ok).toBe(true);
     const cpu = (g.purchase('cpu1') as { invId: string }).invId;
     const ram = (g.purchase('ram1') as { invId: string }).invId;
     g.swapInstall(cpu);
     g.swapInstall(ram);
     expect(g.cancelSwap(cpu)).toMatchObject({ ok: true, cancelled: 1 });
-    expect(g.snapshot().pendingSwaps.map((p) => p.invId)).toEqual([ram]);
+    expect(g.snapshot().pendingSwaps.map((p) => p.invId)).toStrictEqual([ram]);
     expect(g.cancelSwap()).toMatchObject({ ok: true, cancelled: 1 });
     expect(g.cancelSwap()).toMatchObject({ ok: false });
-    for (let i = 0; i < 4000 && g.jobInFlight(); i++) g.advanceBaseTick();
+    for (let i = 0; i < 4000 && g.jobInFlight(); i++) {
+      g.advanceBaseTick();
+    }
     expect(cpuOf(g).spec).toBe('cpu0');
-    expect(g.snapshot().inventory.map((i) => i.id)).toEqual(expect.arrayContaining([cpu, ram]));
+    expect(g.snapshot().inventory.map((i) => i.id)).toStrictEqual(expect.arrayContaining([cpu, ram]));
   });
 
   it('the snapshot lists purchases with price, affordability and board refusals', () => {
-    const g = new Game({ seed: 1, preassembled: true });
+    const g = new gameSim.Game({ seed: 1, preassembled: true });
     g.money = 150;
     const p = g.snapshot().purchases;
-    const by = (id: string) => p.find((x) => x.id === id)!;
+    const by = (id: string) => {
+      const foundP = p.find((x) => x.id === id);
+      assert.exists(foundP);
+      return foundP;
+    };
     expect(by('ram1')).toMatchObject({ price: 100, affordable: true });
     expect(by('cpu1')).toMatchObject({ price: 200, affordable: false });
     expect(by('cpu2').blocked).toBeUndefined(); // whether a part fits is the inventory's business
@@ -311,13 +374,15 @@ describe('purchases go to the inventory', () => {
 
 describe('board upgrade purchase', () => {
   it('psu2 only installs once the bigger board is fitted, then everything works on it', () => {
-    const g = new Game({ seed: 1, preassembled: true, economy: { baseDemandPerTick: 0, startQueue: [] } });
+    const g = new gameSim.Game({ seed: 1, preassembled: true, economy: { baseDemandPerTick: 0, startQueue: [] } });
     g.money = 1e6;
     const by = (id: string) => g.snapshot().purchases.find((p) => p.id === id);
     g.powerButton(); // a board can only be bought while powered off
     expect(by('board1')).toMatchObject({ kind: 'board', price: 150, affordable: true });
     expect(by('board2')).toMatchObject({ kind: 'board', price: 300 }); // every tier is on sale
-    expect(by('psu2')!.blocked).toBeUndefined();
+    const psu2Part = by('psu2');
+    assert.exists(psu2Part);
+    expect(psu2Part.blocked).toBeUndefined();
     const b1 = g.purchase('board1') as { ok: true; invId: string };
     expect(b1.ok).toBe(true);
     expect(by('board2')).toMatchObject({ kind: 'board', price: 300, affordable: true });
@@ -326,7 +391,9 @@ describe('board upgrade purchase', () => {
     expect(g.money).toBe(1e6 - 450);
     expect(g.snapshot().boardTier).toBe(0); // owned, not installed
     expect(by('board2')).toBeDefined(); // still on sale: another is a spare
-    expect(by('psu2')!.blocked).toBeUndefined();
+    const psu2Part2 = by('psu2');
+    assert.exists(psu2Part2);
+    expect(psu2Part2.blocked).toBeUndefined();
     const p = g.purchase('psu2') as { ok: true; invId: string };
     expect(p.ok).toBe(true);
     expect(g.snapshot().inventory.find((i) => i.id === b.invId)).toMatchObject({
@@ -344,23 +411,32 @@ describe('board upgrade purchase', () => {
         .every((c) => c.connected),
     ).toBe(true); // parts and cables carried over
     expect(g.install(p.invId).ok).toBe(true); // swaps over the 40 W PSU, which goes back to the inventory
-    expect(g.snapshot().cables.find((c) => c.id === 'atx')!.connected).toBe(true); // swapping keeps the cables on the board
+    const atxCable = g.snapshot().cables.find((c) => c.id === 'atx');
+    assert.exists(atxCable);
+    expect(atxCable.connected).toBe(true); // swapping keeps the cables on the board
     g.powerButton();
     g.advanceBaseTick();
     const s = g.snapshot();
-    expect(s.devices.map((d) => d.spec).sort()).toEqual(['cooler0', 'cpu0', 'display0', 'fan92', 'psu2', 'ram0']); // the heatsink keeps its fan
+    expect(s.devices.map((d) => d.spec).toSorted()).toStrictEqual([
+      'cooler0',
+      'cpu0',
+      'display0',
+      'fan92',
+      'psu2',
+      'ram0',
+    ]); // the heatsink keeps its fan
     expect(s.power.budgetW).toBe(250);
     expect(g.purchase('cpu2').ok).toBe(true);
   });
 
   it('is refused without the money', () => {
-    const g = new Game({ seed: 1 });
+    const g = new gameSim.Game({ seed: 1 });
     const r = g.purchase('board1');
-    expect(!r.ok && r.reason).toMatch(/needs [$]150/);
+    expect(!r.ok && r.reason).toMatch(/needs [$]150/u);
   });
 
   it('keeps earning after the upgrade', () => {
-    const g = new Game({ seed: 1, preassembled: true });
+    const g = new gameSim.Game({ seed: 1, preassembled: true });
     g.money = 400;
     g.powerButton(); // board purchases need the machine off
     expect(g.purchase('board1').ok).toBe(true);
@@ -397,7 +473,7 @@ describe('CPU tier vs RAM tier depends on the job profile', () => {
   it('boot time depends on the CPU: POST finishes, and the key check follows, sooner on a faster CPU', () => {
     // Measured to the POST's last line (USB OK): the key check comes right after it. The halt message is not counted,
     // it is CPU work too (and it runs under load now), so the halt tick would also measure the message.
-    const postTicks = (g: Game): number => {
+    const postTicks = (g: gameSim.Game): number => {
       let t = 0;
       while (!g.snapshot().display.includes('USB OK') && t < 500) {
         g.advanceBaseTick();
@@ -406,9 +482,11 @@ describe('CPU tier vs RAM tier depends on the job profile', () => {
       return t - g.snapshot().postTicks; // the CPU-dependent part: the cold-boot wait depends on the machine's RAM and drives
     };
     const starter = (items: string[]): number => {
-      const g = new Game({ seed: 1, preassembled: true, economy: { baseDemandPerTick: 0, firmwareBoost: 1 } });
+      const g = new gameSim.Game({ seed: 1, preassembled: true, economy: { baseDemandPerTick: 0, firmwareBoost: 1 } });
       g.money = 1e6;
-      for (const i of items) g.purchase(i);
+      for (const i of items) {
+        g.purchase(i);
+      }
       new Operator(g).assemble();
       return postTicks(g);
     };
@@ -431,34 +509,40 @@ describe('determinism', () => {
     [400, 'ram1'],
   ];
   function play2(seed: number): string[] {
-    const g = new Game({ seed });
+    const g = new gameSim.Game({ seed });
     const op = new Operator(g, 2);
     const out: string[] = [];
     for (let t = 1; t <= 800; t++) {
       g.advanceBaseTick();
-      for (const [at, item] of script) if (t === at) g.purchase(item);
+      for (const [at, item] of script) {
+        if (t === at) {
+          g.purchase(item);
+        }
+      }
       op.step();
-      if (t % 25 === 0) out.push(JSON.stringify(g.snapshot()));
+      if (t % 25 === 0) {
+        out.push(JSON.stringify(g.snapshot()));
+      }
     }
     return out;
   }
   it('same seed and player script gives identical snapshots', () => {
-    expect(play2(7)).toEqual(play2(7));
+    expect(play2(7)).toStrictEqual(play2(7));
   });
   it('different seeds differ', () => {
-    expect(play2(7)).not.toEqual(play2(8));
+    expect(play2(7)).not.toStrictEqual(play2(8));
   });
   it('snapshots are plain JSON', () => {
-    const g = new Game({ seed: 2, preassembled: true });
+    const g = new gameSim.Game({ seed: 2, preassembled: true });
     play(g, 30);
     const s = g.snapshot();
-    expect(JSON.parse(JSON.stringify(s))).toEqual(s);
+    expect(JSON.parse(JSON.stringify(s))).toStrictEqual(s);
   });
 });
 
 describe('overclock, heat and errors', () => {
   /** Keep the machine saturated with work. */
-  const busy: GameOptions['economy'] = {
+  const busy: gameSim.GameOptions['economy'] = {
     baseDemandPerTick: 1,
     repMin: 1,
     queueCap: 20,
@@ -467,12 +551,14 @@ describe('overclock, heat and errors', () => {
   };
 
   /** cpu2 (35 W at base) needs the 100 W PSU, and runs hot on the stock cooler. */
-  function cpu2Game(clock: number): { g: Game; op: Operator } {
-    const g = new Game({ seed: 5, preassembled: true, economy: busy });
+  function cpu2Game(clock: number): { g: gameSim.Game; op: Operator } {
+    const g = new gameSim.Game({ seed: 5, preassembled: true, economy: busy });
     g.money = 1e6;
     // cpu2 would crash the Starter board's VRM at once; these tests are about the CPU's own heat, so give it the strongest board.
     g.powerButton();
-    for (const b of ['board1', 'board2', 'board3']) g.purchase(b);
+    for (const b of ['board1', 'board2', 'board3']) {
+      g.purchase(b);
+    }
     g.purchase('psu1');
     g.purchase('cpu2');
     const op = new Operator(g, 0);
@@ -484,7 +570,7 @@ describe('overclock, heat and errors', () => {
     expect(g.setCpuClock(clock).ok).toBe(true);
     return { g, op };
   }
-  const run = (x: { g: Game; op: Operator }, n: number, each?: (g: Game) => void) => {
+  const run = (x: { g: gameSim.Game; op: Operator }, n: number, each?: (g: gameSim.Game) => void) => {
     for (let t = 0; t < n; t++) {
       x.g.advanceBaseTick();
       x.op.step();
@@ -493,9 +579,9 @@ describe('overclock, heat and errors', () => {
   };
 
   it('a modest overclock on the cool starting CPU raises throughput', () => {
-    const a = new Game({ seed: 5, preassembled: true, economy: busy });
+    const a = new gameSim.Game({ seed: 5, preassembled: true, economy: busy });
     play(a, 500);
-    const b = new Game({ seed: 5, preassembled: true, economy: busy });
+    const b = new gameSim.Game({ seed: 5, preassembled: true, economy: busy });
     expect(b.setCpuClock(1.5).ok).toBe(true);
     play(b, 500);
     // 1.2 before the manual loop; its fixed per-job steps (cold boot, power off/on, plug, remove) dilute the gain.
@@ -504,8 +590,8 @@ describe('overclock, heat and errors', () => {
   });
 
   it('rejects clocks out of range', () => {
-    expect(new Game({ seed: 1, preassembled: true }).setCpuClock(9).ok).toBe(false);
-    expect(new Game({ seed: 1 }).setCpuClock(1).ok).toBe(false); // no CPU installed yet
+    expect(new gameSim.Game({ seed: 1, preassembled: true }).setCpuClock(9).ok).toBe(false);
+    expect(new gameSim.Game({ seed: 1 }).setCpuClock(1).ok).toBe(false); // no CPU installed yet
   });
 
   it('an aggressive overclock with the stock cooler runs hot, errors or burns, and underperforms a moderate one', () => {
@@ -530,7 +616,9 @@ describe('overclock, heat and errors', () => {
     for (let t = 0; t < 400 && !crashed; t++) {
       run(x, 1);
       const s = x.g.snapshot();
-      if (s.errors > 0 && s.plugged && s.plugged.attempts > 1) crashed = true;
+      if (s.errors > 0 && s.plugged && s.plugged.attempts > 1) {
+        crashed = true;
+      }
     }
     expect(crashed).toBe(true);
     expect(x.g.snapshot().log.some((e) => e.kind === 'fault')).toBe(true);
@@ -540,10 +628,12 @@ describe('overclock, heat and errors', () => {
     const x = cpu2Game(4.5);
     for (let t = 0; t < 600 && !cpuOf(x.g).burnt; t++) {
       x.g.advanceBaseTick();
-      if (!cpuOf(x.g).burnt) x.op.step(); // stop the bot the moment it burns: it would swap the part at once
+      if (!cpuOf(x.g).burnt) {
+        x.op.step();
+      } // stop the bot the moment it burns: it would swap the part at once
     }
     expect(cpuOf(x.g).burnt).toBe(true);
-    expect(x.g.snapshot()).toMatchObject({ phase: 'error', phaseReason: expect.stringMatching(/burnt/) });
+    expect(x.g.snapshot()).toMatchObject({ phase: 'error', phaseReason: expect.stringMatching(/burnt/u) });
     x.g.money = 1e6;
     expect(x.g.purchase('cpu2').ok).toBe(true); // same-tier replacement of a burnt part is offered
     const before = x.g.completed;

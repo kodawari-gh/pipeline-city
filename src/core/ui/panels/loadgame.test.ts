@@ -2,17 +2,18 @@
 // unreadable file gives no question and a toast. Written before the coder's changes: the first rule fails until they land.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Game } from '@/worker/game/game';
-import type { Snapshot } from '@/worker/protocol';
+import type * as storeApi from '@/app/store';
+import type * as loadgameApi from '@/core/ui/panels/loadgame';
 
-vi.mock('@/app/store', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/app/store')>()),
-  startSim: vi.fn(),
+vi.mock(import('@/app/store'), async (importOriginal) => ({
+  ...(await importOriginal<typeof storeApi>()),
+  startSim: vi.fn<typeof storeApi.startSim>(),
 }));
 vi.mock('./Confirm', () => ({ askConfirm: vi.fn() }));
-vi.mock('../leave', () => ({ leaveGame: vi.fn() }));
+vi.mock(import('../leave'), () => ({ leaveGame: vi.fn<() => void>() }));
 
-let loadFromFile: typeof import('@/core/ui/panels/loadgame').loadFromFile;
-let store: typeof import('@/app/store');
+let loadFromFile: typeof loadgameApi.loadFromFile;
+let store: typeof storeApi;
 
 beforeEach(async () => {
   vi.resetModules();
@@ -35,7 +36,7 @@ describe('Load file', () => {
   it('an unreadable file starts nothing and says why in the toast', async () => {
     await loadFromFile(new File(['not json'], 'bad.json', { type: 'application/json' }));
     expect(vi.mocked(store.startSim)).not.toHaveBeenCalled();
-    expect(store.lastError.value).toMatch(/not a Pipeline City save/);
+    expect(store.lastError.value).toMatch(/not a Pipeline City save/u);
   });
 
   it('a readable file starts nothing until the Load confirm screen is answered (no autosave)', async () => {
@@ -69,8 +70,8 @@ describe('a corrupt or incompatible save file', () => {
       const { friendlyError } = await import('@/core/ui/logic');
       await loadFromFile(new File([body], 'bad.json', { type: 'application/json' }));
       const shown = friendlyError(store.lastError.value ?? '');
-      expect(shown).not.toMatch(/^Not now:/);
-      expect(shown).toMatch(/pick|choose|another|menu|try/i);
+      expect(shown).not.toMatch(/^Not now:/u);
+      expect(shown).toMatch(/pick|choose|another|menu|try/iu);
     });
   }
 });
@@ -81,9 +82,9 @@ describe('a bad save file and the main menu', () => {
 
   it('returns the player to the menu when a game is running', async () => {
     const { leaveGame } = await import('../leave');
-    store.snapshot.value = new Game({ seed: 7 }).snapshot() as Snapshot;
+    store.snapshot.value = new Game({ seed: 7 }).snapshot();
     await loadFromFile(bad());
-    expect(vi.mocked(leaveGame)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(leaveGame)).toHaveBeenCalledOnce();
   });
 
   it('does not end anything when no game is running', async () => {

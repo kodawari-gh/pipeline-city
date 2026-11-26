@@ -41,10 +41,10 @@ describe('interrupt controller', () => {
 
   it('word stores and byte stores reach the registers', () => {
     const m = new Machine();
-    m.bus.store32(INTC_BASE + INTC_REG.VECTOR, 0x1234_5678);
-    expect(m.intc.vector).toBe(0x1234_5678);
+    m.bus.store32(INTC_BASE + INTC_REG.VECTOR, 0x12_34_56_78);
+    expect(m.intc.vector).toBe(0x12_34_56_78);
     m.bus.store8(INTC_BASE + INTC_REG.VECTOR + 1, 0xab);
-    expect(m.intc.vector).toBe(0x1234_ab78);
+    expect(m.intc.vector).toBe(0x12_34_ab_78);
     m.bus.store32(INTC_BASE + INTC_REG.EPC, 0x40);
     expect(m.bus.load32(INTC_BASE + INTC_REG.EPC)).toBe(0x40);
     // Read-only registers ignore writes.
@@ -58,12 +58,12 @@ describe('interrupt controller', () => {
     const m = new Machine();
     m.intc.raise(IRQ.NIC);
     m.intc.mask = 2;
-    m.intc.vector = 0x100;
+    m.intc.vector = 0x1_00;
     m.intc.ie = true;
     m.intc.enter(IRQ.NIC, 8, 4);
     m.intc.ie = true;
     m.attach(new RefEngine(), new Uint32Array(1));
-    expect([m.intc.pending, m.intc.mask, m.intc.vector, m.intc.epc, m.intc.taken, m.intc.maxLatency]).toEqual([
+    expect([m.intc.pending, m.intc.mask, m.intc.vector, m.intc.epc, m.intc.taken, m.intc.maxLatency]).toStrictEqual([
       0, 0, 0, 0, 0, 0,
     ]);
     expect(m.intc.ie).toBe(false);
@@ -78,7 +78,7 @@ describe('interrupt controller', () => {
     expect(m.intc.ie).toBe(false);
     expect(m.bus.load32(INTC_BASE + INTC_REG.COUNT)).toBe(1);
     m.intc.enter(IRQ.NIC, 0x90, 3);
-    expect([m.intc.lastLatency, m.intc.maxLatency]).toEqual([3, 5]);
+    expect([m.intc.lastLatency, m.intc.maxLatency]).toStrictEqual([3, 5]);
     m.intc.leave();
     expect(m.intc.ie).toBe(true);
   });

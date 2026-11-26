@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { assemble } from '../../features/cpu/sim/asm';
 import { DISPLAY_BASE, STATUS_BASE } from './memmap';
 import { ClockScheduler, Machine, Prng, RefEngine } from './index';
@@ -7,18 +7,22 @@ describe('Prng', () => {
   it('is deterministic per seed', () => {
     const a = new Prng(42);
     const b = new Prng(42);
-    for (let i = 0; i < 100; i++) expect(a.nextU32()).toBe(b.nextU32());
+    for (let i = 0; i < 100; i++) {
+      expect(a.nextU32()).toBe(b.nextU32());
+    }
     expect(new Prng(1).nextU32()).not.toBe(new Prng(2).nextU32());
   });
 
   it('round-trips state through JSON', () => {
     const a = new Prng(7);
-    for (let i = 0; i < 10; i++) a.next();
+    for (let i = 0; i < 10; i++) {
+      a.next();
+    }
     const saved = JSON.parse(JSON.stringify(a.getState())) as number;
     const expected = Array.from({ length: 20 }, () => a.nextInt(1000));
     const b = new Prng(0);
     b.setState(saved);
-    expect(Array.from({ length: 20 }, () => b.nextInt(1000))).toEqual(expected);
+    expect(Array.from({ length: 20 }, () => b.nextInt(1000))).toStrictEqual(expected);
   });
 
   it('nextInt stays in range and next in [0,1)', () => {
@@ -35,10 +39,17 @@ describe('Prng', () => {
 describe('ClockScheduler', () => {
   function counts(rates: [number, number][], baseTicks: number): number[] {
     const s = new ClockScheduler();
-    const c = rates.map(() => 0);
-    rates.forEach(([mul, div], i) => s.addDomain(`d${i}`, { mul, div }, () => c[i]!++));
-    for (let i = 0; i < baseTicks; i++) s.advanceBaseTick();
-    return c;
+    const c = rates.map(([mul, div], i) => {
+      const fired = { count: 0 };
+      s.addDomain(`d${i}`, { mul, div }, () => {
+        fired.count++;
+      });
+      return fired;
+    });
+    for (let i = 0; i < baseTicks; i++) {
+      s.advanceBaseTick();
+    }
+    return c.map((fired) => fired.count);
   }
 
   it('fires exact counts for divider and multiplier ratios', () => {
@@ -54,18 +65,26 @@ describe('ClockScheduler', () => {
         ],
         1000,
       ),
-    ).toEqual([1000, 333, 4000, 1500, 142]);
+    ).toStrictEqual([1000, 333, 4000, 1500, 142]);
   });
 
   it('stays exact across a mid-run rate change', () => {
     const s = new ClockScheduler();
     let n = 0;
-    s.addDomain('cpu', { mul: 1, div: 1 }, () => n++);
-    for (let i = 0; i < 100; i++) s.advanceBaseTick();
+    s.addDomain('cpu', { mul: 1, div: 1 }, () => {
+      n++;
+    });
+    for (let i = 0; i < 100; i++) {
+      s.advanceBaseTick();
+    }
     s.setRate('cpu', { mul: 3, div: 1 });
-    for (let i = 0; i < 100; i++) s.advanceBaseTick();
+    for (let i = 0; i < 100; i++) {
+      s.advanceBaseTick();
+    }
     s.setRate('cpu', { mul: 1, div: 4 });
-    for (let i = 0; i < 100; i++) s.advanceBaseTick();
+    for (let i = 0; i < 100; i++) {
+      s.advanceBaseTick();
+    }
     expect(n).toBe(100 + 300 + 25);
     expect(s.ticks('cpu')).toBe(n);
     expect(s.baseTicks).toBe(300);
@@ -75,26 +94,38 @@ describe('ClockScheduler', () => {
     const run = (): string[] => {
       const s = new ClockScheduler();
       const log: string[] = [];
-      s.addDomain('a', { mul: 3, div: 2 }, (t) => log.push(`a${t}@${s.subTicks}`));
-      s.addDomain('b', { mul: 1, div: 3 }, (t) => log.push(`b${t}@${s.subTicks}`));
+      s.addDomain('a', { mul: 3, div: 2 }, (t) => {
+        log.push(`a${t}@${s.subTicks}`);
+      });
+      s.addDomain('b', { mul: 1, div: 3 }, (t) => {
+        log.push(`b${t}@${s.subTicks}`);
+      });
       s.advance(5000);
       s.setRate('a', { mul: 5, div: 3 });
       s.advance(5000);
       return log;
     };
-    expect(run()).toEqual(run());
+    expect(run()).toStrictEqual(run());
   });
 
   it('delivers cross-domain transfers after N destination ticks', () => {
     const s = new ClockScheduler();
     const log: string[] = [];
-    s.addDomain('src', { mul: 1, div: 1 }, () => {});
-    s.addDomain('dst', { mul: 1, div: 2 }, (t) => log.push(`tick${t}`));
+    s.addDomain('src', { mul: 1, div: 1 }, () => {
+      /* no-op */
+    });
+    s.addDomain('dst', { mul: 1, div: 2 }, (t) => {
+      log.push(`tick${t}`);
+    });
     s.advanceBaseTick(); // dst has not ticked yet
-    s.schedule('dst', 2, () => log.push('arrive'));
-    for (let i = 0; i < 10; i++) s.advanceBaseTick();
+    s.schedule('dst', 2, () => {
+      log.push('arrive');
+    });
+    for (let i = 0; i < 10; i++) {
+      s.advanceBaseTick();
+    }
     // dst ticks at base 2,4,6,...; scheduled after base 1 -> arrives on its 2nd tick (base 4), before that tick's onTick
-    expect(log.slice(0, 4)).toEqual(['tick1', 'arrive', 'tick2', 'tick3']);
+    expect(log.slice(0, 4)).toStrictEqual(['tick1', 'arrive', 'tick2', 'tick3']);
   });
 });
 
@@ -118,16 +149,16 @@ describe('Machine', () => {
   it('routes to display, status and RAM; faults when unmapped', () => {
     const m = new Machine();
     m.bus.store8(DISPLAY_BASE, 65);
-    m.bus.store32(DISPLAY_BASE + 4, 0x44434241);
+    m.bus.store32(DISPLAY_BASE + 4, 0x44_43_42_41);
     expect(m.display.text()).toBe('A   ABCD');
-    expect(m.bus.load32(DISPLAY_BASE + 4)).toBe(0x44434241);
-    m.bus.store32(STATUS_BASE, 0xdeadbeef);
-    expect(m.bus.load32(STATUS_BASE)).toBe(0xdeadbeef);
-    m.bus.store32(0x100, 0x01020304);
-    expect(m.ram[0x100]).toBe(4);
-    expect(m.bus.load8(0x103)).toBe(1);
-    expect(() => m.bus.load8(0x2000_0000)).toThrow(RangeError);
-    expect(() => m.bus.load32(0x102)).toThrow(RangeError);
+    expect(m.bus.load32(DISPLAY_BASE + 4)).toBe(0x44_43_42_41);
+    m.bus.store32(STATUS_BASE, 0xde_ad_be_ef);
+    expect(m.bus.load32(STATUS_BASE)).toBe(0xde_ad_be_ef);
+    m.bus.store32(0x1_00, 0x01_02_03_04);
+    expect(m.ram[0x1_00]).toBe(4);
+    expect(m.bus.load8(0x1_03)).toBe(1);
+    expect(() => m.bus.load8(0x20_00_00_00)).toThrow(RangeError);
+    expect(() => m.bus.load32(0x1_02)).toThrow(RangeError);
   });
 
   it('display write latency lands writes in its own clock domain', () => {
@@ -140,7 +171,9 @@ describe('Machine', () => {
     expect(m.display.text()).toBe('');
     m.advanceBaseTick();
     expect(m.display.text()).toBe('H');
-    for (let i = 0; i < 3; i++) m.advanceBaseTick();
+    for (let i = 0; i < 3; i++) {
+      m.advanceBaseTick();
+    }
     expect(m.display.text()).toBe('Hi');
   });
 
@@ -163,11 +196,14 @@ describe('Machine', () => {
   it('a CPU swapped from 4 cores to 1 serves core 0, not the last core of the old CPU', () => {
     // Crash 2026-10-30: bus.core stayed 3 after the swap, so the display's rowShift read cores[3] (undefined).
     const m = new Machine({ cores: 4 });
-    m.bus.serve(3, m.cores[3]!.mpu);
+    assert.exists(m.cores[3]);
+    m.bus.serve(3, m.cores[3].mpu);
     m.setCores(1);
     const e = new RefEngine();
     m.attach(e, assemble(HELLO).program);
-    for (let i = 0; i < 1000 && !e.halted; i++) m.advanceBaseTick();
+    for (let i = 0; i < 1000 && !e.halted; i++) {
+      m.advanceBaseTick();
+    }
     expect(m.bus.core).toBe(0);
     expect(m.display.text()).toBe('Hello');
   });
@@ -177,7 +213,11 @@ describe('Machine', () => {
     const run = (rate: { mul: number; div: number }): number => {
       const m = new Machine({ cpuRate: rate });
       m.attach(new RefEngine(), prog);
-      while (!m.engine!.halted) m.advanceBaseTick();
+      const { engine } = m;
+      assert.exists(engine);
+      while (!engine.halted) {
+        m.advanceBaseTick();
+      }
       return m.clock.baseTicks;
     };
     expect(run({ mul: 1, div: 1 })).toBe(36);
@@ -190,9 +230,13 @@ describe('Machine', () => {
     const m = new Machine({ displayLatency: 10 });
     const e = new RefEngine();
     m.attach(e, assemble(HELLO).program);
-    while (!e.halted) m.advanceBaseTick();
+    while (!e.halted) {
+      m.advanceBaseTick();
+    }
     expect(m.display.text()).not.toBe('Hello');
-    for (let i = 0; i < 60; i++) m.advanceBaseTick();
+    for (let i = 0; i < 60; i++) {
+      m.advanceBaseTick();
+    }
     expect(m.display.text()).toBe('Hello');
   });
 });

@@ -1,30 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import { createMusic, MENU_ID, NEUTRAL_SPEED, speedMix, type MusicSink } from './music';
+import * as musicTrack from './music';
 import { keyName } from './keys';
 
 describe('speedMix', () => {
   it('keeps the neutral mix at speed 4 and for an unknown speed', () => {
-    expect(speedMix(4)).toEqual(NEUTRAL_SPEED);
-    expect(speedMix(undefined)).toEqual(NEUTRAL_SPEED);
-    expect(speedMix(3)).toEqual(NEUTRAL_SPEED);
+    expect(musicTrack.speedMix(4)).toStrictEqual(musicTrack.NEUTRAL_SPEED);
+    expect(musicTrack.speedMix(undefined)).toStrictEqual(musicTrack.NEUTRAL_SPEED);
+    expect(musicTrack.speedMix(3)).toStrictEqual(musicTrack.NEUTRAL_SPEED);
   });
 
   it('cuts the bass and dims the shimmer at speed 1', () => {
-    expect(speedMix(1)).toEqual({ bass: false, bassDb: 0, shimmerDb: -6, density: 1 });
+    expect(musicTrack.speedMix(1)).toStrictEqual({ bass: false, bassDb: 0, shimmerDb: -6, density: 1 });
   });
 
   it('lowers the bass and shimmer 3 dB at speed 2', () => {
-    expect(speedMix(2)).toEqual({ bass: true, bassDb: -3, shimmerDb: -3, density: 1 });
+    expect(musicTrack.speedMix(2)).toStrictEqual({ bass: true, bassDb: -3, shimmerDb: -3, density: 1 });
   });
 
   it('brightens and thickens the mix from speed 8 up', () => {
-    expect(speedMix(8)).toEqual({ bass: true, bassDb: 0, shimmerDb: 2, density: 2 });
-    for (const s of [12, 16, 64]) expect(speedMix(s)).toEqual({ bass: true, bassDb: 1, shimmerDb: 3, density: 3 });
+    expect(musicTrack.speedMix(8)).toStrictEqual({ bass: true, bassDb: 0, shimmerDb: 2, density: 2 });
+    for (const s of [12, 16, 64]) {
+      expect(musicTrack.speedMix(s)).toStrictEqual({ bass: true, bassDb: 1, shimmerDb: 3, density: 3 });
+    }
   });
 
   it('never changes the tempo: the mix has no tempo field', () => {
-    for (const s of [1, 2, 4, 8, 16, 64])
-      expect(Object.keys(speedMix(s)).sort()).toEqual(['bass', 'bassDb', 'density', 'shimmerDb']);
+    for (const s of [1, 2, 4, 8, 16, 64]) {
+      expect(Object.keys(musicTrack.speedMix(s)).toSorted()).toStrictEqual(['bass', 'bassDb', 'density', 'shimmerDb']);
+    }
   });
 });
 
@@ -36,17 +39,20 @@ describe('ticket #62: linear layer gains', () => {
   /** A fake music sink: every call is recorded by name and arguments. */
   function fakeSink() {
     const calls: { name: string; args: unknown[] }[] = [];
-    const sink = new Proxy({} as Record<string, (...a: unknown[]) => void>, {
-      get: (_t, name) =>
-        typeof name === 'string' ? (...args: unknown[]) => void calls.push({ name, args }) : undefined,
-      has: () => true,
-    });
+    const sink = new Proxy(
+      {},
+      {
+        get: (_t, name) =>
+          typeof name === 'string' ? (...args: unknown[]) => void calls.push({ name, args }) : undefined,
+        has: () => true,
+      },
+    );
     return {
-      sink: sink as unknown as MusicSink,
+      sink: sink as unknown as musicTrack.MusicSink,
       /** The last gain (dB) sent for an id, or undefined. */
       lastGain: (id: string): number | undefined => {
         const g = calls.filter((c) => c.name === 'setMusicGain' && c.args[0] === id);
-        return g.length ? (g.at(-1)!.args[1] as number) : undefined;
+        return g.at(-1)?.args[1] as number | undefined;
       },
       /** The arguments of the last low-pass sent for an id, or undefined. */
       lastLowpass: (id: string): unknown[] | undefined =>
@@ -57,11 +63,13 @@ describe('ticket #62: linear layer gains', () => {
   /** The music in the game on key 0, at `phase` (or before any phase). */
   function inGame(phase?: string) {
     const f = fakeSink();
-    const m = createMusic(f.sink);
+    const m = musicTrack.createMusic(f.sink);
     m.onUnlock();
     m.onScene('game');
     m.onKey(0);
-    if (phase !== undefined) m.onPhase(phase);
+    if (phase !== undefined) {
+      m.onPhase(phase);
+    }
     return { ...f, m };
   }
 
@@ -86,11 +94,11 @@ describe('ticket #62: linear layer gains', () => {
   it('an unpaid bill muffles the bed with a 3 kHz low-pass over 1 s', () => {
     const { m, lastLowpass } = inGame('running');
     m.onFeed({ flowing: false, saturated: false, stress: 0, debt: true });
-    expect(lastLowpass(BED)).toEqual([BED, 3000, 1000, 'bar']);
+    expect(lastLowpass(BED)).toStrictEqual([BED, 3000, 1000, 'bar']);
   });
 
   it('MENU_ID is not a keyed layer: the menu never gets a bed gain', () => {
     const { lastGain } = inGame('running');
-    expect(lastGain(`music_bed_${MENU_ID}`)).toBeUndefined();
+    expect(lastGain(`music_bed_${musicTrack.MENU_ID}`)).toBeUndefined();
   });
 });

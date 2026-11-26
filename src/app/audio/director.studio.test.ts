@@ -3,7 +3,7 @@
 // returns on leaving it; going back to the game restores the game music; the studio key is F whatever the save's level.
 // Values come from MIX and keys.ts, never typed in here. Acceptance criteria only: no coder API is assumed beyond the director.
 import { describe, expect, it } from 'vitest';
-import { createDirector, type DirectorSnap, type Scene } from './director';
+import * as audioDirector from './director';
 import { keyName, keyPcForLevel } from './keys';
 
 type Quant = 'bar' | 'beat' | 'now';
@@ -20,13 +20,15 @@ type Call =
 const MENU = 'music_menu_F';
 const ROOM = 'amb_room_city_loop' as const;
 /** A keyed game stem (bed, pluck, bass, shimmer or stress), not the menu loop and not a stinger. */
-const KEYED = /^music_(bed|pluck|bass|shimmer|stress)_/;
+const KEYED = /^music_(?:bed|pluck|bass|shimmer|stress)_/u;
 const KEY_F = keyPcForLevel(1);
 
 function fakeBackend() {
   const calls: Call[] = [];
   const sink = {
-    playCue(_id: string) {},
+    playCue(_id: string) {
+      /* no-op */
+    },
     setKeyPc(pc: number) {
       calls.push({ kind: 'key', pc });
     },
@@ -36,8 +38,12 @@ function fakeBackend() {
     stopMusic(id: string, fadeOutMs: number, quantise: Quant) {
       calls.push({ kind: 'stop', id, fadeOutMs, quantise });
     },
-    setMusicGain() {},
-    preloadMusic() {},
+    setMusicGain() {
+      /* no-op */
+    },
+    preloadMusic() {
+      /* no-op */
+    },
     decodeKey(key: string) {
       calls.push({ kind: 'decode', key });
     },
@@ -50,8 +56,12 @@ function fakeBackend() {
     stopLoop(id: LoopId) {
       calls.push({ kind: 'loop', id, op: 'stop' });
     },
-    setHum() {},
-    duckHum() {},
+    setHum() {
+      /* no-op */
+    },
+    duckHum() {
+      /* no-op */
+    },
   };
   return {
     sink,
@@ -60,8 +70,12 @@ function fakeBackend() {
     active(): Set<string> {
       const on = new Set<string>();
       for (const c of calls) {
-        if (c.kind === 'start') on.add(c.id);
-        if (c.kind === 'stop') on.delete(c.id);
+        if (c.kind === 'start') {
+          on.add(c.id);
+        }
+        if (c.kind === 'stop') {
+          on.delete(c.id);
+        }
       }
       return on;
     },
@@ -72,22 +86,22 @@ function fakeBackend() {
   };
 }
 
-const snap = (level: number, phase: string = 'running'): DirectorSnap => ({
+const snap = (level: number, phase = 'running'): audioDirector.DirectorSnap => ({
   log: [],
   level: { level },
-  phase: phase as DirectorSnap['phase'],
+  phase: phase as audioDirector.DirectorSnap['phase'],
 });
 
 const keyedOf = (on: Set<string>): string[] => [...on].filter((id) => KEYED.test(id));
 
 function setup() {
   const b = fakeBackend();
-  const d = createDirector(b.sink);
+  const d = audioDirector.createDirector(b.sink);
   return { b, d };
 }
 
 /** Enter a scene, after the unlock: the screen, then a snapshot shows the game is running. */
-function play(d: ReturnType<typeof createDirector>, scene: Scene, level = 1) {
+function play(d: ReturnType<typeof audioDirector.createDirector>, scene: audioDirector.Scene, level = 1) {
   d.onScene(scene);
   d.onSnapshot(snap(level, 'running'));
 }
@@ -100,9 +114,9 @@ describe('studio: the menu loop keeps playing in both studios', () => {
     d.onSnapshot(snap(1, 'idle-os'));
     expect(b.active().has(MENU)).toBe(true);
     d.onScene('build');
-    expect(b.stopsOf(MENU)).toEqual([]);
+    expect(b.stopsOf(MENU)).toStrictEqual([]);
     expect(b.active().has(MENU)).toBe(true);
-    expect(keyedOf(b.active())).toEqual([]);
+    expect(keyedOf(b.active())).toStrictEqual([]);
   });
 
   it('from the main menu, the gallery keeps the menu loop and starts no stem', () => {
@@ -111,9 +125,9 @@ describe('studio: the menu loop keeps playing in both studios', () => {
     d.onScene('menu');
     d.onSnapshot(snap(1, 'idle-os'));
     d.onScene('gallery');
-    expect(b.stopsOf(MENU)).toEqual([]);
+    expect(b.stopsOf(MENU)).toStrictEqual([]);
     expect(b.active().has(MENU)).toBe(true);
-    expect(keyedOf(b.active())).toEqual([]);
+    expect(keyedOf(b.active())).toStrictEqual([]);
   });
 
   it('from the game, entering a studio stops the game stems and plays the menu loop', () => {
@@ -122,7 +136,7 @@ describe('studio: the menu loop keeps playing in both studios', () => {
     play(d, 'game', 1);
     expect(keyedOf(b.active()).length).toBeGreaterThan(0);
     d.onScene('build');
-    expect(keyedOf(b.active())).toEqual([]);
+    expect(keyedOf(b.active())).toStrictEqual([]);
     expect(b.active().has(MENU)).toBe(true);
   });
 
@@ -131,7 +145,7 @@ describe('studio: the menu loop keeps playing in both studios', () => {
     d.onUnlock();
     play(d, 'game', 1);
     d.onScene('gallery');
-    expect(keyedOf(b.active())).toEqual([]);
+    expect(keyedOf(b.active())).toStrictEqual([]);
     expect(b.active().has(MENU)).toBe(true);
   });
 });
@@ -164,7 +178,7 @@ describe('studio: leaving a studio returns to the right music', () => {
     d.onScene('build');
     d.onScene('menu');
     expect(b.active().has(MENU)).toBe(true);
-    expect(keyedOf(b.active())).toEqual([]);
+    expect(keyedOf(b.active())).toStrictEqual([]);
   });
 });
 
@@ -217,6 +231,6 @@ describe('studio: the level key is F', () => {
     d.onScene('build');
     d.onSnapshot(snap(3, 'running'));
     const otherKeyed = [...b.active()].filter((id) => KEYED.test(id) && !id.endsWith(`_${keyName(KEY_F)}`));
-    expect(otherKeyed).toEqual([]);
+    expect(otherKeyed).toStrictEqual([]);
   });
 });

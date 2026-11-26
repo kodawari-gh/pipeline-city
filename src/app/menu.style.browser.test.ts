@@ -7,10 +7,10 @@
 // Screenshots (dev and prod build) are not part of this file: they are looked at by hand (tools/shot.mjs).
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Browser, Page } from 'playwright-core';
-import { BOOT_MS, GATE, STEP_MS, type Dev, killTree, launchChrome, openBooted, startServer } from './layout.harness';
+import * as harness from './layout.harness';
 
 declare const process: any;
-const TEST_MS = 150_000 + BOOT_MS + 10 * STEP_MS;
+const TEST_MS = 150_000 + harness.BOOT_MS + 10 * harness.STEP_MS;
 const FIVE = [
   { w: 1920, h: 1080 },
   { w: 390, h: 844 },
@@ -19,7 +19,7 @@ const FIVE = [
   { w: 844, h: 390 },
 ];
 
-let dev: Dev | null = null;
+let dev: harness.Dev | null = null;
 let browser: Browser | null = null;
 
 /** Runs in the page: one line per computed-style breach of rule 5 or 6 on a visible element. */
@@ -30,12 +30,14 @@ function styleBreaches(): string[] {
   for (const e of Array.from(document.body.querySelectorAll('*'))) {
     const r = e.getBoundingClientRect();
     const cs = getComputedStyle(e);
-    if (cs.display === 'none' || cs.visibility === 'hidden' || r.width === 0 || r.height === 0) continue;
+    if (cs.display === 'none' || cs.visibility === 'hidden' || r.width === 0 || r.height === 0) {
+      continue;
+    }
     const cls = e.getAttribute('class') ?? '';
-    const name = `${e.tagName.toLowerCase()}${cls ? `.${cls.trim().split(/\s+/).join('.')}` : ''}`.slice(0, 120);
-    const isChip = /\bchip\b/.test(cls);
-    const isFrame = /\b(orn|ornament|k[1-7])\b/.test(cls);
-    const isWash = /scrim|ramp/.test(cls);
+    const name = `${e.tagName.toLowerCase()}${cls ? `.${cls.trim().split(/\s+/u).join('.')}` : ''}`.slice(0, 120);
+    const isChip = /\bchip\b/u.test(cls);
+    const isFrame = /\b(?:orn|ornament|k[1-7])\b/u.test(cls);
+    const isWash = /scrim|ramp/u.test(cls);
     // rule 5: borders
     if (
       !isFrame &&
@@ -51,31 +53,47 @@ function styleBreaches(): string[] {
     const radius = Math.max(...corners.map((c) => Number.parseFloat(cs.getPropertyValue(`border-${c}-radius`)) || 0));
     const filled =
       cs.backgroundImage !== 'none' ||
-      (/rgba?\(\s*\d+,\s*\d+,\s*\d+,\s*(0?\.\d+|1)\)/.test(cs.backgroundColor) &&
+      (/rgba?\(\s*\d+,\s*\d+,\s*\d+,\s*(?:0?\.\d+|1)\)/u.test(cs.backgroundColor) &&
         cs.backgroundColor !== 'rgba(0, 0, 0, 0)');
-    if (isChip && radius > 4.01) out.add(`rule 5 radius over 4px on a chip: ${name}`);
-    if (!isChip && radius > 0 && filled) out.add(`rule 5 radius on a filled box: ${name}`);
+    if (isChip && radius > 4.01) {
+      out.add(`rule 5 radius over 4px on a chip: ${name}`);
+    }
+    if (!isChip && radius > 0 && filled) {
+      out.add(`rule 5 radius on a filled box: ${name}`);
+    }
     // rule 6: glass, shadows, glow, gradients
-    if (cs.backdropFilter !== 'none') out.add(`rule 6 backdrop-filter: ${name}`);
-    if (cs.boxShadow !== 'none') out.add(`rule 6 box-shadow: ${name}`);
-    if (cs.textShadow !== 'none') out.add(`rule 6 text-shadow: ${name}`);
-    if (!isWash && cs.backgroundImage.includes('gradient(')) out.add(`rule 6 gradient: ${name}`);
+    if (cs.backdropFilter !== 'none') {
+      out.add(`rule 6 backdrop-filter: ${name}`);
+    }
+    if (cs.boxShadow !== 'none') {
+      out.add(`rule 6 box-shadow: ${name}`);
+    }
+    if (cs.textShadow !== 'none') {
+      out.add(`rule 6 text-shadow: ${name}`);
+    }
+    if (!isWash && cs.backgroundImage.includes('gradient(')) {
+      out.add(`rule 6 gradient: ${name}`);
+    }
   }
   return [...out];
 }
 
 /** Starts a campaign game and gets past the welcome card to the bare HUD. */
 async function intoGame(page: Page): Promise<void> {
-  await page.getByRole('button', { name: /^New game/ }).click();
+  await page.getByRole('button', { name: /^New game/u }).click();
   await page.waitForSelector('.pl-menu.newgame .pl-row.hero');
   await page.click('.pl-menu.newgame .pl-row.hero');
-  await page.waitForSelector('header.hud', { timeout: BOOT_MS });
+  await page.waitForSelector('header.hud', { timeout: harness.BOOT_MS });
   await page.waitForTimeout(1500);
-  const skip = page.locator('button', { hasText: /^Skip$/ });
-  if (await skip.count()) await skip.first().click();
+  const skip = page.locator('button', { hasText: /^Skip$/u });
+  if (await skip.count()) {
+    await skip.first().click();
+  }
   await page
-    .waitForFunction(() => !document.querySelector('.modal-back.dlg-back'), null, { timeout: STEP_MS })
-    .catch(() => {});
+    .waitForFunction(() => !document.querySelector('.modal-back.dlg-back'), null, { timeout: harness.STEP_MS })
+    .catch(() => {
+      /* no-op */
+    });
 }
 
 /** Opens the Paused menu from the HUD (Esc). */
@@ -84,20 +102,22 @@ async function openPaused(page: Page): Promise<void> {
   await page.waitForSelector('.pl-menu.paused');
 }
 
-describe.skipIf(!GATE)('in-game menus and HUD: no rule 5 or 6 breaks (ticket #72)', () => {
+describe.skipIf(!harness.GATE)('in-game menus and HUD: no rule 5 or 6 breaks (ticket #72)', () => {
   beforeAll(async () => {
-    dev = await startServer();
+    dev = await harness.startServer();
   }, 120_000);
   afterAll(() => {
-    killTree(dev?.child);
+    harness.killTree(dev?.child);
     dev = null;
   });
   beforeEach(async () => {
     process.stderr.write(`  running: ${expect.getState().currentTestName}\n`);
-    browser = await launchChrome();
+    browser = await harness.launchChrome();
   }, 60_000);
   afterEach(async () => {
-    await browser?.close().catch(() => {});
+    await browser?.close().catch(() => {
+      /* no-op */
+    });
     browser = null;
   }, 60_000);
 
@@ -106,11 +126,13 @@ describe.skipIf(!GATE)('in-game menus and HUD: no rule 5 or 6 breaks (ticket #72
       `${vp.w} x ${vp.h}: HUD, Paused, Settings, Controls and New game in game have no rule 5 or 6 breaks`,
       async () => {
         const errors: string[] = [];
-        const { page, ctxClose } = await openBooted(browser!, dev!, vp.w, vp.h, errors);
+        const { page, ctxClose } = await harness.openBooted(browser!, dev!, vp.w, vp.h, errors);
         const report: Record<string, string[]> = {};
         const check = async (screen: string) => {
           const breaches = await page.evaluate(styleBreaches);
-          if (breaches.length) report[screen] = breaches;
+          if (breaches.length > 0) {
+            report[screen] = breaches;
+          }
         };
         try {
           await intoGame(page);
@@ -122,7 +144,7 @@ describe.skipIf(!GATE)('in-game menus and HUD: no rule 5 or 6 breaks (ticket #72
 
           // Settings, opened from the Paused row, then Escape back to Paused
           await page
-            .locator('.pl-menu.paused .pl-row', { hasText: /^Settings/ })
+            .locator('.pl-menu.paused .pl-row', { hasText: /^Settings/u })
             .first()
             .click();
           await page.waitForTimeout(400);
@@ -132,35 +154,41 @@ describe.skipIf(!GATE)('in-game menus and HUD: no rule 5 or 6 breaks (ticket #72
 
           // Controls, opened from the Paused row, then Escape
           await page
-            .locator('.pl-menu.paused .pl-row', { hasText: /^Controls/ })
+            .locator('.pl-menu.paused .pl-row', { hasText: /^Controls/u })
             .first()
             .click();
           await page.waitForSelector('[aria-label="Controls"]');
           await page.waitForTimeout(400);
           await check('Controls');
           await page.keyboard.press('Escape');
-          await page.waitForSelector('[aria-label="Controls"]', { state: 'detached' }).catch(() => {});
+          await page.waitForSelector('[aria-label="Controls"]', { state: 'detached' }).catch(() => {
+            /* no-op */
+          });
 
           // New game, opened from a Paused utility list (Files, Tools or Help), then Escape
-          for (const list of [/^Files/, /^Tools/, /^Help/]) {
+          for (const list of [/^Files/u, /^Tools/u, /^Help/u]) {
             const row = page.locator('.pl-menu.paused .pl-util', { hasText: list }).first();
-            if (!(await row.count())) continue;
+            if (!(await row.count())) {
+              continue;
+            }
             await row.click();
-            const ng = page.locator('.pl-menu.paused .pl-sub-item', { hasText: /^New game/ }).first();
+            const ng = page.locator('.pl-menu.paused .pl-sub-item', { hasText: /^New game/u }).first();
             if (await ng.count()) {
               await ng.click();
               break;
             }
             await page.keyboard.press('Escape');
           }
-          await page.waitForSelector('.pl-menu.newgame', { timeout: STEP_MS });
+          await page.waitForSelector('.pl-menu.newgame', { timeout: harness.STEP_MS });
           await page.waitForTimeout(400);
           await check('New game (in game)');
         } finally {
-          await ctxClose().catch(() => {});
+          await ctxClose().catch(() => {
+            /* no-op */
+          });
         }
-        expect(errors, 'page errors').toEqual([]);
-        expect(report, 'rule 5 or 6 breaks, by screen').toEqual({});
+        expect(errors, 'page errors').toStrictEqual([]);
+        expect(report, 'rule 5 or 6 breaks, by screen').toStrictEqual({});
       },
       TEST_MS,
     );

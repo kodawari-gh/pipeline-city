@@ -1,14 +1,14 @@
 // Ticket #51: the audio engine (engine.ts). No DOM and no real sound: a fake AudioContext, fetch and event target
 // stand in for the browser. The tests read what the engine asked them to do: which files it fetched, which buffers
 // its sources played, what it logged.
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { assert, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MIX } from './mixTokens';
 import { pickFile } from './keys';
 import { BAR_S, BEAT_S, MENU_ID } from './music';
 
 /** Engine paths are relative to `audio/` (the basePath), e.g. `sfx/payout__F.ogg`. */
-const rel = (p: string): string => p.replace(/^\/?audio\//, '');
-const filesOf = (id: string): string[] => (MIX.cues.find((c) => c.id === id)?.files ?? []).map(rel);
+const rel = (p: string): string => p.replace(/^\/?audio\//u, '');
+const filesOf = (id: string): string[] => (MIX.cues.find((c) => c.id === id)?.files ?? []).map((file) => rel(file));
 const ALL_FILES = [...new Set(MIX.cues.flatMap((c) => c.files.map(rel)))];
 
 class Param {
@@ -41,7 +41,9 @@ class Node {
   connect<T>(n: T): T {
     return n;
   }
-  disconnect(): void {}
+  disconnect(): void {
+    /* no-op */
+  }
 }
 class Gain extends Node {
   gain = new Param();
@@ -131,7 +133,9 @@ async function fakeFetch(url: string) {
   maxInFlight = Math.max(maxInFlight, inFlight);
   await (gates.get(path) ?? Promise.resolve());
   inFlight--;
-  if (failing.has(path)) return { ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0) };
+  if (failing.has(path)) {
+    return { ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0) };
+  }
   const length = decodedLength.get(path) ?? manifestSamples.get(path) ?? 0;
   return { ok: true, status: 200, arrayBuffer: async () => ({ path, length }) };
 }
@@ -140,8 +144,12 @@ let target: EventTarget;
 function stubBrowser(): void {
   target = new EventTarget();
   vi.stubGlobal('window', target);
-  vi.stubGlobal('addEventListener', (t: string, f: any, o?: any) => target.addEventListener(t, f, o));
-  vi.stubGlobal('removeEventListener', (t: string, f: any, o?: any) => target.removeEventListener(t, f, o));
+  vi.stubGlobal('addEventListener', (t: string, f: any, o?: any) => {
+    target.addEventListener(t, f, o);
+  });
+  vi.stubGlobal('removeEventListener', (t: string, f: any, o?: any) => {
+    target.removeEventListener(t, f, o);
+  });
   vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'visible' }));
   vi.stubGlobal('AudioContext', FakeCtx);
   vi.stubGlobal('OfflineAudioContext', FakeOffline);
@@ -149,9 +157,16 @@ function stubBrowser(): void {
 }
 const gesture = (type: string): boolean => target.dispatchEvent(new Event(type));
 const flush = async (): Promise<void> => {
-  for (let i = 0; i < 30; i++) await new Promise((r) => setTimeout(r, 0));
+  for (let i = 0; i < 30; i++) {
+    await new Promise((r) => {
+      setTimeout(r, 0);
+    });
+  }
 };
-const ctx = (): FakeCtx => FakeCtx.last!;
+const ctx = (): FakeCtx => {
+  assert.exists(FakeCtx.last);
+  return FakeCtx.last;
+};
 /** Every source the context made so far. None exist before the first gesture (no context yet). */
 const sourcesOf = (): Source[] => FakeCtx.last?.sources ?? [];
 /** Files of the sources that were started, in order. */
@@ -174,8 +189,12 @@ beforeEach(() => {
   inFlight = 0;
   maxInFlight = 0;
   vi.resetModules();
-  warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-  error = vi.spyOn(console, 'error').mockImplementation(() => {});
+  warn = vi.spyOn(console, 'warn').mockImplementation(() => {
+    /* no-op */
+  });
+  error = vi.spyOn(console, 'error').mockImplementation(() => {
+    /* no-op */
+  });
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -190,7 +209,7 @@ describe('before the first gesture', () => {
     eng.playCue('payout');
     await flush();
     expect(FakeCtx.last).toBeNull(); // no AudioContext exists before the gesture
-    expect(playedFiles()).toEqual([]);
+    expect(playedFiles()).toStrictEqual([]);
     expect(error).not.toHaveBeenCalled();
     expect(warn).not.toHaveBeenCalled();
   });
@@ -202,7 +221,7 @@ describe('before the first gesture', () => {
     gesture(type);
     expect(ctx().state).toBe('running');
     eng.playCue('payout');
-    expect(playedFiles()).toEqual(['sfx/payout__F.ogg']);
+    expect(playedFiles()).toStrictEqual(['sfx/payout__F.ogg']);
     expect(error).not.toHaveBeenCalled();
   });
 });
@@ -212,19 +231,20 @@ describe('loading', () => {
     const eng = await import('./engine');
     const files = ['sfx/payout__F.ogg', 'sfx/payout__Gs.ogg', 'sfx/payout__B.ogg'];
     let release!: () => void;
+    assert.exists(files[0]);
     gates.set(
-      files[0]!,
+      files[0],
       new Promise<void>((r) => {
         release = r;
       }),
     );
     const done = eng.preload(files);
     await flush();
-    expect(fetched).toEqual([files[0]]);
+    expect(fetched).toStrictEqual([files[0]]);
     expect(maxInFlight).toBe(1);
     release();
     await done;
-    expect(fetched).toEqual(files);
+    expect(fetched).toStrictEqual(files);
     expect(maxInFlight).toBe(1);
   });
 
@@ -242,13 +262,13 @@ describe('loading', () => {
     const pending = eng.preload(['sfx/payout__F.ogg']);
     await flush();
     eng.playCue('payout');
-    expect(playedFiles()).toEqual([]);
+    expect(playedFiles()).toStrictEqual([]);
     release();
     await pending;
     await flush();
-    expect(playedFiles()).toEqual([]); // not delayed until the file arrives
+    expect(playedFiles()).toStrictEqual([]); // not delayed until the file arrives
     eng.playCue('payout');
-    expect(playedFiles()).toEqual(['sfx/payout__F.ogg']);
+    expect(playedFiles()).toStrictEqual(['sfx/payout__F.ogg']);
   });
 
   it('logs one warning when a file fails to load, and playCue stays quiet', async () => {
@@ -258,10 +278,12 @@ describe('loading', () => {
     failing.add('sfx/payout__F.ogg');
     expect(await eng.load('sfx/payout__F.ogg')).toBeNull();
     expect(await eng.load('sfx/payout__F.ogg')).toBeNull();
-    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledOnce();
     expect(String(warn.mock.calls[0]?.join(' '))).toContain('payout__F');
-    expect(() => eng.playCue('payout')).not.toThrow();
-    expect(playedFiles()).toEqual([]);
+    expect(() => {
+      eng.playCue('payout');
+    }).not.toThrow();
+    expect(playedFiles()).toStrictEqual([]);
     expect(error).not.toHaveBeenCalled();
   });
 });
@@ -285,7 +307,9 @@ describe('voices, rate limits and ducking', () => {
     await eng.preload(ALL_FILES);
     let t = 0;
     vi.spyOn(performance, 'now').mockImplementation(() => (t += 1000));
-    for (const c of MIX.cues.filter((c) => c.bus === 'sfx')) eng.playCue(c.id);
+    for (const c of MIX.cues.filter((c) => c.bus === 'sfx')) {
+      eng.playCue(c.id);
+    }
     expect(aliveCount()).toBe(MIX.voices.sfx);
   });
 
@@ -296,7 +320,9 @@ describe('voices, rate limits and ducking', () => {
     await eng.preload(ALL_FILES);
     let t = 0;
     vi.spyOn(performance, 'now').mockImplementation(() => (t += 1000));
-    for (const c of MIX.cues.filter((c) => c.bus === 'ui')) eng.playCue(c.id);
+    for (const c of MIX.cues.filter((c) => c.bus === 'ui')) {
+      eng.playCue(c.id);
+    }
     expect(aliveCount()).toBe(MIX.voices.ui);
   });
 
@@ -310,12 +336,16 @@ describe('voices, rate limits and ducking', () => {
     const key = MIX.cues.find((c) => c.duckClass === 'key');
     const standard = MIX.cues.find((c) => c.duckClass === 'standard');
     expect(key && standard).toBeTruthy();
-    eng.playCue(key!.id);
-    eng.playCue(standard!.id);
+    assert.exists(key);
+    eng.playCue(key.id);
+    assert.exists(standard);
+    eng.playCue(standard.id);
     const deep = 10 ** (MIX.ducking.cueDuckDb.key / 20);
     const writes = (eng.musicDuck as unknown as Gain).gain.log;
     expect(Math.min(...writes)).toBeCloseTo(deep, 3);
-    expect(writes[writes.length - 1]!).toBeCloseTo(1, 6); // the release returns music to unity gain
+    const write = writes.at(-1);
+    assert.exists(write);
+    expect(write).toBeCloseTo(1, 6); // the release returns music to unity gain
   });
 });
 
@@ -372,7 +402,8 @@ describe('level-up stinger: engine', () => {
     eng.playCue('level_up');
     const src = sourcesOf().find((s) => s.started && s.buffer?.path === LEVEL_UP_C);
     expect(src).toBeTruthy();
-    expect(src!.playbackRate.value).toBe(1);
+    assert.exists(src);
+    expect(src.playbackRate.value).toBe(1);
   });
 
   it('the stinger ducks music by the milestone depth', async () => {
@@ -411,17 +442,25 @@ describe('level-up stinger: engine', () => {
     const pitched = MIX.cues.filter((c) => c.transpose === 'nearestRootRate');
     const newKeyFiles = pitched.map((c) => rel(pickFile(c, 0, new Map()).path)); // key C (pitch class 0)
     expect(newKeyFiles.length).toBeGreaterThan(0);
-    for (const f of newKeyFiles) expect(fetched).not.toContain(f);
+    for (const f of newKeyFiles) {
+      expect(fetched).not.toContain(f);
+    }
     eng.setKeyPc(0);
     await flush();
-    for (const f of newKeyFiles) expect(fetched).toContain(f);
+    for (const f of newKeyFiles) {
+      expect(fetched).toContain(f);
+    }
   });
 });
 
 // Ticket #59: the hidden tab. The master fades out (the fade node, the first gain the context makes), queued cues are dropped,
 // the context suspends after `hiddenTab.suspendAfterMs`, and a visible tab resumes it and fades back in.
 describe('hidden tab', () => {
-  const FADE = (): Gain => ctx().gains[0]!; // openGraph makes the fade node first
+  const FADE = (): Gain => {
+    const [firstGain] = ctx().gains;
+    assert.exists(firstGain);
+    return firstGain;
+  }; // openGraph makes the fade node first
   const lastTarget = (g: Gain): number | undefined => g.gain.log.at(-1);
 
   it('a cue asked for while hidden is refused', async () => {
@@ -431,7 +470,7 @@ describe('hidden tab', () => {
     await eng.preload(filesOf('payout'));
     eng.setHidden(true);
     eng.playCue('payout');
-    expect(playedFiles()).toEqual([]);
+    expect(playedFiles()).toStrictEqual([]);
   });
 
   it('a queued cue (not yet started) is dropped when the tab hides, and a playing one is not cut', async () => {
@@ -445,8 +484,10 @@ describe('hidden tab', () => {
     eng.playCue('payout', { delayS: 5 }); // queued
     const [now, queued] = sourcesOf();
     eng.setHidden(true);
-    expect(queued!.stopped).toBe(true);
-    expect(now!.stopped).toBe(false);
+    assert.exists(queued);
+    expect(queued.stopped).toBe(true);
+    assert.exists(now);
+    expect(now.stopped).toBe(false);
   });
 
   it('hiding fades the master out over fadeOutMs and visible fades it back in over fadeInMs', async () => {
@@ -504,7 +545,7 @@ describe('hidden tab', () => {
     eng.setHidden(true);
     eng.setHidden(false);
     eng.playCue('payout');
-    expect(playedFiles()).toEqual(['sfx/payout__F.ogg']);
+    expect(playedFiles()).toStrictEqual(['sfx/payout__F.ogg']);
   });
 });
 
@@ -565,7 +606,7 @@ describe('level-up stinger: the music beat', () => {
     const { asked, clock } = clockAt(0.75);
     eng.setBeatClock(clock);
     eng.playCue('level_up', { quantise: 'beat' });
-    expect(asked).toEqual([12]); // the clock is asked from the context's own time
+    expect(asked).toStrictEqual([12]); // the clock is asked from the context's own time
     expect(startedAt(LEVEL_UP_F)).toBeCloseTo(12.75, 9);
   });
 
@@ -591,7 +632,7 @@ describe('level-up stinger: the music beat', () => {
     const { asked, clock } = clockAt(0.75);
     eng.setBeatClock(clock);
     eng.playCue('level_up');
-    expect(asked).toEqual([]);
+    expect(asked).toStrictEqual([]);
     expect(startedAt(LEVEL_UP_F)).toBe(12);
   });
 
@@ -695,21 +736,29 @@ describe('ticket #62: event notes per beat', () => {
 
   it('at most perBeat notes start in one beat; the rest merge', async () => {
     const eng = await onGrid();
-    for (let i = 0; i < 6; i++) eng.playCue('level_up', { perBeat: 4 });
+    for (let i = 0; i < 6; i++) {
+      eng.playCue('level_up', { perBeat: 4 });
+    }
     expect(notesPlayed()).toBe(4);
   });
 
   it('the next beat has its own allowance', async () => {
     const eng = await onGrid();
-    for (let i = 0; i < 6; i++) eng.playCue('level_up', { perBeat: 4 });
+    for (let i = 0; i < 6; i++) {
+      eng.playCue('level_up', { perBeat: 4 });
+    }
     ctx().currentTime = 10 + BEAT_S + 0.01; // beat 1
-    for (let i = 0; i < 6; i++) eng.playCue('level_up', { perBeat: 4 });
+    for (let i = 0; i < 6; i++) {
+      eng.playCue('level_up', { perBeat: 4 });
+    }
     expect(notesPlayed()).toBe(8);
   });
 
   it('a cue with no perBeat is not capped', async () => {
     const eng = await onGrid();
-    for (let i = 0; i < 6; i++) eng.playCue('level_up');
+    for (let i = 0; i < 6; i++) {
+      eng.playCue('level_up');
+    }
     expect(notesPlayed()).toBe(6);
   });
 });
@@ -729,9 +778,10 @@ describe('ticket #58: loop end and the decoder trim', () => {
     await flush();
     const [src] = roomSources();
     expect(src).toBeDefined();
-    expect(src!.loop).toBe(true);
-    expect(src!.loopStart).toBe(0);
-    expect(src!.loopEnd).toBeCloseTo(ROOM_SAMPLES / MIX.sampleRate, 9);
+    assert.exists(src);
+    expect(src.loop).toBe(true);
+    expect(src.loopStart).toBe(0);
+    expect(src.loopEnd).toBeCloseTo(ROOM_SAMPLES / MIX.sampleRate, 9);
     expect(warn).not.toHaveBeenCalled();
   });
 
@@ -744,9 +794,9 @@ describe('ticket #58: loop end and the decoder trim', () => {
     eng.startLoop(ROOM_ID, 0);
     await flush();
     const [src] = roomSources();
-    expect(src!.loopEnd).toBeCloseTo(ROOM_SAMPLES / MIX.sampleRate, 9);
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn).toHaveBeenCalledWith(
+    assert.exists(src);
+    expect(src.loopEnd).toBeCloseTo(ROOM_SAMPLES / MIX.sampleRate, 9);
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
       'ambience loop length differs from the manifest',
       expect.stringContaining(ROOM_FILE),
       trimmed,
@@ -766,7 +816,7 @@ describe('ticket #58: loop end and the decoder trim', () => {
     eng.startLoop(ROOM_ID, 0);
     await flush();
     expect(roomSources()).toHaveLength(2);
-    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledOnce();
   });
 });
 
@@ -782,10 +832,10 @@ describe('ticket #65: the first hit of a music note plays', () => {
     eng.startLoading();
     await flush();
     expect(NOTE_CUES.length).toBeGreaterThan(0);
-    NOTE_CUES.forEach((c, i) =>
-      eng.engineSink.playNote(c.id, { token: i + 1, delayS: 0, gainDb: 0, duckClass: 'standard' }),
-    );
-    expect(playedFiles()).toEqual(NOTE_CUES.map((c) => rel(c.files[0]!)));
+    NOTE_CUES.forEach((c, i) => {
+      eng.engineSink.playNote(c.id, { token: i + 1, delayS: 0, gainDb: 0, duckClass: 'standard' });
+    });
+    expect(playedFiles()).toStrictEqual(NOTE_CUES.map((c) => rel(c.files[0])));
     expect(warn).not.toHaveBeenCalled();
   });
 });

@@ -1,14 +1,17 @@
 import type { WebGLRenderer } from 'three';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { assert, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OutsideView } from '@/features/room/render/three/outside/view';
 import { debugOverride, effective, graphics, PRESETS, setAutoTier, setPreset, tierRecord } from '../graphics';
 import { mountDebug, PANEL_MAX_WIDTH } from './overlay';
 
 // the city's layers are the module's (`city-layers.ts`, tested with the view): here, a stub city keeps the layers that are off
-vi.mock('./city-layers', () => ({
+vi.mock(import('./city-layers'), () => ({
   debugLayer: (v: { off: Set<string> }, k: string, o: boolean) => {
-    if (o) v.off.add(k);
-    else v.off.delete(k);
+    if (o) {
+      v.off.add(k);
+    } else {
+      v.off.delete(k);
+    }
   },
   debugStats: () => ({ tris: 1234, calls: 7 }),
 }));
@@ -40,14 +43,27 @@ const fakeEl = (tag: string): Fake => {
     addEventListener(type, fn) {
       el.handlers[type] = fn;
     },
-    remove() {},
+    remove() {
+      /* no-op */
+    },
   };
   made.push(el);
   return el;
 };
 
 /** The button whose label is `label`. */
-const button = (label: string): Fake => made.find((e) => e.tag === 'button' && e.textContent === label)!;
+const button = (label: string): Fake => {
+  const found = made.find((e) => e.tag === 'button' && e.textContent === label);
+  assert.exists(found, `a "${label}" button`);
+  return found;
+};
+
+/** Clicks the button whose label is `label`. */
+const click = (label: string): void => {
+  const handler = button(label).handlers['click'];
+  assert.exists(handler, `"${label}" has a click handler`);
+  handler();
+};
 
 describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
   let frame: ((now: number) => void) | null = null;
@@ -56,7 +72,14 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
   beforeEach(() => {
     made.length = 0;
     frame = null;
-    vi.stubGlobal('document', { createElement: fakeEl, body: { append: () => {} } });
+    vi.stubGlobal('document', {
+      createElement: fakeEl,
+      body: {
+        append: () => {
+          /* no-op */
+        },
+      },
+    });
     vi.stubGlobal('window', { devicePixelRatio: 1 });
     vi.stubGlobal('requestAnimationFrame', (cb: (now: number) => void) => {
       frame = cb;
@@ -85,11 +108,17 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     mountDebug({ renderer, canvas });
     for (let i = 0; i < 600; i++) {
       // the game draws in its own rAF, before the overlay reads the calls
-      if (i % 4 === 0) render.calls = 10;
-      frame!(i * ms);
+      if (i % 4 === 0) {
+        render.calls = 10;
+      }
+      assert.exists(frame);
+      frame(i * ms);
     }
-    const readout = made.find((e) => e.tag === 'pre')!;
-    const fps = Number(/fps ([\d.]+)/.exec(readout.textContent)![1]);
+    const readout = made.find((e) => e.tag === 'pre');
+    assert.exists(readout);
+    const valueMatch = /fps (?<fps>[\d.]+)/u.exec(readout.textContent);
+    assert.exists(valueMatch);
+    const fps = Number(valueMatch[1]);
     expect(fps).toBeGreaterThan(29);
     expect(fps).toBeLessThan(31);
   });
@@ -108,17 +137,18 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
       getPixelRatio: () => 1,
     } as unknown as WebGLRenderer;
     mountDebug({ renderer, canvas: { width: 1, height: 1 } as unknown as HTMLCanvasElement });
-    frame!(0);
+    assert.exists(frame);
+    frame(0);
     const lit = '#3a7d44';
     expect(button('Auto').style.cssText).toContain(lit);
 
     // a scale tap is a toggle on top of the picture: Auto is no longer lit
-    button('0.5').handlers['click']!();
+    click('0.5');
     expect(tierRecord.value.mode).toBe('auto');
-    frame!(1000);
+    frame(1000);
     expect(button('Auto').style.cssText).not.toContain(lit);
 
-    button('Auto').handlers['click']!();
+    click('Auto');
     expect(tierRecord.value.mode).toBe('auto');
     expect(button('Auto').style.cssText).toContain(lit);
   });
@@ -143,13 +173,14 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     setPreset('high');
     debugOverride.value = {};
     mountDebug({ renderer: rig(), canvas: cvs() });
-    frame!(0);
+    assert.exists(frame);
+    frame(0);
     expect(button('Shadows on')).toBeDefined();
-    button('Shadows on').handlers['click']!();
+    click('Shadows on');
     expect(effective.value.shadows).toBe(0);
     expect(graphics.value.shadows).toBe(3);
-    frame!(1000);
-    button('Shadows off').handlers['click']!();
+    frame(1000);
+    click('Shadows off');
     expect(effective.value.shadows).toBe(3);
   });
 
@@ -157,22 +188,23 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     setPreset('high');
     debugOverride.value = {};
     mountDebug({ renderer: rig(), canvas: cvs() });
-    frame!(0);
-    button('Lights All').handlers['click']!();
+    assert.exists(frame);
+    frame(0);
+    click('Lights All');
     expect(effective.value.lights).toBe(4);
-    frame!(1000);
-    button('Lights 4').handlers['click']!();
+    frame(1000);
+    click('Lights 4');
     expect(effective.value.lights).toBe(1);
     expect(graphics.value.lights).toBe(PRESETS.high.lights);
-    frame!(2000);
-    button('Lights 1').handlers['click']!();
+    frame(2000);
+    click('Lights 1');
     expect(effective.value.lights).toBe(0);
-    button('Lights All').handlers['click']!();
-    button('Lights 4').handlers['click']!();
+    click('Lights All');
+    click('Lights 4');
     expect(effective.value.lights).toBe(1);
-    frame!(3000);
-    button('Auto').handlers['click']!();
-    expect(debugOverride.value).toEqual({});
+    frame(3000);
+    click('Auto');
+    expect(debugOverride.value).toStrictEqual({});
     expect(tierRecord.value.mode).toBe('auto');
   });
 
@@ -180,20 +212,21 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     const city = { visible: true },
       machine = { visible: true };
     mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city, machine }) });
-    frame!(0);
-    button('Hide city').handlers['click']!();
-    button('Hide machine').handlers['click']!();
-    expect([city.visible, machine.visible]).toEqual([false, false]);
-    button('Auto').handlers['click']!();
-    expect([city.visible, machine.visible]).toEqual([true, true]);
+    assert.exists(frame);
+    frame(0);
+    click('Hide city');
+    click('Hide machine');
+    expect([city.visible, machine.visible]).toStrictEqual([false, false]);
+    click('Auto');
+    expect([city.visible, machine.visible]).toStrictEqual([true, true]);
     // and they stay shown: the per-frame sync does not hide them again
-    frame!(1000);
-    frame!(2000);
-    expect([city.visible, machine.visible]).toEqual([true, true]);
+    frame(1000);
+    frame(2000);
+    expect([city.visible, machine.visible]).toStrictEqual([true, true]);
     expect(button('Hide city').style.cssText).not.toContain('#3a7d44');
     expect(button('Hide machine').style.cssText).not.toContain('#3a7d44');
     // a new tap hides again (the hide flags were reset, not stuck)
-    button('Hide city').handlers['click']!();
+    click('Hide city');
     expect(city.visible).toBe(false);
   });
 
@@ -202,26 +235,28 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     const city = { visible: true },
       machine = { visible: true };
     mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city, machine }) });
-    frame!(0);
+    assert.exists(frame);
+    frame(0);
     const before = graphics.value;
-    button('Hide city').handlers['click']!();
-    expect([city.visible, machine.visible]).toEqual([false, true]);
-    button('Hide machine').handlers['click']!();
-    expect([city.visible, machine.visible]).toEqual([false, false]);
+    click('Hide city');
+    expect([city.visible, machine.visible]).toStrictEqual([false, true]);
+    click('Hide machine');
+    expect([city.visible, machine.visible]).toStrictEqual([false, false]);
     expect(graphics.value).toBe(before);
-    button('Hide city').handlers['click']!();
-    button('Hide machine').handlers['click']!();
-    expect([city.visible, machine.visible]).toEqual([true, true]);
+    click('Hide city');
+    click('Hide machine');
+    expect([city.visible, machine.visible]).toStrictEqual([true, true]);
   });
 
   it('a machine root that is replaced while hidden is hidden too', () => {
     let machine = { visible: true };
     mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city: null, machine }) });
-    frame!(0);
-    button('Hide machine').handlers['click']!();
+    assert.exists(frame);
+    frame(0);
+    click('Hide machine');
     const next = { visible: true };
     machine = next;
-    frame!(1000);
+    frame(1000);
     expect(next.visible).toBe(false);
   });
 
@@ -244,20 +279,21 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     const layers = cityStub(),
       city = { visible: true };
     mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city, machine: null, layers }) });
-    frame!(0);
+    assert.exists(frame);
+    frame(0);
     const lit = '#3a7d44';
-    button(label).handlers['click']!();
-    expect([...layers.off]).toEqual([key]);
+    click(label);
+    expect([...layers.off]).toStrictEqual([key]);
     expect(city.visible).toBe(true);
-    frame!(1000);
+    frame(1000);
     expect(button(label).style.cssText).toContain(lit);
-    button('Auto').handlers['click']!();
+    click('Auto');
     expect(layers.off.size).toBe(0);
-    frame!(2000);
+    frame(2000);
     expect(button(label).style.cssText).not.toContain(lit);
     // a second tap on a layer turns it off again, a third on
-    button(label).handlers['click']!();
-    button(label).handlers['click']!();
+    click(label);
+    click(label);
     expect(layers.off.size).toBe(0);
   });
 
@@ -265,8 +301,9 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     const layers = cityStub(),
       city = { visible: true };
     mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city, machine: null, layers }) });
-    frame!(0);
-    button('Hide city').handlers['click']!();
+    assert.exists(frame);
+    frame(0);
+    click('Hide city');
     expect(city.visible).toBe(false);
     expect(layers.off.size).toBe(0);
   });
@@ -274,21 +311,24 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
   it('a city built after a layer was turned off gets it at the next frame', () => {
     let layers: ReturnType<typeof cityStub> | null = null;
     mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city: null, machine: null, layers }) });
-    frame!(0);
-    button('No cars').handlers['click']!();
+    assert.exists(frame);
+    frame(0);
+    click('No cars');
     layers = cityStub();
-    frame!(1000);
-    expect([...layers.off]).toEqual(['cars']);
+    frame(1000);
+    expect([...layers.off]).toStrictEqual(['cars']);
   });
 
   it('the readout has the city tris line when the city is built, and not before', () => {
     let layers: ReturnType<typeof cityStub> | null = null;
     mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city: null, machine: null, layers }) });
-    frame!(0);
-    const pre = made.find((e) => e.tag === 'pre')!;
+    assert.exists(frame);
+    frame(0);
+    const pre = made.find((e) => e.tag === 'pre');
+    assert.exists(pre);
     expect(pre.textContent).not.toContain('city tris');
     layers = cityStub();
-    frame!(1000);
+    frame(1000);
     expect(pre.textContent).toContain('city tris 1234, calls 7');
   });
 
@@ -301,8 +341,10 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     });
     const city = { visible: true };
     mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city, machine: null, layers: cityStub() }) });
-    frame!(0);
-    const panel = made.find((e) => e.tag === 'div' && e.style.cssText.includes('position:fixed'))!;
+    assert.exists(frame);
+    frame(0);
+    const panel = made.find((e) => e.tag === 'div' && e.style.cssText.includes('position:fixed'));
+    assert.exists(panel);
     expect(panel.style.cssText).toContain(`max-width:${PANEL_MAX_WIDTH};`);
     expect(panel.style.cssText).toContain('box-sizing:border-box;');
 
@@ -330,9 +372,10 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
       screen: { width: 485, height: 997 },
     });
     mountDebug({ renderer: rig(), canvas: cvs() });
-    frame!(0);
-    expect(made.find((e) => e.tag === 'pre')!.textContent).toContain(
-      'view 485x997, screen 485x997, portrait (by size)',
-    );
+    assert.exists(frame);
+    frame(0);
+    const preMade = made.find((e) => e.tag === 'pre');
+    assert.exists(preMade);
+    expect(preMade.textContent).toContain('view 485x997, screen 485x997, portrait (by size)');
   });
 });

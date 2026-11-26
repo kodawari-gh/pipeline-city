@@ -24,22 +24,22 @@ describe('the build line shows the real boot stage and percentage', () => {
 
 describe('the strip cells turn ink as the boot share passes each fifth', () => {
   it('no cell is ink before 20 %', () => {
-    expect(stripInk(0)).toEqual([false, false, false, false]);
-    expect(stripInk(0.19)).toEqual([false, false, false, false]);
+    expect(stripInk(0)).toStrictEqual([false, false, false, false]);
+    expect(stripInk(0.19)).toStrictEqual([false, false, false, false]);
   });
 
   it('at 62 % cells 2, 3 and 4 are ink and cell 5 is not', () => {
-    expect(stripInk(0.62)).toEqual([true, true, true, false]);
+    expect(stripInk(0.62)).toStrictEqual([true, true, true, false]);
   });
 
   it('a cell turns ink exactly at its threshold', () => {
-    expect(stripInk(0.2)).toEqual([true, false, false, false]);
-    expect(stripInk(0.4)).toEqual([true, true, false, false]);
-    expect(stripInk(0.6)).toEqual([true, true, true, false]);
-    expect(stripInk(0.8)).toEqual([true, true, true, true]);
+    expect(stripInk(0.2)).toStrictEqual([true, false, false, false]);
+    expect(stripInk(0.4)).toStrictEqual([true, true, false, false]);
+    expect(stripInk(0.6)).toStrictEqual([true, true, true, false]);
+    expect(stripInk(0.8)).toStrictEqual([true, true, true, true]);
   });
 
   it('all cells are ink when the boot is done', () => {
-    expect(stripInk(1)).toEqual([true, true, true, true]);
+    expect(stripInk(1)).toStrictEqual([true, true, true, true]);
   });
 });

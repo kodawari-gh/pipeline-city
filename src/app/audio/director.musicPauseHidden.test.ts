@@ -2,8 +2,8 @@
 // The clock is the UI input (`onUi`, speed 0 = stopped), the screen and phase are snapshots, and the tab is `onHidden`.
 // No timers run: the fake records each call with its fade and quantise (the grid is the engine's job). The fake
 // records the cues too, so a test can see that no level-up stinger played on return.
-import { describe, expect, it } from 'vitest';
-import { createDirector, type DirectorSnap, type UiInput } from './director';
+import { assert, describe, expect, it } from 'vitest';
+import * as audioDirector from './director';
 import { keyName, keyPcForLevel } from './keys';
 import { MIX } from './mixTokens';
 import type { GameEvent } from '../../worker/game/types';
@@ -31,7 +31,9 @@ function fakeBackend() {
     playCue(id: string) {
       cues.push(id);
     },
-    setKeyPc() {},
+    setKeyPc() {
+      /* no-op */
+    },
     startMusic(id: string, fadeInMs: number, quantise: Quant) {
       calls.push({ kind: 'start', id, fadeInMs, quantise });
     },
@@ -72,24 +74,32 @@ function fakeBackend() {
     decoded(): Set<string> {
       const set = new Set<string>();
       for (const c of calls) {
-        if (c.kind === 'decode') set.add(c.key);
-        if (c.kind === 'release') set.delete(c.key);
+        if (c.kind === 'decode') {
+          set.add(c.key);
+        }
+        if (c.kind === 'release') {
+          set.delete(c.key);
+        }
       }
       return set;
     },
   };
 }
 
-const snap = (level: number, phase: string = 'idle-os', extra: Partial<DirectorSnap> = {}): DirectorSnap => ({
+const snap = (
+  level: number,
+  phase = 'idle-os',
+  extra: Partial<audioDirector.DirectorSnap> = {},
+): audioDirector.DirectorSnap => ({
   log: [],
   level: { level },
-  phase: phase as DirectorSnap['phase'],
+  phase: phase as audioDirector.DirectorSnap['phase'],
   ...extra,
 });
 
-const RUNNING: UiInput = { speed: 4, hold: null, crashed: false };
-const PAUSED: UiInput = { speed: 0, hold: null, crashed: false };
-const HELD: UiInput = { speed: 0, hold: 'levelUp', crashed: false };
+const RUNNING: audioDirector.UiInput = { speed: 4, hold: null, crashed: false };
+const PAUSED: audioDirector.UiInput = { speed: 0, hold: null, crashed: false };
+const HELD: audioDirector.UiInput = { speed: 0, hold: 'levelUp', crashed: false };
 
 const keyOf = (level: number) => keyName(keyPcForLevel(level));
 const keyed = (layer: Layer, level: number) => `music_${layer}_${keyOf(level)}`;
@@ -103,7 +113,7 @@ const ERROR_FADE_MS = 2000;
 /** A director in the game at `level`, unlocked, the first game frame played, and the clock running. */
 function inGame(level = 1, phase = 'running') {
   const b = fakeBackend();
-  const d = createDirector(b.sink);
+  const d = audioDirector.createDirector(b.sink);
   d.onUnlock();
   d.onScene('game');
   d.onUi(RUNNING);
@@ -131,8 +141,8 @@ describe('music under pause and hold: the clock stopped', () => {
       fadeInMs: PAUSE_FADE_MS,
       quantise: 'beat',
     });
-    expect(b.gains(keyed('pausebed', 1)).at(-1)).toEqual(
-      expect.objectContaining({ gainDb: 1 * tokenDb('pausebed'), fadeMs: PAUSE_FADE_MS, quantise: 'beat' }),
+    expect(b.gains(keyed('pausebed', 1)).at(-1)).toStrictEqual(
+      expect.objectContaining({ gainDb: tokenDb('pausebed'), fadeMs: PAUSE_FADE_MS, quantise: 'beat' }),
     );
   });
 
@@ -141,14 +151,16 @@ describe('music under pause and hold: the clock stopped', () => {
     d.onUi(PAUSED);
     expect(LOW_HZ).toBe(850);
     expect(PLUCK_DIP_DB).toBe(-5);
-    expect(b.tones(keyed('pluck', 1)).at(-1)).toEqual({
+    expect(b.tones(keyed('pluck', 1)).at(-1)).toStrictEqual({
       kind: 'tone',
       id: keyed('pluck', 1),
       hz: 850,
       fadeMs: PAUSE_FADE_MS,
       quantise: 'beat',
     });
-    expect(b.gains(keyed('pluck', 1)).at(-1)!.gainDb).toBeCloseTo(1 * tokenDb('pluck') + PLUCK_DIP_DB, 9);
+    const lastPluckGain = b.gains(keyed('pluck', 1)).at(-1);
+    assert.exists(lastPluckGain);
+    expect(lastPluckGain.gainDb).toBeCloseTo(tokenDb('pluck') + PLUCK_DIP_DB, 9);
   });
 
   it('Pause: bass goes quiet and is not started', () => {
@@ -162,7 +174,7 @@ describe('music under pause and hold: the clock stopped', () => {
       quantise: 'beat',
     });
     expect(b.starts(from).some((c) => c.id === keyed('bass', 1))).toBe(false);
-    expect(b.gains(keyed('bass', 1))).toEqual([expect.objectContaining({ gainDb: 1 * tokenDb('bass') })]);
+    expect(b.gains(keyed('bass', 1))).toStrictEqual([expect.objectContaining({ gainDb: tokenDb('bass') })]);
   });
 
   it('Pause: tempo does not change, so every pause call is on the beat grid, never at a bar or at once', () => {
@@ -171,7 +183,9 @@ describe('music under pause and hold: the clock stopped', () => {
     d.onUi(PAUSED);
     const layerCalls = b.calls.slice(from).filter((c) => SOUND.has(c.kind));
     expect(layerCalls.length).toBeGreaterThan(0);
-    for (const c of layerCalls) expect((c as { quantise: Quant }).quantise).toBe('beat');
+    for (const c of layerCalls) {
+      expect((c as { quantise: Quant }).quantise).toBe('beat');
+    }
   });
 
   it('Hold stops the clock the same way: the mix darkens, and no pause cue plays (the director, ticket #54)', () => {
@@ -179,7 +193,9 @@ describe('music under pause and hold: the clock stopped', () => {
     const from = b.calls.length;
     d.onUi(HELD);
     expect(b.starts(from)).toContainEqual(expect.objectContaining({ id: keyed('pausebed', 1), quantise: 'beat' }));
-    expect(b.tones(keyed('pluck', 1)).at(-1)!.hz).toBe(LOW_HZ);
+    const lastPluckTone = b.tones(keyed('pluck', 1)).at(-1);
+    assert.exists(lastPluckTone);
+    expect(lastPluckTone.hz).toBe(LOW_HZ);
   });
 
   it('resume on the next beat over 1 s: the bed returns, the pausebed goes, the pluck opens', () => {
@@ -199,10 +215,12 @@ describe('music under pause and hold: the clock stopped', () => {
       fadeInMs: PAUSE_FADE_MS,
       quantise: 'beat',
     });
-    expect(b.tones(keyed('pluck', 1)).at(-1)).toEqual(
+    expect(b.tones(keyed('pluck', 1)).at(-1)).toStrictEqual(
       expect.objectContaining({ hz: OPEN_HZ, fadeMs: PAUSE_FADE_MS, quantise: 'beat' }),
     );
-    expect(b.gains(keyed('pluck', 1)).at(-1)!.gainDb).toBeCloseTo(1 * tokenDb('pluck'), 9);
+    const lastPluckGain2 = b.gains(keyed('pluck', 1)).at(-1);
+    assert.exists(lastPluckGain2);
+    expect(lastPluckGain2.gainDb).toBeCloseTo(tokenDb('pluck'), 9);
   });
 
   it('a Hold lifting plays the same resume on the next beat', () => {
@@ -219,28 +237,30 @@ describe('music on failure', () => {
     const { b, d } = inGame(1, 'running');
     const from = b.calls.length;
     d.onSnapshot(snap(1, 'error'));
-    expect(b.starts(from)).toEqual([
+    expect(b.starts(from)).toStrictEqual([
       { kind: 'start', id: keyed('pausebed', 1), fadeInMs: ERROR_FADE_MS, quantise: 'bar' },
     ]);
     expect(
       b
         .stops(from)
         .map((c) => c.id)
-        .sort(),
-    ).toEqual([keyed('bass', 1), keyed('bed', 1), keyed('pluck', 1)].sort());
-    expect(b.gains(keyed('pausebed', 1)).at(-1)!.gainDb).toBeCloseTo(1 * tokenDb('pausebed'), 9);
+        .toSorted(),
+    ).toStrictEqual([keyed('bass', 1), keyed('bed', 1), keyed('pluck', 1)].toSorted());
+    const lastPausebedGain = b.gains(keyed('pausebed', 1)).at(-1);
+    assert.exists(lastPausebedGain);
+    expect(lastPausebedGain.gainDb).toBeCloseTo(tokenDb('pausebed'), 9);
   });
 
   it('a burnt VRM (hard failure) plays the fault stinger in the level key, on the next beat', () => {
     const { b, d } = inGame(1, 'running');
     d.onSnapshot({ ...snap(1, 'error'), log: [note(3, 'fault', 'the VRM burnt out')] });
-    expect(b.stingers()).toEqual([{ kind: 'stinger', id: 'music_fault_F', quantise: 'beat' }]);
+    expect(b.stingers()).toStrictEqual([{ kind: 'stinger', id: 'music_fault_F', quantise: 'beat' }]);
   });
 
   it('a PSU trip (hard failure) plays the stinger in the level key of the level now', () => {
     const { b, d } = inGame(2, 'running');
     d.onSnapshot(snap(2, 'running', { power: { tripped: true } }));
-    expect(b.stingers()).toEqual([{ kind: 'stinger', id: `music_fault_${keyOf(2)}`, quantise: 'beat' }]);
+    expect(b.stingers()).toStrictEqual([{ kind: 'stinger', id: `music_fault_${keyOf(2)}`, quantise: 'beat' }]);
   });
 
   it('a power cut (the wall cut for the bill, a hard failure) plays the stinger in the level key', () => {
@@ -249,7 +269,7 @@ describe('music on failure', () => {
       ...snap(2, 'off', { bill: { cut: true } }),
       log: [note(3, 'fault', 'the power company cut the wall: the $40 bill is unpaid')],
     });
-    expect(b.stingers()).toEqual([{ kind: 'stinger', id: `music_fault_${keyOf(2)}`, quantise: 'beat' }]);
+    expect(b.stingers()).toStrictEqual([{ kind: 'stinger', id: `music_fault_${keyOf(2)}`, quantise: 'beat' }]);
   });
 
   it('a power cut plays the stinger once: the cut stays on in later snapshots', () => {
@@ -263,8 +283,8 @@ describe('music on failure', () => {
     const { b, d } = inGame(1, 'running');
     const from = b.calls.length;
     d.onSnapshot({ ...snap(1, 'error', { postFailed: true }), log: [note(3, 'fault', 'POST failed: no RAM')] });
-    expect(b.stingers()).toEqual([]);
-    expect(b.starts(from)).toEqual([expect.objectContaining({ id: keyed('pausebed', 1) })]);
+    expect(b.stingers()).toStrictEqual([]);
+    expect(b.starts(from)).toStrictEqual([expect.objectContaining({ id: keyed('pausebed', 1) })]);
   });
 
   it('the stinger plays once per failure: staying in the error phase plays none', () => {
@@ -276,12 +296,12 @@ describe('music on failure', () => {
 
   it('no stinger without a keyed set (the main menu)', () => {
     const b = fakeBackend();
-    const d = createDirector(b.sink);
+    const d = audioDirector.createDirector(b.sink);
     d.onUnlock();
     d.onScene('menu');
     d.onSnapshot(snap(1, 'running'));
     d.onSnapshot(snap(1, 'error'));
-    expect(b.stingers()).toEqual([]);
+    expect(b.stingers()).toStrictEqual([]);
   });
 });
 
@@ -294,7 +314,7 @@ describe('music while the tab is hidden', () => {
     d.onUi(PAUSED);
     d.onScene('menu');
     d.onScene('game');
-    expect(b.sound(from)).toEqual([]);
+    expect(b.sound(from)).toStrictEqual([]);
   });
 
   it('hidden: a key change still loads the new stems, but plays nothing', () => {
@@ -302,17 +322,17 @@ describe('music while the tab is hidden', () => {
     d.onHidden(true);
     const from = b.calls.length;
     d.onSnapshot(snap(2, 'running'));
-    expect(b.sound(from)).toEqual([]);
-    expect([...b.decoded()].sort()).toEqual([keyOf(2), keyName((keyPcForLevel(2) + 7) % 12)].sort());
+    expect(b.sound(from)).toStrictEqual([]);
+    expect([...b.decoded()].toSorted()).toStrictEqual([keyOf(2), keyName((keyPcForLevel(2) + 7) % 12)].toSorted());
   });
 
   it('hidden: a hard failure plays no fault stinger, and none plays on return', () => {
     const { b, d } = inGame(1, 'running');
     d.onHidden(true);
     d.onSnapshot(snap(1, 'error'));
-    expect(b.stingers()).toEqual([]);
+    expect(b.stingers()).toStrictEqual([]);
     d.onHidden(false);
-    expect(b.stingers()).toEqual([]);
+    expect(b.stingers()).toStrictEqual([]);
   });
 
   it('on return: the layer gains go straight to target, with no fade', () => {
@@ -321,7 +341,7 @@ describe('music while the tab is hidden', () => {
     d.onSnapshot(snap(1, 'idle-os'));
     const from = b.calls.length;
     d.onHidden(false);
-    expect(b.gains(keyed('pluck', 1)).at(-1)).toEqual(
+    expect(b.gains(keyed('pluck', 1)).at(-1)).toStrictEqual(
       expect.objectContaining({
         gainDb: Math.round((tokenDb('pluck') + 20 * Math.log10(0.6)) * 10) / 10,
         fadeMs: 0,
@@ -340,7 +360,7 @@ describe('music while the tab is hidden', () => {
     d.onHidden(false);
     expect(b.stops(from)).toContainEqual({ kind: 'stop', id: keyed('bed', 1), fadeOutMs: 0, quantise: 'now' });
     expect(b.starts(from)).toContainEqual({ kind: 'start', id: keyed('bed', 2), fadeInMs: 0, quantise: 'now' });
-    expect(b.stingers()).toEqual([]);
+    expect(b.stingers()).toStrictEqual([]);
     expect(b.cues.slice(cuesBefore)).not.toContain('level_up');
   });
 
@@ -350,7 +370,7 @@ describe('music while the tab is hidden', () => {
     d.onSnapshot(snap(1, 'running-os'));
     const from = b.calls.length;
     d.onHidden(false);
-    expect(b.sound(from)).toEqual([]);
+    expect(b.sound(from)).toStrictEqual([]);
   });
 
   it('on return: a stem that stays on keeps playing (no restart, no stop); a new layer enters at once on the grid', () => {
@@ -359,10 +379,12 @@ describe('music while the tab is hidden', () => {
     d.onSnapshot(snap(1, 'running'));
     const from = b.calls.length;
     d.onHidden(false);
-    expect(b.starts(from).map((c) => c.id)).toEqual([keyed('bass', 1)]);
-    expect(b.starts(from)[0]).toEqual(expect.objectContaining({ fadeInMs: 0, quantise: 'now' }));
-    expect(b.stops(from)).toEqual([]);
-    expect(b.gains(keyed('pluck', 1)).at(-1)!.gainDb).toBeCloseTo(1 * tokenDb('pluck'), 9);
+    expect(b.starts(from).map((c) => c.id)).toStrictEqual([keyed('bass', 1)]);
+    expect(b.starts(from)[0]).toStrictEqual(expect.objectContaining({ fadeInMs: 0, quantise: 'now' }));
+    expect(b.stops(from)).toStrictEqual([]);
+    const lastPluckGain3 = b.gains(keyed('pluck', 1)).at(-1);
+    assert.exists(lastPluckGain3);
+    expect(lastPluckGain3.gainDb).toBeCloseTo(tokenDb('pluck'), 9);
   });
 
   it('a clock stop while hidden is set on return: the pausebed in at once, the pluck low-passed', () => {
@@ -372,7 +394,7 @@ describe('music while the tab is hidden', () => {
     const from = b.calls.length;
     d.onHidden(false);
     expect(b.starts(from)).toContainEqual({ kind: 'start', id: keyed('pausebed', 1), fadeInMs: 0, quantise: 'now' });
-    expect(b.tones(keyed('pluck', 1)).at(-1)).toEqual(
+    expect(b.tones(keyed('pluck', 1)).at(-1)).toStrictEqual(
       expect.objectContaining({ hz: LOW_HZ, fadeMs: 0, quantise: 'now' }),
     );
   });
@@ -395,8 +417,8 @@ describe('music while the tab is hidden', () => {
       b
         .starts(from)
         .map((c) => c.id)
-        .sort(),
-    ).toEqual([keyed('bed', 1), keyed('pluck', 1)].sort());
+        .toSorted(),
+    ).toStrictEqual([keyed('bed', 1), keyed('pluck', 1)].toSorted());
     expect(b.starts(from).every((c) => c.fadeInMs === 0 && c.quantise === 'now')).toBe(true);
     expect(b.stops(from)).toContainEqual({ kind: 'stop', id: keyed('bass', 1), fadeOutMs: 0, quantise: 'now' });
   });
@@ -406,7 +428,7 @@ describe('music while the tab is hidden', () => {
     d.onHidden(true, false);
     const from = b.calls.length;
     d.onHidden(false);
-    expect(b.stops(from)).toEqual([]);
+    expect(b.stops(from)).toStrictEqual([]);
   });
 
   it('on return after dropped calls: the old key stops on every layer, and the new key starts at once', () => {

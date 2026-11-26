@@ -19,16 +19,16 @@ import { fileURLToPath } from 'node:url';
 // @ts-ignore
 import { createServer } from 'node:net';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { chromium, type Browser, type Page } from 'playwright-core';
-import { type Box, type Control, controlProblems, overlappingControls, pageOverflows } from './layoutRects';
+import * as playwright from 'playwright-core';
+import * as layoutRects from './layoutRects';
 
 declare const process: any;
-const GATE = !!process.env.T44_BROWSER;
+const GATE = Boolean(process.env.T44_BROWSER);
 const ROOT: string = fileURLToPath(new URL('../../', import.meta.url));
 const LOAD_MS = 60_000;
 const BOOT_MS = 60_000;
 const STEP_MS = 20_000;
-const SCREEN_MS = 2_000; // the fade-in of a screen before it is measured
+const SCREEN_MS = 2000; // the fade-in of a screen before it is measured
 const VIEWPORTS = [
   { w: 1920, h: 1080, name: 'desktop' },
   { w: 390, h: 844, name: 'phone' },
@@ -38,16 +38,21 @@ const VIEWPORTS = [
 ];
 const TEST_MS = LOAD_MS + BOOT_MS + 12 * STEP_MS;
 
-const freePort = (): Promise<number> =>
+const freePort = async (): Promise<number> =>
   new Promise((res, rej) => {
     const s = createServer();
     s.once('error', rej);
     s.listen(0, () => {
       const p = s.address().port;
-      s.close(() => res(p));
+      s.close(() => {
+        res(p);
+      });
     });
   });
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+const sleep = async (ms: number) =>
+  new Promise<void>((r) => {
+    setTimeout(r, ms);
+  });
 const answers = async (url: string): Promise<boolean> => {
   try {
     return (await fetch(url)).ok;
@@ -58,9 +63,14 @@ const answers = async (url: string): Promise<boolean> => {
 
 /** Stop a child and its children (on Windows `kill` stops only the child). */
 function killTree(child: any): void {
-  if (!child?.pid || child.exitCode !== null) return;
-  if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
-  else child.kill();
+  if (!child?.pid || child.exitCode !== null) {
+    return;
+  }
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+  } else {
+    child.kill();
+  }
 }
 
 /** The dev server on a free port (`--strictPort`), waited for until it answers. */
@@ -76,7 +86,9 @@ async function startServer(): Promise<{ child: any; url: string; exited: () => n
     code = c ?? -1;
   });
   for (let i = 0; !(await answers(url)); i++) {
-    if (code !== null) throw new Error(`the dev server exited with ${code}`);
+    if (code !== null) {
+      throw new Error(`the dev server exited with ${code}`);
+    }
     if (i > 100) {
       killTree(child);
       throw new Error('the dev server did not start');
@@ -86,8 +98,8 @@ async function startServer(): Promise<{ child: any; url: string; exited: () => n
   return { child, url, exited: () => code };
 }
 
-const launchChrome = (): Promise<Browser> =>
-  chromium.launch({
+const launchChrome = async (): Promise<playwright.Browser> =>
+  playwright.chromium.launch({
     headless: true,
     ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
     args: [
@@ -99,11 +111,11 @@ const launchChrome = (): Promise<Browser> =>
   });
 
 let dev: { child: any; url: string; exited: () => number | null } | null = null;
-let browser: Browser | null = null;
+let browser: playwright.Browser | null = null;
 
 /** What one layout run found on a screen: the controls boxed in the page, and the elements that clip their content. */
 interface Snap {
-  controls: Control[];
+  controls: layoutRects.Control[];
   clippedLists: string[];
   sw: number;
   sh: number;
@@ -114,15 +126,19 @@ interface Snap {
  * and lists the elements whose content is cut off with no scroll bar.
  */
 function snapshot(): Snap {
-  const box = (e: Element): Box => {
+  const box = (e: Element): layoutRects.Box => {
     const r = e.getBoundingClientRect();
     return { x: r.left, y: r.top, r: r.right, b: r.bottom };
   };
   const sel = 'button, [role="tab"], input, select, textarea, a[href]';
   const visible = [...document.querySelectorAll(sel)].filter((e) => {
-    if (e.closest('[inert], [aria-hidden="true"]')) return false;
+    if (e.closest('[inert], [aria-hidden="true"]')) {
+      return false;
+    }
     const cs = getComputedStyle(e);
-    if (cs.display === 'none' || cs.visibility !== 'visible') return false;
+    if (cs.display === 'none' || cs.visibility !== 'visible') {
+      return false;
+    }
     const r = e.getBoundingClientRect();
     return r.width > 0 && r.height > 0;
   });
@@ -130,25 +146,33 @@ function snapshot(): Snap {
   const modal = document.querySelector('[aria-modal="true"]');
   const checked = modal ? visible.filter((e) => modal.contains(e)) : visible;
   const ids = new Map<Element, number>();
-  checked.forEach((e, i) => ids.set(e, i));
+  checked.forEach((e, i) => {
+    ids.set(e, i);
+  });
   const controls = checked.map((e, i) => {
     const ancestors: number[] = [];
-    const clips: { box: Box; scrolls: boolean }[] = [];
+    const clips: { box: layoutRects.Box; scrolls: boolean }[] = [];
     let scrollerAbove = false;
     for (let a = e.parentElement; a; a = a.parentElement) {
       const id = ids.get(a);
-      if (id !== undefined) ancestors.push(id);
+      if (id !== undefined) {
+        ancestors.push(id);
+      }
       const cs = getComputedStyle(a);
       const axes = [cs.overflowX, cs.overflowY];
       // the clips above a scrolling ancestor cut its box, not its content: the control scrolls within it
-      if (scrollerAbove || !axes.some((v) => v !== 'visible')) continue;
+      if (scrollerAbove || !axes.some((v) => v !== 'visible')) {
+        continue;
+      }
       const scrolls = axes.some((v) => v === 'auto' || v === 'scroll');
       clips.push({ box: box(a), scrolls });
-      if (scrolls) scrollerAbove = true;
+      if (scrolls) {
+        scrollerAbove = true;
+      }
     }
     const text = ((e as HTMLElement).innerText || e.getAttribute('aria-label') || '')
       .trim()
-      .replaceAll(/\s+/g, ' ')
+      .replaceAll(/\s+/gu, ' ')
       .slice(0, 32);
     return { id: i, label: text || e.tagName.toLowerCase(), box: box(e), ancestors, clips };
   });
@@ -161,10 +185,12 @@ function snapshot(): Snap {
       (cs.overflowY !== 'hidden' && cs.overflowY !== 'clip') ||
       e.clientHeight <= 1 ||
       e.clientWidth <= 1
-    )
+    ) {
       continue;
-    if (e.scrollHeight > e.clientHeight + 1 && e.clientHeight > 0)
+    }
+    if (e.scrollHeight > e.clientHeight + 1 && e.clientHeight > 0) {
       clippedLists.push(`${e.tagName.toLowerCase()}.${String(e.className).split(' ')[0] || '-'}`);
+    }
   }
   return {
     controls,
@@ -176,7 +202,7 @@ function snapshot(): Snap {
 
 /** The problems on the screen now: overlaps, controls outside or clipped, a page that scrolls, clipped lists and page errors so far. */
 async function screenProblems(
-  page: Page,
+  page: playwright.Page,
   label: string,
   vp: { w: number; h: number },
   errors: string[],
@@ -184,12 +210,23 @@ async function screenProblems(
   await page.waitForTimeout(SCREEN_MS);
   const snap = await page.evaluate(snapshot);
   const problems: string[] = [];
-  for (const [a, b] of overlappingControls(snap.controls)) problems.push(`${label}: "${a}" overlaps "${b}"`);
-  for (const c of snap.controls) for (const p of controlProblems(c, vp.w, vp.h)) problems.push(`${label}: ${p}`);
-  if (pageOverflows(snap.sw, snap.sh, vp.w, vp.h))
+  for (const [a, b] of layoutRects.overlappingControls(snap.controls)) {
+    problems.push(`${label}: "${a}" overlaps "${b}"`);
+  }
+  for (const c of snap.controls) {
+    for (const p of layoutRects.controlProblems(c, vp.w, vp.h)) {
+      problems.push(`${label}: ${p}`);
+    }
+  }
+  if (layoutRects.pageOverflows(snap.sw, snap.sh, vp.w, vp.h)) {
     problems.push(`${label}: the page scrolls (${snap.sw} x ${snap.sh} in ${vp.w} x ${vp.h})`);
-  for (const l of snap.clippedLists) problems.push(`${label}: ${l} cuts off its content with no scroll`);
-  for (const e of errors) problems.push(`${label}: page error ${e}`);
+  }
+  for (const l of snap.clippedLists) {
+    problems.push(`${label}: ${l} cuts off its content with no scroll`);
+  }
+  for (const e of errors) {
+    problems.push(`${label}: page error ${e}`);
+  }
   return problems;
 }
 
@@ -198,8 +235,10 @@ async function openBooted(
   w: number,
   h: number,
   errors: string[],
-): Promise<{ page: Page; ctxClose: () => Promise<void> }> {
-  if (dev!.exited() !== null) throw new Error(`the dev server is gone (exit ${dev!.exited()})`);
+): Promise<{ page: playwright.Page; ctxClose: () => Promise<void> }> {
+  if (dev!.exited() !== null) {
+    throw new Error(`the dev server is gone (exit ${dev!.exited()})`);
+  }
   const ctx = await browser!.newContext({ viewport: { width: w, height: h } });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(e.message.slice(0, 200)));
@@ -211,12 +250,12 @@ async function openBooted(
     await page.waitForFunction(() => document.querySelectorAll('.pl-row:disabled').length === 0, null, {
       timeout: BOOT_MS,
     });
-  } catch (e) {
-    throw new Error(`${(e as Error).message}\nthe page said: ${errors.slice(-5).join(' | ') || 'nothing'}`, {
-      cause: e,
+  } catch (error) {
+    throw new Error(`${(error as Error).message}\nthe page said: ${errors.slice(-5).join(' | ') || 'nothing'}`, {
+      cause: error,
     });
   }
-  return { page, ctxClose: () => ctx.close() };
+  return { page, ctxClose: async () => ctx.close() };
 }
 
 describe.skipIf(!GATE)('layout at five viewport sizes in the browser (ticket #47)', () => {
@@ -232,7 +271,9 @@ describe.skipIf(!GATE)('layout at five viewport sizes in the browser (ticket #47
     browser = await launchChrome();
   }, 60_000);
   afterEach(async () => {
-    await browser?.close().catch(() => {});
+    await browser?.close().catch(() => {
+      /* no-op */
+    });
     browser = null;
   }, 60_000);
 
@@ -248,45 +289,51 @@ describe.skipIf(!GATE)('layout at five viewport sizes in the browser (ticket #47
           problems.push(...(await screenProblems(page, `${vp.name} main menu`, vp, errors)));
 
           // 04: New game, then back to the menu (Esc closes the inner layer)
-          await page.getByRole('button', { name: /^New game/ }).click();
+          await page.getByRole('button', { name: /^New game/u }).click();
           await page.waitForSelector('.pl-menu.newgame .pl-row.hero');
           problems.push(...(await screenProblems(page, `${vp.name} new game`, vp, errors)));
           await page.keyboard.press('Escape');
           await page.waitForSelector('.pl-menu.newgame', { state: 'detached' });
 
           // 06: Settings, opened from the menu's utility line, then Escape
-          await page.getByRole('button', { name: /^Settings/ }).click();
+          await page.getByRole('button', { name: /^Settings/u }).click();
           await page.waitForSelector('.pl-menu.settings');
           problems.push(...(await screenProblems(page, `${vp.name} settings`, vp, errors)));
           await page.keyboard.press('Escape');
           await page.waitForSelector('.pl-menu.settings', { state: 'detached' });
 
           // 07: Build my PC (a studio screen: its shelf, its bin and its foot)
-          await page.getByRole('button', { name: /^Build my PC/ }).click();
+          await page.getByRole('button', { name: /^Build my PC/u }).click();
           await page.waitForSelector('.build.mode');
           problems.push(...(await screenProblems(page, `${vp.name} build my pc`, vp, errors)));
           await page.keyboard.press('Escape');
           await page.waitForSelector('.build.mode', { state: 'detached' });
 
           // 08: Gallery (the turntable, its shelf and its stepper)
-          await page.getByRole('button', { name: /^Gallery/ }).click();
+          await page.getByRole('button', { name: /^Gallery/u }).click();
           await page.waitForSelector('.gallery .bld-tile');
           problems.push(...(await screenProblems(page, `${vp.name} gallery`, vp, errors)));
           await page.keyboard.press('Escape');
           await page.waitForSelector('.gallery', { state: 'detached' });
 
           // 11 and 12: a campaign game, its first frame (the welcome card) and the HUD after Skip
-          await page.getByRole('button', { name: /^New game/ }).click();
+          await page.getByRole('button', { name: /^New game/u }).click();
           await page.waitForSelector('.pl-menu.newgame .pl-row.hero');
           await page.click('.pl-menu.newgame .pl-row.hero');
           await page.waitForSelector('header.hud', { timeout: BOOT_MS });
-          await page.waitForSelector('[data-step="welcome"]', { timeout: BOOT_MS }).catch(() => {});
+          await page.waitForSelector('[data-step="welcome"]', { timeout: BOOT_MS }).catch(() => {
+            /* no-op */
+          });
           problems.push(...(await screenProblems(page, `${vp.name} first frame`, vp, errors)));
-          const skip = page.locator('button', { hasText: /^Skip$/ });
-          if (await skip.count()) await skip.first().click();
+          const skip = page.locator('button', { hasText: /^Skip$/u });
+          if (await skip.count()) {
+            await skip.first().click();
+          }
           await page
             .waitForFunction(() => !document.querySelector('.modal-back.dlg-back'), null, { timeout: STEP_MS })
-            .catch(() => {});
+            .catch(() => {
+              /* no-op */
+            });
           problems.push(...(await screenProblems(page, `${vp.name} hud`, vp, errors)));
 
           // Controls: "?" opens the card, Escape closes it
@@ -300,12 +347,14 @@ describe.skipIf(!GATE)('layout at five viewport sizes in the browser (ticket #47
           await page.keyboard.press('Escape');
           await page.waitForSelector('.pl-menu.paused');
           problems.push(...(await screenProblems(page, `${vp.name} paused`, vp, errors)));
-        } catch (e) {
-          problems.push(`${vp.name}: the run stopped: ${(e as Error).message.split('\n')[0]}`);
+        } catch (error) {
+          problems.push(`${vp.name}: the run stopped: ${(error as Error).message.split('\n')[0]}`);
         } finally {
-          await ctxClose().catch(() => {});
+          await ctxClose().catch(() => {
+            /* no-op */
+          });
         }
-        expect(problems, problems.join('\n')).toEqual([]);
+        expect(problems, problems.join('\n')).toStrictEqual([]);
       },
       TEST_MS,
     );

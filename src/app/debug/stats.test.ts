@@ -7,7 +7,7 @@ describe('viewportOf', () => {
       { innerWidth: 485, innerHeight: 997 },
       { width: 485, height: 997, orientation: { type: 'portrait-primary' } },
     );
-    expect(v).toEqual({ vw: 485, vh: 997, sw: 485, sh: 997, orient: 'portrait-primary' });
+    expect(v).toStrictEqual({ vw: 485, vh: 997, sw: 485, sh: 997, orient: 'portrait-primary' });
   });
 
   it('without screen.orientation, the orientation comes from the window size', () => {
@@ -25,27 +25,35 @@ describe('DrawnFrames', () => {
 
   it('counts only drawn frames: a draw every 4th rAF at 120 Hz is 30 fps', () => {
     const d = new DrawnFrames();
-    for (let i = 0; i <= 240; i++) d.tick(i * RAF, i % 4 === 0 ? 5 : 0);
+    for (let i = 0; i <= 240; i++) {
+      d.tick(i * RAF, i % 4 === 0 ? 5 : 0);
+    }
     expect(d.fps()).toBeCloseTo(30, 0);
     expect(d.avg()).toBeCloseTo(33.3, 0);
   });
 
   it('a draw every 2nd rAF at 120 Hz is 60 fps', () => {
     const d = new DrawnFrames();
-    for (let i = 0; i <= 240; i++) d.tick(i * RAF, i % 2 === 0 ? 5 : 0);
+    for (let i = 0; i <= 240; i++) {
+      d.tick(i * RAF, i % 2 === 0 ? 5 : 0);
+    }
     expect(d.fps()).toBeCloseTo(60, 0);
     expect(d.avg()).toBeCloseTo(16.7, 0);
   });
 
   it('a 3 s still gap is not pushed: the readout reads still and 0, then resumes without the gap', () => {
     const d = new DrawnFrames();
-    for (let i = 0; i <= 120; i++) d.tick(i * RAF, i % 4 === 0 ? 5 : 0);
+    for (let i = 0; i <= 120; i++) {
+      d.tick(i * RAF, i % 4 === 0 ? 5 : 0);
+    }
     const before = d.avg();
     const t0 = 120 * RAF;
     // nothing draws for 3 s while the rAFs go on
-    for (let i = 1; i <= 360; i++) d.tick(t0 + i * RAF, 0);
+    for (let i = 1; i <= 360; i++) {
+      d.tick(t0 + i * RAF, 0);
+    }
     expect(d.still()).toBe(true);
-    expect([d.fps(), d.avg(), d.p95()]).toEqual([0, 0, 0]);
+    expect([d.fps(), d.avg(), d.p95()]).toStrictEqual([0, 0, 0]);
     // the first draw after the gap restarts the anchor: the 3 s is not a frame interval
     d.tick(t0 + 3000 + RAF, 5);
     expect(d.still()).toBe(false);
@@ -71,7 +79,9 @@ describe('FrameWindow', () => {
 
   it('averages the frame intervals', () => {
     const w = new FrameWindow();
-    for (const ms of [10, 20, 30, 40]) w.push(ms);
+    for (const ms of [10, 20, 30, 40]) {
+      w.push(ms);
+    }
     expect(w.avg()).toBe(25);
     expect(w.fps()).toBe(40);
   });
@@ -79,21 +89,29 @@ describe('FrameWindow', () => {
   it('takes the nearest-rank p95: sorted[ceil(0.95 n) - 1]', () => {
     const w = new FrameWindow();
     // 20 frames of 1..20 ms: ceil(0.95 * 20) - 1 = 18, so the 19th smallest (19 ms)
-    for (let i = 1; i <= 20; i++) w.push(i);
+    for (let i = 1; i <= 20; i++) {
+      w.push(i);
+    }
     expect(w.p95()).toBe(19);
     // 100 frames of 1..100: ceil(95) - 1 = 94, so 95 ms
     const v = new FrameWindow();
-    for (let i = 1; i <= 100; i++) v.push(i);
+    for (let i = 1; i <= 100; i++) {
+      v.push(i);
+    }
     expect(v.p95()).toBe(95);
   });
 
   it('takes the nearest rank where floor would be one lower', () => {
     // n = 10: ceil(9.5) - 1 = 9 -> 10 (floor would give 9); n = 30: ceil(28.5) - 1 = 28 -> 29 (floor: 28)
     const ten = new FrameWindow();
-    for (const v of [7, 1, 10, 4, 2, 9, 5, 3, 8, 6]) ten.push(v);
+    for (const v of [7, 1, 10, 4, 2, 9, 5, 3, 8, 6]) {
+      ten.push(v);
+    }
     expect(ten.p95()).toBe(10);
     const thirty = new FrameWindow();
-    for (let i = 30; i >= 1; i--) thirty.push(i);
+    for (let i = 30; i >= 1; i--) {
+      thirty.push(i);
+    }
     expect(thirty.p95()).toBe(29);
   });
 
@@ -105,8 +123,12 @@ describe('FrameWindow', () => {
 
   it('keeps only the last 120 frames', () => {
     const w = new FrameWindow();
-    for (let i = 0; i < 120; i++) w.push(100); // old, slow frames
-    for (let i = 0; i < 120; i++) w.push(10); // the newest 120 are fast
+    for (let i = 0; i < 120; i++) {
+      w.push(100);
+    } // old, slow frames
+    for (let i = 0; i < 120; i++) {
+      w.push(10);
+    } // the newest 120 are fast
     expect(w.avg()).toBe(10);
     expect(w.p95()).toBe(10);
     expect(w.fps()).toBe(100);

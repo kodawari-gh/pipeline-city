@@ -3,7 +3,7 @@
 // The vitest environment is node, so small fakes stand in for the DOM: Element, Node, HTMLInputElement, the document
 // and the window. The engine is the real one, with a fake AudioContext, fetch and window: the tests read which
 // files it played, and when.
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { assert, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MIX } from './mixTokens';
 import { clickSteps, isCueId, keyNeedsCue, uiCueFor } from './uiCues';
 
@@ -68,23 +68,25 @@ describe('isCueId: only names in the mix are cues', () => {
 
 describe('clickSteps: a click plays its cue, then a sub-screen transition 60 to 80 ms later', () => {
   it('a click with no next cue plays its own cue at once', () => {
-    expect(clickSteps('ui_click', null)).toEqual([{ id: 'ui_click', delayS: 0 }]);
+    expect(clickSteps('ui_click', null)).toStrictEqual([{ id: 'ui_click', delayS: 0 }]);
   });
 
   it('a sub-screen click plays ui_click at once, then the transition inside the 60-80 ms window', () => {
     const steps = clickSteps('ui_click', 'ui_transition_in');
-    expect(steps.map((s) => s.id)).toEqual(['ui_click', 'ui_transition_in']);
-    expect(steps[0]!.delayS).toBe(0);
-    expect(steps[1]!.delayS).toBeGreaterThanOrEqual(0.06);
-    expect(steps[1]!.delayS).toBeLessThanOrEqual(0.08);
+    expect(steps.map((s) => s.id)).toStrictEqual(['ui_click', 'ui_transition_in']);
+    assert.exists(steps[0]);
+    expect(steps[0].delayS).toBe(0);
+    assert.exists(steps[1]);
+    expect(steps[1].delayS).toBeGreaterThanOrEqual(0.06);
+    expect(steps[1].delayS).toBeLessThanOrEqual(0.08);
   });
 
   it('an element with no data-cue plays nothing, even with a next cue', () => {
-    expect(clickSteps(null, 'ui_transition_in')).toEqual([]);
+    expect(clickSteps(null, 'ui_transition_in')).toStrictEqual([]);
   });
 
   it('an unknown next cue is dropped and the click still plays', () => {
-    expect(clickSteps('ui_click', 'not_a_cue')).toEqual([{ id: 'ui_click', delayS: 0 }]);
+    expect(clickSteps('ui_click', 'not_a_cue')).toStrictEqual([{ id: 'ui_click', delayS: 0 }]);
   });
 });
 
@@ -121,18 +123,21 @@ const UI_IDS = [
   'ui_transition_in',
   'ui_transition_out',
 ];
-const rel = (p: string): string => p.replace(/^\/?audio\//, '');
-const filesOf = (id: string): string[] => (MIX.cues.find((c) => c.id === id)?.files ?? []).map(rel);
-const UI_FILES = UI_IDS.flatMap(filesOf);
+const rel = (p: string): string => p.replace(/^\/?audio\//u, '');
+const filesOf = (id: string): string[] => (MIX.cues.find((c) => c.id === id)?.files ?? []).map((file) => rel(file));
+const UI_FILES = UI_IDS.flatMap((id) => filesOf(id));
 const cueOfFile = (file: string | undefined): string | undefined =>
   MIX.cues.find((c) => c.files.some((f) => rel(f) === file))?.id;
 
 /** Fake DOM: a selector is a list of `[name]` or `[name="value"]` parts. Anything else throws, so a new selector fails loudly. */
 function matches(el: FakeElement, sel: string): boolean {
   return sel.split(',').some((part) => {
-    const m = /^\s*\[([\w-]+)(?:="([^"]*)")?\]\s*$/.exec(part);
-    if (!m) throw new Error(`fake DOM: selector not supported: ${part}`);
-    const have = el.getAttribute(m[1]!);
+    const m = /^\s*\[(?<attr>[\w-]+)(?:="(?<value>[^"]*)")?\]\s*$/u.exec(part);
+    if (!m) {
+      throw new Error(`fake DOM: selector not supported: ${part}`);
+    }
+    assert.exists(m[1]);
+    const have = el.getAttribute(m[1]);
     return m[2] === undefined ? have !== null : have === m[2];
   });
 }
@@ -142,7 +147,9 @@ class FakeNode {
   parentNode: FakeNode | null = null;
   contains(other: unknown): boolean {
     for (let n: FakeNode | null = other instanceof FakeNode ? other : null; n; n = n.parentNode) {
-      if (n === this) return true;
+      if (n === this) {
+        return true;
+      }
     }
     return false;
   }
@@ -162,7 +169,9 @@ class FakeElement extends FakeNode {
   }
   closest(sel: string): FakeElement | null {
     for (let n: FakeNode | null = this; n; n = n.parentNode) {
-      if (n instanceof FakeElement && matches(n, sel)) return n;
+      if (n instanceof FakeElement && matches(n, sel)) {
+        return n;
+      }
     }
     return null;
   }
@@ -198,8 +207,18 @@ class FakeTarget {
     return (this.handlers.get(type) ?? []).length;
   }
   dispatch(type: string, ev: Ev = {}): void {
-    const e = { type, target: null, relatedTarget: null, ...ev, preventDefault() {} };
-    for (const h of [...(this.handlers.get(type) ?? [])]) h(e);
+    const e = {
+      type,
+      target: null,
+      relatedTarget: null,
+      ...ev,
+      preventDefault() {
+        /* no-op */
+      },
+    };
+    for (const h of [...(this.handlers.get(type) ?? [])]) {
+      h(e);
+    }
   }
 }
 
@@ -243,7 +262,9 @@ class Node_ {
   connect<T>(n: T): T {
     return n;
   }
-  disconnect(): void {}
+  disconnect(): void {
+    /* no-op */
+  }
 }
 class Gain extends Node_ {
   gain = new Param();
@@ -258,7 +279,9 @@ class Source extends Node_ {
     this.started = true;
     this.startAt = when;
   }
-  stop(): void {}
+  stop(): void {
+    /* no-op */
+  }
 }
 class FakeCtx {
   static last: FakeCtx | null = null;
@@ -310,8 +333,12 @@ beforeEach(() => {
   win = new EventTarget();
   FakeCtx.last = null;
   vi.stubGlobal('window', win);
-  vi.stubGlobal('addEventListener', (t: string, f: any, o?: any) => win.addEventListener(t, f, o));
-  vi.stubGlobal('removeEventListener', (t: string, f: any, o?: any) => win.removeEventListener(t, f, o));
+  vi.stubGlobal('addEventListener', (t: string, f: any, o?: any) => {
+    win.addEventListener(t, f, o);
+  });
+  vi.stubGlobal('removeEventListener', (t: string, f: any, o?: any) => {
+    win.removeEventListener(t, f, o);
+  });
   vi.stubGlobal('AudioContext', FakeCtx);
   vi.stubGlobal('OfflineAudioContext', FakeOffline);
   vi.stubGlobal('fetch', vi.fn(fakeFetch));
@@ -322,8 +349,12 @@ beforeEach(() => {
   let clock = 0;
   vi.spyOn(performance, 'now').mockImplementation(() => (clock += 1000));
   vi.resetModules();
-  vi.spyOn(console, 'warn').mockImplementation(() => {});
-  vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'warn').mockImplementation(() => {
+    /* no-op */
+  });
+  vi.spyOn(console, 'error').mockImplementation(() => {
+    /* no-op */
+  });
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -361,14 +392,14 @@ describe('before the unlock gesture', () => {
     w.dispatch('keydown', { key: 'Escape', target: btn });
     w.dispatch('keydown', { key: 'ArrowLeft', target: elem({ 'data-cue': 'ui_value_change' }) });
     expect(FakeCtx.last).toBeNull();
-    expect(plays()).toEqual([]);
+    expect(plays()).toStrictEqual([]);
   });
 
   it('after the gesture, the same listener plays', async () => {
     await unlocked();
     const { doc } = await setup();
     doc.dispatch('click', { target: elem({ 'data-cue': 'ui_click' }) });
-    expect(cues()).toEqual(['ui_click']);
+    expect(cues()).toStrictEqual(['ui_click']);
   });
 });
 
@@ -377,7 +408,7 @@ describe('clicks', () => {
     await unlocked();
     const { doc } = await setup();
     doc.dispatch('click', { target: elem({ 'data-cue': 'ui_toggle_on' }) });
-    expect(cues()).toEqual(['ui_toggle_on']);
+    expect(cues()).toStrictEqual(['ui_toggle_on']);
   });
 
   it('a click inside an element with data-cue plays the cue of that element', async () => {
@@ -385,14 +416,14 @@ describe('clicks', () => {
     const { doc } = await setup();
     const row = elem({ 'data-cue': 'ui_tab_switch' });
     doc.dispatch('click', { target: elem({}, row) });
-    expect(cues()).toEqual(['ui_tab_switch']);
+    expect(cues()).toStrictEqual(['ui_tab_switch']);
   });
 
   it('a click on an element with no data-cue plays nothing', async () => {
     await unlocked();
     const { doc } = await setup();
     doc.dispatch('click', { target: elem({}) });
-    expect(cues()).toEqual([]);
+    expect(cues()).toStrictEqual([]);
   });
 
   it('a keyboard activation plays click: Enter and Space move no sound, the click they cause does', async () => {
@@ -401,9 +432,9 @@ describe('clicks', () => {
     const btn = elem({ 'data-cue': 'ui_click' });
     w.dispatch('keydown', { key: 'Enter', target: btn });
     w.dispatch('keydown', { key: ' ', target: btn });
-    expect(cues()).toEqual([]);
+    expect(cues()).toStrictEqual([]);
     doc.dispatch('click', { target: btn });
-    expect(cues()).toEqual(['ui_click']);
+    expect(cues()).toStrictEqual(['ui_click']);
   });
 
   it('Enter and Space on a focused non-native cue element (a role=radio div) play its cue once, not on repeat', async () => {
@@ -412,22 +443,24 @@ describe('clicks', () => {
     const radio = elem({ 'data-cue': 'ui_value_change', role: 'radio' });
     radio.tagName = 'DIV';
     w.dispatch('keydown', { key: 'Enter', target: radio });
-    expect(cues()).toEqual(['ui_value_change']);
+    expect(cues()).toStrictEqual(['ui_value_change']);
     w.dispatch('keydown', { key: ' ', target: radio, repeat: true });
-    expect(cues()).toEqual(['ui_value_change']);
+    expect(cues()).toStrictEqual(['ui_value_change']);
     w.dispatch('keydown', { key: ' ', target: radio });
-    expect(cues()).toEqual(['ui_value_change', 'ui_value_change']);
+    expect(cues()).toStrictEqual(['ui_value_change', 'ui_value_change']);
   });
 
   it('a sub-screen click plays ui_click at once, then the transition 60 to 80 ms later', async () => {
     await unlocked();
     const { doc } = await setup();
     doc.dispatch('click', { target: elem({ 'data-cue': 'ui_click', 'data-cue-next': 'ui_transition_in' }) });
-    expect(cues()).toEqual(['ui_click', 'ui_transition_in']);
+    expect(cues()).toStrictEqual(['ui_click', 'ui_transition_in']);
     const [click, transition] = plays();
-    expect(click!.at).toBe(0);
-    expect(transition!.at).toBeGreaterThanOrEqual(0.06);
-    expect(transition!.at).toBeLessThanOrEqual(0.08);
+    assert.exists(click);
+    expect(click.at).toBe(0);
+    assert.exists(transition);
+    expect(transition.at).toBeGreaterThanOrEqual(0.06);
+    expect(transition.at).toBeLessThanOrEqual(0.08);
   });
 });
 
@@ -438,14 +471,14 @@ describe('keys', () => {
     const btn = elem({ 'data-cue': 'ui_click' });
     doc.elements.push(elem({ role: 'dialog' }));
     w.dispatch('keydown', { key: 'Escape', target: btn });
-    expect(cues()).toEqual(['ui_back']);
+    expect(cues()).toStrictEqual(['ui_back']);
   });
 
   it('Escape plays nothing when no dialog or menu is open', async () => {
     await unlocked();
     const { w } = await setup();
     w.dispatch('keydown', { key: 'Escape', target: elem({ 'data-cue': 'ui_click' }) });
-    expect(cues()).toEqual([]);
+    expect(cues()).toStrictEqual([]);
   });
 
   it.each(['alertdialog', 'menu'])('Escape plays ui_back with an open role=%s', async (role) => {
@@ -453,7 +486,7 @@ describe('keys', () => {
     const { doc, w } = await setup();
     doc.elements.push(elem({ role }));
     w.dispatch('keydown', { key: 'Escape', target: elem({}) });
-    expect(cues()).toEqual(['ui_back']);
+    expect(cues()).toStrictEqual(['ui_back']);
   });
 
   it('ArrowLeft and ArrowRight on a value element play ui_value_change', async () => {
@@ -462,7 +495,7 @@ describe('keys', () => {
     const value = elem({ 'data-cue': 'ui_value_change' });
     w.dispatch('keydown', { key: 'ArrowLeft', target: value });
     w.dispatch('keydown', { key: 'ArrowRight', target: value });
-    expect(cues()).toEqual(['ui_value_change', 'ui_value_change']);
+    expect(cues()).toStrictEqual(['ui_value_change', 'ui_value_change']);
   });
 
   it('an arrow on an element that is not a value plays nothing, and ArrowUp plays nothing even on a value', async () => {
@@ -470,7 +503,7 @@ describe('keys', () => {
     const { w } = await setup();
     w.dispatch('keydown', { key: 'ArrowLeft', target: elem({ 'data-cue': 'ui_click' }) });
     w.dispatch('keydown', { key: 'ArrowUp', target: elem({ 'data-cue': 'ui_value_change' }) });
-    expect(cues()).toEqual([]);
+    expect(cues()).toStrictEqual([]);
   });
 });
 
@@ -480,7 +513,7 @@ describe('keyboard focus moves', () => {
     const { doc, w } = await setup();
     w.dispatch('keydown', { key: 'Tab' });
     doc.dispatch('focusin', { target: elem({ 'data-cue': 'ui_click' }) });
-    expect(cues()).toEqual(['ui_focus_move']);
+    expect(cues()).toStrictEqual(['ui_focus_move']);
   });
 
   it('a focus that comes from a pointer press plays nothing', async () => {
@@ -489,7 +522,7 @@ describe('keyboard focus moves', () => {
     w.dispatch('keydown', { key: 'Tab' });
     doc.dispatch('pointerdown', { target: elem({}) });
     doc.dispatch('focusin', { target: elem({ 'data-cue': 'ui_click' }) });
-    expect(cues()).toEqual([]);
+    expect(cues()).toStrictEqual([]);
   });
 
   it('a focus move onto an element with no data-cue plays nothing', async () => {
@@ -497,7 +530,7 @@ describe('keyboard focus moves', () => {
     const { doc, w } = await setup();
     w.dispatch('keydown', { key: 'Tab' });
     doc.dispatch('focusin', { target: elem({}) });
-    expect(cues()).toEqual([]);
+    expect(cues()).toStrictEqual([]);
   });
 });
 
@@ -506,21 +539,21 @@ describe('hover cues', () => {
     await unlocked();
     const { doc } = await setup(true);
     doc.dispatch('pointerover', { target: elem({ 'data-cue': 'ui_click' }), relatedTarget: null });
-    expect(cues()).toEqual(['ui_hover']);
+    expect(cues()).toStrictEqual(['ui_hover']);
   });
 
   it('plays nothing on a device without hover (touch)', async () => {
     await unlocked();
     const { doc } = await setup(false);
     doc.dispatch('pointerover', { target: elem({ 'data-cue': 'ui_click' }), relatedTarget: null });
-    expect(cues()).toEqual([]);
+    expect(cues()).toStrictEqual([]);
   });
 
   it('plays nothing for an element with no data-cue', async () => {
     await unlocked();
     const { doc } = await setup(true);
     doc.dispatch('pointerover', { target: elem({}), relatedTarget: null });
-    expect(cues()).toEqual([]);
+    expect(cues()).toStrictEqual([]);
   });
 
   it('moving between the parts of one row does not play again while the pointer stays', async () => {
@@ -531,7 +564,7 @@ describe('hover cues', () => {
     const part = elem({}, row);
     doc.dispatch('pointerover', { target: row, relatedTarget: outside });
     doc.dispatch('pointerover', { target: part, relatedTarget: row });
-    expect(cues()).toEqual(['ui_hover']);
+    expect(cues()).toStrictEqual(['ui_hover']);
   });
 
   it('plays again after the pointer leaves the row and comes back', async () => {
@@ -542,7 +575,7 @@ describe('hover cues', () => {
     doc.dispatch('pointerover', { target: row, relatedTarget: outside });
     doc.dispatch('pointerover', { target: outside, relatedTarget: row });
     doc.dispatch('pointerover', { target: row, relatedTarget: outside });
-    expect(cues()).toEqual(['ui_hover', 'ui_hover']);
+    expect(cues()).toStrictEqual(['ui_hover', 'ui_hover']);
   });
 
   it('hover variants rotate round-robin through the ui_hover files', async () => {
@@ -555,7 +588,7 @@ describe('hover cues', () => {
       doc.dispatch('pointerover', { target: row, relatedTarget: outside });
       doc.dispatch('pointerover', { target: outside, relatedTarget: row });
     }
-    expect(playedFiles()).toEqual([...files, files[0]]);
+    expect(playedFiles()).toStrictEqual([...files, files[0]]);
   });
 });
 
@@ -569,7 +602,7 @@ describe('checkboxes', () => {
     off.checked = false;
     doc.dispatch('change', { target: on });
     doc.dispatch('change', { target: off });
-    expect(cues()).toEqual(['ui_toggle_on', 'ui_toggle_off']);
+    expect(cues()).toStrictEqual(['ui_toggle_on', 'ui_toggle_off']);
   });
 
   it('a checkbox with no data-cue plays nothing, and a change on a non-input plays nothing', async () => {
@@ -579,7 +612,7 @@ describe('checkboxes', () => {
     plain.checked = true;
     doc.dispatch('change', { target: plain });
     doc.dispatch('change', { target: elem({ 'data-cue': 'ui_toggle' }) });
-    expect(cues()).toEqual([]);
+    expect(cues()).toStrictEqual([]);
   });
 });
 
@@ -595,6 +628,6 @@ describe('removing the listener', () => {
     expect(doc.listenerCount('pointerdown')).toBe(0);
     expect(w.listenerCount('keydown')).toBe(0);
     doc.dispatch('click', { target: elem({ 'data-cue': 'ui_click' }) });
-    expect(cues()).toEqual([]);
+    expect(cues()).toStrictEqual([]);
   });
 });

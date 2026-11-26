@@ -18,7 +18,9 @@ function fakeDoc() {
       },
       ...e,
     };
-    for (const fn of on.get(type) ?? []) fn(ev as unknown as Event);
+    for (const fn of on.get(type) ?? []) {
+      fn(ev as unknown as Event);
+    }
     return { prevented: ev.prevented };
   };
   return { doc: doc as unknown as Document, on, fire };

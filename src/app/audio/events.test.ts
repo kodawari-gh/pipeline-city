@@ -6,10 +6,29 @@
 import * as fsMod from 'node:fs';
 // @ts-ignore
 import * as urlMod from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { MIX } from './mixTokens';
 import { cueForNote, createNoteTracker } from './events';
 import type { GameEvent } from '../../worker/game/types';
+
+interface DirEntry {
+  name: string;
+  isDirectory: () => boolean;
+}
+
+interface NodeFs {
+  readFileSync: (path: string, encoding: 'utf8') => string;
+  readdirSync: (path: string, options: { withFileTypes: true }) => DirEntry[];
+}
+
+interface NodeUrl {
+  fileURLToPath: (url: URL) => string;
+}
+const isNodeUrl = (mod: unknown): mod is NodeUrl => typeof mod === 'object' && mod !== null && 'fileURLToPath' in mod;
+const isNodeFs = (mod: unknown): mod is NodeFs => typeof mod === 'object' && mod !== null && 'readFileSync' in mod;
+assert(isNodeUrl(urlMod), 'node:url loads');
+assert(isNodeFs(fsMod), 'node:fs loads');
+const nodeUrl = urlMod;
 
 const note = (tick: number, kind: string, text: string): GameEvent => ({ tick, kind, text });
 
@@ -84,7 +103,7 @@ describe('cueForNote: the 32 ordered rules, first match wins', () => {
 describe('createNoteTracker: only unseen notes play', () => {
   it('the first snapshot marks the log and returns nothing, even with notes in it', () => {
     const t = createNoteTracker();
-    expect(t.fresh([note(1, 'payout', 'key 1 paid: $120'), note(2, 'install', 'Board installed')])).toEqual([]);
+    expect(t.fresh([note(1, 'payout', 'key 1 paid: $120'), note(2, 'install', 'Board installed')])).toStrictEqual([]);
   });
 
   it('a later snapshot returns only the notes added since the last one', () => {
@@ -92,8 +111,8 @@ describe('createNoteTracker: only unseen notes play', () => {
     const a = note(1, 'payout', 'key 1 paid: $120');
     const b = note(2, 'install', 'Board installed');
     t.fresh([a]);
-    expect(t.fresh([a, b])).toEqual([b]);
-    expect(t.fresh([a, b])).toEqual([]);
+    expect(t.fresh([a, b])).toStrictEqual([b]);
+    expect(t.fresh([a, b])).toStrictEqual([]);
   });
 
   it('a burst of three notes at one tick: only the unseen ones are returned, in log order', () => {
@@ -102,7 +121,7 @@ describe('createNoteTracker: only unseen notes play', () => {
     const b = note(5, 'cable', 'USB cable connected');
     const c = note(5, 'payout', 'key 3 paid: $120');
     t.fresh([a]);
-    expect(t.fresh([a, b, c])).toEqual([b, c]);
+    expect(t.fresh([a, b, c])).toStrictEqual([b, c]);
   });
 
   it('reset: the next snapshot marks the log and plays nothing; later new notes play', () => {
@@ -112,8 +131,8 @@ describe('createNoteTracker: only unseen notes play', () => {
     const c = note(3, 'cable', 'USB cable connected');
     t.fresh([a]);
     t.reset();
-    expect(t.fresh([a, b])).toEqual([]);
-    expect(t.fresh([a, b, c])).toEqual([c]);
+    expect(t.fresh([a, b])).toStrictEqual([]);
+    expect(t.fresh([a, b, c])).toStrictEqual([c]);
   });
 
   it('a tick that moves backwards (a loaded save) marks the log and plays nothing', () => {
@@ -122,22 +141,25 @@ describe('createNoteTracker: only unseen notes play', () => {
     const loaded = note(3, 'install', 'Board installed');
     const next = note(4, 'cable', 'USB cable connected');
     t.fresh([old]);
-    expect(t.fresh([loaded])).toEqual([]);
-    expect(t.fresh([loaded, next])).toEqual([next]);
+    expect(t.fresh([loaded])).toStrictEqual([]);
+    expect(t.fresh([loaded, next])).toStrictEqual([next]);
   });
 });
 
 // ---- Guard: every log-note call site in the sim has a cue (ADR-0002) ----
 
 // @ts-ignore
-const fs = fsMod as any;
-const SRC: string = urlMod.fileURLToPath(new URL('../../', import.meta.url)); // src/
+const fs = fsMod;
+const SRC: string = nodeUrl.fileURLToPath(new URL('../../', import.meta.url)); // src/
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = `${dir}${e.name}`;
-    if (e.isDirectory()) walk(`${p}/`, out);
-    else if (e.name.endsWith('.ts') && !e.name.endsWith('.test.ts')) out.push(p);
+    if (e.isDirectory()) {
+      walk(`${p}/`, out);
+    } else if (e.name.endsWith('.ts') && !e.name.endsWith('.test.ts')) {
+      out.push(p);
+    }
   }
   return out;
 }
@@ -145,8 +167,11 @@ function walk(dir: string, out: string[] = []): string[] {
 /** Index of the closing quote of the string or template that starts at `i`. */
 function endOf(src: string, i: number, q: string): number {
   for (let k = i + 1; k < src.length; k++) {
-    if (src[k] === '\\') k++;
-    else if (src[k] === q) return k;
+    if (src[k] === '\\') {
+      k++;
+    } else if (src[k] === q) {
+      return k;
+    }
   }
   return src.length;
 }
@@ -158,10 +183,13 @@ function endOf(src: string, i: number, q: string): number {
 function callSites(src: string): { notes: { kind: string; text: string }[]; other: number } {
   const notes: { kind: string; text: string }[] = [];
   let other = 0;
-  for (const m of src.matchAll(/\.note\(/g)) {
-    let i = m.index! + m[0].length;
-    while (/\s/.test(src[i] ?? '')) i++;
-    const quote = src[i]!;
+  for (const m of src.matchAll(/\.note\(/gu)) {
+    let i = m.index + m[0].length;
+    while (/\s/u.test(src[i] ?? '')) {
+      i++;
+    }
+    const quote = src[i];
+    assert.exists(quote);
     if (quote !== '"' && quote !== "'") {
       other++;
       continue;
@@ -169,27 +197,37 @@ function callSites(src: string): { notes: { kind: string; text: string }[]; othe
     const kindEnd = endOf(src, i, quote);
     const kind = src.slice(i + 1, kindEnd);
     i = src.indexOf(',', kindEnd) + 1;
-    while (/\s/.test(src[i] ?? '')) i++;
+    while (/\s/u.test(src[i] ?? '')) {
+      i++;
+    }
     let depth = 0;
     let j = i;
     for (; j < src.length; j++) {
-      const c = src[j]!;
-      if (c === '"' || c === "'") j = endOf(src, j, c);
-      else if (c === '`') j = endOf(src, j, '`');
-      else if ('([{'.includes(c)) depth++;
-      else if (')]}'.includes(c)) {
-        if (depth === 0) break;
+      const c = src[j];
+      assert.exists(c);
+      if (c === '"' || c === "'") {
+        j = endOf(src, j, c);
+      } else if (c === '`') {
+        j = endOf(src, j, '`');
+      } else if ('([{'.includes(c)) {
+        depth++;
+      } else if (')]}'.includes(c)) {
+        if (depth === 0) {
+          break;
+        }
         depth--;
-      } else if (c === ',' && depth === 0) break;
+      } else if (c === ',' && depth === 0) {
+        break;
+      }
     }
     // String literals lose their quotes (either style: the formatter picks one), template parts become `{}`, and a wrapped argument reads as one line.
     const text = src
       .slice(i, j)
-      .replaceAll(/\$\{[^}]*\}/g, '{}')
-      .replaceAll(/(["'])((?:\\.|(?!\1)[^\\])*)\1/g, '$2')
+      .replaceAll(/\$\{[^}]*\}/gu, '{}')
+      .replaceAll(/(?<quote>["'])(?<body>(?:\\.|(?!\k<quote>)[^\\])*)\k<quote>/gu, '$<body>')
       .replaceAll('`', '')
-      .replaceAll(/\s+/g, ' ')
-      .replace(/,\s*$/, '')
+      .replaceAll(/\s+/gu, ' ')
+      .replace(/,\s*$/u, '')
       .trim();
     notes.push({ kind, text });
   }
@@ -198,7 +236,9 @@ function callSites(src: string): { notes: { kind: string; text: string }[]; othe
 
 // Scans the sim folders under src/features and src/worker. Keys are paths like `board/sim/game/machine.ts`.
 function scanSim() {
-  const files = [...walk(`${SRC}features/`), ...walk(`${SRC}worker/`)].filter((p) => /[/\\](sim|worker)[/\\]/.test(p));
+  const files = [...walk(`${SRC}features/`), ...walk(`${SRC}worker/`)].filter((p) =>
+    /[/\\](?:sim|worker)[/\\]/u.test(p),
+  );
   const sites: { file: string; kind: string; text: string }[] = [];
   const other: Record<string, number> = {};
   for (const p of files) {
@@ -206,10 +246,14 @@ function scanSim() {
       .slice(SRC.length)
       .split('\\')
       .join('/')
-      .replace(/^features\//, '');
+      .replace(/^features\//u, '');
     const r = callSites(fs.readFileSync(p, 'utf8'));
-    for (const n of r.notes) sites.push({ file, ...n });
-    if (r.other) other[file] = r.other;
+    for (const n of r.notes) {
+      sites.push({ file, ...n });
+    }
+    if (r.other) {
+      other[file] = r.other;
+    }
   }
   return { sites, other };
 }
@@ -471,13 +515,13 @@ describe('guard: every log note has a cue (ADR-0002)', () => {
   const scan = scanSim();
 
   it('every log-note call site in the sim has a row; a new or reworded note fails', () => {
-    const scanned = scan.sites.map((s) => rowKey(s.file, s.kind, s.text)).sort();
-    const listed = LOG_NOTES.map(([f, k, t]) => rowKey(f, k, t)).sort();
-    expect(scanned).toEqual(listed);
+    const scanned = scan.sites.map((s) => rowKey(s.file, s.kind, s.text)).toSorted();
+    const listed = LOG_NOTES.map(([f, k, t]) => rowKey(f, k, t)).toSorted();
+    expect(scanned).toStrictEqual(listed);
   });
 
   it('call sites with another signature are listed as not audio', () => {
-    expect(scan.other).toEqual(NOT_AUDIO);
+    expect(scan.other).toStrictEqual(NOT_AUDIO);
   });
 
   it.each(LOG_NOTES)('%s %s "%s" plays its cue (%s)', (_file, kind, _text, sample, cue) => {

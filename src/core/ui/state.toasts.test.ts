@@ -2,14 +2,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Game } from '@/worker/game/game';
 import type { Snapshot } from '@/worker/protocol';
+import type * as stateApi from '@/core/ui/state';
+import type * as storeApi from '@/app/store';
+import type * as settingsnavApi from '@/core/ui/panels/settingsnav';
 
-type State = typeof import('@/core/ui/state');
-type Store = typeof import('@/app/store');
+type State = typeof stateApi;
+type Store = typeof storeApi;
 
 let st: State;
 let store: Store;
 let base: Snapshot;
-let nav: typeof import('@/core/ui/panels/settingsnav');
+let nav: typeof settingsnavApi;
 
 beforeEach(async () => {
   vi.resetModules();
@@ -21,9 +24,25 @@ beforeEach(async () => {
   });
   vi.stubGlobal('document', {
     documentElement: {
-      setAttribute: () => {},
-      style: { setProperty: () => {} },
-      classList: { toggle: () => {}, add: () => {}, remove: () => {} },
+      setAttribute: () => {
+        /* no-op */
+      },
+      style: {
+        setProperty: () => {
+          /* no-op */
+        },
+      },
+      classList: {
+        toggle: () => {
+          /* no-op */
+        },
+        add: () => {
+          /* empty */
+        },
+        remove: () => {
+          /* empty */
+        },
+      },
     },
   });
   st = await import('@/core/ui/state');
@@ -47,30 +66,30 @@ const shown = async (): Promise<string[]> => {
 describe('game toasts and the menu family', () => {
   it('shows a hint at once when no menu is open (control case)', async () => {
     store.snapshot.value = hintSnap();
-    expect(await shown()).toEqual(['queue']);
+    expect(await shown()).toStrictEqual(['queue']);
   });
 
   it('holds a hint while Paused is open', async () => {
     st.gameMenuOpen.value = true;
     store.snapshot.value = hintSnap();
-    expect(await shown()).toEqual([]);
+    expect(await shown()).toStrictEqual([]);
   });
 
   it('shows the held hint after Paused closes', async () => {
     st.gameMenuOpen.value = true;
     store.snapshot.value = hintSnap();
     st.gameMenuOpen.value = false;
-    expect(await shown()).toEqual(['queue']);
+    expect(await shown()).toStrictEqual(['queue']);
   });
 
   it('holds a hint while Settings opened from Paused is open, and while Controls is', async () => {
     st.gameMenuOpen.value = true;
     nav.settingsOpener.value = 'paused';
     store.snapshot.value = hintSnap();
-    expect(await shown()).toEqual([]);
+    expect(await shown()).toStrictEqual([]);
     nav.settingsOpener.value = null;
     st.controlsFromMenu.value = true;
     st.controlsOpen.value = true;
-    expect(await shown()).toEqual([]);
+    expect(await shown()).toStrictEqual([]);
   });
 });

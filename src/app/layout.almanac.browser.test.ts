@@ -8,11 +8,11 @@
 // Screenshots at the five sizes (dev and prod) are not a test: they are checked by eye (tools/shot.mjs).
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Browser, Page } from 'playwright-core';
-import { type Box, outsideViewport, overlaps } from './layoutRects';
-import { BOOT_MS, GATE, STEP_MS, type Dev, killTree, launchChrome, openBooted, startServer } from './layout.harness';
+import * as layoutRects from './layoutRects';
+import * as harness from './layout.harness';
 
 declare const process: any;
-const TEST_MS = 60_000 + BOOT_MS + 6 * STEP_MS;
+const TEST_MS = 60_000 + harness.BOOT_MS + 6 * harness.STEP_MS;
 const FIVE = [
   { w: 1920, h: 1080 },
   { w: 390, h: 844 },
@@ -21,11 +21,11 @@ const FIVE = [
   { w: 844, h: 390 },
 ];
 
-let dev: Dev | null = null;
+let dev: harness.Dev | null = null;
 let browser: Browser | null = null;
 
 /** Runs in the page: the boxes of the visible elements that match a selector. */
-function boxesOf(sel: string): Box[] {
+function boxesOf(sel: string): layoutRects.Box[] {
   return [...document.querySelectorAll(sel)]
     .filter((e) => {
       const cs = getComputedStyle(e);
@@ -40,42 +40,48 @@ function boxesOf(sel: string): Box[] {
 
 /** Starts a campaign game and gets past the welcome card to the bare HUD (as layout.menu.browser.test.ts does). */
 async function intoGame(page: Page): Promise<void> {
-  await page.getByRole('button', { name: /^New game/ }).click();
+  await page.getByRole('button', { name: /^New game/u }).click();
   await page.waitForSelector('.pl-menu.newgame .pl-row.hero');
   await page.click('.pl-menu.newgame .pl-row.hero');
-  await page.waitForSelector('header.hud', { timeout: BOOT_MS });
+  await page.waitForSelector('header.hud', { timeout: harness.BOOT_MS });
   await page.waitForTimeout(1500);
-  const skip = page.locator('button', { hasText: /^Skip$/ });
-  if (await skip.count()) await skip.first().click();
+  const skip = page.locator('button', { hasText: /^Skip$/u });
+  if (await skip.count()) {
+    await skip.first().click();
+  }
   await page
-    .waitForFunction(() => !document.querySelector('.modal-back.dlg-back'), null, { timeout: STEP_MS })
-    .catch(() => {});
+    .waitForFunction(() => !document.querySelector('.modal-back.dlg-back'), null, { timeout: harness.STEP_MS })
+    .catch(() => {
+      /* no-op */
+    });
 }
 
 /** Opens the Almanac from the dock and waits for its panel. */
 async function openAlmanac(page: Page): Promise<void> {
   await page
-    .locator('button', { hasText: /Almanac/ })
+    .locator('button', { hasText: /Almanac/u })
     .first()
     .click();
   await page.waitForSelector('.almanac-back .almanac');
   await page.waitForTimeout(800);
 }
 
-describe.skipIf(!GATE)('the Almanac edge tab in the browser (ticket #74)', () => {
+describe.skipIf(!harness.GATE)('the Almanac edge tab in the browser (ticket #74)', () => {
   beforeAll(async () => {
-    dev = await startServer();
+    dev = await harness.startServer();
   }, 120_000);
   afterAll(() => {
-    killTree(dev?.child);
+    harness.killTree(dev?.child);
     dev = null;
   });
   beforeEach(async () => {
     process.stderr.write(`  running: ${expect.getState().currentTestName}\n`);
-    browser = await launchChrome();
+    browser = await harness.launchChrome();
   }, 60_000);
   afterEach(async () => {
-    await browser?.close().catch(() => {});
+    await browser?.close().catch(() => {
+      /* no-op */
+    });
     browser = null;
   }, 60_000);
 
@@ -84,7 +90,7 @@ describe.skipIf(!GATE)('the Almanac edge tab in the browser (ticket #74)', () =>
       `${vp.w} x ${vp.h}: the open Almanac touches a screen edge and stays in the window`,
       async () => {
         const errors: string[] = [];
-        const { page, ctxClose } = await openBooted(browser!, dev!, vp.w, vp.h, errors);
+        const { page, ctxClose } = await harness.openBooted(browser!, dev!, vp.w, vp.h, errors);
         try {
           await intoGame(page);
           await openAlmanac(page);
@@ -93,13 +99,15 @@ describe.skipIf(!GATE)('the Almanac edge tab in the browser (ticket #74)', () =>
           const p = panel!;
           const touchesEdge = p.x <= 1 || p.y <= 1 || p.r >= vp.w - 1 || p.b >= vp.h - 1;
           expect(touchesEdge, `the panel ${JSON.stringify(p)} touches no screen edge`).toBe(true);
-          expect(outsideViewport(p, vp.w, vp.h), 'the panel reaches past the window').toBe(false);
+          expect(layoutRects.outsideViewport(p, vp.w, vp.h), 'the panel reaches past the window').toBe(false);
           expect(
             await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
             'no horizontal page scroll',
           ).toBe(true);
         } finally {
-          await ctxClose().catch(() => {});
+          await ctxClose().catch(() => {
+            /* no-op */
+          });
         }
       },
       TEST_MS,
@@ -109,7 +117,7 @@ describe.skipIf(!GATE)('the Almanac edge tab in the browser (ticket #74)', () =>
       `${vp.w} x ${vp.h}: no overlapping or clipped control in the Almanac`,
       async () => {
         const errors: string[] = [];
-        const { page, ctxClose } = await openBooted(browser!, dev!, vp.w, vp.h, errors);
+        const { page, ctxClose } = await harness.openBooted(browser!, dev!, vp.w, vp.h, errors);
         try {
           await intoGame(page);
           await openAlmanac(page);
@@ -123,11 +131,11 @@ describe.skipIf(!GATE)('the Almanac edge tab in the browser (ticket #74)', () =>
             return els.map((e, i) => {
               const r = e.getBoundingClientRect();
               const scroller = e.closest('.alm-main, .alm-list');
-              const inList = !!scroller;
+              const inList = Boolean(scroller);
               // a row scrolled out of its list is clipped by the list: it is not on screen, so it cannot overlap
               const sr = scroller?.getBoundingClientRect();
               const scrolledOut =
-                !!sr &&
+                sr !== undefined &&
                 (r.bottom <= sr.top + 0.5 ||
                   r.top >= sr.bottom - 0.5 ||
                   r.right <= sr.left + 0.5 ||
@@ -144,22 +152,29 @@ describe.skipIf(!GATE)('the Almanac edge tab in the browser (ticket #74)', () =>
           });
           const flat = controls.filter((c) => !c.nested && !c.scrolledOut);
           const pairs: string[] = [];
-          for (let i = 0; i < flat.length; i++)
+          for (let i = 0; i < flat.length; i++) {
             for (let j = i + 1; j < flat.length; j++) {
               const a = flat[i]!,
                 c = flat[j]!;
-              if (overlaps(a.box, c.box)) pairs.push(`${a.name} / ${c.name}`);
+              if (layoutRects.overlaps(a.box, c.box)) {
+                pairs.push(`${a.name} / ${c.name}`);
+              }
             }
-          expect(pairs, 'overlapping controls').toEqual([]);
+          }
+          expect(pairs, 'overlapping controls').toStrictEqual([]);
           // a control outside the scrolling list must be on screen; inside it the list scrolls
-          const cut = flat.filter((c) => !c.inList && outsideViewport(c.box, vp.w, vp.h)).map((c) => c.name);
-          expect(cut, 'controls cut off by the window').toEqual([]);
+          const cut = flat
+            .filter((c) => !c.inList && layoutRects.outsideViewport(c.box, vp.w, vp.h))
+            .map((c) => c.name);
+          expect(cut, 'controls cut off by the window').toStrictEqual([]);
           expect(
             await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight + 1),
             'no vertical page scroll',
           ).toBe(true);
         } finally {
-          await ctxClose().catch(() => {});
+          await ctxClose().catch(() => {
+            /* no-op */
+          });
         }
       },
       TEST_MS,
@@ -170,7 +185,7 @@ describe.skipIf(!GATE)('the Almanac edge tab in the browser (ticket #74)', () =>
     '1920 x 1080: no glass, no shadow, and the backing is the in-game shade',
     async () => {
       const errors: string[] = [];
-      const { page, ctxClose } = await openBooted(browser!, dev!, 1920, 1080, errors);
+      const { page, ctxClose } = await harness.openBooted(browser!, dev!, 1920, 1080, errors);
       try {
         await intoGame(page);
         await openAlmanac(page);
@@ -196,14 +211,16 @@ describe.skipIf(!GATE)('the Almanac edge tab in the browser (ticket #74)', () =>
           };
         });
         expect(look.backdrop === 'none' || look.backdrop === '', 'backdrop-filter').toBe(true);
-        expect(look.shadow === 'none', 'box-shadow').toBe(true);
-        expect(look.text === 'none', 'text-shadow').toBe(true);
-        expect(look.image === 'none', 'gradient or image behind the panel').toBe(true);
-        expect(look.radius === '0px', 'radius on the panel').toBe(true);
+        expect(look.shadow, 'box-shadow').toBe('none');
+        expect(look.text, 'text-shadow').toBe('none');
+        expect(look.image, 'gradient or image behind the panel').toBe('none');
+        expect(look.radius, 'radius on the panel').toBe('0px');
         expect(look.panelBg, 'the panel backing').toBe(look.shade);
         expect(['rgba(0, 0, 0, 0)', look.shade], 'the backing behind the 3D view').toContain(look.backBg);
       } finally {
-        await ctxClose().catch(() => {});
+        await ctxClose().catch(() => {
+          /* no-op */
+        });
       }
     },
     TEST_MS,
@@ -213,14 +230,18 @@ describe.skipIf(!GATE)('the Almanac edge tab in the browser (ticket #74)', () =>
     '1920 x 1080: the Almanac opens from the dock and closes with its Close control',
     async () => {
       const errors: string[] = [];
-      const { page, ctxClose } = await openBooted(browser!, dev!, 1920, 1080, errors);
+      const { page, ctxClose } = await harness.openBooted(browser!, dev!, 1920, 1080, errors);
       try {
         await intoGame(page);
         await openAlmanac(page);
         await page.locator('.almanac-back .alm-head .close').first().click();
-        await expect.poll(async () => page.locator('.almanac-back .almanac').count(), { timeout: STEP_MS }).toBe(0);
+        await expect
+          .poll(async () => page.locator('.almanac-back .almanac').count(), { timeout: harness.STEP_MS })
+          .toBe(0);
       } finally {
-        await ctxClose().catch(() => {});
+        await ctxClose().catch(() => {
+          /* no-op */
+        });
       }
     },
     TEST_MS,

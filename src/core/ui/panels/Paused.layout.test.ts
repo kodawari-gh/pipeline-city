@@ -1,7 +1,7 @@
 // The Paused screen's layout rules, read from ui.css as text (ticket #40; SPEC §6.3, §6.5, §6.6, §10; ACCEPTANCE 4 and 10).
 // A small cascade gives the value the browser would apply at a viewport and pointer (media queries, then specificity, then source order),
 // so a rule that a later rule overrides does not count. tools/paused-check.mjs checks the same sizes in a real browser.
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 
 // No @types/node in this project: the file system is reached through untyped imports (tests only).
 // @ts-ignore
@@ -9,27 +9,51 @@ import * as fsMod from 'node:fs';
 // @ts-ignore
 import * as urlMod from 'node:url';
 
-const fs = fsMod as any;
+interface NodeFs {
+  readFileSync: (path: string, encoding: 'utf8') => string;
+}
 
-const css: string = fs.readFileSync(urlMod.fileURLToPath(new URL('../ui.css', import.meta.url)), 'utf8');
+interface NodeUrl {
+  fileURLToPath: (url: URL) => string;
+}
+const isNodeUrl = (mod: unknown): mod is NodeUrl => typeof mod === 'object' && mod !== null && 'fileURLToPath' in mod;
+const isNodeFs = (mod: unknown): mod is NodeFs => typeof mod === 'object' && mod !== null && 'readFileSync' in mod;
+assert(isNodeUrl(urlMod), 'node:url loads');
+assert(isNodeFs(fsMod), 'node:fs loads');
+const nodeUrl = urlMod;
+
+const fs = fsMod;
+
+const css: string = fs.readFileSync(nodeUrl.fileURLToPath(new URL('../ui.css', import.meta.url)), 'utf8');
 
 /** One style rule, with the `@media` queries it sits under (outermost first). */
-type Rule = { media: string[]; selectors: string[]; decls: Record<string, string>; order: number };
+interface Rule {
+  media: string[];
+  selectors: string[];
+  decls: Record<string, string>;
+  order: number;
+}
 /** A viewport in CSS px and whether the pointer is coarse. */
-type Ctx = { w: number; h: number; coarse: boolean };
+interface Ctx {
+  w: number;
+  h: number;
+  coarse: boolean;
+}
 
 function declsOf(body: string): Record<string, string> {
   const decls: Record<string, string> = {};
   for (const part of body.split(';')) {
     const at = part.indexOf(':');
-    if (at !== -1) decls[part.slice(0, at).trim().toLowerCase()] = part.slice(at + 1).trim();
+    if (at !== -1) {
+      decls[part.slice(0, at).trim().toLowerCase()] = part.slice(at + 1).trim();
+    }
   }
   return decls;
 }
 
 /** The style rules of the sheet. `@keyframes` and `@font-face` blocks are skipped. */
 function rulesOf(text: string): Rule[] {
-  const src = text.replaceAll(/\/\*[\s\S]*?\*\//g, '');
+  const src = text.replaceAll(/\/\*[\s\S]*?\*\//gu, '');
   const out: Rule[] = [];
   const media: string[] = [];
   let buf = '';
@@ -58,13 +82,18 @@ function rulesOf(text: string): Rule[] {
     if (head.startsWith('@')) {
       for (let depth = 1; depth > 0 && i < src.length;) {
         const d = src.charAt(i++);
-        if (d === '{') depth++;
-        else if (d === '}') depth--;
+        if (d === '{') {
+          depth++;
+        } else if (d === '}') {
+          depth--;
+        }
       }
       continue;
     }
     const end = src.indexOf('}', i);
-    if (end === -1) break;
+    if (end === -1) {
+      break;
+    }
     out.push({
       media: [...media],
       selectors: head.split(',').map((s) => s.trim()),
@@ -85,20 +114,26 @@ function featureHolds(feature: string, c: Ctx): boolean {
     .trim()
     .replace(/^\(\s*(?<n>width|height|aspect-ratio)\s*<=\s*/u, '(max-$<n>: ')
     .replace(/^\(\s*(?<n>width|height|aspect-ratio)\s*>=\s*/u, '(min-$<n>: ');
-  const m = /^\(\s*([\w-]+)\s*:\s*([^)]+?)\s*\)$/.exec(old);
-  if (!m) return false;
+  const m = /^\(\s*(?<feature>[\w-]+)\s*:\s*(?<value>[^)]+?)\s*\)$/u.exec(old);
+  if (!m) {
+    return false;
+  }
   const name = m[1] ?? '';
   const value = m[2] ?? '';
-  const px = (v: string) => (/em$/.test(v) ? Number.parseFloat(v) * 16 : Number.parseFloat(v));
+  const px = (v: string) => (v.endsWith('em') ? Number.parseFloat(v) * 16 : Number.parseFloat(v));
   switch (name) {
-    case 'max-width':
+    case 'max-width': {
       return c.w <= px(value);
-    case 'min-width':
+    }
+    case 'min-width': {
       return c.w >= px(value);
-    case 'max-height':
+    }
+    case 'max-height': {
       return c.h <= px(value);
-    case 'min-height':
+    }
+    case 'min-height': {
       return c.h >= px(value);
+    }
     case 'max-aspect-ratio': {
       const [a, b] = value.split('/').map(Number);
       return c.w / c.h <= (a ?? Number.NaN) / (b ?? 1);
@@ -107,37 +142,47 @@ function featureHolds(feature: string, c: Ctx): boolean {
       const [a, b] = value.split('/').map(Number);
       return c.w / c.h >= (a ?? Number.NaN) / (b ?? 1);
     }
-    case 'orientation':
+    case 'orientation': {
       return value === (c.w > c.h ? 'landscape' : 'portrait');
-    case 'pointer':
+    }
+    case 'pointer': {
       return value === (c.coarse ? 'coarse' : 'fine');
-    default:
+    }
+    default: {
       return false;
+    }
   }
 }
 
 /** A media query: comma-separated alternatives, each a list of `and`-joined features. */
 function queryHolds(query: string, c: Ctx): boolean {
-  return query.split(',').some((alt) => alt.split(/\s+and\s+/).every((f) => featureHolds(f, c)));
+  return query.split(',').some((alt) => alt.split(/\s+and\s+/u).every((f) => featureHolds(f, c)));
 }
 
 /** The value a rule gives `prop`. `padding-top` also reads the top side of a `padding` shorthand. */
 function valueOf(decls: Record<string, string>, prop: string): string | undefined {
-  if (prop !== 'padding-top') return decls[prop];
-  return decls['padding-top'] ?? decls['padding']?.split(/\s+/)[0];
+  if (prop !== 'padding-top') {
+    return decls[prop];
+  }
+  return decls['padding-top'] ?? decls['padding']?.split(/\s+/u)[0];
 }
 
 /** The value the cascade gives `prop` on an element that `selectors` match, at `c`: the most specific rule wins, the later one on a tie. */
 function cascade(prop: string, selectors: string[], c: Ctx): string | undefined {
   let best: { spec: number; order: number; value: string } | undefined;
   for (const r of RULES) {
-    if (!r.media.every((q) => queryHolds(q, c))) continue;
+    if (!r.media.every((q) => queryHolds(q, c))) {
+      continue;
+    }
     for (const sel of r.selectors) {
       const value = selectors.includes(sel) ? valueOf(r.decls, prop) : undefined;
-      if (value === undefined) continue;
-      const spec = (sel.match(/[.#][\w-]+/g) ?? []).length;
-      if (!best || spec > best.spec || (spec === best.spec && r.order > best.order))
+      if (value === undefined) {
+        continue;
+      }
+      const spec = (sel.match(/[.#][\w-]+/gu) ?? []).length;
+      if (!best || spec > best.spec || (spec === best.spec && r.order > best.order)) {
         best = { spec, order: r.order, value };
+      }
     }
   }
   return best?.value;
@@ -152,12 +197,18 @@ function splitTopLevel(s: string): string[] {
   let depth = 0;
   let cur = '';
   for (const c of s) {
-    if (c === '(') depth++;
-    if (c === ')') depth--;
+    if (c === '(') {
+      depth++;
+    }
+    if (c === ')') {
+      depth--;
+    }
     if (c === ',' && depth === 0) {
       out.push(cur);
       cur = '';
-    } else cur += c;
+    } else {
+      cur += c;
+    }
   }
   out.push(cur);
   return out;
@@ -166,12 +217,18 @@ function splitTopLevel(s: string): string[] {
 /** The smallest CSS px a length value can take at the UI size floor. `max(a, b)` takes the larger term; `calc(x / var(--ui-scale, 1))` divides x by the UI size, so the UI size cancels out. */
 function smallestPx(v: string | undefined): number {
   const t = (v ?? '').trim();
-  const mx = /^max\((.*)\)$/.exec(t);
-  if (mx) return Math.max(...splitTopLevel(mx[1] ?? '').map((x) => smallestPx(x)));
-  const calc = /^calc\((.*)\/\s*var\(--ui-scale,\s*1\)\s*\)$/.exec(t);
-  if (calc) return smallestPx(calc[1]) / UI_FLOOR;
-  const m = /^([\d.]+)(px|rem)$/.exec(t);
-  if (!m) return Number.NaN;
+  const mx = /^max\((?<args>.*)\)$/u.exec(t);
+  if (mx) {
+    return Math.max(...splitTopLevel(mx[1] ?? '').map((x) => smallestPx(x)));
+  }
+  const calc = /^calc\((?<numerator>.*)\/\s*var\(--ui-scale,\s*1\)\s*\)$/u.exec(t);
+  if (calc) {
+    return smallestPx(calc[1]) / UI_FLOOR;
+  }
+  const m = /^(?<amount>[\d.]+)(?<unit>px|rem)$/u.exec(t);
+  if (!m) {
+    return Number.NaN;
+  }
   return m[2] === 'px' ? Number(m[1]) : Number(m[1]) * 15 * UI_FLOOR;
 }
 
