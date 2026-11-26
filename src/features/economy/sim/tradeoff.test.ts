@@ -3,10 +3,18 @@
 // Income = money earned over the horizon (money in hand plus money spent on the two parts).
 import { describe, expect, it } from 'vitest';
 import { getSpec } from '../../board/sim';
-import { type EconomyConfig } from './economy';
+import type { EconomyConfig } from './economy';
 import { LEVELS } from './levels';
 import { Game } from '@/worker/game/game';
 import { Operator } from './operator';
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
 
 // With the 3 s POST and the firmware boost a job takes about 15 s, so the first $100 lands within one or two jobs and
 // the second purchase follows seconds later: the ORDER of the two first purchases no longer matters. What still matters,
@@ -34,8 +42,12 @@ function play(mix: EconomyConfig['mix'], order: string[], seed: number): Outcome
   for (let t = 0; t < HORIZON; t++) {
     g.advanceBaseTick();
     op.step();
-    while (next < order.length && g.money >= getSpec(order[next]!)!.price && g.purchase(order[next]!).ok) {
-      spent += getSpec(order[next]!)!.price;
+    while (
+      next < order.length &&
+      g.money >= must(getSpec(must(order[next]))).price &&
+      g.purchase(must(order[next])).ok
+    ) {
+      spent += must(getSpec(must(order[next]))).price;
       next++;
     }
   }
@@ -51,7 +63,7 @@ function mean(mix: EconomyConfig['mix'], order: string[]): Outcome {
   };
 }
 
-function compare(mix: EconomyConfig['mix']) {
+function compare(mix?: EconomyConfig['mix']) {
   return {
     none: mean(mix, []),
     cpuOnly: mean(mix, ['cpu1']),
@@ -61,32 +73,34 @@ function compare(mix: EconomyConfig['mix']) {
   };
 }
 
-function report(name: string, c: ReturnType<typeof compare>): void {
-  const f = (o: Outcome) => `$${Math.round(o.income)} / ${o.completed.toFixed(1)} jobs`;
-  console.log(
-    `[${name}, ${HORIZON} ticks] nothing ${f(c.none)} | cpu1 only ${f(c.cpuOnly)} | ram1 only ${f(c.ramOnly)} | ` +
-      `cpu1 then ram1 ${f(c.cpuFirst)} | ram1 then cpu1 ${f(c.ramFirst)}`,
+const outcome = (o: Outcome) => `$${Math.round(o.income)} / ${o.completed.toFixed(1)} jobs`;
+
+/** One line comparing the five purchase orders, attached to the test report. */
+function report(name: string, c: ReturnType<typeof compare>): string {
+  return (
+    `[${name}, ${HORIZON} ticks] nothing ${outcome(c.none)} | cpu1 only ${outcome(c.cpuOnly)} | ram1 only ${outcome(c.ramOnly)} | ` +
+    `cpu1 then ram1 ${outcome(c.cpuFirst)} | ram1 then cpu1 ${outcome(c.ramFirst)}`
   );
 }
 
 describe('CPU-first vs RAM-first depends on the traffic mix', () => {
-  it('log-heavy traffic: the CPU is clearly the better first purchase', { timeout: 120000 }, () => {
+  it('log-heavy traffic: the CPU is clearly the better first purchase', { timeout: 120_000 }, async ({ annotate }) => {
     const c = compare(LOG_ONLY);
-    report('log only', c);
+    await annotate(report('log only', c));
     expect(c.cpuOnly.income).toBeGreaterThan(c.ramOnly.income * 1.3);
     expect(c.cpuFirst.income).toBeGreaterThan(c.none.income * 1.2); // and both parts are worth having
   });
 
-  it('scan-heavy traffic: RAM first is better', { timeout: 120000 }, () => {
+  it('scan-heavy traffic: RAM first is better', { timeout: 120_000 }, async ({ annotate }) => {
     const c = compare(SCAN_HEAVY);
-    report('scan heavy', c);
+    await annotate(report('scan heavy', c));
     // RAM alone is at least as good as CPU alone here, and cheaper (the order of two quick purchases is moot now).
     expect(c.ramOnly.income).toBeGreaterThan(c.cpuOnly.income * 0.93);
   });
 
   it(
     'the traffic mix moves the best part: RAM is relatively much better on scan traffic than on log traffic',
-    { timeout: 120000 },
+    { timeout: 120_000 },
     () => {
       const log = compare(LOG_ONLY);
       const scan = compare(SCAN_HEAVY);
@@ -98,12 +112,12 @@ describe('CPU-first vs RAM-first depends on the traffic mix', () => {
 
   it(
     'the starting traffic is plain cli work (no scans until level 5), so the CPU is the clear first purchase',
-    { timeout: 120000 },
-    () => {
-      const c = compare(undefined); // the level-driven mix of the first levels
-      report('starting mix', c);
+    { timeout: 120_000 },
+    async ({ annotate }) => {
+      const c = compare(); // the level-driven mix of the first levels
+      await annotate(report('starting mix', c));
       expect(c.cpuOnly.income / c.ramOnly.income).toBeGreaterThan(1.2);
-      expect(Object.keys(LEVELS[0]!.mix)).toEqual(['cli']);
+      expect(Object.keys(must(LEVELS[0]).mix)).toStrictEqual(['cli']);
     },
   );
 });
