@@ -10,7 +10,17 @@ import { Machine3D } from '../machine3d';
 import { quietCanvas } from '../testutil';
 import { PowerView3D } from './view';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 quietCanvas();
+
+const texts = (v: PowerView3D): string[] => v.wordsNow.map((t) => t.text);
 
 describe('PowerView3D', () => {
   let snap: Snapshot, machine: Machine3D, center: Vector3, size: Vector3;
@@ -27,20 +37,21 @@ describe('PowerView3D', () => {
     };
     machine = new Machine3D(snap, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: false });
     const box = new Box3();
-    for (const o of machine.caseRoots) box.expandByObject(o);
+    for (const o of machine.caseRoots) {
+      box.expandByObject(o);
+    }
     center = box.getCenter(new Vector3());
     size = box.getSize(new Vector3());
   });
 
   /** A camera that looks at the case from the glass side, from a distance at which the case's height takes about `share` of the view's. */
   const cameraAt = (share: number): PerspectiveCamera => {
-    const cam = new PerspectiveCamera(30, 16 / 9, 100, 400000);
+    const cam = new PerspectiveCamera(30, 16 / 9, 100, 400_000);
     cam.position.set(center.x, center.y, center.z + size.z / 2 + size.y / (2 * share * Math.tan((15 * Math.PI) / 180)));
     cam.lookAt(center);
     cam.updateMatrixWorld();
     return cam;
   };
-  const texts = (v: PowerView3D): string[] => v.wordsNow.map((t) => t.text);
 
   it('builds the shape of the machine and draws it on the first frame', () => {
     const scene = new Scene(),
@@ -48,38 +59,44 @@ describe('PowerView3D', () => {
     expect(v.shown).toBe(false);
     v.frame(cameraAt(0.8), 900, snap, machine, 0.016);
     expect(v.shown).toBe(true);
-    expect(v.shapeNow!.lines.length).toBeGreaterThan(20);
-    expect(v.drawNow!.refW).toBeGreaterThanOrEqual(60);
-    expect(v.flowsNow!.strips).toBeGreaterThan(100);
+    expect(must(v.shapeNow).lines.length).toBeGreaterThan(20);
+    expect(must(v.drawNow).refW).toBeGreaterThanOrEqual(60);
+    expect(must(v.flowsNow).strips).toBeGreaterThan(100);
     expect(Number.isFinite(v.cost)).toBe(true);
     v.dispose();
   });
 
-  it('shows every word while the machine is big on the screen', () => {
+  function assert_shows_every_word_while_the_machine_is_big_on_the(): void {
     const v = new PowerView3D(new Scene());
     v.frame(cameraAt(0.8), 900, snap, machine, 0.016);
     const t = texts(v);
-    for (const w of ['WALL', 'SUPPLY', 'CPU', 'RAM'])
-      expect(
-        t.some((x) => x.startsWith(w)),
-        w,
-      ).toBe(true);
+    for (const w of ['WALL', 'SUPPLY', 'CPU', 'RAM']) {
+      expect(t.some((x) => x.startsWith(w))).toBe(true);
+    }
     v.dispose();
+  }
+
+  it('shows every word while the machine is big on the screen', () => {
+    expect.hasAssertions();
+    assert_shows_every_word_while_the_machine_is_big_on_the();
   });
 
-  it('leaves the words of detail out while the machine is small, and keeps the main ones and the scale', () => {
+  function assert_leaves_the_words_of_detail_out_while_the_machine(): void {
     const v = new PowerView3D(new Scene());
     v.frame(cameraAt(0.2), 900, snap, machine, 0.016);
     const t = texts(v);
     expect(t.some((x) => x.startsWith('WALL'))).toBe(true);
     expect(t.some((x) => x.startsWith('SUPPLY'))).toBe(true);
-    expect(t.includes('')).toBe(true);
-    for (const w of ['CPU', 'RAM', 'DRIVE', 'FAN HUB'])
-      expect(
-        t.some((x) => x.startsWith(w)),
-        w,
-      ).toBe(false);
+    expect(t).toContain('');
+    for (const w of ['CPU', 'RAM', 'DRIVE', 'FAN HUB']) {
+      expect(t.some((x) => x.startsWith(w))).toBe(false);
+    }
     v.dispose();
+  }
+
+  it('leaves the words of detail out while the machine is small, and keeps the main ones and the scale', () => {
+    expect.hasAssertions();
+    assert_leaves_the_words_of_detail_out_while_the_machine();
   });
 
   it('brings the words of detail back as the machine grows, and does not flicker between the two sizes', () => {

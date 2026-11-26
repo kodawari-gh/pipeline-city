@@ -17,7 +17,9 @@ describe('whileHidden', () => {
 
   it('keeps a root that was hidden before (Hide machine) hidden after: it does not flicker on while a rebuilt machine links', () => {
     const root = { visible: false };
-    whileHidden(root, () => undefined);
+    whileHidden(root, () => {
+      /* no-op */
+    });
     expect(root.visible).toBe(false);
   });
 

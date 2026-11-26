@@ -2,11 +2,28 @@
 // may rise by at most 5 % over its row in `BUDGET`. A rise must be a decision: raise the row in the same commit, with the reason in the message.
 import { describe, expect, it } from 'vitest';
 import type { Mesh, Object3D } from 'three';
+
 import { Room3D } from '@/features/room/render/three/room3d';
 import { OutsideView } from '@/features/room/render/three/outside/view';
 import { drawn } from '@/features/room/render/three/outside/sweep';
 import { shown } from '@/core/render/three/pick';
 import { buildMachine, maxedSnapshot, quietCanvas } from './testutil';
+
+/** Returns `value` when it is present, otherwise `fallback`. */
+function or<T>(value: T, fallback: NonNullable<T>): NonNullable<T> {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+  return value;
+}
+
+const isMesh = (o: unknown): o is Mesh => typeof o === 'object' && o !== null && 'isMesh' in o && o.isMesh === true;
+function asMesh(o: unknown): Mesh {
+  if (!isMesh(o)) {
+    throw new Error('expected a Mesh');
+  }
+  return o;
+}
 
 quietCanvas();
 
@@ -15,9 +32,9 @@ export const BUDGET = {
   /** Machine and room: the draw calls a camera on layer 0 makes. */
   machineRoomDraws: 924,
   /** Machine and room: the vertices of the meshes drawn. */
-  machineRoomVerts: 1172752, // (was 2,216,520 before the asset standard's redo, ASR1–ASR10)
+  machineRoomVerts: 1_172_752, // (was 2,216,520 before the asset standard's redo, ASR1–ASR10)
   /** City: the triangles drawn (instances counted). */
-  cityTris: 2103386, // (was 3,643,156 before the tree caps, ASR2)
+  cityTris: 2_103_386, // (was 3,643,156 before the tree caps, ASR2)
 } as const;
 
 /** The slack over a row before the test fails. */
@@ -30,12 +47,16 @@ function countMachineRoom(roots: Object3D[]): { draws: number; verts: number } {
   for (const root of roots) {
     root.updateMatrixWorld(true);
     root.traverse((o) => {
-      if (!(o as Mesh).isMesh) return;
-      const mesh = o as Mesh;
+      if (!isMesh(o)) {
+        return;
+      }
+      const mesh = asMesh(o);
       const drawnHere = shown(o) && (mesh.layers.mask & 1) !== 0 && [mesh.material].flat().some((x) => x.visible);
-      if (!drawnHere) return;
+      if (!drawnHere) {
+        return;
+      }
       draws += 1;
-      verts += mesh.geometry.attributes['position']?.count ?? 0;
+      verts += or(mesh.geometry.attributes['position']?.count, 0);
     });
   }
   return { draws, verts };
@@ -46,11 +67,15 @@ function countCityTris(scene: Object3D): number {
   let tris = 0;
   scene.updateMatrixWorld(true);
   scene.traverse((o) => {
-    if (!(o as Mesh).isMesh) return;
+    if (!isMesh(o)) {
+      return;
+    }
     const mesh = o as Mesh & { isInstancedMesh?: boolean; count?: number };
     const indices = drawn(mesh.geometry);
-    if (!mesh.visible || indices <= 0) return;
-    tris += (indices / 3) * (mesh.isInstancedMesh ? (mesh.count ?? 1) : 1);
+    if (!mesh.visible || indices <= 0) {
+      return;
+    }
+    tris += (indices / 3) * (mesh.isInstancedMesh ? or(mesh.count, 1) : 1);
   });
   return Math.round(tris);
 }

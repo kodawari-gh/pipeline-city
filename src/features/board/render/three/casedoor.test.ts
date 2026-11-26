@@ -2,15 +2,41 @@ import { describe, expect, it } from 'vitest';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
 import { DOOR_SECONDS, DOOR_SEES, SWING, doorPose, doorWait, stepDoor } from './casedoor';
 
+function assert_starts_shut_and_ends_swung_out_past_square_for_e(): void {
+  for (const k of CASE_KIND) {
+    expect(doorPose(k, 0)).toStrictEqual({ slide: 0, out: 0, swing: 0, screws: 0 });
+    const p = doorPose(k, 1);
+    expect(p.swing).toBeCloseTo(SWING, 5);
+    expect(p.swing).toBeGreaterThan(Math.PI / 2);
+    expect(DOOR_SECONDS[k]).toBeGreaterThan(0.5);
+  }
+}
+
+function assert_waits_until_the_panel_has_swung_clear_for_every_(): void {
+  for (const k of CASE_KIND) {
+    const w = doorWait(k);
+    expect(w).toBeGreaterThanOrEqual(0.4);
+    expect(w).toBeLessThan(1);
+    expect(doorPose(k, w).swing).toBeGreaterThanOrEqual(0.75 * SWING - 1e-9);
+  }
+}
+
+function assert_stays_in_0_1_for_a_negative_dt_a_NaN_dt_and_a_hu(): void {
+  for (const want of [0, 1] as const) {
+    for (const t of [0, 0.5, 1]) {
+      for (const dt of [-5, -1e-3, Number.NaN, 1e9, Infinity]) {
+        const r = stepDoor(t, want, dt, 1);
+        expect(r, `${want} ${t} ${dt}`).toBeGreaterThanOrEqual(0);
+        expect(r, `${want} ${t} ${dt}`).toBeLessThanOrEqual(1);
+      }
+    }
+  }
+}
+
 describe('the side panel opening', () => {
   it('starts shut and ends swung out past square, for every kind', () => {
-    for (const k of CASE_KIND) {
-      expect(doorPose(k, 0), k).toEqual({ slide: 0, out: 0, swing: 0, screws: 0 });
-      const p = doorPose(k, 1);
-      expect(p.swing, k).toBeCloseTo(SWING, 5);
-      expect(p.swing, k).toBeGreaterThan(Math.PI / 2);
-      expect(DOOR_SECONDS[k], k).toBeGreaterThan(0.5);
-    }
+    expect.hasAssertions();
+    assert_starts_shut_and_ends_swung_out_past_square_for_e();
   });
 
   it("undoes the Mini's thumbscrews and slides its panel back before it swings", () => {
@@ -33,12 +59,8 @@ describe('the side panel opening', () => {
 
 describe('how long a step waits for the panel', () => {
   it('waits until the panel has swung clear, for every kind', () => {
-    for (const k of CASE_KIND) {
-      const w = doorWait(k);
-      expect(w, k).toBeGreaterThanOrEqual(0.4);
-      expect(w, k).toBeLessThan(1);
-      expect(doorPose(k, w).swing, k).toBeGreaterThanOrEqual(0.75 * SWING - 1e-9);
-    }
+    expect.hasAssertions();
+    assert_waits_until_the_panel_has_swung_clear_for_every_();
   });
   it("keeps the share the Full tower's glass door always had, and gives the steel panels longer", () => {
     expect(doorWait('show')).toBe(0.4);
@@ -49,21 +71,14 @@ describe('how long a step waits for the panel', () => {
     expect(doorWait('oem') * DOOR_SECONDS.oem).toBeLessThan(1.2);
   });
   it('says which panels hide the inside when they are shut', () => {
-    expect(DOOR_SEES).toEqual({ oem: false, matte: false, gamer: true, show: true });
+    expect(DOOR_SEES).toStrictEqual({ oem: false, matte: false, gamer: true, show: true });
   });
 });
 
 describe('stepDoor', () => {
   it('stays in [0, 1] for a negative dt, a NaN dt and a huge dt', () => {
-    for (const want of [0, 1] as const) {
-      for (const t of [0, 0.5, 1]) {
-        for (const dt of [-5, -1e-3, Number.NaN, 1e9, Infinity]) {
-          const r = stepDoor(t, want, dt, 1);
-          expect(r, `${want} ${t} ${dt}`).toBeGreaterThanOrEqual(0);
-          expect(r, `${want} ${t} ${dt}`).toBeLessThanOrEqual(1);
-        }
-      }
-    }
+    expect.hasAssertions();
+    assert_stays_in_0_1_for_a_negative_dt_a_NaN_dt_and_a_hu();
   });
   it('a negative or NaN dt is no step', () => {
     expect(stepDoor(0.4, 1, -1, 1)).toBe(0.4);

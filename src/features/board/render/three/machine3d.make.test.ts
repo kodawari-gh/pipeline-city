@@ -2,10 +2,29 @@
 // machine it builds is the constructor's.
 import { describe, expect, it } from 'vitest';
 import type { Mesh } from 'three';
+
 import { BakeQueue } from '@/core/render/three/artlod';
 import { roomGeo } from '@/features/room/render/shell/room';
 import { Machine3D } from './machine3d';
 import { maxedSnapshot, quietCanvas } from './testutil';
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+/** Returns `value` when it is present, otherwise `fallback`. */
+function or<T>(value: T, fallback: NonNullable<T>): NonNullable<T> {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+  return value;
+}
+
+const isMesh = (o: unknown): o is Mesh => typeof o === 'object' && o !== null && 'isMesh' in o && o.isMesh === true;
 
 quietCanvas();
 
@@ -18,11 +37,13 @@ function census(m: Machine3D): Record<string, number> {
     objects = 0;
   m.root.traverse((o) => {
     objects++;
-    if (typeof o.userData['id'] === 'string') tagged++;
-    const mesh = o as Mesh;
-    if (mesh.isMesh) {
+    if (typeof o.userData['id'] === 'string') {
+      tagged++;
+    }
+    if (isMesh(o)) {
+      const mesh = o;
       meshes++;
-      verts += mesh.geometry.attributes['position']?.count ?? 0;
+      verts += or(mesh.geometry.attributes['position']?.count, 0);
     }
   });
   return {
@@ -48,10 +69,12 @@ describe('Machine3D.make', () => {
       chips: null,
       inRoom: false,
       budget: 0,
-      slice: async () => {},
+      slice: async () => {
+        /* no-op */
+      },
     });
     expect(made).not.toBeNull();
-    expect(census(made!)).toEqual(census(whole));
+    expect(census(must(made))).toStrictEqual(census(whole));
   });
 
   it('gives the page a turn at many points of the build, and none while it is under its budget', async () => {
@@ -67,7 +90,7 @@ describe('Machine3D.make', () => {
     expect(turns).toBe(0);
   });
 
-  it('gives each turn to the page before it goes on, in order', async () => {
+  async function assert_gives_each_turn_to_the_page_before_it_goes_on_in(): Promise<void> {
     const log: string[] = [];
     await Machine3D.make(snap, roomGeo(), {
       q: new BakeQueue(),
@@ -82,7 +105,14 @@ describe('Machine3D.make', () => {
     });
     expect(log.length).toBeGreaterThan(20);
     expect(log.length % 2).toBe(0);
-    for (let i = 0; i < log.length; i += 2) expect([log[i], log[i + 1]]).toEqual(['turn', 'back']);
+    for (let i = 0; i < log.length; i += 2) {
+      expect([log[i], log[i + 1]]).toStrictEqual(['turn', 'back']);
+    }
+  }
+
+  it('gives each turn to the page before it goes on, in order', async () => {
+    expect.hasAssertions();
+    await assert_gives_each_turn_to_the_page_before_it_goes_on_in();
   });
 
   it('stops at the next turn once the caller does not want it, and returns nothing', async () => {
@@ -108,9 +138,11 @@ describe('Machine3D.make', () => {
       chips: null,
       inRoom: false,
       budget: 0,
-      slice: async () => {},
+      slice: async () => {
+        /* no-op */
+      },
     });
-    expect(census(made!)).toEqual(census(whole));
+    expect(census(must(made))).toStrictEqual(census(whole));
   });
 
   it('builds a bare case (no board) as the constructor does: the case and its leads, nothing of a board', async () => {
@@ -128,18 +160,19 @@ describe('Machine3D.make', () => {
       chips: null,
       inRoom: false,
       budget: 0,
-      slice: async () => {},
+      slice: async () => {
+        /* no-op */
+      },
       shown: 'case',
     });
-    expect(census(made!)).toEqual(census(whole));
+    expect(census(must(made))).toStrictEqual(census(whole));
     expect(whole.shown).toBe('case');
     // (the far stand-ins of the case's own pieces sit on the root as well: they are not a board)
     expect(whole.boardRoots().filter((o) => o.name !== 'standin')).toHaveLength(0);
     expect(whole.caseRoots.length).toBeGreaterThan(0);
     // (far less than the maxed machine: no board, no part, no cable)
-    expect(census(whole)['meshes']).toBeLessThan(
-      census(new Machine3D(snap, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: false }))['meshes']!,
-    );
+    const full = new Machine3D(snap, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: false });
+    expect(census(whole)['meshes']).toBeLessThan(must(census(full)['meshes']));
   });
 
   it('builds nothing for an empty stage: no case, no board, no part, and no side panel to move', async () => {
@@ -157,25 +190,24 @@ describe('Machine3D.make', () => {
       chips: null,
       inRoom: false,
       budget: 0,
-      slice: async () => {},
+      slice: async () => {
+        /* no-op */
+      },
       shown: 'nothing',
     });
-    expect(census(made!)).toEqual(census(whole));
+    expect(census(must(made))).toStrictEqual(census(whole));
     expect(whole.caseRoots).toHaveLength(0);
     expect(whole.boardRoots().filter((o) => o.name !== 'standin')).toHaveLength(0);
-    expect(census(whole)['meshes']).toBeLessThan(
-      census(
-        new Machine3D(snap, roomGeo(), {
-          q: new BakeQueue(),
-          chips: null,
-          inRoom: false,
-          merge: true,
-          lod: true,
-          defer: false,
-          shown: 'case',
-        }),
-      )['meshes']!,
-    );
+    const cased = new Machine3D(snap, roomGeo(), {
+      q: new BakeQueue(),
+      chips: null,
+      inRoom: false,
+      merge: true,
+      lod: true,
+      defer: false,
+      shown: 'case',
+    });
+    expect(census(whole)['meshes']).toBeLessThan(must(census(cased)['meshes']));
     // (the calls a stage makes on any machine are no-ops with no case: there is no door)
     expect(() => {
       whole.setOpen(true, true);
@@ -204,9 +236,11 @@ describe('Machine3D.make', () => {
       merge: false,
       lod: false,
       budget: 0,
-      slice: async () => {},
+      slice: async () => {
+        /* no-op */
+      },
     });
-    expect(census(made!)).toEqual(census(whole));
-    expect(census(made!)['lod']).toBe(0);
+    expect(census(must(made))).toStrictEqual(census(whole));
+    expect(census(must(made))['lod']).toBe(0);
   });
 });

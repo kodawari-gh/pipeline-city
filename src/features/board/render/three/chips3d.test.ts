@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AdditiveBlending, Group, PerspectiveCamera, Vector3, type Mesh, type MeshBasicMaterial } from 'three';
+import * as three from 'three';
 import { screenPx } from '@/core/render/three/artlod';
 import { DEVICE_LOD } from '@/core/render/lod/lod';
 import { boardSnap, snap } from '@/core/ui/testdata';
@@ -15,15 +15,78 @@ import { tabOf } from './pcie';
 import { phyChip } from './phychip3d';
 import { quietCanvas } from './testutil';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+const isMesh = (o: unknown): o is three.Mesh =>
+  typeof o === 'object' && o !== null && 'isMesh' in o && o.isMesh === true;
+function asMesh(o: unknown): three.Mesh {
+  if (!isMesh(o)) {
+    throw new Error('expected a Mesh');
+  }
+  return o;
+}
+
+const isMeshBasicMaterial = (o: unknown): o is three.MeshBasicMaterial =>
+  typeof o === 'object' && o !== null && 'isMeshBasicMaterial' in o && o.isMeshBasicMaterial === true;
+function asMeshBasicMaterial(o: unknown): three.MeshBasicMaterial {
+  if (!isMeshBasicMaterial(o)) {
+    throw new Error('expected a MeshBasicMaterial');
+  }
+  return o;
+}
+
 quietCanvas();
 
 /** A camera over the layout point (100, 200) at depth 5000, looking straight at the wall. */
-function camera(): PerspectiveCamera {
-  const cam = new PerspectiveCamera(30, 1.6, 1, 1e6);
+function camera(): three.PerspectiveCamera {
+  const cam = new three.PerspectiveCamera(30, 1.6, 1, 1e6);
   cam.position.set(100, -200, 5000);
   cam.updateMatrixWorld();
   cam.updateProjectionMatrix();
   return cam;
+}
+
+const lanesOf = (visual: string, slot: number) => {
+  const y0 = nicY(slot),
+    x1 = BD.x + must(NIC_LEN[visual]),
+    f = { x0: BD.x, x1, xe: x1, y0, end: y0 + STAND.nic };
+  const tab = must(NIC_LANES[visual]);
+  return nicLanes(nicCopper(visual, f, tabOf(slot, x1, tab)), slot);
+};
+
+const scene = (tier: number) => snap({ board: boardSnap({ tier }) });
+
+/** The chip as the machine builds it, its die's face handed to `c`, and a camera `k` times the zoom the die has shown at (a plain machine's world: layout y down as -y). */
+function over(c: Chips3D, tier: number, look: string, k: number) {
+  setLayoutTier(tier, tier);
+  const plan = nicGeo(look, BOARD_BAND).die,
+    root = new three.Group();
+  const chip = phyChip(must(GEO.phy), look, `${BOARD_NIC}.nic-ctl`, plan, (frame, S) => {
+    const r = new three.Group();
+    frame.add(r);
+    return { root: r, z: 3 / S };
+  });
+  root.add(chip.root);
+  root.updateMatrixWorld(true);
+  c.face(must(chip.die).root, 'nic', chip.plan, must(chip.die).z, BOARD_NIC);
+  // (the live layer draws on a canvas, which Node has none of: its plane is shown as the layer leaves it once it has drawn)
+  const plane = asMesh(must(chip.die).root.children[0]),
+    m = asMeshBasicMaterial(plane.material);
+  plane.visible = true;
+  m.opacity = 1;
+  const H = 900,
+    cam = new three.PerspectiveCamera(30, 1.6, 1, 1e6),
+    zoom = (k * DEVICE_LOD.die.fade[1]) / chip.scale,
+    d = H / (2 * Math.tan((15 * Math.PI) / 180) * zoom);
+  cam.position.set(chip.rect.x + chip.rect.w / 2, -(chip.rect.y + chip.rect.h / 2), BOARD_Z + chip.dieTop + 3 + d);
+  cam.updateMatrixWorld();
+  return { chip, cam, H };
 }
 
 describe('viewOn', () => {
@@ -31,14 +94,14 @@ describe('viewOn', () => {
     const v = viewOn(camera(), 900, 0),
       h = 2 * 5000 * Math.tan((15 * Math.PI) / 180);
     expect(v.zoom).toBeCloseTo(screenPx(5000, 30, 900), 6);
-    expect(v.rect!.h).toBeCloseTo(h, 0);
-    expect(v.rect!.w).toBeCloseTo(h * 1.6, 0);
-    expect(v.rect!.x + v.rect!.w / 2).toBeCloseTo(100, 0);
-    expect(v.rect!.y + v.rect!.h / 2).toBeCloseTo(200, 0); // layout y runs down
+    expect(must(v.rect).h).toBeCloseTo(h, 0);
+    expect(must(v.rect).w).toBeCloseTo(h * 1.6, 0);
+    expect(must(v.rect).x + must(v.rect).w / 2).toBeCloseTo(100, 0);
+    expect(must(v.rect).y + must(v.rect).h / 2).toBeCloseTo(200, 0); // layout y runs down
   });
 
   it('reads the plane of a part in its own frame', () => {
-    const part = new Group();
+    const part = new three.Group();
     part.position.set(0, 0, 1000);
     part.updateMatrixWorld();
     const v = viewOn(camera(), 900, 0, part.matrixWorld.clone().invert());
@@ -55,11 +118,11 @@ describe('viewOn', () => {
 describe('liveCrop', () => {
   const face = { x: 0, y: 0, w: 1000, h: 500 };
   it('keeps the part of the face in the view, with a margin', () => {
-    expect(liveCrop(face, { x: 800, y: 100, w: 1000, h: 1000 })).toEqual({ x: 700, y: 0, w: 300, h: 500 });
+    expect(liveCrop(face, { x: 800, y: 100, w: 1000, h: 1000 })).toStrictEqual({ x: 700, y: 0, w: 300, h: 500 });
   });
   it('is nothing when the view is elsewhere, and all of it with no view', () => {
     expect(liveCrop(face, { x: 3000, y: 0, w: 500, h: 500 })).toBeNull();
-    expect(liveCrop(face, null)).toEqual(face);
+    expect(liveCrop(face, null)).toStrictEqual(face);
   });
 });
 
@@ -72,29 +135,22 @@ describe('livePx', () => {
 });
 
 describe("a network card's lit copper", () => {
-  const lanesOf = (visual: string, slot: number) => {
-    const y0 = nicY(slot),
-      x1 = BD.x + NIC_LEN[visual]!,
-      f = { x0: BD.x, x1, xe: x1, y0, end: y0 + STAND.nic };
-    return nicLanes(nicCopper(visual, f, tabOf(slot, x1, NIC_LANES[visual]!)), slot);
-  };
-
   it('stands on a plane of its own, its light added to the mask under it, drawn only while a packet runs', () => {
     setLayoutTier(3, 3);
     const c = new Chips3D(),
-      parent = new Group(),
+      parent = new three.Group(),
       lanes = lanesOf('nic-gbe', 0);
     c.setScene(null);
     c.traces(parent, 'pcie0', lanes, 5);
     expect(parent.children).toHaveLength(1);
-    const mesh = parent.children[0] as Mesh,
-      m = mesh.material as MeshBasicMaterial;
-    expect(m.blending).toBe(AdditiveBlending);
+    const mesh = asMesh(parent.children[0]),
+      m = asMeshBasicMaterial(mesh.material);
+    expect(m.blending).toBe(three.AdditiveBlending);
     expect(m.depthWrite).toBe(false);
     expect(m.polygonOffset).toBe(true);
     // (no packet: nothing to draw, so the plane is not shown, here or after a frame)
     expect(mesh.visible).toBe(false);
-    const cam = new PerspectiveCamera(30, 1.6, 1, 1e6);
+    const cam = new three.PerspectiveCamera(30, 1.6, 1, 1e6);
     cam.position.set(lanes.rect.x + lanes.rect.w / 2, -(lanes.rect.y + lanes.rect.h / 2), 600);
     c.frame(cam, 900, 0.016, false, 1);
     expect(mesh.visible).toBe(false);
@@ -105,7 +161,7 @@ describe("a network card's lit copper", () => {
   it('has no plane for a card with no such copper, and goes with the scene', () => {
     setLayoutTier(3, 3);
     const c = new Chips3D(),
-      parent = new Group(),
+      parent = new three.Group(),
       lanes = lanesOf('nic-gbe', 0);
     c.setScene(null);
     c.traces(parent, 'pcie1', { ...lanes, media: [], host: [] }, 5);
@@ -122,64 +178,46 @@ describe("the Ethernet chip on the motherboard's live layer", () => {
     ['board-fe', 1],
     ['board-ge', 3],
   ] as const;
-  const scene = (tier: number) => snap({ board: boardSnap({ tier }) });
 
-  /** The chip as the machine builds it, its die's face handed to `c`, and a camera `k` times the zoom the die has shown at (a plain machine's world: layout y down as -y). */
-  function over(c: Chips3D, tier: number, look: string, k: number) {
-    setLayoutTier(tier, tier);
-    const plan = nicGeo(look, BOARD_BAND).die,
-      root = new Group();
-    const chip = phyChip(GEO.phy!, look, `${BOARD_NIC}.nic-ctl`, plan, (frame, S) => {
-      const r = new Group();
-      frame.add(r);
-      return { root: r, z: 3 / S };
-    });
-    root.add(chip.root);
-    root.updateMatrixWorld(true);
-    c.face(chip.die!.root, 'nic', chip.plan, chip.die!.z, BOARD_NIC);
-    // (the live layer draws on a canvas, which Node has none of: its plane is shown as the layer leaves it once it has drawn)
-    const plane = chip.die!.root.children[0] as Mesh,
-      m = plane.material as MeshBasicMaterial;
-    plane.visible = true;
-    m.opacity = 1;
-    const H = 900,
-      cam = new PerspectiveCamera(30, 1.6, 1, 1e6),
-      zoom = (k * DEVICE_LOD.die.fade[1]) / chip.scale,
-      d = H / (2 * Math.tan((15 * Math.PI) / 180) * zoom);
-    cam.position.set(chip.rect.x + chip.rect.w / 2, -(chip.rect.y + chip.rect.h / 2), BOARD_Z + chip.dieTop + 3 + d);
-    cam.updateMatrixWorld();
-    return { chip, cam, H };
-  }
-
-  it("shows the live floorplan once the mould has gone, and its blocks answer a hover with the board's ids", () => {
+  function assert_shows_the_live_floorplan_once_the_mould_has_gone(): void {
     for (const [look, tier] of LOOKS) {
       const c = new Chips3D();
       c.setScene(scene(tier));
       const { cam, H } = over(c, tier, look, 4);
       const id = c.hitAt(cam, H, 0, 0);
-      expect(id, look).not.toBeNull();
-      expect(boardNicIds(look), look).toContain(id);
-      expect(id!.startsWith('board.nic-'), look).toBe(true);
+      expect(id).not.toBeNull();
+      expect(boardNicIds(look)).toContain(id);
+      expect(must(id).startsWith('board.nic-')).toBe(true);
     }
+  }
+
+  it("shows the live floorplan once the mould has gone, and its blocks answer a hover with the board's ids", () => {
+    expect.hasAssertions();
+    assert_shows_the_live_floorplan_once_the_mould_has_gone();
   });
 
-  it("answers each block of the die with its own id: the smallest rectangle under the pointer wins over the controller's frame", () => {
+  function assert_answers_each_block_of_the_die_with_its_own_id_th(): void {
     for (const [look, tier] of LOOKS) {
       const c = new Chips3D();
       c.setScene(scene(tier));
       const { cam, H, chip } = over(c, tier, look, 4),
-        face = chip.die!.root;
+        face = must(chip.die).root;
       face.updateWorldMatrix(true, false);
       const blocks = nicParts(nicGeo(look, BOARD_BAND)).filter((p) => p.id !== 'nic-ctl');
-      expect(blocks.length, look).toBe(7);
+      expect(blocks).toHaveLength(7);
       for (const p of blocks) {
         // (the block's middle, as the screen sees it; a plan's y runs down, the frame's runs up)
         const at = face
-          .localToWorld(new Vector3(p.rect.x + p.rect.w / 2, -(p.rect.y + p.rect.h / 2), chip.die!.z))
+          .localToWorld(new three.Vector3(p.rect.x + p.rect.w / 2, -(p.rect.y + p.rect.h / 2), must(chip.die).z))
           .project(cam);
         expect(c.hitAt(cam, H, at.x, at.y), `${look} ${p.id}`).toBe(`${BOARD_NIC}.${p.id}`);
       }
     }
+  }
+
+  it("answers each block of the die with its own id: the smallest rectangle under the pointer wins over the controller's frame", () => {
+    expect.hasAssertions();
+    assert_answers_each_block_of_the_die_with_its_own_id_th();
   });
 
   it("has nothing to hit from far away: the zoom is under the part's hover zoom", () => {
@@ -205,10 +243,10 @@ describe("the Ethernet chip on the motherboard's live layer", () => {
     const c = new Chips3D();
     c.setScene(scene(3));
     const { cam, H, chip } = over(c, 3, 'board-ge', 4);
-    expect(chip.die!.root.children).toHaveLength(1);
+    expect(must(chip.die).root.children).toHaveLength(1);
     expect(c.hitAt(cam, H, 0, 0)).not.toBeNull();
     c.setScene(null);
-    expect(chip.die!.root.children).toHaveLength(0);
+    expect(must(chip.die).root.children).toHaveLength(0);
     expect(c.hitAt(cam, H, 0, 0)).toBeNull();
   });
 });

@@ -18,9 +18,21 @@ import { slotRects } from './slots3d';
 import { Game } from '@/worker/game/game';
 import { quietCanvas } from './testutil';
 
+/** Returns `value` when it is present, otherwise `fallback`. */
+function or<T>(value: T, fallback: NonNullable<T>): NonNullable<T> {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+  return value;
+}
+
 quietCanvas();
 
 const maxed = (): Snapshot => new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true }).snapshot();
+
+function radVisual(radDev: { spec: string }): string {
+  return or((getSpec(radDev.spec) as { visual?: string } | undefined)?.visual, '');
+}
 
 /** A context as a test makes it, the way Machine3D makes its own: the fans fitted and the radiator bolted on, read-only. */
 function context(s: Snapshot, o: { rad?: boolean; fans?: boolean; caseRgb?: boolean } = {}): PartContext {
@@ -43,11 +55,7 @@ function context(s: Snapshot, o: { rad?: boolean; fans?: boolean; caseRgb?: bool
     rad:
       span && radDev
         ? {
-            fit: radiatorFit(
-              span,
-              0,
-              radiatorGrade((getSpec(radDev.spec) as { visual?: string } | undefined)?.visual ?? ''),
-            ),
+            fit: radiatorFit(span, 0, radiatorGrade(radVisual(radDev))),
             count: span.ids.length,
             span,
           }
@@ -55,7 +63,7 @@ function context(s: Snapshot, o: { rad?: boolean; fans?: boolean; caseRgb?: bool
     cages: [baseCagePlan()],
     plan: basementPlan(),
     rects: slotRects(s),
-    caseRgb: o.caseRgb ?? true,
+    caseRgb: or(o.caseRgb, true),
     hoses: () => null,
   };
 }

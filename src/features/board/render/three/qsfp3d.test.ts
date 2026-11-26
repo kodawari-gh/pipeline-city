@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { Box3, Group, Mesh, type Material } from 'three';
+import * as three from 'three';
 import { mat } from '@/core/render/three/materials';
 import type { Span } from './casekit3d';
 import { QSFP, qsfpFace, qsfpLamps, qsfpLook } from './qsfp3d';
+
+const isMesh = (o: unknown): o is three.Mesh =>
+  typeof o === 'object' && o !== null && 'isMesh' in o && o.isMesh === true;
+function asMesh(o: unknown): three.Mesh {
+  if (!isMesh(o)) {
+    throw new Error('expected a Mesh');
+  }
+  return o;
+}
 
 const K = 23,
   W = QSFP.cage.w * K,
@@ -11,17 +20,51 @@ const K = 23,
 /** A card's cage (its width along y, lying) and a router's (its width along z), on the same size of span. */
 const card: Span = { y0: 100, y1: 100 + W, z0: 10, z1: 10 + H };
 const front: Span = { y0: 100, y1: 100 + H, z0: 10, z1: 10 + W };
-const lamps = { link: mat(0x58e08a, {}), act: mat(0xffb547, {}) };
-const look = qsfpLook(mat(0x8a9099, {}));
+const lamps = { link: mat(0x58_e0_8a, {}), act: mat(0xff_b5_47, {}) };
+const look = qsfpLook(mat(0x8a_90_99, {}));
 
 /** The box of every mesh made of `m` in `g`, in layout terms (the model's y is the layout's negated). */
-const boxOf = (g: Group, m: Material) => {
-  const b = new Box3();
+const boxOf = (g: three.Group, m: three.Material) => {
+  const b = new three.Box3();
   g.traverse((o) => {
-    if (o instanceof Mesh && o.material === m) b.expandByObject(o);
+    if (o instanceof three.Mesh && o.material === m) {
+      b.expandByObject(o);
+    }
   });
   return { empty: b.isEmpty(), x0: b.min.x, x1: b.max.x, y0: -b.max.y, y1: -b.min.y, z0: b.min.z, z1: b.max.z };
 };
+
+function assert_stands_over_its_span_and_runs_back_to_its_depth_(): void {
+  for (const [, s] of [
+    ['card', card],
+    ['router', front],
+  ] as const) {
+    const g = new three.Group();
+    qsfpFace(g, 0, s, DEEP, look);
+    const b = boxOf(g, look.shell);
+    expect(b.x0).toBeCloseTo(0, 3);
+    expect(b.x1).toBeCloseTo(DEEP, 3);
+    expect(b.y0).toBeCloseTo(s.y0, 3);
+    expect(b.y1).toBeCloseTo(s.y1, 3);
+    expect(b.z0).toBeCloseTo(s.z0, 3);
+    expect(b.z1).toBeCloseTo(s.z1, 3);
+  }
+}
+
+function assert_draws_the_connector_its_housing_the_slot_and_the(): void {
+  const plain = new three.Group(),
+    fine = new three.Group();
+  qsfpFace(plain, 0, card, DEEP, look, false);
+  qsfpFace(fine, 0, card, DEEP, look, true);
+  expect(fine.children.length - plain.children.length).toBe(3);
+  // the gold: one instanced draw, 19 contacts a row
+  const gold = fine.children.find((o) => asMesh(o).material === look.gold) as
+    (three.Mesh & { count?: number }) | undefined;
+  expect(gold?.count).toBe(38);
+  expect(boxOf(plain, look.gold).empty).toBe(true);
+  // (the connector stands at the back, behind the mouth: nothing of it is in the first half)
+  expect(boxOf(fine, look.gold).x0).toBeGreaterThan(DEEP / 2);
+}
 
 describe("the QSFP+ cage's face", () => {
   it('is a real module and cage: the module fits the mouth, the mouth the cage (a sheet 0.2 mm at the sides, 0.6 over and under)', () => {
@@ -34,39 +77,17 @@ describe("the QSFP+ cage's face", () => {
   });
 
   it('stands over its span and runs back to its depth, whichever way the span is wide', () => {
-    for (const [name, s] of [
-      ['card', card],
-      ['router', front],
-    ] as const) {
-      const g = new Group();
-      qsfpFace(g, 0, s, DEEP, look);
-      const b = boxOf(g, look.shell);
-      expect(b.x0, name).toBeCloseTo(0, 3);
-      expect(b.x1, name).toBeCloseTo(DEEP, 3);
-      expect(b.y0, name).toBeCloseTo(s.y0, 3);
-      expect(b.y1, name).toBeCloseTo(s.y1, 3);
-      expect(b.z0, name).toBeCloseTo(s.z0, 3);
-      expect(b.z1, name).toBeCloseTo(s.z1, 3);
-    }
+    expect.hasAssertions();
+    assert_stands_over_its_span_and_runs_back_to_its_depth_();
   });
 
   it('draws the connector (its housing, the slot and the 38 gold contacts in two rows) only when it is fine', () => {
-    const plain = new Group(),
-      fine = new Group();
-    qsfpFace(plain, 0, card, DEEP, look, false);
-    qsfpFace(fine, 0, card, DEEP, look, true);
-    expect(fine.children.length - plain.children.length).toBe(3);
-    // the gold: one instanced draw, 19 contacts a row
-    const gold = fine.children.find((o) => (o as Mesh).material === look.gold) as
-      (Mesh & { count?: number }) | undefined;
-    expect(gold?.count).toBe(38);
-    expect(boxOf(plain, look.gold).empty).toBe(true);
-    // (the connector stands at the back, behind the mouth: nothing of it is in the first half)
-    expect(boxOf(fine, look.gold).x0).toBeGreaterThan(DEEP / 2);
+    expect.hasAssertions();
+    assert_draws_the_connector_its_housing_the_slot_and_the();
   });
 
   it("puts the link light and the activity light 5.3 mm either side of the cage's middle, in a block over a card's cage", () => {
-    const g = new Group();
+    const g = new three.Group();
     qsfpLamps(g, 0, card, 'z', lamps, look, true);
     // the block: the cage's width, 2.4 mm tall over it, 8.6 mm deep (it ends inside the bracket)
     const block = boxOf(g, look.housing),
@@ -89,7 +110,7 @@ describe("the QSFP+ cage's face", () => {
   });
 
   it("puts a router's lights in its front over the cage with no block, and a room router's over its side cage in a block", () => {
-    const bare = new Group();
+    const bare = new three.Group();
     qsfpLamps(bare, 0, front, '-y', lamps, look, false);
     expect(boxOf(bare, look.housing).empty).toBe(true);
     const link = boxOf(bare, lamps.link),
@@ -100,7 +121,7 @@ describe("the QSFP+ cage's face", () => {
     expect(act.y1).toBeLessThan(front.y0);
     expect((link.z0 + link.z1) / 2).toBeCloseTo(mid - 5.3 * K, 3);
     expect((act.z0 + act.z1) / 2).toBeCloseTo(mid + 5.3 * K, 3);
-    const withBlock = new Group();
+    const withBlock = new three.Group();
     qsfpLamps(withBlock, 0, front, '-y', lamps, look, true);
     const b = boxOf(withBlock, look.housing);
     expect(b.y1).toBeCloseTo(front.y0, 3);

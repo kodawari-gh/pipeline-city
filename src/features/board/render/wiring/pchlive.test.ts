@@ -1,14 +1,30 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, test } from 'vitest';
 import { BR, setLayoutTier } from '../layout/layout';
 import { legsOf } from '../layout/pins';
 import { buildBuses, mkLane } from './routes';
 import { chipLegOf, legGlow, ledOf, pchLedAt } from './pchlive';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+/** Returns `value` when it is present, otherwise `fallback`. */
+function or<T>(value: T, fallback: NonNullable<T>): NonNullable<T> {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+  return value;
+}
+
 describe('chipLegOf', () => {
   it('finds the leg a lane ends on, and which way a packet arrives', () => {
     setLayoutTier(2);
-    const chip = BR.chip,
-      [x, y] = legsOf(chip, 'n')[2]!;
+    const { chip } = BR,
+      [x, y] = must(legsOf(chip, 'n')[2]);
     const into = chipLegOf(
       chip,
       mkLane([
@@ -45,12 +61,16 @@ describe('chipLegOf', () => {
     const buses = new Map(buildBuses().map((b) => [b.id, b]));
     // DMI, SATA, SPI and LPC all end on the chipset
     for (const id of ['dmi', 'sata', 'spi', 'lpc'] as const) {
-      const lanes = buses.get(id)?.lanes ?? [];
-      expect(lanes.length, id).toBeGreaterThan(0);
-      for (const l of lanes) expect(chipLegOf(BR.chip, l), id).not.toBeNull();
+      const lanes = or(buses.get(id)?.lanes, []);
+      expect(lanes.length).toBeGreaterThan(0);
+      for (const l of lanes) {
+        expect(chipLegOf(BR.chip, l)).not.toBeNull();
+      }
     }
     // memory runs CPU to DIMMs
-    for (const l of buses.get('mem')?.lanes ?? []) expect(chipLegOf(BR.chip, l)).toBeNull();
+    for (const l of or(buses.get('mem')?.lanes, [])) {
+      expect(chipLegOf(BR.chip, l)).toBeNull();
+    }
   });
 });
 
@@ -65,19 +85,21 @@ describe('legGlow', () => {
 });
 
 describe('ledOf', () => {
-  it('is dark without power', () => expect(ledOf(false, 'posting', 'none', 0)).toBeNull());
+  it('is dark without power', () => {
+    expect(ledOf(false, 'posting', 'none', 0)).toBeNull();
+  });
   it('shows POST amber, idle green, an error red', () => {
     expect(ledOf(true, 'posting', 'none', 0)).toMatchObject({ tone: 'ld', on: true });
     expect(ledOf(true, 'idle-os', 'none', 0)).toMatchObject({ tone: 'st', on: true });
     expect(ledOf(true, 'error', 'none', 0)).toMatchObject({ tone: 'bad' });
   });
   it('blinks while the key moves', () => {
-    expect(ledOf(true, 'idle-os', 'ingesting', 0)!.on).not.toBe(ledOf(true, 'idle-os', 'ingesting', 130)!.on);
+    expect(must(ledOf(true, 'idle-os', 'ingesting', 0)).on).not.toBe(must(ledOf(true, 'idle-os', 'ingesting', 130)).on);
     expect(ledOf(true, 'loading', 'none', 0)).toMatchObject({ tone: 'st' });
   });
 });
 
-it('the LED sits on the face of the package, well in from the east edge and clear of the label', () => {
+function assert_the_LED_sits_on_the_face_of_the_package_well_in_(): void {
   for (const tier of [0, 1, 2, 3]) {
     setLayoutTier(tier);
     const c = BR.chip,
@@ -85,4 +107,9 @@ it('the LED sits on the face of the package, well in from the east edge and clea
     expect(p.x).toBeLessThanOrEqual(c.x + c.w - 60);
     expect(p.x).toBeGreaterThan(c.x + c.w * 0.7);
   }
+}
+
+test('the LED sits on the face of the package, well in from the east edge and clear of the label', () => {
+  expect.hasAssertions();
+  assert_the_LED_sits_on_the_face_of_the_package_well_in_();
 });

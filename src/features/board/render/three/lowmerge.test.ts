@@ -1,7 +1,8 @@
 // Every tier merges the room's router, key rack and mailbox (MACH-02), the cable plugs and the machine's wires (`mergeWithin`). Each part is
 // checked on its own, so a merge that stops (its mutation) fails here.
-import { afterEach, expect, it } from 'vitest';
-import { type Mesh, type Object3D } from 'three';
+import { afterEach, expect, test } from 'vitest';
+import type { Mesh, Object3D } from 'three';
+
 import { setLowDetail } from '@/core/render/three/detail';
 import { BakeQueue } from '@/core/render/three/artlod';
 import { findById } from '@/core/render/three/pick';
@@ -11,6 +12,16 @@ import { Machine3D } from './machine3d';
 import { rigStatic } from './cablerig3d';
 import { maxedSnapshot, quietCanvas } from './testutil';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+const isMesh = (o: unknown): o is Mesh => typeof o === 'object' && o !== null && 'isMesh' in o && o.isMesh === true;
+
 quietCanvas();
 afterEach(() => {
   setLowDetail(false);
@@ -19,7 +30,9 @@ afterEach(() => {
 const count = (o: Object3D | null | undefined): number => {
   let n = 0;
   o?.traverse((c) => {
-    if ((c as Mesh).isMesh) n++;
+    if (isMesh(c)) {
+      n++;
+    }
   });
   return n;
 };
@@ -27,7 +40,9 @@ const count = (o: Object3D | null | undefined): number => {
 const merged = (o: Object3D | null | undefined): number => {
   let n = 0;
   o?.traverse((c) => {
-    if ((c as Mesh).isMesh && c.name === 'merged') n++;
+    if (isMesh(c) && c.name === 'merged') {
+      n++;
+    }
   });
   return n;
 };
@@ -35,12 +50,14 @@ const merged = (o: Object3D | null | undefined): number => {
 const rigOf = (root: Object3D, id: string): Object3D | null => {
   let r: Object3D | null = null;
   findById(root, id)?.traverse((c) => {
-    if (!r && c.userData['rig']) r = c;
+    if (!r && c.userData['rig']) {
+      r = c;
+    }
   });
   return r;
 };
 
-it('every tier merges the router, the key rack, the mailbox, the cable plugs and the wires', () => {
+function assert_every_tier_merges_the_router_the_key_rack_the_ma(): void {
   const snap = maxedSnapshot();
   const build = (low: boolean) => {
     setLowDetail(low);
@@ -68,22 +85,27 @@ it('every tier merges the router, the key rack, the mailbox, the cable plugs and
     // the plug draws in as few meshes at High as at Low
     expect(count(hr), `${id} plug's meshes`).toBe(count(lr));
   }
-}, 120000);
+}
 
-it("the plug's static rig is merged at every tier (cablerig3d.ts `rigStatic`)", () => {
+test('every tier merges the router, the key rack, the mailbox, the cable plugs and the wires', () => {
+  expect.hasAssertions();
+  assert_every_tier_merges_the_router_the_key_rack_the_ma();
+}, 120_000);
+
+test("the plug's static rig is merged at every tier (cablerig3d.ts `rigStatic`)", () => {
   const snap = maxedSnapshot();
   const rigAt = (low: boolean) => {
     setLowDetail(low);
     const machine = new Machine3D(snap, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: true });
     const rig = machine.rig('cpu');
     expect(rig, "the CPU plug's rig").not.toBeNull();
-    return rigStatic(rig!, rig!.canSeat, undefined);
+    return rigStatic(must(rig), must(rig).canSeat, undefined);
   };
   expect(merged(rigAt(false)), 'rig merged at High').toBeGreaterThan(0);
   expect(merged(rigAt(true)), 'rig merged at Low').toBeGreaterThan(0);
-}, 120000);
+}, 120_000);
 
-it("the machine's wires are merged at every tier (machine3d.ts, `mergeSiblings(this.wires)`)", () => {
+function assert_the_machine_s_wires_are_merged_at_every_tier_mac(): void {
   const snap = maxedSnapshot();
   const wiresAt = (low: boolean) => {
     setLowDetail(low);
@@ -95,11 +117,22 @@ it("the machine's wires are merged at every tier (machine3d.ts, `mergeSiblings(t
     let n = 0;
     w.traverse((c) => {
       let inRig = false;
-      for (let p: Object3D | null = c; p && p !== w; p = p.parent) if (p.userData['rig']) inRig = true;
-      if (!inRig && (c as Mesh).isMesh && c.name === 'merged') n++;
+      for (let p: Object3D | null = c; p && p !== w; p = p.parent) {
+        if (p.userData['rig']) {
+          inRig = true;
+        }
+      }
+      if (!inRig && isMesh(c) && c.name === 'merged') {
+        n++;
+      }
     });
     return n;
   };
   expect(wireOwn(wiresAt(false)), 'wires merged at High').toBeGreaterThan(0);
   expect(wireOwn(wiresAt(true)), 'wires merged at Low').toBeGreaterThan(0);
-}, 120000);
+}
+
+test("the machine's wires are merged at every tier (machine3d.ts, `mergeSiblings(this.wires)`)", () => {
+  expect.hasAssertions();
+  assert_the_machine_s_wires_are_merged_at_every_tier_mac();
+}, 120_000);

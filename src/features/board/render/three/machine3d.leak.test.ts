@@ -10,6 +10,14 @@ import { roomGeo } from '@/features/room/render/shell/room';
 import { Machine3D } from './machine3d';
 import { quietCanvas } from './testutil';
 
+/** Returns `value` when it is present, otherwise `fallback`. */
+function or<T>(value: T, fallback: NonNullable<T>): NonNullable<T> {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+  return value;
+}
+
 quietCanvas();
 
 type Device = Snapshot['devices'][number];
@@ -20,7 +28,7 @@ const stage = (s: Snapshot): Machine3D =>
 
 /** An object in a list, by the part it belongs to and its own name (the cables hang again on each patch: one key for them all). */
 const key = (o: Object3D): string => {
-  const id = idOf(o) ?? '-';
+  const id = or(idOf(o), '-');
   return id.startsWith('cable') ? 'cable' : `${id}|${o.name}|${o.type}`;
 };
 const keys = (l: readonly Object3D[]): string[] => l.map((o) => key(o)).toSorted();

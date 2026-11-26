@@ -2,21 +2,43 @@ import { describe, expect, it } from 'vitest';
 import { BusFlow, FADE_MS, MAX_LIT, MAX_MS, MIN_MS, slice } from './busflow';
 import { mkLane } from './routes';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 const lane = mkLane([
   [0, 0],
   [100, 0],
   [100, 100],
 ]);
 const length = (pts: number[][]) =>
-  pts.reduce((s, p, i) => (i ? s + Math.hypot(p[0]! - pts[i - 1]![0]!, p[1]! - pts[i - 1]![1]!) : 0), 0);
+  pts.reduce(
+    (s, p, i) =>
+      i ? s + Math.hypot(must(p[0]) - must(must(pts[i - 1])[0]), must(p[1]) - must(must(pts[i - 1])[1])) : 0,
+    0,
+  );
+
+const strokes = (f: BusFlow) =>
+  (
+    f.g.context.instructions as {
+      action: string;
+      data: { style: { width: number; alpha: number; cap: string; join: string } };
+    }[]
+  )
+    .filter((i) => i.action === 'stroke')
+    .map((i) => i.data.style);
 
 describe('slice', () => {
   it('cuts a lane between two arc lengths, round a corner', () => {
-    expect(slice(lane, 0, 100)).toEqual([
+    expect(slice(lane, 0, 100)).toStrictEqual([
       [0, 0],
       [100, 0],
     ]);
-    expect(slice(lane, 50, 150)).toEqual([
+    expect(slice(lane, 50, 150)).toStrictEqual([
       [50, 0],
       [100, 0],
       [100, 50],
@@ -25,8 +47,8 @@ describe('slice', () => {
   });
   it('clamps to the lane and gives nothing for an empty stretch', () => {
     expect(length(slice(lane, -50, 500))).toBeCloseTo(200);
-    expect(slice(lane, 80, 80)).toEqual([]);
-    expect(slice(lane, 250, 300)).toEqual([]);
+    expect(slice(lane, 80, 80)).toStrictEqual([]);
+    expect(slice(lane, 250, 300)).toStrictEqual([]);
   });
 });
 
@@ -52,7 +74,7 @@ describe('BusFlow', () => {
         [
           mkLane([
             [0, 0],
-            [100000, 0],
+            [100_000, 0],
           ]),
         ],
         1,
@@ -82,22 +104,13 @@ describe('BusFlow', () => {
 });
 
 describe('BusFlow drawing', () => {
-  const strokes = (f: BusFlow) =>
-    (
-      f.g.context.instructions as {
-        action: string;
-        data: { style: { width: number; alpha: number; cap: string; join: string } };
-      }[]
-    )
-      .filter((i) => i.action === 'stroke')
-      .map((i) => i.data.style);
   const far = mkLane([
     [0, 0],
     [1000, 0],
     [1000, 600],
   ]);
 
-  it('strokes each lit lane twice, a trail and a head, plain: square ends and mitred corners', () => {
+  function assert_strokes_each_lit_lane_twice_a_trail_and_a_head_p(): void {
     const f = new BusFlow();
     f.send([far, far], 1, '#3be3ff', 0, 9);
     f.frame(150, 1, true);
@@ -105,7 +118,12 @@ describe('BusFlow drawing', () => {
     expect(s).toHaveLength(4);
     expect(s.every((x) => x.cap === 'butt' && x.join === 'miter')).toBe(true);
     // (the head is brighter than the trail behind it)
-    expect(s[1]!.alpha).toBeGreaterThan(s[0]!.alpha);
+    expect(must(s[1]).alpha).toBeGreaterThan(must(s[0]).alpha);
+  }
+
+  it('strokes each lit lane twice, a trail and a head, plain: square ends and mitred corners', () => {
+    expect.hasAssertions();
+    assert_strokes_each_lit_lane_twice_a_trail_and_a_head_p();
   });
 
   it('lights no more than MAX_LIT lanes of a wide link, spread over it', () => {

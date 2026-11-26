@@ -4,16 +4,51 @@
 import * as fsMod from 'node:fs';
 // @ts-ignore
 import * as urlMod from 'node:url';
-import { describe, expect, it } from 'vitest';
-import { Matrix4, Object3D, Mesh, type BufferAttribute, type InstancedMesh } from 'three';
+import { assert, describe, expect, it } from 'vitest';
+import * as three from 'three';
 import { Room3D } from '@/features/room/render/three/room3d';
 import { idOf, shown } from '@/core/render/three/pick';
 import { buildMachine, maxedSnapshot, quietCanvas } from './testutil';
 
+interface NodeFs {
+  existsSync: (path: string) => boolean;
+  readFileSync: (path: string, encoding: 'utf8') => string;
+  writeFileSync: (path: string, data: string, encoding?: string) => void;
+}
+
+interface NodeUrl {
+  fileURLToPath: (url: URL) => string;
+}
+const isNodeUrl = (mod: unknown): mod is NodeUrl => typeof mod === 'object' && mod !== null && 'fileURLToPath' in mod;
+const isNodeFs = (mod: unknown): mod is NodeFs => typeof mod === 'object' && mod !== null && 'existsSync' in mod;
+assert(isNodeUrl(urlMod), 'node:url loads');
+assert(isNodeFs(fsMod), 'node:fs loads');
+const nodeUrl = urlMod;
+
+/** Returns `value` when it is present, otherwise `fallback`. */
+function or<T>(value: T, fallback: NonNullable<T>): NonNullable<T> {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+  return value;
+}
+
+const isMesh = (o: unknown): o is three.Mesh =>
+  typeof o === 'object' && o !== null && 'isMesh' in o && o.isMesh === true;
+function asMesh(o: unknown): three.Mesh {
+  if (!isMesh(o)) {
+    throw new Error('expected a Mesh');
+  }
+  return o;
+}
+
+const isInstancedMesh = (o: unknown): o is three.InstancedMesh =>
+  typeof o === 'object' && o !== null && 'isInstancedMesh' in o && o.isInstancedMesh === true;
+
 quietCanvas();
 
-const fs = fsMod as any;
-const GOLDEN: string = urlMod.fileURLToPath(new URL('highident.expected.json', import.meta.url));
+const fs = fsMod;
+const GOLDEN: string = nodeUrl.fileURLToPath(new URL('highident.expected.json', import.meta.url));
 
 /** One group's fingerprint: its meshes, the draws a camera on layer 0 makes (a Mesh or an InstancedMesh is one), its vertices and instances, and a hash of them. */
 interface Row {
@@ -26,10 +61,10 @@ interface Row {
 
 /** A 32-bit hash of rounded numbers, in the order they are added. */
 class Hash {
-  private h = 0x811c9dc5;
+  private h = 0x81_1c_9d_c5;
   add(n: number): void {
-    const q = Math.round(n * 1000) | 0;
-    this.h = Math.imul(this.h ^ q, 0x01000193);
+    const q = Math.trunc(Math.round(n * 1000));
+    this.h = Math.imul(this.h ^ q, 0x01_00_01_93);
     this.h ^= this.h >>> 15;
   }
   hex(): string {
@@ -38,11 +73,15 @@ class Hash {
 }
 
 /** The group a mesh belongs to: its nearest tagged ancestor's id, else the top-level child of its root that holds it (by name, or by index). */
-function groupOf(root: Object3D, prefix: string, o: Object3D): string {
+function groupOf(root: three.Object3D, prefix: string, o: three.Object3D): string {
   const id = idOf(o);
-  if (id) return `${prefix}/${id}`;
-  let top: Object3D = o;
-  while (top.parent && top.parent !== root) top = top.parent;
+  if (id) {
+    return `${prefix}/${id}`;
+  }
+  let top: three.Object3D = o;
+  while (top.parent && top.parent !== root) {
+    top = top.parent;
+  }
   const i = root.children.indexOf(top);
   return `${prefix}/${top.name || `${top.type}#${i}`}`;
 }
@@ -56,23 +95,27 @@ interface Acc {
 }
 
 /** Each group of each root, fingerprinted: each mesh's world-space vertex positions, its instances' world matrices, and whether a camera draws it. */
-function fingerprint(roots: [string, Object3D][]): Record<string, Row> {
+function fingerprint(roots: [string, three.Object3D][]): Record<string, Row> {
   const acc = new Map<string, Acc>();
-  const pos = new Matrix4(),
-    inst = new Matrix4();
+  const pos = new three.Matrix4(),
+    inst = new three.Matrix4();
   for (const [prefix, root] of roots) {
     root.updateMatrixWorld(true);
     root.traverse((o) => {
-      if (!(o as Mesh).isMesh) return;
-      const mesh = o as Mesh;
+      if (!isMesh(o)) {
+        return;
+      }
+      const mesh = asMesh(o);
       const key = groupOf(root, prefix, o);
-      const g = acc.get(key) ?? { meshes: 0, draws: 0, verts: 0, instances: 0, h: new Hash() };
+      const g = or(acc.get(key), { meshes: 0, draws: 0, verts: 0, instances: 0, h: new Hash() });
       acc.set(key, g);
       g.meshes += 1;
       const drawn = shown(o) && (mesh.layers.mask & 1) !== 0 && [mesh.material].flat().some((x) => x.visible);
-      if (drawn) g.draws += 1;
+      if (drawn) {
+        g.draws += 1;
+      }
       g.h.add(drawn ? 1 : 0);
-      const attr = mesh.geometry.attributes['position'] as BufferAttribute | undefined;
+      const attr = mesh.geometry.attributes['position'] as three.BufferAttribute | undefined;
       if (attr) {
         g.verts += attr.count;
         const e = pos.copy(mesh.matrixWorld).elements;
@@ -80,24 +123,25 @@ function fingerprint(roots: [string, Object3D][]): Record<string, Row> {
           const x = attr.getX(i),
             y = attr.getY(i),
             z = attr.getZ(i);
-          g.h.add(e[0]! * x + e[4]! * y + e[8]! * z + e[12]!);
-          g.h.add(e[1]! * x + e[5]! * y + e[9]! * z + e[13]!);
-          g.h.add(e[2]! * x + e[6]! * y + e[10]! * z + e[14]!);
+          g.h.add(e[0] * x + e[4] * y + e[8] * z + e[12]);
+          g.h.add(e[1] * x + e[5] * y + e[9] * z + e[13]);
+          g.h.add(e[2] * x + e[6] * y + e[10] * z + e[14]);
         }
       }
-      if ((mesh as InstancedMesh).isInstancedMesh) {
-        const im = mesh as InstancedMesh;
-        g.instances += im.count;
-        for (let i = 0; i < im.count; i++) {
-          im.getMatrixAt(i, inst).premultiply(mesh.matrixWorld);
-          for (const n of inst.elements) g.h.add(n);
+      if (isInstancedMesh(mesh)) {
+        g.instances += mesh.count;
+        for (let i = 0; i < mesh.count; i++) {
+          mesh.getMatrixAt(i, inst).premultiply(mesh.matrixWorld);
+          for (const n of inst.elements) {
+            g.h.add(n);
+          }
         }
       }
     });
   }
   return Object.fromEntries(
     [...acc]
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
       .map(([k, g]) => [
         k,
         { meshes: g.meshes, draws: g.draws, verts: g.verts, instances: g.instances, sum: g.h.hex() },
@@ -107,11 +151,15 @@ function fingerprint(roots: [string, Object3D][]): Record<string, Row> {
 
 /** The golden, or null while it is unwritten or empty. */
 function readGolden(): Record<string, Row> | null {
-  if (!fs.existsSync(GOLDEN)) return null;
-  const text = (fs.readFileSync(GOLDEN, 'utf8') as string).trim();
-  if (!text) return null;
+  if (!fs.existsSync(GOLDEN)) {
+    return null;
+  }
+  const text = fs.readFileSync(GOLDEN, 'utf8').trim();
+  if (!text) {
+    return null;
+  }
   const parsed = JSON.parse(text) as Record<string, Row>;
-  return Object.keys(parsed).length ? parsed : null;
+  return Object.keys(parsed).length > 0 ? parsed : null;
 }
 
 /** The maxed machine and the room, built as the golden builds them. */
@@ -123,8 +171,8 @@ function build() {
 
 /** The root an extra child goes under. */
 const rootOf = {
-  machine: (b: ReturnType<typeof build>): Object3D => b.machine.root,
-  room: (b: ReturnType<typeof build>): Object3D => b.room.root,
+  machine: (b: ReturnType<typeof build>): three.Object3D => b.machine.root,
+  room: (b: ReturnType<typeof build>): three.Object3D => b.room.root,
 };
 
 /**
@@ -137,25 +185,30 @@ const measure = ({ machine, room }: ReturnType<typeof build>): Record<string, Ro
     ['room', room.root],
   ]);
 
+function assert_matches_highident_expected_json_group_by_group(): void {
+  const got = measure(build());
+  const rows = Object.values(got);
+  const sum = (f: (r: Row) => number) => rows.reduce((n, r) => n + f(r), 0);
+  console.log(
+    `High identity: ${rows.length} groups, ${sum((r) => r.meshes)} meshes, ${sum((r) => r.draws)} draws, ${sum((r) => r.verts)} verts, ${sum((r) => r.instances)} instances`,
+  );
+  const { env } = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process;
+  if (env['UPDATE_HIGH_GOLDEN'] === '1') {
+    fs.writeFileSync(GOLDEN, `${JSON.stringify(got, null, 2)}\n`);
+    return;
+  }
+  const want = readGolden();
+  expect(
+    want,
+    'no High golden yet: fill highident.expected.json from origin/main (UPDATE_HIGH_GOLDEN=1 npx vitest run highident.test.ts)',
+  ).not.toBeNull();
+  expect(got).toStrictEqual(want);
+}
+
 describe('High builds the same machine and room', () => {
   it('matches highident.expected.json, group by group', () => {
-    const got = measure(build());
-    const rows = Object.values(got);
-    const sum = (f: (r: Row) => number) => rows.reduce((n, r) => n + f(r), 0);
-    console.log(
-      `High identity: ${rows.length} groups, ${sum((r) => r.meshes)} meshes, ${sum((r) => r.draws)} draws, ${sum((r) => r.verts)} verts, ${sum((r) => r.instances)} instances`,
-    );
-    const { env } = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process;
-    if (env['UPDATE_HIGH_GOLDEN'] === '1') {
-      fs.writeFileSync(GOLDEN, `${JSON.stringify(got, null, 2)}\n`);
-      return;
-    }
-    const want = readGolden();
-    expect(
-      want,
-      'no High golden yet: fill highident.expected.json from origin/main (UPDATE_HIGH_GOLDEN=1 npx vitest run highident.test.ts)',
-    ).not.toBeNull();
-    expect(got).toEqual(want);
+    expect.hasAssertions();
+    assert_matches_highident_expected_json_group_by_group();
   }, 120_000);
 
   it('names every top-level group, none by its position', () => {
@@ -169,7 +222,7 @@ describe('High builds the same machine and room', () => {
       const built = build();
       const before = measure(built);
       const root = rootOf[which](built);
-      const child = new Mesh();
+      const child = new three.Mesh();
       root.children.unshift(child);
       child.parent = root;
       const after = measure(built);
