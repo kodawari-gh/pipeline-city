@@ -2,22 +2,13 @@
 // rear wall with the mains inlet, at its real size (an SFX bay in the Mini and the Micro, an ATX one in the bigger cases; psu3d.ts builds the
 // unit), the room east of it the front fans' air passes through to the supply, the fan hub on the tray sheet and the basement's drive cage under
 // the main one (drivecage3d.ts). The shroud runs on east under the main cage as its shelf, as a Define 7's: open on the glass side from the hub on.
-import { Group, Mesh, PlaneGeometry, type Material } from 'three';
+import { Group, Mesh, PlaneGeometry } from 'three';
+import type * as threeTypes from 'three';
 import { drawLockup } from '@/core/render/brands';
-import { paintLow, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
-import {
-  NONE,
-  perforated,
-  perforatedFlatRun,
-  plateY,
-  ring,
-  rivets,
-  screws,
-  thumbscrews,
-  wallX,
-  type Span,
-  type Spot,
-} from './casekit3d';
+import { paintLow, rectBox, softBox } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
+import { NONE, perforated, perforatedFlatRun, plateY, ring, rivets, screws, thumbscrews, wallX } from './casekit3d';
+import type * as casekit3dTypes from './casekit3d';
 import { mat } from '@/core/render/three/materials';
 import { tag } from '@/core/render/three/pick';
 import { CASE_FRONT as FRONT, CASE_Z } from '@/features/room/render/three/roomplan';
@@ -31,7 +22,7 @@ export interface BasementPlan {
   /** Where the side panels end (layout x), west of the fan hub: east of it the shroud is open on the glass side over the hub and the basement's cage, its top the main cage's shelf. */
   shelf: number;
   /** The power supply's box: a layout rect and a depth range. */
-  psu: RectLike & { z0: number; z1: number };
+  psu: geometryTypes.RectLike & { z0: number; z1: number };
   /** The vented span east of the supply's room (the shroud's top is slotted over it, its front perforated). */
   vent: { x: number; w: number };
 }
@@ -51,7 +42,7 @@ export const psuFan = (u: BasementPlan['psu']): { x: number; z: number; r: numbe
   r: (u.h > 1700 ? 60 : 46) * 23,
 });
 /** The supply's opening in the rear wall: its rear slides out of it. */
-export const psuOpening = (u: BasementPlan['psu']): Span => ({
+export const psuOpening = (u: BasementPlan['psu']): casekit3dTypes.Span => ({
   y0: u.y + 30,
   y1: u.y + u.h - 30,
   z0: u.z0 + 30,
@@ -81,9 +72,9 @@ export function basementPlan(): BasementPlan {
  */
 export function shroud(
   p: BasementPlan,
-  look: { body: number; ink: string } = { body: 0x26282d, ink: '#c9ced6' },
-  rivet: Material = mat(0x2a2d32, { metalness: 0.45, roughness: 0.42 }),
-  screw: Material = mat(0x2a2d32, { metalness: 0.65, roughness: 0.38 }),
+  look: { body: number; ink: string } = { body: 0x26_28_2d, ink: '#c9ced6' },
+  rivet: threeTypes.Material = mat(0x2a_2d_32, { metalness: 0.45, roughness: 0.42 }),
+  screw: threeTypes.Material = mat(0x2a_2d_32, { metalness: 0.65, roughness: 0.38 }),
 ): Group {
   const g = new Group(),
     m = mat(look.body, { roughness: 0.45, metalness: 0.3 }),
@@ -101,19 +92,23 @@ export function shroud(
     zb + 130,
     zb + 300,
   ]);
-  if (p.vent.w > 40) open.push([p.vent.x + 40, p.vent.x + p.vent.w, zb + 340, zf - 110]);
+  if (p.vent.w > 40) {
+    open.push([p.vent.x + 40, p.vent.x + p.vent.w, zb + 340, zf - 110]);
+  }
   g.add(perforatedFlatRun(topY, open, slot.kind, slot.pitch, slot.tone, slot.o));
   // the flange up the tray, and its rivets (under the cage, the cage's own flanges hold it)
   g.add(softBox({ x: CASE_IN.x, y: p.top - 50, w: p.shelf - CASE_IN.x, h: 50 }, zb - 1, zb + 10, m, 3));
-  const tray: Spot[] = [];
-  for (let x = CASE_IN.x + 300; x < p.shelf - 150; x += 620) tray.push({ x, y: -(p.top - 25), z: zb + 10 });
+  const tray: casekit3dTypes.Spot[] = [];
+  for (let x = CASE_IN.x + 300; x < p.shelf - 150; x += 620) {
+    tray.push({ x, y: -(p.top - 25), z: zb + 10 });
+  }
   g.add(rivets(tray, 'z+', 40, rivet));
 
   const west = { x: CASE_IN.x, y: p.top, w: p.vent.x - 110 - CASE_IN.x, h: p.floor - p.top };
   const panel = tag(new Group(), 'psu');
   panel.name = PSU_COVER;
   panel.add(softBox(west, zf - 40, zf, m, 8));
-  const knurl = mat(0x959aa3, { metalness: 0.75, roughness: 0.38 }),
+  const knurl = mat(0x95_9a_a3, { metalness: 0.75, roughness: 0.38 }),
     tx = west.x + west.w - 170;
   panel.add(
     thumbscrews(
@@ -144,21 +139,21 @@ export function shroud(
   });
   const face = new Mesh(
     new PlaneGeometry(west.w, west.h),
-    mat(0xffffff, { map: print, roughness: 0.45, metalness: 0.2 }),
+    mat(0xff_ff_ff, { map: print, roughness: 0.45, metalness: 0.2 }),
   );
   face.position.set(west.x + west.w / 2, -(west.y + west.h / 2), zf + 2);
   panel.add(face);
-  const vent: RectLike = { x: west.x + west.w - 1020, y: west.y + 170, w: 640, h: west.h - 340 };
+  const vent: geometryTypes.RectLike = { x: west.x + west.w - 1020, y: west.y + 170, w: 640, h: west.h - 340 };
   panel.add(ring(vent, 14, NONE, 14, zf, zf + 9, m));
   perforated(panel, vent, zf + 3, 'slot', 110, look.body, { metal: 0.35, rough: 0.5 });
   g.add(panel);
 
   // the fixed panel east of the cover: perforated over the vent span, screwed at its corners
   const x0 = west.x + west.w,
-    fixed: RectLike = { x: x0 + 12, y: p.top, w: p.shelf - x0 - 12, h: p.floor - p.top };
+    fixed: geometryTypes.RectLike = { x: x0 + 12, y: p.top, w: p.shelf - x0 - 12, h: p.floor - p.top };
   g.add(softBox(fixed, zf - 40, zf, m, 8));
   if (p.vent.w > 400) {
-    const band: RectLike = { x: p.vent.x + 60, y: fixed.y + 170, w: p.vent.w - 120, h: fixed.h - 340 };
+    const band: geometryTypes.RectLike = { x: p.vent.x + 60, y: fixed.y + 170, w: p.vent.w - 120, h: fixed.h - 340 };
     g.add(ring(band, 14, NONE, 14, zf, zf + 9, m));
     perforated(g, band, zf + 3, 'slot', 110, look.body, { metal: 0.35, rough: 0.5 });
   }
@@ -176,20 +171,23 @@ export function shroud(
     ),
   );
   // the shelf's glass-side edge, folded down (stiff enough for a cage of disks), and the panel's folded east edge
-  if (p.east - p.shelf > 200)
+  if (p.east - p.shelf > 200) {
     g.add(
       softBox({ x: p.shelf, y: p.top, w: p.east - p.shelf, h: 110 }, zf - 40, zf, m, 6),
       softBox({ x: p.shelf - 30, y: p.top, w: 30, h: p.floor - p.top }, zf - 200, zf, m, 4),
     );
-  const slots: Span[] = [];
-  for (let y = p.top + 170; y + 60 < p.floor - 90; y += 130)
+  }
+  const slots: casekit3dTypes.Span[] = [];
+  for (let y = p.top + 170; y + 60 < p.floor - 90; y += 130) {
     slots.push({ y0: y, y1: y + 60, z0: zb + 320, z1: zf - 320, r: 30 });
+  }
   g.add(wallX(p.east - 40, p.east, { y0: p.top, y1: p.floor, z0: zb, z1: zf }, slots, m));
 
   // the rubber strips under the power supply, either side of its fan
   const u = p.psu,
-    rubber = mat(0x050608, { roughness: 0.92 });
-  for (const z of [u.z0 + 60, u.z1 - 200])
+    rubber = mat(0x05_06_08, { roughness: 0.92 });
+  for (const z of [u.z0 + 60, u.z1 - 200]) {
     g.add(rectBox({ x: u.x + 90, y: u.y + u.h, w: u.w - 180, h: PSU_FEET }, z, z + 140, rubber));
+  }
   return g;
 }

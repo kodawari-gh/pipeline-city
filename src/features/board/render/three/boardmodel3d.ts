@@ -4,21 +4,13 @@
 // PCIe slots' grooves and contacts, the memory sockets, the power sockets' cavities, the chipset's sink, the slot hardware, the rear I/O with its
 // shield, the solids (capacitors, passives, legs, pins, screws), and the lights a running board shows (power good, the debug code, the RGB strip).
 // Built in board space (x east, y north, z up off the board).
-import {
-  BoxGeometry,
-  DataTexture,
-  Group,
-  Mesh,
-  NearestFilter,
-  SRGBColorSpace,
-  type Material,
-  type MeshStandardMaterial,
-  type Object3D,
-} from 'three';
+import { BoxGeometry, DataTexture, Group, Mesh, NearestFilter, SRGBColorSpace } from 'three';
+import type * as threeTypes from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { headerRect } from '@/core/render/accelart';
 import { FINISH } from '@/core/render/three/artlod';
-import { SEG, drum, instanced, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { SEG, drum, instanced, place, rectBox, softBox } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { lerpHex, mat } from '@/core/render/three/materials';
 import { tag } from '@/core/render/three/pick';
 import type { Theme } from '@/core/render/theme';
@@ -32,23 +24,32 @@ import type { Solid } from '../boardParts';
 import { BD, GEO, M2_SLOTS, PCIE_RAILS, PKG, SOCKET_E } from '../layout/layout';
 import { m2Socket } from '../layout/pins';
 import { hexNum, skinOf } from '../skins';
-import { LV_BOARD, LV_DIE, type ArtSet } from './artset3d';
-import { ioCover, slotHardware, type IoFeatures } from './boardhw3d';
+import { LV_BOARD, LV_DIE } from './artset3d';
+import type * as artset3dTypes from './artset3d';
+import { ioCover, slotHardware } from './boardhw3d';
+import type * as boardhw3dTypes from './boardhw3d';
 import { ioShield } from './casedetail3d';
 import { outlinePts, shapeOf, slab } from './casekit3d';
-import { light, type Spin } from './fans3d';
+import { light } from './fans3d';
+import type * as fans3dTypes from './fans3d';
 import type { JackLamps } from './rj45jack3d';
 import { chipset, coinCell, m2Standoff } from './parts3d';
-import { phyChip, type PhyChip } from './phychip3d';
+import { phyChip } from './phychip3d';
+import type * as phychip3dTypes from './phychip3d';
 import { dimmSlot } from './ram3d';
 import { CHIP_H, buildSolids } from './solids3d';
 import { atxSocket, epsSocket, sataPort } from './wires3d';
 
-const grow = (r: RectLike, e: number): RectLike => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
-const gold = () => mat(0xd4af5f, { metalness: 1, roughness: 0.25 });
+const grow = (r: geometryTypes.RectLike, e: number): geometryTypes.RectLike => ({
+  x: r.x - e,
+  y: r.y - e,
+  w: r.w + 2 * e,
+  h: r.h + 2 * e,
+});
+const gold = () => mat(0xd4_af_5f, { metalness: 1, roughness: 0.25 });
 /** A lamp lit as a running board shows it; `lamps` gets its light, which a live machine drives with its power. */
-function lamp(lamps: Spin[], color: number, k = 2.2): MeshStandardMaterial {
-  const m = mat(0x131518, { emissive: color, emissiveIntensity: k, roughness: 0.35 });
+function lamp(lamps: fans3dTypes.Spin[], color: number, k = 2.2): threeTypes.MeshStandardMaterial {
+  const m = mat(0x13_15_18, { emissive: color, emissiveIntensity: k, roughness: 0.35 });
   lamps.push(light(m, color, k));
   return m;
 }
@@ -57,7 +58,7 @@ function lamp(lamps: Spin[], color: number, k = 2.2): MeshStandardMaterial {
  * A PCIe slot built whole (the 2D draws it from above: `pcieSlot`): the moulded housing with its card groove, split by the key, a dark floor in
  * the groove and a gold contact down each wall at every pin (20 apart, as the drawing's pins).
  */
-export function pcieSlot(r: RectLike, body: Material): Group {
+export function pcieSlot(r: geometryTypes.RectLike, body: threeTypes.Material): Group {
   const g = new Group(),
     z1 = BOARD_Z + 140,
     floor = BOARD_Z + 40,
@@ -82,22 +83,26 @@ export function pcieSlot(r: RectLike, body: Material): Group {
       4,
     ),
   );
-  g.add(rectBox({ x: x0, y: sy, w: x1 - x0, h: sh }, BOARD_Z, floor, mat(0x050608, { roughness: 0.85 })));
+  g.add(rectBox({ x: x0, y: sy, w: x1 - x0, h: sh }, BOARD_Z, floor, mat(0x05_06_08, { roughness: 0.85 })));
   const pins: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[] = [];
-  for (let x = r.x + 52; x < x1 - 6; x += 20)
-    if (x < key - 6 || x > key + 24)
-      for (const y of [sy + 1.5, sy + sh - 1.5]) pins.push({ x, y: -y, z: floor + 44, sx: 8, sy: 3, sz: 80 });
+  for (let x = r.x + 52; x < x1 - 6; x += 20) {
+    if (x < key - 6 || x > key + 24) {
+      for (const y of [sy + 1.5, sy + sh - 1.5]) {
+        pins.push({ x, y: -y, z: floor + 44, sx: 8, sy: 3, sz: 80 });
+      }
+    }
+  }
   g.add(instanced(new BoxGeometry(1, 1, 1), gold(), pins));
   return g;
 }
 
 /** The top board's POST code display (`GEO.dbg`): a black housing, a smoked window, two seven-segment digits reading A0 (boot done) in the theme's amber. */
-function debugDisplay(d: RectLike, T: Theme, lamps: Spin[]): Group {
+function debugDisplay(d: geometryTypes.RectLike, T: Theme, lamps: fans3dTypes.Spin[]): Group {
   const g = new Group(),
     top = BOARD_Z + 90,
     on = lamp(lamps, hexNum(T.ld), 1.1),
-    off = mat(0x131518, { roughness: 0.5 });
-  g.add(softBox(d, BOARD_Z, top, mat(0x050608, { roughness: 0.45 }), 8));
+    off = mat(0x13_15_18, { roughness: 0.5 });
+  g.add(softBox(d, BOARD_Z, top, mat(0x05_06_08, { roughness: 0.45 }), 8));
   // the segments as the 2D lays them (`[x, y, w, h]` in a digit's cell): top, middle, bottom, upper left, upper right, lower left, lower right
   const seg = [
     [10, 10, 70, 10],
@@ -112,16 +117,17 @@ function debugDisplay(d: RectLike, T: Theme, lamps: Spin[]): Group {
     [1, 1, 0, 1, 1, 1, 1],
     [1, 0, 1, 1, 1, 1, 1],
   ]; // A, 0
-  for (let k = 0; k < 2; k++)
+  for (let k = 0; k < 2; k++) {
     seg.forEach(([a, b, w, h], i) =>
       g.add(rectBox({ x: d.x + 24 + k * 134 + a, y: d.y + 14 + b * 0.82, w, h }, top, top + 3, lit[k]![i] ? on : off)),
     );
+  }
   g.add(
     rectBox(
       grow(d, -8),
       top + 4,
       top + 6,
-      mat(0x1d1e22, { transparent: true, opacity: 0.18, roughness: 0.1, metalness: 0.2 }),
+      mat(0x1d_1e_22, { transparent: true, opacity: 0.18, roughness: 0.1, metalness: 0.2 }),
     ),
   );
   return g;
@@ -132,14 +138,14 @@ function debugDisplay(d: RectLike, T: Theme, lamps: Spin[]): Group {
  * The LEDs are one mesh and one lamp (LOD-02: they were 44 draws at every zoom): each LED's uvs sit on its own texel of a 44 x 1 emissive map,
  * so it glows its own colour, and the lamp's white emissive scales them all as each lamp's own colour did.
  */
-export function rgbStrip(r: RectLike, T: Theme, lamps: Spin[]): Group {
+export function rgbStrip(r: geometryTypes.RectLike, T: Theme, lamps: fans3dTypes.Spin[]): Group {
   const g = new Group(),
     n = 44,
     a = hexNum(T.alu),
     b = hexNum(T.br),
     y = r.y + r.h / 2,
     z = BOARD_Z + 22;
-  g.add(softBox(r, BOARD_Z, BOARD_Z + 18, mat(0x131518, { roughness: 0.6 }), 6));
+  g.add(softBox(r, BOARD_Z, BOARD_Z + 18, mat(0x13_15_18, { roughness: 0.6 }), 6));
   const px = new Uint8Array(4 * n),
     leds: BoxGeometry[] = [];
   for (let k = 0; k < n; k++) {
@@ -147,7 +153,9 @@ export function rgbStrip(r: RectLike, T: Theme, lamps: Spin[]): Group {
       box = new BoxGeometry(24, 24, 8).translate(r.x + (k * r.w) / (n - 1), -y, z),
       uv = box.attributes['uv']!;
     px.set([(c >> 16) & 255, (c >> 8) & 255, c & 255, 255], 4 * k);
-    for (let i = 0; i < uv.count; i++) uv.setXY(i, (k + 0.5) / n, 0.5);
+    for (let i = 0; i < uv.count; i++) {
+      uv.setXY(i, (k + 0.5) / n, 0.5);
+    }
     leds.push(box);
   }
   const map = new DataTexture(px, n, 1);
@@ -155,17 +163,19 @@ export function rgbStrip(r: RectLike, T: Theme, lamps: Spin[]): Group {
   map.magFilter = map.minFilter = NearestFilter;
   map.generateMipmaps = false;
   map.needsUpdate = true;
-  const m = mat(0x131518, { emissive: 0xffffff, emissiveMap: map, emissiveIntensity: 1.4, roughness: 0.35 });
-  lamps.push(light(m, 0xffffff, 1.4));
+  const m = mat(0x13_15_18, { emissive: 0xff_ff_ff, emissiveMap: map, emissiveIntensity: 1.4, roughness: 0.35 });
+  lamps.push(light(m, 0xff_ff_ff, 1.4));
   g.add(place(new Mesh(mergeGeometries(leds), m)));
-  for (const x of leds) x.dispose();
+  for (const x of leds) {
+    x.dispose();
+  }
   // (a dark smoked pipe: a pale one turns every LED white)
   g.add(
     softBox(
       grow(r, -4),
       BOARD_Z + 26,
       BOARD_Z + 44,
-      mat(0x2a2d32, { transparent: true, opacity: 0.22, roughness: 0.3 }),
+      mat(0x2a_2d_32, { transparent: true, opacity: 0.22, roughness: 0.3 }),
       8,
     ),
   );
@@ -175,17 +185,17 @@ export function rgbStrip(r: RectLike, T: Theme, lamps: Spin[]): Group {
 export interface Board3D {
   root: Group;
   /** Each socket's piece by slot id (the CPU socket, the memory sockets, the PCIe slots, the M.2 connectors): the case tags an empty one for picking. */
-  sockets: Map<string, Object3D>;
+  sockets: Map<string, threeTypes.Object3D>;
   /** The small parts (the controllers, the crystals, the header bodies, the solids): in the case they stand up only up close (far out the drawing is enough). */
   small: Group;
   /** The lights that follow the board's power: the chipset's and the I/O's glow (the case's accent), the lamps (their own colour). */
-  lights: Spin[];
+  lights: fans3dTypes.Spin[];
   /** The two lights of the rear RJ45 jack, out: the network's (`network/render/jackleds.ts`). Null on a board with no jack. */
   lan: JackLamps | null;
   /** The CPU socket's gold contacts alone (they show only with no CPU on them): a patch that takes the CPU out adds this, one that fits it removes it. */
   contacts: () => Group;
   /** The Ethernet chip (`GEO.phy`; null on a board with none): its package in `small`, its die's face for the live layer and its mould's fade (phychip3d.ts). */
-  phy: PhyChip | null;
+  phy: phychip3dTypes.PhyChip | null;
 }
 
 /**
@@ -193,21 +203,21 @@ export interface Board3D {
  * latches close, the CPU socket's pins hide under the package). `feat`: the rear I/O's ports (the tier's by default).
  */
 export function boardModel(
-  art: ArtSet,
+  art: artset3dTypes.ArtSet,
   T: Theme,
   tier = GEO.tier,
-  o: { filled?: ReadonlySet<string>; feat?: IoFeatures } = {},
+  o: { filled?: ReadonlySet<string>; feat?: boardhw3dTypes.IoFeatures } = {},
 ): Board3D {
   const g = new Group(),
     small = new Group(),
     sk = skinOf(tier),
     solids: Solid[] = [],
-    sockets = new Map<string, Object3D>(),
-    lights: Spin[] = [];
+    sockets = new Map<string, threeTypes.Object3D>(),
+    lights: fans3dTypes.Spin[] = [];
   const filled = o.filled ?? new Set<string>();
   const slot = mat(hexNum(sk.slot), { roughness: 0.5 }),
-    socket = mat(0x1d1e22, { roughness: 0.5 }),
-    chip = mat(0x131518, { roughness: 0.5 });
+    socket = mat(0x1d_1e_22, { roughness: 0.5 }),
+    chip = mat(0x13_15_18, { roughness: 0.5 });
   // the drawing, and its far picture for the coarsest level (each lane a wider band: a thin trace would be lost); the drawers report the solids
   const draw = art.baker(() => buildBoard(T, tier, (x) => solids.push(x)).root),
     far = art.baker(() => buildBoard(T, tier, undefined, true).root);
@@ -220,20 +230,22 @@ export function boardModel(
         shapeOf(outline),
         BOARD_Z - 60,
         BOARD_Z,
-        mat(lerpHex(hexNum(sk.mask[0]), 0x000000, 0.35), { roughness: 0.6 }),
+        mat(lerpHex(hexNum(sk.mask[0]), 0x00_00_00, 0.35), { roughness: 0.6 }),
         4,
       ),
       'board',
     ),
   );
-  g.add(slab(shapeOf(outline), BOARD_Z - 64, BOARD_Z - 58, mat(0x131518, { roughness: 0.7 })));
+  g.add(slab(shapeOf(outline), BOARD_Z - 64, BOARD_Z - 58, mat(0x13_15_18, { roughness: 0.7 })));
   tag(art.surface(g, (f, px) => (px < LV_BOARD[1]! ? far : draw).bake(f, px), BD, BOARD_Z, LV_BOARD).root, 'board');
   // the rear I/O: the connectors and their cover, and the shield fitted over their mouths (the case's rear wall between)
   const feat = o.feat ?? BOARD_TIERS[tier]?.features ?? { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 },
     io = ioCover(feat),
     shield = ioShield(feat, tier);
   g.add(io.root, shield.root);
-  if (io.glow) lights.push(light(io.glow));
+  if (io.glow) {
+    lights.push(light(io.glow));
+  }
   // the CPU socket (its pins are solids), the memory sockets, the slots, the M.2 connectors with their standoffs
   sockets.set('cpu0', up(g, grow(PKG, SOCKET_E), BOARD_Z, BOARD_Z + 70, socket));
   GEO.dimm.forEach((d, i) => {
@@ -258,15 +270,19 @@ export function boardModel(
     tag(epsSocket(GEO.cpw), 'cpw'),
     tag(coinCell(GEO.bat), 'bat'),
   );
-  if (pch.glow) lights.push(light(pch.glow));
-  for (const r of GEO.sata) g.add(sataPort(r));
+  if (pch.glow) {
+    lights.push(light(pch.glow));
+  }
+  for (const r of GEO.sata) {
+    g.add(sataPort(r));
+  }
   // the regulators: each phase's choke and power stage, the CPU's and the memory's in their own groups (each is picked as one)
   const vrm = tag(new Group(), 'vrm'),
     vrm2 = tag(new Group(), 'vrm2'),
-    choke = mat(0x2a2d32, { metalness: 0.35, roughness: 0.45 });
-  const inside = (rs: readonly RectLike[], x: number, y: number) =>
+    choke = mat(0x2a_2d_32, { metalness: 0.35, roughness: 0.45 });
+  const inside = (rs: readonly geometryTypes.RectLike[], x: number, y: number) =>
     rs.some((r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
-  for (const p of solids)
+  for (const p of solids) {
     if (p.kind === 'choke' || p.kind === 'stage') {
       const ch = p.kind === 'choke',
         at = inside(GEO.vrmPhases, p.x, p.y) ? vrm : inside(GEO.dPhases, p.x, p.y) ? vrm2 : g;
@@ -279,13 +295,17 @@ export function boardModel(
         ch ? 14 : 6,
       );
     }
+  }
   g.add(vrm, vrm2, slotHardware(filled.has('cpu0')));
   // the small parts: the controllers, the crystals (metal cans), the header bodies and the solids
-  const can = mat(0xb9babf, { metalness: 0.8, roughness: 0.3 });
-  for (const r of [GEO.pwm, GEO.dpwm, GEO.bios, GEO.sio, GEO.codec, GEO.hub])
-    if (r) up(small, r, BOARD_Z, BOARD_Z + CHIP_H, chip, 8);
+  const can = mat(0xb9_ba_bf, { metalness: 0.8, roughness: 0.3 });
+  for (const r of [GEO.pwm, GEO.dpwm, GEO.bios, GEO.sio, GEO.codec, GEO.hub]) {
+    if (r) {
+      up(small, r, BOARD_Z, BOARD_Z + CHIP_H, chip, 8);
+    }
+  }
   // the Ethernet chip: the package, and under its mould the die with the floorplan (the live layer runs on it: `Chips3D`)
-  let phy: PhyChip | null = null;
+  let phy: phychip3dTypes.PhyChip | null = null;
   if (GEO.phy) {
     const look = boardLook(feat.ethernetMbps),
       geo = nicGeo(look, BOARD_BAND),
@@ -296,14 +316,22 @@ export function boardModel(
     }));
     small.add(phy.root);
   }
-  for (const r of [GEO.xtalCpu, GEO.xtalPch]) up(small, r, BOARD_Z, BOARD_Z + 60, can, 12);
-  for (const h of GEO.hdrs) up(small, headerRect(h), BOARD_Z, BOARD_Z + 140, slot);
+  for (const r of [GEO.xtalCpu, GEO.xtalPch]) {
+    up(small, r, BOARD_Z, BOARD_Z + 60, can, 12);
+  }
+  for (const h of GEO.hdrs) {
+    up(small, headerRect(h), BOARD_Z, BOARD_Z + 140, slot);
+  }
   small.add(buildSolids(solids, !filled.has('cpu0'), sk.capSleeve));
   g.add(small);
   // the lights: power good beside the CPU's controller, and the top board's debug code and RGB strip
   g.add(drum(GEO.vrmLed.x, GEO.vrmLed.y, BOARD_Z, BOARD_Z + 22, 14, lamp(lights, hexNum(T.st)), SEG.part));
-  if (GEO.dbg) g.add(debugDisplay(GEO.dbg, T, lights));
-  if (GEO.rgb) g.add(rgbStrip(GEO.rgb, T, lights));
+  if (GEO.dbg) {
+    g.add(debugDisplay(GEO.dbg, T, lights));
+  }
+  if (GEO.rgb) {
+    g.add(rgbStrip(GEO.rgb, T, lights));
+  }
   return {
     root: g,
     sockets,
