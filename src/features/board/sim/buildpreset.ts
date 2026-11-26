@@ -96,68 +96,59 @@ export async function fullGame(): Promise<Game> {
   return new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
 }
 
-/**
- * A ready-made machine: `level` 0..1 picks how high a tier of each part; `ram`, `storage`, `gpus` and `npus` how many of each to fit. Parts that fit
- * nowhere are skipped. Its cables are plugged. A ready-made machine is a sound one (a shop sells no other): the processor is the highest the level picks
- * that the board's regulator can feed, a liquid loop has its radiator, and the supply is the one the level picks or, when that is too small, the smallest
- * that carries the whole with a fifth to spare and has the leads its cards need (`buildalerts.test.ts` holds every start to it: nothing to warn about).
- */
-export async function presetGame(p: buildspecsTypes.BuildPreset): Promise<Game> {
-  const g = await fresh();
+function presetLadder(kind: specsTypes.DeviceKind): specsTypes.DeviceSpec[] {
   // (a RAID module holds data only: no OS boots from it, so the benchmark's jobs could not run)
-  const ladder = (kind: specsTypes.DeviceKind) =>
-    [...specsOfKind(kind as never)]
-      .filter((s) => !(s as { mirror?: boolean }).mirror)
-      .sort((a, b) => a.tier - b.tier || a.price - b.price) as specsTypes.DeviceSpec[];
+  return specsOfKind(kind)
+    .filter((s) => s.kind !== 'storage' || s.mirror !== true)
+    .toSorted((a, b) => a.tier - b.tier || a.price - b.price);
+}
+
+function presetLevelAt(p: buildspecsTypes.BuildPreset, kind: specsTypes.DeviceKind, n: number): number {
   // (a drive rounds up: the slowest drives make every job wait on the disk)
-  const levelAt = (kind: specsTypes.DeviceKind, n: number): number => {
-    const at = p.level * (n - 1);
-    return Math.min(n - 1, kind === 'storage' ? Math.ceil(at) : Math.round(at));
-  };
-  const pick = (kind: specsTypes.DeviceKind): string | null => {
-    const all = ladder(kind);
-    return all.length > 0 ? all[levelAt(kind, all.length)]!.id : null;
-  };
-  const shell = (list: readonly { tier: number }[]) => Math.round(p.level * (list.length - 1));
-  put(g, `case${shell(CASE_TIERS)}`);
-  put(g, `board${shell(BOARD_TIERS)}`);
-  const fill = (kind: specsTypes.DeviceKind, n: number): void => {
-    const id = pick(kind),
-      spec = id ? getSpec(id) : undefined;
-    for (let i = 0; spec && i < n; i++) {
-      const [free] = freeSlots(g.board, spec.slot, spec);
-      if (!free || !put(g, id, free.id)) {
-        break;
-      }
+  const at = p.level * (n - 1);
+  return Math.min(n - 1, kind === 'storage' ? Math.ceil(at) : Math.round(at));
+}
+
+function presetPick(p: buildspecsTypes.BuildPreset, kind: specsTypes.DeviceKind): string | null {
+  const all = presetLadder(kind);
+  return all.length > 0 ? all[presetLevelAt(p, kind, all.length)]!.id : null;
+}
+
+function fillKind(input: { g: Game; p: buildspecsTypes.BuildPreset; kind: specsTypes.DeviceKind; n: number }): void {
+  const id = presetPick(input.p, input.kind),
+    spec = id ? getSpec(id) : undefined;
+  for (let i = 0; spec && i < input.n; i++) {
+    const [free] = freeSlots(input.g.board, spec.slot, spec);
+    if (!free || !put(input.g, id, free.id)) {
+      break;
     }
-  };
+  }
+}
+
+function cpuOptions(g: Game, p: buildspecsTypes.BuildPreset): specsTypes.DeviceSpec[] {
   // the processors the level allows, the best first: the level's pick and each one below it that the board's regulator can feed (one it overloads crashes the machine, or burns the board)
-  const boardTier = g.board.tier,
-    cpus = ladder('cpu')
-      .slice(0, levelAt('cpu', ladder('cpu').length) + 1)
-      .reverse();
-  const options = cpus.filter((s) => vrmRatioOf(boardTier, s as specsTypes.CpuSpec) <= VRM_OVERLOAD);
+  const cpus = presetLadder('cpu')
+    .slice(0, presetLevelAt(p, 'cpu', presetLadder('cpu').length) + 1)
+    .reverse();
+  const options = cpus.filter((s) => vrmRatioOf(g.board.tier, s as specsTypes.CpuSpec) <= VRM_OVERLOAD);
   if (options.length === 0 && cpus.length > 0) {
     options.push(cpus.at(-1)!);
   }
-  const cpuSlot = freeSlots(g.board, 'cpu')[0]?.id;
-  if (options[0] && cpuSlot) {
-    put(g, options[0].id, cpuSlot);
-  }
-  fill('cooler', 1);
+  return options;
+}
+
+function fitRadiator(g: Game, p: buildspecsTypes.BuildPreset): void {
   // (a loop's pump alone gives it little cooling: its radiator goes in with it, on the top, where it blows the heat out of the case)
-  if (g.board.devices.some((d) => (deviceSpec(d) as { loop?: unknown }).loop)) {
-    const rad = pick('radiator'),
-      spec = rad ? getSpec(rad) : undefined,
-      spots = spec ? freeSlots(g.board, spec.slot, spec) : [];
-    put(g, rad, (spots.find((s) => s.id === 'rad-top') ?? spots[0])?.id);
+  if (!g.board.devices.some((d) => (deviceSpec(d) as { loop?: unknown }).loop)) {
+    return;
   }
-  fill('ram', p.ram);
-  fill('storage', p.storage);
-  fill('gpu', p.gpus);
-  fill('npu', p.npus);
-  fill('nic', 1);
-  fill('display', 1);
+  const rad = presetPick(p, 'radiator'),
+    spec = rad ? getSpec(rad) : undefined,
+    spots = spec ? freeSlots(g.board, spec.slot, spec) : [];
+  put(g, rad, (spots.find((s) => s.id === 'rad-top') ?? spots[0])?.id);
+}
+
+function fitFans(g: Game, p: buildspecsTypes.BuildPreset): void {
   // fans come in sizes (a heatsink takes 40 mm, a case mount its own): from the chosen tier down, each spec goes in every spot that takes it
   const fans = [...specsOfKind('fan')].sort((a, b) => a.tier - b.tier || a.price - b.price);
   for (const f of fans.slice(0, 1 + Math.round(p.level * (fans.length - 1))).reverse()) {
@@ -168,25 +159,25 @@ export async function presetGame(p: buildspecsTypes.BuildPreset): Promise<Game> 
       }
     }
   }
+}
+
+function fitSupply(g: Game, p: buildspecsTypes.BuildPreset): void {
   // the supply: the level's pick, or when that is too small the smallest that carries the machine with a fifth to spare and has the leads its cards need
-  const supply = (): void => {
-    const old = g.board.devices.find((d) => deviceSpec(d).kind === 'psu');
-    if (old) {
-      g.uninstall(old.id); // (the sockets of a bigger supply are not the sockets of a small one)
-    }
-    const all = specsOfKind('psu'),
-      need = fullDrawW(g.board) * 1.2,
-      leads = pcieLeadsNeeded(g.board),
-      asked = all.find((s) => s.id === pick('psu'));
-    const fitting = all.filter((s) => freeSlots(g.board, s.slot, s).length > 0),
-      strong = fitting.filter((s) => s.pcieLeads >= leads);
-    const psu = strong.find((s) => s.watts >= Math.max(need, asked?.watts ?? 0)) ?? strong.at(-1) ?? fitting.at(-1);
-    put(g, psu?.id ?? old?.spec ?? null, psu ? freeSlots(g.board, psu.slot, psu)[0]?.id : old?.slot);
-  };
-  supply();
-  const t = (n: number) => Math.min(n, 1 + Math.round(p.level * (n - 1)));
-  addSoftware(g, { os: t(3), router: t(4), isp: t(5) });
-  plugCables(g);
+  const old = g.board.devices.find((d) => deviceSpec(d).kind === 'psu');
+  if (old) {
+    g.uninstall(old.id); // (the sockets of a bigger supply are not the sockets of a small one)
+  }
+  const all = specsOfKind('psu'),
+    need = fullDrawW(g.board) * 1.2,
+    leads = pcieLeadsNeeded(g.board),
+    asked = all.find((s) => s.id === presetPick(p, 'psu'));
+  const fitting = all.filter((s) => freeSlots(g.board, s.slot, s).length > 0),
+    strong = fitting.filter((s) => s.pcieLeads >= leads);
+  const psu = strong.find((s) => s.watts >= Math.max(need, asked?.watts ?? 0)) ?? strong.at(-1) ?? fitting.at(-1);
+  put(g, psu?.id ?? old?.spec ?? null, psu ? freeSlots(g.board, psu.slot, psu)[0]?.id : old?.slot);
+}
+
+function coolTheCpu(g: Game, p: buildspecsTypes.BuildPreset, options: readonly specsTypes.DeviceSpec[]): void {
   // a ready-made machine does not run hot: while the processor (or the board's regulator) throttles at full load, the next processor down goes in, and the supply follows it
   for (
     let k = 1;
@@ -197,9 +188,41 @@ export async function presetGame(p: buildspecsTypes.BuildPreset): Promise<Game> 
     k++
   ) {
     put(g, options[k]!.id, g.board.devices.find((d) => deviceSpec(d).kind === 'cpu')?.slot);
-    supply();
+    fitSupply(g, p);
     plugCables(g);
   }
+}
+
+/**
+ * A ready-made machine: `level` 0..1 picks how high a tier of each part; `ram`, `storage`, `gpus` and `npus` how many of each to fit. Parts that fit
+ * nowhere are skipped. Its cables are plugged. A ready-made machine is a sound one (a shop sells no other): the processor is the highest the level picks
+ * that the board's regulator can feed, a liquid loop has its radiator, and the supply is the one the level picks or, when that is too small, the smallest
+ * that carries the whole with a fifth to spare and has the leads its cards need (`buildalerts.test.ts` holds every start to it: nothing to warn about).
+ */
+export async function presetGame(p: buildspecsTypes.BuildPreset): Promise<Game> {
+  const g = await fresh();
+  const shell = (list: readonly { tier: number }[]) => Math.round(p.level * (list.length - 1));
+  put(g, `case${shell(CASE_TIERS)}`);
+  put(g, `board${shell(BOARD_TIERS)}`);
+  const options = cpuOptions(g, p);
+  const cpuSlot = freeSlots(g.board, 'cpu')[0]?.id;
+  if (options[0] && cpuSlot) {
+    put(g, options[0].id, cpuSlot);
+  }
+  fillKind({ g, p, kind: 'cooler', n: 1 });
+  fitRadiator(g, p);
+  fillKind({ g, p, kind: 'ram', n: p.ram });
+  fillKind({ g, p, kind: 'storage', n: p.storage });
+  fillKind({ g, p, kind: 'gpu', n: p.gpus });
+  fillKind({ g, p, kind: 'npu', n: p.npus });
+  fillKind({ g, p, kind: 'nic', n: 1 });
+  fillKind({ g, p, kind: 'display', n: 1 });
+  fitFans(g, p);
+  fitSupply(g, p);
+  const tierOf = (n: number) => Math.min(n, 1 + Math.round(p.level * (n - 1)));
+  addSoftware(g, { os: tierOf(3), router: tierOf(4), isp: tierOf(5) });
+  plugCables(g);
+  coolTheCpu(g, p, options);
   return g;
 }
 

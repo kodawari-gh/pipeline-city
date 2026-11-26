@@ -198,6 +198,24 @@ function supplyDraw(
 /** The harmonic mean: 0 unless both are there. */
 const through = (s: number, d: number) => (s > 0 && d > 0 ? (2 * s * d) / (s + d) : 0) + (STIR * (s + d)) / 2;
 
+/** Inputs to `zoneAir`. */
+export interface ZoneAirInput {
+  /** The case tier (`CASE_TIERS`). */
+  tier: number;
+  /** The ids of the case fans that turn (their own cable and the hub's); undefined means no layout is known. */
+  turning?: readonly string[] | undefined;
+  /** Fan-count used when no layout is known (a model run on its own with `FanPower.caseFans` only). */
+  caseFans: number;
+  /** What the working cards draw, W. */
+  cardW: number;
+  /** The case heat per watt. */
+  heatPerW: number;
+  /** The airflow of the fan on each turning mount (absent: a basic fan of the case's size). */
+  flowOf?: Readonly<Record<string, number>> | undefined;
+  /** The share of each front fan the main cage's drives block (`cageShade`); the case as designed has an empty cage. */
+  shade?: readonly number[] | undefined;
+}
+
 /**
  * The air of each area. `turning` is the ids of the case fans that turn (their own cable and the hub's); undefined means no layout is known (a model run
  * on its own with `FanPower.caseFans` only) and every area gets that count, as before zones. `cardW` is what the working cards draw, W; `heatPerW` the case heat per watt.
@@ -205,15 +223,8 @@ const through = (s: number, d: number) => (s > 0 && d > 0 ? (2 * s * d) / (s + d
  * `flow` is capped at 1 there, while `fans` keeps growing with high-airflow fans. `shade` is the share of each front fan the main cage's drives block (`cageShade`):
  * the case as designed has an empty cage.
  */
-export function zoneAir(
-  tier: number,
-  turning: readonly string[] | undefined,
-  caseFans: number,
-  cardW: number,
-  heatPerW: number,
-  flowOf?: Readonly<Record<string, number>>,
-  shade?: readonly number[],
-): Record<AirZoneId, ZoneAir> {
+export function zoneAir(input: ZoneAirInput): Record<AirZoneId, ZoneAir> {
+  const { tier, turning, caseFans, cardW, heatPerW, flowOf, shade } = input;
   const out = {} as Record<AirZoneId, ZoneAir>;
   if (!turning) {
     for (const z of AIR_ZONES) {

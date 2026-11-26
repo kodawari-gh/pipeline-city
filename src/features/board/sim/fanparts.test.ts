@@ -205,7 +205,7 @@ function tower(fans: string[]): simTypes.Board {
 const settle = (b: simTypes.Board, fans: thermalTypes.FanPower) => {
   const th = new ThermalModel(new Prng(1));
   for (let k = 0; k < 800; k++) {
-    th.step(b, { cpu: 1 }, true, fans);
+    th.step(b, { loads: { cpu: 1 }, powered: true, fans });
   }
   return stateOf(th, b, 'cpu').tempC;
 };

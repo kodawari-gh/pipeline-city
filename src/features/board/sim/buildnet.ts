@@ -16,7 +16,16 @@ export const NET_LABEL: Record<NetKind, string> = { os: 'Operating system', rout
 
 /** Which choice a catalogue id is (`os2`, `router3`, `isp1`), or null for any other id (a part, a case, a board). */
 export function netKindOf(id: string): NetKind | null {
-  return getRouterSpec(id) ? 'router' : getIspSpec(id) ? 'isp' : getOsSpec(id) ? 'os' : null;
+  if (getRouterSpec(id)) {
+    return 'router';
+  }
+  if (getIspSpec(id)) {
+    return 'isp';
+  }
+  if (getOsSpec(id)) {
+    return 'os';
+  }
+  return null;
 }
 
 /** The name of a network item, or the id when there is no such item. */

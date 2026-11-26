@@ -46,7 +46,7 @@ function rig(parts: string[], looseFit: boolean): Game {
 
 const step = (g: Game, loads: Record<string, number>): ThermalModel => {
   const th = new ThermalModel(new Prng(1));
-  th.step(g.board, loads, true, { ...FANS_ON, caseFans: 0 });
+  th.step(g.board, { loads, powered: true, fans: { ...FANS_ON, caseFans: 0 } });
   return th;
 };
 

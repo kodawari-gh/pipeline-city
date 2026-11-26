@@ -1,5 +1,6 @@
 // What Build my PC's stage offers and asks outside the stage itself: the bin, a part's motion, a shell the game would refuse, a kept snapshot.
-import { fanHost, fittedRadiator, upgradeBoard, upgradeCase } from '@/features/board/sim/board';
+import { fanHost, fittedRadiator, upgradeCase } from '@/features/board/sim/board';
+import { upgradeBoard } from '@/features/board/sim/boardEdit';
 import { isPump } from '@/features/board/sim/removal';
 import { BOARD_TIERS, CASE_TIERS, specsOfKind } from '@/features/board/sim/specs';
 import { ISP_SPECS, ROUTER_SPECS } from '@/features/network/sim';

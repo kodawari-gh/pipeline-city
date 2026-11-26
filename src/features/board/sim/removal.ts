@@ -9,8 +9,11 @@ import { boardSlots, deviceSpec, fanHost, fansOn, fittedRadiator, mountFan } fro
 import type * as B from './board';
 import { cablesOf, cardLeadIds } from './cables';
 import type * as cablesTypes from './cables';
+import { COVERS, overCooler, overM2, slotNo } from './removalCover';
 import { getSpec } from './specs';
 import type * as specsTypes from './specs';
+
+export { COVERS, overM2 } from './removalCover';
 
 export const SIDE = 'side';
 /** The liquid loop's hoses: there only with a loop's pump and a radiator both fitted; they come off before either comes out, and go on last. */
@@ -24,38 +27,6 @@ export const isDevNode = (n: string): boolean => n.startsWith('dev:');
 
 /** Cables that run outside the case (a part inside never blocks them and the side panel does not hide them). */
 const OUTSIDE = new Set(['video', 'lan', 'pcmains', 'monmains']);
-
-/**
- * How many PCIe slots further down the row a card in a slot covers: a GPU's or an NPU's cooler stands less than a finger's width from the next
- * slot's card, so that card's latch cannot be reached; a NIC's small sink leaves room. Checked against the 3D cards in render/three/fit.test.ts.
- */
-export const COVERS: Readonly<Partial<Record<specsTypes.DeviceKind, number>>> = { gpu: 1, npu: 1 };
-
-/**
- * The M.2 sockets a card's cooler stands over, by spec id and the PCIe slot it stands in: its stick cannot come out under it. Checked against the
- * 3D cards on every board in render/three/fit.test.ts (a socket a board lacks is never covered).
- */
-const OVER_M2: Readonly<Record<string, Readonly<Record<string, readonly string[]>>>> = {
-  gpu1: { pcie0: ['m20'], pcie1: ['m21'], pcie2: ['m22'] },
-  gpu2: { pcie0: ['m20'], pcie1: ['m21', 'm22'] },
-  gpu3: { pcie0: ['m20'] },
-  npu1: { pcie0: ['m20'], pcie1: ['m21'], pcie2: ['m22'] },
-  npu2: { pcie0: ['m20'], pcie1: ['m21'], pcie2: ['m22'] },
-};
-/**
- * The CPU coolers a card's cooler stands over, by spec id and the PCIe slot it stands in: the cooler cannot lift away under it (the card comes out
- * first). Found with `npm run clip:check` on the biggest machine; a smaller card or cooler leaves room.
- */
-const OVER_COOLER: Readonly<Record<string, Readonly<Record<string, readonly string[]>>>> = {
-  gpu3: { pcie0: ['cooler2'] },
-};
-/** Whether a card (spec `spec` in PCIe slot `pcie`) stands over a CPU cooler of spec `cooler`. */
-const overCooler = (spec: string, pcie: string, cooler: string): boolean =>
-  OVER_COOLER[spec]?.[pcie]?.includes(cooler) === true;
-/** Whether a card (spec `spec` in PCIe slot `pcie`) stands over M.2 socket `m2`. */
-export const overM2 = (spec: string, pcie: string, m2: string): boolean => OVER_M2[spec]?.[pcie]?.includes(m2) === true;
-
-const slotNo = (slot: string): number => Number(slot.replace(/^(?:m2|\D+)/u, ''));
 
 export type Graph = ReadonlyMap<string, readonly string[]>;
 
@@ -104,6 +75,20 @@ const KIND_CABLES: Readonly<Partial<Record<specsTypes.DeviceKind, readonly strin
   nic: ['lan'],
 };
 
+const FAN_HEADER: Readonly<Partial<Record<specsTypes.DeviceKind, string>>> = {
+  cooler: 'cpufan',
+  'vrm-sink': 'vrmfan',
+  'ram-sink': 'ramfan',
+};
+
+/** The header a fan on `slot` uses: its own case-mount cable, or the heatsink's shared header. */
+function fanHeaderOf(host: string | null, hostKind: specsTypes.DeviceKind | null, slot: string): string {
+  if (host === null) {
+    return `fan:${slot}`;
+  }
+  return (hostKind && FAN_HEADER[hostKind]) ?? '';
+}
+
 /** The cables that feed or leave `dev` and are plugged now. */
 function cablesOn(board: B.Board, cables: cablesTypes.Cables, dev: B.InstalledDevice): string[] {
   const spec = deviceSpec(dev),
@@ -118,17 +103,7 @@ function cablesOn(board: B.Board, cables: cablesTypes.Cables, dev: B.InstalledDe
     const host = fanHost(dev.slot),
       hostDev = host === null ? undefined : board.devices.find((o) => o.slot === host);
     const hostKind = hostDev ? deviceSpec(hostDev).kind : null;
-    ids.push(
-      host === null
-        ? `fan:${dev.slot}`
-        : hostKind === 'cooler'
-          ? 'cpufan'
-          : hostKind === 'vrm-sink'
-            ? 'vrmfan'
-            : hostKind === 'ram-sink'
-              ? 'ramfan'
-              : '',
-    );
+    ids.push(fanHeaderOf(host, hostKind, dev.slot));
   }
   return ids.filter(plugged);
 }
@@ -263,8 +238,16 @@ export function nodeKind(board: B.Board, node: string): NodeKind {
   return d ? deviceSpec(d).kind : 'cable';
 }
 
+export interface AccessBlockersInput {
+  board: B.Board;
+  slotId: string;
+  kind: specsTypes.DeviceKind;
+  specId?: string;
+}
+
 /** The slots a new part of this device kind can reach only with these devices out: used by the build mode to take a cooler off before a CPU goes in. */
-export function accessBlockers(board: B.Board, slotId: string, kind: specsTypes.DeviceKind, specId?: string): string[] {
+export function accessBlockers(input: AccessBlockersInput): string[] {
+  const { board, slotId, kind, specId } = input;
   const slot = boardSlots(board).find((s) => s.id === slotId);
   if (!slot) {
     return [];

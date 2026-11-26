@@ -123,16 +123,30 @@ export class Pch implements Device {
     }
   }
 
+  private statusBits(): number {
+    let bits = 0;
+    if (this.key) {
+      bits |= 1;
+    }
+    if (this.key?.done) {
+      bits |= 2;
+    }
+    if (this.removed) {
+      bits |= 4;
+    }
+    if (this.osMode && this.key && this.ready) {
+      bits |= 8;
+    }
+    if (this.flashing) {
+      bits |= 16;
+    }
+    return bits;
+  }
+
   private reg(off: number): number {
     switch (off) {
       case PCH_REG.STATUS: {
-        return (
-          (this.key ? 1 : 0) |
-          (this.key?.done ? 2 : 0) |
-          (this.removed ? 4 : 0) |
-          (this.osMode && this.key && this.ready ? 8 : 0) |
-          (this.flashing ? 16 : 0)
-        );
+        return this.statusBits();
       }
       case PCH_REG.BOOT_DEV: {
         return this.bootDev;
