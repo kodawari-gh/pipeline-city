@@ -43,7 +43,9 @@ export function anchorOf(id: string): Anchor | null {
  * `onDone` contract are in docs/render/interact.md ("Flights"). A press, wheel, pinch or another flight cancels it.
  */
 export function flyTo(id: string, opts: FlyOpts = {}): boolean {
-  if (world3d) return world3d.flyTo(id, opts);
+  if (world3d) {
+    return world3d.flyTo(id, opts);
+  }
   opts.onDone?.(false);
   return false;
 }

@@ -22,14 +22,18 @@ export function pkgPads(pkg: Rect, side: Side, at: number, n: number, step = 1, 
   return Array.from({ length: n }, (_, i) => {
     const c = base + PKG_PIN * (first + i * step);
     switch (side) {
-      case 'e':
+      case 'e': {
         return [pkg.x + pkg.w - inset, c] as Pt;
-      case 'w':
+      }
+      case 'w': {
         return [pkg.x + inset, c] as Pt;
-      case 'n':
+      }
+      case 'n': {
         return [c, pkg.y + inset] as Pt;
-      default:
+      }
+      default: {
         return [c, pkg.y + pkg.h - inset] as Pt;
+      }
     }
   });
 }
@@ -44,14 +48,18 @@ const legCount = (len: number, pitch = LEG_PITCH) => Math.max(1, Math.floor((len
 export function legAt(r: Rect, side: Side, i: number, n: number, pitch = LEG_PITCH): Pt {
   const t = (i - (n - 1) / 2) * pitch;
   switch (side) {
-    case 'n':
+    case 'n': {
       return [r.x + r.w / 2 + t, r.y - LEG_OUT];
-    case 's':
+    }
+    case 's': {
       return [r.x + r.w / 2 + t, r.y + r.h + LEG_OUT];
-    case 'w':
+    }
+    case 'w': {
       return [r.x - LEG_OUT, r.y + r.h / 2 + t];
-    default:
+    }
+    default: {
       return [r.x + r.w + LEG_OUT, r.y + r.h / 2 + t];
+    }
   }
 }
 /** Every leg of a side. */

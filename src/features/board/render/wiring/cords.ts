@@ -1,5 +1,5 @@
-import { MONITOR_POWER, PC_CORD_X, PC_POWER, type Rect } from '../layout/layout';
-import { drape, hangCable, type Clip } from '@/core/render/cable';
+import * as layout from '../layout/layout';
+import * as cable from '@/core/render/cable';
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import { deskGeo } from '@/features/room/render/shell/persp';
 
@@ -21,7 +21,7 @@ export const CORD_END = 310;
 export const SEAT_R = 300;
 
 /** The plug's grab rect (its body and its boot) with its centre at `p`. */
-export const plugRect = (p: Pt): Rect => ({
+export const plugRect = (p: Pt): layout.Rect => ({
   x: p[0] - PLUG_W / 2,
   y: p[1] - BOOT_UP,
   w: PLUG_W,
@@ -45,13 +45,13 @@ export function cordPlan(geo: RoomGeo): Record<CordKind, CordPlan> {
   const s = geo.socket,
     p = s.plate,
     jog = p.y - 330;
-  const pcStart: Pt = [PC_POWER.x - 6 - 330 + 10, PC_POWER.y],
+  const pcStart: Pt = [layout.PC_POWER.x - 6 - 330 + 10, layout.PC_POWER.y],
     frontY = Math.max(p.y - 1300, deskGeo(geo.persp, geo.ys, geo.floor).yBottom);
-  const mon = MONITOR_POWER;
+  const mon = layout.MONITOR_POWER;
   return {
     pcmains: {
       kind: 'pcmains',
-      route: [pcStart, [PC_CORD_X, PC_POWER.y]],
+      route: [pcStart, [layout.PC_CORD_X, layout.PC_POWER.y]],
       outlet: [s.pc.x, s.pc.y],
       rest: [s.pc.x + 380, p.y + p.h + 1050],
       frontY,
@@ -77,7 +77,7 @@ export function cordRoute(plan: CordPlan, at: Pt): Pt[] {
 
 /** How long the loose part of a cord is: from where its run ends to its plug at rest, with slack (it hangs between them, and a plug that falls swings on it). */
 export const cordSlack = (plan: CordPlan) => {
-  const a = plan.route[plan.route.length - 1]!,
+  const a = plan.route.at(-1)!,
     b: Pt = [plan.rest[0], plan.rest[1] - CORD_END];
   return Math.hypot(b[0] - a[0], b[1] - a[1]) * 1.15 + 260;
 };
@@ -99,12 +99,12 @@ const runClips = (route: Pt[], min = 1500): Pt[] =>
   });
 
 /** The cord as `cordPath` draws it, and the wall clips that hold it: every corner is a round bend, a long run is clipped and sags a little between clips. */
-function cordDrape(plan: CordPlan, at: Pt, seated: boolean): { path: Pt[]; clips: Clip[] } {
+function cordDrape(plan: CordPlan, at: Pt, seated: boolean): { path: Pt[]; clips: cable.Clip[] } {
   if (seated) {
     const r = cordRoute(plan, at);
-    return drape(r, { radius: 450, sag: 0.04, clips: runClips(r) });
+    return cable.drape(r, { radius: 450, sag: 0.04, clips: runClips(r) });
   }
-  const head = drape(plan.route, { radius: 450, sag: 0.04, clips: runClips(plan.route) }),
+  const head = cable.drape(plan.route, { radius: 450, sag: 0.04, clips: runClips(plan.route) }),
     n = head.path.length,
     a = head.path[n - 1]!,
     b = head.path[n - 2] ?? a,
@@ -113,9 +113,9 @@ function cordDrape(plan: CordPlan, at: Pt, seated: boolean): { path: Pt[]; clips
   return {
     path: [
       ...head.path,
-      ...hangCable(a, [(a[0] - b[0]) / l, (a[1] - b[1]) / l], boot, { len: cordSlack(plan), stub: 160, n: 36 }).slice(
-        1,
-      ),
+      ...cable
+        .hangCable(a, [(a[0] - b[0]) / l, (a[1] - b[1]) / l], boot, { len: cordSlack(plan), stub: 160, n: 36 })
+        .slice(1),
     ],
     clips: head.clips,
   };

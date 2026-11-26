@@ -39,21 +39,27 @@ export const tripMs = (lanes: readonly Lane[]): number =>
 export function slice(lane: Lane, a: number, b: number): Pt[] {
   a = Math.max(0, a);
   b = Math.min(lane.len, b);
-  if (b - a < 0.5) return [];
+  if (b - a < 0.5) {
+    return [];
+  }
   const out: Pt[] = [];
   let s = 0;
   for (let i = 0; i < lane.seg.length; i++) {
     const s0 = s,
       d = lane.seg[i]!;
     s += d;
-    if (s <= a || s0 >= b) continue;
+    if (s <= a || s0 >= b) {
+      continue;
+    }
     const p = lane.pts[i]!,
       q = lane.pts[i + 1]!;
     const at = (x: number): Pt => {
       const f = d ? (x - s0) / d : 0;
       return [p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f];
     };
-    if (!out.length) out.push(at(Math.max(a, s0)));
+    if (out.length === 0) {
+      out.push(at(Math.max(a, s0)));
+    }
     out.push(at(Math.min(b, s))); // (the end of this stretch is the start of the next)
   }
   return out;
@@ -64,12 +70,20 @@ function surfaced(lane: Lane, a: number, b: number): [number, number][] {
   const out: [number, number][] = [];
   let at = a;
   for (const [h0, h1] of lane.hops ?? []) {
-    if (h1 <= at) continue;
-    if (h0 >= b) break;
-    if (h0 > at) out.push([at, h0]);
+    if (h1 <= at) {
+      continue;
+    }
+    if (h0 >= b) {
+      break;
+    }
+    if (h0 > at) {
+      out.push([at, h0]);
+    }
     at = h1;
   }
-  if (at < b) out.push([at, b]);
+  if (at < b) {
+    out.push([at, b]);
+  }
   return out;
 }
 
@@ -95,7 +109,9 @@ export class BusFlow {
       t0: now + delay,
       dur,
     });
-    if (this.runs.length > MAX_RUNS) this.runs.shift();
+    if (this.runs.length > MAX_RUNS) {
+      this.runs.shift();
+    }
     return dur;
   }
 
@@ -110,14 +126,18 @@ export class BusFlow {
 
   /** Draw the packets at game time `now`; `show` false (the interior is hidden) only lets them age. */
   frame(now: number, zoom: number, show: boolean): void {
-    const g = this.g;
+    const { g } = this;
     g.clear();
     this.runs = this.runs.filter((r) => now < r.t0 + r.dur + FADE_MS);
-    if (!show) return;
+    if (!show) {
+      return;
+    }
     const minW = 2.2 / Math.max(zoom, 0.05);
     for (const r of this.runs) {
       const age = now - r.t0;
-      if (age < 0) continue;
+      if (age < 0) {
+        continue;
+      }
       const u = Math.min(1, age / r.dur),
         fade = age > r.dur ? 1 - (age - r.dur) / FADE_MS : 1;
       const w = Math.max(r.w, minW);
@@ -128,9 +148,13 @@ export class BusFlow {
           // travelled distance `from..to` counts from the lane's start when dir is 1, from its end when dir is -1
           for (const [a, b] of r.dir > 0 ? surfaced(lane, from, to) : surfaced(lane, lane.len - to, lane.len - from)) {
             const pts = slice(lane, a, b);
-            if (pts.length < 2) continue;
+            if (pts.length < 2) {
+              continue;
+            }
             g.moveTo(pts[0]![0], pts[0]![1]);
-            for (let i = 1; i < pts.length; i++) g.lineTo(pts[i]![0], pts[i]![1]);
+            for (let i = 1; i < pts.length; i++) {
+              g.lineTo(pts[i]![0], pts[i]![1]);
+            }
             g.stroke({ width: w, color, alpha: alpha * fade });
           }
         };

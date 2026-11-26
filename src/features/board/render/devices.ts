@@ -1,26 +1,11 @@
 import { Container, Graphics } from 'pixi.js';
 import type { CpuSpec, PsuSpec, RamSpec } from '../sim/specs';
-import {
-  CPU_S,
-  DIE,
-  DIMM_H,
-  DIMM_W,
-  MONITOR,
-  MONITOR_K,
-  PKG,
-  PSU_FAN,
-  PSU_UNIT,
-  SCREEN_D,
-  VRM_SINK,
-  RAM_FAN,
-  VRM_FAN,
-  type Rect,
-} from './layout/layout';
+import * as layout from './layout/layout';
 import { SINK_FAN, SINK_FAN_RIM } from './layout/boardlayout';
 import { brandLockup } from '../../room/render/shell/casedecor';
 import { box, disc, label, mix } from '@/core/render/ink';
 import { dieFar, planOf } from '../../cpu/render/die/dieart';
-import { isPcieKind, type Cable, type Plug } from './wiring/routes';
+import * as routes from './wiring/routes';
 import type { Theme } from '@/core/render/theme';
 
 // Static art for installed devices. Everything is drawn in world coordinates unless noted.
@@ -39,10 +24,10 @@ export interface Part {
   /** Static art that must stay above `fan` (e.g. the PSU grill). */
   over?: Container;
   /** Sub-rects (world coords) that can flash, e.g. DRAM chips. */
-  chips?: Rect[];
+  chips?: layout.Rect[];
   /** A heat sink's fin rails and heat pipe as drawn (world coords), for the 3D view to stand up. */
-  fins?: Rect[];
-  pipe?: Rect;
+  fins?: layout.Rect[];
+  pipe?: layout.Rect;
 }
 
 /** Draw `n` fan blades around the origin of `g` (blade length r1, root radius r0). */
@@ -79,15 +64,21 @@ export function blades(g: Graphics, n: number, r0: number, r1: number, fill: str
 
 // ---------------------------------------------------------------- CPU
 /** The package's decoupling capacitors, in a ring between the pad rows and the die (the 3D stands them up where the art draws them). */
-export function cpuCaps(): Rect[] {
-  const k = PKG,
+export function cpuCaps(): layout.Rect[] {
+  const k = layout.PKG,
     cin = 84,
     cout = 98,
-    out: Rect[] = [];
-  for (let x = k.x + 110; x <= k.x + k.w - 110; x += 46)
-    for (const y of [k.y + cin, k.y + k.h - cout]) out.push({ x, y, w: 28, h: 14 });
-  for (let y = k.y + 110; y <= k.y + k.h - 110; y += 46)
-    for (const x of [k.x + cin, k.x + k.w - cout]) out.push({ x, y, w: 14, h: 28 });
+    out: layout.Rect[] = [];
+  for (let x = k.x + 110; x <= k.x + k.w - 110; x += 46) {
+    for (const y of [k.y + cin, k.y + k.h - cout]) {
+      out.push({ x, y, w: 28, h: 14 });
+    }
+  }
+  for (let y = k.y + 110; y <= k.y + k.h - 110; y += 46) {
+    for (const x of [k.x + cin, k.x + k.w - cout]) {
+      out.push({ x, y, w: 14, h: 28 });
+    }
+  }
   return out;
 }
 
@@ -96,8 +87,7 @@ export function cpuArt(T: Theme, spec: CpuSpec): Part {
     labels = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const k = PKG,
-    d = DIE;
+  const { PKG: k, DIE: d } = layout;
   const accent = spec.visual === 'cpu-inorder-fwd' ? T.st : spec.visual === 'cpu-inorder' ? T.alu : T.mute;
   box(g, k.x, k.y, k.w, k.h, 70, { fill: T.sub, stroke: mix(T.line, accent, 0.5), lw: 7 });
   // pins: three rows around the edge
@@ -116,9 +106,11 @@ export function cpuArt(T: Theme, spec: CpuSpec): Part {
   g.poly([k.x + 20, k.y + 20, k.x + 62, k.y + 20, k.x + 20, k.y + 62]).fill({ color: T.pin, alpha: 0.85 });
   // decoupling capacitors in a ring between the pad rows and the die, a pad at each end
   const caps = cpuCaps();
-  for (const c of caps) g.rect(c.x, c.y, c.w, c.h);
+  for (const c of caps) {
+    g.rect(c.x, c.y, c.w, c.h);
+  }
   g.fill({ color: T.line });
-  for (const c of caps)
+  for (const c of caps) {
     if (c.w > c.h) {
       g.rect(c.x, c.y, 5, c.h);
       g.rect(c.x + c.w - 5, c.y, 5, c.h);
@@ -126,13 +118,14 @@ export function cpuArt(T: Theme, spec: CpuSpec): Part {
       g.rect(c.x, c.y, c.w, 5);
       g.rect(c.x, c.y + c.h - 5, c.w, 5);
     }
+  }
   g.fill({ color: T.pin });
   // die
   box(g, d.x, d.y, d.w, d.h, 10, { fill: T.die, stroke: accent, lw: 3 });
   // the floorplan of this CPU's architecture (docs/DIE.md): blocks, stage frames and bond pads, in the die's own frame drawn at `CPU_S`; the
   // detail is the die view's (dieview.ts)
   const fp = new Graphics();
-  fp.scale.set(CPU_S);
+  fp.scale.set(layout.CPU_S);
   root.addChild(fp);
   dieFar(fp, T, planOf(spec));
   labels.addChild(label(spec.name, k.x + 110, k.y + k.h - 116, 24, T.mute, { a: 0.75, weight: '700' }));
@@ -172,10 +165,10 @@ export const ramNotch = (visual: string): number =>
 const RAM_CHIP_W = 116,
   RAM_CHIP_H = 230,
   RAM_CHIP_PITCH = 262;
-export const ramChips = (): Rect[] =>
+export const ramChips = (): layout.Rect[] =>
   Array.from({ length: 8 }, (_, j) => ({
     x: 34,
-    y: (j < 4 ? 80 : DIMM_H - 80 - 4 * RAM_CHIP_PITCH + 32) + (j % 4) * RAM_CHIP_PITCH,
+    y: (j < 4 ? 80 : layout.DIMM_H - 80 - 4 * RAM_CHIP_PITCH + 32) + (j % 4) * RAM_CHIP_PITCH,
     w: RAM_CHIP_W,
     h: RAM_CHIP_H,
   }));
@@ -194,20 +187,24 @@ export function ramArt(T: Theme, spec: RamSpec): Part {
   const accent = ramAccent(T, spec.visual),
     notch = ramNotch(spec.visual);
   const ddr5 = spec.visual === 'dimm-ddr5' || spec.visual === 'dimm-ddr5ecc';
-  box(g, 0, 0, DIMM_W, DIMM_H, 10, { fill: T.sub, stroke: T.line, lw: 6 });
-  box(g, 22, 40, 134, DIMM_H - 80, 6, { fill: T.die, stroke: accent, lw: 5, sa: 0.9 });
+  box(g, 0, 0, layout.DIMM_W, layout.DIMM_H, 10, { fill: T.sub, stroke: T.line, lw: 6 });
+  box(g, 22, 40, 134, layout.DIMM_H - 80, 6, { fill: T.die, stroke: accent, lw: 5, sa: 0.9 });
   const chips = ramChips();
-  for (const c of chips) box(g, c.x, c.y, c.w, c.h, 8, { fill: T.tile, stroke: T.line, lw: 5 });
+  for (const c of chips) {
+    box(g, c.x, c.y, c.w, c.h, 8, { fill: T.tile, stroke: T.line, lw: 5 });
+  }
   const gy = ramGapY();
   if (spec.ecc) {
     // the extra chip of an error-correcting stick: the parity bits, a chip of its own between the two groups
     box(g, 34, gy - 70, 116, 140, 6, { fill: T.tile, stroke: accent, lw: 4 });
-    for (let k = 0; k < 8; k++) g.rect(43 + k * 13, gy - 20, 8, 40).fill({ color: accent, alpha: 0.55 });
+    for (let k = 0; k < 8; k++) {
+      g.rect(43 + k * 13, gy - 20, 8, 40).fill({ color: accent, alpha: 0.55 });
+    }
   }
   if (spec.visual !== 'dimm-basic') {
     // heat spreader stripe on the faster sticks
-    g.rect(22, 40, 10, DIMM_H - 80).fill({ color: accent, alpha: 0.7 });
-    g.rect(146, 40, 10, DIMM_H - 80).fill({ color: accent, alpha: 0.7 });
+    g.rect(22, 40, 10, layout.DIMM_H - 80).fill({ color: accent, alpha: 0.7 });
+    g.rect(146, 40, 10, layout.DIMM_H - 80).fill({ color: accent, alpha: 0.7 });
   }
   if (ddr5) {
     // DDR5 carries its own power management chip on the stick
@@ -215,9 +212,13 @@ export function ramArt(T: Theme, spec: RamSpec): Part {
   }
   // the gold fingers down the west edge, the key notch where the generation puts it (a fraction of the way along, as on a real stick)
   const n = 96,
-    step = (DIMM_H - 140) / n,
+    step = (layout.DIMM_H - 140) / n,
     ny = Math.round((notch / 24) * n);
-  for (let k = 0; k < n; k++) if (k < ny - 1 || k > ny + 1) g.rect(2, 70 + k * step, 16, step * 0.62);
+  for (let k = 0; k < n; k++) {
+    if (k < ny - 1 || k > ny + 1) {
+      g.rect(2, 70 + k * step, 16, step * 0.62);
+    }
+  }
   g.fill({ color: T.pin });
   // the maker's label strip across the north end
   g.rect(40, 14, 100, 14).fill({ color: accent, alpha: 0.9 });
@@ -232,7 +233,7 @@ export function ramArt(T: Theme, spec: RamSpec): Part {
  * housing is the sink's; the fan is a part of its own: `fan` (its blades, spun) and `over` (the housing's grille and the fan's screws over
  * them), shown only when one is fitted.
  */
-export function vrmSinkArt(T: Theme, visual: string, rect: Rect = VRM_SINK, fanRect?: Rect): Part {
+export function vrmSinkArt(T: Theme, visual: string, rect: layout.Rect = layout.VRM_SINK, fanRect?: layout.Rect): Part {
   const root = new Container();
   const g = new Graphics();
   root.addChild(g);
@@ -249,17 +250,21 @@ export function vrmSinkArt(T: Theme, visual: string, rect: Rect = VRM_SINK, fanR
   const n = big ? 5 : 7,
     pitch = (r.h - 30) / n,
     rail = pitch * (big ? 0.62 : 0.5);
-  const fins: Rect[] = Array.from({ length: n }, (_, k) => ({
+  const fins: layout.Rect[] = Array.from({ length: n }, (_, k) => ({
     x: r.x + 16,
     y: r.y + 15 + k * pitch + (pitch - rail) / 2,
     w: r.w - 32,
     h: rail,
   }));
-  for (const f of fins) g.rect(f.x, f.y, f.w, f.h);
+  for (const f of fins) {
+    g.rect(f.x, f.y, f.w, f.h);
+  }
   g.fill({ color: metal });
-  for (const f of fins) g.rect(f.x, f.y, f.w, Math.max(3, rail * 0.3));
+  for (const f of fins) {
+    g.rect(f.x, f.y, f.w, Math.max(3, rail * 0.3));
+  }
   g.fill({ color: metalHi, alpha: 0.7 });
-  let pipe: Rect | undefined;
+  let pipe: layout.Rect | undefined;
   if (big) {
     // a heat pipe standing across the rails
     const px = r.x + r.w * 0.3;
@@ -271,7 +276,9 @@ export function vrmSinkArt(T: Theme, visual: string, rect: Rect = VRM_SINK, fanR
       .lineTo(px - 5, r.y + r.h - 8)
       .stroke({ width: 6, color: '#ffffff', alpha: 0.3, cap: 'round' });
   }
-  if (!withFan) return { root, fins, ...(pipe ? { pipe } : {}) };
+  if (!withFan) {
+    return { root, fins, ...(pipe ? { pipe } : {}) };
+  }
   // the fan's housing, one casting with the sink over the fan's square: a cover with a round grille, the fins the fan blows onto under it
   const f = fanRect ?? { x: r.x + r.w / 2 - SINK_FAN / 2, y: r.y + r.h / 2 - SINK_FAN / 2, w: SINK_FAN, h: SINK_FAN };
   const cx = f.x + f.w / 2,
@@ -299,7 +306,9 @@ export function vrmSinkArt(T: Theme, visual: string, rect: Rect = VRM_SINK, fanR
   g.roundRect(H.x, H.y, H.w, H.h, 60).fill(metal).circle(cx, cy, R).cut();
   g.roundRect(H.x, H.y, H.w, H.h, 60).stroke({ width: 6, color: edge });
   g.circle(cx, cy, R).stroke({ width: 10, color: metalHi, alpha: 0.55 });
-  for (const [x, y] of screwAt) disc(g, x, y, 16, { fill: '#000000', fa: 0.55 });
+  for (const [x, y] of screwAt) {
+    disc(g, x, y, 16, { fill: '#000000', fa: 0.55 });
+  }
   // the grille (drawn again over the fan's blades when one is fitted): four spokes to a round badge, a ring halfway
   // (flat fills: the 3D sink draws this art too, where there is no canvas for a gradient)
   const grille = (q: Graphics) => {
@@ -327,21 +336,24 @@ export function vrmSinkArt(T: Theme, visual: string, rect: Rect = VRM_SINK, fanR
   blades(fg, 7, R * 0.28, R * 0.95, T.tile, T.alu, 4);
   over.addChild(og);
   grille(og);
-  for (const [x, y] of screwAt) disc(og, x, y, 20, { fill: metalHi, stroke: metalLo, lw: 5 });
+  for (const [x, y] of screwAt) {
+    disc(og, x, y, 20, { fill: metalHi, stroke: metalLo, lw: 5 });
+  }
   return { root, fan, over, fins };
 }
 
 /** The square of the fan a board's sink can carry (`vrmSinkArt`'s bracket). */
-export const sinkFanRect = (kind: 'vrm-sink' | 'ram-sink'): Rect => (kind === 'ram-sink' ? RAM_FAN : VRM_FAN);
+export const sinkFanRect = (kind: 'vrm-sink' | 'ram-sink'): layout.Rect =>
+  kind === 'ram-sink' ? layout.RAM_FAN : layout.VRM_FAN;
 
 // (the cooler and the AIO's radiator are in cooler.ts)
 
 // ---------------------------------------------------------------- PSU (below the board)
 /** The PSU fan seen edge-on: a slab in the unit's bottom face (it draws air up from under the case). */
-export const psuFanRect = (): Rect => ({
-  x: PSU_UNIT.x + 300,
-  y: PSU_UNIT.y + PSU_UNIT.h - 190,
-  w: 2 * PSU_FAN.r,
+export const psuFanRect = (): layout.Rect => ({
+  x: layout.PSU_UNIT.x + 300,
+  y: layout.PSU_UNIT.y + layout.PSU_UNIT.h - 190,
+  w: 2 * layout.PSU_FAN.r,
   h: 110,
 });
 
@@ -369,7 +381,9 @@ export function psuBoxArt(T: Theme, spec: PsuSpec): Container {
   bl.position.set(fx, fy);
   blades(bl, 7, 60, fr - 20, T.tile, accent, 5);
   root.addChild(bl);
-  for (const rr of [140, 240, 340, 440]) g.circle(fx, fy, rr);
+  for (const rr of [140, 240, 340, 440]) {
+    g.circle(fx, fy, rr);
+  }
   g.stroke({ width: 7, color: T.mute, alpha: 0.5 });
   for (let k = 0; k < 16; k++) {
     const a = (k / 16) * Math.PI * 2;
@@ -388,7 +402,9 @@ export function psuBoxArt(T: Theme, spec: PsuSpec): Container {
   root.addChild(label(`${spec.watts}`, l.x + 40, l.y + 330, 250, accent, { head: true, anchor: [0, 0.5] }));
   root.addChild(label('WATTS', l.x + l.w - 40, l.y + 560, 70, T.mute, { head: true, anchor: [1, 0.5], a: 0.9 }));
   // vents and the output sockets along the bottom edge
-  for (let y = 880; y < 1180; y += 56) g.moveTo(1250, y).lineTo(1990, y);
+  for (let y = 880; y < 1180; y += 56) {
+    g.moveTo(1250, y).lineTo(1990, y);
+  }
   g.stroke({ width: 16, color: '#02040a', cap: 'round', alpha: 0.7 });
   for (const [x, w] of [
     [1260, 200],
@@ -396,7 +412,9 @@ export function psuBoxArt(T: Theme, spec: PsuSpec): Container {
     [1780, 200],
   ] as const) {
     box(g, x, H - 170, w, 90, 14, { fill: '#05070b', stroke: accent, lw: 5, sa: 0.7 });
-    for (let k = 0; k < Math.floor((w - 40) / 26); k++) g.rect(x + 24 + k * 26, H - 150, 14, 38);
+    for (let k = 0; k < Math.floor((w - 40) / 26); k++) {
+      g.rect(x + 24 + k * 26, H - 150, 14, 38);
+    }
     g.fill({ color: T.pin, alpha: 0.7 });
   }
   return root;
@@ -410,10 +428,10 @@ export function monitorArt(T: Theme, on: boolean, gfx = false): Part {
   const g = new Graphics();
   root.addChild(g);
   // drawn at its design size (3300 x 1995, the screen inset by 90 / 80) and scaled up into place
-  root.position.set(MONITOR.x, MONITOR.y);
-  root.scale.set(MONITOR_K);
+  root.position.set(layout.MONITOR.x, layout.MONITOR.y);
+  root.scale.set(layout.MONITOR_K);
   const m = { x: 0, y: 0, w: 3300, h: 1995 },
-    s = { x: 90, y: 80, w: SCREEN_D.w, h: SCREEN_D.h };
+    s = { x: 90, y: 80, w: layout.SCREEN_D.w, h: layout.SCREEN_D.h };
   const shell = gfx ? '#141c30' : '#171d2b',
     shellHi = mix(shell, '#ffffff', 0.1),
     shellLo = mix(shell, '#000000', 0.35);
@@ -439,9 +457,13 @@ export function monitorArt(T: Theme, on: boolean, gfx = false): Part {
   box(g, s.x - 26, s.y - 26, s.w + 52, s.h + 52, 38, { fill: '#020406' });
   g.roundRect(s.x - 26, s.y - 26, s.w + 52, s.h + 52, 38).stroke({ width: 4, color: '#000000', alpha: 0.6 });
   box(g, s.x, s.y, s.w, s.h, 14, { fill: SCREEN_BG });
-  if (on) g.roundRect(s.x, s.y, s.w, s.h, 14).stroke({ width: 10, color: T.st, alpha: 0.08 });
+  if (on) {
+    g.roundRect(s.x, s.y, s.w, s.h, 14).stroke({ width: 10, color: T.st, alpha: 0.08 });
+  }
   // scanlines and glass: a sheen across, a lit line along the top edge, the corners darker
-  for (let y = s.y + 8; y < s.y + s.h; y += 10) g.moveTo(s.x, y).lineTo(s.x + s.w, y);
+  for (let y = s.y + 8; y < s.y + s.h; y += 10) {
+    g.moveTo(s.x, y).lineTo(s.x + s.w, y);
+  }
   g.stroke({ width: 3, color: on ? T.st : '#ffffff', alpha: on ? 0.035 : 0.02 });
   g.poly([s.x + 20, s.y + s.h - 20, s.x + 700, s.y + 20, s.x + 1120, s.y + 20, s.x + 440, s.y + s.h - 20]).fill({
     color: '#ffffff',
@@ -457,16 +479,23 @@ export function monitorArt(T: Theme, on: boolean, gfx = false): Part {
     [s.x + s.w - 160, s.y],
     [s.x, s.y + s.h - 160],
     [s.x + s.w - 160, s.y + s.h - 160],
-  ] as const)
+  ] as const) {
     g.rect(qx, qy, 160, 160).fill({ color: '#000000', alpha: 0.05 });
-  if (gfx) g.rect(s.x + 120, s.y + s.h + 38, s.w - 240, 8).fill({ color: T.alu, alpha: on ? 0.55 : 0.25 });
+  }
+  if (gfx) {
+    g.rect(s.x + 120, s.y + s.h + 38, s.w - 240, 8).fill({ color: T.alu, alpha: on ? 0.55 : 0.25 });
+  }
   // ---- the chin: the maker's lockup (`core/render/brands`, as on the 3D monitor), the power lamp and the touch buttons ----
   const cy = s.y + s.h + 26 + (m.y + m.h - (s.y + s.h + 26)) / 2;
   brandLockup(labels, 'hikari', cx, cy, 48, T.mute);
-  for (let k = 0; k < 4; k++) disc(g, m.x + m.w - 520 + k * 62, cy, 7, { fill: T.mute, fa: 0.35 });
+  for (let k = 0; k < 4; k++) {
+    disc(g, m.x + m.w - 520 + k * 62, cy, 7, { fill: T.mute, fa: 0.35 });
+  }
   disc(g, m.x + m.w - 220, cy, 26, { fill: '#000000', fa: 0.4 });
   disc(g, m.x + m.w - 220, cy, 14, { fill: on ? T.st : T.mute, fa: on ? 1 : 0.4 });
-  if (on) disc(g, m.x + m.w - 220, cy, 34, { fill: T.st, fa: 0.12 });
+  if (on) {
+    disc(g, m.x + m.w - 220, cy, 34, { fill: T.st, fa: 0.12 });
+  }
   // no sockets: the monitor's video cable and its mains cord are built in and come out from behind it
   labels.addChild(label(gfx ? 'GRAPHICS MONITOR' : 'CLI MONITOR', m.x + 20, m.y - 40, 56, T.ink, { a: 0.8 }));
   root.addChild(labels);
@@ -474,10 +503,10 @@ export function monitorArt(T: Theme, on: boolean, gfx = false): Part {
 }
 
 // ---------------------------------------------------------------- cables (PSU to board, board to monitor)
-export const ACCENT = (T: Theme, k: Cable['kind']) =>
-  k === 'atx' ? T.ld : k === 'cpu' ? T.alu : isPcieKind(k) ? T.br : T.st;
+export const ACCENT = (T: Theme, k: routes.Cable['kind']) =>
+  k === 'atx' ? T.ld : k === 'cpu' ? T.alu : routes.isPcieKind(k) ? T.br : T.st;
 
-export function plugRect(p: Plug): Rect {
+export function plugRect(p: routes.Plug): layout.Rect {
   return p.dx !== 0
     ? { x: p.dx > 0 ? p.x : p.x - p.l, y: p.y - p.w / 2, w: p.l, h: p.w }
     : { x: p.x - p.w / 2, y: p.dy > 0 ? p.y : p.y - p.l, w: p.w, h: p.l };
