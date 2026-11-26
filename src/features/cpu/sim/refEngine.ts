@@ -50,7 +50,9 @@ export class RefEngine implements Engine {
   }
   holdFetch(_on: boolean): void {}
   redirect(pc: number): void {
-    if (this.cpu) this.cpu.pc = pc >>> 0;
+    if (this.cpu) {
+      this.cpu.pc = pc >>> 0;
+    }
   }
 
   get halted(): boolean {

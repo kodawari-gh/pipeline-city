@@ -7012,7 +7012,6 @@
  "src/features/cpu/sim/engines/ooo.ts": {
   "eslint(class-methods-use-this)": 1,
   "eslint(complexity)": 4,
-  "eslint(curly)": 68,
   "eslint(max-classes-per-file)": 1,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 4,
@@ -7020,8 +7019,6 @@
   "eslint(no-multi-assign)": 7,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 2,
-  "eslint(prefer-destructuring)": 6,
-  "import(consistent-type-specifier-style)": 1,
   "oxc(bad-bitwise-operator)": 1,
   "typescript(class-literal-property-style)": 1,
   "typescript(no-non-null-assertion)": 198,
@@ -7132,15 +7129,11 @@
   "vitest(valid-expect)": 2
  },
  "src/features/cpu/sim/engines/unpipelined.ts": {
-  "eslint(curly)": 7,
   "eslint(default-case)": 1,
-  "eslint(prefer-destructuring)": 1,
   "typescript(no-non-null-assertion)": 16,
-  "typescript(strict-boolean-expressions)": 2,
-  "unicorn(switch-case-braces)": 2
+  "typescript(strict-boolean-expressions)": 2
  },
  "src/features/cpu/sim/engines/view.ts": {
-  "eslint(curly)": 6,
   "eslint(max-classes-per-file)": 1,
   "eslint(max-lines)": 1,
   "eslint(max-params)": 3,
@@ -7158,12 +7151,10 @@
   "vitest(prefer-strict-equal)": 5
  },
  "src/features/cpu/sim/isa/disasm.ts": {
-  "eslint(curly)": 1,
   "eslint(default-case)": 1,
   "typescript(consistent-return)": 1,
   "typescript(no-non-null-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 2,
-  "unicorn(switch-case-braces)": 7
+  "typescript(strict-boolean-expressions)": 2
  },
  "src/features/cpu/sim/isa/isa.test.ts": {
   "eslint(curly)": 5,
@@ -7176,16 +7167,10 @@
   "vitest(prefer-to-have-length)": 1
  },
  "src/features/cpu/sim/isa/isa.ts": {
-  "eslint(complexity)": 1,
-  "eslint(curly)": 12,
   "eslint(default-case)": 2,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 1,
   "typescript(consistent-return)": 1,
   "typescript(strict-boolean-expressions)": 1,
-  "unicorn(numeric-separators-style)": 5,
-  "unicorn(prefer-math-trunc)": 1,
-  "unicorn(switch-case-braces)": 11
+  "unicorn(prefer-math-trunc)": 1
  },
  "src/features/cpu/sim/multicore/multicore.test.ts": {
   "eslint(curly)": 3,
@@ -7308,12 +7293,9 @@
   "vitest(valid-expect)": 1
  },
  "src/features/cpu/sim/pipesnap.ts": {
-  "eslint(curly)": 18,
   "eslint(no-use-before-define)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "typescript(no-non-null-assertion)": 30,
+  "typescript(no-non-null-assertion)": 29,
   "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(prefer-for-of)": 1,
   "unicorn(prefer-spread)": 1
  },
  "src/features/cpu/sim/ref/ref.test.ts": {
@@ -7323,11 +7305,9 @@
  },
  "src/features/cpu/sim/ref/ref.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 23,
   "eslint(max-classes-per-file)": 1,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
-  "eslint(prefer-destructuring)": 1,
   "oxc(bad-bitwise-operator)": 1,
   "typescript(method-signature-style)": 1,
   "typescript(no-confusing-void-expression)": 2,
@@ -7337,10 +7317,8 @@
   "unicorn(no-array-callback-reference)": 4,
   "unicorn(no-array-for-each)": 1,
   "unicorn(no-array-method-this-argument)": 4,
-  "unicorn(prefer-at)": 1,
   "unicorn(prefer-code-point)": 1,
-  "unicorn(prefer-math-trunc)": 2,
-  "unicorn(switch-case-braces)": 38
+  "unicorn(prefer-math-trunc)": 2
  },
  "src/features/cpu/sim/ref/threads.test.ts": {
   "eslint(curly)": 2,
@@ -7350,14 +7328,11 @@
   "unicorn(numeric-separators-style)": 1
  },
  "src/features/cpu/sim/ref/threads.ts": {
-  "eslint(curly)": 1,
   "typescript(no-non-null-assertion)": 4,
-  "unicorn(no-object-as-default-parameter)": 1,
-  "unicorn(numeric-separators-style)": 2
+  "unicorn(no-object-as-default-parameter)": 1
  },
  "src/features/cpu/sim/refEngine.ts": {
   "eslint(class-methods-use-this)": 2,
-  "eslint(curly)": 1,
   "eslint(max-classes-per-file)": 1,
   "eslint(no-empty-function)": 1,
   "typescript(class-literal-property-style)": 1,
