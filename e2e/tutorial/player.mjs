@@ -1,6 +1,6 @@
 // The player's hands for tutorial.e2e.mjs: screenshots, reads of the game state, and the mouse drags and clicks a player makes.
 /// <reference path="../browser.d.ts" />
-import { envFlag } from '../lib/run.mjs';
+import { isSet } from '../lib/run.mjs';
 
 /**
  * @typedef {import('playwright-core').Page} Page
@@ -195,7 +195,7 @@ export class PlayerBase {
       log('  cable anchors missing', kind, a !== null, t !== null);
       return false;
     }
-    const debug = envFlag('DEBUG_DRAG');
+    const debug = isSet(process.env.DEBUG_DRAG);
     const { mouse } = this.p;
     for (const [fx, fy] of PRESS_AT) {
       const from = { x: a.x + a.w * fx, y: a.y + a.h * fy };

@@ -18,7 +18,7 @@
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
-import { check, chrome, envFlag, envNumber, envString, failureCount, startDevServer, succeeds } from './lib/run.mjs';
+import { check, chrome, isSet, numberOr, stringOr, failureCount, startDevServer, succeeds } from './lib/run.mjs';
 import { measure, checkBounds, checkInset, checkPhoneLayout, checkDesktopLayout } from './hud/layout.mjs';
 import { checkSpeedTaps, checkLens, checkPauseAndMenu } from './hud/controls.mjs';
 
@@ -27,9 +27,9 @@ import { checkSpeedTaps, checkLens, checkPauseAndMenu } from './hud/controls.mjs
  * @typedef {import('playwright-core').Browser} Browser
  */
 
-const PORT = envNumber('PORT', 5197);
+const PORT = numberOr(process.env.PORT, 5197);
 const url = `http://localhost:${PORT}/`;
-const SHOTS = envString('SHOTS_DIR', path.join(import.meta.dirname, 'shots'));
+const SHOTS = stringOr(process.env.SHOTS_DIR, path.join(import.meta.dirname, 'shots'));
 mkdirSync(SHOTS, { recursive: true });
 
 /** @type {Viewport[]} */
@@ -45,7 +45,7 @@ const SAVE_AT_KEY = 'pipeline-city.autosave.at';
 // ---- dev server: its own, unless one already runs on PORT (then that one is used and left running) ----
 const stopServer = await startDevServer({ port: PORT, reuse: true, stdio: ['ignore', 'pipe', 'pipe'] });
 
-const browser = await chromium.launch({ headless: !envFlag('SHOW'), ...chrome() });
+const browser = await chromium.launch({ headless: !isSet(process.env.SHOW), ...chrome() });
 
 /**
  * A saved game for the page to continue, as JSON: the same save tools/menu-matrix.mjs seeds.

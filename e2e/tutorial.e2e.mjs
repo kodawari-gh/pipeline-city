@@ -15,7 +15,7 @@ import { once } from 'node:events';
 import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { chromium } from 'playwright-core';
-import { chrome, envFlag, envNumber, envString, startDevServer, succeeds } from './lib/run.mjs';
+import { chrome, isSet, numberOr, stringOr, startDevServer, succeeds } from './lib/run.mjs';
 import { log } from './tutorial/player.mjs';
 import { Player } from './tutorial/steps.mjs';
 import { act } from './tutorial/act.mjs';
@@ -33,14 +33,14 @@ async function freePort() {
 }
 
 // PORT=n pins the dev server port; by default a free one is picked (the server runs with --strictPort).
-const pinned = envNumber('PORT', 0);
+const pinned = numberOr(process.env.PORT, 0);
 const PORT = pinned > 0 ? pinned : await freePort();
-const W = envNumber('W', 1600);
-const H = envNumber('H', 900);
-const SPEED = envNumber('SPEED', 12);
+const W = numberOr(process.env.W, 1600);
+const H = numberOr(process.env.H, 900);
+const SPEED = numberOr(process.env.SPEED, 12);
 // R3D=1: play the 3D world (`?3d`) on the real GPU.
-const R3D = envFlag('R3D');
-const shotsDir = envString('SHOTS_DIR', '');
+const R3D = isSet(process.env.R3D);
+const shotsDir = stringOr(process.env.SHOTS_DIR, '');
 const SHOTS =
   shotsDir === ''
     ? new URL('shots/', import.meta.url)
@@ -57,13 +57,13 @@ const stopServer = await startDevServer({
 
 // ---- browser ----
 const browser = await chromium.launch({
-  headless: envFlag('HEADLESS'),
-  slowMo: envNumber('SLOWMO', 0),
+  headless: isSet(process.env.HEADLESS),
+  slowMo: numberOr(process.env.SLOWMO, 0),
   ...chrome(),
   // The real GPU by default, headless too (as tools/shot.mjs: ANGLE/D3D11); SOFTWARE=1 falls back to SwiftShader, which is several times slower
   // (at 1920 x 1080 the page then draws about one frame a second and Playwright's "stable" check on a click never settles).
   args: [
-    ...(envFlag('SOFTWARE')
+    ...(isSet(process.env.SOFTWARE)
       ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader']
       : ['--enable-gpu', '--use-angle=d3d11', '--enable-gpu-rasterization']),
     '--ignore-gpu-blocklist',
@@ -73,17 +73,17 @@ const browser = await chromium.launch({
 // REDUCED_MOTION=1: the page runs with prefers-reduced-motion: reduce (the motion check, SPEC section 8).
 const ctx = await browser.newContext({
   viewport: { width: W, height: H },
-  reducedMotion: envFlag('REDUCED_MOTION') ? 'reduce' : 'no-preference',
+  reducedMotion: isSet(process.env.REDUCED_MOTION) ? 'reduce' : 'no-preference',
 });
 const p = await ctx.newPage();
-p.setDefaultTimeout(envNumber('TMO', 3000));
+p.setDefaultTimeout(numberOr(process.env.TMO, 3000));
 // A step that does not advance fails: STEP_TICKS game ticks on one step without it changing, STALL_MS of wall clock with the game clock standing still
 // (a held game, a dead page), RUN_MS for the whole run. The bound is in game ticks, not in tries or seconds: a waiting step lasts as many ticks as the game needs
 // (the first online job took 35 ticks in one run and 200 in another: 3 to 17 s of wall clock at 12 ticks a second, and a count of tries ended it on a slower run),
 // and the machine sets the wall clock.
-const STEP_TICKS = envNumber('STEP_TICKS', 1200);
-const STALL_MS = envNumber('STALL_MS', 30_000);
-const RUN_MS = envNumber('RUN_MS', 600_000);
+const STEP_TICKS = numberOr(process.env.STEP_TICKS, 1200);
+const STALL_MS = numberOr(process.env.STALL_MS, 30_000);
+const RUN_MS = numberOr(process.env.RUN_MS, 600_000);
 /** @type {string[]} */
 const errors = [];
 p.on('pageerror', (e) => {
@@ -176,9 +176,9 @@ async function track(id, s) {
     run.last = id;
     run.tick0 = s.baseTick;
     const heap = await heapMb();
-    log(
-      `step ${id.padEnd(11)} game ${String(s.baseTick).padStart(4)}s  money $${Math.round(s.money)}  wall ${Math.round((Date.now() - T0) / 1000)}s  heap ${heap}MB`,
-    );
+    const game = String(s.baseTick).padStart(4);
+    const wall = Math.round((Date.now() - T0) / 1000);
+    log(`step ${id.padEnd(11)} game ${game}s  money $${Math.round(s.money)}  wall ${wall}s  heap ${heap}MB`);
     await pl.validateStep(id);
     run.tickAt = Date.now(); // (the checks and the shots hold the game: the first one also warms the dev server)
     return false;

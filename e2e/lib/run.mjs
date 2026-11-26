@@ -5,31 +5,28 @@ import { setTimeout as delay } from 'node:timers/promises';
 import path from 'node:path';
 
 /**
- * True when the environment variable is set and not empty.
- * @param {string} name
+ * True when an environment variable's value (`process.env.NAME`) is set and not empty.
+ * @param {string | undefined} v
  */
-export function envFlag(name) {
-  const v = process.env[name];
+export function isSet(v) {
   return v !== undefined && v !== '';
 }
 
 /**
- * The environment variable, or `def` when it is unset or empty.
- * @param {string} name
+ * An environment variable's value (`process.env.NAME`), or `def` when it is unset or empty.
+ * @param {string | undefined} v
  * @param {string} def
  */
-export function envString(name, def) {
-  const v = process.env[name];
+export function stringOr(v, def) {
   return v === undefined || v === '' ? def : v;
 }
 
 /**
- * The environment variable as a number, or `def` when it is unset or empty.
- * @param {string} name
+ * An environment variable's value (`process.env.NAME`) as a number, or `def` when it is unset or empty.
+ * @param {string | undefined} v
  * @param {number} def
  */
-export function envNumber(name, def) {
-  const v = process.env[name];
+export function numberOr(v, def) {
   return v === undefined || v === '' ? def : Number(v);
 }
 

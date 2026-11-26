@@ -2,7 +2,7 @@
 /// <reference path="../browser.d.ts" />
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
-import { check, envFlag, envString } from '../lib/run.mjs';
+import { check, isSet, stringOr } from '../lib/run.mjs';
 
 /**
  * @typedef {import('playwright-core').Browser} Browser
@@ -15,7 +15,7 @@ import { check, envFlag, envString } from '../lib/run.mjs';
  * @typedef {(tag: string, viewport: Size, options?: OpenOptions) => Promise<Session>} Open
  */
 
-export const SHOTS = envString('SHOTS_DIR', path.join(import.meta.dirname, '..', 'shots'));
+export const SHOTS = stringOr(process.env.SHOTS_DIR, path.join(import.meta.dirname, '..', 'shots'));
 mkdirSync(SHOTS, { recursive: true });
 export const LOAD_MS = 60_000;
 export const BOOT_MS = 90_000;
@@ -37,7 +37,7 @@ export function opener(browser, url) {
   return async (tag, viewport, { hold = null, init = null, until = 'button.mm-btn:has-text("New game")' } = {}) => {
     const ctx = await browser.newContext({
       viewport,
-      reducedMotion: envFlag('REDUCED_MOTION') ? 'reduce' : 'no-preference',
+      reducedMotion: isSet(process.env.REDUCED_MOTION) ? 'reduce' : 'no-preference',
     });
     if (init) {
       await ctx.addInitScript(init);

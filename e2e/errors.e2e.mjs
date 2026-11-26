@@ -22,12 +22,12 @@
 // It starts its own dev server (PORT, default 5198) and stops it at the end. Exit code 0 when every check passes, 1 otherwise.
 /// <reference path="./browser.d.ts" />
 import { chromium } from 'playwright-core';
-import { check, chrome, envFlag, envNumber, fail, failureCount, startDevServer } from './lib/run.mjs';
+import { check, chrome, isSet, numberOr, fail, failureCount, startDevServer } from './lib/run.mjs';
 import { opener } from './errors/page.mjs';
 import { bootFailure, corruptFile, offline } from './errors/menu.mjs';
 import { corruptInGame, crash, failedExport, inGame, startFailure } from './errors/game.mjs';
 
-const PORT = envNumber('PORT', 5198);
+const PORT = numberOr(process.env.PORT, 5198);
 const url = `http://localhost:${PORT}/`;
 /** @type {Array<[string, import('./errors/page.mjs').Size]>} */
 const SIZES = [
@@ -38,10 +38,10 @@ const SIZES = [
 const stopServer = await startDevServer({ port: PORT, reuse: true, stdio: 'ignore' });
 
 const browser = await chromium.launch({
-  headless: !envFlag('SHOW'),
+  headless: !isSet(process.env.SHOW),
   ...chrome(),
   args: [
-    ...(envFlag('SOFTWARE')
+    ...(isSet(process.env.SOFTWARE)
       ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader']
       : ['--enable-gpu', '--use-angle=d3d11', '--enable-gpu-rasterization']),
     '--ignore-gpu-blocklist',
