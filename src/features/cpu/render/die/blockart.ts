@@ -37,7 +37,7 @@ export const WORD_FIELDS: readonly { name: string; bits: number }[] = [
 /** The control lines the decoder raises, in the order they are drawn. */
 export const CONTROL_LINES: readonly string[] = ['alu', 'mem', 'wr', 'br', 'imm', 'sys'];
 
-/** The drawing tools of the symbols (rectangles, stubs, polygons, multiplexers, adders, instruction words) in the colours of a block of accent `c`; the GPU card's symbols (gpu/gpuglyph.ts) use them too. */
+/** The drawing tools of the symbols (rectangles, stubs, polygons, multiplexers, adders, instruction words) in the colours of a block of accent `c`; the GPU card's symbols (gpu/render/glyph) use them too. */
 export function glyphKit(g: Graphics, T: Theme, c: string, put: Put) {
   const solid = mix(T.die, c, 0.42),
     soft = mix(T.die, c, 0.2),

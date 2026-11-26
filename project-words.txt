@@ -285,7 +285,6 @@ goldens
 gpuart
 gpucode
 gpudesc
-gpuglyph
 gpujob
 gpujobtiers
 gpukernels

@@ -8,7 +8,7 @@ import { GpuPort } from '../sim/port';
 import { Machine } from '@/core/sim/machine';
 import type { GpuStep } from '../sim/isa/ref';
 import { gpuPlan } from './gpulayout';
-import { gpuGlyphArea } from './gpuglyph';
+import { gpuGlyphArea } from './glyph';
 import { bankGeom, dramCellRect, dramFill, dramGeom, gpuLensRows, gpuMemLive, gpuRegion, type MemCtx } from './gpumem';
 import { gpuCells } from './plan/gpuplans';
 
