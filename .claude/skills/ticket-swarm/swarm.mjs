@@ -779,7 +779,13 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
       coder:
         'Fix source and docs only. Keep every exported name and shape the merged source has; add, never rename or remove. A test that disagrees on a name is the tester to fix.',
     };
-    T.findings = workers.map((role) => ({
+    // Route by the files the output names: when every one is a test file, only the tester reruns.
+    // Else the coder adapts its names to the tests' last ones while the tester adapts to the coder's, round after round.
+    const paths = failed.tail.match(/[\w./-]+\.[cm]?[jt]sx?(?=[:\s(]|$)/gmu) ?? [];
+    const owners = new Set(paths.map((f) => (this.testRe.test(f) ? 'tester' : 'coder')));
+    const only = owners.size === 1 ? [...owners][0] : null;
+    const to = only && workers.includes(only) ? [only] : workers;
+    T.findings = to.map((role) => ({
       role,
       file: '(repo gate)',
       problem: `"${failed.cmd}" failed after the round merge. ${side[role] ?? ''} Output tail:\n${failed.tail}`,
@@ -1004,7 +1010,7 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
       delete T.gateHead;
       if (failed) {
         this.gateFail(n, tier, failed);
-        relaunch = workers;
+        relaunch = routed(T.findings);
         continue;
       }
 
