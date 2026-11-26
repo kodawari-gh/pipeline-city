@@ -60,13 +60,21 @@ export class InOrderEngine extends EngineBase {
   private runLen = 0;
 
   get waiting(): boolean {
-    for (let t = 0; t < this.cores.length; t++) if (this.missOn[t]) return true;
+    for (let t = 0; t < this.cores.length; t++) {
+      if (this.missOn[t]) {
+        return true;
+      }
+    }
     return false;
   }
 
   addThread(core: Core): void {
-    if (this.width !== 1) throw new RangeError('threads need the scalar in-order pipeline');
-    if (this.cores.length >= MAX_THREADS) throw new RangeError(`at most ${MAX_THREADS} threads on a core`);
+    if (this.width !== 1) {
+      throw new RangeError('threads need the scalar in-order pipeline');
+    }
+    if (this.cores.length >= MAX_THREADS) {
+      throw new RangeError(`at most ${MAX_THREADS} threads on a core`);
+    }
     this.resume[this.cores.length] = core.entry;
     this.cores.push(core);
   }
@@ -80,14 +88,18 @@ export class InOrderEngine extends EngineBase {
     const n = this.cores.length;
     for (let i = 1; i <= n; i++) {
       const t = (from + i) % n;
-      if (this.ready(t)) return t;
+      if (this.ready(t)) {
+        return t;
+      }
     }
     return -1;
   }
 
   /** Fetch for thread `t` from where it left off (its pc is in `resume`; the caller saved the old thread's). */
   private switchFetch(t: number): void {
-    if (t !== this.fetchThread) this.v.counters[Counter.ThreadSwitches]!++;
+    if (t !== this.fetchThread) {
+      this.v.counters[Counter.ThreadSwitches]!++;
+    }
     this.fetchThread = t;
     this.fetchIdle = false;
     this.fetchPc = this.resume[t]!;
@@ -99,9 +111,15 @@ export class InOrderEngine extends EngineBase {
 
   switchTo(core: Core): boolean {
     const t = this.cores.indexOf(core);
-    if (t === -1) return false;
-    if (t === this.fetchThread && !this.fetchIdle) return true;
-    if (this.ready(t)) this.want = t;
+    if (t === -1) {
+      return false;
+    }
+    if (t === this.fetchThread && !this.fetchIdle) {
+      return true;
+    }
+    if (this.ready(t)) {
+      this.want = t;
+    }
     return false;
   }
 
@@ -109,29 +127,46 @@ export class InOrderEngine extends EngineBase {
     const ft = this.fetchThread;
     this.resume[ft] = this.fetchPc;
     const n = this.pickNext(ft);
-    if (n >= 0) this.switchFetch(n);
-    else this.fetchIdle = true;
+    if (n >= 0) {
+      this.switchFetch(n);
+    } else {
+      this.fetchIdle = true;
+    }
   }
 
   /** Per cycle, before the stages: outstanding misses count down and land; a wanted switch happens once the pipeline is empty; an idle core finds a thread. */
   private threadTick(): void {
     for (let t = 0; t < this.cores.length; t++) {
-      if (!this.missOn[t]) continue;
-      if (this.missWait[t]! > 0) this.missWait[t]!--;
-      else this.completeMiss(t);
+      if (!this.missOn[t]) {
+        continue;
+      }
+      if (this.missWait[t]! > 0) {
+        this.missWait[t]!--;
+      } else {
+        this.completeMiss(t);
+      }
     }
     if (this.want >= 0 && this.drained) {
-      if (!this.fetchIdle) this.resume[this.fetchThread] = this.fetchPc;
-      if (this.ready(this.want)) this.switchFetch(this.want);
+      if (!this.fetchIdle) {
+        this.resume[this.fetchThread] = this.fetchPc;
+      }
+      if (this.ready(this.want)) {
+        this.switchFetch(this.want);
+      }
       this.want = -1;
     }
     if (this.fetchIdle) {
       const n = this.pickNext(this.fetchThread);
-      if (n >= 0) this.switchFetch(n);
+      if (n >= 0) {
+        this.switchFetch(n);
+      }
     } else if (++this.runLen > THREAD_TIMEOUT && this.want < 0) {
       const n = this.pickNext(this.fetchThread);
-      if (n >= 0 && n !== this.fetchThread) this.want = n;
-      else this.runLen = 0;
+      if (n >= 0 && n !== this.fetchThread) {
+        this.want = n;
+      } else {
+        this.runLen = 0;
+      }
     }
   }
 
@@ -143,7 +178,9 @@ export class InOrderEngine extends EngineBase {
       rd = this.missRd[t]!,
       id = this.missId[t]!;
     this.dFill(addr);
-    if (rd !== 0) this.writeReg(rd, this.load(op, addr));
+    if (rd !== 0) {
+      this.writeReg(rd, this.load(op, addr));
+    }
     this.v.mark(id, StageCode.W);
     this.retire(id, op);
     this.missOn[t] = 0;
@@ -155,19 +192,21 @@ export class InOrderEngine extends EngineBase {
    */
   private tryBuffer(s: number): boolean {
     const p = this.pool,
-      v = this.v,
-      mask = this.mask,
+      { v, mask } = this,
       t = p.thread[s]!;
     const op = p.op[s]!,
       f = OPF[op]!;
-    if (!(f & F.Load) || f & F.Amo || !(p.state[s]! & St.Missing)) return false;
-    let other = false;
-    for (let u = 0; u < this.cores.length; u++)
-      if (u !== t && !this.tHalted[u] && !this.cores[u]!.intc.parked) other = true;
-    if (!other) return false;
+    if (!(f & F.Load) || f & F.Amo || !(p.state[s]! & St.Missing)) {
+      return false;
+    }
+    if (!this.otherCanRun(t)) {
+      return false;
+    }
     if (v.stageKind[Stage.EX] === SlotKind.Instr && p.thread[v.stageId[Stage.EX]! & mask] === t) {
       const eop = p.op[v.stageId[Stage.EX]! & mask];
-      if (eop === OP_IRET || eop === OP_ECALL) return false; // already acted at EX: cannot be taken back
+      if (eop === OP_IRET || eop === OP_ECALL) {
+        return false; // already acted at EX: cannot be taken back
+      }
     }
     this.missOn[t] = 1;
     this.missWait[t] = p.wait[s]!;
@@ -176,19 +215,14 @@ export class InOrderEngine extends EngineBase {
     this.missRd[t] = p.rd[s]!;
     this.missId[t] = v.stageId[Stage.MEM]!;
     this.resume[t] = (p.pc[s]! + 4) >>> 0;
-    for (const st of [Stage.EX, Stage.ID, Stage.IF]) {
-      if (v.stageKind[st] !== SlotKind.Instr) continue;
-      const id = v.stageId[st]!;
-      if (p.thread[id & mask] !== t) continue;
-      v.mark(id, StageCode.Flushed);
-      v.setFate(id, Fate.Flushed);
-      v.counters[Counter.FlushedInstrs]!++;
-      v.clearStage(st);
-    }
+    this.flushThread(t);
     if (this.fetchThread === t && !this.fetchIdle) {
       const n = this.pickNext(t);
-      if (n >= 0) this.switchFetch(n);
-      else this.fetchIdle = true;
+      if (n >= 0) {
+        this.switchFetch(n);
+      } else {
+        this.fetchIdle = true;
+      }
       v.setStage(Stage.IF, SlotKind.Bubble, -1, 0, Cause.Switch);
       v.counters[Counter.StallSwitch]! += 2;
     }
@@ -196,19 +230,56 @@ export class InOrderEngine extends EngineBase {
     return true;
   }
 
+  /** True when a thread other than `t` is neither halted nor parked. */
+  private otherCanRun(t: number): boolean {
+    for (let u = 0; u < this.cores.length; u++) {
+      if (u !== t && !this.tHalted[u] && !this.cores[u]!.intc.parked) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Squash thread `t`'s instructions in EX, ID and IF (the ones younger than its missed load). */
+  private flushThread(t: number): void {
+    const p = this.pool,
+      { v, mask } = this;
+    for (const st of [Stage.EX, Stage.ID, Stage.IF]) {
+      if (v.stageKind[st] !== SlotKind.Instr) {
+        continue;
+      }
+      const id = v.stageId[st]!;
+      if (p.thread[id & mask] !== t) {
+        continue;
+      }
+      v.mark(id, StageCode.Flushed);
+      v.setFate(id, Fate.Flushed);
+      v.counters[Counter.FlushedInstrs]!++;
+      v.clearStage(st);
+    }
+  }
+
   /** Nothing in any stage (bubbles do not count), and none still waiting in WB to write back. */
   get drained(): boolean {
     const k = this.v.stageKind;
-    for (let i = 0; i < 5 * this.width; i++) if (k[i] === SlotKind.Instr) return false;
+    for (let i = 0; i < 5 * this.width; i++) {
+      if (k[i] === SlotKind.Instr) {
+        return false;
+      }
+    }
     return true;
   }
 
   constructor(settings: InOrderSettings = {}) {
     const w = settings.width ?? 1;
-    if (!Number.isInteger(w) || w < 1 || w > 4) throw new RangeError('width must be 1..4');
+    if (!Number.isInteger(w) || w < 1 || w > 4) {
+      throw new RangeError('width must be 1..4');
+    }
     // In flight: 5 stages x w lanes; round up to a power of two.
     let size = 8;
-    while (size < 5 * w) size *= 2;
+    while (size < 5 * w) {
+      size *= 2;
+    }
     super(settings, size, new ViewState(settings.timelineRows ?? 32, settings.timelineCols ?? 64, w));
     this.width = w;
     this.mask = size - 1;
@@ -221,14 +292,18 @@ export class InOrderEngine extends EngineBase {
     this.tHalted.fill(0);
     this.missOn.fill(0);
     this.want = -1;
-    for (let s = 0; s < 5 * this.width; s++) this.v.clearStage(s);
+    for (let s = 0; s < 5 * this.width; s++) {
+      this.v.clearStage(s);
+    }
   }
 
   step(): void {
-    if (this.isHalted) return;
+    if (this.isHalted) {
+      return;
+    }
     const W = this.width,
-      mask = this.mask;
-    const v = this.v,
+      { mask } = this;
+    const { v } = this,
       p = this.pool,
       c = v.counters;
     const kind = v.stageKind,
@@ -244,29 +319,41 @@ export class InOrderEngine extends EngineBase {
     v.beginCycle(this.cycleNo);
     stalled.fill(0);
     const multi = this.cores.length > 1;
-    if (multi) this.threadTick();
+    if (multi) {
+      this.threadTick();
+    }
 
     // WB: results land in the register file (before this cycle's register reads).
     this.writeback();
-    for (let l = 0; l < W; l++) v.clearStage(wb + l);
+    for (let l = 0; l < W; l++) {
+      v.clearStage(wb + l);
+    }
 
     // MEM: a data cache miss holds the whole pipe.
     let frozen = false;
     for (let l = 0; l < W; l++) {
       if (kind[mem + l] === SlotKind.Instr && !this.memStep(sid[mem + l]! & mask)) {
-        if (multi && this.tryBuffer(sid[mem + l]! & mask)) continue;
+        if (multi && this.tryBuffer(sid[mem + l]! & mask)) {
+          continue;
+        }
         frozen = true;
       }
     }
 
     // EX: operands, ALU, address generation, control-transfer resolution.
     for (let l = 0; l < W; l++) {
-      if (kind[ex + l] !== SlotKind.Instr) continue;
+      if (kind[ex + l] !== SlotKind.Instr) {
+        continue;
+      }
       const s = sid[ex + l]! & mask;
-      if (multi) this.useThread(p.thread[s]!);
+      if (multi) {
+        this.useThread(p.thread[s]!);
+      }
       if (!(p.state[s]! & St.ExDone)) {
         p.state[s]! |= St.ExDone;
-        if (this.exStage(s, l)) break; // a page fault: this and everything younger is gone
+        if (this.exStage(s, l)) {
+          break; // a page fault: this and everything younger is gone
+        }
       }
     }
 
@@ -285,9 +372,13 @@ export class InOrderEngine extends EngineBase {
       n = 1;
     } else {
       for (let l = 0; l < W; l++) {
-        if (kind[id + l] !== SlotKind.Instr) break;
+        if (kind[id + l] !== SlotKind.Instr) {
+          break;
+        }
         idCount++;
-        if (l !== n) continue; // stopped issuing; just count
+        if (l !== n) {
+          continue; // stopped issuing; just count
+        }
         const s = sid[id + l]! & mask;
         const h = this.hazard(s);
         if (h !== Cause.None) {
@@ -300,7 +391,9 @@ export class InOrderEngine extends EngineBase {
         }
         n++;
       }
-      if (n >= 2) c[Counter.DualIssues]!++;
+      if (n >= 2) {
+        c[Counter.DualIssues]!++;
+      }
     }
 
     // Shift WB <- MEM <- EX <- ID.
@@ -310,19 +403,28 @@ export class InOrderEngine extends EngineBase {
     }
     if (passBubble) {
       v.moveStage(ex, id);
-      for (let l = 1; l < W; l++) v.clearStage(ex + l);
+      for (let l = 1; l < W; l++) {
+        v.clearStage(ex + l);
+      }
       v.clearStage(id);
     } else if (n > 0) {
       for (let l = 0; l < W; l++) {
-        if (l < n) v.moveStage(ex + l, id + l);
-        else v.clearStage(ex + l);
+        if (l < n) {
+          v.moveStage(ex + l, id + l);
+        } else {
+          v.clearStage(ex + l);
+        }
       }
     } else if (idCount > 0 && why !== Cause.None) {
       v.setStage(ex, SlotKind.Bubble, -1, 0, why);
-      for (let l = 1; l < W; l++) v.clearStage(ex + l);
+      for (let l = 1; l < W; l++) {
+        v.clearStage(ex + l);
+      }
       c[CAUSE_COUNTER[why]!]!++;
     } else {
-      for (let l = 0; l < W; l++) v.clearStage(ex + l);
+      for (let l = 0; l < W; l++) {
+        v.clearStage(ex + l);
+      }
     }
 
     // Remaining ID occupants move to the front; IF refills ID behind them.
@@ -331,7 +433,9 @@ export class InOrderEngine extends EngineBase {
       v.moveStage(id + l, id + n + l);
       stalled[id + l] = 1;
     }
-    for (let l = rest; l < W; l++) v.clearStage(id + l);
+    for (let l = rest; l < W; l++) {
+      v.clearStage(id + l);
+    }
     if (kind[iff] === SlotKind.Bubble) {
       if (rest === 0) {
         v.moveStage(id, iff);
@@ -339,30 +443,49 @@ export class InOrderEngine extends EngineBase {
       }
     } else {
       let ifCount = 0;
-      while (ifCount < W && kind[iff + ifCount] === SlotKind.Instr) ifCount++;
+      while (ifCount < W && kind[iff + ifCount] === SlotKind.Instr) {
+        ifCount++;
+      }
       const mc = Math.min(W - rest, ifCount);
-      for (let l = 0; l < mc; l++) v.moveStage(id + rest + l, iff + l);
+      for (let l = 0; l < mc; l++) {
+        v.moveStage(id + rest + l, iff + l);
+      }
       for (let l = 0; l < W; l++) {
-        if (l + mc < W) v.moveStage(iff + l, iff + l + mc);
-        else v.clearStage(iff + l);
+        if (l + mc < W) {
+          v.moveStage(iff + l, iff + l + mc);
+        } else {
+          v.clearStage(iff + l);
+        }
       }
     }
-    for (let l = 0; l < W; l++) if (kind[iff + l] !== SlotKind.Empty) stalled[iff + l] = 1;
+    for (let l = 0; l < W; l++) {
+      if (kind[iff + l] !== SlotKind.Empty) {
+        stalled[iff + l] = 1;
+      }
+    }
 
     // Fetch.
-    if (multi) this.useThread(this.fetchThread);
+    if (multi) {
+      this.useThread(this.fetchThread);
+    }
     if (kind[iff] === SlotKind.Empty && !this.fetchStopped && !this.hold && !this.fetchIdle && this.want < 0) {
       let memOp = false;
       for (let l = 0; l < W; l++) {
-        if (kind[mem + l] === SlotKind.Instr && OPF[p.op[sid[mem + l]! & mask]!]! & F_MEM) memOp = true;
+        if (kind[mem + l] === SlotKind.Instr && OPF[p.op[sid[mem + l]! & mask]!]! & F_MEM) {
+          memOp = true;
+        }
       }
       if (this.options.sharedPort && memOp) {
         v.setStage(iff, SlotKind.Bubble, -1, 0, Cause.Struct);
         c[Counter.StallStruct]!++;
       } else {
         for (let l = 0; l < W; l++) {
-          if (!this.fetchReady(this.fetchPc)) break;
-          if (this.fetch(l)) break;
+          if (!this.fetchReady(this.fetchPc)) {
+            break;
+          }
+          if (this.fetch(l)) {
+            break;
+          }
         }
       }
     }
@@ -371,8 +494,11 @@ export class InOrderEngine extends EngineBase {
     for (let l = 0; l < W; l++) {
       if (kind[wb + l] === SlotKind.Instr && p.op[sid[wb + l]! & mask] === OP_ECALL) {
         this.writeback();
-        if (multi) this.endThread(p.thread[sid[wb + l]! & mask]!);
-        else this.isHalted = true;
+        if (multi) {
+          this.endThread(p.thread[sid[wb + l]! & mask]!);
+        } else {
+          this.isHalted = true;
+        }
         break;
       }
     }
@@ -384,46 +510,65 @@ export class InOrderEngine extends EngineBase {
     this.tHalted[t] = 1;
     this.fetchStopped = false;
     let all = true;
-    for (let u = 0; u < this.cores.length; u++) if (!this.tHalted[u] && !this.cores[u]!.intc.parked) all = false; // a parked thread has nothing left to run
+    for (let u = 0; u < this.cores.length; u++) {
+      if (!this.tHalted[u] && !this.cores[u]!.intc.parked) {
+        all = false; // a parked thread has nothing left to run
+      }
+    }
     if (all) {
       this.isHalted = true;
       return;
     }
     if (this.fetchThread === t && !this.fetchIdle) {
       const n = this.pickNext(t);
-      if (n >= 0) this.switchFetch(n);
-      else this.fetchIdle = true;
+      if (n >= 0) {
+        this.switchFetch(n);
+      } else {
+        this.fetchIdle = true;
+      }
     }
   }
 
   /** Register writes and retirement for the WB occupants (the stage is not cleared). */
   private writeback(): void {
-    const v = this.v,
+    const { v } = this,
       p = this.pool,
       W = this.width,
       wb = Stage.WB * W;
     for (let l = 0; l < W; l++) {
-      if (v.stageKind[wb + l] !== SlotKind.Instr) continue;
+      if (v.stageKind[wb + l] !== SlotKind.Instr) {
+        continue;
+      }
       const id = v.stageId[wb + l]!;
       const s = id & this.mask;
-      if (this.cores.length > 1) this.useThread(p.thread[s]!);
-      if (OPF[p.op[s]!]! & F.Writes && p.rd[s] !== 0) this.writeReg(p.rd[s]!, p.res[s]!);
+      if (this.cores.length > 1) {
+        this.useThread(p.thread[s]!);
+      }
+      if (OPF[p.op[s]!]! & F.Writes && p.rd[s] !== 0) {
+        this.writeReg(p.rd[s]!, p.res[s]!);
+      }
       this.retire(id, p.op[s]!);
     }
   }
 
   /** Newest write to register r in MEM (non-load) is bypassed; otherwise the register file. */
   private operand(r: number): number {
-    if (r === 0) return 0;
-    const v = this.v,
+    if (r === 0) {
+      return 0;
+    }
+    const { v } = this,
       p = this.pool,
       W = this.width,
       mem = Stage.MEM * W;
     for (let l = 0; l < W; l++) {
-      if (v.stageKind[mem + l] !== SlotKind.Instr) continue;
+      if (v.stageKind[mem + l] !== SlotKind.Instr) {
+        continue;
+      }
       const m = v.stageId[mem + l]! & this.mask;
       const f = OPF[p.op[m]!]!;
-      if (f & F.Writes && !(f & F.Load) && p.rd[m] === r) return p.res[m]!;
+      if (f & F.Writes && !(f & F.Load) && p.rd[m] === r) {
+        return p.res[m]!;
+      }
     }
     return this.regs[r]!;
   }
@@ -431,15 +576,19 @@ export class InOrderEngine extends EngineBase {
   /** EX work for slot `s` in lane `lane`; true when it took a page fault (nothing of it or of anything younger survives). */
   private exStage(s: number, lane: number): boolean {
     const p = this.pool,
-      v = this.v,
+      { v } = this,
       c = v.counters;
     const op = p.op[s]!;
     const f = OPF[op]!;
-    if (p.fault[s]) return this.fault(s, lane); // a fetch fault, now known to be on the right path (EX is never speculative here)
+    if (p.fault[s]) {
+      return this.fault(s, lane); // a fetch fault, now known to be on the right path (EX is never speculative here)
+    }
     p.a[s] = f & F.Rs1 ? this.operand(p.rs1[s]!) : 0;
     p.b[s] = f & F.Rs2 ? this.operand(p.rs2[s]!) : 0;
     const next = this.execute(s);
-    if (p.fault[s]) return this.fault(s, lane); // a load or store the MMU refused
+    if (p.fault[s]) {
+      return this.fault(s, lane); // a load or store the MMU refused
+    }
     if (op === OP_ECALL) {
       // Stop fetching and squash anything fetched behind it.
       this.squash(Stage.IF, false);
@@ -448,7 +597,9 @@ export class InOrderEngine extends EngineBase {
       this.fetchPc = next;
       return false;
     }
-    if (!(f & F_CTRL)) return false;
+    if (!(f & F_CTRL)) {
+      return false;
+    }
     const isBranch = (f & F.Branch) !== 0;
     if (isBranch) {
       c[Counter.Branches]!++;
@@ -456,7 +607,9 @@ export class InOrderEngine extends EngineBase {
     }
     if (next !== p.predNext[s]) {
       c[Counter.Flushes]!++;
-      if (isBranch) c[Counter.BranchMispredicts]!++;
+      if (isBranch) {
+        c[Counter.BranchMispredicts]!++;
+      }
       this.squash(Stage.IF, true);
       this.squash(Stage.ID, true);
       c[Counter.StallFlush]! += 2;
@@ -467,7 +620,7 @@ export class InOrderEngine extends EngineBase {
 
   /** A page fault at EX: this instruction and the ones behind it (the younger lanes of EX, ID and IF) are squashed; the older ones in MEM and WB finish. */
   private fault(s: number, lane: number): boolean {
-    const v = this.v,
+    const { v } = this,
       W = this.width,
       ex = Stage.EX * W;
     this.takeFault(s);
@@ -490,7 +643,7 @@ export class InOrderEngine extends EngineBase {
 
   /** Kill every occupant of a front-end stage; with `bubble` lane 0 becomes a flush bubble. */
   private squash(stage: number, bubble: boolean): void {
-    const v = this.v,
+    const { v } = this,
       W = this.width;
     for (let l = 0; l < W; l++) {
       const i = stage * W + l;
@@ -502,35 +655,49 @@ export class InOrderEngine extends EngineBase {
       }
       v.clearStage(i);
     }
-    if (bubble) v.setStage(stage * W, SlotKind.Bubble, -1, 0, Cause.Flush);
+    if (bubble) {
+      v.setStage(stage * W, SlotKind.Bubble, -1, 0, Cause.Flush);
+    }
   }
 
   /** Cause of the stall the ID instruction in slot `s` must take this cycle (vs. the bundles in EX and MEM), or Cause.None. */
   private hazard(s: number): number {
-    const v = this.v,
+    const { v } = this,
       p = this.pool,
       W = this.width;
     const f = OPF[p.op[s]!]!;
     const fwd = this.options.forwarding;
     for (let n = 0; n < 2; n++) {
       const r = n === 0 ? (f & F.Rs1 ? p.rs1[s]! : 0) : f & F.Rs2 ? p.rs2[s]! : 0;
-      if (r === 0) continue;
+      if (r === 0) {
+        continue;
+      }
       for (let l = 0; l < W; l++) {
         const i = Stage.EX * W + l;
-        if (v.stageKind[i] !== SlotKind.Instr) continue;
+        if (v.stageKind[i] !== SlotKind.Instr) {
+          continue;
+        }
         const e = v.stageId[i]! & this.mask;
         const fe = OPF[p.op[e]!]!;
         if (fe & F.Writes && p.rd[e] === r) {
-          if (!fwd) return Cause.Data;
-          if (fe & F.Load) return Cause.Load;
+          if (!fwd) {
+            return Cause.Data;
+          }
+          if (fe & F.Load) {
+            return Cause.Load;
+          }
         }
       }
       if (!fwd) {
         for (let l = 0; l < W; l++) {
           const i = Stage.MEM * W + l;
-          if (v.stageKind[i] !== SlotKind.Instr) continue;
+          if (v.stageKind[i] !== SlotKind.Instr) {
+            continue;
+          }
           const m = v.stageId[i]! & this.mask;
-          if (OPF[p.op[m]!]! & F.Writes && p.rd[m] === r) return Cause.Data;
+          if (OPF[p.op[m]!]! & F.Writes && p.rd[m] === r) {
+            return Cause.Data;
+          }
         }
       }
     }
@@ -539,21 +706,33 @@ export class InOrderEngine extends EngineBase {
 
   /** May ID lane `lane` (slot s) issue in the same bundle as the lanes before it? */
   private canPair(s: number, lane: number): boolean {
-    const v = this.v,
+    const { v } = this,
       p = this.pool,
       W = this.width;
     const f = OPF[p.op[s]!]!;
-    if (p.op[s] === OP_IRET) return false; // reads EPC in EX: an older store to it must have reached memory first
+    if (p.op[s] === OP_IRET) {
+      return false; // reads EPC in EX: an older store to it must have reached memory first
+    }
     for (let q = 0; q < lane; q++) {
       const e = v.stageId[Stage.ID * W + q]! & this.mask;
       const fe = OPF[p.op[e]!]!;
-      if (fe & F_CTRL || p.op[e] === OP_ECALL) return false;
-      if (fe & F_MEM && f & F_MEM) return false;
+      if (fe & F_CTRL || p.op[e] === OP_ECALL) {
+        return false;
+      }
+      if (fe & F_MEM && f & F_MEM) {
+        return false;
+      }
       if (fe & F.Writes && p.rd[e] !== 0) {
         const rd = p.rd[e]!;
-        if (f & F.Rs1 && p.rs1[s] === rd) return false;
-        if (f & F.Rs2 && p.rs2[s] === rd) return false;
-        if (f & F.Writes && p.rd[s] === rd) return false;
+        if (f & F.Rs1 && p.rs1[s] === rd) {
+          return false;
+        }
+        if (f & F.Rs2 && p.rs2[s] === rd) {
+          return false;
+        }
+        if (f & F.Writes && p.rd[s] === rd) {
+          return false;
+        }
       }
     }
     return true;
@@ -564,7 +743,7 @@ export class InOrderEngine extends EngineBase {
    * jal is always predicted taken, jalr not taken. Returns true if the fetch group ends here (control instruction).
    */
   private fetch(lane: number): boolean {
-    const v = this.v,
+    const { v } = this,
       p = this.pool;
     const id = v.nextId++;
     const s = id & this.mask;
@@ -575,7 +754,9 @@ export class InOrderEngine extends EngineBase {
     const f = OPF[p.op[s]!]!;
     let next = (pc + 4) >>> 0;
     if (f & F.Branch) {
-      if (this.pred.predict(pc)) next = (pc + p.imm[s]!) >>> 0;
+      if (this.pred.predict(pc)) {
+        next = (pc + p.imm[s]!) >>> 0;
+      }
     } else if (f & F.Jal) {
       next = (pc + p.imm[s]!) >>> 0;
     }
@@ -587,11 +768,13 @@ export class InOrderEngine extends EngineBase {
   }
 
   private log(): void {
-    const v = this.v;
+    const { v } = this;
     for (let s = 0; s < 5; s++) {
       for (let l = 0; l < this.width; l++) {
         const i = s * this.width + l;
-        if (v.stageKind[i] === SlotKind.Instr) v.mark(v.stageId[i]!, s + 1);
+        if (v.stageKind[i] === SlotKind.Instr) {
+          v.mark(v.stageId[i]!, s + 1);
+        }
       }
     }
   }
