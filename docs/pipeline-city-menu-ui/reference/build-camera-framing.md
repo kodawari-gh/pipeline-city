@@ -31,7 +31,7 @@ camera.setViewOffset(
 
 ## Where the default framing lives
 
-- **`BuildStage.frameView()`** in `src/features/board/render/three/buildmode3d.ts` — the default / reset orbit. It unions `CASE_RECT` with the wall frame, shifts the target west by `WALL_SHIFT` (1400), and calls `fitRect(..., this.W / this.H, START, 0.55)`. The aspect is the **full canvas**, not the free stage, and the margin (0.55) is a fill factor of that full frame. That is why, today, the case sits around x 798–1542 with its base near y 1020 and overflows the right panel and the run-bar plate.
+- **`BuildStage.frameView()`** in `src/features/board/render/three/buildstage/scenery.ts` — the default / reset orbit. It unions `CASE_RECT` with the wall frame, shifts the target west by `WALL_SHIFT` (1400), and calls `fitRect(..., this.W / this.H, START, 0.55)`. The aspect is the **full canvas**, not the free stage, and the margin (0.55) is a fill factor of that full frame. That is why, today, the case sits around x 798–1542 with its base near y 1020 and overflows the right panel and the run-bar plate.
 - **`BuildStage.resetView()` / `preset()`** in the same file reuse `frameView()`.
 - **`applyView(camera, this.view, this.W / this.H)`** in `BuildStage.frame` (same file) applies that orbit every tick (`src/core/render/three/camera.ts`). It sets pose, fov, aspect, near/far, then `updateProjectionMatrix()`. It does **not** call `setViewOffset` or `clearViewOffset`; a live `camera.view` is honoured if you keep it enabled (re-stamping it after `applyView` is the safe option).
 - **`fitRect` / `fitHeight`** in `src/core/render/three/camera.ts` — world box → `OrbitView.height`.

@@ -83,6 +83,7 @@ buildpreset
 buildrun
 buildshot
 buildspecs
+buildstage
 buildstills
 buildtabs
 bumpmap
@@ -91,6 +92,7 @@ busmap
 busx
 bwid
 bytearray
+cablehand
 cablerig
 cabletip
 cacts
@@ -255,6 +257,7 @@ fffffffdddxmw
 fffffffdxmw
 fiducials
 finaliser
+fitback
 flatweave
 floorplan
 floorplan's
@@ -268,6 +271,7 @@ fshit
 fujin
 funct
 fxaa
+gamelink
 gapw
 gbase
 gchip
@@ -668,6 +672,7 @@ ptfe
 ptitle
 ptrs
 punct
+putback
 pvec
 pwmc
 pwrcpu
@@ -804,6 +809,8 @@ srow
 srtt
 sstep
 ssthresh
+stagebase
+stagestate
 standin
 startable
 startbtn
@@ -811,6 +818,7 @@ statcard
 statelessly
 stathelp
 steamapps
+stepparts
 stillworld
 strided
 studiowall
