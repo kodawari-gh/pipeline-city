@@ -56,18 +56,24 @@ export function packetOn(
 /** The wires a packet has gone along stay lit in its colour for a moment: the path an instruction took. */
 export function drawTrails(g: Graphics, trails: Map<string, Trail>, now: number, zoom: number): void {
   g.clear();
-  if (zoom < 0.2) return;
+  if (zoom < 0.2) {
+    return;
+  }
   for (const [id, t] of trails) {
     const age = now - t.t0;
     if (age > TRAIL_MS) {
       trails.delete(id);
       continue;
     }
-    if (age < 0) continue;
+    if (age < 0) {
+      continue;
+    }
     const a = 0.85 * (1 - age / TRAIL_MS);
     for (const line of t.lines) {
       g.moveTo(line[0]![0], line[0]![1]);
-      for (let i = 1; i < line.length; i++) g.lineTo(line[i]![0], line[i]![1]);
+      for (let i = 1; i < line.length; i++) {
+        g.lineTo(line[i]![0], line[i]![1]);
+      }
       g.stroke({ width: 2.6, color: t.color, alpha: a, join: 'round' });
     }
   }
@@ -77,10 +83,14 @@ export function drawTrails(g: Graphics, trails: Map<string, Trail>, now: number,
 export function drawPackets(g: Graphics, packets: Packet[], now: number, zoom: number, ink: string): Packet[] {
   g.clear();
   const live = packets.filter((p) => now < p.t0 + p.dur);
-  if (zoom < 0.2) return live;
+  if (zoom < 0.2) {
+    return live;
+  }
   for (const p of live) {
     const u = (now - p.t0) / p.dur;
-    if (u < 0 || p.len < 2) continue;
+    if (u < 0 || p.len < 2) {
+      continue;
+    }
     const e = u * u * (3 - 2 * u);
     const fade = Math.min(1, u * 8, (1 - u) * 5 + 0.2);
     for (const line of p.lines) {
@@ -125,11 +135,17 @@ export function drawPulse(g: Graphics, dots: Map<string, Dot>, seen: Set<string>
     d.hist.length = 0;
     return;
   }
-  if (Math.hypot(dx, dy) > 60) d.hist.length = 0; // it passed from one trace into the next at a block's edge: no streak across the block
+  if (Math.hypot(dx, dy) > 60) {
+    d.hist.length = 0; // it passed from one trace into the next at a block's edge: no streak across the block
+  }
   if (Math.hypot(dx, dy) > 1.2) {
     d.hist.push([x, y]);
-    if (d.hist.length > 10) d.hist.shift();
-  } else if (d.hist.length) d.hist.shift();
+    if (d.hist.length > 10) {
+      d.hist.shift();
+    }
+  } else if (d.hist.length > 0) {
+    d.hist.shift();
+  }
   const ease = (v: number) => {
     const t = Math.max(0, Math.min(1, v));
     return t * t * (3 - 2 * t);
@@ -164,9 +180,15 @@ export class CellTexts {
   }
   private put(t: Text, str: string, x: number, y: number, size: number, color: string) {
     t.visible = str !== '';
-    if (!str) return;
-    if (t.text !== str) t.text = str;
-    if (t.style.fill !== color) t.style.fill = color;
+    if (!str) {
+      return;
+    }
+    if (t.text !== str) {
+      t.text = str;
+    }
+    if (t.style.fill !== color) {
+      t.style.fill = color;
+    }
     t.position.set(x, y);
     t.scale.set(size / 20);
   }
@@ -180,7 +202,9 @@ export class CellTexts {
     }
     if (bottom === '') {
       this.put(this.text(this.a, i, true), top, cx, r.y + r.h / 2, Math.min(fit(top, 20), r.h * 0.6), color);
-      if (this.b[i]) this.b[i]!.visible = false;
+      if (this.b[i]) {
+        this.b[i]!.visible = false;
+      }
       return;
     }
     const s = Math.min(r.h * 0.3, 15);
@@ -202,17 +226,27 @@ export class CellTexts {
       return;
     }
     this.put(this.text(this.a, i, false), str, r.x + r.w / 2, r.y + r.h / 2, size, color);
-    if (this.b[i]) this.b[i]!.visible = false;
+    if (this.b[i]) {
+      this.b[i]!.visible = false;
+    }
   }
   hide(i: number) {
-    if (this.a[i]) this.a[i]!.visible = false;
-    if (this.b[i]) this.b[i]!.visible = false;
+    if (this.a[i]) {
+      this.a[i]!.visible = false;
+    }
+    if (this.b[i]) {
+      this.b[i]!.visible = false;
+    }
   }
   hideFrom(n: number) {
-    for (let i = n; i < Math.max(this.a.length, this.b.length); i++) this.hide(i);
+    for (let i = n; i < Math.max(this.a.length, this.b.length); i++) {
+      this.hide(i);
+    }
   }
   clear() {
-    for (const t of [...this.a, ...this.b]) t?.destroy();
+    for (const t of [...this.a, ...this.b]) {
+      t?.destroy();
+    }
     this.a = [];
     this.b = [];
   }

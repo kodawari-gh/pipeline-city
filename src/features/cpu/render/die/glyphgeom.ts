@@ -1,4 +1,5 @@
 import type { Block, BlockKind, Pt, Rect } from '../core/cpuplan';
+import { clean, intoPin, outOfPin } from './wiring';
 
 // The geometry of the symbols drawn inside blocks (blockart.ts) that the wires need to know: where a symbol's pins are, so a link can run into the
 // symbol (the A and B of an ALU, the +4 / branch / interrupt inputs of the next-PC multiplexer) instead of stopping at the block's edge
@@ -27,9 +28,9 @@ const GLYPH_KINDS: ReadonlySet<BlockKind> = new Set<BlockKind>([
 /** Whether a block is drawn as a symbol (the dispatch stage is a queue by kind but a set of lanes by look). */
 const isGlyph = (b: Block): boolean => GLYPH_KINDS.has(b.kind) || b.id === 'disp';
 /** The lanes a dispatch stage passes at once ("4 a cycle"). */
-export const laneCount = (b: Pick<Block, 'sub'>): number => Number(/^(\d+)/.exec(b.sub ?? '')?.[1] ?? 2);
+export const laneCount = (b: Pick<Block, 'sub'>): number => Number(/^(?<lanes>\d+)/u.exec(b.sub ?? '')?.[1] ?? 2);
 /** The number of words a fetch block reads at once ("FETCH × 4"). */
-export const fetchWidth = (b: Pick<Block, 'label'>): number => Number(/×\s*(\d+)/.exec(b.label)?.[1] ?? 1);
+export const fetchWidth = (b: Pick<Block, 'label'>): number => Number(/×\s*(?<words>\d+)/u.exec(b.label)?.[1] ?? 1);
 
 /** A narrow tall block (a queue, a latch) carries its name rotated along its left side. */
 export const isTall = (b: { kind: string; rect: Rect; label: string }): boolean => {
@@ -117,18 +118,27 @@ export interface Pins {
 }
 
 export function glyphPins(b: Block): Pins | null {
-  if (!hasSymbol(b)) return null;
+  if (!hasSymbol(b)) {
+    return null;
+  }
   const a = glyphArea(b);
-  if (!a) return null;
+  if (!a) {
+    return null;
+  }
   const { x, y, w, h } = a;
-  if (b.id === 'disp') return { ins: { in: [x, y + h / 2] }, out: [x + w, y + h / 2] };
+  if (b.id === 'disp') {
+    return { ins: { in: [x, y + h / 2] }, out: [x + w, y + h / 2] };
+  }
   switch (b.kind) {
     case 'pc':
     case 'fetch':
-    case 'imm':
+    case 'imm': {
       return { ins: { in: [x, y + h / 2] }, out: [x + w, y + h / 2] };
+    }
     case 'decode': {
-      if (isVertical(b)) return { ins: { in: [x, y + h * 0.2] }, out: [x + w, y + h * 0.2] };
+      if (isVertical(b)) {
+        return { ins: { in: [x, y + h * 0.2] }, out: [x + w, y + h * 0.2] };
+      }
       const wh = Math.min(14, h * 0.4);
       return { ins: { in: [x, y + wh / 2] }, out: [x + w, y + wh / 2] };
     }
@@ -183,85 +193,39 @@ export function glyphPins(b: Block): Pins | null {
       const g = forwardGeom(a);
       return { ins: { in: [g.busx, y + h / 2] }, out: [x + w, y + h / 2] };
     }
-    case 'bundle':
+    case 'bundle': {
       return { ins: {}, out: [bundleGeom(a).xo, y + h / 2] };
+    }
     case 'mmio': {
       const g = deviceGeom(a);
       return { ins: { in: [x, g.cy] }, out: [x + w, g.downY] };
     }
-    case 'latch':
+    case 'latch': {
       return null;
-    case 'mul':
+    }
+    case 'mul': {
       return { ins: { in: [x + 2, y + h / 2] }, out: [x + w * 0.62 + Math.min(60, w * 0.3), y + h / 2] };
+    }
     case 'lsu': {
       const r = Math.min(h / 2.4, 14),
         cx = x + r + 10;
       return { ins: { in: [cx - r - 12, y + h / 2] }, out: [x + w, y + h / 2] };
     }
-    default:
+    default: {
       return null;
+    }
   }
 }
 
 /** The input pin a link enters a symbol at (the next-PC multiplexer has three, write-back three). */
 export function inPinFor(b: Block, linkId: string, pins: Pins): Pt | undefined {
-  if (b.kind === 'nextpc') return pins.ins[linkId.includes('pcadd') ? '+4' : linkId.includes('irq') ? 'irq' : 'br'];
-  if (b.kind === 'wb') return pins.ins[/lsu|l3|mem/.test(linkId) ? 'mem' : 'alu'];
+  if (b.kind === 'nextpc') {
+    return pins.ins[linkId.includes('pcadd') ? '+4' : linkId.includes('irq') ? 'irq' : 'br'];
+  }
+  if (b.kind === 'wb') {
+    return pins.ins[/lsu|l3|mem/u.test(linkId) ? 'mem' : 'alu'];
+  }
   return pins.ins['in'] ?? Object.values(pins.ins)[0];
-}
-
-const sideOf = (p: Pt, r: Rect): 'W' | 'E' | 'N' | 'S' =>
-  Math.abs(p[0] - r.x) < 0.6 ? 'W' : Math.abs(p[0] - (r.x + r.w)) < 0.6 ? 'E' : Math.abs(p[1] - r.y) < 0.6 ? 'N' : 'S';
-
-const clean = (pts: Pt[]): Pt[] => {
-  const out: Pt[] = [];
-  for (const p of pts) {
-    const n = out.length;
-    if (n >= 1 && out[n - 1]![0] === p[0] && out[n - 1]![1] === p[1]) continue;
-    if (n >= 2) {
-      const u = out[n - 2]!,
-        v = out[n - 1]!;
-      if ((u[0] === v[0] && v[0] === p[0]) || (u[1] === v[1] && v[1] === p[1])) out.pop();
-    }
-    out.push(p);
-  }
-  return out;
-};
-
-/** The trace from a block's edge point `e` into the symbol's input pin `p`: through a channel just left of the pins, so it never crosses the symbol. */
-function intoPin(b: Block, e: Pt, p: Pt): Pt[] {
-  const r = b.rect,
-    xc = Math.max(r.x + 4, p[0] - 5),
-    top = r.y + 5,
-    bot = r.y + r.h - 4;
-  switch (sideOf(e, r)) {
-    case 'W':
-      return [e, [xc, e[1]], [xc, p[1]], p];
-    case 'N':
-      return [e, [e[0], top], [xc, top], [xc, p[1]], p];
-    case 'S':
-      return [e, [e[0], bot], [xc, bot], [xc, p[1]], p];
-    default:
-      return [e, [e[0] - 4, e[1]], [e[0] - 4, top], [xc, top], [xc, p[1]], p];
-  }
-}
-
-/** The trace from a symbol's output pin `p` out to the block's edge point `e`, through a channel just right of the symbol. */
-function outOfPin(b: Block, p: Pt, e: Pt): Pt[] {
-  const r = b.rect,
-    xr = Math.min(r.x + r.w - 4, p[0] + 5),
-    top = r.y + 5,
-    bot = r.y + r.h - 4;
-  switch (sideOf(e, r)) {
-    case 'E':
-      return [p, [xr, p[1]], [xr, e[1]], e];
-    case 'N':
-      return [p, [xr, p[1]], [xr, top], [e[0], top], e];
-    case 'S':
-      return [p, [xr, p[1]], [xr, bot], [e[0], bot], e];
-    default:
-      return [p, [xr, p[1]], [xr, top], [r.x + 4, top], [r.x + 4, e[1]], e];
-  }
 }
 
 /**
@@ -269,11 +233,13 @@ function outOfPin(b: Block, p: Pt, e: Pt): Pt[] {
  * blocks have a symbol). The routed part between the two edges is unchanged.
  */
 export function dockLink(from: Block, to: Block, id: string, pts: Pt[]): Pt[] {
-  if (pts.length < 2) return pts;
+  if (pts.length < 2) {
+    return pts;
+  }
   const pf = glyphPins(from),
     pt = glyphPins(to);
   const head = pf?.out ? outOfPin(from, pf.out, pts[0]!) : [pts[0]!];
   const pin = pt ? inPinFor(to, id, pt) : undefined;
-  const tail = pin ? intoPin(to, pts[pts.length - 1]!, pin) : [pts[pts.length - 1]!];
+  const tail = pin ? intoPin(to, pts.at(-1)!, pin) : [pts.at(-1)!];
   return clean([...head, ...pts.slice(1, -1), ...tail]);
 }
