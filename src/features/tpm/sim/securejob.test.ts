@@ -1,15 +1,32 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { assemble } from '../../cpu/sim/asm';
 import { createEngine } from '../../cpu/sim/engines';
 import { TpmCmd, TPM_BASE, TPM_REG, TpmFault } from '@/core/sim/memmap';
-import { Machine, TpmPort, type TpmConfig } from '@/core/sim';
-import { generate, runReference, type Generated } from '../../jobs/sim/gen/index';
+import { Machine, TpmPort } from '@/core/sim';
+import type * as simTypes from '@/core/sim';
+import { generate, runReference } from '../../jobs/sim/gen/index';
+import type * as genTypes from '../../jobs/sim/gen/index';
 
-const TPM1: TpmConfig = { measureTicks: 4, attestTicks: 60, surcharge: 2 };
-const TPM2: TpmConfig = { measureTicks: 1, attestTicks: 20, surcharge: 1 };
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+/** Ticks the machine until its CPU halts, or `max` ticks pass. */
+function runUntilHalted(m: Machine, max: number): void {
+  for (let i = 0; i < max && !must(m.engine).halted; i++) {
+    m.advanceBaseTick();
+  }
+}
+
+const TPM1: simTypes.TpmConfig = { measureTicks: 4, attestTicks: 60, surcharge: 2 };
+const TPM2: simTypes.TpmConfig = { measureTicks: 1, attestTicks: 20, surcharge: 1 };
 
 /** Run a program on a machine with a real TPM at one module tick per base tick. */
-function onMachine(g: Generated, cfg: TpmConfig = TPM1) {
+function onMachine(g: genTypes.Generated, cfg: simTypes.TpmConfig = TPM1) {
   const m = new Machine({ ramSize: 64 * 1024, seed: 3 });
   const tpm = new TpmPort(m.bus, m.ram, m.prng);
   m.addDevice(tpm);
@@ -17,9 +34,11 @@ function onMachine(g: Generated, cfg: TpmConfig = TPM1) {
   tpm.configure(cfg);
   m.attach(createEngine({ kind: 'unpipelined' }), g.program);
   let ticks = 0;
-  while (!m.engine!.halted) {
+  while (!must(m.engine).halted) {
     m.advanceBaseTick();
-    if (++ticks > 2_000_000) throw new Error('program never halted');
+    if (++ticks > 2_000_000) {
+      throw new Error('program never halted');
+    }
   }
   return { ticks, text: m.display.text(), tpm, m };
 }
@@ -28,7 +47,7 @@ describe('secure.sign job', () => {
   const g = generate('secure.sign', 7, { scale: 4 });
 
   it("prints a line of the form '#NN secure XX OK', the same on the reference interpreter (instant fake TPM) and the real module", () => {
-    expect(g.meta.expectedText).toMatch(/^#\d\d secure \d\d OK$/);
+    expect(g.meta.expectedText).toMatch(/^#\d\d secure \d\d OK$/u);
     expect(runReference(g).text).toBe(g.meta.expectedText);
     expect(onMachine(g).text).toBe(g.meta.expectedText);
   });
@@ -55,7 +74,7 @@ describe('secure.sign job', () => {
   it('works hosted, at every scale', () => {
     for (const scale of [1, 2, 4, 8]) {
       const h = generate('secure.sign', 3, { scale, hosted: true });
-      expect(h.program.length * 4).toBeLessThan(0x3000);
+      expect(h.program.length * 4).toBeLessThan(0x30_00);
     }
   });
 });
@@ -84,10 +103,11 @@ describe('protected mode kills a job that strays', () => {
     m.clock.setRate('tpm', { mul: 1, div: 1 });
     tpm.configure(TPM1);
     m.attach(createEngine({ kind: 'unpipelined' }), prog); // loaded at 0, inside the protected 0..1024
-    for (let i = 0; i < 600 && !m.engine!.halted; i++) m.advanceBaseTick();
-    expect(m.engine!.halted).toBe(true);
+    runUntilHalted(m, 600);
+    assert.exists(m.engine);
+    expect(m.engine.halted).toBe(true);
     expect(tpm.takeViolation()).toBe(true);
     expect(m.bus.load32(TPM_BASE + TPM_REG.FAULT)).toBe(TpmFault.Violation);
-    expect(m.ram[32768]).toBe(0);
+    expect(m.ram[32_768]).toBe(0);
   });
 });

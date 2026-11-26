@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { ECONOMY } from '../../economy/sim/economy';
 import type { Game } from '@/worker/game/game';
 import { rig } from '@/worker/game/testkit';
@@ -7,9 +7,29 @@ ECONOMY.levelGating = false;
 ECONOMY.caseGating = false;
 
 const until = (g: Game, done: () => boolean, max = 4000): void => {
-  for (let t = 0; t < max && !done(); t++) g.advanceBaseTick();
+  for (let t = 0; t < max && !done(); t++) {
+    g.advanceBaseTick();
+  }
   expect(done()).toBe(true);
 };
+
+/** The plugged job is done and its key is out of the port. */
+const jobDone = (g: Game) => (): boolean => g.completed === 1 && g.pluggedKey() === null;
+
+const flipped = (g: Game) => (): boolean => (g.snapshot().bitFlips ?? 0) > 0;
+const isFlipLine = (l: { kind: string; text: string }): boolean => l.kind === 'fault' && l.text.includes('bit flipped');
+
+/** Swaps the machine's RAM for `spec`, bought free. */
+function swapRam(g: Game, spec: string) {
+  for (const d of g.board.devices.filter((x) => x.spec.startsWith('ram'))) {
+    g.uninstall(d.id);
+  }
+  const b = g.purchase(spec);
+  if (!b.ok) {
+    throw new Error(b.reason);
+  }
+  return g.install(b.invId);
+}
 
 describe('bit flips in memory', () => {
   const scan = { keys: [{ template: 'cli.scan', scale: 3 }] };
@@ -18,8 +38,10 @@ describe('bit flips in memory', () => {
     const g = rig('ssd1', scan);
     g.powerButton();
     until(g, () => g.currentPhase() === 'idle-os');
-    g.plugKey(g.trayKeyIds()[0]!);
-    until(g, () => g.completed === 1 && g.pluggedKey() === null);
+    const [firstTrayKeyId] = g.trayKeyIds();
+    assert.exists(firstTrayKeyId);
+    g.plugKey(firstTrayKeyId);
+    until(g, jobDone(g));
     expect(g.snapshot().bitFlips).toBe(0);
     expect(g.snapshot().eccCorrected).toBe(0);
   });
@@ -28,25 +50,26 @@ describe('bit flips in memory', () => {
     const g = rig('ssd1', { ...scan, economy: { memoryFlipRate: 1 } });
     g.powerButton();
     until(g, () => g.currentPhase() === 'idle-os');
-    g.plugKey(g.trayKeyIds()[0]!);
-    until(g, () => (g.snapshot().bitFlips ?? 0) > 0);
+    const [firstTrayKeyId2] = g.trayKeyIds();
+    assert.exists(firstTrayKeyId2);
+    g.plugKey(firstTrayKeyId2);
+    until(g, flipped(g));
     expect(g.eccInstalled()).toBe(false);
     expect(g.snapshot().eccCorrected).toBe(0);
-    expect(g.snapshot().log.some((l) => l.kind === 'fault' && l.text.includes('bit flipped'))).toBe(true);
+    expect(g.snapshot().log.some(isFlipLine)).toBe(true);
   });
 
   it('ECC RAM corrects it and counts it: the memory is untouched', () => {
     const g = rig('ssd1', { ...scan, economy: { memoryFlipRate: 1 } });
-    for (const d of g.board.devices.filter((x) => x.spec.startsWith('ram'))) g.uninstall(d.id);
-    const b = g.purchase('ram3');
-    if (!b.ok) throw new Error(b.reason);
-    const ins = g.install(b.invId);
+    const ins = swapRam(g, 'ram3');
     expect(ins).toMatchObject({ ok: true });
     g.powerButton();
     until(g, () => g.currentPhase() === 'idle-os');
     expect(g.eccInstalled()).toBe(true);
-    g.plugKey(g.trayKeyIds()[0]!);
-    until(g, () => g.completed === 1 && g.pluggedKey() === null);
+    const [firstTrayKeyId3] = g.trayKeyIds();
+    assert.exists(firstTrayKeyId3);
+    g.plugKey(firstTrayKeyId3);
+    until(g, jobDone(g));
     expect(g.snapshot().eccCorrected).toBeGreaterThan(0);
     expect(g.snapshot().bitFlips).toBe(0);
   });

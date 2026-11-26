@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { BLOCK_BYTES, STORAGE_BASE, STORAGE_BUF, STORAGE_REG, StorageStatus } from '@/core/sim/memmap';
 import { specsOfKind } from '../../board/sim';
 import { Disk, StoragePort } from './storage';
@@ -29,17 +29,19 @@ describe('block device on the bus', () => {
   it('reports presence, capacity and an idle status', () => {
     const { m } = rig();
     const st = m.bus.load32(STORAGE_BASE + STORAGE_REG.STATUS);
-    expect(st & StorageStatus.Present).toBeTruthy();
+    expect(st & StorageStatus.Present).toBe(StorageStatus.Present);
     expect(st & StorageStatus.Busy).toBe(0);
     expect(m.bus.load32(STORAGE_BASE + STORAGE_REG.BLOCKS)).toBe(16);
   });
 
   it('writes a block through the buffer and reads it back, after the access latency', () => {
     const { m, disk, read } = rig(5, 3);
-    for (let i = 0; i < 64; i++) m.bus.store32(STORAGE_BASE + STORAGE_BUF + 4 * i, 0x1000 + i);
+    for (let i = 0; i < 64; i++) {
+      m.bus.store32(STORAGE_BASE + STORAGE_BUF + 4 * i, 0x10_00 + i);
+    }
     m.bus.store32(STORAGE_BASE + STORAGE_REG.LBA, 9);
     m.bus.store32(STORAGE_BASE + STORAGE_REG.CMD, 2);
-    expect(m.bus.load32(STORAGE_BASE + STORAGE_REG.STATUS) & StorageStatus.Busy).toBeTruthy();
+    expect(m.bus.load32(STORAGE_BASE + STORAGE_REG.STATUS) & StorageStatus.Busy).toBe(StorageStatus.Busy);
     expect(disk.bytesWritten).toBe(0); // not committed until the device ticks run out
     let n = 0;
     while (m.bus.load32(STORAGE_BASE + STORAGE_REG.STATUS) & StorageStatus.Busy) {
@@ -49,9 +51,11 @@ describe('block device on the bus', () => {
     expect(n).toBe(5 + 3); // seek + one block
     expect(disk.bytesWritten).toBe(BLOCK_BYTES);
     expect(disk.usedBlocks).toBe(1);
-    for (let i = 0; i < 64; i++) m.bus.store32(STORAGE_BASE + STORAGE_BUF + 4 * i, 0);
+    for (let i = 0; i < 64; i++) {
+      m.bus.store32(STORAGE_BASE + STORAGE_BUF + 4 * i, 0);
+    }
     read(9);
-    expect(m.bus.load32(STORAGE_BASE + STORAGE_BUF + 4 * 63)).toBe(0x1000 + 63);
+    expect(m.bus.load32(STORAGE_BASE + STORAGE_BUF + 4 * 63)).toBe(0x10_00 + 63);
     expect(disk.bytesRead).toBe(BLOCK_BYTES);
   });
 
@@ -68,12 +72,12 @@ describe('block device on the bus', () => {
     m.bus.store32(STORAGE_BASE + STORAGE_REG.LBA, 999);
     m.bus.store32(STORAGE_BASE + STORAGE_REG.CMD, 1);
     const st = m.bus.load32(STORAGE_BASE + STORAGE_REG.STATUS);
-    expect(st & StorageStatus.Error).toBeTruthy();
+    expect(st & StorageStatus.Error).toBe(StorageStatus.Error);
     expect(st & StorageStatus.Busy).toBe(0);
     m.bus.store32(STORAGE_BASE + STORAGE_REG.LBA, 1);
     m.bus.store32(STORAGE_BASE + STORAGE_REG.CMD, 1);
     m.bus.store32(STORAGE_BASE + STORAGE_REG.CMD, 1); // second command while busy
-    expect(m.bus.load32(STORAGE_BASE + STORAGE_REG.STATUS) & StorageStatus.Error).toBeTruthy();
+    expect(m.bus.load32(STORAGE_BASE + STORAGE_REG.STATUS) & StorageStatus.Error).toBe(StorageStatus.Error);
     port.attach(null);
     expect(m.bus.load32(STORAGE_BASE + STORAGE_REG.STATUS) & StorageStatus.Present).toBe(0);
     expect(read(0)).toBe(0);
@@ -84,7 +88,9 @@ describe('block device on the bus', () => {
     disk.data[300 * BLOCK_BYTES] = 77;
     m.bus.store32(STORAGE_BASE + STORAGE_REG.LBA, 300);
     m.bus.store32(STORAGE_BASE + STORAGE_REG.CMD, 1);
-    while (m.bus.load32(STORAGE_BASE + STORAGE_REG.STATUS) & StorageStatus.Busy) m.advanceBaseTick();
+    while (m.bus.load32(STORAGE_BASE + STORAGE_REG.STATUS) & StorageStatus.Busy) {
+      m.advanceBaseTick();
+    }
     expect(m.bus.load8(STORAGE_BASE + STORAGE_BUF)).toBe(77);
   });
 });
@@ -93,11 +99,14 @@ describe('storage tiers', () => {
   const [hdd, ssd, nvme] = specsOfKind('storage');
 
   it('is a ladder: HDD (SATA), SATA SSD, NVMe (M.2), faster and pricier each step', () => {
-    expect([hdd!.id, ssd!.id, nvme!.id]).toEqual(['hdd0', 'ssd1', 'nvme2']);
-    expect([hdd!.slot, ssd!.slot, nvme!.slot]).toEqual(['sata', 'sata', 'm2']);
-    expect(hdd!.price).toBeLessThan(ssd!.price);
-    expect(ssd!.price).toBeLessThan(nvme!.price);
-    expect(hdd!.idleW).toBeGreaterThanOrEqual(ssd!.idleW); // the HDD spins
+    assert.exists(hdd);
+    assert.exists(ssd);
+    assert.exists(nvme);
+    expect([hdd.id, ssd.id, nvme.id]).toStrictEqual(['hdd0', 'ssd1', 'nvme2']);
+    expect([hdd.slot, ssd.slot, nvme.slot]).toStrictEqual(['sata', 'sata', 'm2']);
+    expect(hdd.price).toBeLessThan(ssd.price);
+    expect(ssd.price).toBeLessThan(nvme.price);
+    expect(hdd.idleW).toBeGreaterThanOrEqual(ssd.idleW); // the HDD spins
   });
 
   it('latency and sustained throughput in seconds improve with the tier (simulated, not looked up)', () => {
@@ -106,8 +115,9 @@ describe('storage tiers', () => {
       const m = new Machine({ ramSize: 4096 });
       const port = new StoragePort('sata0', 0);
       m.addDevice(port);
-      m.clock.setRate('sata0', { mul: Math.round(s!.clock.base * 36), div: 1 });
-      port.attach(new Disk(s!.capacityBytes, s!.latencyTicks, s!.blockTicks));
+      assert.exists(s);
+      m.clock.setRate('sata0', { mul: Math.round(s.clock.base * 36), div: 1 });
+      port.attach(new Disk(s.capacityBytes, s.latencyTicks, s.blockTicks));
       let sub = 0;
       for (let b = 0; b < blocks; b++) {
         m.bus.store32(STORAGE_BASE + STORAGE_REG.LBA, b);
@@ -121,40 +131,55 @@ describe('storage tiers', () => {
     };
     const first = [hdd, ssd, nvme].map((s) => timeFor(s, 1));
     const eight = [hdd, ssd, nvme].map((s) => timeFor(s, 8));
-    expect(first[0]!).toBeGreaterThan(first[1]!);
-    expect(first[1]!).toBeGreaterThan(first[2]!);
-    expect(eight[0]!).toBeGreaterThan(eight[1]!);
-    expect(eight[1]!).toBeGreaterThan(eight[2]!);
+    assert.exists(first[0]);
+    assert.exists(first[1]);
+    expect(first[0]).toBeGreaterThan(first[1]);
+    assert.exists(first[2]);
+    expect(first[1]).toBeGreaterThan(first[2]);
+    assert.exists(eight[0]);
+    assert.exists(eight[1]);
+    expect(eight[0]).toBeGreaterThan(eight[1]);
+    assert.exists(eight[2]);
+    expect(eight[1]).toBeGreaterThan(eight[2]);
     // throughput: the marginal block costs blockTicks / clock
-    const perBlock = [hdd, ssd, nvme].map((_s, i) => (eight[i]! - first[i]!) / 7);
-    expect(perBlock[0]!).toBeGreaterThan(perBlock[1]!);
-    expect(perBlock[1]!).toBeGreaterThan(perBlock[2]!);
-    expect(first[0]! / first[2]!).toBeGreaterThan(20); // HDD seek is the dominant cost
+    const perBlock = [hdd, ssd, nvme].map((_s, i) => {
+      const eightItem = eight[i];
+      assert.exists(eightItem);
+      const firstItem = first[i];
+      assert.exists(firstItem);
+      return (eightItem - firstItem) / 7;
+    });
+    assert.exists(perBlock[0]);
+    assert.exists(perBlock[1]);
+    expect(perBlock[0]).toBeGreaterThan(perBlock[1]);
+    assert.exists(perBlock[2]);
+    expect(perBlock[1]).toBeGreaterThan(perBlock[2]);
+    expect(first[0] / first[2]).toBeGreaterThan(20); // HDD seek is the dominant cost
   });
 });
 
-describe('seek by distance and wear on the bus', () => {
-  /** A port with a drive whose seek scales with the LBA distance. */
-  function spin(opts: ConstructorParameters<typeof Disk>[3] = { seekByDistance: true }) {
-    const m = new Machine({ ramSize: 4096 });
-    const port = new StoragePort('sata0', 0);
-    m.addDevice(port);
-    m.clock.setRate('sata0', { mul: 1, div: 1 });
-    const disk = new Disk(256 * BLOCK_BYTES, 100, 4, opts);
-    port.attach(disk);
-    const cmd = (c: number, lba: number): number => {
-      m.bus.store32(STORAGE_BASE + STORAGE_REG.LBA, lba);
-      m.bus.store32(STORAGE_BASE + STORAGE_REG.CMD, c);
-      let n = 0;
-      while (m.bus.load32(STORAGE_BASE + STORAGE_REG.STATUS) & StorageStatus.Busy) {
-        m.advanceBaseTick();
-        n++;
-      }
-      return n;
-    };
-    return { port, disk, read: (lba: number) => cmd(1, lba), write: (lba: number) => cmd(2, lba) };
-  }
+/** A port with a drive whose seek scales with the LBA distance (unless `opts` says otherwise). */
+function spin(opts?: ConstructorParameters<typeof Disk>[3]) {
+  const m = new Machine({ ramSize: 4096 });
+  const port = new StoragePort('sata0', 0);
+  m.addDevice(port);
+  m.clock.setRate('sata0', { mul: 1, div: 1 });
+  const disk = new Disk(256 * BLOCK_BYTES, 100, 4, opts ?? { seekByDistance: true });
+  port.attach(disk);
+  const cmd = (c: number, lba: number): number => {
+    m.bus.store32(STORAGE_BASE + STORAGE_REG.LBA, lba);
+    m.bus.store32(STORAGE_BASE + STORAGE_REG.CMD, c);
+    let n = 0;
+    while (m.bus.load32(STORAGE_BASE + STORAGE_REG.STATUS) & StorageStatus.Busy) {
+      m.advanceBaseTick();
+      n++;
+    }
+    return n;
+  };
+  return { port, disk, read: (lba: number) => cmd(1, lba), write: (lba: number) => cmd(2, lba) };
+}
 
+describe('seek by distance and wear on the bus', () => {
   it('a far jump costs more than a short one; a sequential block still skips the seek', () => {
     const { read } = spin();
     read(0);
@@ -177,7 +202,9 @@ describe('seek by distance and wear on the bus', () => {
     const { disk, read, write } = spin({ enduranceBlocks: 3, seed: 2 });
     read(9);
     expect(disk.wear[1]).toBe(0);
-    for (let i = 0; i < 40; i++) write(9);
+    for (let i = 0; i < 40; i++) {
+      write(9);
+    }
     expect(disk.isBad(9)).toBe(true);
   });
 
@@ -196,20 +223,25 @@ describe('the command log for the art', () => {
     read(5);
     read(9);
     const c = port.cmds;
-    expect(c.map((x) => [x.op, x.lba])).toEqual([
+    expect(c.map((x) => [x.op, x.lba])).toStrictEqual([
       ['r', 4],
       ['r', 5],
       ['r', 9],
     ]);
-    expect(c.map((x) => x.seq)).toEqual([1, 2, 3]);
-    expect(c[1]!.seek).toBe(0); // the next block in line needs no seek
-    expect(c[0]!.xfer).toBe(3);
+    expect(c.map((x) => x.seq)).toStrictEqual([1, 2, 3]);
+    assert.exists(c[1]);
+    expect(c[1].seek).toBe(0); // the next block in line needs no seek
+    assert.exists(c[0]);
+    expect(c[0].xfer).toBe(3);
   });
 
   it('keeps only the newest commands', () => {
     const { port, read } = rig(1, 1, 64);
-    for (let i = 0; i < 40; i++) read(i);
+    for (let i = 0; i < 40; i++) {
+      read(i);
+    }
     expect(port.cmds).toHaveLength(16);
-    expect(port.cmds[15]!.seq).toBe(40);
+    assert.exists(port.cmds[15]);
+    expect(port.cmds[15].seq).toBe(40);
   });
 });

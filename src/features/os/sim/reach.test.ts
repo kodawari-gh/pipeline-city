@@ -1,8 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { getOsSpec, programSlotsOn, smpOn, threadsOn } from '.';
 
 // What each OS does with a CPU's cores (docs/MULTICORE.md section 6): the numbers the OS sheet of Build my PC shows, and the ones the machine's boot image uses (`Game.osProgramSlots`).
-const os = (id: string) => getOsSpec(id)!;
+const os = (id: string) => {
+  const getOsSpecResult = getOsSpec(id);
+  assert.exists(getOsSpecResult);
+  return getOsSpecResult;
+};
 
 describe('programs at once', () => {
   it('the resident OS runs one, on core 0, whatever the CPU has', () => {
@@ -30,8 +34,9 @@ describe('programs at once', () => {
       [2, 2],
       [2, 4],
       [4, 8],
-    ] as const)
+    ] as const) {
       expect(programSlotsOn(os('os4'), hw, logical)).toBeGreaterThanOrEqual(programSlotsOn(os('os3'), hw, logical));
+    }
   });
 });
 
@@ -48,6 +53,8 @@ describe('the multicore kernel and the threaded jobs', () => {
   it('only the multicore OS spreads one job over cores, and only over a CPU that has them', () => {
     expect(threadsOn(os('os4'), 1)).toBe(false);
     expect(threadsOn(os('os4'), 2)).toBe(true);
-    for (const id of ['os1', 'os2', 'os3']) expect(threadsOn(os(id), 8)).toBe(false);
+    for (const id of ['os1', 'os2', 'os3']) {
+      expect(threadsOn(os(id), 8)).toBe(false);
+    }
   });
 });

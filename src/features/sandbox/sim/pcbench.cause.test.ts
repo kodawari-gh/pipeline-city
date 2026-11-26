@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { Game } from '@/worker/game/game';
 import { deviceSpec } from '../../board/sim';
 import { plugCables } from '../../board/sim/buildpreset';
@@ -11,36 +11,45 @@ import { runBenchTasks } from './pcbench';
 function rig(parts: string[], caseId = 'case1', boardId = 'board1'): Game {
   const g = new Game({ seed: 1, sandbox: true, preassembled: false, looseFit: true });
   for (const part of [caseId, boardId, ...parts]) {
-    const [id, slot] = part.split('@') as [string, string | undefined];
+    const [id, slot] = part.split('@');
+    assert.exists(id);
     const b = g.purchase(id);
-    if (!b.ok || !g.install(b.invId, slot).ok) throw new Error(`${part} did not go in`);
+    if (!b.ok || !g.install(b.invId, slot).ok) {
+      throw new Error(`${part} did not go in`);
+    }
   }
   plugCables(g);
   return g;
 }
-const run = async (g: Game, id = 'crc') => (await runBenchTasks(g, [id]))[0]!;
+const run = async (g: Game, id = 'crc') => {
+  const [firstValue] = await runBenchTasks(g, [id]);
+  assert.exists(firstValue);
+  return firstValue;
+};
 
 describe('a machine that does not run', () => {
   it('a supply far too small trips when the job loads the processor, and the note says what it draws and what it gives', async () => {
     // (a light job on a small machine stays under what a supply gives: the supply trips on the load the machine really draws)
     const r = await run(rig(['psu0', 'cpu4w', 'cooler2', 'rad3@rad-top', 'ram5', 'display0'], 'case3', 'board3'));
     expect(r.score).toBeNull();
-    expect(r.note).toMatch(/power supply tripped: the parts draw \d+ W at full load and it gives 40 W/);
+    expect(r.note).toMatch(/power supply tripped: the parts draw \d+ W at full load and it gives 40 W/u);
   }, 60_000);
 
   it('a missing part stops the start-up check, and the note names it', async () => {
     const g = rig(['psu1', 'cpu1', 'cooler0', 'ram0', 'display0']);
-    g.uninstall(g.board.devices.find((d) => deviceSpec(d).kind === 'cooler')!.id);
+    const coolerDevice = g.board.devices.find((d) => deviceSpec(d).kind === 'cooler');
+    assert.exists(coolerDevice);
+    g.uninstall(coolerDevice.id);
     plugCables(g);
     const r = await run(g);
     expect(r.score).toBeNull();
-    expect(r.note).toMatch(/does not start: no CPU cooler/i);
+    expect(r.note).toMatch(/does not start: no CPU cooler/iu);
   }, 60_000);
 
   it('no power supply: the power button does nothing, and the note says so', async () => {
     const r = await run(rig(['cpu1', 'cooler0', 'ram0', 'display0']));
     expect(r.score).toBeNull();
-    expect(r.note).toMatch(/does not switch on: no PSU/i);
+    expect(r.note).toMatch(/does not switch on: no PSU/iu);
   }, 60_000);
 });
 
@@ -50,17 +59,19 @@ describe('a machine that runs slower than its parts', () => {
     const right = await run(rig(['psu1', 'cpu2', 'cooler0', 'ram2', 'display0']));
     expect(small.score).not.toBeNull();
     expect(small.slowed).toMatch(
-      /The power supply is too small \(40 W for \d+ W at full load\): it ran at \d+% of its speed/,
+      /The power supply is too small \(40 W for \d+ W at full load\): it ran at \d+% of its speed/u,
     );
     expect(right.slowed).toBeUndefined();
-    expect(small.score!).toBeLessThan(right.score!);
+    assert.exists(small.score);
+    assert.exists(right.score);
+    expect(small.score).toBeLessThan(right.score);
   }, 60_000);
 
   it('a hot CPU throttles, and the result names it', async () => {
     // a big processor on a plain heatsink: the chip passes its throttle point within the job
     const r = await run(rig(['psu4', 'cpu4w', 'cooler0', 'ram5', 'display0'], 'case3', 'board3'));
     expect(r.score).not.toBeNull();
-    expect(r.slowed).toMatch(/The CPU ran hot \(\d+ C\): it ran at \d+% of its speed/);
+    expect(r.slowed).toMatch(/The CPU ran hot \(\d+ C\): it ran at \d+% of its speed/u);
   }, 60_000);
 
   it('a part that burns out ends the job, and the note says which', async () => {

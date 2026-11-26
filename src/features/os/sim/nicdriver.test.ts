@@ -23,7 +23,7 @@ describe("the kernel's network driver", () => {
   it('every kernel image ends below the area the driver keeps for the NIC', () => {
     for (const [name, img] of Object.entries(IMAGES)) {
       const end = KERNEL_BASE + img.length * 4;
-      expect(end, name).toBeLessThanOrEqual(NICA);
+      expect(end, `for ${name}`).toBeLessThanOrEqual(NICA);
     }
     expect(NIC_AREA_END).toBeLessThanOrEqual(KDATA_BASE);
   });

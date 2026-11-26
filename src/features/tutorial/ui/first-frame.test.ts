@@ -6,45 +6,95 @@
 // The card is rendered by calling TutorialCard() with the preact hooks stubbed. A small walker expands nested function
 // components, so the test reads the text the player sees and the highlight the renderer gets. The walker does not care how
 // the coder splits the card into components.
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import { snapshot } from '@/app/store';
 import { highlight } from '@/app/interaction';
 import { snap } from '@/core/ui/testdata';
 import { pagesOf } from './dialogue';
-import { currentStep, STEPS, type StepDef } from './tutorial';
+import { currentStep, STEPS } from './tutorial';
+import type * as tutorialTypes from './tutorial';
 import { TutorialCard } from './TutorialCard';
+import type { RefObject } from 'preact';
+import type { Dispatch, StateUpdater } from 'preact/hooks';
 
 const hooks = vi.hoisted(() => ({ effects: [] as (() => unknown)[] }));
-vi.mock('preact/hooks', () => ({
-  useEffect: (fn: () => unknown) => {
-    hooks.effects.push(fn);
-  },
-  useLayoutEffect: (fn: () => unknown) => {
-    hooks.effects.push(fn);
-  },
-  useRef: (v: unknown) => ({ current: v ?? null }),
-  useState: (v: unknown) => [typeof v === 'function' ? (v as () => unknown)() : v, () => {}],
-  useMemo: (f: () => unknown) => f(),
-  useCallback: (f: unknown) => f,
+
+/** A state setter that does nothing: the card is rendered once. */
+function ignoreUpdate(): void {
+  // the card is rendered once: nothing to update
+}
+/** A lazy initial state is a function: useState calls it. */
+function isThunk(v: unknown): v is () => unknown {
+  return typeof v === 'function';
+}
+function stubState<S>(initialState: S | (() => S)): [S, Dispatch<StateUpdater<S>>];
+function stubState<S = undefined>(): [S | undefined, Dispatch<StateUpdater<S | undefined>>];
+function stubState(v?: unknown): [unknown, () => void] {
+  return [isThunk(v) ? v() : v, ignoreUpdate];
+}
+function stubRef<T>(initialValue: T): RefObject<T>;
+function stubRef<T>(initialValue: T | null): RefObject<T | null>;
+function stubRef<T>(initialValue: T | undefined): RefObject<T | undefined>;
+function stubRef(v: unknown): { current: unknown } {
+  return { current: v ?? null };
+}
+function stubMemo<T>(f: () => T): T {
+  return f();
+}
+function stubCallback<T>(f: T): T {
+  return f;
+}
+function deferEffect(fn: () => unknown): void {
+  hooks.effects.push(fn);
+}
+
+vi.mock(import('preact/hooks'), () => ({
+  useEffect: deferEffect,
+  useLayoutEffect: deferEffect,
+  useRef: stubRef,
+  useState: stubState,
+  useMemo: stubMemo,
+  useCallback: stubCallback,
 }));
-vi.mock('./tutorial', async (importOriginal) => {
-  const m = await importOriginal<typeof import('./tutorial')>();
-  return { ...m, currentStep: vi.fn(() => null) };
+vi.mock(import('./tutorial'), async (importOriginal) => {
+  const m = await importOriginal();
+  return { ...m, currentStep: vi.fn<typeof m.currentStep>(() => null) };
 });
 
-type Out = string | { tag: string; props: Record<string, any>; kids: Out[] };
+type Props = Record<string, unknown>;
+interface El {
+  tag: string;
+  props: Props;
+  kids: Out[];
+}
+type Out = string | El;
+
+const isProps = (p: unknown): p is Props => typeof p === 'object' && p !== null;
+const isComponent = (t: unknown): t is (props: Props) => unknown => typeof t === 'function';
 
 /** Expands function components (hooks are stubbed) into plain elements and strings. */
-function expand(node: any): Out[] {
-  if (node == null || typeof node === 'boolean') return [];
-  if (typeof node === 'string' || typeof node === 'number') return [String(node)];
-  if (Array.isArray(node)) return node.flatMap(expand);
-  const { type, props = {} } = node;
-  if (typeof type === 'function') return expand(type(props));
-  return [{ tag: String(type), props, kids: expand(props.children) }];
+function expand(node: unknown): Out[] {
+  if (node === null || node === undefined || typeof node === 'boolean') {
+    return [];
+  }
+  if (typeof node === 'string' || typeof node === 'number') {
+    return [String(node)];
+  }
+  if (Array.isArray(node)) {
+    return node.flatMap((n: unknown) => expand(n));
+  }
+  if (typeof node !== 'object') {
+    return [];
+  }
+  const type = 'type' in node ? node.type : undefined;
+  const props = 'props' in node && isProps(node.props) ? node.props : {};
+  if (isComponent(type)) {
+    return expand(type(props));
+  }
+  return [{ tag: String(type), props, kids: expand(props['children']) }];
 }
 const textOf = (outs: Out[]): string => outs.map((o) => (typeof o === 'string' ? o : textOf(o.kids))).join('');
-function elements(outs: Out[]): { tag: string; props: Record<string, any>; kids: Out[] }[] {
+function elements(outs: Out[]): El[] {
   return outs.flatMap((o) => (typeof o === 'string' ? [] : [o, ...elements(o.kids)]));
 }
 function flushEffects() {
@@ -58,13 +108,41 @@ function flushEffects() {
 }
 
 /** Renders the card for one step, with the step's own snapshot. */
-function cardFor(step: StepDef) {
-  vi.mocked(currentStep).mockReturnValue(step as never);
+function cardFor(step: tutorialTypes.StepDef) {
+  vi.mocked(currentStep).mockReturnValue(step);
   snapshot.value = snap();
   hooks.effects.length = 0;
   const outs = expand(TutorialCard());
   return { outs, text: textOf(outs) };
 }
+
+/** What is wrong with a step's card: its title, the first page of its text or its highlight missing. */
+function cardProblems(step: tutorialTypes.StepDef): string[] {
+  const problems: string[] = [];
+  const { text } = cardFor(step);
+  if (!text.includes(step.title)) {
+    problems.push(`${step.id}: title "${step.title}" not on the card`);
+  }
+  const [firstPagesOf] = pagesOf(step.text);
+  assert.exists(firstPagesOf);
+  if (!text.includes(firstPagesOf)) {
+    problems.push(`${step.id}: first page of the text not on the card`);
+  }
+  flushEffects();
+  assert.exists(snapshot.value);
+  const want = step.targets(snapshot.value, null);
+  if (JSON.stringify(highlight.value) !== JSON.stringify(want)) {
+    problems.push(`${step.id}: highlight ${JSON.stringify(highlight.value)}, want ${JSON.stringify(want)}`);
+  }
+  return problems;
+}
+
+/** A modal: marked aria-modal, or the modal backdrop. */
+function isModal(e: El): boolean {
+  const cls = e.props['class'];
+  return e.props['aria-modal'] === true || (typeof cls === 'string' && cls.includes('modal-back'));
+}
+const isNextButton = (e: El): boolean => e.tag === 'button' && textOf(e.kids).trim() === 'Next';
 
 beforeEach(() => {
   highlight.value = [];
@@ -73,28 +151,18 @@ beforeEach(() => {
 describe('first frame: the tutorial card (ticket #44, SPEC §5.11)', () => {
   // Acceptance 1 (issue #44): every tutorial step still shows its card with the step's title, text and highlighted targets.
   it('1. every tutorial step shows its card with the step title, text and highlighted targets', () => {
-    const problems: string[] = [];
-    for (const step of STEPS) {
-      const { text } = cardFor(step);
-      if (!text.includes(step.title)) problems.push(`${step.id}: title "${step.title}" not on the card`);
-      if (!text.includes(pagesOf(step.text)[0]!)) problems.push(`${step.id}: first page of the text not on the card`);
-      flushEffects();
-      const want = step.targets(snapshot.value!, null);
-      if (JSON.stringify(highlight.value) !== JSON.stringify(want))
-        problems.push(`${step.id}: highlight ${JSON.stringify(highlight.value)}, want ${JSON.stringify(want)}`);
-    }
-    expect(problems).toEqual([]);
+    const problems = STEPS.flatMap((step) => cardProblems(step));
+    expect(problems).toStrictEqual([]);
   });
 
   // ACCEPTANCE §3, 11 First frame: "Action at 48, 984: IF chip + Next". The first step is an instruction tab, not a modal.
   it('6. step 1 is an instruction card with a Next button, not a modal with Start', () => {
-    const { outs } = cardFor(STEPS[0]!);
+    assert.exists(STEPS[0]);
+    const { outs } = cardFor(STEPS[0]);
     const els = elements(outs);
-    const modal = els.some(
-      (e) => e.props['aria-modal'] === true || String(e.props['class'] ?? '').includes('modal-back'),
-    );
+    const modal = els.some((e) => isModal(e));
     expect(modal, 'a modal is shown on step 1').toBe(false);
-    const next = els.some((e) => e.tag === 'button' && textOf(e.kids).trim() === 'Next');
+    const next = els.some((e) => isNextButton(e));
     expect(next, 'a Next button on step 1').toBe(true);
   });
 });

@@ -2,16 +2,25 @@ import { describe, expect, it } from 'vitest';
 import { createEngine } from '../../cpu/sim/engines';
 import { GPU_BASE, NPU_BASE } from '@/core/sim/memmap';
 import { GpuPort, Machine, NpuPort } from '@/core/sim';
-import { generate, runReference, type Generated } from '../../jobs/sim/gen/index';
+import { generate, runReference } from '../../jobs/sim/gen/index';
+import type * as genTypes from '../../jobs/sim/gen/index';
 import { makeNetwork, networkChecksum, networkExpected, npuProgram } from './kernels';
 import { Prng } from '@/core/sim/prng';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 const GPU = { base: GPU_BASE, lanes: 8, memBytes: 8192 };
 const NPU4 = { base: NPU_BASE, grid: 4, memBytes: 8192 };
-const NPU8 = { base: NPU_BASE, grid: 8, memBytes: 32768 };
+const NPU8 = { base: NPU_BASE, grid: 8, memBytes: 32_768 };
 
 /** One machine with a GPU in pcie0's port and an NPU in npu1's; the cards run at twice the CPU's clock. */
-function onMachine(g: Generated, cards: { gpu?: boolean; npu?: { grid: number; memBytes: number } } = {}) {
+function onMachine(g: genTypes.Generated, cards: { gpu?: boolean; npu?: { grid: number; memBytes: number } } = {}) {
   const m = new Machine({ ramSize: 64 * 1024 });
   const gpu = new GpuPort('pcie0', 0),
     npu = new NpuPort('npu1', 1);
@@ -19,13 +28,19 @@ function onMachine(g: Generated, cards: { gpu?: boolean; npu?: { grid: number; m
   m.addDevice(npu);
   m.clock.setRate('pcie0', { mul: 2, div: 1 });
   m.clock.setRate('npu1', { mul: 2, div: 1 });
-  if (cards.gpu) gpu.configure({ lanes: 8, memBytes: 8192, banks: 1 });
-  if (cards.npu) npu.configure(cards.npu);
+  if (cards.gpu === true) {
+    gpu.configure({ lanes: 8, memBytes: 8192, banks: 1 });
+  }
+  if (cards.npu) {
+    npu.configure(cards.npu);
+  }
   m.attach(createEngine({ kind: 'unpipelined' }), g.program);
   let ticks = 0;
-  while (!m.engine!.halted) {
+  while (!must(m.engine).halted) {
     m.advanceBaseTick();
-    if (++ticks > 4_000_000) throw new Error('program never halted');
+    if (++ticks > 4_000_000) {
+      throw new Error('program never halted');
+    }
   }
   return {
     ticks,
@@ -37,7 +52,7 @@ function onMachine(g: Generated, cards: { gpu?: boolean; npu?: { grid: number; m
 }
 
 // NPU base for slot 1 is NPU_BASE + stride; the generator is told where the card is.
-const NPU1 = (t: typeof NPU4) => ({ ...t, base: NPU_BASE + 0x10000 });
+const NPU1 = (t: typeof NPU4) => ({ ...t, base: NPU_BASE + 0x1_00_00 });
 
 describe('npu.infer job', () => {
   const seed = 11;
@@ -47,8 +62,10 @@ describe('npu.infer job', () => {
   const withNpu8 = generate('npu.infer', seed, { scale: 4, npu: NPU1(NPU8) });
 
   it('the line is the same on every path: CPU loop, GPU launches, NPU descriptors (both grids)', () => {
-    expect(cpuOnly.meta.expectedText).toMatch(/^#\d\d infer \d\d OK$/);
-    for (const g of [withGpu, withNpu4, withNpu8]) expect(g.meta.expectedText).toBe(cpuOnly.meta.expectedText);
+    expect(cpuOnly.meta.expectedText).toMatch(/^#\d\d infer \d\d OK$/u);
+    for (const g of [withGpu, withNpu4, withNpu8]) {
+      expect(g.meta.expectedText).toBe(cpuOnly.meta.expectedText);
+    }
     expect(runReference(cpuOnly, 400_000).text).toBe(cpuOnly.meta.expectedText);
     expect(onMachine(cpuOnly).text).toBe(cpuOnly.meta.expectedText);
     expect(onMachine(withGpu, { gpu: true }).text).toBe(cpuOnly.meta.expectedText);
@@ -63,7 +80,8 @@ describe('npu.infer job', () => {
     const n = onMachine(withNpu4, { npu: NPU4 });
     expect(n.npuLaunches).toBe(1);
     expect(n.gpuLaunches).toBe(0);
-    expect(n.npuDescriptors).toBe(npuProgram(makeNetwork(new Prng(0), 5)).count); // one Layer per layer
+    const network = makeNetwork(new Prng(0), 5);
+    expect(n.npuDescriptors).toBe(npuProgram(network).count); // one Layer per layer
     const c = onMachine(cpuOnly);
     expect(c.gpuLaunches + c.npuLaunches).toBe(0);
   });
@@ -105,7 +123,7 @@ describe('npu.infer job', () => {
   it('works at every scale, hosted, within the code limit', () => {
     for (const scale of [1, 2, 4, 6, 8]) {
       const g = generate('npu.infer', 2, { scale, hosted: true, npu: NPU1(NPU4) });
-      expect(g.program.length * 4).toBeLessThan(0x3000);
+      expect(g.program.length * 4).toBeLessThan(0x30_00);
     }
   });
 });
@@ -116,6 +134,7 @@ describe('network helpers', () => {
     const out = networkExpected(n);
     expect(out.every((v) => v >= 0)).toBe(true);
     expect(out.some((v) => v > 0)).toBe(true);
-    expect(networkChecksum(makeNetwork(new Prng(5), 3))).toBe(networkChecksum(n));
+    const again = makeNetwork(new Prng(5), 3);
+    expect(networkChecksum(again)).toBe(networkChecksum(n));
   });
 });
