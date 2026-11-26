@@ -71,7 +71,7 @@ const heading = (a: Pt, b: Pt): number => Math.atan2(b.y - a.y, b.x - a.x);
 export function twoMove(s: Two, a: Pt, b: Pt, who?: 0 | 1): { two: Two; move: TwoMove } {
   const na = s.na + (who === 1 ? 0 : 1),
     nb = s.nb + (who === 0 ? 0 : 1);
-  let kind = s.kind;
+  let { kind } = s;
   if (!kind) {
     const d1 = { x: a.x - s.a0.x, y: a.y - s.a0.y },
       d2 = { x: b.x - s.b0.x, y: b.y - s.b0.y };
@@ -79,8 +79,9 @@ export function twoMove(s: Two, a: Pt, b: Pt, who?: 0 | 1): { two: Two; move: Tw
       apart = Math.hypot(d2.x - d1.x, d2.y - d1.y) / 2;
     const far = Math.max(Math.hypot(d1.x, d1.y), Math.hypot(d2.x, d2.y)),
       heard = (na > 0 && nb > 0) || Math.max(na, nb) >= 4;
-    if (far < LOCK_PX || !heard)
+    if (far < LOCK_PX || !heard) {
       return { two: { ...s, na, nb }, move: { kind: null, zoom: 1, dx: 0, dy: 0, twist: 0, at: mid(a, b) } };
+    }
     kind = together > 1.25 * apart ? 'swipe' : 'pinch';
   }
   const m0 = mid(s.a, s.b),

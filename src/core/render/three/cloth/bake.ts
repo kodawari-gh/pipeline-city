@@ -3,29 +3,17 @@
 // pieces keep their own flat uvs, and a rolled rim runs along every free edge (a hem, a cuff, a hood's opening) so the single sheet reads thick.
 // Each vertex carries its baked occlusion (`_AO`: its normal's side, the other side) for the game's material (`bakedAo`). Pure: no DOM.
 import { SEG } from '../geometry';
-import { writeGlb, type GlbPrimitive } from './glb';
+import { writeGlb } from './glb';
+import type * as glbTypes from './glb';
 import { occlusion } from './occlusion';
-import { assemble, type ClothMesh, type Garment } from './pattern';
-import { gradient, type Sdf } from './solid';
-import { Cloth, type ClothParams, type Phase } from './solver';
+import { assemble } from './pattern';
+import type * as patternTypes from './pattern';
+import { gradient } from './solid';
+import type * as solidTypes from './solid';
+import { Cloth } from './solver';
+import * as recipe from './recipe';
 
-export interface ClothBake {
-  /** The model's name, and its file under `public/` (`models/<name>.glb`). */
-  name: string;
-  garment: Garment;
-  /** Point spacing on the flat pieces (mm). */
-  h: number;
-  params: ClothParams;
-  phases: readonly (Phase & { label: string })[];
-  /** Millimetres of flat cloth to one texture tile (the uvs are the flat positions over it). */
-  tile: number;
-  /** The rolled rim's radius along the free edges (mm; 0: none). */
-  rim: number;
-  /** Smoothing passes over the cloth as it lies (0: none): they take off the spikes a seam or a pinch leaves, not its folds. */
-  smooth: number;
-  /** How far the baked occlusion looks (mm; 0: none): a fold or the solid nearer than that darkens the cloth, the more the nearer. */
-  ao: number;
-}
+export type { ClothBake } from './recipe';
 
 /** Rays cast on each side of a point for its occlusion. */
 const RAYS = 48;
@@ -35,16 +23,14 @@ const RAYS = 48;
  * middle of its neighbours, then back out a little more, so the cloth loses its spikes and not its size. Then it is set back `gap` off the
  * solid it lies on.
  */
-function relax(m: ClothMesh, sum: Float64Array, passes: number, solid: Sdf, gap: number): void {
+function relax(m: patternTypes.ClothMesh, sum: Float64Array, passes: number, solid: solidTypes.Sdf, gap: number): void {
   const W = m.weld,
     nb = new Map<number, Set<number>>();
   for (let e = 0; e < m.edges.length; e += 2) {
     const a = W[m.edges[e]!]!,
       b = W[m.edges[e + 1]!]!;
-    if (!nb.has(a)) nb.set(a, new Set());
-    if (!nb.has(b)) nb.set(b, new Set());
-    nb.get(a)!.add(b);
-    nb.get(b)!.add(a);
+    nb.set(a, (nb.get(a) ?? new Set<number>()).add(b));
+    nb.set(b, (nb.get(b) ?? new Set<number>()).add(a));
   }
   const roots = [...nb.keys()],
     next = new Float64Array(sum.length);
@@ -54,11 +40,15 @@ function relax(m: ClothMesh, sum: Float64Array, passes: number, solid: Sdf, gap:
       const set = nb.get(r)!;
       for (let c = 0; c < 3; c++) {
         let mid = 0;
-        for (const j of set) mid += sum[3 * j + c]!;
+        for (const j of set) {
+          mid += sum[3 * j + c]!;
+        }
         next[3 * r + c] = sum[3 * r + c]! + f * (mid / set.size - sum[3 * r + c]!);
       }
     }
-    for (const r of roots) for (let c = 0; c < 3; c++) sum[3 * r + c] = next[3 * r + c]!;
+    for (const r of roots) {
+      sum.set(next.subarray(3 * r, 3 * r + 3), 3 * r);
+    }
   }
   const g: [number, number, number] = [0, 0, 0];
   for (const r of roots) {
@@ -66,21 +56,25 @@ function relax(m: ClothMesh, sum: Float64Array, passes: number, solid: Sdf, gap:
       y = sum[3 * r + 1]!,
       z = sum[3 * r + 2]!,
       d = solid(x, y, z) - gap;
-    if (d >= 0) continue;
+    if (d >= 0) {
+      continue;
+    }
     gradient(solid, x, y, z, g);
-    for (let c = 0; c < 3; c++) sum[3 * r + c] = sum[3 * r + c]! - g[c]! * d;
+    for (let c = 0; c < 3; c++) {
+      sum[3 * r + c] = sum[3 * r + c]! - g[c]! * d;
+    }
   }
 }
 
 /** The cloth's surface as it lies: welded positions (smoothed `passes` times off `solid`), smooth normals. */
 function surface(
-  m: ClothMesh,
+  m: patternTypes.ClothMesh,
   p: Float64Array,
   passes: number,
-  solid: Sdf,
+  solid: solidTypes.Sdf,
   gap: number,
 ): { pos: Float32Array; nrm: Float32Array } {
-  const n = m.n,
+  const { n } = m,
     W = m.weld,
     sum = new Float64Array(3 * n),
     cnt = new Float64Array(n),
@@ -88,14 +82,20 @@ function surface(
   for (let i = 0; i < n; i++) {
     const r = W[i]!;
     cnt[r]!++;
-    for (let c = 0; c < 3; c++) sum[3 * r + c] = sum[3 * r + c]! + p[3 * i + c]!;
+    for (let c = 0; c < 3; c++) {
+      sum[3 * r + c] = sum[3 * r + c]! + p[3 * i + c]!;
+    }
   }
-  for (let r = 0; r < n; r++) if (cnt[r]!) for (let c = 0; c < 3; c++) sum[3 * r + c] = sum[3 * r + c]! / cnt[r]!;
-  if (passes > 0) relax(m, sum, passes, solid, gap);
+  for (let i = 0; i < 3 * n; i++) {
+    sum[i] = sum[i]! / Math.max(1, cnt[Math.floor(i / 3)]!);
+  }
+  if (passes > 0) {
+    relax(m, sum, passes, solid, gap);
+  }
   const pos = new Float32Array(3 * n);
   for (let i = 0; i < n; i++) {
-    const r = W[i]!;
-    for (let c = 0; c < 3; c++) pos[3 * i + c] = sum[3 * r + c]!;
+    const r = 3 * W[i]!;
+    pos.set(sum.subarray(r, r + 3), 3 * i);
   }
   const T = m.tris;
   for (let t = 0; t < T.length; t += 3) {
@@ -130,54 +130,54 @@ function surface(
 }
 
 /** The free edges as loops of points (welded ids, in the triangles' winding), each with the material of the cloth along it. */
-export function freeEdges(m: ClothMesh): { pts: number[]; mat: number; closed: boolean }[] {
+export function freeEdges(m: patternTypes.ClothMesh): { pts: number[]; mat: number; closed: boolean }[] {
   const W = m.weld,
     T = m.tris,
     count = new Map<string, number>(),
     next = new Map<number, [number, number]>();
   const key = (u: number, v: number) => (u < v ? `${u},${v}` : `${v},${u}`);
-  for (let t = 0; t < T.length; t += 3)
+  for (let t = 0; t < T.length; t += 3) {
     for (let e = 0; e < 3; e++) {
       const k = key(W[T[t + e]!]!, W[T[t + ((e + 1) % 3)]!]!);
       count.set(k, (count.get(k) ?? 0) + 1);
     }
-  for (let t = 0; t < T.length; t += 3)
+  }
+  for (let t = 0; t < T.length; t += 3) {
     for (let e = 0; e < 3; e++) {
       const u = W[T[t + e]!]!,
         v = W[T[t + ((e + 1) % 3)]!]!;
-      if (count.get(key(u, v)) === 1) next.set(u, [v, m.triMat[t / 3]!]);
+      if (count.get(key(u, v)) === 1) {
+        next.set(u, [v, m.triMat[t / 3]!]);
+      }
     }
+  }
   const loops: { pts: number[]; mat: number; closed: boolean }[] = [],
     used = new Set<number>();
   // open chains first (a start nothing leads into), then the closed loops
   const into = new Set([...next.values()].map(([v]) => v));
   const starts = [...[...next.keys()].filter((u) => !into.has(u)), ...next.keys()];
   for (const s of starts) {
-    if (used.has(s)) continue;
+    if (used.has(s)) {
+      continue;
+    }
     const pts = [s],
-      mat = next.get(s)![1];
+      [, mat] = next.get(s)!;
     used.add(s);
-    let u = s,
-      closed = false;
-    for (;;) {
-      const nx = next.get(u);
-      if (!nx) break;
-      if (nx[0] === s) {
-        closed = true;
-        break;
-      }
-      if (used.has(nx[0])) break;
+    let nx = next.get(s);
+    while (nx && nx[0] !== s && !used.has(nx[0])) {
       used.add(nx[0]);
       pts.push(nx[0]);
-      u = nx[0];
+      nx = next.get(nx[0]);
     }
-    if (pts.length > 1) loops.push({ pts, mat, closed });
+    if (pts.length > 1) {
+      loops.push({ pts, mat, closed: nx?.[0] === s });
+    }
   }
   return loops;
 }
 
 /** Run a bake: the model's bytes, and a line per phase on how it settled. */
-export function bakeCloth(b: ClothBake, log: (line: string) => void = () => {}): Uint8Array {
+export function bakeCloth(b: recipe.ClothBake, log: (line: string) => void = () => {}): Uint8Array {
   const t0 = Date.now(),
     m = assemble(b.garment, b.h);
   log(
@@ -192,20 +192,15 @@ export function bakeCloth(b: ClothBake, log: (line: string) => void = () => {}):
       `  ${ph.label}: seam gap ${s.seam.toFixed(1)} mm, stretch ${(100 * s.stretch).toFixed(1)}%, fastest ${s.speed.toFixed(0)} mm/s (${Date.now() - t} ms)`,
     );
   }
-  const solid = b.phases[b.phases.length - 1]!.solid,
+  const { solid } = b.phases.at(-1)!,
     { pos, nrm } = surface(m, cloth.p, b.smooth, solid, b.params.thickness),
     mats = b.garment.materials;
   const t1 = Date.now(),
     ao = b.ao > 0 ? occlusion(pos, nrm, m.tris, m.weld, solid, RAYS, b.ao, b.params.self / 2) : null;
-  if (ao) log(`  occlusion: ${RAYS} rays a side out to ${b.ao} mm (${Date.now() - t1} ms)`);
-  const parts = mats.map(() => ({
-    position: [] as number[],
-    normal: [] as number[],
-    uv: [] as number[],
-    ao: [] as number[],
-    index: [] as number[],
-    map: new Map<number, number>(),
-  }));
+  if (ao) {
+    log(`  occlusion: ${RAYS} rays a side out to ${b.ao} mm (${Date.now() - t1} ms)`);
+  }
+  const parts = mats.map(() => recipe.emptyPart());
   for (let t = 0; t < m.tris.length; t += 3) {
     const part = parts[m.triMat[t / 3]!]!;
     for (let e = 0; e < 3; e++) {
@@ -217,7 +212,9 @@ export function bakeCloth(b: ClothBake, log: (line: string) => void = () => {}):
         part.position.push(pos[3 * i]!, pos[3 * i + 1]!, pos[3 * i + 2]!);
         part.normal.push(nrm[3 * i]!, nrm[3 * i + 1]!, nrm[3 * i + 2]!);
         part.uv.push(m.flat[2 * i]! / b.tile, m.flat[2 * i + 1]! / b.tile);
-        if (ao) part.ao.push(ao[2 * i]!, ao[2 * i + 1]!);
+        if (ao) {
+          part.ao.push(ao[2 * i]!, ao[2 * i + 1]!);
+        }
       }
       part.index.push(j);
     }
@@ -235,7 +232,7 @@ export function bakeCloth(b: ClothBake, log: (line: string) => void = () => {}):
         const c = at(k),
           a = at(k - 1),
           d = at(k + 1);
-        if (k > 0) run += Math.hypot(pos[c]! - pos[a]!, pos[c + 1]! - pos[a + 1]!, pos[c + 2]! - pos[a + 2]!);
+        run += k > 0 ? Math.hypot(pos[c]! - pos[a]!, pos[c + 1]! - pos[a + 1]!, pos[c + 2]! - pos[a + 2]!) : 0;
         let tx = pos[d]! - pos[a]!,
           ty = pos[d + 1]! - pos[a + 1]!,
           tz = pos[d + 2]! - pos[a + 2]!;
@@ -269,20 +266,23 @@ export function bakeCloth(b: ClothBake, log: (line: string) => void = () => {}):
           part.position.push(pos[c]! + b.rim * ox, pos[c + 1]! + b.rim * oy, pos[c + 2]! + b.rim * oz);
           part.normal.push(ox, oy, oz);
           part.uv.push(run / b.tile, s / sides);
-          if (ao) part.ao.push(shade, shade);
+          if (ao) {
+            part.ao.push(shade, shade);
+          }
         }
       }
       const segs = loop.closed ? L : L - 1;
-      for (let k = 0; k < segs; k++)
+      for (let k = 0; k < segs; k++) {
         for (let s = 0; s < sides; s++) {
           const r0 = k0 + k * (sides + 1),
             r1 = k0 + ((k + 1) % L) * (sides + 1);
           part.index.push(r0 + s, r1 + s, r0 + s + 1, r0 + s + 1, r1 + s, r1 + s + 1);
         }
+      }
     }
   }
-  const prims: GlbPrimitive[] = parts.flatMap((p, i) =>
-    p.index.length
+  const prims: glbTypes.GlbPrimitive[] = parts.flatMap((p, i) =>
+    p.index.length > 0
       ? [
           {
             material: mats[i]!,

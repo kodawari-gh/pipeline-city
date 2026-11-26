@@ -3,7 +3,8 @@
 // pulled together at a set speed until they meet. The cloth keeps `thickness` off the solids, with friction, and points that are not
 // neighbours keep `self` apart (a hash grid), so folded layers do not pass through each other. Pure maths.
 import type { ClothMesh } from './pattern';
-import { gradient, type Sdf } from './solid';
+import { gradient } from './solid';
+import type * as solidTypes from './solid';
 
 export interface ClothParams {
   /** Steps a second. */
@@ -28,7 +29,7 @@ export interface Phase {
   time: number;
   /** Down, in mm/s² (0 while the pieces are sewn). */
   gravity: number;
-  solid: Sdf;
+  solid: solidTypes.Sdf;
   /**
    * How fast the seams close (mm/s); Infinity holds them shut. Sew with `keep` 0: a seam that closes while the cloth keeps its speed pumps
    * it up (the pieces start near their seams, so sewing is a short pull).
@@ -63,18 +64,20 @@ export class Cloth {
     readonly mesh: ClothMesh,
     readonly o: ClothParams,
   ) {
-    const n = mesh.n;
+    const { n } = mesh;
     this.p = Float64Array.from(mesh.start);
     // a flat piece pushed together along itself folds over within its plane and never stills: it starts a hair off it, so it buckles
     for (let k = 0, s = 1; k < 3 * n; k++) {
-      s = (s * 16807) % 2147483647;
-      this.p[k] = this.p[k]! + (s / 2147483647 - 0.5) * JITTER;
+      s = (s * 16_807) % 2_147_483_647;
+      this.p[k] = this.p[k]! + (s / 2_147_483_647 - 0.5) * JITTER;
     }
     this.q = Float64Array.from(this.p);
     this.v = new Float64Array(3 * n);
     const W = mesh.weld,
       adj: Set<number>[] = [];
-    for (let i = 0; i < n; i++) adj[W[i]!] ??= new Set([W[i]!]);
+    for (let i = 0; i < n; i++) {
+      adj[W[i]!] ??= new Set([W[i]!]);
+    }
     for (let e = 0; e < mesh.edges.length; e += 2) {
       const a = W[mesh.edges[e]!]!,
         b = W[mesh.edges[e + 1]!]!;
@@ -83,9 +86,15 @@ export class Cloth {
     }
     this.near = [];
     for (let r = 0; r < n; r++) {
-      if (!adj[r]) continue;
+      if (!adj[r]) {
+        continue;
+      }
       const ring = new Set<number>();
-      for (const a of adj[r]!) for (const b of adj[a]!) ring.add(b);
+      for (const a of adj[r]!) {
+        for (const b of adj[a]!) {
+          ring.add(b);
+        }
+      }
       this.near[r] = Int32Array.from(ring).sort();
     }
     this.cellPts = new Int32Array(n);
@@ -98,12 +107,14 @@ export class Cloth {
     const steps = Math.max(1, Math.round(ph.time * this.o.rate)),
       dt = ph.time / steps;
     this.clear.fill(-Infinity);
-    for (let s = 0; s < steps; s++) this.step(ph, dt, s * dt);
+    for (let s = 0; s < steps; s++) {
+      this.step(ph, dt, s * dt);
+    }
   }
 
   private step(ph: Phase, dt: number, t: number): void {
     const { p, q, v, mesh: m, o } = this,
-      n = m.n,
+      { n } = m,
       damp = ph.keep ** dt,
       acc: [number, number, number] = [0, 0, 0];
     for (let i = 0; i < n; i++) {
@@ -137,7 +148,9 @@ export class Cloth {
         dy = p[b + 1]! - p[a + 1]!,
         dz = p[b + 2]! - p[a + 2]!,
         d = Math.hypot(dx, dy, dz);
-      if (d < 1e-9) continue;
+      if (d < 1e-9) {
+        continue;
+      }
       const k = (0.5 * Math.min(d, reach)) / d;
       p[a] = p[a]! + dx * k;
       p[a + 1] = p[a + 1]! + dy * k;
@@ -148,15 +161,19 @@ export class Cloth {
     }
     this.lengths(m.edges, m.rest, o.stretch / (dt * dt));
     this.lengths(m.bends, m.bendRest, o.bend / (dt * dt));
-    if (o.self > 0) this.selfCollide(o.self);
+    if (o.self > 0) {
+      this.selfCollide(o.self);
+    }
     this.collide(ph.solid);
     const inv = 1 / dt;
-    for (let k = 0; k < 3 * n; k++) v[k] = (p[k]! - q[k]!) * inv;
+    for (let k = 0; k < 3 * n; k++) {
+      v[k] = (p[k]! - q[k]!) * inv;
+    }
   }
 
   /** One pass of distance constraints with compliance `a` (already over dt²): each point of a pair takes half the correction. */
   private lengths(pairs: Uint32Array, rest: Float64Array, a: number): void {
-    const p = this.p,
+    const { p } = this,
       w = 1 / (2 + a);
     for (let e = 0, c = 0; e < pairs.length; e += 2, c++) {
       const i = 3 * pairs[e]!,
@@ -165,7 +182,9 @@ export class Cloth {
         dy = p[j + 1]! - p[i + 1]!,
         dz = p[j + 2]! - p[i + 2]!,
         d = Math.hypot(dx, dy, dz);
-      if (d < 1e-9) continue;
+      if (d < 1e-9) {
+        continue;
+      }
       const k = ((d - rest[c]!) * w) / d;
       p[i] = p[i]! + dx * k;
       p[i + 1] = p[i + 1]! + dy * k;
@@ -179,7 +198,7 @@ export class Cloth {
   /** Points that are not neighbours push each other off to `r` apart, found through a grid of cells `r` wide over the cloth's box. */
   private selfCollide(r: number): void {
     const { p, q, cellPts, cellOf, near } = this,
-      n = this.mesh.n,
+      { n } = this.mesh,
       W = this.mesh.weld,
       inv = 1 / r;
     let x0 = Infinity,
@@ -201,9 +220,13 @@ export class Cloth {
       nz = Math.floor((z1 - z0) * inv) + 1,
       cells = nx * ny * nz;
     // (a cloth thrown metres wide has blown up: no grid for it)
-    if (!(cells < 3e7)) return;
-    if (this.cellStart.length < cells + 1) this.cellStart = new Int32Array(cells + 1);
-    const cellStart = this.cellStart;
+    if (!(cells < 3e7)) {
+      return;
+    }
+    if (this.cellStart.length < cells + 1) {
+      this.cellStart = new Int32Array(cells + 1);
+    }
+    const { cellStart } = this;
     cellStart.fill(0, 0, cells + 1);
     for (let i = 0; i < n; i++) {
       const c =
@@ -216,7 +239,9 @@ export class Cloth {
       s += cellStart[c]!;
       cellStart[c] = s;
     }
-    for (let i = 0; i < n; i++) cellPts[--cellStart[cellOf[i]!]!] = i;
+    for (let i = 0; i < n; i++) {
+      cellPts[--cellStart[cellOf[i]!]!] = i;
+    }
     const r2 = r * r;
     for (let i = 0; i < n; i++) {
       const a = 3 * i,
@@ -224,20 +249,24 @@ export class Cloth {
         cy = Math.floor((p[a + 1]! - y0) * inv),
         cz = Math.floor((p[a + 2]! - z0) * inv),
         skip = near[W[i]!]!;
-      for (let dz = cz > 0 ? -1 : 0; dz <= (cz < nz - 1 ? 1 : 0); dz++)
+      for (let dz = cz > 0 ? -1 : 0; dz <= (cz < nz - 1 ? 1 : 0); dz++) {
         for (let dy = cy > 0 ? -1 : 0; dy <= (cy < ny - 1 ? 1 : 0); dy++) {
           const row = nx * (cy + dy + ny * (cz + dz));
           const s0 = cellStart[row + Math.max(0, cx - 1)]!,
             s1 = cellStart[row + Math.min(nx - 1, cx + 1) + 1]!;
           for (let s = s0; s < s1; s++) {
             const j = cellPts[s]!;
-            if (j <= i) continue;
+            if (j <= i) {
+              continue;
+            }
             const b = 3 * j,
               ex = p[b]! - p[a]!,
               ey = p[b + 1]! - p[a + 1]!,
               ez = p[b + 2]! - p[a + 2]!,
               d2 = ex * ex + ey * ey + ez * ez;
-            if (d2 >= r2 || d2 < 1e-12 || has(skip, W[j]!)) continue;
+            if (d2 >= r2 || d2 < 1e-12 || has(skip, W[j]!)) {
+              continue;
+            }
             const d = Math.sqrt(d2),
               k = (0.5 * (r - d)) / d;
             p[a] = p[a]! - ex * k;
@@ -256,23 +285,28 @@ export class Cloth {
             }
           }
         }
+      }
     }
   }
 
   /** Out of the solids to `thickness` off them; friction takes back the slide along the surface this step, as far as the push allows. */
-  private collide(f: Sdf): void {
+  private collide(f: solidTypes.Sdf): void {
     const { p, q, o, clear } = this,
-      n = this.mesh.n,
+      { n } = this.mesh,
       g: [number, number, number] = [0, 0, 0],
       [ms, mk] = o.friction;
     for (let i = 0; i < n; i++) {
       const k = 3 * i;
       clear[i] = clear[i]! - Math.hypot(p[k]! - q[k]!, p[k + 1]! - q[k + 1]!, p[k + 2]! - q[k + 2]!);
-      if (clear[i]! > o.thickness + 1) continue;
+      if (clear[i]! > o.thickness + 1) {
+        continue;
+      }
       const free = f(p[k]!, p[k + 1]!, p[k + 2]!),
         d = free - o.thickness;
       clear[i] = Math.max(free, o.thickness);
-      if (d >= 0) continue;
+      if (d >= 0) {
+        continue;
+      }
       gradient(f, p[k]!, p[k + 1]!, p[k + 2]!, g);
       p[k] = p[k]! - g[0] * d;
       p[k + 1] = p[k + 1]! - g[1] * d;
@@ -286,7 +320,9 @@ export class Cloth {
         tz = mz - along * g[2],
         slide = Math.hypot(tx, ty, tz),
         depth = -d;
-      if (slide < 1e-12) continue;
+      if (slide < 1e-12) {
+        continue;
+      }
       const back = slide < ms * depth ? 1 : Math.min(1, (mk * depth) / slide);
       p[k] = p[k]! - tx * back;
       p[k + 1] = p[k + 1]! - ty * back;
@@ -313,7 +349,9 @@ export class Cloth {
         Math.hypot(p[b]! - p[a]!, p[b + 1]! - p[a + 1]!, p[b + 2]! - p[a + 2]!) / m.rest[c]! - 1,
       );
     }
-    for (let i = 0; i < m.n; i++) speed = Math.max(speed, Math.hypot(v[3 * i]!, v[3 * i + 1]!, v[3 * i + 2]!));
+    for (let i = 0; i < m.n; i++) {
+      speed = Math.max(speed, Math.hypot(v[3 * i]!, v[3 * i + 1]!, v[3 * i + 2]!));
+    }
     return { seam, stretch, speed };
   }
 }
@@ -325,9 +363,14 @@ function has(list: Int32Array, x: number): boolean {
   while (lo <= hi) {
     const mid = (lo + hi) >> 1,
       y = list[mid]!;
-    if (y === x) return true;
-    if (y < x) lo = mid + 1;
-    else hi = mid - 1;
+    if (y === x) {
+      return true;
+    }
+    if (y < x) {
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
   }
   return false;
 }

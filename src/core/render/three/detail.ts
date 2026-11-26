@@ -7,7 +7,9 @@ export const lowDetail = (): boolean => low;
 
 /** Sets the detail for the parts built from now on. Returns true when it changed. */
 export function setLowDetail(on: boolean): boolean {
-  if (on === low) return false;
+  if (on === low) {
+    return false;
+  }
   low = on;
   return true;
 }

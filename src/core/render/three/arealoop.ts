@@ -5,6 +5,6 @@
 import { ShaderChunk } from 'three';
 
 ShaderChunk.lights_fragment_begin = ShaderChunk.lights_fragment_begin.replace(
-  /#pragma unroll_loop_start(\s+for \( int i = 0; i < NUM_RECT_AREA_LIGHTS; i \+\+ \) \{[\s\S]+?\})\s+#pragma unroll_loop_end/,
-  '$1',
+  /#pragma unroll_loop_start(?<loop>\s+for \( int i = 0; i < NUM_RECT_AREA_LIGHTS; i \+\+ \) \{[\s\S]+?\})\s+#pragma unroll_loop_end/u,
+  '$<loop>',
 );

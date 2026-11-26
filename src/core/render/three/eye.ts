@@ -30,7 +30,9 @@ export class Eye {
    * dim room and lift the exposure back up, and the lens would show nothing.
    */
   hold(on: boolean): void {
-    if (this.held && !on) this.skip = EYE_SKIP;
+    if (this.held && !on) {
+      this.skip = EYE_SKIP;
+    }
     this.held = on;
   }
 
@@ -41,14 +43,20 @@ export class Eye {
 
   /** A reading of the meter (null: none came). A held eye drops it, and so do the first ones after the hold. */
   read(lum: number | null): void {
-    if (lum === null) return;
-    if (this.held) return;
+    if (lum === null) {
+      return;
+    }
+    if (this.held) {
+      return;
+    }
     if (this.skip > 0) {
       this.skip--;
       return;
     }
     const g = Math.min(this.range[1], Math.max(this.range[0], this.key / lum));
-    if (Math.abs(Math.log(g / this.goal)) > EYE_DEAD) this.goal = g;
+    if (Math.abs(Math.log(g / this.goal)) > EYE_DEAD) {
+      this.goal = g;
+    }
   }
 
   /** One tick: the eye eases toward its goal over about a second. Returns where it stands. */

@@ -1,11 +1,12 @@
 /// <reference lib="webworker" />
-import { runAoJob, type AoAnswer, type AoAsk } from './aojob';
+import { runAoJob } from './aojob';
+import type * as aojobTypes from './aojob';
 
 // A worker of the baked occlusion's pool (`aopool.ts`): it casts the job in each message and sends the open shares back (by transfer).
-const scope = self as unknown as DedicatedWorkerGlobalScope;
-const answer = (a: AoAnswer, transfer: Transferable[] = []): void => scope.postMessage(a, transfer);
+const scope = globalThis as unknown as DedicatedWorkerGlobalScope;
+const answer = (a: aojobTypes.AoAnswer, transfer: Transferable[] = []): void => scope.postMessage(a, transfer);
 
-scope.onmessage = (e: MessageEvent<AoAsk>) => {
+scope.onmessage = (e: MessageEvent<aojobTypes.AoAsk>) => {
   const { id, job } = e.data;
   try {
     const ao = runAoJob(job);

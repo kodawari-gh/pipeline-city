@@ -24,15 +24,11 @@ import {
   Texture,
   Vector3,
   WebGLRenderTarget,
-  type BufferGeometry,
-  type Material,
-  type MeshStandardMaterial,
-  type Object3D,
-  type WebGLProgramParametersWithUniforms,
-  type WebGLRenderer,
 } from 'three';
+import type * as threeTypes from 'three';
 import { ktx2Loader } from './baked';
-import { startPrograms, type Program } from './compile';
+import { startPrograms } from './compile';
+import type * as compileTypes from './compile';
 import { shareTex } from './geometry';
 import './arealoop';
 
@@ -41,36 +37,52 @@ export const MIN_AREA = 0.02;
 
 /** A 32-bit FNV-1a over the positions (in the room's frame, whole units) and the triangles: the same mesh, built again, has the same hash. */
 export function meshHash(pos: ArrayLike<number>, index: ArrayLike<number> | null): string {
-  let h = 0x811c9dc5;
+  let h = 0x81_1c_9d_c5;
   const mix = (v: number) => {
-    h = Math.imul(h ^ (v | 0), 0x01000193);
+    h = Math.imul(h ^ (v | 0), 0x01_00_01_93);
   };
-  for (let i = 0; i < pos.length; i++) mix(Math.round(pos[i]!));
-  if (index) for (let i = 0; i < index.length; i++) mix(index[i]!);
+  for (let i = 0; i < pos.length; i++) {
+    mix(Math.round(pos[i]!));
+  }
+  if (index) {
+    for (let i = 0; i < index.length; i++) {
+      mix(index[i]!);
+    }
+  }
   return `${pos.length / 3}-${(h >>> 0).toString(16).padStart(8, '0')}`;
 }
 
 /** A lit, opaque surface that does not glow: it blocks light and bounces it (a glow's mesh would shut its own lamp in). */
-export function solid(m: Material): m is MeshStandardMaterial {
-  const s = m as MeshStandardMaterial;
-  return !!s.isMeshStandardMaterial && !s.transparent && s.opacity >= 1 && s.emissive.getHex() === 0;
+export function solid(m: threeTypes.Material): m is threeTypes.MeshStandardMaterial {
+  const s = m as threeTypes.MeshStandardMaterial;
+  return Boolean(s.isMeshStandardMaterial) && !s.transparent && s.opacity >= 1 && s.emissive.getHex() === 0;
 }
 
 /** Does the geometry carry baked vertex occlusion (`vertexao.ts`): a prop or a plant, which keeps it instead of a lightmap. */
-export function hasAo(g: BufferGeometry): boolean {
+export function hasAo(g: threeTypes.BufferGeometry): boolean {
   const a = g.attributes['_ao']?.array;
-  if (a) for (let i = 0; i < a.length; i++) if (a[i]! < 0.999) return true;
+  if (a) {
+    for (let i = 0; i < a.length; i++) {
+      if (a[i]! < 0.999) {
+        return true;
+      }
+    }
+  }
   return false;
 }
 
 /** Is it drawn: its own flag and all those above it. */
-export const shown = (o: Object3D): boolean => {
-  for (let p: Object3D | null = o; p; p = p.parent) if (!p.visible) return false;
+export const shown = (o: threeTypes.Object3D): boolean => {
+  for (let p: threeTypes.Object3D | null = o; p; p = p.parent) {
+    if (!p.visible) {
+      return false;
+    }
+  }
   return true;
 };
 
 /** A geometry's positions through `k` (to the room's frame), as the bake's export reads them (Float32, so the hash rounds the same values). */
-export function framed(g: BufferGeometry, k: Matrix4): Float32Array {
+export function framed(g: threeTypes.BufferGeometry, k: Matrix4): Float32Array {
   const p = g.attributes['position']!,
     out = new Float32Array(3 * p.count),
     v = new Vector3();
@@ -84,8 +96,12 @@ export function framed(g: BufferGeometry, k: Matrix4): Float32Array {
 /** The two key frames round `hour` (`hours` rising) and each one's share; outside them, the nearest alone. */
 export function keyFrames(hour: number, hours: readonly number[]): [number, number][] {
   const n = hours.length;
-  if (!n) return [];
-  if (hour <= hours[0]!) return [[hours[0]!, 1]];
+  if (!n) {
+    return [];
+  }
+  if (hour <= hours[0]!) {
+    return [[hours[0]!, 1]];
+  }
   for (let i = 1; i < n; i++) {
     const a = hours[i - 1]!,
       b = hours[i]!;
@@ -161,7 +177,9 @@ export interface Bake {
 /** A lightmap file as the bytes it holds: the alpha is not a coverage and the values are not colours. */
 async function dataTexture(url: string): Promise<Texture> {
   const r = await fetch(url);
-  if (!r.ok) throw new Error(`${url}: ${r.status}`);
+  if (!r.ok) {
+    throw new Error(`${url}: ${r.status}`);
+  }
   const t = new Texture(
     await createImageBitmap(await r.blob(), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' }),
   );
@@ -180,7 +198,9 @@ async function dataTexture(url: string): Promise<Texture> {
  */
 export function loadDirect(base: string, bake: Bake): Promise<void> {
   const d = bake.manifest.direct;
-  if (!d || bake.direct) return Promise.resolve();
+  if (!d || bake.direct) {
+    return Promise.resolve();
+  }
   return (
     directLoads.get(bake) ??
     directLoads
@@ -202,7 +222,7 @@ const directLoads = new WeakMap<Bake, Promise<void>>();
 async function ktx2Maps(
   base: string,
   groups: readonly BakeGroup[],
-  renderer: WebGLRenderer,
+  renderer: threeTypes.WebGLRenderer,
 ): Promise<[string, Texture][]> {
   const l = await ktx2Loader(renderer);
   try {
@@ -225,15 +245,18 @@ async function ktx2Maps(
  * Loads the bake under `base` (a URL ending in `/`). With a `renderer` and a KTX2 file for every group, the maps come from those; a file that
  * fails to load or to transcode sends all of them to the PNGs.
  */
-export async function loadBake(base: string, renderer?: WebGLRenderer): Promise<Bake> {
+export async function loadBake(base: string, renderer?: threeTypes.WebGLRenderer): Promise<Bake> {
   const get = async (f: string) => {
     const r = await fetch(base + f);
-    if (!r.ok) throw new Error(`${base}${f}: ${r.status}`);
+    if (!r.ok) {
+      throw new Error(`${base}${f}: ${r.status}`);
+    }
     return r;
   };
   const manifest = (await (await get('manifest.json')).json()) as BakeManifest;
-  if (manifest.version !== 1 || manifest.encoding !== 'rgbm-sqrt')
+  if (manifest.version !== 1 || manifest.encoding !== 'rgbm-sqrt') {
     throw new Error(`${base}: a bake this game cannot read (${manifest.version}, ${manifest.encoding})`);
+  }
   const raw = () =>
     get('meshes.bin')
       .then((r) => r.arrayBuffer())
@@ -245,9 +268,12 @@ export async function loadBake(base: string, renderer?: WebGLRenderer): Promise<
   const unzip = async (r: Response): Promise<Uint16Array> => {
     let b = await r.arrayBuffer();
     const h = new Uint8Array(b, 0, Math.min(3, b.byteLength));
-    if (h[0] === 0x1f && h[1] === 0x8b && h[2] === 8)
+    if (h[0] === 0x1f && h[1] === 0x8b && h[2] === 8) {
       b = await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
-    if (b.byteLength !== size * 2) throw new Error(`${base}${manifest.uvs}: ${b.byteLength} bytes, not ${size * 2}`);
+    }
+    if (b.byteLength !== size * 2) {
+      throw new Error(`${base}${manifest.uvs}: ${b.byteLength} bytes, not ${size * 2}`);
+    }
     return new Uint16Array(b);
   };
   const uvs =
@@ -286,12 +312,14 @@ const BEGIN = ShaderChunk.lights_fragment_begin.replace(
  * and to skip the stand-in light (`STAND_IN_DECAY`). Without a light map it draws as before. Keeps an `onBeforeCompile` it already has; a
  * material patched before stays as it is.
  */
-export function lightmapped(m: Material): void {
-  if (m.userData['lightmapped']) return;
+export function lightmapped(m: threeTypes.Material): void {
+  if (m.userData['lightmapped']) {
+    return;
+  }
   m.userData['lightmapped'] = true;
   const prev = m.onBeforeCompile.bind(m),
     key = `${m.customProgramCacheKey()}|lm`;
-  m.onBeforeCompile = (sh: WebGLProgramParametersWithUniforms, r: WebGLRenderer) => {
+  m.onBeforeCompile = (sh: threeTypes.WebGLProgramParametersWithUniforms, r: threeTypes.WebGLRenderer) => {
     prev(sh, r);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <lights_fragment_maps>', MAPS)
@@ -314,22 +342,24 @@ export interface LitOptions {
   /** Units a metre (the receivers' least surface, `MIN_AREA`). */
   metre: number;
   /** Meshes to leave out (the blinds: they move). */
-  skip?: (o: Object3D) => boolean;
+  skip?: (o: threeTypes.Object3D) => boolean;
   /** Hears of each material copied for the receivers (one they shared with a mesh the bake does not light): the copy keeps the source's patches. */
-  twin?: (src: Material, copy: Material) => void;
+  twin?: (src: threeTypes.Material, copy: threeTypes.Material) => void;
 }
 
 /**
  * Gives each mesh under `root` the bake knows (by its hash in `root`'s frame) its lightmap UVs (`uv1`, unindexed, as the bake cut them) and
  * `map` as its light map. A geometry another mesh shares is copied first, and so is a material a mesh the bake does not light shares.
  */
-export function applyLightmap(root: Object3D, bake: Bake, map: Texture, o: LitOptions): Lit {
+export function applyLightmap(root: threeTypes.Object3D, bake: Bake, map: Texture, o: LitOptions): Lit {
   root.updateMatrixWorld(true);
   const toRoot = root.matrixWorld.clone().invert(),
     byHash = new Map(bake.manifest.meshes.map((e) => [e.hash, e]));
   const all: Mesh[] = [];
   root.traverse((x) => {
-    if ((x as Mesh).isMesh) all.push(x as Mesh);
+    if ((x as Mesh).isMesh) {
+      all.push(x as Mesh);
+    }
   });
   const uses = new Map<unknown, number>(),
     use = (k: unknown, d = 1) => {
@@ -339,7 +369,9 @@ export function applyLightmap(root: Object3D, bake: Bake, map: Texture, o: LitOp
     };
   for (const m of all) {
     use(m.geometry);
-    for (const x of [m.material].flat()) use(x);
+    for (const x of [m.material].flat()) {
+      use(x);
+    }
   }
   const lit: [Mesh, BakeMesh, string][] = [],
     found = new Set<string>(),
@@ -347,8 +379,9 @@ export function applyLightmap(root: Object3D, bake: Bake, map: Texture, o: LitOp
   let none: { m: Mesh; hash: string; corners: number }[] = [];
   for (const m of all) {
     const x = m as Mesh & { isInstancedMesh?: boolean; isSkinnedMesh?: boolean };
-    if (x.isInstancedMesh || x.isSkinnedMesh || Array.isArray(m.material) || !solid(m.material) || o.skip?.(m))
+    if (x.isInstancedMesh || x.isSkinnedMesh || Array.isArray(m.material) || !solid(m.material) || o.skip?.(m)) {
       continue;
+    }
     const g = m.geometry,
       corners = g.index ? g.index.count : g.attributes['position']!.count;
     // (a mesh lit before keeps the hash of its geometry as the bake saw it: its own is unindexed now)
@@ -364,37 +397,49 @@ export function applyLightmap(root: Object3D, bake: Bake, map: Texture, o: LitOp
       found.add(hash);
       continue;
     }
-    if (hasAo(g) || !shown(m)) continue;
+    if (hasAo(g) || !shown(m)) {
+      continue;
+    }
     pos ??= framed(g, k.multiplyMatrices(toRoot, m.matrixWorld));
-    if (area(pos, g.index?.array ?? null) >= MIN_AREA * o.metre * o.metre) none.push({ m, hash, corners });
+    if (area(pos, g.index?.array ?? null) >= MIN_AREA * o.metre * o.metre) {
+      none.push({ m, hash, corners });
+    }
   }
   // A mesh that moved or grew since the bake (the desk and what stands on it, with the board's and the case's tier) has another hash, but
   // its triangles are the same ones in the same order. So a baked mesh not found goes to the first mesh left with its count of corners
   // (both lists are in the tree's order): it keeps its own baked light, a little off, in place of the probe's.
   let loose = 0;
   for (const e of bake.manifest.meshes) {
-    if (found.has(e.hash)) continue;
+    if (found.has(e.hash)) {
+      continue;
+    }
     const i = none.findIndex((x) => x.corners === e.corners);
-    if (i === -1) continue;
+    if (i === -1) {
+      continue;
+    }
     lit.push([none[i]!.m, e, e.hash]);
     found.add(e.hash);
     loose++;
     none = none.filter((_, j) => j !== i);
   }
   const missing = none.map((x) => `${x.m.name || 'mesh'} ${x.hash}`);
-  const litUses = new Map<Material, number>(),
-    mats = new Map<Material, Material>();
-  for (const [m] of lit) litUses.set(m.material as Material, (litUses.get(m.material as Material) ?? 0) + 1);
+  const litUses = new Map<threeTypes.Material, number>(),
+    mats = new Map<threeTypes.Material, threeTypes.Material>();
+  for (const [m] of lit) {
+    litUses.set(m.material as threeTypes.Material, (litUses.get(m.material as threeTypes.Material) ?? 0) + 1);
+  }
   for (const [m, e, hash] of lit) {
     const old = m.geometry,
       g = old.index ? old.toNonIndexed() : uses.get(old)! > 1 ? old.clone() : old;
     if (g !== old) {
       m.geometry = g;
-      if (use(old, -1) === 0) old.dispose();
+      if (use(old, -1) === 0) {
+        old.dispose();
+      }
     }
     g.setAttribute('uv1', new BufferAttribute(bake.uvs.subarray(2 * e.offset, 2 * (e.offset + e.corners)), 2, true));
     m.userData['bakeHash'] = hash;
-    const src = m.material as MeshStandardMaterial;
+    const src = m.material as threeTypes.MeshStandardMaterial;
     let mat = mats.get(src);
     if (!mat) {
       mat = src;
@@ -405,7 +450,7 @@ export function applyLightmap(root: Object3D, bake: Bake, map: Texture, o: LitOp
         o.twin?.(src, c);
         mat = c;
       }
-      (mat as MeshStandardMaterial).lightMap = map;
+      (mat as threeTypes.MeshStandardMaterial).lightMap = map;
       lightmapped(mat);
       mat.needsUpdate = true;
       mats.set(src, mat);
@@ -516,9 +561,9 @@ export class LightmapMix {
   }
 
   /** Starts linking the mix's two programs (`compile.ts`): the sum of the groups and the direct light's. The first `mix` would link them at the first draw. */
-  startPrograms(r: WebGLRenderer): Program[] {
+  startPrograms(r: threeTypes.WebGLRenderer): compileTypes.Program[] {
     const was = this.quad.material,
-      out: Program[] = [];
+      out: compileTypes.Program[] = [];
     for (const m of [this.mat, this.directMat]) {
       this.quad.material = m;
       out.push(...startPrograms(r, this.quad, this.cam));
@@ -529,7 +574,7 @@ export class LightmapMix {
 
   /** Does the bake hold, loaded, the direct light of the lamp group `id` (`loadDirect`)? */
   hasDirect(id: string): boolean {
-    return !!this.bake.direct && !!this.bake.manifest.direct?.groups.some((g) => g.id === id);
+    return Boolean(this.bake.direct) && Boolean(this.bake.manifest.direct?.groups.some((g) => g.id === id));
   }
 
   /**
@@ -539,7 +584,7 @@ export class LightmapMix {
    * added too, where the bake holds it (`hasDirect`).
    */
   mix(
-    renderer: WebGLRenderer,
+    renderer: threeTypes.WebGLRenderer,
     levels: ReadonlyMap<string, number | Color>,
     direct?: ReadonlyMap<string, number>,
   ): void {
@@ -548,40 +593,57 @@ export class LightmapMix {
       alpha = renderer.getClearAlpha(),
       auto = renderer.autoClear;
     renderer.setRenderTarget(this.rt);
-    renderer.setClearColor(0x000000, 1);
+    renderer.setClearColor(0x00_00_00, 1);
     renderer.clear(true, false, false);
     renderer.autoClear = false;
     const k = this.mat.uniforms['k']!.value as Vector3;
     for (const g of this.bake.manifest.groups) {
       const l = levels.get(g.id),
         map = this.bake.maps.get(g.id);
-      if (l === undefined || !map) continue;
+      if (l === undefined || !map) {
+        continue;
+      }
       const s = g.scale / (g.kind === 'lamp' ? g.lead || 1 : 1);
-      if (typeof l === 'number') k.setScalar(l * s);
-      else k.set(l.r * s, l.g * s, l.b * s);
-      if (Math.max(k.x, k.y, k.z) <= 0) continue;
+      if (typeof l === 'number') {
+        k.setScalar(l * s);
+      } else {
+        k.set(l.r * s, l.g * s, l.b * s);
+      }
+      if (Math.max(k.x, k.y, k.z) <= 0) {
+        continue;
+      }
       this.mat.uniforms['map']!.value = map;
       renderer.render(this.scene, this.cam);
     }
-    const maps = this.bake.direct,
-      u = this.directMat.uniforms;
-    if (direct && maps) {
-      this.quad.material = this.directMat;
-      for (const g of this.bake.manifest.direct?.groups ?? []) {
-        const l = direct.get(g.id) ?? 0,
-          map = maps[g.map];
-        if (l <= 0 || !map) continue;
-        const s = (l * g.scale) / (g.lead || 1);
-        (u['k']!.value as Vector3).set(g.colour[0] * s, g.colour[1] * s, g.colour[2] * s);
-        (u['sel']!.value as Vector3).set(g.channel === 0 ? 1 : 0, g.channel === 1 ? 1 : 0, g.channel === 2 ? 1 : 0);
-        u['map']!.value = map;
-        renderer.render(this.scene, this.cam);
-      }
-      this.quad.material = this.mat;
+    if (direct) {
+      this.mixDirect(renderer, direct);
     }
     renderer.autoClear = auto;
     renderer.setClearColor(clear, alpha);
     renderer.setRenderTarget(was);
+  }
+
+  /** Adds the direct light's maps (a channel of a shared map each) at their `direct` levels, into the target `mix` has set. */
+  private mixDirect(renderer: threeTypes.WebGLRenderer, direct: ReadonlyMap<string, number>): void {
+    const maps = this.bake.direct,
+      u = this.directMat.uniforms;
+    if (!maps) {
+      return;
+    }
+    this.quad.material = this.directMat;
+    for (const g of this.bake.manifest.direct?.groups ?? []) {
+      const l = direct.get(g.id) ?? 0,
+        map = maps[g.map];
+      if (l <= 0 || !map) {
+        continue;
+      }
+      const s = (l * g.scale) / (g.lead || 1);
+      (u['k']!.value as Vector3).set(g.colour[0] * s, g.colour[1] * s, g.colour[2] * s);
+      (u['sel']!.value as Vector3).set(g.channel === 0 ? 1 : 0, g.channel === 1 ? 1 : 0, g.channel === 2 ? 1 : 0);
+      u['map']!.value = map;
+      renderer.render(this.scene, this.cam);
+    }
+    this.quad.material = this.mat;
   }
 
   /** Frees the target and the quad (the bake's maps are the page's: a room built again shares them). */
