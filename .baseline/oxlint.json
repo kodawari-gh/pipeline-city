@@ -8571,9 +8571,6 @@
   "vitest(valid-expect)": 1
  },
  "src/features/gpu/render/air.ts": {
-  "eslint(curly)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(strict-boolean-expressions)": 1
  },
  "src/features/gpu/render/gpuart.test.ts": {
@@ -8587,15 +8584,11 @@
   "vitest(valid-expect)": 5
  },
  "src/features/gpu/render/gpuart.ts": {
-  "eslint(curly)": 5,
   "eslint(max-params)": 1,
   "eslint(no-nested-ternary)": 1,
   "eslint(no-use-before-define)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-confusing-void-expression)": 1,
-  "unicorn(no-array-fill-with-reference-type)": 8,
-  "unicorn(prefer-export-from)": 1
+  "unicorn(no-array-fill-with-reference-type)": 8
  },
  "src/features/gpu/render/gpuglyph.test.ts": {
   "eslint(curly)": 9,
@@ -8626,22 +8619,14 @@
   "vitest(valid-expect)": 10
  },
  "src/features/gpu/render/gpulayout.ts": {
-  "eslint(curly)": 4,
   "eslint(max-lines-per-function)": 1,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 4,
   "typescript(no-non-null-assertion)": 7,
   "typescript(strict-void-return)": 5,
   "unicorn(no-array-callback-reference)": 2,
   "unicorn(no-array-for-each)": 5
  },
  "src/features/gpu/render/gpulensview.ts": {
-  "eslint(curly)": 5,
   "eslint(max-params)": 2,
-  "eslint(no-implicit-coercion)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-non-null-assertion)": 1,
   "unicorn(no-array-fill-with-reference-type)": 4,
   "unicorn(no-array-for-each)": 1
@@ -8665,15 +8650,12 @@
  },
  "src/features/gpu/render/gpumem.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 30,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 1,
-  "eslint(no-implicit-coercion)": 1,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 6,
   "eslint(no-shadow)": 1,
-  "eslint(prefer-destructuring)": 1,
   "import(max-dependencies)": 1,
   "typescript(explicit-module-boundary-types)": 2,
   "typescript(no-non-null-assertion)": 5,
@@ -8682,9 +8664,7 @@
   "typescript(strict-void-return)": 1,
   "typescript(switch-exhaustiveness-check)": 1,
   "unicorn(no-array-for-each)": 7,
-  "unicorn(numeric-separators-style)": 1,
-  "unicorn(prefer-math-trunc)": 3,
-  "unicorn(switch-case-braces)": 1
+  "unicorn(prefer-math-trunc)": 3
  },
  "src/features/gpu/render/gpuview.test.ts": {
   "eslint(curly)": 7,
@@ -8708,17 +8688,13 @@
  "src/features/gpu/render/gpuview.ts": {
   "eslint(class-methods-use-this)": 2,
   "eslint(complexity)": 3,
-  "eslint(curly)": 56,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 4,
   "eslint(max-params)": 2,
-  "eslint(no-implicit-coercion)": 2,
   "eslint(no-multi-assign)": 8,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 6,
   "eslint(no-shadow)": 1,
-  "eslint(prefer-destructuring)": 4,
-  "import(consistent-type-specifier-style)": 9,
   "import(max-dependencies)": 1,
   "oxc(no-map-spread)": 1,
   "typescript(no-confusing-void-expression)": 2,
@@ -8747,18 +8723,12 @@
   "vitest(valid-expect)": 15
  },
  "src/features/gpu/render/plan/gpuplan.ts": {
-  "typescript(switch-exhaustiveness-check)": 1,
-  "unicorn(switch-case-braces)": 3
+  "typescript(switch-exhaustiveness-check)": 1
  },
  "src/features/gpu/render/plan/gpuplans.ts": {
-  "eslint(curly)": 13,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
   "eslint(max-params)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 4,
   "typescript(no-unsafe-type-assertion)": 2,
   "typescript(strict-boolean-expressions)": 4,
   "unicorn(max-nested-calls)": 10
@@ -8772,15 +8742,10 @@
   "vitest(prefer-to-have-length)": 1
  },
  "src/features/gpu/render/plan/gpuplayer.ts": {
-  "eslint(curly)": 13,
-  "eslint(no-implicit-coercion)": 1,
   "eslint(no-negated-condition)": 1,
-  "eslint(prefer-destructuring)": 3,
   "typescript(no-non-null-assertion)": 6,
   "typescript(no-unsafe-type-assertion)": 1,
-  "unicorn(explicit-length-check)": 1,
-  "unicorn(no-array-sort)": 2,
-  "unicorn(prefer-at)": 3
+  "unicorn(no-array-sort)": 2
  },
  "src/features/gpu/render/plan/gpuroute.test.ts": {
   "eslint(curly)": 2,

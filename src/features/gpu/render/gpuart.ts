@@ -1,7 +1,7 @@
 import { Graphics } from 'pixi.js';
 import { label, mix } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
-import { laneLines, planFar, planNear, type DieArt, type PlanStyle } from '../../cpu/render/die/dieart';
+import * as dieart from '../../cpu/render/die/dieart';
 import type { GpuBlock, GpuBlockKind, GpuLink, GpuLinkKind, GpuPlan } from './plan/gpuplan';
 import { gpuGlyph, gpuGlyphArea } from './glyph';
 import { DIE_MARGIN, gpuCells } from './plan/gpuplans';
@@ -42,8 +42,12 @@ export const gpuAccent = (T: Theme, plan: GpuPlan): string =>
 export function gpuTitle(plan: GpuPlan): string {
   const i = plan.input,
     lanes = `${i.lanes} lanes`;
-  if (i.kind === 'simd') return `SIMD UNIT · ${lanes} · ${i.banks} bank${i.banks === 1 ? '' : 's'}`;
-  if (i.kind === 'warp') return `WARP SM · ${i.warps} warps · ${lanes}`;
+  if (i.kind === 'simd') {
+    return `SIMD UNIT · ${lanes} · ${i.banks} bank${i.banks === 1 ? '' : 's'}`;
+  }
+  if (i.kind === 'warp') {
+    return `WARP SM · ${i.warps} warps · ${lanes}`;
+  }
   return `${i.sms} SMs · ${i.warps} warps each · ${lanes} · L2`;
 }
 
@@ -83,20 +87,25 @@ export function gpuFar(g: Graphics, T: Theme, plan: GpuPlan): void {
     g.rect(x, D.y + 8, 6, 6);
     g.rect(x, D.y + D.h - 14, 6, 6);
   }
-  for (let y = y0 + 12; y + 6 <= y1; y += 12) g.rect(D.x + D.w - 14, y, 6, 6);
+  for (let y = y0 + 12; y + 6 <= y1; y += 12) {
+    g.rect(D.x + D.w - 14, y, 6, 6);
+  }
   g.fill({ color: T.pin, alpha: 0.7 });
   g.poly([D.x + 6, D.y + 6, D.x + 22, D.y + 6, D.x + 6, D.y + 22]).fill({ color: accent, alpha: 0.9 });
-  for (const b of plan.blocks)
+  for (const b of plan.blocks) {
     if (b.kind === 'pcie') {
       const n = Math.floor((b.rect.h - 20) / 12);
-      for (let k = 0; k < n; k++) g.rect(D.x + 9, b.rect.y + 10 + k * 12, 6, 6);
+      for (let k = 0; k < n; k++) {
+        g.rect(D.x + 9, b.rect.y + 10 + k * 12, 6, 6);
+      }
       g.fill({ color: T.alu, alpha: 0.8 });
     }
-  planFar(g, T, plan.blocks, GPU_STYLE);
+  }
+  dieart.planFar(g, T, plan.blocks, GPU_STYLE);
 }
 
 /** How the GPU card is drawn: the CPU die's art (`planFar`, `planNear`) with the card's colours and symbols. */
-const GPU_STYLE: PlanStyle<GpuBlock, GpuLink> = {
+const GPU_STYLE: dieart.PlanStyle<GpuBlock, GpuLink> = {
   color: (T, b) => T[GPU_KIND_COLOR[b.kind]],
   linkColor: (T, l) => T[GPU_LINK_COLOR[l.kind]],
   frame: (b) => b.kind === 'sm',
@@ -105,18 +114,18 @@ const GPU_STYLE: PlanStyle<GpuBlock, GpuLink> = {
   cells: gpuCells,
 };
 
-export type GpuArt = DieArt;
+export type GpuArt = dieart.DieArt;
 
 /** The traces of a link: one polyline per lane (the die's own bundle). */
-export const gpuLaneLines = laneLines;
+export const gpuLaneLines = dieart.laneLines;
 
 /** Traces, cell arrays, symbols and names of a plan, and the strip under the blocks. */
 export function gpuNear(T: Theme, plan: GpuPlan): GpuArt {
-  const art = planNear(T, plan, GPU_STYLE);
+  const art = dieart.planNear(T, plan, GPU_STYLE);
   // the strip under the blocks: the card's name, the colour legend, the revision (the CPU package's text, docs/DIE.md)
   const D = plan.core,
     sy = D.y + D.h - DIE_MARGIN.bottom + 15,
-    names = art.names;
+    { names } = art;
   names.addChild(label(gpuTitle(plan), D.x + DIE_MARGIN.x, sy, 13, T.mute, { weight: '700', a: 0.85 }));
   const legend = new Graphics();
   names.addChild(legend);
