@@ -1,7 +1,7 @@
 // Syntax colouring for the almanac's code views: assembly (the machine's own, coloured by what each instruction does), C++ and Python.
 // Pure: text in, a list of coloured pieces out (`Tok`), so the view only has to draw them and tests can read them.
 
-import { opClassOf, type OpClass } from '../../jobs/sim/jobcode';
+import * as jobcode from '../../jobs/sim/jobcode';
 import { gpuOpClass } from '../../gpu/sim/gpucode';
 import { GPU_SPEC_BY_NAME } from '../../gpu/sim/isa/isa';
 
@@ -24,7 +24,7 @@ export interface Tok {
     | 'directive'
     | 'punct'
     | 'pre';
-  cls?: OpClass;
+  cls?: jobcode.OpClass;
 }
 
 const REGS = new Set([
@@ -95,7 +95,7 @@ const MNEMONICS = new Set([
   'bnez',
   'seqz',
 ]);
-const PSEUDO_CLASS: Record<string, OpClass> = {
+const PSEUDO_CLASS: Record<string, jobcode.OpClass> = {
   li: 'alu',
   la: 'alu',
   mv: 'alu',
@@ -189,7 +189,7 @@ const PY_BUILTINS = new Set(['range', 'sum', 'max', 'min', 'len', 'zip', 'enumer
 
 type Rule = [RegExp, (m: RegExpExecArray, out: Tok[]) => Tok[]];
 
-const tok = (t: string, k: Tok['k'], cls?: OpClass): Tok => (cls ? { t, k, cls } : { t, k });
+const tok = (t: string, k: Tok['k'], cls?: jobcode.OpClass): Tok => (cls ? { t, k, cls } : { t, k });
 
 function lex(text: string, rules: Rule[]): Tok[] {
   const out: Tok[] = [];
@@ -239,7 +239,7 @@ const ASM: Rule[] = [
       }
       const first = out.every((t) => t.k === 'label' || (t.k === 'plain' && t.t.trim() === '')); // the first word of a line is the instruction
       if (first && MNEMONICS.has(w)) {
-        return [tok(w, 'op', PSEUDO_CLASS[w] ?? opClassOf(w))];
+        return [tok(w, 'op', PSEUDO_CLASS[w] ?? jobcode.opClassOf(w))];
       }
       return [tok(w, 'label')]; // a branch or call target
     },

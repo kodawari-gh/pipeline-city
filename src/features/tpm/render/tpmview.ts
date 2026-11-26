@@ -2,16 +2,16 @@ import { Container, Graphics } from 'pixi.js';
 import type { TpmView as TpmSnap } from '../sim/tpm';
 import { box } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
-import { CellTexts, drawPackets, drawTrails, packetOn, type Packet, type Trail } from '../../cpu/render/die/diepulse';
+import * as diepulse from '../../cpu/render/die/diepulse';
 import type { Pt, Rect } from '../../cpu/render/core/cpuplan';
 import { tpmFar, tpmNear, TPM_KIND_COLOR } from './tpmart';
-import { ENGINE_OF, guardGeom, padlock, tpmGlyphArea, tpmLive, type TpmShow } from './tpmglyph';
+import * as tpmglyph from './tpmglyph';
 import { TpmPlayer, REPLAY_HOP_MS } from './tpmplayer';
 import { tpmRoute } from './tpmroute';
 import type { TpmBlock } from './tpmplan';
 import { tpmCover } from '@/core/render/accelart';
-import { tpmGeo, tpmLed, type TpmGeo } from './tpmlayout';
-import { DEVICE_LOD, dieShow, seenZoom, type Candidate, type CardLod, type LodRect } from '@/core/render/lod/lod';
+import * as tpmlayout from './tpmlayout';
+import * as lodMod from '@/core/render/lod/lod';
 import { RectCache } from '@/core/render/lod/lodrect';
 import { cardCandidates, cardText } from '@/core/render/lod/lodcard';
 
@@ -23,8 +23,8 @@ import { cardCandidates, cardText } from '@/core/render/lod/lodcard';
 
 // Zoom levels (board scale: the die is only a few hundred board units across, so they sit above the cards'): the lid fades over the band every chip uses (`dieShow`), the traces and
 // symbols come with it, the names at 2.2, the second lines at 3.4.
-const TEXT_Z = DEVICE_LOD.tpm.text,
-  DETAIL_Z = DEVICE_LOD.tpm.detail;
+const TEXT_Z = lodMod.DEVICE_LOD.tpm.text,
+  DETAIL_Z = lodMod.DEVICE_LOD.tpm.detail;
 /** How long a hop of a live command's packet takes (ms): the module's own phases are far shorter than a frame. */
 const LIVE_HOP_MS = 420;
 
@@ -36,7 +36,7 @@ export interface TpmScene {
 
 interface ModuleView {
   slot: string;
-  geo: TpmGeo;
+  geo: tpmlayout.TpmGeo;
   root: Container;
   /** The die in its own units, scaled into the band. */
   die: Container;
@@ -51,9 +51,9 @@ interface ModuleView {
   packetG: Graphics;
   names: Container;
   subs: Container;
-  cellTexts: Map<string, CellTexts>;
-  packets: Packet[];
-  trails: Map<string, Trail>;
+  cellTexts: Map<string, diepulse.CellTexts>;
+  packets: diepulse.Packet[];
+  trails: Map<string, diepulse.Trail>;
   glow: Map<string, { v: number; color: string }>;
   /** The phase last sent along the wires (command and phase), so a packet leaves once. */
   sent: string;
@@ -99,7 +99,7 @@ export class TpmView {
   }
 
   private build(T: Theme, s: TpmScene): ModuleView {
-    const geo = tpmGeo(s.visual, s.hdr),
+    const geo = tpmlayout.tpmGeo(s.visual, s.hdr),
       { plan } = geo,
       root = new Container(),
       die = new Container(),
@@ -125,7 +125,7 @@ export class TpmView {
     this.root.addChild(root);
     const opt = { stages: plan.input.hashStages, rounds: plan.input.quoteRounds, keys: plan.input.keys };
     const areas = plan.blocks.flatMap((b) => {
-      const a = tpmGlyphArea(b);
+      const a = tpmglyph.tpmGlyphArea(b);
       return a ? [{ b, a }] : [];
     });
     return {
@@ -168,12 +168,12 @@ export class TpmView {
   }
 
   /** The modules in view that want their counters, for the detail budget (live.ts). */
-  candidates(view: LodRect): Candidate[] {
+  candidates(view: lodMod.LodRect): lodMod.Candidate[] {
     return cardCandidates('tpm', this.modules, this.rects, view, this.zoom, DETAIL_Z);
   }
 
   /** Per frame. `inner` is false while the case's exterior covers the board (nothing to draw). `lod`: the view, and who may show counters; a module out of view is not drawn. */
-  frame(dt: number, inner: boolean, paused = false, lod?: CardLod): void {
+  frame(dt: number, inner: boolean, paused = false, lod?: lodMod.CardLod): void {
     this.root.visible = inner && this.modules.length > 0;
     if (!this.root.visible || !this.T) {
       return;
@@ -191,8 +191,8 @@ export class TpmView {
       this.lockBadge(T, m, show);
       const pl = this.rects.place(m, m.root, lod?.view),
         on = pl.onScreen,
-        z = seenZoom(this.zoom, pl.focus),
-        fade = dieShow(z, m.geo.die.w);
+        z = lodMod.seenZoom(this.zoom, pl.focus),
+        fade = lodMod.dieShow(z, m.geo.die.w);
       m.root.visible = on;
       m.cover.alpha = 1 - fade;
       // (the LED is a light on the module: it stays lit up close)
@@ -218,7 +218,7 @@ export class TpmView {
   }
 
   /** The padlock on the lid: closed (and red) while protected mode is on, open and dim when it is not. */
-  private lockBadge(T: Theme, m: ModuleView, show: TpmShow | null): void {
+  private lockBadge(T: Theme, m: ModuleView, show: tpmglyph.TpmShow | null): void {
     const locked = Boolean(show?.range);
     if (m.locked === locked) {
       return;
@@ -232,17 +232,17 @@ export class TpmView {
       if (!locked) {
         return;
       }
-      const { x, y } = tpmLed(m.geo);
+      const { x, y } = tpmlayout.tpmLed(m.geo);
       g.circle(x, y, 20).fill({ color: T.bad, alpha: 0.22 }).circle(x, y, 12).fill({ color: T.bad, alpha: 0.5 });
       g.roundRect(x - 6, y - 10, 12, 20, 4).fill({ color: '#ffd9d0', alpha: 0.95 });
       return;
     }
     box(g, b.x + b.w - 62, b.y + b.h / 2 - 24, 44, 52, 5, { fill: '#0b101c' });
-    padlock(g, b.x + b.w - 40, b.y + b.h / 2 + 4, 30, locked, locked ? T.bad : T.mute, '#0b101c');
+    tpmglyph.padlock(g, b.x + b.w - 40, b.y + b.h / 2 + 4, 30, locked, locked ? T.bad : T.mute, '#0b101c');
   }
 
   /** Send the phase the command has reached along its route: a packet on each wire in turn, in the colour of the phase (once per phase). */
-  private fly(m: ModuleView, show: TpmShow): void {
+  private fly(m: ModuleView, show: tpmglyph.TpmShow): void {
     const { phase } = show;
     if (phase === 'idle') {
       m.sent = '';
@@ -258,7 +258,7 @@ export class TpmView {
       return;
     }
     const T = this.T!,
-      engine = ENGINE_OF[show.cmd],
+      engine = tpmglyph.ENGINE_OF[show.cmd],
       kind = engine ? m.geo.plan.blocks.find((b) => b.id === engine)?.kind : undefined;
     const color = phase === 'in' ? T.alu : phase === 'out' ? T.st : T[TPM_KIND_COLOR[kind ?? 'seq']];
     const total = show.replay ? REPLAY_HOP_MS : LIVE_HOP_MS,
@@ -266,19 +266,19 @@ export class TpmView {
       dur = Math.max(sp * 1.1, 200);
     route.forEach((h, i) => {
       const o = { id: h.link.id, lanes: h.link.lanes, pts: h.link.pts as Pt[] };
-      const { packet, trail } = packetOn(o, h.reverse, this.now + i * sp, dur, color);
+      const { packet, trail } = diepulse.packetOn(o, h.reverse, this.now + i * sp, dur, color);
       m.packets.push(packet);
       m.trails.set(h.link.id, trail);
     });
   }
 
   /** The blocks the command is in right now. */
-  private active(show: TpmShow | null): Map<string, number> {
+  private active(show: tpmglyph.TpmShow | null): Map<string, number> {
     const out = new Map<string, number>();
     if (!show || show.phase === 'idle') {
       return out;
     }
-    const engine = ENGINE_OF[show.cmd];
+    const engine = tpmglyph.ENGINE_OF[show.cmd];
     if (show.phase === 'in' || show.phase === 'out') {
       out.set('lpc', 1);
       out.set('regs', 1);
@@ -297,7 +297,7 @@ export class TpmView {
   }
 
   /** The moving parts: packets on the wires, the glow of the blocks the command is in, the lit parts and digits of the symbols. */
-  private animate(T: Theme, m: ModuleView, show: TpmShow | null): void {
+  private animate(T: Theme, m: ModuleView, show: tpmglyph.TpmShow | null): void {
     const { now } = this;
     if (!show) {
       m.packets = [];
@@ -325,13 +325,13 @@ export class TpmView {
       used = new Set<string>();
     if (show) {
       for (const { b, a } of m.areas) {
-        const live = tpmLive(b, a, show, m.opt);
+        const live = tpmglyph.tpmLive(b, a, show, m.opt);
         for (const l of live.lit) {
           lit.push({ rect: l.rect, color: T[l.color], a: l.a });
         }
         let ct = m.cellTexts.get(b.id);
         if (!ct) {
-          ct = new CellTexts(m.texts);
+          ct = new diepulse.CellTexts(m.texts);
           m.cellTexts.set(b.id, ct);
         }
         used.add(b.id);
@@ -363,22 +363,22 @@ export class TpmView {
     for (const l of lit) {
       box(m.litG, l.rect.x, l.rect.y, l.rect.w, l.rect.h, 1.5, { fill: l.color, fa: l.a });
     }
-    drawTrails(m.trailG, m.trails, now, 1);
-    m.packets = drawPackets(m.packetG, m.packets, now, 1, T.ink);
+    diepulse.drawTrails(m.trailG, m.trails, now, 1);
+    m.packets = diepulse.drawPackets(m.packetG, m.packets, now, 1, T.ink);
   }
 
   /** The padlock of the range guard, in the die: closed over the window while protected mode is on. */
-  private draw(T: Theme, m: ModuleView, show: TpmShow | null): void {
+  private draw(T: Theme, m: ModuleView, show: tpmglyph.TpmShow | null): void {
     const g = m.dyn;
     g.clear();
     const guard = m.geo.plan.blocks.find((b) => b.kind === 'guard'),
-      a = guard && tpmGlyphArea(guard);
+      a = guard && tpmglyph.tpmGlyphArea(guard);
     if (!guard || !a) {
       return;
     }
-    const q = guardGeom(a),
+    const q = tpmglyph.guardGeom(a),
       locked = Boolean(show?.range);
     g.circle(q.lock.cx, q.lock.cy, q.lock.s * 0.7).fill({ color: T.die, alpha: 0.9 });
-    padlock(g, q.lock.cx, q.lock.cy, q.lock.s, locked, locked ? T.bad : T.mute, T.die);
+    tpmglyph.padlock(g, q.lock.cx, q.lock.cy, q.lock.s, locked, locked ? T.bad : T.mute, T.die);
   }
 }

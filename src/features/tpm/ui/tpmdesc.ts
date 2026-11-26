@@ -1,7 +1,7 @@
 // Words for the parts of the secure module the board draws (docs/ACCEL.md "TPM", render/board/tpmlayout.ts): the lid, and the blocks of its die. An id is
 // the header slot and the part: `tpm0.regs`. Pure. It imports nothing from logic.ts (logic.ts imports this).
 
-import { getSpec, type TpmSpec } from '../../board/sim/specs';
+import * as specs from '../../board/sim/specs';
 import type { Snapshot } from '@/worker/game/game';
 import { TPM_HOP_TICKS, TPM_SEAL_TICKS, TpmCmd } from '@/core/sim/memmap';
 import type { Description } from '@/core/ui/regions';
@@ -27,7 +27,7 @@ export function describeTpmId(id: string, s?: Snapshot | null): Description | nu
   const slot = m[1]!,
     kind = m[2]!;
   const dev = s?.devices.find((d) => d.slot === slot && d.kind === 'tpm');
-  const spec = dev ? (getSpec(dev.spec) as TpmSpec | undefined) : undefined;
+  const spec = dev ? (specs.getSpec(dev.spec) as specs.TpmSpec | undefined) : undefined;
   const t = s?.tpm,
     cfg = spec?.tpm;
   const name = spec ? spec.name : 'secure module';

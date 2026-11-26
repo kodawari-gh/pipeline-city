@@ -1,4 +1,8 @@
-import { deviceHeat, type AirSource } from '@/core/render/airsource';
+import * as airsource from '@/core/render/airsource';
 
 /** The security module: a heat zone. */
-export const tpmAir: AirSource = { id: 'tpm', kinds: ['tpm'], heat: (c) => deviceHeat(['tpm'], 'tpm', 'TPM', c) };
+export const tpmAir: airsource.AirSource = {
+  id: 'tpm',
+  kinds: ['tpm'],
+  heat: (c) => airsource.deviceHeat(['tpm'], 'tpm', 'TPM', c),
+};

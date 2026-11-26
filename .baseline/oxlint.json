@@ -12393,12 +12393,8 @@
   "unicorn(numeric-separators-style)": 2,
   "unicorn(switch-case-braces)": 3
  },
- "src/features/tpm/render/air.ts": {
-  "import(consistent-type-specifier-style)": 1
- },
  "src/features/tpm/render/tpmart.ts": {
   "eslint(max-params)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-confusing-void-expression)": 1,
   "unicorn(no-array-fill-with-reference-type)": 5
  },
@@ -12425,7 +12421,6 @@
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 2,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 23,
   "typescript(strict-void-return)": 1,
   "unicorn(no-array-for-each)": 1
@@ -12436,7 +12431,6 @@
   "eslint(max-lines-per-function)": 2,
   "eslint(max-params)": 5,
   "eslint(no-nested-ternary)": 5,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-non-null-assertion)": 17,
@@ -12456,9 +12450,6 @@
   "vitest(prefer-strict-equal)": 3,
   "vitest(valid-expect)": 8
  },
- "src/features/tpm/render/tpmlayout.ts": {
-  "import(consistent-type-specifier-style)": 2
- },
  "src/features/tpm/render/tpmplan.test.ts": {
   "eslint(complexity)": 1,
   "eslint(curly)": 13,
@@ -12473,7 +12464,6 @@
  },
  "src/features/tpm/render/tpmplans.ts": {
   "eslint(max-params)": 1,
-  "import(consistent-type-specifier-style)": 3,
   "typescript(strict-boolean-expressions)": 1
  },
  "src/features/tpm/render/tpmplayer.test.ts": {
@@ -12503,7 +12493,6 @@
   "eslint(no-multi-assign)": 2,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 7,
   "import(max-dependencies)": 1,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-non-null-assertion)": 3,
@@ -12566,7 +12555,6 @@
  "src/features/tpm/ui/tpmdesc.ts": {
   "eslint(complexity)": 1,
   "eslint(max-lines-per-function)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 4,
   "typescript(no-unnecessary-template-expression)": 1,
   "typescript(no-unsafe-type-assertion)": 1
@@ -12580,7 +12568,6 @@
   "eslint(no-nested-ternary)": 4,
   "eslint(no-unused-expressions)": 2,
   "eslint(no-use-before-define)": 4,
-  "import(consistent-type-specifier-style)": 1,
   "import(max-dependencies)": 1,
   "jsx-a11y(prefer-tag-over-role)": 4,
   "react(button-has-type)": 7,
@@ -12673,7 +12660,6 @@
   "eslint(max-lines)": 1,
   "eslint(no-nested-ternary)": 2,
   "eslint(no-useless-escape)": 2,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 1,
   "unicorn(no-array-reverse)": 1
  },

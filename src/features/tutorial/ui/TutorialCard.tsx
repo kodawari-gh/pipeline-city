@@ -19,7 +19,7 @@ import {
 import { currentStep, offerNextLesson, stepCount, stepProblem } from './tutorial';
 import { CHAR_MS, pagesOf } from './dialogue';
 import { anchorOf, flyTo, hasTarget } from './anchor';
-import { comfortablyVisible, type Rect } from '@/core/ui/place';
+import * as place from '@/core/ui/place';
 import { playCue } from '@/app/audio/engine';
 import { typeTickDue } from '@/app/audio/uiCues';
 
@@ -176,7 +176,7 @@ const reducedMotion = () => {
 };
 
 /** Screen rect of a DOM element, in the same shape as an anchor. */
-const domRect = (el: Element | null): Rect | null => {
+const domRect = (el: Element | null): place.Rect | null => {
   if (!el) {
     return null;
   }
@@ -192,7 +192,7 @@ const isWorldId = (id: string) =>
  * What the tutorial points at right now: the first world target that is on screen, else the first inventory tile, else
  * the HUD's inventory button. `world` is set when the pointer is aimed at a world object (the camera can show it).
  */
-function resolveTarget(targets: string[]): { rect: Rect; world: string | null; hud?: boolean } | null {
+function resolveTarget(targets: string[]): { rect: place.Rect; world: string | null; hud?: boolean } | null {
   for (const t of targets) {
     if (!isWorldId(t)) {
       continue;
@@ -233,7 +233,7 @@ function resolveTarget(targets: string[]): { rect: Rect; world: string | null; h
  * Where a drag step goes from and to, for the idle demonstration: a shelf tile to its world target, or a key to the USB port.
  * Null for steps that are not drags (clicks, waits, cables).
  */
-function ghostPath(targets: string[]): { from: Rect; to: Rect } | null {
+function ghostPath(targets: string[]): { from: place.Rect; to: place.Rect } | null {
   const world = targets.find((t) => isWorldId(t) && !t.startsWith('key:') && !t.startsWith('cable.'));
   const tile = targets.find((t) => t.startsWith('inv:'));
   if (tile && world) {
@@ -255,7 +255,7 @@ function ghostPath(targets: string[]): { from: Rect; to: Rect } | null {
 }
 
 /** The free area of the screen (the canvas minus the UI inset), client px. */
-const freeRect = (): Rect => {
+const freeRect = (): place.Rect => {
   const i = viewInset.peek();
   return { x: i.left, y: i.top, w: window.innerWidth - i.left - i.right, h: window.innerHeight - i.top - i.bottom };
 };
@@ -292,7 +292,7 @@ function useGuidance(
       return;
     }
     const a = anchorOf(world);
-    if (a && a.visible && comfortablyVisible(a, freeRect())) {
+    if (a && a.visible && place.comfortablyVisible(a, freeRect())) {
       return;
     }
     const t = setTimeout(() => {
@@ -432,7 +432,7 @@ function useGuidance(
         return;
       }
       const a = anchorOf(world);
-      setOffscreen(!(a && a.visible && comfortablyVisible(a, freeRect())));
+      setOffscreen(!(a && a.visible && place.comfortablyVisible(a, freeRect())));
     });
   }, [active, key]);
 

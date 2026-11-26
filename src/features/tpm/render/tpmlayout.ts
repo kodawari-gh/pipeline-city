@@ -1,6 +1,6 @@
 import { specsOfKind } from '../../board/sim/specs';
 import { TPM_KEYS_SHOWN } from '../sim/tpm';
-import { tpmPlanInput, type TpmBlock, type TpmPlan } from './tpmplan';
+import * as tpmplan from './tpmplan';
 import { TPM_DIE, tpmPlan } from './tpmplans';
 import type { Rect } from '../../board/render/layout/layout';
 
@@ -41,14 +41,14 @@ export interface TpmGeo {
   die: Rect;
   scale: number;
   /** The module's plan. */
-  plan: TpmPlan;
+  plan: tpmplan.TpmPlan;
 }
 
 /** The module's plan from its spec's `visual` key (`tpm-1`, `tpm-2`). */
-export function tpmPlanOf(visual: string): TpmPlan {
+export function tpmPlanOf(visual: string): tpmplan.TpmPlan {
   const s = specsOfKind('tpm').find((x) => x.visual === visual);
   return tpmPlan(
-    s?.tpm ? tpmPlanInput(s.tpm, TPM_KEYS_SHOWN) : { hashStages: 4, quoteRounds: 3, keys: TPM_KEYS_SHOWN },
+    s?.tpm ? tpmplan.tpmPlanInput(s.tpm, TPM_KEYS_SHOWN) : { hashStages: 4, quoteRounds: 3, keys: TPM_KEYS_SHOWN },
   );
 }
 
@@ -94,7 +94,7 @@ export const tpmLed = (g: Pick<TpmGeo, 'pcb' | 'band'>): { x: number; y: number 
 });
 
 /** A block's rectangle in board space. */
-export const blockRect = (g: Pick<TpmGeo, 'die' | 'scale'>, b: Pick<TpmBlock, 'rect'>): Rect => ({
+export const blockRect = (g: Pick<TpmGeo, 'die' | 'scale'>, b: Pick<tpmplan.TpmBlock, 'rect'>): Rect => ({
   x: g.die.x + b.rect.x * g.scale,
   y: g.die.y + b.rect.y * g.scale,
   w: b.rect.w * g.scale,

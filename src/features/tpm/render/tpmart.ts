@@ -1,7 +1,7 @@
 import { Graphics } from 'pixi.js';
 import { label, mix } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
-import { planFar, planNear, type DieArt, type PlanStyle } from '../../cpu/render/die/dieart';
+import * as dieart from '../../cpu/render/die/dieart';
 import type { TpmBlock, TpmBlockKind, TpmLink, TpmLinkKind, TpmPlan } from './tpmplan';
 import { tpmGlyph, tpmGlyphArea } from './tpmglyph';
 import { DIE_MARGIN } from './tpmplans';
@@ -45,7 +45,7 @@ const TPM_LEGEND: { text: string; key: Key }[] = [
 ];
 
 /** How the module is drawn: the CPU die's art (`planFar`, `planNear`) with the module's colours and symbols. */
-function tpmStyle(plan: TpmPlan): PlanStyle<TpmBlock, TpmLink> {
+function tpmStyle(plan: TpmPlan): dieart.PlanStyle<TpmBlock, TpmLink> {
   const opt = { stages: plan.input.hashStages, rounds: plan.input.quoteRounds, keys: plan.input.keys };
   return {
     color: (T, b) => T[TPM_KIND_COLOR[b.kind]],
@@ -85,12 +85,12 @@ export function tpmFar(g: Graphics, T: Theme, plan: TpmPlan): void {
     }
     g.fill({ color: T.alu, alpha: 0.8 });
   }
-  planFar(g, T, plan.blocks, tpmStyle(plan));
+  dieart.planFar(g, T, plan.blocks, tpmStyle(plan));
 }
 
 /** Traces, symbols and names of a plan, and the strip under the blocks. */
-export function tpmNear(T: Theme, plan: TpmPlan): DieArt {
-  const art = planNear(T, plan, tpmStyle(plan));
+export function tpmNear(T: Theme, plan: TpmPlan): dieart.DieArt {
+  const art = dieart.planNear(T, plan, tpmStyle(plan));
   const D = plan.die,
     sy = D.y + D.h - DIE_MARGIN.bottom + 15,
     { names } = art;

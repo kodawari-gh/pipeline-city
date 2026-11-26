@@ -1,6 +1,6 @@
 import type { Graphics } from 'pixi.js';
 import type { Rect } from '../../cpu/render/core/cpuplan';
-import { glyphKit, type Put } from '../../cpu/render/die/blockart';
+import * as blockart from '../../cpu/render/die/blockart';
 import type { Theme } from '@/core/render/theme';
 import type { TpmBlock } from './tpmplan';
 
@@ -275,14 +275,14 @@ export function tpmGlyph(
   T: Theme,
   b: TpmBlock,
   c: string,
-  put: Put,
+  put: blockart.Put,
   opt: { stages: number; rounds: number; keys: number },
 ): void {
   const a = tpmGlyphArea(b);
   if (!a) {
     return;
   }
-  const kit = glyphKit(g, T, c, put);
+  const kit = blockart.glyphKit(g, T, c, put);
   const { solid, soft, line, rect, stub } = kit;
   const lab = (t: string, lx: number, ly: number, size = 7.5) => put(t, lx + (t.length * size * 0.6) / 2, ly, size);
   const outline = (r: Rect) => {

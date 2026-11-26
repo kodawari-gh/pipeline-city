@@ -8,7 +8,7 @@
 // row and run under the body: VDD by a strap between pins 10 and 19 and a trunk west past the caps to contact 1; PP and GPIO east to their
 // resistors and the LED; VSB down a via and along the underside to contact 14. Ground is a pour on both faces, stitched by vias.
 import type { Rect } from '../../board/render/layout/layout';
-import { TSSOP28, tpmLed, type TpmGeo } from './tpmlayout';
+import * as tpmlayout from './tpmlayout';
 
 export type Pt = readonly [number, number];
 
@@ -213,11 +213,11 @@ const lane = (p: Pt, y0: number, x: number, q: Pt): Pt[] => [
 ];
 
 /** The module's copper on the header whose rectangle is `hdr` (board space; `headerRect` of the TPM header). */
-export function tpmCopper(geo: TpmGeo, hdr: Rect): TpmCopper {
+export function tpmCopper(geo: tpmlayout.TpmGeo, hdr: Rect): TpmCopper {
   const { pcb, chip } = geo,
     at = (x: number, y: number): Pt => [pcb.x + x, pcb.y + y],
-    n = TSSOP28.legs;
-  const legX = (k: number) => chip.x + chip.w / 2 + (k - (n - 1) / 2) * TSSOP28.pitch;
+    n = tpmlayout.TSSOP28.legs;
+  const legX = (k: number) => chip.x + chip.w / 2 + (k - (n - 1) / 2) * tpmlayout.TSSOP28.pitch;
   const yN = chip.y - LEG_PAD.gap - LEG_PAD.h / 2,
     yS = chip.y + chip.h + LEG_PAD.gap + LEG_PAD.h / 2;
   // pin p of the chip turned half round: 1 to 14 west along the north row from its east end, 15 to 28 east along the south row
@@ -236,7 +236,7 @@ export function tpmCopper(geo: TpmGeo, hdr: Rect): TpmCopper {
   }
   // the bulk cap on the trunk by contact 1, a 100 nF cap each side of it at the chip's west end, the standby rail's by contact 14, the PP
   // pull-down and the LED's resistor by the chip's east end, the LED by the east edge
-  const L = tpmLed(geo),
+  const L = tpmlayout.tpmLed(geo),
     [p1x] = pin(1),
     [p14x, p14y] = pin(14),
     yPP = pcb.y + 90,

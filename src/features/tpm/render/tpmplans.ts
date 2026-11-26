@@ -3,16 +3,7 @@
 // the quote engine, the sealed storage); the bus master and the range guard are in the east, where the module meets the memory bus.
 
 import type { Rect } from '../../cpu/render/core/cpuplan';
-import {
-  col,
-  leaf,
-  placeTree,
-  routeWires,
-  row,
-  type Node,
-  type Spec,
-  type WireSpec,
-} from '../../cpu/render/core/cpufloor';
+import * as cpufloor from '../../cpu/render/core/cpufloor';
 import type { TpmBlock, TpmBlockKind, TpmLinkKind, TpmPlan, TpmPlanInput } from './tpmplan';
 
 /** Margins round the blocks: the bond pads run in them, and the south one carries the title and the legend. */
@@ -21,26 +12,26 @@ export const DIE_MARGIN = { x: 24, top: 24, bottom: 40 };
 export const TPM_DIE = { w: 1500, h: 680 };
 
 type K = TpmBlockKind;
-type N = Node<K>;
-type Opt = Partial<Spec<K>> & { f?: number; px?: number };
-const L = (id: string, kind: K, label: string, o: Opt = {}): N => leaf<K>(id, kind, label, o);
+type N = cpufloor.Node<K>;
+type Opt = Partial<cpufloor.Spec<K>> & { f?: number; px?: number };
+const L = (id: string, kind: K, label: string, o: Opt = {}): N => cpufloor.leaf<K>(id, kind, label, o);
 
 type W = [id: string, kind: TpmLinkKind, from: string, to: string, lanes?: 1 | 2 | 3 | 4];
-const wires = (a: W[]): WireSpec<TpmLinkKind>[] =>
+const wires = (a: W[]): cpufloor.WireSpec<TpmLinkKind>[] =>
   a.map(([id, kind, from, to, lanes]) => ({ id, kind, from, to, ...(lanes ? { lanes } : {}) }));
 
-function build(i: TpmPlanInput): { tree: N; specs: WireSpec<TpmLinkKind>[] } {
-  const tree = row<K>(
+function build(i: TpmPlanInput): { tree: N; specs: cpufloor.WireSpec<TpmLinkKind>[] } {
+  const tree = cpufloor.row<K>(
     [
       L('lpc', 'lpc', 'LPC LINK', { sub: 'header to the chipset', f: 11 }),
-      col<K>(
+      cpufloor.col<K>(
         [
           L('regs', 'regs', 'REGISTERS', { sub: 'what the CPU reads and writes', f: 70 }),
           L('seq', 'seq', 'SEQUENCER', { sub: 'one command at a time', f: 30 }),
         ],
         { f: 18 },
       ),
-      col<K>(
+      cpufloor.col<K>(
         [
           L('hash', 'hash', 'HASH ENGINE', {
             sub: i.hashStages > 1 ? `serial round, ${i.hashStages} ticks a word` : 'one tick a word',
@@ -54,7 +45,7 @@ function build(i: TpmPlanInput): { tree: N; specs: WireSpec<TpmLinkKind>[] } {
         ],
         { f: 38 },
       ),
-      col<K>(
+      cpufloor.col<K>(
         [
           L('ramport', 'ramport', 'BUS MASTER', { sub: 'reads RAM for a measure', f: 42 }),
           L('guard', 'guard', 'RANGE GUARD', { sub: 'protected mode', f: 58 }),
@@ -80,7 +71,7 @@ function build(i: TpmPlanInput): { tree: N; specs: WireSpec<TpmLinkKind>[] } {
   return { tree, specs: wires(specs) };
 }
 
-function make(s: Spec<K>, r: Rect): TpmBlock {
+function make(s: cpufloor.Spec<K>, r: Rect): TpmBlock {
   const b: TpmBlock = { id: s.id, kind: s.kind, label: s.label, rect: { ...r } };
   if (s.sub) {
     b.sub = s.sub;
@@ -101,13 +92,13 @@ export function tpmPlan(i: TpmPlanInput, size: { w: number; h: number } = TPM_DI
   const { tree, specs } = build(i);
   const blocks: TpmBlock[] = [];
   const M = DIE_MARGIN;
-  placeTree<K, TpmBlock>(
+  cpufloor.placeTree<K, TpmBlock>(
     tree,
     { x: M.x, y: M.top, w: size.w - 2 * M.x, h: size.h - M.top - M.bottom },
     blocks,
     (s, r) => make(s, r),
   );
-  const plan: TpmPlan = { input: i, die, blocks, links: routeWires(die, blocks, specs, undefined, 'tpmplan') };
+  const plan: TpmPlan = { input: i, die, blocks, links: cpufloor.routeWires(die, blocks, specs, undefined, 'tpmplan') };
   cache.set(key, plan);
   return plan;
 }
