@@ -1,6 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
 import type { Snapshot } from '@/worker/protocol';
-import { box } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
 import { DEVICE_LOD, seenZoom } from '@/core/render/lod/lod';
 import { RectCache } from '@/core/render/lod/lodrect';
@@ -9,12 +8,12 @@ import * as diepulse from '../../../cpu/render/die/diepulse';
 import type { NicSight } from '../nic/nicview';
 import { FrameMeter } from '../plan/netmeter';
 import type { Rect } from '../plan/netplan';
-import { ROUTER_KIND_COLOR } from './routerart';
-import { routerGlyphArea, routerLive } from './routerglyph';
+import { routerGlyphArea } from './routerglyph';
 import * as routerlayout from './routerlayout';
 import type { RouterBlock } from './routerplan';
 import * as routerroute from './routerroute';
 import { routerShow } from './routershow';
+import { clearDieMotion, paintRouterGlow, paintRouterLive, stepGlow, wantedRouterActs } from './routerviewpaint';
 
 // The router SoC's die, alive (docs/render/net.md "Inside the NIC and the router"). Like the card's view (nic/nicview.ts) it runs only what moves; the still die is the baked floorplan on the
 // chip's top (routerart.ts). Over the plan it lights the blocks the frames go through, runs a packet along the die's own wires for the frames the link carries (routerroute.ts: in from the
@@ -22,8 +21,6 @@ import { routerShow } from './routershow';
 // the symbols give (routerglyph.ts). Everything comes from the snapshot (routershow.ts): a router with no link on one side shows a dark line and no packet; nothing runs by itself.
 
 const TEXT_Z = DEVICE_LOD.router.text;
-/** The largest live text (plan units): the die's numbers are larger than the CPU die's 15, which is drawn bigger. */
-const TEXT_CAP = 22;
 
 /** The router of a new scene: its tier. */
 export interface RouterScene {
@@ -150,81 +147,14 @@ export class RouterView {
     c.texts.alpha = ta;
     const show = routerShow(this.snap, this.meter, this.now);
     if (!show) {
-      c.packets = [];
-      c.trails.clear();
-      c.litG.clear();
-      c.glowG.clear();
-      c.trailG.clear();
-      c.packetG.clear();
-      for (const ct of c.cellTexts.values()) {
-        ct.hideFrom(0);
-      }
+      clearDieMotion(c);
       return;
     }
     const flow = show.pc && show.wan;
     this.fly(T, c, flow ? { rx: show.rxAct, tx: show.txAct } : { rx: 0, tx: 0 });
-    // the blocks the frames go through glow while they do
-    const want = new Map<string, number>();
-    if (flow) {
-      for (const dir of ['rx', 'tx'] as routerroute.RouterDir[]) {
-        const act = dir === 'rx' ? show.rxAct : show.txAct;
-        if (act > 0) {
-          for (const id of routerroute.BLOCKS[dir]) {
-            want.set(id, Math.max(want.get(id) ?? 0, act));
-          }
-        }
-      }
-    }
-    for (const [id, v] of want) {
-      c.glow.set(id, (c.glow.get(id) ?? 0) + (v - (c.glow.get(id) ?? 0)) * 0.25);
-    }
-    for (const [id, v] of c.glow) {
-      if (!want.has(id)) {
-        const n = v * 0.9;
-        if (n < 0.02) {
-          c.glow.delete(id);
-        } else {
-          c.glow.set(id, n);
-        }
-      }
-    }
-    const byId = new Map(c.geo.plan.blocks.map((b) => [b.id, b]));
-    c.glowG.clear();
-    for (const [id, v] of c.glow) {
-      const b = byId.get(id);
-      if (b) {
-        const col = T[ROUTER_KIND_COLOR[b.kind] === 'mute' ? 'alu' : ROUTER_KIND_COLOR[b.kind]];
-        box(c.glowG, b.rect.x, b.rect.y, b.rect.w, b.rect.h, 3, {
-          fill: col,
-          fa: 0.012 * v,
-          stroke: col,
-          lw: 2,
-          sa: 0.4 * v,
-        });
-      }
-    }
-    // the symbols' lit parts and numbers
-    c.litG.clear();
-    const used = new Set<string>();
-    for (const { b, a } of c.areas) {
-      const live = routerLive(b, a, show, c.geo.plan.input);
-      for (const l of live.lit) {
-        box(c.litG, l.rect.x, l.rect.y, l.rect.w, l.rect.h, 1.5, { fill: T[l.color], fa: l.a });
-      }
-      let ct = c.cellTexts.get(b.id);
-      if (!ct) {
-        ct = new diepulse.CellTexts(c.texts);
-        c.cellTexts.set(b.id, ct);
-      }
-      used.add(b.id);
-      live.texts.forEach((x, n) => ct!.line(n, x.top, x.rect, x.ink ? T.ink : T.on, x.fit, TEXT_CAP));
-      ct.hideFrom(live.texts.length);
-    }
-    for (const [id, ct] of c.cellTexts) {
-      if (!used.has(id)) {
-        ct.hideFrom(0);
-      }
-    }
+    stepGlow(c.glow, wantedRouterActs(show));
+    paintRouterGlow({ die: c, theme: T });
+    paintRouterLive({ die: c, show, theme: T });
     diepulse.drawTrails(c.trailG, c.trails, this.now, 1);
     c.packets = diepulse.drawPackets(c.packetG, c.packets, this.now, 1, T.ink);
   }

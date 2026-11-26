@@ -199,7 +199,7 @@ export class Chips3D {
       }
     };
     // a frame leaves a card's way: its copper lights first, and the die's packets wait for it (nictrace.ts)
-    this.nic.onLaunch = (slot, dir, at, total) => this.nicTrace.launch(slot, dir, at, total);
+    this.nic.onLaunch = (opts) => this.nicTrace.launch(opts.slot, opts.dir, opts.at, opts.total);
     // a graphics card's or an AI card's buses: the receive lines and the memory bus light with the words the die's view sends (accelbus.ts)
     const traffic = (slot: string, hops: Parameters<typeof busesOf>[0]) => {
       for (const [bus, dir] of busesOf(hops)) {

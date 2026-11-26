@@ -155,13 +155,13 @@ function build(i: RouterPlanInput): { tree: N; specs: cpufloor.WireSpec<RouterLi
 export function routerPlan(tier: number): RouterPlan {
   const i = routerInput(tier),
     { tree, specs } = build(i);
-  return netplan.layPlan<K, RouterLinkKind, RouterPlanInput>(
-    `routerdie|${i.tier}`,
-    i,
-    ROUTER_DIE,
-    M,
+  return netplan.layPlan<K, RouterLinkKind, RouterPlanInput>({
+    key: `routerdie|${i.tier}`,
+    input: i,
+    size: ROUTER_DIE,
+    margins: M,
     tree,
     specs,
-    'routerplan',
-  );
+    tag: 'routerplan',
+  });
 }

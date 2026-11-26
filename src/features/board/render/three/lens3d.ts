@@ -53,7 +53,7 @@ export class Lens3D {
       this.power.hide();
     }
     if (networkLens.peek() && s && machine) {
-      this.net.frame(cam, H * dpr, s, machine, dt);
+      this.net.frame({ cam, pxH: H * dpr, snap: s, machine, dt });
     } else {
       this.net.hide();
     }

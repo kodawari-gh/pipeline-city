@@ -154,13 +154,26 @@ describe('net specs and unlocks', () => {
       r2 = must(getRouterSpec('router2'));
     const i1 = must(getIspSpec('isp1')),
       i3 = must(getIspSpec('isp3'));
-    expect(bandwidth(1000, r2, i3, 2000)).toMatchObject({ downMbps: 1000, binding: 'port' });
-    expect(bandwidth(10_000, r1, i3, 2000)).toMatchObject({ downMbps: 100, binding: 'router' });
-    expect(bandwidth(10_000, r2, i1, 2000)).toMatchObject({ downMbps: 50, upMbps: 10, binding: 'isp' });
-    expect(bandwidth(10_000, r2, i3, 80)).toMatchObject({ downMbps: 80, binding: 'disk' });
-    expect(bandwidth(10_000, r2, i3, 80).upMbps).toBe(300); // the disk only limits what is written
-    expect(bandwidth(100, r2, i3, 2000).clients).toBe(4); // min of router (4) and plan (8)
-    expect(bandwidth(0, r2, i3, 2000).downMbps).toBe(0);
+    expect(bandwidth({ portMbps: 1000, router: r2, isp: i3, diskMbps: 2000 })).toMatchObject({
+      downMbps: 1000,
+      binding: 'port',
+    });
+    expect(bandwidth({ portMbps: 10_000, router: r1, isp: i3, diskMbps: 2000 })).toMatchObject({
+      downMbps: 100,
+      binding: 'router',
+    });
+    expect(bandwidth({ portMbps: 10_000, router: r2, isp: i1, diskMbps: 2000 })).toMatchObject({
+      downMbps: 50,
+      upMbps: 10,
+      binding: 'isp',
+    });
+    expect(bandwidth({ portMbps: 10_000, router: r2, isp: i3, diskMbps: 80 })).toMatchObject({
+      downMbps: 80,
+      binding: 'disk',
+    });
+    expect(bandwidth({ portMbps: 10_000, router: r2, isp: i3, diskMbps: 80 }).upMbps).toBe(300); // the disk only limits what is written
+    expect(bandwidth({ portMbps: 100, router: r2, isp: i3, diskMbps: 2000 }).clients).toBe(4); // min of router (4) and plan (8)
+    expect(bandwidth({ portMbps: 0, router: r2, isp: i3, diskMbps: 2000 }).downMbps).toBe(0);
   });
 
   it('job sizes grow with scale and match the design table', () => {
@@ -773,18 +786,37 @@ describe('web jobs: the SLA, the client slots and the admission order', () => {
     const band = NET.ageBandTicks;
     const now = 10 * band;
     expect(
-      pickOffer([pending(1, now - 3 * band - 10, 'cli'), pending(2, now - 3 * band - 5, 'web')], now, band, anyOffer)
-        ?.id,
+      pickOffer({
+        offers: [pending(1, now - 3 * band - 10, 'cli'), pending(2, now - 3 * band - 5, 'web')],
+        now,
+        bandTicks: band,
+        mayStart: anyOffer,
+      })?.id,
     ).toBe(2); // same band: web first
     expect(
-      pickOffer([pending(1, now - 3 * band - 1, 'cli'), pending(2, now - band, 'web')], now, band, anyOffer)?.id,
+      pickOffer({
+        offers: [pending(1, now - 3 * band - 1, 'cli'), pending(2, now - band, 'web')],
+        now,
+        bandTicks: band,
+        mayStart: anyOffer,
+      })?.id,
     ).toBe(1); // older band beats web
     expect(
-      pickOffer([pending(1, now - 2 * band, 'cli'), pending(2, now - 2 * band, 'cli')], now, band, anyOffer)?.id,
+      pickOffer({
+        offers: [pending(1, now - 2 * band, 'cli'), pending(2, now - 2 * band, 'cli')],
+        now,
+        bandTicks: band,
+        mayStart: anyOffer,
+      })?.id,
     ).toBe(1); // oldest first
     expect(
-      pickOffer([pending(1, now - 2 * band, 'web'), pending(2, now - 2 * band, 'web')], now, band, anyOffer)?.id,
+      pickOffer({
+        offers: [pending(1, now - 2 * band, 'web'), pending(2, now - 2 * band, 'web')],
+        now,
+        bandTicks: band,
+        mayStart: anyOffer,
+      })?.id,
     ).toBe(1);
-    expect(pickOffer([pending(1, 0, 'cli')], now, band, () => false)).toBeUndefined();
+    expect(pickOffer({ offers: [pending(1, 0, 'cli')], now, bandTicks: band, mayStart: () => false })).toBeUndefined();
   });
 });

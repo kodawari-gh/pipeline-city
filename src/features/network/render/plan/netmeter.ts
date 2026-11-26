@@ -71,14 +71,18 @@ export const fmtSpeed = (mbps: number): string =>
   mbps >= 1000 ? `${Number((mbps / 1000).toFixed(1))} Gb` : `${Number(mbps.toFixed(0))} Mb`;
 
 /** A share of the line rate: 0.4 %, 12 %, 100 %. */
-export const fmtPct = (f: number): string =>
-  f <= 0
-    ? '0 %'
-    : f < 0.01
-      ? `${(f * 100).toFixed(2)} %`
-      : f < 0.1
-        ? `${(f * 100).toFixed(1)} %`
-        : `${Math.round(f * 100)} %`;
+export function fmtPct(f: number): string {
+  if (f <= 0) {
+    return '0 %';
+  }
+  if (f < 0.01) {
+    return `${(f * 100).toFixed(2)} %`;
+  }
+  if (f < 0.1) {
+    return `${(f * 100).toFixed(1)} %`;
+  }
+  return `${Math.round(f * 100)} %`;
+}
 
 /** A number of frames in short words: 950, 4.2 k, 83 k, 1.2 M. */
 export function fmtFrames(n: number): string {
