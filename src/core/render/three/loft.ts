@@ -50,7 +50,7 @@ export function frameLoft(
     }
     parts.push(strip(pos, uv, idx));
   }
-  const last = rings[rings.length - 1]!;
+  const last = rings.at(-1)!;
   if (o.cap && last[1]![0] > last[0]![0] && last[2]![1] > last[1]![1]) {
     const [a, b, c, d] = last as [V3, V3, V3, V3];
     parts.push(

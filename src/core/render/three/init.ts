@@ -74,21 +74,24 @@ export function createRenderContext(host: HTMLElement, background: string): Rend
   renderer.initRenderTarget(cube);
   pmrem.fromCubemap(cube.texture).dispose();
   cube.dispose();
-  const camera = new PerspectiveCamera(30, host.clientWidth / Math.max(1, host.clientHeight), 50, 200000);
+  const camera = new PerspectiveCamera(30, host.clientWidth / Math.max(1, host.clientHeight), 50, 200_000);
   trackRender(renderer, scene);
   return { scene, camera, renderer, canvas: renderer.domElement, pmrem };
 }
 
 /** Dev only: the live renders (renderer -> scene), for the memory probe (`tools/bench-modes.mjs`, PHONE-03). `disposeRenderContext` drops one. */
 export function trackRender(renderer: WebGLRenderer, scene: Scene): void {
-  if (!import.meta.env.DEV || typeof window === 'undefined') return;
-  const w = window as unknown as { __renders?: Map<WebGLRenderer, Scene> };
+  if (!import.meta.env.DEV || typeof window === 'undefined') {
+    return;
+  }
+  const w = globalThis as unknown as { __renders?: Map<WebGLRenderer, Scene> };
   (w.__renders ??= new Map()).set(renderer, scene);
 }
 
 function untrackRender(renderer: WebGLRenderer): void {
-  if (import.meta.env.DEV && typeof window !== 'undefined')
-    (window as unknown as { __renders?: Map<WebGLRenderer, Scene> }).__renders?.delete(renderer);
+  if (import.meta.env.DEV && typeof window !== 'undefined') {
+    (globalThis as unknown as { __renders?: Map<WebGLRenderer, Scene> }).__renders?.delete(renderer);
+  }
 }
 
 /**

@@ -19,7 +19,9 @@ let loading: Promise<void> | null = null;
 /** The baked texture of a key, or null: the caller then paints its canvas. The texture is shared, so clone it for an own repeat. */
 export function bakedTex(key: string): Texture | null {
   const t = BAKED.get(key) ?? null;
-  if (t) t.anisotropy = anisotropy;
+  if (t) {
+    t.anisotropy = anisotropy;
+  }
   return t;
 }
 
@@ -35,9 +37,13 @@ export async function ktx2Loader(renderer: WebGLRenderer) {
  */
 export function loadBaked(renderer: WebGLRenderer): Promise<void> {
   return (loading ??= (async () => {
-    if (new URLSearchParams(location.search).has('nobaked')) return;
+    if (new URLSearchParams(location.search).has('nobaked')) {
+      return;
+    }
     const res = await fetch(`${BAKED_URL}manifest.json`);
-    if (!res.ok) return;
+    if (!res.ok) {
+      return;
+    }
     const { keys } = (await res.json()) as BakedManifest;
     const l = await ktx2Loader(renderer);
     // (the transcoder first, before the 20 files: the last map then stands 0.15 to 0.35 s after the loader, in place of 0.43 to 0.53 s)

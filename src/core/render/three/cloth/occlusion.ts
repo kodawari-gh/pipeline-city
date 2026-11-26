@@ -16,6 +16,16 @@ interface Grid {
   items: Int32Array;
 }
 
+/** Each cell's count becomes the running total up to it (the end of the cell's run in the items); returns the total. */
+function runningSum(start: Int32Array): number {
+  let s = 0;
+  for (let c = 0; c < start.length; c++) {
+    s += start[c]!;
+    start[c] = s;
+  }
+  return s;
+}
+
 /** The grid over the box [x0, y0, z0, x1, y1, z1]: a triangle that reaches out of it is kept only in its cells inside, one wholly out not at all. */
 function triangleGrid(pos: Float32Array, tris: Uint32Array, cell: number, box: readonly number[]): Grid {
   const [x0, y0, z0, x1, y1, z1] = box as [number, number, number, number, number, number];
@@ -26,16 +36,12 @@ function triangleGrid(pos: Float32Array, tris: Uint32Array, cell: number, box: r
   const g: Grid = { x0, y0, z0, inv, nx, ny, nz, start: new Int32Array(nx * ny * nz + 1), items: new Int32Array(0) };
   // each triangle goes in every cell its box touches: count, then place
   const m = tris.length / 3,
-    start = g.start;
+    { start } = g;
   for (let pass = 0; pass < 2; pass++) {
     if (pass) {
-      for (let c = 0, s = 0; c < start.length; c++) {
-        s += start[c]!;
-        start[c] = s;
-      }
-      g.items = new Int32Array(start[start.length - 1]!);
+      g.items = new Int32Array(runningSum(start));
     }
-    const items = g.items;
+    const { items } = g;
     for (let t = 0; t < m; t++) {
       const a = 3 * tris[3 * t]!,
         b = 3 * tris[3 * t + 1]!,
@@ -55,13 +61,18 @@ function triangleGrid(pos: Float32Array, tris: Uint32Array, cell: number, box: r
         j1 = Math.min(ny - 1, Math.floor((Math.max(ay, by, cy) - y0) * inv));
       const k0 = Math.max(0, Math.floor((Math.min(az, bz, cz) - z0) * inv)),
         k1 = Math.min(nz - 1, Math.floor((Math.max(az, bz, cz) - z0) * inv));
-      for (let k = k0; k <= k1; k++)
-        for (let j = j0; j <= j1; j++)
+      for (let k = k0; k <= k1; k++) {
+        for (let j = j0; j <= j1; j++) {
           for (let i = i0; i <= i1; i++) {
             const q = i + nx * (j + ny * k);
-            if (pass) items[--start[q]!] = t;
-            else start[q]!++;
+            if (pass) {
+              items[--start[q]!] = t;
+            } else {
+              start[q]!++;
+            }
           }
+        }
+      }
     }
   }
   return g;
@@ -110,18 +121,24 @@ function hitTriangle(
     py = dz * e2x - dx * e2z,
     pz = dx * e2y - dy * e2x,
     det = e1x * px + e1y * py + e1z * pz;
-  if (Math.abs(det) < 1e-9) return Infinity;
+  if (Math.abs(det) < 1e-9) {
+    return Infinity;
+  }
   const f = 1 / det,
     sx = ox - tri[k]!,
     sy = oy - tri[k + 1]!,
     sz = oz - tri[k + 2]!,
     u = f * (sx * px + sy * py + sz * pz);
-  if (u < 0 || u > 1) return Infinity;
+  if (u < 0 || u > 1) {
+    return Infinity;
+  }
   const qx = sy * e1z - sz * e1y,
     qy = sz * e1x - sx * e1z,
     qz = sx * e1y - sy * e1x,
     v = f * (dx * qx + dy * qy + dz * qz);
-  if (v < 0 || u + v > 1) return Infinity;
+  if (v < 0 || u + v > 1) {
+    return Infinity;
+  }
   const h = f * (e2x * qx + e2y * qy + e2z * qz);
   return h > 0 ? h : Infinity;
 }
@@ -168,18 +185,26 @@ export function occlusion(
   // which triangles hold each welded point, so its own are skipped (by counting sort, as the grid's cells)
   const aroundAt = new Int32Array(points + 1),
     around = new Int32Array(tris.length);
-  for (let e = 0; e < tris.length; e++) aroundAt[weld[tris[e]!]!]!++;
+  for (let e = 0; e < tris.length; e++) {
+    aroundAt[weld[tris[e]!]!]!++;
+  }
   for (let p = 0, s = 0; p <= points; p++) {
     s += aroundAt[p]!;
     aroundAt[p] = s;
   }
-  for (let e = 0; e < tris.length; e++) around[--aroundAt[weld[tris[e]!]!]!] = (e / 3) | 0;
+  for (let e = 0; e < tris.length; e++) {
+    around[--aroundAt[weld[tris[e]!]!]!] = (e / 3) | 0;
+  }
   // cosine-weighted directions about +z (Hammersley), turned about the normal by a fixed angle for each point
   const dirs = new Float64Array(3 * rays);
   for (let k = 0; k < rays; k++) {
     let bits = k,
       rad = 0;
-    for (let b = 0.5; bits; bits >>= 1, b /= 2) if (bits & 1) rad += b;
+    for (let b = 0.5; bits; bits >>= 1, b /= 2) {
+      if (bits & 1) {
+        rad += b;
+      }
+    }
     const u = (k + 0.5) / rays,
       r = Math.sqrt(u),
       phi = 2 * Math.PI * rad;
@@ -205,7 +230,9 @@ export function occlusion(
       nx0 = nrm[k]!,
       ny0 = nrm[k + 1]!,
       nz0 = nrm[k + 2]!;
-    for (let s = aroundAt[w]!, end = aroundAt[w + 1]!; s < end; s++) mine[around[s]!] = i;
+    for (let s = aroundAt[w]!, end = aroundAt[w + 1]!; s < end; s++) {
+      mine[around[s]!] = i;
+    }
     // a frame about the normal
     const ax = Math.abs(nx0) < 0.9 ? 1 : 0,
       ay = 1 - ax;
@@ -219,7 +246,7 @@ export function occlusion(
     const bx = ny0 * tz - nz0 * ty,
       by = nz0 * tx - nx0 * tz,
       bz = nx0 * ty - ny0 * tx;
-    const turn = (Math.sin(i * 12.9898) * 43758.5453) % (2 * Math.PI),
+    const turn = (Math.sin(i * 12.9898) * 43_758.5453) % (2 * Math.PI),
       ct = Math.cos(turn),
       st = Math.sin(turn);
     out[2 * i + 1] = 1;
@@ -268,10 +295,14 @@ export function occlusion(
             const c = ci + g.nx * (cj + g.ny * ck);
             for (let s = g.start[c]!, end = g.start[c + 1]!; s < end; s++) {
               const t = g.items[s]!;
-              if (seen[t] === ray || mine[t] === i) continue;
+              if (seen[t] === ray || mine[t] === i) {
+                continue;
+              }
               seen[t] = ray;
               const h = hitTriangle(tri, t, ox, oy, oz, dx, dy, dz);
-              if (h >= skin) hit = Math.min(hit, h);
+              if (h >= skin) {
+                hit = Math.min(hit, h);
+              }
             }
           } else if (
             (ci < 0 && si < 0) ||
@@ -280,8 +311,9 @@ export function occlusion(
             (ci >= g.nx && si > 0) ||
             (cj >= g.ny && sj > 0) ||
             (ck >= g.nz && sk > 0)
-          )
+          ) {
             break;
+          }
           if (txm <= tym && txm <= tzm) {
             at = txm;
             txm += dtx;
@@ -296,7 +328,9 @@ export function occlusion(
             ck += sk;
           }
         }
-        if (hit < reach) shut += 1 - (hit / reach) ** 2;
+        if (hit < reach) {
+          shut += 1 - (hit / reach) ** 2;
+        }
       }
       out[2 * i + side] = 1 - shut / rays;
     }

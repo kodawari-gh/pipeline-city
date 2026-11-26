@@ -1,15 +1,8 @@
 // The Low tier's cheaper material model: a Lambert program (no specular, no PBR maps) for the room's standard materials.
-import {
-  Color,
-  Material,
-  MeshLambertMaterial,
-  type Mesh,
-  type MeshStandardMaterial,
-  type Object3D,
-  type Side,
-} from 'three';
+import { Color, Material, MeshLambertMaterial } from 'three';
+import type * as threeTypes from 'three';
 
-type Std = MeshStandardMaterial & { isMeshStandardMaterial: true };
+type Std = threeTypes.MeshStandardMaterial & { isMeshStandardMaterial: true };
 const STRIPPED = ['normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'bumpMap'] as const;
 type Stripped = (typeof STRIPPED)[number];
 
@@ -37,7 +30,7 @@ const LIVE = [
 /** A source at or under this metalness is paint or plastic: its Lambert keeps the source's own Color object. */
 export const NON_METAL = 0.1;
 /** The dark metal a metal's Lambert reads toward, from the darkest to the lightest (by the source's own lightness). */
-export const DARK_METAL = [new Color(0x2a2d32), new Color(0x4e5360)] as const;
+export const DARK_METAL = [new Color(0x2a_2d_32), new Color(0x4e_53_60)] as const;
 const HSL = { h: 0, s: 0, l: 0 };
 
 /**
@@ -56,7 +49,9 @@ const warmMetal = (c: Color): boolean => {
 function metalColor(src: Color, metalness: number, out: Color = new Color()): Color {
   const k = Math.min(1, Math.max(0, metalness));
   out.copy(src);
-  if (k <= 0 || warmMetal(src)) return out;
+  if (k <= 0 || warmMetal(src)) {
+    return out;
+  }
   const t = Math.min(1, (0.2126 * src.r + 0.7152 * src.g + 0.0722 * src.b) ** (1 / 2.2));
   return out.lerp(new Color().copy(DARK_METAL[0]).lerp(DARK_METAL[1], t), k);
 }
@@ -81,7 +76,7 @@ function metalLive(m: Std): Color {
     }
     return mix;
   };
-  for (const ch of ['r', 'g', 'b'] as const)
+  for (const ch of ['r', 'g', 'b'] as const) {
     Object.defineProperty(c, ch, {
       configurable: true,
       enumerable: true,
@@ -90,6 +85,7 @@ function metalLive(m: Std): Color {
         m.color[ch] = v;
       },
     });
+  }
   return c;
 }
 
@@ -110,7 +106,7 @@ function lambertOf(m: Std): MeshLambertMaterial {
   l.color = color;
   l.emissive = m.emissive;
   const src = m as unknown as Record<string, unknown>;
-  for (const k of LIVE)
+  for (const k of LIVE) {
     Object.defineProperty(l, k, {
       configurable: true,
       enumerable: true,
@@ -119,24 +115,29 @@ function lambertOf(m: Std): MeshLambertMaterial {
         src[k] = v;
       },
     });
+  }
   l.userData = m.userData;
   l.name = m.name;
   return l;
 }
 
 /** What a Lambert's program depends on, as its source has it: `sync` compares it with the last one it saw. */
-type Prog = { transparent: boolean; side: Side; alpha: boolean; map: boolean; emap: boolean };
+type Prog = { transparent: boolean; side: threeTypes.Side; alpha: boolean; map: boolean; emap: boolean };
 const progOf = (s: Std): Prog => ({
   transparent: s.transparent,
   side: s.side,
   alpha: s.alphaTest > 0,
-  map: !!s.map,
-  emap: !!s.emissiveMap,
+  map: Boolean(s.map),
+  emap: Boolean(s.emissiveMap),
 });
 
 /** Is `o` `root` or under it? */
-const under = (o: Object3D, root: Object3D): boolean => {
-  for (let p: Object3D | null = o; p; p = p.parent) if (p === root) return true;
+const under = (o: threeTypes.Object3D, root: threeTypes.Object3D): boolean => {
+  for (let p: threeTypes.Object3D | null = o; p; p = p.parent) {
+    if (p === root) {
+      return true;
+    }
+  }
   return false;
 };
 
@@ -147,23 +148,26 @@ const under = (o: Object3D, root: Object3D): boolean => {
  * - Basic, shader and other materials stay. A mesh with `userData.standIn` is skipped.
  * Call `sync` after a rebuild of the root adds or removes meshes: what is already cheap is not touched twice.
  */
-export function cheapMaterials(root: Object3D): { sync(): void; undo(): void } {
-  const swaps: { mesh: Mesh; index: number | null; from: Material }[] = [];
+export function cheapMaterials(root: threeTypes.Object3D): { sync(): void; undo(): void } {
+  const swaps: { mesh: threeTypes.Mesh; index: number | null; from: Material }[] = [];
   const stripped = new Map<Std, Partial<Record<Stripped, unknown>>>();
   const made = new Map<Std, MeshLambertMaterial>();
   const prog = new Map<Std, Prog>();
   const cheap = (m: Material): Material => {
-    if (!isStandard(m)) return m;
+    if (!isStandard(m)) {
+      return m;
+    }
     if (isPatched(m) || m.lightMap) {
       if (!stripped.has(m)) {
         const was: Partial<Record<Stripped, unknown>> = {};
         let any = false;
-        for (const k of STRIPPED)
+        for (const k of STRIPPED) {
           if (m[k]) {
             was[k] = m[k];
             (m as unknown as Record<string, unknown>)[k] = null;
             any = true;
           }
+        }
         if (any) {
           stripped.set(m, was);
           m.needsUpdate = true;
@@ -181,8 +185,10 @@ export function cheapMaterials(root: Object3D): { sync(): void; undo(): void } {
   // Swap what `root` holds that is still standard. A cheap mesh is a Lambert now, so it comes back as it is and is not swapped twice.
   const swapAll = () =>
     root.traverse((o) => {
-      const mesh = o as Mesh;
-      if (!mesh.isMesh || mesh.userData['standIn']) return;
+      const mesh = o as threeTypes.Mesh;
+      if (!mesh.isMesh || mesh.userData['standIn']) {
+        return;
+      }
       if (Array.isArray(mesh.material)) {
         const list = mesh.material;
         list.forEach((m, i) => {
@@ -208,14 +214,19 @@ export function cheapMaterials(root: Object3D): { sync(): void; undo(): void } {
      * one of them changed. Call it when the tier changes or a rebuild changes the root, not per frame: the live values need no sync (see `lambertOf`).
      */
     sync() {
-      for (let i = swaps.length - 1; i >= 0; i--) if (!under(swaps[i]!.mesh, root)) swaps.splice(i, 1);
+      for (let i = swaps.length - 1; i >= 0; i--) {
+        if (!under(swaps[i]!.mesh, root)) {
+          swaps.splice(i, 1);
+        }
+      }
       const used = new Set(swaps.map((s) => s.from));
-      for (const [s, l] of made)
+      for (const [s, l] of made) {
         if (!used.has(s)) {
           l.dispose();
           made.delete(s);
           prog.delete(s);
         }
+      }
       swapAll();
       for (const [s, l] of made) {
         const p = prog.get(s)!,
@@ -230,19 +241,26 @@ export function cheapMaterials(root: Object3D): { sync(): void; undo(): void } {
         prog.set(s, now);
         l.side = s.side;
         l.alphaTest = s.alphaTest;
-        if (dirty) l.needsUpdate = true;
+        if (dirty) {
+          l.needsUpdate = true;
+        }
       }
     },
     undo() {
       for (const { mesh, index, from } of swaps) {
-        if (index === null) mesh.material = from;
-        else (mesh.material as Material[])[index] = from;
+        if (index === null) {
+          mesh.material = from;
+        } else {
+          (mesh.material as Material[])[index] = from;
+        }
       }
       for (const [m, was] of stripped) {
         Object.assign(m, was);
         m.needsUpdate = true;
       }
-      for (const l of made.values()) l.dispose();
+      for (const l of made.values()) {
+        l.dispose();
+      }
       swaps.length = 0;
       stripped.clear();
       made.clear();
@@ -267,8 +285,12 @@ export function probePlan(o: {
   keyChanged: boolean;
   waited: boolean;
 }): { request: boolean; bounces: number } {
-  if (o.low && o.probed) return { request: !o.busy && o.keyChanged && o.waited, bounces: 0 };
-  if (o.busy) return { request: false, bounces: o.bounces };
+  if (o.low && o.probed) {
+    return { request: !o.busy && o.keyChanged && o.waited, bounces: 0 };
+  }
+  if (o.busy) {
+    return { request: false, bounces: o.bounces };
+  }
   const request = o.bounces > 0 || (o.keyChanged && o.waited);
   return { request, bounces: request ? Math.max(0, o.bounces - 1) : o.bounces };
 }

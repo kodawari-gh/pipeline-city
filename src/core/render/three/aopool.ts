@@ -1,23 +1,24 @@
 // A few workers that cast the baked occlusion's groups side by side (`vertexAoPooled`, `aojob.worker.ts`). The boot waits for the cast: with the
 // workers it takes as long as the largest group (0.25 s), in place of all the groups in a row on the page's thread (0.8 s). Without `Worker`, or
 // on a machine with few cores, there is no pool and the page casts the groups itself (`vertexAoSteps`).
-import { runAoJob, type AoAnswer, type AoAsk, type AoJob } from './aojob';
+import { runAoJob } from './aojob';
+import type * as aojobTypes from './aojob';
 
 /** A way to cast jobs off the page's thread. A job that fails rejects: the caller casts it itself (`runAoJob`). */
 export interface AoPool {
-  run(job: AoJob): Promise<Float32Array>;
+  run(job: aojobTypes.AoJob): Promise<Float32Array>;
   dispose(): void;
 }
 
 /** What the pool needs of a worker: it posts a job, and stops. */
 export interface AoWorker {
-  post(ask: AoAsk): void;
+  post(ask: aojobTypes.AoAsk): void;
   stop(): void;
 }
 
 /** What a worker tells the pool: an answer, or that it died (it did not load, it threw). */
 export interface AoEvents {
-  answer(a: AoAnswer): void;
+  answer(a: aojobTypes.AoAnswer): void;
   fail(): void;
 }
 
@@ -28,7 +29,7 @@ export const poolSize = (
 
 interface Waiting {
   id: number;
-  job: AoJob;
+  job: aojobTypes.AoJob;
   done: (ao: Float32Array) => void;
   fail: (e: Error) => void;
 }
@@ -49,27 +50,42 @@ export function poolOf(spawn: (on: AoEvents) => AoWorker, size: number): AoPool 
     over = false;
   const pump = (): void => {
     for (const s of slots) {
-      if (s.dead || s.at) continue;
+      if (s.dead || s.at) {
+        continue;
+      }
       const w = waiting.shift();
-      if (!w) return;
+      if (!w) {
+        return;
+      }
       s.at = w;
       s.w.post({ id: w.id, job: w.job });
     }
-    if (slots.every((s) => s.dead)) for (const w of waiting.splice(0)) w.fail(new Error('no worker left'));
+    if (slots.every((s) => s.dead)) {
+      for (const w of waiting.splice(0)) {
+        w.fail(new Error('no worker left'));
+      }
+    }
   };
   for (let i = 0; i < size; i++) {
     const s = { w: null as unknown as AoWorker, at: null, dead: false } as Slot;
     s.w = spawn({
       answer: (a) => {
         const w = s.at;
-        if (!w || w.id !== a.id) return;
+        if (!w || w.id !== a.id) {
+          return;
+        }
         s.at = null;
-        if ('error' in a) w.fail(new Error(a.error));
-        else w.done(a.ao);
+        if ('error' in a) {
+          w.fail(new Error(a.error));
+        } else {
+          w.done(a.ao);
+        }
         pump();
       },
       fail: () => {
-        if (s.dead) return;
+        if (s.dead) {
+          return;
+        }
         s.dead = true;
         s.w.stop();
         const w = s.at;
@@ -93,12 +109,16 @@ export function poolOf(spawn: (on: AoEvents) => AoWorker, size: number): AoPool 
     dispose: () => {
       over = true;
       for (const s of slots) {
-        if (!s.dead) s.w.stop();
+        if (!s.dead) {
+          s.w.stop();
+        }
         s.dead = true;
         s.at?.fail(new Error('pool closed'));
         s.at = null;
       }
-      for (const w of waiting.splice(0)) w.fail(new Error('pool closed'));
+      for (const w of waiting.splice(0)) {
+        w.fail(new Error('pool closed'));
+      }
     },
   };
 }
@@ -106,7 +126,7 @@ export function poolOf(spawn: (on: AoEvents) => AoWorker, size: number): AoPool 
 /** A real worker (`aojob.worker.ts`) for the pool. */
 function spawnWorker(on: AoEvents): AoWorker {
   const w = new Worker(new URL('aojob.worker.ts', import.meta.url), { type: 'module' });
-  w.onmessage = (e: MessageEvent<AoAnswer>) => on.answer(e.data);
+  w.onmessage = (e: MessageEvent<aojobTypes.AoAnswer>) => on.answer(e.data);
   w.onerror = () => on.fail();
   w.onmessageerror = () => on.fail();
   return { post: (ask) => w.postMessage(ask), stop: () => w.terminate() };
@@ -114,7 +134,9 @@ function spawnWorker(on: AoEvents): AoWorker {
 
 /** A pool of workers, or null where there can be none (no `Worker`, a page in a test, too few cores). Call `dispose` when the casts are done. */
 export function makeAoPool(size: number = poolSize()): AoPool | null {
-  if (typeof Worker === 'undefined' || size < 2) return null;
+  if (typeof Worker === 'undefined' || size < 2) {
+    return null;
+  }
   const made: AoWorker[] = [];
   try {
     return poolOf((on) => {
@@ -123,7 +145,9 @@ export function makeAoPool(size: number = poolSize()): AoPool | null {
       return w;
     }, size);
   } catch {
-    for (const w of made) w.stop();
+    for (const w of made) {
+      w.stop();
+    }
     return null;
   }
 }

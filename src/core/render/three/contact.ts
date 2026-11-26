@@ -54,9 +54,13 @@ export class DepthMap {
   private put(u: number, v: number, h: number): void {
     const i = Math.floor((u - this.u0) / this.cell),
       j = Math.floor((v - this.v0) / this.cell);
-    if (i < 0 || j < 0 || i >= this.nu || j >= this.nv) return;
+    if (i < 0 || j < 0 || i >= this.nu || j >= this.nv) {
+      return;
+    }
     const k = j * this.nu + i;
-    if (h > this.d[k]!) this.d[k] = h;
+    if (h > this.d[k]!) {
+      this.d[k] = h;
+    }
   }
 
   /** The triangles of a geometry (its vertices where it stands), sampled at half a cell. */
@@ -73,14 +77,16 @@ export class DepthMap {
       const lo = (k: Axis, o: number) =>
           Math.min(a[k], b[k], c[k]) > o + (k === this.ua ? this.nu : this.nv) * this.cell,
         hi = (k: Axis, o: number) => Math.max(a[k], b[k], c[k]) < o;
-      if (lo(this.ua, this.u0) || lo(this.va, this.v0) || hi(this.ua, this.u0) || hi(this.va, this.v0)) continue;
+      if (lo(this.ua, this.u0) || lo(this.va, this.v0) || hi(this.ua, this.u0) || hi(this.va, this.v0)) {
+        continue;
+      }
       const span = Math.max(
         Math.hypot(a[this.ua] - b[this.ua], a[this.va] - b[this.va]),
         Math.hypot(b[this.ua] - c[this.ua], b[this.va] - c[this.va]),
         Math.hypot(c[this.ua] - a[this.ua], c[this.va] - a[this.va]),
       );
       const m = Math.max(1, Math.ceil((span / this.cell) * 2));
-      for (let i = 0; i <= m; i++)
+      for (let i = 0; i <= m; i++) {
         for (let j = 0; i + j <= m; j++) {
           const wa = i / m,
             wb = j / m,
@@ -88,19 +94,22 @@ export class DepthMap {
           const q = (k: Axis) => a[k] * wa + b[k] * wb + c[k] * wc;
           this.put(q(this.ua), q(this.va), this.side * q(this.axis));
         }
+      }
     }
     return this;
   }
 
   /** A flat face at `level` along the axis over the rect `min`..`max` of the two other axes (a mattress's top, a headboard's front). */
   face(level: number, min: V3, max: V3): this {
-    for (let j = 0; j < this.nv; j++)
+    for (let j = 0; j < this.nv; j++) {
       for (let i = 0; i < this.nu; i++) {
         const u = this.u0 + (i + 0.5) * this.cell,
           v = this.v0 + (j + 0.5) * this.cell;
-        if (u >= min[this.ua] && u <= max[this.ua] && v >= min[this.va] && v <= max[this.va])
+        if (u >= min[this.ua] && u <= max[this.ua] && v >= min[this.va] && v <= max[this.va]) {
           this.put(u, v, this.side * level);
+        }
       }
+    }
     return this;
   }
 
@@ -118,8 +127,9 @@ export class DepthMap {
       h10 = get(i + 1, j),
       h01 = get(i, j + 1),
       h11 = get(i + 1, j + 1);
-    if (h00 > -Infinity && h10 > -Infinity && h01 > -Infinity && h11 > -Infinity)
+    if (h00 > -Infinity && h10 > -Infinity && h01 > -Infinity && h11 > -Infinity) {
       return (h00 * (1 - tu) + h10 * tu) * (1 - tv) + (h01 * (1 - tu) + h11 * tu) * tv;
+    }
     // at the edge of a surface: the highest of what is there, so a vertex just past it is still held
     return Math.max(h00, h10, h01, h11);
   }
@@ -131,7 +141,9 @@ export class DepthMap {
     for (let i = 0; i < p.count; i++) {
       const v: V3 = [p.getX(i), p.getY(i), p.getZ(i)],
         h = this.height(v);
-      if (h > -Infinity) gap = Math.min(gap, this.side * v[this.axis] - h);
+      if (h > -Infinity) {
+        gap = Math.min(gap, this.side * v[this.axis] - h);
+      }
     }
     return gap;
   }
@@ -139,7 +151,9 @@ export class DepthMap {
   /** Move a geometry along the axis till its gap to the surfaces is `gap` (negative presses it in). Returns the move; nothing under it, no move. */
   settle(geo: BufferGeometry, gap = 0): number {
     const c = this.clearance(geo);
-    if (c === Infinity) return 0;
+    if (c === Infinity) {
+      return 0;
+    }
     const move = -this.side * (c - gap),
       t: [number, number, number] = [0, 0, 0];
     t[this.axis] = move;
@@ -156,10 +170,14 @@ export class DepthMap {
     for (let i = 0; i < p.count; i++) {
       const v: [number, number, number] = [p.getX(i), p.getY(i), p.getZ(i)],
         h = this.height(v);
-      if (h === -Infinity) continue;
+      if (h === -Infinity) {
+        continue;
+      }
       const s = this.side * v[this.axis];
       const out = soft > 0 ? h + soft * softplus((s - h) / soft) : Math.max(s, h);
-      if (out === s) continue;
+      if (out === s) {
+        continue;
+      }
       v[this.axis] = this.side * out;
       p.setXYZ(i, v[0], v[1], v[2]);
     }
@@ -200,7 +218,9 @@ export class Taut {
       chain: [number, number][] = [];
     for (let i = a; ; i = (i - 1 + n) % n) {
       chain.push(hull[i]!);
-      if (i === b || chain.length > n) break;
+      if (i === b || chain.length > n) {
+        break;
+      }
     }
     // each point's outward normal: the left of the way on (clockwise round a convex shape), averaged with the way in
     const seg = (i: number): [number, number] => {
@@ -219,7 +239,9 @@ export class Taut {
         cos = Math.max(0.3, (na[0] * nb[0] + na[1] * nb[1] + 1) / 2) ** 0.5;
       // (out far enough at a corner that the offset is the same on both faces)
       const p: [number, number] = [chain[i]![0] + ((nx / l) * offset) / cos, chain[i]![1] + ((ny / l) * offset) / cos];
-      if (i > 0) s += Math.hypot(p[0] - this.pts[i - 1]![0], p[1] - this.pts[i - 1]![1]);
+      if (i > 0) {
+        s += Math.hypot(p[0] - this.pts[i - 1]![0], p[1] - this.pts[i - 1]![1]);
+      }
       this.pts.push(p);
       this.nrm.push([nx / l, ny / l]);
       this.len.push(s);
@@ -228,7 +250,7 @@ export class Taut {
 
   /** The length of the walk. */
   get length(): number {
-    return this.len[this.len.length - 1]!;
+    return this.len.at(-1)!;
   }
 
   /** The point `s` along the walk and the outward normal there. */
@@ -254,8 +276,11 @@ export class Taut {
       hi = last;
     while (hi - lo > 1) {
       const m = (lo + hi) >> 1;
-      if (L[m]! <= s) lo = m;
-      else hi = m;
+      if (L[m]! <= s) {
+        lo = m;
+      } else {
+        hi = m;
+      }
     }
     const seg = L[hi]! - L[lo]! || 1,
       t = (s - L[lo]!) / seg,
@@ -279,18 +304,24 @@ export class Taut {
 /** The convex hull of points, counter-clockwise (y up), no point on an edge twice. */
 export function convexHull(points: readonly (readonly [number, number])[]): [number, number][] {
   const p = [...points].map((q) => [q[0], q[1]] as [number, number]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  if (p.length < 3) return p;
+  if (p.length < 3) {
+    return p;
+  }
   const cross = (o: [number, number], a: [number, number], b: [number, number]) =>
     (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
   const lower: [number, number][] = [],
     upper: [number, number][] = [];
   for (const q of p) {
-    while (lower.length >= 2 && cross(lower[lower.length - 2]!, lower[lower.length - 1]!, q) <= 0) lower.pop();
+    while (lower.length >= 2 && cross(lower.at(-2)!, lower.at(-1)!, q) <= 0) {
+      lower.pop();
+    }
     lower.push(q);
   }
   for (let i = p.length - 1; i >= 0; i--) {
     const q = p[i]!;
-    while (upper.length >= 2 && cross(upper[upper.length - 2]!, upper[upper.length - 1]!, q) <= 0) upper.pop();
+    while (upper.length >= 2 && cross(upper.at(-2)!, upper.at(-1)!, q) <= 0) {
+      upper.pop();
+    }
     upper.push(q);
   }
   return lower.slice(0, -1).concat(upper.slice(0, -1));

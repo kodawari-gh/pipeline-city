@@ -14,11 +14,8 @@ import {
   NoColorSpace,
   PlaneGeometry,
   Vector3,
-  type Material,
-  type Object3D,
-  type PerspectiveCamera,
-  type Texture,
 } from 'three';
+import type * as threeTypes from 'three';
 import { anisotropy } from './geometry';
 import { sceneChanged } from './ondemand';
 
@@ -40,9 +37,11 @@ export function tilesOf(r: Rect, px: number, tile = TILE_PX): Rect[] {
   const nx = Math.max(1, Math.ceil((r.w * px) / tile)),
     ny = Math.max(1, Math.ceil((r.h * px) / tile));
   const out: Rect[] = [];
-  for (let j = 0; j < ny; j++)
-    for (let i = 0; i < nx; i++)
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
       out.push({ x: r.x + (i * r.w) / nx, y: r.y + (j * r.h) / ny, w: r.w / nx, h: r.h / ny });
+    }
+  }
   return out;
 }
 
@@ -58,7 +57,11 @@ export const TEXTURE_LEVELS = [0.5, 0.75, 1, 1.5];
 
 /** The level to show for a screen that needs `need` pixels per unit: the first dense enough (a little under is fine), else the top one. */
 export function levelFor(levels: readonly number[], need: number): number {
-  for (let i = 0; i < levels.length; i++) if (levels[i]! >= need * 0.8) return i;
+  for (let i = 0; i < levels.length; i++) {
+    if (levels[i]! >= need * 0.8) {
+      return i;
+    }
+  }
   return levels.length - 1;
 }
 
@@ -101,13 +104,15 @@ export class BakeQueue {
   }
 
   run(budgetMs = 6): void {
-    if (!this.jobs.length) return;
+    if (this.jobs.length === 0) {
+      return;
+    }
     if (this.dirty) {
       this.jobs.sort((a, b) => a.pri - b.pri);
       this.dirty = false;
     }
     const t0 = performance.now();
-    while (this.jobs.length && performance.now() - t0 < budgetMs) {
+    while (this.jobs.length > 0 && performance.now() - t0 < budgetMs) {
       const j = this.jobs[0]!;
       let done = true;
       try {
@@ -115,7 +120,9 @@ export class BakeQueue {
       } catch {
         done = true;
       }
-      if (!done) return; // the baker is not ready yet: try again next frame
+      if (!done) {
+        return; // the baker is not ready yet: try again next frame
+      }
       this.jobs.shift();
       sceneChanged(); // a baked tile or face shows: views drawn on demand draw it
     }
@@ -123,13 +130,17 @@ export class BakeQueue {
 }
 
 /** Fade a group (a cooler, a lid, a shroud) to `a`; at 0 it is hidden, so it neither draws nor stops a ray. */
-export function fadeTree(o: Object3D, a: number): void {
+export function fadeTree(o: threeTypes.Object3D, a: number): void {
   const on = a > 0.01;
   o.visible = on;
-  if (!on) return;
+  if (!on) {
+    return;
+  }
   o.traverse((x) => {
-    const m = (x as Mesh).material as Material | Material[] | undefined;
-    if (!m) return;
+    const m = (x as Mesh).material as threeTypes.Material | threeTypes.Material[] | undefined;
+    if (!m) {
+      return;
+    }
     for (const mm of Array.isArray(m) ? m : [m]) {
       const base = (mm.userData['base'] ??= {
         opacity: mm.opacity,
@@ -152,17 +163,23 @@ export function fadeTree(o: Object3D, a: number): void {
  * Give every mesh under `o` materials of its own (copies, their textures shared), so that fading `o` (`fadeTree`) leaves alone the other meshes that share a cached material with it
  * (every moulded chip of a board shares one black epoxy).
  */
-export function ownMaterials(o: Object3D): void {
+export function ownMaterials(o: threeTypes.Object3D): void {
   o.traverse((x) => {
     const m = x as Mesh,
-      mt = m.material as Material | Material[] | undefined;
-    if (mt) m.material = Array.isArray(mt) ? mt.map((c) => c.clone()) : mt.clone();
+      mt = m.material as threeTypes.Material | threeTypes.Material[] | undefined;
+    if (mt) {
+      m.material = Array.isArray(mt) ? mt.map((c) => c.clone()) : mt.clone();
+    }
   });
 }
 
 /** Is `o` drawn (it and every parent visible)? */
-export function shown(o: Object3D): boolean {
-  for (let p: Object3D | null = o; p; p = p.parent) if (!p.visible) return false;
+export function shown(o: threeTypes.Object3D): boolean {
+  for (let p: threeTypes.Object3D | null = o; p; p = p.parent) {
+    if (!p.visible) {
+      return false;
+    }
+  }
   return true;
 }
 
@@ -233,7 +250,7 @@ export const DECODE_SRGB = { DECODE_VIDEO_TEXTURE: '', DECODE_VIDEO_TEXTURE_EMIS
  * The material of a sheet of art: `map` is the art (`rawSrgb`), the finish comes from its colours (see `Finish`). It reflects the scene's
  * environment (the room's probe), as the rest of the machine does.
  */
-function artMaterial(map: Texture, f: Finish, level = 0): MeshStandardMaterial {
+function artMaterial(map: threeTypes.Texture, f: Finish, level = 0): MeshStandardMaterial {
   const m = new MeshStandardMaterial({
     map,
     bumpMap: map,
@@ -242,7 +259,7 @@ function artMaterial(map: Texture, f: Finish, level = 0): MeshStandardMaterial {
     metalness: 0,
     alphaTest: 0.4,
     alphaToCoverage: true,
-    emissive: f.glow ? 0xffffff : 0x000000,
+    emissive: f.glow ? 0xff_ff_ff : 0x00_00_00,
     emissiveMap: f.glow ? map : null,
     emissiveIntensity: f.glow,
     // each level sits a hair above the one under it
@@ -257,7 +274,7 @@ function artMaterial(map: Texture, f: Finish, level = 0): MeshStandardMaterial {
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <bumpmap_pars_fragment>', `${ART_GLSL}\n#include <bumpmap_pars_fragment>`)
       // the height is the brightness, not the red channel
-      .replaceAll(/texture2D\( bumpMap, ([^)]+) \)\.x/g, 'artHeight( texture2D( bumpMap, $1 ) )')
+      .replaceAll(/texture2D\( bumpMap, (?<uv>[^)]+) \)\.x/gu, 'artHeight( texture2D( bumpMap, $<uv> ) )')
       // far out a screen pixel covers many texels: the relief fades out there (it would only shimmer), and is whole from one texel per pixel in
       .replace(
         'return vec2( dBx, dBy );',
@@ -348,11 +365,15 @@ export class ArtSurface {
 
   private request(level: number, k: number, pri: number) {
     const t = this.tiles[level]![k]!;
-    if (t.mesh || t.queued) return;
+    if (t.mesh || t.queued) {
+      return;
+    }
     t.queued = true;
     this.q.add(`${this.key}${level}:${k}`, pri, () => {
       const cv = this.bake(t.rect, this.o.levels[level]!);
-      if (!cv) return false;
+      if (!cv) {
+        return false;
+      }
       t.queued = false;
       t.mesh = this.mesh(t.rect, cv, level);
       this.root.add(t.mesh);
@@ -366,7 +387,9 @@ export class ArtSurface {
     const mesh = new Mesh(new PlaneGeometry(r.w, r.h), artMaterial(tex, this.o.finish ?? FINISH.board, level));
     mesh.position.set(r.x + r.w / 2, -(r.y + r.h / 2), this.z + 0.5);
     mesh.receiveShadow = true;
-    if (this.opacity < 1) fadeTree(mesh, this.opacity);
+    if (this.opacity < 1) {
+      fadeTree(mesh, this.opacity);
+    }
     return mesh;
   }
 
@@ -374,15 +397,52 @@ export class ArtSurface {
    * Per frame: the level the camera needs here (from the nearest point of the rect), and the tiles of it that are in view. The rect is where the
    * surface's parents put it (a part moved or turned in 3D carries its 2D art along).
    */
-  update(cam: PerspectiveCamera, frustum: Frustum, H: number, dpr: number, now: number): void {
-    if (!shown(this.root)) return;
+  update(cam: threeTypes.PerspectiveCamera, frustum: Frustum, H: number, dpr: number, now: number): void {
+    if (!shown(this.root)) {
+      return;
+    }
     this.root.updateWorldMatrix(true, false);
     const m = this.root.matrixWorld,
       box = AT_BOX.copy(this.box).applyMatrix4(m),
       tile = (t: Tile) => AT_TILE.copy(t.box).applyMatrix4(m);
-    if (!frustum.intersectsBox(box)) return;
+    if (!frustum.intersectsBox(box)) {
+      return;
+    }
     const d = box.distanceToPoint(cam.position),
       need = levelFor(this.o.levels, screenPx(d, cam.fov, H) * dpr);
+    this.track(need, now);
+    const { keep } = this,
+      settled = now - this.needSince >= SETTLE_MS,
+      seen = (t: Tile) => frustum.intersectsBox(tile(t));
+    this.request(0, 0, -1e9 + d);
+    // only the needed level bakes: the jobs of a level the camera passed are dropped
+    for (let l = 1; l < this.tiles.length; l++) {
+      if (l !== need || !settled) {
+        this.unqueue(l);
+      }
+    }
+    // under a kept level, a tile bakes only where the kept tiles in view do not cover it (out of a wheel wobble, nothing does)
+    const covered = (t: Tile) =>
+      keep > need && this.tiles[keep]!.every((u) => u.mesh || !u.box.intersectsBox(t.box) || !seen(u));
+    if (need > 0 && settled) {
+      this.tiles[need]!.forEach((t, k) => {
+        if (!seen(t)) {
+          return;
+        }
+        const pri = need * 1e6 + AT_TILE.distanceToPoint(cam.position);
+        if (!covered(t)) {
+          this.request(need, k, pri);
+        }
+      });
+    }
+    for (let l = keep + 1; l < this.tiles.length; l++) {
+      this.free(l);
+    }
+    this.sweep(keep, now, seen);
+  }
+
+  /** The level needed now and since when, and the level kept: it rises at once and falls only once the need has stayed lower a while. */
+  private track(need: number, now: number): void {
     if (need !== this.need) {
       this.need = need;
       this.needSince = now;
@@ -390,37 +450,31 @@ export class ArtSurface {
     if (need >= this.keep) {
       this.keep = need;
       this.lowSince = 0;
-    } else if (!this.lowSince) this.lowSince = now;
-    else if (now - this.lowSince > KEEP_MS) {
+    } else if (!this.lowSince) {
+      this.lowSince = now;
+    } else if (now - this.lowSince > KEEP_MS) {
       this.keep = need;
       this.lowSince = 0;
     }
-    const keep = this.keep,
-      settled = now - this.needSince >= SETTLE_MS,
-      seen = (t: Tile) => frustum.intersectsBox(tile(t));
-    this.request(0, 0, -1e9 + d);
-    // only the needed level bakes: the jobs of a level the camera passed are dropped
-    for (let l = 1; l < this.tiles.length; l++) if (l !== need || !settled) this.unqueue(l);
-    // under a kept level, a tile bakes only where the kept tiles in view do not cover it (out of a wheel wobble, nothing does)
-    const covered = (t: Tile) =>
-      keep > need && this.tiles[keep]!.every((u) => u.mesh || !u.box.intersectsBox(t.box) || !seen(u));
-    if (need > 0 && settled)
-      this.tiles[need]!.forEach((t, k) => {
-        if (!seen(t)) return;
-        const pri = need * 1e6 + AT_TILE.distanceToPoint(cam.position);
-        if (!covered(t)) this.request(need, k, pri);
-      });
-    for (let l = keep + 1; l < this.tiles.length; l++) this.free(l);
-    // a pan at a fine level leaves tiles behind: each goes once it has been out of view for a while (level 0 stays: it is the fallback)
-    for (let l = 1; l <= keep; l++)
+  }
+
+  /** A pan at a fine level leaves tiles behind: each goes once it has been out of view for a while (level 0 stays: it is the fallback). */
+  private sweep(keep: number, now: number, seen: (t: Tile) => boolean): void {
+    for (let l = 1; l <= keep; l++) {
       for (const t of this.tiles[l]!) {
-        if (frustum.intersectsBox(tile(t))) t.seen = now;
-        else if (t.mesh && now - t.seen > KEEP_MS) this.dropTile(t);
+        if (seen(t)) {
+          t.seen = now;
+        } else if (t.mesh && now - t.seen > KEEP_MS) {
+          this.dropTile(t);
+        }
       }
+    }
   }
 
   private dropTile(t: Tile) {
-    if (!t.mesh) return;
+    if (!t.mesh) {
+      return;
+    }
     this.root.remove(t.mesh);
     disposeMesh(t.mesh);
     t.mesh = null;
@@ -430,14 +484,20 @@ export class ArtSurface {
   /** Take back the level's bake jobs that have not run (its baked tiles stay). */
   private unqueue(level: number) {
     const ts = this.tiles[level]!;
-    if (!ts.some((t) => t.queued)) return;
+    if (!ts.some((t) => t.queued)) {
+      return;
+    }
     this.q.drop(`${this.key}${level}:`);
-    for (const t of ts) t.queued = false;
+    for (const t of ts) {
+      t.queued = false;
+    }
   }
 
   private free(level: number) {
     this.unqueue(level);
-    for (const t of this.tiles[level]!) this.dropTile(t);
+    for (const t of this.tiles[level]!) {
+      this.dropTile(t);
+    }
   }
 
   setOpacity(a: number): void {
@@ -447,7 +507,9 @@ export class ArtSurface {
 
   dispose(): void {
     this.q.drop(this.key);
-    for (let l = 0; l < this.tiles.length; l++) this.free(l);
+    for (let l = 0; l < this.tiles.length; l++) {
+      this.free(l);
+    }
   }
 }
 
@@ -463,7 +525,7 @@ function disposeMesh(m: Mesh) {
 }
 
 /** The camera's frustum, for `ArtSurface.update`. */
-export function frustumOf(cam: PerspectiveCamera, out = new Frustum()): Frustum {
+export function frustumOf(cam: threeTypes.PerspectiveCamera, out = new Frustum()): Frustum {
   cam.updateMatrixWorld();
   return out.setFromProjectionMatrix(new Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
 }
