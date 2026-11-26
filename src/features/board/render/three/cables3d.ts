@@ -1,15 +1,8 @@
 // Braided sleeves and plugs in 3D, after the 2D cable look (`paintCable`, `cableArt`, docs/render/board.md "Cable look and physics"): a dark
 // sleeve woven with strands of the lead's accent, a plug body (a dark moulding, the accent collar where the cable leaves it), the clamps round a
 // hose. The power leads, the fans' cords and the loop's hoses use them (wires3d.ts hangs them).
-import {
-  CatmullRomCurve3,
-  CylinderGeometry,
-  Group,
-  Mesh,
-  Vector3,
-  type MeshStandardMaterial,
-  type Texture,
-} from 'three';
+import { CatmullRomCurve3, CylinderGeometry, Group, Mesh, Vector3 } from 'three';
+import type * as threeTypes from 'three';
 import { mix } from '@/core/render/ink';
 import { SEG, paint, place, rectBox, shareTex, softBox, withLow } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
@@ -17,7 +10,7 @@ import type { V3 } from '@/core/render/three/rope';
 import { Sleeve } from '@/core/render/three/sleeve';
 
 const hex = (c: string): number => Number.parseInt(c.slice(1), 16);
-const braids = new Map<string, Texture | null>();
+const braids = new Map<string, threeTypes.Texture | null>();
 /** Yarn bands across a weave tile (each way), and the tile's size in pixels. */
 const BANDS = 4,
   TILE = 64;
@@ -26,9 +19,9 @@ const BANDS = 4,
  * A woven sleeve's tile, a 2-over-2 twill as PET sleeving is braided: two sets of round yarns cross on the diagonals, each over two and under
  * two, with dark gaps between them. Both sets are alike (one set brighter than the other read as a twisted rope); one yarn in four is the accent.
  */
-function braid(base: string, tint: string): Texture | null {
+function braid(base: string, tint: string): threeTypes.Texture | null {
   const key = base + tint;
-  if (!braids.has(key))
+  if (!braids.has(key)) {
     braids.set(
       key,
       shareTex(
@@ -42,44 +35,48 @@ function braid(base: string, tint: string): Texture | null {
             const gap = rgb(mix(base, '#000000', 0.55)),
               yarn = rgb(mix(base, tint, 0.14)),
               accent = rgb(mix(base, tint, 0.62));
-            for (let y = 0; y < h; y++)
+            for (let y = 0; y < h; y++) {
               for (let x = 0; x < w; x++) {
-                // the two diagonal sets: which yarn (ia, ib) and where across it (fa, fb, 0 to 1)
+                // the two diagonal sets: which yarn (ia, ib) and where across it (fa, fb, 0 to 1); a goes over b on two crossings in four
                 const a = (x + y + 0.5) / band,
                   b = (x - y + h + 0.5) / band,
                   ia = Math.floor(a),
                   ib = Math.floor(b),
                   fa = a - ia,
                   fb = b - ib;
-                // a goes over b on two crossings in four, along both sets: the twill's steps
                 const overA = ((ia + ib) & 3) < 2,
                   f = overA ? fa : fb,
                   along = overA ? fb : fa,
                   which = overA ? ia : ib + 2;
                 // round across the yarn, a little sunk where it dives under at the run's ends
                 const across = Math.sin(Math.PI * f),
-                  dive = 0.78 + 0.22 * Math.sin(Math.PI * ((along + ((ia + ib) & 1)) / 2));
-                const lit = across ** 0.6 * dive,
+                  dive = 0.78 + 0.22 * Math.sin(Math.PI * ((along + ((ia + ib) & 1)) / 2)),
+                  lit = across ** 0.6 * dive,
                   col = (which & 3) === 0 ? accent : yarn,
                   o = (y * w + x) * 4;
-                for (let k = 0; k < 3; k++)
+                for (let k = 0; k < 3; k++) {
                   img.data[o + k] = Math.round(gap[k]! + (col[k]! - gap[k]!) * Math.min(1, lit * 1.08));
+                }
                 img.data[o + 3] = 255;
               }
+            }
             c.putImageData(img, 0, 0);
           },
           [1, 1],
         ),
       ),
     );
+  }
   return braids.get(key) ?? null;
 }
 
 /** A sleeve's material: the weave of `base` toward `tint` (its pitch lives in the geometry's u, `Sleeve`), or a plain jacket. */
-export function sleeveMat(base: string, tint: string | null): MeshStandardMaterial {
-  if (!tint) return mat(hex(base), { roughness: 0.55 });
+export function sleeveMat(base: string, tint: string | null): threeTypes.MeshStandardMaterial {
+  if (!tint) {
+    return mat(hex(base), { roughness: 0.55 });
+  }
   const tex = braid(base, tint);
-  return mat(0xffffff, { map: tex, bumpMap: tex, bumpScale: 0.6, roughness: 0.62 });
+  return mat(0xff_ff_ff, { map: tex, bumpMap: tex, bumpScale: 0.6, roughness: 0.62 });
 }
 
 /** Segments along a strand of `n` settled points. */
@@ -115,7 +112,13 @@ export function braidedTube(
 }
 
 /** A band round a tube at `s` along its curve (a hose clamp, a cable tie), `len` long. */
-export function band(curve: CatmullRomCurve3, s: number, r: number, len: number, m: MeshStandardMaterial): Mesh {
+export function band(
+  curve: CatmullRomCurve3,
+  s: number,
+  r: number,
+  len: number,
+  m: threeTypes.MeshStandardMaterial,
+): Mesh {
   const u = Math.max(0, Math.min(1, s / curve.getLength())),
     o = place(new Mesh(new CylinderGeometry(r, r, len, SEG.disc), m));
   o.position.copy(curve.getPointAt(u));
@@ -131,7 +134,7 @@ export function plugBody(
   accent: string,
 ): Group {
   const g = new Group(),
-    dark = mat(0x1d1e22, { roughness: 0.5 }),
+    dark = mat(0x1d_1e_22, { roughness: 0.5 }),
     k = Math.min(14, r.w / 4, r.h / 4);
   g.add(softBox(r, z0, z1 - 34, dark, k));
   g.add(
@@ -157,7 +160,7 @@ export const CARD_PLUG = { w: 20.5 * 23, h: 9.1 * 23 };
 export function standingPlug(at: { x: number; y: number; z: number }, accent: string, top: number): Group {
   const { w, h } = CARD_PLUG,
     g = plugBody({ x: at.x - w / 2, y: at.y - h / 2, w, h }, at.z - 30, top, accent),
-    m = mat(0x1d1e22, { roughness: 0.5 });
+    m = mat(0x1d_1e_22, { roughness: 0.5 });
   const y1 = at.y + 6.5 * 23;
   g.add(rectBox({ x: at.x - 60, y: y1, w: 120, h: 30 }, at.z - 125, at.z + 70, m));
   g.add(

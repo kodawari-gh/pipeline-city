@@ -3,26 +3,29 @@
 // any other place of the plug is a pose from there: a pivot at the socket's mouth, moved and turned. One model and one comb of strands serve
 // the seated cable, the loose one and the held one, so nothing swaps when a plug goes in or out. Each strand has one length, the one it has
 // seated: loose or held, the plug goes only as far as that reaches.
-import { Group, Quaternion, Vector3, type Object3D } from 'three';
+import { Group, Quaternion, Vector3 } from 'three';
+import type * as threeTypes from 'three';
 import { mergeWithin } from '@/core/render/three/merge';
-import { dist, hang, lengthOf, type Plane, type RopeEnd, type V3 } from '@/core/render/three/rope';
+import { dist, hang, lengthOf } from '@/core/render/three/rope';
+import type * as ropeTypes from '@/core/render/three/rope';
 import type { RigPower } from './power/runs';
-import { cableMesh, type Env, type Look } from './wires3d';
+import { cableMesh } from './wires3d';
+import type * as wires3dTypes from './wires3d';
 
 /** A socket's mouth and the way a plug pulls out of it (a unit vector). */
 export interface Seat {
-  at: V3;
-  axis: V3;
+  at: ropeTypes.V3;
+  axis: ropeTypes.V3;
 }
 /** A plug's place: its pivot (the mouth's point on the plug) and its turn from the seated pose. Seated is { at: seat.at, q: identity }. */
 export interface Pose {
-  at: V3;
+  at: ropeTypes.V3;
   q: Quaternion;
 }
 /** A loose plug that came to rest where it was dropped, and its strands as they lay (the hand keeps them: nothing hangs again). */
 export interface Rest {
   pose: Pose;
-  strands?: V3[][];
+  strands?: ropeTypes.V3[][];
 }
 
 export interface CableRig {
@@ -32,21 +35,25 @@ export interface CableRig {
   name: string;
   /** The scene id of what takes it (outlined while it is held), or null. */
   target: string | null;
-  look: Look;
+  look: wires3dTypes.Look;
   /** A look for each strand where they differ (the case's switch and LED wires): the built cable wears them, the hand's live sleeve has only `look`. */
-  looks?: readonly Look[];
+  looks?: readonly wires3dTypes.Look[];
   /** The case's own lead (`panelRigs`), not the game's: no cable of the sim, no run of the power lens, nothing to pick. The stage plugs and pulls it for the show. */
   inert?: boolean;
-  env: Env;
+  env: wires3dTypes.Env;
   /** Where each strand leaves its grommet or its device (into the cable). */
-  fixed: RopeEnd[];
+  fixed: ropeTypes.RopeEnd[];
   /** The plug's model built in its socket, and where each strand leaves it there. */
-  model: () => { root: Object3D; strands: RopeEnd[] };
+  model: () => { root: threeTypes.Object3D; strands: ropeTypes.RopeEnd[] };
   seat: Seat;
   /** Other sockets of the same kind on the seat's axis (a graphics card's display port, as well as the board's): the held plug lines up with the
    *  one nearest the pointer, and `connectCable` names it. `port` is `connectCable`'s port argument; `seat.port` is the seat's own. `model`:
    *  the plug that socket takes (one of another size or turn: a card's real HDMI, the board's smaller one), built in the rig's seat. */
-  alts?: { port: string; at: V3; model?: () => { root: Object3D; strands: RopeEnd[] } }[];
+  alts?: {
+    port: string;
+    at: ropeTypes.V3;
+    model?: () => { root: threeTypes.Object3D; strands: ropeTypes.RopeEnd[] };
+  }[];
   /** `connectCable`'s port argument for the seat itself. */
   port?: string | undefined;
   /** False when nothing takes it now (a PCIe lead with no card): its seat is only where its model is built. */
@@ -54,22 +61,22 @@ export interface CableRig {
   /** How far the plug goes in: it pops free past this, it lines up this far out of the mouth. */
   engage: number;
   /** The seated strands (each from its fixed point to its exit), as the static build hangs them: their lengths are the cable's. */
-  seated: (exits: RopeEnd[]) => V3[][];
+  seated: (exits: ropeTypes.RopeEnd[]) => ropeTypes.V3[][];
   /** What a held plug moves over and never goes behind (its inside faces the view): the board's face in the case, not down among the
    *  grommets on the tray; the desk in the room. A cable that pulls the plug in keeps it at its height over this. */
-  deck: Plane;
+  deck: ropeTypes.Plane;
   /** The live ropes' points and stiffness, and the straight lead out of each end. */
   n: number;
   stiff: number;
   lead: number;
   /** What shows only while it is seated (a wall socket, a second run). */
-  extra?: () => Object3D;
+  extra?: () => threeTypes.Object3D;
   /** What the power lens follows of it besides its strands: which way the power runs, and what the cable does past its fixed end (docs/render/power.md). */
   power?: RigPower;
 }
 
-const V = (p: V3) => new Vector3(p[0], p[1], p[2]);
-const T = (v: Vector3): V3 => [v.x, v.y, v.z];
+const V = (p: ropeTypes.V3) => new Vector3(p[0], p[1], p[2]);
+const T = (v: Vector3): ropeTypes.V3 => [v.x, v.y, v.z];
 
 /**
  * A plug model (plugs3d.ts: built round its own z axis, its socket's mouth at z = -l, the cable leaving at 0) standing in its seat, turned `roll`
@@ -77,9 +84,9 @@ const T = (v: Vector3): V3 => [v.x, v.y, v.z];
  */
 export function seatPlug(
   seat: Seat,
-  plug: { body: Object3D; l: number },
+  plug: { body: threeTypes.Object3D; l: number },
   roll = 0,
-): { root: Object3D; strands: RopeEnd[] } {
+): { root: threeTypes.Object3D; strands: ropeTypes.RopeEnd[] } {
   const root = new Group(),
     ax = V(seat.axis),
     { body, l } = plug;
@@ -91,14 +98,14 @@ export function seatPlug(
 }
 
 /** A strand's exit (at the seat) carried to a pose. */
-export function exitAt(e: RopeEnd, seat: Seat, pose: Pose): RopeEnd {
+export function exitAt(e: ropeTypes.RopeEnd, seat: Seat, pose: Pose): ropeTypes.RopeEnd {
   const at = V(e.at).sub(V(seat.at)).applyQuaternion(pose.q).add(V(pose.at)),
     dir = V(e.dir).applyQuaternion(pose.q);
   return { at: T(at), dir: T(dir) };
 }
 
 /** The middle of some ends, and their mean direction. */
-export function middle(ends: readonly RopeEnd[]): RopeEnd {
+export function middle(ends: readonly ropeTypes.RopeEnd[]): ropeTypes.RopeEnd {
   const at = new Vector3(),
     dir = new Vector3();
   for (const e of ends) {
@@ -112,14 +119,19 @@ export function middle(ends: readonly RopeEnd[]): RopeEnd {
 }
 
 /** The pose of a plug hanging at a cable's tip: its strands' middle on the tip, the cable leaving it back along the tip's direction (`free` of the turn there, `freedom`). */
-function poseOnTip(seat: Seat, exits: readonly RopeEnd[], tip: { at: V3; dir: V3 }, free = 1): Pose {
+function poseOnTip(
+  seat: Seat,
+  exits: readonly ropeTypes.RopeEnd[],
+  tip: { at: ropeTypes.V3; dir: ropeTypes.V3 },
+  free = 1,
+): Pose {
   const m = middle(exits),
     q = new Quaternion().slerp(new Quaternion().setFromUnitVectors(V(m.dir), V(tip.dir).negate().normalize()), free);
   return { at: T(V(tip.at).sub(V(m.at).sub(V(seat.at)).applyQuaternion(q))), q };
 }
 
 /** The plug model under a pivot at its seat, placed at a pose. */
-export function pivotOf(seat: Seat, root: Object3D, pose?: Pose): Group {
+export function pivotOf(seat: Seat, root: threeTypes.Object3D, pose?: Pose): Group {
   const pivot = new Group(),
     inner = new Group();
   inner.position.set(-seat.at[0], -seat.at[1], -seat.at[2]);
@@ -129,27 +141,30 @@ export function pivotOf(seat: Seat, root: Object3D, pose?: Pose): Group {
   return pivot;
 }
 
-export function setPose(pivot: Object3D, pose: Pose): void {
+export function setPose(pivot: threeTypes.Object3D, pose: Pose): void {
   pivot.position.set(pose.at[0], pose.at[1], pose.at[2]);
   pivot.quaternion.copy(pose.q);
 }
 
 /** Each strand's length: the one it has seated, from its fixed point to its exit. */
-export const lengthsOf = (rig: CableRig, exits: readonly RopeEnd[]): number[] => rig.seated([...exits]).map(lengthOf);
+export const lengthsOf = (rig: CableRig, exits: readonly ropeTypes.RopeEnd[]): number[] =>
+  rig.seated([...exits]).map(lengthOf);
 
 /**
  * `p` pulled back toward `from` to stay within `reach` of it. With `n` (a unit normal) it keeps its height along `n` and comes in along the plane
  * square to it: a plug held over the board stays over it, never drawn down toward a grommet behind it.
  */
-export function withinReach(p: V3, from: V3, reach: number, n?: V3): V3 {
-  const d: V3 = [p[0] - from[0], p[1] - from[1], p[2] - from[2]],
+export function withinReach(p: ropeTypes.V3, from: ropeTypes.V3, reach: number, n?: ropeTypes.V3): ropeTypes.V3 {
+  const d: ropeTypes.V3 = [p[0] - from[0], p[1] - from[1], p[2] - from[2]],
     h = n ? d[0] * n[0] + d[1] * n[1] + d[2] * n[2] : 0;
-  const u: V3 = n ? [d[0] - n[0] * h, d[1] - n[1] * h, d[2] - n[2] * h] : d,
+  const u: ropeTypes.V3 = n ? [d[0] - n[0] * h, d[1] - n[1] * h, d[2] - n[2] * h] : d,
     l = Math.hypot(...u),
     R = Math.sqrt(Math.max(0, reach * reach - h * h));
-  if (l <= R) return p;
+  if (l <= R) {
+    return p;
+  }
   const k = R / l,
-    o: V3 = n ? [from[0] + n[0] * h, from[1] + n[1] * h, from[2] + n[2] * h] : from;
+    o: ropeTypes.V3 = n ? [from[0] + n[0] * h, from[1] + n[1] * h, from[2] + n[2] * h] : from;
   return [o[0] + u[0] * k, o[1] + u[1] * k, o[2] + u[2] * k];
 }
 
@@ -159,13 +174,13 @@ export function withinReach(p: V3, from: V3, reach: number, n?: V3): V3 {
  */
 export function withinCable(
   rig: CableRig,
-  exits: readonly RopeEnd[],
+  exits: readonly ropeTypes.RopeEnd[],
   lengths: readonly number[],
-  at: V3,
+  at: ropeTypes.V3,
   q: Quaternion,
   share = 1,
-  n?: V3,
-): V3 {
+  n?: ropeTypes.V3,
+): ropeTypes.V3 {
   const p = V(at),
     seat = V(rig.seat.at),
     { lead } = rig,
@@ -175,25 +190,27 @@ export function withinCable(
     let most = 0;
     exits.forEach((e, i) => {
       const f = rig.fixed[i]!,
-        from: V3 = [f.at[0] + f.dir[0] * lead, f.at[1] + f.dir[1] * lead, f.at[2] + f.dir[2] * lead];
+        from: ropeTypes.V3 = [f.at[0] + f.dir[0] * lead, f.at[1] + f.dir[1] * lead, f.at[2] + f.dir[2] * lead];
       b.copy(V(e.at)).sub(seat).addScaledVector(V(e.dir), lead).applyQuaternion(q).add(p);
       const d = V(withinReach(T(b), from, Math.max(0, lengths[i]! - 2 * lead) * share, n)).sub(b);
       p.add(d);
       most = Math.max(most, d.length());
     });
-    if (most < 0.5) break;
+    if (most < 0.5) {
+      break;
+    }
   }
   return T(p);
 }
 
 /** How far the farthest of some ends is from their middle. */
-function spread(ends: readonly RopeEnd[]): number {
+function spread(ends: readonly ropeTypes.RopeEnd[]): number {
   const m = middle(ends).at;
   return Math.max(...ends.map((e) => dist(e.at, m)));
 }
 
 /** How long a loose cable's spine is, from its strands' middle to its plug's: the shortest strand less both ends' spread, so every strand reaches. */
-export function spineLength(rig: CableRig, exits: readonly RopeEnd[], lengths: readonly number[]): number {
+export function spineLength(rig: CableRig, exits: readonly ropeTypes.RopeEnd[], lengths: readonly number[]): number {
   return Math.max(rig.lead * 3, Math.min(...lengths) - spread(rig.fixed) - spread(exits) - rig.lead);
 }
 
@@ -201,7 +218,7 @@ export function spineLength(rig: CableRig, exits: readonly RopeEnd[], lengths: r
  * How far a plug may turn from its seated turn (0 to 1): all the way on one strand, less on a wide comb, not at all when the comb is as wide as
  * its strands are long (the 24-pin out of its tall slot beside the socket: turned across the slot, its end strands could not reach).
  */
-export function freedom(rig: CableRig, exits: readonly RopeEnd[], lengths: readonly number[]): number {
+export function freedom(rig: CableRig, exits: readonly ropeTypes.RopeEnd[], lengths: readonly number[]): number {
   return Math.min(
     1,
     Math.max(0, 1 - (spread(rig.fixed) + spread(exits)) / Math.max(1, Math.min(...lengths) - 2 * rig.lead)),
@@ -209,13 +226,21 @@ export function freedom(rig: CableRig, exits: readonly RopeEnd[], lengths: reado
 }
 
 /** What a loose cable's spine hangs in: its walls and parts, and its deck (the plug at its tip lies in front of the board, never in the tray). */
-export const spineEnv = (rig: CableRig): Env => ({ planes: [...rig.env.planes, rig.deck], solids: rig.env.solids });
+export const spineEnv = (rig: CableRig): wires3dTypes.Env => ({
+  planes: [...rig.env.planes, rig.deck],
+  solids: rig.env.solids,
+});
 
 /** About half a plug's thickness: how far a loose plug's mouth and back keep in front of its deck. */
 const PLUG_HALF = 60;
 
 /** Where a loose plug at `pose` lies: its mouth and its back in front of its deck, and within its cable's reach (at its height over the deck). */
-export function looseAt(rig: CableRig, exits: readonly RopeEnd[], lengths: readonly number[], pose: Pose): V3 {
+export function looseAt(
+  rig: CableRig,
+  exits: readonly ropeTypes.RopeEnd[],
+  lengths: readonly number[],
+  pose: Pose,
+): ropeTypes.V3 {
   const n = V(rig.deck.n),
     at = V(pose.at),
     back = V(middle(exits).at).sub(V(rig.seat.at)).applyQuaternion(pose.q).add(at);
@@ -226,9 +251,9 @@ export function looseAt(rig: CableRig, exits: readonly RopeEnd[], lengths: reado
 /** A loose cable: at its rest pose, or hanging from its strands' middle with the plug at the tip. Each strand runs to its exit at its length. */
 export function looseState(
   rig: CableRig,
-  exits: readonly RopeEnd[],
+  exits: readonly ropeTypes.RopeEnd[],
   rest: Rest | undefined,
-): { rest: Rest; strands: V3[][] } {
+): { rest: Rest; strands: ropeTypes.V3[][] } {
   const opt = { r: rig.look.r, stiff: rig.stiff, n: rig.n, lead: rig.lead, ...rig.env },
     lengths = lengthsOf(rig, exits);
   let r = rest;
@@ -240,8 +265,8 @@ export function looseState(
         ...opt,
         ...spineEnv(rig),
       }),
-      tip = spine[spine.length - 1]!,
-      prev = spine[spine.length - 2]!;
+      tip = spine.at(-1)!,
+      prev = spine.at(-2)!;
     const pose = poseOnTip(
       rig.seat,
       exits,
@@ -275,7 +300,7 @@ export function rigBuild(
   rig: CableRig,
   seated: boolean,
   rest: Rest | undefined,
-): { group: Group; strands: V3[][]; seated: boolean } {
+): { group: Group; strands: ropeTypes.V3[][]; seated: boolean } {
   const g = new Group(),
     m = rig.model();
   g.userData['rig'] = true;
@@ -283,7 +308,9 @@ export function rigBuild(
     m.root.userData['plug'] = true;
     const strands = rig.seated(m.strands);
     g.add(m.root, ...skins(rig, strands));
-    if (rig.extra) g.add(rig.extra());
+    if (rig.extra) {
+      g.add(rig.extra());
+    }
     return { group: merged(g), strands, seated: true };
   }
   const l = looseState(rig, m.strands, rest);
@@ -294,23 +321,28 @@ export function rigBuild(
 }
 
 /** The meshes of a rig's strands: one for all of them, or one for each where the strands have looks of their own (`CableRig.looks`). */
-function skins(rig: CableRig, strands: readonly V3[][]): Object3D[] {
+function skins(rig: CableRig, strands: readonly ropeTypes.V3[][]): threeTypes.Object3D[] {
   return rig.looks ? strands.map((s, i) => cableMesh(s, rig.looks![i] ?? rig.look)) : [cableMesh(strands, rig.look)];
 }
 
 /** `pts` resampled to `n` points evenly along its length. */
-export function resample(pts: readonly V3[], n: number): V3[] {
-  if (pts.length === n) return pts.map((p) => [...p] as V3);
+export function resample(pts: readonly ropeTypes.V3[], n: number): ropeTypes.V3[] {
+  if (pts.length === n) {
+    return pts.map((p) => [...p] as ropeTypes.V3);
+  }
   const L = [0];
-  for (let i = 1; i < pts.length; i++)
+  for (let i = 1; i < pts.length; i++) {
     L.push(
       L[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1], pts[i]![2] - pts[i - 1]![2]),
     );
-  const total = L[L.length - 1]!,
-    out: V3[] = [];
+  }
+  const total = L.at(-1)!,
+    out: ropeTypes.V3[] = [];
   for (let i = 0, k = 0; i < n; i++) {
     const want = (total * i) / (n - 1);
-    while (k + 2 < pts.length && L[k + 1]! < want) k++;
+    while (k + 2 < pts.length && L[k + 1]! < want) {
+      k++;
+    }
     const f = Math.min(1, Math.max(0, (want - L[k]!) / (L[k + 1]! - L[k]! || 1))),
       a = pts[k]!,
       b = pts[k + 1]!;
@@ -325,9 +357,9 @@ export function resample(pts: readonly V3[], n: number): V3[] {
 // is the part of that path behind it. So a fed cable ends exactly as the built one stands, and a reeled one goes back along the way it lies.
 
 /** The point of a polyline `s` along it (held to its ends) and the way it runs there (a polyline with no length runs along +z). */
-export function along(pts: readonly V3[], s: number): { at: V3; dir: V3 } {
+export function along(pts: readonly ropeTypes.V3[], s: number): { at: ropeTypes.V3; dir: ropeTypes.V3 } {
   let acc = 0,
-    dir: V3 = [0, 0, 1],
+    dir: ropeTypes.V3 = [0, 0, 1],
     seen = false;
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1]!,
@@ -343,11 +375,11 @@ export function along(pts: readonly V3[], s: number): { at: V3; dir: V3 } {
     }
     acc += l;
   }
-  return { at: [...(pts[pts.length - 1] ?? [0, 0, 0])] as V3, dir: seen ? dir : [0, 0, 1] };
+  return { at: [...(pts.at(-1) ?? [0, 0, 0])] as ropeTypes.V3, dir: seen ? dir : [0, 0, 1] };
 }
 
 /** The first `f` (0 to 1) of a polyline by length, as `n` points spread evenly over that part (at 0 all of them lie on its start). */
-export function prefixOf(pts: readonly V3[], f: number, n = pts.length): V3[] {
+export function prefixOf(pts: readonly ropeTypes.V3[], f: number, n = pts.length): ropeTypes.V3[] {
   const want = lengthOf(pts) * Math.min(1, Math.max(0, f));
   return Array.from({ length: n }, (_, i) => along(pts, (want * i) / Math.max(1, n - 1)).at);
 }
@@ -356,7 +388,7 @@ export function prefixOf(pts: readonly V3[], f: number, n = pts.length): V3[] {
 export interface Reeled {
   pose: Pose;
   size: number;
-  strands: V3[][];
+  strands: ropeTypes.V3[][];
 }
 
 const smooth = (x: number): number => {
@@ -372,13 +404,13 @@ const smooth = (x: number): number => {
  */
 export function reelAt(
   rig: CableRig,
-  exits: readonly RopeEnd[],
-  strands: readonly V3[][],
+  exits: readonly ropeTypes.RopeEnd[],
+  strands: readonly ropeTypes.V3[][],
   end: Pose,
   f: number,
 ): Reeled {
   const k = Math.min(1, Math.max(0, f)),
-    n = rig.n,
+    { n } = rig,
     lens = strands.map(lengthOf),
     m = middle(exits),
     seat = V(rig.seat.at);
@@ -393,7 +425,7 @@ export function reelAt(
     // the plug's exit for this strand, and how far the strand's own tip is from it
     const e = V(exits[i]!.at).sub(V(m.at)).applyQuaternion(q).multiplyScalar(size).add(V(mid.at)),
       d = e.sub(V(tips[i]!.at));
-    return prefixOf(s, k, n).map((p, j): V3 => {
+    return prefixOf(s, k, n).map((p, j): ropeTypes.V3 => {
       const w = (j / Math.max(1, n - 1)) ** 2;
       return [p[0] + d.x * w, p[1] + d.y * w, p[2] + d.z * w];
     });
