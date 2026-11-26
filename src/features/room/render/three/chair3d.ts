@@ -2,7 +2,8 @@
 // as left after use. A five-star base on twin-wheel castors, a gas lift, a fabric seat and a mesh back in a black frame, two armrests, and a
 // hoodie the chair wears (the room is lived in). Built in its own frame (millimetres, y up from the floor, the sitter facing -z), then set on the
 // floor and turned. Pure scenery: nothing answers a click; the room merges its still parts by material (`mergeStatic`).
-import { CylinderGeometry, DoubleSide, Group, Mesh, type Material, type Object3D } from 'three';
+import { CylinderGeometry, DoubleSide, Group, Mesh } from 'three';
+import type * as threeTypes from 'three';
 import { bakedAo } from '@/core/render/three/bakedao';
 import { SEG, paint, rod, softBox, tornDown, tube } from '@/core/render/three/geometry';
 import { joinModel, loadModel } from '@/core/render/three/gltf';
@@ -48,18 +49,27 @@ const ribs = (base: string) =>
  * bake's materials by name, and its occlusion (dark in the folds and where it lies on the chair). `loaded` gets it once it is in, and no
  * sooner than `until` settles (the room's build: `Room3D.make`).
  */
-function hoodie(c: Group, alive: () => boolean, loaded?: (o: Object3D) => void, until?: Promise<unknown>): void {
+function hoodie(
+  c: Group,
+  alive: () => boolean,
+  loaded?: (o: threeTypes.Object3D) => void,
+  until?: Promise<unknown>,
+): void {
   void loadModel(HOODIE_MODEL, until).then((m) => {
-    if (!m || !alive()) return;
-    const knit = cloth(0xffffff, { map: weave('#4b5443', { knit: true, repeat: [1, 1] }), side: DoubleSide });
-    const rib = cloth(0xffffff, { map: ribs('#434b3a'), side: DoubleSide });
+    if (!m || !alive()) {
+      return;
+    }
+    const knit = cloth(0xff_ff_ff, { map: weave('#4b5443', { knit: true, repeat: [1, 1] }), side: DoubleSide });
+    const rib = cloth(0xff_ff_ff, { map: ribs('#434b3a'), side: DoubleSide });
     bakedAo(knit);
     bakedAo(rib);
     const o = m.clone(true);
     o.traverse((x) => {
-      if (!(x as Mesh).isMesh) return;
+      if (!(x as Mesh).isMesh) {
+        return;
+      }
       const mesh = x as Mesh;
-      mesh.material = (mesh.material as Material).name === 'rib' ? rib : knit;
+      mesh.material = (mesh.material as threeTypes.Material).name === 'rib' ? rib : knit;
       mesh.castShadow = mesh.receiveShadow = true;
     });
     o.scale.setScalar(MM);
@@ -69,7 +79,16 @@ function hoodie(c: Group, alive: () => boolean, loaded?: (o: Object3D) => void, 
 }
 
 /** A soft box centred on (x, y, z) in millimetres, y up. */
-function slab(x: number, y: number, z: number, w: number, h: number, d: number, m: Material, radius = 8): Mesh {
+function slab(
+  x: number,
+  y: number,
+  z: number,
+  w: number,
+  h: number,
+  d: number,
+  m: threeTypes.Material,
+  radius = 8,
+): Mesh {
   return softBox(
     { x: (x - w / 2) * MM, y: -(y + h / 2) * MM, w: w * MM, h: h * MM },
     (z - d / 2) * MM,
@@ -84,7 +103,7 @@ const bar = (
   a: readonly [number, number, number],
   b: readonly [number, number, number],
   r: number,
-  m: Material,
+  m: threeTypes.Material,
   sides: number = SEG.rod,
 ): Mesh => rod([a[0] * MM, a[1] * MM, a[2] * MM], [b[0] * MM, b[1] * MM, b[2] * MM], r * MM, m, sides);
 
@@ -95,12 +114,14 @@ function can(
   z: number,
   r: number,
   h: number,
-  m: Material,
+  m: threeTypes.Material,
   axisX = false,
   sides: number = SEG.post,
 ): Mesh {
   const o = new Mesh(new CylinderGeometry(r * MM, r * MM, h * MM, sides), m);
-  if (axisX) o.rotation.z = Math.PI / 2;
+  if (axisX) {
+    o.rotation.z = Math.PI / 2;
+  }
   o.position.set(x * MM, (axisX ? y : y + h / 2) * MM, z * MM);
   o.castShadow = o.receiveShadow = true;
   return o;
@@ -114,15 +135,15 @@ export function deskChair(
   x: number,
   z: number,
   turn: number,
-  loaded?: (o: Object3D) => void,
+  loaded?: (o: threeTypes.Object3D) => void,
   until?: Promise<unknown>,
 ): Group {
   const root = new Group(),
     c = new Group();
-  const black = mat(0x1d1e22, { roughness: 0.45 }),
-    steel = mat(0xb9babf, { metalness: 0.9, roughness: 0.28 });
-  const seatCloth = cloth(0xffffff, { map: weave('#4a4d52', { repeat: [3, 3] }) }),
-    mesh = cloth(0xffffff, { map: weave('#2c2f33', { repeat: [10, 12] }), sheenColor: 0x6a6e74 });
+  const black = mat(0x1d_1e_22, { roughness: 0.45 }),
+    steel = mat(0xb9_ba_bf, { metalness: 0.9, roughness: 0.28 });
+  const seatCloth = cloth(0xff_ff_ff, { map: weave('#4a4d52', { repeat: [3, 3] }) }),
+    mesh = cloth(0xff_ff_ff, { map: weave('#2c2f33', { repeat: [10, 12] }), sheenColor: 0x6a_6e_74 });
 
   // ---- the base: a hub, five legs falling to the castors, each castor two wheels on a swivel ----
   c.add(can(0, 95, 0, 42, 70, black, false, SEG.disc));
@@ -134,7 +155,9 @@ export function deskChair(
     c.add(bar([ca * 30, 125, sa * 30], [ca * tip, 88, sa * tip], 19, black, SEG.cord));
     c.add(can(ca * tip, 62, sa * tip, 12, 30, steel, false, SEG.smallDisc));
     const wheel = new Group();
-    for (const s of [-1, 1]) wheel.add(can(s * 12, 26, -14, 26, 18, black, true, SEG.roundCap));
+    for (const s of [-1, 1]) {
+      wheel.add(can(s * 12, 26, -14, 26, 18, black, true, SEG.roundCap));
+    }
     wheel.add(slab(0, 46, -10, 34, 26, 44, black, 6));
     wheel.position.set(ca * tip * MM, 0, sa * tip * MM);
     wheel.rotation.y = a * 1.7 + 0.4;

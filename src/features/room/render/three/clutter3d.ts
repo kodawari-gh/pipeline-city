@@ -1,7 +1,8 @@
 // The room's few things about in 3D, kept tidy: a backpack set down against the desk's drawer unit, the power strip in the cable tray under the
 // desk (its leads up through the grommet, its own lead down the column to a socket), two books on the bench by the glass. Plain scenery at real sizes
 // (layout x and y, y down from the ceiling side; z out of the back wall), nothing answers a click.
-import { Box3, Group, Mesh, Vector3, type Material } from 'three';
+import { Box3, Group, Mesh, Vector3 } from 'three';
+import type * as threeTypes from 'three';
 import { ParametricGeometry } from 'three/addons/geometries/ParametricGeometry.js';
 import { SEG, drum, healNormals, place, rectBox, rounded, softBox, tube } from '@/core/render/three/geometry';
 import { cloth, mat } from '@/core/render/three/materials';
@@ -46,8 +47,8 @@ function flatBook(
   w: number,
   h: number,
   d: number,
-  cover: Material,
-  pages: Material,
+  cover: threeTypes.Material,
+  pages: threeTypes.Material,
   turn: number,
 ): Group {
   const g = new Group();
@@ -90,8 +91,8 @@ export function mess(ped: number, under: number, grommet: { x: number; z: number
   // ---- the backpack: set down by the drawer unit, its back to it, leant back on it; a front pocket, the zips round the top and across the
   // pocket, a grab loop, the shoulder straps on its back from the top to the bottom corners ----
   const pack = new Group(),
-    canvas = cloth(0xffffff, { map: weave('#343b47', { repeat: [3, 4] }) }),
-    black = mat(0x131518, { roughness: 0.6 });
+    canvas = cloth(0xff_ff_ff, { map: weave('#343b47', { repeat: [3, 4] }) }),
+    black = mat(0x13_15_18, { roughness: 0.6 });
   const body = bag({ w: 150, h: 430, front: 85, back: 55, sag: 14 }),
     pocket = bag({ w: 110, h: 190, front: 38, back: 5, sag: 0 });
   const sewn = (f: BagForm) => {
@@ -158,7 +159,7 @@ export function mess(ped: number, under: number, grommet: { x: number; z: number
       black,
     );
   pack.add(pull(bagAt(body, 0.55, 0.9, new Vector3()), 0, 4), pull(bagAt(pocket, 1.1, 0.8, new Vector3()), 55, 74));
-  for (const s of [-1, 1])
+  for (const s of [-1, 1]) {
     pack.add(
       tube(
         [
@@ -172,6 +173,7 @@ export function mess(ped: number, under: number, grommet: { x: number; z: number
         SEG.cord,
       ),
     );
+  }
   // tilted back about its own width, turned so its back faces the drawer unit (+x); then set down on the floor and moved against the unit's
   // side: it touches both, it goes into neither
   pack.rotation.set(-0.12, -Math.PI / 2 + 0.1, 0, 'YXZ');
@@ -187,8 +189,8 @@ export function mess(ped: number, under: number, grommet: { x: number; z: number
   // the wall to a socket over the skirting ----
   const t = TRAY,
     base = under + t.drop + t.h - 60,
-    shell = mat(0x1d1e22, { roughness: 0.45 }),
-    lead = mat(0x131518, { roughness: 0.55 });
+    shell = mat(0x1d_1e_22, { roughness: 0.45 }),
+    lead = mat(0x13_15_18, { roughness: 0.55 });
   const sl = 330 * MM,
     sw = 55 * MM,
     sh = 45 * MM,
@@ -241,15 +243,15 @@ export function mess(ped: number, under: number, grommet: { x: number; z: number
   );
   // the socket: a flat plate on the wall, its outlet, the plug in it
   g.add(
-    softBox({ x: wx - 700, y: sockY - 700, w: 1400, h: 1400 }, 0, 80, mat(0x2a2d32, { roughness: 0.3 }), 40),
-    drum(wx, sockY, 80, 100, 380, mat(0x131518, { roughness: 0.6 }), SEG.disc),
+    softBox({ x: wx - 700, y: sockY - 700, w: 1400, h: 1400 }, 0, 80, mat(0x2a_2d_32, { roughness: 0.3 }), 40),
+    drum(wx, sockY, 80, 100, 380, mat(0x13_15_18, { roughness: 0.6 }), SEG.disc),
   );
   g.add(softBox({ x: wx - 300, y: sockY - 400, w: 600, h: 800 }, 100, 660, shell, 100));
 
   // ---- books: two on the bench by the glass ----
   g.add(
     pile(BENCH.x0 + 1800, BENCH.top, (BENCH.z0 + BENCH.z1) / 2, [
-      [200, 24, 135, 0x26303d, -0.1],
+      [200, 24, 135, 0x26_30_3d, -0.1],
       [190, 16, 130, PAPER, 0.08],
     ]),
   );

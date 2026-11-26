@@ -10022,40 +10022,30 @@
   "unicorn(no-array-fill-with-reference-type)": 17
  },
  "src/features/room/render/three/bedding3d.ts": {
-  "eslint(curly)": 12,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 3,
   "eslint(no-nested-ternary)": 2,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(consistent-type-imports)": 1,
-  "typescript(no-non-null-assertion)": 18,
-  "unicorn(no-array-for-each)": 1,
-  "unicorn(numeric-separators-style)": 3
+  "typescript(no-non-null-assertion)": 16,
+  "unicorn(no-array-for-each)": 1
  },
  "src/features/room/render/three/chair3d.ts": {
-  "eslint(curly)": 4,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 5,
   "eslint(no-multi-assign)": 4,
-  "import(consistent-type-specifier-style)": 2,
   "promise(always-return)": 1,
   "promise(prefer-await-to-then)": 1,
   "typescript(no-unsafe-class-instance-assignment)": 2,
-  "typescript(no-unsafe-type-assertion)": 3,
-  "unicorn(numeric-separators-style)": 7
+  "typescript(no-unsafe-type-assertion)": 3
  },
  "src/features/room/render/three/clutter3d.ts": {
-  "eslint(curly)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 4,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 6,
   "typescript(strict-void-return)": 1,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(max-nested-calls)": 4,
-  "unicorn(no-array-reverse)": 1,
-  "unicorn(numeric-separators-style)": 7
+  "unicorn(no-array-reverse)": 1
  },
  "src/features/room/render/three/furniture3d.test.ts": {
   "eslint(curly)": 21,
@@ -10078,12 +10068,10 @@
   "vitest(valid-expect)": 3
  },
  "src/features/room/render/three/hoodiecloth.ts": {
-  "eslint(curly)": 1,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
   "eslint(max-params)": 3,
   "eslint(no-use-before-define)": 6,
-  "import(consistent-type-specifier-style)": 5,
   "typescript(no-non-null-assertion)": 11,
   "typescript(no-unsafe-type-assertion)": 2,
   "unicorn(no-array-reverse)": 1
@@ -10094,16 +10082,13 @@
   "typescript(no-non-null-assertion)": 6
  },
  "src/features/room/render/three/monitor3d.ts": {
-  "eslint(curly)": 8,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 4,
   "eslint(no-param-reassign)": 1,
-  "import(consistent-type-specifier-style)": 3,
   "typescript(no-confusing-void-expression)": 1,
   "unicorn(max-nested-calls)": 2,
-  "unicorn(no-array-for-each)": 2,
-  "unicorn(numeric-separators-style)": 8
+  "unicorn(no-array-for-each)": 2
  },
  "src/features/room/render/three/outside/canyon.ts": {
   "typescript(unbound-method)": 1
@@ -10516,8 +10501,7 @@
   "typescript(no-non-null-assertion)": 5,
   "typescript(no-unsafe-type-assertion)": 1,
   "unicorn(consistent-function-scoping)": 3,
-  "unicorn(max-nested-calls)": 1,
-  "unicorn(numeric-separators-style)": 15
+  "unicorn(max-nested-calls)": 1
  },
  "src/features/room/render/three/plants3d.test.ts": {
   "eslint(curly)": 2,
@@ -10526,18 +10510,14 @@
   "vitest(prefer-strict-equal)": 1
  },
  "src/features/room/render/three/plants3d.ts": {
-  "eslint(curly)": 7,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 4,
   "eslint(max-params)": 9,
-  "eslint(no-implicit-coercion)": 2,
   "eslint(no-loop-func)": 1,
   "eslint(no-shadow)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-non-null-assertion)": 11,
   "unicorn(max-nested-calls)": 5,
   "unicorn(no-array-for-each)": 1,
-  "unicorn(numeric-separators-style)": 15,
   "unicorn(prefer-spread)": 1
  },
  "src/features/room/render/three/props3d.test.ts": {
@@ -10546,7 +10526,6 @@
   "unicorn(consistent-function-scoping)": 1
  },
  "src/features/room/render/three/props3d.ts": {
-  "eslint(curly)": 18,
   "eslint(max-classes-per-file)": 1,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 5,
@@ -10555,8 +10534,6 @@
   "eslint(no-nested-ternary)": 1,
   "eslint(no-unused-expressions)": 1,
   "eslint(no-use-before-define)": 4,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 4,
   "import(max-dependencies)": 1,
   "promise(always-return)": 1,
   "promise(prefer-await-to-then)": 1,
@@ -10567,8 +10544,7 @@
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(max-nested-calls)": 1,
-  "unicorn(no-array-for-each)": 4,
-  "unicorn(numeric-separators-style)": 21
+  "unicorn(no-array-for-each)": 4
  },
  "src/features/room/render/three/room3d.make.test.ts": {
   "eslint(curly)": 2,
