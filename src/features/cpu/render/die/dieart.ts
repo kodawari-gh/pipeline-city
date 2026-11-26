@@ -1,11 +1,10 @@
 import { Container, Graphics } from 'pixi.js';
 import { dashed, label, mix } from '@/core/render/ink';
-import type { Block, BlockKind, CpuPlan, Grid, Link, LinkKind, Pt, Rect } from '../core/cpuplan';
+import * as cpuplan from '../core/cpuplan';
 import type { Theme } from '@/core/render/theme';
 import type { CpuSpec } from '@/features/board/sim/specs';
-import { planInput } from '../core/cpuplan';
 import { cpuPlan } from '../core/cpuplans';
-import { glyph, glyphArea, type Put } from './blockart';
+import * as blockart from './blockart';
 import { hasSymbol, isTall } from './glyphgeom';
 
 export { isTall };
@@ -18,7 +17,7 @@ export { isTall };
 type Key = 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'bad' | 'mute';
 
 /** The accent of each block kind (the theme token it is drawn with). */
-const KIND_COLOR: Record<BlockKind, Key> = {
+const KIND_COLOR: Record<cpuplan.BlockKind, Key> = {
   power: 'ld',
   thermal: 'br',
   mc: 'ld',
@@ -62,7 +61,7 @@ const KIND_COLOR: Record<BlockKind, Key> = {
   resultbus: 'mul',
   ring: 'mul',
 };
-const LINK_COLOR: Record<LinkKind, Key> = {
+const LINK_COLOR: Record<cpuplan.LinkKind, Key> = {
   data: 'alu',
   control: 'mute',
   flush: 'bad',
@@ -74,9 +73,9 @@ const LINK_COLOR: Record<LinkKind, Key> = {
   power: 'ld',
 };
 /** Links drawn dashed: they carry an event, not a stream. */
-const EVENT_LINK: ReadonlySet<LinkKind> = new Set<LinkKind>(['flush', 'forward', 'wakeup', 'irq']);
+const EVENT_LINK: ReadonlySet<cpuplan.LinkKind> = new Set<cpuplan.LinkKind>(['flush', 'forward', 'wakeup', 'irq']);
 /** The die side each board-facing block's bond pads sit on. */
-const PAD_SIDE: Partial<Record<BlockKind, 'N' | 'S' | 'E' | 'W'>> = {
+const PAD_SIDE: Partial<Record<cpuplan.BlockKind, 'N' | 'S' | 'E' | 'W'>> = {
   power: 'N',
   thermal: 'N',
   mc: 'E',
@@ -92,20 +91,22 @@ export interface PlanBlock {
   kind: string;
   label: string;
   sub?: string;
-  rect: Rect;
-  grid?: Grid;
+  rect: cpuplan.Rect;
+  grid?: cpuplan.Grid;
 }
 export interface PlanLink {
   id: string;
   kind: string;
-  pts: Pt[];
+  pts: cpuplan.Pt[];
   lanes: number;
 }
 
 /** The cell rectangles of a block's grid (die coordinates, in entry order, row by row), under the block's name (beside it for a tall block). */
-export function cellRects(b: PlanBlock): Rect[] {
+export function cellRects(b: PlanBlock): cpuplan.Rect[] {
   const g = b.grid;
-  if (!g) return [];
+  if (!g) {
+    return [];
+  }
   const r = b.rect;
   const tall = isTall(b);
   const head = tall ? 8 : r.h >= 70 ? 44 : r.h * 0.55;
@@ -113,10 +114,12 @@ export function cellRects(b: PlanBlock): Rect[] {
     gy = r.y + head,
     gw = r.w - (tall ? 30 : 16),
     gh = r.y + r.h - 6 - gy;
-  if (gw <= 8 || gh <= 6) return [];
+  if (gw <= 8 || gh <= 6) {
+    return [];
+  }
   const cw = gw / g.cols,
     ch = gh / g.rows;
-  const out: Rect[] = [];
+  const out: cpuplan.Rect[] = [];
   for (let k = 0; k < g.count; k++) {
     out.push({
       x: gx + (k % g.cols) * cw + 1,
@@ -129,16 +132,18 @@ export function cellRects(b: PlanBlock): Rect[] {
 }
 
 /** An orthogonal polyline moved sideways by `o` (a miter at every corner). */
-export function offsetPts(pts: Pt[], o: number): Pt[] {
-  if (o === 0) return pts;
-  const seg: Pt[] = [];
-  for (let i = 1; i < pts.length; i++)
+export function offsetPts(pts: cpuplan.Pt[], o: number): cpuplan.Pt[] {
+  if (o === 0) {
+    return pts;
+  }
+  const seg: cpuplan.Pt[] = [];
+  for (let i = 1; i < pts.length; i++) {
     seg.push([-Math.sign(pts[i]![1] - pts[i - 1]![1]), Math.sign(pts[i]![0] - pts[i - 1]![0])]);
+  }
   return pts.map((p, i) => {
     const a = i > 0 ? seg[i - 1]! : null,
       b = i < seg.length ? seg[i]! : null;
-    let x = p[0],
-      y = p[1];
+    let [x, y] = p;
     if (a) {
       x += a[0] * o;
       y += a[1] * o;
@@ -159,9 +164,11 @@ export function offsetPts(pts: Pt[], o: number): Pt[] {
 export const LANE_GAP = 3.2;
 
 /** The traces of a link: one polyline per lane. */
-export function laneLines(l: Pick<PlanLink, 'pts' | 'lanes'>): Pt[][] {
-  const out: Pt[][] = [];
-  for (let k = 0; k < l.lanes; k++) out.push(offsetPts(l.pts, (k - (l.lanes - 1) / 2) * LANE_GAP));
+export function laneLines(l: Pick<PlanLink, 'pts' | 'lanes'>): cpuplan.Pt[][] {
+  const out: cpuplan.Pt[][] = [];
+  for (let k = 0; k < l.lanes; k++) {
+    out.push(offsetPts(l.pts, (k - (l.lanes - 1) / 2) * LANE_GAP));
+  }
   return out;
 }
 
@@ -176,9 +183,9 @@ export interface PlanStyle<B extends PlanBlock, L extends PlanLink> {
   /** A frame (a pipeline stage, an SM): drawn behind its children, with a title. */
   frame(b: B): boolean;
   /** The area of the block's symbol, or null when it shows cells. */
-  symbol(b: B): Rect | null;
-  draw(g: Graphics, T: Theme, b: B, a: Rect, c: string, put: Put): void;
-  cells(b: B): Rect[];
+  symbol(b: B): cpuplan.Rect | null;
+  draw(g: Graphics, T: Theme, b: B, a: cpuplan.Rect, c: string, put: blockart.Put): void;
+  cells(b: B): cpuplan.Rect[];
   /** The scale of the names and the second lines (1: the die's sizes). A plan read from further off, as the router's over its front, has larger names. */
   text?: number;
 }
@@ -191,14 +198,18 @@ export function planFar<B extends PlanBlock, L extends PlanLink>(
   style: PlanStyle<B, L>,
 ): void {
   for (const b of blocks) {
-    if (!style.frame(b)) continue;
+    if (!style.frame(b)) {
+      continue;
+    }
     const r = b.rect;
     g.roundRect(r.x, r.y, r.w, r.h, 5)
       .fill({ color: mix(T.die, T.ink, 0.08) })
       .stroke({ width: 1.2, color: T.line });
   }
   for (const b of blocks) {
-    if (style.frame(b)) continue;
+    if (style.frame(b)) {
+      continue;
+    }
     const r = b.rect,
       c = style.color(T, b);
     g.roundRect(r.x, r.y, r.w, r.h, 3)
@@ -237,37 +248,47 @@ export function planNear<B extends PlanBlock, L extends PlanLink>(
   for (const l of plan.links) {
     const c = style.linkColor(T, l);
     for (const line of laneLines(l)) {
-      if (style.dashed?.(l)) dashed(wg, line, 7, 4);
-      else {
+      if (style.dashed?.(l)) {
+        dashed(wg, line, 7, 4);
+      } else {
         wg.moveTo(line[0]![0], line[0]![1]);
-        for (let i = 1; i < line.length; i++) wg.lineTo(line[i]![0], line[i]![1]);
+        for (let i = 1; i < line.length; i++) {
+          wg.lineTo(line[i]![0], line[i]![1]);
+        }
       }
       wg.stroke({ width: 1.3, color: c, alpha: 0.85, join: 'round' });
     }
   }
   for (const l of plan.links) {
     const c = style.linkColor(T, l);
-    for (const p of [l.pts[0]!, l.pts[l.pts.length - 1]!]) wg.rect(p[0] - 2.5, p[1] - 2.5, 5, 5).fill({ color: c });
+    for (const p of [l.pts[0]!, l.pts.at(-1)!]) {
+      wg.rect(p[0] - 2.5, p[1] - 2.5, 5, 5).fill({ color: c });
+    }
   }
   const cg = new Graphics();
   cells.addChild(cg);
   for (const b of plan.blocks) {
     const c = style.color(T, b);
     const ga = style.symbol(b);
-    if (ga)
+    if (ga) {
       style.draw(cg, T, b, ga, c, (t, x, y, size) =>
         subs.addChild(label(t, x, y, size, T.ink, { anchor: [0.5, 0.5], a: 0.85 })),
       );
-    else {
-      for (const r of style.cells(b)) cg.roundRect(r.x, r.y, r.w, r.h, 1.5);
-      if (b.grid) cg.fill({ color: mix(T.die, c, 0.38) });
+    } else {
+      for (const r of style.cells(b)) {
+        cg.roundRect(r.x, r.y, r.w, r.h, 1.5);
+      }
+      if (b.grid) {
+        cg.fill({ color: mix(T.die, c, 0.38) });
+      }
     }
     if (style.frame(b)) {
       names.addChild(label(b.label, b.rect.x + 8, b.rect.y + 12 * k, 11 * k, T.mute, { weight: '600', a: 0.9 }));
-      if (b.sub)
+      if (b.sub) {
         names.addChild(
           label(b.sub, b.rect.x + 8 + b.label.length * 8 * k + 10, b.rect.y + 12 * k, 9 * k, T.mute, { a: 0.8 }),
         );
+      }
       continue;
     }
     const r = b.rect;
@@ -285,9 +306,11 @@ export function planNear<B extends PlanBlock, L extends PlanLink>(
       continue;
     }
     const fs = Math.max(8 * k, Math.min(14 * k, (r.w - 14) / (b.label.length * 0.66), r.h * 0.45));
-    if (r.h >= 20 && r.w >= 40) names.addChild(label(b.label, r.x + 7, r.y + 6 + fs / 2, fs, T.ink, { weight: '700' }));
+    if (r.h >= 20 && r.w >= 40) {
+      names.addChild(label(b.label, r.x + 7, r.y + 6 + fs / 2, fs, T.ink, { weight: '700' }));
+    }
     // (a larger second line is fitted to the block: the die's own 9 is not)
-    if (b.sub && r.h >= 44 && r.w >= 100)
+    if (b.sub && r.h >= 44 && r.w >= 100) {
       subs.addChild(
         label(
           b.sub,
@@ -298,23 +321,24 @@ export function planNear<B extends PlanBlock, L extends PlanLink>(
           { a: 0.95 },
         ),
       );
+    }
   }
   return { root, wires, cells, names, subs };
 }
 
 /** How the CPU die is drawn. */
-const CPU_STYLE: PlanStyle<Block, Link> = {
+const CPU_STYLE: PlanStyle<cpuplan.Block, cpuplan.Link> = {
   color: (T, b) => T[KIND_COLOR[b.kind]],
   linkColor: (T, l) => T[LINK_COLOR[l.kind]],
   dashed: (l) => EVENT_LINK.has(l.kind),
   frame: (b) => b.kind === 'stage',
-  symbol: (b) => (hasSymbol(b) ? glyphArea(b) : null),
-  draw: glyph,
+  symbol: (b) => (hasSymbol(b) ? blockart.glyphArea(b) : null),
+  draw: blockart.glyph,
   cells: cellRects,
 };
 
 /** Blocks, stage frames and bond pads: the far view of the die. */
-export function dieFar(g: Graphics, T: Theme, plan: CpuPlan): void {
+export function dieFar(g: Graphics, T: Theme, plan: cpuplan.CpuPlan): void {
   const D = plan.die;
   for (const b of plan.blocks.filter((x) => x.zone === 'edge' && PAD_SIDE[x.kind])) {
     const side = PAD_SIDE[b.kind]!,
@@ -332,12 +356,12 @@ export function dieFar(g: Graphics, T: Theme, plan: CpuPlan): void {
 }
 
 /** Traces, cell arrays and names of a CPU plan. */
-export const dieNear = (T: Theme, plan: CpuPlan): DieArt => planNear(T, plan, CPU_STYLE);
+export const dieNear = (T: Theme, plan: cpuplan.CpuPlan): DieArt => planNear(T, plan, CPU_STYLE);
 
 /** The floorplan of a CPU spec (cached by its input). */
-export const planOf = (spec: CpuSpec): CpuPlan =>
+export const planOf = (spec: CpuSpec): cpuplan.CpuPlan =>
   cpuPlan(
-    planInput(spec.engine, {
+    cpuplan.planInput(spec.engine, {
       ...(spec.mmu ? { tlbEntries: spec.mmu.tlb } : {}),
       ...(spec.cores && spec.cores > 1 ? { cores: spec.cores } : {}),
     }),

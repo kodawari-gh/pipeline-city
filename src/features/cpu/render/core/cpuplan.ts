@@ -146,18 +146,21 @@ export function planInput(e: EngineConfig, extra: Partial<PlanInput> = {}): Plan
   const base: PlanInput = { arch: 'unpipelined' };
   switch (e.kind) {
     case 'ref':
-    case 'unpipelined':
+    case 'unpipelined': {
       base.arch = 'unpipelined';
       break;
-    case 'inorder':
+    }
+    case 'inorder': {
       base.arch = 'inorder';
       base.forwarding = e.forwarding ?? true;
       break;
-    case 'inorder2':
+    }
+    case 'inorder2': {
       base.arch = 'inorder2';
       base.forwarding = e.forwarding ?? true;
       break;
-    case 'ooo':
+    }
+    case 'ooo': {
       base.arch = 'ooo';
       base.width = e.width ?? 2;
       base.robSize = e.robSize ?? 8;
@@ -165,14 +168,25 @@ export function planInput(e: EngineConfig, extra: Partial<PlanInput> = {}): Plan
       base.fetchQueue = e.fetchQueue ?? 4;
       base.commitWidth = e.commitWidth ?? base.width;
       break;
+    }
   }
   if (e.kind !== 'ref') {
     base.cacheLines = e.cacheLines;
-    if (e.ways) base.ways = e.ways;
-    if (e.icacheLines) base.icacheLines = e.icacheLines;
-    if (e.l2Lines) base.l2Lines = e.l2Lines;
-    if (e.predEntries) base.predEntries = e.predEntries;
-    if (e.predBits) base.predBits = e.predBits;
+    if (e.ways) {
+      base.ways = e.ways;
+    }
+    if (e.icacheLines) {
+      base.icacheLines = e.icacheLines;
+    }
+    if (e.l2Lines) {
+      base.l2Lines = e.l2Lines;
+    }
+    if (e.predEntries) {
+      base.predEntries = e.predEntries;
+    }
+    if (e.predBits) {
+      base.predBits = e.predBits;
+    }
   }
   return { ...base, ...extra };
 }
@@ -184,10 +198,14 @@ export function planInput(e: EngineConfig, extra: Partial<PlanInput> = {}): Plan
 export function gridExact(n: number, w: number, h: number): Grid {
   let best = { cols: n, rows: 1, score: Infinity };
   for (let cols = 1; cols <= n; cols++) {
-    if (n % cols !== 0) continue;
+    if (n % cols !== 0) {
+      continue;
+    }
     const rows = n / cols;
     const score = Math.abs(Math.log(w / cols / (h / rows) / 1.5));
-    if (score < best.score - 1e-9) best = { cols, rows, score };
+    if (score < best.score - 1e-9) {
+      best = { cols, rows, score };
+    }
   }
   return { cols: best.cols, rows: best.rows, count: n };
 }

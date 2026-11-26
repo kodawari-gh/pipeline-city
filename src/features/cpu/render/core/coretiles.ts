@@ -3,13 +3,12 @@
 // Trace panel draws the same model as its core selector.
 
 import type { CoresSnap, OooSnap, PipeSnap } from '../../sim/pipesnap';
-import { CommitStall, DispatchStall, FetchStall } from '../../sim/engines/view';
-import { SlotKind } from '../../sim/engines/view';
-import { opClass, type OpClass } from '../die/diemotion';
+import { CommitStall, DispatchStall, FetchStall, SlotKind } from '../../sim/engines/view';
+import * as diemotion from '../die/diemotion';
 import type { CoreRate } from './corestats';
 
 /** One cell of a tile's pipeline: the class of the instruction in it, or null when nothing is. */
-export type TileCell = OpClass | null;
+export type TileCell = diemotion.OpClass | null;
 
 export interface TileModel {
   core: number;
@@ -55,7 +54,7 @@ const hsl = (h: number, s: number, l: number): string => {
  * the thread, so the threads of one job read as one family and two jobs as two.
  */
 export function threadTint(job: number, thread: number): string {
-  const h = (((Math.imul(job >>> 0, 2654435761) >>> 0) >>> 8) % 360) / 360;
+  const h = (((Math.imul(job >>> 0, 2_654_435_761) >>> 0) >>> 8) % 360) / 360;
   const step = Math.min(7, thread) / 7;
   return hsl(h, 0.7, 0.5 + 0.18 * step);
 }
@@ -107,7 +106,7 @@ const COMMIT_WHY: Record<number, string> = {
 };
 const UNIT_NAMES = ['ALU0', 'ALU1', 'MUL', 'LSU'];
 
-const clsOf = (op: string): TileCell => (op ? opClass(op) : null);
+const clsOf = (op: string): TileCell => (op ? diemotion.opClass(op) : null);
 
 /** The usage of each structure of an out-of-order core's snapshot, for the tile: used slots by instruction class, the stall cause, the units' progress. */
 export function oooStages(o: OooSnap): OooStages {
@@ -157,14 +156,16 @@ export function oooStages(o: OooSnap): OooStages {
 
 /** The cells of one pipeline snapshot. */
 export function pipeCells(p: PipeSnap | undefined): { cells: TileCell[]; fill: number } {
-  if (!p) return { cells: [], fill: 0 };
+  if (!p) {
+    return { cells: [], fill: 0 };
+  }
   if (p.ooo) {
     return {
-      cells: p.ooo.units.map((u) => (u.op ? opClass(u.op) : null)),
-      fill: p.ooo.rob.length ? p.ooo.robCount / p.ooo.rob.length : 0,
+      cells: p.ooo.units.map((u) => (u.op ? diemotion.opClass(u.op) : null)),
+      fill: p.ooo.rob.length > 0 ? p.ooo.robCount / p.ooo.rob.length : 0,
     };
   }
-  return { cells: p.stages.map((s) => (s.kind === SlotKind.Instr && s.op ? opClass(s.op) : null)), fill: 0 };
+  return { cells: p.stages.map((s) => (s.kind === SlotKind.Instr && s.op ? diemotion.opClass(s.op) : null)), fill: 0 };
 }
 
 /** The tiles of a multicore snapshot, in core order. `rates` are the hardware cores' rates (corestats.ts), by hardware core. */
@@ -225,7 +226,9 @@ export function washModels(c: CoresSnap, rates: readonly CoreRate[] = []): WashM
       out.push(w);
     }
     w.models.push(m);
-    if (m.selected) w.selected = true;
+    if (m.selected) {
+      w.selected = true;
+    }
   }
   return out.sort((a, b) => a.hw - b.hw);
 }

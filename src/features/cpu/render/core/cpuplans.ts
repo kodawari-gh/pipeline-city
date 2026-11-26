@@ -4,8 +4,8 @@
 // vcore stubs), the memory controller in the east (the DIMM bus), the clock and PCIe / NVMe / DMI in the south, USB, the display and the
 // interrupt controller in the west. The core fills the middle, tiled edge to edge; blocks that talk to each other touch across a gutter.
 
-import { type Block, type CpuPlan, type Link, type PlanInput, type Rect } from './cpuplan';
-import { GAP, col, leaf, place, routeLinks, row, spans, type LinkSpec, type Node } from './cpufloor';
+import type { Block, CpuPlan, Link, PlanInput, Rect } from './cpuplan';
+import * as cpufloor from './cpufloor';
 import { dockLink } from '../die/glyphgeom';
 import { DIE_PLAN } from '@/features/board/render/layout/layout';
 
@@ -13,43 +13,47 @@ import { DIE_PLAN } from '@/features/board/render/layout/layout';
 const R: Rect = { x: DIE_PLAN.x + 24, y: DIE_PLAN.y + 24, w: DIE_PLAN.w - 48, h: DIE_PLAN.h - 48 };
 const EDGE = { side: 104, north: 64, south: 84 };
 const CORE: Rect = {
-  x: R.x + EDGE.side + GAP,
-  y: R.y + EDGE.north + GAP,
-  w: R.w - 2 * EDGE.side - 2 * GAP,
-  h: R.h - EDGE.north - EDGE.south - 2 * GAP,
+  x: R.x + EDGE.side + cpufloor.GAP,
+  y: R.y + EDGE.north + cpufloor.GAP,
+  w: R.w - 2 * EDGE.side - 2 * cpufloor.GAP,
+  h: R.h - EDGE.north - EDGE.south - 2 * cpufloor.GAP,
 };
 
-function ringTree(core: Node): Node {
-  return col(
+function ringTree(core: cpufloor.Node): cpufloor.Node {
+  return cpufloor.col(
     [
-      row(
+      cpufloor.row(
         [
-          leaf('pwr', 'power', 'POWER', { sub: 'vcore · one stub per VRM phase', shape: [6, 1], f: 3 }),
-          leaf('thermal', 'thermal', 'SVID · THERMAL', { sub: 'sensors · throttle', f: 1.2 }),
+          cpufloor.leaf('pwr', 'power', 'POWER', { sub: 'vcore · one stub per VRM phase', shape: [6, 1], f: 3 }),
+          cpufloor.leaf('thermal', 'thermal', 'SVID · THERMAL', { sub: 'sensors · throttle', f: 1.2 }),
         ],
         { px: EDGE.north },
       ),
-      row(
+      cpufloor.row(
         [
-          col(
+          cpufloor.col(
             [
-              leaf('usb', 'usb', 'USB', { sub: 'four lanes', shape: [1, 4], f: 1 }),
-              leaf('display', 'display', 'DISPLAY', { sub: 'video pairs', shape: [1, 2], f: 1 }),
-              leaf('intc', 'intc', 'INTC', { sub: 'four lines', shape: [4, 1], f: 1 }),
-              leaf('timer', 'timer', 'TIMER', { sub: 'tick', f: 0.6 }),
-              leaf('mpu', 'mpu', 'MPU', { sub: 'protection', f: 0.6 }),
+              cpufloor.leaf('usb', 'usb', 'USB', { sub: 'four lanes', shape: [1, 4], f: 1 }),
+              cpufloor.leaf('display', 'display', 'DISPLAY', { sub: 'video pairs', shape: [1, 2], f: 1 }),
+              cpufloor.leaf('intc', 'intc', 'INTC', { sub: 'four lines', shape: [4, 1], f: 1 }),
+              cpufloor.leaf('timer', 'timer', 'TIMER', { sub: 'tick', f: 0.6 }),
+              cpufloor.leaf('mpu', 'mpu', 'MPU', { sub: 'protection', f: 0.6 }),
             ],
             { px: EDGE.side },
           ),
           core,
-          leaf('mc', 'mc', 'MEMORY CONTROLLER', { sub: 'six lanes a DIMM', shape: [1, 6], px: EDGE.side }),
+          cpufloor.leaf('mc', 'mc', 'MEMORY CONTROLLER', { sub: 'six lanes a DIMM', shape: [1, 6], px: EDGE.side }),
         ],
         { f: 1 },
       ),
-      row(
+      cpufloor.row(
         [
-          leaf('clk', 'clock', 'CLOCK · PLL', { sub: '24 MHz', f: 1 }),
-          leaf('pcie', 'pcie', 'PCIe · NVMe · DMI', { sub: '12 PCIe · 3 NVMe · 6 DMI lanes', shape: [21, 1], f: 4 }),
+          cpufloor.leaf('clk', 'clock', 'CLOCK · PLL', { sub: '24 MHz', f: 1 }),
+          cpufloor.leaf('pcie', 'pcie', 'PCIe · NVMe · DMI', {
+            sub: '12 PCIe · 3 NVMe · 6 DMI lanes',
+            shape: [21, 1],
+            f: 4,
+          }),
         ],
         { px: EDGE.south },
       ),
@@ -58,18 +62,18 @@ function ringTree(core: Node): Node {
   );
 }
 
-const fabric = () => leaf('fabric', 'fabric', 'SYSTEM BUS', { sub: 'RAM · devices', px: 50, zone: 'edge' });
+const fabric = () => cpufloor.leaf('fabric', 'fabric', 'SYSTEM BUS', { sub: 'RAM · devices', px: 50, zone: 'edge' });
 
 type L = [
   id: string,
-  kind: LinkSpec['kind'],
+  kind: cpufloor.LinkSpec['kind'],
   from: string,
   to: string,
   lanes?: 1 | 2 | 3 | 4,
   label?: string | undefined,
   both?: boolean,
 ];
-const links = (a: L[]): LinkSpec[] =>
+const links = (a: L[]): cpufloor.LinkSpec[] =>
   a.map(([id, kind, from, to, lanes, label, both]) => ({
     id,
     kind,
@@ -97,13 +101,19 @@ function edgeLinks(coreTops: string[], pcId: string, clockTo: string): L[] {
     ['clk-core', 'control', 'clk', clockTo, 1, 'clock'],
     ['thermal-pwr', 'control', 'thermal', 'pwr', 1],
   ];
-  for (const t of coreTops) out.push([`pwr-${t}`, 'power', 'pwr', t, 1]);
+  for (const t of coreTops) {
+    out.push([`pwr-${t}`, 'power', 'pwr', t, 1]);
+  }
   return out;
 }
 
 // ---------------------------------------------------------------- unpipelined and in-order pipelines
 
-function pipeline(i: PlanInput, cw: number = CORE.w, tile = false): { tree: Node; specs: LinkSpec[] } {
+function pipeline(
+  i: PlanInput,
+  cw: number = CORE.w,
+  tile = false,
+): { tree: cpufloor.Node; specs: cpufloor.LinkSpec[] } {
   const un = i.arch === 'unpipelined',
     two = i.arch === 'inorder2',
     fwd = i.forwarding ?? true;
@@ -114,78 +124,84 @@ function pipeline(i: PlanInput, cw: number = CORE.w, tile = false): { tree: Node
     tlb = i.tlbEntries ?? 0;
   const predEntries = i.predEntries ?? 64,
     predBits = i.predBits ?? 1;
-  const frame = (id: string, label: string, stage: number, kids: Node[], f: number) =>
-    col(kids, { frame: { id, kind: 'stage', label, stage }, f });
-  const latch = (k: number, name: string) => leaf(`lat${k}`, 'latch', name, { px: 30 });
+  const frame = (id: string, label: string, stage: number, kids: cpufloor.Node[], f: number) =>
+    cpufloor.col(kids, { frame: { id, kind: 'stage', label, stage }, f });
+  const latch = (k: number, name: string) => cpufloor.leaf(`lat${k}`, 'latch', name, { px: 30 });
 
-  const ifKids: Node[] = [
+  const ifKids: cpufloor.Node[] = [
     ...(un
       ? []
       : [
-          leaf('bp', 'predictor', 'BRANCH PREDICTOR', {
+          cpufloor.leaf('bp', 'predictor', 'BRANCH PREDICTOR', {
             cells: predEntries,
             sub: `${predEntries} x ${predBits}-bit`,
             f: 1.5,
           }),
         ]),
-    row([leaf('npc', 'nextpc', 'NEXT PC', { shape: [32, 1] }), leaf('pcadd', 'pcadd', 'PC + 4', { shape: [32, 1] })], {
-      px: un ? 64 : 52,
-    }),
-    leaf('pc', 'pc', 'PC', { shape: [32, 1], px: un ? 60 : 50 }),
-    leaf('fetch', 'fetch', two ? 'FETCH × 2' : 'FETCH', {
+    cpufloor.row(
+      [
+        cpufloor.leaf('npc', 'nextpc', 'NEXT PC', { shape: [32, 1] }),
+        cpufloor.leaf('pcadd', 'pcadd', 'PC + 4', { shape: [32, 1] }),
+      ],
+      {
+        px: un ? 64 : 52,
+      },
+    ),
+    cpufloor.leaf('pc', 'pc', 'PC', { shape: [32, 1], px: un ? 60 : 50 }),
+    cpufloor.leaf('fetch', 'fetch', two ? 'FETCH × 2' : 'FETCH', {
       sub: icLines ? 'reads the I-cache' : 'reads RAM',
       shape: [32, 1],
       f: 1,
     }),
   ];
-  const idKids: Node[] = un
+  const idKids: cpufloor.Node[] = un
     ? [
-        leaf('imm', 'imm', 'IMMEDIATE', { shape: [32, 1], px: 70 }),
-        leaf('dec', 'decode', 'DECODER', { sub: 'opcode to control', shape: [8, 4], f: 1 }),
+        cpufloor.leaf('imm', 'imm', 'IMMEDIATE', { shape: [32, 1], px: 70 }),
+        cpufloor.leaf('dec', 'decode', 'DECODER', { sub: 'opcode to control', shape: [8, 4], f: 1 }),
       ]
     : two
       ? [
-          leaf('hz', 'hazard', 'HAZARD', { sub: fwd ? 'load-use stall' : 'waits for write back', px: 56 }),
-          leaf('imm', 'imm', 'IMMEDIATE', { shape: [32, 1], px: 46 }),
-          leaf('bundle', 'bundle', 'PAIR / ISSUE', { sub: 'one bundle a cycle', px: 52 }),
-          row(
+          cpufloor.leaf('hz', 'hazard', 'HAZARD', { sub: fwd ? 'load-use stall' : 'waits for write back', px: 56 }),
+          cpufloor.leaf('imm', 'imm', 'IMMEDIATE', { shape: [32, 1], px: 46 }),
+          cpufloor.leaf('bundle', 'bundle', 'PAIR / ISSUE', { sub: 'one bundle a cycle', px: 52 }),
+          cpufloor.row(
             [
-              leaf('dec0', 'decode', 'DECODE A', { lane: 0, shape: [8, 4] }),
-              leaf('dec1', 'decode', 'DECODE B', { lane: 1, shape: [8, 4] }),
+              cpufloor.leaf('dec0', 'decode', 'DECODE A', { lane: 0, shape: [8, 4] }),
+              cpufloor.leaf('dec1', 'decode', 'DECODE B', { lane: 1, shape: [8, 4] }),
             ],
             { f: 1 },
           ),
         ]
       : [
-          leaf('hz', 'hazard', 'HAZARD', { sub: fwd ? 'load-use stall' : 'waits for write back', px: 60 }),
-          leaf('imm', 'imm', 'IMMEDIATE', { shape: [32, 1], px: 50 }),
-          leaf('dec', 'decode', 'DECODER', { sub: 'opcode to control', shape: [8, 4], f: 1 }),
+          cpufloor.leaf('hz', 'hazard', 'HAZARD', { sub: fwd ? 'load-use stall' : 'waits for write back', px: 60 }),
+          cpufloor.leaf('imm', 'imm', 'IMMEDIATE', { shape: [32, 1], px: 50 }),
+          cpufloor.leaf('dec', 'decode', 'DECODER', { sub: 'opcode to control', shape: [8, 4], f: 1 }),
         ];
-  const exKids: Node[] = [
-    leaf('br', 'branch', 'BRANCH', { sub: 'compare · target', px: un ? 70 : 64 }),
-    ...(!un && fwd ? [leaf('fwd', 'forward', 'FORWARD', { sub: 'bypass A / B', px: 56 })] : []),
+  const exKids: cpufloor.Node[] = [
+    cpufloor.leaf('br', 'branch', 'BRANCH', { sub: 'compare · target', px: un ? 70 : 64 }),
+    ...(!un && fwd ? [cpufloor.leaf('fwd', 'forward', 'FORWARD', { sub: 'bypass A / B', px: 56 })] : []),
     ...(two
       ? [
-          leaf('alu0', 'alu', 'ALU A', { sub: 'add · logic · shift · mul', lane: 0, shape: [32, 1], f: 1 }),
-          leaf('alu1', 'alu', 'ALU B', { lane: 1, shape: [32, 1], f: 1 }),
+          cpufloor.leaf('alu0', 'alu', 'ALU A', { sub: 'add · logic · shift · mul', lane: 0, shape: [32, 1], f: 1 }),
+          cpufloor.leaf('alu1', 'alu', 'ALU B', { lane: 1, shape: [32, 1], f: 1 }),
         ]
-      : [leaf('alu', 'alu', 'ALU', { sub: 'add · logic · shift · mul', shape: [32, 1], f: 1 })]),
+      : [cpufloor.leaf('alu', 'alu', 'ALU', { sub: 'add · logic · shift · mul', shape: [32, 1], f: 1 })]),
   ];
-  const memKids: Node[] = [
-    leaf('dev', 'mmio', 'DEVICE?', { sub: 'skips the cache', px: 64 }),
-    leaf('lsu', 'lsu', 'LOAD / STORE', { sub: 'address · align', shape: [32, 1], f: 1 }),
+  const memKids: cpufloor.Node[] = [
+    cpufloor.leaf('dev', 'mmio', 'DEVICE?', { sub: 'skips the cache', px: 64 }),
+    cpufloor.leaf('lsu', 'lsu', 'LOAD / STORE', { sub: 'address · align', shape: [32, 1], f: 1 }),
   ];
-  const wbKids: Node[] = [
-    leaf('wb', 'wb', 'WRITE BACK', { sub: two ? 'two write ports' : 'result mux', shape: [32, 1], f: 1 }),
+  const wbKids: cpufloor.Node[] = [
+    cpufloor.leaf('wb', 'wb', 'WRITE BACK', { sub: two ? 'two write ports' : 'result mux', shape: [32, 1], f: 1 }),
   ];
 
   // the stage columns, and the spans the south row has to line up with
   const defs = un
     ? [{ f: 1 }, { f: 1 }, { f: 1 }, { f: 1 }, { f: 0.8 }]
     : [{ f: 1.3 }, { px: 30 }, { f: 1.1 }, { px: 30 }, { f: 1.2 }, { px: 30 }, { f: 1 }, { px: 30 }, { f: 0.7 }];
-  const sp = spans(cw, defs, GAP);
+  const sp = cpufloor.spans(cw, defs, cpufloor.GAP);
   const cover = (a: number, b: number) => sp[b]![0] + sp[b]![1] - sp[a]![0];
-  const stageRow = row(
+  const stageRow = cpufloor.row(
     un
       ? [
           frame('if', 'IF · FETCH', 0, ifKids, 1),
@@ -207,38 +223,50 @@ function pipeline(i: PlanInput, cw: number = CORE.w, tile = false): { tree: Node
         ],
     { f: 52 },
   );
-  const southRow = row(
+  const southRow = cpufloor.row(
     [
       ...(icLines > 0
         ? [
-            leaf('ic', 'icache', 'I-CACHE', {
+            cpufloor.leaf('ic', 'icache', 'I-CACHE', {
               cells: icLines,
               sub: cacheSub(icLines, 1),
               px: un ? cover(0, 0) : cover(0, 1),
             }),
           ]
         : []),
-      leaf('rf', 'regfile', 'REGISTER FILE', {
+      cpufloor.leaf('rf', 'regfile', 'REGISTER FILE', {
         cells: 16,
         sub: two ? '4 read · 2 write' : '2 read · 1 write',
         px: icLines > 0 ? (un ? cover(1, 2) : cover(2, 5)) : un ? cover(0, 2) : cover(0, 5),
       }),
       ...(tlb > 0
-        ? [leaf('tlb', 'tlb', 'TLB', { cells: tlb, sub: `${tlb} entries · virtual to physical`, f: 0.55 })]
+        ? [cpufloor.leaf('tlb', 'tlb', 'TLB', { cells: tlb, sub: `${tlb} entries · virtual to physical`, f: 0.55 })]
         : []),
-      leaf('dc', 'dcache', 'D-CACHE', { cells: lines, sub: cacheSub(lines, ways), f: 1 }),
+      cpufloor.leaf('dc', 'dcache', 'D-CACHE', { cells: lines, sub: cacheSub(lines, ways), f: 1 }),
     ],
     { f: 31 },
   );
-  const tree = col(
+  const tree = cpufloor.col(
     [
       ...(un
-        ? [leaf('seq', 'control', 'SEQUENCER', { cells: 5, sub: 'one instruction at a time · five phases', px: 70 })]
+        ? [
+            cpufloor.leaf('seq', 'control', 'SEQUENCER', {
+              cells: 5,
+              sub: 'one instruction at a time · five phases',
+              px: 70,
+            }),
+          ]
         : []),
       stageRow,
       southRow,
       ...(l2Lines > 0 && !tile
-        ? [leaf('l2', 'l2', 'L2 CACHE', { cells: l2Lines, sub: `${l2Lines} lines · shared by both L1s`, px: 92 })]
+        ? [
+            cpufloor.leaf('l2', 'l2', 'L2 CACHE', {
+              cells: l2Lines,
+              sub: `${l2Lines} lines · shared by both L1s`,
+              px: 92,
+            }),
+          ]
         : []),
       ...(tile ? [] : [fabric()]),
     ],
@@ -306,16 +334,19 @@ function pipeline(i: PlanInput, cw: number = CORE.w, tile = false): { tree: Node
         ['alu-l2', 'data', 'alu', 'lat2', 2],
       );
     }
-    if (fwd)
+    if (fwd) {
       specs.push(
         ['l1-fwd', 'data', 'lat1', 'fwd', 2],
         ['fwd-a', 'forward', 'lat2', 'fwd', 2, 'forward'],
         ['fwd-b', 'forward', 'lat3', 'fwd', 2],
         ['fwd-alu', 'data', 'fwd', two ? 'alu0' : 'alu', 2],
       );
+    }
   }
   // the register file ports
-  for (const d of two ? ['dec0', 'dec1'] : ['dec']) specs.push([`${d}-rf`, 'data', d, 'rf', 2, 'read']);
+  for (const d of two ? ['dec0', 'dec1'] : ['dec']) {
+    specs.push([`${d}-rf`, 'data', d, 'rf', 2, 'read']);
+  }
   specs.push(['wb-rf', 'data', 'wb', 'rf', 2, 'write']);
   // memory
   specs.push(
@@ -323,18 +354,23 @@ function pipeline(i: PlanInput, cw: number = CORE.w, tile = false): { tree: Node
     ['dev-fab', 'mmio', 'dev', 'fabric', 2, 'device access'],
   );
   // the MMU: loads, stores and instruction fetches are translated, and a TLB miss walks the page table through the L2 and RAM
-  if (tlb > 0)
+  if (tlb > 0) {
     specs.push(
       ['lsu-tlb', 'control', 'lsu', 'tlb', 1, 'translate'],
       ['fetch-tlb', 'control', 'fetch', 'tlb', 1, 'translate'],
       ['tlb-walk', 'mem', 'tlb', l2Lines > 0 ? 'l2' : 'fabric', 3, 'page walk'],
     );
+  }
   if (l2Lines > 0) {
     specs.push(['dc-l2', 'mem', 'dc', 'l2', 3, undefined, true], ['l2-fab', 'mem', 'l2', 'fabric', 3, undefined, true]);
-    if (icLines > 0) specs.push(['ic-l2', 'mem', 'ic', 'l2', 3, undefined, true]);
+    if (icLines > 0) {
+      specs.push(['ic-l2', 'mem', 'ic', 'l2', 3, undefined, true]);
+    }
   } else {
     specs.push(['dc-fab', 'mem', 'dc', 'fabric', 3, undefined, true]);
-    if (icLines > 0) specs.push(['ic-fab', 'mem', 'ic', 'fabric', 3, undefined, true]);
+    if (icLines > 0) {
+      specs.push(['ic-fab', 'mem', 'ic', 'fabric', 3, undefined, true]);
+    }
   }
   specs.push(...edgeLinks(['if', 'id', 'ex', 'mem', 'wbf'], 'npc', 'fetch'));
   return { tree, specs: links(specs) };
@@ -342,7 +378,11 @@ function pipeline(i: PlanInput, cw: number = CORE.w, tile = false): { tree: Node
 
 // ---------------------------------------------------------------- out of order
 
-function outOfOrder(i: PlanInput, cw: number = CORE.w, tile = false): { tree: Node; specs: LinkSpec[] } {
+function outOfOrder(
+  i: PlanInput,
+  cw: number = CORE.w,
+  tile = false,
+): { tree: cpufloor.Node; specs: cpufloor.LinkSpec[] } {
   const W = i.width ?? 2,
     rob = i.robSize ?? 8,
     sched = i.schedSize ?? 6,
@@ -354,35 +394,35 @@ function outOfOrder(i: PlanInput, cw: number = CORE.w, tile = false): { tree: No
     tlb = i.tlbEntries ?? 0;
   const predEntries = i.predEntries ?? 64,
     predBits = i.predBits ?? 1;
-  const frame = (id: string, label: string, stage: number, kids: Node[], f: number) =>
-    col(kids, { frame: { id, kind: 'stage', label, stage }, f });
+  const frame = (id: string, label: string, stage: number, kids: cpufloor.Node[], f: number) =>
+    cpufloor.col(kids, { frame: { id, kind: 'stage', label, stage }, f });
   const defs = [{ f: 1.35 }, { f: 0.45 }, { f: 0.95 }, { f: 1.05 }, { f: 1.1 }, { f: 1.25 }, { px: 26 }];
-  const sp = spans(cw, defs, GAP);
+  const sp = cpufloor.spans(cw, defs, cpufloor.GAP);
   const cover = (a: number, b: number) => sp[b]![0] + sp[b]![1] - sp[a]![0];
   const decs = Array.from({ length: W }, (_, k) =>
-    leaf(`dec${k}`, 'decode', `DECODER ${String.fromCharCode(65 + k)}`, { lane: k, shape: [8, 4], f: 1 }),
+    cpufloor.leaf(`dec${k}`, 'decode', `DECODER ${String.fromCharCode(65 + k)}`, { lane: k, shape: [8, 4], f: 1 }),
   );
-  const stageRow = row(
+  const stageRow = cpufloor.row(
     [
       frame(
         'if',
         'IF · FETCH',
         0,
         [
-          leaf('bp', 'predictor', 'BRANCH PREDICTOR', {
+          cpufloor.leaf('bp', 'predictor', 'BRANCH PREDICTOR', {
             cells: predEntries,
             sub: `${predEntries} x ${predBits}-bit`,
             f: 1.4,
           }),
-          row(
+          cpufloor.row(
             [
-              leaf('npc', 'nextpc', 'NEXT PC', { shape: [32, 1] }),
-              leaf('pcadd', 'pcadd', `PC + ${4 * W}`, { shape: [32, 1] }),
+              cpufloor.leaf('npc', 'nextpc', 'NEXT PC', { shape: [32, 1] }),
+              cpufloor.leaf('pcadd', 'pcadd', `PC + ${4 * W}`, { shape: [32, 1] }),
             ],
             { px: 52 },
           ),
-          leaf('pc', 'pc', 'PC', { shape: [32, 1], px: 46 }),
-          leaf('fetch', 'fetch', W > 1 ? `FETCH × ${W}` : 'FETCH', {
+          cpufloor.leaf('pc', 'pc', 'PC', { shape: [32, 1], px: 46 }),
+          cpufloor.leaf('fetch', 'fetch', W > 1 ? `FETCH × ${W}` : 'FETCH', {
             sub: icLines ? 'reads the I-cache' : 'reads RAM',
             shape: [32, 1],
             f: 1,
@@ -390,28 +430,48 @@ function outOfOrder(i: PlanInput, cw: number = CORE.w, tile = false): { tree: No
         ],
         1.35,
       ),
-      leaf('fq', 'queue', 'FETCH QUEUE', { cells: fq, ring: true, sub: `${fq} slots`, f: 0.45 }),
-      frame('dcf', 'ID · DECODE', 1, [leaf('imm', 'imm', 'IMMEDIATE', { shape: [32, 1], px: 46 }), ...decs], 0.95),
+      cpufloor.leaf('fq', 'queue', 'FETCH QUEUE', { cells: fq, ring: true, sub: `${fq} slots`, f: 0.45 }),
+      frame(
+        'dcf',
+        'ID · DECODE',
+        1,
+        [cpufloor.leaf('imm', 'imm', 'IMMEDIATE', { shape: [32, 1], px: 46 }), ...decs],
+        0.95,
+      ),
       frame(
         'rnf',
         'RENAME',
         1,
         [
-          leaf('rat', 'rename', 'RENAME TABLE', { cells: 16, sub: 'register to producer', f: 1.3 }),
-          leaf('disp', 'queue', 'DISPATCH', { sub: `${W} a cycle`, px: 64 }),
+          cpufloor.leaf('rat', 'rename', 'RENAME TABLE', { cells: 16, sub: 'register to producer', f: 1.3 }),
+          cpufloor.leaf('disp', 'queue', 'DISPATCH', { sub: `${W} a cycle`, px: 64 }),
         ],
         1.05,
       ),
-      leaf('sched', 'sched', 'SCHEDULER', { cells: sched, sub: `${sched} entries · oldest ready first`, f: 1.1 }),
+      cpufloor.leaf('sched', 'sched', 'SCHEDULER', {
+        cells: sched,
+        sub: `${sched} entries · oldest ready first`,
+        f: 1.1,
+      }),
       frame(
         'exf',
         'EXECUTE',
         2,
         [
-          leaf('alu0', 'alu', 'ALU 0', { sub: 'add · logic · shift · branch', unit: 'ALU0', shape: [32, 1], f: 1 }),
-          leaf('alu1', 'alu', 'ALU 1', { sub: 'add · logic · shift · branch', unit: 'ALU1', shape: [32, 1], f: 1 }),
-          leaf('mul', 'mul', 'MULTIPLIER', { sub: '3 cycles', unit: 'MUL', shape: [32, 1], f: 1 }),
-          leaf('lsu', 'lsu', 'LOAD / STORE', {
+          cpufloor.leaf('alu0', 'alu', 'ALU 0', {
+            sub: 'add · logic · shift · branch',
+            unit: 'ALU0',
+            shape: [32, 1],
+            f: 1,
+          }),
+          cpufloor.leaf('alu1', 'alu', 'ALU 1', {
+            sub: 'add · logic · shift · branch',
+            unit: 'ALU1',
+            shape: [32, 1],
+            f: 1,
+          }),
+          cpufloor.leaf('mul', 'mul', 'MULTIPLIER', { sub: '3 cycles', unit: 'MUL', shape: [32, 1], f: 1 }),
+          cpufloor.leaf('lsu', 'lsu', 'LOAD / STORE', {
             sub: 'loads wait for older stores',
             unit: 'LSU',
             shape: [32, 1],
@@ -420,39 +480,45 @@ function outOfOrder(i: PlanInput, cw: number = CORE.w, tile = false): { tree: No
         ],
         1.25,
       ),
-      leaf('bus', 'resultbus', 'RESULT BUS', { px: 26 }),
+      cpufloor.leaf('bus', 'resultbus', 'RESULT BUS', { px: 26 }),
     ],
     { f: 50 },
   );
-  const southRow = row(
+  const southRow = cpufloor.row(
     [
       ...(icLines > 0
-        ? [leaf('ic', 'icache', 'I-CACHE', { cells: icLines, sub: cacheSub(icLines, 1), px: cover(0, 1) })]
+        ? [cpufloor.leaf('ic', 'icache', 'I-CACHE', { cells: icLines, sub: cacheSub(icLines, 1), px: cover(0, 1) })]
         : []),
-      leaf('rf', 'regfile', 'REGISTER FILE', {
+      cpufloor.leaf('rf', 'regfile', 'REGISTER FILE', {
         cells: 16,
         sub: `${W} read · commit write`,
         px: icLines > 0 ? cover(2, 2) : cover(0, 2),
       }),
-      leaf('rob', 'rob', 'REORDER BUFFER', {
+      cpufloor.leaf('rob', 'rob', 'REORDER BUFFER', {
         cells: rob,
         ring: true,
         sub: `${rob} entries · commit ${i.commitWidth ?? W} a cycle`,
         px: cover(3, 4),
       }),
       ...(tlb > 0
-        ? [leaf('tlb', 'tlb', 'TLB', { cells: tlb, sub: `${tlb} entries · virtual to physical`, f: 0.55 })]
+        ? [cpufloor.leaf('tlb', 'tlb', 'TLB', { cells: tlb, sub: `${tlb} entries · virtual to physical`, f: 0.55 })]
         : []),
-      leaf('dc', 'dcache', 'D-CACHE', { cells: lines, sub: cacheSub(lines, ways), f: 1 }),
+      cpufloor.leaf('dc', 'dcache', 'D-CACHE', { cells: lines, sub: cacheSub(lines, ways), f: 1 }),
     ],
     { f: 31 },
   );
-  const tree = col(
+  const tree = cpufloor.col(
     [
       stageRow,
       southRow,
       ...(l2Lines > 0 && !tile
-        ? [leaf('l2', 'l2', 'L2 CACHE', { cells: l2Lines, sub: `${l2Lines} lines · shared by both L1s`, px: 92 })]
+        ? [
+            cpufloor.leaf('l2', 'l2', 'L2 CACHE', {
+              cells: l2Lines,
+              sub: `${l2Lines} lines · shared by both L1s`,
+              px: 92,
+            }),
+          ]
         : []),
       ...(tile ? [] : [fabric()]),
     ],
@@ -489,28 +555,31 @@ function outOfOrder(i: PlanInput, cw: number = CORE.w, tile = false): { tree: No
         ]
       : []),
   ];
-  for (let k = 0; k < W; k++)
+  for (let k = 0; k < W; k++) {
     specs.push(
       [`fq-dec${k}`, 'data', 'fq', `dec${k}`, 2],
       [`dec${k}-rat`, 'data', `dec${k}`, 'rat', 2],
       [`dec${k}-rf`, 'data', `dec${k}`, 'rf', 2, k === 0 ? 'read' : undefined],
     );
-  for (const u of ['alu0', 'alu1', 'mul', 'lsu'])
+  }
+  for (const u of ['alu0', 'alu1', 'mul', 'lsu']) {
     specs.push(
       [`sched-${u}`, 'data', 'sched', u, 2, u === 'alu0' ? 'issue' : undefined],
       [`${u}-bus`, 'data', u, 'bus', 2],
     );
-  if (l2Lines > 0)
+  }
+  if (l2Lines > 0) {
     specs.push(
       ['dc-l2', 'mem', 'dc', 'l2', 3, undefined, true],
       ['l2-fab', 'mem', 'l2', 'fabric', 3, undefined, true],
       ...(icLines > 0 ? [['ic-l2', 'mem', 'ic', 'l2', 3, undefined, true] as L] : []),
     );
-  else
+  } else {
     specs.push(
       ['dc-fab', 'mem', 'dc', 'fabric', 3, undefined, true],
       ...(icLines > 0 ? [['ic-fab', 'mem', 'ic', 'fabric', 3, undefined, true] as L] : []),
     );
+  }
   specs.push(...edgeLinks(['if', 'dcf', 'rnf', 'sched', 'exf'], 'npc', 'fetch'));
   return { tree, specs: links(specs) };
 }
@@ -522,18 +591,18 @@ const cache = new Map<string, CpuPlan>();
 function single(i: PlanInput): CpuPlan {
   const { tree, specs } = i.arch === 'ooo' ? outOfOrder(i) : pipeline(i);
   const blocks: Block[] = [];
-  place(ringTree(tree), R, blocks, 'edge');
-  return { arch: i.arch, cores: 1, die: DIE_PLAN, blocks, links: routeLinks(DIE_PLAN, blocks, specs) };
+  cpufloor.place(ringTree(tree), R, blocks, 'edge');
+  return { arch: i.arch, cores: 1, die: DIE_PLAN, blocks, links: cpufloor.routeLinks(DIE_PLAN, blocks, specs) };
 }
 
 /** One core of a multicore die: the core's floorplan laid out in a w x h rectangle at the origin, its links routed in it. */
 function coreTile(i: PlanInput, w: number, h: number): { blocks: Block[]; links: Link[] } {
   const { tree, specs } = i.arch === 'ooo' ? outOfOrder(i, w, true) : pipeline(i, w, true);
   const blocks: Block[] = [];
-  place(tree, { x: 0, y: 0, w, h }, blocks, 'core');
+  cpufloor.place(tree, { x: 0, y: 0, w, h }, blocks, 'core');
   const have = new Set(blocks.map((b) => b.id));
   const inner = specs.filter((l) => have.has(l.from) && have.has(l.to));
-  return { blocks, links: routeLinks({ x: -24, y: -24, w: w + 48, h: h + 48 }, blocks, inner, false) }; // docked into the symbols once the tile is placed (the symbols are drawn at the placed size)
+  return { blocks, links: cpufloor.routeLinks({ x: -24, y: -24, w: w + 48, h: h + 48 }, blocks, inner, false) }; // docked into the symbols once the tile is placed (the symbols are drawn at the placed size)
 }
 
 /** The width a core tile is laid out at before it is scaled into its cell on the die. */
@@ -543,12 +612,12 @@ export const CORE_TILE_W = 1136;
 function multicore(i: PlanInput): CpuPlan {
   const n = Math.max(2, Math.floor(i.cores ?? 2));
   // the ring blocks, with the core area holding a placeholder for the tiles, the shared L2 and the system bus
-  const holder = col(
+  const holder = cpufloor.col(
     [
-      row(
+      cpufloor.row(
         [
-          leaf('__tiles', 'stage', ''),
-          leaf('l2s', 'l2', 'SHARED L2', {
+          cpufloor.leaf('__tiles', 'stage', ''),
+          cpufloor.leaf('l2s', 'l2', 'SHARED L2', {
             cells: i.l2Lines ?? 64,
             sub: `${i.l2Lines ?? 64} lines · all cores`,
             px: 150,
@@ -562,7 +631,7 @@ function multicore(i: PlanInput): CpuPlan {
     { f: 1, zone: 'core' },
   );
   const ring: Block[] = [];
-  place(ringTree(holder), R, ring, 'edge');
+  cpufloor.place(ringTree(holder), R, ring, 'edge');
   const region = ring.find((b) => b.id === '__tiles')!.rect;
   const blocks = ring.filter((b) => b.id !== '__tiles');
   const G2 = 18,
@@ -571,14 +640,18 @@ function multicore(i: PlanInput): CpuPlan {
   // (a tall stack of wide tiles has the biggest scale but leaves the region half empty: a squarer grid fills it)
   let best = { cols: 1, rows: n, s: 0, th: 0, area: 0 };
   for (let cols = 1; cols <= n; cols++) {
-    if (n % cols !== 0) continue;
+    if (n % cols !== 0) {
+      continue;
+    }
     const rows = n / cols;
     const cellW = (region.w - (cols - 1) * G2) / cols,
       cellH = (region.h - (rows - 1) * G2) / rows;
     const th = Math.min(900, Math.max(380, Math.round((TW * cellH) / cellW)));
     const s = Math.min(cellW / TW, cellH / th),
       area = s * s * TW * th;
-    if (area > best.area + 1e-6) best = { cols, rows, s, th, area };
+    if (area > best.area + 1e-6) {
+      best = { cols, rows, s, th, area };
+    }
   }
   const { cols, rows, s, th } = best;
   const cellW = (region.w - (cols - 1) * G2) / cols,
@@ -612,7 +685,7 @@ function multicore(i: PlanInput): CpuPlan {
         .filter((q, m, all) => m === 0 || q[0] !== all[m - 1]![0] || q[1] !== all[m - 1]![1]);
       const a = blocks.find((b) => b.id === p + l.from),
         c = blocks.find((b) => b.id === p + l.to);
-      if (pts.length >= 2)
+      if (pts.length >= 2) {
         inner.push({
           ...l,
           id: p + l.id,
@@ -620,6 +693,7 @@ function multicore(i: PlanInput): CpuPlan {
           to: p + l.to,
           pts: a && c ? dockLink(a, c, l.id, pts) : pts,
         });
+      }
     }
   }
   void ids;
@@ -633,19 +707,23 @@ function multicore(i: PlanInput): CpuPlan {
       [`${p}dev-fab`, 'mmio', `${p}${i.arch === 'ooo' ? 'lsu' : 'dev'}`, 'fabric', 2],
     );
   }
-  for (let k = 0; k < n; k++) outs.push([`c${k}.irq`, 'irq', 'intc', `c${k}.pc`, 1]);
+  for (let k = 0; k < n; k++) {
+    outs.push([`c${k}.irq`, 'irq', 'intc', `c${k}.pc`, 1]);
+  }
   outs.push(
     ['l2-fab', 'mem', 'l2s', 'fabric', 4, undefined, true],
     ...edgeLinks([], 'c0.pc', 'c0.fetch').filter((l) => !['irq-pc', 'clk-core'].includes(l[0])),
   );
-  const routed = routeLinks(DIE_PLAN, blocks, links(outs));
+  const routed = cpufloor.routeLinks(DIE_PLAN, blocks, links(outs));
   return { arch: i.arch, cores: n, die: DIE_PLAN, blocks, links: [...inner, ...routed], tiles };
 }
 
 export function cpuPlan(i: PlanInput): CpuPlan {
   const key = JSON.stringify(i);
   const hit = cache.get(key);
-  if (hit) return hit;
+  if (hit) {
+    return hit;
+  }
   const plan = (i.cores ?? 1) > 1 ? multicore(i) : single(i);
   cache.set(key, plan);
   return plan;

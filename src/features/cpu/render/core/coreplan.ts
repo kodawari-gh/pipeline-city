@@ -27,9 +27,11 @@ export interface SplitPlan {
 /** The plan split into its shared part and its core tiles, or null for a single-core plan. */
 export function splitPlan(plan: CpuPlan): SplitPlan | null {
   const rects = plan.tiles;
-  if (plan.cores < 2 || !rects) return null;
+  if (plan.cores < 2 || !rects) {
+    return null;
+  }
   const inCore = (b: Block) => b.core !== undefined;
-  const coreOf = (id: string) => /^c(\d+)\./.exec(id)?.[1];
+  const coreOf = (id: string) => /^c(?<core>\d+)\./u.exec(id)?.groups?.['core'];
   const shared = plan.blocks.filter((b) => !inCore(b));
   const isShared = (id: string) => coreOf(id) === undefined;
   const sharedName = (id: string) => (id === 'l2s' ? 'l2' : id);
