@@ -17,21 +17,32 @@ import {
   SkinnedMesh,
   VSMShadowMap,
   WebGLRenderTarget,
-  type Camera,
-  type Light,
-  type Material,
-  type Object3D,
-  type PointLight,
-  type Side,
-  type Texture,
-  type WebGLRenderer,
 } from 'three';
+import type * as threeTypes from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 
 /** A program as three keeps it: `isReady` asks the driver whether its link has ended, without waiting; `getUniforms` is its first use (`prime`). */
 export interface Program {
   isReady(): boolean;
   getUniforms?(): unknown;
+}
+
+/** The opaque materials of the meshes under `fades`: `fadeTree` makes them see-through, another program each. */
+function opaqueUnder(fades: readonly threeTypes.Object3D[]): Set<threeTypes.Material> {
+  const flip = new Set<threeTypes.Material>();
+  for (const f of fades) {
+    f.traverse((x) => {
+      const m = (x as Mesh).material as threeTypes.Material | threeTypes.Material[] | undefined;
+      if (m) {
+        for (const mm of Array.isArray(m) ? m : [m]) {
+          if (!mm.transparent) {
+            flip.add(mm);
+          }
+        }
+      }
+    });
+  }
+  return flip;
 }
 
 /**
@@ -43,36 +54,35 @@ export interface Program {
  * Set the lights as they will be drawn first: a light shown or hidden, or one that casts a shadow or stops, makes every lit program again.
  */
 export function startPrograms(
-  r: WebGLRenderer,
-  root: Object3D,
-  cam: Camera,
+  r: threeTypes.WebGLRenderer,
+  root: threeTypes.Object3D,
+  cam: threeTypes.Camera,
   {
     scene = root as Scene,
     fades = [],
     toCanvas = false,
-  }: { scene?: Scene; fades?: readonly Object3D[]; toCanvas?: boolean } = {},
+  }: { scene?: Scene; fades?: readonly threeTypes.Object3D[]; toCanvas?: boolean } = {},
 ): Program[] {
-  const flip = new Set<Material>();
-  for (const f of fades)
-    f.traverse((x) => {
-      const m = (x as Mesh).material as Material | Material[] | undefined;
-      if (m) for (const mm of Array.isArray(m) ? m : [m]) if (!mm.transparent) flip.add(mm);
-    });
+  const flip = opaqueUnder(fades);
   const was = r.getRenderTarget(),
     rt = toCanvas ? null : new WebGLRenderTarget(1, 1, { type: HalfFloatType }),
     out = new Set<Program>();
   // (each variant a material has made: a see-through double-sided one makes two, its back and its front)
-  const take = (mats: Set<Material>) => {
+  const take = (mats: Set<threeTypes.Material>) => {
     for (const m of mats) {
       const p = r.properties.get(m) as { currentProgram?: Program; programs?: Map<string, Program> };
-      for (const q of p.programs?.values() ?? []) out.add(q);
-      if (p.currentProgram) out.add(p.currentProgram);
+      for (const q of p.programs?.values() ?? []) {
+        out.add(q);
+      }
+      if (p.currentProgram) {
+        out.add(p.currentProgram);
+      }
     }
   };
   r.setRenderTarget(rt);
   try {
     take(r.compile(root, cam, scene));
-    if (flip.size) {
+    if (flip.size > 0) {
       for (const m of flip) {
         m.transparent = true;
         m.needsUpdate = true;
@@ -94,16 +104,24 @@ export function startPrograms(
  * Starts linking the programs of passes that draw a quad (`Pass`): each material a pass holds, or its quad (`FullScreenQuad`), or an array of
  * its own holds (the bloom's blurs). Their defines must stand as they will be drawn (a pass that sets them as it draws is left out).
  */
-export function startPassPrograms(r: WebGLRenderer, passes: readonly object[]): Program[] {
-  const mats = new Set<Material>();
+export function startPassPrograms(r: threeTypes.WebGLRenderer, passes: readonly object[]): Program[] {
+  const mats = new Set<threeTypes.Material>();
   const add = (v: unknown) => {
-    if ((v as Material | null)?.isMaterial) mats.add(v as Material);
-    else if (v instanceof FullScreenQuad && v.material) mats.add(v.material);
+    if ((v as threeTypes.Material | null)?.isMaterial) {
+      mats.add(v as threeTypes.Material);
+    } else if (v instanceof FullScreenQuad && v.material) {
+      mats.add(v.material);
+    }
   };
-  for (const p of passes)
-    for (const v of Object.values(p))
-      if (Array.isArray(v)) v.forEach(add);
-      else add(v);
+  for (const p of passes) {
+    for (const v of Object.values(p)) {
+      if (Array.isArray(v)) {
+        v.forEach(add);
+      } else {
+        add(v);
+      }
+    }
+  }
   // (no normals, as `FullScreenQuad`'s triangle has none: three makes another program for a geometry with them, and that one would be drawn unlinked)
   const quad = new Mesh(new PlaneGeometry(2, 2).deleteAttribute('normal')),
     cam = new OrthographicCamera(),
@@ -117,17 +135,21 @@ export function startPassPrograms(r: WebGLRenderer, passes: readonly object[]): 
 }
 
 /** What three's depth pass reads from a material (`WebGLShadowMap.getDepthMaterial`); only some kinds of material have the maps. */
-type Casting = Material & {
-  map?: Texture | null;
-  alphaMap?: Texture | null;
-  displacementMap?: Texture | null;
+type Casting = threeTypes.Material & {
+  map?: threeTypes.Texture | null;
+  alphaMap?: threeTypes.Texture | null;
+  displacementMap?: threeTypes.Texture | null;
   displacementScale?: number;
   displacementBias?: number;
 };
 /** The side three's depth pass draws a material's faces with: the opposite one, so a lit face does not shadow itself (`WebGLShadowMap`). */
-const SHADOW_SIDE: Record<number, Side> = { [FrontSide]: BackSide, [BackSide]: FrontSide, [DoubleSide]: DoubleSide };
+const SHADOW_SIDE: Record<number, threeTypes.Side> = {
+  [FrontSide]: BackSide,
+  [BackSide]: FrontSide,
+  [DoubleSide]: DoubleSide,
+};
 /** The depth materials `startShadowPrograms` made for a renderer, by the state that keys their program: made once, kept while the renderer lives (a disposed one would free its program). */
-const depthMade = new WeakMap<WebGLRenderer, Map<string, MeshDepthMaterial | MeshDistanceMaterial>>();
+const depthMade = new WeakMap<threeTypes.WebGLRenderer, Map<string, MeshDepthMaterial | MeshDistanceMaterial>>();
 
 /**
  * Starts linking the programs of the shadows' depth pass. three makes a depth material for each kind of caster when a light first draws its
@@ -137,28 +159,46 @@ const depthMade = new WeakMap<WebGLRenderer, Map<string, MeshDepthMaterial | Mes
  * and `root`'s, as for `startPrograms` (their count is in every program's key). The depth pass is drawn with no fog (`_emptyScene`) and into
  * a render target: the programs are made so too, in a scene of their own that holds only the lights and these meshes.
  */
-export function startShadowPrograms(r: WebGLRenderer, scene: Object3D, cam: Camera, root: Object3D = scene): Program[] {
-  if (!r.shadowMap.enabled) return [];
-  const lights = new Set<Light>(),
+export function startShadowPrograms(
+  r: threeTypes.WebGLRenderer,
+  scene: threeTypes.Object3D,
+  cam: threeTypes.Camera,
+  root: threeTypes.Object3D = scene,
+): Program[] {
+  if (!r.shadowMap.enabled) {
+    return [];
+  }
+  const lights = new Set<threeTypes.Light>(),
     kinds = new Set<'depth' | 'distance'>();
-  for (const tree of root === scene ? [scene] : [scene, root])
+  for (const tree of root === scene ? [scene] : [scene, root]) {
     tree.traverseVisible((o) => {
-      const l = o as Light;
-      if (!l.isLight) return;
+      const l = o as threeTypes.Light;
+      if (!l.isLight) {
+        return;
+      }
       lights.add(l);
-      if (l.castShadow) kinds.add((l as PointLight).isPointLight ? 'distance' : 'depth');
+      if (l.castShadow) {
+        kinds.add((l as threeTypes.PointLight).isPointLight ? 'distance' : 'depth');
+      }
     });
-  if (!kinds.size) return [];
+  }
+  if (kinds.size === 0) {
+    return [];
+  }
   const vsm = r.shadowMap.type === VSMShadowMap;
   let pool = depthMade.get(r);
-  if (!pool) depthMade.set(r, (pool = new Map()));
+  if (!pool) {
+    depthMade.set(r, (pool = new Map()));
+  }
   const meshes: Mesh[] = [],
     seen = new Set<string>(),
     held = new Set<MeshDepthMaterial | MeshDistanceMaterial>();
   // (the hidden casters count too, as in `startPrograms`: the die under its lid)
   root.traverse((o) => {
     const m = o as Mesh;
-    if (!m.isMesh || !(m.castShadow || (vsm && m.receiveShadow))) return;
+    if (!m.isMesh || !(m.castShadow || (vsm && m.receiveShadow))) {
+      return;
+    }
     const im = o as InstancedMesh,
       sk = o as SkinnedMesh,
       g = m.geometry,
@@ -166,16 +206,18 @@ export function startShadowPrograms(r: WebGLRenderer, scene: Object3D, cam: Came
     // (what the geometry and the object make of the program's key: the instances, the skin, the normals, the morph targets)
     const shape = [
       im.isInstancedMesh === true,
-      !!im.instanceColor,
+      Boolean(im.instanceColor),
       sk.isSkinnedMesh === true,
-      !!g.attributes['normal'],
-      !!mp.position,
-      !!mp.normal,
-      !!mp.color,
+      Boolean(g.attributes['normal']),
+      Boolean(mp.position),
+      Boolean(mp.normal),
+      Boolean(mp.color),
       (mp.position ?? mp.normal ?? mp.color)?.length ?? 0,
     ].join(',');
     for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
-      if (!mat.visible) continue;
+      if (!mat.visible) {
+        continue;
+      }
       const c = mat as Casting,
         side = mat.shadowSide ?? (vsm ? mat.side : SHADOW_SIDE[mat.side]!),
         test = mat.alphaToCoverage ? 0.5 : mat.alphaTest;
@@ -188,10 +230,14 @@ export function startShadowPrograms(r: WebGLRenderer, scene: Object3D, cam: Came
           c.displacementMap?.channel ?? '-',
           test > 0,
         ].join(',');
-        if (seen.has(state + shape)) continue;
+        if (seen.has(state + shape)) {
+          continue;
+        }
         seen.add(state + shape);
         let dm = pool.get(state);
-        if (!dm) pool.set(state, (dm = kind === 'depth' ? new MeshDepthMaterial() : new MeshDistanceMaterial()));
+        if (!dm) {
+          pool.set(state, (dm = kind === 'depth' ? new MeshDepthMaterial() : new MeshDistanceMaterial()));
+        }
         Object.assign(dm, {
           side,
           map: c.map ?? null,
@@ -210,7 +256,9 @@ export function startShadowPrograms(r: WebGLRenderer, scene: Object3D, cam: Came
       }
     }
   });
-  if (!meshes.length) return [];
+  if (meshes.length === 0) {
+    return [];
+  }
   // (the lights stay in their own trees: only this scene's list of children names them)
   const own = new Scene();
   own.children = [...lights, ...meshes];
@@ -245,15 +293,17 @@ export const linked = (programs: readonly Program[]): boolean => programs.every(
  */
 export function prime(left: Program[], ms: number): boolean {
   const end = performance.now() + ms;
-  while (left.length && performance.now() < end) {
+  while (left.length > 0 && performance.now() < end) {
     const p = left.pop()!;
-    if (!gone(p)) p.getUniforms?.();
+    if (!gone(p)) {
+      p.getUniforms?.();
+    }
   }
-  return !left.length;
+  return left.length === 0;
 }
 
 /** The longest a first picture waits for its programs to link; then it draws, and the driver finishes the link in that draw. */
-export const LINK_MAX_MS = 15000;
+export const LINK_MAX_MS = 15_000;
 /** The time a tick spends on the first use of linked programs (`prime`): the page stays alive between the ticks. */
 const PRIME_MS = 4;
 
@@ -281,7 +331,9 @@ export class ProgramGate {
       this.from = now;
       this.linking = this.start();
     }
-    if (!linked(this.linking)) return now - this.from > LINK_MAX_MS;
+    if (!linked(this.linking)) {
+      return now - this.from > LINK_MAX_MS;
+    }
     this.priming ??= [...this.linking];
     return prime(this.priming, PRIME_MS);
   }
@@ -292,15 +344,20 @@ export class ProgramGate {
 }
 
 /** The programs the materials under `root` have made so far (none is made here). */
-function programsOf(r: WebGLRenderer, root: Object3D): Program[] {
+function programsOf(r: threeTypes.WebGLRenderer, root: threeTypes.Object3D): Program[] {
   const out = new Set<Program>();
   root.traverse((x) => {
-    const m = (x as Mesh).material as Material | Material[] | undefined;
-    if (!m) return;
+    const m = (x as Mesh).material as threeTypes.Material | threeTypes.Material[] | undefined;
+    if (!m) {
+      return;
+    }
     for (const mm of Array.isArray(m) ? m : [m]) {
-      if (!r.properties.has(mm)) continue;
-      for (const q of (r.properties.get(mm) as { programs?: Map<string, Program> }).programs?.values() ?? [])
+      if (!r.properties.has(mm)) {
+        continue;
+      }
+      for (const q of (r.properties.get(mm) as { programs?: Map<string, Program> }).programs?.values() ?? []) {
         out.add(q);
+      }
     }
   });
   return [...out];
@@ -311,11 +368,19 @@ function programsOf(r: WebGLRenderer, root: Object3D): Program[] {
  * driver about a program that still links, and a program deleted meanwhile logs `GL_INVALID_VALUE: glGetProgramiv` for each such ask (a preset
  * change that builds the room again, with a program of the old room not yet linked).
  */
-export function freeWhenLinked(r: WebGLRenderer, root: Object3D, free: () => void, ms = 100): void {
+export function freeWhenLinked(
+  r: threeTypes.WebGLRenderer,
+  root: threeTypes.Object3D,
+  free: () => void,
+  ms = 100,
+): void {
   const programs = programsOf(r, root);
   const look = () => {
-    if (linked(programs)) free();
-    else setTimeout(look, ms);
+    if (linked(programs)) {
+      free();
+    } else {
+      setTimeout(look, ms);
+    }
   };
   look();
 }
@@ -329,10 +394,17 @@ export function whenLinked(
   return new Promise((done) => {
     const look = () => {
       let n = 0;
-      for (const p of programs) if (programDone(p)) n++;
+      for (const p of programs) {
+        if (programDone(p)) {
+          n++;
+        }
+      }
       onProgress?.(n, programs.length);
-      if (n === programs.length) done();
-      else setTimeout(look, ms);
+      if (n === programs.length) {
+        done();
+      } else {
+        setTimeout(look, ms);
+      }
     };
     look();
   });

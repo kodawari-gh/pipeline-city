@@ -2,7 +2,8 @@
 // shows the window in the wrong place. Here each fragment follows its reflected ray to the room's box (a wall, the floor, the ceiling) and looks up
 // the probe toward that hit point instead: the window lands in the floor where it should, near things grow and slide as the eye moves. One ray
 // against six planes a fragment; the same program for all, switched on and off by a uniform (the studio's environment is not a room).
-import { ShaderChunk, Vector3, type Material, type WebGLProgramParametersWithUniforms } from 'three';
+import { ShaderChunk, Vector3 } from 'three';
+import type * as threeTypes from 'three';
 
 /** The box and the probe's point (world), shared by all the materials it patches; `on` is 0 until the probe holds the room. */
 export interface BoxEnv {
@@ -43,20 +44,23 @@ const RADIANCE = ShaderChunk.envmap_physical_pars_fragment.replace(
 );
 
 /** The materials `boxProjected` patched. */
-const patched = new WeakSet<Material>();
+const patched = new WeakSet<threeTypes.Material>();
 /** Has the box patch: patched here, or a copy that took the hooks of one (the light map's and the palette's copies keep its key). */
-const hasBox = (m: Material): boolean => patched.has(m) || m.customProgramCacheKey().split('|').includes('box');
+const hasBox = (m: threeTypes.Material): boolean =>
+  patched.has(m) || m.customProgramCacheKey().split('|').includes('box');
 
 /**
  * Patches a material's shader to project its reflections onto `box`; keeps an `onBeforeCompile` it already has. A material with the patch
  * already stays as it is (and keeps its box): a second patch declares `vBoxPos` twice, and that program does not compile (nothing draws).
  */
-export function boxProjected(m: Material, box: BoxEnv): void {
-  if (hasBox(m)) return;
+export function boxProjected(m: threeTypes.Material, box: BoxEnv): void {
+  if (hasBox(m)) {
+    return;
+  }
   patched.add(m);
   const prev = m.onBeforeCompile.bind(m),
     key = `${m.customProgramCacheKey()}|box`;
-  m.onBeforeCompile = (sh: WebGLProgramParametersWithUniforms, r) => {
+  m.onBeforeCompile = (sh: threeTypes.WebGLProgramParametersWithUniforms, r) => {
     prev(sh, r);
     Object.assign(sh.uniforms, { boxMin: box.min, boxMax: box.max, boxAt: box.at, boxOn: box.on });
     sh.vertexShader = sh.vertexShader

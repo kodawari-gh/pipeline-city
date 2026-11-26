@@ -3,17 +3,8 @@
 // had no walls (a RAM board read bright green, High's reads near black). Here a fragment inside the case's box follows each spot light's ray
 // to the face of the box it leaves through, and takes that face's share of the light. One ray-box exit a light, no texture.
 import './arealoop';
-import {
-  Matrix4,
-  ShaderChunk,
-  Vector3,
-  type Box3,
-  type Material,
-  type Mesh,
-  type Object3D,
-  type WebGLProgramParametersWithUniforms,
-  type WebGLRenderer,
-} from 'three';
+import { Matrix4, ShaderChunk, Vector3 } from 'three';
+import type * as threeTypes from 'three';
 
 /** The share of a spot light each face of the case lets in: the faces toward +x, +y, +z of the case's box, then those toward -x, -y, -z. */
 export interface CasePass {
@@ -32,7 +23,7 @@ const UNIT = new Matrix4(),
   C = new Vector3(),
   H = new Vector3();
 /** Sets the case: its box in the frame of `world` (the machine's root), and what each face lets in. */
-export function setCaseShade(box: Box3, world: Matrix4, pass: CasePass): void {
+export function setCaseShade(box: threeTypes.Box3, world: Matrix4, pass: CasePass): void {
   box.getCenter(C);
   box.getSize(H).multiplyScalar(0.5);
   CASE_SHADE.inv.value
@@ -60,8 +51,9 @@ float caseShade( vec3 posView, vec3 dirView ) {
 }`;
 const SPOT_INFO = 'getSpotLightInfo( spotLight, geometryPosition, directLight );';
 const BEGIN = '#include <lights_fragment_begin>';
-if (!ShaderChunk.lights_fragment_begin.includes(SPOT_INFO))
+if (!ShaderChunk.lights_fragment_begin.includes(SPOT_INFO)) {
   throw new Error('case shade: three has no spot light call to patch');
+}
 const SHADED = ShaderChunk.lights_fragment_begin.replace(
   SPOT_INFO,
   `${SPOT_INFO}\n\t\tdirectLight.color *= caseShade( geometryPosition, directLight.direction );`,
@@ -70,32 +62,46 @@ const SHADED = ShaderChunk.lights_fragment_begin.replace(
 /** Patches a lit shader to shade its spot lights by the case. A shader whose light loop another patch already replaced stays as it is. */
 export function caseShadePatch(sh: { fragmentShader: string; uniforms?: Record<string, unknown> }): boolean {
   const f = sh.fragmentShader;
-  if (!f.includes(BEGIN) || !f.includes('#include <common>')) return false;
+  if (!f.includes(BEGIN) || !f.includes('#include <common>')) {
+    return false;
+  }
   sh.fragmentShader = f.replace('#include <common>', `#include <common>\n${CASE_PARS}`).replace(BEGIN, SHADED);
-  if (sh.uniforms)
+  if (sh.uniforms) {
     Object.assign(sh.uniforms, { uCaseInv: CASE_SHADE.inv, uCasePlus: CASE_SHADE.plus, uCaseMinus: CASE_SHADE.minus });
+  }
   return true;
 }
 
-type Lit = Material & { isMeshLambertMaterial?: boolean; isMeshStandardMaterial?: boolean };
+type Lit = threeTypes.Material & { isMeshLambertMaterial?: boolean; isMeshStandardMaterial?: boolean };
 /** The materials shaded now (a Lambert shares its source's `userData`, so the mark is not kept there). */
-const done = new WeakSet<Material>();
+const done = new WeakSet<threeTypes.Material>();
 const isLit = (m: Lit): boolean => m.isMeshLambertMaterial === true || m.isMeshStandardMaterial === true;
+/** A material's own compile hooks, as they were before it was shaded. */
+interface Hooks {
+  before: threeTypes.Material['onBeforeCompile'];
+  key: threeTypes.Material['customProgramCacheKey'];
+}
 
 /**
  * Shades the lit materials (Lambert, standard) of the meshes under `root` by the case, and returns the function that undoes it. Apply it after
  * `cheapMaterials`, so it takes the Lamberts. Call `sync` after a rebuild adds meshes. A material is patched once, whoever shares it.
  */
-export function caseShaded(root: Object3D): { sync(): void; undo(): void } {
-  const was = new Map<Material, { before: Material['onBeforeCompile']; key: Material['customProgramCacheKey'] }>();
+export function caseShaded(root: threeTypes.Object3D): { sync(): void; undo(): void } {
+  const was = new Map<threeTypes.Material, Hooks>();
   const shade = (m: Lit) => {
-    if (!isLit(m) || done.has(m)) return;
+    if (!isLit(m) || done.has(m)) {
+      return;
+    }
     const before = m.onBeforeCompile,
       key = m.customProgramCacheKey,
       fixed = m.customProgramCacheKey();
     was.set(m, { before, key });
     done.add(m);
-    m.onBeforeCompile = function (this: Material, sh: WebGLProgramParametersWithUniforms, r: WebGLRenderer) {
+    m.onBeforeCompile = function (
+      this: threeTypes.Material,
+      sh: threeTypes.WebGLProgramParametersWithUniforms,
+      r: threeTypes.WebGLRenderer,
+    ) {
       before.call(this, sh, r);
       caseShadePatch(sh);
     };
@@ -106,10 +112,15 @@ export function caseShaded(root: Object3D): { sync(): void; undo(): void } {
   };
   const sync = () =>
     root.traverse((o) => {
-      const mesh = o as Mesh;
-      if (!mesh.isMesh) return;
-      if (Array.isArray(mesh.material)) mesh.material.forEach(shade);
-      else shade(mesh.material);
+      const mesh = o as threeTypes.Mesh;
+      if (!mesh.isMesh) {
+        return;
+      }
+      if (Array.isArray(mesh.material)) {
+        mesh.material.forEach(shade);
+      } else {
+        shade(mesh.material);
+      }
     });
   sync();
   return {

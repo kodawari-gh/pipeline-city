@@ -8,7 +8,9 @@ export const union =
   (...parts: Sdf[]): Sdf =>
   (x, y, z) => {
     let d = Infinity;
-    for (const p of parts) d = Math.min(d, p(x, y, z));
+    for (const p of parts) {
+      d = Math.min(d, p(x, y, z));
+    }
     return d;
   };
 

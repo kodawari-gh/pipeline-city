@@ -1,19 +1,12 @@
 // Palette and state looks of the 3D parts (docs/3D_STYLE.md). `partLook` is pure: a part's state in, the colour factor and glow out.
 // `shareMaterials` lets equal materials of a built tree become one (fewer uniform uploads per frame); `own` keeps a writer's material out of it.
-import {
-  Color,
-  Material,
-  MeshPhysicalMaterial,
-  MeshStandardMaterial,
-  type Mesh,
-  type MeshPhysicalMaterialParameters,
-  type MeshStandardMaterialParameters,
-  type Object3D,
-} from 'three';
-import { hubHex, POWER_LIFT, powerHex, sourceHex, WARN, type Role } from './powerscale';
+import { Color, Material, MeshPhysicalMaterial, MeshStandardMaterial } from 'three';
+import type * as threeTypes from 'three';
+import { hubHex, POWER_LIFT, powerHex, sourceHex, WARN } from './powerscale';
+import type * as powerscaleTypes from './powerscale';
 import { thermalHex } from './thermal';
 
-export const GLOW = { burnt: 0xff5a78 } as const;
+export const GLOW = { burnt: 0xff_5a_78 } as const;
 
 /** What a part's own look follows: whether it has power, and whether it burnt. A part that runs, runs hot or throttles looks as it always does (the lenses show those). */
 export interface PartState {
@@ -33,37 +26,44 @@ export const lerpHex = (a: number, b: number, t: number): number => {
 };
 
 export function partLook(s: PartState): PartLook {
-  if (s.burnt) return { tint: 0.3, glow: GLOW.burnt, glowIntensity: 0.8 };
-  if (!s.powered) return { tint: 0.5, glow: 0, glowIntensity: 0 };
+  if (s.burnt) {
+    return { tint: 0.3, glow: GLOW.burnt, glowIntensity: 0.8 };
+  }
+  if (!s.powered) {
+    return { tint: 0.5, glow: 0, glowIntensity: 0 };
+  }
   return { tint: 1, glow: 0, glowIntensity: 0 };
 }
 
 /** The base colours of the asset standard (docs/3D_STYLE.md "Asset standard" §1): darks, satins, PCB masks, gold, copper. */
 export const FAMILY: readonly number[] = [
-  0x050608, 0x131518, 0x1d1e22, 0x2a2d32, 0x4e5360, 0x959aa3, 0xb9babf, 0x16294d, 0x173d29, 0xd4af5f, 0xc0793a,
+  0x05_06_08, 0x13_15_18, 0x1d_1e_22, 0x2a_2d_32, 0x4e_53_60, 0x95_9a_a3, 0xb9_ba_bf, 0x16_29_4d, 0x17_3d_29,
+  0xd4_af_5f, 0xc0_79_3a,
 ];
 /**
  * Two real materials outside the families (docs/3D_STYLE.md "Asset standard" §1): natural nylon and PTFE (a standoff, a tie, a label's
  * base, a white plastic shell), and the ceramic of a chip capacitor.
  */
-export const NYLON = 0xd6d1c2,
-  CERAMIC = 0x9a7a52;
+export const NYLON = 0xd6_d1_c2,
+  CERAMIC = 0x9a_7a_52;
 /** The edge of a PCB's laminate: glass-epoxy seen side-on (docs/3D_STYLE.md §1). */
-export const LAMINATE = 0x45443a;
+export const LAMINATE = 0x45_44_3a;
 /** A colour nearer than this to a family colour (sum of the channel differences) is that family colour: the eye sees no difference. */
 const FAMILY_SNAP = 30;
 // the first 7 family colours are the grey ladder; a grey is a colour of at most this chroma, no warmer than neutral, no lighter than this
 const GREYS = 7,
   GREY_CHROMA = 28,
   GREY_TOP = 0xd8;
-const GOLD = 0xd4af5f,
+const GOLD = 0xd4_af_5f,
   GOLD_SNAP = 60;
 const snapped = new Map<number, number>();
 
 /** `color`, or the family colour it nearly is (ASR9): near-duplicates of one tone become one tone. */
 function familyHex(color: number): number {
   let out = snapped.get(color);
-  if (out !== undefined) return out;
+  if (out !== undefined) {
+    return out;
+  }
   out = color;
   const r = color >> 16,
     g = (color >> 8) & 255,
@@ -86,18 +86,18 @@ function familyHex(color: number): number {
   return out;
 }
 
-export const mat = (color: number, o: MeshStandardMaterialParameters = {}): MeshStandardMaterial =>
+export const mat = (color: number, o: threeTypes.MeshStandardMaterialParameters = {}): MeshStandardMaterial =>
   new MeshStandardMaterial({ color: familyHex(color), metalness: 0.05, roughness: 0.65, ...o });
 
 /** Cloth (linen, wool, velvet): matte, with the soft sheen a weave catches at a grazing look, which roughness alone cannot give. */
-export const cloth = (color: number, o: MeshPhysicalMaterialParameters = {}): MeshPhysicalMaterial =>
+export const cloth = (color: number, o: threeTypes.MeshPhysicalMaterialParameters = {}): MeshPhysicalMaterial =>
   new MeshPhysicalMaterial({
     color,
     metalness: 0,
     roughness: 0.92,
     sheen: 1,
     sheenRoughness: 0.6,
-    sheenColor: 0x5a5650,
+    sheenColor: 0x5a_56_50,
     ...o,
   });
 
@@ -130,7 +130,9 @@ export class PartSkin {
   }
 
   set(state: PartState): void {
-    if (!this.follows) return;
+    if (!this.follows) {
+      return;
+    }
     this.goal = partLook(state);
     this.goalGlow.setHex(this.goal.glow);
   }
@@ -149,7 +151,7 @@ export class PartSkin {
    * power part), one that draws glows brighter with its draw, in its role's colour (`role`: a use is amber, a hub, a supply that hands the power on, cyan, a source
    * white). `warn`: the glow is the warning's red (a supply over its budget). Null brings its own look back.
    */
-  electric(level: number | null, warn = false, role: Role = 'use'): void {
+  electric(level: number | null, warn = false, role: powerscaleTypes.Role = 'use'): void {
     this.goalHeat = level;
     this.lens = warn ? WARN_VIEW : ROLE_VIEW[role];
   }
@@ -172,15 +174,21 @@ export class PartSkin {
     const t = 1 - 0.002 ** dt;
     this.tint += (this.goal.tint - this.tint) * t;
     this.level += (this.goal.glowIntensity - this.level) * t;
-    if (this.goal.glowIntensity > 0) this.glow.lerp(this.goalGlow, t);
+    if (this.goal.glowIntensity > 0) {
+      this.glow.lerp(this.goalGlow, t);
+    }
     const on = this.goalHeat !== null;
     this.over += ((on ? 1 : 0) - this.over) * t;
-    if (on) this.heat += (this.goalHeat! - this.heat) * t;
+    if (on) {
+      this.heat += (this.goalHeat! - this.heat) * t;
+    }
     const k = this.over < 1e-3 ? 0 : this.over,
       v = this.lens,
       tint = this.tint + (v.body - this.tint) * k;
     this.shown.copy(this.glow);
-    if (k > 0) this.shown.lerp(this.hot.setHex(v.hex(this.heat)), k);
+    if (k > 0) {
+      this.shown.lerp(this.hot.setHex(v.hex(this.heat)), k);
+    }
     // (a part with wide faces glows softer in a lens that asks for it: `soft` is how far its `gain` counts there)
     const wide = 1 + (this.gain - 1) * v.soft;
     const level = this.level * this.gain * (1 - k) + (v.floor + v.gain * wide * this.heat ** v.bend) * k;
@@ -242,7 +250,7 @@ const WARN_VIEW: LensView = {
   soft: 0.6,
 };
 /** A hub shows what flows through it in cyan, a source in white: the same glow as a use. */
-const ROLE_VIEW: Readonly<Record<Role, LensView>> = {
+const ROLE_VIEW: Readonly<Record<powerscaleTypes.Role, LensView>> = {
   use: POWER_VIEW,
   hub: { ...POWER_VIEW, hex: hubHex },
   source: { ...POWER_VIEW, hex: sourceHex },
@@ -262,7 +270,7 @@ export function own<T extends Material>(m: T): T {
 // the program key of a material with no patch; the patches a shared material may carry (`boxenv`, `bakedao`, `lightmapmix`): each reads only
 // uniforms the whole room shares or its mesh's own attributes. Another patch may hold uniforms of its own (`artlod`): no share.
 const plain = (): string => Material.prototype.onBeforeCompile.toString();
-const PURE = /^(\|box|\|lm|\|ao[\d.e-]+)*$/;
+const PURE = /^(?:\|box|\|lm|\|ao[\d.e-]+)*$/u;
 // the fields that do not change the picture or the program (`userData` is keyed whole, the two hooks by the program key)
 const SKIP = new Set([
   'uuid',
@@ -278,15 +286,23 @@ const ids = new WeakMap<object, number>();
 let nextId = 0;
 const idOf = (o: object): number => {
   let n = ids.get(o);
-  if (n === undefined) ids.set(o, (n = ++nextId));
+  if (n === undefined) {
+    ids.set(o, (n = ++nextId));
+  }
   return n;
 };
 
 // (no JSON.stringify: a texture's `toJSON` would read its whole picture)
 function ser(v: unknown, depth = 0): string {
-  if (v === null || v === undefined) return String(v);
-  if (typeof v === 'string') return JSON.stringify(v);
-  if (typeof v !== 'object') return String(v);
+  if (v === null || v === undefined) {
+    return String(v);
+  }
+  if (typeof v === 'string') {
+    return JSON.stringify(v);
+  }
+  if (typeof v !== 'object') {
+    return String(v);
+  }
   const x = v as {
     isColor?: boolean;
     isVector2?: boolean;
@@ -298,9 +314,12 @@ function ser(v: unknown, depth = 0): string {
     const c = v as Color;
     return `c${c.r},${c.g},${c.b}`;
   }
-  if (x.isVector2 || x.isVector3 || x.isVector4 || x.isEuler)
+  if (x.isVector2 || x.isVector3 || x.isVector4 || x.isEuler) {
     return `v${(v as { toArray(): unknown[] }).toArray().join(',')}`;
-  if (depth < 8 && Array.isArray(v)) return `[${v.map((e) => ser(e, depth + 1)).join(',')}]`;
+  }
+  if (depth < 8 && Array.isArray(v)) {
+    return `[${v.map((e) => ser(e, depth + 1)).join(',')}]`;
+  }
   const proto = Object.getPrototypeOf(v) as unknown;
   if (depth < 8 && (proto === Object.prototype || proto === null)) {
     const o = v as Record<string, unknown>;
@@ -320,15 +339,23 @@ function ser(v: unknown, depth = 0): string {
  * merge keeps each mesh's colour, roughness and metalness on its vertices, `merge.ts`).
  */
 export function materialKey(m: Material, omit?: ReadonlySet<string>): string | null {
-  if (!(m as MeshStandardMaterial).isMeshStandardMaterial) return null;
+  if (!(m as MeshStandardMaterial).isMeshStandardMaterial) {
+    return null;
+  }
   const pk = m.customProgramCacheKey(),
     base = plain();
-  if (!pk.startsWith(base) || !PURE.test(pk.slice(base.length))) return null;
+  if (!pk.startsWith(base) || !PURE.test(pk.slice(base.length))) {
+    return null;
+  }
   const out = [m.type, `pk=${pk.slice(base.length)}`, `ud=${ser(m.userData)}`];
   for (const k of Object.keys(m).sort()) {
-    if (SKIP.has(k) || omit?.has(k)) continue;
+    if (SKIP.has(k) || omit?.has(k)) {
+      continue;
+    }
     const v = (m as unknown as Record<string, unknown>)[k];
-    if (typeof v === 'function') return null;
+    if (typeof v === 'function') {
+      return null;
+    }
     out.push(`${k}=${ser(v)}`);
   }
   return out.join(';');
@@ -341,17 +368,17 @@ export function stillMaterial(m: Material): boolean {
 }
 
 // a mesh's inputs to the program that three does not check on each draw (its attributes, its kind): a shared material keeps one program
-const kind = (o: Mesh): string => {
+const kind = (o: threeTypes.Mesh): string => {
   const g = o.geometry,
-    i = o as Mesh & { instanceColor?: unknown; morphTexture?: unknown };
-  return `${o.type}|${Object.keys(g.attributes).sort().join(',')}|${Object.keys(g.morphAttributes).sort().join(',')}|${!!i.instanceColor}|${!!i.morphTexture}`;
+    i = o as threeTypes.Mesh & { instanceColor?: unknown; morphTexture?: unknown };
+  return `${o.type}|${Object.keys(g.attributes).sort().join(',')}|${Object.keys(g.morphAttributes).sort().join(',')}|${Boolean(i.instanceColor)}|${Boolean(i.morphTexture)}`;
 };
 
 export interface ShareOptions {
   /** Subtrees left as they are: built again or written after the build (the key rack). Their materials are not shared outside them either. */
-  skip?: readonly Object3D[];
+  skip?: readonly threeTypes.Object3D[];
   /** Subtrees that fade alone (`fadeTree`: a lid, a cooler, a spreader): each is a scope of its own, so a fade changes nothing outside it. */
-  apart?: readonly Object3D[];
+  apart?: readonly threeTypes.Object3D[];
   /** Hears of each material replaced by an equal one before it is disposed (the room's reflections drop it). */
   onReplace?: (old: Material, canon: Material) => void;
   /**
@@ -376,11 +403,11 @@ export interface Shared {
  * scopes or kinds of mesh or by more than a plain mesh, and everything under `skip`. A writer that must change a mesh's material marks it `own`
  * before the share.
  */
-export function shareMaterials(root: Object3D, o: ShareOptions = {}): Shared {
+export function shareMaterials(root: threeTypes.Object3D, o: ShareOptions = {}): Shared {
   interface Use {
-    scope: Object3D | null;
+    scope: threeTypes.Object3D | null;
     kind: string | null;
-    meshes: Mesh[];
+    meshes: threeTypes.Mesh[];
     fixed: boolean;
     fade: boolean;
   }
@@ -389,15 +416,17 @@ export function shareMaterials(root: Object3D, o: ShareOptions = {}): Shared {
     apart = new Set(o.apart ?? []);
   const use = (m: Material): Use => {
     let u = uses.get(m);
-    if (!u) uses.set(m, (u = { scope: null, kind: null, meshes: [], fixed: false, fade: false }));
+    if (!u) {
+      uses.set(m, (u = { scope: null, kind: null, meshes: [], fixed: false, fade: false }));
+    }
     return u;
   };
   // `fade`: under a subtree that fades alone, at any depth (an id'd part inside a fading lid is still faded with it)
-  const walk = (x: Object3D, scope: Object3D, fixed: boolean, fade: boolean): void => {
+  const walk = (x: threeTypes.Object3D, scope: threeTypes.Object3D, fixed: boolean, fade: boolean): void => {
     const f = fixed || skip.has(x),
       fd = fade || apart.has(x),
       s = typeof x.userData['id'] === 'string' || apart.has(x) ? x : scope,
-      mesh = x as Mesh;
+      mesh = x as threeTypes.Mesh;
     const m = (x as { material?: Material | Material[] }).material;
     if (m) {
       for (const a of Array.isArray(m) ? m : [m]) {
@@ -407,21 +436,27 @@ export function shareMaterials(root: Object3D, o: ShareOptions = {}): Shared {
           continue;
         }
         const k = kind(mesh);
-        if (u.meshes.length && (u.scope !== s || u.kind !== k)) u.fixed = true;
+        if (u.meshes.length > 0 && (u.scope !== s || u.kind !== k)) {
+          u.fixed = true;
+        }
         u.scope = s;
         u.kind = k;
         u.fade ||= fd;
         u.meshes.push(mesh);
       }
     }
-    for (const c of x.children) walk(c, s, f, fd);
+    for (const c of x.children) {
+      walk(c, s, f, fd);
+    }
   };
   walk(root, root, false, false);
   const canon = new Map<string, Material>();
   let before = 0,
     after = 0;
   for (const [m, u] of uses) {
-    if (!(m as MeshStandardMaterial).isMeshStandardMaterial) continue;
+    if (!(m as MeshStandardMaterial).isMeshStandardMaterial) {
+      continue;
+    }
     before++;
     const key = u.fixed || !stillMaterial(m) ? null : materialKey(m);
     if (key === null) {
@@ -435,7 +470,9 @@ export function shareMaterials(root: Object3D, o: ShareOptions = {}): Shared {
       after++;
       continue;
     }
-    for (const mesh of u.meshes) mesh.material = c;
+    for (const mesh of u.meshes) {
+      mesh.material = c;
+    }
     o.onReplace?.(m, c);
     m.dispose();
   }

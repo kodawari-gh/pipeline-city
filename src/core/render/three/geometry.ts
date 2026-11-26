@@ -21,10 +21,8 @@ import {
   TubeGeometry,
   Vector2,
   Vector3,
-  type ExtrudeGeometryOptions,
-  type Material,
-  type Texture,
 } from 'three';
+import type * as threeTypes from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { sheetCut } from '@/core/render/three/detail';
 
@@ -41,17 +39,20 @@ export let anisotropy = 8;
 /** A new filtering for every canvas texture under `root`. Each is sent to the GPU again, so this is for a settings change, not for a frame. */
 export function refilter(root: Object3D, n: number): void {
   anisotropy = n;
-  const done = new Set<Texture>();
+  const done = new Set<threeTypes.Texture>();
   root.traverse((o) => {
-    const m = (o as Mesh).material as Material | Material[] | undefined;
-    for (const x of Array.isArray(m) ? m : m ? [m] : [])
+    const m = (o as Mesh).material as threeTypes.Material | threeTypes.Material[] | undefined;
+    for (const x of Array.isArray(m) ? m : m ? [m] : []) {
       for (const v of Object.values(x)) {
         const t = v as (CanvasTexture & { isCompressedTexture?: boolean }) | null;
-        if (!(t?.isCanvasTexture || t?.isCompressedTexture) || done.has(t)) continue; // (a baked map is compressed, `baked.ts`)
+        if (!(t?.isCanvasTexture || t?.isCompressedTexture) || done.has(t)) {
+          continue; // (a baked map is compressed, `baked.ts`)
+        }
         done.add(t);
         t.anisotropy = n;
         t.needsUpdate = true;
       }
+    }
   });
 }
 
@@ -71,15 +72,19 @@ export function healNormals<T extends BufferGeometry>(g: T, cols: number): T {
   const n = g.attributes['normal']!,
     ok = (i: number) => i >= 0 && i < n.count && Math.hypot(n.getX(i), n.getY(i), n.getZ(i)) > 0.5;
   for (let i = 0; i < n.count; i++) {
-    if (ok(i)) continue;
+    if (ok(i)) {
+      continue;
+    }
     const j = ok(i - cols) ? i - cols : i + cols;
-    if (ok(j)) n.setXYZ(i, n.getX(j), n.getY(j), n.getZ(j));
+    if (ok(j)) {
+      n.setXYZ(i, n.getX(j), n.getY(j), n.getZ(j));
+    }
   }
   return g;
 }
 
 /** A sharp box over a layout rect, from depth z0 to z1. */
-export function rectBox(r: RectLike, z0: number, z1: number, m: Material): Mesh {
+export function rectBox(r: RectLike, z0: number, z1: number, m: threeTypes.Material): Mesh {
   const g = new BoxGeometry(r.w, r.h, z1 - z0),
     o = new Mesh(g, m);
   o.position.set(r.x + r.w / 2, -(r.y + r.h / 2), (z0 + z1) / 2);
@@ -266,13 +271,17 @@ const FAN_SIDE_TABLE: readonly (readonly [number, number])[] = [
  */
 export const fanSides = (mm: number): number => {
   const first = FAN_SIDE_TABLE[0]!;
-  if (mm <= first[0]) return first[1];
+  if (mm <= first[0]) {
+    return first[1];
+  }
   for (let i = 1; i < FAN_SIDE_TABLE.length; i++) {
     const [x1, y1] = FAN_SIDE_TABLE[i]!,
       [x0, y0] = FAN_SIDE_TABLE[i - 1]!;
-    if (mm <= x1) return 2 * Math.round((y0 + ((y1 - y0) * (mm - x0)) / (x1 - x0)) / 2);
+    if (mm <= x1) {
+      return 2 * Math.round((y0 + ((y1 - y0) * (mm - x0)) / (x1 - x0)) / 2);
+    }
   }
-  return FAN_SIDE_TABLE[FAN_SIDE_TABLE.length - 1]![1];
+  return FAN_SIDE_TABLE.at(-1)![1];
 };
 
 /**
@@ -284,7 +293,9 @@ export const fanSides = (mm: number): number => {
 export const lowSides = (sides: number): number => Math.max(8, 4 * Math.round(sides / 8));
 /** Sets `g`'s lower detail level (`userData.low`) to `low()`, when `has`. Returns `g`. */
 export const withLow = <T extends BufferGeometry>(g: T, low: () => BufferGeometry, has = true): T => {
-  if (has) g.userData['low'] = low();
+  if (has) {
+    g.userData['low'] = low();
+  }
   return g;
 };
 const lowCylinder = (rTop: number, r: number, h: number, sides: number): CylinderGeometry =>
@@ -314,7 +325,9 @@ function reachOf(g: BufferGeometry): number[] {
     out = REACH.map(() => -Infinity);
   for (let i = 0; i < p.count; i++) {
     v.fromBufferAttribute(p, i);
-    for (let k = 0; k < REACH.length; k++) out[k] = Math.max(out[k]!, v.dot(REACH[k]!));
+    for (let k = 0; k < REACH.length; k++) {
+      out[k] = Math.max(out[k]!, v.dot(REACH[k]!));
+    }
   }
   return out;
 }
@@ -344,7 +357,7 @@ export function fitLow<T extends BufferGeometry>(g: T, tries: readonly (() => Bu
  * while the box's corner stands off the round one by at most `LOW_TOL` (a radius up to 16), else one step a corner: a chamfer, whose
  * corner and edge points stay on the round (108 triangles for 300).
  */
-export function softBox(r: RectLike, z0: number, z1: number, m: Material, radius = 40): Mesh {
+export function softBox(r: RectLike, z0: number, z1: number, m: threeTypes.Material, radius = 40): Mesh {
   const rad = Math.min(radius, r.w / 2.01, r.h / 2.01, (z1 - z0) / 2.01);
   const low = () =>
     rad * (Math.sqrt(3) - 1) <= LOW_TOL
@@ -363,7 +376,7 @@ export function post(
   z: number,
   r: number,
   h: number,
-  m: Material,
+  m: threeTypes.Material,
   sides: number = SEG.post,
   rTop = r,
 ): Mesh {
@@ -379,7 +392,7 @@ export function drum(
   z0: number,
   z1: number,
   r: number,
-  m: Material,
+  m: threeTypes.Material,
   sides: number = SEG.drum,
 ): Mesh {
   const o = new Mesh(lowCylinder(r, r, z1 - z0, sides), m);
@@ -393,7 +406,7 @@ export function rod(
   a: readonly [number, number, number],
   b: readonly [number, number, number],
   r: number,
-  m: Material,
+  m: threeTypes.Material,
   sides: number = SEG.rod,
 ): Mesh {
   const va = new Vector3(...a),
@@ -409,7 +422,7 @@ export function rod(
 export function tube(
   points: readonly (readonly [number, number, number])[],
   radius: number,
-  m: Material,
+  m: threeTypes.Material,
   sides: number = SEG.tube,
   segs = Math.max(8, points.length * 3),
 ): Mesh {
@@ -455,7 +468,7 @@ export function rounded(
       out.push([q.x, q.y, q.z]);
     }
   }
-  const l = pts[pts.length - 1]!;
+  const l = pts.at(-1)!;
   out.push([l[0], l[1], l[2]]);
   return out;
 }
@@ -463,7 +476,7 @@ export function rounded(
 /** Many copies of one geometry in one draw call. Each item gives its copy's position, and optionally its scale and its turn round z (`rz`). */
 export function instanced(
   g: BufferGeometry,
-  m: Material,
+  m: threeTypes.Material,
   items: readonly { x: number; y: number; z: number; sx?: number; sy?: number; sz?: number; rz?: number }[],
 ): InstancedMesh {
   const o = new InstancedMesh(g, m, items.length),
@@ -512,12 +525,13 @@ function fanBlade(
       pos.push(R * ux - uy * along * Math.cos(p), R * uy + ux * along * Math.cos(p), along * Math.sin(p) + lift);
     }
   }
-  for (let i = 0; i < seg; i++)
+  for (let i = 0; i < seg; i++) {
     for (let j = 0; j < across - 1; j++) {
       const a = i * across + j,
         c = a + across;
       idx.push(a, c, a + 1, a + 1, c, c + 1);
     }
+  }
   const g = new BufferGeometry();
   g.setAttribute('position', new Float32BufferAttribute(pos, 3));
   g.setIndex(idx);
@@ -532,8 +546,8 @@ function fanBlade(
 export function fanRotor(
   r: number,
   n: number,
-  blade: Material,
-  hub: Material,
+  blade: threeTypes.Material,
+  hub: threeTypes.Material,
   o: { chord?: number; pitch?: number; sides?: number; rings?: number } = {},
 ): Group {
   const rotor = new Group(),
@@ -596,8 +610,9 @@ export function fanFlange(d: number, t: number, w = d, sides: number = fanSides(
     [1, -1],
     [1, 1],
     [-1, 1],
-  ] as const)
+  ] as const) {
     s.holes.push(round(x * d * FAN_SCREW, y * d * FAN_SCREW, d * 0.022, low ? 6 : SEG.smallDisc));
+  }
   return extrude(s, {
     depth: t - 2 * b,
     bevelEnabled: true,
@@ -614,7 +629,7 @@ export function fanFlange(d: number, t: number, w = d, sides: number = fanSides(
  * the same way as a clockwise outline gets walls that face into the material, so they are culled and the background shows through the
  * opening's sides. Every extrusion with holes goes through here.
  */
-export function extrude(s: Shape, o: ExtrudeGeometryOptions = {}): ExtrudeGeometry {
+export function extrude(s: Shape, o: threeTypes.ExtrudeGeometryOptions = {}): ExtrudeGeometry {
   const seg = o.curveSegments ?? SEG.curveRound,
     cw = ShapeUtils.isClockWise(s.getPoints(seg));
   s.holes = s.holes.map((h) => {
@@ -630,8 +645,10 @@ export function paint(
   h: number,
   draw: (c: CanvasRenderingContext2D, w: number, h: number) => void,
   repeat?: [number, number],
-): Texture | null {
-  if (typeof document === 'undefined') return null;
+): threeTypes.Texture | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
   const cv = document.createElement('canvas');
   cv.width = w;
   cv.height = h;
@@ -652,7 +669,7 @@ export function paintLow(
   h: number,
   draw: (c: CanvasRenderingContext2D, w: number, h: number) => void,
   repeat?: [number, number],
-): Texture | null {
+): threeTypes.Texture | null {
   const k = sheetCut(w, h);
   return k < 1
     ? paint(
@@ -668,16 +685,18 @@ export function paintLow(
 }
 
 /** Textures that outlive the rebuild that made them (the caches): `disposeTree` leaves them alive. */
-const shared = new WeakSet<Texture>();
+const shared = new WeakSet<threeTypes.Texture>();
 /** Marks a cached texture as shared (`shareTex(paint(...))`); a null passes through. */
-export function shareTex<T extends Texture | null | undefined>(t: T): T {
-  if (t) shared.add(t);
+export function shareTex<T extends threeTypes.Texture | null | undefined>(t: T): T {
+  if (t) {
+    shared.add(t);
+  }
   return t;
 }
 
 /** A soft dark blob: the baked contact shadow under a thing that stands on a surface. */
-let blobTex: Texture | null = null;
-export function shadowBlob(): Texture | null {
+let blobTex: threeTypes.Texture | null = null;
+export function shadowBlob(): threeTypes.Texture | null {
   return (blobTex ??= shareTex(
     paint(128, 128, (c, w, h) => {
       const g = c.createRadialGradient(w / 2, h / 2, 4, w / 2, h / 2, w / 2);
@@ -700,14 +719,20 @@ export function disposeTree(root: Object3D, textures = false): void {
   root.traverse((o) => {
     const m = o as Mesh;
     // (an instanced mesh frees its instance buffers on its own 'dispose' event; the geometry's dispose leaves them)
-    if ((o as InstancedMesh).isInstancedMesh) (o as InstancedMesh).dispose();
+    if ((o as InstancedMesh).isInstancedMesh) {
+      (o as InstancedMesh).dispose();
+    }
     m.geometry?.dispose?.();
     const ms = Array.isArray(m.material) ? m.material : m.material ? [m.material] : [];
     for (const x of ms) {
       for (const v of Object.values(x)) {
-        const t = v as Texture | null;
-        if (t?.isRenderTargetTexture) continue;
-        if (t?.isTexture && (textures || !shared.has(t))) t.dispose();
+        const t = v as threeTypes.Texture | null;
+        if (t?.isRenderTargetTexture) {
+          continue;
+        }
+        if (t?.isTexture && (textures || !shared.has(t))) {
+          t.dispose();
+        }
       }
       x.dispose();
     }
@@ -720,6 +745,8 @@ export function disposeTree(root: Object3D, textures = false): void {
  */
 export function tornDown(o: Object3D): boolean {
   let top = o;
-  while (top.parent) top = top.parent;
-  return !!top.userData['disposed'];
+  while (top.parent) {
+    top = top.parent;
+  }
+  return Boolean(top.userData['disposed']);
 }

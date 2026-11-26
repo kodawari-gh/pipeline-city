@@ -20,7 +20,7 @@ export interface Box {
 }
 
 // (`heightMin`: the die is drawn at 0.7 of its own frame, so the closest view shows 90 of that frame's units)
-export const LIMITS = { yaw: 1.1, pitchMin: -0.08, pitchMax: 0.75, heightMin: 63, heightMax: 34000 };
+export const LIMITS = { yaw: 1.1, pitchMin: -0.08, pitchMax: 0.75, heightMin: 63, heightMax: 34_000 };
 /** Share of the gap to the goal that remains after one second. */
 const EASE_LEFT = 0.002;
 
@@ -82,9 +82,14 @@ function blocked(
       [hi[i]!, bl[i]! - gap - p[i]!],
     ] as const) {
       if (Math.abs(a) < 1e-12) {
-        if (c > 0) return null;
-      } else if (a > 0) t0 = Math.max(t0, c / a);
-      else t1 = Math.min(t1, c / a);
+        if (c > 0) {
+          return null;
+        }
+      } else if (a > 0) {
+        t0 = Math.max(t0, c / a);
+      } else {
+        t1 = Math.min(t1, c / a);
+      }
     }
   }
   return t0 <= t1 ? [t0, t1] : null;
@@ -108,11 +113,15 @@ export function sight(v: OrbitView, r: Room, blocks: readonly Room[] = [], fov =
     hi = [r.x1, r.y1, r.z1];
   let room = Infinity;
   for (let i = 0; i < 3; i++) {
-    if (Math.abs(d[i]!) < 1e-9) continue;
+    if (Math.abs(d[i]!) < 1e-9) {
+      continue;
+    }
     room = Math.min(room, ((d[i]! > 0 ? hi[i]! : lo[i]!) - p[i]!) / d[i]!);
   }
   room = Math.max(0, room);
-  if (!blocks.length) return [0, room];
+  if (blocks.length === 0) {
+    return [0, room];
+  }
   // what the eye sweeps on each axis: itself, and its near plane (NEAR of the way back to the target, half as high as NEAR·tan(fov/2) along
   // the screen's up, up to MAX_ASPECT times that along its right)
   const k = NEAR * Math.tan((fov * Math.PI) / 360),
@@ -132,17 +141,24 @@ export function sight(v: OrbitView, r: Room, blocks: readonly Room[] = [], fov =
     inside = false;
   for (const b of blocks) {
     const s = blocked(p, sLo, sHi, b, BLOCK_GAP);
-    if (!s) continue;
+    if (!s) {
+      continue;
+    }
     if (s[0] > 0) {
       spans.push(s);
       face = Math.min(face, s[0]);
       continue;
     }
     const into = blocked(p, d, d, b, 0);
-    if (!into || into[1] <= into[0] + 1e-6) continue;
+    if (!into || into[1] <= into[0] + 1e-6) {
+      continue;
+    }
     spans.push([0, s[1]]);
-    if (into[0] > 0) face = Math.min(face, into[0]);
-    else inside = true;
+    if (into[0] > 0) {
+      face = Math.min(face, into[0]);
+    } else {
+      inside = true;
+    }
   }
   spans.sort((a, b) => a[0] - b[0]);
   let near = 0,
@@ -154,7 +170,9 @@ export function sight(v: OrbitView, r: Room, blocks: readonly Room[] = [], fov =
     }
     near = Math.max(near, b);
   }
-  if (near <= far) return [near, far];
+  if (near <= far) {
+    return [near, far];
+  }
   return inside ? [room, room] : [0, Math.min(room, face)];
 }
 
@@ -189,8 +207,12 @@ export function keepInside(v: OrbitView, r: Room, o: KeepOpts = {}): OrbitView {
     out.fov = o.restore ? clamp(need, base, max) : clamp(Math.max(need, out.fov), base, Math.max(max, out.fov));
   }
   const tan = Math.tan((out.fov * Math.PI) / 360);
-  if (distanceOf(out) > far * (1 + 1e-9)) out.height = Math.max(LIMITS.heightMin, 2 * far * tan);
-  if (distanceOf(out) < near * (1 - 1e-9)) out.height = Math.min(LIMITS.heightMax, 2 * near * tan);
+  if (distanceOf(out) > far * (1 + 1e-9)) {
+    out.height = Math.max(LIMITS.heightMin, 2 * far * tan);
+  }
+  if (distanceOf(out) < near * (1 - 1e-9)) {
+    out.height = Math.min(LIMITS.heightMax, 2 * near * tan);
+  }
   return out;
 }
 
@@ -207,9 +229,13 @@ const SLIDE = 80,
  */
 export function keepWhole(v: OrbitView, r: Room, o: KeepOpts = {}, share = 0.6, toward?: number): OrbitView {
   const kept = keepInside(v, r, o);
-  if (!o.blocks?.length) return kept;
+  if (!o.blocks?.length) {
+    return kept;
+  }
   const room = keepInside(v, r, { ...o, blocks: [] }).height;
-  if (kept.height >= room * share) return kept;
+  if (kept.height >= room * share) {
+    return kept;
+  }
   const steps = Array.from({ length: SLIDES }, (_, i) => (i + 1) * SLIDE),
     way = toward !== undefined && toward < v.y ? -1 : 1;
   // (a flight: toward its goal, then back; else up and down by turns, the shortest first)
@@ -217,7 +243,9 @@ export function keepWhole(v: OrbitView, r: Room, o: KeepOpts = {}, share = 0.6, 
     ? steps.flatMap((s) => [s, -s])
     : [...steps.map((s) => way * s), ...steps.map((s) => -way * s)]) {
     const slid = keepInside({ ...v, y: v.y + d }, r, o);
-    if (slid.height >= room * share) return slid;
+    if (slid.height >= room * share) {
+      return slid;
+    }
   }
   return kept;
 }
@@ -298,7 +326,9 @@ export function turnReach(
   ref = fit(base).height,
 ): { yaw: number; pitch: number } {
   const calm = (a: OrbitView, b: OrbitView, arc: number): boolean => {
-    if (b.height < ref * (1 - TURN_SLACK) || b.height > ref * (1 + TURN_SLACK)) return false;
+    if (b.height < ref * (1 - TURN_SLACK) || b.height > ref * (1 + TURN_SLACK)) {
+      return false;
+    }
     const p = eyeOf(a),
       q = eyeOf(b);
     return Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z) <= distanceOf(a) * (TURN_JUMP * arc + TURN_JUMP_PLAIN);
@@ -322,19 +352,25 @@ export function turnReach(
       lo = i / N;
       seen = c;
     }
-    if (hi === 1 && lo === 1) return end;
+    if (hi === 1 && lo === 1) {
+      return end;
+    }
     for (let i = 0; i < 8; i++) {
       const t = (lo + hi) / 2,
         c = fit({ ...base, ...at(t) });
       if (calm(seen, c, span * (t - lo))) {
         lo = t;
         seen = c;
-      } else hi = t;
+      } else {
+        hi = t;
+      }
     }
     return at(lo);
   };
   const whole = along(to);
-  if (whole === to) return to;
+  if (whole === to) {
+    return to;
+  }
   const run = (a: { yaw: number; pitch: number }) => Math.hypot(a.yaw - from.yaw, a.pitch - from.pitch);
   const best = [along({ yaw: to.yaw, pitch: from.pitch }), along({ yaw: from.yaw, pitch: to.pitch })].reduce((a, b) =>
     run(b) > run(a) ? b : a,
@@ -448,6 +484,6 @@ export function applyView(camera: PerspectiveCamera, v: OrbitView, aspect: numbe
   camera.aspect = aspect;
   // the depth range follows the distance: a close look at a die keeps its precision
   camera.near = Math.max(4, d * NEAR);
-  camera.far = d + 120000;
+  camera.far = d + 120_000;
   camera.updateProjectionMatrix();
 }

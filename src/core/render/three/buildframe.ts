@@ -1,7 +1,8 @@
 // The Build stage's framing (ticket #43): the machine fills the free window that the UI's tabs leave, seen from the 3/4 start view.
 // The window is measured from the live tab boxes (`freeArea`); the view fits the projected corners of the machine's box (`frameMachine`).
 import { PerspectiveCamera, Vector3 } from 'three';
-import { applyView, clampView, fitRect, panBy, type Box, type OrbitView } from './camera';
+import { applyView, clampView, fitRect, panBy } from './camera';
+import type * as cameraTypes from './camera';
 
 /** The Build stage's 3/4 start view. */
 export const BUILD_START = { yaw: 0.42, pitch: 0.3, fov: 30 };
@@ -23,12 +24,14 @@ type Edge = 'left' | 'right' | 'top' | 'bottom';
  * bottom edge, a tall one for the left or the right, whichever it is nearer; so a side panel that runs down the stage is not taken for a bottom bar.
  * A box with no size counts for nothing.
  */
-function reachIn(stage: Box, tabs: Box[]): Record<Edge, number> {
+function reachIn(stage: cameraTypes.Box, tabs: cameraTypes.Box[]): Record<Edge, number> {
   const i: Record<Edge, number> = { left: 0, right: 0, top: 0, bottom: 0 };
   const sr = stage.x + stage.w,
     sb = stage.y + stage.h;
   for (const t of tabs) {
-    if (t.w <= 0 || t.h <= 0) continue;
+    if (t.w <= 0 || t.h <= 0) {
+      continue;
+    }
     const tr = t.x + t.w,
       tb = t.y + t.h;
     const near: Record<Edge, number> = { top: t.y - stage.y, bottom: sb - tb, left: t.x - stage.x, right: sr - tr };
@@ -41,7 +44,7 @@ function reachIn(stage: Box, tabs: Box[]): Record<Edge, number> {
 }
 
 /** The free window: the stage less what the tabs reach in from each edge. */
-export function freeArea(stage: Box, tabs: Box[]): Box {
+export function freeArea(stage: cameraTypes.Box, tabs: cameraTypes.Box[]): cameraTypes.Box {
   const i = reachIn(stage, tabs);
   return {
     x: stage.x + i.left,
@@ -54,16 +57,18 @@ export function freeArea(stage: Box, tabs: Box[]): Box {
 /** The eight corners of a solid, in world units. */
 function cornersOf(s: Solid): Vector3[] {
   const out: Vector3[] = [];
-  for (const sx of [-0.5, 0.5])
-    for (const sy of [-0.5, 0.5])
+  for (const sx of [-0.5, 0.5]) {
+    for (const sy of [-0.5, 0.5]) {
       for (const sz of [-0.5, 0.5]) {
         out.push(new Vector3(s.centre.x + sx * s.size.x, s.centre.y + sy * s.size.y, s.centre.z + sz * s.size.z));
       }
+    }
+  }
   return out;
 }
 
 /** The corners on the stage's screen (CSS px, y down) under a view. */
-function screenOf(v: OrbitView, stage: Box, pts: Vector3[]): { x: number; y: number }[] {
+function screenOf(v: cameraTypes.OrbitView, stage: cameraTypes.Box, pts: Vector3[]): { x: number; y: number }[] {
   const cam = new PerspectiveCamera();
   applyView(cam, v, stage.w / stage.h);
   cam.updateMatrixWorld(true);
@@ -77,7 +82,12 @@ function screenOf(v: OrbitView, stage: Box, pts: Vector3[]): { x: number; y: num
  * The machine framed in the free window: its projected corners fill `fill` of the window and sit at the window's middle, seated up by `SEAT_UP`.
  * The view is solved by a few steps, since perspective makes the scale and the middle move with the height and the target.
  */
-export function frameMachine(stage: Box, tabs: Box[], machine: Solid, fill = FRAME_FILL): OrbitView {
+export function frameMachine(
+  stage: cameraTypes.Box,
+  tabs: cameraTypes.Box[],
+  machine: Solid,
+  fill = FRAME_FILL,
+): cameraTypes.OrbitView {
   const free = freeArea(stage, tabs);
   const fw = Math.max(50, free.w),
     fh = Math.max(50, free.h);
@@ -96,7 +106,9 @@ export function frameMachine(stage: Box, tabs: Box[], machine: Solid, fill = FRA
     const k = Math.min((fill * fw) / Math.max(1, maxX - minX), (fill * fh) / Math.max(1, maxY - minY));
     const ex = (minX + maxX) / 2 - tx,
       ey = (minY + maxY) / 2 - ty;
-    if (Math.abs(k - 1) < 0.002 && Math.abs(ex) < 0.5 && Math.abs(ey) < 0.5) break;
+    if (Math.abs(k - 1) < 0.002 && Math.abs(ex) < 0.5 && Math.abs(ey) < 0.5) {
+      break;
+    }
     // world units per CSS px at the target's plane, at the new height (the height spans the stage's height)
     const height = v.height / k,
       m = height / stage.h;
@@ -106,6 +118,12 @@ export function frameMachine(stage: Box, tabs: Box[], machine: Solid, fill = FRA
 }
 
 /** The framing of a Build stage: while a drag is in progress the held view stands; otherwise the machine is framed in the free window. */
-export function buildFrame(stage: Box, tabs: Box[], machine: Solid, held: OrbitView, dragging: boolean): OrbitView {
+export function buildFrame(
+  stage: cameraTypes.Box,
+  tabs: cameraTypes.Box[],
+  machine: Solid,
+  held: cameraTypes.OrbitView,
+  dragging: boolean,
+): cameraTypes.OrbitView {
   return dragging ? held : frameMachine(stage, tabs, machine);
 }

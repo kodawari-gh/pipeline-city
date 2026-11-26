@@ -55,7 +55,9 @@ const dist = (a: P2, b: P2): number => Math.hypot(b[0] - a[0], b[1] - a[1]);
 
 export function polyLength(pts: readonly P2[]): number {
   let s = 0;
-  for (let i = 1; i < pts.length; i++) s += dist(pts[i - 1]!, pts[i]!);
+  for (let i = 1; i < pts.length; i++) {
+    s += dist(pts[i - 1]!, pts[i]!);
+  }
   return s;
 }
 
@@ -77,7 +79,7 @@ export function resample(pts: readonly P2[], n: number): P2[] {
       t = (want - at) / l;
     out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
   }
-  out.push(pts[pts.length - 1]!);
+  out.push(pts.at(-1)!);
   return out;
 }
 
@@ -128,7 +130,9 @@ function inside(poly: readonly P2[], x: number, y: number): boolean {
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
     const [xi, yi] = poly[i]!,
       [xj, yj] = poly[j]!;
-    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit;
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
+      hit = !hit;
+    }
   }
   return hit;
 }
@@ -170,7 +174,9 @@ function delaunay(pts: readonly P2[]): number[] {
       [bx, by] = P[b]!,
       [cx, cy] = P[c]!;
     const D = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
-    if (D < 0) [b, c] = [c, b];
+    if (D < 0) {
+      [b, c] = [c, b];
+    }
     const a2 = ax * ax + ay * ay,
       b2 = bx * bx + by * by,
       c2 = cx * cx + cy * cy;
@@ -191,22 +197,33 @@ function delaunay(pts: readonly P2[]): number[] {
           [t.c, t.a],
         ] as const) {
           const k = u < v ? `${u},${v}` : `${v},${u}`;
-          if (open.has(k)) open.delete(k);
-          else open.set(k, [u, v]);
+          if (open.has(k)) {
+            open.delete(k);
+          } else {
+            open.set(k, [u, v]);
+          }
         }
-      } else keep.push(t);
+      } else {
+        keep.push(t);
+      }
     }
-    for (const [u, v] of open.values()) keep.push(make(u, v, i));
+    for (const [u, v] of open.values()) {
+      keep.push(make(u, v, i));
+    }
     tris = keep;
   }
   const out: number[] = [];
-  for (const t of tris) if (t.a < n && t.b < n && t.c < n) out.push(t.a, t.b, t.c);
+  for (const t of tris) {
+    if (t.a < n && t.b < n && t.c < n) {
+      out.push(t.a, t.b, t.c);
+    }
+  }
   return out;
 }
 
 /** A small, fixed jitter for a lattice point (no two runs differ; no four points lie on one circle). */
 const jitter = (i: number, j: number, k: number): number => {
-  const s = Math.sin(i * 127.1 + j * 311.7 + k * 74.7) * 43758.5453;
+  const s = Math.sin(i * 127.1 + j * 311.7 + k * 74.7) * 43_758.5453;
   return s - Math.floor(s) - 0.5;
 };
 
@@ -228,7 +245,9 @@ export function meshOutline(outline: readonly P2[], h: number): { pts: P2[]; tri
     for (let i = 0, x = x0 + (j % 2 ? h / 2 : 0); x < x1; i++, x += h) {
       const px = x + 0.04 * h * jitter(i, j, 0),
         py = y + 0.04 * h * jitter(i, j, 1);
-      if (inside(outline, px, py) && edgeDist(outline, px, py) > 0.6 * h) pts.push([px, py]);
+      if (inside(outline, px, py) && edgeDist(outline, px, py) > 0.6 * h) {
+        pts.push([px, py]);
+      }
     }
   }
   const all = delaunay(pts),
@@ -238,8 +257,9 @@ export function meshOutline(outline: readonly P2[], h: number): { pts: P2[]; tri
       b = pts[all[t + 1]!]!,
       c = pts[all[t + 2]!]!;
     const area = (b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1]);
-    if (area > 1e-6 * h * h && inside(outline, (a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3))
+    if (area > 1e-6 * h * h && inside(outline, (a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3)) {
       tris.push(all[t]!, all[t + 1]!, all[t + 2]!);
+    }
   }
   return { pts, tris };
 }
@@ -261,31 +281,42 @@ function orient(tris: Uint32Array, weld: Int32Array, pos: Float64Array): void {
   const m = tris.length / 3,
     sides = new Map<string, number[]>();
   const key = (u: number, v: number) => (u < v ? `${u},${v}` : `${v},${u}`);
-  for (let t = 0; t < m; t++)
+  for (let t = 0; t < m; t++) {
     for (let e = 0; e < 3; e++) {
       const k = key(weld[tris[3 * t + e]!]!, weld[tris[3 * t + ((e + 1) % 3)]!]!);
       const l = sides.get(k);
-      if (l) l.push(t);
-      else sides.set(k, [t]);
+      if (l) {
+        l.push(t);
+      } else {
+        sides.set(k, [t]);
+      }
     }
+  }
   // does triangle t run from welded u to welded v along one of its sides
   const runs = (t: number, u: number, v: number) => {
-    for (let e = 0; e < 3; e++)
-      if (weld[tris[3 * t + e]!] === u && weld[tris[3 * t + ((e + 1) % 3)]!] === v) return true;
+    for (let e = 0; e < 3; e++) {
+      if (weld[tris[3 * t + e]!] === u && weld[tris[3 * t + ((e + 1) % 3)]!] === v) {
+        return true;
+      }
+    }
     return false;
   };
   const seen = new Uint8Array(m);
   for (let s = 0; s < m; s++) {
-    if (seen[s]) continue;
+    if (seen[s]) {
+      continue;
+    }
     seen[s] = 1;
     const todo = [s];
-    while (todo.length) {
+    while (todo.length > 0) {
       const t = todo.pop()!;
       for (let e = 0; e < 3; e++) {
         const u = weld[tris[3 * t + e]!]!,
           v = weld[tris[3 * t + ((e + 1) % 3)]!]!;
         for (const o of sides.get(key(u, v))!) {
-          if (seen[o]) continue;
+          if (seen[o]) {
+            continue;
+          }
           seen[o] = 1;
           if (runs(o, u, v)) {
             const b = tris[3 * o + 1]!;
@@ -329,12 +360,30 @@ function orient(tris: Uint32Array, weld: Int32Array, pos: Float64Array): void {
       ny * ((pos[a + 1]! + pos[b + 1]! + pos[c + 1]!) / 3 - cy) +
       nz * ((pos[a + 2]! + pos[b + 2]! + pos[c + 2]!) / 3 - cz);
   }
-  if (out < 0)
+  if (out < 0) {
     for (let t = 0; t < m; t++) {
       const b = tris[3 * t + 1]!;
       tris[3 * t + 1] = tris[3 * t + 2]!;
       tris[3 * t + 2] = b;
     }
+  }
+}
+
+/** Files the sides of the triangle [a, b, c] by their two points: [u, v, and the far corner of each triangle on it] (two: a bending pair). */
+function addSides(sides: Map<string, number[]>, [a, b, c]: readonly [number, number, number]): void {
+  for (const [u, v, w] of [
+    [a, b, c],
+    [b, c, a],
+    [c, a, b],
+  ] as const) {
+    const k = u < v ? `${u},${v}` : `${v},${u}`,
+      l = sides.get(k);
+    if (l) {
+      l.push(w);
+    } else {
+      sides.set(k, [u, v, w]);
+    }
+  }
 }
 
 /** Mesh and sew a garment at a point spacing of `h` mm. */
@@ -342,7 +391,9 @@ export function assemble(g: Garment, h: number): ClothMesh {
   const byName = new Map(g.pieces.map((p) => [p.name, p]));
   const edgeOf = (piece: string, edge: string) => {
     const e = byName.get(piece)?.edges.find((x) => x.name === edge);
-    if (!e) throw new Error(`no edge ${piece}.${edge}`);
+    if (!e) {
+      throw new Error(`no edge ${piece}.${edge}`);
+    }
     return e;
   };
   // every edge's step count: a seam's two edges share one, from the longer
@@ -350,7 +401,9 @@ export function assemble(g: Garment, h: number): ClothMesh {
   for (const s of g.seams) {
     const n = Math.max(1, Math.round(Math.max(polyLength(edgeOf(...s.a).pts), polyLength(edgeOf(...s.b).pts)) / h));
     for (const k of [s.a.join('.'), s.b.join('.')]) {
-      if (steps.has(k)) throw new Error(`edge ${k} in two seams`);
+      if (steps.has(k)) {
+        throw new Error(`edge ${k} in two seams`);
+      }
       steps.set(k, n);
     }
   }
@@ -377,7 +430,9 @@ export function assemble(g: Garment, h: number): ClothMesh {
       base = flat.length / 2;
     for (const [name, at, n] of owned) {
       const ids: number[] = [];
-      for (let k = 0; k <= n; k++) ids.push(base + ((at + k) % outline.length));
+      for (let k = 0; k <= n; k++) {
+        ids.push(base + ((at + k) % outline.length));
+      }
       edgePts.set(`${p.name}.${name}`, ids);
     }
     for (const [x, y] of pts) {
@@ -394,16 +449,7 @@ export function assemble(g: Garment, h: number): ClothMesh {
       tris.push(base + a, base + b, base + c);
       const m = [pts[a]!, pts[b]!, pts[c]!].reduce((s, q) => [s[0] + q[0] / 3, s[1] + q[1] / 3], [0, 0]);
       triMat.push(p.material?.(m[0], m[1]) ?? 0);
-      for (const [u, v, w] of [
-        [a, b, c],
-        [b, c, a],
-        [c, a, b],
-      ] as const) {
-        const k = u < v ? `${u},${v}` : `${v},${u}`,
-          l = sides.get(k);
-        if (l) l.push(w);
-        else sides.set(k, [u, v, w]);
-      }
+      addSides(sides, [a, b, c]);
     }
     for (const l of sides.values()) {
       edges.push(base + l[0]!, base + l[1]!);
@@ -429,11 +475,15 @@ export function assemble(g: Garment, h: number): ClothMesh {
       sewn.push(a, b);
       const ra = root(up, a),
         rb = root(up, b);
-      if (ra !== rb) up[Math.max(ra, rb)] = Math.min(ra, rb);
+      if (ra !== rb) {
+        up[Math.max(ra, rb)] = Math.min(ra, rb);
+      }
     }
   }
   const weld = new Int32Array(n);
-  for (let i = 0; i < n; i++) weld[i] = root(up, i);
+  for (let i = 0; i < n; i++) {
+    weld[i] = root(up, i);
+  }
   const T = Uint32Array.from(tris);
   orient(T, weld, S);
   return {

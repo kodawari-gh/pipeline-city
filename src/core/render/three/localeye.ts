@@ -31,10 +31,8 @@ import {
   ShaderMaterial,
   SRGBTransfer,
   WebGLRenderTarget,
-  type IUniform,
-  type Texture,
-  type WebGLRenderer,
 } from 'three';
+import type * as threeTypes from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 
 /** A grid cell's side (pixels), the picture's step down before the grid (each grid cell reads `CELL / DOWN` squared of its pixels). */
@@ -79,7 +77,7 @@ export function lift(base: number, exposure: number, key = MID, high = HIGH_C): 
  */
 export interface Look {
   glsl: string;
-  uniforms: Record<string, IUniform>;
+  uniforms: Record<string, threeTypes.IUniform>;
 }
 const SAME: Look = { glsl: /* glsl */ `vec3 look(vec3 c, vec2 uv) { return c; }`, uniforms: {} };
 
@@ -276,14 +274,20 @@ export class LocalEye {
   }
 
   /** Sets the finish's defines to `r`'s tone mapping and colour space (as three's OutputPass): a change makes its program again. */
-  output(r: WebGLRenderer): void {
+  output(r: threeTypes.WebGLRenderer): void {
     const key = `${r.toneMapping}|${r.outputColorSpace}`;
-    if (key === this.outputKey) return;
+    if (key === this.outputKey) {
+      return;
+    }
     this.outputKey = key;
     const d: Record<string, string> = {},
       tone = TONE[r.toneMapping];
-    if (tone) d['TONE'] = tone;
-    if (ColorManagement.getTransfer(r.outputColorSpace) === SRGBTransfer) d['SRGB_TRANSFER'] = '';
+    if (tone) {
+      d['TONE'] = tone;
+    }
+    if (ColorManagement.getTransfer(r.outputColorSpace) === SRGBTransfer) {
+      d['SRGB_TRANSFER'] = '';
+    }
     this.finish.defines = d;
     this.finish.needsUpdate = true;
   }
@@ -308,14 +312,14 @@ export class LocalEye {
     return this.strength > 0;
   }
 
-  private step(renderer: WebGLRenderer, m: ShaderMaterial, to: WebGLRenderTarget | null): void {
+  private step(renderer: threeTypes.WebGLRenderer, m: ShaderMaterial, to: WebGLRenderTarget | null): void {
     this.quad.material = m;
     renderer.setRenderTarget(to);
     this.quad.render(renderer);
   }
 
   /** The grid of `picture` (the scene's light), in three small passes: a quarter of the picture, the grid, its blur. */
-  adapt(renderer: WebGLRenderer, picture: Texture): void {
+  adapt(renderer: threeTypes.WebGLRenderer, picture: threeTypes.Texture): void {
     this.down.uniforms['tDiffuse']!.value = picture;
     this.step(renderer, this.down, this.lum);
     this.step(renderer, this.build, this.grid);
@@ -327,7 +331,12 @@ export class LocalEye {
    * mapping, in one full-screen pass. `weight` under 1 mixes it into what `to` holds (the still view's refinement, `Post.refine`): the caller
    * keeps the renderer from clearing `to`.
    */
-  draw(renderer: WebGLRenderer, picture: Texture, to: WebGLRenderTarget | null = null, weight = 1): void {
+  draw(
+    renderer: threeTypes.WebGLRenderer,
+    picture: threeTypes.Texture,
+    to: WebGLRenderTarget | null = null,
+    weight = 1,
+  ): void {
     this.output(renderer);
     const f = this.finish;
     f.blending = weight < 1 ? CustomBlending : NoBlending;
@@ -344,8 +353,12 @@ export class LocalEye {
   }
 
   dispose(): void {
-    for (const t of [this.lum, this.grid, this.blur]) t.dispose();
-    for (const m of [this.down, this.build, this.smooth, this.finish]) m.dispose();
+    for (const t of [this.lum, this.grid, this.blur]) {
+      t.dispose();
+    }
+    for (const m of [this.down, this.build, this.smooth, this.finish]) {
+      m.dispose();
+    }
     this.quad.dispose();
   }
 }
