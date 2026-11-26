@@ -41,6 +41,8 @@ Per ticket, per round:
 
 **Stops**: before a stop, the runner saves each worktree's uncommitted work as a commit under `refs/swarm/wip/<n>-<role>` (no hooks run). `gc` deletes these refs when the ticket is closed.
 
+**Resume**: after a cut-off run, a role worktree keeps its uncommitted work when the round tip fast-forwards over it, and the agent is told to finish it. The wip ref holds a copy. The runner does not run a ticket whose issue is closed.
+
 State and events live in `.claude/swarm/<key>.{json,log}`. A rerun of the same command resumes from the state file.
 
 ## Events to act on

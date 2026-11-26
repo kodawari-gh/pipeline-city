@@ -853,6 +853,49 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
     return kept;
   }
 
+  /**
+   * Prepare a role worktree for a round: drop leftovers and, from round 2, move it to `tip`.
+   * After a cut-off run (`T.cut`), uncommitted work stays for the agent when `tip` fast-forwards over it.
+   * Returns the prompt note about the work that stays.
+   */
+  prepare(n, p, tip) {
+    const T = this.t(n);
+    const keep =
+      T.cut &&
+      !gitOk(p, 'rev-parse', '-q', '--verify', 'MERGE_HEAD') &&
+      Boolean(git(p, 'status', '--porcelain')) &&
+      (T.rounds === 1 || gitOk(p, 'merge', '--ff-only', tip));
+    if (keep) {
+      return 'An earlier run was cut off. Its uncommitted work is in your worktree: check it, finish it, and commit after each few files.\n';
+    }
+    this.clean(p);
+    if (T.rounds > 1) {
+      git(p, 'reset', '--hard', tip);
+    }
+    return '';
+  }
+
+  /**
+   * Open a ticket's integration worktree. Returns true when the round resumes at the merge.
+   * After a cut-off run it saves uncommitted work first; with one worker that worktree is the coder's,
+   * so `prepare` decides what happens to the work.
+   */
+  reopen(n, workers) {
+    const T = this.t(n);
+    const int = this.intRole(n);
+    const merge = this.wt(n, int);
+    if (T.cut) {
+      this.saveWip(n);
+    }
+    // Resume after an interrupted round merge: review the role commits already made before any agent reruns.
+    // A review cut off by a stop resumes at the review: the same merge, no new round.
+    const pending = T.rounds > 0 && this.resumesAtMerge(n, merge, workers);
+    if (pending || !T.cut || int === 'merge') {
+      this.clean(merge);
+    }
+    return pending;
+  }
+
   // ---------- one ticket ----------
 
   /**
@@ -873,6 +916,7 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
     const T = this.t(n);
     const issue = getIssue(this.cfg, n);
     const planned = issue.item?.planned;
+    T.cut = T.phase === 'resume';
     T.phase = 'running';
     T.noTests = /^Tests:\s*none\b/imu.test(issue.body ?? '');
     this.save();
@@ -889,10 +933,7 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
     let relaunch = T.findings.length ? routed(T.findings) : workers;
     const int = this.intRole(n);
     const merge = this.wt(n, int);
-    this.clean(merge);
-    // Resume after an interrupted round merge: review the role commits already made before any agent reruns.
-    // A review cut off by a stop resumes at the review: the same merge, no new round.
-    let pending = T.rounds > 0 && this.resumesAtMerge(n, merge, workers);
+    let pending = this.reopen(n, workers);
     for (;;) {
       const tier = tierAt(planned, T.failures);
       if (!tier) {
@@ -920,17 +961,14 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
       const blockers = [];
       const jobs = relaunch.map(async (role) => {
         const p = this.wt(n, role);
-        this.clean(p);
-        if (T.rounds > 1) {
-          git(p, 'reset', '--hard', tip);
-        }
+        const keptText = this.prepare(n, p, tip);
         await this.relinkDeps(n, p);
         const out = await this.agent(
           `swarm-${role}`,
           n,
           p,
           tier,
-          this.facts(n, issue, role, tier, findingsText),
+          this.facts(n, issue, role, tier, keptText + findingsText),
           WORK_SCHEMA,
         );
         if (out.blocker && role === 'tester') {
@@ -946,6 +984,7 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
         );
       });
       await settleWorkers(jobs, blockers);
+      T.cut = false;
 
       // Round merge: base first (keeps the review honest), then coder, then tester.
       this.clean(merge);
@@ -1165,7 +1204,16 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
         if (T && !['new', 'resume'].includes(T.phase)) {
           return false;
         }
-        const planned = getIssue(this.cfg, n).item?.planned;
+        const issue = getIssue(this.cfg, n);
+        if (issue.state !== 'OPEN') {
+          if (T) {
+            T.phase = 'closed';
+            this.save();
+            this.emit(`#${n} closed outside the swarm; not run`);
+          }
+          return false;
+        }
+        const planned = issue.item?.planned;
         if (!planned || !MODELS.includes(planned.toLowerCase())) {
           if (!warned.has(n)) {
             warned.add(n);
