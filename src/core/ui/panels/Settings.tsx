@@ -4,31 +4,7 @@
 // keyboard or touch). Every change applies at once. Back and Esc return to the opener (`openSettings`, `closeSettings` in state.ts).
 // The settings live in `app/graphics.ts`, the words in `graphicsui.ts`. Styles: ui.css (the Settings section).
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import {
-  autoStep,
-  BRIGHT_MAX,
-  BRIGHT_MIN,
-  CHOICES,
-  effective,
-  frameStats,
-  graphics,
-  presetOf,
-  PRESET_NAMES,
-  resetGraphics,
-  retryPicture,
-  SCALE_MAX,
-  SCALE_MIN,
-  setAutoTier,
-  setGraphic,
-  setPreset,
-  setTier,
-  TIER_NAMES,
-  tierRecord,
-  type Choice,
-  type Graphics,
-  type Preset,
-  type Tier,
-} from '@/app/graphics';
+import * as appGraphics from '@/app/graphics';
 import { audioMix, setMuted, setSlider, SLIDER_IDS, SLIDER_LABEL } from '@/app/audio/mix';
 import { MIX } from '@/app/audio/mixTokens';
 import { playCue } from '@/app/audio/engine';
@@ -37,7 +13,7 @@ import { closeSettings, setUiScale, settingsOpen, uiScale, UI_SCALE_MAX, UI_SCAL
 import { cycleValue } from '../menuNav';
 import { DisplayTitle } from '../kit/Pipeline';
 import { PRESET_INFO, tierNote } from './graphicsui';
-import { peekHeld, type PeekEvent, railMove, rowMove, SETTINGS_TABS, type SettingsTabId } from './settingsnav';
+import * as settingsnav from './settingsnav';
 
 /** A row of values: ← → change it, a click picks one. */
 interface PickRow {
@@ -77,7 +53,7 @@ const FPS_ROW = {
   label: 'Frame limit',
   help: 'Saves power and heat. Off runs at the rate of the screen.',
 } as const;
-const LIGHT: { key: Choice; label: string; help: string }[] = [
+const LIGHT: { key: appGraphics.Choice; label: string; help: string }[] = [
   { key: 'shadows', label: 'Shadows', help: 'The size of the shadow maps. Off draws the fastest room.' },
   {
     key: 'lights',
@@ -88,7 +64,7 @@ const LIGHT: { key: Choice; label: string; help: string }[] = [
   { key: 'ao', label: 'Ambient occlusion', help: 'Soft contact shadows in corners and under parts.' },
   { key: 'bloom', label: 'Bloom', help: 'The glow round the RGB, the screen and the lamp.' },
 ];
-const DETAIL: { key: Choice; label: string; help: string }[] = [
+const DETAIL: { key: appGraphics.Choice; label: string; help: string }[] = [
   { key: 'msaa', label: 'Anti-aliasing', help: 'Smooths the edges of every part.' },
   { key: 'textures', label: 'Textures', help: 'How sharp the board, the dies and their names are up close.' },
   { key: 'filtering', label: 'Filtering', help: 'Keeps textures sharp at a slant.' },
@@ -97,7 +73,7 @@ const DETAIL: { key: Choice; label: string; help: string }[] = [
 ];
 
 /** What auto-adjust can take away, by the option's name in the panel. */
-const LOWERED: readonly (readonly [keyof Graphics, string])[] = [
+const LOWERED: readonly (readonly [keyof appGraphics.Graphics, string])[] = [
   ['ao', 'ambient occlusion'],
   ['scale', 'render scale'],
   ['bloom', 'bloom'],
@@ -111,14 +87,14 @@ const LOWERED: readonly (readonly [keyof Graphics, string])[] = [
 const opts = (list: readonly (readonly [string | number, string])[]): [string, string][] =>
   list.map(([v, n]) => [String(v), n]);
 
-const pickChoice = (key: Choice, label: string, help: string, g: Graphics): PickRow => ({
+const pickChoice = (key: appGraphics.Choice, label: string, help: string, g: appGraphics.Graphics): PickRow => ({
   kind: 'pick',
   key,
   label,
   help,
-  options: opts(CHOICES[key]),
+  options: opts(appGraphics.CHOICES[key]),
   value: String(g[key]),
-  set: (id) => setGraphic(key, Number(id)),
+  set: (id) => appGraphics.setGraphic(key, Number(id)),
 });
 
 const slide = (
@@ -132,39 +108,39 @@ const slide = (
 ): SlideRow => ({ kind: 'slide', key, label, help, min, max, step: 0.05, value, set });
 
 /** The rows of one tab, from the live settings. */
-function rowsOf(tab: SettingsTabId, g: Graphics): Row[] {
+function rowsOf(tab: settingsnav.SettingsTabId, g: appGraphics.Graphics): Row[] {
   if (tab === 'quality') {
-    const preset = presetOf(g),
-      rec = tierRecord.value;
+    const preset = appGraphics.presetOf(g),
+      rec = appGraphics.tierRecord.value;
     const rows: Row[] = [
       {
         kind: 'pick',
         key: 'preset',
         label: 'Preset',
         help: preset ? PRESET_INFO[preset].line : 'Custom: your own mix of the options on the other tabs',
-        options: opts(PRESET_NAMES),
+        options: opts(appGraphics.PRESET_NAMES),
         value: preset,
-        set: (id) => setPreset(id as Preset),
+        set: (id) => appGraphics.setPreset(id as appGraphics.Preset),
       },
       {
         kind: 'pick',
         key: 'device',
         label: 'Device',
         help: tierNote(rec),
-        options: [['auto', 'Auto'], ...opts(TIER_NAMES)],
+        options: [['auto', 'Auto'], ...opts(appGraphics.TIER_NAMES)],
         value: rec.mode === 'auto' ? 'auto' : rec.tier,
-        set: (id) => (id === 'auto' ? setAutoTier() : setTier(id as Tier)),
+        set: (id) => (id === 'auto' ? appGraphics.setAutoTier() : appGraphics.setTier(id as appGraphics.Tier)),
       },
     ];
-    if (autoStep.value) {
-      const e = effective.value;
+    if (appGraphics.autoStep.value) {
+      const e = appGraphics.effective.value;
       const names = LOWERED.filter(([k]) => e[k] !== g[k]).map(([, name]) => name);
       rows.push({
         kind: 'act',
         key: 'retry',
         label: 'Try again',
         help: `Frames were slow, so auto-adjust lowered ${names.join(', ')}.`,
-        run: retryPicture,
+        run: appGraphics.retryPicture,
       });
     }
     return rows;
@@ -175,20 +151,20 @@ function rowsOf(tab: SettingsTabId, g: Graphics): Row[] {
         'scale',
         'Render scale',
         "The pixels the picture draws, as a share of the screen's.",
-        SCALE_MIN,
-        SCALE_MAX,
+        appGraphics.SCALE_MIN,
+        appGraphics.SCALE_MAX,
         g.scale,
-        (v) => setGraphic('scale', v),
+        (v) => appGraphics.setGraphic('scale', v),
       ),
       pickChoice(FPS_ROW.key, FPS_ROW.label, FPS_ROW.help, g),
       slide(
         'brightness',
         'Brightness',
         "The picture's exposure. Presets leave it alone.",
-        BRIGHT_MIN,
-        BRIGHT_MAX,
+        appGraphics.BRIGHT_MIN,
+        appGraphics.BRIGHT_MAX,
         g.brightness,
-        (v) => setGraphic('brightness', v),
+        (v) => appGraphics.setGraphic('brightness', v),
       ),
       {
         kind: 'pick',
@@ -200,12 +176,16 @@ function rowsOf(tab: SettingsTabId, g: Graphics): Row[] {
           ['on', 'On'],
         ],
         value: g.auto ? 'on' : 'off',
-        set: (id) => setGraphic('auto', id === 'on'),
+        set: (id) => appGraphics.setGraphic('auto', id === 'on'),
       },
     ];
   }
-  if (tab === 'light') return LIGHT.map((r) => pickChoice(r.key, r.label, r.help, g));
-  if (tab === 'detail') return DETAIL.map((r) => pickChoice(r.key, r.label, r.help, g));
+  if (tab === 'light') {
+    return LIGHT.map((r) => pickChoice(r.key, r.label, r.help, g));
+  }
+  if (tab === 'detail') {
+    return DETAIL.map((r) => pickChoice(r.key, r.label, r.help, g));
+  }
   const mix = audioMix.value;
   const soundStep = MIX.sliders.stepPercent / 100;
   return [
@@ -248,7 +228,9 @@ function rowsOf(tab: SettingsTabId, g: Graphics): Row[] {
 function slideTo(r: SlideRow, v: number): void {
   const moved = sliderStep(r.min, r.max, v) !== sliderStep(r.min, r.max, r.value);
   r.set(v);
-  if (moved) playCue('ui_slider_tick');
+  if (moved) {
+    playCue('ui_slider_tick');
+  }
 }
 
 /** The value a slider takes for a step, rounded to 0.01 and kept in its range. */
@@ -276,9 +258,9 @@ export function Settings() {
   const [tab, setTab] = useState(0);
   const [row, setRow] = useState(0);
   const [peek, setPeek] = useState(false);
-  const g = graphics.value;
-  const rows = rowsOf(SETTINGS_TABS[tab]!.id, g);
-  const peekOn = (ev: PeekEvent) => setPeek((held) => peekHeld(held, ev));
+  const g = appGraphics.graphics.value;
+  const rows = rowsOf(settingsnav.SETTINGS_TABS[tab]!.id, g);
+  const peekOn = (ev: settingsnav.PeekEvent) => setPeek((held) => settingsnav.peekHeld(held, ev));
 
   const tabEls = () => [...(root.current?.querySelectorAll<HTMLElement>('[role="tab"]') ?? [])];
   const rowEls = () => [...(root.current?.querySelectorAll<HTMLElement>('[data-row]') ?? [])];
@@ -295,12 +277,16 @@ export function Settings() {
     focusTab(0);
     // (Escape with the focus outside the screen still closes it)
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !root.current?.contains(e.target as Node)) closeSettings();
+      if (e.key === 'Escape' && !root.current?.contains(e.target as Node)) {
+        closeSettings();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('keydown', onKey);
-      if (before && document.contains(before)) before.focus();
+      if (before && document.contains(before)) {
+        before.focus();
+      }
     };
     // (runs once per opening)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -308,12 +294,19 @@ export function Settings() {
 
   // Peek lasts while the pointer, or Space or Enter, is held: any release ends it, also one outside the screen.
   useEffect(() => {
-    if (!peek) return;
-    const onEnd = (e: Event) => setPeek((held) => peekHeld(held, { type: e.type, key: (e as KeyboardEvent).key }));
+    if (!peek) {
+      return;
+    }
+    const onEnd = (e: Event) =>
+      setPeek((held) => settingsnav.peekHeld(held, { type: e.type, key: (e as KeyboardEvent).key }));
     const names = ['pointerup', 'pointercancel', 'blur', 'keyup'];
-    for (const n of names) window.addEventListener(n, onEnd);
+    for (const n of names) {
+      window.addEventListener(n, onEnd);
+    }
     return () => {
-      for (const n of names) window.removeEventListener(n, onEnd);
+      for (const n of names) {
+        window.removeEventListener(n, onEnd);
+      }
     };
   }, [peek]);
 
@@ -340,15 +333,19 @@ export function Settings() {
         focusRow(row);
         return;
       }
-      const to = railMove(tab, SETTINGS_TABS.length, k, true);
-      if (to === tab) return;
+      const to = settingsnav.railMove(tab, settingsnav.SETTINGS_TABS.length, k, true);
+      if (to === tab) {
+        return;
+      }
       e.preventDefault();
       selectTab(to);
       focusTab(to);
       return;
     }
     const host = t.closest<HTMLElement>('[data-row]');
-    if (!host) return;
+    if (!host) {
+      return;
+    }
     const i = Number(host.dataset['row']);
     if (k === 'ArrowUp' && i === 0) {
       e.preventDefault();
@@ -357,7 +354,7 @@ export function Settings() {
     }
     if (k === 'ArrowUp' || k === 'ArrowDown' || k === 'Home' || k === 'End') {
       e.preventDefault();
-      const to = rowMove(rows.length, i, k);
+      const to = settingsnav.rowMove(rows.length, i, k);
       setRow(to);
       focusRow(to);
     } else if (k === 'ArrowLeft' || k === 'ArrowRight') {
@@ -431,13 +428,17 @@ export function Settings() {
           <span
             class="st-track"
             onPointerDown={(e) => {
-              if (e.button !== 0) return;
+              if (e.button !== 0) {
+                return;
+              }
               setRow(i);
               e.currentTarget.setPointerCapture(e.pointerId);
               seek(r, e.currentTarget, e.clientX);
             }}
             onPointerMove={(e) => {
-              if (e.currentTarget.hasPointerCapture(e.pointerId)) seek(r, e.currentTarget, e.clientX);
+              if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                seek(r, e.currentTarget, e.clientX);
+              }
             }}
           >
             <i class="st-fill" style={{ width: `${frac * 100}%` }} />
@@ -463,7 +464,7 @@ export function Settings() {
     );
   };
 
-  const f = frameStats.value;
+  const f = appGraphics.frameStats.value;
   return (
     <div
       class={`pl-menu settings ${peek ? 'peek' : ''}`}
@@ -479,7 +480,7 @@ export function Settings() {
       <div class="pl-stack st-stack">
         <DisplayTitle lines={['Settings']} lit={4} meta="WB · settings · kept on this device, not in the save" />
         <div class="st-rail" role="tablist" aria-label="Settings groups">
-          {SETTINGS_TABS.map((t, i) => (
+          {settingsnav.SETTINGS_TABS.map((t, i) => (
             <button
               key={t.id}
               type="button"
@@ -497,9 +498,14 @@ export function Settings() {
             </button>
           ))}
         </div>
-        <div class="st-list" id="st-list" role="tabpanel" aria-labelledby={`st-tab-${SETTINGS_TABS[tab]!.id}`}>
+        <div
+          class="st-list"
+          id="st-list"
+          role="tabpanel"
+          aria-labelledby={`st-tab-${settingsnav.SETTINGS_TABS[tab]!.id}`}
+        >
           {rows.map((r, i) => rowEl(r, i))}
-          {SETTINGS_TABS[tab]!.id === 'quality' && (
+          {settingsnav.SETTINGS_TABS[tab]!.id === 'quality' && (
             <p class="st-now">
               NOW {f.fps ? Math.round(f.fps) : '--'} fps · {f.ms ? f.ms.toFixed(1) : '--'} ms ·{' '}
               {f.w ? `${f.w} × ${f.h}` : '--'}
@@ -512,7 +518,9 @@ export function Settings() {
             class="st-foot-btn st-peek"
             data-cue="ui_click"
             onPointerDown={(e) => {
-              if (e.button === 0) peekOn({ type: e.type, pointerType: e.pointerType });
+              if (e.button === 0) {
+                peekOn({ type: e.type, pointerType: e.pointerType });
+              }
             }}
             onPointerLeave={(e) => peekOn({ type: e.type, pointerType: e.pointerType })}
             onKeyDown={(e) => {
@@ -525,7 +533,7 @@ export function Settings() {
           >
             Hold to peek
           </button>
-          <button type="button" class="st-foot-btn" data-cue="ui_click" onClick={resetGraphics}>
+          <button type="button" class="st-foot-btn" data-cue="ui_click" onClick={appGraphics.resetGraphics}>
             Reset to defaults
           </button>
         </footer>

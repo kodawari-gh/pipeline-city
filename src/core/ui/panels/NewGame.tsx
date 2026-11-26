@@ -40,20 +40,29 @@ export function NewGameScreen() {
   const selected = (g: number): number =>
     g === 0 ? MODES.indexOf(mode) : mode === 'campaign' ? (tutorialOn ? 0 : 1) : assembled ? 0 : 1;
   const pick = (g: number, i: number) => {
-    if (g === 0) setMode(MODES[i]!);
-    else if (mode === 'campaign') setTutorialOn(i === 0);
-    else setAssembled(i === 0);
+    if (g === 0) {
+      setMode(MODES[i]!);
+    } else if (mode === 'campaign') {
+      setTutorialOn(i === 0);
+    } else {
+      setAssembled(i === 0);
+    }
   };
   const focusValue = (g: number, i: number) =>
     root.current?.querySelector<HTMLElement>(`[data-group="${g}"][data-i="${i}"]`)?.focus();
   const focusGroup = (g: number) => {
-    if (g === WB) root.current?.querySelector<HTMLElement>(`[data-group="${WB}"]`)?.focus();
-    else focusValue(g, selected(g));
+    if (g === WB) {
+      root.current?.querySelector<HTMLElement>(`[data-group="${WB}"]`)?.focus();
+    } else {
+      focusValue(g, selected(g));
+    }
   };
 
   // Opens on the chosen mode, with the game type focused.
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     const m = newGameMode.value;
     setMode(m);
     setAt(0);
@@ -62,16 +71,22 @@ export function NewGameScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  if (!open) return null;
+  if (!open) {
+    return null;
+  }
 
   // Back and Esc return to the opener: in game, that is the Game menu (Hud.tsx), which shows again.
   const close = () => {
     newGameOpen.value = false;
-    if (running) gameMenuOpen.value = true;
+    if (running) {
+      gameMenuOpen.value = true;
+    }
   };
   const start = () => {
     newGameOpen.value = false;
-    if (mode === 'campaign') resetTutorial(tutorialOn); // every new campaign asks, so a replayed or declined tutorial never carries over
+    if (mode === 'campaign') {
+      resetTutorial(tutorialOn); // every new campaign asks, so a replayed or declined tutorial never carries over
+    }
     startNewGame(mode === 'sandbox' ? { sandbox: true, preassembled: assembled, maxed: assembled } : {});
   };
 
@@ -81,7 +96,9 @@ export function NewGameScreen() {
       close();
       return;
     }
-    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+      return;
+    }
     e.preventDefault();
     lastKey.current = Date.now();
     const g = Number((document.activeElement as HTMLElement | null)?.dataset['group']);
@@ -92,7 +109,9 @@ export function NewGameScreen() {
       focusValue(g, i);
       return;
     }
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') return;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      return;
+    }
     const next = moveFocus(3, g, e.key);
     setAt(next);
     focusGroup(next);
@@ -100,7 +119,9 @@ export function NewGameScreen() {
 
   // A resting mouse does not steal focus after a key press.
   const hover = (g: number) => {
-    if (mouseMayMoveFocus(lastKey.current, Date.now())) setAt(g);
+    if (mouseMayMoveFocus(lastKey.current, Date.now())) {
+      setAt(g);
+    }
   };
 
   const last = snapshot.value ?? save;
@@ -116,7 +137,7 @@ export function NewGameScreen() {
       ? `Overwrites your autosave: ${saveFacts(save)}`
       : null;
   // Destructive start (it replaces a save or discards a game): the label is --c-bad. Any other start keeps the label ink (SPEC §4.4, §5.5).
-  const destructive = running || !!save;
+  const destructive = running || save !== null;
 
   const branch = (g: number, tag: string, label: string | null, rowMeta: string | null) => (
     <div class={`pl-row branch ${at === g ? 'pl-chip' : ''}`} onPointerEnter={() => hover(g)}>

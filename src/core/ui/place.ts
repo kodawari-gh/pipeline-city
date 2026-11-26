@@ -85,9 +85,13 @@ export function dockPlacement(size: { w: number; h: number }, free: Rect): Place
  * `minTop` instead when that clears the target, else leave it.
  */
 export function liftAbove(card: Rect, target: Rect | null, gap: number, minTop: number): number {
-  if (!target || !overlaps(card, target)) return 0;
+  if (!target || !overlaps(card, target)) {
+    return 0;
+  }
   const lift = bottom(card) - (target.y - gap);
-  if (card.y - lift >= minTop) return -lift;
+  if (card.y - lift >= minTop) {
+    return -lift;
+  }
   const parked: Rect = { ...card, y: minTop };
   return overlaps(parked, target) ? 0 : minTop - card.y;
 }
