@@ -4,7 +4,7 @@ import type { Binding, IspSpec, RouterSpec } from '../../features/network/sim';
 import type { NicSegment } from '../../features/network/sim/nic';
 import type { Flow } from '../../features/network/sim/transport';
 import type { OsSpec } from '../../features/os/sim';
-import { levelRows, type LevelRowSnap, type Need } from '../../features/economy/sim/levels';
+import * as levelTable from '../../features/economy/sim/levels';
 import type { JobWindow } from '../../features/jobs/sim/joblog';
 import type { LinkState, MountPhase } from './types';
 import type { Job } from '../../features/jobs/sim/work';
@@ -24,7 +24,7 @@ export interface Key extends Job {
   type: string;
   /** Job class id (levels.ts) and what it needs from the machine. */
   cls: string;
-  needs: Need[];
+  needs: levelTable.Need[];
   /** Payout multiplier of the class. */
   payMul: number;
   /** The job number the program prints on the monitor (#NN). */
@@ -135,4 +135,4 @@ export const SANDBOX_LEVEL = 8;
 export const NOT_SANDBOX = { ok: false, reason: 'sandbox mode only' } as const;
 
 /** The static milestone rows of the level snapshot (built once). */
-export const LEVEL_ROWS: LevelRowSnap[] = levelRows();
+export const LEVEL_ROWS: levelTable.LevelRowSnap[] = levelTable.levelRows();

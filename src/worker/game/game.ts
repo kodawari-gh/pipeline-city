@@ -27,46 +27,26 @@
 //   snapshot   the snapshot the worker posts every tick
 //   persist    the save and its restore
 
-import {
-  allCables,
-  createBoard,
-  machineConfigFor,
-  noCables,
-  ThermalModel,
-  type Board,
-  type Cables,
-} from '../../features/board/sim';
+import * as boardSim from '../../features/board/sim';
 import { Disk, GpuPort, Machine, NpuPort, StoragePort, TpmPort } from '../../core/sim';
 import { Prng } from '../../core/sim/prng';
 import { GPU_PORTS, NPU_PORTS, STORAGE_PORTS } from '../../core/sim/memmap';
 import { NetworkSource } from '../../features/network/sim';
 import { Nic } from '../../features/network/sim/nic';
 import type { RttEstimate } from '../../features/network/sim/transport';
-import { Pch, type PchKey } from '../../features/board/sim/pch';
+import * as pchChip from '../../features/board/sim/pch';
 import * as bill from '../../features/economy/sim/bill';
 import * as clients from '../../features/economy/sim/clients';
-import { ECONOMY, SANDBOX_MONEY, type EconomyConfig } from '../../features/economy/sim/economy';
+import * as economyRules from '../../features/economy/sim/economy';
 import * as hardware from '../../features/board/sim/game/hardware';
-import {
-  MACHINE_RAM_BYTES,
-  SANDBOX_LEVEL,
-  LOG_CAP,
-  type DriveMount,
-  type InstalledOs,
-  type InvItem,
-  type Key,
-  type Link,
-  type Transfer,
-  type WireAck,
-  type WireSegment,
-} from './internal';
+import * as gameInternal from './internal';
 import type { DexRecord } from '../../features/jobs/sim/jobdex';
 import type { JobLogEntry } from '../../features/jobs/sim/joblog';
 import * as cloud from '../../features/economy/sim/cloud';
 import type { Contract, ContractOffer } from '../../features/economy/sim/contracts';
 import { newContractRng } from '../../features/economy/sim/contracts';
 import * as keys from '../../features/economy/sim/keys';
-import { LEVELS, MAX_LEVEL, type ItemInfo, type JobClassId } from '../../features/economy/sim/levels';
+import * as levelTable from '../../features/economy/sim/levels';
 import * as machine from '../../features/board/sim/game/machine';
 import * as memory from '../../features/memory/sim/memory';
 import * as network from '../../features/network/sim/network';
@@ -75,7 +55,7 @@ import * as parts from '../../features/board/sim/game/parts';
 import * as persist from './persist';
 import { TRACE_CYCLES } from '../../features/cpu/sim/pipesnap';
 import * as sandbox from '../../features/sandbox/sim/sandbox';
-import { newProgress, parseSave, PROGRESS_KEYS, type Progress } from './save';
+import * as saveFormat from './save';
 import * as shop from '../../features/economy/sim/shop';
 import * as snapshot from './snapshot';
 import type { CompletedInfo, GameEvent, GameOptions } from './types';
@@ -103,12 +83,12 @@ export interface Game extends Features {}
 
 // The fields below are the state the feature files share, so none is private.
 export class Game {
-  readonly cfg: EconomyConfig;
+  readonly cfg: economyRules.EconomyConfig;
   readonly machine: Machine;
-  readonly thermal: ThermalModel;
-  readonly pch: Pch;
-  board: Board;
-  cables: Cables = noCables();
+  readonly thermal: boardSim.ThermalModel;
+  readonly pch: pchChip.Pch;
+  board: boardSim.Board;
+  cables: boardSim.Cables = boardSim.noCables();
   /** Energy taken from the wall in W x ticks (a tick is a game second): metered while the machine is on. */
   wattTicks = 0;
   /** What the wall is giving the machine this tick (W), kept for the snapshot. */
@@ -121,7 +101,7 @@ export class Game {
   powerCut = false;
   billPaid = 0;
   lastBill: { tick: number; wh: number; amount: number } | null = null;
-  progress: Progress = newProgress();
+  progress: saveFormat.Progress = saveFormat.newProgress();
 
   money = 0;
   baseTick = 0;
@@ -143,10 +123,10 @@ export class Game {
   /** `looseFit` only: the socket the OS's drive was in when it left, where `keepOs` puts the OS back. Not saved. */
   osSlot: string | null = null;
 
-  inventory: InvItem[] = [];
+  inventory: gameInternal.InvItem[] = [];
   nextInvId = 1;
-  readonly tray: UsbTray<Key>;
-  plugged: Key | null = null;
+  readonly tray: UsbTray<gameInternal.Key>;
+  plugged: gameInternal.Key | null = null;
   readonly ports: StoragePort[] = STORAGE_PORTS.map((slot, i) => new StoragePort(slot, i));
   tpm!: TpmPort;
   /** The network interface (docs/NETSTACK.md): the kernel's driver talks to it; the wire (`network.ts`) feeds it and takes what it sends. */
@@ -154,8 +134,8 @@ export class Game {
   readonly npus: NpuPort[] = NPU_PORTS.map((slot, i) => new NpuPort(slot, i));
   readonly gpus: GpuPort[] = GPU_PORTS.map((slot, i) => new GpuPort(slot, i));
   readonly disks = new Map<string, Disk>();
-  os: InstalledOs | null = null;
-  pchKey: PchKey | null = null;
+  os: gameInternal.InstalledOs | null = null;
+  pchKey: pchChip.PchKey | null = null;
   nextKeyId = 1;
   avgTurnaround: number;
   postError: { reason: string; short: string } | null = null;
@@ -171,7 +151,7 @@ export class Game {
   /** Base ticks of cold-boot hardware delay left before the CPU starts (the machine is powered but not running yet). */
   bootDelay = 0;
   /** The OS's boot probe of each drive on the bus (not saved): base ticks of scan and repair left, `os.ts` `startMountScan`. */
-  readonly mounts = new Map<string, DriveMount>();
+  readonly mounts = new Map<string, gameInternal.DriveMount>();
   /** Each clock domain's rate before the cpuCyclesPerClock and boost scaling (what `applyRates` set). */
   readonly rateDomains: readonly string[] = [
     'cpu',
@@ -196,11 +176,11 @@ export class Game {
   declined = 0;
   expired = 0;
   leveledUpAt: number | null = null;
-  recentUnlocks: ItemInfo[] = [];
+  recentUnlocks: levelTable.ItemInfo[] = [];
   /** Sandbox: the rules level (patience, payout, demand, mix) is pinned here instead of following the score. */
-  sandboxLevel = SANDBOX_LEVEL;
+  sandboxLevel = gameInternal.SANDBOX_LEVEL;
   /** Sandbox: job classes switched off for the natural arrivals (spawnKey still adds any). Saved (docs/SAVE.md "sandbox"). */
-  sandboxOff = new Set<JobClassId>();
+  sandboxOff = new Set<levelTable.JobClassId>();
   /** Sandbox: kinds of job (job dex ids) switched off for the natural arrivals, on top of `sandboxOff`. Saved. */
   sandboxKindsOff = new Set<string>();
 
@@ -234,12 +214,12 @@ export class Game {
   deadTicks = 0;
   /** The link was usable at the end of the last tick (a transition into it retires the USB keys). Not saved. */
   linkWasUsable = false;
-  readonly offersQ: NetworkSource<Key>;
-  downloads: Transfer[] = [];
+  readonly offersQ: NetworkSource<gameInternal.Key>;
+  downloads: gameInternal.Transfer[] = [];
   /** Finished downloads in the NIC rx window (RAM) waiting to be written to the spool. */
-  rx: Key[] = [];
+  rx: gameInternal.Key[] = [];
   /** Jobs written to the spool on the drive, in ingest order (survive power loss). */
-  spool: Key[] = [];
+  spool: gameInternal.Key[] = [];
   /** The OS menu's spool settings (docs/OS.md "OS menu"): most queue slots wanted (null: as many as the OS allows) and the drives that hold none. Saved. */
   osCfg: {
     spoolSlots: number | null;
@@ -249,17 +229,17 @@ export class Game {
   } = { spoolSlots: null, spoolOff: [], spoolAlloc: {}, dataReserve: {} };
   /** Where the queue slots are now: per drive, how many (set by `layoutSpool` at power-on). Not saved. */
   spoolPlan: { deviceId: string; slots: number }[] = [];
-  uploads: Transfer[] = [];
+  uploads: gameInternal.Transfer[] = [];
   /** Spooled jobs the kernel does not know (a boot wiped its table): the NIC replays their program from the spool, nothing crosses the wire. RAM: lost on power loss. */
-  restores: Transfer[] = [];
+  restores: gameInternal.Transfer[] = [];
   /** The wire between the senders and the NIC (RAM-like: lost with the link): segments on their way to the NIC's input, acknowledgements on their way back. */
-  wireQ: WireSegment[] = [];
-  wireAcks: WireAck[] = [];
+  wireQ: gameInternal.WireSegment[] = [];
+  wireAcks: gameInternal.WireAck[] = [];
   /** What the senders have done since the game started (the transport's counters, not saved): segments put on the wire, the resends among them, segments the wire lost, timeouts. */
   netWire = { sent: 0, resent: 0, lost: 0, timeouts: 0 };
   /** The round trip the senders have measured to this machine (the smoothed time and its deviation), shared by the downloads of the link; null until the first download. RAM-like: lost with the link. */
   netRtt: RttEstimate | null = null;
-  link: Link = {
+  link: gameInternal.Link = {
     state: 'no-device',
     reason: 'no ISP plan',
     port: { kind: null, deviceId: null, mbps: 0 },
@@ -276,54 +256,78 @@ export class Game {
   constructor(opts: GameOptions) {
     this.seed = opts.seed >>> 0;
     this.contractRng = newContractRng(this.seed);
-    this.cfg = { ...ECONOMY, ...opts.economy };
-    this.sandbox = !!opts.sandbox;
-    this.looseFit = this.sandbox && !!opts.looseFit;
-    const start = Math.min(MAX_LEVEL, Math.max(1, Math.round(opts.startLevel ?? 1)));
+    this.cfg = { ...economyRules.ECONOMY, ...opts.economy };
+    this.sandbox = Boolean(opts.sandbox);
+    this.looseFit = this.sandbox && Boolean(opts.looseFit);
+    const start = Math.min(levelTable.MAX_LEVEL, Math.max(1, Math.round(opts.startLevel ?? 1)));
     this.lvl = this.sandbox ? 1 : start;
-    this.clientBase = this.sandbox ? 0 : LEVELS[start - 1]!.threshold;
+    this.clientBase = this.sandbox ? 0 : levelTable.LEVELS[start - 1]!.threshold;
     this.levelTicks = this.sandbox || start > 1 ? {} : { 1: 0 };
     this.avgTurnaround = this.cfg.targetTurnaround * this.patience(); // the clients start out content: reputation 1
-    this.money = this.sandbox ? SANDBOX_MONEY : this.cfg.startMoney;
-    this.tray = new UsbTray<Key>(this.cfg.queueCap);
-    this.offersQ = new NetworkSource<Key>(this.cfg.queueCap);
-    this.board = createBoard(0);
+    this.money = this.sandbox ? economyRules.SANDBOX_MONEY : this.cfg.startMoney;
+    this.tray = new UsbTray<gameInternal.Key>(this.cfg.queueCap);
+    this.offersQ = new NetworkSource<gameInternal.Key>(this.cfg.queueCap);
+    this.board = boardSim.createBoard(0);
     // The machine's memory array is built once at the most the paged OSes can use (1 MiB, their 20-bit virtual space); the installed RAM
     // changes the PCH-reported size (what the OS manages and the screens show), the cache miss penalty and which jobs arrive (EconomyConfig.mix).
-    this.flipRng = new Prng((opts.seed ^ 0x5eed_ecc) >>> 0); // its own stream: the flips never disturb the machine's or the clients' randomness
-    this.machine = new Machine({ ...machineConfigFor(this.board, opts.seed), ramSize: MACHINE_RAM_BYTES });
-    this.pch = new Pch(this.machine.display);
+    this.flipRng = new Prng((opts.seed ^ 0x5_ee_de_cc) >>> 0); // its own stream: the flips never disturb the machine's or the clients' randomness
+    this.machine = new Machine({
+      ...boardSim.machineConfigFor(this.board, opts.seed),
+      ramSize: gameInternal.MACHINE_RAM_BYTES,
+    });
+    this.pch = new pchChip.Pch(this.machine.display);
     this.pch.onPhase = () => this.applyBoost();
     this.machine.addDevice(this.pch);
-    for (const p of this.ports) this.machine.addDevice(p);
-    for (const p of this.gpus) this.machine.addDevice(p);
-    for (const p of this.npus) this.machine.addDevice(p);
+    for (const p of this.ports) {
+      this.machine.addDevice(p);
+    }
+    for (const p of this.gpus) {
+      this.machine.addDevice(p);
+    }
+    for (const p of this.npus) {
+      this.machine.addDevice(p);
+    }
     this.tpm = new TpmPort(this.machine.bus, this.machine.ram, this.machine.prng);
     this.machine.addDevice(this.tpm);
     this.nic = new Nic(this.machine.ram, (line) => this.machine.raise(line));
     this.nic.pull = () => this.wirePull();
     this.nic.onTransmit = (p) => this.wireSend(p);
     this.machine.addDevice(this.nic);
-    this.thermal = new ThermalModel(this.machine.prng);
+    this.thermal = new boardSim.ThermalModel(this.machine.prng);
     // The case comes with two basic fans on its front mounts (their cables still out).
-    for (const m of ['front0', 'front1']) this.mustInstall('fan92', undefined, m);
+    for (const m of ['front0', 'front1']) {
+      this.mustInstall('fan92', undefined, m);
+    }
     // The crate: CPU, PSU, RAM, monitor, stock heatsink and its fan (last, so the older item ids stay inv1..inv4). Nothing else is mounted at the start.
-    for (const spec of ['cpu0', 'psu0', 'ram0', 'display0', 'cooler0', 'fan92'])
+    for (const spec of ['cpu0', 'psu0', 'ram0', 'display0', 'cooler0', 'fan92']) {
       this.inventory.push({ id: `inv${this.nextInvId++}`, spec });
-    for (const q of this.cfg.startQueue) this.enqueue(q.template, q.scale);
+    }
+    for (const q of this.cfg.startQueue) {
+      this.enqueue(q.template, q.scale);
+    }
     if (opts.preassembled) {
-      for (const it of [...this.inventory]) this.mustInstall(it.spec, it.id);
-      this.cables = allCables(this.board);
-      this.progress = newProgress(true);
+      for (const it of [...this.inventory]) {
+        this.mustInstall(it.spec, it.id);
+      }
+      this.cables = boardSim.allCables(this.board);
+      this.progress = saveFormat.newProgress(true);
       this.firstBootTick = 0;
       this.syncRates(false);
-      if (!this.sandbox) this.powerButton(); // a sandbox machine is assembled but waits for the player's power press
+      if (!this.sandbox) {
+        this.powerButton(); // a sandbox machine is assembled but waits for the player's power press
+      }
     } else {
       this.syncRates(false);
     }
     // No tutorial in the sandbox: every milestone is reached from the start.
-    if (this.sandbox) this.progress = Object.fromEntries(PROGRESS_KEYS.map((k) => [k, true])) as unknown as Progress;
-    if (this.sandbox && opts.preassembled && opts.maxed) this.buildMaxRig();
+    if (this.sandbox) {
+      this.progress = Object.fromEntries(
+        saveFormat.PROGRESS_KEYS.map((k) => [k, true]),
+      ) as unknown as saveFormat.Progress;
+    }
+    if (this.sandbox && opts.preassembled && opts.maxed) {
+      this.buildMaxRig();
+    }
   }
 
   /**
@@ -331,8 +335,8 @@ export class Game {
    * plugged key stays plugged and its job restarts from boot at the next power-on. `economy` must match the saving
    * game's. A version 1 save is migrated first (see save.ts).
    */
-  static fromSave(input: unknown, economy?: Partial<EconomyConfig>): Game {
-    const s = parseSave(input);
+  static fromSave(input: unknown, economy?: Partial<economyRules.EconomyConfig>): Game {
+    const s = saveFormat.parseSave(input);
     const g = new Game({ seed: s.seed, economy, sandbox: s.sandbox === true });
     g.restoreSave(s);
     return g;
@@ -350,7 +354,9 @@ export class Game {
 
   note(kind: string, text: string): void {
     this.log.push({ tick: this.baseTick, kind, text });
-    if (this.log.length > LOG_CAP) this.log.shift();
+    if (this.log.length > gameInternal.LOG_CAP) {
+      this.log.shift();
+    }
   }
 }
 

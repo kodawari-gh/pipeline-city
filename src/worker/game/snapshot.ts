@@ -1,24 +1,13 @@
 // Game feature: the snapshot. Everything the UI and renderer see each tick, assembled from the other features' state.
 // Every export is a `Game` method (see game.ts).
 
-import {
-  boardSlots,
-  BOARD_TIERS,
-  bootCheck,
-  cablesOf,
-  cableBlocked,
-  cableNeeded,
-  CASE_TIERS,
-  deviceSpec,
-  findDevices,
-  type InstalledDevice,
-} from '../../features/board/sim';
-import { COUNTER_NAMES, Counter, type PipelineEngine } from '../../features/cpu/sim/engines';
+import * as boardSim from '../../features/board/sim';
+import * as cpuEngines from '../../features/cpu/sim/engines';
 import { PchPhase, JobState } from '../../core/sim/memmap';
 import { catalog, postTicks } from '../../features/economy/sim/economy';
 import type { Game } from './game';
 import { AIR_ZONES } from '../../features/board/sim/airflow';
-import { LEVEL_ROWS, type Key, type KernelJob } from './internal';
+import * as gameInternal from './internal';
 import { dexState, JOB_DEX } from '../../features/jobs/sim/jobdex';
 import { describeNeed, levelDef, MAX_LEVEL, needsMet } from '../../features/economy/sim/levels';
 import { STEP_TRACE_CYCLES, TRACE_CYCLES } from '../../features/cpu/sim/pipesnap';
@@ -35,16 +24,16 @@ import type {
 } from './types';
 
 export function snapshot(this: Game): Snapshot {
-  const eng = this.machine.engine as PipelineEngine | null;
+  const eng = this.machine.engine as cpuEngines.PipelineEngine | null;
   // a multicore CPU: every hardware core's pipeline, and `pipe` is the selected one's (the same object, so it crosses the thread boundary once)
   const cores = this.powered && eng?.view && this.machine.cores.length > 1 ? this.coresSnap() : null;
   const counters: Record<string, number> = {};
-  COUNTER_NAMES.forEach((n, i) => {
+  cpuEngines.COUNTER_NAMES.forEach((n, i) => {
     counters[n] = eng?.view ? eng.view.counters[i]! : 0;
   });
   const rep = this.reputation();
-  const cpu = findDevices(this.board, 'cpu')[0];
-  const cpuSpec = cpu ? deviceSpec(cpu) : undefined;
+  const [cpu] = boardSim.findDevices(this.board, 'cpu');
+  const cpuSpec = cpu ? boardSim.deviceSpec(cpu) : undefined;
   const purchases: PurchaseSnap[] = catalog().map((s) => {
     const p: PurchaseSnap = {
       id: s.id,
@@ -69,12 +58,14 @@ export function snapshot(this: Game): Snapshot {
   }
   for (const p of purchases) {
     const lock = this.levelLock(p.id);
-    if (lock) p.locked = lock;
+    if (lock) {
+      p.locked = lock;
+    }
   }
   const phase = this.currentPhase();
   const live = this.monitorLive();
-  const plugged = this.plugged;
-  const chk = bootCheck(this.board, this.cables);
+  const { plugged } = this;
+  const chk = boardSim.bootCheck(this.board, this.cables);
   const jobs = this.kernelJobs();
   return {
     money: this.money,
@@ -113,8 +104,8 @@ export function snapshot(this: Game): Snapshot {
       ? {
           mmu: {
             tlb: this.machine.mmu.tlbEntries,
-            hits: this.mmuCount(Counter.TlbHits),
-            misses: this.mmuCount(Counter.TlbMisses),
+            hits: this.mmuCount(cpuEngines.Counter.TlbHits),
+            misses: this.mmuCount(cpuEngines.Counter.TlbMisses),
             faults: this.machine.mmu.faults,
             on: this.machine.mmu.enabled,
           },
@@ -148,7 +139,7 @@ export function snapshot(this: Game): Snapshot {
     powered: this.powered,
     bootProgress: this.bootProgress(phase),
     monitorLive: live,
-    monitorPowered: !!this.cables['monmains'],
+    monitorPowered: Boolean(this.cables['monmains']),
     energy: { wallW: this.wallW, wh: this.wattTicks / 3600 },
     bill: this.billSnap(),
     noPowerReason: this.cutReason() ?? chk.noPower,
@@ -156,19 +147,20 @@ export function snapshot(this: Game): Snapshot {
     inventory: this.inventorySnap(),
     slots: this.slotSnaps(),
     // The PCIe lead is listed only while a card asks for it (or it is plugged): a machine with no accelerator has no such cable to show.
-    cables: cablesOf(this.board)
-      .filter((c) => this.cables[c.id] || cableNeeded(this.board, c.id))
+    cables: boardSim
+      .cablesOf(this.board)
+      .filter((c) => this.cables[c.id] || boardSim.cableNeeded(this.board, c.id))
       .map((c) => {
         const blocked =
           c.id === 'lan'
             ? this.routerTier
               ? null
               : 'needs a router next to the monitor'
-            : cableBlocked(this.board, c.id);
+            : boardSim.cableBlocked(this.board, c.id);
         return {
           id: c.id,
           name: c.name,
-          connected: !!this.cables[c.id],
+          connected: Boolean(this.cables[c.id]),
           ...(blocked && !this.cables[c.id] ? { blocked } : {}),
         };
       }),
@@ -184,7 +176,7 @@ export function snapshot(this: Game): Snapshot {
     keyIgnored: this.keyIgnored(),
     autoEject: this.cfg.autoEjectTicks > 0,
     pendingSwaps: this.pendingSwaps.map((p) => this.pendingSwapSnap(p)),
-    postFailed: !!this.postError,
+    postFailed: Boolean(this.postError),
     patience: {
       mul: this.patience(),
       targetTurnaround: this.targetTurnaround(),
@@ -231,15 +223,15 @@ export function levelSnap(this: Game): LevelSnap {
     demandMul: def.demandMul,
     leveledUpAt: this.leveledUpAt,
     recentlyUnlocked: this.recentUnlocks.map((i) => ({ ...i })),
-    upcoming: LEVEL_ROWS,
+    upcoming: gameInternal.LEVEL_ROWS,
     sandbox: this.sandbox,
     classesOff: [...this.sandboxOff],
     kindsOff: [...this.sandboxKindsOff],
   };
 }
 
-export function deviceSnap(this: Game, d: InstalledDevice): DeviceSnap {
-  const s = deviceSpec(d);
+export function deviceSnap(this: Game, d: boardSim.InstalledDevice): DeviceSnap {
+  const s = boardSim.deviceSpec(d);
   const t = this.thermal.state(d.id);
   return {
     id: d.id,
@@ -247,7 +239,7 @@ export function deviceSnap(this: Game, d: InstalledDevice): DeviceSnap {
     kind: s.kind,
     name: s.name,
     slot: d.slot,
-    burnt: !!d.burnt,
+    burnt: Boolean(d.burnt),
     requestedClock: d.clock ?? null,
     effectiveClock: t?.effClock ?? 0,
     tempC: t?.tempC ?? 25,
@@ -268,20 +260,20 @@ export function pendingSwapSnap(this: Game, p: { invId: string; slotId: string }
 }
 
 export function slotSnaps(this: Game): SlotSnap[] {
-  return boardSlots(this.board).map((s) => ({
+  return boardSim.boardSlots(this.board).map((s) => ({
     id: s.id,
     type: s.type,
-    ...(s.size ? { size: s.size } : {}),
+    ...(s.size !== undefined && s.size > 0 ? { size: s.size } : {}),
     deviceId: this.board.devices.find((d) => d.slot === s.id)?.id ?? null,
   }));
 }
 
 export function boardSnap(this: Game): BoardSnap {
-  const t = BOARD_TIERS[this.board.tier]!;
+  const t = boardSim.BOARD_TIERS[this.board.tier]!;
   const v = this.thermal.vrm,
     rv = this.thermal.ramVrm;
-  const sink = findDevices(this.board, 'vrm-sink')[0],
-    ramSink = findDevices(this.board, 'ram-sink')[0];
+  const [sink] = boardSim.findDevices(this.board, 'vrm-sink'),
+    [ramSink] = boardSim.findDevices(this.board, 'ram-sink');
   const rail = (spec: typeof t.vrm, st: typeof v, sinkDev: typeof sink): VrmSnap => ({
     phases: spec.phases,
     ampsPerPhase: spec.ampsPerPhase,
@@ -291,7 +283,7 @@ export function boardSnap(this: Game): BoardSnap {
     efficiency: st.efficiency,
     throttle: st.throttle,
     unstable: st.unstable,
-    burnt: !!this.board.burnt,
+    burnt: Boolean(this.board.burnt),
     errProb: st.errProb,
     heatW: st.heatW,
     throttleC: spec.throttleC,
@@ -303,9 +295,9 @@ export function boardSnap(this: Game): BoardSnap {
     tier: t.tier,
     name: t.name,
     caseTier: this.board.caseTier,
-    caseName: CASE_TIERS[this.board.caseTier]!.name,
-    caseForm: CASE_TIERS[this.board.caseTier]!.form,
-    burnt: !!this.board.burnt,
+    caseName: boardSim.CASE_TIERS[this.board.caseTier]!.name,
+    caseForm: boardSim.CASE_TIERS[this.board.caseTier]!.form,
+    burnt: Boolean(this.board.burnt),
     features: { ...t.features },
     slots: this.slotSnaps(),
     vrm: rail(t.vrm, v, sink),
@@ -331,8 +323,10 @@ export function boardSnap(this: Game): BoardSnap {
   };
 }
 
-export function stageOf(this: Game, k: Key, jobs: KernelJob[]): KeyStage {
-  if (k.done) return 'done';
+export function stageOf(this: Game, k: gameInternal.Key, jobs: gameInternal.KernelJob[]): KeyStage {
+  if (k.done) {
+    return 'done';
+  }
   const j = jobs.find((x) => x.key === k.id);
   const byState = (s: number): KeyStage =>
     s === JobState.Result || s === JobState.Sending
@@ -342,21 +336,32 @@ export function stageOf(this: Game, k: Key, jobs: KernelJob[]): KeyStage {
         : s === JobState.Receiving
           ? 'ingesting'
           : 'queued';
-  if (this.offersQ.waiting().includes(k)) return 'offer';
+  if (this.offersQ.waiting().includes(k)) {
+    return 'offer';
+  }
   const down = this.downloads.find((t) => t.key === k);
-  if (down) return down.flow?.sending === false ? 'ingesting' : 'downloading'; // every segment is on the wire: the rest is the kernel's work
-  if (this.rx.includes(k)) return 'ingesting';
-  if (this.spool.includes(k))
+  if (down) {
+    return down.flow?.sending === false ? 'ingesting' : 'downloading'; // every segment is on the wire: the rest is the kernel's work
+  }
+  if (this.rx.includes(k)) {
+    return 'ingesting';
+  }
+  if (this.spool.includes(k)) {
     return this.uploads.some((t) => t.key === k) ? 'uploading' : j ? byState(j.state) : 'spooled';
+  }
   if (k === this.plugged) {
-    if (this.pch.flashing) return 'flashing';
-    if (j) return byState(j.state);
+    if (this.pch.flashing) {
+      return 'flashing';
+    }
+    if (j) {
+      return byState(j.state);
+    }
     return this.pch.phase === PchPhase.OsIngest ? 'ingesting' : 'tray';
   }
   return j ? byState(j.state) : 'tray';
 }
 
-export function keySnap(this: Game, k: Key, jobs: KernelJob[]): KeySnap {
+export function keySnap(this: Game, k: gameInternal.Key, jobs: gameInternal.KernelJob[]): KeySnap {
   const need = needsMet(k.needs, this.caps());
   const stage = this.stageOf(k, jobs);
   return {
