@@ -62,7 +62,7 @@ function Cpu({ spec }: { spec: CpuSpec }) {
 
 function Ram({ spec }: { spec: RamSpec }) {
   const sticks = Math.max(1, Math.min(4, Math.round(spec.sizeBytes / (16 * 1024))));
-  const g = goodness('ram', 'latency', spec.latency, false);
+  const g = goodness('ram', { key: 'latency', value: spec.latency, higherIsBetter: false });
   const x0 = 18;
   const gap = 4;
   const w = 9;

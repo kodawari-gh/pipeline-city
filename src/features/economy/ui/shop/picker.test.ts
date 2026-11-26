@@ -329,9 +329,9 @@ describe('part stats and before/after', () => {
   });
 
   it('bar length is 1 for the best part of its kind, lower-is-better inverts', () => {
-    expect(goodness('cpu', 'speed', statsOf('cpu4w')[0]!.value, true)).toBe(1);
-    expect(goodness('ram', 'latency', 4, false)).toBe(1);
-    expect(goodness('ram', 'latency', 200, false)).toBeCloseTo(0.02, 5);
+    expect(goodness('cpu', { key: 'speed', value: statsOf('cpu4w')[0]!.value, higherIsBetter: true })).toBe(1);
+    expect(goodness('ram', { key: 'latency', value: 4, higherIsBetter: false })).toBe(1);
+    expect(goodness('ram', { key: 'latency', value: 200, higherIsBetter: false })).toBeCloseTo(0.02, 5);
   });
 
   it('compares the option with the current part: better, worse, same, with the delta', () => {
