@@ -10,7 +10,9 @@ import { VRM_ZONE_HELP, vrmReadout, vrmZone } from '@/features/board/ui/vrm';
 
 function Sparkline() {
   const h = history.value;
-  if (h.length < 2) return <div class="mute sub">collecting...</div>;
+  if (h.length < 2) {
+    return <div class="mute sub">collecting...</div>;
+  }
   const w = 220;
   const ht = 36;
   const max = Math.max(1, ...h.map((x) => Math.max(x.retired, x.stalls)));
@@ -63,7 +65,7 @@ export function Stats() {
   const hit = cacheHitRate(c);
   const stalls = stallsByCause(c);
   const stallMax = Math.max(1, ...stalls.map((x) => x.value));
-  const power = s.power;
+  const { power } = s;
   const vrm = vrmReadout(s);
   const post = postBreakdown(s);
   return (

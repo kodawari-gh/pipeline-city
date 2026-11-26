@@ -3059,10 +3059,6 @@
  "src/core/ui/menuNav.test.ts": {
   "unicorn(numeric-separators-style)": 12
  },
- "src/core/ui/menuNav.ts": {
-  "eslint(curly)": 2,
-  "unicorn(switch-case-braces)": 8
- },
  "src/core/ui/motion.test.ts": {
   "eslint(curly)": 4,
   "eslint(prefer-named-capture-group)": 9,
@@ -3083,10 +3079,6 @@
   "vitest(prefer-strict-equal)": 3,
   "vitest(valid-expect)": 1
  },
- "src/core/ui/panelCues.ts": {
-  "eslint(curly)": 3,
-  "import(consistent-type-specifier-style)": 1
- },
  "src/core/ui/panels/Controls.test.ts": {
   "eslint(curly)": 2,
   "eslint(no-empty-function)": 6,
@@ -3099,7 +3091,6 @@
   "vitest(require-mock-type-parameters)": 2
  },
  "src/core/ui/panels/Controls.tsx": {
-  "eslint(curly)": 4,
   "eslint(max-lines-per-function)": 1,
   "jsx-a11y(click-events-have-key-events)": 1,
   "jsx-a11y(no-static-element-interactions)": 1,
@@ -3127,11 +3118,9 @@
   "vitest(prefer-strict-equal)": 1
  },
  "src/core/ui/panels/CrashPanel.tsx": {
-  "eslint(curly)": 4,
   "eslint(eqeqeq)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(no-eq-null)": 1,
-  "eslint(prefer-destructuring)": 1,
   "jsx-a11y(click-events-have-key-events)": 1,
   "jsx-a11y(no-noninteractive-tabindex)": 1,
   "jsx-a11y(no-static-element-interactions)": 1,
@@ -3141,11 +3130,9 @@
   "typescript(no-confusing-void-expression)": 3,
   "typescript(no-misused-promises)": 1,
   "typescript(promise-function-async)": 1,
-  "typescript(strict-void-return)": 1,
-  "unicorn(prefer-global-this)": 2
+  "typescript(strict-void-return)": 1
  },
  "src/core/ui/panels/LoadConfirm.tsx": {
-  "eslint(curly)": 5,
   "eslint(max-lines-per-function)": 1,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 1,
@@ -3203,12 +3190,10 @@
   "vitest(prefer-each)": 1
  },
  "src/core/ui/panels/LogPanel.tsx": {
-  "eslint(curly)": 9,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 3,
   "eslint(no-negated-condition)": 2,
   "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 5,
   "import(max-dependencies)": 1,
   "jsx-a11y(click-events-have-key-events)": 1,
   "jsx-a11y(no-static-element-interactions)": 1,
@@ -3220,8 +3205,7 @@
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-non-null-assertion)": 2,
   "typescript(strict-boolean-expressions)": 3,
-  "unicorn(no-array-sort)": 2,
-  "unicorn(prefer-global-this)": 2
+  "unicorn(no-array-sort)": 2
  },
  "src/core/ui/panels/MainMenu.test.ts": {
   "eslint(curly)": 7,
@@ -3245,10 +3229,7 @@
   "vitest(valid-expect)": 5
  },
  "src/core/ui/panels/MainMenu.tsx": {
-  "eslint(curly)": 8,
   "eslint(max-lines-per-function)": 1,
-  "eslint(no-implicit-coercion)": 1,
-  "eslint(prefer-destructuring)": 1,
   "import(max-dependencies)": 1,
   "jsx-a11y(no-static-element-interactions)": 1,
   "react(button-has-type)": 4,
@@ -3286,10 +3267,8 @@
   "vitest(require-mock-type-parameters)": 1
  },
  "src/core/ui/panels/NewGame.tsx": {
-  "eslint(curly)": 12,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 1,
-  "eslint(no-implicit-coercion)": 1,
   "eslint(no-nested-ternary)": 6,
   "jsx-a11y(control-has-associated-label)": 1,
   "jsx-a11y(no-static-element-interactions)": 1,
@@ -3347,7 +3326,6 @@
  },
  "src/core/ui/panels/Paused.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 13,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
   "eslint(no-empty-function)": 1,
@@ -3368,9 +3346,7 @@
   "typescript(strict-boolean-expressions)": 5,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(max-nested-calls)": 7,
-  "unicorn(no-array-callback-reference)": 1,
-  "unicorn(prefer-global-this)": 4,
-  "unicorn(switch-case-braces)": 15
+  "unicorn(no-array-callback-reference)": 1
  },
  "src/core/ui/panels/Settings.test.ts": {
   "eslint(curly)": 11,
@@ -3394,11 +3370,9 @@
   "vitest(valid-expect)": 2
  },
  "src/core/ui/panels/Settings.tsx": {
-  "eslint(curly)": 13,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 3,
   "eslint(max-params)": 2,
-  "import(consistent-type-specifier-style)": 6,
   "import(max-dependencies)": 1,
   "jsx-a11y(no-noninteractive-element-interactions)": 2,
   "jsx-a11y(prefer-tag-over-role)": 4,
@@ -3414,24 +3388,20 @@
  },
  "src/core/ui/panels/Stats.tsx": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(no-nested-ternary)": 1,
-  "eslint(prefer-destructuring)": 1,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-non-null-assertion)": 1,
   "typescript(strict-boolean-expressions)": 1
  },
  "src/core/ui/panels/Toasts.tsx": {
-  "eslint(curly)": 3,
   "jsx-a11y(prefer-tag-over-role)": 1,
   "react(button-has-type)": 2,
   "react(only-export-components)": 1,
   "typescript(consistent-return)": 1,
   "typescript(explicit-module-boundary-types)": 3,
   "typescript(no-confusing-void-expression)": 2,
-  "typescript(strict-boolean-expressions)": 2,
-  "unicorn(explicit-length-check)": 1
+  "typescript(strict-boolean-expressions)": 2
  },
  "src/core/ui/panels/graphicsui.test.ts": {
   "import(consistent-type-specifier-style)": 1,
@@ -3440,9 +3410,6 @@
   "unicorn(no-array-for-each)": 1
  },
  "src/core/ui/panels/graphicsui.ts": {
-  "eslint(curly)": 6,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-non-null-assertion)": 1
  },
  "src/core/ui/panels/loadgame.test.ts": {
@@ -3460,7 +3427,6 @@
   "vitest(require-mock-type-parameters)": 3
  },
  "src/core/ui/panels/loadgame.ts": {
-  "eslint(curly)": 1,
   "eslint(no-nested-ternary)": 1,
   "typescript(strict-boolean-expressions)": 2
  },
@@ -3470,9 +3436,7 @@
   "vitest(valid-expect)": 1
  },
  "src/core/ui/panels/settingsnav.ts": {
-  "eslint(curly)": 1,
-  "eslint(max-params)": 1,
-  "unicorn(switch-case-braces)": 10
+  "eslint(max-params)": 1
  },
  "src/core/ui/place.test.ts": {
   "eslint(curly)": 1,
@@ -3481,7 +3445,6 @@
   "vitest(no-conditional-in-test)": 1
  },
  "src/core/ui/place.ts": {
-  "eslint(curly)": 2,
   "eslint(max-params)": 2,
   "typescript(explicit-module-boundary-types)": 1
  },
@@ -3522,12 +3485,9 @@
   "vitest(prefer-strict-equal)": 5
  },
  "src/core/ui/state.ts": {
-  "eslint(curly)": 18,
   "eslint(max-lines)": 1,
-  "eslint(no-implicit-coercion)": 2,
   "eslint(no-nested-ternary)": 2,
   "eslint(no-use-before-define)": 2,
-  "import(consistent-type-specifier-style)": 4,
   "typescript(explicit-module-boundary-types)": 27,
   "typescript(no-confusing-void-expression)": 11,
   "typescript(no-unsafe-assignment)": 1,

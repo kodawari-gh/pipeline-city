@@ -7,21 +7,10 @@ import { batch, computed, effect, signal } from '@preact/signals';
 import { selected } from '../../app/hover';
 import { lastRunSpeed, saveHooks, setSpeed, snapshot, speed } from '../../app/store';
 import type { Snapshot, Speed } from '../../worker/protocol';
-import { celebrationFor, reconcileSeen, type Celebration } from '../../features/economy/ui/progress/levelui';
-import {
-  closeSettings as closeSettingsScreen,
-  openSettings as openSettingsScreen,
-  settingsOpener,
-  type SettingsFrom,
-} from './panels/settingsnav';
-import { fillToasts, fitFilterFor, fitsFilter, newHints, totalStalls, type Hint } from './logic';
-import {
-  currentStep,
-  INITIAL_TUTORIAL,
-  resumeState,
-  tutorialForSave,
-  type TutorialState,
-} from '../../features/tutorial/ui/tutorial';
+import * as levelui from '../../features/economy/ui/progress/levelui';
+import * as settingsnav from './panels/settingsnav';
+import * as logic from './logic';
+import * as tutorialUi from '../../features/tutorial/ui/tutorial';
 
 const HINTS_KEY = 'pipeline-city.hints';
 const TUTORIAL_KEY = 'pipeline-city.tutorial';
@@ -51,7 +40,9 @@ export const clampScale = (v: number) =>
 export const uiScale = signal<number>(clampScale(Number(readStore(SCALE_KEY) ?? 1)));
 // (no page in the node test run: the root is touched only when the document has one)
 effect(() => {
-  if (typeof document !== 'undefined') document.documentElement?.style.setProperty('--ui-scale', String(uiScale.value));
+  if (typeof document !== 'undefined') {
+    document.documentElement?.style.setProperty('--ui-scale', String(uiScale.value));
+  }
 });
 export function setUiScale(v: number) {
   uiScale.value = clampScale(v);
@@ -63,7 +54,9 @@ export function setUiScale(v: number) {
 // Paused (speed 0): UI animations that show sim activity stop too. CSS keys on `.paused` at the root (see `.sim-anim`).
 // Purely interactive feedback (hover, panels, toasts) is not frozen.
 effect(() => {
-  if (typeof document !== 'undefined') document.documentElement?.classList.toggle('paused', speed.value === 0);
+  if (typeof document !== 'undefined') {
+    document.documentElement?.classList.toggle('paused', speed.value === 0);
+  }
 });
 
 export const statsOpen = signal(false);
@@ -79,24 +72,30 @@ export const closeOs = () => {
   osOpen.value = false;
 };
 /** The Settings screen (SPEC §5.6, `panels/Settings.tsx`): the picture and the interface, over the menu, the game or a studio screen. Its opener lives in `panels/settingsnav.ts`. */
-export const settingsOpen = computed(() => settingsOpener.value !== null);
-export const settingsFrom = computed<SettingsFrom>(() => settingsOpener.value ?? 'menu');
-export const openSettings = (from: SettingsFrom = 'menu') => openSettingsScreen(from);
+export const settingsOpen = computed(() => settingsnav.settingsOpener.value !== null);
+export const settingsFrom = computed<settingsnav.SettingsFrom>(() => settingsnav.settingsOpener.value ?? 'menu');
+export const openSettings = (from: settingsnav.SettingsFrom = 'menu') => settingsnav.openSettings(from);
 /** Back and Esc: closes Settings and returns to its opener. The game menu shows again when it opened Settings (SPEC §9). */
 export const closeSettings = () => {
   batch(() => {
-    if (closeSettingsScreen() === 'paused') gameMenuOpen.value = true;
+    if (settingsnav.closeSettings() === 'paused') {
+      gameMenuOpen.value = true;
+    }
   });
 };
 // The stats and network drawers dock on the same side: opening one closes the other.
 export const toggleStats = () => {
   statsOpen.value = !statsOpen.value;
-  if (statsOpen.value) netOpen.value = false;
+  if (statsOpen.value) {
+    netOpen.value = false;
+  }
 };
 /** The network panel (opened from the HUD chip once a router exists). */
 export const toggleNet = () => {
   netOpen.value = !netOpen.value;
-  if (netOpen.value) statsOpen.value = false;
+  if (netOpen.value) {
+    statsOpen.value = false;
+  }
 };
 /** The in-game menu (the "…" button in the bar). Esc opens it when nothing else is open (`Hud.tsx`). */
 export const gameMenuOpen = signal(false);
@@ -155,12 +154,14 @@ export const fitTarget = signal<string | null>(null);
 effect(() => {
   const sel = selected.value;
   if (!sel || sel.startsWith('inv:')) {
-    if (!sel) fitTarget.value = null;
+    if (!sel) {
+      fitTarget.value = null;
+    }
     return;
   }
   const s = snapshot.peek();
-  const f = fitFilterFor(sel, s);
-  const any = !!f && !!s && s.inventory.some((it) => fitsFilter(f, it));
+  const f = logic.fitFilterFor(sel, s);
+  const any = f !== null && s !== null && s.inventory.some((it) => logic.fitsFilter(f, it));
   fitTarget.value = any ? sel : null;
   if (any) {
     inventoryOpen.value = true;
@@ -170,26 +171,26 @@ effect(() => {
 
 // ---- guided tutorial (per viewer) ----
 
-function loadTutorial(): TutorialState {
+function loadTutorial(): tutorialUi.TutorialState {
   try {
-    return resumeState(JSON.parse(readStore(TUTORIAL_KEY) ?? 'null'));
+    return tutorialUi.resumeState(JSON.parse(readStore(TUTORIAL_KEY) ?? 'null'));
   } catch {
-    return INITIAL_TUTORIAL;
+    return tutorialUi.INITIAL_TUTORIAL;
   }
 }
-export const tutorial = signal<TutorialState>(loadTutorial());
+export const tutorial = signal<tutorialUi.TutorialState>(loadTutorial());
 
-function setTutorial(next: TutorialState) {
+function setTutorial(next: tutorialUi.TutorialState) {
   tutorial.value = next;
   writeStore(TUTORIAL_KEY, JSON.stringify(next));
 }
 // The tutorial state travels inside every save, so a loaded save resumes it (also on another browser or after another game).
 saveHooks.attach = (save) => ({ ...save, tutorial: tutorial.peek() });
-saveHooks.restore = (save) => setTutorial(tutorialForSave(save.tutorial, save.progress));
+saveHooks.restore = (save) => setTutorial(tutorialUi.tutorialForSave(save.tutorial, save.progress));
 
 /** A new campaign asks whether the player wants the tutorial: yes starts it from the welcome card, no hides it (the menu replays it). */
 export const resetTutorial = (wanted: boolean) =>
-  setTutorial(wanted ? { ...INITIAL_TUTORIAL } : { ...INITIAL_TUTORIAL, skipped: true });
+  setTutorial(wanted ? { ...tutorialUi.INITIAL_TUTORIAL } : { ...tutorialUi.INITIAL_TUTORIAL, skipped: true });
 export const startTutorial = () => setTutorial({ ...tutorial.value, welcomed: true });
 export const skipTutorial = () => setTutorial({ ...tutorial.value, skipped: true });
 /** Got it on an explain-only step. */
@@ -226,13 +227,17 @@ function loadSeen(): Set<string> {
 }
 const seen = loadSeen();
 /** At most MAX_TOASTS are visible; the rest wait in `queued` and appear as the visible ones go away. */
-export const toasts = signal<Hint[]>([]);
-const queued = signal<Hint[]>([]);
+export const toasts = signal<logic.Hint[]>([]);
+const queued = signal<logic.Hint[]>([]);
 const TOAST_MS = 8000;
 
-function pump(visible: Hint[], queue: Hint[]) {
-  const r = fillToasts(visible, queue);
-  for (const t of r.visible) if (!visible.includes(t)) setTimeout(() => dismissToast(t.id), TOAST_MS);
+function pump(visible: logic.Hint[], queue: logic.Hint[]) {
+  const r = logic.fillToasts(visible, queue);
+  for (const t of r.visible) {
+    if (!visible.includes(t)) {
+      setTimeout(() => dismissToast(t.id), TOAST_MS);
+    }
+  }
   toasts.value = r.visible;
   queued.value = r.queue;
 }
@@ -244,7 +249,7 @@ export function dismissToast(id: string) {
   );
 }
 
-function showHint(h: Hint) {
+function showHint(h: logic.Hint) {
   seen.add(h.id);
   writeStore(HINTS_KEY, JSON.stringify([...seen]));
   pump(toasts.value, [...queued.value, h]);
@@ -258,10 +263,16 @@ export function resetHints() {
 
 effect(() => {
   const s = snapshot.value;
-  if (!s) return;
+  if (!s) {
+    return;
+  }
   // Hints wait while a tutorial step is active: the card is the one thing to read then.
-  if (currentStep(s, tutorial.value)) return;
-  for (const h of newHints(s, seen)) showHint(h);
+  if (tutorialUi.currentStep(s, tutorial.value)) {
+    return;
+  }
+  for (const h of logic.newHints(s, seen)) {
+    showHint(h);
+  }
 });
 
 // ---- level-up (per viewer; a modal over everything that waits for the player to press Next, see Levels.tsx) ----
@@ -272,7 +283,7 @@ function loadSeen_(): number | null {
   return Number.isInteger(v) && v >= 1 ? v : null;
 }
 let seenLevel: number | null = loadSeen_();
-export const levelUp = signal<Celebration | null>(null);
+export const levelUp = signal<levelui.Celebration | null>(null);
 // ---- holds on the clock (SPEC §9). A hold stops the clock while it lasts: a level-up popup, a tutorial popup, or the menu family.
 // The player cannot lift a hold from the HUD. The last hold to close resumes the clock at the speed it ran at, unless the player
 // had paused first (then the clock was not running when the holds began, and nothing resumes).
@@ -297,16 +308,22 @@ const syncHold = (): void => {
 
 export function setHold(h: Hold, on: boolean): void {
   if (on) {
-    if (holds.has(h)) return;
+    if (holds.has(h)) {
+      return;
+    }
     if (holds.size === 0 && speed.peek() !== 0) {
       resumeOnRelease = true;
       setSpeed(0);
     }
     holds.add(h);
   } else {
-    if (!holds.delete(h)) return;
+    if (!holds.delete(h)) {
+      return;
+    }
     if (holds.size === 0) {
-      if (resumeOnRelease && speed.peek() === 0) setSpeed(lastRunSpeed.peek());
+      if (resumeOnRelease && speed.peek() === 0) {
+        setSpeed(lastRunSpeed.peek());
+      }
       resumeOnRelease = false;
     }
   }
@@ -327,7 +344,9 @@ export function clearHolds(): void {
 export function runAt(s: Speed): void {
   batch(() => {
     gameMenuOpen.value = false;
-    if (controlsFromMenu.peek()) controlsOpen.value = false;
+    if (controlsFromMenu.peek()) {
+      controlsOpen.value = false;
+    }
     holds.delete('menu');
     if (holds.size > 0) {
       lastRunSpeed.value = s;
@@ -357,11 +376,15 @@ export function closeControls(): void {
   batch(() => {
     const back = controlsFromMenu.peek();
     controlsOpen.value = false;
-    if (back) gameMenuOpen.value = true;
+    if (back) {
+      gameMenuOpen.value = true;
+    }
   });
 }
 effect(() => {
-  if (!controlsOpen.value) controlsFromMenu.value = false;
+  if (!controlsOpen.value) {
+    controlsFromMenu.value = false;
+  }
 });
 const menuFamily = computed(
   () =>
@@ -388,7 +411,7 @@ effect(() => {
     dismissLevelUp();
     return;
   }
-  const owed = celebrationFor(s, seenLevel);
+  const owed = levelui.celebrationFor(s, seenLevel);
   if (owed && !levelUp.peek()) {
     levelUp.value = owed;
     setHold('levelUp', true);
@@ -398,7 +421,7 @@ effect(() => {
   }
   // Otherwise follow the level (a load, a new game).
   if (!owed) {
-    const next = reconcileSeen(s, seenLevel);
+    const next = levelui.reconcileSeen(s, seenLevel);
     if (next !== seenLevel) {
       seenLevel = next;
       writeStore(SEEN_KEY, String(next));
@@ -424,8 +447,10 @@ effect(() => {
     return;
   }
   const retired = s.counters['retired'] ?? 0;
-  const stalls = totalStalls(s.counters);
-  if (lastSample && s.baseTick === lastSample.tick) return;
+  const stalls = logic.totalStalls(s.counters);
+  if (lastSample && s.baseTick === lastSample.tick) {
+    return;
+  }
   // Counters restart with each attempt: a drop means a new engine, so count from zero.
   const dr = lastSample && retired >= lastSample.retired ? retired - lastSample.retired : retired;
   const ds = lastSample && stalls >= lastSample.stalls ? stalls - lastSample.stalls : stalls;

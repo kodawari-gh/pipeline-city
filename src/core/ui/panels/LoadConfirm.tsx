@@ -24,21 +24,27 @@ export function LoadConfirm() {
     loadOffer.value = null;
   };
   const replace = () => {
-    if (!save) return;
+    if (!save) {
+      return;
+    }
     loadOffer.value = null;
     startSim(save);
   };
 
   // Each time a file is read, the screen opens on Cancel.
   useEffect(() => {
-    if (!save) return;
+    if (!save) {
+      return;
+    }
     setAt(CANCEL);
     focusRow(CANCEL);
     // (runs once per file)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [save]);
 
-  if (!save) return null;
+  if (!save) {
+    return null;
+  }
 
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -46,7 +52,9 @@ export function LoadConfirm() {
       cancel();
       return;
     }
-    if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) return;
+    if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) {
+      return;
+    }
     e.preventDefault();
     lastKey.current = Date.now();
     const g = Number((document.activeElement as HTMLElement | null)?.dataset['group']);
@@ -55,7 +63,9 @@ export function LoadConfirm() {
     focusRow(next);
   };
   const hover = (g: number) => {
-    if (mouseMayMoveFocus(lastKey.current, Date.now())) setAt(g);
+    if (mouseMayMoveFocus(lastKey.current, Date.now())) {
+      setAt(g);
+    }
   };
 
   // SAVE is the autosave the replacement takes the place of; FILE is the picked file.

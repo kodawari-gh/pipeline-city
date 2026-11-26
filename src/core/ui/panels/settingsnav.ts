@@ -30,18 +30,25 @@ export const SETTINGS_ROWS: Record<SettingsTabId, readonly string[]> = {
  * with a row focused, the tab stays. ↑ ↓ never move the tab.
  */
 export function railMove(at: number, count: number, key: string, railFocused: boolean): number {
-  if (!railFocused || count < 1) return at;
+  if (!railFocused || count < 1) {
+    return at;
+  }
   switch (key) {
-    case 'ArrowRight':
+    case 'ArrowRight': {
       return (at + 1) % count;
-    case 'ArrowLeft':
+    }
+    case 'ArrowLeft': {
       return (at - 1 + count) % count;
-    case 'Home':
+    }
+    case 'Home': {
       return 0;
-    case 'End':
+    }
+    case 'End': {
       return count - 1;
-    default:
+    }
+    default: {
       return at;
+    }
   }
 }
 
@@ -65,19 +72,24 @@ const isPeekKey = (key?: string) => key === ' ' || key === 'Enter';
  */
 export function peekHeld(held: boolean, ev: PeekEvent): boolean {
   switch (ev.type) {
-    case 'pointerdown':
+    case 'pointerdown': {
       return true;
+    }
     case 'pointerup':
     case 'pointercancel':
     case 'pointerleave':
-    case 'blur':
+    case 'blur': {
       return false;
-    case 'keydown':
+    }
+    case 'keydown': {
       return isPeekKey(ev.key) ? true : held;
-    case 'keyup':
+    }
+    case 'keyup': {
       return isPeekKey(ev.key) ? false : held;
-    default:
+    }
+    default: {
       return held;
+    }
   }
 }
 

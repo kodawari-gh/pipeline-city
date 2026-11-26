@@ -6,20 +6,7 @@ import { useEffect } from 'preact/hooks';
 import { snapshot } from '@/app/store';
 import { dexEntry } from '@/features/jobs/sim/jobdex';
 import type { KeySnap, KeyStage, Snapshot } from '@/worker/game/game';
-import {
-  aggregate,
-  byKind,
-  livePhases,
-  liveVerdict,
-  phasesOf,
-  stallShares,
-  verdictOf,
-  type Agg,
-  type JobLogEntry,
-  type Phases,
-  type Verdict,
-  type VerdictKind,
-} from '@/features/jobs/sim/joblog';
+import * as joblog from '@/features/jobs/sim/joblog';
 import { openAlmanacFor } from '@/features/jobs/ui/AlmanacPanel';
 import { Icon } from '../kit/Icons';
 import type { IconName } from '@/features/economy/ui/shop/picker';
@@ -56,10 +43,10 @@ const PHASES = [
   ],
   ['run', 'Running', 'bolt', 'The time from the job first running until its result was written'],
   ['collect', 'Collecting', 'box', 'The time from the result being written until the client had it'],
-] as const satisfies readonly (readonly [keyof Phases, string, IconName, string])[];
+] as const satisfies readonly (readonly [keyof joblog.Phases, string, IconName, string])[];
 
 /** The icon of each thing that can hold a job up. */
-const KIND_ICON: Record<VerdictKind, IconName> = {
+const KIND_ICON: Record<joblog.VerdictKind, IconName> = {
   queue: 'clock',
   collect: 'box',
   memory: 'memory',
@@ -72,10 +59,15 @@ const KIND_ICON: Record<VerdictKind, IconName> = {
   lost: 'lock',
   none: 'check',
 };
-const STALL_KIND: Record<string, VerdictKind> = { cache: 'memory', flush: 'branch', data: 'deps', struct: 'port' };
+const STALL_KIND: Record<string, joblog.VerdictKind> = {
+  cache: 'memory',
+  flush: 'branch',
+  data: 'deps',
+  struct: 'port',
+};
 
 /** One coloured tag for what held a job up; its tooltip is the sentence and what to try. `quiet`: the colour and the icon only, no pill (the rows of a list). */
-function Tag({ v, quiet }: { v: Verdict; quiet?: boolean }) {
+function Tag({ v, quiet }: { v: joblog.Verdict; quiet?: boolean }) {
   return (
     <span class={`jl-tag k-${v.kind}${quiet ? ' quiet' : ''}`} title={`${v.text}${v.hint ? ` ${v.hint}` : ''}`}>
       <Icon name={KIND_ICON[v.kind]} size={11} /> {v.tag}
@@ -84,7 +76,7 @@ function Tag({ v, quiet }: { v: Verdict; quiet?: boolean }) {
 }
 
 /** A job's time in three parts as one bar, scaled against `max` so bars compare. */
-function PhaseBar({ p, max }: { p: Phases; max: number }) {
+function PhaseBar({ p, max }: { p: joblog.Phases; max: number }) {
   const w = (n: number) => `${(n / Math.max(1, max)) * 100}%`;
   return (
     <span
@@ -98,7 +90,7 @@ function PhaseBar({ p, max }: { p: Phases; max: number }) {
 }
 
 /** A job's time as one bar with what each part is under it: a share and a time. One picture, in place of a ring and four boxes. */
-function PhaseSummary({ p }: { p: Phases }) {
+function PhaseSummary({ p }: { p: joblog.Phases }) {
   const tot = Math.max(1, p.total);
   return (
     <div class="jl-sum">
@@ -123,7 +115,9 @@ function PhaseSummary({ p }: { p: Phases }) {
 
 /** Go to the almanac page of a kind of job: an icon in a row, a labelled button in a header. */
 function AlmanacLink({ type, label }: { type: string; label?: boolean }) {
-  if (!dexEntry(type)) return null;
+  if (!dexEntry(type)) {
+    return null;
+  }
   const tip = `Open the almanac page for ${nameOf(type)}: what it leans on and how to do it better`;
   return (
     <button
@@ -143,9 +137,11 @@ function AlmanacLink({ type, label }: { type: string; label?: boolean }) {
 }
 
 /** What the cycles of the runs were spent on, as coloured bars; the last bar is how many instructions finished per cycle. */
-function Stalls({ a }: { a: Agg }) {
-  if (!a.win || a.win.cycles <= 0) return null;
-  const sh = stallShares(a.win),
+function Stalls({ a }: { a: joblog.Agg }) {
+  if (!a.win || a.win.cycles <= 0) {
+    return null;
+  }
+  const sh = joblog.stallShares(a.win),
     ipc = a.win.retired / a.win.cycles;
   return (
     <div class="jl-stalls">
@@ -176,10 +172,12 @@ function Stalls({ a }: { a: Agg }) {
 }
 
 /** The bars of the runs behind a fold: shut, it says in one line what took the cycles the most. */
-function Inside({ a, open }: { a: Agg; open?: boolean }) {
-  if (!a.win || a.win.cycles <= 0) return null;
+function Inside({ a, open }: { a: joblog.Agg; open?: boolean }) {
+  if (!a.win || a.win.cycles <= 0) {
+    return null;
+  }
   // (the shares come largest first)
-  const top = stallShares(a.win)[0]!,
+  const top = joblog.stallShares(a.win)[0]!,
     ipc = a.win.retired / a.win.cycles;
   return (
     <details class="jl-inside" open={open}>
@@ -194,17 +192,18 @@ function Inside({ a, open }: { a: Agg; open?: boolean }) {
   );
 }
 
-function Macro({ list }: { list: JobLogEntry[] }) {
-  const all = aggregate(list),
-    kinds = byKind(list);
+function Macro({ list }: { list: joblog.JobLogEntry[] }) {
+  const all = joblog.aggregate(list),
+    kinds = joblog.byKind(list);
   const maxAvg = Math.max(1, ...kinds.map((k) => k.wait + k.queue + k.run + k.collect));
-  if (all.n === 0)
+  if (all.n === 0) {
     return (
       <p class="mute jl-empty">
         <Icon name="clock" size={14} /> Nothing finished yet.
       </p>
     );
-  const avg: Phases = {
+  }
+  const avg: joblog.Phases = {
     wait: all.wait,
     queue: all.queue,
     run: all.run,
@@ -233,7 +232,7 @@ function Macro({ list }: { list: JobLogEntry[] }) {
       <h4>By kind of job</h4>
       <div class="jl-kinds">
         {kinds.map((k) => {
-          const t: Phases = {
+          const t: joblog.Phases = {
             wait: k.wait,
             queue: k.queue,
             run: k.run,
@@ -279,9 +278,9 @@ function Macro({ list }: { list: JobLogEntry[] }) {
 }
 
 /** One job: what held it up, its time in parts, the cycle bars of its run, and the way to its almanac page. */
-function Detail({ e }: { e: JobLogEntry }) {
-  const p = phasesOf(e),
-    v = verdictOf(e),
+function Detail({ e }: { e: joblog.JobLogEntry }) {
+  const p = joblog.phasesOf(e),
+    v = joblog.verdictOf(e),
     w = e.win;
   const how = e.outcome === 'done' ? fmtMoney(e.payout) : '';
   return (
@@ -348,7 +347,7 @@ function Detail({ e }: { e: JobLogEntry }) {
 }
 
 /** How each stage of a job still on the machine reads: an icon, a word, and the colour family it shares with the log's phases (amber waiting, green running, violet collecting). */
-const STAGE: Record<KeyStage, readonly [IconName, string, VerdictKind]> = {
+const STAGE: Record<KeyStage, readonly [IconName, string, joblog.VerdictKind]> = {
   tray: ['box', 'In the tray', 'queue'],
   offer: ['net', 'On offer', 'queue'],
   downloading: ['down', 'Downloading', 'queue'],
@@ -381,18 +380,19 @@ const NOW_ROWS = 6;
 function inFlight(s: Snapshot): KeySnap[] {
   const seen = new Set<number>(),
     out: KeySnap[] = [];
-  for (const k of [s.plugged, ...(s.net?.spooled ?? []), ...(s.net?.offers ?? []), ...s.tray])
+  for (const k of [s.plugged, ...(s.net?.spooled ?? []), ...(s.net?.offers ?? []), ...s.tray]) {
     if (k && !seen.has(k.id)) {
       seen.add(k.id);
       out.push(k);
     }
+  }
   return out.sort((a, b) => STAGE_RANK[a.stage] - STAGE_RANK[b.stage] || a.arrivalTick - b.arrivalTick);
 }
 
 /** One job on the machine: its picture, where it is, a bar that fills as it waits and runs toward its deadline, and, while it runs, what is holding it up so far. */
 function NowRow({ k, s }: { k: KeySnap; s: Snapshot }) {
   const now = s.baseTick,
-    p = livePhases(k, now);
+    p = joblog.livePhases(k, now);
   const span = Math.max(1, k.deadlineTick - k.arrivalTick, p.total);
   const w = (n: number) => `${(n / span) * 100}%`;
   const [icon, word, fam] = STAGE[k.stage];
@@ -400,7 +400,7 @@ function NowRow({ k, s }: { k: KeySnap; s: Snapshot }) {
   const xfer =
     k.stage === 'downloading' || k.stage === 'uploading' ? s.net?.transfers.find((t) => t.jobId === k.id) : undefined;
   const more = xfer ? ` ${Math.round(xfer.percent)}%` : ahead !== undefined && ahead > 0 ? ` · ${ahead} ahead` : '';
-  const v = liveVerdict(k, now);
+  const v = joblog.liveVerdict(k, now);
   const late = p.total > k.deadlineTick - k.arrivalTick;
   return (
     <div class={`jl-now-row ${k.runnable ? '' : 'off'}`}>
@@ -452,27 +452,37 @@ function Now({ list, s }: { list: KeySnap[]; s: Snapshot }) {
 export function LogPanel() {
   const open = logOpen.value;
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     const onKey = (ev: KeyboardEvent) => {
-      if (ev.key === 'Escape') closeLog();
+      if (ev.key === 'Escape') {
+        closeLog();
+      }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    globalThis.addEventListener('keydown', onKey);
+    return () => globalThis.removeEventListener('keydown', onKey);
   }, [open]);
-  if (!open) return null;
+  if (!open) {
+    return null;
+  }
   const snap = snapshot.value;
   const { jobs: all, contracts: finishedContracts } = splitLog(snap?.jobLog ?? []);
   const live = snap ? inFlight(snap) : [];
   const rows = [...all].sort(
-    order.value === 'slow' ? (a, b) => phasesOf(b).total - phasesOf(a).total : (a, b) => b.end - a.end || b.id - a.id,
+    order.value === 'slow'
+      ? (a, b) => joblog.phasesOf(b).total - joblog.phasesOf(a).total
+      : (a, b) => b.end - a.end || b.id - a.id,
   );
-  const maxTotal = Math.max(1, ...all.map((e) => phasesOf(e).total));
+  const maxTotal = Math.max(1, ...all.map((e) => joblog.phasesOf(e).total));
   const sel = all.find((e) => e.id === picked.value) ?? null;
   return (
     <div
       class="modal-back almanac-back joblog-back"
       onClick={(ev) => {
-        if (ev.target === ev.currentTarget) closeLog();
+        if (ev.target === ev.currentTarget) {
+          closeLog();
+        }
       }}
     >
       <div
@@ -526,8 +536,8 @@ export function LogPanel() {
               </div>
               <div class="jl-list" role="listbox" aria-label="Jobs">
                 {rows.map((e) => {
-                  const p = phasesOf(e),
-                    v = verdictOf(e);
+                  const p = joblog.phasesOf(e),
+                    v = joblog.verdictOf(e);
                   return (
                     <button
                       key={e.id}

@@ -15,14 +15,18 @@ const NOTICE_MS = 6000;
 export function Notice() {
   const err = lastError.value;
   useEffect(() => {
-    if (!err) return;
+    if (!err) {
+      return;
+    }
     playCue('ui_error');
     const t = setTimeout(() => {
       lastError.value = null;
     }, NOTICE_MS);
     return () => clearTimeout(t);
   }, [err]);
-  if (!err) return null;
+  if (!err) {
+    return null;
+  }
   return (
     <div class="card notice" role="alert" data-cue="ui_error">
       <span>{friendlyError(err)}</span>
@@ -48,7 +52,9 @@ export function visibleToasts() {
 /** Hint toasts: one at a time. No new hints are raised while a tutorial card is up (see state.ts). */
 export function Toasts() {
   const list = visibleToasts();
-  if (!list.length) return null;
+  if (list.length === 0) {
+    return null;
+  }
   return (
     <div class="toasts" aria-live="polite">
       {list.map((t) => (

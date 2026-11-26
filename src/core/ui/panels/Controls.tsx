@@ -63,7 +63,9 @@ function Rows({ rows }: { rows: readonly Row[] }) {
 export function Controls() {
   const open = controlsOpen.value;
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     const before = document.activeElement as HTMLElement | null;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -75,15 +77,21 @@ export function Controls() {
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('keydown', onKey);
-      if (before && document.contains(before)) before.focus();
+      if (before && document.contains(before)) {
+        before.focus();
+      }
     };
   }, [open]);
-  if (!open) return null;
+  if (!open) {
+    return null;
+  }
   return (
     <div
       class="modal-back ctl-back"
       onClick={(e) => {
-        if (e.target === e.currentTarget) closeControls();
+        if (e.target === e.currentTarget) {
+          closeControls();
+        }
       }}
     >
       <div class="card modal mm-card ctl" role="dialog" aria-modal="true" aria-label="Controls">

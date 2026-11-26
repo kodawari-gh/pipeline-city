@@ -91,14 +91,18 @@ export function utilityLists(phone: boolean, tutorial = false): { files: string[
 
 /** What one Esc closes: the open utility list first, then the screen. `null`: nothing is open. */
 export function escTarget(layers: { list: boolean; menu: boolean }): 'list' | 'menu' | null {
-  if (layers.list) return 'list';
+  if (layers.list) {
+    return 'list';
+  }
   return layers.menu ? 'menu' : null;
 }
 
 /** The meta of Save now: how long ago the game was saved (SPEC §5.10, the sample "saved 10 s ago"). */
 function savedAgo(at: number): string {
   const secs = Math.round((Date.now() - at) / 1000);
-  if (secs < 60) return `saved ${Math.max(0, secs)} s ago`;
+  if (secs < 60) {
+    return `saved ${Math.max(0, secs)} s ago`;
+  }
   const min = Math.floor(secs / 60);
   return min < 60 ? `saved ${min} min ago` : `saved ${Math.floor(min / 60)} h ago`;
 }
@@ -136,8 +140,8 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
   };
   const lastKey = useRef<number | null>(null);
   // The layout (SPEC §6.1) and the HUD's own phone breakpoint (ui.css, Hud.tsx): the bar hides its segments at the second one.
-  const phone = window.matchMedia?.(PHONE_QUERY).matches ?? false;
-  const hudPhone = window.matchMedia?.('(max-width: 48em)').matches ?? false;
+  const phone = globalThis.matchMedia?.(PHONE_QUERY).matches ?? false;
+  const hudPhone = globalThis.matchMedia?.('(max-width: 48em)').matches ?? false;
   void tutorial.value; // (the tutorial state is read here, so the screen draws again when a step changes)
   const tutorialOn = s !== null && features.tutorialOn(s);
   const bill = s ? billChip(s) : null;
@@ -149,7 +153,9 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
   };
   const trigger = () => document.querySelector<HTMLElement>('.menu > button[aria-label="Menu"]');
   const hold = (g: number) => {
-    if (mouseMayMoveFocus(lastKey.current, Date.now())) setAt(g);
+    if (mouseMayMoveFocus(lastKey.current, Date.now())) {
+      setAt(g);
+    }
   };
   const groupEl = (g: number) => root.current?.querySelector<HTMLElement>(`[data-group="${g}"]`);
   const groups = () => [
@@ -165,7 +171,9 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
   const onFile = (e: Event) => {
     const input = e.currentTarget as HTMLInputElement;
     const f = input.files?.[0];
-    if (f) void loadFromFile(f);
+    if (f) {
+      void loadFromFile(f);
+    }
     input.value = '';
     close();
   };
@@ -229,7 +237,7 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
   /** The row of a utility list for its label, or null when the HUD does not show it now (no power bill, no net, no OS). */
   const itemFor = (label: string): Item | null => {
     switch (label) {
-      case 'Export game':
+      case 'Export game': {
         return {
           label,
           text: label,
@@ -239,9 +247,11 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
             close();
           },
         };
-      case 'Import game':
+      }
+      case 'Import game': {
         return { label, text: label, title: 'Load a game file', run: () => fileInput.current?.click() };
-      case 'New game':
+      }
+      case 'New game': {
         return {
           label,
           text: label,
@@ -252,7 +262,8 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
             openNewGame();
           },
         };
-      case 'Stats':
+      }
+      case 'Stats': {
         return {
           label,
           text: statsOpen.value ? 'Hide stats' : 'Stats',
@@ -261,7 +272,8 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
             close();
           },
         };
-      case 'Trace':
+      }
+      case 'Trace': {
         return {
           label,
           text: traceOpen.value ? 'Hide trace' : 'Trace',
@@ -271,7 +283,8 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
             close();
           },
         };
-      case 'Levels':
+      }
+      case 'Levels': {
         return {
           label,
           text: label,
@@ -281,7 +294,8 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
             close();
           },
         };
-      case 'Power bill':
+      }
+      case 'Power bill': {
         return bill
           ? {
               label,
@@ -293,7 +307,8 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
               },
             }
           : null;
-      case 'Machine':
+      }
+      case 'Machine': {
         return s
           ? {
               label,
@@ -303,7 +318,8 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
               run: () => {},
             }
           : null;
-      case 'Network':
+      }
+      case 'Network': {
         return net
           ? {
               label,
@@ -315,7 +331,8 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
               },
             }
           : null;
-      case 'OS':
+      }
+      case 'OS': {
         return s?.os
           ? {
               label,
@@ -327,7 +344,8 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
               },
             }
           : null;
-      case 'Zoom slow':
+      }
+      case 'Zoom slow': {
         return {
           label,
           text: `Zoom slow ${zoomSlowOn.value ? 'on' : 'off'}`,
@@ -336,17 +354,21 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
             toggleZoomSlow();
           },
         };
-      case 'Replay tutorial':
+      }
+      case 'Replay tutorial': {
         return {
           label,
           text: label,
           title: 'Run the tutorial again from the start',
           run: () => {
-            if (s) replayTutorial(s);
+            if (s) {
+              replayTutorial(s);
+            }
             close();
           },
         };
-      case 'Skip tutorial':
+      }
+      case 'Skip tutorial': {
         return {
           label,
           text: label,
@@ -356,7 +378,8 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
             close();
           },
         };
-      case 'Show hints again':
+      }
+      case 'Show hints again': {
         return {
           label,
           text: label,
@@ -366,8 +389,10 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
             close();
           },
         };
-      default:
+      }
+      default: {
         return null;
+      }
     }
   };
   const itemsOf = (b: Branch): Item[] =>
@@ -387,14 +412,19 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
     const list = [...(root.current?.querySelectorAll<HTMLElement>('.pl-row') ?? [])];
     const first = list.find((el) => want !== null && el.textContent?.includes(want)) ?? list[0];
     first?.focus();
-    if (first?.dataset['group'] !== undefined) setAt(Number(first.dataset['group']));
+    if (first?.dataset['group'] !== undefined) {
+      setAt(Number(first.dataset['group']));
+    }
     // A press outside the screen closes it; a press on the HUD speed rail is left to its click (runAt closes the menu in one step).
     const outside = (e: PointerEvent) => {
-      if (root.current && !root.current.contains(e.target as Node) && !(e.target as Element).closest?.('.speeds'))
+      if (root.current && !root.current.contains(e.target as Node) && !(e.target as Element).closest?.('.speeds')) {
         close();
+      }
     };
     const key = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+      if (e.key !== 'Escape') {
+        return;
+      }
       e.preventDefault();
       const inner = branchRef.current;
       if (escTarget({ list: inner !== null, menu: true }) === 'list') {
@@ -406,10 +436,10 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
       trigger()?.focus();
     };
     document.addEventListener('pointerdown', outside, true);
-    window.addEventListener('keydown', key);
+    globalThis.addEventListener('keydown', key);
     return () => {
       document.removeEventListener('pointerdown', outside, true);
-      window.removeEventListener('keydown', key);
+      globalThis.removeEventListener('keydown', key);
     };
     // (re-run only when the screen opens or closes)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -417,16 +447,22 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
 
   // A list opened from its utility line takes focus on its first entry.
   useEffect(() => {
-    if (branch) root.current?.querySelector<HTMLElement>(`#pl-${branch} [role="menuitem"]`)?.focus();
+    if (branch) {
+      root.current?.querySelector<HTMLElement>(`#pl-${branch} [role="menuitem"]`)?.focus();
+    }
   }, [branch]);
 
   const onKey = (e: KeyboardEvent) => {
-    if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+    if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+      return;
+    }
     lastKey.current = Date.now();
     const active = document.activeElement as HTMLElement | null;
     // Inside an open list, ↑ ↓ move along it.
     if (active?.classList.contains('pl-sub-item')) {
-      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') {
+        return;
+      }
       const list = subs();
       const next = moveFocus(list.length, list.indexOf(active), e.key);
       e.preventDefault();
@@ -437,7 +473,9 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
       // ← → move between the utility buttons, and the chip moves to the utility line.
       const list = utils();
       const i = list.indexOf(active as HTMLElement);
-      if (i === -1) return;
+      if (i === -1) {
+        return;
+      }
       e.preventDefault();
       setAt(UTIL);
       list[cycleValue(list.length, i, e.key)]!.focus();
@@ -445,7 +483,9 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
     }
     const gs = groups();
     const next = moveFocus(gs.length, gs.indexOf(Number(active?.dataset['group'])), e.key);
-    if (next < 0) return;
+    if (next < 0) {
+      return;
+    }
     e.preventDefault();
     const g = gs[next]!;
     setAt(g);
