@@ -1404,7 +1404,7 @@ const HELP = `swarm.mjs: ticket swarm runner (config docs/agents/board.json)
   ticket <n>[,<n>...] [--base <branch>]          swarm the named tickets only
   catchup <parent> [--from <ref>] [--model <m>] [--effort <e>]   merge <ref> (default: current branch) into parent/<parent>; a merger agent settles conflicts; then the gates
   status [<key>]                                 phase, rounds and tier of each ticket in a run
-  retry <key> <n>                                mark a stopped ticket to resume from its kept branches on the next run
+  retry <key> <n>                                mark a stopped ticket to resume from its kept branches on the next run (exhausted: one more top-tier round)
   gc                                             remove worktrees and branches of closed tickets, and unused shared installs
   deps                                           in a swarm worktree: replace shared dependency links with a private install
   lock [--name <name>] -- <command...>           run a command under a machine-wide mutex (default name: browser)
@@ -1419,6 +1419,10 @@ function retry(cfg, key, n) {
   const T = s?.tickets[n];
   if (!T || ['done', 'new', 'resume', 'running'].includes(T.phase)) {
     throw new Error(`retry: #${n} in ${key} is not a stopped ticket`);
+  }
+  // An exhausted ticket gets one more round at the top tier; else it stops again at once.
+  if (T.phase === 'exhausted' && T.failures > 0) {
+    T.failures--;
   }
   T.phase = 'resume';
   delete T.reason;
