@@ -3,15 +3,7 @@
 // water's temperature at that place of the loop (`waterAt`: hot from the pump to the radiator's core, cooling along its lanes, cold on the way back, heated again
 // across the pump's cold plate), and bands of light run along it at the speed of the flow. It is drawn over the picture, through the hoses and the radiator's
 // plates: the hose's own sleeve and the radiator's body glow by their temperature (`PartSkin.thermal`) round it.
-import {
-  DoubleSide,
-  Float32BufferAttribute,
-  InstancedBufferAttribute,
-  InstancedBufferGeometry,
-  Mesh,
-  ShaderMaterial,
-  type PerspectiveCamera,
-} from 'three';
+import * as THREE from 'three';
 import { THERMAL_BEND, thermalGlsl } from '@/core/render/three/thermal';
 import type { WaterNet } from './waternet';
 
@@ -86,16 +78,16 @@ const SPREAD = 3.5;
 
 /** The water of one machine, as a mesh. */
 export class Water {
-  readonly mesh: Mesh;
-  private readonly geo = new InstancedBufferGeometry();
-  private readonly mat: ShaderMaterial;
+  readonly mesh: THREE.Mesh;
+  private readonly geo = new THREE.InstancedBufferGeometry();
+  private readonly mat: THREE.ShaderMaterial;
   private phase = 0;
 
   constructor(private readonly net: WaterNet) {
     // one strip: two ends, two sides
-    this.geo.setAttribute('corner', new Float32BufferAttribute([0, -1, 0, 1, 1, -1, 1, 1], 2));
+    this.geo.setAttribute('corner', new THREE.Float32BufferAttribute([0, -1, 0, 1, 1, -1, 1, 1], 2));
     // (`position` is needed for the draw count; the shader does not read it)
-    this.geo.setAttribute('position', new Float32BufferAttribute(new Float32Array(12), 3));
+    this.geo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(12), 3));
     this.geo.setIndex([0, 1, 2, 1, 3, 2]);
     const n = net.runs.length,
       a = new Float32Array(3 * n),
@@ -106,12 +98,12 @@ export class Water {
       b.set(r.b, 3 * i);
       info.set([r.sa, r.sb, r.r, r.ph], 4 * i);
     });
-    this.geo.setAttribute('iA', new InstancedBufferAttribute(a, 3));
-    this.geo.setAttribute('iB', new InstancedBufferAttribute(b, 3));
-    this.geo.setAttribute('iInfo', new InstancedBufferAttribute(info, 4));
+    this.geo.setAttribute('iA', new THREE.InstancedBufferAttribute(a, 3));
+    this.geo.setAttribute('iB', new THREE.InstancedBufferAttribute(b, 3));
+    this.geo.setAttribute('iInfo', new THREE.InstancedBufferAttribute(info, 4));
     this.geo.instanceCount = n;
     const s = Array.from({ length: KNOTS }, (_, i) => net.stops[Math.min(i, net.stops.length - 1)] ?? 0);
-    this.mat = new ShaderMaterial({
+    this.mat = new THREE.ShaderMaterial({
       // (laid over the picture: two runs that overlap at a bend are one colour, so they add nothing; both faces, a strip's winding turns with the run's way)
       vertexShader: VERT,
       fragmentShader: FRAG,
@@ -119,7 +111,7 @@ export class Water {
       depthWrite: false,
       depthTest: false,
       toneMapped: false,
-      side: DoubleSide,
+      side: THREE.DoubleSide,
       uniforms: {
         uPixel: { value: 0.002 },
         uS: { value: s },
@@ -132,7 +124,7 @@ export class Water {
         uMove: { value: 0 },
       },
     });
-    this.mesh = new Mesh(this.geo, this.mat);
+    this.mesh = new THREE.Mesh(this.geo, this.mat);
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 1002;
     this.mesh.raycast = () => {};
@@ -143,7 +135,7 @@ export class Water {
    * `flow`: how hard the pump drives it (0 to 1; 0 is still water); `dt`: game seconds; `pxHeight`: the view's height in pixels.
    */
   frame(
-    cam: PerspectiveCamera,
+    cam: THREE.PerspectiveCamera,
     pxHeight: number,
     lo: number,
     hi: number,

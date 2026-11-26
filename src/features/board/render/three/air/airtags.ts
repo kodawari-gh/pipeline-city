@@ -1,12 +1,11 @@
 // Air tags: short words pinned to 3D points, drawn as light DOM pills over the canvas.
 // DOM text stays sharp at any zoom and costs no extra draw calls.
-import { Vector3 } from 'three';
-import type { PerspectiveCamera } from 'three';
+import * as THREE from 'three';
 import { MONO } from '@/core/render/ink';
-import { powerGradient, ROLE_HEX, ROLE_WORD, type Role } from '@/core/render/three/powerscale';
+import * as powerscale from '@/core/render/three/powerscale';
 import { thermalGradient } from '@/core/render/three/thermal';
 
-const ROLES: readonly Role[] = ['source', 'hub', 'use'];
+const ROLES: readonly powerscale.Role[] = ['source', 'hub', 'use'];
 /** The network lens's legend: the two ways data goes (the chips' colours are the pulses'), by the class of the chip and its word. */
 const NET_LEGEND: readonly (readonly [string, string])[] = [
   ['in', 'coming in'],
@@ -36,7 +35,7 @@ export interface AirTag {
   /** A detail: the power lens leaves it out while the machine is small on the screen (the room's view), so the overview keeps only the main words. */
   minor?: boolean;
   /** The power lens: what the node does with power (a chip of its colour starts the pill): it brings it in (source), hands it on (hub) or uses it. */
-  role?: Role;
+  role?: powerscale.Role;
   /** The legend in place of words (the chips and their names): `true` the three roles of the power lens, `'net'` the two ways data goes in the network lens. */
   legend?: boolean | 'net';
 }
@@ -78,14 +77,14 @@ const CSS = `
 .airtag-down { color: #6fd8ff; }
 .airtag-scale { display: flex; align-items: center; gap: 0.4rem; color: #cfd6ee; }
 .airtag-bar { width: 5.5rem; height: 0.45rem; border-radius: 0.25rem; background: ${thermalGradient('to right')}; }
-.airtag-bar-w { background: ${powerGradient('to right')}; }
-.airtag-r-source:not(.airtag-warn) { color: ${css(ROLE_HEX.source)}; }
+.airtag-bar-w { background: ${powerscale.powerGradient('to right')}; }
+.airtag-r-source:not(.airtag-warn) { color: ${css(powerscale.ROLE_HEX.source)}; }
 .airtag-r-hub:not(.airtag-warn) { color: #8fe3fb; }
 .airtag-r-use:not(.airtag-warn) { color: #ffd37a; }
 .airtag-chip { display: inline-block; width: 0.6rem; height: 0.6rem; margin-right: 0.35rem; vertical-align: -0.02rem; }
-.airtag-chip-source { border-radius: 50%; background: ${css(ROLE_HEX.source)}; box-shadow: 0 0 0.3rem ${css(ROLE_HEX.source)}; }
-.airtag-chip-hub { background: ${css(ROLE_HEX.hub)}; transform: rotate(45deg) scale(0.8); box-shadow: 0 0 0.3rem ${css(ROLE_HEX.hub)}; }
-.airtag-chip-use { background: ${css(ROLE_HEX.use)}; clip-path: polygon(0 8%, 100% 8%, 50% 100%); }
+.airtag-chip-source { border-radius: 50%; background: ${css(powerscale.ROLE_HEX.source)}; box-shadow: 0 0 0.3rem ${css(powerscale.ROLE_HEX.source)}; }
+.airtag-chip-hub { background: ${css(powerscale.ROLE_HEX.hub)}; transform: rotate(45deg) scale(0.8); box-shadow: 0 0 0.3rem ${css(powerscale.ROLE_HEX.hub)}; }
+.airtag-chip-use { background: ${css(powerscale.ROLE_HEX.use)}; clip-path: polygon(0 8%, 100% 8%, 50% 100%); }
 .airtag-legend { display: flex; align-items: center; gap: 0.8rem; color: #cfd6ee; font-weight: 600; }
 .airtag-legend span { display: inline-flex; align-items: center; }
 .airtag-legend .airtag-chip { margin-right: 0.3rem; }
@@ -119,8 +118,12 @@ interface Box {
 
 /** Smooth the slope with the newest change. A held value keeps the old trend. */
 function step(old: Trend | undefined, temp: number, now: number): Trend {
-  if (!old) return { temp, t: now, slope: 0 };
-  if (temp === old.temp || now <= old.t) return old;
+  if (!old) {
+    return { temp, t: now, slope: 0 };
+  }
+  if (temp === old.temp || now <= old.t) {
+    return old;
+  }
   const rate = (temp - old.temp) / (now - old.t);
   return { temp, t: now, slope: old.slope * 0.8 + rate * 0.2 };
 }
@@ -154,13 +157,15 @@ function settle(left: number, top: number, w: number, h: number, placed: readonl
 function fitX(left: number, w: number, view: TagView): number {
   const min = view.left + 4;
   const max = view.left + view.width - 4 - w;
-  if (max < min) return min; // wider than the view: left-align it
+  if (max < min) {
+    return min; // wider than the view: left-align it
+  }
   return Math.min(Math.max(left, min), max);
 }
 
 export class AirTags3D {
   private readonly host: HTMLElement | null;
-  private readonly ndc = new Vector3();
+  private readonly ndc = new THREE.Vector3();
   private nodes: PillNode[] = [];
   private items: Item[] = [];
   private trends = new Map<string, Trend>();
@@ -184,14 +189,18 @@ export class AirTags3D {
 
   /** Replace the words. A tag with the same id keeps its trend memory. `now` is seconds (any clock that never goes back). */
   set(tags: readonly AirTag[], now: number): void {
-    const host = this.host;
-    if (!host || this.disposed) return;
+    const { host } = this;
+    if (!host || this.disposed) {
+      return;
+    }
     const old = this.trends;
     const next = new Map<string, Trend>();
     this.items = tags.map((tag) => {
       // A tag with no temperature has no trend. Its memory is dropped.
       const trend = tag.tempC === undefined ? undefined : step(old.get(tag.id), tag.tempC, now);
-      if (trend) next.set(tag.id, trend);
+      if (trend) {
+        next.set(tag.id, trend);
+      }
       const slope = trend?.slope ?? 0;
       const arrow: Item['arrow'] = slope > TREND_C_PER_S ? 'up' : slope < -TREND_C_PER_S ? 'down' : '';
       return { tag, arrow };
@@ -199,12 +208,16 @@ export class AirTags3D {
     // Tags that left the list lose their memory, so the map does not grow forever.
     this.trends = next;
     // Grow the pool here. frame() hides the spare pills.
-    while (this.nodes.length < this.items.length) this.nodes.push(this.makePill(host));
+    while (this.nodes.length < this.items.length) {
+      this.nodes.push(this.makePill(host));
+    }
   }
 
   /** Per frame: project every tag through `cam`, place its pill, keep it inside `view`, and push overlaps apart. */
-  frame(cam: PerspectiveCamera, view: TagView): void {
-    if (!this.host || this.disposed) return;
+  frame(cam: THREE.PerspectiveCamera, view: TagView): void {
+    if (!this.host || this.disposed) {
+      return;
+    }
     cam.updateMatrixWorld();
     // Projection needs the inverse view matrix. Setting it here means no renderer is needed.
     cam.matrixWorldInverse.copy(cam.matrixWorld).invert();
@@ -214,7 +227,7 @@ export class AirTags3D {
     for (let i = 0; i < this.items.length; i++) {
       const item = this.items[i]!;
       const node = this.nodes[i]!;
-      const at = item.tag.at;
+      const { at } = item.tag;
       const ndc = this.ndc.set(at[0], at[1], at[2]).project(cam);
       // A z above 1 means the point is behind the camera.
       if (!this.shown || ndc.z > 1) {
@@ -230,7 +243,9 @@ export class AirTags3D {
         y: view.top + (-ndc.y * 0.5 + 0.5) * view.height,
       });
     }
-    for (let i = this.items.length; i < this.nodes.length; i++) this.setVisible(this.nodes[i]!, false);
+    for (let i = this.items.length; i < this.nodes.length; i++) {
+      this.setVisible(this.nodes[i]!, false);
+    }
 
     // Pass 2: measure, then place each pill and push it up while it clashes.
     const placed: Box[] = [],
@@ -266,7 +281,11 @@ export class AirTags3D {
   /** False hides every pill now. Set and frame then do nothing visible. */
   show(on: boolean): void {
     this.shown = on;
-    if (!on) for (const n of this.nodes) this.setVisible(n, false);
+    if (!on) {
+      for (const n of this.nodes) {
+        this.setVisible(n, false);
+      }
+    }
   }
 
   /** The pills' current boxes in CSS px, for tests. */
@@ -278,7 +297,9 @@ export class AirTags3D {
   }
 
   dispose(): void {
-    for (const n of this.nodes) n.el.remove();
+    for (const n of this.nodes) {
+      n.el.remove();
+    }
     this.nodes = [];
     this.items = [];
     this.trends = new Map();
@@ -294,7 +315,9 @@ export class AirTags3D {
   }
 
   private setVisible(node: PillNode, on: boolean): void {
-    if (node.visible === on) return;
+    if (node.visible === on) {
+      return;
+    }
     node.visible = on;
     node.el.style.display = on ? '' : 'none';
   }
@@ -302,20 +325,22 @@ export class AirTags3D {
   private writeText(node: PillNode, item: Item): void {
     const sc = item.tag.scale,
       watts = item.tag.unit === 'W',
-      role = item.tag.role;
+      { role } = item.tag;
     const key = item.tag.legend
       ? `legend|${item.tag.legend}`
       : sc
         ? `scale|${watts ? 'W' : 'C'}|${Math.round(sc[0])}|${Math.round(sc[1])}`
         : `${item.tag.tone}|${role ?? ''}|${item.arrow}|${item.tag.text}`;
-    if (key === node.key) return;
+    if (key === node.key) {
+      return;
+    }
     node.key = key;
     if (item.tag.legend) {
       // the legend: a chip of each role's colour and its word
       node.el.className = 'airtag airtag-legend';
       node.el.textContent = '';
       const entries: readonly (readonly [string, string])[] =
-        item.tag.legend === 'net' ? NET_LEGEND : ROLES.map((r) => [r, ROLE_WORD[r]] as const);
+        item.tag.legend === 'net' ? NET_LEGEND : ROLES.map((r) => [r, powerscale.ROLE_WORD[r]] as const);
       for (const [kind, text] of entries) {
         const span = document.createElement('span'),
           chip = document.createElement('i'),
@@ -356,7 +381,9 @@ export class AirTags3D {
       text.textContent = item.tag.text;
       node.el.appendChild(chip);
       node.el.appendChild(text);
-    } else node.el.textContent = item.tag.text;
+    } else {
+      node.el.textContent = item.tag.text;
+    }
     node.label = item.tag.text.length + (role ? 2 : 0);
     if (item.arrow) {
       const s = document.createElement('span');

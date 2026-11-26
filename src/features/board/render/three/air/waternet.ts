@@ -50,7 +50,9 @@ const copy = (p: V3): V3 => [p[0], p[1], p[2]];
 
 /** A line of points smoothed: each span cut into `per` pieces along a Catmull-Rom curve through them (the ends stay put). */
 export function smooth(pts: readonly V3[], per = 3): V3[] {
-  if (pts.length < 3) return pts.map(copy);
+  if (pts.length < 3) {
+    return pts.map(copy);
+  }
   const at = (i: number): V3 => pts[Math.max(0, Math.min(pts.length - 1, i))]!,
     out: V3[] = [];
   for (let i = 0; i < pts.length - 1; i++) {
@@ -71,7 +73,7 @@ export function smooth(pts: readonly V3[], per = 3): V3[] {
       out.push([c(0), c(1), c(2)]);
     }
   }
-  out.push(copy(pts[pts.length - 1]!));
+  out.push(copy(pts.at(-1)!));
   return out;
 }
 
@@ -95,8 +97,9 @@ export function waterNet(
   block: WaterBlock,
 ): WaterNet | null {
   const [hot, cold] = hoses;
-  if (!hot || !cold || hot.length < 2 || cold.length < 2 || !rad || rad.tubes.length < 1 || rad.ports.length < 2)
+  if (!hot || !cold || hot.length < 2 || cold.length < 2 || !rad || rad.tubes.length === 0 || rad.ports.length < 2) {
     return null;
+  }
   const runs: WaterRun[] = [],
     stops: number[] = [],
     level: number[] = [];
@@ -111,7 +114,9 @@ export function waterNet(
       const a = pts[i - 1]!,
         b = pts[i]!,
         d = dist(a, b);
-      if (d < 1) continue;
+      if (d < 1) {
+        continue;
+      }
       runs.push({ a: copy(a), b: copy(b), sa: s, sb: s + d, r, ph });
       s += d;
     }
@@ -140,7 +145,7 @@ export function waterNet(
     zm = (ports[0]![2] + ports[1]![2]) / 2;
   let ins = tubes.filter((t) => t.a[2] < zm),
     outs = tubes.filter((t) => t.a[2] >= zm);
-  if (!ins.length || !outs.length) {
+  if (ins.length === 0 || outs.length === 0) {
     const k = Math.max(1, Math.min(tubes.length - 1, Math.floor(tubes.length / 2)));
     ins = tubes.slice(0, k);
     outs = tubes.length > 1 ? tubes.slice(k) : tubes.slice(0);
@@ -163,7 +168,7 @@ export function waterNet(
     hi = (zi.hi - zi.lo) / 2,
     ho = (zo.hi - zo.lo) / 2;
   // in at the near tank's middle, spread along the tank to the lanes
-  const end = hotLine[hotLine.length - 1]!,
+  const end = hotLine.at(-1)!,
     endC = coldLine[0]!;
   s = run([end, nIn(zi.mid)], s, R.tank);
   run([nIn(zi.mid), nIn(zi.lo)], s, R.tank);
@@ -197,13 +202,19 @@ export function waterNet(
 export function levelAt(net: Pick<WaterNet, 'stops' | 'level'>, s: number): number {
   const { stops, level } = net,
     n = stops.length;
-  if (n === 0) return 0;
-  if (s <= stops[0]!) return level[0]!;
-  for (let i = 1; i < n; i++)
-    if (s < stops[i]!)
+  if (n === 0) {
+    return 0;
+  }
+  if (s <= stops[0]!) {
+    return level[0]!;
+  }
+  for (let i = 1; i < n; i++) {
+    if (s < stops[i]!) {
       return (
         level[i - 1]! + (level[i]! - level[i - 1]!) * ((s - stops[i - 1]!) / Math.max(1e-3, stops[i]! - stops[i - 1]!))
       );
+    }
+  }
   return level[n - 1]!;
 }
 

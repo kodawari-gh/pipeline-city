@@ -54,7 +54,9 @@ const HEADER: Readonly<Record<string, string>> = { cooler: 'cpufan', 'vrm-sink':
 
 const sum = (a: Iterable<number>): number => {
   let t = 0;
-  for (const x of a) t += x;
+  for (const x of a) {
+    t += x;
+  }
   return t;
 };
 
@@ -84,7 +86,9 @@ export function powerLedger(s: Snapshot): Ledger {
     const c = cards.find((q) => q.slot === l.slot)!;
     cable.set(l.lead, c.w / (assignLeads([c]).length + 1));
   }
-  for (const d of sataDrives) cable.set(`${d.id}:power`, w(d));
+  for (const d of sataDrives) {
+    cable.set(`${d.id}:power`, w(d));
+  }
   // the fans: a heatsink's, a sink's and the pump on their board header; a case fan on its mount's cord to the hub, and the hub's cord carries them all
   let hub = 0;
   for (const d of s.devices) {
@@ -97,8 +101,12 @@ export function powerLedger(s: Snapshot): Ledger {
       }
       const h = s.devices.find((x) => x.slot === host),
         id = h ? HEADER[h.kind] : undefined;
-      if (id) cable.set(id, (cable.get(id) ?? 0) + w(d));
-    } else if (HEADER[d.kind]) cable.set(HEADER[d.kind]!, (cable.get(HEADER[d.kind]!) ?? 0) + w(d)); // (a loop's pump)
+      if (id) {
+        cable.set(id, (cable.get(id) ?? 0) + w(d));
+      }
+    } else if (HEADER[d.kind]) {
+      cable.set(HEADER[d.kind]!, (cable.get(HEADER[d.kind]!) ?? 0) + w(d)); // (a loop's pump)
+    }
   }
   cable.set('sysfan', hub);
   cable.set('cpu', cpuW);
@@ -106,7 +114,7 @@ export function powerLedger(s: Snapshot): Ledger {
     'atx',
     Math.max(
       0,
-      pcW - cpuW - sum(sataDrives.map(w)) - sum([...cable].filter(([id]) => /^pcie\d*$/.test(id)).map(([, x]) => x)),
+      pcW - cpuW - sum(sataDrives.map(w)) - sum([...cable].filter(([id]) => /^pcie\d*$/u.test(id)).map(([, x]) => x)),
     ),
   );
   cable.set('pcmains', pcW);
@@ -115,7 +123,11 @@ export function powerLedger(s: Snapshot): Ledger {
   const listed = new Map<string, boolean>(s.cables.map((c) => [c.id, c.connected]));
   const missing = (id: string): boolean => listed.get(id) === false;
   // (a cord that is out carries nothing)
-  for (const [id] of cable) if (missing(id)) cable.set(id, 0);
+  for (const [id] of cable) {
+    if (missing(id)) {
+      cable.set(id, 0);
+    }
+  }
 
   const part = new Map<string, number>();
   const board = new Map<string, number>();
@@ -128,7 +140,9 @@ export function powerLedger(s: Snapshot): Ledger {
     part.set(d.id, w(d));
     const card = cards.find((c) => c.slot === d.slot);
     board.set(d.id, sata.has(d.slot) ? 0 : card ? card.w / (assignLeads([card]).length + 1) : w(d));
-    if (d.kind === 'display') continue;
+    if (d.kind === 'display') {
+      continue;
+    }
     const k = kinds.get(d.kind) ?? { w: 0, ids: [] };
     k.w += w(d);
     k.ids.push(d.id);
