@@ -51,8 +51,10 @@ it('Room3D.make builds the same room a step at a time, and the late models join 
       await macroTurn();
       expect(open).toBe(false);
     },
-    async () => {
-      slices++;
+    {
+      slice: async () => {
+        slices++;
+      },
     },
   );
   expect(steps.map(([label]) => label)).toEqual(['Setting the desk', 'Shading the corners', 'Tidying the room']);
@@ -92,8 +94,7 @@ it('Room3D.make casts the baked occlusion on the pool it is given, the largest g
     async (label) => {
       labels.push(label);
     },
-    async () => undefined,
-    pool,
+    { slice: async () => undefined, pool },
   );
   expect(labels).toEqual(['Setting the desk', 'Shading the corners', 'Tidying the room']);
   expect(asked.length).toBeGreaterThanOrEqual(5);
@@ -124,8 +125,7 @@ it('Room3D.make stops its pool when the build throws', async () => {
       async () => {
         throw new Error('the page went away');
       },
-      async () => undefined,
-      pool,
+      { slice: async () => undefined, pool },
     ),
   ).rejects.toThrow('the page went away');
   expect(stopped).toBe(1);

@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { LOW_NEAR_RINGS, type CityDetail } from './detail';
 import { buildings, GRID, topOf, type Building } from './plan';
 import { bearing, drawn } from './sweep';
-import { LOW_WHOLE, massGeometries, massSteps, type MassRing } from './towers';
+import { LOW_WHOLE, massGeometries, massSteps, type MassRing } from './towers/rings';
 
 /** `massGeometries` as the Low cut will call it (the third parameter does not exist yet). */
 const withDetail = massGeometries as (bs: readonly Building[], washes: [], detail?: CityDetail) => MassRing[];
@@ -248,7 +248,7 @@ describe('massSteps', () => {
     '%s: with no budget it yields after each building, and ends with the rings massGeometries makes',
     (detail) => {
       const bs = buildings(),
-        run = massSteps(bs, [], detail, 0);
+        run = massSteps(bs, [], { detail, budget: 0 });
       let yields = 0,
         step = run.next();
       while (!step.done) {
@@ -267,7 +267,7 @@ describe('massSteps', () => {
   );
 
   it('never yields with an endless budget (`massGeometries`)', () => {
-    const run = massSteps(buildings(), [], 'high', Infinity);
+    const run = massSteps(buildings(), [], { detail: 'high', budget: Infinity });
     expect(run.next().done).toBe(true);
   }, 60000);
 });

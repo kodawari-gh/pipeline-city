@@ -20,7 +20,8 @@ import {
 import { SEG, paint, place, post, rod, shareTex } from '@/core/render/three/geometry';
 import { taperTube } from '@/core/render/three/loft';
 import { mat } from '@/core/render/three/materials';
-import { floorShadow, relief } from './furniture3d';
+import { floorShadow } from './furniture/shapes';
+import { relief } from './furniture/textures';
 import { BARK, SOIL, SPECKLE, STEM, STONEWARE } from './palette';
 import { FLOOR_Y } from './roomplan';
 
@@ -399,7 +400,7 @@ export function floorPlant(x: number, z: number): Group {
   along(trunk, 0.38, 13, 5600);
   along(branches[0]!, 0.3, 6, 5000);
   along(branches[1]!, 0.3, 6, 5000);
-  g.add(floorShadow(x, z, 7600, 7600, 0.8));
+  g.add(floorShadow([x, z], [7600, 7600], { k: 0.8 }));
   return g;
 }
 

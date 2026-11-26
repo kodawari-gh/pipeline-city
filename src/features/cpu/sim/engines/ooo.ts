@@ -23,20 +23,10 @@
 
 import { MMU_BASE, MMU_SIZE } from '@/core/sim/memmap';
 import type { Core } from '../core';
-import {
-  F,
-  F_MEM,
-  OPF,
-  OP_ECALL,
-  OP_IRET,
-  OP_LB,
-  OP_LW,
-  OP_MUL,
-  OP_SW,
-  St,
-  EngineBase,
-  type EngineSettings,
-} from './common';
+import { EngineBase } from './base';
+import type { EngineSettings } from './contract';
+import { F, F_MEM, OPF, OP_ECALL, OP_IRET, OP_LB, OP_LW, OP_MUL, OP_SW } from './ops';
+import { St } from './pool';
 import {
   CommitStall,
   Counter,
@@ -245,7 +235,7 @@ export class OooEngine extends EngineBase {
     return this.lanes[t]!.halted;
   }
 
-  override addThread(core: Core): void {
+  addThread(core: Core): void {
     const t = this.cores.length;
     if (t >= this.lanes.length)
       throw new RangeError(
@@ -284,10 +274,6 @@ export class OooEngine extends EngineBase {
     this.fqCap = this.fetchQueueSize;
     this.cur = 0;
     this.snapshot();
-  }
-
-  override flipPredictor(pc?: number): void {
-    this.pred.flip(pc);
   }
 
   /** The lane whose oldest instruction is finished, the older one if both are; null when none can retire. */

@@ -326,8 +326,8 @@ describe('Machine3D merge and share (PERF22 part 2)', () => {
       now.lod(cam, 1080, 1);
       for (const [name, st] of states(s)) {
         for (let i = 0; i < 4; i++) {
-          was.frame(st, 5);
-          now.frame(st, 5);
+          was.frame(st, { dt: 5 });
+          now.frame(st, { dt: 5 });
         }
         sameLook(look(was.root), look(now.root), `${name} from camera ${ci}`);
       }
@@ -402,7 +402,7 @@ describe('Machine3D merge and share (PERF22 part 2)', () => {
       const s = game().snapshot(),
         m = build(s, true),
         run = states(s).find(([n]) => n === 'hot')![1];
-      for (let i = 0; i < 4; i++) m.frame(run, 5);
+      for (let i = 0; i < 4; i++) m.frame(run, { dt: 5 });
       // each glowing material is used inside one part only
       const users = new Map<Material, Set<string | null>>();
       m.root.traverse((o) => {
@@ -452,8 +452,8 @@ describe('Machine3D distance stand-ins (PERF6)', () => {
         if (ci === 0) expect(lodOf(now).farNow.every(Boolean)).toBe(true);
         for (const [name, st] of states(s).filter(([n]) => ['off', 'running', 'hot', 'burnt'].includes(n))) {
           for (let i = 0; i < 4; i++) {
-            was.frame(st, 5);
-            now.frame(st, 5);
+            was.frame(st, { dt: 5 });
+            now.frame(st, { dt: 5 });
           }
           sameLook(look(was.root, true), look(now.root, true), `${name} from camera ${ci}`, true);
         }
@@ -467,7 +467,7 @@ describe('Machine3D distance stand-ins (PERF6)', () => {
       m = build(s, true, true),
       burnt = states(s).find(([n]) => n === 'burnt')![1];
     m.lod(farCam(), H, 1);
-    for (let i = 0; i < 4; i++) m.frame(burnt, 5);
+    for (let i = 0; i < 4; i++) m.frame(burnt, { dt: 5 });
     let glowing = 0;
     for (const si of lodOf(m).standIns) {
       const src = lodOf(m).sourcesOf(si);

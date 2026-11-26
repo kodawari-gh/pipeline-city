@@ -6,6 +6,14 @@ import type { Machine } from './machine';
  * A CPU engine (unpipelined, 5-stage, ...). It owns its pipeline state; the Machine owns RAM and the devices, and each Core its registers and
  * interrupt state. The CPU clock domain calls step() once per CPU tick (on a multicore machine for each core's engine in turn).
  */
+/** Something the machine tells an engine's event log: its kind (`Ev`) and three numbers whose meaning depends on the kind. */
+export interface EngineNote {
+  kind: number;
+  a: number;
+  b: number;
+  c: number;
+}
+
 export interface Engine {
   /** Load the program into machine RAM at the core's entry and restart: cold caches/pipeline, pc = the core's entry (0), cycle = 0. `core` defaults to core 0. */
   reset(machine: Machine, program: Uint32Array, core?: Core): void;
@@ -19,8 +27,8 @@ export interface Engine {
   /** The next instruction to fetch. When `drained` this is the next instruction of the program, in program order. */
   readonly pc: number;
   readonly cycle: number;
-  /** An event for the engine's log (`Ev` in engines/common.ts): an interrupt taken, an address space switched. Optional. */
-  note?(kind: number, a: number, b: number, c: number): void;
+  /** An event for the engine's log (`Ev` in engines/events.ts): an interrupt taken, an address space switched. Optional. */
+  note?(n: EngineNote): void;
   // Interrupt support (docs/CPU.md). An engine without it never takes interrupts.
   /** No instruction in flight (everything fetched has retired or been squashed), so a handler may start. */
   readonly drained?: boolean;

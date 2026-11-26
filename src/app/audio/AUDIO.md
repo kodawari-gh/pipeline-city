@@ -8,14 +8,14 @@ Sound for Pipeline City. Runs on the main thread. The worker stays audio-free (`
 | -------------------------------------------------------------- | --------------------------------------------------------- |
 | Ogg files (SFX, UI, ambience, music stems and notes)           | `public/audio/{sfx,ui,ambience,music/stems,music/notes}/` |
 | Music rules (runtime)                                          | `public/audio/music/music-spec.json`                      |
-| Mix tokens: bus levels, ducking, fades, rate limits, cue table | `src/app/audio/mixTokens.ts` (read-only, generated)       |
+| Mix tokens: bus levels, ducking, fades, rate limits, cue table | `src/app/audio/mixTokens.ts`, `tokens/` (generated)       |
 | Specs, sources, previews, measurements                         | `docs/pipeline-city-audio/` (start at its `README.md`)    |
 
 The game serves `public/audio/` at `audio/` (the `basePath` in the tokens). Load a file with `` `${import.meta.env.BASE_URL}audio/...` ``.
 
 ## Rules
 
-- Do not edit `mixTokens.ts`. Change `mix-tokens.json` in the docs package, or its generator (`sources/build_manifest.py`), then re-run the generator.
+- Do not edit `mixTokens.ts` or `tokens/*.ts` (its log rules and cue groups). Change `mix-tokens.json` in the docs package, or its generator (`sources/build_manifest.py`), then re-run the generator.
 - Do not hard-code levels, timings or file lists. Read them from `MIX` and the music spec.
 - Check the package: `PYTHONUTF8=1 python3 docs/pipeline-city-audio/pipeline-city-audio/sources/check_refs.py` must print `OK`.
 
@@ -54,7 +54,7 @@ Loading decodes with an `OfflineAudioContext`, so it needs no gesture. A cue who
 - `logRules` (32 rules, first match wins) live in `docs/pipeline-city-audio/pipeline-city-audio/sources/build_manifest.py`. The `level` rule has no cue: level-up waits for its own ticket.
 - `director.ts`: when `pendingSwaps` shrinks in a snapshot, the first `install` cue of that snapshot plays `swap_done` instead. The other `install` cues of that snapshot play nothing.
 - Notes of one snapshot play in log order, 40 ms apart. The tracker resets on load, new game, leaving a game and a tick that moves back (ADR-0002).
-- Every `note(kind, text)` call site in `src/features` and `src/worker` maps to a cue through these rules. Call sites with another signature are not audio: `npu/sim/port.ts` (`note(index, op, ...)`), `tpm/sim/tpm.ts` (`note(ticks, cmd)`), `cpu/sim/engines/common.ts` (`note(kind: number, ...)`), and the UI helpers `board/ui/builddrag.ts` and `board/render/three/buildmode3d.ts`. The note `download #NN failed` (`network/sim/network.ts`) has the generic `ui_notify` cue.
+- Every `note(kind, text)` call site in `src/features` and `src/worker` maps to a cue through these rules. Call sites with another signature are not audio: `npu/sim/port.ts` (`note(index, op, ...)`), `tpm/sim/tpm.ts` (`note(ticks, cmd)`), `cpu/sim/engines/root.ts` (`note({ kind, a, b, c })`), and the UI helpers `board/ui/builddrag.ts` and `board/render/three/buildmode3d.ts`. The note `download #NN failed` (`network/sim/network.ts`) has the generic `ui_notify` cue.
 
 ### State rules and the clock (ticket #54)
 

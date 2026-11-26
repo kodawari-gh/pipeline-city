@@ -38,7 +38,7 @@ The pulses are found in the shader from each strip's arc length and the time: no
 | `core/render/three/powerscale.ts` | pure: the power scale (`POWER`, `HUB`, `SOURCE` stops, `Role`, `ROLE_HEX`, `ROLE_WORD`, `levelOf`, `wattsAt`, `powerHex`, `hubHex`, `sourceHex`, `powerGradient`, `powerGlsl`, `WARN`, `POWER_VEIL`, `POWER_LIFT`). The pulses' shader, the parts' glow (`PartSkin.electric`) and the legend bar all read it |
 | `air/airtags.ts`                  | the words as DOM pills pinned to 3D points (`AirTags3D`): the tone `watts`, the role chip, the scale pill in watts (`unit: 'W'`) and the legend of the roles                                                                                                                                                 |
 
-`Machine3D` gives the lens four things (`machine3d.ts`): `cableRuns()` (each cable's strands, as the sleeves are made from them, in the order the power goes), `cablesRev` (moves when a cable is built again), `heldCables()` (the cables a hand holds) and `partBox(id)` (a part's box); and `powerGlow(levels, warn, roles)` puts the glow on the parts.
+`Machine3D` gives the lens four things (`machine/queries.ts`): `cableRuns()` (each cable's strands, as the sleeves are made from them, in the order the power goes), `cablesRev` (moves when a cable is built again), `heldCables()` (the cables a hand holds) and `partBox(id)` (a part's box); and `powerGlow(levels, warn, roles)` puts the glow on the parts.
 
 ## The ledger
 
@@ -56,7 +56,7 @@ The pulses are found in the shader from each strip's arc length and the time: no
 Lines are in the order the power goes. A line is one of three kinds.
 
 - **Cable**: a real strand of a real cable, the settled points the sleeve is made from (`Machine3D.cableRuns`: each rig registers its strands when it is built, `inFlowOrder`). A lead from the supply is made from its plug back to its grommet, so the strands are turned round (`RigPower.out`); a cord from the wall goes on past its end to its device (`beyond`); the fan hub's lead goes on in a second piece (`more`). When a plug is out, the strands hang from their grommet to the plug where it lies, and the lens follows them. A cable's light is lifted out of its sleeve (`r + 14`) and as wide as the sleeve (at least 17 units).
-- **Trace**: the board's copper, from `buildBuses()` (`wiring/routes.ts`): the 8-pin onto `pwrcpu` and down `vcore` into the package, the memory's 12 V (`pwr12`) and `vdimm` with a tap to each stick, `pwrpcie` to each slot and M.2 socket. A part with no trace of its own rides a strip beside the 24-pin. Traces lie on the board's face and are lifted toward the eye in the shader.
+- **Trace**: the board's copper, from `buildBuses()` (`wiring/buses.ts`, the power buses in `wiring/powerBuses.ts`): the 8-pin onto `pwrcpu` and down `vcore` into the package, the memory's 12 V (`pwr12`) and `vdimm` with a tap to each stick, `pwrpcie` to each slot and M.2 socket. A part with no trace of its own rides a strip beside the 24-pin. Traces lie on the board's face and are lifted toward the eye in the shader.
 - **Ghost**: a lead from the supply comes in behind the tray, a run the machine does not model. Each strand goes on past its first point for a short stub (`STUB`, 1,500 units), the way it was heading, fading away from the cable (`fade`). It is drawn dim and through the parts. Drawn on to the supply it would cross the case in straight lines that are nobody's cable.
 
 A **ring** sits on the socket of every power cable. It shows only while that cable is out.

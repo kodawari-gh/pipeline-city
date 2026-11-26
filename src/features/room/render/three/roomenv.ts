@@ -1,4 +1,4 @@
-// The room's reflections on its materials (`room3d.ts`): the studio's environment at first, dimmed at night, then the room's probe. One register,
+// The room's reflections on its materials (`room3d/`): the studio's environment at first, dimmed at night, then the room's probe. One register,
 // so a material that comes after the room is built (a model that loads late: the mouse, the hoodie) takes the same map, the same strength for the
 // hour and the same box projection as the rest. Before it, the mouse kept the studio's map at full strength and shone at night. A mesh with the
 // baked bounce (`lightmapmix.ts`) takes only the reflections from it: its light map is its indirect diffuse light.

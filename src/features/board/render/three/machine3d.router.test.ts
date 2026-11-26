@@ -43,7 +43,13 @@ describe("the router's board on the machine", () => {
     geo = roomGeo();
 
   it('has a flight to the board and to each part of the router the game has, all lying on the plinth behind the jacks', () => {
-    const m = new Machine3D(s, geo, new BakeQueue(), new Chips3D(), true, false, false),
+    const m = new Machine3D(s, geo, {
+        q: new BakeQueue(),
+        chips: new Chips3D(),
+        inRoom: true,
+        merge: false,
+        lod: false,
+      }),
       tier = Number(/\d+$/.exec(s.net!.router!.id)![0]),
       stand = routerStand(tier);
     expect(mine(m)).toEqual(offered(tier));
@@ -78,15 +84,35 @@ describe("the router's board on the machine", () => {
   });
 
   it('has none with no router, none on the Build my PC stage, and none without the live chips', () => {
-    expect(mine(new Machine3D(withRouter(s, null), geo, new BakeQueue(), new Chips3D(), true, false, false))).toEqual(
-      [],
-    );
-    expect(mine(new Machine3D(s, geo, new BakeQueue(), new Chips3D(), false, false, false))).toEqual([]);
-    expect(mine(new Machine3D(s, geo, new BakeQueue(), null, true, false, false))).toEqual([]);
+    expect(
+      mine(
+        new Machine3D(withRouter(s, null), geo, {
+          q: new BakeQueue(),
+          chips: new Chips3D(),
+          inRoom: true,
+          merge: false,
+          lod: false,
+        }),
+      ),
+    ).toEqual([]);
+    expect(
+      mine(
+        new Machine3D(s, geo, { q: new BakeQueue(), chips: new Chips3D(), inRoom: false, merge: false, lod: false }),
+      ),
+    ).toEqual([]);
+    expect(
+      mine(new Machine3D(s, geo, { q: new BakeQueue(), chips: null, inRoom: true, merge: false, lod: false })),
+    ).toEqual([]);
   });
 
   it('is made again for a router of another tier, and goes with the router', () => {
-    const m = new Machine3D(s, geo, new BakeQueue(), new Chips3D(), true, false, false),
+    const m = new Machine3D(s, geo, {
+        q: new BakeQueue(),
+        chips: new Chips3D(),
+        inRoom: true,
+        merge: false,
+        lod: false,
+      }),
       before = mine(m).length;
     m.syncCables(withRouter(s, ROUTERS[2]), geo);
     expect(mine(m)).toEqual(offered(2));
@@ -101,7 +127,13 @@ describe("the router's board on the machine", () => {
   });
 
   it('keeps the shell whole from afar and takes it away as the camera comes in, the board lying where it is', () => {
-    const m = new Machine3D(s, geo, new BakeQueue(), new Chips3D(), true, false, false),
+    const m = new Machine3D(s, geo, {
+        q: new BakeQueue(),
+        chips: new Chips3D(),
+        inRoom: true,
+        merge: false,
+        lod: false,
+      }),
       alphas: number[] = [];
     m.onRouterShell = (a) => alphas.push(a);
     const tier = Number(/\d+$/.exec(s.net!.router!.id)![0]),

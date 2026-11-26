@@ -15,7 +15,8 @@ quietCanvas();
 type Device = Snapshot['devices'][number];
 
 /** The Build my PC stage: the machine that patches. */
-const stage = (s: Snapshot): Machine3D => new Machine3D(s, roomGeo(), new BakeQueue(), null, false);
+const stage = (s: Snapshot): Machine3D =>
+  new Machine3D(s, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: false });
 
 /** An object in a list, by the part it belongs to and its own name (the cables hang again on each patch: one key for them all). */
 const key = (o: Object3D): string => {

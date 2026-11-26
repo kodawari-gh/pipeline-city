@@ -84,7 +84,7 @@ export class Machine {
     this.perCore = ([(c) => c.intc, (c) => c.mpu, (c) => c.timer, (c) => c.mmu] as ((c: Core) => Device)[]).map(
       (pick) => ({ pick, dev: this.deviceFor(pick) }),
     );
-    for (const c of this.cores) c.mmu.onSpace = (table) => c.engine?.note?.(10, table, 0, 0); // Ev.Space
+    for (const c of this.cores) c.mmu.onSpace = (table) => c.engine?.note?.({ kind: 10, a: table, b: 0, c: 0 }); // Ev.Space
     for (const e of this.perCore) this.addDevice(e.dev);
     this.bus.mpu = this.mpu;
     // Protected mode (the TPM) guards the address space that asked for it: its page table while translation is on, else physical (-1).
@@ -114,7 +114,7 @@ export class Machine {
     if (n !== this.cores.length) {
       while (this.cores.length < n) {
         const c = new Core(this.cores.length, this.ram, this.hub);
-        c.mmu.onSpace = (table) => c.engine?.note?.(10, table, 0, 0);
+        c.mmu.onSpace = (table) => c.engine?.note?.({ kind: 10, a: table, b: 0, c: 0 });
         this.cores.push(c);
       }
       while (this.cores.length > n) this.cores.pop();
@@ -292,7 +292,7 @@ export class Machine {
         c.irqWait = 0;
       } else if (e.drained) {
         intc.enter(line, e.pc, c.irqWait);
-        e.note?.(8, line, e.pc, intc.vector); // Ev.Irq
+        e.note?.({ kind: 8, a: line, b: e.pc, c: intc.vector }); // Ev.Irq
         mmu.enterKernel(); // the handler runs on physical addresses
         e.redirect(intc.vector);
         e.holdFetch(false);

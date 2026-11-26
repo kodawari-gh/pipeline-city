@@ -33,7 +33,7 @@ Use the `cocoindex-code` MCP tool (`mcp__cocoindex-code__search`) before Grep or
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `app/`         | `main.tsx` entry, `store.ts` (owns the worker, signals, save/load), hover, interaction, scrub, `debug/` (the `?debug` overlay, see `docs/render/three.md`)       |
 | `worker/`      | worker entry, `host`, `protocol`, `crash`; `game/` is the `Game` state, snapshot, save (`SAVE.md`)                                                               |
-| `app/audio/`   | main-thread audio: `mixTokens.ts` (read-only app data, generated). Feature doc: `AUDIO.md` in that folder; the source package is `docs/pipeline-city-audio/`     |
+| `app/audio/`   | main-thread audio: `mixTokens.ts`, `tokens/` (read-only, generated). Feature doc: `AUDIO.md` in that folder; the source package is `docs/pipeline-city-audio/`   |
 | `core/sim/`    | machine model: `machine`, `engine` base, `memmap`, `prng`; `hw/` bus, device, interrupts, timer, clock, display (`MACHINE.md`)                                   |
 | `core/render/` | helpers: camera, theme, ink, shape, `live` (snapshot to views); `lod/` level of detail; `three/` the Three.js renderer, the game's view (`docs/render/three.md`) |
 | `core/ui/`     | `Hud`, state, logic, `ui.css`; `panels/` log, crash, stats, toasts, new game; `kit/` icons, meter, sprite                                                        |
@@ -62,12 +62,12 @@ Use the `cocoindex-code` MCP tool (`mcp__cocoindex-code__search`) before Grep or
 1. **The player builds a machine.** Parts live in `board`. `board/sim/apply.ts` wires the board into a `core/sim` `Machine`.
 2. **Jobs are real programs.** `jobs/sim/gen` builds assembly per seed. A client key carries it. The machine (or the OS kernel) runs it on a `cpu` engine. The result pays through `economy`.
 3. **`Game` is the state.** `worker/game/game.ts` holds it. Its methods are plain functions in `features/*/sim` written `function x(this: Game, ...)`. Grep the method name to find the owner.
-4. **Each tick** the worker posts a `Snapshot`. `app/store.ts` puts it in signals. `core/render/live.ts` feeds the Pixi views and Preact panels re-render.
+4. **Each tick** the worker posts a `Snapshot`. `app/store.ts` puts it in signals. `core/render/live/` feeds the Pixi views and Preact panels re-render.
 5. **Player input** goes back as `ToSim` messages (`store.ts`, then `worker.ts`, then a `Game` method).
 
 ## Known debt
 
-`core/` imports `features/` in about 80 places: `core/render/live.ts`, `core/sim/machine.ts`, `core/ui/Hud.tsx` are composition roots. `architecture.test.ts` lets the count only fall.
+`core/` imports `features/` in about 80 places: `core/render/live/`, `core/sim/machine.ts`, `core/ui/Hud.tsx` are composition roots. `architecture.test.ts` lets the count only fall.
 
 ## Commands and tests
 

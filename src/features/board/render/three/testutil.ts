@@ -53,4 +53,4 @@ export const maxedSnapshot = (): Snapshot =>
 
 /** The machine of `s` as the room builds it, merged (`share`) or not, with the distance stand-ins (`lod`, PERF6) or not. */
 export const buildMachine = (s: Snapshot | null, merge: boolean, lod = false): Machine3D =>
-  new Machine3D(s, roomGeo(), new BakeQueue(), null, true, merge, lod);
+  new Machine3D(s, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: true, merge, lod });

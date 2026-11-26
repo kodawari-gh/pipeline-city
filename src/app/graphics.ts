@@ -1,6 +1,6 @@
 // Graphics settings: the presets, the player's own choices and what the renderers apply (docs/UI.md "Graphics panel"). Per viewer, so they sit in localStorage
 // (in try/catch) and not in the save. The panel writes `graphics`; a renderer reads `effective`, which is `graphics` less what auto-adjust took away on a weak
-// GPU. Each option's list of `CHOICES` runs from cheap to dear; what a level means in numbers sits with the code that uses it (`post.ts`, `room3d.ts`, `chips3d.ts`).
+// GPU. Each option's list of `CHOICES` runs from cheap to dear; what a level means in numbers sits with the code that uses it (`post.ts`, `room3d/`, `chips3d.ts`).
 import { computed, signal } from '@preact/signals';
 
 export interface Graphics {

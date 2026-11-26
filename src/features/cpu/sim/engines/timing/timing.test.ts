@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { assemble } from '../../asm';
 import { Machine } from '@/core/sim';
 import { Cause, Counter, InOrderEngine, SlotKind, Stage, UnpipelinedEngine, type InOrderSettings } from '../index';
-import type { PipelineEngine } from '../common';
+import type { PipelineEngine } from '../contract';
 import { runEngine } from '../testutil';
 
 const io = (s: InOrderSettings = {}) => new InOrderEngine({ missPenalty: 0, ...s });

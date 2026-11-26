@@ -30,7 +30,7 @@ describe('the catalogue', () => {
       for (let level = 1; level <= MAX_LEVEL; level++) {
         const open = tasks.filter((e) => e.cls === c.id && taskLevel(e) <= level);
         for (let seed = 1; seed < 400; seed += 7) {
-          const t = pickTask(c, level, seed * 2654435761);
+          const t = pickTask(c, level, { seed: seed * 2654435761 });
           if (t)
             expect(
               open.map((e) => e.id),
@@ -48,7 +48,7 @@ describe('the catalogue', () => {
       if (open.length < 2 || open.every((e) => e.legacy)) continue;
       const seen = new Set<string>();
       for (let seed = 1; seed < 3000; seed++) {
-        const t = pickTask(c, MAX_LEVEL, seed * 2654435761);
+        const t = pickTask(c, MAX_LEVEL, { seed: seed * 2654435761 });
         if (t) seen.add(t.id);
       }
       expect([...seen].sort(), c.id).toEqual(open.map((e) => e.id).sort());
@@ -57,9 +57,9 @@ describe('the catalogue', () => {
 
   it('the first levels play as they always did: the everyday class sends its own mixed template until a new kind has arrived', () => {
     const cli = jobClass('cli')!;
-    for (let seed = 1; seed < 200; seed++) expect(pickTask(cli, 1, seed * 40503)).toBeUndefined();
-    expect(pickTask(cli, 3, 5)).toBeUndefined();
-    expect(pickTask(cli, 4, 5)).toBeDefined();
+    for (let seed = 1; seed < 200; seed++) expect(pickTask(cli, 1, { seed: seed * 40503 })).toBeUndefined();
+    expect(pickTask(cli, 3, { seed: 5 })).toBeUndefined();
+    expect(pickTask(cli, 4, { seed: 5 })).toBeDefined();
   });
 });
 

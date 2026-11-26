@@ -3,7 +3,7 @@ import { assemble } from './asm';
 import { createEngine, type PipelineEngine } from './engines';
 import { Machine } from '@/core/sim';
 import { pipeSnapOf, ramMapOf, RAM_BUCKETS, STEP_TRACE_CYCLES, TRACE_CYCLES } from './pipesnap';
-import { Ev } from './engines/common';
+import { Ev } from './engines/events';
 
 // The die's live state in the snapshot (docs/DIE.md): the stages of an in-order engine per lane, the structures of the out-of-order one.
 

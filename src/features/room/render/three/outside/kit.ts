@@ -1,5 +1,5 @@
 // The outside's materials for the streets, made once per view and shared by every pavement, lamp and tree, so the merged streets draw in
-// few calls (the buildings have their own, `towers.ts`; the cars theirs, `cars.ts`). The painted textures are kept between views (`textures.ts` paints each once): a
+// few calls (the buildings have their own, `towers/`; the cars theirs, `cars.ts`). The painted textures are kept between views (`textures.ts` paints each once): a
 // view's `dispose` frees their GPU copies, a new view uploads them again.
 import { MeshStandardMaterial, type Material, type MeshStandardMaterialParameters, type Texture } from 'three';
 import { DECODE_SRGB } from '@/core/render/three/artlod';

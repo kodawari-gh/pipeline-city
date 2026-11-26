@@ -22,7 +22,8 @@ const withGpu = (): Game => {
   if (bought.ok) g.install(bought.invId, 'pcie0');
   return g;
 };
-const machine = (g: Game): Machine3D => new Machine3D(g.snapshot(), roomGeo(), new BakeQueue(), null, false);
+const machine = (g: Game): Machine3D =>
+  new Machine3D(g.snapshot(), roomGeo(), { q: new BakeQueue(), chips: null, inRoom: false });
 const dist = (a: readonly number[], b: readonly number[]): number =>
   Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!);
 /** The cables that carry data, not power: the lens leaves them out. */
