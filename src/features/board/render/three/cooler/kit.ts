@@ -1,13 +1,12 @@
 // The coolers' small parts (cooler3d.ts): screw heads, the loop's G1/4 fittings and plugs, the heat pipes, and the mount every cooler stands on.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { CatmullRomCurve3, CylinderGeometry, Mesh, TorusGeometry, TubeGeometry, Vector2, Vector3 } from 'three';
-import type { BufferGeometry, Group, Material, MeshStandardMaterial } from 'three';
 import { SEG, instanced, place, rectBox, softBox, withLow } from '@/core/render/three/geometry';
 import { byDetail } from '@/core/render/three/detail';
 import { mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { COOLER_HOLE, COOLER_HOLES } from '../../layout/layout';
 import { METAL, alu, plastic, screwHead, steel } from './look';
+import type { BufferGeometry, Group, Material, MeshStandardMaterial } from './types';
 
 /** Screws standing on a face at depth `z`, `r` round (the push pins' heads, the crossbar's spring screws, the radiator's fill port). */
 export function screws(g: Group, at: readonly (readonly [number, number])[], o: { z: number; r: number }): void {

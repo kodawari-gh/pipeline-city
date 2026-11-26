@@ -1,12 +1,11 @@
 // The cooler on the CPU (cooler3d.ts), by its spec's `visual`: the stock heatsink, the tower or the loop's pump head, with the fans fitted on it.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { Group } from 'three';
-import type { MeshStandardMaterial } from 'three';
 import type { RadiatorFit } from '../../cooler';
 import type { FanFit, Spin } from '../fans3d';
 import { liquid } from './pump';
 import { stock } from './stock';
 import { tower } from './tower';
+import type { MeshStandardMaterial } from './types';
 
 export interface Model {
   root: Group;

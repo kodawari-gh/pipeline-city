@@ -1,16 +1,15 @@
 // A press in the game's view (board3d.ts, the pad's `press`): what a drag from it lifts. A plug or a key as the pointer moves; an installed part
 // on a mouse drag when it is small and the machine is off, else after a hold.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { snapshot } from '@/app/store';
 import type { Grab } from '@/core/render/three/pad';
 import type { Pt } from '@/core/render/three/gesture';
 import { deviceOf } from '../drag3d';
-import type { Drag3D } from '../drag3d';
 import { anchorsOf } from './anchors';
 import { BIG_AREA, BIG_SIDE } from './consts';
 import { cancelFlight } from './flights';
 import { idAt } from './pointer';
 import type { Scope } from './world';
+import type { Drag3D } from './types';
 
 /** A part this big on the screen (its larger side, or its share of the screen) is looked at, not carried: a mouse drag on it pans (a hold lifts it). */
 const bigOnScreen = (s: Scope, id: string): boolean => {

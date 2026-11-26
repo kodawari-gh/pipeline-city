@@ -1,5 +1,4 @@
 // A part's aligned view (board3d.ts `focusPart`): head on, centred in the free window, the part filling most of it.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { Box3 } from 'three';
 import { snapshot } from '@/app/store';
 import { deviceOf } from '../drag3d';
@@ -7,9 +6,9 @@ import { FLAT, LIE, ROOM_ANGLE } from './consts';
 import { objOf, real } from './anchors';
 import { flyTo, flyToBoard, flyToRoom } from './flights';
 import { idAt } from './pointer';
-import type { At } from './pointer';
 import { inFree } from './view';
 import type { Scope } from './world';
+import type { At } from './types';
 
 /** The part's rail (its detailed view, `Machine3D.rails`): a stick's is the bank's, the sticks' faces are read together, in a row. */
 const railOf = (s: Scope, id: string) => {

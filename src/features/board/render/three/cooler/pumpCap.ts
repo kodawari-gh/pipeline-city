@@ -1,16 +1,14 @@
 // The loop's pump body and cap (cooler3d.ts): a round anodised body, a thin light ring under a brushed cap with a diamond-cut edge, and the cap's
 // window of black glass with the maker's mark under it (the impeller is inside, unseen).
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { CylinderGeometry, Mesh } from 'three';
-import type { Group, Material, MeshStandardMaterial } from 'three';
 import { drum, fanSides, place } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import { decal } from '../casekit3d';
 import { glowMat, light } from '../fans3d';
-import type { Spin } from '../fans3d';
 import { L, capMark, capMat } from './look';
 import { PUMP } from './plan';
+import type { Group, Material, MeshStandardMaterial, Spin } from './types';
 
 /** The sides of each round of the pump: one count, so its bands, foot and cap meet edge to edge. The polished chamfer shows each side, so it takes a 120 mm fan's count. */
 const PUMP_SIDES = fanSides(120);

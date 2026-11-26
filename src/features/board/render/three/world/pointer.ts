@@ -8,12 +8,7 @@ import { eyeRoom } from '@/features/room/render/three/roomplan';
 import { GRAB_PX, SEATED_PX, TARGET_Z0 } from './consts';
 import { anchorsOf, ndc, roots } from './anchors';
 import type { Scope } from './world';
-
-/** A client point. */
-export interface At {
-  clientX: number;
-  clientY: number;
-}
+import type { At } from './types';
 
 /**
  * The surface under a client point (world), if a target may lie there (not on a wall or the floor, not out of the window): a zoom and a pan go at its depth.

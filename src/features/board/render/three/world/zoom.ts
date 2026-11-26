@@ -1,13 +1,11 @@
 // The zoom (board3d.ts): toward the surface under the pointer, which stays under it, as far as the walls and the furniture let the eye go.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { retarget, zoomAt, zoomOn } from '@/core/render/three/camera';
-import type { OrbitView } from '@/core/render/three/camera';
 import { ndc } from './anchors';
 import { cancelFlight } from './flights';
 import { anchor } from './pointer';
-import type { At } from './pointer';
 import { aspect, inRoom, settle } from './view';
 import type { Scope } from './world';
+import type { At, OrbitView } from './types';
 
 /**
  * The goal after a zoom by `k` that the room leaves as it is: `by(f)` is the view after a zoom by `f`. The whole zoom if the walls and the furniture

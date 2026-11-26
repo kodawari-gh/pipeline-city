@@ -1,13 +1,12 @@
 // A click in the 3D world (board3d.ts): the same quick actions as the 2D renderer's click (`Interact.click`): the room's props, the power
 // button, a key; anything else opens its card.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { selected } from '@/app/hover';
 import { ejectKey, plugKey, powerButton, snapshot } from '@/app/store';
 import { deviceOfPart } from '@/core/render/parts';
 import { roomClick } from '@/features/room/render/shell/room';
 import { idAt } from './pointer';
-import type { At } from './pointer';
 import type { Core, Scope } from './world';
+import type { At } from './types';
 
 /** The id a click on `hit` opens: a part of a card, the router's blocks and the board's Ethernet chip stand for their device. */
 function clickedId(hit: string, s: ReturnType<typeof snapshot.peek>): string {

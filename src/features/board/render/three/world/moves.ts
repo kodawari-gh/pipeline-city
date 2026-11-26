@@ -1,15 +1,14 @@
 // The view's moves on the pad (board3d.ts): a gesture's start (a flight in the air is caught where it is; a turn goes about what the player
 // looks at), the pan at the grabbed surface's depth, and the turn the room allows.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { LIMITS, heightAt, retarget, turnReach } from '@/core/render/three/camera';
 import type { PadHost } from '@/core/render/three/pad';
 import { turnOf } from '@/core/render/three/gesture';
-import type { Pt } from '@/core/render/three/gesture';
 import { freeRect } from './anchors';
 import { cancelFlight } from './flights';
 import { anchor } from './pointer';
 import { inRoom, panIn } from './view';
 import type { Scope, Turning } from './world';
+import type { Pt } from './types';
 
 /** The kind of gesture the pad starts (`PadHost.begin`). */
 type PadKind = Parameters<NonNullable<PadHost['begin']>>[0];

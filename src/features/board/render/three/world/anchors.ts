@@ -1,14 +1,13 @@
 // The world's objects by id and their screen rectangles (board3d.ts): the same contract as the 2D renderer's (`anchorOf` in board.ts) for the
 // tutorial and the cards: an alias or a slot's device, a cable's plug and the socket that takes it, the part of the screen the HUD leaves free.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { Box3, Vector3 } from 'three';
-import type { Object3D } from 'three';
 import { viewInset } from '@/app/hover';
 import { snapshot } from '@/app/store';
 import { findById } from '@/core/render/three/pick';
 import type { Anchor } from '../../board';
 import { ALIAS, MIN_TARGET_PX } from './consts';
 import type { Core } from './world';
+import type { Object3D } from './types';
 
 /** A client point in the canvas's normalised device coordinates. */
 export const ndc = ({ stage }: Core, e: { clientX: number; clientY: number }): { nx: number; ny: number } => {

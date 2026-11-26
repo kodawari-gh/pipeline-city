@@ -1,9 +1,7 @@
 // The camera's flights (board3d.ts): to a view, to the room, the board, the die and the first graphics card's die; a flight cut short, and
 // the dev-only jump.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { snapshot } from '@/app/store';
 import { clampView, fitRect } from '@/core/render/three/camera';
-import type { OrbitView } from '@/core/render/three/camera';
 import { cardOrigin } from '@/core/render/accelart';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { getSpec } from '@/features/board/sim/specs';
@@ -11,6 +9,7 @@ import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { FLAT } from './consts';
 import { aspect, boardView, cpuView, inRoom, overview } from './view';
 import type { Scope } from './world';
+import type { OrbitView } from './types';
 
 /** Any flight, cut or input ends the dev-only unclamped view. */
 export const cancelFlight = ({ cam }: Scope): void => {

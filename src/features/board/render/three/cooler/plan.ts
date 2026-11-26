@@ -1,13 +1,12 @@
 // The coolers' sizes and spots (cooler3d.ts): the stock shroud, the tower's fin stack and fans, the pump head; where a fan sits on a heatsink,
 // where the CPU fan's cable leaves it, what stands over the board (Low's contact shade), and the bodies the airflow lens reads (`COOLER_AIR`).
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import type { RectLike } from '@/core/render/three/geometry';
 import type { RopeEnd } from '@/core/render/three/rope';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { fanLen } from '../../layout/layout';
 import { fanDepth } from '../fans3d';
-import type { FanFit } from '../fans3d';
 import { L } from './look';
+import type { FanFit } from './types';
 
 /** The stock heatsink's shroud: its width, its underside on the vanes and its top, where the 92 mm fan sits. */
 export const SHROUD = { w: 2180, z0: L + 480, z1: L + 540 },

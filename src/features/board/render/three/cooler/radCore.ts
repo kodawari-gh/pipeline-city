@@ -1,8 +1,6 @@
 // The radiator's core (cooler3d.ts `radiatorModel`): the fins painted on its faces, the flat tubes across its depth, the side plates folded over
 // both faces, and the fans' screw holes in the folds.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { CylinderGeometry } from 'three';
-import type { Material, MeshStandardMaterial } from 'three';
 import { SEG, instanced } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { FAN_LEN } from '../../layout/layout';
@@ -11,7 +9,7 @@ import { tiled } from '../casekit3d';
 import { finLadder } from './look';
 import { RAD_PLATE, radiatorTubeLayout } from './radiator';
 import { boxes, item } from './radFrame';
-import type { Rad } from './radFrame';
+import type { Material, MeshStandardMaterial, Rad } from './types';
 
 /** The fins' pitch for each grade of radiator (`FIN_PITCH`). */
 const PITCH = { 1: FIN_PITCH[0], 2: FIN_PITCH[1], 3: FIN_PITCH[2] } as const;

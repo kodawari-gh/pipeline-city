@@ -1,15 +1,13 @@
 // The stock heatsink (cooler3d.ts): a copper core in a ring of swept vanes under a plastic shroud on four push pins, a 92 mm fan on top blowing down.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { Shape, Vector2 } from 'three';
-import type { Group, MeshStandardMaterial } from 'three';
 import { SEG, drum, extrude, instanced } from '@/core/render/three/geometry';
 import { tag } from '@/core/render/three/pick';
 import { fanDepth, fanPart } from '../fans3d';
-import type { FanFit, Spin } from '../fans3d';
 import { mount } from './kit';
 import { L, alu, copper, plastic } from './look';
 import { SHROUD, STOCK_FAN } from './plan';
 import { stockShroud } from './stockShroud';
+import type { FanFit, Group, MeshStandardMaterial, Spin } from './types';
 
 /** A stock vane seen from the glass: a thin blade from the core out to the rim, bending back as it goes (the fan's swirl leaves along it). */
 function vaneShape(r0: number, r1: number, blade: { t: number; sweep: number }): Shape {

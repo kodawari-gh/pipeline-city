@@ -1,35 +1,12 @@
 // The radiator model's frame (cooler3d.ts `radiatorModel`): where its core lies along its side of the case and across its depth, and the plain
 // boxes its parts are made of.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { BoxGeometry, Group, Mesh } from 'three';
-import type { Material } from 'three';
 import { FAN_SCREW, place } from '@/core/render/three/geometry';
-import type { RectLike } from '@/core/render/three/geometry';
 import { FAN_MAX, FAN_ZC } from '@/features/room/render/three/roomplan';
 import { FAN_LEN } from '../../layout/layout';
 import { frameOf, radiatorCore } from '../../cooler';
-import type { Frame, RadiatorFit } from '../../cooler';
 import { radiatorDepth } from './radiator';
-
-/** A radiator being built: its root, its frame and length along the side, its core's span and thickness, and its depths across the case. */
-export interface Rad {
-  root: Group;
-  fr: Frame;
-  L: number;
-  v0: number;
-  v1: number;
-  t: number;
-  side: RadiatorFit['mount']['side'];
-  D: number;
-  zc: number;
-  z0: number;
-  z1: number;
-  /** How far a fan's screw holes are from its middle, and how far each side plate folds over a face. */
-  hole: number;
-  fold: number;
-  /** The unit box every plain part scales. */
-  unit: BoxGeometry;
-}
+import type { Material, Rad, RadiatorFit, RectLike } from './types';
 
 /** The frame of the radiator fitted at `fit`. */
 export function radOf(fit: RadiatorFit): Rad {

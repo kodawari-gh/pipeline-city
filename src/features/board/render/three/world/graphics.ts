@@ -1,9 +1,7 @@
 // The graphics settings (app/graphics.ts) in the 3D world (board3d.ts): the detail, the passes, the lights, Low's materials, the live layers,
 // the particles and the textures' filtering.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { effect } from '@preact/signals';
 import { effective, isLow } from '@/app/graphics';
-import type { Graphics } from '@/app/graphics';
 import { setLowDetail } from '@/core/render/three/detail';
 import { anisotropy, refilter } from '@/core/render/three/geometry';
 import { LIVE_LEVELS } from '../chips3d';
@@ -11,6 +9,7 @@ import { cheap, uncheap } from './build';
 import { PARTICLE_LEVELS } from './consts';
 import { rebuild } from './rebuild';
 import type { Core } from './world';
+import type { Graphics } from './types';
 
 /** The room's and the machines' lights, and Low's cheaper materials: on for the room and the machines, off (originals back) when the tier leaves Low. */
 const applyLooks = (c: Core, g: Graphics): void => {
@@ -29,8 +28,8 @@ const applyLooks = (c: Core, g: Graphics): void => {
       }
     }
   } else {
-    // oxlint-disable-next-line unicorn/no-useless-spread -- `uncheap` deletes from the map: the loop walks a copy of its keys
-    for (const root of [...cheaps.keys()]) {
+    // (`uncheap` deletes the root it is given: a map's walk goes on past the entry it deletes)
+    for (const root of cheaps.keys()) {
       uncheap(c, root);
     }
   }

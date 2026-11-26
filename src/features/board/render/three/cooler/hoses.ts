@@ -1,16 +1,14 @@
 // The loop's hoses (cooler3d.ts): two 12 mm braided hoses that arc from the G1/4 fittings in the pump's port block to the radiator's, hung round
 // the parts in their way (`hose`; `LoopHoses` is the rig that poses them).
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { Group, Vector3 } from 'three';
-import type { MeshStandardMaterial } from 'three';
 import { hang } from '@/core/render/three/rope';
-import type { Plane, RopeEnd, RopeSpec, Solid, V3 } from '@/core/render/three/rope';
 import type { RadiatorFit } from '../../cooler';
 import { band, braidedTube } from '../cables3d';
 import { FIT, HOSE_R, nth } from './kit';
 import { alu } from './look';
 import { PUMP, portY } from './plan';
 import { radiatorPorts3d } from './radiator';
+import type { Env, MeshStandardMaterial, RopeEnd, RopeSpec, V3 } from './types';
 
 /** A hose's end in a fitting at `at` pointing along `dir`: where it leaves the fitting's collar. */
 const inFitting = (at: V3, dir: V3): RopeEnd => ({
@@ -34,11 +32,6 @@ export function hoseEnds(fit: RadiatorFit): [RopeEnd, RopeEnd][] {
   ];
 }
 
-/** The space a hose hangs in: the case's walls and the boxes in its way. */
-export interface Env {
-  planes: Plane[];
-  solids: Solid[];
-}
 /** A hose's rope: a stiff hose a little longer than its gap, its ends leaving straight out of the fittings. */
 export const hoseRope = (a: RopeEnd, b: RopeEnd, env: Env): RopeSpec => ({
   a,

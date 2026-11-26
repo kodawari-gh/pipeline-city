@@ -1,8 +1,6 @@
 // What holds a frame of the 3D world back (board3d.ts): the frame rate's gate, a stage that covers the room, a new picture whose programs still
 // link; and the auto-adjust's watch over slow frames.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { autoStep, graphics, nextStep, watchFps } from '@/app/graphics';
-import type { Graphics } from '@/app/graphics';
 import { snapshot } from '@/app/store';
 import { bootStage } from '@/app/boot';
 import { buildOpen, galleryOpen } from '@/core/ui/state';
@@ -10,6 +8,7 @@ import { linked, programDone, startPrograms, startShadowPrograms } from '@/core/
 import { install } from './build';
 import { resetWatches } from './clock';
 import type { World } from './world';
+import type { Graphics } from './types';
 
 /** The new picture's programs have linked: it draws from this frame on. */
 const drawn = (w: World, now: number): void => {

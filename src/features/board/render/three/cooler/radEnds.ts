@@ -1,14 +1,11 @@
 // The radiator's end tanks (cooler3d.ts `radiatorModel`): one past the fans at each end, each closed by an end cap; the near one (to the pump)
 // with the two G1/4 ports and their fittings, the far one with the fill plug.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { Vector3 } from 'three';
-import type { Material } from 'three';
 import { softBox } from '@/core/render/three/geometry';
 import { TANK } from '../../cooler';
-import type { RadiatorFit } from '../../cooler';
 import { chrome, fitting, plug } from './kit';
 import { TANK_LIP, radiatorPorts3d } from './radiator';
-import type { Rad } from './radFrame';
+import type { Material, Rad, RadiatorFit } from './types';
 
 /** The end tanks, each closed by its cap. */
 export function radTanks(rad: Rad, bodyM: Material, plateM: Material): void {

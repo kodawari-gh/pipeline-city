@@ -1,13 +1,12 @@
 // The views (board3d.ts): the eye kept in the room and out of the furniture, a rect fitted in the part of the screen the HUD leaves free,
 // and the overview, the title's sway, the board's and the die's views.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { viewInset } from '@/app/hover';
 import { fitRect, keepInside, keepWhole, panBy } from '@/core/render/three/camera';
-import type { Box, KeepOpts, OrbitView } from '@/core/render/three/camera';
 import { BOARD_Z, VIEW_TOP, WINDOW, eyeRoom } from '@/features/room/render/three/roomplan';
 import { CASE, CASE_IN, DIE, ROUTER_SPOT, TRAY } from '../../layout/layout';
 import { FLAT, LOOK_Z, MENU_S, ROOM_ANGLE, TARGET_Z0 } from './consts';
 import type { Scope } from './world';
+import type { Box, KeepOpts, OrbitView } from './types';
 
 export const aspect = ({ stage }: Scope): number => stage.W / stage.H;
 /** The reference's framing: front on, a little from above, from the glass west of the desk to the drawers, from the old window head to the desk's drawers. */

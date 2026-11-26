@@ -1,12 +1,11 @@
 // Dev only (board3d.ts `__board`): what the tools and the tests read of the world as it stands, and the client points they drive the pointer to.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { Box3, Vector3 } from 'three';
-import type { Object3D } from 'three';
 import { autoStep } from '@/app/graphics';
 import { findById } from '@/core/render/three/pick';
 import { roots } from './anchors';
 import { idAt } from './pointer';
 import type { World } from './world';
+import type { Object3D } from './types';
 
 /** The object with this hover id, in any root; null: none. */
 export const objectOf = (w: World, id: string): Object3D | null =>

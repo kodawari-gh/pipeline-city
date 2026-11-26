@@ -1,17 +1,15 @@
 // The loop's pump head (cooler3d.ts): a cold plate under a square base and a round body (`pumpBody`) on a four-arm bracket, and the port block on
 // its north side with a G1/4 fitting in each of its two ports.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { BoxGeometry, Mesh, Vector3 } from 'three';
-import type { Group, Material, MeshStandardMaterial } from 'three';
 import { SEG, drum, place, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { COOLER_HOLES } from '../../layout/layout';
 import { outlinePts, shapeOf, slab } from '../casekit3d';
-import type { Spin } from '../fans3d';
 import { chrome, fitting, mount } from './kit';
 import { L, copper, plastic } from './look';
 import { PUMP, portY } from './plan';
 import { pumpBody } from './pumpCap';
+import type { Group, Material, MeshStandardMaterial, Spin } from './types';
 
 /**
  * The copper cold plate on the lid, the square base over it, and the bracket's four black steel arms out of the base to the standoffs, a knurled

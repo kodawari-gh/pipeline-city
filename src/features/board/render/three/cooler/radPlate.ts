@@ -7,7 +7,7 @@ import { mat } from '@/core/render/three/materials';
 import { FAN_LEN } from '../../layout/layout';
 import { brushed as streaks, tex, tiled } from '../casekit3d';
 import { radAlu } from './look';
-import type { Rad } from './radFrame';
+import type { Rad } from './types';
 
 /** The model's plate: its name (the length of its fans and its thickness, as a radiator's name gives them), along the side or across it. */
 function plateLabel(name: string, along: boolean) {

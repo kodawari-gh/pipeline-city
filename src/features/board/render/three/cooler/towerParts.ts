@@ -1,16 +1,14 @@
 // The tower cooler's fin stack and fans (cooler3d.ts): forty-eight aluminium fins under a dark cover, and a 120 mm fan on each end held by its
 // wire clips, both blowing west.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { Shape, Vector2 } from 'three';
-import type { Group, MeshStandardMaterial } from 'three';
 import { FAN_SCREW, SEG, extrude, instanced, rectBox, rounded, softBox, tube } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { tag } from '@/core/render/three/pick';
 import { brushed as streaks, tiled } from '../casekit3d';
 import { fanPart } from '../fans3d';
-import type { FanFit, Spin } from '../fans3d';
 import { ACCENT } from './look';
 import { FIN0, FIN1, STACK, TOWER_FAN, TOWER_ZC, coolerFanBox, spotOf } from './plan';
+import type { FanFit, Group, MeshStandardMaterial, Spin } from './types';
 
 /** A notch for a fan's wire clip in a fin's edge at `cx`, from the edge at `yy` in to `yy + d`. */
 const notch = (cx: number, yy: number, d: number): [number, number][] => [

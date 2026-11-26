@@ -1,14 +1,21 @@
 // Dev only (board3d.ts): the `__board` hook the shot tools and the tests drive the world by. The prod build has none of it: the DEV gate folds
 // to false, and the eye as given (`unclamped`) goes with it.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { Box3, Vector3 } from 'three';
 import { snapshot } from '@/app/store';
 import { clampView } from '@/core/render/three/camera';
-import type { OrbitView } from '@/core/render/three/camera';
 import { roots } from './anchors';
 import { devLooks, objectOf } from './devLooks';
 import { devViews } from './devViews';
 import type { World } from './world';
+import type { OrbitView } from './types';
+
+declare global {
+  /** Dev only: the hook the shot tools and the tests drive the world by (`devHook`). */
+  var __board: unknown;
+}
+
+/** The shot tool's optional angles and fill (tools/shot-case.mjs passes them in this order): turned by `yaw`, seen from `pitch` above, the largest side filling `fill` of the view's height. */
+type Angles = [yaw?: number, pitch?: number, fill?: number];
 
 /** The hook on the window, in the dev build only. */
 export function devHook(w: World): void {
@@ -17,8 +24,7 @@ export function devHook(w: World): void {
     const jumpRaw = (v: OrbitView): void => {
       holdView(w, v);
     };
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the hook is a property of its own on the page's global, as `__viewer` is
-    (globalThis as unknown as { __board?: unknown }).__board = {
+    globalThis.__board = {
       ...devLooks(w),
       ...devViews(w),
       // the case shot tool (`tools/shot-case.mjs`): the eye as given, with no room clamp; `frameSpec` frames a device (its spec id, or its kind) from its
@@ -26,15 +32,16 @@ export function devHook(w: World): void {
       jumpRaw: (v: OrbitView) => {
         jumpRaw(v);
       },
-      // oxlint-disable-next-line eslint/max-params -- the shot tool calls it with these, in this order (tools/shot-case.mjs)
-      frameSpec: (key: string, yaw = 0, pitch = 0.1, fill = 0.6): OrbitView | null => {
+      frameSpec: (key: string, ...angles: Angles): OrbitView | null => {
+        const [yaw = 0, pitch = 0.1, fill = 0.6] = angles;
         const d = snapshot.peek()?.devices.find((x) => x.spec === key || x.kind === key || x.slot === key);
         return d ? frameOf(w, d.id, { yaw, pitch, fill }) : null;
       },
       // `--id`: the object with this hover id (a part, a cable, a room object), framed the same way; `--list`: every hover id in the scene, sorted
-      // oxlint-disable-next-line eslint/max-params -- the shot tool calls it with these, in this order (tools/shot-case.mjs)
-      frameId: (id: string, yaw = 0.52, pitch = 0.35, fill = 0.5): OrbitView | null =>
-        frameOf(w, id, { yaw, pitch, fill }),
+      frameId: (id: string, ...angles: Angles): OrbitView | null => {
+        const [yaw = 0.52, pitch = 0.35, fill = 0.5] = angles;
+        return frameOf(w, id, { yaw, pitch, fill });
+      },
       ids: (): string[] => hoverIds(w),
     };
   }

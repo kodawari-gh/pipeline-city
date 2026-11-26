@@ -1,16 +1,13 @@
 // The loop's two hoses as one rig (cooler3d.ts): built where `hose` hangs them, posed live by Build my PC while it takes them off or puts them on.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { CylinderGeometry, Group, Mesh, Vector3 } from 'three';
-import type { MeshStandardMaterial } from 'three';
 import { SEG, place, withLow } from '@/core/render/three/geometry';
 import { tag } from '@/core/render/three/pick';
 import { Rope, hang } from '@/core/render/three/rope';
-import type { RopeEnd, RopeSpec, V3 } from '@/core/render/three/rope';
 import { Sleeve } from '@/core/render/three/sleeve';
 import { samplesFor, sleeveMat } from '../cables3d';
 import { HOSE_R, nth } from './kit';
 import { HOSE_LOOK, ferruleMat, hoseRope } from './hoses';
-import type { Env } from './hoses';
+import type { Env, MeshStandardMaterial, RopeEnd, RopeSpec, V3 } from './types';
 
 /** How far a hose's end slides along its fitting to come off it: past the collar's tip and its ridges, with room. */
 const HOSE_PULL = 300;

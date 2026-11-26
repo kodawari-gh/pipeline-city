@@ -1,11 +1,10 @@
 // The loop's radiator as the model and the airflow lens share it (cooler3d.ts): its depth across the case, the layout of its flat coolant tubes,
 // its two ports, and the coolant's way through it (`radiatorFlow`).
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import type { V3 } from '@/core/render/three/rope';
 import { FAN_MAX, FAN_ZC } from '@/features/room/render/three/roomplan';
 import { FAN_LEN } from '../../layout/layout';
 import { TANK, frameOf, radiatorCore } from '../../cooler';
-import type { RadiatorFit } from '../../cooler';
+import type { RadiatorFit } from './types';
 
 /** How deep the radiator is across the case: one fan's side and a side plate's lip each side, centred on the fans' depth (`FAN_ZC`). */
 export const radiatorDepth = (): number => Math.min(FAN_LEN, FAN_MAX) + 80;

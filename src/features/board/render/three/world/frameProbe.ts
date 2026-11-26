@@ -1,8 +1,6 @@
 // The frame's light (board3d.ts): the room's probe, a face a frame; the shadow maps of the next frame; the frame meter, the auto tier, a new
 // case framed again, and the boot screen gone once the room's light has settled.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { awayHeld, isLow, stepTier, tierRecord, watchFps } from '@/app/graphics';
-import type { Graphics } from '@/app/graphics';
 import type { Snapshot } from '@/worker/protocol';
 import { probePlan } from '@/core/render/three/cheapmaterials';
 import { PROBE_K } from '@/features/room/render/three/room3d';
@@ -11,6 +9,7 @@ import { resetWatches } from './clock';
 import { PROBE_MS, REVEAL_MS } from './consts';
 import { flyToRoom } from './flights';
 import type { World } from './world';
+import type { Graphics } from './types';
 
 /** The probe takes a face a frame, between the draw and the shadows' scan, so it uses no shadow redraw of the next frame's. */
 export const probeStep = (w: World, p: { now: number; draw: boolean; s: Snapshot | null; g: Graphics }): void => {

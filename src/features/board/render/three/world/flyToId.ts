@@ -1,16 +1,15 @@
 // The tutorial's and the cards' flights to an id (board3d.ts `flyToId`, the same contract as the 2D renderer's `flyTo` in board.ts): the
 // target framed with room round it, a plug or a key close enough to grab, under the desk from low down.
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
 import { Box3 } from 'three';
 import { viewInset } from '@/app/hover';
 import type { FlyOpts } from '@/core/render/camera';
 import { lowerInBand } from '@/core/render/three/camera';
-import type { OrbitView } from '@/core/render/three/camera';
 import { boxesOf } from './anchors';
 import { flyTo } from './flights';
 import { windowFor } from './flyWindow';
 import { inFree, overview } from './view';
 import type { Scope } from './world';
+import type { OrbitView } from './types';
 
 /** Flies to what the id stands for (a key with its port); false: nothing of it in the scene. */
 export const flyToId = (s: Scope, id: string, o: FlyOpts): boolean => {
