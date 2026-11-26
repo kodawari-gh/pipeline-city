@@ -14,9 +14,8 @@ import {
   Mesh,
   Vector2,
   Vector3,
-  type Material,
-  type Texture,
 } from 'three';
+import type * as threeTypes from 'three';
 import { SEG, paint, place, post, rod, shareTex } from '@/core/render/three/geometry';
 import { taperTube } from '@/core/render/three/loft';
 import { mat } from '@/core/render/three/materials';
@@ -28,7 +27,7 @@ import { FLOOR_Y } from './roomplan';
 type V3 = [number, number, number];
 
 let seedN = 29;
-const rnd = () => (seedN = (seedN * 16807) % 2147483647) / 2147483647;
+const rnd = () => (seedN = (seedN * 16_807) % 2_147_483_647) / 2_147_483_647;
 
 // ---------------------------------------------------------------- leaves
 /** A leaf's half width (a share of its full half width) at u, from its base (0) to its tip (1). */
@@ -130,7 +129,7 @@ function ribs(
  * of colour, not a drawn line), `extra` on top; the veins sunk into the blade in the normal map.
  */
 /** A cached leaf's two sheets: they stay with the cache (`shareTex`). */
-const sharedLeaf = (l: { map: Texture | null; normalMap: Texture | null }) => {
+const sharedLeaf = (l: { map: threeTypes.Texture | null; normalMap: threeTypes.Texture | null }) => {
   shareTex(l.map);
   shareTex(l.normalMap);
   return l;
@@ -140,7 +139,7 @@ function leafTex(
   vein: string,
   veins: number,
   extra?: (c: CanvasRenderingContext2D, w: number, h: number) => void,
-): { map: Texture | null; normalMap: Texture | null } {
+): { map: threeTypes.Texture | null; normalMap: threeTypes.Texture | null } {
   const map = paint(128, 256, (c, w, h) => {
     c.fillStyle = ground;
     c.fillRect(0, 0, w, h);
@@ -165,17 +164,22 @@ function leafTex(
 }
 
 /** The leaves' three tints over one leaf map: fresh, pale, dusty. */
-export const LEAF_TINTS = [0xffffff, 0xd7e4c9, 0xaebb9f] as const;
+export const LEAF_TINTS = [0xff_ff_ff, 0xd7_e4_c9, 0xae_bb_9f] as const;
 /** Three tones of one leaf material (light, mid, deep): the leaves of a plant take turns. */
-function leafMats(tex: { map: Texture | null; normalMap: Texture | null }, roughness: number): Material[] {
+function leafMats(
+  tex: { map: threeTypes.Texture | null; normalMap: threeTypes.Texture | null },
+  roughness: number,
+): threeTypes.Material[] {
   return LEAF_TINTS.map((c) => mat(c, { ...tex, roughness, side: DoubleSide }));
 }
 
 /** A leaf from base point `at` along `dir`, its face turned toward `face` (and rolled about its midrib by `roll`). */
-function aimed(geo: BufferGeometry, m: Material, at: Vector3, dir: Vector3, face: Vector3, roll = 0): Mesh {
+function aimed(geo: BufferGeometry, m: threeTypes.Material, at: Vector3, dir: Vector3, face: Vector3, roll = 0): Mesh {
   const y = dir.clone().normalize();
   let z = face.clone().addScaledVector(y, -face.dot(y));
-  if (z.lengthSq() < 1e-6) z = new Vector3(0, 0, 1).addScaledVector(y, -y.z);
+  if (z.lengthSq() < 1e-6) {
+    z = new Vector3(0, 0, 1).addScaledVector(y, -y.z);
+  }
   z.normalize();
   const x = new Vector3().crossVectors(y, z),
     zr = z.clone().multiplyScalar(Math.cos(roll)).addScaledVector(x, Math.sin(roll)),
@@ -194,7 +198,7 @@ function lathePot(
   y: number,
   z: number,
   profile: readonly (readonly [number, number])[],
-  m: Material,
+  m: threeTypes.Material,
   o: { ribs?: number; from?: number; to?: number } = {},
 ): Mesh {
   const ribs = o.ribs ?? 0,
@@ -206,7 +210,9 @@ function lathePot(
     const p = g.attributes['position']!;
     for (let i = 0; i < p.count; i++) {
       const h = p.getY(i);
-      if (h < (o.from ?? 0) || h > (o.to ?? Infinity)) continue;
+      if (h < (o.from ?? 0) || h > (o.to ?? Infinity)) {
+        continue;
+      }
       const a = Math.atan2(p.getZ(i), p.getX(i)),
         k = 1 + 0.022 * Math.max(0, Math.cos(a * ribs)) ** 0.6;
       p.setX(i, p.getX(i) * k);
@@ -223,23 +229,28 @@ function lathePot(
  * A material (or a set) that all the plants of one room share. Made again once one of them is disposed (the room is built again, a merge took
  * it): each room patches and registers its own (`RoomEnv`). One kept from the room before took a second box patch, which does not compile.
  */
-function perRoom<T extends Material | Material[]>(make: () => T): () => T {
+function perRoom<T extends threeTypes.Material | threeTypes.Material[]>(make: () => T): () => T {
   let v: T | null = null;
   return () => {
-    if (v) return v;
+    if (v) {
+      return v;
+    }
     const made = make();
-    for (const m of ([] as Material[]).concat(made))
+    for (const m of ([] as threeTypes.Material[]).concat(made)) {
       m.addEventListener('dispose', () => {
-        if (v === made) v = null;
+        if (v === made) {
+          v = null;
+        }
       });
+    }
     return (v = made);
   };
 }
 
-let stonewareTex: Texture | null = null;
+let stonewareTex: threeTypes.Texture | null = null;
 /** Every pot's dark stoneware: a matt glaze speckled with pale grog and dark iron. */
 const stoneware = perRoom(() =>
-  mat(0xffffff, {
+  mat(0xff_ff_ff, {
     map: (stonewareTex ??= shareTex(
       paint(
         128,
@@ -259,9 +270,9 @@ const stoneware = perRoom(() =>
   }),
 );
 
-let soilTex: Texture | null = null;
+let soilTex: threeTypes.Texture | null = null;
 /** Potting soil: dark crumbs, a fleck of perlite. */
-function soil(): Material {
+function soil(): threeTypes.Material {
   soilTex ??= shareTex(
     paint(
       128,
@@ -283,7 +294,7 @@ function soil(): Material {
       [2, 2],
     ),
   );
-  return mat(0xffffff, { map: soilTex, roughness: 1 });
+  return mat(0xff_ff_ff, { map: soilTex, roughness: 1 });
 }
 
 // ---------------------------------------------------------------- the fiddle-leaf fig
@@ -319,23 +330,25 @@ export function floorPlant(x: number, z: number): Group {
   const trunk: V3[] = [
     [x, top, z],
     [x + 180, top + 6000, z + 120],
-    [x + 520, top + 12000, z + 320],
-    [x + 380, top + 17800, z + 160],
+    [x + 520, top + 12_000, z + 320],
+    [x + 380, top + 17_800, z + 160],
   ];
   const branches: V3[][] = [
     [
       [x + 300, top + 8800, z + 180],
-      [x + 1300, top + 11200, z + 900],
-      [x + 2500, top + 13600, z + 1600],
+      [x + 1300, top + 11_200, z + 900],
+      [x + 2500, top + 13_600, z + 1600],
     ],
     [
-      [x + 470, top + 12400, z + 270],
-      [x + 250, top + 14400, z - 900],
-      [x - 150, top + 16400, z - 2100],
+      [x + 470, top + 12_400, z + 270],
+      [x + 250, top + 14_400, z - 900],
+      [x - 150, top + 16_400, z - 2100],
     ],
   ];
   g.add(place(new Mesh(taperTube(trunk, 280, 90, SEG.trunk), bark)));
-  for (const b of branches) g.add(place(new Mesh(taperTube(b, 150, 60, SEG.branch), bark)));
+  for (const b of branches) {
+    g.add(place(new Mesh(taperTube(b, 150, 60, SEG.branch), bark)));
+  }
   // the leaves: on short thick petioles round each stem by the golden angle, the low ones big and drooping, the top ones small and upright
   const tex = leafTex('#3f6e34', '#a9c98a', 9, (c, w, h) => {
     // the fig's gloss: a few broad pale smears
@@ -362,7 +375,9 @@ export function floorPlant(x: number, z: number): Group {
       const az = n * 2.4,
         out = new Vector3(Math.cos(az), 0, Math.sin(az));
       // away from the wall at its back: the west wall is close
-      if (out.x < 0) out.x *= 0.35;
+      if (out.x < 0) {
+        out.x *= 0.35;
+      }
       out.normalize();
       // the petiole: out of a small swollen node, arching out and up, thinning to the blade
       const stalkEnd = p
@@ -538,9 +553,9 @@ export function succulent(x: number, y: number, z: number, r: number): Group {
         [0, 0],
         [r * 0.82, 0],
         [r * 0.9, r * 0.08],
-        [r * 1, r * 1.1],
+        [r, r * 1.1],
         [r * 1.08, r * 1.2],
-        [r * 1, r * 1.22],
+        [r, r * 1.22],
         [r * 0.95, r * 1.12],
       ],
       stoneware(),

@@ -1,8 +1,10 @@
 // The bed's soft things, laid on it as cloth lies, worked out once as the room is built (`contact.ts`): the duvet over the mattress and the frame,
 // round its foot corners, turned down below the pillows; a throw across it, on the duvet; the pillows set down on the sheet and leant back on what
 // is behind them, each flattened where it touches. Nothing goes into what it lies on. World units (y up, z out of the back wall); no DOM.
-import { BufferGeometry, Float32BufferAttribute, Mesh, type Material } from 'three';
-import { DepthMap, Taut, arc, bake, type V3 } from '@/core/render/three/contact';
+import { BufferGeometry, Float32BufferAttribute, Mesh } from 'three';
+import type * as threeTypes from 'three';
+import { DepthMap, Taut, arc, bake } from '@/core/render/three/contact';
+import type * as contactTypes from '@/core/render/three/contact';
 import { place } from '@/core/render/three/geometry';
 
 /** The bed as the cloth sees it (world, y up): the mattress, the frame's outside (the foot at `z1`) and its top edge (`rim`) and bottom (`base`). */
@@ -23,8 +25,8 @@ export interface BedForm {
 
 /** A point of a cloth's surface and the outward normal it takes its thickness along. */
 export interface ClothPt {
-  p: V3;
-  n: V3;
+  p: contactTypes.V3;
+  n: contactTypes.V3;
 }
 
 export const smooth = (a: number, b: number, x: number): number => {
@@ -63,8 +65,8 @@ export class Drape {
       ...arc(e, f.top - f.r, f.r, Math.PI / 2, 0, 12),
       [0, f.rim],
       [0, f.base],
-      [e - 40000, f.base],
-      [e - 40000, f.top],
+      [e - 40_000, f.base],
+      [e - 40_000, f.top],
     ];
     this.s = new Taut(pts, [e, f.top], [0, f.base], off);
     this.cx = (f.mx0 + f.mx1) / 2;
@@ -80,11 +82,14 @@ export class Drape {
   /** The walk from the top's edge down to a world height: the hem there. */
   dropTo(y: number): number {
     let lo = 0,
-      hi = 80000;
+      hi = 80_000;
     for (let i = 0; i < 48; i++) {
       const m = (lo + hi) / 2;
-      if (this.s.at(m).y > y) lo = m;
-      else hi = m;
+      if (this.s.at(m).y > y) {
+        lo = m;
+      } else {
+        hi = m;
+      }
     }
     return (lo + hi) / 2;
   }
@@ -108,7 +113,7 @@ export class Drape {
     const side = u < 0 ? -1 : 1,
       du = Math.abs(u) - this.a,
       dv = v - this.b,
-      cx = this.cx;
+      { cx } = this;
     if (du <= 0 && dv <= 0) {
       // the top: its bumps fade out toward the edges, where the cloth is pulled over them
       return { p: [cx + u, this.top + this.bump(u, v) * (1 - smooth(-2600, -400, Math.max(du, dv))), v], n: [0, 1, 0] };
@@ -178,23 +183,24 @@ export function slab(
   vs: readonly number[],
   thick: (u: number, v: number) => number,
   tile: number,
-  m: Material,
+  m: threeTypes.Material,
 ): Mesh {
   const nu = us.length,
     nv = vs.length,
     pos: number[] = [],
     uv: number[] = [],
     idx: number[] = [],
-    under: V3[] = [],
-    over: V3[] = [];
-  for (const v of vs)
+    under: contactTypes.V3[] = [],
+    over: contactTypes.V3[] = [];
+  for (const v of vs) {
     for (const u of us) {
       const { p, n } = surf(u, v),
         t = thick(u, v);
       under.push(p);
       over.push([p[0] + n[0] * t, p[1] + n[1] * t, p[2] + n[2] * t]);
     }
-  const put = (q: V3, a: number, b: number) => {
+  }
+  const put = (q: contactTypes.V3, a: number, b: number) => {
     pos.push(q[0], q[1], q[2]);
     uv.push(a / tile, b / tile);
   };
@@ -204,23 +210,26 @@ export function slab(
     [under, true],
   ] as const) {
     const base = pos.length / 3;
-    for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) put(src[j * nu + i]!, us[i]!, vs[j]!);
-    for (let j = 0; j + 1 < nv; j++)
+    for (let k = 0; k < nu * nv; k++) {
+      put(src[k]!, us[k % nu]!, vs[Math.floor(k / nu)]!);
+    }
+    for (let j = 0; j + 1 < nv; j++) {
       for (let i = 0; i + 1 < nu; i++) {
         const a = base + j * nu + i,
           b = a + 1,
           c = a + nu,
           e = c + 1;
-        if (flip) idx.push(a, b, c, b, e, c);
-        else idx.push(a, c, b, b, c, e);
+        idx.push(...(flip ? [a, b, c, b, e, c] : [a, c, b, b, c, e]));
       }
+    }
   }
   // the border, walked round: each point's underside, its top, and between them a point out by half the thickness (a rounded edge)
-  const ring: [number, number][] = [];
-  for (let i = 0; i < nu; i++) ring.push([i, 0]);
-  for (let j = 1; j < nv; j++) ring.push([nu - 1, j]);
-  for (let i = nu - 2; i >= 0; i--) ring.push([i, nv - 1]);
-  for (let j = nv - 2; j > 0; j--) ring.push([0, j]);
+  const ring: [number, number][] = [
+    ...Array.from({ length: nu }, (_, i): [number, number] => [i, 0]),
+    ...Array.from({ length: nv - 1 }, (_, j): [number, number] => [nu - 1, j + 1]),
+    ...Array.from({ length: nu - 1 }, (_, i): [number, number] => [nu - 2 - i, nv - 1]),
+    ...Array.from({ length: nv - 2 }, (_, j): [number, number] => [0, nv - 2 - j]),
+  ];
   const rim = pos.length / 3,
     L = ring.length;
   ring.forEach(([i, j], k) => {
@@ -233,15 +242,8 @@ export function slab(
       ol = Math.hypot(o[0]!, o[1]!, o[2]!) || 1;
     const half = Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) / 2;
     put(lo, us[i]!, vs[j]!);
-    put(
-      [
-        (lo[0] + hi[0]) / 2 + (o[0]! / ol) * half,
-        (lo[1] + hi[1]) / 2 + (o[1]! / ol) * half,
-        (lo[2] + hi[2]) / 2 + (o[2]! / ol) * half,
-      ],
-      us[i]! + half,
-      vs[j]! + half,
-    );
+    const mid = (c: 0 | 1 | 2) => (lo[c] + hi[c]) / 2 + (o[c]! / ol) * half;
+    put([mid(0), mid(1), mid(2)], us[i]! + half, vs[j]! + half);
     put(hi, us[i]! + 2 * half, vs[j]! + 2 * half);
     const a = rim + k * 3,
       b = rim + ((k + 1) % L) * 3;
