@@ -28,7 +28,16 @@ const game = (): Game => {
   return g;
 };
 const machine = (s: Snapshot, w: StageWall | null): Machine3D =>
-  new Machine3D(s, roomGeo(), new BakeQueue(), null, false, true, true, false, 'machine', w);
+  new Machine3D(s, roomGeo(), {
+    q: new BakeQueue(),
+    chips: null,
+    inRoom: false,
+    merge: true,
+    lod: true,
+    defer: false,
+    shown: 'machine',
+    wall: w,
+  });
 
 describe("Machine3D on the studio's wall", () => {
   let snap: Snapshot, m: Machine3D, bare: Machine3D;
@@ -169,7 +178,16 @@ describe("Machine3D on the studio's wall", () => {
   it('builds the LAN lead again in the room when the router is another tier: the end at its port is another plug', () => {
     // (the machine in the room, no wall: the room's router has a side port, a QSFP+ cage on the edge router)
     const g = game(),
-      mc = new Machine3D(g.snapshot(), roomGeo(), new BakeQueue(), null, true, true, true, false, 'machine', null);
+      mc = new Machine3D(g.snapshot(), roomGeo(), {
+        q: new BakeQueue(),
+        chips: null,
+        inRoom: true,
+        merge: true,
+        lod: true,
+        defer: false,
+        shown: 'machine',
+        wall: null,
+      });
     expect(g.disconnectCable('lan').ok).toBe(true);
     expect(g.connectLan('board').ok).toBe(true);
     mc.syncCables(g.snapshot(), roomGeo());

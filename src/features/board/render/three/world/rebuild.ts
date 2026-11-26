@@ -58,7 +58,7 @@ function newMachine(c: Core, s: ReturnType<typeof current>, room: Room3D): void 
   }
   held.next?.m.dispose();
   held.next = null;
-  const m = new Machine3D(s, room.geo, stage.bakes, live.chips);
+  const m = new Machine3D(s, room.geo, { q: stage.bakes, chips: live.chips });
   m.setLights(room.liveLights); // (the RGB's lights by the lamp cap, before its programs link)
   if (!held.machine || !held.warmed) {
     install(c, m);
