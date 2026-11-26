@@ -7992,15 +7992,6 @@
   "typescript(prefer-readonly)": 1,
   "unicorn(switch-case-braces)": 10
  },
- "src/features/economy/sim/bill.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "typescript(no-non-null-assertion)": 17,
-  "unicorn(max-nested-calls)": 1,
-  "unicorn(prefer-structured-clone)": 1,
-  "vitest(prefer-strict-equal)": 1
- },
  "src/features/economy/sim/bill.ts": {
   "eslint(curly)": 4
  },
@@ -8038,31 +8029,10 @@
   "unicorn(no-immediate-mutation)": 1,
   "unicorn(no-useless-spread)": 1
  },
- "src/features/economy/sim/contracts.test.ts": {
-  "eslint(curly)": 7,
-  "eslint(no-unused-expressions)": 1,
-  "eslint(prefer-destructuring)": 6,
-  "eslint(require-unicode-regexp)": 7,
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-non-null-assertion)": 78,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(numeric-separators-style)": 5,
-  "vitest(no-conditional-expect)": 2,
-  "vitest(no-conditional-in-test)": 4,
-  "vitest(prefer-strict-equal)": 3,
-  "vitest(prefer-to-have-length)": 2
- },
  "src/features/economy/sim/contracts.ts": {
   "eslint(curly)": 1,
   "typescript(no-non-null-assertion)": 1,
   "unicorn(numeric-separators-style)": 1
- },
- "src/features/economy/sim/economy.sell.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(no-shadow)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "typescript(no-non-null-assertion)": 2,
-  "typescript(no-unsafe-type-assertion)": 5
  },
  "src/features/economy/sim/economy.ts": {
   "eslint(curly)": 10,
@@ -8094,27 +8064,6 @@
   "unicorn(catch-error-name)": 1,
   "unicorn(prefer-spread)": 1
  },
- "src/features/economy/sim/levels.test.ts": {
-  "eslint(curly)": 16,
-  "eslint(max-params)": 1,
-  "eslint(no-implicit-coercion)": 1,
-  "eslint(prefer-destructuring)": 6,
-  "eslint(require-unicode-regexp)": 17,
-  "typescript(no-dynamic-delete)": 1,
-  "typescript(no-non-null-assertion)": 53,
-  "typescript(no-unsafe-assignment)": 7,
-  "typescript(no-unsafe-type-assertion)": 9,
-  "typescript(strict-boolean-expressions)": 1,
-  "unicorn(consistent-function-scoping)": 9,
-  "unicorn(no-array-for-each)": 1,
-  "unicorn(numeric-separators-style)": 5,
-  "unicorn(prefer-structured-clone)": 1,
-  "vitest(no-conditional-expect)": 5,
-  "vitest(no-conditional-in-test)": 17,
-  "vitest(prefer-equality-matcher)": 1,
-  "vitest(prefer-strict-equal)": 21,
-  "vitest(valid-expect)": 5
- },
  "src/features/economy/sim/levels.ts": {
   "eslint(curly)": 12,
   "eslint(default-case)": 2,
@@ -8140,52 +8089,9 @@
   "typescript(strict-boolean-expressions)": 2,
   "unicorn(no-array-sort)": 2
  },
- "src/features/economy/sim/patience.test.ts": {
-  "eslint(curly)": 7,
-  "eslint(no-console)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 4,
-  "typescript(no-unsafe-type-assertion)": 4,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(max-nested-calls)": 2,
-  "unicorn(no-array-for-each)": 1,
-  "unicorn(numeric-separators-style)": 3,
-  "unicorn(prefer-structured-clone)": 1,
-  "vitest(prefer-strict-equal)": 4
- },
- "src/features/economy/sim/retire.test.ts": {
-  "eslint(curly)": 9,
-  "eslint(prefer-destructuring)": 5,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(method-signature-style)": 1,
-  "typescript(no-non-null-assertion)": 9,
-  "typescript(no-unnecessary-boolean-literal-compare)": 1,
-  "typescript(no-unsafe-assignment)": 4,
-  "typescript(no-unsafe-call)": 1,
-  "typescript(no-unsafe-member-access)": 6,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 5,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(numeric-separators-style)": 2,
-  "unicorn(prefer-structured-clone)": 4,
-  "vitest(expect-expect)": 1,
-  "vitest(no-conditional-in-test)": 2,
-  "vitest(prefer-strict-equal)": 1
- },
  "src/features/economy/sim/shop.ts": {
   "eslint(curly)": 12,
   "typescript(strict-boolean-expressions)": 3
- },
- "src/features/economy/sim/tradeoff.test.ts": {
-  "eslint(no-console)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-import-type-side-effects)": 1,
-  "typescript(no-non-null-assertion)": 6,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-useless-undefined)": 1,
-  "unicorn(numeric-separators-style)": 4,
-  "vitest(prefer-strict-equal)": 1
  },
  "src/features/economy/ui/progress/ContractsSection.tsx": {
   "eslint(curly)": 1,
@@ -8231,12 +8137,6 @@
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(prefer-global-this)": 2
  },
- "src/features/economy/ui/progress/contractui.test.ts": {
-  "eslint(require-unicode-regexp)": 4,
-  "typescript(no-non-null-assertion)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "vitest(prefer-strict-equal)": 5
- },
  "src/features/economy/ui/progress/contractui.ts": {
   "eslint(curly)": 1,
   "eslint(no-nested-ternary)": 2,
@@ -8244,12 +8144,6 @@
   "typescript(no-non-null-assertion)": 1,
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-sort)": 1
- },
- "src/features/economy/ui/progress/levelui.test.ts": {
-  "typescript(no-non-null-assertion)": 39,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "unicorn(consistent-function-scoping)": 2,
-  "vitest(prefer-strict-equal)": 13
  },
  "src/features/economy/ui/progress/levelui.ts": {
   "eslint(complexity)": 1,
@@ -8266,64 +8160,8 @@
   "unicorn(no-array-sort)": 1,
   "unicorn(switch-case-braces)": 12
  },
- "src/features/economy/ui/progress/levelup.browser.test.ts": {
-  "eslint(complexity)": 1,
-  "eslint(curly)": 24,
-  "eslint(no-empty-function)": 3,
-  "eslint(no-loop-func)": 1,
-  "eslint(require-unicode-regexp)": 3,
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-explicit-any)": 3,
-  "typescript(no-non-null-assertion)": 14,
-  "typescript(no-unnecessary-type-conversion)": 1,
-  "typescript(no-unsafe-call)": 1,
-  "typescript(no-unsafe-member-access)": 3,
-  "typescript(no-unsafe-type-assertion)": 3,
-  "typescript(prefer-nullish-coalescing)": 2,
-  "typescript(strict-boolean-expressions)": 2,
-  "unicorn(catch-error-name)": 1,
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(numeric-separators-style)": 1,
-  "unicorn(prefer-dom-node-text-content)": 1,
-  "vitest(no-conditional-in-test)": 20,
-  "vitest(prefer-each)": 1,
-  "vitest(prefer-hooks-in-order)": 2,
-  "vitest(prefer-strict-equal)": 1,
-  "vitest(valid-expect)": 1
- },
  "src/features/economy/ui/shop/Gallery.acceptance.test.ts": {
-  "eslint(class-methods-use-this)": 3,
-  "eslint(curly)": 13,
-  "eslint(eqeqeq)": 1,
-  "eslint(no-empty-function)": 5,
-  "eslint(no-eq-null)": 1,
-  "eslint(no-promise-executor-return)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "eslint(prefer-named-capture-group)": 3,
-  "eslint(require-unicode-regexp)": 6,
-  "promise(param-names)": 1,
-  "typescript(ban-ts-comment)": 2,
-  "typescript(consistent-type-definitions)": 1,
-  "typescript(no-explicit-any)": 4,
-  "typescript(no-non-null-assertion)": 13,
-  "typescript(no-unsafe-assignment)": 6,
-  "typescript(no-unsafe-call)": 9,
-  "typescript(no-unsafe-member-access)": 18,
-  "typescript(no-unsafe-return)": 1,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(prefer-ts-expect-error)": 2,
-  "typescript(promise-function-async)": 1,
-  "typescript(strict-boolean-expressions)": 1,
-  "typescript(strict-void-return)": 1,
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(no-array-callback-reference)": 1,
-  "unicorn(no-useless-undefined)": 1,
-  "unicorn(prefer-at)": 2,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-called-with)": 1,
-  "vitest(prefer-import-in-mock)": 3,
-  "vitest(prefer-strict-equal)": 2,
-  "vitest(require-mock-type-parameters)": 6
+  "vitest(prefer-import-in-mock)": 1
  },
  "src/features/economy/ui/shop/Gallery.tsx": {
   "eslint(curly)": 8,
@@ -8409,26 +8247,6 @@
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(prefer-dom-node-dataset)": 4
  },
- "src/features/economy/ui/shop/PickerCard.test.ts": {
-  "eslint(curly)": 9,
-  "eslint(prefer-named-capture-group)": 7,
-  "eslint(require-unicode-regexp)": 10,
-  "typescript(ban-ts-comment)": 2,
-  "typescript(consistent-type-definitions)": 2,
-  "typescript(no-explicit-any)": 1,
-  "typescript(no-unsafe-assignment)": 2,
-  "typescript(no-unsafe-call)": 2,
-  "typescript(no-unsafe-member-access)": 2,
-  "typescript(prefer-string-starts-ends-with)": 1,
-  "typescript(prefer-ts-expect-error)": 2,
-  "typescript(switch-exhaustiveness-check)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(max-nested-calls)": 1,
-  "unicorn(prefer-number-coercion)": 2,
-  "unicorn(prefer-string-starts-ends-with)": 1,
-  "unicorn(switch-case-braces)": 11,
-  "vitest(no-conditional-in-test)": 6
- },
  "src/features/economy/ui/shop/PickerCard.tsx": {
   "eslint(complexity)": 1,
   "eslint(curly)": 14,
@@ -8456,19 +8274,6 @@
   "unicorn(prefer-global-this)": 4,
   "unicorn(prefer-number-coercion)": 1,
   "unicorn(switch-case-braces)": 14
- },
- "src/features/economy/ui/shop/Shop.edge.test.ts": {
-  "eslint(prefer-named-capture-group)": 15,
-  "eslint(require-unicode-regexp)": 13,
-  "typescript(ban-ts-comment)": 2,
-  "typescript(no-explicit-any)": 1,
-  "typescript(no-non-null-assertion)": 5,
-  "typescript(no-unsafe-assignment)": 2,
-  "typescript(no-unsafe-call)": 3,
-  "typescript(no-unsafe-member-access)": 3,
-  "typescript(prefer-ts-expect-error)": 2,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 4
  },
  "src/features/economy/ui/shop/Shop.tsx": {
   "eslint(curly)": 7,
@@ -8511,38 +8316,6 @@
   "typescript(no-non-null-assertion)": 1,
   "typescript(strict-boolean-expressions)": 1
  },
- "src/features/economy/ui/shop/ladder.test.ts": {
-  "eslint(no-shadow)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "typescript(no-non-null-assertion)": 9,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "unicorn(consistent-function-scoping)": 4,
-  "unicorn(no-array-sort)": 3,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 3
- },
- "src/features/economy/ui/shop/picker.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(require-unicode-regexp)": 16,
-  "typescript(no-non-null-assertion)": 80,
-  "typescript(no-unsafe-type-assertion)": 4,
-  "unicorn(consistent-function-scoping)": 4,
-  "unicorn(numeric-separators-style)": 1,
-  "vitest(no-conditional-in-test)": 5,
-  "vitest(prefer-strict-boolean-matchers)": 2,
-  "vitest(prefer-strict-equal)": 22,
-  "vitest(prefer-to-have-length)": 1,
-  "vitest(valid-expect)": 6
- },
- "src/features/economy/ui/shop/shopdata.test.ts": {
-  "eslint(curly)": 2,
-  "eslint(require-unicode-regexp)": 1,
-  "typescript(no-non-null-assertion)": 1,
-  "unicorn(prefer-at)": 2,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 7,
-  "vitest(valid-expect)": 2
- },
  "src/features/economy/ui/shop/shopdata.ts": {
   "eslint(curly)": 5,
   "eslint(no-duplicate-imports)": 1,
@@ -8555,20 +8328,6 @@
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(no-immediate-mutation)": 1,
   "unicorn(switch-case-braces)": 6
- },
- "src/features/economy/ui/shop/stills.test.ts": {
-  "eslint(curly)": 1,
-  "typescript(ban-ts-comment)": 2,
-  "typescript(no-explicit-any)": 1,
-  "typescript(no-unsafe-argument)": 1,
-  "typescript(no-unsafe-assignment)": 2,
-  "typescript(no-unsafe-call)": 3,
-  "typescript(no-unsafe-member-access)": 3,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(prefer-ts-expect-error)": 2,
-  "unicorn(no-array-sort)": 2,
-  "vitest(prefer-strict-equal)": 1,
-  "vitest(valid-expect)": 1
  },
  "src/features/gpu/render/air.ts": {
   "eslint(curly)": 1,
