@@ -201,7 +201,9 @@ export class ViewState implements EngineView {
     cols: number,
     readonly width = 1,
   ) {
-    if (rows < 8) throw new RangeError('timeline needs at least 8 rows');
+    if (rows < 8) {
+      throw new RangeError('timeline needs at least 8 rows');
+    }
     const n = 5 * width;
     this.stageKind = new Uint8Array(n);
     this.stageId = new Int32Array(n);
@@ -243,7 +245,9 @@ export class ViewState implements EngineView {
   beginCycle(cycle: number): void {
     const t = this.timeline;
     this.col = cycle % t.cols;
-    for (let r = 0; r < t.rows; r++) t.codes[r * t.cols + this.col] = 0;
+    for (let r = 0; r < t.rows; r++) {
+      t.codes[r * t.cols + this.col] = 0;
+    }
   }
 
   startRow(id: number, pc: number, word: number, thread = 0): void {
@@ -260,20 +264,26 @@ export class ViewState implements EngineView {
   mark(id: number, code: number): void {
     const t = this.timeline;
     const r = id % t.rows;
-    if (t.id[r] === id) t.codes[r * t.cols + this.col] = code;
+    if (t.id[r] === id) {
+      t.codes[r * t.cols + this.col] = code;
+    }
   }
 
   setFate(id: number, fate: number): void {
     const t = this.timeline;
     const r = id % t.rows;
-    if (t.id[r] === id) t.fate[r] = fate;
+    if (t.id[r] === id) {
+      t.fate[r] = fate;
+    }
   }
 
   /** Mark only if the cell is still empty (bulk end-of-cycle marking that must not override explicit marks). */
   markIfEmpty(id: number, code: number): void {
     const t = this.timeline;
     const r = id % t.rows;
-    if (t.id[r] === id && t.codes[r * t.cols + this.col] === 0) t.codes[r * t.cols + this.col] = code;
+    if (t.id[r] === id && t.codes[r * t.cols + this.col] === 0) {
+      t.codes[r * t.cols + this.col] = code;
+    }
   }
 
   setStage(s: number, kind: number, id: number, pc: number, cause: number): void {
@@ -417,7 +427,9 @@ export class OooViewState extends ViewState implements OooView {
   override reset(): void {
     super.reset();
     // Called from the base constructor before the fields exist.
-    if (!this.fetchId) return;
+    if (!this.fetchId) {
+      return;
+    }
     this.fetchId.fill(-1);
     this.fetchPc.fill(0);
     this.decodeId.fill(-1);

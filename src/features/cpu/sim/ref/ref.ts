@@ -58,14 +58,20 @@ export class RefMemory {
   }
 
   private device(addr: number, n: number): Device | null {
-    for (const d of this.devices) if (addr >= d.base && addr + n <= d.base + d.size) return d;
+    for (const d of this.devices) {
+      if (addr >= d.base && addr + n <= d.base + d.size) {
+        return d;
+      }
+    }
     return null;
   }
 
   private find(addr: number, n: number): Region | null {
     for (const r of this.regions) {
       const o = addr - r.base;
-      if (o >= 0 && o + n <= r.bytes.length) return r;
+      if (o >= 0 && o + n <= r.bytes.length) {
+        return r;
+      }
     }
     return null;
   }
@@ -80,17 +86,21 @@ export class RefMemory {
     const r = this.find(addr, 1);
     if (!r) {
       const d = this.device(addr, 1);
-      if (d) return d.read(addr - d.base);
+      if (d) {
+        return d.read(addr - d.base);
+      }
       throw new RangeError(`load8 from unmapped address 0x${addr.toString(16)}`);
     }
     return r.bytes[addr - r.base]!;
   }
   load32(addr: number): number {
-    if (addr % 4 !== 0) throw new RangeError(`misaligned word access at 0x${addr.toString(16)}`);
+    if (addr % 4 !== 0) {
+      throw new RangeError(`misaligned word access at 0x${addr.toString(16)}`);
+    }
     const r = this.find(addr, 4);
     if (!r) {
       const d = this.device(addr, 4);
-      if (d)
+      if (d) {
         return (
           (d.read(addr - d.base) |
             (d.read(addr - d.base + 1) << 8) |
@@ -98,6 +108,7 @@ export class RefMemory {
             (d.read(addr - d.base + 3) << 24)) >>>
           0
         );
+      }
       throw new RangeError(`load32 from unmapped address 0x${addr.toString(16)}`);
     }
     return r.view.getUint32(addr - r.base, true);
@@ -106,18 +117,24 @@ export class RefMemory {
     const r = this.find(addr, 1);
     if (!r) {
       const d = this.device(addr, 1);
-      if (d) return d.write(addr - d.base, v & 0xff);
+      if (d) {
+        return d.write(addr - d.base, v & 0xff);
+      }
       throw new RangeError(`store8 to unmapped address 0x${addr.toString(16)}`);
     }
     r.bytes[addr - r.base] = v & 0xff;
   }
   store32(addr: number, v: number): void {
-    if (addr % 4 !== 0) throw new RangeError(`misaligned word access at 0x${addr.toString(16)}`);
+    if (addr % 4 !== 0) {
+      throw new RangeError(`misaligned word access at 0x${addr.toString(16)}`);
+    }
     const r = this.find(addr, 4);
     if (!r) {
       const d = this.device(addr, 4);
       if (d) {
-        for (let k = 0; k < 4; k++) d.write(addr - d.base + k, (v >>> (8 * k)) & 0xff);
+        for (let k = 0; k < 4; k++) {
+          d.write(addr - d.base + k, (v >>> (8 * k)) & 0xff);
+        }
         return;
       }
       throw new RangeError(`store32 to unmapped address 0x${addr.toString(16)}`);
@@ -140,7 +157,9 @@ export class RefMemory {
       }
       rows.push(s.trimEnd());
     }
-    while (rows.length > 0 && rows[rows.length - 1] === '') rows.pop();
+    while (rows.length > 0 && rows.at(-1) === '') {
+      rows.pop();
+    }
     return rows.join('\n');
   }
 }
@@ -169,12 +188,16 @@ export class RefCpu {
 
   /** Execute one instruction. No-op once halted. */
   step(): void {
-    if (this.halted) return;
-    const pc = this.pc;
+    if (this.halted) {
+      return;
+    }
+    const { pc } = this;
     try {
       this.exec(pc);
     } catch (e) {
-      if (e instanceof RangeError) throw new RefFault(pc, e.message);
+      if (e instanceof RangeError) {
+        throw new RefFault(pc, e.message);
+      }
       throw e;
     }
     this.steps++;
@@ -184,7 +207,9 @@ export class RefCpu {
   run(maxSteps = 1_000_000): number {
     const start = this.steps;
     while (!this.halted) {
-      if (this.steps - start >= maxSteps) throw new RefFault(this.pc, `exceeded ${maxSteps} steps`);
+      if (this.steps - start >= maxSteps) {
+        throw new RefFault(this.pc, `exceeded ${maxSteps} steps`);
+      }
       this.step();
     }
     return this.steps - start;
@@ -192,7 +217,9 @@ export class RefCpu {
 
   private exec(pc: number): void {
     const i = decode(this.mem.load32(pc));
-    if (!i) throw new RefFault(pc, `illegal instruction 0x${this.mem.load32(pc).toString(16)}`);
+    if (!i) {
+      throw new RefFault(pc, `illegal instruction 0x${this.mem.load32(pc).toString(16)}`);
+    }
     const R = this.regs;
     const a = R[i.rs1]!;
     const b = R[i.rs2]!;
@@ -200,135 +227,190 @@ export class RefCpu {
     let res: number | null = null; // value to write to rd
 
     switch (i.name) {
-      case 'add':
+      case 'add': {
         res = a + b;
         break;
-      case 'sub':
+      }
+      case 'sub': {
         res = a - b;
         break;
-      case 'and':
+      }
+      case 'and': {
         res = a & b;
         break;
-      case 'or':
+      }
+      case 'or': {
         res = a | b;
         break;
-      case 'xor':
+      }
+      case 'xor': {
         res = a ^ b;
         break;
-      case 'sll':
+      }
+      case 'sll': {
         res = a << (b & 31);
         break;
-      case 'srl':
+      }
+      case 'srl': {
         res = a >>> (b & 31);
         break;
-      case 'sra':
+      }
+      case 'sra': {
         res = a >> (b & 31);
         break;
-      case 'slt':
+      }
+      case 'slt': {
         res = a < b ? 1 : 0;
         break;
-      case 'sltu':
+      }
+      case 'sltu': {
         res = a >>> 0 < b >>> 0 ? 1 : 0;
         break;
-      case 'mul':
+      }
+      case 'mul': {
         res = Math.imul(a, b);
         break;
-      case 'addi':
+      }
+      case 'addi': {
         res = a + i.imm;
         break;
-      case 'andi':
+      }
+      case 'andi': {
         res = a & i.imm;
         break;
-      case 'ori':
+      }
+      case 'ori': {
         res = a | i.imm;
         break;
-      case 'xori':
+      }
+      case 'xori': {
         res = a ^ i.imm;
         break;
-      case 'slli':
+      }
+      case 'slli': {
         res = a << i.imm;
         break;
-      case 'srli':
+      }
+      case 'srli': {
         res = a >>> i.imm;
         break;
-      case 'srai':
+      }
+      case 'srai': {
         res = a >> i.imm;
         break;
-      case 'slti':
+      }
+      case 'slti': {
         res = a < i.imm ? 1 : 0;
         break;
-      case 'sltiu':
+      }
+      case 'sltiu': {
         res = a >>> 0 < i.imm >>> 0 ? 1 : 0;
         break;
-      case 'lw':
+      }
+      case 'lw': {
         res = this.mem.load32((a + i.imm) >>> 0);
         break;
-      case 'lb':
+      }
+      case 'lb': {
         res = (this.mem.load8((a + i.imm) >>> 0) << 24) >> 24;
         break;
-      case 'lbu':
+      }
+      case 'lbu': {
         res = this.mem.load8((a + i.imm) >>> 0);
         break;
-      case 'sw':
+      }
+      case 'sw': {
         this.mem.store32((a + i.imm) >>> 0, b);
         break;
-      case 'sb':
+      }
+      case 'sb': {
         this.mem.store8((a + i.imm) >>> 0, b);
         break;
+      }
       case 'amoadd':
       case 'amoswap': {
         const addr = a >>> 0;
-        if (!this.mem.isRamWord(addr))
+        if (!this.mem.isRamWord(addr)) {
           throw new RangeError(`${i.name} needs a word-aligned RAM address, got 0x${addr.toString(16)}`);
+        }
         const old = this.mem.load32(addr) | 0;
         this.mem.store32(addr, i.name === 'amoadd' ? old + b : b);
         res = old;
         break;
       }
-      case 'beq':
-        if (a === b) next = (pc + i.imm) >>> 0;
+      case 'beq': {
+        if (a === b) {
+          next = (pc + i.imm) >>> 0;
+        }
         break;
-      case 'bne':
-        if (a !== b) next = (pc + i.imm) >>> 0;
+      }
+      case 'bne': {
+        if (a !== b) {
+          next = (pc + i.imm) >>> 0;
+        }
         break;
-      case 'blt':
-        if (a < b) next = (pc + i.imm) >>> 0;
+      }
+      case 'blt': {
+        if (a < b) {
+          next = (pc + i.imm) >>> 0;
+        }
         break;
-      case 'bge':
-        if (a >= b) next = (pc + i.imm) >>> 0;
+      }
+      case 'bge': {
+        if (a >= b) {
+          next = (pc + i.imm) >>> 0;
+        }
         break;
-      case 'bltu':
-        if (a >>> 0 < b >>> 0) next = (pc + i.imm) >>> 0;
+      }
+      case 'bltu': {
+        if (a >>> 0 < b >>> 0) {
+          next = (pc + i.imm) >>> 0;
+        }
         break;
-      case 'bgeu':
-        if (a >>> 0 >= b >>> 0) next = (pc + i.imm) >>> 0;
+      }
+      case 'bgeu': {
+        if (a >>> 0 >= b >>> 0) {
+          next = (pc + i.imm) >>> 0;
+        }
         break;
-      case 'lui':
+      }
+      case 'lui': {
         res = i.imm << 11;
         break;
-      case 'auipc':
+      }
+      case 'auipc': {
         res = pc + (i.imm << 11);
         break;
-      case 'jal':
+      }
+      case 'jal': {
         res = pc + 4;
         next = (pc + i.imm) >>> 0;
         break;
-      case 'jalr':
+      }
+      case 'jalr': {
         res = pc + 4;
         next = ((a + i.imm) & ~3) >>> 0;
         break;
-      case 'ecall':
+      }
+      case 'ecall': {
         this.halted = true;
         break;
-      case 'iret':
-        if (!this.intc) throw new RefFault(pc, 'iret without an interrupt controller');
+      }
+      case 'iret': {
+        if (!this.intc) {
+          throw new RefFault(pc, 'iret without an interrupt controller');
+        }
         next = this.intc.epc >>> 0;
         this.intc.leave();
         break;
-      default:
+      }
+      default: {
         throw new RefFault(pc, `unimplemented '${i.name}'`);
+      }
     }
-    if (res !== null && i.rd !== 0) R[i.rd] = res; // Int32Array wraps to 32 bits
+    if (res !== null && i.rd !== 0) {
+      R[i.rd] = res; // Int32Array wraps to 32 bits
+    }
     this.pc = next;
   }
 }

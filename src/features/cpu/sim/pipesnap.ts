@@ -122,9 +122,10 @@ const wordAt = (ram: Uint8Array, a: number): number =>
   a + 4 <= ram.length ? ram[a]! | (ram[a + 1]! << 8) | (ram[a + 2]! << 16) | (ram[a + 3]! << 24) : 0;
 
 function cacheSnap(c: { lines: number; ways: number; lineBytes: number; tags: number[] }, ram: Uint8Array): CacheSnap {
-  const words: number[] = [];
   const per = c.lineBytes / 4;
-  for (const t of c.tags) for (let k = 0; k < per; k++) words.push(t < 0 ? 0 : wordAt(ram, t * c.lineBytes + 4 * k));
+  const words = c.tags.flatMap((tag) =>
+    Array.from({ length: per }, (_, k) => (tag < 0 ? 0 : wordAt(ram, tag * c.lineBytes + 4 * k))),
+  );
   return { lines: c.lines, ways: c.ways, lineBytes: c.lineBytes, tags: c.tags, words };
 }
 
@@ -188,11 +189,11 @@ export function ramMapOf(ram: Uint8Array, regions: RamRegion[] = []): RamMap {
         legal = true;
       for (let k = 0; k < 4; k++) {
         const w = wordAt(ram, a + 4 * k);
-        if (w !== 0) any = true;
-        if (w === 0 || !LEGAL.has(w & 0x7f)) legal = false;
+        any ||= w !== 0;
+        legal &&= w !== 0 && LEGAL.has(w & 0x7f);
       }
-      if (any) nz++;
-      if (any && legal) cd++;
+      nz += any ? 1 : 0;
+      cd += any && legal ? 1 : 0;
     }
     filled.push(lines ? Math.round((255 * nz) / lines) : 0);
     code.push(lines ? Math.round((255 * cd) / lines) : 0);
@@ -201,32 +202,27 @@ export function ramMapOf(ram: Uint8Array, regions: RamRegion[] = []): RamMap {
 }
 const LEGAL = new Set<number>(OPS.map((o) => o.op));
 
-function opOf(t: TimelineView, id: number): string {
-  if (id < 0) return '';
+function textOf(t: TimelineView, id: number): string {
   const row = id % t.rows;
-  return t.id[row] === id ? (disassemble(t.word[row]!).split(' ')[0] ?? '') : '';
+  return id >= 0 && t.id[row] === id ? disassemble(t.word[row]!) : '';
 }
 
-function textOf(t: TimelineView, id: number): string {
-  if (id < 0) return '';
-  const row = id % t.rows;
-  return t.id[row] === id ? disassemble(t.word[row]!) : '';
+function opOf(t: TimelineView, id: number): string {
+  return textOf(t, id).split(' ')[0] ?? '';
 }
 
 function oooOf(v: OooView): OooSnap {
-  const t = v.timeline,
-    occ = v.occ;
-  const fetchQ: string[] = [];
-  for (let k = 0; k < occ[0]!; k++) fetchQ.push(opOf(t, v.fetchId[k]!));
-  const decode: string[] = [];
-  for (let k = 0; k < v.decodeId.length; k++) decode.push(opOf(t, v.decodeId[k]!));
-  const rob: OooSlot[] = [];
-  for (let k = 0; k < v.robSize; k++) rob.push({ op: opOf(t, v.robId[k]!), state: v.robState[k]! });
-  const sched: OooSlot[] = [];
-  for (let k = 0; k < v.schedSize; k++) sched.push({ op: opOf(t, v.schedId[k]!), state: v.schedWhy[k]! });
-  const units: OooSnap['units'] = [];
-  for (let k = 0; k < v.unitId.length; k++)
-    units.push({ op: opOf(t, v.unitId[k]!), left: v.unitLeft[k]!, total: v.unitTotal[k]! });
+  const t = v.timeline;
+  const { occ } = v;
+  const fetchQ = Array.from({ length: occ[0]! }, (_, k) => opOf(t, v.fetchId[k]!));
+  const decode = Array.from({ length: v.decodeId.length }, (_, k) => opOf(t, v.decodeId[k]!));
+  const rob = Array.from({ length: v.robSize }, (_, k) => ({ op: opOf(t, v.robId[k]!), state: v.robState[k]! }));
+  const sched = Array.from({ length: v.schedSize }, (_, k) => ({ op: opOf(t, v.schedId[k]!), state: v.schedWhy[k]! }));
+  const units = Array.from({ length: v.unitId.length }, (_, k) => ({
+    op: opOf(t, v.unitId[k]!),
+    left: v.unitLeft[k]!,
+    total: v.unitTotal[k]!,
+  }));
   return {
     fetchQ,
     decode,
@@ -248,16 +244,19 @@ export function traceOf(v: EngineView, end: number, want = TRACE_CYCLES): TraceS
   const CH = ' FDXMWxSRC';
   for (let r = 0; r < t.rows; r++) {
     const id = t.id[r]!;
-    if (id < 0) continue;
-    let codes = '',
-      any = false;
-    for (let k = 0; k < n; k++) {
-      const c = end - n + 1 + k;
-      const code = c > 0 ? t.codes[r * t.cols + (c % t.cols)]! : 0;
-      if (code) any = true;
-      codes += CH[code] ?? ' ';
+    if (id >= 0) {
+      let codes = '',
+        any = false;
+      for (let k = 0; k < n; k++) {
+        const c = end - n + 1 + k;
+        const code = c > 0 ? t.codes[r * t.cols + (c % t.cols)]! : 0;
+        any ||= code !== 0;
+        codes += CH[code] ?? ' ';
+      }
+      if (any) {
+        rows.push({ id, pc: t.pc[r]!, text: disassemble(t.word[r]!), codes, word: t.word[r]! });
+      }
     }
-    if (any) rows.push({ id, pc: t.pc[r]!, text: disassemble(t.word[r]!), codes, word: t.word[r]! });
   }
   rows.sort((a, b) => a.id - b.id);
   return { end, n, rows };
@@ -281,11 +280,12 @@ export function pipeSnapOf(eng: PipelineEngine, ram?: Uint8Array, cycles = TRACE
       stalled: v.stageStalled[i]! !== 0,
     });
   }
-  const out: PipeSnap = { width: v.width, stages: 'robId' in v ? [] : stages };
-  if ('robId' in v) out.ooo = oooOf(v as OooView);
-  if (eng.cycle > 0) {
-    out.trace = traceOf(v, eng.cycle, cycles);
-    if (ram) out.stored = storedOf(eng, ram, eng.cycle - out.trace.n + 1);
-  }
-  return out;
+  const isOoo = 'robId' in v;
+  const trace = eng.cycle > 0 ? traceOf(v, eng.cycle, cycles) : undefined;
+  return {
+    width: v.width,
+    stages: isOoo ? [] : stages,
+    ...(isOoo ? { ooo: oooOf(v as OooView) } : {}),
+    ...(trace ? { trace, ...(ram ? { stored: storedOf(eng, ram, eng.cycle - trace.n + 1) } : {}) } : {}),
+  };
 }

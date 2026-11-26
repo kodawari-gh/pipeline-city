@@ -24,10 +24,10 @@ export class RefThreads {
     memBytes = 1024 * 1024,
   ) {
     this.mem = new RefMemory(memBytes);
-    this.mem.loadWords(0x1000, program);
+    this.mem.loadWords(0x10_00, program);
     for (let k = 0; k < threads; k++) {
       const cpu = new RefCpu(this.mem);
-      cpu.pc = 0x1000;
+      cpu.pc = 0x10_00;
       cpu.regs[A0] = k;
       cpu.regs[A1] = threads;
       cpu.regs[2] = threadStackTop(k);
@@ -45,7 +45,9 @@ export class RefThreads {
     let k = 0,
       left = 0;
     while (!this.halted) {
-      if (this.steps >= maxSteps) throw new RefFault(this.cpus[k]!.pc, `exceeded ${maxSteps} steps`);
+      if (this.steps >= maxSteps) {
+        throw new RefFault(this.cpus[k]!.pc, `exceeded ${maxSteps} steps`);
+      }
       if (left <= 0) {
         if (how.kind === 'random') {
           k = rng!.nextInt(this.threads);

@@ -32,13 +32,17 @@ export class UnpipelinedEngine extends EngineBase {
   }
 
   step(): void {
-    if (this.isHalted) return;
-    const v = this.v;
+    if (this.isHalted) {
+      return;
+    }
+    const { v } = this;
     this.cycleNo++;
     v.counters[Counter.Cycles]!++;
     v.beginCycle(this.cycleNo);
     v.stageStalled.fill(0);
-    if (this.active && this.stage === Stage.WB) this.active = false; // retired on entry to WB
+    if (this.active && this.stage === Stage.WB) {
+      this.active = false; // retired on entry to WB
+    }
     if (!this.active) {
       this.fetch();
     } else if (this.stage === Stage.MEM && !this.memDone) {
@@ -47,10 +51,14 @@ export class UnpipelinedEngine extends EngineBase {
       this.stage++;
       this.enter(this.stage);
     }
-    for (let s = 0; s < 5; s++) v.clearStage(s);
+    for (let s = 0; s < 5; s++) {
+      v.clearStage(s);
+    }
     const s = this.stage;
     v.setStage(s, SlotKind.Instr, this.curId, this.pool.pc[this.curId & POOL_MASK]!, Cause.None);
-    if (s === Stage.MEM && !this.memDone) v.stageStalled[s] = 1;
+    if (s === Stage.MEM && !this.memDone) {
+      v.stageStalled[s] = 1;
+    }
     v.mark(this.curId, s + 1);
   }
 
@@ -79,9 +87,10 @@ export class UnpipelinedEngine extends EngineBase {
     const p = this.pool;
     const s = this.curId & POOL_MASK;
     switch (stage) {
-      case Stage.ID:
+      case Stage.ID: {
         p.decodeSlot(s);
         break;
+      }
       case Stage.EX: {
         const f = OPF[p.op[s]!]!;
         if (p.fault[s]) {
@@ -95,18 +104,25 @@ export class UnpipelinedEngine extends EngineBase {
           this.fault(s);
           break;
         }
-        if (f & F.Branch) this.v.counters[Counter.Branches]!++;
+        if (f & F.Branch) {
+          this.v.counters[Counter.Branches]!++;
+        }
         this.fetchPc = next;
         break;
       }
-      case Stage.MEM:
+      case Stage.MEM: {
         this.memDone = this.memStep(s);
         break;
+      }
       case Stage.WB: {
         const op = p.op[s]!;
-        if (OPF[op]! & F.Writes && p.rd[s] !== 0) this.writeReg(p.rd[s]!, p.res[s]!);
+        if (OPF[op]! & F.Writes && p.rd[s] !== 0) {
+          this.writeReg(p.rd[s]!, p.res[s]!);
+        }
         this.retire(this.curId, op);
-        if (op === OP_ECALL) this.isHalted = true;
+        if (op === OP_ECALL) {
+          this.isHalted = true;
+        }
         break;
       }
     }
