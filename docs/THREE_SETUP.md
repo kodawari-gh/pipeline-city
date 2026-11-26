@@ -289,7 +289,7 @@ export function mountBoard(host: HTMLElement) {
     const deltaTime = (now - lastTime) / 1000;
     lastTime = now;
 
-    // Update from snapshot (live.ts will call this)
+    // Update from snapshot (live/ will call this)
     // updateScene(ctx.scene, snapshot);
 
     updateCamera(ctx.camera, cameraState, deltaTime);
