@@ -38,7 +38,8 @@ const DEVICES = {
   'razr-fold': [1004, 967, 2.2],
   'razr-fold-folded': [485, 997, 2.225],
 };
-const DEVICE = flag('device', has('phone') ? 'phone' : '');
+const deviceFlag = flag('device', has('phone') ? 'phone' : '');
+const DEVICE = typeof deviceFlag === 'string' ? deviceFlag : '';
 const PHONE = !!DEVICE;
 if (DEVICE && !DEVICES[DEVICE]) throw new Error(`--device: one of ${Object.keys(DEVICES).join(', ')}`);
 const [W, H, DPR] = PHONE ? DEVICES[DEVICE] : [1920, 1080, 1];

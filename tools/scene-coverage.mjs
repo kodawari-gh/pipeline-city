@@ -53,7 +53,7 @@ export function shareOf(obstructed) {
 
 // ---- the browser part -------------------------------------------------------------------------------------------------
 
-if (process.argv[1]?.replace(/\\/g, '/').endsWith('/scene-coverage.mjs')) await main();
+if (process.argv[1]?.replace(/\\/g, '/').endsWith('/scene-coverage.mjs') === true) await main();
 
 async function main() {
   const args = process.argv.slice(2);

@@ -13,16 +13,28 @@ import { resolve } from 'node:path';
 import { chromium } from 'playwright-core';
 
 const args = process.argv.slice(2);
+/**
+ * @param {string} n
+ * @param {string | number} d
+ * @returns {string | number}
+ */
 const flag = (n, d) => {
   const i = args.indexOf('--' + n);
-  return i < 0 ? d : args[i + 1];
+  if (i < 0) {
+    return d;
+  }
+  const v = args[i + 1];
+  return v ?? d;
 };
 const has = (n) => args.includes('--' + n);
 const out = args.find((a, i) => a.endsWith('.json') && !(args[i - 1] ?? '').startsWith('--'));
-const [W, H] = flag('size', '1920x1080').split('x').map(Number);
+const sizeRaw = flag('size', '1920x1080');
+const size = typeof sizeRaw === 'string' ? sizeRaw : '1920x1080';
+const [W, H] = size.split('x').map(Number);
 const LOW = has('lowpower'),
-  TOP = Number(flag('top', 6)),
-  only = flag('only', '').split(',').filter(Boolean);
+  TOP = Number(flag('top', 6));
+const onlyRaw = flag('only', '');
+const only = (typeof onlyRaw === 'string' ? onlyRaw : '').split(',').filter(Boolean);
 const PORT = Number(process.env.PORT || 5197),
   url = `http://localhost:${PORT}/?3d${LOW ? '&lowpower' : ''}`;
 
