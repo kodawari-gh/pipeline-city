@@ -23,7 +23,9 @@ export interface MonitorView {
  * error (a PSU trip, a burnt part): the screen lost its picture. A cold-boot wait or a power-off stays black.
  */
 export function monitorView(m: MonitorInput): MonitorView {
-  if (m.monitorPowered === false) return { text: '', noSignal: false };
+  if (m.monitorPowered === false) {
+    return { text: '', noSignal: false };
+  }
   const blanked = m.phase === 'error' && !m.postFailed;
   return {
     text: m.monitorLive && !blanked ? m.display : '',
@@ -37,7 +39,9 @@ export function monitorView(m: MonitorInput): MonitorView {
  * screen, NO SIGNAL) or there is no display.
  */
 export function standbyLook(m: MonitorInput, v: MonitorView, osOn: boolean): 'off' | 'wait' | null {
-  if (!m.hasDisplay || v.text !== '' || v.noSignal || osOn || m.monitorPowered === false) return null;
+  if (!m.hasDisplay || v.text !== '' || v.noSignal || osOn || m.monitorPowered === false) {
+    return null;
+  }
   return m.powered ? 'wait' : 'off';
 }
 
@@ -46,6 +50,8 @@ export function standbyLook(m: MonitorInput, v: MonitorView, osOn: boolean): 'of
  * or `dash` (the graphics display's dashboard, once the OS is up: its boot still shows the status text).
  */
 export function screenMode(osOn: boolean, gfx: boolean, phase: string): 'text' | 'os' | 'dash' {
-  if (!osOn) return 'text';
+  if (!osOn) {
+    return 'text';
+  }
   return gfx && phase !== 'booting-os' ? 'dash' : 'os';
 }

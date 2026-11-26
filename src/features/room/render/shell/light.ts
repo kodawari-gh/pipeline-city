@@ -13,7 +13,7 @@ import type { Rect } from '@/features/board/render/layout/layout';
 /** Texture pixels per world unit: the light is soft, so a few hundred pixels cover the whole room. */
 export const LIGHT_RES = 0.025;
 /** How far the lamp's cone reaches (world units) and its half angle (radians). */
-export const BEAM = { reach: 19000, half: 0.74 };
+export const BEAM = { reach: 19_000, half: 0.74 };
 
 const sstep = (a: number, b: number, v: number) => {
   const t = Math.min(1, Math.max(0, (v - a) / (b - a)));
@@ -30,7 +30,9 @@ const sstep = (a: number, b: number, v: number) => {
 export function focusAt(view: Rect, cover: Rect): number {
   const w = Math.min(view.x + view.w, cover.x + cover.w) - Math.max(view.x, cover.x),
     h = Math.min(view.y + view.h, cover.y + cover.h) - Math.max(view.y, cover.y);
-  if (w <= 0 || h <= 0 || view.w <= 0 || view.h <= 0) return 0;
+  if (w <= 0 || h <= 0 || view.w <= 0 || view.h <= 0) {
+    return 0;
+  }
   return Math.max(sstep(0.3, 0.7, (w * h) / (view.w * view.h)), sstep(0.8, 0.96, Math.max(w / view.w, h / view.h)));
 }
 
@@ -96,17 +98,22 @@ const shiftShape = (s: LightShape, dx: number, dy: number): LightShape => {
   switch (s.k) {
     case 'blob':
     case 'cone':
-    case 'ellipse':
+    case 'ellipse': {
       return { ...s, x: s.x + dx, y: s.y + dy };
-    case 'rect':
+    }
+    case 'rect': {
       return { ...s, r: { ...s.r, x: s.r.x + dx, y: s.r.y + dy } };
-    case 'poly':
+    }
+    case 'poly': {
       return { ...s, pts: s.pts.map((v, j) => v + (j % 2 ? dy : dx)) };
+    }
   }
 };
 /** A light moved by (dx, dy): every piece of it follows. */
 export function shiftEmitter(e: Emitter, dx: number, dy: number): Emitter {
-  if (!dx && !dy) return e;
+  if (!dx && !dy) {
+    return e;
+  }
   const mv = (l: LightLayer): LightLayer => ({ ...l, shape: shiftShape(l.shape, dx, dy) });
   return {
     ...e,
@@ -122,7 +129,9 @@ function windowGlow(beams: Beam[]): { k: number; color: string } {
     sum = 0;
   for (const b of beams) {
     sum += b.a;
-    if (!best || b.a > best.a) best = b;
+    if (!best || b.a > best.a) {
+      best = b;
+    }
   }
   return { k: Math.min(1, sum * 2.5), color: best?.color ?? '#ffffff' };
 }
@@ -164,16 +173,19 @@ function windowLight(i: LightIn, G: LightGeo): Emitter {
   if (wg.k > 0.01) {
     const cx = wr.x + wr.w / 2 + 1500,
       cy = wr.y + wr.h / 2;
-    lit.push(blob(cx, cy, 26000, 19000, Math.min(0.7, wg.k * 1.5)));
-    tint.push(blob(cx, cy, 26000, 19000, 0.32 * wg.k, wg.color));
+    lit.push(blob(cx, cy, 26_000, 19_000, Math.min(0.7, wg.k * 1.5)));
+    tint.push(blob(cx, cy, 26_000, 19_000, 0.32 * wg.k, wg.color));
   }
   for (const b of i.beams) {
-    for (const q of b.quads) lit.push({ shape: { k: 'poly', pts: q.pts }, alpha: Math.min(0.75, b.a * q.fade * 4) });
-    if (b.patch)
+    for (const q of b.quads) {
+      lit.push({ shape: { k: 'poly', pts: q.pts }, alpha: Math.min(0.75, b.a * q.fade * 4) });
+    }
+    if (b.patch) {
       lit.push({
         shape: { k: 'ellipse', x: b.patch.x, y: b.patch.y, rx: b.patch.rx, ry: b.patch.ry },
         alpha: Math.min(0.7, b.a * 4),
       });
+    }
   }
   return { id: 'window', lit, tint };
 }
@@ -193,7 +205,7 @@ function lampLight(i: LightIn, G: LightGeo): Emitter {
     tint.push({ shape: { k: 'cone', x: mo.x, y: mo.y, len: BEAM.reach, rot: ang }, alpha: 0.34 * k, color: '#ffb35a' });
     tint.push(blob(mo.x - 400, mo.y - 300, poolW(G, 9200), poolW(G, 9200), 0.3 * k, '#ffb35a'));
     tint.push(
-      blob(mo.x + 3600, (G.deskTop + G.deskBack) / 2, 11000, (G.deskTop - G.deskBack) * 1.2, 0.5 * k, '#ffd9a0'),
+      blob(mo.x + 3600, (G.deskTop + G.deskBack) / 2, 11_000, (G.deskTop - G.deskBack) * 1.2, 0.5 * k, '#ffd9a0'),
     );
     tint.push(blob(G.monitor.x + 1100, G.monitor.y + 900, 1700, 1000, 0.28 * k, '#ffe0a8'));
     tint.push(blob(mo.x - 60, mo.y - 60, 1500, 1500, 0.5 * Math.min(1, k * 1.5), '#fff2c8'));
@@ -210,7 +222,9 @@ function screenLight(i: LightIn, G: LightGeo): Emitter {
   const lit: LightLayer[] = [],
     tint: LightLayer[] = [],
     A = ambientOf(i);
-  if (A.lamp > 0.01) tint.push({ shape: { k: 'rect', r: G.screen }, alpha: 0.7 * i.screen, erase: true });
+  if (A.lamp > 0.01) {
+    tint.push({ shape: { k: 'rect', r: G.screen }, alpha: 0.7 * i.screen, erase: true });
+  }
   if (i.screen > 0.01) {
     const sc = G.screen,
       m = G.monitor,

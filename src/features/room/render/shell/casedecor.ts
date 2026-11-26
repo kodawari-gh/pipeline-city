@@ -2,7 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import type { BrandId } from '@/core/render/brands';
 import { brandSprite } from '@/core/render/brands/pixi';
 import { disc } from '@/core/render/ink';
-import { BR, CASE_GLASS, type Rect } from '@/features/board/render/layout/layout';
+import * as layout from '@/features/board/render/layout/layout';
 
 export type CaseKind = 'oem' | 'matte' | 'gamer' | 'show';
 /** The look of each case tier, Mini to Full. The outside (exterior.ts) and the inside (desk/props/case.ts) both read it, so they cannot drift. */
@@ -12,9 +12,9 @@ export const CASE_KIND: readonly CaseKind[] = ['oem', 'matte', 'gamer', 'show'];
  * The glass window of a case, in world units, the same for the outside (the hole in the body) and the inside (the glass sheen): none on the
  * OEM tower's solid side (the box is its whole side), the upper part on the matte case, the full front on the gaming case and the showcase.
  */
-export function caseWindow(kind: CaseKind): Rect {
-  const gl = CASE_GLASS,
-    x0 = BR.io.x + BR.io.w + 110,
+export function caseWindow(kind: CaseKind): layout.Rect {
+  const gl = layout.CASE_GLASS,
+    x0 = layout.BR.io.x + layout.BR.io.w + 110,
     x1 = gl.x + gl.w - 56,
     inset = 56;
   return { x: x0, y: gl.y + inset, w: x1 - x0, h: (gl.h - 2 * inset) * (kind === 'matte' ? 0.74 : 1) };
@@ -67,16 +67,19 @@ export function outline(g: Graphics, x: number, y: number, w: number, h: number,
 }
 
 /** A grid of round holes (staggered rows) inside `r`; the caller fills. */
-export function holes(g: Graphics, r: Rect, pitch: number, rad: number) {
-  for (let y = r.y + pitch / 2, k = 0; y < r.y + r.h; y += pitch * 0.87, k++)
-    for (let x = r.x + pitch / 2 + (k % 2) * (pitch / 2); x < r.x + r.w - pitch / 4; x += pitch) g.circle(x, y, rad);
+export function holes(g: Graphics, r: layout.Rect, pitch: number, rad: number) {
+  for (let y = r.y + pitch / 2, k = 0; y < r.y + r.h; y += pitch * 0.87, k++) {
+    for (let x = r.x + pitch / 2 + (k % 2) * (pitch / 2); x < r.x + r.w - pitch / 4; x += pitch) {
+      g.circle(x, y, rad);
+    }
+  }
 }
 
 /** A honeycomb (pointy hexagons, `s` the side) inside `r`; the caller fills. */
-export function hexes(g: Graphics, r: Rect, s: number, gap: number) {
+export function hexes(g: Graphics, r: layout.Rect, s: number, gap: number) {
   const w = Math.sqrt(3) * s,
     hs = s - gap * 0.6;
-  for (let y = r.y + s, k = 0; y < r.y + r.h - s * 0.5; y += s * 1.5, k++)
+  for (let y = r.y + s, k = 0; y < r.y + r.h - s * 0.5; y += s * 1.5, k++) {
     for (let x = r.x + w / 2 + (k % 2) * (w / 2); x < r.x + r.w - w / 2 + 1; x += w) {
       const pts: number[] = [];
       for (let i = 0; i < 6; i++) {
@@ -85,10 +88,11 @@ export function hexes(g: Graphics, r: Rect, s: number, gap: number) {
       }
       g.poly(pts);
     }
+  }
 }
 
 /** Slanted vent slots (parallelograms leaning east), `n` of them side by side in `r`; the caller fills. */
-export function slots(g: Graphics, r: Rect, n: number, lean: number) {
+export function slots(g: Graphics, r: layout.Rect, n: number, lean: number) {
   const pitch = r.w / n,
     w = pitch * 0.5;
   for (let k = 0; k < n; k++) {
