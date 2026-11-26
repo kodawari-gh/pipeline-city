@@ -457,7 +457,6 @@
   "import(consistent-type-specifier-style)": 2
  },
  "src/app/audio/mixTokens.ts": {
-  "eslint(max-lines)": 1,
   "unicorn(numeric-separators-style)": 5
  },
  "src/app/audio/music.dataStress.test.ts": {
