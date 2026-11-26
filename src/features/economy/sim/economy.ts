@@ -3,17 +3,7 @@
 
 import { getIspSpec, getRouterSpec, NET } from '../../network/sim';
 import { getOsSpec } from '../../os/sim';
-import {
-  BOARD_TIERS,
-  CASE_TIERS,
-  caseFor,
-  deviceSpec,
-  getSpec,
-  specsOfKind,
-  type Board,
-  type DeviceKind,
-  type RamSpec,
-} from '../../board/sim';
+import * as boardSim from '../../board/sim';
 
 export interface MixEntry {
   /** Template name for `generate()` ("cli" picks log/calc/checksum from the seed). */
@@ -266,17 +256,21 @@ export function lossPenalty(cfg: EconomyConfig, kib: number, levelPay = 1, breac
  * POST time of the machine as built: `base + min(kiBCap, perKiB * RAM KiB) + perStick * sticks + init of every working
  * device`, capped at `max` (the Starter machine comes to 3). The override `coldBootTicks` wins when defined.
  */
-export function postTicks(cfg: EconomyConfig, board: Board): number {
-  if (cfg.coldBootTicks !== undefined) return cfg.coldBootTicks;
+export function postTicks(cfg: EconomyConfig, board: boardSim.Board): number {
+  if (cfg.coldBootTicks !== undefined) {
+    return cfg.coldBootTicks;
+  }
   const c = cfg.coldBoot;
   let kib = 0;
   let sticks = 0;
   let init = 0;
   for (const d of board.devices) {
-    if (d.burnt) continue;
-    const s = deviceSpec(d);
+    if (d.burnt) {
+      continue;
+    }
+    const s = boardSim.deviceSpec(d);
     if (s.kind === 'ram') {
-      kib += (s as RamSpec).sizeBytes / 1024;
+      kib += (s as boardSim.RamSpec).sizeBytes / 1024;
       sticks++;
     }
     init += c.init[s.id] ?? c.init[s.kind] ?? 0;
@@ -310,8 +304,12 @@ export function payout(cfg: EconomyConfig, work: number, turnaround: number, lat
  * `payout` for such a job (pass `late = false` there), so the pay is continuous across the deadline.
  */
 export function slaFactor(cfg: EconomyConfig, turnaround: number, slaTicks: number, deadlineTicks: number): number {
-  if (turnaround <= slaTicks) return 1;
-  if (turnaround >= deadlineTicks || deadlineTicks <= slaTicks) return cfg.lateFactor;
+  if (turnaround <= slaTicks) {
+    return 1;
+  }
+  if (turnaround >= deadlineTicks || deadlineTicks <= slaTicks) {
+    return cfg.lateFactor;
+  }
   return 1 - (1 - cfg.lateFactor) * ((turnaround - slaTicks) / (deadlineTicks - slaTicks));
 }
 
@@ -322,16 +320,18 @@ export function pickTemplate(mix: MixEntry[], ramBytes: number, r: number, tick 
   const total = ok.reduce((s, m) => s + w(m), 0);
   let x = r * total;
   for (const m of ok) {
-    if (x < w(m)) return m;
+    if (x < w(m)) {
+      return m;
+    }
     x -= w(m);
   }
-  return ok[ok.length - 1]!;
+  return ok.at(-1)!;
 }
 
 // ---------- purchases ----------
 
 /** Every kind of device the shop sells. */
-const DEVICE_KINDS: DeviceKind[] = [
+const DEVICE_KINDS: boardSim.DeviceKind[] = [
   'cpu',
   'ram',
   'psu',
@@ -352,12 +352,12 @@ const DEVICE_KINDS: DeviceKind[] = [
 export interface Offer {
   id: string;
   name: string;
-  kind: DeviceKind | 'board' | 'case';
+  kind: boardSim.DeviceKind | 'board' | 'case';
   price: number;
 }
 
-const BOARD_ID = /^board([0-9]+)$/;
-const CASE_ID = /^case([0-9]+)$/;
+const BOARD_ID = /^board(?<tier>[0-9]+)$/u;
+const CASE_ID = /^case(?<tier>[0-9]+)$/u;
 
 /** Case tier of an offer id like "case1", or undefined. */
 export function caseTierOf(id: string): number | undefined {
@@ -374,10 +374,12 @@ export function boardTierOf(id: string): number | undefined {
 export function offerPrice(id: string): number | undefined {
   const t = boardTierOf(id),
     c = caseTierOf(id);
-  if (c !== undefined) return CASE_TIERS[c]?.price;
+  if (c !== undefined) {
+    return boardSim.CASE_TIERS[c]?.price;
+  }
   return t !== undefined
-    ? BOARD_TIERS[t]?.price
-    : (getSpec(id)?.price ?? getOsSpec(id)?.price ?? getRouterSpec(id)?.price ?? getIspSpec(id)?.price);
+    ? boardSim.BOARD_TIERS[t]?.price
+    : (boardSim.getSpec(id)?.price ?? getOsSpec(id)?.price ?? getRouterSpec(id)?.price ?? getIspSpec(id)?.price);
 }
 
 /** Selling a spare part back returns this share of its list price: the rest is lost (docs/GAME.md "Selling"). */
@@ -387,8 +389,8 @@ export const SELL_RATE = 0.8;
 export const sellValue = (spec: string): number => Math.floor(Math.max(offerPrice(spec) ?? 0, SPARE_FLOOR) * SELL_RATE);
 
 /** Why a board of this tier cannot go into the board's case. */
-export const caseTooSmall = (board: Board, boardTier: number): string =>
-  `the ${CASE_TIERS[board.caseTier]?.name ?? 'case'} is too small for a ${BOARD_TIERS[boardTier]?.name ?? 'bigger'} board: buy a ${CASE_TIERS[caseFor(boardTier)]?.name ?? 'bigger case'} first`;
+export const caseTooSmall = (board: boardSim.Board, boardTier: number): string =>
+  `the ${boardSim.CASE_TIERS[board.caseTier]?.name ?? 'case'} is too small for a ${boardSim.BOARD_TIERS[boardTier]?.name ?? 'bigger'} board: buy a ${boardSim.CASE_TIERS[boardSim.caseFor(boardTier)]?.name ?? 'bigger case'} first`;
 
 /** The cheapest a spare costs: the starter crate's parts are free to receive but not to buy again. */
 export const SPARE_FLOOR = 10;
@@ -401,10 +403,17 @@ export const SPARE_FLOOR = 10;
 export function catalog(): Offer[] {
   const out: Offer[] = [];
   const at = (price: number) => Math.max(price, SPARE_FLOOR);
-  for (const t of BOARD_TIERS) out.push({ id: `board${t.tier}`, name: t.name, kind: 'board', price: at(t.price) });
-  for (const c of CASE_TIERS) out.push({ id: `case${c.tier}`, name: c.name, kind: 'case', price: at(c.price) });
-  for (const kind of DEVICE_KINDS)
-    for (const s of specsOfKind(kind)) out.push({ id: s.id, name: s.name, kind: s.kind, price: at(s.price) });
+  for (const t of boardSim.BOARD_TIERS) {
+    out.push({ id: `board${t.tier}`, name: t.name, kind: 'board', price: at(t.price) });
+  }
+  for (const c of boardSim.CASE_TIERS) {
+    out.push({ id: `case${c.tier}`, name: c.name, kind: 'case', price: at(c.price) });
+  }
+  for (const kind of DEVICE_KINDS) {
+    for (const s of boardSim.specsOfKind(kind)) {
+      out.push({ id: s.id, name: s.name, kind: s.kind, price: at(s.price) });
+    }
+  }
   return out;
 }
 

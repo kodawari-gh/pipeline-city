@@ -6,7 +6,7 @@ import { netLensReady } from '@/features/network/render/netvis';
 import { dragging, highlight, overInventory } from '@/app/interaction';
 import { cancelSwap, sell } from '@/app/store';
 import { SELL_RATE } from '../../sim/economy';
-import { describeId, fitFilterFor, fitsFilter, inventoryGroups, stackItems, type Stack } from '@/core/ui/logic';
+import * as uiLogic from '@/core/ui/logic';
 import { Icon } from '@/core/ui/kit/Icons';
 import { PartArt } from './PartArt';
 import { INVENTORY_ID } from '@/features/tutorial/ui/tutorial';
@@ -113,7 +113,9 @@ function AirflowButton() {
 /** The network lens switch (once there is a network to light): dims the room and lights the path data takes, from the plan's wall plate to the router and down the LAN lead (the N key does the same). */
 function NetLensButton({ s }: { s: Snapshot }) {
   const on = networkLens.value;
-  if (!on && !netLensReady(s)) return null;
+  if (!on && !netLensReady(s)) {
+    return null;
+  }
   return (
     <button
       class={`invbtn ${on ? 'on' : ''}`}
@@ -172,7 +174,9 @@ function LogButton() {
 
 /** The OS button (once an OS is installed): resource monitor, job queue and apps. */
 function OsButton({ s }: { s: Snapshot }) {
-  if (!s.os) return null;
+  if (!s.os) {
+    return null;
+  }
   const open = osOpen.value;
   return (
     <button
@@ -203,13 +207,19 @@ function LensBranch({ s }: { s: Snapshot }) {
   const toggle = useRef<HTMLButtonElement>(null);
   const lens = powerLens.value ? 'Power' : airflowLens.value ? 'Airflow' : networkLens.value ? 'Network' : null;
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     const outside = (e: PointerEvent) => {
-      if (root.current && !root.current.contains(e.target as Node)) lensBranchOpen.value = false;
+      if (root.current && !root.current.contains(e.target as Node)) {
+        lensBranchOpen.value = false;
+      }
     };
     // (capture on the document: the menu's Escape handler reads defaultPrevented and leaves the key to this branch)
     const key = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+      if (e.key !== 'Escape') {
+        return;
+      }
       e.preventDefault();
       lensBranchOpen.value = false;
       toggle.current?.focus();
@@ -240,7 +250,9 @@ function LensBranch({ s }: { s: Snapshot }) {
       <div
         class="lens-pop"
         onClick={(e) => {
-          if ((e.target as Element).closest('button')) lensBranchOpen.value = false;
+          if ((e.target as Element).closest('button')) {
+            lensBranchOpen.value = false;
+          }
         }}
       >
         <LensButton />
@@ -279,7 +291,7 @@ function Tile({
   active,
   onHover,
 }: {
-  st: Stack<InventorySnap>;
+  st: uiLogic.Stack<InventorySnap>;
   pulse: boolean;
   queued?: number;
   queuedId?: string | undefined;
@@ -289,7 +301,7 @@ function Tile({
   const it = st.rep;
   const n = st.items.length;
   const why = it.installable ? undefined : (it.reason ?? 'Nothing to fit it to right now');
-  const plain = describeId(it.spec)?.plain ?? '';
+  const plain = uiLogic.describeId(it.spec)?.plain ?? '';
   const tier = tierOfSpec(it.spec);
   return (
     <div
@@ -303,7 +315,9 @@ function Tile({
           : `${it.name}${n > 1 ? ` x${n}` : ''}. ${plain}${why ? ` ${why}.` : ' Drag it onto a socket.'}`
       }
       onPointerDown={(e) => {
-        if (e.button === 0) beginPartDrag(it.id, e);
+        if (e.button === 0) {
+          beginPartDrag(it.id, e);
+        }
       }}
       onPointerEnter={() => onHover(it.id)}
       onPointerLeave={() => onHover(null)}
@@ -319,7 +333,7 @@ function Tile({
         }
       }}
     >
-      {!!queued && (
+      {Boolean(queued) && (
         <button
           class="tqueue"
           data-cue="ui_back"
@@ -339,7 +353,7 @@ function Tile({
       </div>
       <span class="tname">{shortName(it.name)}</span>
       <span class="tmeta">{tier !== null && <span class="ttier">Tier {tier}</span>}</span>
-      {active && !!it.sellPrice && (
+      {active && Boolean(it.sellPrice) && (
         <button
           class="tsell"
           data-cue="ui_confirm"
@@ -386,28 +400,35 @@ export function InventoryPanel({ s }: { s: Snapshot }) {
   const [hover, setHover] = useState<string | null>(null);
   const timer = useRef(0);
   const onHover = (id: string | null) => {
-    window.clearTimeout(timer.current);
-    if (id === null) setHover(null);
-    else timer.current = window.setTimeout(() => setHover(id), HOVER_MS);
+    globalThis.clearTimeout(timer.current);
+    if (id === null) {
+      setHover(null);
+    } else {
+      timer.current = globalThis.setTimeout(() => setHover(id), HOVER_MS);
+    }
   };
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-  const lifted = !!dragging.value?.fromBoard;
+  useEffect(() => () => globalThis.clearTimeout(timer.current), []);
+  const lifted = dragging.value?.fromBoard === true;
   // a part lifted off the board is dropped on the shelf: it opens, and stays in view
   useEffect(() => {
-    if (lifted) inventoryOpen.value = true;
+    if (lifted) {
+      inventoryOpen.value = true;
+    }
   }, [lifted]);
-  if (!inventoryOpen.value) return null;
+  if (!inventoryOpen.value) {
+    return null;
+  }
   const away = dragging.value?.kind === 'part' && !lifted;
   const hl = new Set(highlight.value);
   const sel = selected.value;
   const n = s.inventory.length;
   // Selecting something on the PC narrows the shelf to what fits there; a kind chip narrows it by hand.
-  const fit = fitTarget.value ? fitFilterFor(fitTarget.value, s) : null;
-  const fitting = fit ? s.inventory.filter((it) => fitsFilter(fit, it)) : [];
+  const fit = fitTarget.value ? uiLogic.fitFilterFor(fitTarget.value, s) : null;
+  const fitting = fit ? s.inventory.filter((it) => uiLogic.fitsFilter(fit, it)) : [];
   const kind = inventoryKind.value;
-  const shown = fit && fitting.length ? fitting : kind ? s.inventory.filter((it) => it.kind === kind) : s.inventory;
-  const kinds = inventoryGroups(s.inventory).map((g) => g.k);
-  const groups = inventoryGroups(shown);
+  const shown = fit && fitting.length > 0 ? fitting : kind ? s.inventory.filter((it) => it.kind === kind) : s.inventory;
+  const kinds = uiLogic.inventoryGroups(s.inventory).map((g) => g.k);
+  const groups = uiLogic.inventoryGroups(shown);
   const infoId = hover ?? (sel?.startsWith('inv:') ? sel.slice(4) : null);
   const info = infoId ? s.inventory.find((x) => x.id === infoId) : undefined;
   return (
@@ -510,7 +531,7 @@ export function InventoryPanel({ s }: { s: Snapshot }) {
                 <Icon name={kindIcon(g.k)} size={12} /> {kindLabel(g.k)}
               </div>
               <div class="inv-tiles">
-                {stackItems(g.items).map((st) => (
+                {uiLogic.stackItems(g.items).map((st) => (
                   <Tile
                     key={st.spec}
                     st={st}

@@ -17,9 +17,15 @@ export function purchase(this: Game, itemId: string): Result<{ invId: string }> 
   const extra = this.extraOffers().find((o) => o.id === itemId);
   if (extra) {
     const lock = this.levelLock(itemId);
-    if (lock) return { ok: false, reason: lockText(lock) };
-    if (extra.blocked) return { ok: false, reason: extra.blocked };
-    if (this.money < extra.price) return { ok: false, reason: `needs $${extra.price}, have $${this.money}` };
+    if (lock) {
+      return { ok: false, reason: lockText(lock) };
+    }
+    if (extra.blocked) {
+      return { ok: false, reason: extra.blocked };
+    }
+    if (this.money < extra.price) {
+      return { ok: false, reason: `needs $${extra.price}, have $${this.money}` };
+    }
     this.money -= extra.price;
     this.progress.firstPurchase = true;
     const isp = getIspSpec(itemId);
@@ -36,11 +42,17 @@ export function purchase(this: Game, itemId: string): Result<{ invId: string }> 
     return { ok: true, invId };
   }
   const cand = catalog().find((s) => s.id === itemId);
-  if (!cand) return { ok: false, reason: `"${itemId}" is not for sale` };
+  if (!cand) {
+    return { ok: false, reason: `"${itemId}" is not for sale` };
+  }
   const lock = this.levelLock(itemId);
-  if (lock) return { ok: false, reason: lockText(lock) };
+  if (lock) {
+    return { ok: false, reason: lockText(lock) };
+  }
   const price = this.cost(cand.price);
-  if (this.money < price) return { ok: false, reason: `needs $${price}, have $${this.money}` };
+  if (this.money < price) {
+    return { ok: false, reason: `needs $${price}, have $${this.money}` };
+  }
   this.money -= price;
   const invId = `inv${this.nextInvId++}`;
   this.inventory.push({ id: invId, spec: itemId });
@@ -51,11 +63,16 @@ export function purchase(this: Game, itemId: string): Result<{ invId: string }> 
 
 /** Sell a spare from the inventory for `SELL_RATE` of its price. Not the part a queued swap is waiting to fit; nothing in the sandbox. */
 export function sell(this: Game, invId: string): Result<{ money: number }> {
-  if (this.sandbox) return { ok: false, reason: 'the sandbox has no money: nothing to sell for' };
+  if (this.sandbox) {
+    return { ok: false, reason: 'the sandbox has no money: nothing to sell for' };
+  }
   const it = this.inventory.find((i) => i.id === invId);
-  if (!it) return { ok: false, reason: `no inventory item "${invId}"` };
-  if (this.pendingSwaps.some((p) => p.invId === invId))
+  if (!it) {
+    return { ok: false, reason: `no inventory item "${invId}"` };
+  }
+  if (this.pendingSwaps.some((p) => p.invId === invId)) {
     return { ok: false, reason: 'this part is waiting to be fitted: wait for the swap' };
+  }
   const value = sellValue(it.spec);
   const name = this.inventorySnap().find((i) => i.id === invId)?.name ?? it.spec;
   this.inventory = this.inventory.filter((i) => i.id !== invId);
@@ -66,7 +83,9 @@ export function sell(this: Game, invId: string): Result<{ money: number }> {
 
 /** Level gate (docs/PROGRESSION.md "Unlock table"): null when the item is open now, always in the sandbox. */
 export function levelLock(this: Game, id: string): { level: number; name: string } | null {
-  if (this.sandbox || !this.cfg.levelGating) return null;
+  if (this.sandbox || !this.cfg.levelGating) {
+    return null;
+  }
   const need = unlockLevelOf(id);
   return need > this.lvl ? { level: need, name: levelDef(need).name } : null;
 }
@@ -93,7 +112,9 @@ export function extraOffers(this: Game): PurchaseSnap[] {
       description: os.description,
       ...(os.later ? { later: true } : {}),
     };
-    if (os.later) o.blocked = 'planned: not available yet';
+    if (os.later) {
+      o.blocked = 'planned: not available yet';
+    }
     out.push(o);
   }
   // Routers (installed from the inventory into the router spot) and ISP plans (applied at purchase).
@@ -108,7 +129,9 @@ export function extraOffers(this: Game): PurchaseSnap[] {
     });
   }
   for (const p of ISP_SPECS) {
-    if (!this.sandbox && p.tier === this.ispTier) continue;
+    if (!this.sandbox && p.tier === this.ispTier) {
+      continue;
+    }
     out.push({
       id: p.id,
       name: `${p.name} plan`,

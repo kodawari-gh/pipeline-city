@@ -8001,36 +8001,23 @@
   "unicorn(prefer-structured-clone)": 1,
   "vitest(prefer-strict-equal)": 1
  },
- "src/features/economy/sim/bill.ts": {
-  "eslint(curly)": 4
- },
  "src/features/economy/sim/clients.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 9,
   "eslint(max-params)": 1,
   "eslint(no-nested-ternary)": 1,
   "eslint(no-param-reassign)": 2,
   "eslint(no-shadow)": 3,
-  "eslint(prefer-destructuring)": 2,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-non-null-assertion)": 1,
   "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(strict-boolean-expressions)": 5,
-  "unicorn(explicit-length-check)": 1,
   "unicorn(no-array-reduce)": 1,
   "unicorn(no-useless-undefined)": 1
  },
  "src/features/economy/sim/cloud.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 25,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 3,
-  "eslint(no-implicit-coercion)": 2,
   "eslint(no-nested-ternary)": 2,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 5,
   "typescript(no-non-null-assertion)": 17,
   "typescript(no-unsafe-type-assertion)": 1,
   "typescript(strict-boolean-expressions)": 6,
@@ -8053,9 +8040,7 @@
   "vitest(prefer-to-have-length)": 2
  },
  "src/features/economy/sim/contracts.ts": {
-  "eslint(curly)": 1,
-  "typescript(no-non-null-assertion)": 1,
-  "unicorn(numeric-separators-style)": 1
+  "typescript(no-non-null-assertion)": 1
  },
  "src/features/economy/sim/economy.sell.test.ts": {
   "eslint(curly)": 1,
@@ -8065,30 +8050,21 @@
   "typescript(no-unsafe-type-assertion)": 5
  },
  "src/features/economy/sim/economy.ts": {
-  "eslint(curly)": 10,
   "eslint(max-lines)": 1,
   "eslint(max-params)": 5,
   "eslint(no-negated-condition)": 1,
   "eslint(no-use-before-define)": 1,
-  "eslint(prefer-named-capture-group)": 2,
-  "eslint(require-unicode-regexp)": 2,
-  "import(consistent-type-specifier-style)": 3,
   "typescript(no-non-null-assertion)": 1,
   "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(strict-boolean-expressions)": 2,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(prefer-at)": 1
+  "unicorn(consistent-function-scoping)": 1
  },
  "src/features/economy/sim/keys.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 26,
   "eslint(max-lines)": 1,
   "eslint(max-params)": 1,
-  "eslint(no-implicit-coercion)": 2,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 3,
   "typescript(no-unsafe-type-assertion)": 2,
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(catch-error-name)": 1,
@@ -8116,25 +8092,16 @@
   "vitest(valid-expect)": 5
  },
  "src/features/economy/sim/levels.ts": {
-  "eslint(curly)": 12,
   "eslint(default-case)": 2,
   "eslint(max-lines)": 1,
   "eslint(max-params)": 2,
-  "eslint(no-implicit-coercion)": 1,
   "eslint(no-nested-ternary)": 1,
-  "eslint(prefer-named-capture-group)": 2,
-  "eslint(require-unicode-regexp)": 2,
   "typescript(consistent-return)": 2,
   "typescript(no-non-null-assertion)": 2,
-  "typescript(strict-boolean-expressions)": 5,
-  "unicorn(numeric-separators-style)": 1,
-  "unicorn(prefer-at)": 1,
-  "unicorn(switch-case-braces)": 20
+  "typescript(strict-boolean-expressions)": 4
  },
  "src/features/economy/sim/operator.ts": {
-  "eslint(curly)": 16,
   "eslint(max-params)": 1,
-  "eslint(prefer-destructuring)": 6,
   "typescript(no-confusing-void-expression)": 9,
   "typescript(no-non-null-assertion)": 4,
   "typescript(strict-boolean-expressions)": 2,
@@ -8174,7 +8141,6 @@
   "vitest(prefer-strict-equal)": 1
  },
  "src/features/economy/sim/shop.ts": {
-  "eslint(curly)": 12,
   "typescript(strict-boolean-expressions)": 3
  },
  "src/features/economy/sim/tradeoff.test.ts": {
@@ -8188,7 +8154,6 @@
   "vitest(prefer-strict-equal)": 1
  },
  "src/features/economy/ui/progress/ContractsSection.tsx": {
-  "eslint(curly)": 1,
   "eslint(max-lines-per-function)": 2,
   "eslint(no-nested-ternary)": 1,
   "jsx-a11y(prefer-tag-over-role)": 1,
@@ -8198,11 +8163,8 @@
   "typescript(strict-boolean-expressions)": 1
  },
  "src/features/economy/ui/progress/Levels.tsx": {
-  "eslint(curly)": 8,
   "eslint(max-lines-per-function)": 3,
   "eslint(no-nested-ternary)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "jsx-a11y(click-events-have-key-events)": 1,
   "jsx-a11y(no-noninteractive-tabindex)": 1,
   "jsx-a11y(no-static-element-interactions)": 1,
@@ -8214,13 +8176,9 @@
   "typescript(no-confusing-void-expression)": 2,
   "typescript(no-non-null-assertion)": 2,
   "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(strict-boolean-expressions)": 3,
-  "unicorn(explicit-length-check)": 1,
-  "unicorn(prefer-at)": 1,
-  "unicorn(prefer-global-this)": 2
+  "typescript(strict-boolean-expressions)": 3
  },
  "src/features/economy/ui/progress/PowerBill.tsx": {
-  "eslint(curly)": 3,
   "eslint(max-lines-per-function)": 1,
   "eslint(no-nested-ternary)": 1,
   "jsx-a11y(prefer-tag-over-role)": 1,
@@ -8228,8 +8186,7 @@
   "typescript(consistent-return)": 1,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-confusing-void-expression)": 2,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(prefer-global-this)": 2
+  "unicorn(consistent-function-scoping)": 1
  },
  "src/features/economy/ui/progress/contractui.test.ts": {
   "eslint(require-unicode-regexp)": 4,
@@ -8238,9 +8195,7 @@
   "vitest(prefer-strict-equal)": 5
  },
  "src/features/economy/ui/progress/contractui.ts": {
-  "eslint(curly)": 1,
   "eslint(no-nested-ternary)": 2,
-  "eslint(require-unicode-regexp)": 1,
   "typescript(no-non-null-assertion)": 1,
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-sort)": 1
@@ -8253,18 +8208,13 @@
  },
  "src/features/economy/ui/progress/levelui.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 16,
   "eslint(max-lines)": 1,
-  "eslint(no-implicit-coercion)": 1,
   "eslint(no-nested-ternary)": 4,
   "eslint(no-shadow)": 1,
-  "eslint(require-unicode-regexp)": 1,
   "oxc(no-map-spread)": 2,
   "typescript(no-non-null-assertion)": 1,
   "typescript(strict-boolean-expressions)": 5,
-  "unicorn(explicit-length-check)": 2,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(switch-case-braces)": 12
+  "unicorn(no-array-sort)": 1
  },
  "src/features/economy/ui/progress/levelup.browser.test.ts": {
   "eslint(complexity)": 1,
@@ -8326,9 +8276,7 @@
   "vitest(require-mock-type-parameters)": 6
  },
  "src/features/economy/ui/shop/Gallery.tsx": {
-  "eslint(curly)": 8,
   "eslint(max-lines-per-function)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "jsx-a11y(prefer-tag-over-role)": 1,
   "react(button-has-type)": 1,
   "typescript(consistent-return)": 1,
@@ -8338,7 +8286,6 @@
   "unicorn(prefer-global-this)": 2
  },
  "src/features/economy/ui/shop/GalleryHud.tsx": {
-  "import(consistent-type-specifier-style)": 4,
   "jsx-a11y(prefer-tag-over-role)": 1,
   "react(button-has-type)": 2,
   "typescript(explicit-module-boundary-types)": 3,
@@ -8346,20 +8293,16 @@
   "typescript(no-unsafe-type-assertion)": 1
  },
  "src/features/economy/ui/shop/GallerySpine.tsx": {
-  "import(consistent-type-specifier-style)": 1,
   "react(button-has-type)": 1,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-confusing-void-expression)": 1
  },
  "src/features/economy/ui/shop/Inventory.tsx": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 11,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 3,
-  "eslint(no-implicit-coercion)": 3,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 3,
-  "import(consistent-type-specifier-style)": 1,
   "import(max-dependencies)": 1,
   "jsx-a11y(click-events-have-key-events)": 1,
   "jsx-a11y(no-static-element-interactions)": 1,
@@ -8371,9 +8314,7 @@
   "typescript(no-confusing-void-expression)": 8,
   "typescript(no-non-null-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(strict-boolean-expressions)": 15,
-  "unicorn(explicit-length-check)": 1,
-  "unicorn(prefer-global-this)": 3
+  "typescript(strict-boolean-expressions)": 12
  },
  "src/features/economy/ui/shop/PartArt.tsx": {
   "eslint(complexity)": 1,
