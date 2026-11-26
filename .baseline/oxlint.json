@@ -7008,10 +7008,6 @@
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(prefer-ternary)": 1
  },
- "src/features/cpu/render/air.ts": {
-  "eslint(curly)": 1,
-  "import(consistent-type-specifier-style)": 2
- },
  "src/features/cpu/render/core/coreplan.test.ts": {
   "eslint(curly)": 3,
   "import(consistent-type-specifier-style)": 1,
@@ -7022,10 +7018,7 @@
   "vitest(valid-expect)": 5
  },
  "src/features/cpu/render/core/coreplan.ts": {
-  "eslint(curly)": 1,
   "eslint(max-lines-per-function)": 1,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 1,
   "oxc(no-map-spread)": 3,
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(consistent-function-scoping)": 3
@@ -7037,7 +7030,6 @@
   "vitest(prefer-strict-equal)": 4
  },
  "src/features/cpu/render/core/corestats.ts": {
-  "eslint(curly)": 2,
   "unicorn(consistent-function-scoping)": 1
  },
  "src/features/cpu/render/core/coretiles.test.ts": {
@@ -7052,34 +7044,23 @@
   "vitest(prefer-strict-equal)": 11
  },
  "src/features/cpu/render/core/coretiles.ts": {
-  "eslint(curly)": 2,
   "eslint(max-params)": 1,
-  "eslint(no-duplicate-imports)": 1,
   "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "import(no-duplicates)": 1,
   "typescript(no-non-null-assertion)": 2,
   "unicorn(consistent-function-scoping)": 1,
-  "unicorn(explicit-length-check)": 1,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(numeric-separators-style)": 1
+  "unicorn(no-array-sort)": 1
  },
  "src/features/cpu/render/core/cpufloor.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 36,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 9,
   "eslint(no-negated-condition)": 3,
   "eslint(no-param-reassign)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 6,
   "typescript(consistent-type-definitions)": 1,
   "typescript(no-non-null-assertion)": 27,
   "typescript(strict-boolean-expressions)": 11,
-  "unicorn(no-array-for-each)": 1,
-  "unicorn(prefer-at)": 1,
-  "unicorn(switch-case-braces)": 4
+  "unicorn(no-array-for-each)": 1
  },
  "src/features/cpu/render/core/cpuplan.test.ts": {
   "eslint(complexity)": 1,
@@ -7102,20 +7083,15 @@
   "vitest(valid-expect)": 5
  },
  "src/features/cpu/render/core/cpuplan.ts": {
-  "eslint(curly)": 7,
   "eslint(default-case)": 1,
-  "typescript(strict-boolean-expressions)": 5,
-  "unicorn(switch-case-braces)": 4
+  "typescript(strict-boolean-expressions)": 5
  },
  "src/features/cpu/render/core/cpuplans.ts": {
   "eslint(complexity)": 2,
-  "eslint(curly)": 15,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 3,
   "eslint(max-params)": 2,
   "eslint(no-nested-ternary)": 2,
-  "import(consistent-type-specifier-style)": 7,
-  "typescript(no-import-type-side-effects)": 1,
   "typescript(no-non-null-assertion)": 9,
   "typescript(strict-boolean-expressions)": 4,
   "unicorn(consistent-function-scoping)": 3,
@@ -7140,13 +7116,11 @@
  },
  "src/features/cpu/render/die/blockart.ts": {
   "eslint(complexity)": 3,
-  "eslint(curly)": 30,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 3,
   "eslint(max-params)": 10,
   "eslint(no-nested-ternary)": 1,
   "eslint(no-shadow)": 1,
-  "eslint(prefer-destructuring)": 1,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-non-null-assertion)": 25,
   "typescript(prefer-string-starts-ends-with)": 5,
@@ -7155,8 +7129,7 @@
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(no-array-fill-with-reference-type)": 5,
   "unicorn(no-array-for-each)": 14,
-  "unicorn(prefer-export-from)": 2,
-  "unicorn(switch-case-braces)": 14
+  "unicorn(prefer-export-from)": 2
  },
  "src/features/cpu/render/die/dieart.test.ts": {
   "eslint(curly)": 3,
@@ -7169,20 +7142,15 @@
  },
  "src/features/cpu/render/die/dieart.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 16,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 2,
-  "eslint(no-duplicate-imports)": 1,
   "eslint(no-nested-ternary)": 4,
-  "eslint(prefer-destructuring)": 2,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(method-signature-style)": 7,
   "typescript(no-non-null-assertion)": 13,
   "typescript(strict-boolean-expressions)": 5,
   "typescript(strict-void-return)": 1,
   "unicorn(no-array-fill-with-reference-type)": 5,
-  "unicorn(prefer-at)": 1,
   "unicorn(prefer-export-from)": 1
  },
  "src/features/cpu/render/die/diemotion.test.ts": {
@@ -7202,7 +7170,6 @@
  },
  "src/features/cpu/render/die/diemotion.ts": {
   "eslint(complexity)": 5,
-  "eslint(curly)": 72,
   "eslint(default-case)": 3,
   "eslint(max-classes-per-file)": 1,
   "eslint(max-depth)": 5,
@@ -7211,24 +7178,20 @@
   "eslint(max-params)": 5,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 9,
-  "eslint(require-unicode-regexp)": 1,
   "typescript(no-non-null-assertion)": 56,
   "typescript(no-unsafe-assignment)": 5,
   "typescript(prefer-nullish-coalescing)": 1,
   "typescript(prefer-readonly)": 4,
   "typescript(prefer-string-starts-ends-with)": 2,
   "typescript(strict-boolean-expressions)": 2,
-  "unicorn(explicit-length-check)": 2,
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-for-each)": 1,
   "unicorn(no-array-reduce)": 2,
   "unicorn(no-array-reverse)": 2,
   "unicorn(no-new-array)": 6,
   "unicorn(no-object-as-default-parameter)": 1,
-  "unicorn(prefer-at)": 3,
   "unicorn(prefer-single-call)": 1,
-  "unicorn(prefer-spread)": 3,
-  "unicorn(switch-case-braces)": 11
+  "unicorn(prefer-spread)": 3
  },
  "src/features/cpu/render/die/diemulti.test.ts": {
   "import(first)": 3,
@@ -7243,16 +7206,12 @@
  "src/features/cpu/render/die/diemulti.ts": {
   "eslint(class-methods-use-this)": 2,
   "eslint(complexity)": 1,
-  "eslint(curly)": 19,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
   "eslint(max-params)": 4,
-  "eslint(no-duplicate-imports)": 1,
   "eslint(no-multi-assign)": 1,
   "eslint(no-nested-ternary)": 2,
   "eslint(no-shadow)": 1,
-  "eslint(prefer-destructuring)": 4,
-  "import(consistent-type-specifier-style)": 5,
   "import(max-dependencies)": 1,
   "typescript(explicit-module-boundary-types)": 9,
   "typescript(no-confusing-void-expression)": 1,

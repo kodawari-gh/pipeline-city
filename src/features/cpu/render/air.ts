@@ -1,4 +1,4 @@
-import { deviceHeat, type AirFan, type AirSource } from '@/core/render/airsource';
+import * as airsource from '@/core/render/airsource';
 import { getSpec } from '@/features/board/sim/specs';
 import { coolerFanAt, STOCK_VANES_R, towerFanRect } from '@/features/board/render/cooler';
 import { COOLER, REAR_FAN } from '@/features/board/render/layout/layout';
@@ -9,20 +9,21 @@ import { COOLER, REAR_FAN } from '@/features/board/render/layout/layout';
  * exhaust. The stock cooler's fan blows down into its vanes, so its air leaves all round them (a ring). The loop's round rotor is its pump (it moves coolant, no air; the radiator's fans are the case's).
  * A bare air heatsink (no fan part clipped on) has no stream.
  */
-export const cpuAir: AirSource = {
+export const cpuAir: airsource.AirSource = {
   id: 'cpu',
   kinds: ['cpu', 'cooler'],
-  heat: (c) => deviceHeat(['cpu'], 'cpu', 'CPU', c, true),
+  heat: (c) => airsource.deviceHeat(['cpu'], 'cpu', 'CPU', c, true),
   fans: (c) =>
     c.s.devices
       .filter((d) => d.kind === 'cooler')
-      .flatMap((d): AirFan[] => {
+      .flatMap((d): airsource.AirFan[] => {
         const visual = getSpec(d.spec)?.visual ?? '';
         if (
           visual !== 'cooler-liquid' &&
           !c.s.devices.some((f) => f.kind === 'fan' && f.slot.startsWith(`${d.slot}.fan`))
-        )
+        ) {
           return [];
+        }
         if (visual === 'cooler-tower') {
           const slab = towerFanRect(),
             y = slab.y + slab.h / 2,

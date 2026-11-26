@@ -5,19 +5,18 @@
 
 import { Container, Graphics, Text } from 'pixi.js';
 import type { CoresSnap } from '../../sim/pipesnap';
-import type { OooStages, TileCell } from '../core/coretiles';
+import * as coretiles from '../core/coretiles';
 import type { Snapshot } from '@/worker/protocol';
 import { box, MONO, mix } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
 import type { CpuPlan } from '../core/cpuplan';
-import { splitPlan, type CoreTile } from '../core/coreplan';
-import { CoreRateTracker, type CoreRate } from '../core/corestats';
-import { washModels } from '../core/coretiles';
-import { PlanView, type MemoryTouch } from './dieview';
-import { uncoreInput, type UncoreUnit } from './uncore';
+import * as coreplan from '../core/coreplan';
+import * as corestats from '../core/corestats';
+import * as dieview from './dieview';
+import * as uncore from './uncore';
 import { traceOpen } from '@/app/scrub';
 import { effect } from '@preact/signals';
-import { DEVICE_LOD, deviceLod, seenZoom, smooth, type LodRect } from '@/core/render/lod/lod';
+import * as lod from '@/core/render/lod/lod';
 
 /** The tile's insides take over from the wash between these zooms of the tile (the die's zoom times the tile's scale). */
 const WASH_FROM = 0.55,
@@ -26,9 +25,9 @@ const WASH_FROM = 0.55,
 export class DieView {
   readonly root = new Container();
   T!: Theme;
-  private mem: ((e: MemoryTouch) => void) | null = null;
-  private shared = new PlanView();
-  private cores: { view: PlanView; tile: CoreTile }[] = [];
+  private mem: ((e: dieview.MemoryTouch) => void) | null = null;
+  private shared = new dieview.PlanView();
+  private cores: { view: dieview.PlanView; tile: coreplan.CoreTile }[] = [];
   private tilesAt = new Container();
   /** The wash of each tile (its own container, so a tile far from the centre of the view fades by its own distance). */
   private washLayer = new Container();
@@ -48,9 +47,9 @@ export class DieView {
   private ringOn = false;
   /** How much of its wash each tile still wears (1: all). */
   private washA: number[] = [];
-  private view: LodRect | null = null;
-  private rateOf = new CoreRateTracker();
-  private rate: CoreRate[] = [];
+  private view: lod.LodRect | null = null;
+  private rateOf = new corestats.CoreRateTracker();
+  private rate: corestats.CoreRate[] = [];
   /** For each hardware core (tile), the logical core its reaches for RAM are put down to. */
   private logical: number[] = [];
   private sig = '';
@@ -66,7 +65,9 @@ export class DieView {
     // the ring marks the core the Trace panel follows: it shows only while the panel is open
     effect(() => {
       const on = traceOpen.value;
-      for (const w of this.washes) w.ring.visible = on;
+      for (const w of this.washes) {
+        w.ring.visible = on;
+      }
       this.ringOn = on;
     });
   }
@@ -75,7 +76,7 @@ export class DieView {
   get onMemory() {
     return this.mem;
   }
-  set onMemory(f: ((e: MemoryTouch) => void) | null) {
+  set onMemory(f: ((e: dieview.MemoryTouch) => void) | null) {
     this.mem = f;
     this.shared.onMemory = f;
     this.cores.forEach((c, k) => {
@@ -84,8 +85,10 @@ export class DieView {
   }
 
   /** A tile's reaches for RAM, told with the logical core they came from (a hardware core with threads reports the first one: the thread is not in the replay). */
-  private tileMem(k: number): ((e: MemoryTouch) => void) | null {
-    if (!this.mem) return null;
+  private tileMem(k: number): ((e: dieview.MemoryTouch) => void) | null {
+    if (!this.mem) {
+      return null;
+    }
     return (e) => this.mem?.({ ...e, core: this.logical[k] ?? k });
   }
 
@@ -97,7 +100,9 @@ export class DieView {
   set onInterrupt(f: ((line: number) => void) | null) {
     this.irq = f;
     this.shared.onInterrupt = f;
-    for (const c of this.cores) c.view.onInterrupt = f;
+    for (const c of this.cores) {
+      c.view.onInterrupt = f;
+    }
   }
 
   /** A load or store reached a register of a unit on the die (the interrupt controller, timer, MPU, MMU): its block and wire light (the units are shared by the cores). */
@@ -106,7 +111,7 @@ export class DieView {
   }
 
   /** A core's access reached an outer unit of the die (the memory controller, the shared L2, PCIe, USB, the display): its block shows it. */
-  touchUnit(unit: UncoreUnit, write: boolean, now: number, addr = 0) {
+  touchUnit(unit: uncore.UncoreUnit, write: boolean, now: number, addr = 0) {
     this.shared.touchUnit(unit, write, now, addr);
   }
 
@@ -114,7 +119,7 @@ export class DieView {
     this.T = T;
     this.plan = plan;
     this.dropCores();
-    const sp = splitPlan(plan);
+    const sp = coreplan.splitPlan(plan);
     if (!sp) {
       this.shared.setPlan(T, plan);
       this.shared.scrubLead = true;
@@ -124,7 +129,7 @@ export class DieView {
     this.shared.scrubLead = false;
     this.shared.setPlan(T, sp.shared);
     for (const tile of sp.tiles) {
-      const view = new PlanView();
+      const view = new dieview.PlanView();
       view.legendOn = false;
       view.still = !this.bare;
       view.scrubLead = false;
@@ -156,7 +161,7 @@ export class DieView {
     this.washes = [];
     this.washA = [];
     this.keep = [];
-    this.rateOf = new CoreRateTracker();
+    this.rateOf = new corestats.CoreRateTracker();
     this.rate = [];
     this.sig = '';
   }
@@ -167,24 +172,24 @@ export class DieView {
    * them), so the two never overlap. Deeper than `DEVICE_LOD.die.core` the core view takes over: the shared part and every tile but the one under
    * the view centre fade out, so what is left is the one core.
    */
-  setZoom(z: number, seen = z, view: LodRect | null = this.view) {
+  setZoom(z: number, seen = z, view: lod.LodRect | null = this.view) {
     this.z = z;
     this.zSeen = seen;
     this.view = view;
     // each tile's zoom by its own distance from the view centre; the core view starts from the best-placed one, so zooming on a core off the middle of the die still gets there
-    const seenOf = this.cores.map((c) => (view ? seenZoom(z, deviceLod(c.tile.rect, view).focus) : seen));
-    const [c0, c1] = DEVICE_LOD.die.core,
-      coreView = smooth(c0, c1, Math.max(seen, ...seenOf));
+    const seenOf = this.cores.map((c) => (view ? lod.seenZoom(z, lod.deviceLod(c.tile.rect, view).focus) : seen));
+    const [c0, c1] = lod.DEVICE_LOD.die.core,
+      coreView = lod.smooth(c0, c1, Math.max(seen, ...seenOf));
     this.shared.setZoom(z, seen);
     this.shared.root.alpha = 1 - coreView;
     this.shared.root.visible = coreView < 0.99;
     this.cores.forEach((c, k) => {
       const s = seenOf[k]!;
       c.view.setZoom(z * c.tile.scale, s * c.tile.scale);
-      const a = 1 - smooth(WASH_FROM, WASH_TO, s * c.tile.scale);
+      const a = 1 - lod.smooth(WASH_FROM, WASH_TO, s * c.tile.scale);
       this.washA[k] = a;
       // the tile the view centre is over keeps itself; the others fade as the core view comes in
-      this.keep[k] = view ? 1 - coreView * smooth(0, 0.08, this.centreDist(c.tile.rect, view)) : 1;
+      this.keep[k] = view ? 1 - coreView * lod.smooth(0, 0.08, this.centreDist(c.tile.rect, view)) : 1;
       c.view.root.alpha = (1 - a) * this.keep[k]!;
       c.view.root.visible = c.view.root.alpha > 0.01;
       this.wearWash(k);
@@ -192,7 +197,7 @@ export class DieView {
   }
 
   /** How far the view centre is from the rectangle (0 inside it), in half-diagonals of the view. */
-  private centreDist(r: LodRect, view: LodRect): number {
+  private centreDist(r: lod.LodRect, view: lod.LodRect): number {
     const cx = view.x + view.w / 2,
       cy = view.y + view.h / 2;
     const dx = Math.max(r.x - cx, 0, cx - (r.x + r.w)),
@@ -226,7 +231,9 @@ export class DieView {
     const w = this.washes[k],
       a = this.washA[k] ?? 1,
       keep = this.keep[k] ?? 1;
-    if (!w) return;
+    if (!w) {
+      return;
+    }
     w.g.alpha = a;
     w.texts.alpha = a * a;
     w.box.alpha = keep;
@@ -237,7 +244,7 @@ export class DieView {
 
   /** A new snapshot: each core tile's replay gets its hardware core's cycles (a single-core die gets `pipe`). */
   update(s: Snapshot | null, _simple: boolean, now: number) {
-    this.shared.setUncore(uncoreInput(s), now);
+    this.shared.setUncore(uncore.uncoreInput(s), now);
     if (this.cores.length === 0) {
       this.shared.update(s?.pipe ?? null);
       return;
@@ -250,8 +257,11 @@ export class DieView {
     });
     this.rate = this.rateOf.update(cs?.stats);
     this.logical = [];
-    for (const l of cs?.live ?? [])
-      if (this.logical[l.hw] === undefined || (l.job !== 0 && !l.parked)) this.logical[l.hw] = l.core;
+    for (const l of cs?.live ?? []) {
+      if (this.logical[l.hw] === undefined || (l.job !== 0 && !l.parked)) {
+        this.logical[l.hw] = l.core;
+      }
+    }
     this.drawWash(cs);
   }
 
@@ -261,7 +271,9 @@ export class DieView {
       return;
     }
     this.shared.frameUncore(now, draw && this.shared.root.visible);
-    for (const c of this.cores) c.view.frame(now, paused, draw && c.view.root.visible);
+    for (const c of this.cores) {
+      c.view.frame(now, paused, draw && c.view.root.visible);
+    }
   }
 
   /**
@@ -271,15 +283,15 @@ export class DieView {
    */
   private drawOoo(
     wash: { g: Graphics; texts: Container },
-    o: OooStages,
-    q: LodRect,
+    o: coretiles.OooStages,
+    q: lod.LodRect,
     tx: number,
     tw: number,
     T: Theme,
     rad: number,
     asleep: boolean,
   ): void {
-    const g = wash.g,
+    const { g } = wash,
       row = q.h * 0.072,
       fs = Math.max(9, row * 0.62),
       labelW = tw * 0.2,
@@ -297,7 +309,7 @@ export class DieView {
       t.alpha = asleep ? alpha * 0.5 : alpha;
       wash.texts.addChild(t);
     };
-    const colour = (cls: TileCell) => (cls === null ? T.mute : cls === 'sys' ? T.mute : T[cls]);
+    const colour = (cls: coretiles.TileCell) => (cls === null ? T.mute : cls === 'sys' ? T.mute : T[cls]);
     let y = q.y + q.h * 0.4;
     box(g, tx - 4, y - row * 0.2, tw + 8, row * 5.5, rad, { fill: T.bg, fa: 0.5, stroke: T.line, lw: 1.5, sa: 0.5 });
     for (const gau of o.gauges) {
@@ -321,7 +333,9 @@ export class DieView {
         });
       }
       txt(`${gau.used}/${gau.cap}`, barX + barW + 6, cy, gau.used >= gau.cap ? T.br : T.ink, false, 0.9);
-      if (gau.stall) txt(gau.stall, tx + tw, cy, T.br, true);
+      if (gau.stall) {
+        txt(gau.stall, tx + tw, cy, T.br, true);
+      }
       y += row;
     }
     // the units: a cell each, filling as the instruction works through its latency
@@ -332,19 +346,20 @@ export class DieView {
         h = row * 0.62,
         cy = y + row * 0.3;
       box(g, x, cy - h / 2, w, h, h * 0.25, { fill: T.line, fa: 0.25 });
-      if (u.cls !== null)
+      if (u.cls !== null) {
         box(g, x, cy - h / 2, Math.max(h * 0.5, w * Math.max(0.12, u.progress)), h, h * 0.25, {
           fill: colour(u.cls),
           fa: 0.9,
         });
+      }
       txt(u.name, x + 5, cy, u.cls === null ? T.mute : '#0b0d12', false, u.cls === null ? 0.7 : 0.9);
     });
   }
 
   /** The tint, the logical cores and the pipeline cells over each tile (redrawn when one of them changes). */
   private drawWash(cs: CoresSnap | undefined) {
-    const T = this.T;
-    const ws = cs ? washModels(cs, this.rate) : [];
+    const { T } = this;
+    const ws = cs ? coretiles.washModels(cs, this.rate) : [];
     const q8 = (v: number) => Math.round(v * 8);
     const sig = ws
       .map(
@@ -363,23 +378,31 @@ export class DieView {
           }~${q8(w.models[0]!.ipc)}:${q8(w.models[0]!.stall)}d`,
       )
       .join('|');
-    if (sig === this.sig) return;
+    if (sig === this.sig) {
+      return;
+    }
     this.sig = sig;
     for (const x of this.washes) {
       x.g.clear();
       x.badge.clear();
       x.ring.clear();
-      for (const t of x.texts.removeChildren()) t.destroy();
-      for (const t of x.tagTexts.removeChildren()) t.destroy();
+      for (const t of x.texts.removeChildren()) {
+        t.destroy();
+      }
+      for (const t of x.tagTexts.removeChildren()) {
+        t.destroy();
+      }
     }
     for (const w of ws) {
       const tile = this.cores[w.hw]?.tile;
-      if (!tile) continue;
+      if (!tile) {
+        continue;
+      }
       const q = tile.rect,
         n = w.models.length,
         lead = w.models[0]!,
         wash = this.washAt(w.hw),
-        g = wash.g,
+        { g } = wash,
         b = wash.badge,
         r = wash.ring;
       const asleep = (m: typeof lead) => m.parked && !m.tint;
@@ -399,7 +422,9 @@ export class DieView {
           lw: Math.max(1.5, q.w * 0.0035),
           sa: m.tint ? 0.55 : 0.25,
         });
-        if (i > 0) g.rect(x - 0.5, q.y + inset * 3, 1.5, ph * 0.5).fill({ color: T.line, alpha: 0.5 });
+        if (i > 0) {
+          g.rect(x - 0.5, q.y + inset * 3, 1.5, ph * 0.5).fill({ color: T.line, alpha: 0.5 });
+        }
         const big = Math.max(24, Math.min(64, (q.h * 0.13) / (n > 2 ? 1.4 : 1)));
         const head = new Text({
           text: m.label,
@@ -428,7 +453,7 @@ export class DieView {
         wash.texts.addChild(head, sub);
       });
       // the pipeline: a recessed track with a cell per stage (or unit), the reorder buffer fill under it
-      const cells = lead.cells,
+      const { cells } = lead,
         cn = Math.max(1, cells.length),
         tx = q.x + q.w * 0.07,
         tw = q.w * 0.86,
@@ -436,7 +461,7 @@ export class DieView {
       const cw = (tw - cg * (cn - 1)) / cn,
         ch = Math.min(q.h * 0.1, cw * 0.8),
         cy = q.y + q.h * 0.58;
-      if (!lead.ooo)
+      if (!lead.ooo) {
         box(g, tx - cg * 2, cy - ch * 0.35, tw + cg * 4, ch * 1.7 + (lead.fill > 0 ? ch * 0.35 : 0), rad, {
           fill: T.bg,
           fa: 0.55,
@@ -444,6 +469,7 @@ export class DieView {
           lw: 1.5,
           sa: 0.5,
         });
+      }
       // the captions say what the picture is: a cell lights in the colour of the instruction in that stage (dark: a bubble), the bars are rates
       const fs = Math.max(12, q.h * 0.042),
         cap = (text: string, x: number, y: number, color: string, right = false) => {
@@ -454,11 +480,14 @@ export class DieView {
           });
           t.anchor.set(right ? 1 : 0, 0);
           t.position.set(x, y);
-          if (asleep(lead)) t.alpha = 0.5;
+          if (asleep(lead)) {
+            t.alpha = 0.5;
+          }
           wash.texts.addChild(t);
         };
-      if (lead.ooo) this.drawOoo(wash, lead.ooo, q, tx, tw, T, rad, asleep(lead));
-      else {
+      if (lead.ooo) {
+        this.drawOoo(wash, lead.ooo, q, tx, tw, T, rad, asleep(lead));
+      } else {
         const inorder = this.plan?.arch === 'inorder' && cn === 5,
           stageNames = ['F', 'D', 'X', 'M', 'W'];
         cap(inorder ? 'PIPELINE  FETCH > WRITE-BACK' : 'EXECUTION UNITS', tx, cy - ch * 0.35 - fs * 1.5, T.mute);
@@ -466,7 +495,9 @@ export class DieView {
           const c = cls === null ? T.line : cls === 'sys' ? T.mute : T[cls],
             x = tx + i * (cw + cg);
           box(g, x, cy, cw, ch, ch * 0.18, { fill: c, fa: cls === null ? 0.18 : 0.9 });
-          if (cls !== null) box(g, x, cy, cw, ch, ch * 0.18, { stroke: T.ink, lw: 1.2, sa: 0.18 });
+          if (cls !== null) {
+            box(g, x, cy, cw, ch, ch * 0.18, { stroke: T.ink, lw: 1.2, sa: 0.18 });
+          }
           if (inorder) {
             const t = new Text({
               text: stageNames[i]!,
@@ -499,7 +530,9 @@ export class DieView {
       if (!asleep(lead)) {
         box(g, tx, by, Math.max(bh, bw * Math.min(1, lead.ipc / lanes)), bh, bh / 2, { fill: lead.color, fa: 1 });
         const sw = bw * Math.min(1, lead.stall);
-        if (sw > bh) box(g, tx + bw - sw, by, sw, bh, bh / 2, { fill: T.br, fa: 0.85 });
+        if (sw > bh) {
+          box(g, tx + bw - sw, by, sw, bh, bh / 2, { fill: T.br, fa: 0.85 });
+        }
       }
       cap(`IPC ${lead.ipc.toFixed(2)} (work done per cycle)`, tx, by + bh * 1.6, lead.color);
       cap(`STALLED ${Math.round(lead.stall * 100)}%`, tx + tw, by + bh * 1.6 + fs * 1.4, T.br, true);

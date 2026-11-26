@@ -30,9 +30,13 @@ export class CoreRateTracker {
     this.rates = cur.map((c, k) => {
       const p = this.prev[k],
         was = this.rates[k] ?? NONE;
-      if (!p || c.cycles < p.cycles) return NONE;
+      if (!p || c.cycles < p.cycles) {
+        return NONE;
+      }
       const dc = c.cycles - p.cycles;
-      if (dc <= 0) return was;
+      if (dc <= 0) {
+        return was;
+      }
       const mix = (old: number, now: number) => old * KEEP + now * (1 - KEEP);
       return {
         ipc: mix(was.ipc, Math.max(0, c.retired - p.retired) / dc),
