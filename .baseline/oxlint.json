@@ -9514,17 +9514,6 @@
   "vitest(no-conditional-in-test)": 1,
   "vitest(valid-expect)": 14
  },
- "src/features/jobs/sim/jobcode.ts": {
-  "eslint(curly)": 11,
-  "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "typescript(no-non-null-assertion)": 4,
-  "typescript(prefer-string-starts-ends-with)": 2,
-  "unicorn(max-nested-calls)": 2,
-  "unicorn(no-array-for-each)": 2,
-  "unicorn(numeric-separators-style)": 1
- },
  "src/features/jobs/sim/jobdex.test.ts": {
   "eslint(curly)": 5,
   "eslint(require-unicode-regexp)": 1,
@@ -9538,16 +9527,6 @@
   "vitest(no-conditional-in-test)": 4,
   "vitest(prefer-strict-equal)": 5,
   "vitest(valid-expect)": 6
- },
- "src/features/jobs/sim/jobdex.ts": {
-  "eslint(curly)": 4,
-  "eslint(max-lines)": 1,
-  "eslint(max-params)": 1,
-  "import(consistent-type-specifier-style)": 3,
-  "oxc(no-map-spread)": 1,
-  "typescript(strict-boolean-expressions)": 7,
-  "unicorn(numeric-separators-style)": 8,
-  "unicorn(prefer-at)": 1
  },
  "src/features/jobs/sim/joblog.test.ts": {
   "eslint(curly)": 16,
