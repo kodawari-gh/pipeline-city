@@ -3,11 +3,14 @@
 // 18.35 x 8.5 mm module (SFF-8436); the module's lanes meet the card-edge connector at the back, its 38 contacts in two rows (a real cage is 55 mm deep: ours stops short, its mouth and
 // its walls are the part the eye meets). A cage has no lights: the card's port lights stand in a plastic block over its mouth, the router's in its front. A caller that faces it
 // another way turns the group it builds in. The long side of the span is the cage's width (19 mm); the card's lies across y, the router's across z.
-import { BoxGeometry, type Group, type Material } from 'three';
+import { BoxGeometry } from 'three';
+import type * as threeTypes from 'three';
 import { instanced, rectBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
-import { wallX, type Span } from './casekit3d';
-import { springGold, unshadowed, type JackLamps } from './rj45jack3d';
+import { wallX } from './casekit3d';
+import type * as casekit3dTypes from './casekit3d';
+import { springGold, unshadowed } from './rj45jack3d';
+import type * as rj45jack3dTypes from './rj45jack3d';
 
 /** A QSFP+ module and its cage (mm): the module's size, the cage's mouth, the cage outside (its sheet is 0.2 mm at the sides, 0.6 over and under), the face plate, the light block over a card's cage. */
 export const QSFP = {
@@ -20,15 +23,15 @@ export const QSFP = {
 
 /** The paint of a cage: its steel, the dark of its inside, the connector's plastic and its gold. */
 export interface QsfpLook {
-  shell: Material;
-  dark: Material;
-  housing: Material;
-  gold: Material;
+  shell: threeTypes.Material;
+  dark: threeTypes.Material;
+  housing: threeTypes.Material;
+  gold: threeTypes.Material;
 }
-export const qsfpLook = (shell: Material): QsfpLook => ({
+export const qsfpLook = (shell: threeTypes.Material): QsfpLook => ({
   shell,
-  dark: mat(0x050608, { roughness: 0.85 }),
-  housing: mat(0x131518, { roughness: 0.6 }),
+  dark: mat(0x05_06_08, { roughness: 0.85 }),
+  housing: mat(0x13_15_18, { roughness: 0.6 }),
   gold: springGold(),
 });
 
@@ -36,7 +39,7 @@ export const qsfpLook = (shell: Material): QsfpLook => ({
 export type Up = 'z' | '-y';
 
 /** The cage's measure on a span: units a mm, whether its width lies along y, its middle (layout y, depth z). */
-function measure(s: Span) {
+function measure(s: casekit3dTypes.Span) {
   const dy = s.y1 - s.y0,
     dz = s.z1 - s.z0,
     wideY = dy >= dz;
@@ -46,27 +49,51 @@ function measure(s: Span) {
 /** The half sizes along y and z of a `w` x `h` rectangle (across the cage, over it) on that span. */
 const half = (wideY: boolean, w: number, h: number) => (wideY ? { hy: w / 2, hz: h / 2 } : { hy: h / 2, hz: w / 2 });
 
-/**
- * A cage's face: the steel plate over the span `s` (its face at x), the mouth sunk through it with the dark inside behind (the cage's four walls round it, a sleeve lining them), `deep`
- * to the back, where the connector stands: its plastic housing with the two rows of gold contacts. `fine` false: no connector (its housing and 38 contacts are two draws a port).
- */
-export function qsfpFace(g: Group, x: number, s: Span, deep: number, M: QsfpLook, fine = true): void {
-  const { k, wideY, cy, cz } = measure(s),
-    t = QSFP.plate * k,
-    m = half(wideY, QSFP.mouth.w * k, QSFP.mouth.h * k);
-  const mouth: Span = { y0: cy - m.hy, y1: cy + m.hy, z0: cz - m.hz, z1: cz + m.hz, r: 0.5 * k };
-  g.add(wallX(x, x + t, s, [mouth], M.shell));
-  // (the cage behind the plate: its walls round the mouth, and a dark sleeve in them, so the eye looks into a dark box: a cut that meets the outline breaks the faces, so the sleeve is a hair in)
-  g.add(unshadowed(wallX(x + t, x + deep, s, [{ ...mouth, r: 0.4 * k }], M.shell)));
+/** The dark sleeve lining a cage mouth and the back wall the connector sits against. */
+function qsfpCavity(
+  g: threeTypes.Group,
+  args: { x: number; t: number; deep: number; k: number; mouth: casekit3dTypes.Span; M: QsfpLook },
+): void {
+  const { x, t, deep, k, mouth, M } = args;
   const e = 0.12 * k,
-    sleeve: Span = { y0: mouth.y0 + e, y1: mouth.y1 - e, z0: mouth.z0 + e, z1: mouth.z1 - e, r: 0.4 * k };
+    sleeve: casekit3dTypes.Span = {
+      y0: mouth.y0 + e,
+      y1: mouth.y1 - e,
+      z0: mouth.z0 + e,
+      z1: mouth.z1 - e,
+      r: 0.4 * k,
+    };
   g.add(unshadowed(wallX(x + t, x + deep - 0.6 * k, { ...mouth, r: 0.4 * k }, [sleeve], M.dark)));
   g.add(
     unshadowed(
       rectBox({ x: x + deep - 0.6 * k, y: mouth.y0, w: 0.6 * k, h: mouth.y1 - mouth.y0 }, mouth.z0, mouth.z1, M.dark),
     ),
   );
-  if (!fine) return;
+}
+
+/**
+ * A cage's face: the steel plate over the span `s` (its face at x), the mouth sunk through it with the dark inside behind (the cage's four walls round it, a sleeve lining them), `deep`
+ * to the back, where the connector stands: its plastic housing with the two rows of gold contacts. `fine` false: no connector (its housing and 38 contacts are two draws a port).
+ */
+export function qsfpFace(
+  g: threeTypes.Group,
+  x: number,
+  s: casekit3dTypes.Span,
+  deep: number,
+  M: QsfpLook,
+  fine = true,
+): void {
+  const { k, wideY, cy, cz } = measure(s),
+    t = QSFP.plate * k,
+    m = half(wideY, QSFP.mouth.w * k, QSFP.mouth.h * k);
+  const mouth: casekit3dTypes.Span = { y0: cy - m.hy, y1: cy + m.hy, z0: cz - m.hz, z1: cz + m.hz, r: 0.5 * k };
+  g.add(wallX(x, x + t, s, [mouth], M.shell));
+  // (the cage behind the plate: its walls round the mouth, and a dark sleeve in them, so the eye looks into a dark box: a cut that meets the outline breaks the faces, so the sleeve is a hair in)
+  g.add(unshadowed(wallX(x + t, x + deep, s, [{ ...mouth, r: 0.4 * k }], M.shell)));
+  qsfpCavity(g, { x, t, deep, k, mouth, M });
+  if (!fine) {
+    return;
+  }
   // the connector: a plastic housing at the back with a slot between the two rows of contacts, 19 at a 0.8 mm pitch in each
   const hw = half(wideY, 17.2 * k, 4.6 * k),
     hd = 3.2 * k,
@@ -94,17 +121,26 @@ export function qsfpFace(g: Group, x: number, s: Span, deep: number, M: QsfpLook
  * cage (the card's light pipe: 2.4 mm tall, 8.6 deep, so it ends inside the bracket; the width of the cage) carries them, on the `up` side; false: they stand in the front over the cage (the router's bezel). The lenses
  * are the network's: out until it lights them (`network/render/jackleds.ts`).
  */
-export function qsfpLamps(g: Group, x: number, s: Span, up: Up, lamps: JackLamps, M: QsfpLook, block: boolean): void {
+export function qsfpLamps(
+  g: threeTypes.Group,
+  x: number,
+  s: casekit3dTypes.Span,
+  up: Up,
+  lamps: rj45jack3dTypes.JackLamps,
+  M: QsfpLook,
+  block: boolean,
+): void {
   const { k, wideY, cy, cz } = measure(s),
     h = QSFP.lamp.h * k,
     gap = block ? 0 : 0.9 * k;
   // (the strip over the cage: its middle along the way up, its depth)
-  const above: Span =
+  const above: casekit3dTypes.Span =
     up === 'z'
       ? { y0: s.y0, y1: s.y1, z0: s.z1 + gap, z1: s.z1 + gap + h }
       : { y0: s.y0 - gap - h, y1: s.y0 - gap, z0: s.z0, z1: s.z1 };
-  if (block)
+  if (block) {
     g.add(rectBox({ x, y: above.y0, w: QSFP.lamp.d * k, h: above.y1 - above.y0 }, above.z0, above.z1, M.housing));
+  }
   const ay = (above.y0 + above.y1) / 2,
     az = (above.z0 + above.z1) / 2,
     off = 5.3 * k;

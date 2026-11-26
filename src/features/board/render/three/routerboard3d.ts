@@ -5,18 +5,22 @@
 // (routerplan.ts) under a lid that fades as the camera nears it, like the CPU's and the NIC's (nicchip3d.ts).
 // Sizes are real (23 units a mm). The board is built in its own plate frame (x east, y DOWN from its top edge, z off the component side), as the PCB kit expects, and laid in the router's model
 // frame (router3d.ts: x east, y up from the shelf, z toward the viewer): its top edge is the back, its jack side the front.
-import { BoxGeometry, Group, type Object3D } from 'three';
+import { BoxGeometry, Group } from 'three';
+import type * as threeTypes from 'three';
 import { dieShow } from '@/core/render/lod/lod';
 import { fadeTree } from '@/core/render/three/artlod';
-import { drum, instanced, rectBox, SEG, softBox, type RectLike } from '@/core/render/three/geometry';
+import { drum, instanced, rectBox, SEG, softBox } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { tag } from '@/core/render/three/pick';
 import { routerMac } from '@/features/network/render/plan/netaddr';
 import { ROUTER_DIE, fmtSize, routerInput } from '@/features/network/render/router/routerplan';
 import { decal, tex } from './casekit3d';
-import { crystal, decalMat, inductor, lidBase, maskTop, MM, passives, pcbSlab, pkg, type Passive } from './pcbkit3d';
+import { crystal, decalMat, inductor, lidBase, maskTop, MM, passives, pcbSlab, pkg } from './pcbkit3d';
+import type * as pcbkit3dTypes from './pcbkit3d';
 import type { DieFloor } from './nicchip3d';
-import { RJ, ROUTER_FLOOR, ROUTER_SIZE, routerJack, type RouterStand } from './router3d';
+import { RJ, ROUTER_FLOOR, ROUTER_SIZE, routerJack } from './router3d';
+import type * as router3dTypes from './router3d';
 
 const mm = (v: number): number => v * MM;
 
@@ -32,7 +36,7 @@ const SIDE = 100,
 
 /** A footprint in mm: its corner (x east, y down from the board's top edge) and its size. */
 type Box = readonly [x: number, y: number, w: number, h: number];
-const rect = (b: Box): RectLike => ({ x: mm(b[0]), y: mm(b[1]), w: mm(b[2]), h: mm(b[3]) });
+const rect = (b: Box): geometryTypes.RectLike => ({ x: mm(b[0]), y: mm(b[1]), w: mm(b[2]), h: mm(b[3]) });
 
 /** How a tier's board is laid out: the SoC's package side and its die's (mm), the DRAM, the flash, the power. Positions are the part's corner in mm from the board's top-west corner. */
 interface Spec {
@@ -134,21 +138,21 @@ const SPEC: Readonly<Record<number, Spec>> = {
 
 /** The board of a tier laid out for a body `depth` deep: every part's rectangle in the plate frame (units), and the board's own. Pure. */
 interface BoardFit {
-  board: RectLike;
-  soc: RectLike;
-  die: RectLike;
-  dram: RectLike[];
-  flash: RectLike;
-  power: RectLike;
-  psu: RectLike | null;
-  coils: RectLike[];
-  reg: RectLike;
-  xtal: RectLike;
-  radio: RectLike | null;
-  ufl: RectLike[];
-  wanphy: RectLike;
-  lanphy: RectLike;
-  label: RectLike;
+  board: geometryTypes.RectLike;
+  soc: geometryTypes.RectLike;
+  die: geometryTypes.RectLike;
+  dram: geometryTypes.RectLike[];
+  flash: geometryTypes.RectLike;
+  power: geometryTypes.RectLike;
+  psu: geometryTypes.RectLike | null;
+  coils: geometryTypes.RectLike[];
+  reg: geometryTypes.RectLike;
+  xtal: geometryTypes.RectLike;
+  radio: geometryTypes.RectLike | null;
+  ufl: geometryTypes.RectLike[];
+  wanphy: geometryTypes.RectLike;
+  lanphy: geometryTypes.RectLike;
+  label: geometryTypes.RectLike;
   /** Where the jacks' strip begins (a y from the top edge): nothing but the two PHYs stands under it. */
   strip: number;
 }
@@ -169,7 +173,7 @@ function routerBoardFit(tier: number, depth: number): BoardFit {
     H = Math.max(mm(30), depth + BED.z - REAR);
   const strip = H - STRIP,
     soc = rect(S.socAt),
-    at = (cx: number, side: number): RectLike => ({
+    at = (cx: number, side: number): geometryTypes.RectLike => ({
       x: cx - mm(side) / 2,
       y: strip - 10 - mm(side),
       w: mm(side),
@@ -223,7 +227,7 @@ export interface RouterBoard {
   /** The SoC's lid: it fades alone for the zoom, so the machine lists it `apart`. */
   lid: Group;
   /** The die's face for the live layer (`Chips3D.face`), as a NIC's: its parent, the depth over the baked floorplan, the plan's rectangle, where the die lies in the room (its top at `at.y`), how many room units a plan unit is. */
-  die: { root: Object3D; z: number; rect: RectLike; at: Lying; scale: number } | null;
+  die: { root: threeTypes.Object3D; z: number; rect: geometryTypes.RectLike; at: Lying; scale: number } | null;
   /** The lid's fade for the zoom seen over the die (screen pixels per room unit). */
   lod: (zoom: number) => void;
   /** Every body as it lies (the rails of the detailed view). */
@@ -251,11 +255,13 @@ function sticker(tier: number): ReturnType<typeof tex> {
     c.fillStyle = '#f2f2ee';
     c.fillRect(0, 0, w, h);
     let s = tier * 7919 + 13;
-    const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    const rnd = () => (s = (s * 16_807) % 2_147_483_647) / 2_147_483_647;
     c.fillStyle = '#16181c';
     for (let x = 24; x < w - 24;) {
       const bw = 2 + Math.floor(rnd() * 3) * 2;
-      if (rnd() > 0.45) c.fillRect(x, 12, bw, h * 0.26);
+      if (rnd() > 0.45) {
+        c.fillRect(x, 12, bw, h * 0.26);
+      }
       x += bw + 2 + Math.floor(rnd() * 3) * 2;
     }
     c.font = '700 30px "Consolas", "DejaVu Sans Mono", monospace';
@@ -269,7 +275,7 @@ function sticker(tier: number): ReturnType<typeof tex> {
 }
 
 /** The tinned leads of a QFN along its four sides (instanced: one draw). */
-function qfnLeads(g: Group, r: RectLike, pitch: number, tin: ReturnType<typeof mat>): void {
+function qfnLeads(g: Group, r: geometryTypes.RectLike, pitch: number, tin: ReturnType<typeof mat>): void {
   const n = Math.max(4, Math.floor(r.w / pitch) - 1),
     out: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[] = [];
   for (let k = 0; k < n; k++) {
@@ -290,13 +296,13 @@ function qfnLeads(g: Group, r: RectLike, pitch: number, tin: ReturnType<typeof m
 }
 
 /** A flash's gull-wing legs: `n` a side down the long sides of the body `r` (a SOIC-8's west and east, a TSOP's both long sides), each out of the body and onto its pad. */
-function legs(g: Group, r: RectLike, n: number, pitch: number, tin: ReturnType<typeof mat>): void {
+function legs(g: Group, r: geometryTypes.RectLike, n: number, pitch: number, tin: ReturnType<typeof mat>): void {
   const out: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[] = [],
     tall = r.h >= r.w;
   for (let k = 0; k < n; k++) {
     const o = (k - (n - 1) / 2) * pitch;
     for (const s of [-1, 1]) {
-      if (tall)
+      if (tall) {
         out.push({
           x: s < 0 ? r.x - mm(0.35) : r.x + r.w + mm(0.35),
           y: -(r.y + r.h / 2 + o),
@@ -305,7 +311,7 @@ function legs(g: Group, r: RectLike, n: number, pitch: number, tin: ReturnType<t
           sy: mm(0.4),
           sz: mm(0.2),
         });
-      else
+      } else {
         out.push({
           x: r.x + r.w / 2 + o,
           y: -(s < 0 ? r.y - mm(0.35) : r.y + r.h + mm(0.35)),
@@ -314,16 +320,17 @@ function legs(g: Group, r: RectLike, n: number, pitch: number, tin: ReturnType<t
           sy: mm(0.7),
           sz: mm(0.2),
         });
+      }
     }
   }
   g.add(instanced(new BoxGeometry(1, 1, 1), tin, out));
 }
 
 /** The DC barrel jack (the home and gigabit routers' and the 10G's): a black body with its socket let into the top. */
-function dcJack(g: Group, r: RectLike, h: number): void {
-  const body = mat(0x131518, { roughness: 0.6 }),
-    dark = mat(0x050608, { roughness: 0.8 }),
-    steel = mat(0xb9babf, { metalness: 0.85, roughness: 0.3 });
+function dcJack(g: Group, r: geometryTypes.RectLike, h: number): void {
+  const body = mat(0x13_15_18, { roughness: 0.6 }),
+    dark = mat(0x05_06_08, { roughness: 0.8 }),
+    steel = mat(0xb9_ba_bf, { metalness: 0.85, roughness: 0.3 });
   g.add(softBox(r, 0, h, body, 8));
   const c = { x: r.x + r.w / 2, y: r.y + r.h * 0.38 },
     ring = Math.min(r.w, r.h) * 0.3;
@@ -334,10 +341,10 @@ function dcJack(g: Group, r: RectLike, h: number): void {
 }
 
 /** The edge router's mains: an inlet (a black shroud with its three pins) over a supply module in a steel can. */
-function mains(g: Group, inlet: RectLike, psu: RectLike): void {
-  const body = mat(0x131518, { roughness: 0.6 }),
-    dark = mat(0x050608, { roughness: 0.8 }),
-    pin = mat(0xb9babf, { metalness: 0.85, roughness: 0.3 });
+function mains(g: Group, inlet: geometryTypes.RectLike, psu: geometryTypes.RectLike): void {
+  const body = mat(0x13_15_18, { roughness: 0.6 }),
+    dark = mat(0x05_06_08, { roughness: 0.8 }),
+    pin = mat(0xb9_ba_bf, { metalness: 0.85, roughness: 0.3 });
   g.add(
     softBox(inlet, 0, mm(17), body, 12),
     rectBox(
@@ -347,7 +354,7 @@ function mains(g: Group, inlet: RectLike, psu: RectLike): void {
       dark,
     ),
   );
-  for (const f of [0.28, 0.5, 0.72])
+  for (const f of [0.28, 0.5, 0.72]) {
     g.add(
       rectBox(
         { x: inlet.x + inlet.w * f - mm(0.8), y: inlet.y + inlet.h * 0.34, w: mm(1.6), h: inlet.h * 0.32 },
@@ -356,14 +363,15 @@ function mains(g: Group, inlet: RectLike, psu: RectLike): void {
         pin,
       ),
     );
-  pkg(g, psu, 0, mm(11), ['RL-PSU 60W', '100-240V', 'A0 2250'], { mould: 0x2a2d32, bevel: 12 });
+  }
+  pkg(g, psu, 0, mm(11), ['RL-PSU 60W', '100-240V', 'A0 2250'], { mould: 0x2a_2d_32, bevel: 12 });
 }
 
 /**
  * The board of the router of `tier` for the room's stand (`routerStand`): it lies on its standoffs in the shell, all of it hidden until the machine shows it. `floor`: puts the die's floorplan on its
  * frame (the machine bakes it); none in the tests. Its bodies are listed as they lie in the room, for the rails.
  */
-export function routerBoard(tier: number, stand: RouterStand, floor?: DieFloor): RouterBoard {
+export function routerBoard(tier: number, stand: router3dTypes.RouterStand, floor?: DieFloor): RouterBoard {
   const t = SPEC[tier] ? tier : 1,
     S = SPEC[t]!,
     i = routerInput(t),
@@ -380,14 +388,14 @@ export function routerBoard(tier: number, stand: RouterStand, floor?: DieFloor):
   plate.position.set(X0, H, 0);
   lay.add(plate);
   root.add(lay);
-  const tin = mat(0xb9babf, { metalness: 0.9, roughness: 0.32 }),
+  const tin = mat(0xb9_ba_bf, { metalness: 0.9, roughness: 0.32 }),
     part = (id: string): Group => {
       const g = tag(new Group(), id);
       plate.add(g);
       return g;
     };
-  const bodies: { id: string; r: RectLike; h: number }[] = [];
-  const own = (id: string, r: RectLike, h: number) => bodies.push({ id, r, h });
+  const bodies: { id: string; r: geometryTypes.RectLike; h: number }[] = [];
+  const own = (id: string, r: geometryTypes.RectLike, h: number) => bodies.push({ id, r, h });
 
   // the board: its mask over its copper, the silkscreen round each part, its four mounting posts
   plate.add(
@@ -400,7 +408,7 @@ export function routerBoard(tier: number, stand: RouterStand, floor?: DieFloor):
       ],
       -THICK,
       0,
-      0x0f3a49,
+      0x0f_3a_49,
     ),
   );
   const parts = [
@@ -414,7 +422,9 @@ export function routerBoard(tier: number, stand: RouterStand, floor?: DieFloor):
     ...fit.dram.map((r, k) => ({ r, ref: `U${7 + k}` })),
     ...fit.coils.map((r, k) => ({ r, ref: `L${k + 1}` })),
   ];
-  if (fit.radio) parts.push({ r: fit.radio, ref: 'M1' });
+  if (fit.radio) {
+    parts.push({ r: fit.radio, ref: 'M1' });
+  }
   plate.add(
     maskTop(
       `router-board:${t}:${Math.round(W)}x${Math.round(H)}`,
@@ -424,14 +434,15 @@ export function routerBoard(tier: number, stand: RouterStand, floor?: DieFloor):
       { px: 16 },
     ),
   );
-  const post = mat(0xd4af5f, { metalness: 0.7, roughness: 0.4 });
+  const post = mat(0xd4_af_5f, { metalness: 0.7, roughness: 0.4 });
   for (const [x, y] of [
     [mm(2.5), mm(2.5)],
     [W - mm(2.5), mm(2.5)],
     [mm(2.5), H - mm(2.5)],
     [W - mm(2.5), H - mm(2.5)],
-  ] as const)
+  ] as const) {
     plate.add(drum(x, y, 0, mm(3), mm(1.3), post, SEG.post), drum(x, y, -THICK - STAND, -THICK, mm(2), post, SEG.post));
+  }
 
   // the SoC: a substrate with its die (flip-chip) under a nickel lid that fades as the camera comes in; the die wears the floorplan
   const soc = part('router.soc'),
@@ -440,9 +451,9 @@ export function routerBoard(tier: number, stand: RouterStand, floor?: DieFloor):
     cy = fit.soc.y + fit.soc.h / 2,
     h = mm(2.4),
     base = lidBase(h);
-  const silicon = mat(0x1d1e22, { metalness: 0.35, roughness: 0.3 });
+  const silicon = mat(0x1d_1e_22, { metalness: 0.35, roughness: 0.3 });
   soc.add(
-    softBox(fit.soc, 0, base, mat(0x173d29, { roughness: 0.55 }), 2),
+    softBox(fit.soc, 0, base, mat(0x17_3d_29, { roughness: 0.55 }), 2),
     softBox(fit.die, base, base + mm(0.8), silicon, 2),
   );
   pkg(lid, fit.soc, 0, h, DIE_NAMES[t]!, { lid: true, lidOnly: true });
@@ -459,7 +470,7 @@ export function routerBoard(tier: number, stand: RouterStand, floor?: DieFloor):
   }
   own('router.soc', fit.soc, h);
   // (the decoupling capacitors along the SoC's edges)
-  const caps: Passive[] = [];
+  const caps: pcbkit3dTypes.Passive[] = [];
   for (let k = 0; k < 6; k++) {
     const x = fit.soc.x + mm(1.8) + k * ((fit.soc.w - mm(3.6)) / 5);
     caps.push(
@@ -505,28 +516,34 @@ export function routerBoard(tier: number, stand: RouterStand, floor?: DieFloor):
   pkg(wan, fit.wanphy, 0, mm(0.9), ['RL-P1', i.std], { pin1: 'nw' });
   qfnLeads(wan, fit.wanphy, mm(0.5), tin);
   pkg(lan, fit.lanphy, 0, mm(t >= 3 ? 1.6 : 0.9), [t >= 3 ? 'RL-S4X' : 'RL-S4', `${i.lan} PORT`], { pin1: 'nw' });
-  if (t < 3) qfnLeads(lan, fit.lanphy, mm(0.5), tin);
+  if (t < 3) {
+    qfnLeads(lan, fit.lanphy, mm(0.5), tin);
+  }
   own('router.wanphy', fit.wanphy, mm(0.9));
   own('router.lanphy', fit.lanphy, mm(t >= 3 ? 1.6 : 0.9));
 
   // the radio (home and gigabit routers): a shielded module, the two aerials' sockets beside it
   if (fit.radio && i.radio) {
     const radio = part('router.radio'),
-      can = mat(0xb9babf, { metalness: 0.85, roughness: 0.3 }),
-      hole = mat(0x050608, { roughness: 0.8 });
-    pkg(radio, fit.radio, 0, mm(2), [`RL-W${t}10`, i.radio.bands], { mould: 0x4e5360, bevel: 6, dot: false });
-    for (const r of fit.ufl)
+      can = mat(0xb9_ba_bf, { metalness: 0.85, roughness: 0.3 }),
+      hole = mat(0x05_06_08, { roughness: 0.8 });
+    pkg(radio, fit.radio, 0, mm(2), [`RL-W${t}10`, i.radio.bands], { mould: 0x4e_53_60, bevel: 6, dot: false });
+    for (const r of fit.ufl) {
       radio.add(
         drum(r.x + r.w / 2, r.y + r.h / 2, 0, mm(1.2), mm(1.15), can, SEG.part),
         drum(r.x + r.w / 2, r.y + r.h / 2, mm(1.2), mm(1.3), mm(0.6), hole, SEG.part),
       );
+    }
     own('router.radio', hull([fit.radio, ...fit.ufl]), mm(2));
   }
 
   // the power: the barrel jack (the home, gigabit and 10G routers) or the edge router's mains inlet over its supply, the regulator, its inductors and the crystal beside the SoC
   const power = part('router.power');
-  if (fit.psu) mains(power, fit.power, fit.psu);
-  else dcJack(power, fit.power, mm(11));
+  if (fit.psu) {
+    mains(power, fit.power, fit.psu);
+  } else {
+    dcJack(power, fit.power, mm(11));
+  }
   pkg(power, fit.reg, 0, mm(0.85), ['PL3A'], { pin1: 'nw' });
   fit.coils.forEach((r, k) => inductor(power, r, 0, mm(2), k ? '1R0' : 'R47'));
   own(
@@ -539,11 +556,13 @@ export function routerBoard(tier: number, stand: RouterStand, floor?: DieFloor):
   // the label
   const label = part('router.label'),
     lt = sticker(t);
-  if (lt) label.add(decal(fit.label, mm(0.15), decalMat(lt, { rough: 0.7 })));
+  if (lt) {
+    label.add(decal(fit.label, mm(0.15), decalMat(lt, { rough: 0.7 })));
+  }
   own('router.label', fit.label, 0);
 
   // the room's frame: a plate rect as it lies is the router's frame mapped to the room (`stand`: its scale, its place on the shelf), and `h` a height over the component side
-  const lying = (r: RectLike, h: number): Lying => ({
+  const lying = (r: geometryTypes.RectLike, h: number): Lying => ({
     x: stand.ox + stand.k * (X0 + r.x),
     w: stand.k * r.w,
     z: stand.front + stand.k * (BED.z - H + r.y + r.h / 2),
@@ -575,13 +594,15 @@ export function routerBoard(tier: number, stand: RouterStand, floor?: DieFloor):
     lod: (zoom) => {
       const a = dieShow(zoom * stand.k * scale, ROUTER_DIE.w);
       fadeTree(lid, 1 - a);
-      if (made) made.root.visible = a > 0.01;
+      if (made) {
+        made.root.visible = a > 0.01;
+      }
     },
   };
 }
 
 /** The smallest rectangle that holds all of `rs`. */
-function hull(rs: readonly RectLike[]): RectLike {
+function hull(rs: readonly geometryTypes.RectLike[]): geometryTypes.RectLike {
   const x0 = Math.min(...rs.map((r) => r.x)),
     y0 = Math.min(...rs.map((r) => r.y)),
     x1 = Math.max(...rs.map((r) => r.x + r.w)),

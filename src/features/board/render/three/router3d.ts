@@ -5,17 +5,21 @@
 // RJ45 jack each at real size (`rj45jack3d.ts`), but the edge router's five ports, which run at 40G, are QSFP+ cages (`qsfp3d.ts`: a real edge router has no copper port,
 // and its WAN takes the 20 Gbit/s backbone plan). relay makes it (docs/brands/relay.md): its lockup is debossed in the top.
 // The frame: x east, y up (0 is the shelf), z toward the viewer (0 is the front); the east end of the body at x = 0. 23 units a mm (`MM`).
-import { Group, Mesh, MeshStandardMaterial, SphereGeometry, type Texture } from 'three';
+import { Group, Mesh, MeshStandardMaterial, SphereGeometry } from 'three';
+import type * as threeTypes from 'three';
 import { BRAND_FONT, MAKER } from '@/core/render/brands';
-import { drum, place, post, rectBox, rod, SEG, softBox, type RectLike } from '@/core/render/three/geometry';
+import { drum, place, post, rectBox, rod, SEG, softBox } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import type { V3 } from '@/core/render/three/rope';
 import { ROUTER_SPOT } from '../layout/layout';
 import { debossMat, decal, decalTop, outlinePts, shapeOf, slab, tex } from './casekit3d';
 import { MM } from './pcbkit3d';
 import type { PortKind } from './plugs3d';
-import { QSFP, qsfpFace, qsfpLamps, qsfpLook, type QsfpLook } from './qsfp3d';
-import { jackFace, jackLamp, springGold, type JackLamps, type JackLook } from './rj45jack3d';
+import { QSFP, qsfpFace, qsfpLamps, qsfpLook } from './qsfp3d';
+import type * as qsfp3dTypes from './qsfp3d';
+import { jackFace, jackLamp, springGold } from './rj45jack3d';
+import type * as rj45jack3dTypes from './rj45jack3d';
 
 /** An RJ45 jack's face, real size (`jackFace`: 13.75 mm over its span's depth), how deep its insert goes. */
 export const RJ = { w: 13.75 * MM, h: 10.7 * MM, deep: 15.5 * MM } as const;
@@ -38,17 +42,17 @@ export const ROUTER_SIZE: Readonly<Record<number, { w: number; h: number }>> = {
 
 /** The router's tier of a game's router id (`router2` is 2), or null. */
 export const routerTier = (id: string | null | undefined): number | null => {
-  const k = /^router(\d+)$/.exec(id ?? '');
+  const k = /^router(?<tier>\d+)$/u.exec(id ?? '');
   return k ? Number(k[1]) : null;
 };
 
 /** The face of the front jack `k` (0 the first LAN, 4 the WAN) in the router's frame: its middle, and its face's z (3 behind the front). */
 export const routerJack = (k: number): V3 => [-(520 + k * PITCH), 320, -3];
 
-const NEON = 0x3be3ff,
-  AZURE = 0x4aa8ff,
-  LINK = 0x58e08a,
-  ACT = 0xffb547;
+const NEON = 0x3b_e3_ff,
+  AZURE = 0x4a_a8_ff,
+  LINK = 0x58_e0_8a,
+  ACT = 0xff_b5_47;
 /** How bright a lit status light is: above this a cyan light blooms to white. */
 export const LED_ON = 1.4;
 /** The shell's underside: the front bezel stands from here up (the foot and the plinth are under it). */
@@ -64,7 +68,10 @@ export const ROUTER_FLOOR = UNDER + 30;
  * Where the room stands the router of `tier` in its spot (`room3d/router.ts`; the detailed view's panel lies over its front, `machine3d.ts`): the one scale that fits its box in the spot,
  * how far its front stands out of the wall, and its front bezel in the room's layout units (x east, y down).
  */
-export function routerFit(tier: number, spot: RectLike = ROUTER_SPOT): { k: number; front: number; face: RectLike } {
+export function routerFit(
+  tier: number,
+  spot: geometryTypes.RectLike = ROUTER_SPOT,
+): { k: number; front: number; face: geometryTypes.RectLike } {
   const t = ROUTER_SIZE[tier] ? tier : 1,
     size = ROUTER_SIZE[t]!,
     k = Math.min(spot.w / size.w, spot.h / size.h);
@@ -79,18 +86,23 @@ export function routerFit(tier: number, spot: RectLike = ROUTER_SPOT): { k: numb
 export interface RouterStand {
   k: number;
   front: number;
-  face: RectLike;
+  face: geometryTypes.RectLike;
   depth: number;
   ox: number;
   oy: number;
 }
-export function routerStand(tier: number, spot: RectLike = ROUTER_SPOT): RouterStand {
+export function routerStand(tier: number, spot: geometryTypes.RectLike = ROUTER_SPOT): RouterStand {
   const fit = routerFit(tier, spot);
   return { ...fit, depth: (fit.front - 300) / fit.k, ox: spot.x + spot.w, oy: spot.y + spot.h };
 }
 
 /** A box of the router's frame (y up) as a layout rect (y down), for the builders of `geometry.ts`. */
-const lay = (x0: number, x1: number, y0: number, y1: number): RectLike => ({ x: x0, y: -y1, w: x1 - x0, h: y1 - y0 });
+const lay = (x0: number, x1: number, y0: number, y1: number): geometryTypes.RectLike => ({
+  x: x0,
+  y: -y1,
+  w: x1 - x0,
+  h: y1 - y0,
+});
 
 /** The group the jacks of a front are built in: a jack is built as a wall across x, turned so its mouth opens toward +z. One group for all of them puts their parts under one parent, so a merge takes them in a few draws. */
 const jackRow = (): Group => {
@@ -100,7 +112,14 @@ const jackRow = (): Group => {
 };
 
 /** A jack in a `jackRow`, its latch slot down. `face` is its face's z. */
-const jackIn = (row: Group, x: number, y: number, face: number, look: JackLook, fine: boolean): void => {
+const jackIn = (
+  row: Group,
+  x: number,
+  y: number,
+  face: number,
+  look: rj45jack3dTypes.JackLook,
+  fine: boolean,
+): void => {
   jackFace(
     row,
     -face,
@@ -120,8 +139,8 @@ const cageIn = (
   x: number,
   y: number,
   face: number,
-  look: QsfpLook,
-  lamps: JackLamps,
+  look: qsfp3dTypes.QsfpLook,
+  lamps: rj45jack3dTypes.JackLamps,
   fine: boolean,
 ): void => {
   const s = cageSpan(x, y);
@@ -137,14 +156,21 @@ const cageSpan = (x: number, y: number) => ({
 });
 
 /** A jack in a front facing the viewer, in a row of its own. `face` is its face's z. */
-export function jackAt(into: Group, x: number, y: number, face: number, look: JackLook, fine = true): void {
+export function jackAt(
+  into: Group,
+  x: number,
+  y: number,
+  face: number,
+  look: rj45jack3dTypes.JackLook,
+  fine = true,
+): void {
   const row = jackRow();
   jackIn(row, x, y, face, look, fine);
   into.add(row);
 }
 
 /** A QSFP+ cage in a front facing the viewer, in a row of its own (a wall plate's: no lights). `face` is its face's z. */
-export function cageAt(into: Group, x: number, y: number, face: number, look: QsfpLook, fine = true): void {
+export function cageAt(into: Group, x: number, y: number, face: number, look: qsfp3dTypes.QsfpLook, fine = true): void {
   const row = jackRow();
   qsfpFace(row, -face, cageSpan(x, y), CAGE.deep, look, fine);
   into.add(row);
@@ -166,10 +192,10 @@ interface Look {
 const LOOK: Readonly<Record<number, Look>> = {
   // (soft-touch black plastic)
   1: {
-    tone: 0x1d1e22,
+    tone: 0x1d_1e_22,
     metal: 0.1,
     rough: 0.55,
-    plate: 0x1d1e22,
+    plate: 0x1d_1e_22,
     pMetal: 0.1,
     pRough: 0.55,
     led: NEON,
@@ -179,10 +205,10 @@ const LOOK: Readonly<Record<number, Look>> = {
   },
   // (satin paint over a graphite front)
   2: {
-    tone: 0x131518,
+    tone: 0x13_15_18,
     metal: 0.05,
     rough: 0.6,
-    plate: 0x2a2d32,
+    plate: 0x2a_2d_32,
     pMetal: 0.4,
     pRough: 0.45,
     led: NEON,
@@ -192,10 +218,10 @@ const LOOK: Readonly<Record<number, Look>> = {
   },
   // (dark anodised aluminium)
   3: {
-    tone: 0x2a2d32,
+    tone: 0x2a_2d_32,
     metal: 0.3,
     rough: 0.55,
-    plate: 0x1d1e22,
+    plate: 0x1d_1e_22,
     pMetal: 0.4,
     pRough: 0.5,
     led: AZURE,
@@ -205,10 +231,10 @@ const LOOK: Readonly<Record<number, Look>> = {
   },
   // (a steel rack unit)
   4: {
-    tone: 0x1d1e22,
+    tone: 0x1d_1e_22,
     metal: 0.3,
     rough: 0.55,
-    plate: 0x2a2d32,
+    plate: 0x2a_2d_32,
     pMetal: 0.35,
     pRough: 0.55,
     led: AZURE,
@@ -238,11 +264,11 @@ export interface RouterModel {
   /** The status lights: one material for the lights of the front and the lit bar. */
   status: MeshStandardMaterial[];
   /** The two lights of each front jack (index as `routerJack`: 0 the first LAN, 4 the WAN), null for a jack the scene does not drive (`drive`). All out as built: the scene lights them from the link's frames (`jackleds.ts`). */
-  jacks: (JackLamps | null)[];
+  jacks: (rj45jack3dTypes.JackLamps | null)[];
 }
 
 /** The port legend under the jacks (WAN, LAN 1 to 4): one tone on a clear ground; null where there is no canvas (the tests). */
-function legend(): { t: Texture; x0: number; x1: number } | null {
+function legend(): { t: threeTypes.Texture; x0: number; x1: number } | null {
   const x0 = routerJack(4)[0] - 220,
     x1 = routerJack(0)[0] + 220;
   const t = tex('router-legend', Math.round((x1 - x0) / 2), 48, (c, W, H) => {
@@ -251,14 +277,16 @@ function legend(): { t: Texture; x0: number; x1: number } | null {
     c.textAlign = 'center';
     c.textBaseline = 'middle';
     c.font = `600 21px ${BRAND_FONT}`;
-    for (let k = 0; k < 5; k++) c.fillText(k === 4 ? 'WAN' : `LAN ${k + 1}`, (routerJack(k)[0] - x0) / 2, H / 2 + 1);
+    for (let k = 0; k < 5; k++) {
+      c.fillText(k === 4 ? 'WAN' : `LAN ${k + 1}`, (routerJack(k)[0] - x0) / 2, H / 2 + 1);
+    }
   });
   return t ? { t, x0, x1 } : null;
 }
 
 /** A print: a painted sheet on a clear ground, over the surface it lies on. */
-const print = (map: Texture): MeshStandardMaterial =>
-  mat(0xffffff, {
+const print = (map: threeTypes.Texture): MeshStandardMaterial =>
+  mat(0xff_ff_ff, {
     map,
     transparent: true,
     depthWrite: false,
@@ -292,12 +320,12 @@ export function routerModel(tier: number, o: RouterOpts = {}): RouterModel {
     L.plate === L.tone && L.pMetal === L.metal && L.pRough === L.rough
       ? shell
       : mat(L.plate, { metalness: L.pMetal, roughness: L.pRough });
-  const plinth = mat(0x131518, { roughness: 0.8 }),
-    rubber = mat(0x050608, { roughness: 0.95 }),
-    dark = mat(0x050608, { roughness: 0.8 });
-  const lens = mat(0x131518, { roughness: 0.25, metalness: 0.1 }),
-    steel = mat(0x959aa3, { metalness: 0.8, roughness: 0.44 });
-  const lamp = (c: number, i: number) => mat(0x131518, { emissive: c, emissiveIntensity: i, roughness: 0.3 });
+  const plinth = mat(0x13_15_18, { roughness: 0.8 }),
+    rubber = mat(0x05_06_08, { roughness: 0.95 }),
+    dark = mat(0x05_06_08, { roughness: 0.8 });
+  const lens = mat(0x13_15_18, { roughness: 0.25, metalness: 0.1 }),
+    steel = mat(0x95_9a_a3, { metalness: 0.8, roughness: 0.44 });
+  const lamp = (c: number, i: number) => mat(0x13_15_18, { emissive: c, emissiveIntensity: i, roughness: 0.3 });
   const led = lamp(L.led, LED_ON);
 
   // the body: the shell behind, the front bezel (open at each jack) in front of it, the plinth and the four feet under it
@@ -320,16 +348,19 @@ export function routerModel(tier: number, o: RouterOpts = {}): RouterModel {
   }
   sh.add(slab(shapeOf(outlinePts(lay(-w, 0, UNDER, h), L.r, undefined, SEG.cornerCoarse), holes), -SEAM, 0, front));
   g.add(softBox(lay(-w + 70, -70, FOOT, ROUTER_FLOOR), -D + 90, -70, plinth, 30));
-  for (const x of [-170, -w + 170])
-    for (const z of [-200, -D + 200]) g.add(post(x, 0, z, 70, FOOT, rubber, SEG.smallDisc));
+  for (const x of [-170, -w + 170]) {
+    for (const z of [-200, -D + 200]) {
+      g.add(post(x, 0, z, 70, FOOT, rubber, SEG.smallDisc));
+    }
+  }
 
   // the five jacks. One the scene lights has two lamps of its own, all out as built: the link's state and its frames light them (`jackleds.ts`), never this builder.
   // One it does not has a dark lens and no lamp.
-  const insert = mat(0x131518, { roughness: 0.9 }),
+  const insert = mat(0x13_15_18, { roughness: 0.9 }),
     contact = springGold(),
-    off = mat(0x131518, { roughness: 0.3 }),
+    off = mat(0x13_15_18, { roughness: 0.3 }),
     driven = new Set(o.drive ?? [0, 1, 2, 3, 4]);
-  const jacks = [0, 1, 2, 3, 4].map((k): JackLamps | null =>
+  const jacks = [0, 1, 2, 3, 4].map((k): rj45jack3dTypes.JackLamps | null =>
     driven.has(k) ? { link: jackLamp(LINK), act: jackLamp(ACT) } : null,
   );
   const row = jackRow(),
@@ -337,49 +368,71 @@ export function routerModel(tier: number, o: RouterOpts = {}): RouterModel {
   jacks.forEach((j, k) => {
     const [x, y, z] = routerJack(k),
       lamps = { link: j?.link ?? off, act: j?.act ?? off };
-    if (cages && k < nq) cageIn(row, x, y, z, cages, lamps, fine);
-    else jackIn(row, x, y, z, { shell: steel, insert, contact, ...lamps }, fine);
+    if (cages && k < nq) {
+      cageIn(row, x, y, z, cages, lamps, fine);
+    } else {
+      jackIn(row, x, y, z, { shell: steel, insert, contact, ...lamps }, fine);
+    }
   });
   g.add(row);
   const lg = legend();
-  if (lg) sh.add(decal(lay(lg.x0, lg.x1, 118, 170), 0.8, print(lg.t)));
+  if (lg) {
+    sh.add(decal(lay(lg.x0, lg.x1, 118, 170), 0.8, print(lg.t)));
+  }
 
   // the front's status lights, in a smoked strip: a row (two on the edge router) of `dots`
   const rows = t === 4 ? [h - 210, h - 140] : [h - 100],
     xs = Array.from({ length: L.dots }, (_, k) => -w + 420 + k * L.step);
-  const ly0 = rows[rows.length - 1]! - 46,
-    ly1 = rows[0]! + 46;
-  sh.add(softBox(lay(xs[0]! - 150, xs[xs.length - 1]! + 150, ly0, ly1), -10, 8, lens, 28));
-  for (const y of rows) for (const x of xs) sh.add(drum(x, -y, 2, 12, t === 4 ? 22 : 26, led, SEG.part));
+  const ly0 = rows.at(-1)! - 46,
+    ly1 = rows[0]! + 46,
+    xStart = xs[0]!,
+    xEnd = xs.at(-1)!;
+  sh.add(softBox(lay(xStart - 150, xEnd + 150, ly0, ly1), -10, 8, lens, 28));
+  for (const y of rows) {
+    for (const x of xs) {
+      sh.add(drum(x, -y, 2, 12, t === 4 ? 22 : 26, led, SEG.part));
+    }
+  }
   // (the wider tiers have room west of the WAN jack: slots that breathe)
   if (t >= 2) {
     const x1 = routerJack(4)[0] - (nq > 4 ? CAGE.w : RJ.w) / 2 - 120,
       top = t === 2 ? 430 : t === 3 ? 520 : 640;
-    for (let x = -w + 140; x + 44 <= x1; x += 90) sh.add(rectBox(lay(x, x + 44, 200, top), -3, 5, dark));
+    for (let x = -w + 140; x + 44 <= x1; x += 90) {
+      sh.add(rectBox(lay(x, x + 44, 200, top), -3, 5, dark));
+    }
   }
   // the top: the lit bar (10G and core), the fins (10G), the vents, and the maker's lockup debossed in it
-  if (t >= 3) sh.add(rectBox(lay(-w + 420, -420, h - 5, h + 3), -240, -170, led));
+  if (t >= 3) {
+    sh.add(rectBox(lay(-w + 420, -420, h - 5, h + 3), -240, -170, led));
+  }
   const vz0 = -D + 300,
     vz1 = Math.min(-D + 1000, -SEAM - 100);
   if (t === 3) {
     const fz0 = -D + 220,
       fz1 = -0.45 * D,
-      fin = mat(0x1d1e22, { metalness: 0.5, roughness: 0.5 });
-    if (fz1 - fz0 > 300)
-      for (let x = -w + 500; x <= -500; x += 200) sh.add(softBox(lay(x, x + 60, h - 10, h + 50), fz0, fz1, fin, 12));
+      fin = mat(0x1d_1e_22, { metalness: 0.5, roughness: 0.5 });
+    if (fz1 - fz0 > 300) {
+      for (let x = -w + 500; x <= -500; x += 200) {
+        sh.add(softBox(lay(x, x + 60, h - 10, h + 50), fz0, fz1, fin, 12));
+      }
+    }
   } else if (vz1 - vz0 > 250) {
-    for (let x = -w + 500; x + 90 <= -500; x += 240) sh.add(rectBox(lay(x, x + 90, h - 3, h + 3), vz0, vz1, dark));
+    for (let x = -w + 500; x + 90 <= -500; x += 240) {
+      sh.add(rectBox(lay(x, x + 90, h - 3, h + 3), vz0, vz1, dark));
+    }
   }
   const mark = debossMat('router-top', MAKER.router, 1024, 256),
     zc = t >= 3 ? -520 : -250;
-  if ((mark as MeshStandardMaterial).map)
+  if ((mark as MeshStandardMaterial).map) {
     sh.add(decalTop(-(h + 0.8), -w / 2 - 480, -w / 2 + 480, zc - 120, zc + 120, mark));
-  else mark.dispose();
+  } else {
+    mark.dispose();
+  }
 
   // the aerials (home and gigabit): a hinge on the back corner, a boot, the rod and its round tip, leaning out
   if (t <= 2) {
-    const aerial = mat(0x2a2d32, { roughness: 0.45 }),
-      boot = mat(0x131518, { roughness: 0.8 }),
+    const aerial = mat(0x2a_2d_32, { roughness: 0.45 }),
+      boot = mat(0x13_15_18, { roughness: 0.8 }),
       rad = t === 2 ? 105 : 85,
       len = t === 2 ? 2800 : 2400;
     for (const [ax, lean] of [
@@ -414,12 +467,13 @@ export function routerModel(tier: number, o: RouterOpts = {}): RouterModel {
   }
 
   // (the back panel's materials are its own too: the room fades the shell, never the back)
-  if (rear)
+  if (rear) {
     rearPanel(g, t, w, D, {
-      dark: mat(0x050608, { roughness: 0.8 }),
-      steel: mat(0x959aa3, { metalness: 0.8, roughness: 0.44 }),
+      dark: mat(0x05_06_08, { roughness: 0.8 }),
+      steel: mat(0x95_9a_a3, { metalness: 0.8, roughness: 0.44 }),
       plinth,
     });
+  }
   return { root: g, shell: sh, size: { w, h, depth: D }, status: [led], jacks };
 }
 
@@ -471,8 +525,11 @@ function rearPanel(g: Group, t: number, w: number, D: number, m: RearMats): void
       rectBox(lay(-w + 500, -w + 1120, 560, 900), z - 70, z + 10, m.dark),
       rectBox(lay(-w + 560, -w + 1060, 610, 850), z - 76, z - 60, m.plinth),
     );
-    for (const x of [-w + 700, -w + 810, -w + 920])
+    for (const x of [-w + 700, -w + 810, -w + 920]) {
       g.add(rectBox(lay(x - 25, x + 25, 660, 800), z - 90, z - 70, m.steel));
-    for (let x = -400; x >= -2400; x -= 110) g.add(rectBox(lay(x, x + 50, 620, 880), z - 4, z + 4, m.dark));
+    }
+    for (let x = -400; x >= -2400; x -= 110) {
+      g.add(rectBox(lay(x, x + 50, 620, 880), z - 4, z + 4, m.dark));
+    }
   }
 }

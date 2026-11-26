@@ -3,19 +3,11 @@
 // that wears 2D art bakes it with its own `ArtSet`, which the viewer runs and drops with the part; the CPU's lid fades over the die as in the case.
 // A kind with no 3D model yet gives null.
 import { Box3, Group, Object3D, Vector3 } from 'three';
-import { builtinTheme, type Theme } from '@/core/render/theme';
+import { builtinTheme } from '@/core/render/theme';
+import type * as themeTypes from '@/core/render/theme';
 import type { RectLike } from '@/core/render/three/geometry';
-import {
-  BOARD_TIERS,
-  getSpec,
-  type CardSpec,
-  type CpuSpec,
-  type FanSpec,
-  type NicSpec,
-  type PsuSpec,
-  type RamSpec,
-  type StorageSpec,
-} from '@/features/board/sim/specs';
+import { BOARD_TIERS, getSpec } from '@/features/board/sim/specs';
+import type * as specsTypes from '@/features/board/sim/specs';
 import { Monitor } from '@/features/room/render/three/props3d';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
 import { driveBody, driveKindOf } from '@/features/storage/render/drives';
@@ -71,7 +63,9 @@ function upright(root: Object3D, turn = false): Group {
   tilt.rotation.x = -Math.PI / 2;
   tilt.add(root);
   spin.add(tilt);
-  if (turn) spin.rotation.y = Math.PI / 2;
+  if (turn) {
+    spin.rotation.y = Math.PI / 2;
+  }
   return centred(spin);
 }
 
@@ -103,7 +97,7 @@ function markerOn(parent: Object3D, l: Lying): Object3D {
  * The router of a tier with the board that lies in its shell, as the room's shelf shows it (`routerInsides`): the shell fades away as the camera comes in and the board shows through,
  * then the SoC's lid fades over the die and its floorplan shows.
  */
-function routerShowcase(tier: number, T: Theme): Object3D {
+function routerShowcase(tier: number, T: themeTypes.Theme): Object3D {
   return centred(
     withArt((art) => {
       const g = new Group(),
@@ -115,16 +109,18 @@ function routerShowcase(tier: number, T: Theme): Object3D {
   );
 }
 
-const CASE_ID = /^case(\d)$/,
-  BOARD_ID = /^board(\d)$/;
+const CASE_ID = /^case(?<tier>\d)$/u,
+  BOARD_ID = /^board(?<tier>\d)$/u;
 
 /** The showcase model of a shop item, or null where there is none (a kind without a 3D builder). `T`: the PC's own palette, as the case uses. */
-export function buildShowcaseModel(specId: string, T: Theme = builtinTheme()): Object3D | null {
+export function buildShowcaseModel(specId: string, T: themeTypes.Theme = builtinTheme()): Object3D | null {
   const c = CASE_ID.exec(specId);
   if (c) {
     const tier = Number(c[1]),
       kind = CASE_KIND[tier];
-    if (!kind) return null;
+    if (!kind) {
+      return null;
+    }
     return centred(
       withLayout(() => {
         const m = caseModel(kind, T),
@@ -140,7 +136,9 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme()): O
           fanHub(),
           leadCoil(),
         );
-        for (const s of innerStrips(kind, m).roots) g.add(s);
+        for (const s of innerStrips(kind, m).roots) {
+          g.add(s);
+        }
         return g;
       }, tier),
     );
@@ -155,17 +153,21 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme()): O
   // (the router of a tier: the model the studio's wall and the room's shelf show, its first LAN and its WAN lit)
   const rt = routerTier(specId);
   // (a still has no link: its jacks' lights stay out, and no lamp is built for them)
-  if (rt !== null) return rt >= 1 && rt <= 4 ? routerShowcase(rt, T) : null;
+  if (rt !== null) {
+    return rt >= 1 && rt <= 4 ? routerShowcase(rt, T) : null;
+  }
   const spec = getSpec(specId);
-  if (!spec) return null;
+  if (!spec) {
+    return null;
+  }
   switch (spec.kind) {
     case 'ram': {
-      const rs = spec as RamSpec;
+      const rs = spec as specsTypes.RamSpec;
       // (the spreaders go and the chips' dies come in as the camera comes to a chip: each chip's face reads its own zoom, the cover goes with the nearest)
       return upright(
         withLayout(() =>
           withArt((art) => {
-            const st = ramStick(rs.visual, !!rs.ecc, GEO.dimm[0]!.rect, rs.name, { art, T, spec: rs }),
+            const st = ramStick(rs.visual, Boolean(rs.ecc), GEO.dimm[0]!.rect, rs.name, { art, T, spec: rs }),
               seen = st.dies.map(() => 0);
             st.dies.forEach((at, i) =>
               art.reveal(at, (zoom) => {
@@ -182,7 +184,7 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme()): O
     case 'gpu':
     case 'npu':
     case 'nic': {
-      const cs = spec as CardSpec | NicSpec;
+      const cs = spec as specsTypes.CardSpec | specsTypes.NicSpec;
       // (standing, as in the case, and it stays so: its cooler fades and its face shows as the camera comes in)
       const card = upright(
         withLayout(() =>
@@ -191,37 +193,45 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme()): O
             card.pose(0);
             art.reveal(markerOn(card.root, card.face), card.pose);
             // (a NIC's controller: its lid fades over the die's own band, as in the case)
-            if (card.die) art.reveal(markerOn(card.root, card.die.stand), card.lod);
+            if (card.die) {
+              art.reveal(markerOn(card.root, card.die.stand), card.lod);
+            }
             // (a graphics or an AI card's two dies: each lid fades over its own die's band)
-            for (const d of card.dies) art.reveal(markerOn(card.root, d.stand), d.lod);
+            for (const d of card.dies) {
+              art.reveal(markerOn(card.root, d.stand), d.lod);
+            }
             return card.root;
           }),
         ),
       );
       // (a graphics or an AI card shows its backplate, over its parts; a NIC's parts stand on its north face, away from the viewer: half a turn shows them first)
-      if (spec.kind === 'nic') card.rotation.y = Math.PI;
+      if (spec.kind === 'nic') {
+        card.rotation.y = Math.PI;
+      }
       return card;
     }
-    case 'cpu':
+    case 'cpu': {
       return upright(
         withLayout(() =>
           withArt((art) => {
-            const c = cpuModel(art, T, spec as CpuSpec);
+            const c = cpuModel(art, T, spec as specsTypes.CpuSpec);
             art.reveal(c.centre, c.lod);
             return c.root;
           }),
         ),
       );
-    case 'cooler':
+    }
+    case 'cooler': {
       return upright(withLayout(() => coolerModel((spec as { visual: string }).visual).root));
+    }
     // (faces the viewer; 25 mm deep, the 40 mm fan 10 mm)
     case 'fan': {
-      const fs = spec as FanSpec;
+      const fs = spec as specsTypes.FanSpec;
       return centred(fanPart(fs, fanLen(fs.size), fanDepth(fs.size)).root);
     }
     case 'storage': {
       // (an M.2 stick in board space, stood up; a SATA drive lies flat as it lies on its tray, its label up)
-      const ss = spec as StorageSpec,
+      const ss = spec as specsTypes.StorageSpec,
         kind = driveKindOf(ss.visual);
       if (kind !== 'ssd-nvme') {
         // (its cover fades as the camera comes in: the inside shows, `driveinner3d.ts`; a marker at each place of the drive's own frame carries the zoom)
@@ -265,7 +275,7 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme()): O
       );
     }
     case 'psu': {
-      const ps = spec as PsuSpec;
+      const ps = spec as specsTypes.PsuSpec;
       // (in a case whose bay is its own size: an SFX unit in an ATX bay wears an adapter plate). Laid on its far side as in a maker's photo: its
       // underside (the fan, or the vents) toward the viewer, the badge on top; the viewer never looks from below
       const lay = new Group();
@@ -290,13 +300,15 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme()): O
     }
     // (the die's still fades in as the camera comes in, as the game's live die does)
     case 'tpm': {
-      const visual = (spec as { visual: string }).visual;
+      const { visual } = spec as { visual: string };
       return upright(
         withLayout(() =>
           withArt((art) => {
             const g = new Group();
             tpmModel(g, visual, (top, r, z, part) => {
-              if (part !== 'die') return;
+              if (part !== 'die') {
+                return;
+              }
               const face = tpmDieFace(art, T, visual, top, r, z + 2);
               art.reveal(marker(top, r, z + 2), (zoom) => tpmDieFade(face, zoom, r.w));
             });
@@ -308,7 +320,7 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme()): O
     // (bare: a fan on it is a part of its own)
     case 'vrm-sink':
     case 'ram-sink': {
-      const visual = (spec as { visual: string }).visual;
+      const { visual } = spec as { visual: string };
       return upright(
         withLayout(() => {
           const g = new Group();
@@ -322,7 +334,8 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme()): O
       m.set({ installed: true, powered: true, live: false, text: '' }, 12);
       return centred(m.root);
     }
-    default:
+    default: {
       return null;
+    }
   }
 }

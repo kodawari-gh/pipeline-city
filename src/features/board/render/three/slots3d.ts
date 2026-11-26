@@ -1,6 +1,7 @@
 // Where each socket of the board and the case is, by slot id (the 2D board's `scene.slots`): the lenses read them, and the empty ones get a drop box.
 import type { Snapshot } from '@/worker/protocol';
-import { BOARD_TIERS, getSpec, type FanSpots } from '../../sim/specs';
+import { BOARD_TIERS, getSpec } from '../../sim/specs';
+import type * as specsTypes from '../../sim/specs';
 import { tpmRect } from '@/core/render/accelart';
 import { fanMounts, radiatorBay } from '@/features/room/render/desk/props/case';
 import { slotRect as storageSlotRect } from '@/features/storage/render/drives';
@@ -20,24 +21,30 @@ import {
   PSU,
   RAM_SINK,
   VRM_SINK,
-  type Rect,
 } from '../layout/layout';
+import type * as layoutTypes from '../layout/layout';
 
 /** Where a heatsink's fan spot `k` is, seen from the glass: the stock fan over the whole plate, a tower's on its ends, a sink's in its housing. */
-function hostSpotRect(kind: string, visual: string | undefined, k: number): Rect | null {
-  if (kind === 'cooler') return visual === 'cooler-tower' ? towerFanRect(k) : COOLER;
-  if (kind === 'vrm-sink' || kind === 'ram-sink') return sinkFanRect(kind);
+function hostSpotRect(kind: string, visual: string | undefined, k: number): layoutTypes.Rect | null {
+  if (kind === 'cooler') {
+    return visual === 'cooler-tower' ? towerFanRect(k) : COOLER;
+  }
+  if (kind === 'vrm-sink' || kind === 'ram-sink') {
+    return sinkFanRect(kind);
+  }
   return null;
 }
 
 /** Where each socket of the board and the case is, by slot id (the 2D board's `scene.slots`; a drive bay is its 3D tray, wider than the 2D cell). */
-export function slotRects(s: Snapshot): Map<string, Rect> {
-  const m = new Map<string, Rect>(),
+export function slotRects(s: Snapshot): Map<string, layoutTypes.Rect> {
+  const m = new Map<string, layoutTypes.Rect>(),
     slots = BOARD_TIERS[s.boardTier]?.slots ?? {};
-  const add = (type: string, n: number, of: (i: number) => Rect | null) => {
+  const add = (type: string, n: number, of: (i: number) => layoutTypes.Rect | null) => {
     for (let i = 0; i < n; i++) {
       const r = of(i);
-      if (r) m.set(`${type}${i}`, r);
+      if (r) {
+        m.set(`${type}${i}`, r);
+      }
     }
   };
   add('dimm', slots.dimm ?? 0, (i) => ({ x: DIMM_X(i), y: DIMM_Y(i), w: DIMM_W, h: DIMM_H }));
@@ -55,17 +62,23 @@ export function slotRects(s: Snapshot): Map<string, Rect> {
   add('tpm', slots.tpm ?? 0, () => tpmRect(LAYOUT_TIER));
   for (const side of ['front', 'top'] as const) {
     const bay = radiatorBay(side);
-    if (bay) m.set(`rad-${side}`, bay);
+    if (bay) {
+      m.set(`rad-${side}`, bay);
+    }
   }
   add('sata', slots.sata ?? 0, (i) => bayRect(i) ?? storageSlotRect(`sata${i}`));
   add('m2', slots.m2 ?? 0, (i) => storageSlotRect(`m2${i}`));
   // the fan spots: the case's mounts, and those of the heatsinks fitted
-  for (const f of fanMounts()) m.set(f.id, f.rect);
+  for (const f of fanMounts()) {
+    m.set(f.id, f.rect);
+  }
   for (const d of s.devices) {
-    const spec = getSpec(d.spec) as { visual?: string; fanSpots?: FanSpots } | undefined;
+    const spec = getSpec(d.spec) as { visual?: string; fanSpots?: specsTypes.FanSpots } | undefined;
     for (let k = 0; k < (spec?.fanSpots?.n ?? 0); k++) {
       const r = hostSpotRect(d.kind, spec?.visual, k);
-      if (r) m.set(`${d.slot}.fan${k}`, r);
+      if (r) {
+        m.set(`${d.slot}.fan${k}`, r);
+      }
     }
   }
   return m;
