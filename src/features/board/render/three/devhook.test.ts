@@ -1,4 +1,5 @@
 // The dev-only camera hook (`jumpRaw`, `frameSpec`, `unclamped`) must not reach the prod build. Reads source text only (node, no DOM).
+// The world is split over `world/` (#124): the files that read or write `unclamped` are read as one text, the hook's own file last.
 // @ts-ignore
 import * as fsMod from 'node:fs';
 // @ts-ignore
@@ -6,8 +7,9 @@ import * as urlMod from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const fs = fsMod as any;
-const FILE: string = urlMod.fileURLToPath(new URL('board3d.ts', import.meta.url));
-const text: string = fs.readFileSync(FILE, 'utf8');
+const FILES = ['view.ts', 'flights.ts', 'frameView.ts', 'devhook.ts'];
+const pathOf = (f: string): string => String(urlMod.fileURLToPath(new URL(`world/${f}`, import.meta.url)));
+const text: string = FILES.map((f) => String(fs.readFileSync(pathOf(f), 'utf8'))).join('\n');
 
 // The code as statements: comments dropped, whitespace collapsed, cut at `;`, `{` and `}`. The formatter may wrap a line anywhere; a statement stays whole.
 const statements: string[] = text
@@ -23,7 +25,7 @@ const BOARD_OBJECT = '.__board = {';
 describe('the dev camera hook stays behind import.meta.env.DEV', () => {
   const devAt = text.indexOf(DEV_GATE);
 
-  it('board3d.ts has one DEV gate, and the __board object sits inside it', () => {
+  it('the world has one DEV gate, and the __board object sits inside it', () => {
     expect(text.split(DEV_GATE).length - 1).toBe(1);
     expect(text.indexOf(BOARD_OBJECT)).toBeGreaterThan(devAt);
   });
@@ -38,7 +40,7 @@ describe('the dev camera hook stays behind import.meta.env.DEV', () => {
     expect(text).not.toMatch(/\.(jumpRaw|frameSpec)\s*=[^=]/);
     // the only keys of those names are on the __board object (its members, after its opening)
     const boardAt = text.indexOf(BOARD_OBJECT);
-    expect(text.slice(boardAt)).toMatch(/\n\s*jumpRaw: \(v: OrbitView\) => jumpRaw\(v\),/);
+    expect(text.slice(boardAt)).toMatch(/\n\s*jumpRaw: \(v: OrbitView\) => \{?\s*jumpRaw\(v\);?\s*\}?,/);
     expect(text.slice(boardAt)).toMatch(/\n\s*frameSpec: \(key: string/);
   });
 
@@ -48,21 +50,25 @@ describe('the dev camera hook stays behind import.meta.env.DEV', () => {
     expect(eases).toEqual(['const eased = stepView(view, goal, dt)']);
     const sets = statements.filter((s) => s.startsWith('view = ') && s.includes('eased'));
     expect(sets).toEqual([
-      'view = intro && atOverview && !(import.meta.env.DEV && unclamped) ? keepWhole(eased, eyeRoom(), keeping(false), 0.6, goal.y) : inRoom(eased, false)',
+      'view = intro && atOverview && !(import.meta.env.DEV && cam.unclamped) ? keepWhole(eased, eyeRoom(), keeping(s, false), 0.6, goal.y) : inRoom(s, eased, false)',
     ]);
   });
 
   it('unclamped is read only where the DEV gate makes it dead code in prod', () => {
     // every use of `unclamped` is either its declaration, a write, or one of three reads, each behind `import.meta.env.DEV &&`: the test in inRoom,
     // the one in the overview, and the frame loop's intro branch (which negates the whole DEV-and-unclamped test)
-    const reads = statements.filter((s) => /\bunclamped\b/.test(s) && !/^(let )?unclamped = (true|false)$/.test(s));
+    const reads = statements.filter(
+      (s) => /\bunclamped\b/.test(s) && !/^(?:s\.)?(?:cam\.)?unclamped = (true|false)$/.test(s),
+    );
     expect(reads).toEqual([
-      'const inRoom = (v: OrbitView, restore = true): OrbitView => import.meta.env.DEV && unclamped ? v : keepInside(v, eyeRoom(), keeping(restore))',
-      'return import.meta.env.DEV && unclamped ? v : keepWhole(v, eyeRoom(), keeping(true))',
-      'view = intro && atOverview && !(import.meta.env.DEV && unclamped) ? keepWhole(eased, eyeRoom(), keeping(false), 0.6, goal.y) : inRoom(eased, false)',
+      'export const inRoom = (s: Scope, v: OrbitView, restore = true): OrbitView => import.meta.env.DEV && s.cam.unclamped ? v : keepInside(v, eyeRoom(), keeping(s, restore))',
+      'return import.meta.env.DEV && s.cam.unclamped ? v : keepWhole(v, eyeRoom(), keeping(s, true))',
+      'view = intro && atOverview && !(import.meta.env.DEV && cam.unclamped) ? keepWhole(eased, eyeRoom(), keeping(s, false), 0.6, goal.y) : inRoom(s, eased, false)',
     ]);
     // (whatever the lines say, each read has the DEV test in front of it: the bundler folds it to false in prod and the read goes)
     for (const l of reads)
-      expect(l, 'a read of unclamped without the DEV test').toMatch(/import\.meta\.env\.DEV && unclamped/);
+      expect(l, 'a read of unclamped without the DEV test').toMatch(
+        /import\.meta\.env\.DEV && (?:s\.)?(?:cam\.)?unclamped/,
+      );
   });
 });

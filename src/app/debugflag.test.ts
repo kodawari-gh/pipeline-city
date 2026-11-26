@@ -79,13 +79,14 @@ describe('the debug overlay is only loaded dynamically', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('board3d.ts loads the overlay by a dynamic import behind whenDebug', () => {
+  it('the 3D world (world/start.ts) loads the overlay by a dynamic import behind whenDebug', () => {
     const text = fs.readFileSync(
-      path.join(SRC, 'features', 'board', 'render', 'three', 'board3d.ts'),
+      path.join(SRC, 'features', 'board', 'render', 'three', 'world', 'start.ts'),
       'utf8',
     ) as string;
-    expect(text.replaceAll(/\s+/g, ' ')).toContain(
-      "void whenDebug(location.search, () => import('@/app/debug/overlay'), { renderer, canvas, roots:",
+    // (the lint makes the loader an `async` arrow: the same dynamic import)
+    expect(text.replaceAll(/\s+/g, ' ')).toMatch(
+      /void whenDebug\(location\.search, (?:async )?\(\) => import\('@\/app\/debug\/overlay'\), \{ renderer, canvas, roots:/u,
     );
   });
 
