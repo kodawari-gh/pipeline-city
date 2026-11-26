@@ -3,7 +3,7 @@ import { GPU_FRAME } from '@/core/sim/memmap';
 import { KERNEL_LAYOUT } from '../../sim/kernels';
 import { dramGeom } from '../gpumem';
 import { cellInset } from '../plan/gpuplans';
-import type { Pen } from './pen';
+import type { Pen } from './types';
 
 // The memory of the card: the caches (L1, L2) and the card memory.
 
@@ -126,11 +126,10 @@ function drawMemoryMap(p: Pen, d: Dram, bytes: number): void {
     const a0 = cell(bd.from),
       z = Math.max(a0 + 1, cell(bd.to));
     for (let k = a0; k < Math.min(z, total); k++) {
-      // oxlint-disable-next-line unicorn/no-array-fill-with-reference-type -- Graphics.fill takes a fill style; it is not Array.fill
-      p.g.rect(x + (k % cols) * cw + 1, y + Math.floor(k / cols) * cw + 1, cw - 2, cw - 2).fill({
-        color: bd.fill,
-        alpha: 0.3,
-      });
+      p.g
+        .rect(x + (k % cols) * cw + 1, y + Math.floor(k / cols) * cw + 1, cw - 2, cw - 2)
+        .setFillStyle({ color: bd.fill, alpha: 0.3 })
+        .fill();
     }
     const r0 = Math.floor(a0 / cols);
     if (cols * cw > 90 && r0 < rows - 1) {
@@ -170,8 +169,7 @@ export function drawDram(p: Pen): void {
       p.g.rect(x + k * d.cw + 1, y + r * d.cw + 1, d.cw - 2, d.cw - 2);
     }
   }
-  // oxlint-disable-next-line unicorn/no-array-fill-with-reference-type -- Graphics.fill takes a fill style; it is not Array.fill
-  p.g.fill({ color: p.kit.soft });
+  p.g.setFillStyle({ color: p.kit.soft }).fill();
   if (bytes !== undefined && bytes !== 0 && !Number.isNaN(bytes) && d.rows >= 4) {
     drawMemoryMap(p, d, bytes);
   }

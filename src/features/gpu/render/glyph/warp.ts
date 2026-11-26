@@ -1,6 +1,6 @@
 import type { Rect } from '../../../cpu/render/core/cpuplan';
 import { pcDigits } from '../../../cpu/render/die/blockart';
-import type { Pen } from './pen';
+import type { Pen } from './types';
 
 // The warps of an SM: the scheduler (a scoreboard and the round robin that picks the warp to issue) and one card per warp.
 

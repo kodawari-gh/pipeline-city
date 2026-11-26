@@ -1,12 +1,11 @@
 import type { Rect } from '../../../cpu/render/core/cpuplan';
 import { slotsOf } from '../../../cpu/render/die/blockart';
-// oxlint-disable-next-line eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own
-import type { LiveGlyph } from '../../../cpu/render/die/blockart';
 import { gpuDisassemble } from '../../sim/isa/isa';
 import type { GpuStep } from '../../sim/isa/ref';
 import type { GpuBlock } from '../plan/gpuplan';
 import { decodeGeom, gpuControlIndices, gpuSlotValues } from './decode';
 import { fetchGeom, launchGeom, pcArea, pcieGeom } from './geom';
+import type { LiveGlyph } from './types';
 
 // What the symbols show while the card runs: the host side (the PCIe link and the launch registers) and the front end (the program
 // counter's digits, the word fetched, the decoded word and the control lines it raises).

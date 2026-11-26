@@ -1,5 +1,5 @@
 import type { Rect } from '../../../cpu/render/core/cpuplan';
-import type { Pen } from './pen';
+import type { Pen } from './types';
 
 // The memory path of an SM: the coalescer, the bank arbiter and the SRAM banks.
 

@@ -1,5 +1,5 @@
 import { launchGeom, pcieGeom } from './geom';
-import type { Pen } from './pen';
+import type { Pen } from './types';
 
 // The host side of the card: the PCIe link and the launch registers.
 

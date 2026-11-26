@@ -6,8 +6,7 @@ import { drawLanes, drawMask, drawRegfile } from './lanes';
 import { drawArbiter, drawBanks, drawCoalescer } from './memoryPath';
 import { drawCache, drawDram } from './memory';
 import { makePen } from './pen';
-// oxlint-disable-next-line eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own
-import type { GlyphInk, Pen } from './pen';
+import type { GlyphInk, Pen } from './types';
 import { drawSched, drawWarps } from './warp';
 
 // What is inside a block of a GPU card (docs/DIE.md "Inside the blocks", docs/GPU.md section 7): the schematic an engineer would draw for the part,

@@ -2,7 +2,7 @@ import type { Rect } from '../../../cpu/render/core/cpuplan';
 import { CONTROL_LINES, pcDigits } from '../../../cpu/render/die/blockart';
 import { decodeGeom, fieldRects } from './decode';
 import { fetchGeom, pcArea } from './geom';
-import type { Pen } from './pen';
+import type { Pen } from './types';
 
 // The front end of an SM: the program counter and its next-pc logic, the fetch window and the decoder.
 

@@ -2,7 +2,7 @@ import type { Rect } from '../../../cpu/render/core/cpuplan';
 import { aluPoly } from '../../../cpu/render/die/blockart';
 import { cellInset, maskParts } from '../plan/gpuplans';
 import { ALU_UNITS, laneUnits } from './geom';
-import type { Pen } from './pen';
+import type { Pen } from './types';
 
 // The data path of an SM: the register file, the lane ALUs and the execution mask.
 
