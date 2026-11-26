@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { distanceOf, eyeOf, keepInside, reach, type OrbitView, type Room } from '@/core/render/three/camera';
+import { distanceOf, eyeOf, keepInside, reach } from '@/core/render/three/camera';
+import type * as cameraTypes from '@/core/render/three/camera';
 import { MONITOR, OUTBOX, ROUTER_SPOT, WALL_PLATE } from '@/features/board/render/layout/layout';
 import { roomGeo } from '../shell/room';
 import {
@@ -21,6 +22,30 @@ import {
 
 const HOLE = { x: 1000, y: 200, w: 1000, h: 400 };
 
+type Vec3 = [number, number, number];
+
+/** Whether a point is inside a box, grown by `pad`. */
+const inside = (p: { x: number; y: number; z: number }, b: cameraTypes.Room, pad = 0) =>
+  p.x > b.x0 - pad && p.x < b.x1 + pad && p.y > b.y0 - pad && p.y < b.y1 + pad && p.z > b.z0 - pad && p.z < b.z1 + pad;
+/** The eye and the near plane's corners (NEAR of the way to the target, the widest screen). */
+const points = (v: cameraTypes.OrbitView) => {
+  const e = eyeOf(v),
+    d = distanceOf(v),
+    n = 0.04 * d,
+    hh = n * Math.tan((v.fov * Math.PI) / 360),
+    hw = hh * 2.4;
+  const c = Math.cos(v.pitch),
+    dir: Vec3 = [Math.sin(v.yaw) * c, Math.sin(v.pitch), Math.cos(v.yaw) * c],
+    right: Vec3 = [Math.cos(v.yaw), 0, -Math.sin(v.yaw)];
+  const up: Vec3 = [-Math.sin(v.yaw) * Math.sin(v.pitch), c, -Math.cos(v.yaw) * Math.sin(v.pitch)];
+  const at = (a: number, b: number) => ({
+    x: e.x - dir[0] * n + right[0] * a + up[0] * b,
+    y: e.y - dir[1] * n + up[1] * b,
+    z: e.z - dir[2] * n + right[2] * a + up[2] * b,
+  });
+  return [e, at(-hw, -hh), at(hw, -hh), at(-hw, hh), at(hw, hh)];
+};
+
 describe('3D room plan', () => {
   it('builds a wall that covers everything but the hole', () => {
     const area = wallAround(0, 4000, 0, 1000, HOLE).reduce((a, r) => a + r.w * r.h, 0);
@@ -36,8 +61,12 @@ describe('3D room plan', () => {
   });
 
   it('keeps the sun behind the room through the day (the glass looks north), high at midday and low in the west at dusk', () => {
-    for (const h of [9, 12, 14.2, 18]) expect(sunDir(h)[2]).toBeGreaterThan(0);
-    for (const h of [6, 20.5]) expect(sunDir(h)[2]).toBeLessThan(0);
+    for (const h of [9, 12, 14.2, 18]) {
+      expect(sunDir(h)[2]).toBeGreaterThan(0);
+    }
+    for (const h of [6, 20.5]) {
+      expect(sunDir(h)[2]).toBeLessThan(0);
+    }
     expect(sunDir(13)[1]).toBeGreaterThan(0.6);
     expect(sunDir(20.5)[0]).toBeLessThan(0);
     expect(sunDir(20.5)[1]).toBeLessThan(0.05);
@@ -56,49 +85,40 @@ describe('3D room plan', () => {
   describe('the eye and the furniture', () => {
     const r = eyeRoom(),
       blocks = eyeBlocks(roomGeo());
-    const inRoom = (v: OrbitView) => keepInside(v, r, { targetZ0: -3000, fovBase: 26, blocks });
-    const inside = (p: { x: number; y: number; z: number }, b: Room, pad = 0) =>
-      p.x > b.x0 - pad &&
-      p.x < b.x1 + pad &&
-      p.y > b.y0 - pad &&
-      p.y < b.y1 + pad &&
-      p.z > b.z0 - pad &&
-      p.z < b.z1 + pad;
-    /** The eye and the near plane's corners (NEAR of the way to the target, the widest screen). */
-    const points = (v: OrbitView) => {
-      const e = eyeOf(v),
-        d = distanceOf(v),
-        n = 0.04 * d,
-        hh = n * Math.tan((v.fov * Math.PI) / 360),
-        hw = hh * 2.4;
-      const c = Math.cos(v.pitch),
-        dir = [Math.sin(v.yaw) * c, Math.sin(v.pitch), Math.cos(v.yaw) * c],
-        right = [Math.cos(v.yaw), 0, -Math.sin(v.yaw)];
-      const up = [-Math.sin(v.yaw) * Math.sin(v.pitch), c, -Math.cos(v.yaw) * Math.sin(v.pitch)];
-      const at = (a: number, b: number) => ({
-        x: e.x - dir[0]! * n + right[0]! * a + up[0]! * b,
-        y: e.y - dir[1]! * n + up[1]! * b,
-        z: e.z - dir[2]! * n + right[2]! * a + up[2]! * b,
-      });
-      return [e, at(-hw, -hh), at(hw, -hh), at(-hw, hh), at(hw, hh)];
+    const inRoom = (v: cameraTypes.OrbitView) => keepInside(v, r, { targetZ0: -3000, fovBase: 26, blocks });
+    /** Every view from a target anywhere in the room but at a piece or in it (that is the next test), at every angle. */
+    const views = (): cameraTypes.OrbitView[] => {
+      const all: cameraTypes.OrbitView[] = [];
+      for (let x = r.x0; x <= r.x1; x += 6000) {
+        for (let y = r.y0; y <= r.y1; y += 6000) {
+          for (let z = -3000; z <= r.z1; z += 6000) {
+            if (!blocks.some((b) => inside({ x, y, z }, b, 150))) {
+              all.push(
+                ...[-1.1, -0.5, 0, 0.5, 1.1].flatMap((yaw) =>
+                  [-0.08, 0.2, 0.6].flatMap((pitch) =>
+                    [30_000, 6000].map((height) => ({ x, y, z, yaw, pitch, height, fov: 26 })),
+                  ),
+                ),
+              );
+            }
+          }
+        }
+      }
+      return all;
     };
-
+    /** What the near plane meets, unless the wall comes first (then the eye backs out as far as the room lets it). */
+    const atWall = (v: cameraTypes.OrbitView): boolean => Math.abs(distanceOf(v) - reach(v, r)) < 1;
+    const hitUnlessWall = (v: cameraTypes.OrbitView, at: unknown): unknown => (atWall(v) ? undefined : at);
     it('keeps the eye and its near plane out of every piece, from anywhere in the room, at any angle', () => {
       let n = 0;
-      for (let x = r.x0; x <= r.x1; x += 6000)
-        for (let y = r.y0; y <= r.y1; y += 6000)
-          for (let z = -3000; z <= r.z1; z += 6000) {
-            // (a target at a piece or in it: the next test)
-            if (blocks.some((b) => inside({ x, y, z }, b, 150))) continue;
-            for (const yaw of [-1.1, -0.5, 0, 0.5, 1.1])
-              for (const pitch of [-0.08, 0.2, 0.6])
-                for (const height of [30000, 6000]) {
-                  const v = inRoom({ x, y, z, yaw, pitch, height, fov: 26 }),
-                    hit = points(v).find((p) => blocks.some((b) => inside(p, b)));
-                  expect(hit, `${[x, y, z, yaw, pitch, height]}`).toBeUndefined();
-                  n++;
-                }
-          }
+      // (a target at a piece or in it: the next test)
+      for (const view of views()) {
+        const { x, y, z, yaw, pitch, height } = view,
+          v = inRoom(view),
+          hit = points(v).find((p) => blocks.some((b) => inside(p, b)));
+        expect(hit, `view ${[x, y, z, yaw, pitch, height].join(',')}`).toBeUndefined();
+        n++;
+      }
       expect(n).toBeGreaterThan(5000);
     });
 
@@ -107,25 +127,24 @@ describe('3D room plan', () => {
       let wall = 0;
       for (const [y, z] of [
         [-(BED.top - 2500), 4000],
-        [-(BED.top + 1000), 20000],
-      ] as const)
-        for (const yaw of [-0.6, 0, 0.6])
+        [-(BED.top + 1000), 20_000],
+      ] as const) {
+        for (const yaw of [-0.6, 0, 0.6]) {
           for (const pitch of [0.05, 0.3, 0.6]) {
             const v = inRoom({ x: cx, y, z, yaw, pitch, height: 1500, fov: 26 }),
               at = points(v).find((p) => blocks.some((b) => inside(p, b)));
             expect(v.height).toBeGreaterThan(1500);
             // (where the wall comes first, the eye backs out as far as the room lets it)
-            if (Math.abs(distanceOf(v) - reach(v, r)) < 1) {
-              wall++;
-              continue;
-            }
-            expect(at, `${[y, z, yaw, pitch]}`).toBeUndefined();
+            wall += Number(atWall(v));
+            expect(hitUnlessWall(v, at), `view ${[y, z, yaw, pitch].join(',')}`).toBeUndefined();
           }
+        }
+      }
       expect(wall).toBeLessThanOrEqual(1);
     });
 
     it('keeps the eye out of the bookcase in the view along the west wall', () => {
-      const v = inRoom({ x: -30000, y: -6000, z: 15000, yaw: -1, pitch: 0.2, height: 30000, fov: 26 });
+      const v = inRoom({ x: -30_000, y: -6000, z: 15_000, yaw: -1, pitch: 0.2, height: 30_000, fov: 26 });
       expect(points(v).some((p) => blocks.some((b) => inside(p, b)))).toBe(false);
     });
   });

@@ -1,12 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
-import { Container } from 'pixi.js';
-
-// The labels go through Pixi's Text (a canvas): the room only needs its shapes here.
-vi.mock('@/core/render/ink', async (orig) => ({
-  ...(await orig<typeof import('@/core/render/ink')>()),
-  label: () => new Container(),
-}));
-
+import { assert, describe, expect, it, vi } from 'vitest';
 import {
   CASE,
   DESK_SLAB,
@@ -38,6 +30,7 @@ import {
   WORLD,
   setLayoutTier,
 } from '@/features/board/render/layout/layout';
+import type * as layoutTypes from '@/features/board/render/layout/layout';
 import { buildCables } from '@/features/board/render/wiring/routes';
 import { trayHook, trayKeyCentre } from '../desk/props/props';
 import {
@@ -63,9 +56,45 @@ import {
   shaftSpan,
   skyAt,
 } from './room';
-import type { Rect } from '@/features/board/render/layout/layout';
 
-const inside = (r: Rect, o: Rect) => r.x >= o.x && r.y >= o.y && r.x + r.w <= o.x + o.w && r.y + r.h <= o.y + o.h;
+// The labels go through Pixi's Text (a canvas): the room only needs its shapes here.
+// Labels are texts that never measure themselves here, with empty bounds like the empty containers they stood in for before.
+vi.mock(import('@/core/render/ink'), async (orig) => {
+  const pixi = await import('pixi.js');
+  class BareText extends pixi.Text {
+    protected override updateBounds(): void {
+      this._bounds.clear();
+    }
+  }
+  return { ...(await orig()), label: (str: string) => new BareText({ text: str }) };
+});
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+const inside = (r: layoutTypes.Rect, o: layoutTypes.Rect) =>
+  r.x >= o.x && r.y >= o.y && r.x + r.w <= o.x + o.w && r.y + r.h <= o.y + o.h;
+
+/** Whether two rects overlap. */
+const overlap = (p: layoutTypes.Rect, q: layoutTypes.Rect): boolean =>
+  p.x < q.x + q.w && q.x < p.x + p.w && p.y < q.y + q.h && q.y < p.y + p.h;
+
+/** Whether a point is strictly inside a rect. */
+const within = (x: number, y: number, r: layoutTypes.Rect): boolean =>
+  x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h;
+
+/** The rect with the same middle, `k` times the size. */
+const view = (r: layoutTypes.Rect, k = 1): layoutTypes.Rect => ({
+  x: r.x + r.w / 2 - (r.w * k) / 2,
+  y: r.y + r.h / 2 - (r.h * k) / 2,
+  w: r.w * k,
+  h: r.h * k,
+});
 
 describe('the desk follows the case', () => {
   it.each([0, 1, 2, 3])('tier %i: the case feet stand on the desk top, the desk top is above the floor', (t) => {
@@ -84,7 +113,7 @@ describe('the desk follows the case', () => {
       setLayoutTier(t, t);
       ys.push(deskY());
     }
-    expect(ys).toEqual([...ys].sort((a, b) => a - b));
+    expect(ys).toStrictEqual([...ys].toSorted((a, b) => a - b));
   });
 
   it.each([0, 1, 2, 3])(
@@ -107,7 +136,7 @@ describe('the desk follows the case', () => {
       setLayoutTier(t, t);
       const g = roomGeo(),
         r = g.keyRack;
-      expect(r).toEqual(TRAY);
+      expect(r).toStrictEqual(TRAY);
       expect(TRAY_COLS * TRAY_ROWS).toBe(10); // the queue cap, two rows of 5
       expect(r.x).toBeGreaterThanOrEqual(MONITOR.x); // above the monitor,
       expect(r.x + r.w).toBeLessThan(ROUTER_SPOT.x - 300); // west of the router's shelf,
@@ -123,15 +152,13 @@ describe('the desk follows the case', () => {
         expect(c.y - 480 - h.y).toBe(LANYARD); // the lanyard's length between the hook and the stick's top,
         expect(inside(rect, r)).toBe(true);
       }
-      for (let a = 0; a < 10; a++)
+      for (let a = 0; a < 10; a++) {
         for (let b = a + 1; b < 10; b++) {
-          const p = rects[a]!.rect,
-            q = rects[b]!.rect;
-          expect(
-            p.x < q.x + q.w && q.x < p.x + p.w && p.y < q.y + q.h && q.y < p.y + p.h,
-            `sticks ${a} and ${b} overlap`,
-          ).toBe(false);
+          const p = must(rects[a]).rect,
+            q = must(rects[b]).rect;
+          expect(overlap(p, q), `sticks ${a} and ${b} overlap`).toBe(false);
         }
+      }
       expect(trayHook(5).y - trayHook(0).y).toBe(ROW_DROP); // the lower rail is a drop under the upper,
       expect(trayHook(5).x - trayHook(0).x).toBe(HOOK_PITCH / 2); // staggered half a pitch
       expect(g.mug - 420).toBeGreaterThan(MONITOR_EAST); // the mug stands in the gap on the desk
@@ -160,8 +187,9 @@ describe('the room layout', () => {
     setLayoutTier(t, t);
     const g = roomGeo(),
       box = roomBox(g);
-    for (const r of [g.window, g.lamp.rect, g.keyRack, g.clock, g.socket.plate, ROUTER_SPOT, WALL_PLATE])
+    for (const r of [g.window, g.lamp.rect, g.keyRack, g.clock, g.socket.plate, ROUTER_SPOT, WALL_PLATE]) {
       expect(inside(r, box)).toBe(true);
+    }
     expect(g.lamp.rect.y + g.lamp.rect.h).toBeLessThanOrEqual(g.ys);
     // the window is west of the monitor, the clock above the case, the router shelf above the monitor
     expect(g.window.x + g.window.w).toBeLessThan(MONITOR.x);
@@ -176,7 +204,9 @@ describe('the room layout', () => {
     expect(box.y).toBeLessThan(g.top); // nothing above the highest thing (the router, the window) but a little wall
     expect(g.top - box.y).toBeLessThan(700);
     // the overview (WORLD) has the machine, the monitor and the router on their shelf
-    expect(inside(MONITOR, WORLD) && inside(CASE, WORLD) && inside(ROUTER_SPOT, WORLD)).toBe(true);
+    expect(inside(MONITOR, WORLD)).toBe(true);
+    expect(inside(CASE, WORLD)).toBe(true);
+    expect(inside(ROUTER_SPOT, WORLD)).toBe(true);
   });
 
   it('the hood mouth and the lamp rectangle are consistent (the lamp points down and east)', () => {
@@ -213,11 +243,11 @@ describe('time of day', () => {
   });
 
   it('the sky runs through the whole table and closes the loop at midnight', () => {
-    expect(skyAt(0)).toEqual(skyAt(24 - 1e-9));
+    expect(skyAt(0)).toStrictEqual(skyAt(24 - 1e-9));
     for (let h = 0; h < 24; h += 0.5) {
       const s = skyAt(h);
-      expect(s.top).toMatch(/^#[0-9a-f]{6}$/);
-      expect(s.hor).toMatch(/^#[0-9a-f]{6}$/);
+      expect(s.top).toMatch(/^#[0-9a-f]{6}$/u);
+      expect(s.hor).toMatch(/^#[0-9a-f]{6}$/u);
     }
     expect(skyAt(12).top).not.toBe(skyAt(0).top);
   });
@@ -231,11 +261,13 @@ describe('the mains, the ISP line and the video cable', () => {
       const g = roomGeo(),
         s = g.socket,
         box = roomBox(g);
-      expect(s.plate).toEqual(POWER_PLATE);
+      expect(s.plate).toStrictEqual(POWER_PLATE);
       expect(s.plate.y).toBeGreaterThan(g.ys + DESK_SLAB + 900); // well under the slab
       expect(s.plate.y + s.plate.h).toBeLessThan(g.floor - 90); // above the skirting board
       expect(inside(s.plate, box)).toBe(true);
-      for (const o of [s.mon, s.pc]) expect(inside({ x: o.x - 300, y: o.y - 300, w: 600, h: 600 }, s.plate)).toBe(true);
+      for (const o of [s.mon, s.pc]) {
+        expect(inside({ x: o.x - 300, y: o.y - 300, w: 600, h: 600 }, s.plate)).toBe(true);
+      }
       expect(s.mon.x + 300).toBeLessThan(s.pc.x - 300); // two plugs side by side
       // the PC's inlet is on the rear wall at the PSU; the monitor's is under its bezel, west of the video socket and east of the riser's foot
       expect(PC_POWER.y).toBeGreaterThan(CASE.y + CASE.h / 2);
@@ -266,11 +298,12 @@ describe('the mains, the ISP line and the video cable', () => {
   it('the video cable leaves the HDMI port west, runs down the gap, under the monitor and enters its underside from below', () => {
     for (const t of [0, 3]) {
       setLayoutTier(t, t);
-      const c = buildCables().find((x) => x.kind === 'video')!;
-      expect(c).toBeTruthy();
-      const pts = c.path.pts,
-        first = pts[0]!,
-        last = pts[pts.length - 1]!;
+      const c = buildCables().find((x) => x.kind === 'video');
+      expect(c).toBeDefined();
+      assert.exists(c);
+      const { pts } = c.path,
+        first = must(pts[0]),
+        last = must(pts.at(-1));
       expect(first[1]).toBe(VIDEO_Y);
       expect(last[0]).toBeCloseTo(VIDEO_SOCKET.x, 6);
       expect(last[1]).toBeGreaterThan(VIDEO_SOCKET.y); // the end is just under the bezel's edge: the cable comes out from behind it (built in, no socket or plug on the monitor)
@@ -281,11 +314,9 @@ describe('the mains, the ISP line and the video cable', () => {
       expect(VIDEO_TRUNK_X).toBeGreaterThan(MONITOR.x + MONITOR.w);
       expect(VIDEO_TRUNK_X).toBeLessThan(CASE.x);
       // it never goes through the monitor
-      for (const [x, y] of pts)
-        expect(
-          x > MONITOR.x && x < MONITOR.x + MONITOR.w && y > MONITOR.y && y < MONITOR.y + MONITOR.h,
-          `point ${x},${y} is inside the monitor`,
-        ).toBe(false);
+      for (const [x, y] of pts) {
+        expect(within(x, y, MONITOR), `point ${x},${y} is inside the monitor`).toBe(false);
+      }
     }
   });
 });
@@ -295,45 +326,53 @@ describe('the window light follows the sun and the moon', () => {
     setLayoutTier(0, 0);
     const g = roomGeo(),
       w = g.window;
+    const drifts: number[] = [];
     for (const slant of [0.8, 0, -0.8]) {
       const below = shaftSpan(w, w.y + w.h, slant),
         far = shaftSpan(w, g.ys, slant);
       expect(below.xr - below.xl).toBeCloseTo(w.w + Math.abs(slant) * w.h, 6); // at the glass's lower edge it is as wide as the glass plus its sweep
       expect(far.xr - far.xl).toBeCloseTo(w.w + Math.abs(slant) * w.h, 6); // and keeps that width
-      const drift = (far.xl + far.xr) / 2 - (below.xl + below.xr) / 2;
-      if (slant) expect(Math.sign(drift)).toBe(-Math.sign(slant));
-      else expect(drift).toBeCloseTo(0, 6); // west for a positive slant, east for a negative one
+      drifts.push((far.xl + far.xr) / 2 - (below.xl + below.xr) / 2);
     }
+    // west for a positive slant, east for a negative one
+    const [west, none, east] = drifts;
+    expect(Math.sign(must(west))).toBe(-Math.sign(0.8));
+    expect(none).toBeCloseTo(0, 6);
+    expect(Math.sign(must(east))).toBe(-Math.sign(-0.8));
     const a = shaftSpan(w, w.y + w.h + 1000, 0.5),
       b = shaftSpan(w, w.y + w.h + 3000, 0.5);
     expect(a.xr - b.xr).toBeCloseTo(a.xl - b.xl, 6); // the rays are parallel
   });
 
   it('the sun rises in the east (left) and sets in the west: the light runs east in the morning, straight down at noon, west in the evening', () => {
-    const morning = lightsAt(8).find((l) => l.body === 'sun')!,
-      noon = lightsAt(11.9).find((l) => l.body === 'sun')!,
-      evening = lightsAt(16.5).find((l) => l.body === 'sun')!;
+    const morning = must(lightsAt(8).find((l) => l.body === 'sun')),
+      noon = must(lightsAt(11.9).find((l) => l.body === 'sun')),
+      evening = must(lightsAt(16.5).find((l) => l.body === 'sun'));
     expect(morning.slant).toBeLessThan(-0.1);
     expect(Math.abs(noon.slant)).toBeLessThan(0.1);
     expect(evening.slant).toBeGreaterThan(0.1);
     // low sun: longer and flatter than a high one, and weaker
-    expect(Math.abs(lightsAt(6.2).find((l) => l.body === 'sun')!.slant)).toBeGreaterThan(Math.abs(morning.slant));
+    const sunLightsAt = lightsAt(6.2).find((l) => l.body === 'sun');
+    assert.exists(sunLightsAt);
+    expect(Math.abs(sunLightsAt.slant)).toBeGreaterThan(Math.abs(morning.slant));
     expect(noon.strength).toBeGreaterThan(morning.strength);
     expect(noon.strength).toBeGreaterThan(evening.strength);
     expect(morning.color).not.toBe(noon.color); // warm in the morning
   });
 
   it('the moon throws a cold, weaker light at night, and the two bodies take turns', () => {
-    const moon = lightsAt(0).find((l) => l.body === 'moon')!;
+    const moon = lightsAt(0).find((l) => l.body === 'moon');
+    assert.exists(moon);
     expect(lightsAt(0).some((l) => l.body === 'sun')).toBe(false);
     expect(moon.color).toBe('#aebfff');
-    expect(moon.strength).toBeLessThan(lightsAt(12).find((l) => l.body === 'sun')!.strength);
+    expect(moon.strength).toBeLessThan(must(lightsAt(12).find((l) => l.body === 'sun')).strength);
     expect(lightsAt(12).some((l) => l.body === 'moon')).toBe(false);
-    for (let h = 0; h < 24; h += 0.25)
+    for (let h = 0; h < 24; h += 0.25) {
       for (const l of lightsAt(h)) {
         expect(l.strength).toBeGreaterThanOrEqual(0);
         expect(l.strength).toBeLessThanOrEqual(0.2);
       }
+    }
     expect(bodiesAt(0).sun).toBeNull();
     expect(bodiesAt(12).moon).toBeNull();
   });
@@ -351,8 +390,10 @@ describe('the clickable props', () => {
     expect(roomClick('case')).toBe(false);
     roomClick('lamp');
     roomClick('blind');
-    expect(roomState).toEqual({ lamp: l, blind: b });
-    expect(isRoomId('lamp') && isRoomId('blind') && !isRoomId('tray')).toBe(true);
+    expect(roomState).toStrictEqual({ lamp: l, blind: b });
+    expect(isRoomId('lamp')).toBe(true);
+    expect(isRoomId('blind')).toBe(true);
+    expect(isRoomId('tray')).toBe(false);
   });
 });
 
@@ -372,12 +413,6 @@ describe('the PC power cord', () => {
 });
 
 describe('the baked room', () => {
-  const view = (r: Rect, k = 1): Rect => ({
-    x: r.x + r.w / 2 - (r.w * k) / 2,
-    y: r.y + r.h / 2 - (r.h * k) / 2,
-    w: r.w * k,
-    h: r.h * k,
-  });
   it.each([0, 1, 2, 3])(
     'tier %i: the baked region holds the camera box with wall to spare, and is a texture most GPUs take',
     (t) => {
@@ -397,7 +432,8 @@ describe('the baked room', () => {
     expect(roomBakeFits(box, 0.05, 1, g)).toBe(true); // the overview
     expect(roomBakeFits(box, 0.5, 1, g)).toBe(false); // close in: the shapes, crisp
     expect(roomBakeFits(box, 0.09, 2, g)).toBe(false); // a 2x display would see the texture's pixels
-    expect(roomBakeFits(view(roomBakeRect(g), 1.5), 0.05, 1, g)).toBe(false); // a screen taller or wider than the region
+    const wide = view(roomBakeRect(g), 1.5);
+    expect(roomBakeFits(wide, 0.05, 1, g)).toBe(false); // a screen taller or wider than the region
   });
   it('is not drawn at all while the view lies inside the case', () => {
     setLayoutTier(1, 1);

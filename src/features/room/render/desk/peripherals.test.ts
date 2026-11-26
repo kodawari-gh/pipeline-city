@@ -1,16 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Container, Graphics } from 'pixi.js';
-
-vi.mock('@/core/render/ink', async (orig) => ({
-  ...(await orig<typeof import('@/core/render/ink')>()),
-  label: () => new Container(),
-}));
-
+import { Graphics } from 'pixi.js';
 import { MONITOR, setLayoutTier } from '@/features/board/render/layout/layout';
 import { KEYBOARD, MOUSE, drawKeyboard, drawMat, drawMouse, keyboardPlacer, mousePlacer, placer } from './peripherals';
 import { deskGeo } from '../shell/persp';
 import { roomGeo } from '../shell/room';
 import type { Theme } from '@/core/render/theme';
+
+// Measuring text needs a canvas, which the tests do not have: labels are texts that never measure themselves here, with
+// empty bounds like the empty containers they stood in for before.
+vi.mock(import('@/core/render/ink'), async (orig) => {
+  const pixi = await import('pixi.js');
+  class BareText extends pixi.Text {
+    protected override updateBounds(): void {
+      this._bounds.clear();
+    }
+  }
+  return { ...(await orig()), label: (str: string) => new BareText({ text: str }) };
+});
 
 const THEME: Theme = {
   bg: '#04060f',
@@ -42,19 +48,23 @@ describe('what lies on the desk', () => {
       const g = roomGeo(),
         D = deskGeo(g.persp, g.ys, g.floor),
         mcx = MONITOR.x + MONITOR.w / 2;
-      {
-        for (const draw of [
-          drawMat,
-          (o: Graphics, T: Theme, d: typeof D, c: number) => drawKeyboard(o, T, LOOK, d, c),
-          (o: Graphics, T: Theme, d: typeof D, c: number) => drawMouse(o, T, LOOK, d, c),
-        ]) {
-          const o = new Graphics();
-          draw(o, THEME, D, mcx);
-          const b = o.getLocalBounds();
-          expect(b.maxY).toBeLessThan(D.yFront); // nothing hangs over the desk's edge
-          expect(b.minX).toBeGreaterThan(g.desk.x0);
-          expect(b.maxX).toBeLessThan(g.desk.x1);
-        }
+      for (const draw of [
+        (o: Graphics): void => {
+          drawMat(o, THEME, D, mcx);
+        },
+        (o: Graphics): void => {
+          drawKeyboard(o, THEME, LOOK, D, mcx);
+        },
+        (o: Graphics): void => {
+          drawMouse(o, THEME, LOOK, D, mcx);
+        },
+      ]) {
+        const o = new Graphics();
+        draw(o);
+        const b = o.getLocalBounds();
+        expect(b.maxY).toBeLessThan(D.yFront); // nothing hangs over the desk's edge
+        expect(b.minX).toBeGreaterThan(g.desk.x0);
+        expect(b.maxX).toBeLessThan(g.desk.x1);
       }
       const k = keyboardPlacer(D, mcx),
         c0 = k(0, 0, 0),

@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from 'vitest';
+import { assert, afterAll, describe, expect, it } from 'vitest';
 import {
   CASE_BD,
   CASE_IN,
@@ -15,28 +15,54 @@ import { BOARD_Z, CASE_FRONT, REAR_ZC } from '@/features/room/render/three/roomp
 import { basementPlan } from '@/features/board/render/three/basement3d';
 import { frontFanRects, standoffs } from './case';
 
-afterAll(() => setLayoutTier(2));
+afterAll(() => {
+  setLayoutTier(2);
+});
+
+/** Whether a stud stands at the hole. */
+const hasStud = (studs: readonly (readonly [number, number])[], x: number, y: number): boolean =>
+  studs.some(([sx, sy]) => sx === x && sy === y);
+
+/** Whether a point is inside the board's tray. */
+const onTray = (x: number, y: number): boolean =>
+  x > CASE_BD.x && x < CASE_BD.x + CASE_BD.w && y > CASE_BD.y && y < CASE_BD.y + CASE_BD.h;
+
+/** Whether a front fan clears the shroud: a fan beside the basement stands east of it, which stops short of it. */
+const clearsShroud = (r: { x: number; y: number; h: number }): boolean =>
+  r.y + r.h <= PSU.y || r.x > basementPlan().east;
+
+/** Whether a top fan clears the rear fan (always, with none fitted). */
+const clearsRear = (r: { y: number; h: number }): boolean => !REAR_FAN_FITTED || r.y + r.h < REAR_FAN.y;
+
+/** How the rear fan fits, each check true with none fitted: the tier's size, above the first expansion slot, beside the I/O plate in depth and inside the side panel. */
+function rearFit(): { size: boolean; aboveSlot: boolean; besideIo: boolean; inside: boolean } {
+  if (!REAR_FAN_FITTED) {
+    return { size: true, aboveSlot: true, besideIo: true, inside: true };
+  }
+  assert.exists(PCIE_RAILS[0]);
+  return {
+    size: REAR_FAN.h === FAN_LEN,
+    aboveSlot: REAR_FAN.y + REAR_FAN.h < PCIE_RAILS[0].y,
+    besideIo: REAR_ZC - FAN_LEN / 2 >= BOARD_Z + 1240,
+    inside: REAR_ZC + FAN_LEN / 2 < CASE_FRONT - 100,
+  };
+}
 
 describe("the case's mounts and fans", () => {
   it('has a stud under every hole of every board it takes, all on the tray above the shroud', () => {
-    for (let c = 0; c <= 3; c++)
+    for (let c = 0; c <= 3; c++) {
       for (let b = 0; b <= c; b++) {
         setLayoutTier(b, c);
         const studs = standoffs();
         for (const [x, y] of GEO.holes) {
-          expect(
-            studs.some(([sx, sy]) => sx === x && sy === y),
-            `case ${c} board ${b} hole ${x},${y}`,
-          ).toBe(true);
+          expect(hasStud(studs, x, y), `case ${c} board ${b} hole ${x},${y}`).toBe(true);
           expect(y + 66, `case ${c} board ${b}`).toBeLessThan(PSU.y);
         }
         for (const [x, y] of studs) {
-          expect(
-            x > CASE_BD.x && x < CASE_BD.x + CASE_BD.w && y > CASE_BD.y && y < CASE_BD.y + CASE_BD.h,
-            `case ${c} stud ${x},${y}`,
-          ).toBe(true);
+          expect(onTray(x, y), `case ${c} stud ${x},${y}`).toBe(true);
         }
       }
+    }
   });
 
   it('gives each board its own count of screws, more for the bigger boards', () => {
@@ -44,7 +70,7 @@ describe("the case's mounts and fans", () => {
       setLayoutTier(t, t);
       return GEO.holes.length;
     });
-    expect(n).toEqual([6, 8, 9, 12]);
+    expect(n).toStrictEqual([6, 8, 9, 12]);
   });
 
   it("fits the tier's size of fan on every mount, inside the case", () => {
@@ -56,21 +82,17 @@ describe("the case's mounts and fans", () => {
         expect(r.y, `case ${c} front`).toBeGreaterThanOrEqual(CASE_IN.y);
         expect(r.y + r.h, `case ${c} front`).toBeLessThanOrEqual(CASE_IN.y + CASE_IN.h);
         // (a fan beside the basement stands east of the shroud, which stops short of it)
-        if (r.y + r.h > PSU.y) expect(r.x, `case ${c} front`).toBeGreaterThan(basementPlan().east);
+        expect(clearsShroud(r), `case ${c} front`).toBe(true);
       }
-      const front = frontFanRects()[0]!;
+      const [front] = frontFanRects();
+      assert.exists(front);
       for (const r of TOP_FANS) {
         expect(r.w, `case ${c} top`).toBe(FAN_LEN);
         expect(r.x + r.w, `case ${c} top clears the front fans`).toBeLessThan(front.x);
-        if (REAR_FAN_FITTED) expect(r.y + r.h, `case ${c} top clears the rear fan`).toBeLessThan(REAR_FAN.y);
+        expect(clearsRear(r), `case ${c} top clears the rear fan`).toBe(true);
       }
-      if (REAR_FAN_FITTED) {
-        expect(REAR_FAN.h, `case ${c} rear`).toBe(FAN_LEN);
-        // above the first expansion slot, beside the I/O plate in depth and inside the side panel
-        expect(REAR_FAN.y + REAR_FAN.h, `case ${c} rear`).toBeLessThan(PCIE_RAILS[0]!.y);
-        expect(REAR_ZC - FAN_LEN / 2, `case ${c} rear`).toBeGreaterThanOrEqual(BOARD_Z + 1240);
-        expect(REAR_ZC + FAN_LEN / 2, `case ${c} rear`).toBeLessThan(CASE_FRONT - 100);
-      }
+      // the rear fan: the tier's size, above the first expansion slot, beside the I/O plate in depth and inside the side panel
+      expect(rearFit(), `case ${c} rear`).toStrictEqual({ size: true, aboveSlot: true, besideIo: true, inside: true });
     }
   });
 });

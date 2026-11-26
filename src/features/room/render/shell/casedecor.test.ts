@@ -4,7 +4,7 @@ import { CASE_CUTS, CASE_KIND, WINDOW_CUTS, caseWindow, cutRect, growCuts, isCut
 describe('case decoration shapes', () => {
   it('a square corner list gives the four corners', () => {
     const p = cutRect(0, 0, 100, 50, [0, 0, 0, 0]);
-    expect(p).toEqual([0, 0, 100, 0, 100, 0, 100, 50, 100, 50, 0, 50, 0, 50, 0, 0]);
+    expect(p).toStrictEqual([0, 0, 100, 0, 100, 0, 100, 50, 100, 50, 0, 50, 0, 50, 0, 0]);
   });
 
   it('a cut corner stays inside the box and trims only its own corner', () => {
@@ -15,13 +15,13 @@ describe('case decoration shapes', () => {
       expect(p[i + 1]).toBeGreaterThanOrEqual(20);
       expect(p[i + 1]).toBeLessThanOrEqual(80);
     }
-    expect(p.slice(2, 6)).toEqual([80, 20, 110, 50]);
+    expect(p.slice(2, 6)).toStrictEqual([80, 20, 110, 50]);
   });
 });
 
 describe('the showcase shapes', () => {
   it('no case body has chamfered corners (the showcase is a plain box)', () => {
-    expect(CASE_KIND.filter((k) => isCut(CASE_CUTS[k]))).toEqual([]);
+    expect(CASE_KIND.filter((k) => isCut(CASE_CUTS[k]))).toStrictEqual([]);
   });
 
   it('the showcase window is square-cornered', () => {
@@ -29,14 +29,14 @@ describe('the showcase shapes', () => {
   });
 
   it('growing a cut keeps a square corner square', () => {
-    expect(growCuts([0, 100, 0, 50], 10)).toEqual([0, 110, 0, 60]);
-    expect(growCuts([0, 5, 0, 0], -20)).toEqual([0, 0, 0, 0]);
+    expect(growCuts([0, 100, 0, 50], 10)).toStrictEqual([0, 110, 0, 60]);
+    expect(growCuts([0, 5, 0, 0], -20)).toStrictEqual([0, 0, 0, 0]);
   });
 });
 
 describe('case kinds and windows', () => {
   it('has a kind for each of the four case tiers', () => {
-    expect(CASE_KIND).toEqual(['oem', 'matte', 'gamer', 'show']);
+    expect(CASE_KIND).toStrictEqual(['oem', 'matte', 'gamer', 'show']);
   });
 
   it('the matte window is shorter than the gaming one, and the showcase window is the same size as the gaming one', () => {
