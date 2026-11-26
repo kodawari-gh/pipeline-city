@@ -1,7 +1,13 @@
 // The L1 cache model of the timed engines (and of the GPU's and the memory system's caches): tags only, LRU within a set.
 
-/* oxlint-disable typescript/no-non-null-assertion -- reads of typed arrays and tables at indexes that are valid by construction (hot cycle loop); a guard per read is left to the cpu area wave of #115 */
-/* oxlint-disable eslint/max-params -- signatures moved unchanged from common.ts (#133); option objects are left to the cpu area wave of #115 */
+/** A cache's shape: line count and size (powers of two), the miss penalty, and the lines per set (default 1: direct mapped). */
+export interface CacheShape {
+  lines: number;
+  lineBytes: number;
+  missPenalty: number;
+  ways?: number;
+}
+
 /**
  * Tags only (RAM is always up to date: write-through, no-allocate). Only RAM addresses are cached. `ways` lines share a set
  * (default 1: direct mapped); within a set the least recently used line is replaced.
@@ -19,12 +25,12 @@ export class DataCache {
   /** Slot (set * ways + way) of the last hit or fill, and the line number the last fill evicted (-1: none). For the die view. */
   lastSlot = 0;
   lastEvicted = -1;
-  constructor(
-    readonly lines: number,
-    readonly lineBytes: number,
-    readonly missPenalty: number,
-    readonly ways = 1,
-  ) {
+  readonly lines: number;
+  readonly lineBytes: number;
+  readonly missPenalty: number;
+  readonly ways: number;
+  constructor(shape: Readonly<CacheShape>) {
+    const { lines, lineBytes, missPenalty, ways = 1 } = shape;
     if (lines < 1 || (lines & (lines - 1)) !== 0) {
       throw new RangeError('cache lines must be a power of two');
     }
@@ -37,6 +43,10 @@ export class DataCache {
     if (ways < 1 || (ways & (ways - 1)) !== 0 || ways > lines) {
       throw new RangeError('cache ways must be a power of two no larger than the line count');
     }
+    this.lines = lines;
+    this.lineBytes = lineBytes;
+    this.missPenalty = missPenalty;
+    this.ways = ways;
     this.tags = new Uint32Array(lines);
     this.valid = new Uint8Array(lines);
     this.used = new Uint32Array(lines);
@@ -115,7 +125,7 @@ export class DataCache {
         victim = i;
         break;
       }
-      if (this.used[i]! < this.used[victim]!) {
+      if ((this.used[i] ?? 0) < (this.used[victim] ?? 0)) {
         victim = i;
       }
     }
@@ -123,7 +133,7 @@ export class DataCache {
       this.dropped[victim] = 0;
       this.droppedN--;
     }
-    this.lastEvicted = this.valid[victim] === 1 && this.tags[victim] !== line ? this.tags[victim]! : -1;
+    this.lastEvicted = this.valid[victim] === 1 && this.tags[victim] !== line ? (this.tags[victim] ?? -1) : -1;
     this.lastSlot = victim;
     this.valid[victim] = 1;
     this.tags[victim] = line;
@@ -133,7 +143,7 @@ export class DataCache {
   dump(): number[] {
     const out: number[] = [];
     for (let i = 0; i < this.lines; i++) {
-      out.push(this.valid[i] === 1 ? this.tags[i]! : -1);
+      out.push(this.valid[i] === 1 ? (this.tags[i] ?? -1) : -1);
     }
     return out;
   }

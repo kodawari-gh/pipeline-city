@@ -47,7 +47,14 @@ export class MemSystem {
 
   constructor(s: MemSettings) {
     this.missPenalty = s.missPenalty;
-    this.l2 = s.l2Lines ? new DataCache(s.l2Lines, s.lineBytes, s.missPenalty, Math.min(4, s.l2Lines)) : null;
+    this.l2 = s.l2Lines
+      ? new DataCache({
+          lines: s.l2Lines,
+          lineBytes: s.lineBytes,
+          missPenalty: s.missPenalty,
+          ways: Math.min(4, s.l2Lines),
+        })
+      : null;
     this.l2Penalty = s.l2Penalty;
     this.dram = s.dram ? new Dram(s.dram) : null;
     if (!Number.isInteger(this.l2Penalty) || this.l2Penalty < 0)
@@ -95,12 +102,19 @@ export class MemSystem {
     }
     if (l2.hit(addr)) {
       counters[Counter.L2Hits]!++;
-      events.push(logCycle, Ev.Hit, Which.L2, l2.lastSlot, addr >>> l2.lineShift, 0);
+      events.record({ cycle: logCycle, kind: Ev.Hit, a: Which.L2, b: l2.lastSlot, c: addr >>> l2.lineShift, d: 0 });
       return wait + this.l2Penalty;
     }
     counters[Counter.L2Misses]!++;
     l2.fill(addr);
-    events.push(logCycle, Ev.Fill, Which.L2, l2.lastSlot, addr >>> l2.lineShift, l2.lastEvicted);
+    events.record({
+      cycle: logCycle,
+      kind: Ev.Fill,
+      a: Which.L2,
+      b: l2.lastSlot,
+      c: addr >>> l2.lineShift,
+      d: l2.lastEvicted,
+    });
     return wait + this.ramCost(addr, cycle + wait, counters, events, logCycle);
   }
 
@@ -114,12 +128,26 @@ export class MemSystem {
       if (c === writer) continue;
       if (c.cache.drop(addr)) {
         c.counters[Counter.CoherenceInvals]!++;
-        c.events.push(logCycle, Ev.Inval, Which.D, c.cache.lastSlot, addr >>> c.cache.lineShift, from);
+        c.events.record({
+          cycle: logCycle,
+          kind: Ev.Inval,
+          a: Which.D,
+          b: c.cache.lastSlot,
+          c: addr >>> c.cache.lineShift,
+          d: from,
+        });
       }
       const ic = c.icache;
       if (ic && ic.drop(addr)) {
         c.counters[Counter.CoherenceInvals]!++;
-        c.events.push(logCycle, Ev.Inval, Which.I, ic.lastSlot, addr >>> ic.lineShift, from);
+        c.events.record({
+          cycle: logCycle,
+          kind: Ev.Inval,
+          a: Which.I,
+          b: ic.lastSlot,
+          c: addr >>> ic.lineShift,
+          d: from,
+        });
       }
     }
   }
@@ -129,7 +157,7 @@ export class MemSystem {
     const d = this.dram;
     if (!d) return this.missPenalty;
     const a = d.access(addr, cycle, (cyc, bank, row, prev, outcome) =>
-      events.push(this.shared ? logCycle : cyc, Ev.Row, bank, row, prev, outcome),
+      events.record({ cycle: this.shared ? logCycle : cyc, kind: Ev.Row, a: bank, b: row, c: prev, d: outcome }),
     );
     counters[a.outcome === 0 ? Counter.RowHits : a.outcome === 1 ? Counter.RowEmpty : Counter.RowConflicts]!++;
     return a.cycles;

@@ -1,7 +1,5 @@
 // The engine's event log: what the die view needs to show what is stored (Ev kinds, Which cache, a ring of recent events).
 
-/* oxlint-disable typescript/no-non-null-assertion -- reads of typed arrays and tables at indexes that are valid by construction (hot cycle loop); a guard per read is left to the cpu area wave of #115 */
-/* oxlint-disable eslint/max-params -- an event is six numbers in a flat Int32Array ring: one argument per field keeps the push allocation-free */
 /** What the die view needs to show what is stored: a ring of the writes the machine did in its last cycles (docs/DIE.md "What is stored"). */
 export const Ev = {
   Reg: 1,
@@ -20,21 +18,31 @@ export const Ev = {
 export const Which = { D: 0, I: 1, L2: 2 } as const;
 const EV_SIZE = 6,
   EV_CAP = 1024;
+/** One event: its cycle, its kind (`Ev`) and four numbers whose meaning depends on the kind. Each is stored as an int32. */
+export interface EngineEvent {
+  cycle: number;
+  kind: number;
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+}
 export class EventLog {
   private readonly a = new Int32Array(EV_SIZE * EV_CAP);
   private n = 0;
   reset(): void {
     this.n = 0;
   }
-  push(cycle: number, kind: number, a: number, b: number, c: number, d: number): void {
-    const i = (this.n++ % EV_CAP) * EV_SIZE;
+  record(e: Readonly<EngineEvent>): void {
+    const i = (this.n % EV_CAP) * EV_SIZE;
+    this.n += 1;
     const x = this.a;
-    x[i] = cycle;
-    x[i + 1] = kind;
-    x[i + 2] = a;
-    x[i + 3] = b;
-    x[i + 4] = c;
-    x[i + 5] = d;
+    x[i] = e.cycle;
+    x[i + 1] = e.kind;
+    x[i + 2] = e.a;
+    x[i + 3] = e.b;
+    x[i + 4] = e.c;
+    x[i + 5] = e.d;
   }
   /** Events of cycle >= `from`, oldest first, flattened [cycle, kind, a, b, c, d, ...]. */
   since(from: number): number[] {
@@ -42,10 +50,8 @@ export class EventLog {
     const first = Math.max(0, this.n - EV_CAP);
     for (let k = first; k < this.n; k++) {
       const i = (k % EV_CAP) * EV_SIZE;
-      if (this.a[i]! >= from) {
-        for (let j = 0; j < EV_SIZE; j++) {
-          out.push(this.a[i + j]!);
-        }
+      if ((this.a[i] ?? 0) >= from) {
+        out.push(...this.a.subarray(i, i + EV_SIZE));
       }
     }
     return out;

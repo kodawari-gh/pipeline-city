@@ -1,8 +1,6 @@
 // The fetch side of the timed engines: whether a fetch is ready (instruction cache, L2 and redirect timing), and the virtual-memory path
 // (translation, TLB walks, page faults). The middle of the class chain `EngineRoot` <- `EngineFetch` <- `EngineBase` (#133).
 
-/* oxlint-disable typescript/no-non-null-assertion, unicorn/prefer-math-trunc -- reads of typed arrays and tables at indexes that are valid by construction (hot cycle loop); a guard per read is left to the cpu area wave of #115; `x | 0` and `x >>> 0` are the ISA's int32/uint32 wrap, not a truncation or a typo */
-/* oxlint-disable eslint/max-lines-per-function -- `fetchReady` moved unchanged from common.ts (#133); its braces made it longer; splitting it is left to the cpu area wave of #115 */
 import { FAULT_CAUSE_LINE } from '@/core/sim/memmap';
 import { Counter } from './view';
 import type { DataCache } from './cache';
@@ -29,41 +27,12 @@ export abstract class EngineFetch extends EngineRoot {
     if (pc >= this.ramSize) {
       return true;
     }
-    const ic = this.icache,
-      c = this.v.counters;
-    if (this.iWaitPc !== vpc) {
-      let wait = 0;
-      if (vpc === this.seqPc) {
-        if (ic) {
-          this.iFill(ic, pc);
-        }
-        this.seqPc = (vpc + 4) >>> 0;
-        return true;
-      }
-      if (ic) {
-        if (ic.hit(pc)) {
-          c[Counter.ICacheHits]!++;
-          this.events.push(this.cycleNo, Ev.Hit, Which.I, ic.lastSlot, pc >>> ic.lineShift, 0);
-          this.seqPc = (vpc + 4) >>> 0;
-          return true;
-        }
-        c[Counter.ICacheMisses]!++;
-        if (this.mem.shared && ic.takeDropped(pc)) {
-          c[Counter.CoherenceMisses]!++;
-        }
-        wait = this.missCost(pc);
-      } else if (this.redirectPenalty > 0) {
-        wait = this.redirectPenalty;
-      } else {
-        this.seqPc = (vpc + 4) >>> 0;
-        return true;
-      }
-      this.iWaitPc = vpc;
-      this.iWait = wait;
+    if (this.iWaitPc !== vpc && this.startLookup(vpc, pc)) {
+      return true;
     }
     if (this.iWait > 0) {
       this.iWait--;
-      c[Counter.StallIFetch]!++;
+      this.bump(Counter.StallIFetch);
       return false;
     }
     if (this.icache) {
@@ -72,6 +41,50 @@ export abstract class EngineFetch extends EngineRoot {
     this.iWaitPc = -1;
     this.seqPc = (vpc + 4) >>> 0;
     return true;
+  }
+
+  /**
+   * A new fetch lookup at `vpc` (physical `pc`): true when the instruction can be fetched at once (the sequential stream, an instruction cache
+   * hit, or no redirect penalty); otherwise it records the wait (`iWaitPc`, `iWait`) and returns false.
+   */
+  private startLookup(vpc: number, pc: number): boolean {
+    const ic = this.icache;
+    let wait = 0;
+    if (vpc === this.seqPc) {
+      if (ic) {
+        this.iFill(ic, pc);
+      }
+      this.seqPc = (vpc + 4) >>> 0;
+      return true;
+    }
+    if (ic) {
+      if (ic.hit(pc)) {
+        this.bump(Counter.ICacheHits);
+        this.events.record({
+          cycle: this.cycleNo,
+          kind: Ev.Hit,
+          a: Which.I,
+          b: ic.lastSlot,
+          c: pc >>> ic.lineShift,
+          d: 0,
+        });
+        this.seqPc = (vpc + 4) >>> 0;
+        return true;
+      }
+      this.bump(Counter.ICacheMisses);
+      if (this.mem.shared && ic.takeDropped(pc)) {
+        this.bump(Counter.CoherenceMisses);
+      }
+      wait = this.missCost(pc);
+    } else if (this.redirectPenalty > 0) {
+      wait = this.redirectPenalty;
+    } else {
+      this.seqPc = (vpc + 4) >>> 0;
+      return true;
+    }
+    this.iWaitPc = vpc;
+    this.iWait = wait;
+    return false;
   }
 
   // ---- virtual memory (docs/VM.md) ----
@@ -85,15 +98,10 @@ export abstract class EngineFetch extends EngineRoot {
     const { mmu } = this.core,
       p = this.pool;
     if (!mmu.enabled) {
-      p.fetch(this.bus, this.ramSize, s, pc);
+      p.fetch(s, pc, pc % 4 === 0 && pc + 4 <= this.ramSize ? this.bus.load32(pc) : 0);
       return;
     }
-    p.pc[s] = pc;
-    p.fault[s] = 0;
-    p.state[s] = 0;
-    p.wait[s] = 0;
-    p.op[s] = 0;
-    p.word[s] = 0;
+    p.fetch(s, pc, 0);
     const f = this.translate(pc, false, true);
     if (f) {
       p.fault[s] = f;
@@ -106,21 +114,27 @@ export abstract class EngineFetch extends EngineRoot {
 
   /** One translation through the MMU: counts it, logs it for the die and charges the walk (each table read goes through the L2 and DRAM like any miss). Returns the fault code or 0; the physical address is in `machine.mmu.pa`. */
   protected translate(va: number, write: boolean, exec: boolean): number {
-    const { mmu } = this.core,
-      c = this.v.counters;
+    const { mmu } = this.core;
     const f = mmu.lookup(va, write, exec);
     if (mmu.hit) {
-      c[Counter.TlbHits]!++;
+      this.bump(Counter.TlbHits);
     } else {
-      c[Counter.TlbMisses]!++;
+      this.bump(Counter.TlbMisses);
       let cycles = 0;
       for (let i = 0; i < mmu.walkN; i++) {
-        cycles += this.missCost(mmu.walkAt[i]!);
+        cycles += this.missCost(mmu.walkAt[i] ?? 0);
       }
       this.bus.stallCycles += cycles; // the CPU waits the walk out after this step
     }
     if (mmu.slot >= 0) {
-      this.events.push(this.cycleNo, Ev.Tlb, mmu.hit ? 0 : 1, mmu.slot, va >>> 8, mmu.pa >>> 8);
+      this.events.record({
+        cycle: this.cycleNo,
+        kind: Ev.Tlb,
+        a: mmu.hit ? 0 : 1,
+        b: mmu.slot,
+        c: va >>> 8,
+        d: mmu.pa >>> 8,
+      });
     }
     return f;
   }
@@ -129,13 +143,15 @@ export abstract class EngineFetch extends EngineRoot {
   protected takeFault(s: number): void {
     const p = this.pool,
       m = this.core;
-    m.mmu.recordFault(p.fault[s]!, p.vaddr[s]!);
+    const fault = p.fault[s] ?? 0,
+      vaddr = p.vaddr[s] ?? 0,
+      pc = p.pc[s] ?? 0;
+    m.mmu.recordFault(fault, vaddr);
     m.mmu.enterKernel();
-    m.intc.enter(FAULT_CAUSE_LINE, p.pc[s]!, 0);
-    this.v.counters[Counter.PageFaults]!++;
-    this.events.push(this.cycleNo, Ev.Tlb, 2, 0, p.vaddr[s]! >>> 8, p.fault[s]!);
-    // oxlint-disable-next-line unicorn/prefer-single-call -- EventLog.push takes one event (six numbers), not a list: two events need two calls
-    this.events.push(this.cycleNo, Ev.Irq, FAULT_CAUSE_LINE, p.pc[s]! | 0, m.mmu.vector | 0, 0);
+    m.intc.enter(FAULT_CAUSE_LINE, pc, 0);
+    this.bump(Counter.PageFaults);
+    this.events.record({ cycle: this.cycleNo, kind: Ev.Tlb, a: 2, b: 0, c: vaddr >>> 8, d: fault });
+    this.events.record({ cycle: this.cycleNo, kind: Ev.Irq, a: FAULT_CAUSE_LINE, b: pc, c: m.mmu.vector, d: 0 });
     this.fetchPc = m.mmu.vector >>> 0;
     p.fault[s] = 0;
   }
@@ -146,6 +162,13 @@ export abstract class EngineFetch extends EngineRoot {
       return;
     }
     ic.fill(pc);
-    this.events.push(this.cycleNo, Ev.Fill, Which.I, ic.lastSlot, pc >>> ic.lineShift, ic.lastEvicted);
+    this.events.record({
+      cycle: this.cycleNo,
+      kind: Ev.Fill,
+      a: Which.I,
+      b: ic.lastSlot,
+      c: pc >>> ic.lineShift,
+      d: ic.lastEvicted,
+    });
   }
 }

@@ -73,9 +73,9 @@ export class GpuMemSystem {
       throw new RangeError('lineWords must be a power of two');
     const lineBytes = Math.max(4, cfg.lineWords * 4);
     this.l1 = Array.from({ length: cfg.sms ?? 1 }, () =>
-      (cfg.l1Lines ?? 0) > 0 ? new DataCache(cfg.l1Lines!, lineBytes, 0) : null,
+      (cfg.l1Lines ?? 0) > 0 ? new DataCache({ lines: cfg.l1Lines!, lineBytes, missPenalty: 0 }) : null,
     );
-    this.l2 = (cfg.l2Lines ?? 0) > 0 ? new DataCache(cfg.l2Lines!, lineBytes, 0) : null;
+    this.l2 = (cfg.l2Lines ?? 0) > 0 ? new DataCache({ lines: cfg.l2Lines!, lineBytes, missPenalty: 0 }) : null;
   }
 
   /** Cold caches and a free L2 port, as at power-on. The counters keep counting. */

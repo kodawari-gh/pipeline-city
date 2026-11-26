@@ -1,6 +1,5 @@
 // The timed engines' branch predictor.
 
-/* oxlint-disable typescript/no-non-null-assertion, eslint/operator-assignment -- reads of typed arrays and tables at indexes that are valid by construction (hot cycle loop); a guard per read is left to the cpu area wave of #115; `^=` on an indexed read would need the same assertion on the left */
 /** Branch predictor: `entries` saturating counters of `bits` (1 or 2) indexed by (pc >> 2) % entries. All start at "not taken". */
 export class Predictor {
   private readonly t: Uint8Array;
@@ -21,20 +20,21 @@ export class Predictor {
   }
   /** The counter of the entry for `pc`. */
   get(pc: number): number {
-    return this.t[(pc >>> 2) % this.entries]!;
+    return this.t[(pc >>> 2) % this.entries] ?? 0;
   }
   dump(): number[] {
     return [...this.t];
   }
   predict(pc: number): boolean {
-    return this.t[(pc >>> 2) % this.entries]! >= (this.bits === 2 ? 2 : 1);
+    return (this.t[(pc >>> 2) % this.entries] ?? 0) >= (this.bits === 2 ? 2 : 1);
   }
   train(pc: number, taken: boolean): void {
     const i = (pc >>> 2) % this.entries;
     if (this.bits === 1) {
       this.t[i] = taken ? 1 : 0;
     } else {
-      this.t[i] = taken ? Math.min(3, this.t[i]! + 1) : Math.max(0, this.t[i]! - 1);
+      const n = this.t[i] ?? 0;
+      this.t[i] = taken ? Math.min(3, n + 1) : Math.max(0, n - 1);
     }
   }
   /** Flip the prediction of the entry for `pc` (every entry if omitted), keeping its strength. */
@@ -42,11 +42,11 @@ export class Predictor {
     const x = this.bits === 2 ? 2 : 1;
     if (pc === undefined) {
       for (let i = 0; i < this.entries; i++) {
-        this.t[i] = this.t[i]! ^ x;
+        this.t[i] = (this.t[i] ?? 0) ^ x;
       }
     } else {
       const i = (pc >>> 2) % this.entries;
-      this.t[i] = this.t[i]! ^ x;
+      this.t[i] = (this.t[i] ?? 0) ^ x;
     }
   }
 }

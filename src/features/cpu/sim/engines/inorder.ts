@@ -59,12 +59,12 @@ export class InOrderEngine extends EngineBase {
   /** Cycles the thread being fetched has had the pipeline since the last switch. */
   private runLen = 0;
 
-  override get waiting(): boolean {
+  get waiting(): boolean {
     for (let t = 0; t < this.cores.length; t++) if (this.missOn[t]) return true;
     return false;
   }
 
-  override addThread(core: Core): void {
+  addThread(core: Core): void {
     if (this.width !== 1) throw new RangeError('threads need the scalar in-order pipeline');
     if (this.cores.length >= MAX_THREADS) throw new RangeError(`at most ${MAX_THREADS} threads on a core`);
     this.resume[this.cores.length] = core.entry;
@@ -97,7 +97,7 @@ export class InOrderEngine extends EngineBase {
     this.resetFetchWait();
   }
 
-  override switchTo(core: Core): boolean {
+  switchTo(core: Core): boolean {
     const t = this.cores.indexOf(core);
     if (t === -1) return false;
     if (t === this.fetchThread && !this.fetchIdle) return true;
@@ -105,7 +105,7 @@ export class InOrderEngine extends EngineBase {
     return false;
   }
 
-  override yieldThread(): void {
+  yieldThread(): void {
     const ft = this.fetchThread;
     this.resume[ft] = this.fetchPc;
     const n = this.pickNext(ft);
@@ -222,10 +222,6 @@ export class InOrderEngine extends EngineBase {
     this.missOn.fill(0);
     this.want = -1;
     for (let s = 0; s < 5 * this.width; s++) this.v.clearStage(s);
-  }
-
-  override flipPredictor(pc?: number): void {
-    this.pred.flip(pc);
   }
 
   step(): void {

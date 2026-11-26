@@ -1,12 +1,10 @@
 // The execute and memory stages shared by the timed engines: EX semantics, the MEM step with its cache freeze, atomics, and retire.
 // The end of the class chain `EngineRoot` <- `EngineFetch` <- `EngineBase`, which the engines extend (#133).
 
-/* oxlint-disable typescript/no-non-null-assertion, unicorn/prefer-math-trunc, oxc/bad-bitwise-operator -- reads of typed arrays and tables at indexes that are valid by construction (hot cycle loop); a guard per read is left to the cpu area wave of #115; `x | 0` and `x >>> 0` are the ISA's int32/uint32 wrap, not a truncation or a typo */
-/* oxlint-disable eslint/max-lines-per-function -- `memStep` moved unchanged from common.ts (#133); splitting it is left to the cpu area wave of #115 */
 import { DEVICE_BASE } from '@/core/sim/memmap';
 import { Counter, Fate } from './view';
 import { Ev } from './events';
-import { F, F_MEM, OPF, OP_AMOADD, OP_ECALL, OP_IRET, OP_LB, OP_LW, OP_SW, alu, branchTaken } from './ops';
+import { F, F_MEM, OPF, OP_AMOADD, OP_ECALL, OP_IRET, OP_LB, OP_LW, OP_SW, alu, branchTaken, toInt32 } from './ops';
 import { St } from './pool';
 import { EngineFetch } from './fetch';
 
@@ -15,9 +13,9 @@ export abstract class EngineBase extends EngineFetch {
   protected retire(id: number, op: number): void {
     if (op === OP_IRET) {
       this.core.intc.leave();
-      this.events.push(this.cycleNo, Ev.Iret, this.core.intc.epc | 0, 0, 0, 0);
+      this.events.record({ cycle: this.cycleNo, kind: Ev.Iret, a: this.core.intc.epc, b: 0, c: 0, d: 0 });
     } // interrupts are on again once the iret has retired
-    this.v.counters[Counter.Retired]!++;
+    this.bump(Counter.Retired);
     this.v.setFate(id, Fate.Retired);
   }
 
@@ -27,15 +25,15 @@ export abstract class EngineBase extends EngineFetch {
    */
   protected execute(s: number): number {
     const p = this.pool;
-    const op = p.op[s]!;
-    const pc = p.pc[s]!;
+    const op = p.op[s] ?? 0;
+    const pc = p.pc[s] ?? 0;
     if (op === 0) {
-      throw new RangeError(`illegal instruction 0x${p.word[s]!.toString(16)} at pc=0x${pc.toString(16)}`);
+      throw new RangeError(`illegal instruction 0x${(p.word[s] ?? 0).toString(16)} at pc=0x${pc.toString(16)}`);
     }
-    const f = OPF[op]!;
-    const a = p.a[s]!,
-      b = p.b[s]!,
-      imm = p.imm[s]!;
+    const f = OPF[op] ?? 0;
+    const a = p.a[s] ?? 0,
+      b = p.b[s] ?? 0,
+      imm = p.imm[s] ?? 0;
     if (f & F_MEM) {
       const va = (a + imm) >>> 0;
       p.addr[s] = va;
@@ -69,7 +67,7 @@ export abstract class EngineBase extends EngineFetch {
       return ((a + imm) & ~3) >>> 0;
     }
     if (op !== OP_ECALL) {
-      p.res[s] = alu(op, a, b, imm, pc);
+      p.res[s] = alu(p, s);
     }
     return (pc + 4) >>> 0;
   }
@@ -80,57 +78,64 @@ export abstract class EngineBase extends EngineFetch {
    */
   protected memStep(s: number): boolean {
     const p = this.pool;
-    const op = p.op[s]!;
-    const f = OPF[op]!;
+    const op = p.op[s] ?? 0;
+    const f = OPF[op] ?? 0;
     if (!(f & F_MEM)) {
       return true;
     }
-    const c = this.v.counters;
-    let st = p.state[s]!;
-    const addr = p.addr[s]!;
     if (this.cores.length > 1) {
-      const t = this.cores[p.thread[s]!]!;
-      this.bus.serve(t.index, t.mpu);
+      this.serveThread(p.thread[s] ?? 0);
     } // a device access is the thread's own, whoever fetches now
     if (f & F.Amo) {
       return this.amoStep(s);
     }
     if (f & F.Store) {
-      if (!(st & St.Started)) {
-        p.state[s] = st | St.Started;
-        if (op === OP_SW) {
-          this.bus.store32(addr, p.b[s]!);
-        } else {
-          this.bus.store8(addr, p.b[s]!);
-        }
-        this.logMem(1, addr, p.b[s]!);
-      }
+      this.storeStep(s, op);
       return true;
     }
+    return this.loadStep(s, op);
+  }
+
+  /** Make the bus serve thread `t`'s core (its index and protection) for a device access. */
+  private serveThread(t: number): void {
+    const c = this.cores[t];
+    if (c === undefined) {
+      throw new RangeError(`no thread ${String(t)} on this core`);
+    }
+    this.bus.serve(c.index, c.mpu);
+  }
+
+  /** A store in MEM: it writes once, in its first step, and never holds. */
+  private storeStep(s: number, op: number): void {
+    const p = this.pool;
+    const st = p.state[s] ?? 0;
+    if (st & St.Started) {
+      return;
+    }
+    const addr = p.addr[s] ?? 0,
+      value = p.b[s] ?? 0;
+    p.state[s] = St.Started | st;
+    if (op === OP_SW) {
+      this.bus.store32(addr, value);
+    } else {
+      this.bus.store8(addr, value);
+    }
+    this.logMem(1, addr, value);
+  }
+
+  /** A load in MEM: started in its first step, then it holds while its cache miss is paid. */
+  private loadStep(s: number, op: number): boolean {
+    const p = this.pool;
+    const addr = p.addr[s] ?? 0;
+    let st = p.state[s] ?? 0;
     if (!(st & St.Started)) {
-      st |= St.Started;
-      if (addr < this.ramSize) {
-        this.logMem(0, addr, this.load(op, addr));
-      }
-      if (addr < this.ramSize) {
-        if (this.dHit(addr)) {
-          c[Counter.CacheHits]!++;
-          p.res[s] = this.load(op, addr);
-        } else {
-          c[Counter.CacheMisses]!++;
-          st |= St.Missing;
-          p.wait[s] = this.missCost(addr);
-        }
-      } else {
-        p.res[s] = this.load(op, addr); // device access: uncached
-        this.logMem(0, addr, p.res[s]); // logged with the value read (a device register can have side effects, so it is read once)
-      }
-      p.state[s] = st;
+      st = this.startLoad(s, op);
     }
     if (st & St.Missing) {
-      if (p.wait[s]! > 0) {
-        p.wait[s]!--;
-        c[Counter.StallCache]!++;
+      const wait = p.wait[s] ?? 0;
+      if (wait > 0) {
+        p.wait[s] = wait - 1;
+        this.bump(Counter.StallCache);
         return false;
       }
       this.dFill(addr);
@@ -140,6 +145,32 @@ export abstract class EngineBase extends EngineFetch {
     return true;
   }
 
+  /** The first step of a load: the cache lookup (or the uncached device read). Returns the slot's new state. */
+  private startLoad(s: number, op: number): number {
+    const p = this.pool;
+    const addr = p.addr[s] ?? 0;
+    let missing = 0;
+    if (addr < this.ramSize) {
+      this.logMem(0, addr, this.load(op, addr));
+    }
+    if (addr < this.ramSize) {
+      if (this.dHit(addr)) {
+        this.bump(Counter.CacheHits);
+        p.res[s] = this.load(op, addr);
+      } else {
+        this.bump(Counter.CacheMisses);
+        missing = St.Missing;
+        p.wait[s] = this.missCost(addr);
+      }
+    } else {
+      p.res[s] = this.load(op, addr); // device access: uncached
+      this.logMem(0, addr, p.res[s] ?? 0); // logged with the value read (a device register can have side effects, so it is read once)
+    }
+    const st = St.Started | (p.state[s] ?? 0) | missing;
+    p.state[s] = st;
+    return st;
+  }
+
   /**
    * An atomic in MEM (docs/MULTICORE.md section 4): the access always goes to the L2 (never hits the L1, and does not fill it), so it waits the
    * miss cost (the L2's time, or RAM's on an L2 miss), then reads and writes the word in this one step. Cores step one after another, so nothing
@@ -147,19 +178,21 @@ export abstract class EngineBase extends EngineFetch {
    */
   protected amoStep(s: number): boolean {
     const p = this.pool,
-      st = p.state[s]!;
+      st = p.state[s] ?? 0;
     if (!(st & St.Started)) {
-      this.amoCheck(p.addr[s]!, p.pc[s]!);
-      p.state[s] = st | St.Started | St.Missing;
-      p.wait[s] = this.missCost(p.addr[s]!);
+      this.amoCheck(p.addr[s] ?? 0, p.pc[s] ?? 0);
+      p.state[s] = St.Started | St.Missing | st;
+      p.wait[s] = this.missCost(p.addr[s] ?? 0);
     }
-    if (p.state[s]! & St.Missing) {
-      if (p.wait[s]! > 0) {
-        p.wait[s]!--;
-        this.v.counters[Counter.StallCache]!++;
+    const now = p.state[s] ?? 0;
+    if (now & St.Missing) {
+      const wait = p.wait[s] ?? 0;
+      if (wait > 0) {
+        p.wait[s] = wait - 1;
+        this.bump(Counter.StallCache);
         return false;
       }
-      p.state[s]! &= ~St.Missing;
+      p.state[s] = now & ~St.Missing;
     }
     this.amoApply(s);
     return true;
@@ -177,9 +210,10 @@ export abstract class EngineBase extends EngineFetch {
   /** The read-modify-write itself: res = the old word, memory gets old + rs2 (amoadd) or rs2 (amoswap). */
   protected amoApply(s: number): void {
     const p = this.pool,
-      addr = p.addr[s]!;
-    const old = this.bus.load32(addr) | 0,
-      nw = p.op[s] === OP_AMOADD ? (old + p.b[s]!) | 0 : p.b[s]!;
+      addr = p.addr[s] ?? 0,
+      b = p.b[s] ?? 0;
+    const old = toInt32(this.bus.load32(addr)),
+      nw = p.op[s] === OP_AMOADD ? toInt32(old + b) : b;
     this.bus.store32(addr, nw);
     p.res[s] = old;
     this.logMem(0, addr, old);
@@ -188,7 +222,7 @@ export abstract class EngineBase extends EngineFetch {
 
   protected load(op: number, addr: number): number {
     if (op === OP_LW) {
-      return this.bus.load32(addr) | 0;
+      return toInt32(this.bus.load32(addr));
     }
     if (op === OP_LB) {
       return (this.bus.load8(addr) << 24) >> 24;

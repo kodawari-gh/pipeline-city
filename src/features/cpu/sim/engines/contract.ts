@@ -1,6 +1,5 @@
 // What a timed engine is to the rest of the game: the `PipelineEngine` interface, the settings it is built from, and the stored state the die view reads.
 
-/* oxlint-disable typescript/method-signature-style -- methods keep the looser (method) parameter check the engine classes are written against; moved unchanged from common.ts (#133) */
 import type { Engine } from '@/core/sim/engine';
 import type { DramSettings } from '@/features/memory/sim/dram';
 import type { EngineView } from './view';
@@ -26,11 +25,11 @@ export interface EngineState {
 export interface PipelineEngine extends Engine {
   readonly view: EngineView;
   /** Drop every data cache line (the next accesses miss). */
-  invalidateCache(): void;
+  invalidateCache: () => void;
   /** Flip the 1-bit branch predictor entry for `pc`, or every entry if omitted. No-op for engines without prediction. */
-  flipPredictor(pc?: number): void;
+  flipPredictor: (pc?: number) => void;
   /** What is stored right now (registers, cache lines, predictor counters) and the recent writes, for the die view. */
-  storedState(): EngineState;
+  storedState: () => EngineState;
 }
 
 export interface EngineSettings {

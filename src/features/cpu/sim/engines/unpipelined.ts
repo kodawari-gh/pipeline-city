@@ -13,6 +13,8 @@ export class UnpipelinedEngine extends EngineBase {
   private stage = 0;
   private curId = 0;
   private memDone = true;
+  /** No prediction: branches resolve in EX, so `flipPredictor` does nothing. */
+  protected override readonly predicts = false;
 
   constructor(settings: EngineSettings = {}) {
     super(settings);

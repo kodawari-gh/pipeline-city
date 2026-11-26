@@ -1,10 +1,7 @@
 // The instruction pool of the timed engines: dynamic instruction fields for the few instructions in flight, as typed arrays
 // (structure-of-arrays; there are no per-instruction objects), with fetch and allocation-free decode.
 
-/* oxlint-disable typescript/no-non-null-assertion, unicorn/prefer-math-trunc -- reads of typed arrays and tables at indexes that are valid by construction (hot cycle loop); a guard per read is left to the cpu area wave of #115; `x | 0` and `x >>> 0` are the ISA's int32/uint32 wrap, not a truncation or a typo */
-/* oxlint-disable eslint/max-params, eslint/default-case -- signatures moved unchanged from common.ts (#133); option objects are left to the cpu area wave of #115; formats without fields have no case on purpose */
 import { OPS } from '../isa/isa';
-import type { Bus } from '@/core/sim/hw/bus';
 
 /** Per-opcode format code for decoding straight into the pool arrays (0 = illegal opcode). */
 const FMT_R = 1,
@@ -69,13 +66,13 @@ export class InstrPool {
     this.thread = new Uint8Array(size);
   }
 
-  /** Instruction fetch: a real read through the bus. Unaligned or non-RAM pcs yield an illegal (op 0) instruction. */
-  fetch(bus: Bus, ramSize: number, slot: number, pc: number): void {
+  /** Start the slot's instruction: its pc and the word fetched for it (0, an illegal instruction, when the pc cannot be fetched), nothing decoded yet. */
+  fetch(slot: number, pc: number, word: number): void {
     this.pc[slot] = pc;
     this.fault[slot] = 0;
     this.state[slot] = 0;
     this.wait[slot] = 0;
-    this.word[slot] = pc % 4 === 0 && pc + 4 <= ramSize ? bus.load32(pc) : 0;
+    this.word[slot] = word;
     this.op[slot] = 0;
   }
 
@@ -84,8 +81,9 @@ export class InstrPool {
    * unused fields as `decode` in isa.ts, which the tests compare against). Illegal words leave op = 0.
    */
   decodeSlot(slot: number): void {
-    const w = this.word[slot]! | 0;
-    const fmt = OP_FMT[w & 0x7f]!;
+    // every use of the word is a bitwise operation, which reads it as an int32 itself
+    const w = this.word[slot] ?? 0;
+    const fmt = OP_FMT[w & 0x7f] ?? 0;
     let rd = 0,
       rs1 = 0,
       rs2 = 0,
@@ -118,6 +116,9 @@ export class InstrPool {
         rd = (w >>> 7) & 0xf;
         imm = w >> 11;
         break;
+      }
+      default: {
+        break; // an illegal word and FMT_N have no fields
       }
     }
     this.op[slot] = fmt === 0 ? 0 : w & 0x7f;

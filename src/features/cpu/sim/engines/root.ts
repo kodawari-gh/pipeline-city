@@ -1,21 +1,26 @@
 // The root of the timed engines' class chain (`EngineRoot` <- `EngineFetch` <- `EngineBase`): the state both engines share, reset and
 // threads, the logged register, cache and predictor writes, and the cost of an L1 miss. Split out of the engines' shared module (#133).
 
-/* oxlint-disable typescript/no-non-null-assertion, unicorn/prefer-math-trunc, typescript/strict-boolean-expressions -- reads of typed arrays and tables at indexes that are valid by construction (hot cycle loop); a guard per read is left to the cpu area wave of #115; `x | 0` and `x >>> 0` are the ISA's int32/uint32 wrap, not a truncation or a typo */
-/* oxlint-disable eslint/class-methods-use-this, eslint/no-empty-function, typescript/class-literal-property-style, unicorn/consistent-function-scoping, eslint/max-params -- default hooks the engines override (threads, predictor, reset), and signatures moved unchanged from common.ts (#133); left to the cpu area wave of #115 */
-/* oxlint-disable eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own */
-import type { Bus } from '@/core/sim/hw/bus';
 import type { Core } from '../core';
 import type { Machine } from '@/core/sim/machine';
+import type { EngineNote } from '@/core/sim/engine';
 import { Counter, ViewState } from './view';
-import type { EngineView } from './view';
-import { MemSystem } from '@/features/memory/sim/memsys';
-import type { CoreCaches } from '@/features/memory/sim/memsys';
+import * as memsys from '@/features/memory/sim/memsys';
 import { DataCache } from './cache';
 import { Ev, EventLog, Which } from './events';
 import { Predictor } from './predictor';
 import { InstrPool, POOL } from './pool';
 import type { CacheState, EngineSettings, EngineState, PipelineEngine } from './contract';
+
+/** What the die view shows of one cache. */
+function cacheState(x: DataCache): CacheState {
+  return {
+    lines: x.lines,
+    ways: x.ways,
+    lineBytes: 1 << x.lineShift,
+    tags: x.dump(),
+  };
+}
 
 /** State and helpers shared by both engines. */
 export abstract class EngineRoot implements PipelineEngine {
@@ -24,9 +29,11 @@ export abstract class EngineRoot implements PipelineEngine {
   protected readonly cache: DataCache;
   protected readonly icache: DataCache | null;
   /** The L2 and the DRAM behind the L1 caches: built from the settings, or shared with other cores (`useMemSystem`). */
-  protected mem: MemSystem;
+  protected mem: memsys.MemSystem;
   private ownsMem = true;
   protected readonly pred: Predictor;
+  /** Whether the engine predicts branches: `flipPredictor` flips its predictor only then. */
+  protected readonly predicts: boolean = true;
   protected readonly events = new EventLog();
   /** The pc whose instruction cache line is being waited for, and the cycles left. */
   protected iWaitPc = -1;
@@ -37,7 +44,7 @@ export abstract class EngineRoot implements PipelineEngine {
   protected machine!: Machine;
   /** The core this engine runs: its registers, interrupt controller and MMU. */
   protected core!: Core;
-  protected bus!: Bus;
+  protected bus!: Machine['bus'];
   protected regs!: Int32Array;
   protected ramSize = 0;
   protected fetchPc = 0;
@@ -58,9 +65,14 @@ export abstract class EngineRoot implements PipelineEngine {
     this.v = view ?? new ViewState(s.timelineRows ?? 32, s.timelineCols ?? 64);
     const lineBytes = s.cacheLineBytes ?? 16,
       penalty = s.missPenalty ?? 4;
-    this.cache = new DataCache(s.cacheLines ?? 8, lineBytes, penalty, s.ways ?? 1);
-    this.icache = s.icacheLines ? new DataCache(s.icacheLines, lineBytes, penalty) : null;
-    this.mem = new MemSystem({
+    this.cache = new DataCache({ lines: s.cacheLines ?? 8, lineBytes, missPenalty: penalty, ways: s.ways ?? 1 });
+    // no instruction cache when the setting is missing, 0 or NaN
+    const icacheLines = s.icacheLines ?? 0;
+    this.icache =
+      icacheLines !== 0 && !Number.isNaN(icacheLines)
+        ? new DataCache({ lines: icacheLines, lineBytes, missPenalty: penalty })
+        : null;
+    this.mem = new memsys.MemSystem({
       lineBytes,
       missPenalty: penalty,
       l2Lines: s.l2Lines ?? 0,
@@ -76,9 +88,9 @@ export abstract class EngineRoot implements PipelineEngine {
   }
 
   /** What a shared memory system sees of this core: its L1 caches and where to count and log (the coherence rule). */
-  protected readonly port: CoreCaches;
+  protected readonly port: memsys.CoreCaches;
 
-  get view(): EngineView {
+  get view(): PipelineEngine['view'] {
     return this.v;
   }
   get halted(): boolean {
@@ -97,37 +109,29 @@ export abstract class EngineRoot implements PipelineEngine {
   get activeCore(): Core | null {
     return this.fetchIdle ? null : (this.cores[this.fetchThread] ?? null);
   }
-  get waiting(): boolean {
-    return false;
-  }
-  switchTo(_core: Core): boolean {
-    return true;
-  }
-  yieldThread(): void {}
-  /** Add a logical core. Only engines that support threads (the in-order one) do. */
-  addThread(_core: Core): void {
-    throw new RangeError('this engine runs one thread per core');
-  }
   /** Make thread `t`'s registers, MMU and interrupt state the ones the engine's helpers use. */
   protected useThread(t: number): void {
-    const c = this.cores[t]!;
+    const c = this.cores[t];
+    if (c === undefined) {
+      throw new RangeError(`no thread ${String(t)} on this core`);
+    }
     if (c !== this.core) {
       this.core = c;
       this.regs = c.regs;
     }
   }
   /** The machine tells the engine about something that happened outside it (an interrupt taken, an address space switched) so the event log shows it in order. */
-  note(kind: number, a: number, b: number, c: number): void {
-    this.events.push(this.cycleNo, kind, a | 0, b | 0, c | 0, 0);
+  note(n: Readonly<EngineNote>): void {
+    this.events.record({ cycle: this.cycleNo, kind: n.kind, a: n.a, b: n.b, c: n.c, d: 0 });
   }
   /** No instruction in flight (see `Engine.drained`). */
   abstract get drained(): boolean;
   /** The L2 and DRAM this engine reaches (its own, or the shared one it was given). */
-  get memSystem(): MemSystem {
+  get memSystem(): memsys.MemSystem {
     return this.mem;
   }
   /** Use a memory system shared with other cores instead of the engine's own (before `reset`). Its owner resets it. */
-  useMemSystem(mem: MemSystem): void {
+  useMemSystem(mem: memsys.MemSystem): void {
     this.mem = mem;
     this.ownsMem = false;
   }
@@ -139,20 +143,18 @@ export abstract class EngineRoot implements PipelineEngine {
   }
 
   abstract step(): void;
-  flipPredictor(_pc?: number): void {}
+  flipPredictor(pc?: number): void {
+    if (this.predicts) {
+      this.pred.flip(pc);
+    }
+  }
   storedState(): EngineState {
-    const c = (x: DataCache): CacheState => ({
-      lines: x.lines,
-      ways: x.ways,
-      lineBytes: 1 << x.lineShift,
-      tags: x.dump(),
-    });
     const { l2, dram } = this.mem;
     return {
       regs: [...(this.regs ?? [])],
-      d: c(this.cache),
-      ...(this.icache ? { i: c(this.icache) } : {}),
-      ...(l2 ? { l2: c(l2) } : {}),
+      d: cacheState(this.cache),
+      ...(this.icache ? { i: cacheState(this.icache) } : {}),
+      ...(l2 ? { l2: cacheState(l2) } : {}),
       pred: { entries: this.pred.entries, bits: this.pred.bits, table: this.pred.dump() },
       ...(dram
         ? { dram: { channels: dram.channels, banks: dram.banks, rowBytes: dram.rowBytes, open: dram.openRows() } }
@@ -163,7 +165,7 @@ export abstract class EngineRoot implements PipelineEngine {
 
   /** Write a register and log it (the die shows the register file filling in). */
   protected writeReg(r: number, value: number): void {
-    this.events.push(this.cycleNo, Ev.Reg, r, value | 0, this.regs[r]! | 0, 0);
+    this.events.record({ cycle: this.cycleNo, kind: Ev.Reg, a: r, b: value, c: this.regs[r] ?? 0, d: 0 });
     this.regs[r] = value;
   }
 
@@ -171,26 +173,33 @@ export abstract class EngineRoot implements PipelineEngine {
   protected dHit(addr: number): boolean {
     const h = this.cache.hit(addr);
     if (h) {
-      this.events.push(this.cycleNo, Ev.Hit, Which.D, this.cache.lastSlot, addr >>> this.cache.lineShift, 0);
+      this.events.record({
+        cycle: this.cycleNo,
+        kind: Ev.Hit,
+        a: Which.D,
+        b: this.cache.lastSlot,
+        c: addr >>> this.cache.lineShift,
+        d: 0,
+      });
     } else if (this.mem.shared && this.cache.takeDropped(addr)) {
-      this.v.counters[Counter.CoherenceMisses]!++;
+      this.bump(Counter.CoherenceMisses);
     }
     return h;
   }
   protected dFill(addr: number): void {
     this.cache.fill(addr);
-    this.events.push(
-      this.cycleNo,
-      Ev.Fill,
-      Which.D,
-      this.cache.lastSlot,
-      addr >>> this.cache.lineShift,
-      this.cache.lastEvicted,
-    );
+    this.events.record({
+      cycle: this.cycleNo,
+      kind: Ev.Fill,
+      a: Which.D,
+      b: this.cache.lastSlot,
+      c: addr >>> this.cache.lineShift,
+      d: this.cache.lastEvicted,
+    });
   }
   /** A load (kind 0) or a store (kind 1) of the data side: address and value. */
   protected logMem(kind: number, addr: number, value: number): void {
-    this.events.push(this.cycleNo, Ev.Mem, kind, addr | 0, value | 0, 0);
+    this.events.record({ cycle: this.cycleNo, kind: Ev.Mem, a: kind, b: addr, c: value, d: 0 });
     if (kind === 1 && this.mem.shared && addr < this.ramSize) {
       this.mem.storeLanded(this.port, addr, this.cycleNo);
     } // the store has landed in RAM: other cores drop the line
@@ -199,7 +208,14 @@ export abstract class EngineRoot implements PipelineEngine {
   protected trainPred(pc: number, taken: boolean): void {
     const old = this.pred.get(pc);
     this.pred.train(pc, taken);
-    this.events.push(this.cycleNo, Ev.Pred, (pc >>> 2) % this.pred.entries, this.pred.get(pc), old, 0);
+    this.events.record({
+      cycle: this.cycleNo,
+      kind: Ev.Pred,
+      a: (pc >>> 2) % this.pred.entries,
+      b: this.pred.get(pc),
+      c: old,
+      d: 0,
+    });
   }
 
   invalidateCache(): void {
@@ -208,7 +224,11 @@ export abstract class EngineRoot implements PipelineEngine {
     this.mem.invalidate();
   }
 
-  reset(machine: Machine, program: Uint32Array, core: Core = machine.cores[0]!): void {
+  reset(machine: Machine, program: Uint32Array, first?: Core): void {
+    const core = first ?? machine.cores[0];
+    if (core === undefined) {
+      throw new RangeError('the machine has no core');
+    }
     machine.loadProgram(program, core);
     this.machine = machine;
     this.core = core;
@@ -238,7 +258,8 @@ export abstract class EngineRoot implements PipelineEngine {
     this.v.reset();
     this.onReset();
   }
-  protected onReset(): void {}
+  /** The engine's own part of `reset`. */
+  protected abstract onReset(): void;
   /** Forget the instruction fetch in progress and the sequential stream: the next fetch is a jump (a thread switch). */
   protected resetFetchWait(): void {
     this.iWaitPc = -1;
@@ -250,12 +271,18 @@ export abstract class EngineRoot implements PipelineEngine {
     const a = this.iWaitPc,
       b = this.iWait,
       c = this.seqPc;
-    this.iWaitPc = w[0]!;
-    this.iWait = w[1]!;
-    this.seqPc = w[2]!;
+    this.iWaitPc = w[0] ?? -1;
+    this.iWait = w[1] ?? 0;
+    this.seqPc = w[2] ?? -1;
     w[0] = a;
     w[1] = b;
     w[2] = c;
+  }
+
+  /** Count one more of `counter` in the view's counters. */
+  protected bump(counter: number): void {
+    const c = this.v.counters;
+    c[counter] = (c[counter] ?? 0) + 1;
   }
 
   /** Cycles a miss of an L1 cache costs: the L2's hit time if the line is in it, else the full RAM penalty (and the line goes into the L2). */

@@ -235,7 +235,7 @@ export class OooEngine extends EngineBase {
     return this.lanes[t]!.halted;
   }
 
-  override addThread(core: Core): void {
+  addThread(core: Core): void {
     const t = this.cores.length;
     if (t >= this.lanes.length)
       throw new RangeError(
@@ -274,10 +274,6 @@ export class OooEngine extends EngineBase {
     this.fqCap = this.fetchQueueSize;
     this.cur = 0;
     this.snapshot();
-  }
-
-  override flipPredictor(pc?: number): void {
-    this.pred.flip(pc);
   }
 
   /** The lane whose oldest instruction is finished, the older one if both are; null when none can retire. */

@@ -1,11 +1,17 @@
 // The op tables and execute semantics of the timed engines: opcode numbers, per-opcode class flags, the ALU and the branch condition.
-// Split out of the engines' shared module (#133); no logic changed.
+// Split out of the engines' shared module (#133).
 
-/* oxlint-disable typescript/no-non-null-assertion, oxc/bad-bitwise-operator, typescript/strict-boolean-expressions -- moved unchanged from common.ts (#133): spec lookups by known names, the ISA's bit flags and optional spec flags; left to the cpu area wave of #115 */
-/* oxlint-disable eslint/complexity, eslint/max-lines-per-function, eslint/max-params, eslint/default-case -- `alu` is one flat switch over the opcodes with a fall-through result, as in the reference semantics; other ops have no case on purpose */
 import { OPS, SPEC_BY_NAME } from '../isa/isa';
+import type { InstrPool } from './pool';
 
-const opc = (name: string): number => SPEC_BY_NAME.get(name)!.op;
+/** The opcode of the op named `name` (every name used here is in the ISA). */
+function opc(name: string): number {
+  const spec = SPEC_BY_NAME.get(name);
+  if (spec === undefined) {
+    throw new RangeError(`the ISA has no op named ${name}`);
+  }
+  return spec.op;
+}
 const ADD = opc('add'),
   SUB = opc('sub'),
   AND = opc('and'),
@@ -45,55 +51,52 @@ export const OP_LW = LW;
 export const OP_LB = LB;
 export const OP_AMOADD = AMOADD;
 
+/** `x` as a signed 32-bit integer (the ISA's register values): the low 32 bits, two's complement. */
+export function toInt32(x: number): number {
+  const u = x >>> 0;
+  return u > 0x7f_ff_ff_ff ? u - 2 ** 32 : u;
+}
+
 /** Per-opcode class flags (indexed by the 7-bit opcode). */
 export const F = { Writes: 1, Rs1: 2, Rs2: 4, Load: 8, Store: 16, Branch: 32, Jal: 64, Jalr: 128, Amo: 256 } as const;
 export const F_MEM = F.Load | F.Store;
+/** The class flags each instruction format gives. */
+const FMT_FLAGS = {
+  R: F.Writes | F.Rs1 | F.Rs2,
+  I: F.Writes | F.Rs1,
+  S: F.Rs1 | F.Rs2 | F.Store,
+  B: F.Rs1 | F.Rs2 | F.Branch,
+  U: F.Writes,
+  J: F.Writes | F.Jal,
+  N: 0,
+} as const;
 export const OPF = new Uint16Array(128);
 for (const s of OPS) {
-  let f = 0;
-  switch (s.fmt) {
-    case 'R': {
-      f = F.Writes | F.Rs1 | F.Rs2;
-      break;
-    }
-    case 'I': {
-      f = F.Writes | F.Rs1;
-      break;
-    }
-    case 'S': {
-      f = F.Rs1 | F.Rs2 | F.Store;
-      break;
-    }
-    case 'B': {
-      f = F.Rs1 | F.Rs2 | F.Branch;
-      break;
-    }
-    case 'U': {
-      f = F.Writes;
-      break;
-    }
-    case 'J': {
-      f = F.Writes | F.Jal;
-      break;
-    }
-    case 'N': {
-      break;
-    }
-  }
-  if (s.mem) {
-    f |= F.Load;
-  }
-  if (s.amo) {
-    f |= F.Load | F.Store | F.Amo;
-  } // an atomic is both: the load-use hazard of a load, the shared port and the store ordering of a store
-  if (s.name === 'jalr' || s.name === 'iret') {
-    f |= F.Jalr;
-  } // iret is a register-less jump to the interrupt controller's EPC
-  OPF[s.op] = f;
+  const mem = s.mem === true ? F.Load : 0;
+  // an atomic is both: the load-use hazard of a load, the shared port and the store ordering of a store
+  const amo = s.amo === true ? F.Load | F.Store | F.Amo : 0;
+  // iret is a register-less jump to the interrupt controller's EPC
+  const jump = s.name === 'jalr' || s.name === 'iret' ? F.Jalr : 0;
+  OPF[s.op] = FMT_FLAGS[s.fmt] | mem | amo | jump;
 }
 
-/** ALU / address-generation result for non-branch ops (semantics identical to src/sim/ref). */
-export function alu(op: number, a: number, b: number, imm: number, pc: number): number {
+/** Which ALU group an opcode is in (0: none, the ALU gives 0). */
+const ALU_REG = 1,
+  ALU_IMM = 2,
+  ALU_UPPER = 3;
+const ALU_GROUP = new Uint8Array(128);
+for (const op of [ADD, SUB, AND, OR, XOR, SLL, SRL, SRA, SLT, SLTU, MUL]) {
+  ALU_GROUP[op] = ALU_REG;
+}
+for (const op of [ADDI, ANDI, ORI, XORI, SLLI, SRLI, SRAI, SLTI, SLTIU]) {
+  ALU_GROUP[op] = ALU_IMM;
+}
+for (const op of [LUI, AUIPC]) {
+  ALU_GROUP[op] = ALU_UPPER;
+}
+
+/** The register-register ops. */
+function aluReg(op: number, a: number, b: number): number {
   switch (op) {
     case ADD: {
       return a + b;
@@ -128,6 +131,15 @@ export function alu(op: number, a: number, b: number, imm: number, pc: number): 
     case MUL: {
       return Math.imul(a, b);
     }
+    default: {
+      return 0;
+    }
+  }
+}
+
+/** The register-immediate ops. */
+function aluImm(op: number, a: number, imm: number): number {
+  switch (op) {
     case ADDI: {
       return a + imm;
     }
@@ -155,14 +167,44 @@ export function alu(op: number, a: number, b: number, imm: number, pc: number): 
     case SLTIU: {
       return a >>> 0 < imm >>> 0 ? 1 : 0;
     }
+    default: {
+      return 0;
+    }
+  }
+}
+
+/** The upper-immediate ops. */
+function aluUpper(op: number, imm: number, pc: number): number {
+  switch (op) {
     case LUI: {
       return imm << 11;
     }
     case AUIPC: {
       return pc + (imm << 11);
     }
+    default: {
+      return 0;
+    }
   }
-  return 0;
+}
+
+/** ALU / address-generation result for the non-branch op in pool slot `s`, from its operands (semantics identical to src/sim/ref). */
+export function alu(p: InstrPool, s: number): number {
+  const op = p.op[s] ?? 0;
+  switch (ALU_GROUP[op] ?? 0) {
+    case ALU_REG: {
+      return aluReg(op, p.a[s] ?? 0, p.b[s] ?? 0);
+    }
+    case ALU_IMM: {
+      return aluImm(op, p.a[s] ?? 0, p.imm[s] ?? 0);
+    }
+    case ALU_UPPER: {
+      return aluUpper(op, p.imm[s] ?? 0, p.pc[s] ?? 0);
+    }
+    default: {
+      return 0;
+    }
+  }
 }
 
 export function branchTaken(op: number, a: number, b: number): boolean {
