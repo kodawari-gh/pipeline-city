@@ -277,8 +277,8 @@ export class Game {
     this.seed = opts.seed >>> 0;
     this.contractRng = newContractRng(this.seed);
     this.cfg = { ...ECONOMY, ...opts.economy };
-    this.sandbox = !!opts.sandbox;
-    this.looseFit = this.sandbox && !!opts.looseFit;
+    this.sandbox = Boolean(opts.sandbox);
+    this.looseFit = this.sandbox && Boolean(opts.looseFit);
     const start = Math.min(MAX_LEVEL, Math.max(1, Math.round(opts.startLevel ?? 1)));
     this.lvl = this.sandbox ? 1 : start;
     this.clientBase = this.sandbox ? 0 : LEVELS[start - 1]!.threshold;
@@ -290,14 +290,20 @@ export class Game {
     this.board = createBoard(0);
     // The machine's memory array is built once at the most the paged OSes can use (1 MiB, their 20-bit virtual space); the installed RAM
     // changes the PCH-reported size (what the OS manages and the screens show), the cache miss penalty and which jobs arrive (EconomyConfig.mix).
-    this.flipRng = new Prng((opts.seed ^ 0x5eed_ecc) >>> 0); // its own stream: the flips never disturb the machine's or the clients' randomness
+    this.flipRng = new Prng((opts.seed ^ 0x5_ee_de_cc) >>> 0); // its own stream: the flips never disturb the machine's or the clients' randomness
     this.machine = new Machine({ ...machineConfigFor(this.board, opts.seed), ramSize: MACHINE_RAM_BYTES });
     this.pch = new Pch(this.machine.display);
     this.pch.onPhase = () => this.applyBoost();
     this.machine.addDevice(this.pch);
-    for (const p of this.ports) this.machine.addDevice(p);
-    for (const p of this.gpus) this.machine.addDevice(p);
-    for (const p of this.npus) this.machine.addDevice(p);
+    for (const p of this.ports) {
+      this.machine.addDevice(p);
+    }
+    for (const p of this.gpus) {
+      this.machine.addDevice(p);
+    }
+    for (const p of this.npus) {
+      this.machine.addDevice(p);
+    }
     this.tpm = new TpmPort(this.machine.bus, this.machine.ram, this.machine.prng);
     this.machine.addDevice(this.tpm);
     this.nic = new Nic(this.machine.ram, (line) => this.machine.raise(line));
@@ -306,24 +312,37 @@ export class Game {
     this.machine.addDevice(this.nic);
     this.thermal = new ThermalModel(this.machine.prng);
     // The case comes with two basic fans on its front mounts (their cables still out).
-    for (const m of ['front0', 'front1']) this.mustInstall('fan92', undefined, m);
+    for (const m of ['front0', 'front1']) {
+      this.mustInstall('fan92', undefined, m);
+    }
     // The crate: CPU, PSU, RAM, monitor, stock heatsink and its fan (last, so the older item ids stay inv1..inv4). Nothing else is mounted at the start.
-    for (const spec of ['cpu0', 'psu0', 'ram0', 'display0', 'cooler0', 'fan92'])
+    for (const spec of ['cpu0', 'psu0', 'ram0', 'display0', 'cooler0', 'fan92']) {
       this.inventory.push({ id: `inv${this.nextInvId++}`, spec });
-    for (const q of this.cfg.startQueue) this.enqueue(q.template, q.scale);
+    }
+    for (const q of this.cfg.startQueue) {
+      this.enqueue(q.template, q.scale);
+    }
     if (opts.preassembled) {
-      for (const it of [...this.inventory]) this.mustInstall(it.spec, it.id);
+      for (const it of [...this.inventory]) {
+        this.mustInstall(it.spec, it.id);
+      }
       this.cables = allCables(this.board);
       this.progress = newProgress(true);
       this.firstBootTick = 0;
       this.syncRates(false);
-      if (!this.sandbox) this.powerButton(); // a sandbox machine is assembled but waits for the player's power press
+      if (!this.sandbox) {
+        this.powerButton(); // a sandbox machine is assembled but waits for the player's power press
+      }
     } else {
       this.syncRates(false);
     }
     // No tutorial in the sandbox: every milestone is reached from the start.
-    if (this.sandbox) this.progress = Object.fromEntries(PROGRESS_KEYS.map((k) => [k, true])) as unknown as Progress;
-    if (this.sandbox && opts.preassembled && opts.maxed) this.buildMaxRig();
+    if (this.sandbox) {
+      this.progress = Object.fromEntries(PROGRESS_KEYS.map((k) => [k, true])) as unknown as Progress;
+    }
+    if (this.sandbox && opts.preassembled && opts.maxed) {
+      this.buildMaxRig();
+    }
   }
 
   /**
@@ -350,7 +369,9 @@ export class Game {
 
   note(kind: string, text: string): void {
     this.log.push({ tick: this.baseTick, kind, text });
-    if (this.log.length > LOG_CAP) this.log.shift();
+    if (this.log.length > LOG_CAP) {
+      this.log.shift();
+    }
   }
 }
 

@@ -43,7 +43,7 @@ export function snapshot(this: Game): Snapshot {
     counters[n] = eng?.view ? eng.view.counters[i]! : 0;
   });
   const rep = this.reputation();
-  const cpu = findDevices(this.board, 'cpu')[0];
+  const [cpu] = findDevices(this.board, 'cpu');
   const cpuSpec = cpu ? deviceSpec(cpu) : undefined;
   const purchases: PurchaseSnap[] = catalog().map((s) => {
     const p: PurchaseSnap = {
@@ -69,11 +69,13 @@ export function snapshot(this: Game): Snapshot {
   }
   for (const p of purchases) {
     const lock = this.levelLock(p.id);
-    if (lock) p.locked = lock;
+    if (lock) {
+      p.locked = lock;
+    }
   }
   const phase = this.currentPhase();
   const live = this.monitorLive();
-  const plugged = this.plugged;
+  const { plugged } = this;
   const chk = bootCheck(this.board, this.cables);
   const jobs = this.kernelJobs();
   return {
@@ -148,7 +150,7 @@ export function snapshot(this: Game): Snapshot {
     powered: this.powered,
     bootProgress: this.bootProgress(phase),
     monitorLive: live,
-    monitorPowered: !!this.cables['monmains'],
+    monitorPowered: Boolean(this.cables['monmains']),
     energy: { wallW: this.wallW, wh: this.wattTicks / 3600 },
     bill: this.billSnap(),
     noPowerReason: this.cutReason() ?? chk.noPower,
@@ -168,7 +170,7 @@ export function snapshot(this: Game): Snapshot {
         return {
           id: c.id,
           name: c.name,
-          connected: !!this.cables[c.id],
+          connected: Boolean(this.cables[c.id]),
           ...(blocked && !this.cables[c.id] ? { blocked } : {}),
         };
       }),
@@ -184,7 +186,7 @@ export function snapshot(this: Game): Snapshot {
     keyIgnored: this.keyIgnored(),
     autoEject: this.cfg.autoEjectTicks > 0,
     pendingSwaps: this.pendingSwaps.map((p) => this.pendingSwapSnap(p)),
-    postFailed: !!this.postError,
+    postFailed: Boolean(this.postError),
     patience: {
       mul: this.patience(),
       targetTurnaround: this.targetTurnaround(),
@@ -247,7 +249,7 @@ export function deviceSnap(this: Game, d: InstalledDevice): DeviceSnap {
     kind: s.kind,
     name: s.name,
     slot: d.slot,
-    burnt: !!d.burnt,
+    burnt: Boolean(d.burnt),
     requestedClock: d.clock ?? null,
     effectiveClock: t?.effClock ?? 0,
     tempC: t?.tempC ?? 25,
@@ -271,7 +273,7 @@ export function slotSnaps(this: Game): SlotSnap[] {
   return boardSlots(this.board).map((s) => ({
     id: s.id,
     type: s.type,
-    ...(s.size ? { size: s.size } : {}),
+    ...(s.size !== undefined && s.size > 0 ? { size: s.size } : {}),
     deviceId: this.board.devices.find((d) => d.slot === s.id)?.id ?? null,
   }));
 }
@@ -280,8 +282,8 @@ export function boardSnap(this: Game): BoardSnap {
   const t = BOARD_TIERS[this.board.tier]!;
   const v = this.thermal.vrm,
     rv = this.thermal.ramVrm;
-  const sink = findDevices(this.board, 'vrm-sink')[0],
-    ramSink = findDevices(this.board, 'ram-sink')[0];
+  const [sink] = findDevices(this.board, 'vrm-sink'),
+    [ramSink] = findDevices(this.board, 'ram-sink');
   const rail = (spec: typeof t.vrm, st: typeof v, sinkDev: typeof sink): VrmSnap => ({
     phases: spec.phases,
     ampsPerPhase: spec.ampsPerPhase,
@@ -291,7 +293,7 @@ export function boardSnap(this: Game): BoardSnap {
     efficiency: st.efficiency,
     throttle: st.throttle,
     unstable: st.unstable,
-    burnt: !!this.board.burnt,
+    burnt: Boolean(this.board.burnt),
     errProb: st.errProb,
     heatW: st.heatW,
     throttleC: spec.throttleC,
@@ -305,7 +307,7 @@ export function boardSnap(this: Game): BoardSnap {
     caseTier: this.board.caseTier,
     caseName: CASE_TIERS[this.board.caseTier]!.name,
     caseForm: CASE_TIERS[this.board.caseTier]!.form,
-    burnt: !!this.board.burnt,
+    burnt: Boolean(this.board.burnt),
     features: { ...t.features },
     slots: this.slotSnaps(),
     vrm: rail(t.vrm, v, sink),
@@ -332,7 +334,9 @@ export function boardSnap(this: Game): BoardSnap {
 }
 
 export function stageOf(this: Game, k: Key, jobs: KernelJob[]): KeyStage {
-  if (k.done) return 'done';
+  if (k.done) {
+    return 'done';
+  }
   const j = jobs.find((x) => x.key === k.id);
   const byState = (s: number): KeyStage =>
     s === JobState.Result || s === JobState.Sending
@@ -342,15 +346,26 @@ export function stageOf(this: Game, k: Key, jobs: KernelJob[]): KeyStage {
         : s === JobState.Receiving
           ? 'ingesting'
           : 'queued';
-  if (this.offersQ.waiting().includes(k)) return 'offer';
+  if (this.offersQ.waiting().includes(k)) {
+    return 'offer';
+  }
   const down = this.downloads.find((t) => t.key === k);
-  if (down) return down.flow?.sending === false ? 'ingesting' : 'downloading'; // every segment is on the wire: the rest is the kernel's work
-  if (this.rx.includes(k)) return 'ingesting';
-  if (this.spool.includes(k))
+  if (down) {
+    return down.flow?.sending === false ? 'ingesting' : 'downloading'; // every segment is on the wire: the rest is the kernel's work
+  }
+  if (this.rx.includes(k)) {
+    return 'ingesting';
+  }
+  if (this.spool.includes(k)) {
     return this.uploads.some((t) => t.key === k) ? 'uploading' : j ? byState(j.state) : 'spooled';
+  }
   if (k === this.plugged) {
-    if (this.pch.flashing) return 'flashing';
-    if (j) return byState(j.state);
+    if (this.pch.flashing) {
+      return 'flashing';
+    }
+    if (j) {
+      return byState(j.state);
+    }
     return this.pch.phase === PchPhase.OsIngest ? 'ingesting' : 'tray';
   }
   return j ? byState(j.state) : 'tray';

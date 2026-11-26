@@ -6,6 +6,9 @@ import type { GameEvent } from './game/types';
 import { KERNEL_BASE, KSLOT_BYTES } from '../core/sim/memmap';
 import { jobTableFor } from '../features/os/sim/kernel';
 import type { SaveV1 } from './protocol';
+import { h, hex, pcOf, wordsHex } from './dump';
+
+export { pcOf, wordsHex } from './dump';
 
 interface CrashCore {
   core: number;
@@ -73,36 +76,12 @@ export interface CrashReport {
   save?: SaveV1;
 }
 
-const hex = (n: number, w = 0): string => (n >>> 0).toString(16).padStart(w, '0');
-const h = (n: number): string => `0x${hex(n)}`;
-
-/** The address in an error message ("... at pc=0xd310"), if it names one. */
-export function pcOf(message: string): number | null {
-  const m = /pc=0x([0-9a-f]+)/i.exec(message);
-  return m ? Number.parseInt(m[1]!, 16) : null;
-}
-
 function section<T>(f: () => T, fallback: T): T {
   try {
     return f();
   } catch {
     return fallback;
   }
-}
-
-/** `n` words of RAM from `base`, eight to a line; stops at the end of RAM. */
-export function wordsHex(ram: Uint8Array, base: number, n: number): string {
-  const dv = new DataView(ram.buffer, ram.byteOffset, ram.byteLength);
-  const lines: string[] = [];
-  for (let i = 0; i < n; i += 8) {
-    const at = base + i * 4;
-    if (at + 4 > ram.length) break;
-    const row: string[] = [];
-    for (let j = i; j < Math.min(n, i + 8) && base + j * 4 + 4 <= ram.length; j++)
-      row.push(hex(dv.getUint32(base + j * 4, true), 8));
-    lines.push(`${hex(at, 4)}: ${row.join(' ')}`);
-  }
-  return lines.join('\n');
 }
 
 /** What lives at `pc`: a region by name, or how far it is past the end of the nearest one before it. */
@@ -112,14 +91,21 @@ export function describePc(
   ramSize: number,
   word: number | null,
 ): string {
-  if (pc < 0 || pc + 4 > ramSize) return `${h(pc)} is outside RAM (${ramSize} bytes)`;
-  if (pc % 4 !== 0) return `${h(pc)} is not word aligned`;
+  if (pc < 0 || pc + 4 > ramSize) {
+    return `${h(pc)} is outside RAM (${ramSize} bytes)`;
+  }
+  if (pc % 4 !== 0) {
+    return `${h(pc)} is not word aligned`;
+  }
   const inside = regions.find((r) => pc >= r.lo && pc < r.hi);
   const w = word === null ? '' : `, the word there is 0x${hex(word, 8)}`;
-  if (inside) return `${h(pc)} is inside "${inside.name}" (${h(inside.lo)} to ${h(inside.hi)})${w}`;
-  const before = regions.filter((r) => r.hi <= pc).sort((a, b) => b.hi - a.hi)[0];
-  if (before)
+  if (inside) {
+    return `${h(pc)} is inside "${inside.name}" (${h(inside.lo)} to ${h(inside.hi)})${w}`;
+  }
+  const [before] = regions.filter((r) => r.hi <= pc).sort((a, b) => b.hi - a.hi);
+  if (before) {
     return `${h(pc)} is in no region, ${pc - before.hi} bytes past the end of "${before.name}" (which ends at ${h(before.hi)})${w}: empty memory, so the program counter ran off the end of the code`;
+  }
   return `${h(pc)} is in no region${w}`;
 }
 
@@ -137,13 +123,14 @@ function coreText(c: CrashCore): string[] {
   const out = [
     `core ${c.core}: pc=${c.pc === null ? '?' : h(c.pc)}${c.pcPa !== null && c.pcPa !== c.pc ? ` (pa ${h(c.pcPa)})` : ''} epc=${h(c.epc)} cause=${c.cause} vector=${h(c.vector)} mask=${h(c.mask)} pending=${h(c.pending)} timer=${c.timerInterval} mpu=${c.mpu ? 'on' : 'off'} mmu=${c.mmu ? `on table=${h(c.mmuTable)}` : 'off'}`,
   ];
-  for (let i = 0; i < c.regs.length; i += REG_ROWS)
+  for (let i = 0; i < c.regs.length; i += REG_ROWS) {
     out.push(
       `  ${c.regs
         .slice(i, i + REG_ROWS)
         .map((v, j) => `r${i + j}=${hex(v, 8)}`)
         .join(' ')}`,
     );
+  }
   return out;
 }
 
@@ -153,25 +140,31 @@ function crashText(r: Omit<CrashReport, 'text'>): string {
   L.push(`CRASH ${r.at}`, r.headline, '');
   L.push(`error: ${r.error.name}: ${r.error.message}`);
   L.push(`tick ${r.tick}, phase ${r.phase}, cycles ${r.cycles}, faulting core ${r.faultCore}`);
-  if (r.tpm)
+  if (r.tpm) {
     L.push(
       `tpm: ${r.tpm.protected && r.tpm.range ? `protected ${h(r.tpm.range.lo)}-${h(r.tpm.range.hi)} for space ${r.tpm.space}` : 'not protected'}, ${r.tpm.guardedAccesses} guarded accesses, last violation ${r.tpm.lastViolation < 0 ? 'none' : h(r.tpm.lastViolation)}`,
     );
-  if (r.machine)
+  }
+  if (r.machine) {
     L.push(
       `machine: ${r.machine.cores} logical cores (${r.machine.hardwareCores} hardware), bus serving core ${r.machine.busCore}${r.machine.busCore < 0 || r.machine.busCore >= r.machine.cores ? '  <-- OUT OF RANGE: stale core index (CPU swap or core-count change?)' : ''}, engines [${r.machine.engines.join(', ')}]`,
     );
+  }
   L.push(`os: ${r.os ? `${r.os.name} (${r.os.id}, tier ${r.os.tier})` : 'none'}`);
   L.push(`parts: ${r.parts.join(', ') || 'none'}`);
   L.push(`keys: plugged ${r.keys.plugged ?? 'none'}, spool [${r.keys.spool.join(', ')}], tray ${r.keys.tray}`);
   L.push(
-    `kernel jobs: ${r.jobs.length ? r.jobs.map((j) => `slot ${j.slot} state ${j.state} key ${j.key}`).join('; ') : 'none (or the kernel is not up)'}`,
+    `kernel jobs: ${r.jobs.length > 0 ? r.jobs.map((j) => `slot ${j.slot} state ${j.state} key ${j.key}`).join('; ') : 'none (or the kernel is not up)'}`,
   );
   L.push('', 'regions:', ...r.regions.map((g) => `  ${h(g.lo)}-${h(g.hi)} ${g.name}`));
   L.push('', 'cores:', ...r.cores.flatMap(coreText));
-  for (const w of r.windows) L.push('', `${w.label}:`, w.hex);
+  for (const w of r.windows) {
+    L.push('', `${w.label}:`, w.hex);
+  }
   L.push('', 'recent events:', ...r.events.map((e) => `  [${e.tick}] ${e.kind}: ${e.text}`));
-  if (r.error.stack) L.push('', 'stack:', r.error.stack);
+  if (r.error.stack) {
+    L.push('', 'stack:', r.error.stack);
+  }
   L.push('', DEBUG_PROMPT);
   return L.join('\n');
 }
@@ -203,7 +196,7 @@ export function crashReport(g: Game | null, err: unknown): CrashReport {
     };
     return { ...part, text: crashText(part) };
   }
-  const ram = g.machine.ram;
+  const { ram } = g.machine;
   const cores = section<CrashCore[]>(
     () =>
       g.machine.cores.map((c, k) => ({
