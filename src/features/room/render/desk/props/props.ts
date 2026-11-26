@@ -3,16 +3,7 @@ import type { KeySnap } from '@/worker/game/game';
 import { box, HEAD, label, mix } from '@/core/render/ink';
 import { usbPlug } from '@/features/board/render/layout/ports';
 import type { Shape } from '@/core/render/shape';
-import {
-  HOOK_PITCH,
-  HOOK_Y,
-  LANYARD,
-  ROW_DROP,
-  TRAY,
-  TRAY_COLS,
-  USB_PORT,
-  type Rect,
-} from '@/features/board/render/layout/layout';
+import * as layout from '@/features/board/render/layout/layout';
 import type { Theme } from '@/core/render/theme';
 
 // World props for the assembly game: part icons (ghost while dragging), the USB key tray, a key stick, the power button.
@@ -22,7 +13,7 @@ import type { Theme } from '@/core/render/theme';
 interface PropObj {
   id: string;
   /** World rect of the whole object (hit test, outline, highlight ring). */
-  rect: Rect;
+  rect: layout.Rect;
   /** The silhouette the pointer picks and the hover ring follows, when it is plain geometry (the power button's disc). */
   shape?: Shape;
   /** Or a throwaway copy of the art, centred on the node's origin, whose pixels are read once for the silhouette (`key` names the variant: every key of a kind shares one reading). */
@@ -243,20 +234,23 @@ function keyStick(T: Theme, k: KeySnap, compact = false, notRead = false): Conta
 
 /** Where the rack's hook for stick `i` is (rows of `TRAY_COLS`: the first row on the upper rail, the next on the lower one, staggered half a pitch). */
 export const trayHook = (i: number) => {
-  const col = i % TRAY_COLS,
-    row = Math.floor(i / TRAY_COLS);
-  return { x: TRAY.x + 300 + col * HOOK_PITCH + row * (HOOK_PITCH / 2), y: TRAY.y + HOOK_Y + row * ROW_DROP };
+  const col = i % layout.TRAY_COLS,
+    row = Math.floor(i / layout.TRAY_COLS);
+  return {
+    x: layout.TRAY.x + 300 + col * layout.HOOK_PITCH + row * (layout.HOOK_PITCH / 2),
+    y: layout.TRAY.y + layout.HOOK_Y + row * layout.ROW_DROP,
+  };
 };
 /** The centre of the stick hanging from hook `i`: straight under it, a lanyard's length down, upright (the plug at the bottom). */
 export const trayKeyCentre = (i: number) => {
   const h = trayHook(i);
-  return { x: h.x, y: h.y + LANYARD + KEY_LEN / 2 };
+  return { x: h.x, y: h.y + layout.LANYARD + KEY_LEN / 2 };
 };
 
 /** Where the plugged key's centre sits: the connector seated inside the USB port, the body sticking out west. */
 const pluggedKeyCentre = () => ({
-  x: USB_PORT.x + KEY_INSERT - KEY_LEN_PLUGGED / 2,
-  y: USB_PORT.y + USB_PORT.h / 2,
+  x: layout.USB_PORT.x + KEY_INSERT - KEY_LEN_PLUGGED / 2,
+  y: layout.USB_PORT.y + layout.USB_PORT.h / 2,
 });
 
 function vgradFill(top: string, bot: string) {
@@ -273,7 +267,7 @@ function vgradFill(top: string, bot: string) {
 }
 
 /** How far the hook is above a hanging stick's centre: the lanyard's length and half the stick. */
-export const HANG_Y = LANYARD + KEY_LEN / 2;
+export const HANG_Y = layout.LANYARD + KEY_LEN / 2;
 
 /** The compact stick's outline (centred on the key) and the tag under its body (the body spans x -375..185). */
 
@@ -321,7 +315,7 @@ export function pluggedKeyArt(T: Theme, k: KeySnap, notRead = false, cueLabel: s
   node.position.set(p.x, p.y);
   root.addChild(node);
   // the part of the plug inside the port is hidden by the port's shell: the stick is cut at the port's mouth
-  const cut = new Graphics().rect(USB_PORT.x - 6000, p.y - 600, 6000 + 6, 1200).fill({ color: '#ffffff' });
+  const cut = new Graphics().rect(layout.USB_PORT.x - 6000, p.y - 600, 6000 + 6, 1200).fill({ color: '#ffffff' });
   root.addChild(cut);
   clip.mask = cut; // the stick only: the remove cue's glow and tag stay whole
   const sil = {

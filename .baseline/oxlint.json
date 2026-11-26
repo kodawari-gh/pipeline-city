@@ -11008,7 +11008,6 @@
   "eslint(max-params)": 1,
   "eslint(no-negated-condition)": 2,
   "eslint(no-nested-ternary)": 3,
-  "import(consistent-type-specifier-style)": 3,
   "typescript(no-non-null-assertion)": 3,
   "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 1,
@@ -11058,7 +11057,6 @@
   "eslint(max-lines-per-function)": 3,
   "eslint(max-params)": 8,
   "eslint(no-shadow)": 1,
-  "import(consistent-type-specifier-style)": 4,
   "typescript(explicit-module-boundary-types)": 3,
   "typescript(no-non-null-assertion)": 12,
   "typescript(prefer-readonly)": 3,
@@ -11094,7 +11092,6 @@
   "eslint(max-lines-per-function)": 2,
   "eslint(max-params)": 4,
   "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(explicit-module-boundary-types)": 5,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(strict-boolean-expressions)": 1,
@@ -11130,7 +11127,6 @@
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 1,
   "eslint(no-nested-ternary)": 4,
-  "import(consistent-type-specifier-style)": 4,
   "typescript(explicit-module-boundary-types)": 2,
   "typescript(no-non-null-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 2,
@@ -11144,7 +11140,6 @@
  },
  "src/features/room/render/shell/casedecor.ts": {
   "eslint(max-params)": 7,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(consistent-type-imports)": 1,
   "typescript(explicit-module-boundary-types)": 6,
   "typescript(no-unsafe-type-assertion)": 1
@@ -11155,7 +11150,6 @@
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 4,
   "eslint(no-nested-ternary)": 4,
-  "import(consistent-type-specifier-style)": 3,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-non-null-assertion)": 2,
   "typescript(no-unsafe-type-assertion)": 3,
@@ -11217,12 +11211,10 @@
   "eslint(max-lines)": 1,
   "eslint(max-params)": 2,
   "eslint(no-negated-condition)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(explicit-module-boundary-types)": 5,
   "typescript(no-non-null-assertion)": 5,
   "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 1,
-  "unicorn(prefer-export-from)": 1
+  "typescript(strict-boolean-expressions)": 1
  },
  "src/features/room/render/shell/shell.test.ts": {
   "import(first)": 5,
@@ -11233,7 +11225,6 @@
  },
  "src/features/room/render/shell/shell.ts": {
   "eslint(max-params)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(explicit-module-boundary-types)": 3,
   "unicorn(no-array-fill-with-reference-type)": 17
  },

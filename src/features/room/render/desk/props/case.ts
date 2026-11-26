@@ -1,60 +1,11 @@
 import { Container, Graphics } from 'pixi.js';
 import { box, disc, label, lgrad, mix } from '@/core/render/ink';
 import { TIER_GEO, geoOf } from '@/features/board/render/layout/boardlayout';
-import {
-  BASE_BAYS,
-  BAY,
-  BAY_CELLS,
-  BR,
-  CASE_BD,
-  CELL_H,
-  CELL_PITCH,
-  CASE,
-  CASE_GLASS,
-  CASE_IN,
-  CASE_LEDS,
-  CASE_PANEL,
-  FAN_HUB,
-  FAN_SLOT,
-  FAN_W,
-  FRONT_FAN_COUNT,
-  GEO,
-  HUB_POWER_Y,
-  LAYOUT_CASE,
-  LAYOUT_TIER,
-  PC_POWER,
-  POWER_BTN,
-  POWER_LEAD_X,
-  PSU,
-  PSU_FACE_X,
-  PSU_REAR_FAN,
-  REAR_FAN,
-  REAR_FAN_FITTED,
-  SATA_LINK,
-  TOP_FANS,
-  FAN_LEN,
-  WALL_T,
-  MINI_FAN_Y,
-  RAD_TANK,
-  RAD_ROOM,
-  sataPort,
-  gutterTieYs,
-  PORT_Y,
-  PSU_PORTS,
-  type Rect,
-} from '@/features/board/render/layout/layout';
+import * as layout from '@/features/board/render/layout/layout';
 import { driveScale } from '@/features/storage/render/drives';
 import { acInlet } from '@/features/board/render/layout/ports';
-import { mkLane, roundedPath, type Lane, type Pt } from '@/features/board/render/wiring/routes';
-import {
-  CASE_CUTS,
-  CASE_KIND,
-  caseWindow,
-  hexes,
-  isCut,
-  outline,
-  type CaseKind,
-} from '@/features/room/render/shell/casedecor';
+import * as routes from '@/features/board/render/wiring/routes';
+import * as decor from '@/features/room/render/shell/casedecor';
 import type { Theme } from '@/core/render/theme';
 import { paintCable, paintTie, tiePoints } from '@/core/render/cable';
 
@@ -74,13 +25,13 @@ const cavityTone = (T: Theme) => mix(T.bg, '#000000', 0.45);
 const edgeTone = (T: Theme) => mix(T.line, T.mute, 0.15);
 
 /** The kind of the case being drawn (`LAYOUT_CASE`): the same one the exterior reads (`CASE_KIND`). */
-const kindNow = (): CaseKind => CASE_KIND[LAYOUT_CASE] ?? 'gamer';
+const kindNow = (): decor.CaseKind => decor.CASE_KIND[layout.LAYOUT_CASE] ?? 'gamer';
 
 /**
  * The paint inside each kind of case: bare charcoal steel in the OEM tower, black powder coat in the matte case, blue-black with a violet
  * edge in the gaming case, near-black with a silver edge in the showcase. `wall` is the sheet metal, `cav` the dark behind the board.
  */
-function caseInterior(T: Theme, kind: CaseKind) {
+function caseInterior(T: Theme, kind: decor.CaseKind) {
   const wall = wallTone(T),
     cav = cavityTone(T),
     edge = edgeTone(T);
@@ -105,20 +56,20 @@ export function caseBack(T: Theme): Container {
   const root = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const look = CASE_LOOK[LAYOUT_CASE] ?? CASE_LOOK[2];
+  const look = CASE_LOOK[layout.LAYOUT_CASE] ?? CASE_LOOK[2];
   const kind = kindNow(),
     { wall, cav, edge } = caseInterior(T, kind);
-  const c = CASE,
-    i = CASE_IN,
-    p = CASE_PANEL;
+  const c = layout.CASE,
+    i = layout.CASE_IN,
+    p = layout.CASE_PANEL;
   // feet
   for (const fx of [c.x + 300, c.x + c.w - 700]) {
     box(g, fx, c.y + c.h - 30, 400, 130, 30, { fill: mix(wall, T.bg, 0.4), stroke: edge, lw: 6, sa: 0.7 });
   }
   // soft shadow and body
-  const bc = isCut(CASE_CUTS[kind]) ? CASE_CUTS[kind] : undefined; // (no kind has cut corners now: the body is a box with its radius)
-  outline(g, c.x + 20, c.y + 34, c.w, c.h, 110, bc).fill({ color: '#000000', alpha: 0.3 });
-  outline(g, c.x, c.y, c.w, c.h, 110, bc).fill(wall).stroke({ width: 10, color: edge, alpha: 0.9 });
+  const bc = decor.isCut(decor.CASE_CUTS[kind]) ? decor.CASE_CUTS[kind] : undefined; // (no kind has cut corners now: the body is a box with its radius)
+  decor.outline(g, c.x + 20, c.y + 34, c.w, c.h, 110, bc).fill({ color: '#000000', alpha: 0.3 });
+  decor.outline(g, c.x, c.y, c.w, c.h, 110, bc).fill(wall).stroke({ width: 10, color: edge, alpha: 0.9 });
   // top panel
   g.rect(p.x + 40, p.y + p.h - 4, p.w - 80, 8).fill({ color: edge, alpha: 0.7 });
   g.rect(p.x + 40, p.y + 8, p.w - 80, 5).fill({ color: '#ffffff', alpha: 0.06 });
@@ -149,7 +100,7 @@ export function caseBack(T: Theme): Container {
       sa: 0.1 * (1 - k / 7),
     });
   }
-  const psuTop = PSU.y - 200;
+  const psuTop = layout.PSU.y - 200;
   g.rect(i.x + 8, psuTop, i.w - 16, i.y + i.h - psuTop - 8).fill({ color: mix(cav, T.bg, 0.3), alpha: 0.5 });
   g.moveTo(i.x + 8, psuTop)
     .lineTo(i.x + i.w - 8, psuTop)
@@ -161,7 +112,7 @@ export function caseBack(T: Theme): Container {
   // the motherboard tray: a plate a little bigger than the board it carries, perforated, with a brass standoff at every mounting hole of
   // every form factor the case takes (the installed board's holes sit over its own: they line up by construction) and a cable cut-out
   {
-    const BD = CASE_BD,
+    const BD = layout.CASE_BD,
       x0 = Math.max(BD.x - 110, i.x + 12),
       tr = { x: x0, y: BD.y - 110, w: BD.x + BD.w + 110 - x0, h: BD.h + 220 },
       tone = mix(cav, wall, 0.32);
@@ -174,8 +125,8 @@ export function caseBack(T: Theme): Container {
       .stroke({ width: 5, color: '#ffffff', alpha: 0.1, cap: 'round' });
     // the punched rows: round holes, a honeycomb in the showcase
     if (kind === 'show') {
-      hexes(g, { x: tr.x + 60, y: tr.y + 50, w: tr.w - 120, h: 150 }, 34, 8);
-      hexes(g, { x: tr.x + 60, y: tr.y + tr.h - 200, w: tr.w - 120, h: 150 }, 34, 8);
+      decor.hexes(g, { x: tr.x + 60, y: tr.y + 50, w: tr.w - 120, h: 150 }, 34, 8);
+      decor.hexes(g, { x: tr.x + 60, y: tr.y + tr.h - 200, w: tr.w - 120, h: 150 }, 34, 8);
     } else {
       for (let x = tr.x + 90; x < tr.x + tr.w - 60; x += 90) {
         for (let y = tr.y + 60; y < tr.y + 190; y += 80) {
@@ -211,16 +162,16 @@ export function caseBack(T: Theme): Container {
   topFans(g, T, cav, wall, edge);
   fanHub(root, g, T, cav, wall, edge);
   // labels
-  root.addChild(label('DISK', CASE_LEDS.disk, p.y + 340, 34, T.mute, { anchor: [0.5, 0.5], a: 0.85 }));
+  root.addChild(label('DISK', layout.CASE_LEDS.disk, p.y + 340, 34, T.mute, { anchor: [0.5, 0.5], a: 0.85 }));
   for (const [t, x] of [
-    ['ON', CASE_LEDS.on],
-    ['OFF', CASE_LEDS.off],
-    ['ERR', CASE_LEDS.err],
+    ['ON', layout.CASE_LEDS.on],
+    ['OFF', layout.CASE_LEDS.off],
+    ['ERR', layout.CASE_LEDS.err],
   ] as const) {
     root.addChild(label(t, x, p.y + 340, 34, T.mute, { anchor: [0.5, 0.5], a: 0.85 }));
   }
-  void POWER_BTN;
-  void LAYOUT_TIER;
+  void layout.POWER_BTN;
+  void layout.LAYOUT_TIER;
   return root;
 }
 
@@ -230,11 +181,11 @@ export function caseBack(T: Theme): Container {
  * Its top turns west as a gutter along the top of the case where the 8-pin lead runs.
  */
 function cableDuct(g: Graphics, T: Theme, cav: string, wall: string, edge: string) {
-  const xs = [...PSU_PORTS.pcie, PSU_PORTS.atx, PSU_PORTS.cpu],
+  const xs = [...layout.PSU_PORTS.pcie, layout.PSU_PORTS.atx, layout.PSU_PORTS.cpu],
     x0 = Math.min(...xs) - 150,
     x1 = Math.max(...xs) + 150,
-    y0 = GEO.bd.y - 250,
-    y1 = PORT_Y - 30;
+    y0 = layout.GEO.bd.y - 250,
+    y1 = layout.PORT_Y - 30;
   const tone = mix(cav, wall, 0.22);
   box(g, x0 + 10, y0 + 16, x1 - x0, y1 - y0, 40, { fill: '#000000', fa: 0.26 });
   box(g, x0, y0, x1 - x0, y1 - y0, 40, { fill: tone, stroke: edge, lw: 5, sa: 0.6 });
@@ -242,7 +193,7 @@ function cableDuct(g: Graphics, T: Theme, cav: string, wall: string, edge: strin
     g.rect(rx, y0 + 40, 12, y1 - y0 - 80).fill({ color: edge, alpha: 0.5 });
   }
   // the clip bases: a plate across the duct with its screws, under each tie
-  for (const y of gutterTieYs()) {
+  for (const y of layout.gutterTieYs()) {
     if (y < y0 + 200 || y > y1 - 300) {
       continue;
     }
@@ -259,19 +210,19 @@ function cableDuct(g: Graphics, T: Theme, cav: string, wall: string, edge: strin
  * size of fan (`FRONT_FAN_COUNT`, `FAN_LEN`), stacked from under the top, a radiator's end tank under it; the Mini's stack starts under the bay
  * covers on its face.
  */
-export function frontFanRects(): Rect[] {
-  const gl = CASE_GLASS,
+export function frontFanRects(): layout.Rect[] {
+  const gl = layout.CASE_GLASS,
     east = gl.x + gl.w,
-    n = FRONT_FAN_COUNT[LAYOUT_CASE] ?? 1,
+    n = layout.FRONT_FAN_COUNT[layout.LAYOUT_CASE] ?? 1,
     gap = 20;
-  const y0 = LAYOUT_CASE === 0 ? CASE.y + MINI_FAN_Y : CASE_IN.y + 40 + RAD_TANK;
-  const w = FAN_W,
+  const y0 = layout.LAYOUT_CASE === 0 ? layout.CASE.y + layout.MINI_FAN_Y : layout.CASE_IN.y + 40 + layout.RAD_TANK;
+  const w = layout.FAN_W,
     x = east - 170 - 20 - w;
-  return Array.from({ length: n }, (_, k) => ({ x, y: y0 + k * (FAN_LEN + gap), w, h: FAN_LEN }));
+  return Array.from({ length: n }, (_, k) => ({ x, y: y0 + k * (layout.FAN_LEN + gap), w, h: layout.FAN_LEN }));
 }
 
 function frontFans(g: Graphics, T: Theme, cav: string, wall: string, edge: string) {
-  const gl = CASE_GLASS,
+  const gl = layout.CASE_GLASS,
     east = gl.x + gl.w;
   // front panel: a perforated wall along the east side of the glass
   const fp = { x: east - 170, y: gl.y + 60, w: 130, h: gl.h - 120 };
@@ -291,15 +242,15 @@ export interface FanMount {
   /** The sim's mount id (`caseMounts` in the sim's specs): `front0..`, `top0..`, `rear`. A radiator's slot is `rad-<id>`, the fan's cable `fan:<id>`. */
   id: string;
   side: 'front' | 'top' | 'rear';
-  rect: Rect;
+  rect: layout.Rect;
 }
 
 /** Every fan mount of the case, in the sim's order (front, top, rear): the same order as `fanStubs` and `hubHeaders`. */
 export function fanMounts(): FanMount[] {
   return [
     ...frontFanRects().map((rect, k) => ({ id: `front${k}`, side: 'front' as const, rect })),
-    ...TOP_FANS.map((rect, k) => ({ id: `top${k}`, side: 'top' as const, rect })),
-    ...(REAR_FAN_FITTED ? [{ id: 'rear', side: 'rear' as const, rect: REAR_FAN }] : []),
+    ...layout.TOP_FANS.map((rect, k) => ({ id: `top${k}`, side: 'top' as const, rect })),
+    ...(layout.REAR_FAN_FITTED ? [{ id: 'rear', side: 'rear' as const, rect: layout.REAR_FAN }] : []),
   ];
 }
 
@@ -323,29 +274,31 @@ export function radiatorSpan(side: 'front' | 'top'): (FanMount & { ids: string[]
  * The room a radiator takes on a side: the box round that side's fans, grown by an end tank past each end (`RAD_TANK`) and by the room inboard
  * of the fans (`RAD_ROOM`). A radiator's drop target. Null when the case has no mount there.
  */
-export function radiatorBay(side: 'front' | 'top'): Rect | null {
+export function radiatorBay(side: 'front' | 'top'): layout.Rect | null {
   const r = radiatorSpan(side)?.rect;
   if (!r) {
     return null;
   }
   return side === 'top'
-    ? { x: r.x - RAD_TANK, y: r.y, w: r.w + 2 * RAD_TANK, h: r.h + RAD_ROOM }
-    : { x: r.x - RAD_ROOM, y: r.y - RAD_TANK, w: r.w + RAD_ROOM, h: r.h + 2 * RAD_TANK };
+    ? { x: r.x - layout.RAD_TANK, y: r.y, w: r.w + 2 * layout.RAD_TANK, h: r.h + layout.RAD_ROOM }
+    : { x: r.x - layout.RAD_ROOM, y: r.y - layout.RAD_TANK, w: r.w + layout.RAD_ROOM, h: r.h + 2 * layout.RAD_TANK };
 }
 
 /** Where each case fan's cable leaves it: a short stub into the gap beside the fan (front fans below, top fans east, the rear fan below), that goes behind the tray. */
 export function fanStubs(): { x: number; y: number; dx: number; dy: number }[] {
   return [
     ...frontFanRects().map((r) => ({ x: r.x + r.w / 2, y: r.y + r.h, dx: 0, dy: 1 })),
-    ...TOP_FANS.map((r) => ({ x: r.x + r.w, y: r.y + r.h / 2, dx: 1, dy: 0 })),
-    ...(REAR_FAN_FITTED ? [{ x: REAR_FAN.x + REAR_FAN.w / 2, y: REAR_FAN.y + REAR_FAN.h, dx: 0, dy: 1 }] : []),
+    ...layout.TOP_FANS.map((r) => ({ x: r.x + r.w, y: r.y + r.h / 2, dx: 1, dy: 0 })),
+    ...(layout.REAR_FAN_FITTED
+      ? [{ x: layout.REAR_FAN.x + layout.REAR_FAN.w / 2, y: layout.REAR_FAN.y + layout.REAR_FAN.h, dx: 0, dy: 1 }]
+      : []),
   ];
 }
 
 /** The hub's fan headers, left to right along its top edge (one per case fan). */
 export function hubHeaders(): { x: number; y: number }[] {
   const n = fanStubs().length,
-    h = FAN_HUB,
+    h = layout.FAN_HUB,
     pitch = Math.min(130, (h.w - 300) / Math.max(1, n - 1));
   return Array.from({ length: n }, (_, i) => ({ x: h.x + h.w - 100 - (n - 1 - i) * pitch, y: h.y }));
 }
@@ -354,8 +307,8 @@ const plugTone = '#1b2230';
 
 /** The fan hub in the basement (west of its drive cage), the stubs of the fans' cables and the hub's cables up into the slot in the tray. */
 function fanHub(root: Container, g: Graphics, T: Theme, cav: string, wall: string, edge: string) {
-  const h = FAN_HUB,
-    sl = FAN_SLOT,
+  const h = layout.FAN_HUB,
+    sl = layout.FAN_SLOT,
     pcb = mix(cav, wall, 0.25);
   // the fans' cable stubs: a plug on the fan, a short sleeve into the gap, where it goes behind the tray
   for (const f of fanStubs()) {
@@ -421,8 +374,8 @@ function fanHub(root: Container, g: Graphics, T: Theme, cav: string, wall: strin
     g.rect(h.x + 52 + k * 20, h.y + 22, 10, 16);
   }
   g.fill({ color: T.pin, alpha: 0.7 });
-  const py = HUB_POWER_Y,
-    x0 = PSU_FACE_X;
+  const py = layout.HUB_POWER_Y,
+    x0 = layout.PSU_FACE_X;
   paintCable(
     g,
     [
@@ -474,7 +427,7 @@ function fanHub(root: Container, g: Graphics, T: Theme, cav: string, wall: strin
 export function standoffs(): [number, number][] {
   const seen = new Set<string>(),
     out: [number, number][] = [];
-  for (let t = 0; t <= LAYOUT_CASE; t++) {
+  for (let t = 0; t <= layout.LAYOUT_CASE; t++) {
     for (const [x, y] of TIER_GEO[t]!.holes) {
       if (!seen.has(`${x},${y}`)) {
         seen.add(`${x},${y}`);
@@ -502,7 +455,7 @@ function standoff(g: Graphics, T: Theme, x: number, y: number, wall: string, edg
  * A case fan seen edge-on (the glass looks along the board), the static part: the frame, the hub line and four corner screws.
  * The blades and the light strips are the live `EdgeFan` on top. `vertical`: the long side runs along y (front and rear fans); else along x.
  */
-export function edgeFan(g: Graphics, T: Theme, r: Rect, vertical: boolean, wall: string, edge: string) {
+export function edgeFan(g: Graphics, T: Theme, r: layout.Rect, vertical: boolean, wall: string, edge: string) {
   const { x, y, w, h } = r;
   box(g, x + 14, y + 20, w, h, 40, { fill: '#000000', fa: 0.3 });
   box(g, x, y, w, h, 40, { fill: mix(wall, T.bg, 0.35), stroke: edge, lw: 6, sa: 0.8 });
@@ -536,7 +489,7 @@ export class EdgeFan extends Container {
   private phase = 0;
   private key = '';
   constructor(
-    private r: Rect,
+    private r: layout.Rect,
     private T: Theme,
   ) {
     super();
@@ -601,14 +554,14 @@ export class EdgeFan extends Container {
 
 /** The top fans (as many as the case takes), under the top panel and clear of the 8-pin cable's run above the board. */
 function topFans(g: Graphics, T: Theme, cav: string, wall: string, edge: string) {
-  if (TOP_FANS.length === 0) {
+  if (layout.TOP_FANS.length === 0) {
     return;
   }
-  const f0 = TOP_FANS[0]!,
-    f1 = TOP_FANS.at(-1)!;
+  const f0 = layout.TOP_FANS[0]!,
+    f1 = layout.TOP_FANS.at(-1)!;
   // the mounting rail the fans hang from
   g.rect(f0.x - 80, f0.y - 22, f1.x + f1.w - f0.x + 160, 14).fill({ color: edge, alpha: 0.55 });
-  for (const f of TOP_FANS) {
+  for (const f of layout.TOP_FANS) {
     edgeFan(g, T, f, false, wall, edge);
   }
   void cav;
@@ -619,15 +572,16 @@ function topFans(g: Graphics, T: Theme, cav: string, wall: string, edge: string)
  * for every expansion slot the case has, and the rear exhaust fan above them.
  */
 function rearWall(g: Graphics, T: Theme, cav: string, wall: string, edge: string) {
-  const c = CASE,
-    i = CASE_IN,
+  const c = layout.CASE,
+    i = layout.CASE_IN,
     x = c.x + 14,
-    w = WALL_T - 28,
-    { io } = geoOf(LAYOUT_CASE);
+    w = layout.WALL_T - 28,
+    { io } = geoOf(layout.LAYOUT_CASE),
+    opening = { fill: cav, stroke: edge, lw: 4, sa: 0.5 }; // the wall's openings: the cavity seen through, a soft rim
   // the I/O opening: the plate (drawn with the board) fills it
-  box(g, x, io.y - 80, w, io.h + 150, 22, { fill: cav, stroke: edge, lw: 4, sa: 0.5 });
+  box(g, x, io.y - 80, w, io.h + 150, 22, opening);
   // the expansion slots: an opening each, closed by a slot cover with vents and a screw (a card's bracket replaces it)
-  for (const r of geoOf(LAYOUT_CASE).pcie) {
+  for (const r of geoOf(layout.LAYOUT_CASE).pcie) {
     const y = r.y + 30 - 82; // centred on the slot, as a card's bracket is (`nicY`)
     box(g, x, y, w, 164, 14, { fill: cav, stroke: edge, lw: 3, sa: 0.5 });
     box(g, x + 16, y + 14, w - 32, 136, 8, { fill: mix(wall, T.bg, 0.35), stroke: edge, lw: 3, sa: 0.7 });
@@ -638,18 +592,18 @@ function rearWall(g: Graphics, T: Theme, cav: string, wall: string, edge: string
     disc(g, x + w / 2, y + 134, 9, { fill: mix(wall, T.bg, 0.5), stroke: edge, lw: 2, sa: 0.7 });
   }
   // the PSU's own exhaust: an opening with the fan's frame (its blades are the PSU's live part, devices.ts), above the mains inlet
-  if (PSU_REAR_FAN) {
-    box(g, x - 4, PSU_REAR_FAN.y - 24, w + 8, PSU_REAR_FAN.h + 48, 20, { fill: cav, stroke: edge, lw: 4, sa: 0.5 });
-    edgeFan(g, T, PSU_REAR_FAN, true, wall, edge);
+  if (layout.PSU_REAR_FAN) {
+    box(g, x - 4, layout.PSU_REAR_FAN.y - 24, w + 8, layout.PSU_REAR_FAN.h + 48, 20, opening);
+    edgeFan(g, T, layout.PSU_REAR_FAN, true, wall, edge);
   }
   // the PSU's mains inlet, at the PSU's end of the wall
-  acInlet(g, T, PC_POWER, { wallX: CASE.x, wallW: WALL_T });
+  acInlet(g, T, layout.PC_POWER, { wallX: layout.CASE.x, wallW: layout.WALL_T });
   // the rear exhaust above the I/O opening: a fan, or on the Mini (no room for one) a perforated grille
-  box(g, x - 4, REAR_FAN.y - 24, w + 8, REAR_FAN.h + 48, 20, { fill: cav, stroke: edge, lw: 4, sa: 0.5 });
-  if (REAR_FAN_FITTED) {
-    edgeFan(g, T, REAR_FAN, true, wall, edge);
+  box(g, x - 4, layout.REAR_FAN.y - 24, w + 8, layout.REAR_FAN.h + 48, 20, opening);
+  if (layout.REAR_FAN_FITTED) {
+    edgeFan(g, T, layout.REAR_FAN, true, wall, edge);
   } else {
-    const r = REAR_FAN;
+    const r = layout.REAR_FAN;
     box(g, r.x, r.y, r.w, r.h, 26, { fill: mix(wall, T.bg, 0.35), stroke: edge, lw: 5, sa: 0.8 });
     for (let row = 0, y = r.y + 44; y < r.y + r.h - 30; row++, y += 38) {
       for (let col = 0; col < 3 - (row % 2); col++) {
@@ -669,10 +623,10 @@ function rearWall(g: Graphics, T: Theme, cav: string, wall: string, edge: string
 /** No glass on the OEM case: the side panel is off, four screw holes where it fixes. */
 function sidePanelHoles(g: Graphics, edge: string) {
   for (const [x, y] of [
-    [CASE_GLASS.x + 80, CASE_GLASS.y + 60],
-    [CASE_GLASS.x + CASE_GLASS.w - 80, CASE_GLASS.y + 60],
-    [CASE_GLASS.x + 80, CASE_GLASS.y + CASE_GLASS.h - 60],
-    [CASE_GLASS.x + CASE_GLASS.w - 80, CASE_GLASS.y + CASE_GLASS.h - 60],
+    [layout.CASE_GLASS.x + 80, layout.CASE_GLASS.y + 60],
+    [layout.CASE_GLASS.x + layout.CASE_GLASS.w - 80, layout.CASE_GLASS.y + 60],
+    [layout.CASE_GLASS.x + 80, layout.CASE_GLASS.y + layout.CASE_GLASS.h - 60],
+    [layout.CASE_GLASS.x + layout.CASE_GLASS.w - 80, layout.CASE_GLASS.y + layout.CASE_GLASS.h - 60],
   ] as const) {
     disc(g, x, y, 22, { fill: '#000000', fa: 0.35, stroke: edge, lw: 4, sa: 0.7 });
   }
@@ -690,11 +644,14 @@ export function caseGlass(T: Theme): Container {
     sidePanelHoles(g, edge);
     return root;
   }
-  const gx = BR.io.x + BR.io.w + 60,
+  const gx = layout.BR.io.x + layout.BR.io.w + 60,
     a = 0.024;
   // the glass is the window of the outside: the upper part on the matte case, the full smoked pane on the showcase
-  const win = caseWindow(kind),
-    r = kind === 'matte' || kind === 'show' ? win : { ...CASE_GLASS, x: gx, w: CASE_GLASS.w - (gx - CASE_GLASS.x) };
+  const win = decor.caseWindow(kind),
+    r =
+      kind === 'matte' || kind === 'show'
+        ? win
+        : { ...layout.CASE_GLASS, x: gx, w: layout.CASE_GLASS.w - (gx - layout.CASE_GLASS.x) };
   if (kind === 'matte') {
     g.roundRect(win.x, win.y, win.w, win.h, 50).fill({ color: '#000000', alpha: 0.2 }); // the tint
   }
@@ -737,12 +694,17 @@ export function bayArt(T: Theme, nSata: number): Container {
     k = driveScale(),
     metal = mix(wall, T.bg, 0.15);
   // the main cage (`BAY`) and the basement's under the shroud, round its cells
-  const low = BAY_CELLS.slice(0, BASE_BAYS),
-    base: Rect | null =
+  const low = layout.BAY_CELLS.slice(0, layout.BASE_BAYS),
+    base: layout.Rect | null =
       low.length > 0
-        ? { x: BAY.x, y: low[0]!.y - 110, w: BAY.w, h: (low.length - 1) * CELL_PITCH + CELL_H + 190 }
+        ? {
+            x: layout.BAY.x,
+            y: low[0]!.y - 110,
+            w: layout.BAY.w,
+            h: (low.length - 1) * layout.CELL_PITCH + layout.CELL_H + 190,
+          }
         : null;
-  for (const b of base ? [BAY, base] : [BAY]) {
+  for (const b of base ? [layout.BAY, base] : [layout.BAY]) {
     box(g, b.x + 12, b.y + 22, b.w, b.h, 24, { fill: '#000000', fa: 0.3 });
     g.roundRect(b.x, b.y, b.w, b.h, 24)
       .fill(lgrad(mix(metal, '#ffffff', 0.1), mix(metal, '#000000', 0.25), [1, 1]))
@@ -759,8 +721,8 @@ export function bayArt(T: Theme, nSata: number): Container {
     }
     g.fill({ color: cav, alpha: 0.9 });
   }
-  root.addChild(label('DRIVE CAGE', BAY.x + 52, BAY.y + 44, 38, T.mute, { head: true, a: 0.9 }));
-  BAY_CELLS.forEach((c, i) => {
+  root.addChild(label('DRIVE CAGE', layout.BAY.x + 52, layout.BAY.y + 44, 38, T.mute, { head: true, a: 0.9 }));
+  layout.BAY_CELLS.forEach((c, i) => {
     const live = i < nSata,
       w = c.w - 60 * k;
     // the recess: a dark bay with its top shadowed and its lower lip lit
@@ -816,19 +778,19 @@ export function bayArt(T: Theme, nSata: number): Container {
  * plug west to its own column (`SATA_LINK`), down to the port's row and west into the port. Columns run west to east in port order,
  * so no two cables cross; they cross the PSU cables in the gutter (under them).
  */
-export function sataCablePath(i: number): Lane {
-  const c = BAY_CELLS[i]!,
-    L = SATA_LINK[i]!,
-    p = sataPort(i);
+export function sataCablePath(i: number): routes.Lane {
+  const c = layout.BAY_CELLS[i]!,
+    L = layout.SATA_LINK[i]!,
+    p = layout.sataPort(i);
   const y0 = c.y + L.plug,
     yPort = p.y + p.h / 2;
-  const route: Pt[] = [
+  const route: routes.Pt[] = [
     [c.x - 76, y0],
     [L.col, y0],
     [L.col, yPort],
     [p.x + p.w + 40, yPort],
   ];
-  return mkLane(roundedPath(route, 70, 30));
+  return routes.mkLane(routes.roundedPath(route, 70, 30));
 }
 
 const SATA_CABLE_W = 32;
@@ -843,11 +805,11 @@ export function sataLinkArt(T: Theme, i: number): Container {
   const root = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const c = BAY_CELLS[i]!,
+  const c = layout.BAY_CELLS[i]!,
     lane = sataCablePath(i),
     { pts } = lane,
     w = SATA_CABLE_W,
-    L = SATA_LINK[i]!;
+    L = layout.SATA_LINK[i]!;
   paintCable(g, pts, { w, accent: T.mul });
   for (const t of tiePoints(pts, 1700, 500)) {
     paintTie(g, t.at, t.dir, w, T.mul);
@@ -870,23 +832,23 @@ export function sataPowerArt(T: Theme, cells: number[]): Container {
   const g = new Graphics();
   root.addChild(g);
   const k = driveScale(),
-    x0 = PSU.x + PSU.w,
-    ys = PSU.y + PSU.h / 2,
-    X = POWER_LEAD_X;
-  const py = (i: number) => BAY_CELLS[i]!.y + 359 * k;
+    x0 = layout.PSU.x + layout.PSU.w,
+    ys = layout.PSU.y + layout.PSU.h / 2,
+    X = layout.POWER_LEAD_X;
+  const py = (i: number) => layout.BAY_CELLS[i]!.y + 359 * k;
   const top = Math.min(...cells.map(py));
-  const trunk: Pt[] = [
+  const trunk: routes.Pt[] = [
     [x0, ys],
     [X, ys],
     [X, top],
   ];
-  const path = roundedPath(trunk, 60, 30);
+  const path = routes.roundedPath(trunk, 60, 30);
   paintCable(g, path, { w: 38, accent: T.ld });
   for (const t of tiePoints(path, 1500, 400)) {
     paintTie(g, t.at, t.dir, 38, T.ld);
   }
   for (const i of cells) {
-    const c = BAY_CELLS[i]!,
+    const c = layout.BAY_CELLS[i]!,
       y = py(i);
     paintCable(
       g,

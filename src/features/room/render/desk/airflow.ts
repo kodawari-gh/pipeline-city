@@ -1,10 +1,10 @@
 import type { Snapshot } from '@/worker/protocol';
-import { COOLER, type Rect } from '@/features/board/render/layout/layout';
+import * as layout from '@/features/board/render/layout/layout';
 import { mkLane, pointAt, roundedPath } from '@/features/board/render/wiring/routes';
 import { radiatorSpan } from './props/case';
 import { radiatorFit, radiatorGrade, tubeRoutes } from '@/features/board/render/cooler';
-import { zoneOf, type AirZoneId } from '@/features/board/sim/airflow';
-import { AMBIENT_C, getSpec, type DeviceKind } from '@/features/board/sim/specs';
+import * as airSim from '@/features/board/sim/airflow';
+import * as specs from '@/features/board/sim/specs';
 import type { AirCtx, AirFan, AirSource } from '@/core/render/airsource';
 
 // The airflow lens model: pure data, no drawing (the 3D air takes its words from it, `board/render/three/air/view.ts`). Air comes in at the front fans, crosses the
@@ -19,7 +19,7 @@ type AirState = 'on' | 'idle' | 'dead';
 export interface AirMount {
   id: string;
   side: 'front' | 'top' | 'rear';
-  rect: Rect;
+  rect: layout.Rect;
 }
 
 /** One stream of air through a fan mount. `intake` air starts outside and goes in; the rest starts in the case and leaves. */
@@ -42,7 +42,7 @@ interface AirLane {
   kind: 'in' | 'out' | 'local';
   /** Where its flow enters or leaves, and the fan's box (where particles are released or absorbed). */
   port: Pt;
-  span: Rect;
+  span: layout.Rect;
   /** A stream of its own, apart from the case's air (the PSU's: in from below, through its shroud, out the rear): particles follow `pts`. */
   channel?: boolean;
   /** Channels only: the heat the air takes up along the lane: at `u` (0..1 of its length) it gains `heat` (0..1). */
@@ -53,9 +53,9 @@ interface AirZone {
   id: string;
   label: string;
   /** The box round the whole zone (where the air picks its heat up, where the tag sits). */
-  rect: Rect;
+  rect: layout.Rect;
   /** The shapes the glow follows: one rect per part (every stick of RAM, every phase of a VRM). */
-  rects: Rect[];
+  rects: layout.Rect[];
   /** The hover id of each rect (a device id), whose silhouette the glow traces; empty where the rects are all there is. */
   ids: (string | null)[];
   heat: number;
@@ -79,33 +79,33 @@ export interface AirModel {
   lanes: AirLane[];
   zones: AirZone[];
   tags: AirTag[];
-  mounts: { id: string; rect: Rect; state: AirState; fanIds: string[] }[];
+  mounts: { id: string; rect: layout.Rect; state: AirState; fanIds: string[] }[];
   /** The components' own fans, to draw (rotors and edge-on strips). */
   fanArt: AirFan[];
   /** The loop's two tubes (the hot one first), in world points: the lens shows the water in them. Null with no loop or no radiator. */
   loopTubes: [Pt[], Pt[]] | null;
   /** The inside of the case: the walls the air's field mirrors on. */
-  box: Rect;
+  box: layout.Rect;
 }
 
 export interface AirIn {
   s: Snapshot;
   mounts: AirMount[];
   /** A radiator on a side of the case takes over the fans of that side (`radiatorSpan`). */
-  radiator: { side: 'front' | 'top'; ids: string[]; rect: Rect } | null;
+  radiator: { side: 'front' | 'top'; ids: string[]; rect: layout.Rect } | null;
   /** Whether the rear wall has a fan (the Mini has a grille only). */
   rearFitted: boolean;
   /** The rear wall's fan rect (the grille's, when there is no fan). */
-  rear: Rect;
+  rear: layout.Rect;
   /** The glass area: the board's side of the case. */
-  glass: Rect;
+  glass: layout.Rect;
   /** Slot id to its world rect. */
-  slots: Map<string, Rect>;
+  slots: Map<string, layout.Rect>;
   /** What each component adds: its heat and its fans (`AIR_SOURCES`). */
   sources: AirSource[];
 }
 
-const mid = (r: Rect): Pt => [r.x + r.w / 2, r.y + r.h / 2];
+const mid = (r: layout.Rect): Pt => [r.x + r.w / 2, r.y + r.h / 2];
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 const deg = (t: number) => `${Math.round(t)}°C`;
 /** Case heat per watt of the cards, as the sim (`CASE_HEAT_C_PER_W`). */
@@ -114,8 +114,8 @@ const REACH = 900;
 /** An area with less than this share of its designed airflow is named on the lens. */
 const POOR_AIR = 0.7;
 /** The sim's airflow area of a heat zone: the zone ids are the device kinds (a part after a dot names a group of them), and the two regulators sit in the north area with the processor. */
-const areaOf = (zoneId: string): AirZoneId | null =>
-  zoneId === 'vrm' || zoneId === 'rvrm' ? 'north' : zoneOf(zoneId.split('.')[0] as DeviceKind);
+const areaOf = (zoneId: string): airSim.AirZoneId | null =>
+  zoneId === 'vrm' || zoneId === 'rvrm' ? 'north' : airSim.zoneOf(zoneId.split('.')[0] as specs.DeviceKind);
 /** How far a component's own fan blows (world units) before its air joins the case's. */
 const LOCAL_REACH = 1900;
 
@@ -198,7 +198,7 @@ export function airflowModel(i: AirIn): AirModel {
   const [, rearY] = mid(i.rear),
     rearX = i.rear.x + i.rear.w;
   const exitW: Pt = [i.rear.x - 700, rearY];
-  const make = (id: string, side: AirMount['side'], rect: Rect, on: boolean, strength: number): AirLane => {
+  const make = (id: string, side: AirMount['side'], rect: layout.Rect, on: boolean, strength: number): AirLane => {
     const [cx, cy] = mid(rect),
       gl = i.glass,
       inX = gl.x + gl.w * 0.12,
@@ -375,7 +375,7 @@ export function airflowModel(i: AirIn): AirModel {
   // a front radiator breathes room air and gives its heat to it: the air that comes in through it is warm, as warm as the water that heats it
   const radLane = loop?.side === 'front' ? lanes.find((l) => l.id === 'rad-front') : undefined;
   if (radLane && loop && running && loop.flow > 0.05) {
-    radLane.intakeHeat = Math.min(0.85, Math.max(0, (loop.coolantC - AMBIENT_C) / 40));
+    radLane.intakeHeat = Math.min(0.85, Math.max(0, (loop.coolantC - specs.AMBIENT_C) / 40));
   }
   if (loop && radMount && running) {
     tags.push({
@@ -389,15 +389,21 @@ export function airflowModel(i: AirIn): AirModel {
   }
   // the temperatures at a glance: the room (the sim's constant), the air of the case (the room plus how much the areas' air is warmed) and the PSU's own case
   const rises = s.board?.air.map((a) => a.riseC) ?? [],
-    caseC = AMBIENT_C + (rises.length > 0 ? rises.reduce((a, b) => a + b, 0) / rises.length : 0),
+    caseC = specs.AMBIENT_C + (rises.length > 0 ? rises.reduce((a, b) => a + b, 0) / rises.length : 0),
     psuZone = zones.find((z) => z.id === 'psu');
   const gy = gl.y - 190; // above the glass, clear of the top fans and radiator
-  tags.push({ id: 'g.room', at: [gl.x + gl.w * 0.16, gy], text: `ROOM ${deg(AMBIENT_C)}`, tone: 'dim', anchor: 'c' });
+  tags.push({
+    id: 'g.room',
+    at: [gl.x + gl.w * 0.16, gy],
+    text: `ROOM ${deg(specs.AMBIENT_C)}`,
+    tone: 'dim',
+    anchor: 'c',
+  });
   tags.push({
     id: 'g.case',
     at: [gl.x + gl.w * 0.5, gy],
     text: `CASE AIR ${deg(caseC)}`,
-    tone: caseC > AMBIENT_C + 12 ? 'warn' : 'heat',
+    tone: caseC > specs.AMBIENT_C + 12 ? 'warn' : 'heat',
     anchor: 'c',
     tempC: caseC,
   });
@@ -441,8 +447,8 @@ export function airflowModel(i: AirIn): AirModel {
   }
   // the loop's tubes, as the board lays them (pump ports on top of the cooler's head to the radiator's barbs)
   const span = loop ? radiatorSpan(loop.side) : null,
-    px = COOLER.x + COOLER.w / 2;
-  const grade = radiatorGrade(getSpec(s.devices.find((d) => d.kind === 'radiator')?.spec ?? '')?.visual ?? '');
+    px = layout.COOLER.x + layout.COOLER.w / 2;
+  const grade = radiatorGrade(specs.getSpec(s.devices.find((d) => d.kind === 'radiator')?.spec ?? '')?.visual ?? '');
   const loopTubes = span ? tubeRoutes(radiatorFit(span, px, grade), [px - 120, -520], [px + 120, -520]) : null;
   return { lanes, zones, tags, mounts, fanArt: localFans, loopTubes, box: i.glass };
 }

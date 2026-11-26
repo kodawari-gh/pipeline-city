@@ -1,6 +1,6 @@
-import { Container, Graphics, Text, type TextStyleFontWeight } from 'pixi.js';
+import * as PIXI from 'pixi.js';
 import { MONO } from '@/core/render/ink';
-import { dashSig, frameColor, type DashModel, type FrameModel, type Tone } from './screenmodel';
+import * as screenModel from './screenmodel';
 
 // The graphics display's screen (docs/render/live.md "Screen modes"): the OS dashboard drawn at the screen's design size
 // (SCREEN_D, 3120x1755) with a Graphics for gauges and pooled Texts for the words. It repaints only when the model changes.
@@ -12,7 +12,7 @@ const INK = '#7dffb0',
   CYAN = '#4fe3ff',
   RED = '#ff6b5e',
   TRACK = '#16241e';
-const TONE: Record<Tone, string> = { ok: INK, warn: AMBER, bad: RED, dim: DIM };
+const TONE: Record<screenModel.Tone, string> = { ok: INK, warn: AMBER, bad: RED, dim: DIM };
 
 const W = 3120,
   X0 = 90,
@@ -24,9 +24,9 @@ const LX = X0,
 const BAR_X = 540,
   BAR_W = 360;
 
-export class ScreenView extends Container {
-  private g = new Graphics();
-  private pool: Text[] = [];
+export class ScreenView extends PIXI.Container {
+  private g = new PIXI.Graphics();
+  private pool: PIXI.Text[] = [];
   private used = 0;
   private sig = '';
 
@@ -37,13 +37,13 @@ export class ScreenView extends Container {
   }
 
   /** Show the dashboard for `m` (null hides it). */
-  show(m: DashModel | null) {
+  show(m: screenModel.DashModel | null) {
     this.visible = m !== null;
     if (!m) {
       this.sig = '';
       return;
     }
-    const sig = dashSig(m);
+    const sig = screenModel.dashSig(m);
     if (sig === this.sig) {
       return;
     }
@@ -54,9 +54,9 @@ export class ScreenView extends Container {
   private put(str: string, x: number, y: number, size: number, color: string, right = false, weight = '600') {
     let t = this.pool[this.used++];
     if (!t) {
-      t = new Text({
+      t = new PIXI.Text({
         text: '',
-        style: { fontFamily: MONO, fontSize: size, fontWeight: weight as TextStyleFontWeight, fill: color },
+        style: { fontFamily: MONO, fontSize: size, fontWeight: weight as PIXI.TextStyleFontWeight, fill: color },
         resolution: 2,
       });
       this.pool.push(t);
@@ -74,13 +74,13 @@ export class ScreenView extends Container {
       st.fill = color;
     }
     if (st.fontWeight !== weight) {
-      st.fontWeight = weight as TextStyleFontWeight;
+      st.fontWeight = weight as PIXI.TextStyleFontWeight;
     }
     t.anchor.set(right ? 1 : 0, 0);
     t.position.set(x, y);
   }
 
-  private draw(m: DashModel) {
+  private draw(m: screenModel.DashModel) {
     const { g } = this;
     g.clear();
     this.used = 0;
@@ -192,11 +192,11 @@ export class ScreenView extends Container {
  * The GPU's picture, a panel of the dashboard under the process table (the graphics display with its cable on a card): the card's output as a
  * grid of coloured cells (`frameColor`) with a status strip under it. Repainted only when the frame or the strip changes.
  */
-export class FrameView extends Container {
-  private g = new Graphics();
-  private strip = new Text({
+export class FrameView extends PIXI.Container {
+  private g = new PIXI.Graphics();
+  private strip = new PIXI.Text({
     text: '',
-    style: { fontFamily: MONO, fontSize: 46, fontWeight: '600' as TextStyleFontWeight, fill: INK },
+    style: { fontFamily: MONO, fontSize: 46, fontWeight: '600' as PIXI.TextStyleFontWeight, fill: INK },
     resolution: 2,
   });
   private sig = '';
@@ -207,7 +207,7 @@ export class FrameView extends Container {
     this.visible = false;
   }
 
-  show(m: FrameModel | null) {
+  show(m: screenModel.FrameModel | null) {
     this.visible = m !== null;
     if (!m) {
       this.sig = '';
@@ -232,7 +232,7 @@ export class FrameView extends Container {
     m.cells.forEach((v, i) =>
       g
         .rect(ox + (i % m.cols) * cell, oy + Math.floor(i / m.cols) * cell, cell + 0.5, cell + 0.5)
-        .fill({ color: frameColor(v) }),
+        .fill({ color: screenModel.frameColor(v) }),
     );
     for (let r = 0; r < m.rows; r++) {
       g.rect(ox, oy + r * cell + cell * 0.8, cell * m.cols, cell * 0.2).fill({ color: 0x00_00_00, alpha: 0.18 });
