@@ -9,7 +9,7 @@ import { FanMotor, fanBank } from '../../../core/render/fanmotor';
 import { gpuCover } from '@/core/render/accelart';
 import type { Pt } from '../../cpu/render/core/cpuplan';
 import { gpuFar, gpuNear } from './gpuart';
-import { aluUnitOf, gpuGlyphArea, gpuGlyphLive, gpuHostLive, laneUnits } from './gpuglyph';
+import { aluUnitOf, gpuGlyphArea, gpuGlyphLive, gpuHostLive, laneUnits } from './glyph';
 import { gpuRoute, launchRoute, type Hop } from './plan/gpuroute';
 import { CellTexts, drawPackets, drawTrails, packetOn, type Packet, type Trail } from '../../cpu/render/die/diepulse';
 import { CYCLES_PER_SEC } from '../../cpu/render/die/diemotion';
@@ -472,8 +472,7 @@ export class GpuView {
       const live = gpuGlyphLive(
         { id: b.id, kind: b.kind, label: b.kind === 'fetch' ? 'FETCH' : b.kind.toUpperCase(), rect: b.rect },
         a,
-        sm.step,
-        prog,
+        { step: sm.step, prog },
       );
       for (const l of live.lit) lit.push({ rect: l.rect, color: T[l.color], a: l.a });
       let ct = c.cellTexts.get(b.id);
