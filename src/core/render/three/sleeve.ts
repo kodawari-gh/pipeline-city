@@ -17,14 +17,17 @@ const SUB = 4;
 function spread(p: readonly V3[]): readonly V3[] {
   const l = p.slice(1).map((q, i) => Math.hypot(q[0] - p[i]![0], q[1] - p[i]![1], q[2] - p[i]![2])),
     typical = [...l].sort((a, b) => a - b)[l.length >> 1]!;
-  if (!(typical > 0) || l.every((x) => x < typical * 1.5)) return p;
+  if (!(typical > 0) || l.every((x) => x < typical * 1.5)) {
+    return p;
+  }
   const out: V3[] = [p[0]!];
   l.forEach((x, i) => {
     const a = p[i]!,
       b = p[i + 1]!,
       k = Math.max(1, Math.round(x / typical));
-    for (let f = 1; f <= k; f++)
+    for (let f = 1; f <= k; f++) {
       out.push([a[0] + ((b[0] - a[0]) * f) / k, a[1] + ((b[1] - a[1]) * f) / k, a[2] + ((b[2] - a[2]) * f) / k]);
+    }
   });
   return out;
 }
@@ -56,11 +59,11 @@ export class Sleeve {
     this.nrm = new Float32Array(n * 3);
     this.uv = new Float32Array(n * 2);
     this.even = new Float64Array((samples + 1) * 3);
-    const idx = new (n > 65535 ? Uint32Array : Uint16Array)(strands * (samples * radial * 6 + 2 * radial * 3));
+    const idx = new (n > 65_535 ? Uint32Array : Uint16Array)(strands * (samples * radial * 6 + 2 * radial * 3));
     let k = 0;
     // counter-clockwise seen from outside: the faces point out of the tube
-    for (let s = 0; s < strands; s++)
-      for (let i = 0; i < samples; i++)
+    for (let s = 0; s < strands; s++) {
+      for (let i = 0; i < samples; i++) {
         for (let j = 0; j < radial; j++) {
           const a = s * per + i * ring + j,
             b = a + ring;
@@ -71,7 +74,9 @@ export class Sleeve {
           idx[k++] = a + 1;
           idx[k++] = b + 1;
         }
-    for (let s = 0; s < strands; s++)
+      }
+    }
+    for (let s = 0; s < strands; s++) {
       for (let e = 0; e < 2; e++) {
         const c = tubes + (s * 2 + e) * (ring + 1);
         for (let j = 0; j < radial; j++) {
@@ -81,6 +86,7 @@ export class Sleeve {
           idx[k++] = c + 1 + (e ? j + 1 : j);
         }
       }
+    }
     this.geometry.setIndex(new BufferAttribute(idx, 1));
     this.geometry.setAttribute('position', new BufferAttribute(this.pos, 3));
     this.geometry.setAttribute('normal', new BufferAttribute(this.nrm, 3));
@@ -89,16 +95,21 @@ export class Sleeve {
 
   /** Skin each strand along its points (at least two each; a missing strand keeps its last skin). */
   update(paths: readonly (readonly V3[])[]): void {
-    for (let s = 0; s < Math.min(this.strands, paths.length); s++) if (paths[s]!.length >= 2) this.strand(s, paths[s]!);
-    for (const name of ['position', 'normal', 'uv']) this.geometry.getAttribute(name).needsUpdate = true;
+    for (let s = 0; s < Math.min(this.strands, paths.length); s++) {
+      if (paths[s]!.length >= 2) {
+        this.strand(s, paths[s]!);
+      }
+    }
+    for (const name of ['position', 'normal', 'uv']) {
+      this.geometry.getAttribute(name).needsUpdate = true;
+    }
     this.geometry.computeBoundingSphere();
   }
 
   private strand(s: number, path: readonly V3[]) {
     const S = this.samples,
       R = this.radial,
-      r = this.r,
-      ring = this.ring,
+      { r, ring } = this,
       base = s * (S + 1) * ring,
       p = spread(path);
     // a dense centripetal Catmull-Rom curve through the points (the ends reflected, so the curve leaves each along its first segment), then
@@ -136,22 +147,24 @@ export class Sleeve {
         }
       }
     }
-    const last = p[p.length - 1]!;
-    d[(m - 1) * 3] = last[0];
-    d[(m - 1) * 3 + 1] = last[1];
-    d[(m - 1) * 3 + 2] = last[2];
+    [d[(m - 1) * 3], d[(m - 1) * 3 + 1], d[(m - 1) * 3 + 2]] = p.at(-1)!;
     L[0] = 0;
-    for (let i = 1; i < m; i++)
+    for (let i = 1; i < m; i++) {
       L[i] =
         L[i - 1]! + Math.hypot(d[i * 3]! - d[i * 3 - 3]!, d[i * 3 + 1]! - d[i * 3 - 2]!, d[i * 3 + 2]! - d[i * 3 - 1]!);
+    }
     const total = L[m - 1]!,
       e = this.even;
     for (let i = 0, q = 0; i <= S; i++) {
       const want = (total * i) / S;
-      while (q + 2 < m && L[q + 1]! < want) q++;
+      while (q + 2 < m && L[q + 1]! < want) {
+        q++;
+      }
       const span = L[q + 1]! - L[q]! || 1,
         f = Math.min(1, Math.max(0, (want - L[q]!) / span));
-      for (let j = 0; j < 3; j++) e[i * 3 + j] = d[q * 3 + j]! + (d[q * 3 + 3 + j]! - d[q * 3 + j]!) * f;
+      for (let j = 0; j < 3; j++) {
+        e[i * 3 + j] = d[q * 3 + j]! + (d[q * 3 + 3 + j]! - d[q * 3 + j]!) * f;
+      }
     }
     // the frame: the tangent, and a normal carried from the first end (projected off each new tangent)
     let nx = 0,
@@ -203,14 +216,15 @@ export class Sleeve {
         this.uv[v * 2] = u;
         this.uv[v * 2 + 1] = (j / R) * WRAP;
       }
-      if (i === 0 || i === S)
+      if (i === 0 || i === S) {
         this.cap(s, i ? 1 : 0, base + i * ring, i ? tx : -tx, i ? ty : -ty, i ? tz : -tz, i * 3, u);
+      }
     }
   }
 
   /** End `e`'s cap of strand `s`: its centre on the path, its ring on the strand's end ring (`at`), facing (nx, ny, nz); the weave laid flat on it. */
   private cap(s: number, e: number, at: number, nx: number, ny: number, nz: number, mid: number, u: number) {
-    const ring = this.ring,
+    const { ring } = this,
       c = this.strands * (this.samples + 1) * ring + (s * 2 + e) * (ring + 1),
       P = this.pos,
       N = this.nrm,

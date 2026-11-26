@@ -4,13 +4,13 @@
 
 /** The stops of the palette: where on the scale (0 cold, 1 hot) and the colour there, as sRGB. */
 export const THERMAL: readonly (readonly [number, number])[] = [
-  [0, 0x2f6bff],
-  [0.2, 0x7a3df0],
-  [0.4, 0xd3306e],
-  [0.6, 0xff5a24],
-  [0.78, 0xffa51f],
-  [0.9, 0xffe45a],
-  [1, 0xfff8e0],
+  [0, 0x2f_6b_ff],
+  [0.2, 0x7a_3d_f0],
+  [0.4, 0xd3_30_6e],
+  [0.6, 0xff_5a_24],
+  [0.78, 0xff_a5_1f],
+  [0.9, 0xff_e4_5a],
+  [1, 0xff_f8_e0],
 ];
 
 /** The exponent the scale bends by: the first kelvins over the room's already show (the air's own rise is small beside a part's). */
@@ -31,7 +31,9 @@ export function tempAt(h: number, lo: number, hi: number): number {
 export function thermalHex(h: number): number {
   const x = Math.min(1, Math.max(0, h));
   let i = 1;
-  while (i < THERMAL.length - 1 && THERMAL[i]![0] < x) i++;
+  while (i < THERMAL.length - 1 && THERMAL[i]![0] < x) {
+    i++;
+  }
   const [t0, c0] = THERMAL[i - 1]!,
     [t1, c1] = THERMAL[i]!,
     k = Math.min(1, Math.max(0, (x - t0) / (t1 - t0)));
@@ -58,5 +60,5 @@ export function thermalGlsl(): string {
     const [t0, c0] = THERMAL[i]!;
     return `  ${i ? 'else ' : ''}if (h < ${t.toFixed(3)}) return mix(${v(c0)}, ${v(c)}, (h - ${t0.toFixed(3)}) / ${(t - t0).toFixed(3)});`;
   });
-  return `vec3 thermal(float h) {\n  h = clamp(h, 0.0, 1.0);\n${lines.join('\n')}\n  return ${v(THERMAL[THERMAL.length - 1]![1])};\n}`;
+  return `vec3 thermal(float h) {\n  h = clamp(h, 0.0, 1.0);\n${lines.join('\n')}\n  return ${v(THERMAL.at(-1)![1])};\n}`;
 }
