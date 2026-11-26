@@ -1,10 +1,10 @@
 import { Graphics } from 'pixi.js';
 import { mix } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
-import { planFar, planNear, type DieArt, type PlanStyle } from '../../cpu/render/die/dieart';
-import { cellRects } from '../../cpu/render/die/dieart';
+import { cellRects, planFar, planNear } from '../../cpu/render/die/dieart';
+import type { DieArt, PlanStyle } from '../../cpu/render/die/dieart';
 import type { DiskBlock, DiskLink, DiskPlan } from './diskfloor';
-import { armTip, flatGrid, platterCell, queueLanes, type Cell } from './diskplan';
+import * as planCells from './diskplan';
 import type { DriveKind } from './drives';
 
 // The art of a drive's cutaway, in the CPU die's style (die/dieart.ts): a dark floor with a rim line in the tier's accent, macro blocks tinted in their
@@ -74,17 +74,23 @@ export function diskStatic(T: Theme, kind: DriveKind, plan: DiskPlan): StaticArt
     // a PCB: a row of decoupling capacitors beside the controller, test pads, and on a SATA drive the mounting hole
     const cw = plan.w * 0.014,
       ch = plan.h * 0.03;
-    for (let i = 0; i < 8; i++) g.roundRect(plan.w * 0.17 + i * cw * 1.9, plan.h * 0.07, cw, ch, 1.5);
+    for (let i = 0; i < 8; i++) {
+      g.roundRect(plan.w * 0.17 + i * cw * 1.9, plan.h * 0.07, cw, ch, 1.5);
+    }
     g.fill({ color: mix(T.die, T.ink, 0.35), alpha: 0.9 });
-    for (let i = 0; i < 8; i++)
+    for (let i = 0; i < 8; i++) {
       g.rect(plan.w * 0.17 + i * cw * 1.9 + cw * 0.15, plan.h * 0.07 + ch * 0.2, cw * 0.7, ch * 0.6);
+    }
     g.fill({ color: T.pin, alpha: 0.5 });
-    for (let i = 0; i < 4; i++) g.circle(plan.w * 0.05 + i * plan.w * 0.028, plan.h * 0.88, plan.h * 0.01);
+    for (let i = 0; i < 4; i++) {
+      g.circle(plan.w * 0.05 + i * plan.w * 0.028, plan.h * 0.88, plan.h * 0.01);
+    }
     g.fill({ color: T.pin, alpha: 0.6 });
-    if (kind === 'ssd-sata')
+    if (kind === 'ssd-sata') {
       g.circle(plan.w * 0.965, plan.h * 0.5, plan.h * 0.022)
         .fill({ color: T.bg })
         .stroke({ width: Math.max(1.2, plan.h * 0.006), color: accent, alpha: 0.7 });
+    }
   }
   const blocks = new Graphics();
   planFar(blocks, T, plan.blocks, STYLE);
@@ -102,12 +108,18 @@ export interface DataCtx {
 }
 
 /** The colour of a cell, and how strongly it shows. */
-function cellStyle(T: Theme, c: Cell, x: DataCtx): { color: string; a: number } {
+function cellStyle(T: Theme, c: planCells.Cell, x: DataCtx): { color: string; a: number } {
   const dimK = x.dim ? 0.4 : 1;
-  if (c.kind === 'free') return { color: mix(T.die, T.ink, 0.1), a: 0.7 };
-  if (c.kind === 'bad') return { color: T.bad, a: 0.95 };
+  if (c.kind === 'free') {
+    return { color: mix(T.die, T.ink, 0.1), a: 0.7 };
+  }
+  if (c.kind === 'bad') {
+    return { color: T.bad, a: 0.95 };
+  }
   const lost = c.kind === 'lost' || (x.burnt && c.kind === 'dataset');
-  if (lost) return { color: mix(T.bad, T.bg, 0.5), a: 0.95 * dimK };
+  if (lost) {
+    return { color: mix(T.bad, T.bg, 0.5), a: 0.95 * dimK };
+  }
   const owned = [T.ld, T.br, mix(T.ld, T.bad, 0.5), mix(T.alu, T.mul, 0.5)];
   const color =
     c.kind === 'os'
@@ -123,7 +135,7 @@ function cellStyle(T: Theme, c: Cell, x: DataCtx): { color: string; a: number } 
 }
 
 /** Wear as a red shade over a cell (flash only; a fresh cell has none). */
-const wearShade = (c: Cell): number => (c.kind === 'bad' ? 0 : Math.min(0.5, (c.wear / 100) * 0.5));
+const wearShade = (c: planCells.Cell): number => (c.kind === 'bad' ? 0 : Math.min(0.5, (c.wear / 100) * 0.5));
 
 /**
  * The capacity map: one cell per block group over the whole floor. A flash drive gets a flat grid, a hard disk its platter as rings (the first blocks on
@@ -134,7 +146,7 @@ export function drawMap(
   T: Theme,
   kind: DriveKind,
   plan: DiskPlan,
-  cells: readonly Cell[],
+  cells: readonly planCells.Cell[],
   x: DataCtx,
 ): void {
   g.clear();
@@ -142,7 +154,7 @@ export function drawMap(
     const p = plan.platter,
       ring = (p.R * 0.86) / p.tracks;
     cells.forEach((c, i) => {
-      const { track, sector } = platterCell(i, p.sectors);
+      const { track, sector } = planCells.platterCell(i, p.sectors);
       const r1 = p.R * 0.97 - track * ring,
         r0 = r1 - ring * 0.9,
         a0 = (sector / p.sectors) * Math.PI * 2 - Math.PI / 2,
@@ -167,7 +179,7 @@ export function drawMap(
   const m = plan.h * 0.06,
     w = plan.w - m * 2,
     h = plan.h - m * 2,
-    grid = flatGrid(cells.length, w, h);
+    grid = planCells.flatGrid(cells.length, w, h);
   cells.forEach((c, i) => {
     const s = cellStyle(T, c, x),
       cx = m + (i % grid.cols) * grid.cw,
@@ -195,7 +207,9 @@ export interface ArchLive {
 export function drawSpin(g: Graphics, T: Theme, plan: DiskPlan, angle: number, busy: boolean): void {
   g.clear();
   const p = plan.platter;
-  if (!p) return;
+  if (!p) {
+    return;
+  }
   for (let k = 0; k < 2; k++) {
     const a0 = angle + k * Math.PI;
     g.moveTo(p.cx, p.cy)
@@ -218,7 +232,7 @@ export function drawArch(
   T: Theme,
   kind: DriveKind,
   plan: DiskPlan,
-  cells: readonly Cell[],
+  cells: readonly planCells.Cell[],
   x: DataCtx,
   live: ArchLive,
 ): void {
@@ -228,7 +242,14 @@ export function drawArch(
     const p = plan.platter,
       a = plan.arm,
       ring = (p.R * 0.86) / p.tracks;
-    const { x: ex, y: ey } = armTip(a.px, a.py, a.len, p.cx, p.cy, p.R * 0.97 - live.track * ring - ring * 0.45);
+    const { x: ex, y: ey } = planCells.armTip(
+      a.px,
+      a.py,
+      a.len,
+      p.cx,
+      p.cy,
+      p.R * 0.97 - live.track * ring - ring * 0.45,
+    );
     const ux = (ex - a.px) / a.len,
       uy = (ey - a.py) / a.len,
       nx = -uy,
@@ -279,16 +300,20 @@ export function drawArch(
     for (let k = 0; k < d.slice.count; k++) {
       const c = cells[d.slice.first + k],
         r = rects[k];
-      if (!c || !r) continue;
+      if (!c || !r) {
+        continue;
+      }
       const s = cellStyle(T, c, x);
       g.roundRect(r.x, r.y, r.w, r.h, 1.5).fill({ color: s.color, alpha: s.a });
       const w = wearShade(c);
-      if (w > 0.02) g.roundRect(r.x, r.y, r.w, r.h, 1.5).fill({ color: T.bad, alpha: w });
+      if (w > 0.02) {
+        g.roundRect(r.x, r.y, r.w, r.h, 1.5).fill({ color: T.bad, alpha: w });
+      }
     }
   }
   const q = plan.blocks.find((b) => b.kind === 'queue');
   if (q) {
-    const { lanes, lit } = queueLanes(live.queued, live.depth),
+    const { lanes, lit } = planCells.queueLanes(live.queued, live.depth),
       rects = cellRects(q);
     for (let k = 0; k < lanes && k < rects.length; k++) {
       const r = rects[k]!;
@@ -309,10 +334,11 @@ export function drawBar(g: Graphics, T: Theme, w: number, h: number, used: numbe
     y = h - bh - h * 0.035,
     share = cap > 0 ? Math.min(1, used / cap) : 0;
   g.roundRect(x, y, bw, bh, bh / 2).fill({ color: '#000000', alpha: 0.45 });
-  if (share > 0)
+  if (share > 0) {
     g.roundRect(x, y, Math.max(bh, bw * share), bh, bh / 2).fill({
       color: burnt ? T.bad : share > 0.9 ? T.ld : T.alu,
       alpha: 0.95,
     });
+  }
   g.roundRect(x, y, bw, bh, bh / 2).stroke({ width: 1.2, color: mix(T.line, T.ink, 0.3), alpha: 0.8 });
 }

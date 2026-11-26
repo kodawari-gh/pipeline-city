@@ -7,7 +7,7 @@
 import { BLOCK_BYTES, STORAGE_BASE, STORAGE_BUF, STORAGE_REG, STORAGE_STRIDE, StorageStatus } from '@/core/sim/memmap';
 import type { Rate } from '@/core/sim/hw/clock';
 import type { Device } from '@/core/sim/hw/device';
-import { DiskFs, type MountState } from './fs';
+import * as diskFs from './fs';
 import { Prng } from '@/core/sim/prng';
 
 /** Blocks per wear group: the wear counters and the bad-block marks are kept per group. */
@@ -49,9 +49,9 @@ export class Disk {
   commands = 0;
 
   /** Which files own which blocks (docs/OS.md). The media always has it; only an OS allocates on it. */
-  readonly fs: DiskFs;
+  readonly fs: diskFs.DiskFs;
   /** The superblock's verdict. Stays with the drive; `formatOs` sets `clean`, a power cut during a write sets `dirty`. */
-  mount: MountState = 'unformatted';
+  mount: diskFs.MountState = 'unformatted';
 
   /** Requests waiting at the drive (reads the game queued, see `Game.canServe`). */
   queued = 0;
@@ -79,10 +79,10 @@ export class Disk {
     this.blocks = Math.floor(capacityBytes / BLOCK_BYTES);
     this.data = new Uint8Array(this.blocks * BLOCK_BYTES);
     this.used = new Uint8Array(this.blocks);
-    this.fs = new DiskFs(this);
+    this.fs = new diskFs.DiskFs(this);
     this.enduranceBlocks = opts.enduranceBlocks ?? 1e9;
     this.queueDepth = opts.queueDepth ?? 4;
-    this.seekByDistance = !!opts.seekByDistance;
+    this.seekByDistance = Boolean(opts.seekByDistance);
     this.mechBadRate = opts.mechBadRate ?? 0;
     this.seed = opts.seed ?? 1;
     const groups = Math.ceil(this.blocks / GROUP_BLOCKS);
@@ -94,10 +94,12 @@ export class Disk {
       ? new Disk(capacityBytes, latencyTicks, blockTicks, {
           ...opts,
           mirror: false,
-          seed: (this.seed ^ 0x9e3779b9) >>> 0,
+          seed: (this.seed ^ 0x9e_37_79_b9) >>> 0,
         })
       : null;
-    if (this.twin) this.twin.partner = this;
+    if (this.twin) {
+      this.twin.partner = this;
+    }
   }
 
   get groups(): number {
@@ -116,7 +118,11 @@ export class Disk {
 
   /** Whether any block of the range has lost its data. */
   hasLostBlocks(first: number, len: number): boolean {
-    for (let b = first; b < Math.min(this.blocks, first + len); b++) if (this.blockLost(b)) return true;
+    for (let b = first; b < Math.min(this.blocks, first + len); b++) {
+      if (this.blockLost(b)) {
+        return true;
+      }
+    }
     return false;
   }
 
@@ -126,7 +132,7 @@ export class Disk {
     if (l === 0) {
       l = Math.max(
         1,
-        Math.round(this.enduranceBlocks * (0.8 + 0.4 * new Prng((this.seed + g * 2654435761) >>> 0).next())),
+        Math.round(this.enduranceBlocks * (0.8 + 0.4 * new Prng((this.seed + g * 2_654_435_761) >>> 0).next())),
       );
       this.limit[g] = l;
     }
@@ -136,7 +142,9 @@ export class Disk {
   /** How worn the media is, 0..100: the most worn group's writes against its endurance (no wear levelling; the worse member of a mirror). */
   get wearPct(): number {
     let worst = 0;
-    for (let g = 0; g < this.groups; g++) worst = Math.max(worst, Math.min(1, this.wear[g]! / this.limitOf(g)));
+    for (let g = 0; g < this.groups; g++) {
+      worst = Math.max(worst, Math.min(1, this.wear[g]! / this.limitOf(g)));
+    }
     return Math.max(100 * worst, this.twin?.wearPct ?? 0);
   }
 
@@ -144,10 +152,13 @@ export class Disk {
   noteWrite(lba: number): void {
     this.twin?.noteWrite(lba);
     const g = Math.floor(lba / GROUP_BLOCKS);
-    if (this.bad[g]) return;
+    if (this.bad[g]) {
+      return;
+    }
     this.wear[g]!++;
-    if (this.wear[g]! >= this.limitOf(g) || (this.mechBadRate > 0 && this.rng.next() < this.mechBadRate))
+    if (this.wear[g]! >= this.limitOf(g) || (this.mechBadRate > 0 && this.rng.next() < this.mechBadRate)) {
       this.failGroup(g);
+    }
   }
 
   /** Wear of each group as a percent of its endurance, whole numbers (the worse member of a mirror). For the art. */
@@ -166,8 +177,12 @@ export class Disk {
     const wear: [number, number][] = [];
     const bad: number[] = [];
     for (let g = 0; g < this.groups; g++) {
-      if (this.wear[g]) wear.push([g, this.wear[g]!]);
-      if (this.bad[g]) bad.push(g);
+      if (this.wear[g]) {
+        wear.push([g, this.wear[g]!]);
+      }
+      if (this.bad[g]) {
+        bad.push(g);
+      }
     }
     return { wear, bad, rng: this.rng.getState() };
   }
@@ -177,18 +192,25 @@ export class Disk {
     this.wear.fill(0);
     this.bad.fill(0);
     this.badGroups = 0;
-    for (const [g, n] of s.wear) if (g >= 0 && g < this.groups) this.wear[g] = n;
-    for (const g of s.bad)
+    for (const [g, n] of s.wear) {
+      if (g >= 0 && g < this.groups) {
+        this.wear[g] = n;
+      }
+    }
+    for (const g of s.bad) {
       if (g >= 0 && g < this.groups && !this.bad[g]) {
         this.bad[g] = 1;
         this.badGroups++;
       }
+    }
     this.rng.setState(s.rng);
   }
 
   /** Turn a group bad. The files with data on lost blocks are marked lost; a bad block under the OS or metadata damages the filesystem. */
   failGroup(g: number): void {
-    if (this.bad[g]) return;
+    if (this.bad[g]) {
+      return;
+    }
     this.bad[g] = 1;
     this.badGroups++;
     (this.partner ?? this).fs.loseBlocks(g * GROUP_BLOCKS, GROUP_BLOCKS);
@@ -196,7 +218,9 @@ export class Disk {
 
   /** Delay in device ticks for a command at `lba` when the head is at `from`: flat, or scaled by the distance on a spinning disk. */
   seekTicks(from: number, lba: number): number {
-    if (!this.seekByDistance) return this.latencyTicks;
+    if (!this.seekByDistance) {
+      return this.latencyTicks;
+    }
     const frac = Math.abs(lba - from) / Math.max(1, this.blocks - 1);
     return Math.max(1, Math.round(this.latencyTicks * (0.3 + 1.4 * frac)));
   }
@@ -215,7 +239,9 @@ export class Disk {
 
   /** Mark blocks as occupied (capacity the OS or its files take) without counting traffic. */
   reserve(first: number, count: number): void {
-    for (let b = first; b < Math.min(this.blocks, first + count); b++) this.markUsed(b);
+    for (let b = first; b < Math.min(this.blocks, first + count); b++) {
+      this.markUsed(b);
+    }
   }
 
   markUsed(b: number): void {
@@ -293,7 +319,9 @@ export class StoragePort implements Device {
 
   /** Attach (or remove) the drive. Forgets any command in flight. */
   attach(media: Disk | null): void {
-    if (media === this.media) return;
+    if (media === this.media) {
+      return;
+    }
     this.cutPower();
     this.media = media;
     this.reset();
@@ -301,7 +329,9 @@ export class StoragePort implements Device {
 
   /** The power went (or the drive dropped off the bus) with a write in flight: the torn write leaves the drive `dirty`. */
   cutPower(): void {
-    if (this.busy > 0 && this.cmd === 2 && this.media?.mount === 'clean') this.media.mount = 'dirty';
+    if (this.busy > 0 && this.cmd === 2 && this.media?.mount === 'clean') {
+      this.media.mount = 'dirty';
+    }
   }
 
   /** Power-on reset: no command in flight, head position forgotten. */
@@ -342,29 +372,36 @@ export class StoragePort implements Device {
   }
 
   read(off: number): number {
-    if (off >= STORAGE_BUF) return off < STORAGE_BUF + BLOCK_BYTES ? this.buf[off - STORAGE_BUF]! : 0;
+    if (off >= STORAGE_BUF) {
+      return off < STORAGE_BUF + BLOCK_BYTES ? this.buf[off - STORAGE_BUF]! : 0;
+    }
     const reg = off & ~3;
     let w = 0;
     switch (reg) {
-      case STORAGE_REG.STATUS:
+      case STORAGE_REG.STATUS: {
         w =
           (this.busy > 0 ? StorageStatus.Busy : 0) |
           (this.error ? StorageStatus.Error : 0) |
           (this.media ? StorageStatus.Present : 0);
         break;
-      case STORAGE_REG.LBA:
+      }
+      case STORAGE_REG.LBA: {
         w = this.lba;
         break;
-      case STORAGE_REG.BLOCKS:
+      }
+      case STORAGE_REG.BLOCKS: {
         w = this.media?.blocks ?? 0;
         break;
+      }
     }
     return (w >>> (8 * (off & 3))) & 0xff;
   }
 
   write(off: number, val: number): void {
     if (off >= STORAGE_BUF) {
-      if (off < STORAGE_BUF + BLOCK_BYTES) this.buf[off - STORAGE_BUF] = val & 0xff;
+      if (off < STORAGE_BUF + BLOCK_BYTES) {
+        this.buf[off - STORAGE_BUF] = val & 0xff;
+      }
       return;
     }
     if (
@@ -381,7 +418,7 @@ export class StoragePort implements Device {
 
   private start(cmd: number): void {
     const m = this.media;
-    const lba = this.lba;
+    const { lba } = this;
     if (this.busy > 0 || !m || (cmd !== 1 && cmd !== 2) || lba >= m.blocks) {
       this.error = true;
       return;
@@ -389,7 +426,9 @@ export class StoragePort implements Device {
     this.error = false;
     this.cmd = cmd;
     this.active = true;
-    if (cmd === 2) this.latch.set(this.buf);
+    if (cmd === 2) {
+      this.latch.set(this.buf);
+    }
     const seq = lba === this.lastLba + 1,
       seek = seq ? 0 : m.seekTicks(this.head, lba);
     this.busy = seek + m.blockTicks;
@@ -401,20 +440,26 @@ export class StoragePort implements Device {
       xfer: m.blockTicks,
       queued: this.queueLoad() - 1,
     });
-    if (this.log.length > CMD_LOG) this.log.shift();
+    if (this.log.length > CMD_LOG) {
+      this.log.shift();
+    }
     m.commands++;
   }
 
   tick(): void {
-    if (this.busy <= 0) return;
+    if (this.busy <= 0) {
+      return;
+    }
     const m = this.media;
     if (!m) {
       this.busy = 0;
       return;
     }
     m.busyTicks++;
-    if (--this.busy > 0) return;
-    const lba = this.lba;
+    if (--this.busy > 0) {
+      return;
+    }
+    const { lba } = this;
     const at = lba * BLOCK_BYTES;
     if (this.cmd === 1) {
       this.buf.set(m.data.subarray(at, at + BLOCK_BYTES));

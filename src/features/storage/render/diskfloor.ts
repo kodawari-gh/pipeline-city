@@ -4,7 +4,7 @@
 // The data in the cells is `diskplan.ts`. Tested in diskfloor.test.ts.
 
 import type { Grid, Pt, Rect } from '../../cpu/render/core/cpuplan';
-import { ARCH, dieSlices, platterOf, type DieSlice } from './diskplan';
+import * as planCells from './diskplan';
 import type { DriveKind } from './drives';
 
 type DiskBlockKind = 'iface' | 'ctrl' | 'cache' | 'nand' | 'queue' | 'pre';
@@ -33,7 +33,7 @@ export interface DiskPlan {
   blocks: DiskBlock[];
   links: DiskLink[];
   /** The NAND dies of a flash drive: the block and the slice of the capacity map it shows. */
-  dies: { block: string; slice: DieSlice }[];
+  dies: { block: string; slice: planCells.DieSlice }[];
   /** The hard disk's platter and head arm (the HDD has no dies). */
   platter?: { cx: number; cy: number; R: number; hub: number; tracks: number; sectors: number };
   arm?: { px: number; py: number; len: number };
@@ -58,7 +58,7 @@ export function diskPlan(kind: DriveKind, w: number, h: number, cells: number): 
     links: DiskLink[] = [],
     dies: DiskPlan['dies'] = [];
   if (kind === 'hdd') {
-    const { tracks, sectors } = platterOf(cells);
+    const { tracks, sectors } = planCells.platterOf(cells);
     const R0 = Math.min(h * 0.44, w * 0.36),
       cx = w * 0.38,
       cy = h * 0.5;
@@ -105,7 +105,7 @@ export function diskPlan(kind: DriveKind, w: number, h: number, cells: number): 
     };
   }
   const nvme = kind === 'ssd-nvme',
-    a = ARCH[kind];
+    a = planCells.ARCH[kind];
   const iface = nvme ? rect(w * 0.02, h * 0.4, w * 0.09, h * 0.2) : rect(w * 0.03, h * 0.38, w * 0.1, h * 0.24);
   const ctrl = nvme ? rect(w * 0.17, h * 0.25, w * 0.16, h * 0.5) : rect(w * 0.2, h * 0.3, w * 0.18, h * 0.4);
   const cache = nvme ? rect(w * 0.17, h * 0.82, w * 0.16, h * 0.12) : rect(w * 0.2, h * 0.78, w * 0.18, h * 0.14);
@@ -154,7 +154,7 @@ export function diskPlan(kind: DriveKind, w: number, h: number, cells: number): 
       lanes: 1,
     });
   }
-  const slices = dieSlices(cells, a.dies, a.channels);
+  const slices = planCells.dieSlices(cells, a.dies, a.channels);
   const cols = nvme ? 4 : 2;
   const x0 = nvme ? w * 0.42 : w * 0.5,
     dx = nvme ? w * 0.145 : w * 0.23,
