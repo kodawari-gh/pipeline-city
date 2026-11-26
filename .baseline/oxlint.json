@@ -6939,14 +6939,6 @@
   "unicorn(prefer-string-starts-ends-with)": 1,
   "unicorn(switch-case-braces)": 8
  },
- "src/features/board/sim/specs.ts": {
-  "eslint(curly)": 1,
-  "eslint(max-lines)": 1,
-  "typescript(no-non-null-assertion)": 1,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(numeric-separators-style)": 9
- },
  "src/features/board/sim/thermal.ts": {
   "eslint(class-methods-use-this)": 1,
   "eslint(complexity)": 1,

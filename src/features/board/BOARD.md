@@ -4,6 +4,8 @@ Code: `src/features/board/sim` (import from `src/features/board/sim`). No DOM im
 
 ## Specs (`specs.ts`)
 
+`specs.ts` re-exports the spec modules: `specTypes.ts` (the record types), `specThermal.ts` (ambient, burn-out delay, thermal presets), the part lists by kind (`cpuSpecs.ts`, `cpuBranchSpecs.ts`, `memPowerSpecs.ts`, `coolingSpecs.ts`, `fanSpecs.ts`, `storageNicSpecs.ts`, `cardSpecs.ts`), `catalog.ts` (`specList`, `DEVICE_SPECS` and the lookups) and `caseBoardSpecs.ts` (`BOARD_TIERS`, `CASE_TIERS`).
+
 Devices are plain records in `DEVICE_SPECS` (`getSpec(id)`, `specsOfKind(kind)` gives the tier ladder). Common fields: `id, kind, tier, name, slot` (slot type needed; for a PSU the power connector), `price, idleW, loadW` (W at base clock), `heatFactor` (fraction of power that becomes heat), `clock {min, base, max}` (ticks per base tick; absent for PSU and cooler), `thermal {passive, mass, throttleC, unstableC, damageC}`, `visual` (opaque renderer key).
 
 | Kind     | Extra fields                                                                                                   | Catalog (tier: clock base)                                                                                                                                                                             |
@@ -73,7 +75,7 @@ Heatsink slot `vrm-sink`: one per board on every tier (the Starter board too). C
 
 ## Cases
 
-The PC case is part of the machine (`CASE_TIERS` in `specs.ts`, `Board.caseTier`, `snapshot.caseTier` and `snapshot.board.caseName / caseForm`). A case of tier `t` holds boards up to `maxBoard` = `t`: **Mini tower** (mini-ITX, the Starter board; the campaign starts in it), **Micro tower** (micro-ATX), **Mid tower** (ATX) and **Full tower** (E-ATX). Prices are placeholders ($25, 70, 160, 320).
+The PC case is part of the machine (`CASE_TIERS` in `caseBoardSpecs.ts`, `Board.caseTier`, `snapshot.caseTier` and `snapshot.board.caseName / caseForm`). A case of tier `t` holds boards up to `maxBoard` = `t`: **Mini tower** (mini-ITX, the Starter board; the campaign starts in it), **Micro tower** (micro-ATX), **Mid tower** (ATX) and **Full tower** (E-ATX). Prices are placeholders ($25, 70, 160, 320).
 
 - **A bigger board needs a bigger case first.** `applyOffer`, `Game.install` and the shop's `blocked` text refuse a board the case cannot hold ("the Mini tower is too small for a Basic board: buy a Micro tower first"). Owning the bigger case in the inventory is enough to buy the board; fitting the board needs the case fitted. A dead board of the same tier needs no bigger case.
 - **Offers**: the next case tier (`case1`...), also in the shop with its level lock (a case unlocks with its board: levels 2, 5 and 9). A case item installs onto the case (`freeSlots ["case"]`) only with the machine off (`purchase` and `install` say so); every part stays where it is.
