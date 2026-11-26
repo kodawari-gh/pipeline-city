@@ -442,12 +442,13 @@ export function TutorialCard() {
   useEffect(() => {
     const prev = prevStep.current;
     prevStep.current = step && !modal && !welcome ? { id: step.id, title: step.title } : null;
-    if (prev && stepId && prev.id !== stepId && !holdForLevelUp && !step?.ack) {
-      setPraise(prev.title);
-      const t = setTimeout(() => setPraise(null), 2600);
-      return () => clearTimeout(t);
+    if (!(prev && stepId && prev.id !== stepId && !holdForLevelUp && !step?.ack)) {
+      setPraise(null);
+      return;
     }
-    setPraise(null);
+    setPraise(prev.title);
+    const t = setTimeout(() => setPraise(null), 2600);
+    return () => clearTimeout(t);
   }, [stepId, modal]);
   const [tip, setTip] = useState(false);
   const isDragStep = targets.some((t) => t.startsWith('inv:') || t.startsWith('key:'));

@@ -21,7 +21,8 @@ function samples(fmt: string, name: string, shift?: boolean): GpuInstr[] {
         break;
       case 'I':
         for (const imm of shift ? [0, 1, 31] : [0, 1, -1, 65535, -65536])
-          out.push(gpuInstr(name, { rd, rs1: name === 'vli' ? 0 : rs1, imm })); // vli has no source register break;
+          out.push(gpuInstr(name, { rd, rs1: name === 'vli' ? 0 : rs1, imm })); // vli has no source register
+        break;
       case 'D':
         out.push(gpuInstr(name, { rd }));
         break;

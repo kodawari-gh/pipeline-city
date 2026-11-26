@@ -10,7 +10,7 @@ import { keyPcForLevel } from './keys';
 import { MIX } from './mixTokens';
 import type { GameEvent } from '../../worker/game/types';
 
-type Rec = { kind: 'cue'; id: string; delayS: number; quantise?: 'beat' } | { kind: 'key'; pc: number };
+type Rec = { kind: 'cue'; id: string; delayS: number; quantise?: 'beat' | undefined } | { kind: 'key'; pc: number };
 
 function fakeSink() {
   const log: Rec[] = [];

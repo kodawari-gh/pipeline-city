@@ -281,7 +281,14 @@ export interface MaskCopper {
   traces: readonly { pts: XY; w: number; gnd?: boolean }[];
   vias: readonly { x: number; y: number; gnd?: boolean }[];
   /** (a contact's own ring and drill, where its part's differ from `ring` and `hole`) */
-  holes?: readonly { x: number; y: number; square?: boolean; gnd?: boolean; ring?: number; hole?: number }[];
+  holes?: readonly {
+    x: number;
+    y: number;
+    square?: boolean | undefined;
+    gnd?: boolean;
+    ring?: number;
+    hole?: number;
+  }[];
   /** Unplated holes (a jack's plastic pegs, a heatsink's push pins): bare drills, the pour cleared round them. */
   npth?: readonly { x: number; y: number; r: number }[];
   keep?: readonly RectLike[];

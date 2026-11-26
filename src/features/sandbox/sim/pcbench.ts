@@ -443,7 +443,7 @@ async function jobRate(
   ref: number | undefined,
   pace: Pace,
   stop: Stop,
-): Promise<{ rate: number; seconds: number; slowed?: string } | { note: string }> {
+): Promise<{ rate: number; seconds: number; slowed?: string | undefined } | { note: string }> {
   const r = g.spawnKey(task.template!, scale);
   if (!r.ok) return { note: r.reason };
   const queued = g.snapshot().tray.find((k) => k.id === r.keyId);
