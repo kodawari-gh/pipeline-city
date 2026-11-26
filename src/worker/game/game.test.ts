@@ -2,7 +2,7 @@ import { assert, describe, expect, it } from 'vitest';
 import { getSpec } from '../../features/board/sim';
 import { ECONOMY } from '../../features/economy/sim/economy';
 import * as gameSim from './game';
-import { Operator, play } from '../../features/economy/sim/operator';
+import { Operator, play, playEach } from '../../features/economy/sim/operator';
 import { rig } from './testkit';
 
 // These tests are about hardware, not player levels: every item is buyable (levels have their own tests in levels.test.ts).
@@ -163,11 +163,14 @@ describe('queue, reputation and demand', () => {
     const meanRep = (g: gameSim.Game): number => {
       let sum = 0;
       let n = 0;
-      play(g, 1500, 2, (gg, t) => {
-        if (t > 750 && t % 10 === 0) {
-          sum += gg.snapshot().reputation;
-          n++;
-        }
+      playEach(g, 1500, {
+        reaction: 2,
+        each: (gg, t) => {
+          if (t > 750 && t % 10 === 0) {
+            sum += gg.snapshot().reputation;
+            n++;
+          }
+        },
       });
       return sum / n;
     };

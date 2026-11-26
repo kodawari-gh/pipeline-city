@@ -82,7 +82,8 @@ function tpmTier(e: Task): number {
 const NEED_NOTHING = tasks.filter((x) => taskNeeds(x).length === 0 && x.cls === 'cli');
 
 /** Offers a network job on the link, as a client would. */
-const offer = (g: Game, template: string, scale: number): boolean => g.enqueue(template, scale, 'web', true);
+const offer = (g: Game, template: string, scale: number): boolean =>
+  g.enqueue({ template, scale, cls: 'web', net: true });
 
 /** Runs the game until a job is done (at most `max` ticks): the sizes of the uploads seen on the way. */
 function uploadsUntilDone(g: Game, max: number): Set<number> {

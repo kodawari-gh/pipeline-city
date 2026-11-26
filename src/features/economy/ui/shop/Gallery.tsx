@@ -34,47 +34,118 @@ export function Gallery() {
     item = group.items[at]!;
   const n = group.items.length;
 
+  useGalleryKeys({ open, all, n, setGi, setIi });
+
+  if (!open) {
+    return null;
+  }
+  return (
+    <GalleryView
+      all={all}
+      kinds={kinds}
+      parts={parts}
+      total={total}
+      group={group}
+      item={item}
+      at={at}
+      n={n}
+      setGi={setGi}
+      setIi={setIi}
+      shelf={shelf}
+      read={read}
+      side={side}
+      foot={foot}
+      frame={frame}
+    />
+  );
+}
+
+function galleryStep(n: number, setIi: (fn: (i: number) => number) => void, d: number): void {
+  playCue('ui_value_change');
+  setIi((i) => (i + d + n) % n);
+}
+
+function galleryCat(opts: {
+  all: ReturnType<typeof galleryGroups>;
+  setGi: (fn: (g: number) => number) => void;
+  setIi: (fn: (i: number) => number) => void;
+  d: number;
+}): void {
+  playCue('ui_tab_switch');
+  opts.setGi((g) => (g + opts.d + opts.all.length) % opts.all.length);
+  opts.setIi(() => 0);
+}
+
+function onGalleryKey(opts: {
+  e: KeyboardEvent;
+  all: ReturnType<typeof galleryGroups>;
+  n: number;
+  setGi: (fn: (g: number) => number) => void;
+  setIi: (fn: (i: number) => number) => void;
+}): void {
+  const { e, all, n, setGi, setIi } = opts;
+  // (the graphics modal shuts itself on Escape: the Gallery stays)
+  if (e.key === 'Escape') {
+    if (!settingsOpen.peek()) {
+      galleryOpen.value = false;
+    }
+    return;
+  }
+  if (e.key === 'ArrowRight') {
+    galleryStep(n, setIi, 1);
+  } else if (e.key === 'ArrowLeft') {
+    galleryStep(n, setIi, -1);
+  } else if (e.key === 'ArrowDown') {
+    galleryCat({ all, setGi, setIi, d: 1 });
+  } else if (e.key === 'ArrowUp') {
+    galleryCat({ all, setGi, setIi, d: -1 });
+  } else {
+    return;
+  }
+  e.preventDefault();
+}
+
+function useGalleryKeys(opts: {
+  open: boolean;
+  all: ReturnType<typeof galleryGroups>;
+  n: number;
+  setGi: (fn: (g: number) => number) => void;
+  setIi: (fn: (i: number) => number) => void;
+}): void {
+  const { open, all, n, setGi, setIi } = opts;
   useEffect(() => {
     if (!open) {
       return;
     }
     // (the cues of a part and a category change, ticket #66: the turntable's drag and zoom stay silent)
-    const step = (d: number) => {
-      playCue('ui_value_change');
-      setIi((i) => (i + d + n) % n);
-    };
-    const cat = (d: number) => {
-      playCue('ui_tab_switch');
-      setGi((g) => (g + d + all.length) % all.length);
-      setIi(0);
-    };
     const onKey = (e: KeyboardEvent) => {
-      // (the graphics modal shuts itself on Escape: the Gallery stays)
-      if (e.key === 'Escape') {
-        if (!settingsOpen.peek()) {
-          galleryOpen.value = false;
-        }
-        return;
-      } else if (e.key === 'ArrowRight') {
-        step(1);
-      } else if (e.key === 'ArrowLeft') {
-        step(-1);
-      } else if (e.key === 'ArrowDown') {
-        cat(1);
-      } else if (e.key === 'ArrowUp') {
-        cat(-1);
-      } else {
-        return;
-      }
-      e.preventDefault();
+      onGalleryKey({ e, all, n, setGi, setIi });
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, gi, all, n]);
+  }, [open, all, n, setGi, setIi]);
+}
 
-  if (!open) {
-    return null;
-  }
+interface GalleryBits {
+  all: ReturnType<typeof galleryGroups>;
+  kinds: string[];
+  parts: partShelf.ShelfPart[];
+  total: number;
+  group: ReturnType<typeof galleryGroups>[number];
+  item: ReturnType<typeof galleryGroups>[number]['items'][number];
+  at: number;
+  n: number;
+  setGi: (n: number) => void;
+  setIi: (n: number | ((i: number) => number)) => void;
+  shelf: { current: HTMLElement | null };
+  read: { current: HTMLElement | null };
+  side: { current: HTMLDivElement | null };
+  foot: { current: HTMLDivElement | null };
+  frame: { current: HTMLDivElement | null };
+}
+
+function GalleryView(opts: GalleryBits) {
+  const { all, kinds, parts, total, group, item, at, n, setGi, setIi, shelf, read, side, foot, frame } = opts;
   return (
     <div class="gallery mode" role="dialog" aria-modal="true" aria-label="Gallery">
       <div class="gal-main">
@@ -89,16 +160,38 @@ export function Gallery() {
         <div class="gal-brackets" ref={frame} aria-hidden="true" />
       </div>
 
+      <GalleryChrome
+        all={all}
+        kinds={kinds}
+        parts={parts}
+        total={total}
+        group={group}
+        item={item}
+        at={at}
+        n={n}
+        setGi={setGi}
+        setIi={setIi}
+        shelf={shelf}
+        read={read}
+        side={side}
+        foot={foot}
+        frame={frame}
+      />
+    </div>
+  );
+}
+
+function GalleryChrome(opts: GalleryBits) {
+  const { all, kinds, parts, total, group, item, at, n, setGi, setIi, shelf, read, side, foot } = opts;
+  const pickKind = (k: string) => {
+    setGi(Math.max(0, kinds.indexOf(k)));
+    setIi(0);
+  };
+  return (
+    <>
       {/* (one tab for what scrolls on a phone; on a desktop screen it is transparent to the layout) */}
       <div class="gal-scroll">
-        <GallerySpine
-          groups={all}
-          kind={group.kind}
-          setKind={(k) => {
-            setGi(Math.max(0, kinds.indexOf(k)));
-            setIi(0);
-          }}
-        />
+        <GallerySpine groups={all} kind={group.kind} setKind={pickKind} />
         <partShelf.PartShelf
           shelf={shelf}
           class="gal-shelf"
@@ -108,10 +201,7 @@ export function Gallery() {
           kinds={kinds}
           parts={parts}
           kind={group.kind}
-          setKind={(k) => {
-            setGi(Math.max(0, kinds.indexOf(k)));
-            setIi(0);
-          }}
+          setKind={pickKind}
           current={item.id}
           tip={(p) => `Show ${p.name}`}
           onActivate={(p) => {
@@ -127,6 +217,20 @@ export function Gallery() {
         <GalleryRead read={read} group={group} item={item} at={at} />
         <GalleryPart side={side} group={group} item={item} />
       </div>
+      <GalleryCloseFoot foot={foot} at={at} n={n} setIi={setIi} />
+    </>
+  );
+}
+
+function GalleryCloseFoot(opts: {
+  foot: { current: HTMLDivElement | null };
+  at: number;
+  n: number;
+  setIi: (n: number | ((i: number) => number)) => void;
+}) {
+  const { foot, at, n, setIi } = opts;
+  return (
+    <>
       <button
         class="mode-close"
         data-cue="ui_panel_close"
@@ -147,6 +251,6 @@ export function Gallery() {
           setIi((i) => (i + d + n) % n);
         }}
       />
-    </div>
+    </>
   );
 }

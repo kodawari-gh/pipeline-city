@@ -307,7 +307,7 @@ ECONOMY.caseGating = false;
 ECONOMY.lossTable = false; // no segment is lost unless a test asks for it (`wireLoss`) or switches the table on (`lossTable: true`)
 
 const offer = (g: Game, template = 'cli.log', scale = 1): void => {
-  g.enqueue(template, scale, undefined, true);
+  g.enqueue({ template, scale, net: true });
 };
 const kword = (g: Game, k: keyof typeof NICK): number => g.machine.bus.load32(NICA + NICK[k]) >>> 0;
 const delivered = (g: Game): number => g.snapshot().net.counters.delivered;
@@ -981,7 +981,7 @@ describe('the stamp, the round trip, the loss table and the input FIFO', { timeo
       },
     });
     // a download that has segments left to send is listed (400 MB of a db job at 50 Mbit: sixty-odd ticks for three segments)
-    g.enqueue('web.dns', 4, 'db', true);
+    g.enqueue({ template: 'web.dns', scale: 4, cls: 'db', net: true });
     const flows: Flow[] = [];
     advanceWhile(g, () => delivered(g) === 0, {
       max: 4000,

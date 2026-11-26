@@ -106,12 +106,7 @@ describe("the jacks' lights from a running game", () => {
     expect(run(3, 0.1)).toBe(0);
     expect(glow(m.root, BOARD.link)).toBeCloseTo(JACK_GLOW.link, 9);
     // (a download at the plan's speed: the frames come close, the light stays on for as long as it moves)
-    (g as unknown as { enqueue(t: string, s: number, c: string | undefined, n: boolean): boolean }).enqueue(
-      'cli.log',
-      1,
-      undefined,
-      true,
-    );
+    g.enqueue({ template: 'cli.log', scale: 1, net: true });
     expect(run(2, 0.1)).toBe(2);
     // (the job has run and its result is out, the link is idle: the amber light goes)
     for (let i = 0; i < 3000 && !g.snapshot().progress.firstNetJob; i++) g.advanceBaseTick();

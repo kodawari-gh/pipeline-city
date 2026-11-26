@@ -361,8 +361,8 @@ const firstPayout = (level: number): number => {
 describe('patience, payout and demand by level', () => {
   it("payout is the base formula times the level's pay multiplier", () => {
     const cfg = ECONOMY;
-    expect(payout(cfg, 30, 60, false, 1)).toBe(56);
-    expect(payout(cfg, 30, 60, false, 1.52)).toBe(Math.round(56 * 1.52));
+    expect(payout({ cfg, work: 30, turnaround: 60, late: false, levelPay: 1 })).toBe(56);
+    expect(payout({ cfg, work: 30, turnaround: 60, late: false, levelPay: 1.52 })).toBe(Math.round(56 * 1.52));
     const p1 = firstPayout(1);
     const p5 = firstPayout(5);
     expect(p5 / p1).toBeGreaterThan(1.35);
@@ -386,26 +386,32 @@ describe('patience, payout and demand by level', () => {
 describe('the arrival mix', () => {
   it('levels 1 to 4 are plain cli work, scans and db arrive at level 5; a class ramps in over its ticks after its level; reputation shifts the heavy classes', () => {
     for (const level of [1, 2, 3]) {
-      expect(shares(jobMix(level, 1, {}, 0))).toStrictEqual({ cli: 1 });
+      expect(shares(jobMix({ level, reputation: 1, levelTicks: {}, tick: 0 }))).toStrictEqual({ cli: 1 });
     }
-    expect(shares(jobMix(4, 1, {}, 0))['scan']).toBeUndefined();
-    const s5 = shares(jobMix(5, 1, { 5: 1e9 }, 1e9 + 10_000)); // fully ramped
+    expect(shares(jobMix({ level: 4, reputation: 1, levelTicks: {}, tick: 0 }))['scan']).toBeUndefined();
+    const s5 = shares(jobMix({ level: 5, reputation: 1, levelTicks: { 5: 1e9 }, tick: 1e9 + 10_000 })); // fully ramped
     expect(s5['scan']).toBeCloseTo(0.25, 2);
     expect(s5['cli']).toBeCloseTo(0.4, 2);
     // Scan ramps in over 300 ticks from its level; the moment the level is reached there is no scan at all.
-    expect(shareOf(jobMix(5, 1, { 5: 0 }, 0), 'scan')).toBe(0);
-    expect(shares(jobMix(5, 1, { 5: 0 }, 150))['scan']).toBeLessThan(0.2);
+    expect(shareOf(jobMix({ level: 5, reputation: 1, levelTicks: { 5: 0 }, tick: 0 }), 'scan')).toBe(0);
+    expect(shares(jobMix({ level: 5, reputation: 1, levelTicks: { 5: 0 }, tick: 150 }))['scan']).toBeLessThan(0.2);
     // web arrives at level 4: nothing at the moment the level is reached, half its share after 300 ticks, all after 600.
-    expect(shareOf(jobMix(4, 1, { 4: 1000 }, 1000), 'web')).toBe(0);
-    const [, half] = must(jobMix(4, 1, { 4: 1000 }, 1300).find(([c]) => c.id === 'web'));
+    expect(shareOf(jobMix({ level: 4, reputation: 1, levelTicks: { 4: 1000 }, tick: 1000 }), 'web')).toBe(0);
+    const [, half] = must(
+      jobMix({ level: 4, reputation: 1, levelTicks: { 4: 1000 }, tick: 1300 }).find(([c]) => c.id === 'web'),
+    );
     expect(half).toBeCloseTo(7.5, 6);
-    expect(must(jobMix(4, 1, { 4: 1000 }, 1600).find(([c]) => c.id === 'web'))[1]).toBe(15);
+    expect(
+      must(jobMix({ level: 4, reputation: 1, levelTicks: { 4: 1000 }, tick: 1600 }).find(([c]) => c.id === 'web'))[1],
+    ).toBe(15);
     // Heavy classes scale with reputation, clamped to 0.5 .. 1.5.
-    const heavy = (rep: number) => must(jobMix(10, rep, {}, 0).find(([c]) => c.id === 'gpu'))[1];
+    const heavy = (rep: number) =>
+      must(jobMix({ level: 10, reputation: rep, levelTicks: {}, tick: 0 }).find(([c]) => c.id === 'gpu'))[1];
     expect(heavy(0.1)).toBe(10);
     expect(heavy(1)).toBe(20);
     expect(heavy(3)).toBe(30);
-    const cli = (rep: number) => must(jobMix(10, rep, {}, 0).find(([c]) => c.id === 'cli'))[1];
+    const cli = (rep: number) =>
+      must(jobMix({ level: 10, reputation: rep, levelTicks: {}, tick: 0 }).find(([c]) => c.id === 'cli'))[1];
     expect(cli(0.1)).toBe(cli(3)); // light classes do not move
   });
 
