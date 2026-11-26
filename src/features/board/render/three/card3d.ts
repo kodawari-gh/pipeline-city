@@ -9,12 +9,14 @@
 // it. The jacks stand 13.5 mm on that face at the bracket, so the slot's bay reaches that far north of its line (`SLOT_BAY`) and a cooler in the slot north of it starts east of them (`COOLER_FROM`).
 // Its fingers are at its own slot and its bracket west, and its controller's lid fades as the die under it shows its floorplan (`nicchip3d.ts`). A GPU and an AI card are built the same way inside (`accelparts3d.ts`): the
 // backplate stands off the PCB over the parts, and fades with the cooler; under it the main die and the card memory's die are two packages, each under its lid.
-import { BoxGeometry, Group, type Mesh, type MeshStandardMaterial, type Object3D } from 'three';
+import { BoxGeometry, Group } from 'three';
+import type * as threeTypes from 'three';
 import { Container, Graphics } from 'pixi.js';
 import { CARD_LEN, cardOrigin, cardRect } from '@/core/render/accelart';
 import type { Theme } from '@/core/render/theme';
 import { FINISH, fadeTree } from '@/core/render/three/artlod';
-import { instanced, rectBox, type RectLike } from '@/core/render/three/geometry';
+import { instanced, rectBox } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { DEVICE_LOD, smooth } from '@/core/render/lod/lod';
 import { nicDie } from '@/features/network/render/nic/nicart';
@@ -25,10 +27,13 @@ import { npuFar, npuNear } from '@/features/npu/render/npuart';
 import { npuGeo } from '@/features/npu/render/npulayout';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { BD, NIC_BRACKET_X, NIC_LEN, PCIE_RAILS, nicY } from '../layout/layout';
-import { LV_DIE, type ArtSet } from './artset3d';
+import { LV_DIE } from './artset3d';
+import type * as artset3dTypes from './artset3d';
 import type { Spin } from './fans3d';
-import { wallX, type Span } from './casekit3d';
-import { accelParts, type AccelPart } from './accelparts3d';
+import { wallX } from './casekit3d';
+import type * as casekit3dTypes from './casekit3d';
+import { accelParts } from './accelparts3d';
+import type * as accelparts3dTypes from './accelparts3d';
 import {
   gpuBackplate,
   gpuCooler,
@@ -46,19 +51,21 @@ import type { Lying } from './routerboard3d';
 import type { DieFloor, NicChip } from './nicchip3d';
 import type { JackLamps } from './rj45jack3d';
 import { NIC_LANES, nicCopper } from './niccopper';
-import { nicLanes, type NicLanes } from './nicflow';
+import { nicLanes } from './nicflow';
+import type * as nicflowTypes from './nicflow';
 import { npuBackplate, npuBracket, npuCooler, npuPlan as npuShroud } from './npu3d';
-import { gold, passives, pcbSlab, type Passive } from './pcbkit3d';
+import { gold, passives, pcbSlab } from './pcbkit3d';
+import type * as pcbkit3dTypes from './pcbkit3d';
 import { FINGER, KEY, pinAt, TAB, tabOf, txPin } from './pcie';
 
 export type CardKind = 'gpu' | 'npu' | 'nic';
 
 /** One die of a GPU or an AI card on its card: see `Card3D.dies`. */
 interface CardDie {
-  part: AccelPart;
-  root: Object3D;
+  part: accelparts3dTypes.AccelPart;
+  root: threeTypes.Object3D;
   z: number;
-  rect: RectLike;
+  rect: geometryTypes.RectLike;
   stand: Lying;
   zTop: number;
   scale: number;
@@ -86,7 +93,7 @@ export const STAND: Record<CardKind, number> = { gpu: 2650, npu: 2300, nic: 1320
  * so a point's height over the PCB is its height over the board's slot line, and its distance south of the line is its depth toward the glass. A `Lying`, as the router board's parts
  * (a face that looks up, its east-west span, its middle's depth, the depth it covers, the world height of its top).
  */
-export const standIn = (slot: number, r: RectLike, zTop: number): Lying => {
+export const standIn = (slot: number, r: geometryTypes.RectLike, zTop: number): Lying => {
   const y0 = nicY(slot);
   return { x: r.x, w: r.w, z: HINGE_Z + (r.y + r.h / 2 - y0), d: r.h, y: -y0 + (zTop - HINGE_Z) };
 };
@@ -138,7 +145,7 @@ export interface Card3D {
   /** A network card's jack lights (the jack the cable goes into), out: the network's (`network/render/jackleds.ts`). Null on any other card. */
   lan: JackLamps | null;
   /** The materials that follow the part's state (`PartSkin`). */
-  skin: MeshStandardMaterial[];
+  skin: threeTypes.MeshStandardMaterial[];
   /** The card's face as it stands (`standIn`: a NIC's strip, a GPU's or an AI card's 2D rect from the slot's line down): the zoom is read over it (its point nearest the view's centre), and what the zoom seen there does (`pose`: the cooler fades, the art shows). */
   face: Lying;
   pose: (zoom: number) => void;
@@ -148,29 +155,36 @@ export interface Card3D {
    * live layer's frame and depth, its plan's rectangle in that frame, where it stands, the depth of its top in the card's own flat frame, the layout units to a plan unit) and what fades off the die
    * (the lid, a sink on it). Empty and null on the other cards. */
   bodies: { id: string; lie: Lying }[];
-  die: { root: Object3D; z: number; rect: RectLike; stand: Lying; zTop: number; scale: number } | null;
+  die: {
+    root: threeTypes.Object3D;
+    z: number;
+    rect: geometryTypes.RectLike;
+    stand: Lying;
+    zTop: number;
+    scale: number;
+  } | null;
   /** A NIC's lit copper (`Chips3D.traces`): the frame the lanes' drawing is in (the card's component side, a band of the drawing for its slot), the depth just over the mask's face in it, and the lanes
    * (`nicflow.ts`). Null on the other cards. */
   copper: {
-    root: Object3D;
+    root: threeTypes.Object3D;
     z: number;
-    lanes: NicLanes;
+    lanes: nicflowTypes.NicLanes;
     /** The zoom band the lit copper fades in over (a GPU's and an AI card's: with their dies; a NIC's: `DEVICE_LOD.nic.parts`). */ band?: readonly [
       number,
       number,
     ];
   } | null;
-  lids: Object3D[];
+  lids: threeTypes.Object3D[];
   /** A GPU's or an AI card's two dies (`accelparts3d.ts`): the main die's and the card memory's, each with the live layer's frame and depth, its plan's rectangle in that frame (board space), where it stands, the depth of its top in the card's flat frame, the layout units to a plan unit and its lid's fade. Empty on the other cards. */
   dies: CardDie[];
   /** A NIC's parts as one group: far away they draw as stand-ins (an anchor of the machine's level of detail), so three cards cost a few draws, not each part. Null on the other cards. */
-  parts: Object3D | null;
+  parts: threeTypes.Object3D | null;
   /** How far a NIC's detail shows (0 the cooler on, 1 the cooler gone and the parts bare): a part is pointed at only then. Always 0 on the other cards, which show no parts. */
   detail: () => number;
   /** The controller's lid fades for the zoom seen over its die (screen pixels per layout unit): the machine reads that zoom at `die.stand`. */
   lod: (zoom: number) => void;
   /** Fade this with the cooler too (a power lead plugged into the top edge). It returns what stops that (the lead is pulled or rebuilt). */
-  alsoFade: (o: Object3D) => () => void;
+  alsoFade: (o: threeTypes.Object3D) => () => void;
   /** The power sockets' mouths, standing: layout x and y, and the depth of the top edge where a plug goes in. */
   sockets: { x: number; y: number; z: number }[];
 }
@@ -191,8 +205,9 @@ function frame(kind: CardKind, visual: string, slot: number) {
     r,
   };
   // (a GPU's or an AI card's PCB carries its dies, which stand where the cooler's base is: the face reaches past them)
-  if (kind !== 'nic')
+  if (kind !== 'nic') {
     base.south = Math.max(base.south, (kind === 'gpu' ? gpuDie(base).y : npuShroud(base).die.y) + 12 * MM);
+  }
   return base;
 }
 
@@ -204,8 +219,12 @@ export function card3d(
   kind: CardKind,
   visual: string,
   slot: number,
-  face: (parent: Group, r: RectLike, z: number) => Object3D,
-  nic: { id?: string; floor?: DieFloor; accel?: (part: AccelPart, plan: RectLike) => DieFloor } = {},
+  face: (parent: Group, r: geometryTypes.RectLike, z: number) => threeTypes.Object3D,
+  nic: {
+    id?: string;
+    floor?: DieFloor;
+    accel?: (part: accelparts3dTypes.AccelPart, plan: geometryTypes.RectLike) => DieFloor;
+  } = {},
 ): Card3D {
   const root = new Group(),
     hinge = new Group(),
@@ -228,11 +247,11 @@ export function card3d(
   // (the rest of the 2D strip north of the slot's line lies in the board when the card stands: it is never shown)
   flatOnly.visible = false;
   lying.add(fades, flatOnly);
-  const pcbHex = kind === 'gpu' ? 0x1b2236 : kind === 'npu' ? 0x1c1d24 : 0x103848,
+  const pcbHex = kind === 'gpu' ? 0x1b_22_36 : kind === 'npu' ? 0x1c_1d_24 : 0x10_38_48,
     pcbM = mat(pcbHex, { roughness: 0.5 });
-  const rect = (x: number, y: number, w: number, h: number): RectLike => ({ x, y, w, h });
+  const rect = (x: number, y: number, w: number, h: number): geometryTypes.RectLike => ({ x, y, w, h });
   // (a GPU's and an AI card's PCB shows its laminate on its routed edges; a NIC's follows the part's state, `skin`)
-  const pcb = (r: RectLike) =>
+  const pcb = (r: geometryTypes.RectLike) =>
     kind === 'nic'
       ? rectBox(r, Z - PCB_T, Z, pcbM)
       : pcbSlab(
@@ -257,18 +276,23 @@ export function card3d(
   flatOnly.add(rectBox(rect(x0, top, x1 - x0, y0 - top), Z - PCB_T + 2, Z - 2, pcbM));
   fades.add(pcb(rect(x0, south, x1 - x0, end - south)));
   // (an AI card's PCB runs the shroud's length; a GPU's ends short of its cooler, which runs on past it)
-  if (kind === 'npu' && xe > x1) fades.add(pcb(rect(x1, y0, xe - x1, end - y0)));
+  if (kind === 'npu' && xe > x1) {
+    fades.add(pcb(rect(x1, y0, xe - x1, end - y0)));
+  }
   // the AC-coupling capacitors of the card's transmit lanes, a pair per lane on the component side by the fingers (a NIC's routed copper puts
   // its own on the solder side, on side A's lines: niccopper.ts)
   if (kind !== 'nic') {
     const under = new Group(),
-      caps: Passive[] = [];
+      caps: pcbkit3dTypes.Passive[] = [];
     under.rotation.x = Math.PI;
-    for (let k = 0; k < lanes; k++)
+    for (let k = 0; k < lanes; k++) {
       for (const s of [0, 1]) {
         const at = pinAt(txPin(k) + s);
-        if (at < tl) caps.push({ x: rail.x + 20 + at, y: -(y0 + 1.8 * MM), pkg: '0402', kind: 'cap', turn: true });
+        if (at < tl) {
+          caps.push({ x: rail.x + 20 + at, y: -(y0 + 1.8 * MM), pkg: '0402', kind: 'cap', turn: true });
+        }
       }
+    }
     passives(under, caps, -(Z - PCB_T));
     fades.add(under);
   }
@@ -276,7 +300,7 @@ export function card3d(
     art = kind === 'nic' || accel ? null : face(lying, f.r, Z);
   // the bracket at the west end, against the case's back: the slot's full plate whatever the card's size (`bracketSpan`, laid down with the card:
   // its depth along the lying y, its height along the lying z), folded over at its far end, where the case's thumbscrew holds it
-  const steel = mat(0x4e5360, { metalness: 0.7, roughness: 0.42 }),
+  const steel = mat(0x4e_53_60, { metalness: 0.7, roughness: 0.42 }),
     Zp = Z - PCB_T,
     bx0 = NIC_BRACKET_X,
     bx1 = NIC_BRACKET_X + BRACKET_T;
@@ -294,12 +318,12 @@ export function card3d(
         : nicBracket(visual, y0, Z, bx0, bx1, plate, steel),
   );
   fades.add(rectBox(rect(NIC_BRACKET_X - 90, ly1, 90 + BRACKET_T, 20), zLo, zHi, steel));
-  const skin: MeshStandardMaterial[] = [],
+  const skin: threeTypes.MeshStandardMaterial[] = [],
     flow = kind === 'gpu' && xe - x1 > 600;
   let lan: JackLamps | null = null,
     chip: NicChip | null = null,
     copper: Card3D['copper'] = null;
-  const lids: Object3D[] = [];
+  const lids: threeTypes.Object3D[] = [];
   const bodies: Card3D['bodies'] = [];
   lying.add(parts);
   // a GPU's cooler, its display outputs and its backplate, with a window past the PCB's end where the end fan blows through the fins (gpu3d.ts);
@@ -321,9 +345,11 @@ export function card3d(
         ...(nic.floor ? { floor: nic.floor } : {}),
       });
     lan = built.lamps;
-    chip = built.chip;
+    ({ chip } = built);
     // where each part stands on the standing card: its footprint as it is built, and how high its top stands off the PCB's top face
-    for (const b of built.bodies) bodies.push({ id: b.id, lie: standIn(slot, b.rect, Z + b.h) });
+    for (const b of built.bodies) {
+      bodies.push({ id: b.id, lie: standIn(slot, b.rect, Z + b.h) });
+    }
     nicBack(fades, visual, f, Zp, cu);
     skin.push(pcbM);
     // the lit copper's frame: in the top face's group, shifted so the lanes' drawing (the card's band of the shared one) lands on the card; its plane stands just over the mask's face
@@ -368,7 +394,9 @@ export function card3d(
       band: [DEVICE_LOD[kind].fade[0] + 0.04, DEVICE_LOD[kind].fade[1]],
     };
     for (const d of made.dies) {
-      if (!d.chip.die) continue;
+      if (!d.chip.die) {
+        continue;
+      }
       dies.push({
         part: d.part,
         root: d.chip.die.root,
@@ -384,7 +412,7 @@ export function card3d(
   }
   // a GPU's 8-pin power sockets on the top edge, on the cooler's side, the mouths toward the glass (standing)
   const sockets = kind === 'gpu' ? gpuSockets(fades, visual, f, Z - PCB_T, HINGE_Z, STAND.gpu, PCB_T) : [];
-  const extra: Object3D[] = [];
+  const extra: threeTypes.Object3D[] = [];
   const band = DEVICE_LOD[kind].fade,
     fade = [band[0] - 0.06, band[0] + 0.06] as const,
     show = [band[0] + 0.04, band[1]] as const;
@@ -422,16 +450,24 @@ export function card3d(
       extra.push(o);
       return () => {
         const i = extra.indexOf(o);
-        if (i !== -1) extra.splice(i, 1);
+        if (i !== -1) {
+          extra.splice(i, 1);
+        }
       };
     },
     pose: (zoom) => {
       const a = 1 - smooth(fade[0], fade[1], zoom),
         s = smooth(show[0], show[1], zoom);
       fadeTree(fades, a);
-      for (const o of extra) fadeTree(o, a);
-      if (art) art.visible = s > 0.02;
-      if (nicCard) lay = s;
+      for (const o of extra) {
+        fadeTree(o, a);
+      }
+      if (art) {
+        art.visible = s > 0.02;
+      }
+      if (nicCard) {
+        lay = s;
+      }
     },
     lod: (zoom) => chip?.lod(zoom),
   };
@@ -467,7 +503,14 @@ function dieArt(T: Theme, kind: 'gpu' | 'npu', visual: string, slot: number): Co
  * (the die with its floorplan), the NPU's its die without the lid (`npuFace`). The NIC has no 2D face: it is built in 3D, part by part, and only its controller's die wears a
  * floorplan (`nicDie`), under the lid. `onFace`: the face, at depth `z` (the machine runs the dies on it). `id`: the NIC's slot id, which the ids of its parts start with.
  */
-export function cardModel(art: ArtSet, T: Theme, kind: CardKind, visual: string, slot: number, id?: string): Card3D {
+export function cardModel(
+  art: artset3dTypes.ArtSet,
+  T: Theme,
+  kind: CardKind,
+  visual: string,
+  slot: number,
+  id?: string,
+): Card3D {
   if (kind === 'nic') {
     const geo = nicGeo(visual, slot),
       b = art.baker(() => nicDie(T, visual, slot));
@@ -488,7 +531,7 @@ export function cardModel(art: ArtSet, T: Theme, kind: CardKind, visual: string,
   // (the card has no 2D face: its dies are 3D, each wearing its floorplan under a lid)
   const b = art.baker(() => dieArt(T, kind, visual, slot));
   const accel =
-    (_part: AccelPart, plan: RectLike): DieFloor =>
+    (_part: accelparts3dTypes.AccelPart, plan: geometryTypes.RectLike): DieFloor =>
     (frame, S) => ({ root: art.surface(frame, b.bake, plan, 1 / S, LV_DIE, FINISH.die).root, z: 3 / S });
   return card3d(
     kind,
@@ -510,7 +553,7 @@ export const SLOT_BAY = { north: 355, south: 325 };
  * A slot's bracket plate, standing (layout y and depth, its slot's line at `y0`): one size for every card and for a blank, a margin round the
  * slot's opening in the rear wall (`casedetail3d.ts`), as a real full-height bracket does not follow the card's size.
  */
-export const bracketSpan = (y0: number): Span => ({
+export const bracketSpan = (y0: number): casekit3dTypes.Span => ({
   y0: y0 - SLOT_BAY.north,
   y1: y0 + SLOT_BAY.south,
   z0: BOARD_Z + 80,
@@ -528,16 +571,21 @@ function gpuBracket(
   z0: number,
   z1: number,
   zP: number,
-  m: MeshStandardMaterial,
-): Mesh {
+  m: threeTypes.MeshStandardMaterial,
+): threeTypes.Mesh {
   const ports = outputHoles(y0, zP),
-    vents: Span[] = [...ports],
+    vents: casekit3dTypes.Span[] = [...ports],
     past = y0 + OUT_TOP + 3 * MM,
     side = Math.min(...ports.map((p) => p.z0)) - 3 * MM;
   // (the slots stay on the cooler's side of the PCB: under its underside)
-  for (let y = past; y < ly1 - 120; y += 64) vents.push({ y0: y - 16, y1: y + 16, z0: z0 + 70, z1: zP - 26, r: 14 });
-  if (side - (z0 + 70) > 120)
-    for (let y = y0 + 120; y < past - 80; y += 64) vents.push({ y0: y - 16, y1: y + 16, z0: z0 + 70, z1: side, r: 14 });
+  for (let y = past; y < ly1 - 120; y += 64) {
+    vents.push({ y0: y - 16, y1: y + 16, z0: z0 + 70, z1: zP - 26, r: 14 });
+  }
+  if (side - (z0 + 70) > 120) {
+    for (let y = y0 + 120; y < past - 80; y += 64) {
+      vents.push({ y0: y - 16, y1: y + 16, z0: z0 + 70, z1: side, r: 14 });
+    }
+  }
   return wallX(NIC_BRACKET_X, NIC_BRACKET_X + BRACKET_T, { y0: ly0, y1: ly1, z0, z1 }, vents, m);
 }
 
@@ -546,7 +594,7 @@ function gpuBracket(
  * finger per pin on both faces at the real 1 mm pitch (`pcie.ts`). (The tab's face and its gold sit just under the art's plane: lying flat, the
  * 2D face covers them.)
  */
-function pcieTab(g: Group, x: number, w: number, y0: number, Z: number, pcbM: MeshStandardMaterial): void {
+function pcieTab(g: Group, x: number, w: number, y0: number, Z: number, pcbM: threeTypes.MeshStandardMaterial): void {
   const runs =
     w > KEY.at + KEY.w + 4 * MM
       ? ([
@@ -559,8 +607,11 @@ function pcieTab(g: Group, x: number, w: number, y0: number, Z: number, pcbM: Me
     fy = y0 - TAB + FINGER.from + fl / 2;
   for (const [a, l] of runs) {
     g.add(rectBox({ x: a, y: y0 - TAB, w: l, h: TAB }, Z - PCB_T, Z - 1, pcbM));
-    for (let p = a + 0.5 * MM; p < a + l - 0.3 * MM; p += MM)
-      for (const z of [Z - 0.7, Z - PCB_T - 0.3]) pins.push({ x: p, y: -fy, z, sx: FINGER.w, sy: fl, sz: 0.6 });
+    for (let p = a + 0.5 * MM; p < a + l - 0.3 * MM; p += MM) {
+      for (const z of [Z - 0.7, Z - PCB_T - 0.3]) {
+        pins.push({ x: p, y: -fy, z, sx: FINGER.w, sy: fl, sz: 0.6 });
+      }
+    }
   }
   g.add(instanced(new BoxGeometry(1, 1, 1), gold(), pins));
 }
@@ -573,9 +624,10 @@ export function slotBlank(y0: number, tone: number): Group {
   const g = new Group(),
     s = bracketSpan(y0),
     m = mat(tone, { metalness: 0.55, roughness: 0.45 }),
-    vents: Span[] = [];
-  for (let z = s.z0 + 160; z < s.z1 - 140; z += 72)
+    vents: casekit3dTypes.Span[] = [];
+  for (let z = s.z0 + 160; z < s.z1 - 140; z += 72) {
     vents.push({ y0: s.y0 + 140, y1: s.y1 - 140, z0: z - 13, z1: z + 13, r: 12 });
+  }
   g.add(wallX(NIC_BRACKET_X, NIC_BRACKET_X + BRACKET_T, s, vents, m));
   g.add(rectBox({ x: NIC_BRACKET_X - 90, y: s.y0, w: 90 + BRACKET_T, h: s.y1 - s.y0 }, s.z1, s.z1 + 20, m));
   return g;
