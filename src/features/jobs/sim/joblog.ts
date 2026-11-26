@@ -92,12 +92,16 @@ const WINDOW_COUNTERS = [
 
 /** The change in the counters between two readings, or undefined when they went backwards (the machine was reset in between). */
 export function windowOf(before: readonly number[] | undefined, after: readonly number[]): JobWindow | undefined {
-  if (!before || before.length !== after.length) return undefined;
+  if (!before || before.length !== after.length) {
+    return undefined;
+  }
   const w: Record<string, number> = {};
   for (const n of WINDOW_COUNTERS) {
     const i = COUNTER_INDEX.get(n)!;
     const d = after[i]! - before[i]!;
-    if (d < 0) return undefined;
+    if (d < 0) {
+      return undefined;
+    }
     w[n] = d;
   }
   return w as unknown as JobWindow;
@@ -117,7 +121,7 @@ export interface Phases {
  * has no queue phase: its run reads from the machine taking the job, as it always did.
  */
 export function phasesOf(e: JobLogEntry): Phases {
-  if (e.outcome !== 'done')
+  if (e.outcome !== 'done') {
     return {
       wait: Math.max(0, e.end - e.arrival),
       queue: 0,
@@ -125,6 +129,7 @@ export function phasesOf(e: JobLogEntry): Phases {
       collect: 0,
       total: Math.max(0, e.end - e.arrival),
     };
+  }
   const wait = Math.max(0, e.start - e.arrival),
     collect = Math.max(0, e.end - e.finish);
   const ran = e.ran === undefined ? e.start : Math.min(Math.max(e.start, e.ran), Math.max(e.start, e.finish));
@@ -148,8 +153,9 @@ export interface LiveShape {
 /** Where a job's time has gone so far: waiting for the machine, queued in it, running on it, and (once the result is written) the result waiting to be collected. */
 export function livePhases(k: LiveShape, now: number): Phases {
   const at = Math.max(k.arrivalTick, now);
-  if (k.startedAt === undefined)
+  if (k.startedAt === undefined) {
     return { wait: at - k.arrivalTick, queue: 0, run: 0, collect: 0, total: at - k.arrivalTick };
+  }
   const start = Math.min(Math.max(k.arrivalTick, k.startedAt), at);
   const fin = k.finishedAt === undefined ? at : Math.min(Math.max(start, k.finishedAt), at);
   const ran = k.ranAt === undefined ? start : Math.min(Math.max(start, k.ranAt), fin);
@@ -194,7 +200,7 @@ export function verdictOf(e: JobLogEntry): Verdict {
 }
 
 function readingOf(e: JobLogEntry): Verdict {
-  if (e.outcome === 'completed')
+  if (e.outcome === 'completed') {
     return {
       where: 'none',
       kind: 'none',
@@ -202,7 +208,8 @@ function readingOf(e: JobLogEntry): Verdict {
       text: 'The contract ran to its end with the data intact.',
       hint: 'Mirrored storage pays a bonus.',
     };
-  if (e.outcome === 'lost')
+  }
+  if (e.outcome === 'lost') {
     return {
       where: 'none',
       kind: 'lost',
@@ -210,7 +217,8 @@ function readingOf(e: JobLogEntry): Verdict {
       text: 'The data was lost: a drive burnt or its blocks went bad.',
       hint: 'A RAID mirror survives the loss of one member; watch the wear of the drive.',
     };
-  if (e.outcome === 'breached')
+  }
+  if (e.outcome === 'breached') {
     return {
       where: 'none',
       kind: 'lost',
@@ -218,7 +226,8 @@ function readingOf(e: JobLogEntry): Verdict {
       text: 'Too many reads were missed: the OS was down, the drive was not mounted or the queue was full.',
       hint: 'Keep the OS up with the drive mounted, and a deeper queue (NVMe) for busy contracts.',
     };
-  if (e.outcome === 'expired')
+  }
+  if (e.outcome === 'expired') {
     return {
       where: 'wait',
       kind: 'lost',
@@ -226,7 +235,8 @@ function readingOf(e: JobLogEntry): Verdict {
       text: 'A client took it back at its deadline: the machine could not run it.',
       hint: 'Look at what it needs in the almanac (OS, drive, RAM, network) and add that.',
     };
-  if (e.outcome === 'declined')
+  }
+  if (e.outcome === 'declined') {
     return {
       where: 'none',
       kind: 'lost',
@@ -234,14 +244,17 @@ function readingOf(e: JobLogEntry): Verdict {
       text: 'You declined it.',
       hint: 'Declining costs a little reputation outside the sandbox.',
     };
+  }
   const p = roundPhases(phasesOf(e));
-  if (p.total <= 0) return { where: 'none', kind: 'none', tag: 'Quick', text: 'Too quick to tell.', hint: '' };
+  if (p.total <= 0) {
+    return { where: 'none', kind: 'none', tag: 'Quick', text: 'Too quick to tell.', hint: '' };
+  }
   // Not yet running, before the machine took it or inside it, is one thing to the player: the job was held up.
   const held = p.wait + p.queue;
   const v = { held, run: p.run, collect: p.collect };
   const top = (['held', 'run', 'collect'] as const).reduce((a, b) => (v[b] > v[a] ? b : a), 'held');
   const share = v[top] / p.total;
-  if (top === 'collect' && share > 0.4)
+  if (top === 'collect' && share > 0.4) {
     return {
       where: 'collect',
       kind: 'collect',
@@ -249,7 +262,8 @@ function readingOf(e: JobLogEntry): Verdict {
       text: `The result sat ${p.collect}s waiting to be collected (${pc(share)} of the time).`,
       hint: "Take the key out as soon as the machine shows the result; the key's auto-eject does it for you.",
     };
-  if (top === 'held' && share > 0.4)
+  }
+  if (top === 'held' && share > 0.4) {
     return {
       where: 'wait',
       kind: 'queue',
@@ -257,7 +271,8 @@ function readingOf(e: JobLogEntry): Verdict {
       text: `It waited ${held}s for the machine${p.queue > 0 ? ` (${p.queue}s of it in the machine's queue)` : ''} (${pc(share)} of the time).`,
       hint: 'The machine was busy or off: a faster CPU shortens each job, an OS runs several at once, and a network plan feeds it without keys.',
     };
-  if (e.gpu)
+  }
+  if (e.gpu) {
     return {
       where: 'run',
       kind: 'card',
@@ -265,8 +280,9 @@ function readingOf(e: JobLogEntry): Verdict {
       text: `It ran ${p.run}s on the graphics card while the CPU waited on its status.`,
       hint: "More lanes, a faster card clock or more card memory shorten the run; the CPU's stalls do not apply here.",
     };
+  }
   const w = e.win;
-  if (!w || w.cycles <= 0)
+  if (!w || w.cycles <= 0) {
     return {
       where: 'run',
       kind: 'none',
@@ -276,6 +292,7 @@ function readingOf(e: JobLogEntry): Verdict {
         ? 'No counters for this run: the game was reloaded during it.'
         : 'No counters for this run (the machine restarted during it).',
     };
+  }
   const stalls: [number, string, string, VerdictKind, string][] = [
     [
       w.stallCache,
@@ -304,7 +321,7 @@ function readingOf(e: JobLogEntry): Verdict {
   const sShare = sv / w.cycles,
     cpi = w.retired > 0 ? w.cycles / w.retired : 0;
   const tlbBad = w.tlbMisses + w.pageFaults > w.retired * 0.02;
-  if (w.pageFaults > 50 || (tlbBad && w.pageFaults > 0 && w.pageFaults > w.tlbMisses * 0.05))
+  if (w.pageFaults > 50 || (tlbBad && w.pageFaults > 0 && w.pageFaults > w.tlbMisses * 0.05)) {
     return {
       where: 'run',
       kind: 'paging',
@@ -312,7 +329,8 @@ function readingOf(e: JobLogEntry): Verdict {
       text: `It ran ${p.run}s with ${w.pageFaults} page faults and ${w.tlbMisses} TLB misses: the paged OS spent its time mapping memory.`,
       hint: "Fewer pages touched helps: more RAM does not, the faults come from first touches. A smaller working set or a later OS tier's lazy mapping.",
     };
-  if (sShare >= 0.2)
+  }
+  if (sShare >= 0.2) {
     return {
       where: 'run',
       kind: sk,
@@ -320,6 +338,7 @@ function readingOf(e: JobLogEntry): Verdict {
       text: `It ran ${p.run}s, ${pc(sShare)} of the cycles ${sn} (CPI ${cpi.toFixed(2)}).`,
       hint: sh,
     };
+  }
   return {
     where: 'run',
     kind: 'compute',
@@ -332,7 +351,9 @@ function readingOf(e: JobLogEntry): Verdict {
 /** A reading of a job that is running now, from the cycles counted so far: what is holding it up, or null while there is nothing to read yet. */
 export function liveVerdict(k: LiveShape, now: number): Verdict | null {
   const w = k.live;
-  if (!w || w.cycles < 200) return null;
+  if (!w || w.cycles < 200) {
+    return null;
+  }
   const run = Math.max(1, livePhases(k, now).run);
   const v = verdictOf({
     id: 0,
@@ -381,9 +402,13 @@ export function summarise(list: readonly JobLogEntry[]): LogSummary {
     slowest: null,
   };
   for (const e of list) {
-    if (e.contract) continue; // contracts are counted by the contracts panel
+    if (e.contract) {
+      continue; // contracts are counted by the contracts panel
+    }
     if (e.outcome !== 'done') {
-      if (e.outcome === 'expired' || e.outcome === 'declined') s[e.outcome]++;
+      if (e.outcome === 'expired' || e.outcome === 'declined') {
+        s[e.outcome]++;
+      }
       continue;
     }
     const p = phasesOf(e);
@@ -392,8 +417,12 @@ export function summarise(list: readonly JobLogEntry[]): LogSummary {
     s.queue += p.queue;
     s.run += p.run;
     s.collect += p.collect;
-    if (e.late) s.late++;
-    if (!s.slowest || p.total > phasesOf(s.slowest).total) s.slowest = e;
+    if (e.late) {
+      s.late++;
+    }
+    if (!s.slowest || p.total > phasesOf(s.slowest).total) {
+      s.slowest = e;
+    }
   }
   return s;
 }
@@ -436,7 +465,9 @@ export function aggregate(list: readonly JobLogEntry[]): Agg {
     queue += p.queue;
     run += p.run;
     collect += p.collect;
-    if (e.late) late++;
+    if (e.late) {
+      late++;
+    }
     if (e.win && !e.gpu) {
       // a card job's window is the host spinning: it would pollute the CPU stall bars
       win ??= {
@@ -452,7 +483,9 @@ export function aggregate(list: readonly JobLogEntry[]): Agg {
         tlbMisses: 0,
         pageFaults: 0,
       };
-      for (const k of WINDOW_COUNTERS) win[k] += e.win[k];
+      for (const k of WINDOW_COUNTERS) {
+        win[k] += e.win[k];
+      }
     }
   }
   const m = Math.max(1, n);

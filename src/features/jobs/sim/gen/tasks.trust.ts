@@ -4,23 +4,13 @@
 // A quote itself is the machine's own random word, so it is counted and never shown.
 
 import { TpmCmd } from '@/core/sim/memmap';
-import {
-  Builder,
-  BUF_BASE,
-  blankRows,
-  emitStatic,
-  layoutLine,
-  pad2,
-  renderLine,
-  rowAddr,
-  type Seg,
-  type TemplateFn,
-} from './build';
+import { Builder, BUF_BASE, blankRows, emitStatic, layoutLine, pad2, renderLine, rowAddr } from './build';
+import type * as buildTypes from './build';
 import { tpmCommand } from '@/features/gpu/sim/kernels';
 import * as K from './kernels';
 
 function open(b: Builder, p: { row: number; jobId: number }, label: string) {
-  const segs: Seg[] = [`#${pad2(p.jobId)} ${label}`, { dyn: 4 }, ' OK'];
+  const segs: buildTypes.Seg[] = [`#${pad2(p.jobId)} ${label}`, { dyn: 4 }, ' OK'];
   const line = layoutLine(segs);
   b.emit(`li s0, ${rowAddr(p.row)}`);
   emitStatic(b, line, 0);
@@ -42,7 +32,9 @@ const words = (label: string, ws: number[]): string[] => [`${label}:`, ...ws.map
 /** The word hash of the checksum kernel and of the TPM's measurement. */
 function wordHash(ws: number[]): number {
   let h = 5381;
-  for (const w of ws) h = (((h + (h << 5)) ^ w) >>> 0) | 0;
+  for (const w of ws) {
+    h = (((h + (h << 5)) ^ w) >>> 0) | 0;
+  }
   return h >>> 0;
 }
 
@@ -60,7 +52,7 @@ function protect(b: Builder, cmd: string): void {
 
 // ---------- verify: each block measured and compared with the digest that was promised for it ----------
 
-const secureVerify: TemplateFn = (rng, p) => {
+const secureVerify: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const blocks = p.scale,
     W = 8,
@@ -70,8 +62,10 @@ const secureVerify: TemplateFn = (rng, p) => {
   for (let i = 0; i < blocks; i++) {
     const digest = wordHash(data.slice(i * W, (i + 1) * W)),
       tampered = rng.nextInt(4) === 0;
-    promised.push(tampered ? (digest ^ 0x5a5a5a5a) >>> 0 : digest);
-    if (!tampered) sum = (sum + digest) | 0;
+    promised.push(tampered ? (digest ^ 0x5a_5a_5a_5a) >>> 0 : digest);
+    if (!tampered) {
+      sum = (sum + digest) | 0;
+    }
   }
   const dD = b.ns('data'),
     dP = b.ns('promised');
@@ -100,14 +94,15 @@ const secureVerify: TemplateFn = (rng, p) => {
 
 // ---------- measure: a chain of measurements, as at a measured boot ----------
 
-const secureMeasure: TemplateFn = (rng, p) => {
+const secureMeasure: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const blocks = 2 * p.scale,
     W = 8,
     data = Array.from({ length: blocks * W }, () => rng.nextU32());
   let chain = 5381;
-  for (let i = 0; i < blocks; i++)
+  for (let i = 0; i < blocks; i++) {
     chain = (((chain + (chain << 5)) ^ wordHash(data.slice(i * W, (i + 1) * W))) >>> 0) | 0;
+  }
   const dD = b.ns('data');
   const cmd = b.add(tpmCommand(b.ns('tpm')));
   const o = open(b, p, 'boot ');
@@ -131,7 +126,7 @@ const secureMeasure: TemplateFn = (rng, p) => {
 
 // ---------- encrypt: a hash inside protected mode, twice ----------
 
-const secureEncrypt: TemplateFn = (rng, p) => {
+const secureEncrypt: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const n = 16 * p.scale,
     a = Array.from({ length: n }, () => rng.nextU32()),
@@ -151,24 +146,26 @@ const secureEncrypt: TemplateFn = (rng, p) => {
 
 // ---------- vault: seal several values, then unseal them all ----------
 
-const secureVault: TemplateFn = (rng, p) => {
+const secureVault: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const n = 2 * p.scale,
     vals = Array.from({ length: n }, () => rng.nextU32());
   const cmd = b.add(tpmCommand(b.ns('tpm')));
   const o = open(b, p, 'vault ');
-  for (let i = 0; i < n; i++)
+  for (let i = 0; i < n; i++) {
     b.emit(`li a0, ${TpmCmd.Seal}`, `li a1, ${p.jobId + 1 + i}`, `li a2, ${vals[i]! >>> 0}`, `call ${cmd}`);
+  }
   b.emit('li s1, 0');
-  for (let i = 0; i < n; i++)
+  for (let i = 0; i < n; i++) {
     b.emit(`li a0, ${TpmCmd.Unseal}`, `li a1, ${p.jobId + 1 + i}`, 'li a2, 0', `call ${cmd}`, 'add s1, s1, a0');
+  }
   b.emit('mv a0, s1');
   return close(b, p, o, 'secure.vault request', vals.reduce((s, v) => (s + v) | 0, 0) >>> 0);
 };
 
 // ---------- rotate: unseal, change, seal again, round after round ----------
 
-const secureRotate: TemplateFn = (rng, p) => {
+const secureRotate: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const rounds = 2 * p.scale,
     mul = [3, 5, 7, 9][rng.nextInt(4)]!,
@@ -176,7 +173,9 @@ const secureRotate: TemplateFn = (rng, p) => {
     v0 = 2 + rng.nextInt(8),
     handle = p.jobId + 1;
   let v = v0;
-  for (let i = 0; i < rounds; i++) v = (Math.imul(v, mul) + add) | 0;
+  for (let i = 0; i < rounds; i++) {
+    v = (Math.imul(v, mul) + add) | 0;
+  }
   const cmd = b.add(tpmCommand(b.ns('tpm')));
   const o = open(b, p, 'rotate ');
   b.emit(`li a0, ${TpmCmd.Seal}`, `li a1, ${handle}`, `li a2, ${v0}`, `call ${cmd}`);
@@ -200,7 +199,7 @@ const secureRotate: TemplateFn = (rng, p) => {
 
 // ---------- attest: a burst of quotes ----------
 
-const secureAttest: TemplateFn = (rng, p) => {
+const secureAttest: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const quotes = 4 * p.scale,
     nonce = rng.nextU32();
@@ -221,7 +220,7 @@ const secureAttest: TemplateFn = (rng, p) => {
   return close(b, p, o, 'secure.attest request', quotes);
 };
 
-export const TRUST_TEMPLATES: Record<string, TemplateFn> = {
+export const TRUST_TEMPLATES: Record<string, buildTypes.TemplateFn> = {
   'secure.verify': secureVerify,
   'secure.measure': secureMeasure,
   'secure.encrypt': secureEncrypt,

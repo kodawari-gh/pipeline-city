@@ -6,33 +6,15 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { gpuPicture } from '../sim/gen';
 import { frameColor, pictureOf } from '../../room/render/desk/screenmodel';
 import { snapshot } from '@/app/store';
-import {
-  DEX_GROUPS,
-  dexEntry,
-  dexGroup,
-  JOB_DEX,
-  needChips,
-  dexNeeds,
-  dexNumber,
-  taskLevel,
-  type DexEntry,
-  type DexGroup,
-  type DexSnap,
-} from '../sim/jobdex';
-import {
-  CODE_SOURCE,
-  HIGH_LEVEL,
-  mixShares,
-  OP_CLASSES,
-  profileOf,
-  reliance,
-  type CodeLine,
-  type CodeProfile,
-  type OpClass,
-} from '../sim/jobcode';
-import { gpuKernelOf, gpuKernelProfile, type GpuKernelProfile } from '../../gpu/sim/gpucode';
+import { DEX_GROUPS, dexEntry, dexGroup, JOB_DEX, needChips, dexNeeds, dexNumber, taskLevel } from '../sim/jobdex';
+import type * as jobdexTypes from '../sim/jobdex';
+import { CODE_SOURCE, HIGH_LEVEL, mixShares, OP_CLASSES, profileOf, reliance } from '../sim/jobcode';
+import type * as jobcodeTypes from '../sim/jobcode';
+import { gpuKernelOf, gpuKernelProfile } from '../../gpu/sim/gpucode';
+import type * as gpucodeTypes from '../../gpu/sim/gpucode';
 import { GPU_GROUP_NAME, GPU_GROUP_ORDER, GPU_OP_DOC } from '../../gpu/sim/isa/isadoc';
-import { highlightLines, type Lang, type Tok } from '../../tutorial/ui/highlight';
+import { highlightLines } from '../../tutorial/ui/highlight';
+import type * as highlightTypes from '../../tutorial/ui/highlight';
 import { Icon } from '@/core/ui/kit/Icons';
 import { fmtTicks } from '@/core/ui/logic';
 import { JobSprite, needIcon, PART_ICON } from '@/core/ui/kit/Sprite';
@@ -64,15 +46,17 @@ export const openAlmanacFor = (id: string) => {
     tab.value = tabFor(id);
     tipOpen.value = null;
     const g = dexGroup(id);
-    if (g) shut.value = { ...shut.value, [g.id]: false };
+    if (g) {
+      shut.value = { ...shut.value, [g.id]: false };
+    }
   }
   almanacOpen.value = true;
 };
 
-type State = DexSnap['state'];
+type State = jobdexTypes.DexSnap['state'];
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const hex = (n: number, w: number) => n.toString(16).padStart(w, '0');
-const MIX_NAME: Record<OpClass, string> = {
+const MIX_NAME: Record<jobcodeTypes.OpClass, string> = {
   alu: 'Arithmetic',
   ld: 'Load',
   st: 'Store',
@@ -82,7 +66,7 @@ const MIX_NAME: Record<OpClass, string> = {
 };
 
 /** Pieces of code as coloured spans; an instruction carries its class so a mnemonic reads as arithmetic, load, store, multiply or branch at a glance. */
-function Code({ toks }: { toks: Tok[] }) {
+function Code({ toks }: { toks: highlightTypes.Tok[] }) {
   return (
     <>
       {toks.map((t, i) => (
@@ -136,7 +120,7 @@ function Ring({
 }
 
 /** What the job leans on, from the instructions it ran (compute, memory, control) and its mix as one coloured bar. */
-function Leans({ e, p }: { e: DexEntry; p: CodeProfile }) {
+function Leans({ e, p }: { e: jobdexTypes.DexEntry; p: jobcodeTypes.CodeProfile }) {
   const sh = mixShares(p),
     rel = reliance(p);
   const scales = CODE_SOURCE[e.id]?.scales ?? [],
@@ -212,20 +196,22 @@ function Leans({ e, p }: { e: DexEntry; p: CodeProfile }) {
 }
 
 /** The listing: each word of the program with its address, bytes, the instruction coloured by what it does, and how often it ran. */
-function Listing({ lines, lang = 'asm' }: { lines: CodeLine[]; lang?: Lang }) {
+function Listing({ lines, lang = 'asm' }: { lines: jobcodeTypes.CodeLine[]; lang?: highlightTypes.Lang }) {
   let lastExec = -1;
   lines.forEach((l, i) => {
-    if (l.count > 0) lastExec = i;
+    if (l.count > 0) {
+      lastExec = i;
+    }
   });
   const code = lines.slice(0, lastExec + 1),
     data = lines.slice(lastExec + 1);
   const max = Math.max(1, ...code.map((l) => l.count)),
     lg = Math.log(max + 1);
   const toks = highlightLines(lang, code.map((l) => l.text).join('\n'));
-  const row = (l: CodeLine, i: number) => (
+  const row = (l: jobcodeTypes.CodeLine, i: number) => (
     <div key={l.addr} class={`ln${l.count === 0 ? ' cold' : ''}`}>
       {l.labels
-        .filter((n) => !/^k\d+_.*_(loop|done)$/.test(n))
+        .filter((n) => !/^k\d+_.*_(?:loop|done)$/u.test(n))
         .slice(0, 2)
         .map((n) => (
           <div key={n} class="lbl">
@@ -240,7 +226,7 @@ function Listing({ lines, lang = 'asm' }: { lines: CodeLine[]; lang?: Lang }) {
         </span>
         <span class="hc" title={`${l.count} times`}>
           <i
-            class={`bg-${l.cls as OpClass}`}
+            class={`bg-${l.cls as jobcodeTypes.OpClass}`}
             style={{ width: `${l.count ? Math.max(6, (Math.log(l.count + 1) / lg) * 100) : 0}%` }}
           />
         </span>
@@ -256,7 +242,7 @@ function Listing({ lines, lang = 'asm' }: { lines: CodeLine[]; lang?: Lang }) {
   );
 }
 
-function Source({ lang, text }: { lang: Lang; text: string }) {
+function Source({ lang, text }: { lang: highlightTypes.Lang; text: string }) {
   const lines = highlightLines(lang, text);
   return (
     <div class="alm-code alm-source">
@@ -273,7 +259,7 @@ function Source({ lang, text }: { lang: Lang; text: string }) {
 }
 
 /** What a graphics job's kernel does, from the reference card running its first frame: the lanes it is assembled for, how much of the card it keeps busy, and the colours of its instructions. */
-function KernelStats({ k }: { k: GpuKernelProfile }) {
+function KernelStats({ k }: { k: gpucodeTypes.GpuKernelProfile }) {
   const sh = OP_CLASSES.map((c) => ({ c, n: k.mix[c] })).filter((x) => x.n > 0);
   return (
     <div class="dx-kstats">
@@ -341,7 +327,9 @@ function GpuIsa() {
 /** The kernel a graphics job copies into the card: its listing (each word, how often it ran in a frame) or its assembler text, and the instruction set to read it with. */
 function KernelView({ template }: { template: string }) {
   const k = gpuKernelProfile(template, gpuLanes.value);
-  if (!k) return null;
+  if (!k) {
+    return null;
+  }
   return (
     <>
       <KernelStats k={k} />
@@ -352,9 +340,11 @@ function KernelView({ template }: { template: string }) {
 }
 
 /** The program on the main page, in a window of its own: a toggle for the language (assembly, C++, Python) in its title bar, and for assembly the listing or the assembler text. */
-function CodePanel({ e, rank, open }: { e: DexEntry; rank: number; open: boolean }) {
+function CodePanel({ e, rank, open }: { e: jobdexTypes.DexEntry; rank: number; open: boolean }) {
   const src = CODE_SOURCE[e.id];
-  if (!src) return null;
+  if (!src) {
+    return null;
+  }
   const scale = scaleOf.value[e.id] ?? src.scales[0]!,
     hasKernel = gpuKernelOf(src.template) !== null,
     t: Tab = tab.value === 'gpu' && !hasKernel ? 'asm' : tab.value;
@@ -431,8 +421,10 @@ function CodePanel({ e, rank, open }: { e: DexEntry; rank: number; open: boolean
 }
 
 /** The ways to do the job better as chips with an icon for the part of the machine; a click opens the sentence. A part that does not help is crossed out. */
-function Tips({ e, locked }: { e: DexEntry; locked: boolean }) {
-  if (e.tips.length === 0) return null;
+function Tips({ e, locked }: { e: jobdexTypes.DexEntry; locked: boolean }) {
+  if (e.tips.length === 0) {
+    return null;
+  }
   const openId = tipOpen.value,
     cur = e.tips.find((x) => `${e.id}:${x.short}` === openId);
   return (
@@ -480,13 +472,13 @@ function Hero({
   sandbox,
   p,
 }: {
-  e: DexEntry;
-  g: DexGroup | undefined;
+  e: jobdexTypes.DexEntry;
+  g: jobdexTypes.DexGroup | undefined;
   state: State;
-  d: DexSnap;
+  d: jobdexTypes.DexSnap;
   level: number;
   sandbox: boolean;
-  p: CodeProfile | null;
+  p: jobcodeTypes.CodeProfile | null;
 }) {
   const { firstLevel } = dexNeeds(e),
     chips = needChips(e);
@@ -570,7 +562,7 @@ function Hero({
 }
 
 /** What the job leaves on a graphics display: its output words as the display shows them, one cell per word, on the same heat scale. Only for a job a GPU draws. */
-function Preview({ e }: { e: DexEntry }) {
+function Preview({ e }: { e: jobdexTypes.DexEntry }) {
   const src = CODE_SOURCE[e.id];
   const scale = scaleOf.value[e.id] ?? src?.scales[0] ?? 1;
   const pics = src ? gpuPicture(src.template, 7, scale) : null;
@@ -579,18 +571,24 @@ function Preview({ e }: { e: DexEntry }) {
   const n = pics?.length ?? 1;
   // an animation plays in a loop, as the display shows the card's frames one after the other
   useEffect(() => {
-    if (n < 2) return;
+    if (n < 2) {
+      return;
+    }
     const t = setInterval(() => setK((x) => (x + 1) % n), 150);
     return () => clearInterval(t);
   }, [n]);
   const m = pics ? pictureOf(pics[k % n]!) : null;
   useEffect(() => {
     const cv = ref.current;
-    if (!cv || !m) return;
+    if (!cv || !m) {
+      return;
+    }
     cv.width = m.cols;
     cv.height = m.rows;
     const c = cv.getContext('2d');
-    if (!c) return;
+    if (!c) {
+      return;
+    }
     const img = c.createImageData(m.cols, m.rows);
     m.cells.forEach((v, i) => {
       const hex = frameColor(v);
@@ -601,7 +599,9 @@ function Preview({ e }: { e: DexEntry }) {
     });
     c.putImageData(img, 0, 0);
   });
-  if (!m) return null;
+  if (!m) {
+    return null;
+  }
   return (
     <div class="dx-code dx-preview">
       <div class="dx-codebar">
@@ -630,9 +630,9 @@ function Page({
   level,
   sandbox,
 }: {
-  e: DexEntry;
+  e: jobdexTypes.DexEntry;
   state: State;
-  d: DexSnap;
+  d: jobdexTypes.DexSnap;
   level: number;
   sandbox: boolean;
 }) {
@@ -652,10 +652,12 @@ function Page({
 }
 
 /** What a kind of job is locked behind, small: the hardware it needs (an icon each) and, while clients do not send it yet, the level they start. */
-function Locks({ e, level }: { e: DexEntry; level: number }) {
+function Locks({ e, level }: { e: jobdexTypes.DexEntry; level: number }) {
   const lv = taskLevel(e),
     chips = needChips(e);
-  if (!chips.length && level >= lv) return null;
+  if (chips.length === 0 && level >= lv) {
+    return null;
+  }
   return (
     <span class="lk">
       {chips.map((n) => (
@@ -672,6 +674,15 @@ function Locks({ e, level }: { e: DexEntry; level: number }) {
   );
 }
 
+/** Pick entry `id` (moving to its tab when it or the open tab is the GPU one) and close the tip. */
+function pick(id: string): void {
+  picked.value = id;
+  if (tab.value === 'gpu' || tabFor(id) === 'gpu') {
+    tab.value = tabFor(id);
+  }
+  tipOpen.value = null;
+}
+
 /** `sandbox`: everything is open, so a badge on each row would say nothing. */
 function Tile({
   e,
@@ -681,7 +692,7 @@ function Tile({
   level,
   sandbox,
 }: {
-  e: DexEntry;
+  e: jobdexTypes.DexEntry;
   state: State;
   on: boolean;
   no: number;
@@ -696,9 +707,7 @@ function Tile({
       class={`dx-tile st-${state}${on ? ' on' : ''}`}
       title={hidden ? (state === 'planned' ? e.name : 'Not met yet') : e.name}
       onClick={() => {
-        picked.value = e.id;
-        if (tab.value === 'gpu' || tabFor(e.id) === 'gpu') tab.value = tabFor(e.id);
-        tipOpen.value = null;
+        pick(e.id);
       }}
     >
       <span class="no">{String(no).padStart(2, '0')}</span>
@@ -730,13 +739,13 @@ function Group({
   level,
   sandbox,
 }: {
-  g: DexGroup;
+  g: jobdexTypes.DexGroup;
   stateOf: (id: string) => State;
   sel: string;
   level: number;
   sandbox: boolean;
 }) {
-  const closed = !!shut.value[g.id];
+  const closed = Boolean(shut.value[g.id]);
   const items = g.ids.map((id) => dexEntry(id)!).filter(Boolean);
   const got = items.filter((x) => {
     const s = stateOf(x.id);
@@ -787,16 +796,22 @@ function Group({
 export function AlmanacPanel() {
   const open = almanacOpen.value;
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeAlmanac();
+      if (e.key === 'Escape') {
+        closeAlmanac();
+      }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    globalThis.addEventListener('keydown', onKey);
+    return () => globalThis.removeEventListener('keydown', onKey);
   }, [open]);
-  if (!open) return null;
+  if (!open) {
+    return null;
+  }
   const s = snapshot.value;
-  const sandbox = !!s?.sandbox;
+  const sandbox = Boolean(s?.sandbox);
   const dex = s?.dex ?? [];
   const stateOf = (id: string): State => {
     const st = dex.find((y) => y.id === id)?.state ?? 'unseen';
@@ -809,12 +824,16 @@ export function AlmanacPanel() {
   }).length;
   const sel = picked.value ?? playable.find((x) => stateOf(x.id) !== 'unseen')?.id ?? JOB_DEX[0]!.id;
   const e = dexEntry(sel)!,
-    d = dex.find((x) => x.id === sel) ?? ({ id: sel, state: 'unseen', runs: 0, best: 0, seenTick: 0 } as DexSnap);
+    d =
+      dex.find((x) => x.id === sel) ??
+      ({ id: sel, state: 'unseen', runs: 0, best: 0, seenTick: 0 } as jobdexTypes.DexSnap);
   return (
     <div
       class="modal-back almanac-back alm-edge"
       onClick={(ev) => {
-        if (ev.target === ev.currentTarget) closeAlmanac();
+        if (ev.target === ev.currentTarget) {
+          closeAlmanac();
+        }
       }}
     >
       <div class="card almanac alm-edge" data-cue="ui_panel_open" role="dialog" aria-modal="true" aria-label="Almanac">

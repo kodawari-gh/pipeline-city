@@ -3,8 +3,10 @@
 // to every engine, so the cores share one L2 and one set of banks. Events and counters go to the asking engine's log and view.
 
 import { DataCache } from '../../cpu/sim/engines/cache';
-import { Ev, Which, type EventLog } from '../../cpu/sim/engines/events';
-import { Dram, type DramSettings } from './dram';
+import { Ev, Which } from '../../cpu/sim/engines/events';
+import type * as eventsTypes from '../../cpu/sim/engines/events';
+import { Dram } from './dram';
+import type * as dramTypes from './dram';
 import { Counter } from '../../cpu/sim/engines/view';
 
 export interface MemSettings {
@@ -16,7 +18,7 @@ export interface MemSettings {
   l2Lines: number;
   /** Cycles an L1 miss that hits the L2 costs. */
   l2Penalty: number;
-  dram?: DramSettings | undefined;
+  dram?: dramTypes.DramSettings | undefined;
 }
 
 /** What the memory system needs of a core to apply the coherence rule: its L1 caches, and where to count and log what happens to them. */
@@ -24,7 +26,7 @@ export interface CoreCaches {
   readonly cache: DataCache;
   readonly icache: DataCache | null;
   readonly counters: Float64Array;
-  readonly events: EventLog;
+  readonly events: eventsTypes.EventLog;
 }
 
 export class MemSystem {
@@ -57,8 +59,9 @@ export class MemSystem {
       : null;
     this.l2Penalty = s.l2Penalty;
     this.dram = s.dram ? new Dram(s.dram) : null;
-    if (!Number.isInteger(this.l2Penalty) || this.l2Penalty < 0)
+    if (!Number.isInteger(this.l2Penalty) || this.l2Penalty < 0) {
       throw new RangeError('l2Penalty must be an integer >= 0');
+    }
   }
 
   /** Cold L2 and closed rows, no cores joined. */
@@ -79,8 +82,11 @@ export class MemSystem {
   /** A core's caches take part in the coherence rule (an engine calls this from its reset when the system is shared). */
   join(core: CoreCaches): void {
     const i = this.cores.findIndex((c) => c.counters === core.counters);
-    if (i >= 0) this.cores[i] = core;
-    else this.cores.push(core);
+    if (i >= 0) {
+      this.cores[i] = core;
+    } else {
+      this.cores.push(core);
+    }
   }
 
   /**
@@ -88,9 +94,17 @@ export class MemSystem {
    * The L2 and DRAM events are logged to `events` (stamped `logCycle`) and counted in `counters` (the asking engine's). On a shared system the
    * lookup also waits for the L2 port, one lookup per cycle; the wait is part of the cost and counts in `StallL2Port`.
    */
-  missCost(addr: number, cycle: number, counters: Float64Array, events: EventLog, logCycle = cycle): number {
-    const l2 = this.l2;
-    if (!l2) return this.ramCost(addr, cycle, counters, events, logCycle);
+  missCost(
+    addr: number,
+    cycle: number,
+    counters: Float64Array,
+    events: eventsTypes.EventLog,
+    logCycle = cycle,
+  ): number {
+    const { l2 } = this;
+    if (!l2) {
+      return this.ramCost(addr, cycle, counters, events, logCycle);
+    }
     let wait = 0;
     if (this.shared) {
       const start = Math.max(cycle, this.portFree);
@@ -125,7 +139,9 @@ export class MemSystem {
   storeLanded(writer: CoreCaches, addr: number, logCycle: number): void {
     const from = this.cores.indexOf(writer);
     for (const c of this.cores) {
-      if (c === writer) continue;
+      if (c === writer) {
+        continue;
+      }
       if (c.cache.drop(addr)) {
         c.counters[Counter.CoherenceInvals]!++;
         c.events.record({
@@ -153,9 +169,17 @@ export class MemSystem {
   }
 
   /** What reaching RAM costs: the flat penalty, or the DRAM's answer (a row hit, an activate, a conflict), which is logged for the die. */
-  private ramCost(addr: number, cycle: number, counters: Float64Array, events: EventLog, logCycle: number): number {
+  private ramCost(
+    addr: number,
+    cycle: number,
+    counters: Float64Array,
+    events: eventsTypes.EventLog,
+    logCycle: number,
+  ): number {
     const d = this.dram;
-    if (!d) return this.missPenalty;
+    if (!d) {
+      return this.missPenalty;
+    }
     const a = d.access(addr, cycle, (cyc, bank, row, prev, outcome) =>
       events.record({ cycle: this.shared ? logCycle : cyc, kind: Ev.Row, a: bank, b: row, c: prev, d: outcome }),
     );

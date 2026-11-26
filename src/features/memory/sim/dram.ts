@@ -68,11 +68,17 @@ export class Dram {
   private refreshAt = 0;
 
   constructor(readonly s: DramSettings) {
-    if (!pow2(s.channels) || !pow2(s.banks) || !pow2(s.rowBytes) || !pow2(s.bankGroups))
+    if (!pow2(s.channels) || !pow2(s.banks) || !pow2(s.rowBytes) || !pow2(s.bankGroups)) {
       throw new RangeError('dram: channels, banks, bankGroups and rowBytes must be powers of two');
-    if (s.bankGroups > s.banks) throw new RangeError('dram: more bank groups than banks');
-    for (const k of ['tCL', 'tRCD', 'tRP', 'burst', 'ccdS', 'ccdL', 'refreshEvery', 'tRFC'] as const)
-      if (!Number.isInteger(s[k]) || s[k] < 0) throw new RangeError(`dram: ${k} must be an integer >= 0`);
+    }
+    if (s.bankGroups > s.banks) {
+      throw new RangeError('dram: more bank groups than banks');
+    }
+    for (const k of ['tCL', 'tRCD', 'tRP', 'burst', 'ccdS', 'ccdL', 'refreshEvery', 'tRFC'] as const) {
+      if (!Number.isInteger(s[k]) || s[k] < 0) {
+        throw new RangeError(`dram: ${k} must be an integer >= 0`);
+      }
+    }
     this.channels = s.channels;
     this.banks = s.banks;
     this.rowBytes = s.rowBytes;
@@ -120,7 +126,9 @@ export class Dram {
 
   private refresh(now: number, log: DramLog | null): void {
     const every = this.s.refreshEvery;
-    if (every <= 0) return;
+    if (every <= 0) {
+      return;
+    }
     const total = this.open.length;
     while (now >= this.nextRefresh) {
       const b = this.refreshAt;
@@ -138,7 +146,7 @@ export class Dram {
   /** An access at cycle `now`: what it costs until the line arrives, and the bank, the channel's bus and the row buffer change. */
   access(addr: number, now: number, log: DramLog | null = null): DramAccess {
     this.refresh(now, log);
-    const s = this.s;
+    const { s } = this;
     const { channel, bank, row } = this.locate(addr);
     const group = (bank % this.banks) % s.bankGroups;
     const prev = this.open[bank]!;

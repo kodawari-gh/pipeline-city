@@ -9114,10 +9114,8 @@
   "vitest(valid-expect)": 1
  },
  "src/features/jobs/sim/gen/build.ts": {
-  "eslint(curly)": 7,
   "eslint(no-negated-condition)": 1,
   "typescript(no-non-null-assertion)": 1,
-  "unicorn(numeric-separators-style)": 5,
   "unicorn(prefer-code-point)": 1
  },
  "src/features/jobs/sim/gen/gen.test.ts": {
@@ -9136,25 +9134,19 @@
   "vitest(require-to-throw-message)": 4
  },
  "src/features/jobs/sim/gen/index.ts": {
-  "eslint(curly)": 4,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(strict-boolean-expressions)": 1
  },
  "src/features/jobs/sim/gen/kernels.ts": {
-  "eslint(curly)": 2,
   "eslint(max-params)": 1
  },
  "src/features/jobs/sim/gen/tasks.everyday.ts": {
-  "eslint(curly)": 10,
   "eslint(max-lines)": 1,
   "eslint(max-params)": 2,
-  "import(consistent-type-specifier-style)": 3,
   "typescript(no-misused-spread)": 2,
   "typescript(no-non-null-assertion)": 4,
   "unicorn(max-nested-calls)": 7,
   "unicorn(no-array-reverse)": 1,
   "unicorn(no-array-sort)": 1,
-  "unicorn(numeric-separators-style)": 3,
   "unicorn(prefer-code-point)": 1,
   "unicorn(prefer-math-trunc)": 1
  },
@@ -9169,7 +9161,6 @@
   "vitest(valid-expect)": 3
  },
  "src/features/jobs/sim/gen/tasks.hpc.ts": {
-  "eslint(curly)": 8,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 5,
   "eslint(max-params)": 1,
@@ -9177,59 +9168,43 @@
   "eslint(no-loop-func)": 1,
   "eslint(no-nested-ternary)": 1,
   "eslint(no-use-before-define)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "import(no-duplicates)": 1,
   "typescript(no-non-null-assertion)": 13,
   "typescript(no-unnecessary-type-assertion)": 1,
   "unicorn(max-nested-calls)": 2,
   "unicorn(no-array-for-each)": 2,
   "unicorn(no-array-sort)": 1,
-  "unicorn(numeric-separators-style)": 2,
   "unicorn(prefer-math-trunc)": 9,
   "unicorn(prefer-spread)": 4
  },
  "src/features/jobs/sim/gen/tasks.memory.ts": {
-  "eslint(curly)": 10,
   "eslint(max-lines)": 1,
   "eslint(max-params)": 2,
-  "import(consistent-type-specifier-style)": 3,
   "typescript(no-non-null-assertion)": 1,
   "typescript(strict-boolean-expressions)": 2,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(max-nested-calls)": 15,
   "unicorn(no-new-array)": 1,
-  "unicorn(numeric-separators-style)": 3,
   "unicorn(prefer-math-trunc)": 1
  },
  "src/features/jobs/sim/gen/tasks.trust.ts": {
-  "eslint(curly)": 6,
   "eslint(max-params)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-non-null-assertion)": 3,
   "unicorn(max-nested-calls)": 3,
-  "unicorn(numeric-separators-style)": 1,
   "unicorn(prefer-math-trunc)": 5
  },
  "src/features/jobs/sim/gen/tasks.web.ts": {
-  "eslint(curly)": 8,
   "eslint(max-lines)": 1,
   "eslint(max-params)": 1,
-  "import(consistent-type-specifier-style)": 3,
   "typescript(no-non-null-assertion)": 8,
   "unicorn(max-nested-calls)": 10,
   "unicorn(prefer-code-point)": 1,
   "unicorn(prefer-math-trunc)": 1
  },
  "src/features/jobs/sim/gen/templates.ts": {
-  "eslint(curly)": 10,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
   "eslint(max-params)": 2,
-  "eslint(no-implicit-coercion)": 2,
-  "eslint(prefer-destructuring)": 3,
-  "eslint(require-unicode-regexp)": 2,
-  "import(consistent-type-specifier-style)": 9,
   "import(max-dependencies)": 1,
   "typescript(no-confusing-void-expression)": 2,
   "typescript(no-non-null-assertion)": 17,
@@ -9238,13 +9213,10 @@
   "unicorn(consistent-function-scoping)": 2,
   "unicorn(max-nested-calls)": 16,
   "unicorn(no-array-for-each)": 2,
-  "unicorn(numeric-separators-style)": 2,
-  "unicorn(prefer-at)": 1,
-  "unicorn(prefer-export-from)": 6,
+  "unicorn(prefer-export-from)": 1,
   "unicorn(prefer-math-trunc)": 5
  },
  "src/features/jobs/sim/gen/threadtest.ts": {
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-non-null-assertion)": 1,
   "unicorn(max-nested-calls)": 1
  },
@@ -9290,7 +9262,6 @@
  },
  "src/features/jobs/sim/joblog.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 23,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
   "oxc(no-map-spread)": 1,
@@ -9317,7 +9288,6 @@
   "vitest(valid-expect)": 8
  },
  "src/features/jobs/sim/work.ts": {
-  "eslint(curly)": 1,
   "typescript(method-signature-style)": 4
  },
  "src/features/jobs/ui/AlmanacPanel.layout.test.ts": {
@@ -9338,15 +9308,10 @@
  },
  "src/features/jobs/ui/AlmanacPanel.tsx": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 15,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 6,
-  "eslint(no-implicit-coercion)": 2,
   "eslint(no-nested-ternary)": 5,
   "eslint(no-shadow)": 1,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 9,
   "import(max-dependencies)": 1,
   "jsx-a11y(click-events-have-key-events)": 1,
   "jsx-a11y(no-static-element-interactions)": 1,
@@ -9359,26 +9324,17 @@
   "typescript(no-confusing-void-expression)": 3,
   "typescript(no-non-null-assertion)": 10,
   "typescript(no-unnecessary-type-assertion)": 2,
-  "typescript(strict-boolean-expressions)": 6,
-  "unicorn(explicit-length-check)": 1,
+  "typescript(strict-boolean-expressions)": 4,
   "unicorn(no-array-callback-reference)": 1,
-  "unicorn(no-array-for-each)": 2,
-  "unicorn(prefer-global-this)": 2
+  "unicorn(no-array-for-each)": 2
  },
  "src/features/jobs/ui/Jobs.tsx": {
-  "eslint(curly)": 5,
-  "eslint(no-implicit-coercion)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "jsx-a11y(prefer-tag-over-role)": 2,
   "react(button-has-type)": 1,
   "typescript(consistent-return)": 1,
   "typescript(explicit-module-boundary-types)": 3,
   "typescript(no-confusing-void-expression)": 2,
-  "typescript(strict-boolean-expressions)": 2,
-  "unicorn(explicit-length-check)": 1
- },
- "src/features/memory/render/air.ts": {
-  "import(consistent-type-specifier-style)": 1
+  "typescript(strict-boolean-expressions)": 1
  },
  "src/features/memory/render/rambubbles.test.ts": {
   "eslint(max-params)": 2,
@@ -9390,7 +9346,6 @@
   "vitest(prefer-strict-equal)": 4
  },
  "src/features/memory/render/rambubbles.ts": {
-  "eslint(curly)": 5,
   "typescript(no-non-null-assertion)": 2,
   "unicorn(no-array-sort)": 1
  },
@@ -9402,9 +9357,7 @@
   "vitest(no-conditional-in-test)": 1
  },
  "src/features/memory/render/ramdie.ts": {
-  "eslint(curly)": 6,
   "eslint(max-lines-per-function)": 2,
-  "eslint(prefer-destructuring)": 2,
   "typescript(no-non-null-assertion)": 3,
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(no-array-fill-with-reference-type)": 8,
@@ -9422,10 +9375,8 @@
   "vitest(prefer-strict-equal)": 10
  },
  "src/features/memory/render/ramlayout.ts": {
-  "eslint(curly)": 17,
   "eslint(max-params)": 2,
   "eslint(no-nested-ternary)": 1,
-  "eslint(require-unicode-regexp)": 1,
   "typescript(no-non-null-assertion)": 6,
   "typescript(no-unsafe-assignment)": 1,
   "typescript(strict-boolean-expressions)": 1,
@@ -9433,8 +9384,7 @@
   "typescript(switch-exhaustiveness-check)": 1,
   "unicorn(no-array-for-each)": 2,
   "unicorn(no-new-array)": 1,
-  "unicorn(prefer-code-point)": 2,
-  "unicorn(switch-case-braces)": 3
+  "unicorn(prefer-code-point)": 2
  },
  "src/features/memory/render/ramview.test.ts": {
   "eslint(curly)": 1,
@@ -9448,24 +9398,18 @@
  "src/features/memory/render/ramview.ts": {
   "eslint(class-methods-use-this)": 1,
   "eslint(complexity)": 2,
-  "eslint(curly)": 45,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 3,
   "eslint(max-params)": 1,
-  "eslint(no-implicit-coercion)": 3,
   "eslint(no-nested-ternary)": 3,
   "eslint(no-param-reassign)": 1,
   "eslint(no-shadow)": 3,
-  "eslint(prefer-destructuring)": 5,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 4,
   "import(max-dependencies)": 1,
   "typescript(consistent-type-imports)": 1,
   "typescript(no-non-null-assertion)": 15,
   "typescript(strict-boolean-expressions)": 3,
   "unicorn(no-array-fill-with-reference-type)": 10,
   "unicorn(no-array-for-each)": 6,
-  "unicorn(prefer-at)": 1,
   "unicorn(prefer-math-trunc)": 1
  },
  "src/features/memory/render/vmnote.test.ts": {
@@ -9485,9 +9429,7 @@
   "vitest(prefer-strict-equal)": 1
  },
  "src/features/memory/sim/dram.ts": {
-  "eslint(curly)": 5,
   "eslint(max-params)": 1,
-  "eslint(prefer-destructuring)": 1,
   "typescript(no-non-null-assertion)": 5,
   "unicorn(prefer-spread)": 1
  },
@@ -9507,44 +9449,33 @@
  },
  "src/features/memory/sim/memory.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 32,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
-  "eslint(no-implicit-coercion)": 2,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 1,
   "eslint(operator-assignment)": 1,
-  "eslint(prefer-destructuring)": 8,
-  "import(consistent-type-specifier-style)": 10,
   "typescript(no-non-null-assertion)": 21,
   "typescript(no-unsafe-type-assertion)": 4,
   "typescript(strict-boolean-expressions)": 3,
-  "unicorn(explicit-length-check)": 1,
   "unicorn(max-nested-calls)": 1,
-  "unicorn(no-array-callback-reference)": 1,
-  "unicorn(numeric-separators-style)": 1
+  "unicorn(no-array-callback-reference)": 1
  },
  "src/features/memory/sim/memsys.ts": {
-  "eslint(curly)": 6,
   "eslint(max-params)": 3,
   "eslint(no-nested-ternary)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-non-null-assertion)": 7,
   "unicorn(consistent-existence-index-check)": 1
  },
  "src/features/memory/sim/mmu.ts": {
   "eslint(class-methods-use-this)": 1,
-  "eslint(curly)": 15,
   "eslint(default-case)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(no-empty-function)": 1,
   "eslint(no-multi-assign)": 6,
   "typescript(no-non-null-assertion)": 10,
   "typescript(prefer-readonly)": 1,
-  "unicorn(prefer-spread)": 1,
-  "unicorn(switch-case-braces)": 11
+  "unicorn(prefer-spread)": 1
  },
  "src/features/memory/sim/mpu.test.ts": {
   "eslint(curly)": 1,
@@ -9555,13 +9486,11 @@
  },
  "src/features/memory/sim/mpu.ts": {
   "eslint(class-methods-use-this)": 1,
-  "eslint(curly)": 1,
   "eslint(default-case)": 1,
   "eslint(no-empty-function)": 1,
   "eslint(no-multi-assign)": 3,
   "typescript(no-non-null-assertion)": 8,
-  "typescript(prefer-readonly)": 1,
-  "unicorn(switch-case-braces)": 13
+  "typescript(prefer-readonly)": 1
  },
  "src/features/memory/sim/paged.test.ts": {
   "eslint(curly)": 7,
@@ -9590,7 +9519,6 @@
  },
  "src/features/memory/sim/ramregions.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 14,
   "eslint(max-lines-per-function)": 1,
   "typescript(no-non-null-assertion)": 7,
   "typescript(strict-boolean-expressions)": 1,
@@ -9619,7 +9547,6 @@
   "vitest(prefer-strict-equal)": 4
  },
  "src/features/memory/sim/vmmap.ts": {
-  "eslint(curly)": 4,
   "typescript(no-non-null-assertion)": 4
  },
  "src/features/network/render/air.ts": {

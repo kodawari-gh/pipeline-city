@@ -2,30 +2,19 @@
 // that overlap, a column write, flags in bytes, scattered probes), so each is limited by a different part of the memory system. They work in the scratch
 // buffer at BUF_BASE, except the hash table, which lives in the big heap at HEAP_BASE like the index does. docs/JOBS.md lists them with their levels.
 
-import {
-  Builder,
-  BUF_BASE,
-  BUF_LIMIT,
-  blankRows,
-  emitStatic,
-  layoutLine,
-  pad2,
-  renderLine,
-  rowAddr,
-  type Seg,
-  type TemplateFn,
-} from './build';
+import { Builder, BUF_BASE, BUF_LIMIT, blankRows, emitStatic, layoutLine, pad2, renderLine, rowAddr } from './build';
+import type * as buildTypes from './build';
 import * as K from './kernels';
-import { k as defineKernel, type Kernel } from './kernels';
+import { k as defineKernel } from './kernels';
 
 /** The largest power of two not above `scale`: sizes that mask their index step in powers of two. */
 const pow2 = (scale: number): number => 2 ** Math.floor(Math.log2(Math.max(1, scale)));
 
 /** The heap the big jobs use: virtual 0x10000 up (the same value as templates.ts HEAP_BASE, kept here so the task files do not import the registry). */
-const HEAP = 0x10000;
+const HEAP = 0x1_00_00;
 
 function open(b: Builder, p: { row: number; jobId: number }, label: string, digits: 2 | 4) {
-  const segs: Seg[] = [`#${pad2(p.jobId)} ${label}`, { dyn: digits }, ' OK'];
+  const segs: buildTypes.Seg[] = [`#${pad2(p.jobId)} ${label}`, { dyn: digits }, ' OK'];
   const line = layoutLine(segs);
   b.emit(`li s0, ${rowAddr(p.row)}`);
   emitStatic(b, line, 0);
@@ -42,7 +31,9 @@ function close(b: Builder, p: { row: number }, o: ReturnType<typeof open>, heade
 }
 
 function fits(bytes: number): void {
-  if (BUF_BASE + bytes > BUF_LIMIT) throw new RangeError("scale too large for this job's buffer");
+  if (BUF_BASE + bytes > BUF_LIMIT) {
+    throw new RangeError("scale too large for this job's buffer");
+  }
 }
 
 const hash5 = (h: number, w: number): number => (((h + (h << 5)) ^ w) >>> 0) | 0;
@@ -50,7 +41,7 @@ const hash5 = (h: number, w: number): number => (((h + (h << 5)) ^ w) >>> 0) | 0
 // ---------- chase: every load needs the one before ----------
 
 /** Link the a1 nodes (a power of two) of 64 bytes each from a0 into a ring: node i holds the address of node (5i + 1) mod a1. */
-const chaseBuild = (ns: string): Kernel =>
+const chaseBuild = (ns: string): K.Kernel =>
   defineKernel('chase_build', ns, ['mem', 'alu', 'branch'], 0, [
     'li t0, 0',
     'addi t3, a1, -1',
@@ -70,7 +61,7 @@ const chaseBuild = (ns: string): Kernel =>
   ]);
 
 /** Follow the ring from a0 for a1 steps; the address it ends on is the answer. The next address is the thing just loaded: nothing can run ahead. */
-const chaseWalk = (ns: string): Kernel =>
+const chaseWalk = (ns: string): K.Kernel =>
   defineKernel('chase_walk', ns, ['mem', 'branch'], 0, [
     `${ns}_loop:`,
     'lw a0, 0(a0)',
@@ -79,13 +70,15 @@ const chaseWalk = (ns: string): Kernel =>
     'ret',
   ]);
 
-const memChase: TemplateFn = (_rng, p) => {
+const memChase: buildTypes.TemplateFn = (_rng, p) => {
   const b = new Builder();
   const nodes = 32 * pow2(p.scale),
     steps = 2 * nodes + 1;
   fits(nodes * 64);
   let at = 0;
-  for (let i = 0; i < steps; i++) at = (5 * at + 1) & (nodes - 1);
+  for (let i = 0; i < steps; i++) {
+    at = (5 * at + 1) & (nodes - 1);
+  }
   const o = open(b, p, 'chase ', 4);
   b.emit(`li a0, ${BUF_BASE}`, `li a1, ${nodes}`, `call ${b.add(chaseBuild(b.ns('build')), nodes * 64)}`);
   b.emit(`li a0, ${BUF_BASE}`, `li a1, ${steps}`, `call ${b.add(chaseWalk(b.ns('walk')), nodes * 64)}`);
@@ -96,7 +89,7 @@ const memChase: TemplateFn = (_rng, p) => {
 // ---------- stream: a straight copy, then a hash of the copy ----------
 
 /** Copy a2 words from a1 to a0, one after the other: every address is the next one, so memory can stream. */
-export const copyBlock = (ns: string): Kernel =>
+export const copyBlock = (ns: string): K.Kernel =>
   defineKernel('copy_block', ns, ['mem', 'alu', 'branch'], 0, [
     `${ns}_loop:`,
     'lw t0, 0(a1)',
@@ -108,14 +101,16 @@ export const copyBlock = (ns: string): Kernel =>
     'ret',
   ]);
 
-const memStream: TemplateFn = (rng, p) => {
+const memStream: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const words = 32 * p.scale,
     start = 1 + rng.nextInt(9);
   fits(8 * words);
   const dst = BUF_BASE + 4 * words;
   let h = 5381;
-  for (let i = 0; i < words; i++) h = hash5(h, start + 3 * i);
+  for (let i = 0; i < words; i++) {
+    h = hash5(h, start + 3 * i);
+  }
   const o = open(b, p, 'stream ', 4);
   b.emit(
     `li a0, ${BUF_BASE}`,
@@ -131,7 +126,7 @@ const memStream: TemplateFn = (rng, p) => {
 // ---------- stencil: three loads for every output, most of them seen before ----------
 
 /** out[i] = a[i-1] + a[i] + a[i+1] for i = 1 .. n-2 (a0 = a, a1 = out, a2 = n); returns the sum of the outputs. */
-const stencil3 = (ns: string): Kernel =>
+const stencil3 = (ns: string): K.Kernel =>
   defineKernel('stencil3', ns, ['mem', 'alu', 'branch'], 0, [
     'addi a0, a0, 4',
     'addi a1, a1, 4',
@@ -153,13 +148,15 @@ const stencil3 = (ns: string): Kernel =>
     'ret',
   ]);
 
-const memStencil: TemplateFn = (rng, p) => {
+const memStencil: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const n = 32 * p.scale,
     start = 1 + rng.nextInt(9);
   fits(8 * n);
   let sum = 0;
-  for (let i = 1; i < n - 1; i++) sum += 3 * (start + 3 * i);
+  for (let i = 1; i < n - 1; i++) {
+    sum += 3 * (start + 3 * i);
+  }
   const o = open(b, p, 'stencil ', 4);
   b.emit(`li a0, ${BUF_BASE}`, `li a1, ${n}`, `li a2, ${start}`, `call ${b.add(K.fillStride(b.ns('fill'), 4), 4 * n)}`);
   b.emit(
@@ -174,7 +171,7 @@ const memStencil: TemplateFn = (rng, p) => {
 // ---------- transpose: read along a row, write down a column ----------
 
 /** dst[j * n + i] = src[i * n + j] for an n x n matrix (a0 = src, a1 = dst, a2 = n): the reads go in order, the writes jump a whole row each time. */
-const transposeK = (ns: string): Kernel =>
+const transposeK = (ns: string): K.Kernel =>
   defineKernel('transpose', ns, ['mem', 'alu', 'branch'], 0, [
     'slli t4, a2, 2',
     'li t0, 0',
@@ -195,7 +192,7 @@ const transposeK = (ns: string): Kernel =>
   ]);
 
 /** The sum of a1 words from a0, each times (its index mod 8, plus 1): it only comes out right if every word is where it belongs. */
-const weightedSum = (ns: string): Kernel =>
+const weightedSum = (ns: string): K.Kernel =>
   defineKernel('weighted_sum', ns, ['mem', 'mul', 'alu', 'branch'], 0, [
     'li t0, 0',
     'li t1, 0',
@@ -212,7 +209,7 @@ const weightedSum = (ns: string): Kernel =>
     'ret',
   ]);
 
-const memTranspose: TemplateFn = (rng, p) => {
+const memTranspose: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const n = 8 * pow2(p.scale),
     cells = n * n,
@@ -220,7 +217,11 @@ const memTranspose: TemplateFn = (rng, p) => {
   fits(8 * cells);
   const dst = BUF_BASE + 4 * cells;
   let sum = 0;
-  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) sum += (start + 3 * (i * n + j)) * (((j * n + i) & 7) + 1);
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      sum += (start + 3 * (i * n + j)) * (((j * n + i) & 7) + 1);
+    }
+  }
   const o = open(b, p, 'transpose ', 4);
   b.emit(
     `li a0, ${BUF_BASE}`,
@@ -241,7 +242,7 @@ const memTranspose: TemplateFn = (rng, p) => {
 // ---------- sieve: flags in bytes, crossed off in strides ----------
 
 /** Count the primes below a1 (a0 = a byte per number): clear the flags, then for each prime cross off its multiples from its square up. */
-const sieveCount = (ns: string): Kernel =>
+const sieveCount = (ns: string): K.Kernel =>
   defineKernel('sieve_count', ns, ['mem', 'mul', 'alu', 'branch'], 0, [
     'mv t0, a0',
     'mv t1, a1',
@@ -274,17 +275,20 @@ const sieveCount = (ns: string): Kernel =>
     'ret',
   ]);
 
-const memSieve: TemplateFn = (_rng, p) => {
+const memSieve: buildTypes.TemplateFn = (_rng, p) => {
   const b = new Builder();
   const n = 64 * p.scale;
   fits(n);
   const flags = new Uint8Array(n);
   let primes = 0;
-  for (let i = 2; i < n; i++)
+  for (let i = 2; i < n; i++) {
     if (!flags[i]) {
       primes++;
-      for (let j = i * i; j < n; j += i) flags[j] = 1;
+      for (let j = i * i; j < n; j += i) {
+        flags[j] = 1;
+      }
     }
+  }
   const o = open(b, p, 'sieve ', 4);
   b.emit(`li a0, ${BUF_BASE}`, `li a1, ${n}`, `call ${b.add(sieveCount(b.ns('sieve')), n)}`);
   return close(b, p, o, 'mem.sieve request', primes);
@@ -293,10 +297,10 @@ const memSieve: TemplateFn = (_rng, p) => {
 // ---------- hashtab: keys scattered over a table in the big heap ----------
 
 const TABLE_WORDS = 256;
-const PHI = 2654435761;
+const PHI = 2_654_435_761;
 
 /** Zero a1 words from a0. */
-const zeroWords = (ns: string): Kernel =>
+const zeroWords = (ns: string): K.Kernel =>
   defineKernel('zero_words', ns, ['mem', 'alu', 'branch'], 0, [
     `${ns}_loop:`,
     'sw zero, 0(a0)',
@@ -307,7 +311,7 @@ const zeroWords = (ns: string): Kernel =>
   ]);
 
 /** Insert the a2 non-zero keys at a1 into the 256-word table at a0 (open addressing, step to the next slot on a clash). */
-const hashInsert = (ns: string): Kernel =>
+const hashInsert = (ns: string): K.Kernel =>
   defineKernel('hash_insert', ns, ['mem', 'mul', 'alu', 'branch'], 0, [
     `li t4, ${PHI}`,
     `${ns}_key:`,
@@ -331,7 +335,7 @@ const hashInsert = (ns: string): Kernel =>
   ]);
 
 /** Look the a2 keys at a1 up in the table at a0; returns the number of slots it looked at in all (a clash costs another). */
-const hashFind = (ns: string): Kernel =>
+const hashFind = (ns: string): K.Kernel =>
   defineKernel('hash_find', ns, ['mem', 'mul', 'alu', 'branch'], 0, [
     'li a3, 0',
     `li t4, ${PHI}`,
@@ -356,17 +360,21 @@ const hashFind = (ns: string): Kernel =>
     'ret',
   ]);
 
-const memHashtab: TemplateFn = (rng, p) => {
+const memHashtab: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const n = Math.min(64, 16 * pow2(p.scale)),
     keys = new Set<number>();
-  while (keys.size < n) keys.add(1 + rng.nextInt(65535));
+  while (keys.size < n) {
+    keys.add(1 + rng.nextInt(65_535));
+  }
   const list = [...keys];
   const table = new Array<number>(TABLE_WORDS).fill(0);
   const slot = (key: number) => Math.imul(key, PHI) >>> 24;
   for (const key of list) {
     let s = slot(key);
-    while (table[s]) s = (s + 1) & (TABLE_WORDS - 1);
+    while (table[s]) {
+      s = (s + 1) & (TABLE_WORDS - 1);
+    }
     table[s] = key;
   }
   let looked = 0;
@@ -394,7 +402,7 @@ const memHashtab: TemplateFn = (rng, p) => {
 
 /** The bytes the hash table job keeps in the heap (for the RAM it needs). */
 
-export const MEMORY_TEMPLATES: Record<string, TemplateFn> = {
+export const MEMORY_TEMPLATES: Record<string, buildTypes.TemplateFn> = {
   'mem.chase': memChase,
   'mem.stream': memStream,
   'mem.stencil': memStencil,

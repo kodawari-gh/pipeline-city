@@ -12,16 +12,15 @@ import {
   rowAddr,
   THREAD_PARTS,
   THREAD_SYNC,
-  type Seg,
-  type TemplateFn,
 } from './build';
+import type * as buildTypes from './build';
 
 /** The shared total, one word after the barrier counter. */
 export const THREAD_TOTAL = THREAD_SYNC + 4;
 
 /** `par.sum`: `scale` x 32 words per thread (so the slices are line aligned), summed by `threads` threads. `p.scale` picks the size; the thread count is the second argument. */
 export const parSum =
-  (threads: number): TemplateFn =>
+  (threads: number): buildTypes.TemplateFn =>
   (rng, p) => {
     const per = 32 * p.scale,
       n = per * threads;
@@ -29,7 +28,7 @@ export const parSum =
     const total = vals.reduce((s, v) => s + v, 0);
     const b = new Builder();
     const data = b.ns('data');
-    const segs: Seg[] = [`#${pad2(p.jobId)} par.sum=`, { dyn: 4 }, ' OK'];
+    const segs: buildTypes.Seg[] = [`#${pad2(p.jobId)} par.sum=`, { dyn: 4 }, ' OK'];
     const line = layoutLine(segs);
     b.emit(
       `li s0, ${rowAddr(p.row)}`,

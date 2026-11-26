@@ -56,13 +56,17 @@ export class Mmu implements Device {
   constructor(private readonly ram: Uint8Array) {}
 
   configure(tlbEntries: number): void {
-    if (tlbEntries === this.tlbEntries && this.tVpn.length === tlbEntries) return;
+    if (tlbEntries === this.tlbEntries && this.tVpn.length === tlbEntries) {
+      return;
+    }
     this.tlbEntries = tlbEntries;
     this.tVpn = new Int32Array(tlbEntries).fill(-1);
     this.tFlags = new Uint8Array(tlbEntries);
     this.tFrame = new Int32Array(tlbEntries);
     this.tUsed = new Float64Array(tlbEntries);
-    if (tlbEntries === 0) this.enabled = false;
+    if (tlbEntries === 0) {
+      this.enabled = false;
+    }
   }
 
   reset(): void {
@@ -92,7 +96,9 @@ export class Mmu implements Device {
 
   /** `iret`: back to the program, with translation on if it was. */
   leaveKernel(): void {
-    if (this.saved && this.tlbEntries > 0) this.enabled = true;
+    if (this.saved && this.tlbEntries > 0) {
+      this.enabled = true;
+    }
     this.saved = false;
   }
 
@@ -110,11 +116,15 @@ export class Mmu implements Device {
     this.walkN = 0;
     this.slot = -1;
     if (va >= DEVICE_BASE) {
-      if (exec) return VmFault.Exec; // device space holds no code: a wild jump there is the job's fault, not the machine's
+      if (exec) {
+        return VmFault.Exec; // device space holds no code: a wild jump there is the job's fault, not the machine's
+      }
       this.pa = va;
       return 0;
     }
-    if (va >>> VA_BITS !== 0) return VmFault.Range;
+    if (va >>> VA_BITS !== 0) {
+      return VmFault.Range;
+    }
     const vpn = va >>> 8;
     let flags = 0,
       frame = 0;
@@ -134,12 +144,16 @@ export class Mmu implements Device {
       this.walkAt[0] = l1;
       this.walkN = 1;
       const e1 = this.word(l1);
-      if (!(e1 & PteBit.Valid)) return VmFault.NotPresent;
+      if (!(e1 & PteBit.Valid)) {
+        return VmFault.NotPresent;
+      }
       const l2 = ((e1 >>> 8) * 256 + ((va >>> 8) & 63) * 4) >>> 0;
       this.walkAt[1] = l2;
       this.walkN = 2;
       const e2 = this.word(l2);
-      if (!(e2 & PteBit.Valid)) return VmFault.NotPresent;
+      if (!(e2 & PteBit.Valid)) {
+        return VmFault.NotPresent;
+      }
       flags = e2 & 0xff;
       frame = e2 >>> 8;
       // fill: an empty entry, else the least recently used
@@ -164,18 +178,28 @@ export class Mmu implements Device {
         this.slot = v;
       }
     }
-    if (write && !(flags & PteBit.Write)) return VmFault.Write;
-    if (exec && !(flags & PteBit.Exec)) return VmFault.Exec;
+    if (write && !(flags & PteBit.Write)) {
+      return VmFault.Write;
+    }
+    if (exec && !(flags & PteBit.Exec)) {
+      return VmFault.Exec;
+    }
     this.pa = (frame * 256 + (va & 255)) >>> 0;
     return 0;
   }
 
   /** A translation without side effects (the die and the game read it): the physical address of `va`, or -1. */
   peek(va: number): number {
-    if (va >= DEVICE_BASE) return va;
-    if (va >>> VA_BITS !== 0) return -1;
+    if (va >= DEVICE_BASE) {
+      return va;
+    }
+    if (va >>> VA_BITS !== 0) {
+      return -1;
+    }
     const e1 = this.word((this.table + ((va >>> 14) & 63) * 4) >>> 0);
-    if (!(e1 & PteBit.Valid)) return -1;
+    if (!(e1 & PteBit.Valid)) {
+      return -1;
+    }
     const e2 = this.word(((e1 >>> 8) * 256 + ((va >>> 8) & 63) * 4) >>> 0);
     return e2 & PteBit.Valid ? ((e2 >>> 8) * 256 + (va & 255)) >>> 0 : -1;
   }
@@ -189,22 +213,30 @@ export class Mmu implements Device {
 
   private reg(off: number): number {
     switch (off) {
-      case MMU_REG.STATUS:
+      case MMU_REG.STATUS: {
         return (this.tlbEntries > 0 ? 1 : 0) | (this.enabled ? 2 : 0);
-      case MMU_REG.TABLE:
+      }
+      case MMU_REG.TABLE: {
         return this.table;
-      case MMU_REG.VECTOR:
+      }
+      case MMU_REG.VECTOR: {
         return this.vector;
-      case MMU_REG.FAULT_ADDR:
+      }
+      case MMU_REG.FAULT_ADDR: {
         return this.faultAddr;
-      case MMU_REG.FAULT_CAUSE:
+      }
+      case MMU_REG.FAULT_CAUSE: {
         return this.cause;
-      case MMU_REG.TLB_ENTRIES:
+      }
+      case MMU_REG.TLB_ENTRIES: {
         return this.tlbEntries;
-      case MMU_REG.FAULTS:
+      }
+      case MMU_REG.FAULTS: {
         return this.faults;
-      default:
+      }
+      default: {
         return 0;
+      }
     }
   }
 
@@ -220,25 +252,34 @@ export class Mmu implements Device {
       k = off & 3;
     const next = (((this.bytes.get(reg) ?? 0) & ~(0xff << (8 * k))) | ((val & 0xff) << (8 * k))) >>> 0;
     this.bytes.set(reg, next);
-    if (k !== 3) return;
+    if (k !== 3) {
+      return;
+    }
     this.bytes.delete(reg);
     switch (reg) {
-      case MMU_REG.CONTROL:
+      case MMU_REG.CONTROL: {
         // bit 0: translation on (ignored without an MMU); bit 1: flush the TLB
         if (this.tlbEntries > 0) {
           this.enabled = (next & 1) !== 0;
-          if (this.saved) this.saved = this.enabled;
+          if (this.saved) {
+            this.saved = this.enabled;
+          }
         }
-        if (next & 2) this.flush();
+        if (next & 2) {
+          this.flush();
+        }
         break;
-      case MMU_REG.TABLE:
+      }
+      case MMU_REG.TABLE: {
         this.table = next;
         this.flush();
         this.onSpace?.(next);
         break; // a new address space: nothing translated before holds
-      case MMU_REG.VECTOR:
+      }
+      case MMU_REG.VECTOR: {
         this.vector = next;
         break;
+      }
     }
   }
 

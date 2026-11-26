@@ -46,22 +46,30 @@ export class Mpu implements Device {
 
   private word(off: number): number {
     switch (off & ~3) {
-      case MPU_REG.ENABLE:
+      case MPU_REG.ENABLE: {
         return this.enabled ? 1 : 0;
-      case MPU_REG.R0_LO:
+      }
+      case MPU_REG.R0_LO: {
         return this.lo[0]!;
-      case MPU_REG.R0_HI:
+      }
+      case MPU_REG.R0_HI: {
         return this.hi[0]!;
-      case MPU_REG.R1_LO:
+      }
+      case MPU_REG.R1_LO: {
         return this.lo[1]!;
-      case MPU_REG.R1_HI:
+      }
+      case MPU_REG.R1_HI: {
         return this.hi[1]!;
-      case MPU_REG.FAULTS:
+      }
+      case MPU_REG.FAULTS: {
         return this.faults;
-      case MPU_REG.FAULT_ADDR:
+      }
+      case MPU_REG.FAULT_ADDR: {
         return this.faultAddr;
-      default:
+      }
+      default: {
         return 0;
+      }
     }
   }
 
@@ -78,24 +86,31 @@ export class Mpu implements Device {
     const cur = this.bytes.get(reg) ?? 0;
     const next = ((cur & ~(0xff << (8 * k))) | ((val & 0xff) << (8 * k))) >>> 0;
     this.bytes.set(reg, next);
-    if (k !== 3) return;
+    if (k !== 3) {
+      return;
+    }
     this.bytes.delete(reg);
     switch (reg) {
-      case MPU_REG.ENABLE:
+      case MPU_REG.ENABLE: {
         this.enabled = (next & 1) !== 0;
         break;
-      case MPU_REG.R0_LO:
+      }
+      case MPU_REG.R0_LO: {
         this.lo[0] = next;
         break;
-      case MPU_REG.R0_HI:
+      }
+      case MPU_REG.R0_HI: {
         this.hi[0] = next;
         break;
-      case MPU_REG.R1_LO:
+      }
+      case MPU_REG.R1_LO: {
         this.lo[1] = next;
         break;
-      case MPU_REG.R1_HI:
+      }
+      case MPU_REG.R1_HI: {
         this.hi[1] = next;
         break;
+      }
     }
   }
 
