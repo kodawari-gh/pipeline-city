@@ -141,7 +141,7 @@ describe("the board model's Ethernet chip", () => {
   it('stands on every board that has the chip, among the small parts, over its rectangle with a die of its own', () => {
     expect.hasAssertions();
     assert_stands_on_every_board_that_has_the_chip_among_th();
-  });
+  }, 20_000); // a long run: the default 5 s timed out when the whole suite ran in CI
 
   it("is on no board that has none (the first tier's)", () => {
     const b = model(0);

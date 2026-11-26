@@ -113,7 +113,7 @@ describe('a fan at three detail levels', () => {
   it('keeps its outline within 1 px of the full part at each switch size', () => {
     expect.hasAssertions();
     assert_keeps_its_outline_within_1_px_of_the_full_part_a();
-  });
+  }, 20_000); // a long run: the default 5 s timed out when the whole suite ran in CI
 
   it('keeps its round wall within 1 px of a true circle at each switch size', () => {
     expect.hasAssertions();
