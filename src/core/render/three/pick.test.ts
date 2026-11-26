@@ -27,7 +27,7 @@ describe('the pick ray', () => {
     expect(idOf(pick([root], cam, 0, 0))).toBe('socket');
     expect(cam.layers.test(hit.layers)).toBe(false);
     expect(drawnMeshes(root)).toBe(1);
-    expect(hit.castShadow || hit.receiveShadow).toBe(false);
+    expect([hit.castShadow, hit.receiveShadow]).toStrictEqual([false, false]);
   });
 
   it('skips a hidden unseen box and a see-through mesh', () => {
@@ -38,7 +38,8 @@ describe('the pick ray', () => {
     root.add(hit, glass, part);
     root.updateMatrixWorld(true);
     hit.visible = false;
-    expect(idOf(pick([root], camera(), 0, 0))).toBe('part');
+    const cam = camera();
+    expect(idOf(pick([root], cam, 0, 0))).toBe('part');
   });
 
   it('finds the depth of the surface behind a plate that only takes a click (`skip`)', () => {

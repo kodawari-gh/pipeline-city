@@ -3,7 +3,7 @@ import { BakeQueue, levelFor, screenPx, tilesOf, TILE_PX } from './artlod';
 
 describe('tilesOf', () => {
   it('keeps a small rect in one tile', () => {
-    expect(tilesOf({ x: 0, y: 0, w: 1000, h: 500 }, 1)).toEqual([{ x: 0, y: 0, w: 1000, h: 500 }]);
+    expect(tilesOf({ x: 0, y: 0, w: 1000, h: 500 }, 1)).toStrictEqual([{ x: 0, y: 0, w: 1000, h: 500 }]);
   });
   it('splits so no tile is wider than the limit, and covers the rect', () => {
     const r = { x: -3400, y: -2500, w: 6800, h: 6700 },
@@ -35,25 +35,32 @@ describe('screenPx', () => {
   });
 });
 
+/** A bake job that is not ready until `gate` says so, and then logs its `id` to `seen`. */
+function jobWhen(gate: { ready: boolean }, seen: string[], id: string): () => boolean {
+  return () => {
+    if (!gate.ready) {
+      return false;
+    }
+    seen.push(id);
+    return true;
+  };
+}
+
 describe('BakeQueue', () => {
   it('runs the most wanted first and retries a job that is not ready', () => {
     const q = new BakeQueue(),
       seen: string[] = [];
-    let ready = false;
+    const gate = { ready: false };
     q.add('b', 2, () => {
       seen.push('b');
       return true;
     });
-    q.add('a', 1, () => {
-      if (!ready) return false;
-      seen.push('a');
-      return true;
-    });
+    q.add('a', 1, jobWhen(gate, seen, 'a'));
     q.run();
-    expect(seen).toEqual([]);
-    ready = true;
+    expect(seen).toStrictEqual([]);
+    gate.ready = true;
     q.run();
-    expect(seen).toEqual(['a', 'b']);
+    expect(seen).toStrictEqual(['a', 'b']);
     expect(q.size).toBe(0);
   });
   it('drops the jobs of a surface', () => {

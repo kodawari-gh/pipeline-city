@@ -1,10 +1,28 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { BINS, HIGH_C, LocalEye, MAX_DOWN, MAX_UP, MID, SHADOW_C, gridSize, lift } from './localeye';
+
+/** The eye's grid (private: the test reads its size). */
+function gridOf(eye: unknown): { width: number; height: number } {
+  assert(typeof eye === 'object' && eye !== null && 'grid' in eye, 'the eye has its grid');
+  const { grid } = eye;
+  assert(isSize(grid), 'the grid has a size in cells');
+  return grid;
+}
+function isSize(v: unknown): v is { width: number; height: number } {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    'width' in v &&
+    typeof v.width === 'number' &&
+    'height' in v &&
+    typeof v.height === 'number'
+  );
+}
 
 describe("the eye's local adaptation", () => {
   it('cuts the picture in cells, the last one cut short', () => {
-    expect(gridSize(1920, 1080)).toEqual([60, 34]);
-    expect(gridSize(1, 1)).toEqual([1, 1]);
+    expect(gridSize(1920, 1080)).toStrictEqual([60, 34]);
+    expect(gridSize(1, 1)).toStrictEqual([1, 1]);
   });
 
   it('keeps middle grey, lifts the dark and holds back the bright, within the caps', () => {
@@ -33,10 +51,10 @@ describe("the eye's local adaptation", () => {
 
   it('sizes its grid to the picture, a bin a stop in each cell', () => {
     const eye = new LocalEye(1920, 1080);
-    const grid = (eye as unknown as { grid: { width: number; height: number } }).grid;
-    expect([grid.width, grid.height]).toEqual([60 * BINS, 34]);
+    const grid = gridOf(eye);
+    expect([grid.width, grid.height]).toStrictEqual([60 * BINS, 34]);
     eye.setSize(640, 360);
-    expect([grid.width, grid.height]).toEqual([20 * BINS, 12]);
+    expect([grid.width, grid.height]).toStrictEqual([20 * BINS, 12]);
     eye.dispose();
   });
 });

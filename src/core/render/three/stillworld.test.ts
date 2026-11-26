@@ -2,6 +2,24 @@ import { describe, expect, it, vi } from 'vitest';
 import { Group, Mesh, Object3D, PerspectiveCamera, Scene } from 'three';
 import { syncWorld } from './stillworld';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+/** The perspective cameras under `root`, in the order of the tree. */
+function camerasIn(root: Object3D): PerspectiveCamera[] {
+  const out: PerspectiveCamera[] = [];
+  root.traverse((o) => {
+    if (o instanceof PerspectiveCamera) {
+      out.push(o);
+    }
+  });
+  return out;
+}
+
 /** A small tree: a scene, a turned and scaled group, a moved mesh in it with a child, and a second group. */
 function tree() {
   const scene = new Scene(),
@@ -41,7 +59,7 @@ describe('syncWorld', () => {
     const { scene } = tree();
     const want = expected(scene);
     syncWorld(scene);
-    expect(worlds(scene)).toEqual(want);
+    expect(worlds(scene)).toStrictEqual(want);
   });
 
   it('composes nothing for a tree that stands still', () => {
@@ -50,7 +68,9 @@ describe('syncWorld', () => {
     const spies = [scene, a, b, c, d].map((o) => vi.spyOn(o, 'updateMatrix'));
     const w = vi.spyOn(c.matrixWorld, 'multiplyMatrices');
     syncWorld(scene);
-    for (const s of spies) expect(s).not.toHaveBeenCalled();
+    for (const s of spies) {
+      expect(s).not.toHaveBeenCalled();
+    }
     expect(w).not.toHaveBeenCalled();
   });
 
@@ -59,13 +79,13 @@ describe('syncWorld', () => {
     syncWorld(scene);
     b.position.y += 3;
     syncWorld(scene);
-    expect(worlds(scene)).toEqual(expected(scene));
+    expect(worlds(scene)).toStrictEqual(expected(scene));
     a.rotation.z += 0.2;
     syncWorld(scene);
-    expect(worlds(scene)).toEqual(expected(scene));
+    expect(worlds(scene)).toStrictEqual(expected(scene));
     a.scale.setScalar(0.5);
     syncWorld(scene);
-    expect(worlds(scene)).toEqual(expected(scene));
+    expect(worlds(scene)).toStrictEqual(expected(scene));
   });
 
   it('follows an object put under another parent, and a new one', () => {
@@ -76,7 +96,7 @@ describe('syncWorld', () => {
     n.position.x = 3;
     d.add(n);
     syncWorld(scene);
-    expect(worlds(scene)).toEqual(expected(scene));
+    expect(worlds(scene)).toStrictEqual(expected(scene));
   });
 
   it('follows a part moved, updated by three and moved back between two calls', () => {
@@ -88,12 +108,12 @@ describe('syncWorld', () => {
     b.position.x -= 100;
     a.rotation.x -= 1;
     syncWorld(scene);
-    expect(worlds(scene)).toEqual(expected(scene));
+    expect(worlds(scene)).toStrictEqual(expected(scene));
     b.position.x += 100;
     b.updateWorldMatrix(true, true);
     b.position.x -= 100;
     syncWorld(scene);
-    expect(worlds(scene)).toEqual(expected(scene));
+    expect(worlds(scene)).toStrictEqual(expected(scene));
   });
 
   it('follows a matrix written by hand', () => {
@@ -104,7 +124,7 @@ describe('syncWorld', () => {
     syncWorld(scene);
     m.matrix.makeTranslation(1, 2, 3);
     syncWorld(scene);
-    expect(m.matrixWorld.elements.slice(12, 15)).toEqual([1, 2, -47]);
+    expect(m.matrixWorld.elements.slice(12, 15)).toStrictEqual([1, 2, -47]);
   });
 
   it('leaves an object with an update of its own to it', () => {
@@ -113,14 +133,11 @@ describe('syncWorld', () => {
     cam.position.set(1, 2, 3);
     a.add(cam);
     syncWorld(scene);
-    expect(worlds(scene)).toEqual(expected(scene));
+    expect(worlds(scene)).toStrictEqual(expected(scene));
     // (the camera's own update keeps its inverse too)
     const copy = scene.clone(true);
     copy.updateMatrixWorld(true);
-    let twin: PerspectiveCamera | null = null;
-    copy.traverse((o) => {
-      if ((o as PerspectiveCamera).isPerspectiveCamera) twin = o as PerspectiveCamera;
-    });
-    expect([...cam.matrixWorldInverse.elements]).toEqual([...twin!.matrixWorldInverse.elements]);
+    const twin = must(camerasIn(copy).at(-1));
+    expect([...cam.matrixWorldInverse.elements]).toStrictEqual([...twin.matrixWorldInverse.elements]);
   });
 });
