@@ -1,7 +1,7 @@
 /** How much of the city is built: 'high' is the full city, 'low' the cut one for the Low tier (docs: low-city-draws design). */
 export type CityDetail = 'high' | 'low';
 
-/** At Low, the rings (`RINGS` in towers.ts) from the window that stay real buildings; the rest are one mesh of plain blocks. */
+/** At Low, the rings (`RINGS` in `towers/rings.ts`) from the window that stay real buildings; the rest are one mesh of plain blocks. */
 export const LOW_NEAR_RINGS = 2;
 /** At Low, `sweptMerge` cuts the streets by cells of the ground this size (m). */
 export const LOW_CELL = 96;

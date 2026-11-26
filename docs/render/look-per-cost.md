@@ -48,7 +48,7 @@ The open items were tasks LPC1–LPC11 ("Look per cost") in the old work list (`
 | ------------------------ | ---------------------------------------------------------- | ------------------------------------ |
 | Mini tower               | Cream; a named anti-reference. On hold by the owner.       | `case3d.ts` `LOOKS.oem`              |
 | Case tray, drive cages   | Brass and tan read as cardboard through the new glass.     | `casetray3d.ts`, `drivecage3d.ts`    |
-| City signs               | Saturated `#ff3f9e`, `#ff5a3c`.                            | `outside/towers.ts` `SIGNS`          |
+| City signs               | Saturated `#ff3f9e`, `#ff5a3c`.                            | `outside/towers/signs.ts` `SIGNS`    |
 | City fields, cars        | Olive greens; yellow and red cars.                         | `outside/city.ts`, `outside/plan.ts` |
 | Gold and copper          | Four golds, two coppers; the palette has one each.         | `ram3d`, `nic3d`, `psu3d`, `gpu3d`   |
 | Fan accents              | Violet `0x7a5cc8`, `0x8b5cff`, not `#a68bff`.              | `fans3d.ts`                          |
