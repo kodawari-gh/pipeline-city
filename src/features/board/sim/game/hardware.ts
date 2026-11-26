@@ -54,16 +54,8 @@ export function syncStorage(this: Game): void {
 export function syncNpus(this: Game): void {
   this.npus.forEach((port, k) => {
     const d = this.board.devices.find((x) => x.slot === `pcie${k}` && deviceSpec(x).kind === 'npu' && !x.burnt);
-    port.configure(
-      d
-        ? (deviceSpec(d) as boardSimTypes.CardSpec).npu
-          ? {
-              grid: (deviceSpec(d) as boardSimTypes.CardSpec).npu!.grid,
-              memBytes: (deviceSpec(d) as boardSimTypes.CardSpec).npu!.memBytes,
-            }
-          : null
-        : null,
-    );
+    const npu = d ? (deviceSpec(d) as boardSimTypes.CardSpec).npu : undefined;
+    port.configure(npu ? { grid: npu.grid, memBytes: npu.memBytes } : null);
   });
 }
 

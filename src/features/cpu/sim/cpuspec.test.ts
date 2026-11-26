@@ -1,7 +1,8 @@
 import { assert, describe, expect, it } from 'vitest';
 import { InOrderEngine, OooEngine } from './engines';
 import { getSpec } from '../../board/sim/specs';
-import { createBoard, install } from '../../board/sim/board';
+import { createBoard } from '../../board/sim/board';
+import { install } from '../../board/sim/boardEdit';
 import { isPlannedItem, unlockLevelOf } from '../../economy/sim/levels';
 import { engineConfigFor } from '../../board/sim/apply';
 import { ECONOMY } from '../../economy/sim/economy';

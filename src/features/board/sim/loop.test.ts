@@ -89,7 +89,7 @@ function fansOf(b: ReturnType<typeof createBoard>, turning: number, pump = true)
 function settle(b: ReturnType<typeof createBoard>, f: thermalTypes.FanPower, n = 1500) {
   const th = new ThermalModel(new Prng(1));
   for (let i = 0; i < n; i++) {
-    th.step(b, { cpu: 1 }, true, f);
+    th.step(b, { loads: { cpu: 1 }, powered: true, fans: f });
   }
   return { th, cpu: stateOf(th, b, 'cpu').tempC };
 }
@@ -153,7 +153,7 @@ describe('the liquid loop', () => {
     expect(off.th.loopFlow).toBeLessThan(0.05); // no pump cable: nothing moves, both legs sit at the bulk
     expect(off.th.loopHotC).toBeCloseTo(off.th.loopColdC, 6);
     const slow = new ThermalModel(new Prng(1));
-    slow.step(b, { cpu: 1 }, true, fansOf(b, 3));
+    slow.step(b, { loads: { cpu: 1 }, powered: true, fans: fansOf(b, 3) });
     expect(slow.loopFlow).toBeGreaterThan(0.3); // it eases up from still: not full on the first tick
     expect(slow.loopFlow).toBeLessThan(0.6);
   });
@@ -176,7 +176,7 @@ describe('the liquid loop', () => {
       s = settle(l, fansOf(l, 3), 400),
       hot = s.th.loopC;
     for (let i = 0; i < 400; i++) {
-      s.th.step(l, {}, false, fansOf(l, 3));
+      s.th.step(l, { loads: {}, powered: false, fans: fansOf(l, 3) });
     }
     expect(s.th.loopC).toBeLessThan(hot);
   });

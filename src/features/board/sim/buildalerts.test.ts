@@ -36,7 +36,7 @@ function buy(g: Game, id: string): string {
   return r.invId;
 }
 
-const alerts = (g: Game) => buildAlerts(g.board, g.cables, 'machine', g.fanPower());
+const alerts = (g: Game) => buildAlerts({ board: g.board, cables: g.cables, shown: 'machine', fans: g.fanPower() });
 const ids = (g: Game) => alerts(g).map((a) => a.id);
 
 describe('what the Start list offers', () => {
@@ -44,11 +44,17 @@ describe('what the Start list offers', () => {
     'every start is a sound machine: nothing to warn about, with the heat or without it (%s)',
     async (key) => {
       const { game, shown } = await startGame(key);
-      expect({ key, alerts: buildAlerts(game.board, game.cables, shown, game.fanPower()) }).toStrictEqual({
+      expect({
+        key,
+        alerts: buildAlerts({ board: game.board, cables: game.cables, shown, fans: game.fanPower() }),
+      }).toStrictEqual({
         key,
         alerts: [],
       });
-      expect({ key, alerts: buildAlerts(game.board, game.cables, shown) }).toStrictEqual({ key, alerts: [] });
+      expect({ key, alerts: buildAlerts({ board: game.board, cables: game.cables, shown }) }).toStrictEqual({
+        key,
+        alerts: [],
+      });
     },
   );
 });
@@ -90,8 +96,8 @@ describe('what is missing', () => {
 
   it('has nothing to judge on a bare case or an empty stage', () => {
     const g = rig(['psu0']);
-    expect(buildAlerts(g.board, g.cables, 'case', g.fanPower())).toStrictEqual([]);
-    expect(buildAlerts(g.board, g.cables, 'nothing', g.fanPower())).toStrictEqual([]);
+    expect(buildAlerts({ board: g.board, cables: g.cables, shown: 'case', fans: g.fanPower() })).toStrictEqual([]);
+    expect(buildAlerts({ board: g.board, cables: g.cables, shown: 'nothing', fans: g.fanPower() })).toStrictEqual([]);
   });
 });
 
@@ -159,7 +165,9 @@ describe('the heat, from the thermal model', () => {
       'board2',
     );
     expect(checkCompat(g.board).find((i) => i.id === 'cpu-cooling')).toMatchObject({ severity: 'error' });
-    expect(buildAlerts(g.board, g.cables, 'machine').map((a) => a.id)).toContain('cpu-cooling'); // (no fans given: the static check)
+    expect(buildAlerts({ board: g.board, cables: g.cables, shown: 'machine' }).map((a) => a.id)).toContain(
+      'cpu-cooling',
+    ); // (no fans given: the static check)
     const withFans = ids(g);
     expect(withFans).not.toContain('cpu-cooling');
     expect(withFans).not.toContain('hot-errors');
