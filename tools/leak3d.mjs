@@ -7,8 +7,10 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright-core');
 
-const url = process.env.URL || 'http://localhost:5173/';
-const cycles = Number(process.argv[2] || 3);
+const envUrl = process.env['URL'],
+  arg = process.argv.at(2);
+const url = envUrl === undefined || envUrl === '' ? 'http://localhost:5173/' : envUrl;
+const cycles = Number(arg === undefined || arg === '' ? 3 : arg);
 const browser = await chromium.launch({
   channel: 'chrome',
   args: ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist'],

@@ -12,11 +12,24 @@ export interface Light {
   scale: number;
 }
 
+/** The number at `i` of an array the caller indexes within its length. */
+const num = (a: ArrayLike<number>, i: number): number => a[i] ?? 0;
+
+/** A map's size in texels. */
+export interface Size {
+  width: number;
+  height: number;
+}
+
 /** The scale a map is stored to: its brightest channel (the denoised map has no lone hot texels). */
 export function scaleOf(rgb: Float32Array): number {
   let s = 0;
-  for (let i = 0; i < rgb.length; i++) if (rgb[i]! > s) s = rgb[i]!;
-  return s || 1;
+  for (const v of rgb) {
+    if (v > s) {
+      s = v;
+    }
+  }
+  return s > 0 ? s : 1;
 }
 
 /**
@@ -25,36 +38,43 @@ export function scaleOf(rgb: Float32Array): number {
  */
 export function encode({ width, height, rgb, scale }: Light, keep?: Uint8Array): Uint8Array {
   const out = new Uint8Array(width * height * 4);
-  for (let y = 0; y < height; y++)
+  for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const i = 3 * (y * width + x),
         t = (height - 1 - y) * width + x,
         o = 4 * t;
-      if (keep && !keep[t]) {
+      if (keep && num(keep, t) === 0) {
         out[o + 3] = 1;
         continue;
       }
-      const e = [0, 1, 2].map((k) => Math.sqrt(Math.min(1, Math.max(0, rgb[i + k]! / scale))));
-      const m = Math.max(1, Math.ceil(Math.max(e[0]!, e[1]!, e[2]!) * 255));
-      for (let k = 0; k < 3; k++) out[o + k] = Math.min(255, Math.round((e[k]! * 255 * 255) / m));
+      const e = [0, 1, 2].map((k) => {
+        const v = num(rgb, i + k) / scale;
+        return Math.sqrt(Math.min(1, Math.max(0, v)));
+      });
+      const m = Math.max(1, Math.ceil(Math.max(...e) * 255));
+      for (const [k, ek] of e.entries()) {
+        out[o + k] = Math.min(255, Math.round((ek * 255 * 255) / m));
+      }
       out[o + 3] = m;
     }
+  }
   return out;
 }
 
 /** The light back from RGBM bytes (rows from the top), rows from the bottom: what the game's shader does. */
-export function decode(bytes: Uint8Array, width: number, height: number, scale: number): Float32Array {
+export function decode(bytes: Uint8Array, { width, height, scale }: Omit<Light, 'rgb'>): Float32Array {
   const out = new Float32Array(width * height * 3);
-  for (let y = 0; y < height; y++)
+  for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const i = 4 * ((height - 1 - y) * width + x),
         o = 3 * (y * width + x),
-        m = bytes[i + 3]! / 255;
+        m = num(bytes, i + 3) / 255;
       for (let k = 0; k < 3; k++) {
-        const e = (bytes[i + k]! / 255) * m;
+        const e = (num(bytes, i + k) / 255) * m;
         out[o + k] = scale * e * e;
       }
     }
+  }
   return out;
 }
 
@@ -72,51 +92,85 @@ export interface DirectEntry {
  * channel over its scale. A group's light has one hue (its lamps share a colour, and a lightmap holds the light before the surface's colour),
  * so one value a texel and `colour` give it back. `keep` as in `encode`.
  */
+/** The size of the maps `packDirect` packs and the texels it keeps (`keep` as in `encode`). */
+export interface PackOptions extends Size {
+  keep?: Uint8Array;
+}
+
+/** One group's channel of a packed map: its light (the brightest channel a texel), its scale and its hue. */
+function directChannel(
+  rgb: Float32Array,
+  { width, height, keep }: PackOptions,
+): { s: Float32Array; entry: DirectEntry } {
+  const s = new Float32Array(width * height),
+    sum = [0, 0, 0];
+  let total = 0,
+    top = 0;
+  const lit: number[] = [];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = 3 * (y * width + x),
+        t = (height - 1 - y) * width + x,
+        c = [0, 1, 2].map((k) => num(rgb, i + k)),
+        v = Math.max(0, ...c);
+      if ((keep && num(keep, t) === 0) || v <= 0) {
+        continue;
+      }
+      s[t] = v;
+      total += v;
+      top = Math.max(top, v);
+      lit.push(v);
+      for (const [k, ck] of c.entries()) {
+        sum[k] = num(sum, k) + Math.max(0, ck);
+      }
+    }
+  }
+  lit.sort((a, b) => a - b);
+  const clip = Math.min(top, DIRECT_CLIP * num(lit, Math.floor(0.995 * (lit.length - 1))));
+  const scale = lit.length > 0 && clip > 0 ? clip : 1;
+  const colour: [number, number, number] =
+    total > 0 ? [num(sum, 0) / total, num(sum, 1) / total, num(sum, 2) / total] : [1, 1, 1];
+  return { s, entry: { scale, colour } };
+}
+
+/**
+ * Up to three lamp groups' direct light in one RGBA map (rows from the top, alpha 255), a group a channel: the square root of its brightest
+ * channel over its scale. A group's light has one hue (its lamps share a colour, and a lightmap holds the light before the surface's colour),
+ * so one value a texel and `colour` give it back. `keep` as in `encode`.
+ */
 export function packDirect(
   lights: readonly Float32Array[],
-  width: number,
-  height: number,
-  keep?: Uint8Array,
+  options: PackOptions,
 ): { bytes: Uint8Array; entries: DirectEntry[] } {
-  const n = width * height,
+  const n = options.width * options.height,
     bytes = new Uint8Array(n * 4),
     entries: DirectEntry[] = [];
-  for (let t = 0; t < n; t++) bytes[4 * t + 3] = 255;
-  lights.slice(0, 3).forEach((rgb, c) => {
-    const s = new Float32Array(n),
-      sum = [0, 0, 0];
-    let total = 0,
-      top = 0;
-    const lit: number[] = [];
-    for (let y = 0; y < height; y++)
-      for (let x = 0; x < width; x++) {
-        const i = 3 * (y * width + x),
-          t = (height - 1 - y) * width + x;
-        if (keep && !keep[t]) continue;
-        const v = Math.max(0, rgb[i]!, rgb[i + 1]!, rgb[i + 2]!);
-        if (v <= 0) continue;
-        s[t] = v;
-        total += v;
-        top = Math.max(top, v);
-        lit.push(v);
-        for (let k = 0; k < 3; k++) sum[k]! += Math.max(0, rgb[i + k]!);
-      }
-    lit.sort((a, b) => a - b);
-    const scale = lit.length ? Math.min(top, DIRECT_CLIP * lit[Math.floor(0.995 * (lit.length - 1))]!) || 1 : 1;
-    for (let t = 0; t < n; t++) bytes[4 * t + c] = Math.round(255 * Math.sqrt(Math.min(1, s[t]! / scale)));
-    entries.push({ scale, colour: total > 0 ? [sum[0]! / total, sum[1]! / total, sum[2]! / total] : [1, 1, 1] });
-  });
+  for (let t = 0; t < n; t++) {
+    bytes[4 * t + 3] = 255;
+  }
+  for (const [c, rgb] of lights.slice(0, 3).entries()) {
+    const { s, entry } = directChannel(rgb, options);
+    for (let t = 0; t < n; t++) {
+      const v = num(s, t) / entry.scale;
+      bytes[4 * t + c] = Math.round(255 * Math.sqrt(Math.min(1, v)));
+    }
+    entries.push(entry);
+  }
   return { bytes, entries };
 }
 
 const CRC = new Int32Array(256).map((_, n) => {
   let c = n;
-  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  for (let k = 0; k < 8; k++) {
+    c = (c & 1) === 1 ? 0xed_b8_83_20 ^ (c >>> 1) : c >>> 1;
+  }
   return c;
 });
 function crc32(b: Uint8Array): number {
   let c = -1;
-  for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]!) & 255]! ^ (c >>> 8);
+  for (const byte of b) {
+    c = num(CRC, (c ^ byte) & 255) ^ (c >>> 8);
+  }
   return (c ^ -1) >>> 0;
 }
 
@@ -124,7 +178,9 @@ function chunk(type: string, data: Uint8Array): Uint8Array {
   const out = new Uint8Array(12 + data.length),
     v = new DataView(out.buffer);
   v.setUint32(0, data.length);
-  for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+  for (let i = 0; i < 4; i++) {
+    out[4 + i] = type.codePointAt(i) ?? 0;
+  }
   out.set(data, 8);
   v.setUint32(8 + data.length, crc32(out.subarray(4, 8 + data.length)));
   return out;
@@ -135,21 +191,49 @@ const paeth = (a: number, b: number, c: number) => {
     pa = Math.abs(p - a),
     pb = Math.abs(p - b),
     pc = Math.abs(p - c);
-  return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+  if (pa <= pb && pa <= pc) {
+    return a;
+  }
+  return pb <= pc ? b : c;
 };
 
+/** The bytes left (`a`), above (`b`) and above left (`c`) of byte `i` of a row of `row` bytes: 0 off the picture. */
+function around(rgba: Uint8Array, i: number, row: number): [number, number, number] {
+  const x = i % row,
+    y = Math.floor(i / row);
+  return [x >= 4 ? num(rgba, i - 4) : 0, y > 0 ? num(rgba, i - row) : 0, x >= 4 && y > 0 ? num(rgba, i - row - 4) : 0];
+}
+
+/** The prediction a PNG filter type makes from the bytes around (`around`). */
+function predict(f: number, [a, b, c]: [number, number, number]): number {
+  switch (f) {
+    case 0: {
+      return 0;
+    }
+    case 1: {
+      return a;
+    }
+    case 2: {
+      return b;
+    }
+    case 3: {
+      return (a + b) >> 1;
+    }
+    default: {
+      return paeth(a, b, c);
+    }
+  }
+}
+
 /** An RGBA PNG (8 bits a channel, each row Paeth filtered), with no colour profile: the bytes are data, not a picture. */
-export function png(rgba: Uint8Array, width: number, height: number): Uint8Array {
+export function png(rgba: Uint8Array, { width, height }: Size): Uint8Array {
   const row = width * 4,
     raw = new Uint8Array(height * (row + 1));
   for (let y = 0; y < height; y++) {
     raw[y * (row + 1)] = 4;
     for (let x = 0; x < row; x++) {
-      const i = y * row + x,
-        a = x >= 4 ? rgba[i - 4]! : 0,
-        b = y ? rgba[i - row]! : 0,
-        c = x >= 4 && y ? rgba[i - row - 4]! : 0;
-      raw[y * (row + 1) + 1 + x] = (rgba[i]! - paeth(a, b, c)) & 255;
+      const i = y * row + x;
+      raw[y * (row + 1) + 1 + x] = (num(rgba, i) - predict(4, around(rgba, i, row))) & 255;
     }
   }
   const head = new Uint8Array(13),
@@ -181,27 +265,25 @@ export function unpng(file: Uint8Array): { width: number; height: number; rgba: 
     height = 0;
   for (let o = 8; o < file.length;) {
     const n = v.getUint32(o),
-      type = String.fromCharCode(...file.subarray(o + 4, o + 8)),
+      type = String.fromCodePoint(...file.subarray(o + 4, o + 8)),
       data = file.subarray(o + 8, o + 8 + n);
     if (type === 'IHDR') {
       width = v.getUint32(o + 8);
       height = v.getUint32(o + 12);
     }
-    if (type === 'IDAT') idat.push(data);
+    if (type === 'IDAT') {
+      idat.push(data);
+    }
     o += 12 + n;
   }
   const raw = inflateSync(Buffer.concat(idat)),
     row = width * 4,
     rgba = new Uint8Array(height * row);
   for (let y = 0; y < height; y++) {
-    const f = raw[y * (row + 1)]!;
+    const f = num(raw, y * (row + 1));
     for (let x = 0; x < row; x++) {
-      const i = y * row + x,
-        a = x >= 4 ? rgba[i - 4]! : 0,
-        b = y ? rgba[i - row]! : 0,
-        c = x >= 4 && y ? rgba[i - row - 4]! : 0;
-      const p = f === 0 ? 0 : f === 1 ? a : f === 2 ? b : f === 3 ? (a + b) >> 1 : paeth(a, b, c);
-      rgba[i] = (raw[y * (row + 1) + 1 + x]! + p) & 255;
+      const i = y * row + x;
+      rgba[i] = (num(raw, y * (row + 1) + 1 + x) + predict(f, around(rgba, i, row))) & 255;
     }
   }
   return { width, height, rgba };

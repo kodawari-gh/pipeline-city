@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 
 const [file, ...rects] = process.argv.slice(2);
-if (!file || !rects.length) {
+if (file === undefined || file === '' || rects.length === 0) {
   console.log('usage: node tools/lum.mjs <png> x,y,w,h [x,y,w,h ...]');
   process.exit(1);
 }

@@ -8,18 +8,16 @@
 // Options: --combos case:board pairs to run; --kinds part kinds for the build phase; --phases phases to run (add `fans` after `build`: it needs the CPU the build phase fits); --speed animation speed;
 // --out log file (default: animcheck.log in the temp folder). A quick run: `--combos 2:2 --kinds psu,cpu --phases build,fans`. Do not add or remove files under the repo while it runs: the dev server reloads the page.
 // Env: PORT (default 5245; it starts vite when nothing answers). Software GL (SwiftShader, llvmpipe) stops the run.
-import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { chromium } from 'playwright-core';
 
 const REPO = fileURLToPath(new URL('..', import.meta.url))
   .replace(/\\/g, '/')
   .replace(/\/$/, '');
-const require = createRequire(REPO + '/package.json');
-const { chromium } = require('playwright-core');
 const args = process.argv.slice(2);
 const flag = (n, d) => {
   const i = args.indexOf('--' + n);

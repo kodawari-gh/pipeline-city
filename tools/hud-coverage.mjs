@@ -100,7 +100,7 @@ const args = process.argv.slice(2),
     const i = args.indexOf(k);
     return i < 0 ? d : Number(args.splice(i, 2)[1]);
   };
-if (process.argv[1]?.endsWith('hud-coverage.mjs')) {
+if (process.argv[1]?.endsWith('hud-coverage.mjs') === true) {
   const dilate = opt('--dilate', 12),
     threshold = opt('--threshold', 6),
     min = opt('--min', NaN);
