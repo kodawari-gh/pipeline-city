@@ -5,7 +5,7 @@
 // busiest memory bank has distinct addresses to serve (lanes reading the same address share one access, so a broadcast is free). Lanes
 // that are masked off do not touch memory.
 
-import { gpuDecode, GPU_MASK_DEPTH, GPU_REG_COUNT, GPU_SPEC_BY_NAME, type GpuInstr } from './isa';
+import * as isa from './isa';
 
 export class GpuFault extends Error {
   constructor(
@@ -33,7 +33,9 @@ export interface GpuRefConfig {
 /** Distinct addresses each bank has to serve for one access, `banks` entries (bank = word % banks). */
 export function bankLoad(addrs: readonly number[], banks: number): number[] {
   const perBank = Array.from({ length: banks }, () => new Set<number>());
-  for (const a of addrs) perBank[(a >>> 2) % banks]!.add(a);
+  for (const a of addrs) {
+    perBank[(a >>> 2) % banks]!.add(a);
+  }
   return perBank.map((s) => s.size);
 }
 
@@ -133,23 +135,27 @@ export class GpuRef {
   private readonly all: number;
 
   constructor(cfg: GpuRefConfig) {
-    if (!Number.isInteger(cfg.lanes) || cfg.lanes < 1 || cfg.lanes > 32)
+    if (!Number.isInteger(cfg.lanes) || cfg.lanes < 1 || cfg.lanes > 32) {
       throw new RangeError(`bad lane count ${cfg.lanes}`);
-    if (!cfg.mem && (cfg.memBytes % 4 !== 0 || cfg.memBytes < 4))
+    }
+    if (!cfg.mem && (cfg.memBytes % 4 !== 0 || cfg.memBytes < 4)) {
       throw new RangeError(`bad card memory size ${cfg.memBytes}`);
+    }
     this.lanes = cfg.lanes;
     this.banks = Math.max(1, cfg.banks);
     this.mem = cfg.mem ?? new Uint32Array(cfg.memBytes / 4);
     this.laneBase = cfg.laneBase ?? 0;
-    this.regs = Array.from({ length: GPU_REG_COUNT }, () => new Int32Array(cfg.lanes));
-    this.all = cfg.lanes === 32 ? 0xffffffff : (1 << cfg.lanes) - 1;
+    this.regs = Array.from({ length: isa.GPU_REG_COUNT }, () => new Int32Array(cfg.lanes));
+    this.all = cfg.lanes === 32 ? 0xff_ff_ff_ff : (1 << cfg.lanes) - 1;
     this.reset();
   }
 
   /** Registers zero, every lane active, pc and the counters back at the start. Memory is left as it is. */
   reset(pc = 0, activeLanes = this.lanes): void {
-    for (const r of this.regs) r.fill(0);
-    this.mask = (activeLanes >= 32 ? 0xffffffff : (1 << activeLanes) - 1) >>> 0;
+    for (const r of this.regs) {
+      r.fill(0);
+    }
+    this.mask = (activeLanes >= 32 ? 0xff_ff_ff_ff : (1 << activeLanes) - 1) >>> 0;
     this.stack.length = 0;
     this.pc = pc;
     this.halted = false;
@@ -160,40 +166,50 @@ export class GpuRef {
 
   /** Copy words into card memory at a byte address. */
   load(words: ArrayLike<number>, at = 0): void {
-    if (at % 4 !== 0 || at < 0 || at / 4 + words.length > this.mem.length)
+    if (at % 4 !== 0 || at < 0 || at / 4 + words.length > this.mem.length) {
       throw new RangeError(`load of ${words.length} words at ${at} does not fit`);
-    for (let k = 0; k < words.length; k++) this.mem[at / 4 + k] = words[k]! >>> 0;
+    }
+    for (let k = 0; k < words.length; k++) {
+      this.mem[at / 4 + k] = words[k]! >>> 0;
+    }
   }
 
   private popcount(m: number): number {
     let n = 0;
-    for (let x = m >>> 0; x; x &= x - 1) n++;
+    for (let x = m >>> 0; x; x &= x - 1) {
+      n++;
+    }
     return n;
   }
 
-  private fetch(): GpuInstr {
-    if (this.pc % 4 !== 0 || this.pc < 0 || this.pc / 4 >= this.mem.length)
+  private fetch(): isa.GpuInstr {
+    if (this.pc % 4 !== 0 || this.pc < 0 || this.pc / 4 >= this.mem.length) {
       throw new GpuFault(this.pc, 'instruction fetch outside card memory');
-    const i = gpuDecode(this.mem[this.pc / 4]!);
-    if (!i) throw new GpuFault(this.pc, `illegal instruction 0x${this.mem[this.pc / 4]!.toString(16)}`);
+    }
+    const i = isa.gpuDecode(this.mem[this.pc / 4]!);
+    if (!i) {
+      throw new GpuFault(this.pc, `illegal instruction 0x${this.mem[this.pc / 4]!.toString(16)}`);
+    }
     return i;
   }
 
   /** Run one instruction. No-op once halted. */
   step(): void {
-    if (this.halted) return;
+    if (this.halted) {
+      return;
+    }
     const i = this.fetch();
     const word = this.mem[this.pc / 4]!;
     this.lastAddrs = [];
     const startCycle = this.cycles;
     const R = this.regs;
     const L = this.lanes;
-    const mask = this.mask;
+    const { mask } = this;
     const active = (l: number): boolean => ((mask >>> l) & 1) === 1;
     let cost = 1;
     let banks: number[] | null = null;
     let touch: GpuMemTouch | undefined;
-    const fmt = GPU_SPEC_BY_NAME.get(i.name)?.fmt;
+    const fmt = isa.GPU_SPEC_BY_NAME.get(i.name)?.fmt;
     const usesA = fmt === 'R' || fmt === 'M' || fmt === 'S' || (fmt === 'I' && i.name !== 'vli'),
       usesB = fmt === 'R' || fmt === 'M' || fmt === 'S';
     const srcA = usesA ? Array.from(this.regs[i.rs1]!) : undefined,
@@ -201,96 +217,138 @@ export class GpuRef {
     let next = this.pc + 4;
 
     const alu = (f: (a: number, b: number) => number, bFrom: 'reg' | 'imm'): void => {
-      for (let l = 0; l < L; l++)
-        if (active(l)) R[i.rd]![l] = f(R[i.rs1]![l]!, bFrom === 'reg' ? R[i.rs2]![l]! : i.imm) | 0;
+      for (let l = 0; l < L; l++) {
+        if (active(l)) {
+          R[i.rd]![l] = f(R[i.rs1]![l]!, bFrom === 'reg' ? R[i.rs2]![l]! : i.imm) | 0;
+        }
+      }
     };
     const setMask = (cmp: (a: number, b: number) => boolean): void => {
       let m = 0;
-      for (let l = 0; l < L; l++) if (active(l) && cmp(R[i.rs1]![l]!, R[i.rs2]![l]!)) m |= 1 << l;
+      for (let l = 0; l < L; l++) {
+        if (active(l) && cmp(R[i.rs1]![l]!, R[i.rs2]![l]!)) {
+          m |= 1 << l;
+        }
+      }
       this.mask = m >>> 0;
     };
     const addrOf = (l: number): number => {
       const a = (R[i.rs1]![l]! + i.imm) | 0;
-      if (a % 4 !== 0 || a < 0 || a / 4 >= this.mem.length)
+      if (a % 4 !== 0 || a < 0 || a / 4 >= this.mem.length) {
         throw new GpuFault(
           this.pc,
           `lane ${l}: ${i.name} at 0x${(a >>> 0).toString(16)} is outside card memory or misaligned`,
         );
+      }
       return a;
     };
     const top = (): number => {
-      const t = this.stack[this.stack.length - 1];
-      if (t === undefined) throw new GpuFault(this.pc, `${i.name} with an empty mask stack`);
+      const t = this.stack.at(-1);
+      if (t === undefined) {
+        throw new GpuFault(this.pc, `${i.name} with an empty mask stack`);
+      }
       return t;
     };
 
     switch (i.name) {
-      case 'vadd':
+      case 'vadd': {
         alu((a, b) => a + b, 'reg');
         break;
-      case 'vsub':
+      }
+      case 'vsub': {
         alu((a, b) => a - b, 'reg');
         break;
-      case 'vand':
+      }
+      case 'vand': {
         alu((a, b) => a & b, 'reg');
         break;
-      case 'vor':
+      }
+      case 'vor': {
         alu((a, b) => a | b, 'reg');
         break;
-      case 'vxor':
+      }
+      case 'vxor': {
         alu((a, b) => a ^ b, 'reg');
         break;
-      case 'vsll':
+      }
+      case 'vsll': {
         alu((a, b) => a << (b & 31), 'reg');
         break;
-      case 'vsrl':
+      }
+      case 'vsrl': {
         alu((a, b) => a >>> (b & 31), 'reg');
         break;
-      case 'vsra':
+      }
+      case 'vsra': {
         alu((a, b) => a >> (b & 31), 'reg');
         break;
-      case 'vslt':
+      }
+      case 'vslt': {
         alu((a, b) => (a < b ? 1 : 0), 'reg');
         break;
-      case 'vmul':
+      }
+      case 'vmul': {
         alu((a, b) => Math.imul(a, b), 'reg');
         break;
-      case 'vmin':
+      }
+      case 'vmin': {
         alu((a, b) => Math.min(a, b), 'reg');
         break;
-      case 'vmax':
+      }
+      case 'vmax': {
         alu((a, b) => Math.max(a, b), 'reg');
         break;
-      case 'vaddi':
+      }
+      case 'vaddi': {
         alu((a, b) => a + b, 'imm');
         break;
-      case 'vandi':
+      }
+      case 'vandi': {
         alu((a, b) => a & b, 'imm');
         break;
-      case 'vslli':
+      }
+      case 'vslli': {
         alu((a, b) => a << b, 'imm');
         break;
-      case 'vsrli':
+      }
+      case 'vsrli': {
         alu((a, b) => a >>> b, 'imm');
         break;
-      case 'vsrai':
+      }
+      case 'vsrai': {
         alu((a, b) => a >> b, 'imm');
         break;
-      case 'vli':
-        for (let l = 0; l < L; l++) if (active(l)) R[i.rd]![l] = i.imm;
+      }
+      case 'vli': {
+        for (let l = 0; l < L; l++) {
+          if (active(l)) {
+            R[i.rd]![l] = i.imm;
+          }
+        }
         break;
-      case 'lane':
-        for (let l = 0; l < L; l++) if (active(l)) R[i.rd]![l] = l + this.laneBase;
+      }
+      case 'lane': {
+        for (let l = 0; l < L; l++) {
+          if (active(l)) {
+            R[i.rd]![l] = l + this.laneBase;
+          }
+        }
         break;
+      }
       case 'vld':
       case 'vst': {
         const addrs: number[] = [];
         for (let l = 0; l < L; l++) {
-          if (!active(l)) continue;
+          if (!active(l)) {
+            continue;
+          }
           const a = addrOf(l);
           addrs.push(a);
-          if (i.name === 'vld') R[i.rd]![l] = this.mem[a >>> 2]! | 0;
-          else this.mem[a >>> 2] = R[i.rs2]![l]! >>> 0;
+          if (i.name === 'vld') {
+            R[i.rd]![l] = this.mem[a >>> 2]! | 0;
+          } else {
+            this.mem[a >>> 2] = R[i.rs2]![l]! >>> 0;
+          }
         }
         this.lastAddrs = addrs;
         if (addrs.length > 0) {
@@ -308,41 +366,56 @@ export class GpuRef {
         this.conflictCycles += cost - 1;
         break;
       }
-      case 'mseteq':
+      case 'mseteq': {
         setMask((a, b) => a === b);
         break;
-      case 'msetne':
+      }
+      case 'msetne': {
         setMask((a, b) => a !== b);
         break;
-      case 'msetlt':
+      }
+      case 'msetlt': {
         setMask((a, b) => a < b);
         break;
-      case 'msetge':
+      }
+      case 'msetge': {
         setMask((a, b) => a >= b);
         break;
-      case 'mpush':
-        if (this.stack.length >= GPU_MASK_DEPTH) throw new GpuFault(this.pc, 'mask stack overflow');
+      }
+      case 'mpush': {
+        if (this.stack.length >= isa.GPU_MASK_DEPTH) {
+          throw new GpuFault(this.pc, 'mask stack overflow');
+        }
         this.stack.push(mask);
         break;
-      case 'mpop':
+      }
+      case 'mpop': {
         top();
         this.mask = this.stack.pop()!;
         break;
-      case 'melse':
+      }
+      case 'melse': {
         this.mask = (top() & ~mask & this.all) >>> 0;
         break;
-      case 'bar':
+      }
+      case 'bar': {
         break;
-      case 'bany':
-        if (mask !== 0) next = this.pc + i.imm;
+      }
+      case 'bany': {
+        if (mask !== 0) {
+          next = this.pc + i.imm;
+        }
         break;
-      case 'jmp':
+      }
+      case 'jmp': {
         next = this.pc + i.imm;
         break;
-      case 'halt':
+      }
+      case 'halt': {
         this.halted = true;
         next = this.pc;
         break;
+      }
     }
     this.idleLaneSlots += L - this.popcount(mask);
     const kind = stepKind(i.name);
@@ -377,8 +450,9 @@ export class GpuRef {
   /** Run until `halt`. Throws if it takes more than `maxInstructions` (a kernel stuck in a loop). */
   run(maxInstructions = 5_000_000): void {
     while (!this.halted) {
-      if (this.instructions >= maxInstructions)
+      if (this.instructions >= maxInstructions) {
         throw new GpuFault(this.pc, `no halt after ${maxInstructions} instructions`);
+      }
       this.step();
     }
   }

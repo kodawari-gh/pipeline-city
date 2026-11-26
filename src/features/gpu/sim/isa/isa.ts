@@ -71,7 +71,7 @@ export const GPU_MASK_DEPTH = 8;
 
 /** Parse "v3"; -1 if not a vector register. */
 export function parseVReg(s: string): number {
-  const m = /^v([0-7])$/.exec(s);
+  const m = /^v(?<n>[0-7])$/u.exec(s);
   return m ? Number(m[1]) : -1;
 }
 
@@ -92,58 +92,89 @@ const IMM17_MAX = (1 << 16) - 1;
 const IMM21_MIN = -(1 << 20);
 
 const checkReg = (n: number, what: string): void => {
-  if (!Number.isInteger(n) || n < 0 || n >= GPU_REG_COUNT) throw new RangeError(`bad ${what} vector register ${n}`);
+  if (!Number.isInteger(n) || n < 0 || n >= GPU_REG_COUNT) {
+    throw new RangeError(`bad ${what} vector register ${n}`);
+  }
 };
 const checkImm17 = (name: string, v: number): void => {
-  if (!Number.isInteger(v) || v < IMM17_MIN || v > IMM17_MAX)
+  if (!Number.isInteger(v) || v < IMM17_MIN || v > IMM17_MAX) {
     throw new RangeError(`${name}: immediate ${v} out of 17-bit signed range`);
+  }
+};
+
+const encodeI = (spec: GpuOpSpec, w: number, i: GpuInstr): number => {
+  const { rd, rs1, imm } = i;
+  checkReg(rd, 'rd');
+  checkReg(rs1, 'rs1');
+  checkImm17(i.name, imm);
+  if (spec.shift && (imm < 0 || imm > 31)) {
+    throw new RangeError(`${i.name}: shift amount ${imm} not in 0..31`);
+  }
+  return w | (rd << 7) | (rs1 << 11) | ((imm & 0x1_ff_ff) << 15);
+};
+
+const encodeS = (w: number, i: GpuInstr): number => {
+  const { rs1, rs2, imm } = i;
+  checkReg(rs1, 'rs1');
+  checkReg(rs2, 'rs2');
+  checkImm17(i.name, imm);
+  const u = imm & 0x1_ff_ff;
+  return w | ((u & 0xf) << 7) | (rs1 << 11) | (rs2 << 15) | ((u >>> 4) << 19);
+};
+
+const encodeO = (w: number, i: GpuInstr): number => {
+  const { imm } = i;
+  if (!Number.isInteger(imm) || imm < IMM21_MIN || imm >= -IMM21_MIN) {
+    throw new RangeError(`${i.name}: offset ${imm} out of 21-bit signed range`);
+  }
+  if (imm % 4 !== 0) {
+    throw new RangeError(`${i.name}: offset ${imm} not a multiple of 4`);
+  }
+  return w | ((imm & 0x1f_ff_ff) << 11);
 };
 
 /** Encode to a Uint32 word. Throws RangeError on out-of-range fields. */
 export function gpuEncode(i: GpuInstr): number {
   const spec = GPU_SPEC_BY_NAME.get(i.name);
-  if (!spec) throw new RangeError(`unknown GPU instruction '${i.name}'`);
-  const { rd, rs1, rs2, imm } = i;
+  if (!spec) {
+    throw new RangeError(`unknown GPU instruction '${i.name}'`);
+  }
+  const { rd, rs1, rs2 } = i;
   let w = spec.op;
   switch (spec.fmt) {
-    case 'N':
+    case 'N': {
       break;
-    case 'R':
+    }
+    case 'R': {
       checkReg(rd, 'rd');
       checkReg(rs1, 'rs1');
       checkReg(rs2, 'rs2');
       w |= (rd << 7) | (rs1 << 11) | (rs2 << 15);
       break;
-    case 'I':
-      checkReg(rd, 'rd');
-      checkReg(rs1, 'rs1');
-      checkImm17(i.name, imm);
-      if (spec.shift && (imm < 0 || imm > 31)) throw new RangeError(`${i.name}: shift amount ${imm} not in 0..31`);
-      w |= (rd << 7) | (rs1 << 11) | ((imm & 0x1ffff) << 15);
+    }
+    case 'I': {
+      w = encodeI(spec, w, i);
       break;
-    case 'D':
+    }
+    case 'D': {
       checkReg(rd, 'rd');
       w |= rd << 7;
       break;
+    }
     case 'S': {
-      checkReg(rs1, 'rs1');
-      checkReg(rs2, 'rs2');
-      checkImm17(i.name, imm);
-      const u = imm & 0x1ffff;
-      w |= ((u & 0xf) << 7) | (rs1 << 11) | (rs2 << 15) | ((u >>> 4) << 19);
+      w = encodeS(w, i);
       break;
     }
-    case 'M':
+    case 'M': {
       checkReg(rs1, 'rs1');
       checkReg(rs2, 'rs2');
       w |= (rs1 << 11) | (rs2 << 15);
       break;
-    case 'O':
-      if (!Number.isInteger(imm) || imm < IMM21_MIN || imm >= -IMM21_MIN)
-        throw new RangeError(`${i.name}: offset ${imm} out of 21-bit signed range`);
-      if (imm % 4 !== 0) throw new RangeError(`${i.name}: offset ${imm} not a multiple of 4`);
-      w |= (imm & 0x1fffff) << 11;
+    }
+    case 'O': {
+      w = encodeO(w, i);
       break;
+    }
   }
   return w >>> 0;
 }
@@ -152,49 +183,69 @@ export function gpuEncode(i: GpuInstr): number {
 export function gpuDecode(word: number): GpuInstr | null {
   const w = word | 0;
   const spec = SPEC_BY_OP.get(w & 0x7f);
-  if (!spec) return null;
+  if (!spec) {
+    return null;
+  }
   const rd = (w >>> 7) & 0xf,
     rs1 = (w >>> 11) & 0xf,
     rs2 = (w >>> 15) & 0xf;
   switch (spec.fmt) {
-    case 'N':
+    case 'N': {
       return gpuInstr(spec.name);
-    case 'R':
+    }
+    case 'R': {
       return rd < 8 && rs1 < 8 && rs2 < 8 ? gpuInstr(spec.name, { rd, rs1, rs2 }) : null;
-    case 'I':
+    }
+    case 'I': {
       return rd < 8 && rs1 < 8 ? gpuInstr(spec.name, { rd, rs1, imm: w >> 15 }) : null;
-    case 'D':
+    }
+    case 'D': {
       return rd < 8 ? gpuInstr(spec.name, { rd }) : null;
-    case 'S':
+    }
+    case 'S': {
       return rs1 < 8 && rs2 < 8 ? gpuInstr(spec.name, { rs1, rs2, imm: ((w >> 19) << 4) | ((w >>> 7) & 0xf) }) : null;
-    case 'M':
+    }
+    case 'M': {
       return rs1 < 8 && rs2 < 8 ? gpuInstr(spec.name, { rs1, rs2 }) : null;
-    case 'O':
+    }
+    case 'O': {
       return gpuInstr(spec.name, { imm: w >> 11 });
+    }
   }
 }
 
 /** Word -> mnemonic text, in the syntax `assembleGpu` accepts (branch offsets are raw byte offsets). */
 export function gpuDisassemble(word: number): string {
   const i = gpuDecode(word);
-  if (!i) return `.word 0x${(word >>> 0).toString(16).padStart(8, '0')}`;
+  if (!i) {
+    return `.word 0x${(word >>> 0).toString(16).padStart(8, '0')}`;
+  }
   const spec = GPU_SPEC_BY_NAME.get(i.name)!;
   const v = (n: number) => `v${n}`;
   switch (spec.fmt) {
-    case 'N':
+    case 'N': {
       return i.name;
-    case 'R':
+    }
+    case 'R': {
       return `${i.name} ${v(i.rd)}, ${v(i.rs1)}, ${v(i.rs2)}`;
-    case 'I':
-      if (spec.mem) return `${i.name} ${v(i.rd)}, ${i.imm}(${v(i.rs1)})`;
+    }
+    case 'I': {
+      if (spec.mem) {
+        return `${i.name} ${v(i.rd)}, ${i.imm}(${v(i.rs1)})`;
+      }
       return i.name === 'vli' ? `${i.name} ${v(i.rd)}, ${i.imm}` : `${i.name} ${v(i.rd)}, ${v(i.rs1)}, ${i.imm}`;
-    case 'D':
+    }
+    case 'D': {
       return `${i.name} ${v(i.rd)}`;
-    case 'S':
+    }
+    case 'S': {
       return `${i.name} ${v(i.rs2)}, ${i.imm}(${v(i.rs1)})`;
-    case 'M':
+    }
+    case 'M': {
       return `${i.name} ${v(i.rs1)}, ${v(i.rs2)}`;
-    case 'O':
+    }
+    case 'O': {
       return `${i.name} ${i.imm}`;
+    }
   }
 }
