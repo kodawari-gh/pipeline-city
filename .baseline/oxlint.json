@@ -8017,50 +8017,12 @@
  "src/features/gpu/render/air.ts": {
   "typescript(strict-boolean-expressions)": 1
  },
- "src/features/gpu/render/gpuart.test.ts": {
-  "eslint(curly)": 2,
-  "eslint(require-unicode-regexp)": 1,
-  "import(first)": 5,
-  "typescript(consistent-type-imports)": 1,
-  "typescript(no-non-null-assertion)": 4,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "vitest(prefer-import-in-mock)": 1,
-  "vitest(valid-expect)": 5
- },
  "src/features/gpu/render/gpuart.ts": {
   "eslint(max-params)": 1,
   "eslint(no-nested-ternary)": 1,
   "eslint(no-use-before-define)": 1,
   "typescript(no-confusing-void-expression)": 1,
   "unicorn(no-array-fill-with-reference-type)": 8
- },
- "src/features/gpu/render/gpuglyph.test.ts": {
-  "eslint(curly)": 9,
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-confusing-void-expression)": 2,
-  "typescript(no-non-null-assertion)": 32,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(strict-void-return)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(max-nested-calls)": 1,
-  "unicorn(no-array-callback-reference)": 1,
-  "unicorn(no-array-for-each)": 1,
-  "unicorn(no-array-sort)": 2,
-  "unicorn(no-useless-undefined)": 1,
-  "unicorn(prefer-set-has)": 1,
-  "vitest(no-conditional-expect)": 10,
-  "vitest(no-conditional-in-test)": 20,
-  "vitest(prefer-strict-equal)": 13,
-  "vitest(prefer-to-have-length)": 2,
-  "vitest(valid-expect)": 5
- },
- "src/features/gpu/render/gpulayout.test.ts": {
-  "eslint(curly)": 3,
-  "eslint(no-nested-ternary)": 1,
-  "typescript(no-non-null-assertion)": 5,
-  "vitest(no-conditional-in-test)": 2,
-  "vitest(prefer-strict-equal)": 3,
-  "vitest(valid-expect)": 10
  },
  "src/features/gpu/render/gpulayout.ts": {
   "eslint(max-lines-per-function)": 1,
@@ -8074,23 +8036,6 @@
   "typescript(no-non-null-assertion)": 1,
   "unicorn(no-array-fill-with-reference-type)": 4,
   "unicorn(no-array-for-each)": 1
- },
- "src/features/gpu/render/gpumem.test.ts": {
-  "eslint(curly)": 2,
-  "eslint(no-nested-ternary)": 1,
-  "eslint(prefer-destructuring)": 3,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 2,
-  "import(max-dependencies)": 1,
-  "typescript(no-non-null-assertion)": 27,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 2,
-  "unicorn(no-array-sort)": 2,
-  "unicorn(no-useless-undefined)": 1,
-  "unicorn(numeric-separators-style)": 4,
-  "unicorn(prefer-spread)": 1,
-  "vitest(no-conditional-in-test)": 10,
-  "vitest(prefer-strict-equal)": 11
  },
  "src/features/gpu/render/gpumem.ts": {
   "eslint(complexity)": 1,
@@ -8109,25 +8054,6 @@
   "typescript(switch-exhaustiveness-check)": 1,
   "unicorn(no-array-for-each)": 7,
   "unicorn(prefer-math-trunc)": 3
- },
- "src/features/gpu/render/gpuview.test.ts": {
-  "eslint(curly)": 7,
-  "import(first)": 5,
-  "typescript(consistent-type-imports)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 4,
-  "typescript(no-unsafe-assignment)": 1,
-  "typescript(no-unsafe-return)": 1,
-  "typescript(no-unsafe-type-assertion)": 7,
-  "typescript(strict-void-return)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(new-for-builtins)": 1,
-  "unicorn(no-array-callback-reference)": 2,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(no-useless-undefined)": 4,
-  "vitest(no-conditional-in-test)": 2,
-  "vitest(prefer-import-in-mock)": 1,
-  "vitest(prefer-strict-equal)": 9
  },
  "src/features/gpu/render/gpuview.ts": {
   "eslint(class-methods-use-this)": 2,
@@ -8150,22 +8076,6 @@
   "unicorn(no-array-for-each)": 9,
   "unicorn(no-array-reverse)": 1
  },
- "src/features/gpu/render/plan/gpuplan.test.ts": {
-  "eslint(complexity)": 1,
-  "eslint(curly)": 23,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 3,
-  "typescript(no-non-null-assertion)": 11,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(numeric-separators-style)": 5,
-  "unicorn(prefer-at)": 1,
-  "vitest(no-conditional-in-test)": 2,
-  "vitest(prefer-strict-equal)": 7,
-  "vitest(prefer-to-have-length)": 2,
-  "vitest(valid-expect)": 15
- },
  "src/features/gpu/render/plan/gpuplan.ts": {
   "typescript(switch-exhaustiveness-check)": 1
  },
@@ -8177,28 +8087,11 @@
   "typescript(strict-boolean-expressions)": 4,
   "unicorn(max-nested-calls)": 10
  },
- "src/features/gpu/render/plan/gpuplayer.test.ts": {
-  "eslint(no-implicit-coercion)": 3,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-useless-undefined)": 1,
-  "unicorn(numeric-separators-style)": 2,
-  "vitest(prefer-strict-equal)": 5,
-  "vitest(prefer-to-have-length)": 1
- },
  "src/features/gpu/render/plan/gpuplayer.ts": {
   "eslint(no-negated-condition)": 1,
   "typescript(no-non-null-assertion)": 6,
   "typescript(no-unsafe-type-assertion)": 1,
   "unicorn(no-array-sort)": 2
- },
- "src/features/gpu/render/plan/gpuroute.test.ts": {
-  "eslint(curly)": 2,
-  "typescript(no-non-null-assertion)": 9,
-  "unicorn(prefer-at)": 4,
-  "vitest(no-conditional-expect)": 2,
-  "vitest(no-conditional-in-test)": 4,
-  "vitest(prefer-strict-equal)": 3,
-  "vitest(valid-expect)": 7
  },
  "src/features/gpu/render/plan/gpuroute.ts": {
   "eslint(curly)": 7,
@@ -8206,25 +8099,11 @@
   "typescript(no-non-null-assertion)": 2,
   "unicorn(explicit-length-check)": 1
  },
- "src/features/gpu/sim/engine/engine.test.ts": {
-  "eslint(curly)": 2,
-  "typescript(no-non-null-assertion)": 6,
-  "unicorn(prefer-spread)": 2,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-strict-equal)": 3,
-  "vitest(prefer-to-contain)": 1
- },
  "src/features/gpu/sim/engine/engine.ts": {
   "eslint(curly)": 1,
   "typescript(method-signature-style)": 4,
   "typescript(no-unsafe-type-assertion)": 2,
   "unicorn(no-array-sort)": 2
- },
- "src/features/gpu/sim/engine/memsys.test.ts": {
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(new-for-builtins)": 1,
-  "vitest(prefer-strict-equal)": 9,
-  "vitest(require-to-throw-message)": 2
  },
  "src/features/gpu/sim/engine/memsys.ts": {
   "eslint(curly)": 6,
@@ -8233,29 +8112,6 @@
   "unicorn(explicit-length-check)": 1,
   "unicorn(no-array-sort)": 1,
   "unicorn(no-new-array)": 2
- },
- "src/features/gpu/sim/engine/multi.test.ts": {
-  "eslint(curly)": 2,
-  "import(consistent-type-specifier-style)": 5,
-  "typescript(no-non-null-assertion)": 8,
-  "typescript(no-unnecessary-type-assertion)": 2,
-  "typescript(no-unsafe-type-assertion)": 3,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(numeric-separators-style)": 1,
-  "unicorn(prefer-array-find)": 1,
-  "unicorn(prefer-math-trunc)": 2,
-  "unicorn(prefer-spread)": 2,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-each)": 1,
-  "vitest(prefer-strict-equal)": 4,
-  "vitest(require-to-throw-message)": 1
- },
- "src/features/gpu/sim/engine/racecheck.test.ts": {
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(max-nested-calls)": 1,
-  "unicorn(numeric-separators-style)": 2,
-  "vitest(prefer-each)": 2,
-  "vitest(prefer-strict-equal)": 4
  },
  "src/features/gpu/sim/engine/racecheck.ts": {
   "eslint(curly)": 7,
@@ -8266,21 +8122,6 @@
  "src/features/gpu/sim/engine/simd.ts": {
   "eslint(curly)": 1,
   "import(consistent-type-specifier-style)": 1
- },
- "src/features/gpu/sim/engine/warp.test.ts": {
-  "eslint(curly)": 4,
-  "import(consistent-type-specifier-style)": 4,
-  "typescript(no-non-null-assertion)": 15,
-  "typescript(no-unnecessary-type-assertion)": 2,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "unicorn(consistent-function-scoping)": 3,
-  "unicorn(numeric-separators-style)": 1,
-  "unicorn(prefer-array-find)": 1,
-  "unicorn(prefer-math-trunc)": 2,
-  "unicorn(prefer-spread)": 2,
-  "vitest(no-conditional-in-test)": 4,
-  "vitest(prefer-each)": 1,
-  "vitest(prefer-strict-equal)": 7
  },
  "src/features/gpu/sim/engine/warp.ts": {
   "eslint(curly)": 12,
@@ -8300,29 +8141,6 @@
   "unicorn(prefer-spread)": 1,
   "unicorn(switch-case-braces)": 5
  },
- "src/features/gpu/sim/gpu.game.test.ts": {
-  "eslint(curly)": 4,
-  "eslint(prefer-destructuring)": 6,
-  "eslint(require-unicode-regexp)": 1,
-  "typescript(no-confusing-void-expression)": 2,
-  "typescript(no-non-null-assertion)": 16,
-  "typescript(no-unsafe-assignment)": 1,
-  "typescript(strict-boolean-expressions)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(new-for-builtins)": 1,
-  "unicorn(no-array-for-each)": 2,
-  "vitest(no-conditional-expect)": 2,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-strict-boolean-matchers)": 1,
-  "vitest(prefer-strict-equal)": 2
- },
- "src/features/gpu/sim/gpucode.test.ts": {
-  "eslint(curly)": 1,
-  "typescript(no-non-null-assertion)": 14,
-  "unicorn(no-array-sort)": 2,
-  "vitest(prefer-strict-equal)": 3,
-  "vitest(valid-expect)": 2
- },
  "src/features/gpu/sim/gpucode.ts": {
   "eslint(curly)": 9,
   "eslint(prefer-named-capture-group)": 1,
@@ -8332,27 +8150,6 @@
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(no-array-for-each)": 1,
   "unicorn(prefer-spread)": 1
- },
- "src/features/gpu/sim/gpujob.test.ts": {
-  "eslint(curly)": 4,
-  "eslint(no-shadow)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 2,
-  "typescript(no-unsafe-argument)": 1,
-  "typescript(no-unsafe-return)": 1,
-  "unicorn(numeric-separators-style)": 3,
-  "vitest(no-standalone-expect)": 6,
-  "vitest(prefer-each)": 1,
-  "vitest(valid-title)": 1
- },
- "src/features/gpu/sim/gpujobtiers.test.ts": {
-  "eslint(curly)": 3,
-  "eslint(no-duplicate-imports)": 1,
-  "typescript(no-non-null-assertion)": 2,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 1,
-  "vitest(no-conditional-in-test)": 1
  },
  "src/features/gpu/sim/gpupicture.ts": {
   "eslint(curly)": 5,
@@ -8383,20 +8180,6 @@
   "unicorn(no-array-for-each)": 2,
   "unicorn(switch-case-braces)": 6
  },
- "src/features/gpu/sim/isa/isa.test.ts": {
-  "eslint(curly)": 3,
-  "eslint(default-case)": 1,
-  "eslint(require-unicode-regexp)": 5,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 3,
-  "typescript(strict-boolean-expressions)": 1,
-  "unicorn(max-nested-calls)": 1,
-  "unicorn(numeric-separators-style)": 9,
-  "unicorn(switch-case-braces)": 7,
-  "vitest(prefer-each)": 1,
-  "vitest(prefer-strict-equal)": 1,
-  "vitest(prefer-to-have-length)": 1
- },
  "src/features/gpu/sim/isa/isa.ts": {
   "eslint(curly)": 9,
   "eslint(default-case)": 3,
@@ -8409,21 +8192,6 @@
   "unicorn(numeric-separators-style)": 3,
   "unicorn(prefer-math-trunc)": 1,
   "unicorn(switch-case-braces)": 20
- },
- "src/features/gpu/sim/isa/ref.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(max-params)": 2,
-  "eslint(require-unicode-regexp)": 7,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-confusing-void-expression)": 2,
-  "typescript(no-non-null-assertion)": 1,
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(new-for-builtins)": 3,
-  "unicorn(numeric-separators-style)": 1,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-each)": 1,
-  "vitest(prefer-strict-equal)": 13,
-  "vitest(valid-expect)": 1
  },
  "src/features/gpu/sim/isa/ref.ts": {
   "eslint(class-methods-use-this)": 1,
@@ -8448,23 +8216,6 @@
  "src/features/gpu/sim/kernels.ts": {
   "eslint(max-params)": 1
  },
- "src/features/gpu/sim/port.test.ts": {
-  "eslint(curly)": 9,
-  "eslint(max-params)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-non-null-assertion)": 30,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(strict-boolean-expressions)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(numeric-separators-style)": 4,
-  "unicorn(prefer-math-trunc)": 1,
-  "unicorn(prefer-spread)": 3,
-  "vitest(no-conditional-in-test)": 2,
-  "vitest(prefer-each)": 1,
-  "vitest(prefer-strict-boolean-matchers)": 6,
-  "vitest(prefer-strict-equal)": 19
- },
  "src/features/gpu/sim/port.ts": {
   "eslint(complexity)": 1,
   "eslint(curly)": 12,
@@ -8481,17 +8232,6 @@
   "unicorn(prefer-math-trunc)": 1,
   "unicorn(prefer-spread)": 3,
   "unicorn(switch-case-braces)": 10
- },
- "src/features/gpu/sim/video.test.ts": {
-  "eslint(curly)": 3,
-  "eslint(require-unicode-regexp)": 1,
-  "typescript(no-non-null-assertion)": 3,
-  "typescript(no-unsafe-assignment)": 1,
-  "unicorn(max-nested-calls)": 1,
-  "unicorn(prefer-structured-clone)": 2,
-  "vitest(no-conditional-expect)": 1,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 1
  },
  "src/features/gpu/ui/gpudesc.ts": {
   "eslint(complexity)": 1,
