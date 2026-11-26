@@ -85,14 +85,18 @@ function caseInterior(T: Theme, kind: CaseKind) {
     cav = cavityTone(T),
     edge = edgeTone(T);
   switch (kind) {
-    case 'oem':
+    case 'oem': {
       return { wall: mix(wall, '#2a2d32', 0.7), cav: mix(cav, '#1d1e22', 0.55), edge: mix(edge, '#131518', 0.6) };
-    case 'matte':
+    }
+    case 'matte': {
       return { wall: mix(wall, '#0a0b0e', 0.6), cav: mix(cav, '#000000', 0.45), edge: mix(edge, '#2a2d36', 0.4) };
-    case 'gamer':
+    }
+    case 'gamer': {
       return { wall: mix(wall, '#1b2236', 0.5), cav: mix(cav, '#0a0f1c', 0.5), edge: mix(edge, '#4b5a8a', 0.35) };
-    default:
+    }
+    default: {
       return { wall: mix(wall, '#040405', 0.6), cav: mix(cav, '#000000', 0.5), edge: mix(edge, '#4a4d56', 0.5) };
+    }
   }
 }
 
@@ -108,8 +112,9 @@ export function caseBack(T: Theme): Container {
     i = CASE_IN,
     p = CASE_PANEL;
   // feet
-  for (const fx of [c.x + 300, c.x + c.w - 700])
+  for (const fx of [c.x + 300, c.x + c.w - 700]) {
     box(g, fx, c.y + c.h - 30, 400, 130, 30, { fill: mix(wall, T.bg, 0.4), stroke: edge, lw: 6, sa: 0.7 });
+  }
   // soft shadow and body
   const bc = isCut(CASE_CUTS[kind]) ? CASE_CUTS[kind] : undefined; // (no kind has cut corners now: the body is a box with its radius)
   outline(g, c.x + 20, c.y + 34, c.w, c.h, 110, bc).fill({ color: '#000000', alpha: 0.3 });
@@ -118,32 +123,41 @@ export function caseBack(T: Theme): Container {
   g.rect(p.x + 40, p.y + p.h - 4, p.w - 80, 8).fill({ color: edge, alpha: 0.7 });
   g.rect(p.x + 40, p.y + 8, p.w - 80, 5).fill({ color: '#ffffff', alpha: 0.06 });
   // vents on the panel: a quiet row of slots
-  for (let k = 0; k < look.vents; k++) box(g, -1900 + k * 70, p.y + 120, 26, 170, 13, { fill: cav, fa: 0.9 });
-  if (kind === 'gamer' || kind === 'show')
+  for (let k = 0; k < look.vents; k++) {
+    box(g, -1900 + k * 70, p.y + 120, 26, 170, 13, { fill: cav, fa: 0.9 });
+  }
+  if (kind === 'gamer' || kind === 'show') {
     g.rect(p.x + 40, p.y + p.h - 12, p.w - 80, 5).fill({ color: T.mul, alpha: 0.5 });
+  }
   // cavity (behind the glass) and the PSU compartment
   g.roundRect(i.x, i.y, i.w, i.h, 36)
     .fill(lgrad(mix(cav, '#ffffff', 0.07), mix(cav, '#000000', 0.3)))
     .stroke({ width: 6, color: edge, alpha: 0.8 });
   // the back panel's stamped ribs, and an inner shadow where the walls turn in (the cavity is a box, not a flat sheet)
-  for (let y = i.y + 300; y < i.y + i.h - 200; y += 380) g.moveTo(i.x + 30, y).lineTo(i.x + i.w - 30, y);
+  for (let y = i.y + 300; y < i.y + i.h - 200; y += 380) {
+    g.moveTo(i.x + 30, y).lineTo(i.x + i.w - 30, y);
+  }
   g.stroke({ width: 5, color: '#000000', alpha: 0.14 });
-  for (let y = i.y + 304; y < i.y + i.h - 200; y += 380) g.moveTo(i.x + 30, y).lineTo(i.x + i.w - 30, y);
+  for (let y = i.y + 304; y < i.y + i.h - 200; y += 380) {
+    g.moveTo(i.x + 30, y).lineTo(i.x + i.w - 30, y);
+  }
   g.stroke({ width: 3, color: '#ffffff', alpha: 0.04 });
-  for (let k = 0; k < 7; k++)
+  for (let k = 0; k < 7; k++) {
     box(g, i.x + 8 + k * 14, i.y + 8 + k * 14, i.w - 16 - k * 28, i.h - 16 - k * 28, 30, {
       stroke: '#000000',
       lw: 16,
       sa: 0.1 * (1 - k / 7),
     });
+  }
   const psuTop = PSU.y - 200;
   g.rect(i.x + 8, psuTop, i.w - 16, i.y + i.h - psuTop - 8).fill({ color: mix(cav, T.bg, 0.3), alpha: 0.5 });
   g.moveTo(i.x + 8, psuTop)
     .lineTo(i.x + i.w - 8, psuTop)
     .stroke({ width: 5, color: edge, alpha: 0.55 });
   // intake slots in the floor
-  for (let k = 0; k < 14 && -2400 + k * 190 < i.x + i.w - 400; k++)
+  for (let k = 0; k < 14 && -2400 + k * 190 < i.x + i.w - 400; k++) {
     box(g, -2400 + k * 190, i.y + i.h + 30, 110, 22, 11, { fill: cav, fa: 0.85 });
+  }
   // the motherboard tray: a plate a little bigger than the board it carries, perforated, with a brass standoff at every mounting hole of
   // every form factor the case takes (the installed board's holes sit over its own: they line up by construction) and a cable cut-out
   {
@@ -163,21 +177,33 @@ export function caseBack(T: Theme): Container {
       hexes(g, { x: tr.x + 60, y: tr.y + 50, w: tr.w - 120, h: 150 }, 34, 8);
       hexes(g, { x: tr.x + 60, y: tr.y + tr.h - 200, w: tr.w - 120, h: 150 }, 34, 8);
     } else {
-      for (let x = tr.x + 90; x < tr.x + tr.w - 60; x += 90)
-        for (let y = tr.y + 60; y < tr.y + 190; y += 80) g.circle(x, y, 14);
-      for (let x = tr.x + 90; x < tr.x + tr.w - 60; x += 90)
-        for (let y = tr.y + tr.h - 190; y < tr.y + tr.h - 50; y += 80) g.circle(x, y, 14);
+      for (let x = tr.x + 90; x < tr.x + tr.w - 60; x += 90) {
+        for (let y = tr.y + 60; y < tr.y + 190; y += 80) {
+          g.circle(x, y, 14);
+        }
+      }
+      for (let x = tr.x + 90; x < tr.x + tr.w - 60; x += 90) {
+        for (let y = tr.y + tr.h - 190; y < tr.y + tr.h - 50; y += 80) {
+          g.circle(x, y, 14);
+        }
+      }
     }
     g.fill({ color: cav, alpha: 0.9 });
     // cable cut-outs beside the 24-pin and over the 8-pin (the cables come through them): slanted in the gaming case, rimmed in rubber in the matte one
     const gx = BD.x + BD.w;
-    if (kind === 'gamer')
+    if (kind === 'gamer') {
       g.poly([gx + 80, -1750, gx + 90, -1750, gx + 30, -250, gx + 20, -250])
         .fill(cav)
         .stroke({ width: 4, color: edge, alpha: 0.6 });
-    else box(g, gx + 20, -1750, 70, 1500, 35, { fill: cav, stroke: edge, lw: 4, sa: 0.6 });
-    if (kind === 'matte') box(g, gx + 12, -1758, 86, 1516, 42, { stroke: '#000000', lw: 10, sa: 0.75 });
-    for (const [x, y] of standoffs()) standoff(g, T, x, y, wall, edge);
+    } else {
+      box(g, gx + 20, -1750, 70, 1500, 35, { fill: cav, stroke: edge, lw: 4, sa: 0.6 });
+    }
+    if (kind === 'matte') {
+      box(g, gx + 12, -1758, 86, 1516, 42, { stroke: '#000000', lw: 10, sa: 0.75 });
+    }
+    for (const [x, y] of standoffs()) {
+      standoff(g, T, x, y, wall, edge);
+    }
     cableDuct(g, T, cav, wall, edge);
   }
   frontFans(g, T, cav, wall, edge);
@@ -190,8 +216,9 @@ export function caseBack(T: Theme): Container {
     ['ON', CASE_LEDS.on],
     ['OFF', CASE_LEDS.off],
     ['ERR', CASE_LEDS.err],
-  ] as const)
+  ] as const) {
     root.addChild(label(t, x, p.y + 340, 34, T.mute, { anchor: [0.5, 0.5], a: 0.85 }));
+  }
   void POWER_BTN;
   void LAYOUT_TIER;
   return root;
@@ -211,13 +238,18 @@ function cableDuct(g: Graphics, T: Theme, cav: string, wall: string, edge: strin
   const tone = mix(cav, wall, 0.22);
   box(g, x0 + 10, y0 + 16, x1 - x0, y1 - y0, 40, { fill: '#000000', fa: 0.26 });
   box(g, x0, y0, x1 - x0, y1 - y0, 40, { fill: tone, stroke: edge, lw: 5, sa: 0.6 });
-  for (const rx of [x0 + 26, x1 - 38]) g.rect(rx, y0 + 40, 12, y1 - y0 - 80).fill({ color: edge, alpha: 0.5 });
+  for (const rx of [x0 + 26, x1 - 38]) {
+    g.rect(rx, y0 + 40, 12, y1 - y0 - 80).fill({ color: edge, alpha: 0.5 });
+  }
   // the clip bases: a plate across the duct with its screws, under each tie
   for (const y of gutterTieYs()) {
-    if (y < y0 + 200 || y > y1 - 300) continue;
+    if (y < y0 + 200 || y > y1 - 300) {
+      continue;
+    }
     box(g, x0 + 20, y - 34, x1 - x0 - 40, 68, 14, { fill: mix(tone, '#000000', 0.25), stroke: edge, lw: 4, sa: 0.7 });
-    for (const sx of [x0 + 60, x1 - 60])
+    for (const sx of [x0 + 60, x1 - 60]) {
       disc(g, sx, y, 14, { fill: mix(wall, T.bg, 0.5), stroke: edge, lw: 3, sa: 0.7 });
+    }
   }
 }
 
@@ -244,10 +276,15 @@ function frontFans(g: Graphics, T: Theme, cav: string, wall: string, edge: strin
   // front panel: a perforated wall along the east side of the glass
   const fp = { x: east - 170, y: gl.y + 60, w: 130, h: gl.h - 120 };
   box(g, fp.x, fp.y, fp.w, fp.h, 50, { fill: mix(cav, wall, 0.15), stroke: edge, lw: 5, sa: 0.5 });
-  for (let yy = fp.y + 60; yy < fp.y + fp.h - 40; yy += 70)
-    for (let xx = fp.x + 60; xx < fp.x + fp.w - 40; xx += 70) g.circle(xx, yy, 14);
+  for (let yy = fp.y + 60; yy < fp.y + fp.h - 40; yy += 70) {
+    for (let xx = fp.x + 60; xx < fp.x + fp.w - 40; xx += 70) {
+      g.circle(xx, yy, 14);
+    }
+  }
   g.fill({ color: cav, alpha: 0.95 });
-  for (const r of frontFanRects()) edgeFan(g, T, r, true, wall, edge);
+  for (const r of frontFanRects()) {
+    edgeFan(g, T, r, true, wall, edge);
+  }
 }
 
 export interface FanMount {
@@ -272,7 +309,9 @@ export function fanMounts(): FanMount[] {
  */
 export function radiatorSpan(side: 'front' | 'top'): (FanMount & { ids: string[] }) | null {
   const ms = fanMounts().filter((m) => m.side === side);
-  if (ms.length === 0) return null;
+  if (ms.length === 0) {
+    return null;
+  }
   const x0 = Math.min(...ms.map((m) => m.rect.x)),
     y0 = Math.min(...ms.map((m) => m.rect.y));
   const x1 = Math.max(...ms.map((m) => m.rect.x + m.rect.w)),
@@ -286,7 +325,9 @@ export function radiatorSpan(side: 'front' | 'top'): (FanMount & { ids: string[]
  */
 export function radiatorBay(side: 'front' | 'top'): Rect | null {
   const r = radiatorSpan(side)?.rect;
-  if (!r) return null;
+  if (!r) {
+    return null;
+  }
   return side === 'top'
     ? { x: r.x - RAD_TANK, y: r.y, w: r.w + 2 * RAD_TANK, h: r.h + RAD_ROOM }
     : { x: r.x - RAD_ROOM, y: r.y - RAD_TANK, w: r.w + RAD_ROOM, h: r.h + 2 * RAD_TANK };
@@ -349,8 +390,9 @@ function fanHub(root: Container, g: Graphics, T: Theme, cav: string, wall: strin
     [h.x + h.w - 36, h.y + 36],
     [h.x + 36, h.y + h.h - 36],
     [h.x + h.w - 36, h.y + h.h - 36],
-  ] as const)
+  ] as const) {
     disc(g, x, y, 14, { fill: mix(wall, T.bg, 0.5), stroke: edge, lw: 3, sa: 0.7 });
+  }
   const mcu = { x: h.x + h.w / 2 - 80, y: h.y + 190, w: 160, h: 160 };
   for (let k = 0; k < 6; k++) {
     const o = mcu.x + 22 + k * 24;
@@ -367,13 +409,17 @@ function fanHub(root: Container, g: Graphics, T: Theme, cav: string, wall: strin
   );
   hubHeaders().forEach((p) => {
     box(g, p.x - 40, p.y + 8, 80, 44, 6, { fill: '#05070b', stroke: edge, lw: 3, sa: 0.8 });
-    for (let k = 0; k < 4; k++) g.rect(p.x - 31 + k * 20, p.y + 22, 10, 16);
+    for (let k = 0; k < 4; k++) {
+      g.rect(p.x - 31 + k * 20, p.y + 22, 10, 16);
+    }
     g.fill({ color: T.pin, alpha: 0.7 });
     // (its cable, a plug on the header and a sleeve up into the slot, is live: `fancords.ts`)
   });
   // the input header (the cable from the board's SYS_FAN header) and the power plug on the west edge (from the PSU's east face)
   box(g, h.x + 40, h.y + 8, 100, 44, 6, { fill: '#05070b', stroke: T.mul, lw: 3, sa: 0.7 });
-  for (let k = 0; k < 4; k++) g.rect(h.x + 52 + k * 20, h.y + 22, 10, 16);
+  for (let k = 0; k < 4; k++) {
+    g.rect(h.x + 52 + k * 20, h.y + 22, 10, 16);
+  }
   g.fill({ color: T.pin, alpha: 0.7 });
   const py = HUB_POWER_Y,
     x0 = PSU_FACE_X;
@@ -392,7 +438,9 @@ function fanHub(root: Container, g: Graphics, T: Theme, cav: string, wall: strin
     const ax = h.x + 200 + k * 180,
       ay = h.y + h.h - 130;
     box(g, ax, ay, 150, 56, 6, { fill: '#05070b', stroke: edge, lw: 3, sa: 0.8 });
-    for (let q = 0; q < 3; q++) g.rect(ax + 22 + q * 44, ay + 20, 12, 18);
+    for (let q = 0; q < 3; q++) {
+      g.rect(ax + 22 + q * 44, ay + 20, 12, 18);
+    }
     g.fill({ color: T.pin, alpha: 0.7 });
     root.addChild(label(`ARGB${k + 1}`, ax + 75, ay + 84, 24, T.mute, { anchor: [0.5, 0.5], a: 0.7 }));
   }
@@ -426,12 +474,14 @@ function fanHub(root: Container, g: Graphics, T: Theme, cav: string, wall: strin
 export function standoffs(): [number, number][] {
   const seen = new Set<string>(),
     out: [number, number][] = [];
-  for (let t = 0; t <= LAYOUT_CASE; t++)
-    for (const [x, y] of TIER_GEO[t]!.holes)
+  for (let t = 0; t <= LAYOUT_CASE; t++) {
+    for (const [x, y] of TIER_GEO[t]!.holes) {
       if (!seen.has(`${x},${y}`)) {
         seen.add(`${x},${y}`);
         out.push([x, y]);
       }
+    }
+  }
   return out;
 }
 
@@ -441,7 +491,9 @@ function standoff(g: Graphics, T: Theme, x: number, y: number, wall: string, edg
   const brass = mix(T.pin, wall, 0.25);
   disc(g, x, y, 36, { fill: brass, stroke: edge, lw: 4, sa: 0.8 });
   const hex: number[] = [];
-  for (let k = 0; k < 6; k++) hex.push(x + Math.cos(k * 1.047) * 22, y + Math.sin(k * 1.047) * 22);
+  for (let k = 0; k < 6; k++) {
+    hex.push(x + Math.cos(k * 1.047) * 22, y + Math.sin(k * 1.047) * 22);
+  }
   g.poly(hex).stroke({ width: 3, color: edge, alpha: 0.7 });
   disc(g, x, y, 9, { fill: mix(wall, '#000000', 0.6) });
 }
@@ -454,14 +506,19 @@ export function edgeFan(g: Graphics, T: Theme, r: Rect, vertical: boolean, wall:
   const { x, y, w, h } = r;
   box(g, x + 14, y + 20, w, h, 40, { fill: '#000000', fa: 0.3 });
   box(g, x, y, w, h, 40, { fill: mix(wall, T.bg, 0.35), stroke: edge, lw: 6, sa: 0.8 });
-  if (vertical) g.moveTo(x + w / 2, y + 60).lineTo(x + w / 2, y + h - 60);
-  else g.moveTo(x + 60, y + h / 2).lineTo(x + w - 60, y + h / 2);
+  if (vertical) {
+    g.moveTo(x + w / 2, y + 60).lineTo(x + w / 2, y + h - 60);
+  } else {
+    g.moveTo(x + 60, y + h / 2).lineTo(x + w - 60, y + h / 2);
+  }
   g.stroke({ width: 18, color: T.line, alpha: 0.6, cap: 'round' });
   const cx = [x + 36, x + w - 36],
     cy = [y + 40, y + h - 40];
-  for (const sy of vertical ? cy : [y + 36, y + h - 36])
-    for (const sx of vertical ? cx : [x + 40, x + w - 40])
+  for (const sy of vertical ? cy : [y + 36, y + h - 36]) {
+    for (const sx of vertical ? cx : [x + 40, x + w - 40]) {
       disc(g, sx, sy, 12, { fill: mix(wall, T.bg, 0.5), stroke: edge, lw: 3, sa: 0.7 });
+    }
+  }
 }
 
 /** The lights of the gaming case, one per fan. */
@@ -501,14 +558,14 @@ export class EdgeFan extends Container {
   /** Advance by `d` blade-lengths per frame's worth of spin and set the light level (0 = off, 1 = full). */
   spin(d: number, level: number) {
     this.phase = (this.phase + d * BLADE) % BLADE;
-    if (d === 0 && level.toFixed(2) === this.key) return;
+    if (d === 0 && level.toFixed(2) === this.key) {
+      return;
+    }
     this.draw(level);
   }
   private draw(level: number) {
     const { x, y, w, h } = this.r,
-      g = this.g,
-      T = this.T,
-      vertical = this.vertical,
+      { g, T, vertical } = this,
       L = vertical ? h : w,
       S = vertical ? w : h,
       m = Math.min(70, S * 0.26);
@@ -516,17 +573,27 @@ export class EdgeFan extends Container {
     g.clear();
     const pad = Math.min(60, L * 0.14); // the end margin: a short slab (a heatsink's fan) keeps blades and rails, they do not vanish
     for (let t = pad + 30 - BLADE + this.phase; t < L - pad - 10; t += BLADE) {
-      if (t < pad) continue;
-      if (vertical) g.moveTo(x + m, y + t + 22).lineTo(x + w - m, y + t - 22);
-      else g.moveTo(x + t + 22, y + m).lineTo(x + t - 22, y + h - m);
+      if (t < pad) {
+        continue;
+      }
+      if (vertical) {
+        g.moveTo(x + m, y + t + 22).lineTo(x + w - m, y + t - 22);
+      } else {
+        g.moveTo(x + t + 22, y + m).lineTo(x + t - 22, y + h - m);
+      }
     }
     g.stroke({ width: 10, color: T.mute, alpha: 0.22 + 0.18 * level, cap: 'round' });
     const e = pad + 10;
-    if (vertical) g.rect(x + 20, y + e, 8, h - 2 * e).rect(x + w - 28, y + e, 8, h - 2 * e);
-    else g.rect(x + e, y + 20, w - 2 * e, 8).rect(x + e, y + h - 28, w - 2 * e, 8);
+    if (vertical) {
+      g.rect(x + 20, y + e, 8, h - 2 * e).rect(x + w - 28, y + e, 8, h - 2 * e);
+    } else {
+      g.rect(x + e, y + 20, w - 2 * e, 8).rect(x + e, y + h - 28, w - 2 * e, 8);
+    }
     // the light strips: none on the plain cases, a colour per fan on the gaming case, the accent on the showcase
     const kind = kindNow();
-    if (kind === 'oem' || kind === 'matte') return;
+    if (kind === 'oem' || kind === 'matte') {
+      return;
+    }
     const col = kind === 'gamer' ? RGB[Math.abs(Math.round(x / 7 + y / 11)) % RGB.length]! : T.alu;
     g.fill({ color: col, alpha: 0.16 + 0.6 * level });
   }
@@ -534,12 +601,16 @@ export class EdgeFan extends Container {
 
 /** The top fans (as many as the case takes), under the top panel and clear of the 8-pin cable's run above the board. */
 function topFans(g: Graphics, T: Theme, cav: string, wall: string, edge: string) {
-  if (!TOP_FANS.length) return;
+  if (TOP_FANS.length === 0) {
+    return;
+  }
   const f0 = TOP_FANS[0]!,
-    f1 = TOP_FANS[TOP_FANS.length - 1]!;
+    f1 = TOP_FANS.at(-1)!;
   // the mounting rail the fans hang from
   g.rect(f0.x - 80, f0.y - 22, f1.x + f1.w - f0.x + 160, 14).fill({ color: edge, alpha: 0.55 });
-  for (const f of TOP_FANS) edgeFan(g, T, f, false, wall, edge);
+  for (const f of TOP_FANS) {
+    edgeFan(g, T, f, false, wall, edge);
+  }
   void cav;
 }
 
@@ -552,7 +623,7 @@ function rearWall(g: Graphics, T: Theme, cav: string, wall: string, edge: string
     i = CASE_IN,
     x = c.x + 14,
     w = WALL_T - 28,
-    io = geoOf(LAYOUT_CASE).io;
+    { io } = geoOf(LAYOUT_CASE);
   // the I/O opening: the plate (drawn with the board) fills it
   box(g, x, io.y - 80, w, io.h + 150, 22, { fill: cav, stroke: edge, lw: 4, sa: 0.5 });
   // the expansion slots: an opening each, closed by a slot cover with vents and a screw (a card's bracket replaces it)
@@ -560,7 +631,9 @@ function rearWall(g: Graphics, T: Theme, cav: string, wall: string, edge: string
     const y = r.y + 30 - 82; // centred on the slot, as a card's bracket is (`nicY`)
     box(g, x, y, w, 164, 14, { fill: cav, stroke: edge, lw: 3, sa: 0.5 });
     box(g, x + 16, y + 14, w - 32, 136, 8, { fill: mix(wall, T.bg, 0.35), stroke: edge, lw: 3, sa: 0.7 });
-    for (let k = 0; k < 4; k++) g.rect(x + 40, y + 34 + k * 26, w - 80, 8);
+    for (let k = 0; k < 4; k++) {
+      g.rect(x + 40, y + 34 + k * 26, w - 80, 8);
+    }
     g.fill({ color: cav, alpha: 0.9 });
     disc(g, x + w / 2, y + 134, 9, { fill: mix(wall, T.bg, 0.5), stroke: edge, lw: 2, sa: 0.7 });
   }
@@ -573,18 +646,36 @@ function rearWall(g: Graphics, T: Theme, cav: string, wall: string, edge: string
   acInlet(g, T, PC_POWER, { wallX: CASE.x, wallW: WALL_T });
   // the rear exhaust above the I/O opening: a fan, or on the Mini (no room for one) a perforated grille
   box(g, x - 4, REAR_FAN.y - 24, w + 8, REAR_FAN.h + 48, 20, { fill: cav, stroke: edge, lw: 4, sa: 0.5 });
-  if (REAR_FAN_FITTED) edgeFan(g, T, REAR_FAN, true, wall, edge);
-  else {
+  if (REAR_FAN_FITTED) {
+    edgeFan(g, T, REAR_FAN, true, wall, edge);
+  } else {
     const r = REAR_FAN;
     box(g, r.x, r.y, r.w, r.h, 26, { fill: mix(wall, T.bg, 0.35), stroke: edge, lw: 5, sa: 0.8 });
-    for (let row = 0, y = r.y + 44; y < r.y + r.h - 30; row++, y += 38)
-      for (let col = 0; col < 3 - (row % 2); col++) g.circle(r.x + r.w / 2 + (col - (1 - (row % 2) * 0.5)) * 42, y, 13);
+    for (let row = 0, y = r.y + 44; y < r.y + r.h - 30; row++, y += 38) {
+      for (let col = 0; col < 3 - (row % 2); col++) {
+        g.circle(r.x + r.w / 2 + (col - (1 - (row % 2) * 0.5)) * 42, y, 13);
+      }
+    }
     g.fill({ color: cav, alpha: 0.95 });
-    for (const sy of [r.y + 18, r.y + r.h - 18])
-      for (const sx of [r.x + 20, r.x + r.w - 20])
+    for (const sy of [r.y + 18, r.y + r.h - 18]) {
+      for (const sx of [r.x + 20, r.x + r.w - 20]) {
         disc(g, sx, sy, 6, { fill: mix(wall, T.bg, 0.5), stroke: edge, lw: 2, sa: 0.7 });
+      }
+    }
   }
   void i;
+}
+
+/** No glass on the OEM case: the side panel is off, four screw holes where it fixes. */
+function sidePanelHoles(g: Graphics, edge: string) {
+  for (const [x, y] of [
+    [CASE_GLASS.x + 80, CASE_GLASS.y + 60],
+    [CASE_GLASS.x + CASE_GLASS.w - 80, CASE_GLASS.y + 60],
+    [CASE_GLASS.x + 80, CASE_GLASS.y + CASE_GLASS.h - 60],
+    [CASE_GLASS.x + CASE_GLASS.w - 80, CASE_GLASS.y + CASE_GLASS.h - 60],
+  ] as const) {
+    disc(g, x, y, 22, { fill: '#000000', fa: 0.35, stroke: edge, lw: 4, sa: 0.7 });
+  }
 }
 
 /** Glass side: a barely there sheen and a hairline edge, drawn over the board. */
@@ -596,14 +687,7 @@ export function caseGlass(T: Theme): Container {
   const kind = kindNow(),
     { edge } = caseInterior(T, kind);
   if (kind === 'oem') {
-    // no glass: the side panel is off, four screw holes where it fixes
-    for (const [x, y] of [
-      [CASE_GLASS.x + 80, CASE_GLASS.y + 60],
-      [CASE_GLASS.x + CASE_GLASS.w - 80, CASE_GLASS.y + 60],
-      [CASE_GLASS.x + 80, CASE_GLASS.y + CASE_GLASS.h - 60],
-      [CASE_GLASS.x + CASE_GLASS.w - 80, CASE_GLASS.y + CASE_GLASS.h - 60],
-    ] as const)
-      disc(g, x, y, 22, { fill: '#000000', fa: 0.35, stroke: edge, lw: 4, sa: 0.7 });
+    sidePanelHoles(g, edge);
     return root;
   }
   const gx = BR.io.x + BR.io.w + 60,
@@ -611,7 +695,9 @@ export function caseGlass(T: Theme): Container {
   // the glass is the window of the outside: the upper part on the matte case, the full smoked pane on the showcase
   const win = caseWindow(kind),
     r = kind === 'matte' || kind === 'show' ? win : { ...CASE_GLASS, x: gx, w: CASE_GLASS.w - (gx - CASE_GLASS.x) };
-  if (kind === 'matte') g.roundRect(win.x, win.y, win.w, win.h, 50).fill({ color: '#000000', alpha: 0.2 }); // the tint
+  if (kind === 'matte') {
+    g.roundRect(win.x, win.y, win.w, win.h, 50).fill({ color: '#000000', alpha: 0.2 }); // the tint
+  }
   const band = (x0: number, x1: number) =>
     g
       .poly([r.x + x0, r.y + 6, r.x + x1, r.y + 6, r.x + x1 - 1500, r.y + r.h - 6, r.x + x0 - 1500, r.y + r.h - 6])
@@ -620,8 +706,11 @@ export function caseGlass(T: Theme): Container {
     [2600, 3300],
     [3700, 3860],
     [6900, 7500],
-  ] as const)
-    if (b - 1500 < r.w - 200) band(a, Math.min(b, r.w + 1500 - 200));
+  ] as const) {
+    if (b - 1500 < r.w - 200) {
+      band(a, Math.min(b, r.w + 1500 - 200));
+    }
+  }
   box(g, r.x + 14, r.y + 14, r.w - 28, r.h - 28, 26, { stroke: '#ffffff', lw: 5, sa: 0.07 });
   // corner screws
   for (const [x, y] of [
@@ -649,9 +738,10 @@ export function bayArt(T: Theme, nSata: number): Container {
     metal = mix(wall, T.bg, 0.15);
   // the main cage (`BAY`) and the basement's under the shroud, round its cells
   const low = BAY_CELLS.slice(0, BASE_BAYS),
-    base: Rect | null = low.length
-      ? { x: BAY.x, y: low[0]!.y - 110, w: BAY.w, h: (low.length - 1) * CELL_PITCH + CELL_H + 190 }
-      : null;
+    base: Rect | null =
+      low.length > 0
+        ? { x: BAY.x, y: low[0]!.y - 110, w: BAY.w, h: (low.length - 1) * CELL_PITCH + CELL_H + 190 }
+        : null;
   for (const b of base ? [BAY, base] : [BAY]) {
     box(g, b.x + 12, b.y + 22, b.w, b.h, 24, { fill: '#000000', fa: 0.3 });
     g.roundRect(b.x, b.y, b.w, b.h, 24)
@@ -663,7 +753,9 @@ export function bayArt(T: Theme, nSata: number): Container {
     // the uprights: a strip down each side, punched with a column of slots
     for (const ux of [b.x + 12, b.x + b.w - 40]) {
       box(g, ux, b.y + 20, 28, b.h - 40, 8, { fill: mix(metal, '#000000', 0.2), stroke: edge, lw: 3, sa: 0.5 });
-      for (let y = b.y + 60; y < b.y + b.h - 50; y += 64) g.roundRect(ux + 8, y, 12, 30, 6);
+      for (let y = b.y + 60; y < b.y + b.h - 50; y += 64) {
+        g.roundRect(ux + 8, y, 12, 30, 6);
+      }
     }
     g.fill({ color: cav, alpha: 0.9 });
   }
@@ -698,10 +790,11 @@ export function bayArt(T: Theme, nSata: number): Container {
         [c.x + c.w - ins, c.y + ins, -1, 1],
         [c.x + ins, c.y + c.h - ins, 1, -1],
         [c.x + c.w - ins, c.y + c.h - ins, -1, -1],
-      ] as const)
+      ] as const) {
         g.moveTo(bx + sx * L, by)
           .lineTo(bx, by)
           .lineTo(bx, by + sy * L);
+      }
       g.stroke({ width: 6, color: T.mul, alpha: 0.6, join: 'round', cap: 'round' });
     }
     // empty-connector hint (the drive's connectors mate here)
@@ -752,13 +845,15 @@ export function sataLinkArt(T: Theme, i: number): Container {
   root.addChild(g);
   const c = BAY_CELLS[i]!,
     lane = sataCablePath(i),
-    pts = lane.pts,
+    { pts } = lane,
     w = SATA_CABLE_W,
     L = SATA_LINK[i]!;
   paintCable(g, pts, { w, accent: T.mul });
-  for (const t of tiePoints(pts, 1700, 500)) paintTie(g, t.at, t.dir, w, T.mul);
+  for (const t of tiePoints(pts, 1700, 500)) {
+    paintTie(g, t.at, t.dir, w, T.mul);
+  }
   plugBox(g, c.x - 82, c.y + L.plug - 34, 76, 68, T.mul); // drive end
-  const e = pts[pts.length - 1]!;
+  const e = pts.at(-1)!;
   plugBox(g, e[0] - 86, e[1] - 36, 86, 72, T.mul); // board end (plugs west into the port)
   return root;
 }
@@ -769,7 +864,9 @@ export function sataLinkArt(T: Theme, i: number): Container {
  */
 export function sataPowerArt(T: Theme, cells: number[]): Container {
   const root = new Container();
-  if (!cells.length) return root;
+  if (cells.length === 0) {
+    return root;
+  }
   const g = new Graphics();
   root.addChild(g);
   const k = driveScale(),
@@ -785,7 +882,9 @@ export function sataPowerArt(T: Theme, cells: number[]): Container {
   ];
   const path = roundedPath(trunk, 60, 30);
   paintCable(g, path, { w: 38, accent: T.ld });
-  for (const t of tiePoints(path, 1500, 400)) paintTie(g, t.at, t.dir, 38, T.ld);
+  for (const t of tiePoints(path, 1500, 400)) {
+    paintTie(g, t.at, t.dir, 38, T.ld);
+  }
   for (const i of cells) {
     const c = BAY_CELLS[i]!,
       y = py(i);

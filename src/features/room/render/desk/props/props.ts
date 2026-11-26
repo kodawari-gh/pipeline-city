@@ -75,7 +75,9 @@ const KEY_INSERT = 100;
 export type Urgency = 'ok' | 'soon' | 'late';
 
 function urgencyOf(k: KeySnap): Urgency {
-  if (k.late) return 'late';
+  if (k.late) {
+    return 'late';
+  }
   const span = Math.max(1, k.deadlineTick - k.arrivalTick);
   return k.age / span > 0.65 ? 'soon' : 'ok';
 }
@@ -83,20 +85,27 @@ function urgencyOf(k: KeySnap): Urgency {
 /** What an OS-ingested key is doing, as a short label and a colour (null for keys in the tray or without an OS). */
 function stageInfo(T: Theme, k: KeySnap): { text: string; color: string } | null {
   switch (k.stage) {
-    case 'ingesting':
+    case 'ingesting': {
       return { text: 'INGESTING', color: T.mul };
-    case 'queued':
+    }
+    case 'queued': {
       return { text: 'QUEUED', color: T.mute };
-    case 'running':
+    }
+    case 'running': {
       return { text: 'JOB RUNNING', color: T.alu };
-    case 'result':
+    }
+    case 'result': {
       return { text: 'DONE - PLUG AGAIN', color: T.st };
-    case 'flashing':
+    }
+    case 'flashing': {
       return { text: 'WRITING RESULT', color: T.ld };
-    case 'done':
+    }
+    case 'done': {
       return { text: 'RESULT SAVED', color: T.st };
-    default:
+    }
+    default: {
       return null;
+    }
   }
 }
 
@@ -139,7 +148,9 @@ export function keyTimerSpot(compact: boolean) {
  */
 export function drawKeyTimer(g: Graphics, T: Theme, k: KeySnap, compact: boolean) {
   g.clear();
-  if (k.done) return;
+  if (k.done) {
+    return;
+  }
   const { x, y, r } = keyTimerSpot(compact);
   const span = Math.max(1, k.deadlineTick - k.arrivalTick),
     frac = clamp01(k.age / span),
@@ -156,10 +167,11 @@ export function drawKeyTimer(g: Graphics, T: Theme, k: KeySnap, compact: boolean
     g.moveTo(x, y)
       .lineTo(x + Math.cos(a) * (r - 6), y + Math.sin(a) * (r - 6))
       .stroke({ width: 7, color: hand, cap: 'round' });
-  } else
+  } else {
     g.moveTo(x, y)
       .lineTo(x, y - (r - 6))
       .stroke({ width: 7, color: col, cap: 'round' });
+  }
   g.circle(x, y, r).stroke({ width: 6, color: col, alpha: 0.9 });
   g.circle(x, y, 8).fill({ color: hand });
 }
@@ -195,17 +207,25 @@ function keyStick(T: Theme, k: KeySnap, compact = false, notRead = false): Conta
   const tx = bx + 102,
     spot = keyTimerSpot(compact),
     tw = (k.done ? bw - 66 : spot.x - spot.r - 20) - tx;
-  if (!k.done) g.circle(spot.x, spot.y, spot.r).fill({ color: '#000000', alpha: 0.45 }); // the dial's face (its hand and the rest are `drawKeyTimer`)
+  if (!k.done) {
+    g.circle(spot.x, spot.y, spot.r).fill({ color: '#000000', alpha: 0.45 }); // the dial's face (its hand and the rest are `drawKeyTimer`)
+  }
   const stg = stageInfo(T, k);
-  if (stg) g.rect(bx + bw - 54, -h / 2 + 4, 22, h - 8).fill({ color: stg.color, alpha: 1 });
+  if (stg) {
+    g.rect(bx + bw - 54, -h / 2 + 4, 22, h - 8).fill({ color: stg.color, alpha: 1 });
+  }
   if (compact) {
     const fs = Math.max(40, Math.min(96, tw / (k.label.length * 0.6))); // the job label is as big as the room by the dial allows
     c.addChild(label(fit(k.label, fs, tw, 0.6), tx, -48 + (96 - fs) * 0.2, fs, T.ink, { head: true }));
-    if (stg) c.addChild(label(fit(stg.text, 50, tw, 0.62), tx, 44, 50, stg.color, { weight: '700' }));
-    else if (k.done) c.addChild(label('DONE', tx, 40, 56, T.st, { weight: '700' }));
-    else if (notRead)
+    if (stg) {
+      c.addChild(label(fit(stg.text, 50, tw, 0.62), tx, 44, 50, stg.color, { weight: '700' }));
+    } else if (k.done) {
+      c.addChild(label('DONE', tx, 40, 56, T.st, { weight: '700' }));
+    } else if (notRead) {
       c.addChild(label('NOT READ', tx, 40, 56, T.mute, { weight: '700' })); // in the port of a halted machine: never read
-    else c.addChild(label(fit(k.template, 46, tw), tx, 42, 46, T.mute));
+    } else {
+      c.addChild(label(fit(k.template, 46, tw), tx, 42, 46, T.mute));
+    }
     return c;
   }
   const fs = Math.max(54, Math.min(88, tw / (k.label.length * 0.6)));
@@ -268,7 +288,9 @@ export function pluggedKeyArt(T: Theme, k: KeySnap, notRead = false, cueLabel: s
   const p = pluggedKeyCentre();
   const vec = keyStick(T, k, true, notRead),
     node = new Container();
-  if (notRead) vec.alpha = 0.6;
+  if (notRead) {
+    vec.alpha = 0.6;
+  }
   let cue: KeyCue | undefined;
   if (cueLabel && k.stage === 'done' && !notRead) {
     // a finished key waits for its removal: a glow on the stick and a tag, on the game clock (drawKeyCue); none of it is baked
@@ -293,7 +315,9 @@ export function pluggedKeyArt(T: Theme, k: KeySnap, notRead = false, cueLabel: s
     retime = (q: KeySnap) => drawKeyTimer(timer, T, q, true);
   retime(k);
   node.addChild(timer);
-  if (cue) node.addChild(cue.tag);
+  if (cue) {
+    node.addChild(cue.tag);
+  }
   node.position.set(p.x, p.y);
   root.addChild(node);
   // the part of the plug inside the port is hidden by the port's shell: the stick is cut at the port's mouth

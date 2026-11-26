@@ -62,7 +62,9 @@ const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
 /** Instructions per cycle between two counter readings (null when no cycles passed or the counters restarted). */
 export function ipcBetween(prev: Record<string, number> | null, cur: Record<string, number>): number | null {
-  if (!prev) return null;
+  if (!prev) {
+    return null;
+  }
   const dc = (cur['cycles'] ?? 0) - (prev['cycles'] ?? 0),
     dr = (cur['retired'] ?? 0) - (prev['retired'] ?? 0);
   return dc > 0 && dr >= 0 ? dr / dc : null;
@@ -75,21 +77,21 @@ export const clock = (ticks: number): string =>
 const tempTone = (t: number, thr?: number, bad?: number): Tone =>
   bad !== undefined && t >= bad ? 'bad' : thr !== undefined && t >= thr ? 'warn' : 'ok';
 
+const PHASE_STATUS: Partial<Record<Snapshot['phase'], string>> = {
+  'idle-os': 'READY',
+  ingesting: 'INGEST',
+  'running-os': 'RUNNING',
+  flashing: 'FLASHING',
+};
+
 export function dashModel(s: Snapshot, ctx: DashCtx): DashModel | null {
-  const os = s.os;
-  if (!os) return null;
+  const { os } = s;
+  if (!os) {
+    return null;
+  }
   const ph = s.phase,
     q = os.queue ?? [];
-  const status =
-    ph === 'idle-os'
-      ? 'READY'
-      : ph === 'ingesting'
-        ? 'INGEST'
-        : ph === 'running-os'
-          ? 'RUNNING'
-          : ph === 'flashing'
-            ? 'FLASHING'
-            : 'BOOTING';
+  const status = PHASE_STATUS[ph] ?? 'BOOTING';
   const up = ctx.upTick === null ? null : Math.max(0, s.baseTick - ctx.upTick);
   const sub = `UP ${up === null ? '--:--' : clock(up)}   PROG ${os.programSlots ?? 1}   QUEUE ${q.length}/${os.queueSlots ?? '?'}`;
 
@@ -152,7 +154,7 @@ export function dashModel(s: Snapshot, ctx: DashCtx): DashModel | null {
         }
       : null;
 
-  const last = ctx.ipc.length ? ctx.ipc[ctx.ipc.length - 1]! : null;
+  const last = ctx.ipc.length > 0 ? ctx.ipc.at(-1)! : null;
   const vm = s.mmu && (os.tier ?? 1) >= 2 ? s.mmu : null;
   const all = vm ? vm.hits + vm.misses : 0;
   const ipcText =
@@ -190,17 +192,20 @@ export function dashModel(s: Snapshot, ctx: DashCtx): DashModel | null {
   const ready = q.filter((j) => j.state === 'result');
   let prompt = '',
     promptTone: DashModel['promptTone'] = 'dim';
-  if (ph === 'ingesting') prompt = `INGESTING KEY ${s.plugged?.label ?? ''}`;
-  else if (ph === 'flashing') {
+  if (ph === 'ingesting') {
+    prompt = `INGESTING KEY ${s.plugged?.label ?? ''}`;
+  } else if (ph === 'flashing') {
     prompt = `WRITING RESULT ${s.plugged?.label ?? ''}`;
     promptTone = 'warn';
   } else if (s.keyActivity === 'done' && s.plugged) {
     prompt = `REMOVE KEY ${s.plugged.label}`;
     promptTone = 'ok';
-  } else if (ready.length) {
+  } else if (ready.length > 0) {
     prompt = `PLUG KEY ${ready[0]!.label} TO COLLECT${ready.length > 1 ? ` (+${ready.length - 1})` : ''}`;
     promptTone = 'warn';
-  } else if (!order.length) prompt = 'IDLE  insert a key';
+  } else if (order.length === 0) {
+    prompt = 'IDLE  insert a key';
+  }
 
   return {
     title: `${(os.name ?? 'OS').toUpperCase().slice(0, 28)} T${os.tier ?? 1}`,
@@ -246,19 +251,16 @@ export function pictureOf(words: readonly number[]): { cols: number; rows: numbe
   return { cols: FRAME_COLS, rows, cells };
 }
 
-/**
- * The card's output region as a picture (see `pictureOf`). Null before the card's first launch.
- */
+/** The card's output region as a picture (see `pictureOf`). Null before the card's first launch. */
 export function frameModel(g: GpuSnap | undefined): FrameModel | null {
-  if (!g || !g.frame.length) return null;
-  const pic = pictureOf(g.frame);
+  if (!g || g.frame.length === 0) {
+    return null;
+  }
   const slots = g.stats.instructions * g.lanes;
   const busy = slots > 0 ? Math.round((100 * (slots - g.stats.idleLaneSlots)) / slots) : 0;
   const state = g.error ? 'FAULT' : g.phase === 'idle' ? 'DONE' : 'DRAWING';
   return {
-    cols: pic.cols,
-    rows: pic.rows,
-    cells: pic.cells,
+    ...pictureOf(g.frame),
     seq: g.launches,
     status: `FRAME ${g.launches}  ${state}  ${g.stats.cycles} CYC  ${g.lanes} LANES ${busy}% BUSY  ${g.stats.conflictCycles} CONFLICTS`,
   };
@@ -290,7 +292,9 @@ export interface FrameHold {
 
 /** Advance the hold with this snapshot's card: the frame is up while the card works and `FRAME_HOLD` ticks after its latest launch. */
 export function holdFrame(h: FrameHold, g: GpuSnap | undefined, tick: number): { hold: FrameHold; show: boolean } {
-  if (!g || g.launches === 0) return { hold: { seq: g?.launches ?? 0, at: -Infinity }, show: false };
+  if (!g || g.launches === 0) {
+    return { hold: { seq: g?.launches ?? 0, at: -Infinity }, show: false };
+  }
   const hold = g.launches !== h.seq || g.phase !== 'idle' ? { seq: g.launches, at: tick } : h;
   return { hold, show: tick - hold.at <= FRAME_HOLD };
 }

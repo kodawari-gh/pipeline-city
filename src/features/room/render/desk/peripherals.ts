@@ -61,7 +61,7 @@ function contact(o: Graphics, p: ReturnType<typeof placer>, outline: Pt[], a: nu
     [1.12, 0.4],
     [1.07, 0.6],
     [1.02, 1],
-  ] as const)
+  ] as const) {
     o.poly(
       flat(
         outline.map(([x, z]): Pt => {
@@ -70,6 +70,7 @@ function contact(o: Graphics, p: ReturnType<typeof placer>, outline: Pt[], a: nu
         }),
       ),
     ).fill({ color: '#000000', alpha: a * g * 0.45 });
+  }
 }
 
 /** The keyboard: a box turned a few degrees, its front and the side that faces the vanishing point, and a top of five rows of keycaps (the space bar in the front row) with a pair of lamps at the back. */
@@ -158,8 +159,12 @@ const widthAt = (u: number) => {
     const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
     return t * t * (3 - 2 * t);
   };
-  if (u < 0.08) return 0.93 * (1 - (1 - u / 0.08) ** 2.4) ** (1 / 2.4);
-  if (u > 0.76) return Math.sqrt(1 - ((u - 0.76) / 0.24) ** 2);
+  if (u < 0.08) {
+    return 0.93 * (1 - (1 - u / 0.08) ** 2.4) ** (1 / 2.4);
+  }
+  if (u > 0.76) {
+    return Math.sqrt(1 - ((u - 0.76) / 0.24) ** 2);
+  }
   return 0.93 - 0.015 * Math.sin(Math.PI * smooth(0.2, 0.62, u)) + 0.07 * smooth(0.45, 0.76, u);
 };
 
@@ -183,11 +188,15 @@ function hull(pts: Pt[]): Pt[] {
   const lo: Pt[] = [],
     up: Pt[] = [];
   for (const q of a) {
-    while (lo.length >= 2 && cross(lo[lo.length - 2]!, lo[lo.length - 1]!, q) <= 0) lo.pop();
+    while (lo.length >= 2 && cross(lo.at(-2)!, lo.at(-1)!, q) <= 0) {
+      lo.pop();
+    }
     lo.push(q);
   }
   for (const q of [...a].reverse()) {
-    while (up.length >= 2 && cross(up[up.length - 2]!, up[up.length - 1]!, q) <= 0) up.pop();
+    while (up.length >= 2 && cross(up.at(-2)!, up.at(-1)!, q) <= 0) {
+      up.pop();
+    }
     up.push(q);
   }
   return [...lo.slice(0, -1), ...up.slice(0, -1)];
@@ -218,7 +227,9 @@ const heightAt = (u: number) => {
         : (SIDE[Math.min(n - 1, k + 1)]![1] - SIDE[Math.max(0, k - 1)]![1]) /
           (SIDE[Math.min(n - 1, k + 1)]![0] - SIDE[Math.max(0, k - 1)]![0]);
   let i = 0;
-  while (i < n - 2 && u > SIDE[i + 1]![0]) i++;
+  while (i < n - 2 && u > SIDE[i + 1]![0]) {
+    i++;
+  }
   const [x0, y0] = SIDE[i]!,
     [x1, y1] = SIDE[i + 1]!,
     d = x1 - x0,
@@ -301,9 +312,17 @@ export function drawMouse(o: Graphics, _T: Theme, L: PeriphLook, D: DeskGeo, mon
   // painter's order, from the far end (the buttons) to the near one; the wheel goes in between: the tiles nearer than its slot are drawn after it, because the dome rises behind it (toward the viewer) and hides what is under their line of sight
   const w = wheelGeom(D, monitorCx),
     zNearEnd = w.zNear + 14;
-  for (let i = 0; i < NZ; i++) if ((us[i]! - 0.5) * l < zNearEnd) tile(i);
+  for (let i = 0; i < NZ; i++) {
+    if ((us[i]! - 0.5) * l < zNearEnd) {
+      tile(i);
+    }
+  }
   drawWheel(o, p, w);
-  for (let i = 0; i < NZ; i++) if ((us[i]! - 0.5) * l >= zNearEnd) tile(i);
+  for (let i = 0; i < NZ; i++) {
+    if ((us[i]! - 0.5) * l >= zNearEnd) {
+      tile(i);
+    }
+  }
   // the skirt's top edge, on the half toward the viewer only (the far half is behind the body)
   const near = [
     ...grid.slice(NZ >> 1).map((st) => st[1]![0]),
@@ -341,8 +360,12 @@ function wheelGeom(D: DeskGeo, monitorCx: number) {
   const ex = (x: number): [number, number] => {
     let lo = Math.PI / 2,
       hi = Math.PI / 2;
-    while (lo > -0.6 && ch(lo - 0.02) >= shellH(x, cz(lo - 0.02))) lo -= 0.02;
-    while (hi < Math.PI + 0.6 && ch(hi + 0.02) >= shellH(x, cz(hi + 0.02))) hi += 0.02;
+    while (lo > -0.6 && ch(lo - 0.02) >= shellH(x, cz(lo - 0.02))) {
+      lo -= 0.02;
+    }
+    while (hi < Math.PI + 0.6 && ch(hi + 0.02) >= shellH(x, cz(hi + 0.02))) {
+      hi += 0.02;
+    }
     return [lo, hi];
   };
   const [aLo, aHi] = ex(hw);

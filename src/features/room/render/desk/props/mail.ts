@@ -51,7 +51,9 @@ export function letterPose(u: number, stage: { x: number; y: number }): LetterPo
   let x = stage.x - 1700 * (1 - fly),
     y = stage.y - 1500 * (1 - fly);
   let rot = -0.5 * (1 - fly) + 0.07 * Math.sin(fly * 11) * (1 - fly);
-  if (u >= FLY_END) y += 14 * Math.sin((u - FLY_END) * 40) * Math.max(0, 1 - (u - FLY_END) / 0.1); // a small bob as it settles
+  if (u >= FLY_END) {
+    y += 14 * Math.sin((u - FLY_END) * 40) * Math.max(0, 1 - (u - FLY_END) / 0.1); // a small bob as it settles
+  }
   const l = sm(LEAVE0, LEAVE1, u);
   x -= 300 * l;
   y += 800 * l * l;
@@ -69,7 +71,9 @@ export interface KeyPose {
 
 /** The key's centre: inside the envelope, rising out of it, carried by the lanyard's end to the hook, hanging there. `rest` is its resting centre. */
 export function keyPose(u: number, stage: { x: number; y: number }, rest: { x: number; y: number }): KeyPose {
-  if (u < RISE0) return { phase: 'wait', x: stage.x, y: stage.y + RISE_FROM, cordK: 0 };
+  if (u < RISE0) {
+    return { phase: 'wait', x: stage.x, y: stage.y + RISE_FROM, cordK: 0 };
+  }
   if (u < CARRY0) {
     const r = (u - RISE0) / (CARRY0 - RISE0);
     return { phase: 'rise', x: stage.x, y: stage.y + RISE_FROM - RISE * sm(0, 1, r), cordK: sm(0.25, 1, r) };
@@ -120,7 +124,7 @@ export interface SwayState {
   w: number;
   ph: number;
 }
-export const SWAY = { w0: 2.1, zeta: 0.1, breath: 0.03, ax: 1 / 14000, max: 0.55 };
+export const SWAY = { w0: 2.1, zeta: 0.1, breath: 0.03, ax: 1 / 14_000, max: 0.55 };
 
 /** Step the pendulum: a spring back to straight, a little damping, and the push of the support's acceleration `ax`. */
 export function swayStep(st: SwayState, dt: number, ax = 0) {
@@ -185,8 +189,9 @@ export function buildLetter(_T: Theme): Letter {
     [0, 560],
     [1, 640],
     [2, 420],
-  ] as const)
+  ] as const) {
     gf.roundRect(-440, y0 + H * 0.64 + i * 62, w, 16, 8).fill({ color: edge, alpha: 0.5 });
+  }
   gf.roundRect(x0 + W - 330, top + 40, 210, 160, 10)
     .fill({ color: mix('#c43a3a', paper, 0.2), alpha: 0.9 })
     .stroke({ width: 6, color: edge, alpha: 0.7 });
@@ -228,5 +233,7 @@ export function setLetter(L: Letter, p: LetterPose) {
   L.flapTop.visible = p.flap > 0;
   L.flapUnder.visible = p.flap <= 0;
   const want = p.flap > 0 ? L.front : L.back;
-  if (L.flap.parent !== want) want.addChild(L.flap);
+  if (L.flap.parent !== want) {
+    want.addChild(L.flap);
+  }
 }

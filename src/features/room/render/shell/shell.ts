@@ -54,13 +54,15 @@ export function boardTop(k: number, h: number): number {
   return h * (1 / (1 - k * BOARD.step) - 1);
 }
 
-const BIG = 90000,
+const BIG = 90_000,
   BANDS = 16;
 
 /** A vertical gradient as flat bands (no canvas: it is also built in tests): from `y0` to `y1`, the colour going from `a` to `b`. */
 function bands(g: Graphics, x: number, w: number, y0: number, y1: number, a: string, b: string) {
   const h = (y1 - y0) / BANDS;
-  for (let k = 0; k < BANDS; k++) g.rect(x, y0 + k * h, w, h + 2).fill({ color: mix(a, b, (k + 0.5) / BANDS) });
+  for (let k = 0; k < BANDS; k++) {
+    g.rect(x, y0 + k * h, w, h + 2).fill({ color: mix(a, b, (k + 0.5) / BANDS) });
+  }
 }
 
 /** The ceiling: above `ceil`, the colour next to the wall fading to the far colour, then flat; boards run along it toward the vanishing point like the floor's, fading out with it. */
@@ -75,11 +77,13 @@ export function drawCeiling(g: Graphics, T: Theme, B: ShellBox & Persp) {
       sa = (B.yH - ya) / hc,
       sb = (B.yH - yb) / hc,
       a = 1 - (B.ceil - ya) / FADE.ceil;
-    if (a <= 0) break;
+    if (a <= 0) {
+      break;
+    }
     g.rect(-BIG, yb, 2 * BIG, ya - yb).fill({ color: L.trimLo, alpha: (k % 2 ? 0.05 : 0.02) * a * 2 });
     g.rect(-BIG, ya - 5, 2 * BIG, 7).fill({ color: L.seam, alpha: 0.35 * a });
-    const off = (((Math.sin(k * 7.13 + 2.1) * 43758.5453) % 1) + 1) % 1;
-    for (let x = B.vx - 60000 + off * BOARD.length; x < B.vx + 60000; x += BOARD.length * 1.3)
+    const off = (((Math.sin(k * 7.13 + 2.1) * 43_758.5453) % 1) + 1) % 1;
+    for (let x = B.vx - 60_000 + off * BOARD.length; x < B.vx + 60_000; x += BOARD.length * 1.3) {
       g.poly([
         spreadX(B, x, sa),
         ya,
@@ -90,6 +94,7 @@ export function drawCeiling(g: Graphics, T: Theme, B: ShellBox & Persp) {
         spreadX(B, x, sb),
         yb,
       ]).fill({ color: L.seam, alpha: 0.28 * a });
+    }
   }
 }
 
@@ -121,17 +126,19 @@ export function drawFloor(g: Graphics, T: Theme, B: ShellBox & Persp) {
       d = yb - ya,
       sa = floorScale(B, y0, ya),
       sb = floorScale(B, y0, yb);
-    if (ya > y0 + depth) break;
+    if (ya > y0 + depth) {
+      break;
+    }
     g.rect(-BIG, ya, 2 * BIG, d).fill({
       color: k % 2 ? L.boardB : L.boardA,
       alpha: Math.max(0, 0.9 * (1 - (ya - y0) / depth)),
     });
     g.rect(-BIG, ya, 2 * BIG, Math.max(5, d * 0.03)).fill({ color: L.seam, alpha: 0.7 });
-    const off = (((Math.sin(k * 12.9898 + 1.3) * 43758.5453) % 1) + 1) % 1,
+    const off = (((Math.sin(k * 12.9898 + 1.3) * 43_758.5453) % 1) + 1) % 1,
       jw = Math.max(5, d * 0.025);
     for (
-      let x = B.vx - 60000 + off * BOARD.length;
-      x < B.vx + 60000;
+      let x = B.vx - 60_000 + off * BOARD.length;
+      x < B.vx + 60_000;
       x += BOARD.length * (0.8 + 0.5 * ((((Math.sin(x * 0.001 + k) * 9999) % 1) + 1) % 1))
     ) {
       const xa = spreadX(B, x, sa),

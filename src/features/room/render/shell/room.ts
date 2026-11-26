@@ -114,7 +114,9 @@ export function shaftSpan(w: Rect, y: number, slant: number): { xl: number; xr: 
   const dx = slant * (y - w.y),
     dxb = slant * (y - w.y - w.h),
     below = y >= w.y + w.h;
-  if (slant >= 0) return { xl: w.x - dx, xr: below ? w.x + w.w - dxb : w.x };
+  if (slant >= 0) {
+    return { xl: w.x - dx, xr: below ? w.x + w.w - dxb : w.x };
+  }
   return { xl: below ? w.x - dxb : w.x + w.w, xr: w.x + w.w - dx };
 }
 
@@ -184,11 +186,15 @@ const save = () => {
 };
 /** A click on a room prop (`lamp`, `blind`). Returns whether the id was one. */
 export function roomClick(id: string): boolean {
-  if (id === 'lamp') roomState.lamp = !roomState.lamp;
-  else if (id === 'blind') roomState.blind = !roomState.blind;
-  else if (id === 'clock' || id === 'mail')
+  if (id === 'lamp') {
+    roomState.lamp = !roomState.lamp;
+  } else if (id === 'blind') {
+    roomState.blind = !roomState.blind;
+  } else if (id === 'clock' || id === 'mail') {
     return true; // scenery that only answers the pointer: it has a ring and a tip, no state
-  else return false;
+  } else {
+    return false;
+  }
   save();
   return true;
 }
@@ -223,7 +229,9 @@ const SKY: { h: number; top: string; hor: string }[] = [
 /** The sky's top and horizon colours at an hour. */
 export function skyAt(h: number): { top: string; hor: string } {
   let i = 0;
-  while (i < SKY.length - 2 && h >= SKY[i + 1]!.h) i++;
+  while (i < SKY.length - 2 && h >= SKY[i + 1]!.h) {
+    i++;
+  }
   const a = SKY[i]!,
     b = SKY[i + 1]!,
     t = (h - a.h) / (b.h - a.h);
@@ -256,8 +264,12 @@ export function lightsAt(h: number): { body: 'sun' | 'moon'; slant: number; stre
       color: color(el),
     });
   };
-  if (b.sun !== null) one('sun', b.sun, 0.17, (el) => mix('#ffa060', '#fff0c8', el ** 0.5));
-  if (b.moon !== null) one('moon', b.moon, 0.05, () => '#aebfff');
+  if (b.sun !== null) {
+    one('sun', b.sun, 0.17, (el) => mix('#ffa060', '#fff0c8', el ** 0.5));
+  }
+  if (b.moon !== null) {
+    one('moon', b.moon, 0.05, () => '#aebfff');
+  }
   return out;
 }
 
@@ -268,11 +280,13 @@ export function lightsAt(h: number): { body: 'sun' | 'moon'; slant: number; stre
  */
 export function beamsAt(geo: RoomGeo, h: number, blind: number): Beam[] {
   const w = geo.window,
-    ys = geo.ys,
+    { ys } = geo,
     out: Beam[] = [];
   for (const L of lightsAt(h)) {
     const a = L.strength * (1 - blind);
-    if (a < 0.003) continue;
+    if (a < 0.003) {
+      continue;
+    }
     const yb = w.y + w.h,
       ya0 = [w.y, yb, ...Array.from({ length: 12 }, (_, k) => yb + ((ys - yb) * (k + 1)) / 12)],
       quads: Beam['quads'] = [];

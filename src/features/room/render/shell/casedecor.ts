@@ -68,15 +68,18 @@ export function outline(g: Graphics, x: number, y: number, w: number, h: number,
 
 /** A grid of round holes (staggered rows) inside `r`; the caller fills. */
 export function holes(g: Graphics, r: Rect, pitch: number, rad: number) {
-  for (let y = r.y + pitch / 2, k = 0; y < r.y + r.h; y += pitch * 0.87, k++)
-    for (let x = r.x + pitch / 2 + (k % 2) * (pitch / 2); x < r.x + r.w - pitch / 4; x += pitch) g.circle(x, y, rad);
+  for (let y = r.y + pitch / 2, k = 0; y < r.y + r.h; y += pitch * 0.87, k++) {
+    for (let x = r.x + pitch / 2 + (k % 2) * (pitch / 2); x < r.x + r.w - pitch / 4; x += pitch) {
+      g.circle(x, y, rad);
+    }
+  }
 }
 
 /** A honeycomb (pointy hexagons, `s` the side) inside `r`; the caller fills. */
 export function hexes(g: Graphics, r: Rect, s: number, gap: number) {
   const w = Math.sqrt(3) * s,
     hs = s - gap * 0.6;
-  for (let y = r.y + s, k = 0; y < r.y + r.h - s * 0.5; y += s * 1.5, k++)
+  for (let y = r.y + s, k = 0; y < r.y + r.h - s * 0.5; y += s * 1.5, k++) {
     for (let x = r.x + w / 2 + (k % 2) * (w / 2); x < r.x + r.w - w / 2 + 1; x += w) {
       const pts: number[] = [];
       for (let i = 0; i < 6; i++) {
@@ -85,6 +88,7 @@ export function hexes(g: Graphics, r: Rect, s: number, gap: number) {
       }
       g.poly(pts);
     }
+  }
 }
 
 /** Slanted vent slots (parallelograms leaning east), `n` of them side by side in `r`; the caller fills. */
