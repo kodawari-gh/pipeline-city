@@ -7401,7 +7401,6 @@
   "import(consistent-type-specifier-style)": 7,
   "typescript(no-import-type-side-effects)": 1,
   "typescript(no-non-null-assertion)": 9,
-  "typescript(no-unsafe-type-assertion)": 2,
   "typescript(strict-boolean-expressions)": 4,
   "unicorn(consistent-function-scoping)": 3,
   "unicorn(max-nested-calls)": 7,
@@ -9305,7 +9304,6 @@
  "src/features/gpu/sim/isa/isa.test.ts": {
   "eslint(curly)": 3,
   "eslint(default-case)": 1,
-  "eslint(no-fallthrough)": 1,
   "eslint(require-unicode-regexp)": 5,
   "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 3,

@@ -66,7 +66,7 @@ type L = [
   from: string,
   to: string,
   lanes?: 1 | 2 | 3 | 4,
-  label?: string,
+  label?: string | undefined,
   both?: boolean,
 ];
 const links = (a: L[]): LinkSpec[] =>

@@ -221,7 +221,7 @@ export interface InventorySnap {
   /** There is at least one valid target and the machine is off. */
   installable: boolean;
   /** Why not (first reason), when there is no valid target or the machine is on. */
-  reason?: string;
+  reason?: string | undefined;
   /** What selling this spare returns now (`SELL_RATE` of its price; 0 in the sandbox, where money means nothing). */
   sellPrice?: number;
 }

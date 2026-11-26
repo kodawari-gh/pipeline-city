@@ -32,15 +32,15 @@ export type ToSim =
   | { type: 'purchase'; id: string }
   | { type: 'sell'; invId: string }
   /** Take a part out of the queue of installs waiting for the running job (all of them without `invId`). */
-  | { type: 'cancelSwap'; invId?: string }
+  | { type: 'cancelSwap'; invId?: string | undefined }
   | { type: 'setCpuClock'; clock: number }
   | { type: 'setRamClock'; deviceId: string; clock: number }
   | { type: 'powerCycle' }
   // Assembly and keys (docs/ASSEMBLY.md). Each replies with a snapshot, plus an error message if it was refused.
-  | { type: 'install'; invId: string; slotId?: string }
+  | { type: 'install'; invId: string; slotId?: string | undefined }
   | { type: 'uninstall'; deviceId: string }
   /** `port` is for the ethernet cable ("lan"): "board" or a network card's device id (default: the board jack). The lan cable can be plugged while the machine is on. */
-  | { type: 'connectCable'; cable: string; port?: string }
+  | { type: 'connectCable'; cable: string; port?: string | undefined }
   | { type: 'disconnectCable'; cable: string }
   | { type: 'powerButton' }
   | { type: 'plugKey'; keyId: number }
@@ -59,11 +59,11 @@ export type ToSim =
   | { type: 'setSpoolAlloc'; deviceId: string; slots: number | null }
   | { type: 'setDataReserve'; deviceId: string; blocks: number | null }
   /** Accept a cloud-storage contract offer (docs/JOBS.md "Contracts"); `deviceId` picks the drive, else the slowest that qualifies. Ignoring just removes the offer. */
-  | { type: 'acceptContract'; offerId: number; deviceId?: string }
+  | { type: 'acceptContract'; offerId: number; deviceId?: string | undefined }
   | { type: 'ignoreContract'; offerId: number }
   | { type: 'requestSave' }
   // Sandbox tools (docs/SANDBOX.md): refused with a reason outside a sandbox game. Each replies with a snapshot.
-  | { type: 'spawnKey'; template: string; scale?: number }
+  | { type: 'spawnKey'; template: string; scale?: number | undefined }
   | { type: 'clearQueue' }
   | { type: 'repairAll' }
   | { type: 'setReputation'; value: number }

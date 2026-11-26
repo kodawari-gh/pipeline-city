@@ -11,7 +11,7 @@ type Stage = import('../render/three/buildmode3d').BuildStage;
 export type Over = 'bin' | 'stage' | null;
 export type Source = { from: 'shelf' | 'machine'; item: string; spec: string; name: string };
 /** `target`: for a shelf part over the stage, the socket it would fit in ('' when none takes it, undefined when not over the stage). */
-export type Drag = Source & { x: number; y: number; over: Over; target?: string };
+export type Drag = Source & { x: number; y: number; over: Over; target?: string | undefined };
 
 /** Pixels a press may move before it is a drag. */
 const SLOP = 6;
