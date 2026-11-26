@@ -4,7 +4,7 @@ import { playCue } from '@/app/audio/engine';
 import { Icon } from '@/core/ui/kit/Icons';
 import { GalleryFoot, GalleryPart, GalleryRead } from './GalleryHud';
 import { GallerySpine } from './GallerySpine';
-import { PartShelf, type ShelfPart } from './PartShelf';
+import * as partShelf from './PartShelf';
 import { Showcase } from './Showcase';
 import { galleryGroups } from './shopdata';
 
@@ -17,7 +17,7 @@ export function Gallery() {
   const open = galleryOpen.value;
   const all = useMemo(galleryGroups, []);
   const kinds = useMemo(() => all.map((g) => g.kind), [all]);
-  const parts = useMemo<ShelfPart[]>(
+  const parts = useMemo<partShelf.ShelfPart[]>(
     () => all.flatMap((g) => g.items.map((i) => ({ id: i.id, name: i.name, kind: g.kind, tier: i.tier }))),
     [all],
   );
@@ -35,7 +35,9 @@ export function Gallery() {
   const n = group.items.length;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     // (the cues of a part and a category change, ticket #66: the turntable's drag and zoom stay silent)
     const step = (d: number) => {
       playCue('ui_value_change');
@@ -49,20 +51,30 @@ export function Gallery() {
     const onKey = (e: KeyboardEvent) => {
       // (the graphics modal shuts itself on Escape: the Gallery stays)
       if (e.key === 'Escape') {
-        if (!settingsOpen.peek()) galleryOpen.value = false;
+        if (!settingsOpen.peek()) {
+          galleryOpen.value = false;
+        }
         return;
-      } else if (e.key === 'ArrowRight') step(1);
-      else if (e.key === 'ArrowLeft') step(-1);
-      else if (e.key === 'ArrowDown') cat(1);
-      else if (e.key === 'ArrowUp') cat(-1);
-      else return;
+      } else if (e.key === 'ArrowRight') {
+        step(1);
+      } else if (e.key === 'ArrowLeft') {
+        step(-1);
+      } else if (e.key === 'ArrowDown') {
+        cat(1);
+      } else if (e.key === 'ArrowUp') {
+        cat(-1);
+      } else {
+        return;
+      }
       e.preventDefault();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, gi, all, n]);
 
-  if (!open) return null;
+  if (!open) {
+    return null;
+  }
   return (
     <div class="gallery mode" role="dialog" aria-modal="true" aria-label="Gallery">
       <div class="gal-main">
@@ -87,7 +99,7 @@ export function Gallery() {
             setIi(0);
           }}
         />
-        <PartShelf
+        <partShelf.PartShelf
           shelf={shelf}
           class="gal-shelf"
           rail={false}

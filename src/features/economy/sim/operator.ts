@@ -19,40 +19,50 @@ export class Operator {
   ) {}
 
   step(): void {
-    const g = this.g;
+    const { g } = this;
     const plugged = g.pluggedKey();
-    if (plugged?.done && g.currentPhase() !== 'writing' && g.currentPhase() !== 'flashing')
+    if (plugged?.done && g.currentPhase() !== 'writing' && g.currentPhase() !== 'flashing') {
       return this.act(() => {
         g.ejectKey();
       });
-    if ((!plugged || g.currentPhase() === 'error') && this.hasMaintenance())
+    }
+    if ((!plugged || g.currentPhase() === 'error') && this.hasMaintenance()) {
       return this.act(() => this.assemble(false));
-    if (g.hasOs()) return this.stepOs(plugged);
+    }
+    if (g.hasOs()) {
+      return this.stepOs(plugged);
+    }
     const phase = g.currentPhase();
     // A halted machine (job done, or no key at boot) stays halted until it is power-cycled by hand.
-    if (g.powered && !plugged && phase === 'halted')
+    if (g.powered && !plugged && phase === 'halted') {
       return this.act(() => {
         g.powerButton();
       });
-    if (!g.powered && !plugged && g.trayKeyIds().length > 0)
+    }
+    if (!g.powered && !plugged && g.trayKeyIds().length > 0) {
       return this.act(() => {
         g.plugKey(g.trayKeyIds()[0]!);
       });
-    if (!g.powered && plugged)
+    }
+    if (!g.powered && plugged) {
       return this.act(() => {
         g.powerButton();
       });
+    }
     this.wait = 0;
   }
 
   private stepOs(plugged: { id: number; done: boolean } | null): void {
-    const g = this.g;
-    if (!g.powered)
+    const { g } = this;
+    if (!g.powered) {
       return this.act(() => {
         g.powerButton();
       });
+    }
     // The OS keeps the key until the result is written, then it pops out by itself: the bot only plugs the next one.
-    if (plugged) return void (this.wait = 0);
+    if (plugged) {
+      return void (this.wait = 0);
+    }
     if (
       g.trayKeyIds().length > 0 &&
       g.currentPhase() !== 'booting-os' &&
@@ -76,25 +86,33 @@ export class Operator {
   }
 
   private hasMaintenance(): boolean {
-    const g = this.g;
+    const { g } = this;
     return this.wanted().length > 0 || g.missingCables().length > 0;
   }
 
   /** Inventory items worth installing: they fit, and they fill an empty kind or beat the installed part (no downgrades, no spares). */
   private wanted(): string[] {
-    const g = this.g;
+    const { g } = this;
     const tier = (id: string): number => getSpec(g.inventoryItems().find((i) => i.id === id)!.spec)?.tier ?? 99;
     return g
       .inventoryItems()
       .filter((it) => {
-        if (!g.canInstall(it.id)) return false;
+        if (!g.canInstall(it.id)) {
+          return false;
+        }
         const spec = getSpec(it.spec);
         if (!spec) {
-          if (getRouterSpec(it.spec)) return false; // a router is placed by hand
+          if (getRouterSpec(it.spec)) {
+            return false; // a router is placed by hand
+          }
           const bt = boardTierOf(it.spec),
             ct = caseTierOf(it.spec);
-          if (bt !== undefined) return bt > g.board.tier; // a board or a case only when it is bigger: the ones it replaced come back as spares
-          if (ct !== undefined) return ct > g.board.caseTier;
+          if (bt !== undefined) {
+            return bt > g.board.tier; // a board or a case only when it is bigger: the ones it replaced come back as spares
+          }
+          if (ct !== undefined) {
+            return ct > g.board.caseTier;
+          }
           return true; // an OS
         }
         const have = g.board.devices.filter((d) => deviceSpec(d).kind === spec.kind && !d.burnt);
@@ -106,9 +124,11 @@ export class Operator {
 
   /** Swap over the weakest installed part of the same kind (a second RAM stick would not speed the first one up). */
   private slotFor(invId: string): string | undefined {
-    const g = this.g;
+    const { g } = this;
     const spec = getSpec(g.inventoryItems().find((i) => i.id === invId)!.spec);
-    if (!spec) return undefined;
+    if (!spec) {
+      return undefined;
+    }
     const have = g.board.devices
       .filter((d) => deviceSpec(d).kind === spec.kind)
       .sort((a, b) => deviceSpec(a).tier - deviceSpec(b).tier);
@@ -117,8 +137,10 @@ export class Operator {
 
   /** Power off, install everything worth installing, plug in every cable that can be, and (with `powerOn`) boot. */
   assemble(powerOn = true): void {
-    const g = this.g;
-    if (g.powered) g.powerButton();
+    const { g } = this;
+    if (g.powered) {
+      g.powerButton();
+    }
     for (let again = true; again;) {
       again = false;
       for (const id of this.wanted()) {
@@ -128,8 +150,12 @@ export class Operator {
         }
       }
     }
-    for (const c of g.missingCables()) g.connectCable(c);
-    if (powerOn) g.powerButton();
+    for (const c of g.missingCables()) {
+      g.connectCable(c);
+    }
+    if (powerOn) {
+      g.powerButton();
+    }
   }
 }
 

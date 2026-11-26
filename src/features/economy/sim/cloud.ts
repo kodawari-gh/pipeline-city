@@ -2,99 +2,124 @@
 // puts a dataset file on a mounted drive and holds it for a number of ticks, with read requests at seeded intervals. The model (terms, schedule) is
 // in contracts.ts. Every export is a `Game` method (see game.ts).
 
-import { deviceSpec, type InstalledDevice, type StorageSpec } from '../../board/sim';
+import * as boardSim from '../../board/sim';
 import { BLOCK_BYTES } from '@/core/sim/memmap';
 import { Prng } from '@/core/sim/prng';
-import {
-  CONTRACT_KINDS,
-  CONTRACT_LOG_BASE,
-  contractKind,
-  datasetBytes,
-  kibOf,
-  nextReadGap,
-  rollTerms,
-  type Contract,
-  type ContractOffer,
-} from './contracts';
+import * as contractsSim from './contracts';
 import { holdPay, lossPenalty, readFee } from './economy';
 import type { Game } from '@/worker/game/game';
-import { JOB_LOG_CAP, type JobOutcome } from '../../jobs/sim/joblog';
+import * as jobLogSim from '../../jobs/sim/joblog';
 import { jobClass, levelPayMul } from './levels';
 import type { ContractOfferSnap, ContractSnap, ContractsSnap, Result } from '@/worker/game/types';
 
 /** Contracts are on offer from the level the class starts at, outside the sandbox (its money is a constant). */
 export function contractsOpen(this: Game): boolean {
   const cls = jobClass('cloud');
-  return !!cls && !this.sandbox && this.level >= cls.firstLevel && this.progress.poweredOn;
+  return cls !== undefined && !this.sandbox && this.level >= cls.firstLevel && this.progress.poweredOn;
 }
 
 /** Why drive `d` cannot hold the offer's dataset now, or null. */
-export function contractDriveWhy(this: Game, offer: ContractOffer, d: InstalledDevice): string | null {
-  const s = deviceSpec(d) as StorageSpec;
-  if (d.burnt) return `${s.name} is burnt out`;
-  if (!this.osUp()) return 'the OS must be up: power the machine on';
-  if (this.os!.spec.fsTier < 2) return `${this.os!.spec.name} cannot store files: Paged OS 2.0 or better`;
-  if (s.mirror && this.os!.spec.fsTier < 4) return `${s.name} is a RAID module: it needs Multicore OS 4.0`;
-  if (!this.driveUp(d.id)) return `${s.name} is not mounted`;
-  if (!this.driveCanHold(d.id, 'dataset')) return `${s.name} is not formatted clean`;
-  if (s.tier < offer.minDriveTier) return `it needs a SATA SSD or better, ${s.name} is too slow`;
+export function contractDriveWhy(
+  this: Game,
+  offer: contractsSim.ContractOffer,
+  d: boardSim.InstalledDevice,
+): string | null {
+  const s = boardSim.deviceSpec(d) as boardSim.StorageSpec;
+  if (d.burnt) {
+    return `${s.name} is burnt out`;
+  }
+  if (!this.osUp()) {
+    return 'the OS must be up: power the machine on';
+  }
+  if (this.os!.spec.fsTier < 2) {
+    return `${this.os!.spec.name} cannot store files: Paged OS 2.0 or better`;
+  }
+  if (s.mirror && this.os!.spec.fsTier < 4) {
+    return `${s.name} is a RAID module: it needs Multicore OS 4.0`;
+  }
+  if (!this.driveUp(d.id)) {
+    return `${s.name} is not mounted`;
+  }
+  if (!this.driveCanHold(d.id, 'dataset')) {
+    return `${s.name} is not formatted clean`;
+  }
+  if (s.tier < offer.minDriveTier) {
+    return `it needs a SATA SSD or better, ${s.name} is too slow`;
+  }
   const reserve = this.osCfg.dataReserve[d.id];
-  if (reserve !== undefined && this.datasetBlocks(d.id) + offer.blocks > reserve)
+  if (reserve !== undefined && this.datasetBlocks(d.id) + offer.blocks > reserve) {
     return `${s.name} reserves ${reserve} blocks for datasets and ${this.datasetBlocks(d.id)} are in use: raise the reserve in the OS window`;
+  }
   const free = this.disks.get(d.id)!.fs.freeBlocks();
-  if (free < offer.blocks) return `${s.name} has ${free} free blocks, the dataset needs ${offer.blocks}`;
+  if (free < offer.blocks) {
+    return `${s.name} has ${free} free blocks, the dataset needs ${offer.blocks}`;
+  }
   return null;
 }
 
 /** The drive an offer would go on: `deviceId` if given, else the slowest drive that qualifies (the fast ones stay free). With the reason when there is none. */
 export function contractPlan(
   this: Game,
-  offer: ContractOffer,
+  offer: contractsSim.ContractOffer,
   deviceId?: string,
 ): { deviceId: string | null; why: string | null } {
-  const drives = this.board.devices.filter((d) => deviceSpec(d).kind === 'storage');
+  const drives = this.board.devices.filter((d) => boardSim.deviceSpec(d).kind === 'storage');
   if (deviceId !== undefined) {
     const d = drives.find((x) => x.id === deviceId);
-    if (!d) return { deviceId: null, why: `no drive "${deviceId}"` };
+    if (!d) {
+      return { deviceId: null, why: `no drive "${deviceId}"` };
+    }
     const why = this.contractDriveWhy(offer, d);
     return why ? { deviceId: null, why } : { deviceId: d.id, why: null };
   }
-  if (drives.length === 0) return { deviceId: null, why: 'install a storage drive first' };
+  if (drives.length === 0) {
+    return { deviceId: null, why: 'install a storage drive first' };
+  }
   const ok = drives
     .filter((d) => !this.contractDriveWhy(offer, d))
-    .sort((a, b) => deviceSpec(a).tier - deviceSpec(b).tier);
-  if (ok.length > 0) return { deviceId: ok[0]!.id, why: null };
+    .sort((a, b) => boardSim.deviceSpec(a).tier - boardSim.deviceSpec(b).tier);
+  if (ok.length > 0) {
+    return { deviceId: ok[0]!.id, why: null };
+  }
   // The reason of the drive that came closest (the one the player is most likely to fix): the first with a reason that is not about the OS being down.
   const whys = drives.map((d) => this.contractDriveWhy(offer, d)!);
-  return { deviceId: null, why: whys.find((w) => /free blocks|SSD/.test(w)) ?? whys[0]! };
+  return { deviceId: null, why: whys.find((w) => /free blocks|SSD/u.test(w)) ?? whys[0]! };
 }
 
 /** Accept an offer: the dataset goes onto a drive and the hold begins. */
 export function acceptContract(this: Game, offerId: number, deviceId?: string): Result<{ contractId: number }> {
   const offer = this.contractOffers.find((o) => o.id === offerId);
-  if (!offer) return { ok: false, reason: 'that offer is gone' };
-  if (!this.contractsOpen()) return { ok: false, reason: 'no contracts are open' };
+  if (!offer) {
+    return { ok: false, reason: 'that offer is gone' };
+  }
+  if (!this.contractsOpen()) {
+    return { ok: false, reason: 'no contracts are open' };
+  }
   const plan = this.contractPlan(offer, deviceId);
-  if (!plan.deviceId) return { ok: false, reason: plan.why ?? 'no drive can hold it' };
+  if (!plan.deviceId) {
+    return { ok: false, reason: plan.why ?? 'no drive can hold it' };
+  }
   const dev = this.board.devices.find((d) => d.id === plan.deviceId)!;
   const disk = this.disks.get(dev.id)!;
   const file = disk.fs.create(`c${offer.id}`, 'dataset', offer.blocks, { seed: offer.seed });
-  if (!file) return { ok: false, reason: 'the drive has no room for the dataset' };
-  disk.fs.write(file.id, datasetBytes(offer.seed, offer.blocks));
-  const kind = contractKind(offer.kind)!;
-  const mirrored = !!disk.twin;
+  if (!file) {
+    return { ok: false, reason: 'the drive has no room for the dataset' };
+  }
+  disk.fs.write(file.id, contractsSim.datasetBytes(offer.seed, offer.blocks));
+  const kind = contractsSim.contractKind(offer.kind)!;
+  const mirrored = disk.twin !== null;
   const rng = new Prng(offer.seed);
   const { id: _offerId, offeredAt: _at, expiresAt: _exp, ...terms } = offer;
-  const c: Contract = {
+  const c: contractsSim.Contract = {
     ...terms,
     id: this.nextContractId++,
     deviceId: dev.id,
-    drive: deviceSpec(dev).name,
+    drive: boardSim.deviceSpec(dev).name,
     fileId: file.id,
     startedAt: this.baseTick,
     endsAt: this.baseTick + offer.duration,
     mirrored,
-    rate: holdPay(this.cfg, kibOf(offer.blocks), kind.hot, mirrored, offer.levelPay),
+    rate: holdPay(this.cfg, contractsSim.kibOf(offer.blocks), kind.hot, mirrored, offer.levelPay),
     owed: 0,
     rng: 0,
     nextRead: 0,
@@ -104,7 +129,7 @@ export function acceptContract(this: Game, offerId: number, deviceId?: string): 
     earned: 0,
     fees: 0,
   };
-  c.nextRead = this.baseTick + nextReadGap(rng, offer.readEvery);
+  c.nextRead = this.baseTick + contractsSim.nextReadGap(rng, offer.readEvery);
   c.rng = rng.getState();
   this.contracts.push(c);
   this.dex[c.kind] ??= { seen: this.baseTick, runs: 0, best: 0 };
@@ -115,7 +140,9 @@ export function acceptContract(this: Game, offerId: number, deviceId?: string): 
 
 /** Turn an offer down. It just goes away: no penalty. */
 export function ignoreContract(this: Game, offerId: number): Result<{ offerId: number }> {
-  if (!this.contractOffers.some((o) => o.id === offerId)) return { ok: false, reason: 'that offer is gone' };
+  if (!this.contractOffers.some((o) => o.id === offerId)) {
+    return { ok: false, reason: 'that offer is gone' };
+  }
   this.contractOffers = this.contractOffers.filter((o) => o.id !== offerId);
   return { ok: true, offerId };
 }
@@ -126,9 +153,9 @@ export function contractTick(this: Game): void {
   const open = this.contractsOpen();
   this.contractOffers = this.contractOffers.filter((o) => this.baseTick < o.expiresAt);
   if (open && this.baseTick % cfg.offerEvery === 0 && this.contractOffers.length < cfg.offerCap) {
-    const kinds = CONTRACT_KINDS.filter((k) => !this.sandboxKindsOff.has(k.id));
+    const kinds = contractsSim.CONTRACT_KINDS.filter((k) => !this.sandboxKindsOff.has(k.id));
     const kind = kinds[this.contractRng.nextInt(kinds.length)]!;
-    const terms = rollTerms(this.contractRng, kind, levelPayMul(this.level));
+    const terms = contractsSim.rollTerms(this.contractRng, kind, levelPayMul(this.level));
     this.contractOffers.push({
       ...terms,
       id: this.nextContractId++,
@@ -145,7 +172,7 @@ export function contractTick(this: Game): void {
       this.settleContract(c, 'lost');
       continue;
     }
-    const kind = contractKind(c.kind)!;
+    const kind = contractsSim.contractKind(c.kind)!;
     const up = this.driveUp(c.deviceId);
     if (up) {
       c.owed += c.rate;
@@ -153,18 +180,22 @@ export function contractTick(this: Game): void {
       if (whole > 0) {
         c.owed -= whole;
         c.earned += whole;
-        if (!this.sandbox) this.money += whole;
+        if (!this.sandbox) {
+          this.money += whole;
+        }
       }
     }
     // a new read request
     if (this.baseTick >= c.nextRead) {
       const rng = new Prng(c.rng);
-      c.nextRead = this.baseTick + nextReadGap(rng, c.readEvery);
+      c.nextRead = this.baseTick + contractsSim.nextReadGap(rng, c.readEvery);
       c.rng = rng.getState();
       if (this.canServe(c.deviceId, c.fileId)) {
         c.pending.push({ due: this.baseTick + c.readDeadline, left: c.readTicks });
         disk.queued++;
-      } else this.missRead(c, kind.hot);
+      } else {
+        this.missRead(c, kind.hot);
+      }
     }
     // serve the oldest read when the drive is free this tick
     if (up && c.pending.length > 0 && !busy.has(c.deviceId)) {
@@ -182,27 +213,32 @@ export function contractTick(this: Game): void {
       disk.queued = Math.max(0, disk.queued - 1);
       this.missRead(c, kind.hot);
     }
-    if (c.missed > c.maxMisses) this.settleContract(c, 'breached');
-    else if (this.baseTick >= c.endsAt) this.settleContract(c, 'completed');
+    if (c.missed > c.maxMisses) {
+      this.settleContract(c, 'breached');
+    } else if (this.baseTick >= c.endsAt) {
+      this.settleContract(c, 'completed');
+    }
   }
 }
 
 /** A read was not served: the client charges the fee. */
-export function missRead(this: Game, c: Contract, hot: boolean): void {
+export function missRead(this: Game, c: contractsSim.Contract, hot: boolean): void {
   const fee = readFee(this.cfg, hot, c.levelPay);
   c.missed++;
   c.fees += fee;
-  if (!this.sandbox) this.money = Math.max(0, this.money - fee);
+  if (!this.sandbox) {
+    this.money = Math.max(0, this.money - fee);
+  }
 }
 
 /** End a contract: pay or charge, free the dataset, and write the log line. */
 export function settleContract(
   this: Game,
-  c: Contract,
-  outcome: Extract<JobOutcome, 'lost' | 'breached' | 'completed'>,
+  c: contractsSim.Contract,
+  outcome: Extract<jobLogSim.JobOutcome, 'lost' | 'breached' | 'completed'>,
 ): void {
   const cfg = this.cfg.contracts;
-  const kind = contractKind(c.kind)!;
+  const kind = contractsSim.contractKind(c.kind)!;
   const disk = this.disks.get(c.deviceId);
   if (disk) {
     disk.queued = Math.max(0, disk.queued - c.pending.length);
@@ -213,7 +249,9 @@ export function settleContract(
     const bonus = Math.round(c.earned * cfg.completeBonus);
     c.earned += bonus;
     net += bonus;
-    if (!this.sandbox) this.money += bonus;
+    if (!this.sandbox) {
+      this.money += bonus;
+    }
     this.addClientBase(this.reputation());
     const rec = this.dex[c.kind];
     if (rec) {
@@ -221,17 +259,19 @@ export function settleContract(
       rec.best = rec.best === 0 ? c.duration : Math.min(rec.best, c.duration);
     }
   } else {
-    const penalty = lossPenalty(this.cfg, kibOf(c.blocks), c.levelPay, outcome === 'breached');
+    const penalty = lossPenalty(this.cfg, contractsSim.kibOf(c.blocks), c.levelPay, outcome === 'breached');
     c.fees += penalty;
     net -= penalty;
-    if (!this.sandbox) this.money = Math.max(0, this.money - penalty);
+    if (!this.sandbox) {
+      this.money = Math.max(0, this.money - penalty);
+    }
     const units = outcome === 'lost' ? cfg.lossRepUnits : cfg.breachRepUnits;
     this.avgTurnaround +=
       this.cfg.emaAlpha * (this.cfg.giveUpTurnaround * this.patience() - this.avgTurnaround) * units;
   }
   this.contracts = this.contracts.filter((x) => x.id !== c.id);
   this.jobLog.push({
-    id: CONTRACT_LOG_BASE + c.id,
+    id: contractsSim.CONTRACT_LOG_BASE + c.id,
     type: c.kind,
     scale: 1,
     outcome,
@@ -255,7 +295,9 @@ export function settleContract(
       fees: c.fees,
     },
   });
-  if (this.jobLog.length > JOB_LOG_CAP) this.jobLog.splice(0, this.jobLog.length - JOB_LOG_CAP);
+  if (this.jobLog.length > jobLogSim.JOB_LOG_CAP) {
+    this.jobLog.splice(0, this.jobLog.length - jobLogSim.JOB_LOG_CAP);
+  }
   const word = outcome === 'completed' ? `held to the end: $${net}` : outcome === 'lost' ? 'data LOST' : 'breached';
   this.note('contract', `${c.client}: ${kind.name} ${word}`);
 }
@@ -263,12 +305,12 @@ export function settleContract(
 /** The contracts section of the snapshot: the open offers (with where each would go, or why it cannot) and the contracts running. */
 export function contractsSnap(this: Game): ContractsSnap {
   const open = this.contractsOpen();
-  const drives = this.board.devices.filter((d) => deviceSpec(d).kind === 'storage');
+  const drives = this.board.devices.filter((d) => boardSim.deviceSpec(d).kind === 'storage');
   const offers: ContractOfferSnap[] = open
     ? this.contractOffers.map((o) => {
-        const kind = contractKind(o.kind)!;
+        const kind = contractsSim.contractKind(o.kind)!;
         const plan = this.contractPlan(o);
-        const kib = kibOf(o.blocks);
+        const kib = contractsSim.kibOf(o.blocks);
         return {
           id: o.id,
           kind: o.kind,
@@ -287,7 +329,11 @@ export function contractsSnap(this: Game): ContractsSnap {
           canAccept: plan.deviceId !== null,
           why: plan.why,
           deviceId: plan.deviceId,
-          drives: drives.map((d) => ({ deviceId: d.id, name: deviceSpec(d).name, why: this.contractDriveWhy(o, d) })),
+          drives: drives.map((d) => ({
+            deviceId: d.id,
+            name: boardSim.deviceSpec(d).name,
+            why: this.contractDriveWhy(o, d),
+          })),
         };
       })
     : [];
@@ -299,7 +345,7 @@ export function contractsSnap(this: Game): ContractsSnap {
     return {
       id: c.id,
       kind: c.kind,
-      name: contractKind(c.kind)!.name,
+      name: contractsSim.contractKind(c.kind)!.name,
       client: c.client,
       deviceId: c.deviceId,
       drive: c.drive,
@@ -316,7 +362,7 @@ export function contractsSnap(this: Game): ContractsSnap {
       rate: c.rate,
       earned: c.earned,
       fees: c.fees,
-      hot: contractKind(c.kind)!.hot,
+      hot: contractsSim.contractKind(c.kind)!.hot,
     };
   });
   return { open, offers, active };

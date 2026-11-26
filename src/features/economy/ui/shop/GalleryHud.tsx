@@ -1,15 +1,15 @@
 import type { RefObject } from 'preact';
 import { useMemo } from 'preact/hooks';
 import { Icon } from '@/core/ui/kit/Icons';
-import { type ModeKey, ModeKeys, VIEW_KEYS } from '@/core/ui/kit/ModeKit';
-import { goodness, statsOf, type PickerKind } from './picker';
-import { kindIcon, kindLabel, pips, priceOf, splitName, type GalleryGroup, type GalleryItem } from './shopdata';
+import * as modeKit from '@/core/ui/kit/ModeKit';
+import * as picker from './picker';
+import * as shopData from './shopdata';
 
 // The Gallery's HUD, the pieces beside the shelf (`PartShelf`): in the words and the shapes of Build my PC's (ui.css: `.bld-read`, `.bld-foot`, the glass panels).
 // The summary over the stage says which part this is, the card on the right gives its numbers, the foot says what to do and steps through the category.
 
-const KEYS: readonly ModeKey[] = [
-  ...VIEW_KEYS,
+const KEYS: readonly modeKit.ModeKey[] = [
+  ...modeKit.VIEW_KEYS,
   ['Double-click', 'reset', 'Double-tap'],
   [['←', '→'], 'part', null],
   [['↑', '↓'], 'category', null],
@@ -28,18 +28,18 @@ export function GalleryRead({
   at,
 }: {
   read: RefObject<HTMLElement | null>;
-  group: GalleryGroup;
-  item: GalleryItem;
+  group: shopData.GalleryGroup;
+  item: shopData.GalleryItem;
   at: number;
 }) {
-  const price = priceOf(item.id),
+  const price = shopData.priceOf(item.id),
     top = Math.max(...group.items.map((i) => i.tier)),
-    lit = pips(item.tier, top);
+    lit = shopData.pips(item.tier, top);
   return (
     <section class="bld-read gal-read mode-bar" aria-label="Part summary" ref={read}>
       <span class="gal-kind">
-        <Icon name={kindIcon(group.kind)} size={13} />
-        {kindLabel(group.kind)}
+        <Icon name={shopData.kindIcon(group.kind)} size={13} />
+        {shopData.kindLabel(group.kind)}
       </span>
       <i class="mode-sep" aria-hidden="true" />
       <span class="bld-fig">
@@ -74,11 +74,11 @@ export function GalleryPart({
   item,
 }: {
   side: RefObject<HTMLDivElement | null>;
-  group: GalleryGroup;
-  item: GalleryItem;
+  group: shopData.GalleryGroup;
+  item: shopData.GalleryItem;
 }) {
-  const stats = useMemo(() => statsOf(item.id), [item.id]);
-  const { title, detail } = splitName(item.name);
+  const stats = useMemo(() => picker.statsOf(item.id), [item.id]);
+  const { title, detail } = shopData.splitName(item.name);
   // (a case says its form; the other notes only repeat the eyebrow)
   const more = detail || (group.kind === 'case' ? item.note : '');
   return (
@@ -86,7 +86,7 @@ export function GalleryPart({
       <section class="gal-part mode-panel" aria-label={item.name}>
         <header class="mode-head">
           <span class="mode-eyebrow">
-            {kindLabel(group.kind)} · tier {item.tier}
+            {shopData.kindLabel(group.kind)} · tier {item.tier}
           </span>
           <b>{title}</b>
           {more && <span class="gal-detail">{more}</span>}
@@ -103,7 +103,7 @@ export function GalleryPart({
                 <span class="bld-bar" aria-hidden="true">
                   <i
                     style={{
-                      width: `${Math.round(goodness(group.kind as PickerKind, s) * 100)}%`,
+                      width: `${Math.round(picker.goodness(group.kind as picker.PickerKind, s) * 100)}%`,
                     }}
                   />
                 </span>
@@ -155,7 +155,7 @@ export function GalleryFoot({
           </button>
         </div>
       </div>
-      <ModeKeys keys={KEYS} />
+      <modeKit.ModeKeys keys={KEYS} />
     </div>
   );
 }
