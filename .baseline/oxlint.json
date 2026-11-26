@@ -8792,10 +8792,8 @@
   "vitest(valid-expect)": 7
  },
  "src/features/gpu/render/plan/gpuroute.ts": {
-  "eslint(curly)": 7,
   "eslint(max-depth)": 1,
-  "typescript(no-non-null-assertion)": 2,
-  "unicorn(explicit-length-check)": 1
+  "typescript(no-non-null-assertion)": 2
  },
  "src/features/gpu/sim/engine/engine.test.ts": {
   "eslint(curly)": 2,
@@ -8806,7 +8804,6 @@
   "vitest(prefer-to-contain)": 1
  },
  "src/features/gpu/sim/engine/engine.ts": {
-  "eslint(curly)": 1,
   "typescript(method-signature-style)": 4,
   "typescript(no-unsafe-type-assertion)": 2,
   "unicorn(no-array-sort)": 2
@@ -8818,10 +8815,8 @@
   "vitest(require-to-throw-message)": 2
  },
  "src/features/gpu/sim/engine/memsys.ts": {
-  "eslint(curly)": 6,
   "typescript(no-non-null-assertion)": 4,
   "typescript(strict-boolean-expressions)": 1,
-  "unicorn(explicit-length-check)": 1,
   "unicorn(no-array-sort)": 1,
   "unicorn(no-new-array)": 2
  },
@@ -8849,14 +8844,9 @@
   "vitest(prefer-strict-equal)": 4
  },
  "src/features/gpu/sim/engine/racecheck.ts": {
-  "eslint(curly)": 7,
   "typescript(consistent-type-imports)": 1,
   "typescript(no-non-null-assertion)": 3,
   "unicorn(no-array-for-each)": 1
- },
- "src/features/gpu/sim/engine/simd.ts": {
-  "eslint(curly)": 1,
-  "import(consistent-type-specifier-style)": 1
  },
  "src/features/gpu/sim/engine/warp.test.ts": {
   "eslint(curly)": 4,
@@ -8874,22 +8864,18 @@
   "vitest(prefer-strict-equal)": 7
  },
  "src/features/gpu/sim/engine/warp.ts": {
-  "eslint(curly)": 12,
   "eslint(max-classes-per-file)": 1,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 1,
   "eslint(no-multi-assign)": 3,
   "eslint(no-nested-ternary)": 2,
-  "eslint(prefer-destructuring)": 2,
-  "import(consistent-type-specifier-style)": 3,
   "typescript(no-confusing-void-expression)": 3,
   "typescript(no-non-null-assertion)": 13,
   "typescript(switch-exhaustiveness-check)": 1,
   "unicorn(no-array-for-each)": 5,
   "unicorn(no-new-array)": 2,
-  "unicorn(prefer-spread)": 1,
-  "unicorn(switch-case-braces)": 5
+  "unicorn(prefer-spread)": 1
  },
  "src/features/gpu/sim/gpu.game.test.ts": {
   "eslint(curly)": 4,
@@ -8915,10 +8901,6 @@
   "vitest(valid-expect)": 2
  },
  "src/features/gpu/sim/gpucode.ts": {
-  "eslint(curly)": 9,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 3,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(no-array-for-each)": 1,
@@ -8946,33 +8928,21 @@
   "vitest(no-conditional-in-test)": 1
  },
  "src/features/gpu/sim/gpupicture.ts": {
-  "eslint(curly)": 5,
   "eslint(default-case)": 3,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
   "eslint(max-params)": 4,
-  "eslint(prefer-destructuring)": 1,
   "typescript(consistent-return)": 3,
   "typescript(no-non-null-assertion)": 1,
-  "unicorn(numeric-separators-style)": 4,
-  "unicorn(prefer-math-trunc)": 5,
-  "unicorn(switch-case-braces)": 19
- },
- "src/features/gpu/sim/index.ts": {
-  "eslint(curly)": 1
+  "unicorn(prefer-math-trunc)": 5
  },
  "src/features/gpu/sim/isa/asm.ts": {
-  "eslint(curly)": 11,
   "eslint(default-case)": 1,
   "eslint(max-lines-per-function)": 2,
-  "eslint(prefer-named-capture-group)": 4,
-  "eslint(require-unicode-regexp)": 4,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 6,
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(catch-error-name)": 1,
-  "unicorn(no-array-for-each)": 2,
-  "unicorn(switch-case-braces)": 6
+  "unicorn(no-array-for-each)": 2
  },
  "src/features/gpu/sim/isa/isa.test.ts": {
   "eslint(curly)": 3,
@@ -8989,17 +8959,12 @@
   "vitest(prefer-to-have-length)": 1
  },
  "src/features/gpu/sim/isa/isa.ts": {
-  "eslint(curly)": 9,
   "eslint(default-case)": 3,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 1,
   "typescript(consistent-return)": 2,
   "typescript(no-non-null-assertion)": 1,
   "typescript(strict-boolean-expressions)": 2,
   "unicorn(consistent-function-scoping)": 1,
-  "unicorn(numeric-separators-style)": 3,
-  "unicorn(prefer-math-trunc)": 1,
-  "unicorn(switch-case-braces)": 20
+  "unicorn(prefer-math-trunc)": 1
  },
  "src/features/gpu/sim/isa/ref.test.ts": {
   "eslint(curly)": 1,
@@ -9019,22 +8984,16 @@
  "src/features/gpu/sim/isa/ref.ts": {
   "eslint(class-methods-use-this)": 1,
   "eslint(complexity)": 1,
-  "eslint(curly)": 26,
   "eslint(default-case)": 1,
   "eslint(max-classes-per-file)": 1,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(no-multi-assign)": 3,
   "eslint(no-nested-ternary)": 4,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 28,
   "unicorn(custom-error-definition)": 1,
-  "unicorn(numeric-separators-style)": 2,
-  "unicorn(prefer-at)": 1,
   "unicorn(prefer-math-trunc)": 5,
-  "unicorn(prefer-spread)": 4,
-  "unicorn(switch-case-braces)": 30
+  "unicorn(prefer-spread)": 4
  },
  "src/features/gpu/sim/kernels.ts": {
   "eslint(max-params)": 1
@@ -9058,20 +9017,16 @@
  },
  "src/features/gpu/sim/port.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 12,
   "eslint(default-case)": 2,
   "eslint(max-lines)": 1,
   "eslint(no-multi-assign)": 3,
   "eslint(no-negated-condition)": 1,
-  "eslint(prefer-destructuring)": 5,
-  "import(consistent-type-specifier-style)": 5,
   "typescript(no-non-null-assertion)": 3,
   "typescript(no-unsafe-assignment)": 1,
   "unicorn(catch-error-name)": 1,
   "unicorn(no-new-array)": 1,
   "unicorn(prefer-math-trunc)": 1,
-  "unicorn(prefer-spread)": 3,
-  "unicorn(switch-case-braces)": 10
+  "unicorn(prefer-spread)": 3
  },
  "src/features/gpu/sim/video.test.ts": {
   "eslint(curly)": 3,
@@ -9086,20 +9041,13 @@
  },
  "src/features/gpu/ui/gpudesc.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 3,
   "eslint(max-lines-per-function)": 1,
-  "eslint(no-implicit-coercion)": 1,
   "eslint(no-negated-condition)": 2,
   "eslint(no-nested-ternary)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "eslint(prefer-named-capture-group)": 5,
-  "eslint(require-unicode-regexp)": 4,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 7,
   "typescript(no-unsafe-type-assertion)": 1,
   "typescript(prefer-nullish-coalescing)": 1,
-  "typescript(strict-boolean-expressions)": 4,
-  "unicorn(switch-case-braces)": 23
+  "typescript(strict-boolean-expressions)": 4
  },
  "src/features/jobs/sim/gen/accelTasks.test.ts": {
   "eslint(curly)": 6,

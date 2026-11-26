@@ -18,8 +18,8 @@ import {
   GpuFaultCode,
   GpuStatus,
 } from '@/core/sim/memmap';
-import { createGpu, sameGpuConfig, type GpuCacheView, type GpuConfig, type GpuEngine, type GpuSmView } from '.';
-import { GpuFault, type GpuStep } from './isa/ref';
+import * as gpuSim from '.';
+import * as gpuref from './isa/ref';
 import type { Rate } from '@/core/sim/hw/clock';
 import type { Device } from '@/core/sim/hw/device';
 
@@ -42,12 +42,12 @@ export interface GpuView {
   /** Vector registers `regs[r][lane]` as of now; empty before the first launch of this power-on. */
   regs: number[][];
   /** The last instructions run, oldest first (at most GPU_TRACE_STEPS), kept after the launch ends. */
-  trace: GpuStep[];
+  trace: gpuref.GpuStep[];
   launches: number;
   /** Counters of the current / last launch. */
   stats: { instructions: number; idleLaneSlots: number; conflictCycles: number; cycles: number };
   /** SMs and their warps (the unpipelined unit: one of each). */
-  sms?: GpuSmView[];
+  sms?: gpuSim.GpuSmView[];
   /** Set when the last launch ended in a fault. */
   error: boolean;
   /** What a display on this card's port shows: the output region of card memory (`GPU_FRAME`), as words; empty before the first launch of this power-on. */
@@ -55,7 +55,7 @@ export interface GpuView {
   /** The kernel in card memory (words from address 0, up to the last one that is not zero), as a launch finds it; empty until the card has had one copied in. */
   code?: number[];
   /** The caches and the lines they hold (a card with an L1 / L2 only). */
-  caches?: GpuCacheView[];
+  caches?: gpuSim.GpuCacheView[];
   /** A map of card memory: for every `GPU_FILL_WORDS` words, how many are not zero. */
   fill?: number[];
 }
@@ -66,14 +66,20 @@ const GPU_FILL_WORDS = 4;
 /** How full card memory is, block by block: the words that are not zero in each `GPU_FILL_WORDS`. */
 function fillMap(mem: Uint32Array): number[] {
   const out: number[] = new Array(Math.ceil(mem.length / GPU_FILL_WORDS)).fill(0);
-  for (let k = 0; k < mem.length; k++) if (mem[k] !== 0) out[(k / GPU_FILL_WORDS) | 0]!++;
+  for (let k = 0; k < mem.length; k++) {
+    if (mem[k] !== 0) {
+      out[(k / GPU_FILL_WORDS) | 0]!++;
+    }
+  }
   return out;
 }
 
 /** The words of the kernel in card memory: the code area up to its last word that is not zero. */
 function kernelWords(mem: Uint32Array): number[] {
   let n = Math.min(GPU_CODE.words, mem.length);
-  while (n > 0 && mem[n - 1] === 0) n--;
+  while (n > 0 && mem[n - 1] === 0) {
+    n--;
+  }
   return Array.from(mem.subarray(0, n));
 }
 
@@ -83,8 +89,8 @@ export class GpuPort implements Device {
   /** Starts stopped; the game sets the rate from the installed card's (throttled) clock. */
   readonly clock: Rate = { mul: 0, div: 1 };
 
-  private cfg: GpuConfig | null = null;
-  private core: GpuEngine | null = null;
+  private cfg: gpuSim.GpuConfig | null = null;
+  private core: gpuSim.GpuEngine | null = null;
   private phase: Phase = 'idle';
   private wait = 0;
   private kernel = 0;
@@ -93,7 +99,7 @@ export class GpuPort implements Device {
   private error = false;
   private fault: number = GpuFaultCode.None;
   private lastCycles = 0;
-  private trace: GpuStep[] = [];
+  private trace: gpuref.GpuStep[] = [];
   /** Set while a launch is in flight, cleared by `takeActivity` (the game reads it for the thermal load). */
   active = false;
   /** Totals since power-on, for the stats and the tests. */
@@ -110,10 +116,12 @@ export class GpuPort implements Device {
   }
 
   /** Put a card in the slot (or take it out with null). A different card is a fresh one; the same config leaves the state alone. */
-  configure(cfg: GpuConfig | null): void {
-    if (sameGpuConfig(cfg, this.cfg)) return;
+  configure(cfg: gpuSim.GpuConfig | null): void {
+    if (gpuSim.sameGpuConfig(cfg, this.cfg)) {
+      return;
+    }
     this.cfg = cfg;
-    this.core = cfg ? createGpu(cfg) : null;
+    this.core = cfg ? gpuSim.createGpu(cfg) : null;
     this.reset();
   }
 
@@ -132,8 +140,10 @@ export class GpuPort implements Device {
 
   /** The card seen from outside, or null without one. Copies, so the snapshot never aliases the core's arrays. */
   view(): GpuView | null {
-    const core = this.core;
-    if (!core) return null;
+    const { core } = this;
+    if (!core) {
+      return null;
+    }
     return {
       lanes: core.lanes,
       banks: core.banks,
@@ -185,47 +195,55 @@ export class GpuPort implements Device {
   }
 
   read(off: number): number {
-    const core = this.core;
+    const { core } = this;
     if (off >= GPU_MEM) {
       const o = off - GPU_MEM;
       return core && o < core.mem.length * 4 ? (core.mem[o >>> 2]! >>> (8 * (o & 3))) & 0xff : 0;
     }
     let w = 0;
     switch (off & ~3) {
-      case GPU_REG.STATUS:
+      case GPU_REG.STATUS: {
         w =
           (this.phase !== 'idle' ? GpuStatus.Busy : 0) |
           (this.error ? GpuStatus.Error : 0) |
           (core ? GpuStatus.Present : 0) |
           (this.done ? GpuStatus.Done : 0);
         break;
-      case GPU_REG.KERNEL:
+      }
+      case GPU_REG.KERNEL: {
         w = this.kernel;
         break;
-      case GPU_REG.LANES:
+      }
+      case GPU_REG.LANES: {
         w = this.lanes;
         break;
-      case GPU_REG.LANES_MAX:
+      }
+      case GPU_REG.LANES_MAX: {
         w = this.cfg?.lanes ?? 0;
         break;
-      case GPU_REG.MEM_BYTES:
+      }
+      case GPU_REG.MEM_BYTES: {
         w = this.cfg?.memBytes ?? 0;
         break;
-      case GPU_REG.BANKS:
+      }
+      case GPU_REG.BANKS: {
         w = this.cfg?.banks ?? 0;
         break;
-      case GPU_REG.CYCLES:
+      }
+      case GPU_REG.CYCLES: {
         w = this.lastCycles;
         break;
-      case GPU_REG.FAULT:
+      }
+      case GPU_REG.FAULT: {
         w = this.fault;
         break;
+      }
     }
     return (w >>> (8 * (off & 3))) & 0xff;
   }
 
   write(off: number, val: number): void {
-    const core = this.core;
+    const { core } = this;
     if (off >= GPU_MEM) {
       const o = off - GPU_MEM;
       if (core && o < core.mem.length * 4) {
@@ -237,13 +255,17 @@ export class GpuPort implements Device {
     const reg = off & ~3,
       sh = 8 * (off & 3);
     const put = (old: number): number => ((old & ~(0xff << sh)) | ((val & 0xff) << sh)) >>> 0;
-    if (reg === GPU_REG.KERNEL) this.kernel = put(this.kernel);
-    else if (reg === GPU_REG.LANES) this.lanes = put(this.lanes);
-    else if (reg === GPU_REG.CMD && off === reg) this.launch(val & 0xff); // fires on the low byte, after the other registers have landed
+    if (reg === GPU_REG.KERNEL) {
+      this.kernel = put(this.kernel);
+    } else if (reg === GPU_REG.LANES) {
+      this.lanes = put(this.lanes);
+    } else if (reg === GPU_REG.CMD && off === reg) {
+      this.launch(val & 0xff); // fires on the low byte, after the other registers have landed
+    }
   }
 
   private launch(cmd: number): void {
-    const core = this.core;
+    const { core } = this;
     if (
       cmd !== 1 ||
       !core ||
@@ -266,42 +288,52 @@ export class GpuPort implements Device {
   }
 
   tick(): void {
-    const core = this.core;
-    if (!core || this.phase === 'idle') return;
+    const { core } = this;
+    if (!core || this.phase === 'idle') {
+      return;
+    }
     switch (this.phase) {
-      case 'in':
+      case 'in': {
         if (--this.wait <= 0) {
           core.reset(this.kernel, this.lanes === 0 ? core.lanes : this.lanes);
           this.phase = 'run';
         }
         break;
+      }
       case 'run': {
         try {
           const issued = core.step();
           if (issued) {
             this.trace.push(issued);
-            if (this.trace.length > GPU_TRACE_STEPS) this.trace.shift();
+            if (this.trace.length > GPU_TRACE_STEPS) {
+              this.trace.shift();
+            }
           }
         } catch (e) {
-          if (!(e instanceof GpuFault)) throw e;
+          if (!(e instanceof gpuref.GpuFault)) {
+            throw e;
+          }
           this.error = true;
           this.fault = GpuFaultCode.Kernel;
           this.finish(core);
           break;
         }
-        if (core.halted) this.finish(core);
+        if (core.halted) {
+          this.finish(core);
+        }
         break;
       }
-      case 'out':
+      case 'out': {
         if (--this.wait <= 0) {
           this.phase = 'idle';
           this.done = true;
         }
         break;
+      }
     }
   }
 
-  private finish(core: GpuEngine): void {
+  private finish(core: gpuSim.GpuEngine): void {
     this.lastCycles = core.cycles;
     this.kernelCycles += core.cycles;
     this.lastStats = {

@@ -44,14 +44,18 @@ export interface MemAccess {
 /** Distinct line numbers for byte addresses, ascending. */
 export function coalesce(addrs: readonly number[], lineWords: number): number[] {
   const seen = new Set<number>();
-  for (const a of addrs) seen.add(Math.floor(a / 4 / lineWords));
+  for (const a of addrs) {
+    seen.add(Math.floor(a / 4 / lineWords));
+  }
   return [...seen].sort((a, b) => a - b);
 }
 
 /** Lines per bank (line % banks). */
 export function arbitrate(lines: readonly number[], banks: number): number[] {
   const per = new Array<number>(banks).fill(0);
-  for (const l of lines) per[l % banks]!++;
+  for (const l of lines) {
+    per[l % banks]!++;
+  }
   return per;
 }
 
@@ -68,9 +72,12 @@ export class GpuMemSystem {
   l2Misses = 0;
 
   constructor(readonly cfg: GpuMemConfig) {
-    if (cfg.banks < 1) throw new RangeError('a memory unit needs at least one bank');
-    if (cfg.lineWords < 1 || (cfg.lineWords & (cfg.lineWords - 1)) !== 0)
+    if (cfg.banks < 1) {
+      throw new RangeError('a memory unit needs at least one bank');
+    }
+    if (cfg.lineWords < 1 || (cfg.lineWords & (cfg.lineWords - 1)) !== 0) {
       throw new RangeError('lineWords must be a power of two');
+    }
     const lineBytes = Math.max(4, cfg.lineWords * 4);
     this.l1 = Array.from({ length: cfg.sms ?? 1 }, () =>
       (cfg.l1Lines ?? 0) > 0 ? new DataCache({ lines: cfg.l1Lines!, lineBytes, missPenalty: 0 }) : null,
@@ -80,7 +87,9 @@ export class GpuMemSystem {
 
   /** Cold caches and a free L2 port, as at power-on. The counters keep counting. */
   invalidate(): void {
-    for (const c of this.l1) c?.invalidate();
+    for (const c of this.l1) {
+      c?.invalidate();
+    }
     this.l2?.invalidate();
     this.l2Free = 0;
   }
@@ -106,7 +115,9 @@ export class GpuMemSystem {
         ready += this.cfg.l1Hit ?? 1;
         l1Hits++;
       } else {
-        if (l1) this.l1Misses++;
+        if (l1) {
+          this.l1Misses++;
+        }
         if (this.l2) {
           const start = Math.max(now + round, this.l2Free);
           this.l2Free = start + 1;
@@ -130,7 +141,7 @@ export class GpuMemSystem {
     this.l1Hits += l1Hits;
     this.l2Hits += l2Hits;
     this.l2Misses += misses;
-    return { lines, perBank, rounds, latency: lines.length ? latency + 1 : 0, l1Hits, l2Hits, misses };
+    return { lines, perBank, rounds, latency: lines.length > 0 ? latency + 1 : 0, l1Hits, l2Hits, misses };
   }
 
   /** A store: write-through, no fill. It occupies the memory unit for its rounds and leaves nothing to wait for. */

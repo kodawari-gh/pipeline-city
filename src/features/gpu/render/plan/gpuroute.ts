@@ -18,20 +18,26 @@ export function pathBetween<L extends { from: string; to: string }>(
   from: string,
   to: string,
 ): L[] | null {
-  if (from === to) return [];
+  if (from === to) {
+    return [];
+  }
   const prev = new Map<string, L>(),
     seen = new Set<string>([from]);
   let frontier = [from];
-  while (frontier.length) {
+  while (frontier.length > 0) {
     const next: string[] = [];
     for (const at of frontier) {
       for (const l of links) {
-        if (l.from !== at || seen.has(l.to)) continue;
+        if (l.from !== at || seen.has(l.to)) {
+          continue;
+        }
         seen.add(l.to);
         prev.set(l.to, l);
         if (l.to === to) {
           const out: L[] = [];
-          for (let k = to; k !== from; k = prev.get(k)!.from) out.unshift(prev.get(k)!);
+          for (let k = to; k !== from; k = prev.get(k)!.from) {
+            out.unshift(prev.get(k)!);
+          }
           return out;
         }
         next.push(l.to);
@@ -61,17 +67,25 @@ export function gpuRoute(plan: Pick<GpuPlan, 'input' | 'links'>, step: Pick<GpuS
     lanes = `${p}lanes`,
     out: Hop[] = [];
   const add = (a: string, b: string) => {
-    for (const link of pathBetween(plan.links, a, b) ?? []) out.push({ link, reverse: false });
+    for (const link of pathBetween(plan.links, a, b) ?? []) {
+      out.push({ link, reverse: false });
+    }
   };
   add(entryOf(plan, sm), regs);
-  if (step.kind === 'sys' || step.kind === 'br') return out; // the front end alone: a halt, a jump
+  if (step.kind === 'sys' || step.kind === 'br') {
+    return out; // the front end alone: a halt, a jump
+  }
   add(regs, lanes);
   if (step.kind === 'mask') {
     // a mask set reads two registers, compares them in the lanes and writes the mask (the link runs from the mask to the lanes: against it)
     const m = plan.links.find((l) => l.id === `${p}mask-lanes`);
-    if (m) out.push({ link: m, reverse: true });
+    if (m) {
+      out.push({ link: m, reverse: true });
+    }
     return out;
   }
-  if (step.kind === 'ld' || step.kind === 'st') add(lanes, 'dram');
+  if (step.kind === 'ld' || step.kind === 'st') {
+    add(lanes, 'dram');
+  }
   return out;
 }
