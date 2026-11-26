@@ -1614,6 +1614,7 @@
   "typescript(no-unsafe-type-assertion)": 3,
   "typescript(strict-boolean-expressions)": 5,
   "typescript(strict-void-return)": 1,
+  "unicorn(numeric-separators-style)": 4,
   "unicorn(prefer-dom-node-append)": 1
  },
  "src/core/sim/engine.ts": {

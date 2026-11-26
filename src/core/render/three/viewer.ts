@@ -162,9 +162,6 @@ function disposeTree(o: threeTypes.Object3D): void {
 
 /** The studio a part is shown in (the showcase, and the stills of the shop's tiles): the room's reflections, a warm key light with its shadow, a cool rim, the floor disc. */
 function studio(antialias: boolean, still = false) {
-  const white = Number('0xffffff'),
-    keyColour = Number('0xfff0dc'),
-    floorColour = Number('0x1c1c1e');
   const renderer = new WebGLRenderer({ antialias, alpha: true, preserveDrawingBuffer: still }); // (the multisampling is fixed at creation)
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
@@ -175,9 +172,9 @@ function studio(antialias: boolean, still = false) {
     pmrem = new PMREMGenerator(renderer);
   scene.environment = studioEnv(pmrem);
   scene.environmentIntensity = 0.55;
-  scene.add(new AmbientLight(white, 0.25));
-  const key = new DirectionalLight(keyColour, 2.4),
-    rim = new DirectionalLight(white, 1.2);
+  scene.add(new AmbientLight(0xffffff, 0.25));
+  const key = new DirectionalLight(0xfff0dc, 2.4),
+    rim = new DirectionalLight(0xffffff, 1.2);
   key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024);
   scene.add(key, key.target, rim, rim.target);
@@ -186,7 +183,7 @@ function studio(antialias: boolean, still = false) {
   const floor = new Mesh(
     new CircleGeometry(1, SEG.fineDisc).rotateX(-Math.PI / 2),
     new MeshStandardMaterial({
-      color: new Color(floorColour),
+      color: new Color(0x1c1c1e),
       roughness: 0.55,
       metalness: 0.25,
       ...(still ? {} : { transparent: true, alphaMap: floorFade() }),
