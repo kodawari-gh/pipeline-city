@@ -34,11 +34,13 @@ export function BuildCard({
   const dev = stage.board.devices.find((d) => d.id === id);
   const spec = dev ? DEVICE_SPECS[dev.spec] : undefined;
   const stats = useMemo(() => (dev ? statsOf(dev.spec).slice(0, 4) : []), [dev?.spec]);
-  const busy = stage.status.value.busy;
+  const { busy } = stage.status.value;
 
   useLayoutEffect(() => {
     const el = shell.current;
-    if (!el || !dev) return;
+    if (!el || !dev) {
+      return;
+    }
     const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
       gap = rem * 0.9;
     const vw = window.innerWidth,
@@ -71,7 +73,9 @@ export function BuildCard({
     el.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
   });
 
-  if (!dev || !spec) return null;
+  if (!dev || !spec) {
+    return null;
+  }
   const steps = stage.plan(devNode(id)).length;
   return (
     <aside class="card picker bld-card" ref={shell} data-side="dock" aria-label={spec.name}>

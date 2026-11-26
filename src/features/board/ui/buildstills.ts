@@ -11,7 +11,9 @@ let asked = false;
 
 /** Load the list of the baked pictures (once). */
 export function loadBuildStills(): void {
-  if (asked || typeof document === 'undefined') return;
+  if (asked || typeof document === 'undefined') {
+    return;
+  }
   asked = true;
   void fetch(`${DIR}manifest.json`)
     .then(async (r) => (r.ok ? ((await r.json()) as { stills?: Record<string, string> }).stills : null))

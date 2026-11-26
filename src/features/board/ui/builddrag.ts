@@ -19,17 +19,17 @@ const SLOP = 6;
 /** Is a client point inside an element's box? */
 const within = (el: HTMLElement | null, x: number, y: number): boolean => {
   const r = el?.getBoundingClientRect();
-  return !!r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  return r !== undefined && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
 };
 
 /** Is a client point over the stage itself (the stage fills the screen; the panels float over it and are not the stage)? */
 const onStage = (el: HTMLElement | null, x: number, y: number): boolean => {
   const hit = document.elementFromPoint(x, y);
-  return !!el && !!hit && el.contains(hit);
+  return el !== null && hit !== null && el.contains(hit);
 };
 
 /** A catalogue id that has no socket on the board: a case or a board, or an OS, a router or an internet plan (fitted to the room). */
-const isShell = (item: string): boolean => /^(case|board)\d$/.test(item) || netKindOf(item) !== null;
+const isShell = (item: string): boolean => /^(?:case|board)\d$/u.test(item) || netKindOf(item) !== null;
 
 /**
  * The drag. `begin(src, e, click)` takes a press: a move past the slop is a drag (the ghost follows; a shelf part opens the side panel and outlines
@@ -52,20 +52,41 @@ export function useBuildDrag(
 
   const drop = (src: Source, x: number, y: number): void => {
     const st = stage.current;
-    if (!st) return;
-    if (src.from === 'machine') {
-      if (inBin(x, y)) void st.remove(devNode(src.item));
-      else if (onStage(host.current, x, y)) note('Drop it on the shelf to take it out', x, y);
+    if (!st) {
       return;
     }
-    if (!onStage(host.current, x, y)) return;
+    if (src.from === 'machine') {
+      if (inBin(x, y)) {
+        void st.remove(devNode(src.item));
+      } else if (onStage(host.current, x, y)) {
+        note('Drop it on the shelf to take it out', x, y);
+      }
+      return;
+    }
+    if (!onStage(host.current, x, y)) {
+      return;
+    }
     // (a bare case has no socket at all: the stage's own refusal says why, on the hint line)
     if (st.dropTarget(src.item, x, y) === null) {
-      if (st.bare.peek()) void st.fit(src.item);
-      else note(`${src.name} fits no socket in this machine`, x, y);
+      if (st.bare.peek()) {
+        void st.fit(src.item);
+      } else {
+        note(`${src.name} fits no socket in this machine`, x, y);
+      }
       return;
     }
     void st.fit(src.item, st.slotAt(x, y) ?? undefined);
+  };
+
+  /** A press that moved past the slop becomes a drag: the part leaves its place and is carried. */
+  const pickUp = (src: Source): void => {
+    const st = stage.current;
+    playCue('ui_pickup');
+    st?.carry(src.from === 'shelf' ? { item: src.item } : { device: src.item });
+    // a shelf part can only land on a socket with the case open
+    if (src.from === 'shelf' && st && !isShell(src.item) && !st.bare.peek() && !st.insideOpen) {
+      st.openInside(true);
+    }
   };
 
   const begin = (src: Source, e: PointerEvent, click: () => void): void => {
@@ -76,13 +97,12 @@ export function useBuildDrag(
     const move = (m: PointerEvent) => {
       const st = stage.current;
       if (!moving) {
-        if (Math.hypot(m.clientX - sx, m.clientY - sy) < SLOP) return;
+        if (Math.hypot(m.clientX - sx, m.clientY - sy) < SLOP) {
+          return;
+        }
         moving = true;
         air.current = true;
-        playCue('ui_pickup');
-        st?.carry(src.from === 'shelf' ? { item: src.item } : { device: src.item });
-        // a shelf part can only land on a socket with the case open
-        if (src.from === 'shelf' && st && !isShell(src.item) && !st.bare.peek() && !st.insideOpen) st.openInside(true);
+        pickUp(src);
       }
       const over = where(m.clientX, m.clientY);
       const target =
@@ -91,26 +111,30 @@ export function useBuildDrag(
       setDrag({ ...src, x: m.clientX, y: m.clientY, over, target });
     };
     const end = (u: PointerEvent | null) => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      window.removeEventListener('pointercancel', cancel);
+      globalThis.removeEventListener('pointermove', move);
+      globalThis.removeEventListener('pointerup', up);
+      globalThis.removeEventListener('pointercancel', cancel);
       stop.current = () => {};
       air.current = false;
       stage.current?.showTarget(null);
       stage.current?.carry(null);
       setDrag(null);
       if (!moving) {
-        if (u) click();
+        if (u) {
+          click();
+        }
         return;
       }
-      if (u) drop(src, u.clientX, u.clientY);
+      if (u) {
+        drop(src, u.clientX, u.clientY);
+      }
     };
     const up = (u: PointerEvent) => end(u);
     const cancel = () => end(null);
     stop.current = () => end(null);
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-    window.addEventListener('pointercancel', cancel);
+    globalThis.addEventListener('pointermove', move);
+    globalThis.addEventListener('pointerup', up);
+    globalThis.addEventListener('pointercancel', cancel);
   };
 
   /** Let go of a drag in the air without a drop (Escape, a close). */

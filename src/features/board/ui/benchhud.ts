@@ -1,5 +1,6 @@
 // The numbers and words of the benchmark screen, pure (BuildBench.tsx and the right panel's card draw them). The scores come from `sandbox/sim/pcbench.ts`.
-import { overallOf, type BenchGroup, type TaskResult } from '@/features/sandbox/sim/benchtasks';
+import { overallOf } from '@/features/sandbox/sim/benchtasks';
+import type * as bench from '@/features/sandbox/sim/benchtasks';
 
 /** A score of this is par: what the reference machine built for the task gets. A bar is full at twice of it. */
 const PAR = 1000;
@@ -10,7 +11,9 @@ export const barPct = (score: number | null | undefined): number =>
 
 /** How long a run took: seconds up to two minutes, then minutes. */
 export function secondsText(s: number): string {
-  if (s < 120) return `${s} s`;
+  if (s < 120) {
+    return `${s} s`;
+  }
   const m = Math.floor(s / 60),
     r = s % 60;
   return r === 0 ? `${m} min` : `${m} min ${r} s`;
@@ -18,7 +21,9 @@ export function secondsText(s: number): string {
 
 /** The change from a score on the machine before to the score now, in whole percent; null when either has none. */
 export function deltaPct(now: number | null | undefined, was: number | null | undefined): number | null {
-  if (!now || !was) return null;
+  if (!now || !was) {
+    return null;
+  }
   return Math.round(((now - was) / was) * 100);
 }
 
@@ -30,8 +35,8 @@ export const whyShort = (why: string): string => why.split(': ')[0]!;
 
 /** The overall score of the results in `now`, and its change from the same tasks in `was` (the machine scored before); `n` is how many tasks count. */
 export function overallOfRuns(
-  now: Readonly<Record<string, TaskResult>>,
-  was: Readonly<Record<string, TaskResult>>,
+  now: Readonly<Record<string, bench.TaskResult>>,
+  was: Readonly<Record<string, bench.TaskResult>>,
 ): { overall: number; n: number; delta: number | null } {
   const mine = Object.values(now).filter((r) => r.score !== null);
   const both = mine.filter((r) => was[r.id]?.score);
@@ -43,5 +48,5 @@ export function overallOfRuns(
 }
 
 /** The mean score of a group's tasks that have one (0 when none has). */
-export const groupScore = (g: BenchGroup, now: Readonly<Record<string, TaskResult>>): number =>
-  overallOf(g.tasks.map((t) => now[t.id]).filter((r): r is TaskResult => !!r));
+export const groupScore = (g: bench.BenchGroup, now: Readonly<Record<string, bench.TaskResult>>): number =>
+  overallOf(g.tasks.map((t) => now[t.id]).filter((r): r is bench.TaskResult => Boolean(r)));

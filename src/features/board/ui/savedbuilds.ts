@@ -13,7 +13,9 @@ export function savedBuilds(): SavedBuild[] {
       ? raw
           .filter(
             (b): b is SavedBuild =>
-              !!b && typeof (b as SavedBuild).name === 'string' && Array.isArray((b as SavedBuild).layout?.parts),
+              Boolean(b) &&
+              typeof (b as SavedBuild).name === 'string' &&
+              Array.isArray((b as SavedBuild).layout?.parts),
           )
           .map(clean)
       : [];

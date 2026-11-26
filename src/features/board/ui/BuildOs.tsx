@@ -1,12 +1,14 @@
 import { useMemo, useRef, useState } from 'preact/hooks';
 import { Icon } from '@/core/ui/kit/Icons';
-import { OS_SPECS, programSlotsOn, threadsOn, type OsSpec } from '@/features/os/sim/specs';
+import { OS_SPECS, programSlotsOn, threadsOn } from '@/features/os/sim/specs';
+import type * as osSpecs from '@/features/os/sim/specs';
 import { fmtBytes, resourceRows } from '@/features/os/ui/osui';
-import { OS_TABS, OsBody, sampleHistory, type OsActions, type OsHistory, type OsTab } from '@/features/os/ui/OsViews';
+import { OS_TABS, OsBody, sampleHistory } from '@/features/os/ui/OsViews';
+import type * as osViews from '@/features/os/ui/OsViews';
 import { RunControls } from './BuildBars';
 
 type Stage = import('../render/three/buildmode3d').BuildStage;
-type Tab = 'choose' | Exclude<OsTab, 'apps'>;
+type Tab = 'choose' | Exclude<osViews.OsTab, 'apps'>;
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'choose', label: 'Choose the OS' },
@@ -14,7 +16,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 /** The cores an OS puts to work on this CPU: the resident OS one, the paged OS up to two hardware cores, the others every logical core. */
-const coresUsed = (o: OsSpec, hardware: number, logical: number): number =>
+const coresUsed = (o: osSpecs.OsSpec, hardware: number, logical: number): number =>
   o.tier === 1 ? 1 : o.tier === 2 ? Math.min(2, hardware) : logical;
 
 /**
@@ -27,13 +29,13 @@ export function BuildOs({ stage, onClose, onBench }: { stage: Stage; onClose: ()
   void stage.state.value;
   const st = stage.status.value,
     s = stage.snapshot,
-    busy = st.busy,
+    { busy } = st,
     refusal = stage.refusal.value?.text ?? null;
   const [tab, setTab] = useState<Tab>(() => (s.os ? 'monitor' : 'choose'));
-  const history = useRef<OsHistory>(new Map());
+  const history = useRef<osViews.OsHistory>(new Map());
   // the graphs take a sample for each simulated second that went by (a tick is a second at 1x)
   const sampled = useRef(stage.simulated);
-  const act = useMemo<OsActions>(
+  const act = useMemo<osViews.OsActions>(
     () => ({
       formatDrive: (id) => stage.osDo('Cannot format the drive', (g) => g.formatDrive(id)),
       setSpoolAlloc: (id, n) => stage.osDo('Cannot set the spool', (g) => g.setSpoolAlloc(id, n)),

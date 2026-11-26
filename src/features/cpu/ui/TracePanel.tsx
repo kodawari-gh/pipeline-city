@@ -10,13 +10,14 @@ import { CoreRateTracker } from '../render/core/corestats';
 import { tileModels } from '../render/core/coretiles';
 import { gpuListing } from '../../gpu/sim/gpucode';
 import { Icon } from '@/core/ui/kit/Icons';
-import { gpuLines, TraceBuffer, type GpuGroup, type TraceGroup } from './trace';
+import { gpuLines, TraceBuffer } from './trace';
+import type * as traceTypes from './trace';
 
 const toggleTrace = () => {
   traceOpen.value = !traceOpen.value;
 };
 
-const GROUPS: { id: TraceGroup; label: string; title: string }[] = [
+const GROUPS: { id: traceTypes.TraceGroup; label: string; title: string }[] = [
   { id: 'os', label: 'OS', title: 'Interrupts, returns and address-space switches' },
   { id: 'tlb', label: 'TLB', title: 'Translations: hits, walks and page faults' },
   { id: 'mem', label: 'Mem', title: 'Loads and stores' },
@@ -26,7 +27,7 @@ const GROUPS: { id: TraceGroup; label: string; title: string }[] = [
   { id: 'pred', label: 'Pred', title: 'Branch predictor updates' },
 ];
 
-const GPU_GROUPS: { id: GpuGroup; label: string; title: string }[] = [
+const GPU_GROUPS: { id: traceTypes.GpuGroup; label: string; title: string }[] = [
   { id: 'launch', label: 'Launch', title: 'The launch and the end of the kernel' },
   { id: 'mask', label: 'Mask', title: 'Mask changes and branches' },
   { id: 'mem', label: 'Mem', title: 'Loads and stores, with their bank loads' },
@@ -37,29 +38,40 @@ const GPU_GROUPS: { id: GpuGroup; label: string; title: string }[] = [
 const buffer = new TraceBuffer(500);
 /** Per-core rates between the snapshots (a render without a new snapshot leaves them as they are). */
 const coreRates = new CoreRateTracker();
-const gpuShown = signal<Set<GpuGroup>>(new Set<GpuGroup>(['launch', 'mask', 'mem', 'reg', 'sched']));
+const gpuShown = signal<Set<traceTypes.GpuGroup>>(
+  new Set<traceTypes.GpuGroup>(['launch', 'mask', 'mem', 'reg', 'sched']),
+);
 /** The card's side shows the kernel in its memory instead of the steps. */
 const kernelShown = signal(false);
-const shown = signal<Set<TraceGroup>>(new Set<TraceGroup>(['os', 'tlb', 'dram']));
+const shown = signal<Set<traceTypes.TraceGroup>>(new Set<traceTypes.TraceGroup>(['os', 'tlb', 'dram']));
 const rev = signal(0);
 
 /** Pause, then run the machine (the sim only steps a paused game). */
 const stepBy = (cycles: number) => {
-  if (speed.value !== 0) setSpeed(0);
+  if (speed.value !== 0) {
+    setSpeed(0);
+  }
   scrubCursor.value = null;
   const t = scrubTarget.peek();
-  if (t === 'cpu') stepCycles(cycles);
-  else stepGpu(t.slice(4), cycles);
+  if (t === 'cpu') {
+    stepCycles(cycles);
+  } else {
+    stepGpu(t.slice(4), cycles);
+  }
 };
 const stepOneTick = () => {
-  if (speed.value !== 0) setSpeed(0);
+  if (speed.value !== 0) {
+    setSpeed(0);
+  }
   scrubCursor.value = null;
   stepTick();
 };
 /** Move the paused die to a cycle of its history (clamped to what it holds). */
 const goTo = (c: number) => {
   const r = scrubRange.peek();
-  if (!r) return;
+  if (!r) {
+    return;
+  }
   scrubCursor.value = Math.max(r.lo, Math.min(r.hi, Math.round(c)));
 };
 
@@ -68,22 +80,32 @@ export function TracePanel() {
   const box = useRef<HTMLDivElement>(null);
   const events = s?.pipe?.stored?.events;
   useEffect(() => {
-    if (!traceOpen.value) return;
+    if (!traceOpen.value) {
+      return;
+    }
     if (!events) {
       buffer.clear();
       rev.value++;
       return;
     }
-    if (buffer.add(events)) rev.value++;
+    if (buffer.add(events)) {
+      rev.value++;
+    }
   }, [events, traceOpen.value]);
   useEffect(() => {
     const e = box.current;
-    if (e) e.scrollTop = e.scrollHeight;
+    if (e) {
+      e.scrollTop = e.scrollHeight;
+    }
   }, [rev.value, traceOpen.value]);
   useEffect(() => {
-    if (speed.value !== 0) scrubCursor.value = null;
+    if (speed.value !== 0) {
+      scrubCursor.value = null;
+    }
   }, [speed.value]); // running again: follow the machine
-  if (!traceOpen.value) return null;
+  if (!traceOpen.value) {
+    return null;
+  }
   const on = shown.value;
   const range = scrubRange.value,
     at = scrubShown.value,
@@ -99,21 +121,29 @@ export function TracePanel() {
   const cards = s?.gpus ?? [],
     target = scrubTarget.value,
     card = target === 'cpu' ? undefined : cards.find((c) => `gpu:${c.slot}` === target);
-  if (target !== 'cpu' && !card && cards.length === 0) selectScrub('cpu'); // the card is gone
+  if (target !== 'cpu' && !card && cards.length === 0) {
+    selectScrub('cpu');
+  } // the card is gone
   const gOn = gpuShown.value;
   const gLines = card ? gpuLines(card.trace, card.launches).filter((l) => gOn.has(l.group)) : [];
   const lines = buffer.lines.filter((l) => on.has(l.group));
   const kernel = card && kernelShown.value ? gpuListing(card.code ?? []) : [];
-  const gToggle = (g: GpuGroup) => {
+  const gToggle = (g: traceTypes.GpuGroup) => {
     const n = new Set(gOn);
-    if (n.has(g)) n.delete(g);
-    else n.add(g);
+    if (n.has(g)) {
+      n.delete(g);
+    } else {
+      n.add(g);
+    }
     gpuShown.value = n;
   };
-  const toggle = (g: TraceGroup) => {
+  const toggle = (g: traceTypes.TraceGroup) => {
     const n = new Set(on);
-    if (n.has(g)) n.delete(g);
-    else n.add(g);
+    if (n.has(g)) {
+      n.delete(g);
+    } else {
+      n.add(g);
+    }
     shown.value = n;
   };
   return (
