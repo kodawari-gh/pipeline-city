@@ -4,10 +4,13 @@
 import { Group } from 'three';
 import type { RectLike } from '@/core/render/three/geometry';
 import { DIE_FILL } from './chipdie3d';
-import { mirror, nicChip, type DieFloor, type NicChip } from './nicchip3d';
-import { accelCopper, accelLanes, POUR_CLEAR, type AccelCopper } from './accelcopper';
+import { mirror, nicChip } from './nicchip3d';
+import type * as nicchip3dTypes from './nicchip3d';
+import { accelCopper, accelLanes, POUR_CLEAR } from './accelcopper';
+import type * as accelcopperTypes from './accelcopper';
 import type { NicLanes } from './nicflow';
-import { inductor, maskTop, MM, passiveRow, passives, type Passive } from './pcbkit3d';
+import { inductor, maskTop, MM, passiveRow, passives } from './pcbkit3d';
+import type * as pcbkit3dTypes from './pcbkit3d';
 import { CU } from './niccopper';
 
 export type AccelPart = 'core' | 'mem';
@@ -29,7 +32,7 @@ const MARK: Record<string, readonly string[]> = {
 interface AccelDie {
   part: AccelPart;
   /** The chip as `nicChip` built it (its rectangle in the mirrored frame). */
-  chip: NicChip;
+  chip: nicchip3dTypes.NicChip;
   /** The die's rectangle in layout (y down), the plan rectangle its floorplan covers (board space, as the live layer draws) and the face to put the live layer on. */
   rect: RectLike;
   plan: RectLike;
@@ -38,9 +41,9 @@ interface AccelDie {
 export interface AccelOut {
   dies: AccelDie[];
   /** Where the live layer of a die goes: the face (`DieFloor` made it) and its depth. */
-  floors: { part: AccelPart; root: NicChip['die'] }[];
+  floors: { part: AccelPart; root: nicchip3dTypes.NicChip['die'] }[];
   /** The PCB's copper, painted under the mask, and its lit runs (`accelLanes`: the slot's receive lines, and the memory bus). */
-  copper: AccelCopper;
+  copper: accelcopperTypes.AccelCopper;
   lanes: NicLanes;
   /** The group the packages and the copper stand in (layout y negated): the lit copper's plane goes in it. */
   top: Group;
@@ -55,7 +58,7 @@ export interface AccelSpec {
   x1: number;
   /** The plan rectangles of the two dies (board space) and the floor (the die's art in a frame) for each. */
   plans: Record<AccelPart, RectLike>;
-  floor: (part: AccelPart) => DieFloor;
+  floor: (part: AccelPart) => nicchip3dTypes.DieFloor;
   /** The slot (its band in the shared drawing of the lit copper), the finger tab (layout x of its bracket end, its length), the slot's line, the PCB's face (layout) and its mask's colours. */
   slot: number;
   tab: { x: number; w: number };
@@ -89,7 +92,7 @@ export function accelParts(g: Group, s: AccelSpec, Z: number): AccelOut {
     ph = 5 * MM,
     rows = [s.at.y - 4 * MM, s.at.y + 4 * MM],
     coils: RectLike[] = [];
-  for (const y of rows)
+  for (const y of rows) {
     for (let k = 0; k < 3; k++) {
       const x = west - k * 7 * MM;
       if (x - ph > s.x0 + 6 * MM) {
@@ -98,12 +101,14 @@ export function accelParts(g: Group, s: AccelSpec, Z: number): AccelOut {
         inductor(top, r, Z, 2 * MM, k % 2 ? '1R0' : 'R47');
       }
     }
-  const caps: Passive[] = [];
+  }
+  const caps: pcbkit3dTypes.Passive[] = [];
   const row = (d: AccelDie, n: number) => {
     const r = d.rect,
       step = 1.6 * MM;
-    for (const y of [r.y - 2.4 * MM, r.y + r.h + 2.4 * MM])
+    for (const y of [r.y - 2.4 * MM, r.y + r.h + 2.4 * MM]) {
       caps.push(...passiveRow(r.x + (r.w - (n - 1) * step) / 2, y, n, step, '0603', 'cap'));
+    }
   };
   row(core, Math.max(4, Math.floor(core.rect.w / (1.6 * MM)) - 2));
   row(mem, Math.max(3, Math.floor(mem.rect.w / (1.6 * MM)) - 2));

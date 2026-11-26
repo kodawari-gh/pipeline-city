@@ -19,10 +19,16 @@ export function busesOf(hops: readonly BusHop[]): Map<Bus, 1 | -1> {
   const out = new Map<Bus, 1 | -1>();
   for (const h of hops) {
     const flip = h.reverse ? -1 : 1;
-    if (HOST.has(h.link.from)) out.set('host', flip as 1 | -1);
-    else if (HOST.has(h.link.to)) out.set('host', -flip as 1 | -1);
-    if (MEM.has(h.link.to)) out.set('mem', flip as 1 | -1);
-    else if (MEM.has(h.link.from)) out.set('mem', -flip as 1 | -1);
+    if (HOST.has(h.link.from)) {
+      out.set('host', flip as 1 | -1);
+    } else if (HOST.has(h.link.to)) {
+      out.set('host', -flip as 1 | -1);
+    }
+    if (MEM.has(h.link.to)) {
+      out.set('mem', flip as 1 | -1);
+    } else if (MEM.has(h.link.from)) {
+      out.set('mem', -flip as 1 | -1);
+    }
   }
   return out;
 }

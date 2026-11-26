@@ -10,18 +10,20 @@ import {
   GraphicsContextRenderData,
   Matrix,
   TexturePool,
-  type Renderer,
 } from 'pixi.js';
+import type * as pixiTypes from 'pixi.js';
 import type { Rect } from '@/core/render/three/artlod';
 import { collectGradients } from '@/core/render/ink';
 import { initThumbs } from '../thumbs';
 
-let renderer: Renderer | null = null;
+let renderer: pixiTypes.Renderer | null = null;
 let starting = false;
 
 /** Start the offscreen renderer (once). Bakes return null until it is ready (and always without a document: the tests in Node). */
 export function startBaker(): void {
-  if (renderer || starting || typeof document === 'undefined') return;
+  if (renderer || starting || typeof document === 'undefined') {
+    return;
+  }
   starting = true;
   void autoDetectRenderer({ preference: 'webgl', width: 64, height: 64, backgroundAlpha: 0, antialias: true }).then(
     (r) => {
@@ -32,7 +34,7 @@ export function startBaker(): void {
 }
 
 /** The offscreen renderer, once it has started (the live board, `boardlive3d.ts`, builds its Pixi objects on it). */
-export const bakeRenderer = (): Renderer | null => renderer;
+export const bakeRenderer = (): pixiTypes.Renderer | null => renderer;
 
 /**
  * Frees what Pixi keeps for reuse after the art is destroyed (PERF12): a big drawing's render data keeps its own batcher, whose buffers grew to
@@ -48,8 +50,12 @@ export function freeBakePools(): void {
 /** A Text draws at its own resolution: raise it to the bake's, so the names stay sharp when the texture is dense. */
 function sharpen(node: Container, res: number): void {
   const n = node as unknown as { text?: unknown; resolution?: number };
-  if (typeof n.text === 'string' && n.resolution !== undefined && n.resolution < res) n.resolution = res;
-  for (const ch of node.children) sharpen(ch, res);
+  if (typeof n.text === 'string' && n.resolution !== undefined && n.resolution < res) {
+    n.resolution = res;
+  }
+  for (const ch of node.children) {
+    sharpen(ch, res);
+  }
 }
 
 /** A live drawing's canvas sizes go up in steps of this (pixels), so a zoom does not reallocate it every frame. */
@@ -58,8 +64,10 @@ const LIVE_AT = new Matrix(),
   BAKE_AT = new Matrix();
 
 /** Grow the renderer's canvas to hold `w` x `h`. It never shrinks: the bakes and the live faces share it, and each resize reallocates it. */
-function fit(r: Renderer, w: number, h: number): void {
-  if (r.width < w || r.height < h) r.resize(Math.max(r.width, w), Math.max(r.height, h), 1);
+function fit(r: pixiTypes.Renderer, w: number, h: number): void {
+  if (r.width < w || r.height < h) {
+    r.resize(Math.max(r.width, w), Math.max(r.height, h), 1);
+  }
 }
 
 /**
@@ -73,7 +81,9 @@ export function drawLive(
   px: number,
   out: HTMLCanvasElement,
 ): { w: number; h: number } | null {
-  if (!renderer) return null;
+  if (!renderer) {
+    return null;
+  }
   const w = Math.max(1, Math.ceil(frame.w * px)),
     h = Math.max(1, Math.ceil(frame.h * px));
   const W = Math.ceil(w / LIVE_STEP) * LIVE_STEP,
@@ -91,7 +101,9 @@ export function drawLive(
     out.height = H;
   }
   const g = out.getContext('2d');
-  if (!g) return null;
+  if (!g) {
+    return null;
+  }
   g.clearRect(0, 0, W, H);
   g.drawImage(renderer.canvas as HTMLCanvasElement, 0, 0, W, H, 0, 0, W, H);
   return { w, h };
@@ -117,7 +129,9 @@ export class ArtBaker {
    * and waits for the GPU to finish, which stalled a flight for a second.
    */
   readonly bake = (frame: Rect, px: number): HTMLCanvasElement | null => {
-    if (!renderer || this.art.destroyed) return null;
+    if (!renderer || this.art.destroyed) {
+      return null;
+    }
     sharpen(this.art, Math.min(6, Math.max(1, px)));
     const w = Math.max(1, Math.round(frame.w * px)),
       h = Math.max(1, Math.round(frame.h * px)),
@@ -142,9 +156,13 @@ export class ArtBaker {
    * renderer kept every context it had drawn, about 50 MB per closed Build my PC (PERF12). The textures stay: the art may share them.
    */
   dispose(): void {
-    if (!this.art.destroyed) this.art.destroy({ children: true, context: true });
+    if (!this.art.destroyed) {
+      this.art.destroy({ children: true, context: true });
+    }
     // (each gradient's texture is a canvas on the GPU: it goes with the art that drew it, once)
-    for (const g of this.gradients) g.destroy();
+    for (const g of this.gradients) {
+      g.destroy();
+    }
     this.gradients = [];
   }
 }
