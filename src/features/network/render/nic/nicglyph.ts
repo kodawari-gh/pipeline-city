@@ -1,7 +1,7 @@
 import type { Graphics } from 'pixi.js';
 import { NIC_RX_SLOTS, NIC_TX_SLOTS } from '@/core/sim/memmap';
 import type { Theme } from '@/core/render/theme';
-import { glyphKit, type Put } from '../../../cpu/render/die/blockart';
+import * as blockart from '../../../cpu/render/die/blockart';
 import { STRETCH } from '../jackleds';
 import { fmtFrames, fmtPct, fmtSpeed } from '../plan/netmeter';
 import type { Rect } from '../plan/netplan';
@@ -18,7 +18,9 @@ export const NIC_GLYPH_KINDS = new Set<NicBlock['kind']>(['phy', 'mac', 'stats',
 
 /** The area a symbol may use: the block under its name, or null when the block is too small. */
 export function nicGlyphArea(b: Pick<NicBlock, 'kind' | 'rect'>): Rect | null {
-  if (!NIC_GLYPH_KINDS.has(b.kind)) return null;
+  if (!NIC_GLYPH_KINDS.has(b.kind)) {
+    return null;
+  }
   const r = b.rect,
     head = r.h >= 70 ? 44 : r.h * 0.55;
   const a = { x: r.x + 8, y: r.y + head, w: r.w - 16, h: r.y + r.h - 6 - (r.y + head) };
@@ -75,7 +77,7 @@ export function phyGeom(a: Rect, pairs: number = PAIRS.length, names: readonly s
 export function macGeom(a: Rect) {
   const total = FRAME_FIELDS.reduce((s, f) => s + f[1], 0),
     fh = Math.min(30, a.h * 0.3);
-  let x = a.x;
+  let { x } = a;
   const fields = FRAME_FIELDS.map((f) => {
     const w = (a.w * f[1]) / total,
       r = R(x, a.y + 2, w - 1.5, fh);
@@ -203,10 +205,12 @@ export const tempAt = (c: number, damage: number): number =>
 // ---------------------------------------------------------------- the static symbols
 
 /** Draw the symbol of block `b` into `g`; `put` adds a label. `input` is the plan's. */
-export function nicGlyph(g: Graphics, T: Theme, b: NicBlock, c: string, put: Put, input: NicPlanInput): void {
+export function nicGlyph(g: Graphics, T: Theme, b: NicBlock, c: string, put: blockart.Put, input: NicPlanInput): void {
   const a = nicGlyphArea(b);
-  if (!a) return;
-  const kit = glyphKit(g, T, c, put),
+  if (!a) {
+    return;
+  }
+  const kit = blockart.glyphKit(g, T, c, put),
     { solid, soft, line, rect, stub } = kit;
   const lab = (t: string, lx: number, ly: number, size = LAB) => put(t, lx + (t.length * size * 0.6) / 2, ly, size);
   const outline = (r: Rect) => {
@@ -225,7 +229,9 @@ export function nicGlyph(g: Graphics, T: Theme, b: NicBlock, c: string, put: Put
           rect(r.x, r.y, r.w, r.h, j === 1 ? solid : soft);
           outline(r);
           put(PHY_STAGES[j]!, r.x + r.w / 2, r.y + r.h / 2, Math.min(LAB, r.h * 0.45, r.w * 0.3));
-          if (j < 2) arrow(r.x + r.w + 1, p.cy, p.stages[j + 1]!.x - 1);
+          if (j < 2) {
+            arrow(r.x + r.w + 1, p.cy, p.stages[j + 1]!.x - 1);
+          }
         });
       }
       rect(q.gauge.x, q.gauge.y, q.gauge.w, q.gauge.h, soft);
@@ -269,7 +275,9 @@ export function nicGlyph(g: Graphics, T: Theme, b: NicBlock, c: string, put: Put
       const q = queueGeom(a, b.kind === 'rxq' ? input.fifo : 0);
       if (q.fifoBox) {
         lab('FIFO', q.label.x, q.label.y + q.label.h / 2);
-        for (const r of q.cells) rect(r.x, r.y, r.w, r.h, soft);
+        for (const r of q.cells) {
+          rect(r.x, r.y, r.w, r.h, soft);
+        }
         outline(q.fifoBox);
       }
       for (const f of q.flows) {
@@ -287,7 +295,9 @@ export function nicGlyph(g: Graphics, T: Theme, b: NicBlock, c: string, put: Put
         [q.tx, 'TX'],
       ] as [typeof q.rx, string][]) {
         lab(t, grp.label.x, grp.label.y + grp.label.h / 2);
-        for (const r of grp.cells) rect(r.x, r.y, r.w, r.h, soft);
+        for (const r of grp.cells) {
+          rect(r.x, r.y, r.w, r.h, soft);
+        }
       }
       lab('descriptor rings, in RAM', q.ring.x + 6, q.ring.y + q.ring.h + 9);
       rect(q.engine.x, q.engine.y, q.engine.w, q.engine.h, T.die);
@@ -314,7 +324,9 @@ export function nicGlyph(g: Graphics, T: Theme, b: NicBlock, c: string, put: Put
         rect(l.tx.x, l.tx.y, l.tx.w, l.tx.h, soft);
         outline(l.rx);
         outline(l.tx);
-        if (input.lanes <= 8) put(`${l.idx}`, l.tag.x, l.tag.y, 10);
+        if (input.lanes <= 8) {
+          put(`${l.idx}`, l.tag.x, l.tag.y, 10);
+        }
       }
       break;
     }
@@ -330,8 +342,9 @@ export function nicGlyph(g: Graphics, T: Theme, b: NicBlock, c: string, put: Put
       outline(q.bar);
       break;
     }
-    default:
+    default: {
       break;
+    }
   }
 }
 
@@ -356,7 +369,9 @@ export interface NicLive {
 
 /** The activity light's level at the visual clock: it lights for `STRETCH` seconds after each frame (the jacks' law, jackleds.ts), so a few frames blink one by one and many keep it lit. */
 export function actLevel(rate: number, ms: number): number {
-  if (!(rate > 0)) return 0;
+  if (!(rate > 0)) {
+    return 0;
+  }
   const duty = rate * STRETCH;
   return duty >= 1 || ((ms / 1000) * rate) % 1 < duty ? 1 : 0;
 }
@@ -370,21 +385,23 @@ export function nicLive(b: Pick<NicBlock, 'kind' | 'rect'>, a: Rect, s: NicShow,
   const rx = s.rxAct,
     tx = s.txAct,
     any = Math.max(rx, tx),
-    on = s.link,
-    ms = s.ms;
+    { link: on, ms } = s;
   const txt = (r: Rect, t: string, fit?: number) =>
     out.texts.push({ rect: r, top: t, ink: true, ...(fit !== undefined ? { fit } : {}) });
   switch (b.kind) {
     case 'phy': {
       const q = phyGeom(a, input.pairs, phyNames(input));
-      if (on && any > 0)
+      if (on && any > 0) {
         q.pairs.forEach((p, k) =>
           p.stages.forEach((r, j) =>
             out.lit.push({ rect: r, color: j === 1 ? 'mul' : 'alu', a: 0.12 * any * wave(ms, k + j * 1.5, 1.4) }),
           ),
         );
+      }
       const full = s.rated > 0 ? Math.min(1, s.mbps / s.rated) : 0;
-      if (on) out.lit.push({ rect: { ...q.gauge, w: q.gauge.w * full }, color: s.hot ? 'ld' : 'alu', a: 0.45 });
+      if (on) {
+        out.lit.push({ rect: { ...q.gauge, w: q.gauge.w * full }, color: s.hot ? 'ld' : 'alu', a: 0.45 });
+      }
       const t = s.burnt ? 'burnt out' : on ? `LINK ${fmtSpeed(s.mbps)}${s.hot ? ' · hot, half speed' : ''}` : 'no link';
       txt(q.note, t, 32);
       break;
@@ -395,7 +412,9 @@ export function nicLive(b: Pick<NicBlock, 'kind' | 'rect'>, a: Rect, s: NicShow,
         const u = (ms / (1600 - 1300 * rx)) % 1;
         out.lit.push({ rect: { ...q.rx, x: q.rx.x, w: q.rx.w * u }, color: 'alu', a: 0.12 + 0.18 * rx });
         q.fields.forEach((f, k) => {
-          if (Math.floor(u * q.fields.length) === k) out.lit.push({ rect: f, color: 'alu', a: 0.2 });
+          if (Math.floor(u * q.fields.length) === k) {
+            out.lit.push({ rect: f, color: 'alu', a: 0.2 });
+          }
         });
       }
       if (on && tx > 0) {
@@ -430,7 +449,9 @@ export function nicLive(b: Pick<NicBlock, 'kind' | 'rect'>, a: Rect, s: NicShow,
       // the chip's buffer as the sim has it: a cell for each segment waiting, all red once it is full (the next segment is lost)
       const full = s.fifo >= q.cells.length && q.cells.length > 0;
       q.cells.forEach((r, k) => {
-        if (k < s.fifo) out.lit.push({ rect: r, color: full ? 'bad' : key, a: 0.55 });
+        if (k < s.fifo) {
+          out.lit.push({ rect: r, color: full ? 'bad' : key, a: 0.55 });
+        }
       });
       txt(
         head(b.rect, 0.5),
@@ -441,34 +462,49 @@ export function nicLive(b: Pick<NicBlock, 'kind' | 'rect'>, a: Rect, s: NicShow,
       );
       q.flows.forEach((f, k) => {
         const t = flows[k];
-        if (!t) return;
+        if (!t) {
+          return;
+        }
         out.lit.push({ rect: { ...f.bar, w: f.bar.w * Math.min(1, t.percent / 100) }, color: key, a: 0.5 });
         txt(f.label, t.label, 24);
         txt(f.pct, `${Math.round(t.percent)}%`, 5);
       });
-      if (flows.length > q.flows.length)
+      if (flows.length > q.flows.length) {
         txt({ x: a.x, y: a.y + a.h - 14, w: a.w, h: 14 }, `+ ${flows.length - q.flows.length} more`, 20);
+      }
       break;
     }
     case 'dma': {
       const q = dmaGeom(a, NIC_RX_SLOTS, NIC_TX_SLOTS);
       // the two rings as the kernel and the card share them: a cell for each slot that holds a segment the other side has not taken yet
       q.rx.cells.forEach((r, k) => {
-        if (k < s.rxUsed) out.lit.push({ rect: r, color: 'alu', a: 0.55 });
+        if (k < s.rxUsed) {
+          out.lit.push({ rect: r, color: 'alu', a: 0.55 });
+        }
       });
       q.tx.cells.forEach((r, k) => {
-        if (k < s.txUsed) out.lit.push({ rect: r, color: 'mul', a: 0.55 });
+        if (k < s.txUsed) {
+          out.lit.push({ rect: r, color: 'mul', a: 0.55 });
+        }
       });
-      if (on && rx > 0) out.lit.push({ rect: q.down, color: 'alu', a: 0.04 + 0.1 * rx * (0.6 + 0.4 * wave(ms, 0)) });
-      if (on && tx > 0) out.lit.push({ rect: q.up, color: 'mul', a: 0.04 + 0.1 * tx * (0.6 + 0.4 * wave(ms, 1)) });
+      if (on && rx > 0) {
+        out.lit.push({ rect: q.down, color: 'alu', a: 0.04 + 0.1 * rx * (0.6 + 0.4 * wave(ms, 0)) });
+      }
+      if (on && tx > 0) {
+        out.lit.push({ rect: q.up, color: 'mul', a: 0.04 + 0.1 * tx * (0.6 + 0.4 * wave(ms, 1)) });
+      }
       txt(q.note, s.driver ? `${fmtFrames(s.dmaWords)} words moved` : on ? 'no driver yet' : 'idle', 26);
       break;
     }
     case 'pcie': {
       const q = pcieGeom(a, input.lanes);
       q.lanes.forEach((l) => {
-        if (on && rx > 0) out.lit.push({ rect: l.rx, color: 'alu', a: 0.1 + 0.35 * rx * wave(ms, l.idx, 1.3) });
-        if (on && tx > 0) out.lit.push({ rect: l.tx, color: 'mul', a: 0.1 + 0.35 * tx * wave(ms, l.idx + 3, 1.3) });
+        if (on && rx > 0) {
+          out.lit.push({ rect: l.rx, color: 'alu', a: 0.1 + 0.35 * rx * wave(ms, l.idx, 1.3) });
+        }
+        if (on && tx > 0) {
+          out.lit.push({ rect: l.tx, color: 'mul', a: 0.1 + 0.35 * tx * wave(ms, l.idx + 3, 1.3) });
+        }
       });
       txt(q.note, `x${input.lanes} · ${input.lanes * 2} pairs`, 24);
       break;
@@ -481,17 +517,19 @@ export function nicLive(b: Pick<NicBlock, 'kind' | 'rect'>, a: Rect, s: NicShow,
       for (const [c, col] of [
         [s.throttleC, 'ld'],
         [s.unstableC, 'bad'],
-      ] as [number, LiveKey][])
+      ] as [number, LiveKey][]) {
         out.lit.push({
           rect: R(q.bar.x + q.bar.w * tempAt(c, s.damageC) - 1, q.bar.y - 3, 2, q.bar.h + 6),
           color: col,
           a: 0.95,
         });
+      }
       txt(head(b.rect, 0.5), `${s.tempC.toFixed(0)} °C`, 8);
       break;
     }
-    default:
+    default: {
       break;
+    }
   }
   return out;
 }

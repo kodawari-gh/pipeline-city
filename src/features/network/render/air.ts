@@ -1,8 +1,8 @@
-import { deviceHeat, type AirSource } from '@/core/render/airsource';
+import * as airsource from '@/core/render/airsource';
 
 /** The network card: a heat zone. */
-export const networkAir: AirSource = {
+export const networkAir: airsource.AirSource = {
   id: 'network',
   kinds: ['nic'],
-  heat: (c) => deviceHeat(['nic'], 'nic', 'NIC', c),
+  heat: (c) => airsource.deviceHeat(['nic'], 'nic', 'NIC', c),
 };

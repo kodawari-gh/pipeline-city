@@ -41,10 +41,12 @@ export const DARK: LinkLevels = { pc: OUT, lan: OUT, wan: OUT, moving: false };
 /** Which jacks have a partner on their cable: the PC's uplink (and the router's LAN jack it plugs into) and the router's WAN jack. */
 export function linkOf(s: LinkSource | null): { pc: boolean; wan: boolean } {
   const n = s?.net;
-  if (!s || !n) return { pc: false, wan: false };
+  if (!s || !n) {
+    return { pc: false, wan: false };
+  }
   // (a PHY links with no OS up and no plan: it needs the cable, the router's power and the PC's; a burnt port has no light)
-  const pc = n.port.kind !== null && n.port.mbps > 0 && !!n.router && s.powered && !s.power.tripped;
-  return { pc, wan: !!n.router && !!n.isp };
+  const pc = n.port.kind !== null && n.port.mbps > 0 && Boolean(n.router) && s.powered && !s.power.tripped;
+  return { pc, wan: Boolean(n.router) && Boolean(n.isp) };
 }
 
 /** Sets a jack's two lamps from its levels (a lamp is anything with an emissive intensity: a material). */
@@ -52,7 +54,9 @@ export function lightJack(
   j: { link: { emissiveIntensity: number }; act: { emissiveIntensity: number } } | null | undefined,
   v: JackLevels,
 ): void {
-  if (!j) return;
+  if (!j) {
+    return;
+  }
   j.link.emissiveIntensity = v.link * JACK_GLOW.link;
   j.act.emissiveIntensity = v.act * JACK_GLOW.act;
 }
@@ -99,10 +103,11 @@ export class LinkLeds {
       duty = rate * STRETCH;
     let act = 0,
       moving = false;
-    if (rate <= 0) this.phase = 0;
-    else if (duty >= 1)
+    if (rate <= 0) {
+      this.phase = 0;
+    } else if (duty >= 1) {
       act = 1; // (the frames follow each other closer than a stretch: it stays lit)
-    else {
+    } else {
       this.phase = (this.phase + rate * Math.max(0, dt)) % 1;
       act = this.phase < duty ? 1 : 0;
       moving = true;

@@ -36,7 +36,9 @@ export function routerRoute(plan: Pick<RouterPlan, 'links'>, dir: RouterDir): Ro
   const out: RouterHop[] = [];
   for (const [id, reverse] of WAYS[dir]) {
     const link = plan.links.find((l) => l.id === id);
-    if (link) out.push({ link, reverse });
+    if (link) {
+      out.push({ link, reverse });
+    }
   }
   return out;
 }
