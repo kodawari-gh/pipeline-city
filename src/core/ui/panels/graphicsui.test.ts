@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { PRESET_NAMES, type TierRecord } from '@/app/graphics';
+import * as graphicsApi from '@/app/graphics';
 import { nextIndex, PRESET_INFO, tierNote } from './graphicsui';
 
 describe('preset cards', () => {
   it('each preset has a card, one pip more than the one before, in a line that says what it is for', () => {
-    PRESET_NAMES.forEach(([id], i) => {
+    graphicsApi.PRESET_NAMES.forEach(([id], i) => {
       expect(PRESET_INFO[id].pips).toBe(i + 1);
       expect(PRESET_INFO[id].line.length).toBeGreaterThan(8);
     });
@@ -12,7 +12,12 @@ describe('preset cards', () => {
 });
 
 describe('tierNote', () => {
-  const rec = (o: Partial<TierRecord>): TierRecord => ({ mode: 'auto', tier: 'high', reason: 'discrete GPU', ...o });
+  const rec = (o: Partial<graphicsApi.TierRecord>): graphicsApi.TierRecord => ({
+    mode: 'auto',
+    tier: 'high',
+    reason: 'discrete GPU',
+    ...o,
+  });
 
   it('says what Auto picked and why', () => {
     expect(tierNote(rec({}))).toBe('Auto picked High: discrete GPU.');
@@ -21,12 +26,15 @@ describe('tierNote', () => {
     );
   });
 
-  it('leaves the reason out when there is none', () => expect(tierNote(rec({ reason: '' }))).toBe('Auto picked High.'));
+  it('leaves the reason out when there is none', () => {
+    expect(tierNote(rec({ reason: '' }))).toBe('Auto picked High.');
+  });
 
-  it('says the player chose, whatever tier it was', () =>
+  it('says the player chose, whatever tier it was', () => {
     expect(tierNote(rec({ mode: 'manual', tier: 'low', reason: 'chosen' }))).toBe(
       'Set by you. Auto picks from the GPU and the CPU.',
-    ));
+    );
+  });
 });
 
 describe('nextIndex', () => {

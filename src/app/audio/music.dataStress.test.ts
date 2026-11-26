@@ -2,8 +2,8 @@
 // `stressAmount` is the pure function of the snapshot (music.ts). Layer ids: `music_shimmer_<KEY>`, `music_stress_<KEY>`, `music_bed_<KEY>`.
 // Gains are linear: dB = the token dB (MIX.music.layerGainDb) + 20 log10(target) (music-spec.md §4 and §8). The spec names no call for a low-pass, so the fake
 // records every call by name and a filter is found by its frequency argument (4000 or 3000 Hz).
-import { describe, expect, it } from 'vitest';
-import { createDirector, type DirectorSnap } from './director';
+import { assert, describe, expect, it } from 'vitest';
+import * as audioDirector from './director';
 import { keyName, keyPcForLevel } from './keys';
 import { MIX } from './mixTokens';
 import { BAR_S, stressAmount } from './music';
@@ -16,23 +16,31 @@ interface Rec {
 /** A fake sink: every method call is recorded by name and arguments, whatever the name. */
 function recordingBackend() {
   const calls: Rec[] = [];
-  const sink = new Proxy({} as Record<string, (...a: unknown[]) => void>, {
-    get: (_t, name) => (typeof name === 'string' ? (...args: unknown[]) => void calls.push({ name, args }) : undefined),
-    has: () => true,
-  });
+  const sink = new Proxy(
+    {},
+    {
+      get: (_t, name) =>
+        typeof name === 'string' ? (...args: unknown[]) => void calls.push({ name, args }) : undefined,
+      has: () => true,
+    },
+  );
   return {
-    sink: sink as unknown as Parameters<typeof createDirector>[0],
+    sink: sink as unknown as Parameters<typeof audioDirector.createDirector>[0],
     calls,
     named: (name: string) => calls.filter((c) => c.name === name),
     /** The last gain (dB) sent for an id, or undefined. */
     lastGain: (id: string): number | undefined => {
       const g = calls.filter((c) => c.name === 'setMusicGain' && c.args[0] === id);
-      return g.length ? (g.at(-1)!.args[1] as number) : undefined;
+      return g.at(-1)?.args[1] as number | undefined;
     },
     /** The last start or stop for an id: 'start', 'stop', or undefined. */
     lastOn: (id: string): 'start' | 'stop' | undefined => {
       const on = calls.filter((c) => (c.name === 'startMusic' || c.name === 'stopMusic') && c.args[0] === id);
-      return on.length ? (on.at(-1)!.name === 'startMusic' ? 'start' : 'stop') : undefined;
+      const latest = on.at(-1);
+      if (latest === undefined) {
+        return undefined;
+      }
+      return latest.name === 'startMusic' ? 'start' : 'stop';
     },
     /** A call that names this id and carries this frequency (a low-pass). */
     filtered: (id: string, hz: number) => calls.some((c) => c.args[0] === id && c.args.includes(hz)),
@@ -54,7 +62,7 @@ interface Extra {
 }
 
 /** A game snapshot with the fields the layers read. Healthy unless `extra` says otherwise. */
-function snapOf(level: number, phase = 'running', extra: Extra = {}): DirectorSnap {
+function snapOf(level: number, phase = 'running', extra: Extra = {}): audioDirector.DirectorSnap {
   return {
     log: [],
     level: { level },
@@ -65,13 +73,13 @@ function snapOf(level: number, phase = 'running', extra: Extra = {}): DirectorSn
     power: { totalW: 10, budgetW: 100, tripped: false },
     bill: { unpaid: 0 },
     ...extra,
-  } as unknown as DirectorSnap;
+  } as unknown as audioDirector.DirectorSnap;
 }
 
 /** A director in the running game at `level`, unlocked, with one snapshot played. */
 function game(level: number, extra: Extra = {}) {
   const b = recordingBackend();
-  const d = createDirector(b.sink);
+  const d = audioDirector.createDirector(b.sink);
   d.onUnlock();
   d.onScene('game');
   d.onSnapshot(snapOf(level, 'running', extra));
@@ -175,9 +183,12 @@ describe('shimmer: plays while data flows', () => {
 
   it('saturated: +2 dB over the link-up level, with a 4 kHz low-pass', () => {
     const { b, d } = game(1, { net: { state: 'link-up', transfers: [] } });
-    const linkUp = b.lastGain(SH(1))!;
+    const linkUp = b.lastGain(SH(1));
+    assert.exists(linkUp);
     d.onSnapshot(snapOf(1, 'running', { net: { state: 'saturated', transfers: [] } }));
-    expect(b.lastGain(SH(1))! - linkUp).toBeCloseTo(2, 9);
+    const lastGainResult = b.lastGain(SH(1));
+    assert.exists(lastGainResult);
+    expect(lastGainResult - linkUp).toBeCloseTo(2, 9);
     expect(b.lastGain(SH(1))).toBeCloseTo(tokenDb('shimmer') + 2, 9);
     expect(b.filtered(SH(1), 4000)).toBe(true);
   });
@@ -197,7 +208,8 @@ describe('shimmer: plays while data flows', () => {
     d.onSnapshot(snapOf(1, 'running', { net: { state: 'down', transfers: [] } }));
     const stop = b.calls.filter((c) => c.name === 'stopMusic' && c.args[0] === SH(1)).at(-1);
     expect(stop).toBeDefined();
-    expect(stop!.args[1] as number).toBeCloseTo(BAR_S * 1000, 0);
+    assert.exists(stop);
+    expect(stop.args[1] as number).toBeCloseTo(BAR_S * 1000, 0);
   });
 });
 
@@ -217,7 +229,11 @@ describe('stress: the layer follows stressAmount', () => {
   it('more stress is louder: the layer gain rises with stressAmount', () => {
     const mild = game(1, { vrm: { loadRatio: 1.1 } });
     const hard = game(1, { vrm: { loadRatio: 1.6 } });
-    expect(linear(hard.b.lastGain(ST(1))!)).toBeGreaterThan(linear(mild.b.lastGain(ST(1))!));
+    const hardGain = hard.b.lastGain(ST(1));
+    assert.exists(hardGain);
+    const mildGain = mild.b.lastGain(ST(1));
+    assert.exists(mildGain);
+    expect(linear(hardGain)).toBeGreaterThan(linear(mildGain));
   });
 
   it('the gain is linear: stress^1.5 on the token dB (loadRatio 1.1 is stress 0.5: -15 dB)', () => {
@@ -228,7 +244,8 @@ describe('stress: the layer follows stressAmount', () => {
   it('the stress layer enters over one bar', () => {
     const { b } = game(1, stressed);
     const start = b.calls.filter((c) => c.name === 'startMusic' && c.args[0] === ST(1)).at(-1);
-    expect(start!.args[1] as number).toBeCloseTo(BAR_S * 1000, 0);
+    assert.exists(start);
+    expect(start.args[1] as number).toBeCloseTo(BAR_S * 1000, 0);
   });
 
   it('the stress layer leaves over one bar when the machine recovers', () => {
@@ -236,7 +253,8 @@ describe('stress: the layer follows stressAmount', () => {
     d.onSnapshot(snapOf(1, 'running', { devices: [{ id: 'cpu', throttle: 1 }] }));
     const stop = b.calls.filter((c) => c.name === 'stopMusic' && c.args[0] === ST(1)).at(-1);
     expect(stop).toBeDefined();
-    expect(stop!.args[1] as number).toBeCloseTo(BAR_S * 1000, 0);
+    assert.exists(stop);
+    expect(stop.args[1] as number).toBeCloseTo(BAR_S * 1000, 0);
   });
 });
 
@@ -252,7 +270,8 @@ describe('debt: an unpaid bill muffles the bed', () => {
       .filter((c) => c.name === 'setMusicLowpass' && c.args[0] === keyed('bed', 1) && c.args[1] === 3000)
       .at(-1);
     expect(lp).toBeDefined();
-    expect(lp!.args[2]).toBe(1000);
+    assert.exists(lp);
+    expect(lp.args[2]).toBe(1000);
   });
 
   it('a paid bill (nothing unpaid) has no 3 kHz low-pass on the bed', () => {

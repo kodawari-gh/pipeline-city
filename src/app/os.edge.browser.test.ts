@@ -10,12 +10,12 @@
 // Not tested here: the screenshots (npm run shot, dev and --prod) that the ticket asks for. A person looks at those.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Browser, Page } from 'playwright-core';
-import { type Box, outsideViewport, overlaps, pageOverflows } from './layoutRects';
-import { BOOT_MS, GATE, STEP_MS, type Dev, killTree, launchChrome, openBooted, startServer } from './layout.harness';
+import * as layoutRects from './layoutRects';
+import * as harness from './layout.harness';
 
 declare const process: any;
-const TEST_MS = 60_000 + BOOT_MS + 4 * STEP_MS;
-const OPEN_SETTLE_MS = 1_500; // the sheet's pop-in (--d-trace) before it is measured
+const TEST_MS = 60_000 + harness.BOOT_MS + 4 * harness.STEP_MS;
+const OPEN_SETTLE_MS = 1500; // the sheet's pop-in (--d-trace) before it is measured
 const VIEWPORTS = [
   { w: 1920, h: 1080, name: 'desktop' },
   { w: 390, h: 844, name: 'phone' },
@@ -24,17 +24,17 @@ const VIEWPORTS = [
   { w: 844, h: 390, name: 'landscape' },
 ];
 
-let dev: Dev | null = null;
+let dev: harness.Dev | null = null;
 let browser: Browser | null = null;
 
 /** What the page shows of the OS sheet: its box, its styles and its controls. Runs in the page, so it takes no outside names. */
 interface Sheet {
   found: boolean;
-  box: Box;
+  box: layoutRects.Box;
   panel: { borders: string[]; radius: string; shadow: string; backdrop: string; image: string };
   descendants: { tag: string; cls: string; problems: string[] }[];
   layers: { tag: string; cls: string; backdropFilter: string; shadow: string; image: string; bg: string }[];
-  controls: { label: string; box: Box }[];
+  controls: { label: string; box: layoutRects.Box }[];
   sw: number;
   sh: number;
 }
@@ -51,15 +51,17 @@ function sheetSnapshot(): Sheet {
     sw: 0,
     sh: 0,
   } as Sheet;
-  if (!panel) return empty;
-  const box = (e: Element): Box => {
+  if (!panel) {
+    return empty;
+  }
+  const box = (e: Element): layoutRects.Box => {
     const r = e.getBoundingClientRect();
     return { x: r.left, y: r.top, r: r.right, b: r.bottom };
   };
   const cs = getComputedStyle(panel);
   const borders = ['Top', 'Right', 'Bottom', 'Left']
     .map((s) => `${s}:${(cs as any)[`border${s}Width`]}/${(cs as any)[`border${s}Style`]}`)
-    .filter((v) => !/:0px\/none$/.test(v));
+    .filter((v) => !v.endsWith(':0px/none'));
 
   const problemsOf = (e: Element): string[] => {
     const s = getComputedStyle(e);
@@ -69,18 +71,29 @@ function sheetSnapshot(): Sheet {
         Number.parseFloat(w) > 0 &&
         [s.borderTopStyle, s.borderRightStyle, s.borderBottomStyle, s.borderLeftStyle][i] !== 'none',
     );
-    if (bw) out.push('border');
+    if (bw) {
+      out.push('border');
+    }
     if (
       Number.parseFloat(s.borderTopLeftRadius) > 4 ||
       Number.parseFloat(s.borderTopRightRadius) > 4 ||
       Number.parseFloat(s.borderBottomLeftRadius) > 4 ||
       Number.parseFloat(s.borderBottomRightRadius) > 4
-    )
+    ) {
       out.push(`radius ${s.borderTopLeftRadius}`);
-    if (s.boxShadow !== 'none') out.push('box-shadow');
-    if (s.textShadow !== 'none') out.push('text-shadow');
-    if (s.backdropFilter !== 'none' && s.backdropFilter !== '') out.push('backdrop-filter');
-    if (/gradient/i.test(s.backgroundImage)) out.push('gradient');
+    }
+    if (s.boxShadow !== 'none') {
+      out.push('box-shadow');
+    }
+    if (s.textShadow !== 'none') {
+      out.push('text-shadow');
+    }
+    if (s.backdropFilter !== 'none' && s.backdropFilter !== '') {
+      out.push('backdrop-filter');
+    }
+    if (/gradient/iu.test(s.backgroundImage)) {
+      out.push('gradient');
+    }
     return out;
   };
 
@@ -130,7 +143,7 @@ function sheetSnapshot(): Sheet {
     .map((e) => ({
       label: ((e as HTMLElement).innerText || e.getAttribute('aria-label') || e.tagName)
         .trim()
-        .replaceAll(/\s+/g, ' ')
+        .replaceAll(/\s+/gu, ' ')
         .slice(0, 32),
       box: box(e),
     }));
@@ -145,7 +158,7 @@ function sheetSnapshot(): Sheet {
       backdrop: cs.backdropFilter,
       image: cs.backgroundImage,
     },
-    descendants: own.length ? [{ tag: 'panel', cls: 'ospanel', problems: own }, ...descendants] : descendants,
+    descendants: own.length > 0 ? [{ tag: 'panel', cls: 'ospanel', problems: own }, ...descendants] : descendants,
     layers,
     controls,
     sw: document.documentElement.scrollWidth,
@@ -155,10 +168,14 @@ function sheetSnapshot(): Sheet {
 
 /** Channel spread of an rgb(a) colour: 0 for a grey, large for navy or blue. Transparent colours count as grey. */
 function spreadOf(color: string): number {
-  const m = /rgba?\(([^)]+)\)/.exec(color);
-  if (!m) return 0;
+  const m = /rgba?\((?<channels>[^)]+)\)/u.exec(color);
+  if (!m) {
+    return 0;
+  }
   const [r, g, b, a] = m[1]!.split(',').map((v) => Number.parseFloat(v));
-  if (a !== undefined && a === 0) return 0;
+  if (a !== undefined && a === 0) {
+    return 0;
+  }
   return Math.max(r!, g!, b!) - Math.min(r!, g!, b!);
 }
 
@@ -167,24 +184,28 @@ function spreadOf(color: string): number {
  * is not on screen; the Build sheet is the same `ospanel` sheet, with the same choose, run and tabs, and it opens at once.
  */
 async function openSheet(page: Page): Promise<void> {
-  await page.getByRole('button', { name: /^Build my PC/ }).click();
+  await page.getByRole('button', { name: /^Build my PC/u }).click();
   await page.waitForSelector('.build.mode');
   // on a phone the OS button sits in the Run pane (one pane shows at a time)
   const runTab = page.getByRole('tab', { name: 'Run', exact: true });
-  if (await runTab.isVisible()) await runTab.click();
+  if (await runTab.isVisible()) {
+    await runTab.click();
+  }
   await page.locator('button.bld-os').click();
   await page.waitForSelector('section.bld-os-sheet');
   await page.waitForTimeout(OPEN_SETTLE_MS);
 }
 
-describe.skipIf(!GATE)('OS sheet is a flat Edge tab (ticket #76)', () => {
+describe.skipIf(!harness.GATE)('OS sheet is a flat Edge tab (ticket #76)', () => {
   beforeAll(async () => {
-    dev = await startServer();
-    browser = await launchChrome();
+    dev = await harness.startServer();
+    browser = await harness.launchChrome();
   }, 120_000);
   afterAll(async () => {
-    await browser?.close().catch(() => {});
-    killTree(dev?.child);
+    await browser?.close().catch(() => {
+      /* no-op */
+    });
+    harness.killTree(dev?.child);
     dev = null;
     browser = null;
   });
@@ -195,29 +216,42 @@ describe.skipIf(!GATE)('OS sheet is a flat Edge tab (ticket #76)', () => {
       async () => {
         const errors: string[] = [];
         const problems: string[] = [];
-        const { page, ctxClose } = await openBooted(browser!, dev!, vp.w, vp.h, errors);
+        const { page, ctxClose } = await harness.openBooted(browser!, dev!, vp.w, vp.h, errors);
         try {
           await openSheet(page);
           const s = await page.evaluate(sheetSnapshot);
 
           expect(s.found, 'the OS sheet is on screen').toBe(true);
-          if (!s.found) return;
+          if (!s.found) {
+            return;
+          }
 
           // flat: no border, no radius, no shadow, no glass, no gradient
-          expect(s.panel.borders, 'sheet borders').toEqual([]);
+          expect(s.panel.borders, 'sheet borders').toStrictEqual([]);
           expect(s.panel.radius, 'sheet corner radius').toBe('0px');
           expect(s.panel.shadow, 'sheet box-shadow').toBe('none');
           expect(s.panel.backdrop === 'none' || s.panel.backdrop === '', 'sheet backdrop-filter').toBe(true);
-          expect(/gradient/i.test(s.panel.image), 'sheet background-image').toBe(false);
-          expect(s.descendants, 'sheet parts with a border, radius above 4 px, shadow, glass or gradient').toEqual([]);
+          expect(/gradient/iu.test(s.panel.image), 'sheet background-image').toBe(false);
+          expect(
+            s.descendants,
+            'sheet parts with a border, radius above 4 px, shadow, glass or gradient',
+          ).toStrictEqual([]);
 
           // the layers behind the sheet: no glass, no shadow, no gradient, and a neutral colour (not navy)
           for (const l of s.layers) {
             const where = `${l.tag}.${l.cls}`;
-            if (l.backdropFilter !== 'none' && l.backdropFilter !== '') problems.push(`${where} has backdrop-filter`);
-            if (l.shadow !== 'none') problems.push(`${where} has box-shadow`);
-            if (/gradient/i.test(l.image)) problems.push(`${where} has a gradient`);
-            if (spreadOf(l.bg) > 10) problems.push(`${where} is not neutral (${l.bg})`);
+            if (l.backdropFilter !== 'none' && l.backdropFilter !== '') {
+              problems.push(`${where} has backdrop-filter`);
+            }
+            if (l.shadow !== 'none') {
+              problems.push(`${where} has box-shadow`);
+            }
+            if (/gradient/iu.test(l.image)) {
+              problems.push(`${where} has a gradient`);
+            }
+            if (spreadOf(l.bg) > 10) {
+              problems.push(`${where} is not neutral (${l.bg})`);
+            }
           }
 
           // a flat tab touches at least one screen edge (1 px of slack)
@@ -225,19 +259,29 @@ describe.skipIf(!GATE)('OS sheet is a flat Edge tab (ticket #76)', () => {
           expect(touches, `sheet box ${JSON.stringify(s.box)} touches a screen edge of ${vp.w} x ${vp.h}`).toBe(true);
 
           // controls: on screen, no overlap, and the page does not scroll
-          for (const c of s.controls)
-            if (outsideViewport(c.box, vp.w, vp.h)) problems.push(`"${c.label}" is outside the window`);
-          for (let i = 0; i < s.controls.length; i++) {
-            for (let j = i + 1; j < s.controls.length; j++) {
-              if (overlaps(s.controls[i]!.box, s.controls[j]!.box))
-                problems.push(`"${s.controls[i]!.label}" overlaps "${s.controls[j]!.label}"`);
+          for (const c of s.controls) {
+            if (layoutRects.outsideViewport(c.box, vp.w, vp.h)) {
+              problems.push(`"${c.label}" is outside the window`);
             }
           }
-          if (pageOverflows(s.sw, s.sh, vp.w, vp.h)) problems.push(`the page scrolls (${s.sw} x ${s.sh})`);
-          for (const e of errors) problems.push(`page error ${e}`);
-          expect(problems, problems.join('\n')).toEqual([]);
+          for (let i = 0; i < s.controls.length; i++) {
+            for (let j = i + 1; j < s.controls.length; j++) {
+              if (layoutRects.overlaps(s.controls[i]!.box, s.controls[j]!.box)) {
+                problems.push(`"${s.controls[i]!.label}" overlaps "${s.controls[j]!.label}"`);
+              }
+            }
+          }
+          if (layoutRects.pageOverflows(s.sw, s.sh, vp.w, vp.h)) {
+            problems.push(`the page scrolls (${s.sw} x ${s.sh})`);
+          }
+          for (const e of errors) {
+            problems.push(`page error ${e}`);
+          }
+          expect(problems, problems.join('\n')).toStrictEqual([]);
         } finally {
-          await ctxClose().catch(() => {});
+          await ctxClose().catch(() => {
+            /* no-op */
+          });
         }
       },
       TEST_MS,

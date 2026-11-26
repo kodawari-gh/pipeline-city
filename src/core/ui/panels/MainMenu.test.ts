@@ -1,22 +1,38 @@
 // The main menu rows (ticket #36; SPEC §5.1 to §5.3). The node test run has no DOM, so MainMenu is called as a plain
 // function and its returned tree is walked. Hooks are stubbed. Rows are the direct children of the nav "Main menu".
 // Written before the coder's changes: the spine and loading rules fail until they land.
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Game } from '@/worker/game/game';
+import type * as mainMenuApi from '@/core/ui/panels/MainMenu';
+import type * as storeApi from '@/app/store';
 
 vi.mock('preact/hooks', () => ({
-  useEffect: () => {},
+  useEffect: () => {
+    /* no-op */
+  },
   useRef: () => ({ current: null }),
-  useState: (v: unknown) => [v, () => {}],
+  useState: (v: unknown) => [
+    v,
+    () => {
+      /* no-op */
+    },
+  ],
 }));
 
-type VEl = { type: unknown; props: Record<string, any> };
+interface VEl {
+  type: unknown;
+  props: Record<string, any>;
+}
 type Node = VEl | string | number | boolean | null | undefined | Node[];
 
 /** The element children of a node, with the nested arrays and empty values removed. */
 const elements = (v: Node): VEl[] => {
-  if (Array.isArray(v)) return v.flatMap(elements);
-  if (v && typeof v === 'object' && 'props' in v) return [v];
+  if (Array.isArray(v)) {
+    return v.flatMap((child) => elements(child));
+  }
+  if (v && typeof v === 'object' && 'props' in v) {
+    return [v];
+  }
   return [];
 };
 const childrenOf = (el: VEl): Node => el.props['children'] as Node;
@@ -28,14 +44,20 @@ function all(v: Node): VEl[] {
 
 /** The visible text of a node: its strings, in order. */
 function text(v: Node): string {
-  if (typeof v === 'string' || typeof v === 'number') return String(v);
-  if (Array.isArray(v)) return v.map(text).join('');
-  if (v && typeof v === 'object' && 'props' in v) return text(childrenOf(v));
+  if (typeof v === 'string' || typeof v === 'number') {
+    return String(v);
+  }
+  if (Array.isArray(v)) {
+    return v.map((child) => text(child)).join('');
+  }
+  if (v && typeof v === 'object' && 'props' in v) {
+    return text(childrenOf(v));
+  }
   return '';
 }
 
-let MainMenu: typeof import('@/core/ui/panels/MainMenu').MainMenu;
-let store: typeof import('@/app/store');
+let MainMenu: typeof mainMenuApi.MainMenu;
+let store: typeof storeApi;
 
 beforeEach(async () => {
   vi.resetModules();
@@ -49,15 +71,40 @@ beforeEach(async () => {
     activeElement: null,
     getElementById: () => null,
     documentElement: {
-      setAttribute: () => {},
-      style: { setProperty: () => {} },
-      classList: { toggle: () => {}, add: () => {}, remove: () => {} },
+      setAttribute: () => {
+        /* no-op */
+      },
+      style: {
+        setProperty: () => {
+          /* no-op */
+        },
+      },
+      classList: {
+        toggle: () => {
+          /* no-op */
+        },
+        add: () => {
+          /* empty */
+        },
+        remove: () => {
+          /* empty */
+        },
+      },
     },
   });
   vi.stubGlobal('window', {
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    matchMedia: () => ({ matches: false, addEventListener: () => {} }),
+    addEventListener: () => {
+      /* no-op */
+    },
+    removeEventListener: () => {
+      /* no-op */
+    },
+    matchMedia: () => ({
+      matches: false,
+      addEventListener: () => {
+        /* no-op */
+      },
+    }),
   });
   ({ MainMenu } = await import('@/core/ui/panels/MainMenu'));
   store = await import('@/app/store');
@@ -69,7 +116,9 @@ beforeEach(async () => {
 function render(ready = true) {
   const tree = MainMenu({ ready }) as unknown as Node;
   const nav = all(tree).find((el) => el.props['aria-label'] === 'Main menu');
-  if (!nav) throw new Error('no Main menu nav');
+  if (!nav) {
+    throw new Error('no Main menu nav');
+  }
   const rows = elements(childrenOf(nav)).filter((el) => String(el.props['class'] ?? '').includes('mm-btn'));
   return { nav, rows };
 }
@@ -80,26 +129,27 @@ const titleOf = (row: VEl) => text(childrenOf(row)).trim();
 describe('the no-save menu', () => {
   it('shows no Continue row when there is no autosave', () => {
     const { rows } = render();
-    expect(rows.map(titleOf).some((t) => t.startsWith('Continue'))).toBe(false);
+    expect(rows.map((row) => titleOf(row)).some((t) => t.startsWith('Continue'))).toBe(false);
   });
 
   it('shows Continue first when there is an autosave', () => {
     store.autosaveOffer.value = save();
     const { rows } = render();
-    expect(titleOf(rows[0]!)).toMatch(/^Continue/);
+    assert.exists(rows[0]);
+    expect(titleOf(rows[0])).toMatch(/^Continue/u);
   });
 });
 
 describe('the Previous save row', () => {
   it('is not shown when no backup exists', () => {
     const { rows } = render();
-    expect(rows.map(titleOf).some((t) => t.startsWith('Previous save'))).toBe(false);
+    expect(rows.map((row) => titleOf(row)).some((t) => t.startsWith('Previous save'))).toBe(false);
   });
 
   it('is shown when a backup exists', () => {
     store.previousOffer.value = save();
     const { rows } = render();
-    expect(rows.map(titleOf).some((t) => t.startsWith('Previous save'))).toBe(true);
+    expect(rows.map((row) => titleOf(row)).some((t) => t.startsWith('Previous save'))).toBe(true);
   });
 });
 
@@ -109,7 +159,9 @@ describe('spines are plain lists of buttons', () => {
     store.previousOffer.value = save();
     const { rows } = render();
     expect(rows.length).toBeGreaterThan(0);
-    for (const row of rows) expect(row.type).toBe('button');
+    for (const row of rows) {
+      expect(row.type).toBe('button');
+    }
   });
 
   it('Load file is a button too', () => {
@@ -125,8 +177,9 @@ describe('the loading screen rows', () => {
     for (const name of ['Build my PC', 'Gallery']) {
       const row = rows.find((r) => titleOf(r).startsWith(name));
       expect(row, name).toBeDefined();
-      expect(row!.props['disabled'], name).toBe(true);
-      expect(titleOf(row!), name).toContain('after loading');
+      assert.exists(row);
+      expect(row.props['disabled'], name).toBe(true);
+      expect(titleOf(row), name).toContain('after loading');
     }
   });
 
@@ -134,7 +187,8 @@ describe('the loading screen rows', () => {
     const { rows } = render(true);
     for (const name of ['Build my PC', 'Gallery']) {
       const row = rows.find((r) => titleOf(r).startsWith(name));
-      expect(row!.props['disabled'], name).toBeFalsy();
+      assert.exists(row);
+      expect(row.props['disabled'], name).toBeFalsy();
     }
   });
 });
@@ -142,7 +196,8 @@ describe('the loading screen rows', () => {
 describe('left and right on the main menu', () => {
   it('do nothing on a row: the main menu has no value rows, so the key is not taken', () => {
     const tree = MainMenu({ ready: true }) as unknown as Node;
-    const menu = all(tree).find((el) => typeof el.props['onKeyDown'] === 'function')!;
+    const menu = all(tree).find((el) => typeof el.props['onKeyDown'] === 'function');
+    assert.exists(menu);
     const row = { dataset: { group: '0' }, classList: { contains: () => false } };
     vi.stubGlobal('document', { activeElement: row, getElementById: () => null });
     for (const key of ['ArrowLeft', 'ArrowRight']) {

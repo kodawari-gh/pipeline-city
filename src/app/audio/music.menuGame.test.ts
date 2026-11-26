@@ -9,8 +9,8 @@
 // quantise: 'bar' (next bar line), 'beat' (next beat), 'now' (at once).
 // Layer gain: the token dB (MIX.music.layerGainDb) plus 20 log10 of the linear state target (music-spec.md §4), e.g. pluck target 0.5 -> token dB + -6 dB.
 // Values come from MIX, the music spec token or the key rules; the menu's 2 s and the 1.5 s return fade are the ticket's numbers.
-import { describe, expect, it } from 'vitest';
-import { createDirector, type DirectorSnap } from './director';
+import { assert, describe, expect, it } from 'vitest';
+import * as audioDirector from './director';
 import { keyName, keyPcForLevel } from './keys';
 import { MIX } from './mixTokens';
 
@@ -33,8 +33,12 @@ const ENTRY_FADE_MS = 2000;
 function fakeBackend() {
   const calls: Call[] = [];
   const sink = {
-    playCue() {},
-    setKeyPc() {},
+    playCue() {
+      /* no-op */
+    },
+    setKeyPc() {
+      /* no-op */
+    },
     startMusic(id: string, fadeInMs: number, quantise: Quant) {
       calls.push({ kind: 'start', id, fadeInMs, quantise });
     },
@@ -64,18 +68,22 @@ function fakeBackend() {
     decoded(): Set<string> {
       const set = new Set<string>();
       for (const c of calls) {
-        if (c.kind === 'decode') set.add(c.key);
-        if (c.kind === 'release') set.delete(c.key);
+        if (c.kind === 'decode') {
+          set.add(c.key);
+        }
+        if (c.kind === 'release') {
+          set.delete(c.key);
+        }
       }
       return set;
     },
   };
 }
 
-const snap = (level: number, phase: string = 'idle-os'): DirectorSnap => ({
+const snap = (level: number, phase = 'idle-os'): audioDirector.DirectorSnap => ({
   log: [],
   level: { level },
-  phase: phase as DirectorSnap['phase'],
+  phase: phase as audioDirector.DirectorSnap['phase'],
 });
 
 const keyOf = (level: number) => keyName(keyPcForLevel(level));
@@ -87,7 +95,7 @@ const gainFor = (layer: Layer, target: number) => tokenDb(layer) + 20 * Math.log
 
 function setup() {
   const b = fakeBackend();
-  const d = createDirector(b.sink);
+  const d = audioDirector.createDirector(b.sink);
   return { b, d };
 }
 
@@ -104,14 +112,14 @@ describe('menu music: the menu loop', () => {
   it('before the unlock gesture: the menu plays no music', () => {
     const { b, d } = setup();
     d.onScene('menu');
-    expect(b.starts()).toEqual([]);
+    expect(b.starts()).toStrictEqual([]);
   });
 
   it('after the unlock: the menu loop starts on the menu screen with a 2 s fade in', () => {
     const { b, d } = setup();
     d.onUnlock();
     d.onScene('menu');
-    expect(b.starts()).toEqual([expect.objectContaining({ kind: 'start', id: MENU, fadeInMs: MENU_FADE_IN_MS })]);
+    expect(b.starts()).toStrictEqual([expect.objectContaining({ kind: 'start', id: MENU, fadeInMs: MENU_FADE_IN_MS })]);
     expect(MENU_FADE_IN_MS).toBe(2000);
   });
 
@@ -123,7 +131,7 @@ describe('menu music: the menu loop', () => {
     const from = b.calls.length;
     d.onScene('menu');
     const started = b.calls.slice(from).filter((c): c is Extract<Call, { kind: 'start' }> => c.kind === 'start');
-    expect(started.map((c) => c.id)).toEqual([MENU]);
+    expect(started.map((c) => c.id)).toStrictEqual([MENU]);
   });
 
   it('the menu loop preloads after booted, not before', () => {
@@ -131,7 +139,7 @@ describe('menu music: the menu loop', () => {
     d.onUnlock();
     d.onSnapshot(snap(1, 'off'));
     d.onSnapshot(snap(1, 'posting'));
-    expect(b.calls.filter((c) => c.kind === 'preload' && c.id === MENU)).toEqual([]);
+    expect(b.calls.filter((c) => c.kind === 'preload' && c.id === MENU)).toStrictEqual([]);
     d.onSnapshot(snap(1, 'booting-os'));
     d.onSnapshot(snap(1, 'idle-os'));
     expect(b.calls.filter((c) => c.kind === 'preload' && c.id === MENU)).toHaveLength(1);
@@ -144,7 +152,7 @@ describe('game music: the first game frame crossfades from the menu', () => {
     d.onUnlock();
     d.onScene('menu');
     d.onScene('game');
-    expect(b.starts().filter((c) => c.id.startsWith('music_bed_'))).toEqual([]);
+    expect(b.starts().filter((c) => c.id.startsWith('music_bed_'))).toStrictEqual([]);
     d.onSnapshot(snap(2, 'idle-os'));
     expect(b.stops()).toContainEqual({ kind: 'stop', id: MENU, fadeOutMs: ENTRY_FADE_MS, quantise: 'bar' });
     expect(b.starts()).toContainEqual({ kind: 'start', id: keyed('bed', 2), fadeInMs: ENTRY_FADE_MS, quantise: 'bar' });
@@ -169,7 +177,7 @@ describe('game music: leaving the game for the main menu', () => {
         .starts()
         .filter((c) => c.id === MENU)
         .at(-1),
-    ).toEqual(expect.objectContaining({ id: MENU }));
+    ).toStrictEqual(expect.objectContaining({ id: MENU }));
   });
 
   it('going back to the game stops the menu loop on the next bar; leaving again stops the game stems', () => {
@@ -191,15 +199,16 @@ describe('game music: phase table (bed, pluck, bass)', () => {
   it('off: the bed sits at its 0.5 target over 2 s; pluck and bass exit on the next beat', () => {
     const { b, d } = inGame(1, 'running');
     d.onSnapshot(snap(1, 'off'));
-    const bed = b.gains(keyed('bed', 1)).at(-1)!;
-    expect(bed).toEqual(
+    const bed = b.gains(keyed('bed', 1)).at(-1);
+    assert.exists(bed);
+    expect(bed).toStrictEqual(
       expect.objectContaining({
         id: keyed('bed', 1),
         gainDb: expect.closeTo(gainFor('bed', 0.5), 1),
         fadeMs: ENTRY_FADE_MS,
       }),
     );
-    expect(b.stops()).toEqual(
+    expect(b.stops()).toStrictEqual(
       expect.arrayContaining([
         { kind: 'stop', id: keyed('pluck', 1), fadeOutMs: expect.any(Number), quantise: 'beat' },
         { kind: 'stop', id: keyed('bass', 1), fadeOutMs: expect.any(Number), quantise: 'beat' },
@@ -210,14 +219,20 @@ describe('game music: phase table (bed, pluck, bass)', () => {
   it('boot: the bed at 1 and the pluck at 0.5 (token dB plus 20 log10 of the target)', () => {
     const { b, d } = inGame(1, 'off');
     d.onSnapshot(snap(1, 'posting'));
-    expect(b.gains(keyed('bed', 1)).at(-1)!.gainDb).toBeCloseTo(gainFor('bed', 1), 1);
-    expect(b.gains(keyed('pluck', 1)).at(-1)!.gainDb).toBeCloseTo(gainFor('pluck', 0.5), 1);
+    const lastBedGain = b.gains(keyed('bed', 1)).at(-1);
+    assert.exists(lastBedGain);
+    expect(lastBedGain.gainDb).toBeCloseTo(gainFor('bed', 1), 1);
+    const lastPluckGain = b.gains(keyed('pluck', 1)).at(-1);
+    assert.exists(lastPluckGain);
+    expect(lastPluckGain.gainDb).toBeCloseTo(gainFor('pluck', 0.5), 1);
   });
 
   it('idle: the pluck at 0.6 and no bass', () => {
     const { b, d } = inGame(1, 'posting');
     d.onSnapshot(snap(1, 'idle-os'));
-    expect(b.gains(keyed('pluck', 1)).at(-1)!.gainDb).toBeCloseTo(gainFor('pluck', 0.6), 1);
+    const lastPluckGain2 = b.gains(keyed('pluck', 1)).at(-1);
+    assert.exists(lastPluckGain2);
+    expect(lastPluckGain2.gainDb).toBeCloseTo(gainFor('pluck', 0.6), 1);
     expect(b.starts().some((c) => c.id === keyed('bass', 1))).toBe(false);
   });
 
@@ -230,8 +245,12 @@ describe('game music: phase table (bed, pluck, bass)', () => {
       fadeInMs: expect.any(Number),
       quantise: 'bar',
     });
-    expect(b.gains(keyed('bass', 1)).at(-1)!.gainDb).toBeCloseTo(gainFor('bass', 1), 1);
-    expect(b.gains(keyed('pluck', 1)).at(-1)!.gainDb).toBeCloseTo(gainFor('pluck', 1), 1);
+    const lastBassGain = b.gains(keyed('bass', 1)).at(-1);
+    assert.exists(lastBassGain);
+    expect(lastBassGain.gainDb).toBeCloseTo(gainFor('bass', 1), 1);
+    const lastPluckGain3 = b.gains(keyed('pluck', 1)).at(-1);
+    assert.exists(lastPluckGain3);
+    expect(lastPluckGain3.gainDb).toBeCloseTo(gainFor('pluck', 1), 1);
   });
 
   it('running to idle: the bass exits on the next beat', () => {
@@ -249,7 +268,7 @@ describe('game music: phase table (bed, pluck, bass)', () => {
     const { b, d } = inGame(1, 'running');
     const before = b.calls.length;
     d.onSnapshot(snap(1, 'running-os'));
-    expect(b.calls.length).toBe(before);
+    expect(b.calls).toHaveLength(before);
   });
 });
 
@@ -260,7 +279,7 @@ describe('game music: keys in memory', () => {
       d.onSnapshot(snap(level, 'running'));
       const current = keyOf(level);
       const next = keyName((keyPcForLevel(level) + 7) % 12);
-      expect([...b.decoded()].sort()).toEqual([current, next].sort());
+      expect([...b.decoded()].toSorted()).toStrictEqual([current, next].toSorted());
     }
   });
 });

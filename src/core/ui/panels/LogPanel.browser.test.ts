@@ -5,21 +5,12 @@
 // Gated: runs only with T44_BROWSER=1 (like layout.browser.test.ts). The harness is layout.harness.ts.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Browser, Page } from 'playwright-core';
-import { type Box, type Control, controlProblems, overlappingControls, pageOverflows } from '@/app/layoutRects';
-import {
-  BOOT_MS,
-  GATE,
-  STEP_MS,
-  type Dev,
-  killTree,
-  launchChrome,
-  openBooted,
-  startServer,
-} from '@/app/layout.harness';
+import * as layoutRects from '@/app/layoutRects';
+import * as harness from '@/app/layout.harness';
 
 declare const process: any;
-const TEST_MS = 60_000 + BOOT_MS + 6 * STEP_MS;
-const SCREEN_MS = 2_000;
+const TEST_MS = 60_000 + harness.BOOT_MS + 6 * harness.STEP_MS;
+const SCREEN_MS = 2000;
 const VIEWPORTS = [
   { w: 1920, h: 1080 },
   { w: 390, h: 844 },
@@ -28,12 +19,12 @@ const VIEWPORTS = [
   { w: 844, h: 390 },
 ];
 
-let dev: Dev | null = null;
+let dev: harness.Dev | null = null;
 let browser: Browser | null = null;
 
 /** What the page holds for the Log: the boxed controls, the clipped lists, the page size, and the Log's box and look. */
 interface Snap {
-  controls: Control[];
+  controls: layoutRects.Control[];
   clippedLists: string[];
   sw: number;
   sh: number;
@@ -53,15 +44,19 @@ interface Snap {
 
 /** Runs in the page (serialised, so it takes no outside names). */
 function snapshot(): Snap {
-  const box = (e: Element): Box => {
+  const box = (e: Element): layoutRects.Box => {
     const r = e.getBoundingClientRect();
     return { x: r.left, y: r.top, r: r.right, b: r.bottom };
   };
   const visible = [...document.querySelectorAll('button, [role="tab"], input, select, textarea, a[href]')].filter(
     (e) => {
-      if (e.closest('[inert], [aria-hidden="true"]')) return false;
+      if (e.closest('[inert], [aria-hidden="true"]')) {
+        return false;
+      }
       const cs = getComputedStyle(e);
-      if (cs.display === 'none' || cs.visibility !== 'visible') return false;
+      if (cs.display === 'none' || cs.visibility !== 'visible') {
+        return false;
+      }
       const r = e.getBoundingClientRect();
       return r.width > 0 && r.height > 0;
     },
@@ -69,24 +64,32 @@ function snapshot(): Snap {
   const modal = document.querySelector('.joblog[aria-modal="true"]');
   const checked = modal ? visible.filter((e) => modal.contains(e)) : visible;
   const ids = new Map<Element, number>();
-  checked.forEach((e, i) => ids.set(e, i));
-  const controls: Control[] = checked.map((e, i) => {
+  checked.forEach((e, i) => {
+    ids.set(e, i);
+  });
+  const controls: layoutRects.Control[] = checked.map((e, i) => {
     const ancestors: number[] = [];
-    const clips: { box: Box; scrolls: boolean }[] = [];
+    const clips: { box: layoutRects.Box; scrolls: boolean }[] = [];
     let scrollerAbove = false;
     for (let a = e.parentElement; a; a = a.parentElement) {
       const id = ids.get(a);
-      if (id !== undefined) ancestors.push(id);
+      if (id !== undefined) {
+        ancestors.push(id);
+      }
       const cs = getComputedStyle(a);
       const axes = [cs.overflowX, cs.overflowY];
-      if (scrollerAbove || !axes.some((v) => v !== 'visible')) continue;
+      if (scrollerAbove || !axes.some((v) => v !== 'visible')) {
+        continue;
+      }
       const scrolls = axes.some((v) => v === 'auto' || v === 'scroll');
       clips.push({ box: box(a), scrolls });
-      if (scrolls) scrollerAbove = true;
+      if (scrolls) {
+        scrollerAbove = true;
+      }
     }
     const text = ((e as HTMLElement).innerText || e.getAttribute('aria-label') || '')
       .trim()
-      .replaceAll(/\s+/g, ' ')
+      .replaceAll(/\s+/gu, ' ')
       .slice(0, 32);
     return { id: i, label: text || e.tagName.toLowerCase(), box: box(e), ancestors, clips };
   });
@@ -98,10 +101,12 @@ function snapshot(): Snap {
       (cs.overflowY !== 'hidden' && cs.overflowY !== 'clip') ||
       e.clientHeight <= 1 ||
       e.clientWidth <= 1
-    )
+    ) {
       continue;
-    if (e.scrollHeight > e.clientHeight + 1 && e.clientHeight > 0)
+    }
+    if (e.scrollHeight > e.clientHeight + 1 && e.clientHeight > 0) {
       clippedLists.push(`${e.tagName.toLowerCase()}.${String(e.className).split(' ')[0] || '-'}`);
+    }
   }
   const log = document.querySelector('.joblog');
   let logLook: Snap['log'] = null;
@@ -132,33 +137,39 @@ function snapshot(): Snap {
 
 /** Starts a campaign game, gets past the welcome card, and opens the Job log from the dock. */
 async function openLog(page: Page): Promise<void> {
-  await page.getByRole('button', { name: /^New game/ }).click();
+  await page.getByRole('button', { name: /^New game/u }).click();
   await page.waitForSelector('.pl-menu.newgame .pl-row.hero');
   await page.click('.pl-menu.newgame .pl-row.hero');
-  await page.waitForSelector('header.hud', { timeout: BOOT_MS });
+  await page.waitForSelector('header.hud', { timeout: harness.BOOT_MS });
   await page.waitForTimeout(1500);
-  const skip = page.locator('button', { hasText: /^Skip$/ });
-  if (await skip.count()) await skip.first().click();
+  const skip = page.locator('button', { hasText: /^Skip$/u });
+  if (await skip.count()) {
+    await skip.first().click();
+  }
   await page
-    .waitForFunction(() => !document.querySelector('.modal-back.dlg-back'), null, { timeout: STEP_MS })
-    .catch(() => {});
+    .waitForFunction(() => !document.querySelector('.modal-back.dlg-back'), null, { timeout: harness.STEP_MS })
+    .catch(() => {
+      /* no-op */
+    });
   await page.click('[data-hud="joblog"]');
   await page.waitForSelector('.joblog[aria-modal="true"]');
 }
 
-describe.skipIf(!GATE)('the Log panel in the browser (ticket #75)', () => {
+describe.skipIf(!harness.GATE)('the Log panel in the browser (ticket #75)', () => {
   beforeAll(async () => {
-    dev = await startServer();
+    dev = await harness.startServer();
   }, 120_000);
   afterAll(() => {
-    killTree(dev?.child);
+    harness.killTree(dev?.child);
     dev = null;
   });
   beforeEach(async () => {
-    browser = await launchChrome();
+    browser = await harness.launchChrome();
   }, 60_000);
   afterEach(async () => {
-    await browser?.close().catch(() => {});
+    await browser?.close().catch(() => {
+      /* no-op */
+    });
     browser = null;
   }, 60_000);
 
@@ -167,23 +178,33 @@ describe.skipIf(!GATE)('the Log panel in the browser (ticket #75)', () => {
       `${vp.w} x ${vp.h}: the Log fits, with no overlap or clipped control, and is a flat edge tab`,
       async () => {
         const errors: string[] = [];
-        const { page, ctxClose } = await openBooted(browser!, dev!, vp.w, vp.h, errors);
+        const { page, ctxClose } = await harness.openBooted(browser!, dev!, vp.w, vp.h, errors);
         try {
           await openLog(page);
           await page.waitForTimeout(SCREEN_MS);
           const snap = await page.evaluate(snapshot);
           const label = `${vp.w} x ${vp.h} job log`;
           const problems: string[] = [];
-          for (const [a, b] of overlappingControls(snap.controls)) problems.push(`${label}: "${a}" overlaps "${b}"`);
-          for (const c of snap.controls)
-            for (const p of controlProblems(c, vp.w, vp.h)) problems.push(`${label}: ${p}`);
-          if (pageOverflows(snap.sw, snap.sh, vp.w, vp.h))
+          for (const [a, b] of layoutRects.overlappingControls(snap.controls)) {
+            problems.push(`${label}: "${a}" overlaps "${b}"`);
+          }
+          for (const c of snap.controls) {
+            for (const p of layoutRects.controlProblems(c, vp.w, vp.h)) {
+              problems.push(`${label}: ${p}`);
+            }
+          }
+          if (layoutRects.pageOverflows(snap.sw, snap.sh, vp.w, vp.h)) {
             problems.push(`${label}: the page scrolls (${snap.sw} x ${snap.sh})`);
-          for (const l of snap.clippedLists) problems.push(`${label}: ${l} cuts off its content with no scroll`);
-          for (const e of errors) problems.push(`${label}: page error ${e}`);
-          expect(problems).toEqual([]);
+          }
+          for (const l of snap.clippedLists) {
+            problems.push(`${label}: ${l} cuts off its content with no scroll`);
+          }
+          for (const e of errors) {
+            problems.push(`${label}: page error ${e}`);
+          }
+          expect(problems).toStrictEqual([]);
 
-          const log = snap.log;
+          const { log } = snap;
           expect(log, 'the Log card is on the page').not.toBeNull();
           const touches = Math.min(log!.x, log!.y, vp.w - log!.r, vp.h - log!.b) <= 1;
           expect(touches, `the Log touches a screen edge (box ${JSON.stringify(log)})`).toBe(true);

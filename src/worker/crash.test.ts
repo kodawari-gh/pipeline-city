@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { advance, handleMessage, newHost, takeCrash } from './host';
 import { rig } from './game/testkit';
 import { REG_COUNT } from '../features/cpu/sim/isa/isa';
@@ -15,12 +15,12 @@ describe('crash report pieces', () => {
 
   it('says where an address lives: inside a region, past the end of one, outside RAM, or unaligned', () => {
     const regions = [{ name: 'kernel', lo: 0xc1_00, hi: 0xc2_00 }];
-    expect(describePc(0xc1_20, regions, 0x1_00_00, 0x12_34)).toMatch(/inside "kernel".*0x00001234/);
+    expect(describePc(0xc1_20, regions, 0x1_00_00, 0x12_34)).toMatch(/inside "kernel".*0x00001234/u);
     expect(describePc(0xd3_10, regions, 0x1_00_00, 0)).toMatch(
-      /4368 bytes past the end of "kernel".*0xc200.*ran off the end/,
+      /4368 bytes past the end of "kernel".*0xc200.*ran off the end/u,
     );
-    expect(describePc(0x2_00_00, regions, 0x1_00_00, null)).toMatch(/outside RAM/);
-    expect(describePc(0xc1_21, regions, 0x1_00_00, null)).toMatch(/not word aligned/);
+    expect(describePc(0x2_00_00, regions, 0x1_00_00, null)).toMatch(/outside RAM/u);
+    expect(describePc(0xc1_21, regions, 0x1_00_00, null)).toMatch(/not word aligned/u);
   });
 
   it('dumps RAM words eight to a line and stops at the end of RAM', () => {
@@ -43,16 +43,18 @@ describe('a crash report from a running game', () => {
     }
     const r = crashReport(g, FAULT);
     expect(r.fault.pc).toBe(0xd3_10);
-    expect(r.fault.where).toMatch(/past the end of/);
+    expect(r.fault.where).toMatch(/past the end of/u);
     expect(r.headline).toContain('illegal instruction 0x0 at pc=0xd310');
     expect(r.os).not.toBeNull();
     expect(r.cores.length).toBeGreaterThan(0);
-    expect(r.cores[0]!.regs).toHaveLength(REG_COUNT);
+    assert.exists(r.cores[0]);
+    expect(r.cores[0].regs).toHaveLength(REG_COUNT);
     expect(r.windows.map((w) => w.base)).toContain(0xe0_00);
     expect(r.text).toContain('core 0:');
     expect(r.faultCore).toBe(g.machine.bus.core);
     expect(r.text).toContain('faulting core');
-    expect(r.text).toContain(r.os!.name);
+    assert.exists(r.os);
+    expect(r.text).toContain(r.os.name);
     expect(r.machine).toMatchObject({ cores: g.machine.cores.length, busCore: g.machine.bus.core });
     expect(r.text).toContain('machine: ');
     expect(r.text).not.toContain('OUT OF RANGE');
@@ -79,7 +81,8 @@ describe('the host on a crash', () => {
 
   it('pauses the sim, keeps the report and posts it once instead of throwing again every tick', () => {
     const h = started();
-    h.game!.advanceBaseTick = () => {
+    assert.exists(h.game);
+    h.game.advanceBaseTick = () => {
       throw FAULT;
     };
     expect(() => advance(h, 1000)).not.toThrow();
@@ -94,7 +97,8 @@ describe('the host on a crash', () => {
 
   it('a throw while handling an action also reports, next to the error', () => {
     const h = started();
-    h.game!.powerButton = () => {
+    assert.exists(h.game);
+    h.game.powerButton = () => {
       throw FAULT;
     };
     const r = handleMessage(h, { type: 'powerButton' });

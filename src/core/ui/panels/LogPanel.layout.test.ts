@@ -2,7 +2,7 @@
 // The panel is the `.joblog` card (LogPanel.tsx). A small cascade gives the value the browser would apply at a viewport
 // (media queries, then specificity, then source order). A rule that a later rule overrides does not count.
 // The browser side (the edge, the overlaps at five sizes) is in LogPanel.browser.test.ts (gated by T44_BROWSER=1).
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 
 // No @types/node in this project: the file system is reached through untyped imports (tests only).
 // @ts-ignore
@@ -10,25 +10,49 @@ import * as fsMod from 'node:fs';
 // @ts-ignore
 import * as urlMod from 'node:url';
 
-const fs = fsMod as any;
+interface NodeFs {
+  readFileSync: (path: string, encoding: 'utf8') => string;
+}
 
-const css: string = fs.readFileSync(urlMod.fileURLToPath(new URL('../ui.css', import.meta.url)), 'utf8');
+interface NodeUrl {
+  fileURLToPath: (url: URL) => string;
+}
+const isNodeUrl = (mod: unknown): mod is NodeUrl => typeof mod === 'object' && mod !== null && 'fileURLToPath' in mod;
+const isNodeFs = (mod: unknown): mod is NodeFs => typeof mod === 'object' && mod !== null && 'readFileSync' in mod;
+assert(isNodeUrl(urlMod), 'node:url loads');
+assert(isNodeFs(fsMod), 'node:fs loads');
+const nodeUrl = urlMod;
 
-type Rule = { media: string[]; selectors: string[]; decls: Record<string, string>; order: number };
-type Ctx = { w: number; h: number; coarse: boolean };
+const fs = fsMod;
+
+const css: string = fs.readFileSync(nodeUrl.fileURLToPath(new URL('../ui.css', import.meta.url)), 'utf8');
+
+interface Rule {
+  media: string[];
+  selectors: string[];
+  decls: Record<string, string>;
+  order: number;
+}
+interface Ctx {
+  w: number;
+  h: number;
+  coarse: boolean;
+}
 
 function declsOf(body: string): Record<string, string> {
   const decls: Record<string, string> = {};
   for (const part of body.split(';')) {
     const at = part.indexOf(':');
-    if (at !== -1) decls[part.slice(0, at).trim().toLowerCase()] = part.slice(at + 1).trim();
+    if (at !== -1) {
+      decls[part.slice(0, at).trim().toLowerCase()] = part.slice(at + 1).trim();
+    }
   }
   return decls;
 }
 
 /** The style rules of the sheet, with the `@media` queries each sits under. `@keyframes` and `@font-face` blocks are skipped. */
 function rulesOf(text: string): Rule[] {
-  const src = text.replaceAll(/\/\*[\s\S]*?\*\//g, '');
+  const src = text.replaceAll(/\/\*[\s\S]*?\*\//gu, '');
   const out: Rule[] = [];
   const media: string[] = [];
   let buf = '';
@@ -57,13 +81,18 @@ function rulesOf(text: string): Rule[] {
     if (head.startsWith('@')) {
       for (let depth = 1; depth > 0 && i < src.length;) {
         const d = src.charAt(i++);
-        if (d === '{') depth++;
-        else if (d === '}') depth--;
+        if (d === '{') {
+          depth++;
+        } else if (d === '}') {
+          depth--;
+        }
       }
       continue;
     }
     const end = src.indexOf('}', i);
-    if (end === -1) break;
+    if (end === -1) {
+      break;
+    }
     out.push({
       media: [...media],
       selectors: head.split(',').map((s) => s.trim()),
@@ -78,38 +107,53 @@ function rulesOf(text: string): Rule[] {
 const RULES = rulesOf(css);
 
 function featureHolds(feature: string, c: Ctx): boolean {
-  const m = /^\(\s*([\w-]+)\s*:\s*([^)]+?)\s*\)$/.exec(feature.trim());
-  if (!m) return false;
+  const m = /^\(\s*(?<feature>[\w-]+)\s*:\s*(?<value>[^)]+?)\s*\)$/u.exec(feature.trim());
+  if (!m) {
+    return false;
+  }
   const name = m[1] ?? '';
   const value = m[2] ?? '';
-  const px = (v: string) => (/em$/.test(v) ? Number.parseFloat(v) * 16 : Number.parseFloat(v));
+  const px = (v: string) => (v.endsWith('em') ? Number.parseFloat(v) * 16 : Number.parseFloat(v));
   switch (name) {
-    case 'max-width':
+    case 'max-width': {
       return c.w <= px(value);
-    case 'min-width':
+    }
+    case 'min-width': {
       return c.w >= px(value);
-    case 'max-height':
+    }
+    case 'max-height': {
       return c.h <= px(value);
-    case 'min-height':
+    }
+    case 'min-height': {
       return c.h >= px(value);
-    case 'orientation':
+    }
+    case 'orientation': {
       return value === (c.w > c.h ? 'landscape' : 'portrait');
-    case 'pointer':
+    }
+    case 'pointer': {
       return value === (c.coarse ? 'coarse' : 'fine');
-    default:
+    }
+    default: {
       return false;
+    }
   }
 }
 
 function queryHolds(query: string, c: Ctx): boolean {
-  return query.split(',').some((alt) => alt.split(/\s+and\s+/).every((f) => featureHolds(f, c)));
+  return query.split(',').some((alt) => alt.split(/\s+and\s+/u).every((f) => featureHolds(f, c)));
 }
 
 /** The value a rule gives `prop`, reading a `border`, `background` or `padding` shorthand for its longhand when it has none. */
 function valueOf(decls: Record<string, string>, prop: string): string | undefined {
-  if (decls[prop] !== undefined) return decls[prop];
-  if (prop === 'background-color' && decls['background'] !== undefined) return decls['background'];
-  if (prop.startsWith('border') && decls['border'] !== undefined) return decls['border'];
+  if (decls[prop] !== undefined) {
+    return decls[prop];
+  }
+  if (prop === 'background-color' && decls['background'] !== undefined) {
+    return decls['background'];
+  }
+  if (prop.startsWith('border') && decls['border'] !== undefined) {
+    return decls['border'];
+  }
   return undefined;
 }
 
@@ -117,13 +161,18 @@ function valueOf(decls: Record<string, string>, prop: string): string | undefine
 function cascade(prop: string, selectors: string[], c: Ctx): string | undefined {
   let best: { spec: number; order: number; value: string } | undefined;
   for (const r of RULES) {
-    if (!r.media.every((q) => queryHolds(q, c))) continue;
+    if (!r.media.every((q) => queryHolds(q, c))) {
+      continue;
+    }
     for (const sel of r.selectors) {
       const value = selectors.includes(sel) ? valueOf(r.decls, prop) : undefined;
-      if (value === undefined) continue;
-      const spec = (sel.match(/[.#][\w-]+/g) ?? []).length;
-      if (!best || spec > best.spec || (spec === best.spec && r.order > best.order))
+      if (value === undefined) {
+        continue;
+      }
+      const spec = (sel.match(/[.#][\w-]+/gu) ?? []).length;
+      if (!best || spec > best.spec || (spec === best.spec && r.order > best.order)) {
         best = { spec, order: r.order, value };
+      }
     }
   }
   return best?.value;
@@ -173,7 +222,7 @@ describe('the Log panel look (ui.css, ADR 0001, SPEC §1 rules 5 to 7)', () => {
       expect(bg, `background-color at ${at}`).toBe('var(--c-shade-86)');
       expect(cascade('background-image', LOG, c) ?? 'none', `background-image at ${at}`).toBe('none');
       expect(cascade('background', LOG, c) ?? '', `background at ${at}`).not.toMatch(
-        /gradient|--c-void|--c-stage|--c-panel/,
+        /gradient|--c-void|--c-stage|--c-panel/u,
       );
     });
   }

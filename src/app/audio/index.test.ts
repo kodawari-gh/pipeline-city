@@ -3,7 +3,7 @@
 // error before the first gesture; the first snapshot plays nothing; a fresh payout note plays one payout cue in
 // the current level's key. With ?debug, the cue board's files also wait for `booted`. Ticket #58: the room loop
 // waits for the boot screen to go (sceneOf, the readScene of main.tsx).
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { assert, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MIX } from './mixTokens';
 
 class Param {
@@ -36,7 +36,9 @@ class Node {
   connect<T>(n: T): T {
     return n;
   }
-  disconnect(): void {}
+  disconnect(): void {
+    /* no-op */
+  }
 }
 class Gain extends Node {
   gain = new Param();
@@ -117,7 +119,11 @@ async function fakeFetch(url: string) {
 let target: EventTarget;
 const gesture = (type: string): boolean => target.dispatchEvent(new Event(type));
 const flush = async (): Promise<void> => {
-  for (let i = 0; i < 30; i++) await new Promise((r) => setTimeout(r, 0));
+  for (let i = 0; i < 30; i++) {
+    await new Promise((r) => {
+      setTimeout(r, 0);
+    });
+  }
 };
 /** The sources started so far. None exist before the first gesture (no context yet). */
 const started = (): Source[] => FakeCtx.last?.sources.filter((s) => s.started) ?? [];
@@ -140,8 +146,12 @@ let error: any;
 beforeEach(() => {
   target = new EventTarget();
   vi.stubGlobal('window', target);
-  vi.stubGlobal('addEventListener', (t: string, f: any, o?: any) => target.addEventListener(t, f, o));
-  vi.stubGlobal('removeEventListener', (t: string, f: any, o?: any) => target.removeEventListener(t, f, o));
+  vi.stubGlobal('addEventListener', (t: string, f: any, o?: any) => {
+    target.addEventListener(t, f, o);
+  });
+  vi.stubGlobal('removeEventListener', (t: string, f: any, o?: any) => {
+    target.removeEventListener(t, f, o);
+  });
   vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'visible' }));
   vi.stubGlobal('AudioContext', FakeCtx);
   vi.stubGlobal('OfflineAudioContext', FakeOffline);
@@ -151,8 +161,12 @@ beforeEach(() => {
   inFlight = 0;
   maxInFlight = 0;
   vi.resetModules();
-  warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-  error = vi.spyOn(console, 'error').mockImplementation(() => {});
+  warn = vi.spyOn(console, 'warn').mockImplementation(() => {
+    /* no-op */
+  });
+  error = vi.spyOn(console, 'error').mockImplementation(() => {
+    /* no-op */
+  });
 });
 afterEach(async () => {
   await flush(); // a gesture or a snapshot can start loads that the test does not wait for: they finish while fetch is still the fake
@@ -167,7 +181,7 @@ describe('loading starts at booted', () => {
     idx.initAudio();
     gesture('pointerdown');
     await flush();
-    expect(fetched).toEqual([]);
+    expect(fetched).toStrictEqual([]);
     boot.booted.value = true;
     await flush();
     expect(fetched).toContain('sfx/payout__F.ogg');
@@ -186,12 +200,12 @@ describe('no sound before the first gesture', () => {
     await flush();
     store.snapshot.value = snap(1, 1, []);
     store.snapshot.value = snap(1, 2, [note(2, 'key 1 (F): $120')]);
-    expect(playedFiles()).toEqual([]);
+    expect(playedFiles()).toStrictEqual([]);
     expect(error).not.toHaveBeenCalled();
     expect(warn).not.toHaveBeenCalled();
     gesture(type);
     store.snapshot.value = snap(1, 3, [note(2, 'key 1 (F): $120'), note(3, 'key 2 (F): $140')]);
-    expect(sfxSources().map((s) => s.buffer?.path)).toEqual(['sfx/payout__F.ogg']);
+    expect(sfxSources().map((s) => s.buffer?.path)).toStrictEqual(['sfx/payout__F.ogg']);
     expect(error).not.toHaveBeenCalled();
   });
 });
@@ -206,10 +220,12 @@ describe('payout note plays its cue in the current level key', () => {
     boot.booted.value = true;
     await flush();
     store.snapshot.value = snap(1, 1, [note(1, 'key 1 (F): $120')]);
-    expect(playedFiles()).toEqual([]);
+    expect(playedFiles()).toStrictEqual([]);
     store.snapshot.value = snap(1, 2, [note(1, 'key 1 (F): $120'), note(2, 'key 2 (F): $140')]);
-    expect(sfxSources().map((s) => s.buffer?.path)).toEqual(['sfx/payout__F.ogg']);
-    expect(sfxSources()[0]!.playbackRate.value).toBeCloseTo(1, 6);
+    expect(sfxSources().map((s) => s.buffer?.path)).toStrictEqual(['sfx/payout__F.ogg']);
+    const [firstSfxSource] = sfxSources();
+    assert.exists(firstSfxSource);
+    expect(firstSfxSource.playbackRate.value).toBeCloseTo(1, 6);
   });
 
   it('level 2 is key C: the payout plays payout__B, one semitone up', async () => {
@@ -224,8 +240,10 @@ describe('payout note plays its cue in the current level key', () => {
     store.snapshot.value = snap(2, 2, []);
     await flush(); // the new key's roots load on the level change
     store.snapshot.value = snap(2, 3, [note(3, 'key 1 (C): $200')]);
-    expect(sfxSources().map((s) => s.buffer?.path)).toEqual(['sfx/payout__B.ogg']);
-    expect(sfxSources()[0]!.playbackRate.value).toBeCloseTo(2 ** (1 / 12), 6);
+    expect(sfxSources().map((s) => s.buffer?.path)).toStrictEqual(['sfx/payout__B.ogg']);
+    const [firstSfxSource2] = sfxSources();
+    assert.exists(firstSfxSource2);
+    expect(firstSfxSource2.playbackRate.value).toBeCloseTo(2 ** (1 / 12), 6);
   });
 
   it('level 13 wraps to key F: the payout plays payout__F at rate 1', async () => {
@@ -240,27 +258,48 @@ describe('payout note plays its cue in the current level key', () => {
     store.snapshot.value = snap(13, 2, []);
     await flush();
     store.snapshot.value = snap(13, 3, [note(3, 'key 1 (F): $300')]);
-    expect(sfxSources().map((s) => s.buffer?.path)).toEqual(['sfx/payout__F.ogg']);
-    expect(sfxSources()[0]!.playbackRate.value).toBeCloseTo(1, 6);
+    expect(sfxSources().map((s) => s.buffer?.path)).toStrictEqual(['sfx/payout__F.ogg']);
+    const [firstSfxSource3] = sfxSources();
+    assert.exists(firstSfxSource3);
+    expect(firstSfxSource3.playbackRate.value).toBeCloseTo(1, 6);
   });
 });
 
 describe('?debug cue board: files wait for booted', () => {
   // The board is plain DOM. Give it the few calls it makes (createElement, body.append); no layout is needed.
   const fakeEl = (): any =>
-    Object.assign(new EventTarget(), { id: '', type: '', textContent: '', style: {}, setAttribute() {}, append() {} });
+    Object.assign(new EventTarget(), {
+      id: '',
+      type: '',
+      textContent: '',
+      style: {},
+      setAttribute() {
+        /* no-op */
+      },
+      append() {
+        /* empty */
+      },
+    });
 
   it('fetches no cue file before booted; after booted the board files load', async () => {
     vi.stubGlobal(
       'document',
-      Object.assign(new EventTarget(), { visibilityState: 'visible', createElement: fakeEl, body: { append() {} } }),
+      Object.assign(new EventTarget(), {
+        visibilityState: 'visible',
+        createElement: fakeEl,
+        body: {
+          append() {
+            /* no-op */
+          },
+        },
+      }),
     );
     const idx = await import('./index');
     const boot = await import('../boot');
     await import('./cueBoard'); // loaded now, so the board's dynamic import resolves within the flushes below
     idx.initAudio('?debug');
     await flush();
-    expect(fetched).toEqual([]);
+    expect(fetched).toStrictEqual([]);
     boot.booted.value = true;
     await flush();
     expect(fetched).toContain('sfx/payout__F.ogg');
@@ -281,15 +320,16 @@ describe('the clock and holds reach the director (readUi), with the real engine'
     gesture('pointerdown');
     boot.booted.value = true;
     await flush();
-    const ctx = FakeCtx.last!;
+    const ctx = FakeCtx.last;
+    assert.exists(ctx);
     expect(ctx.state).toBe('running');
     const suspend = vi.spyOn(ctx, 'suspend');
 
     ui.value = { speed: 0, hold: null, crashed: false };
-    expect(playedFiles()).toEqual(['sfx/pause.ogg']);
+    expect(playedFiles()).toStrictEqual(['sfx/pause.ogg']);
 
     ui.value = { speed: 0, hold: 'menu', crashed: false };
-    expect(playedFiles()).toEqual(['sfx/pause.ogg', 'ui/ui_panel_open.ogg']);
+    expect(playedFiles()).toStrictEqual(['sfx/pause.ogg', 'ui/ui_panel_open.ogg']);
 
     expect(suspend).not.toHaveBeenCalled();
     expect(ctx.state).toBe('running');
@@ -300,7 +340,7 @@ describe('the clock and holds reach the director (readUi), with the real engine'
     const idx = await import('./index');
     const boot = await import('../boot');
     const { signal } = await import('@preact/signals');
-    const ui = signal({ speed: 4, hold: null as null, crashed: false });
+    const ui = signal({ speed: 4, hold: null, crashed: false });
     idx.initAudio(undefined, () => ui.value);
     gesture('pointerdown');
     boot.booted.value = true;
@@ -369,6 +409,6 @@ describe('level-up stinger: the real director and engine', () => {
     await flush(); // the stinger decodes before the level changes
     store.snapshot.value = snap(2, 2, [note(2, 'Level 2: Desk', 'level')]);
     // The SFX stinger and the music's level-up chord (ticket #64), both in the new key.
-    expect(playedFiles()).toEqual(['sfx/level_up__C.ogg', 'music/notes/music_levelup_C.ogg']);
+    expect(playedFiles()).toStrictEqual(['sfx/level_up__C.ogg', 'music/notes/music_levelup_C.ogg']);
   });
 });

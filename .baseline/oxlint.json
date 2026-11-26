@@ -198,29 +198,18 @@
   "unicorn(switch-case-braces)": 10
  },
  "src/app/audio-assets.test.ts": {
-  "eslint(curly)": 18,
-  "eslint(prefer-named-capture-group)": 6,
-  "eslint(require-unicode-regexp)": 4,
   "typescript(ban-ts-comment)": 2,
-  "typescript(no-explicit-any)": 4,
+  "typescript(no-explicit-any)": 3,
   "typescript(no-unnecessary-type-assertion)": 2,
-  "typescript(no-unsafe-argument)": 9,
-  "typescript(no-unsafe-assignment)": 5,
-  "typescript(no-unsafe-call)": 5,
-  "typescript(no-unsafe-member-access)": 16,
+  "typescript(no-unsafe-argument)": 6,
+  "typescript(no-unsafe-assignment)": 2,
+  "typescript(no-unsafe-member-access)": 8,
   "typescript(prefer-ts-expect-error)": 2,
-  "typescript(strict-boolean-expressions)": 5,
-  "typescript(strict-void-return)": 1,
-  "unicorn(no-array-for-each)": 1,
-  "unicorn(no-array-sort)": 2,
-  "vitest(prefer-strict-equal)": 2
+  "typescript(strict-boolean-expressions)": 3,
+  "unicorn(no-array-for-each)": 1
  },
  "src/app/audio/ambience.test.ts": {
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-non-null-assertion)": 1,
-  "typescript(strict-void-return)": 4,
-  "unicorn(prefer-array-find)": 1,
-  "vitest(prefer-strict-equal)": 8
+  "unicorn(prefer-array-find)": 1
  },
  "src/app/audio/ambience.ts": {
   "eslint(curly)": 8,
@@ -234,77 +223,35 @@
   "typescript(no-unnecessary-type-assertion)": 1,
   "unicorn(consistent-function-scoping)": 1
  },
- "src/app/audio/cueboard.test.ts": {
-  "typescript(require-await)": 2,
-  "vitest(prefer-called-once)": 1,
-  "vitest(require-mock-type-parameters)": 4
- },
  "src/app/audio/director.ambience.test.ts": {
-  "eslint(no-empty-function)": 1,
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-non-null-assertion)": 1,
-  "vitest(no-conditional-in-test)": 8,
-  "vitest(prefer-strict-equal)": 16
+  "vitest(no-conditional-in-test)": 8
  },
  "src/app/audio/director.levelup.test.ts": {
-  "import(consistent-type-specifier-style)": 1,
   "vitest(no-conditional-in-test)": 2,
-  "vitest(prefer-strict-equal)": 23,
   "vitest(warn-todo)": 1
  },
  "src/app/audio/director.musicPauseHidden.test.ts": {
-  "eslint(curly)": 3,
   "eslint(max-params)": 2,
-  "eslint(no-empty-function)": 1,
-  "eslint(no-implicit-coercion)": 6,
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-inferrable-types)": 1,
-  "typescript(no-non-null-assertion)": 5,
   "typescript(no-unsafe-assignment)": 1,
   "typescript(no-unsafe-type-assertion)": 2,
   "unicorn(max-nested-calls)": 2,
-  "unicorn(no-array-sort)": 6,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 26
+  "vitest(no-conditional-in-test)": 1
  },
  "src/app/audio/director.notes.test.ts": {
-  "eslint(no-empty-function)": 2,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(method-signature-style)": 2,
-  "typescript(no-non-null-assertion)": 11,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-array-sort)": 1,
-  "vitest(prefer-strict-equal)": 22
+  "unicorn(consistent-function-scoping)": 1
  },
  "src/app/audio/director.state.test.ts": {
-  "eslint(curly)": 2,
-  "eslint(no-empty-function)": 2,
-  "import(consistent-type-specifier-style)": 3,
   "typescript(consistent-return)": 1,
-  "typescript(consistent-type-definitions)": 1,
   "typescript(no-unsafe-type-assertion)": 2,
-  "unicorn(no-array-sort)": 2,
-  "vitest(no-conditional-in-test)": 2,
-  "vitest(prefer-strict-equal)": 41
+  "vitest(no-conditional-in-test)": 2
  },
  "src/app/audio/director.studio.test.ts": {
-  "eslint(curly)": 2,
-  "eslint(no-empty-function)": 5,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-inferrable-types)": 1,
   "typescript(no-unsafe-type-assertion)": 1,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 8
+  "vitest(no-conditional-in-test)": 1
  },
  "src/app/audio/director.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(no-empty-function)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(consistent-return)": 1,
-  "typescript(no-non-null-assertion)": 3,
-  "vitest(prefer-strict-equal)": 9
+  "typescript(consistent-return)": 1
  },
  "src/app/audio/director.ts": {
   "eslint(complexity)": 1,
@@ -325,34 +272,22 @@
  },
  "src/app/audio/engine.test.ts": {
   "eslint(class-methods-use-this)": 5,
-  "eslint(curly)": 10,
   "eslint(max-classes-per-file)": 1,
   "eslint(no-await-in-loop)": 1,
-  "eslint(no-empty-function)": 3,
-  "eslint(no-promise-executor-return)": 1,
   "eslint(no-shadow)": 2,
-  "eslint(require-unicode-regexp)": 1,
   "promise(param-names)": 4,
-  "typescript(no-confusing-void-expression)": 4,
   "typescript(no-explicit-any)": 6,
-  "typescript(no-non-null-assertion)": 14,
-  "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-argument)": 4,
   "typescript(no-unsafe-call)": 1,
   "typescript(no-unsafe-member-access)": 1,
   "typescript(no-unsafe-type-assertion)": 2,
   "typescript(promise-function-async)": 3,
   "typescript(require-await)": 2,
-  "typescript(strict-void-return)": 1,
   "unicorn(consistent-function-scoping)": 5,
-  "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-for-each)": 1,
-  "unicorn(prefer-at)": 1,
   "vitest(no-conditional-in-test)": 4,
-  "vitest(prefer-called-once)": 3,
   "vitest(prefer-expect-resolves)": 2,
-  "vitest(prefer-strict-boolean-matchers)": 2,
-  "vitest(prefer-strict-equal)": 13
+  "vitest(prefer-strict-boolean-matchers)": 2
  },
  "src/app/audio/engine.ts": {
   "eslint(curly)": 74,
@@ -379,23 +314,10 @@
   "unicorn(prefer-global-this)": 2
  },
  "src/app/audio/events.test.ts": {
-  "eslint(curly)": 13,
   "eslint(max-params)": 1,
   "eslint(no-template-curly-in-string)": 5,
-  "eslint(prefer-named-capture-group)": 3,
-  "eslint(require-unicode-regexp)": 9,
   "typescript(ban-ts-comment)": 3,
-  "typescript(no-explicit-any)": 1,
-  "typescript(no-non-null-assertion)": 3,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(no-unsafe-argument)": 1,
-  "typescript(no-unsafe-assignment)": 2,
-  "typescript(no-unsafe-call)": 6,
-  "typescript(no-unsafe-member-access)": 7,
-  "typescript(prefer-ts-expect-error)": 3,
-  "typescript(strict-boolean-expressions)": 3,
-  "unicorn(no-array-sort)": 2,
-  "vitest(prefer-strict-equal)": 10
+  "typescript(prefer-ts-expect-error)": 3
  },
  "src/app/audio/events.ts": {
   "eslint(curly)": 4,
@@ -408,24 +330,16 @@
  },
  "src/app/audio/index.test.ts": {
   "eslint(class-methods-use-this)": 5,
-  "eslint(curly)": 1,
   "eslint(max-classes-per-file)": 1,
   "eslint(no-await-in-loop)": 1,
-  "eslint(no-empty-function)": 6,
-  "eslint(no-promise-executor-return)": 1,
   "promise(param-names)": 1,
-  "typescript(no-confusing-void-expression)": 2,
   "typescript(no-explicit-any)": 8,
-  "typescript(no-non-null-assertion)": 4,
-  "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-argument)": 4,
   "typescript(no-unsafe-assignment)": 15,
   "typescript(promise-function-async)": 3,
   "typescript(require-await)": 1,
   "typescript(strict-boolean-expressions)": 2,
-  "typescript(strict-void-return)": 1,
-  "unicorn(consistent-function-scoping)": 2,
-  "vitest(prefer-strict-equal)": 11
+  "unicorn(consistent-function-scoping)": 2
  },
  "src/app/audio/index.ts": {
   "eslint(curly)": 6,
@@ -435,18 +349,9 @@
   "typescript(no-confusing-void-expression)": 3
  },
  "src/app/audio/keys.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 1,
   "typescript(ban-ts-comment)": 2,
-  "typescript(no-explicit-any)": 1,
-  "typescript(no-non-null-assertion)": 2,
-  "typescript(no-unsafe-assignment)": 2,
-  "typescript(no-unsafe-call)": 3,
-  "typescript(no-unsafe-member-access)": 3,
   "typescript(prefer-ts-expect-error)": 2,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 3
+  "vitest(no-conditional-in-test)": 1
  },
  "src/app/audio/keys.ts": {
   "eslint(curly)": 2,
@@ -460,92 +365,47 @@
   "unicorn(numeric-separators-style)": 5
  },
  "src/app/audio/music.dataStress.test.ts": {
-  "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 10,
-  "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 7,
   "unicorn(consistent-function-scoping)": 1,
-  "unicorn(explicit-length-check)": 2,
-  "unicorn(max-nested-calls)": 3,
+  "unicorn(max-nested-calls)": 1,
   "unicorn(prefer-array-find)": 4,
   "vitest(no-conditional-in-test)": 6
  },
  "src/app/audio/music.levelKey.test.ts": {
-  "eslint(curly)": 5,
   "eslint(no-use-before-define)": 15,
-  "import(consistent-type-specifier-style)": 4,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 9,
-  "typescript(no-unnecessary-type-assertion)": 2,
-  "typescript(no-unsafe-type-assertion)": 17,
+  "typescript(no-unsafe-type-assertion)": 16,
   "unicorn(consistent-function-scoping)": 2,
   "unicorn(max-nested-calls)": 4,
-  "vitest(no-conditional-in-test)": 12,
-  "vitest(prefer-strict-equal)": 13,
-  "vitest(prefer-to-have-length)": 2
+  "vitest(no-conditional-in-test)": 12
  },
  "src/app/audio/music.menuGame.test.ts": {
-  "eslint(curly)": 2,
   "eslint(max-params)": 1,
-  "eslint(no-empty-function)": 2,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-inferrable-types)": 1,
-  "typescript(no-non-null-assertion)": 6,
   "typescript(no-unsafe-assignment)": 5,
   "typescript(no-unsafe-type-assertion)": 1,
   "unicorn(max-nested-calls)": 1,
-  "unicorn(no-array-sort)": 2,
   "unicorn(prefer-array-find)": 1,
-  "vitest(no-conditional-in-test)": 2,
-  "vitest(prefer-strict-equal)": 9,
-  "vitest(prefer-to-have-length)": 1
+  "vitest(no-conditional-in-test)": 2
  },
  "src/app/audio/music.notes.test.ts": {
-  "eslint(curly)": 4,
-  "eslint(no-empty-function)": 2,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 3,
-  "typescript(no-non-null-assertion)": 6,
-  "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 2,
   "typescript(non-nullable-type-assertion-style)": 1,
   "unicorn(consistent-function-scoping)": 2,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(numeric-separators-style)": 1,
   "vitest(no-conditional-in-test)": 2,
-  "vitest(prefer-strict-equal)": 11,
-  "vitest(prefer-to-have-length)": 1,
   "vitest(valid-expect)": 7
  },
  "src/app/audio/music.speed.test.ts": {
-  "eslint(curly)": 5,
-  "eslint(no-nested-ternary)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-non-null-assertion)": 6,
-  "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 7,
   "unicorn(consistent-function-scoping)": 2,
-  "unicorn(explicit-length-check)": 2,
   "unicorn(new-for-builtins)": 3,
   "unicorn(prefer-array-find)": 1,
   "vitest(no-conditional-expect)": 1,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-strict-equal)": 4
+  "vitest(no-conditional-in-test)": 3
  },
  "src/app/audio/music.test.ts": {
-  "eslint(curly)": 3,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 1,
-  "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 2,
   "unicorn(consistent-function-scoping)": 1,
-  "unicorn(explicit-length-check)": 1,
-  "unicorn(no-array-sort)": 1,
   "unicorn(no-useless-undefined)": 1,
-  "unicorn(prefer-array-find)": 1,
-  "vitest(prefer-strict-equal)": 9
+  "unicorn(prefer-array-find)": 1
  },
  "src/app/audio/music.ts": {
   "eslint(curly)": 29,
@@ -581,49 +441,27 @@
  },
  "src/app/audio/uiAttributes.test.ts": {
   "eslint(class-methods-use-this)": 2,
-  "eslint(curly)": 5,
   "eslint(max-classes-per-file)": 1,
-  "eslint(no-empty-function)": 1,
   "eslint(no-negated-condition)": 1,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 4,
   "typescript(ban-ts-comment)": 2,
-  "typescript(no-explicit-any)": 1,
   "typescript(no-extraneous-class)": 1,
-  "typescript(no-unsafe-assignment)": 1,
-  "typescript(no-unsafe-call)": 2,
-  "typescript(no-unsafe-member-access)": 2,
-  "typescript(no-unsafe-return)": 1,
   "typescript(no-unsafe-type-assertion)": 2,
   "typescript(prefer-ts-expect-error)": 2,
   "unicorn(no-useless-spread)": 1,
-  "unicorn(prefer-dom-node-dataset)": 1,
-  "vitest(prefer-import-in-mock)": 1,
-  "vitest(prefer-strict-equal)": 3
- },
- "src/app/audio/uiCues.studio.test.ts": {
-  "vitest(prefer-strict-equal)": 1
+  "unicorn(prefer-dom-node-dataset)": 1
  },
  "src/app/audio/uiCues.test.ts": {
   "eslint(class-methods-use-this)": 6,
-  "eslint(curly)": 4,
   "eslint(max-classes-per-file)": 1,
-  "eslint(no-empty-function)": 5,
-  "eslint(prefer-named-capture-group)": 2,
-  "eslint(require-unicode-regexp)": 2,
-  "typescript(no-confusing-void-expression)": 2,
   "typescript(no-explicit-any)": 4,
-  "typescript(no-non-null-assertion)": 7,
   "typescript(no-this-alias)": 1,
   "typescript(no-unsafe-argument)": 4,
   "typescript(no-unsafe-type-assertion)": 2,
   "typescript(promise-function-async)": 3,
   "typescript(require-await)": 2,
-  "unicorn(no-array-callback-reference)": 2,
   "unicorn(no-this-assignment)": 1,
   "unicorn(no-useless-spread)": 1,
-  "unicorn(no-useless-undefined)": 1,
-  "vitest(prefer-strict-equal)": 32
+  "unicorn(no-useless-undefined)": 1
  },
  "src/app/audio/uiCues.ts": {
   "eslint(curly)": 5,
@@ -646,48 +484,25 @@
   "unicorn(prefer-global-this)": 1
  },
  "src/app/audio/uiPanels.test.ts": {
-  "eslint(curly)": 3,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 6,
   "typescript(ban-ts-comment)": 2,
-  "typescript(no-explicit-any)": 1,
-  "typescript(no-unsafe-assignment)": 1,
-  "typescript(no-unsafe-call)": 2,
-  "typescript(no-unsafe-member-access)": 2,
-  "typescript(no-unsafe-return)": 1,
   "typescript(prefer-ts-expect-error)": 2,
-  "vitest(no-conditional-in-test)": 2,
-  "vitest(prefer-strict-equal)": 1
+  "vitest(no-conditional-in-test)": 2
  },
  "src/app/audio/visibility.test.ts": {
   "eslint(class-methods-use-this)": 5,
-  "eslint(curly)": 4,
   "eslint(max-classes-per-file)": 1,
   "eslint(no-await-in-loop)": 2,
-  "eslint(no-empty-function)": 3,
-  "eslint(require-unicode-regexp)": 1,
-  "typescript(consistent-type-definitions)": 1,
-  "typescript(no-confusing-void-expression)": 2,
   "typescript(no-explicit-any)": 5,
-  "typescript(no-non-null-assertion)": 8,
   "typescript(no-unsafe-argument)": 4,
   "typescript(promise-function-async)": 3,
-  "typescript(require-await)": 2,
-  "unicorn(no-array-callback-reference)": 1,
-  "vitest(prefer-called-once)": 2,
-  "vitest(prefer-strict-equal)": 1,
-  "vitest(prefer-to-have-length)": 1
+  "typescript(require-await)": 2
  },
  "src/app/audio/voices.test.ts": {
-  "eslint(curly)": 3,
   "eslint(max-params)": 1,
-  "eslint(no-empty-function)": 2,
-  "typescript(no-non-null-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 1,
   "typescript(non-nullable-type-assertion-style)": 1,
   "unicorn(consistent-function-scoping)": 1,
-  "vitest(no-conditional-in-test)": 2,
-  "vitest(prefer-strict-equal)": 4
+  "vitest(no-conditional-in-test)": 2
  },
  "src/app/audio/voices.ts": {
   "eslint(curly)": 4,
@@ -700,15 +515,10 @@
  },
  "src/app/audio/volume.test.ts": {
   "eslint(class-methods-use-this)": 3,
-  "eslint(curly)": 4,
   "eslint(max-classes-per-file)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-unnecessary-type-conversion)": 1,
   "typescript(no-unsafe-type-assertion)": 5,
   "vitest(no-conditional-expect)": 2,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 7
+  "vitest(no-conditional-in-test)": 1
  },
  "src/app/audio/volume.ts": {
   "eslint(curly)": 1,
@@ -717,9 +527,6 @@
   "typescript(strict-boolean-expressions)": 1
  },
  "src/app/boot.test.ts": {
-  "eslint(require-unicode-regexp)": 2,
-  "typescript(consistent-type-definitions)": 1,
-  "typescript(consistent-type-imports)": 1,
   "typescript(no-explicit-any)": 2,
   "typescript(no-unsafe-call)": 2,
   "typescript(no-unsafe-member-access)": 4,
@@ -733,42 +540,24 @@
   "unicorn(prefer-query-selector)": 4
  },
  "src/app/bootpage.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(prefer-named-capture-group)": 5,
-  "eslint(require-unicode-regexp)": 11,
   "typescript(ban-ts-comment)": 2,
-  "typescript(no-explicit-any)": 1,
-  "typescript(no-non-null-assertion)": 6,
-  "typescript(no-unsafe-assignment)": 3,
-  "typescript(no-unsafe-call)": 2,
-  "typescript(no-unsafe-member-access)": 2,
   "typescript(prefer-ts-expect-error)": 2,
   "vitest(no-conditional-in-test)": 1
  },
  "src/app/build.test.ts": {
-  "eslint(curly)": 2,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 5,
   "typescript(ban-ts-comment)": 2,
-  "typescript(no-explicit-any)": 3,
-  "typescript(no-unsafe-argument)": 1,
-  "typescript(no-unsafe-assignment)": 5,
-  "typescript(no-unsafe-call)": 5,
-  "typescript(no-unsafe-member-access)": 8,
-  "typescript(no-unsafe-return)": 1,
+  "typescript(no-explicit-any)": 2,
+  "typescript(no-unsafe-assignment)": 2,
+  "typescript(no-unsafe-member-access)": 2,
   "typescript(no-unsafe-type-assertion)": 2,
   "typescript(prefer-ts-expect-error)": 2,
-  "typescript(strict-boolean-expressions)": 1,
   "vitest(prefer-expect-type-of)": 1
  },
  "src/app/debug/city-layers.test.ts": {
-  "eslint(curly)": 1,
-  "typescript(no-non-null-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 1,
   "vitest(no-conditional-expect)": 1,
   "vitest(no-conditional-in-test)": 1,
   "vitest(prefer-each)": 1,
-  "vitest(prefer-strict-equal)": 2,
   "vitest(valid-expect)": 1
  },
  "src/app/debug/city-layers.ts": {
@@ -780,12 +569,8 @@
   "unicorn(no-array-for-each)": 1
  },
  "src/app/debug/controls.test.ts": {
-  "eslint(curly)": 1,
-  "typescript(no-confusing-void-expression)": 6,
-  "typescript(no-non-null-assertion)": 1,
   "typescript(no-unsafe-assignment)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "vitest(prefer-strict-equal)": 15
+  "unicorn(consistent-function-scoping)": 1
  },
  "src/app/debug/controls.ts": {
   "eslint(curly)": 6,
@@ -794,18 +579,11 @@
   "typescript(no-non-null-assertion)": 1
  },
  "src/app/debug/overlay.test.ts": {
-  "eslint(curly)": 3,
-  "eslint(no-empty-function)": 2,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 1,
   "promise(prefer-await-to-callbacks)": 1,
   "typescript(method-signature-style)": 3,
-  "typescript(no-non-null-assertion)": 56,
   "typescript(no-unsafe-type-assertion)": 7,
   "unicorn(consistent-function-scoping)": 3,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-import-in-mock)": 1,
-  "vitest(prefer-strict-equal)": 9
+  "vitest(no-conditional-in-test)": 3
  },
  "src/app/debug/overlay.ts": {
   "eslint(curly)": 10,
@@ -822,9 +600,7 @@
   "unicorn(prefer-global-this)": 1
  },
  "src/app/debug/stats.test.ts": {
-  "eslint(curly)": 11,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-strict-equal)": 2
+  "vitest(no-conditional-in-test)": 3
  },
  "src/app/debug/stats.ts": {
   "eslint(curly)": 5,
@@ -834,26 +610,11 @@
   "unicorn(no-array-sort)": 1
  },
  "src/app/debugflag.test.ts": {
-  "eslint(curly)": 6,
-  "eslint(prefer-named-capture-group)": 5,
-  "eslint(require-unicode-regexp)": 6,
   "typescript(ban-ts-comment)": 3,
-  "typescript(no-explicit-any)": 2,
-  "typescript(no-non-null-assertion)": 1,
-  "typescript(no-unsafe-argument)": 4,
-  "typescript(no-unsafe-assignment)": 4,
-  "typescript(no-unsafe-call)": 14,
-  "typescript(no-unsafe-member-access)": 19,
-  "typescript(no-unsafe-return)": 2,
-  "typescript(no-unsafe-type-assertion)": 4,
   "typescript(prefer-ts-expect-error)": 3,
-  "typescript(require-await)": 2,
-  "typescript(strict-boolean-expressions)": 2,
+  "typescript(strict-boolean-expressions)": 1,
   "unicorn(import-style)": 1,
-  "vitest(no-conditional-in-test)": 4,
-  "vitest(prefer-called-once)": 1,
-  "vitest(prefer-strict-equal)": 2,
-  "vitest(require-mock-type-parameters)": 4
+  "vitest(no-conditional-in-test)": 4
  },
  "src/app/debugflag.ts": {
   "eslint(curly)": 1,
@@ -861,18 +622,10 @@
   "typescript(no-confusing-void-expression)": 1
  },
  "src/app/errors.browser.test.ts": {
-  "eslint(curly)": 6,
   "eslint(max-params)": 1,
   "eslint(no-await-in-loop)": 10,
-  "eslint(no-empty-function)": 1,
-  "eslint(no-implicit-coercion)": 1,
-  "eslint(no-promise-executor-return)": 1,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 26,
-  "import(consistent-type-specifier-style)": 3,
   "promise(param-names)": 3,
   "typescript(ban-ts-comment)": 3,
-  "typescript(no-confusing-void-expression)": 1,
   "typescript(no-explicit-any)": 8,
   "typescript(no-non-null-assertion)": 5,
   "typescript(no-unsafe-argument)": 1,
@@ -882,12 +635,9 @@
   "typescript(no-unsafe-return)": 1,
   "typescript(no-unsafe-type-assertion)": 5,
   "typescript(prefer-ts-expect-error)": 3,
-  "typescript(promise-function-async)": 5,
   "typescript(restrict-template-expressions)": 1,
-  "typescript(strict-boolean-expressions)": 4,
-  "typescript(strict-void-return)": 1,
+  "typescript(strict-boolean-expressions)": 3,
   "typescript(unbound-method)": 1,
-  "unicorn(catch-error-name)": 2,
   "unicorn(no-await-expression-member)": 3,
   "unicorn(prefer-dom-node-text-content)": 2,
   "unicorn(prefer-number-coercion)": 2,
@@ -897,36 +647,23 @@
   "vitest(valid-expect)": 1
  },
  "src/app/gallery.flat.browser.test.ts": {
-  "eslint(curly)": 8,
-  "eslint(no-empty-function)": 2,
   "eslint(no-loop-func)": 1,
-  "eslint(require-unicode-regexp)": 3,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-explicit-any)": 1,
   "typescript(no-non-null-assertion)": 2,
-  "typescript(no-unnecessary-type-conversion)": 1,
   "typescript(no-unsafe-call)": 1,
   "typescript(no-unsafe-member-access)": 1,
   "typescript(no-unsafe-type-assertion)": 1,
   "unicorn(prefer-number-coercion)": 2,
   "vitest(prefer-each)": 1,
-  "vitest(prefer-hooks-in-order)": 2,
-  "vitest(prefer-strict-equal)": 1
+  "vitest(prefer-hooks-in-order)": 2
  },
  "src/app/graphics.test.ts": {
-  "eslint(curly)": 17,
   "eslint(max-params)": 4,
   "eslint(no-shadow)": 2,
   "eslint(no-unused-vars)": 1,
-  "import(consistent-type-specifier-style)": 3,
-  "typescript(no-confusing-void-expression)": 13,
-  "typescript(no-non-null-assertion)": 8,
   "typescript(no-unsafe-assignment)": 4,
   "unicorn(consistent-function-scoping)": 11,
-  "unicorn(numeric-separators-style)": 3,
-  "vitest(no-conditional-expect)": 1,
-  "vitest(no-conditional-in-test)": 8,
-  "vitest(prefer-strict-equal)": 17,
+  "vitest(no-conditional-in-test)": 7,
   "vitest(valid-expect)": 3
  },
  "src/app/graphics.ts": {
@@ -953,16 +690,8 @@
   "unicorn(no-object-as-default-parameter)": 1,
   "unicorn(prefer-set-has)": 1
  },
- "src/app/hover.test.ts": {
-  "vitest(prefer-strict-equal)": 4
- },
  "src/app/layout.almanac.browser.test.ts": {
-  "eslint(curly)": 3,
-  "eslint(no-empty-function)": 6,
-  "eslint(no-implicit-coercion)": 2,
   "eslint(no-loop-func)": 2,
-  "eslint(require-unicode-regexp)": 3,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-explicit-any)": 1,
   "typescript(no-non-null-assertion)": 11,
   "typescript(no-unsafe-call)": 1,
@@ -974,23 +703,14 @@
   "unicorn(prefer-dom-node-append)": 1,
   "vitest(no-conditional-in-test)": 18,
   "vitest(prefer-each)": 1,
-  "vitest(prefer-equality-matcher)": 4,
   "vitest(prefer-expect-resolves)": 2,
-  "vitest(prefer-hooks-in-order)": 2,
-  "vitest(prefer-strict-equal)": 2
+  "vitest(prefer-hooks-in-order)": 2
  },
  "src/app/layout.browser.test.ts": {
-  "eslint(curly)": 19,
   "eslint(max-params)": 1,
   "eslint(no-await-in-loop)": 2,
-  "eslint(no-empty-function)": 4,
-  "eslint(no-implicit-coercion)": 1,
-  "eslint(no-promise-executor-return)": 1,
-  "eslint(require-unicode-regexp)": 7,
-  "import(consistent-type-specifier-style)": 4,
   "promise(param-names)": 3,
   "typescript(ban-ts-comment)": 3,
-  "typescript(no-confusing-void-expression)": 1,
   "typescript(no-explicit-any)": 4,
   "typescript(no-non-null-assertion)": 4,
   "typescript(no-unnecessary-type-conversion)": 1,
@@ -1001,20 +721,15 @@
   "typescript(no-unsafe-type-assertion)": 3,
   "typescript(prefer-nullish-coalescing)": 2,
   "typescript(prefer-ts-expect-error)": 3,
-  "typescript(promise-function-async)": 4,
   "typescript(restrict-template-expressions)": 1,
-  "typescript(strict-boolean-expressions)": 6,
-  "typescript(strict-void-return)": 2,
-  "unicorn(catch-error-name)": 2,
+  "typescript(strict-boolean-expressions)": 5,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(no-array-for-each)": 1,
   "unicorn(no-await-expression-member)": 1,
-  "unicorn(numeric-separators-style)": 1,
   "unicorn(prefer-dom-node-text-content)": 1,
   "vitest(no-conditional-in-test)": 1,
   "vitest(prefer-each)": 1,
   "vitest(prefer-hooks-in-order)": 2,
-  "vitest(prefer-strict-equal)": 1,
   "vitest(valid-expect)": 1
  },
  "src/app/layout.harness.ts": {
@@ -1043,13 +758,7 @@
   "unicorn(no-await-expression-member)": 1
  },
  "src/app/layout.menu.browser.test.ts": {
-  "eslint(curly)": 6,
-  "eslint(no-empty-function)": 7,
-  "eslint(no-implicit-coercion)": 2,
   "eslint(no-loop-func)": 3,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 11,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-explicit-any)": 1,
   "typescript(no-non-null-assertion)": 20,
   "typescript(no-unsafe-assignment)": 2,
@@ -1061,16 +770,11 @@
   "vitest(no-conditional-in-test)": 20,
   "vitest(prefer-each)": 2,
   "vitest(prefer-expect-resolves)": 1,
-  "vitest(prefer-hooks-in-order)": 2,
-  "vitest(prefer-strict-equal)": 2
+  "vitest(prefer-hooks-in-order)": 2
  },
  "src/app/layout.shop.browser.test.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 7,
-  "eslint(no-empty-function)": 5,
   "eslint(no-loop-func)": 1,
-  "eslint(require-unicode-regexp)": 3,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-explicit-any)": 2,
   "typescript(no-non-null-assertion)": 12,
   "typescript(no-unnecessary-type-assertion)": 2,
@@ -1083,14 +787,11 @@
   "unicorn(prefer-dom-node-text-content)": 1,
   "vitest(no-conditional-in-test)": 4,
   "vitest(prefer-each)": 1,
-  "vitest(prefer-hooks-in-order)": 2,
-  "vitest(prefer-strict-equal)": 3
+  "vitest(prefer-hooks-in-order)": 2
  },
  "src/app/layoutRects.test.ts": {
   "eslint(max-params)": 2,
-  "import(consistent-type-specifier-style)": 2,
-  "unicorn(max-nested-calls)": 4,
-  "vitest(prefer-strict-equal)": 10
+  "unicorn(max-nested-calls)": 4
  },
  "src/app/layoutRects.ts": {
   "eslint(curly)": 6,
@@ -1111,35 +812,22 @@
  },
  "src/app/menu.style.browser.test.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 10,
   "eslint(no-await-in-loop)": 5,
-  "eslint(no-empty-function)": 4,
   "eslint(no-loop-func)": 1,
-  "eslint(prefer-named-capture-group)": 2,
-  "eslint(require-unicode-regexp)": 13,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-explicit-any)": 1,
   "typescript(no-non-null-assertion)": 2,
   "typescript(no-unsafe-call)": 1,
   "typescript(no-unsafe-member-access)": 1,
-  "unicorn(explicit-length-check)": 1,
   "unicorn(prefer-number-coercion)": 2,
   "unicorn(prefer-spread)": 1,
   "vitest(no-conditional-in-test)": 3,
   "vitest(prefer-each)": 1,
-  "vitest(prefer-hooks-in-order)": 2,
-  "vitest(prefer-strict-equal)": 2
+  "vitest(prefer-hooks-in-order)": 2
  },
  "src/app/motion.browser.test.ts": {
-  "eslint(curly)": 6,
   "eslint(no-await-in-loop)": 2,
-  "eslint(no-empty-function)": 1,
-  "eslint(no-implicit-coercion)": 1,
-  "eslint(no-promise-executor-return)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "promise(param-names)": 3,
   "typescript(ban-ts-comment)": 3,
-  "typescript(no-confusing-void-expression)": 1,
   "typescript(no-explicit-any)": 4,
   "typescript(no-non-null-assertion)": 4,
   "typescript(no-unsafe-argument)": 1,
@@ -1148,26 +836,16 @@
   "typescript(no-unsafe-member-access)": 17,
   "typescript(no-unsafe-type-assertion)": 1,
   "typescript(prefer-ts-expect-error)": 3,
-  "typescript(promise-function-async)": 3,
   "typescript(restrict-template-expressions)": 1,
-  "typescript(strict-boolean-expressions)": 4,
-  "typescript(strict-void-return)": 1,
-  "unicorn(catch-error-name)": 1,
-  "unicorn(explicit-length-check)": 1,
+  "typescript(strict-boolean-expressions)": 3,
   "unicorn(no-await-expression-member)": 1,
   "vitest(no-conditional-in-test)": 3,
   "vitest(prefer-expect-resolves)": 2,
-  "vitest(prefer-hooks-in-order)": 2,
-  "vitest(prefer-strict-equal)": 1
+  "vitest(prefer-hooks-in-order)": 2
  },
  "src/app/os.edge.browser.test.ts": {
-  "eslint(curly)": 20,
-  "eslint(no-empty-function)": 2,
   "eslint(no-loop-func)": 1,
   "eslint(no-unused-vars)": 1,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 7,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-explicit-any)": 3,
   "typescript(no-non-null-assertion)": 13,
   "typescript(no-unnecessary-type-assertion)": 1,
@@ -1175,17 +853,12 @@
   "typescript(no-unsafe-member-access)": 2,
   "typescript(no-unsafe-type-assertion)": 3,
   "typescript(prefer-nullish-coalescing)": 3,
-  "typescript(prefer-string-starts-ends-with)": 1,
   "typescript(strict-boolean-expressions)": 3,
   "unicorn(consistent-function-scoping)": 2,
-  "unicorn(explicit-length-check)": 1,
-  "unicorn(numeric-separators-style)": 1,
   "unicorn(prefer-dom-node-text-content)": 1,
   "unicorn(prefer-number-coercion)": 6,
-  "unicorn(prefer-string-starts-ends-with)": 1,
   "vitest(no-conditional-in-test)": 10,
   "vitest(prefer-each)": 1,
-  "vitest(prefer-strict-equal)": 3,
   "vitest(valid-expect)": 1
  },
  "src/app/scrub.ts": {
@@ -1194,41 +867,24 @@
  },
  "src/app/store.errors.test.ts": {
   "eslint(class-methods-use-this)": 2,
-  "eslint(curly)": 2,
-  "eslint(no-empty-function)": 7,
-  "eslint(require-unicode-regexp)": 5,
-  "typescript(no-non-null-assertion)": 1,
   "typescript(strict-boolean-expressions)": 1,
   "vitest(no-conditional-in-test)": 1
  },
  "src/app/store.previous.test.ts": {
   "eslint(class-methods-use-this)": 1,
-  "eslint(curly)": 1,
-  "eslint(no-empty-function)": 1,
-  "typescript(consistent-type-definitions)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 4,
-  "typescript(no-unnecessary-type-conversion)": 1,
   "typescript(no-unsafe-type-assertion)": 1,
   "unicorn(max-nested-calls)": 1,
-  "unicorn(prefer-structured-clone)": 1,
-  "vitest(prefer-strict-equal)": 3
+  "unicorn(prefer-structured-clone)": 1
  },
  "src/app/store.saveerrors.test.ts": {
   "eslint(no-await-in-loop)": 1,
-  "eslint(no-empty-function)": 2,
-  "eslint(require-unicode-regexp)": 20,
-  "typescript(no-non-null-assertion)": 4,
   "typescript(no-unsafe-type-assertion)": 1,
   "unicorn(consistent-function-scoping)": 1,
   "vitest(expect-expect)": 3,
   "vitest(prefer-expect-resolves)": 3
  },
  "src/app/store.test.ts": {
-  "eslint(class-methods-use-this)": 1,
-  "eslint(no-empty-function)": 1,
-  "typescript(consistent-type-definitions)": 1,
-  "typescript(no-non-null-assertion)": 2
+  "eslint(class-methods-use-this)": 1
  },
  "src/app/store.ts": {
   "eslint(curly)": 18,
@@ -1256,24 +912,17 @@
   "unicorn(require-post-message-target-origin)": 1
  },
  "src/app/toast.menu.browser.test.ts": {
-  "eslint(curly)": 7,
   "eslint(no-await-in-loop)": 5,
-  "eslint(no-empty-function)": 6,
   "eslint(no-loop-func)": 2,
-  "eslint(require-unicode-regexp)": 10,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-explicit-any)": 1,
   "typescript(no-non-null-assertion)": 4,
   "typescript(no-unsafe-call)": 1,
   "typescript(no-unsafe-member-access)": 1,
-  "unicorn(explicit-length-check)": 1,
   "vitest(no-conditional-in-test)": 5,
   "vitest(prefer-each)": 2,
-  "vitest(prefer-hooks-in-order)": 4,
-  "vitest(prefer-strict-equal)": 3
+  "vitest(prefer-hooks-in-order)": 4
  },
  "src/app/touchguard.test.ts": {
-  "eslint(curly)": 1,
   "typescript(no-unsafe-type-assertion)": 2
  },
  "src/app/touchguard.ts": {
@@ -2769,10 +2418,6 @@
   "unicorn(prefer-at)": 1,
   "unicorn(prefer-code-point)": 2
  },
- "src/core/sim/hw/intc.test.ts": {
-  "unicorn(numeric-separators-style)": 4,
-  "vitest(prefer-strict-equal)": 2
- },
  "src/core/sim/hw/intc.ts": {
   "eslint(class-methods-use-this)": 1,
   "eslint(curly)": 8,
@@ -2782,9 +2427,6 @@
   "typescript(no-non-null-assertion)": 4,
   "unicorn(prefer-math-trunc)": 1,
   "unicorn(switch-case-braces)": 19
- },
- "src/core/sim/hw/timer.test.ts": {
-  "eslint(curly)": 3
  },
  "src/core/sim/hw/timer.ts": {
   "eslint(class-methods-use-this)": 1,
@@ -2798,18 +2440,10 @@
   "oxc(no-barrel-file)": 1
  },
  "src/core/sim/machine.test.ts": {
-  "eslint(curly)": 12,
-  "eslint(no-empty-function)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 3,
   "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(strict-void-return)": 6,
   "unicorn(consistent-function-scoping)": 2,
-  "unicorn(no-array-for-each)": 1,
-  "unicorn(numeric-separators-style)": 10,
   "unicorn(prefer-structured-clone)": 1,
-  "vitest(no-conditional-in-test)": 4,
-  "vitest(prefer-strict-equal)": 4
+  "vitest(no-conditional-in-test)": 4
  },
  "src/core/sim/machine.ts": {
   "eslint(class-methods-use-this)": 2,
@@ -2835,17 +2469,10 @@
   "unicorn(numeric-separators-style)": 2
  },
  "src/core/ui/Hud.test.ts": {
-  "eslint(curly)": 4,
-  "eslint(no-empty-function)": 9,
   "oxc(no-map-spread)": 1,
-  "typescript(consistent-type-definitions)": 2,
-  "typescript(consistent-type-imports)": 2,
   "typescript(no-explicit-any)": 1,
-  "typescript(no-non-null-assertion)": 1,
-  "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 4,
   "typescript(strict-boolean-expressions)": 1,
-  "unicorn(no-array-callback-reference)": 1,
   "vitest(prefer-import-in-mock)": 1
  },
  "src/core/ui/Hud.tsx": {
@@ -2877,83 +2504,39 @@
   "unicorn(prefer-query-selector)": 1
  },
  "src/core/ui/HudPhone.test.ts": {
-  "eslint(curly)": 10,
-  "eslint(no-empty-function)": 10,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 6,
-  "typescript(consistent-type-definitions)": 2,
-  "typescript(consistent-type-imports)": 1,
   "typescript(no-explicit-any)": 2,
-  "typescript(no-non-null-assertion)": 12,
-  "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 7,
-  "typescript(prefer-string-starts-ends-with)": 2,
-  "typescript(promise-function-async)": 1,
-  "unicorn(no-array-callback-reference)": 1,
-  "unicorn(no-array-reverse)": 1,
-  "unicorn(prefer-at)": 1,
-  "unicorn(prefer-string-starts-ends-with)": 2,
   "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-import-in-mock)": 1,
-  "vitest(prefer-to-contain)": 3
+  "vitest(prefer-import-in-mock)": 1
  },
  "src/core/ui/HudTabs.test.ts": {
   "eslint(class-methods-use-this)": 2,
-  "eslint(curly)": 6,
-  "eslint(no-empty-function)": 18,
   "oxc(no-map-spread)": 1,
-  "typescript(consistent-type-definitions)": 1,
-  "typescript(consistent-type-imports)": 3,
   "typescript(no-explicit-any)": 2,
-  "typescript(no-non-null-assertion)": 3,
-  "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-call)": 7,
   "typescript(no-unsafe-member-access)": 2,
   "typescript(no-unsafe-return)": 2,
   "typescript(no-unsafe-type-assertion)": 11,
   "typescript(strict-boolean-expressions)": 2,
-  "unicorn(no-array-callback-reference)": 2,
   "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-import-in-mock)": 1,
-  "vitest(prefer-strict-equal)": 1
- },
- "src/core/ui/bootLine.test.ts": {
-  "vitest(prefer-strict-equal)": 8
+  "vitest(prefer-import-in-mock)": 1
  },
  "src/core/ui/cssprefix.test.ts": {
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 3,
   "typescript(ban-ts-comment)": 2,
   "typescript(no-explicit-any)": 1,
-  "typescript(no-non-null-assertion)": 1,
   "typescript(no-unsafe-assignment)": 2,
-  "typescript(no-unsafe-call)": 3,
-  "typescript(no-unsafe-member-access)": 3,
+  "typescript(no-unsafe-call)": 2,
+  "typescript(no-unsafe-member-access)": 2,
   "typescript(prefer-ts-expect-error)": 2,
-  "vitest(no-conditional-in-test)": 2,
-  "vitest(prefer-strict-equal)": 1
+  "vitest(no-conditional-in-test)": 2
  },
  "src/core/ui/errortext.test.ts": {
-  "eslint(curly)": 13,
-  "eslint(prefer-named-capture-group)": 18,
-  "eslint(require-unicode-regexp)": 22,
   "typescript(ban-ts-comment)": 2,
-  "typescript(no-explicit-any)": 1,
-  "typescript(no-non-null-assertion)": 18,
-  "typescript(no-unsafe-assignment)": 2,
-  "typescript(no-unsafe-call)": 6,
-  "typescript(no-unsafe-member-access)": 6,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(prefer-string-starts-ends-with)": 2,
   "typescript(prefer-ts-expect-error)": 2,
   "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-array-callback-reference)": 1,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(prefer-string-starts-ends-with)": 2,
   "vitest(expect-expect)": 5,
   "vitest(no-conditional-in-test)": 3,
   "vitest(prefer-strict-boolean-matchers)": 1,
-  "vitest(prefer-strict-equal)": 1,
   "vitest(valid-expect)": 1
  },
  "src/core/ui/kit/Hover.tsx": {
@@ -3005,8 +2588,7 @@
   "unicorn(switch-case-braces)": 10
  },
  "src/core/ui/kit/clearance.test.ts": {
-  "eslint(max-params)": 1,
-  "vitest(prefer-strict-equal)": 3
+  "eslint(max-params)": 1
  },
  "src/core/ui/kit/clearance.ts": {
   "eslint(curly)": 5
@@ -3015,20 +2597,14 @@
   "eslint(curly)": 1
  },
  "src/core/ui/logic.test.ts": {
-  "eslint(curly)": 3,
   "eslint(max-params)": 1,
-  "eslint(no-duplicate-imports)": 1,
   "eslint(no-shadow)": 1,
-  "eslint(require-unicode-regexp)": 14,
   "import(max-dependencies)": 1,
-  "import(no-duplicates)": 1,
-  "typescript(no-non-null-assertion)": 25,
   "typescript(no-unsafe-assignment)": 1,
   "typescript(no-unsafe-type-assertion)": 3,
   "unicorn(consistent-function-scoping)": 7,
   "unicorn(max-nested-calls)": 11,
   "vitest(prefer-strict-boolean-matchers)": 1,
-  "vitest(prefer-strict-equal)": 19,
   "vitest(valid-expect)": 5
  },
  "src/core/ui/logic.ts": {
@@ -3056,31 +2632,16 @@
   "unicorn(prefer-single-call)": 1,
   "unicorn(switch-case-braces)": 22
  },
- "src/core/ui/menuNav.test.ts": {
-  "unicorn(numeric-separators-style)": 12
- },
  "src/core/ui/menuNav.ts": {
   "eslint(curly)": 2,
   "unicorn(switch-case-braces)": 8
  },
  "src/core/ui/motion.test.ts": {
-  "eslint(curly)": 4,
-  "eslint(prefer-named-capture-group)": 9,
-  "eslint(require-unicode-regexp)": 14,
   "typescript(ban-ts-comment)": 2,
-  "typescript(no-explicit-any)": 1,
-  "typescript(no-non-null-assertion)": 7,
-  "typescript(no-unnecessary-type-assertion)": 2,
-  "typescript(no-unsafe-assignment)": 1,
-  "typescript(no-unsafe-call)": 2,
-  "typescript(no-unsafe-member-access)": 2,
-  "typescript(no-unsafe-return)": 1,
   "typescript(prefer-ts-expect-error)": 2,
   "unicorn(consistent-function-scoping)": 2,
-  "unicorn(no-array-reverse)": 1,
   "unicorn(relative-url-style)": 1,
   "vitest(no-conditional-in-test)": 6,
-  "vitest(prefer-strict-equal)": 3,
   "vitest(valid-expect)": 1
  },
  "src/core/ui/panelCues.ts": {
@@ -3088,14 +2649,8 @@
   "import(consistent-type-specifier-style)": 1
  },
  "src/core/ui/panels/Controls.test.ts": {
-  "eslint(curly)": 2,
-  "eslint(no-empty-function)": 6,
-  "typescript(consistent-type-imports)": 3,
-  "typescript(no-unnecessary-type-assertion)": 2,
-  "typescript(no-unsafe-type-assertion)": 1,
   "vitest(prefer-called-with)": 1,
   "vitest(prefer-import-in-mock)": 1,
-  "vitest(prefer-strict-equal)": 1,
   "vitest(require-mock-type-parameters)": 2
  },
  "src/core/ui/panels/Controls.tsx": {
@@ -3113,18 +2668,11 @@
   "unicorn(prefer-global-this)": 2
  },
  "src/core/ui/panels/CrashPanel.test.ts": {
-  "eslint(curly)": 4,
-  "eslint(no-empty-function)": 3,
-  "typescript(consistent-type-definitions)": 1,
   "typescript(no-explicit-any)": 1,
-  "typescript(no-non-null-assertion)": 1,
-  "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-call)": 1,
-  "typescript(no-unsafe-type-assertion)": 6,
+  "typescript(no-unsafe-type-assertion)": 5,
   "typescript(strict-boolean-expressions)": 2,
-  "unicorn(no-array-callback-reference)": 2,
-  "vitest(prefer-import-in-mock)": 1,
-  "vitest(prefer-strict-equal)": 1
+  "vitest(prefer-import-in-mock)": 1
  },
  "src/core/ui/panels/CrashPanel.tsx": {
   "eslint(curly)": 4,
@@ -3160,45 +2708,26 @@
   "unicorn(consistent-function-scoping)": 1
  },
  "src/core/ui/panels/LogPanel.browser.test.ts": {
-  "eslint(curly)": 14,
-  "eslint(no-empty-function)": 2,
   "eslint(no-loop-func)": 1,
   "eslint(no-unused-vars)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "eslint(require-unicode-regexp)": 3,
-  "import(consistent-type-specifier-style)": 3,
   "typescript(no-explicit-any)": 1,
   "typescript(no-non-null-assertion)": 12,
   "typescript(no-unnecessary-type-conversion)": 1,
   "typescript(no-unsafe-type-assertion)": 1,
   "typescript(prefer-nullish-coalescing)": 2,
   "typescript(strict-boolean-expressions)": 2,
-  "typescript(strict-void-return)": 1,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(no-array-for-each)": 1,
-  "unicorn(numeric-separators-style)": 1,
   "unicorn(prefer-dom-node-text-content)": 1,
   "vitest(no-conditional-in-test)": 1,
   "vitest(prefer-each)": 1,
-  "vitest(prefer-hooks-in-order)": 2,
-  "vitest(prefer-strict-equal)": 1
+  "vitest(prefer-hooks-in-order)": 2
  },
  "src/core/ui/panels/LogPanel.layout.test.ts": {
-  "eslint(curly)": 11,
-  "eslint(prefer-named-capture-group)": 2,
-  "eslint(require-unicode-regexp)": 6,
   "typescript(ban-ts-comment)": 2,
-  "typescript(consistent-type-definitions)": 2,
-  "typescript(no-explicit-any)": 1,
-  "typescript(no-unsafe-assignment)": 2,
-  "typescript(no-unsafe-call)": 2,
-  "typescript(no-unsafe-member-access)": 2,
-  "typescript(prefer-string-starts-ends-with)": 1,
   "typescript(prefer-ts-expect-error)": 2,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(prefer-number-coercion)": 2,
-  "unicorn(prefer-string-starts-ends-with)": 1,
-  "unicorn(switch-case-braces)": 7,
   "vitest(no-conditional-in-test)": 3,
   "vitest(prefer-each)": 1
  },
@@ -3224,20 +2753,13 @@
   "unicorn(prefer-global-this)": 2
  },
  "src/core/ui/panels/MainMenu.test.ts": {
-  "eslint(curly)": 7,
-  "eslint(no-empty-function)": 10,
-  "eslint(require-unicode-regexp)": 1,
   "oxc(no-map-spread)": 1,
-  "typescript(consistent-type-definitions)": 1,
-  "typescript(consistent-type-imports)": 2,
   "typescript(no-explicit-any)": 1,
-  "typescript(no-non-null-assertion)": 5,
   "typescript(no-unsafe-assignment)": 4,
   "typescript(no-unsafe-call)": 1,
   "typescript(no-unsafe-return)": 1,
   "typescript(no-unsafe-type-assertion)": 3,
   "typescript(strict-boolean-expressions)": 2,
-  "unicorn(no-array-callback-reference)": 5,
   "unicorn(prefer-structured-clone)": 1,
   "vitest(prefer-import-in-mock)": 1,
   "vitest(prefer-strict-boolean-matchers)": 1,
@@ -3266,24 +2788,15 @@
   "unicorn(prefer-single-call)": 2
  },
  "src/core/ui/panels/NewGame.test.ts": {
-  "eslint(curly)": 8,
-  "eslint(no-empty-function)": 10,
-  "eslint(require-unicode-regexp)": 7,
   "oxc(no-map-spread)": 1,
-  "typescript(consistent-type-definitions)": 1,
-  "typescript(consistent-type-imports)": 4,
   "typescript(no-explicit-any)": 1,
-  "typescript(no-non-null-assertion)": 4,
   "typescript(no-unsafe-assignment)": 2,
   "typescript(no-unsafe-call)": 6,
   "typescript(no-unsafe-return)": 2,
   "typescript(no-unsafe-type-assertion)": 5,
   "typescript(strict-boolean-expressions)": 3,
-  "unicorn(no-array-callback-reference)": 2,
   "unicorn(prefer-structured-clone)": 1,
-  "vitest(prefer-called-once)": 2,
-  "vitest(prefer-import-in-mock)": 2,
-  "vitest(require-mock-type-parameters)": 1
+  "vitest(prefer-import-in-mock)": 1
  },
  "src/core/ui/panels/NewGame.tsx": {
   "eslint(curly)": 12,
@@ -3306,44 +2819,22 @@
   "unicorn(prefer-global-this)": 1
  },
  "src/core/ui/panels/Paused.layout.test.ts": {
-  "eslint(curly)": 15,
-  "eslint(prefer-named-capture-group)": 6,
-  "eslint(require-unicode-regexp)": 9,
   "typescript(ban-ts-comment)": 2,
-  "typescript(consistent-type-definitions)": 2,
-  "typescript(no-explicit-any)": 1,
-  "typescript(no-unsafe-assignment)": 2,
-  "typescript(no-unsafe-call)": 2,
-  "typescript(no-unsafe-member-access)": 2,
-  "typescript(prefer-string-starts-ends-with)": 1,
   "typescript(prefer-ts-expect-error)": 2,
   "unicorn(consistent-function-scoping)": 1,
-  "unicorn(prefer-number-coercion)": 2,
-  "unicorn(prefer-string-starts-ends-with)": 1,
-  "unicorn(switch-case-braces)": 7
+  "unicorn(prefer-number-coercion)": 2
  },
  "src/core/ui/panels/Paused.test.ts": {
-  "eslint(curly)": 10,
-  "eslint(no-empty-function)": 9,
-  "eslint(prefer-destructuring)": 2,
-  "eslint(require-unicode-regexp)": 6,
   "oxc(no-map-spread)": 1,
-  "typescript(consistent-type-definitions)": 3,
-  "typescript(consistent-type-imports)": 2,
   "typescript(no-explicit-any)": 1,
-  "typescript(no-non-null-assertion)": 5,
-  "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-call)": 2,
   "typescript(no-unsafe-type-assertion)": 14,
-  "typescript(promise-function-async)": 1,
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(consistent-function-scoping)": 2,
-  "unicorn(no-array-callback-reference)": 2,
   "vitest(no-conditional-in-test)": 1,
   "vitest(prefer-expect-resolves)": 1,
   "vitest(prefer-expect-type-of)": 1,
-  "vitest(prefer-import-in-mock)": 1,
-  "vitest(prefer-strict-equal)": 3
+  "vitest(prefer-import-in-mock)": 1
  },
  "src/core/ui/panels/Paused.ts": {
   "eslint(complexity)": 1,
@@ -3373,24 +2864,15 @@
   "unicorn(switch-case-braces)": 15
  },
  "src/core/ui/panels/Settings.test.ts": {
-  "eslint(curly)": 11,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 6,
   "oxc(no-map-spread)": 1,
-  "typescript(consistent-type-definitions)": 1,
-  "typescript(consistent-type-imports)": 1,
   "typescript(no-explicit-any)": 1,
-  "typescript(no-non-null-assertion)": 4,
-  "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-call)": 4,
   "typescript(no-unsafe-type-assertion)": 5,
   "typescript(strict-boolean-expressions)": 2,
   "unicorn(consistent-function-scoping)": 3,
-  "unicorn(no-array-callback-reference)": 2,
   "unicorn(no-useless-spread)": 1,
   "vitest(no-conditional-in-test)": 3,
   "vitest(prefer-import-in-mock)": 1,
-  "vitest(prefer-strict-equal)": 2,
   "vitest(valid-expect)": 2
  },
  "src/core/ui/panels/Settings.tsx": {
@@ -3434,8 +2916,6 @@
   "unicorn(explicit-length-check)": 1
  },
  "src/core/ui/panels/graphicsui.test.ts": {
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-confusing-void-expression)": 2,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(no-array-for-each)": 1
  },
@@ -3447,17 +2927,13 @@
  },
  "src/core/ui/panels/loadgame.test.ts": {
   "eslint(no-loop-func)": 2,
-  "eslint(require-unicode-regexp)": 3,
-  "typescript(consistent-type-imports)": 3,
-  "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-assignment)": 1,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(prefer-structured-clone)": 1,
   "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-called-once)": 1,
   "vitest(prefer-each)": 1,
-  "vitest(prefer-import-in-mock)": 3,
-  "vitest(require-mock-type-parameters)": 3
+  "vitest(prefer-import-in-mock)": 1,
+  "vitest(require-mock-type-parameters)": 1
  },
  "src/core/ui/panels/loadgame.ts": {
   "eslint(curly)": 1,
@@ -3465,8 +2941,6 @@
   "typescript(strict-boolean-expressions)": 2
  },
  "src/core/ui/panels/settingsnav.test.ts": {
-  "eslint(curly)": 1,
-  "vitest(prefer-strict-equal)": 1,
   "vitest(valid-expect)": 1
  },
  "src/core/ui/panels/settingsnav.ts": {
@@ -3475,8 +2949,6 @@
   "unicorn(switch-case-braces)": 10
  },
  "src/core/ui/place.test.ts": {
-  "eslint(curly)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "vitest(no-conditional-expect)": 1,
   "vitest(no-conditional-in-test)": 1
  },
@@ -3489,37 +2961,16 @@
   "eslint(max-lines)": 1
  },
  "src/core/ui/scaling.test.ts": {
-  "eslint(curly)": 6,
   "eslint(no-shadow)": 1,
   "eslint(no-template-curly-in-string)": 1,
-  "eslint(prefer-named-capture-group)": 8,
-  "eslint(require-unicode-regexp)": 11,
   "import(first)": 2,
   "typescript(ban-ts-comment)": 2,
-  "typescript(no-explicit-any)": 1,
-  "typescript(no-non-null-assertion)": 2,
-  "typescript(no-unsafe-argument)": 2,
-  "typescript(no-unsafe-assignment)": 3,
-  "typescript(no-unsafe-call)": 4,
-  "typescript(no-unsafe-member-access)": 8,
-  "typescript(prefer-string-starts-ends-with)": 1,
   "typescript(prefer-ts-expect-error)": 2,
-  "typescript(strict-boolean-expressions)": 1,
   "unicorn(no-array-for-each)": 2,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(prefer-string-starts-ends-with)": 1,
-  "vitest(prefer-each)": 1,
-  "vitest(prefer-strict-equal)": 7
- },
- "src/core/ui/state.test.ts": {
-  "eslint(no-empty-function)": 5,
-  "typescript(consistent-type-imports)": 3
+  "vitest(prefer-each)": 1
  },
  "src/core/ui/state.toasts.test.ts": {
-  "eslint(no-empty-function)": 5,
-  "typescript(consistent-type-imports)": 3,
-  "vitest(prefer-expect-resolves)": 5,
-  "vitest(prefer-strict-equal)": 5
+  "vitest(prefer-expect-resolves)": 5
  },
  "src/core/ui/state.ts": {
   "eslint(curly)": 18,
@@ -3541,27 +2992,13 @@
   "typescript(no-unsafe-type-assertion)": 1
  },
  "src/core/ui/tokens.test.ts": {
-  "eslint(curly)": 4,
-  "eslint(prefer-named-capture-group)": 7,
-  "eslint(require-unicode-regexp)": 23,
   "typescript(ban-ts-comment)": 2,
-  "typescript(no-explicit-any)": 1,
-  "typescript(no-non-null-assertion)": 4,
-  "typescript(no-unsafe-argument)": 2,
-  "typescript(no-unsafe-assignment)": 4,
-  "typescript(no-unsafe-call)": 7,
-  "typescript(no-unsafe-member-access)": 10,
-  "typescript(no-unsafe-return)": 2,
   "typescript(no-unsafe-type-assertion)": 4,
   "typescript(non-nullable-type-assertion-style)": 4,
-  "typescript(prefer-string-starts-ends-with)": 1,
   "typescript(prefer-ts-expect-error)": 2,
-  "typescript(strict-boolean-expressions)": 1,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(prefer-spread)": 1,
-  "unicorn(prefer-string-starts-ends-with)": 1,
   "vitest(no-conditional-in-test)": 6,
-  "vitest(prefer-to-have-length)": 1,
   "vitest(valid-expect)": 6
  },
  "src/features/board/render/air.ts": {
@@ -12338,8 +11775,6 @@
   "unicorn(switch-case-braces)": 17
  },
  "src/worker/crash.test.ts": {
-  "eslint(require-unicode-regexp)": 5,
-  "typescript(no-non-null-assertion)": 4,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(prefer-structured-clone)": 2,
   "vitest(no-conditional-in-test)": 1
@@ -12362,24 +11797,15 @@
   "unicorn(prefer-single-call)": 7
  },
  "src/worker/game/game.test.ts": {
-  "eslint(curly)": 25,
   "eslint(max-params)": 1,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 7,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 19,
   "typescript(no-unsafe-assignment)": 2,
   "typescript(no-unsafe-type-assertion)": 12,
   "typescript(strict-boolean-expressions)": 2,
   "unicorn(consistent-function-scoping)": 3,
-  "unicorn(explicit-length-check)": 1,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(numeric-separators-style)": 1,
   "unicorn(prefer-structured-clone)": 1,
   "vitest(no-conditional-expect)": 4,
   "vitest(no-conditional-in-test)": 37,
-  "vitest(prefer-strict-boolean-matchers)": 1,
-  "vitest(prefer-strict-equal)": 13
+  "vitest(prefer-strict-boolean-matchers)": 1
  },
  "src/worker/game/game.ts": {
   "eslint(complexity)": 1,
@@ -12426,23 +11852,16 @@
   "unicorn(prefer-structured-clone)": 8
  },
  "src/worker/game/save.test.ts": {
-  "eslint(curly)": 5,
   "eslint(no-unused-vars)": 5,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 18,
   "typescript(no-dynamic-delete)": 1,
-  "typescript(no-non-null-assertion)": 13,
   "typescript(no-unsafe-assignment)": 1,
   "typescript(no-unsafe-member-access)": 3,
   "typescript(no-unsafe-type-assertion)": 15,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(max-nested-calls)": 2,
-  "unicorn(no-array-sort)": 3,
-  "unicorn(numeric-separators-style)": 2,
   "unicorn(prefer-native-coercion-functions)": 1,
   "unicorn(prefer-structured-clone)": 2,
-  "vitest(no-conditional-in-test)": 7,
-  "vitest(prefer-strict-equal)": 23
+  "vitest(no-conditional-in-test)": 7
  },
  "src/worker/game/save.ts": {
   "eslint(complexity)": 2,
@@ -12505,13 +11924,10 @@
   "import(max-dependencies)": 1
  },
  "src/worker/host.test.ts": {
-  "eslint(require-unicode-regexp)": 1,
-  "typescript(no-non-null-assertion)": 13,
   "typescript(no-unsafe-assignment)": 2,
   "typescript(no-unsafe-type-assertion)": 4,
   "typescript(non-nullable-type-assertion-style)": 2,
   "unicorn(consistent-function-scoping)": 2,
-  "unicorn(explicit-length-check)": 1,
   "unicorn(max-nested-calls)": 1,
   "unicorn(prefer-structured-clone)": 1,
   "vitest(no-conditional-in-test)": 1

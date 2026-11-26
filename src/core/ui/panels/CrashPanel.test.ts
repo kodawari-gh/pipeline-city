@@ -1,7 +1,7 @@
 // The crash state (ticket #45): when the sim throws, the crash panel says what happened in one plain sentence and gives a way forward
 // (copy, download, close). It is never a dead end. Written before the coder's changes: the way-forward rules fail until they land.
 // The node run has no DOM, so CrashPanel is called as a plain function and its element tree is walked (the Hud.test.ts pattern).
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CrashReport } from '@/worker/crash';
 
 const hooks = vi.hoisted(() => ({ effects: [] as (() => unknown)[] }));
@@ -10,22 +10,38 @@ vi.mock('preact/hooks', () => ({
     hooks.effects.push(fn);
   },
   useRef: () => ({ current: null }),
-  useState: (v: unknown) => [v, () => {}],
+  useState: (v: unknown) => [
+    v,
+    () => {
+      /* no-op */
+    },
+  ],
 }));
 
-type VEl = { type: unknown; props: Record<string, any> };
+interface VEl {
+  type: unknown;
+  props: Record<string, any>;
+}
 type Node = VEl | string | number | boolean | null | undefined | Node[];
 
 /** Every element in the tree, depth first. */
 function all(v: Node): VEl[] {
-  if (Array.isArray(v)) return v.flatMap(all);
-  if (v && typeof v === 'object' && 'props' in v) return [v, ...all(v.props['children'] as Node)];
+  if (Array.isArray(v)) {
+    return v.flatMap((child) => all(child));
+  }
+  if (v && typeof v === 'object' && 'props' in v) {
+    return [v, ...all(v.props['children'] as Node)];
+  }
   return [];
 }
 /** The text a node shows: its strings and numbers, in order. */
 function text(v: Node): string {
-  if (Array.isArray(v)) return v.map(text).join('');
-  if (v && typeof v === 'object' && 'props' in v) return text(v.props['children'] as Node);
+  if (Array.isArray(v)) {
+    return v.map((child) => text(child)).join('');
+  }
+  if (v && typeof v === 'object' && 'props' in v) {
+    return text(v.props['children'] as Node);
+  }
   return typeof v === 'string' || typeof v === 'number' ? String(v) : '';
 }
 const buttons = (tree: Node) => all(tree).filter((el) => el.type === 'button');
@@ -58,9 +74,17 @@ let CrashPanel: () => Node;
 
 beforeEach(async () => {
   vi.resetModules();
-  vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {}, removeItem: () => {} });
+  vi.stubGlobal('localStorage', {
+    getItem: () => null,
+    setItem: () => {
+      /* no-op */
+    },
+    removeItem: () => {
+      /* empty */
+    },
+  });
   hooks.effects = [];
-  ({ CrashPanel } = (await import('@/core/ui/panels/CrashPanel')) as unknown as { CrashPanel: () => Node });
+  ({ CrashPanel } = await import('@/core/ui/panels/CrashPanel'));
   const store = await import('@/app/store');
   store.crash.value = null;
 });
@@ -80,7 +104,7 @@ describe('the crash state', () => {
     const store = await import('@/app/store');
     store.crash.value = report;
     const labels = buttons(CrashPanel()).map((b) => text(b.props['children'] as Node).trim());
-    expect(labels).toEqual(expect.arrayContaining(['Copy report', 'Download report', 'Close']));
+    expect(labels).toStrictEqual(expect.arrayContaining(['Copy report', 'Download report', 'Close']));
   });
 
   it('Close clears the crash and the panel goes away (no dead end)', async () => {
@@ -88,7 +112,8 @@ describe('the crash state', () => {
     store.crash.value = report;
     const close = buttons(CrashPanel()).find((b) => text(b.props['children'] as Node).trim() === 'Close');
     expect(close?.props['onClick']).toBeTypeOf('function');
-    close!.props['onClick']();
+    assert.exists(close);
+    close.props['onClick']();
     expect(store.crash.value).toBeNull();
     expect(CrashPanel()).toBeNull();
   });

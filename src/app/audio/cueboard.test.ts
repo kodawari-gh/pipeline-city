@@ -5,18 +5,20 @@ import { debugOn, whenDebug } from '../debugflag';
 
 describe('the ?debug cue board', () => {
   it('is absent without the flag: its module is not loaded', () => {
-    const load = vi.fn(async () => ({ mountDebug: vi.fn() }));
+    const load = vi.fn<() => Promise<{ mountDebug: (ctx: unknown) => void }>>().mockResolvedValue({
+      mountDebug: vi.fn<(ctx: unknown) => void>(),
+    });
     expect(debugOn('')).toBe(false);
     expect(whenDebug('', load, {})).toBeNull();
     expect(load).not.toHaveBeenCalled();
   });
 
   it('loads and mounts with ?debug', async () => {
-    const mountDebug = vi.fn();
-    const load = vi.fn(async () => ({ mountDebug }));
+    const mountDebug = vi.fn<(ctx: unknown) => void>();
+    const load = vi.fn<() => Promise<{ mountDebug: typeof mountDebug }>>().mockResolvedValue({ mountDebug });
     const ctx = { board: true };
     await whenDebug('?debug', load, ctx);
-    expect(load).toHaveBeenCalledTimes(1);
+    expect(load).toHaveBeenCalledOnce();
     expect(mountDebug).toHaveBeenCalledWith(ctx);
   });
 });

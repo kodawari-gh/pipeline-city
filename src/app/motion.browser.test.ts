@@ -12,26 +12,31 @@ import { fileURLToPath } from 'node:url';
 // @ts-ignore
 import { createServer } from 'node:net';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { chromium, type Browser, type Page } from 'playwright-core';
+import * as playwright from 'playwright-core';
 
 declare const process: any;
-const GATE = !!process.env.T44_BROWSER;
+const GATE = Boolean(process.env.T44_BROWSER);
 const ROOT: string = fileURLToPath(new URL('../../', import.meta.url));
 const LOAD_MS = 60_000;
 const BOOT_MS = 60_000;
 const STEP_MS = 20_000;
 const TEST_MS = LOAD_MS + BOOT_MS + 3 * STEP_MS;
 
-const freePort = (): Promise<number> =>
+const freePort = async (): Promise<number> =>
   new Promise((res, rej) => {
     const s = createServer();
     s.once('error', rej);
     s.listen(0, () => {
       const p = s.address().port;
-      s.close(() => res(p));
+      s.close(() => {
+        res(p);
+      });
     });
   });
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+const sleep = async (ms: number) =>
+  new Promise<void>((r) => {
+    setTimeout(r, ms);
+  });
 const answers = async (url: string): Promise<boolean> => {
   try {
     return (await fetch(url)).ok;
@@ -42,9 +47,14 @@ const answers = async (url: string): Promise<boolean> => {
 
 /** Stop a child and its children (on Windows `kill` stops only the child). */
 function killTree(child: any): void {
-  if (!child?.pid || child.exitCode !== null) return;
-  if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
-  else child.kill();
+  if (!child?.pid || child.exitCode !== null) {
+    return;
+  }
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+  } else {
+    child.kill();
+  }
 }
 
 /** The dev server on a free port (`--strictPort`), waited for until it answers. */
@@ -60,7 +70,9 @@ async function startServer(): Promise<{ child: any; url: string; exited: () => n
     code = c ?? -1;
   });
   for (let i = 0; !(await answers(url)); i++) {
-    if (code !== null) throw new Error(`the dev server exited with ${code}`);
+    if (code !== null) {
+      throw new Error(`the dev server exited with ${code}`);
+    }
     if (i > 100) {
       killTree(child);
       throw new Error('the dev server did not start');
@@ -70,8 +82,8 @@ async function startServer(): Promise<{ child: any; url: string; exited: () => n
   return { child, url, exited: () => code };
 }
 
-const launchChrome = (): Promise<Browser> =>
-  chromium.launch({
+const launchChrome = async (): Promise<playwright.Browser> =>
+  playwright.chromium.launch({
     headless: true,
     ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
     args: [
@@ -83,7 +95,7 @@ const launchChrome = (): Promise<Browser> =>
   });
 
 let dev: { child: any; url: string; exited: () => number | null } | null = null;
-let browser: Browser | null = null;
+let browser: playwright.Browser | null = null;
 
 describe.skipIf(!GATE)('motion with reduced motion on, in the browser (ticket #46)', () => {
   beforeAll(async () => {
@@ -98,24 +110,30 @@ describe.skipIf(!GATE)('motion with reduced motion on, in the browser (ticket #4
     browser = await launchChrome();
   }, 60_000);
   afterEach(async () => {
-    await browser?.close().catch(() => {});
+    await browser?.close().catch(() => {
+      /* no-op */
+    });
     browser = null;
   }, 60_000);
 
   it(
     'the script runs once with reduced motion on: the menu, New game, Start, the first tutorial card; no page error',
     async () => {
-      if (dev!.exited() !== null) throw new Error(`the dev server is gone (exit ${dev!.exited()})`);
+      if (dev!.exited() !== null) {
+        throw new Error(`the dev server is gone (exit ${dev!.exited()})`);
+      }
       const ctx = await browser!.newContext({ viewport: { width: 1280, height: 720 }, reducedMotion: 'reduce' });
-      const page: Page = await ctx.newPage();
+      const page: playwright.Page = await ctx.newPage();
       const errors: string[] = [];
       page.on('pageerror', (e) => errors.push(`pageerror: ${e.message.slice(0, 200)}`));
       page.on('console', (m) => {
-        if (m.type() === 'error') errors.push(`console: ${m.text().slice(0, 200)}`);
+        if (m.type() === 'error') {
+          errors.push(`console: ${m.text().slice(0, 200)}`);
+        }
       });
       page.on('crash', () => errors.push('PAGE CRASHED'));
       page.setDefaultTimeout(STEP_MS);
-      const said = () => (errors.length ? errors.slice(-5).join(' | ') : 'nothing');
+      const said = () => (errors.length > 0 ? errors.slice(-5).join(' | ') : 'nothing');
       try {
         await page.goto(dev!.url, { timeout: LOAD_MS });
         await page.waitForSelector('button.mm-btn:has-text("New game")', { timeout: LOAD_MS });
@@ -132,10 +150,10 @@ describe.skipIf(!GATE)('motion with reduced motion on, in the browser (ticket #4
         await page.waitForSelector('.pl-menu.newgame .pl-row.hero');
         await page.click('.pl-menu.newgame .pl-row.hero');
         await page.waitForSelector('[data-step="welcome"]', { timeout: BOOT_MS });
-      } catch (e) {
-        throw new Error(`${(e as Error).message}\nthe page said: ${said()}`, { cause: e });
+      } catch (error) {
+        throw new Error(`${(error as Error).message}\nthe page said: ${said()}`, { cause: error });
       }
-      expect(errors, 'no page error or console error with reduced motion on').toEqual([]);
+      expect(errors, 'no page error or console error with reduced motion on').toStrictEqual([]);
       await ctx.close();
     },
     TEST_MS,

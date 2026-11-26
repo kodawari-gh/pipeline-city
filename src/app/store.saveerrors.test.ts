@@ -1,6 +1,6 @@
 // Save, load and offline errors (ticket #45): each one says in plain words what happened and gives a next step, and the player can always go back to
 // the menu. No DOM: the sim worker is a stand-in, and `document` does not exist (so a download fails, as when the browser blocks it).
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { assert, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Game } from '@/worker/game/game';
 import { friendlyError } from '@/core/ui/logic';
 import { booted } from './boot';
@@ -34,7 +34,7 @@ class FakeWorker {
   }
 }
 
-const NEXT_STEP = /pick|choose|another|menu|try|reload|reconnect|start a game|check/i;
+const NEXT_STEP = /pick|choose|another|menu|try|reload|reconnect|start a game|check/iu;
 const shown = () => friendlyError(lastError.value ?? '');
 const file = (body: string) => new File([body], 'save.json', { type: 'application/json' });
 
@@ -42,7 +42,15 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.stubGlobal('Worker', FakeWorker);
   vi.stubGlobal('requestAnimationFrame', (f: () => void) => setTimeout(f, 0));
-  vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {}, removeItem: () => {} });
+  vi.stubGlobal('localStorage', {
+    getItem: () => null,
+    setItem: () => {
+      /* no-op */
+    },
+    removeItem: () => {
+      /* empty */
+    },
+  });
   FakeWorker.made = [];
   booted.value = true;
   starting.value = false;
@@ -59,7 +67,8 @@ afterEach(() => {
 /** A game on screen: the sim has sent its first snapshot. */
 function runGame(): FakeWorker {
   startSim(null);
-  const w = FakeWorker.made.at(-1)!;
+  const w = FakeWorker.made.at(-1);
+  assert.exists(w);
   snapshot.value = new Game({ seed: 7 }).snapshot() as never;
   return w;
 }
@@ -67,17 +76,17 @@ function runGame(): FakeWorker {
 describe('a save file that cannot be read', () => {
   it('(not JSON) says so, and gives a way forward', async () => {
     expect(await readSaveFile(file('not json'))).toBeNull();
-    expect(shown()).toMatch(/not a Pipeline City save/i);
+    expect(shown()).toMatch(/not a Pipeline City save/iu);
     expect(shown()).toMatch(NEXT_STEP);
-    expect(shown()).not.toMatch(/^Not now:/);
+    expect(shown()).not.toMatch(/^Not now:/u);
   });
 
   it('(wrong shape) says it may be another version, leaves the save alone, and gives a way forward', async () => {
     expect(await readSaveFile(file('{"version": 99}'))).toBeNull();
-    expect(shown()).toMatch(/another version|damaged/i);
-    expect(shown()).toMatch(/unchanged/i);
+    expect(shown()).toMatch(/another version|damaged/iu);
+    expect(shown()).toMatch(/unchanged/iu);
     expect(shown()).toMatch(NEXT_STEP);
-    expect(shown()).not.toMatch(/^Not now:/);
+    expect(shown()).not.toMatch(/^Not now:/u);
   });
 
   it('(JSON that is not an object) is a corrupt save, with a way forward', async () => {
@@ -99,9 +108,9 @@ describe('a save file that cannot be read', () => {
 describe('export', () => {
   it('with no game running, says so and tells the player to start one', () => {
     exportSave();
-    expect(shown()).toMatch(/not running/i);
-    expect(shown()).toMatch(/start a game/i);
-    expect(shown()).toMatch(/unchanged/i);
+    expect(shown()).toMatch(/not running/iu);
+    expect(shown()).toMatch(/start a game/iu);
+    expect(shown()).toMatch(/unchanged/iu);
   });
 
   it('when the download fails, says the save is unchanged and gives a way forward', () => {
@@ -109,10 +118,10 @@ describe('export', () => {
     exportSave();
     // the sim answers the save request; the download then fails (no `document` here)
     w.onmessage?.({ data: { type: 'saved', save: new Game({ seed: 7 }).toSave() } });
-    expect(shown()).toMatch(/could not be saved/i);
-    expect(shown()).toMatch(/unchanged/i);
-    expect(shown()).toMatch(/try again|check your download settings/i);
-    expect(shown()).not.toMatch(/^Not now:/);
+    expect(shown()).toMatch(/could not be saved/iu);
+    expect(shown()).toMatch(/unchanged/iu);
+    expect(shown()).toMatch(/try again|check your download settings/iu);
+    expect(shown()).not.toMatch(/^Not now:/u);
   });
 });
 
@@ -121,10 +130,10 @@ describe('offline', () => {
     expect(online.value).toBe(true);
     setOnline(false);
     expect(online.value).toBe(false);
-    expect(shown()).toMatch(/offline/i);
-    expect(shown()).toMatch(/still runs/i);
-    expect(shown()).toMatch(/reconnect|reload/i);
-    expect(shown()).not.toMatch(/^Not now:/);
+    expect(shown()).toMatch(/offline/iu);
+    expect(shown()).toMatch(/still runs/iu);
+    expect(shown()).toMatch(/reconnect|reload/iu);
+    expect(shown()).not.toMatch(/^Not now:/u);
   });
 
   it('going back online clears the offline notice, and only that notice', () => {
@@ -146,11 +155,13 @@ describe('offline', () => {
     });
     online.value = false;
     watchConnection();
-    expect(shown()).toMatch(/offline/i);
-    listeners['online']!();
+    expect(shown()).toMatch(/offline/iu);
+    assert.exists(listeners['online']);
+    listeners['online']();
     expect(online.value).toBe(true);
     expect(lastError.value).toBeNull();
-    listeners['offline']!();
+    assert.exists(listeners['offline']);
+    listeners['offline']();
     expect(online.value).toBe(false);
   });
 });
@@ -182,7 +193,7 @@ describe('return to the menu after each error', () => {
     const w = runGame();
     exportSave();
     w.onmessage?.({ data: { type: 'saved', save: new Game({ seed: 7 }).toSave() } });
-    expect(shown()).toMatch(/could not be saved/i);
+    expect(shown()).toMatch(/could not be saved/iu);
     leaveSim();
     w.onmessage?.({ data: { type: 'saved', save: new Game({ seed: 7 }).toSave() } });
     await vi.runAllTimersAsync();
@@ -192,9 +203,10 @@ describe('return to the menu after each error', () => {
 
   it('after a game that could not start', () => {
     startSim(null);
-    const w = FakeWorker.made.at(-1)!;
+    const w = FakeWorker.made.at(-1);
+    assert.exists(w);
     w.onerror?.();
-    expect(shown()).toMatch(/could not start/i);
+    expect(shown()).toMatch(/could not start/iu);
     leaveSim();
     menuIsShown();
     expect(w.terminated).toBe(true);

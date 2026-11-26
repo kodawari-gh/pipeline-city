@@ -1,9 +1,11 @@
 // Space on the Settings screen opened from the paused game (ticket #38). The node test run has no DOM, so Hud is called as a
 // plain function: its PauseKey child is found in the tree and called, its effect is captured and run by hand, and the window
 // key listeners that effect adds are the ones a player's Space reaches.
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Game } from '@/worker/game/game';
 import type { Snapshot } from '@/worker/protocol';
+import type * as stateApi from '@/core/ui/state';
+import type * as storeApi from '@/app/store';
 
 const hooks = vi.hoisted(() => ({ effects: [] as (() => unknown)[] }));
 vi.mock('preact/hooks', () => ({
@@ -11,23 +13,35 @@ vi.mock('preact/hooks', () => ({
     hooks.effects.push(fn);
   },
   useRef: () => ({ current: null }),
-  useState: (v: unknown) => [v, () => {}],
+  useState: (v: unknown) => [
+    v,
+    () => {
+      /* no-op */
+    },
+  ],
 }));
 
-type VEl = { type: unknown; props: Record<string, any> };
+interface VEl {
+  type: unknown;
+  props: Record<string, any>;
+}
 type Node = VEl | string | number | boolean | null | undefined | Node[];
-type Key = {
+interface Key {
   type: 'keydown' | 'keyup';
   code: string;
   key: string;
   target: object;
   repeat: boolean;
   preventDefault: () => void;
-};
+}
 
 const elements = (v: Node): VEl[] => {
-  if (Array.isArray(v)) return v.flatMap(elements);
-  if (v && typeof v === 'object' && 'props' in v) return [v];
+  if (Array.isArray(v)) {
+    return v.flatMap((child) => elements(child));
+  }
+  if (v && typeof v === 'object' && 'props' in v) {
+    return [v];
+  }
   return [];
 };
 const childrenOf = (el: VEl): Node => el.props['children'] as Node;
@@ -38,8 +52,8 @@ function all(v: Node): VEl[] {
 /** Compound selectors that match an element on the fake page. The stub document answers querySelector by checking the real selector list. */
 let onPage: Set<string>;
 let Hud: () => unknown;
-let st: typeof import('@/core/ui/state');
-let store: typeof import('@/app/store');
+let st: typeof stateApi;
+let store: typeof storeApi;
 let base: Snapshot;
 let listeners: Record<string, ((e: Key) => void)[]>;
 
@@ -57,9 +71,25 @@ beforeEach(async () => {
     activeElement: null,
     querySelector: (sel: string) => (sel.split(',').some((part) => onPage.has(part.trim())) ? {} : null),
     documentElement: {
-      setAttribute: () => {},
-      style: { setProperty: () => {} },
-      classList: { toggle: () => {}, add: () => {}, remove: () => {} },
+      setAttribute: () => {
+        /* no-op */
+      },
+      style: {
+        setProperty: () => {
+          /* no-op */
+        },
+      },
+      classList: {
+        toggle: () => {
+          /* no-op */
+        },
+        add: () => {
+          /* empty */
+        },
+        remove: () => {
+          /* empty */
+        },
+      },
     },
   });
   listeners = {};
@@ -67,8 +97,15 @@ beforeEach(async () => {
     addEventListener: (type: string, fn: (e: Key) => void) => {
       (listeners[type] ??= []).push(fn);
     },
-    removeEventListener: () => {},
-    matchMedia: () => ({ matches: false, addEventListener: () => {} }),
+    removeEventListener: () => {
+      /* no-op */
+    },
+    matchMedia: () => ({
+      matches: false,
+      addEventListener: () => {
+        /* no-op */
+      },
+    }),
   });
   hooks.effects = [];
   ({ Hud } = (await import('@/core/ui/Hud')) as unknown as { Hud: () => unknown });
@@ -80,13 +117,16 @@ beforeEach(async () => {
 
 /** Calls the HUD's PauseKey child by hand, so its window key listeners are added. */
 function mountPauseKey(): void {
-  const pk = all(Hud() as unknown as Node).find(
+  const pk = all(Hud() as Node).find(
     (el) => typeof el.type === 'function' && (el.type as { name?: string }).name === 'PauseKey',
   );
   expect(pk, 'PauseKey is in the HUD').toBeDefined();
   hooks.effects = [];
-  (pk!.type as () => unknown)();
-  for (const fn of hooks.effects) fn();
+  assert.exists(pk);
+  (pk.type as () => unknown)();
+  for (const fn of hooks.effects) {
+    fn();
+  }
 }
 
 const press = (type: 'keydown' | 'keyup'): void => {
@@ -96,9 +136,13 @@ const press = (type: 'keydown' | 'keyup'): void => {
     key: ' ',
     target: { tagName: 'BODY', isContentEditable: false },
     repeat: false,
-    preventDefault: () => {},
+    preventDefault: () => {
+      /* no-op */
+    },
   };
-  for (const fn of listeners[type] ?? []) fn(e);
+  for (const fn of listeners[type] ?? []) {
+    fn(e);
+  }
 };
 const speed = () => store.speed.value;
 

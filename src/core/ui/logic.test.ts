@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import {
   billChip,
   cacheHitRate,
@@ -20,9 +20,9 @@ import {
   stackItems,
   tempLevel,
   triggeredHints,
+  inventoryGroups,
 } from './logic';
 import { SAY } from '../../app/say';
-import { inventoryGroups } from './logic';
 import { REGIONS } from './regions';
 import { getSpec } from '../../features/board/sim/specs';
 import type { Phase } from '../../worker/game/game';
@@ -55,10 +55,12 @@ describe('format', () => {
 describe('stats', () => {
   it('cpi, cache, stalls', () => {
     expect(cpiIpc({ cycles: 0, retired: 0 })).toBeNull();
-    expect(cpiIpc({ cycles: 150, retired: 100 })).toEqual({ cpi: 1.5, ipc: 100 / 150 });
+    expect(cpiIpc({ cycles: 150, retired: 100 })).toStrictEqual({ cpi: 1.5, ipc: 100 / 150 });
     expect(cacheHitRate({})).toBeNull();
     expect(cacheHitRate({ cacheHits: 3, cacheMisses: 1 })).toBe(0.75);
-    expect(stallsByCause({ stallFlush: 4 }).find((c) => c.key === 'stallFlush')!.value).toBe(4);
+    const stallFlushStallsByCause = stallsByCause({ stallFlush: 4 }).find((c) => c.key === 'stallFlush');
+    assert.exists(stallFlushStallsByCause);
+    expect(stallFlushStallsByCause.value).toBe(4);
   });
   it('temp level uses the spec', () => {
     const cpu = getSpec('cpu0');
@@ -88,7 +90,7 @@ describe('HUD status text', () => {
   it('halted: job done asks for the key to be removed, no boot media asks for a key and a restart', () => {
     const done = statusChip(snap({ phase: 'halted', powered: true, haltReason: 'job-done' }));
     expect(done.text).toBe('Job done: remove key');
-    expect(done.title).toMatch(/power off and on/);
+    expect(done.title).toMatch(/power off and on/u);
     expect(statusChip(snap({ phase: 'halted', powered: true, haltReason: 'no-boot-media' })).text).toBe(
       'No boot media',
     );
@@ -101,7 +103,8 @@ describe('HUD status text', () => {
   it('a key plugged into a running no-OS machine raises the hint', () => {
     expect(triggeredHints(snap({ phase: 'halted', powered: true, keyIgnored: true }))).toContain('keyIgnored');
     expect(triggeredHints(snap({ phase: 'halted', powered: true }))).not.toContain('keyIgnored');
-    expect(HINTS['keyIgnored']!.text).toMatch(/only looks for a program at boot/);
+    assert.exists(HINTS['keyIgnored']);
+    expect(HINTS['keyIgnored'].text).toMatch(/only looks for a program at boot/u);
   });
   it.each(phaseText)('phase %s reads "%s"', (phase, text) => {
     expect(statusChip(snap({ phase, powered: phase !== 'off' })).text).toBe(text);
@@ -122,7 +125,7 @@ describe('HUD status text', () => {
     ).toBe('Tripped');
   });
   it('off says why the power button would do nothing', () => {
-    expect(statusChip(snap()).title).toMatch(/power supply/);
+    expect(statusChip(snap()).title).toMatch(/power supply/u);
   });
 });
 
@@ -163,7 +166,7 @@ describe('saved games in the menu', () => {
 
 describe('hints', () => {
   it('nothing on a calm snapshot', () => {
-    expect(triggeredHints(snap({ devices: [dev()] }))).toEqual([]);
+    expect(triggeredHints(snap({ devices: [dev()] }))).toStrictEqual([]);
   });
   it('triggers each condition', () => {
     expect(triggeredHints(snap({ counters: { stallCache: 2 } }))).toContain('stall');
@@ -175,12 +178,12 @@ describe('hints', () => {
       triggeredHints(
         snap({ power: { vrmLossW: 0, totalW: 90, budgetW: 40, psuFactor: 0.4, off: false, tripped: true } }),
       ),
-    ).toEqual(['trip']);
+    ).toStrictEqual(['trip']);
     expect(
       triggeredHints(
         snap({ power: { vrmLossW: 0, totalW: 50, budgetW: 40, psuFactor: 0.8, off: false, tripped: false } }),
       ),
-    ).toEqual(['brownout']);
+    ).toStrictEqual(['brownout']);
   });
   it('looseFan: a fitted fan with its cable out while the machine is on', () => {
     const cable = (id: string, connected: boolean, blocked: string | null = null) =>
@@ -193,9 +196,15 @@ describe('hints', () => {
   });
   it("a radiator fan cable is described as the radiator's, a bare mount's as a case fan", () => {
     const s = snap({ devices: [dev({ kind: 'radiator', slot: 'rad-top' })] });
-    expect(describeId('cable.fan:top0', s)!.title).toMatch(/Radiator fan cable \(top 1\)/);
-    expect(describeId('cable.fan:top1', s)!.title).toMatch(/Radiator fan cable \(top 2\)/); // it spans the whole top
-    expect(describeId('cable.fan:front0', s)!.title).toMatch(/Case fan cable \(front 1\)/);
+    const cableFanTop0Info = describeId('cable.fan:top0', s);
+    assert.exists(cableFanTop0Info);
+    expect(cableFanTop0Info.title).toMatch(/Radiator fan cable \(top 1\)/u);
+    const cableFanTop1Info = describeId('cable.fan:top1', s);
+    assert.exists(cableFanTop1Info);
+    expect(cableFanTop1Info.title).toMatch(/Radiator fan cable \(top 2\)/u); // it spans the whole top
+    const cableFanFront0Info = describeId('cable.fan:front0', s);
+    assert.exists(cableFanFront0Info);
+    expect(cableFanFront0Info.title).toMatch(/Case fan cable \(front 1\)/u);
   });
   it('an empty fan spot names the size that fits', () => {
     const s = snap({ slots: [{ id: 'front0', type: 'fan', deviceId: null, size: 120 }] });
@@ -205,10 +214,14 @@ describe('hints', () => {
     });
   });
   it('the CPU fan cable tip stops only a pump: a heatsink runs on', () => {
-    expect(describeId('cable.cpufan')!.nerd).toContain('only when a pump');
+    const cableCpufanInfo = describeId('cable.cpufan');
+    assert.exists(cableCpufanInfo);
+    expect(cableCpufanInfo.nerd).toContain('only when a pump');
   });
   it('a fan part describes its size and airflow', () => {
-    expect(describeId('fan120x')!.nerd).toMatch(/120 mm \| airflow 1\.5x/);
+    const fan120xInfo = describeId('fan120x');
+    assert.exists(fan120xInfo);
+    expect(fan120xInfo.nerd).toMatch(/120 mm \| airflow 1\.5x/u);
   });
   describe('network hints', () => {
     const base = snap().net;
@@ -219,7 +232,7 @@ describe('hints', () => {
       >;
 
     it('nothing on a quiet network', () => {
-      expect(triggeredHints(snap())).toEqual([]);
+      expect(triggeredHints(snap())).toStrictEqual([]);
     });
     it('retiredKeys: link-up retires the USB path and keys are left', () => {
       expect(triggeredHints(withNet({ state: 'link-up', usbRetired: true, retiredKeys: 2 }))).toContain('retiredKeys');
@@ -249,14 +262,15 @@ describe('hints', () => {
       expect(triggeredHints(withNet({ state: 'link-up' }))).not.toContain('saturated');
     });
     it('every network hint has a definition', () => {
-      for (const id of ['retiredKeys', 'spoolFull', 'linkDown', 'saturated'])
+      for (const id of ['retiredKeys', 'spoolFull', 'linkDown', 'saturated']) {
         expect(HINTS[id]?.text.length, id).toBeGreaterThan(20);
+      }
     });
   });
   it('shows each only once', () => {
     const s = snap({ queueLength: 5 });
-    expect(newHints(s, new Set()).map((h) => h.id)).toEqual(['queue']);
-    expect(newHints(s, new Set(['queue']))).toEqual([]);
+    expect(newHints(s, new Set()).map((h) => h.id)).toStrictEqual(['queue']);
+    expect(newHints(s, new Set(['queue']))).toStrictEqual([]);
   });
 });
 
@@ -264,13 +278,13 @@ describe('toast queue', () => {
   const h = (id: string) => ({ id, text: id });
   it('shows one at a time and queues the rest in order', () => {
     const r = fillToasts([], [h('a'), h('b'), h('c'), h('d')]);
-    expect(r.visible.map((t) => t.id)).toEqual(['a']);
-    expect(r.queue.map((t) => t.id)).toEqual(['b', 'c', 'd']);
+    expect(r.visible.map((t) => t.id)).toStrictEqual(['a']);
+    expect(r.queue.map((t) => t.id)).toStrictEqual(['b', 'c', 'd']);
   });
   it('shows the next one when a slot frees up', () => {
     const r = fillToasts([], [h('c'), h('d')]);
-    expect(r.visible.map((t) => t.id)).toEqual(['c']);
-    expect(r.queue.map((t) => t.id)).toEqual(['d']);
+    expect(r.visible.map((t) => t.id)).toStrictEqual(['c']);
+    expect(r.queue.map((t) => t.id)).toStrictEqual(['d']);
   });
   it('does nothing when full', () => {
     const r = fillToasts([h('a')], [h('c')]);
@@ -284,7 +298,7 @@ describe('descriptions', () => {
     expect(describeId('cpu2')?.nerd).toContain('forwarding');
     expect(describeId('ram1')?.nerd).toContain('32K');
     expect(describeId('board')?.title).toBe('Motherboard');
-    expect(describeId('board1')?.nerd).toMatch(/slots: .*1 atx/);
+    expect(describeId('board1')?.nerd).toMatch(/slots: .*1 atx/u);
     expect(describeId('nope')).toBeNull();
   });
 
@@ -297,13 +311,15 @@ describe('descriptions', () => {
       devices: [dev({ id: 'dev7', spec: 'ram0', kind: 'ram', slot: 'dimm0' })],
     });
     expect(describeId('cpu0', s)).toMatchObject({ title: 'Empty socket' });
-    expect(describeId('dimm0', s)?.title).toBe(getSpec('ram0')!.name);
-    expect(describeId('dev7', s)?.title).toBe(getSpec('ram0')!.name);
+    const ram = getSpec('ram0');
+    assert.exists(ram);
+    expect(describeId('dimm0', s)?.title).toBe(ram.name);
+    expect(describeId('dev7', s)?.title).toBe(ram.name);
   });
 
   it('crate items and keys', () => {
     const s = snap({ tray: [key({ id: 4, label: '#90 log' })] });
-    expect(describeId('inv:inv1', s)?.plain).toMatch(/In your inventory/);
+    expect(describeId('inv:inv1', s)?.plain).toMatch(/In your inventory/u);
     expect(describeId('key:4', s)?.title).toBe('Client key #90 log');
   });
 
@@ -334,7 +350,9 @@ describe('descriptions', () => {
           .map((b) => `cpu.${b.kind}`),
       ),
     ];
-    for (const id of ids) expect(describeId(id, s), id).not.toBeNull();
+    for (const id of ids) {
+      expect(describeId(id, s), id).not.toBeNull();
+    }
     for (const [id, d] of Object.entries(REGIONS)) {
       expect(d.plain.length, `${id} plain`).toBeGreaterThan(10);
       expect(d.nerd.length, `${id} nerd`).toBeGreaterThan(10);
@@ -346,8 +364,9 @@ describe('descriptions', () => {
     for (const id of ['router', 'wall', 'cable.lan', 'eth0', 'eth1', 'eth2', 'eth3']) {
       for (const d of [describeId(id, s), describeId(id)]) {
         expect(d, id).not.toBeNull();
-        expect(d!.plain.length, `${id} plain`).toBeGreaterThan(10);
-        expect(d!.nerd.length, `${id} nerd`).toBeGreaterThan(10);
+        assert.exists(d);
+        expect(d.plain.length, `${id} plain`).toBeGreaterThan(10);
+        expect(d.nerd.length, `${id} nerd`).toBeGreaterThan(10);
       }
     }
   });
@@ -391,9 +410,10 @@ describe('graphics card ids', () => {
       for (const id of ids) {
         for (const d of [describeId(id, s), describeId(id)]) {
           expect(d, `${visual} ${id}`).not.toBeNull();
-          expect(d!.title.length, `${id} title`).toBeGreaterThan(2);
-          expect(d!.plain.length, `${id} plain`).toBeGreaterThan(10);
-          expect(d!.nerd.length, `${id} nerd`).toBeGreaterThan(10);
+          assert.exists(d);
+          expect(d.title.length, `${id} title`).toBeGreaterThan(2);
+          expect(d.plain.length, `${id} plain`).toBeGreaterThan(10);
+          expect(d.nerd.length, `${id} nerd`).toBeGreaterThan(10);
         }
       }
     }
@@ -404,16 +424,32 @@ describe('graphics card ids', () => {
       devices: [dev({ id: 'g1', spec: 'gpu2', kind: 'gpu', slot: 'pcie0', tempC: 72 })],
       gpus: [gpuSnap('pcie0', 16, 2)],
     });
-    expect(describeId('pcie0.lane0', s)!.nerd).toMatch(/lane 0 of 16 \| on/);
-    expect(describeId('pcie0.lane1', s)!.nerd).toMatch(/off under the mask/);
-    expect(describeId('pcie0.bank1', s)!.nerd).toMatch(/bank 1 of 2.*4 cycles lost/);
-    expect(describeId('pcie0.fan1', s)!.nerd).toMatch(/72 C now.*fan 2/);
-    expect(describeId('pcie0.maskstack', s)!.nerd).toBe('depth 1 of 8');
+    const pcie0Lane0Info = describeId('pcie0.lane0', s);
+    assert.exists(pcie0Lane0Info);
+    expect(pcie0Lane0Info.nerd).toMatch(/lane 0 of 16 \| on/u);
+    const pcie0Lane1Info = describeId('pcie0.lane1', s);
+    assert.exists(pcie0Lane1Info);
+    expect(pcie0Lane1Info.nerd).toMatch(/off under the mask/u);
+    const pcie0Bank1Info = describeId('pcie0.bank1', s);
+    assert.exists(pcie0Bank1Info);
+    expect(pcie0Bank1Info.nerd).toMatch(/bank 1 of 2.*4 cycles lost/u);
+    const pcie0Fan1Info = describeId('pcie0.fan1', s);
+    assert.exists(pcie0Fan1Info);
+    expect(pcie0Fan1Info.nerd).toMatch(/72 C now.*fan 2/u);
+    const pcie0MaskstackInfo = describeId('pcie0.maskstack', s);
+    assert.exists(pcie0MaskstackInfo);
+    expect(pcie0MaskstackInfo.nerd).toBe('depth 1 of 8');
     expect(describeId('pcie0.lane99')).not.toBeNull(); // any lane number reads as a lane; the board only writes the ones that exist
     expect(describeId('pcie0.unknown', s)).toBeNull();
-    expect(describeId('pcie0.sm1.lanes')!.nerd).toMatch(/SM 1/);
-    expect(describeId('pcie0.warp3')!.title).toBe('Warp 3');
-    expect(describeId('pcie0.l2')!.title).toBe('L2 cache');
+    const pcie0Sm1LanesInfo = describeId('pcie0.sm1.lanes');
+    assert.exists(pcie0Sm1LanesInfo);
+    expect(pcie0Sm1LanesInfo.nerd).toMatch(/SM 1/u);
+    const pcie0Warp3Info = describeId('pcie0.warp3');
+    assert.exists(pcie0Warp3Info);
+    expect(pcie0Warp3Info.title).toBe('Warp 3');
+    const pcie0L2Info = describeId('pcie0.l2');
+    assert.exists(pcie0L2Info);
+    expect(pcie0L2Info.title).toBe('L2 cache');
     expect(isGpuId('pcie0.sm1.nonsense')).toBe(false);
     expect(isGpuId('pcie2.mem')).toBe(true);
     expect(isGpuId('pcie2')).toBe(false);
@@ -423,7 +459,7 @@ describe('graphics card ids', () => {
 describe('inventoryGroups', () => {
   it('lists a router and a network card on the shelf, in shelf order', () => {
     const items = [{ kind: 'os' }, { kind: 'router' }, { kind: 'cpu' }, { kind: 'nic' }];
-    expect(inventoryGroups(items).map((g) => g.k)).toEqual(['cpu', 'nic', 'router', 'os']);
+    expect(inventoryGroups(items).map((g) => g.k)).toStrictEqual(['cpu', 'nic', 'router', 'os']);
   });
   it('never drops an item of an unknown kind', () => {
     const items = [{ kind: 'cpu' }, { kind: 'mystery' }];
@@ -450,12 +486,14 @@ describe('inventory stacks and the fit filter', () => {
       item('d', 'ram0', 'ram'),
     ];
     const st = stackItems(items);
-    expect(st.map((x) => [x.spec, x.items.length])).toEqual([
+    expect(st.map((x) => [x.spec, x.items.length])).toStrictEqual([
       ['ram0', 3],
       ['cpu1', 1],
     ]);
-    expect(st[0]!.rep.id).toBe('c');
-    expect(st[1]!.rep.id).toBe('b');
+    assert.exists(st[0]);
+    expect(st[0].rep.id).toBe('c');
+    assert.exists(st[1]);
+    expect(st[1].rep.id).toBe('b');
   });
 
   it('selecting a socket, a device, the PSU, the monitor or the drive bay asks for what fits there', () => {
@@ -498,14 +536,14 @@ describe('billChip', () => {
     expect(billChip(snap())).toBeNull();
   });
   it('shows the running cost and the time to the next bill', () => {
-    expect(billChip(snap({ baseTick: 640, bill }))).toEqual({ text: '$1 1m 00s', level: 'idle' });
+    expect(billChip(snap({ baseTick: 640, bill }))).toStrictEqual({ text: '$1 1m 00s', level: 'idle' });
   });
   it('warns while a bill is unpaid and goes red when the wall is cut', () => {
-    expect(billChip(snap({ baseTick: 700, bill: { ...bill, unpaid: 3, cutTick: 760 } }))).toEqual({
+    expect(billChip(snap({ baseTick: 700, bill: { ...bill, unpaid: 3, cutTick: 760 } }))).toStrictEqual({
       text: '$3 due, cut in 1m 00s',
       level: 'warn',
     });
-    expect(billChip(snap({ bill: { ...bill, unpaid: 3, cutTick: 760, cut: true } }))).toEqual({
+    expect(billChip(snap({ bill: { ...bill, unpaid: 3, cutTick: 760, cut: true } }))).toStrictEqual({
       text: 'CUT $3',
       level: 'bad',
     });
@@ -513,15 +551,21 @@ describe('billChip', () => {
 });
 
 describe('graphics card stats in the picker', () => {
-  const val = (id: string, key: string) => statsOf(id).find((x) => x.key === key)!.value;
+  const val = (id: string, key: string) => {
+    const foundStatsOf = statsOf(id).find((x) => x.key === key);
+    assert.exists(foundStatsOf);
+    return foundStatsOf.value;
+  };
   it('compares SMs, warps, lanes, L2, memory, clock and power, each with a tooltip', () => {
     for (const id of ['gpu1', 'gpu2', 'gpu3']) {
       const keys = statsOf(id).map((x) => x.key);
-      expect(keys, id).toEqual(['sms', 'warps', 'lanes', 'l2', 'cardclk', 'cardmem', 'power']);
-      for (const k of keys) expect(STAT_HELP[k], `${id} ${k}`).toBeTruthy();
+      expect(keys, id).toStrictEqual(['sms', 'warps', 'lanes', 'l2', 'cardclk', 'cardmem', 'power']);
+      for (const k of keys) {
+        expect(STAT_HELP[k], `${id} ${k}`).toBeTruthy();
+      }
     }
-    expect([1, 2, 3].map((n) => val(`gpu${n}`, 'sms'))).toEqual([1, 1, 2]);
-    expect([1, 2, 3].map((n) => val(`gpu${n}`, 'warps'))).toEqual([1, 2, 2]);
+    expect([1, 2, 3].map((n) => val(`gpu${n}`, 'sms'))).toStrictEqual([1, 1, 2]);
+    expect([1, 2, 3].map((n) => val(`gpu${n}`, 'warps'))).toStrictEqual([1, 2, 2]);
     expect(val('gpu1', 'l2')).toBe(0);
     expect(val('gpu3', 'l2')).toBeGreaterThan(0);
   });

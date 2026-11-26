@@ -1,9 +1,12 @@
 // The game starts a menu choice made while the world still loads (the menu stands over the boot screen), `startSim`. No DOM: the worker is a stand-in.
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { assert, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { booted } from './boot';
 import { snapshot, startSim, starting } from './store';
 
-type Sent = { type: string; sandbox?: boolean };
+interface Sent {
+  type: string;
+  sandbox?: boolean;
+}
 
 /** A stand-in for the sim's worker: it keeps what it is sent. */
 class FakeWorker {
@@ -17,7 +20,9 @@ class FakeWorker {
   postMessage(m: Sent): void {
     this.sent.push(m);
   }
-  terminate(): void {}
+  terminate(): void {
+    /* no-op */
+  }
 }
 
 describe('startSim while the world loads', () => {
@@ -45,7 +50,9 @@ describe('startSim while the world loads', () => {
     startSim(null, { sandbox: true });
     booted.value = true;
     expect(FakeWorker.made).toHaveLength(1);
-    expect(FakeWorker.made[0]!.sent.find((m) => m.type === 'init')?.sandbox).toBe(true);
+    const [worker] = FakeWorker.made;
+    assert.exists(worker);
+    expect(worker.sent.find((m) => m.type === 'init')?.sandbox).toBe(true);
   });
 
   it('keeps the last choice when more than one is made before that', () => {
@@ -53,7 +60,9 @@ describe('startSim while the world loads', () => {
     startSim(null, { sandbox: false });
     booted.value = true;
     expect(FakeWorker.made).toHaveLength(1);
-    expect(FakeWorker.made[0]!.sent.find((m) => m.type === 'init')?.sandbox).toBe(false);
+    const [worker] = FakeWorker.made;
+    assert.exists(worker);
+    expect(worker.sent.find((m) => m.type === 'init')?.sandbox).toBe(false);
   });
 
   it('starts at once when the world is there', () => {
