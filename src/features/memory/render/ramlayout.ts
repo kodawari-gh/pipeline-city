@@ -35,7 +35,9 @@ export const CHIPS_PER_STICK = 8;
  */
 export function chipLayout(rects: Rect[], sticks: Stick[], ramBytes: number): ChipSlot[] {
   const n = rects.length;
-  if (n === 0) return [];
+  if (n === 0) {
+    return [];
+  }
   const entries = rects.map((rect, i) => ({
     rect,
     order: sticks[Math.floor(i / CHIPS_PER_STICK)]?.idx ?? 0,
@@ -66,16 +68,21 @@ export const chipContent = (r: Rect): Rect => ({ x: r.x + 8, y: r.y + 24, w: r.w
 /** The colour a region gets: the OS one colour, the boot ROM grey, a program by its type (so one kind of program always looks the same). */
 export function regionColor(r: RamRegion, T: Theme): string {
   switch (r.kind) {
-    case 'rom':
+    case 'rom': {
       return T.mute;
-    case 'os':
+    }
+    case 'os': {
       return T.ink;
-    case 'osdata':
+    }
+    case 'osdata': {
       return mix(T.ink, T.mute, 0.45);
+    }
     default: {
       const palette = [T.alu, T.ld, T.st, T.mul, T.br];
       let h = 0;
-      for (const ch of r.type ?? String(r.owner ?? 0)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+      for (const ch of r.type ?? String(r.owner ?? 0)) {
+        h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+      }
       const c = palette[h % palette.length]!;
       return r.kind === 'work' ? mix(c, T.die, 0.4) : c; // a program's working memory is its colour, duller
     }
@@ -108,16 +115,22 @@ export function pageCells(
       best = 0;
     const votes = new Map<number, number>();
     for (let a = a0; a < a1; a++) {
-      if (image[a]) nz++;
+      if (image[a]) {
+        nz++;
+      }
       const o = own[a]!;
       if (o) {
         owned++;
         const v = (votes.get(o) ?? 0) + 1;
         votes.set(o, v);
-        if (v > (votes.get(best) ?? 0)) best = o;
+        if (v > (votes.get(best) ?? 0)) {
+          best = o;
+        }
       }
     }
-    if (nz || owned) out.push({ page: p, best, strength: 0.14 + 0.5 * (owned / PAGE) + 0.36 * (nz / PAGE) });
+    if (nz || owned) {
+      out.push({ page: p, best, strength: 0.14 + 0.5 * (owned / PAGE) + 0.36 * (nz / PAGE) });
+    }
   }
   return out;
 }
@@ -140,18 +153,21 @@ export function pixelOf(slot: ChipSlot, addr: number): { x: number; y: number } 
 export function spanOutline(lo: number, hi: number, chipLo: number, chipHi: number, cols: number): [number, number][] {
   const a = Math.max(lo, chipLo) - chipLo,
     b = Math.min(hi, chipHi) - chipLo;
-  if (b <= a) return [];
+  if (b <= a) {
+    return [];
+  }
   const ra = Math.floor(a / cols),
     rb = Math.floor((b - 1) / cols),
     xa = a % cols,
     xb = ((b - 1) % cols) + 1;
-  if (ra === rb)
+  if (ra === rb) {
     return [
       [xa, ra],
       [xb, ra],
       [xb, ra + 1],
       [xa, ra + 1],
     ];
+  }
   return [
     [xa, ra],
     [cols, ra],
@@ -188,18 +204,21 @@ const ascii = (w: number): string =>
 
 function regionAt(regions: RamRegion[], addr: number): RamRegion | null {
   let hit: RamRegion | null = null;
-  for (const r of regions) if (addr >= r.lo && addr < r.hi) hit = r;
+  for (const r of regions) {
+    if (addr >= r.lo && addr < r.hi) {
+      hit = r;
+    }
+  }
   return hit;
 }
 
 /** Whether the word at `addr` is an instruction: the boot ROM, the kernel's code and a program's code are; tables, data and the unclaimed are not. */
 export function isCodeAt(regions: RamRegion[], addr: number): boolean {
   const r = regionAt(regions, addr);
-  if (!r) return false;
-  if (r.kind === 'rom') return true;
-  if (r.kind === 'os') return r.id === 'os-kernel';
-  if (r.kind === 'app') return addr < (r.codeEnd ?? r.hi);
-  return false;
+  return (
+    r !== null &&
+    (r.kind === 'rom' || (r.kind === 'os' && r.id === 'os-kernel') || (r.kind === 'app' && addr < (r.codeEnd ?? r.hi)))
+  );
 }
 
 /** `count` words around the word at `addr` (the one the CPU touched is `current`), clamped to the memory. */
@@ -209,7 +228,9 @@ export function lensRows(img: Uint8Array, regions: RamRegion[], addr: number, co
   const rows: LensRow[] = [];
   for (let k = 0; k < count; k++) {
     const a = first + 4 * k;
-    if (a + 4 > img.length) break;
+    if (a + 4 > img.length) {
+      break;
+    }
     const w = word(img, a),
       code = isCodeAt(regions, a) && w !== 0;
     rows.push({
@@ -245,7 +266,7 @@ export function memoryTable(regions: RamRegion[], total: number): MemTable {
     if (!p) {
       p = {
         owner: r.owner ?? 0,
-        name: r.name.replace(/ data$/, ''),
+        name: r.name.replace(/ data$/u, ''),
         type: r.type ?? '',
         bytes: 0,
         image: 0,
@@ -254,15 +275,20 @@ export function memoryTable(regions: RamRegion[], total: number): MemTable {
       procs.push(p);
     }
     p.bytes += n;
-    if (r.kind === 'work') p.claimed += n;
-    else p.image += n;
+    if (r.kind === 'work') {
+      p.claimed += n;
+    } else {
+      p.image += n;
+    }
   }
   return { total, sys, procs, free: Math.max(0, total - sys - procs.reduce((a, p) => a + p.bytes, 0)) };
 }
 
 /** Bytes as "4.0K" / "812B". */
 export function sizeText(n: number): string {
-  if (n < 1024) return `${n}B`;
+  if (n < 1024) {
+    return `${n}B`;
+  }
   const k = n / 1024;
   return `${k >= 10 ? Math.round(k) : Math.round(k * 10) / 10}K`;
 }

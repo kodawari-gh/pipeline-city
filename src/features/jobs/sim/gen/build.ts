@@ -41,8 +41,8 @@ export interface GpuTarget {
 }
 
 /** Where a threaded program keeps its shared words: the arrival counter at the barrier, then one partial result per thread. Inside the heap the OS maps on demand. */
-export const THREAD_SYNC = 0x7f00;
-export const THREAD_PARTS = 0x7f40;
+export const THREAD_SYNC = 0x7f_00;
+export const THREAD_PARTS = 0x7f_40;
 
 export interface ResolvedParams {
   scale: number;
@@ -67,10 +67,10 @@ export interface Built {
 export type TemplateFn = (rng: Prng, p: ResolvedParams) => Built;
 
 /** Scratch RAM for templates that need a data buffer (well above any generated code, well below the stack). */
-export const BUF_BASE = 0x4000;
+export const BUF_BASE = 0x40_00;
 /** Hosted programs load at USER_BASE (0x1000), so code must end before the scan buffer at BUF_BASE. */
-export const MAX_CODE_BYTES = BUF_BASE - 0x1000;
-export const BUF_LIMIT = 0xc000;
+export const MAX_CODE_BYTES = BUF_BASE - 0x10_00;
+export const BUF_LIMIT = 0xc0_00;
 
 // ---------- program builder ----------
 
@@ -90,7 +90,9 @@ export class Builder {
     return kernel.ns;
   }
   emit(...lines: string[]): void {
-    for (const l of lines) this.body.push(`  ${l}`);
+    for (const l of lines) {
+      this.body.push(`  ${l}`);
+    }
   }
   addData(lines: string[]): void {
     this.data.push(...lines);
@@ -127,13 +129,20 @@ export function layoutLine(segs: Seg[]): Line {
   const bytes: (number | null)[] = [];
   const fields: Line['fields'] = [];
   for (const s of segs) {
-    if (typeof s === 'string') for (const ch of s) bytes.push(ch.charCodeAt(0));
-    else {
+    if (typeof s === 'string') {
+      for (const ch of s) {
+        bytes.push(ch.charCodeAt(0));
+      }
+    } else {
       fields.push({ off: bytes.length, width: s.dyn });
-      for (let i = 0; i < s.dyn; i++) bytes.push(null);
+      for (let i = 0; i < s.dyn; i++) {
+        bytes.push(null);
+      }
     }
   }
-  if (bytes.length > DISPLAY_COLS) throw new RangeError('line too long');
+  if (bytes.length > DISPLAY_COLS) {
+    throw new RangeError('line too long');
+  }
   return { bytes, fields };
 }
 
@@ -155,13 +164,17 @@ export function emitStatic(b: Builder, line: Line, rowOff: number): void {
         any = true;
       }
     }
-    if (!any) continue;
+    if (!any) {
+      continue;
+    }
     b.emit(`li t0, ${val >>> 0}`, `sw t0, ${rowOff + 4 * w}(s0)`);
   }
 }
 
 export function rowAddr(row: number): number {
-  if (row < 0 || row >= DISPLAY_ROWS) throw new RangeError(`row ${row}`);
+  if (row < 0 || row >= DISPLAY_ROWS) {
+    throw new RangeError(`row ${row}`);
+  }
   return DISPLAY_BASE + row * DISPLAY_COLS;
 }
 

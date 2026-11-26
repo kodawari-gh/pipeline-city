@@ -16,16 +16,24 @@ const word = (ram: Uint8Array, a: number): number =>
 export function walkTable(ram: Uint8Array, table: number): { pages: Mapping[]; tables: number[] } {
   const pages: Mapping[] = [],
     tables: number[] = [table >>> 8];
-  if (table <= 0 || table + 256 > ram.length) return { pages, tables: [] };
+  if (table <= 0 || table + 256 > ram.length) {
+    return { pages, tables: [] };
+  }
   for (let i = 0; i < 64; i++) {
     const e1 = word(ram, table + 4 * i);
-    if (!(e1 & PteBit.Valid)) continue;
+    if (!(e1 & PteBit.Valid)) {
+      continue;
+    }
     const l2 = (e1 >>> 8) * 256;
-    if (l2 + 256 > ram.length) continue;
+    if (l2 + 256 > ram.length) {
+      continue;
+    }
     tables.push(e1 >>> 8);
     for (let j = 0; j < 64; j++) {
       const e2 = word(ram, l2 + 4 * j);
-      if (e2 & PteBit.Valid) pages.push({ vpn: (i << 6) | j, frame: e2 >>> 8, flags: e2 & 7 });
+      if (e2 & PteBit.Valid) {
+        pages.push({ vpn: (i << 6) | j, frame: e2 >>> 8, flags: e2 & 7 });
+      }
     }
   }
   return { pages, tables };

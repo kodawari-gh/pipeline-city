@@ -37,12 +37,43 @@ export interface Bubble {
 /** The region that holds `addr`; the smallest when they overlap (the memory a program claimed lies inside its image's neighbourhood). */
 export function regionOf(addr: number, regions: readonly RamRegion[]): RamRegion | undefined {
   let best: RamRegion | undefined;
-  for (const r of regions) if (addr >= r.lo && addr < r.hi && (!best || r.hi - r.lo < best.hi - best.lo)) best = r;
+  for (const r of regions) {
+    if (addr >= r.lo && addr < r.hi && (!best || r.hi - r.lo < best.hi - best.lo)) {
+      best = r;
+    }
+  }
   return best;
 }
 
 /** "C2" or "C2+C3": the cores on a bubble. */
 export const coresText = (cores: readonly BubbleCore[]): string => cores.map((c) => `C${c.core}`).join('+');
+
+/** One "+n" bubble for the resources in `rest` (each core's reads and writes summed). */
+function foldBubbles(rest: readonly Bubble[]): Bubble {
+  const folded: Bubble = {
+    id: '+',
+    label: `+${rest.length}`,
+    addr: rest[0]!.addr,
+    cores: [],
+    writes: 0,
+    contended: false,
+    t: rest[0]!.t,
+  };
+  for (const b of rest) {
+    folded.writes += b.writes;
+    for (const c of b.cores) {
+      const f = folded.cores.find((x) => x.core === c.core);
+      if (f) {
+        f.reads += c.reads;
+        f.writes += c.writes;
+      } else {
+        folded.cores.push({ ...c });
+      }
+    }
+  }
+  folded.contended = folded.cores.length > 1;
+  return folded;
+}
 
 /** The bubbles of a set of touches, newest first; resources past `max` fold into one "+n" bubble. */
 export function bubblesOf(touches: readonly BubbleTouch[], regions: readonly RamRegion[], max = 6): Bubble[] {
@@ -64,32 +95,16 @@ export function bubblesOf(touches: readonly BubbleTouch[], regions: readonly Ram
     if (t.write) {
       c.writes++;
       b.writes++;
-    } else c.reads++;
+    } else {
+      c.reads++;
+    }
     b.contended = b.cores.length > 1;
   }
   const all = [...by.values()];
-  if (all.length <= max) return all;
+  if (all.length <= max) {
+    return all;
+  }
   const keep = all.slice(0, Math.max(1, max - 1)),
     rest = all.slice(keep.length);
-  const folded: Bubble = {
-    id: '+',
-    label: `+${rest.length}`,
-    addr: rest[0]!.addr,
-    cores: [],
-    writes: 0,
-    contended: false,
-    t: rest[0]!.t,
-  };
-  for (const b of rest) {
-    folded.writes += b.writes;
-    for (const c of b.cores) {
-      const f = folded.cores.find((x) => x.core === c.core);
-      if (f) {
-        f.reads += c.reads;
-        f.writes += c.writes;
-      } else folded.cores.push({ ...c });
-    }
-  }
-  folded.contended = folded.cores.length > 1;
-  return [...keep, folded];
+  return [...keep, foldBubbles(rest)];
 }

@@ -2,26 +2,16 @@
 // having) is data in net/specs.ts `jobSizes`; the part the machine runs is a small program for the work the request is about: assembling a response, adding
 // up an order, looking a name up, checking a form, searching text, scanning an upload, filtering a video chunk, shrinking an image. Each prints `#NN label value OK`.
 
-import {
-  Builder,
-  BUF_BASE,
-  blankRows,
-  emitStatic,
-  layoutLine,
-  pad2,
-  renderLine,
-  rowAddr,
-  type Seg,
-  type TemplateFn,
-} from './build';
+import { Builder, BUF_BASE, blankRows, emitStatic, layoutLine, pad2, renderLine, rowAddr } from './build';
+import type * as buildTypes from './build';
 import * as K from './kernels';
-import { k as defineKernel, type Kernel } from './kernels';
+import { k as defineKernel } from './kernels';
 import { copyBlock } from './tasks.memory';
 
 const pow2 = (scale: number): number => 2 ** Math.floor(Math.log2(Math.max(1, scale)));
 
 function open(b: Builder, p: { row: number; jobId: number }, label: string) {
-  const segs: Seg[] = [`#${pad2(p.jobId)} ${label}`, { dyn: 4 }, ' OK'];
+  const segs: buildTypes.Seg[] = [`#${pad2(p.jobId)} ${label}`, { dyn: 4 }, ' OK'];
   const line = layoutLine(segs);
   b.emit(`li s0, ${rowAddr(p.row)}`);
   emitStatic(b, line, 0);
@@ -42,10 +32,11 @@ const words = (label: string, ws: number[]): string[] => [`${label}:`, ...ws.map
 /** Pack bytes into little-endian words, four to a word. */
 function pack(bytes: number[]): number[] {
   const out: number[] = [];
-  for (let i = 0; i < bytes.length; i += 4)
+  for (let i = 0; i < bytes.length; i += 4) {
     out.push(
       ((bytes[i] ?? 0) | ((bytes[i + 1] ?? 0) << 8) | ((bytes[i + 2] ?? 0) << 16) | ((bytes[i + 3] ?? 0) << 24)) >>> 0,
     );
+  }
   return out;
 }
 
@@ -53,12 +44,14 @@ const hash5 = (h: number, w: number): number => (((h + (h << 5)) ^ w) >>> 0) | 0
 
 // ---------- page: put the response together ----------
 
-const webPage: TemplateFn = (rng, p) => {
+const webPage: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const n = 16 * p.scale,
     body = Array.from({ length: n }, () => rng.nextU32());
   let h = 5381;
-  for (const w of body) h = hash5(h, w);
+  for (const w of body) {
+    h = hash5(h, w);
+  }
   const data = b.ns('body');
   const o = open(b, p, 'page ');
   b.emit(`li a0, ${BUF_BASE}`, `la a1, ${data}`, `li a2, ${n}`, `call ${b.add(copyBlock(b.ns('copy')), 4 * n)}`);
@@ -70,7 +63,7 @@ const webPage: TemplateFn = (rng, p) => {
 // ---------- api: add up an order ----------
 
 /** The sum of a[i] * b[i] over a2 pairs (a0 = a, a1 = b): the total of an order, price times quantity. */
-const dotWords = (ns: string): Kernel =>
+const dotWords = (ns: string): K.Kernel =>
   defineKernel('dot_words', ns, ['mem', 'mul', 'alu', 'branch'], 0, [
     'li t0, 0',
     `${ns}_loop:`,
@@ -86,7 +79,7 @@ const dotWords = (ns: string): Kernel =>
     'ret',
   ]);
 
-const webApi: TemplateFn = (rng, p) => {
+const webApi: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const n = 4 * p.scale,
     price = Array.from({ length: n }, () => 1 + rng.nextInt(99)),
@@ -103,7 +96,7 @@ const webApi: TemplateFn = (rng, p) => {
 // ---------- dns: halve the table until the name is found ----------
 
 /** Look the a3 keys at a2 up in the sorted table of `size` words at a0 by halving; returns the sum of the positions it found them at. Which way each step goes depends on the key. */
-const bsearch = (ns: string, size: number): Kernel =>
+const bsearch = (ns: string, size: number): K.Kernel =>
   defineKernel('bsearch', ns, ['mem', 'alu', 'branch'], 0, [
     'li a1, 0',
     `${ns}_key:`,
@@ -134,7 +127,7 @@ const bsearch = (ns: string, size: number): Kernel =>
     'ret',
   ]);
 
-const webDns: TemplateFn = (rng, p) => {
+const webDns: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const size = 16 * pow2(p.scale),
     names = 4 * p.scale;
@@ -155,8 +148,11 @@ const webDns: TemplateFn = (rng, p) => {
         sum += mid;
         break;
       }
-      if (table[mid]! < key) lo = mid + 1;
-      else hi = mid - 1;
+      if (table[mid]! < key) {
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
     }
   }
   const dT = b.ns('table'),
@@ -172,7 +168,7 @@ const webDns: TemplateFn = (rng, p) => {
 const FORM_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -';
 
 /** Over a1 bytes from a0, the number of digits plus twice the number of capital letters: two range tests per byte with no branch but the loop's. */
-const formCheck = (ns: string): Kernel =>
+const formCheck = (ns: string): K.Kernel =>
   defineKernel('form_check', ns, ['mem', 'alu', 'branch'], 0, [
     'li t0, 0',
     'li t1, 0',
@@ -192,7 +188,7 @@ const formCheck = (ns: string): Kernel =>
     'ret',
   ]);
 
-const webForm: TemplateFn = (rng, p) => {
+const webForm: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const n = 32 * p.scale,
     text = Array.from({ length: n }, () => FORM_CHARS.charCodeAt(rng.nextInt(FORM_CHARS.length)));
@@ -208,7 +204,7 @@ const webForm: TemplateFn = (rng, p) => {
 // ---------- search: look for a pair of letters ----------
 
 /** Count the places in the a1 bytes at a0 where the byte pair (a2, a3) occurs: two compares per position, the second only when the first matched. */
-const pairCount = (ns: string): Kernel =>
+const pairCount = (ns: string): K.Kernel =>
   defineKernel('pair_count', ns, ['mem', 'alu', 'branch'], 0, [
     'li t0, 0',
     `${ns}_loop:`,
@@ -225,14 +221,18 @@ const pairCount = (ns: string): Kernel =>
     'ret',
   ]);
 
-const webSearch: TemplateFn = (rng, p) => {
+const webSearch: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const n = 48 * p.scale,
     text = Array.from({ length: n + 1 }, () => 97 + rng.nextInt(4));
   const c0 = 97 + rng.nextInt(4),
     c1 = 97 + rng.nextInt(4);
   let hits = 0;
-  for (let i = 0; i < n; i++) if (text[i] === c0 && text[i + 1] === c1) hits++;
+  for (let i = 0; i < n; i++) {
+    if (text[i] === c0 && text[i + 1] === c1) {
+      hits++;
+    }
+  }
   const data = b.ns('text');
   const o = open(b, p, 'find=');
   b.emit(
@@ -249,7 +249,7 @@ const webSearch: TemplateFn = (rng, p) => {
 // ---------- upload: scan what arrived for a signature ----------
 
 /** Count the a1 words at a0 whose bits under the mask a2 equal a3: one load, one and, one compare for each. */
-const sigScan = (ns: string): Kernel =>
+const sigScan = (ns: string): K.Kernel =>
   defineKernel('sig_scan', ns, ['mem', 'alu', 'branch'], 0, [
     'li t0, 0',
     `${ns}_loop:`,
@@ -265,7 +265,7 @@ const sigScan = (ns: string): Kernel =>
     'ret',
   ]);
 
-const webUpload: TemplateFn = (rng, p) => {
+const webUpload: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const n = 32 * p.scale,
     file = Array.from({ length: n }, () => rng.nextU32()),
@@ -288,7 +288,7 @@ const webUpload: TemplateFn = (rng, p) => {
 // ---------- video: filter every sample of a chunk ----------
 
 /** The sum over a1 words from a0 of (3 * w + 1) / 2: a multiply, an add and a shift for every sample. */
-const mapSum = (ns: string): Kernel =>
+const mapSum = (ns: string): K.Kernel =>
   defineKernel('map_sum', ns, ['mem', 'mul', 'alu', 'branch'], 0, [
     'li t0, 0',
     'li t3, 3',
@@ -305,7 +305,7 @@ const mapSum = (ns: string): Kernel =>
     'ret',
   ]);
 
-const webVideo: TemplateFn = (rng, p) => {
+const webVideo: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const n = 48 * p.scale,
     chunk = Array.from({ length: n }, () => rng.nextInt(4096));
@@ -320,7 +320,7 @@ const webVideo: TemplateFn = (rng, p) => {
 // ---------- image: shrink by averaging 2 x 2 ----------
 
 /** Shrink the a1 x a1 byte image at a0 to half the size, averaging each 2 x 2 block, and return the sum of the new pixels. Byte loads, adds and a shift. */
-const downsample = (ns: string): Kernel =>
+const downsample = (ns: string): K.Kernel =>
   defineKernel('downsample', ns, ['mem', 'alu', 'branch'], 0, [
     'srli t0, a1, 1',
     'li a3, 0',
@@ -348,14 +348,16 @@ const downsample = (ns: string): Kernel =>
     'ret',
   ]);
 
-const webImage: TemplateFn = (rng, p) => {
+const webImage: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const w = 8 * pow2(p.scale),
     px = Array.from({ length: w * w }, () => rng.nextInt(256));
   let sum = 0;
-  for (let r = 0; r < w; r += 2)
-    for (let c = 0; c < w; c += 2)
+  for (let r = 0; r < w; r += 2) {
+    for (let c = 0; c < w; c += 2) {
       sum += (px[r * w + c]! + px[r * w + c + 1]! + px[(r + 1) * w + c]! + px[(r + 1) * w + c + 1]!) >> 2;
+    }
+  }
   const data = b.ns('image');
   const o = open(b, p, 'image ');
   b.emit(`la a0, ${data}`, `li a1, ${w}`, `call ${b.add(downsample(b.ns('down')), w * w)}`);
@@ -363,7 +365,7 @@ const webImage: TemplateFn = (rng, p) => {
   return close(b, p, o, 'web.image request', sum);
 };
 
-export const WEB_TEMPLATES: Record<string, TemplateFn> = {
+export const WEB_TEMPLATES: Record<string, buildTypes.TemplateFn> = {
   'web.page': webPage,
   'web.api': webApi,
   'web.dns': webDns,

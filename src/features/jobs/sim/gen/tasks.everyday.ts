@@ -3,24 +3,14 @@
 // docs/JOBS.md lists them with the level each arrives at. Every one prints `#NN label value OK` and computes its answer in TypeScript independently.
 
 import { DISPLAY_COLS, DISPLAY_ROWS } from '@/core/sim/memmap';
-import {
-  Builder,
-  blankRows,
-  emitStatic,
-  layoutLine,
-  pad2,
-  renderLine,
-  rowAddr,
-  BUF_BASE,
-  type Seg,
-  type TemplateFn,
-} from './build';
+import { Builder, blankRows, emitStatic, layoutLine, pad2, renderLine, rowAddr, BUF_BASE } from './build';
+import type * as buildTypes from './build';
 import * as K from './kernels';
-import { k as defineKernel, type Kernel } from './kernels';
+import { k as defineKernel } from './kernels';
 
 /** The static text of a result line, put on the display; the number goes in later. `digits` is 2 (value < 64) or 4 (value < 1024). */
 function open(b: Builder, p: { row: number; jobId: number }, label: string, digits: 2 | 4) {
-  const segs: Seg[] = [`#${pad2(p.jobId)} ${label}`, { dyn: digits }, ' OK'];
+  const segs: buildTypes.Seg[] = [`#${pad2(p.jobId)} ${label}`, { dyn: digits }, ' OK'];
   const line = layoutLine(segs);
   b.emit(`li s0, ${rowAddr(p.row)}`);
   emitStatic(b, line, 0);
@@ -40,7 +30,7 @@ function close(b: Builder, p: { row: number }, o: ReturnType<typeof open>, heade
 // ---------- fib: a chain where every step needs the one before ----------
 
 /** a2 steps of (x, y) <- (y, x + y) from x = a0, y = a1; the answer is x in a0. Only additions, each waiting for the last: a wide CPU gains nothing, forwarding does. */
-const fibLoop = (ns: string): Kernel =>
+const fibLoop = (ns: string): K.Kernel =>
   defineKernel('fib_loop', ns, ['alu', 'branch'], 0, [
     `${ns}_loop:`,
     'add t0, a0, a1',
@@ -51,14 +41,16 @@ const fibLoop = (ns: string): Kernel =>
     'ret',
   ]);
 
-const cliFib: TemplateFn = (rng, p) => {
+const cliFib: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const x0 = rng.nextInt(5),
     y0 = 1 + rng.nextInt(5),
     steps = 8 * p.scale + rng.nextInt(5);
   let x = x0,
     y = y0;
-  for (let i = 0; i < steps; i++) [x, y] = [y, (x + y) | 0];
+  for (let i = 0; i < steps; i++) {
+    [x, y] = [y, (x + y) | 0];
+  }
   const o = open(b, p, 'fib=', 2);
   b.emit(`li a0, ${x0}`, `li a1, ${y0}`, `li a2, ${steps}`, `call ${b.add(fibLoop(b.ns('fib')))}`);
   return close(b, p, o, 'cli.fib request', x);
@@ -67,7 +59,7 @@ const cliFib: TemplateFn = (rng, p) => {
 // ---------- gcd: subtract the smaller from the larger, the branch goes either way ----------
 
 /** The sum of the greatest common divisors of the a1 pairs of words at a0, by repeated subtraction (no divide): which branch is taken depends on the data. */
-const gcdSum = (ns: string): Kernel =>
+const gcdSum = (ns: string): K.Kernel =>
   defineKernel('gcd_sum', ns, ['alu', 'mem', 'branch'], 0, [
     'li t0, 0',
     `${ns}_pair:`,
@@ -90,7 +82,7 @@ const gcdSum = (ns: string): Kernel =>
     'ret',
   ]);
 
-const cliGcd: TemplateFn = (rng, p) => {
+const cliGcd: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const pairs = 2 * p.scale,
     vals: number[] = [];
@@ -100,8 +92,11 @@ const cliGcd: TemplateFn = (rng, p) => {
       y = 1 + rng.nextInt(60);
     vals.push(x, y);
     while (x !== y) {
-      if (x < y) y -= x;
-      else x -= y;
+      if (x < y) {
+        y -= x;
+      } else {
+        x -= y;
+      }
     }
     sum += x;
   }
@@ -115,7 +110,7 @@ const cliGcd: TemplateFn = (rng, p) => {
 // ---------- popcount: shift and test, once per bit ----------
 
 /** Count the set bits of the a1 words at a0: a loop of shifts that ends when the word is empty, so its length follows the data. */
-const popCount = (ns: string): Kernel =>
+const popCount = (ns: string): K.Kernel =>
   defineKernel('pop_count', ns, ['alu', 'mem', 'branch'], 0, [
     'li t0, 0',
     `${ns}_word:`,
@@ -134,15 +129,17 @@ const popCount = (ns: string): Kernel =>
     'ret',
   ]);
 
-const cliPopcount: TemplateFn = (rng, p) => {
+const cliPopcount: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const words = 2 * p.scale,
     vals: number[] = [];
   let bits = 0;
   for (let i = 0; i < words; i++) {
-    const w = 1 + rng.nextInt(65535);
+    const w = 1 + rng.nextInt(65_535);
     vals.push(w);
-    for (let v = w; v; v >>>= 1) bits += v & 1;
+    for (let v = w; v; v >>>= 1) {
+      bits += v & 1;
+    }
   }
   const data = b.ns('data');
   const o = open(b, p, 'bits=', 2);
@@ -154,7 +151,7 @@ const cliPopcount: TemplateFn = (rng, p) => {
 // ---------- sort: loads and stores that move data around ----------
 
 /** Copy the a2 words at a1 to a0, insertion-sort them there, and return the sum of (position + 1) times value: it only comes out right if every word is in place. */
-const insertSort = (ns: string): Kernel =>
+const insertSort = (ns: string): K.Kernel =>
   defineKernel('insert_sort', ns, ['mem', 'mul', 'alu', 'branch'], 0, [
     'mv t0, a0',
     'mv t1, a1',
@@ -201,7 +198,7 @@ const insertSort = (ns: string): Kernel =>
     'ret',
   ]);
 
-const cliSort: TemplateFn = (rng, p) => {
+const cliSort: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const n = 6 + 2 * p.scale,
     vals = Array.from({ length: n }, () => rng.nextInt(100));
@@ -217,7 +214,7 @@ const cliSort: TemplateFn = (rng, p) => {
 // ---------- matmul: three loops of multiply-and-add ----------
 
 /** The sum of every element of the product of the n x n matrices at a0 and a1 (n in a2), computed element by element. All nine working registers are in use. */
-const matMul = (ns: string): Kernel =>
+const matMul = (ns: string): K.Kernel =>
   defineKernel('mat_mul', ns, ['mul', 'mem', 'alu', 'branch'], 0, [
     'li a3, 0',
     'li t0, 0',
@@ -248,14 +245,19 @@ const matMul = (ns: string): Kernel =>
     'ret',
   ]);
 
-const cliMatmul: TemplateFn = (rng, p) => {
+const cliMatmul: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const n = Math.min(6, 2 + p.scale);
   const A = Array.from({ length: n * n }, () => rng.nextInt(10)),
     B = Array.from({ length: n * n }, () => rng.nextInt(10));
   let total = 0;
-  for (let i = 0; i < n; i++)
-    for (let j = 0; j < n; j++) for (let kk = 0; kk < n; kk++) total += A[i * n + kk]! * B[kk * n + j]!;
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      for (let kk = 0; kk < n; kk++) {
+        total += A[i * n + kk]! * B[kk * n + j]!;
+      }
+    }
+  }
   const dA = b.ns('a'),
     dB = b.ns('b');
   const o = open(b, p, `mm${n} `, 4);
@@ -280,7 +282,7 @@ const REVERSE_WORDS = [
 ];
 
 /** Write the a2 bytes at a1 to the display starting at a0, last byte first. One word per row, a row per unit of scale. */
-const reverseCopy = (ns: string): Kernel =>
+const reverseCopy = (ns: string): K.Kernel =>
   defineKernel('reverse_copy', ns, ['mem', 'alu', 'branch', 'io'], 0, [
     'add t0, a0, a2',
     'addi t0, t0, -1',
@@ -294,8 +296,10 @@ const reverseCopy = (ns: string): Kernel =>
     'ret',
   ]);
 
-const cliReverse: TemplateFn = (rng, p) => {
-  if (p.row + p.scale > DISPLAY_ROWS) throw new RangeError('scale does not fit on the display');
+const cliReverse: buildTypes.TemplateFn = (rng, p) => {
+  if (p.row + p.scale > DISPLAY_ROWS) {
+    throw new RangeError('scale does not fit on the display');
+  }
   const b = new Builder();
   const first = rng.nextInt(REVERSE_WORDS.length),
     prefix = `#${pad2(p.jobId)} rev `;
@@ -315,11 +319,12 @@ const cliReverse: TemplateFn = (rng, p) => {
       `call ${kernel}`,
     );
     const words: number[] = [];
-    for (let i = 0; i < bytes.length; i += 4)
+    for (let i = 0; i < bytes.length; i += 4) {
       words.push(
         ((bytes[i] ?? 0) | ((bytes[i + 1] ?? 0) << 8) | ((bytes[i + 2] ?? 0) << 16) | ((bytes[i + 3] ?? 0) << 24)) >>>
           0,
       );
+    }
     data.push(`${label}:`, ...words.map((w) => `  .word ${w}`));
     rows.push(prefix + [...word].reverse().join(''));
   }
@@ -330,7 +335,7 @@ const cliReverse: TemplateFn = (rng, p) => {
 // ---------- crc: a loop over the bits, a branch on each ----------
 
 /** The CRC-32 (reflected, polynomial 0xEDB88320) of the a1 words at a0, a bit at a time: 32 shifts per word, and whether the polynomial is mixed in follows the bit. */
-const crc32 = (ns: string): Kernel =>
+const crc32 = (ns: string): K.Kernel =>
   defineKernel('crc32', ns, ['alu', 'mem', 'branch'], 0, [
     'li t0, -1',
     'li t1, 3988292384',
@@ -353,14 +358,16 @@ const crc32 = (ns: string): Kernel =>
     'ret',
   ]);
 
-const cliCrc: TemplateFn = (rng, p) => {
+const cliCrc: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const words = 2 * p.scale,
     vals = Array.from({ length: words }, () => rng.nextU32());
-  let crc = 0xffffffff;
+  let crc = 0xff_ff_ff_ff;
   for (const w of vals) {
     crc = (crc ^ w) >>> 0;
-    for (let i = 0; i < 32; i++) crc = (crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1) >>> 0;
+    for (let i = 0; i < 32; i++) {
+      crc = (crc & 1 ? (crc >>> 1) ^ 0xed_b8_83_20 : crc >>> 1) >>> 0;
+    }
   }
   crc = ~crc >>> 0;
   const data = b.ns('data');
@@ -370,7 +377,7 @@ const cliCrc: TemplateFn = (rng, p) => {
   return close(b, p, o, 'cli.crc request', crc);
 };
 
-export const EVERYDAY_TEMPLATES: Record<string, TemplateFn> = {
+export const EVERYDAY_TEMPLATES: Record<string, buildTypes.TemplateFn> = {
   'cli.fib': cliFib,
   'cli.gcd': cliGcd,
   'cli.popcount': cliPopcount,

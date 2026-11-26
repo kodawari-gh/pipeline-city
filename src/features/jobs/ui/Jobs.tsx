@@ -1,23 +1,19 @@
 import { useEffect, useState } from 'preact/hooks';
 import { declineJob, declineKey, snapshot } from '@/app/store';
 import { Icon } from '@/core/ui/kit/Icons';
-import {
-  DECLINE_ARM_MS,
-  declineStep,
-  declineWords,
-  deadlineInfo,
-  needChips,
-  type JobView,
-} from '../../economy/ui/progress/levelui';
+import { DECLINE_ARM_MS, declineStep, declineWords, deadlineInfo, needChips } from '../../economy/ui/progress/levelui';
+import type * as leveluiTypes from '../../economy/ui/progress/levelui';
 import { fmtTicks } from '@/core/ui/logic';
 
 // Job needs, the deadline of an unrunnable job and the Decline button (docs/PROGRESSION.md "Declining"). Used by the key
 // card and by the OS queue rows. Styles are in ui.css (the Jobs section).
 
 /** Device icons for what the job needs; the ones the machine lacks are red. Nothing for a plain job. */
-export function NeedChips({ job }: { job: JobView }) {
+export function NeedChips({ job }: { job: leveluiTypes.JobView }) {
   const chips = needChips(job);
-  if (!chips.length) return null;
+  if (chips.length === 0) {
+    return null;
+  }
   return (
     <span class="needs" role="list" aria-label="This job needs">
       {chips.map((c) => (
@@ -40,10 +36,12 @@ export function NeedChips({ job }: { job: JobView }) {
 }
 
 /** The time left before the client takes an unrunnable job back: a thin bar and the time, red near the end. */
-export function Deadline({ job }: { job: JobView }) {
+export function Deadline({ job }: { job: leveluiTypes.JobView }) {
   const now = snapshot.value?.baseTick ?? 0;
   const d = deadlineInfo(job, now);
-  if (!d) return null;
+  if (!d) {
+    return null;
+  }
   return (
     <span
       class={`deadline ${d.urgency}`}
@@ -63,15 +61,27 @@ export function Deadline({ job }: { job: JobView }) {
  * Decline: the first press arms (the button says what it costs), a second within 3 seconds declines. `via` picks the store
  * action: a tray key, or a job in the OS queue (which is keyed by its key id). Free in the sandbox.
  */
-export function DeclineButton({ job, via, compact }: { job: JobView; via: 'key' | 'job'; compact?: boolean }) {
+export function DeclineButton({
+  job,
+  via,
+  compact,
+}: {
+  job: leveluiTypes.JobView;
+  via: 'key' | 'job';
+  compact?: boolean;
+}) {
   const [armedAt, setArmedAt] = useState<number | null>(null);
   useEffect(() => {
-    if (armedAt === null) return;
+    if (armedAt === null) {
+      return;
+    }
     const t = setTimeout(() => setArmedAt(null), DECLINE_ARM_MS);
     return () => clearTimeout(t);
   }, [armedAt]);
-  if (!job.declinable) return null;
-  const sandbox = !!snapshot.value?.sandbox;
+  if (!job.declinable) {
+    return null;
+  }
+  const sandbox = Boolean(snapshot.value?.sandbox);
   const armed = armedAt !== null;
   const w = declineWords(sandbox, armed);
   const press = (e: Event) => {
@@ -79,7 +89,9 @@ export function DeclineButton({ job, via, compact }: { job: JobView; via: 'key' 
     if (declineStep(armedAt, Date.now()) === 'confirm') {
       setArmedAt(null);
       (via === 'key' ? declineKey : declineJob)(job.id);
-    } else setArmedAt(Date.now());
+    } else {
+      setArmedAt(Date.now());
+    }
   };
   return (
     <button

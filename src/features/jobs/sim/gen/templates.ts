@@ -29,14 +29,13 @@ import {
   framesOf,
   frameParams,
   PICTURE_LEN,
-  type GpuKernelName,
   tpmCommand,
   gpuKernelExpected,
   gpuKernelSource,
   KERNEL_LAYOUT,
   outputChecksum,
-  type GpuKernelParams,
 } from '@/features/gpu/sim/kernels';
+import type * as kernelsTypes from '@/features/gpu/sim/kernels';
 import { EVERYDAY_TEMPLATES } from './tasks.everyday';
 import { HPC_TEMPLATES } from './tasks.hpc';
 import { MEMORY_TEMPLATES } from './tasks.memory';
@@ -54,17 +53,11 @@ import {
   pad2,
   renderLine,
   rowAddr,
-  type Built,
-  type GenParams,
-  type GpuTarget,
-  type NpuTarget,
-  type ResolvedParams,
-  type Seg,
-  type TemplateFn,
 } from './build';
+import type * as buildTypes from './build';
 
 export { MAX_CODE_BYTES };
-export type { GenParams, GpuTarget, NpuTarget, ResolvedParams, TemplateFn };
+export type { GpuTarget, NpuTarget } from './build';
 
 // ---------- CLI request family ----------
 
@@ -80,8 +73,10 @@ const LOG_MESSAGES = [
 ];
 
 /** Log line request: wait for the display to be idle, then write status lines (one per unit of scale). */
-const cliLog: TemplateFn = (rng, p) => {
-  if (p.row + p.scale > DISPLAY_ROWS) throw new RangeError('scale does not fit on the display');
+const cliLog: buildTypes.TemplateFn = (rng, p) => {
+  if (p.row + p.scale > DISPLAY_ROWS) {
+    throw new RangeError('scale does not fit on the display');
+  }
   const b = new Builder();
   const first = rng.nextInt(LOG_MESSAGES.length);
   b.emit(`li s0, ${rowAddr(p.row)}`);
@@ -97,16 +92,18 @@ const cliLog: TemplateFn = (rng, p) => {
 };
 
 /** Compute request: a few rounds of x = x*m + a, shown as a two-digit result (low 6 bits). */
-const cliCalc: TemplateFn = (rng, p) => {
+const cliCalc: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const x = 2 + rng.nextInt(8);
   const mulBy = [3, 5, 7, 9, 11][rng.nextInt(5)]!;
   const addBy = 1 + rng.nextInt(9);
   const rounds = (1 + rng.nextInt(2)) * p.scale;
   let v = x;
-  for (let i = 0; i < rounds; i++) v = (Math.imul(v, mulBy) + addBy) | 0;
+  for (let i = 0; i < rounds; i++) {
+    v = (Math.imul(v, mulBy) + addBy) | 0;
+  }
   const result = v & 63;
-  const segs: Seg[] = [`#${pad2(p.jobId)} mul=`, { dyn: 2 }, ' OK'];
+  const segs: buildTypes.Seg[] = [`#${pad2(p.jobId)} mul=`, { dyn: 2 }, ' OK'];
   const line = layoutLine(segs);
   b.emit(`li s0, ${rowAddr(p.row)}`);
   emitStatic(b, line, 0);
@@ -121,7 +118,7 @@ const cliCalc: TemplateFn = (rng, p) => {
 };
 
 /** Tiny checksum job: hash `scale` data words embedded in the program, show the low 6 bits. */
-const cliChecksum: TemplateFn = (rng, p) => {
+const cliChecksum: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const words = p.scale;
   const vals: number[] = [];
@@ -132,7 +129,7 @@ const cliChecksum: TemplateFn = (rng, p) => {
     h = (((h + (h << 5)) ^ w) >>> 0) | 0;
   }
   const result = h & 63;
-  const segs: Seg[] = [`#${pad2(p.jobId)} sum=`, { dyn: 2 }, ' OK'];
+  const segs: buildTypes.Seg[] = [`#${pad2(p.jobId)} sum=`, { dyn: 2 }, ' OK'];
   const line = layoutLine(segs);
   const data = b.ns('data');
   b.emit(`li s0, ${rowAddr(p.row)}`);
@@ -153,16 +150,20 @@ const cliChecksum: TemplateFn = (rng, p) => {
  * The stride is seeded, 64 B or 128 B: both are cache-hostile (every load of the sum loop misses the default 128 B
  * direct-mapped cache), so scan time is dominated by RAM latency, which is what makes RAM worth buying.
  */
-const cliScan: TemplateFn = (rng, p) => {
+const cliScan: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const stride = [64, 128][rng.nextInt(2)]!;
   const count = 4 * p.scale;
   const start = 1 + rng.nextInt(9);
-  if (BUF_BASE + count * stride > BUF_LIMIT) throw new RangeError('scale too large for scan');
+  if (BUF_BASE + count * stride > BUF_LIMIT) {
+    throw new RangeError('scale too large for scan');
+  }
   let sum = 0;
-  for (let i = 0; i < count; i++) sum += start + 3 * i;
+  for (let i = 0; i < count; i++) {
+    sum += start + 3 * i;
+  }
   const result = sum & 1023;
-  const segs: Seg[] = [`#${pad2(p.jobId)} scan ${count}x${stride}B `, { dyn: 4 }, ' OK'];
+  const segs: buildTypes.Seg[] = [`#${pad2(p.jobId)} scan ${count}x${stride}B `, { dyn: 4 }, ' OK'];
   const line = layoutLine(segs);
   const region = count * stride;
   b.emit(`li s0, ${rowAddr(p.row)}`);
@@ -185,7 +186,7 @@ const cliScan: TemplateFn = (rng, p) => {
 };
 
 /** Where a program keeps its big working memory: virtual 0x10000 up under the paged OSes (their "big heap"), the same physical addresses without one. */
-const HEAP_BASE = 0x10000;
+const HEAP_BASE = 0x1_00_00;
 /** The bytes the in-memory index job needs at a scale (a power of two, so the probes can mask): 32K, 64K, 128K, 256K, 512K for scale 1, 2-3, 4-7, 8-15, 16. */
 export const indexBytes = (scale: number): number => 32 * 1024 * 2 ** Math.floor(Math.log2(Math.max(1, scale)));
 
@@ -194,16 +195,18 @@ export const indexBytes = (scale: number): number => 32 * 1024 * 2 ** Math.floor
  * all of it. It lives or dies by memory: the table has to fit in RAM, claiming it costs a page fault per page under a paged OS, and the scattered reads
  * are row conflicts and TLB misses.
  */
-const dbIndex: TemplateFn = (rng, p) => {
+const dbIndex: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const bytes = indexBytes(p.scale),
     lines = bytes / 256,
     probes = lines / 2;
-  const mult = 2 * rng.nextInt(2000) + 40503; // odd
+  const mult = 2 * rng.nextInt(2000) + 40_503; // odd
   let sum = 0;
-  for (let j = 0; j < probes; j++) sum = (sum + (((Math.imul(j, mult) & (lines - 1)) * 7 + 3) | 0)) | 0;
+  for (let j = 0; j < probes; j++) {
+    sum = (sum + (((Math.imul(j, mult) & (lines - 1)) * 7 + 3) | 0)) | 0;
+  }
   const result = sum & 1023;
-  const segs: Seg[] = [`#${pad2(p.jobId)} index ${Math.round(bytes / 1024)}K `, { dyn: 4 }, ' OK'];
+  const segs: buildTypes.Seg[] = [`#${pad2(p.jobId)} index ${Math.round(bytes / 1024)}K `, { dyn: 4 }, ' OK'];
   const line = layoutLine(segs);
   b.emit(`li s0, ${rowAddr(p.row)}`);
   emitStatic(b, line, 0);
@@ -225,19 +228,24 @@ const dbIndex: TemplateFn = (rng, p) => {
  * it, printing the sum of the last picture. With a card the CPU copies the kernel into card memory, then per frame writes the frame's two parameter words,
  * launches and polls; without one it runs the same work in a loop on the CPU. Both print the same line (the seed alone picks the answer, never the hardware).
  */
-const gpuRender: TemplateFn = (rng, p) =>
+const gpuRender: buildTypes.TemplateFn = (rng, p) =>
   gpuJob(rng, p, GPU_KERNEL_NAMES[rng.nextInt(GPU_KERNEL_NAMES.length)]!, 'gpu.render request');
 
 /** The GPU job for one named kernel (the mixed job above picks it from the seed; the single-kernel jobs `gpu.<kernel>` fix it). */
-function gpuJob(rng: Prng, p: ResolvedParams, name: GpuKernelName, header: string): Built {
+function gpuJob(
+  rng: Prng,
+  p: buildTypes.ResolvedParams,
+  name: kernelsTypes.GpuKernelName,
+  header: string,
+): buildTypes.Built {
   const b = new Builder();
   const { len, kp, frames } = gpuPlan(rng, p.scale, name);
-  const expected = outputChecksum(gpuKernelExpected(name, { ...kp, ...frames[frames.length - 1]! }));
-  const segs: Seg[] = [`#${pad2(p.jobId)} ${name} `, { dyn: 2 }, ' OK'];
+  const expected = outputChecksum(gpuKernelExpected(name, { ...kp, ...frames.at(-1)! }));
+  const segs: buildTypes.Seg[] = [`#${pad2(p.jobId)} ${name} `, { dyn: 2 }, ' OK'];
   const line = layoutLine(segs);
   b.emit(`li s0, ${rowAddr(p.row)}`);
   emitStatic(b, line, 0);
-  const gpu = p.gpu;
+  const { gpu } = p;
   const L = KERNEL_LAYOUT;
   const onCard = gpu && len % gpu.lanes === 0 && gpu.lanes <= 32 && gpu.memBytes >= L.out + 4 * len + 4;
   const setParams = (base: number, f: { phase: number; level: number }) => [
@@ -250,7 +258,9 @@ function gpuJob(rng: Prng, p: ResolvedParams, name: GpuKernelName, header: strin
   let sumAt: number;
   if (onCard) {
     const code = assembleGpu(gpuKernelSource(name, { ...kp, lanes: gpu.lanes })).program;
-    if (code.length * 4 > L.param - 4) throw new RangeError('gpu kernel too large');
+    if (code.length * 4 > L.param - 4) {
+      throw new RangeError('gpu kernel too large');
+    }
     const kData = b.ns('kernel');
     const win = gpu.base + GPU_MEM;
     const copy = b.add(copyWords(b.ns('copy')), 0);
@@ -272,7 +282,9 @@ function gpuJob(rng: Prng, p: ResolvedParams, name: GpuKernelName, header: strin
   } else {
     const kern = b.add(cpuKernel(name, b.ns('cpu'), kp), 4 * len);
     sumAt = BUF_BASE;
-    for (const f of frames) b.emit(...setParams(CPU_PARAM, f), `li a0, ${BUF_BASE}`, `call ${kern}`);
+    for (const f of frames) {
+      b.emit(...setParams(CPU_PARAM, f), `li a0, ${BUF_BASE}`, `call ${kern}`);
+    }
   }
   b.emit(
     `li a0, ${sumAt}`,
@@ -285,18 +297,20 @@ function gpuJob(rng: Prng, p: ResolvedParams, name: GpuKernelName, header: strin
 }
 
 /** What the seed decides about a GPU job: where its scene starts and the frames (phase and level of each). The program is built from it and the almanac draws the frames (`gpuPicture`). */
-function gpuPlan(rng: Prng, jobScale: number, name: GpuKernelName) {
+function gpuPlan(rng: Prng, jobScale: number, name: kernelsTypes.GpuKernelName) {
   const phase0 = rng.nextInt(64);
   const n = framesOf(jobScale);
   const frames = Array.from({ length: n }, (_, k) => frameParams(name, phase0, k, n));
-  const kp: GpuKernelParams = { lanes: 1, len: PICTURE_LEN }; // results do not depend on the lane count
+  const kp: kernelsTypes.GpuKernelParams = { lanes: 1, len: PICTURE_LEN }; // results do not depend on the lane count
   return { len: PICTURE_LEN, kp, frames };
 }
 
 /** The pictures a GPU job leaves in the card's output region for a seed, frame by frame (what a display on the card shows): the almanac's preview of the job. */
 export function gpuPicture(template: string, seed: number, jobScale: number): number[][] | null {
   const name = GPU_TASK_KERNELS.find((k) => template === `gpu.${k}`);
-  if (!name) return null;
+  if (!name) {
+    return null;
+  }
   const rng = new Prng(seed);
   rng.nextInt(100); // the job number, as `generate` draws it first
   const { kp, frames } = gpuPlan(rng, jobScale, name);
@@ -308,7 +322,7 @@ export function gpuPicture(template: string, seed: number, jobScale: number): nu
  * in protected mode (RAM outside the program is off limits and every access pays the encryption surcharge), seal the digest, unseal
  * it and print its low 6 bits. Needs a TPM; the reference interpreter runs it against an instant fake.
  */
-const secureSign: TemplateFn = (rng, p) => {
+const secureSign: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const words = 4 * p.scale;
   const vals: number[] = [];
@@ -318,7 +332,7 @@ const secureSign: TemplateFn = (rng, p) => {
     vals.push(w);
     h = (((h + (h << 5)) ^ w) >>> 0) | 0;
   }
-  const segs: Seg[] = [`#${pad2(p.jobId)} secure `, { dyn: 2 }, ' OK'];
+  const segs: buildTypes.Seg[] = [`#${pad2(p.jobId)} secure `, { dyn: 2 }, ' OK'];
   const line = layoutLine(segs);
   const data = b.ns('data');
   const cmd = b.add(tpmCommand(b.ns('tpm')));
@@ -351,14 +365,14 @@ const secureSign: TemplateFn = (rng, p) => {
  * sum of the final activations. The fallback chain is the NPU (descriptors in card memory), then a GPU (one kernel launch per layer),
  * then the CPU (a loop per layer): the same line and the same pay on every path, and the speed gap down the chain is what a card sells.
  */
-const npuInfer: TemplateFn = (rng, p) => npuJob(rng, p, Math.min(6, 1 + p.scale), 'npu.infer request');
+const npuInfer: buildTypes.TemplateFn = (rng, p) => npuJob(rng, p, Math.min(6, 1 + p.scale), 'npu.infer request');
 
 /** The inference job for a given depth (the jobs `npu.perceptron`, `npu.infer` and `npu.deep` differ only in how many layers they run). */
-function npuJob(rng: Prng, p: ResolvedParams, layers: number, header: string): Built {
+function npuJob(rng: Prng, p: buildTypes.ResolvedParams, layers: number, header: string): buildTypes.Built {
   const b = new Builder();
   const net = makeNetwork(rng, layers);
-  const segs: Seg[] = [
-    `#${pad2(p.jobId)} ${header.replace(/^npu\./, '').replace(/ request$/, '')} `,
+  const segs: buildTypes.Seg[] = [
+    `#${pad2(p.jobId)} ${header.replace(/^npu\./u, '').replace(/ request$/u, '')} `,
     { dyn: 2 },
     ' OK',
   ];
@@ -370,12 +384,11 @@ function npuJob(rng: Prng, p: ResolvedParams, layers: number, header: string): B
   const words = (label: string, ws: number[]) => b.addData([`${label}:`, ...ws.map((w) => `  .word ${w}`)]);
   b.emit(`li s0, ${rowAddr(p.row)}`);
   emitStatic(b, line, 0);
-  const npu = p.npu,
-    gpu = p.gpu;
-  const useNpu = !!npu && NET_M % npu.grid === 0 && npu.memBytes >= npuBytes(net);
+  const { npu, gpu } = p;
+  const useNpu = npu !== undefined && NET_M % npu.grid === 0 && npu.memBytes >= npuBytes(net);
   const useGpu =
     !useNpu &&
-    !!gpu &&
+    gpu !== undefined &&
     (NET_M * NET_M) % gpu.lanes === 0 &&
     gpu.lanes <= 32 &&
     gpu.memBytes >= GPU_NET_LAYOUT.b + layers * NET_M * 4;
@@ -445,8 +458,11 @@ function npuJob(rng: Prng, p: ResolvedParams, layers: number, header: string): B
     const buf = [BUF_BASE, BUF_BASE + 256];
     for (let l = 0; l < layers; l++) {
       b.emit(`la a0, ${dW}`, `addi a0, a0, ${l * NET_M * NET_M * 4}`);
-      if (l === 0) b.emit(`la a1, ${dX}`);
-      else b.emit(`li a1, ${buf[(l - 1) % 2]}`);
+      if (l === 0) {
+        b.emit(`la a1, ${dX}`);
+      } else {
+        b.emit(`li a1, ${buf[(l - 1) % 2]}`);
+      }
       b.emit(`li a2, ${buf[l % 2]}`, `la a3, ${dB}`, `addi a3, a3, ${l * NET_M * 4}`, `call ${layer}`);
     }
     sumAt = buf[(layers - 1) % 2]!;
@@ -467,10 +483,10 @@ function npuJob(rng: Prng, p: ResolvedParams, layers: number, header: string): B
 const CLI_FAMILIES = [cliLog, cliCalc, cliChecksum];
 
 /** Default CLI request: family picked from the seed. */
-const cli: TemplateFn = (rng, p) => CLI_FAMILIES[rng.nextInt(CLI_FAMILIES.length)]!(rng, p);
+const cli: buildTypes.TemplateFn = (rng, p) => CLI_FAMILIES[rng.nextInt(CLI_FAMILIES.length)]!(rng, p);
 
 /** Template registry. Add new scenarios here. */
-export const TEMPLATES: Record<string, TemplateFn> = {
+export const TEMPLATES: Record<string, buildTypes.TemplateFn> = {
   cli,
   'cli.log': cliLog,
   'cli.calc': cliCalc,
@@ -487,7 +503,10 @@ export const TEMPLATES: Record<string, TemplateFn> = {
   ...TRUST_TEMPLATES,
   // The accelerator jobs, one per kernel and one per depth of network (docs/JOBS.md).
   ...Object.fromEntries(
-    GPU_TASK_KERNELS.map((k) => [`gpu.${k}`, ((rng, p) => gpuJob(rng, p, k, `gpu.${k} request`)) as TemplateFn]),
+    GPU_TASK_KERNELS.map((k) => [
+      `gpu.${k}`,
+      ((rng, p) => gpuJob(rng, p, k, `gpu.${k} request`)) as buildTypes.TemplateFn,
+    ]),
   ),
   'npu.perceptron': (rng, p) => npuJob(rng, p, Math.min(2, p.scale), 'npu.perceptron request'),
   'npu.deep': (rng, p) => npuJob(rng, p, Math.min(6, 1 + 2 * p.scale), 'npu.deep request'),
