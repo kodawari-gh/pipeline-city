@@ -1,10 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import type { TaskResult } from '@/features/sandbox/sim/benchtasks';
-import { BENCH_GROUPS } from '@/features/sandbox/sim/benchtasks';
+import * as benchtasks from '@/features/sandbox/sim/benchtasks';
 import { barPct, deltaPct, deltaText, groupScore, overallOfRuns, secondsText, whyShort } from './benchhud';
 
-const r = (id: string, score: number | null): TaskResult => ({ id, score, seconds: score === null ? null : 10 });
-const by = (...rs: TaskResult[]): Record<string, TaskResult> => Object.fromEntries(rs.map((x) => [x.id, x]));
+const r = (id: string, score: number | null): benchtasks.TaskResult => ({
+  id,
+  score,
+  seconds: score === null ? null : 10,
+});
+const by = (...rs: benchtasks.TaskResult[]): Record<string, benchtasks.TaskResult> =>
+  Object.fromEntries(rs.map((x) => [x.id, x]));
+/** A machine that was never scored has no score at all, so reading it gives `undefined`. */
+const neverScored: { score?: number } = {};
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
 
 describe('benchhud', () => {
   it('fills a bar to half at par and to the end at twice of it', () => {
@@ -26,7 +40,7 @@ describe('benchhud', () => {
     expect(deltaPct(1100, 1000)).toBe(10);
     expect(deltaPct(900, 1000)).toBe(-10);
     expect(deltaPct(null, 1000)).toBeNull();
-    expect(deltaPct(1000, undefined)).toBeNull();
+    expect(deltaPct(1000, neverScored.score)).toBeNull();
     expect(deltaText(10)).toBe('+10%');
     expect(deltaText(-4)).toBe('-4%');
     expect(deltaText(0)).toBe('');
@@ -43,15 +57,16 @@ describe('benchhud', () => {
   it('works out the overall score and its change on the tasks both machines were scored on', () => {
     const now = by(r('a', 1000), r('b', 2000), r('c', 500), r('d', null));
     const was = by(r('a', 1000), r('b', 1000));
-    expect(overallOfRuns(now, was)).toEqual({ overall: 1000, n: 3, delta: 41 });
-    expect(overallOfRuns(now, {})).toEqual({ overall: 1000, n: 3, delta: null });
-    expect(overallOfRuns({}, was)).toEqual({ overall: 0, n: 0, delta: null });
+    expect(overallOfRuns(now, was)).toStrictEqual({ overall: 1000, n: 3, delta: 41 });
+    expect(overallOfRuns(now, {})).toStrictEqual({ overall: 1000, n: 3, delta: null });
+    expect(overallOfRuns({}, was)).toStrictEqual({ overall: 0, n: 0, delta: null });
   });
 
   it('works out the mean of a group from the tasks that have a result', () => {
-    const g = BENCH_GROUPS[0]!;
+    const g = must(benchtasks.BENCH_GROUPS[0]);
     const ids = g.tasks.map((t) => t.id);
-    expect(groupScore(g, by(r(ids[0]!, 1000), r(ids[1]!, 250)))).toBe(500);
+    const results = by(r(must(ids[0]), 1000), r(must(ids[1]), 250));
+    expect(groupScore(g, results)).toBe(500);
     expect(groupScore(g, {})).toBe(0);
   });
 });
