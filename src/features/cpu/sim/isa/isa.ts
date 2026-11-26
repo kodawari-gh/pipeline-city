@@ -97,11 +97,15 @@ export const REG_NAMES = [
 /** Parse "a0" / "x3"; returns -1 if not a register. */
 export function parseReg(s: string): number {
   const i = (REG_NAMES as readonly string[]).indexOf(s);
-  if (i !== -1) return i;
-  const m = /^x(\d+)$/.exec(s);
-  if (m) {
-    const n = Number(m[1]);
-    if (n < REG_COUNT) return n;
+  if (i !== -1) {
+    return i;
+  }
+  const nRaw = /^x(?<n>\d+)$/u.exec(s)?.groups?.['n'];
+  if (nRaw !== undefined) {
+    const n = Number(nRaw);
+    if (n < REG_COUNT) {
+      return n;
+    }
   }
   return -1;
 }
@@ -128,80 +132,132 @@ export function fitsImm17(v: number): boolean {
 }
 
 function checkReg(n: number, what: string): void {
-  if (!Number.isInteger(n) || n < 0 || n >= REG_COUNT) throw new RangeError(`bad ${what} register ${n}`);
+  if (!Number.isInteger(n) || n < 0 || n >= REG_COUNT) {
+    throw new RangeError(`bad ${what} register ${n}`);
+  }
+}
+
+function encodeR(w: number, i: Instr): number {
+  const { rd, rs1, rs2 } = i;
+  checkReg(rd, 'rd');
+  checkReg(rs1, 'rs1');
+  checkReg(rs2, 'rs2');
+  return w | (rd << 7) | (rs1 << 11) | (rs2 << 15);
+}
+
+function encodeI(w: number, spec: OpSpec, i: Instr): number {
+  const { rd, rs1, imm, name } = i;
+  checkReg(rd, 'rd');
+  checkReg(rs1, 'rs1');
+  if (!fitsImm17(imm)) {
+    throw new RangeError(`${name}: immediate ${imm} out of 17-bit signed range`);
+  }
+  if (spec.shift && (imm < 0 || imm > 31)) {
+    throw new RangeError(`${name}: shift amount ${imm} not in 0..31`);
+  }
+  return w | (rd << 7) | (rs1 << 11) | ((imm & 0x1_ff_ff) << 15);
+}
+
+function encodeSB(w: number, spec: OpSpec, i: Instr): number {
+  const { rs1, rs2, imm, name } = i;
+  checkReg(rs1, 'rs1');
+  checkReg(rs2, 'rs2');
+  if (!fitsImm17(imm)) {
+    throw new RangeError(`${name}: immediate ${imm} out of 17-bit signed range`);
+  }
+  if (spec.fmt === 'B' && imm % 4 !== 0) {
+    throw new RangeError(`${name}: branch offset ${imm} not a multiple of 4`);
+  }
+  const u = imm & 0x1_ff_ff;
+  return w | ((u & 0xf) << 7) | (rs1 << 11) | (rs2 << 15) | ((u >>> 4) << 19);
+}
+
+function encodeU(w: number, i: Instr): number {
+  const { rd, imm, name } = i;
+  checkReg(rd, 'rd');
+  if (!Number.isInteger(imm) || imm < IMM21_MIN || imm > 0x1f_ff_ff) {
+    throw new RangeError(`${name}: immediate ${imm} out of 21-bit range`);
+  }
+  return w | (rd << 7) | ((imm & 0x1f_ff_ff) << 11);
+}
+
+function encodeJ(w: number, i: Instr): number {
+  const { rd, imm, name } = i;
+  checkReg(rd, 'rd');
+  if (!Number.isInteger(imm) || imm < IMM21_MIN || imm >= -IMM21_MIN) {
+    throw new RangeError(`${name}: offset ${imm} out of 21-bit signed range`);
+  }
+  if (imm % 4 !== 0) {
+    throw new RangeError(`${name}: offset ${imm} not a multiple of 4`);
+  }
+  return w | (rd << 7) | ((imm & 0x1f_ff_ff) << 11);
 }
 
 /** Encode to a Uint32 word. Throws RangeError on out-of-range fields. */
 export function encode(i: Instr): number {
   const spec = SPEC_BY_NAME.get(i.name);
-  if (!spec) throw new RangeError(`unknown instruction '${i.name}'`);
-  const { rd, rs1, rs2, imm } = i;
+  if (!spec) {
+    throw new RangeError(`unknown instruction '${i.name}'`);
+  }
   let w = spec.op;
   switch (spec.fmt) {
-    case 'N':
-      break;
-    case 'R':
-      checkReg(rd, 'rd');
-      checkReg(rs1, 'rs1');
-      checkReg(rs2, 'rs2');
-      w |= (rd << 7) | (rs1 << 11) | (rs2 << 15);
-      break;
-    case 'I':
-      checkReg(rd, 'rd');
-      checkReg(rs1, 'rs1');
-      if (!fitsImm17(imm)) throw new RangeError(`${i.name}: immediate ${imm} out of 17-bit signed range`);
-      if (spec.shift && (imm < 0 || imm > 31)) throw new RangeError(`${i.name}: shift amount ${imm} not in 0..31`);
-      w |= (rd << 7) | (rs1 << 11) | ((imm & 0x1ffff) << 15);
-      break;
-    case 'S':
-    case 'B': {
-      checkReg(rs1, 'rs1');
-      checkReg(rs2, 'rs2');
-      if (!fitsImm17(imm)) throw new RangeError(`${i.name}: immediate ${imm} out of 17-bit signed range`);
-      if (spec.fmt === 'B' && imm % 4 !== 0)
-        throw new RangeError(`${i.name}: branch offset ${imm} not a multiple of 4`);
-      const u = imm & 0x1ffff;
-      w |= ((u & 0xf) << 7) | (rs1 << 11) | (rs2 << 15) | ((u >>> 4) << 19);
+    case 'N': {
       break;
     }
-    case 'U':
-      checkReg(rd, 'rd');
-      if (!Number.isInteger(imm) || imm < IMM21_MIN || imm > 0x1fffff)
-        throw new RangeError(`${i.name}: immediate ${imm} out of 21-bit range`);
-      w |= (rd << 7) | ((imm & 0x1fffff) << 11);
+    case 'R': {
+      w = encodeR(w, i);
       break;
-    case 'J':
-      checkReg(rd, 'rd');
-      if (!Number.isInteger(imm) || imm < IMM21_MIN || imm >= -IMM21_MIN)
-        throw new RangeError(`${i.name}: offset ${imm} out of 21-bit signed range`);
-      if (imm % 4 !== 0) throw new RangeError(`${i.name}: offset ${imm} not a multiple of 4`);
-      w |= (rd << 7) | ((imm & 0x1fffff) << 11);
+    }
+    case 'I': {
+      w = encodeI(w, spec, i);
       break;
+    }
+    case 'S':
+    case 'B': {
+      w = encodeSB(w, spec, i);
+      break;
+    }
+    case 'U': {
+      w = encodeU(w, i);
+      break;
+    }
+    case 'J': {
+      w = encodeJ(w, i);
+      break;
+    }
   }
   return w >>> 0;
 }
 
-/** Decode a word; null if the opcode is illegal. U-format imm is returned unsigned (0..0x1fffff). */
+/** Decode a word; null if the opcode is illegal. U-format imm is returned unsigned (0..0x1f_ff_ff). */
 export function decode(word: number): Instr | null {
   const w = word | 0;
   const spec = SPEC_BY_OP.get(w & 0x7f);
-  if (!spec) return null;
+  if (!spec) {
+    return null;
+  }
   const rd = (w >>> 7) & 0xf;
   const rs1 = (w >>> 11) & 0xf;
   const rs2 = (w >>> 15) & 0xf;
   switch (spec.fmt) {
-    case 'N':
+    case 'N': {
       return instr(spec.name);
-    case 'R':
+    }
+    case 'R': {
       return instr(spec.name, { rd, rs1, rs2 });
-    case 'I':
+    }
+    case 'I': {
       return instr(spec.name, { rd, rs1, imm: w >> 15 });
+    }
     case 'S':
-    case 'B':
+    case 'B': {
       return instr(spec.name, { rs1, rs2, imm: ((w >> 19) << 4) | ((w >>> 7) & 0xf) });
-    case 'U':
+    }
+    case 'U': {
       return instr(spec.name, { rd, imm: w >>> 11 });
-    case 'J':
+    }
+    case 'J': {
       return instr(spec.name, { rd, imm: w >> 11 });
+    }
   }
 }
