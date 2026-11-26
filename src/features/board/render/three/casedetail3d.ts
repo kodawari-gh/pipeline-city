@@ -3,29 +3,10 @@
 // shield with its ports where the plugs go in, the front's intake (mesh or hex over the front fans, the Micro's side gaps, the Mini's grille),
 // the top controls (the power button and the status lights of each kind, the front ports). The inside of the case is casetray3d.ts. Airflow reads
 // from outside: in at the front and under the PSU, out at the rear fan and the top.
-import {
-  BoxGeometry,
-  CircleGeometry,
-  CylinderGeometry,
-  Group,
-  Mesh,
-  PlaneGeometry,
-  TorusGeometry,
-  type Vector2,
-  type Material,
-  type MeshStandardMaterial,
-} from 'three';
-import {
-  FAN_SCREW,
-  SEG,
-  fanFlange,
-  fanSides,
-  place,
-  post,
-  rectBox,
-  softBox,
-  type RectLike,
-} from '@/core/render/three/geometry';
+import { BoxGeometry, CircleGeometry, CylinderGeometry, Group, Mesh, PlaneGeometry, TorusGeometry } from 'three';
+import type * as threeTypes from 'three';
+import { FAN_SCREW, SEG, fanFlange, fanSides, place, post, rectBox, softBox } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { NYLON, mat, own } from '@/core/render/three/materials';
 import { seeThrough, tag, unseen } from '@/core/render/three/pick';
 import type { BoardFeatures } from '@/features/board/sim/specs';
@@ -54,16 +35,18 @@ import {
   wallCircle,
   wallPt,
   wallX,
-  type Span,
 } from './casekit3d';
+import type * as casekit3dTypes from './casekit3d';
 import type { GrommetStyle } from './wires3d';
-import { glowMat, light, type Spin } from './fans3d';
-import { jackFace, jackLook, type JackLamps } from './rj45jack3d';
+import { glowMat, light } from './fans3d';
+import type * as fans3dTypes from './fans3d';
+import { jackFace, jackLook } from './rj45jack3d';
+import type * as rj45jack3dTypes from './rj45jack3d';
 
 /** What the details need of the case: its kind, its body's material, its accent, and the cavity's height (layout y) and depth. */
 export interface Frame {
   kind: CaseKind;
-  body: Material;
+  body: threeTypes.Material;
   acc: number;
   yTop: number;
   yBot: number;
@@ -71,16 +54,24 @@ export interface Frame {
   z1: number;
 }
 
-const black = () => mat(0x050608, { roughness: 0.85 });
-const steel = () => mat(0x959aa3, { metalness: 0.75, roughness: 0.38 });
+const black = () => mat(0x05_06_08, { roughness: 0.85 });
+const steel = () => mat(0x95_9a_a3, { metalness: 0.75, roughness: 0.38 });
 /** A cylinder whose axis is world x (a thumbscrew in the rear wall, a jack): centred on the world point, `len` long. */
-function drumX(x: number, y: number, z: number, r: number, len: number, m: Material, sides: number = SEG.post): Mesh {
+function drumX(
+  x: number,
+  y: number,
+  z: number,
+  r: number,
+  len: number,
+  m: threeTypes.Material,
+  sides: number = SEG.post,
+): Mesh {
   const o = new Mesh(new CylinderGeometry(r, r, len, sides).rotateZ(Math.PI / 2), m);
   o.position.set(x, y, z);
   return place(o);
 }
 /** A box from world corner values (x0..x1, y0..y1 world y up, z0..z1). */
-function boxW(x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, m: Material): Mesh {
+function boxW(x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, m: threeTypes.Material): Mesh {
   const o = new Mesh(new BoxGeometry(x1 - x0, y1 - y0, z1 - z0), m);
   o.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
   return place(o);
@@ -110,7 +101,7 @@ export function rearWall(f: Frame, boardSlots: number): Group {
     p = plateSpan(),
     u = basementPlan().psu;
   // (each opening is its bay (`bracketSpan`) less a 20 rim: from over a NIC's jacks north of the slot's line to under a GPU's outputs south of it)
-  const holes: (Span | Vector2[])[] = Array.from({ length: slots }, (_, i) => ({
+  const holes: (casekit3dTypes.Span | threeTypes.Vector2[])[] = Array.from({ length: slots }, (_, i) => ({
     y0: bay(i).y0 + 20,
     y1: bay(i).y1 - 20,
     z0: SLOT_Z[0],
@@ -121,7 +112,7 @@ export function rearWall(f: Frame, boardSlots: number): Group {
   const fan = rearFanHole();
   holes.push(wallCircle(fan.cy, REAR_ZC, fan.d / 2));
   // (the mount's four screw holes: slots, so the fan can sit a little higher or lower)
-  if (REAR_FAN_FITTED)
+  if (REAR_FAN_FITTED) {
     for (const [dy, dz] of [
       [-1, -1],
       [-1, 1],
@@ -132,13 +123,17 @@ export function rearWall(f: Frame, boardSlots: number): Group {
         z = REAR_ZC + dz * fan.d * FAN_SCREW;
       holes.push({ y0: y - 90, y1: y + 90, z0: z - 26, z1: z + 26, r: 26 });
     }
+  }
   // a vented column beside the slot row, past the retention bar
   const vz0 = SLOT_Z[1] + 260,
     vz1 = Math.min(vz0 + 900, f.z1 - 220);
-  if (slots && vz1 - vz0 > 300)
-    for (let i = 0; i < slots; i++)
-      for (let z = vz0; z + 50 <= vz1; z += 110)
+  if (slots && vz1 - vz0 > 300) {
+    for (let i = 0; i < slots; i++) {
+      for (let z = vz0; z + 50 <= vz1; z += 110) {
         holes.push({ y0: bay(i).y0 + 100, y1: bay(i).y1 - 100, z0: z, z1: z + 50, r: 25 });
+      }
+    }
+  }
   g.add(wallX(x0, x1, { y0: f.yTop, y1: f.yBot, z0: f.z0, z1: f.z1 }, holes, f.body));
   // the I/O opening's lip, folded in off the wall's inner face
   g.add(
@@ -152,7 +147,9 @@ export function rearWall(f: Frame, boardSlots: number): Group {
     ),
   );
   // the slots the board lacks: blank covers behind their openings (the board's own empty slots get theirs in machine3d.ts)
-  for (let i = boardSlots; i < slots; i++) g.add(slotBlank(slotY(i), SLOT_BLANK[f.kind]));
+  for (let i = boardSlots; i < slots; i++) {
+    g.add(slotBlank(slotY(i), SLOT_BLANK[f.kind]));
+  }
   // the retention bar over the far ends of the openings, where the brackets' folds are (away from the board, as a card's top edge is), a
   // thumbscrew per slot through it, in the middle of the slot's bay
   if (slots) {
@@ -209,7 +206,7 @@ export function rearFanScrews(): Group {
  */
 export function bayFrame(): Group {
   const g = new Group(),
-    m = mat(0x4e5360, { metalness: 0.7, roughness: 0.4 }),
+    m = mat(0x4e_53_60, { metalness: 0.7, roughness: 0.4 }),
     zc = CASE_Z + CASE_D / 2,
     x0 = CASE_IN.x + CASE_IN.w - 1830,
     x1 = CASE_IN.x + CASE_IN.w;
@@ -218,7 +215,7 @@ export function bayFrame(): Group {
     za = zc - 760,
     zb = zc + 760,
     t = 14,
-    side: RectLike = { x: x0, y: ya, w: x1 - x0, h: yb - ya };
+    side: geometryTypes.RectLike = { x: x0, y: ya, w: x1 - x0, h: yb - ya };
   const holes = [0, 1].flatMap((k) =>
     [200, 560, 920].map((dx) => outlinePts({ x: x0 + dx, y: CASE.y + 708 + k * 470, w: 160, h: 44 }, 22)),
   );
@@ -226,23 +223,27 @@ export function bayFrame(): Group {
   for (const [z0, z1] of [
     [za, za + t],
     [zb - t, zb],
-  ] as const)
+  ] as const) {
     g.add(slab(shapeOf(outlinePts(side, 8), holes), z0, z1, m, 2));
+  }
   for (const [y, k] of [
     [ya, 0],
     [yb - t, 1],
-  ] as const)
+  ] as const) {
     g.add(plateY(x0, x1, za + t, zb - t, y, t, [flatSlot(x0 + 300 + k * 200, zc - 40, 900, 80)], m, 2));
+  }
   // the rails between the bays, and their stamped tabs
-  for (const z of [za + t, zb - t - 26])
+  for (const z of [za + t, zb - t - 26]) {
     g.add(rectBox({ x: x0 + 80, y: CASE.y + 952, w: x1 - x0 - 160, h: 26 }, z, z + 26, m));
+  }
   // a plastic latch on the glass side over each bay: a slide over the first two slots with a grip at its end (the third slot takes a screw)
-  const latch = mat(0x2a2d32, { roughness: 0.55 });
+  const latch = mat(0x2a_2d_32, { roughness: 0.55 });
   for (let k = 0; k < 2; k++) {
     const y = CASE.y + 640 + k * 470;
     g.add(softBox({ x: x0 + 170, y, w: 700, h: 180 }, zb, zb + 34, latch, 10));
-    for (let j = 0; j < 4; j++)
+    for (let j = 0; j < 4; j++) {
       g.add(rectBox({ x: x0 + 700 + j * 40, y: y + 30, w: 14, h: 120 }, zb + 34, zb + 44, latch));
+    }
   }
   return g;
 }
@@ -251,11 +252,13 @@ export function bayFrame(): Group {
  * The case's fan mounts where a fan's flange meets it: a thin plate behind the front wall and under the top, with the fan's throat and its four
  * screw holes, in the case's inner finish. The rear mount is the rear wall's own (`rearWall`).
  */
-export function fanMountPlates(m: Material): Group {
+export function fanMountPlates(m: threeTypes.Material): Group {
   const g = new Group(),
     T = 12;
   for (const fan of fanMounts()) {
-    if (fan.side === 'rear') continue;
+    if (fan.side === 'rear') {
+      continue;
+    }
     const r = fan.rect,
       top = fan.side === 'top',
       d = Math.min(top ? r.w : r.h, FAN_MAX);
@@ -273,12 +276,18 @@ export function fanMountPlates(m: Material): Group {
 }
 
 /** The sheet's tone of each kind, for its grilles and meshes. */
-export const kindTone = (k: CaseKind) => ({ oem: 0x2a2d32, matte: 0x1c1d22, gamer: 0x262c3c, show: 0x5a5f69 })[k];
+export const kindTone = (k: CaseKind) =>
+  ({ oem: 0x2a_2d_32, matte: 0x1c_1d_22, gamer: 0x26_2c_3c, show: 0x5a_5f_69 })[k];
 /** The slot blanks' finish by kind: bare zinc in the Mini, painted to match the body in the others. */
-export const SLOT_BLANK: Record<CaseKind, number> = { oem: 0xa3a69f, matte: 0x1c1d22, gamer: 0x232838, show: 0x17181d };
+export const SLOT_BLANK: Record<CaseKind, number> = {
+  oem: 0xa3_a6_9f,
+  matte: 0x1c_1d_22,
+  gamer: 0x23_28_38,
+  show: 0x17_18_1d,
+};
 
 /** The span of the front fans (layout y), and the depth their opening needs. */
-function frontSpan(): Span {
+function frontSpan(): casekit3dTypes.Span {
   const rs = frontFanRects(),
     y0 = Math.min(...rs.map((r) => r.y)),
     y1 = Math.max(...rs.map((r) => r.y + r.h)),
@@ -291,29 +300,29 @@ function frontSpan(): Span {
  * two light bars; the showcase has a hex mesh in a silver frame; the Micro's solid front stands off the body with a perforated gap down each side;
  * the Mini's plastic front (case3d.ts) carries its own grille.
  */
-export function frontWall(f: Frame, spins: Spin[], ex: number): Group {
+export function frontWall(f: Frame, spins: fans3dTypes.Spin[], ex: number): Group {
   const g = new Group(),
     x0 = ex - 160,
-    s: Span = { y0: f.yTop, y1: f.yBot, z0: f.z0, z1: f.z1 };
+    s: casekit3dTypes.Span = { y0: f.yTop, y1: f.yBot, z0: f.z0, z1: f.z1 };
   g.add(wallX(x0, ex, s, [frontSpan()], f.body));
   if (f.kind === 'gamer') {
-    const face: Span = { y0: f.yTop - 200, y1: f.yBot + 60, z0: f.z0 + 140, z1: f.z1 - 140 };
+    const face: casekit3dTypes.Span = { y0: f.yTop - 200, y1: f.yBot + 60, z0: f.z0 + 140, z1: f.z1 - 140 };
     g.add(
       decalX(
         ex + 3,
         face,
         1,
-        perfMat('mesh', face.z1 - face.z0, face.y1 - face.y0, 34, 0x2a3042, { metal: 0.5, rough: 0.45 }),
+        perfMat('mesh', face.z1 - face.z0, face.y1 - face.y0, 34, 0x2a_30_42, { metal: 0.5, rough: 0.45 }),
       ),
     );
     for (const z of [f.z0 + 70, f.z1 - 70]) {
-      const m = glowMat(0xa68bff, 0x15121f); // (the PC's one violet, art-style v3)
+      const m = glowMat(0xa6_8b_ff, 0x15_12_1f); // (the PC's one violet, art-style v3)
       g.add(seeThrough(boxW(ex - 4, ex + 14, -(f.yBot - 100), -(f.yTop + 60), z - 26, z + 26, m)));
       spins.push(light(m));
     }
   } else if (f.kind === 'show') {
-    const silver = mat(0x2a2d32, { map: tiled(brushed(), 4, 1), metalness: 0.6, roughness: 0.4 }),
-      face: Span = { y0: f.yTop - 120, y1: f.yBot, z0: f.z0 + 160, z1: f.z1 - 160 };
+    const silver = mat(0x2a_2d_32, { map: tiled(brushed(), 4, 1), metalness: 0.6, roughness: 0.4 }),
+      face: casekit3dTypes.Span = { y0: f.yTop - 120, y1: f.yBot, z0: f.z0 + 160, z1: f.z1 - 160 };
     const frame = wallX(
       ex,
       ex + 30,
@@ -328,7 +337,7 @@ export function frontWall(f: Frame, spins: Spin[], ex: number): Group {
         ex + 8,
         face,
         1,
-        perfMat('hex', face.z1 - face.z0, face.y1 - face.y0, 52, 0x4a4f58, { metal: 0.6, rough: 0.4 }),
+        perfMat('hex', face.z1 - face.z0, face.y1 - face.y0, 52, 0x4a_4f_58, { metal: 0.6, rough: 0.4 }),
       ),
     );
   } else if (f.kind === 'matte') {
@@ -342,16 +351,17 @@ export function frontWall(f: Frame, spins: Spin[], ex: number): Group {
         14,
       ),
     );
-    for (const z of [f.z0 + 190, f.z1 - 190])
-      g.add(boxW(ex, ex + 30, -(f.yBot + 60), -(f.yTop - 240), z - 12, z + 12, black())); // the stand-off brackets' shadow line
+    for (const z of [f.z0 + 190, f.z1 - 190]) {
+      g.add(boxW(ex, ex + 30, -(f.yBot + 60), -(f.yTop - 240), z - 12, z + 12, black()));
+    } // the stand-off brackets' shadow line
     for (const [za, zb] of [
       [f.z0 + 30, f.z0 + 180],
       [f.z1 - 180, f.z1 - 30],
     ] as const) {
-      const sp: Span = { y0: f.yTop - 200, y1: f.yBot, z0: za, z1: zb };
+      const sp: casekit3dTypes.Span = { y0: f.yTop - 200, y1: f.yBot, z0: za, z1: zb };
       g.add(
         decalX(ex + 1, sp, 1, black()),
-        decalX(ex + 3, sp, 1, perfMat('slot', zb - za, sp.y1 - sp.y0, 44, 0x3a3d45, { metal: 0.2, rough: 0.7 })),
+        decalX(ex + 3, sp, 1, perfMat('slot', zb - za, sp.y1 - sp.y0, 44, 0x3a_3d_45, { metal: 0.2, rough: 0.7 })),
       );
     }
   }
@@ -378,28 +388,31 @@ export function psuFilter(f: Frame, bottom: number): Group {
     new PlaneGeometry(w, d),
     f.kind === 'oem'
       ? perfMat('round', w, d, 56, kindTone(f.kind), { metal: 0.05, rough: 0.6 })
-      : perfMat('mesh', w, d, 34, 0x15171b, { metal: 0.02, rough: 0.95 }),
+      : perfMat('mesh', w, d, 34, 0x15_17_1b, { metal: 0.02, rough: 0.95 }),
   );
   sheet.rotation.x = Math.PI / 2;
   sheet.position.set((o.x0 + o.x1) / 2, -y, (o.z0 + o.z1) / 2);
   g.add(sheet);
-  if (f.kind === 'oem') return g;
+  if (f.kind === 'oem') {
+    return g;
+  }
   // its frame round the sheet, and the tab at the rear wall
-  const frame = mat(0x131518, { roughness: 0.6 }),
+  const frame = mat(0x13_15_18, { roughness: 0.6 }),
     e = 30;
   for (const [x0, x1, z0, z1] of [
     [o.x0, o.x1, o.z0, o.z0 + e],
     [o.x0, o.x1, o.z1 - e, o.z1],
     [o.x0, o.x0 + e, o.z0, o.z1],
     [o.x1 - e, o.x1, o.z0, o.z1],
-  ] as const)
+  ] as const) {
     g.add(rectBox({ x: x0, y: y - 10, w: x1 - x0, h: 24 }, z0, z1, frame));
+  }
   g.add(
     rectBox(
       { x: CASE.x - 26, y: y - 42, w: 26 + 40, h: 42 },
       (o.z0 + o.z1) / 2 - 260,
       (o.z0 + o.z1) / 2 + 260,
-      mat(0x2a2d32, { roughness: 0.5 }),
+      mat(0x2a_2d_32, { roughness: 0.5 }),
     ),
   );
   return g;
@@ -408,20 +421,25 @@ export function psuFilter(f: Frame, bottom: number): Group {
 // ---------------------------------------------------------------- the rear I/O shield
 
 /** The audio jack colour codes (PC 99): line out green, line in blue, mic pink. */
-export const JACK: Record<string, number> = { 'line-out': 0x8fd14f, 'line-in': 0x5aa9e6, mic: 0xf08cb0 };
+export const JACK: Record<string, number> = { 'line-out': 0x8f_d1_4f, 'line-in': 0x5a_a9_e6, mic: 0xf0_8c_b0 };
 
 /** The rear I/O plate's extent: layout y (the board's I/O strip and a margin) and depth. */
-const plateSpan = (): Span => ({ y0: BR.io.y - 40, y1: BR.io.y + BR.io.h + 40, z0: BOARD_Z + 60, z1: BOARD_Z + 1240 });
+const plateSpan = (): casekit3dTypes.Span => ({
+  y0: BR.io.y - 40,
+  y1: BR.io.y + BR.io.h + 40,
+  z0: BOARD_Z + 60,
+  z1: BOARD_Z + 1240,
+});
 
 /** The USB-A tongue's colour by the board's generation: black USB 2 (Starter, Basic), blue USB 3 (Mainstream), red USB 3.2 (Enthusiast). */
 /** The USB tongue colour codes by generation: black USB 2.0, white and blue USB 3.0, red USB charging. */
-export const USB_TONGUE = [0x16171b, 0x16171b, 0x2a6fdc, 0xc8323c];
+export const USB_TONGUE = [0x16_17_1b, 0x16_17_1b, 0x2a_6f_dc, 0xc8_32_3c];
 
 /**
  * The labels printed on a black shield, laid out as `decalX` lays a face across x (the canvas's x is depth, its y the layout y down): the port
  * names in white beside their mouths.
  */
-function shieldPrint(tier: number, feat: BoardFeatures, s: Span) {
+function shieldPrint(tier: number, feat: BoardFeatures, s: casekit3dTypes.Span) {
   return tex(
     `io-print-${tier}-${feat.ethernetMbps > 0 ? 1 : 0}-${feat.usbPorts}-${feat.displayPorts}`,
     512,
@@ -437,26 +455,25 @@ function shieldPrint(tier: number, feat: BoardFeatures, s: Span) {
       c.textBaseline = 'middle';
       const at = (t: string, y: number, z: number) => c.fillText(t, u(z), v(y));
       for (const p of IO_PORTS) {
-        const y = p.y;
-        if (p.kind === 'jack') at({ 'line-out': 'OUT', 'line-in': 'IN', mic: 'MIC' }[p.id] ?? '', y, BOARD_Z + 350);
-        else if (p.kind === 'rj45' && feat.ethernetMbps > 0)
+        const { y } = p;
+        if (p.kind === 'jack') {
+          at({ 'line-out': 'OUT', 'line-in': 'IN', mic: 'MIC' }[p.id] ?? '', y, BOARD_Z + 350);
+        } else if (p.kind === 'rj45' && feat.ethernetMbps > 0) {
           at(feat.ethernetMbps >= 2500 ? '2.5G LAN' : 'LAN', y, BOARD_Z + 400);
-        else if (p.kind === 'hdmi') at('HDMI', y, BOARD_Z + 570);
-        else if (p.kind === 'dp' && feat.displayPorts >= 2) at('DP', y, BOARD_Z + 570);
-        else if (p.kind === 'usb' && Number(p.id.slice(3)) < feat.usbPorts)
+        } else if (p.kind === 'hdmi') {
+          at('HDMI', y, BOARD_Z + 570);
+        } else if (p.kind === 'dp' && feat.displayPorts >= 2) {
+          at('DP', y, BOARD_Z + 570);
+        } else if (p.kind === 'usb' && Number(p.id.slice(3)) < feat.usbPorts) {
           at(tier >= 3 ? 'USB 3.2' : 'USB 3', y, BOARD_Z + 650);
+        }
       }
-      // a frame line round the port field, as the printed shields carry
-      // (the Enthusiast's runs out over its antenna jacks)
-      const z1 = BOARD_Z + (tier >= 3 ? 1210 : 860);
+      // a frame line round the port field, as the printed shields carry (the Enthusiast's runs out over its antenna jacks)
+      const z1 = BOARD_Z + (tier >= 3 ? 1210 : 860),
+        x0 = u(BOARD_Z + 190),
+        y0 = v(BR.io.y + 20);
       c.beginPath();
-      c.roundRect(
-        u(BOARD_Z + 190),
-        v(BR.io.y + 20),
-        u(z1) - u(BOARD_Z + 190),
-        v(BR.io.y + BR.io.h + 20) - v(BR.io.y + 20),
-        10,
-      );
+      c.roundRect(x0, y0, u(z1) - x0, v(BR.io.y + BR.io.h + 20) - y0, 10);
       c.stroke();
       if (tier >= 2) {
         at('BIOS', -1290, BOARD_Z + 380);
@@ -479,20 +496,20 @@ function shieldPrint(tier: number, feat: BoardFeatures, s: Span) {
  * the RJ45 with its latch notch, contacts and two lights, HDMI and DP in their keyed shells, USB-A with the tongue's colour by generation. The
  * Mainstream adds a BIOS flashback button; the Enthusiast a clear-CMOS button, a USB-C, an optical out and two Wi-Fi antenna jacks (look only).
  */
-export function ioShield(feat: BoardFeatures, tier: number): { root: Group; lan: JackLamps | null } {
+export function ioShield(feat: BoardFeatures, tier: number): { root: Group; lan: rj45jack3dTypes.JackLamps | null } {
   const g = tag(new Group(), 'io'),
-    x = CASE.x,
+    { x } = CASE,
     Z = BOARD_Z,
     s = plateSpan(),
     stamped = tier <= 1;
   /** The RJ45 jack's two lights (out: the network lights them, `network/render/jackleds.ts`); null where the board has no jack. */
-  let lan: JackLamps | null = null;
+  let lan: rj45jack3dTypes.JackLamps | null = null;
   // (stamped sheet is smooth satin steel, not brushed)
   const plateM = stamped
-    ? mat(0xb9babf, { metalness: 0.65, roughness: 0.46 })
-    : mat(0x131518, { metalness: 0.35, roughness: 0.5 });
+    ? mat(0xb9_ba_bf, { metalness: 0.65, roughness: 0.46 })
+    : mat(0x13_15_18, { metalness: 0.35, roughness: 0.5 });
   // (the plate is open behind the RJ45's mouth, which runs on through the wall into the jack)
-  const rj45 = IO_PORTS.filter((p) => p.kind === 'rj45' && fitted(p, feat)).map((p): Span => ({
+  const rj45 = IO_PORTS.filter((p) => p.kind === 'rj45' && fitted(p, feat)).map((p): casekit3dTypes.Span => ({
     y0: p.y - IO_HALF.rj45 + 4,
     y1: p.y + IO_HALF.rj45 - 4,
     z0: Z + IO_Z.rj45[0] + 4,
@@ -501,11 +518,13 @@ export function ioShield(feat: BoardFeatures, tier: number): { root: Group; lan:
   g.add(wallX(x - 8, x, s, rj45, plateM));
   const hole = black(),
     shell = steel(),
-    gold = mat(0xd4af5f, { metalness: 0.9, roughness: 0.34 });
+    gold = mat(0xd4_af_5f, { metalness: 0.9, roughness: 0.34 });
   /** An embossed rim round an opening on the stamped plate (world y, depth); `open`: a frame round it, for a mouth that runs on through the plate. */
   const rim = (y0: number, y1: number, z0: number, z1: number, open = false) => {
-    if (!stamped) return;
-    if (open)
+    if (!stamped) {
+      return;
+    }
+    if (open) {
       g.add(
         wallX(
           x - 11,
@@ -515,30 +534,37 @@ export function ioShield(feat: BoardFeatures, tier: number): { root: Group; lan:
           plateM,
         ),
       );
-    else g.add(boxW(x - 11, x - 8, y0 - 14, y1 + 14, z0 - 14, z1 + 14, plateM));
+    } else {
+      g.add(boxW(x - 11, x - 8, y0 - 14, y1 + 14, z0 - 14, z1 + 14, plateM));
+    }
   };
   /** EMI fingers: springy tongues cut from the opening's long edges, bent in against the connector's shell (they lie along its sides). */
   const fingers = (y0: number, y1: number, z0: number, z1: number) => {
-    if (!stamped) return;
+    if (!stamped) {
+      return;
+    }
     for (const [za, zb] of [
       [z0 - 4, z0],
       [z1, z1 + 4],
-    ] as const)
+    ] as const) {
       for (let k = 0; k < 3; k++) {
         const y = y0 + ((k + 0.5) * (y1 - y0)) / 3;
         g.add(boxW(x - 16, x - 10, y - 8, y + 8, za, zb, plateM));
       }
+    }
   };
   // (the numbers are boardhw3d.ts's `IO_Z` and `IO_HALF`: the connectors' shells behind the plate take the same)
   for (const p of IO_PORTS) {
-    if (!fitted(p, feat)) continue;
+    if (!fitted(p, feat)) {
+      continue;
+    }
     const cy = -p.y,
       ly = p.y; // (a port's `y` is its centre, where the plugs aim)
     if (p.kind === 'jack') {
       const zj = Z + IO_Z.jack;
       rim(cy - 34, cy + 34, zj - 34, zj + 34);
       g.add(
-        drumX(x - 12, cy, zj, 30, 8, mat(JACK[p.id] ?? 0x999999, { roughness: 0.5 })),
+        drumX(x - 12, cy, zj, 30, 8, mat(JACK[p.id] ?? 0x99_99_99, { roughness: 0.5 })),
         drumX(x - 14, cy, zj, 17, 8, hole),
         drumX(x - 13, cy, zj, 9, 6, shell),
       );
@@ -572,7 +598,15 @@ export function ioShield(feat: BoardFeatures, tier: number): { root: Group; lan:
       g.add(wallX(x - 16, x - 8, { y0, y1, z0, z1 }, [mouth], shell));
       g.add(boxW(x - 12, x - 8, cy - 50, cy + 50, c0, c1, hole));
       g.add(
-        boxW(x - 15, x - 10, cy - 40, cy + 40, (z0 + z1) / 2 - 6, (z0 + z1) / 2 + 6, mat(0x131518, { roughness: 0.5 })),
+        boxW(
+          x - 15,
+          x - 10,
+          cy - 40,
+          cy + 40,
+          (z0 + z1) / 2 - 6,
+          (z0 + z1) / 2 + 6,
+          mat(0x13_15_18, { roughness: 0.5 }),
+        ),
       );
     } else if (p.kind === 'usb') {
       const h = IO_HALF.usb,
@@ -591,13 +625,18 @@ export function ioShield(feat: BoardFeatures, tier: number): { root: Group; lan:
         ),
         boxW(x - 10, x - 8, cy - h + 4, cy + h - 4, z0 + 3, z1 - 3, hole),
       );
-      g.add(boxW(x - 17, x - 10, cy - 40, cy + 40, tz, tz + 12, mat(USB_TONGUE[tier] ?? 0x2a6fdc, { roughness: 0.5 })));
-      for (let k = 0; k < 4; k++)
+      g.add(
+        boxW(x - 17, x - 10, cy - 40, cy + 40, tz, tz + 12, mat(USB_TONGUE[tier] ?? 0x2a_6f_dc, { roughness: 0.5 })),
+      );
+      for (let k = 0; k < 4; k++) {
         g.add(boxW(x - 16, x - 11, cy - 30 + k * 20 - 4, cy - 30 + k * 20 + 4, tz - 2, tz, gold));
+      }
       fingers(cy - h, cy + h, z0, z1);
     }
   }
-  if (stamped) legacyPorts(g, tier, plateM);
+  if (stamped) {
+    legacyPorts(g, tier, plateM);
+  }
   if (stamped) {
     // the folded rim round the stamped plate
     for (const [y0, y1, z0, z1] of [
@@ -605,29 +644,35 @@ export function ioShield(feat: BoardFeatures, tier: number): { root: Group; lan:
       [s.y0, s.y1, s.z1 - 14, s.z1],
       [s.y0, s.y0 + 14, s.z0, s.z1],
       [s.y1 - 14, s.y1, s.z0, s.z1],
-    ] as const)
+    ] as const) {
       g.add(boxW(x - 14, x - 8, -y1, -y0, z0, z1, plateM));
+    }
   } else {
     const print = shieldPrint(tier, feat, s);
-    if (print)
-      g.add(decalX(x - 9, s, -1, mat(0xffffff, { map: print, transparent: true, roughness: 0.6, depthWrite: false })));
+    if (print) {
+      g.add(
+        decalX(x - 9, s, -1, mat(0xff_ff_ff, { map: print, transparent: true, roughness: 0.6, depthWrite: false })),
+      );
+    }
   }
   // the buttons and the extra jacks of the better boards (look only)
   const button = (y: number, z: number, ring: number) =>
     g.add(
       drumX(x - 12, -y, z, 26, 8, mat(ring, { roughness: 0.45 })),
-      drumX(x - 16, -y, z, 18, 10, mat(0x1d1e22, { roughness: 0.5 })),
+      drumX(x - 16, -y, z, 18, 10, mat(0x1d_1e_22, { roughness: 0.5 })),
     );
-  if (tier >= 2) button(IO_EXTRA.bios, Z + IO_Z.jack, 0x9aa3ae);
+  if (tier >= 2) {
+    button(IO_EXTRA.bios, Z + IO_Z.jack, 0x9a_a3_ae);
+  }
   if (tier >= 3) {
     const e = IO_EXTRA,
       oy = -e.optical.y,
       oz = Z + e.optical.z,
       uy = -e.usbc.y,
       [u0, u1] = e.usbc.z;
-    button(e.clr, Z + IO_Z.jack, 0xc8323c);
+    button(e.clr, Z + IO_Z.jack, 0xc8_32_3c);
     // each antenna jack an SMA: the hex nut on the plate, the threaded barrel, the white insulator and the centre socket at its mouth
-    const nickel = mat(0xb9babf, { metalness: 0.85, roughness: 0.3 }),
+    const nickel = mat(0xb9_ba_bf, { metalness: 0.85, roughness: 0.3 }),
       ptfe = mat(NYLON, { roughness: 0.6 });
     for (const z of e.wifi.z) {
       const wy = -e.wifi.y,
@@ -638,10 +683,12 @@ export function ioShield(feat: BoardFeatures, tier: number): { root: Group; lan:
         drumX(x - 64.6, wy, wz, 11, 1.4, ptfe, SEG.post),
         drumX(x - 65.6, wy, wz, 3.5, 1, gold, SEG.smallDisc),
       );
-      for (let k = 0; k < 5; k++) g.add(drumX(x - 27 - k * 8, wy, wz, 20.5, 3, gold, SEG.disc));
+      for (let k = 0; k < 5; k++) {
+        g.add(drumX(x - 27 - k * 8, wy, wz, 20.5, 3, gold, SEG.disc));
+      }
     }
     g.add(
-      boxW(x - 18, x - 8, oy - 20, oy + 20, oz - 20, oz + 20, mat(0x1d1e22, { roughness: 0.5 })),
+      boxW(x - 18, x - 8, oy - 20, oy + 20, oz - 20, oz + 20, mat(0x1d_1e_22, { roughness: 0.5 })),
       boxW(x - 20, x - 16, oy - 12, oy + 12, oz - 12, oz + 12, hole),
     );
     // the USB-C: its rounded mouth sunk into the shell, the thin tongue down its middle
@@ -657,14 +704,21 @@ export function ioShield(feat: BoardFeatures, tier: number): { root: Group; lan:
     );
     g.add(
       boxW(x - 10, x - 8, uy - 16, uy + 16, Z + u0 + 4, Z + u1 - 4, hole),
-      boxW(x - 14, x - 10, uy - 3.5, uy + 3.5, Z + u0 + 26, Z + u1 - 26, mat(0x131518, { roughness: 0.5 })),
+      boxW(x - 14, x - 10, uy - 3.5, uy + 3.5, Z + u0 + 26, Z + u1 - 26, mat(0x13_15_18, { roughness: 0.5 })),
     );
   }
   return { root: g, lan };
 }
 
 /** The legacy ports' colours (PC 99): the PS/2 keyboard and mouse, serial, parallel, VGA, DVI. */
-const LEGACY = { kb: 0x7a4fb0, mouse: 0x4caf50, serial: 0x13a3a3, parallel: 0xa0306e, vga: 0x2350b4, dvi: 0xe6e6e6 };
+const LEGACY = {
+  kb: 0x7a_4f_b0,
+  mouse: 0x4c_af_50,
+  serial: 0x13_a3_a3,
+  parallel: 0xa0_30_6e,
+  vga: 0x23_50_b4,
+  dvi: 0xe6_e6_e6,
+};
 
 /**
  * The older boards' legacy ports, in the stamped shield's free column beside the live ones (look only: the game's video lead keeps to HDMI). The
@@ -672,12 +726,12 @@ const LEGACY = { kb: 0x7a4fb0, mouse: 0x4caf50, serial: 0x13a3a3, parallel: 0xa0
  * Each D-sub is a steel shell with its D-shaped mouth, the coloured insert inside, and a hex jack screw at each end; the long side runs down the
  * plate, as a tower's board stands.
  */
-function legacyPorts(g: Group, tier: number, plateM: MeshStandardMaterial) {
-  const x = CASE.x,
+function legacyPorts(g: Group, tier: number, plateM: threeTypes.MeshStandardMaterial) {
+  const { x } = CASE,
     zc = BOARD_Z + IO_Z.legacy,
     shell = steel(),
     hole = black(),
-    screw = mat(0x959aa3, { metalness: 0.8, roughness: 0.35 });
+    screw = mat(0x95_9a_a3, { metalness: 0.8, roughness: 0.35 });
   const din = (y: number, tone: number, half?: number) => {
     g.add(
       drumX(x - 12, -y, zc, 40, 8, mat(tone, { roughness: 0.5 })),
@@ -700,25 +754,23 @@ function legacyPorts(g: Group, tier: number, plateM: MeshStandardMaterial) {
       z0 = zc - 44,
       z1 = zc + 44,
       k = 22;
-    g.add(
-      wallX(
-        x - 16,
-        x - 8,
-        { y0: a - 16, y1: b + 16, z0: z0 - 16, z1: z1 + 16 },
-        [[wallPt(a, z0), wallPt(a + k, z1), wallPt(b - k, z1), wallPt(b, z0)]],
-        shell,
-      ),
-    );
+    const span = { y0: a - 16, y1: b + 16, z0: z0 - 16, z1: z1 + 16 },
+      cut = [[wallPt(a, z0), wallPt(a + k, z1), wallPt(b - k, z1), wallPt(b, z0)]];
+    g.add(wallX(x - 16, x - 8, span, cut, shell));
     g.add(boxW(x - 13, x - 9, -b + 10, -a - 10, z0 + 8, z1 - 8, mat(tone, { roughness: 0.55 })));
     g.add(boxW(x - 14, x - 10, -b + 26, -a - 26, zc - 6, zc + 6, hole));
-    for (const yy of [a - 60, b + 60])
+    for (const yy of [a - 60, b + 60]) {
       g.add(drumX(x - 20, -yy, zc, 20, 14, screw, SEG.hexNut), drumX(x - 28, -yy, zc, 8, 2, hole, SEG.smallDisc));
+    }
     g.add(boxW(x - 11, x - 8, -(b + 90), -(a - 90), z0 - 30, z1 + 30, plateM));
   };
-  const tone = (t: string) => LEGACY[t as keyof typeof LEGACY] ?? 0x999999;
+  const tone = (t: string) => LEGACY[t as keyof typeof LEGACY] ?? 0x99_99_99;
   for (const l of legacyIo(tier)) {
-    if (l.kind === 'din') din(l.y, tone(l.tone), l.half ? tone(l.half) : undefined);
-    else dsub(l.y, l.len, tone(l.tone));
+    if (l.kind === 'din') {
+      din(l.y, tone(l.tone), l.half ? tone(l.half) : undefined);
+    } else {
+      dsub(l.y, l.len, tone(l.tone));
+    }
   }
 }
 
@@ -727,8 +779,12 @@ function legacyPorts(g: Group, tier: number, plateM: MeshStandardMaterial) {
 export interface Controls {
   root: Group;
   power: Group;
-  leds: { on: MeshStandardMaterial; err: MeshStandardMaterial; disk: MeshStandardMaterial };
-  spins: Spin[];
+  leds: {
+    on: threeTypes.MeshStandardMaterial;
+    err: threeTypes.MeshStandardMaterial;
+    disk: threeTypes.MeshStandardMaterial;
+  };
+  spins: fans3dTypes.Spin[];
 }
 type Port = 'usbA' | 'usbC' | 'audio' | 'button';
 /** The front ports: the headers a board of the case's own tier has for them (USB_2, then USB_3 from the Mid; USB-C only on the Full, its `USB_3` header's own). */
@@ -738,7 +794,7 @@ const PORTS: Record<CaseKind, Port[]> = {
   gamer: ['usbA', 'usbA', 'audio', 'button'],
   show: ['usbC', 'usbA', 'usbA', 'audio', 'audio'],
 };
-const pip = (c: number) => mat(0x050608, { emissive: c, emissiveIntensity: 0, roughness: 0.3 });
+const pip = (c: number) => mat(0x05_06_08, { emissive: c, emissiveIntensity: 0, roughness: 0.3 });
 
 /** An unseen plate over the power button, rising above the case's top: the button lies flat on top, so a click head on (the board view) finds it here. */
 const hitPlate = (x: number, y: number, z: number): Mesh =>
@@ -760,20 +816,20 @@ const hitPlate = (x: number, y: number, z: number): Mesh =>
 export function controls(f: Frame, ex: number, cap: number): Controls {
   const root = new Group(),
     power = tag(new Group(), 'power'),
-    spins: Spin[] = [],
+    spins: fans3dTypes.Spin[] = [],
     k = f.kind,
     zb = FRONT - 650,
     top = CASE.y;
-  const on = pip(k === 'oem' ? 0x5cff9a : k === 'matte' ? 0xe8f0ff : f.acc),
-    err = pip(0xff4a5a),
-    disk = pip(k === 'oem' ? 0xffb547 : 0xe8f0ff);
+  const on = pip(k === 'oem' ? 0x5c_ff_9a : k === 'matte' ? 0xe8_f0_ff : f.acc),
+    err = pip(0xff_4a_5a),
+    disk = pip(k === 'oem' ? 0xff_b5_47 : 0xe8_f0_ff);
   if (k === 'oem') {
     const bx = ex - 60,
       ty = top - 8,
-      beige = mat(0x4e5360, { roughness: 0.55 });
+      beige = mat(0x4e_53_60, { roughness: 0.55 });
     power.add(
       softBox({ x: bx - 95, y: ty - 34, w: 190, h: 34 }, zb - 95, zb + 95, beige, 14),
-      rectBox({ x: bx - 60, y: ty - 36, w: 120, h: 3 }, zb - 6, zb + 6, mat(0x131518, { roughness: 0.8 })),
+      rectBox({ x: bx - 60, y: ty - 36, w: 120, h: 3 }, zb - 6, zb + 6, mat(0x13_15_18, { roughness: 0.8 })),
     );
     power.add(hitPlate(bx, ty, zb));
     root.add(
@@ -786,7 +842,7 @@ export function controls(f: Frame, ex: number, cap: number): Controls {
     const face = ex + 50,
       y0 = top + 1650,
       zc = (f.z0 + f.z1) / 2;
-    root.add(boxW(face, face + 14, -(y0 + 40), -(y0 - 40), zc + 500, zc + 580, mat(0x4e5360, { roughness: 0.6 })));
+    root.add(boxW(face, face + 14, -(y0 + 40), -(y0 - 40), zc + 500, zc + 580, mat(0x4e_53_60, { roughness: 0.6 })));
     [-330, -170].forEach((dz) =>
       root.add(
         boxW(face, face + 8, -(y0 + 56), -(y0 - 56), zc + dz - 28, zc + dz + 28, steel()),
@@ -796,7 +852,7 @@ export function controls(f: Frame, ex: number, cap: number): Controls {
     // (the jacks' rings are satin metal, not the old pink and green: a base colour is never saturated, art-style C1)
     [40, 160].forEach((dz) =>
       root.add(
-        drumX(face + 6, -y0, zc + dz, 30, 10, mat(0x959aa3, { metalness: 0.7, roughness: 0.38 })),
+        drumX(face + 6, -y0, zc + dz, 30, 10, mat(0x95_9a_a3, { metalness: 0.7, roughness: 0.38 })),
         drumX(face + 10, -y0, zc + dz, 17, 6, black()),
       ),
     );
@@ -809,24 +865,24 @@ export function controls(f: Frame, ex: number, cap: number): Controls {
     py = top - 14;
   const plateM =
     k === 'show'
-      ? mat(0x2a2d32, { map: tiled(brushed(), 1, 6), metalness: 0.6, roughness: 0.4 })
-      : mat(k === 'gamer' ? 0x101420 : 0x0c0d10, { roughness: 0.55, metalness: 0.2 });
+      ? mat(0x2a_2d_32, { map: tiled(brushed(), 1, 6), metalness: 0.6, roughness: 0.4 })
+      : mat(k === 'gamer' ? 0x10_14_20 : 0x0c_0d_10, { roughness: 0.55, metalness: 0.2 });
   root.add(softBox({ x: ix - 140, y: py, w: 280, h: 16 }, z0, z1, plateM, 6));
   if (k === 'gamer') {
-    const line = glowMat(f.acc, 0x15121f);
+    const line = glowMat(f.acc, 0x15_12_1f);
     root.add(seeThrough(rectBox({ x: ix + 118, y: py - 2, w: 8, h: 4 }, z0 + 40, z1 - 40, line)));
     spins.push(light(line, f.acc, 1.6));
   }
   // the button and its light ring
   if (k === 'matte') {
-    power.add(post(ix, py, zb, 100, 14, mat(0x1d1e22, { roughness: 0.7 }), SEG.ring));
+    power.add(post(ix, py, zb, 100, 14, mat(0x1d_1e_22, { roughness: 0.7 }), SEG.ring));
   } else if (k === 'gamer') {
-    power.add(post(ix, py, zb, 120, 34, mat(0x1d1e22, { metalness: 0.6, roughness: 0.35 }), SEG.hexNut));
-    power.add(post(ix, py - 34, zb, 70, 6, mat(0x2a2d32, { metalness: 0.6, roughness: 0.3 }), SEG.hexNut));
+    power.add(post(ix, py, zb, 120, 34, mat(0x1d_1e_22, { metalness: 0.6, roughness: 0.35 }), SEG.hexNut));
+    power.add(post(ix, py - 34, zb, 70, 6, mat(0x2a_2d_32, { metalness: 0.6, roughness: 0.3 }), SEG.hexNut));
   } else {
-    const alu = mat(0xb9babf, { map: tiled(brushed(), 2, 1), metalness: 0.8, roughness: 0.28 });
+    const alu = mat(0xb9_ba_bf, { map: tiled(brushed(), 2, 1), metalness: 0.8, roughness: 0.28 });
     power.add(
-      post(ix, py, zb, 128, 22, mat(0x959aa3, { metalness: 0.8, roughness: 0.4 }), SEG.fineDisc),
+      post(ix, py, zb, 128, 22, mat(0x95_9a_a3, { metalness: 0.8, roughness: 0.4 }), SEG.fineDisc),
       post(ix, py - 22, zb, 118, 26, alu, SEG.fineDisc),
     );
   }
@@ -837,7 +893,9 @@ export function controls(f: Frame, ex: number, cap: number): Controls {
       on,
     );
   ringM.rotation.x = Math.PI / 2;
-  if (k === 'gamer') ringM.rotation.z = Math.PI / 6;
+  if (k === 'gamer') {
+    ringM.rotation.z = Math.PI / 6;
+  }
   ringM.position.set(ix, -py + 4, zb);
   root.add(power, seeThrough(ringM));
   root.add(
@@ -855,7 +913,7 @@ export function controls(f: Frame, ex: number, cap: number): Controls {
           { x: ix - 9, y: py - 8, w: 18, h: 3 },
           z - 52,
           z + 52,
-          mat(USB_TONGUE[LAYOUT_CASE] ?? 0x2a6fdc, { roughness: 0.5 }),
+          mat(USB_TONGUE[LAYOUT_CASE] ?? 0x2a_6f_dc, { roughness: 0.5 }),
         ),
       );
       z -= 190;
@@ -869,7 +927,7 @@ export function controls(f: Frame, ex: number, cap: number): Controls {
       root.add(post(ix, py, z, 32, 3, steel(), SEG.disc), post(ix, py - 3, z, 18, 3, black(), SEG.post));
       z -= 130;
     } else {
-      root.add(post(ix, py, z, 40, 10, mat(0x2a2d32, { roughness: 0.5 }), SEG.disc));
+      root.add(post(ix, py, z, 40, 10, mat(0x2a_2d_32, { roughness: 0.5 }), SEG.disc));
       z -= 130;
     }
   }
@@ -878,16 +936,16 @@ export function controls(f: Frame, ex: number, cap: number): Controls {
 
 /** How each kind finishes a cable hole in the tray: a rolled steel lip (the Mini), black rubber, or a brushed aluminium ring over rubber flaps (the Full tower). */
 export const GROMMETS: Record<CaseKind, GrommetStyle> = {
-  oem: { tone: 0x131518, metal: false, flap: null },
-  matte: { tone: 0x101114, metal: false, flap: 0x1c1d22 },
-  gamer: { tone: 0x14171f, metal: false, flap: 0x20242f },
-  show: { tone: 0x9aa0a8, metal: true, flap: 0x17181c },
+  oem: { tone: 0x13_15_18, metal: false, flap: null },
+  matte: { tone: 0x10_11_14, metal: false, flap: 0x1c_1d_22 },
+  gamer: { tone: 0x14_17_1f, metal: false, flap: 0x20_24_2f },
+  show: { tone: 0x9a_a0_a8, metal: true, flap: 0x17_18_1c },
 };
 
 /** Two hinge barrels on the front edge of a glass door (the Mid and the Full tower). */
 export function hinges(ex: number, yTop: number, yBot: number): Group {
   const g = new Group(),
-    m = mat(0x2a2d32, { metalness: 0.7, roughness: 0.35 });
+    m = mat(0x2a_2d_32, { metalness: 0.7, roughness: 0.35 });
   for (const y of [yTop + 500, yBot - 900]) {
     const o = place(new Mesh(new CylinderGeometry(24, 24, 320, SEG.post), m));
     o.position.set(ex + 6, -y, FRONT - 6);

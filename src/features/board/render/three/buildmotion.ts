@@ -281,8 +281,9 @@ const BIG = new Set(['case', 'board']);
 for (const [kind, m] of Object.entries(MOTIONS)) {
   const total = m.keys.reduce((t, x) => t + x.sec, 0),
     want = BIG.has(kind) ? BIG_SECONDS : ACTION_SECONDS;
-  if (total > want)
+  if (total > want) {
     MOTIONS[kind] = { ...m, keys: m.keys.map((x) => ({ ...x, sec: Math.max(0.06, (x.sec * want) / total) })) };
+  }
 }
 
 /** The motion for a kind of part (every kind has one; an unknown kind gets the plain lift). */
@@ -330,11 +331,13 @@ const CHANNELS = 5,
   curves = new WeakMap<Motion, Curve>();
 function curveOf(m: Motion): Curve {
   const had = curves.get(m);
-  if (had) return had;
+  if (had) {
+    return had;
+  }
   const t = [0],
     v: number[][] = Array.from({ length: CHANNELS }, () => [0]);
   for (const key of m.keys) {
-    t.push(t[t.length - 1]! + key.sec);
+    t.push(t.at(-1)! + key.sec);
     [key.at[0], key.at[1], key.at[2], key.turn ?? 0, key.slide ?? 0].forEach((x, j) => v[j]!.push(x));
   }
   const d = v.map((y) => {
@@ -342,11 +345,15 @@ function curveOf(m: Motion): Curve {
     for (let i = 1; i < t.length - 1; i++) {
       const h0 = t[i]! - t[i - 1]!,
         h1 = t[i + 1]! - t[i]!;
-      if (h0 <= 0 || h1 <= 0) continue;
+      if (h0 <= 0 || h1 <= 0) {
+        continue;
+      }
       const d0 = (y[i]! - y[i - 1]!) / h0,
         d1 = (y[i + 1]! - y[i]!) / h1;
       // (the weighted harmonic mean of the two secants: zero where the channel stops or turns back, never steep enough to overshoot)
-      if (d0 * d1 > 0) s[i] = (3 * (h0 + h1)) / ((2 * h1 + h0) / d0 + (h1 + 2 * h0) / d1);
+      if (d0 * d1 > 0) {
+        s[i] = (3 * (h0 + h1)) / ((2 * h1 + h0) / d0 + (h1 + 2 * h0) / d1);
+      }
     }
     return s;
   });
@@ -367,13 +374,17 @@ function hermite(y0: number, y1: number, m0: number, m1: number, h: number, u: n
  * last moment is the part seated). `t` past the end clamps.
  */
 export function poseAt(m: Motion, t: number, dir: 'out' | 'in' = 'out'): Pose {
-  const keys = m.keys,
+  const { keys } = m,
     total = motionSeconds(m);
-  if (!keys.length) return { offset: [...HOME], turn: 0, slide: 0, label: '', out: 0, tilt: 0 };
+  if (keys.length === 0) {
+    return { offset: [...HOME], turn: 0, slide: 0, label: '', out: 0, tilt: 0 };
+  }
   const s = Math.max(0, Math.min(total, dir === 'out' ? t : total - t)); // the time along the way out
   const c = curveOf(m);
   let i = 0;
-  while (i < keys.length - 1 && s > c.t[i + 1]!) i++;
+  while (i < keys.length - 1 && s > c.t[i + 1]!) {
+    i++;
+  }
   const key = keys[i]!,
     h = c.t[i + 1]! - c.t[i]!,
     raw = h > 0 ? unit((s - c.t[i]!) / h) : 1;
@@ -383,10 +394,12 @@ export function poseAt(m: Motion, t: number, dir: 'out' | 'in' = 'out'): Pose {
   // a hold (a latch, a screw, a lever): the part does not travel but it does not freeze: it presses in and rocks a little (zero at both ends)
   if (key.hold) {
     const bump = Math.sin(Math.PI * raw);
-    if (!m.flat) offset[2] += HOLD_PRESS * bump;
+    if (!m.flat) {
+      offset[2] += HOLD_PRESS * bump;
+    }
     turn += HOLD_ROCK * Math.sin(2 * Math.PI * raw) * bump;
   }
-  const reach = Math.hypot(...keys[keys.length - 1]!.at) || 1,
+  const reach = Math.hypot(...keys.at(-1)!.at) || 1,
     first = keys.find((x) => x.at !== HOME)?.at ?? HOME;
   return {
     offset,
@@ -425,10 +438,12 @@ const FADE_SECONDS = 0.3,
  */
 export function solidAt(m: Motion, t: number, dir: 'out' | 'in' = 'out'): number {
   const total = motionSeconds(m);
-  if (!m.keys.some((x) => !x.hold)) return 1;
+  if (!m.keys.some((x) => !x.hold)) {
+    return 1;
+  }
   // (the fade runs across the whole last lift, the carry away: a cooler that rises over the CPU is gone by the time it blocks the view of it)
   const s = Math.max(0, Math.min(total, dir === 'out' ? t : total - t)),
-    f = Math.min(Math.max(FADE_SECONDS, m.keys[m.keys.length - 1]!.sec), total * FADE_SHARE_MAX);
+    f = Math.min(Math.max(FADE_SECONDS, m.keys.at(-1)!.sec), total * FADE_SHARE_MAX);
   return f > 0 ? 1 - ease(unit((s - (total - f)) / f)) : 1;
 }
 

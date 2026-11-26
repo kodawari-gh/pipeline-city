@@ -19,21 +19,24 @@ import {
   Shape,
   ShapeGeometry,
   Vector2,
-  type Material,
-  type Object3D,
 } from 'three';
+import type * as threeTypes from 'three';
 import { SEG, instanced, place, post, rectBox, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag, unseen } from '@/core/render/three/pick';
-import { builtinTheme, type Theme } from '@/core/render/theme';
+import { builtinTheme } from '@/core/render/theme';
+import type * as themeTypes from '@/core/render/theme';
 import { CASE_D, CASE_Z, FAN_MAX } from '@/features/room/render/three/roomplan';
 import { CASE_LOOK } from '@/features/room/render/desk/props/case';
-import { CASE_CUTS, WINDOW_CUTS, caseWindow, type CaseKind, type Cuts } from '@/features/room/render/shell/casedecor';
-import { stripRect, type StripMode } from '@/features/room/render/shell/exterior';
+import { CASE_CUTS, WINDOW_CUTS, caseWindow } from '@/features/room/render/shell/casedecor';
+import type * as casedecorTypes from '@/features/room/render/shell/casedecor';
+import { stripRect } from '@/features/room/render/shell/exterior';
+import type * as exteriorTypes from '@/features/room/render/shell/exterior';
 import { frontFanRects } from '@/features/room/render/desk/props/case';
 import { CASE, CASE_GLASS, CASE_IN, CASE_PANEL, FOOT, LAYOUT_CASE, PCIE_RAILS, PSU, TOP_FANS } from '../layout/layout';
 import { basementPlan } from './basement3d';
-import { glowMat, light, type Spin } from './fans3d';
+import { glowMat, light } from './fans3d';
+import type * as fans3dTypes from './fans3d';
 import {
   FRONT,
   NONE,
@@ -61,20 +64,10 @@ import {
   thumbscrews,
   tiled,
   wallX,
-  type Span,
 } from './casekit3d';
-import {
-  bayFrame,
-  controls,
-  fanMountPlates,
-  frontWall,
-  hinges,
-  psuFilter,
-  psuIntake,
-  rearWall,
-  type Controls,
-  type Frame,
-} from './casedetail3d';
+import type * as casekit3dTypes from './casekit3d';
+import { bayFrame, controls, fanMountPlates, frontWall, hinges, psuFilter, psuIntake, rearWall } from './casedetail3d';
+import type * as casedetail3dTypes from './casedetail3d';
 import { doorInner, frameDetail, rivetM, screwM, traySheet, trayDetail } from './casetray3d';
 
 export { outlinePts, SIDE_T } from './casekit3d';
@@ -84,7 +77,7 @@ export { outlinePts, SIDE_T } from './casekit3d';
  * through it that its tint takes), the shroud's print.
  */
 const LOOKS: Record<
-  CaseKind,
+  casedecorTypes.CaseKind,
   {
     body: number;
     rough: number;
@@ -97,43 +90,43 @@ const LOOKS: Record<
   }
 > = {
   oem: {
-    body: 0x2a2d32,
+    body: 0x2a_2d_32,
     rough: 0.62,
     metal: 0.08,
-    inner: 0x2a2d32,
+    inner: 0x2a_2d_32,
     rad: 30,
     glass: null,
-    shroud: { body: 0x1d1e22, ink: '#5d626d' },
+    shroud: { body: 0x1d_1e_22, ink: '#5d626d' },
     rgb: false,
   },
   matte: {
-    body: 0x17181c,
+    body: 0x17_18_1c,
     rough: 0.88,
     metal: 0.08,
-    inner: 0x111215,
+    inner: 0x11_12_15,
     rad: 80,
     glass: { tint: 0.5 },
-    shroud: { body: 0x15161a, ink: '#5d626d' },
+    shroud: { body: 0x15_16_1a, ink: '#5d626d' },
     rgb: false,
   },
   gamer: {
-    body: 0x1d2232,
+    body: 0x1d_22_32,
     rough: 0.38,
     metal: 0.55,
-    inner: 0x121621,
+    inner: 0x12_16_21,
     rad: 56,
     glass: { tint: 0.12 },
-    shroud: { body: 0x1b2030, ink: '#c9ced6' },
+    shroud: { body: 0x1b_20_30, ink: '#c9ced6' },
     rgb: true,
   },
   show: {
-    body: 0x1d1e22,
+    body: 0x1d_1e_22,
     rough: 0.4,
     metal: 0.6,
-    inner: 0x0c0d10,
+    inner: 0x0c_0d_10,
     rad: 20,
     glass: { tint: 0.25 },
-    shroud: { body: 0x1a1c21, ink: '#d8dce4' },
+    shroud: { body: 0x1a_1c_21, ink: '#d8dce4' },
     rgb: true,
   },
 };
@@ -144,7 +137,7 @@ const LOOKS: Record<
  */
 function glassMat(tint: number): MeshStandardMaterial {
   return new MeshStandardMaterial({
-    color: 0x000000,
+    color: 0x00_00_00,
     roughness: 0.03,
     metalness: 0,
     transparent: true,
@@ -172,13 +165,13 @@ export interface CaseModel {
   /** The unseen plate over the shut side that a click opens the case by (`case.side`). */
   hit: Mesh;
   /** The Mini's thumbscrews in its panel's rear flange (they turn out before it opens). */
-  screws: Object3D[];
+  screws: threeTypes.Object3D[];
   glass: Mesh | null;
   /** The power button (`power`) and the lights on the case: on, error, drive activity. */
   power: Group;
-  leds: Controls['leds'];
+  leds: casedetail3dTypes.Controls['leds'];
   /** The lights that follow the fans (a `Spin` with nothing to turn). */
-  spins: Spin[];
+  spins: fans3dTypes.Spin[];
   /** The accent strip on the front rim: the live frame colours it by the machine's state (`stripModeOf`). */
   strip: MeshStandardMaterial;
   /** Whether the inside has RGB (the case fans' rings, the light strips, the coloured fill). */
@@ -189,15 +182,15 @@ export interface CaseModel {
   inner: number;
   shroud: { body: number; ink: string };
   /** The kind's rivets and screws, for what goes in the case (the basement). */
-  rivet: Material;
-  screw: Material;
+  rivet: threeTypes.Material;
+  screw: threeTypes.Material;
 }
 
 /**
  * The accent strip's light by the machine's state (`drawStrip` in 2D): off dark, idle a dim cyan, halted a steady amber, working a slow
  * breath, an error blinks red, a dead board a dim red. `wall`: wall time in ms (an alarm must not stop on a pause).
  */
-export function stripLight(m: MeshStandardMaterial, mode: StripMode, wall: number): void {
+export function stripLight(m: MeshStandardMaterial, mode: exteriorTypes.StripMode, wall: number): void {
   const T = STRIP_T,
     col = mode === 'error' || mode === 'dead' ? T.bad : mode === 'halt' ? T.ld : T.alu;
   m.emissive.set(col);
@@ -219,11 +212,14 @@ export function stripLight(m: MeshStandardMaterial, mode: StripMode, wall: numbe
 const STRIP_T = builtinTheme();
 
 /** The light strips along the inside of the top and the front: RGB in the gaming case (the accent), the violet in the showcase, none in the plain cases. */
-export function innerStrips(kind: CaseKind, cm: Pick<CaseModel, 'rgb' | 'accent'>): { roots: Mesh[]; spins: Spin[] } {
+export function innerStrips(
+  kind: casedecorTypes.CaseKind,
+  cm: Pick<CaseModel, 'rgb' | 'accent'>,
+): { roots: Mesh[]; spins: fans3dTypes.Spin[] } {
   const roots: Mesh[] = [],
-    spins: Spin[] = [],
+    spins: fans3dTypes.Spin[] = [],
     gl = CASE_GLASS;
-  if (cm.rgb)
+  if (cm.rgb) {
     for (const r of [
       { x: gl.x + 200, y: gl.y + 40, w: gl.w - 400, h: 50 },
       { x: gl.x + gl.w - 90, y: gl.y + 300, w: 50, h: gl.h - 600 },
@@ -232,6 +228,7 @@ export function innerStrips(kind: CaseKind, cm: Pick<CaseModel, 'rgb' | 'accent'
       roots.push(seeThrough(rectBox(r, FRONT - 400, FRONT - 340, m)));
       spins.push(kind === 'show' ? light(m, cm.accent, 2) : light(m));
     }
+  }
   return { roots, spins };
 }
 
@@ -239,19 +236,21 @@ export function innerStrips(kind: CaseKind, cm: Pick<CaseModel, 'rgb' | 'accent'
 
 /** The opening in the top over the top fans (layout x and depth), or null: the case has none there. */
 function topVent(): { x0: number; x1: number; z0: number; z1: number } | null {
-  if (!TOP_FANS.length) return null;
+  if (TOP_FANS.length === 0) {
+    return null;
+  }
   const zc = CASE_Z + CASE_D / 2,
     w = CASE_D - 1600;
   return {
     x0: TOP_FANS[0]!.x - 60,
-    x1: TOP_FANS[TOP_FANS.length - 1]!.x + TOP_FANS[0]!.w + 60,
+    x1: TOP_FANS.at(-1)!.x + TOP_FANS[0]!.w + 60,
     z0: zc - w / 2,
     z1: zc + w / 2,
   };
 }
 
 /** The case of this kind round the current layout (`CASE`, `CASE_IN`, the tier's window): body, feet, front, side panel, glass and lights. */
-export function caseModel(kind: CaseKind, T: Theme): CaseModel {
+export function caseModel(kind: casedecorTypes.CaseKind, T: themeTypes.Theme): CaseModel {
   const L = LOOKS[kind],
     C = CASE,
     P = CASE_PANEL,
@@ -260,7 +259,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     bottom = C.y + C.h;
   const root = tag(new Group(), 'case'),
     side = new Group(),
-    spins: Spin[] = [],
+    spins: fans3dTypes.Spin[] = [],
     ex = C.x + C.w;
   // painted and powder-coated steel has a fine grain; the showcase's graphite is brushed
   const finish =
@@ -269,19 +268,22 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
       : { bumpMap: tiled(grain(), 24, 24), bumpScale: kind === 'matte' ? 1.4 : 0.6 };
   const body = mat(L.body, { roughness: L.rough, metalness: L.metal, ...finish }),
     inner = mat(L.inner, { roughness: 0.75, metalness: 0.15 });
-  const dark = mat(0x050608, { roughness: 0.85 });
+  const dark = mat(0x05_06_08, { roughness: 0.85 });
   const acc = kind === 'gamer' || kind === 'show' ? hex(T.mul) : hex(T.alu);
-  const cuts: Cuts = kind === 'gamer' ? [0, GAMER_CAP, 0, 0] : kind === 'show' ? CASE_CUTS.show : NONE;
+  const cuts: casedecorTypes.Cuts = kind === 'gamer' ? [0, GAMER_CAP, 0, 0] : kind === 'show' ? CASE_CUTS.show : NONE;
   const outer = () => outlinePts(C, L.rad, cuts);
   const z1 = FRONT - SIDE_T;
 
   // the body: the top and the floor (the outline above and below the cavity, cut open over the top fans and under the power supply), the rear and
   // front walls with their openings, the back sheet
-  const f: Frame = { kind, body, acc, yTop: C.y + P.h, yBot: bottom - 150, z0: CASE_Z + 70, z1 };
+  const f: casedetail3dTypes.Frame = { kind, body, acc, yTop: C.y + P.h, yBot: bottom - 150, z0: CASE_Z + 70, z1 };
   const topPts = clipY(outer(), -f.yTop, 1),
     vent = topVent();
-  if (vent) root.add(...slabWithOpening(topPts, f.z0, z1, vent, body));
-  else root.add(slab(shapeOf(topPts), f.z0, z1, body, 18));
+  if (vent) {
+    root.add(...slabWithOpening(topPts, f.z0, z1, vent, body));
+  } else {
+    root.add(slab(shapeOf(topPts), f.z0, z1, body, 18));
+  }
   root.add(...slabWithOpening(clipY(outer(), -f.yBot, -1), f.z0, z1, psuIntake(), body));
   root.add(
     rearWall(f, PCIE_RAILS.length),
@@ -298,11 +300,13 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   const ctl = controls(f, ex, GAMER_CAP);
   root.add(ctl.root);
   spins.push(...ctl.spins);
-  if (kind === 'gamer' || kind === 'show') root.add(hinges(ex, f.yTop, f.yBot));
+  if (kind === 'gamer' || kind === 'show') {
+    root.add(hinges(ex, f.yTop, f.yBot));
+  }
 
   // the outer side panel: one sheet with the window cut out (the Mini's is solid)
   const win = kind === 'oem' ? null : caseWindow(kind),
-    wcuts: Cuts = WINDOW_CUTS[kind],
+    wcuts: casedecorTypes.Cuts = WINDOW_CUTS[kind],
     wr = kind === 'gamer' || kind === 'show' ? 24 : 50;
   const winPts = win ? outlinePts(win, wr, wcuts) : null;
   // the lower panel over the basement: its intake over the shroud's vent span, a real opening under a punched sheet, the maker's badge over the supply's cover
@@ -339,10 +343,11 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   const st = stripRect(),
     rim = kind === 'oem' ? FRONT + 12 : FRONT; // (on the Mini's plastic front)
   const slotsAt = [];
-  for (let y = st.y0 + 260; y + 120 < st.y1; y += 215)
+  for (let y = st.y0 + 260; y + 120 < st.y1; y += 215) {
     slotsAt.push({ x: st.x + 70, y: -(y + 60), z: rim + 1, sx: 16, sy: 120, sz: 4 });
+  }
   (kind === 'oem' ? root : side).add(instanced(new BoxGeometry(1, 1, 1), dark, slotsAt));
-  const strip = glowMat(acc, 0x0b0c10);
+  const strip = glowMat(acc, 0x0b_0c_10);
   (kind === 'oem' ? root : side).add(
     seeThrough(rectBox({ x: st.x, y: st.y0, w: st.w, h: st.y1 - st.y0 }, rim - 4, rim + 6, strip)),
   );
@@ -351,10 +356,10 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     // a pressed panel over the board's side, a vent patch over the CPU, a screw in each corner, the seam to the PSU bay, a label
     const r = { x: ci.x, y: gl.y, w: ci.w, h: gl.h },
       pressed = { x: r.x + 60, y: r.y + 50, w: r.w - 120, h: r.h - 100 };
-    side.add(softBox(pressed, FRONT - 10, FRONT + 14, mat(0x2a2d32, { roughness: 0.55 }), 12));
+    side.add(softBox(pressed, FRONT - 10, FRONT + 14, mat(0x2a_2d_32, { roughness: 0.55 }), 12));
     const v = { x: caseWindow('oem').x + 700, y: r.y + r.h / 2 - 760, w: 1500, h: 1500 };
-    side.add(softBox(grow(v, 30), FRONT + 8, FRONT + 18, mat(0x1d1e22, { roughness: 0.6 }), 10));
-    perforated(side, v, FRONT + 20, 'round', 52, 0x2a2d32, { metal: 0.05, rough: 0.6 });
+    side.add(softBox(grow(v, 30), FRONT + 8, FRONT + 18, mat(0x1d_1e_22, { roughness: 0.6 }), 10));
+    perforated(side, v, FRONT + 20, 'round', 52, 0x2a_2d_32, { metal: 0.05, rough: 0.6 });
     const corners = [
       [r.x + 120, r.y + 110],
       [r.x + r.w - 120, r.y + 110],
@@ -366,7 +371,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
         corners.map(([x, y]) => ({ x, y: -y, z: FRONT + 14 })),
         'z+',
         62,
-        mat(0x4e5360, { metalness: 0.6, roughness: 0.35 }),
+        mat(0x4e_53_60, { metalness: 0.6, roughness: 0.35 }),
       ),
     );
     side.add(
@@ -374,42 +379,46 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
         { x: ci.x + 40, y: lowY + 40, w: ci.w - 80, h: 14 },
         FRONT - 2,
         FRONT + 1,
-        mat(0x131518, { roughness: 0.7 }),
+        mat(0x13_15_18, { roughness: 0.7 }),
       ),
     );
-    side.add(decal(intake, FRONT + 2, perfMat('round', intake.w, intake.h, 64, 0x2a2d32, { metal: 0.05, rough: 0.6 })));
+    side.add(
+      decal(intake, FRONT + 2, perfMat('round', intake.w, intake.h, 64, 0x2a_2d_32, { metal: 0.05, rough: 0.6 })),
+    );
     const label = { x: right - 700, y: cy - 150, w: 700, h: 300 };
-    side.add(softBox(label, FRONT - 4, FRONT + 8, mat(0x1d1e22, { roughness: 0.5 }), 8));
+    side.add(softBox(label, FRONT - 4, FRONT + 8, mat(0x1d_1e_22, { roughness: 0.5 }), 8));
     side.add(
       decal(
         grow(label, -20),
         FRONT + 9,
-        mat(0xffffff, { map: badgeTex('oem', 512, 220, 'hako', '#959aa3', null, '#1d1e22'), roughness: 0.5 }),
+        mat(0xff_ff_ff, { map: badgeTex('oem', 512, 220, 'hako', '#959aa3', null, '#1d1e22'), roughness: 0.5 }),
       ),
     );
     // the top strip's vents; the plastic front with two drive-bay covers and its grille; round feet
-    for (let k = 0; k < nv; k++)
+    for (let k = 0; k < nv; k++) {
       side.add(
         softBox(
           { x: -2250 + k * 78, y: P.y + 120, w: 30, h: 190 },
           FRONT - 4,
           FRONT + 2,
-          mat(0x131518, { roughness: 0.8 }),
+          mat(0x13_15_18, { roughness: 0.8 }),
           12,
         ),
       );
-    const bezel = mat(0x1d1e22, { roughness: 0.65 }),
+    }
+    const bezel = mat(0x1d_1e_22, { roughness: 0.65 }),
       ex = C.x + C.w;
     const zc = CASE_Z + CASE_D / 2;
     // the plastic front, with a round grille of slots cut through it over each front fan
     const grilleR = Math.min(frontFanRects()[0]!.h, FAN_MAX) * 0.45,
-      slots: Span[] = [];
-    for (const fan of frontFanRects())
+      slots: casekit3dTypes.Span[] = [];
+    for (const fan of frontFanRects()) {
       for (let k = -6; k <= 6; k++) {
         const yc = fan.y + fan.h / 2 + k * 130,
           half = Math.sqrt(grilleR * grilleR - (k * 130) ** 2);
         slots.push({ y0: yc - 30, y1: yc + 30, z0: zc - half, z1: zc + half, r: 26 });
       }
+    }
     root.add(
       wallX(
         ex - OEM_BEZEL,
@@ -420,11 +429,17 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
       ),
     );
     // two 5.25-inch bay blanks, each in its dark gap: a face with soft corners, a raised rim round a recessed panel, the release notch under it
-    const blank = mat(0x2a2d32, { roughness: 0.6 }),
-      gap = mat(0x050608, { roughness: 0.9 });
+    const blank = mat(0x2a_2d_32, { roughness: 0.6 }),
+      gap = mat(0x05_06_08, { roughness: 0.9 });
     for (let k = 0; k < 2; k++) {
-      const b: Span = { y0: C.y + 520 + k * 470, y1: C.y + 940 + k * 470, z0: zc - 740, z1: zc + 740, r: 12 },
-        inset = (e: number): Span => ({ y0: b.y0 + e, y1: b.y1 - e, z0: b.z0 + e, z1: b.z1 - e, r: 10 });
+      const b: casekit3dTypes.Span = {
+          y0: C.y + 520 + k * 470,
+          y1: C.y + 940 + k * 470,
+          z0: zc - 740,
+          z1: zc + 740,
+          r: 12,
+        },
+        inset = (e: number): casekit3dTypes.Span => ({ y0: b.y0 + e, y1: b.y1 - e, z0: b.z0 + e, z1: b.z1 - e, r: 10 });
       root.add(
         wallX(ex + 48, ex + 52, inset(-14), [], gap),
         wallX(ex + 52, ex + 66, b, [], blank, 3),
@@ -434,31 +449,38 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     }
     root.add(bayFrame());
     // the maker's badge over the bays
-    const badge: Span = { y0: C.y + 220, y1: C.y + 390, z0: zc - 300, z1: zc + 300, r: 24 };
-    root.add(wallX(ex + 50, ex + 58, badge, [], mat(0x2a2d32, { roughness: 0.5 }), 2));
+    const badge: casekit3dTypes.Span = { y0: C.y + 220, y1: C.y + 390, z0: zc - 300, z1: zc + 300, r: 24 };
+    root.add(wallX(ex + 50, ex + 58, badge, [], mat(0x2a_2d_32, { roughness: 0.5 }), 2));
     root.add(
       decalX(
         ex + 59,
         { ...badge, y0: badge.y0 + 16, y1: badge.y1 - 16, z0: badge.z0 + 30, z1: badge.z1 - 30 },
         1,
-        mat(0xffffff, { map: badgeTex('oem', 512, 220, 'hako', '#959aa3', null, '#1d1e22'), roughness: 0.5 }),
+        mat(0xff_ff_ff, { map: badgeTex('oem', 512, 220, 'hako', '#959aa3', null, '#1d1e22'), roughness: 0.5 }),
       ),
     );
-    const foot = mat(0x2a2d32, { roughness: 0.9 });
-    for (const x of [C.x + 400, ex - 400])
-      for (const z of [CASE_Z + 420, FRONT - 420]) root.add(post(x, bottom + FOOT, z, 110, FOOT, foot, SEG.disc, 95));
+    const foot = mat(0x2a_2d_32, { roughness: 0.9 });
+    for (const x of [C.x + 400, ex - 400]) {
+      for (const z of [CASE_Z + 420, FRONT - 420]) {
+        root.add(post(x, bottom + FOOT, z, 110, FOOT, foot, SEG.disc, 95));
+      }
+    }
   }
 
   if (kind === 'matte') {
     // one sheet: a smoked window over the upper part in a dark gasket, a debossed mark, the intake, the vents; rubber rails for feet
-    side.add(ring(win!, wr, NONE, 16, FRONT - 2, FRONT + 3, mat(0x050608, { roughness: 0.6 })));
+    side.add(ring(win!, wr, NONE, 16, FRONT - 2, FRONT + 3, mat(0x05_06_08, { roughness: 0.6 })));
     side.add(decal(debossAt, FRONT + 1, debossMat('side', 'hako', 1024, 256)));
-    side.add(decal(intake, FRONT + 2, perfMat('round', intake.w, intake.h, 64, 0x1b1c21, { metal: 0.1, rough: 0.85 })));
-    for (let k = 0; k < nv; k++)
+    side.add(
+      decal(intake, FRONT + 2, perfMat('round', intake.w, intake.h, 64, 0x1b_1c_21, { metal: 0.1, rough: 0.85 })),
+    );
+    for (let k = 0; k < nv; k++) {
       side.add(softBox({ x: -2250 + k * 78, y: P.y + 120, w: 30, h: 190 }, FRONT - 4, FRONT + 1, dark, 12));
-    const rubber = mat(0x050608, { roughness: 0.95 });
-    for (const x of [C.x + 300, C.x + C.w - 600])
+    }
+    const rubber = mat(0x05_06_08, { roughness: 0.95 });
+    for (const x of [C.x + 300, C.x + C.w - 600]) {
       root.add(softBox({ x, y: bottom - 10, w: 300, h: FOOT + 10 }, CASE_Z + 260, FRONT - 260, rubber, 30));
+    }
   }
 
   if (kind === 'gamer') {
@@ -479,7 +501,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     const capBack = new Mesh(new PlaneGeometry(len - 40, d), dark),
       capMesh = new Mesh(
         new PlaneGeometry(len - 40, d),
-        mat(0x2a2d32, {
+        mat(0x2a_2d_32, {
           map: t,
           alphaTest: 0.5,
           alphaToCoverage: true,
@@ -494,7 +516,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     capBack.position.y = -4;
     cap.add(capBack, capMesh);
     for (const s of [-1, 1]) {
-      const rail = place(new Mesh(new BoxGeometry(len, 24, 40), mat(0x2a2d32, { metalness: 0.6, roughness: 0.35 })));
+      const rail = place(new Mesh(new BoxGeometry(len, 24, 40), mat(0x2a_2d_32, { metalness: 0.6, roughness: 0.35 })));
       rail.position.z = (s * d) / 2;
       cap.add(rail);
     }
@@ -512,36 +534,39 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
         Array.from({ length: nv }, (_, k) => ({ x: -2250 + k * pitch, y: -(P.y + 110), z: FRONT - 4 })),
       ),
     );
-    side.add(ring(win!, wr, wcuts, 34, FRONT - 2, FRONT + 16, mat(0x1d1e22, { metalness: 0.5, roughness: 0.35 })));
-    side.add(ring(win!, wr, wcuts, 6, FRONT + 16, FRONT + 20, mat(0x4e5360, { metalness: 0.7, roughness: 0.3 })));
+    side.add(ring(win!, wr, wcuts, 34, FRONT - 2, FRONT + 16, mat(0x1d_1e_22, { metalness: 0.5, roughness: 0.35 })));
+    side.add(ring(win!, wr, wcuts, 6, FRONT + 16, FRONT + 20, mat(0x4e_53_60, { metalness: 0.7, roughness: 0.3 })));
     const ly = win!.y + win!.h - 70,
       lx0 = win!.x + 140,
       lw = win!.w - 280,
-      strip1 = glowMat(acc, 0x15121f);
+      strip1 = glowMat(acc, 0x15_12_1f);
     side.add(rectBox({ x: lx0, y: ly, w: lw, h: 26 }, z1 - 30, z1 - 4, strip1));
     spins.push(light(strip1, acc, 1.6));
-    side.add(decal(intake, FRONT + 2, perfMat('round', intake.w, intake.h, 64, 0x232938, { metal: 0.5, rough: 0.4 })));
+    side.add(
+      decal(intake, FRONT + 2, perfMat('round', intake.w, intake.h, 64, 0x23_29_38, { metal: 0.5, rough: 0.4 })),
+    );
     const plate = { x: right - 1100, y: cy - 190, w: 1100, h: 380 };
-    side.add(softBox(plate, FRONT - 2, FRONT + 18, mat(0x131518, { roughness: 0.4, metalness: 0.4 }), 10));
+    side.add(softBox(plate, FRONT - 2, FRONT + 18, mat(0x13_15_18, { roughness: 0.4, metalness: 0.4 }), 10));
     // the maker's lockup debossed into the plate: a dark print over a paler lip
     side.add(decal(grow(plate, -70), FRONT + 18.5, debossMat('plate', 'hako', 1024, 256)));
     // two flat rubber rails, as on the matte case
-    const rubber = mat(0x050608, { roughness: 0.95 });
-    for (const x of [C.x + 300, C.x + C.w - 600])
+    const rubber = mat(0x05_06_08, { roughness: 0.95 });
+    for (const x of [C.x + 300, C.x + C.w - 600]) {
       root.add(softBox({ x, y: bottom - 10, w: 300, h: FOOT + 10 }, CASE_Z + 260, FRONT - 260, rubber, 30));
+    }
   }
 
   if (kind === 'show') {
     // a smoked glass in a thin dark gasket, a debossed four-bar mark, a hex mesh intake, a flat graphite plinth under the case
-    side.add(ring(win!, wr, wcuts, 30, FRONT - 2, FRONT + 14, mat(0x131518, { metalness: 0.5, roughness: 0.3 })));
+    side.add(ring(win!, wr, wcuts, 30, FRONT - 2, FRONT + 14, mat(0x13_15_18, { metalness: 0.5, roughness: 0.3 })));
     side.add(decal(debossAt, FRONT + 1, debossMat('side', 'hako', 1024, 256)));
-    side.add(decal(intake, FRONT + 4, perfMat('hex', intake.w, intake.h, 46, 0x2a2d32, { metal: 0.5, rough: 0.4 })));
+    side.add(decal(intake, FRONT + 4, perfMat('hex', intake.w, intake.h, 46, 0x2a_2d_32, { metal: 0.5, rough: 0.4 })));
     root.add(
       softBox(
         { x: C.x + 250, y: bottom - 10, w: C.w - 500, h: FOOT + 10 },
         CASE_Z + 250,
         FRONT - 250,
-        mat(0x4e5360, { metalness: 0.5, roughness: 0.5 }),
+        mat(0x4e_53_60, { metalness: 0.5, roughness: 0.5 }),
         30,
       ),
     );
@@ -562,22 +587,25 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
         z0,
         ze,
         kind === 'show'
-          ? perfMat('hex', w, h, 70, 0x2a2d32, { metal: 0.5, rough: 0.45 })
-          : perfMat('mesh', w, h, 40, 0x15171b, { metal: 0.02, rough: 0.95 }),
+          ? perfMat('hex', w, h, 70, 0x2a_2d_32, { metal: 0.5, rough: 0.45 })
+          : perfMat('mesh', w, h, 40, 0x15_17_1b, { metal: 0.02, rough: 0.95 }),
       ),
     );
-    for (const z of [z0 - 30, ze + 30])
+    for (const z of [z0 - 30, ze + 30]) {
       root.add(rectBox({ x: x0 - 60, y: C.y - 10, w: w + 120, h: 14 }, z - 30, z + 30, frame));
-    for (const x of [x0 - 30, x1 + 30]) root.add(rectBox({ x: x - 30, y: C.y - 10, w: 60, h: 14 }, z0, ze, frame));
+    }
+    for (const x of [x0 - 30, x1 + 30]) {
+      root.add(rectBox({ x: x - 30, y: C.y - 10, w: 60, h: 14 }, z0, ze, frame));
+    }
   }
 
   // the Mini's two thumbscrews hold its panel's rear flange, folded round onto the rear wall (each a group at the screw's axis: machine3d.ts
   // turns them out before the panel opens)
-  const screws: Object3D[] = [],
+  const screws: threeTypes.Object3D[] = [],
     flange = { x: C.x - 12, y: C.y + 160, w: 12, h: bottom - C.y - 320 },
     FL = 260;
   if (kind === 'oem') {
-    const knurl = mat(0x4e5360, { metalness: 0.6, roughness: 0.35 });
+    const knurl = mat(0x4e_53_60, { metalness: 0.6, roughness: 0.35 });
     side.add(rectBox(flange, FRONT - FL, FRONT, sheetM));
     for (const y of [C.y + 700, bottom - 700]) {
       const s = thumbscrews([{ x: 12, y: 0, z: 0 }], 'x-', 100, 96, knurl);
@@ -589,8 +617,8 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   // the back panel's flange and its two thumbscrews, on every case (black on the dark ones)
   const backKnurl =
     kind === 'oem'
-      ? mat(0x4e5360, { metalness: 0.6, roughness: 0.35 })
-      : mat(0x1d1e22, { metalness: 0.55, roughness: 0.4 });
+      ? mat(0x4e_53_60, { metalness: 0.6, roughness: 0.35 })
+      : mat(0x1d_1e_22, { metalness: 0.55, roughness: 0.4 });
   root.add(rectBox(flange, CASE_Z, CASE_Z + FL, body));
   root.add(
     thumbscrews(
