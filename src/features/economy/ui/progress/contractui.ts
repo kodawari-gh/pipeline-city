@@ -10,7 +10,7 @@ type Tone = 'compute' | 'queue' | 'lost' | 'none';
 export const fmtSize = (bytes: number): string => `${Math.round((bytes / 1024) * 10) / 10}K`;
 
 /** Dollars per tick, as small amounts read: `$0.3/s` (a tick is a game second). */
-export const fmtRate = (r: number): string => `$${r >= 10 ? r.toFixed(0) : r.toFixed(2).replace(/0$/, '')}/s`;
+export const fmtRate = (r: number): string => `$${r >= 10 ? r.toFixed(0) : r.toFixed(2).replace(/0$/u, '')}/s`;
 
 interface Fact {
   icon: 'disk' | 'clock' | 'dollar' | 'warn' | 'lock';
@@ -46,8 +46,9 @@ export function offerView(o: ContractOfferSnap): OfferView {
       title: `A read about every ${fmtTicks(o.readEvery)} that is not served in time costs this. Lost data costs ${fmtMoney(o.penalty)} and reputation.`,
     },
   ];
-  if (o.minDriveTier > 0)
+  if (o.minDriveTier > 0) {
     facts.push({ icon: 'lock', text: 'SSD or better', title: 'Reads come fast: a hard disk is too slow for it' });
+  }
   const choices = o.drives.filter((d) => d.why === null).map((d) => ({ deviceId: d.deviceId, name: d.name }));
   return {
     title: o.name,

@@ -12,7 +12,9 @@ const chosen = signal<Record<number, string>>({});
 const FINISHED_ROWS = 4;
 
 export function ContractsSection({ contracts, finished }: { contracts: ContractsSnap; finished: JobLogEntry[] }) {
-  if (!contracts.open && contracts.active.length === 0 && finished.length === 0) return null;
+  if (!contracts.open && contracts.active.length === 0 && finished.length === 0) {
+    return null;
+  }
   return (
     <section class="jl-contracts" aria-label="Contracts">
       <h4>

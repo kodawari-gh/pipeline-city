@@ -16,19 +16,25 @@ export function PowerBill({ s }: { s: Snapshot }) {
   };
   const chip = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+      if (e.key !== 'Escape') {
+        return;
+      }
       setOpen(false);
       chip.current?.focus();
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    globalThis.addEventListener('keydown', onKey);
+    return () => globalThis.removeEventListener('keydown', onKey);
   }, [open]);
 
   const c = billChip(s);
   const b = s.bill;
-  if (!c || !b) return null;
+  if (!c || !b) {
+    return null;
+  }
   const rate = `$${fmtNum(b.ratePerWh, 2)} per Wh`;
   return (
     <div class="bill">

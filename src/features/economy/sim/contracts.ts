@@ -13,7 +13,7 @@ export const CONTRACT_LOG_BASE = 1_000_000;
 
 /** The stream that rolls offers: its own, so the clients' arrivals and the machine's randomness do not change. */
 export function newContractRng(seed: number): Prng {
-  return new Prng((seed ^ 0xc10d_c10d) >>> 0);
+  return new Prng((seed ^ 0xc1_0d_c1_0d) >>> 0);
 }
 
 export interface ContractKind {
@@ -165,7 +165,9 @@ export function datasetBytes(seed: number, blocks: number): Uint8Array {
   const out = new Uint8Array(blocks * BLOCK_BYTES);
   for (let i = 0; i < out.length; i += 4) {
     const w = rng.nextU32();
-    for (let j = 0; j < 4 && i + j < out.length; j++) out[i + j] = (w >>> (8 * j)) & 0xff;
+    for (let j = 0; j < 4 && i + j < out.length; j++) {
+      out[i + j] = (w >>> (8 * j)) & 0xff;
+    }
   }
   return out;
 }

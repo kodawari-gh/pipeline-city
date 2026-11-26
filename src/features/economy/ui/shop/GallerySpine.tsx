@@ -1,4 +1,4 @@
-import { kindLabel, railTag, type GalleryGroup } from './shopdata';
+import * as shopData from './shopdata';
 
 /**
  * The Gallery's spine (SPEC 5.8): one row per category, its opcode tag, its name and its count. The row chosen shows its parts on the shelf beside
@@ -9,7 +9,7 @@ export function GallerySpine({
   kind,
   setKind,
 }: {
-  groups: readonly GalleryGroup[];
+  groups: readonly shopData.GalleryGroup[];
   kind: string;
   setKind: (k: string) => void;
 }) {
@@ -20,13 +20,13 @@ export function GallerySpine({
           key={g.key}
           class={`gal-row ${g.kind === kind ? 'on' : ''}`}
           aria-current={g.kind === kind ? 'true' : undefined}
-          title={`${kindLabel(g.kind)} (${g.items.length})`}
+          title={`${shopData.kindLabel(g.kind)} (${g.items.length})`}
           onClick={() => setKind(g.kind)}
         >
           <span class="gal-tag" aria-hidden="true">
-            {railTag(g.kind)}
+            {shopData.railTag(g.kind)}
           </span>
-          <span class="gal-name">{kindLabel(g.kind)}</span>
+          <span class="gal-name">{shopData.kindLabel(g.kind)}</span>
           <span class="gal-count">{g.items.length}</span>
         </button>
       ))}

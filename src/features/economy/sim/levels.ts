@@ -61,7 +61,7 @@ export const JOB_CLASSES: readonly JobClassDef[] = [
     needs: [
       { kind: 'os', min: 1 },
       { kind: 'storage', minTier: 1 },
-      { kind: 'ram', minBytes: 0x10000 + 32 * 1024 },
+      { kind: 'ram', minBytes: 0x1_00_00 + 32 * 1024 },
     ],
     firstLevel: 5,
     rampTicks: 600,
@@ -173,31 +173,40 @@ export const NO_CAPS: Caps = {
 /** Short chip text (`NEEDS GPU`) and the long phrase for a refusal. */
 export function describeNeed(n: Need): { short: string; long: string } {
   switch (n.kind) {
-    case 'os':
+    case 'os': {
       return { short: 'OS', long: 'an OS' };
-    case 'storage':
+    }
+    case 'storage': {
       return n.minTier >= 1
         ? { short: 'SSD', long: 'a SATA SSD or better' }
         : { short: 'DRIVE', long: 'a storage drive' };
-    case 'net':
+    }
+    case 'net': {
       return n.minTier
         ? { short: `NET ${n.minTier}`, long: `a ${ispByTier(n.minTier)?.name ?? 'faster'} plan or better` }
         : { short: 'NET', long: 'a network link' };
-    case 'tpm':
+    }
+    case 'tpm': {
       return n.minTier && n.minTier > 1
         ? { short: `TPM ${n.minTier}`, long: 'a second-generation TPM (Secure module 2)' }
         : { short: 'TPM', long: 'a TPM' };
-    case 'ecc':
+    }
+    case 'ecc': {
       return { short: 'ECC', long: 'ECC RAM' };
-    case 'gpu':
+    }
+    case 'gpu': {
       return { short: 'GPU', long: 'a GPU' };
-    case 'npu':
+    }
+    case 'npu': {
       return { short: 'NPU', long: 'an NPU' };
-    case 'cores':
+    }
+    case 'cores': {
       return { short: 'CORES', long: 'a multicore CPU' };
-    case 'ram':
+    }
+    case 'ram': {
       return { short: `${n.minBytes / 1024}K RAM`, long: `${n.minBytes / 1024}K of RAM` };
-    case 'fs':
+    }
+    case 'fs': {
       return {
         short: 'FS',
         long: `${
@@ -206,31 +215,42 @@ export function describeNeed(n: Need): { short: string; long: string } {
             : 'an OS that allocates files (Paged OS 2.0 or better)'
         } up with a mounted, formatted drive${n.freeBytes ? ` with ${Math.ceil(n.freeBytes / 1024)}K free` : ''}`,
       };
+    }
   }
 }
 
 function needOk(n: Need, c: Caps): boolean {
   switch (n.kind) {
-    case 'os':
+    case 'os': {
       return c.osTier >= n.min;
-    case 'storage':
+    }
+    case 'storage': {
       return c.storageTier >= n.minTier;
-    case 'net':
+    }
+    case 'net': {
       return c.net && c.netTier >= (n.minTier ?? 0);
-    case 'tpm':
+    }
+    case 'tpm': {
       return c.tpm && c.tpmTier >= (n.minTier ?? 0);
-    case 'ecc':
+    }
+    case 'ecc': {
       return c.ecc;
-    case 'gpu':
+    }
+    case 'gpu': {
       return c.gpuTier >= n.minTier;
-    case 'npu':
+    }
+    case 'npu': {
       return c.npu;
-    case 'cores':
+    }
+    case 'cores': {
       return c.cores >= n.min;
-    case 'ram':
+    }
+    case 'ram': {
       return c.ramBytes >= n.minBytes;
-    case 'fs':
+    }
+    case 'fs': {
       return c.fsTier >= n.min && c.dataFreeBytes >= (n.freeBytes ?? 0);
+    }
   }
 }
 
@@ -403,7 +423,11 @@ export const isPlannedItem = (id: string): boolean => id in PLANNED_ITEMS;
 
 /** Level a purchasable id unlocks at: 1 for the start crate and for anything the table does not list. */
 export function unlockLevelOf(id: string): number {
-  for (const l of LEVELS) if (l.unlocks.includes(id)) return l.level;
+  for (const l of LEVELS) {
+    if (l.unlocks.includes(id)) {
+      return l.level;
+    }
+  }
   return 1;
 }
 
@@ -417,17 +441,29 @@ export interface ItemInfo {
 /** Name and kind of an unlock-table id (real spec, board tier, OS or planned item). */
 export function itemInfo(id: string): ItemInfo {
   const planned = PLANNED_ITEMS[id];
-  if (planned) return { id, ...planned, planned: true };
-  const board = /^board([0-9]+)$/.exec(id);
-  if (board) return { id, name: BOARD_TIERS[Number(board[1])]?.name ?? id, kind: 'board', planned: false };
-  const pcCase = /^case([0-9]+)$/.exec(id);
-  if (pcCase) return { id, name: CASE_TIERS[Number(pcCase[1])]?.name ?? id, kind: 'case', planned: false };
+  if (planned) {
+    return { id, ...planned, planned: true };
+  }
+  const board = /^board(?<tier>[0-9]+)$/u.exec(id);
+  if (board) {
+    return { id, name: BOARD_TIERS[Number(board[1])]?.name ?? id, kind: 'board', planned: false };
+  }
+  const pcCase = /^case(?<tier>[0-9]+)$/u.exec(id);
+  if (pcCase) {
+    return { id, name: CASE_TIERS[Number(pcCase[1])]?.name ?? id, kind: 'case', planned: false };
+  }
   const router = getRouterSpec(id);
-  if (router) return { id, name: router.name, kind: 'router', planned: false };
+  if (router) {
+    return { id, name: router.name, kind: 'router', planned: false };
+  }
   const isp = getIspSpec(id);
-  if (isp) return { id, name: `${isp.name} plan`, kind: 'isp', planned: false };
+  if (isp) {
+    return { id, name: `${isp.name} plan`, kind: 'isp', planned: false };
+  }
   const os = getOsSpec(id);
-  if (os) return { id, name: os.name, kind: 'os', planned: !!os.later };
+  if (os) {
+    return { id, name: os.name, kind: 'os', planned: os.later === true };
+  }
   const spec = getSpec(id);
   return { id, name: spec?.name ?? id, kind: spec?.kind ?? '?', planned: false };
 }
@@ -440,7 +476,11 @@ export function pointsFor(reputation: number): number {
 /** The highest level whose threshold the client base has reached (monotonic in the score). */
 export function levelFor(clientBase: number): number {
   let n = 1;
-  for (const l of LEVELS) if (clientBase >= l.threshold) n = l.level;
+  for (const l of LEVELS) {
+    if (clientBase >= l.threshold) {
+      n = l.level;
+    }
+  }
   return n;
 }
 
@@ -465,7 +505,9 @@ export function jobMix(
   const out: [JobClassDef, number][] = [];
   for (const c of JOB_CLASSES) {
     const share = shares[c.id];
-    if (!share) continue;
+    if (!share) {
+      continue;
+    }
     const since = levelTicks[c.firstLevel];
     const ramp = c.rampTicks > 0 && since !== undefined ? Math.min(1, Math.max(0, (tick - since) / c.rampTicks)) : 1;
     out.push([c, share * ramp * (c.heavy ? heavy : 1)]);
@@ -478,10 +520,12 @@ export function pickClass(mix: [JobClassDef, number][], r: number): JobClassDef 
   const total = mix.reduce((s, [, w]) => s + w, 0);
   let x = r * total;
   for (const [c, w] of mix) {
-    if (x < w) return c;
+    if (x < w) {
+      return c;
+    }
     x -= w;
   }
-  return mix[mix.length - 1]![0];
+  return mix.at(-1)![0];
 }
 
 // ---------- snapshot data ----------

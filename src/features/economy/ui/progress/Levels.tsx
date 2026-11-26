@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'preact/hooks';
 import type { Snapshot } from '@/worker/game/game';
 import { Icon } from '@/core/ui/kit/Icons';
-import { hasArt, levelBar, milestoneRows, type MilestoneRow, type MilestoneUnlock } from './levelui';
+import * as levelUi from './levelui';
 import { fmtNum } from '@/core/ui/logic';
 import { PartArt } from '../shop/PartArt';
 import { closeMilestones, dismissLevelUp, levelUp, milestones, openMilestones } from '@/core/ui/state';
@@ -12,7 +12,7 @@ import { closeMilestones, dismissLevelUp, levelUp, milestones, openMilestones } 
  * ("rules level N") because the sandbox pins the rules level and has no progress.
  */
 export function LevelBar({ s }: { s: Snapshot }) {
-  const m = levelBar(s);
+  const m = levelUi.levelBar(s);
   if (m.sandbox) {
     return (
       <button
@@ -28,7 +28,7 @@ export function LevelBar({ s }: { s: Snapshot }) {
     );
   }
   // Progress as small cells: the next threshold when it is 10 or less, else 10 cells. Filled cells round the progress.
-  const next = s.level.next;
+  const { next } = s.level;
   const n = next !== null && next <= 10 ? next : 10;
   const filled = Math.round((m.pct / 100) * n);
   return (
@@ -56,8 +56,8 @@ export function LevelBar({ s }: { s: Snapshot }) {
 }
 
 /** One unlocked (or coming) item: its illustration, or its kind's icon when it has no art yet, and its name. */
-function UnlockChip({ u, small }: { u: MilestoneUnlock; small?: boolean }) {
-  const art = hasArt(u.id, u.kind, u.planned);
+function UnlockChip({ u, small }: { u: levelUi.MilestoneUnlock; small?: boolean }) {
+  const art = levelUi.hasArt(u.id, u.kind, u.planned);
   return (
     <span
       class={`ut ${small ? 'small' : ''} ${u.planned ? 'planned' : ''}`}
@@ -71,7 +71,7 @@ function UnlockChip({ u, small }: { u: MilestoneUnlock; small?: boolean }) {
   );
 }
 
-function Row({ r }: { r: MilestoneRow }) {
+function Row({ r }: { r: levelUi.MilestoneRow }) {
   const pay = r.pay === 'bigger';
   const strict = r.patience === 'stricter';
   return (
@@ -141,26 +141,31 @@ function Row({ r }: { r: MilestoneRow }) {
 function MilestoneModal({ s, focus }: { s: Snapshot; focus: number | null }) {
   const box = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLOListElement>(null);
-  const rows = milestoneRows(s);
+  const rows = levelUi.milestoneRows(s);
   const target = focus ?? s.level.level;
   useEffect(() => {
     const before = document.activeElement as HTMLElement | null;
     box.current?.querySelector<HTMLElement>('button.close')?.focus();
     const row = list.current?.querySelector<HTMLElement>(`[data-level="${target}"]`);
     // Show the target level near the top, with the level before it peeking in.
-    if (row && list.current)
+    if (row && list.current) {
       list.current.scrollTop = Math.max(0, row.offsetTop - list.current.offsetTop - row.offsetHeight * 0.6);
+    }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         closeMilestones();
         return;
       }
-      if (e.key !== 'Tab' || !box.current) return;
+      if (e.key !== 'Tab' || !box.current) {
+        return;
+      }
       const items = [...box.current.querySelectorAll<HTMLElement>('button:not(:disabled), [tabindex="0"]')];
-      if (!items.length) return;
+      if (items.length === 0) {
+        return;
+      }
       const first = items[0]!,
-        last = items[items.length - 1]!;
+        last = items.at(-1)!;
       const active = document.activeElement as HTMLElement | null;
       if (e.shiftKey && (active === first || !box.current.contains(active))) {
         e.preventDefault();
@@ -170,17 +175,21 @@ function MilestoneModal({ s, focus }: { s: Snapshot; focus: number | null }) {
         first.focus();
       }
     };
-    window.addEventListener('keydown', onKey);
+    globalThis.addEventListener('keydown', onKey);
     return () => {
-      window.removeEventListener('keydown', onKey);
-      if (before && document.contains(before)) before.focus();
+      globalThis.removeEventListener('keydown', onKey);
+      if (before && document.contains(before)) {
+        before.focus();
+      }
     };
   }, [target]);
   return (
     <div
       class="modal-back ms-back"
       onClick={(e) => {
-        if (e.target === e.currentTarget) closeMilestones();
+        if (e.target === e.currentTarget) {
+          closeMilestones();
+        }
       }}
     >
       <div ref={box} class="card ms" role="dialog" aria-modal="true" aria-labelledby="ms-title">
@@ -210,7 +219,9 @@ function MilestoneModal({ s, focus }: { s: Snapshot; focus: number | null }) {
 
 export function MilestoneScreen({ s }: { s: Snapshot }) {
   const m = milestones.value;
-  if (!m) return null;
+  if (!m) {
+    return null;
+  }
   return <MilestoneModal s={s} focus={m.focus} />;
 }
 
@@ -222,9 +233,13 @@ export function LevelUpModal() {
   const up = levelUp.value;
   const next = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (up) next.current?.focus();
+    if (up) {
+      next.current?.focus();
+    }
   }, [up?.level]);
-  if (!up) return null;
+  if (!up) {
+    return null;
+  }
   return (
     <div class="modal-back lvlmodal">
       <div class="card modal lvl-card" role="dialog" aria-modal="true" aria-label={`Level ${up.level}: ${up.name}`}>

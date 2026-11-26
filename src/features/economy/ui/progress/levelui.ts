@@ -55,7 +55,9 @@ export function levelBar(s: Snapshot): LevelBarModel {
     'Client base is how many clients trust you: every job you finish for a client adds to it, a little more when you are quick.',
     `Clients wait about ${Math.round(s.patience.deadlineTicks)} s. Payouts are x${fmtNum(l.payMul, 2)}.`,
   ];
-  if (nextRow) lines.push(`Next level unlocks: ${nextNames.join(', ')}${more}.`);
+  if (nextRow) {
+    lines.push(`Next level unlocks: ${nextNames.join(', ')}${more}.`);
+  }
   lines.push('Click for all the levels.');
   return { level: l.level, name: l.name, sandbox: false, atMax, pct, label, tooltip: lines.join(' ') };
 }
@@ -89,38 +91,50 @@ type IconKey =
 function kindIcon(kind: string): IconKey {
   switch (kind) {
     case 'cpu':
-    case 'os':
+    case 'os': {
       return 'cpu';
-    case 'npu':
+    }
+    case 'npu': {
       return 'grid';
-    case 'ram':
+    }
+    case 'ram': {
       return 'memory';
+    }
     case 'cooler':
     case 'fan':
     case 'radiator':
     case 'vrm-sink':
-    case 'ram-sink':
+    case 'ram-sink': {
       return 'fan';
-    case 'psu':
+    }
+    case 'psu': {
       return 'bolt';
-    case 'display':
+    }
+    case 'display': {
       return 'screen';
-    case 'gpu':
+    }
+    case 'gpu': {
       return 'card';
+    }
     case 'storage':
-    case 'raid':
+    case 'raid': {
       return 'disk';
+    }
     case 'board':
-    case 'case':
+    case 'case': {
       return 'slot';
+    }
     case 'router':
     case 'isp':
-    case 'nic':
+    case 'nic': {
       return 'net';
-    case 'tpm':
+    }
+    case 'tpm': {
       return 'lock';
-    default:
+    }
+    default: {
       return 'box';
+    }
   }
 }
 
@@ -168,7 +182,7 @@ function newKindsAt(level: number): { id: string; label: string; icon: IconKey; 
       id: e.id,
       label: e.name,
       icon: GROUP_ICON[dexGroup(e.id)?.id ?? ''] ?? 'box',
-      hint: needs.length ? `Needs ${needs.join(' and ')}.` : 'Needs nothing special.',
+      hint: needs.length > 0 ? `Needs ${needs.join(' and ')}.` : 'Needs nothing special.',
     };
   });
 }
@@ -227,9 +241,11 @@ export function milestoneRows(s: Snapshot): MilestoneRow[] {
 
 /** Whether `PartArt` can draw this unlock-table id (a real part, a board tier or an OS). */
 export function hasArt(id: string, kind: string, planned: boolean): boolean {
-  if (planned) return false;
+  if (planned) {
+    return false;
+  }
   return (
-    /^board\d+$/.test(id) ||
+    /^board\d+$/u.test(id) ||
     ['cpu', 'ram', 'cooler', 'fan', 'psu', 'display', 'vrm-sink', 'ram-sink', 'storage', 'os'].includes(kind)
   );
 }
@@ -250,8 +266,12 @@ export function lockTooltip(
   also: { blocked?: string | undefined; priceShort?: number | undefined } = {},
 ): string {
   const parts = [`Unlocks at Level ${lock.level}, ${lock.name}. Keep serving clients to grow your client base.`];
-  if (also.blocked) parts.push(`Then: ${also.blocked}.`);
-  if (also.priceShort && also.priceShort > 0) parts.push('It will also need more money than you have now.');
+  if (also.blocked) {
+    parts.push(`Then: ${also.blocked}.`);
+  }
+  if (also.priceShort && also.priceShort > 0) {
+    parts.push('It will also need more money than you have now.');
+  }
   return parts.join(' ');
 }
 
@@ -260,7 +280,7 @@ export const lockBadge = (lock: LevelLock): string => `Level ${lock.level}`;
 
 /** The item is gated by exactly the next level: it carries a subtle outline so the player sees what is coming. */
 export const isNextLevelLock = (lock: LevelLock | undefined, current: number): boolean =>
-  !!lock && lock.level === current + 1;
+  lock !== undefined && lock.level === current + 1;
 
 /**
  * Shelf order: items open now first (their order kept), then the gated ones by the level that opens them (order kept
@@ -289,7 +309,9 @@ export interface Celebration {
  */
 export function celebrationFor(s: Snapshot, seen: number | null): Celebration | null {
   const l = s.level;
-  if (l.sandbox || s.sandbox || l.leveledUpAt === null || seen === null || l.level <= seen) return null;
+  if (l.sandbox || s.sandbox || l.leveledUpAt === null || seen === null || l.level <= seen) {
+    return null;
+  }
   return {
     level: l.level,
     name: l.name,
@@ -304,7 +326,9 @@ export function celebrationFor(s: Snapshot, seen: number | null): Celebration | 
  */
 export function reconcileSeen(s: Snapshot, seen: number | null): number {
   const l = s.level;
-  if (seen === null || l.sandbox || s.sandbox || l.leveledUpAt === null || l.level < seen) return l.level;
+  if (seen === null || l.sandbox || s.sandbox || l.leveledUpAt === null || l.level < seen) {
+    return l.level;
+  }
   return seen;
 }
 
@@ -375,7 +399,9 @@ export function deadlineInfo(
   j: Pick<JobView, 'runnable' | 'arrivalTick' | 'expiresTick'>,
   now: number,
 ): DeadlineInfo | null {
-  if (j.runnable) return null;
+  if (j.runnable) {
+    return null;
+  }
   const left = Math.max(0, j.expiresTick - now);
   const window = Math.max(1, j.expiresTick - j.arrivalTick);
   const frac = Math.min(1, left / window);
@@ -384,7 +410,9 @@ export function deadlineInfo(
 
 /** The plain line under an unrunnable job: what is missing and when the client leaves. */
 export function cannotRunText(j: Pick<JobView, 'missing' | 'runnable'>): string | null {
-  if (j.runnable || !j.missing.length) return null;
+  if (j.runnable || j.missing.length === 0) {
+    return null;
+  }
   return `Cannot run yet: it needs ${j.missing.join(' and ')}.`;
 }
 
@@ -430,16 +458,22 @@ export function postBreakdown(s: Snapshot): { total: number; parts: PostPart[] }
     init = 0,
     devs = 0;
   for (const d of s.devices) {
-    if (d.burnt) continue;
+    if (d.burnt) {
+      continue;
+    }
     const spec = getSpec(d.spec);
-    if (!spec) continue;
+    if (!spec) {
+      continue;
+    }
     if (spec.kind === 'ram') {
       kib += spec.sizeBytes / 1024;
       sticks++;
     }
     const i = c.init[spec.id] ?? c.init[spec.kind] ?? 0;
     init += i;
-    if (i > 0) devs++;
+    if (i > 0) {
+      devs++;
+    }
   }
   const raw: PostPart[] = [
     { label: 'Firmware', ticks: c.base, hint: 'The fixed cost of starting the board.' },
@@ -469,8 +503,12 @@ export function postBreakdown(s: Snapshot): { total: number; parts: PostPart[] }
  * list yet (the next board tier only, a planned OS) is placed by the unlock table, so it reads "Level 5" instead of "Later".
  */
 export function lockOf(s: Snapshot, id: string, p?: { locked?: LevelLock; later?: boolean }): LevelLock | undefined {
-  if (p?.locked) return p.locked;
-  if (s.sandbox || s.level.sandbox || (p && !p.later)) return undefined;
+  if (p?.locked) {
+    return p.locked;
+  }
+  if (s.sandbox || s.level.sandbox || (p && !p.later)) {
+    return undefined;
+  }
   const need = unlockLevelOf(id);
   return need > s.level.level ? { level: need, name: levelDef(need).name } : undefined;
 }
@@ -487,7 +525,7 @@ export interface MoreOffer {
 /** The `more` offer of a tile or card: buying another copy of a part you own, from its purchase row. */
 export function moreOffer(s: Snapshot, p: Snapshot['purchases'][number], lock: LevelLock | undefined): MoreOffer {
   const free = s.sandbox || undefined;
-  if (lock)
+  if (lock) {
     return {
       state: 'level',
       price: p.price,
@@ -495,7 +533,12 @@ export function moreOffer(s: Snapshot, p: Snapshot['purchases'][number], lock: L
       lock,
       reason: lockTooltip(lock, { blocked: p.blocked, priceShort: free ? 0 : p.price - s.money }),
     };
-  if (p.blocked) return { state: 'blocked', price: p.price, free, reason: p.blocked };
-  if (s.sandbox || p.affordable) return { state: 'ready', price: p.price, free };
+  }
+  if (p.blocked) {
+    return { state: 'blocked', price: p.price, free, reason: p.blocked };
+  }
+  if (s.sandbox || p.affordable) {
+    return { state: 'ready', price: p.price, free };
+  }
   return { state: 'poor', price: p.price, reason: `Need ${fmtMoney(p.price - s.money)} more` };
 }

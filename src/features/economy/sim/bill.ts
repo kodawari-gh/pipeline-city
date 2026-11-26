@@ -22,9 +22,13 @@ function cost(g: Game, wh: number): number {
 
 /** One base tick of the bill: issue it when the period is up, pay what the money covers, cut the wall when the grace is over. */
 export function billTick(this: Game): void {
-  if (!this.billActive()) return;
+  if (!this.billActive()) {
+    return;
+  }
   if (this.nextBillTick === null) {
-    if (this.firstBootTick === null) return; // the clock starts with the first power-on
+    if (this.firstBootTick === null) {
+      return; // the clock starts with the first power-on
+    }
     this.nextBillTick = this.baseTick + this.cfg.billPeriodTicks;
   }
   if (this.baseTick >= this.nextBillTick) {
@@ -53,7 +57,9 @@ export function billTick(this: Game): void {
   if (this.unpaid > 0 && !this.powerCut && this.baseTick >= (this.cutTick() ?? Infinity)) {
     this.powerCut = true;
     this.note('fault', `the power company cut the wall: the $${this.unpaid} bill is unpaid`);
-    if (this.powered) this.powerButton(); // a hard power-off, like pulling the cord
+    if (this.powered) {
+      this.powerButton(); // a hard power-off, like pulling the cord
+    }
   }
 }
 
@@ -70,7 +76,9 @@ export function cutReason(this: Game): string | null {
 }
 
 export function billSnap(this: Game): BillSnap | null {
-  if (!this.billActive()) return null;
+  if (!this.billActive()) {
+    return null;
+  }
   const wh = this.unbilledWh();
   return {
     ratePerWh: this.cfg.powerRatePerWh,
