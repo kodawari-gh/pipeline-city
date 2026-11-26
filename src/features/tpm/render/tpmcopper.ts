@@ -151,7 +151,7 @@ const LEG_PAD = { w: 9, h: 15, gap: 7 } as const;
 const MM = 23;
 /** A passive's two pads (west or north first), a hair past its tinned ends. */
 function partPads(p: Pick<Part, 'x' | 'y' | 'pkg' | 'turn'>): [Rect, Rect] {
-  const [l, w] = p.pkg === '0603' ? [1.6 * MM, 0.8 * MM] : [1 * MM, 0.5 * MM],
+  const [l, w] = p.pkg === '0603' ? [1.6 * MM, 0.8 * MM] : [MM, 0.5 * MM],
     e = l * 0.3,
     k = 2;
   const end = (s: number): Rect =>
@@ -167,9 +167,15 @@ const same = (a: Pt, b: Pt) => Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b
 /** The polyline without repeated or collinear points. */
 function clean(pts: Pt[]): Pt[] {
   const out: Pt[] = [];
-  for (const p of pts) if (!out.length || !same(out[out.length - 1]!, p)) out.push(p);
+  for (const p of pts) {
+    if (out.length === 0 || !same(out.at(-1)!, p)) {
+      out.push(p);
+    }
+  }
   return out.filter((b, i) => {
-    if (i === 0 || i === out.length - 1) return true;
+    if (i === 0 || i === out.length - 1) {
+      return true;
+    }
     const a = out[i - 1]!,
       d = out[i + 1]!;
     return Math.abs((b[0] - a[0]) * (d[1] - b[1]) - (b[1] - a[1]) * (d[0] - b[0])) > 1e-6;
@@ -186,11 +192,13 @@ function chamfer(pts: Pt[], c = 5): Pt[] {
       v = [d[0] - b[0], d[1] - b[1]],
       lu = Math.hypot(u[0]!, u[1]!),
       lv = Math.hypot(v[0]!, v[1]!);
-    if (Math.abs(u[0]! * v[0]! + u[1]! * v[1]!) < 1e-6)
+    if (Math.abs(u[0]! * v[0]! + u[1]! * v[1]!) < 1e-6) {
       out.push([b[0] - (u[0]! / lu) * c, b[1] - (u[1]! / lu) * c], [b[0] + (v[0]! / lv) * c, b[1] + (v[1]! / lv) * c]);
-    else out.push(b);
+    } else {
+      out.push(b);
+    }
   }
-  out.push(pts[pts.length - 1]!);
+  out.push(pts.at(-1)!);
   return out;
 }
 /** From p straight along y, then 45 degrees into q. */
@@ -279,10 +287,11 @@ export function tpmCopper(geo: TpmGeo, hdr: Rect): TpmCopper {
     { ref: 'R2', pkg: '0402', kind: 'res', x: pcb.x + 366, y: yGPIO, turn: false, value: '330', nets: ['GPIO', 'LED'] },
     { ref: 'D1', pkg: '0603', kind: 'led', x: L.x, y: L.y, turn: true, value: 'red', nets: ['LED', 'GND'] },
   ];
-  for (const q of parts)
+  for (const q of parts) {
     partPads(q).forEach((r, i) =>
       pads.push({ id: `${q.ref}.${i + 1}`, net: q.nets[i]!, r, c: [r.x + r.w / 2, r.y + r.h / 2] }),
     );
+  }
   const pc = (id: string): Pt => pads.find((q) => q.id === id)!.c;
 
   const traces: Trace[] = [],
@@ -352,8 +361,9 @@ export function tpmCopper(geo: TpmGeo, hdr: Rect): TpmCopper {
     [404, 165],
     [290, 280],
     [350, 280],
-  ] as const)
+  ] as const) {
     via('GND', at(x, y));
+  }
   const holes: Hole[] = Object.entries(TPM_HEADER).map(([k, net]) => {
     const p = Number(k),
       [x, y] = pin(p);

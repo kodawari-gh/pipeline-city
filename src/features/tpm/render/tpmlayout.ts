@@ -58,7 +58,9 @@ const cache = new Map<string, TpmGeo>();
 export function tpmGeo(visual: string, hdr: Rect): TpmGeo {
   const key = `${visual}|${hdr.x}|${hdr.y}|${hdr.w}|${hdr.h}`,
     hit = cache.get(key);
-  if (hit) return hit;
+  if (hit) {
+    return hit;
+  }
   const pcb = tpmPcb(hdr);
   const band = { x: pcb.x + 10, y: pcb.y + NAME_ROW, w: pcb.w - 20, h: hdr.y - 10 - (pcb.y + NAME_ROW) };
   const chip = {

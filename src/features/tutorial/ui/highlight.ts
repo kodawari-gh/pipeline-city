@@ -195,9 +195,12 @@ function lex(text: string, rules: Rule[]): Tok[] {
   const out: Tok[] = [];
   let i = 0;
   const push = (t: Tok) => {
-    const last = out[out.length - 1];
-    if (last && last.k === t.k && !t.cls && !last.cls && (t.k === 'plain' || t.k === 'punct')) last.t += t.t;
-    else out.push(t);
+    const last = out.at(-1);
+    if (last && last.k === t.k && !t.cls && !last.cls && (t.k === 'plain' || t.k === 'punct')) {
+      last.t += t.t;
+    } else {
+      out.push(t);
+    }
   };
   while (i < text.length) {
     let hit = false;
@@ -205,7 +208,9 @@ function lex(text: string, rules: Rule[]): Tok[] {
       re.lastIndex = i;
       const m = re.exec(text);
       if (m && m.index === i && m[0].length > 0) {
-        for (const t of make(m, out)) push(t);
+        for (const t of make(m, out)) {
+          push(t);
+        }
         i += m[0].length;
         hit = true;
         break;
@@ -219,78 +224,96 @@ function lex(text: string, rules: Rule[]): Tok[] {
   return out;
 }
 
-const NUM = /0x[0-9a-fA-F]+|\b\d+\b/y;
+const NUM = /0x[0-9a-fA-F]+|\b\d+\b/uy;
 
 const ASM: Rule[] = [
-  [/#[^\n]*/y, (m) => [tok(m[0], 'comment')]],
-  [/\.[a-z]+/y, (m) => [tok(m[0], 'directive')]],
-  [/[A-Za-z_][\w.]*:/y, (m) => [tok(m[0], 'label')]],
+  [/#[^\n]*/uy, (m) => [tok(m[0], 'comment')]],
+  [/\.[a-z]+/uy, (m) => [tok(m[0], 'directive')]],
+  [/[A-Za-z_][\w.]*:/uy, (m) => [tok(m[0], 'label')]],
   [
-    /[A-Za-z_][\w.]*/y,
+    /[A-Za-z_][\w.]*/uy,
     (m, out) => {
-      const w = m[0];
-      if (REGS.has(w)) return [tok(w, 'reg')];
+      const [w] = m;
+      if (REGS.has(w)) {
+        return [tok(w, 'reg')];
+      }
       const first = out.every((t) => t.k === 'label' || (t.k === 'plain' && t.t.trim() === '')); // the first word of a line is the instruction
-      if (first && MNEMONICS.has(w)) return [tok(w, 'op', PSEUDO_CLASS[w] ?? opClassOf(w))];
+      if (first && MNEMONICS.has(w)) {
+        return [tok(w, 'op', PSEUDO_CLASS[w] ?? opClassOf(w))];
+      }
       return [tok(w, 'label')]; // a branch or call target
     },
   ],
-  [/-?0x[0-9a-fA-F]+|-?\d+/y, (m) => [tok(m[0], 'number')]],
-  [/[,()+\-]/y, (m) => [tok(m[0], 'punct')]],
+  [/-?0x[0-9a-fA-F]+|-?\d+/uy, (m) => [tok(m[0], 'number')]],
+  [/[,()+\-]/uy, (m) => [tok(m[0], 'punct')]],
 ];
 
 /** The GPU's assembly: its mnemonics coloured by what they do, the vector registers v0..v7, labels and constants. A comment starts with # or ;. */
 const GPU: Rule[] = [
-  [/[#;][^\n]*/y, (m) => [tok(m[0], 'comment')]],
-  [/[A-Za-z_][\w.]*:/y, (m) => [tok(m[0], 'label')]],
+  [/[#;][^\n]*/uy, (m) => [tok(m[0], 'comment')]],
+  [/[A-Za-z_][\w.]*:/uy, (m) => [tok(m[0], 'label')]],
   [
-    /[A-Za-z_][\w.]*/y,
+    /[A-Za-z_][\w.]*/uy,
     (m, out) => {
-      const w = m[0];
-      if (/^v[0-7]$/.test(w)) return [tok(w, 'reg')];
+      const [w] = m;
+      if (/^v[0-7]$/u.test(w)) {
+        return [tok(w, 'reg')];
+      }
       const first = out.every((t) => t.k === 'label' || (t.k === 'plain' && t.t.trim() === ''));
-      if (first && (GPU_SPEC_BY_NAME.has(w) || w === 'vmv')) return [tok(w, 'op', gpuOpClass(w))];
+      if (first && (GPU_SPEC_BY_NAME.has(w) || w === 'vmv')) {
+        return [tok(w, 'op', gpuOpClass(w))];
+      }
       return [tok(w, 'label')];
     },
   ],
-  [/-?0x[0-9a-fA-F]+|-?\d+/y, (m) => [tok(m[0], 'number')]],
-  [/[,()+\-]/y, (m) => [tok(m[0], 'punct')]],
+  [/-?0x[0-9a-fA-F]+|-?\d+/uy, (m) => [tok(m[0], 'number')]],
+  [/[,()+\-]/uy, (m) => [tok(m[0], 'punct')]],
 ];
 
 const CPP: Rule[] = [
-  [/\/\/[^\n]*/y, (m) => [tok(m[0], 'comment')]],
-  [/\/\*[\s\S]*?\*\//y, (m) => [tok(m[0], 'comment')]],
-  [/#\s*\w+[^\n]*/y, (m) => [tok(m[0], 'pre')]],
-  [/"(?:[^"\\\n]|\\.)*"/y, (m) => [tok(m[0], 'string')]],
-  [/0x[0-9a-fA-F]+|\b\d+\b/y, (m) => [tok(m[0], 'number')]],
+  [/\/\/[^\n]*/uy, (m) => [tok(m[0], 'comment')]],
+  [/\/\*[\s\S]*?\*\//uy, (m) => [tok(m[0], 'comment')]],
+  [/#\s*\w+[^\n]*/uy, (m) => [tok(m[0], 'pre')]],
+  [/"(?:[^"\\\n]|\\.)*"/uy, (m) => [tok(m[0], 'string')]],
+  [/0x[0-9a-fA-F]+|\b\d+\b/uy, (m) => [tok(m[0], 'number')]],
   [
-    /[A-Za-z_]\w*/y,
+    /[A-Za-z_]\w*/uy,
     (m) => {
-      const w = m[0];
-      if (CPP_KW.has(w)) return [tok(w, 'keyword')];
-      if (CPP_TYPES.has(w)) return [tok(w, 'type')];
+      const [w] = m;
+      if (CPP_KW.has(w)) {
+        return [tok(w, 'keyword')];
+      }
+      if (CPP_TYPES.has(w)) {
+        return [tok(w, 'type')];
+      }
       return [tok(w, 'plain')];
     },
   ],
-  [/[{}()[\];,.<>=+\-*/&|^!~%?:]/y, (m) => [tok(m[0], 'punct')]],
+  [/[{}()[\];,.<>=+\-*/&|^!~%?:]/uy, (m) => [tok(m[0], 'punct')]],
 ];
 
 const PY: Rule[] = [
-  [/#[^\n]*/y, (m) => [tok(m[0], 'comment')]],
-  [/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'/y, (m) => [tok(m[0], 'string')]],
-  [/0x[0-9a-fA-F]+|\b\d+\b/y, (m) => [tok(m[0], 'number')]],
+  [/#[^\n]*/uy, (m) => [tok(m[0], 'comment')]],
+  [/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'/uy, (m) => [tok(m[0], 'string')]],
+  [/0x[0-9a-fA-F]+|\b\d+\b/uy, (m) => [tok(m[0], 'number')]],
   [
-    /[A-Za-z_]\w*/y,
+    /[A-Za-z_]\w*/uy,
     (m, out) => {
-      const w = m[0],
+      const [w] = m,
         prev = [...out].reverse().find((t) => !(t.k === 'plain' && t.t.trim() === ''));
-      if (PY_KW.has(w)) return [tok(w, 'keyword')];
-      if (prev && prev.k === 'keyword' && prev.t === 'def') return [tok(w, 'func')];
-      if (PY_BUILTINS.has(w)) return [tok(w, 'type')];
+      if (PY_KW.has(w)) {
+        return [tok(w, 'keyword')];
+      }
+      if (prev && prev.k === 'keyword' && prev.t === 'def') {
+        return [tok(w, 'func')];
+      }
+      if (PY_BUILTINS.has(w)) {
+        return [tok(w, 'type')];
+      }
       return [tok(w, 'plain')];
     },
   ],
-  [/[{}()[\];,.<>=+\-*/&|^!~%?:]/y, (m) => [tok(m[0], 'punct')]],
+  [/[{}()[\];,.<>=+\-*/&|^!~%?:]/uy, (m) => [tok(m[0], 'punct')]],
 ];
 
 /** Colour `text` as `lang`. The pieces join back to exactly `text`. */

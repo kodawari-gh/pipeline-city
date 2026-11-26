@@ -16,7 +16,9 @@ const TPM_GLYPH_KINDS = new Set<TpmBlock['kind']>(['lpc', 'regs', 'seq', 'hash',
 
 /** The area a symbol may use: the block under its name (the area the CPU die's cell grids fill), or null when the block is too small. */
 export function tpmGlyphArea(b: Pick<TpmBlock, 'kind' | 'rect'>): Rect | null {
-  if (!TPM_GLYPH_KINDS.has(b.kind)) return null;
+  if (!TPM_GLYPH_KINDS.has(b.kind)) {
+    return null;
+  }
   const r = b.rect,
     head = r.h >= 70 ? 44 : r.h * 0.55;
   const a = { x: r.x + 8, y: r.y + head, w: r.w - 16, h: r.y + r.h - 6 - (r.y + head) };
@@ -115,8 +117,12 @@ function hashGeom(a: Rect, stages: number) {
   if (stages > 1) {
     const gp = 8,
       sw = (x1 - x0 - (stages - 1) * gp) / stages;
-    for (let k = 0; k < stages; k++) steps.push(R(x0 + k * (sw + gp), a.y, sw, rowH));
-  } else steps.push(R(x0, a.y, x1 - x0, rowH));
+    for (let k = 0; k < stages; k++) {
+      steps.push(R(x0 + k * (sw + gp), a.y, sw, rowH));
+    }
+  } else {
+    steps.push(R(x0, a.y, x1 - x0, rowH));
+  }
   const dw = (acc.w - 14) / 8,
     y2 = a.y + rowH + 26;
   return {
@@ -248,18 +254,19 @@ export function padlock(
     .stroke({ width: 1.6, color });
   g.circle(cx, by + bh * 0.42, s * 0.09).fill({ color });
   const sr = s * 0.3;
-  if (closed)
+  if (closed) {
     g.moveTo(cx - sr, by)
       .lineTo(cx - sr, by - sr * 0.8)
       .arc(cx, by - sr * 0.8, sr, Math.PI, 0)
       .lineTo(cx + sr, by)
       .stroke({ width: 2.2, color });
-  else
+  } else {
     g.moveTo(cx - sr, by)
       .lineTo(cx - sr, by - sr * 0.8)
       .arc(cx, by - sr * 0.8, sr, Math.PI, 0)
       .lineTo(cx + sr, by - sr * 1.1)
       .stroke({ width: 2.2, color });
+  }
 }
 
 /** Draw the symbol of block `b` into `g`; `put` adds a label. `stages`, `rounds` and `keys` are the plan input's. */
@@ -272,7 +279,9 @@ export function tpmGlyph(
   opt: { stages: number; rounds: number; keys: number },
 ): void {
   const a = tpmGlyphArea(b);
-  if (!a) return;
+  if (!a) {
+    return;
+  }
   const kit = glyphKit(g, T, c, put);
   const { solid, soft, line, rect, stub } = kit;
   const lab = (t: string, lx: number, ly: number, size = 7.5) => put(t, lx + (t.length * size * 0.6) / 2, ly, size);
@@ -292,7 +301,9 @@ export function tpmGlyph(
       for (const p of q.pins) {
         lab(p.name, a.x, p.cy, 7.5);
         rect(p.lane.x, p.lane.y, p.lane.w, p.lane.h, soft);
-        for (const r of p.cells) g.rect(r.x, r.y, r.w, r.h).fill({ color: soft });
+        for (const r of p.cells) {
+          g.rect(r.x, r.y, r.w, r.h).fill({ color: soft });
+        }
         outline(p.lane);
       }
       rect(q.meter.x, q.meter.y, q.meter.w, q.meter.h, soft);
@@ -304,14 +315,16 @@ export function tpmGlyph(
       const q = regsGeom(a);
       q.rows.forEach((row, k) => {
         lab(row.name, a.x, row.y + row.h / 2, 7.5);
-        if (k === 0)
+        if (k === 0) {
           row.chips.forEach((r, j) => {
             rect(r.x, r.y, r.w, r.h, soft);
             outline(r);
             put(FLAGS[j]![1], r.x + r.w / 2, r.y + r.h / 2, Math.min(7, row.h * 0.5));
           });
-        else {
-          for (const d of row.digits) rect(d.x, d.y, d.w, d.h, soft);
+        } else {
+          for (const d of row.digits) {
+            rect(d.x, d.y, d.w, d.h, soft);
+          }
           outline(row.value);
         }
       });
@@ -323,7 +336,9 @@ export function tpmGlyph(
         rect(r.x, r.y, r.w, r.h, soft);
         outline(r);
         put(STATE_NAMES[k]!, r.x + r.w / 2, r.y + r.h / 2, Math.min(8, r.h * 0.4));
-        if (k < 3) arrow(r.x + r.w + 2, r.y + r.h / 2, r.x + r.w + q.gapw - 2);
+        if (k < 3) {
+          arrow(r.x + r.w + 2, r.y + r.h / 2, r.x + r.w + q.gapw - 2);
+        }
       });
       // the way back from OUT to IDLE
       const s0 = q.states[0]!,
@@ -354,12 +369,16 @@ export function tpmGlyph(
           r.y + r.h / 2,
           opt.stages > 1 ? 7 : 8,
         );
-        if (k < q.steps.length - 1) stub(r.x + r.w, r.y + r.h / 2, q.steps[k + 1]!.x, r.y + r.h / 2);
+        if (k < q.steps.length - 1) {
+          stub(r.x + r.w, r.y + r.h / 2, q.steps[k + 1]!.x, r.y + r.h / 2);
+        }
       });
       arrow(q.x1 + 1, my, q.acc.x - 1);
       rect(q.acc.x, q.acc.y, q.acc.w, q.acc.h, soft);
       outline(q.acc);
-      for (const d of q.accDigits) rect(d.x, d.y, d.w, d.h, solid);
+      for (const d of q.accDigits) {
+        rect(d.x, d.y, d.w, d.h, solid);
+      }
       lab('h', q.acc.x + 2, q.acc.y - 6, 7.5);
       // the feedback: the accumulator goes back into the round unit
       g.moveTo(q.acc.x + q.acc.w - 12, q.acc.y + q.acc.h)
@@ -391,7 +410,9 @@ export function tpmGlyph(
         .stroke({ width: 1.3, color: line });
       stub(q.nonce.x + q.nonce.w, my, q.xor.cx - q.xor.r, my);
       stub(q.prng.x, my, q.xor.cx + q.xor.r, my);
-      for (const r of q.cells) rect(r.x, r.y, r.w, r.h, soft);
+      for (const r of q.cells) {
+        rect(r.x, r.y, r.w, r.h, soft);
+      }
       outline(q.prng);
       // the xor goes down, runs under the shift register and up into the first signing round
       const r0 = q.rounds[0]!;
@@ -405,9 +426,11 @@ export function tpmGlyph(
         rect(r.x, r.y, r.w, r.h, solid);
         outline(r);
         put(`r${k + 1}`, r.x + r.w / 2, r.y + r.h / 2, 7);
-        if (k < q.rounds.length - 1) stub(r.x + r.w, my, q.rounds[k + 1]!.x, my);
+        if (k < q.rounds.length - 1) {
+          stub(r.x + r.w, my, q.rounds[k + 1]!.x, my);
+        }
       });
-      const rl = q.rounds[q.rounds.length - 1]!;
+      const rl = q.rounds.at(-1)!;
       arrow(rl.x + rl.w + 1, my, q.quote.x - 1);
       rect(q.quote.x, q.quote.y, q.quote.w, q.quote.h, soft);
       outline(q.quote);
@@ -432,7 +455,7 @@ export function tpmGlyph(
       ] as [Rect, string][]) {
         rect(r.x, r.y, r.w, r.h, soft);
         outline(r);
-        lab(t, r.x - 0, r.y - 5, 7.5);
+        lab(t, r.x, r.y - 5, 7.5);
       }
       for (const [r, t] of [
         [q.req, 'req'],
@@ -445,7 +468,9 @@ export function tpmGlyph(
       for (const bus of [q.busA, q.busD]) {
         stub(bus === q.busA ? q.addr.x + q.addr.w : q.data.x + q.data.w, bus.cy, q.bx, bus.cy);
         rect(bus.lane.x, bus.lane.y, bus.lane.w, bus.lane.h, soft);
-        for (const r of bus.cells) g.rect(r.x, r.y, r.w, r.h).fill({ color: soft });
+        for (const r of bus.cells) {
+          g.rect(r.x, r.y, r.w, r.h).fill({ color: soft });
+        }
         outline(bus.lane);
       }
       put('to the RAM bus', q.bx + q.bw / 2, q.busD.cy + 17, 7);
@@ -455,13 +480,14 @@ export function tpmGlyph(
       const q = guardGeom(a);
       rect(q.ruler.x, q.ruler.y, q.ruler.w, q.ruler.h, soft);
       outline(q.ruler);
-      for (let k = 1; k < 16; k++)
+      for (let k = 1; k < 16; k++) {
         stub(
           q.ruler.x + (q.ruler.w * k) / 16,
           q.ruler.y + q.ruler.h - 5,
           q.ruler.x + (q.ruler.w * k) / 16,
           q.ruler.y + q.ruler.h,
         );
+      }
       lab('RAM, first byte to last', a.x, a.y + 6, 7.5);
       for (const [r, t] of [
         [q.lo, 'lo'],
@@ -500,8 +526,9 @@ export function tpmGlyph(
       padlock(g, q.lock.cx, q.lock.cy, q.lock.s, false, line, T.die);
       break;
     }
-    default:
+    default: {
       break;
+    }
   }
 }
 
@@ -582,27 +609,37 @@ export function tpmLive(
     case 'lpc': {
       const q = lpcGeom(a);
       q.pins.forEach((p, k) => {
-        if (p.name === 'clk')
+        if (p.name === 'clk') {
           p.cells.forEach((r, j) => {
-            if ((j + Math.floor(s.ms / 160)) % 2 === 0) out.lit.push({ rect: r, color: 'alu', a: s.busy ? 0.7 : 0.28 });
+            if ((j + Math.floor(s.ms / 160)) % 2 === 0) {
+              out.lit.push({ rect: r, color: 'alu', a: s.busy ? 0.7 : 0.28 });
+            }
           });
-        else if (p.name === 'frame') {
-          if (moving)
+        } else if (p.name === 'frame') {
+          if (moving) {
             out.lit.push({
               rect: { ...p.lane, w: p.lane.w * (s.phase === 'in' ? s.progress : 1) },
               color: 'alu',
               a: 0.5,
             });
+          }
         } else if (p.name === 'rst') {
-          if (s.busy || s.done) out.lit.push({ rect: p.lane, color: 'alu', a: 0.18 });
+          if (s.busy || s.done) {
+            out.lit.push({ rect: p.lane, color: 'alu', a: 0.18 });
+          }
         } // held high while the module runs
-        else if (moving)
+        else if (moving) {
           p.cells.forEach((r, j) => {
             const jj = s.phase === 'in' ? j : 9 - j;
-            if (Math.floor(wave(s.ms, jj + k) * 3) === 2) out.lit.push({ rect: r, color: 'mul', a: 0.8 });
+            if (Math.floor(wave(s.ms, jj + k) * 3) === 2) {
+              out.lit.push({ rect: r, color: 'mul', a: 0.8 });
+            }
           });
+        }
       });
-      if (moving) out.lit.push({ rect: { ...q.meter, w: q.meter.w * s.progress }, color: 'mul', a: 0.75 });
+      if (moving) {
+        out.lit.push({ rect: { ...q.meter, w: q.meter.w * s.progress }, color: 'mul', a: 0.75 });
+      }
       out.texts.push({
         rect: { x: q.meter.x, y: q.note.y + 8, w: q.meter.w, h: 14 },
         top: s.phase === 'in' ? 'command in' : s.phase === 'out' ? 'answer out' : s.busy ? 'working' : 'idle',
@@ -617,19 +654,26 @@ export function tpmLive(
       const word = [0, s.cmd, s.arg0, s.arg1, s.result, s.fault];
       q.rows.forEach((row, k) => {
         if (k === 0) {
-          const on = [s.busy, s.error, true, s.done, !!s.range];
+          const on = [s.busy, s.error, true, s.done, Boolean(s.range)];
           row.chips.forEach((r, j) => {
-            if (on[j]) out.lit.push({ rect: r, color: j === 1 ? 'bad' : j === 4 ? 'bad' : 'st', a: 0.7 });
+            if (on[j]) {
+              out.lit.push({ rect: r, color: j === 1 ? 'bad' : j === 4 ? 'bad' : 'st', a: 0.7 });
+            }
           });
           return;
         }
         const written =
           (k >= 1 && k <= 3 && s.phase === 'in') || (k === 4 && s.phase === 'out') || (k === 5 && s.fault !== 0);
-        if (written) out.lit.push({ rect: row.value, color: k === 5 ? 'bad' : 'st', a: 0.25 + 0.2 * wave(s.ms, k) });
+        if (written) {
+          out.lit.push({ rect: row.value, color: k === 5 ? 'bad' : 'st', a: 0.25 + 0.2 * wave(s.ms, k) });
+        }
         const h = hex(word[k]!);
         row.digits.forEach((d, j) => {
-          if (h[j] !== '0' || word[k] !== 0) num(d, h[j]!);
-          else num(d, '0', false);
+          if (h[j] !== '0' || word[k] !== 0) {
+            num(d, h[j]!);
+          } else {
+            num(d, '0', false);
+          }
         });
       });
       break;
@@ -638,10 +682,14 @@ export function tpmLive(
       const q = seqGeom(a),
         at = s.phase === 'idle' ? 0 : s.phase === 'in' ? 1 : s.phase === 'work' ? 2 : 3;
       out.lit.push({ rect: q.states[at]!, color: 'br', a: s.phase === 'idle' ? 0.4 : 0.75 });
-      if (s.phase !== 'idle') out.lit.push({ rect: { ...q.bar, w: q.bar.w * s.progress }, color: 'br', a: 0.85 });
+      if (s.phase !== 'idle') {
+        out.lit.push({ rect: { ...q.bar, w: q.bar.w * s.progress }, color: 'br', a: 0.85 });
+      }
       const name = CMD_NAMES[s.cmd] ?? '',
         err = s.error && s.fault ? `  ${FAULT_NAMES[s.fault] ?? ''}` : '';
-      if (name || err) out.texts.push({ rect: q.cmd, top: `${name}${err}`.trim(), small: true, ink: true, fit: 18 });
+      if (name || err) {
+        out.texts.push({ rect: q.cmd, top: `${name}${err}`.trim(), small: true, ink: true, fit: 18 });
+      }
       break;
     }
     case 'hash': {
@@ -654,7 +702,9 @@ export function tpmLive(
           const f = s.progress * n - Math.floor(s.progress * n),
             at = Math.min(opt.stages - 1, Math.floor(f * opt.stages));
           out.lit.push({ rect: q.steps[at]!, color: 'mul', a: 0.8 });
-        } else out.lit.push({ rect: q.steps[0]!, color: 'mul', a: 0.5 + 0.3 * wave(s.ms, 0) });
+        } else {
+          out.lit.push({ rect: q.steps[0]!, color: 'mul', a: 0.5 + 0.3 * wave(s.ms, 0) });
+        }
         out.lit.push({ rect: { ...q.bar, w: q.bar.w * Math.min(1, s.hashed / n) }, color: 'mul', a: 0.8 });
         out.texts.push({ rect: q.word, top: `w[${s.hashed}]`, small: true, ink: true, fit: 8 });
         if (!s.replay) {
@@ -674,8 +724,9 @@ export function tpmLive(
           ink: true,
           fit: 16,
         });
-        if (s.done || s.hashed >= s.arg1)
+        if (s.done || s.hashed >= s.arg1) {
           out.texts.push({ rect: q.out, top: `0x${hex(s.result)}`, small: true, ink: true, fit: 10 });
+        }
       }
       break;
     }
@@ -685,18 +736,23 @@ export function tpmLive(
       if (on) {
         out.lit.push({ rect: q.nonce, color: 'ld', a: 0.5 });
         q.cells.forEach((r, j) => {
-          if (Math.floor(wave(s.ms, j, 1.6) * 2) === 1) out.lit.push({ rect: r, color: 'mul', a: 0.75 });
+          if (Math.floor(wave(s.ms, j, 1.6) * 2) === 1) {
+            out.lit.push({ rect: r, color: 'mul', a: 0.75 });
+          }
         });
         const at = Math.min(opt.rounds - 1, Math.floor(s.progress * opt.rounds));
         q.rounds.forEach((r, k) => {
-          if (k <= at) out.lit.push({ rect: r, color: 'mul', a: k === at ? 0.85 : 0.45 });
+          if (k <= at) {
+            out.lit.push({ rect: r, color: 'mul', a: k === at ? 0.85 : 0.45 });
+          }
         });
         out.texts.push({ rect: q.nonce, top: `0x${hex(s.arg0, 4)}`, small: true, ink: true, fit: 8 });
       } else if (s.cmd === 2 && s.done) {
         out.lit.push({ rect: q.quote, color: 'mul', a: 0.5 });
       }
-      if (s.cmd === 2 && (s.done || (working && s.progress > 0.95)))
+      if (s.cmd === 2 && (s.done || (working && s.progress > 0.95))) {
         out.texts.push({ rect: q.quote, top: `0x${hex(s.result)}`, small: true, ink: true, fit: 10 });
+      }
       break;
     }
     case 'vault': {
@@ -704,7 +760,9 @@ export function tpmLive(
         touched = (s.cmd === 3 || s.cmd === 4) && (working || s.done || s.phase === 'out') ? s.arg0 : -1;
       slots.forEach((q, k) => {
         const e = s.sealed[k];
-        if (!e) return;
+        if (!e) {
+          return;
+        }
         const hot = e.handle === touched;
         out.lit.push({ rect: q.slot, color: 'ld', a: hot ? 0.3 + 0.25 * wave(s.ms, 0) : 0.12 });
         out.lit.push({ rect: q.handle, color: 'ld', a: 0.3 }, { rect: q.value, color: 'ld', a: 0.3 });
@@ -726,14 +784,16 @@ export function tpmLive(
           { rect: q.data, color: 'ld', a: 0.3 },
           { rect: tick ? q.req : q.ack, color: 'ld', a: 0.85 },
         );
-        for (const bus of [q.busA, q.busD])
+        for (const bus of [q.busA, q.busD]) {
           bus.cells.forEach((r, j) => {
-            if (Math.floor(wave(s.ms, bus === q.busA ? j : 9 - j) * 3) === 2)
+            if (Math.floor(wave(s.ms, bus === q.busA ? j : 9 - j) * 3) === 2) {
               out.lit.push({ rect: r, color: 'ld', a: 0.8 });
+            }
           });
+        }
         out.texts.push({ rect: q.addr, top: `0x${hex(addr)}`, small: true, ink: true, fit: 10 });
       }
-      if (s.measuredWords > 0)
+      if (s.measuredWords > 0) {
         out.texts.push({
           rect: q.count,
           top: `${s.measuredWords} words read since power-on`,
@@ -741,6 +801,7 @@ export function tpmLive(
           ink: true,
           fit: 30,
         });
+      }
       break;
     }
     case 'guard': {
@@ -749,17 +810,21 @@ export function tpmLive(
       if (r) {
         out.lit.push({ rect: guardWindow(q.ruler, r, s.ram), color: 'bad', a: 0.5 });
         out.lit.push({ rect: q.lo, color: 'bad', a: 0.2 }, { rect: q.hi, color: 'bad', a: 0.2 });
-        if (s.fault !== 4) out.lit.push({ rect: q.allow, color: 'st', a: 0.35 });
+        if (s.fault !== 4) {
+          out.lit.push({ rect: q.allow, color: 'st', a: 0.35 });
+        }
         out.texts.push(
           { rect: q.lo, top: `0x${hex(r.lo)}`, small: true, ink: true, fit: 10 },
           { rect: q.hi, top: `0x${hex(r.hi)}`, small: true, ink: true, fit: 10 },
         );
         out.texts.push({ rect: q.sur, top: `+${s.surcharge} cycles per access`, small: true, ink: true, fit: 22 });
         out.texts.push({ rect: q.cnt, top: `${s.guardedAccesses} guarded`, small: true, ink: true, fit: 14 });
-      } else out.texts.push({ rect: q.sur, top: 'off: RAM open to every job', small: true, ink: true, fit: 26 });
+      } else {
+        out.texts.push({ rect: q.sur, top: 'off: RAM open to every job', small: true, ink: true, fit: 26 });
+      }
       if (s.fault === 4) {
         out.lit.push({ rect: q.trap, color: 'bad', a: 0.85 });
-        if (s.lastViolation >= 0 && s.ram > 0)
+        if (s.lastViolation >= 0 && s.ram > 0) {
           out.lit.push({
             rect: {
               x: q.ruler.x + Math.min(1, s.lastViolation / s.ram) * q.ruler.w - 1.5,
@@ -770,17 +835,20 @@ export function tpmLive(
             color: 'bad',
             a: 0.95,
           });
+        }
       }
-      if (mine === 'guard' && working)
+      if (mine === 'guard' && working) {
         out.lit.push({
           rect: { x: q.gate.x, y: q.gate.cy - 10, w: 18, h: 20 },
           color: 'bad',
           a: 0.5 + 0.3 * wave(s.ms, 0),
         });
+      }
       break;
     }
-    default:
+    default: {
       break;
+    }
   }
   return out;
 }

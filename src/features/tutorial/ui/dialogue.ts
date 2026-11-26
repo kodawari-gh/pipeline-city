@@ -11,14 +11,17 @@ export const CHAR_MS = 24;
 export function pagesOf(text: string, max = PAGE_CHARS): string[] {
   const sentences =
     text
-      .match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)\s*/g)
+      .match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)\s*/gu)
       ?.map((x) => x.trim())
       .filter(Boolean) ?? [];
   const pages: string[] = [];
   for (const s of sentences) {
-    const last = pages[pages.length - 1];
-    if (last !== undefined && last.length + 1 + s.length <= max) pages[pages.length - 1] = `${last} ${s}`;
-    else pages.push(s);
+    const last = pages.at(-1);
+    if (last !== undefined && last.length + 1 + s.length <= max) {
+      pages[pages.length - 1] = `${last} ${s}`;
+    } else {
+      pages.push(s);
+    }
   }
-  return pages.length ? pages : [text];
+  return pages.length > 0 ? pages : [text];
 }

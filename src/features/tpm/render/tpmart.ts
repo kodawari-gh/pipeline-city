@@ -72,13 +72,17 @@ export function tpmFar(g: Graphics, T: Theme, plan: TpmPlan): void {
     g.rect(x, D.y + 8, 6, 6);
     g.rect(x, D.y + D.h - 14, 6, 6);
   }
-  for (let y = y0 + 12; y + 6 <= y1; y += 12) g.rect(D.x + D.w - 14, y, 6, 6);
+  for (let y = y0 + 12; y + 6 <= y1; y += 12) {
+    g.rect(D.x + D.w - 14, y, 6, 6);
+  }
   g.fill({ color: T.pin, alpha: 0.7 });
   g.poly([D.x + 6, D.y + 6, D.x + 22, D.y + 6, D.x + 6, D.y + 22]).fill({ color: accent, alpha: 0.9 });
   const lpc = plan.blocks.find((b) => b.kind === 'lpc');
   if (lpc) {
     const n = Math.floor((lpc.rect.h - 20) / 12);
-    for (let k = 0; k < n; k++) g.rect(D.x + 9, lpc.rect.y + 10 + k * 12, 6, 6);
+    for (let k = 0; k < n; k++) {
+      g.rect(D.x + 9, lpc.rect.y + 10 + k * 12, 6, 6);
+    }
     g.fill({ color: T.alu, alpha: 0.8 });
   }
   planFar(g, T, plan.blocks, tpmStyle(plan));
@@ -89,7 +93,7 @@ export function tpmNear(T: Theme, plan: TpmPlan): DieArt {
   const art = planNear(T, plan, tpmStyle(plan));
   const D = plan.die,
     sy = D.y + D.h - DIE_MARGIN.bottom + 15,
-    names = art.names;
+    { names } = art;
   names.addChild(label(tpmTitle(plan), D.x + DIE_MARGIN.x, sy, 13, T.mute, { weight: '700', a: 0.85 }));
   const legend = new Graphics();
   names.addChild(legend);

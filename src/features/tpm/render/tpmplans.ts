@@ -82,7 +82,9 @@ function build(i: TpmPlanInput): { tree: N; specs: WireSpec<TpmLinkKind>[] } {
 
 function make(s: Spec<K>, r: Rect): TpmBlock {
   const b: TpmBlock = { id: s.id, kind: s.kind, label: s.label, rect: { ...r } };
-  if (s.sub) b.sub = s.sub;
+  if (s.sub) {
+    b.sub = s.sub;
+  }
   return b;
 }
 
@@ -92,7 +94,9 @@ const cache = new Map<string, TpmPlan>();
 export function tpmPlan(i: TpmPlanInput, size: { w: number; h: number } = TPM_DIE): TpmPlan {
   const key = JSON.stringify([i, size]);
   const hit = cache.get(key);
-  if (hit) return hit;
+  if (hit) {
+    return hit;
+  }
   const die = { x: 0, y: 0, w: size.w, h: size.h };
   const { tree, specs } = build(i);
   const blocks: TpmBlock[] = [];
