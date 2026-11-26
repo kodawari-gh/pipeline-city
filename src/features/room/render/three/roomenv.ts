@@ -3,7 +3,8 @@
 // hour and the same box projection as the rest. Before it, the mouse kept the studio's map at full strength and shone at night. A mesh with the
 // baked bounce (`lightmapmix.ts`) takes only the reflections from it: its light map is its indirect diffuse light.
 import type { Material, Mesh, MeshStandardMaterial, Object3D, Texture } from 'three';
-import { boxProjected, type BoxEnv } from '@/core/render/three/boxenv';
+import { boxProjected } from '@/core/render/three/boxenv';
+import type * as boxenvTypes from '@/core/render/three/boxenv';
 
 export class RoomEnv {
   /** The materials that take the room's environment. */
@@ -13,7 +14,7 @@ export class RoomEnv {
 
   constructor(
     private readonly studio: Texture | null,
-    private readonly box: BoxEnv,
+    private readonly box: boxenvTypes.BoxEnv,
   ) {
     this.map = studio;
   }
@@ -27,8 +28,12 @@ export class RoomEnv {
       const m = (o as Mesh).material;
       for (const x of Array.isArray(m) ? m : m ? [m] : []) {
         const s = x as MeshStandardMaterial;
-        if (!s.isMeshStandardMaterial || this.mats.has(s)) continue;
-        if (s.envMap && s.envMap !== this.studio && s.envMap !== this.map) continue;
+        if (!s.isMeshStandardMaterial || this.mats.has(s)) {
+          continue;
+        }
+        if (s.envMap && s.envMap !== this.studio && s.envMap !== this.map) {
+          continue;
+        }
         s.envMap = this.map;
         s.envMapIntensity = this.k;
         boxProjected(s, this.box);
@@ -42,7 +47,9 @@ export class RoomEnv {
    * already, so it joins as it is and takes the room's map and strength with the rest.
    */
   twin(src: Material, copy: Material): void {
-    if (!this.mats.has(src as MeshStandardMaterial)) return;
+    if (!this.mats.has(src as MeshStandardMaterial)) {
+      return;
+    }
     const c = copy as MeshStandardMaterial;
     c.envMap = this.map;
     c.envMapIntensity = this.k;
@@ -52,13 +59,19 @@ export class RoomEnv {
   /** The room's probe in place of the studio's map. */
   setMap(t: Texture): void {
     this.map = t;
-    for (const m of this.mats) m.envMap = t;
+    for (const m of this.mats) {
+      m.envMap = t;
+    }
   }
 
   /** The reflections' strength: the hour's on the studio's map, the probe's own once it holds the room. */
   setStrength(k: number): void {
-    if (k === this.k) return;
+    if (k === this.k) {
+      return;
+    }
     this.k = k;
-    for (const m of this.mats) m.envMapIntensity = k;
+    for (const m of this.mats) {
+      m.envMapIntensity = k;
+    }
   }
 }

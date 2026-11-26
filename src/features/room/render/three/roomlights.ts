@@ -99,11 +99,14 @@ export function chooseLights(cap: number, lampShadows: boolean, count: (id: Ligh
   let n = 0;
   for (const id of LIGHT_ORDER) {
     const c = count(id);
-    if (cap > 0 && n + c > cap) break;
+    if (cap > 0 && n + c > cap) {
+      break;
+    }
     n += c;
     live.add(id);
-    if (WINDOW_LIGHTS.includes(id) || (lampShadows && LAMP_CASTERS.includes(id))) shadows.add(id);
-    else if (ALWAYS_CASTS.includes(id)) {
+    if (WINDOW_LIGHTS.includes(id) || (lampShadows && LAMP_CASTERS.includes(id))) {
+      shadows.add(id);
+    } else if (ALWAYS_CASTS.includes(id)) {
       shadows.add(id);
       small.add(id);
     }
