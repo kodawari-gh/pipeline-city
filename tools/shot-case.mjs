@@ -54,6 +54,7 @@ const HOUR = flag('hour', '');
 if (HOUR !== '' && !(Number(HOUR) >= 0 && Number(HOUR) < 24)) throw new Error('--hour 0-23');
 const [W, H] = flag('size', '1600x900').split('x').map(Number);
 // an angle: degrees, or radians with a trailing r (`--pitch 0.1r`); the default is in radians
+/** @type {(n: string, dRad: number) => number} */
 const angle = (n, dRad) => {
   const s = flag(n, null);
   return s === null ? dRad : s.endsWith('r') ? Number(s.slice(0, -1)) : (Number(s) * Math.PI) / 180;
@@ -175,19 +176,23 @@ try {
           return v;
         }, POSE)
       : await p.evaluate(
-          ([specs, ids, yaw, pitch, fill]) => {
+          ([specs, ids, framing]) => {
             const b = window.__board;
             for (const k of specs) {
-              const v = b.frameSpec(k, yaw, pitch, fill);
+              const v = b.frameSpec(k, framing);
               if (v) return v;
             }
             for (const k of ids) {
-              const v = b.frameId(k, yaw, pitch, fill);
+              const v = b.frameId(k, framing);
               if (v) return v;
             }
             return null;
           },
-          [ID ? [] : names, ID ? [ID] : [...names, ...names.map((n) => 'cable.' + n)], YAW, PITCH, FILL],
+          [
+            ID ? [] : names,
+            ID ? [ID] : [...names, ...names.map((n) => 'cable.' + n)],
+            { yaw: YAW, pitch: PITCH, fill: FILL },
+          ],
         );
     if (!asked)
       throw new Error(

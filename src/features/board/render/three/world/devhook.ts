@@ -14,8 +14,12 @@ declare global {
   var __board: unknown;
 }
 
-/** The shot tool's optional angles and fill (tools/shot-case.mjs passes them in this order): turned by `yaw`, seen from `pitch` above, the largest side filling `fill` of the view's height. */
-type Angles = [yaw?: number, pitch?: number, fill?: number];
+/** How the shot tool frames an object (tools/shot-case.mjs): turned by `yaw`, seen from `pitch` above, its largest side filling `fill` of the view's height. Each has a default. */
+interface Framing {
+  yaw?: number;
+  pitch?: number;
+  fill?: number;
+}
 
 /** The hook on the window, in the dev build only. */
 export function devHook(w: World): void {
@@ -32,14 +36,14 @@ export function devHook(w: World): void {
       jumpRaw: (v: OrbitView) => {
         jumpRaw(v);
       },
-      frameSpec: (key: string, ...angles: Angles): OrbitView | null => {
-        const [yaw = 0, pitch = 0.1, fill = 0.6] = angles;
+      frameSpec: (key: string, framing: Framing = {}): OrbitView | null => {
+        const { yaw = 0, pitch = 0.1, fill = 0.6 } = framing;
         const d = snapshot.peek()?.devices.find((x) => x.spec === key || x.kind === key || x.slot === key);
         return d ? frameOf(w, d.id, { yaw, pitch, fill }) : null;
       },
       // `--id`: the object with this hover id (a part, a cable, a room object), framed the same way; `--list`: every hover id in the scene, sorted
-      frameId: (id: string, ...angles: Angles): OrbitView | null => {
-        const [yaw = 0.52, pitch = 0.35, fill = 0.5] = angles;
+      frameId: (id: string, framing: Framing = {}): OrbitView | null => {
+        const { yaw = 0.52, pitch = 0.35, fill = 0.5 } = framing;
         return frameOf(w, id, { yaw, pitch, fill });
       },
       ids: (): string[] => hoverIds(w),

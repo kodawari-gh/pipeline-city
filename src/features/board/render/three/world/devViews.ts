@@ -9,8 +9,15 @@ import { rebuild } from './rebuild';
 import { aspect, inRoom } from './view';
 import type { World } from './world';
 
-/** A close look's arguments, as the shot tools pass them: a layout point (x, y) at depth z, turned by `yaw`, from `pitch` above, `height` world units tall. */
-type LookAt = [x: number, y: number, z: number, yaw: number, pitch: number, height: number];
+/** A close look: a layout point (x, y) at depth z, turned by `yaw`, from `pitch` above, `height` world units tall. */
+interface Look {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  pitch: number;
+  height: number;
+}
 
 /** The case of tier `c` (board tier `b`, default the same), empty; null goes back to the game's. */
 const previewCase = (w: World, c: number | null, b: number): void => {
@@ -45,8 +52,7 @@ export const devViews = (w: World): Record<string, unknown> => ({
     previewCase(w, c, b);
   },
   // a close look at a layout point (x, y) at depth z, `height` world units tall, turned by `yaw`, from `pitch` above
-  lookAt: (...at: LookAt) => {
-    const [x, y, z, yaw, pitch, height] = at;
+  lookAt: ({ x, y, z, yaw, pitch, height }: Look) => {
     jump(w, clampView({ x, y: -y, z, yaw, pitch, fov: 26, height }));
   },
   toggleDoor: () => w.held.machine?.toggleDoor(),
