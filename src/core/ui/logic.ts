@@ -1,14 +1,6 @@
 // Pure UI logic: formatting, stats helpers, hint triggers, device descriptions, HUD status text. No DOM, no signals.
 
-import {
-  BOARD_TIERS,
-  CASE_TIERS,
-  cardLeads,
-  getSpec,
-  type CpuSpec,
-  type DeviceKind,
-  type DeviceSpec,
-} from '../../features/board/sim/specs';
+import * as specs from '../../features/board/sim/specs';
 import type { DeviceSnap, Snapshot } from '../../worker/game/game';
 import { getOsSpec } from '../../features/os/sim';
 import { describeGpuId } from '../../features/gpu/ui/gpudesc';
@@ -17,7 +9,7 @@ import { describeNpuId } from '../../features/npu/ui/npudesc';
 import { BANDWIDTH_NERD, describeNet } from '../../features/network/ui/netdesc';
 import { INERT_REGIONS } from '../../app/hover';
 import { SAY } from '../../app/say';
-import { JOB_TYPES, REGIONS, type Description } from './regions';
+import * as regions from './regions';
 
 /** A card's PCIe power in a spec line: slot power only, or its lead count. */
 const leadText = (n: number): string => (n === 0 ? 'slot power only' : `${n} PCIe power lead${n === 1 ? '' : 's'}`);
@@ -37,7 +29,7 @@ export function fmtClock(c: number): string {
   return `${Math.round(c * 100) / 100}x`;
 }
 
-export const KIND_LABEL: Record<DeviceKind | 'board' | 'case' | 'os' | 'router' | 'isp', string> = {
+export const KIND_LABEL: Record<specs.DeviceKind | 'board' | 'case' | 'os' | 'router' | 'isp', string> = {
   cpu: 'Processor',
   ram: 'Memory',
   cooler: 'Cooling',
@@ -81,7 +73,9 @@ export const totalStalls = (counters: Record<string, number>) =>
 export function cpiIpc(counters: Record<string, number>): { cpi: number; ipc: number } | null {
   const cyc = counters['cycles'] ?? 0;
   const ret = counters['retired'] ?? 0;
-  if (cyc <= 0 || ret <= 0) return null;
+  if (cyc <= 0 || ret <= 0) {
+    return null;
+  }
   return { cpi: cyc / ret, ipc: ret / cyc };
 }
 
@@ -92,31 +86,50 @@ export function cacheHitRate(counters: Record<string, number>): number | null {
 }
 
 /** Temperature level from the device's own thermal spec. */
-export function tempLevel(tempC: number, spec: DeviceSpec | undefined): Level {
-  if (!spec) return 'ok';
+export function tempLevel(tempC: number, spec: specs.DeviceSpec | undefined): Level {
+  if (!spec) {
+    return 'ok';
+  }
   const { throttleC, unstableC } = spec.thermal;
-  if (tempC >= unstableC) return 'bad';
-  if (tempC >= throttleC - 5) return 'warn';
+  if (tempC >= unstableC) {
+    return 'bad';
+  }
+  if (tempC >= throttleC - 5) {
+    return 'warn';
+  }
   return 'ok';
 }
 
 export function powerLevel(totalW: number, budgetW: number): Level {
-  if (budgetW <= 0) return 'bad';
+  if (budgetW <= 0) {
+    return 'bad';
+  }
   const r = totalW / budgetW;
   return r > 1 ? 'bad' : r > 0.85 ? 'warn' : 'ok';
 }
 
 /** Live warning under the clock control, or null. */
 export function clockWarning(cpu: DeviceSnap | undefined): { level: Level; text: string } | null {
-  if (!cpu) return null;
-  if (cpu.burnt) return { level: 'bad', text: 'Processor is burnt out. Replace it.' };
-  const spec = getSpec(cpu.spec);
-  if (!spec) return null;
+  if (!cpu) {
+    return null;
+  }
+  if (cpu.burnt) {
+    return { level: 'bad', text: 'Processor is burnt out. Replace it.' };
+  }
+  const spec = specs.getSpec(cpu.spec);
+  if (!spec) {
+    return null;
+  }
   const { throttleC, unstableC } = spec.thermal;
-  if (cpu.unstable || cpu.tempC >= unstableC)
+  if (cpu.unstable || cpu.tempC >= unstableC) {
     return { level: 'bad', text: 'Unstable: errors are restarting requests. Cool it or slow down.' };
-  if (cpu.throttle < 1) return { level: 'warn', text: 'Throttling: too hot, running slower than asked.' };
-  if (cpu.tempC >= throttleC - 5) return { level: 'warn', text: 'Getting close to throttling.' };
+  }
+  if (cpu.throttle < 1) {
+    return { level: 'warn', text: 'Throttling: too hot, running slower than asked.' };
+  }
+  if (cpu.tempC >= throttleC - 5) {
+    return { level: 'warn', text: 'Getting close to throttling.' };
+  }
   return null;
 }
 
@@ -171,27 +184,61 @@ export const HINTS: Record<string, Hint> = {
 /** Hint ids triggered by this snapshot (ignores whether they were already shown). */
 export function triggeredHints(s: Snapshot): string[] {
   const out: string[] = [];
-  if (totalStalls(s.counters) > 0) out.push('stall');
-  if (s.devices.some((d) => !d.burnt && d.throttle < 1)) out.push('throttle');
-  if (s.devices.some((d) => !d.burnt && d.unstable)) out.push('overheat');
-  if (s.queueLength >= 3) out.push('queue');
-  if (s.devices.some((d) => d.burnt)) out.push('burnt');
-  if (s.power.tripped) out.push('trip');
-  else if (s.power.psuFactor < 1 && !s.power.off) out.push('brownout');
+  if (totalStalls(s.counters) > 0) {
+    out.push('stall');
+  }
+  if (s.devices.some((d) => !d.burnt && d.throttle < 1)) {
+    out.push('throttle');
+  }
+  if (s.devices.some((d) => !d.burnt && d.unstable)) {
+    out.push('overheat');
+  }
+  if (s.queueLength >= 3) {
+    out.push('queue');
+  }
+  if (s.devices.some((d) => d.burnt)) {
+    out.push('burnt');
+  }
+  if (s.power.tripped) {
+    out.push('trip');
+  } else if (s.power.psuFactor < 1 && !s.power.off) {
+    out.push('brownout');
+  }
   // A fitted fan whose cable is out (a cable with no fan to power is `blocked`, not loose).
-  if (s.powered && s.cables.some((c) => /^(cpufan|vrmfan|ramfan|sysfan|fan:)/.test(c.id) && !c.connected && !c.blocked))
+  if (
+    s.powered &&
+    s.cables.some((c) => /^(?:cpufan|vrmfan|ramfan|sysfan|fan:)/u.test(c.id) && !c.connected && !c.blocked)
+  ) {
     out.push('looseFan');
-  if (s.keyIgnored) out.push('keyIgnored');
+  }
+  if (s.keyIgnored) {
+    out.push('keyIgnored');
+  }
   // The OS has no free queue slot and keys are waiting (a plugged key stays stage "tray" then).
-  if (s.os && s.os.queue.length >= s.os.queueSlots && s.tray.length > 0) out.push('osFull');
-  // The network (docs/NETWORK.md): what the link does to the keys, the port, the spool and the line itself.
+  if (s.os && s.os.queue.length >= s.os.queueSlots && s.tray.length > 0) {
+    out.push('osFull');
+  }
+  out.push(...netHints(s));
+  return out;
+}
+
+/** The network hints (docs/NETWORK.md): what the link does to the keys, the port, the spool and the line itself. */
+function netHints(s: Snapshot): string[] {
+  const out: string[] = [];
   const n = s.net;
-  if (n.usbRetired && n.retiredKeys > 0) out.push('retiredKeys');
-  if (s.os && (s.os.spoolFull ?? s.os.spool?.full) && (n.state === 'link-up' || n.state === 'saturated'))
+  if (n.usbRetired && n.retiredKeys > 0) {
+    out.push('retiredKeys');
+  }
+  if (s.os && (s.os.spoolFull ?? s.os.spool?.full) && (n.state === 'link-up' || n.state === 'saturated')) {
     out.push('spoolFull');
+  }
   // The link was up once and is down now (not just the boot that every power-on goes through).
-  if (n.state === 'down' && n.usbFallback.state !== 'off' && n.reason !== 'the OS is starting') out.push('linkDown');
-  if (n.state === 'saturated') out.push('saturated');
+  if (n.state === 'down' && n.usbFallback.state !== 'off' && n.reason !== 'the OS is starting') {
+    out.push('linkDown');
+  }
+  if (n.state === 'saturated') {
+    out.push('saturated');
+  }
   return out;
 }
 
@@ -212,9 +259,7 @@ export function newHints(s: Snapshot, seen: ReadonlySet<string>): Hint[] {
 
 // ---- descriptions for tooltip / picker ----
 
-export type { Description };
-
-const PLAIN_KIND: Record<DeviceKind, string> = {
+const PLAIN_KIND: Record<specs.DeviceKind, string> = {
   cpu: 'The brain. It runs each request one instruction at a time. Better ones overlap work and run faster.',
   ram: 'Short-term memory. Faster memory hurts less when the processor has to wait for data.',
   cooler:
@@ -235,71 +280,100 @@ const PLAIN_KIND: Record<DeviceKind, string> = {
 };
 
 /** What a CPU's engine has, in words (every architecture and every optional part). */
-export function cpuFeatures(e: CpuSpec['engine']): string[] {
+export function cpuFeatures(e: specs.CpuSpec['engine']): string[] {
   const out: string[] = [];
-  if (e.kind === 'ref') return ['reference interpreter'];
-  if (e.kind === 'unpipelined') out.push('unpipelined');
-  else if (e.kind === 'inorder') out.push(`5-stage, ${e.forwarding === false ? 'no forwarding' : 'forwarding'}`);
-  else if (e.kind === 'inorder2')
+  if (e.kind === 'ref') {
+    return ['reference interpreter'];
+  }
+  if (e.kind === 'unpipelined') {
+    out.push('unpipelined');
+  } else if (e.kind === 'inorder') {
+    out.push(`5-stage, ${e.forwarding === false ? 'no forwarding' : 'forwarding'}`);
+  } else if (e.kind === 'inorder2') {
     out.push(`2-wide in-order, ${e.forwarding === false ? 'no forwarding' : 'forwarding'}`);
-  else out.push(`${e.width ?? 2}-wide out of order, ROB ${e.robSize ?? 8}`);
-  if (e.cacheLines) out.push(`${e.cacheLines}-line data cache${e.ways && e.ways > 1 ? `, ${e.ways}-way` : ''}`);
-  if (e.icacheLines) out.push(`${e.icacheLines}-line instruction cache`);
-  if (e.l2Lines) out.push(`${e.l2Lines}-line L2`);
-  if (e.predBits === 2 || (e.predEntries && e.predEntries !== 64))
+  } else {
+    out.push(`${e.width ?? 2}-wide out of order, ROB ${e.robSize ?? 8}`);
+  }
+  if (e.cacheLines) {
+    out.push(`${e.cacheLines}-line data cache${e.ways && e.ways > 1 ? `, ${e.ways}-way` : ''}`);
+  }
+  if (e.icacheLines) {
+    out.push(`${e.icacheLines}-line instruction cache`);
+  }
+  if (e.l2Lines) {
+    out.push(`${e.l2Lines}-line L2`);
+  }
+  if (e.predBits === 2 || (e.predEntries && e.predEntries !== 64)) {
     out.push(`${e.predBits === 2 ? '2-bit' : '1-bit'} predictor, ${e.predEntries ?? 64} entries`);
+  }
   return out;
 }
 
-export function describeSpec(spec: DeviceSpec): Description {
+export function describeSpec(spec: specs.DeviceSpec): regions.Description {
   const bits: string[] = [`tier ${spec.tier}`];
   if (spec.kind === 'cpu') {
     bits.push(...cpuFeatures(spec.engine));
     bits.push(spec.mmu ? `MMU, ${spec.mmu.tlb}-entry TLB (virtual memory)` : 'no MMU: physical memory only');
-    if (spec.branch)
+    if (spec.branch) {
       bits.push(
         `leans ${spec.branch === 'frontend' ? 'on the front end (branchy code)' : spec.branch === 'memory' ? 'on memory (big data)' : spec.branch === 'multicore' ? 'on cores (several programs at once)' : 'wide (everything)'}`,
       );
+    }
   }
-  if (spec.kind === 'ram')
+  if (spec.kind === 'ram') {
     bits.push(
       `${spec.sizeBytes / 1024}K`,
       `latency ${spec.latency}`,
       `${spec.banks} banks`,
       ...(spec.ecc ? ['ECC: fixes flipped bits, a TPM needs it'] : []),
     );
-  if (spec.kind === 'psu')
+  }
+  if (spec.kind === 'psu') {
     bits.push(`${spec.watts} W`, `${spec.pcieLeads} PCIe lead${spec.pcieLeads === 1 ? '' : 's'}`);
-  if (spec.kind === 'storage')
+  }
+  if (spec.kind === 'storage') {
     bits.push(
       `${spec.capacityBytes / 1024}K`,
       `${spec.slot === 'm2' ? 'M.2' : 'SATA'}`,
       `seek ${spec.latencyTicks} ticks, block ${spec.blockTicks}`,
     );
-  if (spec.kind === 'cooler') bits.push(`${spec.coolingPerC} W/C`);
-  if (spec.kind === 'fan') bits.push(`${spec.size} mm`, `airflow ${spec.airflow}x`);
-  if (spec.kind === 'gpu' && spec.gpu)
+  }
+  if (spec.kind === 'cooler') {
+    bits.push(`${spec.coolingPerC} W/C`);
+  }
+  if (spec.kind === 'fan') {
+    bits.push(`${spec.size} mm`, `airflow ${spec.airflow}x`);
+  }
+  if (spec.kind === 'gpu' && spec.gpu) {
     bits.push(
       `${spec.gpu.lanes} lanes`,
       `${spec.gpu.memBytes / 1024}K card memory in ${spec.gpu.banks} bank${spec.gpu.banks === 1 ? '' : 's'}`,
-      leadText(cardLeads(spec)),
+      leadText(specs.cardLeads(spec)),
     );
-  if (spec.kind === 'npu' && spec.npu)
+  }
+  if (spec.kind === 'npu' && spec.npu) {
     bits.push(
       `${spec.npu.grid}x${spec.npu.grid} cells`,
       `${spec.npu.memBytes / 1024}K card memory`,
-      leadText(cardLeads(spec)),
+      leadText(specs.cardLeads(spec)),
     );
-  if (spec.kind === 'tpm' && spec.tpm)
+  }
+  if (spec.kind === 'tpm' && spec.tpm) {
     bits.push(
       `measures at ${spec.tpm.measureTicks} ticks per word`,
       `attests in ${spec.tpm.attestTicks} ticks`,
       `+${spec.tpm.surcharge} cycles per memory access while protected`,
     );
-  if (spec.kind === 'nic')
+  }
+  if (spec.kind === 'nic') {
     bits.push(`${spec.mbps} Mbit/s`, `throttle ${spec.thermal.throttleC} C, unstable ${spec.thermal.unstableC} C`);
-  if (spec.clock) bits.push(`clock ${spec.clock.min}-${spec.clock.max} (base ${spec.clock.base})`);
-  if (spec.kind !== 'psu') bits.push(`${spec.idleW}-${spec.loadW} W`);
+  }
+  if (spec.clock) {
+    bits.push(`clock ${spec.clock.min}-${spec.clock.max} (base ${spec.clock.base})`);
+  }
+  if (spec.kind !== 'psu') {
+    bits.push(`${spec.idleW}-${spec.loadW} W`);
+  }
   if (spec.kind === 'cpu' || spec.kind === 'ram' || spec.kind === 'display') {
     bits.push(`throttle ${spec.thermal.throttleC} C, unstable ${spec.thermal.unstableC} C`);
   }
@@ -353,13 +427,17 @@ const FAN_CABLE_TIPS: Record<string, { title: string; plain: string; nerd: strin
 const MOUNT_NAME: Record<string, string> = { top: 'top', front: 'front', rear: 'rear' };
 
 /** The tip of a fan cable (`cable.<id>`): the fixed ones by id, and `cable.fan:<mount>` by the mount's place in the case. */
-function describeFanCable(id: string, s?: Snapshot | null): Description | null {
-  if (FAN_CABLE_TIPS[id]) return FAN_CABLE_TIPS[id]!;
-  const m = /^cable\.fan:(front|top|rear)(\d*)$/.exec(id);
-  if (!m) return null;
+function describeFanCable(id: string, s?: Snapshot | null): regions.Description | null {
+  if (FAN_CABLE_TIPS[id]) {
+    return FAN_CABLE_TIPS[id]!;
+  }
+  const m = /^cable\.fan:(?<side>front|top|rear)(?<num>\d*)$/u.exec(id);
+  if (!m) {
+    return null;
+  }
   const n = m[2] === '' ? '' : ` ${Number(m[2]) + 1}`,
     place = `${MOUNT_NAME[m[1]!]}${n}`;
-  const rad = s?.devices.some((d) => d.kind === 'radiator' && d.slot === `rad-${id.slice(10).replace(/\d+$/, '')}`); // the radiator spans the side: fan:top1 is under rad-top
+  const rad = s?.devices.some((d) => d.kind === 'radiator' && d.slot === `rad-${id.slice(10).replace(/\d+$/u, '')}`); // the radiator spans the side: fan:top1 is under rad-top
   return rad
     ? {
         title: `Radiator fan cable (${place})`,
@@ -390,51 +468,56 @@ const CASE_PLAIN: Record<number, string> = {
 };
 
 /** Descriptions of the VRM, its phases and ripple, and the board features (docs/VRM.md). */
-function describeVrmId(id: string, s?: Snapshot | null): Description | null {
+function describeVrmId(id: string, s?: Snapshot | null): regions.Description | null {
   const b = s?.board;
   const v = b?.vrm;
-  const tier = BOARD_TIERS[b?.tier ?? s?.boardTier ?? 0]!;
+  const tier = specs.BOARD_TIERS[b?.tier ?? s?.boardTier ?? 0]!;
   const phases = v?.phases ?? tier.vrm.phases;
   const amps = v?.ampsPerPhase ?? tier.vrm.ampsPerPhase;
   const rating = `${phases} phases x ${amps} A = ${phases * amps} A`;
   const live = v ? `, now ${Math.round(v.loadRatio * 100)}% of rating` : '';
   switch (id) {
-    case 'vrm':
+    case 'vrm': {
       return {
         title: 'Voltage regulator (VRM)',
         plain:
           'Turns the 12 V from the power supply into the roughly 1 V the processor needs, at a large current. It gets hot. Too hot or overloaded, and the machine slows down or crashes.',
         nerd: `${rating}${live}`,
       };
-    case 'vrm.phases':
+    }
+    case 'vrm.phases': {
       return {
         title: 'VRM phases',
         plain:
           'Each phase is one switching circuit: two power switches, a coil and capacitors. They share the current, so more phases run cooler and steadier.',
         nerd: `${phases} phases x ${amps} A`,
       };
-    case 'vrm.ripple':
+    }
+    case 'vrm.ripple': {
       return {
         title: 'VRM ripple',
         plain:
           'How much the voltage wobbles around its target. Cheaper parts wobble more, which makes a voltage-droop crash likelier when the regulator is stressed.',
         nerd: `ripple ${(v?.ripple ?? tier.vrm.ripple).toFixed(2)} (lower is better)`,
       };
-    case 'vrm.load':
+    }
+    case 'vrm.load': {
       return {
         title: 'VRM load',
         plain:
           "The processor's current demand over the phases' rating. Under 60 percent is comfortable; past 100 percent the regulator is overloaded and errors start.",
         nerd: `${rating}${live}`,
       };
-    case 'vrm.heat':
+    }
+    case 'vrm.heat': {
       return {
         title: 'VRM heat',
         plain:
           'The energy the regulator wastes as heat. It is drawn from the power supply like any other part, and it heats the board.',
         nerd: v ? `${s?.power.vrmLossW?.toFixed(1) ?? v.heatW.toFixed(1)} W now` : 'loss rises with load',
       };
-    case 'vrm.efficiency':
+    }
+    case 'vrm.efficiency': {
       return {
         title: 'VRM efficiency',
         plain:
@@ -443,28 +526,33 @@ function describeVrmId(id: string, s?: Snapshot | null): Description | null {
           ? `${Math.round(v.efficiency * 100)}% now, peak ${Math.round(tier.vrm.peakEfficiency * 100)}%`
           : `peak ${Math.round(tier.vrm.peakEfficiency * 100)}%`,
       };
-    case 'feature.ethernet':
+    }
+    case 'feature.ethernet': {
       return {
         title: 'Ethernet port',
         plain:
           'The onboard network port. The speed is what a network card or router could use later; nothing uses it yet.',
         nerd: tier.features.ethernetMbps ? `${tier.features.ethernetMbps} Mbit/s` : 'none on this board',
       };
-    case 'feature.usb':
+    }
+    case 'feature.usb': {
       return {
         title: 'USB ports',
         plain:
           'Extra USB ports on the board. Client keys go into the USB port; more ports are a feature count for now, and the machine still reads one key at a time.',
         nerd: `${tier.features.usbPorts} USB port${tier.features.usbPorts === 1 ? '' : 's'} on this board`,
       };
-    case 'feature.display':
+    }
+    case 'feature.display': {
       return {
         title: 'Monitor ports',
         plain: 'Ports for a monitor. The sim drives one monitor for now; a second port is a feature count.',
         nerd: `${tier.features.displayPorts} display port${tier.features.displayPorts === 1 ? '' : 's'} on this board`,
       };
-    default:
+    }
+    default: {
       return null;
+    }
   }
 }
 
@@ -481,9 +569,11 @@ export const VRM_IDS = [
 ];
 
 /** Plain words and the nerd line for an operating system item or installed OS. */
-function describeOs(id: string): Description | null {
+function describeOs(id: string): regions.Description | null {
   const os = getOsSpec(id);
-  if (!os) return null;
+  if (!os) {
+    return null;
+  }
   const later = os.later ? ' Not available yet.' : '';
   return {
     title: os.name,
@@ -513,20 +603,31 @@ const ROOM_TIPS: Record<'lamp' | 'blind' | 'clock' | 'mail', { title: string; pl
  * Description for a hovered/selected id: a spec id, a region id, a world id, or (with the snapshot) a slot (empty or
  * occupied), an installed device instance, a crate item or a client key. Unknown ids give null.
  */
-export function describeId(id: string, s?: Snapshot | null): Description | null {
+export function describeId(id: string, s?: Snapshot | null): regions.Description | null {
   // the room's props (the lamp and the window blind) are scenery that answers a click
-  if (id === 'lamp' || id === 'blind' || id === 'clock' || id === 'mail')
+  if (id === 'lamp' || id === 'blind' || id === 'clock' || id === 'mail') {
     return { ...ROOM_TIPS[id], nerd: 'scenery: no effect on the machine' };
+  }
   const fanCable = describeFanCable(id, s);
-  if (fanCable) return fanCable;
+  if (fanCable) {
+    return fanCable;
+  }
   const net = describeNet(id, s);
-  if (net) return net;
+  if (net) {
+    return net;
+  }
   const npu = describeNpuId(id, s);
-  if (npu) return npu;
+  if (npu) {
+    return npu;
+  }
   const gpu = describeGpuId(id, s);
-  if (gpu) return gpu;
+  if (gpu) {
+    return gpu;
+  }
   const tpm = describeTpmId(id, s);
-  if (tpm) return tpm;
+  if (tpm) {
+    return tpm;
+  }
   if (s) {
     if (id === 'os' && s.os) {
       const host = s.storage.find((x) => x.hasOs);
@@ -537,11 +638,11 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
       };
     }
     if (id === 'case') {
-      const c = CASE_TIERS[s.caseTier] ?? CASE_TIERS[0]!;
+      const c = specs.CASE_TIERS[s.caseTier] ?? specs.CASE_TIERS[0]!;
       return {
         title: c.name,
         plain: `${CASE_PLAIN[c.tier] ?? 'A computer case.'} Click it to see bigger cases.`,
-        nerd: `tier ${c.tier} | holds boards up to ${c.form} | the ${BOARD_TIERS[s.boardTier]?.name ?? 'board'} board is fitted`,
+        nerd: `tier ${c.tier} | holds boards up to ${c.form} | the ${specs.BOARD_TIERS[s.boardTier]?.name ?? 'board'} board is fitted`,
       };
     }
     if (id === 'case.side') {
@@ -549,18 +650,19 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
         title: 'Side panel',
         plain:
           'Click it to open the case and reach the parts inside (O opens and shuts it). It opens by itself when you zoom in to the board.',
-        nerd: `${CASE_TIERS[s.caseTier]?.name ?? 'case'} | side panel`,
+        nerd: `${specs.CASE_TIERS[s.caseTier]?.name ?? 'case'} | side panel`,
       };
     }
     const slot = s.slots.find((x) => x.id === id);
     if (slot) {
       if (!slot.deviceId) {
-        if (slot.type === 'fan')
+        if (slot.type === 'fan') {
           return {
             title: 'Empty fan spot',
             plain: `A ${slot.size} mm fan fits here: drag one onto it.`,
             nerd: `slot ${slot.id} | type fan | ${slot.size} mm`,
           };
+        }
         return SLOT_PLAIN[slot.type]
           ? {
               title: 'Empty socket',
@@ -570,10 +672,14 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
           : null;
       }
       const occupant = s.devices.find((d) => d.id === slot.deviceId);
-      if (occupant) return describeId(occupant.spec);
+      if (occupant) {
+        return describeId(occupant.spec);
+      }
     }
     const dev = s.devices.find((d) => d.id === id);
-    if (dev) return describeId(dev.spec);
+    if (dev) {
+      return describeId(dev.spec);
+    }
     if (id.startsWith('inv:')) {
       const it = s.inventory.find((x) => x.id === id.slice(4));
       const d = it ? describeId(it.spec) : null;
@@ -594,29 +700,35 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
       if (k) {
         return {
           title: `Client key ${k.label}`,
-          plain: `${JOB_TYPES[k.type] ?? 'A client job.'} Pays about ${fmtMoney(k.payoutEstimate)}.`,
+          plain: `${regions.JOB_TYPES[k.type] ?? 'A client job.'} Pays about ${fmtMoney(k.payoutEstimate)}.`,
           nerd: `template ${k.template} | arrived t=${k.arrivalTick}, due t=${k.deadlineTick} | tries ${k.attempts} | stage ${k.stage}`,
         };
       }
     }
   }
-  const spec = getSpec(id);
-  if (spec) return describeSpec(spec);
+  const spec = specs.getSpec(id);
+  if (spec) {
+    return describeSpec(spec);
+  }
   const osDesc = describeOs(id);
-  if (osDesc) return osDesc;
+  if (osDesc) {
+    return osDesc;
+  }
   const vrmDesc = describeVrmId(id, s);
-  if (vrmDesc) return vrmDesc;
-  const caseId = /^case([0-9]+)$/.exec(id);
-  const ct = caseId ? CASE_TIERS[Number(caseId[1])] : undefined;
+  if (vrmDesc) {
+    return vrmDesc;
+  }
+  const caseId = /^case(?<tier>[0-9]+)$/u.exec(id);
+  const ct = caseId ? specs.CASE_TIERS[Number(caseId[1])] : undefined;
   if (ct) {
     return {
       title: ct.name,
       plain: `${CASE_PLAIN[ct.tier] ?? 'A computer case.'} Your board and every part move into it.`,
-      nerd: `tier ${ct.tier} | holds boards up to ${ct.form} (${BOARD_TIERS[ct.maxBoard]?.name ?? 'board'} board)`,
+      nerd: `tier ${ct.tier} | holds boards up to ${ct.form} (${specs.BOARD_TIERS[ct.maxBoard]?.name ?? 'board'} board)`,
     };
   }
-  const tier = /^board([0-9]+)$/.exec(id);
-  const bt = tier ? BOARD_TIERS[Number(tier[1])] : undefined;
+  const tier = /^board(?<tier>[0-9]+)$/u.exec(id);
+  const bt = tier ? specs.BOARD_TIERS[Number(tier[1])] : undefined;
   if (bt) {
     const slots = Object.entries(bt.slots)
       .map(([k, n]) => `${n} ${k}`)
@@ -629,7 +741,7 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
       nerd: `tier ${bt.tier} | slots: ${slots} | ${net}, ${f.usbPorts} USB, ${f.displayPorts} display | VRM ${bt.vrm.phases} x ${bt.vrm.ampsPerPhase} A`,
     };
   }
-  return INERT_REGIONS.has(id) ? null : (REGIONS[id] ?? null);
+  return INERT_REGIONS.has(id) ? null : (regions.REGIONS[id] ?? null);
 }
 
 // ---- HUD status text ----
@@ -642,13 +754,18 @@ export type ChipLevel = 'idle' | 'ok' | 'warn' | 'bad';
  */
 export function billChip(s: Snapshot): { text: string; level: ChipLevel } | null {
   const b = s.bill;
-  if (!b) return null;
-  if (b.cut) return { text: `CUT $${b.unpaid}`, level: 'bad' };
-  if (b.unpaid > 0)
+  if (!b) {
+    return null;
+  }
+  if (b.cut) {
+    return { text: `CUT $${b.unpaid}`, level: 'bad' };
+  }
+  if (b.unpaid > 0) {
     return {
       text: `$${b.unpaid} due${b.cutTick === null ? '' : `, cut in ${fmtTicks(b.cutTick - s.baseTick)}`}`,
       level: 'warn',
     };
+  }
   const next = b.nextTick === null ? '' : ` ${fmtTicks(b.nextTick - s.baseTick)}`;
   return { text: `$${b.accruedCost}${next}`, level: 'idle' };
 }
@@ -657,7 +774,9 @@ export function billChip(s: Snapshot): { text: string; level: ChipLevel } | null
 export function statusChip(s: Snapshot): { text: string; title: string; level: ChipLevel } {
   const c = baseChip(s);
   const q = s.pendingSwaps;
-  if (!q.length) return c;
+  if (q.length === 0) {
+    return c;
+  }
   const names = q.map((p) => s.inventory.find((i) => i.id === p.invId)?.name ?? 'the new part').join(', ');
   return {
     text: `${c.text} · swap next${q.length > 1 ? ` (${q.length})` : ''}`,
@@ -670,7 +789,7 @@ function baseChip(s: Snapshot): { text: string; title: string; level: ChipLevel 
   if (s.board?.burnt) {
     // A dead board: the VRM burnt out. The chip names the fix (same-tier replacement, powered off), priced when the sim offers it.
     const same = s.purchases.find((p) => p.id === `board${s.boardTier}`);
-    const name = BOARD_TIERS[s.boardTier]?.name ?? 'board';
+    const name = specs.BOARD_TIERS[s.boardTier]?.name ?? 'board';
     const price = same ? (s.sandbox ? ' (free)' : ` (${fmtMoney(same.price)})`) : '';
     return {
       text: 'Board dead: replace it',
@@ -678,13 +797,16 @@ function baseChip(s: Snapshot): { text: string; title: string; level: ChipLevel 
       level: 'bad',
     };
   }
-  if (s.power.tripped)
+  if (s.power.tripped) {
     return { text: 'Tripped', title: 'The power supply tripped. Power cycle it from the power button.', level: 'bad' };
+  }
   switch (s.phase) {
-    case 'off':
+    case 'off': {
       return { text: 'Off', title: s.noPowerReason ?? 'The machine is off.', level: 'idle' };
-    case 'posting':
+    }
+    case 'posting': {
       return { text: 'POST', title: 'Power-on self-test: the chipset checks the parts.', level: 'ok' };
+    }
     case 'mounting': {
       const pct = Math.round(Math.min(1, Math.max(0, s.bootProgress / 0.4)) * 100);
       return {
@@ -694,9 +816,10 @@ function baseChip(s: Snapshot): { text: string; title: string; level: ChipLevel 
         level: 'ok',
       };
     }
-    case 'waiting-for-key':
+    case 'waiting-for-key': {
       return { text: 'Waiting for key', title: 'Plug a client key into the USB port.', level: 'warn' };
-    case 'halted':
+    }
+    case 'halted': {
       return s.haltReason === 'no-boot-media'
         ? {
             text: 'No boot media',
@@ -710,15 +833,20 @@ function baseChip(s: Snapshot): { text: string; title: string; level: ChipLevel 
               : 'The job is done and the machine has halted. Remove the key to get paid, then power off and on for the next job.',
             level: 'warn',
           };
-    case 'loading':
+    }
+    case 'loading': {
       return { text: 'Loading', title: 'Copying the job from the key into memory.', level: 'ok' };
-    case 'running':
+    }
+    case 'running': {
       return { text: 'Running', title: 'The processor is running the job.', level: 'ok' };
-    case 'writing':
+    }
+    case 'writing': {
       return { text: 'Writing', title: 'Writing the answer back onto the key.', level: 'ok' };
-    case 'done-remove-key':
+    }
+    case 'done-remove-key': {
       return { text: 'Remove key', title: 'The job is done. Pull the key to get paid.', level: 'warn' };
-    case 'error':
+    }
+    case 'error': {
       return s.postFailed
         ? {
             text: `POST error: ${s.phaseReason ?? 'stopped'}`,
@@ -730,6 +858,7 @@ function baseChip(s: Snapshot): { text: string; title: string; level: ChipLevel 
             title: s.phaseReason ?? 'The machine stopped.',
             level: 'bad',
           };
+    }
     case 'booting-os': {
       const pct = Math.round(Math.min(1, Math.max(0, s.bootProgress)) * 100);
       return {
@@ -738,7 +867,7 @@ function baseChip(s: Snapshot): { text: string; title: string; level: ChipLevel 
         level: 'ok',
       };
     }
-    case 'idle-os':
+    case 'idle-os': {
       return {
         text: 'OS idle',
         title: s.plugged
@@ -746,13 +875,15 @@ function baseChip(s: Snapshot): { text: string; title: string; level: ChipLevel 
           : 'The OS is up and waiting for a key. Plug one into the USB port.',
         level: 'warn',
       };
-    case 'ingesting':
+    }
+    case 'ingesting': {
       return {
         text: `Ingesting ${s.plugged?.label ?? ''}`.trim(),
         title:
           "The OS is copying the plugged key's job onto the drive and queueing it. Keep the key in until it is queued.",
         level: 'ok',
       };
+    }
     case 'running-os': {
       const run = s.os?.queue.find((j) => j.state === 'running');
       return {
@@ -761,12 +892,13 @@ function baseChip(s: Snapshot): { text: string; title: string; level: ChipLevel 
         level: 'ok',
       };
     }
-    case 'flashing':
+    case 'flashing': {
       return {
         text: `Flashing ${s.plugged?.label ?? ''}`.trim(),
         title: 'Writing the finished result onto the plugged key. Keep it in until it lands.',
         level: 'ok',
       };
+    }
   }
 }
 
@@ -776,11 +908,17 @@ export const isOsActivity = (phase: Snapshot['phase']) =>
 
 /** How long ago, in the player's words: "just now", "5 min ago", "3 h ago", "2 days ago". */
 export function fmtAgo(ms: number): string {
-  const m = Math.floor(Math.max(0, ms) / 60000);
-  if (m < 1) return 'just now';
-  if (m < 60) return `${m} min ago`;
+  const m = Math.floor(Math.max(0, ms) / 60_000);
+  if (m < 1) {
+    return 'just now';
+  }
+  if (m < 60) {
+    return `${m} min ago`;
+  }
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h} h ago`;
+  if (h < 24) {
+    return `${h} h ago`;
+  }
   const d = Math.floor(h / 24);
   return `${d} day${d === 1 ? '' : 's'} ago`;
 }
@@ -803,10 +941,12 @@ export function saveSummary(
  */
 export function friendlyError(message: string): string {
   // a message the app wrote for the player (a bad file, a game that would not start) is already plain: shown as it is
-  if (message.startsWith(SAY)) return message.slice(SAY.length);
-  const m = /^[a-zA-Z]+: (.*)$/.exec(message);
+  if (message.startsWith(SAY)) {
+    return message.slice(SAY.length);
+  }
+  const m = /^[a-zA-Z]+: (?<reason>.*)$/u.exec(message);
   const reason = (m ? m[1]! : message).trim();
-  return `Not now: ${reason.charAt(0).toUpperCase()}${reason.slice(1)}${/[.!?]$/.test(reason) ? '' : '.'}`;
+  return `Not now: ${reason.charAt(0).toUpperCase()}${reason.slice(1)}${/[.!?]$/u.test(reason) ? '' : '.'}`;
 }
 
 const INVENTORY_ORDER = [
@@ -849,10 +989,13 @@ export function stackItems<T extends { spec: string; installable: boolean }>(ite
   const out: Stack<T>[] = [];
   for (const it of items) {
     const st = out.find((x) => x.spec === it.spec);
-    if (!st) out.push({ spec: it.spec, items: [it], rep: it });
-    else {
+    if (!st) {
+      out.push({ spec: it.spec, items: [it], rep: it });
+    } else {
       st.items.push(it);
-      if (!st.rep.installable && it.installable) st.rep = it;
+      if (!st.rep.installable && it.installable) {
+        st.rep = it;
+      }
     }
   }
   return out;
@@ -877,13 +1020,21 @@ const FIT_KINDS: Record<string, string[]> = {
 
 /** The shelf filter for a selected world id (an empty socket, an installed device, the PSU, the monitor, the drive bay), or null. */
 export function fitFilterFor(sel: string | null, s: Snapshot | null): FitFilter | null {
-  if (!sel || !s || sel.startsWith('inv:') || sel.startsWith('key:')) return null;
+  if (!sel || !s || sel.startsWith('inv:') || sel.startsWith('key:')) {
+    return null;
+  }
   const name = describeId(sel, s)?.title ?? sel;
   const kinds = FIT_KINDS[sel];
-  if (kinds) return { label: name, slots: [], kinds };
+  if (kinds) {
+    return { label: name, slots: [], kinds };
+  }
   const dev = s.devices.find((d) => d.id === sel || d.slot === sel);
-  if (dev) return { label: name, slots: [dev.slot], kinds: [] };
-  if (s.slots.some((x) => x.id === sel)) return { label: name, slots: [sel], kinds: [] };
+  if (dev) {
+    return { label: name, slots: [dev.slot], kinds: [] };
+  }
+  if (s.slots.some((x) => x.id === sel)) {
+    return { label: name, slots: [sel], kinds: [] };
+  }
   return null;
 }
 

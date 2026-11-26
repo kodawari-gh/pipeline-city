@@ -41,8 +41,9 @@ export class Bus {
   attach(d: Device): void {
     const others = [...this.devices, { name: 'ram', base: 0, size: this.ram.length }];
     for (const o of others) {
-      if (d.base < o.base + o.size && o.base < d.base + d.size)
+      if (d.base < o.base + o.size && o.base < d.base + d.size) {
         throw new Error(`device '${d.name}' overlaps '${o.name}'`);
+      }
     }
     this.devices.push(d);
   }
@@ -50,7 +51,9 @@ export class Bus {
   private find(addr: number, n: number): Device | null {
     for (const d of this.devices) {
       const o = addr - d.base;
-      if (o >= 0 && o + n <= d.size) return d;
+      if (o >= 0 && o + n <= d.size) {
+        return d;
+      }
     }
     return null;
   }
@@ -66,15 +69,21 @@ export class Bus {
 
   /** Run the guard for a RAM access: true if it may go ahead. An access from another address space is not guarded: on a multicore machine the kernel and the other jobs run on during one job's protected mode. */
   private allowed(addr: number, write: boolean): boolean {
-    if (this.space() !== this.guardSpace) return true;
+    if (this.space() !== this.guardSpace) {
+      return true;
+    }
     const c = this.guard!(addr, write);
-    if (c < 0) return false;
+    if (c < 0) {
+      return false;
+    }
     this.stallCycles += c;
     return true;
   }
 
   load8(addr: number): number {
-    if (addr < this.ram.length) return this.guardOn && this.guard && !this.allowed(addr, false) ? 0 : this.ram[addr]!;
+    if (addr < this.ram.length) {
+      return this.guardOn && this.guard && !this.allowed(addr, false) ? 0 : this.ram[addr]!;
+    }
     const d = this.find(addr, 1);
     return d ? d.read(addr - d.base) : this.unmapped('load8 from', addr);
   }
@@ -85,41 +94,58 @@ export class Bus {
         this.mpu.trip(addr);
         return;
       }
-      if (this.guardOn && this.guard && !this.allowed(addr, true)) return;
+      if (this.guardOn && this.guard && !this.allowed(addr, true)) {
+        return;
+      }
       this.ram[addr] = v & 0xff;
       this.dirty[addr >> 8] = 1;
       return;
     }
     const d = this.find(addr, 1);
-    if (!d) this.unmapped('store8 to', addr);
+    if (!d) {
+      this.unmapped('store8 to', addr);
+    }
     d.write(addr - d.base, v & 0xff);
   }
 
   load32(addr: number): number {
-    if (addr % 4 !== 0) throw new RangeError(`misaligned word access at 0x${addr.toString(16)}`);
-    if (addr + 4 <= this.ram.length)
+    if (addr % 4 !== 0) {
+      throw new RangeError(`misaligned word access at 0x${addr.toString(16)}`);
+    }
+    if (addr + 4 <= this.ram.length) {
       return this.guardOn && this.guard && !this.allowed(addr, false) ? 0 : this.ramView.getUint32(addr, true);
+    }
     const d = this.find(addr, 4);
-    if (!d) this.unmapped('load32 from', addr);
+    if (!d) {
+      this.unmapped('load32 from', addr);
+    }
     const o = addr - d.base;
     return (d.read(o) | (d.read(o + 1) << 8) | (d.read(o + 2) << 16) | (d.read(o + 3) << 24)) >>> 0;
   }
 
   store32(addr: number, v: number): void {
-    if (addr % 4 !== 0) throw new RangeError(`misaligned word access at 0x${addr.toString(16)}`);
+    if (addr % 4 !== 0) {
+      throw new RangeError(`misaligned word access at 0x${addr.toString(16)}`);
+    }
     if (addr + 4 <= this.ram.length) {
       if (this.mpu?.denies(addr)) {
         this.mpu.trip(addr);
         return;
       }
-      if (this.guardOn && this.guard && !this.allowed(addr, true)) return;
+      if (this.guardOn && this.guard && !this.allowed(addr, true)) {
+        return;
+      }
       this.ramView.setUint32(addr, v >>> 0, true);
       this.dirty[addr >> 8] = 1;
       return;
     }
     const d = this.find(addr, 4);
-    if (!d) this.unmapped('store32 to', addr);
+    if (!d) {
+      this.unmapped('store32 to', addr);
+    }
     const o = addr - d.base;
-    for (let k = 0; k < 4; k++) d.write(o + k, (v >>> (8 * k)) & 0xff);
+    for (let k = 0; k < 4; k++) {
+      d.write(o + k, (v >>> (8 * k)) & 0xff);
+    }
   }
 }

@@ -45,7 +45,9 @@ export class ClockScheduler {
   }
 
   addDomain(name: string, rate: Rate, onTick: (tick: number) => void): void {
-    if (this.domains.has(name)) throw new Error(`domain '${name}' exists`);
+    if (this.domains.has(name)) {
+      throw new Error(`domain '${name}' exists`);
+    }
     checkRate(rate);
     const d: Domain = { rate: { ...rate }, onTick, phase: 0, ticks: 0, pending: [] };
     this.domains.set(name, d);
@@ -54,7 +56,9 @@ export class ClockScheduler {
 
   private get(name: string): Domain {
     const d = this.domains.get(name);
-    if (!d) throw new Error(`unknown domain '${name}'`);
+    if (!d) {
+      throw new Error(`unknown domain '${name}'`);
+    }
     return d;
   }
 
@@ -70,7 +74,9 @@ export class ClockScheduler {
   setRate(name: string, rate: Rate): void {
     checkRate(rate);
     const d = this.get(name);
-    if (rate.div !== d.rate.div) d.phase = Math.floor((d.phase * rate.div) / d.rate.div);
+    if (rate.div !== d.rate.div) {
+      d.phase = Math.floor((d.phase * rate.div) / d.rate.div);
+    }
     d.rate = { ...rate };
   }
 
@@ -109,7 +115,9 @@ export class ClockScheduler {
 
   private fire(d: Domain): void {
     d.ticks++;
-    while (d.pending.length > 0 && d.pending[0]!.due <= d.ticks) d.pending.shift()!.fn();
+    while (d.pending.length > 0 && d.pending[0]!.due <= d.ticks) {
+      d.pending.shift()!.fn();
+    }
     d.onTick(d.ticks);
   }
 }

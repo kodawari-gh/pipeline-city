@@ -24,7 +24,9 @@ export class Timer implements Device {
 
   /** One CPU cycle. */
   step(): void {
-    if (this.interval === 0) return;
+    if (this.interval === 0) {
+      return;
+    }
     if (++this.count >= this.interval) {
       this.count = 0;
       this.fired++;
@@ -44,7 +46,9 @@ export class Timer implements Device {
       k = off & 3;
     const next = (((this.bytes.get(reg) ?? 0) & ~(0xff << (8 * k))) | ((val & 0xff) << (8 * k))) >>> 0;
     this.bytes.set(reg, next);
-    if (k !== 3) return;
+    if (k !== 3) {
+      return;
+    }
     this.bytes.delete(reg);
     if (reg === TIMER_REG.INTERVAL) {
       this.interval = next;

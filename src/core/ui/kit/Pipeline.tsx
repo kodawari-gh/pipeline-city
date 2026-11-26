@@ -35,7 +35,7 @@ export function DisplayTitle({
           </span>
         ))}
         <span class="pl-line">
-          {lines[lines.length - 1]}
+          {lines.at(-1)}
           <span class="pl-strip" aria-hidden="true">
             {[0, 1, 2, 3, 4].map((i) => (
               <i key={i} class={i === 0 ? 'brand' : i === lit ? 'lit' : ink[i - 1] ? 'ink' : ''} />
@@ -75,10 +75,12 @@ export function TraceLayer({
 }) {
   useLayoutEffect(() => {
     const el = root.current;
-    if (!el) return;
+    if (!el) {
+      return;
+    }
     const draw = () => traceScreen(el, at, source ?? 0, tp);
     draw();
-    const fonts = (document as Document & { fonts?: { ready: Promise<unknown> } }).fonts;
+    const { fonts } = document as Document & { fonts?: { ready: Promise<unknown> } };
     void fonts?.ready.then(draw);
     window.addEventListener('resize', draw);
     return () => window.removeEventListener('resize', draw);
@@ -98,7 +100,9 @@ function traceScreen(root: HTMLElement, at: number, source: number, tp: boolean)
   const svg = root.querySelector<SVGSVGElement>('svg.pl-trace');
   const unlit = svg?.querySelector<SVGPathElement>('[data-u]');
   const lit = svg?.querySelector<SVGPathElement>('[data-l]');
-  if (!svg || !unlit || !lit) return;
+  if (!svg || !unlit || !lit) {
+    return;
+  }
   const frame = root.getBoundingClientRect();
   const rel = (e: Element): Box => {
     const b = e.getBoundingClientRect();
@@ -126,7 +130,9 @@ function traceScreen(root: HTMLElement, at: number, source: number, tp: boolean)
 
   // The unlit spine: the gaps between the tags, and the stub and test point under the last one.
   let d = '';
-  for (let i = 0; i + 1 < n; i++) d += `M${sx} ${tags[i]!.y + tags[i]!.h + gap}L${sx} ${tags[i + 1]!.y - gap}`;
+  for (let i = 0; i + 1 < n; i++) {
+    d += `M${sx} ${tags[i]!.y + tags[i]!.h + gap}L${sx} ${tags[i + 1]!.y - gap}`;
+  }
   const last = tags[n - 1]!;
   if (tp) {
     const stubEnd = last.y + last.h + (20 / 16.2) * rem;
@@ -163,6 +169,8 @@ function traceScreen(root: HTMLElement, at: number, source: number, tp: boolean)
     p += `L${sx - s * c} ${y1}L${sx} ${y1 + c}`;
   }
   const to = focus.y - gap;
-  if (to > y1) p += `L${sx} ${to}`;
+  if (to > y1) {
+    p += `L${sx} ${to}`;
+  }
   lit.setAttribute('d', p);
 }
