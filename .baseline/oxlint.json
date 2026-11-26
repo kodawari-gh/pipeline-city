@@ -11553,9 +11553,7 @@
   "vitest(prefer-to-have-length)": 2
  },
  "src/features/room/render/three/roomenv.ts": {
-  "eslint(curly)": 6,
   "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-unsafe-class-instance-assignment)": 4,
   "typescript(no-unsafe-type-assertion)": 4,
   "typescript(strict-boolean-expressions)": 1
@@ -11566,9 +11564,6 @@
   "import(consistent-type-specifier-style)": 1,
   "unicorn(no-array-sort)": 2,
   "vitest(prefer-strict-equal)": 8
- },
- "src/features/room/render/three/roomlights.ts": {
-  "eslint(curly)": 2
  },
  "src/features/room/render/three/roomplan.test.ts": {
   "eslint(curly)": 9,
@@ -11582,11 +11577,9 @@
  },
  "src/features/room/render/three/roomplan.ts": {
   "eslint(max-params)": 2,
-  "eslint(prefer-destructuring)": 1,
   "import(no-mutable-exports)": 1,
   "typescript(no-non-null-assertion)": 2,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(numeric-separators-style)": 36
+  "unicorn(consistent-function-scoping)": 1
  },
  "src/features/sandbox/sim/benchtasks.ts": {
   "eslint(curly)": 3,
