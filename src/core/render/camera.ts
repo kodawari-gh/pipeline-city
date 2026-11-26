@@ -44,7 +44,11 @@ export function registerLabel(t: FadeNode, _base: number, _size: number, _min = 
 /** Drop the destroyed labels from the list. A 3D screen calls it when its art is gone. Returns how many stay. */
 export function sweepLabels(): number {
   let n = 0;
-  for (const f of faded) if (!f.t.destroyed) faded[n++] = f;
+  for (const f of faded) {
+    if (!f.t.destroyed) {
+      faded[n++] = f;
+    }
+  }
   faded.length = n;
   return n;
 }

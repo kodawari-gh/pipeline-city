@@ -1,4 +1,5 @@
-import { FillGradient, Graphics, Text, type TextStyleOptions } from 'pixi.js';
+import { FillGradient, Graphics, Text } from 'pixi.js';
+import type * as pixiTypes from 'pixi.js';
 
 import { currentTextResolution, registerLabel } from './camera';
 
@@ -35,15 +36,23 @@ export interface BoxOpts {
 
 export function box(g: Graphics, x: number, y: number, w: number, h: number, r: number, o: BoxOpts): Graphics {
   g.roundRect(x, y, w, h, r);
-  if (o.fill) g.fill({ color: o.fill, alpha: o.fa ?? 1 });
-  if (o.stroke) g.stroke({ width: o.lw ?? 6, color: o.stroke, alpha: o.sa ?? 1 });
+  if (o.fill) {
+    g.fill({ color: o.fill, alpha: o.fa ?? 1 });
+  }
+  if (o.stroke) {
+    g.stroke({ width: o.lw ?? 6, color: o.stroke, alpha: o.sa ?? 1 });
+  }
   return g;
 }
 
 export function disc(g: Graphics, x: number, y: number, r: number, o: BoxOpts): Graphics {
   g.circle(x, y, r);
-  if (o.fill) g.fill({ color: o.fill, alpha: o.fa ?? 1 });
-  if (o.stroke) g.stroke({ width: o.lw ?? 6, color: o.stroke, alpha: o.sa ?? 1 });
+  if (o.fill) {
+    g.fill({ color: o.fill, alpha: o.fa ?? 1 });
+  }
+  if (o.stroke) {
+    g.stroke({ width: o.lw ?? 6, color: o.stroke, alpha: o.sa ?? 1 });
+  }
   return g;
 }
 
@@ -63,7 +72,9 @@ export function dashed(g: Graphics, pts: [number, number][], dash: number, gap: 
         const e = Math.min(len, s + (dash - phase));
         g.moveTo(x0 + ux * s, y0 + uy * s).lineTo(x0 + ux * e, y0 + uy * e);
         s = e;
-      } else s += dash + gap - phase;
+      } else {
+        s += dash + gap - phase;
+      }
     }
     carry += len;
   }
@@ -84,11 +95,11 @@ export function label(
     /** The smallest size (px on screen) it is shown at; smaller fades out (6 by default). */ minPx?: number;
   } = {},
 ): Text {
-  const style: TextStyleOptions = {
+  const style: pixiTypes.TextStyleOptions = {
     fontFamily: o.head ? HEAD : MONO,
     fontSize: size,
     fill: color,
-    fontWeight: (o.weight ?? (o.head ? '700' : '500')) as NonNullable<TextStyleOptions['fontWeight']>,
+    fontWeight: (o.weight ?? (o.head ? '700' : '500')) as NonNullable<pixiTypes.TextStyleOptions['fontWeight']>,
     align: o.align ?? 'left',
   };
   const t = new Text({ text: str, style, resolution: currentTextResolution() });
@@ -135,21 +146,26 @@ export const rgrad = (inner: string, outer: string, centre: [number, number] = [
 export function mix(a: string, b: string, t: number): string {
   const pa = hex(a),
     pb = hex(b);
-  if (!pa || !pb) return a;
+  if (!pa || !pb) {
+    return a;
+  }
   const k = Math.max(0, Math.min(1, t));
   const c = pa.map((v, i) => Math.round(v + (pb[i]! - v) * k));
   return `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 }
 
 function hex(s: string): number[] | null {
-  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(s.trim());
-  if (!m) return null;
+  const m = /^#(?<hex>[0-9a-f]{3}|[0-9a-f]{6})$/iu.exec(s.trim());
+  if (!m) {
+    return null;
+  }
   let h = m[1]!;
-  if (h.length === 3)
+  if (h.length === 3) {
     h = h
       .split('')
       .map((c) => c + c)
       .join('');
+  }
   const n = Number.parseInt(h, 16);
   return [n >> 16, (n >> 8) & 255, n & 255];
 }

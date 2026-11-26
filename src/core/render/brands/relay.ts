@@ -1,9 +1,11 @@
 // relay, network cards and routers (docs/brands/relay.md).
-import { fill, knock, poly, type Brand, type Ctx } from './kit';
+import { fill, knock, poly } from './kit';
+import type * as kitTypes from './kit';
 
-const chev = (c: Ctx, x: number) => poly(c, [x, 0, x + 0.3, 0, x + 0.64, 0.5, x + 0.3, 1, x, 1, x + 0.34, 0.5]);
+const chev = (c: kitTypes.Ctx, x: number) =>
+  poly(c, [x, 0, x + 0.3, 0, x + 0.64, 0.5, x + 0.3, 1, x, 1, x + 0.34, 0.5]);
 
-export const relay: Brand = {
+export const relay: kitTypes.Brand = {
   id: 'relay',
   word: 'relay',
   makes: 'network cards and routers',

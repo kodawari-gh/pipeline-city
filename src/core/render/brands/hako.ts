@@ -1,7 +1,8 @@
 // HAKO, cases (docs/brands/hako.md).
-import { at, fill, knock, poly, type Brand } from './kit';
+import { at, fill, knock, poly } from './kit';
+import type * as kitTypes from './kit';
 
-export const hako: Brand = {
+export const hako: kitTypes.Brand = {
   id: 'hako',
   word: 'HAKO',
   makes: 'cases',

@@ -1,16 +1,17 @@
 // SIGIL, security modules (docs/brands/sigil.md).
-import { at, circle, fill, knock, poly, type Brand, type Ctx } from './kit';
+import { at, circle, fill, knock, poly } from './kit';
+import type * as kitTypes from './kit';
 
 const hex = (cx: number, cy: number, r: number) =>
   Array.from({ length: 6 }, (_, k) => at(cx, cy, r, -Math.PI / 2 + (k * Math.PI) / 3)).flat();
 
 /** The keyhole as a sub-path: a round head over a tapered slot. */
-function keyhole(c: Ctx, x: number) {
+function keyhole(c: kitTypes.Ctx, x: number) {
   circle(c, x, 0.42, 0.12);
   poly(c, [x - 0.05, 0.46, x + 0.05, 0.46, x + 0.085, 0.75, x - 0.085, 0.75]);
 }
 
-export const sigil: Brand = {
+export const sigil: kitTypes.Brand = {
   id: 'sigil',
   word: 'SIGIL',
   makes: 'security modules',

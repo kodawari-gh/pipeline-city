@@ -139,10 +139,16 @@ export class TierBudget {
 
   assign(wants: readonly Candidate[]): ReadonlySet<string> {
     const focus = new Map(wants.map((w) => [w.id, w.focus]));
-    for (const id of this.top) if (!focus.has(id)) this.top.delete(id);
+    for (const id of this.top) {
+      if (!focus.has(id)) {
+        this.top.delete(id);
+      }
+    }
     const order = [...wants].sort((a, b) => b.focus - a.focus);
     for (const w of order) {
-      if (this.top.has(w.id)) continue;
+      if (this.top.has(w.id)) {
+        continue;
+      }
       if (this.top.size < this.max) {
         this.top.add(w.id);
         continue;

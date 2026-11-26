@@ -1,7 +1,8 @@
 // hikari, monitors (docs/brands/hikari.md).
-import { fill, knock, poly, type Brand } from './kit';
+import { fill, knock, poly } from './kit';
+import type * as kitTypes from './kit';
 
-export const hikari: Brand = {
+export const hikari: kitTypes.Brand = {
   id: 'hikari',
   word: 'hikari',
   makes: 'monitors',
@@ -37,8 +38,9 @@ export const hikari: Brand = {
         [0.47, 0.045],
         [0.59, 0.05],
         [0.7, 0.055],
-      ] as const)
+      ] as const) {
         c.rect(0, y, W, h);
+      }
       c.fill();
     });
     // the horizon

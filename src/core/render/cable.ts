@@ -28,7 +28,9 @@ export interface CableLook {
 
 const trace = (g: Graphics, pts: readonly Pt[], dx = 0, dy = 0) => {
   g.moveTo(pts[0]![0] + dx, pts[0]![1] + dy);
-  for (let i = 1; i < pts.length; i++) g.lineTo(pts[i]![0] + dx, pts[i]![1] + dy);
+  for (let i = 1; i < pts.length; i++) {
+    g.lineTo(pts[i]![0] + dx, pts[i]![1] + dy);
+  }
 };
 
 /** A parallel copy of a dense polyline at distance d (left of travel), for the lit streak. */
@@ -45,9 +47,11 @@ function shifted(pts: readonly Pt[], d: number): Pt[] {
 
 /** Paint a cable's body along a dense centre line: shadow, halo, sleeve, accent tint, braid, lit streak and shade streak. */
 export function paintCable(g: Graphics, pts: readonly Pt[], look: CableLook) {
-  if (pts.length < 2) return;
+  if (pts.length < 2) {
+    return;
+  }
   const { w, accent } = look,
-    wall = !!look.wall;
+    wall = look.wall === true;
   if (look.shadow !== false) {
     trace(g, pts, w * 0.14, w * 0.2);
     g.stroke({ width: w + Math.max(4, w * 0.08), color: '#000000', alpha: 0.28, cap: 'round', join: 'round' });
@@ -110,7 +114,7 @@ function smooth(pts: Pt[], rounds: number): Pt[] {
         [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75],
       );
     }
-    out.push(cur[cur.length - 1]!);
+    out.push(cur.at(-1)!);
     cur = out;
   }
   return cur;
@@ -128,7 +132,9 @@ export function catenary(a: Pt, b: Pt, len: number, n = 28): Pt[] {
   const chord = Math.hypot(dx, dyu);
   const line = (): Pt[] =>
     Array.from({ length: n + 1 }, (_, i) => [a[0] + ((b[0] - a[0]) * i) / n, a[1] + ((b[1] - a[1]) * i) / n] as Pt);
-  if (len <= chord * 1.002) return line();
+  if (len <= chord * 1.002) {
+    return line();
+  }
   if (dx < 6) {
     // a loop to the side, as wide as the slack needs
     const dy = b[1] - a[1],
@@ -144,8 +150,11 @@ export function catenary(a: Pt, b: Pt, len: number, n = 28): Pt[] {
     hi = 1e7;
   for (let i = 0; i < 90; i++) {
     const k = Math.sqrt(lo * hi);
-    if (2 * k * Math.sinh(dx / (2 * k)) > need) lo = k;
-    else hi = k;
+    if (2 * k * Math.sinh(dx / (2 * k)) > need) {
+      lo = k;
+    } else {
+      hi = k;
+    }
   }
   const k = Math.sqrt(lo * hi),
     xm = (dx - k * Math.log((len + dyu) / Math.max(1e-6, len - dyu))) / 2;
@@ -214,7 +223,9 @@ const GRAVITY = 9000,
  * goes taut, and the swing follows), lands on the floor level `floorY` (`rest[1]`), bounces a little, slides toward `rest` and stops there.
  */
 export function stepFall(f: Fall, dt: number, anchor: Pt, len: number, rest: Pt, floorY = rest[1]): Fall {
-  if (f.done) return f;
+  if (f.done) {
+    return f;
+  }
   const h = Math.min(dt, 1 / 30);
   f.v[1] += GRAVITY * h;
   f.v[0] *= Math.exp(-DRAG * h);
@@ -240,8 +251,11 @@ export function stepFall(f: Fall, dt: number, anchor: Pt, len: number, rest: Pt,
   }
   if (f.p[1] >= floorY) {
     f.p[1] = floorY;
-    if (f.v[1] > 260) f.v[1] = -f.v[1] * BOUNCE;
-    else f.v[1] = 0;
+    if (f.v[1] > 260) {
+      f.v[1] = -f.v[1] * BOUNCE;
+    } else {
+      f.v[1] = 0;
+    }
     f.v[0] += (rest[0] - f.p[0]) * 14 * h;
     f.v[0] *= Math.exp(-9 * h); // slides to where it lies
     f.spin += (0.3 - f.rot) * 30 * h;
@@ -330,7 +344,7 @@ export function roundedPath(pts: readonly Pt[], r: number, step = 24): Pt[] {
       out.push([u * u * s[0] + 2 * u * t * p[0] + t * t * e[0], u * u * s[1] + 2 * u * t * p[1] + t * t * e[1]]);
     }
   }
-  out.push(pts[pts.length - 1]!);
+  out.push(pts.at(-1)!);
   // resample straight runs so glow pulses and braid ticks have points to land on
   const dense: Pt[] = [out[0]!];
   for (let i = 1; i < out.length; i++) {
@@ -338,7 +352,9 @@ export function roundedPath(pts: readonly Pt[], r: number, step = 24): Pt[] {
       b = out[i]!,
       d = Math.hypot(b[0] - a[0], b[1] - a[1]),
       n = Math.max(1, Math.ceil(d / step));
-    for (let j = 1; j <= n; j++) dense.push([a[0] + ((b[0] - a[0]) * j) / n, a[1] + ((b[1] - a[1]) * j) / n]);
+    for (let j = 1; j <= n; j++) {
+      dense.push([a[0] + ((b[0] - a[0]) * j) / n, a[1] + ((b[1] - a[1]) * j) / n]);
+    }
   }
   return dense;
 }
@@ -387,7 +403,9 @@ export function drape(route: Pt[], o: DrapeOpts = {}): { path: Pt[]; clips: Clip
   for (let s = 0; s + 1 < idx.length; s++) {
     const i0 = idx[s]!,
       i1 = idx[s + 1]!;
-    if (i1 - i0 < 2) continue;
+    if (i1 - i0 < 2) {
+      continue;
+    }
     const span = Math.hypot(path[i1]![0] - path[i0]![0], path[i1]![1] - path[i0]![1]);
     // how level the cable is at each point, from the untouched line over a wide window and then averaged, so the sag eases in and out round a bend
     const level: number[] = [];

@@ -1,7 +1,8 @@
 // PIPELINE CITY, the game itself: the OS splash, the screen on standby, the city's signs (docs/brands/pipeline.md).
-import { circle, fill, knock, poly, stroke, type Brand } from './kit';
+import { circle, fill, knock, poly, stroke } from './kit';
+import type * as kitTypes from './kit';
 
-export const pipeline: Brand = {
+export const pipeline: kitTypes.Brand = {
   id: 'pipeline',
   word: 'PIPELINE CITY',
   makes: 'the game (OS splash, standby screen, city signs)',
