@@ -402,8 +402,8 @@ class Swarm {
     return `Co-Authored-By: ${name} <noreply@anthropic.com>`;
   }
 
-  async agent(role, n, cwd, tier, prompt, schema) {
-    const args = [
+  agentArgs(role, tier, schema) {
+    return [
       '-p',
       '--agents',
       this.agents,
@@ -424,6 +424,11 @@ class Swarm {
       '--settings',
       this.agentSettings,
     ];
+  }
+
+  async agent(role, n, cwd, tier, prompt, schema) {
+    const args = this.agentArgs(role, tier, schema);
+    let limitWaits = 0;
     for (let attempt = 1; attempt <= 2; attempt++) {
       const r = await sh(this.claude, args, { cwd, input: prompt, timeoutMs: this.sw.agentTimeoutMin * 60e3 });
       let j = null;
@@ -446,6 +451,12 @@ class Swarm {
       const why = r.timedOut
         ? 'timed out'
         : (j?.result || r.err || r.out).toString().trim().split(/\r?\n/).slice(-3).join(' | ').slice(0, 300);
+      if (/hit your .*limit/iu.test(why) && ++limitWaits <= 36) {
+        this.emit(`#${n} ${role} usage limit hit, waiting 10 min: ${why}`);
+        await sleep(600e3);
+        attempt--;
+        continue;
+      }
       this.emit(`#${n} ${role} attempt ${attempt} failed: ${why}`);
     }
     throw new Critical(`${role} agent failed twice`);
