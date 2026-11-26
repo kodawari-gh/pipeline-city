@@ -28,7 +28,7 @@ export const caseStep = (w: World, s: Snapshot | null, p: { dt: number; net: Ret
       lift.busy || handIn,
     );
   }
-  machine?.frame(s, p.dt, p.dt, p.net);
+  machine?.frame(s, { dt: p.dt, net: p.net });
   hand.frame(p.dt, w.stage.camera);
 };
 

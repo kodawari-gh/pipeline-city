@@ -20,7 +20,7 @@ describe('Machine3D.powerGlow', () => {
     if (bought.ok) g.install(bought.invId, 'tpm0');
     // (a machine that is off: no fan turns and no ring of light shines, so a glow is the lens's)
     snap = { ...g.snapshot(), powered: false };
-    m = new Machine3D(snap, roomGeo(), new BakeQueue(), null, false);
+    m = new Machine3D(snap, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: false });
   });
 
   const ids = (kind: string): string[] => snap.devices.filter((d) => d.kind === kind).map((d) => d.id);
@@ -37,7 +37,7 @@ describe('Machine3D.powerGlow', () => {
     return best;
   };
   /** Ease the parts all the way to the look they were given. */
-  const settle = (): void => m.frame(snap, 5);
+  const settle = (): void => m.frame(snap, { dt: 5 });
   const lens = (
     levels: [string, number][],
     roles: [string, 'source' | 'hub' | 'use'][] = levels.map(([id]) => [id, 'use'] as [string, 'use']),
@@ -173,17 +173,17 @@ describe('Machine3D.powerGlow', () => {
       );
     m.powerGlow(null);
     // (the fans spin up: their rings shine)
-    for (let i = 0; i < 80; i++) m.frame(on, 0.1);
+    for (let i = 0; i < 80; i++) m.frame(on, { dt: 0.1 });
     const own = ring();
     expect(own).toBeGreaterThan(0.5);
     m.powerGlow(new Map([[ids('fan')[0]!, 1]]), new Set(), new Map([[ids('fan')[0]!, 'use']]));
-    m.frame(on, 0.1);
+    m.frame(on, { dt: 0.1 });
     expect(ring()).toBeLessThan(own * 0.25);
     m.powerGlow(null);
-    m.frame(on, 0.1);
+    m.frame(on, { dt: 0.1 });
     expect(ring()).toBeGreaterThan(own * 0.9);
     // (the machine off again: the next tests see the rings dark)
-    for (let i = 0; i < 80; i++) m.frame(snap, 0.1);
+    for (let i = 0; i < 80; i++) m.frame(snap, { dt: 0.1 });
   });
 
   it('keeps the own look of a part that has no role (a heatsink, a radiator), and brings every look back when the lens ends', () => {
