@@ -67,9 +67,9 @@ export class SwarmBase {
     return `Co-Authored-By: ${name} <noreply@anthropic.com>`;
   }
 
-  /** Run one agent with a JSON output schema, twice at most. Returns its structured output. */
-  async agent({ role, n, cwd, tier, prompt, schema }) {
-    const args = [
+  /** The `claude -p` arguments for one agent run. */
+  agentArgs(role, tier, schema) {
+    return [
       '-p',
       '--agents',
       this.agents,
@@ -90,6 +90,11 @@ export class SwarmBase {
       '--settings',
       this.agentSettings,
     ];
+  }
+
+  /** Run one agent with a JSON output schema, twice at most. Returns its structured output. */
+  async agent({ role, n, cwd, tier, prompt, schema }) {
+    const args = this.agentArgs(role, tier, schema);
     let limitWaits = 0;
     for (let attempt = 1; attempt <= 2; attempt++) {
       const r = await sh(this.claude, args, { cwd, input: prompt, timeoutMs: this.sw.agentTimeoutMin * 60e3 });

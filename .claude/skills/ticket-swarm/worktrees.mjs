@@ -203,4 +203,26 @@ export class SwarmWorktrees extends SwarmBase {
     }
     return kept;
   }
+
+  /**
+   * Prepare a role worktree for a round: drop leftovers and, from round 2, move it to `tip`.
+   * After a cut-off run (`T.cut`), uncommitted work stays for the agent when `tip` fast-forwards over it.
+   * Returns the prompt note about the work that stays.
+   */
+  prepare(n, p, tip) {
+    const T = this.t(n);
+    const keep =
+      T.cut &&
+      !gitOk(p, 'rev-parse', '-q', '--verify', 'MERGE_HEAD') &&
+      Boolean(git(p, 'status', '--porcelain')) &&
+      (T.rounds === 1 || gitOk(p, 'merge', '--ff-only', tip));
+    if (keep) {
+      return 'An earlier run was cut off. Its uncommitted work is in your worktree: check it, finish it, and commit after each few files.\n';
+    }
+    cleanWorktree(p);
+    if (T.rounds > 1) {
+      git(p, 'reset', '--hard', tip);
+    }
+    return '';
+  }
 }
