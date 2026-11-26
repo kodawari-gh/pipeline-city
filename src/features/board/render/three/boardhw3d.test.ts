@@ -5,29 +5,52 @@ import { IO_PORTS } from '../layout/boardlayout';
 import { BR } from '../layout/layout';
 import { fitted, ioShells, ioStacks } from './boardhw3d';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 describe('the rear connectors behind the shield', () => {
-  for (const [tier, spec] of BOARD_TIERS.entries()) {
+  describe.each([...BOARD_TIERS.entries()])('board tier %i', (tier, spec) => {
     const feat = spec.features,
       shells = ioShells(feat, tier);
-    it(`${spec.name}: every shell goes through the rear wall's I/O opening`, () => {
+    const assert_x_every_shell_goes_through_the_rear_wall_s_I_O_o = (): void => {
       for (const s of shells) {
         expect(s.y0, `shell at y ${s.y0}`).toBeGreaterThanOrEqual(BR.io.y - 20);
         expect(s.y1, `shell at y ${s.y1}`).toBeLessThanOrEqual(BR.io.y + BR.io.h + 20);
         expect(s.z0).toBeGreaterThanOrEqual(BOARD_Z + 80);
         expect(s.z1).toBeLessThanOrEqual(BOARD_Z + 1220);
       }
+    };
+
+    it(`${spec.name}: every shell goes through the rear wall's I/O opening`, () => {
+      expect.hasAssertions();
+      assert_x_every_shell_goes_through_the_rear_wall_s_I_O_o();
     });
-    it(`${spec.name}: each fitted port has a shell round its centre, and the stacks hold every shell without meeting`, () => {
-      for (const p of IO_PORTS)
-        if (fitted(p, feat))
-          expect(
-            shells.some((s) => s.y0 < p.y && p.y < s.y1),
-            p.id,
-          ).toBe(true);
+    const assert_x_each_fitted_port_has_a_shell_round_its_centre_ = (): void => {
+      for (const p of IO_PORTS) {
+        if (fitted(p, feat)) {
+          expect(shells.some((s) => s.y0 < p.y && p.y < s.y1)).toBe(true);
+        }
+      }
       const stacks = ioStacks(shells);
       expect(stacks.reduce((n, st) => n + st.shells.length, 0)).toBe(shells.length);
-      for (let i = 1; i < stacks.length; i++) expect(stacks[i]!.y0).toBeGreaterThanOrEqual(stacks[i - 1]!.y1 + 12);
-      for (const st of stacks) for (const s of st.shells) expect(st.top).toBeGreaterThan(s.z1);
+      for (let i = 1; i < stacks.length; i++) {
+        expect(must(stacks[i]).y0).toBeGreaterThanOrEqual(must(stacks[i - 1]).y1 + 12);
+      }
+      for (const st of stacks) {
+        for (const s of st.shells) {
+          expect(st.top).toBeGreaterThan(s.z1);
+        }
+      }
+    };
+
+    it(`${spec.name}: each fitted port has a shell round its centre, and the stacks hold every shell without meeting`, () => {
+      expect.hasAssertions();
+      assert_x_each_fitted_port_has_a_shell_round_its_centre_();
     });
-  }
+  });
 });

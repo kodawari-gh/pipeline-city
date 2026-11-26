@@ -3,7 +3,7 @@
 // the Build my PC stage, none with no router, none with no live chips.
 import { PerspectiveCamera } from 'three';
 import { describe, expect, it } from 'vitest';
-import type { Snapshot } from '@/worker/protocol';
+
 import { BakeQueue } from '@/core/render/three/artlod';
 import { DEVICE_LOD } from '@/core/render/lod/lod';
 import { ROUTER_BODIES, routerIds } from '@/features/network/render/router/routerlayout';
@@ -13,7 +13,17 @@ import { Machine3D } from './machine3d';
 import { ROUTER_FLOOR, ROUTER_SIZE, routerStand } from './router3d';
 import { maxedSnapshot, quietCanvas } from './testutil';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 quietCanvas();
+
+type Snapshot = ReturnType<typeof maxedSnapshot>;
 
 const mine = (m: Machine3D): string[] =>
   m.rails.map((r) => r.id).filter((id) => id === 'router' || id.startsWith('router.'));
@@ -26,11 +36,11 @@ const offered = (tier: number): string[] => [
 const ROUTERS = { 2: { id: 'router2', name: 'Gigabit router', mbps: 1000, clients: 4, visual: 'router-gbe' } } as const;
 const withRouter = (s: Snapshot, router: NonNullable<Snapshot['net']>['router']): Snapshot => ({
   ...s,
-  net: { ...s.net!, router },
+  net: { ...s.net, router },
 });
 /** A camera `d` in front of the point `at` (the room's frame: layout x, 3D y, depth), looking at it. */
-const camAt = (x: number, y: number, z: number, d: number): PerspectiveCamera => {
-  const c = new PerspectiveCamera(40, 16 / 9, 10, 200000);
+const camAt = ([x, y, z]: [number, number, number], d: number): PerspectiveCamera => {
+  const c = new PerspectiveCamera(40, 16 / 9, 10, 200_000);
   c.position.set(x, y, z + d);
   c.lookAt(x, y, z);
   c.updateMatrixWorld();
@@ -42,7 +52,7 @@ describe("the router's board on the machine", () => {
   const s = maxedSnapshot(),
     geo = roomGeo();
 
-  it('has a flight to the board and to each part of the router the game has, all lying on the plinth behind the jacks', () => {
+  function assert_has_a_flight_to_the_board_and_to_each_part_of_th(): void {
     const m = new Machine3D(s, geo, {
         q: new BakeQueue(),
         chips: new Chips3D(),
@@ -50,11 +60,12 @@ describe("the router's board on the machine", () => {
         merge: false,
         lod: false,
       }),
-      tier = Number(/\d+$/.exec(s.net!.router!.id)![0]),
+      routerId = must(s.net.router).id,
+      tier = Number(must(/\d+$/u.exec(routerId))[0]),
       stand = routerStand(tier);
-    expect(mine(m)).toEqual(offered(tier));
-    const board = m.rails.find((r) => r.id === 'router')!,
-      lie = board.lie!;
+    expect(mine(m)).toStrictEqual(offered(tier));
+    const board = must(m.rails.find((r) => r.id === 'router')),
+      lie = must(board.lie);
     // (it lies behind the front: its jack side is just behind the jacks' backs, and it ends before the back wall)
     expect(lie).toBeDefined();
     expect(board.z + lie.d / 2).toBeLessThan(stand.front);
@@ -64,45 +75,56 @@ describe("the router's board on the machine", () => {
     expect(board.rect.w).toBeLessThanOrEqual(stand.face.w);
     // (on the standoffs over the plinth, under the shell's top: the shelf is `-stand.oy`, the shell's top its height above it)
     expect(lie.y).toBeGreaterThan(-stand.oy + stand.k * ROUTER_FLOOR);
-    expect(lie.y).toBeLessThan(-stand.oy + stand.k * ROUTER_SIZE[tier]!.h);
+    expect(lie.y).toBeLessThan(-stand.oy + stand.k * must(ROUTER_SIZE[tier]).h);
     expect(board.rect.y).toBe(-lie.y);
     for (const r of m.rails.filter((x) => x.id.startsWith('router.'))) {
-      expect(r.lie, r.id).toBeDefined();
-      expect(r.zoom, r.id).toBeGreaterThan(0);
+      expect(r.lie).toBeDefined();
+      expect(r.zoom).toBeGreaterThan(0);
       // (each part lies on the board: inside its east-west span and its depth, standing over it)
-      expect(r.rect.x, r.id).toBeGreaterThanOrEqual(board.rect.x - 0.01);
-      expect(r.rect.x + r.rect.w, r.id).toBeLessThanOrEqual(board.rect.x + board.rect.w + 0.01);
-      expect(r.z - r.lie!.d / 2, r.id).toBeGreaterThanOrEqual(board.z - lie.d / 2 - 0.01);
-      expect(r.z + r.lie!.d / 2, r.id).toBeLessThanOrEqual(board.z + lie.d / 2 + 0.01);
-      expect(r.lie!.y, r.id).toBeGreaterThanOrEqual(lie.y - 0.01);
+      expect(r.rect.x).toBeGreaterThanOrEqual(board.rect.x - 0.01);
+      expect(r.rect.x + r.rect.w).toBeLessThanOrEqual(board.rect.x + board.rect.w + 0.01);
+      expect(r.z - must(r.lie).d / 2).toBeGreaterThanOrEqual(board.z - lie.d / 2 - 0.01);
+      expect(r.z + must(r.lie).d / 2).toBeLessThanOrEqual(board.z + lie.d / 2 + 0.01);
+      expect(must(r.lie).y).toBeGreaterThanOrEqual(lie.y - 0.01);
     }
-    for (const r of m.rails.filter((x) => x.id.startsWith('router.') && x.id !== 'router.soc'))
-      expect(r.zoom, r.id).toBe(DEVICE_LOD.router.detail);
+    for (const r of m.rails.filter((x) => x.id.startsWith('router.') && x.id !== 'router.soc')) {
+      expect(r.zoom).toBe(DEVICE_LOD.router.detail);
+    }
     // (the die's flight comes in where its lid is gone)
-    expect(m.rails.find((r) => r.id === 'router.soc')!.zoom).toBeGreaterThan(DEVICE_LOD.router.fade[1]);
+    expect(must(m.rails.find((r) => r.id === 'router.soc')).zoom).toBeGreaterThan(DEVICE_LOD.router.fade[1]);
     m.dispose();
+  }
+
+  it('has a flight to the board and to each part of the router the game has, all lying on the plinth behind the jacks', () => {
+    expect.hasAssertions();
+    assert_has_a_flight_to_the_board_and_to_each_part_of_th();
   });
 
   it('has none with no router, none on the Build my PC stage, and none without the live chips', () => {
-    expect(
-      mine(
-        new Machine3D(withRouter(s, null), geo, {
-          q: new BakeQueue(),
-          chips: new Chips3D(),
-          inRoom: true,
-          merge: false,
-          lod: false,
-        }),
-      ),
-    ).toEqual([]);
-    expect(
-      mine(
-        new Machine3D(s, geo, { q: new BakeQueue(), chips: new Chips3D(), inRoom: false, merge: false, lod: false }),
-      ),
-    ).toEqual([]);
-    expect(
-      mine(new Machine3D(s, geo, { q: new BakeQueue(), chips: null, inRoom: true, merge: false, lod: false })),
-    ).toEqual([]);
+    const noRouter = new Machine3D(withRouter(s, null), geo, {
+      q: new BakeQueue(),
+      chips: new Chips3D(),
+      inRoom: true,
+      merge: false,
+      lod: false,
+    });
+    const onStage = new Machine3D(s, geo, {
+      q: new BakeQueue(),
+      chips: new Chips3D(),
+      inRoom: false,
+      merge: false,
+      lod: false,
+    });
+    const noChips = new Machine3D(s, geo, {
+      q: new BakeQueue(),
+      chips: null,
+      inRoom: true,
+      merge: false,
+      lod: false,
+    });
+    expect(mine(noRouter)).toStrictEqual([]);
+    expect(mine(onStage)).toStrictEqual([]);
+    expect(mine(noChips)).toStrictEqual([]);
   });
 
   it('is made again for a router of another tier, and goes with the router', () => {
@@ -115,18 +137,18 @@ describe("the router's board on the machine", () => {
       }),
       before = mine(m).length;
     m.syncCables(withRouter(s, ROUTERS[2]), geo);
-    expect(mine(m)).toEqual(offered(2));
-    expect(mine(m).length).not.toBe(before);
+    expect(mine(m)).toStrictEqual(offered(2));
+    expect(mine(m)).not.toHaveLength(before);
     // (the old board's flights are gone, not left beside the new: one board)
-    expect(m.rails.filter((r) => r.id === 'router').length).toBe(1);
+    expect(m.rails.filter((r) => r.id === 'router')).toHaveLength(1);
     m.syncCables(withRouter(s, null), geo);
-    expect(mine(m)).toEqual([]);
+    expect(mine(m)).toStrictEqual([]);
     m.syncCables(s, geo);
     expect(mine(m)[0]).toBe('router');
     m.dispose();
   });
 
-  it('keeps the shell whole from afar and takes it away as the camera comes in, the board lying where it is', () => {
+  function assert_keeps_the_shell_whole_from_afar_and_takes_it_awa(): void {
     const m = new Machine3D(s, geo, {
         q: new BakeQueue(),
         chips: new Chips3D(),
@@ -135,21 +157,24 @@ describe("the router's board on the machine", () => {
         lod: false,
       }),
       alphas: number[] = [];
-    m.onRouterShell = (a) => alphas.push(a);
-    const tier = Number(/\d+$/.exec(s.net!.router!.id)![0]),
+    m.onRouterShell = (a) => {
+      alphas.push(a);
+    };
+    const routerId = must(s.net.router).id,
+      tier = Number(must(/\d+$/u.exec(routerId))[0]),
       stand = routerStand(tier),
       cx = stand.face.x + stand.face.w / 2,
       cy = -(stand.face.y + stand.face.h / 2);
     const boardRoot = (): { visible: boolean; lying: boolean } => {
-      const o = m.root.children.find((c) => c.userData['id'] === 'router')!;
-      return { visible: o.visible, lying: Math.abs(o.children[0]!.rotation.x + Math.PI / 2) < 1e-9 };
+      const o = must(m.root.children.find((c) => c.userData['id'] === 'router'));
+      return { visible: o.visible, lying: Math.abs(must(o.children[0]).rotation.x + Math.PI / 2) < 1e-9 };
     };
     const seen = (d: number) => {
-      m.lod(camAt(cx, cy, stand.front, d), H, 1);
-      return { ...boardRoot(), shell: alphas[alphas.length - 1]! };
+      m.lod(camAt([cx, cy, stand.front], d), H, 1);
+      return { ...boardRoot(), shell: must(alphas.at(-1)) };
     };
     expect(tier).toBeGreaterThan(0);
-    const far = seen(60000);
+    const far = seen(60_000);
     expect(far.visible).toBe(false);
     expect(far.shell).toBe(1);
     // (zoom is H / (2 d tan 20 degrees) pixels a unit: the shell is gone by `fade[1]`)
@@ -161,13 +186,20 @@ describe("the router's board on the machine", () => {
     const gone = at(DEVICE_LOD.router.fade[1] * 1.05);
     expect(gone.shell).toBe(0);
     // (it never stands up: it lies at every zoom)
-    for (const v of [far, mid, gone, at(3)]) expect(v.lying).toBe(true);
+    for (const v of [far, mid, gone, at(3)]) {
+      expect(v.lying).toBe(true);
+    }
     // (a part of the board is the router until the shell is gone: the pick of its parts follows)
     expect(m.pickId('router.dram')).toBe('router.dram');
-    m.lod(camAt(cx, cy, stand.front, 60000), H, 1);
+    m.lod(camAt([cx, cy, stand.front], 60_000), H, 1);
     expect(m.pickId('router.dram')).toBe('router');
     expect(m.pickId('router.soc')).toBe('router');
     expect(m.pickId('pcie0')).toBe('pcie0');
     m.dispose();
+  }
+
+  it('keeps the shell whole from afar and takes it away as the camera comes in, the board lying where it is', () => {
+    expect.hasAssertions();
+    assert_keeps_the_shell_whole_from_afar_and_takes_it_awa();
   });
 });

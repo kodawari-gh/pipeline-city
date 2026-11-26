@@ -4,8 +4,8 @@ import { pagesOnDie } from './rammap3d';
 describe('where the pages of a chip lie on its die', () => {
   it('spreads consecutive pages over the banks the controller drives, a bank filling its cells in turn', () => {
     const { at, rows } = pagesOnDie(64, 1, 16, 16);
-    expect(at.slice(0, 16).map((a) => a.bank)).toEqual(Array.from({ length: 16 }, (_, i) => i));
-    expect(at.slice(16, 32).map((a) => a.k)).toEqual(new Array(16).fill(1));
+    expect(at.slice(0, 16).map((a) => a.bank)).toStrictEqual(Array.from({ length: 16 }, (_, i) => i));
+    expect(at.slice(16, 32).map((a) => a.k)).toStrictEqual(Array.from({ length: 16 }, () => 1));
     expect(rows).toBe(4);
   });
 

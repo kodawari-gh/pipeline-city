@@ -15,6 +15,14 @@ import {
   springStep,
 } from './plughand3d';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 describe('the hand that holds a plug', () => {
   it('carries the plug to its goal on a spring that does not overshoot, at any frame rate', () => {
     for (const dt of [1 / 30, 1 / 60, 1 / 144]) {
@@ -31,7 +39,9 @@ describe('the hand that holds a plug', () => {
     // one long step lands where many short ones do
     let a = 0,
       va = 0;
-    for (let i = 0; i < 10; i++) [a, va] = springStep(a, va, 50, 25, 0.01);
+    for (let i = 0; i < 10; i++) {
+      [a, va] = springStep(a, va, 50, 25, 0.01);
+    }
     expect(springStep(0, 0, 50, 25, 0.1)[0]).toBeCloseTo(a, 6);
   });
 
@@ -48,7 +58,7 @@ describe('the hand that holds a plug', () => {
   });
 
   it('pulls a seated plug out slowly against its latch, then pops it free', () => {
-    expect(pullOffset(0)).toEqual({ out: 0, popped: false });
+    expect(pullOffset(0)).toStrictEqual({ out: 0, popped: false });
     expect(pullOffset(POP_PX / 2).out).toBeLessThan(pullOffset(POP_PX).out / 2);
     expect(pullOffset(POP_PX - 1).popped).toBe(false);
     expect(pullOffset(POP_PX).popped).toBe(true);
@@ -76,19 +86,21 @@ describe('the hand that holds a plug', () => {
     const part = { min: [0, 0, 300] as V3, max: [400, 400, 700] as V3 },
       env = { planes: walls, solids: [part] };
     // straight in: on the part's top, or on the deck beside it (never down on the tray)
-    expect(hover([200, 200, 5000], [0, 0, -1], env, 80, up)).toEqual([200, 200, 780]);
-    expect(hover([1000, 200, 5000], [0, 0, -1], env, 80, up)).toEqual([1000, 200, 380]);
+    expect(hover([200, 200, 5000], [0, 0, -1], env, 80, up)).toStrictEqual([200, 200, 780]);
+    expect(hover([1000, 200, 5000], [0, 0, -1], env, 80, up)).toStrictEqual([1000, 200, 380]);
     // slanted: still 80 off the face it meets, on the pointer's ray
     const d: V3 = [0.8, 0, -0.6],
-      p = hover([-3000, 200, 4000], d, env, 80, up)!;
+      p = must(hover([-3000, 200, 4000], d, env, 80, up));
     expect(p[2]).toBeCloseTo(380);
     // the part's side, met first along a flat ray, keeps the plug off it too
-    expect(hover([-3000, 200, 500], [1, 0, 0], env, 80, up)).toEqual([-80, 200, 500]);
+    expect(hover([-3000, 200, 500], [1, 0, 0], env, 80, up)).toStrictEqual([-80, 200, 500]);
     // past the side wall it goes on to the deck, at the deck's depth (never up by the glass where the ray leaves by the wall)
-    expect(hover([1800, 200, 2500], d, env, 80, up)![2]).toBeCloseTo(380);
+    expect(must(hover([1800, 200, 2500], d, env, 80, up))[2]).toBeCloseTo(380);
     // a part the ray is already in where it comes through the glass (a shroud that runs to it) does not stop it; a ray away from the case meets nothing
     const shroud = { min: [-5000, -5000, 0] as V3, max: [5000, -1000, 2500] as V3 };
-    expect(hover([0, -2000, 5000], [0, 0, -1], { planes: walls, solids: [shroud] }, 80, up)).toEqual([0, -2000, 380]);
+    expect(hover([0, -2000, 5000], [0, 0, -1], { planes: walls, solids: [shroud] }, 80, up)).toStrictEqual([
+      0, -2000, 380,
+    ]);
     expect(hover([0, 0, 5000], [0, 0, 1], env, 80, up)).toBeNull();
   });
 
@@ -101,11 +113,11 @@ describe('the hand that holds a plug', () => {
       shroud = { min: [-1000, -2000, 0] as V3, max: [1000, -1000, 2000] as V3 };
     const env = { planes: walls, solids: [sink, shroud] };
     // over the heatsink: lifted to its top, toward the glass
-    expect(keepClear([200, 200, 300], env, 80)).toEqual([200, 200, 580]);
+    expect(keepClear([200, 200, 300], env, 80)).toStrictEqual([200, 200, 580]);
     // in the shroud, which runs to the glass: out by its top
-    expect(keepClear([0, -1100, 300], env, 80)).toEqual([0, -920, 300]);
+    expect(keepClear([0, -1100, 300], env, 80)).toStrictEqual([0, -920, 300]);
     // clear of everything: kept off the tray only
-    expect(keepClear([2000, 2000, 20], env, 80)).toEqual([2000, 2000, 80]);
+    expect(keepClear([2000, 2000, 20], env, 80)).toStrictEqual([2000, 2000, 80]);
   });
 });
 

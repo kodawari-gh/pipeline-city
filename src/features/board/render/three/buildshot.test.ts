@@ -10,7 +10,7 @@ describe('the framing of a picture of the machine', () => {
     expect(wide.y).toBeCloseTo(0);
     // a tall canvas: the window is as wide as the canvas
     const tall = pictureWindow(400, 800, 2);
-    expect(tall).toEqual({ x: 0, y: 300, w: 400, h: 200 });
+    expect(tall).toStrictEqual({ x: 0, y: 300, w: 400, h: 200 });
     // (always inside the canvas, always of the shape asked)
     for (const [cw, ch, a] of [
       [1600, 900, 1.43],
@@ -34,7 +34,7 @@ describe('the framing of a picture of the machine', () => {
         { x: 70, y: 20 },
         { x: 30, y: 90 },
       ]),
-    ).toEqual({ x: 10, y: 20, w: 60, h: 70 });
+    ).toStrictEqual({ x: 10, y: 20, w: 60, h: 70 });
   });
 
   it('says how far to zoom out or in so the machine fills its share of the window', () => {
@@ -84,7 +84,7 @@ describe('the framing of a picture of the machine', () => {
       400,
     );
     // (the machine's middle is at 130, 40: the window would start at 30, -10; the canvas edge keeps y at 0)
-    expect(mid).toEqual({ x: 30, y: 0, w: 200, h: 100 });
+    expect(mid).toStrictEqual({ x: 30, y: 0, w: 200, h: 100 });
     const far = centred(
       [
         { x: 790, y: 390 },
@@ -94,6 +94,6 @@ describe('the framing of a picture of the machine', () => {
       800,
       400,
     );
-    expect(far).toEqual({ x: 600, y: 300, w: 200, h: 100 });
+    expect(far).toStrictEqual({ x: 600, y: 300, w: 200, h: 100 });
   });
 });

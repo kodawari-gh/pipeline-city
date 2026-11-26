@@ -5,11 +5,11 @@ import { DOOR_SECONDS, DOOR_SEES, SWING, doorPose, doorWait, stepDoor } from './
 describe('the side panel opening', () => {
   it('starts shut and ends swung out past square, for every kind', () => {
     for (const k of CASE_KIND) {
-      expect(doorPose(k, 0), k).toEqual({ slide: 0, out: 0, swing: 0, screws: 0 });
+      expect(doorPose(k, 0)).toStrictEqual({ slide: 0, out: 0, swing: 0, screws: 0 });
       const p = doorPose(k, 1);
-      expect(p.swing, k).toBeCloseTo(SWING, 5);
-      expect(p.swing, k).toBeGreaterThan(Math.PI / 2);
-      expect(DOOR_SECONDS[k], k).toBeGreaterThan(0.5);
+      expect(p.swing).toBeCloseTo(SWING, 5);
+      expect(p.swing).toBeGreaterThan(Math.PI / 2);
+      expect(DOOR_SECONDS[k]).toBeGreaterThan(0.5);
     }
   });
 
@@ -35,9 +35,9 @@ describe('how long a step waits for the panel', () => {
   it('waits until the panel has swung clear, for every kind', () => {
     for (const k of CASE_KIND) {
       const w = doorWait(k);
-      expect(w, k).toBeGreaterThanOrEqual(0.4);
-      expect(w, k).toBeLessThan(1);
-      expect(doorPose(k, w).swing, k).toBeGreaterThanOrEqual(0.75 * SWING - 1e-9);
+      expect(w).toBeGreaterThanOrEqual(0.4);
+      expect(w).toBeLessThan(1);
+      expect(doorPose(k, w).swing).toBeGreaterThanOrEqual(0.75 * SWING - 1e-9);
     }
   });
   it("keeps the share the Full tower's glass door always had, and gives the steel panels longer", () => {
@@ -49,7 +49,7 @@ describe('how long a step waits for the panel', () => {
     expect(doorWait('oem') * DOOR_SECONDS.oem).toBeLessThan(1.2);
   });
   it('says which panels hide the inside when they are shut', () => {
-    expect(DOOR_SEES).toEqual({ oem: false, matte: false, gamer: true, show: true });
+    expect(DOOR_SEES).toStrictEqual({ oem: false, matte: false, gamer: true, show: true });
   });
 });
 

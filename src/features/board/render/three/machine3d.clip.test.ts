@@ -12,6 +12,14 @@ import { setLayoutTier } from '../layout/layout';
 import { Machine3D } from './machine3d';
 import { quietCanvas } from './testutil';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 quietCanvas();
 
 /** The cables that run from the tray's holes or the room to a socket on the board's face, over nothing: no part stands between. */
@@ -23,14 +31,13 @@ const SLACK = 8;
 function depthIn(
   pts: readonly (readonly number[])[],
   r: number,
-  min: readonly number[],
-  max: readonly number[],
+  { min, max }: { readonly min: readonly number[]; readonly max: readonly number[] },
 ): number {
   let worst = 0;
   for (let i = 1; i < pts.length; i++) {
-    const a = pts[i - 1]!,
-      b = pts[i]!,
-      len = Math.hypot(b[0]! - a[0]!, b[1]! - a[1]!, b[2]! - a[2]!),
+    const a = must(pts[i - 1]),
+      b = must(pts[i]),
+      len = Math.hypot(must(b[0]) - must(a[0]), must(b[1]) - must(a[1]), must(b[2]) - must(a[2])),
       k = Math.max(1, Math.ceil(len / 25));
     for (let j = 0; j <= k; j++) {
       const f = j / k;
@@ -38,7 +45,10 @@ function depthIn(
         worst,
         Math.min(
           ...[0, 1, 2].map((q) =>
-            Math.min(a[q]! + (b[q]! - a[q]!) * f - min[q]!, max[q]! - (a[q]! + (b[q]! - a[q]!) * f)),
+            Math.min(
+              must(a[q]) + (must(b[q]) - must(a[q])) * f - must(min[q]),
+              must(max[q]) - (must(a[q]) + (must(b[q]) - must(a[q])) * f),
+            ),
           ),
         ) - r,
       );
@@ -50,8 +60,10 @@ function depthIn(
 describe("the cables and the machine's bodies", () => {
   const games: [string, Game][] = [];
   beforeAll(async () => {
-    for (const p of BUILD_PRESETS) games.push([p.name, await presetGame(p)]);
-    games.push(['full', await fullGame()]);
+    const presets = await Promise.all(
+      BUILD_PRESETS.map(async (p): Promise<[string, Game]> => [p.name, await presetGame(p)]),
+    );
+    games.push(...presets, ['full', await fullGame()]);
   }, 120_000);
 
   it("leaves the supply's leads, the video cable and the mains cords clear of every part, in each ready-made machine", () => {
@@ -63,11 +75,12 @@ describe("the cables and the machine's bodies", () => {
       try {
         const runs = m.cableRuns().filter((r) => OVER_OPEN.has(r.id));
         expect(runs.length, `${name}: its supply's leads`).toBeGreaterThan(1);
-        for (const r of runs)
+        for (const r of runs) {
           for (const b of bodies) {
-            const worst = Math.max(...r.strands.map((st) => depthIn(st, r.r, b.min, b.max)));
+            const worst = Math.max(...r.strands.map((st) => depthIn(st, r.r, b)));
             expect(worst, `${name}: ${r.id} in ${b.id} (${b.kind})`).toBeLessThanOrEqual(SLACK);
           }
+        }
       } finally {
         m.dispose();
       }

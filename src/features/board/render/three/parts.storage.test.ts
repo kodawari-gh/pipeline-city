@@ -98,6 +98,7 @@ describe.each(['ssd1', 'hdd0'])('the SATA drive builder (%s)', (spec) => {
     expect(b.kind).toBe('storage');
     expect(b.roots).toHaveLength(1);
   });
+
   it('lists its data and power sockets in its part build, as world points', () => {
     expect(b.drive).not.toBeNull();
     for (const p of [b.drive?.data, b.drive?.power]) {
@@ -113,6 +114,7 @@ describe.each(['ssd1', 'hdd0'])('the SATA drive builder (%s)', (spec) => {
     expect(b.stick).toBeNull();
     expect(b.card).toBeNull();
   });
+
   it('is the only builder to list sockets', () => {
     const s = maxed('ssd1'),
       c = context(s);

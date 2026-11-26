@@ -5,15 +5,15 @@ const hop = (from: string, to: string, reverse = false) => ({ link: { from, to }
 
 describe("a card's buses", () => {
   it('a launch over the host link runs the receive lines inward, its answer back out', () => {
-    expect([...busesOf([hop('pcie', 'launch'), hop('launch', 'pc')])]).toEqual([['host', 1]]);
-    expect([...busesOf([hop('host', 'ctl')])]).toEqual([['host', 1]]);
-    expect([...busesOf([hop('host', 'ctl', true)])]).toEqual([['host', -1]]);
+    expect([...busesOf([hop('pcie', 'launch'), hop('launch', 'pc')])]).toStrictEqual([['host', 1]]);
+    expect([...busesOf([hop('host', 'ctl')])]).toStrictEqual([['host', 1]]);
+    expect([...busesOf([hop('host', 'ctl', true)])]).toStrictEqual([['host', -1]]);
   });
 
   it('a store reaches the card memory (toward the memory die), a load comes from it', () => {
-    expect([...busesOf([hop('lanes', 'dram')])]).toEqual([['mem', 1]]);
-    expect([...busesOf([hop('lanes', 'dram', true)])]).toEqual([['mem', -1]]);
-    expect([...busesOf([hop('cardmem', 'tiles')])]).toEqual([['mem', -1]]);
+    expect([...busesOf([hop('lanes', 'dram')])]).toStrictEqual([['mem', 1]]);
+    expect([...busesOf([hop('lanes', 'dram', true)])]).toStrictEqual([['mem', -1]]);
+    expect([...busesOf([hop('cardmem', 'tiles')])]).toStrictEqual([['mem', -1]]);
   });
 
   it("a CPU word into the AI card's memory crosses the host link and the memory bus; a route inside the die touches neither", () => {

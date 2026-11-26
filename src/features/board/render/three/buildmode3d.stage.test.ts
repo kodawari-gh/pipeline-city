@@ -1,54 +1,137 @@
 // BuildStage.frame, idle path: a still stage draws nothing, and a late meter reading can wake it.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Group, PerspectiveCamera, Scene } from 'three';
+import { inside, newStage } from './buildmode3d.testkit';
+import { BASE_EXPOSURE } from '@/core/render/three/init';
+import { setLowDetail } from '@/core/render/three/detail';
+
+function createLens3D() {
+  return {
+    frame: () => {
+      /* no-op */
+    },
+  };
+}
 
 // the controllable parts: what the meter says, and the draws
-const rig = vi.hoisted(() => ({ lum: null as number | null, render: vi.fn(), refine: vi.fn(() => false) }));
+const { Post, Lens3D, rig } = vi.hoisted(() => {
+  const rigState = {
+    lum: null as number | null,
+    render: vi.fn<() => void>(),
+    refine: vi.fn<() => boolean>(() => false),
+  };
+  function createPost() {
+    return {
+      render: rigState.render,
+      refine: rigState.refine,
+      meter: () => null,
+      metered: () => rigState.lum,
+      setEye: () => {
+        /* no-op */
+      },
+      setReach: () => {
+        /* no-op */
+      },
+      setDark: () => {
+        /* no-op */
+      },
+      setOutlined: () => {
+        /* no-op */
+      },
+      apply: () => {
+        /* no-op */
+      },
+      setSize: () => {
+        /* no-op */
+      },
+      startPrograms: () => [],
+    };
+  }
+  return { Post: createPost, Lens3D: createLens3D, rig: rigState };
+});
 
-vi.mock('@/core/render/three/init', async (orig) => {
-  const actual = await orig<typeof import('@/core/render/three/init')>();
+function ResizeObserverStub() {
+  return {
+    observe: (): void => {
+      /* no-op */
+    },
+    disconnect: (): void => {
+      /* no-op */
+    },
+  };
+}
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+vi.mock<Record<string, unknown>>(import('@/core/render/three/init'), async (orig) => {
+  const actual = await orig();
   return {
     ...actual,
     createRenderContext: () => ({
       scene: new Scene(),
       camera: new PerspectiveCamera(30, 1, 10, 1e6),
       renderer: {
-        domElement: { width: 400, height: 400, addEventListener() {}, removeEventListener() {} },
-        setOpaqueSort() {},
+        domElement: {
+          width: 400,
+          height: 400,
+          addEventListener: () => {
+            /* no-op */
+          },
+          removeEventListener: () => {
+            /* no-op */
+          },
+        },
+        setOpaqueSort: () => {
+          /* no-op */
+        },
         getPixelRatio: () => 1,
-        setSize() {},
+        setSize: () => {
+          /* no-op */
+        },
         properties: { get: () => ({}) },
         compile: () => new Set(),
         getRenderTarget: () => null,
-        setRenderTarget() {},
+        setRenderTarget: () => {
+          /* no-op */
+        },
       },
     }),
   };
 });
-vi.mock('@/core/render/three/post', () => ({
-  Post: class {
-    render = rig.render;
-    refine = rig.refine;
-    meter = () => null;
-    metered = () => rig.lum;
-    setEye() {}
-    setReach() {}
-    setDark() {}
-    setOutlined() {}
-    apply() {}
-    setSize() {}
-    startPrograms = () => [];
-  },
+vi.mock<Record<string, unknown>>(import('@/core/render/three/post'), () => ({
+  Post,
 }));
-vi.mock('./lens3d', () => ({
-  Lens3D: class {
-    frame() {}
-  },
+vi.mock<Record<string, unknown>>(import('./lens3d'), () => ({
+  Lens3D,
 }));
 
-import { BuildStage } from './buildmode3d';
-import { BASE_EXPOSURE } from '@/core/render/three/init';
-import { setLowDetail } from '@/core/render/three/detail';
+/** What the tests drive: the stage's protected frame, and its status. */
+interface Frame {
+  frame: (now: number) => void;
+  status: { value: { busy: boolean; step: string; log: string[]; rev: number } };
+}
+
+/** A stage on a stub host with `machine` as its machine: the snapshot getter wants a game, the snapshot cache below gives the snapshot. */
+function rigged(machine: object): Frame {
+  const s = newStage();
+  Object.assign(s, {
+    _machine: machine,
+    _game: {},
+    snaps: {
+      of: () => ({}),
+      drop: () => {
+        /* no-op */
+      },
+    },
+  });
+  return inside<Frame>(s);
+}
 
 /** The reading that holds the eye at its start goal of 1 (key / lum). */
 const HOLD = 0.04 / BASE_EXPOSURE; // (EYE_KEY over BASE_EXPOSURE in buildmode3d.ts)
@@ -72,31 +155,28 @@ describe('BuildStage.frame when idle', () => {
   beforeEach(() => {
     rig.lum = null;
     rig.render.mockClear();
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe() {}
-        disconnect() {}
-      },
-    );
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub);
     vi.stubGlobal('requestAnimationFrame', () => 1);
-    vi.stubGlobal('cancelAnimationFrame', () => {});
-    const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
-      clientWidth: 400,
-      clientHeight: 800,
+    vi.stubGlobal('cancelAnimationFrame', () => {
+      /* no-op */
     });
-    s['_machine'] = {
+    stage = rigged({
       moving: false,
       doorOpen: false,
-      frame() {},
-      setOpen() {},
-      holdDetail() {},
-      lod() {},
+      frame: () => {
+        /* no-op */
+      },
+      setOpen: () => {
+        /* no-op */
+      },
+      holdDetail: () => {
+        /* no-op */
+      },
+      lod: () => {
+        /* no-op */
+      },
       root: new Group(),
-    };
-    s['_game'] = {}; // (the snapshot getter wants a game; the stub below gives the snapshot)
-    s['snaps'] = { of: () => ({}), drop() {} };
-    stage = s as unknown as { frame: (now: number) => void };
+    });
     now = 1000;
     rig.lum = HOLD;
     tick(20); // warm-up: the first ask and the eye settling
@@ -109,7 +189,7 @@ describe('BuildStage.frame when idle', () => {
   it("offers each idle tick to the still view's refinement (the chain bounds its frames)", () => {
     rig.refine.mockClear();
     tick(5);
-    expect(rig.refine.mock.calls.length).toBe(5);
+    expect(rig.refine).toHaveBeenCalledTimes(5);
   });
 
   it('wakes on a late meter reading', () => {
@@ -117,7 +197,7 @@ describe('BuildStage.frame when idle', () => {
     rig.lum = HOLD / 2; // asks for twice the exposure: far outside the dead band
     rig.render.mockClear();
     tick(2);
-    expect(rig.render).toHaveBeenCalled();
+    expect(rig.render).toHaveBeenCalledWith();
     rig.lum = HOLD / 2; // (the meter keeps its last reading)
     tick(400); // the eye settles
     expect(draws(120)).toBe(0);
@@ -130,42 +210,34 @@ describe('BuildStage.frame when idle', () => {
 });
 
 describe('BuildStage.frame and the distance stand-ins (PHONE-01)', () => {
-  const hold = vi.fn();
-  let stage: {
-    frame: (now: number) => void;
-    status: { value: { busy: boolean; step: string; log: string[]; rev: number } };
-  };
+  const hold = vi.fn<(held: unknown[], ceil?: number) => void>();
+  let stage: Frame;
   let machineRoot: Group;
   let now = 1000;
 
   beforeEach(() => {
     hold.mockClear();
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe() {}
-        disconnect() {}
-      },
-    );
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub);
     vi.stubGlobal('requestAnimationFrame', () => 1);
-    vi.stubGlobal('cancelAnimationFrame', () => {});
-    const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
-      clientWidth: 400,
-      clientHeight: 800,
+    vi.stubGlobal('cancelAnimationFrame', () => {
+      /* no-op */
     });
     machineRoot = new Group();
-    s['_machine'] = {
+    stage = rigged({
       moving: false,
       doorOpen: false,
-      frame() {},
-      setOpen() {},
+      frame: () => {
+        /* no-op */
+      },
+      setOpen: () => {
+        /* no-op */
+      },
       holdDetail: hold,
-      lod() {},
+      lod: () => {
+        /* no-op */
+      },
       root: machineRoot,
-    };
-    s['_game'] = {};
-    s['snaps'] = { of: () => ({}), drop() {} };
-    stage = s as unknown as typeof stage;
+    });
     now = 1000;
   });
   afterEach(() => {
@@ -173,8 +245,8 @@ describe('BuildStage.frame and the distance stand-ins (PHONE-01)', () => {
   });
 
   const lastHold = (): { held: unknown[]; ceil: number | undefined } => {
-    const c = hold.mock.calls.at(-1)!;
-    return { held: c[0] as unknown[], ceil: c[1] as number | undefined };
+    const c = must(hold.mock.calls.at(-1));
+    return { held: c[0], ceil: c[1] };
   };
 
   it("High keeps every part itself from the stage's own zoom in, and holds nothing by hand", () => {
@@ -182,7 +254,7 @@ describe('BuildStage.frame and the distance stand-ins (PHONE-01)', () => {
     now += TICK;
     stage.frame(now);
     const { held, ceil } = lastHold();
-    expect(held).toEqual([]);
+    expect(held).toStrictEqual([]);
     expect(ceil).toBeGreaterThan(0);
     expect(Number.isFinite(ceil)).toBe(true);
   });
@@ -191,49 +263,41 @@ describe('BuildStage.frame and the distance stand-ins (PHONE-01)', () => {
     setLowDetail(true);
     now += TICK;
     stage.frame(now);
-    expect(lastHold()).toEqual({ held: [], ceil: undefined });
+    expect(lastHold()).toStrictEqual({ held: [], ceil: undefined });
     stage.status.value = { ...stage.status.value, busy: true };
     now += TICK;
     stage.frame(now);
-    expect(lastHold()).toEqual({ held: [machineRoot], ceil: undefined });
+    expect(lastHold()).toStrictEqual({ held: [machineRoot], ceil: undefined });
     stage.status.value = { ...stage.status.value, busy: false };
     now += TICK;
     stage.frame(now);
-    expect(lastHold().held).toEqual([]);
+    expect(lastHold().held).toStrictEqual([]);
   });
 });
 
 describe('BuildStage.frame and the shut side panel', () => {
   it('lets the panel take a click while no step plays, and not while one does (machine3d.ts: the plate over it answers a ray only then)', () => {
-    const setOpen = vi.fn();
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe() {}
-        disconnect() {}
-      },
-    );
+    const setOpen = vi.fn<(open: boolean, clickable: boolean) => void>();
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub);
     vi.stubGlobal('requestAnimationFrame', () => 1);
-    vi.stubGlobal('cancelAnimationFrame', () => {});
-    const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
-      clientWidth: 400,
-      clientHeight: 800,
+    vi.stubGlobal('cancelAnimationFrame', () => {
+      /* no-op */
     });
-    s['_machine'] = {
+    const stage = rigged({
       moving: false,
       doorOpen: false,
-      frame() {},
+      frame: () => {
+        /* no-op */
+      },
       setOpen,
-      holdDetail() {},
-      lod() {},
+      holdDetail: () => {
+        /* no-op */
+      },
+      lod: () => {
+        /* no-op */
+      },
       root: new Group(),
-    };
-    s['_game'] = {};
-    s['snaps'] = { of: () => ({}), drop() {} };
-    const stage = s as unknown as {
-      frame: (now: number) => void;
-      status: { value: { busy: boolean; step: string; log: string[]; rev: number } };
-    };
+    });
     stage.frame(1000 + TICK);
     expect(setOpen).toHaveBeenLastCalledWith(false, false);
     stage.status.value = { ...stage.status.value, busy: true };

@@ -3,102 +3,185 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Group, PerspectiveCamera, Scene } from 'three';
 import { BUILD_PRESETS } from '@/features/board/sim/buildspecs';
+import { binParts } from './buildmode3d';
+import { newStage } from './buildmode3d.testkit';
+import { setLayoutTier } from '../layout/layout';
+import { Game } from '@/worker/game/game';
 
-vi.mock('@/core/render/three/init', async (orig) => {
-  const actual = await orig<typeof import('@/core/render/three/init')>();
+/** The stage these tests drive (its type, without a second import of the module). */
+type BuildStage = ReturnType<typeof newStage>;
+
+function createPost() {
+  return {
+    render: () => {
+      /* no-op */
+    },
+    refine: () => false,
+    meter: () => null,
+    metered: () => null,
+    setEye: () => {
+      /* no-op */
+    },
+    setReach: () => {
+      /* no-op */
+    },
+    setDark: () => {
+      /* no-op */
+    },
+    setOutlined: () => {
+      /* no-op */
+    },
+    apply: () => {
+      /* no-op */
+    },
+    setSize: () => {
+      /* no-op */
+    },
+    startPrograms: () => [],
+  };
+}
+
+function createLens3D() {
+  return {
+    frame: () => {
+      /* no-op */
+    },
+  };
+}
+
+const { Post, Lens3D } = vi.hoisted(() => ({ Post: createPost, Lens3D: createLens3D }));
+
+function ResizeObserverStub() {
+  return {
+    observe: (): void => {
+      /* no-op */
+    },
+    disconnect: (): void => {
+      /* no-op */
+    },
+  };
+}
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+vi.mock<Record<string, unknown>>(import('@/core/render/three/init'), async (orig) => {
+  const actual = await orig();
   return {
     ...actual,
     createRenderContext: () => ({
       scene: new Scene(),
       camera: new PerspectiveCamera(30, 1, 10, 1e6),
       renderer: {
-        domElement: { width: 400, height: 400, addEventListener() {}, removeEventListener() {} },
-        setOpaqueSort() {},
+        domElement: {
+          width: 400,
+          height: 400,
+          addEventListener: () => {
+            /* no-op */
+          },
+          removeEventListener: () => {
+            /* no-op */
+          },
+        },
+        setOpaqueSort: () => {
+          /* no-op */
+        },
         getPixelRatio: () => 1,
-        setSize() {},
+        setSize: () => {
+          /* no-op */
+        },
         properties: { get: () => ({}) },
         compile: () => new Set(),
         getRenderTarget: () => null,
-        setRenderTarget() {},
+        setRenderTarget: () => {
+          /* no-op */
+        },
       },
     }),
   };
 });
-vi.mock('@/core/render/three/post', () => ({
-  Post: class {
-    render() {}
-    refine = () => false;
-    meter = () => null;
-    metered = () => null;
-    setEye() {}
-    setReach() {}
-    setDark() {}
-    setOutlined() {}
-    apply() {}
-    setSize() {}
-    startPrograms = () => [];
-  },
+vi.mock<Record<string, unknown>>(import('@/core/render/three/post'), () => ({
+  Post,
 }));
-vi.mock('./lens3d', () => ({
-  Lens3D: class {
-    frame() {}
-  },
+vi.mock<Record<string, unknown>>(import('./lens3d'), () => ({
+  Lens3D,
 }));
 
-import { BuildStage, binParts } from './buildmode3d';
-import { setLayoutTier } from '../layout/layout';
-import { Game } from '@/worker/game/game';
+/** The stage's rebuild without 3D: the real build sets the layout's tiers, which say what kind of case the stage shows. */
+function rebuild(this: { snaps: { drop: () => void }; board: { tier: number; caseTier: number } }): void {
+  this.snaps.drop();
+  setLayoutTier(this.board.tier, Math.max(this.board.tier, this.board.caseTier));
+}
 
 /** A stage with the full rig and no 3D: the machine's drawing is stubbed, the game and the history are the real ones. */
 function stage(): BuildStage {
-  const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({
+  const s = newStage({
     clientWidth: 400,
     clientHeight: 800,
   });
-  s['_machine'] = {
+  const machine = {
     moving: false,
     doorOpen: false,
-    frame() {},
-    setOpen() {},
-    closeDoor() {},
-    holdDetail() {},
-    lod() {},
+    frame: () => {
+      /* no-op */
+    },
+    setOpen: () => {
+      /* no-op */
+    },
+    closeDoor: () => {
+      /* no-op */
+    },
+    holdDetail: () => {
+      /* no-op */
+    },
+    lod: () => {
+      /* no-op */
+    },
     root: new Group(),
     boardRoots: () => [],
     caseRoots: [],
     rig: () => null,
-    holdBack() {},
-    letRun() {},
+    holdBack: () => {
+      /* no-op */
+    },
+    letRun: () => {
+      /* no-op */
+    },
     isHeldBack: () => false,
     panelIds: () => [],
-    syncPanel() {},
+    syncPanel: () => {
+      /* no-op */
+    },
   };
-  s['_game'] = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
-  s['rebuild'] = s['rebuildAll'] = function (this: {
-    snaps: { drop(): void };
-    board: { tier: number; caseTier: number };
-  }) {
-    this.snaps.drop();
-    setLayoutTier(this.board.tier, Math.max(this.board.tier, this.board.caseTier));
-  };
-  s['playAll'] = () => Promise.resolve();
-  s['door'] = () => Promise.resolve();
-  return s as unknown as BuildStage;
+  Object.assign(s, {
+    _machine: machine,
+    _game: new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true }),
+    rebuild,
+    rebuildAll: rebuild,
+    playAll: async () => {
+      /* no-op */
+    },
+    door: async () => {
+      /* no-op */
+    },
+  });
+  return s;
 }
 
-const cpu = (): string => binParts().find((b) => b.kind === 'cpu')!.id;
+const cpu = (): string => must(binParts().find((b) => b.kind === 'cpu')).id;
 
 describe('the empty start', () => {
   beforeEach(() => {
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe() {}
-        disconnect() {}
-      },
-    );
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub);
     vi.stubGlobal('requestAnimationFrame', () => 1);
-    vi.stubGlobal('cancelAnimationFrame', () => {});
+    vi.stubGlobal('cancelAnimationFrame', () => {
+      /* no-op */
+    });
   });
 
   it('is nothing: no case, no board, no part', async () => {
@@ -117,9 +200,9 @@ describe('the empty start', () => {
     await s.clear();
     const past = s.canUndo;
     await s.fit(cpu());
-    expect(s.refusal.peek()?.text).toMatch(/Fit a case first/);
+    expect(s.refusal.peek()?.text).toMatch(/Fit a case first/u);
     await s.fit('board1');
-    expect(s.refusal.peek()?.text).toMatch(/Fit a case first/);
+    expect(s.refusal.peek()?.text).toMatch(/Fit a case first/u);
     expect(s.board.devices).toHaveLength(0);
     expect(s.shown.peek()).toBe('nothing');
     expect(s.canUndo).toBe(past);
@@ -152,7 +235,7 @@ describe('the empty start', () => {
     await s.fit('case0');
     const past = s.canUndo;
     await s.fit(cpu());
-    expect(s.refusal.peek()?.text).toMatch(/Fit a motherboard first/);
+    expect(s.refusal.peek()?.text).toMatch(/Fit a motherboard first/u);
     expect(s.board.devices).toHaveLength(0);
     expect(s.shown.peek()).toBe('case');
     expect(s.canUndo).toBe(past);
@@ -249,7 +332,7 @@ describe('the empty start', () => {
   it('is left by a preset, a saved build or the full rig', async () => {
     const s = stage();
     await s.clear();
-    await s.buildPreset(BUILD_PRESETS[0]!);
+    await s.buildPreset(must(BUILD_PRESETS[0]));
     expect(s.shown.peek()).toBe('machine');
     expect(s.board.devices.length).toBeGreaterThan(0);
     await s.clear();
@@ -271,6 +354,6 @@ describe('the empty start', () => {
     await s.clear();
     s.openInside(true);
     expect(s.insideOpen).toBe(false);
-    expect(await s.capture(320, 240)).toBeNull();
+    await expect(s.capture(320, 240)).resolves.toBeNull();
   });
 });

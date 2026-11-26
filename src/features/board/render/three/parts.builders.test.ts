@@ -16,6 +16,14 @@ import { slotRects } from './slots3d';
 import { Game } from '@/worker/game/game';
 import { quietCanvas } from './testutil';
 
+/** Returns `value` when it is present, otherwise `fallback`. */
+function or<T>(value: T, fallback: NonNullable<T>): NonNullable<T> {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+  return value;
+}
+
 quietCanvas();
 
 /** A context as a test makes it: the machine's read-only inputs, live chips or not. */
@@ -60,7 +68,7 @@ function part(s: Snapshot, kind: string): DeviceSnap {
 
 /** The chip faces a build lists, as [what runs, slot or ''] pairs (a copper entry is not a face). */
 const faces = (b: PartBuild): [unknown, unknown][] =>
-  b.chips.map((c) => ('face' in c ? [c.face[1], c.face[4] ?? ''] : ['traces', '']));
+  b.chips.map((c) => ('face' in c ? [c.face[1], or(c.face[4], '')] : ['traces', '']));
 
 const build = (kind: string, live = true): { d: DeviceSnap; b: PartBuild } => {
   const s = maxedSnapshot(),

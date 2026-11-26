@@ -9,14 +9,23 @@ import { NIC_LANES, nicCopper } from './niccopper';
 import { NicTraceView } from './nictrace';
 import { tabOf } from './pcie';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 const frame = (visual: string): CardFrame => {
   const y0 = nicY(0),
-    x1 = BD.x + NIC_LEN[visual]!;
+    x1 = BD.x + must(NIC_LEN[visual]);
   return { x0: BD.x, x1, xe: x1, y0, end: y0 + STAND.nic };
 };
 const lanesOf = (visual: string, slot = 0) => {
   const f = frame(visual);
-  return nicLanes(nicCopper(visual, f, tabOf(0, f.x1, NIC_LANES[visual]!)), slot);
+  const tab = must(NIC_LANES[visual]);
+  return nicLanes(nicCopper(visual, f, tabOf(0, f.x1, tab)), slot);
 };
 const view = (visual = 'nic-gbe', slot = 'pcie0'): { v: NicTraceView; lanes: ReturnType<typeof lanesOf> } => {
   setLayoutTier(3, 3);
@@ -41,8 +50,8 @@ describe("the network card's copper, alive", () => {
   it("times the copper before the die by the lanes' own length: the jack's pairs for a frame from the cable, the slot's for one from the host", () => {
     for (const visual of ['nic-gbe', 'nic-10g', 'nic-40g']) {
       const { v, lanes } = view(visual);
-      expect(v.lead('pcie0', 'rx'), visual).toBe(tripMs(lanes.media));
-      expect(v.lead('pcie0', 'tx'), visual).toBe(tripMs(lanes.host));
+      expect(v.lead('pcie0', 'rx')).toBe(tripMs(lanes.media));
+      expect(v.lead('pcie0', 'tx')).toBe(tripMs(lanes.host));
       for (const dir of ['rx', 'tx'] as const) {
         expect(v.lead('pcie0', dir), `${visual} ${dir}`).toBeGreaterThanOrEqual(MIN_MS);
         expect(v.lead('pcie0', dir), `${visual} ${dir}`).toBeLessThanOrEqual(MAX_MS);

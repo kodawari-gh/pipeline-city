@@ -1,10 +1,120 @@
 // The machine at the room overview (LPC5): every still mesh draws in a stand-in, so the draw count falls far below the board view's.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Mesh, MeshStandardMaterial, Object3D } from 'three';
+
 import { LOD_OVERVIEW, drawnMeshes } from '@/core/render/three/partlod';
 import { buildMachine, maxedSnapshot, quietCanvas } from './testutil';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+/** Returns `value` when it is present, otherwise `fallback`. */
+function or<T>(value: T, fallback: NonNullable<T>): NonNullable<T> {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+  return value;
+}
+
+const isMesh = (o: unknown): o is Mesh => typeof o === 'object' && o !== null && 'isMesh' in o && o.isMesh === true;
+function asMesh(o: unknown): Mesh {
+  if (!isMesh(o)) {
+    throw new Error('expected a Mesh');
+  }
+  return o;
+}
+
+const isMeshStandardMaterial = (o: unknown): o is MeshStandardMaterial =>
+  typeof o === 'object' && o !== null && 'isMeshStandardMaterial' in o && o.isMeshStandardMaterial === true;
+function asMeshStandardMaterial(o: unknown): MeshStandardMaterial {
+  if (!isMeshStandardMaterial(o)) {
+    throw new Error('expected a MeshStandardMaterial');
+  }
+  return o;
+}
+
 quietCanvas();
+
+/** The parts of `node:process` this test uses: the dump switch and the place the report goes. */
+interface NodeProcess {
+  env: Record<string, string | undefined>;
+  stdout: { write: (text: string) => boolean };
+}
+
+const { env, stdout } = await vi.importActual<NodeProcess>('node:process');
+
+/** The id of the nearest tagged ancestor of `o` (itself first), or ''. */
+function anchorOf(o: Object3D): string {
+  for (let p: Object3D | null = o; p !== null; p = p.parent) {
+    const id: unknown = p.userData['id'];
+    if (typeof id === 'string') {
+      return id;
+    }
+  }
+  return '';
+}
+
+/** The farthest ancestor of `o` that spins or is live, as `<flag> <name>`, or ''. */
+function movingOf(o: Object3D): string {
+  let moving = '';
+  for (let p: Object3D | null = o; p !== null; p = p.parent) {
+    for (const k of ['spin', 'live']) {
+      if (p.userData[k] === true) {
+        moving = `${k} ${p.name}`;
+      }
+    }
+  }
+  return moving;
+}
+
+/** Whether a mesh is instanced. */
+const isInstanced = (m: Mesh): boolean => 'isInstancedMesh' in m && m.isInstancedMesh === true;
+
+/** Whether a material glows. */
+const glows = (mat: MeshStandardMaterial): boolean => mat.emissiveIntensity > 0 && mat.emissive.getHex() !== 0;
+
+/** Why a mesh that draws at the overview still draws: a stand-in, a moving part, a see-through part, an instanced mesh, or other. */
+function reasonOf(m: Mesh, mat: MeshStandardMaterial): string {
+  const anchor = anchorOf(m),
+    moving = movingOf(m),
+    place = anchor.replace(/\d+$/u, '#');
+  if (m.userData['standIn'] === true) {
+    const under: unknown = or(m.parent?.userData['id'], or(m.parent?.name, '?'));
+    return `stand-in: under ${String(under)} ${Object.keys(m.geometry.attributes).join(',')} ${mat.side} ${mat.map === null ? '' : 'map'} ${mat.metalness > 0.5 ? 'metal' : ''} ${m.castShadow}${m.receiveShadow}`;
+  }
+  if (moving !== '') {
+    return `moving: ${moving} ${place} | ${m.name === '' ? m.geometry.type : m.name} ${isInstanced(m) ? 'inst' : ''} ${mat.map === null ? '' : 'map'} ${mat.transparent ? 'clear' : ''} ${glows(mat) ? 'glow' : ''} side${mat.side} ${Object.keys(m.userData).join(',')} ${m.castShadow}`;
+  }
+  if (mat.transparent || mat.opacity !== 1) {
+    return `see-through: ${place === '' ? 'case' : place} ${glows(mat) ? 'glow' : 'glass'} ${m.geometry.type}`;
+  }
+  if (isInstanced(m)) {
+    return 'instanced, left out';
+  }
+  return `other: ${anchor === '' ? 'case' : anchor} ${m.name} ${m.geometry.attributes['position']?.count ?? 0}`;
+}
+
+/** What still draws under `root`: the stand-ins by anchor, and the meshes left out by reason, the most common first. */
+function dumpWhatDraws(root: Object3D): string {
+  const why = new Map<string, number>();
+  root.traverseVisible((o) => {
+    if (!isMesh(o) || (o.layers.mask & 1) === 0) {
+      return;
+    }
+    const m = asMesh(o),
+      k = reasonOf(m, asMeshStandardMaterial(m.material));
+    why.set(k, or(why.get(k), 0) + 1);
+  });
+  return [...why]
+    .toSorted((a, b) => b[1] - a[1])
+    .map(([k, n]) => `${n}  ${k}`)
+    .join('\n');
+}
 
 /**
  * The ceiling of the machine's draws at the overview. It may only fall. (136: the case maker's debossed lockup is one clear decal. 143: the airflow lens's
@@ -16,100 +126,77 @@ quietCanvas();
  */
 const CEILING = 163;
 
+function assert_draws_as_stand_ins(): void {
+  buildMachine(maxedSnapshot(), true, false); // (warm the caches: the next two builds compare)
+  const t1 = Date.now();
+  buildMachine(maxedSnapshot(), true, false);
+  const plain = Date.now() - t1;
+  const t0 = Date.now(),
+    machine = buildMachine(maxedSnapshot(), true, true),
+    ms = `${Date.now() - t0} ms, ${plain} ms with no stand-ins`;
+  const lod = must(machine.partLod);
+  lod.update(1);
+  const near = drawnMeshes(machine.root);
+  lod.update(LOD_OVERVIEW / 2);
+  const far = drawnMeshes(machine.root);
+  // (a mesh with a list of materials draws once for each group of its geometry)
+  const calls = (): number => {
+    let n = 0;
+    machine.root.traverseVisible((o) => {
+      if (!isMesh(o)) {
+        return;
+      }
+      const m = o;
+      if (m.layers.mask & 1) {
+        n += Array.isArray(m.material) ? Math.max(1, m.geometry.groups.length) : 1;
+      }
+    });
+    return n;
+  };
+  stdout.write(`machine: ${near} draws near, ${far} at the overview, ${calls()} calls there (build ${ms})\n`);
+  if (env['OVERVIEW_DUMP'] === '1') {
+    stdout.write(`${dumpWhatDraws(machine.root)}\n`);
+  }
+  expect(far).toBeLessThan(near);
+  expect(far).toBeLessThanOrEqual(CEILING);
+}
+
+function assert_draws_a_cable_built_again_a_plug_in_or_out_in_th(): void {
+  const machine = buildMachine(maxedSnapshot(), true, true),
+    lod = must(machine.partLod);
+  lod.update(LOD_OVERVIEW / 2);
+  const far = drawnMeshes(machine.root);
+  let atx: Object3D | undefined;
+  machine.root.traverse((o) => {
+    if (o.userData['id'] === 'cable.atx') {
+      atx = o;
+    }
+  });
+  const own = () => {
+    let n = 0;
+    must(atx).traverseVisible((o) => {
+      if (isMesh(o) && o.userData['standIn'] !== true && o.layers.mask & 1) {
+        n++;
+      }
+    });
+    return n;
+  };
+  expect(own()).toBe(0);
+  for (const seated of [false, true]) {
+    machine.setCable('atx', seated);
+    expect(own()).toBe(0);
+    expect(drawnMeshes(machine.root)).toBe(far);
+  }
+}
+
 describe('the machine at the room overview', () => {
   it('draws as stand-ins', () => {
-    buildMachine(maxedSnapshot(), true, false); // (warm the caches: the next two builds compare)
-    const t1 = Date.now();
-    buildMachine(maxedSnapshot(), true, false);
-    const plain = Date.now() - t1;
-    const t0 = Date.now(),
-      machine = buildMachine(maxedSnapshot(), true, true),
-      ms = `${Date.now() - t0} ms, ${plain} ms with no stand-ins`;
-    const lod = machine.partLod!;
-    lod.update(1);
-    const near = drawnMeshes(machine.root);
-    lod.update(LOD_OVERVIEW / 2);
-    const far = drawnMeshes(machine.root);
-    // (a mesh with a list of materials draws once for each group of its geometry)
-    const calls = (): number => {
-      let n = 0;
-      machine.root.traverseVisible((o) => {
-        const m = o as Mesh;
-        if (m.isMesh && m.layers.mask & 1) n += Array.isArray(m.material) ? Math.max(1, m.geometry.groups.length) : 1;
-      });
-      return n;
-    };
-    console.log(`machine: ${near} draws near, ${far} at the overview, ${calls()} calls there (build ${ms})`);
-    if (
-      (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env['OVERVIEW_DUMP'] === '1'
-    ) {
-      // what still draws: the stand-ins by anchor, and the meshes left out by reason
-      const why = new Map<string, number>(),
-        add = (k: string) => why.set(k, (why.get(k) ?? 0) + 1);
-      machine.root.traverseVisible((o) => {
-        const m = o as Mesh,
-          mat = m.material as MeshStandardMaterial;
-        if (!m.isMesh || !(m.layers.mask & 1)) return;
-        let anchor = '';
-        for (let p: Object3D | null = o; p; p = p.parent)
-          if (typeof p.userData['id'] === 'string') {
-            anchor = p.userData['id'] as string;
-            break;
-          }
-        let moving = '';
-        for (let p: Object3D | null = o; p; p = p.parent)
-          for (const k of ['spin', 'live']) if (p.userData[k]) moving = `${k} ${p.name}`;
-        if (m.userData['standIn'])
-          add(
-            `stand-in: under ${m.parent?.userData['id'] ?? m.parent?.name ?? '?'} ${Object.keys(m.geometry.attributes).join(',')} ${mat.side} ${mat.map ? 'map' : ''} ${mat.metalness > 0.5 ? 'metal' : ''} ${m.castShadow}${m.receiveShadow}`,
-          );
-        else if (moving)
-          add(
-            `moving: ${moving} ${anchor.replace(/\d+$/, '#')} | ${Array.isArray(mat) ? 'multi' : `${m.name || m.geometry.type} ${(m as { isInstancedMesh?: boolean }).isInstancedMesh ? 'inst' : ''} ${mat.map ? 'map' : ''} ${mat.transparent ? 'clear' : ''} ${mat.emissiveIntensity > 0 && mat.emissive?.getHex() ? 'glow' : ''} side${mat.side} ${Object.keys(m.userData).join(',')} ${m.castShadow}`}`,
-          );
-        else if (Array.isArray(mat))
-          add(
-            `multi-material: ${anchor.replace(/\d+$/, '#') || 'case'} x${mat.length} in ${m.geometry.groups.length} groups, ${m.geometry.type} ${m.geometry.attributes['position']?.count}, ${new Set(mat as MeshStandardMaterial[]).size} distinct`,
-          );
-        else if (mat.transparent || mat.opacity !== 1)
-          add(
-            `see-through: ${anchor.replace(/\d+$/, '#') || 'case'} ${mat.emissiveIntensity > 0 && mat.emissive.getHex() ? 'glow' : 'glass'} ${m.geometry.type}`,
-          );
-        else if ((m as { isInstancedMesh?: boolean }).isInstancedMesh) add('instanced, left out');
-        else add(`other: ${anchor || 'case'} ${m.name} ${m.geometry.attributes['position']?.count}`);
-      });
-      console.log(
-        [...why]
-          .sort((a, b) => b[1] - a[1])
-          .map(([k, n]) => `${n}  ${k}`)
-          .join('\n'),
-      );
-    }
-    expect(far).toBeLessThan(near);
-    expect(far).toBeLessThanOrEqual(CEILING);
+    expect.hasAssertions();
+    assert_draws_as_stand_ins();
   }, 30_000);
 
   it("draws a cable built again (a plug in or out) in the cables' stand-ins, with its new rig (MACH-06)", () => {
-    const machine = buildMachine(maxedSnapshot(), true, true),
-      lod = machine.partLod!;
-    lod.update(LOD_OVERVIEW / 2);
-    const far = drawnMeshes(machine.root);
-    let atx: Object3D | undefined;
-    machine.root.traverse((o) => {
-      if (o.userData['id'] === 'cable.atx') atx = o;
-    });
-    const own = () => {
-      let n = 0;
-      atx!.traverseVisible((o) => {
-        if ((o as Mesh).isMesh && !o.userData['standIn'] && o.layers.mask & 1) n++;
-      });
-      return n;
-    };
-    expect(own()).toBe(0);
-    for (const seated of [false, true]) {
-      machine.setCable('atx', seated);
-      expect(own()).toBe(0);
-      expect(drawnMeshes(machine.root)).toBe(far);
-    }
+    expect.hasAssertions();
+    assert_draws_a_cable_built_again_a_plug_in_or_out_in_th();
   }, 30_000);
 });

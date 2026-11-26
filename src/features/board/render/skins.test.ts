@@ -4,7 +4,7 @@ import { SKINS, skinOf, slotArmour } from './skins';
 
 describe('board skins', () => {
   it('gives every board tier a skin of its own: no two tiers share a mask', () => {
-    expect(SKINS.length).toBe(BOARD_TIERS.length);
+    expect(SKINS).toHaveLength(BOARD_TIERS.length);
     expect(new Set(SKINS.map((s) => s.mask[0])).size).toBe(SKINS.length);
     expect(new Set(SKINS.map((s) => s.mask[1])).size).toBe(SKINS.length);
   });
@@ -19,8 +19,8 @@ describe('board skins', () => {
   });
 
   it('armours the x16 from Mainstream up and every slot on the Enthusiast', () => {
-    expect([0, 1, 2].map((i) => slotArmour(0, i))).toEqual([false, false, false]);
-    expect([0, 1, 2].map((i) => slotArmour(2, i))).toEqual([true, false, false]);
-    expect([0, 1, 2].map((i) => slotArmour(3, i))).toEqual([true, true, true]);
+    expect([0, 1, 2].map((i) => slotArmour(0, i))).toStrictEqual([false, false, false]);
+    expect([0, 1, 2].map((i) => slotArmour(2, i))).toStrictEqual([true, false, false]);
+    expect([0, 1, 2].map((i) => slotArmour(3, i))).toStrictEqual([true, true, true]);
   });
 });
