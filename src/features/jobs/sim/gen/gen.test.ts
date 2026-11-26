@@ -1,15 +1,52 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { assemble } from '@/features/cpu/sim/asm';
-import { createEngine, type EngineConfig } from '@/features/cpu/sim/engines';
+import { createEngine } from '@/features/cpu/sim/engines';
+import type * as enginesTypes from '@/features/cpu/sim/engines';
 import { DISPLAY_COLS } from '@/core/sim/memmap';
 import { Machine, TpmPort } from '@/core/sim';
 import { generate, gpuPicture, runReference, TEMPLATE_NAMES } from './index';
 import * as K from './kernels';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+/** The step budget of the reference run: a GPU job runs a whole kernel on the CPU. */
+const stepBudget = (t: string): number => (t.startsWith('gpu.') ? 3_000_000 : 30_000);
+/** How many seeds of a template to try on every engine (a GPU job is slow on the cycle-level ones). */
+const seedsFor = (t: string): number => (t.startsWith('gpu.') ? 1 : 4);
+
+/** Steps `e` until it halts, failing with `label` when it does not within the guard. */
+function runToHalt(e: ReturnType<typeof createEngine>, label: string): void {
+  let guard = 0;
+  while (!e.halted) {
+    e.step();
+    if (++guard > 20_000_000) {
+      throw new Error(`${label} did not halt`);
+    }
+  }
+}
+
+/** Steps the machine's engine until it halts, at most `max` steps. */
+function stepUpTo(m: Machine, max: number): void {
+  const e = must(m.engine);
+  for (let n = 0; n < max && !e.halted; n++) {
+    e.step();
+  }
+}
+
 const DEFAULT_FAMILIES = ['cli.log', 'cli.calc', 'cli.checksum'];
 /** Index of the first differing byte, or -1 (cheaper than toEqual on 64 KiB). */
 function firstDiff(a: Uint8Array, b: Uint8Array): number {
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return i;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) {
+      return i;
+    }
+  }
   return a.length === b.length ? -1 : a.length;
 }
 
@@ -21,8 +58,8 @@ describe('determinism and variety', () => {
       const a = generate(t, 1234);
       const b = generate(t, 1234);
       expect(b.asm).toBe(a.asm);
-      expect(Array.from(b.program)).toEqual(Array.from(a.program));
-      expect(b.meta).toEqual(a.meta);
+      expect([...b.program]).toStrictEqual([...a.program]);
+      expect(b.meta).toStrictEqual(a.meta);
     }
   });
 
@@ -42,10 +79,10 @@ describe('determinism and variety', () => {
   });
 
   it('rejects bad input', () => {
-    expect(() => generate('nope', 1)).toThrow();
-    expect(() => generate('cli.log', 1, { scale: 0 })).toThrow();
-    expect(() => generate('cli.log', 1, { scale: 20 })).toThrow();
-    expect(() => generate('cli.log', 1, { scale: 4, row: 14 })).toThrow();
+    expect(() => generate('nope', 1)).toThrow("unknown template 'nope'");
+    expect(() => generate('cli.log', 1, { scale: 0 })).toThrow('scale 0');
+    expect(() => generate('cli.log', 1, { scale: 20 })).toThrow('scale 20');
+    expect(() => generate('cli.log', 1, { scale: 4, row: 14 })).toThrow('scale does not fit on the display');
   });
 });
 
@@ -55,15 +92,17 @@ describe('every generated program', () => {
     (t) => {
       for (const scale of [1, 3]) {
         for (let s = 0; s < 40; s++) {
-          const seed = s * 104729 + scale;
+          const seed = s * 104_729 + scale;
           const g = generate(t, seed, { scale });
           expect(() => assemble(g.asm)).not.toThrow();
-          const r = runReference(g, t.startsWith('gpu.') ? 3_000_000 : 30_000); // RefFault on unmapped access or step overrun
+          const r = runReference(g, stepBudget(t)); // RefFault on unmapped access or step overrun
           expect(r.cpu.halted).toBe(true);
           expect(r.text.length).toBeGreaterThan(0);
-          expect(r.text).toMatch(/^[\n\x20-\x7E]+$/);
+          expect(r.text).toMatch(/^[\n\u0020-\u007E]+$/u);
           expect(r.text).toBe(g.meta.expectedText);
-          for (const line of r.text.split('\n')) expect(line.length).toBeLessThanOrEqual(DISPLAY_COLS);
+          for (const line of r.text.split('\n')) {
+            expect(line.length).toBeLessThanOrEqual(DISPLAY_COLS);
+          }
           expect(g.meta.kernels.length).toBeGreaterThan(0);
         }
       }
@@ -73,20 +112,20 @@ describe('every generated program', () => {
 
   it('honours row and jobId', () => {
     const g = generate('cli.calc', 5, { row: 3, jobId: 7 });
-    const text = runReference(g).text;
+    const { text } = runReference(g);
     expect(text).toBe(g.meta.expectedText);
-    expect(text.split('\n')[3]).toMatch(/^#07 mul=\d\d OK$/);
-    expect(text.split('\n').slice(0, 3)).toEqual(['', '', '']);
+    expect(text.split('\n')[3]).toMatch(/^#07 mul=\d\d OK$/u);
+    expect(text.split('\n').slice(0, 3)).toStrictEqual(['', '', '']);
   });
 
   it('matches the reference on unpipelined and in-order engines', () => {
-    const cfgs: EngineConfig[] = [
+    const cfgs: enginesTypes.EngineConfig[] = [
       { kind: 'unpipelined' },
       { kind: 'inorder', forwarding: true, sharedPort: false },
       { kind: 'inorder', forwarding: false, sharedPort: true },
     ];
     for (const t of TEMPLATE_NAMES) {
-      for (let s = 0; s < (t.startsWith('gpu.') ? 1 : 4); s++) {
+      for (let s = 0; s < seedsFor(t); s++) {
         const g = generate(t, s * 31 + 9, { scale: 1 + (s % 2) });
         const ref = runReference(g);
         for (const cfg of cfgs) {
@@ -96,12 +135,8 @@ describe('every generated program', () => {
           m.addDevice(tpm);
           const e = createEngine(cfg);
           m.attach(e, g.program);
-          let guard = 0;
-          while (!e.halted) {
-            e.step();
-            if (++guard > 20_000_000) throw new Error(`${t} seed ${s} ${cfg.kind} did not halt`);
-          }
-          expect(Array.from(m.regs)).toEqual(Array.from(ref.cpu.regs));
+          runToHalt(e, `${t} seed ${s} ${cfg.kind}`);
+          expect([...m.regs]).toStrictEqual([...ref.cpu.regs]);
           expect(firstDiff(m.ram, ref.cpu.mem.ram.bytes)).toBe(-1);
           expect(m.display.text()).toBe(ref.text);
         }
@@ -115,13 +150,14 @@ describe('pacing', () => {
     const counts: Record<string, number[]> = {};
     for (const t of DEFAULT_FAMILIES) {
       counts[t] = [1, 2, 3, 4, 5, 6, 7, 8].map((s) => runReference(generate(t, s)).steps);
-      for (const n of counts[t]!) {
+      for (const n of counts[t]) {
         expect(n).toBeGreaterThanOrEqual(20);
         expect(n).toBeLessThanOrEqual(40);
       }
     }
     // Measured: log 20-22 (message length), calc 36 or 40 (1 or 2 multiply rounds), checksum 40.
-    expect(counts['cli.checksum']!.every((n) => n === 40)).toBe(true);
+    assert.exists(counts['cli.checksum']);
+    expect(counts['cli.checksum'].every((n) => n === 40)).toBe(true);
     for (let s = 1; s <= 30; s++) {
       const n = runReference(generate('cli', s)).steps;
       expect(n).toBeGreaterThanOrEqual(20);
@@ -149,7 +185,9 @@ describe('kernels', () => {
     const g = generate('cli.scan', 2);
     const nss = g.meta.kernels.map((k) => k.ns);
     expect(new Set(nss).size).toBe(nss.length);
-    for (const k of g.meta.kernels) expect(k.mix.length).toBeGreaterThan(0);
+    for (const k of g.meta.kernels) {
+      expect(k.mix.length).toBeGreaterThan(0);
+    }
     expect(g.meta.mix).toContain('mem');
     expect(g.meta.footprintBytes).toBeGreaterThan(0);
   });
@@ -185,9 +223,9 @@ describe('kernels', () => {
     const { program } = assemble(src);
     const m = new Machine({ ramSize: 1024 * 1024 }); // the reference has room for the big-heap jobs
     m.attach(createEngine({ kind: 'ref' }), program);
-    let n = 0;
-    while (!m.engine!.halted && n++ < 1000) m.engine!.step();
-    const row = m.display.text().split('\n')[0]!;
+    stepUpTo(m, 1000);
+    const [row] = m.display.text().split('\n');
+    assert.exists(row);
     expect(row.slice(0, 3)).toBe('007');
     expect(row.slice(8, 12)).toBe('1028');
     expect(row.slice(16, 21)).toBe('hello');
@@ -197,13 +235,14 @@ describe('kernels', () => {
 
 describe("gpuPicture (the almanac's preview of a GPU job)", () => {
   it("is the animation the job's kernel draws: 64 x 40 words per frame, 2 frames at scale 1 and 4 above, null for other jobs", () => {
-    const balls = gpuPicture('gpu.sphere', 7, 4)!;
+    const balls = gpuPicture('gpu.sphere', 7, 4);
+    assert.exists(balls);
     expect(balls).toHaveLength(4);
     expect(balls[0]).toHaveLength(64 * 40);
-    expect(balls[0]).not.toEqual(balls[1]);
+    expect(balls[0]).not.toStrictEqual(balls[1]);
     expect(gpuPicture('gpu.vadd', 7, 1)).toHaveLength(2);
     expect(gpuPicture('gpu.spherewide', 7, 8)).toBeNull();
-    expect(gpuPicture('gpu.sphere', 7, 4)).toEqual(gpuPicture('gpu.sphere', 7, 4));
+    expect(gpuPicture('gpu.sphere', 7, 4)).toStrictEqual(gpuPicture('gpu.sphere', 7, 4));
     expect(gpuPicture('cli.log', 7, 1)).toBeNull();
   });
 });

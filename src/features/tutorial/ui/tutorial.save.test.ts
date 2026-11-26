@@ -1,12 +1,18 @@
 // Regression tests: the tutorial's per-viewer state travels inside saves (saveHooks), so loading a save resumes it
 // whatever this browser held before. See the review of "tutorial cut off / reload a save mid-tutorial".
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { assert, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Game } from '@/worker/game/game';
 import { parseSave } from '@/worker/game/save';
-import { INITIAL_TUTORIAL, currentStep, type TutorialState } from './tutorial';
+import { INITIAL_TUTORIAL, currentStep } from './tutorial';
+import type * as tutorialTypes from './tutorial';
+import type * as stateApi from '@/core/ui/state';
+import type * as storeApi from '@/app/store';
 
-type State = typeof import('@/core/ui/state');
-type Store = typeof import('@/app/store');
+type State = typeof stateApi;
+type Store = typeof storeApi;
+const noop = (): void => {
+  // the tests draw nothing
+};
 let st: State;
 let store: Store;
 
@@ -20,9 +26,9 @@ beforeAll(async () => {
   });
   vi.stubGlobal('document', {
     documentElement: {
-      setAttribute: () => {},
-      style: { setProperty: () => {} },
-      classList: { toggle: () => {}, add: () => {}, remove: () => {} },
+      setAttribute: noop,
+      style: { setProperty: noop },
+      classList: { toggle: noop, add: noop, remove: noop },
     },
   });
   st = await import('@/core/ui/state');
@@ -30,8 +36,12 @@ beforeAll(async () => {
 });
 
 const freshSave = () => new Game({ seed: 7 }).toSave();
-const roundTrip = (save: ReturnType<typeof freshSave>) => parseSave(JSON.parse(JSON.stringify(save)));
-const set = (t: TutorialState) => {
+/** Through JSON text and back, as a save file goes. */
+const roundTrip = (save: ReturnType<typeof freshSave>) => {
+  const text = JSON.stringify(save);
+  return parseSave(JSON.parse(text));
+};
+const set = (t: tutorialTypes.TutorialState) => {
   st.tutorial.value = t;
 };
 
@@ -39,7 +49,7 @@ describe('tutorial state travels with the save', () => {
   it('attach writes the current state into the save, and it survives JSON and parseSave', () => {
     set({ ...INITIAL_TUTORIAL, welcomed: true, acks: ['money', 'reputation'], osLesson: true, offered: true });
     const saved = roundTrip(store.saveHooks.attach(freshSave()));
-    expect(saved.tutorial).toEqual({
+    expect(saved.tutorial).toStrictEqual({
       ...INITIAL_TUTORIAL,
       welcomed: true,
       acks: ['money', 'reputation'],
@@ -58,7 +68,7 @@ describe('tutorial state travels with the save', () => {
     const mid = roundTrip(store.saveHooks.attach(freshSave()));
     set({ ...INITIAL_TUTORIAL, skipped: true, finished: true, osLesson: true, offered: true });
     store.saveHooks.restore(mid);
-    expect(st.tutorial.value).toEqual({ ...INITIAL_TUTORIAL, welcomed: true, acks: ['money'] });
+    expect(st.tutorial.value).toStrictEqual({ ...INITIAL_TUTORIAL, welcomed: true, acks: ['money'] });
   });
 
   it('loading drops a replay baseline that belonged to another game', () => {
@@ -73,7 +83,9 @@ describe('tutorial state travels with the save', () => {
   it('restore also persists to localStorage, so a page reload keeps it', () => {
     const save = { ...freshSave(), tutorial: { ...INITIAL_TUTORIAL, welcomed: true, skipped: true } };
     store.saveHooks.restore(save);
-    expect(JSON.parse(localStorage.getItem('pipeline-city.tutorial')!)).toMatchObject({
+    const getItemResult = localStorage.getItem('pipeline-city.tutorial');
+    assert.exists(getItemResult);
+    expect(JSON.parse(getItemResult)).toMatchObject({
       welcomed: true,
       skipped: true,
     });
@@ -121,6 +133,7 @@ describe('saves from before the field existed', () => {
 
   it('a brand-new campaign save starts at the welcome card', () => {
     store.saveHooks.restore(freshSave());
-    expect(currentStep(Game.fromSave(freshSave()).snapshot(), st.tutorial.value)?.id).toBe('welcome');
+    const snapshot = Game.fromSave(freshSave()).snapshot();
+    expect(currentStep(snapshot, st.tutorial.value)?.id).toBe('welcome');
   });
 });

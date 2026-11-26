@@ -36,27 +36,103 @@
 //           after Next, the camera leaves the step's scene target (the processor socket) in the free scene area, not under a top tab or
 //           behind the instruction tab or the shelf, with the lit trace ending on it and no "Show me".
 //   (Test numbers keep the numbering of the issue criteria; there is no test 1 and no test 6.)
-// The node modules have no typings in this tsconfig (no @types/node), so they are typed loosely, as build.test.ts does.
-// @ts-ignore
-import { spawn, spawnSync } from 'node:child_process';
-// @ts-ignore
-import { readFileSync, rmSync, mkdirSync } from 'node:fs';
-// @ts-ignore
-import { fileURLToPath } from 'node:url';
-// @ts-ignore
-import { resolve } from 'node:path';
-// @ts-ignore
-import { createServer } from 'node:net';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { chromium, type Browser, type Page } from 'playwright-core';
+// The node modules have no typings in this tsconfig (no @types/node): they are loaded by name and checked at run time (the test
+// runs in Node), typed by the part of each that this test uses.
+import { assert, afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { chromium } from 'playwright-core';
+import type * as playwright from 'playwright-core';
 import { comfortablyVisible } from '@/core/ui/place';
 import { STEPS } from './tutorial';
 
-declare const process: any;
-const GATE = !!process.env.T44_BROWSER;
-const ROOT: string = fileURLToPath(new URL('../../../../', import.meta.url));
+/** A child process: its pid, its exit code once it has ended, its output streams and its events. */
+interface ChildProcess {
+  pid?: number;
+  exitCode: number | null;
+  stdout: OutputStream;
+  stderr: OutputStream;
+  on: ((event: 'exit' | 'close', listener: (code: number | null) => void) => unknown) &
+    ((event: 'error', listener: (error: Error) => void) => unknown);
+  kill: () => boolean;
+}
+interface OutputStream {
+  on: (event: 'data', listener: (chunk: unknown) => void) => unknown;
+}
+interface SpawnOptions {
+  cwd: string;
+  env?: Record<string, string | undefined>;
+  stdio: 'ignore' | ['ignore', 'pipe', 'pipe'];
+}
+interface ChildProcessModule {
+  spawn: (command: string, args: string[], options: SpawnOptions) => ChildProcess;
+  spawnSync: (command: string, args: string[], options: { stdio: 'ignore' }) => unknown;
+}
+/** File bytes, read as a PNG header. */
+interface FileBytes {
+  readUInt32BE: (offset: number) => number;
+}
+interface FsModule {
+  readFileSync: ((path: string, encoding: 'utf8') => string) & ((path: string) => FileBytes);
+  rmSync: (path: string, options: { recursive?: boolean; force: boolean }) => void;
+  mkdirSync: (path: string, options: { recursive: boolean }) => unknown;
+}
+interface UrlModule {
+  fileURLToPath: (url: URL) => string;
+}
+interface PathModule {
+  resolve: (...segments: string[]) => string;
+}
+interface NetServer {
+  once: (event: 'error', listener: (error: Error) => void) => unknown;
+  listen: (port: number, listener: () => void) => unknown;
+  address: () => { port: number };
+  close: (listener: () => void) => unknown;
+}
+interface NetModule {
+  createServer: () => NetServer;
+}
+interface NodeProcess {
+  env: Record<string, string | undefined>;
+  execPath: string;
+  platform: string;
+  stderr: { write: (text: string) => boolean };
+}
+declare const process: NodeProcess;
+
+/** Whether a loaded module exports every one of `names`. */
+const exportsAll = (mod: unknown, names: string[]): boolean =>
+  typeof mod === 'object' && mod !== null && names.every((name) => name in mod);
+const isChildProcessModule = (mod: unknown): mod is ChildProcessModule => exportsAll(mod, ['spawn', 'spawnSync']);
+const isFsModule = (mod: unknown): mod is FsModule => exportsAll(mod, ['readFileSync', 'rmSync', 'mkdirSync']);
+const isUrlModule = (mod: unknown): mod is UrlModule => exportsAll(mod, ['fileURLToPath']);
+const isPathModule = (mod: unknown): mod is PathModule => exportsAll(mod, ['resolve']);
+const isNetModule = (mod: unknown): mod is NetModule => exportsAll(mod, ['createServer']);
+const CHILD_PROCESS_MODULE = 'node:child_process';
+const FS_MODULE = 'node:fs';
+const URL_MODULE = 'node:url';
+const PATH_MODULE = 'node:path';
+const NET_MODULE = 'node:net';
+const loadedChildProcess: unknown = await import(CHILD_PROCESS_MODULE);
+const loadedFs: unknown = await import(FS_MODULE);
+const loadedUrl: unknown = await import(URL_MODULE);
+const loadedPath: unknown = await import(PATH_MODULE);
+const loadedNet: unknown = await import(NET_MODULE);
+assert(isChildProcessModule(loadedChildProcess), 'node:child_process loads');
+assert(isFsModule(loadedFs), 'node:fs loads');
+assert(isUrlModule(loadedUrl), 'node:url loads');
+assert(isPathModule(loadedPath), 'node:path loads');
+assert(isNetModule(loadedNet), 'node:net loads');
+const childProcess: ChildProcessModule = loadedChildProcess;
+const fs: FsModule = loadedFs;
+const nodeUrl: UrlModule = loadedUrl;
+const nodePath: PathModule = loadedPath;
+const net: NetModule = loadedNet;
+
+/** Whether the environment variable is set to something (not missing, not empty). */
+const envSet = (name: string): boolean => (process.env[name] ?? '') !== '';
+const GATE = envSet('T44_BROWSER');
+const ROOT: string = nodeUrl.fileURLToPath(new URL('../../../../', import.meta.url));
 // This run's own shots dir, so test 5 never reads a stale capture from an earlier run (e2e/shots is gitignored).
-const SHOTS: string = resolve(ROOT, 'e2e/shots/t44');
+const SHOTS: string = nodePath.resolve(ROOT, 'e2e/shots/t44');
 // The card animates in over 0.35 s (SPEC §5.11 motion); measure only after it settles.
 const SETTLE_MS = 600;
 // Waits, all explicit. LOAD_MS: the dev server answers the page (it compiles modules on first use). BOOT_MS: from "Start" to the
@@ -82,93 +158,150 @@ const PLAY_ROUNDS = Math.ceil(PLAY_STEP_MS / 500);
 const PLAY_RUN_MS = E2E_MS - 60_000;
 const PLAY_QUIET_MS = PLAY_STEP_MS + 90_000;
 
-const freePort = (): Promise<number> =>
-  new Promise((res, rej) => {
-    const s = createServer();
-    s.once('error', rej);
+async function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const s = net.createServer();
+    s.once('error', reject);
     s.listen(0, () => {
       const p = s.address().port;
-      s.close(() => res(p));
+      s.close(() => {
+        resolve(p);
+      });
     });
   });
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+}
+async function sleep(ms: number): Promise<void> {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 const answers = async (url: string): Promise<boolean> => {
   try {
-    return (await fetch(url)).ok;
+    const response = await fetch(url);
+    return response.ok;
   } catch {
     return false;
   }
 };
 
+/** The shared dev server: its child process, its page URL, and its exit code once it has ended. */
+interface DevServer {
+  child: ChildProcess;
+  url: string;
+  exited: () => number | null;
+}
+
+/** Waits until the dev server answers, polling every 300 ms: it fails when the server exits, or after 100 polls. */
+async function serverAnswers(server: DevServer, poll = 0): Promise<void> {
+  if (await answers(server.url)) {
+    return;
+  }
+  const code = server.exited();
+  if (code !== null) {
+    throw new Error(`the dev server exited with ${code}`);
+  }
+  if (poll > 100) {
+    killTree(server.child);
+    throw new Error('the dev server did not start');
+  }
+  await sleep(300);
+  await serverAnswers(server, poll + 1);
+}
+
 /** Start the dev server on a free port (`--strictPort`) and wait until it answers. Returns the child and the page URL. */
-async function startServer(): Promise<{ child: any; url: string; exited: () => number | null }> {
+async function startServer(): Promise<DevServer> {
   const port = await freePort();
   const url = `http://localhost:${port}/`;
-  const child = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(port), '--strictPort'], {
-    cwd: ROOT,
-    stdio: 'ignore',
-  });
+  const child = childProcess.spawn(
+    process.execPath,
+    ['node_modules/vite/bin/vite.js', '--port', String(port), '--strictPort'],
+    {
+      cwd: ROOT,
+      stdio: 'ignore',
+    },
+  );
   let code: number | null = null;
   child.on('exit', (c: number | null) => {
     code = c ?? -1;
   });
-  for (let i = 0; !(await answers(url)); i++) {
-    if (code !== null) throw new Error(`the dev server exited with ${code}`);
-    if (i > 100) {
-      killTree(child);
-      throw new Error('the dev server did not start');
-    }
-    await sleep(300);
+  const server = { child, url, exited: () => code };
+  await serverAnswers(server);
+  return server;
+}
+
+/** Waits while a server still answers on `url`, polling every 300 ms, for at most `polls` polls. */
+async function whileAnswering(url: string, polls: number): Promise<void> {
+  if (polls <= 0 || !(await answers(url))) {
+    return;
   }
-  return { child, url, exited: () => code };
+  await sleep(300);
+  await whileAnswering(url, polls - 1);
 }
 
 /** Stop a child and its children. On Windows `kill` stops only the child, and the dev server's helpers would stay. */
-function killTree(child: any): void {
-  if (!child?.pid || child.exitCode !== null) return;
-  if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
-  else child.kill();
+function killTree(child: ChildProcess | undefined): void {
+  if (child?.pid === undefined || child.exitCode !== null) {
+    return;
+  }
+  if (process.platform === 'win32') {
+    childProcess.spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+  } else {
+    child.kill();
+  }
 }
 
-const launchChrome = (): Promise<Browser> =>
-  chromium.launch({
+const chromeAt = (path: string) => (path === '' ? { channel: 'chrome' } : { executablePath: path });
+async function launchChrome(): Promise<playwright.Browser> {
+  return chromium.launch({
     headless: true,
-    ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
+    ...chromeAt(process.env['CHROME_PATH'] ?? ''),
     // The real GPU, headless too (as tools/shot.mjs and the e2e): software GL is several times slower at 1920 x 1080.
     args: [
-      ...(process.env.SOFTWARE
+      ...(envSet('SOFTWARE')
         ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader']
         : ['--enable-gpu', '--use-angle=d3d11', '--enable-gpu-rasterization']),
       '--ignore-gpu-blocklist',
     ],
   });
+}
+/** Chrome may be gone already (a crash): closing it then has nothing left to do. */
+const alreadyClosed = (): null => null;
 
 // The shared dev server and this test's own Chrome (set by the hooks of the "first frame" describe).
-let dev: { child: any; url: string; exited: () => number | null } | null = null;
-let browser: Browser | null = null;
+let dev: DevServer | null = null;
+let browser: playwright.Browser | null = null;
+
+/** An error's message (a thrown value that is not an Error, as text). */
+const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
 /**
  * A new campaign with the tutorial on, at the first frame (the welcome step, which is step 1), on a fresh page load in this
  * test's own Chrome. The menu path (NewGame.tsx): main menu "New game", then the New game screen (Campaign and the tutorial
  * "On" are the defaults), then "Start". A timeout names what the page did (errors, crash) instead of only the selector.
  */
-async function firstFrame(w: number, h: number): Promise<Page> {
-  if (dev!.exited() !== null) throw new Error(`the dev server is gone (exit ${dev!.exited()})`);
-  const ctx = await browser!.newContext({ viewport: { width: w, height: h } });
+async function firstFrame(w: number, h: number): Promise<playwright.Page> {
+  assert.exists(dev);
+  if (dev.exited() !== null) {
+    throw new Error(`the dev server is gone (exit ${dev.exited()})`);
+  }
+  assert.exists(browser);
+  const ctx = await browser.newContext({ viewport: { width: w, height: h } });
   const page = await ctx.newPage();
   const seen: string[] = [];
   page.on('pageerror', (e) => seen.push(`pageerror: ${e.message.slice(0, 200)}`));
   page.on('crash', () => seen.push('PAGE CRASHED'));
   page.setDefaultTimeout(STEP_MS);
   try {
-    await page.goto(dev!.url, { timeout: LOAD_MS });
+    await page.goto(dev.url, { timeout: LOAD_MS });
     await page.waitForSelector('button.mm-btn:has-text("New game")', { timeout: LOAD_MS });
     await page.click('button.mm-btn:has-text("New game")');
     await page.waitForSelector('.pl-menu.newgame .pl-row.hero');
     await page.click('.pl-menu.newgame .pl-row.hero');
     await page.waitForSelector('[data-step="welcome"]', { timeout: BOOT_MS });
-  } catch (e) {
-    throw new Error(`${(e as Error).message}\nthe page said: ${seen.slice(-5).join(' | ') || 'nothing'}`, { cause: e });
+  } catch (error) {
+    throw new Error(`${messageOf(error)}\nthe page said: ${seen.slice(-5).join(' | ') || 'nothing'}`, {
+      cause: error,
+    });
   }
   await page.waitForTimeout(SETTLE_MS);
   return page;
@@ -182,14 +315,18 @@ interface E2eRun {
 }
 
 /** A step line of the playthrough's log ("step firstNetJob game  904s  money $77  wall 156s  heap 750MB"): one for each new step it shows. */
-const STEP_LINE = /^step (\S+)\s+game\s+(\d+)s\s+money \$(-?\d+)\s+wall\s+(\d+)s/gm;
+const STEP_LINE = /^step (?<id>\S+)\s+game\s+(?<game>\d+)s\s+money \$(?<money>-?\d+)\s+wall\s+(?<wall>\d+)s/gmu;
 /** The playthrough's last line but one: its verdict. */
-const ENDED = /E2E (PASS|FAIL)/;
+const ENDED = /E2E (?:PASS|FAIL)/u;
+/** The playthrough's stall line, with its own count ("after 15 tries, 16s", or "after 1200 game ticks, game clock standing still for 4s"). */
+const STUCK = /^STUCK on (?<id>\S+) after (?<after>.+)$/mu;
+/** The playthrough's line when the run reached its own limit. */
+const SLOW = /RUN TIMEOUT on (?<id>\S+)/u;
 
 /** The e2e playthrough in a child process on its own port, within the bounds above. Resolves when the child has ended. */
-function runE2e(port: number): Promise<E2eRun> {
-  return new Promise((res) => {
-    const child = spawn(process.execPath, ['e2e/tutorial.e2e.mjs'], {
+async function runE2e(port: number): Promise<E2eRun> {
+  return new Promise((resolve) => {
+    const child = childProcess.spawn(process.execPath, ['e2e/tutorial.e2e.mjs'], {
       cwd: ROOT,
       env: {
         ...process.env,
@@ -207,10 +344,13 @@ function runE2e(port: number): Promise<E2eRun> {
       stepAt = Date.now();
     const keep = (d: unknown) => {
       const text = String(d);
-      if (text.search(STEP_LINE) >= 0) stepAt = Date.now();
+      if (text.search(STEP_LINE) >= 0) {
+        stepAt = Date.now();
+      }
       // Progress, as it comes: the playthrough takes three minutes, and the runner prints no result of a passing test before it ends (see "Progress" above).
-      for (const m of text.matchAll(STEP_LINE))
+      for (const m of text.matchAll(STEP_LINE)) {
         process.stderr.write(`  playthrough: step ${m[1]} at game second ${m[2]}, wall second ${m[4]}\n`);
+      }
       out = (out + text).slice(-60_000);
     };
     child.stdout.on('data', keep);
@@ -222,20 +362,59 @@ function runE2e(port: number): Promise<E2eRun> {
         killTree(child);
       }
     };
-    const hard = setTimeout(() => stop(`the playthrough took more than ${E2E_MS / 1000} s`), E2E_MS);
+    const hard = setTimeout(() => {
+      stop(`the playthrough took more than ${E2E_MS / 1000} s`);
+    }, E2E_MS);
     const quiet = setInterval(() => {
       const idle = Date.now() - stepAt;
-      if (!ENDED.test(out) && idle > PLAY_QUIET_MS)
+      if (!ENDED.test(out) && idle > PLAY_QUIET_MS) {
         stop(`no new step for ${Math.round(idle / 1000)} s (the page may be frozen)`);
+      }
     }, 5000);
     const end = (status: number | null, more = '') => {
       clearTimeout(hard);
       clearInterval(quiet);
-      res({ status, out: out + more, stopped });
+      resolve({ status, out: out + more, stopped });
     };
-    child.on('error', (e: Error) => end(null, `\n${e.message}`));
-    child.on('close', (status: number | null) => end(status));
+    child.on('error', (e: Error) => {
+      end(null, `\n${e.message}`);
+    });
+    child.on('close', (status: number | null) => {
+      end(status);
+    });
   });
+}
+
+/** What the step `id` waits for, from tutorial.ts: its progress flag, or its live test. */
+function waitsFor(id: string | null): string {
+  const def = STEPS.find((s) => s.id === id);
+  if (def === undefined) {
+    return 'no such step in tutorial.ts';
+  }
+  const until = def.flag === null ? 'its live test passes (tutorial.ts)' : `progress.${def.flag} is set`;
+  return `its card, "${def.title}", stays until ${until}`;
+}
+
+/** The report's first line: how a playthrough that did not pass ended, and on which step (`id`, the last one it showed). */
+function endedHow(r: E2eRun, id: string | null): string {
+  const stuck = STUCK.exec(r.out);
+  const slow = SLOW.exec(r.out);
+  if (stuck !== null) {
+    return `STALLED on step "${stuck[1]}": the card was still on screen after ${stuck[2]?.trim()}; ${waitsFor(id)}`;
+  }
+  if (slow !== null) {
+    return `the run reached its own limit of ${PLAY_RUN_MS / 1000} s on step "${slow[1]}"; ${waitsFor(id)}`;
+  }
+  if (r.stopped !== null) {
+    return `this test stopped the run: ${r.stopped}; ${id === null ? 'no step had shown yet' : `the last step shown was "${id}"; ${waitsFor(id)}`}`;
+  }
+  if (r.out.includes('PAGE CRASHED')) {
+    return `the browser tab crashed${id === null ? '' : ` on step "${id}"`}`;
+  }
+  if (r.out.includes('main menu never came')) {
+    return 'the page never showed the main menu, so no step had shown yet';
+  }
+  return `the playthrough failed (exit ${r.status})${id === null ? '; no step had shown yet' : `; the last step shown was "${id}"`}`;
 }
 
 /**
@@ -243,43 +422,33 @@ function runE2e(port: number): Promise<E2eRun> {
  * playthrough's own count), what it found wrong, where its picture is, and the last of its output. A stall names its step: it is never only "exit 1".
  */
 function playthroughReport(r: E2eRun): string {
-  if (r.status === 0) return 'the playthrough passed';
+  if (r.status === 0) {
+    return 'the playthrough passed';
+  }
   const last = [...r.out.matchAll(STEP_LINE)].at(-1);
-  // (its own count, in the words of the script: "after 15 tries, 16s", or "after 1200 game ticks, game clock standing still for 4s")
-  const stuck = /^STUCK on (\S+) after (.+)$/m.exec(r.out);
-  const slow = /RUN TIMEOUT on (\S+)/.exec(r.out);
+  const stuck = STUCK.exec(r.out);
+  const slow = SLOW.exec(r.out);
   const id = stuck?.[1] ?? slow?.[1] ?? last?.[1] ?? null;
-  const def = STEPS.find((s) => s.id === id);
-  const waits = def
-    ? `its card, "${def.title}", stays until ${def.flag ? `progress.${def.flag} is set` : 'its live test passes (tutorial.ts)'}`
-    : 'no such step in tutorial.ts';
-  const out: string[] = [];
-  if (stuck)
-    out.push(`STALLED on step "${stuck[1]}": the card was still on screen after ${stuck[2]?.trim()}; ${waits}`);
-  else if (slow) out.push(`the run reached its own limit of ${PLAY_RUN_MS / 1000} s on step "${slow[1]}"; ${waits}`);
-  else if (r.stopped)
-    out.push(
-      `this test stopped the run: ${r.stopped}; ${id ? `the last step shown was "${id}"; ${waits}` : 'no step had shown yet'}`,
-    );
-  else if (r.out.includes('PAGE CRASHED')) out.push(`the browser tab crashed${id ? ` on step "${id}"` : ''}`);
-  else if (r.out.includes('main menu never came'))
-    out.push('the page never showed the main menu, so no step had shown yet');
-  else
-    out.push(
-      `the playthrough failed (exit ${r.status})${id ? `; the last step shown was "${id}"` : '; no step had shown yet'}`,
-    );
-  if (last)
+  const out: string[] = [endedHow(r, id)];
+  if (last) {
     out.push(
       `the last step line: "${last[1]}" began at game second ${last[2]}, wall second ${last[4]}, money $${last[3]}`,
     );
+  }
   const problems = r.out
     .split('\n')
-    .filter((l) => /^\s*PROBLEM /.test(l))
+    .filter((l) => /^\s*PROBLEM /u.test(l))
     .map((l) => l.trim());
-  if (problems.length) out.push(`problems found on the way: ${problems.join(' | ')}`);
-  const errors = /page errors (\[.*\])/.exec(r.out)?.[1];
-  if (errors && errors !== '[]') out.push(`page errors: ${errors}`);
-  if (stuck || slow) out.push(`the picture of the stall: ${resolve(SHOTS, `stuck-${id}.png`)}`);
+  if (problems.length > 0) {
+    out.push(`problems found on the way: ${problems.join(' | ')}`);
+  }
+  const errors = /page errors (?<list>\[.*\])/u.exec(r.out)?.[1];
+  if (errors !== undefined && errors !== '[]') {
+    out.push(`page errors: ${errors}`);
+  }
+  if (stuck !== null || slow !== null) {
+    out.push(`the picture of the stall: ${nodePath.resolve(SHOTS, `stuck-${id}.png`)}`);
+  }
   out.push(`the end of its output:\n${r.out.slice(-1200)}`);
   return out.join('\n');
 }
@@ -288,21 +457,30 @@ function playthroughReport(r: E2eRun): string {
  * Visible HUD controls outside the tutorial card, in the viewport, as a kind: "money" ($ text), "menu" (text Menu),
  * "inventory" (the Inventory dock item, by its aria-label; its count is not read) or the control's label for anything else.
  */
-const hudControls = (page: Page) =>
+const hudControls = async (page: playwright.Page) =>
   page.evaluate(() => {
     const out: string[] = [];
     const els = document.querySelectorAll('[data-hud], .invbtn, button');
-    for (const el of Array.from(els)) {
-      if (el.closest('[data-step]')) continue;
+    for (const el of els) {
+      if (el.closest('[data-step]')) {
+        continue;
+      }
       const r = el.getBoundingClientRect();
       const st = getComputedStyle(el);
-      if (r.width <= 0 || r.height <= 0 || st.visibility === 'hidden' || st.display === 'none') continue;
-      const text = (el.textContent ?? '').replaceAll(/\s+/g, ' ').trim();
+      if (r.width <= 0 || r.height <= 0 || st.visibility === 'hidden' || st.display === 'none') {
+        continue;
+      }
+      const text = (el.textContent ?? '').replaceAll(/\s+/gu, ' ').trim();
       const aria = el.getAttribute('aria-label') ?? '';
-      if (/^Inventory\b/i.test(aria)) out.push('inventory');
-      else if (/^\$/.test(text)) out.push('money');
-      else if (/^menu$/i.test(text) || /^menu$/i.test(aria)) out.push('menu');
-      else if (text || aria) out.push(aria || text);
+      if (/^Inventory\b/iu.test(aria)) {
+        out.push('inventory');
+      } else if (text.startsWith('$')) {
+        out.push('money');
+      } else if (/^menu$/iu.test(text) || /^menu$/iu.test(aria)) {
+        out.push('menu');
+      } else if (text || aria) {
+        out.push(aria || text);
+      }
     }
     return out;
   });
@@ -315,21 +493,33 @@ const hudControls = (page: Page) =>
  * `quiet` ms. The game's start flies the camera to the overview, which takes seconds when the page draws a few frames a second. Resolves with the
  * wait in ms, or null when the camera never stopped within `max`.
  */
-async function cameraStill(page: Page, quiet = 1500, max = 45_000): Promise<number | null> {
+async function cameraStill(page: playwright.Page, quiet = 1500, max = 45_000): Promise<number | null> {
   const t0 = Date.now();
-  let last = -1,
-    since = t0;
-  while (Date.now() - t0 < max) {
-    const rev = (await page.evaluate(
-      "(async () => (await import('/src/app/interaction.ts')).cameraRev.value)()",
-    )) as number;
-    if (rev !== last) {
-      last = rev;
-      since = Date.now();
-    } else if (Date.now() - since >= quiet) return Date.now() - t0;
-    await page.waitForTimeout(250);
+  return cameraStillSince(page, { quiet, max, t0, last: -1, since: t0 });
+}
+
+/** The wait of `cameraStill` so far: its bounds, when it began, the last `cameraRev` read and since when it has stood still. */
+interface CameraWatch {
+  quiet: number;
+  max: number;
+  t0: number;
+  last: number;
+  since: number;
+}
+
+/** One round of `cameraStill`: reads `cameraRev`, then waits 250 ms and reads again, until it stood still for `quiet` ms or `max` ms passed. */
+async function cameraStillSince(page: playwright.Page, watch: CameraWatch): Promise<number | null> {
+  if (Date.now() - watch.t0 >= watch.max) {
+    return null;
   }
-  return null;
+  const rev = await page.evaluate<number>("(async () => (await import('/src/app/interaction.ts')).cameraRev.value)()");
+  const moved = rev !== watch.last;
+  if (!moved && Date.now() - watch.since >= watch.quiet) {
+    return Date.now() - watch.t0;
+  }
+  const next = moved ? { ...watch, last: rev, since: Date.now() } : watch;
+  await page.waitForTimeout(250);
+  return cameraStillSince(page, next);
 }
 
 interface Rect {
@@ -342,8 +532,17 @@ interface Rect {
  * The machine's case on the screen (the 3D scene's own answer, `anchorOf('case')`), the boxes the HUD draws over the scene (the top tabs, the
  * dock, the instruction tab: the visible ones), the HUD's inset as the camera was told, and the camera (the dev hook `window.__board`), in client px.
  */
-const sceneBoxes = (page: Page) =>
-  page.evaluate(`(async () => {
+/** What `sceneBoxes` reads. */
+interface SceneBoxes {
+  caseBox: Rect | null;
+  hud: (Rect & { name: string })[];
+  inset: Record<string, number>;
+  vw: number;
+  vh: number;
+  view: Record<string, number> | null;
+}
+const sceneBoxes = async (page: playwright.Page) =>
+  page.evaluate<SceneBoxes>(`(async () => {
   const { anchorOf } = await import('/src/features/tutorial/ui/anchor.ts');
   const { viewInset } = await import('/src/app/hover.ts');
   const shown = (el) => { const r = el.getBoundingClientRect(), st = getComputedStyle(el); return r.width > 0 && r.height > 0 && st.visibility !== 'hidden' && st.display !== 'none' && Number(st.opacity) > 0.05; };
@@ -354,22 +553,29 @@ const sceneBoxes = (page: Page) =>
     ...[...document.querySelectorAll('[data-step]')].filter(shown).map((el) => box('instruction tab', el)),
   ];
   return { caseBox: anchorOf('case'), hud, inset: { ...viewInset.value }, vw: innerWidth, vh: innerHeight, view: window.__board?.view?.() ?? null };
-})()`) as Promise<{
-    caseBox: Rect | null;
-    hud: (Rect & { name: string })[];
-    inset: Record<string, number>;
-    vw: number;
-    vh: number;
-    view: Record<string, number> | null;
-  }>;
+})()`);
 
 /**
  * What the active step points at in the scene: its first world target (`highlight`: not the inventory, a tile or a HUD button), that target's
  * screen rect, the lit trace's last point (the pointer's end, `.pointer .ptr-path`), the HUD's inset, the card, the shelf, and whether the card
  * offers "Show me" (the guidance offers it when the target is not comfortably in view).
  */
-const stepTarget = (page: Page) =>
-  page.evaluate(`(async () => {
+/** What `stepTarget` reads. */
+interface StepTarget {
+  ids: string[];
+  world: string | null;
+  anchor: Rect | null;
+  inset: Record<string, number>;
+  vw: number;
+  vh: number;
+  trace: number[] | null;
+  traceShown: boolean;
+  card: Rect | null;
+  shelf: Rect | null;
+  showMe: boolean;
+}
+const stepTarget = async (page: playwright.Page) =>
+  page.evaluate<StepTarget>(`(async () => {
   const { anchorOf } = await import('/src/features/tutorial/ui/anchor.ts');
   const { viewInset } = await import('/src/app/hover.ts');
   const { highlight } = await import('/src/app/interaction.ts');
@@ -384,19 +590,107 @@ const stepTarget = (page: Page) =>
     card: rect(document.querySelector('[data-step]')), shelf: rect(document.querySelector('.inv')),
     showMe: [...document.querySelectorAll('[data-step] button.link')].some((b) => /show me/i.test(b.textContent ?? '')),
   };
-})()`) as Promise<{
-    ids: string[];
-    world: string | null;
-    anchor: Rect | null;
-    inset: Record<string, number>;
-    vw: number;
-    vh: number;
-    trace: number[] | null;
-    traceShown: boolean;
-    card: Rect | null;
-    shelf: Rect | null;
-    showMe: boolean;
-  }>;
+})()`);
+
+/** The text of the element `selector` (empty when it has none). */
+const textOf = async (page: playwright.Page, selector: string) => (await page.textContent(selector)) ?? '';
+
+/** The lit trace on the page: its points, and whether it shows (null when it is not drawn). */
+const litTrace = async (page: playwright.Page) =>
+  page.evaluate(() => {
+    const svg = document.querySelector<SVGElement>('.pointer');
+    const p = svg?.querySelector<SVGPolylineElement>('.ptr-path');
+    if (!svg || !p) {
+      return null;
+    }
+    // A point is "x,y" (a missing coordinate reads as NaN, as it would in the arithmetic).
+    const pts = (p.getAttribute('points') ?? '')
+      .trim()
+      .split(/\s+/u)
+      .map((text): [number, number] => {
+        const [x = Number.NaN, y = Number.NaN] = text.split(',').map(Number);
+        return [x, y];
+      });
+    return { pts, shown: getComputedStyle(svg).opacity !== '0' };
+  });
+
+/** Whether (x, y) lies on the box `b`, within 2 px. */
+const insideBox = (x: number, y: number, b: { x: number; y: number; width: number; height: number }) =>
+  x >= b.x - 2 && x <= b.x + b.width + 2 && y >= b.y - 2 && y <= b.y + b.height + 2;
+
+/** What test 9 saw, for its failure messages. */
+const sceneSeen = (scene: SceneBoxes, still: number | null) =>
+  `camera ${JSON.stringify(scene.view)}; inset ${JSON.stringify(scene.inset)}; case ${JSON.stringify(scene.caseBox)}; HUD ${JSON.stringify(scene.hud.map((b) => `${b.name} ${Math.round(b.x)},${Math.round(b.y)} ${Math.round(b.w)}x${Math.round(b.h)}`))}; camera still after ${still ?? 'never (45 s)'} ms`;
+
+/** What is wrong with the case `a` in the scene: off screen, under a HUD box (each, by `tol` px), or a speck. */
+function caseProblems(scene: SceneBoxes, a: Rect, tol: number): string[] {
+  const problems: string[] = [];
+  if (a.x < -tol || a.y < -tol || a.x + a.w > scene.vw + tol || a.y + a.h > scene.vh + tol) {
+    problems.push(
+      `the case is not all on screen (${Math.round(a.x)},${Math.round(a.y)} ${Math.round(a.w)}x${Math.round(a.h)} on ${scene.vw}x${scene.vh})`,
+    );
+  }
+  for (const b of scene.hud) {
+    if (a.x < b.x + b.w - tol && a.x + a.w > b.x + tol && a.y < b.y + b.h - tol && a.y + a.h > b.y + tol) {
+      problems.push(
+        `the case is under the ${b.name} (${Math.round(b.x)},${Math.round(b.y)} ${Math.round(b.w)}x${Math.round(b.h)})`,
+      );
+    }
+  }
+  if (a.w < 100 || a.h < 100) {
+    problems.push('the case is a speck (under 100 px)');
+  }
+  return problems;
+}
+
+/** What test 10 saw, for its failure messages. */
+const targetSeen = (t: StepTarget, free: Rect, still: number | null) =>
+  `target ${t.world} ${JSON.stringify(t.anchor)}; free area ${JSON.stringify(free)}; trace end ${JSON.stringify(t.trace)} (shown ${t.traceShown}); card ${JSON.stringify(t.card)}; shelf ${JSON.stringify(t.shelf)}; Show me ${t.showMe}; camera still after ${still ?? 'never (45 s)'} ms`;
+
+/** What is wrong with the lit trace that ends at `trace`: outside the free area, or off the target's centre. */
+function traceProblems(trace: number[], free: Rect, a: Rect): string[] {
+  // (a missing coordinate reads as NaN, as it would in the arithmetic)
+  const [x = Number.NaN, y = Number.NaN] = trace;
+  const problems: string[] = [];
+  if (x < free.x || x > free.x + free.w || y < free.y || y > free.y + free.h) {
+    problems.push(`the lit trace ends at (${Math.round(x)}, ${Math.round(y)}), outside the free area`);
+  }
+  if (Math.hypot(x - (a.x + a.w / 2), y - (a.y + a.h / 2)) > 3) {
+    problems.push(`the lit trace does not end on the target's centre (${Math.round(x)}, ${Math.round(y)})`);
+  }
+  return problems;
+}
+
+/** What is wrong with the step's scene target `a` after the camera's flight: not comfortably in view, no lit trace on it, or "Show me". */
+function targetProblems(t: StepTarget, free: Rect, a: Rect): string[] {
+  const problems: string[] = [];
+  if (!comfortablyVisible(a, free)) {
+    problems.push(
+      `the target's centre (${Math.round(a.x + a.w / 2)}, ${Math.round(a.y + a.h / 2)}) is not in the inner 80% of the free area`,
+    );
+  }
+  if (t.trace === null || !t.traceShown) {
+    problems.push('no lit trace is drawn');
+  } else {
+    problems.push(...traceProblems(t.trace, free, a));
+  }
+  if (t.showMe) {
+    problems.push('the card offers "Show me" after the camera flew to the target');
+  }
+  return problems;
+}
+
+/** A playthrough that has ended with `status`, having logged `lines` (and stopped by this test for `stopped`). */
+const endedRun = (lines: string[], status: number | null, stopped: string | null = null): E2eRun => ({
+  status,
+  out: `${lines.join('\n')}\n`,
+  stopped,
+});
+
+/** Whether the script bounds a step by a variable this test knows: game ticks (STEP_TICKS), or wall time and rounds (STEP_MS and STEP_TRIES). */
+const boundsStepsKnownWay = (script: string) =>
+  script.includes('process.env.STEP_TICKS') ||
+  (script.includes('process.env.STEP_MS') && script.includes('process.env.STEP_TRIES'));
 
 // Criteria 2 and 1 (issue #44): the existing tutorial end-to-end playthrough still passes; every step still shows its card.
 // Its own describe: it needs nothing from the shared dev server below, because the script starts and stops its own server and Chrome.
@@ -407,14 +701,14 @@ describe.skipIf(!GATE)('tutorial end-to-end (ticket #44)', () => {
       process.stderr.write(
         '  running: 2. the tutorial end-to-end playthrough (about three minutes; its steps follow)\n',
       );
-      rmSync(SHOTS, { recursive: true, force: true });
+      fs.rmSync(SHOTS, { recursive: true, force: true });
       const port = await freePort();
       const r = await runE2e(port);
       // The script stops its own server, also when it fails. A server left on the port would keep taking CPU from the next test.
-      for (let i = 0; i < 50 && (await answers(`http://localhost:${port}/`)); i++) await sleep(300);
+      await whileAnswering(`http://localhost:${port}/`, 50);
       const left = await answers(`http://localhost:${port}/`);
       // (a failure says which step it stalled on and what the step waits for, not only the end of the log)
-      expect(r.status, playthroughReport(r)).toBe(0);
+      expect(r.status, `for ${playthroughReport(r)}`).toBe(0);
       expect(left, 'the e2e left its dev server running').toBe(false);
     },
     E2E_MS + 60_000,
@@ -425,19 +719,19 @@ describe.skipIf(!GATE)('first frame in the browser (ticket #44)', () => {
   beforeAll(async () => {
     dev = await startServer();
   }, 120_000);
-  afterAll(() => {
-    killTree(dev?.child);
-    dev = null;
-  });
   // Each test gets its own Chrome: nothing a test leaves open (a page, its game worker, its GL context) can slow the next one.
   beforeEach(async () => {
     process.stderr.write(`  running: ${expect.getState().currentTestName}\n`);
     browser = await launchChrome();
   }, 60_000);
   afterEach(async () => {
-    await browser?.close().catch(() => {});
+    await browser?.close().catch(alreadyClosed);
     browser = null;
   }, 60_000);
+  afterAll(() => {
+    killTree(dev?.child);
+    dev = null;
+  });
 
   // Criterion 3 (issue #44): the staged HUD on step 1 is explained and does not hide controls without a reason.
   // Assumed: the reason is the first step (SPEC §5.11); the explanation wording is not fixed by the spec, so the check looks
@@ -445,16 +739,17 @@ describe.skipIf(!GATE)('first frame in the browser (ticket #44)', () => {
   it('3. the staged HUD on step 1 is explained and only hides the controls the staging names', async () => {
     const page = await firstFrame(1920, 1080);
     const staged = await hudControls(page);
-    for (const kind of staged)
+    for (const kind of staged) {
       expect(['money', 'menu', 'inventory'], `unstaged control on step 1: "${kind}"`).toContain(kind);
+    }
     expect(staged, 'money shows').toContain('money');
     expect(staged, 'menu shows').toContain('menu');
     expect(
       staged.filter((k) => k === 'inventory'),
       'the dock is the one Inventory item',
     ).toHaveLength(1);
-    const note = await page.textContent('[data-step="welcome"]');
-    expect(note ?? '', 'the card explains the staged HUD').toMatch(/hidden|for now|later|until|more controls/i);
+    const note = await textOf(page, '[data-step="welcome"]');
+    expect(note, 'the card explains the staged HUD').toMatch(/hidden|for now|later|until|more controls/iu);
     await page.click('[data-step="welcome"] .pactions button:has-text("Next")');
     await page.waitForSelector('[data-step="cpu"]');
     const full = await hudControls(page);
@@ -472,7 +767,7 @@ describe.skipIf(!GATE)('first frame in the browser (ticket #44)', () => {
     const box = await page.locator('[data-step="welcome"]').boundingBox();
     expect(box, 'the card is on screen').not.toBeNull();
     const content = await page.evaluate(() => {
-      const boxes = Array.from(document.querySelectorAll('[data-step="welcome"] .tut-in > *')).map((el) =>
+      const boxes = [...document.querySelectorAll('[data-step="welcome"] .tut-in > *')].map((el) =>
         el.getBoundingClientRect(),
       );
       return {
@@ -484,10 +779,12 @@ describe.skipIf(!GATE)('first frame in the browser (ticket #44)', () => {
     expect(content.count, 'the card content is on screen').toBeGreaterThan(0);
     expect(content.left, 'card content left edge (16 px gutter)').toBeGreaterThanOrEqual(15);
     expect(content.right, 'card content right edge (16 px gutter)').toBeLessThanOrEqual(375);
-    expect(box!.y + box!.height, 'card bottom inside 844').toBeLessThanOrEqual(844);
+    assert.exists(box);
+    expect(box.y + box.height, 'card bottom inside 844').toBeLessThanOrEqual(844);
     const next = await page.locator('[data-step="welcome"] .pactions button:has-text("Next")').boundingBox();
     expect(next, 'Next is on screen').not.toBeNull();
-    expect(next!.y + next!.height).toBeLessThanOrEqual(844);
+    assert.exists(next);
+    expect(next.y + next.height).toBeLessThanOrEqual(844);
   }, 180_000);
 
   // Acceptance 5 (issue #44): screenshots from dev and the production build were looked at. A person looks at them; this
@@ -496,11 +793,11 @@ describe.skipIf(!GATE)('first frame in the browser (ticket #44)', () => {
   // (`npm run shot -- <out.png> --prod`).
   it('5. the dev first frame is captured at 1920 x 1080', async () => {
     const page = await firstFrame(1920, 1080);
-    mkdirSync(SHOTS, { recursive: true });
-    const file = resolve(SHOTS, 'first-frame-dev.png');
-    rmSync(file, { force: true }); // never read a capture from another run
+    fs.mkdirSync(SHOTS, { recursive: true });
+    const file = nodePath.resolve(SHOTS, 'first-frame-dev.png');
+    fs.rmSync(file, { force: true }); // never read a capture from another run
     await page.screenshot({ path: file });
-    const png = readFileSync(file);
+    const png = fs.readFileSync(file);
     expect(png.readUInt32BE(16), 'width').toBe(1920);
     expect(png.readUInt32BE(20), 'height').toBe(1080);
   }, 180_000);
@@ -511,45 +808,39 @@ describe.skipIf(!GATE)('first frame in the browser (ticket #44)', () => {
     const page = await firstFrame(1920, 1080);
     const box = await page.locator('[data-step="welcome"]').boundingBox();
     expect(box).not.toBeNull();
-    expect(Math.abs(box!.x - 0)).toBeLessThanOrEqual(2);
-    expect(Math.abs(box!.y - 720)).toBeLessThanOrEqual(2);
-    expect(Math.abs(box!.width - 700)).toBeLessThanOrEqual(2);
-    expect(Math.abs(box!.height - 360)).toBeLessThanOrEqual(2);
+    assert.exists(box);
+    expect(Math.abs(box.x)).toBeLessThanOrEqual(2);
+    expect(Math.abs(box.y - 720)).toBeLessThanOrEqual(2);
+    expect(Math.abs(box.width - 700)).toBeLessThanOrEqual(2);
+    expect(Math.abs(box.height - 360)).toBeLessThanOrEqual(2);
   }, 180_000);
 
   // ACCEPTANCE §3, 11 First frame: "Lit trace from 'Next' into 'Inventory 1'." SPEC §5.11: "from 'Next' right along y 1000, then 45
   // degrees down into the dock item". The visible trace is the dashed polyline ".pointer .ptr-path" (".ptr-line" has no stroke).
   it('8. the lit trace runs from Next right, then 45 degrees down into the Inventory 1 dock item', async () => {
     const page = await firstFrame(1920, 1080);
-    const trace = await page.evaluate(() => {
-      const svg = document.querySelector('.pointer') as SVGElement | null;
-      const p = svg?.querySelector('.ptr-path') as SVGPolylineElement | null;
-      if (!svg || !p) return null;
-      const pts = (p.getAttribute('points') ?? '')
-        .trim()
-        .split(/\s+/)
-        .map((s) => s.split(',').map(Number) as [number, number]);
-      return { pts, shown: getComputedStyle(svg).opacity !== '0' };
-    });
+    const trace = await litTrace(page);
     expect(trace, 'the lit trace is drawn').not.toBeNull();
-    expect(trace!.shown, 'the lit trace is visible').toBe(true);
+    assert.exists(trace);
+    expect(trace.shown, 'the lit trace is visible').toBe(true);
     const next = await page.locator('[data-step="welcome"] .pactions button:has-text("Next")').boundingBox();
     // The dock's Inventory button (aria-label "Inventory, 6 parts"); the other ".invbtn" controls are not the target.
     const inv = await page.locator('button[aria-label^="Inventory"]').boundingBox();
     expect(next).not.toBeNull();
     expect(inv).not.toBeNull();
-    const inside = (x: number, y: number, b: { x: number; y: number; width: number; height: number }) =>
-      x >= b.x - 2 && x <= b.x + b.width + 2 && y >= b.y - 2 && y <= b.y + b.height + 2;
-    const [a, b, c] = trace!.pts;
-    expect(trace!.pts.length, 'an elbow: start, bend, end').toBe(3);
-    expect(inside(a![0], a![1], next!), 'trace starts on Next').toBe(true);
-    expect(inside(c![0], c![1], inv!), 'trace ends on Inventory 1').toBe(true);
-    expect(Math.abs(b![1] - a![1]), 'first leg runs along the line of Next (flat)').toBeLessThanOrEqual(1);
-    expect(b![0], 'first leg runs right').toBeGreaterThan(a![0]);
-    expect(Math.abs(Math.abs(c![0] - b![0]) - Math.abs(c![1] - b![1])), 'second leg is 45 degrees').toBeLessThanOrEqual(
-      2,
-    );
-    expect(c![1], 'second leg goes down').toBeGreaterThan(b![1]);
+    const [a, b, c] = trace.pts;
+    expect(trace.pts).toHaveLength(3);
+    assert.exists(a);
+    assert.exists(next);
+    expect(insideBox(a[0], a[1], next), 'trace starts on Next').toBe(true);
+    assert.exists(c);
+    assert.exists(inv);
+    expect(insideBox(c[0], c[1], inv), 'trace ends on Inventory 1').toBe(true);
+    assert.exists(b);
+    expect(Math.abs(b[1] - a[1]), 'first leg runs along the line of Next (flat)').toBeLessThanOrEqual(1);
+    expect(b[0], 'first leg runs right').toBeGreaterThan(a[0]);
+    expect(Math.abs(Math.abs(c[0] - b[0]) - Math.abs(c[1] - b[1])), 'second leg is 45 degrees').toBeLessThanOrEqual(2);
+    expect(c[1], 'second leg goes down').toBeGreaterThan(b[1]);
   }, 180_000);
 
   // ACCEPTANCE §3, 12 HUD: "InsetReporter gets the new tab boxes: the board overview frames inside the free area". The first frame is that
@@ -563,22 +854,12 @@ describe.skipIf(!GATE)('first frame in the browser (ticket #44)', () => {
     const still = await cameraStill(page);
     const scene = await sceneBoxes(page);
     const a = scene.caseBox;
-    const seen = `camera ${JSON.stringify(scene.view)}; inset ${JSON.stringify(scene.inset)}; case ${JSON.stringify(a)}; HUD ${JSON.stringify(scene.hud.map((b) => `${b.name} ${Math.round(b.x)},${Math.round(b.y)} ${Math.round(b.w)}x${Math.round(b.h)}`))}; camera still after ${still ?? 'never (45 s)'} ms`;
+    const seen = sceneSeen(scene, still);
     expect(a, `the case is in front of the eye (${seen})`).not.toBeNull();
     const tol = 2;
-    const problems: string[] = [];
-    if (a!.x < -tol || a!.y < -tol || a!.x + a!.w > scene.vw + tol || a!.y + a!.h > scene.vh + tol)
-      problems.push(
-        `the case is not all on screen (${Math.round(a!.x)},${Math.round(a!.y)} ${Math.round(a!.w)}x${Math.round(a!.h)} on ${scene.vw}x${scene.vh})`,
-      );
-    for (const b of scene.hud) {
-      if (a!.x < b.x + b.w - tol && a!.x + a!.w > b.x + tol && a!.y < b.y + b.h - tol && a!.y + a!.h > b.y + tol)
-        problems.push(
-          `the case is under the ${b.name} (${Math.round(b.x)},${Math.round(b.y)} ${Math.round(b.w)}x${Math.round(b.h)})`,
-        );
-    }
-    if (a!.w < 100 || a!.h < 100) problems.push('the case is a speck (under 100 px)');
-    expect(problems, seen).toEqual([]);
+    assert.exists(a);
+    const problems = caseProblems(scene, a, tol);
+    expect(problems, `for ${seen}`).toStrictEqual([]);
   }, 180_000);
 
   // SPEC §5.11: "Steps with a different target draw the lit trace to that control". docs/UI.md "Tutorial": the camera glides to the step's first world
@@ -593,31 +874,23 @@ describe.skipIf(!GATE)('first frame in the browser (ticket #44)', () => {
     await page.waitForSelector('[data-step="cpu"]');
     const still = await cameraStill(page);
     const t = await stepTarget(page);
+    assert.exists(t.inset['left']);
+    assert.exists(t.inset['top']);
+    assert.exists(t.inset['right']);
+    assert.exists(t.inset['bottom']);
     const free = {
-      x: t.inset['left']!,
-      y: t.inset['top']!,
-      w: t.vw - t.inset['left']! - t.inset['right']!,
-      h: t.vh - t.inset['top']! - t.inset['bottom']!,
+      x: t.inset['left'],
+      y: t.inset['top'],
+      w: t.vw - t.inset['left'] - t.inset['right'],
+      h: t.vh - t.inset['top'] - t.inset['bottom'],
     };
-    const seen = `target ${t.world} ${JSON.stringify(t.anchor)}; free area ${JSON.stringify(free)}; trace end ${JSON.stringify(t.trace)} (shown ${t.traceShown}); card ${JSON.stringify(t.card)}; shelf ${JSON.stringify(t.shelf)}; Show me ${t.showMe}; camera still after ${still ?? 'never (45 s)'} ms`;
+    const seen = targetSeen(t, free, still);
     expect(t.world, `step 2 has a target in the scene (${seen})`).not.toBeNull();
     expect(t.anchor, `the target is in front of the eye (${seen})`).not.toBeNull();
-    const problems: string[] = [];
-    const a = t.anchor!;
-    if (!comfortablyVisible(a, free))
-      problems.push(
-        `the target's centre (${Math.round(a.x + a.w / 2)}, ${Math.round(a.y + a.h / 2)}) is not in the inner 80% of the free area`,
-      );
-    if (!t.trace || !t.traceShown) problems.push('no lit trace is drawn');
-    else {
-      const [x, y] = t.trace as [number, number];
-      if (x < free.x || x > free.x + free.w || y < free.y || y > free.y + free.h)
-        problems.push(`the lit trace ends at (${Math.round(x)}, ${Math.round(y)}), outside the free area`);
-      if (Math.hypot(x - (a.x + a.w / 2), y - (a.y + a.h / 2)) > 3)
-        problems.push(`the lit trace does not end on the target's centre (${Math.round(x)}, ${Math.round(y)})`);
-    }
-    if (t.showMe) problems.push('the card offers "Show me" after the camera flew to the target');
-    expect(problems, seen).toEqual([]);
+    const a = t.anchor;
+    assert.exists(a);
+    const problems = targetProblems(t, free, a);
+    expect(problems, `for ${seen}`).toStrictEqual([]);
   }, 180_000);
 });
 
@@ -629,15 +902,9 @@ describe('the playthrough report (ticket #44)', () => {
     'step linkUp      game  858s  money $77  wall 150s  heap 721MB',
     'step firstNetJob game  904s  money $77  wall 156s  heap 750MB',
   ];
-  const run = (lines: string[], status: number | null, stopped: string | null = null): E2eRun => ({
-    status,
-    out: `${lines.join('\n')}\n`,
-    stopped,
-  });
-
   it('a stall names the step, what the step waits for, how long it waited and where its picture is', () => {
     // the end of the run that stalled on the last lesson's first online job, as the playthrough logged it
-    const r = run(
+    const r = endedRun(
       [
         ...reached,
         'STUCK on firstNetJob after 15 tries, 16s',
@@ -660,7 +927,10 @@ describe('the playthrough report (ticket #44)', () => {
 
   it('a stall that the script counts in game ticks reads the same way', () => {
     const say = playthroughReport(
-      run([...reached, 'STUCK on firstNetJob after 1204 game ticks, game clock standing still for 4s', 'E2E FAIL'], 1),
+      endedRun(
+        [...reached, 'STUCK on firstNetJob after 1204 game ticks, game clock standing still for 4s', 'E2E FAIL'],
+        1,
+      ),
     );
     expect(say).toContain('STALLED on step "firstNetJob"');
     expect(say).toContain('after 1204 game ticks, game clock standing still for 4s');
@@ -668,14 +938,14 @@ describe('the playthrough report (ticket #44)', () => {
   });
 
   it('a run this test stopped says why and which step it was on', () => {
-    const say = playthroughReport(run(reached, null, 'no new step for 241 s (the page may be frozen)'));
+    const say = playthroughReport(endedRun(reached, null, 'no new step for 241 s (the page may be frozen)'));
     expect(say).toContain('this test stopped the run: no new step for 241 s');
     expect(say).toContain('the last step shown was "firstNetJob"');
   });
 
   it('a run that reached the end with problems or page errors lists them, and is no stall', () => {
     const say = playthroughReport(
-      run(
+      endedRun(
         [
           ...reached,
           'step done        game 1105s  money $221  wall 174s  heap 865MB',
@@ -693,19 +963,21 @@ describe('the playthrough report (ticket #44)', () => {
   });
 
   it('says when the run hit its own limit, when the page crashed and when no menu came', () => {
-    expect(playthroughReport(run([...reached, 'RUN TIMEOUT on firstNetJob', 'E2E FAIL'], 1))).toContain('own limit');
-    expect(playthroughReport(run(['!!! PAGE CRASHED: the browser tab died', ...reached], 2))).toContain(
+    expect(playthroughReport(endedRun([...reached, 'RUN TIMEOUT on firstNetJob', 'E2E FAIL'], 1))).toContain(
+      'own limit',
+    );
+    expect(playthroughReport(endedRun(['!!! PAGE CRASHED: the browser tab died', ...reached], 2))).toContain(
       'the browser tab crashed on step "firstNetJob"',
     );
-    expect(playthroughReport(run(['the main menu never came'], 3))).toContain('never showed the main menu');
-    expect(playthroughReport(run(['the main menu never came'], 3))).toContain('no step had shown yet');
+    expect(playthroughReport(endedRun(['the main menu never came'], 3))).toContain('never showed the main menu');
+    expect(playthroughReport(endedRun(['the main menu never came'], 3))).toContain('no step had shown yet');
   });
 
   it('a pass says so, and a step the tutorial does not have is named as such', () => {
-    expect(playthroughReport(run(['E2E PASS'], 0))).toBe('the playthrough passed');
+    expect(playthroughReport(endedRun(['E2E PASS'], 0))).toBe('the playthrough passed');
     expect(
       playthroughReport(
-        run(['step nowhere game 1s  money $0  wall 1s  heap 1MB', 'STUCK on nowhere after 3 tries, 4s'], 1),
+        endedRun(['step nowhere game 1s  money $0  wall 1s  heap 1MB', 'STUCK on nowhere after 3 tries, 4s'], 1),
       ),
     ).toContain('no such step in tutorial.ts');
   });
@@ -722,15 +994,13 @@ describe('the playthrough report (ticket #44)', () => {
   });
 
   it('the playthrough script still has the bounds this test sets and the lines the report reads', () => {
-    const e2e: string = readFileSync(resolve(ROOT, 'e2e/tutorial.e2e.mjs'), 'utf8');
+    const e2e: string = fs.readFileSync(nodePath.resolve(ROOT, 'e2e/tutorial.e2e.mjs'), 'utf8');
     const has = (s: string) => e2e.includes(s);
-    for (const name of ['RUN_MS', 'SHOTS_DIR', 'PORT', 'HEADLESS'])
+    for (const name of ['RUN_MS', 'SHOTS_DIR', 'PORT', 'HEADLESS']) {
       expect(has(`process.env.${name}`), `the script reads ${name}`).toBe(true);
+    }
     // a step is bounded in game ticks (STEP_TICKS), or in wall time and rounds (STEP_MS and STEP_TRIES): the two sets this test knows
-    expect(
-      has('process.env.STEP_TICKS') || (has('process.env.STEP_MS') && has('process.env.STEP_TRIES')),
-      'the script bounds a step by a variable this test knows',
-    ).toBe(true);
+    expect(boundsStepsKnownWay(e2e), 'the script bounds a step by a variable this test knows').toBe(true);
     for (const phrase of [
       'STUCK on',
       'RUN TIMEOUT on',
@@ -738,10 +1008,11 @@ describe('the playthrough report (ticket #44)', () => {
       'the main menu never came',
       'E2E PASS',
       'E2E FAIL',
-    ])
+    ]) {
       expect(has(phrase), `the script says "${phrase}"`).toBe(true);
+    }
     expect(
-      /log\(`step [^`]*game [^`]*money [^`]*wall [^`]*`\)/.test(e2e),
+      /log\(`step [^`]*game [^`]*money [^`]*wall [^`]*`\)/u.test(e2e),
       'the script logs a step line: step, game, money, wall',
     ).toBe(true);
   });

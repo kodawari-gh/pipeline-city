@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { assemble } from '../../cpu/sim/asm';
 import { KDATA_BASE, KERNEL_BASE, USER_BASE } from '@/core/sim/memmap';
 import { KERNEL_IMAGE } from '../../os/sim';
@@ -10,9 +10,27 @@ ECONOMY.levelGating = false;
 ECONOMY.caseGating = false;
 
 const until = (g: Game, done: () => boolean, max = 4000): void => {
-  for (let t = 0; t < max && !done(); t++) g.advanceBaseTick();
+  for (let t = 0; t < max && !done(); t++) {
+    g.advanceBaseTick();
+  }
   expect(done()).toBe(true);
 };
+
+/** The plugged job is done and its key is out of the port. */
+const jobDone = (g: Game) => (): boolean => g.completed === 1 && g.pluggedKey() === null;
+
+const ramView = (g: Game) => new DataView(g.machine.ram.buffer);
+/** The job runs and its program is in user memory. */
+const jobLoaded = (g: Game) => (): boolean =>
+  g.currentPhase() === 'running-os' && ramView(g).getUint32(USER_BASE, true) !== 0;
+const faulted = (g: Game) => (): boolean => (g.snapshot().faults ?? 0) === 1;
+/** The kernel is flashing the result to the key, or done with it. */
+const resultOut = (g: Game) => (): boolean => {
+  const stage = g.snapshot().plugged?.stage;
+  return stage === 'flashing' || stage === 'done' || g.pluggedKey() === null;
+};
+const isProtectionFault = (l: { kind: string; text: string }): boolean =>
+  l.kind === 'fault' && l.text.includes('protected memory');
 
 /** A job that scribbles over the kernel and the job table. */
 const SCRIBBLER = assemble(`
@@ -34,21 +52,22 @@ describe('a job that writes to OS memory', () => {
     g.powerButton();
     until(g, () => g.currentPhase() === 'idle-os');
     expect(g.snapshot().faults).toBe(0);
-    const dv = () => new DataView(g.machine.ram.buffer);
-    expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
-    until(g, () => g.currentPhase() === 'running-os' && dv().getUint32(USER_BASE, true) !== 0);
-    SCRIBBLER.forEach((w, i) => dv().setUint32(USER_BASE + 4 * i, w, true)); // the "program" the CPU runs from here on
-    until(g, () => (g.snapshot().faults ?? 0) === 1);
+    const dv = () => ramView(g);
+    const [firstTrayKeyId] = g.trayKeyIds();
+    assert.exists(firstTrayKeyId);
+    expect(g.plugKey(firstTrayKeyId).ok).toBe(true);
+    until(g, jobLoaded(g));
+    // the "program" the CPU runs from here on
+    for (const [i, w] of SCRIBBLER.entries()) {
+      dv().setUint32(USER_BASE + 4 * i, w, true);
+    }
+    until(g, faulted(g));
     // nothing of the OS was touched
-    expect(Array.from(KERNEL_IMAGE).every((w, i) => dv().getUint32(KERNEL_BASE + 4 * i, true) === w)).toBe(true);
-    expect(dv().getUint32(0x3000, true)).toBe(0);
+    expect([...KERNEL_IMAGE].every((w, i) => dv().getUint32(KERNEL_BASE + 4 * i, true) === w)).toBe(true);
+    expect(dv().getUint32(0x30_00, true)).toBe(0);
     // the kernel took the job off the CPU, recorded the fault as the result, and carried on: it flashes the result to the key
-    until(
-      g,
-      () =>
-        g.snapshot().plugged?.stage === 'flashing' || g.snapshot().plugged?.stage === 'done' || g.pluggedKey() === null,
-    );
-    expect(g.snapshot().log.some((l) => l.kind === 'fault' && l.text.includes('protected memory'))).toBe(true);
+    until(g, resultOut(g));
+    expect(g.snapshot().log.some(isProtectionFault)).toBe(true);
     expect(g.currentPhase()).not.toBe('error');
   });
 
@@ -56,8 +75,10 @@ describe('a job that writes to OS memory', () => {
     const g = rig('ssd1', { keys: [{ template: 'cli.scan', scale: 3 }, { template: 'cli.calc' }] });
     g.powerButton();
     until(g, () => g.currentPhase() === 'idle-os');
-    expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
-    until(g, () => g.completed === 1 && g.pluggedKey() === null);
+    const [firstTrayKeyId2] = g.trayKeyIds();
+    assert.exists(firstTrayKeyId2);
+    expect(g.plugKey(firstTrayKeyId2).ok).toBe(true);
+    until(g, jobDone(g));
     expect(g.snapshot().faults).toBe(0);
   });
 });

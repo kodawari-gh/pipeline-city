@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { HIGH_LEVEL } from '../../jobs/sim/jobcode';
-import { profileOf } from '../../jobs/sim/jobcode';
+import { assert, describe, expect, it } from 'vitest';
+import { HIGH_LEVEL, profileOf } from '../../jobs/sim/jobcode';
 import { highlight, highlightLines } from './highlight';
 import { gpuKernelProfile } from '../../gpu/sim/gpucode';
 
@@ -9,9 +8,11 @@ const kinds = (lang: 'asm' | 'cpp' | 'python', text: string) =>
     .filter((t) => t.k !== 'plain' && t.k !== 'punct')
     .map((t) => `${t.k}:${t.t}${t.cls ? `/${t.cls}` : ''}`);
 
+const isToken = (tok: { k: string; t: string }, k: string, text: string): boolean => tok.k === k && tok.t === text;
+
 describe('syntax colouring', () => {
   it('assembly: labels, instructions by what they do, registers, numbers, comments', () => {
-    expect(kinds('asm', 'loop:  lw t1, 0(a0)   # load')).toEqual([
+    expect(kinds('asm', 'loop:  lw t1, 0(a0)   # load')).toStrictEqual([
       'label:loop:',
       'op:lw/ld',
       'reg:t1',
@@ -19,24 +20,24 @@ describe('syntax colouring', () => {
       'reg:a0',
       'comment:# load',
     ]);
-    expect(kinds('asm', '  mul t2, t1, a3')).toEqual(['op:mul/mul', 'reg:t2', 'reg:t1', 'reg:a3']);
-    expect(kinds('asm', '  bne a1, zero, loop')).toEqual(['op:bne/br', 'reg:a1', 'reg:zero', 'label:loop']);
-    expect(kinds('asm', '  li t0, 0x4000')).toEqual(['op:li/alu', 'reg:t0', 'number:0x4000']);
-    expect(kinds('asm', '  .word 12')).toEqual(['directive:.word', 'number:12']);
+    expect(kinds('asm', '  mul t2, t1, a3')).toStrictEqual(['op:mul/mul', 'reg:t2', 'reg:t1', 'reg:a3']);
+    expect(kinds('asm', '  bne a1, zero, loop')).toStrictEqual(['op:bne/br', 'reg:a1', 'reg:zero', 'label:loop']);
+    expect(kinds('asm', '  li t0, 0x4000')).toStrictEqual(['op:li/alu', 'reg:t0', 'number:0x4000']);
+    expect(kinds('asm', '  .word 12')).toStrictEqual(['directive:.word', 'number:12']);
     expect(kinds('asm', '  sw a2, 0(a0)')[0]).toBe('op:sw/st');
   });
 
   it('C++ and Python: keywords, types, numbers, comments and strings', () => {
-    expect(kinds('cpp', 'for (int i = 0; i < 8; i++) // go')).toEqual([
+    expect(kinds('cpp', 'for (int i = 0; i < 8; i++) // go')).toStrictEqual([
       'keyword:for',
       'type:int',
       'number:0',
       'number:8',
       'comment:// go',
     ]);
-    expect(kinds('cpp', '#include <cstdint>')).toEqual(['pre:#include <cstdint>']);
-    expect(kinds('python', 'def scan(mem): # note')).toEqual(['keyword:def', 'func:scan', 'comment:# note']);
-    expect(kinds('python', 'x = sum(a) & 0xFF')).toEqual(['type:sum', 'number:0xFF']);
+    expect(kinds('cpp', '#include <cstdint>')).toStrictEqual(['pre:#include <cstdint>']);
+    expect(kinds('python', 'def scan(mem): # note')).toStrictEqual(['keyword:def', 'func:scan', 'comment:# note']);
+    expect(kinds('python', 'x = sum(a) & 0xFF')).toStrictEqual(['type:sum', 'number:0xFF']);
   });
 
   it('the pieces always join back to the text, for every job in all three languages', () => {
@@ -73,8 +74,8 @@ describe('syntax colouring', () => {
     ].join('\n');
     const toks = highlightLines('gpu', text).flat(); // a line at a time, as the listing draws them: the first word of a line is the instruction
     expect(toks.map((t) => t.t).join('')).toBe(text.replaceAll('\n', ''));
-    const op = (n: string) => toks.find((t) => t.k === 'op' && t.t === n)?.cls;
-    expect([op('vld'), op('vst'), op('vmul'), op('mseteq'), op('bany'), op('halt')]).toEqual([
+    const op = (n: string) => toks.find((t) => isToken(t, 'op', n))?.cls;
+    expect([op('vld'), op('vst'), op('vmul'), op('mseteq'), op('bany'), op('halt')]).toStrictEqual([
       'ld',
       'st',
       'mul',
@@ -83,9 +84,10 @@ describe('syntax colouring', () => {
       'sys',
     ]);
     expect(toks.filter((t) => t.k === 'reg').map((t) => t.t)).toContain('v3');
-    expect(toks.some((t) => t.k === 'comment' && t.t === '# keep')).toBe(true);
-    expect(toks.filter((t) => t.k === 'label').map((t) => t.t)).toEqual(['loop:', 'loop']);
-    const k = gpuKernelProfile('gpu.blur3', 8)!;
+    expect(toks.some((t) => isToken(t, 'comment', '# keep'))).toBe(true);
+    expect(toks.filter((t) => t.k === 'label').map((t) => t.t)).toStrictEqual(['loop:', 'loop']);
+    const k = gpuKernelProfile('gpu.blur3', 8);
+    assert.exists(k);
     expect(
       highlight('gpu', k.asm)
         .map((t) => t.t)

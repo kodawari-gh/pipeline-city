@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { Graphics } from 'pixi.js';
 import type { StorageCmd } from '../sim/storage';
 import type { Theme } from '@/core/render/theme';
@@ -35,9 +35,43 @@ const cmd = (o: Partial<StorageCmd> = {}): StorageCmd => ({
   ...o,
 });
 
+type Kind = Parameters<typeof diskPlan>[0];
+interface Layers {
+  g: Graphics;
+  t: Graphics;
+  k: Graphics;
+}
+
+/** Plays 300 frames of 20 ms: the labels the drive said, and whether the platter and the arm layers were both drawn at once. */
+function playFrames(
+  { p, kind, plan }: { p: DiskPlay; kind: Kind; plan: ReturnType<typeof diskPlan> },
+  { g, t, k }: Layers,
+) {
+  const labels = new Set<string>();
+  let drew = false;
+  for (let i = 0; i < 300; i++) {
+    p.frame(20, T, kind, plan, g, t, k);
+    if (p.label()) {
+      labels.add(p.label());
+    }
+    if (g.context.instructions.length > 0 && k.context.instructions.length > 0) {
+      drew = true;
+    }
+  }
+  return { labels, drew };
+}
+
+// A hard disk seeks to the track; the SSDs do not.
+const KINDS: { kind: Kind; seek: number }[] = [
+  { kind: 'hdd', seek: 200 },
+  { kind: 'ssd-sata', seek: 0 },
+  { kind: 'ssd-nvme', seek: 0 },
+];
+
 describe('the drive at work', () => {
-  for (const kind of ['hdd', 'ssd-sata', 'ssd-nvme'] as const) {
-    it(`${kind}: nothing is drawn while idle, a command draws and says what it does, then it is idle again`, () => {
+  it.each(KINDS)(
+    '$kind: nothing is drawn while idle, a command draws and says what it does, then it is idle again',
+    ({ kind, seek }) => {
       const plan = diskPlan(kind, 600, 340, 48),
         p = new DiskPlay(),
         g = new Graphics(),
@@ -47,21 +81,15 @@ describe('the drive at work', () => {
       p.frame(16, T, kind, plan, g, t, k);
       expect(g.context.instructions.length + k.context.instructions.length).toBe(0);
       expect(p.label()).toBe('');
-      p.ingest(kind, plan, [cmd({ seq: 1, seek: kind === 'hdd' ? 200 : 0, lba: 300 })], 512, 0);
-      const labels = new Set<string>();
-      let drew = false;
-      for (let i = 0; i < 300; i++) {
-        p.frame(20, T, kind, plan, g, t, k);
-        if (p.label()) labels.add(p.label());
-        if (g.context.instructions.length > 0 && k.context.instructions.length > 0) drew = true;
-      }
+      p.ingest(kind, plan, [cmd({ seq: 1, seek, lba: 300 })], 512, 0);
+      const { labels, drew } = playFrames({ p, kind, plan }, { g, t, k });
       expect(drew).toBe(true);
       expect(labels.size).toBeGreaterThanOrEqual(5);
       expect([...labels][0]).toContain('READ #300');
       expect(p.label()).toBe('');
       expect(p.busy).toBe(false);
-    });
-  }
+    },
+  );
 
   it('the arm of a hard disk is on the new track after a long seek', () => {
     const plan = diskPlan('hdd', 600, 340, 48),
@@ -70,7 +98,10 @@ describe('the drive at work', () => {
     p.ingest('hdd', plan, [], 512, 0);
     p.ingest('hdd', plan, [cmd({ lba: 500, seek: 250, xfer: 70 })], 512, 0);
     expect(p.track).toBe(0);
-    for (let i = 0; i < 300; i++) p.frame(20, T, 'hdd', plan, g, new Graphics(), new Graphics());
-    expect(p.track).toBeGreaterThan(plan.platter!.tracks - 2);
+    for (let i = 0; i < 300; i++) {
+      p.frame(20, T, 'hdd', plan, g, new Graphics(), new Graphics());
+    }
+    assert.exists(plan.platter);
+    expect(p.track).toBeGreaterThan(plan.platter.tracks - 2);
   });
 });

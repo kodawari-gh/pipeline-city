@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import type { TpmLogEntry, TpmView } from '../sim/tpm';
 import { TpmCmd, TpmFault } from '@/core/sim/memmap';
 import { liveShow, REPLAY_HOP_MS, REPLAY_QUEUE, replayLength, replayShow, replayWorkMs, TpmPlayer } from './tpmplayer';
@@ -6,13 +6,26 @@ import { liveShow, REPLAY_HOP_MS, REPLAY_QUEUE, replayLength, replayShow, replay
 const entry = (seq: number, o: Partial<TpmLogEntry> = {}): TpmLogEntry => ({
   seq,
   cmd: TpmCmd.Measure,
-  arg0: 0x1000,
+  arg0: 0x10_00,
   arg1: 8,
-  result: 0xabcd1234,
+  result: 0xab_cd_12_34,
   fault: 0,
   ticks: 32,
   ...o,
 });
+/** Steps the player one hop at a time and counts the replays it starts, finishing each at once. */
+function countReplays(p: TpmPlayer, hops: number): number {
+  let n = 0;
+  for (let k = 0; k < hops; k++) {
+    p.advance(1);
+    if (p.replaying) {
+      n++;
+      p.advance(10_000);
+    }
+  }
+  return n;
+}
+
 const view = (o: Partial<TpmView> = {}): TpmView => ({
   phase: 'idle',
   cmd: 0,
@@ -37,7 +50,7 @@ const view = (o: Partial<TpmView> = {}): TpmView => ({
   measureTicks: 4,
   attestTicks: 60,
   surcharge: 2,
-  ramBytes: 16384,
+  ramBytes: 16_384,
   ...o,
 });
 
@@ -89,13 +102,19 @@ describe('TpmPlayer', () => {
     );
     p.advance(10);
     expect(p.replaying).toBe(true);
-    expect(p.show(0)!.cmd).toBe(TpmCmd.Seal);
+    const showResult = p.show(0);
+    assert.exists(showResult);
+    expect(showResult.cmd).toBe(TpmCmd.Seal);
     p.advance(replayLength(entry(2, { ticks: 10 })));
     p.advance(10);
-    expect(p.show(0)!.cmd).toBe(TpmCmd.Attest);
+    const showResult2 = p.show(0);
+    assert.exists(showResult2);
+    expect(showResult2.cmd).toBe(TpmCmd.Attest);
     p.advance(10_000);
     expect(p.replaying).toBe(false);
-    expect(p.show(0)!.replay).toBe(false);
+    const showResult3 = p.show(0);
+    assert.exists(showResult3);
+    expect(showResult3.replay).toBe(false);
   });
 
   it('shows a command in flight live and keeps the queue waiting', () => {
@@ -114,16 +133,9 @@ describe('TpmPlayer', () => {
     const p = new TpmPlayer();
     p.feed(view({ log: [entry(1)] }));
     p.feed(view({ log: [1, 2, 3, 4, 5, 6].map((n) => entry(n)) }));
-    let n = 0;
-    for (let k = 0; k < 10; k++) {
-      p.advance(1);
-      if (p.replaying) {
-        n++;
-        p.advance(10_000);
-      }
-    }
-    expect(n).toBe(REPLAY_QUEUE);
-    p.feed(undefined);
+    expect(countReplays(p, 10)).toBe(REPLAY_QUEUE);
+    const noViews: TpmView[] = [];
+    p.feed(noViews.at(0));
     expect(p.show(0)).toBeNull();
   });
 });
