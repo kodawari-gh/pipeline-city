@@ -1,6 +1,7 @@
 // The Ethernet jacks' lights (jackleds.ts): the link light follows the line, the activity light follows the frames the port carries, and nothing else.
 import { describe, expect, it } from 'vitest';
-import { DARK, JACK_GLOW, LinkLeds, STRETCH, lightJack, linkOf, type LinkSource } from './jackleds';
+import { DARK, JACK_GLOW, LinkLeds, STRETCH, lightJack, linkOf } from './jackleds';
+import type * as jackledsTypes from './jackleds';
 
 /** A snapshot's share: the PC on or off, a router and a plan or none, a cable in the board's jack or none, the frames counted so far. */
 function src(
@@ -15,7 +16,7 @@ function src(
     rx?: number;
     tx?: number;
   } = {},
-): LinkSource {
+): jackledsTypes.LinkSource {
   const {
     tick = 0,
     on = true,
@@ -40,9 +41,13 @@ function src(
   };
 }
 
+/** How many times the light goes from dark to lit over `lit`, coming from `first`. */
+const risingEdges = (first: number, lit: readonly number[]): number =>
+  lit.filter((x, i) => x === 1 && (lit[i - 1] ?? first) === 0).length;
+
 describe('the link lights', () => {
   it("light the PC end and the router's LAN jack when the cable is in, the router stands and the PC is on", () => {
-    expect(linkOf(src())).toEqual({ pc: true, wan: true });
+    expect(linkOf(src())).toStrictEqual({ pc: true, wan: true });
     const lv = new LinkLeds().step(src(), 0.016);
     expect(lv.pc.link).toBe(1);
     expect(lv.lan.link).toBe(1);
@@ -55,17 +60,18 @@ describe('the link lights', () => {
   });
 
   it("go out with the PC: off, a tripped supply, a burnt port; the router's WAN light stays with its plan", () => {
-    for (const o of [{ on: false }, { tripped: true }, { mbps: 0 }])
-      expect(linkOf(src(o)), JSON.stringify(o)).toEqual({ pc: false, wan: true });
+    for (const o of [{ on: false }, { tripped: true }, { mbps: 0 }]) {
+      expect(linkOf(src(o)), `for ${JSON.stringify(o)}`).toStrictEqual({ pc: false, wan: true });
+    }
   });
 
   it('are out without a cable or without a router', () => {
     expect(linkOf(src({ plugged: false })).pc).toBe(false);
-    expect(linkOf(src({ router: false }))).toEqual({ pc: false, wan: false });
+    expect(linkOf(src({ router: false }))).toStrictEqual({ pc: false, wan: false });
   });
 
   it('are all out with no game', () => {
-    expect(linkOf(null)).toEqual({ pc: false, wan: false });
+    expect(linkOf(null)).toStrictEqual({ pc: false, wan: false });
     expect(new LinkLeds().step(null, 0.016)).toBe(DARK);
   });
 });
@@ -98,11 +104,11 @@ describe('the activity lights', () => {
     const l = new LinkLeds();
     l.step(src({ tick: 0 }), 0);
     const lv = l.step(src({ tick: 1, rx: 5000, tx: 2500 }), 0.016);
-    expect(lv.pc).toEqual({ link: 1, act: 1 });
-    expect(lv.lan).toEqual(lv.pc);
-    expect(lv.wan).toEqual({ link: 1, act: 1 });
+    expect(lv.pc).toStrictEqual({ link: 1, act: 1 });
+    expect(lv.lan).toStrictEqual(lv.pc);
+    expect(lv.wan).toStrictEqual({ link: 1, act: 1 });
     l.step(src({ tick: 1, rx: 5000, tx: 2500, isp: false }), 0.016);
-    expect(l.step(src({ tick: 1, rx: 5000, tx: 2500, isp: false }), 0.016).wan).toEqual({ link: 0, act: 0 });
+    expect(l.step(src({ tick: 1, rx: 5000, tx: 2500, isp: false }), 0.016).wan).toStrictEqual({ link: 0, act: 0 });
   });
 
   it('follow the rate over the ticks a snapshot skips (a fast game), not only the last one', () => {
@@ -124,19 +130,16 @@ describe('the activity lights', () => {
     // 10 frames a tick (a stretch of 0.03 s: 10 x 0.03 = 0.3 of the time lit)
     const dt = 0.005,
       lit: number[] = [];
-    let on = 0,
-      edges = 0,
-      last = l.step(src({ tick: 1, rx: 7, tx: 3 }), 0).pc.act;
+    let on = 0;
+    const first = l.step(src({ tick: 1, rx: 7, tx: 3 }), 0).pc.act;
     for (let k = 0; k < 200; k++) {
       // one second
       const lv = l.step(src({ tick: 1, rx: 7, tx: 3 }), dt);
       lit.push(lv.pc.act);
       on += lv.pc.act;
-      if (lv.pc.act === 1 && last === 0) edges++;
-      last = lv.pc.act;
       expect(lv.moving).toBe(true);
     }
-    expect(edges).toBe(10); // a blink for each of the frames
+    expect(risingEdges(first, lit)).toBe(10); // a blink for each of the frames
     expect(on / 200).toBeCloseTo(10 * STRETCH, 1);
     expect(lit.some((x) => x === 0)).toBe(true);
   });
@@ -154,7 +157,9 @@ describe('the activity lights', () => {
     l.step(src({ tick: 0 }), 0);
     l.step(src({ tick: 1, rx: 10, tx: 0 }), 0);
     const a = l.step(src({ tick: 1, rx: 10, tx: 0 }), 0).pc.act;
-    for (let k = 0; k < 50; k++) expect(l.step(src({ tick: 1, rx: 10, tx: 0 }), 0).pc.act).toBe(a);
+    for (let k = 0; k < 50; k++) {
+      expect(l.step(src({ tick: 1, rx: 10, tx: 0 }), 0).pc.act).toBe(a);
+    }
   });
 
   it('start again from what they find after a load or a new game: no burst of the frames counted before', () => {
@@ -172,7 +177,7 @@ describe('the activity lights', () => {
     const l = new LinkLeds();
     l.step(src({ tick: 0, on: false }), 0);
     const lv = l.step(src({ tick: 1, on: false, rx: 4167, tx: 2083 }), 0.016);
-    expect(lv.pc).toEqual({ link: 0, act: 0 });
+    expect(lv.pc).toStrictEqual({ link: 0, act: 0 });
   });
 });
 
@@ -185,6 +190,8 @@ describe('lightJack', () => {
     lightJack(j, { link: 0, act: 1 });
     expect(j.link.emissiveIntensity).toBe(0);
     expect(j.act.emissiveIntensity).toBe(JACK_GLOW.act);
-    expect(() => lightJack(undefined, { link: 1, act: 1 })).not.toThrow();
+    expect(() => {
+      lightJack(undefined, { link: 1, act: 1 });
+    }).not.toThrow();
   });
 });
