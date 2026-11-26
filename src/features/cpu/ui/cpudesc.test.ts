@@ -3,28 +3,42 @@ import { getSpec, specsOfKind } from '../../board/sim/specs';
 import { cpuFeatures, describeSpec } from '@/core/ui/logic';
 import { specBrief } from '../../economy/ui/shop/picker';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+const CPUS = specsOfKind('cpu');
+
+/** The CPU spec with id `id`. */
+const cpu = (id: string) => must(CPUS.find((s) => s.id === id));
+
+/** The nerd description of spec `id`. */
+const nerdOf = (id: string) => describeSpec(must(getSpec(id))).nerd;
+
 describe('CPU descriptions', () => {
   it('every CPU says what its engine is and what it has', () => {
-    for (const s of specsOfKind('cpu')) {
+    for (const s of CPUS) {
       const f = cpuFeatures(s.engine);
-      expect(f.length, s.id).toBeGreaterThan(0);
-      expect(describeSpec(s).nerd, s.id).toContain(f[0]!);
-      if (s.engine.kind !== 'unpipelined') expect(specBrief(s), s.id).toContain(f[0]!);
+      expect(f.length, `spec ${s.id}`).toBeGreaterThan(0);
+      expect(describeSpec(s).nerd, `spec ${s.id}`).toContain(must(f[0]));
+    }
+    for (const s of CPUS.filter((c) => c.engine.kind !== 'unpipelined')) {
+      expect(specBrief(s), `spec ${s.id}`).toContain(must(cpuFeatures(s.engine)[0]));
     }
   });
 
   it('the optional parts are named', () => {
-    expect(
-      cpuFeatures(
-        getSpec('cpu2f')!.kind === 'cpu' ? (getSpec('cpu2f') as never as { engine: never }).engine : (null as never),
-      ).join(' | '),
-    ).toMatch(/instruction cache.*2-bit predictor/);
-    const m = describeSpec(getSpec('cpu3m')!).nerd;
-    expect(m).toMatch(/4-way/);
-    expect(m).toMatch(/L2/);
-    expect(m).toMatch(/2-wide in-order/);
-    expect(describeSpec(getSpec('cpu4w')!).nerd).toMatch(/4-wide out of order, ROB 32/);
-    expect(describeSpec(getSpec('cpu2f')!).nerd).toMatch(/front end/);
-    expect(describeSpec(getSpec('cpu2')!).nerd).not.toMatch(/leans/);
+    expect(cpuFeatures(cpu('cpu2f').engine).join(' | ')).toMatch(/instruction cache.*2-bit predictor/u);
+    const m = nerdOf('cpu3m');
+    expect(m).toMatch(/4-way/u);
+    expect(m).toMatch(/L2/u);
+    expect(m).toMatch(/2-wide in-order/u);
+    expect(nerdOf('cpu4w')).toMatch(/4-wide out of order, ROB 32/u);
+    expect(nerdOf('cpu2f')).toMatch(/front end/u);
+    expect(nerdOf('cpu2')).not.toMatch(/leans/u);
   });
 });

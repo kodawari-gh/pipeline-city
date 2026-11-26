@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { Graphics } from 'pixi.js';
-import type { Snapshot } from '@/worker/protocol';
-import type { Theme } from '@/core/render/theme';
+import { snap } from '@/core/ui/testdata';
+import { builtinTheme } from '@/core/render/theme';
+import type * as themeTypes from '@/core/render/theme';
+import type { DeviceSnap } from '@/worker/game/types';
+import type { CoreStats } from '../../sim/pipesnap';
 import { UncoreFx, fresh, uncoreInput } from './uncore';
 import type { PlanBlock } from './dieart';
 
-const T = {
+const T: themeTypes.Theme = {
+  ...builtinTheme(),
   bg: '#000',
   line: '#222',
   ink: '#fff',
@@ -16,7 +20,41 @@ const T = {
   st: '#0f8',
   br: '#f0a',
   bad: '#f33',
-} as unknown as Theme;
+};
+
+/** A CPU at `tempC` degrees, throttled by `throttle`. */
+const cpuDevice = (tempC: number, throttle: number): DeviceSnap => ({
+  id: 'cpu',
+  spec: 'cpu1',
+  kind: 'cpu',
+  name: 'CPU',
+  slot: 'cpu',
+  burnt: false,
+  requestedClock: null,
+  effectiveClock: 2,
+  tempC,
+  powerW: 0,
+  throttle,
+  unstable: false,
+  fan: 0,
+});
+
+/** A hardware core's counters with `coherence` coherence misses and `l2Wait` cycles waiting for the L2. */
+const coreStats = (coherence: number, l2Wait: number): CoreStats => ({
+  cycles: 0,
+  retired: 0,
+  stalls: 0,
+  l2Wait,
+  coherence,
+});
+
+/** What instruction `i` paints: its action, its colour, its alpha and its shapes. */
+function paintOf(i: Graphics['context']['instructions'][number]): unknown[] {
+  if (i.action === 'texture') {
+    throw new Error('the uncore paints no textures');
+  }
+  return [i.action, i.data.style.color, i.data.style.alpha, i.data.path.instructions];
+}
 const block = (kind: string, grid?: PlanBlock['grid']): PlanBlock => ({
   id: kind,
   kind,
@@ -34,17 +72,12 @@ describe('uncore state', () => {
     expect(fresh({ t: 0, write: false, seed: 0 }, 'mc', 350)).toBeCloseTo(0.5);
   });
   it('reads the machine from a snapshot', () => {
-    const s = {
-      power: { totalW: 40, budgetW: 100, off: false, tripped: false },
-      devices: [{ kind: 'cpu', tempC: 70, throttle: 1 }],
+    const s = snap({
+      power: { totalW: 40, budgetW: 100, psuFactor: 1, off: false, tripped: false },
+      devices: [cpuDevice(70, 1)],
       cpuClock: { value: 2, min: 1, max: 4 },
-      cores: {
-        stats: [
-          { coherence: 2, l2Wait: 5 },
-          { coherence: 3, l2Wait: 1 },
-        ],
-      },
-    } as unknown as Snapshot;
+      cores: { selected: 0, live: [], tiles: [], stats: [coreStats(2, 5), coreStats(3, 1)] },
+    });
     expect(uncoreInput(s)).toMatchObject({
       loadW: 40,
       budgetW: 100,
@@ -88,7 +121,9 @@ describe('uncore state', () => {
       },
       100,
     );
-    for (const u of ['l2', 'mc', 'pcie', 'nvme', 'dmi', 'usb', 'display'] as const) fx.touch(u, u === 'mc', 200, 12345);
+    for (const u of ['l2', 'mc', 'pcie', 'nvme', 'dmi', 'usb', 'display'] as const) {
+      fx.touch(u, u === 'mc', 200, 12_345);
+    }
     fx.set(
       {
         loadW: 80,
@@ -104,7 +139,9 @@ describe('uncore state', () => {
       },
       250,
     );
-    expect(() => fx.draw(g, blocks, T, 300)).not.toThrow();
+    expect(() => {
+      fx.draw(g, blocks, T, 300);
+    }).not.toThrow();
   });
   it('lights the VRM phases by the load, all alike and steady: the picture does not change with the time (no shimmer, no blink)', () => {
     const fx = new UncoreFx();
@@ -113,12 +150,7 @@ describe('uncore state', () => {
     const draw = (now: number): string => {
       const g = new Graphics();
       fx.draw(g, power, T, now);
-      return JSON.stringify(
-        g.context.instructions.map((i) => {
-          const d = i.data as unknown as { style: { color: number; alpha: number }; path: { instructions: unknown[] } };
-          return [i.action, d.style.color, d.style.alpha, d.path.instructions];
-        }),
-      );
+      return JSON.stringify(g.context.instructions.map((i) => paintOf(i)));
     };
     const on = {
       loadW: 60,
@@ -135,11 +167,15 @@ describe('uncore state', () => {
     fx.set(on, 0);
     const load = draw(0);
     expect(load.length).toBeGreaterThan(20);
-    for (const t of [90, 250, 777, 4000]) expect(draw(t), `load at ${t} ms`).toBe(load);
+    for (const t of [90, 250, 777, 4000]) {
+      expect(draw(t), `load at ${t} ms`).toBe(load);
+    }
     fx.set({ ...on, tripped: true }, 0);
     const trip = draw(0);
     expect(trip).not.toBe(load);
-    for (const t of [125, 250, 375, 3000]) expect(draw(t), `trip at ${t} ms`).toBe(trip);
+    for (const t of [125, 250, 375, 3000]) {
+      expect(draw(t), `trip at ${t} ms`).toBe(trip);
+    }
     fx.set({ ...on, loadW: 120 }, 0);
     expect(draw(0)).not.toBe(load);
     fx.set({ ...on, off: true }, 0);

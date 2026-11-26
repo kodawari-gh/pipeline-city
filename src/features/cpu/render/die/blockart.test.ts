@@ -1,11 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { Graphics } from 'pixi.js';
-import { planInput, type PlanInput, type Rect } from '../core/cpuplan';
+import { planInput } from '../core/cpuplan';
+import type * as planTypes from '../core/cpuplan';
 import { cpuPlan } from '../core/cpuplans';
-import { specsOfKind, type CpuSpec } from '@/features/board/sim/specs';
+import { specsOfKind } from '@/features/board/sim/specs';
+import type * as specTypes from '@/features/board/sim/specs';
 import { dockLink, glyphPins, hasSymbol, inPinFor } from './glyphgeom';
 import { controlsOf, glyph, glyphArea, glyphLive, slotsOf, CONTROL_LINES } from './blockart';
 import type { Theme } from '@/core/render/theme';
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
 
 const DARK: Theme = {
   bg: '#04060f',
@@ -30,7 +40,7 @@ const DARK: Theme = {
 
 // The symbols inside the die's blocks (docs/DIE.md "Inside the blocks"): they fit their blocks, and the live text goes where the symbol has room for it.
 
-const INPUTS: PlanInput[] = [
+const INPUTS: planTypes.PlanInput[] = [
   { arch: 'unpipelined', cacheLines: 8 },
   { arch: 'inorder', forwarding: true, cacheLines: 16, icacheLines: 8, l2Lines: 32 },
   { arch: 'inorder2', forwarding: true, cacheLines: 16 },
@@ -46,8 +56,36 @@ const INPUTS: PlanInput[] = [
     l2Lines: 128,
   },
 ];
-const inside = (r: Rect, o: Rect) =>
+const inside = (r: planTypes.Rect, o: planTypes.Rect) =>
   r.x >= o.x - 4 && r.y >= o.y - 1 && r.x + r.w <= o.x + o.w + 4 && r.y + r.h <= o.y + o.h + 1;
+/** The control lines the decoder raises for `op`. */
+const on = (op: string) => controlsOf(op).map((k) => CONTROL_LINES[k]);
+/** The symbol blocks of `plan` that have pins (a latch is a column of registers: the wires meet its edge). */
+const pinnedSymbols = (plan: planTypes.CpuPlan) => plan.blocks.filter((x) => hasSymbol(x) && x.kind !== 'latch');
+/** Every pin of a symbol: its inputs and, when it has one, its output. */
+const allPins = (pins: NonNullable<ReturnType<typeof glyphPins>>): planTypes.Pt[] => [
+  ...Object.values(pins.ins),
+  ...(pins.out ? [pins.out] : []),
+];
+/** The links of `plan` into a block with pins, with that block and its pins. */
+const linksIntoPins = (plan: planTypes.CpuPlan) =>
+  plan.links.flatMap((l) => {
+    const to = must(plan.blocks.find((b) => b.id === l.to));
+    const pins = glyphPins(to);
+    return pins ? [{ l, to, pins }] : [];
+  });
+/** The links of `plan` out of a block with an output pin, with that block and the pin. */
+const linksOutOfPins = (plan: planTypes.CpuPlan) =>
+  plan.links.flatMap((l) => {
+    const from = must(plan.blocks.find((b) => b.id === l.from));
+    const out = glyphPins(from)?.out;
+    return out ? [{ l, from, out }] : [];
+  });
+/** Does every segment of the polyline run along an axis? */
+const square = (pts: planTypes.Pt[]): boolean =>
+  pts.slice(1).every((v, k) => v[0] === must(pts[k])[0] || v[1] === must(pts[k])[1]);
+/** The plan of a catalog CPU, with its TLB when it has an MMU. */
+const specPlan = (s: specTypes.CpuSpec) => cpuPlan(planInput(s.engine, s.mmu ? { tlbEntries: s.mmu.tlb } : {}));
 
 describe('block symbols', () => {
   it('every symbol block of every architecture has room for its symbol, which is drawn without error', () => {
@@ -56,128 +94,140 @@ describe('block symbols', () => {
         const a = glyphArea(b);
         expect(a, `${i.arch} ${b.id}`).not.toBeNull();
         const texts: string[] = [];
-        expect(() => glyph(new Graphics(), DARK, b, a!, '#0af', (t) => texts.push(t))).not.toThrow();
+        expect(() => {
+          glyph(new Graphics(), DARK, b, must(a), '#0af', (t) => {
+            texts.push(t);
+          });
+        }).not.toThrow();
       }
     }
   });
 
   it('the live text of an instruction goes inside the block it is in', () => {
-    const items = [{ op: 'addi', text: 'addi t0, t0, 4', pc: 0x1004 }];
+    const items = [{ op: 'addi', text: 'addi t0, t0, 4', pc: 0x10_04 }];
     for (const i of INPUTS) {
       for (const b of cpuPlan(i).blocks.filter((x) => hasSymbol(x))) {
-        const a = glyphArea(b)!;
-        const l = glyphLive(b, a, items, 0x1004);
-        for (const t of l.texts) expect(inside(t.rect, b.rect), `${i.arch} ${b.id}`).toBe(true);
-        for (const t of l.lit) expect(inside(t.rect, b.rect), `${i.arch} ${b.id} lit`).toBe(true);
+        const a = must(glyphArea(b));
+        const l = glyphLive(b, a, items, 0x10_04);
+        for (const t of l.texts) {
+          expect(inside(t.rect, b.rect), `${i.arch} ${b.id}`).toBe(true);
+        }
+        for (const t of l.lit) {
+          expect(inside(t.rect, b.rect), `${i.arch} ${b.id} lit`).toBe(true);
+        }
       }
     }
   });
 
   it('the PC shows eight hex digits and a fetch block one word per lane it reads', () => {
-    const plan = cpuPlan(INPUTS[3]!);
-    const pc = plan.blocks.find((b) => b.kind === 'pc')!,
-      fetch = plan.blocks.find((b) => b.kind === 'fetch')!;
+    const plan = cpuPlan(must(INPUTS[3]));
+    const pc = must(plan.blocks.find((b) => b.kind === 'pc')),
+      fetch = must(plan.blocks.find((b) => b.kind === 'fetch'));
+    const pcArea = must(glyphArea(pc)),
+      fetchArea = must(glyphArea(fetch));
     expect(
-      glyphLive(pc, glyphArea(pc)!, [], 0x1abc)
+      glyphLive(pc, pcArea, [], 0x1a_bc)
         .texts.map((t) => t.top)
         .join(''),
     ).toBe('00001abc');
-    expect(slotsOf(fetch, glyphArea(fetch)!).words).toHaveLength(4);
+    expect(slotsOf(fetch, fetchArea).words).toHaveLength(4);
   });
 
   it('the decoder raises the lines an instruction needs', () => {
-    const on = (op: string) => controlsOf(op).map((k) => CONTROL_LINES[k]);
-    expect(on('add')).toEqual(['alu', 'wr']);
-    expect(on('addi')).toEqual(['alu', 'wr', 'imm']);
-    expect(on('lw')).toEqual(['mem', 'wr', 'imm']);
-    expect(on('sw')).toEqual(['mem', 'imm']);
-    expect(on('bne')).toEqual(['br']);
-    expect(on('ecall')).toEqual(['sys']);
+    expect(on('add')).toStrictEqual(['alu', 'wr']);
+    expect(on('addi')).toStrictEqual(['alu', 'wr', 'imm']);
+    expect(on('lw')).toStrictEqual(['mem', 'wr', 'imm']);
+    expect(on('sw')).toStrictEqual(['mem', 'imm']);
+    expect(on('bne')).toStrictEqual(['br']);
+    expect(on('ecall')).toStrictEqual(['sys']);
   });
 
   it('every symbol has its pins inside its block, and a link into it ends on the right one', () => {
     for (const i of INPUTS) {
       const plan = cpuPlan(i);
-      for (const b of plan.blocks.filter((x) => hasSymbol(x))) {
-        if (b.kind === 'latch') continue; // a column of registers: the wires meet its edge, it has no pins
-        const pins = glyphPins(b)!;
+      for (const b of pinnedSymbols(plan)) {
+        const pins = must(glyphPins(b));
         expect(pins, `${i.arch} ${b.id}`).not.toBeNull();
-        for (const p of [...Object.values(pins.ins), ...(pins.out ? [pins.out] : [])]) {
-          expect(p[0], b.id).toBeGreaterThanOrEqual(b.rect.x);
-          expect(p[0], b.id).toBeLessThanOrEqual(b.rect.x + b.rect.w);
-          expect(p[1], b.id).toBeGreaterThanOrEqual(b.rect.y);
-          expect(p[1], b.id).toBeLessThanOrEqual(b.rect.y + b.rect.h);
+        for (const p of allPins(pins)) {
+          expect(p[0], `block ${b.id}`).toBeGreaterThanOrEqual(b.rect.x);
+          expect(p[0], `block ${b.id}`).toBeLessThanOrEqual(b.rect.x + b.rect.w);
+          expect(p[1], `block ${b.id}`).toBeGreaterThanOrEqual(b.rect.y);
+          expect(p[1], `block ${b.id}`).toBeLessThanOrEqual(b.rect.y + b.rect.h);
         }
       }
-      for (const l of plan.links) {
-        const to = plan.blocks.find((b) => b.id === l.to)!,
-          pins = glyphPins(to);
-        if (!pins) continue;
-        const pin = inPinFor(to, l.id, pins)!;
-        expect(l.pts[l.pts.length - 1], `${i.arch} ${l.id} into ${to.id}`).toEqual(pin);
+      for (const { l, to, pins } of linksIntoPins(plan)) {
+        const pin = must(inPinFor(to, l.id, pins));
+        expect(l.pts.at(-1), `${i.arch} ${l.id} into ${to.id}`).toStrictEqual(pin);
       }
     }
   });
 
   it('the next-PC multiplexer takes the +4, the branch redirect and the interrupt vector on three different pins', () => {
-    const plan = cpuPlan(INPUTS[3]!);
-    const npc = plan.blocks.find((b) => b.kind === 'nextpc')!,
-      pins = glyphPins(npc)!;
-    expect(inPinFor(npc, 'pcadd-npc', pins)).toEqual(pins.ins['+4']);
-    expect(inPinFor(npc, 'br-npc', pins)).toEqual(pins.ins['br']);
-    expect(inPinFor(npc, 'irq-pc', pins)).toEqual(pins.ins['irq']);
-    expect(new Set([pins.ins['+4']![1], pins.ins['br']![1], pins.ins['irq']![1]]).size).toBe(3);
+    const plan = cpuPlan(must(INPUTS[3]));
+    const npc = must(plan.blocks.find((b) => b.kind === 'nextpc')),
+      pins = must(glyphPins(npc));
+    expect(inPinFor(npc, 'pcadd-npc', pins)).toStrictEqual(pins.ins['+4']);
+    expect(inPinFor(npc, 'br-npc', pins)).toStrictEqual(pins.ins['br']);
+    expect(inPinFor(npc, 'irq-pc', pins)).toStrictEqual(pins.ins['irq']);
+    expect(new Set([must(pins.ins['+4'])[1], must(pins.ins['br'])[1], must(pins.ins['irq'])[1]]).size).toBe(3);
     // a link docks: it runs on from the block's edge to the pin without a diagonal
     const d = dockLink(npc, npc, 'br-npc', [
       [npc.rect.x, npc.rect.y + 20],
       [npc.rect.x - 30, npc.rect.y + 20],
     ]);
-    for (let k = 1; k < d.length; k++) expect(d[k]![0] === d[k - 1]![0] || d[k]![1] === d[k - 1]![1]).toBe(true);
+    expect(square(d)).toBe(true);
   });
 
   it('every CPU the game ships draws every symbol, docks every link into a pin or an edge, and fills its decoders', () => {
-    const cpus = specsOfKind('cpu') as CpuSpec[];
+    const cpus = specsOfKind('cpu');
     expect(cpus.length).toBeGreaterThanOrEqual(10);
     for (const spec of cpus) {
-      const plan = cpuPlan(planInput(spec.engine, spec.mmu ? { tlbEntries: spec.mmu.tlb } : {}));
+      const plan = specPlan(spec);
       const symbols = plan.blocks.filter((b) => hasSymbol(b));
-      expect(symbols.length, spec.id).toBeGreaterThan(8);
+      expect(symbols.length, `spec ${spec.id}`).toBeGreaterThan(8);
       for (const b of symbols) {
         expect(glyphArea(b), `${spec.id} ${b.id}`).not.toBeNull();
-        expect(() => glyph(new Graphics(), DARK, b, glyphArea(b)!, '#0af', () => {})).not.toThrow();
+        const texts: string[] = [];
+        expect(() => {
+          glyph(new Graphics(), DARK, b, must(glyphArea(b)), '#0af', (t) => {
+            texts.push(t);
+          });
+        }).not.toThrow();
         const live = glyphLive(
           b,
-          glyphArea(b)!,
-          [{ op: 'add', text: 'add t4, t1, t2', pc: 0x1000, word: 0x00a01083 }],
-          0x1000,
+          must(glyphArea(b)),
+          [{ op: 'add', text: 'add t4, t1, t2', pc: 0x10_00, word: 0x00_a0_10_83 }],
+          0x10_00,
           [1],
         );
-        for (const t of live.texts)
+        for (const t of live.texts) {
           expect(t.rect.x + t.rect.w, `${spec.id} ${b.id}`).toBeLessThanOrEqual(b.rect.x + b.rect.w + 4);
+        }
       }
       // a decoder never falls back to a field of cells: wide or in a column it is a symbol
-      for (const b of plan.blocks.filter((x) => x.kind === 'decode'))
+      for (const b of plan.blocks.filter((x) => x.kind === 'decode')) {
         expect(hasSymbol(b), `${spec.id} ${b.id}`).toBe(true);
-      for (const l of plan.links) {
-        const to = plan.blocks.find((b) => b.id === l.to)!,
-          pins = glyphPins(to);
-        if (pins) expect(l.pts[l.pts.length - 1], `${spec.id} ${l.id}`).toEqual(inPinFor(to, l.id, pins));
-        const from = plan.blocks.find((b) => b.id === l.from)!,
-          fp = glyphPins(from);
-        if (fp?.out) expect(l.pts[0], `${spec.id} ${l.id} from ${from.id}`).toEqual(fp.out);
+      }
+      for (const { l, to, pins } of linksIntoPins(plan)) {
+        expect(l.pts.at(-1), `${spec.id} ${l.id}`).toStrictEqual(inPinFor(to, l.id, pins));
+      }
+      for (const { l, from, out } of linksOutOfPins(plan)) {
+        expect(l.pts[0], `${spec.id} ${l.id} from ${from.id}`).toStrictEqual(out);
       }
     }
   });
 
   it('the hazard lamp lights for a waiting instruction and the forwarding multiplexer for the operand that is forwarded', () => {
-    const plan = cpuPlan(INPUTS[2]!);
-    const hz = plan.blocks.find((b) => b.kind === 'hazard')!,
-      fw = plan.blocks.find((b) => b.kind === 'forward')!;
-    const item = { op: 'add', text: 'add t0, t1, t2', pc: 0x1000, word: 1 };
-    expect(glyphLive(hz, glyphArea(hz)!, [], undefined, []).lit).toHaveLength(0);
-    expect(glyphLive(hz, glyphArea(hz)!, [item]).lit).toHaveLength(1);
-    expect(glyphLive(fw, glyphArea(fw)!, [{ ...item, flags: 0 }]).lit).toHaveLength(0);
-    expect(glyphLive(fw, glyphArea(fw)!, [{ ...item, flags: 2 }]).lit).toHaveLength(1); // operand B only
-    expect(glyphLive(fw, glyphArea(fw)!, [{ ...item, flags: 3 }]).lit).toHaveLength(2);
+    const plan = cpuPlan(must(INPUTS[2]));
+    const hz = must(plan.blocks.find((b) => b.kind === 'hazard')),
+      fw = must(plan.blocks.find((b) => b.kind === 'forward'));
+    const item = { op: 'add', text: 'add t0, t1, t2', pc: 0x10_00, word: 1 };
+    const hzArea = must(glyphArea(hz)),
+      fwArea = must(glyphArea(fw));
+    expect(glyphLive(hz, hzArea, [], undefined, []).lit).toHaveLength(0);
+    expect(glyphLive(hz, hzArea, [item]).lit).toHaveLength(1);
+    expect(glyphLive(fw, fwArea, [{ ...item, flags: 0 }]).lit).toHaveLength(0);
+    expect(glyphLive(fw, fwArea, [{ ...item, flags: 2 }]).lit).toHaveLength(1); // operand B only
+    expect(glyphLive(fw, fwArea, [{ ...item, flags: 3 }]).lit).toHaveLength(2);
   });
 });

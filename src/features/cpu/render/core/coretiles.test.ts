@@ -2,8 +2,33 @@ import { describe, expect, it } from 'vitest';
 import type { CoresSnap, PipeSnap } from '../../sim/pipesnap';
 import { coreColor, oooStages, pipeCells, threadTint, tileModels, tileRect, washModels } from './coretiles';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 const stage = (op: string) => ({ kind: op ? 1 : 0, id: op ? 1 : -1, op, text: op, cause: 0, stalled: false });
-const inorder = (...ops: string[]): PipeSnap => ({ width: 1, stages: ops.map(stage) });
+const inorder = (...ops: string[]): PipeSnap => ({ width: 1, stages: ops.map((op) => stage(op)) });
+/** The hue of a `#rrggbb` colour, in degrees. */
+function hue(hex: string): number {
+  const [r = 0, g = 0, b = 0] = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255);
+  const mx = Math.max(r, g, b),
+    d = mx - Math.min(r, g, b);
+  if (d === 0) {
+    return 0;
+  }
+  if (mx === r) {
+    return Math.round((((g - b) / d + 6) % 6) * 60);
+  }
+  if (mx === g) {
+    return Math.round(((b - r) / d + 2) * 60);
+  }
+  return Math.round(((r - g) / d + 4) * 60);
+}
+
 const snap = (): CoresSnap => ({
   selected: 1,
   live: [
@@ -17,17 +42,17 @@ const snap = (): CoresSnap => ({
 describe('core tiles', () => {
   it('has a tile per logical core, in order, with the selected one marked and the cells of its hardware core', () => {
     const t = tileModels(snap());
-    expect(t.map((x) => x.core)).toEqual([0, 1, 2]);
-    expect(t.map((x) => x.selected)).toEqual([false, true, false]);
-    expect(t[0]!.cells).toEqual(['alu', 'ld', null, null, 'st']);
-    expect(t[1]!.cells).toEqual([null, null, 'mul', null, null]);
-    expect(t[0]!.label).toBe('C0');
-    expect(t[0]!.sub).toBe('T0');
-    expect(t[1]!.sub).toBe('T1');
+    expect(t.map((x) => x.core)).toStrictEqual([0, 1, 2]);
+    expect(t.map((x) => x.selected)).toStrictEqual([false, true, false]);
+    expect(must(t[0]).cells).toStrictEqual(['alu', 'ld', null, null, 'st']);
+    expect(must(t[1]).cells).toStrictEqual([null, null, 'mul', null, null]);
+    expect(must(t[0]).label).toBe('C0');
+    expect(must(t[0]).sub).toBe('T0');
+    expect(must(t[1]).sub).toBe('T1');
   });
 
   it('an idle parked core shows nothing in its pipeline and says so; a core with no job has no tint', () => {
-    const t = tileModels(snap())[2]!;
+    const t = must(tileModels(snap())[2]);
     expect(t.tint).toBeNull();
     expect(t.cells.every((c) => c === null)).toBe(true);
     expect(t.sub).toBe('parked');
@@ -36,12 +61,12 @@ describe('core tiles', () => {
   it('gives every core its own colour, the same whatever runs on it, and a different one from its neighbours', () => {
     const t = tileModels(snap());
     expect(new Set(t.map((x) => x.color)).size).toBe(3);
-    expect(t[0]!.color).toMatch(/^#[0-9a-f]{6}$/);
+    expect(must(t[0]).color).toMatch(/^#[0-9a-f]{6}$/u);
     const many = Array.from({ length: 8 }, (_, k) => coreColor(k));
     expect(new Set(many).size).toBe(8);
     const other = snap();
-    other.live[0] = { ...other.live[0]!, job: 8192, thread: 3 };
-    expect(tileModels(other)[0]!.color).toBe(t[0]!.color);
+    other.live[0] = { ...must(other.live[0]), job: 8192, thread: 3 };
+    expect(must(tileModels(other)[0]).color).toBe(must(t[0]).color);
   });
 
   it('carries the rates of its hardware core, none for a parked idle core', () => {
@@ -49,29 +74,18 @@ describe('core tiles', () => {
       { ipc: 0.8, stall: 0.25, l2Wait: 0 },
       { ipc: 1.5, stall: 0, l2Wait: 0 },
     ]);
-    expect([t[0]!.ipc, t[0]!.stall]).toEqual([0.8, 0.25]);
-    expect(t[1]!.ipc).toBe(1.5);
-    expect([t[2]!.ipc, t[2]!.stall]).toEqual([0, 0]);
-    expect(tileModels(snap())[0]!.ipc).toBe(0);
+    expect([must(t[0]).ipc, must(t[0]).stall]).toStrictEqual([0.8, 0.25]);
+    expect(must(t[1]).ipc).toBe(1.5);
+    expect([must(t[2]).ipc, must(t[2]).stall]).toStrictEqual([0, 0]);
+    const fresh = tileModels(snap());
+    expect(must(fresh[0]).ipc).toBe(0);
   });
 
   it('tints a thread by its job and its number: one family per job, a different one for another job', () => {
-    const hue = (hex: string) => {
-      const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255) as [
-        number,
-        number,
-        number,
-      ];
-      const mx = Math.max(r, g, b),
-        mn = Math.min(r, g, b),
-        d = mx - mn;
-      const h = d === 0 ? 0 : mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
-      return Math.round(h * 60);
-    };
     const a0 = threadTint(4096, 0),
       a5 = threadTint(4096, 5),
       b0 = threadTint(4096 + 64, 0);
-    expect(a0).toMatch(/^#[0-9a-f]{6}$/);
+    expect(a0).toMatch(/^#[0-9a-f]{6}$/u);
     expect(a0).not.toBe(a5); // another thread of the job: another shade
     expect(Math.abs(hue(a0) - hue(a5))).toBeLessThanOrEqual(2); // the same hue
     expect(Math.abs(hue(a0) - hue(b0))).toBeGreaterThan(5); // another job: another hue
@@ -97,8 +111,8 @@ describe('core tiles', () => {
         stall: [0, 0, 0],
       },
     };
-    expect(pipeCells(p)).toEqual({ cells: ['alu', null, 'mul', 'ld'], fill: 0.75 });
-    expect(pipeCells(undefined)).toEqual({ cells: [], fill: 0 });
+    expect(pipeCells(p)).toStrictEqual({ cells: ['alu', null, 'mul', 'ld'], fill: 0.75 });
+    expect(pipeCells(snap().tiles.at(99))).toStrictEqual({ cells: [], fill: 0 }); // a tile the snapshot does not have
   });
 
   it('lays the tiles out in a row that fits', () => {
@@ -111,7 +125,7 @@ describe('core tiles', () => {
 describe('washModels', () => {
   it('groups the logical cores by the hardware core they share, in tile order, and marks the tile of the selected core', () => {
     const w = washModels(snap());
-    expect(w.map((x) => [x.hw, x.models.map((m) => m.core), x.selected])).toEqual([
+    expect(w.map((x) => [x.hw, x.models.map((m) => m.core), x.selected])).toStrictEqual([
       [0, [0, 2], false],
       [1, [1], true],
     ]);
@@ -145,7 +159,7 @@ describe('oooStages', () => {
   };
   it('counts what each structure holds against its size', () => {
     const s = oooStages(o);
-    expect(s.gauges.map((g) => [g.name, g.used, g.cap])).toEqual([
+    expect(s.gauges.map((g) => [g.name, g.used, g.cap])).toStrictEqual([
       ['FETCH', 2, 8],
       ['DECODE', 1, 2],
       ['SCHED', 1, 2],
@@ -154,15 +168,15 @@ describe('oooStages', () => {
   });
   it('names why the front end and commit are stuck', () => {
     const s = oooStages(o);
-    expect(s.gauges[0]!.stall).toBe('queue full');
-    expect(s.gauges[1]!.stall).toBeNull();
-    expect(s.gauges[3]!.stall).toBe('head waiting');
+    expect(must(s.gauges[0]).stall).toBe('queue full');
+    expect(must(s.gauges[1]).stall).toBeNull();
+    expect(must(s.gauges[3]).stall).toBe('head waiting');
   });
   it('marks finished reorder-buffer entries and the progress of each unit', () => {
     const s = oooStages(o);
-    expect(s.gauges[3]!.slots.map((x) => x.done)).toEqual([true, false]);
-    expect(s.units[0]!.progress).toBeCloseTo(0.75);
-    expect(s.units[1]!.cls).toBeNull();
-    expect(s.units[3]!.progress).toBe(1);
+    expect(must(s.gauges[3]).slots.map((x) => x.done)).toStrictEqual([true, false]);
+    expect(must(s.units[0]).progress).toBeCloseTo(0.75);
+    expect(must(s.units[1]).cls).toBeNull();
+    expect(must(s.units[3]).progress).toBe(1);
   });
 });

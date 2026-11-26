@@ -7058,15 +7058,6 @@
   "eslint(curly)": 1,
   "import(consistent-type-specifier-style)": 2
  },
- "src/features/cpu/render/core/coreplan.test.ts": {
-  "eslint(curly)": 3,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 3,
-  "unicorn(consistent-function-scoping)": 1,
-  "vitest(no-conditional-in-test)": 7,
-  "vitest(prefer-strict-equal)": 1,
-  "vitest(valid-expect)": 5
- },
  "src/features/cpu/render/core/coreplan.ts": {
   "eslint(curly)": 1,
   "eslint(max-lines-per-function)": 1,
@@ -7076,26 +7067,9 @@
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(consistent-function-scoping)": 3
  },
- "src/features/cpu/render/core/corestats.test.ts": {
-  "eslint(max-params)": 1,
-  "typescript(no-non-null-assertion)": 5,
-  "unicorn(no-useless-undefined)": 2,
-  "vitest(prefer-strict-equal)": 4
- },
  "src/features/cpu/render/core/corestats.ts": {
   "eslint(curly)": 2,
   "unicorn(consistent-function-scoping)": 1
- },
- "src/features/cpu/render/core/coretiles.test.ts": {
-  "eslint(no-nested-ternary)": 2,
-  "eslint(require-unicode-regexp)": 2,
-  "typescript(no-non-null-assertion)": 23,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-array-callback-reference)": 1,
-  "unicorn(no-useless-undefined)": 1,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-strict-equal)": 11
  },
  "src/features/cpu/render/core/coretiles.ts": {
   "eslint(curly)": 2,
@@ -7127,26 +7101,6 @@
   "unicorn(prefer-at)": 1,
   "unicorn(switch-case-braces)": 4
  },
- "src/features/cpu/render/core/cpuplan.test.ts": {
-  "eslint(complexity)": 1,
-  "eslint(curly)": 36,
-  "eslint(no-negated-condition)": 1,
-  "eslint(no-nested-ternary)": 2,
-  "eslint(prefer-destructuring)": 2,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 6,
-  "typescript(no-non-null-assertion)": 55,
-  "typescript(require-array-sort-compare)": 2,
-  "typescript(strict-boolean-expressions)": 4,
-  "unicorn(consistent-function-scoping)": 3,
-  "unicorn(max-nested-calls)": 2,
-  "unicorn(no-array-sort)": 3,
-  "unicorn(prefer-at)": 3,
-  "vitest(no-conditional-expect)": 9,
-  "vitest(no-conditional-in-test)": 23,
-  "vitest(prefer-strict-equal)": 14,
-  "vitest(valid-expect)": 5
- },
  "src/features/cpu/render/core/cpuplan.ts": {
   "eslint(curly)": 7,
   "eslint(default-case)": 1,
@@ -7169,21 +7123,6 @@
   "unicorn(prefer-code-point)": 1,
   "unicorn(prefer-single-call)": 1
  },
- "src/features/cpu/render/die/blockart.test.ts": {
-  "eslint(curly)": 9,
-  "eslint(no-empty-function)": 1,
-  "import(consistent-type-specifier-style)": 3,
-  "typescript(no-confusing-void-expression)": 2,
-  "typescript(no-non-null-assertion)": 32,
-  "typescript(strict-void-return)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(numeric-separators-style)": 7,
-  "unicorn(prefer-at)": 2,
-  "vitest(no-conditional-expect)": 2,
-  "vitest(no-conditional-in-test)": 7,
-  "vitest(prefer-strict-equal)": 12,
-  "vitest(valid-expect)": 5
- },
  "src/features/cpu/render/die/blockart.ts": {
   "eslint(complexity)": 3,
   "eslint(curly)": 30,
@@ -7204,15 +7143,6 @@
   "unicorn(prefer-export-from)": 2,
   "unicorn(switch-case-braces)": 14
  },
- "src/features/cpu/render/die/dieart.test.ts": {
-  "eslint(curly)": 3,
-  "typescript(no-non-null-assertion)": 14,
-  "vitest(no-conditional-expect)": 1,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-strict-equal)": 1,
-  "vitest(prefer-to-have-length)": 1,
-  "vitest(valid-expect)": 9
- },
  "src/features/cpu/render/die/dieart.ts": {
   "eslint(complexity)": 1,
   "eslint(curly)": 16,
@@ -7230,21 +7160,6 @@
   "unicorn(no-array-fill-with-reference-type)": 5,
   "unicorn(prefer-at)": 1,
   "unicorn(prefer-export-from)": 1
- },
- "src/features/cpu/render/die/diemotion.test.ts": {
-  "eslint(curly)": 12,
-  "eslint(no-duplicate-imports)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 3,
-  "typescript(no-non-null-assertion)": 19,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(explicit-length-check)": 2,
-  "unicorn(prefer-single-call)": 3,
-  "vitest(no-conditional-expect)": 1,
-  "vitest(no-conditional-in-test)": 14,
-  "vitest(prefer-strict-equal)": 6,
-  "vitest(valid-expect)": 4
  },
  "src/features/cpu/render/die/diemotion.ts": {
   "eslint(complexity)": 5,
@@ -7275,16 +7190,6 @@
   "unicorn(prefer-single-call)": 1,
   "unicorn(prefer-spread)": 3,
   "unicorn(switch-case-braces)": 11
- },
- "src/features/cpu/render/die/diemulti.test.ts": {
-  "import(first)": 3,
-  "typescript(consistent-type-imports)": 1,
-  "typescript(no-non-null-assertion)": 4,
-  "typescript(no-unsafe-type-assertion)": 3,
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(prefer-at)": 1,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-import-in-mock)": 1
  },
  "src/features/cpu/render/die/diemulti.ts": {
   "eslint(class-methods-use-this)": 2,
@@ -7326,18 +7231,6 @@
   "unicorn(no-array-for-each)": 1,
   "unicorn(no-array-reduce)": 1,
   "unicorn(no-array-reverse)": 1
- },
- "src/features/cpu/render/die/dietraffic.test.ts": {
-  "eslint(curly)": 3,
-  "eslint(max-params)": 2,
-  "import(consistent-type-specifier-style)": 5,
-  "typescript(no-unsafe-type-assertion)": 6,
-  "typescript(require-array-sort-compare)": 1,
-  "typescript(strict-void-return)": 3,
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(numeric-separators-style)": 5,
-  "vitest(prefer-strict-equal)": 5
  },
  "src/features/cpu/render/die/dietraffic.ts": {
   "eslint(curly)": 11,
@@ -7387,22 +7280,11 @@
   "unicorn(prefer-at)": 2,
   "unicorn(switch-case-braces)": 13
  },
- "src/features/cpu/render/die/tokentext.test.ts": {
-  "eslint(require-unicode-regexp)": 1,
-  "unicorn(numeric-separators-style)": 1,
-  "vitest(prefer-strict-equal)": 8
- },
  "src/features/cpu/render/die/tokentext.ts": {
   "eslint(curly)": 4,
   "typescript(switch-exhaustiveness-check)": 2,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(switch-case-braces)": 8
- },
- "src/features/cpu/render/die/uncore.test.ts": {
-  "eslint(curly)": 3,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-unsafe-type-assertion)": 3,
-  "unicorn(numeric-separators-style)": 1
  },
  "src/features/cpu/render/die/uncore.ts": {
   "eslint(class-methods-use-this)": 4,
@@ -7417,23 +7299,6 @@
   "unicorn(no-array-fill-with-reference-type)": 3,
   "unicorn(no-array-for-each)": 1,
   "unicorn(switch-case-braces)": 11
- },
- "src/features/cpu/sim/asm/assemble.test.ts": {
-  "eslint(array-callback-return)": 1,
-  "eslint(curly)": 1,
-  "eslint(default-case)": 1,
-  "eslint(require-unicode-regexp)": 7,
-  "typescript(consistent-return)": 1,
-  "typescript(no-non-null-assertion)": 5,
-  "typescript(strict-boolean-expressions)": 2,
-  "unicorn(catch-error-name)": 1,
-  "unicorn(no-array-callback-reference)": 1,
-  "unicorn(no-useless-spread)": 2,
-  "unicorn(numeric-separators-style)": 3,
-  "unicorn(switch-case-braces)": 7,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-strict-equal)": 3,
-  "vitest(prefer-to-have-length)": 8
  },
  "src/features/cpu/sim/asm/assemble.ts": {
   "eslint(complexity)": 1,
@@ -7465,105 +7330,12 @@
   "typescript(no-non-null-assertion)": 4,
   "unicorn(prefer-math-trunc)": 1
  },
- "src/features/cpu/sim/cpuprofile.test.ts": {
-  "eslint(curly)": 3,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 3,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "vitest(expect-expect)": 1,
-  "vitest(no-conditional-expect)": 1,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 1,
-  "vitest(valid-expect)": 2
- },
  "src/features/cpu/sim/cpuprofile.ts": {
   "eslint(curly)": 3,
   "import(consistent-type-specifier-style)": 3,
   "typescript(no-non-null-assertion)": 1,
   "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 4
- },
- "src/features/cpu/sim/cpuspec.test.ts": {
-  "eslint(curly)": 6,
-  "eslint(require-unicode-regexp)": 1,
-  "typescript(consistent-type-imports)": 1,
-  "typescript(no-non-null-assertion)": 4,
-  "typescript(no-unnecessary-type-assertion)": 2,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "unicorn(no-array-callback-reference)": 2,
-  "unicorn(numeric-separators-style)": 2,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-strict-equal)": 2,
-  "vitest(valid-expect)": 2
- },
- "src/features/cpu/sim/cputree.test.ts": {
-  "eslint(curly)": 11,
-  "eslint(no-shadow)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 3,
-  "typescript(no-unsafe-assignment)": 1,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 2,
-  "unicorn(prefer-structured-clone)": 1,
-  "vitest(expect-expect)": 2,
-  "vitest(no-conditional-expect)": 5,
-  "vitest(no-conditional-in-test)": 5,
-  "vitest(valid-expect)": 6
- },
- "src/features/cpu/sim/engines/decode.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(no-negated-condition)": 1,
-  "typescript(no-non-null-assertion)": 2,
-  "unicorn(numeric-separators-style)": 1,
-  "vitest(no-conditional-expect)": 3,
-  "vitest(no-conditional-in-test)": 2,
-  "vitest(prefer-strict-equal)": 2
- },
- "src/features/cpu/sim/engines/dram.test.ts": {
-  "eslint(curly)": 4,
-  "import(consistent-type-specifier-style)": 3,
-  "typescript(no-non-null-assertion)": 19,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(strict-void-return)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-strict-equal)": 8
- },
- "src/features/cpu/sim/engines/engines.test.ts": {
-  "eslint(curly)": 5,
-  "eslint(max-params)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 3,
-  "unicorn(prefer-spread)": 4,
-  "vitest(expect-expect)": 2,
-  "vitest(no-conditional-expect)": 3,
-  "vitest(no-conditional-in-test)": 2,
-  "vitest(prefer-each)": 1,
-  "vitest(prefer-strict-equal)": 4,
-  "vitest(valid-expect)": 2
- },
- "src/features/cpu/sim/engines/events.test.ts": {
-  "eslint(curly)": 5,
-  "typescript(method-signature-style)": 4,
-  "typescript(no-non-null-assertion)": 3,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "unicorn(numeric-separators-style)": 1,
-  "vitest(no-conditional-in-test)": 4,
-  "vitest(prefer-each)": 2
- },
- "src/features/cpu/sim/engines/features.test.ts": {
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 15,
-  "typescript(no-unnecessary-type-assertion)": 14,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "unicorn(prefer-spread)": 6,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-each)": 4,
-  "vitest(prefer-strict-equal)": 5,
-  "vitest(valid-expect)": 7
  },
  "src/features/cpu/sim/engines/index.ts": {
   "eslint(default-case)": 1,
@@ -7582,12 +7354,6 @@
   "oxc(bad-bitwise-operator)": 1,
   "typescript(no-non-null-assertion)": 92,
   "typescript(strict-boolean-expressions)": 8
- },
- "src/features/cpu/sim/engines/memsys.test.ts": {
-  "eslint(curly)": 2,
-  "typescript(no-non-null-assertion)": 3,
-  "vitest(prefer-strict-equal)": 1,
-  "vitest(prefer-to-have-length)": 1
  },
  "src/features/cpu/sim/engines/ooo.ts": {
   "eslint(class-methods-use-this)": 1,
@@ -7608,64 +7374,6 @@
   "typescript(no-unnecessary-type-assertion)": 2,
   "typescript(strict-boolean-expressions)": 4,
   "unicorn(prefer-math-trunc)": 1
- },
- "src/features/cpu/sim/engines/smp/atomics.test.ts": {
-  "eslint(curly)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 4,
-  "unicorn(numeric-separators-style)": 4,
-  "vitest(prefer-strict-equal)": 4,
-  "vitest(require-to-throw-message)": 1
- },
- "src/features/cpu/sim/engines/smp/coherence.test.ts": {
-  "eslint(curly)": 4,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 21,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(numeric-separators-style)": 39,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 1,
-  "vitest(valid-expect)": 2
- },
- "src/features/cpu/sim/engines/smp/interrupts.test.ts": {
-  "eslint(curly)": 6,
-  "eslint(max-params)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "unicorn(numeric-separators-style)": 6,
-  "unicorn(prefer-spread)": 1,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-each)": 1,
-  "vitest(prefer-strict-equal)": 9,
-  "vitest(valid-expect)": 8
- },
- "src/features/cpu/sim/engines/smp/smt.test.ts": {
-  "eslint(curly)": 9,
-  "eslint(max-params)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 9,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-array-for-each)": 1,
-  "unicorn(numeric-separators-style)": 19,
-  "unicorn(prefer-spread)": 1,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-strict-equal)": 1
- },
- "src/features/cpu/sim/engines/smp/threads.test.ts": {
-  "eslint(curly)": 9,
-  "eslint(max-params)": 2,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 2,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-array-for-each)": 1,
-  "unicorn(numeric-separators-style)": 20,
-  "vitest(no-conditional-in-test)": 2
  },
  "src/features/cpu/sim/engines/testgen.ts": {
   "eslint(curly)": 19,
@@ -7688,29 +7396,6 @@
   "unicorn(no-array-sort)": 1,
   "unicorn(prefer-spread)": 3
  },
- "src/features/cpu/sim/engines/timing/golden.test.ts": {
-  "typescript(no-non-null-assertion)": 1
- },
- "src/features/cpu/sim/engines/timing/timing.test.ts": {
-  "eslint(curly)": 4,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 5,
-  "unicorn(consistent-function-scoping)": 1,
-  "vitest(no-conditional-in-test)": 4
- },
- "src/features/cpu/sim/engines/timing/wide.timing.test.ts": {
-  "eslint(curly)": 17,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 11,
-  "typescript(no-unsafe-class-instance-assignment)": 1,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(prefer-for-of)": 2,
-  "unicorn(prefer-spread)": 3,
-  "vitest(no-conditional-expect)": 2,
-  "vitest(no-conditional-in-test)": 12,
-  "vitest(prefer-strict-equal)": 1,
-  "vitest(valid-expect)": 2
- },
  "src/features/cpu/sim/engines/unpipelined.ts": {
   "eslint(curly)": 7,
   "eslint(default-case)": 1,
@@ -7727,16 +7412,6 @@
   "typescript(no-non-null-assertion)": 4,
   "typescript(strict-boolean-expressions)": 1
  },
- "src/features/cpu/sim/engines/wide.test.ts": {
-  "eslint(curly)": 2,
-  "eslint(max-params)": 1,
-  "unicorn(prefer-spread)": 5,
-  "vitest(expect-expect)": 2,
-  "vitest(no-conditional-expect)": 2,
-  "vitest(no-conditional-in-test)": 2,
-  "vitest(prefer-each)": 1,
-  "vitest(prefer-strict-equal)": 5
- },
  "src/features/cpu/sim/isa/disasm.ts": {
   "eslint(curly)": 1,
   "eslint(default-case)": 1,
@@ -7744,16 +7419,6 @@
   "typescript(no-non-null-assertion)": 1,
   "typescript(strict-boolean-expressions)": 2,
   "unicorn(switch-case-braces)": 7
- },
- "src/features/cpu/sim/isa/isa.test.ts": {
-  "eslint(curly)": 5,
-  "eslint(default-case)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "unicorn(numeric-separators-style)": 13,
-  "unicorn(switch-case-braces)": 6,
-  "vitest(prefer-each)": 1,
-  "vitest(prefer-strict-equal)": 1,
-  "vitest(prefer-to-have-length)": 1
  },
  "src/features/cpu/sim/isa/isa.ts": {
   "eslint(complexity)": 1,
@@ -7767,126 +7432,6 @@
   "unicorn(prefer-math-trunc)": 1,
   "unicorn(switch-case-braces)": 11
  },
- "src/features/cpu/sim/multicore/multicore.test.ts": {
-  "eslint(curly)": 3,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 28,
-  "unicorn(numeric-separators-style)": 7
- },
- "src/features/cpu/sim/multicore/multicoreIntc.test.ts": {
-  "eslint(curly)": 5,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-confusing-void-expression)": 15,
-  "typescript(no-non-null-assertion)": 18,
-  "unicorn(numeric-separators-style)": 4,
-  "vitest(prefer-strict-equal)": 3
- },
- "src/features/cpu/sim/multicore/preempt.test.ts": {
-  "eslint(curly)": 9,
-  "eslint(no-duplicate-imports)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(no-duplicates)": 1,
-  "typescript(consistent-type-definitions)": 1,
-  "typescript(method-signature-style)": 2,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 16,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-array-for-each)": 2,
-  "unicorn(numeric-separators-style)": 4,
-  "unicorn(prefer-array-find)": 1,
-  "unicorn(prefer-code-point)": 1,
-  "vitest(no-conditional-in-test)": 10
- },
- "src/features/cpu/sim/multicore/smp.test.ts": {
-  "eslint(curly)": 6,
-  "eslint(no-implicit-coercion)": 1,
-  "oxc(erasing-op)": 1,
-  "typescript(method-signature-style)": 2,
-  "typescript(no-confusing-void-expression)": 4,
-  "typescript(no-non-null-assertion)": 27,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(no-array-for-each)": 5,
-  "unicorn(numeric-separators-style)": 9,
-  "unicorn(prefer-array-find)": 1,
-  "unicorn(prefer-code-point)": 1,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 1
- },
- "src/features/cpu/sim/multicore/smp3.test.ts": {
-  "eslint(curly)": 6,
-  "eslint(no-duplicate-imports)": 1,
-  "import(no-duplicates)": 1,
-  "typescript(method-signature-style)": 2,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 5,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(require-array-sort-compare)": 2,
-  "unicorn(no-array-for-each)": 2,
-  "unicorn(no-array-sort)": 2,
-  "unicorn(numeric-separators-style)": 4,
-  "unicorn(prefer-array-find)": 3,
-  "unicorn(prefer-code-point)": 1,
-  "vitest(prefer-strict-equal)": 4
- },
- "src/features/cpu/sim/multicore/step.test.ts": {
-  "eslint(curly)": 3,
-  "typescript(no-non-null-assertion)": 5,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(numeric-separators-style)": 2,
-  "unicorn(prefer-spread)": 2,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 1
- },
- "src/features/cpu/sim/multicore/threadjob.test.ts": {
-  "eslint(curly)": 4,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 6,
-  "unicorn(numeric-separators-style)": 2,
-  "vitest(prefer-strict-equal)": 1
- },
- "src/features/cpu/sim/multicore/threads4.test.ts": {
-  "eslint(curly)": 12,
-  "eslint(max-params)": 1,
-  "eslint(no-duplicate-imports)": 1,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "import(no-duplicates)": 1,
-  "typescript(method-signature-style)": 2,
-  "typescript(no-non-null-assertion)": 12,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(require-array-sort-compare)": 3,
-  "typescript(strict-boolean-expressions)": 1,
-  "unicorn(explicit-length-check)": 1,
-  "unicorn(no-array-for-each)": 1,
-  "unicorn(no-array-sort)": 3,
-  "unicorn(numeric-separators-style)": 3,
-  "unicorn(prefer-array-find)": 1,
-  "unicorn(prefer-code-point)": 1,
-  "vitest(no-conditional-in-test)": 2,
-  "vitest(prefer-strict-boolean-matchers)": 1,
-  "vitest(prefer-strict-equal)": 14,
-  "vitest(prefer-to-have-length)": 1
- },
- "src/features/cpu/sim/pipesnap.test.ts": {
-  "eslint(curly)": 18,
-  "eslint(require-unicode-regexp)": 2,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 29,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(no-unsafe-type-assertion)": 10,
-  "unicorn(no-array-for-each)": 1,
-  "unicorn(numeric-separators-style)": 4,
-  "unicorn(prefer-math-trunc)": 1,
-  "unicorn(prefer-spread)": 5,
-  "unicorn(prefer-structured-clone)": 1,
-  "vitest(no-conditional-in-test)": 14,
-  "vitest(prefer-strict-equal)": 7,
-  "vitest(valid-expect)": 1
- },
  "src/features/cpu/sim/pipesnap.ts": {
   "eslint(curly)": 18,
   "eslint(no-use-before-define)": 1,
@@ -7895,11 +7440,6 @@
   "typescript(no-unsafe-type-assertion)": 1,
   "typescript(prefer-for-of)": 1,
   "unicorn(prefer-spread)": 1
- },
- "src/features/cpu/sim/ref/ref.test.ts": {
-  "eslint(require-unicode-regexp)": 3,
-  "typescript(no-non-null-assertion)": 1,
-  "unicorn(numeric-separators-style)": 1
  },
  "src/features/cpu/sim/ref/ref.ts": {
   "eslint(complexity)": 1,
@@ -7921,13 +7461,6 @@
   "unicorn(prefer-code-point)": 1,
   "unicorn(prefer-math-trunc)": 2,
   "unicorn(switch-case-braces)": 38
- },
- "src/features/cpu/sim/ref/threads.test.ts": {
-  "eslint(curly)": 2,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 2,
-  "unicorn(numeric-separators-style)": 1
  },
  "src/features/cpu/sim/ref/threads.ts": {
   "eslint(curly)": 1,
@@ -7963,24 +7496,6 @@
   "typescript(no-non-null-assertion)": 4,
   "typescript(no-unnecessary-type-assertion)": 3,
   "typescript(strict-boolean-expressions)": 3
- },
- "src/features/cpu/ui/cpudesc.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(require-unicode-regexp)": 7,
-  "typescript(no-non-null-assertion)": 7,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "vitest(no-conditional-expect)": 1,
-  "vitest(no-conditional-in-test)": 2,
-  "vitest(valid-expect)": 3
- },
- "src/features/cpu/ui/trace.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(require-unicode-regexp)": 6,
-  "typescript(no-non-null-assertion)": 8,
-  "typescript(no-unsafe-assignment)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(numeric-separators-style)": 5,
-  "vitest(prefer-strict-equal)": 5
  },
  "src/features/cpu/ui/trace.ts": {
   "eslint(complexity)": 1,

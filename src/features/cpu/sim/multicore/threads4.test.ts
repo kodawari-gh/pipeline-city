@@ -4,7 +4,6 @@ import { assemble } from '../asm';
 import { generate, TEMPLATES } from '@/features/jobs/sim/gen';
 import { parSum } from '@/features/jobs/sim/gen/threadtest';
 import { BLOCK_BYTES, JOB_ROW, JobState, KERNEL_BASE, KSLOT, KSLOT_BYTES, PCH_RESULT_WORDS } from '@/core/sim/memmap';
-import { JT_BASE } from '@/features/os/sim';
 import {
   FMAP,
   FRAME_END,
@@ -17,11 +16,21 @@ import {
   PCBS,
   RESERVED_FRAME,
   SPOOL_BLOCKS_PER_JOB,
+  JT_BASE,
 } from '@/features/os/sim';
 import { ECONOMY } from '@/features/economy/sim/economy';
 import { Game } from '@/worker/game/game';
-import { basicFan, checkCompat, compatProblems, fanSlots, setClock, type FanSize } from '@/features/board/sim';
+import { basicFan, checkCompat, compatProblems, fanSlots, setClock } from '@/features/board/sim';
+import type * as boardTypes from '@/features/board/sim';
 import { econ } from '@/worker/game/testkit';
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
 
 ECONOMY.levelGating = false;
 ECONOMY.caseGating = false;
@@ -46,7 +55,9 @@ const until = (g: Game, done: () => boolean, max = 9000): number => {
     g.advanceBaseTick();
     for (let c = 0; c < 8; c++) {
       const w = dv.getUint32(PCBS + c * PCB.BYTES + PCB.CORE, true);
-      if (w) ran.add(w - 1);
+      if (w) {
+        ran.add(w - 1);
+      }
     }
   }
   expect(done()).toBe(true);
@@ -54,46 +65,76 @@ const until = (g: Game, done: () => boolean, max = 9000): number => {
 };
 
 /** The Enthusiast board with `cpu`, a cooler, 256K of RAM, a drive and OS 4, powered off. */
+const FAN_SIZES: readonly boardTypes.FanSize[] = [40, 92, 120, 140];
+/** The fan size a fan mount takes. */
+function fanSizeOf(slot: { id: string; size?: number | undefined }): boardTypes.FanSize {
+  const size = FAN_SIZES.find((x) => x === slot.size);
+  if (size === undefined) {
+    throw new RangeError(`no fan size on ${slot.id}`);
+  }
+  return size;
+}
+
+/** Does a tile of the die carry a trace with rows in it? */
+const hasTrace = (t: NonNullable<ReturnType<Game['snapshot']>['cores']>['tiles'][number]): boolean =>
+  (t.trace?.rows.length ?? 0) > 0;
+
 function machine(cpu: string): Game {
   const g = new Game({ seed: 7, preassembled: true, economy: { ...econ([]), levelGating: false, caseGating: false } });
   g.money = 1_000_000;
   g.powerButton();
   for (const id of ['board1', 'board2', 'board3', 'psu2', cpu, 'cooler2', 'rad1']) {
     const b = g.purchase(id);
-    if (!b.ok) throw new Error(`purchase ${id}: ${b.reason}`);
+    if (!b.ok) {
+      throw new Error(`purchase ${id}: ${b.reason}`);
+    }
     const r = g.install(b.invId);
-    if (!r.ok) throw new Error(`install ${id}: ${r.reason}`);
+    if (!r.ok) {
+      throw new Error(`install ${id}: ${r.reason}`);
+    }
   }
-  for (const d of g.board.devices.filter((x) => x.spec.startsWith('ram'))) g.uninstall(d.id);
+  for (const d of g.board.devices.filter((x) => x.spec.startsWith('ram'))) {
+    g.uninstall(d.id);
+  }
   for (const id of ['ram4', 'nvme2', 'os4']) {
     const b = g.purchase(id);
-    if (!b.ok) throw new Error(`purchase ${id}: ${b.reason}`);
+    if (!b.ok) {
+      throw new Error(`purchase ${id}: ${b.reason}`);
+    }
     const r = g.install(b.invId);
-    if (!r.ok) throw new Error(`install ${id}: ${r.reason}`);
+    if (!r.ok) {
+      throw new Error(`install ${id}: ${r.reason}`);
+    }
   }
   // the bigger case comes without fans: fit and plug a basic one on every mount, so the radiator gets its air
   for (const s of fanSlots(g.board).filter((x) => !g.board.devices.some((d) => d.slot === x.id))) {
-    const b = g.purchase(basicFan(s.size as FanSize).id);
-    if (!b.ok || !g.install(b.invId, s.id).ok || !g.connectCable(`fan:${s.id}`).ok) throw new Error(`fan on ${s.id}`);
+    const b = g.purchase(basicFan(fanSizeOf(s)).id);
+    if (!b.ok || !g.install(b.invId, s.id).ok || !g.connectCable(`fan:${s.id}`).ok) {
+      throw new Error(`fan on ${s.id}`);
+    }
   }
   // the board must be able to feed the CPU it carries (compat.ts): an overloaded regulator crashes the machine under load, and a job then never finishes.
   // A CPU that draws more than its board's regulator gives runs at the clock the check says is safe.
-  for (const i of checkCompat(g.board))
-    if (i.id === 'vrm-overload' && i.fix && i.part) setClock(g.board, i.part, i.fix.clock);
-  const bad = compatProblems(g.board).filter((i) => i.severity === 'error' || /^(ram-)?vrm-|^psu-|^pcie-/.test(i.id));
-  if (bad.length) throw new Error(`the rig does not work together: ${bad.map((i) => i.message).join(' ')}`);
+  for (const i of checkCompat(g.board)) {
+    if (i.id === 'vrm-overload' && i.fix !== undefined && i.part !== null) {
+      setClock(g.board, i.part, i.fix.clock);
+    }
+  }
+  const bad = compatProblems(g.board).filter(
+    (i) => i.severity === 'error' || /^(?:ram-)?vrm-|^psu-|^pcie-/u.test(i.id),
+  );
+  if (bad.length > 0) {
+    throw new Error(`the rig does not work together: ${bad.map((i) => i.message).join(' ')}`);
+  }
   return g;
 }
 
 function submit(g: Game, programs: Uint32Array[]) {
-  const priv = g as unknown as {
-    os: { deviceId: string };
-    diskFor(d: unknown): { poke(block: number, bytes: Uint8Array): void };
-  };
-  const disk = priv.diskFor(g.board.devices.find((d) => d.id === priv.os.deviceId));
-  const spool = Math.ceil(getOsSpec('os4')!.diskBytes / BLOCK_BYTES);
+  const osDevice = must(g.os).deviceId;
+  const disk = g.diskFor(must(g.board.devices.find((d) => d.id === osDevice)));
+  const spool = Math.ceil(must(getOsSpec('os4')).diskBytes / BLOCK_BYTES);
   const dv = new DataView(g.machine.ram.buffer);
-  programs.forEach((program, k) => {
+  for (const [k, program] of programs.entries()) {
     const lba = spool + k * SPOOL_BLOCKS_PER_JOB,
       at = JT_BASE + k * KSLOT_BYTES;
     disk.poke(lba, new Uint8Array(program.buffer, program.byteOffset, program.length * 4));
@@ -102,23 +143,18 @@ function submit(g: Game, programs: Uint32Array[]) {
     dv.setUint32(at + KSLOT.LBA, lba, true);
     dv.setUint32(at + KSLOT.SEQ, k + 1, true);
     dv.setUint32(at + KSLOT.STATE, JobState.Queued, true);
-  });
+  }
   return { dv, states: () => programs.map((_, k) => dv.getUint32(JT_BASE + k * KSLOT_BYTES + KSLOT.STATE, true)) };
 }
 
 const resultText = (dv: DataView, k: number): string => {
   const at = JT_BASE + k * KSLOT_BYTES + KSLOT.RESULT;
   return Array.from({ length: PCH_RESULT_WORDS * 4 }, (_, i) => dv.getUint8(at + i))
-    .map((c) => (c ? String.fromCharCode(c) : ' '))
+    .map((c) => (c ? String.fromCodePoint(c) : ' '))
     .join('')
     .trim();
 };
-const lastLine = (text: string): string =>
-  text
-    .split('\n')
-    .filter((l) => l.trim())
-    .pop()!
-    .trim();
+const lastLine = (text: string): string => must(text.split('\n').findLast((l) => l.trim() !== '')).trim();
 const framesInUse = (dv: DataView): number =>
   Array.from({ length: FRAME_END - FRAME_FIRST }, (_, f) => dv.getUint32(FMAP + 4 * (FRAME_FIRST + f), true)).filter(
     (w) => w !== 0 && w !== RESERVED_FRAME,
@@ -127,17 +163,18 @@ const claimedContexts = (dv: DataView): number =>
   Array.from({ length: 8 }, (_, c) => dv.getUint32(PCBS + c * PCB.BYTES + PCB.SLOT, true)).filter((w) => w !== 0)
     .length;
 
-function run(cpu: string, templates: string[], seeds: number[], scale = 2) {
+/** Runs a job of each [template, seed] together on a fresh machine with `cpu`, the k-th at size `scale + k`. */
+function run(cpu: string, jobs: [template: string, seed: number][], scale = 2) {
   ran.clear();
   const g = machine(cpu);
   g.powerButton();
   until(g, () => g.currentPhase() === 'idle-os');
-  const gens = templates.map((t, k) => generate(t, seeds[k]!, { row: JOB_ROW, scale: scale + k, hosted: true }));
+  const gens = jobs.map(([t, seed], k) => generate(t, seed, { row: JOB_ROW, scale: scale + k, hosted: true }));
   const { dv, states } = submit(
     g,
     gens.map((x) => x.program),
   );
-  const took = until(g, () => states().every((x) => x === JobState.Result), 80000);
+  const took = until(g, () => states().every((x) => x === JobState.Result), 80_000);
   until(g, () => g.currentPhase() === 'idle-os');
   const texts = gens.map((_, k) => resultText(dv, k)),
     expected = gens.map((x) => lastLine(x.meta.expectedText));
@@ -152,52 +189,60 @@ describe('threaded programs on the multicore OS 4', { timeout: 120_000 }, () => 
   it('is its own kernel image, on the spec with 256K of RAM', () => {
     expect(kernelImageFor(4, true)).toBe(KERNEL_IMAGE_THR);
     expect(KERNEL_IMAGE_THR).not.toBe(KERNEL_IMAGE_PRE_SMP);
-    expect(getOsSpec('os4')!.later).toBeFalsy();
-    expect(getOsSpec('os4')!.minRamBytes).toBe(256 * 1024);
+    expect(must(getOsSpec('os4')).later).not.toBe(true);
+    expect(must(getOsSpec('os4')).minRamBytes).toBe(256 * 1024);
   });
 
   it("runs a two-thread job on a dual-core CPU with the reference's text, on both cores", () => {
-    const r = run('cpu2d', ['test.par2'], [11]);
-    expect(r.texts).toEqual(r.expected);
+    const r = run('cpu2d', [['test.par2', 11]]);
+    expect(r.texts).toStrictEqual(r.expected);
     expect(r.g.snapshot().faults).toBe(0);
-    expect([...ran].sort()).toEqual([0, 1]);
+    expect([...ran].toSorted((a, b) => a - b)).toStrictEqual([0, 1]);
     expect(framesInUse(r.dv)).toBe(0);
     expect(claimedContexts(r.dv)).toBe(0);
   });
 
   it('runs threaded and plain jobs together on four logical cores', () => {
-    const r = run('cpu3t', ['test.par4', 'test.par3', 'cli.calc', 'test.par2'], [12, 13, 14, 15]);
-    expect(r.texts).toEqual(r.expected);
+    const r = run('cpu3t', [
+      ['test.par4', 12],
+      ['test.par3', 13],
+      ['cli.calc', 14],
+      ['test.par2', 15],
+    ]);
+    expect(r.texts).toStrictEqual(r.expected);
     expect(r.g.snapshot().faults).toBe(0);
     expect(framesInUse(r.dv)).toBe(0);
     expect(claimedContexts(r.dv)).toBe(0);
   });
 
   it("runs four threads on the HPC part (two out-of-order cores with full SMT) with the reference's text", () => {
-    const r = run('cpu5h', ['test.par4'], [20]);
+    const r = run('cpu5h', [['test.par4', 20]]);
     expect(r.g.cpuLogicalCores()).toBe(4);
-    expect(r.texts).toEqual(r.expected);
+    expect(r.texts).toStrictEqual(r.expected);
     expect(r.g.snapshot().faults).toBe(0);
-    expect([...ran].sort()).toEqual([0, 1, 2, 3]);
+    expect([...ran].toSorted((a, b) => a - b)).toStrictEqual([0, 1, 2, 3]);
     expect(framesInUse(r.dv)).toBe(0);
   });
 
   it('runs eight threads on the server part (eight logical cores)', () => {
-    const r = run('cpu5s', ['test.par8'], [21]);
+    const r = run('cpu5s', [['test.par8', 21]]);
     expect(r.g.cpuLogicalCores()).toBe(8);
-    expect(r.texts).toEqual(r.expected);
+    expect(r.texts).toStrictEqual(r.expected);
     expect(r.g.snapshot().faults).toBe(0);
     expect(framesInUse(r.dv)).toBe(0);
   });
 
   it('time-shares more threads than cores', () => {
-    const r = run('cpu2d', ['test.par4', 'test.par3'], [16, 17]);
-    expect(r.texts).toEqual(r.expected);
+    const r = run('cpu2d', [
+      ['test.par4', 16],
+      ['test.par3', 17],
+    ]);
+    expect(r.texts).toStrictEqual(r.expected);
     expect(framesInUse(r.dv)).toBe(0);
   });
 
   it('is deterministic per seed', () => {
-    expect(run('cpu2d', ['test.par3'], [18]).signature).toBe(run('cpu2d', ['test.par3'], [18]).signature);
+    expect(run('cpu2d', [['test.par3', 18]]).signature).toBe(run('cpu2d', [['test.par3', 18]]).signature);
   });
 
   it('kills the whole job when one thread faults, and frees its contexts', () => {
@@ -214,7 +259,7 @@ wait:
   j wait`).program;
     const good = generate('test.par2', 19, { row: JOB_ROW, scale: 2, hosted: true });
     const { dv, states } = submit(g, [bad, good.program]);
-    until(g, () => states().every((x) => x === JobState.Result), 60000);
+    until(g, () => states().every((x) => x === JobState.Result), 60_000);
     expect(resultText(dv, 0)).toBe('SEGFAULT');
     expect(resultText(dv, 1)).toBe(lastLine(good.meta.expectedText));
     until(g, () => g.currentPhase() === 'idle-os');
@@ -234,26 +279,26 @@ describe('the hpc kinds on the multicore OS 4', { timeout: 240_000 }, () => {
     ['hpc.fft', 'cpu5s'], // 8 threads on 8 logical cores
   ];
   it.each(WHERE)("%s runs on %s with the generator's text and no fault", (kind, cpu) => {
-    const r = run(cpu, [kind], [31]);
-    expect(r.texts).toEqual(r.expected);
+    const r = run(cpu, [[kind, 31]]);
+    expect(r.texts).toStrictEqual(r.expected);
     expect(r.g.snapshot().faults).toBe(0);
     expect(framesInUse(r.dv)).toBe(0);
     expect(claimedContexts(r.dv)).toBe(0);
   });
 
   it('an 8-thread kind shares fewer cores, correctly and slower', () => {
-    const few = run('cpu2d', ['hpc.fft'], [32], 8),
-      many = run('cpu5s', ['hpc.fft'], [32], 8);
-    expect(few.texts).toEqual(few.expected);
-    expect(many.texts).toEqual(many.expected);
+    const few = run('cpu2d', [['hpc.fft', 32]], 8),
+      many = run('cpu5s', [['hpc.fft', 32]], 8);
+    expect(few.texts).toStrictEqual(few.expected);
+    expect(many.texts).toStrictEqual(many.expected);
     expect(many.took).toBeLessThan(few.took);
   });
 
   it("an 8-thread kind is faster on eight logical cores than on two (short jobs are still dominated by the kernel's own work)", () => {
-    const two = run('cpu2d', ['hpc.fft'], [33], 16),
-      eight = run('cpu5s', ['hpc.fft'], [33], 16);
-    expect(two.texts).toEqual(two.expected);
-    expect(eight.texts).toEqual(eight.expected);
+    const two = run('cpu2d', [['hpc.fft', 33]], 16),
+      eight = run('cpu5s', [['hpc.fft', 33]], 16);
+    expect(two.texts).toStrictEqual(two.expected);
+    expect(eight.texts).toStrictEqual(eight.expected);
     expect(eight.took).toBeLessThan(two.took * 0.6);
   });
   it('the snapshot has every logical core live, with the job thread on it, and follows the core that is selected', () => {
@@ -268,27 +313,30 @@ describe('the hpc kinds on the multicore OS 4', { timeout: 240_000 }, () => {
     until(
       g,
       () => {
-        const c = g.snapshot().cores!;
-        busy = Math.max(busy, c.live.filter((x) => x.job !== 0).length);
-        for (const x of c.live) if (x.job !== 0) seen.add(x.thread);
+        const c = must(g.snapshot().cores);
+        const working = c.live.filter((x) => x.job !== 0);
+        busy = Math.max(busy, working.length);
+        for (const x of working) {
+          seen.add(x.thread);
+        }
         return states()[0] === JobState.Result;
       },
-      80000,
+      80_000,
     );
-    const c = g.snapshot().cores!;
-    expect(c.tiles.length).toBe(4); // eight logical cores on four hardware cores
-    expect(c.live.map((x) => x.hw)).toEqual([0, 1, 2, 3, 0, 1, 2, 3]);
+    const c = must(g.snapshot().cores);
+    expect(c.tiles).toHaveLength(4); // eight logical cores on four hardware cores
+    expect(c.live.map((x) => x.hw)).toStrictEqual([0, 1, 2, 3, 0, 1, 2, 3]);
     expect(busy).toBe(8); // every core held a thread of the job at once
-    expect([...seen].sort()).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
-    expect(c.tiles.every((t) => (t.trace?.rows.length ?? 0) > 0)).toBe(true);
+    expect([...seen].toSorted((a, b) => a - b)).toStrictEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+    expect(c.tiles.every(hasTrace)).toBe(true);
     // every tile carries its stored state (each core runs live on the die); the detailed view (`pipe`) is the selected core's hardware core's
     expect(c.selected).toBe(0);
     expect(c.tiles.every((t) => t.stored !== undefined)).toBe(true);
-    expect(g.snapshot().pipe?.trace?.end).toBe(c.tiles[0]!.trace!.end);
+    expect(g.snapshot().pipe?.trace?.end).toBe(must(must(c.tiles[0]).trace).end);
     expect(g.setViewCore(6)).toBe(6);
-    const d = g.snapshot().cores!;
+    const d = must(g.snapshot().cores);
     expect(d.selected).toBe(6);
-    expect(g.snapshot().pipe?.trace?.end).toBe(d.tiles[2]!.trace!.end);
+    expect(g.snapshot().pipe?.trace?.end).toBe(must(must(d.tiles[2]).trace).end);
     expect(g.setViewCore(99)).toBe(7);
   });
 });

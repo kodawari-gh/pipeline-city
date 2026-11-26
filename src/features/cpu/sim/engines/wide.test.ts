@@ -6,6 +6,14 @@ import { generate, runReference, TEMPLATE_NAMES } from '@/features/jobs/sim/gen'
 import { genData, genProgram } from './testgen';
 import { WIDE_CONFIGS, firstMemDiff, runEngine, runProgram, runRef } from './testutil';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 const HAND: Record<string, string> = {
   sum: `
     li a0, 0
@@ -121,44 +129,64 @@ const HAND: Record<string, string> = {
     ecall`,
 };
 
-function expectSame(
-  name: string,
-  src: string,
-  make: () => ReturnType<(typeof WIDE_CONFIGS)[number]['make']>,
-  seed: number,
-  chaos: boolean,
-): void {
-  const data = genData(seed);
-  const ref = runRef(src, data);
-  const got = runEngine(make(), src, data, chaos ? { seed: seed + 1, p: 0.15 } : undefined);
-  expect(got.regs, `${name} regs`).toEqual(ref.regs);
-  expect(firstMemDiff(got.mem, ref.mem), `${name} first differing mem byte`).toBe(-1);
-  expect(got.counters[1], `${name} retired`).toBe(ref.cycles);
+/**
+ * A run of `src` on the engine `make` builds, next to the reference on the same data (with cache invalidations and predictor
+ * flips when `chaos`): what the engine ended with, and what it should have (its registers, the first byte of memory that
+ * differs, the instructions it retired).
+ */
+function vsReference(run: {
+  src: string;
+  make: () => ReturnType<(typeof WIDE_CONFIGS)[number]['make']>;
+  seed: number;
+  chaos: boolean;
+}) {
+  const data = genData(run.seed);
+  const ref = runRef(run.src, data);
+  const got = runEngine(run.make(), run.src, data, run.chaos ? { seed: run.seed + 1, p: 0.15 } : undefined);
+  return {
+    got: { regs: got.regs, firstDifferingMemByte: firstMemDiff(got.mem, ref.mem), retired: got.counters[1] },
+    want: { regs: ref.regs, firstDifferingMemByte: -1, retired: ref.cycles },
+  };
 }
 
+const HAND_COMPUTED = Object.entries(HAND).filter(([name]) => name !== 'display');
+
+/** Whether template `t` runs on a bare CPU in reasonable time. */
+const runsBare = (t: string) => !t.startsWith('secure.') && !t.startsWith('gpu.');
+
 describe.each(WIDE_CONFIGS)('wide correctness vs reference: $name', ({ make }) => {
-  for (const [name, src] of Object.entries(HAND)) {
-    it(`hand-written: ${name}`, () => {
-      if (name === 'display') {
-        const cpu = new RefCpu();
-        cpu.load(assemble(src).program);
-        cpu.run();
-        const out = runEngine(make(), src);
-        expect(out.regs).toEqual(Array.from(cpu.regs));
-        expect(out.machine.display.text()).toBe('Hi');
-      } else {
-        expectSame(name, src, make, 7, false);
-        expectSame(name, src, make, 8, true);
-      }
-    });
-  }
+  it.each(HAND_COMPUTED)('hand-written: %s', (name, src) => {
+    for (const [seed, chaos] of [
+      [7, false],
+      [8, true],
+    ] as const) {
+      const r = vsReference({ src, make, seed, chaos });
+      expect(r.got, `${name} seed ${seed}`).toStrictEqual(r.want);
+    }
+  });
+
+  it('hand-written: display', () => {
+    const src = must(HAND['display']);
+    const cpu = new RefCpu();
+    cpu.load(assemble(src).program);
+    cpu.run();
+    const out = runEngine(make(), src);
+    expect(out.regs).toStrictEqual([...cpu.regs]);
+    expect(out.machine.display.text()).toBe('Hi');
+  });
 
   it('random programs', () => {
-    for (let seed = 1; seed <= 40; seed++) expectSame(`seed ${seed}`, genProgram(seed), make, seed, false);
+    for (let seed = 1; seed <= 40; seed++) {
+      const r = vsReference({ src: genProgram(seed), make, seed, chaos: false });
+      expect(r.got, `seed ${seed}`).toStrictEqual(r.want);
+    }
   });
 
   it('random programs with cache invalidations and predictor flips', () => {
-    for (let seed = 100; seed < 140; seed++) expectSame(`seed ${seed}`, genProgram(seed, 45), make, seed, true);
+    for (let seed = 100; seed < 140; seed++) {
+      const r = vsReference({ src: genProgram(seed, 45), make, seed, chaos: true });
+      expect(r.got, `seed ${seed}`).toStrictEqual(r.want);
+    }
   });
 
   it('zero-penalty and tiny caches stay correct', () => {
@@ -168,7 +196,7 @@ describe.each(WIDE_CONFIGS)('wide correctness vs reference: $name', ({ make }) =
       const ref = runRef(src, data);
       for (const extra of [{ missPenalty: 0 }, { cacheLines: 1, cacheLineBytes: 4, missPenalty: 7 }]) {
         const got = runEngine(make(extra), src, data, { seed, p: 0.1 });
-        expect(got.regs).toEqual(ref.regs);
+        expect(got.regs).toStrictEqual(ref.regs);
         expect(firstMemDiff(got.mem, ref.mem)).toBe(-1);
       }
     }
@@ -176,16 +204,14 @@ describe.each(WIDE_CONFIGS)('wide correctness vs reference: $name', ({ make }) =
 
   it('generated game programs (cli, scan, every template; text on the display)', () => {
     // the secure.* jobs talk to a TPM this bare machine does not have (securejob.test.ts and gen.test.ts run it against one)
-    const names = [...new Set(['cli', 'cli.scan', ...TEMPLATE_NAMES])].filter(
-      (t) => !t.startsWith('secure.') && !t.startsWith('gpu.'),
-    ); // the gpu.* picture jobs run 0.2 to 1.3M instructions on the CPU: gen.test.ts runs them on the in-order engines
+    const names = [...new Set(['cli', 'cli.scan', ...TEMPLATE_NAMES])].filter((t) => runsBare(t)); // the gpu.* picture jobs run 0.2 to 1.3M instructions on the CPU: gen.test.ts runs them on the in-order engines
     for (const t of names) {
       for (let s = 0; s < 6; s++) {
         const g = generate(t, s * 37 + 5, { scale: 1 + (s % 3) });
         const ref = runReference(g);
         const e = make();
         const m = runProgram(e, g.program);
-        expect(Array.from(m.regs), `${t} #${s} regs`).toEqual(Array.from(ref.cpu.regs));
+        expect([...m.regs], `${t} #${s} regs`).toStrictEqual([...ref.cpu.regs]);
         expect(firstMemDiff(m.ram, ref.cpu.mem.ram.bytes), `${t} #${s} ram`).toBe(-1);
         expect(m.display.text(), `${t} #${s} display`).toBe(ref.text);
         expect(m.display.text()).toBe(g.meta.expectedText);
@@ -200,7 +226,7 @@ describe.each(WIDE_CONFIGS)('wide correctness vs reference: $name', ({ make }) =
         const g = generate(t, s * 13 + 2, { scale: 2 });
         const ref = runReference(g);
         const m = runProgram(make(), g.program, { seed: s + 1, p: 0.1 });
-        expect(Array.from(m.regs), `${t} #${s} regs`).toEqual(Array.from(ref.cpu.regs));
+        expect([...m.regs], `${t} #${s} regs`).toStrictEqual([...ref.cpu.regs]);
         expect(firstMemDiff(m.ram, ref.cpu.mem.ram.bytes), `${t} #${s} ram`).toBe(-1);
         expect(m.display.text()).toBe(ref.text);
       }
