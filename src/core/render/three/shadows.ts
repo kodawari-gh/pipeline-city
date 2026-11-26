@@ -8,18 +8,11 @@ import {
   UnsignedByteType,
   UnsignedIntType,
   WebGLRenderTarget,
-  type Camera,
-  type InstancedMesh,
-  type Light as AnyLight,
-  type LightShadow,
-  type Mesh,
-  type Object3D,
-  type RenderTarget,
-  type WebGLRenderer,
 } from 'three';
+import type * as threeTypes from 'three';
 
 /** A light, with the shadow the ones that cast one carry. */
-type Light = AnyLight & { shadow?: LightShadow };
+type Light = threeTypes.Light & { shadow?: threeTypes.LightShadow };
 
 // Shadow maps that redraw only what moves. A side panel that swings, or a flight that opens it, moves some 45 of the 900 casters, but
 // a shadow map is one depth picture: three draws every caster into every map again. Here the casters that move (the movers) are kept
@@ -47,12 +40,12 @@ const CATCH_UP = 'shadowCatchUp';
  * Ask for `l`'s shadow map to redraw if a caster in its range changed since its last draw (a move the scan saw, a fan's rotor that turns).
  * A still scene makes it a no-op. A change the caller knows of (the light moved, its map was resized) sets `shadow.needsUpdate` instead.
  */
-export function catchUp(l: AnyLight): void {
+export function catchUp(l: threeTypes.Light): void {
   l.userData[CATCH_UP] = true;
 }
 
 /** A fingerprint of one caster's place: its world matrix, weighted and summed. */
-function printOf(o: Object3D): number {
+function printOf(o: threeTypes.Object3D): number {
   const e = o.matrixWorld.elements;
   return (
     e[0]! +
@@ -71,8 +64,8 @@ function printOf(o: Object3D): number {
 }
 
 /** A caster's fingerprint: its place, its geometry and, for an instanced mesh, its copies' places. */
-function casterPrint(m: Mesh): number {
-  const im = m as Partial<InstancedMesh>;
+function casterPrint(m: threeTypes.Mesh): number {
+  const im = m as Partial<threeTypes.InstancedMesh>;
   return printOf(m) + 23 * m.geometry.id + 29 * (im.instanceMatrix?.version ?? 0) + 31 * (im.count ?? 1);
 }
 
@@ -85,10 +78,12 @@ const _m = new Matrix4(),
  * A caster's world bounds, into `out`: its geometry's sphere, over its copies for an instanced mesh. No end (radius Infinity) where the
  * sphere is not sure: vertices that move (`userData.live`), a mesh kept out of the culling.
  */
-function boundsOf(m: Mesh, out: Sphere): Sphere {
+function boundsOf(m: threeTypes.Mesh, out: Sphere): Sphere {
   const g = m.geometry,
-    im = m as Partial<InstancedMesh>;
-  if (!g.boundingSphere) g.computeBoundingSphere();
+    im = m as Partial<threeTypes.InstancedMesh>;
+  if (!g.boundingSphere) {
+    g.computeBoundingSphere();
+  }
   const b = g.boundingSphere!;
   if (im.isInstancedMesh) {
     out.makeEmpty();
@@ -96,29 +91,44 @@ function boundsOf(m: Mesh, out: Sphere): Sphere {
       im.getMatrixAt!(i, _m);
       out.union(_one.copy(b).applyMatrix4(_m));
     }
-  } else out.copy(b);
+  } else {
+    out.copy(b);
+  }
   out.applyMatrix4(m.matrixWorld);
-  if (m.userData['live'] || !m.frustumCulled || !Number.isFinite(b.radius)) out.radius = Infinity;
+  if (m.userData['live'] || !m.frustumCulled || !Number.isFinite(b.radius)) {
+    out.radius = Infinity;
+  }
   return out;
 }
 
 /** The world bounds of the shown casters under `o` (a spinning part), into `out`. */
-function boundsUnder(o: Object3D, out: Sphere): Sphere {
-  if (!o.visible || !Number.isFinite(out.radius)) return out;
-  if ((o as Mesh).isMesh && o.castShadow) {
-    boundsOf(o as Mesh, _part);
-    if (Number.isFinite(_part.radius)) out.union(_part);
-    else out.radius = Infinity;
+function boundsUnder(o: threeTypes.Object3D, out: Sphere): Sphere {
+  if (!o.visible || !Number.isFinite(out.radius)) {
+    return out;
   }
-  for (const c of o.children) boundsUnder(c, out);
+  if ((o as threeTypes.Mesh).isMesh && o.castShadow) {
+    boundsOf(o as threeTypes.Mesh, _part);
+    if (Number.isFinite(_part.radius)) {
+      out.union(_part);
+    } else {
+      out.radius = Infinity;
+    }
+  }
+  for (const c of o.children) {
+    boundsUnder(c, out);
+  }
   return out;
 }
 
 /** The layers of the shown casters under `o` (a spinning part), as one mask. */
-function layersUnder(o: Object3D): number {
-  if (!o.visible) return 0;
-  let mask = (o as Mesh).isMesh && o.castShadow ? o.layers.mask : 0;
-  for (const c of o.children) mask |= layersUnder(c);
+function layersUnder(o: threeTypes.Object3D): number {
+  if (!o.visible) {
+    return 0;
+  }
+  let mask = (o as threeTypes.Mesh).isMesh && o.castShadow ? o.layers.mask : 0;
+  for (const c of o.children) {
+    mask |= layersUnder(c);
+  }
   return mask;
 }
 
@@ -140,34 +150,43 @@ function rangeOf(l: Light, out: Sphere): void {
     p = l as { isPointLight?: boolean; isSpotLight?: boolean; distance?: number; angle?: number };
   out.center.setFromMatrixPosition(l.matrixWorld);
   out.radius = Infinity;
-  if (!sh || !(p.isPointLight || p.isSpotLight)) return;
+  if (!sh || !(p.isPointLight || p.isSpotLight)) {
+    return;
+  }
   const half = p.isPointLight ? Math.PI / 4 : p.angle! * ((sh as { focus?: number }).focus ?? 1);
-  if (half > 1.5) return;
+  if (half > 1.5) {
+    return;
+  }
   const t = Math.tan(half),
     aspect = p.isPointLight ? 1 : sh.mapSize.x / sh.mapSize.y;
   // the far corner of the view
   out.radius =
-    (p.distance || (sh.camera as Camera & { far: number }).far) * Math.sqrt(1 + (1 + aspect * aspect) * t * t);
+    (p.distance || (sh.camera as threeTypes.Camera & { far: number }).far) *
+    Math.sqrt(1 + (1 + aspect * aspect) * t * t);
 }
 
 /** Is `o` in some scene (its parent chain reaches a `Scene`)? A light under a group that is no longer in a scene is not. */
-function inAScene(o: Object3D): boolean {
-  for (let p: Object3D | null = o; p; p = p.parent) if ((p as { isScene?: boolean }).isScene) return true;
+function inAScene(o: threeTypes.Object3D): boolean {
+  for (let p: threeTypes.Object3D | null = o; p; p = p.parent) {
+    if ((p as { isScene?: boolean }).isScene) {
+      return true;
+    }
+  }
   return false;
 }
 
 /** A light the cache has drawn for: its range, its map's layers, and whether a caster in both changed since its map's last draw. */
 type Lit = { l: Light; range: Sphere; layers: number; dirty: boolean; since: number };
 
-type ShadowDraw = (lights: Light[], scene: Object3D, camera: Camera) => void;
+type ShadowDraw = (lights: Light[], scene: threeTypes.Object3D, camera: threeTypes.Camera) => void;
 
 export class ShadowCache {
   /** Each shown caster's fingerprint at the last scan. */
-  private seen = new Map<Object3D, number>();
-  private next = new Map<Object3D, number>();
+  private seen = new Map<threeTypes.Object3D, number>();
+  private next = new Map<threeTypes.Object3D, number>();
   /** The roots of what moved: kept out of the still pictures, drawn over them. */
-  private movers: Object3D[] = [];
-  private moverSet = new Set<Object3D>();
+  private movers: threeTypes.Object3D[] = [];
+  private moverSet = new Set<threeTypes.Object3D>();
   /** Bumped when the still casters change: a light's still picture of an older one is drawn again. */
   private epoch = 0;
   private still = new Map<Light, { rt: WebGLRenderTarget; epoch: number }>();
@@ -175,10 +194,10 @@ export class ShadowCache {
   private moved = false;
   private movedAt = 0;
   /** Each spinning part's fingerprint at the last scan: it does not make a mover, only a change. */
-  private spins = new Map<Object3D, number>();
-  private nextSpins = new Map<Object3D, number>();
+  private spins = new Map<threeTypes.Object3D, number>();
+  private nextSpins = new Map<threeTypes.Object3D, number>();
   /** Each caster's (and spinning part's) world bounds at its last change. */
-  private bounds = new WeakMap<Object3D, Sphere>();
+  private bounds = new WeakMap<threeTypes.Object3D, Sphere>();
   /** The lights drawn for. A change in a light's range makes it dirty: a catch-up then redraws its map. */
   private lights: Lit[] = [];
   private lit = new WeakMap<Light, Lit>();
@@ -193,7 +212,7 @@ export class ShadowCache {
   private readonly top = new Group();
   private readonly draw: ShadowDraw;
 
-  constructor(private readonly r: WebGLRenderer) {
+  constructor(private readonly r: threeTypes.WebGLRenderer) {
     const sm = r.shadowMap;
     this.draw = sm.render.bind(sm) as ShadowDraw;
     sm.render = (lights, scene, camera) => this.render(lights as Light[], scene, camera);
@@ -205,17 +224,21 @@ export class ShadowCache {
    * under a still matrix (`userData.live`, a held cable) moves on every scan. Each change makes the lights it reaches dirty (`touch`).
    * Returns whether any caster moved: the caller then asks every light to catch up for the next frame.
    */
-  scan(root: Object3D, now: number): boolean {
+  scan(root: threeTypes.Object3D, now: number): boolean {
     const { seen, next, spins, nextSpins } = this;
     this.budget = MAX_FULL;
-    if (this.lights.some((r) => !inAScene(r.l))) this.prune();
+    if (this.lights.some((r) => !inAScene(r.l))) {
+      this.prune();
+    }
     next.clear();
     nextSpins.clear();
-    const fresh: Object3D[] = [];
+    const fresh: threeTypes.Object3D[] = [];
     let added = 0;
     this.ranged = false;
-    const walk = (o: Object3D) => {
-      if (!o.visible) return;
+    const walk = (o: threeTypes.Object3D) => {
+      if (!o.visible) {
+        return;
+      }
       if (o.userData['spin']) {
         const h = printOf(o);
         if (spins.get(o) !== h) {
@@ -225,34 +248,40 @@ export class ShadowCache {
         nextSpins.set(o, h);
         return;
       }
-      if ((o as Mesh).isMesh && o.castShadow) {
-        const h = casterPrint(o as Mesh),
+      if ((o as threeTypes.Mesh).isMesh && o.castShadow) {
+        const h = casterPrint(o as threeTypes.Mesh),
           was = seen.get(o);
         next.set(o, h);
-        if (was === undefined) added++;
+        if (was === undefined) {
+          added++;
+        }
         if (was !== h || o.userData['live']) {
           fresh.push(o);
-          this.touch(o, boundsOf(o as Mesh, _bounds), o.layers.mask);
+          this.touch(o, boundsOf(o as threeTypes.Mesh, _bounds), o.layers.mask);
         }
       }
-      for (const c of o.children) walk(c);
+      for (const c of o.children) {
+        walk(c);
+      }
     };
     walk(root);
     // a still caster gone from view (hidden or removed) is still in the still pictures
     let stale = false;
-    if (next.size - added < seen.size)
-      for (const o of seen.keys())
+    if (next.size - added < seen.size) {
+      for (const o of seen.keys()) {
         if (!next.has(o) && !this.isMover(o)) {
           stale = true;
           this.mark(this.bounds.get(o), o.layers.mask);
         }
+      }
+    }
     this.seen = next;
     this.next = seen;
     this.spins = nextSpins;
     this.nextSpins = spins;
     this.moved = fresh.length > 0 || stale;
     if (!this.moved) {
-      if (this.movers.length && now - this.movedAt > SETTLE_MS) {
+      if (this.movers.length > 0 && now - this.movedAt > SETTLE_MS) {
         this.movers = [];
         this.moverSet.clear();
         this.epoch++;
@@ -261,11 +290,17 @@ export class ShadowCache {
     }
     this.movedAt = now;
     const joined = fresh.filter((o) => !this.isMover(o));
-    if (joined.length || stale) {
-      for (const o of joined) this.moverSet.add(o);
+    if (joined.length > 0 || stale) {
+      for (const o of joined) {
+        this.moverSet.add(o);
+      }
       // only the topmost: a mover's subtree is kept out and drawn with it
       this.movers = [...this.moverSet].filter((o) => {
-        for (let p = o.parent; p; p = p.parent) if (this.moverSet.has(p)) return false;
+        for (let p = o.parent; p; p = p.parent) {
+          if (this.moverSet.has(p)) {
+            return false;
+          }
+        }
         return true;
       });
       this.moverSet = new Set(this.movers);
@@ -276,14 +311,20 @@ export class ShadowCache {
 
   /** A light's map is owed and was deferred by the budget (`render`): a frame must draw it. A light at 0 is not owed (it waits, unlit). */
   get pending(): boolean {
-    for (const r of this.lights) if (r.since !== Infinity && r.l.shadow?.needsUpdate && r.l.intensity > 0) return true;
+    for (const r of this.lights) {
+      if (r.since !== Infinity && r.l.shadow?.needsUpdate && r.l.intensity > 0) {
+        return true;
+      }
+    }
     return false;
   }
 
   /** Drop the lights in no scene (removed, or under a group removed): their owed maps will not be drawn, so they must not keep `pending`, nor their still pictures. */
   private prune(): void {
     for (const r of this.lights) {
-      if (inAScene(r.l)) continue;
+      if (inAScene(r.l)) {
+        continue;
+      }
       const s = this.still.get(r.l);
       if (s) {
         s.rt.depthTexture?.dispose();
@@ -308,12 +349,15 @@ export class ShadowCache {
   }
 
   /** `o` (its casters on the layers `layers`) changed, to the bounds `to`: the lights that reach its old place or its new one are dirty. */
-  private touch(o: Object3D, to: Sphere, layers: number): void {
+  private touch(o: threeTypes.Object3D, to: Sphere, layers: number): void {
     const was = this.bounds.get(o);
     this.mark(was, layers);
     this.mark(to, layers);
-    if (was) was.copy(to);
-    else this.bounds.set(o, to.clone());
+    if (was) {
+      was.copy(to);
+    } else {
+      this.bounds.set(o, to.clone());
+    }
   }
 
   /** The lights whose range meets `s` (every range, with no `s`) and whose maps draw one of `layers` are dirty. */
@@ -325,31 +369,48 @@ export class ShadowCache {
         r.layers = layersOf(r.l);
       }
     }
-    for (const r of this.lights)
-      if (!r.dirty && (r.layers & layers) !== 0 && (!s || r.range.intersectsSphere(s))) r.dirty = true;
+    for (const r of this.lights) {
+      if (!r.dirty && (r.layers & layers) !== 0 && (!s || r.range.intersectsSphere(s))) {
+        r.dirty = true;
+      }
+    }
   }
 
-  private isMover(o: Object3D): boolean {
-    for (let p: Object3D | null = o; p; p = p.parent) if (this.moverSet.has(p)) return true;
+  private isMover(o: threeTypes.Object3D): boolean {
+    for (let p: threeTypes.Object3D | null = o; p; p = p.parent) {
+      if (this.moverSet.has(p)) {
+        return true;
+      }
+    }
     return false;
   }
 
-  private render(lights: Light[], scene: Object3D, camera: Camera): void {
-    const due = this.due;
+  private render(lights: Light[], scene: threeTypes.Object3D, camera: threeTypes.Camera): void {
+    const { due } = this;
     due.length = 0;
     const full: Light[] = [];
-    for (const l of lights) if (this.isDue(l)) (this.isFull(l) ? full : due).push(l);
-    if (!due.length && !full.length) return;
+    for (const l of lights) {
+      if (this.isDue(l)) {
+        (this.isFull(l) ? full : due).push(l);
+      }
+    }
+    if (due.length === 0 && full.length === 0) {
+      return;
+    }
     // the budget goes to the oldest deferred lights first; the rest wait, their requests and dirty flags kept
     full.sort((a, b) => this.lit.get(a)!.since - this.lit.get(b)!.since);
     const served = full.splice(0, this.budget);
     this.budget -= served.length;
     for (const l of full) {
       const r = this.lit.get(l)!;
-      if (r.since === Infinity) r.since = ++this.deferSeq;
+      if (r.since === Infinity) {
+        r.since = ++this.deferSeq;
+      }
     }
     due.push(...served);
-    if (!due.length) return;
+    if (due.length === 0) {
+      return;
+    }
     for (const l of due) {
       const r = this.lit.get(l);
       if (r) {
@@ -357,7 +418,7 @@ export class ShadowCache {
         r.since = Infinity;
       }
     }
-    if (!this.movers.length) {
+    if (this.movers.length === 0) {
       this.draw(due, scene, camera);
       due.length = 0;
       return;
@@ -365,8 +426,11 @@ export class ShadowCache {
     for (const l of due) {
       const sh = l.shadow;
       // (a point light's map is a cube of six depth faces: the still picture is one face's copy, so it redraws whole)
-      if (!sh || sh.autoUpdate || (l as { isPointLight?: boolean }).isPointLight) this.draw([l], scene, camera);
-      else this.redraw(l, scene, camera);
+      if (!sh || sh.autoUpdate || (l as { isPointLight?: boolean }).isPointLight) {
+        this.draw([l], scene, camera);
+      } else {
+        this.redraw(l, scene, camera);
+      }
     }
     due.length = 0;
   }
@@ -377,8 +441,12 @@ export class ShadowCache {
    */
   private isFull(l: Light): boolean {
     const sh = l.shadow;
-    if (!sh || sh.autoUpdate) return false;
-    if (!this.movers.length || (l as { isPointLight?: boolean }).isPointLight) return true;
+    if (!sh || sh.autoUpdate) {
+      return false;
+    }
+    if (this.movers.length === 0 || (l as { isPointLight?: boolean }).isPointLight) {
+      return true;
+    }
     return !this.cheap(l);
   }
 
@@ -387,7 +455,13 @@ export class ShadowCache {
     const s = this.still.get(l),
       map = l.shadow?.map;
     return (
-      this.moved && !!s && !!map && s.epoch === this.epoch && s.rt.width === map.width && s.rt.height === map.height
+      this.moved &&
+      s !== undefined &&
+      map !== undefined &&
+      map !== null &&
+      s.epoch === this.epoch &&
+      s.rt.width === map.width &&
+      s.rt.height === map.height
     );
   }
 
@@ -398,7 +472,9 @@ export class ShadowCache {
    */
   private isDue(l: Light): boolean {
     const sh = l.shadow;
-    if (!sh) return true;
+    if (!sh) {
+      return true;
+    }
     let r = this.lit.get(l);
     // (a new light is dirty: its map is not drawn yet)
     if (!r) {
@@ -408,13 +484,19 @@ export class ShadowCache {
     }
     if (l.userData[CATCH_UP]) {
       l.userData[CATCH_UP] = false;
-      if (r.dirty) sh.needsUpdate = true;
+      if (r.dirty) {
+        sh.needsUpdate = true;
+      }
     }
     if (!sh.autoUpdate) {
-      if (!sh.needsUpdate) return false;
+      if (!sh.needsUpdate) {
+        return false;
+      }
       if (l.intensity <= 0) {
         const s = this.still.get(l);
-        if (s) s.epoch = -1;
+        if (s) {
+          s.epoch = -1;
+        }
         return false;
       }
     }
@@ -422,14 +504,17 @@ export class ShadowCache {
   }
 
   /** One light's map: its still picture (drawn again if out of date), then the movers over it. */
-  private redraw(l: Light, scene: Object3D, camera: Camera): void {
+  private redraw(l: Light, scene: threeTypes.Object3D, camera: threeTypes.Camera): void {
     const sh = l.shadow!,
       s = this.still.get(l),
-      map = sh.map;
-    if (this.cheap(l)) this.copy(s!.rt, map!);
-    else {
+      { map } = sh;
+    if (this.cheap(l)) {
+      this.copy(s!.rt, map!);
+    } else {
       const was = this.movers.map((o) => o.visible);
-      for (const o of this.movers) o.visible = false;
+      for (const o of this.movers) {
+        o.visible = false;
+      }
       try {
         this.draw([l], scene, camera);
       } finally {
@@ -437,18 +522,26 @@ export class ShadowCache {
           o.visible = was[i]!;
         });
       }
-      if (!sh.map) return;
+      if (!sh.map) {
+        return;
+      }
       this.copy(sh.map, this.pictureOf(l, sh.map).rt);
     }
     const shown = this.movers.filter((o) => {
-      let p: Object3D | null = o;
-      for (; p && p !== scene; p = p.parent) if (!p.visible) return false;
+      let p: threeTypes.Object3D | null = o;
+      for (; p && p !== scene; p = p.parent) {
+        if (!p.visible) {
+          return false;
+        }
+      }
       return p === scene;
     });
-    if (!shown.length) return;
+    if (shown.length === 0) {
+      return;
+    }
     this.top.children = shown;
     sh.needsUpdate = true;
-    const clear = this.r.clear;
+    const { clear } = this.r;
     this.r.clear = () => {};
     try {
       this.draw([l], this.top, camera);
@@ -459,7 +552,7 @@ export class ShadowCache {
   }
 
   /** The light's still picture, made or resized to its map, marked as of this epoch. */
-  private pictureOf(l: Light, map: RenderTarget) {
+  private pictureOf(l: Light, map: threeTypes.RenderTarget) {
     let s = this.still.get(l);
     if (!s || s.rt.width !== map.width || s.rt.height !== map.height) {
       if (s) {
@@ -484,7 +577,7 @@ export class ShadowCache {
     return s;
   }
 
-  private copy(from: RenderTarget, to: RenderTarget): void {
+  private copy(from: threeTypes.RenderTarget, to: threeTypes.RenderTarget): void {
     this.r.state.setScissorTest(false);
     this.r.state.buffers.depth.setMask(true);
     this.r.copyTextureToTexture(from.depthTexture!, to.depthTexture!);

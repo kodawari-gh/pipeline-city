@@ -1,6 +1,7 @@
 // Draw on demand (docs/render/load.md): a still view draws no frame. The loop still runs each tick, so clocks, eases and timers keep
 // their rate; only the GPU draw waits. A WebGL canvas keeps its last picture until the next draw into it (a resize clears it: ask).
-import { Matrix4, Vector4, type Camera } from 'three';
+import { Matrix4, Vector4 } from 'three';
+import type * as threeTypes from 'three';
 
 /** A view that moves less than this many device pixels anywhere on screen since the last draw looks the same. */
 export const STILL_PX = 0.5;
@@ -44,8 +45,12 @@ export class DrawGate {
   want(now: number, busy = false, more = false): boolean {
     const changed = this.seen !== changes,
       hard = this.asked || busy || this.was || now < this.until;
-    if (!hard && !changed) return false;
-    if (!hard && more && now - this.drew < BATCH_MS) return false; // (the change stays unseen: a later tick draws it)
+    if (!hard && !changed) {
+      return false;
+    }
+    if (!hard && more && now - this.drew < BATCH_MS) {
+      return false; // (the change stays unseen: a later tick draws it)
+    }
     this.forced = this.asked || changed;
     this.seen = changes;
     this.asked = false;
@@ -78,33 +83,37 @@ export class ViewWatch {
   private has = false;
 
   /** The camera of the frame just drawn. */
-  mark(camera: Camera, w: number, h: number): void {
+  mark(camera: threeTypes.Camera, w: number, h: number): void {
     camera.updateMatrixWorld();
     this.vp.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     this.inv.copy(this.vp).invert();
     const e = camera.projectionMatrix.elements;
-    this.p10 = e[10];
-    this.p14 = e[14];
+    ({ 10: this.p10, 14: this.p14 } = e);
     this.w = w;
     this.h = h;
     this.has = true;
   }
 
   /** The largest screen move, in device pixels, of a point at view depth `near` or `far` (Infinity with no mark or a new size). */
-  shift(camera: Camera, w: number, h: number, near: number, far: number): number {
-    if (!this.has || w !== this.w || h !== this.h) return Infinity;
+  shift(camera: threeTypes.Camera, w: number, h: number, near: number, far: number): number {
+    if (!this.has || w !== this.w || h !== this.h) {
+      return Infinity;
+    }
     camera.updateMatrixWorld();
     this.m.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse).multiply(this.inv);
     let most = 0;
     for (const d of [near, far]) {
       // the NDC depth of view depth d under the last projection
       const z = -this.p10 + this.p14 / d;
-      for (const nx of GRID)
+      for (const nx of GRID) {
         for (const ny of GRID) {
           const c = this.c.set(nx, ny, z, 1).applyMatrix4(this.m);
-          if (c.w <= 1e-9) return Infinity;
+          if (c.w <= 1e-9) {
+            return Infinity;
+          }
           most = Math.max(most, (Math.abs(c.x / c.w - nx) * w) / 2, (Math.abs(c.y / c.w - ny) * h) / 2);
         }
+      }
     }
     return most;
   }

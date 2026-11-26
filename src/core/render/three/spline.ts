@@ -32,9 +32,15 @@ function piece(pts: readonly Vector3[], at: number): Float64Array {
   let dt0 = p0.distanceToSquared(p1) ** 0.25,
     dt1 = p1.distanceToSquared(p2) ** 0.25,
     dt2 = p2.distanceToSquared(p3) ** 0.25;
-  if (dt1 < 1e-4) dt1 = 1; // (repeated points, as three does)
-  if (dt0 < 1e-4) dt0 = dt1;
-  if (dt2 < 1e-4) dt2 = dt1;
+  if (dt1 < 1e-4) {
+    dt1 = 1; // (repeated points, as three does)
+  }
+  if (dt0 < 1e-4) {
+    dt0 = dt1;
+  }
+  if (dt2 < 1e-4) {
+    dt2 = dt1;
+  }
   const c = new Float64Array(12);
   axis(c, 0, p0.x, p1.x, p2.x, p3.x, dt0, dt1, dt2);
   axis(c, 4, p0.y, p1.y, p2.y, p3.y, dt0, dt1, dt2);
@@ -65,7 +71,9 @@ export class Spline extends CatmullRomCurve3 {
       at = l - 2;
       w = 1;
     }
-    if (!(at >= 0 && at < l - 1)) return super.getPoint(t, target);
+    if (!(at >= 0 && at < l - 1)) {
+      return super.getPoint(t, target);
+    }
     const c = (this.coef[at] ??= piece(pts, at)),
       w2 = w * w,
       w3 = w2 * w;

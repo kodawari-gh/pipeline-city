@@ -17,20 +17,21 @@ import {
   UniformsUtils,
   Vector2,
   WebGLRenderTarget,
-  type Object3D,
-  type PerspectiveCamera,
-  type WebGLRenderer,
 } from 'three';
+import type * as threeTypes from 'three';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { CopyShader } from 'three/addons/shaders/CopyShader.js';
-import { pixelRatio, type Graphics } from '@/app/graphics';
+import { pixelRatio } from '@/app/graphics';
+import type * as graphicsTypes from '@/app/graphics';
 import { BASE_EXPOSURE } from './init';
-import { startPassPrograms, type Program } from './compile';
-import { HIGH_C, LocalEye, MID, type Look } from './localeye';
+import { startPassPrograms } from './compile';
+import type * as compileTypes from './compile';
+import { HIGH_C, LocalEye, MID } from './localeye';
+import type * as localeyeTypes from './localeye';
 
 /** Draws the scene into a target of its own: the multisampling and the depth stay here, so the screen passes after it pay for neither. */
 class ScenePass extends RenderPass {
@@ -44,7 +45,7 @@ class ScenePass extends RenderPass {
   });
   private quad = new FullScreenQuad(this.copy);
 
-  constructor(scene: Scene, camera: PerspectiveCamera, w: number, h: number) {
+  constructor(scene: Scene, camera: threeTypes.PerspectiveCamera, w: number, h: number) {
     super(scene, camera);
     this.target = new WebGLRenderTarget(w, h, {
       type: HalfFloatType,
@@ -66,20 +67,24 @@ class ScenePass extends RenderPass {
   }
 
   /** Draws the scene into its target. */
-  draw(renderer: WebGLRenderer): void {
+  draw(renderer: threeTypes.WebGLRenderer): void {
     this.render(renderer, this.target, this.target, 0, false);
   }
 
   /** Copies the picture to `to`, for the passes that draw on it: they cannot draw on a target whose depth they read, nor on multisamples. */
-  copyTo(renderer: WebGLRenderer, to: WebGLRenderTarget): void {
+  copyTo(renderer: threeTypes.WebGLRenderer, to: WebGLRenderTarget): void {
     renderer.setRenderTarget(to);
     this.quad.render(renderer);
   }
 }
 
 /** Is it drawn? Its own flag and all those above it. */
-const shown = (o: Object3D): boolean => {
-  for (let p: Object3D | null = o; p; p = p.parent) if (!p.visible) return false;
+const shown = (o: threeTypes.Object3D): boolean => {
+  for (let p: threeTypes.Object3D | null = o; p; p = p.parent) {
+    if (!p.visible) {
+      return false;
+    }
+  }
   return true;
 };
 
@@ -100,7 +105,7 @@ function standIn(m: Mesh): Mesh {
 class PickOutline extends OutlinePass {
   private standIns = new WeakMap<Mesh, Mesh>();
 
-  constructor(size: Vector2, camera: PerspectiveCamera, depth: DepthTexture) {
+  constructor(size: Vector2, camera: threeTypes.PerspectiveCamera, depth: DepthTexture) {
     super(size, new Scene(), camera);
     const mask = this.prepareMaskMaterial;
     mask.uniforms['sceneDepth'] = { value: depth };
@@ -124,18 +129,24 @@ class PickOutline extends OutlinePass {
   }
 
   /** Outline these (meshes, or groups of them), as they stand this frame. */
-  pick(objects: Object3D[]): void {
+  pick(objects: threeTypes.Object3D[]): void {
     const meshes: Mesh[] = [];
-    for (const o of objects)
-      if (shown(o))
+    for (const o of objects) {
+      if (shown(o)) {
         o.traverseVisible((m) => {
-          if ((m as Mesh).isMesh) meshes.push(m as Mesh);
+          if ((m as Mesh).isMesh) {
+            meshes.push(m as Mesh);
+          }
         });
+      }
+    }
     const stage = this.renderScene;
     stage.clear();
     this.selectedObjects = meshes.map((m) => {
       let c = this.standIns.get(m);
-      if (!c) this.standIns.set(m, (c = standIn(m)));
+      if (!c) {
+        this.standIns.set(m, (c = standIn(m)));
+      }
       c.geometry = m.geometry;
       c.material = m.material;
       if ((m as InstancedMesh).isInstancedMesh) {
@@ -149,7 +160,7 @@ class PickOutline extends OutlinePass {
 }
 
 /** What the post chain takes from the graphics settings. */
-export type PostOptions = Pick<Graphics, 'ao' | 'bloom' | 'msaa' | 'scale' | 'brightness'>;
+export type PostOptions = Pick<graphicsTypes.Graphics, 'ao' | 'bloom' | 'msaa' | 'scale' | 'brightness'>;
 
 /**
  * The local eye's strength from the board view in (it is 1 in the room's views). The case is a dark box with a bright room round it: with one
@@ -159,14 +170,14 @@ export type PostOptions = Pick<Graphics, 'ao' | 'bloom' | 'msaa' | 'scale' | 'br
 const BOARD_EYE = 0.5;
 
 /** How much a view `height` world units tall is a room view: 0 at the board view and closer, 1 from the room's overview out. */
-export const roomness = (height: number): number => Math.min(1, Math.max(0, (height - 9000) / 20000));
+export const roomness = (height: number): number => Math.min(1, Math.max(0, (height - 9000) / 20_000));
 
 /**
  * The room's look over the picture, in its own light (before the tone mapping): the corners a little darker, as a lens's fall-off, and the
  * shadows a little warmer. `k` (`roomness`) fades it out toward the board view, where a part must read to the corners. The eye takes it in
  * its grid and its finish (`LocalEye`): it was a full-screen pass of its own.
  */
-const grade = (): Look => ({
+const grade = (): localeyeTypes.Look => ({
   glsl: /* glsl */ `
     uniform float k;
     vec3 look(vec3 c, vec2 uv) {
@@ -190,11 +201,20 @@ export type Step = 'scene' | 'ao' | 'copy' | 'outline' | 'bloom' | 'eye' | 'fini
  */
 export function steps(on: { ao: boolean; outline: boolean; bloom: boolean; eye: boolean }): Step[] {
   const s: Step[] = ['scene'];
-  if (on.ao) s.push('ao');
-  else if (on.outline || on.bloom) s.push('copy');
-  if (on.bloom) s.push('bloom');
-  if (on.outline) s.push('outline');
-  if (on.eye) s.push('eye');
+  if (on.ao) {
+    s.push('ao');
+  } else if (on.outline || on.bloom) {
+    s.push('copy');
+  }
+  if (on.bloom) {
+    s.push('bloom');
+  }
+  if (on.outline) {
+    s.push('outline');
+  }
+  if (on.eye) {
+    s.push('eye');
+  }
   s.push('finish');
   return s;
 }
@@ -224,7 +244,7 @@ const METER = {
 export function meterMean(cells: ArrayLike<number>, w: number, h: number): number {
   let s = 0,
     sum = 0;
-  for (let j = 0; j < h; j++)
+  for (let j = 0; j < h; j++) {
     for (let i = 0; i < w; i++) {
       const dx = (i + 0.5) / w - 0.5,
         dy = (j + 0.5) / h - 0.5,
@@ -232,6 +252,7 @@ export function meterMean(cells: ArrayLike<number>, w: number, h: number): numbe
       s += k * cells[4 * (i + w * j)]!;
       sum += k;
     }
+  }
   return Math.exp(s / sum);
 }
 
@@ -294,7 +315,7 @@ export class Post {
   private bloom: UnrealBloomPass;
   /** The blend's uniform for the camera's near and far planes (the camera moves them with the distance), and the camera it reads. */
   private nearFar: { value: Vector2 };
-  private camera: PerspectiveCamera;
+  private camera: threeTypes.PerspectiveCamera;
   private look = grade();
   private local: LocalEye;
   /** The picture the AO, the outline and the bloom draw on. */
@@ -317,9 +338,9 @@ export class Post {
   private refined = 0;
 
   constructor(
-    private renderer: WebGLRenderer,
+    private renderer: threeTypes.WebGLRenderer,
     scene: Scene,
-    camera: PerspectiveCamera,
+    camera: threeTypes.PerspectiveCamera,
     w: number,
     h: number,
   ) {
@@ -338,8 +359,8 @@ export class Post {
     this.nearFar = blend.uniforms['cameraNearFar'] = { value: new Vector2(camera.near, camera.far) };
     this.outline = new PickOutline(new Vector2(w, h), camera, depth);
     // the information colour (docs/art-style.md): a thin cyan edge, a dim one where the part is hidden, no glow and no pulse
-    this.outline.visibleEdgeColor.set(0x3be3ff);
-    this.outline.hiddenEdgeColor.set(0x0d4452);
+    this.outline.visibleEdgeColor.set(0x3b_e3_ff);
+    this.outline.hiddenEdgeColor.set(0x0d_44_52);
     this.outline.edgeStrength = 1.5;
     this.outline.edgeGlow = 0;
     this.outline.pulsePeriod = 0;
@@ -365,7 +386,7 @@ export class Post {
   }
 
   /** The graphics settings (`app/graphics.ts`): the passes, the multisampling and the pixels drawn. A new sample count frees the targets, so it costs a frame; the same one costs nothing. */
-  apply(g: PostOptions, renderer: WebGLRenderer, w: number, h: number): void {
+  apply(g: PostOptions, renderer: threeTypes.WebGLRenderer, w: number, h: number): void {
     const ao = AO_LEVELS[g.ao] ?? 0;
     this.ao.enabled = ao > 0;
     if (ao) {
@@ -383,7 +404,9 @@ export class Post {
     const ratio = pixelRatio(g.scale);
     this.brightness = g.brightness;
     this.expose();
-    if (ratio === renderer.getPixelRatio()) return;
+    if (ratio === renderer.getPixelRatio()) {
+      return;
+    }
     renderer.setPixelRatio(ratio);
     renderer.setSize(w, h);
     this.setSize(w, h);
@@ -399,7 +422,9 @@ export class Post {
       r = Math.round(900 + k * 3100);
     this.look.uniforms['k']!.value = k;
     this.local.strength = this.dark ? 0 : BOARD_EYE + (1 - BOARD_EYE) * k;
-    if (this.reach === r) return;
+    if (this.reach === r) {
+      return;
+    }
     this.reach = r;
     // a wide reach samples evenly out to its edge (a room corner fades over its whole width), a part's stays weighted to the contact. Only
     // what is near in depth occludes (the bed's side must not shade the wall a metre behind it); the sparser samples are smoothed over more pixels.
@@ -447,7 +472,9 @@ export class Post {
       r.readRenderTargetPixelsAsync(this.meterTarget, 0, 0, METER_W, METER_H, this.meterCells)
         .then(
           () => {
-            if (!this.gone) this.meterRead = meterMean(this.meterCells, METER_W, METER_H);
+            if (!this.gone) {
+              this.meterRead = meterMean(this.meterCells, METER_W, METER_H);
+            }
           },
           () => {},
         )
@@ -465,9 +492,11 @@ export class Post {
     return v;
   }
 
-  setOutlined(objects: Object3D[]): void {
+  setOutlined(objects: threeTypes.Object3D[]): void {
     this.outline.enabled = objects.length > 0;
-    if (this.outline.enabled || this.outline.selectedObjects.length) this.outline.pick(objects);
+    if (this.outline.enabled || this.outline.selectedObjects.length > 0) {
+      this.outline.pick(objects);
+    }
   }
 
   /** The size in CSS pixels: each target and pass takes it times the renderer's pixel ratio. */
@@ -502,7 +531,9 @@ export class Post {
    * False: the picture is done, nothing was drawn.
    */
   refine(): boolean {
-    if (this.refined >= REFINE) return false;
+    if (this.refined >= REFINE) {
+      return false;
+    }
     const r = this.renderer,
       cam = this.camera,
       s = this.scene.target,
@@ -543,30 +574,38 @@ export class Post {
     this.nearFar.value.set(this.camera.near, this.camera.far);
     for (const s of this.steps()) {
       switch (s) {
-        case 'scene':
+        case 'scene': {
           this.scene.draw(r);
           break;
-        case 'ao':
+        }
+        case 'ao': {
           this.ao.render(r, this.work, picture, 0, false);
           picture = this.work;
           break;
-        case 'copy':
+        }
+        case 'copy': {
           this.scene.copyTo(r, this.work);
           picture = this.work;
           break;
+        }
         // (these two draw on the picture: their write target goes unused)
-        case 'outline':
+        case 'outline': {
           this.outline.render(r, this.work, picture, 0, false);
           break;
-        case 'bloom':
+        }
+        case 'bloom': {
           this.bloom.render(r, this.work, picture, 0, false);
           break;
-        case 'eye':
+        }
+        case 'eye': {
           this.local.adapt(r, picture.texture);
           break;
+        }
         case 'finish': {
           const auto = r.autoClear;
-          if (weight < 1) r.autoClear = false; // (the finish mixes into what `to` holds: a clear would empty it)
+          if (weight < 1) {
+            r.autoClear = false; // (the finish mixes into what `to` holds: a clear would empty it)
+          }
           this.local.draw(r, picture.texture, to, weight);
           r.autoClear = auto;
           break;
@@ -579,9 +618,13 @@ export class Post {
   /** Frees every target and pass of the chain (a screen that owns its chain, as Build my PC, at its close). The renderer is the caller's. */
   dispose(): void {
     this.gone = true; // (a reading on its way is dropped)
-    for (const p of [this.scene, this.ao, this.outline, this.bloom, this.local]) p.dispose();
+    for (const p of [this.scene, this.ao, this.outline, this.bloom, this.local]) {
+      p.dispose();
+    }
     // (three's own dispose leaves these)
-    for (const m of [this.ao.gtaoMaterial, this.ao.blendMaterial, this.bloom.materialHighPassFilter]) m.dispose();
+    for (const m of [this.ao.gtaoMaterial, this.ao.blendMaterial, this.bloom.materialHighPassFilter]) {
+      m.dispose();
+    }
     this.work.dispose();
     this.mean?.dispose();
     (this.meanQuad?.material as ShaderMaterial | undefined)?.dispose();
@@ -595,12 +638,16 @@ export class Post {
    * Starts linking the passes' programs (`compile.ts`): the AO's alone takes seconds on ANGLE D3D11. The outline's too, though it runs only
    * once something is picked. The finish's defines stand as it will draw (`LocalEye.output`).
    */
-  startPrograms(r: WebGLRenderer): Program[] {
+  startPrograms(r: threeTypes.WebGLRenderer): compileTypes.Program[] {
     this.local.output(r);
     const on: object[] = [this.scene];
-    if (this.ao.enabled) on.push(this.ao);
+    if (this.ao.enabled) {
+      on.push(this.ao);
+    }
     on.push(this.outline);
-    if (this.bloom.enabled) on.push(this.bloom);
+    if (this.bloom.enabled) {
+      on.push(this.bloom);
+    }
     return startPassPrograms(r, [...on, this.local, { meter: this.meterQuad }]);
   }
 }

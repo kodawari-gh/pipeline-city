@@ -43,7 +43,9 @@ export function syncWorld(o: Object3D, force = false): void {
       k[7] === s.x &&
       k[8] === s.y &&
       k[9] === s.z;
-    for (let i = 0; same && i < 16; i++) same = k[10 + i] === e[i];
+    for (let i = 0; same && i < 16; i++) {
+      same = k[10 + i] === e[i];
+    }
     if (!same) {
       o.updateMatrix(); // (it sets `matrixWorldNeedsUpdate`)
       k[0] = p.x;
@@ -56,7 +58,9 @@ export function syncWorld(o: Object3D, force = false): void {
       k[7] = s.x;
       k[8] = s.y;
       k[9] = s.z;
-      for (let i = 0; i < 16; i++) k[10 + i] = e[i]!;
+      for (let i = 0; i < 16; i++) {
+        k[10 + i] = e[i]!;
+      }
     }
   } else {
     // a matrix written by hand: no cheap way to see a change, so it counts as changed (as it does under three's own update)
@@ -69,12 +73,17 @@ export function syncWorld(o: Object3D, force = false): void {
   }
   if (o.matrixWorldNeedsUpdate || force) {
     if (o.matrixWorldAutoUpdate) {
-      if (o.parent === null) o.matrixWorld.copy(o.matrix);
-      else o.matrixWorld.multiplyMatrices(o.parent.matrixWorld, o.matrix);
+      if (o.parent === null) {
+        o.matrixWorld.copy(o.matrix);
+      } else {
+        o.matrixWorld.multiplyMatrices(o.parent.matrixWorld, o.matrix);
+      }
     }
     o.matrixWorldNeedsUpdate = false;
     force = true;
   }
   const c = o.children;
-  for (let i = 0; i < c.length; i++) syncWorld(c[i]!, force);
+  for (let i = 0; i < c.length; i++) {
+    syncWorld(c[i]!, force);
+  }
 }
