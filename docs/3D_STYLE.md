@@ -162,7 +162,7 @@ A part's glow in a lens scales by its `gain` (wide faces glow softer).
 - Case accent by kind: gamer `T.mul` violet, show `T.br` magenta, other kinds `T.alu` cyan (`case3d.ts:133`).
 - Board RGB strip: 44 LEDs fading `T.alu` cyan → `T.br` magenta (`boardmodel3d.ts:68`).
 - Tier-3 part glow: base `0x1a1430`, emissive the skin's accent, 0.9 (`parts3d.ts:75`).
-- Brand / RGB (current): `#8b5cff` on the RGB point light, the spill and the accent colour (`machine3d.ts:117,122,125`) and on the fan ring. Target (art-style.md §2, rework item 8, on hold): `#a68bff`.
+- Brand / RGB (current): `#8b5cff` on the RGB point light, the spill and the accent colour (`machine/core.ts:51,56,61`) and on the fan ring. Target (art-style.md §2, rework item 8, on hold): `#a68bff`.
 
 `T.ld` is also the load instruction-class token, and the POST display uses it as "the theme's amber" (`boardmodel3d.ts:54-56`). Target (art-style.md §2, rework item 3, on hold): load becomes `#9ab8ff`. A token-only swap would recolour the halt strip and the POST digits, and the many 2D `T.ld` warn/activity uses (die, uncore, disk, …), unless those move to status `--warn` `#ffc247`. The same applies to `T.st` where it is used as a status-like green rather than the store class.
 

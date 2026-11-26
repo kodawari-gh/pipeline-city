@@ -58,7 +58,7 @@ describe("the cables and the machine's bodies", () => {
     for (const [name, g] of games) {
       const s = g.snapshot();
       setLayoutTier(s.boardTier, Math.max(s.boardTier, s.caseTier));
-      const m = new Machine3D(s, roomGeo(), new BakeQueue(), null, false),
+      const m = new Machine3D(s, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: false }),
         bodies = m.airBodies();
       try {
         const runs = m.cableRuns().filter((r) => OVER_OPEN.has(r.id));

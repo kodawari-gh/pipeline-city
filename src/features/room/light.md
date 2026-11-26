@@ -21,7 +21,7 @@ Every animation that belongs to the machine runs on one **game clock** (`gt` in 
 
 ## 3D room light
 
-A design note (T153, 2026-11-05). It is the plan, not yet the code. Code today: `src/features/room/render/three/room3d.ts` (the room's lights and their hours), `src/features/room/render/three/outside/view.ts` (the city, its own lights, the glass's tint), `src/features/board/render/three/machine3d.ts` (the case's lights), `src/features/board/render/three/board3d.ts` (the probe, the machine's light), `src/features/room/render/three/roomenv.ts`, `src/core/render/three/bakedao.ts`. Style rules: `docs/3D_STYLE.md` "Lighting Setup".
+A design note (T153, 2026-11-05). It is the plan, not yet the code. Code today: `src/features/room/render/three/room3d.ts` (the room's lights and their hours), `src/features/room/render/three/outside/view.ts` (the city, its own lights, the glass's tint), `src/features/board/render/three/machine/` (the case's lights), `src/features/board/render/three/board3d.ts` (the probe, the machine's light), `src/features/room/render/three/roomenv.ts`, `src/core/render/three/bakedao.ts`. Style rules: `docs/3D_STYLE.md` "Lighting Setup".
 
 ### The owner's call
 
@@ -120,7 +120,7 @@ Cyan (`NEON`, `NEON_WASH`) only on tech, and few: quietly cyberpunk, not a club.
 
 - The bed's strips (under the frame, behind the headboard) and the desk's strip: they exist.
 - A bias light behind the monitor (built in T176, `Monitor.bias`; the room holds it, at 0 without a monitor, so the count of lights stays, [load.md](../../../docs/render/load.md)): a cyan strip round its back (400 lm), on with the screen; a faint cyan wash on the column behind its east end and the router.
-- The case's RGB (`rgb`, `spill` in `machine3d.ts`): its accent colour, its spill through the glass on the desk and the wall. Both are in the lamp cap (`case`, `spill`) and stay live at Low.
+- The case's RGB (`rgb`, `spill` in `machine/core.ts`): its accent colour, its spill through the glass on the desk and the wall. Both are in the lamp cap (`case`, `spill`) and stay live at Low.
 
 Accents outside the palette (the case's purple next to the room's cyan) are the owner's call in T170.
 

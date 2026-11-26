@@ -25,7 +25,7 @@ describe('PowerView3D', () => {
       power: { ...s.power, off: false, totalW: 120 },
       devices: s.devices.map((d) => ({ ...d, powerW: d.kind === 'display' ? 3 : 8 })),
     };
-    machine = new Machine3D(snap, roomGeo(), new BakeQueue(), null, false);
+    machine = new Machine3D(snap, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: false });
     const box = new Box3();
     for (const o of machine.caseRoots) box.expandByObject(o);
     center = box.getCenter(new Vector3());

@@ -12,7 +12,8 @@ import { quietCanvas } from './testutil';
 
 quietCanvas();
 
-const stage = (s: Snapshot): Machine3D => new Machine3D(s, roomGeo(), new BakeQueue(), null, false);
+const stage = (s: Snapshot): Machine3D =>
+  new Machine3D(s, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: false });
 
 /** What a viewer sees: the meshes drawn, by the part (or socket) they belong to, and the tagged things a drop or a click finds. */
 function shape(m: Machine3D): { parts: Record<string, string>; tagged: string[] } {

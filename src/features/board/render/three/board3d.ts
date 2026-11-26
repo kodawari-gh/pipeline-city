@@ -349,7 +349,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       if (next) uncheap(next.m.root);
       next?.m.dispose();
       next = null;
-      const m = new Machine3D(s, room.geo, bakes, chips);
+      const m = new Machine3D(s, room.geo, { q: bakes, chips });
       m.setLights(room.liveLights); // (the RGB's lights by the lamp cap, before its programs link)
       if (!machine || !warmed) install(m);
       else {
@@ -1304,7 +1304,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
         lift.busy || handIn,
       );
     }
-    machine?.frame(s, dt, dt, net);
+    machine?.frame(s, { dt, net });
     hand.frame(dt, camera);
     // the outline: the hovered part, the selected one and the tutorial's targets
     const ids = new Set(

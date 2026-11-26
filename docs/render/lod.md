@@ -136,7 +136,7 @@ The city has no LOD tiers. Distance changes detail or what is generated. Only th
 
 ## Reveal bands (`core/render/lod/lod.ts`)
 
-Not a geometry level. As the camera closes on a part, a lid, a cooler or a shroud fades away to show the chip's live art, and the art adds its layers (names, counters, wires). The 3D board reads the bands each frame: `boardlive3d.ts` sets the live art's zoom and view (`setZoom`, `setView`); `machine3d.ts` (`reveal`, `rail`), `chips3d.ts`, `cpu3d.ts` and `card3d.ts` fade their parts by them.
+Not a geometry level. As the camera closes on a part, a lid, a cooler or a shroud fades away to show the chip's live art, and the art adds its layers (names, counters, wires). The 3D board reads the bands each frame: `boardlive3d.ts` sets the live art's zoom and view (`setZoom`, `setView`); `machine/reveal.ts` (`reveal`), `machine/rammap.ts` and `machine/router.ts` (the rails), `chips3d.ts`, `cpu3d.ts` and `card3d.ts` fade their parts by them.
 
 - **`DEVICE_LOD`.** The one table of bands, in the zoom the camera gives at the part (`viewOn`): die, cooler, gpu, npu, tpm, disk, ram, labels. `BASE_LOD` is the ladder they share (lid fade 0.4 to 0.6, names 0.8, counters 1.5, hover 0.45). A layer that turns on at `z0` fades in over `z0` to `z0 * 1.15` (`onBand`, `TEXT_BAND`) and is hidden below `SHOWN` (0.01).
 - **`deviceLod`, `seenZoom`.** Where a part is: on screen (the view plus 10 %) and its focus (1 at the view centre, 0 by 0.8 of the half-diagonal). A part reads the bands at `seenZoom(zoom, focus)` = `zoom * (0.35 + 0.65 * focus)`: only the zoom and the distance from the view centre move it along the bands, never its size.

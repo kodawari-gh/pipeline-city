@@ -854,7 +854,10 @@ export class BuildStage {
       key = machineKey(s, shown),
       tier = s.boardTier;
     setLayoutTier(tier, Math.max(tier, s.caseTier));
-    const made = await Machine3D.make(s, roomGeo(), this.bakes, null, false, {
+    const made = await Machine3D.make(s, roomGeo(), {
+      q: this.bakes,
+      chips: null,
+      inRoom: false,
       stop: () => this.dead,
       shown,
       wall: this.stageWall(s),
@@ -891,7 +894,13 @@ export class BuildStage {
     }
     this._machine =
       made ??
-      new Machine3D(s, roomGeo(), this.bakes, null, false, true, true, false, this.shown.peek(), this.stageWall(s));
+      new Machine3D(s, roomGeo(), {
+        q: this.bakes,
+        chips: null,
+        inRoom: false,
+        shown: this.shown.peek(),
+        wall: this.stageWall(s),
+      });
     if (old) this._machine.takeDoor(old);
     if (this._machine.hoses) this._machine.hoses.root.visible = !this.hosesOff;
     scene.add(this._machine.root);
@@ -1077,7 +1086,7 @@ export class BuildStage {
     const net = this.leds.step(snap, snap.powered ? dt * worldPace(this.simSpeed.peek()) : 0);
     this.wall?.lights(net);
     // (the panel keeps the pace of the steps: at 2x it opens in half the time, as the wait for it (`door`) is half)
-    this.machine.frame(snap, dt, this.status.peek().busy ? dt * this.rate() : dt, net);
+    this.machine.frame(snap, { dt, doorDt: this.status.peek().busy ? dt * this.rate() : dt, net });
     this.hand.frame(Math.min(dt, 0.05) * this.rate(), camera);
     this.screen(snap, dt);
     // no stand-in (partlod.ts) from this stage's own zoom in; the wheel limit stays inside it at every aspect (machine3d.test.ts), so nothing else is held.

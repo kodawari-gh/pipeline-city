@@ -11,7 +11,8 @@ import { quietCanvas } from './testutil';
 
 quietCanvas();
 
-const stage = (s: Snapshot): Machine3D => new Machine3D(s, roomGeo(), new BakeQueue(), null, false);
+const stage = (s: Snapshot): Machine3D =>
+  new Machine3D(s, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: false });
 const lever = (m: Machine3D): number[] => {
   const r: number[] = [];
   m.root.traverse((o) => {
