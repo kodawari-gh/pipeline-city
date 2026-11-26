@@ -9,10 +9,10 @@
 // --update rewrites the baseline after fixes and refuses to grow it. --init writes it from scratch.
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { join, relative, resolve, isAbsolute } from 'node:path';
+import path from 'node:path';
 
 const root = spawnSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).stdout.trim() || process.cwd();
-const rel = (f) => relative(root, isAbsolute(f) ? f : resolve(root, f)).replaceAll('\\', '/');
+const rel = (f) => path.relative(root, path.isAbsolute(f) ? f : path.resolve(root, f)).replaceAll('\\', '/');
 
 let stdoutOnly = '';
 
@@ -24,12 +24,9 @@ function jsonOf(out) {
 
 const PARSERS = {
   tsc: (out) =>
-    [...out.matchAll(/^(.+?)\((\d+),\d+\): error (TS\d+): (.*)$/gm)].map((m) => ({
-      file: m[1],
-      line: Number(m[2]),
-      rule: m[3],
-      msg: m[4],
-    })),
+    [...out.matchAll(/^(?<file>.+?)\((?<line>\d+),\d+\): error (?<rule>TS\d+): (?<msg>.*)$/gmu)].map(
+      ({ groups: g }) => ({ file: g.file, line: Number(g.line), rule: g.rule, msg: g.msg }),
+    ),
   oxlint: (out) =>
     jsonOf(out).diagnostics.map((d) => ({
       file: d.filename,
@@ -40,12 +37,9 @@ const PARSERS = {
   stylelint: (out) =>
     jsonOf(out).flatMap((r) => r.warnings.map((w) => ({ file: r.source, line: w.line, rule: w.rule, msg: w.text }))),
   markdownlint: (out) =>
-    [...out.matchAll(/^(.+?\.md):(\d+)(?::\d+)?\s+(?:error\s+)?(MD\d+)\S*\s+(.*)$/gim)].map((m) => ({
-      file: m[1],
-      line: Number(m[2]),
-      rule: m[3],
-      msg: m[4],
-    })),
+    [...out.matchAll(/^(?<file>.+?\.md):(?<line>\d+)(?::\d+)?\s+(?:error\s+)?(?<rule>MD\d+)\S*\s+(?<msg>.*)$/gimu)].map(
+      ({ groups: g }) => ({ file: g.file, line: Number(g.line), rule: g.rule, msg: g.msg }),
+    ),
   ruff: (out) =>
     jsonOf(out).map((d) => ({
       file: d.filename,
@@ -56,19 +50,21 @@ const PARSERS = {
   knip: (out) =>
     (jsonOf(out).issues ?? []).flatMap((iss) =>
       Object.entries(iss)
-        .filter(([, v]) => Array.isArray(v) && v.length)
+        .filter(([, v]) => Array.isArray(v) && v.length > 0)
         .flatMap(([type, v]) =>
           v.map((x) => ({ file: iss.file, line: x.line ?? 0, rule: `knip/${type}`, msg: x.name ?? type })),
         ),
     ),
   cspell: (out) =>
-    [...out.matchAll(/^(.+?):(\d+):\d+ - Unknown word \((.+?)\)/gm)].map((m) => ({
-      file: m[1],
-      line: Number(m[2]),
-      rule: `word:${m[3].toLowerCase()}`,
-      msg: `unknown word "${m[3]}"`,
+    [...out.matchAll(/^(?<file>.+?):(?<line>\d+):\d+ - Unknown word \((?<word>.+?)\)/gmu)].map(({ groups: g }) => ({
+      file: g.file,
+      line: Number(g.line),
+      rule: `word:${g.word.toLowerCase()}`,
+      msg: `unknown word "${g.word}"`,
     })),
 };
+
+const sortObj = (o) => Object.fromEntries(Object.entries(o).toSorted(([a], [b]) => (a < b ? -1 : 1)));
 
 function count(entries) {
   const b = {};
@@ -78,22 +74,44 @@ function count(entries) {
   }
   return sortObj(Object.fromEntries(Object.entries(b).map(([f, r]) => [f, sortObj(r)])));
 }
-const sortObj = (o) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => (a < b ? -1 : 1)));
 
-function main(argv) {
+// Rows [file, rule, count in `from`, count in `to`] where `from` has more of a rule than `to`.
+function exceeding(from, to) {
+  const rows = [];
+  for (const [f, rules] of Object.entries(from)) {
+    for (const [rule, n] of Object.entries(rules)) {
+      const other = to[f]?.[rule] ?? 0;
+      if (n > other) {
+        rows.push([f, rule, n, other]);
+      }
+    }
+  }
+  return rows;
+}
+
+function parseArgs(argv) {
   const sep = argv.indexOf('--');
   if (sep < 1) {
     console.error('usage: ratchet.mjs <name> [--parse kind] [--update|--init] -- <command...>');
     process.exit(2);
   }
   const opts = argv.slice(0, sep);
-  const name = opts[0];
+  const [name] = opts;
   const kind = opts.includes('--parse') ? opts[opts.indexOf('--parse') + 1] : name;
   const parse = PARSERS[kind];
   if (!parse) {
     throw new Error(`unknown parser "${kind}" (${Object.keys(PARSERS).join(', ')})`);
   }
-  const cmd = argv.slice(sep + 1).join(' ');
+  if (process.env.RATCHET_UPDATE === '1' && !opts.includes('--init')) {
+    opts.push('--update');
+  }
+  if (process.env.RATCHET_UPDATE === 'init') {
+    opts.push('--init');
+  }
+  return { name, parse, opts, cmd: argv.slice(sep + 1).join(' ') };
+}
+
+function findings({ name, parse, cmd }) {
   const r = spawnSync(cmd, { cwd: root, shell: true, encoding: 'utf8', maxBuffer: 1 << 30 });
   stdoutOnly = r.stdout;
   const out = `${r.stdout}\n${r.stderr}`;
@@ -108,35 +126,31 @@ function main(argv) {
     console.error(`[${name}] command failed with no parsable findings (exit ${r.status}):\n${out.slice(0, 2000)}`);
     process.exit(r.status || 2);
   }
-  const now = count(entries);
-  const file = join(root, '.baseline', `${name}.json`);
-  const base = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
+  return entries;
+}
 
-  const grew = [];
-  const shrank = [];
-  for (const [f, rules] of Object.entries(now)) {
-    for (const [rule, n] of Object.entries(rules))
-      if (n > (base[f]?.[rule] ?? 0)) grew.push([f, rule, n, base[f]?.[rule] ?? 0]);
-  }
-  for (const [f, rules] of Object.entries(base)) {
-    for (const [rule, n] of Object.entries(rules))
-      if (n > (now[f]?.[rule] ?? 0)) shrank.push([f, rule, now[f]?.[rule] ?? 0, n]);
-  }
-
-  const total = entries.length;
-  if (process.env.RATCHET_UPDATE === '1' && !opts.includes('--init')) opts.push('--update');
-  if (process.env.RATCHET_UPDATE === 'init') opts.push('--init');
-  if (opts.includes('--init') || opts.includes('--update')) {
-    if (opts.includes('--update') && grew.length > 0) {
-      report(name, entries, grew);
-      console.error(`[${name}] --update refuses to grow the baseline. Fix the new violations first.`);
-      process.exit(1);
+function report(name, entries, grew) {
+  console.error(`[${name}] new violations:`);
+  for (const [f, rule, n, was] of grew) {
+    console.error(`  ${f} ${rule}: ${was} -> ${n}`);
+    for (const e of entries.filter((x) => rel(x.file) === f && x.rule === rule).slice(0, 5)) {
+      console.error(`    ${f}:${e.line} ${e.msg}`);
     }
-    mkdirSync(join(root, '.baseline'), { recursive: true });
-    writeFileSync(file, `${JSON.stringify(now, null, 1)}\n`);
-    console.log(`[${name}] baseline written: ${total} violation(s) in ${Object.keys(now).length} file(s)`);
-    return;
   }
+}
+
+function writeBaseline({ name, opts, entries, grew, now, file }) {
+  if (opts.includes('--update') && grew.length > 0) {
+    report(name, entries, grew);
+    console.error(`[${name}] --update refuses to grow the baseline. Fix the new violations first.`);
+    process.exit(1);
+  }
+  mkdirSync(path.join(root, '.baseline'), { recursive: true });
+  writeFileSync(file, `${JSON.stringify(now, null, 1)}\n`);
+  console.log(`[${name}] baseline written: ${entries.length} violation(s) in ${Object.keys(now).length} file(s)`);
+}
+
+function verify({ name, entries, grew, shrank }) {
   if (grew.length > 0) {
     report(name, entries, grew);
   }
@@ -144,24 +158,28 @@ function main(argv) {
     console.error(
       `[${name}] ${shrank.length} baselined violation group(s) are fixed. Shrink the baseline: npm run baseline:update (or ratchet.mjs ${name} --update -- ...)`,
     );
-    for (const [f, rule, n, was] of shrank.slice(0, 20)) {
+    for (const [f, rule, was, n] of shrank.slice(0, 20)) {
       console.error(`  ${f} ${rule}: ${was} -> ${n}`);
     }
   }
   if (grew.length > 0 || shrank.length > 0) {
     process.exit(1);
   }
-  console.log(`[${name}] ok (${total} baselined)`);
+  console.log(`[${name}] ok (${entries.length} baselined)`);
 }
 
-function report(name, entries, grew) {
-  console.error(`[${name}] new violations:`);
-  for (const [f, rule, n, was] of grew) {
-    console.error(`  ${f} ${rule}: ${was} -> ${n}`);
-    for (const e of entries.filter((e) => rel(e.file) === f && e.rule === rule).slice(0, 5)) {
-      console.error(`    ${f}:${e.line} ${e.msg}`);
-    }
+function main(argv) {
+  const args = parseArgs(argv);
+  const entries = findings(args);
+  const now = count(entries);
+  const file = path.join(root, '.baseline', `${args.name}.json`);
+  const base = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
+  const run = { ...args, entries, now, file, grew: exceeding(now, base), shrank: exceeding(base, now) };
+  if (args.opts.includes('--init') || args.opts.includes('--update')) {
+    writeBaseline(run);
+    return;
   }
+  verify(run);
 }
 
 main(process.argv.slice(2));

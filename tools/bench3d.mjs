@@ -672,7 +672,10 @@ try {
         run: () => wait(3500),
         post: async () => {
           await hour(null);
-          await p.evaluate(async (v) => (await import('/src/app/store.ts')).setSpeed(v), night.speed);
+          await p.evaluate(async (v) => {
+            const S = await import('/src/app/store.ts');
+            S.setSpeed(v);
+          }, Number(night.speed));
         },
         meta: () => ({ hover: night.hover, outline: night.outline }),
         check: async (r) => {
