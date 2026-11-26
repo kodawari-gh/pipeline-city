@@ -1,8 +1,8 @@
 // The outside's painted textures: canvas pictures that repeat by the metre, each painted once and shared (render, paving, asphalt, grass,
-// bark). A height picture painted with the
-// colour gives its normal map, so the low sun rakes over the joints. A map is kept as raw sRGB (`rawSrgb`): its material decodes it
-// (`DECODE_SRGB`). Without a DOM (the tests) each texture is null.
-import { CanvasTexture, NoColorSpace, RepeatWrapping, type Texture } from 'three';
+// bark). A height picture painted with the colour gives its normal map, so the low sun rakes over the joints. A map is kept as raw sRGB
+// (`rawSrgb`): its material decodes it (`DECODE_SRGB`). Without a DOM (the tests) each texture is null.
+import { CanvasTexture, NoColorSpace, RepeatWrapping } from 'three';
+import type * as threeTypes from 'three';
 import { rawSrgb } from '@/core/render/three/artlod';
 import { bakedTex } from '@/core/render/three/baked';
 import { anisotropy, shareTex } from '@/core/render/three/geometry';
@@ -13,26 +13,27 @@ type Rgb = readonly [number, number, number];
 
 /** A painted surface: its map, its normal map, and the size one repeat covers (m). */
 export interface Surface {
-  map: Texture | null;
-  normal: Texture | null;
+  map: threeTypes.Texture | null;
+  normal: threeTypes.Texture | null;
   metres: readonly [number, number];
 }
 
 function canvas(w: number, h: number): [HTMLCanvasElement, Ctx] | null {
-  if (typeof document === 'undefined') return null;
+  if (typeof document === 'undefined') {
+    return null;
+  }
   const cv = document.createElement('canvas');
-  cv.width = w;
-  cv.height = h;
+  [cv.width, cv.height] = [w, h];
   return [cv, cv.getContext('2d', { willReadFrequently: true })!];
 }
 
 /** A repeating texture of a canvas, a uv in metres divided by `metres`. `colour`: raw sRGB (decoded by its material); else linear data (a normal map). */
-function tex(cv: HTMLCanvasElement, metres: readonly [number, number], colour: boolean): Texture {
+function tex(cv: HTMLCanvasElement, metres: readonly [number, number], colour: boolean): threeTypes.Texture {
   return dress(colour ? rawSrgb(cv) : new CanvasTexture(cv), metres);
 }
 
 /** The repeat by the metre, the filtering and no colour space, on a painted or a baked texture. */
-function dress(t: Texture, metres: readonly [number, number]): Texture {
+function dress(t: threeTypes.Texture, metres: readonly [number, number]): threeTypes.Texture {
   t.colorSpace = NoColorSpace;
   t.wrapS = t.wrapT = RepeatWrapping;
   t.repeat.set(1 / metres[0], 1 / metres[1]);
@@ -46,13 +47,12 @@ function normalOf(h: HTMLCanvasElement, k: number): HTMLCanvasElement {
     H = h.height,
     src = h.getContext('2d')!.getImageData(0, 0, w, H).data;
   const out = document.createElement('canvas');
-  out.width = w;
-  out.height = H;
+  [out.width, out.height] = [w, H];
   const c = out.getContext('2d')!,
     img = c.createImageData(w, H),
     d = img.data;
   const at = (x: number, y: number) => src[(((y + H) % H) * w + ((x + w) % w)) * 4]! / 255;
-  for (let y = 0; y < H; y++)
+  for (let y = 0; y < H; y++) {
     for (let x = 0; x < w; x++) {
       // the picture's y runs down, a texture's v up: a rise toward the picture's bottom tilts the normal toward -v
       const dx = (at(x + 1, y) - at(x - 1, y)) * k,
@@ -64,6 +64,7 @@ function normalOf(h: HTMLCanvasElement, k: number): HTMLCanvasElement {
       d[i + 2] = (0.5 / l + 0.5) * 255;
       d[i + 3] = 255;
     }
+  }
   c.putImageData(img, 0, 0);
   return out;
 }
@@ -80,23 +81,30 @@ function surface(
   // the baked pair (`city-<name>` and `city-<name>-n` in `public/tex/`) stands for the canvases; the colour stays raw sRGB, as the canvas map
   const bm = bakedTex(`city-${name}`),
     bn = bakedTex(`city-${name}-n`);
-  if (bm && bn) return { map: dress(bm, metres), normal: dress(bn, metres), metres };
+  if (bm && bn) {
+    return { map: dress(bm, metres), normal: dress(bn, metres), metres };
+  }
   const a = canvas(w, h),
     b = canvas(w, h);
-  if (!a || !b) return { map: null, normal: null, metres };
+  if (!a || !b) {
+    return { map: null, normal: null, metres };
+  }
   draw(a[1], b[1], w, h);
   return { map: tex(a[0], metres, true), normal: tex(normalOf(b[0], bump), metres, false), metres };
 }
 
 /** Draw at (x, y), and again across each edge the shape (radius `r`) crosses, so the picture tiles. */
 function wrapped(w: number, h: number, x: number, y: number, r: number, draw: (x: number, y: number) => void): void {
-  for (const dx of [-w, 0, w])
+  for (const dx of [-w, 0, w]) {
     for (const dy of [-h, 0, h]) {
       const px = x + dx,
         py = y + dy;
-      if (px + r < 0 || px - r > w || py + r < 0 || py - r > h) continue;
+      if (px + r < 0 || px - r > w || py + r < 0 || py - r > h) {
+        continue;
+      }
       draw(px, py);
     }
+  }
 }
 
 const rgb = (c: Rgb, k = 1, a = 1): string =>
@@ -168,7 +176,7 @@ export function paving(): Surface {
     c.fillRect(0, 0, S, S);
     hc.fillStyle = '#303030';
     hc.fillRect(0, 0, S, S);
-    for (let y = 0; y < n; y++)
+    for (let y = 0; y < n; y++) {
       for (let x = 0; x < n; x++) {
         const v = 0.86 + r() * 0.2,
           hv = 200 + r() * 30;
@@ -177,6 +185,7 @@ export function paving(): Surface {
         hc.fillStyle = rgb([hv, hv, hv]);
         hc.fillRect(x * s + j / 2, y * s + j / 2, s - j, s - j);
       }
+    }
     stains(c, S, S, r, 26, [4, 18], (q) => [[40, 38, 35], 0.15 + q() * 0.3]);
     stains(c, S, S, r, 10, [40, 120], (q) => [[90, 86, 78], 0.06 + q() * 0.08]);
     grain(c, S, S, 0.06, 18);
@@ -236,7 +245,7 @@ export function grass(): Surface {
     hc.fillRect(0, 0, S, S);
     stains(c, S, S, r, 30, [30, 120], (q) => [q() < 0.6 ? [96, 120, 52] : [52, 74, 34], 0.15 + q() * 0.15]);
     c.lineWidth = hc.lineWidth = 1.3;
-    for (let i = 0; i < 14000; i++) {
+    for (let i = 0; i < 14_000; i++) {
       const x = r() * S,
         y = r() * S,
         a = (r() - 0.5) * 1.2,

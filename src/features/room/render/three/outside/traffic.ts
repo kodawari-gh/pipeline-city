@@ -62,8 +62,8 @@ const STOP = 0.6;
 /** Every lane's route. */
 function routes(): Route[] {
   const out: Route[] = [];
-  for (let i = -AVENUES; i <= AVENUES; i++)
-    for (const off of LANES.avenue.travel)
+  for (let i = -AVENUES; i <= AVENUES; i++) {
+    for (const off of LANES.avenue.travel) {
       for (const dz of [-1, 1]) {
         // away on the east side, from behind our facade; toward us on the west side, from far off
         const far = -avReach(i),
@@ -76,19 +76,25 @@ function routes(): Route[] {
         }
         out.push({ x: avenueX(i) - dz * off, z, dx: 0, dz, len, stops: sortStops(stops), v0: 13 });
       }
-  for (let j = 0; j <= STREETS; j++)
-    for (const off of LANES.street.travel)
+    }
+  }
+  for (let j = 0; j <= STREETS; j++) {
+    for (const off of LANES.street.travel) {
       for (const dx of [-1, 1]) {
         // east on the side toward us, west on the far side
         const x = -dx * ST_REACH + GRID.av0,
           stops: Stop[] = [];
         for (let i = -GRID.cols; i <= GRID.cols; i++) {
           const [lo, hi] = avenueSpan(i);
-          if (Math.abs(avenueX(i) - GRID.av0) > ST_REACH - 40) continue;
+          if (Math.abs(avenueX(i) - GRID.av0) > ST_REACH - 40) {
+            continue;
+          }
           stops.push({ s: dx > 0 ? lo - STOP - x : x - hi - STOP, i, j, av: false });
         }
         out.push({ x, z: streetZ(j) + dx * off, dx, dz: 0, len: 2 * ST_REACH, stops: sortStops(stops), v0: 10 });
       }
+    }
+  }
   return out;
 }
 const sortStops = (s: Stop[]): Stop[] => s.filter((x) => x.s > 0).sort((a, b) => a.s - b.s);
@@ -141,6 +147,19 @@ function idm(v: number, v0: number, gap: number, dv: number): number {
   return ACC * (1 - r * r * r * r - q * q);
 }
 
+/** The front car out past the end comes in again behind the last one (and stands there until its next step: it is out of sight). */
+function reenter(lane: Mover[], rt: Route): void {
+  const [front] = lane;
+  if (front && front.s - front.len > rt.len) {
+    lane.shift();
+    const last = lane.at(-1);
+    front.s = front.was = last ? Math.min(0, last.s - last.len - GAP - front.v0 * HEADWAY * 1.5) : 0;
+    front.v = front.vw = last ? Math.min(front.v0, last.v + 2) : front.v0;
+    front.next = 0;
+    lane.push(front);
+  }
+}
+
 export class Traffic {
   readonly routes = routes();
   readonly cars: Mover[] = [];
@@ -159,7 +178,7 @@ export class Traffic {
       for (let s = rt.len - r() * 30; s > 0;) {
         const q = r(),
           model = q < 0.45 ? 0 : q < 0.75 ? 1 : 2,
-          len = MODELS[model].len,
+          { len } = MODELS[model],
           v0 = rt.v0 * (0.85 + r() * 0.3);
         lane.push({
           route: ri,
@@ -176,7 +195,9 @@ export class Traffic {
         });
         s -= len + GAP + v0 * HEADWAY * (1 + r() * 3.5);
       }
-      for (const c of lane) c.next = this.nextStop(rt, c.s);
+      for (const c of lane) {
+        c.next = this.nextStop(rt, c.s);
+      }
       this.cars.push(...lane);
       return lane;
     });
@@ -188,14 +209,20 @@ export class Traffic {
 
   private nextStop(rt: Route, s: number): number {
     let n = 0;
-    while (n < rt.stops.length && rt.stops[n]!.s < s) n++;
+    while (n < rt.stops.length && rt.stops[n]!.s < s) {
+      n++;
+    }
     return n;
   }
 
   /** Move the clock on by dt (s): each lane steps on (`STEP`) until its own clock has reached it. */
   step(dt: number): void {
     this.t += dt;
-    for (let ri = 0; ri < this.lanes.length; ri++) while (this.ats[ri]! < this.t) this.stepLane(ri);
+    for (let ri = 0; ri < this.lanes.length; ri++) {
+      while (this.ats[ri]! < this.t) {
+        this.stepLane(ri);
+      }
+    }
   }
 
   /** Move a lane's cars on by one step, to its clock's next beat (the lights as they are then). */
@@ -222,7 +249,9 @@ export class Traffic {
         const gap = st.s - c.s,
           need = (c.v * c.v) / (2 * Math.max(gap, 0.05));
         const halt = light === 'stop' ? need < HARD : light === 'amber' ? need < AMBER_DEC : false;
-        if (halt) a = Math.min(a, idm(c.v, c.v0, gap + GAP - 0.4, c.v));
+        if (halt) {
+          a = Math.min(a, idm(c.v, c.v0, gap + GAP - 0.4, c.v));
+        }
       }
       const v = Math.max(0, c.v + a * dt),
         room = ahead ? ahead.s - ahead.len - 0.4 : Infinity;
@@ -231,21 +260,16 @@ export class Traffic {
       if (s > room) {
         s = Math.max(c.s, room);
         c.v = Math.min(v, ahead!.v);
-      } else c.v = v;
+      } else {
+        c.v = v;
+      }
       c.s = s;
       c.brake = a < -0.5 || c.v < 0.3;
-      while (c.next < rt.stops.length && rt.stops[c.next]!.s < c.s) c.next++;
+      while (c.next < rt.stops.length && rt.stops[c.next]!.s < c.s) {
+        c.next++;
+      }
     }
-    // the front car out past the end comes in again behind the last one (and stands there until its next step: it is out of sight)
-    const front = lane[0];
-    if (front && front.s - front.len > rt.len) {
-      lane.shift();
-      const last = lane[lane.length - 1];
-      front.s = front.was = last ? Math.min(0, last.s - last.len - GAP - front.v0 * HEADWAY * 1.5) : 0;
-      front.v = front.vw = last ? Math.min(front.v0, last.v + 2) : front.v0;
-      front.next = 0;
-      lane.push(front);
-    }
+    reenter(lane, rt);
   }
 
   /** How far through its last step a lane is drawn at the clock (0 to 1). */
@@ -259,7 +283,9 @@ export class Traffic {
    * past its end and back.
    */
   front(c: Mover, f: number): number {
-    if (Math.abs(c.s - c.was - ((c.vw + c.v) / 2) * STEP) > 1e-6) return c.was + (c.s - c.was) * f;
+    if (Math.abs(c.s - c.was - ((c.vw + c.v) / 2) * STEP) > 1e-6) {
+      return c.was + (c.s - c.was) * f;
+    }
     const tau = f * STEP;
     return c.was + c.vw * tau + ((c.v - c.vw) * tau * tau) / (2 * STEP);
   }
