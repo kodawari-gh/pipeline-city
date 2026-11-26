@@ -25,10 +25,8 @@ import {
   TorusGeometry,
   Vector2,
   Vector3,
-  type BufferGeometry,
-  type Object3D,
-  type Texture,
 } from 'three';
+import type * as threeTypes from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BRANDS, drawMark } from '@/core/render/brands';
 import {
@@ -42,8 +40,8 @@ import {
   softBox,
   tornDown,
   tube,
-  type RectLike,
 } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { joinModel, loadModel } from '@/core/render/three/gltf';
 import { lowDetail } from '@/core/render/three/detail';
 import { mat } from '@/core/render/three/materials';
@@ -79,7 +77,7 @@ export function lamp(
   z: number,
 ): Lamp {
   const coat = mat(STEEL, { roughness: 0.4, metalness: 0.3 }),
-    joint = mat(0x4e5360, { metalness: 0.6, roughness: 0.3 });
+    joint = mat(0x4e_53_60, { metalness: 0.6, roughness: 0.3 });
   const g = tag(new Group(), 'lamp');
   // (its baked occlusion: the joints between the paired arms, the base under them; `vertexao.ts`)
   g.userData['ao'] = 30 * MM;
@@ -110,7 +108,7 @@ export function lamp(
   shade.position.set(...hd);
   shade.rotation.z = Math.atan2(ux, -uy);
   const outer = place(new Mesh(new CylinderGeometry(300, 820, L, SEG.drum, 1, true), coat));
-  const inner = mat(OPAL, { roughness: 0.6, side: BackSide, emissive: new Color(0xffd9a0), emissiveIntensity: 0 });
+  const inner = mat(OPAL, { roughness: 0.6, side: BackSide, emissive: new Color(0xff_d9_a0), emissiveIntensity: 0 });
   const innerM = new Mesh(new CylinderGeometry(296, 812, L, SEG.drum, 1, true), inner);
   const cap = place(new Mesh(new SphereGeometry(300, SEG.disc, SEG.ringsMid, 0, Math.PI * 2, 0, Math.PI / 2), coat));
   outer.position.y = innerM.position.y = -L / 2;
@@ -123,7 +121,7 @@ export function lamp(
   knob.rotation.z = Math.PI / 2;
   knob.position.set(0, 120, 0);
   shade.add(lip, knob);
-  const bulb = mat(OPAL, { emissive: new Color(0xffe2b0), emissiveIntensity: 0 });
+  const bulb = mat(OPAL, { emissive: new Color(0xff_e2_b0), emissiveIntensity: 0 });
   const bulbM = new Mesh(new SphereGeometry(240, SEG.disc, SEG.ringsFine), bulb);
   bulbM.position.y = -L + 380;
   shade.add(outer, innerM, cap, seeThrough(bulbM));
@@ -139,16 +137,38 @@ export interface Screen {
   text: string;
 }
 
+/**
+ * The panel's glass: no colour of its own, only what it mirrors (the window, the lamp, the room), added over the picture. The lights' own
+ * glints are left out: the screen's light stands just in front of it and would shine back as a white spot in its middle.
+ */
+function screenGlass(): MeshStandardMaterial {
+  const glassM = new MeshStandardMaterial({
+    color: 0x00_00_00,
+    roughness: 0.12,
+    metalness: 0,
+    transparent: true,
+    blending: AdditiveBlending,
+    depthWrite: false,
+  });
+  glassM.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace(
+      '#include <lights_fragment_end>',
+      '#include <lights_fragment_end>\nreflectedLight.directSpecular = vec3(0.0);',
+    );
+  };
+  return glassM;
+}
+
 export class Monitor {
   readonly root = tag(new Group(), 'monitor');
   private canvas: HTMLCanvasElement | null = null;
-  private tex: Texture | null = null;
+  private tex: threeTypes.Texture | null = null;
   private key = '';
   private faceMat: MeshBasicMaterial | null = null;
-  private liveTex: Texture | null = null;
+  private liveTex: threeTypes.Texture | null = null;
   private liveRev: number | undefined;
   private liveSize = '';
-  private led = mat(0x131518, { emissive: new Color(0x3be3ff), emissiveIntensity: 0 });
+  private led = mat(0x13_15_18, { emissive: new Color(0x3b_e3_ff), emissiveIntensity: 0 });
   /**
    * The bias light: a cyan strip round the back's edge (`NEON_WASH`), as one area light the back's size facing the wall (its east end over the
    * column); the room sets its level while the screen is on. The room holds it, not this root: hidden with an absent monitor, it would change
@@ -156,14 +176,16 @@ export class Monitor {
    */
   readonly bias: RectAreaLight;
 
-  constructor(m: RectLike, screen: RectLike, deskY: number, z0: number) {
+  constructor(m: geometryTypes.RectLike, screen: geometryTypes.RectLike, deskY: number, z0: number) {
     const R = this.root,
       cx = m.x + m.w / 2;
     // (its baked occlusion: the column into the back, the foot on the desk; `vertexao.ts`)
     R.userData['ao'] = 40 * MM;
     // the body: the panel, the back housing, the bracket, the stand, the ports (monitor3d.ts)
     const body = monitorBody(m, screen, deskY, z0);
-    if (lowDetail()) mergeWithin(body); // (Low: the housing, bracket and stand in a few draws)
+    if (lowDetail()) {
+      mergeWithin(body); // (Low: the housing, bracket and stand in a few draws)
+    }
     R.add(body);
     this.bias = new RectAreaLight(NEON_WASH, 0, m.w - 400, m.h - 400);
     // (behind the housing's hump and its mount boss, not inside them: the game's area light casts no shadow, but the light bake's does, and a
@@ -186,23 +208,7 @@ export class Monitor {
     );
     this.faceMat = face.material as MeshBasicMaterial;
     face.position.set(screen.x + screen.w / 2, -(screen.y + screen.h / 2), z0 + 182);
-    // the panel's glass: no colour of its own, only what it mirrors (the window, the lamp, the room), added over the picture. The lights'
-    // own glints are left out: the screen's light stands just in front of it and would shine back as a white spot in its middle
-    const glassM = new MeshStandardMaterial({
-      color: 0x000000,
-      roughness: 0.12,
-      metalness: 0,
-      transparent: true,
-      blending: AdditiveBlending,
-      depthWrite: false,
-    });
-    glassM.onBeforeCompile = (sh) => {
-      sh.fragmentShader = sh.fragmentShader.replace(
-        '#include <lights_fragment_end>',
-        '#include <lights_fragment_end>\nreflectedLight.directSpecular = vec3(0.0);',
-      );
-    };
-    const glass = new Mesh(new PlaneGeometry(screen.w, screen.h), glassM);
+    const glass = new Mesh(new PlaneGeometry(screen.w, screen.h), screenGlass());
     glass.position.set(screen.x + screen.w / 2, -(screen.y + screen.h / 2), z0 + 186);
     R.add(face, seeThrough(glass));
   }
@@ -213,7 +219,9 @@ export class Monitor {
    */
   useLive(img: { canvas: HTMLCanvasElement; w: number; h: number; rev?: number } | null): void {
     const m = this.faceMat;
-    if (!m) return;
+    if (!m) {
+      return;
+    }
     if (!img) {
       this.liveRev = undefined;
       if (m.map !== this.tex) {
@@ -248,7 +256,9 @@ export class Monitor {
     this.root.visible = s.installed;
     this.led.emissiveIntensity = s.powered ? 1.4 : 0.1;
     const key = `${s.powered}|${s.live}|${s.live ? s.text : Math.floor(hour * 12)}`;
-    if (key === this.key || !this.canvas) return;
+    if (key === this.key || !this.canvas) {
+      return;
+    }
     this.key = key;
     const c = this.canvas.getContext('2d')!,
       w = this.canvas.width,
@@ -303,7 +313,9 @@ export class Monitor {
       c.lineTo(0, h);
       c.fill();
     }
-    if (this.tex) this.tex.needsUpdate = true;
+    if (this.tex) {
+      this.tex.needsUpdate = true;
+    }
   }
 }
 
@@ -311,15 +323,15 @@ export class Monitor {
 export class DigitalClock {
   readonly root = tag(new Group(), 'clock');
   private canvas: HTMLCanvasElement | null = null;
-  private tex: Texture | null = null;
+  private tex: threeTypes.Texture | null = null;
   private shown = '';
 
-  constructor(r: RectLike) {
+  constructor(r: geometryTypes.RectLike) {
     // (its baked occlusion: the bezel round the face, the case against the column; `vertexao.ts`)
     this.root.userData['ao'] = 20 * MM;
     this.root.add(softBox(r, 0, 260, mat(STEEL, { roughness: 0.45, metalness: 0.3 }), 50));
     this.root.add(
-      rectBox({ x: r.x + 90, y: r.y + 90, w: r.w - 180, h: r.h - 180 }, 260, 270, mat(0x131518, { roughness: 0.3 })),
+      rectBox({ x: r.x + 90, y: r.y + 90, w: r.w - 180, h: r.h - 180 }, 260, 270, mat(0x13_15_18, { roughness: 0.3 })),
     );
     if (typeof document !== 'undefined') {
       this.canvas = document.createElement('canvas');
@@ -331,8 +343,8 @@ export class DigitalClock {
       new BoxGeometry(r.w - 260, r.h - 260, 2),
       Object.assign(
         new MeshStandardMaterial({
-          color: 0x000000,
-          emissive: 0xffffff,
+          color: 0x00_00_00,
+          emissive: 0xff_ff_ff,
           emissiveMap: this.tex,
           emissiveIntensity: 1.3,
         }),
@@ -347,7 +359,9 @@ export class DigitalClock {
     const hh = Math.floor(hour),
       mm = Math.floor((hour - hh) * 60),
       t = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
-    if (t === this.shown || !this.canvas) return;
+    if (t === this.shown || !this.canvas) {
+      return;
+    }
     this.shown = t;
     const c = this.canvas.getContext('2d')!;
     c.fillStyle = '#000';
@@ -359,7 +373,9 @@ export class DigitalClock {
     c.fillText('88:88', 256, 86);
     c.fillStyle = CLOCK_INK;
     c.fillText(t, 256, 86);
-    if (this.tex) this.tex.needsUpdate = true;
+    if (this.tex) {
+      this.tex.needsUpdate = true;
+    }
   }
 }
 
@@ -384,7 +400,9 @@ function glazeEdge(a: number): number {
   let y = 19 + 1.6 * Math.sin(3 * a + 1) + 0.9 * Math.sin(7 * a + 0.4);
   for (const [at, w, len] of DRIPS) {
     const d = Math.atan2(Math.sin(a - at), Math.cos(a - at)) / w;
-    if (Math.abs(d) < 1) y -= len * Math.sqrt(1 - d * d);
+    if (Math.abs(d) < 1) {
+      y -= len * Math.sqrt(1 - d * d);
+    }
   }
   return y;
 }
@@ -444,8 +462,10 @@ export function teaCup(x: number, deskY: number, z: number): Cup {
   // the glaze map, painted down the profile (v: a point's index along it) and round (u), and its roughness map the same way (glaze glossy,
   // the pooled glaze glassier, the bare clay rough)
   const vAt = (y: number): number => {
-    let i = outer[0];
-    while (i < outer[1] && pts[i + 1]!.y < y) i++;
+    let [i] = outer;
+    while (i < outer[1] && pts[i + 1]!.y < y) {
+      i++;
+    }
     const a = pts[i]!,
       b = pts[Math.min(outer[1], i + 1)]!;
     return (i + Math.min(1, Math.max(0, (y - a.y) / Math.max(1e-6, b.y - a.y)))) / n;
@@ -468,7 +488,9 @@ export function teaCup(x: number, deskY: number, z: number): Cup {
       c.fillStyle = gr;
       c.fillRect(px, pool, 1, top - pool);
     }
-    if (rough) return;
+    if (rough) {
+      return;
+    }
     // the lip, where the glaze thins over the edge, and the iron in the clay speckling through
     const lip0 = row(vAt(74)),
       lip1 = row((outer[1] + 2) / n),
@@ -486,8 +508,10 @@ export function teaCup(x: number, deskY: number, z: number): Cup {
   };
   const map = paint(512, 256, glazeMap(false)),
     roughMap = paint(512, 256, glazeMap(true));
-  if (roughMap) roughMap.colorSpace = NoColorSpace;
-  const glaze = mat(0xffffff, { map, roughnessMap: roughMap, roughness: 1 });
+  if (roughMap) {
+    roughMap.colorSpace = NoColorSpace;
+  }
+  const glaze = mat(0xff_ff_ff, { map, roughnessMap: roughMap, roughness: 1 });
   const cup = place(new Mesh(new LatheGeometry(pts, SEG.cupLathe), glaze));
   // (thrown by hand: a touch out of round)
   cup.scale.set(1.012, 1, 0.99);
@@ -496,7 +520,7 @@ export function teaCup(x: number, deskY: number, z: number): Cup {
   const tea = new Mesh(new CylinderGeometry(30.6, 30.6, 0.4, SEG.lathe), mat(TEA, { roughness: 0.04 }));
   tea.position.y = 4.5 + 70;
   // the saucer, its grain straight across it
-  const walnut = mat(0xffffff, { map: oak('#5a3f2c', '#2a1b11'), roughness: 0.45 }),
+  const walnut = mat(0xff_ff_ff, { map: oak('#5a3f2c', '#2a1b11'), roughness: 0.45 }),
     sg = new LatheGeometry(
       SAUCER.map(([r, y]) => new Vector2(r, y)),
       SEG.lathe,
@@ -504,7 +528,9 @@ export function teaCup(x: number, deskY: number, z: number): Cup {
   const sp = sg.attributes['position']!,
     suv = sg.attributes['uv']!;
   // (the grain runs along x; up the rim's side it climbs across the grain, as on a turned block)
-  for (let i = 0; i < sp.count; i++) suv.setXY(i, sp.getX(i) / 92 + 0.5, sp.getZ(i) / 92 + 0.5 + sp.getY(i) / 40);
+  for (let i = 0; i < sp.count; i++) {
+    suv.setXY(i, sp.getX(i) / 92 + 0.5, sp.getZ(i) / 92 + 0.5 + sp.getY(i) / 40);
+  }
   const saucer = place(new Mesh(sg, walnut));
   const held = new Group();
   held.add(cup, tea, saucer);
@@ -587,9 +613,11 @@ const KEY_U = 372;
 function capGeo(w: number, d: number, h: number, inset: number): BoxGeometry {
   const g = new BoxGeometry(w, h, d),
     p = g.attributes['position']!;
-  for (let i = 0; i < p.count; i++)
-    if (p.getY(i) > 0)
+  for (let i = 0; i < p.count; i++) {
+    if (p.getY(i) > 0) {
       p.setXYZ(i, p.getX(i) - Math.sign(p.getX(i)) * inset, p.getY(i), p.getZ(i) - Math.sign(p.getZ(i)) * inset);
+    }
+  }
   g.computeVertexNormals();
   return g;
 }
@@ -609,22 +637,24 @@ export function keyboard(cx: number, deskY: number, z: number): Group {
     D = 6.25 * U;
   // (its baked occlusion: the gaps between the caps, the plate inside the rim; `vertexao.ts`)
   g.userData['ao'] = 25 * MM;
-  const caseM = mat(0x2a2d32, { roughness: 0.4, metalness: 0.3 }),
+  const caseM = mat(0x2a_2d_32, { roughness: 0.4, metalness: 0.3 }),
     rim = 180;
   board.add(softBox({ x: -W / 2 - rim, y: -200, w: W + 2 * rim, h: 200 }, -D / 2 - rim, D / 2 + rim, caseM, 70));
   for (const r of [
     { x: -W / 2 - rim, w: rim + 20 },
     { x: W / 2 - 20, w: rim + 20 },
-  ] as const)
+  ] as const) {
     board.add(softBox({ x: r.x, y: -300, w: r.w, h: 300 }, -D / 2 - rim, D / 2 + rim, caseM, 50));
+  }
   for (const [z0, z1] of [
     [-D / 2 - rim, -D / 2 + 20],
     [D / 2 - 20, D / 2 + rim],
-  ] as const)
+  ] as const) {
     board.add(softBox({ x: -W / 2 - rim, y: -300, w: W + 2 * rim, h: 300 }, z0, z1, caseM, 50));
-  board.add(rectBox({ x: -W / 2, y: -210, w: W, h: 10 }, -D / 2, D / 2, mat(0x131518, { roughness: 0.7 })));
+  }
+  board.add(rectBox({ x: -W / 2, y: -210, w: W, h: 10 }, -D / 2, D / 2, mat(0x13_15_18, { roughness: 0.7 })));
   // the caps, merged per kind; the legends drawn on one sheet over their tops
-  const parts: BufferGeometry[][] = [[], [], []],
+  const parts: threeTypes.BufferGeometry[][] = [[], [], []],
     px = 64;
   const sheet = typeof document === 'undefined' ? null : document.createElement('canvas');
   const c = sheet?.getContext('2d') ?? null;
@@ -651,9 +681,11 @@ export function keyboard(cx: number, deskY: number, z: number): Group {
       u += wu;
     }
   });
-  [0x3b4048, 0x2b2f36, KEY_ACCENT].forEach((col, k) => {
+  [0x3b_40_48, 0x2b_2f_36, KEY_ACCENT].forEach((col, k) => {
     const geo = mergeGeometries(parts[k]!, false);
-    if (geo) board.add(place(new Mesh(geo, mat(col, { roughness: 0.55 }))));
+    if (geo) {
+      board.add(place(new Mesh(geo, mat(col, { roughness: 0.55 }))));
+    }
   });
   if (sheet) {
     const tex = new CanvasTexture(sheet);
@@ -683,7 +715,7 @@ export function keyboard(cx: number, deskY: number, z: number): Group {
         [KEY_LEAD[0], -15, KEY_LEAD[1]],
       ],
       45,
-      mat(0x2a2d32, { roughness: 0.6 }),
+      mat(0x2a_2d_32, { roughness: 0.6 }),
       SEG.cord,
     ),
   );
@@ -704,19 +736,20 @@ export function mouse(
   x: number,
   deskY: number,
   z: number,
-  loaded?: (o: Object3D) => void,
+  loaded?: (o: threeTypes.Object3D) => void,
   until?: Promise<unknown>,
 ): Group {
   const g = new Group(),
     prim = new Group(),
-    shell = mat(0x959aa3, { roughness: 0.6 }),
-    dark = mat(0x2a2d32, { roughness: 0.5 });
+    shell = mat(0x95_9a_a3, { roughness: 0.6 }),
+    dark = mat(0x2a_2d_32, { roughness: 0.5 });
   const geo = new SphereGeometry(1, SEG.drum, 16),
     p = geo.attributes['position']!;
   // the shell's height: flat underneath, higher at the palm (+z, toward the room) than at the nose
   const lift = (y: number, zz: number) => (y < -0.1 ? -0.1 + (y + 0.1) * 0.15 : y) * (1 + 0.18 * zz);
-  for (let i = 0; i < p.count; i++)
+  for (let i = 0; i < p.count; i++) {
     p.setXYZ(i, p.getX(i) * (1 + 0.08 * p.getZ(i)), lift(p.getY(i), p.getZ(i)), p.getZ(i));
+  }
   geo.computeVertexNormals();
   const sx = 360,
     sy = 230,
@@ -746,7 +779,9 @@ export function mouse(
   g.add(prim);
   // the model: turned so its buttons face the far side (-z) and its palm the room; its length is the 2D mouse's (`MOUSE.l`, 1800), uniformly scaled, its flat base on the mat
   void loadModel(MOUSE_MODEL, until).then((m) => {
-    if (!m || tornDown(g)) return;
+    if (!m || tornDown(g)) {
+      return;
+    }
     const model = m.clone(true);
     model.rotation.y = Math.PI / 2;
     const box = new Box3().setFromObject(model),
@@ -780,9 +815,9 @@ export function mouse(
 /** A closed notebook with its elastic band and a pen on it, lying askew on the desk (turned `a` about the vertical). */
 export function notebook(x: number, deskY: number, z: number, a: number): Group {
   const g = new Group(),
-    cover = mat(0x4e5360, { roughness: 0.7 }),
+    cover = mat(0x4e_53_60, { roughness: 0.7 }),
     pages = mat(PAPER, { roughness: 0.9 }),
-    band = mat(0x1d1e22, { roughness: 0.6 });
+    band = mat(0x1d_1e_22, { roughness: 0.6 });
   g.add(
     softBox({ x: -1700, y: -60, w: 3400, h: 60 }, -2300, 2300, cover, 25),
     softBox({ x: -1700, y: -400, w: 3400, h: 60 }, -2300, 2300, cover, 25),
@@ -794,7 +829,7 @@ export function notebook(x: number, deskY: number, z: number, a: number): Group 
   g.add(rectBox({ x: 1150, y: -410, w: 90, h: 420 }, -2310, 2310, band));
   // the pen: a barrel, its cap with a clip
   const barrel = mat(new Color(RUNNER).getHex(), { roughness: 0.35 }),
-    steel = mat(0xb9babf, { metalness: 0.85, roughness: 0.25 });
+    steel = mat(0xb9_ba_bf, { metalness: 0.85, roughness: 0.25 });
   g.add(
     rod([-700, 490, -1500], [500, 490, 900], 85, barrel, SEG.arm),
     rod([500, 490, 900], [760, 490, 1420], 92, steel, SEG.arm),

@@ -4,17 +4,10 @@
 // hood and the chest hang over the back's front (the seat side) and the sleeves fall to the sides. The chair's stand-in solids follow `chair3d.ts`. Millimetres in the
 // chair's frame (y up from the floor, the sitter facing -z).
 import type { ClothBake } from '@/core/render/three/cloth/bake';
-import {
-  curve,
-  curve3,
-  pointAt,
-  polyLength,
-  type Garment,
-  type P2,
-  type P3,
-  type Piece,
-} from '@/core/render/three/cloth/pattern';
-import { capsule, floor, slab, slabAt, union, type Sdf } from '@/core/render/three/cloth/solid';
+import { curve, curve3, pointAt, polyLength } from '@/core/render/three/cloth/pattern';
+import type * as patternTypes from '@/core/render/three/cloth/pattern';
+import { capsule, floor, slab, slabAt, union } from '@/core/render/three/cloth/solid';
+import type * as solidTypes from '@/core/render/three/cloth/solid';
 
 // ---- the chair (chair3d.ts): the back group at (0, 540, 255), leaning back 0.16 rad (its top away from the sitter) ----
 const LEAN = 0.16,
@@ -36,7 +29,7 @@ function backrest(x: number, y: number, z: number): number {
 }
 
 /** The chair's stand-ins: the backrest, the seat's cushion and shell, the spine, the armrests, the floor. */
-export const CHAIR: Sdf = union(
+export const CHAIR: solidTypes.Sdf = union(
   (x, y, z) => {
     const dy = y - BY,
       dz = z - BZ;
@@ -58,7 +51,7 @@ export const CHAIR: Sdf = union(
 const HW = 280,
   PIT = 440,
   TOP = 700,
-  SHO: P2 = [235, 676],
+  SHO: patternTypes.P2 = [235, 676],
   NK = 92,
   BAND = 62;
 const CUFF = 100,
@@ -81,15 +74,19 @@ const BAR_Y = BY + 453 * CL,
   BAR_Z = BZ + 453 * SL,
   LIFT = BAR_Y + 40 + R;
 /** The garment's frame in the chair's: z out of its back runs down (face up), up the body runs toward the seat (-z), x turns (a rotation). */
-const lay = ([x, y, z]: P3): P3 => [-x, LIFT - z, BAR_Z - (y - FOLD)];
+const lay = ([x, y, z]: patternTypes.P3): patternTypes.P3 => [-x, LIFT - z, BAR_Z - (y - FOLD)];
 /** A piece with its place in the garment's frame (`place` is that, laid). */
-type Cut = Piece & { local: (x: number, y: number) => P3 };
-const cut = (p: Omit<Piece, 'place'>, local: Cut['local']): Cut => ({ ...p, local, place: (x, y) => lay(local(x, y)) });
+type Cut = patternTypes.Piece & { local: (x: number, y: number) => patternTypes.P3 };
+const cut = (p: Omit<patternTypes.Piece, 'place'>, local: Cut['local']): Cut => ({
+  ...p,
+  local,
+  place: (x, y) => lay(local(x, y)),
+});
 const smooth = (t: number) => {
   const c = Math.min(1, Math.max(0, t));
   return c * c * (3 - 2 * c);
 };
-const edgeOf = (p: Piece, name: string) => p.edges.find((e) => e.name === name)!.pts;
+const edgeOf = (p: patternTypes.Piece, name: string) => p.edges.find((e) => e.name === name)!.pts;
 
 /**
  * A rib band up to `h` from the edge: its own material. It is not cut narrower: a band shorter than the cloth sewn to it cannot lie flat
@@ -174,7 +171,7 @@ function capAt(ax: number): { y: number; u: number } {
   return { y: CAP, u: 1 };
 }
 /** The armhole of `p` on side `sx`, `u` of the way from the armpit to the shoulder. */
-const armhole = (p: Cut, sx: number, u: number): P3 => {
+const armhole = (p: Cut, sx: number, u: number): patternTypes.P3 => {
   const [x, y] = pointAt(edgeOf(p, sx > 0 ? 'armR' : 'armL'), sx > 0 ? u : 1 - u);
   return p.local(x, y);
 };
@@ -184,19 +181,19 @@ const armhole = (p: Cut, sx: number, u: number): P3 => {
  * cap's front half `capF`, x > 0) and the back.
  */
 function sleeve(name: string, sx: -1 | 1, front: Cut, back: Cut): Cut {
-  const top: P3 = [sx * 312, TOP - 22, 0],
-    foot: P3 = [sx * 330, TOP - 22 - CAP, 15];
+  const top: patternTypes.P3 = [sx * 312, TOP - 22, 0],
+    foot: patternTypes.P3 = [sx * 330, TOP - 22 - CAP, 15];
   const u = norm([top[0] - foot[0], top[1] - foot[1], top[2] - foot[2]]);
   const out = norm(less([sx, 0, 0], u)),
     fwd = norm(less(less([0, 0, -1], u), out));
-  const tube = (x: number, y: number): P3 => {
+  const tube = (x: number, y: number): patternTypes.P3 => {
     const hw = y < UA ? CUFF + ((BIC - CUFF) * y) / UA : BIC,
       r = hw / Math.PI,
       f = Math.PI * Math.max(-1, Math.min(1, x / hw)),
       t = Math.min(y, CAP) / CAP;
     const c = Math.cos(f) * r,
       s = Math.sin(f) * r;
-    return [0, 1, 2].map((k) => foot[k]! + (top[k]! - foot[k]!) * t + out[k]! * c + fwd[k]! * s) as P3;
+    return [0, 1, 2].map((k) => foot[k]! + (top[k]! - foot[k]!) * t + out[k]! * c + fwd[k]! * s) as patternTypes.P3;
   };
   return cut(
     {
@@ -217,7 +214,7 @@ function sleeve(name: string, sx: -1 | 1, front: Cut, back: Cut): Cut {
           ],
         },
         { name: 'capF', pts: CAP_F },
-        { name: 'capB', pts: CAP_F.map(([x, y]): P2 => [-x, y]).reverse() },
+        { name: 'capB', pts: CAP_F.map(([x, y]): patternTypes.P2 => [-x, y]).reverse() },
         {
           name: 'seamL',
           pts: [
@@ -232,16 +229,18 @@ function sleeve(name: string, sx: -1 | 1, front: Cut, back: Cut): Cut {
       const cap = capAt(Math.abs(x)),
         w = smooth((y - cap.y + 260) / 260),
         at = tube(x, y);
-      if (w === 0) return at;
+      if (w === 0) {
+        return at;
+      }
       const seam = tube(x, cap.y),
         to = armhole(x >= 0 ? front : back, sx, cap.u);
-      return [0, 1, 2].map((k) => at[k]! + w * (to[k]! - seam[k]!)) as P3;
+      return [0, 1, 2].map((k) => at[k]! + w * (to[k]! - seam[k]!)) as patternTypes.P3;
     },
   );
 }
 
 /** Where the hoodR half's neck is sewn at `x` from the face's edge: along the front's neckline to its side, the back's to its middle, then on back. */
-function neckAt(x: number, front: Cut, back: Cut): P3 {
+function neckAt(x: number, front: Cut, back: Cut): patternTypes.P3 {
   const fl = polyLength(edgeOf(front, 'neckR')),
     bl = polyLength(edgeOf(back, 'neckR'));
   if (x <= fl) {
@@ -316,7 +315,7 @@ const sew = (a: string, ea: string, b: string, eb: string, flip = false) => ({
   flip,
 });
 
-export const HOODIE: Garment = {
+export const HOODIE: patternTypes.Garment = {
   pieces,
   materials: ['knit', 'rib'],
   seams: [

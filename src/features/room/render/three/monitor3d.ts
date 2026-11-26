@@ -16,11 +16,11 @@ import {
   Shape,
   Vector2,
   Vector3,
-  type BufferGeometry,
-  type Material,
 } from 'three';
+import type * as threeTypes from 'three';
 import { drawLockup } from '@/core/render/brands';
-import { extrude, instanced, paint, place, rectBox, SEG, softBox, type RectLike } from '@/core/render/three/geometry';
+import { extrude, instanced, paint, place, rectBox, SEG, softBox } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 
 /** The machine's scale: units a mm (the case and its parts are built at it too). */
@@ -29,7 +29,7 @@ type V3 = [number, number, number];
 
 /** A box of the monitor for the cables to go round: a layout rect and a depth range. */
 export interface MonitorBox {
-  r: RectLike;
+  r: geometryTypes.RectLike;
   z0: number;
   z1: number;
 }
@@ -53,7 +53,7 @@ const PAD = 1.6 * MM,
 /** The VESA 100 square's half: the bracket's screws. */
 const VESA = 50 * MM;
 
-export function monitorPlan(m: RectLike, deskY: number, z0: number): MonitorPlan {
+export function monitorPlan(m: geometryTypes.RectLike, deskY: number, z0: number): MonitorPlan {
   const cx = m.x + m.w / 2,
     vesa = { x: cx, y: m.y + m.h * 0.42 };
   const hump: MonitorBox = {
@@ -92,7 +92,7 @@ export interface MonitorSeat {
  * The video socket and the power cord's exit, under the panel's east end (layout `VIDEO_SOCKET` and `MONITOR_POWER`, 388 and 900 design units in
  * from its east edge): 8.6 mm up inside the housing, 1 mm behind the panel, the cable leaving down and back toward the wall.
  */
-export function monitorSeats(m: RectLike, z0: number): { video: MonitorSeat; power: MonitorSeat } {
+export function monitorSeats(m: geometryTypes.RectLike, z0: number): { video: MonitorSeat; power: MonitorSeat } {
   const k = m.w / 3300,
     y = -(m.y + m.h - 8.6 * MM),
     axis: V3 = [0, -0.6, -0.8];
@@ -109,7 +109,7 @@ export const MONITOR_PLUG = { w: 21 * MM, h: 10.5 * MM, l: 32 * MM };
  * A rounded slab: a `w` x `h` outline with corners of radius `rad`, full size over its straight depth `d`, its edges rolling in by `s` over `t`
  * at each end. Built along +z: the first roll over [-t, 0], the full size over [0, d], the second roll over [d, d + t].
  */
-function slab(w: number, h: number, d: number, t: number, s: number, rad: number): BufferGeometry {
+function slab(w: number, h: number, d: number, t: number, s: number, rad: number): threeTypes.BufferGeometry {
   const iw = w - 2 * s,
     ih = h - 2 * s,
     sh = new Shape();
@@ -139,7 +139,15 @@ function roundRect(p: Path, x0: number, y0: number, x1: number, y1: number, k: n
 }
 
 /** A step of the back housing: `r` full size from `zf` back to `zf - d`, its front roll hidden in what it stands on, its back roll its rounded edge. */
-function step(r: RectLike, zf: number, d: number, t: number, s: number, rad: number, m: Material): Mesh {
+function step(
+  r: geometryTypes.RectLike,
+  zf: number,
+  d: number,
+  t: number,
+  s: number,
+  rad: number,
+  m: threeTypes.Material,
+): Mesh {
   const g = slab(r.w, r.h, d, t, s, rad);
   g.rotateX(Math.PI);
   const o = new Mesh(g, m);
@@ -156,7 +164,7 @@ function along(o: Mesh, s: MonitorSeat, t: number): Mesh {
 }
 
 /** The rating label on the back: the maker, the model, the input, a serial's barcode and the approval marks. */
-function ratingLabel(): Material {
+function ratingLabel(): threeTypes.Material {
   const W = 600,
     H = 340;
   const t = paint(W, H, (c) => {
@@ -175,7 +183,9 @@ function ratingLabel(): Material {
     let x = 24;
     for (let k = 0; x < 360; k++) {
       const bw = 2 + ((k * 7919) % 5);
-      if (k % 2 === 0) c.fillRect(x, 182, bw, 90);
+      if (k % 2 === 0) {
+        c.fillRect(x, 182, bw, 90);
+      }
       x += bw;
     }
     c.font = '15px monospace';
@@ -191,11 +201,11 @@ function ratingLabel(): Material {
     c.arc(436, 290, 20, 0, Math.PI * 2);
     c.stroke();
   });
-  return mat(0xffffff, { map: t, roughness: 0.6 });
+  return mat(0xff_ff_ff, { map: t, roughness: 0.6 });
 }
 
 /** The power cord's strain relief: a ribbed rubber boot, 13.4 mm across at the housing, tapering to 8 mm round the cord, 22.5 mm long. */
-function strainRelief(): BufferGeometry {
+function strainRelief(): threeTypes.BufferGeometry {
   const y0 = -2.1 * MM,
     L = 22.5 * MM,
     pts: Vector2[] = [new Vector2(0, y0)];
@@ -211,17 +221,22 @@ function strainRelief(): BufferGeometry {
 }
 
 /** The body: everything but the picture, its glass and the power light. `screen` is the picture's rect. */
-export function monitorBody(m: RectLike, screen: RectLike, deskY: number, z0: number): Group {
+export function monitorBody(
+  m: geometryTypes.RectLike,
+  screen: geometryTypes.RectLike,
+  deskY: number,
+  z0: number,
+): Group {
   const R = new Group(),
     p = monitorPlan(m, deskY, z0),
     cx = m.x + m.w / 2,
     by = m.y + m.h;
-  const shell = mat(0x2a2d32, { roughness: 0.45, metalness: 0.2 }),
-    back = mat(0x2a2d32, { roughness: 0.6 }),
-    dark = mat(0x131518, { roughness: 0.75 });
-  const black = mat(0x050608, { roughness: 0.25 }),
-    rubber = mat(0x050608, { roughness: 0.92 }),
-    steel = mat(0x959aa3, { metalness: 0.8, roughness: 0.35 });
+  const shell = mat(0x2a_2d_32, { roughness: 0.45, metalness: 0.2 }),
+    back = mat(0x2a_2d_32, { roughness: 0.6 }),
+    dark = mat(0x13_15_18, { roughness: 0.75 });
+  const black = mat(0x05_06_08, { roughness: 0.25 }),
+    rubber = mat(0x05_06_08, { roughness: 0.92 }),
+    steel = mat(0x95_9a_a3, { metalness: 0.8, roughness: 0.35 });
 
   // the panel: a 7.8 mm slab, the glass's black border inside its 5.2 mm frame, round the picture down to the chin
   R.add(softBox(m, z0, z0 + 180, shell, 50));
@@ -234,15 +249,16 @@ export function monitorBody(m: RectLike, screen: RectLike, deskY: number, z0: nu
   });
   const logo = new Mesh(
     new PlaneGeometry(1400, 175),
-    mat(0xffffff, { map: name, transparent: true, roughness: 0.4, metalness: 0.3 }),
+    mat(0xff_ff_ff, { map: name, transparent: true, roughness: 0.4, metalness: 0.3 }),
   );
   logo.position.set(cx, -(glassBot + by) / 2, z0 + 181);
   R.add(logo);
   // five buttons under the chin's east end (the power button the last, by the light)
-  for (let k = 0; k < 5; k++)
+  for (let k = 0; k < 5; k++) {
     R.add(
       softBox({ x: m.x + m.w - 2050 + k * 330, y: by - 4, w: k === 4 ? 230 : 190, h: 34 }, z0 + 50, z0 + 140, dark, 12),
     );
+  }
 
   // the back: the skirt rolling off the panel's edge, the hump, the boss under the bracket
   const e = 1.6 * MM;
@@ -259,10 +275,13 @@ export function monitorBody(m: RectLike, screen: RectLike, deskY: number, z0: nu
   const vw = 13.9 * MM,
     vm = 40.6 * MM,
     gap = 3.2 * MM;
-  for (const y of [h.y + 34.2 * MM, h.y + 41.2 * MM])
-    for (let x = h.x + vm; x + vw < h.x + h.w - vm; x += 17.6 * MM)
-      if (x + vw < b.x - gap || x > b.x + b.w + gap)
+  for (const y of [h.y + 34.2 * MM, h.y + 41.2 * MM]) {
+    for (let x = h.x + vm; x + vw < h.x + h.w - vm; x += 17.6 * MM) {
+      if (x + vw < b.x - gap || x > b.x + b.w + gap) {
         vents.push({ x: x + vw / 2, y: -y, z: capZ, sx: vw, sy: 3.4 * MM, sz: 0.4 * MM });
+      }
+    }
+  }
   R.add(instanced(new BoxGeometry(1, 1, 1), dark, vents));
   // the rating label (it faces the wall), the lock slot
   const label = new Mesh(new PlaneGeometry(80 * MM, 45.5 * MM), ratingLabel());
@@ -287,12 +306,13 @@ export function monitorBody(m: RectLike, screen: RectLike, deskY: number, z0: nu
   );
   const head = new CylinderGeometry(5.1 * MM, 5.1 * MM, 1.4 * MM, SEG.post);
   head.rotateX(Math.PI / 2);
-  for (const dx of [-VESA, VESA])
+  for (const dx of [-VESA, VESA]) {
     for (const dy of [-VESA, VESA]) {
       const s = new Mesh(head, steel);
       s.position.set(v.x + dx, -(v.y + dy), plateZ - 3.7 * MM);
       R.add(place(s));
     }
+  }
   const c = p.column;
   R.add(
     softBox(
@@ -340,9 +360,11 @@ export function monitorBody(m: RectLike, screen: RectLike, deskY: number, z0: nu
   R.add(place(plate));
   const ph = 8.6 * MM,
     pin = 17.6 * MM;
-  for (const dx of [-80 * MM, 80 * MM])
-    for (const z of [f.z0 + pin, f.z1 - pin])
+  for (const dx of [-80 * MM, 80 * MM]) {
+    for (const z of [f.z0 + pin, f.z1 - pin]) {
       R.add(softBox({ x: cx + dx - ph, y: deskY - PAD, w: 2 * ph, h: PAD }, z - ph, z + ph, rubber, 0.5 * MM));
+    }
+  }
 
   // the ports at the bottom edge: the video socket's dark surround the plug leaves through, the power cord's ribbed boot
   const seat = monitorSeats(m, z0);
