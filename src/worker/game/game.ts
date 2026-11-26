@@ -303,7 +303,7 @@ export class Game {
       this.inventory.push({ id: `inv${this.nextInvId++}`, spec });
     }
     for (const q of this.cfg.startQueue) {
-      this.enqueue(q.template, q.scale);
+      this.enqueue({ template: q.template, scale: q.scale });
     }
     if (opts.preassembled) {
       for (const it of [...this.inventory]) {

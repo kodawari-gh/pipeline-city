@@ -41,7 +41,7 @@ const keys = (n: number): testkit.Keys => Array.from({ length: n }, () => ({ tem
 
 /** Put a job straight into the offer list (the offers channel), as a client would. */
 function offer(g: Game, template = 'cli.log', scale = 1): void {
-  g.enqueue(template, scale, undefined, true);
+  g.enqueue({ template, scale, net: true });
 }
 
 /** The save as it comes back from storage: written out as JSON text and read in again. */

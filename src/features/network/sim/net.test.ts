@@ -39,7 +39,7 @@ const nets = (g: Game) => net(g).state;
 
 /** Put a job straight into the offer list (the offers channel), as a client would. */
 function offer(g: Game, template = 'cli.log', scale = 1): void {
-  g.enqueue(template, scale, undefined, true);
+  g.enqueue({ template, scale, net: true });
 }
 
 /** The inventory id of a purchase that went through; the test fails with the shop's reason otherwise. */
@@ -127,7 +127,7 @@ const downloading = (g: Game): number[] =>
     .transfers.filter((t) => t.dir === 'down')
     .map((t) => t.jobId);
 /** The SLA pay factor at tick `t` of a job with its SLA at 100 and its deadline at 300. */
-const slaAt = (t: number): number => slaFactor(ECONOMY, t, 100, 300);
+const slaAt = (t: number): number => slaFactor({ cfg: ECONOMY, turnaround: t, slaTicks: 100, deadlineTicks: 300 });
 const pending = (id: number, arrival: number, cls: string) => ({ id, arrival, cls });
 const anyOffer = () => true;
 /** The OS queue holds `n` jobs again, or a job has already been delivered. */
@@ -597,7 +597,7 @@ describe('declining and expiry', () => {
   it('an unrunnable offer (web, no link) expires with the penalty', () => {
     const g = netRig('ssd1', { wait: false });
     // never linked: a web offer sits and expires at its deadline
-    g.enqueue('cli.calc', 2, 'web', true);
+    g.enqueue({ template: 'cli.calc', scale: 2, cls: 'web', net: true });
     const dl = must(g.snapshot().net.offers[0]).expiresTick;
     expect(g.snapshot().net.offers[0]?.runnable).toBe(false);
     g.disconnectCable('lan');
