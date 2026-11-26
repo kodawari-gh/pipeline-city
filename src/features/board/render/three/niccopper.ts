@@ -15,7 +15,8 @@
 // pairs and the lights' lines run east as one bus to the controller's west edge, closing to its pitch by 45-degree jogs; the crystal's two lines
 // join it. The SPI flash east of the controller, the regulator with its two inductors and polymer capacitors past it.
 import { BD_X } from '../layout/boardlayout';
-import { NIC_BRACKET_X, type Rect } from '../layout/layout';
+import { NIC_BRACKET_X } from '../layout/layout';
+import type * as layoutTypes from '../layout/layout';
 import { edgeNet, edgePins, FINGER, KEY, pinAt, TAB, tabLen } from './pcie';
 
 const MM = 23;
@@ -65,7 +66,7 @@ interface Pad {
   id: string;
   net: string;
   face: Face;
-  r: Rect;
+  r: layoutTypes.Rect;
   c: Pt;
   edge?: boolean | undefined;
 }
@@ -105,16 +106,16 @@ interface Can {
 }
 /** Where the packages sit (layout rects): the controller (a QFN, or a BGA under its sink), the crystal, the flash, the regulator, the inductors. */
 interface NicPlaces {
-  chip: Rect;
+  chip: layoutTypes.Rect;
   qfn: boolean;
-  sink: Rect | null;
-  crystal: Rect;
-  flash: Rect;
-  reg: Rect;
-  inductors: Rect[];
+  sink: layoutTypes.Rect | null;
+  crystal: layoutTypes.Rect;
+  flash: layoutTypes.Rect;
+  reg: layoutTypes.Rect;
+  inductors: layoutTypes.Rect[];
   cans: Can[];
-  label: Rect;
-  serial: Rect;
+  label: layoutTypes.Rect;
+  serial: layoutTypes.Rect;
 }
 export interface NicCopper {
   traces: Trace[];
@@ -150,9 +151,15 @@ const same = (a: Pt, b: Pt) => Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b
 /** The polyline without repeated or collinear points. */
 export function clean(pts: Pt[]): Pt[] {
   const out: Pt[] = [];
-  for (const p of pts) if (!out.length || !same(out[out.length - 1]!, p)) out.push(p);
+  for (const p of pts) {
+    if (out.length === 0 || !same(out.at(-1)!, p)) {
+      out.push(p);
+    }
+  }
   return out.filter((b, i) => {
-    if (i === 0 || i === out.length - 1) return true;
+    if (i === 0 || i === out.length - 1) {
+      return true;
+    }
     const a = out[i - 1]!,
       d = out[i + 1]!;
     return Math.abs((b[0] - a[0]) * (d[1] - b[1]) - (b[1] - a[1]) * (d[0] - b[0])) > 1e-9;
@@ -170,11 +177,13 @@ export function chamfer(pts: Pt[], c = 0.22): Pt[] {
       lu = Math.hypot(u[0]!, u[1]!),
       lv = Math.hypot(v[0]!, v[1]!),
       k = Math.min(c, lu / 3, lv / 3);
-    if (Math.abs(u[0]! * v[0]! + u[1]! * v[1]!) < 1e-9)
+    if (Math.abs(u[0]! * v[0]! + u[1]! * v[1]!) < 1e-9) {
       out.push([b[0] - (u[0]! / lu) * k, b[1] - (u[1]! / lu) * k], [b[0] + (v[0]! / lv) * k, b[1] + (v[1]! / lv) * k]);
-    else out.push(b);
+    } else {
+      out.push(b);
+    }
   }
-  out.push(pts[pts.length - 1]!);
+  out.push(pts.at(-1)!);
   return out;
 }
 /** Along y from p to `yj`, 45 degrees over to x = `t`, on along y to `y1`. */
@@ -230,7 +239,7 @@ const CONTACTS = [
   'CT3',
 ] as const;
 /** The edge pins the copper wires (the rest, the 12 V, JTAG and SMBus pins and the reserved ones, are left bare). */
-const WIRED = /^(GND|\+3V3|PERST#|WAKE#|REFCLK[+-]|PE[RT]\d[+-]|PRSNT[12]#)$/;
+const WIRED = /^(?<net>GND|\+3V3|PERST#|WAKE#|REFCLK[+-]|PE[RT]\d[+-]|PRSNT[12]#)$/u;
 
 /**
  * The card's copper on its frame `f` (layout: the PCB's west end and east end, the slot's line, the south edge), its finger tab from `tab.x` for
@@ -310,7 +319,7 @@ export function nicCopper(
     fy1 = fy0 + FINGER.len / MM,
     fs = fy1 - 0.3;
   const fingers: { side: 'A' | 'B'; net: string; x: number }[] = [];
-  for (const side of ['A', 'B'] as const)
+  for (const side of ['A', 'B'] as const) {
     for (let p = 1; p <= nPins; p++) {
       const n = edgeNet(side, p, lanes),
         net = !WIRED.test(n) ? `NC ${side}${p}` : n.startsWith('PRSNT') ? 'PRSNT#' : n,
@@ -325,14 +334,16 @@ export function nicCopper(
       });
       fingers.push({ side, net, x });
     }
+  }
   const face = (s: 'A' | 'B'): Face => (s === 'B' ? 'top' : 'bottom');
   type Line = { net: string; x: number; y: number };
   const top: Line[] = [],
     bot: Line[] = [];
   for (const g of fingers) {
     const L0: P = [g.x, fs];
-    if (g.net === 'GND') run('GND', [L0, [g.x, 1]], PWR, face(g.side));
-    else if (g.net === '+3V3') {
+    if (g.net === 'GND') {
+      run('GND', [L0, [g.x, 1]], PWR, face(g.side));
+    } else if (g.net === '+3V3') {
       run('+3V3', [L0, [g.x, 4]], PWR, face(g.side));
       via('+3V3', g.x, 4);
     } else if (g.net === 'PRSNT#' && g.side === 'A') {
@@ -351,13 +362,15 @@ export function nicCopper(
         SIG,
         'in1',
       );
-    } else if (/^PER\d/.test(g.net)) {
+    } else if (/^PER\d/u.test(g.net)) {
       // the card's transmit pair: through its AC-coupling capacitor on the back by the fingers
       const tx = g.net.replace('PER', 'TX'),
         [a, b] = part('cap', '0402', 'bottom', g.x, 3.4, true, [g.net, tx]);
       run(g.net, [L0, a], SIG, 'bottom');
       bot.push({ net: tx, x: g.x, y: b[1] });
-    } else if (!g.net.startsWith('NC')) (g.side === 'B' ? top : bot).push({ net: g.net, ...{ x: g.x, y: fs } });
+    } else if (!g.net.startsWith('NC')) {
+      (g.side === 'B' ? top : bot).push({ net: g.net, ...{ x: g.x, y: fs } });
+    }
   }
 
   // ---- the controller's north edge: the receive pairs and WAKE# on the component side, the rest from vias
@@ -425,7 +438,9 @@ export function nicCopper(
         // the centre tap: on the back to its capacitor, the other end in the ground pour
         const [, e] = part('cap', '0402', 'bottom', 8.4, y, false, ['GND', net]);
         run(net, [[x, y], e], SIG, 'bottom');
-      } else west.push({ net, x, y });
+      } else {
+        west.push({ net, x, y });
+      }
     });
     // the lights: each anode on the 3.3 V plane, each cathode through its resistor east of the jack into the bus
     for (const [col, ya, yk, k] of [
@@ -455,8 +470,9 @@ export function nicCopper(
       [13.4, jy + 0.1],
       [6.5, jy + 15.9],
       [13.4, jy + 15.9],
-    ] as const)
+    ] as const) {
       holes.push({ id: `${J}.S`, net: 'GND', x, y, ring: PIN.leg, drill: PIN.legDrill });
+    }
     npth.push({ x: 5.6, y: jy + 5, r: PIN.peg }, { x: 5.6, y: jy + 11, r: PIN.peg });
   });
   west.sort((a, b) => a.y - b.y);
@@ -561,7 +577,7 @@ export function nicCopper(
     const xe = chip.x + chip.w - 0.05,
       at = (k: number) => chip.y + 0.75 + 0.5 * k;
     spi.forEach((l, i) => {
-      const p = l.pts[l.pts.length - 1]!;
+      const p = l.pts.at(-1)!;
       run(l.net, [...l.pts.slice(0, -1), ...xJog(p, fw - 2.1, at(5 + i), xe)]);
     });
     qfnSide(
@@ -600,7 +616,7 @@ export function nicCopper(
     [rw, yR + 2.3],
   ]);
   via('V1P8', rw, yR + 2.3);
-  const inductors: Rect[] = [],
+  const inductors: layoutTypes.Rect[] = [],
     cans: Can[] = [];
   for (const [sw, out, s] of [
     ['SW1', 'VCORE', -1],
@@ -687,20 +703,29 @@ export function nicCopper(
       run(net, [[x, yv], a], SIG, 'bottom');
     });
     pad('U1.EP', 'GND', 'top', chip.x + chip.w / 2, chip.y + chip.h / 2, 5, 5);
-    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) via('GND', chip.x + 3 + 1.5 * i, chip.y + 3 + 1.5 * j);
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 3; j++) {
+        via('GND', chip.x + 3 + 1.5 * i, chip.y + 3 + 1.5 * j);
+      }
+    }
   } else {
     const net = (i: number, j: number) =>
       (i + j) % 2 === 0 ? 'GND' : Math.max(Math.abs(i - 4), Math.abs(j - 4)) <= 2 ? 'VCORE' : j < 4 ? '+3V3' : 'V1P8';
     const vx = (i: number) => chip.x + 4.5 + 2 * i,
       vy = (j: number) => chip.y + 4.5 + 2 * j;
-    for (let i = 0; i < 9; i++) for (let j = 0; j < 9; j++) via(net(i, j), vx(i), vy(j));
-    for (let j = 1; j < 9; j += 2)
+    for (let i = 0; i < 9; i++) {
+      for (let j = 0; j < 9; j++) {
+        via(net(i, j), vx(i), vy(j));
+      }
+    }
+    for (let j = 1; j < 9; j += 2) {
       for (let i = 0; i < 8; i += 2) {
         const n = net(i, j),
           [a, b] = part('cap', '0402', 'bottom', vx(i) + 1, vy(j), false, [n, 'GND']);
         run(n, [[vx(i), vy(j)], a], SIG, 'bottom');
         run('GND', [b, [vx(i + 1), vy(j)]], SIG, 'bottom');
       }
+    }
     const S = sink!,
       ys = S.y + S.h + 1.6;
     for (let k = 0; k < 12; k++) {
@@ -720,10 +745,15 @@ export function nicCopper(
     for (let k = 0; k < 16; k++) {
       const o = 0.75 + 0.5 * k,
         net = nets.get(k) ?? `NC U1.${s}${k}`;
-      if (s === 'N') pad(`U1.N${k}`, net, 'top', chip.x + o, chip.y + 0.05, 0.25, 0.8);
-      else if (s === 'S') pad(`U1.S${k}`, net, 'top', chip.x + o, chip.y + chip.h - 0.05, 0.25, 0.8);
-      else if (s === 'W') pad(`U1.W${k}`, net, 'top', chip.x + 0.05, chip.y + o, 0.8, 0.25);
-      else pad(`U1.E${k}`, net, 'top', chip.x + chip.w - 0.05, chip.y + o, 0.8, 0.25);
+      if (s === 'N') {
+        pad(`U1.N${k}`, net, 'top', chip.x + o, chip.y + 0.05, 0.25, 0.8);
+      } else if (s === 'S') {
+        pad(`U1.S${k}`, net, 'top', chip.x + o, chip.y + chip.h - 0.05, 0.25, 0.8);
+      } else if (s === 'W') {
+        pad(`U1.W${k}`, net, 'top', chip.x + 0.05, chip.y + o, 0.8, 0.25);
+      } else {
+        pad(`U1.E${k}`, net, 'top', chip.x + chip.w - 0.05, chip.y + o, 0.8, 0.25);
+      }
     }
   }
 
@@ -738,7 +768,7 @@ export function nicCopper(
       [3, H - 3],
     ],
     jx1 = (JACK_X + jackOf(visual).d - f.x0) / MM;
-  const keep: Rect[] = [
+  const keep: layoutTypes.Rect[] = [
     sink ?? chip,
     crystal,
     flashR,
@@ -775,16 +805,28 @@ export function nicCopper(
     holes.every((h) => ok(h.net, Math.hypot(h.x - x, h.y - y) - h.ring)) &&
     npth.every((h) => Math.hypot(h.x - x, h.y - y) - h.r >= vr + 0.5);
   const spots: Pt[] = [];
-  for (let x = 2; x <= L - 2; x += 4) spots.push([x, 1.2], [x, H - 1.2]);
-  for (let y = 5.2; y <= H - 5; y += 4) spots.push([1.2, y], [L - 1.2, y]);
-  for (let y = 8, k = 0; y <= H - 6; y += 8, k++) for (let x = 8 + (k % 2) * 5; x <= L - 6; x += 10) spots.push([x, y]);
-  for (const [x, y] of spots) if (room(x, y)) via('GND', x, y);
+  for (let x = 2; x <= L - 2; x += 4) {
+    spots.push([x, 1.2], [x, H - 1.2]);
+  }
+  for (let y = 5.2; y <= H - 5; y += 4) {
+    spots.push([1.2, y], [L - 1.2, y]);
+  }
+  for (let y = 8, k = 0; y <= H - 6; y += 8, k++) {
+    for (let x = 8 + (k % 2) * 5; x <= L - 6; x += 10) {
+      spots.push([x, y]);
+    }
+  }
+  for (const [x, y] of spots) {
+    if (room(x, y)) {
+      via('GND', x, y);
+    }
+  }
 
   // ---- to layout units
   const X = (x: number) => f.x0 + x * MM,
     Y = (y: number) => f.y0 + y * MM,
     pt = (p: Pt): Pt => [X(p[0]), Y(p[1])];
-  const rect = (r: Rect): Rect => ({ x: X(r.x), y: Y(r.y), w: r.w * MM, h: r.h * MM });
+  const rect = (r: layoutTypes.Rect): layoutTypes.Rect => ({ x: X(r.x), y: Y(r.y), w: r.w * MM, h: r.h * MM });
   const tabH = TAB / MM,
     ka = tx + KEY.at / MM,
     kb = ka + KEY.w / MM;

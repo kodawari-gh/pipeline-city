@@ -6,23 +6,24 @@
 // The lanes are in the drawing's own coordinates: the card's layout (y down, as the card is seen from its component side, which faces up when it lies flat), in the card's band of the shared
 // drawing (`TRACE_BAND`).
 import type { Rect } from '../layout/layout';
-import { mkLane, type Lane, type Pt } from '../wiring/routes';
+import { mkLane } from '../wiring/routes';
+import type * as routesTypes from '../wiring/routes';
 import type { NicCopper } from './niccopper';
 
 /** Each card's band along x in the shared drawing (layout units), so two cards in a machine never share a picture. A card is under 3400 long. */
 export const TRACE_BAND = 4000;
 
 /** The nets that carry frames on this face: the first jack's pairs, and the slot's receive pairs. */
-const MEDIA = /^J1MDI\d[+-]$/,
-  HOST = /^PET\d[+-]$/;
+const MEDIA = /^J1MDI\d[+-]$/u,
+  HOST = /^PET\d[+-]$/u;
 /** How far the drawing reaches past the lanes (layout units): the lit stroke's half width and its fade. */
 const MARGIN = 20;
 
 export interface NicLanes {
   /** The first jack's pairs, each from its contact to the controller. */
-  media: Lane[];
+  media: routesTypes.Lane[];
   /** The slot's receive pairs on the component side, each from its finger to the controller. */
-  host: Lane[];
+  host: routesTypes.Lane[];
   /** The part of the drawing the lanes cover. */
   rect: Rect;
   /** What is added to a layout x to get the drawing's: the card's west end sits at its band's start. */
@@ -36,23 +37,25 @@ export interface NicLanes {
 export function nicLanes(cu: NicCopper, slot: number): NicLanes {
   const west = Math.min(...cu.outline.map((p) => p[0])),
     off = slot * TRACE_BAND - west;
-  const to = (p: readonly [number, number]): Pt => [p[0] + off, p[1]];
-  const lane = (pts: readonly (readonly [number, number])[]): Lane => mkLane(pts.map(to));
+  const to = (p: readonly [number, number]): routesTypes.Pt => [p[0] + off, p[1]];
+  const lane = (pts: readonly (readonly [number, number])[]): routesTypes.Lane => mkLane(pts.map(to));
   // (a run is drawn from where it starts to where it ends: the jack's contact is west of the controller, a finger north of it)
   const media = cu.traces
     .filter((t) => t.layer === 'top' && MEDIA.test(t.net))
-    .map((t) => (t.pts[0]![0] <= t.pts[t.pts.length - 1]![0] ? t.pts : [...t.pts].reverse()));
+    .map((t) => (t.pts[0]![0] <= t.pts.at(-1)![0] ? t.pts : [...t.pts].reverse()));
   const host = cu.traces
     .filter((t) => t.layer === 'top' && HOST.test(t.net))
     .map((t) => {
-      const pts = t.pts[0]![1] <= t.pts[t.pts.length - 1]![1] ? t.pts : [...t.pts].reverse();
+      const pts = t.pts[0]![1] <= t.pts.at(-1)![1] ? t.pts : [...t.pts].reverse();
       // (on from the finger's middle: the gold the finger shows is the run's start)
       const finger = cu.pads.find((p) => p.edge && p.face === 'top' && p.net === t.net);
       return finger ? [finger.c, ...pts] : pts;
     });
   const lanes = { media: media.map(lane), host: host.map(lane) };
   const all = [...lanes.media, ...lanes.host].flatMap((l) => l.pts);
-  if (!all.length) return { ...lanes, rect: { x: slot * TRACE_BAND, y: 0, w: 0, h: 0 }, off };
+  if (all.length === 0) {
+    return { ...lanes, rect: { x: slot * TRACE_BAND, y: 0, w: 0, h: 0 }, off };
+  }
   const x0 = Math.min(...all.map((p) => p[0])) - MARGIN,
     y0 = Math.min(...all.map((p) => p[1])) - MARGIN,
     x1 = Math.max(...all.map((p) => p[0])) + MARGIN,

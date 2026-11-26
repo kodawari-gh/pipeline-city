@@ -4,42 +4,24 @@
 // bezel; under it the centrifugal fan in its scroll, which widens round the impeller to an outlet toward the bracket; the vapour chamber's fin
 // block over the die between the fan and the bracket; the air goes out through the bracket's honeycomb. Over the PCB's face, a brushed backplate
 // with the die's cut-out (its capacitor array and X bracket) and vents over the power stage. The top edge carries the name and the violet line.
-import {
-  BoxGeometry,
-  CylinderGeometry,
-  DoubleSide,
-  Group,
-  Mesh,
-  PlaneGeometry,
-  type Material,
-  type MeshStandardMaterial,
-  type Vector2,
-} from 'three';
-import { SEG, extrude, fanSides, instanced, place, rectBox, type RectLike } from '@/core/render/three/geometry';
+import { BoxGeometry, CylinderGeometry, DoubleSide, Group, Mesh, PlaneGeometry } from 'three';
+import type * as threeTypes from 'three';
+import { SEG, extrude, fanSides, instanced, place, rectBox } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { BRANDS } from '@/core/render/brands';
-import {
-  badgeTex,
-  brushed,
-  decal,
-  outlinePts,
-  screws,
-  shapeOf,
-  slab,
-  wallPt,
-  wallX,
-  type Span,
-  type Spot,
-} from './casekit3d';
+import { badgeTex, brushed, decal, outlinePts, screws, shapeOf, slab, wallPt, wallX } from './casekit3d';
+import type * as casekit3dTypes from './casekit3d';
 import type { Spin } from './fans3d';
-import { circle, dieBack, hubSticker, uvSpan, V, type CardFrame } from './gpu3d';
+import { circle, dieBack, hubSticker, uvSpan, V } from './gpu3d';
+import type * as gpu3dTypes from './gpu3d';
 import { COOLER_FROM } from './niccopper';
 import { decalMat, MM } from './pcbkit3d';
 
 /** Each AI card's finish: the shroud, its raised plateau (brushed), the intake's bezel, the backplate. */
 const LOOK: Record<string, { shroud: number; plateau: number; bezel: number; back: number }> = {
-  'npu-1': { shroud: 0x1b1d22, plateau: 0x3a3f48, bezel: 0x737a85, back: 0x1d2027 },
-  'npu-2': { shroud: 0x2a2e36, plateau: 0x4a505a, bezel: 0xb4bcc6, back: 0x353b45 },
+  'npu-1': { shroud: 0x1b_1d_22, plateau: 0x3a_3f_48, bezel: 0x73_7a_85, back: 0x1d_20_27 },
+  'npu-2': { shroud: 0x2a_2e_36, plateau: 0x4a_50_5a, bezel: 0xb4_bc_c6, back: 0x35_3b_45 },
 };
 const lookOf = (visual: string) => LOOK[visual] ?? LOOK['npu-1']!;
 
@@ -54,7 +36,7 @@ const RISE = 1.2 * MM,
  * the scroll's radius at a turn `a` (layout angle: 0 toward the far end, pi/2 toward the top edge) from its tongue `a0` to its end `a1`, the fin
  * block's span, and the die under the block's middle.
  */
-export function npuPlan(f: CardFrame) {
+export function npuPlan(f: gpu3dTypes.CardFrame) {
   // (the shroud starts east of the jacks of a NIC in the slot south of it, which stand toward it: `COOLER_FROM`)
   const xa = f.x0 + COOLER_FROM,
     xb = f.xe,
@@ -87,9 +69,9 @@ export function npuPlan(f: CardFrame) {
  */
 function impeller(r: number, h: number): Group {
   const rotor = new Group(),
-    discM = mat(0x131518, { roughness: 0.5 }),
-    bladeM = mat(0x1d1e22, { roughness: 0.44, side: DoubleSide }),
-    hubM = mat(0x1d1e22, { roughness: 0.42 });
+    discM = mat(0x13_15_18, { roughness: 0.5 }),
+    bladeM = mat(0x1d_1e_22, { roughness: 0.44, side: DoubleSide }),
+    hubM = mat(0x1d_1e_22, { roughness: 0.42 });
   const t = 0.8 * MM;
   rotor.add(
     place(
@@ -115,7 +97,7 @@ function impeller(r: number, h: number): Group {
         new CylinderGeometry(r * 0.43, r * 0.43, 0.15 * MM, SEG.drum)
           .rotateX(Math.PI / 2)
           .translate(0, 0, cup + 0.07 * MM),
-        [hubM, mat(0xffffff, { map: hubSticker('synapta'), roughness: 0.5 }), hubM],
+        [hubM, mat(0xff_ff_ff, { map: hubSticker('synapta'), roughness: 0.5 }), hubM],
       ),
     ),
   );
@@ -166,10 +148,10 @@ export function npuCooler(
   g: Group,
   spins: Spin[],
   visual: string,
-  f: CardFrame,
+  f: gpu3dTypes.CardFrame,
   Zp: number,
   ct: number,
-): MeshStandardMaterial {
+): threeTypes.MeshStandardMaterial {
   const P = npuPlan(f),
     L = lookOf(visual),
     { xa, xb, ya, yb, cy, r, fx, rIn } = P;
@@ -206,10 +188,13 @@ export function npuCooler(
     ),
   );
   // its screws: through the plate either side of the plateau
-  const spots: Spot[] = [];
-  for (const x of [xa + 5 * MM, (xa + fx) / 2, fx + r * 0.25])
-    for (const y of [ya + 6 * MM, yb - 6 * MM]) spots.push({ x, y: -y, z: zF });
-  g.add(screws(spots, 'z-', 1.6 * MM, mat(0x2a2d32, { metalness: 0.7, roughness: 0.4 })));
+  const spots: casekit3dTypes.Spot[] = [];
+  for (const x of [xa + 5 * MM, (xa + fx) / 2, fx + r * 0.25]) {
+    for (const y of [ya + 6 * MM, yb - 6 * MM]) {
+      spots.push({ x, y: -y, z: zF });
+    }
+  }
+  g.add(screws(spots, 'z-', 1.6 * MM, mat(0x2a_2d_32, { metalness: 0.7, roughness: 0.4 })));
   // ---- the walls: the slot's side, the top edge and the far end (chamfered as the plate), open at the bracket for the air out
   const k = c + 0.414 * WALL,
     T = WALL;
@@ -229,8 +214,8 @@ export function npuCooler(
   ];
   g.add(slab(shapeOf(U.map(([x, y]) => V(x, y))), zI - 2, zTop, shroudM, 3));
   // the scroll round the impeller, from its tongue by the outlet round to the top edge, wider as it goes
-  const outer: Vector2[] = [],
-    inner: Vector2[] = [];
+  const outer: threeTypes.Vector2[] = [],
+    inner: threeTypes.Vector2[] = [];
   for (let s = 0; s <= 64; s++) {
     const a = P.a0 + ((P.a1 - P.a0) * s) / 64,
       R = P.Rs(a);
@@ -250,11 +235,11 @@ export function npuCooler(
   // ---- the vapour chamber over the die and its fin block: plates along the card, 1.8 mm apart, the air runs between them to the bracket
   const F = P.fins,
     base = Zp - 2.8 * MM,
-    copper = mat(0xc0793a, { metalness: 0.9, roughness: 0.3 }),
-    finM = mat(0xb9babf, { metalness: 0.8, roughness: 0.32 });
+    copper = mat(0xc0_79_3a, { metalness: 0.9, roughness: 0.3 }),
+    finM = mat(0xb9_ba_bf, { metalness: 0.8, roughness: 0.32 });
   g.add(rectBox({ x: F.x0, y: F.y0, w: F.x1 - F.x0, h: F.y1 - F.y0 }, base, zTop, copper));
   const plates = [];
-  for (let y = F.y0 + 0.4 * MM; y < F.y1 - 0.2 * MM; y += 1.8 * MM)
+  for (let y = F.y0 + 0.4 * MM; y < F.y1 - 0.2 * MM; y += 1.8 * MM) {
     plates.push({
       x: (F.x0 + F.x1) / 2,
       y: -y,
@@ -263,9 +248,10 @@ export function npuCooler(
       sy: 0.3 * MM,
       sz: base - zI - 0.3 * MM,
     });
+  }
   g.add(instanced(new BoxGeometry(1, 1, 1), finM, plates));
   // ---- the top edge (it faces the glass, standing): the violet line either side of the name
-  const violet = mat(0xa68bff, { roughness: 0.38, metalness: 0.3 }),
+  const violet = mat(0xa6_8b_ff, { roughness: 0.38, metalness: 0.3 }),
     zl = (zI + zTop) / 2,
     eh = (zTop - zI) * 0.55,
     ew = eh * (1024 / 112),
@@ -273,8 +259,11 @@ export function npuCooler(
   for (const [b0, b1] of [
     [xa + 8 * MM, ex - ew / 2 - 4 * MM],
     [ex + ew / 2 + 4 * MM, xb - c - 4 * MM],
-  ] as const)
-    if (b1 - b0 > 200) g.add(rectBox({ x: b0, y: yb, w: b1 - b0, h: 5 }, zl - 0.5 * MM, zl + 0.5 * MM, violet));
+  ] as const) {
+    if (b1 - b0 > 200) {
+      g.add(rectBox({ x: b0, y: yb, w: b1 - b0, h: 5 }, zl - 0.5 * MM, zl + 0.5 * MM, violet));
+    }
+  }
   const edge = badgeTex('npu-edge', 1024, 112, 'synapta', '#c8ced8', BRANDS.synapta.colors.accent, null, { h: 0.86 });
   if (edge) {
     const d = new Mesh(
@@ -291,23 +280,28 @@ export function npuCooler(
  * The backplate over the PCB's face, from `Z + 4` to `Z + backT`: brushed, its far corners chamfered, a cut-out over the die (`dieBack`), vents
  * over the power stage east of it, the name engraved toward the top edge and screws round its rim.
  */
-export function npuBackplate(g: Group, visual: string, f: CardFrame, Z: number, backT: number): void {
+export function npuBackplate(g: Group, visual: string, f: gpu3dTypes.CardFrame, Z: number, backT: number): void {
   const { x0, xe, y0, end } = f,
     P = npuPlan(f),
     L = lookOf(visual),
     HOLE = 15 * MM,
-    die = P.die;
+    { die } = P;
   const backM = mat(L.back, { metalness: 0.7, roughness: 0.38, map: brushed() });
   const plate = { x: x0 + 40, y: y0 + 20, w: xe - 10 - x0 - 40, h: end - 10 - y0 - 20 },
-    holes: Vector2[][] = [];
+    holes: threeTypes.Vector2[][] = [];
   holes.push(outlinePts({ x: die.x - HOLE, y: die.y - HOLE, w: 2 * HOLE, h: 2 * HOLE }, 3 * MM));
-  const vents: RectLike[] = [];
-  for (let k = 0, x = die.x + HOLE + 5 * MM; k < 8 && x < P.fx - P.r; k++, x += 4 * MM)
-    for (const dy of [-20, 0, 20]) vents.push({ x, y: die.y + dy * MM - 7 * MM, w: 2.2 * MM, h: 14 * MM });
-  for (const v of vents) holes.push(outlinePts(v, 1.1 * MM));
+  const vents: geometryTypes.RectLike[] = [];
+  for (let k = 0, x = die.x + HOLE + 5 * MM; k < 8 && x < P.fx - P.r; k++, x += 4 * MM) {
+    for (const dy of [-20, 0, 20]) {
+      vents.push({ x, y: die.y + dy * MM - 7 * MM, w: 2.2 * MM, h: 14 * MM });
+    }
+  }
+  for (const v of vents) {
+    holes.push(outlinePts(v, 1.1 * MM));
+  }
   g.add(uvSpan(slab(shapeOf(outlinePts(plate, 30, [0, 5 * MM, 12 * MM, 0]), holes), Z + 4, Z + backT, backM, 3), 900));
   const nm = badgeTex('npu-back', 1024, 128, 'synapta', '#d4d9e0', null, null, { h: 0.86 });
-  if (nm)
+  if (nm) {
     g.add(
       decal(
         { x: P.fx - 26 * MM, y: end - 19 * MM, w: 52 * MM, h: 6.5 * MM },
@@ -315,33 +309,48 @@ export function npuBackplate(g: Group, visual: string, f: CardFrame, Z: number, 
         decalMat(nm, { rough: 0.35, metal: 0.5, cut: true }),
       ),
     );
+  }
   dieBack(g, `npu-back:${visual}`, die, HOLE, Z, 'NPU1');
-  const rim: Spot[] = [],
+  const rim: casekit3dTypes.Spot[] = [],
     xr = xe - 14 * MM;
-  for (const x of [x0 + 6 * MM, (x0 + xr) / 2, xr])
-    for (const y of [y0 + 5 * MM, end - 6 * MM]) rim.push({ x, y: -y, z: Z + backT });
-  g.add(screws(rim, 'z+', 1.9 * MM, mat(0x1d1e22, { metalness: 0.6, roughness: 0.4 })));
+  for (const x of [x0 + 6 * MM, (x0 + xr) / 2, xr]) {
+    for (const y of [y0 + 5 * MM, end - 6 * MM]) {
+      rim.push({ x, y: -y, z: Z + backT });
+    }
+  }
+  g.add(screws(rim, 'z+', 1.9 * MM, mat(0x1d_1e_22, { metalness: 0.6, roughness: 0.4 })));
 }
 
 /** A hexagon round a wall point (layout y and depth), `R` to its corners. */
-const hexAt = (y: number, z: number, R: number): Vector2[] =>
+const hexAt = (y: number, z: number, R: number): threeTypes.Vector2[] =>
   Array.from({ length: 6 }, (_, k) => wallPt(y + Math.sin((k * Math.PI) / 3) * R, z + Math.cos((k * Math.PI) / 3) * R));
 
 /**
  * The AI card's bracket, lying (`s` its plate: its depth along the lying y, its height along the lying z): the plate with a honeycomb cut through
  * it over the shroud's mouth, where the blower's air leaves the case (as far as the slot's bay reaches under the PCB: `SLOT_BAY`).
  */
-export function npuBracket(f: CardFrame, Zp: number, ct: number, x0: number, x1: number, s: Span, m: Material): Mesh {
+export function npuBracket(
+  f: gpu3dTypes.CardFrame,
+  Zp: number,
+  ct: number,
+  x0: number,
+  x1: number,
+  s: casekit3dTypes.Span,
+  m: threeTypes.Material,
+): Mesh {
   const P = npuPlan(f),
     R = 1.75 * MM,
     pitch = 4 * MM,
     dz = pitch * 0.866,
-    holes: Vector2[][] = [];
+    holes: threeTypes.Vector2[][] = [];
   const z0 = Math.max(Zp - ct + RISE + PLATE + 0.6 * MM + R, s.z0 + 20 + R),
     z1 = Zp - 0.8 * MM - R,
     y0 = P.ya + 2 * MM + R,
     y1 = P.yb - 3 * MM - R;
-  for (let j = 0, z = z0; z <= z1; j++, z += dz)
-    for (let y = y0 + (j % 2 ? pitch / 2 : 0); y <= y1; y += pitch) holes.push(hexAt(y, z, R));
+  for (let j = 0, z = z0; z <= z1; j++, z += dz) {
+    for (let y = y0 + (j % 2 ? pitch / 2 : 0); y <= y1; y += pitch) {
+      holes.push(hexAt(y, z, R));
+    }
+  }
   return wallX(x0, x1, s, holes, m);
 }

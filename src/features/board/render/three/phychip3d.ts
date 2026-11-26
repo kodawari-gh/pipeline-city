@@ -7,7 +7,8 @@ import { Group } from 'three';
 import type { RectLike } from '@/core/render/three/geometry';
 import { tag } from '@/core/render/three/pick';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { mirror, nicChip, type DieFloor, type NicChip } from './nicchip3d';
+import { mirror, nicChip } from './nicchip3d';
+import type * as nicchip3dTypes from './nicchip3d';
 import { CHIP_H } from './solids3d';
 
 /** The laser marking of each look: the chip, the standard it speaks, a date code. */
@@ -16,7 +17,7 @@ export const PHY_MARK: Record<string, readonly string[]> = {
   'board-ge': ['RL-E111', '1000BASE-T', '2241'],
 };
 
-export interface PhyChip extends NicChip {
+export interface PhyChip extends nicchip3dTypes.NicChip {
   /** The chip's group, tagged with the id of its part (`board.nic-ctl`): the body, the pad, the die and the frame of its floorplan. */
   root: Group;
   /** The rectangle the die's plan covers in the die's frame (`NicGeo.die`): what the live layer covers (`Chips3D.face`). */
@@ -27,7 +28,13 @@ export interface PhyChip extends NicChip {
  * The chip over its 2D rectangle `r` (layout), of look `look` (`boardLook`), its id `id`. `plan`: the rectangle the die's plan covers in its frame (`NicGeo.die`). `floor`: how to put the
  * floorplan on the die (none: a plain die). The die's rectangle, in the returned chip, is in layout units, as the board's.
  */
-export function phyChip(r: RectLike, look: string, id: string, plan: RectLike, floor?: DieFloor): PhyChip {
+export function phyChip(
+  r: RectLike,
+  look: string,
+  id: string,
+  plan: RectLike,
+  floor?: nicchip3dTypes.DieFloor,
+): PhyChip {
   const root = tag(new Group(), id);
   // (the die fills the package to a thin rim, as a card's QFN's does, and has the package's shape (`BOARD_DIE`): the floorplan covers the whole chip)
   const core = nicChip(root, mirror(r), true, BOARD_Z, PHY_MARK[look] ?? PHY_MARK['board-ge']!, mirror, plan, floor, {
