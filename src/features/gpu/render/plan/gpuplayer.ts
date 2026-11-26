@@ -2,6 +2,8 @@ import type { GpuStep } from '../../sim/isa/ref';
 import type { GpuSnap } from '@/worker/game/types';
 import { CYCLES_PER_SEC } from '@/features/cpu/render/die/diemotion';
 
+export { bankState, conflicted, laneActive, stepText } from './ticks';
+
 // The slow-motion replay of a graphics card's last instructions (the die's `Player` for the card; docs/render/live.md). A snapshot carries the
 // last instructions of the launch; the card runs far faster than the eye, so the replay walks that window at the die's pace (CYCLES_PER_SEC),
 // on the card's own clock: an instruction starts in the cycle it issued in (`startCycle`) and lasts as many cycles as it really costs, so on a
@@ -63,8 +65,8 @@ const IDLE: GpuTick = {
 };
 
 const sigOf = (g: GpuSnap): string => {
-  const a = g.trace[0],
-    z = g.trace[g.trace.length - 1];
+  const [a] = g.trace,
+    z = g.trace.at(-1);
   return `${g.launches}|${g.trace.length}|${a?.pc ?? -1}|${z?.pc ?? -1}|${z?.mask ?? 0}|${g.stats.cycles}`;
 };
 
@@ -115,7 +117,9 @@ export class GpuPlayer {
       return;
     }
     const sig = sigOf(g);
-    if (sig === this.sig) return;
+    if (sig === this.sig) {
+      return;
+    }
     this.sig = sig;
     if (g.trace.length === 0) {
       this.show([]);
@@ -126,8 +130,11 @@ export class GpuPlayer {
     if (g.launches !== this.launches || this.win.length === 0) {
       this.launches = g.launches;
       this.pending = null;
-      if (!this.frozen) this.show(g.trace);
-      else this.keep(g.trace);
+      if (!this.frozen) {
+        this.show(g.trace);
+      } else {
+        this.keep(g.trace);
+      }
       return;
     }
     this.pending = g.trace;
@@ -135,7 +142,9 @@ export class GpuPlayer {
 
   private keep(steps: GpuStep[]): void {
     this.past.push(steps);
-    if (this.past.length > HISTORY) this.past.shift();
+    if (this.past.length > HISTORY) {
+      this.past.shift();
+    }
   }
 
   private show(steps: GpuStep[]): void {
@@ -145,7 +154,9 @@ export class GpuPlayer {
     this.t = 0;
     this.hold = 0;
     this.fresh = true;
-    if (steps.length) this.keep(steps);
+    if (steps.length > 0) {
+      this.keep(steps);
+    }
   }
 
   /** Windows that can be sought back into (the one on show last). */
@@ -154,7 +165,7 @@ export class GpuPlayer {
   }
   /** Cycles in the newest window (what `seek(0, c)` can reach: 0..span). */
   get span(): number {
-    const last = this.pending ?? this.past[this.past.length - 1];
+    const last = this.pending ?? this.past.at(-1);
     return last ? timeline(last).total : 0;
   }
   /** The cycle the replay is at now. */
@@ -173,7 +184,9 @@ export class GpuPlayer {
       this.pending = null;
     } // the newest window is the one to look into
     const steps = this.past[this.past.length - 1 - Math.max(0, Math.min(back, this.past.length - 1))];
-    if (!steps) return IDLE;
+    if (!steps) {
+      return IDLE;
+    }
     const tl = timeline(steps);
     this.win = tl.items;
     this.total = tl.total;
@@ -186,9 +199,11 @@ export class GpuPlayer {
 
   /** Let the replay run again (the newest window replaces the sought one). */
   resume(): void {
-    if (!this.frozen) return;
+    if (!this.frozen) {
+      return;
+    }
     this.frozen = false;
-    const last = this.past[this.past.length - 1];
+    const last = this.past.at(-1);
     if (last) {
       const tl = timeline(last);
       this.win = tl.items;
@@ -215,10 +230,13 @@ export class GpuPlayer {
       }
     }
     this.fresh = false;
-    if (this.win.length === 0) return IDLE;
+    if (this.win.length === 0) {
+      return IDLE;
+    }
     if (!this.frozen) {
-      if (this.t < this.total) this.t = Math.min(this.total, this.t + dt * CYCLES_PER_SEC);
-      else {
+      if (this.t < this.total) {
+        this.t = Math.min(this.total, this.t + dt * CYCLES_PER_SEC);
+      } else {
         this.hold += dt;
         if (this.pending && this.hold >= HOLD_S) {
           const next = this.pending;
@@ -232,15 +250,16 @@ export class GpuPlayer {
   }
 
   private tick(): GpuTick {
-    const win = this.win,
-      t = this.t;
+    const { win, t } = this;
     // the newest instruction to have started by now, over the whole card and per SM and warp
     let at = 0;
     const smAt = new Map<number, number>(),
       warpAt = new Map<string, number>();
     for (let k = 0; k < win.length; k++) {
       const it = win[k]!;
-      if (it.t0 > t && k > 0) continue;
+      if (it.t0 > t && k > 0) {
+        continue;
+      }
       at = k;
       smAt.set(it.step.sm ?? 0, k);
       warpAt.set(`${it.step.sm ?? 0}.${it.step.warp ?? 0}`, k);
@@ -276,24 +295,4 @@ export class GpuPlayer {
       warps,
     };
   }
-}
-
-/** Is lane `k` active in the instruction on show? (No instruction: every lane is, the card's idle look.) */
-export const laneActive = (t: GpuTick, k: number): boolean => (t.step ? ((t.step.mask >>> k) & 1) === 1 : true);
-
-/** A bank's state during the instruction on show: the addresses queued on it and how many its rounds have served so far. */
-export function bankState(t: GpuTick, b: number): { queued: number; served: number } {
-  const queued = t.step?.banks?.[b] ?? 0;
-  return { queued, served: Math.min(queued, t.round + 1) };
-}
-
-/** Did this instruction lose cycles to a bank conflict? */
-export const conflicted = (t: GpuTick): boolean => !!t.step && t.step.cost > 1;
-
-/** The mnemonic on show, with the active lane count: `vld  6/8`. */
-export function stepText(t: GpuTick, lanes: number): string {
-  if (!t.step) return '';
-  let n = 0;
-  for (let k = 0; k < lanes; k++) if (laneActive(t, k)) n++;
-  return `${t.step.name.padEnd(6)} ${n}/${lanes}`;
 }

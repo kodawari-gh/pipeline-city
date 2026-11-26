@@ -1,8 +1,8 @@
-import { Container, Graphics, type Text } from 'pixi.js';
+import * as pixi from 'pixi.js';
 import { label, mix } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
 import type { OpClass } from '../../jobs/sim/jobcode';
-import { LENS_ROWS, type GpuLens } from './gpumem';
+import * as gpumem from './gpumem';
 import type { Rect } from '../../board/render/layout/layout';
 import { DEVICE_LOD, SHOWN, bandAlpha, onBand } from '@/core/render/lod/lod';
 
@@ -13,7 +13,7 @@ import { DEVICE_LOD, SHOWN, bandAlpha, onBand } from '@/core/render/lod/lod';
 const LENS_Z = DEVICE_LOD.gpu.lens;
 const LENS_W = 310,
   LINE = 11,
-  LENS_H = 16 + LENS_ROWS * LINE + 8 + 2 * 9 + 14;
+  LENS_H = 16 + gpumem.LENS_ROWS * LINE + 8 + 2 * 9 + 14;
 const CLASS_KEY: [OpClass, string][] = [
   ['alu', 'ALU'],
   ['ld', 'LOAD'],
@@ -24,15 +24,15 @@ const CLASS_KEY: [OpClass, string][] = [
 ];
 
 export class GpuLensView {
-  readonly root = new Container();
+  readonly root = new pixi.Container();
   /** The panel: its frame and texts in its own units, scaled and placed as a whole (the thread line is in card coordinates beside it). */
-  private readonly panel = new Container();
-  private readonly g = new Graphics();
-  private readonly link = new Graphics();
-  private title: Text | null = null;
-  private tag: Text | null = null;
-  private note: Text | null = null;
-  private rows: Text[] = [];
+  private readonly panel = new pixi.Container();
+  private readonly g = new pixi.Graphics();
+  private readonly link = new pixi.Graphics();
+  private title: pixi.Text | null = null;
+  private tag: pixi.Text | null = null;
+  private note: pixi.Text | null = null;
+  private rows: pixi.Text[] = [];
   private sig = '';
 
   constructor() {
@@ -50,11 +50,21 @@ export class GpuLensView {
    * Show `lens` above the memory block `block`, with a thread line down to `cell` (the touched cell of the memory map, card coordinates): the die's
    * other side is the card's edge, and the fans above have room. `fresh` is false once the instruction has moved on (the frame goes dimmer). `color` is the instruction's colour.
    */
-  set(T: Theme, lens: GpuLens | null, cell: Rect, block: Rect, zoom: number, color: string, fresh: boolean): void {
+  set(
+    T: Theme,
+    lens: gpumem.GpuLens | null,
+    cell: Rect,
+    block: Rect,
+    zoom: number,
+    color: string,
+    fresh: boolean,
+  ): void {
     const fade = bandAlpha(zoom, onBand(LENS_Z));
-    this.root.visible = !!lens && fade > SHOWN;
+    this.root.visible = lens !== null && fade > SHOWN;
     this.root.alpha = fade;
-    if (!this.root.visible || !lens) return;
+    if (!this.root.visible || !lens) {
+      return;
+    }
     const k = Math.min(1.05, 1.75 / zoom),
       w = LENS_W * k,
       h = LENS_H * k,
@@ -72,18 +82,15 @@ export class GpuLensView {
       .lineTo(cell.x + cell.w / 2, cell.y)
       .stroke({ width: Math.max(0.6, 1.2 / zoom), color, alpha: fresh ? 0.8 : 0.4 });
     const sig = `${lens.tag}|${lens.note}|${lens.rows.map((r) => r.addr + r.hex + r.text + (r.current ? '*' : '')).join(';')}|${color}|${fresh}`;
-    if (sig === this.sig) return;
+    if (sig === this.sig) {
+      return;
+    }
     this.sig = sig;
     this.draw(T, lens, color, fresh);
   }
 
-  private draw(T: Theme, lens: GpuLens, color: string, fresh: boolean): void {
-    const g = this.g,
-      classColor: Record<OpClass, string> = { alu: T.alu, ld: T.ld, st: T.st, mul: T.mul, br: T.br, sys: T.mute };
-    g.clear();
-    g.roundRect(0, 0, LENS_W, LENS_H, 5)
-      .fill({ color: mix(T.die, T.bg, 0.35), alpha: 0.97 })
-      .stroke({ width: 1.4, color, alpha: fresh ? 0.95 : 0.5 });
+  /** The panel's three labels (made on first use): the title, the tag in the instruction's colour, the note under the rows. */
+  private labels(T: Theme, lens: gpumem.GpuLens, color: string): void {
     if (!this.title) {
       this.title = label('', 8, 8, 9, T.ink, { minPx: 4, weight: '700' });
       this.panel.addChild(this.title);
@@ -93,7 +100,11 @@ export class GpuLensView {
       this.panel.addChild(this.tag);
     }
     if (!this.note) {
-      this.note = label('', 8, 16 + LENS_ROWS * LINE + 8, 7, T.mute, { minPx: 4, anchor: [0, 0], align: 'left' });
+      this.note = label('', 8, 16 + gpumem.LENS_ROWS * LINE + 8, 7, T.mute, {
+        minPx: 4,
+        anchor: [0, 0],
+        align: 'left',
+      });
       this.panel.addChild(this.note);
     }
     this.title.text = lens.title;
@@ -102,6 +113,16 @@ export class GpuLensView {
     this.tag.style.fill = color;
     this.note.text = lens.note;
     this.note.style.fill = T.mute;
+  }
+
+  private draw(T: Theme, lens: gpumem.GpuLens, color: string, fresh: boolean): void {
+    const { g } = this,
+      classColor: Record<OpClass, string> = { alu: T.alu, ld: T.ld, st: T.st, mul: T.mul, br: T.br, sys: T.mute };
+    g.clear();
+    g.roundRect(0, 0, LENS_W, LENS_H, 5)
+      .fill({ color: mix(T.die, T.bg, 0.35), alpha: 0.97 })
+      .stroke({ width: 1.4, color, alpha: fresh ? 0.95 : 0.5 });
+    this.labels(T, lens, color);
     // the key to the pills: what kind of instruction each colour is
     let kx = 8;
     for (const [c] of CLASS_KEY) {
@@ -110,8 +131,12 @@ export class GpuLensView {
     }
     lens.rows.forEach((row, i) => {
       const y = 16 + i * LINE;
-      if (row.current) g.rect(3, y, LENS_W - 6, LINE).fill({ color, alpha: 0.3 });
-      if (row.cls) g.roundRect(6, y + 2, 8, LINE - 4, 3).fill({ color: classColor[row.cls] });
+      if (row.current) {
+        g.rect(3, y, LENS_W - 6, LINE).fill({ color, alpha: 0.3 });
+      }
+      if (row.cls) {
+        g.roundRect(6, y + 2, 8, LINE - 4, 3).fill({ color: classColor[row.cls] });
+      }
       let t = this.rows[i];
       if (!t) {
         t = label('', 20, y + LINE / 2, 8, T.ink, { minPx: 4 });
@@ -122,7 +147,9 @@ export class GpuLensView {
       t.style.fill = row.cls || row.current ? T.ink : T.mute;
       t.visible = true;
     });
-    for (let i = lens.rows.length; i < this.rows.length; i++) this.rows[i]!.visible = false;
+    for (let i = lens.rows.length; i < this.rows.length; i++) {
+      this.rows[i]!.visible = false;
+    }
   }
 
   destroy(): void {
