@@ -6,5 +6,5 @@ const MODEL_FILES: Readonly<Record<string, { file: string; stretch?: boolean }>>
 /** The model for a part, or null. */
 export const modelOf = (visual: string, kind: string): { url: string; stretch: boolean } | null => {
   const m = MODEL_FILES[visual] ?? MODEL_FILES[kind];
-  return m ? { url: `${import.meta.env.BASE_URL}models/${m.file}`, stretch: !!m.stretch } : null;
+  return m ? { url: `${import.meta.env.BASE_URL}models/${m.file}`, stretch: Boolean(m.stretch) } : null;
 };

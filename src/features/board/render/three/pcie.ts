@@ -128,6 +128,8 @@ const SIDE_B: readonly string[] = [
  */
 export function edgeNet(side: 'A' | 'B', p: number, lanes: number): string {
   const n = (side === 'A' ? SIDE_A : SIDE_B)[p - 1] ?? 'NC';
-  if (n === 'PRSNT2#') return p === edgePins(lanes) - 1 ? n : 'NC';
+  if (n === 'PRSNT2#') {
+    return p === edgePins(lanes) - 1 ? n : 'NC';
+  }
   return n;
 }

@@ -5,18 +5,8 @@
 // loose); its long side along x, its keyed side (HDMI's cut corners, the RJ45's latch) at -y. A real socket (a card's, the monitor's) takes a
 // real plug. The board's rear I/O is drawn at about a third of real size: its plug's tip is cut to its mouth, and its boot keeps a real plug's
 // proportion to the cable, which stays as thick as at the far end.
-import {
-  BoxGeometry,
-  CylinderGeometry,
-  Group,
-  LatheGeometry,
-  Mesh,
-  Path,
-  Shape,
-  Vector2,
-  type BufferGeometry,
-  type Material,
-} from 'three';
+import { BoxGeometry, CylinderGeometry, Group, LatheGeometry, Mesh, Path, Shape, Vector2 } from 'three';
+import type * as threeTypes from 'three';
 import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 import { extrude, instanced, place, SEG, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
@@ -158,7 +148,7 @@ export const adapterLength = (f: QsfpFit): number =>
   rj45Length(rj45Jack(f.k, f.cable, f.tone)) + (ADAPTER.out - ADAPTER.sink) * f.k;
 
 /** A box in the plug's own frame. */
-function box(x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, m: Material): Mesh {
+function box(x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, m: threeTypes.Material): Mesh {
   const o = new Mesh(new BoxGeometry(x1 - x0, y1 - y0, z1 - z0), m);
   o.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
   return place(o);
@@ -182,7 +172,7 @@ function roundRect(p: Path, x0: number, y0: number, x1: number, y1: number, k: n
  * A moulded sleeve of any outline `sh` (drawn in by `bev`, the roll puts it back), `z0` to `z1` along z, its edges rolled `bev`, the whole of it drawn
  * in round its middle to `sx` x `sy` times its size at `z1`.
  */
-function loft(sh: Shape, sx: number, sy: number, z0: number, z1: number, bev: number, m: Material): Mesh {
+function loft(sh: Shape, sx: number, sy: number, z0: number, z1: number, bev: number, m: threeTypes.Material): Mesh {
   const d = Math.max(1, z1 - z0 - 2 * bev);
   const g = extrude(sh, {
       depth: d,
@@ -210,7 +200,7 @@ function taper(
   z1: number,
   r: number,
   bev: number,
-  m: Material,
+  m: threeTypes.Material,
 ): Mesh {
   const sh = new Shape();
   roundRect(sh, -w0 / 2 + bev, -h0 / 2 + bev, w0 / 2 - bev, h0 / 2 - bev, r - bev);
@@ -218,7 +208,15 @@ function taper(
 }
 
 /** A ribbed strain relief round the cable, along +z from `z0` (radius `r0`) to `z1` (radius `r1`), a rib every `pitch`. */
-function relief(z0: number, z1: number, r0: number, r1: number, pitch: number, rib: number, m: Material): Mesh {
+function relief(
+  z0: number,
+  z1: number,
+  r0: number,
+  r1: number,
+  pitch: number,
+  rib: number,
+  m: threeTypes.Material,
+): Mesh {
   const L = z1 - z0,
     n = Math.max(6, Math.round(L / (pitch / 2))),
     pts = [new Vector2(0, 0)];
@@ -228,7 +226,7 @@ function relief(z0: number, z1: number, r0: number, r1: number, pitch: number, r
     pts.push(new Vector2(r0 + (r1 - r0) * t + ridge, t * L));
   }
   pts.push(new Vector2(0, L));
-  const g: BufferGeometry = new LatheGeometry(pts, SEG.disc);
+  const g: threeTypes.BufferGeometry = new LatheGeometry(pts, SEG.disc);
   g.rotateX(Math.PI / 2);
   const o = new Mesh(g, m);
   o.position.z = z0;
@@ -259,10 +257,10 @@ export function hdmiPlug(f: HdmiFit): { body: Group; l: number } {
     b = bootScale(k, cable, HDMI.boot.h, 0.68),
     l = HDMI.l * b,
     g = new Group();
-  const nickel = mat(0xb9babf, { metalness: 0.9, roughness: 0.26 }),
-    black = mat(0x050608, { roughness: 0.7 }),
-    boot = mat(0x1d1e22, { roughness: 0.5 });
-  const goldM = mat(0xd4af5f, { metalness: 0.9, roughness: 0.3 });
+  const nickel = mat(0xb9_ba_bf, { metalness: 0.9, roughness: 0.26 }),
+    black = mat(0x05_06_08, { roughness: 0.7 }),
+    boot = mat(0x1d_1e_22, { roughness: 0.5 });
+  const goldM = mat(0xd4_af_5f, { metalness: 0.9, roughness: 0.3 });
   const zf = -l - HDMI.in * k,
     zs = -l + 3 * b,
     t = Math.max(2, 0.3 * k),
@@ -288,8 +286,12 @@ export function hdmiPlug(f: HdmiFit): { body: Group; l: number } {
     cl = 4.5 * k,
     cz = zi + 0.6 * k + cl / 2,
     pins = [];
-  for (let i = 0; i < 10; i++) pins.push({ x: (i - 4.5) * pitch, y: sh / 2 - ct / 2, z: cz, sx: cw, sy: ct, sz: cl });
-  for (let i = 0; i < 9; i++) pins.push({ x: (i - 4) * pitch, y: -sh / 2 + ct / 2, z: cz, sx: cw, sy: ct, sz: cl });
+  for (let i = 0; i < 10; i++) {
+    pins.push({ x: (i - 4.5) * pitch, y: sh / 2 - ct / 2, z: cz, sx: cw, sy: ct, sz: cl });
+  }
+  for (let i = 0; i < 9; i++) {
+    pins.push({ x: (i - 4) * pitch, y: -sh / 2 + ct / 2, z: cz, sx: cw, sy: ct, sz: cl });
+  }
   g.add(place(instanced(new BoxGeometry(1, 1, 1), goldM, pins)));
   // the collar, the boot, its ribs, the strain relief
   const z0 = -l + 1.2 * b,
@@ -314,7 +316,9 @@ export function hdmiPlug(f: HdmiFit): { body: Group; l: number } {
       u = (z - z1) / (z2 - z1),
       w = (B.w + (B.w1 - B.w) * u) * b,
       h = (B.h + (B.h1 - B.h) * u) * b;
-    for (const s of [-1, 1]) ribs.push({ x: 0, y: s * (h / 2 + 0.05 * b), z, sx: w * 0.62, sy: 0.5 * b, sz: 0.55 * b });
+    for (const s of [-1, 1]) {
+      ribs.push({ x: 0, y: s * (h / 2 + 0.05 * b), z, sx: w * 0.62, sy: 0.5 * b, sz: 0.55 * b });
+    }
   }
   g.add(place(instanced(new BoxGeometry(1, 1, 1), boot, ribs)));
   const r1 = cable + 0.35 * b,
@@ -324,7 +328,7 @@ export function hdmiPlug(f: HdmiFit): { body: Group; l: number } {
 }
 
 /** T568B: the eight wires' colours, pin 1 to 8 (white-orange, orange, white-green, blue, white-blue, green, white-brown, brown). */
-const PAIRS = [0xf0d7bd, 0xe8772b, 0xd3e8cf, 0x2f63c8, 0xd2dbf1, 0x3a9a4a, 0xe3d6c6, 0x7a4a2a];
+const PAIRS = [0xf0_d7_bd, 0xe8_77_2b, 0xd3_e8_cf, 0x2f_63_c8, 0xd2_db_f1, 0x3a_9a_4a, 0xe3_d6_c6, 0x7a_4a_2a];
 
 /**
  * An RJ45 plug: the clear polycarbonate body, the eight gold blades at 1.02 mm pitch in its front on the contact side, the eight wires (T568B) run
@@ -336,9 +340,9 @@ export function rj45Plug(f: Rj45Fit): { body: Group; l: number } {
     b = bootScale(k, cable, RJ45.boot.h, 0.62),
     l = RJ45.l * b,
     g = new Group();
-  const clear = mat(0xffffff, { transparent: true, opacity: 0.4, roughness: 0.1, metalness: 0 }),
-    lever = mat(0xffffff, { transparent: true, opacity: 0.6, roughness: 0.15 });
-  const goldM = mat(0xd4af5f, { metalness: 0.9, roughness: 0.3 }),
+  const clear = mat(0xff_ff_ff, { transparent: true, opacity: 0.4, roughness: 0.1, metalness: 0 }),
+    lever = mat(0xff_ff_ff, { transparent: true, opacity: 0.6, roughness: 0.15 });
+  const goldM = mat(0xd4_af_5f, { metalness: 0.9, roughness: 0.3 }),
     boot = mat(f.tone, { roughness: 0.55 });
   const zf = -l - RJ45.in * k,
     zb = -l + RJ45.out * b,
@@ -366,7 +370,7 @@ export function rj45Plug(f: Rj45Fit): { body: Group; l: number } {
   g.add(place(jacket));
   // the blades, standing in their slots at the front with their tops at the contact face
   const blades = [];
-  for (let i = 0; i < 8; i++)
+  for (let i = 0; i < 8; i++) {
     blades.push({
       x: (i - 3.5) * pitch,
       y: hy - 1.25 * k,
@@ -375,6 +379,7 @@ export function rj45Plug(f: Rj45Fit): { body: Group; l: number } {
       sy: 2.4 * k,
       sz: 3 * k,
     });
+  }
   g.add(place(instanced(new BoxGeometry(1, 1, 1), goldM, blades)));
   const shell = softBox({ x: -B.w / 2, y: -hy, w: B.w, h: B.h }, zf, zb, clear, 0.6 * k);
   shell.renderOrder = 1;
@@ -407,8 +412,9 @@ export function rj45Plug(f: Rj45Fit): { body: Group; l: number } {
       u = (z - zb) / (z2 - zb),
       w = (R.w + (R.w1 - R.w) * u) * b,
       h = (R.h + (R.h1 - R.h) * u) * b;
-    for (const s of [-1, 1])
+    for (const s of [-1, 1]) {
       ridges.push({ x: s * (w / 2 + 0.05 * b), y: 0, z, sx: 0.5 * b, sy: h * 0.66, sz: 0.6 * b });
+    }
   }
   g.add(place(instanced(new BoxGeometry(1, 1, 1), boot, ridges)));
   const r1 = cable + 0.3 * b,
@@ -419,7 +425,7 @@ export function rj45Plug(f: Rj45Fit): { body: Group; l: number } {
 }
 
 /** The pull tab: a strip `w` wide (along x) from `z0` to `z1`, its far end rounded round a ring's hole (radius `ring`), `t` thick, its top face at `y`. */
-function pullTab(w: number, z0: number, z1: number, ring: number, t: number, y: number, m: Material): Mesh {
+function pullTab(w: number, z0: number, z1: number, ring: number, t: number, y: number, m: threeTypes.Material): Mesh {
   const r = w / 2,
     zc = z1 - r,
     s = new Shape(),
@@ -440,16 +446,18 @@ function pullTab(w: number, z0: number, z1: number, ring: number, t: number, y: 
 
 /** A QSFP+ module's nose, ahead of the cage's mouth (at z = `zf`): the dark recess in its face with the two rows of gold fingers of its card edge in it. */
 function qsfpNose(g: Group, B: { w: number; h: number }, k: number, zf: number): void {
-  const dark = mat(0x050608, { roughness: 0.7 }),
-    goldM = mat(0xd4af5f, { metalness: 0.9, roughness: 0.3 });
+  const dark = mat(0x05_06_08, { roughness: 0.7 }),
+    goldM = mat(0xd4_af_5f, { metalness: 0.9, roughness: 0.3 });
   const iw = B.w - 2.4 * k,
     ih = 3.4 * k,
     pitch = 0.8 * k,
     fingers = [];
   g.add(box(-iw / 2, iw / 2, -ih / 2, ih / 2, zf - 0.08 * k, zf + 0.3 * k, dark));
-  for (const s of [-1, 1])
-    for (let i = 0; i < 19; i++)
+  for (const s of [-1, 1]) {
+    for (let i = 0; i < 19; i++) {
       fingers.push({ x: (i - 9) * pitch, y: s * 0.95 * k, z: zf - 0.1 * k, sx: 0.42 * k, sy: 1.1 * k, sz: 0.1 * k });
+    }
+  }
   g.add(place(instanced(new BoxGeometry(1, 1, 1), goldM, fingers)));
 }
 
@@ -463,9 +471,9 @@ export function qsfpPlug(f: QsfpFit): { body: Group; l: number } {
     b = bootScale(k, cable, Q.boot.h, 0.6),
     l = Q.l * b,
     g = new Group();
-  const zinc = mat(0x959aa3, { metalness: 0.85, roughness: 0.42 }),
+  const zinc = mat(0x95_9a_a3, { metalness: 0.85, roughness: 0.42 }),
     boot = mat(f.tone, { roughness: 0.55 }),
-    tabM = mat(0x16294d, { roughness: 0.5 });
+    tabM = mat(0x16_29_4d, { roughness: 0.5 });
   const hx = B.w / 2,
     hy = B.h / 2,
     zf = -l - Q.in * k,
@@ -475,8 +483,8 @@ export function qsfpPlug(f: QsfpFit): { body: Group; l: number } {
   qsfpNose(g, B, k, zf);
   // the grip: four ribs across each broad face, on the part that stands out of the cage
   const grip = [];
-  for (let i = 0; i < 4; i++)
-    for (const s of [-1, 1])
+  for (let i = 0; i < 4; i++) {
+    for (const s of [-1, 1]) {
       grip.push({
         x: 0,
         y: s * (hy + 0.12 * k),
@@ -485,6 +493,8 @@ export function qsfpPlug(f: QsfpFit): { body: Group; l: number } {
         sy: 0.4 * k,
         sz: 0.7 * k,
       });
+    }
+  }
   g.add(place(instanced(new BoxGeometry(1, 1, 1), zinc, grip)));
   // the collar, the boot with its ribs, the strain relief
   const T = Q.boot,
@@ -508,7 +518,9 @@ export function qsfpPlug(f: QsfpFit): { body: Group; l: number } {
       u = (z - z1) / (z2 - z1),
       w = (T.w + (T.w1 - T.w) * u) * b,
       h = (T.h + (T.h1 - T.h) * u) * b;
-    for (const s of [-1, 1]) ribs.push({ x: 0, y: s * (h / 2 + 0.05 * b), z, sx: w * 0.62, sy: 0.5 * b, sz: 0.6 * b });
+    for (const s of [-1, 1]) {
+      ribs.push({ x: 0, y: s * (h / 2 + 0.05 * b), z, sx: w * 0.62, sy: 0.5 * b, sz: 0.6 * b });
+    }
   }
   g.add(place(instanced(new BoxGeometry(1, 1, 1), boot, ribs)));
   const r1 = cable + 0.3 * b,
@@ -536,9 +548,9 @@ export function adapterPlug(f: QsfpFit): { body: Group; l: number } {
     rj = rj45Plug(rj45Jack(k, cable, f.tone)),
     l = adapterLength(f),
     g = new Group();
-  const zinc = mat(0x959aa3, { metalness: 0.85, roughness: 0.42 }),
-    dark = mat(0x050608, { roughness: 0.7 }),
-    tabM = mat(0x16294d, { roughness: 0.5 });
+  const zinc = mat(0x95_9a_a3, { metalness: 0.85, roughness: 0.42 }),
+    dark = mat(0x05_06_08, { roughness: 0.7 }),
+    tabM = mat(0x16_29_4d, { roughness: 0.5 });
   const hx = B.w / 2,
     hy = B.h / 2,
     sw = A.sfp.w * k,
@@ -551,8 +563,8 @@ export function adapterPlug(f: QsfpFit): { body: Group; l: number } {
   g.add(softBox({ x: -hx, y: -hy, w: B.w, h: B.h }, zf, zq, zinc, 0.5 * k));
   qsfpNose(g, B, k, zf);
   const ribs = [];
-  for (let i = 0; i < 4; i++)
-    for (const s of [-1, 1])
+  for (let i = 0; i < 4; i++) {
+    for (const s of [-1, 1]) {
       ribs.push({
         x: 0,
         y: s * (hy + 0.12 * k),
@@ -561,10 +573,13 @@ export function adapterPlug(f: QsfpFit): { body: Group; l: number } {
         sy: 0.4 * k,
         sz: 0.7 * k,
       });
+    }
+  }
   // the SFP+ module: a narrower body, five fins across its top, and the dark RJ45 mouth a hair proud of its face
   g.add(softBox({ x: -sw / 2, y: -sh / 2, w: sw, h: sh }, zq - 0.6 * k, zo, zinc, 0.4 * k));
-  for (let i = 0; i < 5; i++)
+  for (let i = 0; i < 5; i++) {
     ribs.push({ x: 0, y: sh / 2 + 0.12 * k, z: zq + (5 + i * 5.5) * k, sx: sw * 0.78, sy: 0.4 * k, sz: 1.6 * k });
+  }
   g.add(place(instanced(new BoxGeometry(1, 1, 1), zinc, ribs)));
   g.add(
     box(
@@ -692,7 +707,9 @@ function lozengeShape(k: number, inset = 0, seg: number = SEG.plug): Shape {
   const s = new Shape(),
     p = lozenge(inset, seg);
   s.moveTo(p[0]![0] * k, p[0]![1] * k);
-  for (let i = 1; i < p.length; i++) s.lineTo(p[i]![0] * k, p[i]![1] * k);
+  for (let i = 1; i < p.length; i++) {
+    s.lineTo(p[i]![0] * k, p[i]![1] * k);
+  }
   s.closePath();
   return s;
 }
@@ -708,8 +725,8 @@ export function swissPlug(f: SwissFit): { body: Group; l: number } {
     l = SWISS.l * b,
     g = new Group();
   const shell = mat(f.tone, { roughness: 0.55 }),
-    pin = mat(0xb9babf, { metalness: 0.9, roughness: 0.25 }),
-    sleeve = mat(0x050608, { roughness: 0.6 });
+    pin = mat(0xb9_ba_bf, { metalness: 0.9, roughness: 0.25 }),
+    sleeve = mat(0x05_06_08, { roughness: 0.6 });
   const P = SWISS.pin,
     H = SWISS.head,
     S = SWISS.shoulder,
@@ -718,7 +735,15 @@ export function swissPlug(f: SwissFit): { body: Group; l: number } {
     zb = zs - H.l * k,
     rp = (P.d / 2) * k;
   // (a rod along z at (x, y) from z0 to z1)
-  const rod = (x: number, y: number, z0: number, z1: number, r: number, m: Material, sides: number = SEG.part) => {
+  const rod = (
+    x: number,
+    y: number,
+    z0: number,
+    z1: number,
+    r: number,
+    m: threeTypes.Material,
+    sides: number = SEG.part,
+  ) => {
     const o = new Mesh(new CylinderGeometry(r, r, z1 - z0, sides).rotateX(Math.PI / 2), m);
     o.position.set(x * k, y * k, (z0 + z1) / 2);
     return place(o);
@@ -727,11 +752,12 @@ export function swissPlug(f: SwissFit): { body: Group; l: number } {
   const yl = T13.ln,
     ye = T13.ln - T13.earth,
     tip = zb - P.l * k;
-  for (const s of [-1, 1])
+  for (const s of [-1, 1]) {
     g.add(
       rod((s * T13.pitch) / 2, yl, tip, zb + 0.5 * k, rp, pin),
       rod((s * T13.pitch) / 2, yl, zb - P.sleeve * k, zb + 0.5 * k, rp * 1.2, sleeve),
     );
+  }
   g.add(
     rod(0, ye, tip, zb + 0.5 * k, rp, pin),
     rod(0, ye, zb - P.collarL * k, zb + 0.5 * k, (P.collar / 2) * k, sleeve),
@@ -747,14 +773,15 @@ export function swissPlug(f: SwissFit): { body: Group; l: number } {
     roll2 = 1.4;
   g.add(loft(lozengeShape(k, roll1 - S.out), 1, 1, zs, zg + 0.5 * k, roll1 * k, shell));
   g.add(loft(lozengeShape(k, roll2 + 0.2), end, end, zg, z2, roll2 * k, shell));
-  const hh = T13.hex[0]![1],
+  const [, hh] = T13.hex[0]!,
     half = (z: number) => (hh - 0.2) * (1 - (1 - end) * ((z - zg) / (z2 - zg))) * k,
     ribs = [];
   for (let i = 0; i < G.ribs; i++) {
     const z = zg + ((i + 0.8) / (G.ribs + 0.3)) * (z2 - zg),
       s = half(z) / (hh * k);
-    for (const side of [-1, 1])
+    for (const side of [-1, 1]) {
       ribs.push({ x: 0, y: side * (half(z) + 0.05 * k), z, sx: 9 * k * s, sy: 0.7 * k, sz: 1.1 * k });
+    }
   }
   g.add(place(instanced(new BoxGeometry(1, 1, 1), shell, ribs)));
   // the ribbed strain relief down to the cord

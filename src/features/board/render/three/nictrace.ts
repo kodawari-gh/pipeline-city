@@ -41,7 +41,9 @@ export class NicTraceView {
 
   clear(): void {
     this.cards.clear();
-    for (const ch of this.root.removeChildren()) ch.destroy({ children: true });
+    for (const ch of this.root.removeChildren()) {
+      ch.destroy({ children: true });
+    }
   }
 
   /** A card's lanes: its lit runs live in the shared drawing from now on. */
@@ -63,11 +65,14 @@ export class NicTraceView {
    */
   launch(slot: string, dir: NicDir, at: number, total: number): number {
     const c = this.cards.get(slot),
-      T = this.T;
-    if (!c || !T) return 0;
+      { T } = this;
+    if (!c || !T) {
+      return 0;
+    }
     const lead = this.lead(slot, dir);
-    if (dir === 'rx') c.flow.send(c.lanes.media, 1, T.alu, at, LIT_W);
-    else {
+    if (dir === 'rx') {
+      c.flow.send(c.lanes.media, 1, T.alu, at, LIT_W);
+    } else {
       c.flow.send(c.lanes.host, 1, T.mul, at, LIT_W);
       c.flow.send(c.lanes.media, -1, T.mul, at, LIT_W, lead + total);
     }
@@ -80,18 +85,23 @@ export class NicTraceView {
    */
   pulse(slot: string, bus: 'host' | 'mem', dir: 1 | -1): void {
     const c = this.cards.get(slot),
-      T = this.T;
-    if (!c || !T || !c.sight.shown || this.clock - c.last[bus] < PULSE_GAP) return;
+      { T } = this;
+    if (!c || !T || !c.sight.shown || this.clock - c.last[bus] < PULSE_GAP) {
+      return;
+    }
     c.last[bus] = this.clock;
     const lanes = bus === 'host' ? c.lanes.host : c.lanes.media;
-    if (lanes.length)
+    if (lanes.length > 0) {
       c.flow.send(lanes, dir, bus === 'host' ? (dir > 0 ? T.alu : T.st) : dir > 0 ? T.st : T.ld, this.clock, LIT_W);
+    }
   }
 
   /** The camera's zoom and view over the card's copper (`Chips3D.frame` reads it from the card's own frame: the card folds down). */
   setSight(slot: string, sight: TraceSight): void {
     const c = this.cards.get(slot);
-    if (c) c.sight = sight;
+    if (c) {
+      c.sight = sight;
+    }
   }
 
   /** Whether a card's copper has a packet on it (or one due): a quiet card has nothing to draw. */
@@ -102,6 +112,8 @@ export class NicTraceView {
   /** Per frame, at the view's clock `now` (game ms: it holds while the game is paused, so the packets do). A card that is not seen only lets its packets age. */
   frame(now: number): void {
     this.clock = now;
-    for (const c of this.cards.values()) c.flow.frame(now, c.sight.zoom, c.sight.shown);
+    for (const c of this.cards.values()) {
+      c.flow.frame(now, c.sight.zoom, c.sight.shown);
+    }
   }
 }
