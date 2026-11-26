@@ -1,7 +1,9 @@
 // The heatsinks over the board's VRMs (specs `vrm-sink`, `ram-sink`), built into a group in board space: the live board and the showcase share it.
-import { BoxGeometry, Mesh, Vector2, type Group, type MeshStandardMaterial } from 'three';
+import { BoxGeometry, Mesh, Vector2 } from 'three';
+import type * as threeTypes from 'three';
 import type { Theme } from '@/core/render/theme';
-import { SEG, drum, place, rectBox, rod, softBox, type RectLike } from '@/core/render/three/geometry';
+import { SEG, drum, place, rectBox, rod, softBox } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { mergeStatic } from '@/core/render/three/merge';
 import { NYLON, mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
@@ -17,10 +19,10 @@ import { fanDepth } from './fans3d';
  * casting's material, which the airflow lens's thermal view makes glow.
  */
 export interface SinkFit {
-  spot: RectLike | null;
+  spot: geometryTypes.RectLike | null;
   foot: number;
   top: number;
-  skin: MeshStandardMaterial[];
+  skin: threeTypes.MeshStandardMaterial[];
 }
 
 /**
@@ -52,9 +54,11 @@ const FOOT = { 'vrm-sink': [12, 162], 'ram-sink': [4, 110] } as const;
 /** The two screws through the board: in each sink's end phases, where the phase art leaves room (`vrmPhaseArt`, `dramPhaseArt`), under its foot. */
 function screwSpots(kind: 'vrm-sink' | 'ram-sink'): [number, number][] {
   const ps = kind === 'vrm-sink' ? GEO.vrmPhases : GEO.dPhases,
-    a = ps[0],
-    b = ps[ps.length - 1];
-  if (!a || !b) return [];
+    [a] = ps,
+    b = ps.at(-1);
+  if (!a || !b) {
+    return [];
+  }
   return kind === 'vrm-sink'
     ? [
         [a.x + 295, a.y + 105],
@@ -74,7 +78,7 @@ function screwSpots(kind: 'vrm-sink' | 'ram-sink'): [number, number][] {
  * of finer fins between two side walls, the 40 mm fan sunk on them blowing down, a cover over it with a round grille; the air leaves along
  * the fin channels, open at both ends.
  */
-export function sinkBody(g: Group, T: Theme, kind: 'vrm-sink' | 'ram-sink', visual: string): SinkFit {
+export function sinkBody(g: threeTypes.Group, T: Theme, kind: 'vrm-sink' | 'ram-sink', visual: string): SinkFit {
   const r = kind === 'vrm-sink' ? VRM_SINK : RAM_SINK,
     fan = visual === 'vrm-sink-fan',
     big = visual === 'vrm-sink-big';
@@ -101,12 +105,12 @@ export function sinkBody(g: Group, T: Theme, kind: 'vrm-sink' | 'ram-sink', visu
       { x: foot.x + 14, y: foot.y + 8, w: foot.w - 28, h: foot.h - 16 },
       Z.pad,
       Z.foot,
-      mat(0x959aa3, { roughness: 0.85 }),
+      mat(0x95_9a_a3, { roughness: 0.85 }),
     ),
   );
   g.add(slab(shapeOf(outlinePts(foot, 0, [24, 24, 24, 24])), Z.foot, Z.block + 2, anod, 6));
   g.add(slab(shapeOf(outlinePts(r, 0, [44, 44, 44, 44])), Z.block, Z.root, anod, 8));
-  if (sk.insert)
+  if (sk.insert) {
     g.add(
       rectBox(
         { x: r.x + 60, y: r.y + r.h - 2, w: r.w - 120, h: 6 },
@@ -115,6 +119,7 @@ export function sinkBody(g: Group, T: Theme, kind: 'vrm-sink' | 'ram-sink', visu
         mat(hexNum(sk.insert), { metalness: 0.6, roughness: 0.38, map: tiled(brushed(), 8, 1) }),
       ),
     );
+  }
   for (const f of p.fins ?? []) {
     // (under the fan's housing the rails stop at its underside)
     const t = Math.max(12, f.h * 0.5),
@@ -128,12 +133,15 @@ export function sinkBody(g: Group, T: Theme, kind: 'vrm-sink' | 'ram-sink', visu
           [Math.max(a, H.x), Math.min(b, H.x + H.w), HEAD.base + 2],
         ]
       : [[a, b, top]];
-    for (const [x0, x1, z1] of runs)
-      if (x1 - x0 > 20) g.add(softBox({ x: x0, y, w: x1 - x0, h: t }, Z.root - 10, z1, anod, 6));
+    for (const [x0, x1, z1] of runs) {
+      if (x1 - x0 > 20) {
+        g.add(softBox({ x: x0, y, w: x1 - x0, h: t }, Z.root - 10, z1, anod, 6));
+      }
+    }
   }
   if (p.pipe) {
     const px = p.pipe.x + p.pipe.w / 2,
-      cu = mat(0xc0793a, { metalness: 0.8, roughness: 0.36 }),
+      cu = mat(0xc0_79_3a, { metalness: 0.8, roughness: 0.36 }),
       ya = -(p.pipe.y + 20),
       yb = -(p.pipe.y + p.pipe.h - 20);
     g.add(
@@ -143,7 +151,7 @@ export function sinkBody(g: Group, T: Theme, kind: 'vrm-sink' | 'ram-sink', visu
     );
   }
   // the screws: a boss of the casting on a nylon washer on the board, the shaft through it, a washer and the head behind
-  const steel = mat(0x959aa3, { metalness: 0.8, roughness: 0.32 }),
+  const steel = mat(0x95_9a_a3, { metalness: 0.8, roughness: 0.32 }),
     nylon = mat(NYLON, { roughness: 0.7 });
   for (const [x, y] of screwSpots(kind)) {
     g.add(
@@ -160,7 +168,7 @@ export function sinkBody(g: Group, T: Theme, kind: 'vrm-sink' | 'ram-sink', visu
   // instanced one does not: the fins and the spokes are `copies`)
   const copies = (
     geo: BoxGeometry,
-    m: MeshStandardMaterial,
+    m: threeTypes.MeshStandardMaterial,
     at: readonly { x: number; y: number; z: number; rz?: number }[],
   ): Mesh[] =>
     at.map((p) => {
@@ -173,7 +181,9 @@ export function sinkBody(g: Group, T: Theme, kind: 'vrm-sink' | 'ram-sink', visu
     mergeStatic(g, { own: true, ok: (m) => m.material === anod });
     return { ...fit, skin: [anod] };
   };
-  if (!spot || !H) return done({ spot, foot: Z.root, top });
+  if (!spot || !H) {
+    return done({ spot, foot: Z.root, top });
+  }
   // the housing: its floor on the rails, a wall down each side (north and south), the fins between them along the rails' channels, the cover
   const cx = spot.x + spot.w / 2,
     cy = spot.y + spot.h / 2,
@@ -184,8 +194,9 @@ export function sinkBody(g: Group, T: Theme, kind: 'vrm-sink' | 'ram-sink', visu
       (_, k) => new Vector2(cx + Math.cos((k / n) * Math.PI * 2) * rad, -cy + Math.sin((k / n) * Math.PI * 2) * rad),
     );
   g.add(slab(shapeOf(outlinePts(H, 60)), HEAD.base, HEAD.floor, anod, 6));
-  for (const y of [H.y, H.y + H.h - WALL])
+  for (const y of [H.y, H.y + H.h - WALL]) {
     g.add(softBox({ x: H.x, y, w: H.w, h: WALL }, HEAD.floor - 4, HEAD.cover + 2, anod, 6));
+  }
   const n = Math.floor((H.h - 2 * WALL - HEAD_FIN) / HEAD_PITCH),
     y0 = H.y + (H.h - (n - 1) * HEAD_PITCH) / 2,
     fh = HEAD.fan - 8 - HEAD.floor;
@@ -216,7 +227,7 @@ export function sinkBody(g: Group, T: Theme, kind: 'vrm-sink' | 'ram-sink', visu
   g.add(slab(shapeOf(circle(R * 0.64 + 9), [circle(R * 0.64 - 9)]), zg - 8, zg + 8, anod));
   g.add(
     drum(cx, cy, zg - 12, HEAD.top + 4, R * 0.3, anod, SEG.ring),
-    drum(cx, cy, HEAD.top + 4, HEAD.top + 7, R * 0.2, mat(0x959aa3, { metalness: 0.8, roughness: 0.3 }), SEG.ring),
+    drum(cx, cy, HEAD.top + 4, HEAD.top + 7, R * 0.2, mat(0x95_9a_a3, { metalness: 0.8, roughness: 0.3 }), SEG.ring),
   );
   return done({ spot, foot: HEAD.fan, top: HEAD.top });
 }

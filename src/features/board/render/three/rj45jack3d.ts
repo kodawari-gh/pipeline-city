@@ -1,10 +1,12 @@
 // An RJ45 jack's mouth as the eye meets it (docs/render/case.md "Rear I/O"): the board's rear I/O and the router's ports share it (a network card's
 // real-size jack is nic3d's own). Laid out as a wall across x (casekit3d's `wallX`): the mouth opens at x toward -x and runs on into +x, its long
 // side across depth z, its latch slot toward +y or -y (layout y). A caller that faces it another way turns the group it builds in.
-import { BoxGeometry, Group, type Material, type Mesh, type MeshStandardMaterial, type Vector2 } from 'three';
+import { BoxGeometry, Group } from 'three';
+import type * as threeTypes from 'three';
 import { instanced, rectBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
-import { wallPt, wallX, type Span } from './casekit3d';
+import { wallPt, wallX } from './casekit3d';
+import type * as casekit3dTypes from './casekit3d';
 
 /**
  * A jack's mouth: its middle (layout y, depth z), its size across z (`w`, the contacts' way) and along y (`h`, contact side to latch side), the
@@ -21,7 +23,7 @@ export interface Mouth {
 }
 
 /** The mouth's outline (`wallPt` points), grown by `e`: the opening, the latch slot on its latch side. */
-function mouthPts(m: Mouth, e = 0): Vector2[] {
+function mouthPts(m: Mouth, e = 0): threeTypes.Vector2[] {
   const c = m.y - m.dir * (m.h / 2 + e),
     l = m.y + m.dir * (m.h / 2 + e),
     s = m.y + m.dir * (m.h / 2 + m.slot + e);
@@ -42,13 +44,13 @@ function mouthPts(m: Mouth, e = 0): Vector2[] {
 }
 
 /** The springs' gold: a satin plate (a mirror finish deep in a dark mouth only shows the dark round it). */
-export const springGold = () => mat(0xd4af5f, { metalness: 0.85, roughness: 0.4 });
+export const springGold = () => mat(0xd4_af_5f, { metalness: 0.85, roughness: 0.4 });
 
 /**
  * A mesh in a jack's mouth: it casts no shadow (deep in a narrow mouth its own shadow only shows acne), but it takes the shell's, so in the
  * room the sun and the lamps do not light the mouth's floor.
  */
-export const unshadowed = <T extends Mesh>(o: T): T => {
+export const unshadowed = <T extends threeTypes.Mesh>(o: T): T => {
   o.castShadow = false;
   o.receiveShadow = true;
   return o;
@@ -56,28 +58,28 @@ export const unshadowed = <T extends Mesh>(o: T): T => {
 
 /** A jack's two lights: the link light (green) and the activity light (amber). A writer sets their emissive intensity (`network/render/jackleds.ts` `lightJack`). */
 export interface JackLamps {
-  link: MeshStandardMaterial;
-  act: MeshStandardMaterial;
+  link: threeTypes.MeshStandardMaterial;
+  act: threeTypes.MeshStandardMaterial;
 }
 
 /** A jack's face: its shell, the insert and the springs in the mouth, the link and activity lights. */
 export interface JackLook extends JackLamps {
-  shell: Material;
-  insert: Material;
-  contact: Material;
+  shell: threeTypes.Material;
+  insert: threeTypes.Material;
+  contact: threeTypes.Material;
 }
 
 /** A lamp of a jack: a dark lens that glows in `color` once something sets its intensity (it starts out: a jack's lights are the network's to give). */
-export const jackLamp = (color: number): MeshStandardMaterial =>
-  mat(0x131518, { emissive: color, emissiveIntensity: 0, roughness: 0.3 });
+export const jackLamp = (color: number): threeTypes.MeshStandardMaterial =>
+  mat(0x13_15_18, { emissive: color, emissiveIntensity: 0, roughness: 0.3 });
 
 /** The look of a jack in this shell: the black insert, satin gold springs, a green link light and an amber activity light, both out. */
-export const jackLook = (shell: Material): JackLook => ({
+export const jackLook = (shell: threeTypes.Material): JackLook => ({
   shell,
-  insert: mat(0x131518, { roughness: 0.9 }),
+  insert: mat(0x13_15_18, { roughness: 0.9 }),
   contact: springGold(),
-  link: jackLamp(0x58e08a),
-  act: jackLamp(0xffb547),
+  link: jackLamp(0x58_e0_8a),
+  act: jackLamp(0xff_b5_47),
 });
 
 /**
@@ -86,14 +88,14 @@ export const jackLook = (shell: Material): JackLook => ({
  * toward +y, the insert `deep` behind (`jackInside`), the lights in their windows on the contact side's corners. Returns the mouth. `fine` false:
  * no springs and no comb (their eight and nine boxes are two draws a jack).
  */
-export function jackFace(g: Group, x: number, s: Span, deep: number, M: JackLook, fine = true): Mouth {
+export function jackFace(g: Group, x: number, s: casekit3dTypes.Span, deep: number, M: JackLook, fine = true): Mouth {
   const k = (s.z1 - s.z0) / 13.75,
     zm = (s.z0 + s.z1) / 2,
     a = s.y0 + 1.4 * k,
     b = s.y1 - 1.05 * k,
     n = s.y1 - 0.35 * k;
   const m: Mouth = { y: (a + b) / 2, z: zm, w: 11.68 * k, h: b - a, slotW: 4.2 * k, slot: n - b, dir: 1 };
-  const win = (side: number): Span => ({
+  const win = (side: number): casekit3dTypes.Span => ({
     y0: s.y0 + 0.25 * k,
     y1: s.y0 + 1.05 * k,
     z0: zm + side * 3.45 * k - 1.1 * k,
@@ -137,10 +139,10 @@ function jackInside(
   x: number,
   deep: number,
   m: Mouth,
-  outer: Span,
+  outer: casekit3dTypes.Span,
   k: number,
-  insert: Material,
-  contact: Material,
+  insert: threeTypes.Material,
+  contact: threeTypes.Material,
   fine = true,
 ): void {
   const c = m.y - m.dir * (m.h / 2),
@@ -148,7 +150,7 @@ function jackInside(
     pitch = 1.02 * k;
   // (the insert's outside holds the whole mouth with a rim: a cut that meets the outline breaks the faces)
   const e = 0.3 * k,
-    o: Span = {
+    o: casekit3dTypes.Span = {
       y0: Math.min(outer.y0, Math.min(c, s) - e),
       y1: Math.max(outer.y1, Math.max(c, s) + e),
       z0: Math.min(outer.z0, m.z - m.w / 2 - e),
@@ -160,7 +162,9 @@ function jackInside(
       rectBox({ x: x + deep - k, y: Math.min(c, s), w: k, h: Math.abs(s - c) }, m.z - m.w / 2, m.z + m.w / 2, insert),
     ),
   );
-  if (!fine) return; // (the springs and the comb are a pixel or two across in the room: the router's jacks at Low leave them out, CITY-06)
+  if (!fine) {
+    return; // (the springs and the comb are a pixel or two across in the room: the router's jacks at Low leave them out, CITY-06)
+  }
   // the springs: from just inside the lip, sloping in toward the latch side as they run back, as far as the plug's blades reach
   const ax = x + 1.2 * k,
     bx = x + Math.min(deep - 2 * k, 9 * k),

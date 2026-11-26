@@ -5,59 +5,29 @@
 // (a passive unit: punched vents on its top and its underside), the rating label on its top, the maker's badge on its glass side, the modular
 // panel on its east end (the 24-pin's 18 + 10 sockets, the CPU and PCIe 8-pins, the SATA and peripheral 6-pins, their latches), and its rear:
 // the honeycomb exhaust, the IEC C14 inlet with its three pins, the rocker switch, the case's four screws. The mains cord's C13 plug fits the inlet.
-import {
-  CylinderGeometry,
-  DoubleSide,
-  Group,
-  Mesh,
-  PlaneGeometry,
-  TorusGeometry,
-  Vector2,
-  type BufferGeometry,
-  type Material,
-  type MeshStandardMaterial,
-} from 'three';
-import {
-  SEG,
-  fanRotor,
-  fanSides,
-  instanced,
-  rectBox,
-  rod,
-  softBox,
-  withLow,
-  type RectLike,
-} from '@/core/render/three/geometry';
+import { CylinderGeometry, DoubleSide, Group, Mesh, PlaneGeometry, TorusGeometry, Vector2 } from 'three';
+import type * as threeTypes from 'three';
+import { SEG, fanRotor, fanSides, instanced, rectBox, rod, softBox, withLow } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { NYLON, mat } from '@/core/render/three/materials';
-import { CASE, PSU_FORM, type PsuForm } from '../layout/layout';
-import { PSU_BODY, type BasementPlan } from './basement3d';
+import { CASE, PSU_FORM } from '../layout/layout';
+import type * as layoutTypes from '../layout/layout';
+import { PSU_BODY } from './basement3d';
+import type * as basement3dTypes from './basement3d';
 import { drawLockup } from '@/core/render/brands';
-import {
-  decal,
-  decalTop,
-  decalX,
-  grain,
-  outlinePts,
-  perfMat,
-  plateY,
-  screws,
-  tex,
-  tiled,
-  wallX,
-  type Span,
-  type Spot,
-} from './casekit3d';
+import { decal, decalTop, decalX, grain, outlinePts, perfMat, plateY, screws, tex, tiled, wallX } from './casekit3d';
+import type * as casekit3dTypes from './casekit3d';
 import { prismX, word } from './gpu3d';
 import { decalMat } from './pcbkit3d';
 
 const MM = 23;
 /** Each supply's form: the big ones are ATX units, the two small ones SFX. */
-export const psuForm = (visual: string): PsuForm => (visual === 'psu-big' ? PSU_FORM.atx : PSU_FORM.sfx);
-const isAtx = (F: PsuForm): boolean => F.d === PSU_FORM.atx.d;
+export const psuForm = (visual: string): layoutTypes.PsuForm => (visual === 'psu-big' ? PSU_FORM.atx : PSU_FORM.sfx);
+const isAtx = (F: layoutTypes.PsuForm): boolean => F.d === PSU_FORM.atx.d;
 
-export type PsuBox = RectLike & { z0: number; z1: number };
+export type PsuBox = geometryTypes.RectLike & { z0: number; z1: number };
 /** The unit's box in its bay: its rear against the rear wall, standing on the bay's floor, across the bay's middle. */
-export function psuBox(u: BasementPlan['psu'], visual: string): PsuBox {
+export function psuBox(u: basement3dTypes.BasementPlan['psu'], visual: string): PsuBox {
   const F = psuForm(visual),
     zc = (u.z0 + u.z1) / 2;
   return { x: u.x, y: u.y + u.h - F.h, w: F.d, h: F.h, z0: zc - F.w / 2, z1: zc + F.w / 2 };
@@ -69,13 +39,13 @@ const inletOf = (b: PsuBox): { y: number; z: number } => ({ y: b.y + b.h / 2, z:
 const FLANGE = 2 * MM;
 export const PLUG_TAIL = FLANGE + 46.4 * MM;
 /** Where the mains cord plugs in: the inlet's face on the supply's rear (world point), the cord leaving west. */
-export function mainsInlet(p: BasementPlan, visual: string): [number, number, number] {
+export function mainsInlet(p: basement3dTypes.BasementPlan, visual: string): [number, number, number] {
   const i = inletOf(psuBox(p.psu, visual));
   return [CASE.x - FLANGE, -i.y, i.z];
 }
 
 /** A span as its outline in a wall across x (`prismX`, `wallX`), with its top corners chamfered by `cut`. */
-const spanPts = (s: Span, cut = 0): Vector2[] =>
+const spanPts = (s: casekit3dTypes.Span, cut = 0): Vector2[] =>
   outlinePts({ x: s.z0, y: s.y0, w: s.z1 - s.z0, h: s.y1 - s.y0 }, s.r ?? 0, [cut, cut, 0, 0]);
 /** The C13/C14 mouth (24.5 x 15.5 mm, the earth side's corners chamfered), grown by `e`, at the inlet's middle. */
 const mouth = (i: { y: number; z: number }, e: number): Vector2[] =>
@@ -125,7 +95,11 @@ function ratingLabel(visual: string, watts: number): ReturnType<typeof tex> {
       rh = 52;
     c.strokeStyle = '#17181c';
     c.lineWidth = 3;
-    for (let r = 0; r < 3; r++) for (let k = 0; k < cols.length; k++) c.strokeRect(x0 + k * cw, y0 + r * rh, cw, rh);
+    for (let r = 0; r < 3; r++) {
+      for (let k = 0; k < cols.length; k++) {
+        c.strokeRect(x0 + k * cw, y0 + r * rh, cw, rh);
+      }
+    }
     c.font = '600 22px "Segoe UI", system-ui, sans-serif';
     c.textAlign = 'center';
     cols.forEach((s, k) => c.fillText(s, x0 + (k + 0.5) * cw, y0 + rh / 2));
@@ -143,16 +117,20 @@ function ratingLabel(visual: string, watts: number): ReturnType<typeof tex> {
         c.beginPath();
         c.arc(x + 38, 420, 34, 0, Math.PI * 2);
         c.stroke();
-      } else c.strokeRect(x + 4, 386, 68, 68);
+      } else {
+        c.strokeRect(x + 4, 386, 68, 68);
+      }
     }
     c.font = '700 20px "Segoe UI", system-ui, sans-serif';
     c.fillText('CAUTION: HAZARDOUS VOLTAGE INSIDE.', 520, 398);
     c.fillText('NO USER SERVICEABLE PARTS.', 520, 428);
     let s = watts * 7 + visual.length;
-    const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    const rnd = () => (s = (s * 16_807) % 2_147_483_647) / 2_147_483_647;
     for (let x = 30; x < w - 340;) {
       const bw = 3 + Math.floor(rnd() * 3) * 3;
-      if (rnd() > 0.4) c.fillRect(x, 500, bw, 130);
+      if (rnd() > 0.4) {
+        c.fillRect(x, 500, bw, 130);
+      }
       x += bw + 3 + Math.floor(rnd() * 3) * 3;
     }
     c.font = '600 26px "Consolas", "DejaVu Sans Mono", monospace';
@@ -181,26 +159,29 @@ function sideBadge(visual: string, watts: number, wpx: number, hpx: number): Ret
     c.fillStyle = '#8d939c';
     c.fillText(visual === 'psu-big' ? 'FULLY MODULAR  ·  ATX 3.0' : 'FULLY MODULAR  ·  SFX', w * 0.09, h * 0.8);
     const r = RATING[visual]?.(watts);
-    if (!r) return;
-    const cx = w * 0.8,
+    if (!r) {
+      return;
+    }
+    const [badge, color] = r,
+      cx = w * 0.8,
       cy = h * 0.5,
       R = h * 0.3;
     c.fillStyle = '#0b0c0f';
     c.beginPath();
     c.arc(cx, cy, R, 0, Math.PI * 2);
     c.fill();
-    c.strokeStyle = r[1];
+    c.strokeStyle = color;
     c.lineWidth = R * 0.12;
     c.beginPath();
     c.arc(cx, cy, R * 0.9, 0, Math.PI * 2);
     c.stroke();
-    c.fillStyle = r[1];
+    c.fillStyle = color;
     c.textAlign = 'center';
     c.font = `800 ${Math.round(R * 0.42)}px "Segoe UI", system-ui, sans-serif`;
     c.fillText('80', cx, cy - R * 0.28);
     c.font = `700 ${Math.round(R * 0.22)}px "Segoe UI", system-ui, sans-serif`;
     c.fillText('PLUS', cx, cy + R * 0.08);
-    c.fillText(r[0], cx, cy + R * 0.42);
+    c.fillText(badge, cx, cy + R * 0.42);
   });
 }
 
@@ -210,14 +191,15 @@ function socketFace(cols: number): ReturnType<typeof tex> {
     c.fillStyle = '#17181c';
     c.fillRect(0, 0, w, h);
     c.fillStyle = '#030304';
-    for (let r = 0; r < 2; r++)
+    for (let r = 0; r < 2; r++) {
       for (let k = 0; k < cols; k++) {
         const x = 13 + k * 64 + 9,
           y = 13 + r * 64 + 9,
           s = 46;
         c.beginPath();
-        if ((k + r) % 2) c.roundRect(x, y, s, s, [s * 0.45, s * 0.45, 4, 4]);
-        else {
+        if ((k + r) % 2) {
+          c.roundRect(x, y, s, s, [s * 0.45, s * 0.45, 4, 4]);
+        } else {
           c.moveTo(x + 10, y);
           c.lineTo(x + s - 10, y);
           c.lineTo(x + s, y + 10);
@@ -228,11 +210,12 @@ function socketFace(cols: number): ReturnType<typeof tex> {
         }
         c.fill();
       }
+    }
   });
 }
 
 /** One modular socket on the east face at `x` (the face), its top edge at layout `y`, from depth `z` across `cols` columns: the housing, its cavities, its latch's ramp. */
-function socket(g: Group, x: number, y: number, z: number, cols: number, M: { plastic: Material }): number {
+function socket(g: Group, x: number, y: number, z: number, cols: number, M: { plastic: threeTypes.Material }): number {
   const P = 4.2 * MM,
     w = cols * P + 1.6 * MM,
     h = 2 * P + 1.6 * MM,
@@ -251,8 +234,8 @@ function socket(g: Group, x: number, y: number, z: number, cols: number, M: { pl
 }
 
 /** The modular panel's sockets, by row, as [label, column counts]: what each supply's leads plug into. */
-function panelRows(F: PsuForm, visual: string): [string, number[]][][] {
-  if (isAtx(F))
+function panelRows(F: layoutTypes.PsuForm, visual: string): [string, number[]][][] {
+  if (isAtx(F)) {
     return [
       [
         ['MB', [9, 5]],
@@ -263,6 +246,7 @@ function panelRows(F: PsuForm, visual: string): [string, number[]][][] {
         ['SATA / PERIF.', [3, 3, 3, 3]],
       ],
     ];
+  }
   return visual === 'psu-mid'
     ? [
         [
@@ -287,10 +271,10 @@ function panelRows(F: PsuForm, visual: string): [string, number[]][][] {
 function modularPanel(
   g: Group,
   b: PsuBox,
-  F: PsuForm,
+  F: layoutTypes.PsuForm,
   visual: string,
   cav: number,
-  M: { plastic: Material; bezel: Material },
+  M: { plastic: threeTypes.Material; bezel: threeTypes.Material },
 ): void {
   const x = b.x + b.w,
     P = 4.2 * MM,
@@ -359,7 +343,12 @@ function modularPanel(
 }
 
 /** The fan on the underside: its cavity, the frame and rotor inside, the wire guard (rings, spokes, the middle disc) with its four screws. */
-function underFan(g: Group, b: PsuBox, F: PsuForm, M: { body: Material; black: Material; screw: Material }): void {
+function underFan(
+  g: Group,
+  b: PsuBox,
+  F: layoutTypes.PsuForm,
+  M: { body: threeTypes.Material; black: threeTypes.Material; screw: threeTypes.Material },
+): void {
   const fr = (isAtx(F) ? 60 : 46) * MM,
     cav = 13 * MM,
     t = 0.8 * MM,
@@ -387,14 +376,14 @@ function underFan(g: Group, b: PsuBox, F: PsuForm, M: { body: Material; black: M
   // the fan: its frame's ring, the rotor (nine blades on the 120 mm fan, seven on the 92 mm), facing down
   const frame = new Mesh(
     new CylinderGeometry(fr * 0.98, fr * 0.98, cav - 2 * t, fanSides((2 * fr) / MM), 1, true),
-    mat(0x131518, { roughness: 0.6, side: DoubleSide }),
+    mat(0x13_15_18, { roughness: 0.6, side: DoubleSide }),
   );
   frame.position.set(fx, -(yb - cav / 2), fz);
   const rotor = fanRotor(
     fr * 0.93,
     isAtx(F) ? 9 : 7,
-    mat(0x131518, { roughness: 0.5 }),
-    mat(0x131518, { roughness: 0.45 }),
+    mat(0x13_15_18, { roughness: 0.5 }),
+    mat(0x13_15_18, { roughness: 0.45 }),
   );
   // (a real one is 25 mm thick, deep inside the housing: its hub flattened here to the cavity's depth)
   rotor.rotation.x = Math.PI / 2;
@@ -402,7 +391,7 @@ function underFan(g: Group, b: PsuBox, F: PsuForm, M: { body: Material; black: M
   rotor.position.set(fx, -(yb - cav * 0.5), fz);
   g.add(frame, rotor);
   // the guard: rings and spokes of black wire just under the plate, a small disc at its middle
-  const wire = mat(0x1d1e22, { metalness: 0.55, roughness: 0.38 }),
+  const wire = mat(0x1d_1e_22, { metalness: 0.55, roughness: 0.38 }),
     wr = 0.55 * MM,
     gy = -(yb + wr);
   for (const k of [0.24, 0.43, 0.62, 0.81, 1]) {
@@ -420,7 +409,7 @@ function underFan(g: Group, b: PsuBox, F: PsuForm, M: { body: Material; black: M
   disc.position.set(fx, gy, fz);
   g.add(disc);
   const sp = fr * 0.875,
-    spots: Spot[] = [
+    spots: casekit3dTypes.Spot[] = [
       [-1, -1],
       [-1, 1],
       [1, -1],
@@ -430,8 +419,8 @@ function underFan(g: Group, b: PsuBox, F: PsuForm, M: { body: Material; black: M
 }
 
 /** A passive unit's punched vents: over a dark inside, on its underside and its top's east part (the label keeps the west part). */
-function passiveVents(g: Group, b: PsuBox, vx: number, M: { black: Material }): void {
-  const tone = 0x1c1d22,
+function passiveVents(g: Group, b: PsuBox, vx: number, M: { black: threeTypes.Material }): void {
+  const tone = 0x1c_1d_22,
     e = 6 * MM,
     yb = b.y + b.h,
     w = b.w - 2 * e,
@@ -448,7 +437,7 @@ function passiveVents(g: Group, b: PsuBox, vx: number, M: { black: Material }): 
     o.position.set(b.x + b.w / 2, -y, (b.z0 + b.z1) / 2);
     g.add(o);
   }
-  const top = (y: number, m: Material) => decalTop(y, vx, b.x + b.w - e, b.z0 + e, b.z1 - e, m);
+  const top = (y: number, m: threeTypes.Material) => decalTop(y, vx, b.x + b.w - e, b.z0 + e, b.z1 - e, m);
   g.add(
     top(b.y - 2, M.black),
     top(b.y - 5, perfMat('round', b.x + b.w - e - vx, d, 80, tone, { metal: 0.4, rough: 0.55 })),
@@ -462,29 +451,39 @@ function passiveVents(g: Group, b: PsuBox, vx: number, M: { black: Material }): 
  */
 function rear(
   g: Group,
-  u: BasementPlan['psu'],
+  u: basement3dTypes.BasementPlan['psu'],
   b: PsuBox,
-  M: { body: Material; black: Material; plastic: Material; screw: Material },
+  M: {
+    body: threeTypes.Material;
+    black: threeTypes.Material;
+    plastic: threeTypes.Material;
+    screw: threeTypes.Material;
+  },
 ): void {
   const rx = CASE.x,
     i = inletOf(b),
     sw = switchOf(b),
     e = 32,
-    end: Span = { y0: b.y + e, y1: b.y + b.h - e, z0: b.z0 + e, z1: b.z1 - e, r: 0.8 * MM };
+    end: casekit3dTypes.Span = { y0: b.y + e, y1: b.y + b.h - e, z0: b.z0 + e, z1: b.z1 - e, r: 0.8 * MM };
   g.add(prismX(rx, b.x, spanPts(end), [mouth(i, 0.8 * MM)], M.body));
   // the honeycomb: from the tray side to the switch
-  const vent: Span = { y0: b.y + 6 * MM, y1: b.y + b.h - 6 * MM, z0: b.z0 + 12 * MM, z1: sw.z - 11.5 * MM };
+  const vent: casekit3dTypes.Span = {
+    y0: b.y + 6 * MM,
+    y1: b.y + b.h - 6 * MM,
+    z0: b.z0 + 12 * MM,
+    z1: sw.z - 11.5 * MM,
+  };
   g.add(
     decalX(rx - 2, vent, -1, M.black),
     decalX(
       rx - 5,
       vent,
       -1,
-      perfMat('hex', vent.z1 - vent.z0, vent.y1 - vent.y0, 120, 0x1b1c21, { metal: 0.4, rough: 0.5 }),
+      perfMat('hex', vent.z1 - vent.z0, vent.y1 - vent.y0, 120, 0x1b_1c_21, { metal: 0.4, rough: 0.5 }),
     ),
   );
   // the inlet: the flange proud of the face, the mouth's liner back to its floor, the pins out of the floor
-  const flange: Span = {
+  const flange: casekit3dTypes.Span = {
     y0: i.y - 11.5 * MM,
     y1: i.y + 11.5 * MM,
     z0: i.z - 15.5 * MM,
@@ -495,13 +494,13 @@ function rear(
   const floor = rx + 7 * MM;
   g.add(prismX(rx, floor, mouth(i, 0.8 * MM), [mouth(i, 0)], M.plastic));
   g.add(prismX(floor, floor + 0.6 * MM, mouth(i, 0.4 * MM), [], M.black));
-  const pin = mat(0xb9babf, { metalness: 0.9, roughness: 0.28 }),
+  const pin = mat(0xb9_ba_bf, { metalness: 0.9, roughness: 0.28 }),
     pins = [
       [i.y + 2.6 * MM, i.z - 7 * MM, 1.2],
       [i.y + 2.6 * MM, i.z + 7 * MM, 1.2],
       [i.y - 3 * MM, i.z, 0.6],
     ] as const;
-  for (const [y, z, front] of pins)
+  for (const [y, z, front] of pins) {
     g.add(
       rectBox(
         { x: rx + front * MM, y: y - 2 * MM, w: floor - rx - front * MM, h: 4 * MM },
@@ -510,15 +509,16 @@ function rear(
         pin,
       ),
     );
+  }
   // the rocker switch: its bezel, the rocker (the "I" half pressed in), the marks
-  const bezel: Span = {
+  const bezel: casekit3dTypes.Span = {
     y0: sw.y - 10.5 * MM,
     y1: sw.y + 10.5 * MM,
     z0: sw.z - 7.5 * MM,
     z1: sw.z + 7.5 * MM,
-    r: 1 * MM,
+    r: MM,
   };
-  const inner: Span = {
+  const inner: casekit3dTypes.Span = {
     y0: sw.y - 8.5 * MM,
     y1: sw.y + 8.5 * MM,
     z0: sw.z - 5.5 * MM,
@@ -526,7 +526,7 @@ function rear(
     r: 0.5 * MM,
   };
   g.add(prismX(rx - 1.6 * MM, rx, spanPts(bezel), [spanPts(inner)], M.plastic, 0.3 * MM));
-  const rock = mat(0x131518, { roughness: 0.42 }),
+  const rock = mat(0x13_15_18, { roughness: 0.42 }),
     white = mat(NYLON, { roughness: 0.5 });
   g.add(
     rectBox({ x: rx - 0.4 * MM, y: inner.y0, w: 0.4 * MM, h: (inner.y1 - inner.y0) / 2 }, inner.z0, inner.z1, rock),
@@ -539,7 +539,7 @@ function rear(
   o.position.set(rx - 2.65 * MM, -(sw.y + 4.3 * MM), sw.z);
   g.add(o);
   // the case's four screws through the wall into the unit's corners (an SFX unit in an ATX bay: its own four, the adapter's four in the bay's corners)
-  const corners = (s: { y: number; h: number; z0: number; z1: number }, x: number): Spot[] =>
+  const corners = (s: { y: number; h: number; z0: number; z1: number }, x: number): casekit3dTypes.Spot[] =>
     [
       [0, 0],
       [0, 1],
@@ -549,14 +549,14 @@ function rear(
   g.add(screws(corners(b, rx), 'x-', 3 * MM, M.screw));
   if (b.w < u.w) {
     // (the plate is the ATX unit's outline over the bay's opening, held by the ATX holes)
-    const plate: Span = { y0: u.y, y1: u.y + u.h, z0: u.z0, z1: u.z1, r: 1.5 * MM };
-    g.add(wallX(rx - 1.5 * MM, rx, plate, [end], mat(0x1d1e22, { metalness: 0.5, roughness: 0.45 })));
+    const plate: casekit3dTypes.Span = { y0: u.y, y1: u.y + u.h, z0: u.z0, z1: u.z1, r: 1.5 * MM };
+    g.add(wallX(rx - 1.5 * MM, rx, plate, [end], mat(0x1d_1e_22, { metalness: 0.5, roughness: 0.45 })));
     g.add(screws(corners(u, rx - 1.5 * MM), 'x-', 3 * MM, M.screw));
   }
 }
 
 /** A fan guard's ring of wire, `r` from the fan's centre, `wr` thick, lying flat (its axis is world y). Its lower level is fewer sides round and round the wire. */
-export function guardRing(r: number, wr: number): BufferGeometry {
+export function guardRing(r: number, wr: number): threeTypes.BufferGeometry {
   const ring = (tube: number, n: number) => new TorusGeometry(r, wr, tube, n).rotateX(Math.PI / 2);
   return withLow(ring(SEG.cord, SEG.fineRing), () => ring(SEG.ringTubeLow, SEG.fineRingLow));
 }
@@ -566,32 +566,35 @@ export function guardRing(r: number, wr: number): BufferGeometry {
  * the seam, the rating label, the maker's badge, the modular panel and the rear. `watts` sets the label's and the badge's figures.
  */
 export function psuUnit(
-  p: BasementPlan,
+  p: basement3dTypes.BasementPlan,
   visual = 'psu-basic',
   fan = true,
   watts = 0,
-): { root: Group; body: MeshStandardMaterial } {
+): { root: Group; body: threeTypes.MeshStandardMaterial } {
   const g = new Group(),
     u = p.psu,
     b = psuBox(u, visual),
     F = psuForm(visual),
     W = watts || (isAtx(F) ? 1000 : 100);
   g.name = PSU_BODY;
-  const body = mat(0x131518, { metalness: 0.35, roughness: 0.55, bumpMap: tiled(grain(), 6, 6), bumpScale: 0.5 });
+  const body = mat(0x13_15_18, { metalness: 0.35, roughness: 0.55, bumpMap: tiled(grain(), 6, 6), bumpScale: 0.5 });
   const M = {
     body,
-    black: mat(0x050608, { roughness: 0.92 }),
-    plastic: mat(0x131518, { roughness: 0.58 }),
-    bezel: mat(0x050608, { roughness: 0.66 }),
-    screw: mat(0x2a2d32, { metalness: 0.75, roughness: 0.32 }),
+    black: mat(0x05_06_08, { roughness: 0.92 }),
+    plastic: mat(0x13_15_18, { roughness: 0.58 }),
+    bezel: mat(0x05_06_08, { roughness: 0.66 }),
+    screw: mat(0x2a_2d_32, { metalness: 0.75, roughness: 0.32 }),
   };
   // the cover over the base: with a fan, the cover stops over the fan's cavity (`underFan` builds the rest)
   const cav = fan ? 13 * MM : 0,
     lw = Math.min(b.w * 0.5, 72 * MM),
     ld = Math.min(b.z1 - b.z0 - 16 * MM, lw * 0.7);
   g.add(softBox({ x: b.x, y: b.y, w: b.w, h: b.h - cav }, b.z0, b.z1, body, 1.4 * MM));
-  if (fan) underFan(g, b, F, M);
-  else passiveVents(g, b, b.x + 11 * MM + lw, M);
+  if (fan) {
+    underFan(g, b, F, M);
+  } else {
+    passiveVents(g, b, b.x + 11 * MM + lw, M);
+  }
   // the seam between the cover and the base along both sides, the cover's two screws each side
   for (const [z0, z1, f] of [
     [b.z1, b.z1 + 3, 'z+'],
@@ -636,19 +639,25 @@ export function psuUnit(
  * The mains cord's C13 plug in the inlet: its nose in the mouth, the grip with its ribs, the strain relief tapering to the cord (it leaves west,
  * `PLUG_TAIL` from the rear's face).
  */
-export function mainsPlug(p: BasementPlan, visual: string): Group {
+export function mainsPlug(p: basement3dTypes.BasementPlan, visual: string): Group {
   const g = new Group(),
     i = inletOf(psuBox(p.psu, visual)),
     rx = CASE.x,
     face = rx - FLANGE,
-    m = mat(0x131518, { roughness: 0.55 });
+    m = mat(0x13_15_18, { roughness: 0.55 });
   g.add(prismX(face - 0.4 * MM, rx + 6 * MM, mouth(i, -0.25 * MM), [], m));
-  const grip: Span = { y0: i.y - 11 * MM, y1: i.y + 11 * MM, z0: i.z - 15 * MM, z1: i.z + 15 * MM, r: 3.5 * MM },
+  const grip: casekit3dTypes.Span = {
+      y0: i.y - 11 * MM,
+      y1: i.y + 11 * MM,
+      z0: i.z - 15 * MM,
+      z1: i.z + 15 * MM,
+      r: 3.5 * MM,
+    },
     gx = face - 0.4 * MM - 30 * MM;
   g.add(prismX(gx, face - 0.4 * MM, spanPts(grip), [], m, 1.2 * MM));
   for (let k = 0; k < 5; k++) {
     const x = gx + 2.5 * MM + k * 3 * MM,
-      rib: Span = {
+      rib: casekit3dTypes.Span = {
         y0: grip.y0 - 0.5 * MM,
         y1: grip.y1 + 0.5 * MM,
         z0: grip.z0 - 0.5 * MM,

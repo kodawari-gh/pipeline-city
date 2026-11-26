@@ -2,8 +2,10 @@
 // wall). The recess is the traced one of plugs3d.ts (`T13`, `lozenge`); each takes a type 12 plug (`swissPlug`) whose pins go into its three holes, the earth
 // one nearest the screw. World frame as the wall's: x east, y up, z toward the viewer; `MM` = 23 units a mm. The plan of it is pure (`pinwheel`); `tripleSocket` builds it.
 // The room's two-gang plate (`wallPlate`) is cut with the same recess, drawn at the room's smaller scale (`ROOM_SOCKET`).
-import { Group, Vector2, type Material } from 'three';
-import { drum, rectBox, SEG, type RectLike } from '@/core/render/three/geometry';
+import { Group, Vector2 } from 'three';
+import type * as threeTypes from 'three';
+import { drum, rectBox, SEG } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { outlinePts, shapeOf, slab } from './casekit3d';
 import { lozenge, T13 } from './plugs3d';
 
@@ -77,17 +79,19 @@ export function recessHoles(r: Recess, k: number): [number, number][] {
 }
 
 /** The black mouths of the contact holes in the floor of each recess (`floor`: the z of the floor), at `k` units a mm. */
-function cutHoles(into: Group, rs: readonly Recess[], k: number, floor: number, black: Material): void {
-  for (const r of rs)
-    for (const [x, y] of recessHoles(r, k))
+function cutHoles(into: Group, rs: readonly Recess[], k: number, floor: number, black: threeTypes.Material): void {
+  for (const r of rs) {
+    for (const [x, y] of recessHoles(r, k)) {
       into.add(drum(x, -y, floor - 2, floor + 0.3 * k, (T13.hole / 2) * k, black, SEG.part));
+    }
+  }
 }
 
 /** What the socket is made of: the frame and the insert (one colour), the black of a hole and of the screw's slot, the screw's steel. */
 interface TripleLook {
-  plate: Material;
-  black: Material;
-  steel: Material;
+  plate: threeTypes.Material;
+  black: threeTypes.Material;
+  steel: threeTypes.Material;
 }
 
 /** Where it stands: the screw's x and y (world units), the wall's face and the frame's face (z). */
@@ -100,7 +104,12 @@ export interface TripleIn {
 }
 
 /** A layout rect (y down) over a box of the world (y up). */
-const lay = (x0: number, x1: number, y0: number, y1: number): RectLike => ({ x: x0, y: -y1, w: x1 - x0, h: y1 - y0 });
+const lay = (x0: number, x1: number, y0: number, y1: number): geometryTypes.RectLike => ({
+  x: x0,
+  y: -y1,
+  w: x1 - x0,
+  h: y1 - y0,
+});
 
 /**
  * The socket: the frame round the insert with its edge rolled, the insert a hair under the frame's face with a recess cut for each socket down to the floor
@@ -152,11 +161,11 @@ export const ROOM_SOCKET = { k: 14, face: 230 } as const;
 
 /** A plate on a wall: `rect` (layout units, y down), a recess upright at each of `outlets` (their middles, layout units), the plate's face at `face` (z) from the wall at 0. */
 export interface WallPlateIn {
-  rect: RectLike;
+  rect: geometryTypes.RectLike;
   outlets: readonly { x: number; y: number }[];
   face: number;
   k: number;
-  look: { plate: Material; black: Material };
+  look: { plate: threeTypes.Material; black: threeTypes.Material };
 }
 
 /**
