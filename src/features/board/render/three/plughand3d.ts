@@ -3,21 +3,13 @@
 // lines up in front of the mouth, and let go there it slides in and clicks. A seated plug pulls out against its latch and pops free; one let go
 // away from its socket falls on its cable and stays where it lands. Machine3D builds the cable from its rig (cablerig3d.ts); the hand holds it
 // while the player does, then hands it back.
-import {
-  Group,
-  Mesh,
-  Plane,
-  Quaternion,
-  Raycaster,
-  Vector2,
-  Vector3,
-  type Object3D,
-  type PerspectiveCamera,
-} from 'three';
+import { Group, Mesh, Plane, Quaternion, Raycaster, Vector2, Vector3 } from 'three';
+import type * as threeTypes from 'three';
 import { connectCable, disconnectCable } from '@/app/store';
 import { disposeTree, place } from '@/core/render/three/geometry';
 import { findById, seeThrough } from '@/core/render/three/pick';
-import { Rope, lengthOf, type Plane as RopePlane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
+import { Rope, lengthOf } from '@/core/render/three/rope';
+import type * as ropeTypes from '@/core/render/three/rope';
 import { Sleeve } from '@/core/render/three/sleeve';
 import { samplesFor, sleeveMat } from './cables3d';
 import {
@@ -33,11 +25,8 @@ import {
   spineEnv,
   spineLength,
   withinCable,
-  type CableRig,
-  type Pose,
-  type Rest,
-  type Seat,
 } from './cablerig3d';
+import type * as cablerig3dTypes from './cablerig3d';
 import type { Machine3D } from './machine3d';
 
 /** The spring that carries the plug to the pointer (per second, critically damped). */
@@ -110,41 +99,23 @@ export function snapWeight(px: number): number {
   return u * u * (3 - 2 * u);
 }
 
-/**
- * Where a held plug rides under the pointer: `m` off the first face the ray `o + t·d` (`d` a unit vector) meets past the glass, a part's or a
- * floor's (a wall that faces `up`, as the deck does), back along the ray (`m` over the cosine to the face, so it keeps `m` off a slanted face
- * too). The walls round the sides do not stop it (`keepClear` brings it back inside them at its depth), nor a part it is already in where it
- * comes in. Null when the ray never comes in, or meets nothing.
- */
-export function hover(
-  o: V3,
-  d: V3,
-  env: { planes?: readonly RopePlane[]; solids?: readonly Solid[] },
-  m: number,
-  up: V3,
-): V3 | null {
-  let tin = 0,
-    hit = Infinity,
-    cos = 1;
-  for (const pl of env.planes ?? []) {
-    const s = o[0] * pl.n[0] + o[1] * pl.n[1] + o[2] * pl.n[2] - pl.d,
-      c = d[0] * pl.n[0] + d[1] * pl.n[1] + d[2] * pl.n[2];
-    if (s < 0) {
-      if (c <= 0) return null;
-      tin = Math.max(tin, -s / c);
-    } else if (c < 0 && pl.n[0] * up[0] + pl.n[1] * up[1] + pl.n[2] * up[2] > 0.5 && s / -c < hit) {
-      hit = s / -c;
-      cos = -c;
-    }
-  }
-  if (hit <= tin) return null;
-  for (const b of env.solids ?? []) {
+/** Closest solid the ray `o + t·d` meets past `tin` and nearer than `hit`, with the cosine of that face. */
+function closerSolidHit(
+  o: ropeTypes.V3,
+  d: ropeTypes.V3,
+  args: { solids: readonly ropeTypes.Solid[]; tin: number; hit: number; cos: number },
+): { hit: number; cos: number } {
+  const { tin } = args;
+  let { hit, cos } = args;
+  for (const b of args.solids) {
     let t0 = -Infinity,
       t1 = Infinity,
       axis = 0;
     for (let j = 0; j < 3 && t0 <= t1; j++) {
       if (Math.abs(d[j]!) < 1e-9) {
-        if (o[j]! < b.min[j]! || o[j]! > b.max[j]!) t0 = Infinity;
+        if (o[j]! < b.min[j]! || o[j]! > b.max[j]!) {
+          t0 = Infinity;
+        }
         continue;
       }
       const u = (b.min[j]! - o[j]!) / d[j]!,
@@ -160,24 +131,81 @@ export function hover(
       cos = Math.abs(d[axis]!);
     }
   }
-  if (!Number.isFinite(hit)) return null;
+  return { hit, cos };
+}
+
+/**
+ * Where a held plug rides under the pointer: `m` off the first face the ray `o + t·d` (`d` a unit vector) meets past the glass, a part's or a
+ * floor's (a wall that faces `up`, as the deck does), back along the ray (`m` over the cosine to the face, so it keeps `m` off a slanted face
+ * too). The walls round the sides do not stop it (`keepClear` brings it back inside them at its depth), nor a part it is already in where it
+ * comes in. Null when the ray never comes in, or meets nothing.
+ */
+export function hover(
+  o: ropeTypes.V3,
+  d: ropeTypes.V3,
+  env: { planes?: readonly ropeTypes.Plane[]; solids?: readonly ropeTypes.Solid[] },
+  m: number,
+  up: ropeTypes.V3,
+): ropeTypes.V3 | null {
+  let tin = 0,
+    hit = Infinity,
+    cos = 1;
+  for (const pl of env.planes ?? []) {
+    const s = o[0] * pl.n[0] + o[1] * pl.n[1] + o[2] * pl.n[2] - pl.d,
+      c = d[0] * pl.n[0] + d[1] * pl.n[1] + d[2] * pl.n[2];
+    if (s < 0) {
+      if (c <= 0) {
+        return null;
+      }
+      tin = Math.max(tin, -s / c);
+    } else if (c < 0 && pl.n[0] * up[0] + pl.n[1] * up[1] + pl.n[2] * up[2] > 0.5 && s / -c < hit) {
+      hit = s / -c;
+      cos = -c;
+    }
+  }
+  if (hit <= tin) {
+    return null;
+  }
+  ({ hit, cos } = closerSolidHit(o, d, { solids: env.solids ?? [], tin, hit, cos }));
+  if (!Number.isFinite(hit)) {
+    return null;
+  }
   const t = Math.max(tin, hit - m / Math.max(cos, 0.35));
   return [o[0] + d[0] * t, o[1] + d[1] * t, o[2] + d[2] * t];
+}
+
+/** Push `q` out through any wall it has come through, by the wall's amount plus `m`. */
+function pushOutOfPlanes(q: ropeTypes.V3, planes: readonly ropeTypes.Plane[], m: number): void {
+  for (const pl of planes) {
+    const e = q[0] * pl.n[0] + q[1] * pl.n[1] + q[2] * pl.n[2] - pl.d - m;
+    if (e < 0) {
+      for (let j = 0; j < 3; j++) {
+        q[j] = q[j]! - pl.n[j]! * e;
+      }
+    }
+  }
 }
 
 /**
  * `p` kept `m` clear of the walls and out of the parts (both grown by `m`): over a part (toward the glass, +z) when that is inside the walls, else
  * out by the nearest side across the view (the shroud, which runs to the glass, puts it on its top).
  */
-export function keepClear(p: V3, env: { planes?: readonly RopePlane[]; solids?: readonly Solid[] }, m: number): V3 {
-  const q: V3 = [...p],
+export function keepClear(
+  p: ropeTypes.V3,
+  env: { planes?: readonly ropeTypes.Plane[]; solids?: readonly ropeTypes.Solid[] },
+  m: number,
+): ropeTypes.V3 {
+  const q: ropeTypes.V3 = [...p],
     planes = env.planes ?? [];
-  const inside = (x: V3) => planes.every((pl) => x[0] * pl.n[0] + x[1] * pl.n[1] + x[2] * pl.n[2] - pl.d >= m);
+  const inside = (x: ropeTypes.V3) =>
+    planes.every((pl) => x[0] * pl.n[0] + x[1] * pl.n[1] + x[2] * pl.n[2] - pl.d >= m);
   // a few rounds: a part it is lifted over may stand in another
   for (let round = 0; round < 4; round++) {
     let moved = false;
     for (const s of env.solids ?? []) {
-      if (![0, 1, 2].every((j) => q[j]! > s.min[j]! - m && q[j]! < s.max[j]! + m)) continue;
+      if (![0, 1, 2].every((j) => q[j]! > s.min[j]! - m && q[j]! < s.max[j]! + m)) {
+        continue;
+      }
       moved = true;
       if (inside([q[0], q[1], s.max[2] + m])) {
         q[2] = s.max[2] + m;
@@ -202,12 +230,11 @@ export function keepClear(p: V3, env: { planes?: readonly RopePlane[]; solids?: 
       }
       q[best] = to;
     }
-    if (!moved) break;
+    if (!moved) {
+      break;
+    }
   }
-  for (const pl of planes) {
-    const e = q[0] * pl.n[0] + q[1] * pl.n[1] + q[2] * pl.n[2] - pl.d - m;
-    if (e < 0) for (let j = 0; j < 3; j++) q[j] = q[j]! - pl.n[j]! * e;
-  }
+  pushOutOfPlanes(q, planes, m);
   return q;
 }
 
@@ -215,9 +242,9 @@ export function keepClear(p: V3, env: { planes?: readonly RopePlane[]; solids?: 
 type Phase = 'pull' | 'reseat' | 'held' | 'insert' | 'wait' | 'eject' | 'fall' | 'blend';
 
 interface Live {
-  rig: CableRig;
+  rig: cablerig3dTypes.CableRig;
   /** Where the model's strands leave it, in its socket. */
-  exits: RopeEnd[];
+  exits: ropeTypes.RopeEnd[];
   pivot: Group;
   sleeve: Sleeve;
   mesh: Mesh;
@@ -226,8 +253,8 @@ interface Live {
   lengths: number[];
   free: number;
   /** What the plug rides over and its spine falls in: the rig's walls and parts, and its deck (`spineEnv`). */
-  space: { planes: RopePlane[]; solids: Solid[] };
-  pose: Pose;
+  space: { planes: ropeTypes.Plane[]; solids: ropeTypes.Solid[] };
+  pose: cablerig3dTypes.Pose;
   vel: Vector3;
   phase: Phase;
   t: number;
@@ -235,13 +262,13 @@ interface Live {
   from: number;
   off: Vector3;
   /** The socket the plug lines up with now (the rig's own, or one of its `alts`), and its `connectCable` port. */
-  seat: Seat;
+  seat: cablerig3dTypes.Seat;
   port: string | undefined;
   /** The plug's model in the pivot, and what built it (a socket of another size takes a plug of its own). */
-  plug: Object3D;
-  build: CableRig['model'];
+  plug: threeTypes.Object3D;
+  build: cablerig3dTypes.CableRig['model'];
   spine?: Rope;
-  blend?: { a: V3[][]; b: V3[][] };
+  blend?: { a: ropeTypes.V3[][]; b: ropeTypes.V3[][] };
 }
 
 /** What the hand reads of the game: which cables are plugged in (a game's cable, or a lead the stage adds: Build my PC's front-panel leads). */
@@ -274,15 +301,15 @@ interface Auto {
  * where it lies; `out`: taken back from where it lies, and gone (its part is leaving).
  */
 interface Reel {
-  rig: CableRig;
-  exits: RopeEnd[];
+  rig: cablerig3dTypes.CableRig;
+  exits: ropeTypes.RopeEnd[];
   pivot: Group;
   sleeve: Sleeve;
   mesh: Mesh;
   mode: 'in' | 'loose' | 'out';
   /** Each strand's path to the end of the run, and the plug's pose there. */
-  path: V3[][];
-  end: Pose;
+  path: ropeTypes.V3[][];
+  end: cablerig3dTypes.Pose;
   /** Seconds into the run (at the job's pace), the run's seconds, the push-in's, and the share of the way where the push-in starts. */
   t: number;
   run: number;
@@ -301,8 +328,8 @@ const AUTO_PULL_S = 0.3,
   AUTO_CARRY_S = 0.4,
   AUTO_LIFT = 3.2;
 
-const V = (p: V3) => new Vector3(p[0], p[1], p[2]);
-const T = (v: Vector3): V3 => [v.x, v.y, v.z];
+const V = (p: ropeTypes.V3) => new Vector3(p[0], p[1], p[2]);
+const T = (v: Vector3): ropeTypes.V3 => [v.x, v.y, v.z];
 const ID = new Quaternion();
 
 export class PlugHand {
@@ -316,7 +343,7 @@ export class PlugHand {
   private over: string | null = null;
   private snapped = false;
   /** The built cable hidden while the hand holds it. */
-  private hidden: Object3D | null = null;
+  private hidden: threeTypes.Object3D | null = null;
   private readonly ray = new Raycaster();
   private readonly plane = new Plane();
 
@@ -338,13 +365,17 @@ export class PlugHand {
   /** Pull a seated plug out by itself, lift it clear and let it fall on its cable. Resolves true when it lies loose, false when it cannot (no rig, not seated) or is cancelled. */
   pullOut(kind: string, speed = 1): Promise<boolean> {
     const s = this.host.snapshot();
-    if (!s?.cables.find((c) => c.id === kind)?.connected) return Promise.resolve(false);
+    if (!s?.cables.find((c) => c.id === kind)?.connected) {
+      return Promise.resolve(false);
+    }
     return this.script(kind, 'out', speed);
   }
 
   /** Carry a loose plug to its socket and push it in. Resolves true when it is seated, false when it cannot (no rig, nothing takes it) or is cancelled. */
   plugIn(kind: string, speed = 1): Promise<boolean> {
-    if (!this.host.machine()?.rig(kind)?.canSeat) return Promise.resolve(false);
+    if (!this.host.machine()?.rig(kind)?.canSeat) {
+      return Promise.resolve(false);
+    }
     return this.script(kind, 'in', speed);
   }
 
@@ -366,14 +397,17 @@ export class PlugHand {
    */
   feed(kind: string, plug: boolean, speed = 1): Promise<boolean> {
     const rig = this.host.machine()?.rig(kind);
-    if (!rig || (plug && !rig.canSeat)) return Promise.resolve(false);
+    if (!rig || (plug && !rig.canSeat)) {
+      return Promise.resolve(false);
+    }
     return this.startReel(kind, plug ? 'in' : 'loose', speed);
   }
 
   /** Take a loose cable back into its hole along the way it lies (its part is leaving): it is gone, the built cable stays hidden. Resolves true when done, false when it cannot (no rig, still plugged). */
   stow(kind: string, speed = 1): Promise<boolean> {
-    if (!this.host.machine()?.rig(kind) || this.host.snapshot()?.cables.find((c) => c.id === kind)?.connected)
+    if (!this.host.machine()?.rig(kind) || this.host.snapshot()?.cables.find((c) => c.id === kind)?.connected) {
       return Promise.resolve(false);
+    }
     return this.startReel(kind, 'out', speed);
   }
 
@@ -391,7 +425,7 @@ export class PlugHand {
         seeThrough(o);
       });
       // (a plug that goes in runs the path of the cable seated, a loose one the path it lies in: the run ends as the built cable stands)
-      let path: V3[][], end: Pose;
+      let path: ropeTypes.V3[][], end: cablerig3dTypes.Pose;
       if (mode === 'in') {
         path = rig.seated(model.strands);
         end = { at: [...rig.seat.at], q: new Quaternion() };
@@ -450,15 +484,17 @@ export class PlugHand {
     const m = this.host.machine(),
       rig = m?.rig(kind),
       s = this.host.snapshot();
-    if (!m || !rig || !s) return false;
-    const seated = rig.canSeat && !!s.cables.find((c) => c.id === kind)?.connected,
+    if (!m || !rig || !s) {
+      return false;
+    }
+    const seated = rig.canSeat && Boolean(s.cables.find((c) => c.id === kind)?.connected),
       model = rig.model();
     model.root.traverse((o) => {
       seeThrough(o);
     });
     const home = rig.seated(model.strands),
       lengths = home.map(lengthOf);
-    let start: V3[][], pose: Pose;
+    let start: ropeTypes.V3[][], pose: cablerig3dTypes.Pose;
     if (seated) {
       start = home;
       pose = { at: [...rig.seat.at], q: new Quaternion() };
@@ -528,7 +564,9 @@ export class PlugHand {
   /** Let go: a plug pulled but not out slides back in; one in the snap zone slides in; any other falls on its cable. */
   release(cx: number, cy: number, cancelled: boolean): void {
     const l = this.live;
-    if (!l) return;
+    if (!l) {
+      return;
+    }
     this.px = cx;
     this.py = cy;
     if (l.phase === 'pull') {
@@ -537,24 +575,33 @@ export class PlugHand {
       l.from = V(l.pose.at).sub(V(l.seat.at)).dot(V(l.seat.axis)) / l.rig.engage;
       return;
     }
-    if (l.phase !== 'held') return;
+    if (l.phase !== 'held') {
+      return;
+    }
     if (!cancelled && this.snapped) {
       l.phase = 'insert';
       l.t = 0;
       l.off = V(l.pose.at).sub(this.preSeat(l));
       return;
     }
-    if (!cancelled && !l.rig.canSeat)
+    if (!cancelled && !l.rig.canSeat) {
       this.host.toast('No card takes this lead: install a graphics card first.', cx, cy);
+    }
     this.fall(l);
   }
 
   /** The text by the pointer, and whether a drop now plugs in. */
   label(): { text: string; ok: boolean } | null {
     const l = this.live;
-    if (!l) return null;
-    if (l.phase === 'pull') return { text: `Pull it out of ${l.rig.name}`, ok: false };
-    if (!l.rig.canSeat) return { text: 'No card takes this lead', ok: false };
+    if (!l) {
+      return null;
+    }
+    if (l.phase === 'pull') {
+      return { text: `Pull it out of ${l.rig.name}`, ok: false };
+    }
+    if (!l.rig.canSeat) {
+      return { text: 'No card takes this lead', ok: false };
+    }
     return this.snapped
       ? { text: `Let go to plug into ${l.rig.name}`, ok: true }
       : { text: `Plug into ${l.rig.name}`, ok: false };
@@ -566,15 +613,17 @@ export class PlugHand {
     return l?.phase === 'held' && l.rig.canSeat && l.rig.target ? [l.rig.target] : [];
   }
 
-  frame(dt: number, cam: PerspectiveCamera): void {
+  frame(dt: number, cam: threeTypes.PerspectiveCamera): void {
     if (this.reel) {
       this.reelFrame(this.reel, dt);
       return;
     }
     const l = this.live;
-    if (!l) return;
+    if (!l) {
+      return;
+    }
     this.hide(true);
-    const rig = l.rig;
+    const { rig } = l;
     l.t += dt;
     switch (l.phase) {
       case 'pull': {
@@ -590,18 +639,23 @@ export class PlugHand {
           l.phase = 'held';
           l.t = 0;
           this.hold(l, dt, cam);
-        } else this.slide(l, p.out, 1);
+        } else {
+          this.slide(l, p.out, 1);
+        }
         break;
       }
       case 'reseat': {
         const u = Math.min(1, l.t / RESEAT_S);
         this.slide(l, l.from * (1 - u) * (1 - u), 1);
-        if (u >= 1) this.blendTo(l, rig.seated(l.exits));
+        if (u >= 1) {
+          this.blendTo(l, rig.seated(l.exits));
+        }
         break;
       }
-      case 'held':
+      case 'held': {
         this.hold(l, dt, cam);
         break;
+      }
       case 'insert': {
         const dur = insertTime(rig.engage);
         this.slide(l, insertOffset(l.t, dur), Math.max(0, 1 - l.t / dur));
@@ -626,7 +680,9 @@ export class PlugHand {
       case 'eject': {
         const u = Math.min(1, l.t / RESEAT_S);
         this.slide(l, u * (2 - u), 0);
-        if (u >= 1) this.fall(l);
+        if (u >= 1) {
+          this.fall(l);
+        }
         break;
       }
       case 'fall': {
@@ -669,11 +725,13 @@ export class PlugHand {
           a.map((s, i) =>
             s.map((p, j) => {
               const q = b[i]![j]!;
-              return [p[0] + (q[0] - p[0]) * k, p[1] + (q[1] - p[1]) * k, p[2] + (q[2] - p[2]) * k] as V3;
+              return [p[0] + (q[0] - p[0]) * k, p[1] + (q[1] - p[1]) * k, p[2] + (q[2] - p[2]) * k] as ropeTypes.V3;
             }),
           ),
         );
-        if (u >= 1) this.finish();
+        if (u >= 1) {
+          this.finish();
+        }
         return;
       }
     }
@@ -695,10 +753,14 @@ export class PlugHand {
     const k = r.mode === 'out' ? 1 - reelShare(r.t, r.run, 0, 1) : reelShare(r.t, r.run, r.push, r.pre);
     this.drawReel(r, k);
     if (r.mode === 'out') {
-      if (r.t >= total) this.endReel(true);
+      if (r.t >= total) {
+        this.endReel(true);
+      }
       return;
     }
-    if (r.t < total) return;
+    if (r.t < total) {
+      return;
+    }
     if (r.mode === 'loose') {
       this.endReel(true);
       return;
@@ -709,8 +771,11 @@ export class PlugHand {
       this.plugIn_(r.rig.id, r.rig.port);
     }
     r.waited += dt;
-    if (this.host.snapshot()?.cables.find((c) => c.id === r.rig.id)?.connected) this.endReel(true);
-    else if (r.waited > CONFIRM_S) this.endReel(false);
+    if (this.host.snapshot()?.cables.find((c) => c.id === r.rig.id)?.connected) {
+      this.endReel(true);
+    } else if (r.waited > CONFIRM_S) {
+      this.endReel(false);
+    }
   }
 
   /** The cable `k` of the way along its run: the plug and the strands. */
@@ -721,16 +786,20 @@ export class PlugHand {
     r.pivot.visible = z.size > 0.02;
     // (a strand with no length shows no tube: a ring of vertices on one point has no way to face)
     r.mesh.visible = k > 0.004;
-    if (r.mesh.visible) r.sleeve.update(z.strands);
+    if (r.mesh.visible) {
+      r.sleeve.update(z.strands);
+    }
   }
 
   /** The run is over: the built cable shows as it stands (a cable taken back stays hidden: its part is leaving and the machine is built again without it). `ok`: it did what it was asked. */
   private endReel(ok: boolean): void {
     const r = this.reel;
-    if (!r) return;
+    if (!r) {
+      return;
+    }
     this.reel = null;
     const m = this.host.machine(),
-      id = r.rig.id;
+      { id } = r.rig;
     if (m) {
       if (r.mode === 'out') {
         m.rest.delete(id);
@@ -753,7 +822,7 @@ export class PlugHand {
   }
 
   /** The point in front of the socket where a plug lines up before it slides in. */
-  private preSeat(l: Live, seat: Seat = l.seat): Vector3 {
+  private preSeat(l: Live, seat: cablerig3dTypes.Seat = l.seat): Vector3 {
     return V(seat.at).addScaledVector(V(seat.axis), l.rig.engage);
   }
 
@@ -761,12 +830,12 @@ export class PlugHand {
    * Held: the plug on its spring toward the pointer, riding over what is under it (a part, the board, the desk), so it never sinks behind the
    * parts it passes or into the tray however slanted the view. Off the walls it goes on at its height over the deck.
    */
-  private hold(l: Live, dt: number, cam: PerspectiveCamera) {
+  private hold(l: Live, dt: number, cam: threeTypes.PerspectiveCamera) {
     if (this.auto) {
       this.autoHold(l, dt);
       return;
     }
-    const rig = l.rig,
+    const { rig } = l,
       r = this.canvas.getBoundingClientRect(),
       up = V(rig.deck.n);
     this.ray.setFromCamera(
@@ -787,24 +856,27 @@ export class PlugHand {
         : Infinity;
     };
     // (of the rig's sockets, the one nearest the pointer takes the plug; it keeps its choice while it is snapped)
-    const dist = (s: Seat) => Math.min(far(this.preSeat(l, s)), far(V(s.at)));
+    const dist = (s: cablerig3dTypes.Seat) => Math.min(far(this.preSeat(l, s)), far(V(s.at)));
     if (!this.snapped && rig.alts?.length) {
-      const all: { seat: Seat; port: string | undefined; build: CableRig['model'] }[] = [
-        { seat: rig.seat, port: rig.port, build: rig.model },
-        ...rig.alts.map((a) => ({
-          seat: { at: a.at, axis: rig.seat.axis },
-          port: a.port,
-          build: a.model ?? rig.model,
-        })),
-      ];
+      const all: { seat: cablerig3dTypes.Seat; port: string | undefined; build: cablerig3dTypes.CableRig['model'] }[] =
+        [
+          { seat: rig.seat, port: rig.port, build: rig.model },
+          ...rig.alts.map((a) => ({
+            seat: { at: a.at, axis: rig.seat.axis },
+            port: a.port,
+            build: a.model ?? rig.model,
+          })),
+        ];
       const best = all.reduce((a, b) => (dist(b.seat) < dist(a.seat) ? b : a));
-      if (best.build !== l.build) this.swap(l, best.build);
+      if (best.build !== l.build) {
+        this.swap(l, best.build);
+      }
       l.seat = best.seat;
       l.port = best.port;
     }
     const pre = this.preSeat(l),
       near = dist(l.seat);
-    this.snapped = rig.canSeat && (near <= SNAP_PX || (!!rig.target && this.over === rig.target));
+    this.snapped = rig.canSeat && (near <= SNAP_PX || (Boolean(rig.target) && this.over === rig.target));
     const w = this.snapped ? 1 : rig.canSeat ? snapWeight(near) : 0;
     // its turn: hanging along its cable (which leaves it along the deck toward its grommet, not down through the board), squared to the socket
     // as it comes near
@@ -815,7 +887,9 @@ export class PlugHand {
       .add(new Vector3(0, 0.7, 0))
       .normalize();
     const turn = new Quaternion().slerp(new Quaternion().setFromUnitVectors(V(m.dir), back), l.free * (1 - w));
-    if (this.snapped) goal.copy(pre);
+    if (this.snapped) {
+      goal.copy(pre);
+    }
     // it goes only as far as its cable reaches (all of it at the socket, which its seated length reaches), at its height over the deck, and over
     // the parts in its way
     const reach = () =>
@@ -841,7 +915,7 @@ export class PlugHand {
    */
   private autoHold(l: Live, dt: number) {
     const a = this.auto!,
-      rig = l.rig,
+      { rig } = l,
       up = V(rig.deck.n),
       pre = this.preSeat(l);
     a.t += dt * a.speed;
@@ -883,8 +957,9 @@ export class PlugHand {
       l.vel.setComponent(j, v);
     }
     l.pose.q.slerp(turn, 1 - Math.exp(-dt * 14));
-    if (out && a.t >= AUTO_LIFT_S + 0.04) this.fall(l);
-    else if (!out && a.t >= AUTO_CARRY_S + 0.04) {
+    if (out && a.t >= AUTO_LIFT_S + 0.04) {
+      this.fall(l);
+    } else if (!out && a.t >= AUTO_CARRY_S + 0.04) {
       this.snapped = true;
       l.phase = 'insert';
       l.t = 0;
@@ -893,7 +968,7 @@ export class PlugHand {
   }
 
   /** Put the plug a socket takes in the hand (in the rig's seat, as every model is built): its model and its strands' exits. */
-  private swap(l: Live, build: CableRig['model']) {
+  private swap(l: Live, build: cablerig3dTypes.CableRig['model']) {
     const m = build(),
       inner = l.plug.parent!;
     m.root.traverse((o) => {
@@ -920,12 +995,13 @@ export class PlugHand {
 
   /** Let the plug go: its cable's middle strand becomes a spine with a free end, the plug hangs at its tip. */
   private fall(l: Live) {
-    const rig = l.rig,
+    const { rig } = l,
       pts = l.ropes.map((r) => r.points()),
-      n = rig.n;
+      { n } = rig;
     const mean = Array.from({ length: n }, (_, j) =>
-      pts.reduce<V3>(
-        (s, p) => [s[0] + p[j]![0] / pts.length, s[1] + p[j]![1] / pts.length, s[2] + p[j]![2] / pts.length] as V3,
+      pts.reduce<ropeTypes.V3>(
+        (s, p) =>
+          [s[0] + p[j]![0] / pts.length, s[1] + p[j]![1] / pts.length, s[2] + p[j]![2] / pts.length] as ropeTypes.V3,
         [0, 0, 0],
       ),
     );
@@ -948,12 +1024,12 @@ export class PlugHand {
   }
 
   /** The plug's place and its strands as they are now. */
-  private restOf(l: Live): Rest {
+  private restOf(l: Live): cablerig3dTypes.Rest {
     return { pose: { at: [...l.pose.at], q: l.pose.q.clone() }, strands: l.ropes.map((r) => r.points()) };
   }
 
   /** Ease the strands from where they are to the cable Machine3D builds, then hand over to it. */
-  private blendTo(l: Live, to: V3[][]) {
+  private blendTo(l: Live, to: ropeTypes.V3[][]) {
     setPose(l.pivot, l.pose);
     l.blend = { a: l.ropes.map((r) => r.points()), b: to.map((s) => resample(s, l.rig.n)) };
     l.phase = 'blend';
@@ -963,10 +1039,14 @@ export class PlugHand {
   /** Hand the cable back to the built one. */
   private finish() {
     const l = this.live;
-    if (!l) return;
+    if (!l) {
+      return;
+    }
     // (a plug the sim took: the built cable stands seated now, not as it lay loose before the hand took it)
     const mc = this.host.machine();
-    if (mc && this.host.snapshot()?.cables.find((c) => c.id === l.rig.id)?.connected) mc.setCable(l.rig.id, true);
+    if (mc && this.host.snapshot()?.cables.find((c) => c.id === l.rig.id)?.connected) {
+      mc.setCable(l.rig.id, true);
+    }
     this.hide(false);
     this.live = null;
     this.hidden = null;
@@ -977,27 +1057,38 @@ export class PlugHand {
     if (a) {
       this.auto = null;
       // (a plug the sim refused falls back loose: the step did not seat it)
-      a.done(a.dir === 'out' || !!this.host.snapshot()?.cables.find((c) => c.id === l.rig.id)?.connected);
+      a.done(a.dir === 'out' || Boolean(this.host.snapshot()?.cables.find((c) => c.id === l.rig.id)?.connected));
     }
   }
 
   /** Hide the built cable while the hand holds it (it may be built again meanwhile: a plug in or out), or show it again. */
   private hide(hide: boolean) {
     const id = this.live?.rig.id ?? this.reel?.rig.id;
-    if (id) this.hideCable(id, hide);
+    if (id) {
+      this.hideCable(id, hide);
+    }
   }
 
   /** `hide` for the built cable `id`. A cable the stage holds back (`Machine3D.holdBack`) stays hidden. */
   private hideCable(id: string, hide: boolean) {
     const m = this.host.machine();
-    if (!m) return;
+    if (!m) {
+      return;
+    }
     let under = false;
-    for (let p: Object3D | null = this.hidden; p; p = p.parent)
+    for (let p: threeTypes.Object3D | null = this.hidden; p; p = p.parent) {
       if (p === m.root) {
         under = true;
         break;
       }
-    if (!under) this.hidden = m.cableGroup(id) ?? findById(m.root, `cable.${id}`);
-    for (const c of this.hidden?.children ?? []) if (c.userData['rig']) c.visible = !hide && !m.isHeldBack(id);
+    }
+    if (!under) {
+      this.hidden = m.cableGroup(id) ?? findById(m.root, `cable.${id}`);
+    }
+    for (const c of this.hidden?.children ?? []) {
+      if (c.userData['rig']) {
+        c.visible = !hide && !m.isHeldBack(id);
+      }
+    }
   }
 }

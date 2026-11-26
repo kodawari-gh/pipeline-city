@@ -1,18 +1,10 @@
 // Small real parts for the PCBs of the sticks, the cards and the modules (docs/PC_PARTS.md "Detail"): passives with their tinned ends, moulded
 // packages with their laser marking and pin-1 dimple, solder-mask tops painted with traces, vias, pads and silkscreen, gold edge fingers. Sizes are
 // real (23 layout units a mm); a part stands on a PCB top at depth z, its rect in layout coordinates (y down).
-import {
-  BoxGeometry,
-  Group,
-  Mesh,
-  PlaneGeometry,
-  RingGeometry,
-  Vector2,
-  type Material,
-  type MeshStandardMaterial,
-  type Texture,
-} from 'three';
-import { extrude, instanced, rectBox, SEG, softBox, withLow, type RectLike } from '@/core/render/three/geometry';
+import { BoxGeometry, Group, Mesh, PlaneGeometry, RingGeometry, Vector2 } from 'three';
+import type * as threeTypes from 'three';
+import { extrude, instanced, rectBox, SEG, softBox, withLow } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { CERAMIC, LAMINATE, NYLON, mat } from '@/core/render/three/materials';
 import { decal, shapeOf, tex } from './casekit3d';
 
@@ -22,13 +14,13 @@ export const MM = 23;
 /** A footprint with a side under this (3 mm) is a small part: a plain box, its rounded edge too small to read. */
 const SMALL = 3 * MM;
 /** A part's body: a plain box for a small footprint, else a box with rounded edges (`radius`). */
-const body = (r: RectLike, z0: number, z1: number, m: Material, radius: number): Mesh =>
+const body = (r: geometryTypes.RectLike, z0: number, z1: number, m: threeTypes.Material, radius: number): Mesh =>
   Math.min(r.w, r.h) < SMALL ? rectBox(r, z0, z1, m) : softBox(r, z0, z1, m, radius);
 /**
  * A part's material, named by its look. Each call makes its own: a part's fade and its disposal write to its materials, and a scene must not
  * share one with another scene (`buildmode3d.shared.test.ts`). The machine's material share (`shareMaterials`) folds the equal ones in a tree.
  */
-const once = <T extends Material>(_key: string, make: () => T): T => make();
+const once = <T extends threeTypes.Material>(_key: string, make: () => T): T => make();
 
 // ------------------------------------------------------------------ passives
 /** A chip passive's body by package (mm: length, width, height). */
@@ -50,8 +42,8 @@ export interface Passive {
 }
 
 const capM = () => once('cap', () => mat(CERAMIC, { roughness: 0.55 }));
-const resM = () => once('res', () => mat(0x131518, { roughness: 0.5 }));
-const tinM = () => once('tin', () => mat(0xb9babf, { metalness: 0.9, roughness: 0.32 }));
+const resM = () => once('res', () => mat(0x13_15_18, { roughness: 0.5 }));
+const tinM = () => once('tin', () => mat(0xb9_ba_bf, { metalness: 0.9, roughness: 0.32 }));
 
 /** Passives on a PCB top at depth z: each body between its two tinned ends (a resistor's top black, a capacitor tan all over). */
 export function passives(g: Group, items: readonly Passive[], z: number): void {
@@ -65,17 +57,24 @@ export function passives(g: Group, items: readonly Passive[], z: number): void {
       ? { x: p.x, y: -p.y, z: z + h / 2, sx: w, sy: l - 2 * e, sz: h }
       : { x: p.x, y: -p.y, z: z + h / 2, sx: l - 2 * e, sy: w, sz: h };
     (p.kind === 'cap' ? caps : ress).push(body);
-    for (const s of [-1, 1])
+    for (const s of [-1, 1]) {
       ends.push(
         p.turn
           ? { x: p.x, y: -(p.y + (s * (l - e)) / 2), z: z + h / 2, sx: w * 1.02, sy: e, sz: h * 1.04 }
           : { x: p.x + (s * (l - e)) / 2, y: -p.y, z: z + h / 2, sx: e, sy: w * 1.02, sz: h * 1.04 },
       );
+    }
   }
   const box = new BoxGeometry(1, 1, 1);
-  if (caps.length) g.add(instanced(box, capM(), caps));
-  if (ress.length) g.add(instanced(box, resM(), ress));
-  if (ends.length) g.add(instanced(box, tinM(), ends));
+  if (caps.length > 0) {
+    g.add(instanced(box, capM(), caps));
+  }
+  if (ress.length > 0) {
+    g.add(instanced(box, resM(), ress));
+  }
+  if (ends.length > 0) {
+    g.add(instanced(box, tinM(), ends));
+  }
 }
 type Box = { x: number; y: number; z: number; sx: number; sy: number; sz: number };
 
@@ -122,7 +121,7 @@ function markTex(
   dot: boolean,
   pin1: Corner = 'nw',
   flip = false,
-): Texture | null {
+): threeTypes.Texture | null {
   const px = 40,
     W = Math.max(64, Math.round(wMm * px)),
     H = Math.max(64, Math.round(hMm * px));
@@ -132,7 +131,7 @@ function markTex(
     // the mould's fine stipple
     for (let i = 0; i < (w * h) / 60; i++) {
       c.fillStyle = `rgba(255,255,255,${0.012 + ((i * 7919) % 13) / 900})`;
-      c.fillRect((i * 7907) % w, (i * 104729) % h, 1, 1);
+      c.fillRect((i * 7907) % w, (i * 104_729) % h, 1, 1);
     }
     if (flip) {
       c.translate(w, h);
@@ -178,21 +177,23 @@ export const lidBase = (h: number): number => Math.min(h * 0.35, 18);
  */
 export function pkg(
   g: Group,
-  r: RectLike,
+  r: geometryTypes.RectLike,
   z: number,
   h: number,
   lines: readonly string[],
   o: PkgLook = {},
-): MeshStandardMaterial {
+): threeTypes.MeshStandardMaterial {
   const wMm = r.w / MM,
     hMm = r.h / MM;
   if (o.lid) {
     const t = lidBase(h);
-    if (!o.lidOnly) g.add(body(r, z, z + t, mat(0x173d29, { roughness: 0.55 }), 2));
+    if (!o.lidOnly) {
+      g.add(body(r, z, z + t, mat(0x17_3d_29, { roughness: 0.55 }), 2));
+    }
     const lid = { x: r.x + r.w * 0.06, y: r.y + r.h * 0.06, w: r.w * 0.88, h: r.h * 0.88 },
-      m = mat(0x959aa3, { metalness: 0.8, roughness: 0.4 });
+      m = mat(0x95_9a_a3, { metalness: 0.8, roughness: 0.4 });
     g.add(body(lid, z + t, z + h, m, 6));
-    if (lines.length)
+    if (lines.length > 0) {
       g.add(
         decal(
           lid,
@@ -200,13 +201,14 @@ export function pkg(
           decalMat(markTex(lines, wMm * 0.88, hMm * 0.88, '#9ca2aa', '#5a5f68', false), { metal: 0.75, rough: 0.42 }),
         ),
       );
+    }
     return m;
   }
-  const mould = o.mould ?? 0x17191d,
+  const mould = o.mould ?? 0x17_19_1d,
     hexs = `#${mould.toString(16).padStart(6, '0')}`,
     m = once(`mould:${mould}`, () => mat(mould, { roughness: 0.58, metalness: 0.08 }));
   g.add(body(r, z, z + h, m, o.bevel ?? Math.min(6, h * 0.3)));
-  if (lines.length)
+  if (lines.length > 0) {
     g.add(
       decal(
         { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 2 },
@@ -217,14 +219,15 @@ export function pkg(
         }),
       ),
     );
+  }
   return m;
 }
 
 /** A crystal in its seam-sealed metal can (the controller's clock): a nickel lid on a ceramic base, its frequency stamped on it. */
-export function crystal(g: Group, r: RectLike, z: number, h: number, value = '40.000'): void {
+export function crystal(g: Group, r: geometryTypes.RectLike, z: number, h: number, value = '40.000'): void {
   g.add(body(r, z, z + h * 0.35, mat(NYLON, { roughness: 0.7 }), 2));
   const lid = { x: r.x + r.w * 0.06, y: r.y + r.h * 0.08, w: r.w * 0.88, h: r.h * 0.84 };
-  g.add(body(lid, z + h * 0.35, z + h, mat(0xb9babf, { metalness: 0.9, roughness: 0.28 }), 3));
+  g.add(body(lid, z + h * 0.35, z + h, mat(0xb9_ba_bf, { metalness: 0.9, roughness: 0.28 }), 3));
   g.add(
     decal(
       lid,
@@ -235,8 +238,8 @@ export function crystal(g: Group, r: RectLike, z: number, h: number, value = '40
 }
 
 /** A shielded power inductor (a grey ferrite block with its value printed), as next to a regulator. */
-export function inductor(g: Group, r: RectLike, z: number, h: number, value = 'R47'): void {
-  const m = once('ind', () => mat(0x4e5360, { roughness: 0.62, metalness: 0.15 }));
+export function inductor(g: Group, r: geometryTypes.RectLike, z: number, h: number, value = 'R47'): void {
+  const m = once('ind', () => mat(0x4e_53_60, { roughness: 0.62, metalness: 0.15 }));
   g.add(body(r, z, z + h, m, Math.min(5, h * 0.25)));
   g.add(
     decal(
@@ -254,16 +257,16 @@ export interface MaskArt {
   mask: string;
   trace: string;
   /** Parts outlined in silkscreen (layout rects), with their designators. */
-  parts?: { r: RectLike; ref?: string }[];
+  parts?: { r: geometryTypes.RectLike; ref?: string }[];
   /** Silkscreen text (layout point, text, size in mm). */
   text?: { x: number; y: number; s: string; mm: number; rot?: boolean }[];
   /** Bare pads: layout rects, and their finish (default gold, ENIG; a tin colour for a HASL board). */
-  pads?: RectLike[];
+  pads?: geometryTypes.RectLike[];
   pad?: string;
   /** Bare laminate with no mask on it (the edge fingers' strip): layout rects. */
-  bare?: RectLike[];
+  bare?: geometryTypes.RectLike[];
   /** Areas that are not board (a notch, a key, a chamfered corner): cut out of the texture (the slab has its own outline). */
-  cuts?: { circle?: [number, number, number]; rect?: RectLike; poly?: [number, number][] }[];
+  cuts?: { circle?: [number, number, number]; rect?: geometryTypes.RectLike; poly?: [number, number][] }[];
   /** A seed for the traces and vias, so every copy of a part shows the same routing. */
   seed: number;
   /** A routed board's own copper: painted in place of the seeded traces and vias. */
@@ -291,7 +294,7 @@ export interface MaskCopper {
   }[];
   /** Unplated holes (a jack's plastic pegs, a heatsink's push pins): bare drills, the pour cleared round them. */
   npth?: readonly { x: number; y: number; r: number }[];
-  keep?: readonly RectLike[];
+  keep?: readonly geometryTypes.RectLike[];
   fiducials?: readonly { x: number; y: number; r: number }[];
   dots?: readonly { x: number; y: number; r: number }[];
   /** A via's ring and drill, a contact's ring and drill (radii). */
@@ -304,10 +307,10 @@ export interface MaskCopper {
 
 /** A decal's material: drawn over the face it lies on (no fight with it at any distance). */
 export const decalMat = (
-  map: Texture | null,
+  map: threeTypes.Texture | null,
   o: { rough?: number; metal?: number; cut?: boolean } = {},
-): MeshStandardMaterial =>
-  mat(0xffffff, {
+): threeTypes.MeshStandardMaterial =>
+  mat(0xff_ff_ff, {
     map,
     roughness: o.rough ?? 0.5,
     metalness: o.metal ?? 0.08,
@@ -323,7 +326,7 @@ export const decalMat = (
  */
 export function maskTop(
   key: string,
-  r: RectLike,
+  r: geometryTypes.RectLike,
   z: number,
   a: MaskArt,
   o: { rough?: number; under?: boolean; px?: number } = {},
@@ -342,7 +345,7 @@ export function maskTop(
     c.lineCap = 'round';
     c.lineJoin = 'round';
     // a rect in the picture, whichever face it is on; a run, a disc
-    const box = (q: RectLike): [number, number, number, number] => [
+    const box = (q: geometryTypes.RectLike): [number, number, number, number] => [
       X(q.x),
       Math.min(Y(q.y), Y(q.y + q.h)),
       q.w * sx,
@@ -371,17 +374,33 @@ export function maskTop(
         c.beginPath();
         c.roundRect(bx, by, bw, bh, rr * sx);
         c.fill();
-        for (const t of cu.traces) if (!t.gnd) run(t.pts, t.w + 2 * k, a.mask);
-        for (const v of cu.vias) if (!v.gnd) disc(v.x, v.y, cu.via + k, a.mask);
-        for (const h of cu.holes ?? []) disc(h.x, h.y, (h.ring ?? cu.ring) + k, a.mask);
-        for (const h of cu.npth ?? []) disc(h.x, h.y, h.r + k, a.mask);
+        for (const t of cu.traces) {
+          if (!t.gnd) {
+            run(t.pts, t.w + 2 * k, a.mask);
+          }
+        }
+        for (const v of cu.vias) {
+          if (!v.gnd) {
+            disc(v.x, v.y, cu.via + k, a.mask);
+          }
+        }
+        for (const h of cu.holes ?? []) {
+          disc(h.x, h.y, (h.ring ?? cu.ring) + k, a.mask);
+        }
+        for (const h of cu.npth ?? []) {
+          disc(h.x, h.y, h.r + k, a.mask);
+        }
         c.fillStyle = a.mask;
-        for (const q of cu.keep ?? []) c.fillRect(...box({ x: q.x - k, y: q.y - k, w: q.w + 2 * k, h: q.h + 2 * k }));
-        for (const f of cu.fiducials ?? []) disc(f.x, f.y, f.r * 2 + k, a.mask);
+        for (const q of cu.keep ?? []) {
+          c.fillRect(...box({ x: q.x - k, y: q.y - k, w: q.w + 2 * k, h: q.h + 2 * k }));
+        }
+        for (const f of cu.fiducials ?? []) {
+          disc(f.x, f.y, f.r * 2 + k, a.mask);
+        }
         // a ground contact's thermal relief: four spokes across its clear ring
         c.lineCap = 'butt';
-        for (const h of cu.holes ?? [])
-          if (h.gnd)
+        for (const h of cu.holes ?? []) {
+          if (h.gnd) {
             for (let i = 0; i < 4; i++) {
               const t = Math.PI / 4 + (i * Math.PI) / 2,
                 l = (h.ring ?? cu.ring) + k + 1;
@@ -394,19 +413,23 @@ export function maskTop(
                 a.trace,
               );
             }
+          }
+        }
         c.lineCap = 'round';
       }
-      for (const t of cu.traces) run(t.pts, t.w, a.trace);
+      for (const t of cu.traces) {
+        run(t.pts, t.w, a.trace);
+      }
       for (const v of cu.vias) {
         disc(v.x, v.y, cu.via, a.trace);
         disc(v.x, v.y, cu.drill, 'rgba(0,0,0,0.6)');
       }
     } else {
       let s = a.seed;
-      const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+      const rnd = () => (s = (s * 16_807) % 2_147_483_647) / 2_147_483_647;
       // the traces: busses of parallel runs with 45-degree jogs, and single runs to the vias
       c.strokeStyle = a.trace;
-      for (let b = 0; b < Math.round((W * H) / 26000); b++) {
+      for (let b = 0; b < Math.round((W * H) / 26_000); b++) {
         const n = 2 + Math.floor(rnd() * 6),
           x0 = rnd() * W,
           y0 = rnd() * H,
@@ -439,7 +462,7 @@ export function maskTop(
         c.arc(x, y, rr * 0.7, 0, Math.PI * 2);
         c.fill();
       }
-      for (let i = 0; i < Math.round((W * H) / 40000); i++) {
+      for (let i = 0; i < Math.round((W * H) / 40_000); i++) {
         c.fillStyle = '#b8a678';
         c.beginPath();
         c.arc(rnd() * W, rnd() * H, 4.5, 0, Math.PI * 2);
@@ -447,19 +470,27 @@ export function maskTop(
       }
     }
     c.fillStyle = '#2b2a24';
-    for (const q of a.bare ?? []) c.fillRect(...box(q));
+    for (const q of a.bare ?? []) {
+      c.fillRect(...box(q));
+    }
     // the pads (gold, or the board's finish): the SMD lands, the contacts' rings round their drills, the fiducials in their rings of laminate
     c.fillStyle = finish;
-    for (const p of a.pads ?? []) c.fillRect(...box(p));
+    for (const p of a.pads ?? []) {
+      c.fillRect(...box(p));
+    }
     for (const h of cu?.holes ?? []) {
       const rr = h.ring ?? cu!.ring;
       if (h.square) {
         c.fillStyle = finish;
         c.fillRect(...box({ x: h.x - rr, y: h.y - rr, w: 2 * rr, h: 2 * rr }));
-      } else disc(h.x, h.y, rr, finish);
+      } else {
+        disc(h.x, h.y, rr, finish);
+      }
       disc(h.x, h.y, h.hole ?? cu!.hole, '#1c1d20');
     }
-    for (const h of cu?.npth ?? []) disc(h.x, h.y, h.r, '#16171a');
+    for (const h of cu?.npth ?? []) {
+      disc(h.x, h.y, h.r, '#16171a');
+    }
     for (const f of cu?.fiducials ?? []) {
       disc(f.x, f.y, f.r * 2, '#6e6447');
       disc(f.x, f.y, f.r, finish);
@@ -467,7 +498,9 @@ export function maskTop(
     c.strokeStyle = '#d9dbe0';
     c.fillStyle = '#d9dbe0';
     c.lineWidth = Math.max(1.5, 0.15 * MM * sx);
-    for (const d of cu?.dots ?? []) disc(d.x, d.y, d.r, '#d9dbe0');
+    for (const d of cu?.dots ?? []) {
+      disc(d.x, d.y, d.r, '#d9dbe0');
+    }
     c.fillStyle = '#d9dbe0';
     for (const p of a.parts ?? []) {
       const e = 0.35 * MM,
@@ -482,7 +515,9 @@ export function maskTop(
     for (const tx of a.text ?? []) {
       c.save();
       c.translate(X(tx.x), Y(tx.y));
-      if (tx.rot) c.rotate(-Math.PI / 2);
+      if (tx.rot) {
+        c.rotate(-Math.PI / 2);
+      }
       c.font = `600 ${tx.mm * MM * sy}px "Segoe UI", "DejaVu Sans", sans-serif`;
       c.textBaseline = 'middle';
       c.fillText(tx.s, 0, 0);
@@ -498,7 +533,9 @@ export function maskTop(
         c.arc(X(x), Y(y), rr * sx, 0, Math.PI * 2);
         c.fill();
       }
-      if (cut.rect) c.fillRect(...box(cut.rect));
+      if (cut.rect) {
+        c.fillRect(...box(cut.rect));
+      }
       if (cut.poly) {
         c.beginPath();
         cut.poly.forEach(([x, y], i) => (i ? c.lineTo(X(x), Y(y)) : c.moveTo(X(x), Y(y))));
@@ -509,7 +546,9 @@ export function maskTop(
     c.restore();
   });
   const d = decal(r, o.under ? z - 0.3 : z + 0.3, decalMat(t, { rough: o.rough ?? 0.6, metal: 0.02, cut: true }));
-  if (o.under) d.rotation.x = Math.PI;
+  if (o.under) {
+    d.rotation.x = Math.PI;
+  }
   return d;
 }
 
@@ -545,9 +584,56 @@ export const arc = (cx: number, cy: number, r: number, a0: number, a1: number, n
 // ------------------------------------------------------------------ labels
 /** What a label lies over: a part's rect, its top's depth, how far past its edge the label takes to come down to the board. */
 export interface Bump {
-  r: RectLike;
+  r: geometryTypes.RectLike;
   top: number;
   fall: number;
+}
+
+/** The draped sheet for `drape`: a mesh of grain `grain` over `r`, riding on `bumps`. */
+function drapeSheet(
+  r: geometryTypes.RectLike,
+  args: {
+    base: number;
+    lift: number;
+    bumps: readonly Bump[];
+    flat: boolean;
+    grain: number;
+    cx: number;
+    cy: number;
+  },
+): PlaneGeometry {
+  const { base, lift, bumps, flat, grain, cx, cy } = args;
+  const nx = flat ? 1 : Math.max(2, Math.round(r.w / grain)),
+    ny = flat ? 1 : Math.max(2, Math.round(r.h / grain)),
+    geo = new PlaneGeometry(r.w, r.h, nx, ny);
+  const p = geo.attributes['position']!,
+    top = Math.max(base + lift, ...bumps.map((b) => b.top + lift));
+  // (every corner of a quad that touches a part rides at the part's top: a part smaller than the grain would else poke through the label
+  // between two vertices, or lift one vertex into a spike; the way down takes one quad at least)
+  const sx = r.w / nx,
+    sy = r.h / ny;
+  for (let i = 0; i < p.count; i++) {
+    const x = cx + p.getX(i),
+      y = cy - p.getY(i);
+    let z = flat ? top : base + lift;
+    if (!flat) {
+      for (const b of bumps) {
+        const dx = Math.max(b.r.x - sx - x, 0, x - (b.r.x + b.r.w + sx)),
+          dy = Math.max(b.r.y - sy - y, 0, y - (b.r.y + b.r.h + sy)),
+          d = Math.hypot(dx, dy),
+          fall = Math.max(b.fall, sx, sy);
+        if (d >= fall) {
+          continue;
+        }
+        const s = 1 - d / fall,
+          k = s * s * (3 - 2 * s);
+        z = Math.max(z, base + lift + (b.top - base) * k);
+      }
+    }
+    p.setZ(i, z);
+  }
+  geo.computeVertexNormals();
+  return geo;
 }
 
 /**
@@ -556,40 +642,18 @@ export interface Bump {
  * `flat` (Low): one quad, over the top of the highest part, so no part pokes through it and its picture keeps its whole rect (a coarse grain
  * would cut the packages through the label and tear its edge).
  */
-export function drape(r: RectLike, base: number, bumps: readonly Bump[], m: Material, step = 7, flat = false): Mesh {
+export function drape(
+  r: geometryTypes.RectLike,
+  base: number,
+  bumps: readonly Bump[],
+  m: threeTypes.Material,
+  step = 7,
+  flat = false,
+): Mesh {
   const cx = r.x + r.w / 2,
     cy = r.y + r.h / 2,
     lift = 3;
-  const sheet = (grain: number): PlaneGeometry => {
-    const nx = flat ? 1 : Math.max(2, Math.round(r.w / grain)),
-      ny = flat ? 1 : Math.max(2, Math.round(r.h / grain)),
-      geo = new PlaneGeometry(r.w, r.h, nx, ny);
-    const p = geo.attributes['position']!,
-      top = Math.max(base + lift, ...bumps.map((b) => b.top + lift));
-    // (every corner of a quad that touches a part rides at the part's top: a part smaller than the grain would else poke through the label
-    // between two vertices, or lift one vertex into a spike; the way down takes one quad at least)
-    const sx = r.w / nx,
-      sy = r.h / ny;
-    for (let i = 0; i < p.count; i++) {
-      const x = cx + p.getX(i),
-        y = cy - p.getY(i);
-      let z = flat ? top : base + lift;
-      if (!flat)
-        for (const b of bumps) {
-          const dx = Math.max(b.r.x - sx - x, 0, x - (b.r.x + b.r.w + sx)),
-            dy = Math.max(b.r.y - sy - y, 0, y - (b.r.y + b.r.h + sy)),
-            d = Math.hypot(dx, dy);
-          const fall = Math.max(b.fall, sx, sy);
-          if (d >= fall) continue;
-          const s = 1 - d / fall,
-            k = s * s * (3 - 2 * s);
-          z = Math.max(z, base + lift + (b.top - base) * k);
-        }
-      p.setZ(i, z);
-    }
-    geo.computeVertexNormals();
-    return geo;
-  };
+  const sheet = (grain: number): PlaneGeometry => drapeSheet(r, { base, lift, bumps, flat, grain, cx, cy });
   // (the lower detail level, LOD-05: three times the grain by the same rule, so no part comes through it; a sheet of a few quads has none)
   const o = new Mesh(
     withLow(sheet(step), () => sheet(step * 3), !flat && Math.max(r.w, r.h) / step >= 6),
@@ -602,7 +666,7 @@ export function drape(r: RectLike, base: number, bumps: readonly Bump[], m: Mate
 
 // ------------------------------------------------------------------ edge fingers
 /** Gold, as the ENIG finish of the fingers and the pads. */
-export const gold = () => mat(0xd4af5f, { metalness: 1, roughness: 0.24 });
+export const gold = () => mat(0xd4_af_5f, { metalness: 1, roughness: 0.24 });
 
 /**
  * Gold edge fingers from layout x `x` for `len` (they run along x into the socket), centred on the layout ys `top` on the PCB's top (z1) and
@@ -629,9 +693,11 @@ export function fingers(
 export function padRing(x: number, y: number, z: number, r0: number, r1: number, half = false, under = false): Mesh {
   const ring = new Mesh(
     new RingGeometry(r0, r1, SEG.bigDisc, 1, half ? Math.PI / 2 : 0, half ? Math.PI : Math.PI * 2),
-    once('gold', gold) as Material,
+    once('gold', gold) as threeTypes.Material,
   );
   ring.position.set(x, -y, under ? z - 0.5 : z + 0.5);
-  if (under) ring.rotation.x = Math.PI;
+  if (under) {
+    ring.rotation.x = Math.PI;
+  }
   return ring;
 }

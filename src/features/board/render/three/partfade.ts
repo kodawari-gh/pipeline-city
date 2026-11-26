@@ -32,19 +32,24 @@ export class PartFade {
       }
       return c;
     };
-    for (const root of objs)
+    for (const root of objs) {
       root.traverse((x) => {
         const o = x as Drawn,
           was = o.material;
-        if (!was) return;
+        if (!was) {
+          return;
+        }
         this.meshes.push({ o, was });
         o.material = Array.isArray(was) ? was.map(own) : own(was);
       });
+    }
   }
 
   /** How solid the part is drawn: 1 as it was, 0 not at all. A solid part keeps writing depth, so it reads as one body fading, not as its insides. */
   set(a: number): void {
-    if (this.ended) return;
+    if (this.ended) {
+      return;
+    }
     for (const c of this.copies) {
       const tr = c.transparent || a < 0.999;
       if (c.m.transparent !== tr) {
@@ -58,10 +63,16 @@ export class PartFade {
 
   /** The meshes get their own materials back and the copies go (once). Hide a part that faded out before this: it would show solid again. */
   end(): void {
-    if (this.ended) return;
+    if (this.ended) {
+      return;
+    }
     this.ended = true;
-    for (const x of this.meshes) x.o.material = x.was;
-    for (const c of this.copies) c.m.dispose();
+    for (const x of this.meshes) {
+      x.o.material = x.was;
+    }
+    for (const c of this.copies) {
+      c.m.dispose();
+    }
   }
 
   /** The meshes under the fade. */

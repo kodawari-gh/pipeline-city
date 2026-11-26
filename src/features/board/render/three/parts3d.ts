@@ -2,8 +2,10 @@
 // above: the M.2 standoff (the stick itself: nvme3d.ts), the chipset under its low heat sink, the coin cell in its holder (the SATA drives: drive3d.ts;
 // the TPM module: tpm3d.ts).
 // Each top still wears its 2D drawing (`Raise`: `ArtSet.raise`), so the 3D parts sit on their pictures.
-import { CylinderGeometry, Group, Mesh, type Material, type MeshStandardMaterial, type Texture } from 'three';
-import { SEG, drum, paint, place, rectBox, shareTex, softBox, type RectLike } from '@/core/render/three/geometry';
+import { CylinderGeometry, Group, Mesh } from 'three';
+import type * as threeTypes from 'three';
+import { SEG, drum, paint, place, rectBox, shareTex, softBox } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { NYLON, mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { pchFixings, pchPlateau } from '../boardArt';
@@ -12,15 +14,22 @@ import { hexNum, skinOf } from '../skins';
 import { brushed, grow, NONE, outlinePts, shapeOf, slab, tiled } from './casekit3d';
 
 /** Stand a rect up from depth z0 to z1, its top wearing the 2D drawing of that rect (`bevel` rounds a moulded body). */
-export type Raise = (parent: Group, r: RectLike, z0: number, z1: number, side: Material, bevel?: number) => Group;
+export type Raise = (
+  parent: Group,
+  r: geometryTypes.RectLike,
+  z0: number,
+  z1: number,
+  side: threeTypes.Material,
+  bevel?: number,
+) => Group;
 
-const brass = () => mat(0xd4af5f, { metalness: 0.9, roughness: 0.3 });
-const steel = () => mat(0x959aa3, { metalness: 0.85, roughness: 0.32 });
+const brass = () => mat(0xd4_af_5f, { metalness: 0.9, roughness: 0.3 });
+const steel = () => mat(0x95_9a_a3, { metalness: 0.85, roughness: 0.32 });
 
 /** A pan-head screw from depth z, radius r: the head and its cross slot. */
 function screw(g: Group, x: number, y: number, z: number, r: number) {
   g.add(drum(x, y, z, z + r * 0.45, r, steel(), SEG.disc));
-  const slot = mat(0x1d1e22, { roughness: 0.6 });
+  const slot = mat(0x1d_1e_22, { roughness: 0.6 });
   g.add(
     rectBox({ x: x - r * 0.6, y: y - r * 0.1, w: r * 1.2, h: r * 0.2 }, z + r * 0.4, z + r * 0.47, slot),
     rectBox({ x: x - r * 0.1, y: y - r * 0.6, w: r * 0.2, h: r * 1.2 }, z + r * 0.4, z + r * 0.47, slot),
@@ -32,13 +41,13 @@ function screw(g: Group, x: number, y: number, z: number, r: number) {
  * The M.2 slot's standoff for an 80 mm stick (the 2D disc), where the stick's notch is screwed down (nvme3d.ts): a brass hex, 4.5 mm across its
  * corners and as tall as the socket holds the stick, its M2 thread dark in its top.
  */
-export function m2Standoff(m: RectLike): Group {
+export function m2Standoff(m: geometryTypes.RectLike): Group {
   const [x, y] = m2Standoffs(m)[2]!,
     g = new Group();
   g.add(drum(x, y, BOARD_Z, BOARD_Z + 42, 52, brass(), SEG.lowDisc));
   const hole = new Mesh(
     new CylinderGeometry(20, 20, 0.6, SEG.post).rotateX(Math.PI / 2),
-    mat(0x1d1e22, { roughness: 0.8 }),
+    mat(0x1d_1e_22, { roughness: 0.8 }),
   );
   hole.position.set(x, -y, BOARD_Z + 41.7);
   g.add(hole);
@@ -55,11 +64,15 @@ export const PCH_OVER = 44;
  * block, chamfered at every corner, with a raised brushed plateau and two spring screws on a diagonal (Mainstream: gunmetal; Enthusiast: graphite
  * with a silver plateau and a lit strip along its south face). The plateau wears the 2D drawing (`pchPlateau`). `glow`: the strip's material.
  */
-export function chipset(q: RectLike, tier: number, raise: Raise): { root: Group; glow: MeshStandardMaterial | null } {
+export function chipset(
+  q: geometryTypes.RectLike,
+  tier: number,
+  raise: Raise,
+): { root: Group; glow: threeTypes.MeshStandardMaterial | null } {
   const g = new Group(),
     Z = BOARD_Z;
   if (tier === 0) {
-    raise(g, q, Z, Z + 50, mat(0x050608, { roughness: 0.62 }), 8);
+    raise(g, q, Z, Z + 50, mat(0x05_06_08, { roughness: 0.62 }), 8);
     return { root: g, glow: null };
   }
   // (the package's legs stand 30 high: the sink's base clears them by a hair, so from any angle its edge hides them)
@@ -69,8 +82,8 @@ export function chipset(q: RectLike, tier: number, raise: Raise): { root: Group;
     top = Z + (facet ? 150 : 112);
   // the package under it (its sides show in the shadow gap) and the thermal pad's edge
   g.add(
-    rectBox(q, Z, pad - 4, mat(0x050608, { roughness: 0.6 })),
-    rectBox(grow(q, -16), pad - 4, pad, mat(0x959aa3, { roughness: 0.85 })),
+    rectBox(q, Z, pad - 4, mat(0x05_06_08, { roughness: 0.6 })),
+    rectBox(grow(q, -16), pad - 4, pad, mat(0x95_9a_a3, { roughness: 0.85 })),
   );
   const sk = skinOf(tier),
     body = facet
@@ -93,28 +106,31 @@ export function chipset(q: RectLike, tier: number, raise: Raise): { root: Group;
   for (const [x, y] of pchFixings(q, tier)) {
     if (facet) {
       // a spring screw: the coil round the shank under the head
-      g.add(drum(x, y, top, top + 26, 13, mat(0x959aa3, { metalness: 0.7, roughness: 0.4 }), SEG.chipRound));
+      g.add(drum(x, y, top, top + 26, 13, mat(0x95_9a_a3, { metalness: 0.7, roughness: 0.4 }), SEG.chipRound));
       screw(g, x, y, top + 26, 20);
-    } else
+    } else {
       g.add(
         drum(x, y, top, top + 10, 18, mat(NYLON, { roughness: 0.6 }), SEG.roundCap),
         drum(x, y, top + 10, top + 18, 11, mat(NYLON, { roughness: 0.6 }), SEG.chipRound),
       );
+    }
   }
-  let glow: MeshStandardMaterial | null = null;
+  let glow: threeTypes.MeshStandardMaterial | null = null;
   if (tier === 3) {
-    glow = mat(0x1d1e22, { emissive: hexNum(sk.accent), emissiveIntensity: 0.9, roughness: 0.4 });
+    glow = mat(0x1d_1e_22, { emissive: hexNum(sk.accent), emissiveIntensity: 0.9, roughness: 0.4 });
     g.add(rectBox({ x: s.x + 110, y: s.y + s.h - 3, w: s.w - 220, h: 8 }, pad + 30, top - 30, glow));
   }
   return { root: g, glow };
 }
 
 // ------------------------------------------------------------------ the coin cell
-let cellTex: Texture | null | undefined;
+let cellTex: threeTypes.Texture | null | undefined;
 
 /** The coin cell's top: brushed steel, the + and the type stamped in it. */
-function cellTop(): Texture | null {
-  if (cellTex !== undefined) return cellTex;
+function cellTop(): threeTypes.Texture | null {
+  if (cellTex !== undefined) {
+    return cellTex;
+  }
   return (cellTex = shareTex(
     paint(256, 256, (c, w, h) => {
       const g = c.createRadialGradient(w * 0.4, h * 0.35, 10, w / 2, h / 2, w / 2);
@@ -134,18 +150,18 @@ function cellTop(): Texture | null {
 }
 
 /** The board's coin cell over its 2D rect: a dark holder, the cell in it, the spring clip across its top. */
-export function coinCell(r: RectLike): Group {
+export function coinCell(r: geometryTypes.RectLike): Group {
   const g = new Group(),
     cx = r.x + r.w / 2,
     cy = r.y + r.h / 2,
     R = Math.min(r.w, r.h) / 2;
-  g.add(drum(cx, cy, BOARD_Z, BOARD_Z + 26, R + 14, mat(0x1d1e22, { roughness: 0.55 }), SEG.bigDisc));
+  g.add(drum(cx, cy, BOARD_Z, BOARD_Z + 26, R + 14, mat(0x1d_1e_22, { roughness: 0.55 }), SEG.bigDisc));
   // (a satin top: a mirror one flares white under the lamp up close)
-  const side = mat(0xb9babf, { metalness: 0.8, roughness: 0.4 }),
+  const side = mat(0xb9_ba_bf, { metalness: 0.8, roughness: 0.4 }),
     cell = place(
       new Mesh(new CylinderGeometry(R, R, 30, SEG.drum).rotateX(Math.PI / 2), [
         side,
-        mat(0xffffff, { map: cellTop(), metalness: 0.65, roughness: 0.48 }),
+        mat(0xff_ff_ff, { map: cellTop(), metalness: 0.65, roughness: 0.48 }),
         side,
       ]),
     );

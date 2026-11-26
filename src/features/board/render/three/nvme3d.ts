@@ -4,11 +4,13 @@
 // two NAND packages, each with its decoupling. The notch at the east end is screwed down into the standoff, its gold ring round it. A plain stick
 // wears its maker's label draped over the DRAM and the NAND; a premium one wears a black anodised heat sink on a thermal pad instead (fins,
 // a raised plateau with a brushed silver insert, skirts that clip it to the board's edges). The underside carries its own mask and the serial sticker.
-import { BoxGeometry, Group, type MeshStandardMaterial, type Texture } from 'three';
+import { BoxGeometry, Group } from 'three';
+import type * as threeTypes from 'three';
 import { drawLockup } from '@/core/render/brands';
 import { smooth } from '@/core/render/lod/lod';
 import { fadeTree } from '@/core/render/three/artlod';
-import { instanced, rectBox, type RectLike } from '@/core/render/three/geometry';
+import { instanced, rectBox } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { lowDetail } from '@/core/render/three/detail';
 import { mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
@@ -16,7 +18,8 @@ import { ramDieArt, ramDiePlan, RAM_DIE } from '@/features/memory/render/ramdie'
 import { CTRL_DIE, NAND_DIE, ctrlDieArt, nandDieArt } from '@/features/storage/render/diskdie';
 import { NVME_FINGERS } from '@/features/storage/render/drives';
 import { brushed, decal, grow, outlinePts, screws, shapeOf, slab, tex, tiled } from './casekit3d';
-import { COVER_BAND, dieInPackage, type DieHost } from './chipdie3d';
+import { COVER_BAND, dieInPackage } from './chipdie3d';
+import type * as chipdie3dTypes from './chipdie3d';
 import {
   arc,
   crystal,
@@ -31,10 +34,8 @@ import {
   passives,
   pcbSlab,
   pkg,
-  type Bump,
-  type MaskArt,
-  type Passive,
 } from './pcbkit3d';
+import type * as pcbkit3dTypes from './pcbkit3d';
 
 /** How a stick looks: its name and capacity (the label's print), and whether it wears a heat sink. */
 export interface NvmeLook {
@@ -53,7 +54,7 @@ export const nvmeLook = (s: { name: string; tier: number; capacityBytes: number 
 const NVME_Z = { pcb: BOARD_Z + 42, top: BOARD_Z + 60, sink: BOARD_Z + 208 } as const;
 
 /** The mask's colours: a black board, the copper under it a shade lighter. */
-const MASK = 0x121519,
+const MASK = 0x12_15_19,
   MASK_ART = { mask: '#121519', trace: '#1b2027' } as const;
 
 /**
@@ -61,7 +62,12 @@ const MASK = 0x121519,
  * drive's state (the label, or the heat sink). `dies`: the label (or the heat sink) fades as the camera comes in and then each package's cap, and the dies show: the controller with its cores and
  * channels, the DRAM cache, the two NAND packages of four dies each (`chipdie3d.ts`).
  */
-export function nvmeStick(g: Group, b: RectLike, look: NvmeLook, dies?: DieHost): MeshStandardMaterial {
+export function nvmeStick(
+  g: Group,
+  b: geometryTypes.RectLike,
+  look: NvmeLook,
+  dies?: chipdie3dTypes.DieHost,
+): threeTypes.MeshStandardMaterial {
   const X0 = b.x - NVME_FINGERS,
     X1 = b.x + b.w,
     Y0 = b.y,
@@ -69,7 +75,7 @@ export function nvmeStick(g: Group, b: RectLike, look: NvmeLook, dies?: DieHost)
     cy = (Y0 + Y1) / 2,
     z0 = NVME_Z.pcb,
     z1 = NVME_Z.top;
-  const R = (x: number, y: number, w: number, h: number): RectLike => ({
+  const R = (x: number, y: number, w: number, h: number): geometryTypes.RectLike => ({
     x: X0 + x * MM,
     y: Y0 + y * MM,
     w: w * MM,
@@ -98,10 +104,16 @@ export function nvmeStick(g: Group, b: RectLike, look: NvmeLook, dies?: DieHost)
   // the fingers: 38 pads on top (four left out at the key), 37 under, offset by half the pitch
   const top: number[] = [],
     under: number[] = [];
-  for (let i = 0; i < 38; i++) if (i < 29 || i > 32) top.push(Y0 + 38.25 + i * 11.5);
+  for (let i = 0; i < 38; i++) {
+    if (i < 29 || i > 32) {
+      top.push(Y0 + 38.25 + i * 11.5);
+    }
+  }
   for (let i = 0; i < 37; i++) {
     const y = Y0 + 44 + i * 11.5;
-    if (Math.abs(y - ky) > 24) under.push(y);
+    if (Math.abs(y - ky) > 24) {
+      under.push(y);
+    }
   }
   fingers(g, X0 + 3, 63, top, under, 7.5, z0, z1);
 
@@ -113,7 +125,7 @@ export function nvmeStick(g: Group, b: RectLike, look: NvmeLook, dies?: DieHost)
     dram = R(21.5, 4.5, 8, 10.35),
     nand = [R(31, 5, 18, 12), R(51.5, 5, 18, 12)];
   pkg(g, pmic, z1, 0.75 * MM, ['P9M', '21A']);
-  ind.forEach((r, i) => inductor(g, r, z1, 1 * MM, ['1R0', 'R47', 'R68', '1R0'][i]));
+  ind.forEach((r, i) => inductor(g, r, z1, MM, ['1R0', 'R47', 'R68', '1R0'][i]));
   // (a package under the label or the heat sink keeps its marking to itself)
   const marks = look.heatsink ? [] : ['PC5016-E4', '2304 TW', 'B47Q2.1'];
   if (dies) {
@@ -123,22 +135,36 @@ export function nvmeStick(g: Group, b: RectLike, look: NvmeLook, dies?: DieHost)
       dramBake = dies.art.baker(() => ramDieArt(dies.T, ramDiePlan({ banks: 8, bankGroups: 2 })));
     dieInPackage(g, dies, ctrl, z1, 1.4 * MM, marks, { lid: true }, { ...CTRL_DIE, bake: ctrlBake });
     crystal(g, xtal, z1, 0.55 * MM);
-    dieInPackage(g, dies, dram, z1, 1 * MM, [], {}, { ...RAM_DIE, bake: dramBake, turn: true });
-    for (const r of nand) dieInPackage(g, dies, r, z1, 1.25 * MM, [], {}, { ...NAND_DIE, bake: nandBake });
+    dieInPackage(g, dies, dram, z1, MM, [], {}, { ...RAM_DIE, bake: dramBake, turn: true });
+    for (const r of nand) {
+      dieInPackage(g, dies, r, z1, 1.25 * MM, [], {}, { ...NAND_DIE, bake: nandBake });
+    }
   } else {
     pkg(g, ctrl, z1, 1.4 * MM, marks, { lid: true });
     crystal(g, xtal, z1, 0.55 * MM);
-    pkg(g, dram, z1, 1 * MM, []);
+    pkg(g, dram, z1, MM, []);
     nand.forEach((r) => pkg(g, r, z1, 1.25 * MM, []));
   }
 
   // the passives: the regulator's, the controller's (on its substrate too), the DRAM's and the NAND's decoupling
   const at = (x: number, y: number) => [X0 + x * MM, Y0 + y * MM] as const;
-  const col = (x: number, y: number, n: number, step: number, pkg: Passive['pkg'], kind: Passive['kind'] = 'cap') =>
-    passiveRow(...at(x, y), n, step * MM, pkg, kind, true, true);
-  const row = (x: number, y: number, n: number, step: number, pkg: Passive['pkg'], kind: Passive['kind'] = 'cap') =>
-    passiveRow(...at(x, y), n, step * MM, pkg, kind);
-  const parts: Passive[] = [
+  const col = (
+    x: number,
+    y: number,
+    n: number,
+    step: number,
+    pkg: pcbkit3dTypes.Passive['pkg'],
+    kind: pcbkit3dTypes.Passive['kind'] = 'cap',
+  ) => passiveRow(...at(x, y), n, step * MM, pkg, kind, true, true);
+  const row = (
+    x: number,
+    y: number,
+    n: number,
+    step: number,
+    pkg: pcbkit3dTypes.Passive['pkg'],
+    kind: pcbkit3dTypes.Passive['kind'] = 'cap',
+  ) => passiveRow(...at(x, y), n, step * MM, pkg, kind);
+  const parts: pcbkit3dTypes.Passive[] = [
     ...[6.8, 7.9, 13.3, 14.4].map((y) => ({
       x: at(4.55, y)[0],
       y: at(4.55, y)[1],
@@ -184,7 +210,7 @@ export function nvmeStick(g: Group, b: RectLike, look: NvmeLook, dies?: DieHost)
 
   // the mask, top and under: the traces, the silkscreen round the parts, the bare laminate under the fingers, the notch and the key cut out
   const face = { x: X0, y: Y0, w: X1 - X0, h: b.h };
-  const cuts: MaskArt['cuts'] = [
+  const cuts: pcbkit3dTypes.MaskArt['cuts'] = [
     { circle: [X1, cy, 40] },
     { rect: { x: X0, y: ky - kw, w: kd - kw, h: 2 * kw } },
     { circle: [X0 + kd - kw, ky, kw] },
@@ -253,17 +279,21 @@ export function nvmeStick(g: Group, b: RectLike, look: NvmeLook, dies?: DieHost)
   g.add(padRing(X1, cy, z1, 40, 64, true), padRing(X1, cy, z0, 40, 64, true, true));
 
   // the screw through the notch into the standoff: an M2 pan head, 4 mm across
-  g.add(screws([{ x: X1, y: -cy, z: z1 }], 'z+', 46, mat(0xb9babf, { metalness: 0.9, roughness: 0.3 })));
+  g.add(screws([{ x: X1, y: -cy, z: z1 }], 'z+', 46, mat(0xb9_ba_bf, { metalness: 0.9, roughness: 0.3 })));
 
   // (the cover over the packages: a heat sink or a label, which fades first)
   const cover = new Group(),
     L = R(20.8, 0.6, 54.6, 20.8);
   g.add(cover);
-  if (dies) dies.reveal(L, z1 + 24, (zoom) => fadeTree(cover, 1 - smooth(COVER_BAND[0], COVER_BAND[1], zoom)));
-  if (look.heatsink) return heatsink(cover, X0, X1, Y0, Y1, z1 + 1.4 * MM, look);
+  if (dies) {
+    dies.reveal(L, z1 + 24, (zoom) => fadeTree(cover, 1 - smooth(COVER_BAND[0], COVER_BAND[1], zoom)));
+  }
+  if (look.heatsink) {
+    return heatsink(cover, X0, X1, Y0, Y1, z1 + 1.4 * MM, look);
+  }
   // the label, over the DRAM and the NAND to short of the notch, draped over them
-  const bumps: Bump[] = [
-    { r: dram, top: z1 + 1 * MM, fall: 2.2 * MM },
+  const bumps: pcbkit3dTypes.Bump[] = [
+    { r: dram, top: z1 + MM, fall: 2.2 * MM },
     ...nand.map((r) => ({ r, top: z1 + 1.25 * MM, fall: 2.2 * MM })),
     ...parts
       .filter((p) => p.x > L.x - 20 && p.x < L.x + L.w + 20)
@@ -274,7 +304,7 @@ export function nvmeStick(g: Group, b: RectLike, look: NvmeLook, dies?: DieHost)
       })),
   ];
   // (drawn over the mask's decal where it lies on the board)
-  const label = mat(0xffffff, {
+  const label = mat(0xff_ff_ff, {
     map: labelTex(look),
     roughness: 0.46,
     metalness: 0.15,
@@ -299,18 +329,19 @@ function heatsink(
   Y1: number,
   zc: number,
   look: NvmeLook,
-): MeshStandardMaterial {
+): threeTypes.MeshStandardMaterial {
   const hs = { x: X0 + 6.6 * MM, y: Y0 - 21, w: X1 - 3.8 * MM - (X0 + 6.6 * MM), h: Y1 - Y0 + 42 };
-  const anod = mat(0x1d1e22, { metalness: 0.55, roughness: 0.42, map: tiled(brushed(), 5, 1) });
+  const anod = mat(0x1d_1e_22, { metalness: 0.55, roughness: 0.42, map: tiled(brushed(), 5, 1) });
   const zb0 = zc + 12,
     zb1 = zb0 + 28,
     zt = NVME_Z.sink;
   g.add(
-    rectBox({ x: hs.x + 12, y: Y0 + 14, w: hs.w - 24, h: Y1 - Y0 - 28 }, zc, zb0, mat(0x959aa3, { roughness: 0.92 })),
+    rectBox({ x: hs.x + 12, y: Y0 + 14, w: hs.w - 24, h: Y1 - Y0 - 28 }, zc, zb0, mat(0x95_9a_a3, { roughness: 0.92 })),
   );
   g.add(slab(shapeOf(outlinePts(hs, 0, [23, 23, 23, 23])), zb0, zb1, anod, 5));
-  for (const y of [hs.y, Y1])
+  for (const y of [hs.y, Y1]) {
     g.add(slab(shapeOf(outlinePts({ x: hs.x + 23, y, w: hs.w - 46, h: 21 }, 4)), NVME_Z.pcb, zb0 + 2, anod, 2));
+  }
   // the fins, 0.8 mm on a 1.9 mm pitch, either side of the plateau
   const pl = 24 * MM,
     px = hs.x + (hs.w - pl) / 2,
@@ -324,13 +355,15 @@ function heatsink(
   ] as const) {
     const n = Math.floor((e - a - ft) / pitch) + 1,
       off = (e - a - ft - (n - 1) * pitch) / 2;
-    for (let k = 0; k < n; k++) items.push({ x: a + off + ft / 2 + k * pitch, y: -(hs.y + hs.h / 2), z: zb1 + fh / 2 });
+    for (let k = 0; k < n; k++) {
+      items.push({ x: a + off + ft / 2 + k * pitch, y: -(hs.y + hs.h / 2), z: zb1 + fh / 2 });
+    }
   }
   g.add(instanced(new BoxGeometry(ft, hs.h - 28, fh), anod, items)); // (plain boxes: a fin is under 3 mm thick)
   // the plateau and its insert, the insert's edges diamond-cut (bright chamfers)
   const P = { x: px, y: hs.y + 14, w: pl, h: hs.h - 28 },
     I = grow(P, -23),
-    silver = mat(0xb9babf, { metalness: 0.9, roughness: 0.26, map: tiled(brushed(), 2, 1) });
+    silver = mat(0xb9_ba_bf, { metalness: 0.9, roughness: 0.26, map: tiled(brushed(), 2, 1) });
   g.add(slab(shapeOf(outlinePts(P, 0, [30, 30, 30, 30])), zb1 - 2, zt - 20, anod, 4));
   g.add(slab(shapeOf(outlinePts(I, 0, [20, 20, 20, 20])), zt - 20, zt, silver, 7));
   g.add(
@@ -359,8 +392,8 @@ export function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: 
   c.closePath();
 }
 /** A seeded random run (the barcodes and the matrix code are the same on every copy of a stick). */
-export const seeded = (s: number) => () => (s = (s * 16807) % 2147483647) / 2147483647;
-export const hash = (t: string) => [...t].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 2147483646, 7) + 1;
+export const seeded = (s: number) => () => (s = (s * 16_807) % 2_147_483_647) / 2_147_483_647;
+export const hash = (t: string) => [...t].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 2_147_483_646, 7) + 1;
 
 /** A linear barcode in `ink` over x .. x + w (its quiet zones inside), its digits under it. */
 export function barcode(
@@ -394,15 +427,18 @@ export function matrix(c: CanvasRenderingContext2D, x: number, y: number, s: num
     k = s / n,
     rnd = seeded(seed);
   c.fillStyle = ink;
-  for (let i = 0; i < n; i++)
+  for (let i = 0; i < n; i++) {
     for (let j = 0; j < n; j++) {
       const on = i === 0 || j === n - 1 ? true : j === 0 ? i % 2 === 0 : i === n - 1 ? j % 2 === 1 : rnd() > 0.5;
-      if (on) c.fillRect(x + i * k, y + j * k, k + 0.5, k + 0.5);
+      if (on) {
+        c.fillRect(x + i * k, y + j * k, k + 0.5, k + 0.5);
+      }
     }
+  }
 }
 
 /** The top label: the maker's mark, the drive's name and capacity, its interface, a barcode, a matrix code, its serial. */
-function labelTex(look: NvmeLook): Texture | null {
+function labelTex(look: NvmeLook): threeTypes.Texture | null {
   const cap = capOf(look),
     wm = 54.6,
     hm = 20.8;
@@ -465,7 +501,7 @@ function labelTex(look: NvmeLook): Texture | null {
     c.fillStyle = '#e9ebee';
     roundRect(c, u(35.6), u(4.6), u(17.4), u(5.6), u(0.35));
     c.fill();
-    barcode(c, u(36), u(5), u(16.6), u(3.4), seed, '#111317', `0 84512 ${String(seed % 100000).padStart(5, '0')} 6`);
+    barcode(c, u(36), u(5), u(16.6), u(3.4), seed, '#111317', `0 84512 ${String(seed % 100_000).padStart(5, '0')} 6`);
     c.fillStyle = '#e9ebee';
     c.fillRect(u(35.6), u(10.9), u(5.4), u(5.4));
     matrix(c, u(35.9), u(11.2), u(4.8), seed + 9, '#111317');
@@ -478,7 +514,7 @@ function labelTex(look: NvmeLook): Texture | null {
 }
 
 /** The heat sink's insert: brushed silver, the maker's mark and the drive engraved in it, its chamfered corners cut away. */
-function insertTex(look: NvmeLook, wm: number, hm: number): Texture | null {
+function insertTex(look: NvmeLook, wm: number, hm: number): threeTypes.Texture | null {
   const cap = capOf(look);
   return tex(
     `nvme-insert:${look.name}:${cap}:${wm.toFixed(1)}x${hm.toFixed(1)}`,
@@ -520,12 +556,13 @@ function insertTex(look: NvmeLook, wm: number, hm: number): Texture | null {
       for (const [dy, ink] of [
         [2, 'rgba(255,255,255,0.55)'],
         [0, '#4a5059'],
-      ] as const)
+      ] as const) {
         drawLockup(c, 'kura', w / 2, h * 0.24 + dy, u(2.9), ink, { acc: null, align: 'center' });
+      }
       c.textAlign = 'center';
       c.textBaseline = 'middle';
       engrave(
-        look.name.replace(/\s*\d+K$/, ''),
+        look.name.replace(/\s*\d+K$/u, ''),
         w / 2,
         h * 0.52,
         `700 ${Math.min(u(2), (w * 0.9) / Math.max(6, look.name.length * 0.58))}px ${FONT}`,
@@ -537,7 +574,7 @@ function insertTex(look: NvmeLook, wm: number, hm: number): Texture | null {
 }
 
 /** The underside's sticker: the model, the serial and its barcodes, the void-if-removed strip. */
-function stickerTex(look: NvmeLook): Texture | null {
+function stickerTex(look: NvmeLook): threeTypes.Texture | null {
   const cap = capOf(look),
     wm = 44,
     hm = 17.2;

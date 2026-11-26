@@ -1,15 +1,8 @@
 // Smoke over the machine: grey smoke rises off a part that burnt. One additive point cloud, a fixed pool; the emitters are the burnt parts, placed by their
 // slot's rect. A part that runs, or runs hot, sends up nothing (heat shows in the airflow lens, `air/`). With no smoke in the air, nothing is moved,
 // uploaded or drawn.
-import {
-  AdditiveBlending,
-  BufferAttribute,
-  BufferGeometry,
-  CanvasTexture,
-  Points,
-  PointsMaterial,
-  type Scene,
-} from 'three';
+import { AdditiveBlending, BufferAttribute, BufferGeometry, CanvasTexture, Points, PointsMaterial } from 'three';
+import type * as threeTypes from 'three';
 import type { Snapshot } from '@/worker/protocol';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { slotRects } from './slots3d';
@@ -23,7 +16,9 @@ const RATE = 5,
   RGB = [0.22, 0.22, 0.24] as const;
 
 function dot(): CanvasTexture | null {
-  if (typeof document === 'undefined') return null; // (the tests in Node)
+  if (typeof document === 'undefined') {
+    return null; // (the tests in Node)
+  }
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const g = c.getContext('2d')!,
@@ -61,7 +56,7 @@ export class Particles3D {
   /** The share of the particles that are born (the graphics settings); 0 draws none. */
   density = 1;
 
-  constructor(scene: Scene) {
+  constructor(scene: threeTypes.Scene) {
     this.geo.setAttribute('position', new BufferAttribute(this.pos, 3));
     this.geo.setAttribute('color', new BufferAttribute(this.col, 3));
     this.pts = new Points(this.geo, this.mat);
@@ -100,12 +95,16 @@ export class Particles3D {
       }
       for (const d of s.devices) {
         const r = d.burnt ? this.rects?.get(d.slot) : undefined;
-        if (r) this.emit(d.id, RATE * dt, r);
+        if (r) {
+          this.emit(d.id, RATE * dt, r);
+        }
       }
     }
     // nothing in the air: nothing to move, upload or draw
     this.pts.visible = this.alive > 0;
-    if (this.alive === 0 || dt <= 0) return;
+    if (this.alive === 0 || dt <= 0) {
+      return;
+    }
     // move, fade
     let alive = 0;
     for (let i = 0; i < N; i++) {
@@ -118,7 +117,9 @@ export class Particles3D {
         continue;
       }
       alive++;
-      for (let j = 0; j < 3; j++) this.pos[i * 3 + j] = this.pos[i * 3 + j]! + this.vel[i * 3 + j]! * dt;
+      for (let j = 0; j < 3; j++) {
+        this.pos[i * 3 + j] = this.pos[i * 3 + j]! + this.vel[i * 3 + j]! * dt;
+      }
       const k = a / l,
         f = Math.sin(Math.PI * Math.min(1, k)) * 0.8;
       this.col[i * 3] = RGB[0] * f;
