@@ -92,7 +92,7 @@ export interface GpuPlan {
 /** The plan input of a card's config. */
 export function gpuPlanInput(c: GpuConfig): GpuPlanInput {
   switch (c.kind) {
-    case 'warp':
+    case 'warp': {
       return {
         kind: 'warp',
         sms: 1,
@@ -104,7 +104,8 @@ export function gpuPlanInput(c: GpuConfig): GpuPlanInput {
         l1Lines: 0,
         l2Lines: 0,
       };
-    case 'multi':
+    }
+    case 'multi': {
       return {
         kind: 'multi',
         sms: c.sms,
@@ -116,7 +117,8 @@ export function gpuPlanInput(c: GpuConfig): GpuPlanInput {
         l1Lines: c.l1Lines,
         l2Lines: c.l2Lines,
       };
-    default:
+    }
+    default: {
       return {
         kind: 'simd',
         sms: 1,
@@ -128,5 +130,6 @@ export function gpuPlanInput(c: GpuConfig): GpuPlanInput {
         l1Lines: 0,
         l2Lines: 0,
       };
+    }
   }
 }
