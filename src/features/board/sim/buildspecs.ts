@@ -77,14 +77,20 @@ export function specSheet(m: {
   }
   for (const id of m.specs) {
     const s = getSpec(id);
-    if (!s) continue;
+    if (!s) {
+      continue;
+    }
     parts++;
     budget += s.price;
     idleW += s.idleW;
     loadW += s.loadW;
-    if (s.kind === 'psu') psuW = Math.max(psuW, s.watts);
+    if (s.kind === 'psu') {
+      psuW = Math.max(psuW, s.watts);
+    }
   }
-  if (m.drawW !== undefined) loadW = m.drawW;
+  if (m.drawW !== undefined) {
+    loadW = m.drawW;
+  }
   return {
     parts,
     budget,

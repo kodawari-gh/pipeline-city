@@ -3,19 +3,10 @@
 // unplugs it. The `pcie` lead also needs the PSU to have one (`pcieLeads`). The two cords from the wall are the part's own: the PC's cord goes into
 // the PSU's inlet (`pcmains`), the monitor's cord is built into the monitor (`monmains`), and the video cable (`video`) runs from the monitor too.
 
-import {
-  deviceSpec,
-  fansOn,
-  findDevices,
-  hostSpots,
-  installedPsu,
-  mountFan,
-  pcieLeadsNeeded,
-  type Board,
-  type InstalledDevice,
-  type Result,
-} from './board';
-import { cardLeads, caseMounts, type CoolerSpec, type DeviceKind } from './specs';
+import { deviceSpec, fansOn, findDevices, hostSpots, installedPsu, mountFan, pcieLeadsNeeded } from './board';
+import type * as boardTypes from './board';
+import { cardLeads, caseMounts } from './specs';
+import type * as specsTypes from './specs';
 
 /** The cables every machine has. A case fan's cable has the id `fan:<mount>` (`caseMounts`): those depend on the case. `pcie` to `pcie4` are the PSU's PCIe power leads, one cable each. */
 export type StaticCableId =
@@ -31,7 +22,7 @@ export interface CableSpec {
   id: CableId;
   name: string;
   /** Kind of part the cable runs from. It must be installed for the cable to exist: without it there is nothing to plug in. */
-  from: DeviceKind | 'router' | 'case';
+  from: specsTypes.DeviceKind | 'router' | 'case';
   /** One-line explanation for tooltips. */
   plain: string;
 }
@@ -121,7 +112,7 @@ export type Cables = Record<string, boolean>;
 const mountName = (m: string): string =>
   m === 'rear'
     ? 'rear fan'
-    : m.replace(/^(front|top)(\d+)$/, (_, side: string, k: string) => `${side} fan ${Number(k) + 1}`);
+    : m.replace(/^(?<side>front|top)(?<k>\d+)$/u, (_, side: string, k: string) => `${side} fan ${Number(k) + 1}`);
 
 /** The cable of one case fan, from the fan on that mount to its header on the fan hub (there only while a fan is fitted). */
 function mountCable(m: string): CableSpec {
@@ -134,7 +125,7 @@ function mountCable(m: string): CableSpec {
 }
 
 /** Every cable this board's machine can have: the fixed ones and one per fan mount of its case. */
-export function cablesOf(board: Board): CableSpec[] {
+export function cablesOf(board: boardTypes.Board): CableSpec[] {
   return [...CABLES, ...caseMounts(board.caseTier).map(mountCable)];
 }
 
@@ -159,7 +150,7 @@ export const noCables = (): Cables => ({
   sysfan: false,
 });
 /** Everything plugged that has something to plug into (with a `board`, the cables of the parts and the case it has: no PSU, no leads; no monitor, no video cable or cord). */
-export const allCables = (board?: Board): Cables => {
+export const allCables = (board?: boardTypes.Board): Cables => {
   const c: Cables = {
     atx: true,
     cpu: true,
@@ -176,10 +167,13 @@ export const allCables = (board?: Board): Cables => {
     ramfan: !board,
     sysfan: true,
   };
-  if (board)
-    for (const s of cablesOf(board))
-      if (isFanCable(s.id) || s.id === 'atx' || s.id === 'cpu' || s.id === 'video' || WALL_CABLES.includes(s.id))
+  if (board) {
+    for (const s of cablesOf(board)) {
+      if (isFanCable(s.id) || s.id === 'atx' || s.id === 'cpu' || s.id === 'video' || WALL_CABLES.includes(s.id)) {
         c[s.id] = cableBlocked(board, s.id) === null;
+      }
+    }
+  }
   return c;
 };
 /** The cords from the wall: the PC's (into the PSU's inlet) and the monitor's (built in). A saved game from before them is given them plugged (nobody is locked out of a machine that used to run). */
@@ -193,9 +187,11 @@ export const hotPluggable = (id: string): boolean =>
   id === 'lan' || id === 'video' || id === 'pcmains' || id === 'monmains' || isFanCable(id);
 
 /** The cable called `id`: a fixed one, or a fan mount's (of `board`'s case when given, any mount otherwise). */
-function spec(id: string, board?: Board): CableSpec | undefined {
+function spec(id: string, board?: boardTypes.Board): CableSpec | undefined {
   const s = CABLES.find((c) => c.id === id);
-  if (s || !id.startsWith('fan:')) return s;
+  if (s || !id.startsWith('fan:')) {
+    return s;
+  }
   const m = id.slice(4);
   return !board || caseMounts(board.caseTier).includes(m) ? mountCable(m) : undefined;
 }
@@ -204,44 +200,59 @@ function spec(id: string, board?: Board): CableSpec | undefined {
 export const cableName = (id: string): string => spec(id)?.name ?? id;
 
 /** Why a cable cannot be plugged in right now (its source part is missing), or null if it can. */
-export function cableBlocked(board: Board, id: CableId): string | null {
+export function cableBlocked(board: boardTypes.Board, id: CableId): string | null {
   const c = spec(id, board);
-  if (!c) return `unknown cable "${id}"`;
-  if (c.from === 'router' || c.from === 'case') return null; // the Game owns the router and the port choice; the case brings its own hub
-  if (c.from === 'fan')
+  if (!c) {
+    return `unknown cable "${id}"`;
+  }
+  if (c.from === 'router' || c.from === 'case') {
+    return null; // the Game owns the router and the port choice; the case brings its own hub
+  }
+  if (c.from === 'fan') {
     return mountFan(board, c.id.slice(4)) ? null : `no fan on the ${mountName(c.id.slice(4))} mount`;
+  }
   if (c.id === 'vrmfan' || c.id === 'ramfan') {
     const kind = c.from as 'vrm-sink' | 'ram-sink',
       what = kind === 'vrm-sink' ? 'VRM' : 'RAM VRM';
-    const sink = findDevices(board, kind)[0];
-    if (!sink || !hostSpots(sink)) return `no ${what} fan fins installed`;
-    return fansOn(board, sink.slot).length ? null : `no fan on the ${what} fan fins`;
+    const [sink] = findDevices(board, kind);
+    if (!sink || !hostSpots(sink)) {
+      return `no ${what} fan fins installed`;
+    }
+    return fansOn(board, sink.slot).length > 0 ? null : `no fan on the ${what} fan fins`;
   }
   if (c.id === 'cpufan') {
-    const cooler = findDevices(board, 'cooler')[0];
-    if (!cooler) return 'no CPU cooler installed for the CPU fan cable';
-    return (deviceSpec(cooler) as CoolerSpec).loop || fansOn(board, cooler.slot).length
+    const [cooler] = findDevices(board, 'cooler');
+    if (!cooler) {
+      return 'no CPU cooler installed for the CPU fan cable';
+    }
+    return (deviceSpec(cooler) as specsTypes.CoolerSpec).loop || fansOn(board, cooler.slot).length > 0
       ? null
       : 'no fan on the CPU heatsink';
   }
-  if (findDevices(board, c.from).length === 0)
-    return `no ${c.from === 'display' ? 'monitor' : c.from.toUpperCase()} installed for the ${c.name}${/(cable|cord)$/i.test(c.name) ? '' : ' cable'}`;
+  if (findDevices(board, c.from).length === 0) {
+    return `no ${c.from === 'display' ? 'monitor' : c.from.toUpperCase()} installed for the ${c.name}${/(?:cable|cord)$/iu.test(c.name) ? '' : ' cable'}`;
+  }
   const lead = pcieLeadNo(c.id);
   if (lead > 0) {
     const have = installedPsu(board)?.spec.pcieLeads ?? 0;
-    if (have < lead)
+    if (have < lead) {
       return have === 0
         ? 'this PSU has no PCIe power lead'
         : `this PSU has only ${have} PCIe power lead${have === 1 ? '' : 's'}`;
+    }
   }
   return null;
 }
 
 /** Does a part installed now need this cable? Every cable but the PCIe leads and the fans' always does (the machine is not complete without it); lead N only while the cards take N leads or more, a fan's only while the fan is there. */
-export function cableNeeded(board: Board, id: CableId): boolean {
+export function cableNeeded(board: boardTypes.Board, id: CableId): boolean {
   const lead = pcieLeadNo(id);
-  if (lead > 0) return lead <= pcieLeadsNeeded(board);
-  if (isFanCable(id)) return cableBlocked(board, id) === null;
+  if (lead > 0) {
+    return lead <= pcieLeadsNeeded(board);
+  }
+  if (isFanCable(id)) {
+    return cableBlocked(board, id) === null;
+  }
   return true;
 }
 
@@ -258,14 +269,16 @@ export function assignLeads(cards: readonly { slot: string; loadW: number }[]): 
   for (const c of [...cards].sort((a, b) => a.slot.localeCompare(b.slot))) {
     for (let k = 0; k < cardLeads(c); k++) {
       const lead = PCIE_LEADS[out.length];
-      if (lead) out.push({ lead, slot: c.slot, plug: k });
+      if (lead) {
+        out.push({ lead, slot: c.slot, plug: k });
+      }
     }
   }
   return out;
 }
 
 /** Lead cable ids (`pcie`...) that feed this card, in the order of the leads used. */
-export const cardLeadIds = (board: Board, dev: InstalledDevice): PcieLeadId[] => {
+export const cardLeadIds = (board: boardTypes.Board, dev: boardTypes.InstalledDevice): PcieLeadId[] => {
   const cards = board.devices
     .filter((d) => !d.burnt && (deviceSpec(d).kind === 'gpu' || deviceSpec(d).kind === 'npu'))
     .map((d) => ({ slot: d.slot, loadW: deviceSpec(d).loadW }));
@@ -275,34 +288,55 @@ export const cardLeadIds = (board: Board, dev: InstalledDevice): PcieLeadId[] =>
 };
 
 /** Is the card fully fed: slot power only, or all its leads plugged? An unfed card does not start. */
-export const cardPowered = (board: Board, cables: Cables, dev: InstalledDevice): boolean =>
+export const cardPowered = (board: boardTypes.Board, cables: Cables, dev: boardTypes.InstalledDevice): boolean =>
   cardLeadIds(board, dev).every((id) => cables[id]);
 
-export function connectCable(board: Board, cables: Cables, id: string): Result<{ cable: CableId }> {
+export function connectCable(
+  board: boardTypes.Board,
+  cables: Cables,
+  id: string,
+): boardTypes.Result<{ cable: CableId }> {
   const c = spec(id, board);
-  if (!c) return { ok: false, reason: `unknown cable "${id}"` };
-  if (cables[c.id]) return { ok: false, reason: `${c.name} is already connected` };
-  if (c.from === 'router')
+  if (!c) {
+    return { ok: false, reason: `unknown cable "${id}"` };
+  }
+  if (cables[c.id]) {
+    return { ok: false, reason: `${c.name} is already connected` };
+  }
+  if (c.from === 'router') {
     return { ok: false, reason: 'the ethernet cable is plugged in through the network (Game.connectCable)' };
+  }
   const why = cableBlocked(board, c.id);
-  if (why) return { ok: false, reason: why };
+  if (why) {
+    return { ok: false, reason: why };
+  }
   cables[c.id] = true;
   return { ok: true, cable: c.id };
 }
 
-export function disconnectCable(cables: Cables, id: string, board?: Board): Result<{ cable: CableId }> {
+export function disconnectCable(
+  cables: Cables,
+  id: string,
+  board?: boardTypes.Board,
+): boardTypes.Result<{ cable: CableId }> {
   const c = spec(id, board);
-  if (!c) return { ok: false, reason: `unknown cable "${id}"` };
-  if (!cables[c.id]) return { ok: false, reason: `${c.name} is not connected` };
+  if (!c) {
+    return { ok: false, reason: `unknown cable "${id}"` };
+  }
+  if (!cables[c.id]) {
+    return { ok: false, reason: `${c.name} is not connected` };
+  }
   cables[c.id] = false;
   return { ok: true, cable: c.id };
 }
 
 /** Unplug every cable whose source part is gone (after an uninstall or swap). Returns the cables that came off. */
-export function pruneCables(board: Board, cables: Cables): CableId[] {
+export function pruneCables(board: boardTypes.Board, cables: Cables): CableId[] {
   const off: CableId[] = [];
   for (const c of cablesOf(board)) {
-    if (c.from === 'router' || c.from === 'case') continue;
+    if (c.from === 'router' || c.from === 'case') {
+      continue;
+    }
     if (cables[c.id] && (cableBlocked(board, c.id) || pcieLeadNo(c.id) > pcieLeadsNeeded(board))) {
       // (a lead no card takes any more comes off too)
       cables[c.id] = false;
@@ -316,9 +350,9 @@ export function pruneCables(board: Board, cables: Cables): CableId[] {
  * The cables that exist now and would not once the device `devId` was gone: its own (the PSU's leads and cord, the monitor's cables, a fan's cord) and a PCIe
  * lead no card needs any more. They go back into their part with it: Build my PC reels them in before the part comes out (`BuildStage.takeOut`).
  */
-export function cablesLost(board: Board, devId: string): CableId[] {
-  const left: Board = { ...board, devices: board.devices.filter((d) => d.id !== devId) };
-  const exists = (b: Board, id: CableId): boolean => cableBlocked(b, id) === null && cableNeeded(b, id);
+export function cablesLost(board: boardTypes.Board, devId: string): CableId[] {
+  const left: boardTypes.Board = { ...board, devices: board.devices.filter((d) => d.id !== devId) };
+  const exists = (b: boardTypes.Board, id: CableId): boolean => cableBlocked(b, id) === null && cableNeeded(b, id);
   return cablesOf(board)
     .filter((c) => exists(board, c.id) && !exists(left, c.id))
     .map((c) => c.id);
@@ -332,27 +366,41 @@ export interface BootCheck {
 }
 
 /** What stops the machine booting with this board and these cables (burnt parts count as missing). */
-export function bootCheck(board: Board, cables: Cables): BootCheck {
+export function bootCheck(board: boardTypes.Board, cables: Cables): BootCheck {
   const psu = installedPsu(board);
   let noPower: string | null = null;
-  if (board.burnt) noPower = 'board dead: replace the board';
-  else if (!psu) noPower = 'no PSU installed';
-  else if (psu.dev.burnt) noPower = 'the PSU is burnt out';
-  else if (!cables['atx']) noPower = 'the 24-pin ATX cable is not connected';
-  else if (!cables['pcmains']) noPower = 'the PC power cord is not plugged into the wall';
+  if (board.burnt) {
+    noPower = 'board dead: replace the board';
+  } else if (!psu) {
+    noPower = 'no PSU installed';
+  } else if (psu.dev.burnt) {
+    noPower = 'the PSU is burnt out';
+  } else if (!cables['atx']) {
+    noPower = 'the 24-pin ATX cable is not connected';
+  } else if (!cables['pcmains']) {
+    noPower = 'the PC power cord is not plugged into the wall';
+  }
   let post: BootCheck['post'] = null;
-  const cpu = findDevices(board, 'cpu')[0];
+  const [cpu] = findDevices(board, 'cpu');
   const ram = findDevices(board, 'ram').filter((d) => !d.burnt);
-  if (!cpu) post = { reason: 'no CPU installed', short: 'NO CPU' };
-  else if (cpu.burnt) post = { reason: 'the CPU is burnt out', short: 'CPU FAILED' };
-  else if (!findDevices(board, 'cooler').some((d) => !d.burnt))
+  if (!cpu) {
+    post = { reason: 'no CPU installed', short: 'NO CPU' };
+  } else if (cpu.burnt) {
+    post = { reason: 'the CPU is burnt out', short: 'CPU FAILED' };
+  } else if (!findDevices(board, 'cooler').some((d) => !d.burnt)) {
     post = { reason: 'no CPU cooler installed: it mounts on the CPU', short: 'NO CPU COOLER' };
+  }
   // an air heatsink still cools without its fans (the CPU runs hot); a liquid loop's pump must run
-  else if (!cables['cpufan'] && findDevices(board, 'cooler').some((d) => (deviceSpec(d) as CoolerSpec).loop))
+  else if (
+    !cables['cpufan'] &&
+    findDevices(board, 'cooler').some((d) => (deviceSpec(d) as specsTypes.CoolerSpec).loop)
+  ) {
     post = { reason: 'the pump cable is not connected: plug it into the CPU_FAN header', short: 'NO CPU FAN' };
-  else if (!cables['cpu']) post = { reason: 'the 8-pin CPU power cable is not connected', short: 'NO CPU POWER' };
-  else if (ram.length === 0) post = { reason: 'no working RAM installed', short: 'NO RAM' };
-  else if (PCIE_LEADS.slice(0, pcieLeadsNeeded(board)).some((id) => !cables[id])) {
+  } else if (!cables['cpu']) {
+    post = { reason: 'the 8-pin CPU power cable is not connected', short: 'NO CPU POWER' };
+  } else if (ram.length === 0) {
+    post = { reason: 'no working RAM installed', short: 'NO RAM' };
+  } else if (PCIE_LEADS.slice(0, pcieLeadsNeeded(board)).some((id) => !cables[id])) {
     const missing = PCIE_LEADS.slice(0, pcieLeadsNeeded(board)).filter((id) => !cables[id]).length;
     post = {
       reason: `a card needs PCIe power and ${missing} lead${missing === 1 ? ' is' : 's are'} not connected`,

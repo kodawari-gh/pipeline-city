@@ -1,28 +1,20 @@
 // Game feature: the installed hardware as the machine's bus sees it. Drives and their media, the GPU, NPU and TPM ports, ECC,
 // the MMU, the OS's boot port, and the memory the sticks add up to. Every export is a `Game` method (see game.ts).
 
-import {
-  cardPowered,
-  deviceSpec,
-  findDevices,
-  type CardSpec,
-  type CpuSpec,
-  type InstalledDevice,
-  type RamSpec,
-  type StorageSpec,
-  type TpmSpec,
-} from '..';
+import { cardPowered, deviceSpec, findDevices } from '..';
+import type * as boardSimTypes from '..';
 import type { GpuTarget, NpuTarget } from '@/features/jobs/sim/gen';
 import { GPU_BASE, GPU_PORTS, GPU_STRIDE, NPU_BASE, NPU_STRIDE } from '@/core/sim/memmap';
-import { Disk, type StoragePort } from '@/core/sim';
+import { Disk } from '@/core/sim';
+import type * as simTypes from '@/core/sim';
 import type { Game } from '@/worker/game/game';
 import type { GpuSnap, NpuSnap } from '@/worker/game/types';
 
 /** The drive's media for an installed storage device (created blank the first time). */
-export function diskFor(this: Game, d: InstalledDevice): Disk {
+export function diskFor(this: Game, d: boardSimTypes.InstalledDevice): Disk {
   let disk = this.disks.get(d.id);
   if (!disk) {
-    const s = deviceSpec(d) as StorageSpec;
+    const s = deviceSpec(d) as boardSimTypes.StorageSpec;
     disk = new Disk(s.capacityBytes, s.latencyTicks, s.blockTicks, {
       enduranceBlocks: s.enduranceBlocks,
       queueDepth: s.queueDepth,
@@ -38,15 +30,20 @@ export function diskFor(this: Game, d: InstalledDevice): Disk {
 
 /** A stable seed from a device id, so a drive wears and fails the same way after a save and load. */
 function hashSeed(id: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619);
+  let h = 2_166_136_261;
+  for (let i = 0; i < id.length; i++) {
+    h = Math.imul(h ^ id.charCodeAt(i), 16_777_619);
+  }
   return h >>> 0;
 }
 
 /** Attach each working drive to its port (a burnt or removed drive drops off the bus). A burnt drive loses every dataset on it. */
 export function syncStorage(this: Game): void {
-  for (const d of this.board.devices)
-    if (d.burnt && deviceSpec(d).kind === 'storage') this.disks.get(d.id)?.fs.loseKind('dataset');
+  for (const d of this.board.devices) {
+    if (d.burnt && deviceSpec(d).kind === 'storage') {
+      this.disks.get(d.id)?.fs.loseKind('dataset');
+    }
+  }
   for (const port of this.ports) {
     const d = this.board.devices.find((x) => x.slot === port.name && deviceSpec(x).kind === 'storage' && !x.burnt);
     port.attach(d ? this.diskFor(d) : null);
@@ -59,8 +56,11 @@ export function syncNpus(this: Game): void {
     const d = this.board.devices.find((x) => x.slot === `pcie${k}` && deviceSpec(x).kind === 'npu' && !x.burnt);
     port.configure(
       d
-        ? (deviceSpec(d) as CardSpec).npu
-          ? { grid: (deviceSpec(d) as CardSpec).npu!.grid, memBytes: (deviceSpec(d) as CardSpec).npu!.memBytes }
+        ? (deviceSpec(d) as boardSimTypes.CardSpec).npu
+          ? {
+              grid: (deviceSpec(d) as boardSimTypes.CardSpec).npu!.grid,
+              memBytes: (deviceSpec(d) as boardSimTypes.CardSpec).npu!.memBytes,
+            }
           : null
         : null,
     );
@@ -70,31 +70,35 @@ export function syncNpus(this: Game): void {
 /** Every working memory stick has error correction (and there is at least one). */
 export function eccInstalled(this: Game): boolean {
   const sticks = this.board.devices.filter((d) => !d.burnt && deviceSpec(d).kind === 'ram');
-  return sticks.length > 0 && sticks.every((d) => (deviceSpec(d) as RamSpec).ecc === true);
+  return sticks.length > 0 && sticks.every((d) => (deviceSpec(d) as boardSimTypes.RamSpec).ecc === true);
 }
 
 /** The TPM on the header (a burnt or removed module drops off the bus). */
 export function syncTpm(this: Game): void {
   const d = this.board.devices.find((x) => !x.burnt && deviceSpec(x).kind === 'tpm');
   // the module encrypts memory: it only works when every stick can correct errors
-  this.tpm.configure(d && this.eccInstalled() ? ((deviceSpec(d) as TpmSpec).tpm ?? null) : null);
+  this.tpm.configure(d && this.eccInstalled() ? ((deviceSpec(d) as boardSimTypes.TpmSpec).tpm ?? null) : null);
 }
 
 /** The first working GPU as a job generator sees it (undefined without one, or while its power lead is unplugged): `gpu.render` programs offload to it. */
 export function gpuTarget(this: Game): GpuTarget | undefined {
   const d = this.board.devices.find((x) => !x.burnt && deviceSpec(x).kind === 'gpu');
-  const spec = d && (deviceSpec(d) as CardSpec);
+  const spec = d && (deviceSpec(d) as boardSimTypes.CardSpec);
   const k = d ? GPU_PORTS.indexOf(d.slot) : -1;
-  if (!d || !spec?.gpu || k < 0 || !cardPowered(this.board, this.cables, d)) return undefined;
+  if (!d || !spec?.gpu || k < 0 || !cardPowered(this.board, this.cables, d)) {
+    return undefined;
+  }
   return { base: GPU_BASE + k * GPU_STRIDE, lanes: spec.gpu.lanes, memBytes: spec.gpu.memBytes };
 }
 
 /** The first working NPU as a job generator sees it (undefined without one, or while its power lead is unplugged). */
 export function npuTarget(this: Game): NpuTarget | undefined {
   const d = this.board.devices.find((x) => !x.burnt && deviceSpec(x).kind === 'npu');
-  const spec = d && (deviceSpec(d) as CardSpec);
+  const spec = d && (deviceSpec(d) as boardSimTypes.CardSpec);
   const k = d ? GPU_PORTS.indexOf(d.slot) : -1;
-  if (!d || !spec?.npu || k < 0 || !cardPowered(this.board, this.cables, d)) return undefined;
+  if (!d || !spec?.npu || k < 0 || !cardPowered(this.board, this.cables, d)) {
+    return undefined;
+  }
   return { base: NPU_BASE + k * NPU_STRIDE, grid: spec.npu.grid, memBytes: spec.npu.memBytes };
 }
 
@@ -102,7 +106,7 @@ export function npuTarget(this: Game): NpuTarget | undefined {
 export function syncGpus(this: Game): void {
   for (const port of this.gpus) {
     const d = this.board.devices.find((x) => x.slot === port.name && deviceSpec(x).kind === 'gpu' && !x.burnt);
-    const cfg = d ? (deviceSpec(d) as CardSpec).gpu : undefined;
+    const cfg = d ? (deviceSpec(d) as boardSimTypes.CardSpec).gpu : undefined;
     port.configure(cfg ?? null);
   }
 }
@@ -115,7 +119,9 @@ export function gpuSnaps(this: Game): GpuSnap[] {
   const out: GpuSnap[] = [];
   for (const port of this.gpus) {
     const v = port.view();
-    if (v) out.push({ ...v, slot: port.name });
+    if (v) {
+      out.push({ ...v, slot: port.name });
+    }
   }
   return out;
 }
@@ -125,7 +131,9 @@ export function npuSnaps(this: Game): NpuSnap[] {
   const out: NpuSnap[] = [];
   this.npus.forEach((port, k) => {
     const v = port.view();
-    if (v) out.push({ ...v, slot: `pcie${k}` });
+    if (v) {
+      out.push({ ...v, slot: `pcie${k}` });
+    }
   });
   return out;
 }
@@ -138,12 +146,18 @@ export function npuSnaps(this: Game): NpuSnap[] {
  */
 export function stepGpu(this: Game, slot: string, cycles: number): number {
   const port = this.gpus.find((p) => p.name === slot);
-  if (!port || !port.present || !this.powered || this.postError || this.fault()) return 0;
-  const n = Math.max(1, Math.min(100000, Math.floor(cycles)));
+  if (!port || !port.present || !this.powered || this.postError || this.fault()) {
+    return 0;
+  }
+  const n = Math.max(1, Math.min(100_000, Math.floor(cycles)));
   if (!port.isBusy) {
     const e = this.machine.engine;
-    if (!e || this.bootDelay > 0) return 0;
-    for (let guard = 0; !port.isBusy && !e.halted && guard < LAUNCH_RUN_LIMIT; guard++) this.machine.clock.advance(1);
+    if (!e || this.bootDelay > 0) {
+      return 0;
+    }
+    for (let guard = 0; !port.isBusy && !e.halted && guard < LAUNCH_RUN_LIMIT; guard++) {
+      this.machine.clock.advance(1);
+    }
     this.trackPages();
     this.checkFaults();
     return port.isBusy ? 1 : 0;
@@ -157,8 +171,10 @@ export function stepGpu(this: Game, slot: string, cycles: number): number {
 }
 
 /** The working graphics card the video cable is plugged into (the GPU in slot `this.video`), or null when it goes to the board, or that card is gone or burnt. */
-export function videoCard(this: Game): InstalledDevice | null {
-  if (this.video === 'board') return null;
+export function videoCard(this: Game): boardSimTypes.InstalledDevice | null {
+  if (this.video === 'board') {
+    return null;
+  }
   const d = this.board.devices.find((x) => x.slot === this.video && deviceSpec(x).kind === 'gpu');
   return d && !d.burnt ? d : null;
 }
@@ -166,29 +182,37 @@ export function videoCard(this: Game): InstalledDevice | null {
 /** The installed CPU has an MMU (docs/VM.md). */
 export function cpuHasMmu(this: Game): boolean {
   const cpu = findDevices(this.board, 'cpu').find((d) => !d.burnt);
-  return !!cpu && ((deviceSpec(cpu) as CpuSpec).mmu?.tlb ?? 0) > 0;
+  return cpu !== undefined && ((deviceSpec(cpu) as boardSimTypes.CpuSpec).mmu?.tlb ?? 0) > 0;
 }
 
 /** Hardware cores of the installed CPU (1 for a single-core part or none). */
 export function cpuCores(this: Game): number {
   const cpu = findDevices(this.board, 'cpu').find((d) => !d.burnt);
-  return cpu ? ((deviceSpec(cpu) as CpuSpec).cores ?? 1) : 1;
+  return cpu ? ((deviceSpec(cpu) as boardSimTypes.CpuSpec).cores ?? 1) : 1;
 }
 
 /** Logical cores of the installed CPU: its hardware cores times their threads (what the OS sees as processors). */
 export function cpuLogicalCores(this: Game): number {
   const cpu = findDevices(this.board, 'cpu').find((d) => !d.burnt);
-  if (!cpu) return 1;
-  const spec = deviceSpec(cpu) as CpuSpec;
+  if (!cpu) {
+    return 1;
+  }
+  const spec = deviceSpec(cpu) as boardSimTypes.CpuSpec;
   return (spec.cores ?? 1) * (spec.threads ?? 1);
 }
 
 /** The port the OS boots from, if its drive works. */
-export function osPort(this: Game): StoragePort | null {
-  if (!this.os) return null;
-  if (this.os.spec.needsMmu && !this.cpuHasMmu()) return null; // the OS cannot boot on this CPU: the machine falls back to the key loader
+export function osPort(this: Game): simTypes.StoragePort | null {
+  if (!this.os) {
+    return null;
+  }
+  if (this.os.spec.needsMmu && !this.cpuHasMmu()) {
+    return null; // the OS cannot boot on this CPU: the machine falls back to the key loader
+  }
   const d = this.board.devices.find((x) => x.id === this.os!.deviceId);
-  if (!d || d.burnt) return null;
+  if (!d || d.burnt) {
+    return null;
+  }
   const port = this.ports.find((p) => p.name === d.slot);
   return port?.media ? port : null;
 }
@@ -203,5 +227,5 @@ export function installedMemory(this: Game): Uint8Array {
 export function installedRamBytes(this: Game): number {
   return findDevices(this.board, 'ram')
     .filter((d) => !d.burnt)
-    .reduce((n, d) => n + (deviceSpec(d) as RamSpec).sizeBytes, 0);
+    .reduce((n, d) => n + (deviceSpec(d) as boardSimTypes.RamSpec).sizeBytes, 0);
 }

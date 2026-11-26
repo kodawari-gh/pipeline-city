@@ -9,12 +9,8 @@ import {
   caseMounts,
   getSpec,
   pcieLabel,
-  type DeviceSpec,
-  type FanSpec,
-  type FanSpots,
-  type PsuSpec,
-  type SlotType,
 } from './specs';
+import type * as specsTypes from './specs';
 
 export interface InstalledDevice {
   /** Instance id, unique within the board (e.g. "dev3"). */
@@ -42,7 +38,7 @@ export interface Board {
 /** `width`: a `pcie` slot's lanes. `size`: a `fan` spot's fan size, mm. */
 export interface SlotInfo {
   id: string;
-  type: SlotType;
+  type: specsTypes.SlotType;
   width?: number | undefined;
   size?: number | undefined;
 }
@@ -50,16 +46,19 @@ export interface SlotInfo {
 export type Result<T> = ({ ok: true } & T) | { ok: false; reason: string };
 
 /** A slot of type `have` takes a device that needs `need`: same type, or an ATX+ connector taking a plain ATX PSU. */
-export function slotAccepts(have: SlotType, need: SlotType): boolean {
+export function slotAccepts(have: specsTypes.SlotType, need: specsTypes.SlotType): boolean {
   return have === need || (have === 'atx-plus' && need === 'atx');
 }
 
 /** A fresh board in the smallest case that holds it (or in `caseTier`, which must hold it). */
 export function createBoard(tier = 0, caseTier?: number): Board {
-  if (!BOARD_TIERS[tier]) throw new RangeError(`unknown board tier ${tier}`);
+  if (!BOARD_TIERS[tier]) {
+    throw new RangeError(`unknown board tier ${tier}`);
+  }
   const c = caseTier ?? CASE_TIERS.findIndex((x) => x.maxBoard >= tier);
-  if (!CASE_TIERS[c] || CASE_TIERS[c]!.maxBoard < tier)
+  if (!CASE_TIERS[c] || CASE_TIERS[c]!.maxBoard < tier) {
     throw new RangeError(`case ${c} cannot hold board tier ${tier}`);
+  }
   return { tier, caseTier: c, nextId: 1, devices: [] };
 }
 
@@ -70,17 +69,23 @@ export const caseHolds = (board: Board, boardTier: number): boolean =>
 /** Fit another case, bigger or smaller, as long as it holds the board (the board and every part stay as they are). */
 export function upgradeCase(board: Board, tier: number): Result<object> {
   const c = CASE_TIERS[tier];
-  if (!c) return { ok: false, reason: `unknown case tier ${tier}` };
-  if (tier === board.caseTier) return { ok: false, reason: `the ${c.name} is already fitted` };
-  if (c.maxBoard < board.tier)
+  if (!c) {
+    return { ok: false, reason: `unknown case tier ${tier}` };
+  }
+  if (tier === board.caseTier) {
+    return { ok: false, reason: `the ${c.name} is already fitted` };
+  }
+  if (c.maxBoard < board.tier) {
     return {
       ok: false,
       reason: `the ${c.name} is too small for the ${BOARD_TIERS[board.tier]!.name} board: fit a smaller board first`,
     };
+  }
   for (const d of board.devices) {
     const side = radiatorSide(d.slot);
-    if (side !== null && sideMounts(tier, side).length === 0)
+    if (side !== null && sideMounts(tier, side).length === 0) {
       return { ok: false, reason: `the ${c.name} has no ${side} fan mounts for the radiator: take it out first` };
+    }
   }
   board.caseTier = tier;
   return { ok: true };
@@ -89,15 +94,21 @@ export function upgradeCase(board: Board, tier: number): Result<object> {
 /** Slot instances of a board tier, ids like "dimm0", "dimm1". */
 export function boardSlots(board: Board): SlotInfo[] {
   const t = BOARD_TIERS[board.tier];
-  if (!t) return [];
+  if (!t) {
+    return [];
+  }
   const out: SlotInfo[] = [];
-  for (const [type, n] of Object.entries(t.slots) as [SlotType, number][]) {
-    for (let k = 0; k < n; k++)
+  for (const [type, n] of Object.entries(t.slots) as [specsTypes.SlotType, number][]) {
+    for (let k = 0; k < n; k++) {
       out.push(type === 'pcie' ? { id: `${type}${k}`, type, width: t.pcieWidths[k] } : { id: `${type}${k}`, type });
+    }
   }
   // A radiator bolts onto one side of the case (front or top) and spans every fan mount of that side; their fans push air through it.
-  for (const side of RADIATOR_SIDES)
-    if (sideMounts(board.caseTier, side).length > 0) out.push({ id: radiatorSlot(side), type: 'radiator' });
+  for (const side of RADIATOR_SIDES) {
+    if (sideMounts(board.caseTier, side).length > 0) {
+      out.push({ id: radiatorSlot(side), type: 'radiator' });
+    }
+  }
   return [...out, ...fanSlots(board)];
 }
 
@@ -107,14 +118,18 @@ export function fanSlots(board: Board): SlotInfo[] {
   const out: SlotInfo[] = caseMounts(board.caseTier).map((id) => ({ id, type: 'fan', size }));
   for (const d of board.devices) {
     const spots = hostSpots(d);
-    if (spots) for (let k = 0; k < spots.n; k++) out.push({ id: `${d.slot}.fan${k}`, type: 'fan', size: spots.size });
+    if (spots) {
+      for (let k = 0; k < spots.n; k++) {
+        out.push({ id: `${d.slot}.fan${k}`, type: 'fan', size: spots.size });
+      }
+    }
   }
   return out;
 }
 
 /** A device's fan spots (an air heatsink, the fan fins), or null. */
-export function hostSpots(d: InstalledDevice): FanSpots | null {
-  return (getSpec(d.spec) as { fanSpots?: FanSpots } | undefined)?.fanSpots ?? null;
+export function hostSpots(d: InstalledDevice): specsTypes.FanSpots | null {
+  return (getSpec(d.spec) as { fanSpots?: specsTypes.FanSpots } | undefined)?.fanSpots ?? null;
 }
 
 /** The slot of the heatsink a fan spot belongs to (`cooler0` for `cooler0.fan1`), or null for a case mount. */
@@ -133,7 +148,7 @@ export const mountFan = (board: Board, mount: string): InstalledDevice | undefin
 
 /** The summed airflow of these fans (burnt ones turn no more). */
 export const fanAir = (fans: readonly InstalledDevice[]): number =>
-  fans.reduce((a, d) => a + (d.burnt ? 0 : (getSpec(d.spec) as FanSpec).airflow), 0);
+  fans.reduce((a, d) => a + (d.burnt ? 0 : (getSpec(d.spec) as specsTypes.FanSpec).airflow), 0);
 
 /**
  * The fans whose spot is gone or takes another size now: a case swapped for one with fewer or other mounts, a heatsink taken out or swapped for one
@@ -143,7 +158,7 @@ export function strayFans(board: Board): InstalledDevice[] {
   const spots = new Map(fanSlots(board).map((s) => [s.id, s.size]));
   return board.devices.filter((d) => {
     const s = getSpec(d.spec);
-    return s?.kind === 'fan' && spots.get(d.slot) !== (s as FanSpec).size;
+    return s?.kind === 'fan' && spots.get(d.slot) !== (s as specsTypes.FanSpec).size;
   });
 }
 
@@ -166,7 +181,9 @@ export const sideMounts = (tier: number, side: RadiatorSide): string[] =>
 export function fittedRadiator(board: Board): { dev: InstalledDevice; side: RadiatorSide; mounts: string[] } | null {
   for (const d of board.devices) {
     const side = radiatorSide(d.slot);
-    if (side !== null) return { dev: d, side, mounts: sideMounts(board.caseTier, side) };
+    if (side !== null) {
+      return { dev: d, side, mounts: sideMounts(board.caseTier, side) };
+    }
   }
   return null;
 }
@@ -174,34 +191,44 @@ export function fittedRadiator(board: Board): { dev: InstalledDevice; side: Radi
 /** A save from when a radiator took one mount (`rad-top1`, `rad-rear`) keeps it, now on that mount's side (the rear becomes the top, or the front). */
 export function legacyRadiatorSlots(board: Board): void {
   for (const d of board.devices) {
-    const m = /^rad-(front|top|rear)\d*$/.exec(d.slot);
-    if (!m || radiatorSide(d.slot)) continue;
-    d.slot = radiatorSlot(m[1] === 'front' || sideMounts(board.caseTier, 'top').length === 0 ? 'front' : 'top');
+    const m = /^rad-(?<side>front|top|rear)\d*$/u.exec(d.slot);
+    if (!m || radiatorSide(d.slot)) {
+      continue;
+    }
+    d.slot = radiatorSlot(
+      m.groups?.['side'] === 'front' || sideMounts(board.caseTier, 'top').length === 0 ? 'front' : 'top',
+    );
   }
 }
 
-export function deviceSpec(d: InstalledDevice): DeviceSpec {
+export function deviceSpec(d: InstalledDevice): specsTypes.DeviceSpec {
   const s = getSpec(d.spec);
-  if (!s) throw new Error(`unknown device spec ${d.spec}`);
+  if (!s) {
+    throw new Error(`unknown device spec ${d.spec}`);
+  }
   return s;
 }
 
-export function findDevices(board: Board, kind: DeviceSpec['kind']): InstalledDevice[] {
+export function findDevices(board: Board, kind: specsTypes.DeviceSpec['kind']): InstalledDevice[] {
   return board.devices.filter((d) => deviceSpec(d).kind === kind);
 }
 
 /** Does `spec` fit the slot's size: a card narrow enough for its lanes, a fan of the spot's size? (Always, for a slot without a width or a size.) */
-export const slotFits = (slot: SlotInfo, spec: DeviceSpec): boolean =>
+export const slotFits = (slot: SlotInfo, spec: specsTypes.DeviceSpec): boolean =>
   (slot.width === undefined || (spec.pcieWidth ?? 1) <= slot.width) &&
-  (slot.size === undefined || (spec as Partial<FanSpec>).size === slot.size);
+  (slot.size === undefined || (spec as Partial<specsTypes.FanSpec>).size === slot.size);
 
 /** Why `spec` does not go into `slot`, or null if it does. */
-export function slotRefusal(slot: SlotInfo, spec: DeviceSpec): string | null {
-  if (!slotAccepts(slot.type, spec.slot)) return `${spec.name} needs a ${spec.slot} slot, "${slot.id}" is ${slot.type}`;
-  if (slot.size !== undefined && !slotFits(slot, spec))
+export function slotRefusal(slot: SlotInfo, spec: specsTypes.DeviceSpec): string | null {
+  if (!slotAccepts(slot.type, spec.slot)) {
+    return `${spec.name} needs a ${spec.slot} slot, "${slot.id}" is ${slot.type}`;
+  }
+  if (slot.size !== undefined && !slotFits(slot, spec)) {
     return `${spec.name} does not fit: "${slot.id}" takes a ${slot.size} mm fan`;
-  if (!slotFits(slot, spec))
+  }
+  if (!slotFits(slot, spec)) {
     return `${spec.name} needs a ${pcieLabel(spec.pcieWidth ?? 1)} slot, "${slot.id}" is only ${pcieLabel(slot.width ?? 1)}`;
+  }
   return null;
 }
 
@@ -209,7 +236,7 @@ export function slotRefusal(slot: SlotInfo, spec: DeviceSpec): string | null {
  * Free slots of `type`; with `spec`, only those it fits, the narrowest first (a small card does not take the big slot a GPU needs) and a
  * heatsink's fan spot before a case mount (the processor's cooling first).
  */
-export function freeSlots(board: Board, type: SlotType, spec?: DeviceSpec): SlotInfo[] {
+export function freeSlots(board: Board, type: specsTypes.SlotType, spec?: specsTypes.DeviceSpec): SlotInfo[] {
   const used = new Set(board.devices.map((d) => d.slot));
   const free = boardSlots(board).filter(
     (s) => slotAccepts(s.type, type) && !used.has(s.id) && (!spec || slotFits(s, spec)),
@@ -219,11 +246,13 @@ export function freeSlots(board: Board, type: SlotType, spec?: DeviceSpec): Slot
 }
 
 /** Rated load (W, at base clocks) of everything except the PSU. */
-export function ratedLoadW(board: Board, extra?: DeviceSpec): number {
+export function ratedLoadW(board: Board, extra?: specsTypes.DeviceSpec): number {
   let w = extra && extra.kind !== 'psu' ? extra.loadW : 0;
   for (const d of board.devices) {
     const s = deviceSpec(d);
-    if (s.kind !== 'psu') w += s.loadW;
+    if (s.kind !== 'psu') {
+      w += s.loadW;
+    }
   }
   return w;
 }
@@ -233,15 +262,19 @@ export function pcieLeadsNeeded(board: Board): number {
   let n = 0;
   for (const d of board.devices) {
     const s = deviceSpec(d);
-    if (!d.burnt && (s.kind === 'gpu' || s.kind === 'npu')) n += cardLeads(s);
+    if (!d.burnt && (s.kind === 'gpu' || s.kind === 'npu')) {
+      n += cardLeads(s);
+    }
   }
   return n;
 }
 
-export function installedPsu(board: Board): { dev: InstalledDevice; spec: PsuSpec } | null {
+export function installedPsu(board: Board): { dev: InstalledDevice; spec: specsTypes.PsuSpec } | null {
   for (const d of board.devices) {
     const s = deviceSpec(d);
-    if (s.kind === 'psu') return { dev: d, spec: s };
+    if (s.kind === 'psu') {
+      return { dev: d, spec: s };
+    }
   }
   return null;
 }
@@ -271,22 +304,30 @@ export function install(
 ): Result<{ id: string; slot: string }> {
   const power = opts.power !== false;
   const spec = getSpec(specId);
-  if (!spec) return { ok: false, reason: `unknown device "${specId}"` };
+  if (!spec) {
+    return { ok: false, reason: `unknown device "${specId}"` };
+  }
   let slot: SlotInfo | undefined;
   if (slotId !== undefined) {
     slot = boardSlots(board).find((s) => s.id === slotId);
-    if (!slot) return { ok: false, reason: `board has no slot "${slotId}"` };
+    if (!slot) {
+      return { ok: false, reason: `board has no slot "${slotId}"` };
+    }
     const refusal = slotRefusal(slot, spec);
-    if (refusal) return { ok: false, reason: refusal };
-    if (board.devices.some((d) => d.slot === slotId)) return { ok: false, reason: `slot "${slotId}" is already used` };
+    if (refusal) {
+      return { ok: false, reason: refusal };
+    }
+    if (board.devices.some((d) => d.slot === slotId)) {
+      return { ok: false, reason: `slot "${slotId}" is already used` };
+    }
   } else {
-    slot = freeSlots(board, spec.slot, spec)[0];
+    [slot] = freeSlots(board, spec.slot, spec);
     if (!slot) {
       const all = boardSlots(board).filter((s) => slotAccepts(s.type, spec.slot)),
         total = all.length;
       const wide = all.filter((s) => slotFits(s, spec)).length;
       if (spec.kind === 'fan') {
-        const size = (spec as FanSpec).size;
+        const { size } = spec as specsTypes.FanSpec;
         return {
           ok: false,
           reason:
@@ -306,38 +347,45 @@ export function install(
       };
     }
   }
-  if (spec.kind === 'radiator' && fittedRadiator(board))
+  if (spec.kind === 'radiator' && fittedRadiator(board)) {
     return { ok: false, reason: 'the loop already has a radiator: take it out first' };
+  }
   if (power && (spec.kind === 'gpu' || spec.kind === 'npu') && cardLeads(spec) > 0) {
     // The card draws more than the slot's share (PCIE_SLOT_W): it needs PCIe power leads, and the board needs a connector for them.
-    if (board.tier < PCIE_POWER_MIN_TIER)
+    if (board.tier < PCIE_POWER_MIN_TIER) {
       return {
         ok: false,
         reason: `${spec.name} draws ${spec.loadW} W, more than a PCIe slot gives (${PCIE_SLOT_W} W), and this board has no PCIe power connector`,
       };
+    }
     const need = pcieLeadsNeeded(board) + cardLeads(spec),
       psu = installedPsu(board);
-    if (psu && psu.spec.pcieLeads < need)
+    if (psu && psu.spec.pcieLeads < need) {
       return {
         ok: false,
         reason: `${spec.name} brings the cards to ${need} PCIe power lead${need === 1 ? '' : 's'} but the PSU has ${psu.spec.pcieLeads}`,
       };
+    }
   }
   if (power && spec.kind === 'psu') {
     const need = ratedLoadW(board);
-    if (spec.watts < need)
+    if (spec.watts < need) {
       return { ok: false, reason: `${spec.name} gives ${spec.watts} W but installed parts need ${need} W` };
+    }
   } else if (power) {
     const psu = installedPsu(board);
     if (psu) {
       const need = ratedLoadW(board, spec);
-      if (need > psu.spec.watts)
+      if (need > psu.spec.watts) {
         return { ok: false, reason: `PSU gives ${psu.spec.watts} W but parts would need ${need} W` };
+      }
     }
   }
   const id = `dev${board.nextId++}`;
   const dev: InstalledDevice = { id, spec: specId, slot: slot.id };
-  if (spec.clock) dev.clock = spec.clock.base;
+  if (spec.clock) {
+    dev.clock = spec.clock.base;
+  }
   board.devices.push(dev);
   return { ok: true, id, slot: slot.id };
 }
@@ -349,10 +397,13 @@ export function install(
  * accepting slot (e.g. the plain ATX PSU moves to the ATX+ connector). On failure the board is left untouched.
  */
 export function upgradeBoard(board: Board, tier: number): Result<object> {
-  if (!BOARD_TIERS[tier]) return { ok: false, reason: `unknown board tier ${tier}` };
+  if (!BOARD_TIERS[tier]) {
+    return { ok: false, reason: `unknown board tier ${tier}` };
+  }
   // A dead board may be replaced by one of the same tier.
-  if (tier === board.tier && !board.burnt)
+  if (tier === board.tier && !board.burnt) {
     return { ok: false, reason: `the ${BOARD_TIERS[tier]!.name} board is already fitted` };
+  }
   const next: Board = { tier, caseTier: board.caseTier, nextId: board.nextId, devices: [] };
   const slots = boardSlots(next).filter((s) => s.type !== 'fan');
   const used = new Set<string>();
@@ -366,20 +417,27 @@ export function upgradeBoard(board: Board, tier: number): Result<object> {
   // (the widest cards choose first, so a narrow one does not leave them without a slot; the fans stay on their spot: a heatsink keeps its slot id,
   // and a fan whose spot is gone is the Game's stray)
   const moved = new Map<string, string>();
-  for (const d of board.devices) if (deviceSpec(d).kind === 'fan') moved.set(d.id, d.slot);
+  for (const d of board.devices) {
+    if (deviceSpec(d).kind === 'fan') {
+      moved.set(d.id, d.slot);
+    }
+  }
   for (const d of [...board.devices]
     .filter((x) => !moved.has(x.id))
     .sort((a, b) => (deviceSpec(b).pcieWidth ?? 0) - (deviceSpec(a).pcieWidth ?? 0))) {
     const slot = place(d);
-    if (!slot)
+    if (!slot) {
       return {
         ok: false,
         reason: `the ${BOARD_TIERS[tier]!.name} board has no slot for ${deviceSpec(d).name}: take it out first`,
       };
+    }
     used.add(slot);
     moved.set(d.id, slot);
   }
-  for (const d of board.devices) next.devices.push({ ...d, slot: moved.get(d.id)! });
+  for (const d of board.devices) {
+    next.devices.push({ ...d, slot: moved.get(d.id)! });
+  }
   board.tier = next.tier;
   board.devices = next.devices;
   delete board.burnt; // the dead board is gone
@@ -388,7 +446,9 @@ export function upgradeBoard(board: Board, tier: number): Result<object> {
 
 export function uninstall(board: Board, id: string): Result<object> {
   const k = board.devices.findIndex((d) => d.id === id);
-  if (k === -1) return { ok: false, reason: `no device "${id}"` };
+  if (k === -1) {
+    return { ok: false, reason: `no device "${id}"` };
+  }
   board.devices.splice(k, 1);
   return { ok: true };
 }
@@ -396,10 +456,16 @@ export function uninstall(board: Board, id: string): Result<object> {
 /** Set a device's requested clock; must be inside the spec's range. */
 export function setClock(board: Board, id: string, clock: number): Result<object> {
   const d = board.devices.find((x) => x.id === id);
-  if (!d) return { ok: false, reason: `no device "${id}"` };
+  if (!d) {
+    return { ok: false, reason: `no device "${id}"` };
+  }
   const r = deviceSpec(d).clock;
-  if (!r) return { ok: false, reason: `${deviceSpec(d).name} has no clock` };
-  if (!(clock >= r.min && clock <= r.max)) return { ok: false, reason: `clock ${clock} outside ${r.min}..${r.max}` };
+  if (!r) {
+    return { ok: false, reason: `${deviceSpec(d).name} has no clock` };
+  }
+  if (!(clock >= r.min && clock <= r.max)) {
+    return { ok: false, reason: `clock ${clock} outside ${r.min}..${r.max}` };
+  }
   d.clock = clock;
   return { ok: true };
 }
@@ -411,12 +477,30 @@ export function boardToJson(board: Board): BoardJson {
   return JSON.parse(JSON.stringify(board)) as BoardJson;
 }
 
+/** A saved device rebuilt with only its own fields, its clock checked against its spec's range (out of it throws). */
+function deviceFromJson(d: InstalledDevice, spec: specsTypes.DeviceSpec): InstalledDevice {
+  const dev: InstalledDevice = { id: d.id, spec: d.spec, slot: d.slot };
+  if (spec.clock) {
+    const c = d.clock ?? spec.clock.base;
+    if (!(c >= spec.clock.min && c <= spec.clock.max)) {
+      throw new Error(`save: clock ${c} out of range for ${d.spec}`);
+    }
+    dev.clock = c;
+  }
+  if (d.burnt) {
+    dev.burnt = true;
+  }
+  return dev;
+}
+
 /** Rebuild and validate a board from JSON (unknown specs, bad slots, duplicates throw). */
 export function boardFromJson(json: BoardJson): Board {
   // an older save has no case: it sits in the smallest one that holds its board
   const board = createBoard(json.tier);
   if (json.caseTier !== undefined) {
-    if (!CASE_TIERS[json.caseTier]) throw new Error(`save: unknown case tier ${json.caseTier}`);
+    if (!CASE_TIERS[json.caseTier]) {
+      throw new Error(`save: unknown case tier ${json.caseTier}`);
+    }
     board.caseTier = Math.max(json.caseTier, board.caseTier);
   }
   const seen = new Set<string>();
@@ -426,29 +510,29 @@ export function boardFromJson(json: BoardJson): Board {
     hosted = false;
   for (const d of [...json.devices.filter((x) => !isFan(x)), ...json.devices.filter(isFan)]) {
     const spec = getSpec(d.spec);
-    if (!spec) throw new Error(`save: unknown device spec "${d.spec}"`);
+    if (!spec) {
+      throw new Error(`save: unknown device spec "${d.spec}"`);
+    }
     if (spec.kind === 'fan' && !hosted) {
       slots = boardSlots(board);
       hosted = true;
     }
     const slot = slots.find((s) => s.id === d.slot);
-    if (!slot || !slotAccepts(slot.type, spec.slot)) throw new Error(`save: bad slot "${d.slot}" for ${d.spec}`);
-    if (seen.has(d.slot) || board.devices.some((x) => x.id === d.id))
-      throw new Error(`save: duplicate slot or id "${d.id}"`);
-    seen.add(d.slot);
-    const dev: InstalledDevice = { id: d.id, spec: d.spec, slot: d.slot };
-    if (spec.clock) {
-      const c = d.clock ?? spec.clock.base;
-      if (!(c >= spec.clock.min && c <= spec.clock.max)) throw new Error(`save: clock ${c} out of range for ${d.spec}`);
-      dev.clock = c;
+    if (!slot || !slotAccepts(slot.type, spec.slot)) {
+      throw new Error(`save: bad slot "${d.slot}" for ${d.spec}`);
     }
-    if (d.burnt) dev.burnt = true;
-    board.devices.push(dev);
+    if (seen.has(d.slot) || board.devices.some((x) => x.id === d.id)) {
+      throw new Error(`save: duplicate slot or id "${d.id}"`);
+    }
+    seen.add(d.slot);
+    board.devices.push(deviceFromJson(d, spec));
   }
   // back in the saved order
   const at = new Map(json.devices.map((d, k) => [d.id, k]));
   board.devices.sort((a, b) => at.get(a.id)! - at.get(b.id)!);
-  if (json.burnt) board.burnt = true;
-  board.nextId = Math.max(json.nextId, ...board.devices.map((d) => Number(d.id.replaceAll(/\D/g, '')) + 1), 1);
+  if (json.burnt) {
+    board.burnt = true;
+  }
+  board.nextId = Math.max(json.nextId, ...board.devices.map((d) => Number(d.id.replaceAll(/\D/gu, '')) + 1), 1);
   return board;
 }

@@ -8,18 +8,7 @@
 
 import { AMBIENT_C, basicFan, BOARD_TIERS, CASE_TIERS, fanShare } from './specs';
 import type { CoolerSpec, CpuSpec, RadiatorSpec, RamSpec } from './specs';
-import {
-  deviceSpec,
-  fanAir,
-  fansOn,
-  findDevices,
-  fittedRadiator,
-  installedPsu,
-  mountFan,
-  pcieLeadsNeeded,
-  ratedLoadW,
-  type Board,
-} from './board';
+import * as B from './board';
 import { clockPowerW, TRIP_RATIO, UNFANNED_SHARE } from './thermal';
 import { SMT_LOAD_SHARE } from '@/core/sim/memmap';
 import { currentDemand, efficiency, lossW, loadRatio, ramDemand, VRM_BURN_RATIO, VRM_OVERLOAD } from './vrm';
@@ -52,21 +41,25 @@ export function vrmRatioOf(boardTier: number, spec: CpuSpec, r = 1): number {
 }
 
 /** The CPU's current demand over its VRM's rating at a clock, every thread busy and the chip cool (what the VRM sees at the worst moment of a job). */
-export function cpuVrmRatio(board: Board, cpuId: string, clock?: number): number {
+export function cpuVrmRatio(board: B.Board, cpuId: string, clock?: number): number {
   const d = board.devices.find((x) => x.id === cpuId);
-  if (!d) return 0;
-  const spec = deviceSpec(d) as CpuSpec;
+  if (!d) {
+    return 0;
+  }
+  const spec = B.deviceSpec(d) as CpuSpec;
   return vrmRatioOf(board.tier, spec, (clock ?? d.clock ?? spec.clock.base) / spec.clock.base);
 }
 
 /** The memory regulator's load for every stick at its clock, flat out. */
-function ramVrmRatio(board: Board): number {
-  const sticks = findDevices(board, 'ram').filter((d) => !d.burnt);
-  if (!sticks.length) return 0;
+function ramVrmRatio(board: B.Board): number {
+  const sticks = B.findDevices(board, 'ram').filter((d) => !d.burnt);
+  if (sticks.length === 0) {
+    return 0;
+  }
   let w = 0,
     rs = 0;
   for (const d of sticks) {
-    const s = deviceSpec(d) as RamSpec,
+    const s = B.deviceSpec(d) as RamSpec,
       r = (d.clock ?? s.clock!.base) / s.clock!.base;
     w += clockPowerW(s, r, 1);
     rs += r;
@@ -78,20 +71,20 @@ function ramVrmRatio(board: Board): number {
  * What the machine draws flat out, W: every part at its rated load, the CPU at its clock with every thread busy, and what the two regulators waste on top.
  * It is the sum `ThermalModel.step` holds against the supply (a draw over the rating slows every clock by rating / draw; over `TRIP_RATIO` times it trips).
  */
-export function fullDrawW(board: Board): number {
-  let w = ratedLoadW(board);
-  const cpu = findDevices(board, 'cpu').find((d) => !d.burnt);
+export function fullDrawW(board: B.Board): number {
+  let w = B.ratedLoadW(board);
+  const cpu = B.findDevices(board, 'cpu').find((d) => !d.burnt);
   if (cpu) {
-    const s = deviceSpec(cpu) as CpuSpec,
+    const s = B.deviceSpec(cpu) as CpuSpec,
       r = (cpu.clock ?? s.clock.base) / s.clock.base,
       p = clockPowerW(s, r, cpuFullLoad(s));
     w += p - s.loadW + lossW(p, efficiency(BOARD_TIERS[board.tier]!.vrm, cpuVrmRatio(board, cpu.id)));
   }
-  const sticks = findDevices(board, 'ram').filter((d) => !d.burnt);
-  if (sticks.length) {
+  const sticks = B.findDevices(board, 'ram').filter((d) => !d.burnt);
+  if (sticks.length > 0) {
     let rw = 0;
     for (const d of sticks) {
-      const s = deviceSpec(d) as RamSpec;
+      const s = B.deviceSpec(d) as RamSpec;
       rw += clockPowerW(s, (d.clock ?? s.clock!.base) / s.clock!.base, 1);
     }
     w += lossW(rw, efficiency(BOARD_TIERS[board.tier]!.ramVrm, ramVrmRatio(board)));
@@ -100,48 +93,50 @@ export function fullDrawW(board: Board): number {
 }
 
 /** The highest CPU clock (steps of 0.05) at which the CPU's VRM is not overloaded, or null if even the lowest clock is. */
-export function safeCpuClock(board: Board, cpuId: string): number | null {
+export function safeCpuClock(board: B.Board, cpuId: string): number | null {
   const d = board.devices.find((x) => x.id === cpuId);
-  if (!d) return null;
-  const { clock } = deviceSpec(d) as CpuSpec;
-  for (let c = clock.max; c >= clock.min - 1e-9; c -= 0.05)
-    if (cpuVrmRatio(board, cpuId, c) <= VRM_OVERLOAD) return Math.round(c * 100) / 100;
+  if (!d) {
+    return null;
+  }
+  const { clock } = B.deviceSpec(d) as CpuSpec;
+  for (let c = clock.max; c >= clock.min - 1e-9; c -= 0.05) {
+    if (cpuVrmRatio(board, cpuId, c) <= VRM_OVERLOAD) {
+      return Math.round(c * 100) / 100;
+    }
+  }
   return null;
 }
 
 /** The temperature a CPU settles at with no case fans, flat out (the cooler and the passive path only): a ceiling the case fans then improve on. */
-function cpuSteadyC(board: Board, cpuId: string): number | null {
+function cpuSteadyC(board: B.Board, cpuId: string): number | null {
   const d = board.devices.find((x) => x.id === cpuId),
-    cooler = findDevices(board, 'cooler').find((c) => !c.burnt);
-  if (!d || !cooler) return null;
-  const s = deviceSpec(d) as CpuSpec,
-    cs = deviceSpec(cooler) as CoolerSpec,
+    cooler = B.findDevices(board, 'cooler').find((c) => !c.burnt);
+  if (!d || !cooler) {
+    return null;
+  }
+  const s = B.deviceSpec(d) as CpuSpec,
+    cs = B.deviceSpec(cooler) as CoolerSpec,
     r = (d.clock ?? s.clock.base) / s.clock.base;
   // the fans fitted on the heatsink, or on the radiator's mounts, all turning
-  const rad = fittedRadiator(board),
+  const rad = B.fittedRadiator(board),
     base = basicFan(CASE_TIERS[board.caseTier]!.fanSize).airflow;
-  const radAir = rad
-    ? rad.mounts.reduce((a, m) => {
-        const f = mountFan(board, m);
-        return a + (f ? fanAir([f]) : 0);
-      }, 0) /
-      (rad.mounts.length * base)
-    : 0;
+  const radAir = rad ? B.fanAir(rad.mounts.flatMap((m) => B.mountFan(board, m) ?? [])) / (rad.mounts.length * base) : 0;
   const radK = rad
-    ? (deviceSpec(rad.dev) as RadiatorSpec).coolingPerC * (UNFANNED_SHARE + (1 - UNFANNED_SHARE) * Math.min(1, radAir))
+    ? (B.deviceSpec(rad.dev) as RadiatorSpec).coolingPerC *
+      (UNFANNED_SHARE + (1 - UNFANNED_SHARE) * Math.min(1, radAir))
     : 0;
-  const airK = cs.coolingPerC * (cs.fanSpots ? fanShare(cs.fanSpots.bare, fanAir(fansOn(board, cooler.slot))) : 1);
+  const airK = cs.coolingPerC * (cs.fanSpots ? fanShare(cs.fanSpots.bare, B.fanAir(B.fansOn(board, cooler.slot))) : 1);
   const k = s.thermal.passive + (cs.loop ? cs.loop.pumpPerC + radK : airK);
   return AMBIENT_C + (clockPowerW(s, r, cpuFullLoad(s)) * s.heatFactor) / k;
 }
 
 /** Every problem and tip for the build as it stands. Errors first, then warnings, then tips. */
-export function checkCompat(board: Board): CompatIssue[] {
+export function checkCompat(board: B.Board): CompatIssue[] {
   const out: CompatIssue[] = [];
   const add = (i: CompatIssue) => out.push(i);
 
-  for (const cpu of findDevices(board, 'cpu').filter((d) => !d.burnt)) {
-    const spec = deviceSpec(cpu) as CpuSpec,
+  for (const cpu of B.findDevices(board, 'cpu').filter((d) => !d.burnt)) {
+    const spec = B.deviceSpec(cpu) as CpuSpec,
       ratio = cpuVrmRatio(board, cpu.id),
       safe = safeCpuClock(board, cpu.id);
     const fix = safe !== null ? { clock: safe } : undefined;
@@ -167,7 +162,7 @@ export function checkCompat(board: Board): CompatIssue[] {
       });
     }
     const t = cpuSteadyC(board, cpu.id);
-    if (t !== null && t > spec.thermal.unstableC)
+    if (t !== null && t > spec.thermal.unstableC) {
       add({
         id: 'cpu-cooling',
         severity: 'error',
@@ -176,7 +171,7 @@ export function checkCompat(board: Board): CompatIssue[] {
         limit: spec.thermal.unstableC,
         message: `${spec.name} would settle near ${fmt(t, 0)} C flat out, past the point where it makes errors (${spec.thermal.unstableC} C). It needs a better cooler.`,
       });
-    else if (t !== null && t > spec.thermal.throttleC)
+    } else if (t !== null && t > spec.thermal.throttleC) {
       add({
         id: 'cpu-cooling',
         severity: 'warn',
@@ -185,10 +180,11 @@ export function checkCompat(board: Board): CompatIssue[] {
         limit: spec.thermal.throttleC,
         message: `${spec.name} would settle near ${fmt(t, 0)} C flat out (before the case fans help), past its throttle point of ${spec.thermal.throttleC} C: it will slow down. A better cooler or more case fans cool it.`,
       });
+    }
   }
 
   const ramRatio = ramVrmRatio(board);
-  if (ramRatio >= VRM_BURN_RATIO)
+  if (ramRatio >= VRM_BURN_RATIO) {
     add({
       id: 'ram-vrm-burn',
       severity: 'error',
@@ -197,7 +193,7 @@ export function checkCompat(board: Board): CompatIssue[] {
       limit: VRM_BURN_RATIO,
       message: `The memory asks its regulator for ${fmt(ramRatio)}x what it can give: it will burn the board out.`,
     });
-  else if (ramRatio > VRM_OVERLOAD)
+  } else if (ramRatio > VRM_OVERLOAD) {
     add({
       id: 'ram-vrm-overload',
       severity: 'warn',
@@ -206,20 +202,21 @@ export function checkCompat(board: Board): CompatIssue[] {
       limit: VRM_OVERLOAD,
       message: `The memory draws more current than its regulator can give (${fmt(ramRatio)}x): the machine crashes at random. Use fewer or slower sticks, or a better board.`,
     });
+  }
 
-  const psu = installedPsu(board);
-  if (!psu)
+  const psu = B.installedPsu(board);
+  if (!psu) {
     add({
       id: 'psu-missing',
       severity: 'error',
       part: null,
       message: 'There is no power supply: the machine cannot start.',
     });
-  else {
+  } else {
     // (what `ThermalModel.step` does: a draw over the rating slows every clock by rating / draw, a draw over TRIP_RATIO times the rating trips the supply)
     const need = fullDrawW(board),
-      watts = psu.spec.watts;
-    if (need > watts * TRIP_RATIO)
+      { watts } = psu.spec;
+    if (need > watts * TRIP_RATIO) {
       add({
         id: 'psu-trip',
         severity: 'error',
@@ -228,7 +225,7 @@ export function checkCompat(board: Board): CompatIssue[] {
         limit: watts * TRIP_RATIO,
         message: `The parts draw ${fmt(need, 0)} W at full load. The power supply gives ${watts} W. It trips and the machine shuts off.`,
       });
-    else if (need > watts)
+    } else if (need > watts) {
       add({
         id: 'psu-brownout',
         severity: 'warn',
@@ -237,7 +234,7 @@ export function checkCompat(board: Board): CompatIssue[] {
         limit: watts,
         message: `The parts draw ${fmt(need, 0)} W at full load. The power supply gives ${watts} W. The voltage sags and the machine runs at ${fmt((watts / need) * 100, 0)}% of its speed.`,
       });
-    else if (need > watts * 0.9)
+    } else if (need > watts * 0.9) {
       add({
         id: 'psu-headroom',
         severity: 'tip',
@@ -246,9 +243,10 @@ export function checkCompat(board: Board): CompatIssue[] {
         limit: watts,
         message: `The parts use ${fmt((need / watts) * 100, 0)}% of the power supply: an overclock or a hot part can push it over.`,
       });
-    const leads = pcieLeadsNeeded(board),
+    }
+    const leads = B.pcieLeadsNeeded(board),
       have = psu.spec.pcieLeads;
-    if (leads > have)
+    if (leads > have) {
       add({
         id: 'pcie-leads',
         severity: 'error',
@@ -257,11 +255,12 @@ export function checkCompat(board: Board): CompatIssue[] {
         limit: have,
         message: `The cards need ${leads} PCIe power lead${leads === 1 ? '' : 's'}. The power supply has ${have === 0 ? 'none' : have}. A card with no power does not start, and the machine stops at start-up.`,
       });
+    }
   }
 
-  const cooler = findDevices(board, 'cooler').find((d) => !d.burnt),
-    rad = fittedRadiator(board);
-  if (cooler && (deviceSpec(cooler) as CoolerSpec).loop && !rad)
+  const cooler = B.findDevices(board, 'cooler').find((d) => !d.burnt),
+    rad = B.fittedRadiator(board);
+  if (cooler && (B.deviceSpec(cooler) as CoolerSpec).loop && !rad) {
     add({
       id: 'loop-no-radiator',
       severity: 'tip',
@@ -269,15 +268,21 @@ export function checkCompat(board: Board): CompatIssue[] {
       message:
         'The liquid loop has no radiator: the pump alone gives it little cooling. Fit a radiator on the front or the top of the case.',
     });
-  const spots = cooler ? (deviceSpec(cooler) as CoolerSpec).fanSpots : undefined;
-  if (cooler && spots && !fansOn(board, cooler.slot).length)
+  }
+  const spots = cooler ? (B.deviceSpec(cooler) as CoolerSpec).fanSpots : undefined;
+  if (cooler && spots && B.fansOn(board, cooler.slot).length === 0) {
     add({
       id: 'cooler-no-fan',
       severity: 'tip',
       part: cooler.id,
       message: `The CPU heatsink has no fan: it cools only by itself, at about a third of its rating. Clip a ${spots.size} mm fan on it.`,
     });
-  if (rad && rad.side === 'front' && findDevices(board, 'cpu').some((d) => (deviceSpec(d) as CpuSpec).loadW >= 60))
+  }
+  if (
+    rad &&
+    rad.side === 'front' &&
+    B.findDevices(board, 'cpu').some((d) => (B.deviceSpec(d) as CpuSpec).loadW >= 60)
+  ) {
     add({
       id: 'radiator-front-heat',
       severity: 'tip',
@@ -285,10 +290,11 @@ export function checkCompat(board: Board): CompatIssue[] {
       message:
         "A radiator on the front puts the CPU's heat into the case air, which warms the other parts. On the top it blows the heat out of the case.",
     });
+  }
 
   const rank: Record<CompatSeverity, number> = { error: 0, warn: 1, tip: 2 };
   return out.sort((a, b) => rank[a.severity] - rank[b.severity]);
 }
 
 /** The issues that stop a build from working well (errors and warnings): what a test rig must not have. */
-export const compatProblems = (board: Board): CompatIssue[] => checkCompat(board).filter((i) => i.severity !== 'tip');
+export const compatProblems = (board: B.Board): CompatIssue[] => checkCompat(board).filter((i) => i.severity !== 'tip');
