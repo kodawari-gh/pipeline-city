@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '@/core/ui/kit/Icons';
-import { BUILD_PRESETS, specSheet, type SavedBuild } from '@/features/board/sim/buildspecs';
+import { BUILD_PRESETS, specSheet } from '@/features/board/sim/buildspecs';
+import type * as buildspecs from '@/features/board/sim/buildspecs';
 import { presetKey } from '@/features/board/sim/buildpreset';
 import { freeName, pips, plural, presetBits } from './buildhud';
 import { buildStillUrl, loadBuildStills } from './buildstills';
@@ -118,8 +119,8 @@ export function BuildStart({
   done,
 }: {
   stage: Stage | null;
-  saved: SavedBuild[];
-  setSaved: (s: SavedBuild[]) => void;
+  saved: buildspecs.SavedBuild[];
+  setSaved: (s: buildspecs.SavedBuild[]) => void;
   /** Busy or no stage yet: nothing here answers. */
   off: boolean;
   /** Is anything fitted (an empty machine has nothing to save). */
@@ -148,9 +149,11 @@ export function BuildStart({
   };
   const submit = (e: Event) => {
     e.preventDefault();
-    if (!name || !stage) return;
+    if (!name || !stage) {
+      return;
+    }
     // (the machine as it stands now, with a picture of it: a save without one, a capture that fails, still keeps the build)
-    const layout = stage.layout;
+    const { layout } = stage;
     void stage
       .capture(THUMB.w, THUMB.h, { type: 'image/webp', quality: 0.8 })
       .catch(() => null)
@@ -221,7 +224,9 @@ export function BuildStart({
                       if (askDelete) {
                         setSaved(deleteBuild(b.name));
                         setSure(null);
-                      } else setSure(b.name);
+                      } else {
+                        setSure(b.name);
+                      }
                     }}
                   >
                     {askDelete ? 'Delete?' : <Icon name="close" size={10} />}

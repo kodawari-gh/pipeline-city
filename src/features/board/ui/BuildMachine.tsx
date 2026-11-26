@@ -2,7 +2,8 @@ import { Fragment } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { debugOn } from '@/app/debugflag';
 import { Icon } from '@/core/ui/kit/Icons';
-import { specSheet, type SavedBuild } from '@/features/board/sim/buildspecs';
+import { specSheet } from '@/features/board/sim/buildspecs';
+import type * as buildspecs from '@/features/board/sim/buildspecs';
 import { devNode } from '@/features/board/sim/removal';
 import { BOARD_TIERS, CASE_TIERS, DEVICE_SPECS, getSpec } from '@/features/board/sim/specs';
 import { QUICK_TASKS } from '@/features/sandbox/sim/benchtasks';
@@ -49,7 +50,7 @@ function BenchFoot({ stage, busy, onOpen }: { stage: Stage; busy: boolean; onOpe
       <span class="bld-bacts">
         <button
           class="primary"
-          disabled={busy || !!run}
+          disabled={busy || Boolean(run)}
           title="Run one task of each kind on a copy of this machine"
           onClick={() => {
             void stage.runBenchmark(QUICK_TASKS);
@@ -92,8 +93,8 @@ export function BuildMachine({
   /** Counts up with every change of the machine: the list draws again. */
   rev: number | undefined;
   kinds: readonly string[];
-  saved: SavedBuild[];
-  setSaved: (s: SavedBuild[]) => void;
+  saved: buildspecs.SavedBuild[];
+  setSaved: (s: buildspecs.SavedBuild[]) => void;
   busy: boolean;
   begin: (src: Source, e: PointerEvent, click: () => void) => void;
   selected: string | null;
@@ -123,26 +124,30 @@ export function BuildMachine({
   const alerts = stage ? stage.alerts : [];
   const flagOf = (id: string): { level: 'bad' | 'warn'; text: string } | null => {
     const own = alerts.filter((a) => a.part === id);
-    return own.length
+    return own.length > 0
       ? { level: own.some((a) => a.level === 'bad') ? 'bad' : 'warn', text: own.map((a) => a.text).join(' ') }
       : null;
   };
   const list = useRef<HTMLUListElement>(null);
   // the starting points: the player's click decides; until then they show for an empty machine and are folded away for one with parts
   const [startOpen, setStartOpen] = useState<boolean | null>(null);
-  const showStart = !!stage && (startOpen ?? devices.length === 0);
+  const showStart = Boolean(stage) && (startOpen ?? devices.length === 0);
   // a group's fold, by kind: the player's click decides; until then a group of more than a few folds
   const [folded, setFolded] = useState<Record<string, boolean>>({});
   // a part picked on the stage opens its group and brings its row into view
   const reveal = useRef(false);
   useEffect(() => {
-    reveal.current = !!selected;
+    reveal.current = Boolean(selected);
     const d = devices.find((x) => x.id === selected),
       kind = d && getSpec(d.spec)?.kind;
-    if (kind) setFolded((f) => (f[kind] === false ? f : { ...f, [kind]: false }));
+    if (kind) {
+      setFolded((f) => (f[kind] === false ? f : { ...f, [kind]: false }));
+    }
   }, [selected]);
   useEffect(() => {
-    if (!reveal.current) return;
+    if (!reveal.current) {
+      return;
+    }
     const row = list.current?.querySelector('li.on');
     if (row) {
       reveal.current = false;
@@ -151,7 +156,7 @@ export function BuildMachine({
   });
   const name = (spec: string): string => DEVICE_SPECS[spec]?.name ?? spec;
   // (the log of what was done is for whoever debugs: `?debug` in the address)
-  const log = debugOn(window.location.search) ? (stage?.status.value.log ?? []) : [];
+  const log = debugOn(globalThis.location.search) ? (stage?.status.value.log ?? []) : [];
 
   const shell =
     snap && !none
@@ -294,8 +299,8 @@ export function BuildMachine({
           const open = !(folded[kind] ?? items.length > OPEN_UP_TO);
           const flip = () => setFolded((f) => ({ ...f, [kind]: open }));
           // (a folded group hides its rows: its heading carries the worst mark of its parts)
-          const flags = items.map((d) => flagOf(d.id)).filter((f) => !!f);
-          const worst = flags.length ? (flags.some((f) => f!.level === 'bad') ? 'bad' : 'warn') : null;
+          const flags = items.map((d) => flagOf(d.id)).filter((f) => f !== null);
+          const worst = flags.length > 0 ? (flags.some((f) => f!.level === 'bad') ? 'bad' : 'warn') : null;
           return (
             <Fragment key={kind}>
               <li class="bld-grp">
@@ -329,10 +334,11 @@ export function BuildMachine({
                       onPointerEnter={() => stage?.glow(d.id)}
                       onPointerLeave={() => stage?.glow(null)}
                       onPointerDown={(e) => {
-                        if (e.button === 0 && !busy)
+                        if (e.button === 0 && !busy) {
                           begin({ from: 'machine', item: d.id, spec: d.spec, name: name(d.spec) }, e, () =>
                             stage?.select(d.id),
                           );
+                        }
                       }}
                     >
                       <span class="bld-thumb">

@@ -1,13 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { Icon } from '@/core/ui/kit/Icons';
-import {
-  BENCH_GROUPS,
-  BENCH_TASKS,
-  QUICK_TASKS,
-  benchTask,
-  type BenchTask,
-  type TaskResult,
-} from '@/features/sandbox/sim/benchtasks';
+import { BENCH_GROUPS, BENCH_TASKS, QUICK_TASKS, benchTask } from '@/features/sandbox/sim/benchtasks';
+import type * as bench from '@/features/sandbox/sim/benchtasks';
 import { barPct, deltaPct, deltaText, groupScore, overallOfRuns, secondsText, whyShort } from './benchhud';
 
 type Stage = import('../render/three/buildmode3d').BuildStage;
@@ -23,7 +17,7 @@ export function BuildBench({ stage, onClose }: { stage: Stage; onClose: () => vo
     was = stage.benchWas.value,
     run = stage.benching.value,
     issues = stage.benchIssues.value;
-  const locked = !!run || stage.status.value.busy;
+  const locked = Boolean(run) || stage.status.value.busy;
   const [tab, setTab] = useState(BENCH_GROUPS[0]!.id);
   const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set(QUICK_TASKS));
   useEffect(() => {
@@ -33,11 +27,13 @@ export function BuildBench({ stage, onClose }: { stage: Stage; onClose: () => vo
   const running = run?.id ?? null;
   useEffect(() => {
     const g = running ? benchTask(running)?.group : null;
-    if (g) setTab(g);
+    if (g) {
+      setTab(g);
+    }
   }, [running]);
 
   // (until the benchmark's code has loaded nothing is known: every task shows as it is, none can run)
-  const can = (t: BenchTask): boolean => !!issues && issues.get(t.id) === null;
+  const can = (t: bench.BenchTask): boolean => issues !== null && issues.get(t.id) === null;
   const runnable = BENCH_TASKS.filter(can),
     chosen = runnable.filter((t) => picked.has(t.id));
   const group = BENCH_GROUPS.find((g) => g.id === tab) ?? BENCH_GROUPS[0]!;
@@ -48,7 +44,7 @@ export function BuildBench({ stage, onClose }: { stage: Stage; onClose: () => vo
   const pick = (ids: readonly string[]) => setPicked(new Set(ids));
   const quick = QUICK_TASKS.filter((id) => {
     const t = benchTask(id);
-    return !!t && can(t);
+    return t !== undefined && can(t);
   });
 
   return (
@@ -147,7 +143,7 @@ export function BuildBench({ stage, onClose }: { stage: Stage; onClose: () => vo
               key={t.id}
               task={t}
               why={issues ? (issues.get(t.id) ?? null) : null}
-              ready={!!issues}
+              ready={Boolean(issues)}
               result={now[t.id]}
               was={was[t.id]}
               live={running === t.id}
@@ -228,13 +224,13 @@ function Row({
   onCheck,
   onRun,
 }: {
-  task: BenchTask;
+  task: bench.BenchTask;
   /** What the machine lacks to run it (null: nothing). */
   why: string | null;
   /** The benchmark's code has loaded: `why` is known. */
   ready: boolean;
-  result: TaskResult | undefined;
-  was: TaskResult | undefined;
+  result: bench.TaskResult | undefined;
+  was: bench.TaskResult | undefined;
   /** It runs now. */
   live: boolean;
   checked: boolean;

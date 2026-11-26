@@ -14,10 +14,12 @@ import { BuildCard } from './BuildCard';
 import { BuildMachine } from './BuildMachine';
 import { BuildOs } from './BuildOs';
 import { BuildShelf } from './BuildShelf';
-import { Foot, Readout, ViewOptions, type BuildPane } from './BuildBars';
+import { Foot, Readout, ViewOptions } from './BuildBars';
+import type * as bars from './BuildBars';
 import { hintLine } from './buildhud';
 import { loadBuildStills } from './buildstills';
-import { useBuildDrag, type Drag } from './builddrag';
+import { useBuildDrag } from './builddrag';
+import type * as builddrag from './builddrag';
 import { savedBuilds } from './savedbuilds';
 
 type Stage = import('../render/three/buildmode3d').BuildStage;
@@ -40,13 +42,17 @@ const KINDS = [
 
 /** The hover line of what a click or a drag does: for a part, a socket, the case's side panel, its power button, a cable's plug. */
 const doesOf = (id: string, stage: Stage): string => {
-  if (id === 'case.side') return 'Click to open it';
-  if (id === 'power')
+  if (id === 'case.side') {
+    return 'Click to open it';
+  }
+  if (id === 'power') {
     return stage.state.value.on ? 'Click to switch the machine off' : 'Click to switch the machine on';
-  if (id.startsWith('cable.'))
+  }
+  if (id.startsWith('cable.')) {
     return (stage.snapshot.cables.find((c) => c.id === id.slice(6))?.connected ?? true)
       ? 'Drag the plug out'
       : 'Drag the plug to its socket';
+  }
   return stage.board.devices.some((d) => d.id === id)
     ? 'Click to pick it · drag it onto the shelf to take it out'
     : 'Drop a part here to fit it';
@@ -57,7 +63,9 @@ const PHONE_QUERY = '(max-width: 48em), (max-aspect-ratio: 3/4), (max-height: 37
 function usePhone(): boolean {
   const [phone, setPhone] = useState(() => typeof matchMedia === 'function' && matchMedia(PHONE_QUERY).matches);
   useEffect(() => {
-    if (typeof matchMedia !== 'function') return;
+    if (typeof matchMedia !== 'function') {
+      return;
+    }
     const m = matchMedia(PHONE_QUERY);
     const f = () => setPhone(m.matches);
     m.addEventListener('change', f);
@@ -70,12 +78,13 @@ function usePhone(): boolean {
 export function BuildMode() {
   const open = buildOpen.value;
   const phone = usePhone();
-  const [pane, setPane] = useState<BuildPane>('parts');
+  const [pane, setPane] = useState<bars.BuildPane>('parts');
   // the phone's parts row: shut until Parts is tapped (a second tap shuts it, another pane shuts it too)
   const [shelfOpen, setShelfOpen] = useState(false);
-  const choosePane = (p: BuildPane) => {
-    if (p === 'parts' && pane === 'parts') setShelfOpen((o) => !o);
-    else {
+  const choosePane = (p: bars.BuildPane) => {
+    if (p === 'parts' && pane === 'parts') {
+      setShelfOpen((o) => !o);
+    } else {
       setPane(p);
       setShelfOpen(p === 'parts');
     }
@@ -103,23 +112,27 @@ export function BuildMode() {
   const toastTimer = useRef(0);
   const note = (text: string, x: number, y: number) => {
     setToast({ text, x, y });
-    window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToast(null), 2600);
+    globalThis.clearTimeout(toastTimer.current);
+    toastTimer.current = globalThis.setTimeout(() => setToast(null), 2600);
   };
   // what a start (a preset, a saved build, Empty, Full rig) just did, with the swap's count at that moment: the hint line says it, with Undo, while it is still the last thing done
   const [said, setSaid] = useState<{ text: string; swaps: number } | null>(null);
   const saidTimer = useRef(0);
   const say = (text: string) => {
     const st = stageRef.current;
-    if (!st) return;
+    if (!st) {
+      return;
+    }
     setSaid({ text, swaps: st.swaps });
-    window.clearTimeout(saidTimer.current);
-    saidTimer.current = window.setTimeout(() => setSaid(null), 8000);
+    globalThis.clearTimeout(saidTimer.current);
+    saidTimer.current = globalThis.setTimeout(() => setSaid(null), 8000);
   };
   const { drag, begin, cancel, air } = useBuildDrag(stageRef, host, shelf, note);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     // (the Start list's pictures: their list is small and comes long before the stage does)
     loadBuildStills();
     let dead = false,
@@ -128,7 +141,9 @@ export function BuildMode() {
     const leaving = new AbortController();
     import('../render/three/buildmode3d')
       .then(async (m) => {
-        if (dead || !host.current) return;
+        if (dead || !host.current) {
+          return;
+        }
         try {
           s = await m.BuildStage.open(host.current, leaving.signal);
           if (dead) {
@@ -137,7 +152,9 @@ export function BuildMode() {
           }
           s.onGrab = (device, e) => {
             const d = s!.board.devices.find((v) => v.id === device);
-            if (!d) return;
+            if (!d) {
+              return;
+            }
             begin({ from: 'machine', item: device, spec: d.spec, name: DEVICE_SPECS[d.spec]?.name ?? d.spec }, e, () =>
               s!.select(device),
             );
@@ -150,26 +167,42 @@ export function BuildMode() {
         }
       })
       .catch(() => setFailed(true));
+    // Escape steps back one level: the OS sheet, the benchmark sheet, a part in the air, the selection, then the build mode itself
+    const escape = (): void => {
+      const st = stageRef.current;
+      // (the stage fast-forwards the step that plays; the graphics modal shuts itself)
+      if (st?.status.peek().busy === true) {
+        return;
+      }
+      if (osRef.current) {
+        setOsSheet(false);
+      } else if (benchRef.current) {
+        setBench(false);
+      } else if (air.current) {
+        cancel();
+      } else if (st?.selected.peek()) {
+        st.select(null);
+      } else if (!settingsOpen.peek()) {
+        buildOpen.value = false;
+      }
+    };
     const onKey = (e: KeyboardEvent) => {
       const st = stageRef.current;
       // (a box on the benchmark sheet keeps the keys: Escape still leaves)
       if (
         e.target instanceof HTMLTextAreaElement ||
         (e.target instanceof HTMLInputElement && e.target.type !== 'checkbox')
-      )
-        return;
-      const busy = !!st?.status.peek().busy;
-      if (e.key === 'Escape') {
-        // (the stage fast-forwards the step that plays; the graphics modal shuts itself)
-        if (busy) return;
-        if (osRef.current) setOsSheet(false);
-        else if (benchRef.current) setBench(false);
-        else if (air.current) cancel();
-        else if (st?.selected.peek()) st.select(null);
-        else if (!settingsOpen.peek()) buildOpen.value = false;
+      ) {
         return;
       }
-      if (e.altKey || !st || benchRef.current || osRef.current) return;
+      const busy = Boolean(st?.status.peek().busy);
+      if (e.key === 'Escape') {
+        escape();
+        return;
+      }
+      if (e.altKey || !st || benchRef.current || osRef.current) {
+        return;
+      }
       const k = e.key.toLowerCase();
       if (e.ctrlKey || e.metaKey) {
         if (k === 'z' && !e.shiftKey) {
@@ -183,25 +216,32 @@ export function BuildMode() {
       }
       const picked = st.selected.peek();
       if (k === 'o') {
-        if (!busy) st.openInside(!st.insideOpen);
-      } else if (k === 'p') powerLens.value = !powerLens.value;
-      else if (k === 'a') airflowLens.value = !airflowLens.value;
-      else if (k === 'f') {
-        if (picked) st.focusDevice(picked);
-      } else if (k === 'r' || k === 'home') st.resetView();
-      else if ((k === 'delete' || k === 'backspace') && picked && !busy) {
+        if (!busy) {
+          st.openInside(!st.insideOpen);
+        }
+      } else if (k === 'p') {
+        powerLens.value = !powerLens.value;
+      } else if (k === 'a') {
+        airflowLens.value = !airflowLens.value;
+      } else if (k === 'f') {
+        if (picked) {
+          st.focusDevice(picked);
+        }
+      } else if (k === 'r' || k === 'home') {
+        st.resetView();
+      } else if ((k === 'delete' || k === 'backspace') && picked && !busy) {
         e.preventDefault();
         void st.remove(devNode(picked));
       }
     };
-    window.addEventListener('keydown', onKey);
+    globalThis.addEventListener('keydown', onKey);
     return () => {
       dead = true;
       leaving.abort();
-      window.removeEventListener('keydown', onKey);
+      globalThis.removeEventListener('keydown', onKey);
       cancel();
-      window.clearTimeout(toastTimer.current);
-      window.clearTimeout(saidTimer.current);
+      globalThis.clearTimeout(toastTimer.current);
+      globalThis.clearTimeout(saidTimer.current);
       stageRef.current = null;
       s?.dispose();
       setStage(null);
@@ -215,21 +255,27 @@ export function BuildMode() {
 
   const st = stage?.status.value;
   const rev = st?.rev;
-  const busy = !!st?.busy;
+  const busy = Boolean(st?.busy);
   const shown = stage?.shown.value ?? 'machine';
   // the shelf leads the player: the cases while the stage is empty, the boards while the case is bare, and the processors once a board is in
   const wasShown = useRef<Shown>('machine');
   useEffect(() => {
-    if (shown === 'nothing') setKind('case');
-    else if (shown === 'case') setKind('board');
-    else if (wasShown.current !== 'machine') setKind('cpu');
+    if (shown === 'nothing') {
+      setKind('case');
+    } else if (shown === 'case') {
+      setKind('board');
+    } else if (wasShown.current !== 'machine') {
+      setKind('cpu');
+    }
     wasShown.current = shown;
   }, [shown]);
   // the machine is framed in the free window the tabs leave: measured from their live boxes, again when they move or the page resizes (`buildframe.ts`)
   useEffect(() => {
     const el = root.current,
       box = host.current;
-    if (!stage || !el || !box) return;
+    if (!stage || !el || !box) {
+      return;
+    }
     const measure = () => {
       const tabs = [
         ...el.querySelectorAll<HTMLElement>(
@@ -253,14 +299,16 @@ export function BuildMode() {
       attributeFilter: ['class', 'style', 'data-machine', 'data-pane', 'data-shelf'],
     });
     el.addEventListener('transitionend', measure);
-    window.addEventListener('resize', measure);
+    globalThis.addEventListener('resize', measure);
     return () => {
       mo.disconnect();
       el.removeEventListener('transitionend', measure);
-      window.removeEventListener('resize', measure);
+      globalThis.removeEventListener('resize', measure);
     };
   }, [stage]);
-  if (!open) return null;
+  if (!open) {
+    return null;
+  }
   void rev;
   const picked = stage?.selected.value ?? null,
     hover = stage?.hover.value ?? null;
@@ -286,13 +334,13 @@ export function BuildMode() {
         step: st?.step ?? '',
         dragging: drag?.from ?? null,
         over: drag?.over ?? null,
-        picked: !!picked,
+        picked: Boolean(picked),
         open: stage.open.value,
         fitted: stage.board.devices.length,
         shown,
         shell: drag ? shellOf(drag.item) : undefined,
         on: stage.state.value.on,
-        holding: !!stage.cableTip.value,
+        holding: Boolean(stage.cableTip.value),
       }));
 
   return (
@@ -335,7 +383,7 @@ export function BuildMode() {
         }}
         taking={drag?.from === 'machine'}
         over={drag?.over === 'bin'}
-        lift={!!drag}
+        lift={Boolean(drag)}
       />
       <button
         class="bld-back"
@@ -349,7 +397,7 @@ export function BuildMode() {
         Back<em>Esc</em>
       </button>
       {stage && <Readout stage={stage} rev={rev} />}
-      <ViewOptions ready={!!stage} stage={stage} onBench={() => setBench(true)} />
+      <ViewOptions ready={Boolean(stage)} stage={stage} onBench={() => setBench(true)} />
       <BuildMachine
         stage={stage}
         rev={rev}
@@ -416,7 +464,9 @@ export function BuildMode() {
 /** The plug in the player's hand, by the pointer: what a let-go would do there (green: it seats; the stage works it out, `PlugHand.label`). */
 function CableTip({ stage }: { stage: Stage }) {
   const t = stage.cableTip.value;
-  if (!t) return null;
+  if (!t) {
+    return null;
+  }
   return (
     <div class={`bld-cabletip ${t.ok ? 'ok' : ''}`} role="status" style={{ left: `${t.x}px`, top: `${t.y}px` }}>
       {t.text}
@@ -426,14 +476,14 @@ function CableTip({ stage }: { stage: Stage }) {
 
 /** `case` or `board` for a catalogue id that is one of them (the two parts a bare case or an empty stage takes), `net` for an OS, a router or an internet plan, else nothing. */
 const shellOf = (item: string): 'case' | 'board' | 'net' | undefined =>
-  /^case\d$/.test(item) ? 'case' : /^board\d$/.test(item) ? 'board' : netKindOf(item) ? 'net' : undefined;
+  /^case\d$/u.test(item) ? 'case' : /^board\d$/u.test(item) ? 'board' : netKindOf(item) ? 'net' : undefined;
 
 /**
  * The part on the pointer: its picture and name, and what a let-go would do (green: it fits, red: it fits nowhere). `shown`: with a bare case no part has a
  * socket; with nothing on the stage no part has a place but a case.
  */
-function Ghost({ drag, shown }: { drag: Drag; shown: Shown }) {
-  const ok = drag.from === 'shelf' ? !!drag.target : drag.over === 'bin';
+function Ghost({ drag, shown }: { drag: builddrag.Drag; shown: Shown }) {
+  const ok = drag.from === 'shelf' ? Boolean(drag.target) : drag.over === 'bin';
   const no = drag.target === '';
   const none = shown === 'nothing';
   const net = shellOf(drag.item) === 'net';
@@ -453,7 +503,7 @@ function Ghost({ drag, shown }: { drag: Drag; shown: Shown }) {
               : shown === 'case'
                 ? 'Fit a motherboard first'
                 : 'Fits no socket here'
-            : drag.target && !/^(case|board)\d$/.test(drag.target)
+            : drag.target && !/^(?:case|board)\d$/u.test(drag.target)
               ? `Let go to fit it in ${drag.target}`
               : none
                 ? 'Let go to bring it in'
