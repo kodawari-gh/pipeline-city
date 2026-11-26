@@ -52,12 +52,13 @@ describe('DrawGate', () => {
   it('scene changes with more on their way draw in batches, and the last one at once', () => {
     const g = new DrawGate();
     g.want(0);
-    let drawn = 0;
+    const draws: boolean[] = [];
     // a tile bakes each 16 ms tick for a second
     for (let t = 16; t < 1000; t += 16) {
       sceneChanged();
-      if (g.want(t, false, true)) drawn++;
+      draws.push(g.want(t, false, true));
     }
+    const drawn = draws.filter(Boolean).length;
     expect(drawn).toBeGreaterThanOrEqual(4);
     expect(drawn).toBeLessThanOrEqual(Math.ceil(1000 / BATCH_MS));
     // the queue is empty: the tiles not yet shown draw now, then nothing
@@ -105,7 +106,7 @@ describe('ViewWatch', () => {
   const W = 1000,
     H = 800;
   const cam = (): PerspectiveCamera => {
-    const c = new PerspectiveCamera(28, W / H, 4, 100000);
+    const c = new PerspectiveCamera(28, W / H, 4, 100_000);
     c.position.set(0, 0, 0);
     c.lookAt(0, 0, -1);
     c.updateProjectionMatrix();
@@ -132,7 +133,7 @@ describe('ViewWatch', () => {
       c = cam();
     w.mark(c, W, H);
     c.position.x = 0.5;
-    const p00 = c.projectionMatrix.elements[0];
+    const [p00] = c.projectionMatrix.elements;
     expect(w.shift(c, W, H, 100, 300)).toBeCloseTo(((0.5 / 100) * p00 * W) / 2, 6);
     expect(w.shift(c, W, H, 200, 300)).toBeCloseTo(((0.5 / 200) * p00 * W) / 2, 6);
   });
@@ -159,7 +160,7 @@ describe('frameDt', () => {
     expect(frameDt(0, 5000)).toBe(0);
   });
   it('is capped', () => {
-    expect(frameDt(60000, 0)).toBe(0.1);
-    expect(frameDt(60000, 0, 0.25)).toBe(0.25);
+    expect(frameDt(60_000, 0)).toBe(0.1);
+    expect(frameDt(60_000, 0, 0.25)).toBe(0.25);
   });
 });

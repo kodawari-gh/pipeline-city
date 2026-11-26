@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { occlusion } from './occlusion';
 import { floor } from './solid';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 /** Square sheets of `k` × `k` points 200 mm wide, level at each height in `ys`, their normals up. */
 function sheets(ys: readonly number[], k = 9) {
   const pos: number[] = [],
@@ -9,17 +17,19 @@ function sheets(ys: readonly number[], k = 9) {
     tris: number[] = [];
   for (const y of ys) {
     const o = pos.length / 3;
-    for (let j = 0; j < k; j++)
+    for (let j = 0; j < k; j++) {
       for (let i = 0; i < k; i++) {
         pos.push(-100 + (200 * i) / (k - 1), y, -100 + (200 * j) / (k - 1));
         nrm.push(0, 1, 0);
       }
+    }
     // (z, then x) round each corner: the face's normal is up
-    for (let j = 0; j < k - 1; j++)
+    for (let j = 0; j < k - 1; j++) {
       for (let i = 0; i < k - 1; i++) {
         const a = o + i + k * j;
         tris.push(a, a + k, a + 1, a + 1, a + k, a + k + 1);
       }
+    }
   }
   const n = pos.length / 3;
   return {
@@ -51,7 +61,7 @@ describe('cloth occlusion', () => {
     expect(a[2 * mid(0)]).toBeLessThan(0.2);
     expect(a[2 * mid(1) + 1]).toBeLessThan(0.2);
     expect(a[2 * mid(0) + 1]).toBeCloseTo(1, 5);
-    expect(b[2 * mid(0)]).toBeGreaterThan(a[2 * mid(0)]!);
+    expect(b[2 * mid(0)]).toBeGreaterThan(must(a[2 * mid(0)]));
     expect(b[2 * mid(0)]).toBeLessThan(0.8);
   });
 
@@ -79,7 +89,7 @@ describe('cloth occlusion', () => {
     const s = sheets([500, 505]),
       all = occlusion(s.pos, s.nrm, s.tris, s.weld, far, 32, 40),
       some = occlusion(s.pos, s.nrm, s.tris, s.weld, far, 32, 40, 0, 81);
-    expect(some.length).toBe(2 * 81);
+    expect(some).toHaveLength(2 * 81);
     expect(some[2 * mid(0)]).toBe(all[2 * mid(0)]);
     expect(some[2 * mid(0)]).toBeLessThan(0.2);
   });

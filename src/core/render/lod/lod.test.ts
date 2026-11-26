@@ -39,16 +39,19 @@ describe('smooth', () => {
   });
 });
 
+/** Each device's fade band, for the devices that have one. */
+const FADES = Object.entries(DEVICE_LOD).flatMap(([name, d]) => ('fade' in d ? [[name, d.fade] as const] : []));
+
 describe('DEVICE_LOD', () => {
   it('has ordered fade bands', () => {
-    for (const [name, d] of Object.entries(DEVICE_LOD)) {
-      const fade = (d as { fade?: readonly [number, number] }).fade;
-      if (fade) expect(fade[0], name).toBeLessThan(fade[1]);
+    for (const [name, fade] of FADES) {
+      expect(fade[0], `${name}: fade band`).toBeLessThan(fade[1]);
     }
   });
   it('lets the insides take hits only once the lid has started to fade', () => {
-    for (const d of [DEVICE_LOD.gpu, DEVICE_LOD.npu, DEVICE_LOD.tpm, DEVICE_LOD.disk, DEVICE_LOD.die])
+    for (const d of [DEVICE_LOD.gpu, DEVICE_LOD.npu, DEVICE_LOD.tpm, DEVICE_LOD.disk, DEVICE_LOD.die]) {
       expect(d.hover).toBeGreaterThanOrEqual(d.fade[0]);
+    }
   });
   it('shows names before counters on every card', () => {
     for (const d of [DEVICE_LOD.gpu, DEVICE_LOD.npu, DEVICE_LOD.tpm, DEVICE_LOD.disk]) {
@@ -146,7 +149,7 @@ describe('TierBudget', () => {
       { id: 'b', focus: 0.9 },
       { id: 'c', focus: 0.6 },
     ]);
-    expect([...top].sort()).toEqual(['b', 'c']);
+    expect([...top].toSorted()).toStrictEqual(['b', 'c']);
   });
   it('keeps a holder until a challenger leads by the margin', () => {
     const b = new TierBudget(1, 0.15);
@@ -159,13 +162,13 @@ describe('TierBudget', () => {
         { id: 'a', focus: 0.5 },
         { id: 'b', focus: 0.6 },
       ]),
-    ]).toEqual(['a']); // 0.1 ahead: not enough
+    ]).toStrictEqual(['a']); // 0.1 ahead: not enough
     expect([
       ...b.assign([
         { id: 'a', focus: 0.5 },
         { id: 'b', focus: 0.8 },
       ]),
-    ]).toEqual(['b']);
+    ]).toStrictEqual(['b']);
   });
   it('drops a tier that is no longer wanted at once', () => {
     const b = new TierBudget(2);
@@ -173,6 +176,6 @@ describe('TierBudget', () => {
       { id: 'a', focus: 1 },
       { id: 'b', focus: 1 },
     ]);
-    expect([...b.assign([{ id: 'b', focus: 1 }])]).toEqual(['b']);
+    expect([...b.assign([{ id: 'b', focus: 1 }])]).toStrictEqual(['b']);
   });
 });

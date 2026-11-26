@@ -1299,19 +1299,6 @@
   "vitest(no-conditional-in-test)": 2,
   "vitest(prefer-strict-equal)": 1
  },
- "src/core/render/accelart.test.ts": {
-  "eslint(curly)": 2,
-  "import(first)": 5,
-  "typescript(consistent-type-imports)": 1,
-  "typescript(no-non-null-assertion)": 7,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(max-nested-calls)": 2,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-import-in-mock)": 1,
-  "vitest(prefer-strict-equal)": 1,
-  "vitest(valid-expect)": 6
- },
  "src/core/render/accelart.ts": {
   "eslint(curly)": 16,
   "eslint(max-lines-per-function)": 1,
@@ -1327,41 +1314,8 @@
   "typescript(method-signature-style)": 2,
   "unicorn(explicit-length-check)": 1
  },
- "src/core/render/art.test.ts": {
-  "import(first)": 5,
-  "typescript(consistent-type-imports)": 2,
-  "typescript(no-non-null-assertion)": 1,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-import-in-mock)": 2
- },
- "src/core/render/audit.test.ts": {
-  "eslint(curly)": 5,
-  "eslint(no-nested-ternary)": 3,
-  "import(consistent-type-specifier-style)": 2,
-  "import(first)": 6,
-  "typescript(consistent-type-imports)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 3,
-  "typescript(strict-void-return)": 8,
-  "unicorn(no-array-for-each)": 9,
-  "unicorn(prefer-at)": 1,
-  "vitest(no-conditional-expect)": 1,
-  "vitest(no-conditional-in-test)": 14,
-  "vitest(prefer-import-in-mock)": 1
- },
  "src/core/render/brands/axiom.ts": {
   "import(consistent-type-specifier-style)": 1
- },
- "src/core/render/brands/brands.test.ts": {
-  "eslint(curly)": 4,
-  "eslint(no-implicit-coercion)": 1,
-  "eslint(require-unicode-regexp)": 2,
-  "typescript(no-unsafe-type-assertion)": 3,
-  "typescript(prefer-nullish-coalescing)": 1,
-  "typescript(strict-boolean-expressions)": 2,
-  "unicorn(no-useless-undefined)": 1,
-  "vitest(no-conditional-in-test)": 4,
-  "vitest(valid-expect)": 8
  },
  "src/core/render/brands/fujin.ts": {
   "eslint(curly)": 2,
@@ -1450,27 +1404,6 @@
   "unicorn(explicit-length-check)": 2,
   "unicorn(prefer-at)": 1
  },
- "src/core/render/cable.test.ts": {
-  "eslint(curly)": 3,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 3,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(ban-ts-comment)": 2,
-  "typescript(no-explicit-any)": 1,
-  "typescript(no-non-null-assertion)": 8,
-  "typescript(no-unsafe-argument)": 3,
-  "typescript(no-unsafe-assignment)": 2,
-  "typescript(no-unsafe-call)": 4,
-  "typescript(no-unsafe-member-access)": 7,
-  "typescript(prefer-string-starts-ends-with)": 1,
-  "typescript(prefer-ts-expect-error)": 2,
-  "typescript(strict-boolean-expressions)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(prefer-at)": 2,
-  "unicorn(prefer-string-starts-ends-with)": 1,
-  "vitest(no-conditional-in-test)": 4,
-  "vitest(prefer-strict-equal)": 4
- },
  "src/core/render/cable.ts": {
   "eslint(curly)": 10,
   "eslint(max-lines)": 1,
@@ -1488,22 +1421,11 @@
   "unicorn(prefer-at)": 2,
   "unicorn(prefer-ternary)": 1
  },
- "src/core/render/camera.test.ts": {
-  "eslint(curly)": 2
- },
  "src/core/render/camera.ts": {
   "eslint(curly)": 2,
   "eslint(max-params)": 1,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(strict-boolean-expressions)": 1
- },
- "src/core/render/fanmotor.test.ts": {
-  "eslint(curly)": 3,
-  "eslint(max-params)": 1,
-  "typescript(no-non-null-assertion)": 4,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-array-callback-reference)": 1,
-  "unicorn(prefer-at)": 2
  },
  "src/core/render/fanmotor.ts": {
   "eslint(curly)": 1,
@@ -1524,17 +1446,6 @@
   "typescript(strict-boolean-expressions)": 6,
   "unicorn(no-array-fill-with-reference-type)": 2
  },
- "src/core/render/lod/lod.test.ts": {
-  "eslint(curly)": 2,
-  "eslint(prefer-destructuring)": 1,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "unicorn(no-array-sort)": 1,
-  "vitest(expect-expect)": 1,
-  "vitest(no-conditional-expect)": 1,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 4,
-  "vitest(valid-expect)": 1
- },
  "src/core/render/lod/lod.ts": {
   "eslint(curly)": 3,
   "eslint(max-params)": 1,
@@ -1542,14 +1453,6 @@
   "typescript(no-non-null-assertion)": 1,
   "typescript(prefer-readonly)": 3,
   "unicorn(no-array-sort)": 1
- },
- "src/core/render/lod/lodcard.test.ts": {
-  "typescript(no-non-null-assertion)": 1,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(numeric-separators-style)": 1,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 2
  },
  "src/core/render/lod/lodcard.ts": {
   "eslint(curly)": 1,
@@ -1561,24 +1464,9 @@
   "import(consistent-type-specifier-style)": 2,
   "typescript(prefer-readonly)": 1
  },
- "src/core/render/parts.test.ts": {
-  "eslint(curly)": 5,
-  "vitest(valid-expect)": 5
- },
  "src/core/render/parts.ts": {
   "eslint(prefer-named-capture-group)": 1,
   "eslint(require-unicode-regexp)": 1
- },
- "src/core/render/shape.test.ts": {
-  "eslint(curly)": 13,
-  "eslint(max-params)": 1,
-  "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-non-null-assertion)": 25,
-  "unicorn(numeric-separators-style)": 4,
-  "vitest(no-conditional-in-test)": 31,
-  "vitest(prefer-strict-equal)": 3,
-  "vitest(prefer-to-have-length)": 2
  },
  "src/core/render/shape.ts": {
   "eslint(complexity)": 2,
@@ -1616,24 +1504,6 @@
   "unicorn(prefer-add-event-listener)": 1,
   "unicorn(prefer-global-this)": 1
  },
- "src/core/render/three/aopool.test.ts": {
-  "import(consistent-type-specifier-style)": 4,
-  "promise(always-return)": 1,
-  "promise(prefer-await-to-then)": 3,
-  "promise(prefer-catch)": 2,
-  "typescript(no-non-null-assertion)": 20,
-  "typescript(promise-function-async)": 2,
-  "typescript(use-unknown-in-catch-callback-variable)": 2,
-  "unicorn(catch-error-name)": 2,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-await-expression-member)": 3,
-  "unicorn(prefer-spread)": 1,
-  "vitest(prefer-expect-resolves)": 3,
-  "vitest(prefer-expect-type-of)": 1,
-  "vitest(prefer-strict-equal)": 10,
-  "vitest(prefer-to-have-length)": 4,
-  "vitest(require-to-throw-message)": 1
- },
  "src/core/render/three/aopool.ts": {
   "eslint(curly)": 12,
   "eslint(max-lines-per-function)": 1,
@@ -1652,19 +1522,11 @@
   "unicorn(require-post-message-target-origin)": 1
  },
  "src/core/render/three/arealoop.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(no-unassigned-import)": 1,
-  "vitest(prefer-to-have-length)": 1
+  "import(no-unassigned-import)": 1
  },
  "src/core/render/three/arealoop.ts": {
   "eslint(prefer-named-capture-group)": 1,
   "eslint(require-unicode-regexp)": 1
- },
- "src/core/render/three/artlod.test.ts": {
-  "eslint(curly)": 1,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 3
  },
  "src/core/render/three/artlod.ts": {
   "eslint(curly)": 31,
@@ -1687,25 +1549,6 @@
   "unicorn(no-array-for-each)": 1,
   "unicorn(numeric-separators-style)": 2
  },
- "src/core/render/three/baked.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(ban-ts-comment)": 1,
-  "typescript(no-explicit-any)": 1,
-  "typescript(no-unsafe-argument)": 3,
-  "typescript(no-unsafe-assignment)": 2,
-  "typescript(no-unsafe-call)": 1,
-  "typescript(no-unsafe-member-access)": 4,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(prefer-ts-expect-error)": 1,
-  "unicorn(max-nested-calls)": 1,
-  "unicorn(no-array-sort)": 2,
-  "vitest(no-conditional-in-test)": 2,
-  "vitest(prefer-strict-equal)": 2,
-  "vitest(valid-expect)": 4
- },
  "src/core/render/three/baked.ts": {
   "eslint(curly)": 3,
   "eslint(no-empty-function)": 2,
@@ -1716,55 +1559,18 @@
   "typescript(no-unsafe-type-assertion)": 1,
   "typescript(promise-function-async)": 2
  },
- "src/core/render/three/bakedao.test.ts": {
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-unsafe-class-instance-assignment)": 2,
-  "typescript(no-unsafe-type-assertion)": 4,
-  "vitest(prefer-to-have-length)": 2
- },
  "src/core/render/three/bakedao.ts": {
   "eslint(curly)": 1,
   "typescript(strict-boolean-expressions)": 1
- },
- "src/core/render/three/boxenv.test.ts": {
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 3,
-  "typescript(no-unsafe-class-instance-assignment)": 1,
-  "typescript(no-unsafe-type-assertion)": 3,
-  "typescript(unbound-method)": 2,
-  "vitest(expect-expect)": 1,
-  "vitest(prefer-strict-equal)": 1
  },
  "src/core/render/three/boxenv.ts": {
   "eslint(curly)": 1,
   "import(consistent-type-specifier-style)": 2
  },
- "src/core/render/three/buildframe.test.ts": {
-  "eslint(curly)": 2,
-  "eslint(require-unicode-regexp)": 2,
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(ban-ts-comment)": 2,
-  "typescript(no-unsafe-call)": 2,
-  "typescript(no-unsafe-member-access)": 1,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(prefer-ts-expect-error)": 2,
-  "vitest(prefer-strict-equal)": 3
- },
  "src/core/render/three/buildframe.ts": {
   "eslint(curly)": 4,
   "eslint(max-params)": 2,
   "import(consistent-type-specifier-style)": 2
- },
- "src/core/render/three/camera.test.ts": {
-  "eslint(curly)": 9,
-  "eslint(no-shadow)": 1,
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-non-null-assertion)": 9,
-  "unicorn(consistent-function-scoping)": 6,
-  "unicorn(max-nested-calls)": 3,
-  "unicorn(numeric-separators-style)": 36,
-  "vitest(prefer-strict-equal)": 12
  },
  "src/core/render/three/camera.ts": {
   "eslint(curly)": 19,
@@ -1778,16 +1584,6 @@
   "unicorn(no-array-reduce)": 1,
   "unicorn(numeric-separators-style)": 2
  },
- "src/core/render/three/caseshade.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(no-implicit-coercion)": 2,
-  "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(unbound-method)": 4,
-  "unicorn(no-array-reduce)": 1,
-  "vitest(prefer-strict-equal)": 2
- },
  "src/core/render/three/caseshade.ts": {
   "eslint(curly)": 7,
   "import(consistent-type-specifier-style)": 6,
@@ -1798,22 +1594,6 @@
   "typescript(no-unsafe-type-assertion)": 1,
   "typescript(unbound-method)": 2,
   "unicorn(no-array-for-each)": 1
- },
- "src/core/render/three/cheapmaterials.test.ts": {
-  "eslint(curly)": 2,
-  "typescript(consistent-type-imports)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 2,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(no-unsafe-class-instance-assignment)": 2,
-  "typescript(no-unsafe-type-assertion)": 9,
-  "typescript(unbound-method)": 1,
-  "unicorn(consistent-function-scoping)": 3,
-  "unicorn(max-nested-calls)": 1,
-  "unicorn(no-useless-undefined)": 2,
-  "unicorn(numeric-separators-style)": 23,
-  "vitest(prefer-called-once)": 1,
-  "vitest(prefer-strict-equal)": 23
  },
  "src/core/render/three/cheapmaterials.ts": {
   "eslint(curly)": 17,
@@ -1831,15 +1611,6 @@
   "unicorn(no-array-for-each)": 1,
   "unicorn(numeric-separators-style)": 2
  },
- "src/core/render/three/cloth/bake.test.ts": {
-  "eslint(curly)": 2,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-non-null-assertion)": 15,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(strict-void-return)": 1,
-  "vitest(no-conditional-in-test)": 1
- },
  "src/core/render/three/cloth/bake.ts": {
   "eslint(complexity)": 1,
   "eslint(curly)": 25,
@@ -1855,15 +1626,6 @@
   "unicorn(explicit-length-check)": 1,
   "unicorn(prefer-at)": 1
  },
- "src/core/render/three/cloth/glb.test.ts": {
-  "eslint(curly)": 1,
-  "typescript(no-non-null-assertion)": 11,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "unicorn(max-nested-calls)": 1,
-  "unicorn(numeric-separators-style)": 3,
-  "unicorn(prefer-spread)": 1,
-  "vitest(prefer-strict-equal)": 4
- },
  "src/core/render/three/cloth/glb.ts": {
   "eslint(curly)": 2,
   "eslint(max-lines-per-function)": 1,
@@ -1872,11 +1634,6 @@
   "unicorn(new-for-builtins)": 2,
   "unicorn(no-array-for-each)": 1,
   "unicorn(numeric-separators-style)": 6
- },
- "src/core/render/three/cloth/occlusion.test.ts": {
-  "eslint(curly)": 2,
-  "typescript(no-non-null-assertion)": 1,
-  "vitest(prefer-to-have-length)": 1
  },
  "src/core/render/three/cloth/occlusion.ts": {
   "eslint(complexity)": 1,
@@ -1894,15 +1651,6 @@
   "unicorn(numeric-separators-style)": 1,
   "unicorn(prefer-at)": 1,
   "unicorn(prefer-math-trunc)": 1
- },
- "src/core/render/three/cloth/pattern.test.ts": {
-  "eslint(curly)": 4,
-  "eslint(require-unicode-regexp)": 2,
-  "import(consistent-type-specifier-style)": 3,
-  "typescript(no-non-null-assertion)": 21,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 2,
-  "vitest(valid-expect)": 1
  },
  "src/core/render/three/cloth/pattern.ts": {
   "eslint(curly)": 26,
@@ -1926,11 +1674,6 @@
   "eslint(curly)": 1,
   "eslint(max-params)": 4
  },
- "src/core/render/three/cloth/solver.test.ts": {
-  "eslint(curly)": 2,
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-non-null-assertion)": 4
- },
  "src/core/render/three/cloth/solver.ts": {
   "eslint(curly)": 22,
   "eslint(max-depth)": 3,
@@ -1944,29 +1687,6 @@
   "typescript(no-unnecessary-type-assertion)": 2,
   "unicorn(no-array-sort)": 1,
   "unicorn(numeric-separators-style)": 3
- },
- "src/core/render/three/compile.test.ts": {
-  "eslint(no-empty-function)": 3,
-  "eslint(no-implicit-coercion)": 3,
-  "eslint(no-param-reassign)": 1,
-  "eslint(no-promise-executor-return)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 5,
-  "promise(param-names)": 1,
-  "typescript(no-non-null-assertion)": 21,
-  "typescript(no-unnecessary-boolean-literal-compare)": 2,
-  "typescript(no-unnecessary-type-conversion)": 2,
-  "typescript(no-unsafe-class-instance-assignment)": 5,
-  "typescript(no-unsafe-type-assertion)": 23,
-  "typescript(strict-void-return)": 5,
-  "unicorn(consistent-function-scoping)": 5,
-  "unicorn(max-nested-calls)": 3,
-  "unicorn(no-array-sort)": 3,
-  "unicorn(numeric-separators-style)": 1,
-  "vitest(no-conditional-in-test)": 2,
-  "vitest(prefer-called-once)": 2,
-  "vitest(prefer-strict-equal)": 24,
-  "vitest(require-mock-type-parameters)": 2
  },
  "src/core/render/three/compile.ts": {
   "eslint(complexity)": 1,
@@ -1992,14 +1712,6 @@
   "unicorn(no-array-for-each)": 1,
   "unicorn(numeric-separators-style)": 1
  },
- "src/core/render/three/contact.test.ts": {
-  "eslint(curly)": 2,
-  "typescript(no-non-null-assertion)": 4,
-  "typescript(no-unsafe-assignment)": 2,
-  "unicorn(prefer-negative-index)": 1,
-  "vitest(no-conditional-expect)": 1,
-  "vitest(no-conditional-in-test)": 4
- },
  "src/core/render/three/contact.ts": {
   "eslint(curly)": 18,
   "eslint(max-classes-per-file)": 1,
@@ -2016,31 +1728,13 @@
  "src/core/render/three/detail.ts": {
   "eslint(curly)": 1
  },
- "src/core/render/three/drawsort.test.ts": {
-  "eslint(curly)": 3,
-  "eslint(max-params)": 1,
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-non-null-assertion)": 3,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-array-sort)": 1,
-  "vitest(no-conditional-expect)": 2,
-  "vitest(no-conditional-in-test)": 7
- },
  "src/core/render/three/drawsort.ts": {
   "eslint(curly)": 9,
   "typescript(no-unsafe-class-instance-assignment)": 1,
   "typescript(no-unsafe-type-assertion)": 5
  },
- "src/core/render/three/eye.test.ts": {
-  "eslint(curly)": 2,
-  "eslint(prefer-destructuring)": 3
- },
  "src/core/render/three/eye.ts": {
   "eslint(curly)": 4
- },
- "src/core/render/three/geometry.test.ts": {
-  "eslint(curly)": 1,
-  "vitest(prefer-strict-equal)": 4
  },
  "src/core/render/three/geometry.ts": {
   "eslint(curly)": 16,
@@ -2060,54 +1754,11 @@
   "unicorn(no-array-reverse)": 1,
   "unicorn(prefer-at)": 2
  },
- "src/core/render/three/gesture.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "unicorn(numeric-separators-style)": 1,
-  "vitest(no-conditional-expect)": 1,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 1
- },
  "src/core/render/three/gesture.ts": {
   "eslint(curly)": 1,
   "eslint(max-params)": 1,
   "eslint(no-nested-ternary)": 2,
   "eslint(prefer-destructuring)": 1
- },
- "src/core/render/three/gltf.test.ts": {
-  "eslint(curly)": 4,
-  "eslint(max-params)": 1,
-  "eslint(no-empty-function)": 3,
-  "eslint(no-promise-executor-return)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 2,
-  "promise(always-return)": 4,
-  "promise(param-names)": 3,
-  "promise(prefer-await-to-then)": 4,
-  "typescript(ban-ts-comment)": 1,
-  "typescript(method-signature-style)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-explicit-any)": 1,
-  "typescript(no-non-null-assertion)": 2,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(no-unsafe-assignment)": 1,
-  "typescript(no-unsafe-call)": 3,
-  "typescript(no-unsafe-member-access)": 3,
-  "typescript(no-unsafe-type-assertion)": 3,
-  "typescript(prefer-ts-expect-error)": 1,
-  "typescript(promise-function-async)": 4,
-  "typescript(strict-void-return)": 7,
-  "unicorn(consistent-function-scoping)": 4,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(numeric-separators-style)": 3,
-  "unicorn(prefer-code-point)": 1,
-  "vitest(prefer-expect-resolves)": 1,
-  "vitest(prefer-strict-equal)": 9,
-  "vitest(prefer-to-have-length)": 1,
-  "vitest(require-mock-type-parameters)": 1,
-  "vitest(valid-expect)": 1
  },
  "src/core/render/three/gltf.ts": {
   "eslint(curly)": 7,
@@ -2126,15 +1777,6 @@
   "unicorn(explicit-length-check)": 1,
   "unicorn(no-useless-spread)": 1
  },
- "src/core/render/three/init.test.ts": {
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-non-null-assertion)": 1,
-  "typescript(no-unsafe-type-assertion)": 5,
-  "typescript(strict-void-return)": 2,
-  "typescript(unbound-method)": 1,
-  "vitest(prefer-strict-equal)": 2,
-  "vitest(require-mock-type-parameters)": 9
- },
  "src/core/render/three/init.ts": {
   "eslint(curly)": 2,
   "import(no-unassigned-import)": 1,
@@ -2143,44 +1785,6 @@
   "unicorn(numeric-separators-style)": 1,
   "unicorn(prefer-dom-node-append)": 1,
   "unicorn(prefer-global-this)": 2
- },
- "src/core/render/three/lightmapfiles.test.ts": {
-  "eslint(curly)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(ban-ts-comment)": 2,
-  "typescript(no-explicit-any)": 1,
-  "typescript(no-non-null-assertion)": 1,
-  "typescript(no-unsafe-argument)": 3,
-  "typescript(no-unsafe-assignment)": 4,
-  "typescript(no-unsafe-call)": 3,
-  "typescript(no-unsafe-member-access)": 9,
-  "typescript(no-unsafe-type-assertion)": 4,
-  "typescript(prefer-ts-expect-error)": 2,
-  "typescript(require-await)": 1,
-  "unicorn(no-array-reduce)": 1,
-  "unicorn(no-await-expression-member)": 5,
-  "unicorn(numeric-separators-style)": 1,
-  "unicorn(prefer-response-static-json)": 1,
-  "vitest(prefer-strict-equal)": 10,
-  "vitest(prefer-to-have-length)": 1,
-  "vitest(valid-expect)": 5
- },
- "src/core/render/three/lightmapmix.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "eslint(require-unicode-regexp)": 2,
-  "import(consistent-type-specifier-style)": 8,
-  "typescript(no-non-null-assertion)": 7,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(no-unsafe-class-instance-assignment)": 2,
-  "typescript(no-unsafe-type-assertion)": 11,
-  "typescript(strict-void-return)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(max-nested-calls)": 2,
-  "unicorn(numeric-separators-style)": 11,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 12,
-  "vitest(prefer-to-have-length)": 2
  },
  "src/core/render/three/lightmapmix.ts": {
   "eslint(complexity)": 1,
@@ -2211,11 +1815,6 @@
   "unicorn(numeric-separators-style)": 3,
   "unicorn(prefer-math-trunc)": 1
  },
- "src/core/render/three/localeye.test.ts": {
-  "eslint(prefer-destructuring)": 1,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "vitest(prefer-strict-equal)": 4
- },
  "src/core/render/three/localeye.ts": {
   "eslint(curly)": 5,
   "eslint(max-lines)": 1,
@@ -2227,14 +1826,6 @@
   "typescript(prefer-readonly)": 8,
   "typescript(strict-boolean-expressions)": 1
  },
- "src/core/render/three/loft.test.ts": {
-  "eslint(curly)": 4,
-  "typescript(no-non-null-assertion)": 5,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "unicorn(no-array-callback-reference)": 1,
-  "vitest(no-conditional-in-test)": 7,
-  "vitest(prefer-strict-equal)": 3
- },
  "src/core/render/three/loft.ts": {
   "eslint(max-params)": 2,
   "typescript(no-non-null-assertion)": 11,
@@ -2243,26 +1834,6 @@
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(no-array-for-each)": 1,
   "unicorn(prefer-at)": 1
- },
- "src/core/render/three/lowof.test.ts": {
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 5,
-  "unicorn(max-nested-calls)": 1,
-  "vitest(valid-expect)": 2
- },
- "src/core/render/three/materials.test.ts": {
-  "eslint(curly)": 8,
-  "eslint(no-empty-function)": 1,
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-non-null-assertion)": 30,
-  "typescript(no-unsafe-class-instance-assignment)": 2,
-  "typescript(no-unsafe-type-assertion)": 4,
-  "typescript(strict-void-return)": 2,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(numeric-separators-style)": 62,
-  "vitest(prefer-strict-equal)": 11,
-  "vitest(prefer-to-have-length)": 1
  },
  "src/core/render/three/materials.ts": {
   "eslint(curly)": 22,
@@ -2287,26 +1858,6 @@
   "unicorn(no-array-sort)": 4,
   "unicorn(no-useless-collection-argument)": 2,
   "unicorn(numeric-separators-style)": 17
- },
- "src/core/render/three/merge.test.ts": {
-  "eslint(curly)": 5,
-  "eslint(no-empty-function)": 1,
-  "eslint(no-multi-assign)": 2,
-  "eslint(require-unicode-regexp)": 2,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 41,
-  "typescript(no-unsafe-class-instance-assignment)": 9,
-  "typescript(no-unsafe-type-assertion)": 22,
-  "typescript(strict-boolean-expressions)": 1,
-  "typescript(strict-void-return)": 3,
-  "unicorn(consistent-function-scoping)": 14,
-  "unicorn(max-nested-calls)": 7,
-  "unicorn(no-array-for-each)": 1,
-  "unicorn(numeric-separators-style)": 28,
-  "unicorn(prefer-spread)": 2,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-strict-equal)": 7
  },
  "src/core/render/three/merge.ts": {
   "eslint(complexity)": 1,
@@ -2334,33 +1885,12 @@
   "unicorn(no-array-sort)": 2,
   "unicorn(no-useless-collection-argument)": 3
  },
- "src/core/render/three/ondemand.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "unicorn(numeric-separators-style)": 3,
-  "vitest(no-conditional-in-test)": 1
- },
  "src/core/render/three/ondemand.ts": {
   "eslint(curly)": 5,
   "eslint(max-classes-per-file)": 1,
   "eslint(max-params)": 1,
   "eslint(prefer-destructuring)": 2,
   "import(consistent-type-specifier-style)": 1
- },
- "src/core/render/three/pad.test.ts": {
-  "eslint(max-params)": 3,
-  "eslint(no-empty-function)": 3,
-  "eslint(no-implicit-coercion)": 2,
-  "import(consistent-type-specifier-style)": 3,
-  "typescript(no-non-null-assertion)": 4,
-  "typescript(no-unsafe-type-assertion)": 7,
-  "typescript(strict-void-return)": 9,
-  "unicorn(consistent-function-scoping)": 4,
-  "unicorn(no-array-reverse)": 1,
-  "unicorn(no-array-sort)": 2,
-  "unicorn(prefer-at)": 6,
-  "vitest(prefer-strict-equal)": 35,
-  "vitest(prefer-to-have-length)": 1
  },
  "src/core/render/three/pad.ts": {
   "eslint(class-methods-use-this)": 1,
@@ -2380,21 +1910,6 @@
   "unicorn(consistent-function-scoping)": 2,
   "unicorn(explicit-length-check)": 2
  },
- "src/core/render/three/partlod.test.ts": {
-  "eslint(curly)": 4,
-  "eslint(no-implicit-coercion)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 6,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(strict-boolean-expressions)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-array-callback-reference)": 1,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(numeric-separators-style)": 18,
-  "vitest(no-conditional-in-test)": 4,
-  "vitest(prefer-strict-equal)": 2,
-  "vitest(prefer-to-have-length)": 8
- },
  "src/core/render/three/partlod.ts": {
   "eslint(curly)": 27,
   "eslint(max-lines)": 1,
@@ -2413,10 +1928,6 @@
   "unicorn(no-array-for-each)": 2,
   "unicorn(no-useless-collection-argument)": 2
  },
- "src/core/render/three/pick.test.ts": {
-  "unicorn(max-nested-calls)": 1,
-  "vitest(no-conditional-in-test)": 1
- },
  "src/core/render/three/pick.ts": {
   "eslint(curly)": 7,
   "eslint(max-params)": 3,
@@ -2426,30 +1937,6 @@
   "import(consistent-type-specifier-style)": 3,
   "typescript(no-unsafe-type-assertion)": 1,
   "typescript(strict-boolean-expressions)": 1
- },
- "src/core/render/three/post.test.ts": {
-  "eslint(curly)": 11,
-  "eslint(max-params)": 1,
-  "eslint(no-empty-function)": 3,
-  "eslint(no-promise-executor-return)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "promise(param-names)": 3,
-  "typescript(no-confusing-void-expression)": 2,
-  "typescript(no-misused-spread)": 1,
-  "typescript(no-non-null-assertion)": 9,
-  "typescript(no-unnecessary-type-assertion)": 4,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(promise-function-async)": 2,
-  "typescript(strict-boolean-expressions)": 1,
-  "typescript(strict-void-return)": 2,
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(no-array-reduce)": 1,
-  "unicorn(numeric-separators-style)": 2,
-  "unicorn(prefer-spread)": 2,
-  "vitest(no-conditional-in-test)": 12,
-  "vitest(prefer-import-in-mock)": 1,
-  "vitest(prefer-strict-equal)": 13,
-  "vitest(prefer-to-have-length)": 5
  },
  "src/core/render/three/post.ts": {
   "eslint(curly)": 22,
@@ -2473,34 +1960,12 @@
   "unicorn(numeric-separators-style)": 3,
   "unicorn(switch-case-braces)": 6
  },
- "src/core/render/three/powerscale.test.ts": {
-  "eslint(curly)": 5,
-  "eslint(require-unicode-regexp)": 2,
-  "typescript(no-non-null-assertion)": 6,
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(numeric-separators-style)": 1,
-  "unicorn(prefer-at)": 3,
-  "vitest(prefer-to-have-length)": 1
- },
  "src/core/render/three/powerscale.ts": {
   "eslint(curly)": 2,
   "eslint(no-nested-ternary)": 1,
   "typescript(no-non-null-assertion)": 5,
   "unicorn(numeric-separators-style)": 17,
   "unicorn(prefer-at)": 1
- },
- "src/core/render/three/probe.test.ts": {
-  "eslint(curly)": 8,
-  "eslint(no-empty-function)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-misused-spread)": 2,
-  "typescript(no-non-null-assertion)": 2,
-  "typescript(no-unsafe-class-instance-assignment)": 3,
-  "typescript(no-unsafe-type-assertion)": 7,
-  "typescript(strict-boolean-expressions)": 1,
-  "unicorn(numeric-separators-style)": 4,
-  "vitest(no-conditional-in-test)": 4,
-  "vitest(prefer-strict-equal)": 14
  },
  "src/core/render/three/probe.ts": {
   "eslint(curly)": 12,
@@ -2512,17 +1977,6 @@
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(explicit-length-check)": 1,
   "unicorn(no-array-for-each)": 1
- },
- "src/core/render/three/rope.test.ts": {
-  "eslint(curly)": 3,
-  "eslint(no-loop-func)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 20,
-  "unicorn(max-nested-calls)": 2,
-  "unicorn(prefer-at)": 4,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-strict-equal)": 7,
-  "vitest(valid-expect)": 1
  },
  "src/core/render/three/rope.ts": {
   "eslint(complexity)": 2,
@@ -2545,19 +1999,6 @@
   "unicorn(no-array-reduce)": 1,
   "unicorn(prefer-modern-math-apis)": 2,
   "unicorn(prefer-spread)": 1
- },
- "src/core/render/three/shadows.test.ts": {
-  "eslint(curly)": 11,
-  "eslint(max-params)": 1,
-  "eslint(no-empty-function)": 1,
-  "eslint(no-multi-assign)": 4,
-  "import(consistent-type-specifier-style)": 4,
-  "typescript(no-non-null-assertion)": 16,
-  "typescript(no-unsafe-type-assertion)": 20,
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(numeric-separators-style)": 3,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 41
  },
  "src/core/render/three/shadows.ts": {
   "eslint(curly)": 50,
@@ -2582,13 +2023,6 @@
   "unicorn(explicit-length-check)": 8,
   "unicorn(no-array-for-each)": 1
  },
- "src/core/render/three/sleeve.test.ts": {
-  "eslint(curly)": 2,
-  "eslint(prefer-destructuring)": 1,
-  "typescript(no-non-null-assertion)": 2,
-  "unicorn(max-nested-calls)": 2,
-  "vitest(no-conditional-in-test)": 1
- },
  "src/core/render/three/sleeve.ts": {
   "eslint(complexity)": 1,
   "eslint(curly)": 12,
@@ -2605,26 +2039,11 @@
   "unicorn(numeric-separators-style)": 1,
   "unicorn(prefer-at)": 1
  },
- "src/core/render/three/spline.test.ts": {
-  "eslint(curly)": 6,
-  "typescript(no-non-null-assertion)": 11,
-  "unicorn(numeric-separators-style)": 3,
-  "vitest(prefer-strict-equal)": 9,
-  "vitest(require-to-throw-message)": 2
- },
  "src/core/render/three/spline.ts": {
   "eslint(curly)": 4,
   "eslint(max-params)": 1,
   "eslint(no-multi-assign)": 1,
   "typescript(no-non-null-assertion)": 22
- },
- "src/core/render/three/stillworld.test.ts": {
-  "eslint(curly)": 2,
-  "typescript(no-non-null-assertion)": 1,
-  "typescript(no-unsafe-class-instance-assignment)": 2,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 10
  },
  "src/core/render/three/stillworld.ts": {
   "eslint(complexity)": 1,
@@ -2637,44 +2056,12 @@
   "typescript(prefer-for-of)": 1,
   "typescript(unbound-method)": 1
  },
- "src/core/render/three/thermal.test.ts": {
-  "eslint(curly)": 2,
-  "eslint(require-unicode-regexp)": 2,
-  "typescript(no-non-null-assertion)": 3,
-  "unicorn(numeric-separators-style)": 1,
-  "unicorn(prefer-at)": 1,
-  "vitest(prefer-to-have-length)": 1
- },
  "src/core/render/three/thermal.ts": {
   "eslint(curly)": 1,
   "typescript(no-non-null-assertion)": 5,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(numeric-separators-style)": 7,
   "unicorn(prefer-at)": 1
- },
- "src/core/render/three/vertexao.test.ts": {
-  "eslint(curly)": 3,
-  "eslint(max-params)": 1,
-  "eslint(no-promise-executor-return)": 1,
-  "import(consistent-type-specifier-style)": 2,
-  "promise(no-callback-in-promise)": 1,
-  "promise(param-names)": 2,
-  "promise(prefer-await-to-then)": 1,
-  "typescript(no-non-null-assertion)": 2,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(no-unsafe-class-instance-assignment)": 1,
-  "typescript(no-unsafe-type-assertion)": 7,
-  "typescript(promise-function-async)": 2,
-  "typescript(require-await)": 2,
-  "typescript(strict-boolean-expressions)": 1,
-  "typescript(strict-void-return)": 1,
-  "unicorn(consistent-function-scoping)": 3,
-  "unicorn(no-array-reverse)": 1,
-  "unicorn(no-useless-undefined)": 2,
-  "unicorn(numeric-separators-style)": 1,
-  "unicorn(prefer-spread)": 5,
-  "vitest(prefer-expect-resolves)": 3,
-  "vitest(prefer-strict-equal)": 6
  },
  "src/core/render/three/vertexao.ts": {
   "eslint(curly)": 28,
@@ -2694,22 +2081,6 @@
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-sort)": 1,
   "unicorn(numeric-separators-style)": 1
- },
- "src/core/render/three/viewer.test.ts": {
-  "eslint(class-methods-use-this)": 3,
-  "eslint(curly)": 1,
-  "eslint(max-classes-per-file)": 1,
-  "eslint(no-empty-function)": 12,
-  "import(consistent-type-specifier-style)": 1,
-  "import(first)": 1,
-  "typescript(consistent-type-imports)": 3,
-  "typescript(no-non-null-assertion)": 6,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "unicorn(numeric-separators-style)": 1,
-  "vitest(prefer-called-once)": 12,
-  "vitest(prefer-import-in-mock)": 3,
-  "vitest(prefer-strict-equal)": 1,
-  "vitest(require-mock-type-parameters)": 4
  },
  "src/core/render/three/viewer.ts": {
   "eslint(curly)": 25,

@@ -8,8 +8,9 @@ function front(o: ReturnType<typeof rectBox>): Map<string, [number, number]> {
     p = g.getAttribute('position'),
     uv = g.getAttribute('uv'),
     m = new Map<string, [number, number]>();
-  for (let i = 16; i < 20; i++)
+  for (let i = 16; i < 20; i++) {
     m.set(`${p.getX(i) + o.position.x},${p.getY(i) + o.position.y}`, [uv.getX(i), uv.getY(i)]);
+  }
   return m;
 }
 
@@ -19,10 +20,10 @@ describe('worldUv', () => {
     const narrow = front(worldUv(rectBox({ x: 0, y: 0, w: 1000, h: 8000 }, 0, 100, m), 2000));
     const wide = front(worldUv(rectBox({ x: 1000, y: 0, w: 6000, h: 8000 }, 0, 100, m), 2000));
     // (2D y down: the box's world y runs from 0 down to -8000)
-    expect(narrow.get('0,0')).toEqual([0, 0]);
-    expect(narrow.get('1000,-8000')).toEqual([0.5, -4]);
-    expect(wide.get('1000,0')).toEqual(narrow.get('1000,0'));
-    expect(wide.get('7000,-8000')).toEqual([3.5, -4]);
+    expect(narrow.get('0,0')).toStrictEqual([0, 0]);
+    expect(narrow.get('1000,-8000')).toStrictEqual([0.5, -4]);
+    expect(wide.get('1000,0')).toStrictEqual(narrow.get('1000,0'));
+    expect(wide.get('7000,-8000')).toStrictEqual([3.5, -4]);
   });
 });
 

@@ -7,9 +7,13 @@ describe('the label list (PERF12)', () => {
     registerLabel(live, 1, 10);
     const base = sweepLabels();
     const gone = Array.from({ length: 2000 }, () => ({ alpha: 1, destroyed: false }));
-    for (const t of gone) registerLabel(t, 1, 10);
+    for (const t of gone) {
+      registerLabel(t, 1, 10);
+    }
     expect(sweepLabels()).toBe(base + 2000);
-    for (const t of gone) t.destroyed = true;
+    for (const t of gone) {
+      t.destroyed = true;
+    }
     expect(sweepLabels()).toBe(base);
   });
 

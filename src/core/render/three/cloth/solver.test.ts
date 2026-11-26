@@ -1,12 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { assemble, type Piece } from './pattern';
+import { assemble } from './pattern';
+import type * as patternTypes from './pattern';
 import { floor, sphere } from './solid';
-import { Cloth, type ClothParams } from './solver';
+import { Cloth } from './solver';
+import type * as solverTypes from './solver';
 
-const PARAMS: ClothParams = { rate: 1500, thickness: 3, self: 8, stretch: 1e-7, bend: 2e-4, friction: [0.6, 0.4] };
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+const PARAMS: solverTypes.ClothParams = {
+  rate: 1500,
+  thickness: 3,
+  self: 8,
+  stretch: 1e-7,
+  bend: 2e-4,
+  friction: [0.6, 0.4],
+};
 
 /** A flat square `s` mm wide, laid by `place`. */
-const square = (name: string, s: number, place: Piece['place']): Piece => ({
+const square = (name: string, s: number, place: patternTypes.Piece['place']): patternTypes.Piece => ({
   name,
   edges: [
     {
@@ -67,11 +84,16 @@ describe('cloth solver', () => {
       c = new Cloth(m, PARAMS);
     c.run({ time: 1.5, gravity: 9810, solid: ball, sew: Infinity, keep: 0.2 });
     c.run({ time: 0.5, gravity: 9810, solid: ball, sew: Infinity, keep: 0.01 });
-    for (let i = 0; i < m.n; i++)
-      expect(ball(c.p[3 * i]!, c.p[3 * i + 1]!, c.p[3 * i + 2]!)).toBeGreaterThan(PARAMS.thickness - 0.5);
+    for (let i = 0; i < m.n; i++) {
+      expect(ball(must(c.p[3 * i]), must(c.p[3 * i + 1]), must(c.p[3 * i + 2]))).toBeGreaterThan(
+        PARAMS.thickness - 0.5,
+      );
+    }
     // it hangs down past the ball's middle all round
     let low = Infinity;
-    for (let i = 0; i < m.n; i++) low = Math.min(low, c.p[3 * i + 1]!);
+    for (let i = 0; i < m.n; i++) {
+      low = Math.min(low, must(c.p[3 * i + 1]));
+    }
     expect(low).toBeLessThan(-50);
     const s = c.stats();
     expect(s.stretch).toBeLessThan(0.1);

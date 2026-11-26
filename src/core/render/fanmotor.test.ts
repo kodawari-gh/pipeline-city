@@ -2,19 +2,36 @@ import { describe, expect, it } from 'vitest';
 import { FanMotor, fanBank, machineLive } from './fanmotor';
 import { snap } from '@/core/ui/testdata';
 
-const run = (m: FanMotor, target: number, seconds: number, dt = 1 / 60) => {
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+/** The frame step: 60 frames a second. */
+const DT = 1 / 60;
+/** The motor's speed at each frame of `seconds` toward `target`. */
+const run = (m: FanMotor, target: number, seconds: number) => {
   const out: number[] = [];
-  for (let t = 0; t < seconds; t += dt) out.push(m.step(dt, target));
+  for (let t = 0; t < seconds; t += DT) {
+    out.push(m.step(DT, target));
+  }
   return out;
 };
+/** The first frame at which `f` holds. */
+const reach = (a: number[], f: (v: number) => boolean) => a.findIndex((v) => f(v));
 
 describe('the fan motor', () => {
   it('spins up from still without a jump: each frame adds a little, and it settles on the target', () => {
     const m = new FanMotor(),
       s = run(m, 8, 6);
     expect(s[0]).toBeLessThan(0.1);
-    for (let i = 1; i < s.length; i++) expect(s[i]! - s[i - 1]!).toBeLessThan(0.35);
-    expect(s[s.length - 1]).toBeCloseTo(8, 1);
+    for (let i = 1; i < s.length; i++) {
+      expect(must(s[i]) - must(s[i - 1])).toBeLessThan(0.35);
+    }
+    expect(s.at(-1)).toBeCloseTo(8, 1);
     expect(Math.max(...s)).toBeLessThanOrEqual(8);
   });
 
@@ -23,10 +40,11 @@ describe('the fan motor', () => {
     run(m, 8, 6);
     const down = run(m, 0, 10);
     expect(down[0]).toBeGreaterThan(7.5);
-    for (let i = 1; i < down.length; i++) expect(down[i]!).toBeLessThanOrEqual(down[i - 1]!);
-    expect(down[down.length - 1]).toBe(0);
-    const up = run(new FanMotor(), 8, 6),
-      reach = (a: number[], f: (v: number) => boolean) => a.findIndex(f);
+    for (let i = 1; i < down.length; i++) {
+      expect(must(down[i])).toBeLessThanOrEqual(must(down[i - 1]));
+    }
+    expect(down.at(-1)).toBe(0);
+    const up = run(new FanMotor(), 8, 6);
     expect(reach(down, (v) => v < 4)).toBeGreaterThan(reach(up, (v) => v > 4));
   });
 

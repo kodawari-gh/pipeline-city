@@ -1,33 +1,34 @@
-import {
-  MeshStandardMaterial,
-  ShaderChunk,
-  ShaderLib,
-  type Material,
-  type WebGLProgramParametersWithUniforms,
-  type WebGLRenderer,
-} from 'three';
-import { describe, expect, it } from 'vitest';
+import { MeshStandardMaterial, ShaderChunk, ShaderLib } from 'three';
+import type * as threeTypes from 'three';
+import { assert, describe, expect, it, vi } from 'vitest';
 import { bakedAo } from './bakedao';
 import { boxEnv, boxProjected } from './boxenv';
 
 const box = boxEnv([0, 0, 0], [1, 1, 1], [0.5, 0.5, 0.5]);
+/** Three's chunks by name. */
+const CHUNKS = new Map<string, string>(Object.entries(ShaderChunk));
 // three's shader with every chunk in place, as the GPU gets it
 const expand = (s: string): string =>
-  s.replaceAll(/^[ \t]*#include +<(\w+)>/gm, (_, n: string) =>
-    expand((ShaderChunk as unknown as Record<string, string>)[n] ?? ''),
-  );
-const compiled = (m: Material) => {
+  s.replaceAll(/^[ \t]*#include +<(?<chunk>\w+)>/gmu, (_, n: string) => expand(CHUNKS.get(n) ?? ''));
+const isCompileParams = (x: unknown): x is threeTypes.WebGLProgramParametersWithUniforms =>
+  typeof x === 'object' && x !== null && 'vertexShader' in x && 'fragmentShader' in x && 'uniforms' in x;
+/** A renderer as far as a shader patch sees one (none of them draws with it). */
+const isRenderer = (x: unknown): x is threeTypes.WebGLRenderer => typeof x === 'object' && x !== null && 'render' in x;
+const compiled = (m: threeTypes.Material) => {
   const sh = {
-    vertexShader: ShaderLib.physical.vertexShader,
-    fragmentShader: ShaderLib.physical.fragmentShader,
-    uniforms: {},
-  } as unknown as WebGLProgramParametersWithUniforms;
-  m.onBeforeCompile(sh, {} as WebGLRenderer);
+      vertexShader: ShaderLib.physical.vertexShader,
+      fragmentShader: ShaderLib.physical.fragmentShader,
+      uniforms: {},
+    },
+    renderer = { render: vi.fn<() => void>() };
+  assert(isCompileParams(sh));
+  assert(isRenderer(renderer));
+  m.onBeforeCompile(sh, renderer);
   return { vs: expand(sh.vertexShader), fs: expand(sh.fragmentShader), uniforms: sh.uniforms };
 };
 const count = (s: string, x: string) => s.split(x).length - 1;
 /** One declaration of the varying a stage, one ray cast, one key: a program that compiles. */
-const once = (m: Material) => {
+const once = (m: threeTypes.Material) => {
   const { vs, fs, uniforms } = compiled(m);
   expect(count(vs, 'varying vec3 vBoxPos;')).toBe(1);
   expect(count(vs, 'vBoxPos = worldPosition.xyz;')).toBe(1);
@@ -35,13 +36,14 @@ const once = (m: Material) => {
   expect(count(fs, 'vec3 boxProject(')).toBe(1);
   expect(count(fs, 'reflectVec = boxProject( reflectVec, roughness );')).toBe(1);
   expect(fs).not.toContain('#include');
-  expect(Object.keys(uniforms)).toEqual(expect.arrayContaining(['boxMin', 'boxMax', 'boxAt', 'boxOn']));
+  expect(Object.keys(uniforms)).toStrictEqual(expect.arrayContaining(['boxMin', 'boxMax', 'boxAt', 'boxOn']));
   expect(count(m.customProgramCacheKey(), '|box')).toBe(1);
 };
 
 describe('box-projected reflections', () => {
   it("patches three's physical shader once", () => {
     const m = new MeshStandardMaterial();
+    expect(compiled(m).fs).not.toContain('vec3 boxProject(');
     boxProjected(m, box);
     once(m);
   });
@@ -61,8 +63,9 @@ describe('box-projected reflections', () => {
     const m = new MeshStandardMaterial();
     boxProjected(m, box);
     const copy = m.clone();
-    copy.onBeforeCompile = m.onBeforeCompile;
-    copy.customProgramCacheKey = m.customProgramCacheKey;
+    // (the hooks as `m` has them, bound to it)
+    copy.onBeforeCompile = m.onBeforeCompile.bind(m);
+    copy.customProgramCacheKey = m.customProgramCacheKey.bind(m);
     boxProjected(copy, box);
     once(copy);
     // (three's clone keeps neither hook)
