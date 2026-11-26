@@ -38,23 +38,30 @@ export function idColor(id: number): string {
 /** The registers an instruction reads, in order. */
 export function readsOf(word: number): number[] {
   const i = decode(word);
-  if (!i) return [];
+  if (!i) {
+    return [];
+  }
   switch (SPEC_BY_NAME.get(i.name)?.fmt) {
     case 'R':
     case 'S':
-    case 'B':
+    case 'B': {
       return [i.rs1, i.rs2];
-    case 'I':
+    }
+    case 'I': {
       return [i.rs1];
-    default:
+    }
+    default: {
       return [];
+    }
   }
 }
 
 /** The register an instruction writes, or -1. */
 export function writesOf(word: number): number {
   const i = decode(word);
-  if (!i) return -1;
+  if (!i) {
+    return -1;
+  }
   const f = SPEC_BY_NAME.get(i.name)?.fmt;
   return (f === 'R' || f === 'I' || f === 'U' || f === 'J') && i.rd !== 0 ? i.rd : -1;
 }
@@ -62,43 +69,52 @@ export function writesOf(word: number): number {
 /** The fields of a word as the decoder splits it. */
 export function fieldsOf(word: number): Field[] {
   const i = decode(word);
-  if (!i) return [{ name: 'word', value: hex(word, 8), bits: 32 }];
+  if (!i) {
+    return [{ name: 'word', value: hex(word, 8), bits: 32 }];
+  }
   const op: Field = { name: 'op', value: i.name, bits: 7 };
   switch (SPEC_BY_NAME.get(i.name)?.fmt) {
-    case 'R':
+    case 'R': {
       return [
         op,
         { name: 'rd', value: reg(i.rd), bits: 4 },
         { name: 'rs1', value: reg(i.rs1), bits: 4 },
         { name: 'rs2', value: reg(i.rs2), bits: 4 },
       ];
-    case 'I':
+    }
+    case 'I': {
       return [
         op,
         { name: 'rd', value: reg(i.rd), bits: 4 },
         { name: 'rs1', value: reg(i.rs1), bits: 4 },
         { name: 'imm', value: String(i.imm), bits: 13 },
       ];
+    }
     case 'S':
-    case 'B':
+    case 'B': {
       return [
         op,
         { name: 'rs1', value: reg(i.rs1), bits: 4 },
         { name: 'rs2', value: reg(i.rs2), bits: 4 },
         { name: 'imm', value: String(i.imm), bits: 13 },
       ];
+    }
     case 'U':
-    case 'J':
+    case 'J': {
       return [op, { name: 'rd', value: reg(i.rd), bits: 4 }, { name: 'imm', value: String(i.imm), bits: 13 }];
-    default:
+    }
+    default: {
       return [op];
+    }
   }
 }
 
 /** The five slots of the decoder's word strip (op, rd, rs1, rs2, imm), each with what the instruction has there ('' when the format has none). */
 export function slotValues(word: number): string[] {
   const i = decode(word);
-  if (!i) return ['?', '', '', '', ''];
+  if (!i) {
+    return ['?', '', '', '', ''];
+  }
   const f = SPEC_BY_NAME.get(i.name)?.fmt;
   return [
     i.name,
