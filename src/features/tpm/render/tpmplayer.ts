@@ -89,30 +89,42 @@ export class TpmPlayer {
       this.cur = null;
       return;
     }
-    const top = v.log.length ? v.log[v.log.length - 1]!.seq : 0;
+    const top = v.log.length > 0 ? v.log.at(-1)!.seq : 0;
     if (this.seen < 0) {
       this.seen = top;
       return;
     }
-    for (const e of v.log) if (e.seq > this.seen) this.queue.push(e);
+    for (const e of v.log) {
+      if (e.seq > this.seen) {
+        this.queue.push(e);
+      }
+    }
     this.seen = Math.max(this.seen, top);
-    if (this.queue.length > REPLAY_QUEUE) this.queue = this.queue.slice(-REPLAY_QUEUE);
+    if (this.queue.length > REPLAY_QUEUE) {
+      this.queue = this.queue.slice(-REPLAY_QUEUE);
+    }
   }
 
   /** Move the replay on by `dtMs`; a command in flight in the module itself is shown live instead and the queue waits. */
   advance(dtMs: number): void {
-    if (this.v?.busy) return;
-    if (!this.cur && this.queue.length) {
+    if (this.v?.busy) {
+      return;
+    }
+    if (!this.cur && this.queue.length > 0) {
       this.cur = this.queue.shift()!;
       this.t = 0;
     }
-    if (!this.cur) return;
+    if (!this.cur) {
+      return;
+    }
     this.t += dtMs;
-    if (this.t >= replayLength(this.cur)) this.cur = null;
+    if (this.t >= replayLength(this.cur)) {
+      this.cur = null;
+    }
   }
 
   get replaying(): boolean {
-    return !!this.cur && !this.v?.busy;
+    return Boolean(this.cur) && !this.v?.busy;
   }
 
   /** Names the command on show (a replayed one, or the module's own count of commands), so a view can tell a new command from the same one a frame later. */
@@ -122,9 +134,13 @@ export class TpmPlayer {
 
   /** The module as it should look now, or null without a module. */
   show(ms: number): TpmShow | null {
-    const v = this.v;
-    if (!v) return null;
-    if (this.cur && !v.busy) return replayShow(this.cur, v, this.t, ms);
+    const { v } = this;
+    if (!v) {
+      return null;
+    }
+    if (this.cur && !v.busy) {
+      return replayShow(this.cur, v, this.t, ms);
+    }
     return liveShow(v, ms);
   }
 }
