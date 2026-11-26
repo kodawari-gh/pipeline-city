@@ -6,12 +6,12 @@ import type { Snapshot } from '@/worker/game/game';
 import { getOsSpec } from '@/features/os/sim';
 import { ISP_SPECS, ROUTER_SPECS } from '@/features/network/sim/specs';
 import { KIND_LABEL } from '@/core/ui/logic';
-import { boardId, caseId, ladderFor, type IconName, type LadderStep } from './picker';
+import * as picker from './picker';
 
 export type ShopKind = DeviceKind | 'board' | 'case' | 'os' | 'router' | 'isp';
 
 /** One picture per category, so the inventory and the shop read without words. */
-export const KIND_ICON: Record<ShopKind, IconName> = {
+export const KIND_ICON: Record<ShopKind, picker.IconName> = {
   cpu: 'cpu',
   ram: 'memory',
   cooler: 'tower',
@@ -100,15 +100,17 @@ const RAIL_TAG: Partial<Record<ShopKind, string>> = {
 };
 export const railTag = (k: string): string => RAIL_TAG[k as ShopKind] ?? k.slice(0, 3).toUpperCase();
 /** The icon of a category, with a plain box for anything unknown. */
-export const kindIcon = (k: string): IconName => KIND_ICON[k as ShopKind] ?? 'box';
+export const kindIcon = (k: string): picker.IconName => KIND_ICON[k as ShopKind] ?? 'box';
 
 /** Has this kind a 3D model in the showcase? (Boards, software and plans are not parts you can turn in your hand; a router is.) */
-export const hasModel = (k: string | null): boolean => !!k && !['board', 'os', 'isp'].includes(k);
+export const hasModel = (k: string | null): boolean => k !== null && k !== '' && !['board', 'os', 'isp'].includes(k);
 
 /** The list price of a catalogue item (a part, a board tier or a case tier, an OS, a router or an internet plan), or null for an id it does not know. */
 export function priceOf(item: string): number | null {
-  const shell = /^(board|case)(\d+)$/.exec(item);
-  if (shell) return (shell[1] === 'board' ? BOARD_TIERS : CASE_TIERS)[Number(shell[2])]?.price ?? null;
+  const shell = /^(?<kind>board|case)(?<tier>\d+)$/u.exec(item);
+  if (shell) {
+    return (shell[1] === 'board' ? BOARD_TIERS : CASE_TIERS)[Number(shell[2])]?.price ?? null;
+  }
   return (
     getSpec(item)?.price ??
     getOsSpec(item)?.price ??
@@ -120,13 +122,15 @@ export function priceOf(item: string): number | null {
 
 /** A part's name in two: the name, and what the catalogue says of it in brackets (`Tiny-5F+I (front end: I-cache)` is `Tiny-5F+I` and `front end: I-cache`). */
 export function splitName(name: string): { title: string; detail: string } {
-  const m = /^(.*?)\s+\((.*)\)$/.exec(name);
+  const m = /^(?<title>.*?)\s+\((?<detail>.*)\)$/u.exec(name);
   return m ? { title: m[1]!, detail: m[2]! } : { title: name, detail: '' };
 }
 
 /** How many of `n` pips a tier lights: at least one, all of them at the kind's top tier. */
 export function pips(tier: number, top: number, n = 5): number {
-  if (top <= 0) return n;
+  if (top <= 0) {
+    return n;
+  }
   return Math.max(1, Math.min(n, Math.round((tier / top) * n)));
 }
 
@@ -162,12 +166,13 @@ export function galleryGroups(): GalleryGroup[] {
     kind: 'board',
     items: BOARD_TIERS.map((b) => ({ id: `board${b.tier}`, name: b.name, note: 'motherboard', tier: b.tier })),
   });
-  for (const k of GALLERY_KINDS)
+  for (const k of GALLERY_KINDS) {
     out.push({
       key: k,
       kind: k,
       items: specsOfKind(k).map((s) => ({ id: s.id, name: s.name, note: `tier ${s.tier}`, tier: s.tier })),
     });
+  }
   out.push({
     key: 'router',
     kind: 'router',
@@ -185,8 +190,8 @@ export const stillIds = (): string[] => [...galleryGroups().flatMap((g) => g.ite
 export interface ShopSection {
   kind: ShopKind;
   label: string;
-  icon: IconName;
-  items: LadderStep[];
+  icon: picker.IconName;
+  items: picker.LadderStep[];
 }
 
 /** Every item the game sells, by category, with its state for this player (buy, poor, blocked, level lock, later, owned, outgrown). */
@@ -195,33 +200,43 @@ export function shopFor(s: Snapshot): ShopSection[] {
     kind,
     label: kindLabel(kind),
     icon: KIND_ICON[kind],
-    items: ladderFor(s, kind),
+    items: picker.ladderFor(s, kind),
   })).filter((x) => x.items.length > 0);
 }
 
 /** The spec of the part of this kind that is fitted now (the one a new part would replace), or null. */
 export function currentSpecFor(s: Snapshot, kind: string): string | null {
   switch (kind) {
-    case 'board':
-      return boardId(s.boardTier);
-    case 'case':
-      return caseId(s.caseTier);
-    case 'os':
+    case 'board': {
+      return picker.boardId(s.boardTier);
+    }
+    case 'case': {
+      return picker.caseId(s.caseTier);
+    }
+    case 'os': {
       return s.os?.spec ?? null;
-    case 'router':
+    }
+    case 'router': {
       return s.net.router?.id ?? null;
-    case 'isp':
+    }
+    case 'isp': {
       return s.net.isp?.id ?? null;
-    default:
+    }
+    default: {
       return s.devices.find((d) => d.kind === kind)?.spec ?? null;
+    }
   }
 }
 
 /** Tier of a spec id, or null when it has none. */
 export function tierOfSpec(specId: string): number | null {
-  const bm = /^board(\d+)$/.exec(specId);
-  if (bm) return Number(bm[1]);
-  const cm = /^case(\d+)$/.exec(specId);
-  if (cm) return Number(cm[1]);
+  const bm = /^board(?<tier>\d+)$/u.exec(specId);
+  if (bm) {
+    return Number(bm[1]);
+  }
+  const cm = /^case(?<tier>\d+)$/u.exec(specId);
+  if (cm) {
+    return Number(cm[1]);
+  }
   return getOsSpec(specId)?.tier ?? getSpec(specId)?.tier ?? null;
 }

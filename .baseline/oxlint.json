@@ -8377,25 +8377,18 @@
  },
  "src/features/economy/ui/shop/PartArt.tsx": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 5,
   "eslint(default-case)": 1,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 4,
   "eslint(no-nested-ternary)": 1,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 4,
   "react(no-array-index-key)": 1,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-non-null-assertion)": 2,
   "typescript(strict-boolean-expressions)": 4,
   "typescript(switch-exhaustiveness-check)": 1,
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(numeric-separators-style)": 1,
-  "unicorn(switch-case-braces)": 12
+  "unicorn(consistent-function-scoping)": 2
  },
  "src/features/economy/ui/shop/PartShelf.tsx": {
-  "eslint(curly)": 15,
   "eslint(max-lines-per-function)": 1,
   "eslint(no-shadow)": 1,
   "eslint(no-use-before-define)": 1,
@@ -8431,14 +8424,11 @@
  },
  "src/features/economy/ui/shop/PickerCard.tsx": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 14,
   "eslint(default-case)": 2,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 7,
-  "eslint(no-implicit-coercion)": 2,
   "eslint(no-nested-ternary)": 7,
   "eslint(no-unused-expressions)": 2,
-  "import(consistent-type-specifier-style)": 15,
   "import(max-dependencies)": 1,
   "jsx-a11y(prefer-tag-over-role)": 1,
   "react(button-has-type)": 6,
@@ -8449,13 +8439,10 @@
   "typescript(no-confusing-void-expression)": 4,
   "typescript(no-non-null-assertion)": 3,
   "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(strict-boolean-expressions)": 30,
+  "typescript(strict-boolean-expressions)": 29,
   "unicorn(consistent-function-scoping)": 1,
-  "unicorn(explicit-length-check)": 2,
   "unicorn(no-array-callback-reference)": 1,
-  "unicorn(prefer-global-this)": 4,
-  "unicorn(prefer-number-coercion)": 1,
-  "unicorn(switch-case-braces)": 14
+  "unicorn(prefer-number-coercion)": 1
  },
  "src/features/economy/ui/shop/Shop.edge.test.ts": {
   "eslint(prefer-named-capture-group)": 15,
@@ -8471,11 +8458,9 @@
   "vitest(prefer-strict-equal)": 4
  },
  "src/features/economy/ui/shop/Shop.tsx": {
-  "eslint(curly)": 7,
   "eslint(max-lines-per-function)": 1,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "import(first)": 4,
   "jsx-a11y(click-events-have-key-events)": 1,
   "jsx-a11y(no-static-element-interactions)": 1,
@@ -8487,12 +8472,9 @@
   "typescript(no-confusing-void-expression)": 5,
   "typescript(no-non-null-assertion)": 1,
   "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 5,
-  "unicorn(explicit-length-check)": 1,
-  "unicorn(prefer-global-this)": 2
+  "typescript(strict-boolean-expressions)": 5
  },
  "src/features/economy/ui/shop/Showcase.tsx": {
-  "eslint(curly)": 4,
   "eslint(max-lines-per-function)": 1,
   "jsx-a11y(prefer-tag-over-role)": 1,
   "promise(always-return)": 1,
@@ -8544,17 +8526,10 @@
   "vitest(valid-expect)": 2
  },
  "src/features/economy/ui/shop/shopdata.ts": {
-  "eslint(curly)": 5,
   "eslint(no-duplicate-imports)": 1,
-  "eslint(no-implicit-coercion)": 1,
-  "eslint(prefer-named-capture-group)": 6,
-  "eslint(require-unicode-regexp)": 4,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-non-null-assertion)": 2,
   "typescript(no-unsafe-type-assertion)": 4,
-  "typescript(strict-boolean-expressions)": 1,
-  "unicorn(no-immediate-mutation)": 1,
-  "unicorn(switch-case-braces)": 6
+  "unicorn(no-immediate-mutation)": 1
  },
  "src/features/economy/ui/shop/stills.test.ts": {
   "eslint(curly)": 1,
