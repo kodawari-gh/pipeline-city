@@ -7,7 +7,8 @@ import { bakedAo } from '@/core/render/three/bakedao';
 import { SEG, paint, rod, softBox, tornDown, tube } from '@/core/render/three/geometry';
 import { joinModel, loadModel } from '@/core/render/three/gltf';
 import { cloth, mat } from '@/core/render/three/materials';
-import { cushion, floorShadow, weave } from './furniture3d';
+import { cushion, floorShadow } from './furniture/shapes';
+import { weave } from './furniture/textures';
 import { FLOOR_Y } from './roomplan';
 
 /** Room units per millimetre (the room's metre is 18 700 units). */
@@ -147,7 +148,7 @@ export function deskChair(
 
   // ---- the seat: a moulded shell, the cushion on it ----
   c.add(slab(0, 458, 0, 470, 22, 450, black, 10));
-  const seat = new Mesh(cushion(490 * MM, 80 * MM, 470 * MM, 0.8), seatCloth);
+  const seat = new Mesh(cushion([490 * MM, 80 * MM, 470 * MM], 0.8), seatCloth);
   seat.position.set(0, 505 * MM, -5 * MM);
   seat.castShadow = seat.receiveShadow = true;
   c.add(seat);
@@ -172,7 +173,7 @@ export function deskChair(
     ring.push([ex * ww * MM, (60 + yy * H) * MM, 30 * ex * ex * MM]);
   }
   back.add(tube(ring, 13 * MM, black, SEG.frameBar));
-  const panel = new Mesh(cushion((W - 30) * MM, 18 * MM, (H - 30) * MM, 0.5), mesh);
+  const panel = new Mesh(cushion([(W - 30) * MM, 18 * MM, (H - 30) * MM], 0.5), mesh);
   panel.rotation.x = Math.PI / 2;
   panel.position.set(0, (60 + H / 2) * MM, 8 * MM);
   panel.castShadow = panel.receiveShadow = true;
@@ -194,6 +195,6 @@ export function deskChair(
 
   c.rotation.y = turn;
   c.position.set(x, -FLOOR_Y, z);
-  root.add(c, floorShadow(x, z, 760 * MM, 760 * MM, 0.7));
+  root.add(c, floorShadow([x, z], [760 * MM, 760 * MM], { k: 0.7 }));
   return root;
 }

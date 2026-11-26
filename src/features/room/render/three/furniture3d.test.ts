@@ -17,18 +17,14 @@ import { setLowDetail } from '@/core/render/three/detail';
 import { MONITOR } from '@/features/board/render/layout/layout';
 import { roomGeo } from '../shell/room';
 import { mess } from './clutter3d';
-import {
-  EDGE_R,
-  OAK_ROUGH,
-  OAK_TILE,
-  PILLOW_WELT,
-  SPINE_ROUND,
-  bed,
-  bookcase,
-  eastWall,
-  nightstand,
-  pillow,
-} from './furniture3d';
+import { bed } from './furniture/bed';
+import { SPINE_ROUND } from './furniture/books';
+import { bookcase } from './furniture/bookcase';
+import { eastWall } from './furniture/eastwall';
+import { nightstand } from './furniture/lanterns';
+import { OAK_ROUGH, OAK_TILE } from './furniture/oak';
+import { EDGE_R, PILLOW_WELT, pillow } from './furniture/shapes';
+
 import { OAK } from './palette';
 import { floorPlant } from './plants3d';
 import { KEY_LEAD } from './props3d';
@@ -208,7 +204,7 @@ describe('3D furniture', () => {
     const w = 14000,
       h = 3000,
       d = 7200,
-      p = pillow(w, h, d).attributes['position']!;
+      p = pillow([w, h, d]).attributes['position']!;
     let corner = 0;
     for (let i = 0; i < p.count; i++) {
       const x = Math.abs(p.getX(i)) / (w / 2),

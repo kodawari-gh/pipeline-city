@@ -58,7 +58,7 @@ const SET = [
   // the room's board (`smokedOak`: the desk top and the bookcase), its floor (1024 px: the largest surface, seen close) and its rug
   {
     key: 'room-oak',
-    mod: '/src/features/room/render/three/furniture3d.ts',
+    mod: '/src/features/room/render/three/furniture/oak.ts',
     call: 'oakMaps',
     pick: 'map',
     kind: 'colour',
@@ -66,7 +66,7 @@ const SET = [
   },
   {
     key: 'room-oak-n',
-    mod: '/src/features/room/render/three/furniture3d.ts',
+    mod: '/src/features/room/render/three/furniture/oak.ts',
     call: 'oakMaps',
     pick: 'normal',
     kind: 'normal',
@@ -74,7 +74,7 @@ const SET = [
   },
   {
     key: 'room-planks',
-    mod: '/src/features/room/render/three/room3d.ts',
+    mod: '/src/features/room/render/three/room3d/planks.ts',
     call: 'planksMaps',
     pick: 'map',
     kind: 'colour',
@@ -82,17 +82,23 @@ const SET = [
   },
   {
     key: 'room-planks-n',
-    mod: '/src/features/room/render/three/room3d.ts',
+    mod: '/src/features/room/render/three/room3d/planks.ts',
     call: 'planksMaps',
     pick: 'normal',
     kind: 'normal',
     srgb: false,
   },
-  { key: 'room-rug', mod: '/src/features/room/render/three/room3d.ts', call: 'rugMap', kind: 'colour', srgb: true },
+  {
+    key: 'room-rug',
+    mod: '/src/features/room/render/three/room3d/cloth.ts',
+    call: 'rugMap',
+    kind: 'colour',
+    srgb: true,
+  },
   // the walls' plaster: its relief and its sheen (`data`: linear values, ETC1S; it has no colour map, the material holds the paint)
   {
     key: 'room-plaster-n',
-    mod: '/src/features/room/render/three/room3d.ts',
+    mod: '/src/features/room/render/three/room3d/plaster.ts',
     call: 'plasterMaps',
     pick: 'normalMap',
     kind: 'normal',
@@ -100,7 +106,7 @@ const SET = [
   },
   {
     key: 'room-plaster-r',
-    mod: '/src/features/room/render/three/room3d.ts',
+    mod: '/src/features/room/render/three/room3d/plaster.ts',
     call: 'plasterMaps',
     pick: 'roughnessMap',
     kind: 'data',

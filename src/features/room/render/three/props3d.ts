@@ -50,7 +50,7 @@ import { mat } from '@/core/render/three/materials';
 import { mergeWithin } from '@/core/render/three/merge';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
-import { oak } from './furniture3d';
+import { oak } from './furniture/textures';
 import { monitorBody } from './monitor3d';
 import { KEY_ACCENT, NEON, NEON_WASH, OPAL, PAPER, RUNNER, STEEL, TEA } from './palette';
 
@@ -594,7 +594,7 @@ function capGeo(w: number, d: number, h: number, inset: number): BoxGeometry {
   return g;
 }
 
-/** Where the keyboard's cable ends on the desk (x, z from the keyboard's middle): the grommet that takes it down through the top (`room3d.ts`). */
+/** Where the keyboard's cable ends on the desk (x, z from the keyboard's middle): the grommet that takes it down through the top (`room3d/tabletop.ts`). */
 export const KEY_LEAD = [-2650, -6100] as const;
 
 /**

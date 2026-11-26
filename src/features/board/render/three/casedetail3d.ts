@@ -473,7 +473,7 @@ function shieldPrint(tier: number, feat: BoardFeatures, s: Span) {
 
 /**
  * The board's I/O shield on the outside of the rear wall (the plate that comes with the board), with the ports the board has where their plugs
- * go in (`room3d.ts` and `machine3d.ts` aim the LAN lead, the video cable and a key at these). By the board's tier (skins.ts): a loose stamped
+ * go in (`room3d/` and `machine3d.ts` aim the LAN lead, the video cable and a key at these). By the board's tier (skins.ts): a loose stamped
  * steel shield on the Starter and Basic (bare steel, a folded rim, an embossed rim round each opening, EMI fingers over the USB and LAN mouths);
  * an integrated black shield on the better boards, its labels printed in white. The ports as real ones: the audio jacks in their colour rings,
  * the RJ45 with its latch notch, contacts and two lights, HDMI and DP in their keyed shells, USB-A with the tongue's colour by generation. The
