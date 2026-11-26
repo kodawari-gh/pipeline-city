@@ -100,7 +100,9 @@ export function getOsSpec(id: string): OsSpec | undefined {
  * the paged OS one per hardware core up to two, the preemptive and the multicore OS up to two per logical core (at most 8, and never fewer than their own slots).
  */
 export function programSlotsOn(os: OsSpec, cores: number, logical: number): number {
-  if (os.tier >= 3) return Math.max(os.programSlots, Math.min(8, 2 * logical));
+  if (os.tier >= 3) {
+    return Math.max(os.programSlots, Math.min(8, 2 * logical));
+  }
   return os.tier === 2 ? Math.min(2, cores) : os.programSlots;
 }
 

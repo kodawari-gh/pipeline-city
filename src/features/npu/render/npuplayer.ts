@@ -1,6 +1,6 @@
 import { GpuFaultCode, NPU_NO_BIAS, NpuOp } from '@/core/sim/memmap';
 import type { NpuStep, NpuView } from '../sim/port';
-import { regionsOf, type NpuShow, type NpuStepShow, type RegionEntry } from './npuglyph';
+import * as npuglyph from './npuglyph';
 
 // What the card view shows each frame (`NpuShow`): the snapshot as it is while a launch is in flight, and otherwise a slow-motion replay of the launches that
 // finished since the last look (a descriptor takes a handful of card ticks, a launch a few dozen, far less than a frame of the game, so without the
@@ -19,8 +19,8 @@ const unit = (v: number): number => Math.max(0, Math.min(1, v));
 const stepShow = (
   e: Pick<NpuStep, 'op' | 'a' | 'b' | 'cost' | 'fault' | 'reads' | 'writes'>,
   progress: number,
-): NpuStepShow => {
-  const w = e.writes[0],
+): npuglyph.NpuStepShow => {
+  const [w] = e.writes,
     side = w ? Math.round(Math.sqrt((w[1] - w[0]) / 4)) : 0;
   return {
     op: e.op,
@@ -40,7 +40,7 @@ const accBefore = (log: readonly NpuStep[], run: number, index: number, size: nu
   log.find((e) => e.run === run && e.index === index - 1)?.acc ?? new Array<number>(size).fill(0);
 
 /** The card now, from its snapshot. */
-export function liveShow(v: NpuView, ms: number): NpuShow {
+export function liveShow(v: NpuView, ms: number): npuglyph.NpuShow {
   const e = v.index >= 0 ? v.log.find((x) => x.run === v.run && x.index === v.index) : undefined,
     K2 = v.grid * v.grid;
   return {
@@ -62,7 +62,7 @@ export function liveShow(v: NpuView, ms: number): NpuShow {
     done: v.done,
     fault: v.fault,
     fill: v.fill,
-    regions: regionsOf(v.list, v.grid, v.descAt, v.count),
+    regions: npuglyph.regionsOf(v.list, v.grid, v.descAt, v.count),
     touch: null,
     replay: false,
     ms,
@@ -70,8 +70,8 @@ export function liveShow(v: NpuView, ms: number): NpuShow {
 }
 
 /** A logged step as the region finder reads it: a layer's parameters come from the byte ranges the card logged for it (the block, the weights, the inputs, the biases; the result written). */
-const entryOf = (e: NpuStep): RegionEntry => {
-  const w = e.writes[0],
+const entryOf = (e: NpuStep): npuglyph.RegionEntry => {
+  const [w] = e.writes,
     n = w ? Math.round(Math.sqrt((w[1] - w[0]) / 4)) : 0;
   const layer =
     e.op === NpuOp.Layer && w && e.reads.length >= 3
@@ -85,12 +85,12 @@ export const replayLength = (steps: readonly NpuStep[]): number =>
   2 * REPLAY_HOP_MS + steps.reduce((n, e) => n + replayStepMs(e), 0);
 
 /** A finished launch (its steps, in order) `t` ms into its replay. */
-export function replayShow(steps: readonly NpuStep[], v: NpuView, t: number, ms: number): NpuShow {
+export function replayShow(steps: readonly NpuStep[], v: NpuView, t: number, ms: number): npuglyph.NpuShow {
   const K = v.grid,
     K2 = K * K,
     total = steps.reduce((n, e) => n + replayStepMs(e), 0),
     first = steps[0]!,
-    last = steps[steps.length - 1]!;
+    last = steps.at(-1)!;
   const base = {
     ...liveShow(v, ms),
     grid: K,
@@ -98,10 +98,10 @@ export function replayShow(steps: readonly NpuStep[], v: NpuView, t: number, ms:
     busy: true,
     count: first.count,
     list: steps.map((e) => ({ op: e.op, a: e.a, b: e.b })),
-    regions: regionsOf(steps.map(entryOf), K, v.descAt, first.count),
+    regions: npuglyph.regionsOf(steps.map(entryOf), K, v.descAt, first.count),
   };
   const zeros = new Array<number>(K2).fill(0);
-  if (t < REPLAY_HOP_MS)
+  if (t < REPLAY_HOP_MS) {
     return {
       ...base,
       phase: 'in',
@@ -116,12 +116,15 @@ export function replayShow(steps: readonly NpuStep[], v: NpuView, t: number, ms:
       error: false,
       fault: 0,
     };
+  }
   let at = t - REPLAY_HOP_MS,
     cycles = 0;
   const tiles = [false, false, false, false];
   for (const e of steps) {
     const len = replayStepMs(e);
-    if (e.op === NpuOp.Load && e.a >= 0 && e.a < tiles.length && !e.fault && at > 0) tiles[e.a] = true;
+    if (e.op === NpuOp.Load && e.a >= 0 && e.a < tiles.length && !e.fault && at > 0) {
+      tiles[e.a] = true;
+    }
     if (at < len) {
       const p = at / len;
       return {
@@ -178,36 +181,50 @@ export class NpuPlayer {
       this.live.clear();
       return;
     }
-    const top = v.log.length ? v.log[v.log.length - 1]!.seq : 0;
+    const top = v.log.length > 0 ? v.log.at(-1)!.seq : 0;
     if (this.seen < 0) {
       this.seen = top;
       return;
     }
-    if (v.busy) this.live.add(v.run);
+    if (v.busy) {
+      this.live.add(v.run);
+    }
     const fresh = v.log.filter((e) => e.seq > this.seen && !this.live.has(e.run));
     this.seen = Math.max(this.seen, top);
     if (!v.busy) {
       // the launches whose steps came in since the last look, each in order
-      for (const run of new Set(fresh.map((e) => e.run))) this.queue.push(fresh.filter((e) => e.run === run));
-      if (this.queue.length > REPLAY_QUEUE) this.queue = this.queue.slice(-REPLAY_QUEUE);
-      if (this.live.size > 8) this.live = new Set([...this.live].slice(-4));
+      for (const run of new Set(fresh.map((e) => e.run))) {
+        this.queue.push(fresh.filter((e) => e.run === run));
+      }
+      if (this.queue.length > REPLAY_QUEUE) {
+        this.queue = this.queue.slice(-REPLAY_QUEUE);
+      }
+      if (this.live.size > 8) {
+        this.live = new Set([...this.live].slice(-4));
+      }
     }
   }
 
   /** Move the replay on by `dtMs`; a launch in flight in the card itself is shown live instead and the queue waits. */
   advance(dtMs: number): void {
-    if (this.v?.busy) return;
-    if (!this.cur && this.queue.length) {
+    if (this.v?.busy) {
+      return;
+    }
+    if (!this.cur && this.queue.length > 0) {
       this.cur = this.queue.shift()!;
       this.t = 0;
     }
-    if (!this.cur) return;
+    if (!this.cur) {
+      return;
+    }
     this.t += dtMs;
-    if (this.t >= replayLength(this.cur)) this.cur = null;
+    if (this.t >= replayLength(this.cur)) {
+      this.cur = null;
+    }
   }
 
   get replaying(): boolean {
-    return !!this.cur && !this.v?.busy;
+    return this.cur !== null && !this.v?.busy;
   }
 
   /** Names the launch on show (a replayed one, or the card's own count of launches), so a view can tell a new launch from the same one a frame later. */
@@ -216,10 +233,14 @@ export class NpuPlayer {
   }
 
   /** The card as it should look now, or null without a card. */
-  show(ms: number): NpuShow | null {
-    const v = this.v;
-    if (!v) return null;
-    if (this.cur && !v.busy) return replayShow(this.cur, v, this.t, ms);
+  show(ms: number): npuglyph.NpuShow | null {
+    const { v } = this;
+    if (!v) {
+      return null;
+    }
+    if (this.cur && !v.busy) {
+      return replayShow(this.cur, v, this.t, ms);
+    }
     return liveShow(v, ms);
   }
 }

@@ -4,7 +4,7 @@ import { Meter } from '@/core/ui/kit/Meter';
 import type { Snapshot } from '@/worker/game/game';
 import type { CoreLive } from '../../cpu/sim/pipesnap';
 import type { IconName } from '../../economy/ui/shop/picker';
-import { allocModel, bottleneck, fmtBytes, resourceRows, type AllocDrive, type ResRow } from './osui';
+import * as osui from './osui';
 
 // The OS window's pages, as views of one snapshot (docs/OS.md "OS menu"): the game's window (`OsPanel.tsx`, the worker's snapshot and the store's actions) and Build my PC's
 // OS sheet (`BuildOs.tsx`, the stage's machine) draw the same four pages. Nothing here reads the store.
@@ -27,12 +27,16 @@ export interface OsActions {
 const HISTORY = 60;
 /** Rolling load history per resource, sampled while the window is open (the graphs of a task manager). */
 export type OsHistory = Map<string, number[]>;
-export function sampleHistory(history: OsHistory, rows: ResRow[], times = 1): void {
+export function sampleHistory(history: OsHistory, rows: osui.ResRow[], times = 1): void {
   for (const r of rows) {
     const h = history.get(r.id) ?? new Array<number>(HISTORY).fill(0);
     // (`times`: seconds that went by since the last sample, when the screen drew less often than the machine ticked)
-    for (let i = 0; i < Math.min(times, HISTORY); i++) h.push(r.load ?? 0);
-    while (h.length > HISTORY) h.shift();
+    for (let i = 0; i < Math.min(times, HISTORY); i++) {
+      h.push(r.load ?? 0);
+    }
+    while (h.length > HISTORY) {
+      h.shift();
+    }
     history.set(r.id, h);
   }
 }
@@ -55,7 +59,7 @@ function Graph({ h, level, big }: { h: number[]; level: string; big?: boolean })
   );
 }
 
-function Tile({ r, h, on, onPick }: { r: ResRow; h: number[]; on: boolean; onPick: () => void }) {
+function Tile({ r, h, on, onPick }: { r: osui.ResRow; h: number[]; on: boolean; onPick: () => void }) {
   return (
     <button class={`os-tile ${r.level}${on ? ' sel' : ''}`} onClick={onPick} aria-current={on}>
       <Graph h={h} level={r.level} />
@@ -75,9 +79,13 @@ function Tile({ r, h, on, onPick }: { r: ResRow; h: number[]; on: boolean; onPic
  */
 function CoreStrip({ s }: { s: Snapshot }) {
   const live = s.cores?.live;
-  if (!s.powered || !live || live.length < 2) return null;
+  if (!s.powered || !live || live.length < 2) {
+    return null;
+  }
   const hw = new Map<number, CoreLive[]>();
-  for (const c of live) hw.set(c.hw, [...(hw.get(c.hw) ?? []), c]);
+  for (const c of live) {
+    hw.set(c.hw, [...(hw.get(c.hw) ?? []), c]);
+  }
   const busy = live.filter((c) => !c.parked && c.job !== 0).length;
   return (
     <div class="os-cores">
@@ -101,7 +109,7 @@ function CoreStrip({ s }: { s: Snapshot }) {
   );
 }
 
-function Detail({ r, h, s }: { r: ResRow; h: number[]; s: Snapshot }) {
+function Detail({ r, h, s }: { r: osui.ResRow; h: number[]; s: Snapshot }) {
   return (
     <div class={`os-detail ${r.level}`}>
       <div class="os-detail-head">
@@ -131,10 +139,10 @@ function Detail({ r, h, s }: { r: ResRow; h: number[]; s: Snapshot }) {
 /** The performance tab: graph tiles on the left, the chosen part in full on the right. */
 function Monitor({ s, history }: { s: Snapshot; history: OsHistory }) {
   const [pick, setPick] = useState<string>('cpu');
-  const rows = resourceRows(s);
-  const b = bottleneck(rows);
+  const rows = osui.resourceRows(s);
+  const b = osui.bottleneck(rows);
   const cur = rows.find((r) => r.id === pick) ?? rows[0];
-  const of = (r: ResRow): number[] => history.get(r.id) ?? [];
+  const of = (r: osui.ResRow): number[] => history.get(r.id) ?? [];
   return (
     <div class="os-perf">
       <div class="os-tiles">
@@ -162,8 +170,10 @@ const STATE_LABEL = { running: 'Running', queued: 'Waiting', result: 'Done' } as
 
 /** The job queue as a process table. */
 function Procs({ s }: { s: Snapshot }) {
-  const os = s.os;
-  if (!os) return null;
+  const { os } = s;
+  if (!os) {
+    return null;
+  }
   const { used, slots } = os.spool;
   return (
     <div class="os-procs">
@@ -210,7 +220,17 @@ function Procs({ s }: { s: Snapshot }) {
 /** The reserve slider's step in blocks: 16 blocks (4 KiB), the size of one spool slot. */
 const RESERVE_STEP = 16;
 
-function DriveCard({ d, slotBytes, room, act }: { d: AllocDrive; slotBytes: number; room: number; act: OsActions }) {
+function DriveCard({
+  d,
+  slotBytes,
+  room,
+  act,
+}: {
+  d: osui.AllocDrive;
+  slotBytes: number;
+  room: number;
+  act: OsActions;
+}) {
   const share = (v: number) => `${d.capacity > 0 ? (v / d.capacity) * 100 : 0}%`;
   // The slider tops out at what fits on the drive and what the kernel table still has room for.
   const top = Math.max(d.slots, Math.min(d.max, d.slots + room));
@@ -224,12 +244,12 @@ function DriveCard({ d, slotBytes, room, act }: { d: AllocDrive; slotBytes: numb
         <span>
           <Icon name="disk" size={12} /> {d.label}
         </span>
-        <b>{fmtBytes(d.capacity)}</b>
+        <b>{osui.fmtBytes(d.capacity)}</b>
       </div>
       <div
         class="os-diskbar"
         role="img"
-        aria-label={`${d.label}: system ${fmtBytes(d.osBytes)}, files ${fmtBytes(d.usedBytes)}, spool ${fmtBytes(d.spoolBytes)}, datasets ${fmtBytes(d.dataBytes)}, free ${fmtBytes(d.freeBytes)}`}
+        aria-label={`${d.label}: system ${osui.fmtBytes(d.osBytes)}, files ${osui.fmtBytes(d.usedBytes)}, spool ${osui.fmtBytes(d.spoolBytes)}, datasets ${osui.fmtBytes(d.dataBytes)}, free ${osui.fmtBytes(d.freeBytes)}`}
       >
         <i class="sys" style={{ width: share(d.osBytes) }} />
         <i class="files" style={{ width: share(d.usedBytes) }} />
@@ -241,30 +261,30 @@ function DriveCard({ d, slotBytes, room, act }: { d: AllocDrive; slotBytes: numb
         {d.osBytes > 0 && (
           <span>
             <i class="sys" />
-            system {fmtBytes(d.osBytes)}
+            system {osui.fmtBytes(d.osBytes)}
           </span>
         )}
         <span>
           <i class="files" />
-          files {fmtBytes(d.usedBytes)}
+          files {osui.fmtBytes(d.usedBytes)}
         </span>
         <span>
           <i class="spool" />
-          spool {fmtBytes(d.spoolBytes)}
+          spool {osui.fmtBytes(d.spoolBytes)}
         </span>
         <span>
           <i class="data" />
-          datasets {fmtBytes(d.dataBytes)}
+          datasets {osui.fmtBytes(d.dataBytes)}
         </span>
         {d.reserveBytes !== null && (
           <span>
             <i class="rsv" />
-            reserved {fmtBytes(d.reserveFree)}
+            reserved {osui.fmtBytes(d.reserveFree)}
           </span>
         )}
         <span>
           <i class="free" />
-          free {fmtBytes(d.freeBytes)}
+          free {osui.fmtBytes(d.freeBytes)}
         </span>
       </div>
       {d.why ? (
@@ -278,7 +298,7 @@ function DriveCard({ d, slotBytes, room, act }: { d: AllocDrive; slotBytes: numb
             <div class="os-actions">
               <button
                 class="chip ok"
-                disabled={!!d.formatWhy}
+                disabled={d.formatWhy !== null}
                 title={d.formatWhy ?? 'Format this drive for the OS'}
                 onClick={() => act.formatDrive(d.deviceId)}
               >
@@ -289,7 +309,7 @@ function DriveCard({ d, slotBytes, room, act }: { d: AllocDrive; slotBytes: numb
           )}
         </>
       ) : (
-        <label class="scale-row" title={`Each slot keeps one waiting job and takes ${fmtBytes(slotBytes)}.`}>
+        <label class="scale-row" title={`Each slot keeps one waiting job and takes ${osui.fmtBytes(slotBytes)}.`}>
           <span>spool slots</span>
           <input
             type="range"
@@ -321,7 +341,7 @@ function DriveCard({ d, slotBytes, room, act }: { d: AllocDrive; slotBytes: numb
             aria-label={`Dataset reserve on ${d.label}`}
             onInput={(e) => act.setDataReserve(d.deviceId, Number(e.currentTarget.value) * RESERVE_STEP)}
           />
-          <b class="value">{d.reserveBytes === null ? 'none' : fmtBytes(d.reserveBytes)}</b>
+          <b class="value">{d.reserveBytes === null ? 'none' : osui.fmtBytes(d.reserveBytes)}</b>
         </label>
       )}
       {!d.why && d.reserveBytes !== null && (
@@ -344,13 +364,14 @@ function DriveCard({ d, slotBytes, room, act }: { d: AllocDrive; slotBytes: numb
 
 /** Disk allocation: how each drive's space splits between the system, your files and spool slots for waiting jobs. */
 function Disks({ s, act }: { s: Snapshot; act: OsActions }) {
-  const m = allocModel(s);
-  if (!m)
+  const m = osui.allocModel(s);
+  if (!m) {
     return (
       <section>
         <div class="mute sub">Install an OS to allocate disk space.</div>
       </section>
     );
+  }
   const room = Math.max(0, m.cap - m.total);
   return (
     <>
@@ -362,8 +383,8 @@ function Disks({ s, act }: { s: Snapshot; act: OsActions }) {
           </b>
         </div>
         <div class="mute sub">
-          A slot keeps one waiting job: {fmtBytes(m.slotBytes)} of disk and 64 B of RAM. This OS holds {m.cap} at most.{' '}
-          {m.pending ? 'The machine is on: changes apply at the next power-on.' : 'Changes apply now.'}
+          A slot keeps one waiting job: {osui.fmtBytes(m.slotBytes)} of disk and 64 B of RAM. This OS holds {m.cap} at
+          most. {m.pending ? 'The machine is on: changes apply at the next power-on.' : 'Changes apply now.'}
         </div>
       </section>
       {m.drives.map((d) => (

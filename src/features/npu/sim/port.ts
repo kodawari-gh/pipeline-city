@@ -60,7 +60,11 @@ interface NpuLayerBlock {
 /** How full card memory is, cell by cell: the share of words that are not zero in each `NPU_CELL_WORDS`. */
 function fillMap(mem: Uint32Array): number[] {
   const out: number[] = new Array(Math.ceil(mem.length / NPU_CELL_WORDS)).fill(0);
-  for (let k = 0; k < mem.length; k++) if (mem[k] !== 0) out[(k / NPU_CELL_WORDS) | 0]!++;
+  for (let k = 0; k < mem.length; k++) {
+    if (mem[k] !== 0) {
+      out[(k / NPU_CELL_WORDS) | 0]!++;
+    }
+  }
   return out.map((n) => n / NPU_CELL_WORDS);
 }
 
@@ -134,8 +138,12 @@ export class NpuCore {
   readonly loaded: boolean[] = Array.from({ length: NPU_TILES }, () => false);
 
   constructor(cfg: NpuConfig) {
-    if (!Number.isInteger(cfg.grid) || cfg.grid < 1 || cfg.grid > 16) throw new RangeError(`bad grid ${cfg.grid}`);
-    if (cfg.memBytes % 4 !== 0 || cfg.memBytes < 4) throw new RangeError(`bad card memory size ${cfg.memBytes}`);
+    if (!Number.isInteger(cfg.grid) || cfg.grid < 1 || cfg.grid > 16) {
+      throw new RangeError(`bad grid ${cfg.grid}`);
+    }
+    if (cfg.memBytes % 4 !== 0 || cfg.memBytes < 4) {
+      throw new RangeError(`bad card memory size ${cfg.memBytes}`);
+    }
     this.grid = cfg.grid;
     this.mem = new Uint32Array(cfg.memBytes / 4);
     this.tiles = Array.from({ length: NPU_TILES }, () => new Int32Array(cfg.grid * cfg.grid));
@@ -144,7 +152,9 @@ export class NpuCore {
 
   /** Registers back to zero. Card memory is left as it is. */
   reset(): void {
-    for (const t of this.tiles) t.fill(0);
+    for (const t of this.tiles) {
+      t.fill(0);
+    }
     this.acc.fill(0);
     this.loaded.fill(false);
   }
@@ -164,15 +174,18 @@ export class NpuCore {
       reads: [number, number][] = [],
       writes: [number, number][] = [];
     switch (op) {
-      case NpuOp.Load:
+      case NpuOp.Load: {
         reads.push([b, b + n]);
         break;
-      case NpuOp.Bias:
+      }
+      case NpuOp.Bias: {
         reads.push([b, b + K * 4]);
         break;
-      case NpuOp.Store:
+      }
+      case NpuOp.Store: {
         writes.push([b, b + n]);
         break;
+      }
       case NpuOp.Layer: {
         reads.push([a, a + NPU_LAYER_WORDS * 4]);
         const blk = a >>> 2;
@@ -182,21 +195,25 @@ export class NpuCore {
             sz = m * m * 4;
           if (Number.isInteger(m) && m >= 1 && m <= 16) {
             reads.push([f(0), f(0) + sz], [f(1), f(1) + sz]);
-            if (f(3) !== NPU_NO_BIAS) reads.push([f(3), f(3) + m * 4]);
+            if (f(3) !== NPU_NO_BIAS) {
+              reads.push([f(3), f(3) + m * 4]);
+            }
             writes.push([f(2), f(2) + sz]);
           }
         }
         break;
       }
-      default:
+      default: {
         break;
+      }
     }
     return { reads, writes };
   }
 
   private addr(a: number, words: number): number {
-    if (a % 4 !== 0 || a < 0 || a / 4 + words > this.mem.length)
+    if (a % 4 !== 0 || a < 0 || a / 4 + words > this.mem.length) {
       throw new NpuFault(`address 0x${(a >>> 0).toString(16)} is outside card memory or misaligned`);
+    }
     return a >>> 2;
   }
 
@@ -210,8 +227,9 @@ export class NpuCore {
       bias = f(3),
       n = f(4),
       relu = f(5);
-    if (!Number.isInteger(n) || n < this.grid || n > 16 || n % this.grid !== 0)
+    if (!Number.isInteger(n) || n < this.grid || n > 16 || n % this.grid !== 0) {
       throw new NpuFault(`layer size ${n} does not fit a ${this.grid} x ${this.grid} grid`);
+    }
     const W = this.addr(w, n * n),
       X = this.addr(x, n * n),
       O = this.addr(out, n * n),
@@ -220,17 +238,23 @@ export class NpuCore {
     for (let i = 0; i < n; i++) {
       for (let j = 0; j < n; j++) {
         let s = B < 0 ? 0 : this.mem[B + i]! | 0;
-        for (let k = 0; k < n; k++) s = (s + Math.imul(this.mem[W + i * n + k]! | 0, this.mem[X + k * n + j]! | 0)) | 0;
+        for (let k = 0; k < n; k++) {
+          s = (s + Math.imul(this.mem[W + i * n + k]! | 0, this.mem[X + k * n + j]! | 0)) | 0;
+        }
         res[i * n + j] = relu === 1 && s < 0 ? 0 : s;
       }
     }
-    for (let k = 0; k < n * n; k++) this.mem[O + k] = res[k]! >>> 0;
+    for (let k = 0; k < n * n; k++) {
+      this.mem[O + k] = res[k]! >>> 0;
+    }
     return this.layerCost(n);
   }
 
   private tile(slot: number): Int32Array {
     const t = this.tiles[slot];
-    if (!t) throw new NpuFault(`no tile register ${slot}`);
+    if (!t) {
+      throw new NpuFault(`no tile register ${slot}`);
+    }
     return t;
   }
 
@@ -246,15 +270,40 @@ export class NpuCore {
     switch (op) {
       case NpuOp.Load:
       case NpuOp.Store:
-      case NpuOp.Bias:
+      case NpuOp.Bias: {
         return 1 + K;
+      }
       case NpuOp.Matmul:
-      case NpuOp.Macc:
+      case NpuOp.Macc: {
         return 2 + 3 * K;
-      case NpuOp.Relu:
+      }
+      case NpuOp.Relu: {
         return 2;
-      default:
+      }
+      default: {
         throw new NpuFault(`unknown descriptor op ${op}`);
+      }
+    }
+  }
+
+  /** MATMUL / MACC: tile `a` times tile `b` into the accumulators (MACC adds the product to what they hold, MATMUL replaces it). */
+  private matmul(op: number, a: number, b: number): void {
+    const K = this.grid,
+      n = K * K;
+    const x = this.tile(a),
+      y = this.tile(b);
+    const out = new Int32Array(n);
+    for (let i = 0; i < K; i++) {
+      for (let j = 0; j < K; j++) {
+        let s = 0;
+        for (let k = 0; k < K; k++) {
+          s = (s + Math.imul(x[i * K + k]!, y[k * K + j]!)) | 0;
+        }
+        out[i * K + j] = s;
+      }
+    }
+    for (let k = 0; k < n; k++) {
+      this.acc[k] = op === NpuOp.Macc ? (this.acc[k]! + out[k]!) | 0 : out[k]!;
     }
   }
 
@@ -265,43 +314,45 @@ export class NpuCore {
       case NpuOp.Load: {
         const at = this.addr(b, n);
         const t = this.tile(a);
-        for (let k = 0; k < n; k++) t[k] = this.mem[at + k]! | 0;
+        for (let k = 0; k < n; k++) {
+          t[k] = this.mem[at + k]! | 0;
+        }
         this.loaded[a] = true;
         break;
       }
       case NpuOp.Matmul:
       case NpuOp.Macc: {
-        const x = this.tile(a),
-          y = this.tile(b);
-        const out = new Int32Array(n);
-        for (let i = 0; i < K; i++) {
-          for (let j = 0; j < K; j++) {
-            let s = 0;
-            for (let k = 0; k < K; k++) s = (s + Math.imul(x[i * K + k]!, y[k * K + j]!)) | 0;
-            out[i * K + j] = s;
-          }
-        }
-        for (let k = 0; k < n; k++) this.acc[k] = op === NpuOp.Macc ? (this.acc[k]! + out[k]!) | 0 : out[k]!;
+        this.matmul(op, a, b);
         break;
       }
       case NpuOp.Bias: {
         const at = this.addr(b, K);
-        for (let i = 0; i < K; i++)
-          for (let j = 0; j < K; j++) this.acc[i * K + j] = (this.acc[i * K + j]! + (this.mem[at + i]! | 0)) | 0;
+        for (let i = 0; i < K; i++) {
+          for (let j = 0; j < K; j++) {
+            this.acc[i * K + j] = (this.acc[i * K + j]! + (this.mem[at + i]! | 0)) | 0;
+          }
+        }
         break;
       }
-      case NpuOp.Relu:
-        for (let k = 0; k < n; k++) if (this.acc[k]! < 0) this.acc[k] = 0;
+      case NpuOp.Relu: {
+        for (let k = 0; k < n; k++) {
+          this.acc[k] = Math.max(0, this.acc[k]!);
+        }
         break;
-      case NpuOp.Layer:
+      }
+      case NpuOp.Layer: {
         return this.layer(a);
+      }
       case NpuOp.Store: {
         const at = this.addr(b, n);
-        for (let k = 0; k < n; k++) this.mem[at + k] = this.acc[k]! >>> 0;
+        for (let k = 0; k < n; k++) {
+          this.mem[at + k] = this.acc[k]! >>> 0;
+        }
         break;
       }
-      default:
+      default: {
         throw new NpuFault(`unknown descriptor op ${op}`);
+      }
     }
     return this.cost(op);
   }
@@ -359,7 +410,9 @@ export class NpuPort implements Device {
 
   configure(cfg: NpuConfig | null): void {
     const same = cfg && this.cfg && cfg.grid === this.cfg.grid && cfg.memBytes === this.cfg.memBytes;
-    if (same || (!cfg && !this.cfg)) return;
+    if (same || (!cfg && !this.cfg)) {
+      return;
+    }
     this.cfg = cfg;
     this.core = cfg ? new NpuCore(cfg) : null;
     this.reset();
@@ -383,9 +436,10 @@ export class NpuPort implements Device {
 
   /** The card as the board view draws it, or null without a card. */
   view(): NpuView | null {
-    const core = this.core,
-      cfg = this.cfg;
-    if (!core || !cfg) return null;
+    const { core, cfg } = this;
+    if (!core || !cfg) {
+      return null;
+    }
     const list: NpuView['list'] = [];
     const base = this.descAt / 4;
     if (this.count > 0 && this.descAt % 4 === 0 && base + this.count * NPU_DESC_WORDS <= core.mem.length) {
@@ -465,7 +519,9 @@ export class NpuPort implements Device {
       writes: t.writes,
       acc: this.core!.accNow(),
     });
-    if (this.log.length > NPU_LOG) this.log.shift();
+    if (this.log.length > NPU_LOG) {
+      this.log.shift();
+    }
   }
 
   get present(): boolean {
@@ -487,7 +543,7 @@ export class NpuPort implements Device {
   }
 
   read(off: number): number {
-    const core = this.core;
+    const { core } = this;
     if (off >= NPU_MEM) {
       const o = off - NPU_MEM;
       if (core && o < core.mem.length * 4 && (o & 3) === 0) {
@@ -498,37 +554,44 @@ export class NpuPort implements Device {
     }
     let w = 0;
     switch (off & ~3) {
-      case NPU_REG.STATUS:
+      case NPU_REG.STATUS: {
         w =
           (this.phase !== 'idle' ? GpuStatus.Busy : 0) |
           (this.error ? GpuStatus.Error : 0) |
           (core ? GpuStatus.Present : 0) |
           (this.done ? GpuStatus.Done : 0);
         break;
-      case NPU_REG.DESC:
+      }
+      case NPU_REG.DESC: {
         w = this.descAt;
         break;
-      case NPU_REG.COUNT:
+      }
+      case NPU_REG.COUNT: {
         w = this.count;
         break;
-      case NPU_REG.GRID:
+      }
+      case NPU_REG.GRID: {
         w = this.cfg?.grid ?? 0;
         break;
-      case NPU_REG.MEM_BYTES:
+      }
+      case NPU_REG.MEM_BYTES: {
         w = this.cfg?.memBytes ?? 0;
         break;
-      case NPU_REG.CYCLES:
+      }
+      case NPU_REG.CYCLES: {
         w = this.cycles;
         break;
-      case NPU_REG.FAULT:
+      }
+      case NPU_REG.FAULT: {
         w = this.fault;
         break;
+      }
     }
     return (w >>> (8 * (off & 3))) & 0xff;
   }
 
   write(off: number, val: number): void {
-    const core = this.core;
+    const { core } = this;
     if (off >= NPU_MEM) {
       const o = off - NPU_MEM;
       if (core && o < core.mem.length * 4) {
@@ -544,13 +607,17 @@ export class NpuPort implements Device {
     const reg = off & ~3,
       sh = 8 * (off & 3);
     const put = (old: number): number => ((old & ~(0xff << sh)) | ((val & 0xff) << sh)) >>> 0;
-    if (reg === NPU_REG.DESC) this.descAt = put(this.descAt);
-    else if (reg === NPU_REG.COUNT) this.count = put(this.count);
-    else if (reg === NPU_REG.CMD && off === reg) this.launch(val & 0xff);
+    if (reg === NPU_REG.DESC) {
+      this.descAt = put(this.descAt);
+    } else if (reg === NPU_REG.COUNT) {
+      this.count = put(this.count);
+    } else if (reg === NPU_REG.CMD && off === reg) {
+      this.launch(val & 0xff);
+    }
   }
 
   private launch(cmd: number): void {
-    const core = this.core;
+    const { core } = this;
     const listWords = this.count * NPU_DESC_WORDS;
     if (
       cmd !== 1 ||
@@ -573,10 +640,12 @@ export class NpuPort implements Device {
   }
 
   tick(): void {
-    const core = this.core;
-    if (!core || this.phase === 'idle') return;
+    const { core } = this;
+    if (!core || this.phase === 'idle') {
+      return;
+    }
     switch (this.phase) {
-      case 'in':
+      case 'in': {
         if (--this.wait <= 0) {
           core.reset();
           this.next = 0;
@@ -585,9 +654,12 @@ export class NpuPort implements Device {
           this.phase = 'run';
         }
         break;
+      }
       case 'run': {
         if (this.stall > 0) {
-          if (--this.stall === 0 && this.next >= this.count) this.finish();
+          if (--this.stall === 0 && this.next >= this.count) {
+            this.finish();
+          }
           break;
         }
         const w = this.descAt / 4 + this.next * NPU_DESC_WORDS;
@@ -603,9 +675,13 @@ export class NpuPort implements Device {
           this.note(this.next, op, a, b, cost, false, seen);
           this.next++;
           this.descriptors++;
-          if (this.next >= this.count && this.stall === 0) this.finish();
+          if (this.next >= this.count && this.stall === 0) {
+            this.finish();
+          }
         } catch (e) {
-          if (!(e instanceof NpuFault)) throw e;
+          if (!(e instanceof NpuFault)) {
+            throw e;
+          }
           this.note(this.next, op, a, b, 0, true, seen);
           this.next++;
           this.curCost = 1;
@@ -615,12 +691,13 @@ export class NpuPort implements Device {
         }
         break;
       }
-      case 'out':
+      case 'out': {
         if (--this.wait <= 0) {
           this.phase = 'idle';
           this.done = true;
         }
         break;
+      }
     }
   }
 
