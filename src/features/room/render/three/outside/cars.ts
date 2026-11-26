@@ -22,16 +22,16 @@ import {
   Sphere,
   Vector2,
   Vector3,
-  type BufferAttribute,
-  type BufferGeometry,
-  type Frustum,
-  type Material,
 } from 'three';
+import type * as threeTypes from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { SEG } from '@/core/render/three/geometry';
-import { HAZE_FN, withHaze, type HazeUniforms } from './haze';
-import { CAR_COLOURS, GRID, heading, rng, type Car } from './plan';
-import { MODELS, type Route, type Traffic } from './traffic';
+import { HAZE_FN, withHaze } from './haze';
+import type * as hazeTypes from './haze';
+import { CAR_COLOURS, GRID, heading, rng } from './plan';
+import type * as planTypes from './plan';
+import { MODELS } from './traffic';
+import type * as trafficTypes from './traffic';
 
 /** A wheel's radius and its arch's, the sill's height (m). */
 const WHEEL = 0.32,
@@ -53,13 +53,13 @@ export const FULL_LOW = 300;
  * other cars. A far car drives at a share `s` when `share < s`; the lanes and places are fixed for the traffic's life.
  */
 export function share(lane: number, place: number): number {
-  let h = Math.imul(lane + 1, 0x9e3779b1) ^ Math.imul(place + 1, 0x85ebca77);
+  let h = Math.imul(lane + 1, 0x9e_37_79_b1) ^ Math.imul(place + 1, 0x85_eb_ca_77);
   h ^= h >>> 15;
-  h = Math.imul(h, 0x2c1b3c6d);
+  h = Math.imul(h, 0x2c_1b_3c_6d);
   h ^= h >>> 12;
-  h = Math.imul(h, 0x297a2d39);
+  h = Math.imul(h, 0x29_7a_2d_39);
   h ^= h >>> 15;
-  return (h >>> 0) / 4294967296;
+  return (h >>> 0) / 4_294_967_296;
 }
 /** At Low, a car further than this from the window (m) is not drawn at all, neither its full model nor its box: the far grid goes, the avenue stays (`CLIP_AVENUE_LOW`). */
 const CLIP_LOW = 350;
@@ -84,25 +84,34 @@ const SHADE_R = CAR_R * 1.5,
 const PARK_CELL = 48;
 
 /** Where a ball stands to a frustum: -1 out of it, else the planes it crosses (a bit each, so 0 when it is wholly in it). */
-export function within(f: Frustum, b: Sphere): number {
+export function within(f: threeTypes.Frustum, b: Sphere): number {
   let cut = 0;
   for (let i = 0; i < 6; i++) {
     const d = f.planes[i]!.distanceToPoint(b.center);
-    if (d < -b.radius) return -1;
-    if (d < b.radius) cut |= 1 << i;
+    if (d < -b.radius) {
+      return -1;
+    }
+    if (d < b.radius) {
+      cut |= 1 << i;
+    }
   }
   return cut;
 }
 
 /** Does the frustum hold a car at (x, z), its ball of radius `CAR_R`, given the planes its cell crosses (`within`; 0: the cell is wholly in)? */
-function holds(f: Frustum, cut: number, x: number, z: number): boolean {
-  if (cut)
+function holds(f: threeTypes.Frustum, cut: number, x: number, z: number): boolean {
+  if (cut) {
     for (let q = 0; q < 6; q++) {
-      if (!(cut & (1 << q))) continue;
+      if (!(cut & (1 << q))) {
+        continue;
+      }
       const p = f.planes[q]!,
         n = p.normal;
-      if (n.x * x + n.y * (CAR_R / 2) + n.z * z + p.constant < -CAR_R) return false;
+      if (n.x * x + n.y * (CAR_R / 2) + n.z * z + p.constant < -CAR_R) {
+        return false;
+      }
     }
+  }
   return true;
 }
 
@@ -110,21 +119,30 @@ function holds(f: Frustum, cut: number, x: number, z: number): boolean {
  * The stretch of a route where a ball of radius `r`, its middle `y` over the road at a car's middle, meets the frustum (each plane, as
  * `Frustum.intersectsSphere`): the cars' middles from `out[0]` to `out[1]` m along it (none when `out[0] > out[1]`); all of it with no `seen`.
  */
-export function reach(rt: Route, seen: Frustum | undefined, y: number, r: number, out: number[]): void {
+export function reach(
+  rt: trafficTypes.Route,
+  seen: threeTypes.Frustum | undefined,
+  y: number,
+  r: number,
+  out: number[],
+): void {
   let lo = -Infinity,
     hi = Infinity;
-  if (seen)
+  if (seen) {
     for (const p of seen.planes) {
       const n = p.normal,
         a = n.x * rt.dx + n.z * rt.dz,
         b = n.x * rt.x + n.y * y + n.z * rt.z + p.constant + r;
-      if (a > 0) lo = Math.max(lo, -b / a);
-      else if (a < 0) hi = Math.min(hi, -b / a);
-      else if (b < 0) {
+      if (a > 0) {
+        lo = Math.max(lo, -b / a);
+      } else if (a < 0) {
+        hi = Math.min(hi, -b / a);
+      } else if (b < 0) {
         lo = Infinity;
         hi = -Infinity;
       }
     }
+  }
   out[0] = lo;
   out[1] = hi;
 }
@@ -132,8 +150,10 @@ const AROUND = [0, 0],
   BODY = [0, 0];
 
 /** Upload instances `from` to `from + n` of an attribute, what was written this draw (none: nothing to send). */
-function upload(a: BufferAttribute, from: number, n: number): void {
-  if (n <= 0) return;
+function upload(a: threeTypes.BufferAttribute, from: number, n: number): void {
+  if (n <= 0) {
+    return;
+  }
   a.clearUpdateRanges();
   a.addUpdateRange(from * a.itemSize, n * a.itemSize);
   a.needsUpdate = true;
@@ -151,7 +171,7 @@ enum Part {
 }
 
 /** A shape of (x, y) points, extruded `w` wide across z about the middle, its edges rounded by `round`. */
-function extrude(pts: readonly (readonly [number, number])[], w: number, round: number): BufferGeometry {
+function extrude(pts: readonly (readonly [number, number])[], w: number, round: number): threeTypes.BufferGeometry {
   const g = new ExtrudeGeometry(new Shape(pts.map(([x, y]) => new Vector2(x, y))), {
     depth: w - 2 * round,
     bevelEnabled: true,
@@ -163,7 +183,7 @@ function extrude(pts: readonly (readonly [number, number])[], w: number, round: 
   });
   return g.translate(0, 0, -(w - 2 * round) / 2);
 }
-const box = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): BufferGeometry =>
+const box = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): threeTypes.BufferGeometry =>
   new BoxGeometry(Math.abs(x1 - x0), Math.abs(y1 - y0), Math.abs(z1 - z0)).translate(
     (x0 + x1) / 2,
     (y0 + y1) / 2,
@@ -182,7 +202,7 @@ function arch(x: number): [number, number][] {
 }
 
 /** Pieces into one geometry, each vertex's part in `part`. */
-function merge(pieces: [BufferGeometry, Part][]): BufferGeometry {
+function merge(pieces: [threeTypes.BufferGeometry, Part][]): threeTypes.BufferGeometry {
   return mergeGeometries(
     pieces.map(([g, p]) => {
       const n = g.index ? g.toNonIndexed() : g;
@@ -197,11 +217,11 @@ function merge(pieces: [BufferGeometry, Part][]): BufferGeometry {
 }
 
 /** A model's geometry (`MODELS`), in its frame, on the road at y = 0. */
-function carGeometry(model: number): BufferGeometry {
+function carGeometry(model: number): threeTypes.BufferGeometry {
   const { tail, len: L } = MODELS[model]!,
     W = 1.78,
     H = tail === 'estate' ? 1.5 : tail === 'hatch' ? 1.47 : 1.43,
-    out: [BufferGeometry, Part][] = [];
+    out: [threeTypes.BufferGeometry, Part][] = [];
   const half = L / 2,
     belt = 0.94,
     hood = tail === 'hatch' ? 0.98 : 1.12,
@@ -249,10 +269,11 @@ function carGeometry(model: number): BufferGeometry {
   out.push([box(rf - 0.1, H - 0.07, -Wc / 2 - 0.02, rb + 0.06, H + 0.005, Wc / 2 + 0.02), Part.Paint]);
   const bx = (rf + rb) / 2 + 0.12;
   out.push([box(bx - 0.06, belt, -Wc / 2 - 0.012, bx + 0.06, H - 0.06, Wc / 2 + 0.012), Part.Trim]);
-  for (const s of [-1, 1])
+  for (const s of [-1, 1]) {
     out.push([box(fx - 0.2, belt + 0.06, s * (W / 2 - 0.02), fx - 0.06, belt + 0.17, s * (W / 2 + 0.13)), Part.Paint]);
+  }
   // the wheels: a tyre and its rim at each corner
-  for (const x of [xf, xr])
+  for (const x of [xf, xr]) {
     for (const s of [-1, 1]) {
       out.push([
         new CylinderGeometry(WHEEL, WHEEL, 0.21, SEG.roundCap)
@@ -265,6 +286,7 @@ function carGeometry(model: number): BufferGeometry {
         Part.Rim,
       ]);
     }
+  }
   // the front's lamps, grille and plate; the tail's lamps and plate
   for (const s of [-1, 1]) {
     out.push([box(half - 0.14, 0.58, s * (W / 2 - 0.44), half - 0.02, 0.68, s * (W / 2 - 0.1)), Part.Head]);
@@ -279,18 +301,19 @@ function carGeometry(model: number): BufferGeometry {
 }
 
 /** The far model: the body and the glasshouse as boxes, the lamps as plates on its ends (a car of 4.5 m). */
-function farGeometry(): BufferGeometry {
+function farGeometry(): threeTypes.BufferGeometry {
   const h = 2.25,
     W = 1.78;
-  const out: [BufferGeometry, Part][] = [
+  const out: [threeTypes.BufferGeometry, Part][] = [
     [box(-h, 0.2, -W / 2, h, 0.92, W / 2), Part.Paint],
     [box(-h + 0.6, 0.92, -W / 2 + 0.1, h - 1.1, 1.42, W / 2 - 0.1), Part.Glass],
   ];
-  for (const s of [-1, 1])
+  for (const s of [-1, 1]) {
     out.push(
       [box(h, 0.56, s * 0.85 - 0.18, h + 0.02, 0.7, s * 0.85 + 0.18), Part.Head],
       [box(-h - 0.02, 0.72, s * 0.8 - 0.2, -h, 0.86, s * 0.8 + 0.2), Part.Tail],
     );
+  }
   return merge(out);
 }
 
@@ -302,7 +325,7 @@ export interface CarLight {
 /** The cars' one material: each part painted by its vertices' `part`, the paint from the instance's colour, the lamps lit by its `lit` (head lamps, brake). `coat` false (Low): no clearcoat, the paint is matt. */
 export function carMaterial(u: CarLight, coat = true): MeshPhysicalMaterial {
   const mat = new MeshPhysicalMaterial({
-    color: 0xffffff,
+    color: 0xff_ff_ff,
     roughness: 0.4,
     metalness: 0.3,
     clearcoat: coat ? 1 : 0,
@@ -384,12 +407,14 @@ void main() {
 }`;
 
 /** The pools' geometry in a car's frame (a car of 4.5 m): the head lamps' cone ahead, the tail lamps' glow behind, a little over the road. */
-function poolGeometry(): BufferGeometry {
-  const quad = (x0: number, x1: number, w: number, kind: number): BufferGeometry => {
+function poolGeometry(): threeTypes.BufferGeometry {
+  const quad = (x0: number, x1: number, w: number, kind: number): threeTypes.BufferGeometry => {
     const pos = [x0, 0, -w, x1, 0, -w, x1, 0, w, x0, 0, -w, x1, 0, w, x0, 0, w].map((v, i) => (i % 3 === 1 ? 0.04 : v));
     const uv = [0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1];
     const g = new BoxGeometry().toNonIndexed();
-    for (const n of Object.keys(g.attributes)) g.deleteAttribute(n);
+    for (const n of Object.keys(g.attributes)) {
+      g.deleteAttribute(n);
+    }
     g.setAttribute('position', new Float32BufferAttribute(pos, 3));
     g.setAttribute('uv', new Float32BufferAttribute(uv, 2));
     g.setAttribute(
@@ -423,9 +448,11 @@ void main() {
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 
-function shadeGeometry(): BufferGeometry {
+function shadeGeometry(): threeTypes.BufferGeometry {
   const g = new BoxGeometry(1, 1, 1).toNonIndexed();
-  for (const n of Object.keys(g.attributes)) g.deleteAttribute(n);
+  for (const n of Object.keys(g.attributes)) {
+    g.deleteAttribute(n);
+  }
   const x = 2.9,
     z = 1.25,
     y = 0.03;
@@ -438,7 +465,7 @@ function shadeGeometry(): BufferGeometry {
 }
 
 /** An instanced mesh of up to `n` on a geometry of its own (its attributes shared), with its per-car paint and lamps; placed each draw (`Fleet.update`). */
-function fleetMesh(g: BufferGeometry, m: Material, n: number): InstancedMesh {
+function fleetMesh(g: threeTypes.BufferGeometry, m: threeTypes.Material, n: number): InstancedMesh {
   const geo = g.clone();
   const lit = new InstancedBufferAttribute(new Float32Array(n * 2), 2);
   lit.setUsage(DynamicDrawUsage);
@@ -494,13 +521,17 @@ interface Cell {
 }
 
 /** Parked cars in cells of the ground (`PARK_CELL`): the list sorted cell by cell, each car's turn (its cosine and sine), and the cells. */
-export function parkCells(cars: readonly Car[]): { cars: Car[]; turn: Float64Array; cells: Cell[] } {
-  const by = new Map<string, Car[]>();
+export function parkCells(cars: readonly planTypes.Car[]): {
+  cars: planTypes.Car[];
+  turn: Float64Array;
+  cells: Cell[];
+} {
+  const by = new Map<string, planTypes.Car[]>();
   for (const c of cars) {
     const key = `${Math.floor(c.x / PARK_CELL)},${Math.floor(c.z / PARK_CELL)}`;
     by.set(key, [...(by.get(key) ?? []), c]);
   }
-  const out: Car[] = [],
+  const out: planTypes.Car[] = [],
     cells: Cell[] = [];
   for (const run of by.values()) {
     const mid = new Vector3(
@@ -547,10 +578,10 @@ export class Fleet {
   }
 
   constructor(
-    private traffic: Traffic,
-    parked: readonly Car[],
+    private traffic: trafficTypes.Traffic,
+    parked: readonly planTypes.Car[],
     private light: CarLight,
-    haze: HazeUniforms,
+    haze: hazeTypes.HazeUniforms,
     scale = 1,
     models: number = MODELS.length,
   ) {
@@ -565,15 +596,18 @@ export class Fleet {
       box = farGeometry();
     withHaze(mat, haze);
     // the parked cars: each model's in one mesh, the box past `NEAR` of the window as for a moving car, their lamps dark, casting their shadows
-    const byModel = geos.map(() => [] as Car[]),
-      boxed: Car[] = [];
-    for (const c of parked)
+    const byModel = geos.map(() => [] as planTypes.Car[]),
+      boxed: planTypes.Car[] = [];
+    for (const c of parked) {
       (Math.hypot(c.x - GRID.av0, c.z) < NEAR && !this.capped
         ? byModel[Math.min(Math.floor(rng(c.seed)() * MODELS.length), models - 1)]!
         : boxed
       ).push(c);
+    }
     [...byModel, boxed].forEach((all, k) => {
-      if (!all.length) return;
+      if (all.length === 0) {
+        return;
+      }
       const im = fleetMesh(geos[k] ?? box, mat, all.length);
       im.castShadow = im.receiveShadow = true;
       this.still.push({ im, ...parkCells(all) });
@@ -618,7 +652,9 @@ export class Fleet {
     this.shades.instanceMatrix.setUsage(DynamicDrawUsage);
     this.pools.renderOrder = this.shades.renderOrder = 1;
     // (the capped fleet of Low has no pools of light and no soft shadows: two draws fewer)
-    if (!this.capped) this.group.add(this.pools, this.shades);
+    if (!this.capped) {
+      this.group.add(this.pools, this.shades);
+    }
   }
 
   /**
@@ -627,7 +663,7 @@ export class Fleet {
    * cell across its side, a car is tested on the planes the cell crosses (as `Frustum.intersectsSphere` on its ball). With the eye, a car past
    * `clip` of it is not placed (Low only).
    */
-  park(seen?: Frustum, ex?: number, ez?: number, also?: Frustum): void {
+  park(seen?: threeTypes.Frustum, ex?: number, ez?: number, also?: threeTypes.Frustum): void {
     const eye = ex !== undefined && ez !== undefined;
     for (const { im, cars, turn, cells } of this.still) {
       const a = im.instanceMatrix.array as Float32Array,
@@ -637,12 +673,17 @@ export class Fleet {
         // (a car is placed when `seen` or `also` holds it: `also` is the sun's shadow box on a frame that draws the map)
         const cut = seen ? within(seen, ball) : 0,
           cutAlso = seen && also ? within(also, ball) : -1;
-        if (cut < 0 && cutAlso < 0) continue;
+        if (cut < 0 && cutAlso < 0) {
+          continue;
+        }
         for (let i = from; i < to; i++) {
           const c = cars[i]!;
-          if (eye && this.clipped(c.x, (c.x - ex) ** 2 + (c.z - ez) ** 2)) continue;
-          if (seen && !(cut >= 0 && holds(seen, cut, c.x, c.z)) && !(cutAlso >= 0 && holds(also!, cutAlso, c.x, c.z)))
+          if (eye && this.clipped(c.x, (c.x - ex) ** 2 + (c.z - ez) ** 2)) {
             continue;
+          }
+          if (seen && !(cut >= 0 && holds(seen, cut, c.x, c.z)) && !(cutAlso >= 0 && holds(also!, cutAlso, c.x, c.z))) {
+            continue;
+          }
           turned(a, k, c.x, c.z, turn[i * 2]!, turn[i * 2 + 1]!);
           paint(ca, k++, c.colour);
         }
@@ -658,13 +699,15 @@ export class Fleet {
    * `seen`: the eye's frustum. Each route is cut to it first (`reach`), so a car out of it costs nothing: not drawn, nor its soft shadow, nor
    * (at night) its lamps' pools, which reach into the view from a little further (`POOL_R`). The lamps' pools are drawn only at night.
    */
-  update(dt: number, ex: number, ez: number, seen?: Frustum): void {
+  update(dt: number, ex: number, ez: number, seen?: threeTypes.Frustum): void {
     const tr = this.traffic,
       night = this.light.night.value > 0,
       P = this.parked;
     // (0.4 s at most a draw: after a pause the traffic does not run on for its whole length)
     tr.step(Math.min(dt, 0.4));
-    for (const im of this.moving) im.count = 0;
+    for (const im of this.moving) {
+      im.count = 0;
+    }
     const pa = this.pools.instanceMatrix.array as Float32Array,
       pl = this.pools.geometry.attributes['lit']!.array as Float32Array;
     const sa = this.shades.instanceMatrix.array as Float32Array;
@@ -673,7 +716,9 @@ export class Fleet {
       const rt = tr.routes[ri]!,
         lane = tr.lanes[ri]!;
       reach(rt, seen, 0, night ? POOL_R : SHADE_R, AROUND);
-      if (!lane.length || AROUND[0]! > AROUND[1]!) continue;
+      if (lane.length === 0 || AROUND[0]! > AROUND[1]!) {
+        continue;
+      }
       reach(rt, seen, CAR_R / 2, CAR_R, BODY);
       const f = tr.phase(ri),
         rot = heading(rt.dx, rt.dz),
@@ -686,14 +731,21 @@ export class Fleet {
       for (let hi = lane.length; k0 < hi;) {
         const mid = (k0 + hi) >> 1,
           c = lane[mid]!;
-        if (c.was - c.len / 2 > AROUND[1]!) k0 = mid + 1;
-        else hi = mid;
+        if (c.was - c.len / 2 > AROUND[1]!) {
+          k0 = mid + 1;
+        } else {
+          hi = mid;
+        }
       }
       for (let q = k0; q < lane.length; q++) {
         const c = lane[q]!;
-        if (c.s - c.len / 2 < AROUND[0]!) break;
+        if (c.s - c.len / 2 < AROUND[0]!) {
+          break;
+        }
         const m = tr.front(c, f) - c.len / 2;
-        if (m < AROUND[0]! || m > AROUND[1]!) continue;
+        if (m < AROUND[0]! || m > AROUND[1]!) {
+          continue;
+        }
         const x = rt.x + rt.dx * m,
           z = rt.z + rt.dz * m,
           brake = c.brake ? 1 : 0;
@@ -705,10 +757,13 @@ export class Fleet {
           !own &&
           (x - ex) ** 2 + (z - ez) ** 2 >= FULL_LOW * FULL_LOW &&
           share(ri, q) >= this.scale
-        )
+        ) {
           continue;
+        }
         // (past the clip: not drawn, and not counted, as if it were off the road; the drive count above is already set)
-        if (this.clipped(x, (x - ex) ** 2 + (z - ez) ** 2)) continue;
+        if (this.clipped(x, (x - ex) ** 2 + (z - ez) ** 2)) {
+          continue;
+        }
         turned(sa, P + n, x, z, cr, sr);
         if (night) {
           turned(pa, n, x, z, cr, sr);
@@ -716,7 +771,9 @@ export class Fleet {
           pl[n * 2 + 1] = brake;
         }
         n++;
-        if (m < BODY[0]! || m > BODY[1]!) continue;
+        if (m < BODY[0]! || m > BODY[1]!) {
+          continue;
+        }
         const ox = x - ex,
           oz = z - ez,
           im =
@@ -734,11 +791,11 @@ export class Fleet {
     for (const im of this.moving) {
       upload(im.instanceMatrix, 0, im.count);
       upload(im.instanceColor!, 0, im.count);
-      upload(im.geometry.attributes['lit'] as BufferAttribute, 0, im.count);
+      upload(im.geometry.attributes['lit'] as threeTypes.BufferAttribute, 0, im.count);
     }
     this.pools.count = night ? n : 0;
     upload(this.pools.instanceMatrix, 0, this.pools.count);
-    upload(this.pools.geometry.attributes['lit'] as BufferAttribute, 0, this.pools.count);
+    upload(this.pools.geometry.attributes['lit'] as threeTypes.BufferAttribute, 0, this.pools.count);
     this.shades.count = P + n;
     upload(this.shades.instanceMatrix, P, n);
   }

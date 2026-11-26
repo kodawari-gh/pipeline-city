@@ -14,23 +14,12 @@ import {
   Object3D,
   Vector3,
 } from 'three';
-import { LOW_FURNITURE_M, type CityDetail } from './detail';
+import { LOW_FURNITURE_M } from './detail';
+import type * as detailTypes from './detail';
 import type { Kit } from './kit';
 import { block } from './parts';
-import {
-  CURB,
-  DETAIL,
-  GRID,
-  LANES,
-  PARKS,
-  avenueX,
-  blockRect,
-  lamps,
-  streetZ,
-  toOutside,
-  type Lamp,
-  type Tree,
-} from './plan';
+import { CURB, DETAIL, GRID, LANES, PARKS, avenueX, blockRect, lamps, streetZ, toOutside } from './plan';
+import type * as planTypes from './plan';
 import { lightAt } from './traffic';
 import { WALL_T, WINDOW } from '../roomplan';
 import { SEG } from '@/core/render/three/geometry';
@@ -42,7 +31,7 @@ const REACH_X = 2400,
 const PAINT = 0.006;
 
 /** A modern street lamp: a tapered steel pole, an arm out over the road, a flat head with its glowing lens. Returns where its light is. */
-function lamp(g: Group, l: Lamp, k: Kit): Vector3 {
+function lamp(g: Group, l: planTypes.Lamp, k: Kit): Vector3 {
   const lg = new Group(),
     pole = new Mesh(new CylinderGeometry(0.07, 0.12, 8.2, SEG.rod), k.post);
   pole.position.y = CURB + 4.1;
@@ -92,8 +81,9 @@ function signal(
   s.position.set(x, 0, z);
   s.rotation.y = rot;
   g.add(s);
-  for (let n = 0; n < 3; n++)
+  for (let n = 0; n < 3; n++) {
     out.push({ x: x + Math.cos(rot) * hx, y: CURB + 5.55 - n * 0.33, z: z + face * 0.21, face, i, j, n });
+  }
 }
 
 /** The colours of a lit signal lamp (red, amber, green) and of a dark one. */
@@ -110,7 +100,7 @@ export class Signals {
   constructor(private lamps: readonly SignalLamp[]) {
     this.mesh = new InstancedMesh(
       new BoxGeometry(0.24, 0.24, 0.04),
-      new MeshBasicMaterial({ color: 0xffffff }),
+      new MeshBasicMaterial({ color: 0xff_ff_ff }),
       lamps.length,
     );
     const o = new Object3D();
@@ -137,9 +127,9 @@ export class Signals {
 /** The streets' still things in one group (to merge), where the lamps' lights are, and the signal heads' lamps. */
 export function street(
   k: Kit,
-  ts: readonly Tree[],
-  detail: CityDetail = 'high',
-  furniture: CityDetail = detail,
+  ts: readonly planTypes.Tree[],
+  detail: detailTypes.CityDetail = 'high',
+  furniture: detailTypes.CityDetail = detail,
 ): { group: Group; lights: Vector3[]; signals: SignalLamp[] } {
   const g = new Group();
   // (at Low the small furniture stands only near the window; a metre inside the limit, as a pit's grille lies off its tree's middle)
@@ -148,7 +138,7 @@ export function street(
   g.add(block(-REACH_X, -0.05, -REACH_Z, REACH_X, 0, 2, k.asphalt));
   // each block's pavement out to the kerbs; a park's lawn inside its pavement, two paths crossing it
   const w = GRID.walk;
-  for (let j = 0; j < GRID.rows; j++)
+  for (let j = 0; j < GRID.rows; j++) {
     for (let i = -GRID.cols; i < GRID.cols; i++) {
       const b = blockRect(i, j),
         far = Math.hypot((b.x0 + b.x1) / 2, b.z1) > 1800;
@@ -164,6 +154,7 @@ export function street(
         );
       }
     }
+  }
   // our own pavement under the window, the avenues' roads running on through it, behind our facade
   const road = GRID.avenue / 2 - w,
     sroad = GRID.street / 2 - w;
@@ -182,24 +173,35 @@ export function street(
     for (let j = -1; j < 8; j++) {
       const z1 = j < 0 ? 2 : streetZ(j) - GRID.street / 2,
         z0 = streetZ(j + 1) + GRID.street / 2;
-      if (j >= 0)
-        for (const dx of [-0.2, 0.2]) g.add(block(x + dx - 0.06, 0, z0 + 3, x + dx + 0.06, PAINT, z1 - 3, k.yellow));
-      if (j >= 0)
-        for (const lx of [-A.dash, A.dash])
-          for (let z = z1 - 4; z > z0 + 4; z -= 9)
+      if (j >= 0) {
+        for (const dx of [-0.2, 0.2]) {
+          g.add(block(x + dx - 0.06, 0, z0 + 3, x + dx + 0.06, PAINT, z1 - 3, k.yellow));
+        }
+      }
+      if (j >= 0) {
+        for (const lx of [-A.dash, A.dash]) {
+          for (let z = z1 - 4; z > z0 + 4; z -= 9) {
             g.add(block(x + lx - 0.07, 0, z - 3, x + lx + 0.07, PAINT, z, k.paint));
-      if (j >= 0)
-        for (const lx of [-A.edge, A.edge])
+          }
+        }
+      }
+      if (j >= 0) {
+        for (const lx of [-A.edge, A.edge]) {
           g.add(block(x + lx - 0.06, 0, z0 + 2, x + lx + 0.06, PAINT, z1 - 2, k.paint));
+        }
+      }
       // the zebras across the avenue at the street's pavements: the traffic toward us stops before the near one (west half), the traffic
       // away before the far one (east half)
       for (const [zc, side] of [
         [z1 + 1.8, 1],
         [z0 - 1.8, -1],
       ] as const) {
-        if (j < 0 && side > 0) continue;
-        for (let s = -road + 0.4; s < road - 0.4; s += 1.1)
+        if (j < 0 && side > 0) {
+          continue;
+        }
+        for (let s = -road + 0.4; s < road - 0.4; s += 1.1) {
           g.add(block(x + s, 0, zc - 1.6, x + s + 0.6, PAINT, zc + 1.6, k.paint));
+        }
         g.add(
           block(
             side > 0 ? x - road : x,
@@ -219,10 +221,14 @@ export function street(
     for (let i = -4; i < 4; i++) {
       const x0 = avenueX(i) + GRID.avenue / 2,
         x1 = avenueX(i + 1) - GRID.avenue / 2;
-      for (let x = x0 + 4; x < x1 - 6; x += 7) g.add(block(x, 0, z - 0.07, x + 3, PAINT, z + 0.07, k.paint));
-      for (const xc of [x0 - 1.8, x1 + 1.8])
-        for (let s = -sroad + 0.4; s < sroad - 0.4; s += 1.1)
+      for (let x = x0 + 4; x < x1 - 6; x += 7) {
+        g.add(block(x, 0, z - 0.07, x + 3, PAINT, z + 0.07, k.paint));
+      }
+      for (const xc of [x0 - 1.8, x1 + 1.8]) {
+        for (let s = -sroad + 0.4; s < sroad - 0.4; s += 1.1) {
           g.add(block(xc - 1.6, 0, z + s, xc + 1.6, PAINT, z + s + 0.6, k.paint));
+        }
+      }
       // the stop lines: westbound on the far half before the avenue at x0, eastbound on the near half before the one at x1
       g.add(
         block(x0 + 0.4, 0, z - sroad, x0 + 0.8, PAINT, z, k.paint),
@@ -231,36 +237,44 @@ export function street(
     }
   }
   // the drains by the kerbs
-  for (let i = -2; i <= 2; i++)
-    for (let z = -30; z > -DETAIL; z -= 37)
+  for (let i = -2; i <= 2; i++) {
+    for (let z = -30; z > -DETAIL; z -= 37) {
       for (const s of [-1, 1]) {
         const x = avenueX(i) + s * (road - 0.25);
-        if (!keep(x, z + 0.3)) continue;
+        if (!keep(x, z + 0.3)) {
+          continue;
+        }
         g.add(block(x - 0.25, 0, z, x + 0.25, PAINT * 2, z + 0.6, k.iron));
       }
+    }
+  }
 
   // the street trees' pits: a square of soil in the paving, an iron grille round it
   for (const t of ts) {
-    if (t.kind === 'shrub' || !keep(t.x, t.z)) continue;
+    if (t.kind === 'shrub' || !keep(t.x, t.z)) {
+      continue;
+    }
     g.add(block(t.x - 0.7, CURB - 0.02, t.z - 0.7, t.x + 0.7, CURB + 0.004, t.z + 0.7, k.soil));
     for (const [a, b, c, d] of [
       [-0.8, -0.8, 0.8, -0.7],
       [-0.8, 0.7, 0.8, 0.8],
       [-0.8, -0.7, -0.7, 0.7],
       [0.7, -0.7, 0.8, 0.7],
-    ] as const)
+    ] as const) {
       g.add(block(t.x + a, CURB - 0.02, t.z + b, t.x + c, CURB + 0.012, t.z + d, k.iron));
+    }
   }
 
   // the traffic lights at the near crossings of the avenue we look down: on the far corner of each way in, over its lanes
   const signals: SignalLamp[] = [];
-  for (let j = 0; j < 4; j++)
+  for (let j = 0; j < 4; j++) {
     for (const i of [0, 1, -1]) {
       const x = avenueX(i),
         z = streetZ(j);
       signal(g, x + GRID.avenue / 2 - 1, z - GRID.street / 2 + 1, Math.PI, 1, k, i, j, signals);
       signal(g, x - GRID.avenue / 2 + 1, z + GRID.street / 2 - 1, 0, -1, k, i, j, signals);
     }
+  }
 
   // the stone sill under our window
   const [wx0, sy] = toOutside(WINDOW.x, -(WINDOW.y + WINDOW.h), -WALL_T),
