@@ -22,7 +22,9 @@ const PHASES: Phase[] = [
 
 describe('buildrun', () => {
   it('a machine that is off is OFF whatever its phase says', () => {
-    for (const p of PHASES) expect(runState(false, p, null)).toBe(OFF);
+    for (const p of PHASES) {
+      expect(runState(false, p, null)).toBe(OFF);
+    }
   });
 
   it('every phase of a machine that is on has words and a tone', () => {
@@ -49,6 +51,6 @@ describe('buildrun', () => {
 
   it("the speeds climb, from the game's 1x", () => {
     expect(RUN_SPEEDS[0]).toBe(1);
-    expect([...RUN_SPEEDS]).toEqual([...RUN_SPEEDS].sort((a, b) => a - b));
+    expect([...RUN_SPEEDS]).toStrictEqual(RUN_SPEEDS.toSorted((a, b) => a - b));
   });
 });

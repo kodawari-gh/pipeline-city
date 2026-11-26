@@ -11,9 +11,32 @@ import {
   sideMounts,
   ThermalModel,
   upgradeCase,
-  type Board,
 } from './index';
-import { CASE_FAN_K, FANS_ON, type FanPower } from './thermal';
+import type * as simTypes from './index';
+import { CASE_FAN_K, FANS_ON } from './thermal';
+import type * as thermalTypes from './thermal';
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+/** Id of the first installed device of `kind`; fails the test when there is none. */
+function firstId(board: simTypes.Board, kind: simTypes.DeviceSpec['kind']): string {
+  return must(findDevices(board, kind)[0]).id;
+}
+
+/** Thermal state of the first installed device of `kind`; fails the test when it is missing. */
+function stateOf(
+  th: simTypes.ThermalModel,
+  board: simTypes.Board,
+  kind: simTypes.DeviceSpec['kind'],
+): simTypes.DeviceThermal {
+  return must(th.state(firstId(board, kind)));
+}
 
 const ok = <T extends { ok: boolean }>(r: T): T => {
   expect(r.ok).toBe(true);
@@ -23,18 +46,28 @@ const ok = <T extends { ok: boolean }>(r: T): T => {
 /** The fan each heatsink used to have built in, fitted on its first spot. */
 const BUILT_IN: Record<string, string> = { cooler0: 'fan92', cooler1: 'fan120', vsink2: 'fan40', rsink2: 'fan40' };
 
-function rig(sink?: string, cooler = 'cooler1'): Board {
+function rig(sink?: string, cooler = 'cooler1'): simTypes.Board {
   const b = createBoard(2);
-  for (const s of ['cpu1', 'ram0', 'display0', cooler, 'psu2', ...(sink ? [sink] : [])]) ok(install(b, s));
-  for (const d of [...b.devices]) if (BUILT_IN[d.spec]) ok(install(b, BUILT_IN[d.spec]!, `${d.slot}.fan0`));
-  ok(setClock(b, findDevices(b, 'cpu')[0]!.id, 1));
+  for (const s of ['cpu1', 'ram0', 'display0', cooler, 'psu2', ...(sink === undefined ? [] : [sink])]) {
+    ok(install(b, s));
+  }
+  const builtIn = b.devices.flatMap((d) => {
+    const fan = BUILT_IN[d.spec];
+    return fan === undefined ? [] : [{ fan, at: `${d.slot}.fan0` }];
+  });
+  for (const { fan, at } of builtIn) {
+    ok(install(b, fan, at));
+  }
+  ok(setClock(b, firstId(b, 'cpu'), 1));
   return b;
 }
 /** Run a loaded machine to a steady state with the given fans and read the CPU and VRM temperatures. */
-function settle(b: Board, fans: FanPower, ticks = 600) {
+function settle(b: simTypes.Board, fans: thermalTypes.FanPower, ticks = 600) {
   const th = new ThermalModel(new Prng(1));
-  for (let k = 0; k < ticks; k++) th.step(b, { cpu: 1 }, true, fans);
-  return { cpu: th.state(findDevices(b, 'cpu')[0]!.id)!.tempC, vrm: th.vrm.tempC };
+  for (let k = 0; k < ticks; k++) {
+    th.step(b, { cpu: 1 }, true, fans);
+  }
+  return { cpu: stateOf(th, b, 'cpu').tempC, vrm: th.vrm.tempC };
 }
 
 describe('fans in the thermal model', () => {
@@ -77,11 +110,11 @@ describe('radiators on a liquid loop', () => {
       boardSlots(b)
         .filter((s) => s.type === 'radiator')
         .map((s) => s.id),
-    ).toEqual(['rad-front', 'rad-top']);
+    ).toStrictEqual(['rad-front', 'rad-top']);
     expect(install(b, 'rad2', 'rad-top').ok).toBe(true);
     expect(fittedRadiator(b)?.side).toBe('top');
-    expect(fittedRadiator(b)?.mounts).toEqual(sideMounts(b.caseTier, 'top'));
-    expect(fittedRadiator(b)!.mounts.length).toBeGreaterThan(1);
+    expect(fittedRadiator(b)?.mounts).toStrictEqual(sideMounts(b.caseTier, 'top'));
+    expect(must(fittedRadiator(b)).mounts.length).toBeGreaterThan(1);
     expect(install(b, 'rad1', 'rad-top').ok).toBe(false); // taken
     expect(install(b, 'rad1', 'rad-front').ok).toBe(false); // one radiator per loop
     expect(install(b, 'rad1', 'rad-rear').ok).toBe(false); // no radiator on the rear
@@ -94,7 +127,7 @@ describe('radiators on a liquid loop', () => {
       boardSlots(createBoard(0))
         .filter((s) => s.type === 'radiator')
         .map((s) => s.id),
-    ).toEqual(['rad-front']);
+    ).toStrictEqual(['rad-front']);
   });
 
   it('the loop is the pump alone without a radiator, and a bigger radiator cools more', () => {
@@ -123,7 +156,7 @@ describe('radiators on a liquid loop', () => {
     ] as const) {
       b.devices = [{ id: 'dev9', spec: 'rad1', slot: from }];
       legacyRadiatorSlots(b);
-      expect(b.devices[0]!.slot).toBe(to);
+      expect(must(b.devices[0]).slot).toBe(to);
     }
   });
 });
