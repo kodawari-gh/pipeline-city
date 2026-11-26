@@ -3,6 +3,14 @@ import type { ContractOfferSnap, ContractSnap } from '@/worker/game/types';
 import type { JobLogEntry } from '@/features/jobs/sim/joblog';
 import { activeView, finishedView, fmtRate, fmtSize, offerView, splitLog } from './contractui';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 const offer = (o: Partial<ContractOfferSnap> = {}): ContractOfferSnap => ({
   id: 1,
   kind: 'cloud.archive',
@@ -52,6 +60,33 @@ const active = (c: Partial<ContractSnap> = {}): ContractSnap => ({
   ...c,
 });
 
+const entry = (o: Partial<JobLogEntry>): JobLogEntry => ({
+  id: 1_000_002,
+  type: 'cloud.archive',
+  scale: 1,
+  outcome: 'completed',
+  arrival: 0,
+  start: 0,
+  finish: 600,
+  end: 600,
+  deadline: 600,
+  payout: 140,
+  late: false,
+  attempts: 1,
+  os: 2,
+  contract: {
+    client: 'Acme Archives',
+    drive: 'HDD 96K',
+    blocks: 16,
+    mirrored: false,
+    served: 5,
+    missed: 1,
+    earned: 150,
+    fees: 10,
+  },
+  ...o,
+});
+
 describe('contract cards', () => {
   it('sizes and rates read plainly', () => {
     expect(fmtSize(4096)).toBe('4K');
@@ -64,14 +99,14 @@ describe('contract cards', () => {
 
   it('an offer shows size, time, pay and fee, and the button works only when a drive can hold it', () => {
     const v = offerView(offer());
-    expect(v.facts.map((f) => f.text)).toEqual(['4K', '10m 00s', '$0.77/s', '$6 per missed read']);
-    expect(v.accept).toEqual({ enabled: true, why: null });
-    expect(v.choices.map((c) => c.name)).toEqual(['HDD 96K', 'SATA SSD 64K']);
+    expect(v.facts.map((f) => f.text)).toStrictEqual(['4K', '10m 00s', '$0.77/s', '$6 per missed read']);
+    expect(v.accept).toStrictEqual({ enabled: true, why: null });
+    expect(v.choices.map((c) => c.name)).toStrictEqual(['HDD 96K', 'SATA SSD 64K']);
     const blocked = offerView(
       offer({ canAccept: false, why: 'the OS must be up: power the machine on', deviceId: null }),
     );
     expect(blocked.accept.enabled).toBe(false);
-    expect(blocked.accept.why).toMatch(/OS must be up/);
+    expect(blocked.accept.why).toMatch(/OS must be up/u);
     expect(blocked.tone).toBe('lost');
   });
 
@@ -81,7 +116,8 @@ describe('contract cards', () => {
   });
 
   it('the pay for mirrored storage is in the pay tooltip', () => {
-    expect(offerView(offer()).facts[2]!.title).toMatch(/\$1\.15\/s/);
+    const { facts } = offerView(offer());
+    expect(must(facts[2]).title).toMatch(/\$1\.15\/s/u);
   });
 
   it('a running contract shows health, progress, the next read and the misses', () => {
@@ -96,33 +132,6 @@ describe('contract cards', () => {
     expect(activeView(active({ health: 'unservable' })).health.tone).toBe('queue');
     expect(activeView(active({ health: 'lost' })).health).toMatchObject({ tone: 'lost', label: 'Data lost' });
     expect(activeView(active({ mirrored: true })).mirrored).toBe(true);
-  });
-
-  const entry = (o: Partial<JobLogEntry>): JobLogEntry => ({
-    id: 1_000_002,
-    type: 'cloud.archive',
-    scale: 1,
-    outcome: 'completed',
-    arrival: 0,
-    start: 0,
-    finish: 600,
-    end: 600,
-    deadline: 600,
-    payout: 140,
-    late: false,
-    attempts: 1,
-    os: 2,
-    contract: {
-      client: 'Acme Archives',
-      drive: 'HDD 96K',
-      blocks: 16,
-      mirrored: false,
-      served: 5,
-      missed: 1,
-      earned: 150,
-      fees: 10,
-    },
-    ...o,
   });
 
   it('the log is split into jobs and finished contracts, newest contract first', () => {
@@ -142,18 +151,18 @@ describe('contract cards', () => {
       os: 1,
     };
     const { jobs, contracts } = splitLog([job, entry({ end: 100, id: 1_000_001 }), entry({ end: 900 })]);
-    expect(jobs).toEqual([job]);
-    expect(contracts.map((e) => e.end)).toEqual([900, 100]);
+    expect(jobs).toStrictEqual([job]);
+    expect(contracts.map((e) => e.end)).toStrictEqual([900, 100]);
   });
 
   it('a finished contract reads as held, lost or breached with its net money', () => {
     expect(finishedView(entry({}))).toMatchObject({ label: 'Held', tone: 'compute', net: '$140' });
-    expect(finishedView(entry({})).detail).toMatch(/5 reads served, 1 missed, on HDD 96K/);
+    expect(finishedView(entry({})).detail).toMatch(/5 reads served, 1 missed, on HDD 96K/u);
     expect(finishedView(entry({ outcome: 'lost', payout: -90 }))).toMatchObject({
       label: 'Data lost',
       tone: 'lost',
       net: '-$90',
     });
-    expect(finishedView(entry({ outcome: 'breached', type: 'cloud.hot' })).title).toMatch(/hot/);
+    expect(finishedView(entry({ outcome: 'breached', type: 'cloud.hot' })).title).toMatch(/hot/u);
   });
 });

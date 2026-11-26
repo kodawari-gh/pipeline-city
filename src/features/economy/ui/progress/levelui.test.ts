@@ -23,6 +23,14 @@ import { osSection, pickerFor } from '../shop/picker';
 import { boardCards } from '@/features/board/ui/vrm';
 import { dev, key, snap } from '@/core/ui/testdata';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 const at = (o: Partial<Snapshot['level']>): Snapshot => {
   const base = snap();
   return snap({ level: { ...base.level, ...o } });
@@ -43,7 +51,8 @@ describe('level bar', () => {
     const m = levelBar(at({ progress: 1.4 }));
     expect(m.pct).toBe(100);
     expect(m.tooltip).toContain('Next level unlocks:');
-    expect(m.tooltip).toContain(levelRows()[1]!.unlocks[0]!.name);
+    const second = must(levelRows()[1]);
+    expect(m.tooltip).toContain(must(second.unlocks[0]).name);
   });
 
   it('at the last level the bar is full and shows the raw score', () => {
@@ -68,42 +77,47 @@ describe('milestone list', () => {
   const rows = milestoneRows(s);
 
   it('has all 18 levels in order with passed, current and upcoming', () => {
-    expect(rows.map((r) => r.level)).toEqual(Array.from({ length: 18 }, (_, i) => i + 1));
-    expect(rows.filter((r) => r.status === 'passed').map((r) => r.level)).toEqual([1, 2]);
-    expect(rows.filter((r) => r.status === 'current').map((r) => r.level)).toEqual([3]);
-    expect(rows[3]!.status).toBe('upcoming');
+    expect(rows.map((r) => r.level)).toStrictEqual(Array.from({ length: 18 }, (_, i) => i + 1));
+    expect(rows.filter((r) => r.status === 'passed').map((r) => r.level)).toStrictEqual([1, 2]);
+    expect(rows.filter((r) => r.status === 'current').map((r) => r.level)).toStrictEqual([3]);
+    expect(must(rows[3]).status).toBe('upcoming');
   });
 
   it('only the current row carries progress', () => {
-    expect(rows[2]!.progress).toBe(0.5);
-    expect(rows[3]!.progress).toBe(0);
+    expect(must(rows[2]).progress).toBe(0.5);
+    expect(must(rows[3]).progress).toBe(0);
   });
 
   it('lists what each level unlocks, with art only for real parts', () => {
-    const l10 = rows[9]!;
+    const l10 = must(rows[9]);
     expect(l10.unlocks.map((u) => u.id)).toContain('display1');
-    const display = l10.unlocks.find((u) => u.id === 'display1')!;
+    const display = must(l10.unlocks.find((u) => u.id === 'display1'));
     expect(display.planned).toBe(false);
     expect(hasArt(display.id, display.kind, display.planned)).toBe(true);
     expect(display.icon).toBe('screen');
-    const planned = rows[14]!.unlocks.find((u) => u.id === 'board4')!; // still only a name in the table
+    const planned = must(must(rows[14]).unlocks.find((u) => u.id === 'board4')); // still only a name in the table
     expect(planned.planned).toBe(true);
     expect(hasArt(planned.id, planned.kind, planned.planned)).toBe(false);
-    const cpu = rows[0]!.unlocks.find((u) => u.id === 'cpu1')!;
+    const cpu = must(must(rows[0]).unlocks.find((u) => u.id === 'cpu1'));
     expect(hasArt(cpu.id, cpu.kind, cpu.planned)).toBe(true);
     expect(hasArt('board1', 'board', false)).toBe(true);
   });
 
   it('names the job classes that arrive at a level and compares with the level before', () => {
-    expect(rows[2]!.newJobs).toEqual([]); // plain work until the network opens
+    expect(must(rows[2]).newJobs).toStrictEqual([]); // plain work until the network opens
     // the classes come first, then the kinds of job that arrive after their class did (docs/JOBS.md "The catalogue")
-    expect(rows[4]!.newJobs.map((j) => j.id)).toEqual(['scan', 'db', 'gcd', 'popcount', 'dns', 'form']);
-    expect(rows[3]!.newJobs.map((j) => j.label)).toEqual(['Web', 'Cloud storage', 'Fibonacci', 'Reverse text']);
-    expect(rows[0]!.patience).toBeNull();
-    expect(rows[1]!.patience).toBe('same');
-    expect(rows[2]!.patience).toBe('stricter');
-    expect(rows[2]!.pay).toBe('bigger');
-    expect(rows[2]!.waitS).toBe(540);
+    expect(must(rows[4]).newJobs.map((j) => j.id)).toStrictEqual(['scan', 'db', 'gcd', 'popcount', 'dns', 'form']);
+    expect(must(rows[3]).newJobs.map((j) => j.label)).toStrictEqual([
+      'Web',
+      'Cloud storage',
+      'Fibonacci',
+      'Reverse text',
+    ]);
+    expect(must(rows[0]).patience).toBeNull();
+    expect(must(rows[1]).patience).toBe('same');
+    expect(must(rows[2]).patience).toBe('stricter');
+    expect(must(rows[2]).pay).toBe('bigger');
+    expect(must(rows[2]).waitS).toBe(540);
   });
 });
 
@@ -133,7 +147,7 @@ describe('locked items', () => {
       { id: 'd' },
       { id: 'e', lock: { level: 3, name: 'x' } },
     ];
-    expect(unlockedFirst(items, (i) => i.lock).map((i) => i.id)).toEqual(['b', 'd', 'c', 'e', 'a']);
+    expect(unlockedFirst(items, (i) => i.lock).map((i) => i.id)).toStrictEqual(['b', 'd', 'c', 'e', 'a']);
   });
 
   it('a gated purchase is a visible "level" rung with the lock, before money and hardware reasons', () => {
@@ -158,17 +172,17 @@ describe('locked items', () => {
         },
       ],
     });
-    const m = pickerFor('cpu1', s)!;
-    const r1 = m.ladder.find((r) => r.specId === 'cpu1')!;
+    const m = must(pickerFor('cpu1', s));
+    const r1 = must(m.ladder.find((r) => r.specId === 'cpu1'));
     expect(r1.state).toBe('level');
-    expect(r1.lock).toEqual(lock);
-    expect(r1.reason!.startsWith('Unlocks at Level 4')).toBe(true);
+    expect(r1.lock).toStrictEqual(lock);
+    expect(must(r1.reason).startsWith('Unlocks at Level 4')).toBe(true);
     expect(r1.reason).toContain('needs a 100 W power supply');
     expect(r1.soon).toBe(false);
-    expect(snap({ level: { ...s.level, level: 3 }, purchases: s.purchases }).purchases[0]!.locked).toBeDefined();
-    const r3 = pickerFor('cpu1', snap({ level: { ...s.level, level: 3 }, purchases: s.purchases }))!.ladder.find(
-      (r) => r.specId === 'cpu1',
-    )!;
+    const at3 = snap({ level: { ...s.level, level: 3 }, purchases: s.purchases });
+    expect(must(at3.purchases[0]).locked).toBeDefined();
+    const m3 = must(pickerFor('cpu1', at3));
+    const r3 = must(m3.ladder.find((r) => r.specId === 'cpu1'));
     expect(r3.soon).toBe(true);
   });
 
@@ -177,7 +191,8 @@ describe('locked items', () => {
       sandbox: true,
       purchases: [{ id: 'cpu1', name: 'Tiny-5', kind: 'cpu', price: 200, affordable: true }],
     });
-    expect(pickerFor('cpu1', s)!.ladder.find((r) => r.specId === 'cpu1')!.state).toBe('ready');
+    const m = must(pickerFor('cpu1', s));
+    expect(must(m.ladder.find((r) => r.specId === 'cpu1')).state).toBe('ready');
   });
 
   it('a locked motherboard tier is a "level" card', () => {
@@ -193,7 +208,7 @@ describe('locked items', () => {
         },
       ],
     });
-    const c = boardCards(s).find((x) => x.id === 'board1')!;
+    const c = must(boardCards(s).find((x) => x.id === 'board1'));
     expect(c.state).toBe('level');
     expect(c.canBuy).toBe(false);
     expect(c.soon).toBe(true);
@@ -201,15 +216,15 @@ describe('locked items', () => {
   });
 });
 
-describe('level-up celebration', () => {
-  const up = (o: Partial<Snapshot['level']> = {}) =>
-    at({ level: 4, name: 'Small Office', leveledUpAt: 900, recentlyUnlocked: levelRows()[3]!.unlocks, ...o });
+const up = (o: Partial<Snapshot['level']> = {}) =>
+  at({ level: 4, name: 'Small Office', leveledUpAt: 900, recentlyUnlocked: must(levelRows()[3]).unlocks, ...o });
 
+describe('level-up celebration', () => {
   it('shows once for a level above the seen one, with what it unlocked', () => {
-    const c = celebrationFor(up(), 3)!;
+    const c = must(celebrationFor(up(), 3));
     expect(c.level).toBe(4);
     expect(c.name).toBe('Small Office');
-    expect(c.unlocked.map((u) => u.id)).toEqual(levelRows()[3]!.unlocks.map((u) => u.id));
+    expect(c.unlocked.map((u) => u.id)).toStrictEqual(must(levelRows()[3]).unlocks.map((u) => u.id));
     expect(celebrationFor(up(), 4)).toBeNull();
     expect(celebrationFor(up(), 5)).toBeNull();
   });
@@ -232,24 +247,24 @@ describe('level-up celebration', () => {
   });
 });
 
-describe('job needs, deadlines and declining', () => {
-  const job = (o: Partial<Parameters<typeof needChips>[0] & Parameters<typeof deadlineInfo>[0]> = {}) => ({
-    needs: ['OS', 'SSD'],
-    missing: ['a SATA SSD or better'],
-    runnable: false,
-    arrivalTick: 100,
-    expiresTick: 300,
-    ...o,
-  });
+const job = (o: Partial<Parameters<typeof needChips>[0] & Parameters<typeof deadlineInfo>[0]> = {}) => ({
+  needs: ['OS', 'SSD'],
+  missing: ['a SATA SSD or better'],
+  runnable: false,
+  arrivalTick: 100,
+  expiresTick: 300,
+  ...o,
+});
 
+describe('job needs, deadlines and declining', () => {
   it('shows one chip per need with a device icon; the unmet ones are marked missing', () => {
     const chips = needChips(job());
-    expect(chips.map((c) => [c.short, c.icon, c.missing])).toEqual([
+    expect(chips.map((c) => [c.short, c.icon, c.missing])).toStrictEqual([
       ['OS', 'cpu', false],
       ['SSD', 'disk', true],
     ]);
-    expect(needChips({ needs: [], missing: [] })).toEqual([]);
-    expect(needChips({ needs: ['GPU'], missing: ['a GPU'] })[0]!.icon).toBe('screen');
+    expect(needChips({ needs: [], missing: [] })).toStrictEqual([]);
+    expect(must(needChips({ needs: ['GPU'], missing: ['a GPU'] })[0]).icon).toBe('screen');
   });
 
   it('says plainly what a job cannot run on, and nothing for a runnable one', () => {
@@ -291,14 +306,16 @@ describe('job needs, deadlines and declining', () => {
       arrivalTick: 0,
       expiresTick: 400,
     });
-    const m = pickerFor('key:7', snap({ tray: [k], baseTick: 100 }))!;
+    const m = must(pickerFor('key:7', snap({ tray: [k], baseTick: 100 })));
     expect(m.job).toMatchObject({ id: 7, declinable: true, runnable: false });
-    const plug = m.actions.find((a) => a.id === 'plug')!;
+    const plug = must(m.actions.find((a) => a.id === 'plug'));
     expect(plug.why).toContain('a GPU');
-    expect(m.lines[0]!.text).toContain('Cannot run yet');
+    expect(must(m.lines[0]).text).toContain('Cannot run yet');
     expect(m.lines.some((l) => l.text.includes('takes it back in'))).toBe(true);
-    const ok = pickerFor('key:1', snap({ tray: [key()] }))!;
-    expect(ok.actions.find((a) => a.id === 'plug')!.why).toBeUndefined();
+    const runnable = snap({ tray: [key()] });
+    const ok = must(pickerFor('key:1', runnable));
+    const okPlug = must(ok.actions.find((a) => a.id === 'plug'));
+    expect(okPlug.why).toBeUndefined();
   });
 
   it('OS queue rows carry the job of their key, for the needs chips and the decline button', () => {
@@ -315,10 +332,11 @@ describe('job needs, deadlines and declining', () => {
         queueSlots: 2,
         up: true,
         runningKeyId: null,
-        queue: [{ slot: 0, keyId: 3, label: '#3 log', state: 'queued', ahead: 0 }],
-      } as unknown as Snapshot['os'],
+        queue: [{ slot: 0, keyId: 3, label: '#3 log', state: 'queued', ahead: 0, persisted: false }],
+        spool: { slotBytes: 512, slots: 2, used: 1, freeBytes: 0, full: false },
+      },
     });
-    const row = osSection(s)!.queue[0]!;
+    const row = must(must(osSection(s)).queue[0]);
     expect(row.job).toMatchObject({ id: 3, declinable: true, needs: ['OS'] });
   });
 });
@@ -335,12 +353,14 @@ describe('POST readout', () => {
     });
     const p = postBreakdown(s);
     expect(p.total).toBe(30);
-    expect(p.parts.map((x) => x.label)).toEqual(expect.arrayContaining(['Firmware', 'Memory check', '2 RAM sticks']));
+    expect(p.parts.map((x) => x.label)).toStrictEqual(
+      expect.arrayContaining(['Firmware', 'Memory check', '2 RAM sticks']),
+    );
     expect(Math.abs(p.parts.reduce((a, x) => a + x.ticks, 0) - 30)).toBeLessThanOrEqual(2);
   });
 
   it('a bare board is just the firmware', () => {
     const p = postBreakdown(snap({ postTicks: 22 }));
-    expect(p.parts).toEqual([expect.objectContaining({ label: 'Firmware', ticks: 22 })]);
+    expect(p.parts).toStrictEqual([expect.objectContaining({ label: 'Firmware', ticks: 22 })]);
   });
 });

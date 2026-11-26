@@ -1,9 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { Game } from '@/worker/game/game';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+/** The save as it comes back from storage: written out as JSON text and read in again. */
+function reload(save: unknown): unknown {
+  const text = JSON.stringify(save);
+  return JSON.parse(text);
+}
+
 const ECO = { powerRatePerWh: 1, billPeriodTicks: 100, billGraceTicks: 20, startQueue: [] };
 const run = (g: Game, n: number) => {
-  for (let i = 0; i < n; i++) g.advanceBaseTick();
+  for (let i = 0; i < n; i++) {
+    g.advanceBaseTick();
+  }
 };
 const game = (money: number) => new Game({ seed: 1, preassembled: true, economy: { ...ECO, startMoney: money } });
 
@@ -17,37 +33,38 @@ describe('the power bill', () => {
     const g = game(1000);
     run(g, 60);
     const mid = g.snapshot();
-    expect(mid.bill!.accruedWh).toBeCloseTo(mid.energy.wh, 9);
-    expect(mid.bill!.accruedCost).toBeGreaterThan(0);
+    expect(must(mid.bill).accruedWh).toBeCloseTo(mid.energy.wh, 9);
+    expect(must(mid.bill).accruedCost).toBeGreaterThan(0);
     expect(mid.money).toBe(1000);
     run(g, 60);
     const s = g.snapshot();
-    expect(s.bill!.last).not.toBeNull();
-    const amount = s.bill!.last!.amount;
-    expect(amount).toBe(Math.ceil(s.bill!.last!.wh * 1 - 1e-9));
+    expect(must(s.bill).last).not.toBeNull();
+    const last = must(must(s.bill).last);
+    const { amount } = last;
+    expect(amount).toBe(Math.ceil(last.wh * 1 - 1e-9));
     expect(s.money).toBe(1000 - amount);
-    expect(s.bill!.unpaid).toBe(0);
-    expect(s.bill!.paidTotal).toBe(amount);
+    expect(must(s.bill).unpaid).toBe(0);
+    expect(must(s.bill).paidTotal).toBe(amount);
     expect(s.powered).toBe(true);
   });
 
   it('cuts the wall after the grace for an unpaid bill, and restores it once the money is there', () => {
     const g = game(0);
     run(g, 101);
-    expect(g.snapshot().bill!.unpaid).toBeGreaterThan(0);
-    expect(g.snapshot().bill!.cut).toBe(false);
+    expect(must(g.snapshot().bill).unpaid).toBeGreaterThan(0);
+    expect(must(g.snapshot().bill).cut).toBe(false);
     expect(g.snapshot().powered).toBe(true);
     run(g, 20);
     const cut = g.snapshot();
-    expect(cut.bill!.cut).toBe(true);
+    expect(must(cut.bill).cut).toBe(true);
     expect(cut.powered).toBe(false);
-    expect(cut.noPowerReason).toMatch(/power company/);
+    expect(cut.noPowerReason).toMatch(/power company/u);
     expect(g.powerButton()).toMatchObject({ ok: false });
     g.money = 1000;
     run(g, 1);
     const back = g.snapshot();
-    expect(back.bill!.cut).toBe(false);
-    expect(back.bill!.unpaid).toBe(0);
+    expect(must(back.bill).cut).toBe(false);
+    expect(must(back.bill).unpaid).toBe(0);
     expect(back.money).toBeLessThan(1000);
     expect(g.powerButton()).toMatchObject({ ok: true, powered: true });
   });
@@ -57,7 +74,7 @@ describe('the power bill', () => {
     run(g, 101);
     g.money = 1000;
     run(g, 1);
-    expect(g.snapshot().bill!.unpaid).toBe(0);
+    expect(must(g.snapshot().bill).unpaid).toBe(0);
     run(g, 40);
     expect(g.snapshot().powered).toBe(true);
   });
@@ -65,11 +82,11 @@ describe('the power bill', () => {
   it('survives a save', () => {
     const g = game(0);
     run(g, 130);
-    const before = g.snapshot().bill!;
+    const before = must(g.snapshot().bill);
     expect(before.unpaid).toBeGreaterThan(0);
-    const g2 = Game.fromSave(JSON.parse(JSON.stringify(g.toSave())), ECO);
-    const after = g2.snapshot().bill!;
-    expect(after).toEqual({ ...before, accruedWh: before.accruedWh, accruedCost: before.accruedCost });
+    const g2 = Game.fromSave(reload(g.toSave()), ECO);
+    const after = must(g2.snapshot().bill);
+    expect(after).toStrictEqual({ ...before, accruedWh: before.accruedWh, accruedCost: before.accruedCost });
     expect(g2.snapshot().energy.wh).toBeCloseTo(g.snapshot().energy.wh, 9);
   });
 });
