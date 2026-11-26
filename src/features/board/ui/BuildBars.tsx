@@ -196,8 +196,11 @@ export function RunControls({ stage, busy, bare }: { stage: Stage | null; busy: 
                 : 'Switch the machine on (it needs a power supply with its main cable). It boots, then runs at the speed beside it.'
         }
         onClick={() => {
-          if (busy && !run.on) stage?.skip();
-          else stage?.power();
+          if (busy && !run.on) {
+            stage?.skip();
+          } else {
+            stage?.power();
+          }
         }}
       >
         <Icon name="power" size={13} />
@@ -221,9 +224,13 @@ export function RunControls({ stage, busy, bare }: { stage: Stage | null; busy: 
             disabled={!run.on}
             data-cue="silent"
             onClick={() => {
-              if (!stage) return;
+              if (!stage) {
+                return;
+              }
               const cur = stage.simSpeed.peek();
-              if (x !== cur) playCue(x > cur ? 'speed_up' : 'speed_down');
+              if (x !== cur) {
+                playCue(x > cur ? 'speed_up' : 'speed_down');
+              }
               stage.simSpeed.value = x;
             }}
           >
@@ -281,7 +288,7 @@ export function Foot({
   onPane: (p: BuildPane) => void;
 }) {
   const st = stage?.status.value;
-  const busy = !!st?.busy,
+  const busy = Boolean(st?.busy),
     open = stage?.open.value ?? false,
     picked = stage?.selected.value ?? null,
     speed = stage?.speed.value,
@@ -370,7 +377,9 @@ export function Foot({
                 class={speed === x ? 'on' : ''}
                 aria-pressed={speed === x}
                 onClick={() => {
-                  if (stage) stage.speed.value = x;
+                  if (stage) {
+                    stage.speed.value = x;
+                  }
                 }}
               >
                 {x}x
@@ -390,7 +399,9 @@ export function Foot({
             disabled={!stage || !picked}
             title="Fly to the picked part (F)"
             onClick={() => {
-              if (picked) stage?.focusDevice(picked);
+              if (picked) {
+                stage?.focusDevice(picked);
+              }
             }}
           >
             <Icon name="focus" size={13} />

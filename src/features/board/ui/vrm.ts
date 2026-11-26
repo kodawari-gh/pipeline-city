@@ -1,18 +1,14 @@
 // Motherboard, VRM and heatsink readouts for the UI (docs/VRM.md, docs/UI.md). Pure: numbers come from the snapshot and
 // the spec data, no DOM, no signals. All sim numbers are placeholders, so these readouts are placeholders too.
 
-import { BOARD_TIERS, getSpec, type RamSpec, type VrmSinkSpec } from '../sim/specs';
+import { BOARD_TIERS, getSpec } from '../sim/specs';
+import type * as specs from '../sim/specs';
 import { currentDemand, loadRatio, ramDemand, VRM_OVERLOAD } from '../sim/vrm';
 import type { Snapshot } from '@/worker/game/game';
-import {
-  isNextLevelLock,
-  lockOf,
-  lockTooltip,
-  moreOffer,
-  type LevelLock,
-  type MoreOffer,
-} from '../../economy/ui/progress/levelui';
-import { fmtMoney, type Level } from '@/core/ui/logic';
+import { isNextLevelLock, lockOf, lockTooltip, moreOffer } from '../../economy/ui/progress/levelui';
+import type * as levelui from '../../economy/ui/progress/levelui';
+import { fmtMoney } from '@/core/ui/logic';
+import type * as logic from '@/core/ui/logic';
 
 /** Above this share of the phases' rating the VRM is "working hard" (the efficiency curve starts to fall here). */
 export const VRM_BUSY_RATIO = 0.6;
@@ -27,8 +23,12 @@ export const VRM_ZONE_HELP: Record<VrmZone, string> = {
 
 /** Zone of a load ratio (demand over the phases' rating; 1 = every phase at its rated current). */
 export function vrmZone(ratio: number): VrmZone {
-  if (ratio > VRM_OVERLOAD) return 'overload';
-  if (ratio >= VRM_BUSY_RATIO) return 'busy';
+  if (ratio > VRM_OVERLOAD) {
+    return 'overload';
+  }
+  if (ratio >= VRM_BUSY_RATIO) {
+    return 'busy';
+  }
   return 'safe';
 }
 
@@ -60,19 +60,21 @@ export interface VrmReadout {
   /** Heat the regulator makes right now, W. */
   lossW: number;
   ripple: number;
-  tempLevel: Level;
+  tempLevel: logic.Level;
   sink: { name: string; coolingPerC: number } | null;
 }
 
 /** The VRM readout, or null for a snapshot without a board (never produced by the sim; kept for old fixtures). */
 export function vrmReadout(s: Snapshot, rail: VrmRail = 'cpu'): VrmReadout | null {
   const b = s.board;
-  if (!b) return null;
+  if (!b) {
+    return null;
+  }
   const v = rail === 'ram' ? b.ramVrm : b.vrm;
   const sinkDev = rail === 'ram' ? b.ramSink : b.vrmSink;
   const capacityA = v.phases * v.ampsPerPhase;
-  const sinkSpec = sinkDev ? (getSpec(sinkDev.spec) as VrmSinkSpec | undefined) : undefined;
-  const tempLevel: Level = v.burnt || v.tempC >= v.unstableC ? 'bad' : v.tempC >= v.throttleC - 5 ? 'warn' : 'ok';
+  const sinkSpec = sinkDev ? (getSpec(sinkDev.spec) as specs.VrmSinkSpec | undefined) : undefined;
+  const tempLevel: logic.Level = v.burnt || v.tempC >= v.unstableC ? 'bad' : v.tempC >= v.throttleC - 5 ? 'warn' : 'ok';
   return {
     rail,
     burnt: v.burnt,
@@ -102,8 +104,8 @@ export function vrmReadout(s: Snapshot, rail: VrmRail = 'cpu'): VrmReadout | nul
 }
 
 /** Plain-words status lines for the VRM card. */
-export function vrmLines(v: VrmReadout): { level: Level | 'info'; text: string }[] {
-  const out: { level: Level | 'info'; text: string }[] = [];
+export function vrmLines(v: VrmReadout): { level: logic.Level | 'info'; text: string }[] {
+  const out: { level: logic.Level | 'info'; text: string }[] = [];
   if (v.burnt) {
     out.push({
       level: 'bad',
@@ -112,25 +114,28 @@ export function vrmLines(v: VrmReadout): { level: Level | 'info'; text: string }
     return out;
   }
   const mem = v.rail === 'ram';
-  if (v.unstable)
+  if (v.unstable) {
     out.push({
       level: 'bad',
       text: `Unstable: the ${mem ? 'memory ' : ''}regulator is overloaded or too hot, so the machine can crash. Slow the ${mem ? 'memory ' : ''}clock or add a ${mem ? 'RAM ' : ''}VRM heatsink.`,
     });
-  else if (v.zone === 'busy')
+  } else if (v.zone === 'busy') {
     out.push({ level: 'warn', text: 'Working hard: most of its rating is in use. Keep the clock near stock.' });
-  if (v.throttle < 1)
+  }
+  if (v.throttle < 1) {
     out.push({
       level: 'warn',
       text: `Throttling: the regulator is too hot, so the ${mem ? 'memory' : 'processor'} is held back.`,
     });
-  if (!v.sink)
+  }
+  if (!v.sink) {
     out.push({
       level: 'info',
       text: mem
         ? 'No RAM VRM heatsink. A small one on the board cools the memory regulator.'
         : 'No VRM heatsink. A small one on the board cools the regulator.',
     });
+  }
   return out;
 }
 
@@ -157,12 +162,12 @@ export interface BoardCard {
   /** Why it cannot be taken now (blocked, poor, locked, crate), for the tooltip. */
   reason?: string | undefined;
   /** State `level`: the player level that opens this tier, and whether it is the very next one. */
-  lock?: LevelLock | undefined;
+  lock?: levelui.LevelLock | undefined;
   soon?: boolean;
   /** Copies of this board in the inventory. */
   spares?: number | undefined;
   /** Buying another: set on a fitted or spare card. */
-  more?: MoreOffer | undefined;
+  more?: levelui.MoreOffer | undefined;
   /** The buy (or replace) button is live: the sim offers it, nothing blocks it and it is affordable. */
   canBuy: boolean;
   slots: BoardSlotCount[];
@@ -201,8 +206,8 @@ const phaseAmps = (t: { vrm: { phases: number; ampsPerPhase: number } }) => t.vr
 
 /** Cards for every board tier: the installed one, the spares you own and each tier the shop sells (smaller ones too: a downgrade, a second machine). */
 export function boardCards(s: Snapshot): BoardCard[] {
-  const cur = s.boardTier;
-  const burnt = !!s.board?.burnt;
+  const { boardTier: cur } = s;
+  const burnt = Boolean(s.board?.burnt);
   const maxA = Math.max(...BOARD_TIERS.map(phaseAmps));
   const curA = phaseAmps(BOARD_TIERS[cur] ?? BOARD_TIERS[0]!);
   const out: BoardCard[] = [];
@@ -210,7 +215,7 @@ export function boardCards(s: Snapshot): BoardCard[] {
     const id = `board${t.tier}`;
     const p = s.purchases.find((x) => x.id === id);
     const copies = s.inventory.filter((i) => i.spec === id);
-    const crate = copies[0];
+    const [crate] = copies;
     const price = p?.price ?? t.price;
     const free = s.sandbox;
     const canAfford = free || (p ? p.affordable : false);
@@ -219,8 +224,11 @@ export function boardCards(s: Snapshot): BoardCard[] {
     let reason: string | undefined;
     if (t.tier === cur) {
       state = burnt ? 'dead' : 'installed';
-      if (burnt) reason = p?.blocked ?? (canAfford ? undefined : `Need ${fmtMoney(price - s.money)} more`);
-      else reason = 'Fitted in the machine';
+      if (burnt) {
+        reason = p?.blocked ?? (canAfford ? undefined : `Need ${fmtMoney(price - s.money)} more`);
+      } else {
+        reason = 'Fitted in the machine';
+      }
     } else if (crate) {
       state = 'crate';
       reason = 'In your inventory: drag it onto the board';
@@ -234,8 +242,9 @@ export function boardCards(s: Snapshot): BoardCard[] {
       if (p.blocked) {
         state = 'blocked';
         reason = p.blocked;
-      } else if (canAfford) state = 'ready';
-      else {
+      } else if (canAfford) {
+        state = 'ready';
+      } else {
         state = 'poor';
         reason = `Need ${fmtMoney(price - s.money)} more`;
       }
@@ -255,10 +264,10 @@ export function boardCards(s: Snapshot): BoardCard[] {
       free,
       reason,
       lock,
-      spares: copies.length || undefined,
+      spares: copies.length > 0 ? copies.length : undefined,
       more: p && !p.later && (state === 'installed' || state === 'crate') ? moreOffer(s, p, lock) : undefined,
       soon: isNextLevelLock(lock, s.level.level),
-      canBuy: (state === 'ready' || state === 'dead') && !!p && !p.blocked && canAfford,
+      canBuy: (state === 'ready' || state === 'dead') && p !== undefined && !p.blocked && canAfford,
       slots: SLOT_LABELS.map((x) => ({
         key: x.key,
         label: x.label,
@@ -289,9 +298,13 @@ export function boardCards(s: Snapshot): BoardCard[] {
 export function plannedBoardTier(s: Snapshot): number {
   let tier = s.boardTier;
   for (const i of s.inventory) {
-    if (i.kind !== 'board') continue;
+    if (i.kind !== 'board') {
+      continue;
+    }
     const n = Number(i.spec.slice(5));
-    if (n > tier) tier = n;
+    if (n > tier) {
+      tier = n;
+    }
   }
   return tier;
 }
@@ -303,9 +316,13 @@ export function plannedBoardTier(s: Snapshot): number {
 export function cpuVrmWarning(s: Snapshot, cpuId: string): string | null {
   const spec = getSpec(cpuId);
   const tier = BOARD_TIERS[plannedBoardTier(s)];
-  if (!spec || spec.kind !== 'cpu' || !tier) return null;
+  if (!spec || spec.kind !== 'cpu' || !tier) {
+    return null;
+  }
   const demand = currentDemand(spec.loadW, 1);
-  if (loadRatio(tier.vrm, demand) <= VRM_OVERLOAD) return null;
+  if (loadRatio(tier.vrm, demand) <= VRM_OVERLOAD) {
+    return null;
+  }
   return "this board's VRM can't feed it: expect throttling or crashes";
 }
 
@@ -314,7 +331,9 @@ export const LIQUID_VRM_NOTE = "liquid coolers don't cool the VRM: add a VRM hea
 /** Liquid coolers give the VRM no airflow: without a VRM heatsink the regulator has nothing to cool it. Null otherwise. */
 export function liquidVrmNote(s: Snapshot, coolerId: string): string | null {
   const spec = getSpec(coolerId);
-  if (!spec || spec.kind !== 'cooler' || spec.vrmAirPerC > 0) return null;
+  if (!spec || spec.kind !== 'cooler' || spec.vrmAirPerC > 0) {
+    return null;
+  }
   return s.board?.vrmSink ? null : LIQUID_VRM_NOTE;
 }
 
@@ -334,16 +353,18 @@ export interface RamZones {
  */
 export function ramZones(s: Snapshot, devId: string): RamZones | null {
   const dev = s.devices.find((d) => d.id === devId);
-  const spec = dev ? (getSpec(dev.spec) as RamSpec | undefined) : undefined;
+  const spec = dev ? (getSpec(dev.spec) as specs.RamSpec | undefined) : undefined;
   const tier = BOARD_TIERS[s.boardTier];
-  if (!dev || !spec || spec.kind !== 'ram' || !tier) return null;
+  if (!dev || !spec || spec.kind !== 'ram' || !tier) {
+    return null;
+  }
   const heat = spec.loadW * spec.heatFactor;
   const at = (t: number) =>
     heat > 0 ? spec.clock.base * Math.cbrt(((t - 25) * spec.thermal.passive) / heat) : spec.clock.max;
   const others = s.devices
     .filter((d) => d.kind === 'ram' && d.id !== devId && !d.burnt)
     .map((d) => {
-      const sp = getSpec(d.spec) as RamSpec;
+      const sp = getSpec(d.spec) as specs.RamSpec;
       const r = (d.requestedClock ?? sp.clock.base) / sp.clock.base;
       return { w: sp.loadW * r ** 3, r };
     });
@@ -360,8 +381,11 @@ export function ramZones(s: Snapshot, devId: string): RamZones | null {
     hi = spec.clock.max * 2;
   for (let i = 0; i < 30; i++) {
     const mid = (lo + hi) / 2;
-    if (demandAt(mid) > cap) hi = mid;
-    else lo = mid;
+    if (demandAt(mid) > cap) {
+      hi = mid;
+    } else {
+      lo = mid;
+    }
   }
   const overloadAt = demandAt(spec.clock.max * 2) > cap ? hi : Infinity;
   return {
@@ -378,9 +402,13 @@ export function ramZones(s: Snapshot, devId: string): RamZones | null {
 export function ramVrmWarning(s: Snapshot, ramId: string): string | null {
   const spec = getSpec(ramId);
   const tier = BOARD_TIERS[plannedBoardTier(s)];
-  if (!spec || spec.kind !== 'ram' || !tier) return null;
+  if (!spec || spec.kind !== 'ram' || !tier) {
+    return null;
+  }
   const sticks = s.devices.filter((d) => d.kind === 'ram' && !d.burnt).length;
   const demand = ramDemand(spec.loadW * Math.max(1, sticks), 1);
-  if (loadRatio(tier.ramVrm, demand) <= VRM_OVERLOAD) return null;
+  if (loadRatio(tier.ramVrm, demand) <= VRM_OVERLOAD) {
+    return null;
+  }
   return "this board's memory VRM can't feed it: expect crashes";
 }

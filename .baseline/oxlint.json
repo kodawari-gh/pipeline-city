@@ -6990,20 +6990,16 @@
   "vitest(valid-expect)": 4
  },
  "src/features/board/ui/BuildAlerts.tsx": {
-  "eslint(curly)": 1,
   "react(button-has-type)": 1,
   "typescript(consistent-type-imports)": 1,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-confusing-void-expression)": 3,
-  "typescript(strict-boolean-expressions)": 1,
-  "unicorn(explicit-length-check)": 1
+  "typescript(strict-boolean-expressions)": 1
  },
  "src/features/board/ui/BuildBars.tsx": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 6,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 4,
-  "eslint(no-implicit-coercion)": 1,
   "eslint(no-nested-ternary)": 9,
   "jsx-a11y(prefer-tag-over-role)": 5,
   "react(button-has-type)": 17,
@@ -7013,17 +7009,14 @@
   "typescript(no-misused-promises)": 2,
   "typescript(no-non-null-assertion)": 1,
   "typescript(promise-function-async)": 2,
-  "typescript(strict-boolean-expressions)": 6,
+  "typescript(strict-boolean-expressions)": 5,
   "typescript(strict-void-return)": 2
  },
  "src/features/board/ui/BuildBench.tsx": {
   "eslint(complexity)": 2,
-  "eslint(curly)": 1,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
-  "eslint(no-implicit-coercion)": 4,
   "eslint(no-nested-ternary)": 5,
-  "import(consistent-type-specifier-style)": 2,
   "jsx-a11y(prefer-tag-over-role)": 5,
   "react(button-has-type)": 10,
   "react(no-unescaped-entities)": 1,
@@ -7037,9 +7030,7 @@
   "unicorn(no-array-callback-reference)": 1
  },
  "src/features/board/ui/BuildCard.tsx": {
-  "eslint(curly)": 2,
   "eslint(max-lines-per-function)": 1,
-  "eslint(prefer-destructuring)": 1,
   "react(button-has-type)": 3,
   "react(immutability)": 1,
   "react-hooks(exhaustive-deps)": 1,
@@ -7051,13 +7042,10 @@
  },
  "src/features/board/ui/BuildMachine.tsx": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 3,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
-  "eslint(no-implicit-coercion)": 4,
   "eslint(no-nested-ternary)": 3,
   "eslint(no-shadow)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "import(max-dependencies)": 1,
   "jsx-a11y(click-events-have-key-events)": 1,
   "jsx-a11y(no-noninteractive-element-interactions)": 1,
@@ -7072,24 +7060,16 @@
   "typescript(no-non-null-assertion)": 2,
   "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(promise-function-async)": 1,
-  "typescript(strict-boolean-expressions)": 1,
   "typescript(strict-void-return)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(explicit-length-check)": 2,
-  "unicorn(prefer-global-this)": 1
+  "unicorn(consistent-function-scoping)": 1
  },
  "src/features/board/ui/BuildMode.tsx": {
   "eslint(complexity)": 2,
-  "eslint(curly)": 28,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
-  "eslint(no-implicit-coercion)": 7,
   "eslint(no-negated-condition)": 2,
   "eslint(no-nested-ternary)": 9,
   "eslint(no-use-before-define)": 1,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 3,
-  "import(consistent-type-specifier-style)": 2,
   "import(max-dependencies)": 1,
   "jsx-a11y(prefer-tag-over-role)": 4,
   "promise(always-return)": 1,
@@ -7104,13 +7084,11 @@
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-confusing-void-expression)": 14,
   "typescript(no-non-null-assertion)": 2,
-  "typescript(strict-boolean-expressions)": 12,
-  "unicorn(prefer-global-this)": 8
+  "typescript(strict-boolean-expressions)": 8
  },
  "src/features/board/ui/BuildNet.tsx": {
   "eslint(max-lines-per-function)": 2,
   "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "jsx-a11y(prefer-tag-over-role)": 1,
   "react(button-has-type)": 3,
   "typescript(consistent-type-imports)": 1,
@@ -7122,8 +7100,6 @@
   "eslint(max-lines-per-function)": 3,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 4,
   "react(button-has-type)": 5,
   "react(immutability)": 1,
   "react(no-unescaped-entities)": 1,
@@ -7141,11 +7117,8 @@
   "typescript(no-confusing-void-expression)": 2
  },
  "src/features/board/ui/BuildStart.tsx": {
-  "eslint(curly)": 2,
   "eslint(max-lines-per-function)": 1,
   "eslint(no-nested-ternary)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "jsx-a11y(prefer-tag-over-role)": 3,
   "promise(always-return)": 1,
   "promise(no-callback-in-promise)": 1,
@@ -7166,22 +7139,15 @@
   "vitest(prefer-strict-equal)": 3
  },
  "src/features/board/ui/benchhud.ts": {
-  "eslint(curly)": 2,
-  "eslint(no-implicit-coercion)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-non-null-assertion)": 2,
   "typescript(strict-boolean-expressions)": 4
  },
  "src/features/board/ui/builddrag.ts": {
-  "eslint(curly)": 10,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 1,
   "eslint(no-empty-function)": 2,
-  "eslint(no-implicit-coercion)": 3,
   "eslint(no-nested-ternary)": 1,
   "eslint(no-use-before-define)": 2,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 1,
   "react(immutability)": 1,
   "typescript(consistent-type-definitions)": 1,
   "typescript(consistent-type-imports)": 1,
@@ -7189,8 +7155,7 @@
   "typescript(no-confusing-void-expression)": 4,
   "typescript(prefer-nullish-coalescing)": 1,
   "typescript(strict-boolean-expressions)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(prefer-global-this)": 6
+  "unicorn(consistent-function-scoping)": 1
  },
  "src/features/board/ui/buildhud.test.ts": {
   "eslint(curly)": 1,
@@ -7206,18 +7171,13 @@
  },
  "src/features/board/ui/buildhud.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 26,
-  "eslint(no-implicit-coercion)": 1,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 4,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 3,
   "typescript(strict-boolean-expressions)": 4,
-  "unicorn(explicit-length-check)": 1,
   "unicorn(no-array-sort)": 1
  },
  "src/features/board/ui/buildstills.ts": {
-  "eslint(curly)": 1,
   "promise(always-return)": 1,
   "promise(prefer-await-to-then)": 3,
   "typescript(no-unsafe-type-assertion)": 1,
@@ -7256,9 +7216,8 @@
   "vitest(prefer-strict-equal)": 4
  },
  "src/features/board/ui/savedbuilds.ts": {
-  "eslint(no-implicit-coercion)": 1,
   "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(strict-boolean-expressions)": 2,
+  "typescript(strict-boolean-expressions)": 1,
   "unicorn(no-array-callback-reference)": 1
  },
  "src/features/board/ui/vrm.test.ts": {
@@ -7276,19 +7235,14 @@
  },
  "src/features/board/ui/vrm.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 20,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
-  "eslint(no-implicit-coercion)": 2,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 3,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 5,
   "typescript(no-non-null-assertion)": 2,
   "typescript(no-unnecessary-type-conversion)": 1,
   "typescript(no-unsafe-type-assertion)": 4,
   "typescript(strict-boolean-expressions)": 5,
-  "unicorn(explicit-length-check)": 1,
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(prefer-ternary)": 1
  },
@@ -8212,11 +8166,9 @@
  },
  "src/features/cpu/ui/TracePanel.tsx": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 15,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "import(max-dependencies)": 1,
   "jsx-a11y(click-events-have-key-events)": 2,
   "jsx-a11y(no-static-element-interactions)": 2,
@@ -8250,14 +8202,11 @@
   "vitest(prefer-strict-equal)": 5
  },
  "src/features/cpu/ui/trace.ts": {
-  "eslint(complexity)": 1,
-  "eslint(curly)": 10,
   "eslint(default-case)": 1,
   "eslint(max-params)": 1,
   "eslint(no-negated-condition)": 1,
   "typescript(no-non-null-assertion)": 17,
-  "typescript(prefer-readonly)": 1,
-  "unicorn(switch-case-braces)": 10
+  "typescript(prefer-readonly)": 1
  },
  "src/features/economy/sim/bill.test.ts": {
   "eslint(curly)": 1,

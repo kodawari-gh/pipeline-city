@@ -1,5 +1,6 @@
 import { Icon } from '@/core/ui/kit/Icons';
-import { NET_KINDS, NET_LABEL, netName, netOfSnap, type NetKind } from '@/features/board/sim/buildnet';
+import { NET_KINDS, NET_LABEL, netName, netOfSnap } from '@/features/board/sim/buildnet';
+import type * as buildnet from '@/features/board/sim/buildnet';
 import { PartArt } from '@/features/economy/ui/shop/PartArt';
 import { kindIcon, priceOf } from '@/features/economy/ui/shop/shopdata';
 import { getIspSpec, getRouterSpec } from '@/features/network/sim';
@@ -12,7 +13,7 @@ type Stage = import('../render/three/buildmode3d').BuildStage;
 const money = (n: number): string => `$${n.toLocaleString('en-US')}`;
 
 /** A few words under a network item's name: what it gives (short: the panel is narrow; the row's tooltip says all of it). */
-function detail(kind: NetKind, id: string, full = false): string {
+function detail(kind: buildnet.NetKind, id: string, full = false): string {
   if (kind === 'router') {
     const r = getRouterSpec(id);
     return r ? `${rate(r.mbps)}${full ? ` · ${r.clients} clients` : ''}` : '';

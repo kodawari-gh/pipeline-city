@@ -9,7 +9,9 @@ type Stage = import('../render/three/buildmode3d').BuildStage;
  * pointer is on it, and a click picks it. The same list drives the pill at the top (`pillOf`) and the marks on the rows (`BuildMachine`).
  */
 export function BuildAlerts({ stage, alerts }: { stage: Stage | null; alerts: readonly Alert[] }) {
-  if (!alerts.length) return null;
+  if (alerts.length === 0) {
+    return null;
+  }
   return (
     <section class="bld-alerts" aria-label="Problems with this machine">
       <ul>
