@@ -202,6 +202,7 @@ dseq
 dsub
 dtrack
 dvrm
+eastwall
 ecall
 ellipsized
 emap

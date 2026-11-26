@@ -51,7 +51,7 @@ it('every tier merges the router, the key rack, the mailbox, the cable plugs and
   const hi = build(false),
     lo = build(true);
 
-  // the router on its shelf, the key rack, the letterbox (room3d.ts: `mergeWithin`)
+  // the router on its shelf, the key rack, the letterbox (room3d/: `mergeWithin`)
   for (const id of ['router', 'tray', 'mail']) {
     expect(merged(findById(hi.room.root, id)), `${id} merged at High`).toBeGreaterThan(0);
     expect(merged(findById(lo.room.root, id)), `${id} merged at Low`).toBeGreaterThan(0);

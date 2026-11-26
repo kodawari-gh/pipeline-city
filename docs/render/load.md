@@ -88,7 +88,7 @@ A program first drawn before it has linked holds the frame and the page. On ANGL
 
 ## The city stays
 
-`OutsideView` takes about 1.6 s to build and does not depend on the tier, so `room3d.ts` keeps one for every room (`theCity`). `Room3D.dispose` takes the quad out of the root, so call it before `disposeTree(room.root)`. `prepareCity` builds it first, a step at a time (`OutsideView.make` runs the constructor's generator `build` and awaits `between` after each of its five steps, which paints and sets the label), and starts its programs, which then link while the room builds. The sync constructor runs the same steps in a row (`defer` is the async path's).
+`OutsideView` takes about 1.6 s to build and does not depend on the tier, so `room3d/city.ts` keeps one for every room (`theCity`). `Room3D.dispose` takes the quad out of the root, so call it before `disposeTree(room.root)`. `prepareCity` builds it first, a step at a time (`OutsideView.make` runs the constructor's generator `build` and awaits `between` after each of its five steps, which paints and sets the label), and starts its programs, which then link while the room builds. The sync constructor runs the same steps in a row (`defer` is the async path's).
 
 ## Frames stop while the driver links
 

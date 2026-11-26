@@ -21,7 +21,7 @@ Part of the renderer docs; the hub is [`RENDER.md`](../../../docs/RENDER.md). Th
 - **Clickable props.** `lamp` (switches the bulb and the lamp's light: the pool round the hood, the cone over the desk, the glass's reflection) and `blind` (rolls over the window glass, under the frame). Their ids are external (any zoom), hit last (behind every machine id), and a click does its thing at once with no card (`roomClick`, called first in `Interact.click`); tooltips come from `describeId` (`ROOM_TIPS` in `ui/logic.ts`). The state (`roomState`) is a per-viewer convenience kept in `localStorage` (`pipeline-city.room`) when it is there. Nothing in the room touches the sim.
 - **Not in the room:** the sim, the tutorial rings and the hit order of every machine id are unchanged; the router and wall plate art is still `net.ts`.
 
-## The 3D room's draw cost (`room3d.ts`, `src/core/render/three/merge.ts`)
+## The 3D room's draw cost (`room3d/`, `src/core/render/three/merge.ts`)
 
 Three steps cut the meshes and the material changes a frame draws. None changes the picture.
 

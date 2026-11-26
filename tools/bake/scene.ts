@@ -274,7 +274,7 @@ export function exportRoom(room: Room3D, extra: Object3D[] = []): BakeScene {
   walk(r.root, true);
   for (const e of extra) walk(e, false);
   const groups = r.lightGroups().map((g) => ({ id: g.id, lights: g.lights.map((l) => readLight(l, toRoom)) }));
-  // the sun bakes only at the hours it is up and comes in by the glass (it looks north: `sunIn` in `room3d.ts`)
+  // the sun bakes only at the hours it is up and comes in by the glass (it looks north: `sunIn` in `room3d/frame.ts`)
   const suns = SUN_HOURS.map((hour) => ({ hour, d: sunDir(hour) }))
     .filter(({ d }) => d[1] > 0 && -d[2] > 0.02)
     .map(({ hour, d }) => ({ hour, dir: dirB(new Vector3(...d)) }));

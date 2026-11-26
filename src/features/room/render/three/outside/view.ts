@@ -73,11 +73,11 @@ const LIT_LAMPS = 8,
   LAMPS_AT = new Vector3(GRID.av0, 0, -70);
 /**
  * The glass's share of the light: a neutral grey glass, the same at every hour, so the bright day keeps to the room's exposure and the night
- * city is as dim through it as the day's. The room's light from outside (the sky's, the sun's) takes the same share (`room3d.ts`).
+ * city is as dim through it as the day's. The room's light from outside (the sky's, the sun's) takes the same share (`room3d/frame.ts`).
  */
 export const GLASS_T = 0.47;
 /*
- * The night out here is in the room's units (`nits` in `room3d.ts`: a unit is about 700 cd/m2): the sky's glow, the haze and the mist over a
+ * The night out here is in the room's units (`nits` in `room3d/consts.ts`: a unit is about 700 cd/m2): the sky's glow, the haze and the mist over a
  * city are a few cd/m2, the moon's light far less, all far below the room's lamps. So at night the room is the picture and the city the dark
  * behind it, its lit windows and signs its brightest parts (`light.md` "Targets": at 23:00 the city is half the room's mean or less).
  */
