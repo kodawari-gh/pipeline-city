@@ -1,84 +1,88 @@
 import { describe, expect, it } from 'vitest';
 import { assembleGpu } from './asm';
 import { AsmError } from '@/features/cpu/sim/asm/assemble';
-import { GPU_OPS, gpuDecode, gpuDisassemble, gpuEncode, gpuInstr, parseVReg, type GpuInstr } from './isa';
+import * as isa from './isa';
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+type Regs = readonly [rd: number, rs1: number, rs2: number];
+
+/** Register triples the samples use, including extremes. */
+const SAMPLE_REGS: readonly Regs[] = [
+  [0, 0, 0],
+  [1, 2, 3],
+  [7, 6, 5],
+  [5, 7, 0],
+];
+
+/** The sample instructions of one format for one register triple. */
+const BY_FORMAT: Record<string, (name: string, regs: Regs, shift: boolean) => isa.GpuInstr[]> = {
+  N: (name) => [isa.gpuInstr(name)],
+  R: (name, [rd, rs1, rs2]) => [isa.gpuInstr(name, { rd, rs1, rs2 })],
+  // vli has no source register
+  I: (name, [rd, rs1], shift) =>
+    (shift ? [0, 1, 31] : [0, 1, -1, 65_535, -65_536]).map((imm) =>
+      isa.gpuInstr(name, { rd, rs1: name === 'vli' ? 0 : rs1, imm }),
+    ),
+  D: (name, [rd]) => [isa.gpuInstr(name, { rd })],
+  S: (name, [, rs1, rs2]) => [0, 4, -1, 65_535, -65_536].map((imm) => isa.gpuInstr(name, { rs1, rs2, imm })),
+  M: (name, [, rs1, rs2]) => [isa.gpuInstr(name, { rs1, rs2 })],
+  O: (name) => [0, 4, -4, 0xf_ff_fc, -0x10_00_00].map((imm) => isa.gpuInstr(name, { imm })),
+};
 
 /** Sample operands per format, including extremes. */
-function samples(fmt: string, name: string, shift?: boolean): GpuInstr[] {
-  const out: GpuInstr[] = [];
-  for (const [rd, rs1, rs2] of [
-    [0, 0, 0],
-    [1, 2, 3],
-    [7, 6, 5],
-    [5, 7, 0],
-  ] as const) {
-    switch (fmt) {
-      case 'N':
-        out.push(gpuInstr(name));
-        break;
-      case 'R':
-        out.push(gpuInstr(name, { rd, rs1, rs2 }));
-        break;
-      case 'I':
-        for (const imm of shift ? [0, 1, 31] : [0, 1, -1, 65535, -65536])
-          out.push(gpuInstr(name, { rd, rs1: name === 'vli' ? 0 : rs1, imm })); // vli has no source register
-        break;
-      case 'D':
-        out.push(gpuInstr(name, { rd }));
-        break;
-      case 'S':
-        for (const imm of [0, 4, -1, 65535, -65536]) out.push(gpuInstr(name, { rs1, rs2, imm }));
-        break;
-      case 'M':
-        out.push(gpuInstr(name, { rs1, rs2 }));
-        break;
-      case 'O':
-        for (const imm of [0, 4, -4, 0xffffc, -0x100000]) out.push(gpuInstr(name, { imm }));
-        break;
-    }
+function samples(fmt: string, name: string, shift?: boolean): isa.GpuInstr[] {
+  const make = BY_FORMAT[fmt];
+  if (!make) {
+    return [];
   }
-  return out;
+  return SAMPLE_REGS.flatMap((regs) => make(name, regs, shift === true));
 }
 
 describe('GPU ISA encode/decode', () => {
   it('has unique opcodes and names', () => {
-    expect(new Set(GPU_OPS.map((o) => o.op)).size).toBe(GPU_OPS.length);
-    expect(new Set(GPU_OPS.map((o) => o.name)).size).toBe(GPU_OPS.length);
+    expect(new Set(isa.GPU_OPS.map((o) => o.op)).size).toBe(isa.GPU_OPS.length);
+    expect(new Set(isa.GPU_OPS.map((o) => o.name)).size).toBe(isa.GPU_OPS.length);
   });
 
-  for (const spec of GPU_OPS) {
-    it(`round-trips ${spec.name} through the encoding, the disassembler and the assembler`, () => {
-      for (const i of samples(spec.fmt, spec.name, spec.shift)) {
-        const w = gpuEncode(i);
-        expect(w).toBeGreaterThanOrEqual(0);
-        expect(w).toBeLessThan(2 ** 32);
-        expect(gpuDecode(w)).toEqual(i);
-        // text round trip: disassemble, assemble, same word
-        expect(assembleGpu(gpuDisassemble(w)).program[0]).toBe(w);
-      }
-    });
-  }
+  it.each(isa.GPU_OPS)('round-trips $name through the encoding, the disassembler and the assembler', (spec) => {
+    for (const i of samples(spec.fmt, spec.name, spec.shift)) {
+      const w = isa.gpuEncode(i);
+      expect(w).toBeGreaterThanOrEqual(0);
+      expect(w).toBeLessThan(2 ** 32);
+      expect(isa.gpuDecode(w)).toStrictEqual(i);
+      // text round trip: disassemble, assemble, same word
+      expect(assembleGpu(isa.gpuDisassemble(w)).program[0]).toBe(w);
+    }
+  });
 
   it('rejects out-of-range fields', () => {
-    expect(() => gpuEncode(gpuInstr('vaddi', { imm: 65536 }))).toThrow(RangeError);
-    expect(() => gpuEncode(gpuInstr('vadd', { rd: 8 }))).toThrow(RangeError);
-    expect(() => gpuEncode(gpuInstr('vslli', { imm: 32 }))).toThrow(RangeError);
-    expect(() => gpuEncode(gpuInstr('bany', { imm: 2 }))).toThrow(RangeError);
-    expect(() => gpuEncode(gpuInstr('jmp', { imm: 0x100000 }))).toThrow(RangeError);
-    expect(() => gpuEncode(gpuInstr('add'))).toThrow(RangeError); // a CPU opcode
+    expect(() => isa.gpuEncode(isa.gpuInstr('vaddi', { imm: 65_536 }))).toThrow(RangeError);
+    expect(() => isa.gpuEncode(isa.gpuInstr('vadd', { rd: 8 }))).toThrow(RangeError);
+    expect(() => isa.gpuEncode(isa.gpuInstr('vslli', { imm: 32 }))).toThrow(RangeError);
+    expect(() => isa.gpuEncode(isa.gpuInstr('bany', { imm: 2 }))).toThrow(RangeError);
+    expect(() => isa.gpuEncode(isa.gpuInstr('jmp', { imm: 0x10_00_00 }))).toThrow(RangeError);
+    expect(() => isa.gpuEncode(isa.gpuInstr('add'))).toThrow(RangeError); // a CPU opcode
   });
 
   it('decodes illegal opcodes and out-of-range registers to null', () => {
-    expect(gpuDecode(0)).toBeNull();
-    expect(gpuDecode(gpuEncode(gpuInstr('vadd')) | (9 << 7))).toBeNull(); // rd = v9
-    expect(gpuDisassemble(0xfffffffe)).toBe('.word 0xfffffffe');
+    expect(isa.gpuDecode(0)).toBeNull();
+    const vadd = isa.gpuEncode(isa.gpuInstr('vadd'));
+    expect(isa.gpuDecode(vadd | (9 << 7))).toBeNull(); // rd = v9
+    expect(isa.gpuDisassemble(0xff_ff_ff_fe)).toBe('.word 0xfffffffe');
   });
 
   it('names the vector registers', () => {
-    expect(parseVReg('v0')).toBe(0);
-    expect(parseVReg('v7')).toBe(7);
-    expect(parseVReg('v8')).toBe(-1);
-    expect(parseVReg('a0')).toBe(-1);
+    expect(isa.parseVReg('v0')).toBe(0);
+    expect(isa.parseVReg('v7')).toBe(7);
+    expect(isa.parseVReg('v8')).toBe(-1);
+    expect(isa.parseVReg('a0')).toBe(-1);
   });
 });
 
@@ -95,20 +99,20 @@ describe('GPU assembler', () => {
              vadd v1, v1, v1
       end:   halt
     `);
-    expect(program.length).toBe(9);
+    expect(program).toHaveLength(9);
     expect(symbols.get('loop')).toBe(12);
-    expect(gpuDecode(program[5]!)).toMatchObject({ name: 'bany', imm: -8 });
-    expect(gpuDecode(program[6]!)).toMatchObject({ name: 'jmp', imm: 8 });
-    expect(gpuDecode(program[2]!)).toMatchObject({ name: 'vaddi', rd: 3, rs1: 2, imm: 0 });
+    expect(isa.gpuDecode(must(program[5]))).toMatchObject({ name: 'bany', imm: -8 });
+    expect(isa.gpuDecode(must(program[6]))).toMatchObject({ name: 'jmp', imm: 8 });
+    expect(isa.gpuDecode(must(program[2]))).toMatchObject({ name: 'vaddi', rd: 3, rs1: 2, imm: 0 });
   });
 
   it('reports the line of an error', () => {
     expect(() => assembleGpu('vli v1, 1\nvadd v1, v2')).toThrow(AsmError);
-    expect(() => assembleGpu('vli v1, 1\nvadd v1, v2')).toThrow(/line 2/);
-    expect(() => assembleGpu('nope v1')).toThrow(/unknown GPU instruction/);
-    expect(() => assembleGpu('vli v9, 1')).toThrow(/vector register/);
-    expect(() => assembleGpu('bany nowhere')).toThrow(/bad target/);
-    expect(() => assembleGpu('a: halt\na: halt')).toThrow(/duplicate label/);
+    expect(() => assembleGpu('vli v1, 1\nvadd v1, v2')).toThrow(/line 2/u);
+    expect(() => assembleGpu('nope v1')).toThrow(/unknown GPU instruction/u);
+    expect(() => assembleGpu('vli v9, 1')).toThrow(/vector register/u);
+    expect(() => assembleGpu('bany nowhere')).toThrow(/bad target/u);
+    expect(() => assembleGpu('a: halt\na: halt')).toThrow(/duplicate label/u);
     expect(() => assembleGpu('vld v1, 4(v2)\nvst v1, (v2)')).not.toThrow();
   });
 });

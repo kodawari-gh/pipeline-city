@@ -1,17 +1,29 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { KERNEL_LAYOUT } from './kernels';
 import { GPU_FRAME } from '@/core/sim/memmap';
 import { Game } from '@/worker/game/game';
 import { parseSave } from '@/worker/game/save';
 import { econ } from '@/worker/game/testkit';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 /** A maxed sandbox rig (a big board with PCIe slots), powered off, its video cable on the board's port. */
 const rig = (): Game => new Game({ seed: 3, sandbox: true, preassembled: true, maxed: true, economy: econ() });
 const put = (g: Game, spec: string): string => {
   const b = g.purchase(spec);
-  if (!b.ok) throw new Error(`${spec}: ${b.reason}`);
+  if (!b.ok) {
+    throw new Error(`${spec}: ${b.reason}`);
+  }
   const r = g.install(b.invId);
-  if (!r.ok) throw new Error(`${spec}: ${r.reason}`);
+  if (!r.ok) {
+    throw new Error(`${spec}: ${r.reason}`);
+  }
   return r.slot;
 };
 const replug = (g: Game, port?: string) => {
@@ -29,8 +41,8 @@ describe("the video cable's port", () => {
     const g = rig();
     const slot = put(g, 'gpu3');
     const r = replug(g, slot);
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toMatch(/graphics display/);
+    assert.isFalse(r.ok);
+    expect(r.reason).toMatch(/graphics display/u);
     expect(g.snapshot().videoPort).toBe('board');
   });
 
@@ -61,10 +73,10 @@ describe("the video cable's port", () => {
     g.connectCable('video');
     g.disconnectCable('video');
     g.connectCable('video', slot);
-    const card = g.board.devices.find((d) => d.slot === slot)!;
+    const card = must(g.board.devices.find((d) => d.slot === slot));
     expect(g.uninstall(card.id).ok).toBe(true);
     expect(g.snapshot().videoPort).toBe('board');
-    expect(g.snapshot().cables.find((c) => c.id === 'video')!.connected).toBe(false);
+    expect(must(g.snapshot().cables.find((c) => c.id === 'video')).connected).toBe(false);
 
     const g2 = rig();
     const s2 = put(g2, 'gpu3');
@@ -74,7 +86,7 @@ describe("the video cable's port", () => {
     g2.connectCable('video', s2);
     put(g2, 'display0');
     expect(g2.snapshot().videoPort).toBe('board');
-    expect(g2.snapshot().cables.find((c) => c.id === 'video')!.connected).toBe(false);
+    expect(must(g2.snapshot().cables.find((c) => c.id === 'video')).connected).toBe(false);
   });
 
   it("is unplugging back to the board's port", () => {
@@ -97,9 +109,9 @@ describe("the video cable's port", () => {
     g.connectCable('video', slot);
     const save = g.toSave();
     expect(save.video).toBe(slot);
-    const back = Game.fromSave(parseSave(JSON.parse(JSON.stringify(save))), econ());
+    const back = Game.fromSave(parseSave(structuredClone(save)), econ());
     expect(back.snapshot().videoPort).toBe(slot);
-    const { video: _v, ...old } = JSON.parse(JSON.stringify(save));
+    const { video: _v, ...old } = structuredClone(save);
     expect(Game.fromSave(parseSave(old), econ()).snapshot().videoPort).toBe('board');
   });
 
@@ -110,6 +122,6 @@ describe("the video cable's port", () => {
 
 describe('the frame region of a card', () => {
   it('is where the kernels write their output', () => {
-    expect(GPU_FRAME).toEqual({ at: KERNEL_LAYOUT.out, words: KERNEL_LAYOUT.maxPicture });
+    expect(GPU_FRAME).toStrictEqual({ at: KERNEL_LAYOUT.out, words: KERNEL_LAYOUT.maxPicture });
   });
 });

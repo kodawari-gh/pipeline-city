@@ -40,7 +40,8 @@ describe('GPU replay', () => {
     expect(p.advance(1).step).toBeNull();
     p.feed(snap([step(0)]));
     expect(p.advance(0).step?.pc).toBe(0);
-    p.feed(undefined);
+    const removed: GpuSnap[] = []; // a removed card has no snapshot
+    p.feed(removed.at(0));
     expect(p.advance(1).step).toBeNull();
     p.feed(snap([]));
     expect(p.advance(1)).toMatchObject({ step: null, playing: false });
@@ -57,9 +58,9 @@ describe('GPU replay', () => {
     );
     expect(p.advance(0)).toMatchObject({ index: 0, length: 3, playing: true });
     expect(p.advance(CYC * 1.5)).toMatchObject({ index: 1, round: 0 }); // 1.5 cycles in: half-way through the first round of the load
-    expect(p.advance(CYC * 1)).toMatchObject({ index: 1, round: 1 });
-    expect(p.advance(CYC * 1)).toMatchObject({ index: 1, round: 2 });
-    expect(p.advance(CYC * 1)).toMatchObject({ index: 2 });
+    expect(p.advance(CYC)).toMatchObject({ index: 1, round: 1 });
+    expect(p.advance(CYC)).toMatchObject({ index: 1, round: 2 });
+    expect(p.advance(CYC)).toMatchObject({ index: 2 });
     const last = p.advance(CYC * 10);
     expect(last).toMatchObject({ index: 2, playing: false, progress: 1 }); // held on the last instruction
   });
@@ -108,15 +109,15 @@ describe('GPU replay', () => {
 
   it('reads the mask, banks and text of the instruction on show', () => {
     const p = new GpuPlayer();
-    p.feed(snap([step(0, { name: 'vld', kind: 'ld', mask: 0b00001111, cost: 2, banks: [2, 1, 1, 0] })]));
+    p.feed(snap([step(0, { name: 'vld', kind: 'ld', mask: 0b0000_1111, cost: 2, banks: [2, 1, 1, 0] })]));
     const t = p.advance(0);
-    expect([0, 3, 4, 7].map((k) => laneActive(t, k))).toEqual([true, true, false, false]);
-    expect(bankState(t, 0)).toEqual({ queued: 2, served: 1 });
-    expect(bankState(t, 3)).toEqual({ queued: 0, served: 0 });
+    expect([0, 3, 4, 7].map((k) => laneActive(t, k))).toStrictEqual([true, true, false, false]);
+    expect(bankState(t, 0)).toStrictEqual({ queued: 2, served: 1 });
+    expect(bankState(t, 3)).toStrictEqual({ queued: 0, served: 0 });
     expect(conflicted(t)).toBe(true);
     expect(stepText(t, 8)).toBe('vld    4/8');
     expect(laneActive(new GpuPlayer().advance(0), 5)).toBe(true); // idle card: every lane drawn as it is
-    expect(laneActive({ ...t, step: step(0, { mask: 0x80000000 }) }, 31)).toBe(true); // lane 31 reads the top mask bit
+    expect(laneActive({ ...t, step: step(0, { mask: 0x80_00_00_00 }) }, 31)).toBe(true); // lane 31 reads the top mask bit
   });
 
   it('runs on the card clock: a second warp issues while a load waits, each SM shows its own instruction', () => {
@@ -133,11 +134,11 @@ describe('GPU replay', () => {
     const t = p.advance(0);
     expect(t.cycle).toBeCloseTo(2.5, 5);
     expect(t.index).toBe(3); // the newest to have issued
-    expect(t.sms.map((s) => [s.sm, s.index])).toEqual([
+    expect(t.sms.map((s) => [s.sm, s.index])).toStrictEqual([
       [0, 3],
       [1, 2],
     ]);
-    expect(t.warps.map((w) => [w.sm, w.warp, w.index, w.busy])).toEqual([
+    expect(t.warps.map((w) => [w.sm, w.warp, w.index, w.busy])).toStrictEqual([
       [0, 0, 0, true],
       [0, 1, 3, true],
       [1, 0, 2, false],
@@ -159,17 +160,19 @@ describe('GPU replay', () => {
     p.resume();
     expect(p.scrubbed).toBe(false);
     expect(p.advance(0).step?.pc).toBe(108);
-    expect(p.seek(9, 0).length).toBe(2); // beyond the history: the oldest
+    expect(p.seek(9, 0)).toHaveLength(2); // beyond the history: the oldest
   });
 });
+
+/** The window after stepping a card `n` cycles: one instruction per cycle. */
+const steppedRun = (n: number): GpuStep[] => Array.from({ length: n }, (_, k) => step(k * 4, { startCycle: k }));
 
 describe('GPU scrubbing a stepped card', () => {
   it('after stepping 1 and then 10 cycles the scrubber reaches the earlier cycle', () => {
     const p = new GpuPlayer();
-    const run = (n: number) => Array.from({ length: n }, (_, k) => step(k * 4, { startCycle: k }));
-    p.feed(snap(run(1)));
+    p.feed(snap(steppedRun(1)));
     expect(p.span).toBe(1);
-    p.feed(snap(run(11)));
+    p.feed(snap(steppedRun(11)));
     expect(p.span).toBe(11);
     const early = p.seek(0, 1),
       late = p.seek(0, 11);
