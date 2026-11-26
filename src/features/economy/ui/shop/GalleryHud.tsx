@@ -103,7 +103,7 @@ export function GalleryPart({
                 <span class="bld-bar" aria-hidden="true">
                   <i
                     style={{
-                      width: `${Math.round(goodness(group.kind as PickerKind, s.key, s.value, s.higherIsBetter) * 100)}%`,
+                      width: `${Math.round(goodness(group.kind as PickerKind, s) * 100)}%`,
                     }}
                   />
                 </span>
