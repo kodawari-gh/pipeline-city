@@ -28,20 +28,28 @@ async function copyReport(text: string) {
 export function CrashPanel() {
   const r = crash.value;
   useEffect(() => {
-    if (!r) return;
+    if (!r) {
+      return;
+    }
     const onKey = (ev: KeyboardEvent) => {
-      if (ev.key === 'Escape') closeCrash();
+      if (ev.key === 'Escape') {
+        closeCrash();
+      }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    globalThis.addEventListener('keydown', onKey);
+    return () => globalThis.removeEventListener('keydown', onKey);
   }, [r]);
-  if (!r) return null;
-  const core0 = r.cores[0];
+  if (!r) {
+    return null;
+  }
+  const [core0] = r.cores;
   return (
     <div
       class="modal-back"
       onClick={(ev) => {
-        if (ev.target === ev.currentTarget) closeCrash();
+        if (ev.target === ev.currentTarget) {
+          closeCrash();
+        }
       }}
     >
       <div class="card modal crash" role="alertdialog" aria-modal="true" aria-label="The machine crashed">

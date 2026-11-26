@@ -28,7 +28,9 @@ const buildsText = (n: number) => (n === 0 ? 'no saved builds' : `${n} saved bui
 /** SPEC §5.1 meta of Gallery: the live count of parts in the Gallery list ("75 parts"). The list does not change while the page runs, so it is counted once. */
 let galleryCount: number | null = null;
 const partsText = () => {
-  if (galleryCount === null) galleryCount = galleryGroups().reduce((n, g) => n + g.items.length, 0);
+  if (galleryCount === null) {
+    galleryCount = galleryGroups().reduce((n, g) => n + g.items.length, 0);
+  }
   return `${galleryCount} part${galleryCount === 1 ? '' : 's'}`;
 };
 
@@ -61,7 +63,7 @@ export function MainMenu({ ready = true }: { ready?: boolean }) {
   // The spine. Tags follow the stage order; the utility line takes the stage after the last row.
   type Row = { key: string; label: string; meta?: string; hero?: boolean; disabled?: boolean; run: () => void };
   const rows: Row[] = [];
-  if (offer)
+  if (offer) {
     rows.push({
       key: 'continue',
       label: 'Continue',
@@ -69,6 +71,7 @@ export function MainMenu({ ready = true }: { ready?: boolean }) {
       hero: true,
       run: () => startSim(offer),
     });
+  }
   rows.push({
     key: 'new',
     label: 'New game',
@@ -110,30 +113,38 @@ export function MainMenu({ ready = true }: { ready?: boolean }) {
 
   // The first enabled group takes focus when the menu shows.
   useEffect(() => {
-    if (modal) return;
-    const first = groups()[0];
+    if (modal) {
+      return;
+    }
+    const [first] = groups();
     if (first !== undefined) {
       setAt(first);
       focusGroup(first);
     }
     // (re-run only when the menu's shape changes)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modal, !!offer, ready]);
+  }, [modal, offer !== null, ready]);
 
   // A resting mouse does not steal focus after a key press.
   const onEnter = (g: number) => {
-    if (mouseMayMoveFocus(lastKey.current, Date.now())) setAt(g);
+    if (mouseMayMoveFocus(lastKey.current, Date.now())) {
+      setAt(g);
+    }
   };
 
   const onKey = (e: KeyboardEvent) => {
-    if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+    if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+      return;
+    }
     lastKey.current = Date.now();
     const active = document.activeElement as HTMLElement | null;
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       // ← → change the utility button that has focus. The key moves the chip to the utility line itself, past the hold-off.
       const list = utils();
       const i = list.indexOf(active as HTMLElement);
-      if (i === -1) return;
+      if (i === -1) {
+        return;
+      }
       e.preventDefault();
       setAt(utilGroup);
       list[cycleValue(list.length, i, e.key)]!.focus();
@@ -141,7 +152,9 @@ export function MainMenu({ ready = true }: { ready?: boolean }) {
     }
     const gs = groups();
     const next = moveFocus(gs.length, gs.indexOf(Number(active?.dataset['group'])), e.key);
-    if (next < 0) return;
+    if (next < 0) {
+      return;
+    }
     e.preventDefault();
     const g = gs[next]!;
     setAt(g);
@@ -234,7 +247,9 @@ export function MainMenu({ ready = true }: { ready?: boolean }) {
               data-cue="silent"
               onChange={(e) => {
                 const f = e.currentTarget.files?.[0];
-                if (f) void loadFromFile(f);
+                if (f) {
+                  void loadFromFile(f);
+                }
                 e.currentTarget.value = '';
               }}
             />

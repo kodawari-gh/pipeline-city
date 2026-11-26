@@ -22,5 +22,7 @@ export async function loadFromFile(file: File): Promise<void> {
     loadOffer.value = save;
     return;
   }
-  if (snapshot.peek()) leaveGame();
+  if (snapshot.peek()) {
+    leaveGame();
+  }
 }

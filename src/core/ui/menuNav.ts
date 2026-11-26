@@ -8,19 +8,26 @@ const MOUSE_HOLD_MS = 1000;
  * ↑ ↓ wrap at both ends; Home and End go to the first and last row. Any other key keeps `at`.
  */
 export function moveFocus(count: number, at: number, key: string): number {
-  if (count <= 0) return -1;
+  if (count <= 0) {
+    return -1;
+  }
   const on = at >= 0 && at < count;
   switch (key) {
-    case 'ArrowDown':
+    case 'ArrowDown': {
       return on ? (at + 1) % count : 0;
-    case 'ArrowUp':
+    }
+    case 'ArrowUp': {
       return on ? (at - 1 + count) % count : count - 1;
-    case 'Home':
+    }
+    case 'Home': {
       return 0;
-    case 'End':
+    }
+    case 'End': {
       return count - 1;
-    default:
+    }
+    default: {
       return at;
+    }
   }
 }
 
@@ -29,14 +36,19 @@ export function moveFocus(count: number, at: number, key: string): number {
  * → selects the next value and ← the previous one, both wrapping. ↑ ↓ and other keys keep `at`.
  */
 export function cycleValue(count: number, at: number, key: string): number {
-  if (count <= 0) return -1;
+  if (count <= 0) {
+    return -1;
+  }
   switch (key) {
-    case 'ArrowRight':
+    case 'ArrowRight': {
       return (at + 1 + count) % count;
-    case 'ArrowLeft':
+    }
+    case 'ArrowLeft': {
       return (at - 1 + count) % count;
-    default:
+    }
+    default: {
       return at;
+    }
   }
 }
 
