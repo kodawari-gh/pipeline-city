@@ -57,7 +57,9 @@ export interface TaskResult {
 /** Geometric mean of the scores that are not null; 0 when none is. */
 export function overallOf(results: readonly Pick<TaskResult, 'score'>[]): number {
   const got = results.map((r) => r.score).filter((s): s is number => s !== null && s > 0);
-  if (got.length === 0) return 0;
+  if (got.length === 0) {
+    return 0;
+  }
   return Math.round(Math.exp(got.reduce((sum, s) => sum + Math.log(s), 0) / got.length));
 }
 
@@ -102,9 +104,13 @@ const CORES: Record<string, RigId> = { 2: 'cores2', 4: 'cores4', 8: 'cores8' };
 /** The reference machine that has what the job needs: the biggest need decides (a TPM, then the cores, then a fibre plan). */
 function rigOf(needs: Need[]): RigId {
   const tpm = needs.find((n): n is Extract<Need, { kind: 'tpm' }> => n.kind === 'tpm');
-  if (tpm) return (tpm.minTier ?? 1) > 1 ? 'trust2' : 'trust';
+  if (tpm) {
+    return (tpm.minTier ?? 1) > 1 ? 'trust2' : 'trust';
+  }
   const cores = needs.find((n): n is Extract<Need, { kind: 'cores' }> => n.kind === 'cores');
-  if (cores) return CORES[cores.min] ?? 'cores2';
+  if (cores) {
+    return CORES[cores.min] ?? 'cores2';
+  }
   const net = needs.find((n): n is Extract<Need, { kind: 'net' }> => n.kind === 'net');
   return (net?.minTier ?? 0) >= 3 ? 'fibre' : 'mid';
 }
@@ -129,7 +135,7 @@ function taskOf(e: DexEntry): BenchTask {
 export const BENCH_TASKS: readonly BenchTask[] = [
   ...DEX_GROUPS.flatMap((g) => g.ids)
     .map((id) => JOB_DEX.find((e) => e.id === id))
-    .filter((e): e is DexEntry => !!e && !e.contract && !e.planned && !!e.template)
+    .filter((e): e is DexEntry => e !== undefined && !e.contract && !e.planned && Boolean(e.template))
     .map(taskOf),
   DISK,
 ];

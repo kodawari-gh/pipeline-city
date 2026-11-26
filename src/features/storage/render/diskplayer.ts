@@ -14,35 +14,7 @@ import type { StorageCmd } from '../sim/storage';
 import type { DiskPlan } from './diskfloor';
 import { CELL_BLOCKS, headTrack, platterCell } from './diskplan';
 import type { DriveKind } from './drives';
-
-type StepKind = 'cmd' | 'lookup' | 'send' | 'array' | 'return' | 'seek' | 'rotate' | 'media' | 'status';
-
-/** One step: it starts at `at` ms into the script and lasts `dur` ms. */
-export interface Step {
-  kind: StepKind;
-  at: number;
-  dur: number;
-  /** What the drive is doing, in words (the counter tier shows it). */
-  label: string;
-  /** Links the data crosses during the step (in the plan's own direction unless `rev`). */
-  links: { id: string; rev: boolean }[];
-  /** Blocks that work during the step. */
-  blocks: string[];
-  /** The step whose data is the payload (a data packet is bigger than a command's). */
-  data: boolean;
-}
-
-export interface Script {
-  cmd: StorageCmd;
-  steps: Step[];
-  total: number;
-  /** The die and the cell in it (flash), or the cell on the platter (hard disk). */
-  die: number;
-  cell: number;
-  /** The head track before and after (hard disk). */
-  fromTrack: number;
-  toTrack: number;
-}
+import type { Script, Step, StepKind } from './steps';
 
 /** The die that holds capacity cell `cell`, and the cell's place in it. */
 export function dieOf(plan: DiskPlan, cell: number): { die: number; k: number } {
@@ -53,7 +25,9 @@ export function dieOf(plan: DiskPlan, cell: number): { die: number; k: number } 
 
 /** The links from the controller to die `i`: one channel on the SATA SSD, a channel and, for the lower row, its stub on the NVMe. */
 export function channelOf(kind: DriveKind, i: number): string[] {
-  if (kind === 'ssd-nvme') return i >= 4 ? [`ch${i - 4}`, `ch${i - 4}b`] : [`ch${i}`];
+  if (kind === 'ssd-nvme') {
+    return i >= 4 ? [`ch${i - 4}`, `ch${i - 4}b`] : [`ch${i}`];
+  }
   return [`ch${i}`];
 }
 
@@ -79,7 +53,9 @@ export function scriptFor(
     blocks: string[] = [],
     data = false,
   ): void => {
-    if (weight > 0) w.push([{ kind, label, links, blocks, data }, weight]);
+    if (weight > 0) {
+      w.push([{ kind, label, links, blocks, data }, weight]);
+    }
   };
   const verb = write ? 'write' : 'read';
   let die = 0,
@@ -103,7 +79,9 @@ export function scriptFor(
       write,
     );
     add('lookup', 'the servo plans the move', 0.06, [], ['ctrl']);
-    if (move) add('seek', `the arm seeks to track ${toTrack + 1}`, rest * seekShare + 0.04, [], []);
+    if (move) {
+      add('seek', `the arm seeks to track ${toTrack + 1}`, rest * seekShare + 0.04, [], []);
+    }
     add('rotate', 'the platter turns the sector under the head', move ? 0.1 : 0.14, [], []);
     add(
       'media',
@@ -122,7 +100,7 @@ export function scriptFor(
       !write,
     );
   } else {
-    die = dieOf(plan, cell).die;
+    ({ die } = dieOf(plan, cell));
     const ch = channelOf(kind, die),
       nand = `nand${die}`,
       ticks = Math.max(1, cmd.xfer);
@@ -184,7 +162,9 @@ export function scriptFor(
 export function stepAt(s: Script, t: number): { step: Step; p: number } {
   let st = s.steps[0]!;
   for (const x of s.steps) {
-    if (t >= x.at) st = x;
+    if (t >= x.at) {
+      st = x;
+    }
   }
   return { step: st, p: clamp((t - st.at) / Math.max(1, st.dur), 0, 1) };
 }
@@ -194,7 +174,9 @@ const ease = (p: number): number => p * p * (3 - 2 * p);
 /** The head track at `t` ms: it holds the old track until the seek, glides over it (a smooth start and stop), and holds the new one. */
 export function trackAt(s: Script, t: number): number {
   const seek = s.steps.find((x) => x.kind === 'seek');
-  if (!seek) return s.toTrack;
+  if (!seek) {
+    return s.toTrack;
+  }
   return s.fromTrack + (s.toTrack - s.fromTrack) * ease(clamp((t - seek.at) / seek.dur, 0, 1));
 }
 
@@ -234,18 +216,22 @@ export class DiskPlayer {
   /** Takes the commands in a snapshot: the new ones are queued. The first look only notes where the drive stands. */
   ingest(kind: DriveKind, plan: DiskPlan, cmds: readonly StorageCmd[], totalBlocks: number, headLba: number): void {
     if (this.lastSeq < 0) {
-      this.lastSeq = cmds.length ? cmds[cmds.length - 1]!.seq : 0;
+      this.lastSeq = cmds.length > 0 ? cmds.at(-1)!.seq : 0;
       this.prevTrack = this.rest = plan.platter ? headTrack(headLba, totalBlocks, plan.platter.tracks) : 0;
       return;
     }
     for (const c of cmds) {
-      if (c.seq <= this.lastSeq) continue;
+      if (c.seq <= this.lastSeq) {
+        continue;
+      }
       this.lastSeq = c.seq;
       const s = scriptFor(kind, plan, c, this.prevTrack, totalBlocks);
       this.prevTrack = s.toTrack;
       this.queue.push(s);
     }
-    while (this.queue.length > BACKLOG) this.queue.shift();
+    while (this.queue.length > BACKLOG) {
+      this.queue.shift();
+    }
   }
 
   /** Whether a script is playing. */
@@ -270,7 +256,9 @@ export class DiskPlayer {
     for (let guard = 0; left > 0 && guard < 8; guard++) {
       if (!this.cur) {
         const next = this.queue.shift();
-        if (!next) break;
+        if (!next) {
+          break;
+        }
         this.cur = next;
         this.t = 0;
         this.started = -1;
@@ -283,10 +271,13 @@ export class DiskPlayer {
       left -= used;
       for (let i = this.started + 1; i < s.steps.length; i++) {
         const st = s.steps[i]!;
-        if (st.at > this.t + 1e-6) break;
+        if (st.at > this.t + 1e-6) {
+          break;
+        }
         this.started = i;
-        for (const l of st.links)
+        for (const l of st.links) {
           out.push({ id: l.id, rev: l.rev, dur: st.dur / speed, data: st.data, write: s.cmd.op === 'w' });
+        }
       }
       if (this.t >= s.total - 1e-6) {
         this.rest = s.toTrack;

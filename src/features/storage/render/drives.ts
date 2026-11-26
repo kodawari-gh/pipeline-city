@@ -4,6 +4,7 @@ import { BAY_CELLS, CELL_W, M2_SLOTS, type Rect } from '../../board/render/layou
 import { m2Stick } from '../../board/render/layout/pins';
 import type { Theme } from '@/core/render/theme';
 import { armTip } from './diskplan';
+import { nvmeParts } from './nvme';
 
 // Drive art. Static casing (`driveArt`) plus the parts that move while the drive is busy (`drawDriveLive`: HDD platter and
 // head arm, activity LEDs), redrawn by Live from the game clock. All geometry is in world units.
@@ -14,7 +15,7 @@ export const driveKindOf = (visual: string): DriveKind =>
   visual === 'ssd-nvme' ? 'ssd-nvme' : visual === 'ssd-sata' ? 'ssd-sata' : 'hdd';
 
 /** Index of a slot id: sata3 -> 3, m21 -> 1 (the number after the type). */
-const slotIndex = (slot: string): number => Number(slot.replace(/^(sata|m2)/, '')) || 0;
+const slotIndex = (slot: string): number => Number(slot.replace(/^(?:sata|m2)/u, '')) || 0;
 
 /** The SATA drives are drawn at this design size (a cell of 700 x 500) and scaled to the cell of the cage. */
 const DESIGN = { w: 700, h: 500 };
@@ -39,23 +40,6 @@ export function driveBody(kind: DriveKind, slot: string): Rect {
     k = driveScale(),
     b = bodyLocal(kind);
   return { x: c.x + b.x * k, y: c.y + b.y * k, w: b.w * k, h: b.h * k };
-}
-
-/**
- * An NVMe stick's parts over its body `b`, as a real 2280 lays them out: the controller (13 mm square) by the fingers, its DRAM cache, two NAND
- * packages, and the finned spreader over the DRAM and the NAND, short of the notch.
- */
-function nvmeParts(b: Rect): { ctrl: Rect; dram: Rect; nand: Rect[]; sink: Rect } {
-  const cy = b.y + b.h / 2;
-  return {
-    ctrl: { x: b.x + 110, y: cy - 150, w: 300, h: 300 },
-    dram: { x: b.x + 500, y: cy - 110, w: 220, h: 220 },
-    nand: [
-      { x: b.x + 780, y: cy - 180, w: 400, h: 360 },
-      { x: b.x + 1240, y: cy - 180, w: 400, h: 360 },
-    ],
-    sink: { x: b.x + 470, y: b.y + 24, w: b.w - 564, h: b.h - 48 },
-  };
 }
 
 /** Cell/slot rect that a drive of this slot occupies (drop target). */
@@ -85,21 +69,29 @@ export function driveArt(T: Theme, kind: DriveKind, slot: string, capLabel: stri
     const pads = 38,
       pitch = 11.5,
       y0 = b.y + (b.h - pads * pitch) / 2;
-    for (let i = 0; i < pads; i++)
-      if (i < 29 || i > 32) g.rect(b.x - NVME_FINGERS, y0 + i * pitch, NVME_FINGERS + 16, pitch - 4);
+    for (let i = 0; i < pads; i++) {
+      if (i < 29 || i > 32) {
+        g.rect(b.x - NVME_FINGERS, y0 + i * pitch, NVME_FINGERS + 16, pitch - 4);
+      }
+    }
     g.fill({ color: T.pin, alpha: 0.9 });
-    for (const r of [p.dram, ...p.nand]) box(g, r.x, r.y, r.w, r.h, 6, { fill: '#10151e', stroke: T.line, lw: 3 });
+    for (const r of [p.dram, ...p.nand]) {
+      box(g, r.x, r.y, r.w, r.h, 6, { fill: '#10151e', stroke: T.line, lw: 3 });
+    }
     const c = p.ctrl;
     box(g, c.x, c.y, c.w, c.h, 8, { fill: mix('#10151e', T.alu, 0.12), stroke: T.alu, lw: 3, sa: 0.5 }); // controller
     disc(g, c.x + 34, c.y + c.h - 34, 9, { fill: T.alu, fa: 0.5 });
     // its decoupling: a column west of it, a row south of it
-    for (let k = 0; k < 6; k++)
+    for (let k = 0; k < 6; k++) {
       g.rect(b.x + 40, c.y + 10 + k * 48, 36, 20).rect(c.x + 20 + k * 46, c.y + c.h + 22, 20, 36);
+    }
     g.fill({ color: '#8a6a4a' });
     const sp = p.sink,
       fins = Math.floor((sp.w - 80) / 50) + 1;
     box(g, sp.x, sp.y, sp.w, sp.h, 10, { fill: '#3d4249', stroke: '#8d939b', lw: 4, sa: 0.6 }); // gunmetal, as the board's sinks
-    for (let k = 0; k < fins; k++) g.moveTo(sp.x + 40 + k * 50, sp.y + 14).lineTo(sp.x + 40 + k * 50, sp.y + sp.h - 14);
+    for (let k = 0; k < fins; k++) {
+      g.moveTo(sp.x + 40 + k * 50, sp.y + 14).lineTo(sp.x + 40 + k * 50, sp.y + sp.h - 14);
+    }
     g.stroke({ width: 6, color: '#000000', alpha: 0.3 });
     return root;
   }
@@ -117,7 +109,9 @@ export function driveArt(T: Theme, kind: DriveKind, slot: string, capLabel: stri
       .rect(cell.x + 8, cell.y + 140, 28, 8)
       .fill({ color: T.pin, alpha: 0.8 });
     box(g, cell.x - 4, cell.y + 300, 52, 118, 6, { fill: '#0b0f18', stroke: T.line, lw: 3 });
-    for (let i = 0; i < 5; i++) g.rect(cell.x + 8, cell.y + 312 + i * 21, 28, 9);
+    for (let i = 0; i < 5; i++) {
+      g.rect(cell.x + 8, cell.y + 312 + i * 21, 28, 9);
+    }
     g.fill({ color: T.pin, alpha: 0.8 });
   };
   connectors();
@@ -139,8 +133,9 @@ export function driveArt(T: Theme, kind: DriveKind, slot: string, capLabel: stri
       [b.x + 36, b.y + b.h - 36],
       [b.x + b.w - 36, b.y + 36],
       [b.x + b.w - 36, b.y + b.h - 36],
-    ] as const)
+    ] as const) {
       disc(g, sx, sy, 11, { fill: mix(T.line, '#000000', 0.4) });
+    }
   } else {
     // SATA SSD: slim 2.5" casing with a window onto the PCB: controller, NAND, a status LED
     box(g, b.x + 8, b.y + 12, b.w, b.h, 22, { fill: '#000000', fa: 0.25 });
@@ -153,7 +148,9 @@ export function driveArt(T: Theme, kind: DriveKind, slot: string, capLabel: stri
       .rect(w.x + 160, w.y + 112, 112, 56)
       .fill({ color: '#10151e' });
     g.stroke({ width: 3, color: T.line });
-    for (let i = 0; i < 8; i++) g.rect(w.x + 40 + i * 28, w.y + w.h - 26, 14, 14);
+    for (let i = 0; i < 8; i++) {
+      g.rect(w.x + 40 + i * 28, w.y + w.h - 26, 14, 14);
+    }
     g.fill({ color: T.pin, alpha: 0.7 });
     root.addChild(label('SSD', b.x + 420, b.y + 120, 56, ink, { anchor: [0.5, 0.5], head: true, a: 0.75 }));
     root.addChild(label(capLabel, b.x + 420, b.y + 215, 40, ink, { anchor: [0.5, 0.5], a: 0.6 }));
@@ -162,8 +159,9 @@ export function driveArt(T: Theme, kind: DriveKind, slot: string, capLabel: stri
       [b.x + 24, b.y + b.h - 24],
       [b.x + b.w - 24, b.y + 24],
       [b.x + b.w - 24, b.y + b.h - 24],
-    ] as const)
+    ] as const) {
       disc(g, sx, sy, 8, { fill: mix(T.line, '#000000', 0.4) });
+    }
   }
   return root;
 }
@@ -193,10 +191,12 @@ export function drawDriveLive(g: Graphics, T: Theme, kind: DriveKind, slot: stri
       rim = mix(T.line, T.alu, 0.5);
     // the platter: a mirror disc whose sheen wedges, clamp screws and index mark turn with `spin`, so the turning shows even at speed
     disc(g, cx, cy, R, { fill: '#1b2333', stroke: rim, lw: 4 });
-    for (const rr of [172, 140, 108, 80]) g.circle(cx, cy, rr);
+    for (const rr of [172, 140, 108, 80]) {
+      g.circle(cx, cy, rr);
+    }
     g.stroke({ width: 2, color: T.alu, alpha: 0.2 });
     for (let k = 0; k < 2; k++) {
-      const a0 = st.spin * 1 + k * Math.PI;
+      const a0 = st.spin + k * Math.PI;
       g.moveTo(cx, cy)
         .arc(cx, cy, R - 4, a0 - 0.28, a0 + 0.28)
         .closePath()
@@ -280,7 +280,9 @@ export function drawDriveLive(g: Graphics, T: Theme, kind: DriveKind, slot: stri
 }
 
 function led(g: Graphics, T: Theme, x: number, y: number, st: DriveLiveState) {
-  if (st.led > 0.02) g.circle(x, y, 34).fill({ color: T.ld, alpha: 0.3 * st.led });
+  if (st.led > 0.02) {
+    g.circle(x, y, 34).fill({ color: T.ld, alpha: 0.3 * st.led });
+  }
   g.circle(x, y, 15)
     .fill({ color: st.led > 0.02 ? T.ld : mix(T.ld, T.bg, 0.8), alpha: st.led > 0.02 ? 0.4 + 0.6 * st.led : 0.7 })
     .stroke({ width: 4, color: T.line, alpha: 0.8 });

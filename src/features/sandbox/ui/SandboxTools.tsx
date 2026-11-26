@@ -44,14 +44,18 @@ export function SandboxTools({ s }: { s: Snapshot }) {
 
   // Escape closes the popover (and returns focus to its chip). Registered while it is open only.
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+      if (e.key !== 'Escape') {
+        return;
+      }
       setOpen(false);
       chip.current?.focus();
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    globalThis.addEventListener('keydown', onKey);
+    return () => globalThis.removeEventListener('keydown', onKey);
   }, [open]);
 
   return (
@@ -133,7 +137,7 @@ export function SandboxTools({ s }: { s: Snapshot }) {
           <h4>Arriving on their own</h4>
           <div class="sbj-kinds sbx-classes" role="group" aria-label="Job classes that arrive on their own">
             {JOB_CLASSES.map((c) => {
-              const atLevel = !!levelDef(s.level.level).mix[c.id],
+              const atLevel = Boolean(levelDef(s.level.level).mix[c.id]),
                 off = s.level.classesOff.includes(c.id);
               return (
                 <button

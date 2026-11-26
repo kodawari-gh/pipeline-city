@@ -91,7 +91,9 @@ export class DiskView {
   /** The drives of a new scene. */
   setScene(T: Theme, scene: DiskScene[]): void {
     this.T = T;
-    for (const ch of this.root.removeChildren()) ch.destroy({ children: true });
+    for (const ch of this.root.removeChildren()) {
+      ch.destroy({ children: true });
+    }
     this.drives = scene.map((s) => this.build(T, s));
     this.root.visible = this.drives.length > 0;
   }
@@ -170,7 +172,9 @@ export class DiskView {
   update(storage: readonly StorageSnap[] | undefined): void {
     for (const d of this.drives) {
       d.snap = storage?.find((s) => s.deviceId === d.deviceId) ?? null;
-      if (d.snap) d.play.ingest(d.kind, d.plan, d.snap.cmds, d.snap.capacityBytes / 256, d.snap.headLba);
+      if (d.snap) {
+        d.play.ingest(d.kind, d.plan, d.snap.cmds, d.snap.capacityBytes / 256, d.snap.headLba);
+      }
     }
   }
 
@@ -182,13 +186,15 @@ export class DiskView {
   /** Per frame. `inner` is false while the case's exterior covers the board. A drive out of view is not drawn. */
   frame(dt: number, inner: boolean, paused = false, lod?: CardLod): void {
     this.root.visible = inner && this.drives.length > 0;
-    if (!this.root.visible || !this.T) return;
+    if (!this.root.visible || !this.T) {
+      return;
+    }
     const wall = performance.now(),
       wdt = Math.min(0.1, Math.max(0, (wall - this.lastWall) / 1000));
     this.lastWall = wall;
     const step = (paused ? wdt : dt) * 1000;
     this.now += step;
-    const T = this.T;
+    const { T } = this;
     for (const d of this.drives) {
       const pl = this.rects.place(d, d.root, lod?.view),
         on = pl.onScreen,
@@ -198,10 +204,12 @@ export class DiskView {
       d.root.visible = on;
       const s = d.snap;
       d.bar.alpha = 1 - fade;
-      d.bar.visible = on && fade < 0.98 && !!s;
+      d.bar.visible = on && fade < 0.98 && Boolean(s);
       d.cut.alpha = fade;
-      d.cut.visible = on && fade > 0.02 && !!s;
-      if (!on || !s) continue;
+      d.cut.visible = on && fade > 0.02 && Boolean(s);
+      if (!on || !s) {
+        continue;
+      }
       const { ta, da, showText, showDetail } = cardText(z, lod, `disk:${d.slot}`, TEXT_Z, DETAIL_Z);
       // the map is the main picture until the architecture comes over it (a flash drive swaps its flat grid for the dies; a platter stays)
       d.mapG.alpha = d.plan.platter ? 1 : 1 - arch;
@@ -245,15 +253,21 @@ export class DiskView {
       drawBar(d.bar, T, d.body.w, d.body.h, s.usedBytes, s.capacityBytes, s.burnt);
       drawMap(d.mapG, T, d.kind, d.plan, d.cells, x);
       drawArch(d.dataG, T, d.kind, d.plan, d.cells, x, live);
-      if (s.burnt) this.cross(T, d);
+      if (s.burnt) {
+        this.cross(T, d);
+      }
     }
     if (d.plan.platter) {
       // a hard disk that is on keeps turning, faster while it works
       d.spin += (s.busy ? 9 : s.burnt ? 0 : 2) * (stepMs / 1000);
       drawSpin(d.spinG, T, d.plan, d.spin, s.busy);
     }
-    if (archOn || d.play.busy) d.play.frame(stepMs, T, d.kind, d.plan, d.liveG, d.trailG, d.packetG);
-    if (detail) this.counters(T, d, s);
+    if (archOn || d.play.busy) {
+      d.play.frame(stepMs, T, d.kind, d.plan, d.liveG, d.trailG, d.packetG);
+    }
+    if (detail) {
+      this.counters(T, d, s);
+    }
   }
 
   /** A burnt drive: a red cross over the cutaway. */
@@ -273,7 +287,9 @@ export class DiskView {
       { w, h } = d.plan;
     const now = d.play.label(),
       sig = JSON.stringify(r) + (s.burnt ? 'b' : '') + now;
-    if (sig === d.panelSig) return;
+    if (sig === d.panelSig) {
+      return;
+    }
     d.panelSig = sig;
     const g = d.panelG,
       fs = Math.max(8, h * 0.05),
@@ -290,7 +306,9 @@ export class DiskView {
     let n = 0;
     const put = (str: string, x: number, y: number, color: string, size = fs, a = 1): void => {
       const t = d.texts[n++];
-      if (!t) return;
+      if (!t) {
+        return;
+      }
       t.text = str;
       t.position.set(x, y);
       t.style.fontSize = size;
@@ -308,7 +326,9 @@ export class DiskView {
     );
     put('EXTENTS', x0, h * 0.2, T.mute, fs * 0.85);
     r.extents.forEach((e, i) => put(e, x0, h * 0.2 + lh * (i + 1), T.ink, fs, 0.95));
-    if (r.moreExtents > 0) put(`+${r.moreExtents} more`, x0, h * 0.2 + lh * (r.extents.length + 1), T.mute, fs * 0.9);
+    if (r.moreExtents > 0) {
+      put(`+${r.moreExtents} more`, x0, h * 0.2 + lh * (r.extents.length + 1), T.mute, fs * 0.9);
+    }
     put('WHAT IS ON IT', x1, h * 0.2, T.mute, fs * 0.85);
     const col = (kind: string, slot: number): string => {
       const owned = [T.ld, T.br, mix(T.ld, T.bad, 0.5), mix(T.alu, T.mul, 0.5)];
@@ -342,12 +362,15 @@ export class DiskView {
       color: r.wear.pct > 60 ? T.bad : T.ld,
     });
     put(r.queue.text, x0, by + lh, T.mute, fs);
-    for (let q = 0; q < r.queue.lanes; q++)
+    for (let q = 0; q < r.queue.lanes; q++) {
       g.roundRect(x0 + fs * 6 + (q * bw) / r.queue.lanes, by + lh - fs * 0.3, bw / r.queue.lanes - 2, fs * 0.6, 2).fill(
         { color: q < r.queue.lit ? T.st : mix(T.die, T.st, 0.15) },
       );
+    }
     put(r.health, x0, by + lh * 2.2, s.lostBlocks > 0 || s.badGroups > 0 ? T.ld : T.mute, fs * 0.9);
     put(now || 'idle', x0, by + lh * 3.4, now ? T.ink : T.mute, fs * 0.95);
-    for (; n < d.texts.length; n++) d.texts[n]!.visible = false;
+    for (; n < d.texts.length; n++) {
+      d.texts[n]!.visible = false;
+    }
   }
 }

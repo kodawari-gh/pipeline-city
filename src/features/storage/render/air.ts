@@ -3,8 +3,8 @@ import { BASE_BAYS } from '@/features/board/sim/airflow';
 
 /** Is the slot a bay of the main cage (behind the front fans), not the basement's or an M.2 socket? */
 const inCage = (slot: string) => {
-  const m = /^sata(\d+)$/.exec(slot);
-  return !!m && Number(m[1]) >= BASE_BAYS;
+  const m = /^sata(?<bay>\d+)$/u.exec(slot);
+  return m !== null && Number(m[1]) >= BASE_BAYS;
 };
 
 /**

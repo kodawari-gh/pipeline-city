@@ -19,9 +19,13 @@ export function highEndBuild(): Game {
   // Each part is installed before the next is bought: a purchase is checked against the PSU that is installed now.
   for (const id of ['board3', 'psu2', 'cpu2', 'ram2', 'cooler2', 'vsink2', 'nvme2', 'os1']) {
     const b = g.purchase(id);
-    if (!b.ok) throw new Error(`purchase ${id}: ${b.reason}`);
+    if (!b.ok) {
+      throw new Error(`purchase ${id}: ${b.reason}`);
+    }
     const r = g.install(b.invId);
-    if (!r.ok) throw new Error(`install ${id}: ${r.reason}`);
+    if (!r.ok) {
+      throw new Error(`install ${id}: ${r.reason}`);
+    }
   }
   const op = new Operator(g);
   op.assemble(true); // cables, then power on
@@ -30,13 +34,17 @@ export function highEndBuild(): Game {
     g.advanceBaseTick();
     op.step();
   } // cold boot, OS boot
-  if (!g.powered || !g.snapshot().os?.up) throw new Error(`high-end build did not come up (phase ${g.currentPhase()})`);
+  if (!g.powered || !g.snapshot().os?.up) {
+    throw new Error(`high-end build did not come up (phase ${g.currentPhase()})`);
+  }
   return g;
 }
 
 /** Keep the OS busy: the longest scan job (scale 16) whenever the tray runs low, the way a player would keep it stocked. */
 const keepBusy = (g: Game): void => {
-  if (g.trayKeyIds().length < 3) g.spawnKey('cli.scan', 16);
+  if (g.trayKeyIds().length < 3) {
+    g.spawnKey('cli.scan', 16);
+  }
 };
 
 interface Call {
@@ -53,7 +61,9 @@ function call(g: Game, host: HostState, elapsedMs: number): Call {
   const a = performance.now();
   const ticks = advance(host, elapsedMs);
   const b = performance.now();
-  if (ticks === 0) return { ticks, advMs: b - a, snapMs: 0, snapped: false, running: false, phase: '' };
+  if (ticks === 0) {
+    return { ticks, advMs: b - a, snapMs: 0, snapped: false, running: false, phase: '' };
+  }
   const snap = g.snapshot();
   const c = performance.now();
   return {
@@ -108,7 +118,9 @@ export function flatOut(speed: Speed, targetTicks = 1500): Record<string, number
     if (r.snapped) {
       snaps++;
       samples++;
-      if (r.running) running++;
+      if (r.running) {
+        running++;
+      }
       phases.set(r.phase, (phases.get(r.phase) ?? 0) + 1);
     }
   }
@@ -121,16 +133,16 @@ export function flatOut(speed: Speed, targetTicks = 1500): Record<string, number
   return {
     speed: `${speed}x`,
     ticks,
-    msPerTick: +msPerTick.toFixed(3),
-    msPerTickJobRunning: +msBusy.toFixed(3),
-    msPerTickOther: other.ticks ? +(other.ms / other.ticks).toFixed(3) : Number.NaN,
-    msPerSnapshot: +msPerSnap.toFixed(3),
+    msPerTick: Number(msPerTick.toFixed(3)),
+    msPerTickJobRunning: Number(msBusy.toFixed(3)),
+    msPerTickOther: other.ticks ? Number((other.ms / other.ticks).toFixed(3)) : Number.NaN,
+    msPerSnapshot: Number(msPerSnap.toFixed(3)),
     ticksPerSecondFlatOut: Math.round(ticks / ((advMs + snapMs) / 1000)),
     ceilingX: Math.floor(ceiling),
     snapshotKB: Math.round(JSON.stringify(g.snapshot()).length / 1024), // what the main thread receives (structured clone is similar)
-    p95CallMs: +callMs[Math.floor(callMs.length * 0.95)]!.toFixed(2),
-    maxCallMs: +callMs[callMs.length - 1]!.toFixed(2),
-    jobRunningShare: samples ? +(running / samples).toFixed(3) : 0,
+    p95CallMs: Number(callMs[Math.floor(callMs.length * 0.95)]!.toFixed(2)),
+    maxCallMs: Number(callMs.at(-1)!.toFixed(2)),
+    jobRunningShare: samples ? Number((running / samples).toFixed(3)) : 0,
     phases: [...phases].map(([p, n]) => `${p}:${n}`).join(' '),
   };
 }
@@ -157,10 +169,10 @@ export function paced(speed: Speed, seconds = 8): Promise<Record<string, number 
         clearInterval(id);
         resolve({
           speed: `${speed}x`,
-          seconds: +elapsed.toFixed(2),
-          achievedTicksPerSec: +(ticks / elapsed).toFixed(2),
-          deliveredShare: +(ticks / (speed * elapsed)).toFixed(3),
-          worstCallMs: +worst.toFixed(2),
+          seconds: Number(elapsed.toFixed(2)),
+          achievedTicksPerSec: Number((ticks / elapsed).toFixed(2)),
+          deliveredShare: Number((ticks / (speed * elapsed)).toFixed(3)),
+          worstCallMs: Number(worst.toFixed(2)),
         });
       }
     }, 100);
@@ -170,6 +182,10 @@ export function paced(speed: Speed, seconds = 8): Promise<Record<string, number 
 /** Runs every measurement and prints one "SPEED" line each. */
 export async function main(): Promise<void> {
   console.log(`SPEED start ${new Date().toISOString()} cores ${navigator.hardwareConcurrency}`);
-  for (const s of BENCH_SPEEDS) console.log('SPEED flat', JSON.stringify(flatOut(s)));
-  for (const s of BENCH_SPEEDS) console.log('SPEED paced', JSON.stringify(await paced(s)));
+  for (const s of BENCH_SPEEDS) {
+    console.log('SPEED flat', JSON.stringify(flatOut(s)));
+  }
+  for (const s of BENCH_SPEEDS) {
+    console.log('SPEED paced', JSON.stringify(await paced(s)));
+  }
 }

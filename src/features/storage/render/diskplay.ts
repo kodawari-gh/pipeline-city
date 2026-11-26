@@ -7,7 +7,8 @@ import type { Theme } from '@/core/render/theme';
 import { accentOf } from './diskart';
 import type { DiskPlan } from './diskfloor';
 import { armTip, queueLanes } from './diskplan';
-import { DiskPlayer, dieOf, platterTarget, stepAt, turnLeft, type Script } from './diskplayer';
+import { DiskPlayer, dieOf, platterTarget, stepAt, turnLeft } from './diskplayer';
+import type { Script } from './steps';
 import type { DriveKind } from './drives';
 
 // The drive's cutaway at work: what `diskplayer.ts` says the drive is doing right now, drawn the way the CPU die shows its instructions. Packets run along the
@@ -31,7 +32,9 @@ export class DiskPlay {
   /** What the drive is doing now, in words (empty when idle). */
   label(): string {
     const n = this.player.now;
-    if (!n) return '';
+    if (!n) {
+      return '';
+    }
     const { step } = stepAt(n.script, n.t),
       c = n.script.cmd;
     return `${c.op === 'w' ? 'WRITE' : 'READ'} #${c.lba}: ${step.label}`;
@@ -54,7 +57,9 @@ export class DiskPlay {
       accent = accentOf(T, kind);
     for (const s of spawns) {
       const l = plan.links.find((x) => x.id === s.id);
-      if (!l) continue;
+      if (!l) {
+        continue;
+      }
       const color = s.data ? (s.write ? T.ld : T.st) : T.alu;
       const { packet, trail } = packetOn(
         { id: l.id, lanes: s.data ? l.lanes : 1, pts: l.pts },
@@ -70,10 +75,16 @@ export class DiskPlay {
     tg.clear();
     pg.clear();
     const n = this.player.now;
-    if (n) this.glow(g, T, plan, accent, n.script, n.t);
+    if (n) {
+      this.glow(g, T, plan, accent, n.script, n.t);
+    }
     drawTrails(tg, this.trails, this.clock, 1);
     this.packets = drawPackets(pg, this.packets, this.clock, 1, T.ink);
-    for (const [k, t] of this.trails) if (this.clock - t.t0 > 1600) this.trails.delete(k);
+    for (const [k, t] of this.trails) {
+      if (this.clock - t.t0 > 1600) {
+        this.trails.delete(k);
+      }
+    }
   }
 
   private glow(g: Graphics, T: Theme, plan: DiskPlan, accent: string, s: Script, t: number): void {
@@ -84,13 +95,18 @@ export class DiskPlay {
     // the blocks that work
     for (const id of step.blocks) {
       const b = plan.blocks.find((x) => x.id === id);
-      if (!b) continue;
+      if (!b) {
+        continue;
+      }
       g.roundRect(b.rect.x, b.rect.y, b.rect.w, b.rect.h, 3)
         .fill({ color: accent, alpha: 0.1 + 0.14 * pulse })
         .stroke({ width: Math.max(1.5, plan.h * 0.006), color: accent, alpha: 0.5 + 0.4 * pulse });
     }
-    if (plan.platter && plan.arm) this.platter(g, T, plan, s, t, step.kind, p, color);
-    else this.flash(g, T, plan, s, step.kind, p, color);
+    if (plan.platter && plan.arm) {
+      this.platter(g, T, plan, s, t, step.kind, p, color);
+    } else {
+      this.flash(g, T, plan, s, step.kind, p, color);
+    }
   }
 
   /** The die cell of the command: it fills while the die senses or programs it, and stays lit while the data is on its way. */
@@ -111,12 +127,13 @@ export class DiskPlay {
             color: T.ink,
             alpha: during ? 0.9 : 0.4,
           });
-        } else
+        } else {
           g.roundRect(r.x - 1, r.y - 1, r.w + 2, r.h + 2, 2).stroke({
             width: Math.max(1, plan.h * 0.004),
             color,
             alpha: 0.35,
           });
+        }
       }
     }
     // the NVMe's queue: the lane the command sits in lights while it is taken
@@ -125,7 +142,9 @@ export class DiskPlay {
       const rects = cellRects(q),
         { lanes } = queueLanes(s.cmd.queued + 1, 8),
         r = rects[s.cmd.seq % Math.max(1, Math.min(lanes, rects.length))];
-      if (r) g.roundRect(r.x, r.y, r.w, r.h, 1.5).fill({ color: T.st, alpha: 0.95 });
+      if (r) {
+        g.roundRect(r.x, r.y, r.w, r.h, 1.5).fill({ color: T.st, alpha: 0.95 });
+      }
     }
   }
 
@@ -143,7 +162,9 @@ export class DiskPlay {
     const pl = plan.platter!,
       a = plan.arm!,
       tg = platterTarget(plan, s);
-    if (!tg) return;
+    if (!tg) {
+      return;
+    }
     const ring = (pl.R * 0.86) / pl.tracks,
       r1 = pl.R * 0.97 - tg.track * ring,
       r0 = r1 - ring * 0.9;

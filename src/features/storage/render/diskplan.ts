@@ -37,19 +37,26 @@ export function cellsOf(runs: readonly FsRun[], totalBlocks: number, wear: reado
       const lo = Math.max(r.start, c * CELL_BLOCKS),
         hi = Math.min(r.start + r.len, (c + 1) * CELL_BLOCKS);
       const k = r.kind;
-      if (RANK[k] > RANK[kind[c]!]) kind[c] = k;
-      if (r.filled && k !== 'free' && k !== 'bad') filled[c]! += hi - lo;
-      if (r.file) (own[c] ??= new Map()).set(r.file, (own[c]?.get(r.file) ?? 0) + (hi - lo));
+      if (RANK[k] > RANK[kind[c]!]) {
+        kind[c] = k;
+      }
+      if (r.filled && k !== 'free' && k !== 'bad') {
+        filled[c]! += hi - lo;
+      }
+      if (r.file) {
+        (own[c] ??= new Map()).set(r.file, (own[c]?.get(r.file) ?? 0) + (hi - lo));
+      }
     }
   }
   return kind.map((k, c) => {
     let file = 0,
       best = 0;
-    for (const [f, v] of own[c] ?? [])
+    for (const [f, v] of own[c] ?? []) {
       if (v > best) {
         best = v;
         file = f;
       }
+    }
     const size = Math.min(CELL_BLOCKS, totalBlocks - c * CELL_BLOCKS);
     return {
       kind: k,
@@ -66,7 +73,9 @@ const OWNER_COLORS = 4;
 /** A stable colour slot for an owner id ("c12" and "c13" differ; the same owner is always the same). */
 export function ownerSlot(owner: string): number {
   let h = 0;
-  for (let i = 0; i < owner.length; i++) h = (h * 31 + owner.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < owner.length; i++) {
+    h = (h * 31 + owner.charCodeAt(i)) >>> 0;
+  }
   return h % OWNER_COLORS;
 }
 
@@ -104,17 +113,23 @@ export function legendOf(s: Pick<StorageSnap, 'fs'>): LegendRow[] {
     if (r.kind === 'dataset') {
       const o = owners.get(r.file)?.owner ?? '?';
       data.set(o, (data.get(o) ?? 0) + r.len);
-    } else sys[r.kind] = (sys[r.kind] ?? 0) + (r.kind === 'spool' ? filled : r.len);
+    } else {
+      sys[r.kind] = (sys[r.kind] ?? 0) + (r.kind === 'spool' ? filled : r.len);
+    }
   }
   const rows: LegendRow[] = [];
   const add = (key: string, label: string, kind: CellKind, blocks: number, slot = 0) => {
-    if (blocks > 0) rows.push({ key, label, kind, blocks, slot });
+    if (blocks > 0) {
+      rows.push({ key, label, kind, blocks, slot });
+    }
   };
   add('os', 'OS', 'os', sys['os'] ?? 0);
   add('spool', 'Spool', 'spool', sys['spool'] ?? 0);
   add('program', 'Programs', 'program', sys['program'] ?? 0);
   add('meta', 'Other', 'meta', sys['meta'] ?? 0);
-  for (const [o, v] of [...data].sort((a, b) => b[1] - a[1])) add(`d:${o}`, o, 'dataset', v, ownerSlot(o));
+  for (const [o, v] of [...data].sort((a, b) => b[1] - a[1])) {
+    add(`d:${o}`, o, 'dataset', v, ownerSlot(o));
+  }
   add('lost', 'Lost', 'lost', lost);
   add('bad', 'Bad blocks', 'bad', bad);
   add('free', 'Free', 'free', free);
@@ -134,7 +149,9 @@ export function extentRows(s: Pick<StorageSnap, 'fs'>, max: number): { rows: Ext
   const owners = new Map(s.fs.files.map((f) => [f.id, f.owner]));
   const all: ExtentRow[] = [];
   for (const r of s.fs.runs) {
-    if (r.kind === 'free') continue;
+    if (r.kind === 'free') {
+      continue;
+    }
     all.push({
       start: r.start,
       end: r.start + r.len - 1,
@@ -234,9 +251,15 @@ export function counterRows(s: StorageSnap, maxExtents: number): CounterRows {
       ? 'unformatted'
       : `${s.mount.state} · ${MOUNT_WORD[s.mount.phase] ?? s.mount.phase}${s.mount.phase === 'scanning' || s.mount.phase === 'repairing' ? ` ${Math.round(s.mount.progress * 100)}%` : ''}`;
   const parts = [`frag ${frag}%`];
-  if (s.badGroups > 0) parts.push(`bad groups ${s.badGroups}`);
-  if (s.lostBlocks > 0) parts.push(`lost ${s.lostBlocks} blocks`);
-  if (s.mirror) parts.push('mirrored');
+  if (s.badGroups > 0) {
+    parts.push(`bad groups ${s.badGroups}`);
+  }
+  if (s.lostBlocks > 0) {
+    parts.push(`lost ${s.lostBlocks} blocks`);
+  }
+  if (s.mirror) {
+    parts.push('mirrored');
+  }
   return {
     title: s.name,
     state,
