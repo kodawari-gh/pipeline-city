@@ -16,17 +16,50 @@ import {
   ThermalModel,
   uninstall,
   upgradeBoard,
-  type Board,
 } from './index';
+import type * as simTypes from './index';
 import { pcieLeadsNeeded } from './board';
-import { BOARD_TIERS, DEVICE_SPECS, PCIE_SLOT_W, cardLeads, type DeviceSpec } from './specs';
+import { BOARD_TIERS, DEVICE_SPECS, PCIE_SLOT_W, cardLeads } from './specs';
+import type * as specsTypes from './specs';
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+type Kind = simTypes.DeviceSpec['kind'];
+type SpecOf<K extends Kind> = Extract<simTypes.DeviceSpec, { kind: K }>;
+
+/** Whether `spec` is a part of `kind`. */
+function isKind<K extends Kind>(spec: simTypes.DeviceSpec, kind: K): spec is SpecOf<K> {
+  return spec.kind === kind;
+}
+
+/** `spec` narrowed to its `kind`; fails the test when it is missing or some other part. */
+function specOf<K extends Kind>(spec: simTypes.DeviceSpec | undefined, kind: K): SpecOf<K> {
+  if (spec === undefined || !isKind(spec, kind)) {
+    throw new Error(`expected a ${kind} spec, got ${spec?.kind ?? 'nothing'}`);
+  }
+  return spec;
+}
+
+/** The reason `r` was refused; fails the test when it went through. */
+function refusal(r: { ok: true } | { ok: false; reason: string }): string {
+  if (r.ok) {
+    throw new Error('expected a refusal, but it went through');
+  }
+  return r.reason;
+}
 
 function ok<T extends { ok: boolean }>(r: T): T {
   expect(r.ok).toBe(true);
   return r;
 }
 
-function basicBoard(opts: { cpu?: string; cooler?: string; psu?: string } = {}): Board {
+function basicBoard(opts: { cpu?: string; cooler?: string; psu?: string } = {}): simTypes.Board {
   const b = createBoard(1);
   ok(install(b, opts.cpu ?? 'cpu0'));
   ok(install(b, 'ram0'));
@@ -36,8 +69,11 @@ function basicBoard(opts: { cpu?: string; cooler?: string; psu?: string } = {}):
   return b;
 }
 
-const cpuId = (b: Board) => b.devices.find((d) => d.spec.startsWith('cpu'))!.id;
-const dropCooler = (b: Board) => ok(uninstall(b, b.devices.find((d) => d.spec.startsWith('cooler'))!.id));
+const cpuId = (b: simTypes.Board) => must(b.devices.find((d) => d.spec.startsWith('cpu'))).id;
+const dropCooler = (b: simTypes.Board) => {
+  const cooler = must(b.devices.find((d) => d.spec.startsWith('cooler')));
+  ok(uninstall(b, cooler.id));
+};
 
 describe('slots and PSU validation', () => {
   it('installs into matching free slots', () => {
@@ -50,24 +86,24 @@ describe('slots and PSU validation', () => {
     const b = createBoard(1);
     ok(install(b, 'ram0', 'dimm1'));
     const wrong = install(b, 'ram0', 'sata0');
-    expect(!wrong.ok && wrong.reason).toMatch(/needs a dimm slot/);
+    expect(refusal(wrong)).toMatch(/needs a dimm slot/u);
     const used = install(b, 'ram0', 'dimm1');
-    expect(!used.ok && used.reason).toMatch(/already used/);
+    expect(refusal(used)).toMatch(/already used/u);
     ok(install(b, 'ram0'));
     const full = install(b, 'ram0');
-    expect(!full.ok && full.reason).toMatch(/no free dimm slot/);
+    expect(refusal(full)).toMatch(/no free dimm slot/u);
     expect(install(b, 'ram0', 'nope').ok).toBe(false);
     expect(install(b, 'bogus').ok).toBe(false);
     ok(install(b, 'cpu0'));
     const second = install(b, 'cpu1');
-    expect(!second.ok && second.reason).toMatch(/no free cpu slot/);
+    expect(refusal(second)).toMatch(/no free cpu slot/u);
     const noPcie = install(createBoard(1), 'cpu0', 'cpu0');
     expect(noPcie.ok).toBe(true);
   });
 
   it('PSU needs a matching connector', () => {
     const r = install(createBoard(1), 'psu2');
-    expect(!r.ok && r.reason).toMatch(/no atx-plus slot/);
+    expect(refusal(r)).toMatch(/no atx-plus slot/u);
     expect(install(createBoard(2), 'psu2').ok).toBe(true);
     expect(install(createBoard(2), 'psu0').ok).toBe(true); // a plain ATX PSU fits the ATX+ connector
   });
@@ -88,13 +124,13 @@ describe('slots and PSU validation', () => {
     const tooMuch = install(b2, 'ram2'); // 40 W exactly: fits
     expect(tooMuch.ok).toBe(true);
     const full = install(b2, 'display0'); // 43 W
-    expect(!full.ok && full.reason).toMatch(/PSU gives 40 W/);
+    expect(refusal(full)).toMatch(/PSU gives 40 W/u);
     const weak = createBoard(1);
     ok(install(weak, 'cpu2'));
     ok(install(weak, 'ram2'));
     ok(install(weak, 'display0'));
     const small = install(weak, 'psu0');
-    expect(!small.ok && small.reason).toMatch(/gives 40 W but installed parts need 43 W/);
+    expect(refusal(small)).toMatch(/gives 40 W but installed parts need 43 W/u);
     expect(install(weak, 'psu1').ok).toBe(true);
   });
 
@@ -135,7 +171,8 @@ describe('slots and PSU validation', () => {
     const id = cpuId(b);
     expect(setClock(b, id, 1.25).ok).toBe(true);
     expect(setClock(b, id, 5).ok).toBe(false);
-    expect(setClock(b, b.devices.find((d) => d.spec === 'psu0')!.id, 1).ok).toBe(false);
+    const psu0 = must(b.devices.find((d) => d.spec === 'psu0'));
+    expect(setClock(b, psu0.id, 1).ok).toBe(false);
     ok(uninstall(b, id));
     expect(install(b, 'cpu1').ok).toBe(true);
     expect(uninstall(b, 'zzz').ok).toBe(false);
@@ -149,24 +186,25 @@ describe('board upgrade', () => {
     ok(setClock(b, cpuId(b), 2.5));
     ok(upgradeBoard(b, 2));
     expect(b.tier).toBe(2);
-    expect(b.devices.map((d) => d.id)).toEqual(before.devices.map((d) => d.id));
-    expect(b.devices.find((d) => d.spec === 'psu1')!.slot).toBe('atx-plus0');
-    expect(b.devices.find((d) => d.spec === 'cpu1')!.clock).toBe(2.5);
-    expect(b.devices.find((d) => d.spec === 'ram0')!.slot).toBe('dimm0');
+    expect(b.devices.map((d) => d.id)).toStrictEqual(before.devices.map((d) => d.id));
+    expect(must(b.devices.find((d) => d.spec === 'psu1')).slot).toBe('atx-plus0');
+    expect(must(b.devices.find((d) => d.spec === 'cpu1')).clock).toBe(2.5);
+    expect(must(b.devices.find((d) => d.spec === 'ram0')).slot).toBe('dimm0');
     expect(boardFromJson(boardToJson(b)).tier).toBe(2); // still a valid save
-    expect(installedPsu(b)!.spec.id).toBe('psu1');
+    expect(must(installedPsu(b)).spec.id).toBe('psu1');
   });
 
   it('unlocks the ATX+ PSU and extra DIMMs, and refuses smaller or unknown tiers', () => {
     const small = basicBoard({ psu: 'psu1' });
     expect(install(small, 'psu2').ok).toBe(false);
     ok(upgradeBoard(small, 2));
-    ok(uninstall(small, installedPsu(small)!.dev.id));
+    const smallPsu = must(installedPsu(small));
+    ok(uninstall(small, smallPsu.dev.id));
     ok(install(small, 'psu2'));
     ok(install(small, 'ram0'));
     ok(install(small, 'ram0'));
     expect(upgradeBoard(small, 2).ok).toBe(false);
-    expect(upgradeBoard(small, 1)).toMatchObject({ ok: false, reason: expect.stringMatching(/no slot for/) }); // a smaller board refuses while a part has no slot on it
+    expect(refusal(upgradeBoard(small, 1))).toMatch(/no slot for/u); // a smaller board refuses while a part has no slot on it
     expect(small.tier).toBe(2);
     expect(upgradeBoard(small, 9).ok).toBe(false);
   });
@@ -176,48 +214,93 @@ describe('serialization', () => {
   it('round-trips through JSON, including clocks and burnt', () => {
     const b = basicBoard({ cpu: 'cpu1' });
     setClock(b, cpuId(b), 2.5);
-    b.devices.find((d) => d.spec === 'ram0')!.burnt = true;
-    const json = JSON.parse(JSON.stringify(boardToJson(b)));
-    const b2 = boardFromJson(json);
-    expect(b2).toEqual(b);
+    must(b.devices.find((d) => d.spec === 'ram0')).burnt = true;
+    const saved = boardToJson(b),
+      text = JSON.stringify(saved);
+    expect(JSON.parse(text)).toStrictEqual(saved); // the save survives its JSON text
+    const b2 = boardFromJson(structuredClone(saved));
+    expect(b2).toStrictEqual(b);
     expect(install(b2, 'ram0').ok).toBe(true);
   });
 
   it('rejects invalid saves', () => {
     const b = basicBoard();
     const j = boardToJson(b);
-    j.devices[0]!.spec = 'nope';
-    expect(() => boardFromJson(j)).toThrow(/unknown device/);
+    must(j.devices[0]).spec = 'nope';
+    expect(() => boardFromJson(j)).toThrow(/unknown device/u);
     const j2 = boardToJson(b);
-    j2.devices[0]!.slot = 'dimm0';
-    expect(() => boardFromJson(j2)).toThrow(/bad slot/);
+    must(j2.devices[0]).slot = 'dimm0';
+    expect(() => boardFromJson(j2)).toThrow(/bad slot/u);
   });
 });
 
-function run(b: Board, ticks: number, seed = 7, loads = {}) {
+function run(b: simTypes.Board, ticks: number, o: { seed?: number; loads?: Parameters<ThermalModel['step']>[1] } = {}) {
+  const { seed = 7, loads = {} } = o;
   const th = new ThermalModel(new Prng(seed));
   const id = cpuId(b);
   const trace: { temp: number; eff: number; unstable: boolean; burnt: boolean }[] = [];
   for (let t = 0; t < ticks; t++) {
     th.step(b, loads);
-    const s = th.state(id)!;
+    const s = must(th.state(id)),
+      dev = must(b.devices.find((d) => d.id === id));
     trace.push({
       temp: s.tempC,
       eff: s.effClock,
       unstable: s.unstable,
-      burnt: !!b.devices.find((d) => d.id === id)!.burnt,
+      burnt: Boolean(dev.burnt),
     });
   }
   return { th, trace };
 }
 
+/** Whether a trace step runs throttled: slowed below the 1.5 GHz overclock, but not stopped. */
+const isThrottled = (x: { eff: number }): boolean => x.eff > 0 && x.eff < 1.5;
+
+/** The tick an overclocked basic board burns with `cooler` in place of its own (or none), -1 when it never does. */
+function burnTime(cooler: string | null): number {
+  const b = basicBoard();
+  dropCooler(b);
+  if (cooler !== null) {
+    ok(install(b, cooler));
+  }
+  setClock(b, cpuId(b), 1.5);
+  return run(b, 600).trace.findIndex((x) => x.burnt);
+}
+
+/** An uncooled overclocked board run 100 ticks on `seed`: its error rolls and the parts' end temperatures. */
+function seededRun(seed: number) {
+  const b = basicBoard();
+  dropCooler(b);
+  setClock(b, cpuId(b), 1.5);
+  const th = new ThermalModel(new Prng(seed));
+  const rolls: boolean[] = [];
+  for (let t = 0; t < 100; t++) {
+    th.step(b);
+    rolls.push(th.errorRoll(cpuId(b)));
+  }
+  return { rolls, temps: [...th.devices.values()].map((s) => s.tempC) };
+}
+
+/** Steps `engine` until it halts, at most `max` times. */
+function stepUntilHalted(engine: { halted: boolean; step: () => unknown }, max: number): void {
+  for (let i = 0; i < max && !engine.halted; i++) {
+    engine.step();
+  }
+}
+
+/** How many slots of `type` a board tier has. */
+const slotsOf = (t: (typeof BOARD_TIERS)[number], type: 'tpm' | 'pcie'): number => t.slots[type] ?? 0;
+
+/** A writable view of the spec table, for the made-up parts the accelerator tests add. */
+const SPECS: Record<string, specsTypes.DeviceSpec> = DEVICE_SPECS;
+
 describe('thermal', () => {
   it('idle stays cool; stock load at base clock is fine', () => {
-    const idle = run(basicBoard(), 400, 1, { cpu: 0, ram: 0, display: 0 });
+    const idle = run(basicBoard(), 400, { seed: 1, loads: { cpu: 0, ram: 0, display: 0 } });
     expect(Math.max(...idle.trace.map((x) => x.temp))).toBeLessThan(35);
     const loaded = run(basicBoard(), 400);
     expect(Math.max(...loaded.trace.map((x) => x.temp))).toBeLessThan(70);
-    expect(loaded.trace.at(-1)!.eff).toBe(1);
+    expect(must(loaded.trace.at(-1)).eff).toBe(1);
   });
 
   it('overclock without cooling heats, throttles, errors, then burns', () => {
@@ -226,23 +309,16 @@ describe('thermal', () => {
     dropCooler(b);
     setClock(b, cpuId(b), 1.5);
     const { trace } = run(b, 200);
-    const throttled = trace.findIndex((x) => x.eff > 0 && x.eff < 1.5);
+    const throttled = trace.findIndex((x) => isThrottled(x));
     const errors = trace.findIndex((x) => x.unstable);
     const burnt = trace.findIndex((x) => x.burnt);
     expect(throttled).toBeGreaterThan(0);
     expect(errors).toBeGreaterThan(throttled);
     expect(burnt).toBeGreaterThan(errors);
-    expect(trace[burnt + 1]!.eff).toBe(0);
+    expect(must(trace[burnt + 1]).eff).toBe(0);
   });
 
   it('a better cooler delays or prevents it', () => {
-    const burnTime = (cooler: string | null) => {
-      const b = basicBoard();
-      dropCooler(b);
-      if (cooler) ok(install(b, cooler));
-      setClock(b, cpuId(b), 1.5);
-      return run(b, 600).trace.findIndex((x) => x.burnt);
-    };
     expect(burnTime(null)).toBeGreaterThan(0);
     expect(burnTime('cooler0')).toBe(-1);
     expect(burnTime('cooler1')).toBe(-1);
@@ -276,29 +352,18 @@ describe('thermal', () => {
 
   it('no PSU means off', () => {
     const b = basicBoard();
-    ok(uninstall(b, installedPsu(b)!.dev.id));
+    const fitted = must(installedPsu(b));
+    ok(uninstall(b, fitted.dev.id));
     const { th } = run(b, 3);
     expect(th.power.off).toBe(true);
     expect(th.effectiveClock(cpuId(b))).toBe(0);
   });
 
   it('is deterministic per seed, including errorRoll', () => {
-    const go = (seed: number) => {
-      const b = basicBoard();
-      dropCooler(b);
-      setClock(b, cpuId(b), 1.5);
-      const th = new ThermalModel(new Prng(seed));
-      const rolls: boolean[] = [];
-      for (let t = 0; t < 100; t++) {
-        th.step(b);
-        rolls.push(th.errorRoll(cpuId(b)));
-      }
-      return { rolls, temps: [...th.devices.values()].map((s) => s.tempC) };
-    };
-    const a = go(5);
-    expect(go(5)).toEqual(a);
+    const a = seededRun(5);
+    expect(seededRun(5)).toStrictEqual(a);
     expect(a.rolls.some(Boolean)).toBe(true);
-    expect(go(6).rolls).not.toEqual(a.rolls);
+    expect(seededRun(6).rolls).not.toStrictEqual(a.rolls);
   });
 
   it('errorRoll does not touch the PRNG while stable', () => {
@@ -320,30 +385,32 @@ describe('apply', () => {
     const id = cpuId(b);
     setClock(b, id, 1.25);
     const m = new Machine(machineConfigFor(b, 1));
-    expect(m.clock.getRate('cpu')).toEqual({ mul: 125, div: 100 });
-    expect(m.ram.length).toBe(16 * 1024);
+    expect(m.clock.getRate('cpu')).toStrictEqual({ mul: 125, div: 100 });
+    expect(m.ram).toHaveLength(16 * 1024);
     const th = new ThermalModel(m.prng);
     th.step(b);
     applyRates(b, m, th);
-    expect(m.clock.getRate('cpu')).toEqual({ mul: 125, div: 100 });
-    expect(m.clock.getRate('display')).toEqual({ mul: 100, div: 100 });
+    expect(m.clock.getRate('cpu')).toStrictEqual({ mul: 125, div: 100 });
+    expect(m.clock.getRate('display')).toStrictEqual({ mul: 100, div: 100 });
     // Heat it up until it throttles: the applied rate drops below the requested one.
     dropCooler(b);
     setClock(b, id, 1.5);
-    for (let i = 0; i < 40; i++) th.step(b);
+    for (let i = 0; i < 40; i++) {
+      th.step(b);
+    }
     applyRates(b, m, th);
     const r = m.clock.getRate('cpu');
     expect(r.mul).toBeGreaterThan(0);
     expect(r.mul).toBeLessThan(150);
     // Burn it: rate 0.
-    b.devices.find((d) => d.id === id)!.burnt = true;
+    must(b.devices.find((d) => d.id === id)).burnt = true;
     th.step(b);
     applyRates(b, m, th);
     expect(m.clock.getRate('cpu').mul).toBe(0);
   });
 
   it('selects the engine from the CPU tier and miss penalty from RAM', () => {
-    expect(engineConfigFor(basicBoard())).toEqual({ kind: 'unpipelined', missPenalty: 200 });
+    expect(engineConfigFor(basicBoard())).toStrictEqual({ kind: 'unpipelined', missPenalty: 200 });
     expect(engineConfigFor(basicBoard({ cpu: 'cpu2', psu: 'psu1' }))).toMatchObject({
       kind: 'inorder',
       forwarding: true,
@@ -359,9 +426,9 @@ describe('apply', () => {
   it('with several RAM sticks the slowest one sets the miss penalty', () => {
     const b = basicBoard();
     ok(install(b, 'ram1')); // a fast stick next to the starter stick
-    expect(engineConfigFor(b)).toEqual({ kind: 'unpipelined', missPenalty: 200 });
-    b.devices.find((d) => d.spec === 'ram0')!.burnt = true; // a burnt stick does not count
-    expect(engineConfigFor(b)).toEqual({ kind: 'unpipelined', missPenalty: 6 });
+    expect(engineConfigFor(b)).toStrictEqual({ kind: 'unpipelined', missPenalty: 200 });
+    must(b.devices.find((d) => d.spec === 'ram0')).burnt = true; // a burnt stick does not count
+    expect(engineConfigFor(b)).toStrictEqual({ kind: 'unpipelined', missPenalty: 6 });
   });
 
   it('applyEngine attaches a runnable engine', () => {
@@ -369,15 +436,18 @@ describe('apply', () => {
     const m = new Machine(machineConfigFor(b, 1));
     const prog = assemble('addi a0, zero, 5\necall\n').program;
     expect(applyEngine(b, m, prog)).toBe(true);
-    for (let i = 0; i < 20 && !m.engine!.halted; i++) m.engine!.step();
-    expect(m.engine!.halted).toBe(true);
+    stepUntilHalted(must(m.engine), 20);
+    expect(must(m.engine).halted).toBe(true);
     expect(applyEngine(createBoard(1), m, prog)).toBe(false);
   });
 });
 
 // Accelerator slots and rules (docs/ACCEL.md "Shared shape"). The card and TPM specs arrive in T69, so these tests add their own.
+const fake = (spec: specsTypes.DeviceSpec) => {
+  SPECS[spec.id] = spec;
+};
+
 describe('accelerator slots', () => {
-  const added: string[] = [];
   const base = {
     tier: 1,
     slot: 'pcie',
@@ -385,18 +455,16 @@ describe('accelerator slots', () => {
     idleW: 1,
     heatFactor: 1,
     visual: 'x',
-    thermal: DEVICE_SPECS['nic1']!.thermal,
+    thermal: must(DEVICE_SPECS['nic1']).thermal,
   } as const;
-  const fake = (spec: Record<string, unknown>) => {
-    (DEVICE_SPECS as Record<string, DeviceSpec>)[spec['id'] as string] = spec as unknown as DeviceSpec;
-    added.push(spec['id'] as string);
-  };
   afterEach(() => {
-    for (const id of added.splice(0)) delete (DEVICE_SPECS as Record<string, DeviceSpec>)[id];
+    delete SPECS['tpmT'];
+    delete SPECS['gpuHot'];
+    delete SPECS['npuSlot'];
   });
 
   it('the TPM header exists on Mainstream and Enthusiast only', () => {
-    expect(BOARD_TIERS.map((t) => t.slots.tpm ?? 0)).toEqual([0, 0, 1, 1]);
+    expect(BOARD_TIERS.map((t) => slotsOf(t, 'tpm'))).toStrictEqual([0, 0, 1, 1]);
   });
 
   it('a TPM goes in the header, and Starter and Basic refuse it', () => {
@@ -405,7 +473,7 @@ describe('accelerator slots', () => {
     for (const tier of [0, 1]) {
       const r = install(createBoard(tier), 'tpmT');
       expect(r.ok).toBe(false);
-      expect(!r.ok && r.reason).toContain('no tpm slot');
+      expect(refusal(r)).toContain('no tpm slot');
     }
   });
 
@@ -417,8 +485,8 @@ describe('accelerator slots', () => {
   });
 
   it('PSUs carry PCIe leads: none on the small two, one on the ATX+', () => {
-    const leads = ['psu0', 'psu1', 'psu2'].map((id) => (DEVICE_SPECS[id] as { pcieLeads: number }).pcieLeads);
-    expect(leads).toEqual([0, 0, 1]);
+    const leads = ['psu0', 'psu1', 'psu2'].map((id) => specOf(DEVICE_SPECS[id], 'psu').pcieLeads);
+    expect(leads).toStrictEqual([0, 0, 1]);
   });
 
   it("a card above the slot's power needs PCIe leads: refused on Starter, counted against the PSU leads", () => {
@@ -430,14 +498,14 @@ describe('accelerator slots', () => {
     const start = createBoard(0);
     const r = install(start, 'gpuHot');
     expect(r.ok).toBe(false);
-    expect(!r.ok && r.reason).toContain('no PCIe power connector');
+    expect(refusal(r)).toContain('no PCIe power connector');
     ok(install(start, 'npuSlot'));
     const b = createBoard(2);
     ok(install(b, 'psu2')); // one lead
     ok(install(b, 'gpuHot'));
     const two = install(b, 'gpuHot');
     expect(two.ok).toBe(false);
-    expect(!two.ok && two.reason).toContain('2 PCIe power leads but the PSU has 1');
+    expect(refusal(two)).toContain('2 PCIe power leads but the PSU has 1');
     ok(install(b, 'npuSlot'));
   });
 
@@ -450,20 +518,24 @@ describe('accelerator slots', () => {
   });
 });
 
+const placedIn = (b: simTypes.Board, spec: string): string => {
+  const r = install(b, spec);
+  if (!r.ok) {
+    throw new Error(r.reason);
+  }
+  return r.slot;
+};
+
+const widths = (b: simTypes.Board) =>
+  boardSlots(b)
+    .filter((s) => s.type === 'pcie')
+    .map((s) => s.width);
+
 describe('PCIe slot widths', () => {
-  const placed = (b: Board, spec: string): string => {
-    const r = install(b, spec);
-    if (!r.ok) throw new Error(r.reason);
-    return r.slot;
-  };
-  const widths = (b: Board) =>
-    boardSlots(b)
-      .filter((s) => s.type === 'pcie')
-      .map((s) => s.width);
   it('each tier lists a width per pcie slot, widest first', () => {
     for (const t of BOARD_TIERS) {
-      expect(t.pcieWidths.length).toBe(t.slots.pcie ?? 0);
-      expect([...t.pcieWidths].sort((a, b) => b - a)).toEqual(t.pcieWidths);
+      expect(t.pcieWidths).toHaveLength(slotsOf(t, 'pcie'));
+      expect(t.pcieWidths.toSorted((a, b) => b - a)).toStrictEqual(t.pcieWidths);
     }
   });
 
@@ -471,19 +543,19 @@ describe('PCIe slot widths', () => {
     for (const tier of [0, 1, 2]) {
       const r = install(createBoard(tier), 'gpu3');
       expect(r.ok).toBe(false);
-      expect((r as { reason: string }).reason).toMatch(/wide enough|needs a x16 Gen5/);
+      expect(refusal(r)).toMatch(/wide enough|needs a x16 Gen5/u);
     }
     const b = createBoard(3);
-    expect(install(b, 'gpu3', 'pcie1')).toMatchObject({ ok: false, reason: expect.stringContaining('x16 Gen5') });
-    expect(placed(b, 'gpu3')).toBe('pcie0');
+    expect(refusal(install(b, 'gpu3', 'pcie1'))).toContain('x16 Gen5');
+    expect(placedIn(b, 'gpu3')).toBe('pcie0');
   });
 
   it('a small card takes the narrowest free slot, leaving the wide one for a GPU', () => {
     const b = createBoard(3);
-    expect(placed(b, 'nic1')).toBe('pcie3'); // x4
-    expect(placed(b, 'nic3')).toBe('pcie2'); // x8
-    expect(placed(b, 'gpu2')).toBe('pcie1'); // x16 (the x32 stays free)
-    expect(widths(b)).toEqual([32, 16, 8, 4]);
+    expect(placedIn(b, 'nic1')).toBe('pcie3'); // x4
+    expect(placedIn(b, 'nic3')).toBe('pcie2'); // x8
+    expect(placedIn(b, 'gpu2')).toBe('pcie1'); // x16 (the x32 stays free)
+    expect(widths(b)).toStrictEqual([32, 16, 8, 4]);
   });
 
   it('a card is refused a slot narrower than it needs, and a wider one is fine', () => {
@@ -497,7 +569,7 @@ describe('PCIe slot widths', () => {
     ok(install(b, 'nic1', 'pcie0'));
     ok(install(b, 'gpu2', 'pcie1'));
     ok(upgradeBoard(b, 2));
-    expect(b.devices.find((d) => d.spec === 'gpu2')!.slot).toBe('pcie0');
+    expect(must(b.devices.find((d) => d.spec === 'gpu2')).slot).toBe('pcie0');
     const c = createBoard(3);
     ok(install(c, 'gpu3'));
     const r = upgradeBoard(c, 2);

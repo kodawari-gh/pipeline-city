@@ -3,25 +3,59 @@ import { Prng } from '@/core/sim';
 import { AIR_ZONES, BASE_BAYS, BAY_SHADE, cageShade, MAX_TRAPPED, QUALITY, zoneAir, zoneOf } from './airflow';
 import { basicFan, caseMounts, CASE_TIERS, getSpec } from './specs';
 import { createBoard, findDevices, install, setClock, ThermalModel } from './index';
-import { CARD_FAN_START_C, CASE_FAN_K, CASE_HEAT_C_PER_W, cardFan, FANS_ON, type FanPower } from './thermal';
+import { CARD_FAN_START_C, CASE_FAN_K, CASE_HEAT_C_PER_W, cardFan, FANS_ON } from './thermal';
+import type * as thermalTypes from './thermal';
+import type * as simTypes from './index';
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+/** Id of the first installed device of `kind`; fails the test when there is none. */
+function firstId(board: simTypes.Board, kind: simTypes.DeviceSpec['kind']): string {
+  return must(findDevices(board, kind)[0]).id;
+}
+
+/** Thermal state of the first installed device of `kind`; fails the test when it is missing. */
+function stateOf(
+  th: simTypes.ThermalModel,
+  board: simTypes.Board,
+  kind: simTypes.DeviceSpec['kind'],
+): simTypes.DeviceThermal {
+  return must(th.state(firstId(board, kind)));
+}
 
 const all = (tier: number) => caseMounts(tier);
 const without = (tier: number, ...ids: string[]) => all(tier).filter((m) => !ids.includes(m));
 const air = (tier: number, turning: string[] | undefined, cardW = 0) =>
   zoneAir(tier, turning, turning?.length ?? 0, cardW, CASE_HEAT_C_PER_W);
 
+const tops = (t: number) => all(t).filter((m) => m.startsWith('top'));
+
 describe('airflow zones', () => {
   it('every part that breathes the case air is in an area; a cooler, a sink, the PSU and the monitor are not', () => {
-    expect(['cpu', 'ram'].map((k) => zoneOf(k as never))).toEqual(['north', 'north']);
-    expect(['gpu', 'npu', 'nic', 'tpm'].map((k) => zoneOf(k as never))).toEqual(['cards', 'cards', 'cards', 'cards']);
+    expect((['cpu', 'ram'] as const).map((k) => zoneOf(k))).toStrictEqual(['north', 'north']);
+    expect((['gpu', 'npu', 'nic', 'tpm'] as const).map((k) => zoneOf(k))).toStrictEqual([
+      'cards',
+      'cards',
+      'cards',
+      'cards',
+    ]);
     expect(zoneOf('storage')).toBe('bay');
-    for (const k of ['cooler', 'psu', 'display', 'vrm-sink', 'ram-sink', 'radiator'])
-      expect(zoneOf(k as never)).toBeNull();
+    for (const k of ['cooler', 'psu', 'display', 'vrm-sink', 'ram-sink', 'radiator'] as const) {
+      expect(zoneOf(k)).toBeNull();
+    }
   });
 
   it("with no fan layout known every area gets the fan count and the cards' heat, as before zones", () => {
     const a = zoneAir(2, undefined, 3, 180, CASE_HEAT_C_PER_W);
-    for (const z of AIR_ZONES) expect(a[z]).toMatchObject({ fans: 3, flow: 1, riseC: 9 });
+    for (const z of AIR_ZONES) {
+      expect(a[z]).toMatchObject({ fans: 3, flow: 1, riseC: 9 });
+    }
   });
 
   it("with a basic fan on every mount each area is as designed (flow 1) and the cooling is the fans' airflow times the area's quality", () => {
@@ -29,7 +63,10 @@ describe('airflow zones', () => {
       const a = air(tier, all(tier));
       for (const z of AIR_ZONES) {
         expect(a[z].flow).toBeCloseTo(1, 6);
-        expect(a[z].fans).toBeCloseTo(all(tier).length * basicFan(CASE_TIERS[tier]!.fanSize).airflow * QUALITY[z], 6);
+        expect(a[z].fans).toBeCloseTo(
+          all(tier).length * basicFan(must(CASE_TIERS[tier]).fanSize).airflow * QUALITY[z],
+          6,
+        );
       }
     }
     // high-airflow fans cool more, but the area is no better ventilated than designed
@@ -54,7 +91,6 @@ describe('airflow zones', () => {
   });
 
   it("the top fans are the processor's: without them the north area suffers most", () => {
-    const tops = (t: number) => all(t).filter((m) => m.startsWith('top'));
     for (const tier of [2, 3]) {
       const a = air(tier, without(tier, ...tops(tier)));
       expect(a.north.flow).toBeLessThan(a.cards.flow);
@@ -83,7 +119,9 @@ describe('airflow zones', () => {
       expect(frontOnly[z].flow).toBeLessThan(0.45);
       expect(exhaustOnly[z].flow).toBeLessThan(0.55);
     }
-    for (const z of AIR_ZONES) expect(air(3, [])[z].flow).toBeLessThan(0.1); // no fan: the shell's vents alone
+    for (const z of AIR_ZONES) {
+      expect(air(3, [])[z].flow).toBeLessThan(0.1);
+    } // no fan: the shell's vents alone
   });
 
   it('the Mini tower (no rear fan, two front fans) still ventilates through its vents, but never as well as a bigger case', () => {
@@ -106,19 +144,25 @@ describe('airflow zones', () => {
   });
 });
 
-describe('the thermal model by area', () => {
-  function rig() {
-    const b = createBoard(2);
-    for (const s of ['cpu1', 'ram0', 'display0', 'cooler1', 'psu2']) expect(install(b, s).ok).toBe(true);
-    expect(setClock(b, findDevices(b, 'cpu')[0]!.id, 1).ok).toBe(true);
-    return b;
+function rig() {
+  const b = createBoard(2);
+  for (const s of ['cpu1', 'ram0', 'display0', 'cooler1', 'psu2']) {
+    expect(install(b, s).ok).toBe(true);
   }
-  const settle = (fans: FanPower) => {
-    const b = rig(),
-      th = new ThermalModel(new Prng(1));
-    for (let k = 0; k < 600; k++) th.step(b, { cpu: 1 }, true, fans);
-    return { cpu: th.state(findDevices(b, 'cpu')[0]!.id)!.tempC, vrm: th.vrm.tempC, th };
-  };
+  expect(setClock(b, firstId(b, 'cpu'), 1).ok).toBe(true);
+  return b;
+}
+
+const settle = (fans: thermalTypes.FanPower) => {
+  const b = rig(),
+    th = new ThermalModel(new Prng(1));
+  for (let k = 0; k < 600; k++) {
+    th.step(b, { cpu: 1 }, true, fans);
+  }
+  return { cpu: stateOf(th, b, 'cpu').tempC, vrm: th.vrm.tempC, th };
+};
+
+describe('the thermal model by area', () => {
   const mounts = caseMounts(2);
 
   it('losing the top fans heats the processor and the VRM more than losing a bottom front fan (one fan less either way)', () => {
@@ -141,66 +185,80 @@ describe('the thermal model by area', () => {
 
   it("the model keeps the last tick's air by area for the snapshot", () => {
     const { th } = settle({ ...FANS_ON, caseFans: mounts.length, mounts });
-    for (const z of AIR_ZONES) expect(th.air[z].flow).toBeCloseTo(1, 6);
+    for (const z of AIR_ZONES) {
+      expect(th.air[z].flow).toBeCloseTo(1, 6);
+    }
     expect(th.air.north.fans).toBeGreaterThan(th.air.cards.fans);
   });
 });
 
-describe('the drive cages', () => {
-  const hdds = (n: number, from = BASE_BAYS) => Array.from({ length: n }, (_, k) => ({ bay: from + k, hdd: true }));
+const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+const hdds = (n: number, from = BASE_BAYS) => Array.from({ length: n }, (_, k) => ({ bay: from + k, hdd: true }));
 
+const cardTemp = (drives: number, from: number, mounts = caseMounts(3)) => {
+  const b = createBoard(3);
+  for (const s of ['cpu1', 'ram0', 'display0', 'cooler1', 'psu2', 'gpu1']) {
+    expect(install(b, s, s === 'gpu1' ? 'pcie0' : undefined).ok).toBe(true);
+  }
+  for (let k = 0; k < drives; k++) {
+    expect(install(b, 'hdd0', `sata${from + k}`).ok).toBe(true);
+  }
+  const th = new ThermalModel(new Prng(1)),
+    { id } = must(findDevices(b, 'gpu')[0]);
+  for (let k = 0; k < 800; k++) {
+    th.step(b, { cpu: 1, gpu: 1 }, true, { ...FANS_ON, caseFans: mounts.length, mounts });
+  }
+  return must(th.state(id)).tempC;
+};
+
+describe('the drive cages', () => {
   it("a drive in the main cage blocks a share of the front fans level with it; the basement's cost nothing, an SSD less than a disk", () => {
     for (let tier = 0; tier < CASE_TIERS.length; tier++) {
-      const front = CASE_TIERS[tier]!.fans.front,
-        t = BAY_SHADE[tier]!;
-      expect(t.hdd.length).toBe(t.ssd.length);
-      for (const row of [...t.hdd, ...t.ssd]) expect(row.length).toBe(front);
-      expect(cageShade(tier, hdds(BASE_BAYS, 0))).toEqual(new Array(front).fill(0));
+      const { front } = must(CASE_TIERS[tier]).fans,
+        t = must(BAY_SHADE[tier]);
+      expect(t.hdd).toHaveLength(t.ssd.length);
+      for (const row of [...t.hdd, ...t.ssd]) {
+        expect(row).toHaveLength(front);
+      }
+      expect(cageShade(tier, hdds(BASE_BAYS, 0))).toStrictEqual(Array.from({ length: front }, () => 0));
       const disk = cageShade(tier, hdds(1)),
-        ssd = cageShade(tier, [{ bay: BASE_BAYS, hdd: false }]),
-        sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+        ssd = cageShade(tier, [{ bay: BASE_BAYS, hdd: false }]);
       expect(sum(disk)).toBeGreaterThan(0.1);
       expect(sum(ssd)).toBeGreaterThan(0);
       expect(sum(ssd)).toBeLessThan(sum(disk) / 2);
       // a full cage never blocks more than a whole fan, and the top fan (the processor's air) stays free in the bigger cases
       const full = cageShade(tier, hdds(t.hdd.length));
-      for (const s of full) expect(s).toBeLessThanOrEqual(1);
-      if (tier > 0) expect(full[0]).toBe(0);
+      for (const s of full) {
+        expect(s).toBeLessThanOrEqual(1);
+      }
+    }
+    for (let tier = 1; tier < CASE_TIERS.length; tier++) {
+      const full = cageShade(tier, hdds(must(BAY_SHADE[tier]).hdd.length));
+      expect(full[0]).toBe(0);
     }
   });
 
   it("a blocked share of a fan does not reach the board: the cards lose most, the processor's area a little, the bay keeps its air", () => {
     for (let tier = 1; tier < CASE_TIERS.length; tier++) {
       const free = air(tier, all(tier)),
-        shade = cageShade(tier, hdds(BAY_SHADE[tier]!.hdd.length));
+        shade = cageShade(tier, hdds(must(BAY_SHADE[tier]).hdd.length));
       const full = zoneAir(tier, all(tier), all(tier).length, 0, CASE_HEAT_C_PER_W, undefined, shade);
       expect(full.cards.flow).toBeLessThan(0.9);
       expect(full.north.flow).toBeLessThan(free.north.flow);
       expect(full.north.flow).toBeGreaterThan(full.cards.flow);
       expect(full.bay.flow).toBeCloseTo(free.bay.flow, 6);
       // an empty cage is the case as designed
-      expect(zoneAir(tier, all(tier), all(tier).length, 0, CASE_HEAT_C_PER_W, undefined, cageShade(tier, []))).toEqual(
-        free,
-      );
+      expect(
+        zoneAir(tier, all(tier), all(tier).length, 0, CASE_HEAT_C_PER_W, undefined, cageShade(tier, [])),
+      ).toStrictEqual(free);
     }
   });
 
   it('a full cage of disks warms a working graphics card, about as much as one front fan less; the same disks in the basement do not', () => {
-    const run = (drives: number, from: number, mounts = caseMounts(3)) => {
-      const b = createBoard(3);
-      for (const s of ['cpu1', 'ram0', 'display0', 'cooler1', 'psu2', 'gpu1'])
-        expect(install(b, s, s === 'gpu1' ? 'pcie0' : undefined).ok).toBe(true);
-      for (let k = 0; k < drives; k++) expect(install(b, 'hdd0', `sata${from + k}`).ok).toBe(true);
-      const th = new ThermalModel(new Prng(1)),
-        id = findDevices(b, 'gpu')[0]!.id;
-      for (let k = 0; k < 800; k++)
-        th.step(b, { cpu: 1, gpu: 1 }, true, { ...FANS_ON, caseFans: mounts.length, mounts });
-      return th.state(id)!.tempC;
-    };
-    const empty = run(0, 0),
-      full = run(BAY_SHADE[3]!.hdd.length, BASE_BAYS),
-      base = run(BASE_BAYS, 0),
-      noFront = run(0, 0, without(3, 'front1'));
+    const empty = cardTemp(0, 0),
+      full = cardTemp(must(BAY_SHADE[3]).hdd.length, BASE_BAYS),
+      base = cardTemp(BASE_BAYS, 0),
+      noFront = cardTemp(0, 0, without(3, 'front1'));
     expect(full - empty).toBeGreaterThan(0.5);
     expect(full - empty).toBeLessThan(2 * (noFront - empty));
     expect(base).toBeCloseTo(empty, 6);
@@ -212,7 +270,9 @@ describe('the weights', () => {
     const mean = AIR_ZONES.reduce((a, z) => a + QUALITY[z], 0) / AIR_ZONES.length;
     expect(mean).toBeGreaterThan(0.9);
     expect(mean).toBeLessThan(1.1);
-    for (const z of AIR_ZONES) expect(QUALITY[z]).toBeGreaterThan(0);
+    for (const z of AIR_ZONES) {
+      expect(QUALITY[z]).toBeGreaterThan(0);
+    }
   });
 
   it("with every fan out, no area is hotter than MAX_TRAPPED times the cards' heat, and none is cooler than with the fans on", () => {
@@ -227,21 +287,26 @@ describe('the weights', () => {
   });
 });
 
+const gpuRig = () => {
+  const b = createBoard(2);
+  for (const s of ['cpu1', 'ram0', 'display0', 'cooler1', 'psu2', 'gpu1']) {
+    expect(install(b, s, s === 'gpu1' ? 'pcie0' : undefined).ok).toBe(true);
+  }
+  return b;
+};
+
+const settleCard = (fans: thermalTypes.FanPower, k0 = 800) => {
+  const b = gpuRig(),
+    th = new ThermalModel(new Prng(1)),
+    { id } = must(findDevices(b, 'gpu')[0]);
+  for (let k = 0; k < k0; k++) {
+    th.step(b, { cpu: 1, gpu: 1 }, true, fans);
+  }
+  return must(th.state(id));
+};
+
 describe("a card's own fans", () => {
-  const gpuRig = () => {
-    const b = createBoard(2);
-    for (const s of ['cpu1', 'ram0', 'display0', 'cooler1', 'psu2', 'gpu1'])
-      expect(install(b, s, s === 'gpu1' ? 'pcie0' : undefined).ok).toBe(true);
-    return b;
-  };
   const mounts = caseMounts(2);
-  const settle = (fans: FanPower, k0 = 800) => {
-    const b = gpuRig(),
-      th = new ThermalModel(new Prng(1)),
-      id = findDevices(b, 'gpu')[0]!.id;
-    for (let k = 0; k < k0; k++) th.step(b, { cpu: 1, gpu: 1 }, true, fans);
-    return th.state(id)!;
-  };
 
   it('the fan is still when the card is cool, and runs from CARD_FAN_START_C up to full at its throttle limit', () => {
     expect(cardFan(25, 80)).toBe(0);
@@ -251,25 +316,27 @@ describe("a card's own fans", () => {
   });
 
   it('a working card spins its fans and runs cooler than the same card with its fans stuck', () => {
-    const real = settle({ ...FANS_ON, caseFans: mounts.length, mounts });
+    const real = settleCard({ ...FANS_ON, caseFans: mounts.length, mounts });
     expect(real.fan).toBeGreaterThan(0);
-    const spec = getSpec('gpu1')!,
+    const spec = must(getSpec('gpu1')),
       saved = spec.thermal.fanPerC;
     spec.thermal.fanPerC = 0;
-    const stuck = settle({ ...FANS_ON, caseFans: mounts.length, mounts });
+    const stuck = settleCard({ ...FANS_ON, caseFans: mounts.length, mounts });
     spec.thermal.fanPerC = saved;
     expect(stuck.fan).toBe(0);
     expect(real.tempC).toBeLessThan(stuck.tempC);
   });
 
   it('the fans do less in a case with no air moving, and stop when the machine is off', () => {
-    const good = settle({ ...FANS_ON, caseFans: mounts.length, mounts }),
-      starved = settle({ ...FANS_ON, caseFans: 0, mounts: [] });
+    const good = settleCard({ ...FANS_ON, caseFans: mounts.length, mounts }),
+      starved = settleCard({ ...FANS_ON, caseFans: 0, mounts: [] });
     expect(starved.tempC).toBeGreaterThan(good.tempC);
     const b = gpuRig(),
       th = new ThermalModel(new Prng(1));
-    for (let k = 0; k < 300; k++) th.step(b, { gpu: 1 }, true, { ...FANS_ON, caseFans: mounts.length, mounts });
+    for (let k = 0; k < 300; k++) {
+      th.step(b, { gpu: 1 }, true, { ...FANS_ON, caseFans: mounts.length, mounts });
+    }
     th.step(b, { gpu: 1 }, false);
-    expect(th.state(findDevices(b, 'gpu')[0]!.id)!.fan).toBe(0);
+    expect(stateOf(th, b, 'gpu').fan).toBe(0);
   });
 });
