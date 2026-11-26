@@ -6,25 +6,33 @@
 import { encodeToKTX2 } from 'ktx2-encoder';
 
 /** The options of each mode (`ktx2-encoder`'s names). */
-const MODES = {
-  uastc: { isUASTC: true, uastcLDRQualityLevel: 2, needSupercompression: true },
-  etc1s: { isUASTC: false, qualityLevel: 255, compressionLevel: 3 },
-};
+const MODES = new Map([
+  ['uastc', { isUASTC: true, uastcLDRQualityLevel: 2, needSupercompression: true }],
+  ['etc1s', { isUASTC: false, qualityLevel: 255, compressionLevel: 3 }],
+]);
 
-/** The KTX2 file of `rgba` (width x height, 8 bits a channel, not premultiplied). */
-export async function ktx2Of(rgba, width, height, mode = 'etc1s') {
+/**
+ * The KTX2 file of `rgba` (width x height, 8 bits a channel, not premultiplied), in `mode` (`etc1s`, the default, or `uastc`).
+ * @param {Uint8Array} rgba
+ * @param {{ width: number; height: number; mode?: string }} size
+ */
+export async function ktx2Of(rgba, { width, height, mode = 'etc1s' }) {
+  // (the encoder asks for the decoded image: it is the bytes as they are)
+  const image = Promise.resolve({ width, height, data: rgba });
   const say = console.log;
-  console.log = () => {}; // (the encoder prints each slice)
+  console.log = () => {
+    // (the encoder prints each slice)
+  };
   try {
     return await encodeToKTX2(new Uint8Array(4), {
-      imageDecoder: async () => ({ width, height, data: rgba }),
+      imageDecoder: async () => image,
       isKTX2File: true,
       generateMipmap: false,
       isYFlip: false,
       enableDebug: false,
       isPerceptual: false,
       isSetKTX2SRGBTransferFunc: false,
-      ...MODES[mode],
+      ...MODES.get(mode),
     });
   } finally {
     console.log = say;

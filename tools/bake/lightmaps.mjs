@@ -7,32 +7,50 @@
 //   --only a,b           only these groups
 //   --out dir            write the files and the manifest there, not beside the PNGs (to look at a mode before it is the bake's)
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { runnerImport } from 'vite';
 import { ktx2Of } from './ktx2.mjs';
+import { readManifest } from './manifest.mjs';
+
+const { join } = path;
 
 const args = process.argv.slice(2);
+/**
+ * The value after `--<n>`, or `d`.
+ * @param {string} n
+ * @param {string} d
+ */
 const flag = (n, d) => {
-  const i = args.indexOf('--' + n);
-  return i < 0 ? d : args[i + 1];
+  const i = args.indexOf(`--${n}`);
+  if (i === -1) {
+    return d;
+  }
+  const v = args[i + 1];
+  if (v === undefined) {
+    throw new Error(`--${n} needs a value`);
+  }
+  return v;
 };
 const MODE = flag('mode', 'etc1s'),
   ONLY = flag('only', '').split(',').filter(Boolean);
 const root = fileURLToPath(new URL('../..', import.meta.url)),
   src = join(root, 'public/bake/room'),
   out = flag('out', src);
+/** @type {{ module: typeof import('./rgbm'); dependencies: string[] }} */
 const { module: rgbm } = await runnerImport(join(root, 'tools/bake/rgbm.ts'), { configFile: false, logLevel: 'warn' });
 mkdirSync(out, { recursive: true });
-const manifest = JSON.parse(readFileSync(join(src, 'manifest.json'), 'utf8'));
+const manifest = readManifest(join(src, 'manifest.json'));
 let png = 0,
   ktx = 0;
 for (const g of manifest.groups) {
-  if (ONLY.length && !ONLY.includes(g.id)) continue;
+  if (ONLY.length > 0 && !ONLY.includes(g.id)) {
+    continue;
+  }
   const bytes = readFileSync(join(src, g.file)),
     { width, height, rgba } = rgbm.unpng(new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength));
-  const file = await ktx2Of(rgba, width, height, MODE);
+  const file = await ktx2Of(rgba, { width, height, mode: MODE });
   writeFileSync(join(out, `${g.id}.ktx2`), file);
   g.ktx2 = `${g.id}.ktx2`;
   png += bytes.length;
@@ -47,5 +65,5 @@ writeFileSync(join(out, 'meshes.packed'), gz);
 manifest.uvs = 'meshes.packed';
 writeFileSync(join(out, 'manifest.json'), JSON.stringify(manifest, null, 1));
 console.log(
-  `${(png / 1048576).toFixed(2)} MB -> ${(ktx / 1048576).toFixed(2)} MB (${MODE}); meshes.packed ${(gz.length / 1024).toFixed(0)} KB`,
+  `${(png / 1_048_576).toFixed(2)} MB -> ${(ktx / 1_048_576).toFixed(2)} MB (${MODE}); meshes.packed ${(gz.length / 1024).toFixed(0)} KB`,
 );

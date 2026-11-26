@@ -7,6 +7,7 @@
 //   env: PORT (5199), CHROME_PATH
 import { spawn } from 'node:child_process';
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { encodeToKTX2 } from 'ktx2-encoder';
 import { chromium } from 'playwright-core';
@@ -15,6 +16,7 @@ import { chromium } from 'playwright-core';
  * The set. `from`: the module and the call that give the texture (a `Surface` gives `map` and `normal`). `srgb`: the file says sRGB, so the
  * GPU decodes it (a map with `SRGBColorSpace`); the city's colour maps stay raw (their material decodes them, `DECODE_SRGB`).
  */
+/** @type {{ key: string; mod: string; call: string; pick?: string; kind: 'colour' | 'normal' | 'data'; srgb: boolean }[]} */
 const SET = [
   {
     key: 'part-brushed',
@@ -108,12 +110,14 @@ const SET = [
   },
 ];
 
-const PORT = Number(process.env.PORT || 5199),
+const port = process.env['PORT'],
+  PORT = Number(port === undefined || port === '' ? 5199 : port),
   url = `http://localhost:${PORT}/`;
 const out = fileURLToPath(new URL('../../public/tex/', import.meta.url));
 const up = async () => {
   try {
-    return (await fetch(url)).ok;
+    const res = await fetch(url);
+    return res.ok;
   } catch {
     return false;
   }
@@ -123,7 +127,9 @@ if (!(await up())) {
   server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(PORT), '--strictPort'], {
     stdio: 'ignore',
   });
-  for (let i = 0; i < 100 && !(await up()); i++) await new Promise((r) => setTimeout(r, 300));
+  for (let i = 0; i < 100 && !(await up()); i++) {
+    await sleep(300);
+  }
 }
 process.on('exit', () => {
   try {
@@ -133,36 +139,63 @@ process.on('exit', () => {
   }
 });
 
+const chromePath = process.env['CHROME_PATH'];
 const browser = await chromium.launch({
   headless: true,
-  ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
+  ...(chromePath === undefined || chromePath === '' ? { channel: 'chrome' } : { executablePath: chromePath }),
 });
 try {
   const p = await browser.newPage();
   await p.goto(`${url}?nobaked`);
   mkdirSync(out, { recursive: true });
-  for (const f of readdirSync(out)) rmSync(out + f);
+  for (const f of readdirSync(out)) {
+    rmSync(out + f);
+  }
   let rgba = 0,
     disk = 0,
     gpu = 0;
   for (const s of SET) {
     // the canvas's pixels, as base64 (a page gives no typed array to the script)
     const got = await p.evaluate(async ({ mod, call, pick }) => {
-      const m = await import(/* @vite-ignore */ mod),
-        r = m[call](),
-        t = pick ? r[pick] : r,
-        cv = t.image;
-      const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+      /** @type {(v: unknown) => asserts v is () => unknown} */
+      const mustCall = (v) => {
+        if (typeof v !== 'function') {
+          throw new TypeError(`${mod} has no ${call}()`);
+        }
+      };
+      /** @type {unknown} */
+      const loaded = await import(/* @vite-ignore */ mod);
+      /** @type {Record<string, unknown>} */
+      const m = typeof loaded === 'object' && loaded !== null ? loaded : {};
+      const make = m[call];
+      mustCall(make);
+      /** @type {unknown} */
+      const r = make();
+      /** @type {Record<string, unknown>} */
+      const maps = typeof r === 'object' && r !== null ? r : {};
+      const t = pick === undefined ? r : maps[pick],
+        cv = typeof t === 'object' && t !== null && 'image' in t ? t.image : undefined,
+        ctx = cv instanceof HTMLCanvasElement ? cv.getContext('2d') : null;
+      if (!(cv instanceof HTMLCanvasElement) || ctx === null) {
+        throw new TypeError(`${mod} ${call}() gives no painted canvas`);
+      }
+      const d = ctx.getImageData(0, 0, cv.width, cv.height).data;
       let bin = '';
-      for (let i = 0; i < d.length; i += 0x8000) bin += String.fromCharCode(...d.subarray(i, i + 0x8000));
+      for (let i = 0; i < d.length; i += 0x80_00) {
+        bin += String.fromCodePoint(...d.subarray(i, i + 0x80_00));
+      }
       return { w: cv.width, h: cv.height, b64: btoa(bin) };
     }, s);
     const data = new Uint8Array(Buffer.from(got.b64, 'base64'));
     const normal = s.kind === 'normal';
+    // (the encoder asks for the decoded image: it is the canvas's pixels as they are)
+    const image = Promise.resolve({ width: got.w, height: got.h, data });
     const say = console.log;
-    console.log = () => {}; // (the encoder prints each slice)
+    console.log = () => {
+      // (the encoder prints each slice)
+    };
     const file = await encodeToKTX2(new Uint8Array(4), {
-      imageDecoder: async () => ({ width: got.w, height: got.h, data }),
+      imageDecoder: async () => image,
       isKTX2File: true,
       generateMipmap: true,
       isYFlip: true,
@@ -183,12 +216,12 @@ try {
     disk += file.byteLength;
     gpu += small;
     console.log(
-      `${s.key.padEnd(18)} ${got.w}x${got.h} ${normal ? 'UASTC' : 'ETC1S'}  file ${(file.byteLength / 1024).toFixed(0)} KB  GPU ${(full / 1048576).toFixed(2)} -> ${(small / 1048576).toFixed(2)} MB`,
+      `${s.key.padEnd(18)} ${got.w}x${got.h} ${normal ? 'UASTC' : 'ETC1S'}  file ${(file.byteLength / 1024).toFixed(0)} KB  GPU ${(full / 1_048_576).toFixed(2)} -> ${(small / 1_048_576).toFixed(2)} MB`,
     );
   }
-  writeFileSync(`${out}manifest.json`, JSON.stringify({ keys: SET.map((s) => s.key) }) + '\n');
+  writeFileSync(`${out}manifest.json`, `${JSON.stringify({ keys: SET.map((s) => s.key) })}\n`);
   console.log(
-    `${SET.length} maps: ${(disk / 1024).toFixed(0)} KB on disk; GPU ${(rgba / 1048576).toFixed(1)} MB as RGBA8 -> about ${(gpu / 1048576).toFixed(1)} MB (one byte a texel, with mips)`,
+    `${SET.length} maps: ${(disk / 1024).toFixed(0)} KB on disk; GPU ${(rgba / 1_048_576).toFixed(1)} MB as RGBA8 -> about ${(gpu / 1_048_576).toFixed(1)} MB (one byte a texel, with mips)`,
   );
 } finally {
   await browser.close();

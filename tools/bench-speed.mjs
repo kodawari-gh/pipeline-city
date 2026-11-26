@@ -3,6 +3,13 @@
 import { createServer } from 'vite';
 import { fileURLToPath } from 'node:url';
 
+/**
+ * Whether the loaded module exports the benchmark's `main`.
+ * @param {unknown} m
+ * @returns {m is { main: () => Promise<void> }}
+ */
+const hasMain = (m) => typeof m === 'object' && m !== null && 'main' in m && typeof m.main === 'function';
+
 const server = await createServer({
   configFile: false,
   root: process.cwd(),
@@ -14,6 +21,9 @@ const server = await createServer({
 });
 try {
   const mod = await server.ssrLoadModule('/src/features/sandbox/sim/speed.ts');
+  if (!hasMain(mod)) {
+    throw new TypeError('speed.ts exports no main');
+  }
   await mod.main();
 } finally {
   await server.close();

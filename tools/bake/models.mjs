@@ -2,20 +2,28 @@
 // Safe to run twice: a file already meshopt-compressed is skipped. Exits 1 if a file is still over the 200 KB room budget.
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, renameSync, statSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const { join } = path;
+
+const root = join(import.meta.dirname, '..', '..');
 const dir = join(root, 'public', 'models');
 const win = process.platform === 'win32';
 const bin = join(root, 'node_modules', '.bin', win ? 'gltf-transform.cmd' : 'gltf-transform');
 const BUDGET = 200 * 1024;
-const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
+const kb = (/** @type {number} */ n) => `${(n / 1024).toFixed(1)} KB`;
 // A .glb has a 12-byte header, then the JSON chunk: its length (4 bytes) and type, then the JSON.
-const isMeshopt = (file) => {
+const isMeshopt = (/** @type {string} */ file) => {
   const buf = readFileSync(file);
+  /** @type {unknown} */
   const json = JSON.parse(buf.subarray(20, 20 + buf.readUInt32LE(12)).toString('utf8'));
-  return (json.extensionsUsed ?? []).includes('EXT_meshopt_compression');
+  return (
+    typeof json === 'object' &&
+    json !== null &&
+    'extensionsUsed' in json &&
+    Array.isArray(json.extensionsUsed) &&
+    json.extensionsUsed.includes('EXT_meshopt_compression')
+  );
 };
 
 let failed = false;
