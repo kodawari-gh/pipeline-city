@@ -58,12 +58,18 @@ interface Key {
 }
 
 const hot = (k: string) =>
-  k === 'video' || k === 'lan' || k === 'pcmains' || k === 'monmains' || /^(cpufan|vrmfan|ramfan|sysfan|fan:)/.test(k);
+  k === 'video' ||
+  k === 'lan' ||
+  k === 'pcmains' ||
+  k === 'monmains' ||
+  /^(?:cpufan|vrmfan|ramfan|sysfan|fan:)/u.test(k);
 const NO_EJECT = new Set(['loading', 'running', 'writing']);
 
 /** The installed device an id of the 3D scene stands for (its own id, or the stable `psu` / `monitor`), or null. */
 export function deviceOf(id: string | null, s: Snapshot | null): Dev | null {
-  if (!id || !s) return null;
+  if (!id || !s) {
+    return null;
+  }
   const kind = id === 'psu' ? 'psu' : id === 'monitor' ? 'display' : null;
   // a part of a die (`cpu.fetch`, `pcie1.lane3`, `tpm0.hash`) is part of its device
   const head = id.split('.')[0]!,
@@ -95,33 +101,52 @@ export class Drag3D {
   ) {}
 
   get busy() {
-    return !!this.cur;
+    return Boolean(this.cur);
   }
 
   /** Does the drag go into the case (a part, or a cable other than the ones out on the desk): the side panel opens for it. */
   get intoCase() {
     const c = this.cur;
-    return !!c && c.key === undefined && !(c.cable !== undefined && /^(video|lan|pcmains|monmains)$/.test(c.cable));
+    if (!c) {
+      return false;
+    }
+    return c.key === undefined && !(c.cable !== undefined && /^(?:video|lan|pcmains|monmains)$/u.test(c.cable));
   }
 
   /** The ids the scene should outline now: every socket the dragged part fits (an occupied one by its device), and the one under the pointer. */
   targets(): string[] {
     const c = this.cur,
       s = snapshot.peek();
-    if (!c || !s) return [];
-    if (c.cable !== undefined) return c.live ? this.hand!.targets() : [];
-    if (c.dev) return [];
-    if (c.key !== undefined) return c.why ? [] : ['usb'];
+    if (!c || !s) {
+      return [];
+    }
+    if (c.cable !== undefined) {
+      return c.live ? this.hand!.targets() : [];
+    }
+    if (c.dev) {
+      return [];
+    }
+    if (c.key !== undefined) {
+      return c.why ? [] : ['usb'];
+    }
     const out: string[] = [];
-    if (!c.why) for (const slot of [...c.free, ...c.swap]) out.push(s.devices.find((d) => d.slot === slot)?.id ?? slot);
+    if (!c.why) {
+      for (const slot of [...c.free, ...c.swap]) {
+        out.push(s.devices.find((d) => d.slot === slot)?.id ?? slot);
+      }
+    }
     return out;
   }
 
   beginPart(invId: string, e: PointerEvent): void {
-    if (this.cur) return;
+    if (this.cur) {
+      return;
+    }
     const s = snapshot.peek(),
       it = s?.inventory.find((x) => x.id === invId);
-    if (!s || !it) return;
+    if (!s || !it) {
+      return;
+    }
     this.cur = {
       invId,
       name: it.name,
@@ -138,7 +163,9 @@ export class Drag3D {
   /** Lift an installed part. Refused (and false) while the machine runs. */
   beginDevice(dev: Dev, e: PointerEvent): boolean {
     const s = snapshot.peek();
-    if (this.cur || !s) return false;
+    if (this.cur || !s) {
+      return false;
+    }
     if (s.powered) {
       this.toast('Power the machine off first: parts only come out while it is off.', e.clientX, e.clientY);
       return false;
@@ -154,13 +181,17 @@ export class Drag3D {
   /** Pick up a cable: the plug hand takes its plug (a plugged one is pulled out); a cable with no rig comes out at once, as in 2D. */
   beginCable(kind: string, e: PointerEvent): boolean {
     const s = snapshot.peek();
-    if (this.cur || !s) return false;
+    if (this.cur || !s) {
+      return false;
+    }
     if (s.powered && !hot(kind)) {
       this.toast('Power the machine off first: the PSU cables carry live power.', e.clientX, e.clientY);
       return false;
     }
-    const live = !!this.hand?.grab(kind, e.clientX, e.clientY);
-    if (!live && s.cables.find((c) => c.id === kind)?.connected) disconnectCable(kind);
+    const live = Boolean(this.hand?.grab(kind, e.clientX, e.clientY));
+    if (!live && s.cables.find((c) => c.id === kind)?.connected) {
+      disconnectCable(kind);
+    }
     this.cur = { cable: kind, name: `cable ${kind}`, live, over: null };
     dragging.value = { kind: 'cable', id: `cable.${kind}` };
     this.run(e.pointerId, e.clientX, e.clientY, null);
@@ -170,7 +201,9 @@ export class Drag3D {
   /** Pick up a key: from the tray to the USB port, or the plugged one away from it. */
   beginKey(keyId: number, e: PointerEvent): boolean {
     const s = snapshot.peek();
-    if (this.cur || !s) return false;
+    if (this.cur || !s) {
+      return false;
+    }
     const plugged = s.plugged?.id === keyId;
     if (plugged) {
       const why =
@@ -207,11 +240,11 @@ export class Drag3D {
     }
     let last: [number, number] = [cx, cy];
     const end = (x: number, y: number, cancelled: boolean) => {
-      window.removeEventListener('pointermove', onMove, true);
-      window.removeEventListener('pointerup', onUp, true);
-      window.removeEventListener('pointercancel', onCancel, true);
-      window.removeEventListener('keydown', onKey, true);
-      window.removeEventListener('blur', onBlur);
+      globalThis.removeEventListener('pointermove', onMove, true);
+      globalThis.removeEventListener('pointerup', onUp, true);
+      globalThis.removeEventListener('pointercancel', onCancel, true);
+      globalThis.removeEventListener('keydown', onKey, true);
+      globalThis.removeEventListener('blur', onBlur);
       this.finish(x, y, cancelled);
     };
     const onMove = (m: PointerEvent) => {
@@ -221,10 +254,14 @@ export class Drag3D {
       }
     };
     const onUp = (m: PointerEvent) => {
-      if (m.pointerId === id) end(m.clientX, m.clientY, false);
+      if (m.pointerId === id) {
+        end(m.clientX, m.clientY, false);
+      }
     };
     const onCancel = (m: PointerEvent) => {
-      if (m.pointerId === id) end(m.clientX, m.clientY, true);
+      if (m.pointerId === id) {
+        end(m.clientX, m.clientY, true);
+      }
     };
     const onKey = (k: KeyboardEvent) => {
       if (k.key === 'Escape') {
@@ -233,11 +270,11 @@ export class Drag3D {
       }
     };
     const onBlur = () => end(last[0], last[1], true);
-    window.addEventListener('pointermove', onMove, true);
-    window.addEventListener('pointerup', onUp, true);
-    window.addEventListener('pointercancel', onCancel, true);
-    window.addEventListener('keydown', onKey, true);
-    window.addEventListener('blur', onBlur);
+    globalThis.addEventListener('pointermove', onMove, true);
+    globalThis.addEventListener('pointerup', onUp, true);
+    globalThis.addEventListener('pointercancel', onCancel, true);
+    globalThis.addEventListener('keydown', onKey, true);
+    globalThis.addEventListener('blur', onBlur);
     this.move(cx, cy);
   }
 
@@ -249,19 +286,23 @@ export class Drag3D {
   /** The slot (or `case` / `board`) a scene id means for the dragged part: a socket, or the device standing in one. */
   private slotOf(id: string | null): string | null {
     const s = snapshot.peek();
-    if (!id || !s) return null;
+    if (!id || !s) {
+      return null;
+    }
     return s.devices.find((d) => d.id === id)?.slot ?? id;
   }
 
   private move(cx: number, cy: number) {
     const c = this.cur;
-    if (!c) return;
+    if (!c) {
+      return;
+    }
     if (this.ghost) {
       this.ghost.style.left = `${cx}px`;
       this.ghost.style.top = `${cy}px`;
     }
     if (c.dev) {
-      const over = !!document.elementFromPoint(cx, cy)?.closest('.inv');
+      const over = Boolean(document.elementFromPoint(cx, cy)?.closest('.inv'));
       overInventory.value = over;
       this.ghost?.classList.toggle('ok', over);
       this.setGhost(
@@ -280,26 +321,28 @@ export class Drag3D {
       if (c.live) {
         this.hand!.move(cx, cy, raw);
         const l = this.hand!.label();
-        this.setGhost(l?.text ?? c.name, !!l?.ok);
+        this.setGhost(l?.text ?? c.name, Boolean(l?.ok));
         return;
       }
       c.over = raw && this.inMachine(raw) ? raw : null;
-      this.setGhost(c.name, !!c.over);
+      this.setGhost(c.name, Boolean(c.over));
       return;
     }
     // (the port is behind the case's side panel: a drop near it on the screen counts)
     if (c.key !== undefined) {
       c.over = id === 'usb' || id === `key:${c.key}` || (this.inside(cx, cy) && this.onPort(cx, cy)) ? 'usb' : null;
-      this.setGhost(c.why && c.over ? c.why : c.name, !!c.over && !c.why);
+      this.setGhost(c.why && c.over ? c.why : c.name, Boolean(c.over) && !c.why);
       return;
     }
     c.over = this.target(c, id) ?? this.within(c, cx, cy);
-    this.setGhost(c.why && id ? c.why : c.name, !!c.over);
+    this.setGhost(c.why && id ? c.why : c.name, Boolean(c.over));
   }
 
   /** A valid socket whose box on the screen holds the pointer (a thin or hollow object, such as the router's antennas, gives the ray nothing to hit): the smallest such. */
   private within(c: Part, cx: number, cy: number): string | null {
-    if (c.why) return null;
+    if (c.why) {
+      return null;
+    }
     let best: string | null = null,
       area = Infinity;
     for (const id of [...c.free, ...c.swap]) {
@@ -314,17 +357,45 @@ export class Drag3D {
 
   /** The id to install onto (a socket, or `case` for a whole-case or whole-board item), when it is valid. */
   private target(c: Part, id: string | null): string | null {
-    if (c.why || !id) return null;
+    if (c.why || !id) {
+      return null;
+    }
     const slot = this.slotOf(id);
-    if (slot && (c.free.has(slot) || c.swap.has(slot))) return slot;
+    if (slot && (c.free.has(slot) || c.swap.has(slot))) {
+      return slot;
+    }
     // the cooler's seat is the processor's: a cooler dropped on the CPU (or its package) takes the cooler socket
     // (and the other way: a processor dropped on the cooler that stands over its socket takes the processor's)
-    if (slot && /^cpu\d+$/.test(slot)) for (const q of [...c.free, ...c.swap]) if (q.startsWith('cooler')) return q;
-    if (slot && /^cooler\d+$/.test(slot)) for (const q of [...c.free, ...c.swap]) if (q.startsWith('cpu')) return q;
+    if (slot && /^cpu\d+$/u.test(slot)) {
+      for (const q of [...c.free, ...c.swap]) {
+        if (q.startsWith('cooler')) {
+          return q;
+        }
+      }
+    }
+    if (slot && /^cooler\d+$/u.test(slot)) {
+      for (const q of [...c.free, ...c.swap]) {
+        if (q.startsWith('cpu')) {
+          return q;
+        }
+      }
+    }
     // the monitor and the power supply stand for their sockets (they are not on the board)
     const kind = id === 'monitor' ? 'display' : id === 'psu' ? 'atx' : null;
-    if (kind) for (const q of [...c.free, ...c.swap]) if (q.startsWith(kind)) return q;
-    if (id === 'case' || id === 'io' || id === 'board') for (const w of ['case', 'board']) if (c.free.has(w)) return w;
+    if (kind) {
+      for (const q of [...c.free, ...c.swap]) {
+        if (q.startsWith(kind)) {
+          return q;
+        }
+      }
+    }
+    if (id === 'case' || id === 'io' || id === 'board') {
+      for (const w of ['case', 'board']) {
+        if (c.free.has(w)) {
+          return w;
+        }
+      }
+    }
     return null;
   }
 
@@ -335,10 +406,14 @@ export class Drag3D {
     dragging.value = null;
     this.ghost?.remove();
     this.ghost = null;
-    if (!c) return;
+    if (!c) {
+      return;
+    }
     if (c.dev) {
       if (!cancelled && document.elementFromPoint(cx, cy)?.closest('.inv')) {
-        if (c.osDrive) uninstallOs();
+        if (c.osDrive) {
+          uninstallOs();
+        }
         uninstall(c.dev.id);
       }
       return;
@@ -349,21 +424,29 @@ export class Drag3D {
         return;
       }
       const id = !cancelled && this.inside(cx, cy) ? this.idAt(cx, cy, true) : null;
-      if (id && this.inMachine(id)) connectCable(c.cable);
-      else if (!cancelled && id && snapshot.peek()?.cables.find((x) => x.id === c.cable)?.connected === false)
+      if (id && this.inMachine(id)) {
+        connectCable(c.cable);
+      } else if (!cancelled && id && snapshot.peek()?.cables.find((x) => x.id === c.cable)?.connected === false) {
         this.toast('Drop the plug on the machine.', cx, cy);
+      }
       return;
     }
     if (c.key !== undefined) {
       const onPort = !cancelled && this.inside(cx, cy) && (this.idAt(cx, cy) === 'usb' || this.onPort(cx, cy));
       if (!c.plugged && onPort) {
-        if (c.why) this.toast(c.why, cx, cy);
-        else plugKey(c.key);
-      } else if (c.plugged && !cancelled && this.inside(cx, cy) && !onPort && this.idAt(cx, cy) !== `key:${c.key}`)
+        if (c.why) {
+          this.toast(c.why, cx, cy);
+        } else {
+          plugKey(c.key);
+        }
+      } else if (c.plugged && !cancelled && this.inside(cx, cy) && !onPort && this.idAt(cx, cy) !== `key:${c.key}`) {
         ejectKey();
+      }
       return;
     }
-    if (cancelled || !this.inside(cx, cy)) return;
+    if (cancelled || !this.inside(cx, cy)) {
+      return;
+    }
     const id = this.idAt(cx, cy),
       over = this.target(c, id) ?? this.within(c, cx, cy);
     if (over) {
@@ -371,14 +454,18 @@ export class Drag3D {
       return;
     }
     if (c.why) {
-      if (id) this.toast(c.why, cx, cy);
+      if (id) {
+        this.toast(c.why, cx, cy);
+      }
       return;
     }
     const slot = this.slotOf(id),
       fanSize = snapshot.peek()?.slots.find((x) => x.id === slot)?.size;
-    if (fanSize) this.toast(`${c.name} does not fit: this spot takes a ${fanSize} mm fan.`, cx, cy);
-    else if (slot && /^[a-z]+\d+$/.test(slot))
-      this.toast(`${c.name} does not fit the ${slot.replace(/\d+$/, '')} socket.`, cx, cy);
+    if (fanSize) {
+      this.toast(`${c.name} does not fit: this spot takes a ${fanSize} mm fan.`, cx, cy);
+    } else if (slot && /^[a-z]+\d+$/u.test(slot)) {
+      this.toast(`${c.name} does not fit the ${slot.replace(/\d+$/u, '')} socket.`, cx, cy);
+    }
   }
 
   // ---- DOM: the ghost and the messages ----
@@ -394,7 +481,9 @@ export class Drag3D {
   }
 
   private setGhost(text: string, ok: boolean) {
-    if (!this.ghost) return;
+    if (!this.ghost) {
+      return;
+    }
     this.ghost.textContent = text;
     this.ghost.style.borderColor = ok ? '#3ddc84' : '#8a93a8';
   }
@@ -410,9 +499,11 @@ export class Drag3D {
     document.body.appendChild(n);
     this.note = n;
     clearTimeout(this.noteT);
-    this.noteT = window.setTimeout(() => {
+    this.noteT = globalThis.setTimeout(() => {
       n.remove();
-      if (this.note === n) this.note = null;
+      if (this.note === n) {
+        this.note = null;
+      }
     }, 2500);
   }
 }

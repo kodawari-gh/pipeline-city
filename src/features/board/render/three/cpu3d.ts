@@ -3,21 +3,24 @@
 // art draws them; the die is a block of silicon whose top wears the die view's floorplan with every name, in its own frame drawn at `CPU_S`.
 // The heat spreader over it is satin nickel, laser-etched with the part's name; it fades away over the die view's band (`lod`) and the die shows,
 // as the 2D lid does. The first two tiers wear a plain flat lid, the later ones a stepped one: a flange glued to the substrate, a plateau on it.
-import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Object3D, PlaneGeometry, type Texture } from 'three';
+import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Object3D, PlaneGeometry } from 'three';
+import type * as threeTypes from 'three';
 import { Container, Graphics } from 'pixi.js';
 import { drawLockup } from '@/core/render/brands';
 import { box } from '@/core/render/ink';
 import { dieShow } from '@/core/render/lod/lod';
 import type { Theme } from '@/core/render/theme';
 import { FINISH, fadeTree } from '@/core/render/three/artlod';
-import { instanced, softBox, type RectLike } from '@/core/render/three/geometry';
+import { instanced, softBox } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { CERAMIC, mat } from '@/core/render/three/materials';
 import { dieFar, dieNear, planOf } from '@/features/cpu/render/die/dieart';
 import type { CpuSpec } from '@/features/board/sim/specs';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { CPU_S, DIE, DIE_PLAN, PKG } from '../layout/layout';
 import { cpuArt, cpuCaps } from '../devices';
-import { LV_DIE, LV_PART, type ArtSet } from './artset3d';
+import { LV_DIE, LV_PART } from './artset3d';
+import type * as artset3dTypes from './artset3d';
 import { brushed, outlinePts, shapeOf, slab, tex, tiled } from './casekit3d';
 
 /** The package's depths off the board: the substrate's top, the die's top, the lid's flange and its top (the cooler's plate rests there, cooler3d.ts). */
@@ -43,12 +46,19 @@ export interface Cpu3D {
   lod: (zoom: number) => void;
 }
 
-const grow = (r: RectLike, e: number): RectLike => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
+const grow = (r: geometryTypes.RectLike, e: number): geometryTypes.RectLike => ({
+  x: r.x - e,
+  y: r.y - e,
+  w: r.w + 2 * e,
+  h: r.h + 2 * e,
+});
 
 /** A small hash of a part's id: its lot number and its matrix code stay the same from build to build. */
 function hash(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  let h = 2_166_136_261;
+  for (let i = 0; i < s.length; i++) {
+    h = Math.imul(h ^ s.charCodeAt(i), 16_777_619);
+  }
   return h >>> 0;
 }
 
@@ -56,7 +66,7 @@ function hash(s: string): number {
  * The lid's laser etching for a `w` x `h` face: the maker, the model, its cores and threads, a lot line and a matrix code, and the pin 1 mark at
  * the bottom left corner (where the substrate's gold triangle is). Dark on clear: it lies over the nickel.
  */
-function etching(spec: CpuSpec, w: number, h: number): Texture | null {
+function etching(spec: CpuSpec, w: number, h: number): threeTypes.Texture | null {
   const W = 1024,
     H = Math.round((W * h) / w);
   return tex(`cpu-etch-${spec.id}-${W}x${H}`, W, H, (c) => {
@@ -90,22 +100,25 @@ function etching(spec: CpuSpec, w: number, h: number): Texture | null {
       x0 = W - m - N * s,
       y0 = H - m - N * s;
     let r = n || 1;
-    for (let i = 0; i < N; i++)
+    for (let i = 0; i < N; i++) {
       for (let j = 0; j < N; j++) {
-        r = (Math.imul(r, 1103515245) + 12345) >>> 0;
+        r = (Math.imul(r, 1_103_515_245) + 12_345) >>> 0;
         const on = i === 0 || j === N - 1 || (j === 0 ? i % 2 === 0 : i === N - 1 ? j % 2 === 1 : (r >>> 16) % 2 === 0);
-        if (on) c.fillRect(x0 + i * s, y0 + j * s, s, s);
+        if (on) {
+          c.fillRect(x0 + i * s, y0 + j * s, s, s);
+        }
       }
+    }
   });
 }
 
 /** The processor `spec`, its faces from `art`. */
-export function cpuModel(art: ArtSet, T: Theme, spec: CpuSpec): Cpu3D {
+export function cpuModel(art: artset3dTypes.ArtSet, T: Theme, spec: CpuSpec): Cpu3D {
   const g = new Group(),
     lid = new Group(),
     plan = planOf(spec);
   // the substrate: the package's rounded rect (as the art's), its top the package art
-  const sub = mat(0x0d1636, { roughness: 0.6 });
+  const sub = mat(0x0d_16_36, { roughness: 0.6 });
   g.add(slab(shapeOf(outlinePts(PKG, 70)), CPU_Z.base, CPU_Z.sub, sub, 3));
   art.surface(g, art.baker(() => cpuArt(T, spec).root).bake, PKG, CPU_Z.sub, LV_PART);
   // the capacitors where the art draws them: a ceramic body between two tinned ends
@@ -133,10 +146,10 @@ export function cpuModel(art: ArtSet, T: Theme, spec: CpuSpec): Cpu3D {
   const cube = new BoxGeometry(1, 1, 1);
   g.add(
     instanced(cube, mat(CERAMIC, { roughness: 0.6 }), body),
-    instanced(cube, mat(0xb9babf, { metalness: 0.8, roughness: 0.35 }), ends),
+    instanced(cube, mat(0xb9_ba_bf, { metalness: 0.8, roughness: 0.35 }), ends),
   );
   // the die: a block of silicon; its top, in the die's own frame drawn at `CPU_S`, wears the die view's floorplan with every name
-  g.add(softBox(DIE, CPU_Z.sub, CPU_Z.die, mat(0x1d1e22, { metalness: 0.35, roughness: 0.3 }), 2));
+  g.add(softBox(DIE, CPU_Z.sub, CPU_Z.die, mat(0x1d_1e_22, { metalness: 0.35, roughness: 0.3 }), 2));
   const dieArt = art.baker(() => {
     const c = new Container(),
       gg = new Graphics();
@@ -151,13 +164,14 @@ export function cpuModel(art: ArtSet, T: Theme, spec: CpuSpec): Cpu3D {
   g.add(frame);
   const face = art.surface(frame, dieArt.bake, DIE_PLAN, 1 / CPU_S, LV_DIE, FINISH.die);
   // the lid: satin nickel, a black bead of sealant where it meets the substrate; plain and flat, or a flange under a plateau
-  const nickel = mat(0xb9babf, { metalness: 0.78, roughness: 0.36, map: tiled(brushed(), 1, 1) }),
+  const nickel = mat(0xb9_ba_bf, { metalness: 0.78, roughness: 0.36, map: tiled(brushed(), 1, 1) }),
     rim = grow(DIE, 26);
-  lid.add(slab(shapeOf(outlinePts(grow(rim, 3), 32)), CPU_Z.sub, CPU_Z.sub + 5, mat(0x050608, { roughness: 0.7 })));
+  lid.add(slab(shapeOf(outlinePts(grow(rim, 3), 32)), CPU_Z.sub, CPU_Z.sub + 5, mat(0x05_06_08, { roughness: 0.7 })));
   const plain = spec.tier <= 1,
     top = plain ? grow(rim, -20) : grow(DIE, -24);
-  if (plain) lid.add(softBox(rim, CPU_Z.sub + 2, CPU_Z.top, nickel, 22));
-  else {
+  if (plain) {
+    lid.add(softBox(rim, CPU_Z.sub + 2, CPU_Z.top, nickel, 22));
+  } else {
     lid.add(slab(shapeOf(outlinePts(rim, 30)), CPU_Z.sub + 2, CPU_Z.flange, nickel, 5));
     lid.add(softBox(top, CPU_Z.flange - 2, CPU_Z.top, nickel, 18));
   }

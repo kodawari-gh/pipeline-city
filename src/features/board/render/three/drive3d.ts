@@ -5,38 +5,19 @@
 // jumper pins in a pocket at its back. The SSD is a 2.5 in. drive, 100 x 69.85 x 7 mm: a sandblasted aluminium top shell over a dark base,
 // its label, two holes along each side and four under it, the receptacles at its back. Each is built lying flat in its own frame: x across,
 // y up, z along it from the connector end (0) to its front; a tray of the cage (drivecage3d.ts) carries it in the case.
-import {
-  BoxGeometry,
-  CircleGeometry,
-  CylinderGeometry,
-  Group,
-  Mesh,
-  Vector2,
-  type Material,
-  type MeshStandardMaterial,
-  type Texture,
-} from 'three';
+import { BoxGeometry, CircleGeometry, CylinderGeometry, Group, Mesh, Vector2 } from 'three';
+import type * as threeTypes from 'three';
 import { drawLockup } from '@/core/render/brands';
 import { smooth } from '@/core/render/lod/lod';
 import { fadeTree, ownMaterials } from '@/core/render/three/artlod';
 import { SEG, extrude, instanced, place, rectBox, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import type { RopeEnd, V3 } from '@/core/render/three/rope';
-import {
-  brushed,
-  decalTop,
-  outlinePts,
-  screws,
-  shapeOf,
-  slab,
-  tex,
-  tiled,
-  turned,
-  type Facing,
-  type Spot,
-} from './casekit3d';
+import { brushed, decalTop, outlinePts, screws, shapeOf, slab, tex, tiled, turned } from './casekit3d';
+import type * as casekit3dTypes from './casekit3d';
 import { COVER_BAND } from './chipdie3d';
-import { hddInside, ssdBoard, type DriveHost } from './driveinner3d';
+import { hddInside, ssdBoard } from './driveinner3d';
+import type * as driveinner3dTypes from './driveinner3d';
 import { barcode, FONT, hash, matrix, MONO, roundRect, seeded } from './nvme3d';
 import { decalMat, gold, MM } from './pcbkit3d';
 
@@ -55,7 +36,7 @@ export interface DriveLook {
 export interface DriveModel {
   root: Group;
   /** The material the machine lights with the drive's state (the hard disk's cast base, the SSD's top shell). */
-  body: MeshStandardMaterial;
+  body: threeTypes.MeshStandardMaterial;
   /** Its size in units: across, tall, long. */
   w: number;
   t: number;
@@ -67,7 +48,7 @@ export interface DriveModel {
 
 // ------------------------------------------------------------------ shapes in the drive's frame (y up)
 /** A box over x0..x1, y0..y1 and z0..z1. */
-export const box = (x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, mt: Material) =>
+export const box = (x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, mt: threeTypes.Material) =>
   rectBox({ x: x0, y: -y1, w: x1 - x0, h: y1 - y0 }, z0, z1, mt);
 /** An outline across the drive (x, z), its corners rounded by r. */
 export const xz = (x0: number, z0: number, x1: number, z1: number, r: number): Vector2[] =>
@@ -77,7 +58,14 @@ export const xy = (x0: number, y0: number, x1: number, y1: number, r: number): V
   outlinePts({ x: x0, y: -y1, w: x1 - x0, h: y1 - y0 }, r);
 
 /** A flat piece with the (x, z) outline `pts` from y0 up to y1, its edges rounded by `bevel`. */
-export function flat(pts: Vector2[], y0: number, y1: number, mt: Material, bevel = 0, holes: Vector2[][] = []): Mesh {
+export function flat(
+  pts: Vector2[],
+  y0: number,
+  y1: number,
+  mt: threeTypes.Material,
+  bevel = 0,
+  holes: Vector2[][] = [],
+): Mesh {
   const b = Math.max(0, Math.min(bevel, (y1 - y0) / 2.2));
   const g = extrude(shapeOf(pts, holes), {
     depth: y1 - y0 - 2 * b,
@@ -113,20 +101,22 @@ function pocketed(w: number, l: number, r: number, p: { x0: number; x1: number; 
 }
 
 /** Threaded holes in a face (looking along `f`): a dark bore in a lighter chamfer. */
-function bores(spots: readonly Spot[], f: Facing, r: number): Group {
+function bores(spots: readonly casekit3dTypes.Spot[], f: casekit3dTypes.Facing, r: number): Group {
   const g = new Group();
-  if (!spots.length) return g;
+  if (spots.length === 0) {
+    return g;
+  }
   g.add(
     instanced(
       turned(new CircleGeometry(r * 1.3, SEG.roundCap).translate(0, 0, 0.4), f),
-      mat(0x4e5360, { metalness: 0.6, roughness: 0.5 }),
+      mat(0x4e_53_60, { metalness: 0.6, roughness: 0.5 }),
       spots,
     ),
   );
   g.add(
     instanced(
       turned(new CircleGeometry(r, SEG.roundCap).translate(0, 0, 0.8), f),
-      mat(0x050608, { roughness: 0.9 }),
+      mat(0x05_06_08, { roughness: 0.9 }),
       spots,
     ),
   );
@@ -135,13 +125,13 @@ function bores(spots: readonly Spot[], f: Facing, r: number): Group {
 
 /** The receptacle's parts: the black body, the dark of its mouth, the gold contacts. */
 interface SocketMats {
-  body: Material;
-  dark: Material;
-  gold: Material;
+  body: threeTypes.Material;
+  dark: threeTypes.Material;
+  gold: threeTypes.Material;
 }
 const socketMats = (): SocketMats => ({
-  body: mat(0x131518, { roughness: 0.5 }),
-  dark: mat(0x050608, { roughness: 0.9 }),
+  body: mat(0x13_15_18, { roughness: 0.5 }),
+  dark: mat(0x05_06_08, { roughness: 0.9 }),
   gold: gold(),
 });
 
@@ -186,7 +176,7 @@ function receptacle(g: Group, pins: 7 | 15, x0: number, y0: number, s: SocketMat
  * The 3.5 in. hard disk (see the header). `host`: the casting is a frame round an open cavity, and the cover, the label and the screws on it are a lid that fades as the camera
  * comes in, so the platters and the actuator show (`driveinner3d.ts`); without it the casting is solid.
  */
-function hddModel(look: DriveLook, host?: DriveHost): DriveModel {
+function hddModel(look: DriveLook, host?: driveinner3dTypes.DriveHost): DriveModel {
   const g = new Group(),
     W = m(HDD_MM.w),
     T = m(HDD_MM.t),
@@ -194,9 +184,9 @@ function hddModel(look: DriveLook, host?: DriveHost): DriveModel {
     top = T - m(0.8),
     r = m(2.2);
   // (a dark drive, art-style §4: a black casting under a brushed dark stainless cover)
-  const cast = mat(0x2a2d32, { metalness: 0.65, roughness: 0.55 });
-  const cover = mat(0x4e5360, { metalness: 0.8, roughness: 0.4, map: tiled(brushed(), 2, 3) });
-  const screwM = mat(0x2a2d32, { metalness: 0.7, roughness: 0.4 }),
+  const cast = mat(0x2a_2d_32, { metalness: 0.65, roughness: 0.55 });
+  const cover = mat(0x4e_53_60, { metalness: 0.8, roughness: 0.4, map: tiled(brushed(), 2, 3) });
+  const screwM = mat(0x2a_2d_32, { metalness: 0.7, roughness: 0.4 }),
     s = socketMats();
   // the casting: its lower part round the receptacles' pocket, its upper part whole, its sides down to the rails it stands on
   const pocket = { x0: m(6), x1: m(52), d: m(6.8) },
@@ -211,8 +201,9 @@ function hddModel(look: DriveLook, host?: DriveHost): DriveModel {
   for (const [x0, x1] of [
     [0, m(4.5)],
     [W - m(4.5), W],
-  ] as const)
+  ] as const) {
     g.add(box(x0, x1, 0, foot + 2, r, L - r, cast));
+  }
   g.add(box(m(4.5), W - m(4.5), 0, foot + 2, L - m(3.4), L - r, cast));
   // the cover: a brushed sheet inset in the casting's rim
   lid.add(flat(xz(m(1.4), m(1.6), W - m(1.4), L - m(1.4), m(3.2)), top - 2, T, cover, m(0.25)));
@@ -235,7 +226,7 @@ function hddModel(look: DriveLook, host?: DriveHost): DriveModel {
       }),
     ),
   );
-  const rim: Spot[] = [
+  const rim: casekit3dTypes.Spot[] = [
     [m(4), m(4.6)],
     [W - m(4), m(4.6)],
     [m(4), L - m(4.2)],
@@ -253,7 +244,7 @@ function hddModel(look: DriveLook, host?: DriveHost): DriveModel {
     place(
       new Mesh(
         new CylinderGeometry(m(3.3), m(3.3), 3, SEG.drum).translate(spin.x, T + 1.5, spin.z),
-        mat(0xb9babf, { metalness: 0.9, roughness: 0.3 }),
+        mat(0xb9_ba_bf, { metalness: 0.9, roughness: 0.3 }),
       ),
     ),
   );
@@ -278,7 +269,7 @@ function hddModel(look: DriveLook, host?: DriveHost): DriveModel {
       xz(m(5.2), m(1), W - m(5.2), m(81), m(1.6)),
       m(0.5),
       foot,
-      mat(0x173d29, { roughness: 0.55, metalness: 0.1 }),
+      mat(0x17_3d_29, { roughness: 0.55, metalness: 0.1 }),
       m(0.2),
     ),
   );
@@ -300,7 +291,7 @@ function hddModel(look: DriveLook, host?: DriveHost): DriveModel {
     place(
       new Mesh(
         new CylinderGeometry(m(13), m(13.6), m(1.3), SEG.drum).translate(spin.x, foot - m(0.65), spin.z),
-        mat(0xb9babf, { metalness: 0.85, roughness: 0.35 }),
+        mat(0xb9_ba_bf, { metalness: 0.85, roughness: 0.35 }),
       ),
     ),
   );
@@ -320,26 +311,27 @@ function hddModel(look: DriveLook, host?: DriveHost): DriveModel {
   );
   g.add(box(pocket.x0, pocket.x1, foot, pocketTop, pocket.d - 1, pocket.d, s.dark));
   // (a place over the platters, one over the actuator and one over the board's end: the lid goes where the camera is, over a drive far larger than the view)
-  if (host)
+  if (host) {
     coverAway(g, lid, hddInside(host, { spin, pivot, floor: pocketTop }), host, [
       [spin.x, T / 2, spin.z],
       [pivot.x, T / 2, pivot.z + m(30)],
       [W / 2, T / 2, L * 0.3],
     ]);
+  }
   return { root: g, body: cast, w: W, t: T, l: L, data, power };
 }
 
 // ------------------------------------------------------------------ the SSD
 /** The 2.5 in. SSD (see the header). `host`: its top shell and label are a lid that fades as the camera comes in, so its board shows (`driveinner3d.ts`); the side walls stay. */
-function ssdModel(look: DriveLook, host?: DriveHost): DriveModel {
+function ssdModel(look: DriveLook, host?: driveinner3dTypes.DriveHost): DriveModel {
   const g = new Group(),
     W = m(SSD_MM.w),
     T = m(SSD_MM.t),
     L = m(SSD_MM.l),
     r = m(1.8),
     s = socketMats();
-  const base = mat(0x1d1e22, { roughness: 0.62, metalness: 0.25 }),
-    shell = mat(0x4e5360, { metalness: 0.8, roughness: 0.46 });
+  const base = mat(0x1d_1e_22, { roughness: 0.62, metalness: 0.25 }),
+    shell = mat(0x4e_53_60, { metalness: 0.8, roughness: 0.46 });
   // the base and the shell over it meet at a seam 3 mm up; both are cut round the receptacles' pocket, the shell closes over it
   const pocket = { x0: m(5), x1: m(43), d: m(5.6) },
     seam = m(3),
@@ -350,7 +342,7 @@ function ssdModel(look: DriveLook, host?: DriveHost): DriveModel {
     );
   g.add(
     flat(pocketed(W, L, r, pocket), 0, seam, base, m(0.2)),
-    flat(seamPts, seam, seam + 2, mat(0x050608, { roughness: 0.8 })),
+    flat(seamPts, seam, seam + 2, mat(0x05_06_08, { roughness: 0.8 })),
   );
   const lid = host ? new Group() : g,
     wall = m(1.4),
@@ -361,7 +353,7 @@ function ssdModel(look: DriveLook, host?: DriveHost): DriveModel {
       pocketed(W, L, r, pocket),
       seam + 2,
       roof,
-      host ? mat(0x4e5360, { metalness: 0.8, roughness: 0.46 }) : shell,
+      host ? mat(0x4e_53_60, { metalness: 0.8, roughness: 0.46 }) : shell,
       m(0.2),
       host ? [xz(wall, pocket.d + m(1.2), W - wall, L - wall, m(1))] : [],
     ),
@@ -403,7 +395,7 @@ function ssdModel(look: DriveLook, host?: DriveHost): DriveModel {
     data = receptacle(g, 7, m(6.4), y0, s),
     power = receptacle(g, 15, m(6.4) + socketW(7) + m(1.9), y0, s);
   g.add(box(pocket.x0, pocket.x1, 0, roof, pocket.d - 1, pocket.d, s.dark));
-  if (host)
+  if (host) {
     coverAway(
       g,
       lid,
@@ -411,15 +403,16 @@ function ssdModel(look: DriveLook, host?: DriveHost): DriveModel {
       host,
       [0.25, 0.5, 0.75].map((f) => [W / 2, T / 2, L * f] as V3),
     );
+  }
   // (the lid's materials are its own copies: the machine lights the top shell's)
-  return { root: g, body: top.material as MeshStandardMaterial, w: W, t: T, l: L, data, power };
+  return { root: g, body: top.material as threeTypes.MeshStandardMaterial, w: W, t: T, l: L, data, power };
 }
 
 /**
  * Fade the `lid` of a drive over `COVER_BAND` as the camera comes in and show `inside` under it; the inside is hidden while the lid is whole. A drive is far larger than the view
  * up close, so it asks for its zoom at several places (the drive's own frame) and the lid goes at the highest.
  */
-function coverAway(g: Group, lid: Group, inside: Group, host: DriveHost, at: readonly V3[]): void {
+function coverAway(g: Group, lid: Group, inside: Group, host: driveinner3dTypes.DriveHost, at: readonly V3[]): void {
   ownMaterials(lid);
   g.add(inside, lid);
   inside.visible = false;
@@ -434,7 +427,7 @@ function coverAway(g: Group, lid: Group, inside: Group, host: DriveHost, at: rea
   );
 }
 
-export const sataDriveModel = (hdd: boolean, look: DriveLook, host?: DriveHost): DriveModel =>
+export const sataDriveModel = (hdd: boolean, look: DriveLook, host?: driveinner3dTypes.DriveHost): DriveModel =>
   hdd ? hddModel(look, host) : ssdModel(look, host);
 
 // ------------------------------------------------------------------ the cable's plugs
@@ -454,7 +447,7 @@ export function drivePlug(power: boolean, at: V3, tone: number): { root: Group; 
       [0, 1, 2].map((i) => ({ x, y: y + h / 2 + m(0.15), z: z - L + m(2.2) + i * m(1.6) })),
     ),
   );
-  if (!power)
+  if (!power) {
     g.add(
       box(
         x - m(2.4),
@@ -463,9 +456,10 @@ export function drivePlug(power: boolean, at: V3, tone: number): { root: Group; 
         y + h / 2 + m(0.8),
         z - m(8.5),
         z - m(1.5),
-        mat(0x959aa3, { metalness: 0.85, roughness: 0.32 }),
+        mat(0x95_9a_a3, { metalness: 0.85, roughness: 0.32 }),
       ),
     );
+  }
   return { root: g, end: { at: [x, y, z - L], dir: [0, 0, -1] } };
 }
 
@@ -539,7 +533,12 @@ function esd(c: CanvasRenderingContext2D, x: number, y: number, s: number, ink: 
  * The hard disk's label, `wm` by `hm` mm, its top toward the drive's connector end: the maker's band, the model and the name, the capacity large
  * with its specs, the ratings and the codes either side of the spindle's hole (`hole`, cut), the barcodes, the ESD line and the marks.
  */
-function hddLabel(look: DriveLook, wm: number, hm: number, hole: { u: number; v: number; r: number }): Texture | null {
+function hddLabel(
+  look: DriveLook,
+  wm: number,
+  hm: number,
+  hole: { u: number; v: number; r: number },
+): threeTypes.Texture | null {
   const cap = capOf(look);
   return tex(`hdd-label:${look.name}:${cap}:${wm.toFixed(1)}`, Math.round(wm * PX), Math.round(hm * PX), (cx, w, h) => {
     const c = cx as Ctx,
@@ -648,7 +647,7 @@ function hddLabel(look: DriveLook, wm: number, hm: number, hole: { u: number; v:
 }
 
 /** The SSD's label, `wm` by `hm` mm, its top toward the connector end: dark, the maker's mark, the drive's name and capacity, its interface, the codes. */
-function ssdLabel(look: DriveLook, wm: number, hm: number): Texture | null {
+function ssdLabel(look: DriveLook, wm: number, hm: number): threeTypes.Texture | null {
   const cap = capOf(look);
   return tex(`ssd-label:${look.name}:${cap}`, Math.round(wm * PX), Math.round(hm * PX), (cx, w, h) => {
     const c = cx as Ctx,

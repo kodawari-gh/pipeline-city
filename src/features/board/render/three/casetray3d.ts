@@ -2,19 +2,11 @@
 // in it (the CPU cut-out, punched vents and lacing slots) over a thin back panel, a stamped panel under the board with its standoff marks, stiffening
 // beads, tie-down bridges, Velcro straps, and rubber cable holes where the leads come through. The frame: riveted flanges round the tray, a rolled lip
 // round the side opening with rubber bumpers and the receivers of the door's hooks, and the door's own hem and hooks. All at real scale, by kind.
-import {
-  Color,
-  CylinderGeometry,
-  Group,
-  Mesh,
-  PlaneGeometry,
-  Shape,
-  Vector2,
-  type BufferGeometry,
-  type Material,
-} from 'three';
+import { Color, CylinderGeometry, Group, Mesh, PlaneGeometry, Shape, Vector2 } from 'three';
+import type * as threeTypes from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { SEG, extrude, instanced, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { SEG, extrude, instanced, rectBox, softBox } from '@/core/render/three/geometry';
+import type * as geometryTypes from '@/core/render/three/geometry';
 import { NYLON, mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import type { RopeEnd, V3 } from '@/core/render/three/rope';
@@ -23,7 +15,8 @@ import { standoffs } from '@/features/room/render/desk/props/case';
 import type { CaseKind, Cuts } from '@/features/room/render/shell/casedecor';
 import { geoOf, TIER_GEO } from '../layout/boardlayout';
 import { CASE, CASE_BD, FAN_SLOT, GEO, LAYOUT_CASE, PSU, WALL_T } from '../layout/layout';
-import { GROMMETS, kindTone, type Frame } from './casedetail3d';
+import { GROMMETS, kindTone } from './casedetail3d';
+import type * as casedetail3dTypes from './casedetail3d';
 import { baseCagePlan, cageGrommet, cagePlan } from './drivecage3d';
 import {
   FRONT,
@@ -38,13 +31,14 @@ import {
   SIDE_T,
   slab,
   tex,
-  type Spot,
 } from './casekit3d';
+import type * as casekit3dTypes from './casekit3d';
 import type { CableRig } from './cablerig3d';
-import { cableMesh, fanPlug, fromSlot, grommet, hangPts, TRAY_Z, type Env, type Look } from './wires3d';
+import { cableMesh, fanPlug, fromSlot, grommet, hangPts, TRAY_Z } from './wires3d';
+import type * as wires3dTypes from './wires3d';
 
 /** A strap's pull tab: the case's accent, muted 70 % toward black, so the band reads as a strap and not a colour. */
-export const strapTone = (acc: number): number => new Color(acc).lerp(new Color(0x101114), 0.7).getHex();
+export const strapTone = (acc: number): number => new Color(acc).lerp(new Color(0x10_11_14), 0.7).getHex();
 
 /** How far the stamped panel under the board stands off the tray's sheet. */
 const PANEL = 10;
@@ -52,14 +46,17 @@ const PANEL = 10;
 const BACK_T = 16;
 
 /** A kind's fixings: bare zinc in the Mini, black in the Micro and the Mid, polished in the Full tower; its rivets take the paint of the sheet. */
-export const screwM = (k: CaseKind): Material =>
+export const screwM = (k: CaseKind): threeTypes.Material =>
   k === 'oem'
-    ? mat(0x959aa3, { metalness: 0.8, roughness: 0.36 })
+    ? mat(0x95_9a_a3, { metalness: 0.8, roughness: 0.36 })
     : k === 'show'
-      ? mat(0x4e5360, { metalness: 0.8, roughness: 0.34 })
-      : mat(0x2a2d32, { metalness: 0.65, roughness: 0.38 });
-export const rivetM = (k: CaseKind): Material =>
-  mat({ oem: 0xc6bd9c, matte: 0x25262c, gamer: 0x2b3142, show: 0x34373e }[k], { metalness: 0.45, roughness: 0.42 });
+      ? mat(0x4e_53_60, { metalness: 0.8, roughness: 0.34 })
+      : mat(0x2a_2d_32, { metalness: 0.65, roughness: 0.38 });
+export const rivetM = (k: CaseKind): threeTypes.Material =>
+  mat({ oem: 0xc6_bd_9c, matte: 0x25_26_2c, gamer: 0x2b_31_42, show: 0x34_37_3e }[k], {
+    metalness: 0.45,
+    roughness: 0.42,
+  });
 
 /** A keyhole: a round hole with a slot rising from it (layout centre of the round part), as a world outline. */
 function keyhole(x: number, y: number, r: number, slot: number, n = 14): Vector2[] {
@@ -76,41 +73,50 @@ function keyhole(x: number, y: number, r: number, slot: number, n = 14): Vector2
 }
 
 /** The real holes through the tray's sheet (world outlines): the CPU cut-out behind the socket, the Mini's punched vents and keyholes, the lacing slots. */
-function sheetHoles(f: Frame): Vector2[][] {
+function sheetHoles(f: casedetail3dTypes.Frame): Vector2[][] {
   const bd = CASE_BD,
     east = bd.x + bd.w,
     out: Vector2[][] = [];
   if (f.kind === 'oem') {
     // two columns of punched vents, and keyholes for a board's snap-in feet
-    for (const x of [east + 1150, east + 1400])
-      for (let y = bd.y + 1500; y + 300 < bd.y + bd.h - 60; y += 430) out.push(outlinePts({ x, y, w: 80, h: 300 }, 40));
+    for (const x of [east + 1150, east + 1400]) {
+      for (let y = bd.y + 1500; y + 300 < bd.y + bd.h - 60; y += 430) {
+        out.push(outlinePts({ x, y, w: 80, h: 300 }, 40));
+      }
+    }
     for (const [x, y] of [
       [east + 420, bd.y + 900],
       [east + 420, bd.y + 2100],
       [east + 420, bd.y + 3300],
-    ] as const)
+    ] as const) {
       out.push(keyhole(x, y, 62, 150));
+    }
   } else {
     out.push(outlinePts(CPU_CUT, 140));
     // pairs of lacing slots, to tie a bundle down through the tray
-    for (let y = bd.y + 240; y + 300 < bd.y + bd.h; y += 760)
-      for (const dy of [0, 170]) out.push(outlinePts({ x: east + 1500, y: y + dy, w: 130, h: 44 }, 22));
+    for (let y = bd.y + 240; y + 300 < bd.y + bd.h; y += 760) {
+      for (const dy of [0, 170]) {
+        out.push(outlinePts({ x: east + 1500, y: y + dy, w: 130, h: 44 }, 22));
+      }
+    }
   }
   return out;
 }
 
 /** The hole behind the CPU's socket, clear of every standoff position (the CPU sits on the origin of every board). */
-const CPU_CUT: RectLike = { x: -1500, y: -1600, w: 3000, h: 2600 };
+const CPU_CUT: geometryTypes.RectLike = { x: -1500, y: -1600, w: 3000, h: 2600 };
 
 /** The back of the case: a thin back panel and, on it, the tray's sheet with its real holes. */
-export function traySheet(f: Frame, outer: Vector2[], m: Material): Group {
+export function traySheet(f: casedetail3dTypes.Frame, outer: Vector2[], m: threeTypes.Material): Group {
   const g = new Group(),
     back = CASE_Z + BACK_T,
     holes = sheetHoles(f);
   g.add(slab(shapeOf(outer), CASE_Z, back, m, 6), slab(shapeOf(outer, holes), back, TRAY_Z, m, 6));
   // (a hole shows the back panel in the dark: nothing behind the sheet is lit)
-  const dark = mat(0x050608, { roughness: 0.95 });
-  for (const h of holes) g.add(seeThrough(slab(shapeOf(h), back, back + 2, dark)));
+  const dark = mat(0x05_06_08, { roughness: 0.95 });
+  for (const h of holes) {
+    g.add(seeThrough(slab(shapeOf(h), back, back + 2, dark)));
+  }
   return g;
 }
 
@@ -120,7 +126,7 @@ function standoffMark(x: number, y: number): string {
     .filter((_, t) => t <= LAYOUT_CASE && TIER_GEO[t]!.holes.some(([a, b]) => a === x && b === y))
     .join('');
 }
-function markMat(word: string, ink: string): Material {
+function markMat(word: string, ink: string): threeTypes.Material {
   const t = tex(`stamp-${word}-${ink}`, 128, 64, (c, w, h) => {
     c.clearRect(0, 0, w, h);
     c.fillStyle = ink;
@@ -129,7 +135,7 @@ function markMat(word: string, ink: string): Material {
     c.font = '700 52px system-ui, sans-serif';
     c.fillText(word, 2, h / 2 + 2);
   });
-  return mat(0xffffff, { map: t, transparent: true, depthWrite: false, roughness: 0.7 });
+  return mat(0xff_ff_ff, { map: t, transparent: true, depthWrite: false, roughness: 0.7 });
 }
 
 /** The tray under the board: a brass hex stud up to the board's underside at each of `used` (the fitted board's holes), a threaded hole at the case's other positions, and each position's stamped mark. */
@@ -142,37 +148,37 @@ function mounts(used: readonly (readonly [number, number])[], kind: CaseKind): G
   g.add(
     instanced(
       up(58, 6, h),
-      mat(0xd4af5f, { metalness: 0.65, roughness: 0.5 }),
+      mat(0xd4_af_5f, { metalness: 0.65, roughness: 0.5 }),
       used.map(([x, y]) => ({ x, y: -y, z: TRAY_Z + h / 2 })),
     ),
   );
   g.add(
     instanced(
       up(24, SEG.part, 2),
-      mat(0x1d1e22, { roughness: 0.8 }),
+      mat(0x1d_1e_22, { roughness: 0.8 }),
       used.map(([x, y]) => ({ x, y: -y, z: TRAY_Z + h + 1 })),
     ),
   );
   const free = standoffs().filter(([x, y]) => !on(x, y));
-  if (free.length) {
+  if (free.length > 0) {
     g.add(
       instanced(
         up(46, SEG.post, 3),
-        mat(0x959aa3, { metalness: 0.75, roughness: 0.42 }),
+        mat(0x95_9a_a3, { metalness: 0.75, roughness: 0.42 }),
         free.map(([x, y]) => ({ x, y: -y, z: z + 1 })),
       ),
     );
     g.add(
       instanced(
         up(26, SEG.part, 3),
-        mat(0x050608, { roughness: 0.85 }),
+        mat(0x05_06_08, { roughness: 0.85 }),
         free.map(([x, y]) => ({ x, y: -y, z: z + 3 })),
       ),
     );
   }
   const ink = kind === 'oem' ? '#959aa3' : '#8d929c';
   // (one mesh a word, not one a position: the marks of one word share a texture)
-  const marks = new Map<string, BufferGeometry[]>();
+  const marks = new Map<string, threeTypes.BufferGeometry[]>();
   for (const [x, y] of standoffs()) {
     const word = standoffMark(x, y),
       at = marks.get(word) ?? [];
@@ -180,7 +186,9 @@ function mounts(used: readonly (readonly [number, number])[], kind: CaseKind): G
     at.push(new PlaneGeometry(104, 52).translate(x + 128, -y, z + 1));
   }
   for (const [word, at] of marks) {
-    if (!word) continue;
+    if (!word) {
+      continue;
+    }
     const o = new Mesh(mergeGeometries(at), markMat(word, ink));
     o.receiveShadow = true;
     g.add(seeThrough(o));
@@ -207,8 +215,11 @@ function tieBridge(): Shape {
       [-100, 12],
     ] as const
   ).entries()) {
-    if (i) s.lineTo(x, y);
-    else s.moveTo(x, y);
+    if (i) {
+      s.lineTo(x, y);
+    } else {
+      s.moveTo(x, y);
+    }
   }
   s.closePath();
   return s;
@@ -219,7 +230,7 @@ function tieBridge(): Shape {
  * kind's gutter (the Mini's rolled holes, the Micro's long slot, the Mid's slanted cut-outs, the Full tower's ringed slots), the leads' own rubber holes
  * where a board of the case's size takes them, the straps of the better cases, and the Full tower's vented cable cover.
  */
-export function trayDetail(f: Frame, inner: Material): Group {
+export function trayDetail(f: casedetail3dTypes.Frame, inner: threeTypes.Material): Group {
   const g = new Group(),
     k = f.kind,
     bd = CASE_BD,
@@ -227,17 +238,20 @@ export function trayDetail(f: Frame, inner: Material): Group {
     geo = geoOf(LAYOUT_CASE),
     style = GROMMETS[k],
     z = TRAY_Z + PANEL;
-  const panel: RectLike = { x: bd.x + 80, y: bd.y - 90, w: bd.w + 40, h: bd.h + 170 },
+  const panel: geometryTypes.RectLike = { x: bd.x + 80, y: bd.y - 90, w: bd.w + 40, h: bd.h + 170 },
     cut = k === 'oem' ? [] : [outlinePts(CPU_CUT, 140)];
   g.add(slab(shapeOf(outlinePts(panel, 70), cut), TRAY_Z - 1, z, inner, 5));
-  if (k !== 'oem') g.add(ring(CPU_CUT, 140, NONE, 26, TRAY_Z - 1, z + 6, inner));
+  if (k !== 'oem') {
+    g.add(ring(CPU_CUT, 140, NONE, 26, TRAY_Z - 1, z + 6, inner));
+  }
   g.add(mounts(GEO.holes, k));
 
   // stiffening beads pressed into the gutter and over the board's top
   const beadTop = f.yTop + 220,
     beadBot = PSU.y - 180;
-  for (const x of [east + 1730, east + 1900])
+  for (const x of [east + 1730, east + 1900]) {
     g.add(softBox({ x, y: beadTop, w: 70, h: beadBot - beadTop }, TRAY_Z - 1, TRAY_Z + 9, inner, 4));
+  }
 
   // the tie-downs: two columns, the first against the board's east edge, the second past the cable holes
   const bridges: { x: number; y: number; z: number; rz: number }[] = [],
@@ -259,15 +273,25 @@ export function trayDetail(f: Frame, inner: Material): Group {
 
   // the cable holes: the kind's own column in the gutter, and the leads' holes (a board of the case's size brings its leads out of these, `buildCables`)
   const x = east + 820;
-  if (k === 'oem') for (const y of [bd.y + 700, bd.y + 2000]) g.add(grommet({ x, y, w: 180, h: 560 }, style));
-  if (k === 'matte') g.add(grommet({ x, y: bd.y + 500, w: 220, h: bd.h * 0.5 }, style));
-  if (k === 'gamer')
-    for (let i = 0; i < 3; i++)
+  if (k === 'oem') {
+    for (const y of [bd.y + 700, bd.y + 2000]) {
+      g.add(grommet({ x, y, w: 180, h: 560 }, style));
+    }
+  }
+  if (k === 'matte') {
+    g.add(grommet({ x, y: bd.y + 500, w: 220, h: bd.h * 0.5 }, style));
+  }
+  if (k === 'gamer') {
+    for (let i = 0; i < 3; i++) {
       g.add(grommet({ x, y: bd.y + 400 + i * (bd.h * 0.27), w: 220, h: bd.h * 0.2 }, style, 120));
-  if (k === 'show')
-    for (let i = 0; i < 3; i++) g.add(grommet({ x, y: bd.y + 400 + i * (bd.h * 0.3), w: 240, h: bd.h * 0.22 }, style));
-  const atx = geo.atx,
-    cpw = geo.cpw;
+    }
+  }
+  if (k === 'show') {
+    for (let i = 0; i < 3; i++) {
+      g.add(grommet({ x, y: bd.y + 400 + i * (bd.h * 0.3), w: 240, h: bd.h * 0.22 }, style));
+    }
+  }
+  const { atx, cpw } = geo;
   g.add(
     grommet({ x: east + 620, y: atx.y + atx.h / 2 - 340, w: 60, h: 680 }, style),
     grommet({ x: cpw.x - 60, y: bd.y - 270, w: cpw.w + 120, h: 60 }, style),
@@ -275,16 +299,16 @@ export function trayDetail(f: Frame, inner: Material): Group {
   );
   // the drives' cables go back through a slot behind each drive cage (drivecage3d.ts)
   g.add(grommet(cageGrommet(cagePlan()), style), grommet(cageGrommet(baseCagePlan()), style));
-  if (geo.sata.length) {
+  if (geo.sata.length > 0) {
     const s0 = geo.sata[0]!,
-      sn = geo.sata[geo.sata.length - 1]!;
+      sn = geo.sata.at(-1)!;
     g.add(grommet({ x: east + 390, y: s0.y - 60, w: 60, h: sn.y + sn.h - s0.y + 120 }, style));
   }
   g.add(grommet(leadHole(), style));
 
   // the Velcro straps of the better cases, waiting open under their bridges: a black band down from the bridge with its pull tab
   if (k === 'gamer' || k === 'show') {
-    const band = mat(0x131518, { roughness: 1 }),
+    const band = mat(0x13_15_18, { roughness: 1 }),
       tab = mat(strapTone(f.acc), { roughness: 0.75 });
     straps.forEach((s, i) => {
       const o = new Group(),
@@ -295,7 +319,7 @@ export function trayDetail(f: Frame, inner: Material): Group {
         rectBox({ x: -40, y: -40, w: 80, h: 400 }, 16, 24, band),
         rectBox({ x: -40, y: 360, w: 80, h: 44 }, 16, 25, tab),
       );
-      o.add(rectBox({ x: -40, y: 60, w: 80, h: 110 }, 24, 26, mat(0x1d1e22, { roughness: 1 })));
+      o.add(rectBox({ x: -40, y: 60, w: 80, h: 110 }, 24, 26, mat(0x1d_1e_22, { roughness: 1 })));
       // (its meshes go straight into the tray's group, in its frame: the straps then merge with the tray's still meshes, `mergeSiblings`)
       o.updateMatrix();
       for (const c of [...o.children]) {
@@ -307,17 +331,20 @@ export function trayDetail(f: Frame, inner: Material): Group {
 
   // the Full tower's cable cover: a vented plate standing on the tray over the gutter's east side, on four screws
   if (k === 'show') {
-    const c: RectLike = { x: east + 1660, y: f.yTop + 260, w: 400, h: PSU.y - f.yTop - 520 },
+    const c: geometryTypes.RectLike = { x: east + 1660, y: f.yTop + 260, w: 400, h: PSU.y - f.yTop - 520 },
       zc = TRAY_Z + 90;
-    g.add(ring(c, 30, NONE, 26, zc - 6, zc + 8, mat(0x2a2d32, { metalness: 0.55, roughness: 0.4 })));
-    perforated(g, c, zc, 'hex', 60, 0x2a2d33, { metal: 0.55, rough: 0.45 });
-    const posts: Spot[] = [];
-    for (const yy of [c.y + 80, c.y + c.h - 80])
-      for (const xx of [c.x + 60, c.x + c.w - 60]) posts.push({ x: xx, y: -yy, z: TRAY_Z });
+    g.add(ring(c, 30, NONE, 26, zc - 6, zc + 8, mat(0x2a_2d_32, { metalness: 0.55, roughness: 0.4 })));
+    perforated(g, c, zc, 'hex', 60, 0x2a_2d_33, { metal: 0.55, rough: 0.45 });
+    const posts: casekit3dTypes.Spot[] = [];
+    for (const yy of [c.y + 80, c.y + c.h - 80]) {
+      for (const xx of [c.x + 60, c.x + c.w - 60]) {
+        posts.push({ x: xx, y: -yy, z: TRAY_Z });
+      }
+    }
     g.add(
       instanced(
         new CylinderGeometry(26, 26, 90, SEG.rod).rotateX(Math.PI / 2).translate(0, 0, 45),
-        mat(0x2a2d32, { metalness: 0.55, roughness: 0.4 }),
+        mat(0x2a_2d_32, { metalness: 0.55, roughness: 0.4 }),
         posts,
       ),
     );
@@ -334,14 +361,14 @@ export function trayDetail(f: Frame, inner: Material): Group {
 }
 
 /** The hole under the board's south edge that the case's own front-panel leads come through. */
-export function leadHole(): RectLike {
+export function leadHole(): geometryTypes.RectLike {
   const bd = CASE_BD,
     h = geoOf(LAYOUT_CASE).hdrs.find((q) => q.name === 'F_PANEL')!;
   return { x: h.x - 140, y: bd.y + bd.h + 70, w: 560, h: 60 };
 }
 
 /** The case's front-panel leads: the switch and LED wires in their colours, USB 2.0, USB 3.0 (a thick blue cable), the lights of a board with an ARGB header. */
-const LEADS: Readonly<Record<string, { looks: readonly Look[]; plug: string }>> = {
+const LEADS: Readonly<Record<string, { looks: readonly wires3dTypes.Look[]; plug: string }>> = {
   F_PANEL: {
     plug: '#8d929c',
     looks: ['#b3262f', '#e4e6ea', '#2a57b0', '#16171b'].map((base) => ({ r: 6, base, accent: null })),
@@ -359,7 +386,7 @@ export const panelId = (header: string): string => `panel:${header}`;
 export const isPanelId = (id: string): boolean => id.startsWith('panel:');
 
 /** What a lead's hand-run sleeve wears where its wires differ (the switch and LED wires: a mid grey between their colours). */
-const BUNDLE: Look = { r: 6, base: '#6b6f78', accent: null };
+const BUNDLE: wires3dTypes.Look = { r: 6, base: '#6b6f78', accent: null };
 
 /**
  * The case's front-panel leads, one rig each (`panel:F_PANEL`, `panel:USB_2`, `panel:USB_3`, `panel:ARGB`, west to east as they hang), each from its share of
@@ -367,7 +394,7 @@ const BUNDLE: Look = { r: 6, base: '#6b6f78', accent: null };
  * in, and pulls them and takes them back when it comes out (`BuildStage.plugPanel`); the sim has no such cables, the stage keeps which are plugged.
  * A board has the headers its tier has: a lead with no header has no rig.
  */
-export function panelRigs(env: Env): CableRig[] {
+export function panelRigs(env: wires3dTypes.Env): CableRig[] {
   const hole = leadHole(),
     hdrs = GEO.hdrs.filter((h) => LEADS[h.name]).sort((a, b) => a.x - b.x),
     deck = { n: [0, 0, 1] as V3, d: BOARD_Z };
@@ -432,12 +459,12 @@ export function leadCoil(): Group {
       const a = -Math.PI / 2 + (k / n) * turns * Math.PI * 2;
       pts.push([cx + Math.cos(a) * r, -cy + Math.sin(a) * r, zc]);
     }
-    const end = pts[pts.length - 1]!,
+    const end = pts.at(-1)!,
       tail: V3 = [end[0] + (i - all.length / 2) * 36, end[1] - 240 - i * 30, zc + 8];
     pts.push(tail);
     g.add(cableMesh(pts, look));
     g.add(
-      softBox({ x: tail[0] - 36, y: -tail[1], w: 72, h: 90 }, zc - 26, zc + 34, mat(0x1d1e22, { roughness: 0.5 }), 6),
+      softBox({ x: tail[0] - 36, y: -tail[1], w: 72, h: 90 }, zc - 26, zc + 34, mat(0x1d_1e_22, { roughness: 0.5 }), 6),
     );
   });
   // the tie
@@ -450,7 +477,7 @@ export function leadCoil(): Group {
  * The frame round the tray: a riveted flange along the top, the rear and the front of the tray, rows of rivets on the walls that meet it, and the side
  * opening's finish: a rolled lip inside it, the rubber bumpers the door closes on and the receivers of its hooks.
  */
-export function frameDetail(f: Frame, ex: number, hooks: readonly number[], hookY: number): Group {
+export function frameDetail(f: casedetail3dTypes.Frame, ex: number, hooks: readonly number[], hookY: number): Group {
   const g = new Group(),
     k = f.kind,
     x0 = CASE.x + WALL_T,
@@ -464,10 +491,10 @@ export function frameDetail(f: Frame, ex: number, hooks: readonly number[], hook
   g.add(softBox({ x: x0, y: f.yTop + w, w, h: floor - f.yTop - w }, TRAY_Z - 1, TRAY_Z + 10, m, 4));
   g.add(softBox({ x: x1 - w, y: f.yTop + w, w, h: floor - f.yTop - w }, TRAY_Z - 1, TRAY_Z + 10, m, 4));
   // the rivets: the flanges' faces, and a row on each wall just off the tray
-  const flat: Spot[] = [],
-    rear: Spot[] = [],
-    front: Spot[] = [],
-    top: Spot[] = [],
+  const flat: casekit3dTypes.Spot[] = [],
+    rear: casekit3dTypes.Spot[] = [],
+    front: casekit3dTypes.Spot[] = [],
+    top: casekit3dTypes.Spot[] = [],
     rv = rivetM(k),
     step = 620;
   for (let x = x0 + 300; x < x1 - 200; x += step) {
@@ -482,18 +509,23 @@ export function frameDetail(f: Frame, ex: number, hooks: readonly number[], hook
   g.add(rivets(flat, 'z+', 40, rv), rivets(rear, 'x+', 40, rv), rivets(front, 'x-', 40, rv), rivets(top, 'y-', 40, rv));
 
   // the opening: the lip rolled in round it, and on its rim the door's bumpers and receivers
-  const open: RectLike = { x: x0, y: f.yTop, w: x1 - x0, h: f.yBot - f.yTop };
+  const open: geometryTypes.RectLike = { x: x0, y: f.yTop, w: x1 - x0, h: f.yBot - f.yTop };
   g.add(ring(open, 18, NONE, 0, z1 - 26, z1, m, 38));
-  const rubber = mat(0x050608, { roughness: 0.92 }),
-    rim: Spot[] = [],
+  const rubber = mat(0x05_06_08, { roughness: 0.92 }),
+    rim: casekit3dTypes.Spot[] = [],
     zr = z1 - 1;
-  for (const x of hooks) rim.push({ x: x - 380, y: -hookY, z: zr }, { x: x + 380, y: -hookY, z: zr });
+  for (const x of hooks) {
+    rim.push({ x: x - 380, y: -hookY, z: zr }, { x: x + 380, y: -hookY, z: zr });
+  }
   const lowY = (f.yBot + bottom) / 2;
-  for (const x of hooks) rim.push({ x, y: -lowY, z: zr });
-  for (const y of [f.yTop + 500, (f.yTop + f.yBot) / 2, f.yBot - 500])
+  for (const x of hooks) {
+    rim.push({ x, y: -lowY, z: zr });
+  }
+  for (const y of [f.yTop + 500, (f.yTop + f.yBot) / 2, f.yBot - 500]) {
     rim.push({ x: (CASE.x + x0) / 2, y: -y, z: zr }, { x: (x1 + ex) / 2, y: -y, z: zr });
+  }
   g.add(pads(rim, 'z+', 34, rubber));
-  const dark = mat(0x050608, { roughness: 0.9 }),
+  const dark = mat(0x05_06_08, { roughness: 0.9 }),
     lipM = rivetM(k);
   for (const x of hooks) {
     g.add(seeThrough(rectBox({ x: x - 96, y: hookY - 28, w: 192, h: 56 }, z1 - 1, z1 + 1, lipM)));
@@ -508,10 +540,10 @@ export function frameDetail(f: Frame, ex: number, hooks: readonly number[], hook
  */
 export function doorInner(
   side: Group,
-  sheet: RectLike,
+  sheet: geometryTypes.RectLike,
   rad: number,
   cuts: Cuts,
-  m: Material,
+  m: threeTypes.Material,
   hooks: readonly number[],
   hookY: number,
 ): void {
