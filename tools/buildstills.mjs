@@ -99,7 +99,10 @@ try {
         for (let i = 0; i < 400 && s.status.value.busy; i++) await wait(50);
         // (the machine's art and the eye's exposure settle)
         await wait(2500);
-        return { data: await s.capture(w, h, 'image/webp', q), recipe: recipeOf(s.game, s.shown.value) };
+        return {
+          data: await s.capture(w, h, { type: 'image/webp', quality: Number(q) }),
+          recipe: recipeOf(s.game, s.shown.value),
+        };
       };
       return PICTURE_KEYS;
     },

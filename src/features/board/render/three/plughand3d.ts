@@ -19,7 +19,6 @@ import { disposeTree, place } from '@/core/render/three/geometry';
 import { findById, seeThrough } from '@/core/render/three/pick';
 import { Rope, lengthOf, type Plane as RopePlane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
 import { Sleeve } from '@/core/render/three/sleeve';
-import type { Snapshot } from '@/worker/protocol';
 import { samplesFor, sleeveMat } from './cables3d';
 import {
   exitAt,
@@ -245,9 +244,14 @@ interface Live {
   blend?: { a: V3[][]; b: V3[][] };
 }
 
+/** What the hand reads of the game: which cables are plugged in (a game's cable, or a lead the stage adds: Build my PC's front-panel leads). */
+export interface HandSnap {
+  cables: readonly { id: string; connected: boolean }[];
+}
+
 export interface HandHost {
   machine(): Machine3D | null;
-  snapshot(): Snapshot | null;
+  snapshot(): HandSnap | null;
   toast(text: string, cx: number, cy: number): void;
   /** Where a plug in or out goes (the game's store by default; Build my PC has its own game and passes its own). */
   connect?(id: string, port?: string): void;

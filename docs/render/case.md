@@ -87,7 +87,7 @@ The bottom strip (`PSU`, the drop target) is two things: the **PSU unit** (`PSU_
 
 ## Build my PC's frame (PERF2)
 
-Goal: on the phone profile (412x915, dpr 2.6, CPU /4) a drawn frame of Build my PC holds 30 fps, with no change to the picture. Code: `buildmode3d.ts` (`frame`, in `src/features/board/render/three`), and `ondemand.ts`, `post.ts` (`meter`), `stillworld.ts`, `drawsort.ts`, `eye.ts` (in `src/core/render/three`).
+Goal: on the phone profile (412x915, dpr 2.6, CPU /4) a drawn frame of Build my PC holds 30 fps, with no change to the picture. Code: `buildstage/frame.ts` (`frame`, in `src/features/board/render/three`; the stage is `buildmode3d.ts`), and `ondemand.ts`, `post.ts` (`meter`), `stillworld.ts`, `drawsort.ts`, `eye.ts` (in `src/core/render/three`).
 
 What the stage draws (the biggest machine, counted in Node): the machine has 990 objects, 689 meshes (193 instanced) and 440 materials; the monitor adds 32 meshes and 11 materials; the baked art tiles add the rest of the profile's 957 meshes and 522 materials. The machine is off: no fan turns, no strip pulses, `Machine3D.moving` is false. So nothing moves at idle.
 

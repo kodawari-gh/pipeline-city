@@ -197,7 +197,7 @@ From `src/core/render/three/viewer.ts` `studio` / `renderStill`:
 - ACES filmic, exposure 1.6; `RoomEnvironment` reflections at intensity 0.55; ambient `#ffffff` 0.25.
 - Key `#fff0dc` × 2.4 at (+1.5r, +2r, +1.2r) from the part's centre, PCF shadows (2048² for stills); rim `#9ab8ff` × 1.2 at (−2r, +r, −1.5r).
 - Floor disc `#1a1d26` in the gallery; hidden in stills (transparent background, no ground shadow).
-- Build mode uses a dimmer copy: ambient 0.12, hemisphere `#bfd0ff`/`#1a1410` 0.3, key `#fff0dc` 0.9, rim `#8fb0ff` 0.45, and a warm point `#fff1dd` × 1.0 (`buildmode3d.ts:157-162`).
+- Build mode uses a dimmer copy: ambient 0.12, hemisphere `#bfd0ff`/`#1a1410` 0.3, key `#fff0dc` 0.9, rim `#8fb0ff` 0.45, and a warm point `#fff1dd` × 1.0 (`lightStudio` in `buildstage/studio.ts`).
 
 **Target (art-style.md §3, rework item 5, on hold):** a cool white key (`#9ab8ff` family) replaces `#fff0dc`; the rim is neon, cyan `#3be3ff` or violet `#a68bff`, one per shot. Exposure and ACES stay. Build mode follows the same cool key; the hemisphere ground goes toward `#04060f`.
 
