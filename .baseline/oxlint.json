@@ -11561,26 +11561,6 @@
   "vitest(prefer-strict-equal)": 12,
   "vitest(prefer-to-have-length)": 5
  },
- "src/features/room/render/three/outside/towers.ts": {
-  "eslint(complexity)": 2,
-  "eslint(curly)": 52,
-  "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 8,
-  "eslint(max-params)": 15,
-  "eslint(no-implicit-coercion)": 2,
-  "eslint(no-use-before-define)": 1,
-  "eslint(prefer-destructuring)": 21,
-  "import(consistent-type-specifier-style)": 5,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 26,
-  "typescript(prefer-readonly)": 2,
-  "typescript(strict-boolean-expressions)": 13,
-  "unicorn(consistent-function-scoping)": 5,
-  "unicorn(no-array-for-each)": 2,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(numeric-separators-style)": 56,
-  "unicorn(prefer-at)": 3
- },
  "src/features/room/render/three/outside/traffic.test.ts": {
   "eslint(curly)": 13,
   "eslint(no-loop-func)": 1,

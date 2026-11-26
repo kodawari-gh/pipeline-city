@@ -1,4 +1,4 @@
-// The Low city's facade: a cheap Lambert in place of `facadeMaterial`'s per-pixel shader (`towers.ts`), which keeps High. Its day map is an
+// The Low city's facade: a cheap Lambert in place of `facadeMaterial`'s per-pixel shader (`towers/facade.ts`), which keeps High. Its day map is an
 // atlas of bay × storey cells, linear albedo with the AO baked in (the window's reveals, the slab's shadow over it, the sill). A cell repeats
 // per bay; each wall picks its cells by its seed. The map is built once, in JS, so it exists without a canvas. At night its rooms are High's,
 // window by window on High's grid (`lowRibLight`), the emissive, scaled live by the facade's night uniform.
@@ -16,7 +16,7 @@ import {
   ShaderChunk,
   Vector3,
 } from 'three';
-import type { FacadeUniforms } from './towers';
+import type { FacadeUniforms } from './towers/facade';
 import { STYLES } from './plan';
 
 /** The city's lamps the buildings take their light from at Low: the view's eight PointLights, here as an analytic term. */
@@ -294,7 +294,7 @@ vec3 lowLampCol(float t) {
   vec3 c = mix(vec3(0.74, 0.87, 1.0), vec3(1.0, 0.87, 0.68), smoothstep(0.0, 0.5, t));
   return mix(c, vec3(1.0, 0.62, 0.32), smoothstep(0.5, 1.0, t));
 }
-// the facade's own window (look.zw, as base's towers.ts sets it: centred across, win.y tall from a sill up) mapped onto the atlas's window,
+// the facade's own window (look.zw, as base's towers/building.ts sets it: centred across, win.y tall from a sill up) mapped onto the atlas's window,
 // so a band keeps its ribbon and a glass front its pane. lowLocal is the pixel's place in the atlas cell, unclamped
 vec2 lowWin() { return max(vLowLook.zw, vec2(0.05)); }
 vec2 lowLocal() {

@@ -1,4 +1,4 @@
-// A sign's light on the wall behind it (`view.ts`): at night each sign fixed to a wall (`towers.ts`) lays a soft wash of its colour on it, strongest
+// A sign's light on the wall behind it (`view.ts`): at night each sign fixed to a wall (`towers/signs.ts`) lays a soft wash of its colour on it, strongest
 // at its edge, stuttering with it. One flat card per sign, a little off the wall, added over what is there.
 import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, DoubleSide, Mesh, ShaderMaterial } from 'three';
 import { HAZE_FN, type HazeUniforms } from './haze';
