@@ -1,6 +1,6 @@
 // The tutorial's key flight (ticket #44): the camera flight to a key (`flyToId`, id `key:<n>`) moves the eye no further than the HUD forces.
 // The tutorial card is 360 px tall, so a key framed in the middle of the band it leaves sat so high that the hoodie on the chair hid it.
-// `mountBoard3d` is one closure that needs WebGL, so no test mounts it (`devhook.test.ts` reads its source for the same reason). This test
+// `mountBoard3d` (world/mount.ts) needs WebGL, so no test mounts it (`devhook.test.ts` reads its source for the same reason). This test
 // takes the statement that follows the key guard out of the source and runs it with the real camera functions, so a change to the guard or to
 // what it passes is tested, not a copy of it. The statement may be a block that pans the view (`panBy`) or a call of `lowerInBand` (camera.ts).
 // A change that leaves no `if (id.startsWith('key:'))` statement fails the first test: point the harness at the new place.
@@ -13,7 +13,7 @@ import * as camera from '@/core/render/three/camera';
 import { panBy, type OrbitView } from '@/core/render/three/camera';
 
 const fs = fsMod as any;
-const text: string = fs.readFileSync(urlMod.fileURLToPath(new URL('board3d.ts', import.meta.url)), 'utf8');
+const text: string = fs.readFileSync(urlMod.fileURLToPath(new URL('world/flyToId.ts', import.meta.url)), 'utf8');
 
 type Inset = { top: number; right: number; bottom: number; left: number };
 type Shift = (id: string, v: OrbitView, H: number, bh: number, viewInset: { peek: () => Inset }) => OrbitView;
@@ -32,12 +32,13 @@ function braced(source: string, open: number): string {
 }
 
 /**
- * The key flight's guard and the statement it guards, from board3d.ts, as a function of what they read: the id, the view, the canvas height, the box
+ * The key flight's guard and the statement it guards, from world/flyToId.ts (board3d.ts before #124), as a function of what they read: the id, the view, the canvas height, the box
  * height and the inset. The statement is a block, or one line up to its `;`. The camera functions it calls are the real ones.
  */
 function keyShift(): Shift {
   const at = text.split(GUARD).length - 1 === 1 ? text.indexOf(GUARD) : -1;
-  if (at < 0) throw new Error(`board3d.ts must have one \`${GUARD.trim()}\` statement (the key flight's eye shift)`);
+  if (at < 0)
+    throw new Error(`world/flyToId.ts must have one \`${GUARD.trim()}\` statement (the key flight's eye shift)`);
   const after = at + GUARD.length;
   const statement = text[after] === '{' ? braced(text, after) : text.slice(after, text.indexOf(';', after) + 1);
   if (!statement.includes('viewInset.peek()') || !/(panBy|lowerInBand)\(/.test(statement))
@@ -92,8 +93,8 @@ function flight(id: string, inset: Partial<Inset>, from: OrbitView = START, h = 
 /** The air a box keeps from an inset when the inset forces it off the middle: some, not a lot. */
 const AIR = { min: 8, max: 48 };
 
-describe('the key flight moves the eye no further than the HUD forces (board3d.ts, ticket #44)', () => {
-  it('finds the key flight statement in board3d.ts', () => {
+describe('the key flight moves the eye no further than the HUD forces (world/flyToId.ts, ticket #44)', () => {
+  it('finds the key flight statement in world/flyToId.ts', () => {
     expect(() => keyShift()).not.toThrow();
   });
 
