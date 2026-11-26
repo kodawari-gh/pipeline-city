@@ -88,13 +88,13 @@ const busy = (s: Snapshot): Snapshot => {
 describe('what the card shows', () => {
   it('has nothing for a snapshot with no such card', () => {
     const m = new FrameMeter();
-    expect(nicShow(null, 'pcie1', m, 0)).toBeNull();
-    expect(nicShow(game(), 'pcie0', m, 0)).toBeNull();
-    expect(nicShow(snap(), 'pcie1', m, 0)).toBeNull();
+    expect(nicShow({ snap: null, slot: 'pcie1', meter: m, ms: 0 })).toBeNull();
+    expect(nicShow({ snap: game(), slot: 'pcie0', meter: m, ms: 0 })).toBeNull();
+    expect(nicShow({ snap: snap(), slot: 'pcie1', meter: m, ms: 0 })).toBeNull();
   });
 
   it('links when the cable is in this card, the router stands and the machine is on', () => {
-    const s = must(nicShow(game(), 'pcie1', new FrameMeter(), 5));
+    const s = must(nicShow({ snap: game(), slot: 'pcie1', meter: new FrameMeter(), ms: 5 }));
     expect(s.plugged).toBe(true);
     expect(s.link).toBe(true);
     expect(s.mbps).toBe(10_000);
@@ -105,7 +105,7 @@ describe('what the card shows', () => {
   });
 
   it("has no link, and none of the port's counters, when the cable is in another jack", () => {
-    const s = must(nicShow(game({ plugged: false }), 'pcie1', counted(), 0));
+    const s = must(nicShow({ snap: game({ plugged: false }), slot: 'pcie1', meter: counted(), ms: 0 }));
     expect(s.plugged).toBe(false);
     expect(s.link).toBe(false);
     expect(s.mbps).toBe(0);
@@ -116,7 +116,7 @@ describe('what the card shows', () => {
 
   it('loses the link with the machine off, a tripped supply or no router, but still has the cable', () => {
     for (const o of [{ on: false }, { tripped: true }, { router: false }]) {
-      const s = must(nicShow(game(o), 'pcie1', new FrameMeter(), 0));
+      const s = must(nicShow({ snap: game(o), slot: 'pcie1', meter: new FrameMeter(), ms: 0 }));
       expect(s.plugged, `for ${JSON.stringify(o)}`).toBe(true);
       expect(s.link, `for ${JSON.stringify(o)}`).toBe(false);
     }
@@ -126,7 +126,7 @@ describe('what the card shows', () => {
     const m = new FrameMeter();
     m.feed({ baseTick: 1, net: { frames: { rx: 0, tx: 0 } } });
     m.feed({ baseTick: 2, net: { frames: { rx: 1000, tx: 100 } } });
-    const s = must(nicShow(game(), 'pcie1', m, 0)),
+    const s = must(nicShow({ snap: game(), slot: 'pcie1', meter: m, ms: 0 })),
       line = lineFrames(10_000);
     expect([s.rx, s.tx]).toStrictEqual([1000, 100]);
     expect(s.rxLoad).toBeCloseTo(1000 / line, 9);
@@ -138,7 +138,7 @@ describe('what the card shows', () => {
 
   it('shows the transfers in flight, each in its own direction, and the results that wait', () => {
     const flows = [flow('down', '#5 hash', 30), flow('down', '#6 db', 60), flow('up', '#4 log', 10)],
-      s = must(nicShow(game({ flows, waiting: 2 }), 'pcie1', new FrameMeter(), 0));
+      s = must(nicShow({ snap: game({ flows, waiting: 2 }), slot: 'pcie1', meter: new FrameMeter(), ms: 0 }));
     expect(s.downs.map((f) => f.label)).toStrictEqual(['#5 hash', '#6 db']);
     expect(s.ups.map((f) => f.percent)).toStrictEqual([10]);
     expect(s.waiting).toBe(2);
@@ -146,10 +146,15 @@ describe('what the card shows', () => {
   });
 
   it('reads the buffers the sim keeps for the port the cable is in, and none for a card with no cable', () => {
-    const card = nicShow(busy(game()), 'pcie1', new FrameMeter(), 0),
-      cardElsewhere = nicShow(busy(game({ plugged: false })), 'pcie1', new FrameMeter(), 0),
-      board = nicShow(busy(boardGame()), BOARD_NIC, new FrameMeter(), 0),
-      boardElsewhere = nicShow(busy(boardGame({ plugged: false })), BOARD_NIC, new FrameMeter(), 0);
+    const card = nicShow({ snap: busy(game()), slot: 'pcie1', meter: new FrameMeter(), ms: 0 }),
+      cardElsewhere = nicShow({ snap: busy(game({ plugged: false })), slot: 'pcie1', meter: new FrameMeter(), ms: 0 }),
+      board = nicShow({ snap: busy(boardGame()), slot: BOARD_NIC, meter: new FrameMeter(), ms: 0 }),
+      boardElsewhere = nicShow({
+        snap: busy(boardGame({ plugged: false })),
+        slot: BOARD_NIC,
+        meter: new FrameMeter(),
+        ms: 0,
+      });
     expect(card).toMatchObject({
       fifo: 3,
       rxUsed: 2,
@@ -179,7 +184,7 @@ describe('what the card shows', () => {
       driver: false,
     });
     // a card with the driver not yet running has empty buffers and says so
-    expect(nicShow(game(), 'pcie1', new FrameMeter(), 0)).toMatchObject({
+    expect(nicShow({ snap: game(), slot: 'pcie1', meter: new FrameMeter(), ms: 0 })).toMatchObject({
       fifo: 0,
       rxUsed: 0,
       txUsed: 0,
@@ -189,7 +194,7 @@ describe('what the card shows', () => {
   });
 
   it('takes the heat and the power from the card itself', () => {
-    const s = must(nicShow(game({ temp: 77, throttle: 0.5 }), 'pcie1', new FrameMeter(), 0));
+    const s = must(nicShow({ snap: game({ temp: 77, throttle: 0.5 }), slot: 'pcie1', meter: new FrameMeter(), ms: 0 }));
     expect(s.tempC).toBe(77);
     expect(s.hot).toBe(true);
     expect(s.powerW).toBe(6.5);
@@ -198,7 +203,7 @@ describe('what the card shows', () => {
     expect(s.throttleC).toBeGreaterThan(40);
     expect(s.damageC).toBeGreaterThan(s.unstableC);
     expect(s.unstableC).toBeGreaterThan(s.throttleC);
-    expect(nicShow(game({ burnt: true }), 'pcie1', new FrameMeter(), 0)?.burnt).toBe(true);
+    expect(nicShow({ snap: game({ burnt: true }), slot: 'pcie1', meter: new FrameMeter(), ms: 0 })?.burnt).toBe(true);
   });
 });
 
@@ -240,7 +245,7 @@ describe('what the chip on the motherboard shows', () => {
       [2, 100],
       [3, 1000],
     ] as const) {
-      const s = must(nicShow(boardGame({ tier }), BOARD_NIC, m, 9));
+      const s = must(nicShow({ snap: boardGame({ tier }), slot: BOARD_NIC, meter: m, ms: 9 }));
       expect([s.plugged, s.link, s.rated, s.mbps, s.burnt, s.ms], `tier ${tier}`).toStrictEqual([
         true,
         true,
@@ -260,9 +265,9 @@ describe('what the chip on the motherboard shows', () => {
 
   it('has nothing on a board with no jack, in no game, or with the cable in no port; and no counters with the cable in a card', () => {
     const m = new FrameMeter();
-    expect(nicShow(boardGame({ tier: 0 }), BOARD_NIC, m, 0)).toBeNull();
-    expect(nicShow(null, BOARD_NIC, m, 0)).toBeNull();
-    const out = must(nicShow(boardGame({ plugged: false }), BOARD_NIC, counted(), 0));
+    expect(nicShow({ snap: boardGame({ tier: 0 }), slot: BOARD_NIC, meter: m, ms: 0 })).toBeNull();
+    expect(nicShow({ snap: null, slot: BOARD_NIC, meter: m, ms: 0 })).toBeNull();
+    const out = must(nicShow({ snap: boardGame({ plugged: false }), slot: BOARD_NIC, meter: counted(), ms: 0 }));
     expect([out.plugged, out.link, out.mbps, out.rx, out.rxTotal, out.downs.length]).toStrictEqual([
       false,
       false,
@@ -274,17 +279,19 @@ describe('what the chip on the motherboard shows', () => {
     // the cable in a card: this is the card's port, not the board's
     const card = game();
     card.board = boardSnap({ tier: 3 });
-    expect(nicShow(card, BOARD_NIC, m, 0)?.plugged).toBe(false);
-    expect(nicShow(card, 'pcie1', m, 0)?.plugged).toBe(true);
+    expect(nicShow({ snap: card, slot: BOARD_NIC, meter: m, ms: 0 })?.plugged).toBe(false);
+    expect(nicShow({ snap: card, slot: 'pcie1', meter: m, ms: 0 })?.plugged).toBe(true);
   });
 
   it('loses the link with the machine off, and shows a dead board as burnt out', () => {
-    expect(nicShow(boardGame({ on: false }), BOARD_NIC, new FrameMeter(), 0)).toMatchObject({
+    expect(nicShow({ snap: boardGame({ on: false }), slot: BOARD_NIC, meter: new FrameMeter(), ms: 0 })).toMatchObject({
       plugged: true,
       link: false,
       mbps: 0,
     });
-    expect(nicShow(boardGame({ burnt: true }), BOARD_NIC, new FrameMeter(), 0)).toMatchObject({
+    expect(
+      nicShow({ snap: boardGame({ burnt: true }), slot: BOARD_NIC, meter: new FrameMeter(), ms: 0 }),
+    ).toMatchObject({
       burnt: true,
       link: false,
       mbps: 0,
@@ -292,7 +299,7 @@ describe('what the chip on the motherboard shows', () => {
   });
 
   it('has no heat of its own: the sim keeps no temperature for it, so it is never hot and draws nothing the card way', () => {
-    const s = must(nicShow(boardGame(), BOARD_NIC, new FrameMeter(), 0));
+    const s = must(nicShow({ snap: boardGame(), slot: BOARD_NIC, meter: new FrameMeter(), ms: 0 }));
     expect([s.hot, s.tempC, s.throttleC, s.unstableC, s.damageC, s.powerW, s.idleW, s.loadW]).toStrictEqual([
       false,
       0,
@@ -306,7 +313,9 @@ describe('what the chip on the motherboard shows', () => {
   });
 
   it("leaves the card's port as it was when a board has a jack too", () => {
-    const s = must(nicShow(boardGame({ card: true, plugged: false }), 'pcie1', new FrameMeter(), 0));
+    const s = must(
+      nicShow({ snap: boardGame({ card: true, plugged: false }), slot: 'pcie1', meter: new FrameMeter(), ms: 0 }),
+    );
     expect([s.plugged, s.rated, s.tempC]).toStrictEqual([false, 10_000, 41]);
   });
 });

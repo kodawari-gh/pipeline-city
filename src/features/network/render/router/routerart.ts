@@ -45,7 +45,7 @@ function routerStyle(plan: routerplan.RouterPlan): dieart.PlanStyle<routerplan.R
     linkColor: (T, l) => T[ROUTER_LINK_COLOR[l.kind]],
     frame: (b) => Boolean(b.frame),
     symbol: (b) => routerGlyphArea(b),
-    draw: (g, T, b, _a, c, put) => routerGlyph(g, T, b, c, put, plan.input),
+    draw: (g, T, b, _a, c, put) => routerGlyph({ g, T, block: b, color: c, put, input: plan.input }),
     cells: () => [],
   };
 }

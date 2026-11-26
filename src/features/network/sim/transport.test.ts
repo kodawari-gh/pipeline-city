@@ -97,20 +97,22 @@ function sendsUntilThrough(): number {
 
 describe('lossRoll', () => {
   it('is a number in [0,1) that depends only on its four inputs', () => {
-    expect(lossRoll(1, 2, 3, 4)).toBe(lossRoll(1, 2, 3, 4));
+    expect(lossRoll({ seed: 1, transfer: 2, seq: 3, attempt: 4 })).toBe(
+      lossRoll({ seed: 1, transfer: 2, seq: 3, attempt: 4 }),
+    );
     for (let i = 0; i < 1000; i++) {
-      const r = lossRoll(i, i * 7, i % 11, i % 9);
+      const r = lossRoll({ seed: i, transfer: i * 7, seq: i % 11, attempt: i % 9 });
       expect(r).toBeGreaterThanOrEqual(0);
       expect(r).toBeLessThan(1);
     }
   });
 
   it('changes with each input: the game, the transfer, the segment and the send', () => {
-    const base = lossRoll(5, 6, 7, 0);
-    expect(lossRoll(6, 6, 7, 0)).not.toBe(base);
-    expect(lossRoll(5, 7, 7, 0)).not.toBe(base);
-    expect(lossRoll(5, 6, 8, 0)).not.toBe(base);
-    expect(lossRoll(5, 6, 7, 1)).not.toBe(base);
+    const base = lossRoll({ seed: 5, transfer: 6, seq: 7, attempt: 0 });
+    expect(lossRoll({ seed: 6, transfer: 6, seq: 7, attempt: 0 })).not.toBe(base);
+    expect(lossRoll({ seed: 5, transfer: 7, seq: 7, attempt: 0 })).not.toBe(base);
+    expect(lossRoll({ seed: 5, transfer: 6, seq: 8, attempt: 0 })).not.toBe(base);
+    expect(lossRoll({ seed: 5, transfer: 6, seq: 7, attempt: 1 })).not.toBe(base);
   });
 
   it('is spread evenly: the mean is near a half and every tenth of the range is used', () => {
@@ -118,7 +120,7 @@ describe('lossRoll', () => {
     let sum = 0;
     const n = 20_000;
     for (let i = 0; i < n; i++) {
-      const r = lossRoll(99, i >> 6, i & 63, 0);
+      const r = lossRoll({ seed: 99, transfer: i >> 6, seq: i & 63, attempt: 0 });
       sum += r;
       const bin = Math.floor(r * 10);
       bins[bin] = must(bins[bin]) + 1;
@@ -133,9 +135,9 @@ describe('lossRoll', () => {
   it('rolls the resend of a segment independently of the first send', () => {
     // 30% loss: a segment lost once is not lost for good (a resend has its own roll)
     const seqs = Array.from({ length: 4000 }, (_, seq) => seq),
-      lostFirst = seqs.filter((seq) => lossRoll(3, 11, seq, 0) < 0.3),
+      lostFirst = seqs.filter((seq) => lossRoll({ seed: 3, transfer: 11, seq, attempt: 0 }) < 0.3),
       first = lostFirst.length,
-      both = lostFirst.filter((seq) => lossRoll(3, 11, seq, 1) < 0.3).length;
+      both = lostFirst.filter((seq) => lossRoll({ seed: 3, transfer: 11, seq, attempt: 1 }) < 0.3).length;
     expect(both / first).toBeGreaterThan(0.2);
     expect(both / first).toBeLessThan(0.4);
   });

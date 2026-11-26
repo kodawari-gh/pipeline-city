@@ -126,29 +126,47 @@ function portOf(s: Snapshot, slot: string): Port | null {
 }
 
 /** The card in header slot `slot` of the snapshot as the view shows it (or the chip on the motherboard, `BOARD_NIC`), or null when the snapshot has no such card. */
-export function nicShow(
-  s: Snapshot | null | undefined,
-  slot: string,
-  meter: Pick<netmeter.FrameMeter, 'rx' | 'tx'>,
-  ms: number,
-): NicShow | null {
-  const p = s ? portOf(s, slot) : null;
-  if (!s || !p) {
-    return null;
+function nicFlows(opts: { net: Snapshot['net'] | undefined; plugged: boolean; dir: 'down' | 'up' }): NicFlow[] {
+  const { net, plugged, dir } = opts;
+  if (!plugged) {
+    return [];
   }
-  const { net } = s,
-    { plugged, rated } = p,
-    link = plugged && linkOf(s).pc;
-  const mbps = link ? net!.port.mbps : 0,
-    line = netmeter.lineFrames(mbps),
-    rx = link ? meter.rx : 0,
-    tx = link ? meter.tx : 0;
-  const flows = (dir: 'down' | 'up'): NicFlow[] =>
-    plugged
-      ? (net?.transfers ?? []).filter((t) => t.dir === dir).map((t) => ({ label: t.label, percent: t.percent }))
-      : [];
-  // (the sim has one NIC device: its buffers are this port's only while the cable is in it)
-  const mine = plugged ? net?.stack.nic : undefined;
+  return (net?.transfers ?? []).filter((t) => t.dir === dir).map((t) => ({ label: t.label, percent: t.percent }));
+}
+
+function orZero(on: boolean, n: number | undefined): number {
+  return on ? (n ?? 0) : 0;
+}
+
+type PortSnap = NonNullable<ReturnType<typeof portOf>>;
+
+function nicShowPort(opts: {
+  s: Snapshot;
+  p: PortSnap;
+  plugged: boolean;
+  link: boolean;
+  mbps: number;
+}): Pick<
+  NicShow,
+  | 'powered'
+  | 'plugged'
+  | 'link'
+  | 'state'
+  | 'reason'
+  | 'mbps'
+  | 'rated'
+  | 'burnt'
+  | 'hot'
+  | 'tempC'
+  | 'throttleC'
+  | 'unstableC'
+  | 'damageC'
+  | 'powerW'
+  | 'idleW'
+  | 'loadW'
+> {
+  const { s, p, plugged, link, mbps } = opts;
+  const { net } = s;
   return {
     powered: s.powered && !s.power.tripped,
     plugged,
@@ -156,7 +174,7 @@ export function nicShow(
     state: net?.state ?? 'no-device',
     reason: net?.reason ?? null,
     mbps,
-    rated,
+    rated: p.rated,
     burnt: p.burnt,
     hot: p.hot,
     tempC: p.tempC,
@@ -166,28 +184,102 @@ export function nicShow(
     powerW: p.powerW,
     idleW: p.idleW,
     loadW: p.loadW,
+  };
+}
+
+function nicShowTraffic(opts: {
+  net: Snapshot['net'];
+  plugged: boolean;
+  rx: number;
+  tx: number;
+  line: number;
+}): Pick<
+  NicShow,
+  | 'rx'
+  | 'tx'
+  | 'rxTotal'
+  | 'txTotal'
+  | 'rxLoad'
+  | 'txLoad'
+  | 'rxAct'
+  | 'txAct'
+  | 'downs'
+  | 'ups'
+  | 'waiting'
+  | 'offers'
+  | 'binding'
+  | 'limitMbps'
+  | 'downloaded'
+  | 'uploaded'
+> {
+  const { net, plugged, rx, tx, line } = opts;
+  return {
     rx,
     tx,
-    rxTotal: plugged ? (net?.frames.rx ?? 0) : 0,
-    txTotal: plugged ? (net?.frames.tx ?? 0) : 0,
+    rxTotal: orZero(plugged, net?.frames.rx),
+    txTotal: orZero(plugged, net?.frames.tx),
     rxLoad: netmeter.loadOf(rx, line),
     txLoad: netmeter.loadOf(tx, line),
     rxAct: netmeter.busy(rx, line),
     txAct: netmeter.busy(tx, line),
-    downs: flows('down'),
-    ups: flows('up'),
-    waiting: plugged ? (net?.uploadsWaiting ?? 0) : 0,
-    offers: plugged ? (net?.offers.length ?? 0) : 0,
+    downs: nicFlows({ net, plugged, dir: 'down' }),
+    ups: nicFlows({ net, plugged, dir: 'up' }),
+    waiting: orZero(plugged, net?.uploadsWaiting),
+    offers: orZero(plugged, net?.offers.length),
     binding: plugged ? (net?.bandwidth.binding ?? null) : null,
-    limitMbps: plugged ? (net?.bandwidth.downMbps ?? 0) : 0,
-    downloaded: plugged ? (net?.counters.downloaded ?? 0) : 0,
-    uploaded: plugged ? (net?.counters.uploaded ?? 0) : 0,
+    limitMbps: orZero(plugged, net?.bandwidth.downMbps),
+    downloaded: orZero(plugged, net?.counters.downloaded),
+    uploaded: orZero(plugged, net?.counters.uploaded),
+  };
+}
+
+function nicShowBuffers(
+  mine: NonNullable<Snapshot['net']>['stack']['nic'] | undefined,
+): Pick<NicShow, 'fifo' | 'rxUsed' | 'txUsed' | 'drops' | 'dmaWords' | 'driver'> {
+  return {
     fifo: mine?.fifo ?? 0,
     rxUsed: mine?.rxUsed ?? 0,
     txUsed: mine?.txUsed ?? 0,
     drops: mine?.drops ?? 0,
     dmaWords: mine?.dmaWords ?? 0,
     driver: mine?.enabled ?? false,
+  };
+}
+
+function nicShowOf(opts: {
+  s: Snapshot;
+  p: PortSnap;
+  meter: Pick<netmeter.FrameMeter, 'rx' | 'tx'>;
+  ms: number;
+}): NicShow {
+  const { s, p, meter, ms } = opts;
+  const { net } = s,
+    { plugged } = p,
+    link = plugged && linkOf(s).pc;
+  const mbps = link ? net!.port.mbps : 0,
+    line = netmeter.lineFrames(mbps),
+    rx = link ? meter.rx : 0,
+    tx = link ? meter.tx : 0;
+  // (the sim has one NIC device: its buffers are this port's only while the cable is in it)
+  const mine = plugged ? net?.stack.nic : undefined;
+  return {
+    ...nicShowPort({ s, p, plugged, link, mbps }),
+    ...nicShowTraffic({ net, plugged, rx, tx, line }),
+    ...nicShowBuffers(mine),
     ms,
   };
+}
+
+export function nicShow(opts: {
+  snap: Snapshot | null | undefined;
+  slot: string;
+  meter: Pick<netmeter.FrameMeter, 'rx' | 'tx'>;
+  ms: number;
+}): NicShow | null {
+  const { snap: s, slot, meter, ms } = opts;
+  const p = s ? portOf(s, slot) : null;
+  if (!s || !p) {
+    return null;
+  }
+  return nicShowOf({ s, p, meter, ms });
 }

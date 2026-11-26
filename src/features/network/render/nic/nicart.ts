@@ -48,7 +48,7 @@ function nicStyle(plan: NicPlan): dieart.PlanStyle<NicBlock, NicLink> {
     linkColor: (T, l) => T[NIC_LINK_COLOR[l.kind]],
     frame: (b) => Boolean(b.frame),
     symbol: (b) => nicGlyphArea(b),
-    draw: (g, T, b, _a, c, put) => nicGlyph(g, T, b, c, put, plan.input),
+    draw: (g, T, b, _a, c, put) => nicGlyph({ g, T, block: b, color: c, put, input: plan.input }),
     cells: () => [],
   };
 }
