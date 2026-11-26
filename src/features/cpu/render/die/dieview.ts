@@ -5,24 +5,12 @@ import { IRQ } from '@/core/sim/memmap';
 import type { PipeSnap } from '../../sim/pipesnap';
 import { scrubCursor, scrubRange, scrubShown, scrubTarget } from '@/app/scrub';
 import type { Block, CpuPlan } from '../core/cpuplan';
-import { cellRects, dieNear, type DieArt } from './dieart';
-import { CellTexts, drawPackets, drawPulse, drawTrails, packetOn, type Dot, type Packet, type Trail } from './diepulse';
-import {
-  CYCLES_PER_SEC,
-  opClass,
-  packetsFor,
-  Player,
-  regsRead,
-  type CacheView,
-  type ChipState,
-  type OpClass,
-  type PacketPlan,
-  type StoreEvent,
-  type StoreReplay,
-} from './diemotion';
-import { accessTouch, fetchTouch, type MemoryTouch } from './dietraffic';
+import * as dieart from './dieart';
+import * as diepulse from './diepulse';
+import * as diemotion from './diemotion';
+import * as dietraffic from './dietraffic';
 import { box, MONO, mix } from '@/core/render/ink';
-import { UncoreFx, type UncoreInput, type UncoreUnit } from './uncore';
+import * as uncore from './uncore';
 import { controlsOf, glyphArea, glyphLive, hasSymbol } from './blockart';
 import { readsOf } from './tokentext';
 import { idColor, pcText, writesOf } from './tokentext';
@@ -39,7 +27,7 @@ import { DEVICE_LOD, SHOWN, bandAlpha, onBand } from '@/core/render/lod/lod';
 //  - blocks glow while an instruction is in them, the clock beats once per cycle.
 // A snapshot is a sampled instant: the replay is a slow-motion sample of the run.
 
-const CYCLE_MS = 1000 / CYCLES_PER_SEC;
+const CYCLE_MS = 1000 / diemotion.CYCLES_PER_SEC;
 /** How long an instruction takes to settle into a block's symbol or a queue cell (wall ms). */
 const WIPE_MS = 320;
 
@@ -48,11 +36,13 @@ export type { MemoryTouch } from './dietraffic';
 const hex = (v: number, min = 1) => (v >>> 0).toString(16).padStart(min, '0');
 /** A register or memory value in a few characters. */
 function showValue(v: number): string {
-  if (v >= -999 && v <= 99999) return String(v);
+  if (v >= -999 && v <= 99_999) {
+    return String(v);
+  }
   return `0x${hex(v)}`;
 }
 
-const CLASS_LABEL: [OpClass, string][] = [
+const CLASS_LABEL: [diemotion.OpClass, string][] = [
   ['alu', 'ARITHMETIC'],
   ['mul', 'MULTIPLY'],
   ['ld', 'LOAD'],
@@ -72,11 +62,11 @@ export class PlanView {
   private plan: CpuPlan | null = null;
   /** What the replay moves on: the plan, or for a core tile also the shared blocks and the wires out to them. */
   private motion: CpuPlan | null = null;
-  private art: DieArt | null = null;
+  private art: dieart.DieArt | null = null;
   private glowG = new Graphics();
   /** The outer blocks alive (uncore.ts). */
   private uncoreG = new Graphics();
-  private uncore = new UncoreFx();
+  private uncore = new uncore.UncoreFx();
   private dataG = new Graphics();
   private dataTexts = new Container();
   private cellLive = new Graphics();
@@ -94,12 +84,12 @@ export class PlanView {
   private trailG = new Graphics();
   private packetG = new Graphics();
   private legend = new Container();
-  private dots = new Map<string, Dot>();
-  private cellTexts = new Map<string, CellTexts>();
-  private player: Player | null = null;
+  private dots = new Map<string, diepulse.Dot>();
+  private cellTexts = new Map<string, diepulse.CellTexts>();
+  private player: diemotion.Player | null = null;
   private byId = new Map<string, Block>();
-  private packets: Packet[] = [];
-  private trails = new Map<string, Trail>();
+  private packets: diepulse.Packet[] = [];
+  private trails = new Map<string, diepulse.Trail>();
   private glow = new Map<string, { v: number; color: string }>();
   private flash = { miss: -1e9, retire: -1e9, result: -1e9, flush: -1e9, clock: -1e9 };
   private regWrite: number[] = [];
@@ -110,7 +100,7 @@ export class PlanView {
   private zSeen = 1;
   private cellSig = '';
   /** Told every time the CPU reaches out to RAM or a device's window (a fetch, a load, a store), for the sticks and the cards (set by chips3d.ts). */
-  onMemory: ((e: MemoryTouch) => void) | null = null;
+  onMemory: ((e: dietraffic.MemoryTouch) => void) | null = null;
   /** Told when the replay takes an interrupt, with its line (`IRQ`): the board lights the path the device's signal came along. */
   onInterrupt: ((line: number) => void) | null = null;
   T!: Theme;
@@ -140,14 +130,16 @@ export class PlanView {
     this.plan = plan;
     this.motion = motion;
     this.dropChips();
-    for (const ct of this.cellTexts.values()) ct.clear();
+    for (const ct of this.cellTexts.values()) {
+      ct.clear();
+    }
     this.cellTexts.clear();
     this.art?.root.destroy({ children: true });
-    this.art = dieNear(T, plan);
+    this.art = dieart.dieNear(T, plan);
     this.art.root.renderable = this.still;
     this.root.addChildAt(this.art.root, 0);
     this.byId = new Map(motion.blocks.map((b) => [b.id, b]));
-    this.player = new Player(motion);
+    this.player = new diemotion.Player(motion);
     this.packets = [];
     this.trails.clear();
     this.glow.clear();
@@ -166,8 +158,12 @@ export class PlanView {
 
   /** The colour key under the die: what each colour of chip, packet and lit wire means. */
   private buildLegend(T: Theme, plan: CpuPlan) {
-    for (const c of this.legend.removeChildren()) c.destroy({ children: true });
-    if (!this.legendOn) return;
+    for (const c of this.legend.removeChildren()) {
+      c.destroy({ children: true });
+    }
+    if (!this.legendOn) {
+      return;
+    }
     const g = new Graphics();
     this.legend.addChild(g);
     let x = plan.die.x + 40;
@@ -201,11 +197,15 @@ export class PlanView {
     this.motion = null;
     this.player = null;
     this.dropChips();
-    for (const ct of this.cellTexts.values()) ct.clear();
+    for (const ct of this.cellTexts.values()) {
+      ct.clear();
+    }
     this.cellTexts.clear();
     this.art?.root.destroy({ children: true });
     this.art = null;
-    for (const c of this.legend.removeChildren()) c.destroy({ children: true });
+    for (const c of this.legend.removeChildren()) {
+      c.destroy({ children: true });
+    }
     this.glowG.clear();
     this.dataG.clear();
     this.cellLive.clear();
@@ -226,7 +226,9 @@ export class PlanView {
   setZoom(z: number, seen = z) {
     this.z = z;
     this.zSeen = seen;
-    if (!this.art) return;
+    if (!this.art) {
+      return;
+    }
     const L = DEVICE_LOD.die,
       fade = (n: { visible: boolean; alpha: number }, z0: number) => {
         const a = bandAlpha(seen, onBand(z0));
@@ -249,7 +251,9 @@ export class PlanView {
 
   /** A new snapshot of this plan's pipeline: its trace and stored state join the replay; nothing is drawn here (frame() draws). */
   update(pipe: PipeSnap | null) {
-    if (!this.plan || !this.player) return;
+    if (!this.plan || !this.player) {
+      return;
+    }
     if (!pipe || !pipe.trace) {
       // no machine running: the replay stops and the chips go
       if (this.running) {
@@ -265,7 +269,7 @@ export class PlanView {
     this.player.push(pipe.trace, pipe.stored);
   }
 
-  private colorOf(cls: OpClass): string {
+  private colorOf(cls: diemotion.OpClass): string {
     return cls === 'sys' ? this.T.mute : this.T[cls];
   }
 
@@ -275,34 +279,40 @@ export class PlanView {
    */
   poke(unit: 'intc' | 'timer' | 'mpu' | 'mmu', write: boolean, now: number) {
     const plan = this.motion;
-    if (!plan) return;
+    if (!plan) {
+      return;
+    }
     this.sysAt.set(`mm:${unit}`, now);
     const link = plan.links.find((l) => l.id === `fab-${unit}`);
-    if (link) this.send([{ link, reverse: !write, delay: 0, color: 'inst' }], now, 'ld');
+    if (link) {
+      this.send([{ link, reverse: !write, delay: 0, color: 'inst' }], now, 'ld');
+    }
   }
 
   /** A core's access reached an outer unit (told by board.ts from the address): its block shows it. */
-  touchUnit(unit: UncoreUnit, write: boolean, now: number, addr = 0) {
+  touchUnit(unit: uncore.UncoreUnit, write: boolean, now: number, addr = 0) {
     this.uncore.touch(unit, write, now, addr);
   }
 
   /** Paint the outer blocks only: what a multicore die's shared part does each frame (its replay has nothing to play; the tiles hold the cores). */
   frameUncore(now: number, draw = true) {
     this.uncoreG.clear();
-    if (draw && this.plan && this.uncoreG.visible) this.uncore.draw(this.uncoreG, this.plan.blocks, this.T, now);
+    if (draw && this.plan && this.uncoreG.visible) {
+      this.uncore.draw(this.uncoreG, this.plan.blocks, this.T, now);
+    }
   }
 
   /** The machine's readings for the outer blocks (power, temperature, clock, coherence counters). */
-  setUncore(input: UncoreInput | null, now: number) {
+  setUncore(input: uncore.UncoreInput | null, now: number) {
     this.uncore.set(input, now);
   }
 
-  private send(pk: PacketPlan[], now: number, cls: OpClass) {
-    const T = this.T;
+  private send(pk: diemotion.PacketPlan[], now: number, cls: diemotion.OpClass) {
+    const { T } = this;
     for (const p of pk) {
       const color =
         p.color === 'bad' ? T.bad : p.color === 'mute' ? mix(T.mute, this.colorOf(cls), 0.45) : this.colorOf(cls);
-      const { packet, trail } = packetOn(p.link, p.reverse, now + p.delay * CYCLE_MS, CYCLE_MS * 1.1, color);
+      const { packet, trail } = diepulse.packetOn(p.link, p.reverse, now + p.delay * CYCLE_MS, CYCLE_MS * 1.1, color);
       this.packets.push(packet);
       this.trails.set(p.link.id, trail);
     }
@@ -312,18 +322,18 @@ export class PlanView {
    * An instruction between two blocks is a pulse on the wires, in its class colour with a halo in its own colour and a short tail; there are no
    * boxes on the die. Inside a block it is what the block shows (a symbol filling, a cell, the block glowing), see `glyphs`, `cells`, `frame`.
    */
-  private pulse(st: ChipState, seen: Set<string>) {
-    const T = this.T;
+  private pulse(st: diemotion.ChipState, seen: Set<string>) {
+    const { T } = this;
     // a pulse runs on the die's traces only: with no trace between the two blocks there is none (the blocks light instead)
     const moving = st.from !== undefined && st.from !== st.to && st.wx !== undefined;
-    drawPulse(this.tailG, this.dots, seen, {
+    diepulse.drawPulse(this.tailG, this.dots, seen, {
       key: st.key,
       x: st.wx ?? st.x,
       y: st.wy ?? st.y,
       moving,
       e: st.e,
       alpha: st.alpha,
-      core: st.flushed ? T.bad : this.colorOf(opClass(st.op)),
+      core: st.flushed ? T.bad : this.colorOf(diemotion.opClass(st.op)),
       halo: idColor(st.id),
     });
   }
@@ -331,9 +341,11 @@ export class PlanView {
   /** Draw one frame at game time `now` (ms). `draw` false (the die is out of view or faded out): the replay still runs and feeds the sticks and the interrupt hook, but nothing is drawn. */
   frame(now: number, paused = false, draw = true) {
     const plan = this.motion,
-      player = this.player;
-    if (!plan || !player) return;
-    const T = this.T;
+      { player } = this;
+    if (!plan || !player) {
+      return;
+    }
+    const { T } = this;
     // a paused game can be scrubbed: the Trace panel names a cycle and the die shows the machine at it
     const cur = paused && scrubTarget.peek() === 'cpu' ? scrubCursor.peek() : null;
     if (cur !== null && cur !== player.shown() && player.seek(cur)) {
@@ -347,24 +359,35 @@ export class PlanView {
       sh = player.shown();
     const old = scrubRange.peek();
     if (this.scrubLead && scrubTarget.peek() === 'cpu') {
-      if ((rg?.lo ?? -1) !== (old?.lo ?? -1) || (rg?.hi ?? -1) !== (old?.hi ?? -1)) scrubRange.value = rg;
-      if (sh !== scrubShown.peek()) scrubShown.value = sh;
+      if ((rg?.lo ?? -1) !== (old?.lo ?? -1) || (rg?.hi ?? -1) !== (old?.hi ?? -1)) {
+        scrubRange.value = rg;
+      }
+      if (sh !== scrubShown.peek()) {
+        scrubShown.value = sh;
+      }
     }
 
     // beats: packets on the wires, flashes, reads of the register file, the memory sticks told
-    const byCycle = new Map<number, StoreEvent[]>();
+    const byCycle = new Map<number, diemotion.StoreEvent[]>();
     for (const e of fr.applied) {
       const l = byCycle.get(e.cycle);
-      if (l) l.push(e);
-      else byCycle.set(e.cycle, [e]);
+      if (l) {
+        l.push(e);
+      } else {
+        byCycle.set(e.cycle, [e]);
+      }
     }
     for (const e of fr.applied) {
-      if (e.kind === Ev.Reg) this.regWrite[e.a] = now;
-      else if (e.kind === Ev.Hit || e.kind === Ev.Fill) this.slotTime.set(WHICH[e.a]! + e.b, now);
-      else if (e.kind === Ev.Pred) this.slotTime.set(`p${e.a}`, now);
-      else if (e.kind === Ev.Tlb) {
-        if (e.a === 2) this.sysAt.set('fault', now);
-        else {
+      if (e.kind === Ev.Reg) {
+        this.regWrite[e.a] = now;
+      } else if (e.kind === Ev.Hit || e.kind === Ev.Fill) {
+        this.slotTime.set(WHICH[e.a]! + e.b, now);
+      } else if (e.kind === Ev.Pred) {
+        this.slotTime.set(`p${e.a}`, now);
+      } else if (e.kind === Ev.Tlb) {
+        if (e.a === 2) {
+          this.sysAt.set('fault', now);
+        } else {
           this.slotTime.set(`t${e.b}`, now);
           this.tlbKind.set(e.b, e.a);
         }
@@ -373,36 +396,64 @@ export class PlanView {
         const wire = plan.links.find((l) => l.kind === 'irq');
         // where the line came from: the timer (on the die) along its tick wire, any other (disk, network, USB) in over the system bus
         const from = plan.links.find((l) => l.id === (e.a === IRQ.TIMER ? 'timer-intc' : 'fab-intc'));
-        if (e.a === IRQ.TIMER) this.sysAt.set('mm:timer', now);
-        if (from) this.send([{ link: from, reverse: false, delay: 0, color: 'inst' }], now, 'br');
-        if (wire) this.send([{ link: wire, reverse: false, delay: from ? 1 : 0, color: 'inst' }], now, 'br'); // the interrupt comes in along its wire from the controller
+        if (e.a === IRQ.TIMER) {
+          this.sysAt.set('mm:timer', now);
+        }
+        if (from) {
+          this.send([{ link: from, reverse: false, delay: 0, color: 'inst' }], now, 'br');
+        }
+        if (wire) {
+          this.send([{ link: wire, reverse: false, delay: from ? 1 : 0, color: 'inst' }], now, 'br'); // the interrupt comes in along its wire from the controller
+        }
         this.onInterrupt?.(e.a);
-      } else if (e.kind === Ev.Iret) this.sysAt.set('iret', now);
-      else if (e.kind === Ev.Space) this.sysAt.set('space', now);
-      else if (e.kind === Ev.Mem) this.onMemory?.(accessTouch(e, now)); // (a load or a store, when the engine logs it)
+      } else if (e.kind === Ev.Iret) {
+        this.sysAt.set('iret', now);
+      } else if (e.kind === Ev.Space) {
+        this.sysAt.set('space', now);
+      } else if (e.kind === Ev.Mem) {
+        this.onMemory?.(dietraffic.accessTouch(e, now)); // (a load or a store, when the engine logs it)
+      }
     }
     for (const ev of fr.beats) {
       const events = byCycle.get(ev.cycle) ?? [];
-      const cls = opClass(ev.op);
-      this.send(packetsFor(plan, ev, { events }), now, cls);
-      if (ev.to === 'D') for (const r of regsRead(ev.text)) this.regRead[r] = now + CYCLE_MS * 0.1;
-      if (ev.to === 'M' && ev.miss) this.flash.miss = now;
-      if (ev.to === 'W' || ev.to === 'C') this.flash.retire = now;
-      if (ev.to === 'R') this.flash.result = now;
-      if (ev.to === 'x') this.flash.flush = now;
+      const cls = diemotion.opClass(ev.op);
+      this.send(diemotion.packetsFor(plan, ev, { events }), now, cls);
+      if (ev.to === 'D') {
+        for (const r of diemotion.regsRead(ev.text)) {
+          this.regRead[r] = now + CYCLE_MS * 0.1;
+        }
+      }
+      if (ev.to === 'M' && ev.miss) {
+        this.flash.miss = now;
+      }
+      if (ev.to === 'W' || ev.to === 'C') {
+        this.flash.retire = now;
+      }
+      if (ev.to === 'R') {
+        this.flash.result = now;
+      }
+      if (ev.to === 'x') {
+        this.flash.flush = now;
+      }
       if (cls === 'ld' || cls === 'st') {
         const m = events.find((e) => e.kind === Ev.Mem);
         if (m && (plan.arch === 'ooo' ? ev.to === 'X' : ev.to === 'M')) {
           this.addrs.set(ev.id, m.b >>> 0);
-          if (this.addrs.size > 400) this.addrs.delete(this.addrs.keys().next().value!);
+          if (this.addrs.size > 400) {
+            this.addrs.delete(this.addrs.keys().next().value!);
+          }
         }
       }
-      if (ev.to === 'F') this.onMemory?.(fetchTouch(ev.pc, cls, now));
+      if (ev.to === 'F') {
+        this.onMemory?.(dietraffic.fetchTouch(ev.pc, cls, now));
+      }
     }
     if (fr.tick) {
       this.flash.clock = now;
       const l = plan.links.find((x) => x.id === 'clk-core');
-      if (l) this.send([{ link: l, reverse: false, delay: 0, color: 'mute' }], now, 'sys');
+      if (l) {
+        this.send([{ link: l, reverse: false, delay: 0, color: 'mute' }], now, 'sys');
+      }
     }
 
     if (!draw) {
@@ -426,27 +477,42 @@ export class PlanView {
     // the instructions: pulses between blocks, and everything inside the blocks (glyphs, cells, glow)
     const seen = new Set<string>();
     this.tailG.clear();
-    for (const c of fr.fading) this.pulse(c, seen);
-    for (const c of fr.chips) this.pulse(c, seen);
-    for (const k of this.dots.keys()) if (!seen.has(k)) this.dots.delete(k);
+    for (const c of fr.fading) {
+      this.pulse(c, seen);
+    }
+    for (const c of fr.chips) {
+      this.pulse(c, seen);
+    }
+    for (const k of this.dots.keys()) {
+      if (!seen.has(k)) {
+        this.dots.delete(k);
+      }
+    }
 
     // blocks glow while an instruction is in them
     const want = new Map<string, string>();
     for (const c of fr.chips) {
-      if (c.alpha < 0.5) continue;
-      want.set(c.host, c.flushed ? T.bad : this.colorOf(opClass(c.op)));
+      if (c.alpha < 0.5) {
+        continue;
+      }
+      want.set(c.host, c.flushed ? T.bad : this.colorOf(diemotion.opClass(c.op)));
     }
-    for (const [id, color] of want) this.glow.set(id, { v: Math.min(1, (this.glow.get(id)?.v ?? 0) + 0.2), color });
-    for (const [id, g] of this.glow)
+    for (const [id, color] of want) {
+      this.glow.set(id, { v: Math.min(1, (this.glow.get(id)?.v ?? 0) + 0.2), color });
+    }
+    for (const [id, g] of this.glow) {
       if (!want.has(id)) {
         g.v *= 0.9;
-        if (g.v < 0.02) this.glow.delete(id);
+        if (g.v < 0.02) {
+          this.glow.delete(id);
+        }
       }
+    }
     const gg = this.glowG;
     gg.clear();
     for (const [id, g] of this.glow) {
       const b = this.byId.get(id);
-      if (b)
+      if (b) {
         box(gg, b.rect.x, b.rect.y, b.rect.w, b.rect.h, 3, {
           fill: g.color,
           fa: 0.16 * g.v,
@@ -454,16 +520,22 @@ export class PlanView {
           lw: 2.5,
           sa: 0.55 * g.v,
         });
+      }
     }
     for (const c of fr.chips) {
-      if (!c.stalled || c.alpha < 0.5) continue;
+      if (!c.stalled || c.alpha < 0.5) {
+        continue;
+      }
       const b = this.byId.get(c.host);
-      if (b) box(gg, b.rect.x, b.rect.y, b.rect.w, b.rect.h, 3, { stroke: T.ld, lw: 3, sa: 0.8 });
+      if (b) {
+        box(gg, b.rect.x, b.rect.y, b.rect.w, b.rect.h, 3, { stroke: T.ld, lw: 3, sa: 0.8 });
+      }
     }
     const fl = (t: number, ms: number) => Math.max(0, 1 - (now - t) / ms);
     const hot = (b: Block | undefined, k: number, color: string, w = 4) => {
-      if (b && k > 0)
+      if (b && k > 0) {
         box(gg, b.rect.x, b.rect.y, b.rect.w, b.rect.h, 3, { fill: color, fa: k * 0.4, stroke: color, lw: w, sa: k });
+      }
     };
     hot(
       plan.blocks.find((b) => b.kind === 'dcache'),
@@ -482,37 +554,40 @@ export class PlanView {
       T.mute,
       2,
     );
-    if (fl(this.flash.flush, 900) > 0)
+    if (fl(this.flash.flush, 900) > 0) {
       hot(
         plan.blocks.find((b) => b.kind === 'fetch'),
         fl(this.flash.flush, 900),
         T.bad,
         3,
       );
+    }
 
     this.uncoreG.clear();
-    if (this.uncoreG.visible) this.uncore.draw(this.uncoreG, this.plan!.blocks, this.T, now);
+    if (this.uncoreG.visible) {
+      this.uncore.draw(this.uncoreG, this.plan!.blocks, this.T, now);
+    }
     this.cells(player);
     this.glyphs(player);
     this.storage(fr.store, now);
-    drawTrails(this.trailG, this.trails, now, this.z);
-    this.packets = drawPackets(this.packetG, this.packets, now, this.z, this.T.ink);
+    diepulse.drawTrails(this.trailG, this.trails, now, this.z);
+    this.packets = diepulse.drawPackets(this.packetG, this.packets, now, this.z, this.T.ink);
   }
 
-  private texts_(id: string, used: Set<string>): CellTexts {
+  private texts_(id: string, used: Set<string>): diepulse.CellTexts {
     used.add(id);
     let ct = this.cellTexts.get(id);
     if (!ct) {
-      ct = new CellTexts(id.startsWith('data:') ? this.dataTexts : this.texts);
+      ct = new diepulse.CellTexts(id.startsWith('data:') ? this.dataTexts : this.texts);
       this.cellTexts.set(id, ct);
     }
     return ct;
   }
 
   /** The out-of-order structures as cells: the fetch queue, the scheduler and the reorder buffer, from the stage of each instruction in the replay. */
-  private cells(player: Player) {
+  private cells(player: diemotion.Player) {
     const plan = this.plan!,
-      T = this.T,
+      { T } = this,
       g = this.cellLive;
     if (plan.arch !== 'ooo') {
       if (this.cellSig !== '-') {
@@ -523,7 +598,9 @@ export class PlanView {
     }
     const rows = player.now();
     const sig = rows.map((r) => r.id + r.ch).join(',');
-    if (sig === this.cellSig && !this.cellAnim) return;
+    if (sig === this.cellSig && !this.cellAnim) {
+      return;
+    }
     this.cellSig = sig;
     g.clear();
     const wall = performance.now(),
@@ -541,15 +618,19 @@ export class PlanView {
       sched = plan.blocks.find((b) => b.kind === 'sched'),
       rob = plan.blocks.find((b) => b.kind === 'rob');
     const fill = (b: Block | undefined, items: { op: string; color: string; pc: number; id: number; ch: string }[]) => {
-      if (!b) return;
-      const cs = cellRects(b),
+      if (!b) {
+        return;
+      }
+      const cs = dieart.cellRects(b),
         ct = this.texts_(b.id, used);
       cs.forEach((r, k) => {
         const it = items[k];
         let u = 1;
         if (it) {
           u = Math.min(1, (wall - (cb.get(it.id + it.ch) ?? wall)) / WIPE_MS);
-          if (u < 1) this.cellAnim = true;
+          if (u < 1) {
+            this.cellAnim = true;
+          }
           const e = u * u * (3 - 2 * u);
           // a new entry grows into its cell from the middle and flashes white once
           const gw = r.w * (0.35 + 0.65 * e),
@@ -558,11 +639,18 @@ export class PlanView {
             fill: it.color,
             fa: 0.85 * (0.3 + 0.7 * e),
           });
-          if (u < 1) box(g, r.x, r.y, r.w, r.h, 1.5, { stroke: T.ink, lw: 2, sa: 1 - e });
-          if (r.w >= 28 && r.h >= 22) box(g, r.x + r.w - 10, r.y + 4, 6, 6, 3, { fill: idColor(it.id) }); // the instruction's own colour, as on its token
+          if (u < 1) {
+            box(g, r.x, r.y, r.w, r.h, 1.5, { stroke: T.ink, lw: 2, sa: 1 - e });
+          }
+          if (r.w >= 28 && r.h >= 22) {
+            box(g, r.x + r.w - 10, r.y + 4, 6, 6, 3, { fill: idColor(it.id) }); // the instruction's own colour, as on its token
+          }
         }
-        if (it && u < 0.6) ct.hide(k);
-        else ct.set(k, it?.op ?? '', it && r.h >= 40 ? pcText(it.pc) : '', r, T.on);
+        if (it && u < 0.6) {
+          ct.hide(k);
+        } else {
+          ct.set(k, it?.op ?? '', it && r.h >= 40 ? pcText(it.pc) : '', r, T.on);
+        }
       });
     };
     // the rename table: for each register, the newest instruction in flight that will write it (its address and colour), the rest idle
@@ -570,13 +658,17 @@ export class PlanView {
     if (rat) {
       const prod = new Map<number, (typeof rows)[number]>();
       for (const r of rows) {
-        if (r.ch !== 'S' && r.ch !== 'X' && r.ch !== 'R') continue;
+        if (r.ch !== 'S' && r.ch !== 'X' && r.ch !== 'R') {
+          continue;
+        }
         const w = writesOf(r.word);
         const old = w > 0 ? prod.get(w) : undefined;
-        if (w > 0 && (!old || r.id > old.id)) prod.set(w, r);
+        if (w > 0 && (!old || r.id > old.id)) {
+          prod.set(w, r);
+        }
       }
       const ct = this.texts_('rat', used);
-      cellRects(rat).forEach((r, k) => {
+      dieart.cellRects(rat).forEach((r, k) => {
         const it = prod.get(k);
         if (!it) {
           box(g, r.x, r.y, r.w, r.h, 1.5, { stroke: T.mute, lw: 1, sa: 0.35 });
@@ -585,16 +677,21 @@ export class PlanView {
         }
         const u = Math.min(1, (wall - (cb.get(`${it.id}rat`) ?? wall)) / WIPE_MS),
           e = u * u * (3 - 2 * u);
-        if (u < 1) this.cellAnim = true;
+        if (u < 1) {
+          this.cellAnim = true;
+        }
         const gw = r.w * (0.35 + 0.65 * e),
           gh = r.h * (0.35 + 0.65 * e);
         box(g, r.x + (r.w - gw) / 2, r.y + (r.h - gh) / 2, gw, gh, 1.5, {
-          fill: this.colorOf(opClass(it.op)),
+          fill: this.colorOf(diemotion.opClass(it.op)),
           fa: 0.85 * (0.3 + 0.7 * e),
         });
         box(g, r.x + r.w - 8, r.y + 3, 5, 5, 2.5, { fill: idColor(it.id) });
-        if (u < 0.6) ct.hide(k);
-        else ct.set(k, REG[k] ?? `x${k}`, r.h >= 24 ? pcText(it.pc) : '', r, T.on);
+        if (u < 0.6) {
+          ct.hide(k);
+        } else {
+          ct.set(k, REG[k] ?? `x${k}`, r.h >= 24 ? pcText(it.pc) : '', r, T.on);
+        }
       });
     }
     fill(
@@ -617,24 +714,30 @@ export class PlanView {
         ch: r.ch,
       })),
     );
-    if (rob && live.length) {
-      const cs = cellRects(rob);
-      const h = cs[0];
-      if (h) box(g, h.x - 1, h.y - 1, h.w + 2, h.h + 2, 2, { stroke: T.ink, lw: 2 });
+    if (rob && live.length > 0) {
+      const cs = dieart.cellRects(rob);
+      const [h] = cs;
+      if (h) {
+        box(g, h.x - 1, h.y - 1, h.w + 2, h.h + 2, 2, { stroke: T.ink, lw: 2 });
+      }
       const tl = cs[live.length];
-      if (tl) box(g, tl.x - 1, tl.y - 1, tl.w + 2, tl.h + 2, 2, { stroke: T.mute, lw: 1.2, sa: 0.8 });
+      if (tl) {
+        box(g, tl.x - 1, tl.y - 1, tl.w + 2, tl.h + 2, 2, { stroke: T.mute, lw: 1.2, sa: 0.8 });
+      }
     }
   }
 
   /** The symbols inside the blocks (blockart.ts) show the instructions in them: the PC's digits, the words fetched, the decoded word and the control lines it raises, the operation in the ALU. */
-  private glyphs(player: Player) {
+  private glyphs(player: diemotion.Player) {
     const plan = this.plan!,
-      T = this.T,
+      { T } = this,
       g = this.glyphG;
     const rows = player.now();
     const sig = rows.map((r) => r.id + r.ch + r.lane).join(',');
     const wall = performance.now();
-    if (sig === this.glyphSig && !this.glyphAnim) return;
+    if (sig === this.glyphSig && !this.glyphAnim) {
+      return;
+    }
     this.glyphSig = sig;
     g.clear();
     // when each instruction got into its block: its words wipe in, the control lines light one after another
@@ -651,17 +754,26 @@ export class PlanView {
     >();
     for (const r of rows) {
       const host = player.hostOf(r.ch, r.lane, r.op, r.id);
-      if (!host) continue;
+      if (!host) {
+        continue;
+      }
       const l = by.get(host.id);
-      if (l) l.push(r);
-      else by.set(host.id, [r]);
+      if (l) {
+        l.push(r);
+      } else {
+        by.set(host.id, [r]);
+      }
     }
-    const fetched = rows.filter((r) => r.ch === 'F').sort((a, b) => a.id - b.id)[0];
+    const [fetched] = rows.filter((r) => r.ch === 'F').sort((a, b) => a.id - b.id);
     const used = new Set<string>();
     for (const b of plan.blocks) {
-      if (!hasSymbol(b)) continue;
+      if (!hasSymbol(b)) {
+        continue;
+      }
       const a = glyphArea(b);
-      if (!a) continue;
+      if (!a) {
+        continue;
+      }
       // the immediate lights when the instruction being decoded has one, the dispatch lanes when instructions go to the scheduler
       // the hazard unit's lamp lights while an instruction waits in decode; the forwarding unit's multiplexer when an operand of the instruction executing is the result of one ahead of it
       const ahead = rows
@@ -689,7 +801,9 @@ export class PlanView {
                 ? rows.filter((r) => r.ch === 'S' && r.fresh)
                 : (by.get(b.id) ?? []);
       const prog = here.map((r) => Math.min(1, (wall - (born.get(r.id + r.ch) ?? wall)) / WIPE_MS));
-      if (prog.some((x) => x < 1)) this.glyphAnim = true;
+      if (prog.some((x) => x < 1)) {
+        this.glyphAnim = true;
+      }
       const live = glyphLive(
         b,
         a,
@@ -697,22 +811,32 @@ export class PlanView {
         b.kind === 'pc' ? fetched?.pc : undefined,
         prog.map((x) => x * x * (3 - 2 * x)),
       );
-      for (const l of live.lit) box(g, l.rect.x, l.rect.y, l.rect.w, l.rect.h, 1.5, { fill: T[l.color], fa: l.a });
-      if (live.texts.length === 0) continue;
+      for (const l of live.lit) {
+        box(g, l.rect.x, l.rect.y, l.rect.w, l.rect.h, 1.5, { fill: T[l.color], fa: l.a });
+      }
+      if (live.texts.length === 0) {
+        continue;
+      }
       const ct = this.texts_(`g:${b.id}`, used);
       live.texts.forEach((t, k) => ct.set(k, t.top, t.bottom, t.rect, T.on));
       ct.hideFrom(live.texts.length);
     }
-    for (const [id, ct] of this.cellTexts) if (id.startsWith('g:') && !used.has(id)) ct.hideFrom(0);
+    for (const [id, ct] of this.cellTexts) {
+      if (id.startsWith('g:') && !used.has(id)) {
+        ct.hideFrom(0);
+      }
+    }
   }
 
   /** What the register file, the caches and the predictor hold at the cycle being shown; reads and writes flash. */
-  private storage(st: StoreReplay | null, now: number) {
+  private storage(st: diemotion.StoreReplay | null, now: number) {
     const plan = this.plan!,
-      T = this.T,
+      { T } = this,
       g = this.dataG;
     g.clear();
-    if (!st) return;
+    if (!st) {
+      return;
+    }
     const used = new Set<string>();
     const fade = (t: number, ms: number) => (t < 0 ? 0 : Math.max(0, 1 - (now - t) / ms));
     const sigParts: string[] = [];
@@ -720,15 +844,19 @@ export class PlanView {
     // the register file: a name and a value in each cell
     const rf = plan.blocks.find((b) => b.kind === 'regfile');
     if (rf) {
-      const cs = cellRects(rf),
+      const cs = dieart.cellRects(rf),
         ct = this.texts_('data:rf', used);
       cs.forEach((r, k) => {
         const w = fade(this.regWrite[k] ?? -1, 900),
           rd = fade(this.regRead[k] ?? -1, 600);
-        if (w > 0) box(g, r.x, r.y, r.w, r.h, 1.5, { fill: T.st, fa: 0.75 * w });
-        if (rd > 0) box(g, r.x, r.y, r.w, r.h, 1.5, { stroke: T.alu, lw: 3, sa: rd });
+        if (w > 0) {
+          box(g, r.x, r.y, r.w, r.h, 1.5, { fill: T.st, fa: 0.75 * w });
+        }
+        if (rd > 0) {
+          box(g, r.x, r.y, r.w, r.h, 1.5, { stroke: T.alu, lw: 3, sa: rd });
+        }
         const v = st.regs[k] ?? 0;
-        if (v !== 0 || k === 0)
+        if (v !== 0 || k === 0) {
           box(
             g,
             r.x + 1,
@@ -738,6 +866,7 @@ export class PlanView {
             1,
             { fill: T.st, fa: 0.5 },
           );
+        }
         const s1 = REG[k] ?? `x${k}`,
           s2 = showValue(v);
         sigParts.push(s2);
@@ -750,12 +879,14 @@ export class PlanView {
     const drawCache = (
       id: string,
       b: Block | undefined,
-      c: CacheView | undefined,
+      c: diemotion.CacheView | undefined,
       content: (words: number[] | undefined) => string,
       color: string,
     ) => {
-      if (!b || !c) return;
-      const cs = cellRects(b),
+      if (!b || !c) {
+        return;
+      }
+      const cs = dieart.cellRects(b),
         ct = this.texts_(`data:${id}`, used);
       cs.forEach((r, k) => {
         const tag = c.tags[k] ?? -1;
@@ -765,7 +896,9 @@ export class PlanView {
         }
         box(g, r.x, r.y, r.w, r.h, 1.5, { fill: color, fa: 0.3 });
         const f = fade(this.slotTime.get(id + k) ?? -1, 900);
-        if (f > 0) box(g, r.x, r.y, r.w, r.h, 1.5, { fill: color, fa: 0.7 * f, stroke: T.ink, lw: 2, sa: f });
+        if (f > 0) {
+          box(g, r.x, r.y, r.w, r.h, 1.5, { fill: color, fa: 0.7 * f, stroke: T.ink, lw: 2, sa: f });
+        }
         const words = c.words.get(tag);
         const s2 = content(words);
         sigParts.push(String(tag) + s2);
@@ -779,7 +912,7 @@ export class PlanView {
     // the TLB: the virtual page each entry stands for and the frame it maps to
     const tl = cacheBlock('tlb');
     if (tl && st.tlb) {
-      const cs = cellRects(tl),
+      const cs = dieart.cellRects(tl),
         ct = this.texts_('data:tlb', used),
         tb = st.tlb;
       cs.forEach((r, k) => {
@@ -790,7 +923,7 @@ export class PlanView {
         }
         box(g, r.x, r.y, r.w, r.h, 1.5, { fill: T.st, fa: 0.3 });
         const f = fade(this.slotTime.get(`t${k}`) ?? -1, 900);
-        if (f > 0)
+        if (f > 0) {
           box(g, r.x, r.y, r.w, r.h, 1.5, {
             fill: this.tlbKind.get(k) === 1 ? T.st : T.alu,
             fa: 0.7 * f,
@@ -798,6 +931,7 @@ export class PlanView {
             lw: 2,
             sa: f,
           }); // a fill (after a walk) or a hit
+        }
         ct.set(k, `v${hex(vpn * 256, 4)}`, `p${hex((tb.frame[k] ?? 0) * 256, 4)}`, r, T.ink);
       });
     }
@@ -805,8 +939,9 @@ export class PlanView {
     // the OS at work: the interrupt controller lights when an interrupt is taken and when iret returns; the TLB block when the address space changes or a page faults
     const flash = (b: Block | undefined, key: string, ms: number, color: string, lw = 3) => {
       const f = fade(this.sysAt.get(key) ?? -1, ms);
-      if (b && f > 0)
+      if (b && f > 0) {
         box(g, b.rect.x, b.rect.y, b.rect.w, b.rect.h, 3, { stroke: color, lw, sa: f, fill: color, fa: 0.18 * f });
+      }
     };
     const ic = this.motion!.blocks.find((b) => b.id === 'intc' || b.kind === 'intc');
     flash(ic, 'irq', 1100, T.br, 4);
@@ -834,17 +969,25 @@ export class PlanView {
     // the branch predictor: a counter per entry, brighter the more sure it is of "taken"
     const bp = cacheBlock('predictor');
     if (bp) {
-      const cs = cellRects(bp),
+      const cs = dieart.cellRects(bp),
         max = st.pred.bits === 2 ? 3 : 1;
       cs.forEach((r, k) => {
         const v = st.pred.table[k] ?? 0;
-        if (v > 0) box(g, r.x, r.y, r.w, r.h, 1.5, { fill: T.br, fa: 0.15 + 0.7 * (v / max) });
+        if (v > 0) {
+          box(g, r.x, r.y, r.w, r.h, 1.5, { fill: T.br, fa: 0.15 + 0.7 * (v / max) });
+        }
         const f = fade(this.slotTime.get(`p${k}`) ?? -1, 700);
-        if (f > 0) box(g, r.x, r.y, r.w, r.h, 1.5, { stroke: T.ink, lw: 2, sa: f });
+        if (f > 0) {
+          box(g, r.x, r.y, r.w, r.h, 1.5, { stroke: T.ink, lw: 2, sa: f });
+        }
       });
     }
     void sigParts;
-    for (const [id, ct] of this.cellTexts) if (id.startsWith('data:') && !used.has(id)) ct.hideFrom(0);
+    for (const [id, ct] of this.cellTexts) {
+      if (id.startsWith('data:') && !used.has(id)) {
+        ct.hideFrom(0);
+      }
+    }
   }
 
   /** The replay clock of the last hit or fill of each cache slot and predictor entry, in game ms (for the flash). */
