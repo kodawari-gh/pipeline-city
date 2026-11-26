@@ -58,7 +58,8 @@ import { Signals, street } from './street';
 import { SunMap } from './sunmap';
 import { Sweep, sweptMerge } from './sweep';
 import { lowFacadeMaterial, type LowLamps } from './lowfacade';
-import { facadeMaterial, massGeometries, massSteps, type FacadeUniforms, type MassRing } from './towers';
+import { facadeMaterial, type FacadeUniforms } from './towers/facade';
+import { massGeometries, massSteps, type MassRing } from './towers/rings';
 import { Traffic } from './traffic';
 import { plantTrees, type LeafUniforms } from './trees';
 
@@ -72,11 +73,11 @@ const LIT_LAMPS = 8,
   LAMPS_AT = new Vector3(GRID.av0, 0, -70);
 /**
  * The glass's share of the light: a neutral grey glass, the same at every hour, so the bright day keeps to the room's exposure and the night
- * city is as dim through it as the day's. The room's light from outside (the sky's, the sun's) takes the same share (`room3d.ts`).
+ * city is as dim through it as the day's. The room's light from outside (the sky's, the sun's) takes the same share (`room3d/frame.ts`).
  */
 export const GLASS_T = 0.47;
 /*
- * The night out here is in the room's units (`nits` in `room3d.ts`: a unit is about 700 cd/m2): the sky's glow, the haze and the mist over a
+ * The night out here is in the room's units (`nits` in `room3d/consts.ts`: a unit is about 700 cd/m2): the sky's glow, the haze and the mist over a
  * city are a few cd/m2, the moon's light far less, all far below the room's lamps. So at night the room is the picture and the city the dark
  * behind it, its lit windows and signs its brightest parts (`light.md` "Targets": at 23:00 the city is half the room's mean or less).
  */
@@ -106,7 +107,7 @@ const duskLight = (h: number): number => 1 - 0.7 * smooth(19, 20.9, h) - 0.65 * 
 const DUSK_HAZE = 0.6;
 /**
  * The city's lights at an hour (0 to 1): they come on as its sky darkens, evenly from 17:00 to 20:00 (the room's daylight is still about .76
- * at 18:30, under a purple sky), and go off with the dawn. Each building has its own time in the ramp (`towers.ts`), so they come on one by
+ * at 18:30, under a purple sky), and go off with the dawn. Each building has its own time in the ramp (`towers/shaderWall.ts`), so they come on one by
  * one: a few at 17:30, about half at 18:30, all by 20:00.
  */
 const lightsAt = (h: number): number => (h < 12 ? 1 - smooth(5.2, 7.4, h) : Math.min(1, Math.max(0, (h - 17) / 3)));
@@ -356,7 +357,11 @@ export class OutsideView {
   private *massing(): Generator<void> {
     const blocks = buildings(),
       washes: SignWash[] = [];
-    this.early = { blocks, washes, rings: yield* massSteps(blocks, washes, this.cuts.far ? 'low' : 'high') };
+    this.early = {
+      blocks,
+      washes,
+      rings: yield* massSteps(blocks, washes, { detail: this.cuts.far ? 'low' : 'high' }),
+    };
   }
 
   /**

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { decode, OPS, SPEC_BY_NAME } from '../isa/isa';
 import { Prng } from '@/core/sim';
-import { InstrPool } from './common';
+import { InstrPool } from './pool';
 
 describe('allocation-free decode', () => {
   it('InstrPool.decodeSlot matches isa decode on random words, legal and illegal', () => {

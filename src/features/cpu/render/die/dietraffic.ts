@@ -1,5 +1,5 @@
 import type { Snapshot } from '@/worker/protocol';
-import { Ev } from '../../sim/engines/common';
+import { Ev } from '../../sim/engines/events';
 import type { CpuPlan } from '../core/cpuplan';
 import { splitPlan } from '../core/coreplan';
 import * as diemotion from './diemotion';

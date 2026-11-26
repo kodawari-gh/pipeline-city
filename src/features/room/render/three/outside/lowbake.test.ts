@@ -1,4 +1,4 @@
-// The Low city's facade bake (fail-first). At Low the buildings leave `facadeMaterial`'s per-pixel shader (`towers.ts`) for a cheap
+// The Low city's facade bake (fail-first). At Low the buildings leave `facadeMaterial`'s per-pixel shader (`towers/facade.ts`) for a cheap
 // material that samples a baked day map, with the night windows as live emissive (High's rooms, window by window), never in the albedo.
 // High keeps `facadeMaterial` unchanged. The building meshes are the ones with the facade's per-vertex attributes (`fuv`).
 import { DataUtils, LinearMipmapLinearFilter, type Material, type Mesh, type Scene, type Texture } from 'three';
@@ -14,7 +14,7 @@ import {
   LOW_NIGHT_WALL,
   lowFacadeMaps,
 } from './lowfacade';
-import { facadeMaterial } from './towers';
+import { facadeMaterial } from './towers/facade';
 
 const inner = (v: OutsideView): { scene: Scene } => v as unknown as { scene: Scene };
 

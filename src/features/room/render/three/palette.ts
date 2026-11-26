@@ -1,5 +1,5 @@
 // The 3D room's tones (sRGB), dark to sit with the game's dark interface: one slate for the walls, one charcoal board for the floor, the desk
-// top and the bookcase (one material, `smokedOak` in `furniture3d.ts`: the palette's `OAK` as its colour, its maps only shade it, so the
+// top and the bookcase (one material, `smokedOak` in `furniture/oak.ts`: the palette's `OAK` as its colour, its maps only shade it, so the
 // lamps and the window light the three as one surface), charcoal flat-pack furniture, dark stoneware pots, muted cloth. The accents are one family each: terracotta for
 // things (the runner, the print's sun), the PC's violet on the keyboard's accent keys, cyan for what glows in tech (the LED strips, the clock, the router's
 // lights), a warm amber for lamp light. Modern and plain: the builders take their colours from here.

@@ -15,7 +15,7 @@ import {
   createEngine,
   type OooView,
 } from '../index';
-import type { PipelineEngine } from '../common';
+import type { PipelineEngine } from '../contract';
 import { genData, genProgram } from '../testgen';
 import { runEngine, runProgram } from '../testutil';
 

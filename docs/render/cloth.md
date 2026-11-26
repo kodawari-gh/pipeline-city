@@ -38,4 +38,4 @@ The phases: first `sew` with no gravity (`sew: Infinity, keep: 0`), then gravity
 
 ## Look at it
 
-Bake, then screenshot the room (`npm run shot -- <out.png> --3d`). For a close view, run `node tools/shot.mjs` directly with `--eval`: on Windows `npm run` passes through cmd.exe, which breaks code that holds `<`, `>` or `|`. In dev, `window.__board.lookAt(x, y, z, yaw, pitch, height)` aims the 3D camera (world y is `-y`) and `window.__board.scene` is the scene.
+Bake, then screenshot the room (`npm run shot -- <out.png> --3d`). For a close view, run `node tools/shot.mjs` directly with `--eval`: on Windows `npm run` passes through cmd.exe, which breaks code that holds `<`, `>` or `|`. In dev, `window.__board.lookAt({ x, y, z, yaw, pitch, height })` aims the 3D camera (world y is `-y`) and `window.__board.scene` is the scene.

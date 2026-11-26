@@ -39,6 +39,6 @@ The word's cap height is 0.42 of the mark's height. The gap is 0.3.
 
 ## Use
 
-- The monitor's standby screen: the mark above the word, both faded in one tone (`live.ts`, `buildStandby`).
+- The monitor's standby screen: the mark above the word, both faded in one tone (`live/screen.ts`, `buildStandby`).
 - The room monitor's standby card: the mark alone (`props3d.ts`).
 - Do not round the bends. Do not draw the via without its gap.

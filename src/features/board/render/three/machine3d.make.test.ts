@@ -42,8 +42,11 @@ describe('Machine3D.make', () => {
   const snap = maxedSnapshot();
 
   it('builds the machine the constructor builds', async () => {
-    const whole = new Machine3D(snap, roomGeo(), new BakeQueue(), null, false);
-    const made = await Machine3D.make(snap, roomGeo(), new BakeQueue(), null, false, {
+    const whole = new Machine3D(snap, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: false });
+    const made = await Machine3D.make(snap, roomGeo(), {
+      q: new BakeQueue(),
+      chips: null,
+      inRoom: false,
       budget: 0,
       slice: async () => {},
     });
@@ -56,17 +59,20 @@ describe('Machine3D.make', () => {
     const slice = async () => {
       turns++;
     };
-    await Machine3D.make(snap, roomGeo(), new BakeQueue(), null, false, { budget: 0, slice });
+    await Machine3D.make(snap, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: false, budget: 0, slice });
     expect(turns).toBeGreaterThan(20);
     // (the clock stands still in this file: no time has passed, so a budget above 0 is never spent)
     turns = 0;
-    await Machine3D.make(snap, roomGeo(), new BakeQueue(), null, false, { budget: 1, slice });
+    await Machine3D.make(snap, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: false, budget: 1, slice });
     expect(turns).toBe(0);
   });
 
   it('gives each turn to the page before it goes on, in order', async () => {
     const log: string[] = [];
-    await Machine3D.make(snap, roomGeo(), new BakeQueue(), null, false, {
+    await Machine3D.make(snap, roomGeo(), {
+      q: new BakeQueue(),
+      chips: null,
+      inRoom: false,
       budget: 0,
       slice: async () => {
         log.push('turn');
@@ -81,7 +87,10 @@ describe('Machine3D.make', () => {
 
   it('stops at the next turn once the caller does not want it, and returns nothing', async () => {
     let turns = 0;
-    const made = await Machine3D.make(snap, roomGeo(), new BakeQueue(), null, false, {
+    const made = await Machine3D.make(snap, roomGeo(), {
+      q: new BakeQueue(),
+      chips: null,
+      inRoom: false,
       budget: 0,
       slice: async () => {
         turns++;
@@ -93,8 +102,11 @@ describe('Machine3D.make', () => {
   });
 
   it('builds a machine with no parts at all (no snapshot)', async () => {
-    const whole = new Machine3D(null, roomGeo(), new BakeQueue(), null, false);
-    const made = await Machine3D.make(null, roomGeo(), new BakeQueue(), null, false, {
+    const whole = new Machine3D(null, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: false });
+    const made = await Machine3D.make(null, roomGeo(), {
+      q: new BakeQueue(),
+      chips: null,
+      inRoom: false,
       budget: 0,
       slice: async () => {},
     });
@@ -102,8 +114,19 @@ describe('Machine3D.make', () => {
   });
 
   it('builds a bare case (no board) as the constructor does: the case and its leads, nothing of a board', async () => {
-    const whole = new Machine3D(snap, roomGeo(), new BakeQueue(), null, false, true, true, false, 'case');
-    const made = await Machine3D.make(snap, roomGeo(), new BakeQueue(), null, false, {
+    const whole = new Machine3D(snap, roomGeo(), {
+      q: new BakeQueue(),
+      chips: null,
+      inRoom: false,
+      merge: true,
+      lod: true,
+      defer: false,
+      shown: 'case',
+    });
+    const made = await Machine3D.make(snap, roomGeo(), {
+      q: new BakeQueue(),
+      chips: null,
+      inRoom: false,
       budget: 0,
       slice: async () => {},
       shown: 'case',
@@ -115,13 +138,24 @@ describe('Machine3D.make', () => {
     expect(whole.caseRoots.length).toBeGreaterThan(0);
     // (far less than the maxed machine: no board, no part, no cable)
     expect(census(whole)['meshes']).toBeLessThan(
-      census(new Machine3D(snap, roomGeo(), new BakeQueue(), null, false))['meshes']!,
+      census(new Machine3D(snap, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: false }))['meshes']!,
     );
   });
 
   it('builds nothing for an empty stage: no case, no board, no part, and no side panel to move', async () => {
-    const whole = new Machine3D(snap, roomGeo(), new BakeQueue(), null, false, true, true, false, 'nothing');
-    const made = await Machine3D.make(snap, roomGeo(), new BakeQueue(), null, false, {
+    const whole = new Machine3D(snap, roomGeo(), {
+      q: new BakeQueue(),
+      chips: null,
+      inRoom: false,
+      merge: true,
+      lod: true,
+      defer: false,
+      shown: 'nothing',
+    });
+    const made = await Machine3D.make(snap, roomGeo(), {
+      q: new BakeQueue(),
+      chips: null,
+      inRoom: false,
       budget: 0,
       slice: async () => {},
       shown: 'nothing',
@@ -130,7 +164,17 @@ describe('Machine3D.make', () => {
     expect(whole.caseRoots).toHaveLength(0);
     expect(whole.boardRoots().filter((o) => o.name !== 'standin')).toHaveLength(0);
     expect(census(whole)['meshes']).toBeLessThan(
-      census(new Machine3D(snap, roomGeo(), new BakeQueue(), null, false, true, true, false, 'case'))['meshes']!,
+      census(
+        new Machine3D(snap, roomGeo(), {
+          q: new BakeQueue(),
+          chips: null,
+          inRoom: false,
+          merge: true,
+          lod: true,
+          defer: false,
+          shown: 'case',
+        }),
+      )['meshes']!,
     );
     // (the calls a stage makes on any machine are no-ops with no case: there is no door)
     expect(() => {
@@ -146,8 +190,17 @@ describe('Machine3D.make', () => {
   });
 
   it('builds without the merge or the stand-ins as the constructor does', async () => {
-    const whole = new Machine3D(snap, roomGeo(), new BakeQueue(), null, false, false, false);
-    const made = await Machine3D.make(snap, roomGeo(), new BakeQueue(), null, false, {
+    const whole = new Machine3D(snap, roomGeo(), {
+      q: new BakeQueue(),
+      chips: null,
+      inRoom: false,
+      merge: false,
+      lod: false,
+    });
+    const made = await Machine3D.make(snap, roomGeo(), {
+      q: new BakeQueue(),
+      chips: null,
+      inRoom: false,
       merge: false,
       lod: false,
       budget: 0,

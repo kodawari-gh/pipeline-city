@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Ev } from '../sim/engines/common';
+import { Ev } from '../sim/engines/events';
 import { RowOutcome } from '../../memory/sim/dram';
 import type { GpuStep } from '../../gpu/sim/isa/ref';
 import { decodeEvent, decodeEvents, gpuLines, TraceBuffer } from './trace';

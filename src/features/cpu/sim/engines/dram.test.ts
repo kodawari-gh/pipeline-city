@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { Dram, RowOutcome, type DramSettings } from '@/features/memory/sim/dram';
 import { createEngine, Counter, type EngineConfig, type PipelineEngine } from './index';
-import { Ev } from './common';
+import { Ev } from './events';
 import { genData, genProgram } from './testgen';
 import { firstMemDiff, runEngine, runRef } from './testutil';
 

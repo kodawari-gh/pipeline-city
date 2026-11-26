@@ -41,13 +41,13 @@ describe.each([
     // (built dark: the model lights nothing by itself)
     expect(glow(m.root, BOARD.link)).toBe(0);
     expect(glow(m.root, BOARD.act)).toBe(0);
-    m.frame(s, 0.016, 0.016, level(1, 0));
+    m.frame(s, { dt: 0.016, doorDt: 0.016, net: level(1, 0) });
     expect(glow(m.root, BOARD.link)).toBeCloseTo(JACK_GLOW.link, 9);
     expect(glow(m.root, BOARD.act)).toBe(0);
-    m.frame(s, 0.016, 0.016, level(1, 1));
+    m.frame(s, { dt: 0.016, doorDt: 0.016, net: level(1, 1) });
     expect(glow(m.root, BOARD.link)).toBeCloseTo(JACK_GLOW.link, 9);
     expect(glow(m.root, BOARD.act)).toBeCloseTo(JACK_GLOW.act, 9);
-    m.frame(s, 0.016, 0.016, level(0, 0));
+    m.frame(s, { dt: 0.016, doorDt: 0.016, net: level(0, 0) });
     expect(glow(m.root, BOARD.link)).toBe(0);
     expect(glow(m.root, BOARD.act)).toBe(0);
   });
@@ -55,12 +55,12 @@ describe.each([
   it('are dark with no levels given, and with no game', () => {
     const s = netRig('ssd1').snapshot(),
       m = buildMachine(s, merge);
-    m.frame(s, 0.016, 0.016, level(1, 1));
-    m.frame(s, 0.016);
+    m.frame(s, { dt: 0.016, doorDt: 0.016, net: level(1, 1) });
+    m.frame(s, { dt: 0.016 });
     expect(glow(m.root, BOARD.link)).toBe(0);
     expect(glow(m.root, BOARD.act)).toBe(0);
-    m.frame(s, 0.016, 0.016, level(1, 1));
-    m.frame(null, 0.016, 0.016, DARK);
+    m.frame(s, { dt: 0.016, doorDt: 0.016, net: level(1, 1) });
+    m.frame(null, { dt: 0.016, doorDt: 0.016, net: DARK });
     expect(glow(m.root, BOARD.link)).toBe(0);
     expect(glow(m.root, BOARD.act)).toBe(0);
   });
@@ -69,7 +69,7 @@ describe.each([
     const s = netRig('ssd1', { port: 'nic1' }).snapshot();
     expect(s.net.port.kind).toBe('nic');
     const m = buildMachine(s, merge);
-    m.frame(s, 0.016, 0.016, level(1, 1));
+    m.frame(s, { dt: 0.016, doorDt: 0.016, net: level(1, 1) });
     expect(glow(m.root, CARD.link)).toBeCloseTo(JACK_GLOW.link, 9);
     expect(glow(m.root, CARD.act)).toBeCloseTo(JACK_GLOW.act, 9);
     expect(glow(m.root, BOARD.link)).toBe(0);
@@ -80,7 +80,7 @@ describe.each([
     const s = netRig('ssd1', { port: 'nic1' }).snapshot();
     const out: Snapshot = { ...s, net: { ...s.net, port: { kind: null, deviceId: null, mbps: 0 } } };
     const m = buildMachine(out, merge);
-    m.frame(out, 0.016, 0.016, level(1, 1));
+    m.frame(out, { dt: 0.016, doorDt: 0.016, net: level(1, 1) });
     for (const hex of [BOARD.link, BOARD.act, CARD.link, CARD.act])
       expect(glow(m.root, hex) ?? 0, hex.toString(16)).toBe(0);
   });
@@ -97,7 +97,7 @@ describe("the jacks' lights from a running game", () => {
       for (let i = 0; i < n; i++) {
         g.advanceBaseTick();
         const s = g.snapshot();
-        m.frame(s, dt, dt, leds.step(s, dt));
+        m.frame(s, { dt, doorDt: dt, net: leds.step(s, dt) });
         if (lit() > 0) seen++;
       }
       return seen;

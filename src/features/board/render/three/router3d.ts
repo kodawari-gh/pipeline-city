@@ -1,5 +1,5 @@
 // The router as a 3D model (docs/render/net.md "The router"): one builder for the gallery's showcase and its stills, the Build my PC studio's wall
-// (`studiowall3d.ts`) and the room's shelf (`room3d.ts`), so a router reads the same in all three. Four tiers: the home router (two aerials, four lights),
+// (`studiowall3d.ts`) and the room's shelf (`room3d/router.ts`), so a router reads the same in all three. Four tiers: the home router (two aerials, four lights),
 // the gigabit one (stouter aerials, a satin front, vents), the 10G switch-router (no aerials, a lit bar, fins) and the edge router (a rack unit: ears, two
 // rows of lights). Every tier has the same five front ports in a row, the first LAN east, the WAN west, so a cord's plug seats in the same place on every tier: a real
 // RJ45 jack each at real size (`rj45jack3d.ts`), but the edge router's five ports, which run at 40G, are QSFP+ cages (`qsfp3d.ts`: a real edge router has no copper port,
@@ -61,7 +61,7 @@ const FOOT = 40,
 export const ROUTER_FLOOR = UNDER + 30;
 
 /**
- * Where the room stands the router of `tier` in its spot (`room3d.ts`; the detailed view's panel lies over its front, `machine3d.ts`): the one scale that fits its box in the spot,
+ * Where the room stands the router of `tier` in its spot (`room3d/router.ts`; the detailed view's panel lies over its front, `machine3d.ts`): the one scale that fits its box in the spot,
  * how far its front stands out of the wall, and its front bezel in the room's layout units (x east, y down).
  */
 export function routerFit(tier: number, spot: RectLike = ROUTER_SPOT): { k: number; front: number; face: RectLike } {

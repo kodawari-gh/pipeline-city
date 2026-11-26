@@ -83,10 +83,10 @@ try {
       const B = window.__build;
       B.openInside(true);
       await new Promise((r) => setTimeout(r, 1200)); // (the door swings and the camera follows: aim after it)
-      const [yaw, pitch, fill] = VIEW.split(',').map(Number);
+      const [yaw, pitch, fill] = String(VIEW).split(',').map(Number);
       for (let i = 0; i < 80; i++) {
         const f = B.board.devices.find((d) => d.slot === FOCUS);
-        if (f && B.focus('dev:' + f.id, yaw, pitch, fill)) break;
+        if (f && B.focus('dev:' + f.id, { yaw, pitch, fill })) break;
         await new Promise((r) => setTimeout(r, 100));
       }
       await new Promise((r) => setTimeout(r, 700));

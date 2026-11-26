@@ -1,11 +1,11 @@
 export * from './view';
-export { type PipelineEngine } from './common';
+export { type PipelineEngine } from './contract';
 export { UnpipelinedEngine } from './unpipelined';
 export { InOrderEngine, type InOrderSettings } from './inorder';
 export { OooEngine } from './ooo';
 
 import { RefEngine, type Engine } from '@/core/sim';
-import type { EngineSettings } from './common';
+import type { EngineSettings } from './contract';
 import { InOrderEngine, type InOrderSettings } from './inorder';
 import { OooEngine, type OooSettings } from './ooo';
 import { UnpipelinedEngine } from './unpipelined';

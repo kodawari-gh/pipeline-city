@@ -83,10 +83,10 @@ describe('the Build camera frames the machine in the free area', () => {
 describe('the rim light stays cool', () => {
   it('keeps the Build rim light at the cool 0x8fb0ff, as ADR 0001 says', () => {
     const src = readFileSync(
-      urlMod.fileURLToPath(new URL('../../../features/board/render/three/buildmode3d.ts', import.meta.url)),
+      urlMod.fileURLToPath(new URL('../../../features/board/render/three/buildstage/studio.ts', import.meta.url)),
       'utf8',
     ) as string;
-    expect(src).toMatch(/new DirectionalLight\(0x8fb0ff,\s*0\.45\)/);
-    expect(src).not.toMatch(/0xc8d0e0/);
+    expect(src).toMatch(/new DirectionalLight\(0x8f_?b0_?ff,\s*0\.45\)/);
+    expect(src).not.toMatch(/0xc8_?d0_?e0/);
   });
 });

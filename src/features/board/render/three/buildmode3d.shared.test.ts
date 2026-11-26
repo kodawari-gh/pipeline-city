@@ -32,8 +32,8 @@ const common = (a: ReturnType<typeof owned>, b: ReturnType<typeof owned>) => ({
 
 it('the Build my PC scene shares no material or texture with the live room or the live machine', () => {
   const snap = maxedSnapshot();
-  const stage = new Machine3D(snap, roomGeo(), new BakeQueue(), null, false),
-    live = new Machine3D(snap, roomGeo(), new BakeQueue(), null, true);
+  const stage = new Machine3D(snap, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: false }),
+    live = new Machine3D(snap, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: true });
   const room = new Room3D(),
     monitor = new Monitor(MONITOR, SCREEN, DESK_Y, 0);
   monitor.set({ installed: true, powered: true, live: false, text: '' }, 12);

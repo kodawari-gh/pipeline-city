@@ -45,13 +45,13 @@ it('every tier merges the router, the key rack, the mailbox, the cable plugs and
   const build = (low: boolean) => {
     setLowDetail(low);
     const room = new Room3D();
-    const machine = new Machine3D(snap, roomGeo(), new BakeQueue(), null, true);
+    const machine = new Machine3D(snap, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: true });
     return { room, machine };
   };
   const hi = build(false),
     lo = build(true);
 
-  // the router on its shelf, the key rack, the letterbox (room3d.ts: `mergeWithin`)
+  // the router on its shelf, the key rack, the letterbox (room3d/: `mergeWithin`)
   for (const id of ['router', 'tray', 'mail']) {
     expect(merged(findById(hi.room.root, id)), `${id} merged at High`).toBeGreaterThan(0);
     expect(merged(findById(lo.room.root, id)), `${id} merged at Low`).toBeGreaterThan(0);
@@ -74,7 +74,7 @@ it("the plug's static rig is merged at every tier (cablerig3d.ts `rigStatic`)", 
   const snap = maxedSnapshot();
   const rigAt = (low: boolean) => {
     setLowDetail(low);
-    const machine = new Machine3D(snap, roomGeo(), new BakeQueue(), null, true);
+    const machine = new Machine3D(snap, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: true });
     const rig = machine.rig('cpu');
     expect(rig, "the CPU plug's rig").not.toBeNull();
     return rigStatic(rig!, rig!.canSeat, undefined);
@@ -87,7 +87,7 @@ it("the machine's wires are merged at every tier (machine3d.ts, `mergeSiblings(t
   const snap = maxedSnapshot();
   const wiresAt = (low: boolean) => {
     setLowDetail(low);
-    const machine = new Machine3D(snap, roomGeo(), new BakeQueue(), null, true);
+    const machine = new Machine3D(snap, roomGeo(), { q: new BakeQueue(), chips: null, inRoom: true });
     return (machine as unknown as { wires: Object3D }).wires;
   };
   // (the leads' rigs under the group are merged by their own build: only the wires' own meshes count here)
