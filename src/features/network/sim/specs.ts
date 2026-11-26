@@ -140,12 +140,13 @@ export interface Bandwidth {
 }
 
 /** Effective bandwidth: down = min(port, router, isp down, disk); up = min(port, router, isp up); clients = min(router, isp). */
-export function bandwidth(
-  portMbps: number,
-  router: RouterSpec | null,
-  isp: IspSpec | null,
-  diskMbps: number,
-): Bandwidth {
+export function bandwidth(opts: {
+  portMbps: number;
+  router: RouterSpec | null;
+  isp: IspSpec | null;
+  diskMbps: number;
+}): Bandwidth {
+  const { portMbps, router, isp, diskMbps } = opts;
   if (!router || !isp || portMbps <= 0) {
     return { downMbps: 0, upMbps: 0, clients: 0, binding: null };
   }

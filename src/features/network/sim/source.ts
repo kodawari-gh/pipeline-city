@@ -36,12 +36,13 @@ export class NetworkSource<J extends Job> implements WorkSource<J> {
  * age band (`bandTicks` of age per band); inside a band a web offer goes before the others; then the oldest. The list is
  * in arrival order, so "oldest" is the first of equals. Returns undefined when none may start.
  */
-export function pickOffer<J extends Job & { cls: string }>(
-  offers: readonly J[],
-  now: number,
-  bandTicks: number,
-  mayStart: (j: J) => boolean,
-): J | undefined {
+export function pickOffer<J extends Job & { cls: string }>(opts: {
+  offers: readonly J[];
+  now: number;
+  bandTicks: number;
+  mayStart: (j: J) => boolean;
+}): J | undefined {
+  const { offers, now, bandTicks, mayStart } = opts;
   let best: J | undefined;
   let bestBand = -1;
   for (const j of offers) {

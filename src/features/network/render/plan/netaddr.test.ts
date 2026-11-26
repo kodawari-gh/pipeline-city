@@ -71,8 +71,8 @@ describe('the small arithmetic', () => {
   });
 
   it('writes IPv4 addresses and masks', () => {
-    expect(ipStr(ipv4(192, 168, 1, 100))).toBe('192.168.1.100');
-    expect(ipStr(ipv4(10, 0, 0, 1) + 300)).toBe('10.0.1.45');
+    expect(ipStr(ipv4({ a: 192, b: 168, c: 1, d: 100 }))).toBe('192.168.1.100');
+    expect(ipStr(ipv4({ a: 10, b: 0, c: 0, d: 1 }) + 300)).toBe('10.0.1.45');
     expect([24, 22, 16, 0, 32].map((p) => maskOf(p))).toStrictEqual([
       '255.255.255.0',
       '255.255.252.0',
@@ -263,10 +263,10 @@ describe('the connections in flight', () => {
     expect(web.peer).toStrictEqual(web.server);
     expect(isProxied(web)).toBe(false);
     // the LAN wire carries the question to the router, the WAN wire the router's own question to the name server
-    const lanOut = must(frameOn(a, dns, 'lan', false)),
-      wanOut = must(frameOn(a, dns, 'wan', false)),
-      lanIn = must(frameOn(a, dns, 'lan', true)),
-      wanIn = must(frameOn(a, dns, 'wan', true));
+    const lanOut = must(frameOn({ addrs: a, conn: dns, wire: 'lan', toward: false })),
+      wanOut = must(frameOn({ addrs: a, conn: dns, wire: 'wan', toward: false })),
+      lanIn = must(frameOn({ addrs: a, conn: dns, wire: 'lan', toward: true })),
+      wanIn = must(frameOn({ addrs: a, conn: dns, wire: 'wan', toward: true }));
     expect([lanOut.src, lanOut.dst]).toStrictEqual([dns.lan, dns.peer]);
     expect([wanOut.src, wanOut.dst]).toStrictEqual([dns.wan, dns.server]);
     expect([lanIn.src, lanIn.dst]).toStrictEqual([dns.peer, dns.lan]);
@@ -292,10 +292,10 @@ describe('the connections in flight', () => {
   it('writes the headers a frame carries on each wire: the MACs change at each wire, the IP addresses at the router only', () => {
     const a = must(netAddrs(game(2, { flows }))),
       c = must(a.conns[0]);
-    const lanIn = must(frameOn(a, c, 'lan', true)),
-      wanIn = must(frameOn(a, c, 'wan', true)),
-      lanOut = must(frameOn(a, c, 'lan', false)),
-      wanOut = must(frameOn(a, c, 'wan', false));
+    const lanIn = must(frameOn({ addrs: a, conn: c, wire: 'lan', toward: true })),
+      wanIn = must(frameOn({ addrs: a, conn: c, wire: 'wan', toward: true })),
+      lanOut = must(frameOn({ addrs: a, conn: c, wire: 'lan', toward: false })),
+      wanOut = must(frameOn({ addrs: a, conn: c, wire: 'wan', toward: false }));
     // a download's data, on the WAN wire: from the plan's gateway to the router's WAN jack, from the server to the public address
     expect([wanIn.srcMac, wanIn.dstMac]).toStrictEqual([must(a.wan).gateway.mac, must(a.router).wan]);
     expect([wanIn.src, wanIn.dst]).toStrictEqual([c.server, c.wan]);
@@ -308,6 +308,6 @@ describe('the connections in flight', () => {
     expect([wanOut.srcMac, wanOut.dstMac]).toStrictEqual([must(a.router).wan, must(a.wan).gateway.mac]);
     expect([wanOut.src, wanOut.dst]).toStrictEqual([c.wan, c.server]);
     const unplugged = addrsAt(2, { flows, port: null });
-    expect(frameOn(unplugged, c, 'lan', true)).toBeNull();
+    expect(frameOn({ addrs: unplugged, conn: c, wire: 'lan', toward: true })).toBeNull();
   });
 });

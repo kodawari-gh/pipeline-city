@@ -96,7 +96,7 @@ function show(s: Snapshot, rates?: { rx: number; tx: number }): routershowTypes.
   return must(routerShow(s, m, 1234));
 }
 const live = (t: number, k: string, s: routershowTypes.RouterShow) =>
-  routerLive(block(t, k), area(t, k), s, routerInput(t));
+  routerLive({ block: block(t, k), area: area(t, k), show: s, input: routerInput(t) });
 const texts = (t: number, k: string, s: routershowTypes.RouterShow): string[] => live(t, k, s).texts.map((x) => x.top);
 const BUSY = { rx: 5000, tx: 900 };
 const JOBS = [
@@ -369,7 +369,7 @@ describe('what the symbols show now: the traffic', () => {
     for (const t of TIERS) {
       for (const b of leaves(t)) {
         for (const s of states(t)) {
-          const l = routerLive(b, area(t, b.id), s, routerInput(t));
+          const l = routerLive({ block: b, area: area(t, b.id), show: s, input: routerInput(t) });
           for (const x of [...l.lit.map((y) => y.rect), ...l.texts.map((y) => y.rect)]) {
             expect(inside(x, b.rect), `tier ${t} ${b.id}`).toBe(true);
           }

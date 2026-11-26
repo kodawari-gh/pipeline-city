@@ -12,7 +12,7 @@
 //              The receiver echoes the stamp the segment carried (a timestamp option, RFC 7323), so every acknowledgement times the copy it answers exactly, a resent segment's too. The estimate is
 //              shared by the flows of one link (`RttEstimate`): a download of one segment has no time to learn the round trip alone.
 //   give up    a segment sent more than `maxRetries` times beyond the first fails the transfer.
-//   loss       `lossRoll(seed, transfer, seq, attempt)`: a hash to [0,1), compared with the segment's loss probability. No state: the same game, transfer and segment always roll the same.
+//   loss       `lossRoll({ seed, transfer, seq, attempt })`: a hash to [0,1), compared with the segment's loss probability. No state: the same game, transfer and segment always roll the same.
 
 /** Placeholder numbers for the balance pass. */
 export const TRANSPORT = {
@@ -43,11 +43,11 @@ function mix32(h: number): number {
 }
 
 /** The roll of one send of one segment: a number in [0,1) that depends only on the game's seed, the transfer, the segment and which send it is. */
-export function lossRoll(seed: number, transfer: number, seq: number, attempt: number): number {
-  let h = mix32((seed ^ 0x9e_37_79_b9) >>> 0);
-  h = mix32((h + Math.imul(transfer | 0, 0x85_eb_ca_6b)) >>> 0);
-  h = mix32((h + Math.imul(seq + 1, 0xc2_b2_ae_35)) >>> 0);
-  h = mix32((h + Math.imul(attempt + 1, 0x27_d4_eb_2f)) >>> 0);
+export function lossRoll(opts: { seed: number; transfer: number; seq: number; attempt: number }): number {
+  let h = mix32((opts.seed ^ 0x9e_37_79_b9) >>> 0);
+  h = mix32((h + Math.imul(opts.transfer | 0, 0x85_eb_ca_6b)) >>> 0);
+  h = mix32((h + Math.imul(opts.seq + 1, 0xc2_b2_ae_35)) >>> 0);
+  h = mix32((h + Math.imul(opts.attempt + 1, 0x27_d4_eb_2f)) >>> 0);
   return h / 4_294_967_296;
 }
 
@@ -230,7 +230,7 @@ export class Flow {
       }
       const attempt = this.tries[seq]!++;
       this.credit = Math.max(0, this.credit - this.segMB);
-      const lost = this.loss > 0 && lossRoll(this.seed, this.id, seq, attempt) < this.loss;
+      const lost = this.loss > 0 && lossRoll({ seed: this.seed, transfer: this.id, seq, attempt }) < this.loss;
       this.stats.sent++;
       if (attempt > 0) {
         this.stats.resent++;

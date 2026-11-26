@@ -79,7 +79,7 @@ function rig({
       port: { kind: 'board', deviceId: null, mbps: portMbps },
       router: { id: r.id, name: r.name, mbps: r.mbps, clients: r.clients, visual: r.visual },
       isp: { id: p.id, name: p.name, downMbps: p.downMbps, upMbps: p.upMbps, clients: p.clients },
-      bandwidth: bandwidth(portMbps, r, p, must(DISK_NET_MBPS[driveSpec])),
+      bandwidth: bandwidth({ portMbps, router: r, isp: p, diskMbps: must(DISK_NET_MBPS[driveSpec]) }),
     },
   });
 }

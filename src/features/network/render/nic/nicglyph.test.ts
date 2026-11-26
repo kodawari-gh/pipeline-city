@@ -101,7 +101,7 @@ const show = (o: Partial<NicShow> = {}): NicShow => ({
   ms: 1234,
   ...o,
 });
-const live = (k: string, s: NicShow) => nicLive(block(k), area(k), s, input);
+const live = (k: string, s: NicShow) => nicLive({ block: block(k), area: area(k), show: s, input });
 const BUSY = { rx: 5000, tx: 900, rxAct: 0.7, txAct: 0.5, rxLoad: 0.01, txLoad: 0.002 };
 
 describe('where a symbol may draw', () => {
@@ -182,7 +182,7 @@ describe('the parts of the symbols', () => {
       blk = must(fe.blocks.find((b) => b.id === 'phy')),
       a = must(nicGlyphArea(blk)),
       q = phyGeom(a, 2),
-      l = nicLive(blk, a, show({ ...BUSY, mbps: 100, rated: 100 }), fe.input);
+      l = nicLive({ block: blk, area: a, show: show({ ...BUSY, mbps: 100, rated: 100 }), input: fe.input });
     const stageH = must(must(q.pairs[0]).stages[0]).h;
     expect(l.lit.filter((x) => x.rect.h <= stageH + 0.01).filter((x) => x.rect.y < q.gauge.y)).toHaveLength(6);
     expect(l.texts[0]?.top).toMatch(/LINK 100 Mb/u);
@@ -315,7 +315,7 @@ describe('what a block shows now', () => {
       waiting: 1,
     });
     for (const b of leaves) {
-      const out = nicLive(b, area(b.id), s, input);
+      const out = nicLive({ block: b, area: area(b.id), show: s, input });
       for (const l of out.lit) {
         expect(inside(l.rect, b.rect), `${b.id} lit`).toBe(true);
       }

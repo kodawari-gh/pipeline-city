@@ -142,7 +142,8 @@ export class NetFlows {
   private t = 0;
 
   constructor(private readonly shape: NetShape) {
-    const s = (this.s = netStrips(shape));
+    const s = netStrips(shape);
+    this.s = s;
     // one strip: two ends, two sides
     this.geo.setAttribute('corner', new THREE.Float32BufferAttribute([0, -1, 0, 1, 1, -1, 1, 1], 2));
     // (`position` is needed for the draw count; the shader does not read it)
@@ -188,7 +189,8 @@ export class NetFlows {
   }
 
   /** Per frame: `dt` game seconds (0 holds the comets), `clock` real seconds (the red pulse goes on while the game is paused). */
-  frame(cam: THREE.PerspectiveCamera, pxHeight: number, dt: number, clock: number): void {
+  frame(opts: { cam: THREE.PerspectiveCamera; pxHeight: number; dt: number; clock: number }): void {
+    const { cam, pxHeight, dt, clock } = opts;
     this.t = (this.t + dt) % 10_000;
     const u = this.mat.uniforms;
     u['uPixel']!.value = 2 / (cam.projectionMatrix.elements[5]! * Math.max(1, pxHeight));

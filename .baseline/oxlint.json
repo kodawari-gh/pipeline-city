@@ -2798,7 +2798,7 @@
   "eslint(complexity)": 2,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
-  "eslint(max-params)": 8,
+  "eslint(max-params)": 7,
   "eslint(no-duplicate-imports)": 1,
   "eslint(no-multi-assign)": 1,
   "eslint(no-nested-ternary)": 10,
@@ -5468,33 +5468,22 @@
   "typescript(no-non-null-assertion)": 4
  },
  "src/features/network/render/lens/flows.ts": {
-  "eslint(max-params)": 1,
   "eslint(no-empty-function)": 1,
-  "eslint(no-multi-assign)": 1,
   "typescript(no-non-null-assertion)": 12,
   "typescript(no-unnecessary-type-assertion)": 2,
   "unicorn(no-array-for-each)": 2
  },
  "src/features/network/render/lens/shape.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(max-params)": 1,
   "typescript(no-non-null-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 2,
-  "typescript(switch-exhaustiveness-check)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-array-for-each)": 2
+  "unicorn(no-array-for-each)": 1
  },
  "src/features/network/render/lens/view.ts": {
-  "eslint(max-params)": 1,
   "import(max-dependencies)": 1,
   "typescript(method-signature-style)": 1,
   "typescript(no-non-null-assertion)": 2,
   "typescript(no-unsafe-type-assertion)": 2
  },
  "src/features/network/render/net.ts": {
-  "eslint(max-lines-per-function)": 2,
-  "eslint(no-nested-ternary)": 2,
   "eslint(no-use-before-define)": 1,
   "typescript(no-non-null-assertion)": 2,
   "unicorn(no-array-fill-with-reference-type)": 7
@@ -5507,68 +5496,36 @@
   "unicorn(no-array-for-each)": 1
  },
  "src/features/network/render/nic/nicglyph.ts": {
-  "eslint(complexity)": 2,
-  "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 2,
-  "eslint(max-params)": 4,
-  "eslint(no-negated-condition)": 1,
-  "eslint(no-nested-ternary)": 2,
-  "typescript(explicit-module-boundary-types)": 7,
-  "typescript(no-confusing-void-expression)": 2,
   "typescript(no-non-null-assertion)": 3,
-  "typescript(strict-void-return)": 1,
-  "typescript(switch-exhaustiveness-check)": 2,
   "unicorn(no-array-fill-with-reference-type)": 4,
-  "unicorn(no-array-for-each)": 10
+  "unicorn(no-array-for-each)": 2
  },
  "src/features/network/render/nic/nicmac.ts": {
   "typescript(no-non-null-assertion)": 1
  },
  "src/features/network/render/nic/nicplan.ts": {
-  "eslint(max-params)": 1,
   "typescript(no-non-null-assertion)": 6,
   "unicorn(max-nested-calls)": 2
  },
  "src/features/network/render/nic/nicshow.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(max-params)": 1,
   "typescript(no-non-null-assertion)": 1,
   "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 1
  },
  "src/features/network/render/nic/nicview.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-depth)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(max-params)": 2,
   "import(max-dependencies)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 1,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 1,
   "unicorn(no-array-fill-with-reference-type)": 1,
-  "unicorn(no-array-for-each)": 2
+  "unicorn(no-array-for-each)": 1
  },
  "src/features/network/render/plan/netaddr.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(max-params)": 2,
   "typescript(no-non-null-assertion)": 2,
   "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 2,
   "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-for-each)": 1,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(prefer-code-point)": 1
- },
- "src/features/network/render/plan/netmeter.ts": {
-  "eslint(no-nested-ternary)": 2
+  "unicorn(no-array-sort)": 1
  },
  "src/features/network/render/plan/netplan.ts": {
-  "eslint(max-params)": 2,
+  "eslint(max-params)": 1,
   "oxc(no-map-spread)": 1,
   "typescript(no-unnecessary-type-arguments)": 2,
   "typescript(no-unnecessary-type-assertion)": 2,
@@ -5584,70 +5541,28 @@
   "unicorn(no-array-for-each)": 1
  },
  "src/features/network/render/router/routerglyph.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 2,
-  "eslint(max-params)": 3,
-  "eslint(no-negated-condition)": 1,
-  "eslint(no-nested-ternary)": 3,
-  "eslint(no-use-before-define)": 1,
-  "typescript(explicit-module-boundary-types)": 6,
-  "typescript(no-non-null-assertion)": 7,
-  "typescript(strict-void-return)": 4,
-  "typescript(switch-exhaustiveness-check)": 2,
+  "typescript(no-non-null-assertion)": 3,
   "unicorn(no-array-fill-with-reference-type)": 1,
-  "unicorn(no-array-for-each)": 13,
-  "unicorn(prefer-export-from)": 1
+  "unicorn(no-array-for-each)": 5
  },
  "src/features/network/render/router/routerplan.ts": {
   "typescript(no-non-null-assertion)": 1,
   "unicorn(max-nested-calls)": 1
  },
  "src/features/network/render/router/routershow.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines-per-function)": 1,
   "typescript(switch-exhaustiveness-check)": 1
  },
  "src/features/network/render/router/routerview.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines-per-function)": 1,
   "import(max-dependencies)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 1,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 1,
   "unicorn(no-array-fill-with-reference-type)": 1,
-  "unicorn(no-array-for-each)": 2
- },
- "src/features/network/sim/network.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(no-negated-condition)": 2,
-  "eslint(no-nested-ternary)": 3,
-  "typescript(no-non-null-assertion)": 10,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 14,
-  "unicorn(no-useless-spread)": 3,
-  "unicorn(prefer-code-point)": 1
- },
- "src/features/network/sim/nic.ts": {
-  "eslint(max-lines)": 1,
-  "eslint(no-multi-assign)": 11,
-  "typescript(no-confusing-void-expression)": 1,
-  "typescript(no-non-null-assertion)": 2
- },
- "src/features/network/sim/source.ts": {
-  "eslint(max-params)": 1
+  "unicorn(no-array-for-each)": 1
  },
  "src/features/network/sim/specs.ts": {
-  "eslint(max-params)": 1,
   "typescript(no-non-null-assertion)": 3,
   "typescript(no-unnecessary-type-assertion)": 1
  },
  "src/features/network/sim/transport.ts": {
   "eslint(max-classes-per-file)": 1,
-  "eslint(max-params)": 1,
   "eslint(no-negated-condition)": 1,
   "eslint(no-param-reassign)": 5,
   "typescript(no-non-null-assertion)": 2,
@@ -5655,58 +5570,23 @@
   "unicorn(prefer-math-trunc)": 1
  },
  "src/features/network/ui/NetPanel.tsx": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(no-use-before-define)": 8,
-  "jsx-a11y(prefer-tag-over-role)": 2,
   "react(button-has-type)": 1,
-  "typescript(explicit-module-boundary-types)": 1,
-  "typescript(no-non-null-assertion)": 2,
-  "typescript(strict-boolean-expressions)": 7
+  "typescript(explicit-module-boundary-types)": 1
  },
  "src/features/network/ui/netdesc.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(no-nested-ternary)": 2,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 2,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(no-array-sort)": 1,
   "unicorn(prefer-export-from)": 1
  },
- "src/features/network/ui/netui.ts": {
-  "eslint(default-case)": 2,
-  "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 4,
-  "eslint(no-negated-condition)": 2,
-  "eslint(no-nested-ternary)": 6,
-  "typescript(consistent-return)": 2,
-  "typescript(no-non-null-assertion)": 3,
-  "typescript(no-unnecessary-type-conversion)": 1,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(prefer-nullish-coalescing)": 1,
-  "typescript(strict-boolean-expressions)": 5,
-  "typescript(switch-exhaustiveness-check)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(prefer-export-from)": 1,
-  "unicorn(prefer-set-has)": 1,
-  "unicorn(prefer-single-call)": 1
- },
  "src/features/network/ui/nicdesc.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(no-nested-ternary)": 5,
-  "typescript(no-non-null-assertion)": 17,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 4
+  "typescript(no-non-null-assertion)": 4,
+  "typescript(no-unsafe-type-assertion)": 1
  },
  "src/features/network/ui/routerdesc.ts": {
-  "eslint(complexity)": 1,
-  "eslint(max-lines-per-function)": 1,
-  "eslint(no-nested-ternary)": 1,
   "typescript(no-non-null-assertion)": 3,
-  "typescript(strict-boolean-expressions)": 3
+  "typescript(strict-boolean-expressions)": 1
  },
  "src/features/npu/render/npuart.ts": {
   "eslint(max-params)": 1,

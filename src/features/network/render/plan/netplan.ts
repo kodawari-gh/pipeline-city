@@ -52,16 +52,17 @@ const cache = new Map<string, NetPlan<string, string>>();
  * Lay `tree` out in a `size` area inside the margins, route `specs` through the gutters and return the plan. `extra` adds wires the router does not
  * find (a bus that runs along the margin, off the blocks); it sees the placed blocks. The result is cached by `key`.
  */
-export function layPlan<K extends string, L extends string, I>(
-  key: string,
-  input: I,
-  size: { w: number; h: number },
-  m: Margins,
-  tree: cpufloor.Node<K>,
-  specs: cpufloor.WireSpec<L>[],
-  tag: string,
-  extra?: (blocks: NetBlock<K>[]) => NetLink<L>[],
-): NetPlan<K, L, I> {
+export function layPlan<K extends string, L extends string, I>(opts: {
+  key: string;
+  input: I;
+  size: { w: number; h: number };
+  margins: Margins;
+  tree: cpufloor.Node<K>;
+  specs: cpufloor.WireSpec<L>[];
+  tag: string;
+  extra?: (blocks: NetBlock<K>[]) => NetLink<L>[];
+}): NetPlan<K, L, I> {
+  const { key, input, size, margins: m, tree, specs, tag, extra } = opts;
   const hit = cache.get(key);
   if (hit) {
     return hit as NetPlan<K, L, I>;
