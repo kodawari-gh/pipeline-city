@@ -6,6 +6,14 @@ import { MemSystem } from '@/features/memory/sim/memsys';
 import { OooEngine } from './ooo';
 import { Counter } from './view';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 // Scan 16 lines (256 bytes) once with a 4-line L1.
 const SCAN = `
     li s3, 4096
@@ -23,9 +31,13 @@ const MEM = { lineBytes: 16, missPenalty: 4, l2Lines: 32, l2Penalty: 2 } as cons
 
 function runOn(engine: InOrderEngine | OooEngine, mem?: MemSystem): { cycles: number; c: Float64Array } {
   const m = new Machine();
-  if (mem) engine.useMemSystem(mem);
+  if (mem) {
+    engine.useMemSystem(mem);
+  }
   m.attach(engine, assemble(SCAN).program);
-  while (!engine.halted) engine.step();
+  while (!engine.halted) {
+    engine.step();
+  }
   return { cycles: engine.cycle, c: engine.view.counters };
 }
 
@@ -64,8 +76,8 @@ describe('MemSystem', () => {
       b = new InOrderEngine(SETTINGS);
     runOn(a, mem);
     runOn(b, mem);
-    expect(a.storedState().l2!.tags).toEqual(b.storedState().l2!.tags);
-    expect(a.storedState().l2!.tags.filter((t) => t >= 0).length).toBe(16);
+    expect(must(a.storedState().l2).tags).toStrictEqual(must(b.storedState().l2).tags);
+    expect(must(a.storedState().l2).tags.filter((t) => t >= 0)).toHaveLength(16);
   });
 
   it('rejects a negative L2 penalty', () => {

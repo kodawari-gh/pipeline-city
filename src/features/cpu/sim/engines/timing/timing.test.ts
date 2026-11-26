@@ -1,12 +1,49 @@
 import { describe, expect, it } from 'vitest';
 import { assemble } from '../../asm';
 import { Machine } from '@/core/sim';
-import { Cause, Counter, InOrderEngine, SlotKind, Stage, UnpipelinedEngine, type InOrderSettings } from '../index';
+import { Cause, Counter, InOrderEngine, SlotKind, Stage, UnpipelinedEngine } from '../index';
+import type * as engineTypes from '../index';
 import type { PipelineEngine } from '../contract';
 import { runEngine } from '../testutil';
 
-const io = (s: InOrderSettings = {}) => new InOrderEngine({ missPenalty: 0, ...s });
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+const io = (s: engineTypes.InOrderSettings = {}) => new InOrderEngine({ missPenalty: 0, ...s });
 const C = Counter;
+
+/** An in-order engine without forwarding and with no miss penalty. */
+const ioNoForwarding = () => io({ forwarding: false });
+
+/** Steps `e` to halt, invalidating its cache once, right after its first cache hit. */
+function runInvalidatingAfterFirstHit(e: InOrderEngine): void {
+  let invalidated = false;
+  while (!e.halted) {
+    e.step();
+    if (!invalidated && must(e.view.counters[C.CacheHits]) >= 1) {
+      e.invalidateCache();
+      invalidated = true;
+    }
+  }
+}
+
+/** Steps `e` to halt; whether EX ever held a bubble caused by a load. */
+function stepSeeingLoadBubble(e: InOrderEngine): boolean {
+  const v = e.view;
+  let sawLoadBubble = false;
+  while (!e.halted) {
+    e.step();
+    if (v.stageKind[Stage.EX] === SlotKind.Bubble && v.stageCause[Stage.EX] === Cause.Load) {
+      sawLoadBubble = true;
+    }
+  }
+  return sawLoadBubble;
+}
 
 function run(e: PipelineEngine, src: string) {
   const o = runEngine(e, src);
@@ -23,7 +60,7 @@ describe('in-order hazards (width 1)', () => {
 
   it('ALU RAW with forwarding costs 0 bubbles', () => {
     const r = run(io(), `li t0, 1\nadd t1, t0, t0\nadd t2, t1, t1\nsw t2, 0(sp)\necall`.replace('0(sp)', '-4(sp)'));
-    expect(r.c[C.StallLoad]! + r.c[C.StallData]!).toBe(0);
+    expect(must(r.c[C.StallLoad]) + must(r.c[C.StallData])).toBe(0);
     expect(r.cycles).toBe(5 + 4);
   });
 
@@ -39,13 +76,12 @@ describe('in-order hazards (width 1)', () => {
   });
 
   it('without forwarding, RAW costs 2 / 1 / 0 bubbles at distance 1 / 2 / 3', () => {
-    const nf = () => io({ forwarding: false });
-    const d1 = run(nf(), `li t0, 1\nadd t1, t0, t0\necall`);
+    const d1 = run(ioNoForwarding(), `li t0, 1\nadd t1, t0, t0\necall`);
     expect(d1.c[C.StallData]).toBe(2);
     expect(d1.cycles).toBe(3 + 4 + 2);
-    const d2 = run(nf(), `li t0, 1\nli t2, 2\nadd t1, t0, t0\necall`);
+    const d2 = run(ioNoForwarding(), `li t0, 1\nli t2, 2\nadd t1, t0, t0\necall`);
     expect(d2.c[C.StallData]).toBe(1);
-    const d3 = run(nf(), `li t0, 1\nli t2, 2\nli t3, 3\nadd t1, t0, t0\necall`);
+    const d3 = run(ioNoForwarding(), `li t0, 1\nli t2, 2\nli t3, 3\nadd t1, t0, t0\necall`);
     expect(d3.c[C.StallData]).toBe(0);
     expect(d3.cycles).toBe(5 + 4);
   });
@@ -60,7 +96,9 @@ describe('in-order hazards (width 1)', () => {
     const e = io();
     new Machine().attach(e, assemble(src).program);
     e.flipPredictor(4); // bne is at pc 4: predict taken (reset clears the predictor, so flip after attach)
-    while (!e.halted) e.step();
+    while (!e.halted) {
+      e.step();
+    }
     expect(e.view.counters[C.Flushes]).toBe(0);
     expect(e.cycle).toBe(3 + 4);
   });
@@ -112,14 +150,7 @@ describe('data cache', () => {
     const e = new InOrderEngine({ missPenalty: 3 });
     const m = new Machine();
     m.attach(e, assemble(`li s3, 4096\nlw t0, 0(s3)\nlw t1, 0(s3)\nlw t2, 0(s3)\nlw t3, 0(s3)\necall`).program);
-    let invalidated = false;
-    while (!e.halted) {
-      e.step();
-      if (!invalidated && e.view.counters[C.CacheHits]! >= 1) {
-        e.invalidateCache();
-        invalidated = true;
-      }
-    }
+    runInvalidatingAfterFirstHit(e);
     expect(e.view.counters[C.CacheMisses]).toBe(2);
     expect(e.view.counters[C.StallCache]).toBe(6);
   });
@@ -135,7 +166,7 @@ describe('unpipelined', () => {
   it('takes 5 cycles per instruction with no branch penalty', () => {
     const r = run(new UnpipelinedEngine({ missPenalty: 0 }), `li t0, 3\nl:\naddi t0, t0, -1\nbne t0, zero, l\necall`);
     expect(r.c[C.Retired]).toBe(1 + 3 * 2 + 1);
-    expect(r.cycles).toBe(5 * r.c[C.Retired]!);
+    expect(r.cycles).toBe(5 * must(r.c[C.Retired]));
     expect(r.c[C.Flushes]).toBe(0);
   });
 });
@@ -150,12 +181,7 @@ describe('view', () => {
     expect(v.stageKind[Stage.IF]).toBe(SlotKind.Instr);
     expect(v.stageId[Stage.IF]).toBe(0);
     expect(v.stageKind[Stage.ID]).toBe(SlotKind.Empty);
-    let sawLoadBubble = false;
-    while (!e.halted) {
-      e.step();
-      if (v.stageKind[Stage.EX] === SlotKind.Bubble && v.stageCause[Stage.EX] === Cause.Load) sawLoadBubble = true;
-    }
-    expect(sawLoadBubble).toBe(true);
+    expect(stepSeeingLoadBubble(e)).toBe(true);
     expect(v.counters[C.Cycles]).toBe(e.cycle);
     // Timeline: instruction 0 has fate retired and F at cycle 1.
     const t = v.timeline;
@@ -168,9 +194,13 @@ describe('view', () => {
     const e = new InOrderEngine({ timelineRows: 8, timelineCols: 8, missPenalty: 0 });
     const m = new Machine();
     m.attach(e, assemble(`li t0, 30\nl:\naddi t0, t0, -1\nbne t0, zero, l\necall`).program);
-    while (!e.halted) e.step();
+    while (!e.halted) {
+      e.step();
+    }
     const t = e.view.timeline;
     expect(e.view.nextId).toBeGreaterThan(60);
-    for (let r = 0; r < t.rows; r++) expect(t.id[r]! % t.rows).toBe(r);
+    for (let r = 0; r < t.rows; r++) {
+      expect(must(t.id[r]) % t.rows).toBe(r);
+    }
   });
 });

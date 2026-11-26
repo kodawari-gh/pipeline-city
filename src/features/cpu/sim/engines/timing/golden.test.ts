@@ -3,13 +3,21 @@
 import { describe, expect, it } from 'vitest';
 import { CONFIGS, chart } from '../testutil';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 const PROGRAMS = {
   hazards: 'li s3, 4096\nlw t0, 0(s3)\nadd t1, t0, t0\naddi t2, t1, 1\nsw t2, 4(s3)\necall',
   loop: 'li t0, 3\nl:\naddi t0, t0, -1\nbne t0, zero, l\necall',
   callRet: 'li s3, 4096\ncall f\nlw a0, 0(s3)\necall\nf:\nsw sp, 0(s3)\nret',
 };
 
-const cfg = (name: string) => CONFIGS.find((c) => c.name === name)!;
+const cfg = (name: string) => must(CONFIGS.find((c) => c.name === name));
 const run = (name: string, prog: keyof typeof PROGRAMS) => chart(cfg(name).make(), PROGRAMS[prog]);
 
 describe('golden: unpipelined', () => {
