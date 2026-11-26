@@ -16,7 +16,7 @@ const groupIds = (ids: readonly string[]) =>
 
 /** The arrival mix of a level as "cli 100%, scan 20% ...", for the line under the level grid. */
 function mixLine(level: number): string {
-  const mix = levelDef(level).mix;
+  const { mix } = levelDef(level);
   const shares = JOB_CLASSES.map((c) => [c.id, mix[c.id] ?? 0] as const).filter(([, v]) => v > 0);
   const total = shares.reduce((n, [, v]) => n + v, 0) || 1;
   return shares.map(([id, v]) => `${id} ${Math.round((100 * v) / total)}%`).join(', ');
@@ -27,22 +27,26 @@ export function SandboxJobs({ s }: { s: Snapshot }) {
   /** The groups whose kinds are listed one by one (the rest show one line each). */
   const [opened, setOpened] = useState<Record<string, boolean>>({});
   const btn = useRef<HTMLButtonElement>(null);
-  const level = s.level.level,
+  const { level } = s.level,
     off = s.level.kindsOff,
-    classesOff = s.level.classesOff;
+    { classesOff } = s.level;
   const all = DEX_GROUPS.flatMap((g) => groupIds(g.ids));
   const allOn = all.filter((id) => !off.includes(id)).length;
 
   // Escape closes the panel (and returns focus to its button). Registered while it is open only.
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+      if (e.key !== 'Escape') {
+        return;
+      }
       setOpen(false);
       btn.current?.focus();
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    globalThis.addEventListener('keydown', onKey);
+    return () => globalThis.removeEventListener('keydown', onKey);
   }, [open]);
 
   /** Switch the kinds in `ids` on or off, keeping every other choice. */
@@ -105,10 +109,12 @@ export function SandboxJobs({ s }: { s: Snapshot }) {
           <div class="sbj-groups">
             {DEX_GROUPS.map((g) => {
               const ids = groupIds(g.ids);
-              if (!ids.length) return null;
+              if (ids.length === 0) {
+                return null;
+              }
               const onCount = ids.filter((id) => !off.includes(id)).length,
                 full = onCount === ids.length,
-                shown = !!opened[g.id];
+                shown = Boolean(opened[g.id]);
               return (
                 <section key={g.id} class={`sbj-group${shown ? ' open' : ''}`} style={{ '--grp': g.color }}>
                   <div class="sbj-head">

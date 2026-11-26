@@ -6,7 +6,7 @@
 
 import type { Need } from '../../economy/sim/levels';
 import { CODE_SOURCE } from '../../jobs/sim/jobcode';
-import { DEX_GROUPS, JOB_DEX, taskNeeds, type DexEntry } from '../../jobs/sim/jobdex';
+import * as jobDex from '../../jobs/sim/jobdex';
 
 /** The reference machines a task is scored against (`pcbench.ts`, `referenceRig`). */
 export type RigId = 'mid' | 'fibre' | 'trust' | 'trust2' | 'cores2' | 'cores4' | 'cores8';
@@ -57,7 +57,9 @@ export interface TaskResult {
 /** Geometric mean of the scores that are not null; 0 when none is. */
 export function overallOf(results: readonly Pick<TaskResult, 'score'>[]): number {
   const got = results.map((r) => r.score).filter((s): s is number => s !== null && s > 0);
-  if (got.length === 0) return 0;
+  if (got.length === 0) {
+    return 0;
+  }
   return Math.round(Math.exp(got.reduce((sum, s) => sum + Math.log(s), 0) / got.length));
 }
 
@@ -102,19 +104,23 @@ const CORES: Record<string, RigId> = { 2: 'cores2', 4: 'cores4', 8: 'cores8' };
 /** The reference machine that has what the job needs: the biggest need decides (a TPM, then the cores, then a fibre plan). */
 function rigOf(needs: Need[]): RigId {
   const tpm = needs.find((n): n is Extract<Need, { kind: 'tpm' }> => n.kind === 'tpm');
-  if (tpm) return (tpm.minTier ?? 1) > 1 ? 'trust2' : 'trust';
+  if (tpm) {
+    return (tpm.minTier ?? 1) > 1 ? 'trust2' : 'trust';
+  }
   const cores = needs.find((n): n is Extract<Need, { kind: 'cores' }> => n.kind === 'cores');
-  if (cores) return CORES[cores.min] ?? 'cores2';
+  if (cores) {
+    return CORES[cores.min] ?? 'cores2';
+  }
   const net = needs.find((n): n is Extract<Need, { kind: 'net' }> => n.kind === 'net');
   return (net?.minTier ?? 0) >= 3 ? 'fibre' : 'mid';
 }
 
-function taskOf(e: DexEntry): BenchTask {
-  const needs = taskNeeds(e);
+function taskOf(e: jobDex.DexEntry): BenchTask {
+  const needs = jobDex.taskNeeds(e);
   return {
     id: e.id,
     name: e.name,
-    group: DEX_GROUPS.find((g) => g.ids.includes(e.id))?.id ?? e.cls,
+    group: jobDex.DEX_GROUPS.find((g) => g.ids.includes(e.id))?.id ?? e.cls,
     template: e.template,
     needs,
     rig: rigOf(needs),
@@ -127,16 +133,16 @@ function taskOf(e: DexEntry): BenchTask {
 
 /** Every task, in the almanac's order, then the drive test. A cloud-storage contract is not a program: it has no task. */
 export const BENCH_TASKS: readonly BenchTask[] = [
-  ...DEX_GROUPS.flatMap((g) => g.ids)
-    .map((id) => JOB_DEX.find((e) => e.id === id))
-    .filter((e): e is DexEntry => !!e && !e.contract && !e.planned && !!e.template)
+  ...jobDex.DEX_GROUPS.flatMap((g) => g.ids)
+    .map((id) => jobDex.JOB_DEX.find((e) => e.id === id))
+    .filter((e): e is jobDex.DexEntry => e !== undefined && !e.contract && !e.planned && Boolean(e.template))
     .map(taskOf),
   DISK,
 ];
 
 /** The tasks by group, the almanac's groups first (their names and colours) and the drive test's own. */
 export const BENCH_GROUPS: readonly BenchGroup[] = [
-  ...DEX_GROUPS.map((g) => ({
+  ...jobDex.DEX_GROUPS.map((g) => ({
     id: g.id,
     name: g.name,
     color: g.color,

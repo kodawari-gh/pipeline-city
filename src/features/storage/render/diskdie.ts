@@ -63,7 +63,7 @@ export function ctrlDiePlan(kind: Exclude<DriveKind, 'hdd'>): CtrlPlan {
   );
   // (the host link runs level with the middle of the interface, or the cores' edge where that lies outside them)
   const hy = Math.min(cores.y + cores.h - 6, Math.max(cores.y + 6, mid(iface)[1])),
-    cx = mid(cores)[0];
+    [cx] = mid(cores);
   links.push(
     {
       kind: 'host',
@@ -104,7 +104,7 @@ export function ctrlDiePlan(kind: Exclude<DriveKind, 'hdd'>): CtrlPlan {
     top = n === 1 ? 70 : 8;
   for (let i = 0; i < n; i++) {
     const r = rc(154, top + i * (eh + gap), 38, eh),
-      ey = mid(r)[1],
+      [, ey] = mid(r),
       sy = cores.y + (cores.h * (i + 0.5)) / n,
       bx = cores.x + cores.w + 2 + i * 1.8;
     blocks.push({ id: `ch${i}`, kind: 'channel', label: `CH${i}`, rect: r });
@@ -149,8 +149,8 @@ function nandTile(r: DieRect): NandTile {
     const p = rc(r.x + m + (i % 2) * (pw + m), r.y + m + Math.floor(i / 2) * (ph + m * 0.9), pw, ph);
     planes.push({
       rect: p,
-      decoder: rc(p.x + 1 * k, p.y + 1 * k, 7 * k, p.h - 2 * k),
-      array: rc(p.x + 9 * k, p.y + 1 * k, p.w - 10 * k, p.h - 12 * k),
+      decoder: rc(p.x + k, p.y + k, 7 * k, p.h - 2 * k),
+      array: rc(p.x + 9 * k, p.y + k, p.w - 10 * k, p.h - 12 * k),
       buffer: rc(p.x + 9 * k, p.y + p.h - 10 * k, p.w - 10 * k, 9 * k),
     });
   }
@@ -171,7 +171,9 @@ function nandTile(r: DieRect): NandTile {
 /** The plan of a NAND package's face: one die, or four stacked dies shown side by side (two by two). */
 export function nandDiePlan(dies: 1 | 4): NandPlan {
   const { w, h } = NAND_DIE;
-  if (dies === 1) return { w, h, tiles: [nandTile(rc(0, 0, w, h))] };
+  if (dies === 1) {
+    return { w, h, tiles: [nandTile(rc(0, 0, w, h))] };
+  }
   const tw = (w - 4) / 2,
     th = (h - 4) / 2;
   return {
@@ -196,8 +198,9 @@ function ctrlBlock(T: Theme, g: Graphics, t: Container, b: CtrlBlock, c: string)
       gh = r.y + r.h - 5 - gy,
       cw = gw / b.grid.cols,
       ch = gh / b.grid.rows;
-    for (let i = 0; i < b.grid.cols * b.grid.rows; i++)
+    for (let i = 0; i < b.grid.cols * b.grid.rows; i++) {
       g.roundRect(gx + (i % b.grid.cols) * cw + 1, gy + Math.floor(i / b.grid.cols) * ch + 1, cw - 2, ch - 2, 1.5);
+    }
     g.fill({ color: mix(T.die, c, 0.4) });
   }
   if (b.kind === 'iface') {
@@ -243,13 +246,28 @@ export function ctrlDieArt(T: Theme, kind: Exclude<DriveKind, 'hdd'>): Container
   const lc = { host: T.alu, data: T.st, channel: T.mul, ctl: T.mute };
   for (const l of plan.links) {
     g.moveTo(l.pts[0]![0], l.pts[0]![1]);
-    for (let i = 1; i < l.pts.length; i++) g.lineTo(l.pts[i]![0], l.pts[i]![1]);
+    for (let i = 1; i < l.pts.length; i++) {
+      g.lineTo(l.pts[i]![0], l.pts[i]![1]);
+    }
     g.stroke({ width: l.kind === 'channel' ? 1.4 : 1.8, color: lc[l.kind], alpha: 0.85, join: 'round' });
-    for (const p of [l.pts[0]!, l.pts[l.pts.length - 1]!])
+    for (const p of [l.pts[0]!, l.pts.at(-1)!]) {
       g.rect(p[0] - 1.8, p[1] - 1.8, 3.6, 3.6).fill({ color: lc[l.kind] });
+    }
   }
-  for (const b of plan.blocks) ctrlBlock(T, g, t, b, colors[b.kind]);
+  for (const b of plan.blocks) {
+    ctrlBlock(T, g, t, b, colors[b.kind]);
+  }
   return root;
+}
+
+/** A row of pads along the bottom edge of the NAND die in `r`. */
+function drawNandPads(T: Theme, g: Graphics, r: DieRect): void {
+  const k = r.w / NAND_DIE.w,
+    pad = 2 * k;
+  for (let x = r.x + 6 * k; x + pad < r.x + r.w - 5 * k; x += pad * 2.3) {
+    g.rect(x, r.y + r.h - 4.2 * k, pad, pad);
+  }
+  g.fill({ color: T.pin, alpha: 0.65 });
 }
 
 /** One NAND die's art: the silicon, the planes' cell arrays (a grid of block cells) with their decoders and page buffers, the periphery's blocks, a row of pads. */
@@ -268,19 +286,22 @@ function drawNandTile(T: Theme, g: Graphics, t: Container, tile: NandTile, accen
     g.roundRect(p.rect.x, p.rect.y, p.rect.w, p.rect.h, 2 * k)
       .fill({ color: tint(T, T.mul, 0.1) })
       .stroke({ width: Math.max(0.5, 0.9 * k), color: T.mul, alpha: 0.85 });
-    for (let j = 0; j < cols * rows; j++)
+    for (let j = 0; j < cols * rows; j++) {
       g.rect(a.x + (j % cols) * cw + 0.4 * k, a.y + Math.floor(j / cols) * ch + 0.4 * k, cw - 0.8 * k, ch - 0.8 * k);
+    }
     g.fill({ color: mix(T.die, T.mul, 0.4) });
     g.rect(p.decoder.x, p.decoder.y, p.decoder.w, p.decoder.h).fill({ color: T.st, alpha: 0.45 });
     g.rect(p.buffer.x, p.buffer.y, p.buffer.w, p.buffer.h).fill({ color: T.ld, alpha: 0.55 });
-    if (k > 0.7) t.addChild(label(`PLANE ${i}`, a.x + 3, a.y + 6, 5.5, T.ink, { weight: '700', a: 0.85 }));
+    if (k > 0.7) {
+      t.addChild(label(`PLANE ${i}`, a.x + 3, a.y + 6, 5.5, T.ink, { weight: '700', a: 0.85 }));
+    }
   });
   const lc = [T.br, T.alu, T.ld, T.mul];
   tile.periphery.forEach((b, i) => {
     g.roundRect(b.rect.x, b.rect.y, b.rect.w, b.rect.h, 1.5 * k)
       .fill({ color: tint(T, lc[i % 4]!, 0.16) })
       .stroke({ width: Math.max(0.5, 0.8 * k), color: lc[i % 4]!, alpha: 0.85 });
-    if (k > 0.7)
+    if (k > 0.7) {
       t.addChild(
         label(
           b.label,
@@ -291,11 +312,10 @@ function drawNandTile(T: Theme, g: Graphics, t: Container, tile: NandTile, accen
           { weight: '700', a: 0.9 },
         ),
       );
+    }
   });
-  const pad = 2 * k;
-  for (let x = r.x + 6 * k; x + pad < r.x + r.w - 5 * k; x += pad * 2.3) g.rect(x, r.y + r.h - 4.2 * k, pad, pad);
-  g.fill({ color: T.pin, alpha: 0.65 });
-  g.poly([r.x + 1 * k, r.y + 1 * k, r.x + 9 * k, r.y + 1 * k, r.x + 1 * k, r.y + 9 * k]).fill({
+  drawNandPads(T, g, r);
+  g.poly([r.x + k, r.y + k, r.x + 9 * k, r.y + k, r.x + k, r.y + 9 * k]).fill({
     color: accent,
     alpha: 0.9,
   });
@@ -309,8 +329,12 @@ export function nandDieArt(T: Theme, dies: 1 | 4, kind: Exclude<DriveKind, 'hdd'
     t = new Container();
   root.addChild(g, t);
   g.roundRect(0, 0, plan.w, plan.h, 4).fill({ color: mix(T.die, '#000000', 0.45) });
-  for (const tile of plan.tiles) drawNandTile(T, g, t, tile, accentOf(T, kind));
-  if (dies === 1) t.addChild(label('NAND', 14, 6, 6, T.mute, { a: 0.9 }));
+  for (const tile of plan.tiles) {
+    drawNandTile(T, g, t, tile, accentOf(T, kind));
+  }
+  if (dies === 1) {
+    t.addChild(label('NAND', 14, 6, 6, T.mute, { a: 0.9 }));
+  }
   return root;
 }
 
@@ -325,7 +349,7 @@ export interface PlatterPlan {
 
 /** The platter's plan in its own units (`PLATTER`): the data band between two radii, the tracks in it, the servo wedges across it, the hub and its clamp ring. */
 export function platterPlan(): PlatterPlan {
-  const R = PLATTER.R;
+  const { R } = PLATTER;
   return { R, hub: R * 0.16, clamp: R * 0.3, tracks: 28, sectors: 24, band: [R * 0.36, R * 0.97] };
 }
 
@@ -370,12 +394,13 @@ export function platterArt(T: Theme): Container {
   g.circle(cx, cy, p.clamp)
     .fill({ color: mix(T.die, T.ink, 0.22) })
     .stroke({ width: 1, color: accent, alpha: 0.8 });
-  for (let k = 0; k < 6; k++)
+  for (let k = 0; k < 6; k++) {
     g.circle(
       cx + Math.cos((k / 6) * Math.PI * 2) * p.clamp * 0.72,
       cy + Math.sin((k / 6) * Math.PI * 2) * p.clamp * 0.72,
       1.6,
     ).fill({ color: mix(T.die, '#000000', 0.5) });
+  }
   g.circle(cx, cy, p.hub)
     .fill({ color: mix(T.die, T.ink, 0.4) })
     .stroke({ width: 0.8, color: T.ink, alpha: 0.5 });

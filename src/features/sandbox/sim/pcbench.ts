@@ -27,12 +27,12 @@
 import { Game } from '@/worker/game/game';
 import { Prng } from '@/core/sim/prng';
 import { BLOCK_BYTES, PchPhase, STORAGE_REG } from '@/core/sim/memmap';
-import { deviceSpec, fullDrawW, installedPsu, type DeviceKind } from '../../board/sim';
+import * as boardSim from '../../board/sim';
 import { KIND_NAME } from '../../board/sim/buildalerts';
 import { Operator } from '../../economy/sim/operator';
-import { describeNeed, JOB_CLASSES, needsMet, type Need } from '../../economy/sim/levels';
+import * as levelSim from '../../economy/sim/levels';
 import { getOsSpec } from '../../os/sim';
-import { BENCH_TASKS, type BenchTask, type RigId, type TaskResult } from './benchtasks';
+import * as benchTasks from './benchtasks';
 
 export {
   BENCH_GROUPS,
@@ -115,7 +115,7 @@ export const REFERENCE_RATE: Record<string, number> = {
   'hpc-bfs': 10.672,
   'hpc-fft': 9.72032,
   // the drive test (bytes per second)
-  disk: 20605.2,
+  disk: 20_605.2,
 };
 
 /** The mid machine the reference rates are measured on (see the header). Exported for the test and for re-measuring. */
@@ -139,17 +139,31 @@ const MID = {
 function rig(over: Partial<Record<keyof typeof MID | 'tpm', string>>, isp = 'isp2'): Game {
   const g = new Game({ seed: 1, sandbox: true, preassembled: true });
   // (the stock stick holds 16K and is not ECC: a rig with its own memory drops it)
-  if (over.ram) for (const d of g.snapshot().devices) if (d.kind === 'ram') g.uninstall(d.id);
+  if (over.ram) {
+    for (const d of g.snapshot().devices) {
+      if (d.kind === 'ram') {
+        g.uninstall(d.id);
+      }
+    }
+  }
   for (const id of Object.values({ ...MID, ...over })) {
     const b = g.purchase(id);
-    if (!b.ok) throw new Error(`reference build: buy ${id}: ${b.reason}`);
+    if (!b.ok) {
+      throw new Error(`reference build: buy ${id}: ${b.reason}`);
+    }
     const r = g.install(b.invId);
-    if (!r.ok) throw new Error(`reference build: install ${id}: ${r.reason}`);
+    if (!r.ok) {
+      throw new Error(`reference build: install ${id}: ${r.reason}`);
+    }
   }
   const plan = g.purchase(isp); // a plan needs no install: it is the link's ISP
-  if (!plan.ok) throw new Error(`reference build: ${isp}: ${plan.reason}`);
+  if (!plan.ok) {
+    throw new Error(`reference build: ${isp}: ${plan.reason}`);
+  }
   const lan = g.connectLan();
-  if (!lan.ok) throw new Error(`reference build: lan: ${lan.reason}`);
+  if (!lan.ok) {
+    throw new Error(`reference build: lan: ${lan.reason}`);
+  }
   return g;
 }
 
@@ -157,49 +171,68 @@ function rig(over: Partial<Record<keyof typeof MID | 'tpm', string>>, isp = 'isp
 function coresRig(cpu: string): Game {
   const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
   let kept = 0;
-  for (const d of g.snapshot().devices) if (d.kind === 'ram' && ++kept > 2) g.uninstall(d.id);
+  for (const d of g.snapshot().devices) {
+    if (d.kind === 'ram' && ++kept > 2) {
+      g.uninstall(d.id);
+    }
+  }
   const b = g.purchase(cpu);
-  if (!b.ok) throw new Error(`reference build: buy ${cpu}: ${b.reason}`);
+  if (!b.ok) {
+    throw new Error(`reference build: buy ${cpu}: ${b.reason}`);
+  }
   const r = g.install(b.invId);
-  if (!r.ok) throw new Error(`reference build: install ${cpu}: ${r.reason}`);
+  if (!r.ok) {
+    throw new Error(`reference build: install ${cpu}: ${r.reason}`);
+  }
   return g;
 }
 
 /** The machine a task is scored against: the mid machine, plus what the job needs (ECC memory and a TPM, a fibre plan) or, for the threaded jobs, a multicore CPU on the biggest shell. */
-export function referenceRig(id: RigId): Game {
+export function referenceRig(id: benchTasks.RigId): Game {
   switch (id) {
-    case 'mid':
+    case 'mid': {
       return rig({});
-    case 'fibre':
+    }
+    case 'fibre': {
       return rig({}, 'isp3');
-    case 'trust':
+    }
+    case 'trust': {
       return rig({ ram: 'ram3', tpm: 'tpm1' });
-    case 'trust2':
+    }
+    case 'trust2': {
       return rig({ ram: 'ram3', tpm: 'tpm2' });
-    case 'cores2':
+    }
+    case 'cores2': {
       return coresRig('cpu2d');
-    case 'cores4':
+    }
+    case 'cores4': {
       return coresRig('cpu3t');
-    case 'cores8':
+    }
+    case 'cores8': {
       return coresRig('cpu5s');
+    }
   }
 }
 
 // ---------- what can run ----------
 
 /** A need, as the bench says it (the almanac's phrase for the OS and the cores does not name the tier or the count). */
-function say(n: Need): string {
-  if (n.kind === 'os') return n.min > 1 ? `${getOsSpec(`os${n.min}`)?.name ?? `OS ${n.min}`} or newer` : 'an OS';
-  if (n.kind === 'cores') return `a CPU with ${n.min} logical cores`;
-  return describeNeed(n).long;
+function say(n: levelSim.Need): string {
+  if (n.kind === 'os') {
+    return n.min > 1 ? `${getOsSpec(`os${n.min}`)?.name ?? `OS ${n.min}`} or newer` : 'an OS';
+  }
+  if (n.kind === 'cores') {
+    return `a CPU with ${n.min} logical cores`;
+  }
+  return levelSim.describeNeed(n).long;
 }
 
 /** "a", "a and b", "a, b and c". */
 const listOf = (items: readonly string[]): string =>
-  items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+  items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
 
 const has = (game: Game, kind: string): boolean =>
-  game.board.devices.some((d) => !d.burnt && deviceSpec(d).kind === kind);
+  game.board.devices.some((d) => !d.burnt && boardSim.deviceSpec(d).kind === kind);
 
 /**
  * Why each of the tasks (all when `ids` is omitted) cannot run on this machine as it stands; null when it can. The machine is not run: this reads the parts
@@ -207,37 +240,42 @@ const has = (game: Game, kind: string): boolean =>
  */
 export function benchIssues(game: Game, ids?: readonly string[]): Map<string, string | null> {
   const out = new Map<string, string | null>();
-  const tasks = BENCH_TASKS.filter((t) => !ids || ids.includes(t.id));
-  if (!game.sandbox) return new Map(tasks.map((t) => [t.id, 'The benchmark needs a sandbox game']));
+  const tasks = benchTasks.BENCH_TASKS.filter((t) => !ids || ids.includes(t.id));
+  if (!game.sandbox) {
+    return new Map(tasks.map((t) => [t.id, 'The benchmark needs a sandbox game']));
+  }
   const link = game.computeLink();
   const wired = link.state !== 'no-device' && link.state !== 'no-cable' && link.state !== 'no-os' && link.port.mbps > 0;
   const caps = game.capsWith(wired),
     gpu = has(game, 'gpu'),
     npu = has(game, 'npu');
   for (const t of tasks) {
-    const missing = t.needs.filter((n) => !needsMet([n], caps).ok);
+    const missing = t.needs.filter((n) => !levelSim.needsMet([n], caps).ok);
     let why: string | null = null;
-    if (t.template === null) why = has(game, 'storage') ? null : 'Needs a storage drive';
-    else if (!wired && missing.some((n) => n.kind === 'net'))
+    if (t.template === null) {
+      why = has(game, 'storage') ? null : 'Needs a storage drive';
+    } else if (!wired && missing.some((n) => n.kind === 'net')) {
       why = link.reason ? `${link.reason.charAt(0).toUpperCase()}${link.reason.slice(1)}` : 'Needs a network link';
-    else if (missing.length > 0) why = `Needs ${listOf(missing.map(say))}`;
-    else if (t.accel === 'gpu' && !gpu)
+    } else if (missing.length > 0) {
+      why = `Needs ${listOf(missing.map(say))}`;
+    } else if (t.accel === 'gpu' && !gpu) {
       why = 'Needs a graphics card: without one it runs on the CPU, many times slower';
-    else if (t.accel === 'npu' && !npu && !gpu)
+    } else if (t.accel === 'npu' && !npu && !gpu) {
       why = 'Needs an AI card or a graphics card: without one it runs on the CPU, many times slower';
+    }
     out.set(t.id, why);
   }
   return out;
 }
 
 /** Why this task cannot run on this machine as it stands, or null when it can (`benchIssues` for one). */
-export const benchIssue = (game: Game, task: BenchTask): string | null =>
+export const benchIssue = (game: Game, task: benchTasks.BenchTask): string | null =>
   benchIssues(game, [task.id]).get(task.id) ?? null;
 
 /** The tasks of `ids` (all when omitted) this machine can run. */
-export function benchable(game: Game, ids?: readonly string[]): BenchTask[] {
+export function benchable(game: Game, ids?: readonly string[]): benchTasks.BenchTask[] {
   const issues = benchIssues(game, ids);
-  return BENCH_TASKS.filter((t) => issues.has(t.id) && issues.get(t.id) === null);
+  return benchTasks.BENCH_TASKS.filter((t) => issues.has(t.id) && issues.get(t.id) === null);
 }
 
 // ---------- a run ----------
@@ -248,7 +286,7 @@ export function benchable(game: Game, ids?: readonly string[]): BenchTask[] {
  */
 const LIMIT_FACTOR = 8,
   MIN_JOB_TICKS = 600,
-  MAX_JOB_TICKS = 16000,
+  MAX_JOB_TICKS = 16_000,
   MAX_BOOT_TICKS = 3000,
   CRASH_LIMIT = 4;
 /** The event loop gets a turn after this many milliseconds of work. */
@@ -258,7 +296,9 @@ const now = (): number => (typeof performance !== 'undefined' ? performance.now(
 
 /** A turn of the event loop. A message is a task like a timer, without the timer's 4 ms floor (a run would take half as long again). */
 function yieldTurn(): Promise<void> {
-  if (typeof MessageChannel === 'undefined') return new Promise((resolve) => setTimeout(resolve, 0));
+  if (typeof MessageChannel === 'undefined') {
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  }
   return new Promise((resolve) => {
     const c = new MessageChannel();
     c.port1.onmessage = () => {
@@ -287,19 +327,21 @@ export async function runBenchTasks(
   ids?: readonly string[],
   opts: {
     stop?: Stop;
-    onStart?: (task: BenchTask, index: number, total: number) => void;
-    onResult?: (result: TaskResult, task: BenchTask) => void;
+    onStart?: (task: benchTasks.BenchTask, index: number, total: number) => void;
+    onResult?: (result: benchTasks.TaskResult, task: benchTasks.BenchTask) => void;
   } = {},
-): Promise<TaskResult[]> {
-  const list = BENCH_TASKS.filter((t) => !ids || ids.includes(t.id));
+): Promise<benchTasks.TaskResult[]> {
+  const list = benchTasks.BENCH_TASKS.filter((t) => !ids || ids.includes(t.id));
   const stop = opts.stop ?? { aborted: false },
     pace = new Pace(),
-    out: TaskResult[] = [];
+    out: benchTasks.TaskResult[] = [];
   for (let i = 0; i < list.length && !stop.aborted; i++) {
     const task = list[i]!;
     opts.onStart?.(task, i, list.length);
     const result = await runTask(game, task, task.scale, pace, stop);
-    if (stop.aborted) break; // (a run that was stopped has no result)
+    if (stop.aborted) {
+      break;
+    } // (a run that was stopped has no result)
     out.push(result);
     opts.onResult?.(result, task);
     await pace.turn();
@@ -308,19 +350,35 @@ export async function runBenchTasks(
 }
 
 /** One task, run now at `scale` (the reference rates are measured at the task's own). Not sliced: for the tests and for re-measuring. */
-export async function measureTask(game: Game, task: BenchTask, scale = task.scale): Promise<TaskResult> {
+export async function measureTask(
+  game: Game,
+  task: benchTasks.BenchTask,
+  scale = task.scale,
+): Promise<benchTasks.TaskResult> {
   return runTask(game, task, scale, new Pace(), { aborted: false });
 }
 
-async function runTask(game: Game, task: BenchTask, scale: number, pace: Pace, stop: Stop): Promise<TaskResult> {
-  const none = (note: string): TaskResult => ({ id: task.id, score: null, seconds: null, note });
+async function runTask(
+  game: Game,
+  task: benchTasks.BenchTask,
+  scale: number,
+  pace: Pace,
+  stop: Stop,
+): Promise<benchTasks.TaskResult> {
+  const none = (note: string): benchTasks.TaskResult => ({ id: task.id, score: null, seconds: null, note });
   const issue = benchIssue(game, task);
-  if (issue) return none(issue);
+  if (issue) {
+    return none(issue);
+  }
   const ref = REFERENCE_RATE[task.id];
   const g = await bootedCopy(game, task, pace, stop);
-  if (!(g instanceof Game)) return none(g.note);
+  if (!(g instanceof Game)) {
+    return none(g.note);
+  }
   const run = task.template === null ? storageRate(g) : await jobRate(g, task, scale, ref, pace, stop);
-  if ('note' in run) return none(run.note);
+  if ('note' in run) {
+    return none(run.note);
+  }
   const crashed = g.errors > 0 ? (faultOf(g) ?? 'the machine crashed') : undefined;
   return {
     id: task.id,
@@ -336,7 +394,7 @@ async function runTask(game: Game, task: BenchTask, scale: number, pace: Pace, s
 /** The first thing the copy logged as a fault since it was made, as a cause ("VRM voltage droop"). */
 function faultOf(g: Game): string | null {
   const l = g.log.find((x) => x.kind === 'fault');
-  return l ? l.text.replace(/: the machine crashed and rebooted$/, '') : null;
+  return l ? l.text.replace(/: the machine crashed and rebooted$/u, '') : null;
 }
 
 /**
@@ -344,20 +402,25 @@ function faultOf(g: Game): string | null {
  * regulators that burnt out, a start-up check that fails. Null while the machine can still run.
  */
 function stoppedBy(g: Game): string | null {
-  if (g.thermal.power.tripped)
-    return `The power supply tripped: the parts draw ${Math.round(fullDrawW(g.board))} W at full load and it gives ${installedPsu(g.board)?.spec.watts ?? 0} W`;
-  if (g.board.burnt) return "The board's voltage regulators burnt out: they ran too hot or too hard";
+  if (g.thermal.power.tripped) {
+    return `The power supply tripped: the parts draw ${Math.round(boardSim.fullDrawW(g.board))} W at full load and it gives ${boardSim.installedPsu(g.board)?.spec.watts ?? 0} W`;
+  }
+  if (g.board.burnt) {
+    return "The board's voltage regulators burnt out: they ran too hot or too hard";
+  }
   // (a CPU that burnt out in the run fails the power-on check as well, which says only "burnt out": the heat is the cause)
-  if (g.postError) return burntPart(g, 'cpu') ?? `The machine does not start: ${g.postError.reason}`;
+  if (g.postError) {
+    return burntPart(g, 'cpu') ?? `The machine does not start: ${g.postError.reason}`;
+  }
   return null;
 }
 
 /** The first part that burnt out (a burnt card or drive does not stop the others: this is for a job that did not finish), as a cause. `kind`: only a part of that kind. */
-function burntPart(g: Game, kind?: DeviceKind): string | null {
+function burntPart(g: Game, kind?: boardSim.DeviceKind): string | null {
   const d = g.board.devices.find(
-    (x) => x.burnt && KIND_NAME[deviceSpec(x).kind] && (!kind || deviceSpec(x).kind === kind),
+    (x) => x.burnt && KIND_NAME[boardSim.deviceSpec(x).kind] && (!kind || boardSim.deviceSpec(x).kind === kind),
   );
-  return d ? `The ${KIND_NAME[deviceSpec(d).kind]} burnt out: it ran too hot` : null;
+  return d ? `The ${KIND_NAME[boardSim.deviceSpec(d).kind]} burnt out: it ran too hot` : null;
 }
 
 /**
@@ -366,17 +429,21 @@ function burntPart(g: Game, kind?: DeviceKind): string | null {
  */
 function slowNow(g: Game): { speed: number; why: string } | null {
   const th = g.thermal;
-  if (th.power.off) return null;
+  if (th.power.off) {
+    return null;
+  }
   const found = [
     {
       speed: th.power.psuFactor,
-      why: `The power supply is too small (${Math.round(th.power.budgetW)} W for ${Math.round(fullDrawW(g.board))} W at full load)`,
+      why: `The power supply is too small (${Math.round(th.power.budgetW)} W for ${Math.round(boardSim.fullDrawW(g.board))} W at full load)`,
     },
   ];
   for (const d of g.board.devices) {
-    const name = KIND_NAME[deviceSpec(d).kind],
+    const name = KIND_NAME[boardSim.deviceSpec(d).kind],
       st = th.state(d.id);
-    if (name && st) found.push({ speed: st.throttle, why: `The ${name} ran hot (${Math.round(st.tempC)} C)` });
+    if (name && st) {
+      found.push({ speed: st.throttle, why: `The ${name} ran hot (${Math.round(st.tempC)} C)` });
+    }
   }
   found.push(
     { speed: th.vrm.throttle, why: `The board's voltage regulator ran hot (${Math.round(th.vrm.tempC)} C)` },
@@ -391,7 +458,9 @@ class Slow {
   private worst: { speed: number; why: string } | null = null;
   look(g: Game): void {
     const s = slowNow(g);
-    if (s && (!this.worst || s.speed < this.worst.speed)) this.worst = s;
+    if (s && (!this.worst || s.speed < this.worst.speed)) {
+      this.worst = s;
+    }
   }
   get text(): string | undefined {
     return this.worst ? `${this.worst.why}: it ran at ${Math.round(this.worst.speed * 100)}% of its speed` : undefined;
@@ -399,29 +468,40 @@ class Slow {
 }
 
 /** A copy of the build, powered and booted (OS up, and the link up for a network job). Never the live game. A copy that cannot come up says why. */
-async function bootedCopy(game: Game, task: BenchTask, pace: Pace, stop: Stop): Promise<Game | { note: string }> {
+async function bootedCopy(
+  game: Game,
+  task: benchTasks.BenchTask,
+  pace: Pace,
+  stop: Stop,
+): Promise<Game | { note: string }> {
   // (fromSave resets the power, the tray and the drives' in-flight commands; the copy starts cold, as a saved game does.)
   const s = game.toSave();
   const g = Game.fromSave({ ...s, tray: [], plugged: null, inventory: [], prngState: new Prng(s.seed).getState() });
-  g.setJobClasses(JOB_CLASSES.map((c) => c.id)); // no arrivals: the job is the only key
+  g.setJobClasses(levelSim.JOB_CLASSES.map((c) => c.id)); // no arrivals: the job is the only key
   g.errors = 0; // (the save keeps the player's count and log: only what this copy does counts)
   g.log = [];
   if (!g.powered) {
     const pressed = g.powerButton();
-    if (!pressed.ok) return { note: `The machine does not switch on: ${pressed.reason.replace(/^no power: /, '')}` };
+    if (!pressed.ok) {
+      return { note: `The machine does not switch on: ${pressed.reason.replace(/^no power: /u, '')}` };
+    }
   }
   const op = new Operator(g);
   const link = task.needs.some((n) => n.kind === 'net');
   // (the OS is up as the kernel loads, but the boot phase runs every clock at `osBootBoost`: the copy is ready once the kernel reaches its idle loop, so the drive test reads the drive at the normal boost)
   const ready = (): boolean =>
-    (!g.hasOs() || (!!g.snapshot().os?.up && g.pch.phase !== PchPhase.OsBoot)) && (!link || g.linkUsable);
+    (!g.hasOs() || (Boolean(g.snapshot().os?.up) && g.pch.phase !== PchPhase.OsBoot)) && (!link || g.linkUsable);
   for (let t = 0; t < MAX_BOOT_TICKS && !ready() && g.errors < CRASH_LIMIT && !stoppedBy(g); t++) {
-    if (stop.aborted) return { note: 'stopped' };
+    if (stop.aborted) {
+      return { note: 'stopped' };
+    }
     g.advanceBaseTick();
     op.step();
-    if (pace.due()) await pace.turn();
+    if (pace.due()) {
+      await pace.turn();
+    }
   }
-  if (!ready())
+  if (!ready()) {
     return {
       note:
         stoppedBy(g) ??
@@ -432,22 +512,27 @@ async function bootedCopy(game: Game, task: BenchTask, pace: Pace, stop: Stop): 
             ? 'No network link (an OS and a linked router are needed)'
             : 'The OS did not come up'),
     };
+  }
   return g;
 }
 
 /** Work per second of the task's job on the booted copy, or a note when it could not run or finish. `ref` is the reference rate (undefined when there is none). */
 async function jobRate(
   g: Game,
-  task: BenchTask,
+  task: benchTasks.BenchTask,
   scale: number,
   ref: number | undefined,
   pace: Pace,
   stop: Stop,
 ): Promise<{ rate: number; seconds: number; slowed?: string | undefined } | { note: string }> {
   const r = g.spawnKey(task.template!, scale);
-  if (!r.ok) return { note: r.reason };
+  if (!r.ok) {
+    return { note: r.reason };
+  }
   const queued = g.snapshot().tray.find((k) => k.id === r.keyId);
-  if (queued && !queued.runnable) return { note: `Needs ${listOf(queued.missing)}` };
+  if (queued && !queued.runnable) {
+    return { note: `Needs ${listOf(queued.missing)}` };
+  }
   const work = g.tray.waiting().find((k) => k.id === r.keyId)?.work ?? 0;
   const limit = ref
     ? Math.min(MAX_JOB_TICKS, Math.max(MIN_JOB_TICKS, Math.ceil((LIMIT_FACTOR * work) / ref)))
@@ -455,14 +540,18 @@ async function jobRate(
   const op = new Operator(g),
     slow = new Slow();
   for (let t = 0; t < limit && g.lastCompleted?.id !== r.keyId && g.errors < CRASH_LIMIT && !stoppedBy(g); t++) {
-    if (stop.aborted) return { note: 'stopped' };
+    if (stop.aborted) {
+      return { note: 'stopped' };
+    }
     g.advanceBaseTick();
     op.step();
     slow.look(g);
-    if (pace.due()) await pace.turn();
+    if (pace.due()) {
+      await pace.turn();
+    }
   }
   const done = g.lastCompleted;
-  if (!done || done.id !== r.keyId)
+  if (!done || done.id !== r.keyId) {
     return {
       note:
         stoppedBy(g) ??
@@ -471,6 +560,7 @@ async function jobRate(
           ? `The machine kept crashing: ${faultOf(g) ?? 'it would not stay up'}`
           : `The job did not finish in ${limit} s`),
     };
+  }
   const seconds = Math.max(1, done.execTicks);
   return { rate: work / seconds, seconds, slowed: slow.text };
 }
@@ -478,20 +568,34 @@ async function jobRate(
 /** Bytes per second of the storage plan on the OS drive (or the first drive), timed by the port's own clock. */
 function storageRate(g: Game): { rate: number; seconds: number; slowed?: string } | { note: string } {
   const port = g.osPort() ?? g.ports.find((p) => p.media !== null) ?? null;
-  if (!port?.media) return { note: 'No drive is attached' };
-  const clock = g.machine.clock;
+  if (!port?.media) {
+    return { note: 'No drive is attached' };
+  }
+  const { clock } = g.machine;
   const rate = clock.getRate(port.name);
-  if (rate.mul <= 0) return { note: "The drive's clock is stopped" };
-  const blocks = port.media.blocks;
+  if (rate.mul <= 0) {
+    return { note: "The drive's clock is stopped" };
+  }
+  const { blocks } = port.media;
   const plan: number[] = [];
-  for (let i = 0; i < STORAGE_SEQ; i++) plan.push(i % blocks);
-  for (let i = 0; i < STORAGE_SCATTER; i++) plan.push((i * STORAGE_STRIDE) % blocks);
+  for (let i = 0; i < STORAGE_SEQ; i++) {
+    plan.push(i % blocks);
+  }
+  for (let i = 0; i < STORAGE_SCATTER; i++) {
+    plan.push((i * STORAGE_STRIDE) % blocks);
+  }
   const before = clock.ticks(port.name);
   for (const lba of plan) {
-    for (let k = 0; k < 4; k++) port.write(STORAGE_REG.LBA + k, (lba >>> (8 * k)) & 0xff);
+    for (let k = 0; k < 4; k++) {
+      port.write(STORAGE_REG.LBA + k, (lba >>> (8 * k)) & 0xff);
+    }
     port.write(STORAGE_REG.CMD, 1); // 1 = read block LBA into the buffer
-    for (let guard = 0; port.isBusy && guard < 1_000_000; guard++) clock.advance(1);
-    if (port.isBusy) return { note: 'The drive did not answer' };
+    for (let guard = 0; port.isBusy && guard < 1_000_000; guard++) {
+      clock.advance(1);
+    }
+    if (port.isBusy) {
+      return { note: 'The drive did not answer' };
+    }
   }
   const domainTicks = clock.ticks(port.name) - before;
   const seconds = (domainTicks * rate.div) / rate.mul; // domain ticks per base tick = mul / div; one base tick = 1 s

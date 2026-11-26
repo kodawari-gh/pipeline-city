@@ -11502,10 +11502,7 @@
   "unicorn(numeric-separators-style)": 36
  },
  "src/features/sandbox/sim/benchtasks.ts": {
-  "eslint(curly)": 3,
-  "eslint(no-implicit-coercion)": 2,
   "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(no-array-callback-reference)": 1
  },
@@ -11530,31 +11527,23 @@
   "vitest(valid-expect)": 8
  },
  "src/features/sandbox/sim/pcbench.ts": {
-  "eslint(curly)": 46,
   "eslint(default-case)": 1,
   "eslint(max-classes-per-file)": 1,
   "eslint(max-lines)": 1,
   "eslint(max-params)": 3,
   "eslint(no-await-in-loop)": 4,
-  "eslint(no-implicit-coercion)": 1,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 1,
   "eslint(no-promise-executor-return)": 1,
   "eslint(no-use-before-define)": 3,
-  "eslint(prefer-destructuring)": 2,
-  "eslint(require-unicode-regexp)": 2,
-  "import(consistent-type-specifier-style)": 5,
   "typescript(consistent-return)": 1,
   "typescript(no-non-null-assertion)": 2,
   "typescript(promise-function-async)": 1,
-  "typescript(strict-boolean-expressions)": 17,
+  "typescript(strict-boolean-expressions)": 16,
   "typescript(strict-void-return)": 1,
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-reduce)": 1,
-  "unicorn(numeric-separators-style)": 2,
-  "unicorn(prefer-add-event-listener)": 1,
-  "unicorn(prefer-at)": 1,
-  "unicorn(switch-case-braces)": 7
+  "unicorn(prefer-add-event-listener)": 1
  },
  "src/features/sandbox/sim/sandbox.test.ts": {
   "eslint(curly)": 15,
@@ -11575,8 +11564,6 @@
   "vitest(prefer-to-have-length)": 10
  },
  "src/features/sandbox/sim/sandbox.ts": {
-  "eslint(curly)": 24,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-unnecessary-type-conversion)": 1,
   "typescript(no-unsafe-type-assertion)": 2,
   "typescript(strict-boolean-expressions)": 3,
@@ -11584,64 +11571,43 @@
   "unicorn(explicit-length-check)": 2
  },
  "src/features/sandbox/sim/speed.ts": {
-  "eslint(curly)": 8,
   "eslint(eqeqeq)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(no-await-in-loop)": 1,
   "eslint(no-console)": 3,
   "eslint(no-eq-null)": 1,
-  "eslint(no-implicit-coercion)": 11,
   "eslint(no-use-before-define)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 2,
   "typescript(promise-function-async)": 1,
-  "typescript(strict-boolean-expressions)": 2,
-  "unicorn(prefer-at)": 1
+  "typescript(strict-boolean-expressions)": 2
  },
  "src/features/sandbox/ui/SandboxJobs.tsx": {
-  "eslint(curly)": 3,
   "eslint(max-lines-per-function)": 2,
-  "eslint(no-implicit-coercion)": 1,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 3,
-  "eslint(prefer-destructuring)": 3,
   "jsx-a11y(prefer-tag-over-role)": 1,
   "react(button-has-type)": 6,
   "typescript(consistent-return)": 1,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-confusing-void-expression)": 7,
   "typescript(no-non-null-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 4,
-  "unicorn(explicit-length-check)": 1,
-  "unicorn(prefer-global-this)": 2
+  "typescript(strict-boolean-expressions)": 3
  },
  "src/features/sandbox/ui/SandboxTools.tsx": {
-  "eslint(curly)": 2,
   "eslint(max-lines-per-function)": 1,
-  "eslint(no-implicit-coercion)": 1,
   "jsx-a11y(prefer-tag-over-role)": 2,
   "react(button-has-type)": 8,
   "typescript(consistent-return)": 1,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-confusing-void-expression)": 6,
-  "typescript(strict-boolean-expressions)": 2,
-  "unicorn(prefer-global-this)": 2
- },
- "src/features/storage/render/air.ts": {
-  "eslint(no-implicit-coercion)": 1,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 1
+  "typescript(strict-boolean-expressions)": 1
  },
  "src/features/storage/render/diskart.ts": {
-  "eslint(curly)": 11,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 4,
   "eslint(no-duplicate-imports)": 1,
   "eslint(no-nested-ternary)": 5,
-  "import(consistent-type-specifier-style)": 3,
-  "import(no-duplicates)": 1,
   "typescript(no-non-null-assertion)": 3,
   "unicorn(no-array-fill-with-reference-type)": 24,
   "unicorn(no-array-for-each)": 2,
@@ -11658,16 +11624,12 @@
   "vitest(valid-expect)": 1
  },
  "src/features/storage/render/diskdie.ts": {
-  "eslint(curly)": 12,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
   "eslint(max-params)": 3,
-  "eslint(no-implicit-coercion)": 7,
-  "eslint(prefer-destructuring)": 3,
   "typescript(no-non-null-assertion)": 9,
   "unicorn(no-array-fill-with-reference-type)": 20,
-  "unicorn(no-array-for-each)": 3,
-  "unicorn(prefer-at)": 1
+  "unicorn(no-array-for-each)": 3
  },
  "src/features/storage/render/diskfloor.test.ts": {
   "eslint(curly)": 4,
@@ -11682,7 +11644,6 @@
  "src/features/storage/render/diskfloor.ts": {
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 3,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 1,
   "unicorn(no-array-for-each)": 1,
   "unicorn(prefer-single-call)": 1
@@ -11696,7 +11657,6 @@
   "vitest(prefer-strict-equal)": 14
  },
  "src/features/storage/render/diskplan.ts": {
-  "eslint(curly)": 12,
   "eslint(max-params)": 2,
   "eslint(no-nested-ternary)": 1,
   "typescript(no-non-null-assertion)": 3,
@@ -11714,12 +11674,10 @@
  },
  "src/features/storage/render/diskplay.ts": {
   "eslint(class-methods-use-this)": 2,
-  "eslint(curly)": 11,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 5,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 3,
   "import(max-dependencies)": 1,
   "typescript(no-non-null-assertion)": 2,
   "typescript(prefer-readonly)": 1,
@@ -11732,16 +11690,12 @@
   "vitest(prefer-strict-equal)": 15
  },
  "src/features/storage/render/diskplayer.ts": {
-  "eslint(curly)": 10,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 3,
   "eslint(no-multi-assign)": 1,
   "eslint(no-shadow)": 1,
-  "eslint(prefer-destructuring)": 1,
   "typescript(no-non-null-assertion)": 3,
-  "typescript(prefer-readonly)": 1,
-  "unicorn(explicit-length-check)": 1,
-  "unicorn(prefer-at)": 1
+  "typescript(prefer-readonly)": 1
  },
  "src/features/storage/render/diskview.test.ts": {
   "eslint(curly)": 1,
@@ -11755,14 +11709,10 @@
  },
  "src/features/storage/render/diskview.ts": {
   "eslint(class-methods-use-this)": 2,
-  "eslint(curly)": 12,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
   "eslint(max-params)": 3,
-  "eslint(no-implicit-coercion)": 2,
   "eslint(no-nested-ternary)": 9,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 8,
   "import(max-dependencies)": 1,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-non-null-assertion)": 2,
@@ -11770,15 +11720,10 @@
   "unicorn(no-array-for-each)": 2
  },
  "src/features/storage/render/drives.ts": {
-  "eslint(curly)": 11,
   "eslint(max-lines-per-function)": 2,
   "eslint(max-params)": 3,
-  "eslint(no-implicit-coercion)": 1,
   "eslint(no-nested-ternary)": 1,
   "eslint(no-shadow)": 1,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(explicit-module-boundary-types)": 2,
   "typescript(no-non-null-assertion)": 4,
   "unicorn(no-array-fill-with-reference-type)": 18
@@ -11801,17 +11746,13 @@
   "vitest(prefer-to-have-length)": 1
  },
  "src/features/storage/sim/fs.ts": {
-  "eslint(complexity)": 1,
-  "eslint(curly)": 45,
   "eslint(max-lines)": 1,
   "eslint(max-params)": 2,
-  "eslint(no-implicit-coercion)": 3,
   "eslint(no-negated-condition)": 4,
   "oxc(no-map-spread)": 1,
   "typescript(no-non-null-assertion)": 3,
-  "typescript(strict-boolean-expressions)": 5,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(prefer-at)": 2
+  "typescript(strict-boolean-expressions)": 4,
+  "unicorn(no-array-sort)": 1
  },
  "src/features/storage/sim/savedisk.test.ts": {
   "eslint(curly)": 5,
@@ -11836,19 +11777,13 @@
   "vitest(prefer-strict-equal)": 4
  },
  "src/features/storage/sim/storage.ts": {
-  "eslint(curly)": 22,
   "eslint(default-case)": 1,
   "eslint(max-classes-per-file)": 1,
   "eslint(max-lines)": 1,
   "eslint(max-params)": 1,
-  "eslint(no-implicit-coercion)": 1,
-  "eslint(prefer-destructuring)": 2,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 11,
   "typescript(prefer-readonly)": 1,
-  "typescript(strict-boolean-expressions)": 11,
-  "unicorn(numeric-separators-style)": 2,
-  "unicorn(switch-case-braces)": 3
+  "typescript(strict-boolean-expressions)": 10
  },
  "src/features/tpm/render/tpmart.ts": {
   "eslint(max-params)": 1,
