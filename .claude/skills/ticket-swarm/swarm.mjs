@@ -412,7 +412,7 @@ class Swarm {
       '--model',
       tier.model,
       '--effort',
-      tier.effort,
+      process.env.SWARM_EFFORT || tier.effort,
       '--output-format',
       'json',
       '--json-schema',
