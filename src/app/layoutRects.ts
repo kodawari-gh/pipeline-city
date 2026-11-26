@@ -45,7 +45,9 @@ function shown(c: Control): Box | null {
   let b: Box = c.box;
   for (const k of c.clips) {
     b = { x: Math.max(b.x, k.box.x), y: Math.max(b.y, k.box.y), r: Math.min(b.r, k.box.r), b: Math.min(b.b, k.box.b) };
-    if (b.r <= b.x || b.b <= b.y) return null;
+    if (b.r <= b.x || b.b <= b.y) {
+      return null;
+    }
   }
   return b;
 }
@@ -58,10 +60,14 @@ export function overlappingControls(controls: readonly Control[]): [string, stri
     for (let j = i + 1; j < controls.length; j++) {
       const a = controls[i]!,
         c = controls[j]!;
-      if (a.ancestors.includes(c.id) || c.ancestors.includes(a.id)) continue;
+      if (a.ancestors.includes(c.id) || c.ancestors.includes(a.id)) {
+        continue;
+      }
       const sa = seen[i],
         sc = seen[j];
-      if (sa && sc && overlaps(sa, sc)) out.push([a.label, c.label]);
+      if (sa && sc && overlaps(sa, sc)) {
+        out.push([a.label, c.label]);
+      }
     }
   }
   return out;
@@ -74,8 +80,12 @@ export function overlappingControls(controls: readonly Control[]): [string, stri
 export function controlProblems(c: Control, vw: number, vh: number): string[] {
   const problems: string[] = [];
   const scrolls = c.clips.some((k) => k.scrolls);
-  if (!scrolls && outsideViewport(c.box, vw, vh)) problems.push(`${c.label} is outside the viewport`);
-  if (c.clips.some((k) => !k.scrolls && outsideClip(c.box, k.box))) problems.push(`${c.label} is clipped`);
+  if (!scrolls && outsideViewport(c.box, vw, vh)) {
+    problems.push(`${c.label} is outside the viewport`);
+  }
+  if (c.clips.some((k) => !k.scrolls && outsideClip(c.box, k.box))) {
+    problems.push(`${c.label} is clipped`);
+  }
   return problems;
 }
 
@@ -89,7 +99,9 @@ export function freeWidth(vw: number, boxes: readonly Box[]): number {
   let end = 0;
   for (const [a, z] of spans) {
     const from = Math.max(a, end);
-    if (z > from) covered += z - from;
+    if (z > from) {
+      covered += z - from;
+    }
     end = Math.max(end, z);
   }
   return vw - covered;

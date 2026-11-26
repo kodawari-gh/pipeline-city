@@ -9,7 +9,9 @@ export const scrubTarget = signal<ScrubTarget>('cpu');
 export const traceOpen = signal(false);
 /** Move the scrubber to another target: the old cursor, range and shown cycle mean nothing there. */
 export function selectScrub(t: ScrubTarget): void {
-  if (scrubTarget.peek() === t) return;
+  if (scrubTarget.peek() === t) {
+    return;
+  }
   scrubTarget.value = t;
   scrubCursor.value = null;
   scrubRange.value = null;

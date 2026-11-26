@@ -52,8 +52,12 @@ const PC_NAME = ['C', 'Cs', 'D', 'Ds', 'E', 'F', 'Fs', 'G', 'Gs', 'A', 'As', 'B'
 export function noteMidi(keyPc: number, reg: Register, degree: number): number {
   const [lo, hi] = REGISTER[reg];
   let m = lo + mod(keyPc - lo, 12) + 12 * Math.floor(degree / 7) + LYDIAN[mod(degree, 7)]!;
-  while (m > hi) m -= 12;
-  while (m < lo) m += 12;
+  while (m > hi) {
+    m -= 12;
+  }
+  while (m < lo) {
+    m += 12;
+  }
   return m;
 }
 
@@ -84,66 +88,92 @@ const FAN = [0, 2, 4, 6, 7, 9] as const;
 export function noteSpecFor(e: Pick<GameEvent, 'kind' | 'text'>): NoteSpec | null {
   const t = e.text;
   switch (e.kind) {
-    case 'install':
-      if (/will be swapped in|queued installs? cancelled|queued swap was dropped/.test(t)) return null;
-      if (/removed|came off/.test(t))
+    case 'install': {
+      if (/will be swapped in|queued installs? cancelled|queued swap was dropped/u.test(t)) {
+        return null;
+      }
+      if (/removed|came off/u.test(t)) {
         return { duck: 'standard', steps: [step('pluck', 'build', 4), step('pluck', 'build', 0, HALF)] };
-      if (/installed|placed next to|formatted/.test(t)) return { duck: 'standard', steps: [step('pluck', 'build', 0)] };
+      }
+      if (/installed|placed next to|formatted/u.test(t)) {
+        return { duck: 'standard', steps: [step('pluck', 'build', 0)] };
+      }
       return null;
-    case 'cable':
+    }
+    case 'cable': {
       // A disconnect (or an unplug) falls 4 -> 0 over a low root; a connect rises 0 -> 4 (`disconnected` before `connected`).
-      if (/came unplugged|disconnected/.test(t))
+      if (/came unplugged|disconnected/u.test(t)) {
         return {
           duck: 'standard',
           steps: [step('pluck', 'build', 4), step('pluck', 'build', 0, HALF), step('low', 'failure', 0)],
         };
-      if (t.includes('connected'))
+      }
+      if (t.includes('connected')) {
         return { duck: 'standard', steps: [step('pluck', 'build', 0), step('pluck', 'build', 4, HALF)] };
+      }
       return null;
-    case 'power':
-      if (/powered on|reconnected/.test(t))
+    }
+    case 'power': {
+      if (/powered on|reconnected/u.test(t)) {
         return {
           duck: 'standard',
           steps: [0, 4, 7].map((d) => step('pluck', 'build', d, d === 0 ? 0 : d === 4 ? THIRD : 2 * THIRD)),
         };
+      }
       return null;
-    case 'key':
+    }
+    case 'key': {
       return { duck: 'key', steps: [step('pluck', 'flow', 2)] };
-    case 'job':
+    }
+    case 'job': {
       return { duck: 'key', steps: [step('pluck', 'flow', 0)] };
+    }
     case 'payout': {
       // Glint fan: 3 + min(3, floor(log10 amount)) notes, one third of a beat apart; a late payout plays 2.
-      const m = /\$(\d+)/.exec(t);
+      const m = /\$(?<amount>\d+)/u.exec(t);
       const amount = m ? Number(m[1]) : 0;
       const mag = amount >= 1 ? Math.floor(Math.log10(amount)) : 0;
-      const count = /\(late\)$/.test(t) ? 2 : 3 + Math.min(3, mag);
+      const count = /\(late\)$/u.test(t) ? 2 : 3 + Math.min(3, mag);
       return { duck: 'key', steps: FAN.slice(0, count).map((d, i) => step('glint', 'glint', d, i * THIRD)) };
     }
-    case 'drop':
+    case 'drop': {
       return { duck: 'failure', steps: [step('low', 'failure', 4), step('glint', 'glint', 3)] };
-    case 'expire':
+    }
+    case 'expire': {
       return { duck: 'failure', steps: [step('low', 'failure', 2), step('low', 'failure', 0, HALF)] };
-    case 'ecc':
+    }
+    case 'ecc': {
       return { duck: 'standard', steps: [step('glint', 'glint', 3, 0, -4)] };
-    case 'net':
+    }
+    case 'net': {
       // The spec names the flow register here, but a rise 4 -> 7 fits only the glint register (flow folds it down).
-      if (t.includes('link up'))
+      if (t.includes('link up')) {
         return { duck: 'standard', steps: [step('glint', 'glint', 4), step('glint', 'glint', 7)] };
+      }
       return null;
-    case 'bill':
-      if (/^paid/.test(t)) return { duck: 'standard', steps: [step('glint', 'glint', 4), step('glint', 'glint', 0)] };
+    }
+    case 'bill': {
+      if (/^paid/u.test(t)) {
+        return { duck: 'standard', steps: [step('glint', 'glint', 4), step('glint', 'glint', 0)] };
+      }
       return null;
-    case 'contract':
-      if (t.includes('accepted'))
+    }
+    case 'contract': {
+      if (t.includes('accepted')) {
         return { duck: 'standard', steps: [step('pluck', 'flow', 4), step('pluck', 'flow', 8, HALF)] };
+      }
       return { duck: 'standard', steps: [step('pluck', 'flow', 8), step('pluck', 'flow', 4, HALF)] };
-    case 'purchase':
+    }
+    case 'purchase': {
       // A sale is the uninstall figure (music-spec.json `events.install`, "uninstall / sell").
-      if (/^sold/.test(t))
+      if (/^sold/u.test(t)) {
         return { duck: 'standard', steps: [step('pluck', 'build', 4), step('pluck', 'build', 0, HALF)] };
+      }
       return null;
-    default:
+    }
+    default: {
       return null;
+    }
   }
 }
 
@@ -156,7 +186,9 @@ export function createNoteVoices(max = NOTE_VOICE_MAX) {
     admit(now: number, start: number, dur: number): { token: number; stolen: number[] } {
       live = live.filter((v) => v.end > now);
       const stolen: number[] = [];
-      while (live.length >= max) stolen.push(live.shift()!.token);
+      while (live.length >= max) {
+        stolen.push(live.shift()!.token);
+      }
       const token = next++;
       live.push({ token, end: start + dur });
       return { token, stolen };

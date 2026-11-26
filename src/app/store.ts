@@ -106,7 +106,9 @@ export function startSim(
     });
     return;
   }
-  if (save) saveHooks.restore(save);
+  if (save) {
+    saveHooks.restore(save);
+  }
   stopWorker();
   lastError.value = null;
   autosaveOffer.value = null;
@@ -114,19 +116,25 @@ export function startSim(
   const w = new Worker(new URL('../worker/worker.ts', import.meta.url), { type: 'module' });
   worker = w;
   w.onerror = () => {
-    if (w !== worker) return;
+    if (w !== worker) {
+      return;
+    }
     lastError.value = `${SAY}The game could not start. Reload the page and try again.`;
     starting.value = false;
   };
   w.onmessage = (e: MessageEvent<FromSim>) => {
-    if (w !== worker) return;
+    if (w !== worker) {
+      return;
+    }
     const m = e.data;
     if (m.type === 'snapshot') {
       snapshot.value = m.snapshot;
       starting.value = false;
     } else if (m.type === 'error') {
       lastError.value = m.message;
-      if (!snapshot.peek()) starting.value = false;
+      if (!snapshot.peek()) {
+        starting.value = false;
+      }
     } else if (m.type === 'crash') {
       crash.value = m.report;
       speed.value = 0; // the sim paused itself
@@ -140,10 +148,10 @@ export function startSim(
   send({
     type: 'init',
     save,
-    seed: (Math.random() * 0x100000000) >>> 0,
-    sandbox: !!opts.sandbox,
-    preassembled: !!opts.preassembled,
-    maxed: !!opts.maxed,
+    seed: (Math.random() * 0x1_00_00_00_00) >>> 0,
+    sandbox: Boolean(opts.sandbox),
+    preassembled: Boolean(opts.preassembled),
+    maxed: Boolean(opts.maxed),
   });
   send({ type: 'setSpeed', speed: DEFAULT_SPEED });
   autosaveTimer = setInterval(() => requestSave(autosave), AUTOSAVE_EVERY_MS);
@@ -190,9 +198,13 @@ export function leaveSim(): void {
   let left = false;
   leaving.value = true;
   const leave = (save?: SaveV1) => {
-    if (left) return;
+    if (left) {
+      return;
+    }
     left = true;
-    if (save) autosave(save);
+    if (save) {
+      autosave(save);
+    }
     // (the room's rebuild for the title holds the page: let "Saving…" paint first)
     void nextPaint().then(() => {
       stopWorker();
@@ -246,11 +258,16 @@ export function loadPreviousOffer(): boolean {
 function keepAutosaveAsPrevious(): void {
   try {
     const raw = localStorage.getItem(AUTOSAVE_KEY);
-    if (!raw) return;
+    if (!raw) {
+      return;
+    }
     localStorage.setItem(PREVIOUS_KEY, raw);
     const at = localStorage.getItem(AUTOSAVE_AT_KEY);
-    if (at) localStorage.setItem(PREVIOUS_AT_KEY, at);
-    else localStorage.removeItem(PREVIOUS_AT_KEY);
+    if (at) {
+      localStorage.setItem(PREVIOUS_AT_KEY, at);
+    } else {
+      localStorage.removeItem(PREVIOUS_AT_KEY);
+    }
   } catch {
     /* storage unavailable: no previous save is kept */
   }
@@ -315,14 +332,19 @@ export const stepTick = () => send({ type: 'stepTick' });
 export const stepGpu = (slot: string, cycles: number) => send({ type: 'stepGpu', slot, cycles });
 export function setSpeed(s: Speed) {
   speed.value = s;
-  if (s !== 0) lastRunSpeed.value = s;
+  if (s !== 0) {
+    lastRunSpeed.value = s;
+  }
   send({ type: 'setSpeed', speed: s });
 }
 
 /** Space: pause, and resume at the speed the game was running at (the default for a new game). */
 export function togglePause() {
-  if (speed.value === 0) setSpeed(lastRunSpeed.value);
-  else setSpeed(0);
+  if (speed.value === 0) {
+    setSpeed(lastRunSpeed.value);
+  } else {
+    setSpeed(0);
+  }
 }
 
 function download(name: string, text: string) {
@@ -363,7 +385,9 @@ export function exportCrash(r: CrashReport) {
 
 /** Download only the game from a crash report, as a normal save file. */
 export function exportCrashSave(r: CrashReport) {
-  if (r.save) download(`pipeline-city-${r.tick}.json`, JSON.stringify(r.save, null, 1));
+  if (r.save) {
+    download(`pipeline-city-${r.tick}.json`, JSON.stringify(r.save, null, 1));
+  }
 }
 
 /** Read a save file and check it. A file that is no save sets `lastError` (in the player's words) and gives null. Nothing starts: the caller may ask first (`panels/loadgame.ts`). */
@@ -385,7 +409,9 @@ export async function readSaveFile(file: File): Promise<SaveV1 | null> {
 /** Read a save file, validate it, and restart the sim from it. Errors go to `lastError`. */
 export async function importSave(file: File) {
   const save = await readSaveFile(file);
-  if (save) startSim(save);
+  if (save) {
+    startSim(save);
+  }
 }
 
 /** Offline: the game still runs, and the way forward is a reload once the connection is back (the pictures load on the page's start). */
@@ -396,14 +422,21 @@ const OFFLINE_NOTICE = `${
 /** Record the browser's connection state. Going offline shows the notice in `lastError`; coming back online clears it. */
 export function setOnline(on: boolean): void {
   online.value = on;
-  if (!on) lastError.value = OFFLINE_NOTICE;
-  else if (lastError.peek() === OFFLINE_NOTICE) lastError.value = null;
+  if (!on) {
+    lastError.value = OFFLINE_NOTICE;
+  } else if (lastError.peek() === OFFLINE_NOTICE) {
+    lastError.value = null;
+  }
 }
 
 /** Follow the browser's online and offline events. Called once, when the page starts: a page opened offline shows the notice at once. */
 export function watchConnection(): void {
-  if (typeof window === 'undefined') return;
-  window.addEventListener('offline', () => setOnline(false));
-  window.addEventListener('online', () => setOnline(true));
-  if (!online.peek()) setOnline(false);
+  if (typeof window === 'undefined') {
+    return;
+  }
+  globalThis.window.addEventListener('offline', () => setOnline(false));
+  globalThis.window.addEventListener('online', () => setOnline(true));
+  if (!online.peek()) {
+    setOnline(false);
+  }
 }
