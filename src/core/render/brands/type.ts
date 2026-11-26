@@ -176,7 +176,9 @@ const CAPS: Record<string, Glyph> = {
         hx = g.hx(run, 1);
       g.L(hx, 1, run + hx, 0, 3);
       g.L(W - hx, 1, W - run - hx, 0, 3);
-      if (g.alt === 'lambda') return;
+      if (g.alt === 'lambda') {
+        return;
+      }
       const y = 0.68,
         xl = hx + run * (1 - y);
       g.L(xl, y, W - xl, y);
@@ -204,8 +206,11 @@ const CAPS: Record<string, Glyph> = {
         k = g.R(r - l, b - t),
         ch = (r - l) * 0.3 * Math.max(0, 1 - g.round * 10);
       // a square D cuts its right corners (else it reads as an O)
-      if (ch > 0) g.P([l, t, r - ch, t, r, t + ch, r, b - ch, r - ch, b, l, b], 0, true);
-      else g.P([l, t, r, t, r, b, l, b], [0, k, k, 0], true);
+      if (ch > 0) {
+        g.P([l, t, r - ch, t, r, t + ch, r, b - ch, r - ch, b, l, b], 0, true);
+      } else {
+        g.P([l, t, r, t, r, b, l, b], [0, k, k, 0], true);
+      }
     },
   },
   E: {
@@ -320,8 +325,11 @@ const CAPS: Record<string, Glyph> = {
         m = 0.54,
         k = g.R(r - l, m - t);
       g.P([l, b, l, t, r, t, r, m, l, m], [0, k, k]);
-      if (g.alt === 'straight') g.L(r, m, r, b);
-      else g.L(cx - 0.04, m + h * 0.4, W - g.hx(W - cx, 1 - m), 1, 2);
+      if (g.alt === 'straight') {
+        g.L(r, m, r, b);
+      } else {
+        g.L(cx - 0.04, m + h * 0.4, W - g.hx(W - cx, 1 - m), 1, 2);
+      }
     },
   },
   S: { w: 0.62, draw: (g) => ess(g, 0) },
@@ -497,7 +505,9 @@ const LOWER: Record<string, Glyph> = {
     x: true,
     draw: (g) => {
       bowl(g, g.x0);
-      if (g.alt === 'open') return;
+      if (g.alt === 'open') {
+        return;
+      }
       g.L(g.r, xt(g), g.r, g.b);
     },
   },
@@ -593,7 +603,9 @@ const LOWER: Record<string, Glyph> = {
   l: {
     w: 0,
     draw: (g) => {
-      if (g.alt !== 'tail') return g.L(g.l, g.h, g.l, g.b);
+      if (g.alt !== 'tail') {
+        return g.L(g.l, g.h, g.l, g.b);
+      }
       const { l, b, h } = g;
       g.P([l, h, l, b, l + 0.14, b], [g.R(0.28, 0.3)]);
     },
@@ -728,7 +740,9 @@ function path(
     py = 0;
   const line = (x: number, y: number) => {
     const len = Math.hypot(x - px, y - py);
-    if (len > 1e-9) segs.push({ arc: false, x0: px, y0: py, x1: x, y1: y, len });
+    if (len > 1e-9) {
+      segs.push({ arc: false, x0: px, y0: py, x1: x, y1: y, len });
+    }
     px = x;
     py = y;
   };
@@ -742,13 +756,17 @@ function path(
     const l1 = Math.hypot(ux, uy),
       l2 = Math.hypot(vx, vy);
     let r = rv(k);
-    if (r <= 1e-9 || l1 < 1e-9 || l2 < 1e-9) return line(bx, by);
+    if (r <= 1e-9 || l1 < 1e-9 || l2 < 1e-9) {
+      return line(bx, by);
+    }
     ux /= l1;
     uy /= l1;
     vx /= l2;
     vy /= l2;
     const th = Math.acos(Math.max(-1, Math.min(1, ux * vx + uy * vy)));
-    if (th < 1e-4 || th > Math.PI - 1e-4) return line(bx, by);
+    if (th < 1e-4 || th > Math.PI - 1e-4) {
+      return line(bx, by);
+    }
     let d = r / Math.tan(th / 2);
     if (d > Math.min(l1, l2)) {
       d = Math.min(l1, l2);
@@ -767,8 +785,12 @@ function path(
     line(t1x, t1y);
     const a0 = Math.atan2(t1y - cy, t1x - cx);
     let sw = Math.atan2(t2y - cy, t2x - cx) - a0;
-    while (sw > Math.PI) sw -= Math.PI * 2;
-    while (sw < -Math.PI) sw += Math.PI * 2;
+    while (sw > Math.PI) {
+      sw -= Math.PI * 2;
+    }
+    while (sw < -Math.PI) {
+      sw += Math.PI * 2;
+    }
     segs.push({ arc: true, cx, cy, r, a0, a1: a0 + sw, len: r * Math.abs(sw) });
     px = t2x;
     py = t2y;
@@ -778,12 +800,16 @@ function path(
     py = (Y(0) + Y(1)) / 2;
     const sx = px,
       sy = py;
-    for (let k = 1; k <= n; k++) corner(k % n);
+    for (let k = 1; k <= n; k++) {
+      corner(k % n);
+    }
     line(sx, sy);
     return segs;
   }
   [px, py] = start ?? [X(0), Y(0)];
-  for (let k = 1; k < n - 1; k++) corner(k);
+  for (let k = 1; k < n - 1; k++) {
+    corner(k);
+  }
   line(...(end ?? [X(n - 1), Y(n - 1)]));
   return segs;
 }
@@ -795,18 +821,24 @@ function cutEnds(segs: Seg[], t0: number, t1: number) {
     [true, t1],
   ] as const) {
     let left = t;
-    while (segs.length && left > 0) {
-      const s = fromEnd ? segs[segs.length - 1]! : segs[0]!;
+    while (segs.length > 0 && left > 0) {
+      const s = fromEnd ? segs.at(-1)! : segs[0]!;
       if (left >= s.len - 1e-9) {
         left -= s.len;
-        if (fromEnd) segs.pop();
-        else segs.shift();
+        if (fromEnd) {
+          segs.pop();
+        } else {
+          segs.shift();
+        }
         continue;
       }
       const f = left / s.len;
       if (s.arc) {
-        if (fromEnd) s.a1 -= (s.a1 - s.a0) * f;
-        else s.a0 += (s.a1 - s.a0) * f;
+        if (fromEnd) {
+          s.a1 -= (s.a1 - s.a0) * f;
+        } else {
+          s.a0 += (s.a1 - s.a0) * f;
+        }
       } else if (fromEnd) {
         s.x1 -= (s.x1 - s.x0) * f;
         s.y1 -= (s.y1 - s.y0) * f;
@@ -821,15 +853,25 @@ function cutEnds(segs: Seg[], t0: number, t1: number) {
 }
 
 function emit(c: Ctx, segs: readonly Seg[], closed: boolean) {
-  const s0 = segs[0];
-  if (!s0) return;
-  if (s0.arc) c.moveTo(s0.cx + Math.cos(s0.a0) * s0.r, s0.cy + Math.sin(s0.a0) * s0.r);
-  else c.moveTo(s0.x0, s0.y0);
-  for (const s of segs) {
-    if (s.arc) c.arc(s.cx, s.cy, s.r, s.a0, s.a1, s.a1 < s.a0);
-    else c.lineTo(s.x1, s.y1);
+  const [s0] = segs;
+  if (!s0) {
+    return;
   }
-  if (closed) c.closePath();
+  if (s0.arc) {
+    c.moveTo(s0.cx + Math.cos(s0.a0) * s0.r, s0.cy + Math.sin(s0.a0) * s0.r);
+  } else {
+    c.moveTo(s0.x0, s0.y0);
+  }
+  for (const s of segs) {
+    if (s.arc) {
+      c.arc(s.cx, s.cy, s.r, s.a0, s.a1, s.a1 < s.a0);
+    } else {
+      c.lineTo(s.x1, s.y1);
+    }
+  }
+  if (closed) {
+    c.closePath();
+  }
 }
 
 /** The width of `text` set in `st`, in cap heights, its lean included. */
@@ -838,8 +880,12 @@ export function typeWidth(text: string, st: TypeStyle): number {
     prev: Glyph | null = null;
   for (const ch of text) {
     const gl = GLYPHS[ch];
-    if (!gl) continue;
-    if (prev) w += gap(st, prev, gl);
+    if (!gl) {
+      continue;
+    }
+    if (prev) {
+      w += gap(st, prev, gl);
+    }
     w += glyphW(gl, st);
     prev = gl;
   }
@@ -866,12 +912,14 @@ export function setType(
 ): number {
   const soft = st.ends === 'soft',
     x0 = 1 - (st.xh ?? 0.7),
-    s = st.s,
+    { s } = st,
     h = s / 2,
     E = s * 2.5;
   c.save();
   c.translate(x, y + cap / 2);
-  if (st.slant) c.transform(1, 0, -st.slant, 1, 0, 0);
+  if (st.slant) {
+    c.transform(1, 0, -st.slant, 1, 0, 0);
+  }
   c.scale(cap, cap);
   c.translate(0, -1);
   c.lineWidth = s;
@@ -884,8 +932,12 @@ export function setType(
   for (const ch of text) {
     i++;
     const gl = GLYPHS[ch];
-    if (!gl) continue;
-    if (prev) gx += gap(st, prev, gl);
+    if (!gl) {
+      continue;
+    }
+    if (prev) {
+      gx += gap(st, prev, gl);
+    }
     const W = glyphW(gl, st),
       color = o.lit?.includes(i) && o.acc ? o.acc : ink,
       dots: [number, number][] = [];
@@ -922,13 +974,17 @@ export function setType(
           const px = pts[k]!,
             py = pts[k + 1]!,
             n = q.length;
-          if (n && Math.abs(q[n - 2]! - px) < 1e-6 && Math.abs(q[n - 1]! - py) < 1e-6) continue;
+          if (n && Math.abs(q[n - 2]! - px) < 1e-6 && Math.abs(q[n - 1]! - py) < 1e-6) {
+            continue;
+          }
           q.push(px, py);
         }
         const n = q.length / 2,
           X = (k: number) => q[2 * ((k + n) % n)]!,
           Y = (k: number) => q[2 * ((k + n) % n) + 1]!;
-        if (n < 2) return;
+        if (n < 2) {
+          return;
+        }
         const rv = (k: number) => Math.max(0, typeof rad === 'number' ? rad : (rad[closed ? k : k - 1] ?? 0));
         const segs = path(
           n,
@@ -939,7 +995,9 @@ export function setType(
           e & 1 ? ext(X(1), Y(1), X(0), Y(0)) : null,
           e & 2 ? ext(X(n - 2), Y(n - 2), X(n - 1), Y(n - 1)) : null,
         );
-        if (trim && !closed) cutEnds(segs, trim[0], trim[1]);
+        if (trim && !closed) {
+          cutEnds(segs, trim[0], trim[1]);
+        }
         emit(c, segs, closed);
       },
       L: (ax, ay, bx, by, e = 0) => g.P([ax, ay, bx, by], 0, false, e),
@@ -957,7 +1015,7 @@ export function setType(
     };
     gl.draw(g);
     c.stroke();
-    if (dots.length) {
+    if (dots.length > 0) {
       c.beginPath();
       for (const [dx, dy] of dots) {
         c.moveTo(dx, dy - 0.001);

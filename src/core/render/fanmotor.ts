@@ -11,7 +11,7 @@ export const FAN_FULL_LEVEL = 7;
 
 /** Whether the machine is running: on, not tripped, board not dead. No fan turns while it is not (the motors coast down). */
 export const machineLive = (s: Snapshot | null | undefined): boolean =>
-  !!s && s.powered && !s.power.off && !s.power.tripped && !s.board?.burnt;
+  s !== null && s !== undefined && s.powered && !s.power.off && !s.power.tripped && !s.board?.burnt;
 
 /** Seconds a fan takes to settle toward a faster speed (spin-up) or a slower one (coasting down). Critically damped: no jump, no overshoot. */
 const UP_S = 1.1,
@@ -30,7 +30,9 @@ export class FanMotor {
 
   /** Advance `dt` seconds (game time) toward `target`; returns the speed. A paused game (dt 0) holds the fan. */
   step(dt: number, target: number): number {
-    if (dt <= 0) return this.speed;
+    if (dt <= 0) {
+      return this.speed;
+    }
     dt = Math.min(dt, 0.1);
     const goal = Math.max(0, target),
       time = goal > this.speed ? UP_S : DOWN_S,

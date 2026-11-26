@@ -1,7 +1,8 @@
 // OCULA, graphics cards (docs/brands/ocula.md).
-import { circle, fill, knock, type Brand } from './kit';
+import { circle, fill, knock } from './kit';
+import type * as kitTypes from './kit';
 
-export const ocula: Brand = {
+export const ocula: kitTypes.Brand = {
   id: 'ocula',
   word: 'OCULA',
   makes: 'graphics cards',

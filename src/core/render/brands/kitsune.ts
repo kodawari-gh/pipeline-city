@@ -1,12 +1,13 @@
 // KITSUNE, motherboards (docs/brands/kitsune.md).
-import { fill, knock, poly, type Brand, type Ctx } from './kit';
+import { fill, knock, poly } from './kit';
+import type * as kitTypes from './kit';
 
-const eyes = (c: Ctx) => {
+const eyes = (c: kitTypes.Ctx) => {
   poly(c, [0.22, 0.5, 0.43, 0.6, 0.41, 0.66, 0.25, 0.6]);
   poly(c, [0.78, 0.5, 0.57, 0.6, 0.59, 0.66, 0.75, 0.6]);
 };
 
-export const kitsune: Brand = {
+export const kitsune: kitTypes.Brand = {
   id: 'kitsune',
   word: 'KITSUNE',
   makes: 'motherboards',

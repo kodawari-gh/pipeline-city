@@ -1,8 +1,9 @@
 // KAIJU, memory (docs/brands/kaiju.md).
-import { fill, type Brand, type Ctx } from './kit';
+import { fill } from './kit';
+import type * as kitTypes from './kit';
 
 /** A claw slash: a curved blade from its point (x0, y0) to its tail (x1, y1), `w` wide at its belly, bowed by `bow`. */
-function slash(c: Ctx, x0: number, y0: number, x1: number, y1: number, w: number, bow: number) {
+function slash(c: kitTypes.Ctx, x0: number, y0: number, x1: number, y1: number, w: number, bow: number) {
   const mx = (x0 + x1) / 2,
     my = (y0 + y1) / 2,
     dx = x1 - x0,
@@ -18,7 +19,7 @@ function slash(c: Ctx, x0: number, y0: number, x1: number, y1: number, w: number
   c.closePath();
 }
 
-export const kaiju: Brand = {
+export const kaiju: kitTypes.Brand = {
   id: 'kaiju',
   word: 'KAIJU',
   makes: 'memory',

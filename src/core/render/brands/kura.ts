@@ -1,7 +1,8 @@
 // kura, drives (docs/brands/kura.md).
-import { fill, poly, type Brand } from './kit';
+import { fill, poly } from './kit';
+import type * as kitTypes from './kit';
 
-export const kura: Brand = {
+export const kura: kitTypes.Brand = {
   id: 'kura',
   word: 'kura',
   makes: 'drives',

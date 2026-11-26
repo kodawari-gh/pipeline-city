@@ -1,15 +1,17 @@
 // The brands in Pixi 2D art (the case exteriors, the board silkscreen, the monitor's standby screen): the lockup is drawn on a canvas by
 // index.ts, exactly as the 3D labels and the design sheets have it, and shown as a sprite. One texture per look, kept for reuse.
 import { Sprite, Texture } from 'pixi.js';
-import { drawLockup, lockupWidth, type LockupOpts } from './index';
-import { layer, type BrandId } from './kit';
+import { drawLockup, lockupWidth } from './index';
+import type * as brandsTypes from './index';
+import { layer } from './kit';
+import type * as kitTypes from './kit';
 
 const cache = new Map<string, Texture>();
 
 /** The texture's mark height in pixels for a lockup `h` units tall: about two pixels a unit, so a close camera still reads it sharp. */
 const brandPx = (h: number): number => Math.round(Math.min(512, Math.max(96, h * 2)));
 
-export interface BrandSpriteOpts extends LockupOpts {
+export interface BrandSpriteOpts extends brandsTypes.LockupOpts {
   /** The sprite's opacity (default 1). */
   alpha?: number;
   /** The texture's mark height in pixels (default `brandPx(h)`). */
@@ -22,7 +24,9 @@ export interface BrandSpriteOpts extends LockupOpts {
  */
 /** A canvas Pixi can upload, or null where there is none (the tests run without a DOM, or with a stub of it). */
 function canvasFor(w: number, h: number): ReturnType<typeof layer> | null {
-  if (typeof document === 'undefined' && typeof OffscreenCanvas === 'undefined') return null;
+  if (typeof document === 'undefined' && typeof OffscreenCanvas === 'undefined') {
+    return null;
+  }
   const l = layer(w, h);
   const real =
     (typeof HTMLCanvasElement !== 'undefined' && l.cv instanceof HTMLCanvasElement) ||
@@ -31,7 +35,7 @@ function canvasFor(w: number, h: number): ReturnType<typeof layer> | null {
 }
 
 export function brandSprite(
-  id: BrandId,
+  id: kitTypes.BrandId,
   x: number,
   y: number,
   h: number,

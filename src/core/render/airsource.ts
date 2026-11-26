@@ -78,14 +78,18 @@ export function deviceHeat(
     ids: string[] = [];
   let tempC = 0;
   for (const d of c.s.devices) {
-    if (!kinds.includes(d.kind) || (only && !only(d.slot))) continue;
+    if (!kinds.includes(d.kind) || (only && !only(d.slot))) {
+      continue;
+    }
     const r = c.slots.get(d.slot);
-    if (!r) continue;
+    if (!r) {
+      continue;
+    }
     rects.push(r);
     ids.push(d.id);
     tempC = Math.max(tempC, d.tempC);
   }
-  return rects.length
+  return rects.length > 0
     ? [{ id, label, rects, ids, tempC, heat: c.live ? heatOf(tempC) : 0, ...(flat ? { flat } : {}) }]
     : [];
 }

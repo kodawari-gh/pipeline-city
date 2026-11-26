@@ -38,7 +38,9 @@ export function rectShape(r: Rect): Shape {
 
 /** Several rectangles as one thing (the lanes of a cable, the frame of the case). */
 export function rectsShape(rs: Rect[]): Shape {
-  if (rs.length === 1) return rectShape(rs[0]!);
+  if (rs.length === 1) {
+    return rectShape(rs[0]!);
+  }
   const bounds = unionRect(rs);
   return {
     bounds,
@@ -46,7 +48,9 @@ export function rectsShape(rs: Rect[]): Shape {
       let d = Infinity;
       for (const r of rs) {
         const e = rectDist(r, x, y);
-        if (e < d) d = e;
+        if (e < d) {
+          d = e;
+        }
       }
       return d;
     },
@@ -94,7 +98,9 @@ function pathShape(pts: readonly Pt[], hw: readonly number[]): Shape {
         l2 = dx * dx + dy * dy;
       const t = l2 ? clamp01(((x - ax) * dx + (y - ay) * dy) / l2) : 0;
       const d = Math.hypot(x - (ax + dx * t), y - (ay + dy * t)) - (w(i) + (w(i + 1) - w(i)) * t);
-      if (d < best) best = d;
+      if (d < best) {
+        best = d;
+      }
     }
     return n === 1 ? Math.hypot(x - pts[0]![0], y - pts[0]![1]) - w(0) : Math.max(0, best);
   };
@@ -132,15 +138,18 @@ function rasterBand(pts: readonly Pt[], hw: readonly number[], pad: number): Sha
       px1 = Math.min(W - 1, Math.ceil((Math.max(ax, bx) + r - ox) / cell));
     const py0 = Math.max(0, Math.floor((Math.min(ay, by) - r - oy) / cell)),
       py1 = Math.min(H - 1, Math.ceil((Math.max(ay, by) + r - oy) / cell));
-    for (let py = py0; py <= py1; py++)
+    for (let py = py0; py <= py1; py++) {
       for (let px = px0; px <= px1; px++) {
         const x = ox + (px + 0.5) * cell,
           y = oy + (py + 0.5) * cell;
         const t = l2 ? clamp01(((x - ax) * dx + (y - ay) * dy) / l2) : 0;
         const d = Math.hypot(x - (ax + dx * t), y - (ay + dy * t)) - (w(i) + (w(i + 1) - w(i)) * t);
         const v = Math.round(255 * clamp01(0.5 - d / cell));
-        if (v > a[(py * W + px) * 4 + 3]!) a[(py * W + px) * 4 + 3] = v;
+        if (v > a[(py * W + px) * 4 + 3]!) {
+          a[(py * W + px) * 4 + 3] = v;
+        }
       }
+    }
   }
   return fieldShape(a, W, H, { x: ox, y: oy, w: W * cell, h: H * cell });
 }
@@ -155,7 +164,7 @@ export function cordShape(path: readonly Pt[], cw: number, plug: Rect): Shape {
   const a: Pt = tall ? [cx, cy - k] : [cx - k, cy],
     b: Pt = tall ? [cx, cy + k] : [cx + k, cy];
   // the plug's two ends in the order the cord runs on (no turning back on itself: that folds the ring)
-  const end = path[path.length - 1]!,
+  const end = path.at(-1)!,
     prev = path[Math.max(0, path.length - 2)]!,
     dx = end[0] - prev[0],
     dy = end[1] - prev[1];
@@ -212,9 +221,15 @@ const MIN_TARGET_PX = 30;
 const MAX_GROW_PX = 16;
 
 function pickDist(h: Pickable, x: number, y: number): number {
-  if (h.shape) return h.shape.dist(x, y);
+  if (h.shape) {
+    return h.shape.dist(x, y);
+  }
   let d = rectDist(h.rect, x, y);
-  if (h.more) for (const r of h.more) d = Math.min(d, rectDist(r, x, y));
+  if (h.more) {
+    for (const r of h.more) {
+      d = Math.min(d, rectDist(r, x, y));
+    }
+  }
   return d;
 }
 
@@ -222,7 +237,11 @@ function pickDist(h: Pickable, x: number, y: number): number {
 export function pickReach(h: Pickable, z: number): number {
   const b = h.shape?.bounds ?? h.rect;
   let s = h.shape?.thickness ?? Math.min(b.w, b.h);
-  if (h.more) for (const r of h.more) s = Math.min(s, r.w, r.h);
+  if (h.more) {
+    for (const r of h.more) {
+      s = Math.min(s, r.w, r.h);
+    }
+  }
   return Math.min(Math.max(0, (MIN_TARGET_PX / z - s) / 2), MAX_GROW_PX / z, SHAPE_PAD - 20);
 }
 
@@ -252,20 +271,30 @@ export function pick<T extends Pickable>(
   const near: { id: string; b: Rect; i: number; d: number }[] = [];
   for (const h of hits) {
     i++;
-    if (skip(h)) continue;
+    if (skip(h)) {
+      continue;
+    }
     const d = pickDist(h, x, y);
     if (h.base) {
-      if (d === 0 && !back) back = h.id;
+      if (d === 0 && !back) {
+        back = h.id;
+      }
       continue;
     }
     if (d === 0) {
       on ??= { id: h.id, b: pickBounds(h), i };
       continue;
     }
-    if (d <= pickReach(h, z)) near.push({ id: h.id, b: pickBounds(h), i, d });
+    if (d <= pickReach(h, z)) {
+      near.push({ id: h.id, b: pickBounds(h), i, d });
+    }
   }
   let best: { id: string; d: number } | null = null;
-  for (const n of near) if ((!on || (n.i < on.i && centredIn(n.b, on.b))) && (!best || n.d < best.d)) best = n;
+  for (const n of near) {
+    if ((!on || (n.i < on.i && centredIn(n.b, on.b))) && (!best || n.d < best.d)) {
+      best = n;
+    }
+  }
   return best?.id ?? on?.id ?? back;
 }
 
@@ -285,32 +314,50 @@ interface Field {
 /** Chamfer sweeps (axis steps cost 1 cell, diagonals 1.414: good to a few percent) that only write into the cells `open` allows. */
 function sweep(d: Float32Array, open: Uint8Array, cols: number, rows: number, cell: number) {
   const D = 1.41421356 * cell;
-  for (let y = 0; y < rows; y++)
+  for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
       const i = y * cols + x;
-      if (!open[i]) continue;
+      if (!open[i]) {
+        continue;
+      }
       let v = d[i]!;
-      if (x > 0) v = Math.min(v, d[i - 1]! + cell);
+      if (x > 0) {
+        v = Math.min(v, d[i - 1]! + cell);
+      }
       if (y > 0) {
         v = Math.min(v, d[i - cols]! + cell);
-        if (x > 0) v = Math.min(v, d[i - cols - 1]! + D);
-        if (x < cols - 1) v = Math.min(v, d[i - cols + 1]! + D);
+        if (x > 0) {
+          v = Math.min(v, d[i - cols - 1]! + D);
+        }
+        if (x < cols - 1) {
+          v = Math.min(v, d[i - cols + 1]! + D);
+        }
       }
       d[i] = v;
     }
-  for (let y = rows - 1; y >= 0; y--)
+  }
+  for (let y = rows - 1; y >= 0; y--) {
     for (let x = cols - 1; x >= 0; x--) {
       const i = y * cols + x;
-      if (!open[i]) continue;
+      if (!open[i]) {
+        continue;
+      }
       let v = d[i]!;
-      if (x < cols - 1) v = Math.min(v, d[i + 1]! + cell);
+      if (x < cols - 1) {
+        v = Math.min(v, d[i + 1]! + cell);
+      }
       if (y < rows - 1) {
         v = Math.min(v, d[i + cols]! + cell);
-        if (x < cols - 1) v = Math.min(v, d[i + cols + 1]! + D);
-        if (x > 0) v = Math.min(v, d[i + cols - 1]! + D);
+        if (x < cols - 1) {
+          v = Math.min(v, d[i + cols + 1]! + D);
+        }
+        if (x > 0) {
+          v = Math.min(v, d[i + cols - 1]! + D);
+        }
       }
       d[i] = v;
     }
+  }
 }
 
 /**
@@ -327,15 +374,21 @@ function buildField(alpha: Uint8Array, w: number, h: number, frame: Rect, cell: 
     INF = 1e9,
     T = level / 255;
   const a = new Uint8Array(n);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) a[(y + P) * cols + x + P] = alpha[y * w + x]!;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      a[(y + P) * cols + x + P] = alpha[y * w + x]!;
+    }
+  }
   const inside = new Uint8Array(n);
-  for (let i = 0; i < n; i++) inside[i] = a[i]! > level ? 1 : 0;
+  for (let i = 0; i < n; i++) {
+    inside[i] = a[i]! > level ? 1 : 0;
+  }
   // the edge cells: a partly covered cell with a 4-neighbour on the other side of the edge is placed from its own alpha (it says where in it the edge runs); a clear
   // or solid cell is an edge cell only where the edge between it and its neighbour is hard (the neighbour is clear or solid too), half a cell off; otherwise it is
   // reached from the partly covered cell beside it
   const seed = new Float32Array(n).fill(Number.NaN);
   const hard = (j: number) => a[j] === 0 || a[j] === 255;
-  for (let y = 0; y < rows; y++)
+  for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
       const i = y * cols + x,
         c = inside[i]!,
@@ -356,6 +409,7 @@ function buildField(alpha: Uint8Array, w: number, h: number, frame: Rect, cell: 
               : Math.max(-0.75 * cell, Math.min(0.75 * cell, (T - v / 255) * cell));
       }
     }
+  }
   const dOut = new Float32Array(n).fill(INF),
     dIn = new Float32Array(n).fill(INF),
     openOut = new Uint8Array(n),
@@ -397,7 +451,7 @@ function sample(F: Field, x: number, y: number): number {
     tx = cx - x0,
     ty = cy - y0;
   const i = y0 * F.cols + x0,
-    f = F.f;
+    { f } = F;
   const v = (f[i]! * (1 - tx) + f[i + 1]! * tx) * (1 - ty) + (f[i + F.cols]! * (1 - tx) + f[i + F.cols + 1]! * tx) * ty;
   const out = Math.hypot(gx - cx, gy - cy) * F.cell;
   return v + out;
@@ -431,11 +485,13 @@ const SEGS: number[][][] = [
 
 /** Douglas-Peucker on an open polyline: the points that matter within `eps`. */
 function simplify(pts: Pt[], eps: number): Pt[] {
-  if (pts.length < 3) return pts;
+  if (pts.length < 3) {
+    return pts;
+  }
   const keep = new Uint8Array(pts.length);
   keep[0] = keep[pts.length - 1] = 1;
   const stack: [number, number][] = [[0, pts.length - 1]];
-  while (stack.length) {
+  while (stack.length > 0) {
     const [i, j] = stack.pop()!;
     const [ax, ay] = pts[i]!,
       [bx, by] = pts[j]!,
@@ -485,14 +541,16 @@ function contours(F: Field, e: number): Pt[][] {
     }
     return id;
   };
-  for (let r = 0; r < rows - 1; r++)
+  for (let r = 0; r < rows - 1; r++) {
     for (let c = 0; c < cols - 1; c++) {
       const k =
         (f[r * cols + c]! < e ? 1 : 0) |
         (f[r * cols + c + 1]! < e ? 2 : 0) |
         (f[(r + 1) * cols + c + 1]! < e ? 4 : 0) |
         (f[(r + 1) * cols + c]! < e ? 8 : 0);
-      if (k === 0 || k === 15) continue;
+      if (k === 0 || k === 15) {
+        continue;
+      }
       for (const [s0, s1] of SEGS[k]!) {
         const a = edge(r, c, s0!),
           b = edge(r, c, s1!),
@@ -502,23 +560,32 @@ function contours(F: Field, e: number): Pt[][] {
         (touch.get(b) ?? touch.set(b, []).get(b)!).push(i);
       }
     }
+  }
   const used = new Uint8Array(seg.length),
     out: Pt[][] = [];
   for (let i = 0; i < seg.length; i++) {
-    if (used[i]) continue;
+    if (used[i]) {
+      continue;
+    }
     used[i] = 1;
     const poly: Pt[] = [at.get(seg[i]![0])!];
-    let cur = seg[i]![1];
+    let [, cur] = seg[i]!;
     for (;;) {
       poly.push(at.get(cur)!);
       const next = (touch.get(cur) ?? []).find((j) => !used[j]);
-      if (next === undefined) break;
+      if (next === undefined) {
+        break;
+      }
       used[next] = 1;
       cur = seg[next]![0] === cur ? seg[next]![1] : seg[next]![0];
     }
     let area = 0;
-    for (let k = 0; k < poly.length - 1; k++) area += poly[k]![0] * poly[k + 1]![1] - poly[k + 1]![0] * poly[k]![1];
-    if (Math.abs(area) / 2 < 4 * cell * cell) continue;
+    for (let k = 0; k < poly.length - 1; k++) {
+      area += poly[k]![0] * poly[k + 1]![1] - poly[k + 1]![0] * poly[k]![1];
+    }
+    if (Math.abs(area) / 2 < 4 * cell * cell) {
+      continue;
+    }
     // a closed loop (its last point is its first): split it at the point farthest from the start so each half is a proper polyline
     let far = 1,
       best = -1;
@@ -530,7 +597,9 @@ function contours(F: Field, e: number): Pt[][] {
       }
     }
     const ring = [...simplify(poly.slice(0, far + 1), cell * 0.3), ...simplify(poly.slice(far), cell * 0.3).slice(1)];
-    if (ring.length > 3) out.push(ring);
+    if (ring.length > 3) {
+      out.push(ring);
+    }
   }
   return out;
 }
@@ -557,18 +626,21 @@ export function fieldShape(
     y0 = h,
     x1 = -1,
     y1 = -1;
-  for (let y = 0; y < h; y++)
+  for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const v = pixels[(y * w + x) * 4 + 3]!;
       alpha[y * w + x] = v;
       if (v > thr) {
-        if (x < x0) x0 = x;
-        if (x > x1) x1 = x;
-        if (y < y0) y0 = y;
-        if (y > y1) y1 = y;
+        x0 = Math.min(x0, x);
+        x1 = Math.max(x1, x);
+        y0 = Math.min(y0, y);
+        y1 = Math.max(y1, y);
       }
     }
-  if (x1 < 0) return null;
+  }
+  if (x1 < 0) {
+    return null;
+  }
   const cell = frame.w / w,
     F = buildField(alpha, w, h, frame, cell, thr);
   const bounds: Rect = {
@@ -585,11 +657,8 @@ export function fieldShape(
     dist: (x, y) => Math.max(0, sample(F, x, y)),
     outline: (e) => {
       const k = Math.round(Math.min(e, SHAPE_PAD - cell));
-      let c = cache.get(k);
-      if (!c) {
-        c = contours(F, k);
-        cache.set(k, c);
-      }
+      const c = cache.get(k) ?? contours(F, k);
+      cache.set(k, c);
       return c;
     },
   };

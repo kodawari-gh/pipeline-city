@@ -70,7 +70,9 @@ export const at = (cx: number, cy: number, r: number, a: number): [number, numbe
 /** A closed polygon as a sub-path of the current path: x0, y0, x1, y1... */
 export function poly(c: Ctx, pts: readonly number[]) {
   c.moveTo(pts[0]!, pts[1]!);
-  for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i]!, pts[i + 1]!);
+  for (let i = 2; i < pts.length; i += 2) {
+    c.lineTo(pts[i]!, pts[i + 1]!);
+  }
   c.closePath();
 }
 
