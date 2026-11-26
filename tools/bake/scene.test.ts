@@ -6,18 +6,24 @@ import { partsOf } from '@/core/render/three/merge';
 import { mergeAfterBake } from '@/features/room/render/three/room3d';
 import { RoomEnv } from '@/features/room/render/three/roomenv';
 import { M } from '@/features/room/render/three/outside/plan';
-import type { Room3D } from '@/features/room/render/three/room3d';
 import { buildMachine, maxedSnapshot, quietCanvas } from '@/features/board/render/three/testutil';
 import { exportRoom } from './scene';
 
 type Bake = Parameters<typeof applyLightmap>[1];
 type BakeMesh = ReturnType<typeof exportRoom>['meshes'][number];
+type BakeRoom = Parameters<typeof exportRoom>[0];
 
 quietCanvas();
 
 /** A room with nothing in it: the export reads the machine as an extra blocker. */
-const roomOf = (root: Group = new Group()): Room3D =>
-  ({ root, blinds: [], frame() {}, lightGroups: () => [] }) as unknown as Room3D;
+const roomOf = (root: Group = new Group()): BakeRoom => ({
+  root,
+  blinds: [],
+  frame: () => {
+    // (an empty room: no lights to set)
+  },
+  lightGroups: () => [],
+});
 
 const floats = (b64: string): Float32Array => {
   const u = Uint8Array.from(Buffer.from(b64, 'base64'));
@@ -38,7 +44,7 @@ function worstOff(got: BakeMesh[], want: BakeMesh[]): number {
     for (const q of by.get(p.length) ?? []) {
       let d = 0;
       for (let i = 0; i < p.length && d < best; i++) {
-        d = Math.max(d, Math.abs(p[i]! - q[i]!));
+        d = Math.max(d, Math.abs((p[i] ?? 0) - (q[i] ?? 0)));
       }
       best = Math.min(best, d);
     }
@@ -46,6 +52,30 @@ function worstOff(got: BakeMesh[], want: BakeMesh[]): number {
   }
   return worst;
 }
+
+/** A test box: its size (w, h, d), its material and where it stands on the floor (x, z). */
+interface Box {
+  size: [number, number, number];
+  m: MeshStandardMaterial;
+  x: number;
+  z?: number;
+}
+
+/** The hash the bake finds a mesh by, where it stands. */
+const hash = (m: Mesh) =>
+  meshHash(framed(m.geometry, new Matrix4().copy(m.matrixWorld)), m.geometry.index?.array ?? null);
+
+/** The corners (index entries) of an indexed mesh. */
+function cornersOf(m: Mesh | undefined): number {
+  const index = m?.geometry.index;
+  if (!index) {
+    throw new Error('an indexed mesh');
+  }
+  return index.count;
+}
+
+/** A mesh's export, by hash and receiver's right. */
+const key = (m: BakeMesh) => `${m.hash}|${m.receiver}`;
 
 describe('exportRoom', () => {
   it(
@@ -75,7 +105,7 @@ describe('exportRoom', () => {
       };
     const was = out(false),
       now = out(true);
-    expect(now.m.partLod!.standIns.length).toBeGreaterThan(0);
+    expect(now.m.partLod?.standIns.length).toBeGreaterThan(0);
     // (same names and hashes, so no stand-in is among them)
     expect(now.meshes).toHaveLength(was.meshes.length);
     expect(now.meshes.map((m) => m.name)).toStrictEqual(was.meshes.map((m) => m.name));
@@ -88,30 +118,35 @@ describe('exportRoom', () => {
       ao = new MeshStandardMaterial({ color: 0x40_60_80 });
     const plain = new MeshStandardMaterial({ color: 0x60_40_20 }),
       own = new MeshStandardMaterial({ color: 0x20_50_20, envMap: new Texture() });
-    const box = (w: number, h: number, d: number, m: MeshStandardMaterial, x: number, z = 0) => {
-      const b = new Mesh(new BoxGeometry(w, h, d), m);
+    const box = ({ size, m, x, z = 0 }: Box) => {
+      const b = new Mesh(new BoxGeometry(...size), m);
       b.position.set(x, 0, z);
       root.add(b);
       return b;
     };
     // (all in one cell of the merge: 2 m)
-    const lits = [box(M, M, 500, lit, 0), box(M, M, 500, lit, 2000, 3000)];
-    const aos = [box(M / 2, M / 2, M / 2, ao, 4000), box(M / 2, M / 2, M / 2, ao, 6000)];
+    const lits = [box({ size: [M, M, 500], m: lit, x: 0 }), box({ size: [M, M, 500], m: lit, x: 2000, z: 3000 })];
+    const aos = [
+      box({ size: [M / 2, M / 2, M / 2], m: ao, x: 4000 }),
+      box({ size: [M / 2, M / 2, M / 2], m: ao, x: 6000 }),
+    ];
     for (const b of aos) {
-      b.geometry.setAttribute(
-        '_ao',
-        new BufferAttribute(new Float32Array(b.geometry.attributes.position!.count).fill(0.5), 1),
-      );
+      const shade = new Float32Array(b.geometry.getAttribute('position').count).fill(0.5);
+      b.geometry.setAttribute('_ao', new BufferAttribute(shade, 1));
     }
-    const small = [box(M / 20, M / 20, M / 20, plain, 8000), box(M / 20, M / 20, M / 20, plain, 9000)];
-    const unknown = [box(M, M, 500, plain, 10_000, 6000), box(M, M, 500, plain, 12_000, 9000)];
-    const outside = [box(M, M, 500, own, 14_000), box(M, M, 500, own, 16_000)];
+    const small = [
+      box({ size: [M / 20, M / 20, M / 20], m: plain, x: 8000 }),
+      box({ size: [M / 20, M / 20, M / 20], m: plain, x: 9000 }),
+    ];
+    const unknown = [
+      box({ size: [M, M, 500], m: plain, x: 10_000, z: 6000 }),
+      box({ size: [M, M, 500], m: plain, x: 12_000, z: 9000 }),
+    ];
+    const outside = [box({ size: [M, M, 500], m: own, x: 14_000 }), box({ size: [M, M, 500], m: own, x: 16_000 })];
     const envs = new RoomEnv(null, boxEnv([0, 0, 0], [1, 1, 1], [0, 0, 0]));
     envs.adopt(root);
     root.updateMatrixWorld(true);
-    const hash = (m: Mesh) =>
-      meshHash(framed(m.geometry, new Matrix4().copy(m.matrixWorld)), m.geometry.index?.array ?? null);
-    const corners = lits[0]!.geometry.index!.count,
+    const corners = cornersOf(lits[0]),
       bake: Bake = {
         manifest: {
           version: 1,
@@ -128,10 +163,14 @@ describe('exportRoom', () => {
         uvs: new Uint16Array(4 * corners),
       };
     expect(
-      applyLightmap(root, bake, new Texture(), { metre: M, twin: (src, c) => envs.twin(src, c) }).meshes,
+      applyLightmap(root, bake, new Texture(), {
+        metre: M,
+        twin: (src, c) => {
+          envs.twin(src, c);
+        },
+      }).meshes,
     ).toStrictEqual(lits);
-    const key = (m: BakeMesh) => `${m.hash}|${m.receiver}`,
-      was = exportRoom(roomOf(root)).meshes;
+    const was = exportRoom(roomOf(root)).meshes;
     expect(mergeAfterBake(root, envs, [])).toBe(8);
     const merged = new Set(root.children.flatMap((o) => partsOf(o).map((p) => p.mesh)));
     for (const m of [...lits, ...aos, ...small, ...unknown]) {
@@ -143,7 +182,7 @@ describe('exportRoom', () => {
     }
     // the bake finds the same receivers and blockers where they were: the lit and the unknown big ones receive, the AO and small ones only block
     const now = exportRoom(roomOf(root)).meshes;
-    expect(now.map(key).sort()).toStrictEqual(was.map(key).sort());
+    expect(now.map((m) => key(m)).toSorted()).toStrictEqual(was.map((m) => key(m)).toSorted());
     expect(was.filter((m) => m.receiver)).toHaveLength(6);
     expect(worstOff(now, was)).toBeLessThan(1e-4);
   });

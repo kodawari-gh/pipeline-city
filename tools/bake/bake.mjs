@@ -9,33 +9,65 @@
 //   --preview     also render each group's lightmap on the room (`preview-<group>.png` in the work dir): look at it
 //   --pack        no Blender: write the lightmap files again from the last bake's light (the work dir), for a change to their format
 //   env: BLENDER (default: Steam's Blender 5.2), PORT (5199), CHROME_PATH
-import { spawn } from 'node:child_process';
-import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
 import { runnerImport } from 'vite';
+import { exportScene } from './export.mjs';
 import { ktx2Of } from './ktx2.mjs';
+import { readManifest } from './manifest.mjs';
+import { blender, decode, directGroups, readWork, writeWork } from './work.mjs';
 
+/** @import { BakeManifest } from '@/core/render/three/lightmapmix' */
+/** @import { WorkGroup } from './work.mjs' */
+
+const { join } = path;
 const args = process.argv.slice(2);
+/**
+ * The value after `--<n>`, or `d`.
+ * @param {string} n
+ * @param {string} d
+ */
 const flag = (n, d) => {
-  const i = args.indexOf('--' + n);
-  return i < 0 ? d : args[i + 1];
+  const i = args.indexOf(`--${n}`);
+  if (i === -1) {
+    return d;
+  }
+  const v = args[i + 1];
+  if (v === undefined) {
+    throw new Error(`--${n} needs a value`);
+  }
+  return v;
+};
+/**
+ * An environment variable, or `d` when it is unset or empty.
+ * @param {string} name
+ * @param {string} d
+ */
+const env = (name, d) => {
+  const v = process.env[name];
+  return v === undefined || v === '' ? d : v;
 };
 const FAST = args.includes('--fast'),
-  SAMPLES = Number(flag('samples', FAST ? 64 : 16384)),
-  TEXELS = Number(flag('texels', 50)),
+  SAMPLES = Number(flag('samples', FAST ? '64' : '16384')),
+  TEXELS = Number(flag('texels', '50')),
   PADDING = 4;
 const ONLY = flag('only', '').split(',').filter(Boolean),
   PACK = args.includes('--pack');
-const BLENDER = process.env.BLENDER || 'C:/Program Files (x86)/Steam/steamapps/common/Blender/blender.exe';
+const BLENDER = env('BLENDER', 'C:/Program Files (x86)/Steam/steamapps/common/Blender/blender.exe');
 const root = fileURLToPath(new URL('../..', import.meta.url)),
   out = join(root, 'public/bake/room'),
   work = join(tmpdir(), 'pipeline-city-bake');
-const config = { configFile: false, logLevel: 'warn', resolve: { alias: { '@': join(root, 'src') } } };
+const config = {
+  configFile: false,
+  logLevel: /** @type {const} */ ('warn'),
+  resolve: { alias: { '@': join(root, 'src') } },
+};
+/** @type {{ module: typeof import('./atlas'); dependencies: string[] }} */
 const { module: atlasLib } = await runnerImport(join(root, 'tools/bake/atlas.ts'), config);
+/** @type {{ module: typeof import('./rgbm'); dependencies: string[] }} */
 const { module: rgbm } = await runnerImport(join(root, 'tools/bake/rgbm.ts'), config);
 if (!PACK && !existsSync(BLENDER)) {
   console.log(`no Blender at ${BLENDER} (set BLENDER)`);
@@ -46,185 +78,23 @@ mkdirSync(out, { recursive: true });
 const t0 = Date.now(),
   secs = () => `${((Date.now() - t0) / 1000).toFixed(0)} s`;
 
-/** The room as the game builds it, from the dev server's page. */
-async function exportScene() {
-  const PORT = Number(process.env.PORT || 5199),
-    url = `http://localhost:${PORT}/`;
-  const up = async () => {
-    try {
-      return (await fetch(url)).ok;
-    } catch {
-      return false;
-    }
-  };
-  let server = null;
-  if (!(await up())) {
-    server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(PORT), '--strictPort'], {
-      stdio: 'ignore',
-      cwd: root,
-    });
-    for (let i = 0; i < 100 && !(await up()); i++) await new Promise((r) => setTimeout(r, 300));
-  }
-  const browser = await chromium.launch({
-    headless: true,
-    ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
-    args: ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'],
-  });
-  try {
-    const p = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
-    p.on('pageerror', (e) => console.log('[page]', e.message));
-    await p.goto(url + '?3d&nobaked'); // (`nobaked`: every map is a painted canvas, so `scene.ts` can read its mean colour; a KTX2 map has no pixels to read)
-    // The menu's room is the one to bake: the first board in the first case, as a new game has it. There each receiver has its exact hash;
-    // with another tier the desk moves and the game finds those meshes by their count of corners (`applyLightmap`, ASSET-09). Do not start
-    // a game first: the sandbox builds the largest tier a moment later, and the export would depend on when it ran.
-    // (a fresh server first optimizes its dependencies: the menu can take a while)
-    await p.waitForFunction(() => !!window.__board?.parts?.().room, null, { timeout: 120000 });
-    // the loaded models (the mouse, the hoodie) block light too: wait for them
-    await p
-      .waitForFunction(
-        () => {
-          const r = window.__board.parts().room?.root;
-          return !!r?.getObjectByName('mouse_1') && !!r.getObjectByName('hoodie_1');
-        },
-        null,
-        { timeout: 60000 },
-      )
-      .catch(() => console.log('the models did not load: the bake goes on without them'));
-    await p.waitForTimeout(1000);
-    return await p.evaluate(async () => {
-      const { exportRoom } = await import('/tools/bake/scene.ts');
-      const parts = window.__board.parts();
-      return exportRoom(parts.room, [parts.machine.root]);
-    });
-  } finally {
-    await browser.close();
-    try {
-      server?.kill();
-    } catch {
-      /* gone */
-    }
-  }
-}
-
-/**
- * The lamp groups that stay real-time at the game's lowest lamp cap (`LIGHT_ORDER` in roomlights.ts: Low keeps the window's key, the arc
- * lamp and the case's two RGB lights). Each other lamp group also gets its direct light baked (`<id>-direct`, kind `direct`), which the game shows
- * when the cap takes its lights out of the scene.
- */
-const ALWAYS_LIVE = ['arc'];
-const directGroups = (groups) =>
-  groups
-    .filter((g) => g.kind === 'lamp' && !ALWAYS_LIVE.includes(g.id))
-    .map((g) => ({ id: `${g.id}-direct`, kind: 'direct', of: g.id, lights: g.lights }));
-
-/** Write the room for Blender: `scene.json` and the arrays it points into, `scene.bin`. */
-function writeWork(scene, atlas, receivers) {
-  const parts = [];
-  let size = 0;
-  const put = (a) => {
-    if (!a) return -1;
-    const off = size;
-    parts.push(a);
-    size += a.byteLength;
-    return off;
-  };
-  const b64 = (s, T) => {
-    if (!s) return null;
-    const b = Buffer.from(s, 'base64');
-    return new T(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
-  };
-  const meshes = scene.meshes.map((m) => {
-    const pos = b64(m.pos, Float32Array),
-      index = b64(m.index, Uint32Array),
-      k = receivers.indexOf(m),
-      a = k >= 0 ? atlas.meshes[k] : null;
-    return {
-      name: m.name,
-      receiver: k >= 0,
-      colour: m.colour,
-      roughness: m.roughness,
-      metalness: m.metalness,
-      verts: pos.length / 3,
-      corners: index ? index.length : pos.length / 3,
-      pos: put(pos),
-      nrm: put(b64(m.nrm, Float32Array)),
-      index: put(index),
-      uv: put(a?.uv),
-      chart: put(a?.chart),
-    };
-  });
-  const groups = [
-    ...scene.groups.map((g) => ({ id: g.id, kind: 'lamp', lights: g.lights })),
-    { id: 'sky', kind: 'sky' },
-    { id: 'city', kind: 'city' },
-    ...scene.suns.map((s) => ({ id: `sun-${s.hour}`, kind: 'sun', hour: s.hour, dir: s.dir })),
-  ];
-  groups.push(...directGroups(groups));
-  writeFileSync(
-    join(work, 'scene.bin'),
-    Buffer.concat(parts.map((a) => Buffer.from(a.buffer, a.byteOffset, a.byteLength))),
-  );
-  writeFileSync(
-    join(work, 'scene.json'),
-    JSON.stringify({
-      samples: SAMPLES,
-      denoise: !FAST,
-      padding: PADDING,
-      width: atlas.width,
-      height: atlas.height,
-      meshes,
-      groups,
-    }),
-  );
-  return groups;
-}
-
-/** Run Blender on the work dir; its whole log goes to `blender.log` there, the bake's own lines to the console. */
-function blender(only) {
-  const log = createWriteStream(join(work, 'blender.log'));
-  const b = spawn(BLENDER, [
-    '-b',
-    '--factory-startup',
-    '--python-exit-code',
-    '1',
-    '-P',
-    join(root, 'tools/bake/bake.py'),
-    '--',
-    work,
-    ...only,
-  ]);
-  let tail = '';
-  const line = (d) => {
-    log.write(d);
-    tail = (tail + d).slice(-4000);
-    for (const l of d.toString().split(/\r?\n/))
-      if (l.startsWith('[bake]') || /Error|Traceback/.test(l)) console.log(l);
-  };
-  b.stdout.on('data', line);
-  b.stderr.on('data', line);
-  return new Promise((done, fail) =>
-    b.on('exit', (code) => (code ? fail(new Error(`Blender stopped (${code}):\n${tail}`)) : done())),
-  );
-}
-
-let manifest, groups, all;
-if (ONLY.length || PACK) {
+/** The last bake's room and manifest (`--only`, `--pack`), with the groups to bake again. */
+function lastBake() {
   if (!existsSync(join(work, 'scene.json')) || !existsSync(join(out, 'manifest.json'))) {
     console.log(`--${PACK ? 'pack' : 'only'} needs a full bake first`);
     process.exit(1);
   }
-  const cfg = JSON.parse(readFileSync(join(work, 'scene.json'), 'utf8'));
-  manifest = JSON.parse(readFileSync(join(out, 'manifest.json'), 'utf8'));
+  const cfg = readWork(join(work, 'scene.json'));
+  const manifest = readManifest(join(out, 'manifest.json'));
   // (a work dir from before a direct group: add it, so `--only desk-direct,...` bakes it on the last bake's room)
   const added = directGroups(cfg.groups).filter((d) => !cfg.groups.some((g) => g.id === d.id));
-  if (added.length) {
+  if (added.length > 0) {
     cfg.groups.push(...added);
     writeFileSync(join(work, 'scene.json'), JSON.stringify(cfg));
   }
-  all = cfg.groups;
-  groups = cfg.groups.filter((g) => !ONLY.length || ONLY.includes(g.id));
-  if (ONLY.length && groups.length !== ONLY.length) {
-    console.log(`no such group in the last bake: ${ONLY.filter((id) => !groups.some((g) => g.id === id))}`);
+  const groups = cfg.groups.filter((g) => ONLY.length === 0 || ONLY.includes(g.id));
+  if (ONLY.length > 0 && groups.length !== ONLY.length) {
+    console.log(`no such group in the last bake: ${ONLY.filter((id) => !groups.some((g) => g.id === id)).join(',')}`);
     process.exit(1);
   }
   if (!PACK && (cfg.samples !== SAMPLES || cfg.denoise === FAST)) {
@@ -232,35 +102,47 @@ if (ONLY.length || PACK) {
     cfg.denoise = !FAST;
     writeFileSync(join(work, 'scene.json'), JSON.stringify(cfg));
   }
-} else {
-  const scene = await exportScene();
+  return { manifest, groups, all: cfg.groups };
+}
+
+/**
+ * A new bake: the room exported, its atlas, the work dir for Blender, the receivers' UVs (`meshes.bin`) and the manifest's start.
+ * @returns {Promise<{ manifest: BakeManifest; groups: WorkGroup[]; all: WorkGroup[] }>}
+ */
+async function newBake() {
+  const scene = await exportScene(root);
   const receivers = scene.meshes.filter((m) => m.receiver);
   console.log(`room: ${scene.meshes.length} meshes, ${receivers.length} receivers (${secs()})`);
-  const decode = (s, T) => {
-    if (!s) return null;
-    const b = Buffer.from(s, 'base64');
-    return new T(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
-  };
   const atlas = await atlasLib.buildAtlas(
-    receivers.map((m) => ({ pos: decode(m.pos, Float32Array), index: decode(m.index, Uint32Array) })),
+    receivers.map((m) => ({
+      pos: decode(m.pos, Float32Array) ?? new Float32Array(),
+      index: decode(m.index, Uint32Array),
+    })),
     TEXELS,
     PADDING,
   );
   console.log(`atlas: ${atlas.width} x ${atlas.height}, ${(atlas.utilization * 100).toFixed(0)}% used (${secs()})`);
-  groups = all = writeWork(scene, atlas, receivers);
+  const groups = writeWork(scene, {
+    atlas,
+    receivers,
+    settings: { work, samples: SAMPLES, fast: FAST, padding: PADDING },
+  });
   // the receivers' UVs, for the game: a corner's UV as two Uint16 (0 to 65535 over the atlas)
   const total = atlas.meshes.reduce((n, m) => n + m.uv.length, 0),
     uv = new Uint16Array(total);
   let off = 0;
   const meshes = receivers.map((m, k) => {
-    const a = atlas.meshes[k].uv,
+    const a = atlas.meshes[k]?.uv ?? new Float32Array(),
       entry = { name: m.name, hash: m.hash, corners: a.length / 2, offset: off / 2 };
-    for (let i = 0; i < a.length; i++) uv[off + i] = Math.round(Math.min(1, Math.max(0, a[i])) * 65535);
+    for (const [i, v] of a.entries()) {
+      uv[off + i] = Math.round(Math.min(1, Math.max(0, v)) * 65_535);
+    }
     off += a.length;
     return entry;
   });
   writeFileSync(join(out, 'meshes.bin'), uv);
-  manifest = {
+  /** @type {BakeManifest} */
+  const manifest = {
     version: 1,
     encoding: 'rgbm-sqrt',
     width: atlas.width,
@@ -271,33 +153,53 @@ if (ONLY.length || PACK) {
     dark: scene.sunHours.filter((h) => !scene.suns.some((s) => s.hour === h)).map((h) => `sun-${h}`),
     meshes,
   };
+  return { manifest, groups, all: groups };
 }
 
-if (!PACK) await blender([...ONLY, ...(args.includes('--preview') ? ['--preview'] : [])]);
-if (args.includes('--preview')) console.log(`previews: ${work}`);
+const { manifest, groups, all } = ONLY.length > 0 || PACK ? lastBake() : await newBake();
+
+if (!PACK) {
+  await blender({ exe: BLENDER, root, work }, [...ONLY, ...(args.includes('--preview') ? ['--preview'] : [])]);
+}
+if (args.includes('--preview')) {
+  console.log(`previews: ${work}`);
+}
 const uvBytes = readFileSync(join(out, 'meshes.bin'));
 // (the game reads the gzipped copy: `BakeManifest.uvs`; its name has no `.gz`, as a server that sees one may send it as `Content-Encoding`)
 writeFileSync(join(out, 'meshes.packed'), gzipSync(uvBytes, { level: 9 }));
 manifest.uvs = 'meshes.packed';
+const size = { width: manifest.width, height: manifest.height };
 const keep = atlasLib.chartTexels(
   new Uint16Array(uvBytes.buffer.slice(uvBytes.byteOffset, uvBytes.byteOffset + uvBytes.byteLength)),
-  manifest.width,
-  manifest.height,
-  PADDING / 2,
+  { ...size, grow: PADDING / 2 },
 );
+/** @param {string} id */
 const light = (id) => {
   const f = readFileSync(join(work, `${id}.f32`));
   return new Float32Array(f.buffer.slice(f.byteOffset, f.byteOffset + f.byteLength));
 };
+/**
+ * A lamp group's lead: the baked intensity of its first light.
+ * @param {WorkGroup} g
+ */
+const leadOf = (g) => {
+  const first = g.lights?.[0];
+  if (!first) {
+    throw new Error(`the lamp group ${g.id} has no lights`);
+  }
+  return first.intensity;
+};
 for (const g of groups) {
-  if (g.kind === 'direct') continue;
+  if (g.kind === 'direct') {
+    continue;
+  }
   const rgb = light(g.id);
   const scale = rgbm.scaleOf(rgb),
-    bytes = rgbm.encode({ width: manifest.width, height: manifest.height, rgb, scale }, keep),
-    file = rgbm.png(bytes, manifest.width, manifest.height);
+    bytes = rgbm.encode({ ...size, rgb, scale }, keep),
+    file = rgbm.png(bytes, size);
   writeFileSync(join(out, `${g.id}.png`), file);
   // (and the same bytes as the game loads them, KTX2: `ktx2.mjs`; `npm run bake:lm` does it for the files already there)
-  const ktx2 = await ktx2Of(bytes, manifest.width, manifest.height);
+  const ktx2 = await ktx2Of(bytes, size);
   writeFileSync(join(out, `${g.id}.ktx2`), ktx2);
   const entry = {
     id: g.id,
@@ -305,46 +207,51 @@ for (const g of groups) {
     file: `${g.id}.png`,
     ktx2: `${g.id}.ktx2`,
     scale,
-    ...(g.kind === 'lamp' ? { lead: g.lights[0].intensity } : {}),
-    ...(g.kind === 'sun' ? { hour: g.hour } : {}),
+    ...(g.kind === 'lamp' ? { lead: leadOf(g) } : {}),
+    ...(g.kind === 'sun' && g.hour !== undefined ? { hour: g.hour } : {}),
   };
   const k = manifest.groups.findIndex((e) => e.id === g.id);
-  if (k < 0) manifest.groups.push(entry);
-  else manifest.groups[k] = entry;
+  if (k === -1) {
+    manifest.groups.push(entry);
+  } else {
+    manifest.groups[k] = entry;
+  }
   console.log(
     `${g.id}.png: ${(file.length / 1024).toFixed(0)} KB, ${g.id}.ktx2: ${(ktx2.byteLength / 1024).toFixed(0)} KB, scale ${scale.toPrecision(3)}`,
   );
 }
 // the capped lamps' direct light, three groups a file (`packDirect`): all of them again, as a file holds more than one group
 const direct = all.filter((g) => g.kind === 'direct' && existsSync(join(work, `${g.id}.f32`)));
-manifest.direct = { files: [], groups: [] };
+/** @type {NonNullable<BakeManifest['direct']>} */
+const packed = { files: [], groups: [] };
 for (let i = 0; i < direct.length; i += 3) {
   const part = direct.slice(i, i + 3),
     name = `direct-${i / 3}.png`;
   const { bytes, entries } = rgbm.packDirect(
     part.map((g) => light(g.id)),
-    manifest.width,
-    manifest.height,
-    keep,
+    { ...size, keep },
   );
-  const file = rgbm.png(bytes, manifest.width, manifest.height);
+  const file = rgbm.png(bytes, size);
   writeFileSync(join(out, name), file);
-  manifest.direct.files.push(name);
-  part.forEach((g, c) =>
-    manifest.direct.groups.push({
-      id: g.of,
-      map: i / 3,
-      channel: c,
-      scale: entries[c].scale,
-      colour: entries[c].colour,
-      lead: g.lights[0].intensity,
-    }),
-  );
-  console.log(
-    `${name}: ${(file.length / 1024).toFixed(0)} KB, ${part.map((g, c) => `${g.of} scale ${entries[c].scale.toPrecision(3)}`).join(', ')}`,
-  );
+  packed.files.push(name);
+  const said = [];
+  for (const [c, g] of part.entries()) {
+    const e = entries[c];
+    if (!e) {
+      throw new Error(`no packed entry for ${g.id}`);
+    }
+    packed.groups.push({ id: g.of ?? g.id, map: i / 3, channel: c, scale: e.scale, colour: e.colour, lead: leadOf(g) });
+    said.push(`${g.of ?? g.id} scale ${e.scale.toPrecision(3)}`);
+  }
+  console.log(`${name}: ${(file.length / 1024).toFixed(0)} KB, ${said.join(', ')}`);
 }
-if (!direct.length) delete manifest.direct;
-if (!PACK) manifest.samples = SAMPLES;
+if (direct.length === 0) {
+  delete manifest.direct;
+} else {
+  manifest.direct = packed;
+}
+if (!PACK) {
+  manifest.samples = SAMPLES;
+}
 writeFileSync(join(out, 'manifest.json'), JSON.stringify(manifest, null, 1));
-console.log(`wrote ${resolve(out)} (${secs()})`);
+console.log(`wrote ${path.resolve(out)} (${secs()})`);
