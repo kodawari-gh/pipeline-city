@@ -9,6 +9,49 @@ import { billChip, fmtNum, fmtTicks } from '@/core/ui/logic';
 // Keyboard: the chip toggles the popover, Escape closes it and gives focus back to the chip.
 // On a phone the chip is hidden and the menu opens the card through `billOpen`.
 
+type Bill = NonNullable<Snapshot['bill']>;
+
+function billMessage(b: Bill, baseTick: number): string {
+  if (b.cut) {
+    return 'The wall is cut. The bill is paid by itself once you have the money (sell a spare part if you must), then press power.';
+  }
+  if (b.unpaid > 0) {
+    const when = b.cutTick === null ? 'soon' : `in ${fmtTicks(b.cutTick - baseTick)}`;
+    return `Not enough money. The wall is cut ${when} unless the bill is paid.`;
+  }
+  return 'Bills are paid from your money by themselves. A bill you cannot pay cuts the wall after a short grace.';
+}
+
+function BillPopover({ b, wallW, baseTick, rate }: { b: Bill; wallW: number; baseTick: number; rate: string }) {
+  return (
+    <div id="bill-pop" class="card bill-pop" role="dialog" aria-label="Power bill">
+      <dl>
+        <dt>Rate</dt>
+        <dd>{rate}</dd>
+        <dt>Drawing now</dt>
+        <dd>{fmtNum(wallW, 0)} W</dd>
+        <dt>Since the last bill</dt>
+        <dd>
+          {fmtNum(b.accruedWh, 1)} Wh = ${b.accruedCost}
+        </dd>
+        <dt>Next bill</dt>
+        <dd>{b.nextTick === null ? 'after the first power-on' : `in ${fmtTicks(b.nextTick - baseTick)}`}</dd>
+        <dt>Last bill</dt>
+        <dd>{b.last ? `$${b.last.amount} (${fmtNum(b.last.wh, 1)} Wh)` : 'none yet'}</dd>
+        <dt>Paid so far</dt>
+        <dd>${b.paidTotal}</dd>
+        {b.unpaid > 0 && (
+          <>
+            <dt>Unpaid</dt>
+            <dd class="bad">${b.unpaid}</dd>
+          </>
+        )}
+      </dl>
+      <div class="bill-msg">{billMessage(b, baseTick)}</div>
+    </div>
+  );
+}
+
 export function PowerBill({ s }: { s: Snapshot }) {
   const open = billOpen.value;
   const setOpen = (v: boolean) => {
@@ -50,39 +93,7 @@ export function PowerBill({ s }: { s: Snapshot }) {
       >
         <Icon name="bolt" size={12} /> {c.text}
       </button>
-      {open && (
-        <div id="bill-pop" class="card bill-pop" role="dialog" aria-label="Power bill">
-          <dl>
-            <dt>Rate</dt>
-            <dd>{rate}</dd>
-            <dt>Drawing now</dt>
-            <dd>{fmtNum(s.energy.wallW, 0)} W</dd>
-            <dt>Since the last bill</dt>
-            <dd>
-              {fmtNum(b.accruedWh, 1)} Wh = ${b.accruedCost}
-            </dd>
-            <dt>Next bill</dt>
-            <dd>{b.nextTick === null ? 'after the first power-on' : `in ${fmtTicks(b.nextTick - s.baseTick)}`}</dd>
-            <dt>Last bill</dt>
-            <dd>{b.last ? `$${b.last.amount} (${fmtNum(b.last.wh, 1)} Wh)` : 'none yet'}</dd>
-            <dt>Paid so far</dt>
-            <dd>${b.paidTotal}</dd>
-            {b.unpaid > 0 && (
-              <>
-                <dt>Unpaid</dt>
-                <dd class="bad">${b.unpaid}</dd>
-              </>
-            )}
-          </dl>
-          <div class="bill-msg">
-            {b.cut
-              ? 'The wall is cut. The bill is paid by itself once you have the money (sell a spare part if you must), then press power.'
-              : b.unpaid > 0
-                ? `Not enough money. The wall is cut ${b.cutTick === null ? 'soon' : `in ${fmtTicks(b.cutTick - s.baseTick)}`} unless the bill is paid.`
-                : 'Bills are paid from your money by themselves. A bill you cannot pay cuts the wall after a short grace.'}
-          </div>
-        </div>
-      )}
+      {open && <BillPopover b={b} wallW={s.energy.wallW} baseTick={s.baseTick} rate={rate} />}
     </div>
   );
 }
