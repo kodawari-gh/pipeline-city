@@ -37,7 +37,9 @@ export interface TpmConfig {
 /** The word hash of the checksum kernel (h = h * 33 ^ w, from 5381). */
 export function wordHash(words: Iterable<number>): number {
   let h = 5381;
-  for (const w of words) h = (((h + (h << 5)) ^ w) >>> 0) | 0;
+  for (const w of words) {
+    h = (((h + (h << 5)) ^ w) >>> 0) | 0;
+  }
   return h >>> 0;
 }
 
@@ -141,16 +143,22 @@ export class TpmPort implements Device {
 
   /** Put a module on the header (or take it out with null). */
   configure(cfg: TpmConfig | null): void {
-    if (cfg === this.cfg) return;
+    if (cfg === this.cfg) {
+      return;
+    }
     const same =
       cfg &&
       this.cfg &&
       cfg.measureTicks === this.cfg.measureTicks &&
       cfg.attestTicks === this.cfg.attestTicks &&
       cfg.surcharge === this.cfg.surcharge;
-    if (same) return;
+    if (same) {
+      return;
+    }
     this.cfg = cfg;
-    if (!cfg) this.sealed.clear();
+    if (!cfg) {
+      this.sealed.clear();
+    }
     this.reset();
   }
 
@@ -168,8 +176,10 @@ export class TpmPort implements Device {
 
   /** The module as the board view draws it, or null without a module. */
   view(): TpmView | null {
-    const cfg = this.cfg;
-    if (!cfg) return null;
+    const { cfg } = this;
+    if (!cfg) {
+      return null;
+    }
     const work = this.phase === 'work' && this.cmd === TpmCmd.Measure;
     // the hash so far: the words the module has read at `measureTicks` a word
     const hashed = work
@@ -213,7 +223,9 @@ export class TpmPort implements Device {
       fault: this.fault,
       ticks,
     });
-    if (this.log.length > TPM_LOG) this.log.shift();
+    if (this.log.length > TPM_LOG) {
+      this.log.shift();
+    }
   }
 
   get present(): boolean {
@@ -238,12 +250,16 @@ export class TpmPort implements Device {
   private leaveProtected(): void {
     this.range = null;
     this.frames = null;
-    if (this.bus?.guard === this.guard) this.bus.guard = null;
+    if (this.bus?.guard === this.guard) {
+      this.bus.guard = null;
+    }
   }
 
   private readonly guard = (addr: number): number => {
     const r = this.range;
-    if (!r) return 0;
+    if (!r) {
+      return 0;
+    }
     // paged: the range is virtual, so test the frame; on a miss look again once, a page may have been mapped since Protect
     // (the access comes from the guarded space, so the core serving it has the job's table)
     const inside = this.frames
@@ -263,7 +279,7 @@ export class TpmPort implements Device {
   read(off: number): number {
     let w = 0;
     switch (off & ~3) {
-      case TPM_REG.STATUS:
+      case TPM_REG.STATUS: {
         w =
           (this.phase !== 'idle' ? TpmStatus.Busy : 0) |
           (this.error ? TpmStatus.Error : 0) |
@@ -271,18 +287,23 @@ export class TpmPort implements Device {
           (this.done ? TpmStatus.Done : 0) |
           (this.range ? TpmStatus.Protected : 0);
         break;
-      case TPM_REG.ARG0:
+      }
+      case TPM_REG.ARG0: {
         w = this.arg0;
         break;
-      case TPM_REG.ARG1:
+      }
+      case TPM_REG.ARG1: {
         w = this.arg1;
         break;
-      case TPM_REG.RESULT:
+      }
+      case TPM_REG.RESULT: {
         w = this.result;
         break;
-      case TPM_REG.FAULT:
+      }
+      case TPM_REG.FAULT: {
         w = this.fault;
         break;
+      }
     }
     return (w >>> (8 * (off & 3))) & 0xff;
   }
@@ -291,18 +312,24 @@ export class TpmPort implements Device {
     const reg = off & ~3,
       sh = 8 * (off & 3);
     const put = (old: number): number => ((old & ~(0xff << sh)) | ((val & 0xff) << sh)) >>> 0;
-    if (reg === TPM_REG.ARG0) this.arg0 = put(this.arg0);
-    else if (reg === TPM_REG.ARG1) this.arg1 = put(this.arg1);
-    else if (reg === TPM_REG.CMD && off === reg) this.start(val & 0xff); // fires on the low byte, after the arguments have landed
+    if (reg === TPM_REG.ARG0) {
+      this.arg0 = put(this.arg0);
+    } else if (reg === TPM_REG.ARG1) {
+      this.arg1 = put(this.arg1);
+    } else if (reg === TPM_REG.CMD && off === reg) {
+      this.start(val & 0xff);
+    } // fires on the low byte, after the arguments have landed
   }
 
   private start(cmd: number): void {
-    if (!this.cfg || this.phase !== 'idle' || cmd < TpmCmd.Measure || cmd > TpmCmd.Unprotect)
+    if (!this.cfg || this.phase !== 'idle' || cmd < TpmCmd.Measure || cmd > TpmCmd.Unprotect) {
       return this.refuse(TpmFault.BadCommand, cmd);
+    }
     if (cmd === TpmCmd.Measure || cmd === TpmCmd.Protect) {
       const bytes = this.arg1 * 4;
-      if (this.arg0 % 4 !== 0 || this.arg1 === 0 || this.arg0 + bytes > this.ram.length)
+      if (this.arg0 % 4 !== 0 || this.arg1 === 0 || this.arg0 + bytes > this.ram.length) {
         return this.refuse(TpmFault.BadRange, cmd);
+      }
     }
     this.error = this.done = false;
     this.fault = TpmFault.None;
@@ -322,7 +349,9 @@ export class TpmPort implements Device {
   private refuse(code: number, cmd: number): void {
     this.error = true;
     this.fault = code;
-    if (this.cfg && !this.instant) this.note(0, cmd);
+    if (this.cfg && !this.instant) {
+      this.note(0, cmd);
+    }
   }
 
   /** The command's effect. Returns the module ticks it takes. */
@@ -331,38 +360,49 @@ export class TpmPort implements Device {
     switch (this.cmd) {
       case TpmCmd.Measure: {
         const words: number[] = [];
-        for (let k = 0; k < this.arg1; k++) words.push(this.wordAt(this.arg0 + 4 * k));
+        for (let k = 0; k < this.arg1; k++) {
+          words.push(this.wordAt(this.arg0 + 4 * k));
+        }
         this.result = wordHash(words);
         this.measured = words;
         this.measuredWords += this.arg1;
         return cfg.measureTicks * this.arg1;
       }
-      case TpmCmd.Attest:
+      case TpmCmd.Attest: {
         this.result = (this.prng.nextU32() ^ this.arg0) >>> 0;
         return cfg.attestTicks;
-      case TpmCmd.Seal:
+      }
+      case TpmCmd.Seal: {
         this.sealed.set(this.arg0, this.arg1);
         return TPM_SEAL_TICKS;
+      }
       case TpmCmd.Unseal: {
         const v = this.sealed.get(this.arg0);
         if (v === undefined) {
           this.error = true;
           this.fault = TpmFault.NoSuchKey;
-        } else this.result = v;
+        } else {
+          this.result = v;
+        }
         return TPM_SEAL_TICKS;
       }
-      case TpmCmd.Protect:
+      case TpmCmd.Protect: {
         this.range = { lo: this.arg0, hi: this.arg0 + 4 * this.arg1 };
         this.frames = null;
-        if (this.cmdSpace !== -1 && this.bus?.translate) this.resolve(this.cmdCore);
+        if (this.cmdSpace !== -1 && this.bus?.translate) {
+          this.resolve(this.cmdCore);
+        }
         if (!this.instant && this.bus) {
           this.bus.guardSpace = this.cmdSpace;
           this.bus.guard = this.guard;
         }
         return 1;
-      default: // Unprotect
+      }
+      default: {
+        // Unprotect
         this.leaveProtected();
         return 1;
+      }
     }
   }
 
@@ -372,7 +412,9 @@ export class TpmPort implements Device {
       frames = new Set<number>();
     for (let va = r.lo & ~255; va < r.hi; va += 256) {
       const pa = this.bus!.translate?.(core, va) ?? -1;
-      if (pa >= 0) frames.add(pa >>> 8);
+      if (pa >= 0) {
+        frames.add(pa >>> 8);
+      }
     }
     this.frames = frames;
     return frames;
@@ -395,20 +437,22 @@ export class TpmPort implements Device {
 
   tick(): void {
     switch (this.phase) {
-      case 'in':
+      case 'in': {
         if (--this.wait <= 0) {
           this.worked = this.execute();
           this.wait = this.span = Math.max(1, this.worked);
           this.phase = 'work';
         }
         break;
-      case 'work':
+      }
+      case 'work': {
         if (--this.wait <= 0) {
           this.phase = 'out';
           this.wait = this.span = TPM_HOP_TICKS;
         }
         break;
-      case 'out':
+      }
+      case 'out': {
         if (--this.wait <= 0) {
           this.phase = 'idle';
           this.done = true;
@@ -416,6 +460,7 @@ export class TpmPort implements Device {
           this.note(this.worked);
         }
         break;
+      }
     }
   }
 }

@@ -128,9 +128,13 @@ const PART_KINDS = ['cpu', 'ram', 'psu', 'cooler', 'display', 'board'];
  * installed of its kind (on a one-DIMM board it swaps with the old stick, which then returns to the inventory as a lower tier).
  */
 export const pendingUpgrade = (s: Snapshot, i: Snapshot['inventory'][number]): boolean => {
-  if (!PART_KINDS.includes(i.kind)) return false;
+  if (!PART_KINDS.includes(i.kind)) {
+    return false;
+  }
   const spec = getSpec(i.spec);
-  if (!spec) return false;
+  if (!spec) {
+    return false;
+  }
   const have = s.devices.filter((d) => d.kind === spec.kind && !d.burnt);
   return have.length === 0 || Math.max(...have.map((d) => getSpec(d.spec)?.tier ?? -1)) < spec.tier;
 };
@@ -138,7 +142,7 @@ export const pendingUpgrade = (s: Snapshot, i: Snapshot['inventory'][number]): b
 const whileSwapQueued =
   (targets: (s: Snapshot) => string[]) =>
   (s: Snapshot): string[] =>
-    s.pendingSwaps.length ? ['monitor'] : targets(s);
+    s.pendingSwaps.length > 0 ? ['monitor'] : targets(s);
 /** The shop tile to buy, pulsed inside the picker (`buy:<spec id>`): the cheapest processor on offer for the spend step. */
 const cpuUpgrades = (s: Snapshot) => {
   const have = Math.max(
@@ -150,7 +154,7 @@ const cpuUpgrades = (s: Snapshot) => {
   );
 };
 const cheapestCpu = (s: Snapshot): string | null => {
-  const c = cpuUpgrades(s).sort((a, b) => a.price - b.price)[0];
+  const [c] = cpuUpgrades(s).sort((a, b) => a.price - b.price);
   return c ? c.id : null;
 };
 /** Nothing is lit while the player cannot pay for the thing the step asks them to buy: the grey line says how much is missing. */
@@ -197,18 +201,18 @@ const fitsGeneralStep = (s: Snapshot, i: Snapshot['inventory'][number]) =>
 const hasBigRam = (s: Snapshot) =>
   invOf(s, 'ram').some((i) => {
     const sp = getSpec(i.spec);
-    return !!sp && 'sizeBytes' in sp && sp.sizeBytes >= OS_RAM_BYTES;
+    return sp !== undefined && 'sizeBytes' in sp && sp.sizeBytes >= OS_RAM_BYTES;
   });
 const ownsStorage = (s: Snapshot) => s.storage.length > 0 || invOf(s, 'storage').length > 0;
-const ownsOs = (s: Snapshot) => !!s.os || invOf(s, 'os').length > 0;
-const ownsRouter = (s: Snapshot) => !!s.net.router || invOf(s, 'router').length > 0;
+const ownsOs = (s: Snapshot) => Boolean(s.os) || invOf(s, 'os').length > 0;
+const ownsRouter = (s: Snapshot) => Boolean(s.net.router) || invOf(s, 'router').length > 0;
 /** The machine has a network port: the board's own jack, or a network card. */
 const hasJack = (s: Snapshot) =>
   s.board.features.ethernetMbps > 0 || s.devices.some((d) => d.kind === 'nic' && !d.burnt);
 const ownsJackBoard = (s: Snapshot) =>
   hasJack(s) ||
   invOf(s, 'board').some(
-    (i) => (BOARD_TIERS[Number(/^board(\d+)$/.exec(i.spec)?.[1])]?.features.ethernetMbps ?? 0) > 0,
+    (i) => (BOARD_TIERS[Number(/^board(?<tier>\d+)$/u.exec(i.spec)?.[1])]?.features.ethernetMbps ?? 0) > 0,
   );
 /** A case big enough for the Basic board (the first one with a network port) is fitted or waiting in the inventory. */
 const ownsBiggerCase = (s: Snapshot) => s.caseTier >= 1 || invOf(s, 'case').length > 0;
@@ -230,9 +234,11 @@ const coolerFanSpots = (s: Snapshot): string[] => {
 /** A fan sits on the CPU heatsink, or the cooler takes none (a liquid loop). */
 const cpuFanFitted = (s: Snapshot): boolean => {
   const c = s.devices.find((d) => d.kind === 'cooler');
-  if (!c) return true; // no heatsink to clip a fan on: the cooler step asks for it
+  if (!c) {
+    return true;
+  } // no heatsink to clip a fan on: the cooler step asks for it
   const spots = coolerFanSpots(s);
-  return !spots.length || s.devices.some((d) => d.kind === 'fan' && spots.includes(d.slot));
+  return spots.length === 0 || s.devices.some((d) => d.kind === 'fan' && spots.includes(d.slot));
 };
 
 /** The four cables of the first build, by cable id and the progress flag that says each is in (the fan cable has none: the cable list says). */
@@ -426,7 +432,7 @@ export const STEPS: StepDef[] = [
     chapter: 'The OS',
     title: 'Grow your client base',
     flag: null,
-    done: (s) => s.level.level >= 3 || ownsStorage(s) || !!s.os,
+    done: (s) => s.level.level >= 3 || ownsStorage(s) || Boolean(s.os),
     text: 'Every job you deliver adds to your client base, and your level grows with it. Higher levels bring more clients and better pay, though clients wait less. The OS opens at Level 3 and the network at Level 4. Keep delivering jobs, and hover the speed button at the top right to speed up the waiting.',
     // Waiting means serving: the next key is lit (then the port while it is dragged), so the player is never left wondering what to do.
     targets: (s, drag) => (s.plugged || !s.tray[0] ? [] : plugTarget(s, drag, s.tray[0])),
@@ -646,13 +652,15 @@ const anyFlag = (p: Progress) => Object.values(p).some(Boolean);
  * already, so judge from live state and from changes against the baseline taken when the replay began.
  */
 export function effectiveProgress(s: Snapshot, st: TutorialState): Progress {
-  if (!st.replay) return s.progress;
+  if (!st.replay) {
+    return s.progress;
+  }
   const b = st.replay;
   const has = (kind: string) => s.devices.some((d) => d.kind === kind && !d.burnt);
   const cable = (id: string) => s.cables.some((c) => c.id === id && c.connected);
   const ejected = s.completed > b.completed;
   const owned = s.devices.length + s.inventory.length;
-  const done = ejected || !!s.plugged?.done;
+  const done = ejected || Boolean(s.plugged?.done);
   return {
     cpuInstalled: has('cpu'),
     coolerInstalled: has('cooler'),
@@ -665,12 +673,12 @@ export function effectiveProgress(s: Snapshot, st: TutorialState): Progress {
     mainsConnected: cable('pcmains') && cable('monmains'),
     poweredOn: s.powered && s.phase !== 'off',
     storageInstalled: s.storage.length > 0,
-    osInstalled: !!s.os,
+    osInstalled: Boolean(s.os),
     firstOsJob: s.progress.firstOsJob,
-    firstKeyPlugged: !!s.plugged || done,
+    firstKeyPlugged: Boolean(s.plugged) || done,
     firstManualCycle:
       s.completed >= b.completed + 2 ||
-      (ejected && !!s.plugged && s.powered && s.phase !== 'halted' && s.phase !== 'off'),
+      (ejected && Boolean(s.plugged) && s.powered && s.phase !== 'halted' && s.phase !== 'off'),
     firstJobDone: done,
     firstKeyEjected: ejected,
     firstPurchase: owned > b.owned,
@@ -684,8 +692,12 @@ export function effectiveProgress(s: Snapshot, st: TutorialState): Progress {
 
 /** Whether a step is complete: its flag, else its live test. */
 function isDone(step: StepDef, s: Snapshot, p: Progress, st?: TutorialState): boolean {
-  if (step.ack) return !!st?.acks.includes(step.id) || p.firstManualCycle || p.firstPurchase;
-  if (step.done) return step.done(s, p);
+  if (step.ack) {
+    return Boolean(st?.acks.includes(step.id)) || p.firstManualCycle || p.firstPurchase;
+  }
+  if (step.done) {
+    return step.done(s, p);
+  }
   return step.flag ? p[step.flag] : false;
 }
 
@@ -698,7 +710,9 @@ function tutorialActive(st: TutorialState): boolean {
  * are not forced through the new steps: they get one offer card instead. Never true for a replay or for anyone with the lesson.
  */
 export function legacyFinished(s: Snapshot, st: TutorialState): boolean {
-  if (st.osLesson || st.replay) return false;
+  if (st.osLesson || st.replay) {
+    return false;
+  }
   return st.finished || (!st.welcomed && OLD_FLAGS.every((f) => s.progress[f]));
 }
 
@@ -710,20 +724,30 @@ export function offerNextLesson(s: Snapshot, st: TutorialState): boolean {
 /** The step to show now, or null when the tutorial is skipped, finished, or a legacy player is not taking the lesson. */
 export function currentStep(s: Snapshot, st: TutorialState): StepDef | null {
   // The sandbox has no tutorial: its progress flags are all set, which would otherwise look like a finished campaign.
-  if (s.sandbox || !tutorialActive(st) || legacyFinished(s, st)) return null;
+  if (s.sandbox || !tutorialActive(st) || legacyFinished(s, st)) {
+    return null;
+  }
   const p = effectiveProgress(s, st);
   const welcomed = st.welcomed || (!st.replay && anyFlag(p));
-  if (!welcomed) return STEPS[0]!;
-  for (const step of STEPS) {
-    if (step.id === 'welcome' || step.id === 'done') continue;
-    if (!isDone(step, s, p, st)) return step;
+  if (!welcomed) {
+    return STEPS[0]!;
   }
-  return STEPS[STEPS.length - 1]!;
+  for (const step of STEPS) {
+    if (step.id === 'welcome' || step.id === 'done') {
+      continue;
+    }
+    if (!isDone(step, s, p, st)) {
+      return step;
+    }
+  }
+  return STEPS.at(-1)!;
 }
 
 /** Position of a step inside its chapter ("Build 3 of 7"), skipping the welcome and final cards. */
 export function stepCount(step: StepDef): { n: number; total: number; chapter: Chapter | null } {
-  if (!step.chapter) return { n: step.id === 'welcome' ? 0 : 0, total: 0, chapter: null };
+  if (!step.chapter) {
+    return { n: step.id === 'welcome' ? 0 : 0, total: 0, chapter: null };
+  }
   const mine = STEPS.filter((x) => x.chapter === step.chapter);
   return { n: mine.findIndex((x) => x.id === step.id) + 1, total: mine.length, chapter: step.chapter };
 }
@@ -731,8 +755,10 @@ export function stepCount(step: StepDef): { n: number; total: number; chapter: C
 /** The first reason an inventory item of this kind cannot be fitted, or null. */
 const itemReason = (s: Snapshot, kind: string): string | null => {
   const items = invOf(s, kind);
-  if (!items.length) return null;
-  return items.every((i) => !i.freeSlots.length) ? (items[0]!.reason ?? null) : null;
+  if (items.length === 0) {
+    return null;
+  }
+  return items.every((i) => i.freeSlots.length === 0) ? (items[0]!.reason ?? null) : null;
 };
 
 /**
@@ -745,23 +771,37 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
     case 'ram':
     case 'psu':
     case 'monitor': {
-      if (s.powered) return 'The machine is on. Press the power button to switch it off, then install parts.';
+      if (s.powered) {
+        return 'The machine is on. Press the power button to switch it off, then install parts.';
+      }
       const kind = step.id === 'monitor' ? 'display' : step.id;
       const items = invOf(s, kind);
-      if (!items.length) return `No ${kind} in the inventory. Buy one from a part on the board.`;
+      if (items.length === 0) {
+        return `No ${kind} in the inventory. Buy one from a part on the board.`;
+      }
       return itemReason(s, kind);
     }
     case 'cooler': {
-      if (s.powered) return 'The machine is on. Press the power button to switch it off, then install parts.';
-      if (s.phase === 'error' && s.postBlocker) return s.postBlocker;
+      if (s.powered) {
+        return 'The machine is on. Press the power button to switch it off, then install parts.';
+      }
+      if (s.phase === 'error' && s.postBlocker) {
+        return s.postBlocker;
+      }
       const items = invOf(s, 'cooler');
-      if (!items.length) return 'No cooler in the inventory. Buy one from the cooler slot on the processor.';
+      if (items.length === 0) {
+        return 'No cooler in the inventory. Buy one from the cooler slot on the processor.';
+      }
       return itemReason(s, 'cooler');
     }
     case 'fan': {
-      if (s.powered) return 'The machine is on. Press the power button to switch it off, then install parts.';
+      if (s.powered) {
+        return 'The machine is on. Press the power button to switch it off, then install parts.';
+      }
       const items = invOf(s, 'fan');
-      if (!items.length) return 'No fan in the inventory. Buy one from the fan spot on the heatsink.';
+      if (items.length === 0) {
+        return 'No fan in the inventory. Buy one from the fan spot on the heatsink.';
+      }
       return items.some((i) => i.freeSlots.some((x) => coolerFanSpots(s).includes(x)))
         ? null
         : (items[0]!.reason ?? 'This fan does not fit the heatsink.');
@@ -769,11 +809,15 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
     case 'cables': {
       const open = s.cables.filter((c) => CABLES.some((x) => x.id === c.id) && !c.connected);
       const blocked = open.find((c) => c.blocked)?.blocked;
-      if (blocked) return blocked;
+      if (blocked) {
+        return blocked;
+      }
       return s.powered ? 'The machine is on. Power it off before plugging cables.' : null;
     }
-    case 'plugKey':
-      if (!s.tray.length && !s.plugged) return 'No key yet. A client key will arrive in the tray soon.';
+    case 'plugKey': {
+      if (s.tray.length === 0 && !s.plugged) {
+        return 'No key yet. A client key will arrive in the tray soon.';
+      }
       return (
         s.noPowerReason ??
         (s.postBlocker && `The machine would not start: ${s.postBlocker}`) ??
@@ -781,46 +825,63 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
           ? 'The machine is already on, so it will not look at a new key. Power it off first, then plug the key in.'
           : null)
       );
-    case 'watch':
-      if (s.phase === 'error' && s.phaseReason)
+    }
+    case 'watch': {
+      if (s.phase === 'error' && s.phaseReason) {
         return `POST error: ${s.phaseReason}. Power off, fix it, power on again.`;
-      if (s.keyIgnored || s.haltReason === 'no-boot-media')
+      }
+      if (s.keyIgnored || s.haltReason === 'no-boot-media') {
         return 'The machine did not see the key: it only looks at boot. Power off, plug the key in, and power on again.';
+      }
       return s.phase === 'error' ? s.phaseReason : null;
-    case 'cycle':
-      if (!s.plugged)
-        return s.tray.length
+    }
+    case 'cycle': {
+      if (!s.plugged) {
+        return s.tray.length > 0
           ? 'Plug the next key into the USB port first.'
           : 'No key yet. A client key will arrive in the tray soon.';
+      }
       return s.powered
         ? 'Press the power button to switch off, then again to switch on: the machine reads the key at boot.'
         : null;
+    }
     case 'spend': {
       const cpus = cpuUpgrades(s);
-      if (!cpus.length || cpus.some((p) => p.affordable)) return null;
+      if (cpus.length === 0 || cpus.some((p) => p.affordable)) {
+        return null;
+      }
       const cheapest = Math.min(...cpus.map((p) => p.price));
       return `Need ${fmtMoney(cheapest - s.money)} more. Finish another job to earn it.`;
     }
-    case 'fit':
-      return s.pendingSwaps.length ? SWAP_WAIT : null;
-    case 'fitRam':
-      return s.pendingSwaps.length ? SWAP_WAIT : itemReason(s, 'ram');
-    case 'fitBoard':
-      return s.pendingSwaps.length ? SWAP_WAIT : itemReason(s, 'board');
-    case 'fitCase':
-      return s.pendingSwaps.length ? SWAP_WAIT : itemReason(s, 'case');
-    case 'placeRouter':
+    case 'fit': {
+      return s.pendingSwaps.length > 0 ? SWAP_WAIT : null;
+    }
+    case 'fitRam': {
+      return s.pendingSwaps.length > 0 ? SWAP_WAIT : itemReason(s, 'ram');
+    }
+    case 'fitBoard': {
+      return s.pendingSwaps.length > 0 ? SWAP_WAIT : itemReason(s, 'board');
+    }
+    case 'fitCase': {
+      return s.pendingSwaps.length > 0 ? SWAP_WAIT : itemReason(s, 'case');
+    }
+    case 'placeRouter': {
       return itemReason(s, 'router');
-    case 'plugLan':
+    }
+    case 'plugLan': {
       return s.cables.find((c) => c.id === 'lan')?.blocked ?? null;
-    case 'linkUp':
-      if (!s.powered)
+    }
+    case 'linkUp': {
+      if (!s.powered) {
         return 'The machine is off: press the power button, the OS brings the link up once it is running.';
+      }
       return s.net.state === 'link-up' || s.net.state === 'saturated' ? null : `Waiting for the link: ${s.net.reason}`;
-    case 'firstNetJob':
-      return s.net.offers.length || s.net.spooled.length
+    }
+    case 'firstNetJob': {
+      return s.net.offers.length > 0 || s.net.spooled.length > 0
         ? null
         : 'Waiting for a client to send a job. It can take a minute or two.';
+    }
     case 'buyDrive':
     case 'buyRam':
     case 'buyOs':
@@ -828,10 +889,12 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
     case 'buyRouter':
     case 'buyCase':
     case 'buyBoard': {
-      if (step.id === 'buyBoard' && s.powered && !s.purchases.find((x) => x.id === 'board1')?.locked)
+      if (step.id === 'buyBoard' && s.powered && !s.purchases.find((x) => x.id === 'board1')?.locked) {
         return 'The machine is on: press the power button to switch it off, then buy the board.';
-      if (step.id === 'buyCase' && s.powered && !s.purchases.find((x) => x.id === 'case1')?.locked)
+      }
+      if (step.id === 'buyCase' && s.powered && !s.purchases.find((x) => x.id === 'case1')?.locked) {
         return 'The machine is on: press the power button to switch it off, then buy the case.';
+      }
       const id = (
         {
           buyDrive: 'hdd0',
@@ -844,35 +907,52 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
         } as Record<string, string>
       )[step.id]!;
       const p = s.purchases.find((x) => x.id === id);
-      if (!p) return null;
-      if (p.locked) return `Needs Level ${p.locked.level} (${p.locked.name}). Keep serving clients.`;
-      if (p.blocked) return p.blocked;
+      if (!p) {
+        return null;
+      }
+      if (p.locked) {
+        return `Needs Level ${p.locked.level} (${p.locked.name}). Keep serving clients.`;
+      }
+      if (p.blocked) {
+        return p.blocked;
+      }
       return p.affordable ? null : `Need ${fmtMoney(p.price - s.money)} more.`;
     }
-    case 'drive':
-      return s.pendingSwaps.length
+    case 'drive': {
+      return s.pendingSwaps.length > 0
         ? SWAP_WAIT
-        : invOf(s, 'storage').length
+        : invOf(s, 'storage').length > 0
           ? itemReason(s, 'storage')
           : 'No drive in the inventory. Buy one first.';
-    case 'os':
-      return s.pendingSwaps.length
+    }
+    case 'os': {
+      return s.pendingSwaps.length > 0
         ? SWAP_WAIT
-        : invOf(s, 'os').length
+        : invOf(s, 'os').length > 0
           ? itemReason(s, 'os')
           : 'No operating system in the inventory. Buy one first.';
-    case 'bootOs':
-      if (!s.powered) return 'The machine is off. Press the power button to boot from the drive.';
+    }
+    case 'bootOs': {
+      if (!s.powered) {
+        return 'The machine is off. Press the power button to boot from the drive.';
+      }
       return s.phase === 'error' ? s.phaseReason : (s.noPowerReason ?? s.postBlocker);
-    case 'osIngest':
-      if (!s.powered) return 'The machine is off. Press the power button first.';
-      if (s.phase === 'booting-os' || s.phase === 'posting' || s.phase === 'mounting')
+    }
+    case 'osIngest': {
+      if (!s.powered) {
+        return 'The machine is off. Press the power button first.';
+      }
+      if (s.phase === 'booting-os' || s.phase === 'posting' || s.phase === 'mounting') {
         return 'The OS is still starting. A key plugged in meanwhile is picked up when it is idle.';
-      return s.tray.length || s.plugged ? null : 'No key yet. A client key will arrive in the tray soon.';
-    case 'osPaid':
+      }
+      return s.tray.length > 0 || s.plugged ? null : 'No key yet. A client key will arrive in the tray soon.';
+    }
+    case 'osPaid': {
       return s.phase === 'error' ? s.phaseReason : null;
-    default:
+    }
+    default: {
       return null;
+    }
   }
 }
 
@@ -893,7 +973,9 @@ const LESSON_FLAGS: (keyof Progress)[] = [
  * every first-lesson flag and none of the later ones is a legacy finish: not welcomed, so it gets the OS offer.
  */
 export function tutorialForSave(raw: unknown, p: Progress): TutorialState {
-  if (raw && typeof raw === 'object') return resumeState(raw);
+  if (raw && typeof raw === 'object') {
+    return resumeState(raw);
+  }
   const osLesson = LESSON_FLAGS.some((f) => p[f]);
   const legacy = !osLesson && OLD_FLAGS.every((f) => p[f]);
   return { ...INITIAL_TUTORIAL, welcomed: anyFlag(p) && !legacy, osLesson, offered: osLesson };

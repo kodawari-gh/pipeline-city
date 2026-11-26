@@ -1,7 +1,7 @@
 import { Graphics } from 'pixi.js';
 import { label, mix } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
-import { planFar, planNear, type DieArt, type PlanStyle } from '../../cpu/render/die/dieart';
+import * as dieart from '../../cpu/render/die/dieart';
 import type { TpmBlock, TpmBlockKind, TpmLink, TpmLinkKind, TpmPlan } from './tpmplan';
 import { tpmGlyph, tpmGlyphArea } from './tpmglyph';
 import { DIE_MARGIN } from './tpmplans';
@@ -45,7 +45,7 @@ const TPM_LEGEND: { text: string; key: Key }[] = [
 ];
 
 /** How the module is drawn: the CPU die's art (`planFar`, `planNear`) with the module's colours and symbols. */
-function tpmStyle(plan: TpmPlan): PlanStyle<TpmBlock, TpmLink> {
+function tpmStyle(plan: TpmPlan): dieart.PlanStyle<TpmBlock, TpmLink> {
   const opt = { stages: plan.input.hashStages, rounds: plan.input.quoteRounds, keys: plan.input.keys };
   return {
     color: (T, b) => T[TPM_KIND_COLOR[b.kind]],
@@ -72,24 +72,28 @@ export function tpmFar(g: Graphics, T: Theme, plan: TpmPlan): void {
     g.rect(x, D.y + 8, 6, 6);
     g.rect(x, D.y + D.h - 14, 6, 6);
   }
-  for (let y = y0 + 12; y + 6 <= y1; y += 12) g.rect(D.x + D.w - 14, y, 6, 6);
+  for (let y = y0 + 12; y + 6 <= y1; y += 12) {
+    g.rect(D.x + D.w - 14, y, 6, 6);
+  }
   g.fill({ color: T.pin, alpha: 0.7 });
   g.poly([D.x + 6, D.y + 6, D.x + 22, D.y + 6, D.x + 6, D.y + 22]).fill({ color: accent, alpha: 0.9 });
   const lpc = plan.blocks.find((b) => b.kind === 'lpc');
   if (lpc) {
     const n = Math.floor((lpc.rect.h - 20) / 12);
-    for (let k = 0; k < n; k++) g.rect(D.x + 9, lpc.rect.y + 10 + k * 12, 6, 6);
+    for (let k = 0; k < n; k++) {
+      g.rect(D.x + 9, lpc.rect.y + 10 + k * 12, 6, 6);
+    }
     g.fill({ color: T.alu, alpha: 0.8 });
   }
-  planFar(g, T, plan.blocks, tpmStyle(plan));
+  dieart.planFar(g, T, plan.blocks, tpmStyle(plan));
 }
 
 /** Traces, symbols and names of a plan, and the strip under the blocks. */
-export function tpmNear(T: Theme, plan: TpmPlan): DieArt {
-  const art = planNear(T, plan, tpmStyle(plan));
+export function tpmNear(T: Theme, plan: TpmPlan): dieart.DieArt {
+  const art = dieart.planNear(T, plan, tpmStyle(plan));
   const D = plan.die,
     sy = D.y + D.h - DIE_MARGIN.bottom + 15,
-    names = art.names;
+    { names } = art;
   names.addChild(label(tpmTitle(plan), D.x + DIE_MARGIN.x, sy, 13, T.mute, { weight: '700', a: 0.85 }));
   const legend = new Graphics();
   names.addChild(legend);

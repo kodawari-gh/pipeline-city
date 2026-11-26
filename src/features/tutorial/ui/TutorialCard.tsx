@@ -19,7 +19,7 @@ import {
 import { currentStep, offerNextLesson, stepCount, stepProblem } from './tutorial';
 import { CHAR_MS, pagesOf } from './dialogue';
 import { anchorOf, flyTo, hasTarget } from './anchor';
-import { comfortablyVisible, type Rect } from '@/core/ui/place';
+import * as place from '@/core/ui/place';
 import { playCue } from '@/app/audio/engine';
 import { typeTickDue } from '@/app/audio/uiCues';
 
@@ -61,7 +61,9 @@ function Dialogue({ text, onEnd }: { text: string; onEnd?: (atEnd: boolean) => v
   useEffect(() => {
     const prev = typed.current;
     typed.current = n;
-    if (n === prev + 1 && typeTickDue(n) && !reducedMotion()) playCue('ui_type_tick');
+    if (n === prev + 1 && typeTickDue(n) && !reducedMotion()) {
+      playCue('ui_type_tick');
+    }
   }, [n]);
   const done = n >= cur.length;
   const more = page < pages.length - 1;
@@ -69,8 +71,11 @@ function Dialogue({ text, onEnd }: { text: string; onEnd?: (atEnd: boolean) => v
     onEnd?.(done && !more);
   }, [done, more, text]);
   const advance = () => {
-    if (!done) setN(cur.length);
-    else if (more) setPage(page + 1);
+    if (!done) {
+      setN(cur.length);
+    } else if (more) {
+      setPage(page + 1);
+    }
   };
   return (
     <button
@@ -160,7 +165,7 @@ function PopupDialogue({
 }
 
 /** A line that is only "nothing yet, hold on" and not a mistake: shown calmly, without the warning colour. */
-const isWaiting = (t: string) => /^(No key yet|Waiting for|Need \S+ more)|still starting/i.test(t);
+const isWaiting = (t: string) => /^(?:No key yet|Waiting for|Need \S+ more)|still starting/iu.test(t);
 
 const reducedMotion = () => {
   try {
@@ -171,8 +176,10 @@ const reducedMotion = () => {
 };
 
 /** Screen rect of a DOM element, in the same shape as an anchor. */
-const domRect = (el: Element | null): Rect | null => {
-  if (!el) return null;
+const domRect = (el: Element | null): place.Rect | null => {
+  if (!el) {
+    return null;
+  }
   const r = el.getBoundingClientRect();
   return r.width > 0 ? { x: r.left, y: r.top, w: r.width, h: r.height } : null;
 };
@@ -185,25 +192,39 @@ const isWorldId = (id: string) =>
  * What the tutorial points at right now: the first world target that is on screen, else the first inventory tile, else
  * the HUD's inventory button. `world` is set when the pointer is aimed at a world object (the camera can show it).
  */
-function resolveTarget(targets: string[]): { rect: Rect; world: string | null; hud?: boolean } | null {
+function resolveTarget(targets: string[]): { rect: place.Rect; world: string | null; hud?: boolean } | null {
   for (const t of targets) {
-    if (!isWorldId(t)) continue;
+    if (!isWorldId(t)) {
+      continue;
+    }
     const a = anchorOf(t);
-    if (a && a.visible) return { rect: { x: a.x, y: a.y, w: a.w, h: a.h }, world: t };
+    if (a && a.visible) {
+      return { rect: { x: a.x, y: a.y, w: a.w, h: a.h }, world: t };
+    }
   }
   for (const t of targets) {
-    if (!t.startsWith('hud:')) continue;
+    if (!t.startsWith('hud:')) {
+      continue;
+    }
     const r = domRect(document.querySelector(`[data-hud="${t.slice(4)}"]`));
-    if (r) return { rect: r, world: null, hud: true };
+    if (r) {
+      return { rect: r, world: null, hud: true };
+    }
   }
   for (const t of targets) {
-    if (!t.startsWith('inv:')) continue;
+    if (!t.startsWith('inv:')) {
+      continue;
+    }
     const r = domRect(document.querySelector(`[data-inv~="${CSS.escape(t.slice(4))}"]`));
-    if (r) return { rect: r, world: null };
+    if (r) {
+      return { rect: r, world: null };
+    }
   }
   if (targets.includes('inventory') || targets.some((t) => t.startsWith('inv:'))) {
     const r = domRect(document.querySelector('.invbtn'));
-    if (r) return { rect: r, world: null };
+    if (r) {
+      return { rect: r, world: null };
+    }
   }
   return null;
 }
@@ -212,26 +233,29 @@ function resolveTarget(targets: string[]): { rect: Rect; world: string | null; h
  * Where a drag step goes from and to, for the idle demonstration: a shelf tile to its world target, or a key to the USB port.
  * Null for steps that are not drags (clicks, waits, cables).
  */
-function ghostPath(targets: string[]): { from: Rect; to: Rect } | null {
+function ghostPath(targets: string[]): { from: place.Rect; to: place.Rect } | null {
   const world = targets.find((t) => isWorldId(t) && !t.startsWith('key:') && !t.startsWith('cable.'));
   const tile = targets.find((t) => t.startsWith('inv:'));
   if (tile && world) {
     const from = domRect(document.querySelector(`[data-inv~="${CSS.escape(tile.slice(4))}"]`));
     const a = anchorOf(world);
-    if (from && a && a.visible) return { from, to: { x: a.x, y: a.y, w: a.w, h: a.h } };
+    if (from && a && a.visible) {
+      return { from, to: { x: a.x, y: a.y, w: a.w, h: a.h } };
+    }
   }
   const key = targets.find((t) => t.startsWith('key:'));
   if (key) {
     const k = anchorOf(key),
       u = anchorOf('usb');
-    if (k && k.visible && u && u.visible)
+    if (k && k.visible && u && u.visible) {
       return { from: { x: k.x, y: k.y, w: k.w, h: k.h }, to: { x: u.x, y: u.y, w: u.w, h: u.h } };
+    }
   }
   return null;
 }
 
 /** The free area of the screen (the canvas minus the UI inset), client px. */
-const freeRect = (): Rect => {
+const freeRect = (): place.Rect => {
   const i = viewInset.peek();
   return { x: i.left, y: i.top, w: window.innerWidth - i.left - i.right, h: window.innerHeight - i.top - i.bottom };
 };
@@ -260,11 +284,17 @@ function useGuidance(
 
   // Fly to the new step's target when it is not already comfortably visible.
   useEffect(() => {
-    if (!active) return;
+    if (!active) {
+      return;
+    }
     const world = targets.find((t) => isWorldId(t) && hasTarget(t));
-    if (!world || dragging.peek()) return;
+    if (!world || dragging.peek()) {
+      return;
+    }
     const a = anchorOf(world);
-    if (a && a.visible && comfortablyVisible(a, freeRect())) return;
+    if (a && a.visible && place.comfortablyVisible(a, freeRect())) {
+      return;
+    }
     const t = setTimeout(() => {
       flyTo(world, { smooth: !reducedMotion() });
     }, 350);
@@ -273,7 +303,9 @@ function useGuidance(
 
   // The pointer and the "Show me" flag follow the camera every frame while a step is active.
   useEffect(() => {
-    if (!active) return;
+    if (!active) {
+      return;
+    }
     let raf = 0,
       last = performance.now();
     const loop = (now: number) => {
@@ -287,7 +319,9 @@ function useGuidance(
       const cardRect = domRect(card);
       // After a few idle seconds a ghost hand shows the drag: press on the tile, glide to the target, let go. Any drag by the player hides it.
       const ghost = svg?.querySelector('.ptr-ghost') as SVGGElement | null;
-      if (dragging.peek()) st.idleAt = now;
+      if (dragging.peek()) {
+        st.idleAt = now;
+      }
       if (ghost) {
         const path =
           !reducedMotion() && now - st.idleAt > GHOST_AFTER_MS && !dragging.peek()
@@ -308,7 +342,9 @@ function useGuidance(
             `translate(${fx + (tx - fx) * k} ${fy + (ty - fy) * k}) scale(${u > 0.1 && u < 0.7 ? 1 : 0.8})`,
           );
           ghost.style.opacity = String(Math.max(0, Math.min(1, alpha)));
-        } else ghost.style.opacity = '0';
+        } else {
+          ghost.style.opacity = '0';
+        }
       }
       if (svg) {
         const line = svg.querySelector('.ptr-line') as SVGLineElement;
@@ -396,13 +432,15 @@ function useGuidance(
         return;
       }
       const a = anchorOf(world);
-      setOffscreen(!(a && a.visible && comfortablyVisible(a, freeRect())));
+      setOffscreen(!(a && a.visible && place.comfortablyVisible(a, freeRect())));
     });
   }, [active, key]);
 
   const showMe = () => {
     const world = targetsRef.current.find((t) => isWorldId(t) && hasTarget(t));
-    if (world) flyTo(world, { smooth: !reducedMotion() });
+    if (world) {
+      flyTo(world, { smooth: !reducedMotion() });
+    }
   };
   return { offscreen, showMe };
 }
@@ -416,7 +454,7 @@ function useGuidance(
  * inventory button). Install steps open the inventory.
  */
 const GHOST_AFTER_MS = 8000;
-const TIP_AFTER_MS = 22000;
+const TIP_AFTER_MS = 22_000;
 
 export function TutorialCard() {
   const s = snapshot.value;
@@ -424,13 +462,13 @@ export function TutorialCard() {
   const step = s ? currentStep(s, st) : null;
   const drag = dragging.value;
   // A level-up popup is read first: the tutorial waits behind it (and types its text afresh afterwards).
-  const holdForLevelUp = !!levelUp.value;
+  const holdForLevelUp = Boolean(levelUp.value);
   const targets = step && s && !holdForLevelUp ? step.targets(s, drag) : [];
   const key = targets.join('|');
-  const offer = !!s && !step && offerNextLesson(s, st);
+  const offer = s !== null && !step && offerNextLesson(s, st);
   const modal = offer;
   const welcome = step?.id === 'welcome';
-  const cardActive = !!s && !!step && !modal;
+  const cardActive = Boolean(s) && Boolean(step) && !modal;
 
   const cardRef = useRef<HTMLElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -454,16 +492,22 @@ export function TutorialCard() {
   const isDragStep = targets.some((t) => t.startsWith('inv:') || t.startsWith('key:'));
   useEffect(() => {
     setTip(false);
-    if (!isDragStep || !cardActive) return;
+    if (!isDragStep || !cardActive) {
+      return;
+    }
     const t = setTimeout(() => setTip(true), TIP_AFTER_MS);
     return () => clearTimeout(t);
   }, [stepId, isDragStep, cardActive, drag]);
 
   useEffect(() => {
     highlight.value = modal ? [] : targets;
-    if (!modal && targets.some((t) => t.startsWith('inv:'))) inventoryOpen.value = true;
+    if (!modal && targets.some((t) => t.startsWith('inv:'))) {
+      inventoryOpen.value = true;
+    }
     // The shelf only takes room when the step does not use it (a dragged part keeps it mounted): tuck it away, the player can reopen it.
-    else if (!modal && !drag) inventoryOpen.value = false;
+    else if (!modal && !drag) {
+      inventoryOpen.value = false;
+    }
     // `targets` is derived from `key`; re-run only when the ids change.
   }, [key, modal]);
   useEffect(
@@ -474,12 +518,14 @@ export function TutorialCard() {
   );
 
   // The welcome (step 1) guides too: its lead runs from "Next" to the inventory button.
-  const welcomeNow = !!s && welcome && !holdForLevelUp;
+  const welcomeNow = Boolean(s) && welcome && !holdForLevelUp;
   const { offscreen, showMe } = useGuidance(cardActive, targets, cardRef, svgRef);
 
   // Step 1 stages the HUD: only the money, the menu and the dock show until the step is done (explained on the card).
   useEffect(() => {
-    if (!welcomeNow) return;
+    if (!welcomeNow) {
+      return;
+    }
     const hud = document.getElementById('hud');
     hud?.classList.add('staged');
     return () => hud?.classList.remove('staged');
@@ -488,13 +534,15 @@ export function TutorialCard() {
 
   // A tutorial popup holds the game, like the level-up.
   // The welcome and the explain-only steps hold the game as well: the player reads at their own pace.
-  const hold = (modal || welcome || !!step?.ack) && !!s;
+  const hold = (modal || welcome || Boolean(step?.ack)) && Boolean(s);
   useEffect(() => {
     pauseForTutorialPopup(hold);
   }, [hold]);
   useEffect(() => () => pauseForTutorialPopup(false), []);
 
-  if (holdForLevelUp) return null;
+  if (holdForLevelUp) {
+    return null;
+  }
   if (offer && s) {
     return (
       <PopupDialogue
@@ -513,7 +561,9 @@ export function TutorialCard() {
       </PopupDialogue>
     );
   }
-  if (!s || !step) return null;
+  if (!s || !step) {
+    return null;
+  }
 
   const { n, total, chapter } = stepCount(step);
   const problem = step.id === 'done' ? null : stepProblem(s, step);
