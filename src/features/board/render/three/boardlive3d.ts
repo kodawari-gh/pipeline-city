@@ -78,7 +78,7 @@ export class BoardLive3D {
     this.mesh.renderOrder = 5;
     scene.add(this.mesh);
     // (the 2D board's `die.onMemory` and `die.onInterrupt`)
-    this.traffic.onMemory = (e) => this.live?.touchRam(e.kind, e.addr, '', e.core);
+    this.traffic.onMemory = (e) => this.live?.touchRam(e.kind, e.addr, e.core);
     this.traffic.onInterrupt = (line) => this.live?.touchIrq(line);
   }
 
@@ -98,21 +98,21 @@ export class BoardLive3D {
       g: null,
       lane: null,
     }));
-    this.live.setScene(
-      this.T,
-      [],
-      buildBuses(),
-      [],
-      [],
-      [],
+    this.live.setScene({
+      T: this.T,
+      targets: [],
+      buses: buildBuses(),
+      cables: [],
+      fans: [],
+      dramChips: [],
       dimms,
-      {
+      flags: {
         psu: s.devices.some((d) => d.kind === 'psu'),
         display: !!disp,
         gfx: !!(getSpec(disp?.spec ?? '') as { graphics?: boolean } | undefined)?.graphics,
       },
       drives,
-    );
+    });
     this.live.setConnected(new Set(s.cables.filter((c) => c.connected).map((c) => c.id)) as never);
     this.sceneKey = this.keyOf(s);
     // the CPU's replay follows the CPU: a new one, a new plan (the cycles it was playing are the old one's)
