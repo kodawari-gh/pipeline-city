@@ -8,24 +8,24 @@ describe('the frame meter', () => {
   it('reads nothing from a game with no network, and starts again when it comes', () => {
     const m = new FrameMeter();
     m.feed(null);
-    expect([m.rx, m.tx]).toEqual([0, 0]);
+    expect([m.rx, m.tx]).toStrictEqual([0, 0]);
     m.feed({ baseTick: 5, net: null });
-    expect([m.rx, m.tx]).toEqual([0, 0]);
+    expect([m.rx, m.tx]).toStrictEqual([0, 0]);
   });
 
   it('starts from what it finds: the first snapshot gives no rate', () => {
     const m = new FrameMeter();
     m.feed(at(10, 5000, 2000));
-    expect([m.rx, m.tx]).toEqual([0, 0]);
+    expect([m.rx, m.tx]).toStrictEqual([0, 0]);
   });
 
   it('gives the growth of each counter over the ticks that passed', () => {
     const m = new FrameMeter();
     m.feed(at(10, 0, 0));
     m.feed(at(11, 1000, 400));
-    expect([m.rx, m.tx]).toEqual([1000, 400]);
+    expect([m.rx, m.tx]).toStrictEqual([1000, 400]);
     m.feed(at(13, 1000 + 600, 400 + 200));
-    expect([m.rx, m.tx]).toEqual([300, 100]);
+    expect([m.rx, m.tx]).toStrictEqual([300, 100]);
   });
 
   it('holds the rate while a tick has not come', () => {
@@ -41,11 +41,11 @@ describe('the frame meter', () => {
     m.feed(at(5, 0, 0));
     m.feed(at(6, 900, 900));
     m.feed(at(2, 10, 10));
-    expect([m.rx, m.tx]).toEqual([0, 0]);
+    expect([m.rx, m.tx]).toStrictEqual([0, 0]);
     m.feed(at(3, 60, 10));
-    expect([m.rx, m.tx]).toEqual([50, 0]);
+    expect([m.rx, m.tx]).toStrictEqual([50, 0]);
     m.feed(at(4, 5, 5));
-    expect([m.rx, m.tx]).toEqual([0, 0]);
+    expect([m.rx, m.tx]).toStrictEqual([0, 0]);
   });
 });
 
@@ -81,7 +81,7 @@ describe('the words for the numbers', () => {
     expect(fmtSpeed(100)).toBe('100 Mb');
     expect(fmtSpeed(1000)).toBe('1 Gb');
     expect(fmtSpeed(2500)).toBe('2.5 Gb');
-    expect(fmtSpeed(40000)).toBe('40 Gb');
+    expect(fmtSpeed(40_000)).toBe('40 Gb');
   });
 
   it('shortens a share and a count', () => {
@@ -91,7 +91,7 @@ describe('the words for the numbers', () => {
     expect(fmtPct(0.5)).toBe('50 %');
     expect(fmtFrames(950)).toBe('950');
     expect(fmtFrames(4200)).toBe('4.2 k');
-    expect(fmtFrames(83000)).toBe('83 k');
+    expect(fmtFrames(83_000)).toBe('83 k');
     expect(fmtFrames(1.2e6)).toBe('1.2 M');
     expect(fmtFrames(Number.NaN)).toBe('0');
   });

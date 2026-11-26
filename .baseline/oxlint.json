@@ -9625,14 +9625,6 @@
  "src/features/network/render/air.ts": {
   "import(consistent-type-specifier-style)": 1
  },
- "src/features/network/render/jackleds.test.ts": {
-  "eslint(curly)": 3,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "vitest(no-conditional-in-test)": 2,
-  "vitest(prefer-strict-equal)": 9,
-  "vitest(valid-expect)": 1
- },
  "src/features/network/render/jackleds.ts": {
   "eslint(curly)": 4,
   "eslint(no-implicit-coercion)": 3
@@ -9648,23 +9640,6 @@
   "typescript(no-unnecessary-type-assertion)": 2,
   "unicorn(no-array-for-each)": 2,
   "unicorn(numeric-separators-style)": 1
- },
- "src/features/network/render/lens/shape.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(max-params)": 1,
-  "eslint(prefer-named-capture-group)": 2,
-  "eslint(require-unicode-regexp)": 9,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 17,
-  "typescript(no-unsafe-assignment)": 3,
-  "typescript(no-unsafe-type-assertion)": 4,
-  "typescript(strict-boolean-expressions)": 1,
-  "unicorn(consistent-function-scoping)": 3,
-  "unicorn(max-nested-calls)": 2,
-  "unicorn(numeric-separators-style)": 3,
-  "vitest(no-conditional-expect)": 2,
-  "vitest(no-conditional-in-test)": 3,
-  "vitest(prefer-strict-equal)": 10
  },
  "src/features/network/render/lens/shape.ts": {
   "eslint(complexity)": 1,
@@ -9702,9 +9677,6 @@
   "typescript(no-non-null-assertion)": 2,
   "unicorn(no-array-fill-with-reference-type)": 7
  },
- "src/features/network/render/netvis.test.ts": {
-  "import(consistent-type-specifier-style)": 1
- },
  "src/features/network/render/netvis.ts": {
   "eslint(no-implicit-coercion)": 3,
   "typescript(strict-boolean-expressions)": 3
@@ -9719,23 +9691,6 @@
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(no-array-fill-with-reference-type)": 2,
   "unicorn(no-array-for-each)": 1
- },
- "src/features/network/render/nic/nicglyph.test.ts": {
-  "eslint(curly)": 20,
-  "eslint(prefer-destructuring)": 3,
-  "eslint(require-unicode-regexp)": 2,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 44,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(max-nested-calls)": 1,
-  "unicorn(no-array-callback-reference)": 1,
-  "unicorn(numeric-separators-style)": 5,
-  "vitest(no-conditional-expect)": 1,
-  "vitest(no-conditional-in-test)": 13,
-  "vitest(prefer-strict-equal)": 13,
-  "vitest(prefer-to-have-length)": 16,
-  "vitest(valid-expect)": 10
  },
  "src/features/network/render/nic/nicglyph.ts": {
   "eslint(complexity)": 2,
@@ -9756,33 +9711,12 @@
   "unicorn(no-array-for-each)": 10,
   "unicorn(switch-case-braces)": 2
  },
- "src/features/network/render/nic/niclayout.test.ts": {
-  "eslint(curly)": 15,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 15,
-  "vitest(prefer-strict-equal)": 8,
-  "vitest(prefer-to-contain)": 1,
-  "vitest(prefer-to-have-length)": 1,
-  "vitest(valid-expect)": 17
- },
  "src/features/network/render/nic/niclayout.ts": {
   "eslint(curly)": 1,
   "import(consistent-type-specifier-style)": 2
  },
  "src/features/network/render/nic/nicmac.ts": {
   "typescript(no-non-null-assertion)": 1
- },
- "src/features/network/render/nic/nicplan.test.ts": {
-  "eslint(curly)": 16,
-  "import(consistent-type-specifier-style)": 1,
-  "typescript(no-non-null-assertion)": 37,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-array-reverse)": 1,
-  "unicorn(prefer-at)": 1,
-  "vitest(no-conditional-in-test)": 2,
-  "vitest(prefer-strict-equal)": 11,
-  "vitest(prefer-to-have-length)": 2,
-  "vitest(valid-expect)": 34
  },
  "src/features/network/render/nic/nicplan.ts": {
   "eslint(max-params)": 1,
@@ -9792,16 +9726,6 @@
  },
  "src/features/network/render/nic/nicroute.ts": {
   "eslint(curly)": 1
- },
- "src/features/network/render/nic/nicshow.test.ts": {
-  "typescript(no-non-null-assertion)": 18,
-  "typescript(no-unnecessary-type-assertion)": 5,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(max-nested-calls)": 4,
-  "unicorn(numeric-separators-style)": 9,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 13,
-  "vitest(valid-expect)": 2
  },
  "src/features/network/render/nic/nicshow.ts": {
   "eslint(complexity)": 1,
@@ -9813,17 +9737,6 @@
   "typescript(no-non-null-assertion)": 1,
   "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 1
- },
- "src/features/network/render/nic/nicview.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(max-params)": 2,
-  "eslint(prefer-destructuring)": 1,
-  "typescript(no-non-null-assertion)": 12,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(no-unsafe-type-assertion)": 1,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(numeric-separators-style)": 1,
-  "vitest(prefer-strict-equal)": 3
  },
  "src/features/network/render/nic/nicview.ts": {
   "eslint(complexity)": 1,
@@ -9843,22 +9756,6 @@
   "unicorn(no-array-for-each)": 2,
   "unicorn(numeric-separators-style)": 1
  },
- "src/features/network/render/plan/netaddr.test.ts": {
-  "eslint(curly)": 2,
-  "eslint(no-nested-ternary)": 1,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 2,
-  "typescript(no-non-null-assertion)": 88,
-  "typescript(no-unnecessary-type-assertion)": 3,
-  "unicorn(max-nested-calls)": 1,
-  "unicorn(no-array-callback-reference)": 1,
-  "unicorn(no-useless-undefined)": 1,
-  "unicorn(numeric-separators-style)": 6,
-  "vitest(no-conditional-expect)": 1,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 40,
-  "vitest(valid-expect)": 1
- },
  "src/features/network/render/plan/netaddr.ts": {
   "eslint(complexity)": 1,
   "eslint(curly)": 4,
@@ -9877,10 +9774,6 @@
   "unicorn(no-array-sort)": 1,
   "unicorn(numeric-separators-style)": 6,
   "unicorn(prefer-code-point)": 1
- },
- "src/features/network/render/plan/netmeter.test.ts": {
-  "unicorn(numeric-separators-style)": 2,
-  "vitest(prefer-strict-equal)": 8
  },
  "src/features/network/render/plan/netmeter.ts": {
   "eslint(curly)": 6,
@@ -9909,21 +9802,6 @@
   "unicorn(no-array-fill-with-reference-type)": 2,
   "unicorn(no-array-for-each)": 1
  },
- "src/features/network/render/router/routerglyph.test.ts": {
-  "eslint(curly)": 19,
-  "eslint(max-params)": 1,
-  "eslint(require-unicode-regexp)": 3,
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(no-non-null-assertion)": 39,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(max-nested-calls)": 18,
-  "unicorn(numeric-separators-style)": 6,
-  "vitest(no-conditional-expect)": 1,
-  "vitest(no-conditional-in-test)": 7,
-  "vitest(prefer-strict-equal)": 10,
-  "vitest(prefer-to-have-length)": 16
- },
  "src/features/network/render/router/routerglyph.ts": {
   "eslint(complexity)": 1,
   "eslint(curly)": 16,
@@ -9944,27 +9822,9 @@
   "unicorn(prefer-export-from)": 1,
   "unicorn(switch-case-braces)": 2
  },
- "src/features/network/render/router/routerlayout.test.ts": {
-  "eslint(curly)": 3,
-  "eslint(require-unicode-regexp)": 1,
-  "typescript(no-non-null-assertion)": 1,
-  "unicorn(prefer-negative-index)": 1,
-  "vitest(prefer-strict-equal)": 5,
-  "vitest(prefer-to-have-length)": 1
- },
  "src/features/network/render/router/routerlayout.ts": {
   "eslint(curly)": 1,
   "import(consistent-type-specifier-style)": 1
- },
- "src/features/network/render/router/routerplan.test.ts": {
-  "eslint(curly)": 6,
-  "eslint(no-implicit-coercion)": 1,
-  "typescript(no-non-null-assertion)": 19,
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(no-array-sort)": 3,
-  "unicorn(prefer-at)": 1,
-  "vitest(no-conditional-in-test)": 6,
-  "vitest(prefer-strict-equal)": 4
  },
  "src/features/network/render/router/routerplan.ts": {
   "eslint(no-implicit-coercion)": 1,
@@ -9972,25 +9832,8 @@
   "typescript(no-non-null-assertion)": 1,
   "unicorn(max-nested-calls)": 1
  },
- "src/features/network/render/router/routerroute.test.ts": {
-  "eslint(curly)": 3,
-  "typescript(no-non-null-assertion)": 5,
-  "unicorn(no-array-reverse)": 2,
-  "unicorn(no-useless-spread)": 1,
-  "unicorn(prefer-at)": 1,
-  "vitest(no-conditional-in-test)": 4,
-  "vitest(prefer-strict-equal)": 5
- },
  "src/features/network/render/router/routerroute.ts": {
   "eslint(curly)": 1
- },
- "src/features/network/render/router/routershow.test.ts": {
-  "typescript(no-non-null-assertion)": 29,
-  "typescript(no-unnecessary-type-assertion)": 2,
-  "unicorn(numeric-separators-style)": 6,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(prefer-strict-equal)": 14,
-  "vitest(valid-expect)": 4
  },
  "src/features/network/render/router/routershow.ts": {
   "eslint(complexity)": 1,
@@ -10018,24 +9861,6 @@
   "unicorn(no-array-for-each)": 2,
   "unicorn(numeric-separators-style)": 1
  },
- "src/features/network/sim/net.test.ts": {
-  "eslint(curly)": 13,
-  "eslint(prefer-destructuring)": 1,
-  "eslint(require-unicode-regexp)": 8,
-  "typescript(method-signature-style)": 2,
-  "typescript(no-dynamic-delete)": 1,
-  "typescript(no-non-null-assertion)": 61,
-  "typescript(no-unsafe-assignment)": 10,
-  "typescript(no-unsafe-member-access)": 5,
-  "typescript(no-unsafe-type-assertion)": 8,
-  "unicorn(consistent-function-scoping)": 9,
-  "unicorn(explicit-length-check)": 2,
-  "unicorn(max-nested-calls)": 1,
-  "unicorn(numeric-separators-style)": 7,
-  "unicorn(prefer-structured-clone)": 3,
-  "vitest(no-conditional-in-test)": 13,
-  "vitest(prefer-strict-equal)": 11
- },
  "src/features/network/sim/network.ts": {
   "eslint(complexity)": 1,
   "eslint(curly)": 41,
@@ -10051,31 +9876,6 @@
   "typescript(strict-boolean-expressions)": 14,
   "unicorn(no-useless-spread)": 3,
   "unicorn(prefer-code-point)": 1
- },
- "src/features/network/sim/nic.test.ts": {
-  "eslint(complexity)": 1,
-  "eslint(curly)": 58,
-  "eslint(max-params)": 1,
-  "eslint(no-implicit-coercion)": 1,
-  "eslint(no-shadow)": 2,
-  "eslint(prefer-destructuring)": 4,
-  "import(consistent-type-specifier-style)": 4,
-  "oxc(erasing-op)": 1,
-  "typescript(method-signature-style)": 2,
-  "typescript(no-non-null-assertion)": 15,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(strict-void-return)": 3,
-  "unicorn(consistent-function-scoping)": 4,
-  "unicorn(no-array-callback-reference)": 1,
-  "unicorn(no-array-for-each)": 1,
-  "unicorn(numeric-separators-style)": 17,
-  "unicorn(prefer-spread)": 1,
-  "vitest(no-conditional-expect)": 9,
-  "vitest(no-conditional-in-test)": 47,
-  "vitest(prefer-each)": 2,
-  "vitest(prefer-strict-boolean-matchers)": 5,
-  "vitest(prefer-strict-equal)": 15,
-  "vitest(valid-expect)": 1
  },
  "src/features/network/sim/nic.ts": {
   "eslint(curly)": 14,
@@ -10096,19 +9896,6 @@
   "typescript(no-unnecessary-type-assertion)": 1,
   "unicorn(numeric-separators-style)": 5,
   "unicorn(switch-case-braces)": 8
- },
- "src/features/network/sim/transport.test.ts": {
-  "eslint(curly)": 16,
-  "eslint(no-loop-func)": 2,
-  "import(consistent-type-specifier-style)": 1,
-  "oxc(erasing-op)": 1,
-  "typescript(no-non-null-assertion)": 4,
-  "typescript(strict-boolean-expressions)": 1,
-  "unicorn(consistent-function-scoping)": 2,
-  "unicorn(no-new-array)": 1,
-  "unicorn(numeric-separators-style)": 5,
-  "vitest(no-conditional-in-test)": 15,
-  "vitest(prefer-strict-equal)": 14
  },
  "src/features/network/sim/transport.ts": {
   "eslint(curly)": 9,
@@ -10136,14 +9923,6 @@
  "src/features/network/ui/fmt.ts": {
   "eslint(curly)": 1
  },
- "src/features/network/ui/netdesc.test.ts": {
-  "eslint(no-nested-ternary)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "eslint(require-unicode-regexp)": 23,
-  "typescript(no-non-null-assertion)": 24,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "unicorn(numeric-separators-style)": 1
- },
  "src/features/network/ui/netdesc.ts": {
   "eslint(complexity)": 1,
   "eslint(curly)": 5,
@@ -10158,19 +9937,6 @@
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(no-array-sort)": 1,
   "unicorn(prefer-export-from)": 1
- },
- "src/features/network/ui/netui.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(max-params)": 1,
-  "eslint(no-empty-function)": 3,
-  "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 19,
-  "typescript(no-non-null-assertion)": 70,
-  "typescript(no-unsafe-type-assertion)": 2,
-  "unicorn(consistent-function-scoping)": 5,
-  "unicorn(max-nested-calls)": 9,
-  "vitest(prefer-strict-equal)": 20,
-  "vitest(valid-expect)": 1
  },
  "src/features/network/ui/netui.ts": {
   "eslint(curly)": 19,
@@ -10197,15 +9963,6 @@
   "unicorn(prefer-single-call)": 1,
   "unicorn(switch-case-braces)": 15
  },
- "src/features/network/ui/nicdesc.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(require-unicode-regexp)": 57,
-  "typescript(no-non-null-assertion)": 68,
-  "typescript(no-unnecessary-type-assertion)": 3,
-  "unicorn(numeric-separators-style)": 28,
-  "vitest(prefer-to-have-length)": 1,
-  "vitest(valid-expect)": 9
- },
  "src/features/network/ui/nicdesc.ts": {
   "eslint(complexity)": 1,
   "eslint(curly)": 4,
@@ -10219,16 +9976,6 @@
   "typescript(no-unsafe-type-assertion)": 1,
   "typescript(strict-boolean-expressions)": 4,
   "unicorn(switch-case-braces)": 15
- },
- "src/features/network/ui/routerdesc.test.ts": {
-  "eslint(curly)": 1,
-  "eslint(require-unicode-regexp)": 22,
-  "typescript(no-non-null-assertion)": 54,
-  "typescript(no-unnecessary-type-assertion)": 1,
-  "unicorn(numeric-separators-style)": 6,
-  "vitest(no-conditional-expect)": 1,
-  "vitest(no-conditional-in-test)": 1,
-  "vitest(valid-expect)": 3
  },
  "src/features/network/ui/routerdesc.ts": {
   "eslint(complexity)": 1,

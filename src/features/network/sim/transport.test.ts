@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { Flow, lossRoll, RttEstimate, TRANSPORT, type FlowInit } from './transport';
+import { Flow, lossRoll, RttEstimate, TRANSPORT } from './transport';
+import type * as transportTypes from './transport';
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
 
 // The transport alone (docs/NETSTACK.md section 3.4): the loss roll, the timing with no loss, the window, the timeout, giving up.
 
-const init = (o: Partial<FlowInit> = {}): FlowInit => ({
+const init = (o: Partial<transportTypes.FlowInit> = {}): transportTypes.FlowInit => ({
   id: 7,
   seed: 123,
   segs: 4,
@@ -13,6 +22,78 @@ const init = (o: Partial<FlowInit> = {}): FlowInit => ({
   loss: 0,
   ...o,
 });
+
+/** The ticks at which the flow lets its segments go, given `share` MB of line time a tick while it moves, with a receiver that takes everything at once (no timeout, no window limit). */
+function releaseTicks(f: Flow, segs: number, share: number): number[] {
+  const left: number[] = [];
+  for (let t = 1; left.length < segs && t < 10_000; t++) {
+    left.push(...f.step(t, f.moving ? share : 0).map(() => t));
+    f.ack(t, f.next, 1);
+  }
+  return left;
+}
+
+/** Runs the flow against a receiver that takes 10 ticks a segment, in turn, and answers with the round trip it saw; returns the copies sent again. */
+function againstSlowReceiver(f: Flow): number {
+  let resent = 0;
+  let want = 0;
+  const arrivals: { at: number; sent: number }[] = []; // the ticks at which the receiver finishes a segment, and the tick the segment left
+  let busyUntil = 0;
+  for (let t = 1; t < 300 && !f.done; t++) {
+    while (arrivals.length > 0 && must(arrivals[0]).at <= t) {
+      const a = must(arrivals.shift());
+      want++;
+      f.ack(t, want, t - a.sent);
+    }
+    for (const s of f.step(t, 0)) {
+      if (s.attempt > 0) {
+        resent++;
+      }
+      if (s.seq === want + arrivals.length) {
+        busyUntil = Math.max(busyUntil, t) + 10;
+        arrivals.push({ at: busyUntil, sent: t });
+      } // taken in turn, 10 ticks each
+    }
+  }
+  return resent;
+}
+
+/** The ticks between the sends of a flow that is never answered, up to `count` of them. */
+function sendGaps(f: Flow, count: number): number[] {
+  const gaps: number[] = [];
+  let last = 0;
+  for (let t = 1; t < 400 && gaps.length < count; t++) {
+    if (f.step(t, 0).length > 0) {
+      gaps.push(t - last);
+      last = t;
+    }
+  }
+  return gaps;
+}
+
+/** The times segment 0 of a flow that is never answered is sent, until the flow gives up. */
+function sendsOfFirst(f: Flow): number {
+  let sent = 0;
+  for (let t = 0; t < 5000 && !f.failed; t++) {
+    sent += f.step(t, 0).filter((s) => s.seq === 0).length;
+  }
+  return sent;
+}
+
+/** The sends a one-segment flow over a line that loses 99% makes before a copy gets through and is answered. */
+function sendsUntilThrough(): number {
+  const f = new Flow(init({ segs: 1, segMB: 0, loss: 0.99, id: 5, seed: 17 }));
+  let n = 0;
+  for (let t = 0; t < 100_000 && !f.done && !f.failed; t++) {
+    for (const s of f.step(t, 0)) {
+      n++;
+      if (!s.lost) {
+        f.ack(t + 1, 1, 1);
+      }
+    }
+  }
+  return n;
+}
 
 describe('lossRoll', () => {
   it('is a number in [0,1) that depends only on its four inputs', () => {
@@ -33,29 +114,28 @@ describe('lossRoll', () => {
   });
 
   it('is spread evenly: the mean is near a half and every tenth of the range is used', () => {
-    const bins = new Array<number>(10).fill(0);
+    const bins = Array.from({ length: 10 }, () => 0);
     let sum = 0;
-    const n = 20000;
+    const n = 20_000;
     for (let i = 0; i < n; i++) {
       const r = lossRoll(99, i >> 6, i & 63, 0);
       sum += r;
-      bins[Math.floor(r * 10)]!++;
+      const bin = Math.floor(r * 10);
+      bins[bin] = must(bins[bin]) + 1;
     }
     expect(sum / n).toBeGreaterThan(0.49);
     expect(sum / n).toBeLessThan(0.51);
-    for (const b of bins) expect(b).toBeGreaterThan((n / 10) * 0.9);
+    for (const b of bins) {
+      expect(b).toBeGreaterThan((n / 10) * 0.9);
+    }
   });
 
   it('rolls the resend of a segment independently of the first send', () => {
     // 30% loss: a segment lost once is not lost for good (a resend has its own roll)
-    let both = 0,
-      first = 0;
-    for (let seq = 0; seq < 4000; seq++) {
-      const a = lossRoll(3, 11, seq, 0) < 0.3,
-        b = lossRoll(3, 11, seq, 1) < 0.3;
-      if (a) first++;
-      if (a && b) both++;
-    }
+    const seqs = Array.from({ length: 4000 }, (_, seq) => seq),
+      lostFirst = seqs.filter((seq) => lossRoll(3, 11, seq, 0) < 0.3),
+      first = lostFirst.length,
+      both = lostFirst.filter((seq) => lossRoll(3, 11, seq, 1) < 0.3).length;
     expect(both / first).toBeGreaterThan(0.2);
     expect(both / first).toBeLessThan(0.4);
   });
@@ -65,10 +145,12 @@ describe('lossRoll', () => {
 function oldRule(total: number, segs: number, share: number): number[] {
   const at: number[] = [];
   let done = 0;
-  for (let t = 1; at.length < segs && t < 10000; t++) {
+  for (let t = 1; at.length < segs && t < 10_000; t++) {
     done += share;
     const due = done >= total ? segs : Math.floor((segs * done) / total);
-    while (at.length < due) at.push(t);
+    while (at.length < due) {
+      at.push(t);
+    }
   }
   return at;
 }
@@ -85,12 +167,9 @@ describe('the line time', () => {
       [0.5, 1, 6.25],
     ] as const) {
       const f = new Flow(init({ segs, segMB: total / segs }));
-      const left: number[] = [];
-      for (let t = 1; left.length < segs && t < 10000; t++) {
-        for (const s of f.step(t, f.moving ? share : 0)) left.push(t + 0 * s.seq);
-        f.ack(t, f.next, 1); // a receiver that takes everything at once: no timeout, no window limit
-      }
-      expect(left, `${total} MB in ${segs} at ${share}`).toEqual(oldRule(total, segs, share));
+      expect(releaseTicks(f, segs, share), `${total} MB in ${segs} at ${share}`).toStrictEqual(
+        oldRule(total, segs, share),
+      );
     }
   });
 
@@ -107,10 +186,10 @@ describe('the line time', () => {
 
   it('segments with no line cost (a replay) leave as the window allows', () => {
     const f = new Flow(init({ segs: 5, segMB: 0, cwnd: 3 }));
-    expect(f.step(1, 0).map((s) => s.seq)).toEqual([0, 1, 2]);
-    expect(f.step(2, 0)).toEqual([]);
+    expect(f.step(1, 0).map((s) => s.seq)).toStrictEqual([0, 1, 2]);
+    expect(f.step(2, 0)).toStrictEqual([]);
     f.ack(2, 2, 1);
-    expect(f.step(3, 0).map((s) => s.seq)).toEqual([3, 4]);
+    expect(f.step(3, 0).map((s) => s.seq)).toStrictEqual([3, 4]);
   });
 
   it('a flow with no room in its window takes no share of the line', () => {
@@ -127,8 +206,8 @@ describe('the line time', () => {
 describe('the window and the acknowledgements', () => {
   it('holds the segments back at the window, and an acknowledgement lets more go', () => {
     const f = new Flow(init({ segs: 10, segMB: 1, cwnd: 2 }));
-    expect(f.step(1, 100).map((s) => s.seq)).toEqual([0, 1]);
-    expect(f.step(2, 100)).toEqual([]);
+    expect(f.step(1, 100).map((s) => s.seq)).toStrictEqual([0, 1]);
+    expect(f.step(2, 100)).toStrictEqual([]);
     f.ack(2, 1, 1);
     const more = f.step(3, 100).map((s) => s.seq);
     expect(more[0]).toBe(2);
@@ -177,7 +256,7 @@ describe('the window and the acknowledgements', () => {
     expect(f.rttvar).toBeCloseTo(4 + 0.25 * (10 - 4), 6);
     const before = { srtt: f.srtt, rttvar: f.rttvar };
     f.ack(25, 2, 99); // a copy the receiver had already: no progress, no sample
-    expect({ srtt: f.srtt, rttvar: f.rttvar }).toEqual(before);
+    expect({ srtt: f.srtt, rttvar: f.rttvar }).toStrictEqual(before);
   });
 
   it('times a segment that was sent again by the copy the receiver answered (the echo), not by the latest send', () => {
@@ -206,25 +285,8 @@ describe('the window and the acknowledgements', () => {
 
   it('a receiver that is slow to answer makes the timeout long, so the flow stops sending copies of what the receiver holds', () => {
     // a receiver that takes 10 ticks a segment: the first guess (3 ticks) fires, then the samples show the real round trip
-    const f = new Flow(init({ segs: 6, segMB: 0, cwnd: 6, rtt: 1 }));
-    let resent = 0;
-    let want = 0;
-    const arrivals: { at: number; sent: number }[] = []; // the ticks at which the receiver finishes a segment, and the tick the segment left
-    let busyUntil = 0;
-    for (let t = 1; t < 300 && !f.done; t++) {
-      while (arrivals.length > 0 && arrivals[0]!.at <= t) {
-        const a = arrivals.shift()!;
-        want++;
-        f.ack(t, want, t - a.sent);
-      }
-      for (const s of f.step(t, 0)) {
-        if (s.attempt > 0) resent++;
-        if (s.seq === want + arrivals.length) {
-          busyUntil = Math.max(busyUntil, t) + 10;
-          arrivals.push({ at: busyUntil, sent: t });
-        } // taken in turn, 10 ticks each
-      }
-    }
+    const f = new Flow(init({ segs: 6, segMB: 0, cwnd: 6, rtt: 1 })),
+      resent = againstSlowReceiver(f);
     expect(f.done).toBe(true);
     expect(resent).toBeLessThanOrEqual(3); // a few at the start, while the round trip was unknown; not one for every segment
     expect(f.rto).toBeGreaterThan(10);
@@ -234,17 +296,17 @@ describe('the window and the acknowledgements', () => {
 describe('the timeout', () => {
   it('sends the first unacknowledged segment again after `rto` ticks, and only that one; ssthresh halves and the window restarts', () => {
     const f = new Flow(init({ segs: 4, segMB: 0, cwnd: 8 }));
-    expect(f.step(1, 0).map((s) => s.seq)).toEqual([0, 1, 2, 3]);
+    expect(f.step(1, 0).map((s) => s.seq)).toStrictEqual([0, 1, 2, 3]);
     expect(f.rto).toBe(3);
-    expect(f.step(3, 0)).toEqual([]); // not yet: 3 ticks after the first send is tick 4
+    expect(f.step(3, 0)).toStrictEqual([]); // not yet: 3 ticks after the first send is tick 4
     const again = f.step(4, 0);
-    expect(again.map((s) => s.seq)).toEqual([0]); // the others are most likely in the receiver's ring already
-    expect(again[0]!.attempt).toBe(1);
+    expect(again.map((s) => s.seq)).toStrictEqual([0]); // the others are most likely in the receiver's ring already
+    expect(again[0]?.attempt).toBe(1);
     expect(f.next).toBe(4); // nothing is taken back: the segments sent are still sent
     expect(f.cwnd).toBe(1);
     expect(f.ssthresh).toBe(4);
     expect(f.stats).toMatchObject({ sent: 5, resent: 1, timeouts: 1 });
-    expect(f.step(5, 0)).toEqual([]); // and no new segment until the window has room
+    expect(f.step(5, 0)).toStrictEqual([]); // and no new segment until the window has room
   });
 
   it('a timeout that is followed by an acknowledgement beyond the resent segment sends nothing else again', () => {
@@ -259,22 +321,17 @@ describe('the timeout', () => {
   it('doubles the timeout for each timeout in a row, up to a cap', () => {
     const f = new Flow(init({ segs: 1, segMB: 0 }));
     f.step(0, 0);
-    const timeouts: number[] = [];
-    let last = 0;
-    for (let t = 1; t < 400 && timeouts.length < 6; t++) {
-      if (f.step(t, 0).length > 0) {
-        timeouts.push(t - last);
-        last = t;
-      }
-    }
-    expect(timeouts.slice(0, 5)).toEqual([3, 6, 12, 24, 48]);
+    const timeouts = sendGaps(f, 6);
+    expect(timeouts.slice(0, 5)).toStrictEqual([3, 6, 12, 24, 48]);
     expect(timeouts[5]).toBe(96); // capped
   });
 
   it('an acknowledgement that makes progress ends the backoff, and the timeout follows the round trip it showed', () => {
     const f = new Flow(init({ segs: 3, segMB: 0 }));
     f.step(0, 0); // segments 0, 1 and 2
-    for (let t = 1; t <= 40; t++) f.step(t, 0); // timeouts at 3, 9 and 21: segment 0 went again each time
+    for (let t = 1; t <= 40; t++) {
+      f.step(t, 0);
+    } // timeouts at 3, 9 and 21: segment 0 went again each time
     expect(f.backoff).toBe(8);
     f.ack(41, 1, 41); // the answer to the first copy of segment 0: a slow receiver, the copy left 41 ticks ago
     expect(f.backoff).toBe(1);
@@ -283,28 +340,16 @@ describe('the timeout', () => {
 
   it('fails the transfer when a segment would have to be sent more than maxRetries times again', () => {
     const f = new Flow(init({ segs: 2, segMB: 0, cwnd: 2 }));
-    let sent = 0;
-    for (let t = 0; t < 5000 && !f.failed; t++) sent += f.step(t, 0).filter((s) => s.seq === 0).length;
+    const sent = sendsOfFirst(f);
     expect(f.failed).toBe(true);
     expect(sent).toBe(1 + TRANSPORT.maxRetries); // the first send and the eight resends
     expect(f.sending).toBe(false);
-    expect(f.step(9999, 0)).toEqual([]);
+    expect(f.step(9999, 0)).toStrictEqual([]);
   });
 
   it('makes progress even if every send is lost until the roll turns', () => {
     // with 99% loss the first ack takes many sends; the roll is stateless, so the same game always takes the same number
-    const run = (): number => {
-      const f = new Flow(init({ segs: 1, segMB: 0, loss: 0.99, id: 5, seed: 17 }));
-      let n = 0;
-      for (let t = 0; t < 100000 && !f.done && !f.failed; t++) {
-        for (const s of f.step(t, 0)) {
-          n++;
-          if (!s.lost) f.ack(t + 1, 1, 1);
-        }
-      }
-      return n;
-    };
-    expect(run()).toBe(run());
+    expect(sendsUntilThrough()).toBe(sendsUntilThrough());
   });
 });
 
@@ -333,22 +378,44 @@ function loop(o: {
   let arriving: { at: number; seq: number; sent: number }[] = [];
   let t = 0;
   for (t = 1; t < (o.maxTicks ?? 5000); t++) {
-    const due = arriving.filter((a) => a.at <= t);
-    arriving = arriving.filter((a) => a.at > t);
+    const now = t,
+      due = arriving.filter((a) => a.at <= now);
+    arriving = arriving.filter((a) => a.at > now);
     let ackTo = -1;
     let echo = t;
     for (const a of due) {
-      if (o.deaf?.(t)) continue; // the machine does not answer (a long job holds the CPU)
-      if (a.seq === want) want++;
+      if (o.deaf?.(t) === true) {
+        continue;
+      } // the machine does not answer (a long job holds the CPU)
+      if (a.seq === want) {
+        want++;
+      }
       ackTo = want;
       echo = a.sent; // the acknowledgement carries the stamp of the segment it answers
     }
-    if (ackTo >= 0) f.ack(t, ackTo, t - echo);
-    for (const s of f.step(t, f.moving ? o.share : 0)) if (!s.lost) arriving.push({ at: t + 1, seq: s.seq, sent: t });
-    if (f.done || f.failed) break;
+    if (ackTo >= 0) {
+      f.ack(t, ackTo, t - echo);
+    }
+    for (const s of f.step(t, f.moving ? o.share : 0)) {
+      if (!s.lost) {
+        arriving.push({ at: t + 1, seq: s.seq, sent: t });
+      }
+    }
+    if (f.done || f.failed) {
+      break;
+    }
   }
   return { ticks: t, flow: f };
 }
+
+/** The ticks a flow of 8 segments of 4 MB takes against the receiver at `loss`, on average over 40 games. */
+const meanTicks = (loss: number): number => {
+  let sum = 0;
+  for (let seed = 1; seed <= 40; seed++) {
+    sum += loop({ segs: 8, segMB: 4, share: 12.5, loss, seed }).ticks;
+  }
+  return sum / 40;
+};
 
 describe('a flow against a receiver', () => {
   it("with no loss it takes the line's time and one tick for the last acknowledgement", () => {
@@ -376,7 +443,7 @@ describe('a flow against a receiver', () => {
     const a = loop({ segs: 8, segMB: 4, share: 12.5, loss: 0.3, seed: 9 });
     const b = loop({ segs: 8, segMB: 4, share: 12.5, loss: 0.3, seed: 9 });
     expect(b.ticks).toBe(a.ticks);
-    expect(b.flow.stats).toEqual(a.flow.stats);
+    expect(b.flow.stats).toStrictEqual(a.flow.stats);
     const times = new Set(
       [1, 2, 3, 4, 5, 6, 7, 8].map((seed) => loop({ segs: 8, segMB: 4, share: 12.5, loss: 0.3, seed }).ticks),
     );
@@ -384,14 +451,9 @@ describe('a flow against a receiver', () => {
   });
 
   it('more loss takes longer, on average over many games', () => {
-    const mean = (loss: number): number => {
-      let sum = 0;
-      for (let seed = 1; seed <= 40; seed++) sum += loop({ segs: 8, segMB: 4, share: 12.5, loss, seed }).ticks;
-      return sum / 40;
-    };
-    const none = mean(0),
-      some = mean(0.1),
-      lots = mean(0.4);
+    const none = meanTicks(0),
+      some = meanTicks(0.1),
+      lots = meanTicks(0.4);
     expect(some).toBeGreaterThan(none);
     expect(lots).toBeGreaterThan(some);
   });
@@ -404,7 +466,7 @@ describe('a flow against a receiver', () => {
   });
 
   it('a receiver that never answers fails the transfer after the retries', () => {
-    const { flow } = loop({ segs: 2, segMB: 0, share: 0, loss: 0, deaf: () => true, maxTicks: 20000 });
+    const { flow } = loop({ segs: 2, segMB: 0, share: 0, loss: 0, deaf: () => true, maxTicks: 20_000 });
     expect(flow.failed).toBe(true);
   });
 });
