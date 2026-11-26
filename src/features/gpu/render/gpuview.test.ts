@@ -1,17 +1,31 @@
-import { describe, expect, it, vi } from 'vitest';
-import { Container } from 'pixi.js';
-
-// Text needs a canvas, which the tests do not have: labels are empty containers here (as in accelart.test.ts).
-vi.mock('@/core/render/ink', async (orig) => ({
-  ...(await orig<typeof import('@/core/render/ink')>()),
-  label: () => Object.assign(new Container(), { text: '' }),
-}));
-
-import type { GpuSnap } from '@/worker/game/types';
+import { assert, describe, expect, it, vi } from 'vitest';
+import type * as inkApi from '@/core/render/ink';
+import type { DeviceSnap, GpuSnap } from '@/worker/game/types';
 import type { Theme } from '@/core/render/theme';
 import { cardSpins, fanTurns, GpuView, kindColor, PHASE_TEXT } from './gpuview';
 import { fanBank } from '@/core/render/fanmotor';
 import { setLayoutTier } from '../../board/render/layout/layout';
+import { EdgeFan } from '../../room/render/desk/props/case';
+
+// Measuring text needs a canvas, which the tests do not have: labels are texts that never measure themselves here, with
+// empty bounds like the empty containers they stood in for before.
+vi.mock(import('@/core/render/ink'), async (orig) => {
+  const pixi = await import('pixi.js');
+  class BareText extends pixi.Text {
+    protected override updateBounds(): void {
+      this._bounds.clear();
+    }
+  }
+  return { ...(await orig<typeof inkApi>()), label: (str: string) => new BareText({ text: str }) };
+});
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
 
 const T: Theme = {
   bg: '#04060f',
@@ -43,7 +57,7 @@ const snap = (o: Partial<GpuSnap> = {}): GpuSnap => ({
   mask: 0xff,
   stack: [0xff],
   pc: 8,
-  regs: Array.from({ length: 8 }, () => Array(8).fill(1)),
+  regs: Array.from({ length: 8 }, () => Array.from({ length: 8 }, () => 1)),
   trace: [
     { pc: 0, name: 'vld', kind: 'ld', mask: 0x0f, cost: 2, banks: [2], dest: 3 },
     { pc: 4, name: 'halt', kind: 'sys', mask: 0x0f, cost: 1, banks: null, dest: null },
@@ -54,6 +68,40 @@ const snap = (o: Partial<GpuSnap> = {}): GpuSnap => ({
   stats: { instructions: 2, idleLaneSlots: 4, conflictCycles: 1, cycles: 3 },
   ...o,
 });
+
+/** The card device in pcie0 the board reports, with `o` over a cold, still, unpowered card. */
+const device = (o: Partial<DeviceSnap> = {}): DeviceSnap => ({
+  id: 'gpu',
+  spec: 'gpu2',
+  kind: 'gpu',
+  name: 'GPU',
+  slot: 'pcie0',
+  burnt: false,
+  requestedClock: null,
+  effectiveClock: 1,
+  tempC: 30,
+  powerW: 0,
+  throttle: 0,
+  unstable: false,
+  fan: 0,
+  ...o,
+});
+
+/** How far the blades of a card fan have slid. */
+function fanOffset(f: unknown): number {
+  assert.instanceOf(f, EdgeFan);
+  return f.offset;
+}
+
+interface Told {
+  slot: string;
+  ends: string[];
+  reverse: boolean[];
+}
+
+/** Whether the board was told of the launch: pcie0's route out from the host link, run forward. */
+const toldLaunch = (told: Told[]) =>
+  told.some((t) => t.slot === 'pcie0' && t.ends[0] === 'pcie' && t.reverse.every((r) => !r));
 
 describe('GPU view', () => {
   it('turns the fans with the sim fan speed, faster under load, and not at all at zero', () => {
@@ -67,7 +115,8 @@ describe('GPU view', () => {
     const d = { burnt: false, powerW: 12 };
     expect(cardSpins(true, d)).toBe(true);
     expect(cardSpins(false, d)).toBe(false); // the PC is off
-    expect(cardSpins(true, undefined)).toBe(false); // no card
+    const noCard: DeviceSnap[] = [];
+    expect(cardSpins(true, noCard.at(0))).toBe(false); // no card
     expect(cardSpins(true, { ...d, burnt: true })).toBe(false);
     expect(cardSpins(true, { ...d, powerW: 0 })).toBe(false); // not powered
   });
@@ -77,22 +126,28 @@ describe('GPU view', () => {
     fanBank.clear();
     const v = new GpuView();
     v.setScene(T, [{ slot: 'pcie0', visual: 'gpu-2', origin: { x: 0, y: 0 } }]);
-    const dev = [{ slot: 'pcie0', tempC: 70, fan: 0.7, throttle: 1, burnt: false, powerW: 40 } as never];
+    const dev = [device({ tempC: 70, fan: 0.7, throttle: 1, powerW: 40 })];
     v.update([snap()], dev, false);
-    for (let i = 0; i < 30; i++) v.frame(1 / 30, true);
+    for (let i = 0; i < 30; i++) {
+      v.frame(1 / 30, true);
+    }
     expect(fanBank.get('gpu:pcie0')).toBe(0); // the PC is off: still
     v.update([snap()], dev, true);
     v.frame(1 / 30, true);
     const first = fanBank.get('gpu:pcie0');
     expect(first).toBeGreaterThan(0);
     expect(first).toBeLessThan(0.5); // no jump to speed
-    for (let i = 0; i < 240; i++) v.frame(1 / 30, true);
+    for (let i = 0; i < 240; i++) {
+      v.frame(1 / 30, true);
+    }
     const full = fanBank.get('gpu:pcie0');
     expect(full).toBeGreaterThan(3);
     v.update([snap()], dev, false); // the machine goes off
     v.frame(1 / 30, true);
     expect(fanBank.get('gpu:pcie0')).toBeGreaterThan(full * 0.9); // it coasts, no jump to still
-    for (let i = 0; i < 600; i++) v.frame(1 / 30, true);
+    for (let i = 0; i < 600; i++) {
+      v.frame(1 / 30, true);
+    }
     expect(fanBank.get('gpu:pcie0')).toBe(0);
   });
 
@@ -101,20 +156,23 @@ describe('GPU view', () => {
     const v = new GpuView();
     v.setScene(T, [{ slot: 'pcie0', visual: 'gpu-2', origin: { x: 0, y: 0 } }]);
     v.setZoom(1);
-    const told: { slot: string; ends: string[]; reverse: boolean[] }[] = [];
-    v.onTraffic = (slot, hops) =>
+    const told: Told[] = [];
+    v.onTraffic = (slot, hops) => {
       told.push({ slot, ends: hops.flatMap((h) => [h.link.from, h.link.to]), reverse: hops.map((h) => h.reverse) });
-    v.update([snap({ phase: 'in' })], undefined);
+    };
+    v.update([snap({ phase: 'in' })], []);
     v.frame(1 / 30, true);
-    expect(told.some((t) => t.slot === 'pcie0' && t.ends[0] === 'pcie' && t.reverse.every((r) => !r))).toBe(true);
+    expect(toldLaunch(told)).toBe(true);
     // (a card seen in the middle of its run: the load on show brings its word from the card memory)
     const w = new GpuView();
     w.setScene(T, [{ slot: 'pcie0', visual: 'gpu-2', origin: { x: 0, y: 0 } }]);
     w.setZoom(1);
     w.onTraffic = v.onTraffic;
     told.length = 0;
-    w.update([snap({ phase: 'run' })], undefined);
-    for (let i = 0; i < 400; i++) w.frame(1 / 30, true);
+    w.update([snap({ phase: 'run' })], []);
+    for (let i = 0; i < 400; i++) {
+      w.frame(1 / 30, true);
+    }
     const mem = told.find((t) => t.ends.includes('dram'));
     // (the step on show is a load: its word comes from the card memory, the way back along the route)
     expect(mem?.reverse.every(Boolean)).toBe(true);
@@ -123,7 +181,7 @@ describe('GPU view', () => {
   it('colours each kind of instruction apart and names every phase', () => {
     const kinds = ['alu', 'ld', 'st', 'mask', 'br', 'sys'] as const;
     expect(new Set(kinds.map((k) => kindColor(T, k))).size).toBe(kinds.length);
-    expect(Object.keys(PHASE_TEXT).sort()).toEqual(['idle', 'in', 'out', 'run']);
+    expect(Object.keys(PHASE_TEXT).toSorted()).toStrictEqual(['idle', 'in', 'out', 'run']);
   });
 
   it('builds a card per scene entry, spins the fans while a card runs, and stops them without a snapshot', () => {
@@ -132,28 +190,31 @@ describe('GPU view', () => {
     expect(v.root.visible).toBe(false);
     v.setScene(T, [{ slot: 'pcie0', visual: 'gpu-2', origin: { x: 0, y: 0 } }]);
     expect(v.root.visible).toBe(true);
-    const card = v.root.children[0] as Container;
+    const card = must(v.root.children[0]);
     const fans = card.children.slice(2, -1); // inner, cover, then one spinner per fan
     expect(fans).toHaveLength(2);
     v.setZoom(1);
-    v.update([snap()], [{ slot: 'pcie0', tempC: 70, fan: 0.7, throttle: 1, burnt: false, powerW: 40 } as never]);
-    const offset = (f: unknown) => (f as { offset: number }).offset;
-    const before = fans.map(offset);
-    for (let i = 0; i < 30; i++) v.frame(1 / 30, true);
-    expect(fans.map(offset)).not.toEqual(before);
+    v.update([snap()], [device({ tempC: 70, fan: 0.7, throttle: 1, powerW: 40 })]);
+    const before = fans.map((f) => fanOffset(f));
+    for (let i = 0; i < 30; i++) {
+      v.frame(1 / 30, true);
+    }
+    expect(fans.map((f) => fanOffset(f))).not.toStrictEqual(before);
     // zoomed in the cover is gone and the insides show; zoomed out the reverse
-    expect(card.children[0]!.visible).toBe(true);
-    expect(card.children[1]!.alpha).toBeCloseTo(0, 1);
+    expect(must(card.children[0]).visible).toBe(true);
+    expect(must(card.children[1]).alpha).toBeCloseTo(0, 1);
     v.setZoom(0.1);
     v.frame(0.016, true);
-    expect(card.children[0]!.visible).toBe(false);
-    expect(card.children[1]!.alpha).toBeCloseTo(1, 1);
+    expect(must(card.children[0]).visible).toBe(false);
+    expect(must(card.children[1]).alpha).toBeCloseTo(1, 1);
     // no snapshot: the fans wind down toward a stop
-    v.update(undefined, undefined);
-    for (let i = 0; i < 600; i++) v.frame(1 / 30, true);
-    const a = offset(fans[0]);
+    v.update([], []);
+    for (let i = 0; i < 600; i++) {
+      v.frame(1 / 30, true);
+    }
+    const a = fanOffset(fans[0]);
     v.frame(1 / 30, true);
-    expect(Math.abs(offset(fans[0]) - a)).toBeLessThan(0.5);
+    expect(Math.abs(fanOffset(fans[0]) - a)).toBeLessThan(0.5);
     v.frame(1 / 30, false);
     expect(v.root.visible).toBe(false);
   });
@@ -163,20 +224,20 @@ describe('GPU view', () => {
     const v = new GpuView();
     v.setScene(T, [{ slot: 'pcie0', visual: 'gpu-2', origin: { x: 0, y: 0 } }]);
     v.setZoom(6); // deep enough that even a card off the centre of the view is past the counters stage
-    v.update([snap()], [{ slot: 'pcie0', tempC: 70, fan: 0.7, throttle: 1, burnt: false, powerW: 40 } as never]);
-    const card = v.root.children[0] as Container;
+    v.update([snap()], [device({ tempC: 70, fan: 0.7, throttle: 1, powerW: 40 })]);
+    const card = must(v.root.children[0]);
     const near = { x: -200, y: -200, w: 1000, h: 600 },
       far = { x: 1e6, y: 1e6, w: 1000, h: 600 };
     v.frame(1 / 30, true, false, { view: near, top: new Set(['gpu:pcie0']) });
     expect(card.visible).toBe(true);
-    expect(v.candidates(near).map((c) => c.id)).toEqual(['gpu:pcie0']);
-    expect(v.candidates(far)).toEqual([]);
+    expect(v.candidates(near).map((c) => c.id)).toStrictEqual(['gpu:pcie0']);
+    expect(v.candidates(far)).toStrictEqual([]);
     v.frame(1 / 30, true, false, { view: far, top: new Set() });
     expect(card.visible).toBe(false);
     v.frame(1 / 30, true, false, { view: near, top: new Set(['gpu:pcie0']) });
     expect(card.visible).toBe(true); // back in view
     v.setZoom(0.1);
-    expect(v.candidates(near)).toEqual([]); // too far out for counters
+    expect(v.candidates(near)).toStrictEqual([]); // too far out for counters
   });
 });
 
@@ -188,10 +249,10 @@ describe('along', () => {
       [10, 0],
       [10, 10],
     ];
-    expect(along(pts, 0)).toEqual([0, 0]);
-    expect(along(pts, 0.25)).toEqual([5, 0]);
-    expect(along(pts, 0.75)).toEqual([10, 5]);
-    expect(along(pts, 2)).toEqual([10, 10]);
+    expect(along(pts, 0)).toStrictEqual([0, 0]);
+    expect(along(pts, 0.25)).toStrictEqual([5, 0]);
+    expect(along(pts, 0.75)).toStrictEqual([10, 5]);
+    expect(along(pts, 2)).toStrictEqual([10, 10]);
   });
 });
 
@@ -227,7 +288,11 @@ describe('GPU view on a multi-SM card', () => {
         warp: 1,
       },
     ];
-    v.update([snap({ lanes: 32, banks: 4, trace })], [{ slot: 'pcie0', tempC: 50, throttle: false } as never]);
-    for (let i = 0; i < 30; i++) expect(() => v.frame(1 / 30, true)).not.toThrow();
+    v.update([snap({ lanes: 32, banks: 4, trace })], [device({ tempC: 50 })]);
+    for (let i = 0; i < 30; i++) {
+      expect(() => {
+        v.frame(1 / 30, true);
+      }).not.toThrow();
+    }
   });
 });

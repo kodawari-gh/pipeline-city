@@ -4,8 +4,16 @@ import { describe, expect, it } from 'vitest';
 import { specsOfKind } from '@/features/board/sim/specs';
 import type { Pt, Rect } from '@/features/cpu/render/core/cpuplan';
 import { leaf, routeWires, row, placeTree } from '@/features/cpu/render/core/cpufloor';
-import { gpuPlanInput, type GpuBlock, type GpuPlan, type GpuPlanInput } from './gpuplan';
+import * as gpuplan from './gpuplan';
 import { DIE_GAP, DIE_MARGIN, GPU_DIE, GPU_MEM, gpuPlan } from './gpuplans';
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
 
 const inside = (a: Rect, o: Rect): boolean =>
   a.x >= o.x && a.y >= o.y && a.x + a.w <= o.x + o.w && a.y + a.h <= o.y + o.h;
@@ -24,34 +32,103 @@ const crosses = (a: Pt, b: Pt, r: Rect): boolean => {
   return x1 > r.x && x0 < r.x + r.w && y1 > r.y && y0 < r.y + r.h;
 };
 
-function check(plan: GpuPlan): string[] {
+/** The faults of the blocks: duplicate ids, blocks off the die or without area, frames defined late or stuck out of, inexact grids. */
+function blockFaults(plan: gpuplan.GpuPlan, byId: Map<string, gpuplan.GpuBlock>): string[] {
   const bad: string[] = [];
-  const byId = new Map<string, GpuBlock>();
   for (const b of plan.blocks) {
-    if (byId.has(b.id)) bad.push(`duplicate block id ${b.id}`);
-    byId.set(b.id, b);
-    if (!inside(b.rect, plan.die)) bad.push(`${b.id} is outside the die`);
-    if (b.rect.w <= 0 || b.rect.h <= 0) bad.push(`${b.id} has no area`);
-    if (b.parent) {
-      const p = byId.get(b.parent);
-      if (!p) bad.push(`${b.id}: parent ${b.parent} is not defined before it`);
-      else if (!inside(b.rect, p.rect)) bad.push(`${b.id} sticks out of its frame ${b.parent}`);
+    if (byId.has(b.id)) {
+      bad.push(`duplicate block id ${b.id}`);
     }
-    if (b.grid && (b.grid.cols * b.grid.rows !== b.grid.count || b.grid.cols < 1 || b.grid.rows < 1))
+    byId.set(b.id, b);
+    if (!inside(b.rect, plan.die)) {
+      bad.push(`${b.id} is outside the die`);
+    }
+    if (b.rect.w <= 0 || b.rect.h <= 0) {
+      bad.push(`${b.id} has no area`);
+    }
+    bad.push(...frameFaults(b, byId));
+    if (b.grid && (b.grid.cols * b.grid.rows !== b.grid.count || b.grid.cols < 1 || b.grid.rows < 1)) {
       bad.push(`${b.id} has an inexact grid ${b.grid.cols}x${b.grid.rows} for ${b.grid.count}`);
+    }
   }
+  return bad;
+}
+
+/** A framed block's faults: its frame must be defined before it, and hold it. */
+function frameFaults(b: gpuplan.GpuBlock, byId: Map<string, gpuplan.GpuBlock>): string[] {
+  if (b.parent === undefined || b.parent === '') {
+    return [];
+  }
+  const p = byId.get(b.parent);
+  if (!p) {
+    return [`${b.id}: parent ${b.parent} is not defined before it`];
+  }
+  if (!inside(b.rect, p.rect)) {
+    return [`${b.id} sticks out of its frame ${b.parent}`];
+  }
+  return [];
+}
+
+/** Every pair of blocks that overlaps, but a frame and the blocks in it. */
+function overlapFaults(plan: gpuplan.GpuPlan): string[] {
+  const bad: string[] = [];
   for (let i = 0; i < plan.blocks.length; i++) {
     for (let j = i + 1; j < plan.blocks.length; j++) {
-      const a = plan.blocks[i]!,
-        c = plan.blocks[j]!;
-      if (a.parent === c.id || c.parent === a.id) continue;
-      if (!apart(a.rect, c.rect)) bad.push(`${a.id} overlaps ${c.id}`);
+      const a = must(plan.blocks[i]),
+        c = must(plan.blocks[j]);
+      if (a.parent === c.id || c.parent === a.id) {
+        continue;
+      }
+      if (!apart(a.rect, c.rect)) {
+        bad.push(`${a.id} overlaps ${c.id}`);
+      }
     }
   }
+  return bad;
+}
+
+/** The faults of one segment `u`-`v` of a link: diagonal, zero length, off the die, or through a block that is not one of its ends. */
+function segmentFaults(
+  plan: gpuplan.GpuPlan,
+  l: gpuplan.GpuPlan['links'][number],
+  seg: { u: Pt; v: Pt; frames: Set<unknown> },
+): string[] {
+  const { u, v, frames } = seg;
+  const bad: string[] = [];
+  if (u[0] !== v[0] && u[1] !== v[1]) {
+    bad.push(`${l.id} has a diagonal segment`);
+  }
+  if (u[0] === v[0] && u[1] === v[1]) {
+    bad.push(`${l.id} has a zero-length segment`);
+  }
+  if (
+    !inside(
+      { x: Math.min(u[0], v[0]), y: Math.min(u[1], v[1]), w: Math.abs(u[0] - v[0]), h: Math.abs(u[1] - v[1]) },
+      plan.die,
+    )
+  ) {
+    bad.push(`${l.id} leaves the die`);
+  }
+  for (const o of plan.blocks) {
+    if (frames.has(o.id) || o.id === l.from || o.id === l.to) {
+      continue;
+    }
+    if (crosses(u, v, o.rect)) {
+      bad.push(`${l.id} runs through ${o.id}`);
+    }
+  }
+  return bad;
+}
+
+/** The faults of the links: duplicate ids, unknown ends, ends off their blocks' edges, and bad segments. */
+function linkFaults(plan: gpuplan.GpuPlan, byId: Map<string, gpuplan.GpuBlock>): string[] {
+  const bad: string[] = [];
   const frames = new Set(plan.blocks.map((b) => b.parent).filter(Boolean));
   const ids = new Set<string>();
   for (const l of plan.links) {
-    if (ids.has(l.id)) bad.push(`duplicate link id ${l.id}`);
+    if (ids.has(l.id)) {
+      bad.push(`duplicate link id ${l.id}`);
+    }
     ids.add(l.id);
     const a = byId.get(l.from),
       c = byId.get(l.to);
@@ -59,60 +136,73 @@ function check(plan: GpuPlan): string[] {
       bad.push(`${l.id}: unknown end ${l.from} / ${l.to}`);
       continue;
     }
-    if (l.pts.length < 2) bad.push(`${l.id} has fewer than two points`);
-    if (!onEdge(l.pts[0]!, a.rect)) bad.push(`${l.id} starts off the edge of ${l.from}`);
-    if (!onEdge(l.pts[l.pts.length - 1]!, c.rect)) bad.push(`${l.id} ends off the edge of ${l.to}`);
+    if (l.pts.length < 2) {
+      bad.push(`${l.id} has fewer than two points`);
+    }
+    if (!onEdge(must(l.pts[0]), a.rect)) {
+      bad.push(`${l.id} starts off the edge of ${l.from}`);
+    }
+    if (!onEdge(must(l.pts.at(-1)), c.rect)) {
+      bad.push(`${l.id} ends off the edge of ${l.to}`);
+    }
     for (let k = 1; k < l.pts.length; k++) {
-      const u = l.pts[k - 1]!,
-        v = l.pts[k]!;
-      if (u[0] !== v[0] && u[1] !== v[1]) bad.push(`${l.id} has a diagonal segment`);
-      if (u[0] === v[0] && u[1] === v[1]) bad.push(`${l.id} has a zero-length segment`);
-      if (
-        !inside(
-          { x: Math.min(u[0], v[0]), y: Math.min(u[1], v[1]), w: Math.abs(u[0] - v[0]), h: Math.abs(u[1] - v[1]) },
-          plan.die,
-        )
-      )
-        bad.push(`${l.id} leaves the die`);
-      for (const o of plan.blocks) {
-        if (frames.has(o.id) || o.id === l.from || o.id === l.to) continue;
-        if (crosses(u, v, o.rect)) bad.push(`${l.id} runs through ${o.id}`);
-      }
+      bad.push(...segmentFaults(plan, l, { u: must(l.pts[k - 1]), v: must(l.pts[k]), frames }));
     }
   }
   return bad;
 }
 
-const base: GpuPlanInput = {
+function check(plan: gpuplan.GpuPlan): string[] {
+  const byId = new Map<string, gpuplan.GpuBlock>();
+  const blocks = blockFaults(plan, byId);
+  return [...blocks, ...overlapFaults(plan), ...linkFaults(plan, byId)];
+}
+
+/** The area of the blocks that are not frames, nor SMs. */
+function leafArea(plan: gpuplan.GpuPlan): number {
+  const frames = new Set(plan.blocks.map((b) => b.parent).filter(Boolean));
+  return plan.blocks.filter((b) => !frames.has(b.id) && b.kind !== 'sm').reduce((n, b) => n + b.rect.w * b.rect.h, 0);
+}
+
+/** The area of a die inside its margins. */
+const innerArea = (d: Rect) => (d.w - 2 * DIE_MARGIN.x) * (d.h - DIE_MARGIN.top - DIE_MARGIN.bottom);
+
+/** The die a block belongs on: the card memory on its own die, the rest on the main one. */
+const dieOf = (plan: gpuplan.GpuPlan, b: gpuplan.GpuBlock): Rect => (b.id === 'dram' ? plan.memory : plan.core);
+
+/** The blocks every plan has, whatever the model. */
+const PARTS: gpuplan.GpuBlockKind[] = ['pcie', 'launch', 'regfile', 'lanes', 'mask', 'dram'];
+
+const base: gpuplan.GpuPlanInput = {
   kind: 'warp',
   sms: 1,
   warps: 2,
   lanes: 16,
   banks: 2,
-  memBytes: 32768,
+  memBytes: 32_768,
   lineWords: 8,
   l1Lines: 0,
   l2Lines: 0,
 };
-const CONFIGS: [string, GpuPlanInput][] = [
+const CONFIGS: [string, gpuplan.GpuPlanInput][] = [
   [
     'simd 8 lanes',
-    { kind: 'simd', sms: 1, warps: 1, lanes: 8, banks: 1, memBytes: 16384, lineWords: 1, l1Lines: 0, l2Lines: 0 },
+    { kind: 'simd', sms: 1, warps: 1, lanes: 8, banks: 1, memBytes: 16_384, lineWords: 1, l1Lines: 0, l2Lines: 0 },
   ],
   [
     'simd 32 lanes, 4 banks',
-    { kind: 'simd', sms: 1, warps: 1, lanes: 32, banks: 4, memBytes: 65536, lineWords: 1, l1Lines: 0, l2Lines: 0 },
+    { kind: 'simd', sms: 1, warps: 1, lanes: 32, banks: 4, memBytes: 65_536, lineWords: 1, l1Lines: 0, l2Lines: 0 },
   ],
   ['warp, 2 warps', base],
   ['warp, 1 warp', { ...base, warps: 1, lanes: 8, banks: 1 }],
   ['warp, 4 warps, 32 lanes', { ...base, warps: 4, lanes: 32, banks: 4 }],
   [
     'multi, 2 SMs',
-    { kind: 'multi', sms: 2, warps: 2, lanes: 32, banks: 4, memBytes: 65536, lineWords: 8, l1Lines: 16, l2Lines: 64 },
+    { kind: 'multi', sms: 2, warps: 2, lanes: 32, banks: 4, memBytes: 65_536, lineWords: 8, l1Lines: 16, l2Lines: 64 },
   ],
   [
     'multi, 3 SMs',
-    { kind: 'multi', sms: 3, warps: 2, lanes: 24, banks: 4, memBytes: 65536, lineWords: 8, l1Lines: 8, l2Lines: 32 },
+    { kind: 'multi', sms: 3, warps: 2, lanes: 24, banks: 4, memBytes: 65_536, lineWords: 8, l1Lines: 8, l2Lines: 32 },
   ],
 ];
 
@@ -120,7 +210,7 @@ describe('gpu floorplans', () => {
   describe.each(CONFIGS)('%s', (_name, input) => {
     const plan = gpuPlan(input);
     it('is a valid plan', () => {
-      expect(check(plan)).toEqual([]);
+      expect(check(plan)).toStrictEqual([]);
     });
     it('is deterministic and cached', () => {
       expect(gpuPlan(input)).toBe(plan);
@@ -128,47 +218,50 @@ describe('gpu floorplans', () => {
     });
     it('has a block of every part of the model', () => {
       const kinds = new Set(plan.blocks.map((b) => b.kind));
-      for (const k of ['pcie', 'launch', 'regfile', 'lanes', 'mask', 'dram'])
-        expect(kinds.has(k as never), k).toBe(true);
+      for (const k of PARTS) {
+        expect(kinds.has(k), `${k} block`).toBe(true);
+      }
       expect(kinds.has('coalescer')).toBe(input.kind !== 'simd');
       expect(kinds.has('sched')).toBe(input.kind !== 'simd');
       expect(kinds.has('l2')).toBe(input.kind === 'multi');
     });
     it('shows the lanes and the registers as cells', () => {
       const per = input.lanes / input.sms;
-      for (const b of plan.blocks.filter((x) => x.kind === 'lanes')) expect(b.grid?.count).toBe(per);
-      for (const b of plan.blocks.filter((x) => x.kind === 'regfile'))
+      for (const b of plan.blocks.filter((x) => x.kind === 'lanes')) {
+        expect(b.grid?.count).toBe(per);
+      }
+      for (const b of plan.blocks.filter((x) => x.kind === 'regfile')) {
         expect(b.grid).toMatchObject({ cols: per, rows: 8 });
+      }
     });
     it('uses most of the die', () => {
-      const frames = new Set(plan.blocks.map((b) => b.parent).filter(Boolean));
-      const area = plan.blocks
-        .filter((b) => !frames.has(b.id) && b.kind !== 'sm')
-        .reduce((n, b) => n + b.rect.w * b.rect.h, 0);
-      const inner = (d: Rect) => (d.w - 2 * DIE_MARGIN.x) * (d.h - DIE_MARGIN.top - DIE_MARGIN.bottom);
-      expect(area / (inner(plan.core) + inner(plan.memory))).toBeGreaterThan(0.65);
+      expect(leafArea(plan) / (innerArea(plan.core) + innerArea(plan.memory))).toBeGreaterThan(0.65);
     });
     it('leaves the south margin for the title strip and knows the card memory size', () => {
-      for (const b of plan.blocks)
-        expect(b.rect.y + b.rect.h, b.id).toBeLessThanOrEqual(plan.die.h - DIE_MARGIN.bottom + 0.5);
-      for (const b of plan.blocks)
-        expect(inside(b.rect, b.id === 'dram' ? plan.memory : plan.core), `${b.id} on its die`).toBe(true);
+      for (const b of plan.blocks) {
+        expect(b.rect.y + b.rect.h, `${b.id} bottom`).toBeLessThanOrEqual(plan.die.h - DIE_MARGIN.bottom + 0.5);
+      }
+      for (const b of plan.blocks) {
+        expect(inside(b.rect, dieOf(plan, b)), `${b.id} on its die`).toBe(true);
+      }
       expect(plan.blocks.find((b) => b.id === 'dram')?.bytes).toBe(input.memBytes);
     });
   });
 
   it('every card spec plans, and the tiers differ', () => {
-    const plans = specsOfKind('gpu').map((s) => gpuPlan(gpuPlanInput(s.gpu!)));
+    const plans = specsOfKind('gpu').map((s) => gpuPlan(gpuplan.gpuPlanInput(must(s.gpu))));
     expect(plans.length).toBeGreaterThanOrEqual(3);
-    for (const p of plans) expect(check(p)).toEqual([]);
+    for (const p of plans) {
+      expect(check(p)).toStrictEqual([]);
+    }
     expect(new Set(plans.map((p) => p.blocks.length)).size).toBe(plans.length);
     expect(new Set(plans.map((p) => p.input.kind)).size).toBe(plans.length);
   });
 
   it('a multi-SM card has one framed SM per SM, with the SM ids on its blocks', () => {
-    const plan = gpuPlan(CONFIGS[5]![1]);
-    expect(plan.blocks.filter((b) => b.kind === 'sm').map((b) => b.id)).toEqual(['sm0', 'sm1']);
-    expect(plan.blocks.filter((b) => b.kind === 'lanes').map((b) => [b.id, b.sm])).toEqual([
+    const plan = gpuPlan(must(CONFIGS[5])[1]);
+    expect(plan.blocks.filter((b) => b.kind === 'sm').map((b) => b.id)).toStrictEqual(['sm0', 'sm1']);
+    expect(plan.blocks.filter((b) => b.kind === 'lanes').map((b) => [b.id, b.sm])).toStrictEqual([
       ['sm0.lanes', 0],
       ['sm1.lanes', 1],
     ]);
@@ -176,14 +269,14 @@ describe('gpu floorplans', () => {
   });
 
   it('the single SM of the smaller cards is framed too, with its blocks keeping their plain ids', () => {
-    for (const s of specsOfKind('gpu').filter((x) => x.gpu!.kind !== 'multi')) {
-      const plan = gpuPlan(gpuPlanInput(s.gpu!));
+    for (const s of specsOfKind('gpu').filter((x) => must(x.gpu).kind !== 'multi')) {
+      const plan = gpuPlan(gpuplan.gpuPlanInput(must(s.gpu)));
       expect(
         plan.blocks.filter((b) => b.kind === 'sm').map((b) => b.id),
-        s.id,
-      ).toEqual(['sm0']);
-      expect(plan.blocks.find((b) => b.id === 'lanes')?.parent, s.id).toBe('sm0');
-      expect(plan.blocks.find((b) => b.id === 'lanes')?.sm, s.id).toBe(0);
+        `${s.id} SM frames`,
+      ).toStrictEqual(['sm0']);
+      expect(plan.blocks.find((b) => b.id === 'lanes')?.parent, `${s.id} lanes frame`).toBe('sm0');
+      expect(plan.blocks.find((b) => b.id === 'lanes')?.sm, `${s.id} lanes SM`).toBe(0);
     }
   });
 
@@ -200,13 +293,13 @@ describe('gpu floorplans', () => {
     for (const [name, input] of CONFIGS) {
       const p = gpuPlan(input),
         c = GPU_DIE[input.kind];
-      expect(p.core, name).toEqual({ x: 0, y: 0, w: c.w, h: c.h });
-      expect(c.w / c.h, name).toBeGreaterThan(1.3);
-      expect(c.w / c.h, name).toBeLessThan(1.6);
-      expect(p.memory, name).toMatchObject({ x: c.w + DIE_GAP, w: GPU_MEM.w, h: GPU_MEM.h });
-      expect(p.memory.y + p.memory.h, name).toBe(c.h);
-      expect(p.die, name).toEqual({ x: 0, y: 0, w: c.w + DIE_GAP + GPU_MEM.w, h: c.h });
-      expect(p.blocks.filter((b) => b.kind === 'dram').length, name).toBe(1);
+      expect(p.core, `${name} core`).toStrictEqual({ x: 0, y: 0, w: c.w, h: c.h });
+      expect(c.w / c.h, `${name} aspect`).toBeGreaterThan(1.3);
+      expect(c.w / c.h, `${name} aspect`).toBeLessThan(1.6);
+      expect(p.memory, `${name} memory`).toMatchObject({ x: c.w + DIE_GAP, w: GPU_MEM.w, h: GPU_MEM.h });
+      expect(p.memory.y + p.memory.h, `${name} memory bottom`).toBe(c.h);
+      expect(p.die, `${name} die`).toStrictEqual({ x: 0, y: 0, w: c.w + DIE_GAP + GPU_MEM.w, h: c.h });
+      expect(p.blocks.filter((b) => b.kind === 'dram')).toHaveLength(1);
     }
   });
 
@@ -214,10 +307,10 @@ describe('gpu floorplans', () => {
     for (const [name, input] of CONFIGS) {
       const p = gpuPlan(input),
         w = p.links.filter((l) => l.to === 'dram');
-      expect(w.length, name).toBe(1);
-      const xs = w[0]!.pts.map((q) => q[0]);
-      expect(Math.min(...xs), name).toBeLessThan(p.core.w);
-      expect(Math.max(...xs), name).toBeGreaterThan(p.memory.x);
+      expect(w).toHaveLength(1);
+      const xs = must(w[0]).pts.map((q) => q[0]);
+      expect(Math.min(...xs), `${name} dram wire start`).toBeLessThan(p.core.w);
+      expect(Math.max(...xs), `${name} dram wire end`).toBeGreaterThan(p.memory.x);
     }
   });
 
@@ -227,7 +320,7 @@ describe('gpu floorplans', () => {
       [leaf('a', 'pcie', 'A', { px: 60 }), leaf('b', 'pcie', 'B', { px: 60 }), leaf('c', 'pcie', 'C', { px: 60 })],
       { gap: 0 },
     );
-    const blocks: GpuBlock[] = [];
+    const blocks: gpuplan.GpuBlock[] = [];
     placeTree(tree, { x: 20, y: 20, w: 180, h: 60 }, blocks, (s, r) => ({
       id: s.id,
       kind: 'pcie',
@@ -242,6 +335,6 @@ describe('gpu floorplans', () => {
         undefined,
         'gpuplan',
       ),
-    ).toThrow(/gpuplan/);
+    ).toThrow(/gpuplan/u);
   });
 });
