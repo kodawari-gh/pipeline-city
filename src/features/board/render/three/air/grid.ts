@@ -24,7 +24,7 @@ export interface Footprint {
 export type Shape = { r: number } | { hw: number; hh: number };
 
 /** Cells in a grid, about: the finer the better the field, the dearer the solve. */
-const GRID_CELLS = 14000;
+const GRID_CELLS = 14_000;
 /** The share of a cell's open area below which the cell counts as a wall. */
 const SOLID = 0.02;
 
@@ -96,14 +96,15 @@ export class AirGrid {
     const i = Math.floor((x - this.min[0]) / this.h[0]),
       j = Math.floor((y - this.min[1]) / this.h[1]),
       k = Math.floor((z - this.min[2]) / this.h[2]);
-    if (i < 0 || j < 0 || k < 0 || i >= this.n[0] || j >= this.n[1] || k >= this.n[2]) return -1;
+    if (i < 0 || j < 0 || k < 0 || i >= this.n[0] || j >= this.n[1] || k >= this.n[2]) {
+      return -1;
+    }
     return this.index(i, j, k);
   }
 
   /** The centre of a cell. */
   centre(c: number, out: V3 = [0, 0, 0]): V3 {
-    const nx = this.n[0],
-      ny = this.n[1],
+    const [nx, ny] = this.n,
       i = c % nx,
       j = Math.floor(c / nx) % ny,
       k = Math.floor(c / (nx * ny));
@@ -138,13 +139,19 @@ export class AirGrid {
         [k0, k1] = this.span(2, b.min[2], b.max[2]);
       for (let k = k0; k <= k1; k++) {
         const fz = Math.min(b.max[2], this.min[2] + (k + 1) * hz) - Math.max(b.min[2], this.min[2] + k * hz);
-        if (fz <= 0) continue;
+        if (fz <= 0) {
+          continue;
+        }
         for (let j = j0; j <= j1; j++) {
           const fy = Math.min(b.max[1], this.min[1] + (j + 1) * hy) - Math.max(b.min[1], this.min[1] + j * hy);
-          if (fy <= 0) continue;
+          if (fy <= 0) {
+            continue;
+          }
           for (let i = i0; i <= i1; i++) {
             const fx = Math.min(b.max[0], this.min[0] + (i + 1) * hx) - Math.max(b.min[0], this.min[0] + i * hx);
-            if (fx <= 0) continue;
+            if (fx <= 0) {
+              continue;
+            }
             const c = i + nx * (j + ny * k),
               sx = fx / hx,
               sy = fy / hy,
@@ -159,10 +166,14 @@ export class AirGrid {
         }
       }
     });
-    for (let c = 0; c < N; c++) this.boxStart[c + 1] = this.boxStart[c]! + counts[c + 1]!;
+    for (let c = 0; c < N; c++) {
+      this.boxStart[c + 1] = this.boxStart[c]! + counts[c + 1]!;
+    }
     const out = new Int32Array(lists.length),
       at = this.boxStart.slice(0, N);
-    for (const [c, bi] of lists) out[at[c]!++] = bi;
+    for (const [c, bi] of lists) {
+      out[at[c]!++] = bi;
+    }
     return out;
   }
 
@@ -172,18 +183,22 @@ export class AirGrid {
       [hx, hy, hz] = this.h,
       scale = [(hy * hz) / hx, (hx * hz) / hy, (hx * hy) / hz],
       step = [1, nx, nx * ny];
-    for (let k = 0; k < nz; k++)
-      for (let j = 0; j < ny; j++)
+    for (let k = 0; k < nz; k++) {
+      for (let j = 0; j < ny; j++) {
         for (let i = 0; i < nx; i++) {
           const c = i + nx * (j + ny * k),
             at = [i, j, k];
           for (let a = 0; a < 3; a++) {
-            if (at[a]! >= this.n[a]! - 1) continue;
+            if (at[a]! >= this.n[a]! - 1) {
+              continue;
+            }
             const p = this.open[a]![c]!,
               q = this.open[a]![c + step[a]!]!;
             this.face[a]![c] = p + q > 1e-6 ? (scale[a]! * (2 * p * q)) / (p + q) : 0;
           }
         }
+      }
+    }
   }
 
   /**
@@ -202,11 +217,13 @@ export class AirGrid {
     const acc = new Map<number, number>(),
       p: V3 = [0, 0, 0];
     p[axis] = at[axis] + shift;
-    for (let a = 0; a < nu; a++)
+    for (let a = 0; a < nu; a++) {
       for (let b = 0; b < nv; b++) {
         const x = -hu + (a + 0.5) * du,
           y = -hv + (b + 0.5) * dv;
-        if ('r' in shape && x * x + y * y > shape.r * shape.r) continue;
+        if ('r' in shape && x * x + y * y > shape.r * shape.r) {
+          continue;
+        }
         p[u] = at[u]! + x;
         p[v] = at[v]! + y;
         const c = this.cellAt(
@@ -214,13 +231,18 @@ export class AirGrid {
           Math.min(this.max[1] - 1e-6, Math.max(this.min[1] + 1e-6, p[1])),
           Math.min(this.max[2] - 1e-6, Math.max(this.min[2] + 1e-6, p[2])),
         );
-        if (c >= 0) acc.set(c, (acc.get(c) ?? 0) + du * dv);
+        if (c >= 0) {
+          acc.set(c, (acc.get(c) ?? 0) + du * dv);
+        }
       }
-    if (!acc.size) {
+    }
+    if (acc.size === 0) {
       p[u] = at[u]!;
       p[v] = at[v]!;
       const c = this.cellAt(p[0], p[1], p[2]);
-      if (c >= 0) acc.set(c, 4 * hu * hv);
+      if (c >= 0) {
+        acc.set(c, 4 * hu * hv);
+      }
     }
     return { cells: [...acc.keys()], area: [...acc.values()] };
   }

@@ -1,29 +1,13 @@
 // The air's particles drawn as ribbons (docs/render/air.md): one instanced mesh, a fixed pool. Each particle is a strip along its trail, turned to face
 // the camera, bright and wide at the head and fine at the tail, coloured by its temperature on the thermal scale (`core/render/three/thermal.ts`: the same
 // scale the parts glow by) and added to the picture. A veil under them turns the room cold and dark so the heat reads.
-import {
-  AdditiveBlending,
-  AddEquation,
-  CustomBlending,
-  Group,
-  InstancedBufferAttribute,
-  InstancedBufferGeometry,
-  InstancedInterleavedBuffer,
-  InterleavedBufferAttribute,
-  Float32BufferAttribute,
-  Mesh,
-  PlaneGeometry,
-  ShaderMaterial,
-  SrcColorFactor,
-  ZeroFactor,
-  type PerspectiveCamera,
-} from 'three';
+import * as THREE from 'three';
 import { THERMAL_BEND, thermalGlsl } from '@/core/render/three/thermal';
-import { TRAIL, type AirParticles } from './particles';
+import * as particles from './particles';
 import type { V3 } from './grid';
 
-const LAST = TRAIL - 1;
-const POINTS = Array.from({ length: TRAIL }, (_, k) => `p${k}`);
+const LAST = particles.TRAIL - 1;
+const POINTS = Array.from({ length: particles.TRAIL }, (_, k) => `p${k}`);
 const pick = POINTS.map((p, k) => (k === LAST ? p : `t < ${k}.5 ? ${p} : `)).join('');
 
 const VERT = /* glsl */ `
@@ -89,58 +73,67 @@ const NEAR_FROM = 2500,
 /** A box no point is inside: the x-ray box when there is none. */
 const NO_BOX: V3 = [1e9, 1e9, 1e9];
 
+/** The material of one pass of the strips: pass 0 is hidden by what stands in front of it, pass 1 is not. */
+function ribbonMaterial(pass: number): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    vertexShader: VERT,
+    fragmentShader: FRAG,
+    transparent: true,
+    depthWrite: false,
+    depthTest: pass === 0,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+    uniforms: {
+      uWidth: { value: 62 },
+      uPixel: { value: 0.002 },
+      uPass: { value: pass },
+      uLo: { value: 25 },
+      uHi: { value: 55 },
+      uStrength: { value: STRENGTH },
+      uCold: { value: COLD_SHARE },
+      uNearFrom: { value: NEAR_FROM },
+      uNearTo: { value: NEAR_TO },
+      uXMin: { value: [...NO_BOX] },
+      uXMax: { value: [...NO_BOX].map((v) => -v) },
+    },
+  });
+}
+
 /** The particles of one `AirParticles` as meshes: the air, hidden behind the parts it flows round (and drawn over the supply's unit, where its fan draws it through). */
 export class Ribbons {
-  readonly mesh = new Group();
-  private readonly geo = new InstancedBufferGeometry();
-  private readonly mats: ShaderMaterial[] = [];
-  private readonly buf: InstancedInterleavedBuffer;
+  readonly mesh = new THREE.Group();
+  private readonly geo = new THREE.InstancedBufferGeometry();
+  private readonly mats: THREE.ShaderMaterial[] = [];
+  private readonly buf: THREE.InstancedInterleavedBuffer;
   private readonly info: Float32Array;
-  private readonly infoAttr: InstancedBufferAttribute;
+  private readonly infoAttr: THREE.InstancedBufferAttribute;
 
-  constructor(private readonly p: AirParticles) {
+  constructor(private readonly p: particles.AirParticles) {
     // the strip: TRAIL points, two corners each (the side), triangles between them
     const corner: number[] = [],
       index: number[] = [];
-    for (let t = 0; t < TRAIL; t++) corner.push(t, -1, t, 1);
-    for (let t = 0; t < TRAIL - 1; t++) {
+    for (let t = 0; t < particles.TRAIL; t++) {
+      corner.push(t, -1, t, 1);
+    }
+    for (let t = 0; t < particles.TRAIL - 1; t++) {
       const a = 2 * t;
       index.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
     }
-    this.geo.setAttribute('corner', new Float32BufferAttribute(corner, 2));
+    this.geo.setAttribute('corner', new THREE.Float32BufferAttribute(corner, 2));
     // (`position` is needed for the draw count; the shader does not read it)
-    this.geo.setAttribute('position', new Float32BufferAttribute(new Float32Array(TRAIL * 2 * 3), 3));
+    this.geo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(particles.TRAIL * 2 * 3), 3));
     this.geo.setIndex(index);
-    this.buf = new InstancedInterleavedBuffer(p.P, TRAIL * 3, 1);
-    for (let k = 0; k < TRAIL; k++) this.geo.setAttribute(`p${k}`, new InterleavedBufferAttribute(this.buf, 3, 3 * k));
+    this.buf = new THREE.InstancedInterleavedBuffer(p.P, particles.TRAIL * 3, 1);
+    for (let k = 0; k < particles.TRAIL; k++) {
+      this.geo.setAttribute(`p${k}`, new THREE.InterleavedBufferAttribute(this.buf, 3, 3 * k));
+    }
     this.info = new Float32Array(p.cap * 3);
-    this.infoAttr = new InstancedBufferAttribute(this.info, 3);
+    this.infoAttr = new THREE.InstancedBufferAttribute(this.info, 3);
     this.geo.setAttribute('info', this.infoAttr);
     this.geo.instanceCount = 0;
     for (const pass of [0, 1]) {
-      const mat = new ShaderMaterial({
-        vertexShader: VERT,
-        fragmentShader: FRAG,
-        transparent: true,
-        depthWrite: false,
-        depthTest: pass === 0,
-        blending: AdditiveBlending,
-        toneMapped: false,
-        uniforms: {
-          uWidth: { value: 62 },
-          uPixel: { value: 0.002 },
-          uPass: { value: pass },
-          uLo: { value: 25 },
-          uHi: { value: 55 },
-          uStrength: { value: STRENGTH },
-          uCold: { value: COLD_SHARE },
-          uNearFrom: { value: NEAR_FROM },
-          uNearTo: { value: NEAR_TO },
-          uXMin: { value: [...NO_BOX] },
-          uXMax: { value: [...NO_BOX].map((v) => -v) },
-        },
-      });
-      const m = new Mesh(this.geo, mat);
+      const mat = ribbonMaterial(pass);
+      const m = new THREE.Mesh(this.geo, mat);
       m.frustumCulled = false;
       m.renderOrder = 1000 + pass;
       m.raycast = () => {};
@@ -161,8 +154,8 @@ export class Ribbons {
    * Per frame: copy what the particles hold to the mesh. `lo`, `hi`: the temperatures at the two ends of the thermal scale; `pxHeight`: the view's height in
    * pixels.
    */
-  frame(cam: PerspectiveCamera, pxHeight: number, lo: number, hi: number, strength = 1): void {
-    const p = this.p,
+  frame(cam: THREE.PerspectiveCamera, pxHeight: number, lo: number, hi: number, strength = 1): void {
+    const { p } = this,
       n = p.count;
     for (let i = 0; i < n; i++) {
       this.info[3 * i] = p.T[i]!;
@@ -185,7 +178,9 @@ export class Ribbons {
   dispose(): void {
     this.mesh.removeFromParent();
     this.geo.dispose();
-    for (const m of this.mats) m.dispose();
+    for (const m of this.mats) {
+      m.dispose();
+    }
   }
 }
 
@@ -193,21 +188,21 @@ export class Ribbons {
  * A sheet over the whole view, under the ribbons, that turns the room cold: the picture is multiplied by a deep blue, so it goes dark and blue and keeps its
  * light and shade. The parts glow on it by their temperature (`PartSkin.thermal`) and the air is drawn over it. `tint`: the colour it multiplies by (the power lens's is less blue).
  */
-export function makeVeil(tint: readonly [number, number, number] = [0.13, 0.16, 0.32]): Mesh {
-  const mat = new ShaderMaterial({
+export function makeVeil(tint: readonly [number, number, number] = [0.13, 0.16, 0.32]): THREE.Mesh {
+  const mat = new THREE.ShaderMaterial({
     vertexShader: 'void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }',
     fragmentShader: 'uniform vec3 uTint; void main() { gl_FragColor = vec4(uTint, 1.0); }',
     uniforms: { uTint: { value: [...tint] } },
     transparent: true,
     depthTest: false,
     depthWrite: false,
-    blending: CustomBlending,
-    blendEquation: AddEquation,
-    blendSrc: ZeroFactor,
-    blendDst: SrcColorFactor,
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.AddEquation,
+    blendSrc: THREE.ZeroFactor,
+    blendDst: THREE.SrcColorFactor,
     toneMapped: false,
   });
-  const m = new Mesh(new PlaneGeometry(2, 2), mat);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
   m.frustumCulled = false;
   m.renderOrder = 900;
   m.raycast = () => {};

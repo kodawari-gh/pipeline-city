@@ -5,14 +5,14 @@
 import type { Snapshot } from '@/worker/protocol';
 import type { Rect } from '@/core/render/camera';
 import type { V3 } from '@/core/render/three/rope';
-import { levelOf, type Role } from '@/core/render/three/powerscale';
+import * as powerscale from '@/core/render/three/powerscale';
 import { getSpec } from '@/features/board/sim/specs';
 import { FAN_HUB, GEO } from '../../layout/layout';
 import { atx12vSlots, pcieFeed } from '../../layout/pins';
-import { roundedPath, type Bus, type BusKind } from '../../wiring/routes';
+import * as routes from '../../wiring/routes';
 import type { AirTag } from '../air/airtags';
 import type { PsuBay } from '../air/plan';
-import { wattsText, type FlowState, type Ledger } from './ledger';
+import * as ledger from './ledger';
 import type { CableRun } from './runs';
 
 type Pt = [number, number];
@@ -47,10 +47,10 @@ export interface PowerLine {
   /** A thin branch (the feed to one part). */
   branch: boolean;
   /** Whose power it carries: the mains from the wall is a source's, the rest is what the parts use. */
-  tone: Role;
+  tone: powerscale.Role;
   /** What it carries and in which state, by the ledger. */
-  watts: (l: Ledger) => number;
-  state: (l: Ledger) => FlowState;
+  watts: (l: ledger.Ledger) => number;
+  state: (l: ledger.Ledger) => ledger.FlowState;
 }
 
 /** A ring on a cable's socket: drawn while the cable is out. */
@@ -67,7 +67,7 @@ interface PowerRing {
  */
 interface PowerNode {
   id: string;
-  role: Role;
+  role: powerscale.Role;
   /** Its centre and its half-extents along its own x and y (world vectors): the plate lies in the plane they span. */
   at: V3;
   ex: V3;
@@ -75,8 +75,8 @@ interface PowerNode {
   /** The radius of its corners, units. */
   round: number;
   /** What passes through it (W), by the ledger, and its state. */
-  watts: (l: Ledger) => number;
-  state: (l: Ledger) => FlowState;
+  watts: (l: ledger.Ledger) => number;
+  state: (l: ledger.Ledger) => ledger.FlowState;
 }
 
 export interface PowerShape {
@@ -97,7 +97,7 @@ export interface PowerShape {
 export interface ShapeIn {
   s: Snapshot;
   runs: readonly CableRun[];
-  buses: readonly Bus[];
+  buses: readonly routes.Bus[];
   slots: ReadonlyMap<string, Rect>;
   psu: PsuBay | null;
   /** The z of the board's face, and of the fan hub's face on the tray. */
@@ -138,9 +138,11 @@ function traces(i: ShapeIn): PowerLine[] {
     out: PowerLine[] = [],
     z = i.boardZ + TRACE_LIFT;
   const sata = new Set(s.storage.filter((d) => d.slot.startsWith('sata')).map((d) => d.slot));
-  const bus = (id: BusKind): Bus | undefined => i.buses.find((b) => b.id === id);
-  const push = (id: string, pts: readonly Pt[], watts: (l: Ledger) => number, branch = false): void => {
-    if (pts.length < 2) return;
+  const bus = (id: routes.BusKind): routes.Bus | undefined => i.buses.find((b) => b.id === id);
+  const push = (id: string, pts: readonly Pt[], watts: (l: ledger.Ledger) => number, branch = false): void => {
+    if (pts.length < 2) {
+      return;
+    }
     out.push({
       id,
       cable: '',
@@ -160,13 +162,15 @@ function traces(i: ShapeIn): PowerLine[] {
     const a = atx12vSlots(GEO.atx),
       xv = GEO.atx.x - 40,
       cy = r.y + r.h / 2;
-    return roundedPath([a, [xv, a[1]], [xv, cy], [r.x + r.w / 2, cy]], 60, 30) as Pt[];
+    return routes.roundedPath([a, [xv, a[1]], [xv, cy], [r.x + r.w / 2, cy]], 60, 30) as Pt[];
   };
   const kinds = new Set(s.devices.map((d) => d.kind));
-  if (!s.devices.some((d) => d.kind === 'psu')) return out;
+  if (!s.devices.some((d) => d.kind === 'psu')) {
+    return out;
+  }
   if (kinds.has('cpu')) {
     // the 8-pin's pins onto the input rail, then each phase's output down into the package
-    const cpu = (l: Ledger): number => l.cable.get('cpu') ?? 0;
+    const cpu = (l: ledger.Ledger): number => l.cable.get('cpu') ?? 0;
     bus('pwrcpu')?.lanes.forEach((l, k) =>
       push(`trace.pwrcpu.${k}`, l.pts as Pt[], k === 0 ? cpu : (q) => cpu(q) / 4, k > 0),
     );
@@ -175,25 +179,31 @@ function traces(i: ShapeIn): PowerLine[] {
   }
   if (kinds.has('ram')) {
     // the 24-pin's 12 V to the memory regulator, its output along the DIMM sockets, and a drop into every stick
-    const ram = (l: Ledger): number => l.kinds.get('ram')?.w ?? 0,
+    const ram = (l: ledger.Ledger): number => l.kinds.get('ram')?.w ?? 0,
       feed = bus('pwr12'),
       line = bus('vdimm');
     feed?.lanes.forEach((l, k) => push(`trace.pwr12.${k}`, l.pts as Pt[], ram));
     line?.lanes.forEach((l, k) => push(`trace.vdimm.${k}`, l.pts as Pt[], (q) => (ram(q) / line.lanes.length) * 2));
     for (const d of s.devices) {
       const tap = d.kind === 'ram' ? line?.taps?.find((t) => t.key === d.slot) : undefined;
-      if (tap) push(`trace.vdimm.${d.slot}`, tap.lanes[0]!.pts as Pt[], (l) => l.board.get(d.id) ?? 0, true);
+      if (tap) {
+        push(`trace.vdimm.${d.slot}`, tap.lanes[0]!.pts as Pt[], (l) => l.board.get(d.id) ?? 0, true);
+      }
     }
   }
   for (const d of s.devices) {
     const r = i.slots.get(d.slot);
-    if (!r || offBoard(r) || sata.has(d.slot)) continue;
-    const own = (l: Ledger): number => l.board.get(d.id) ?? 0;
+    if (!r || offBoard(r) || sata.has(d.slot)) {
+      continue;
+    }
+    const own = (l: ledger.Ledger): number => l.board.get(d.id) ?? 0;
     if (d.kind === 'gpu' || d.kind === 'npu' || d.kind === 'nic') {
       // a card in a PCIe slot: the slot rail's trace from the 24-pin to the x16 slot's tab (`pwrpcie`), and on along the slot; the other slots ride the strip beside the connector
-      const k = Number(/^pcie(\d+)$/.exec(d.slot)?.[1] ?? -1),
+      const k = Number(/^pcie(?<num>\d+)$/u.exec(d.slot)?.groups?.['num'] ?? -1),
         rail = GEO.pcie[k];
-      if (!rail) continue;
+      if (!rail) {
+        continue;
+      }
       const f = pcieFeed(rail),
         trace = bus('pwrpcie')?.lanes[k];
       push(
@@ -206,12 +216,14 @@ function traces(i: ShapeIn): PowerLine[] {
         own,
         true,
       );
-    } else if (d.kind === 'storage' && /^m2\d+$/.test(d.slot)) {
+    } else if (d.kind === 'storage' && /^m2\d+$/u.test(d.slot)) {
       // an M.2 drive: the branch trace into its socket's power patch (`pwrpcie`, after the slots'), the lens's own run if the board has none
-      const k = Number(/^m2(\d+)$/.exec(d.slot)![1]),
+      const k = Number(/^m2(?<num>\d+)$/u.exec(d.slot)?.groups?.['num']),
         lane = bus('pwrpcie')?.lanes[GEO.pcie.length + k];
       push(`feed.${d.slot}`, lane ? (lane.pts as Pt[]) : strip(r), own, true);
-    } else if (d.kind === 'tpm') push(`feed.${d.slot}`, strip(r), own, true);
+    } else if (d.kind === 'tpm') {
+      push(`feed.${d.slot}`, strip(r), own, true);
+    }
   }
   return out;
 }
@@ -226,14 +238,14 @@ export function powerShape(i: ShapeIn): PowerShape {
     seats.set(r.id, r.seat.at);
     rings.push({ id: `${r.id}.ring`, cable: r.id, at: r.seat.at, r: ringSize(r.id) });
     // (a cable carries what the ledger says of it: a drive's lead is `<id>:power`, the rest by the sim's id)
-    const watts = (l: Ledger): number => l.cable.get(r.id) ?? 0,
-      state = (l: Ledger): FlowState => l.state(r.id);
+    const watts = (l: ledger.Ledger): number => l.cable.get(r.id) ?? 0,
+      state = (l: ledger.Ledger): ledger.FlowState => l.state(r.id);
     // (the light is as wide as the sleeve it runs in, lifted clear of it)
     const width = Math.max(W_CABLE, r.r * 0.75),
       lift = r.r + LIFT_CLEAR,
-      tone: Role = MAINS.has(r.id) ? 'source' : 'use';
+      tone: powerscale.Role = MAINS.has(r.id) ? 'source' : 'use';
     r.strands.forEach((pts, k) => {
-      if (pts.length > 1)
+      if (pts.length > 1) {
         lines.push({
           id: `${r.id}#${k}`,
           cable: r.id,
@@ -247,17 +259,21 @@ export function powerShape(i: ShapeIn): PowerShape {
           watts,
           state,
         });
+      }
     });
     // a cable from the supply comes in behind the tray, a run the machine does not show: each strand goes on past its first point for a short stub, the way it was heading,
     // fading away from the cable. (Drawn on to the supply it would cross the case in straight lines that are nobody's cable.)
     if (r.fed) {
       r.strands.forEach((pts, k) => {
-        const p = pts[0],
-          q = pts[1];
-        if (!p || !q) return;
+        const [p, q] = pts;
+        if (!p || !q) {
+          return;
+        }
         const d: V3 = [p[0] - q[0], p[1] - q[1], p[2] - q[2]],
           len = Math.hypot(d[0], d[1], d[2]);
-        if (!(len > 1e-3)) return;
+        if (!(len > 1e-3)) {
+          return;
+        }
         const back: V3 = [p[0] + (d[0] / len) * STUB, p[1] + (d[1] / len) * STUB, p[2] + (d[2] / len) * STUB];
         lines.push({
           id: `${r.id}~${k}`,
@@ -280,7 +296,7 @@ export function powerShape(i: ShapeIn): PowerShape {
   const first = (id: string): V3 | null => run(id)?.strands[0]?.[0] ?? null,
     last = (id: string): V3 | null => {
       const p = run(id)?.strands.at(-1);
-      return p?.[p.length - 1] ?? null;
+      return p?.at(-1) ?? null;
     };
   const ns = nodes(i, runs),
     plate = i.outlet ? ns.find((n) => n.id === 'node.wall') : undefined;
@@ -309,11 +325,11 @@ const OUTLET: NonNullable<ShapeIn['outlet']> = { padX: 760, padY: 470, lift: -10
 /** A flat plate over a rect of the board (layout units, y down). */
 function plate(
   id: string,
-  role: Role,
+  role: powerscale.Role,
   r: Rect,
   z: number,
-  watts: (l: Ledger) => number,
-  state: (l: Ledger) => FlowState,
+  watts: (l: ledger.Ledger) => number,
+  state: (l: ledger.Ledger) => ledger.FlowState,
 ): PowerNode {
   return {
     id,
@@ -334,9 +350,9 @@ function plate(
 function nodes(i: ShapeIn, runs: readonly CableRun[]): PowerNode[] {
   const out: PowerNode[] = [],
     kinds = new Set(i.s.devices.map((d) => d.kind)),
-    live = (w: number): FlowState => (w > 0.05 ? 'on' : 'idle');
+    live = (w: number): ledger.FlowState => (w > 0.05 ? 'on' : 'idle');
   const outlets = runs.filter((r) => MAINS.has(r.id));
-  if (outlets.length) {
+  if (outlets.length > 0) {
     const xs = outlets.map((r) => r.seat.at[0]),
       ys = outlets.map((r) => r.seat.at[1]),
       x0 = Math.min(...xs),
@@ -362,7 +378,7 @@ function nodes(i: ShapeIn, runs: readonly CableRun[]): PowerNode[] {
   }
   if (kinds.has('psu')) {
     // (a regulator takes in what it hands on and what it wastes)
-    if (kinds.has('cpu'))
+    if (kinds.has('cpu')) {
       out.push(
         plate(
           'node.vrm',
@@ -373,7 +389,8 @@ function nodes(i: ShapeIn, runs: readonly CableRun[]): PowerNode[] {
           (l) => (l.missing('cpu') ? 'missing' : live(l.vrm.cpu.out)),
         ),
       );
-    if (kinds.has('ram'))
+    }
+    if (kinds.has('ram')) {
       out.push(
         plate(
           'node.dvrm',
@@ -384,7 +401,8 @@ function nodes(i: ShapeIn, runs: readonly CableRun[]): PowerNode[] {
           (l) => (l.missing('atx') ? 'missing' : live(l.vrm.ram.out)),
         ),
       );
-    if (runs.some((r) => r.id === 'sysfan'))
+    }
+    if (runs.some((r) => r.id === 'sysfan')) {
       out.push(
         plate(
           'node.hub',
@@ -395,6 +413,7 @@ function nodes(i: ShapeIn, runs: readonly CableRun[]): PowerNode[] {
           (l) => (l.missing('sysfan') ? 'missing' : live(l.cable.get('sysfan') ?? 0)),
         ),
       );
+    }
   }
   return out;
 }
@@ -443,16 +462,16 @@ export interface PowerDraw {
   /** Each part's place on the scale, by device id, and the parts that glow red (the supply, over its budget). */
   parts: Map<string, number>;
   /** The power parts' roles, by device id: the supply hands the power on, the parts that draw use it. A part with no draw (a heatsink, a radiator) has none. */
-  roles: Map<string, Role>;
+  roles: Map<string, powerscale.Role>;
   warn: Set<string>;
   /** The draw at the top of the scale, W. */
   refW: number;
 }
 
-const CODE: Record<FlowState, number> = { idle: 0, on: 1, missing: 2 };
+const CODE: Record<ledger.FlowState, number> = { idle: 0, on: 1, missing: 2 };
 
 /** One snapshot, as a ledger, on the shape. `box`: a part's box, where its draw is written. */
-export function powerDraw(shape: PowerShape, s: Snapshot, l: Ledger, box: BoxOf): PowerDraw {
+export function powerDraw(shape: PowerShape, s: Snapshot, l: ledger.Ledger, box: BoxOf): PowerDraw {
   const n = shape.lines.length,
     level = new Float32Array(n),
     state = new Uint8Array(n),
@@ -460,7 +479,7 @@ export function powerDraw(shape: PowerShape, s: Snapshot, l: Ledger, box: BoxOf)
   shape.lines.forEach((line, k) => {
     const st = line.state(l);
     state[k] = CODE[st];
-    level[k] = st === 'on' ? levelOf(line.watts(l), l.refW) : 0;
+    level[k] = st === 'on' ? powerscale.levelOf(line.watts(l), l.refW) : 0;
   });
   shape.rings.forEach((r, k) => {
     open[k] = l.missing(r.cable) ? 1 : 0;
@@ -470,73 +489,82 @@ export function powerDraw(shape: PowerShape, s: Snapshot, l: Ledger, box: BoxOf)
   shape.nodes.forEach((nd, k) => {
     const st = nd.state(l);
     nodeState[k] = CODE[st];
-    nodeLevel[k] = st === 'on' ? levelOf(nd.watts(l), l.refW) : 0;
+    nodeLevel[k] = st === 'on' ? powerscale.levelOf(nd.watts(l), l.refW) : 0;
   });
 
   const tags: AirTag[] = [];
   const over = (p: V3, dx = 0, dy = 0, dz = 0): V3 => [p[0] + dx, p[1] + dy, p[2] + dz];
   // the source: the wall's words over the socket the PC's cord comes out of (the cord's own end)
-  if (shape.wall)
+  if (shape.wall) {
     tags.push({
       id: 'p.wall',
       at: shape.wallWords ?? over(shape.wall, 0, 260, 120),
-      text: `WALL ${wattsText(l.wallW)}`,
+      text: `WALL ${ledger.wattsText(l.wallW)}`,
       tone: 'watts',
       role: 'source',
       anchor: 'l',
     });
+  }
   // the hubs: the supply takes the mains in and hands the power on, the regulators and the fan hub hand it on again
-  const psu = shape.psu;
-  if (psu)
+  const { psu } = shape;
+  if (psu) {
     tags.push({
       id: 'p.psu',
       at: [(psu.min[0] + psu.max[0]) / 2, psu.max[1] + 80, psu.max[2]],
-      text: `SUPPLY ${wattsText(l.loadW)} / ${Math.round(l.budgetW)} W`,
+      text: `SUPPLY ${ledger.wattsText(l.loadW)} / ${Math.round(l.budgetW)} W`,
       tone: l.tripped ? 'warn' : 'watts',
       role: 'hub',
       anchor: 'c',
     });
+  }
   for (const [id, name, rail] of [
     ['node.vrm', 'CPU VRM', l.vrm.cpu],
     ['node.dvrm', 'RAM VRM', l.vrm.ram],
   ] as const) {
     const nd = shape.nodes.find((x) => x.id === id);
-    if (!nd || rail.out + rail.loss < 0.05) continue;
+    if (!nd || rail.out + rail.loss < 0.05) {
+      continue;
+    }
     // (what it hands on, and what it wastes on the way)
     tags.push({
       id: `p.${id}`,
       at: over(nd.at, 0, nd.ey[1] + 60, 80),
-      text: `${name} ${wattsText(rail.out)}${rail.loss >= 0.05 ? ` (${wattsText(rail.loss)} lost)` : ''}`,
+      text: `${name} ${ledger.wattsText(rail.out)}${rail.loss >= 0.05 ? ` (${ledger.wattsText(rail.loss)} lost)` : ''}`,
       tone: 'watts',
       role: 'hub',
       anchor: 'c',
       minor: true,
     });
   }
-  if (shape.monitor && l.hasMonitor)
+  if (shape.monitor && l.hasMonitor) {
     tags.push({
       id: 'p.monitor',
       at: over(shape.monitor, 0, 200, 100),
-      text: `MONITOR ${wattsText(l.monW)}`,
+      text: `MONITOR ${ledger.wattsText(l.monW)}`,
       tone: 'watts',
       role: 'use',
       anchor: 'r',
     });
+  }
   // what each kind of part takes, over its box (a drive on its own: the drives stand far apart)
   for (const [kind, k] of l.kinds) {
     const name = NAMES[kind];
-    if (!name || k.w < 0.05) continue;
+    if (!name || k.w < 0.05) {
+      continue;
+    }
     const groups = kind === 'storage' ? k.ids.map((id) => [id]) : [k.ids];
     for (const ids of groups) {
-      const boxes = ids.map(box).filter((b): b is { min: V3; max: V3 } => !!b);
-      if (!boxes.length) continue;
+      const boxes = ids.map(box).filter((b): b is { min: V3; max: V3 } => Boolean(b));
+      if (boxes.length === 0) {
+        continue;
+      }
       const lo = [0, 1, 2].map((a) => Math.min(...boxes.map((b) => b.min[a]!))),
         hi = [0, 1, 2].map((a) => Math.max(...boxes.map((b) => b.max[a]!)));
       const w = ids.reduce((t, id) => t + (l.part.get(id) ?? 0), 0);
       tags.push({
         id: `p.${ids[0]}`,
         at: [(lo[0]! + hi[0]!) / 2, hi[1]! + 40, hi[2]!],
-        text: `${name} ${wattsText(w)}`,
+        text: `${name} ${ledger.wattsText(w)}`,
         tone: 'watts',
         role: 'use',
         anchor: 'c',
@@ -545,18 +573,19 @@ export function powerDraw(shape: PowerShape, s: Snapshot, l: Ledger, box: BoxOf)
     }
   }
   // the fans: the hub carries the case fans' cords on to each fan (a heatsink's own fan rides its header, and glows on its own)
-  if (shape.hub && (l.cable.get('sysfan') ?? 0) >= 0.05)
+  if (shape.hub && (l.cable.get('sysfan') ?? 0) >= 0.05) {
     tags.push({
       id: 'p.fans',
       at: over(shape.hub, 0, 160, 60),
-      text: `FAN HUB ${wattsText(l.cable.get('sysfan') ?? 0)}`,
+      text: `FAN HUB ${ledger.wattsText(l.cable.get('sysfan') ?? 0)}`,
       tone: 'watts',
       role: 'hub',
       anchor: 'c',
       minor: true,
     });
+  }
   // a cable that is out: its words at the open socket
-  for (const r of shape.rings)
+  for (const r of shape.rings) {
     if (l.missing(r.cable)) {
       const at = shape.seats.get(r.cable)!;
       tags.push({
@@ -567,7 +596,8 @@ export function powerDraw(shape: PowerShape, s: Snapshot, l: Ledger, box: BoxOf)
         anchor: 'c',
       });
     }
-  if (!l.hasPsu && shape.seats.has('atx'))
+  }
+  if (!l.hasPsu && shape.seats.has('atx')) {
     tags.push({
       id: 'p.nopsu',
       at: over(shape.seats.get('atx')!, 0, 520, 80),
@@ -575,6 +605,7 @@ export function powerDraw(shape: PowerShape, s: Snapshot, l: Ledger, box: BoxOf)
       tone: 'warn',
       anchor: 'c',
     });
+  }
   // the scale: under the first words
   const lead = tags.find((t) => t.tone !== 'warn');
   if (lead) {
@@ -602,16 +633,27 @@ export function powerDraw(shape: PowerShape, s: Snapshot, l: Ledger, box: BoxOf)
 
   const parts = new Map<string, number>(),
     warn = new Set<string>(),
-    roles = new Map<string, Role>();
-  for (const [id, w] of l.part) parts.set(id, levelOf(w, l.refW));
+    roles = new Map<string, powerscale.Role>();
+  for (const [id, w] of l.part) {
+    parts.set(id, powerscale.levelOf(w, l.refW));
+  }
   // (the supply hands the power on; a part with a rating draws it; a heatsink, a radiator and a board draw nothing and are no node)
   for (const d of s.devices) {
-    if (d.kind === 'psu') roles.set(d.id, 'hub');
-    else {
+    if (d.kind === 'psu') {
+      roles.set(d.id, 'hub');
+    } else {
       const spec = getSpec(d.spec);
-      if (spec && spec.idleW + spec.loadW > 0) roles.set(d.id, 'use');
+      if (spec && spec.idleW + spec.loadW > 0) {
+        roles.set(d.id, 'use');
+      }
     }
   }
-  if (l.tripped) for (const d of s.devices) if (d.kind === 'psu') warn.add(d.id);
+  if (l.tripped) {
+    for (const d of s.devices) {
+      if (d.kind === 'psu') {
+        warn.add(d.id);
+      }
+    }
+  }
   return { level, state, open, nodeLevel, nodeState, tags, parts, roles, warn, refW: l.refW };
 }

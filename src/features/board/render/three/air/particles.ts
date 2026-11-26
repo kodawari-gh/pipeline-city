@@ -4,7 +4,7 @@
 // leaves goes on outside the case as a jet, and room air is drawn in toward each intake: the halo, drawn fading out with the distance from the case.
 // The coolant of a liquid loop is not here: it is drawn as a liquid (water.ts). Structure of arrays, no allocation per step. Pure TS.
 import type { AirSim } from './build';
-import { UNITS_PER_M, type AirPart } from './plan';
+import * as plan from './plan';
 import type { V3 } from './grid';
 
 /** What the air does in game time is shown this much slower: the real air crosses a case in a second, too fast to follow. */
@@ -21,11 +21,11 @@ const STRETCH_MIN = 80,
   TRAIL_WAIT = 0.3;
 /** Air's heat capacity per volume, J per cubic metre and kelvin, and the units cubed in a metre cubed. */
 const RHO_CP = 1.2 * 1005;
-const M3 = UNITS_PER_M ** 3;
+const M3 = plan.UNITS_PER_M ** 3;
 /** The speed over a part at which its coefficient holds, and the exponent forced convection follows (the heat moved grows as speed to 0.6 or so). */
-const U_REF = 0.5 * UNITS_PER_M;
+const U_REF = 0.5 * plan.UNITS_PER_M;
 /** Units per second a parcel rises for each kelvin it is warmer than the room (buoyancy against the drag of the case). */
-const BUOY = 0.02 * UNITS_PER_M;
+const BUOY = 0.02 * plan.UNITS_PER_M;
 /**
  * Seconds a warm parcel takes to mix with the case's air (a plume fades over the width of a case), and how much faster a parcel takes a part's heat than the
  * air as a whole does (a parcel is a small sample of air: it is in the part's boundary layer, where the air is near the part's own warmth).
@@ -105,6 +105,26 @@ export const AIR = 1,
   EXHAUST = 2,
   INTAKE = 3;
 
+/** A part's runtime entry: its box grown by its reach, and how fast it takes heat into the air in play. */
+function partRt(p: plan.AirPart): PartRt {
+  const lo: V3 = [p.min[0] - p.reach, p.min[1] - p.reach, p.min[2] - p.reach],
+    hi: V3 = [p.max[0] + p.reach, p.max[1] + p.reach, p.max[2] + p.reach];
+  const vol = (a: V3, b: V3) => Math.max(1, (b[0] - a[0]) * (b[1] - a[1]) * (b[2] - a[2]));
+  // the air in play: the part's own box for fins, the shell round it for a plain part
+  const v = (p.porous ? vol(p.min, p.max) : vol(lo, hi) - vol(p.min, p.max)) / M3;
+  return {
+    id: p.id,
+    lo,
+    hi,
+    tempC: p.tempC,
+    rate: Math.min(60, (TAKE_GAIN * p.ua) / (RHO_CP * v)),
+    ua: p.ua,
+    powerW: p.powerW,
+    porous: p.porous,
+    key: p.id,
+  };
+}
+
 export class AirParticles {
   readonly cap: number;
   count = 0;
@@ -176,11 +196,11 @@ export class AirParticles {
 
   private rand(): number {
     // mulberry32
-    this.seed = (this.seed + 0x6d2b79f5) >>> 0;
+    this.seed = (this.seed + 0x6d_2b_79_f5) >>> 0;
     let t = this.seed;
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
   }
 
   private gauss(): number {
@@ -190,27 +210,10 @@ export class AirParticles {
   // ------------------------------------------------------------------ what the air meets
 
   /** The parts that heat the air. Their boxes are cut into the grid once (when the set or the boxes change); their temperatures and coefficients are read every time. */
-  setParts(parts: readonly AirPart[]): void {
+  setParts(parts: readonly plan.AirPart[]): void {
     const key = parts.map((p) => `${p.id}${p.min}${p.max}${p.porous}`).join('|');
     const g = this.sim.grid;
-    const rt = parts.map((p): PartRt => {
-      const lo: V3 = [p.min[0] - p.reach, p.min[1] - p.reach, p.min[2] - p.reach],
-        hi: V3 = [p.max[0] + p.reach, p.max[1] + p.reach, p.max[2] + p.reach];
-      const vol = (a: V3, b: V3) => Math.max(1, (b[0] - a[0]) * (b[1] - a[1]) * (b[2] - a[2]));
-      // the air in play: the part's own box for fins, the shell round it for a plain part
-      const v = (p.porous ? vol(p.min, p.max) : vol(lo, hi) - vol(p.min, p.max)) / M3;
-      return {
-        id: p.id,
-        lo,
-        hi,
-        tempC: p.tempC,
-        rate: Math.min(60, (TAKE_GAIN * p.ua) / (RHO_CP * v)),
-        ua: p.ua,
-        powerW: p.powerW,
-        porous: p.porous,
-        key: p.id,
-      };
-    });
+    const rt = parts.map((p) => partRt(p));
     if (key !== this.partKey) {
       this.partKey = key;
       const counts = new Int32Array(g.cells + 1),
@@ -223,32 +226,46 @@ export class AirParticles {
         const [i0, i1] = span(0),
           [j0, j1] = span(1),
           [k0, k1] = span(2);
-        for (let k = k0; k <= k1; k++)
-          for (let j = j0; j <= j1; j++)
+        for (let k = k0; k <= k1; k++) {
+          for (let j = j0; j <= j1; j++) {
             for (let i = i0; i <= i1; i++) {
               const c = g.index(i, j, k);
               lists.push([c, pi]);
               counts[c + 1]!++;
             }
+          }
+        }
       });
       this.partStart = new Int32Array(g.cells + 1);
-      for (let c = 0; c < g.cells; c++) this.partStart[c + 1] = this.partStart[c]! + counts[c + 1]!;
+      for (let c = 0; c < g.cells; c++) {
+        this.partStart[c + 1] = this.partStart[c]! + counts[c + 1]!;
+      }
       this.partList = new Int32Array(lists.length);
       const fill = this.partStart.slice(0, g.cells);
-      for (const [c, pi] of lists) this.partList[fill[c]!++] = pi;
+      for (const [c, pi] of lists) {
+        this.partList[fill[c]!++] = pi;
+      }
     }
     this.parts = rt;
-    if (this.warm.length !== rt.length) this.warm = new Float32Array(rt.length);
+    if (this.warm.length !== rt.length) {
+      this.warm = new Float32Array(rt.length);
+    }
   }
 
   private drop(kind: number): void {
-    for (let i = this.count - 1; i >= 0; i--) if (this.K[i] === kind) this.remove(i);
+    for (let i = this.count - 1; i >= 0; i--) {
+      if (this.K[i] === kind) {
+        this.remove(i);
+      }
+    }
   }
 
   // ------------------------------------------------------------------ births and deaths
 
   private slot(kind: number, life: number, T: number): number {
-    if (this.count >= this.cap) return -1;
+    if (this.count >= this.cap) {
+      return -1;
+    }
     const i = this.count++;
     this.K[i] = kind;
     this.T[i] = T;
@@ -257,17 +274,25 @@ export class AirParticles {
     this.tick[i] = 0;
     this.A[i] = 0;
     this.eddy[3 * i] = this.eddy[3 * i + 1] = this.eddy[3 * i + 2] = 0;
-    if (kind === AIR) this.nAir++;
-    else if (kind === EXHAUST) this.nEx++;
-    else if (kind === INTAKE) this.nIn++;
+    if (kind === AIR) {
+      this.nAir++;
+    } else if (kind === EXHAUST) {
+      this.nEx++;
+    } else if (kind === INTAKE) {
+      this.nIn++;
+    }
     return i;
   }
 
   private remove(i: number): void {
     const kind = this.K[i];
-    if (kind === AIR) this.nAir--;
-    else if (kind === EXHAUST) this.nEx--;
-    else if (kind === INTAKE) this.nIn--;
+    if (kind === AIR) {
+      this.nAir--;
+    } else if (kind === EXHAUST) {
+      this.nEx--;
+    } else if (kind === INTAKE) {
+      this.nIn--;
+    }
     const last = --this.count;
     if (i !== last) {
       this.K[i] = this.K[last]!;
@@ -281,7 +306,9 @@ export class AirParticles {
         this.eddy[3 * i + k] = this.eddy[3 * last + k]!;
         this.aux[3 * i + k] = this.aux[3 * last + k]!;
       }
-      for (let k = 0; k < TRAIL * 3; k++) this.P[i * TRAIL * 3 + k] = this.P[last * TRAIL * 3 + k]!;
+      for (let k = 0; k < TRAIL * 3; k++) {
+        this.P[i * TRAIL * 3 + k] = this.P[last * TRAIL * 3 + k]!;
+      }
     }
   }
 
@@ -298,7 +325,9 @@ export class AirParticles {
   private inSolid(x: number, y: number, z: number): boolean {
     const g = this.sim.grid,
       c = g.cellAt(x, y, z);
-    if (c < 0) return true;
+    if (c < 0) {
+      return true;
+    }
     for (let n = g.boxStart[c]!; n < g.boxStart[c + 1]!; n++) {
       const b = g.boxes[g.boxList[n]!]!;
       if (
@@ -311,8 +340,9 @@ export class AirParticles {
         y < b.max[1] &&
         z > b.min[2] &&
         z < b.max[2]
-      )
+      ) {
         return true;
+      }
     }
     return false;
   }
@@ -320,7 +350,9 @@ export class AirParticles {
   /** A particle of air where the air comes in, with the room's temperature. */
   private spawnAir(ambientC: number): boolean {
     const hit = this.sim.inlet(this.rand());
-    if (!hit) return false;
+    if (!hit) {
+      return false;
+    }
     const g = this.sim.grid,
       c = g.centre(hit.c, this.o),
       axis = hit.wall >> 1,
@@ -333,9 +365,13 @@ export class AirParticles {
     // (just inside the wall it comes through)
     const ha = g.h[axis]!;
     p[axis] = hi ? g.max[axis]! - 0.1 * ha - this.rand() * 0.4 * ha : g.min[axis]! + 0.1 * ha + this.rand() * 0.4 * ha;
-    if (this.inSolid(p[0], p[1], p[2])) return false;
+    if (this.inSolid(p[0], p[1], p[2])) {
+      return false;
+    }
     const i = this.slot(AIR, 9 + this.rand() * 7, ambientC);
-    if (i < 0) return false;
+    if (i < 0) {
+      return false;
+    }
     this.put(i, p[0], p[1], p[2]);
     return true;
   }
@@ -345,13 +381,17 @@ export class AirParticles {
     const x = p.lo[0] + this.rand() * (p.hi[0] - p.lo[0]),
       y = p.lo[1] + this.rand() * (p.hi[1] - p.lo[1]),
       z = p.lo[2] + this.rand() * (p.hi[2] - p.lo[2]);
-    if (this.sim.grid.cellAt(x, y, z) < 0 || this.inSolid(x, y, z)) return false;
+    if (this.sim.grid.cellAt(x, y, z) < 0 || this.inSolid(x, y, z)) {
+      return false;
+    }
     const i = this.slot(
       AIR,
       9 + this.rand() * 7,
       ambientC + WARM_START * (0.6 + 0.4 * this.rand()) * (p.tempC - ambientC),
     );
-    if (i < 0) return false;
+    if (i < 0) {
+      return false;
+    }
     this.put(i, x, y, z);
     return true;
   }
@@ -361,14 +401,20 @@ export class AirParticles {
     const g = this.sim.grid;
     for (let tries = 0; tries < 12; tries++) {
       const c = Math.floor(this.rand() * g.cells);
-      if (g.solid(c)) continue;
+      if (g.solid(c)) {
+        continue;
+      }
       const m = g.centre(c, this.o),
         x = m[0] + (this.rand() - 0.5) * g.h[0],
         y = m[1] + (this.rand() - 0.5) * g.h[1],
         z = m[2] + (this.rand() - 0.5) * g.h[2];
-      if (this.inSolid(x, y, z)) continue;
+      if (this.inSolid(x, y, z)) {
+        continue;
+      }
       const i = this.slot(AIR, 9 + this.rand() * 7, ambientC);
-      if (i < 0) return false;
+      if (i < 0) {
+        return false;
+      }
       this.put(i, x, y, z);
       this.age[i] = this.rand() * this.life[i]! * 0.8;
       return true;
@@ -378,9 +424,13 @@ export class AirParticles {
 
   /** Room air a way off an intake, drawn toward it: the halo. It starts in a cone before the opening it comes to, at a distance the halo reaches. */
   private spawnIntake(ambientC: number): boolean {
-    if (this.nIn >= this.inMax) return false;
+    if (this.nIn >= this.inMax) {
+      return false;
+    }
     const hit = this.sim.inlet(this.rand());
-    if (!hit) return false;
+    if (!hit) {
+      return false;
+    }
     const g = this.sim.grid,
       c = g.centre(hit.c, this.o),
       axis = hit.wall >> 1,
@@ -397,11 +447,11 @@ export class AirParticles {
       ph = this.rand() * 2 * Math.PI;
     const out = (this.halo * (0.12 + 0.68 * this.rand())) / cosT;
     const i = this.slot(INTAKE, SINK_LIFE, ambientC);
-    if (i < 0) return false;
+    if (i < 0) {
+      return false;
+    }
     const e = 3 * i;
-    this.aux[e] = c[0];
-    this.aux[e + 1] = c[1];
-    this.aux[e + 2] = c[2];
+    this.aux.set(c, e);
     this.at[i] = speed;
     const d = this.q;
     d[axis] = sgn * cosT;
@@ -416,7 +466,9 @@ export class AirParticles {
    * the drift it had. Its trail goes on through the wall, so the streak leaves the case whole. False when this parcel is not taken (the halo is full).
    */
   private handOver(i: number, speed: number): boolean {
-    if (this.nEx >= this.exMax || this.rand() > HALO_TAKE) return false;
+    if (this.nEx >= this.exMax || this.rand() > HALO_TAKE) {
+      return false;
+    }
     const wall = this.exitWall,
       axis = wall >> 1,
       sgn = (wall & 1) === 1 ? 1 : -1,
@@ -425,7 +477,7 @@ export class AirParticles {
       e = 3 * i,
       d = this.o,
       p = this.q,
-      u = this.u;
+      { u } = this;
     const m = Math.max(1, speed);
     d[axis] = sgn;
     d[a1] = (this.rand() - 0.5) * 2 * SPREAD + (0.35 * u[a1]!) / m;
@@ -470,20 +522,24 @@ export class AirParticles {
     this.drop(AIR);
     this.drop(EXHAUST);
     this.drop(INTAKE);
-    if (this.sim.inflow <= 0) return;
-    for (let n = 0; n < this.target; n++) this.spawnAnywhere(ambientC);
+    if (this.sim.inflow <= 0) {
+      return;
+    }
+    for (let n = 0; n < this.target; n++) {
+      this.spawnAnywhere(ambientC);
+    }
   }
 
   // ------------------------------------------------------------------ the step
 
   /** Move every particle by `env.dt` seconds of game time (shown `TIME_SCALE` slower). */
   step(env: AirEnv): void {
-    const dt = env.dt;
-    if (dt <= 0) return;
+    const { dt } = env;
+    if (dt <= 0) {
+      return;
+    }
     const dtp = Math.min(dt, 0.05) * TIME_SCALE,
-      sim = this.sim,
-      u = this.u,
-      o = this.o;
+      { sim, u, o } = this;
     const mixK = 1 - Math.exp(-dtp / MIX_TAU),
       eddyK = Math.exp(-dtp / TURB_TAU),
       eddyS = Math.sqrt(1 - eddyK * eddyK),
@@ -518,15 +574,17 @@ export class AirParticles {
         y += (u[1] + this.eddy[e + 1]! + BUOY * Math.max(-3, T - env.ambientC)) * dtp;
         z += (u[2] + this.eddy[e + 2]!) * dtp;
         if (this.collide(o, x, y, z)) {
-          if (!this.handOver(i, speed)) this.remove(i--);
+          if (!this.handOver(i, speed)) {
+            this.remove(i--);
+          }
           continue;
         }
-        x = this.q[0];
-        y = this.q[1];
-        z = this.q[2];
+        [x, y, z] = this.q;
         this.exchange(i, x, y, z, speed, dtp);
         const Tn = this.T[i]!;
-        if (Tn > env.mixC) this.T[i] = Tn + (env.mixC - Tn) * mixK;
+        if (Tn > env.mixC) {
+          this.T[i] = Tn + (env.mixC - Tn) * mixK;
+        }
       } else {
         // the halo: a jet (rides its ray, slows, mixes into the room) or room air drawn in (rides its ray to the intake, faster as it nears)
         const e = 3 * i,
@@ -568,7 +626,9 @@ export class AirParticles {
           this.remove(i--);
           continue;
         }
-        if (kind === EXHAUST) this.T[i] = T + (env.ambientC - T) * outK;
+        if (kind === EXHAUST) {
+          this.T[i] = T + (env.ambientC - T) * outK;
+        }
         // fading out with the distance from the case
         const k = Math.min(1, this.reach(x, y, z) / this.halo);
         fade = 1 - k * k * (3 - 2 * k);
@@ -601,10 +661,12 @@ export class AirParticles {
       const a = this.age[i]!,
         l = this.life[i]!,
         bright = Math.min(1, 0.45 + speed / 4500);
-      if (kind === AIR) this.A[i] = Math.min(1, a / 0.5) * Math.min(1, (l - a) / Math.max(0.5, 0.25 * l)) * bright;
-      else
+      if (kind === AIR) {
+        this.A[i] = Math.min(1, a / 0.5) * Math.min(1, (l - a) / Math.max(0.5, 0.25 * l)) * bright;
+      } else {
         this.A[i] =
           fade * (kind === INTAKE ? Math.min(1, a / 0.5) : 1) * Math.min(1, (l - a) / 0.6) * bright * HALO_ALPHA;
+      }
     }
     this.births(env, dt);
   }
@@ -618,7 +680,9 @@ export class AirParticles {
     p[2] = z;
     for (let pass = 0; pass < 2; pass++) {
       const c = g.cellAt(p[0], p[1], p[2]);
-      if (c < 0) break;
+      if (c < 0) {
+        break;
+      }
       for (let n = g.boxStart[c]!; n < g.boxStart[c + 1]!; n++) {
         const b = g.boxes[g.boxList[n]!]!;
         if (
@@ -628,8 +692,9 @@ export class AirParticles {
           p[1] >= b.max[1] ||
           p[2] <= b.min[2] ||
           p[2] >= b.max[2]
-        )
+        ) {
           continue;
+        }
         // inside: which way did it come in? by the axis it was outside of, the one it is least deep along
         let axis = -1,
           depth = Infinity,
@@ -637,7 +702,9 @@ export class AirParticles {
         for (let a = 0; a < 3; a++) {
           const below = o[a]! <= b.min[a]!,
             above = o[a]! >= b.max[a]!;
-          if (!below && !above) continue;
+          if (!below && !above) {
+            continue;
+          }
           const d = below ? p[a]! - b.min[a]! : b.max[a]! - p[a]!;
           if (d < depth) {
             depth = d;
@@ -646,7 +713,9 @@ export class AirParticles {
           }
         }
         if (axis >= 0) {
-          if (b.k[axis]! < BLOCK) p[axis] = face;
+          if (b.k[axis]! < BLOCK) {
+            p[axis] = face;
+          }
           continue;
         }
         // it began inside (it was born there, or came through a face that lets air in): out of a wall by the nearest face
@@ -674,10 +743,14 @@ export class AirParticles {
     for (let a = 0; a < 3; a++) {
       if (p[a]! < g.min[a]! + EDGE) {
         p[a] = g.min[a]! + EDGE;
-        if (this.leaves(2 * a, p)) return true;
+        if (this.leaves(2 * a, p)) {
+          return true;
+        }
       } else if (p[a]! > g.max[a]! - EDGE) {
         p[a] = g.max[a]! - EDGE;
-        if (this.leaves(2 * a + 1, p)) return true;
+        if (this.leaves(2 * a + 1, p)) {
+          return true;
+        }
       }
     }
     return false;
@@ -685,7 +758,9 @@ export class AirParticles {
 
   private leaves(wall: number, p: V3): boolean {
     const c = this.sim.grid.cellAt(p[0], p[1], p[2]);
-    if (c < 0 || this.sim.exits[c] !== wall + 1) return false;
+    if (c < 0 || this.sim.exits[c] !== wall + 1) {
+      return false;
+    }
     this.exitWall = wall;
     return true;
   }
@@ -694,11 +769,14 @@ export class AirParticles {
   private exchange(i: number, x: number, y: number, z: number, speed: number, dtp: number): void {
     const g = this.sim.grid,
       c = g.cellAt(x, y, z);
-    if (c < 0) return;
+    if (c < 0) {
+      return;
+    }
     for (let n = this.partStart[c]!; n < this.partStart[c + 1]!; n++) {
       const p = this.parts[this.partList[n]!];
-      if (!p || x < p.lo[0] || x > p.hi[0] || y < p.lo[1] || y > p.hi[1] || z < p.lo[2] || z > p.hi[2] || p.rate <= 0)
+      if (!p || x < p.lo[0] || x > p.hi[0] || y < p.lo[1] || y > p.hi[1] || z < p.lo[2] || z > p.hi[2] || p.rate <= 0) {
         continue;
+      }
       // forced convection: more air over the surface carries more heat. In still air a part still gives its natural share.
       const f = Math.max(0.35, Math.min(2.2, (speed / U_REF) ** 0.6));
       this.T[i] = this.T[i]! + (p.tempC - this.T[i]!) * (1 - Math.exp(-p.rate * f * dtp));
@@ -706,28 +784,42 @@ export class AirParticles {
   }
 
   private births(env: AirEnv, dt: number): void {
-    const sim = this.sim;
+    const { sim } = this;
     if (sim.inflow > 0) {
       // a steady count: what has left or aged is replaced within a moment or two
       this.acc += Math.max(0, this.target - this.nAir) * Math.min(0.1, dt) * 2.5;
       let n = Math.floor(this.acc);
       this.acc -= n;
-      for (let tries = 0; n > 0 && tries < n * 3; tries++) if (this.spawnAir(env.ambientC)) n--;
+      for (let tries = 0; n > 0 && tries < n * 3; tries++) {
+        if (this.spawnAir(env.ambientC)) {
+          n--;
+        }
+      }
       // a part warmer than the room sheds warm air at the rate of the heat it gives (a plume to follow), up to a share of the pool
       for (let k = 0; k < this.parts.length; k++) {
         const p = this.parts[k]!,
           dT = p.tempC - env.ambientC;
-        if (dT < WARM_MIN_K || p.ua <= 0 || this.nAir >= this.target + WARM_EXTRA) continue;
+        if (dT < WARM_MIN_K || p.ua <= 0 || this.nAir >= this.target + WARM_EXTRA) {
+          continue;
+        }
         this.warm[k]! += Math.min(WARM_MAX_RATE, (p.ua * dT) / WARM_W) * Math.min(0.1, dt);
         let w = Math.floor(this.warm[k]!);
         this.warm[k]! -= w;
-        for (let tries = 0; w > 0 && tries < w * 4; tries++) if (this.spawnWarm(p, env.ambientC)) w--;
+        for (let tries = 0; w > 0 && tries < w * 4; tries++) {
+          if (this.spawnWarm(p, env.ambientC)) {
+            w--;
+          }
+        }
       }
       // the halo's draw-in: room air toward the intakes, by the same shares
       this.accIn += Math.max(0, this.inMax - this.nIn) * Math.min(0.1, dt) * 1.5;
       let m = Math.floor(this.accIn);
       this.accIn -= m;
-      for (let tries = 0; m > 0 && tries < m * 3; tries++) if (this.spawnIntake(env.ambientC)) m--;
+      for (let tries = 0; m > 0 && tries < m * 3; tries++) {
+        if (this.spawnIntake(env.ambientC)) {
+          m--;
+        }
+      }
     }
   }
 }

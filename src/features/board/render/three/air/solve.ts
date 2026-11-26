@@ -30,7 +30,7 @@ export interface AirFanDef {
 }
 
 /** The speed no air goes past, units per second (a jet through a gap has to stay sane). */
-export const V_MAX = 90000;
+export const V_MAX = 90_000;
 /** The open share of a face below which it is a wall to the speed of the air. */
 const FACE_MIN = 1e-3;
 
@@ -138,19 +138,28 @@ class Op {
     const [fx, fy, fz] = g.face,
       sheet = nx * ny;
     const tiny = (EPS * (g.h[1] * g.h[2])) / g.h[0];
-    for (let k = 0, c = 0; k < nz; k++)
-      for (let j = 0; j < ny; j++)
+    for (let k = 0, c = 0; k < nz; k++) {
+      for (let j = 0; j < ny; j++) {
         for (let i = 0; i < nx; i++, c++) {
           let s = g.ground[c]! + tiny + fx[c]! + fy[c]! + fz[c]!;
-          if (i > 0) s += fx[c - 1]!;
-          if (j > 0) s += fy[c - nx]!;
-          if (k > 0) s += fz[c - sheet]!;
+          if (i > 0) {
+            s += fx[c - 1]!;
+          }
+          if (j > 0) {
+            s += fy[c - nx]!;
+          }
+          if (k > 0) {
+            s += fz[c - sheet]!;
+          }
           this.diag[c] = s;
         }
-    for (const f of fans)
+      }
+    }
+    for (const f of fans) {
       f.cells.forEach((c, n) => {
         this.diag[c]! += f.kf * f.w[n]! * f.w[n]!;
       });
+    }
   }
 
   /** y = A x. */
@@ -158,22 +167,38 @@ class Op {
     const { nx, ny, nz, diag } = this,
       [fx, fy, fz] = this.g.face,
       sheet = nx * ny;
-    for (let k = 0, c = 0; k < nz; k++)
-      for (let j = 0; j < ny; j++)
+    for (let k = 0, c = 0; k < nz; k++) {
+      for (let j = 0; j < ny; j++) {
         for (let i = 0; i < nx; i++, c++) {
           let s = diag[c]! * x[c]!;
           // (a face toward +axis has no conductance at the wall, so no neighbour is read out of range)
-          if (i < nx - 1) s -= fx[c]! * x[c + 1]!;
-          if (j < ny - 1) s -= fy[c]! * x[c + nx]!;
-          if (k < nz - 1) s -= fz[c]! * x[c + sheet]!;
-          if (i > 0) s -= fx[c - 1]! * x[c - 1]!;
-          if (j > 0) s -= fy[c - nx]! * x[c - nx]!;
-          if (k > 0) s -= fz[c - sheet]! * x[c - sheet]!;
+          if (i < nx - 1) {
+            s -= fx[c]! * x[c + 1]!;
+          }
+          if (j < ny - 1) {
+            s -= fy[c]! * x[c + nx]!;
+          }
+          if (k < nz - 1) {
+            s -= fz[c]! * x[c + sheet]!;
+          }
+          if (i > 0) {
+            s -= fx[c - 1]! * x[c - 1]!;
+          }
+          if (j > 0) {
+            s -= fy[c - nx]! * x[c - nx]!;
+          }
+          if (k > 0) {
+            s -= fz[c - sheet]! * x[c - sheet]!;
+          }
           y[c] = s;
         }
+      }
+    }
     // a wall fan is a rank one term: kf (w . x) w over its cells. Its diagonal part is already in `diag`: leave that out and add the rest.
     for (const f of this.fans) {
-      if (f.kf === 0) continue;
+      if (f.kf === 0) {
+        continue;
+      }
       let dot = 0;
       f.cells.forEach((c, n) => {
         dot += f.w[n]! * x[c]!;
@@ -214,14 +239,18 @@ class Cg {
       this.done = true;
       return;
     }
-    for (let c = 0; c < N; c++) this.z[c] = this.r[c]! / op.diag[c]!;
+    for (let c = 0; c < N; c++) {
+      this.z[c] = this.r[c]! / op.diag[c]!;
+    }
     this.p.set(this.z);
     this.rz = this.dot(this.r, this.z);
   }
 
   private dot(a: Float64Array, b: Float64Array): number {
     let s = 0;
-    for (let c = 0; c < a.length; c++) s += a[c]! * b[c]!;
+    for (let c = 0; c < a.length; c++) {
+      s += a[c]! * b[c]!;
+    }
     return s;
   }
 
@@ -241,11 +270,15 @@ class Cg {
         this.done = true;
         break;
       }
-      for (let c = 0; c < N; c++) z[c] = r[c]! / op.diag[c]!;
+      for (let c = 0; c < N; c++) {
+        z[c] = r[c]! / op.diag[c]!;
+      }
       const rz = this.dot(r, z),
         beta = rz / this.rz;
       this.rz = rz;
-      for (let c = 0; c < N; c++) p[c] = z[c]! + beta * p[c]!;
+      for (let c = 0; c < N; c++) {
+        p[c] = z[c]! + beta * p[c]!;
+      }
     }
     return this.done;
   }
@@ -268,8 +301,8 @@ function velocityOf(g: AirGrid, phi: Float64Array, jets: readonly Jet[] = [], q 
   const tx = (FACE_MIN * hy * hz) / hx,
     ty = (FACE_MIN * hx * hz) / hy,
     tz = (FACE_MIN * hx * hy) / hz;
-  for (let k = 0, c = 0; k < nz; k++)
-    for (let j = 0; j < ny; j++)
+  for (let k = 0, c = 0; k < nz; k++) {
+    for (let j = 0; j < ny; j++) {
       for (let i = 0; i < nx; i++, c++) {
         if (i < nx - 1 && fx[c]! > tx) {
           const v = (phi[c]! - phi[c + 1]!) / hx;
@@ -293,6 +326,8 @@ function velocityOf(g: AirGrid, phi: Float64Array, jets: readonly Jet[] = [], q 
           cnt[3 * (c + sheet) + 2]!++;
         }
       }
+    }
+  }
   // the fan's own flow: on its face (both cells see it) or, on the wall, through a face of the room's side (only the one cell, and the face counts)
   for (const j of jets) {
     const a = 3 * j.c + j.axis,
@@ -300,7 +335,9 @@ function velocityOf(g: AirGrid, phi: Float64Array, jets: readonly Jet[] = [], q 
     sum[a]! += v;
     if (j.to >= 0) {
       sum[3 * j.to + j.axis]! += v;
-    } else cnt[a]!++;
+    } else {
+      cnt[a]!++;
+    }
   }
   const out = new Float32Array(3 * N);
   for (let c = 0; c < N; c++) {
@@ -355,14 +392,22 @@ export class AirField {
     const end = performance.now() + ms;
     while (!this.ready) {
       const fan = this.fans[this.next]!;
-      if (!this.cg) this.cg = new Cg(this.op, this.rhs(fan), 1e-4);
-      while (!this.cg.step(4)) if (performance.now() >= end) return false;
+      if (!this.cg) {
+        this.cg = new Cg(this.op, this.rhs(fan), 1e-4);
+      }
+      while (!this.cg.step(4)) {
+        if (performance.now() >= end) {
+          return false;
+        }
+      }
       this.phis[this.next] = this.cg.x;
       this.bases[this.next] = velocityOf(this.grid, this.cg.x, fan.jets, fan.q);
       this.cg = null;
       this.next++;
       this.dirty = true;
-      if (performance.now() >= end) break;
+      if (performance.now() >= end) {
+        break;
+      }
     }
     return this.ready;
   }
@@ -378,21 +423,29 @@ export class AirField {
 
   /** How hard fan `i` runs, 0 to 1 (more is allowed: a fast fan). */
   setLevel(i: number, v: number): void {
-    if (Math.abs(v - this.level[i]!) < 1e-4) return;
+    if (Math.abs(v - this.level[i]!) < 1e-4) {
+      return;
+    }
     this.level[i] = v;
     this.dirty = true;
   }
 
   /** Mix the bases by the levels (only when something changed): the field the particles read. */
   mix(): void {
-    if (!this.dirty) return;
+    if (!this.dirty) {
+      return;
+    }
     this.dirty = false;
-    const u = this.u;
+    const { u } = this;
     u.fill(0);
     this.bases.forEach((b, i) => {
       const f = this.level[i]!;
-      if (!b || f === 0) return;
-      for (let c = 0; c < u.length; c++) u[c]! += f * b[c]!;
+      if (!b || f === 0) {
+        return;
+      }
+      for (let c = 0; c < u.length; c++) {
+        u[c]! += f * b[c]!;
+      }
     });
     // (each basis is under the cap, the sum may not be)
     for (let c = 0; c < u.length; c += 3) {
@@ -410,7 +463,9 @@ export class AirField {
   pressure(c: number): number {
     let p = 0;
     this.phis.forEach((phi, i) => {
-      if (phi) p += this.level[i]! * phi[c]!;
+      if (phi) {
+        p += this.level[i]! * phi[c]!;
+      }
     });
     return p;
   }
@@ -419,7 +474,7 @@ export class AirField {
   sample(x: number, y: number, z: number, out: V3): V3 {
     const g = this.grid,
       [nx, ny, nz] = g.n,
-      u = this.u;
+      { u } = this;
     const fx = Math.min(nx - 1, Math.max(0, (x - g.min[0]) / g.h[0] - 0.5)),
       fy = Math.min(ny - 1, Math.max(0, (y - g.min[1]) / g.h[1] - 0.5)),
       fz = Math.min(nz - 1, Math.max(0, (z - g.min[2]) / g.h[2] - 0.5));

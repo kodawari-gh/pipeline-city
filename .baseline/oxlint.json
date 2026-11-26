@@ -3812,15 +3812,11 @@
  },
  "src/features/board/render/three/air/airtags.ts": {
   "eslint(class-methods-use-this)": 4,
-  "eslint(curly)": 14,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
   "eslint(max-params)": 3,
-  "eslint(no-duplicate-imports)": 1,
   "eslint(no-nested-ternary)": 3,
   "eslint(no-param-reassign)": 3,
-  "eslint(prefer-destructuring)": 3,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 4,
   "typescript(strict-boolean-expressions)": 3,
   "unicorn(prefer-dom-node-append)": 11,
@@ -3835,27 +3831,21 @@
   "vitest(prefer-strict-equal)": 2
  },
  "src/features/board/render/three/air/build.ts": {
-  "eslint(curly)": 11,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-non-null-assertion)": 7,
   "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 1,
   "typescript(strict-boolean-expressions)": 1,
-  "unicorn(explicit-length-check)": 1,
   "unicorn(no-array-for-each)": 3
  },
  "src/features/board/render/three/air/debug.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 7,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 1,
   "eslint(no-nested-ternary)": 2,
-  "eslint(prefer-destructuring)": 1,
   "typescript(no-non-null-assertion)": 36,
   "typescript(no-unnecessary-type-assertion)": 17,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(numeric-separators-style)": 8
+  "unicorn(consistent-function-scoping)": 1
  },
  "src/features/board/render/three/air/grid.test.ts": {
   "eslint(curly)": 1,
@@ -3865,16 +3855,12 @@
   "unicorn(no-useless-spread)": 1
  },
  "src/features/board/render/three/air/grid.ts": {
-  "eslint(curly)": 13,
   "eslint(max-depth)": 1,
   "eslint(max-params)": 3,
-  "eslint(prefer-destructuring)": 2,
   "typescript(no-non-null-assertion)": 32,
   "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 1,
-  "unicorn(explicit-length-check)": 1,
-  "unicorn(no-array-for-each)": 2,
-  "unicorn(numeric-separators-style)": 1
+  "unicorn(no-array-for-each)": 2
  },
  "src/features/board/render/three/air/particles.test.ts": {
   "eslint(curly)": 23,
@@ -3890,21 +3876,17 @@
  },
  "src/features/board/render/three/air/particles.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 53,
   "eslint(max-depth)": 2,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
   "eslint(max-params)": 3,
   "eslint(no-multi-assign)": 2,
   "eslint(operator-assignment)": 1,
-  "eslint(prefer-destructuring)": 12,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 114,
   "typescript(no-unnecessary-type-assertion)": 2,
   "typescript(restrict-template-expressions)": 2,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(no-array-for-each)": 1,
-  "unicorn(numeric-separators-style)": 2,
   "unicorn(prefer-ternary)": 1
  },
  "src/features/board/render/three/air/plan.test.ts": {
@@ -3922,33 +3904,24 @@
  },
  "src/features/board/render/three/air/plan.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 28,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 3,
   "eslint(max-params)": 2,
-  "eslint(no-implicit-coercion)": 1,
   "eslint(no-nested-ternary)": 1,
   "eslint(no-use-before-define)": 1,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 4,
   "import(max-dependencies)": 1,
   "typescript(no-non-null-assertion)": 21,
   "typescript(no-unsafe-type-assertion)": 7,
   "typescript(prefer-nullish-coalescing)": 1,
   "typescript(restrict-template-expressions)": 2,
-  "typescript(strict-boolean-expressions)": 5,
+  "typescript(strict-boolean-expressions)": 4,
   "unicorn(consistent-function-scoping)": 2,
-  "unicorn(explicit-length-check)": 4,
   "unicorn(max-nested-calls)": 3,
-  "unicorn(numeric-separators-style)": 1,
   "unicorn(prefer-single-call)": 1
  },
  "src/features/board/render/three/air/ribbons.ts": {
-  "eslint(curly)": 3,
   "eslint(max-params)": 1,
   "eslint(no-empty-function)": 2,
-  "eslint(prefer-destructuring)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-non-null-assertion)": 10,
   "typescript(no-unnecessary-type-assertion)": 1
  },
@@ -3963,44 +3936,34 @@
  },
  "src/features/board/render/three/air/solve.ts": {
   "eslint(class-methods-use-this)": 1,
-  "eslint(curly)": 31,
   "eslint(max-classes-per-file)": 1,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 5,
-  "eslint(prefer-destructuring)": 2,
   "typescript(no-non-null-assertion)": 107,
   "typescript(no-unnecessary-type-assertion)": 5,
   "typescript(no-unsafe-type-assertion)": 1,
   "typescript(prefer-nullish-coalescing)": 1,
   "typescript(strict-boolean-expressions)": 2,
   "unicorn(no-array-for-each)": 6,
-  "unicorn(no-useless-undefined)": 2,
-  "unicorn(numeric-separators-style)": 1
+  "unicorn(no-useless-undefined)": 2
  },
  "src/features/board/render/three/air/view.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 11,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 1,
-  "eslint(no-duplicate-imports)": 1,
-  "eslint(no-implicit-coercion)": 1,
   "eslint(no-negated-condition)": 1,
-  "import(consistent-type-specifier-style)": 5,
   "import(max-dependencies)": 1,
-  "import(no-duplicates)": 1,
   "oxc(no-map-spread)": 1,
   "typescript(method-signature-style)": 3,
   "typescript(no-non-null-assertion)": 6,
   "typescript(no-unsafe-type-assertion)": 5,
-  "unicorn(no-lonely-if)": 1,
-  "unicorn(prefer-global-this)": 1
+  "unicorn(no-lonely-if)": 1
  },
  "src/features/board/render/three/air/water.ts": {
   "eslint(max-params)": 1,
   "eslint(no-empty-function)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 8,
   "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 1,
@@ -4019,16 +3982,13 @@
   "vitest(valid-expect)": 25
  },
  "src/features/board/render/three/air/waternet.ts": {
-  "eslint(curly)": 7,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 2,
   "typescript(no-non-null-assertion)": 22,
   "typescript(strict-void-return)": 2,
-  "unicorn(explicit-length-check)": 3,
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-for-each)": 2,
   "unicorn(no-array-reverse)": 1,
-  "unicorn(prefer-at)": 2,
   "unicorn(prefer-spread)": 1
  },
  "src/features/board/render/three/artset3d.test.ts": {
@@ -5597,20 +5557,15 @@
   "vitest(prefer-to-have-length)": 1
  },
  "src/features/board/render/three/power/flows.ts": {
-  "eslint(curly)": 3,
   "eslint(max-classes-per-file)": 1,
   "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 2,
   "eslint(no-empty-function)": 4,
   "eslint(no-multi-assign)": 2,
-  "eslint(prefer-destructuring)": 2,
-  "import(consistent-type-specifier-style)": 2,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-non-null-assertion)": 23,
   "typescript(no-unnecessary-type-assertion)": 2,
   "unicorn(no-array-for-each)": 4,
-  "unicorn(numeric-separators-style)": 5,
   "unicorn(prefer-code-point)": 1
  },
  "src/features/board/render/three/power/ledger.test.ts": {
@@ -5624,10 +5579,8 @@
  },
  "src/features/board/render/three/power/ledger.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 7,
   "eslint(max-lines-per-function)": 1,
   "eslint(no-nested-ternary)": 2,
-  "eslint(require-unicode-regexp)": 1,
   "typescript(method-signature-style)": 2,
   "typescript(no-non-null-assertion)": 3,
   "typescript(strict-boolean-expressions)": 2,
@@ -5655,38 +5608,27 @@
  },
  "src/features/board/render/three/power/net.ts": {
   "eslint(complexity)": 2,
-  "eslint(curly)": 27,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 4,
   "eslint(max-params)": 4,
-  "eslint(no-implicit-coercion)": 1,
   "eslint(no-nested-ternary)": 8,
   "eslint(no-shadow)": 1,
-  "eslint(prefer-destructuring)": 3,
-  "eslint(prefer-named-capture-group)": 2,
-  "eslint(require-unicode-regexp)": 3,
-  "import(consistent-type-specifier-style)": 5,
   "import(max-dependencies)": 1,
   "typescript(no-confusing-void-expression)": 4,
-  "typescript(no-non-null-assertion)": 11,
+  "typescript(no-non-null-assertion)": 10,
   "typescript(no-unnecessary-type-assertion)": 8,
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(consistent-function-scoping)": 5,
-  "unicorn(explicit-length-check)": 2,
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-for-each)": 9,
-  "unicorn(prefer-at)": 1,
   "unicorn(prefer-single-call)": 1
  },
  "src/features/board/render/three/power/runs.ts": {
-  "eslint(curly)": 3,
   "oxc(no-map-spread)": 3,
   "typescript(no-non-null-assertion)": 3,
   "typescript(strict-boolean-expressions)": 1,
-  "unicorn(explicit-length-check)": 2,
   "unicorn(no-array-reverse)": 1,
-  "unicorn(no-useless-spread)": 1,
-  "unicorn(prefer-at)": 1
+  "unicorn(no-useless-spread)": 1
  },
  "src/features/board/render/three/power/view.test.ts": {
   "eslint(curly)": 3,
@@ -5698,18 +5640,14 @@
   "vitest(valid-expect)": 2
  },
  "src/features/board/render/three/power/view.ts": {
-  "eslint(curly)": 6,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 1,
-  "import(consistent-type-specifier-style)": 5,
   "import(max-dependencies)": 1,
   "typescript(method-signature-style)": 1,
   "typescript(no-non-null-assertion)": 3,
   "typescript(no-unsafe-type-assertion)": 2,
   "typescript(strict-boolean-expressions)": 1,
-  "unicorn(explicit-length-check)": 1,
-  "unicorn(no-array-sort)": 1,
-  "unicorn(prefer-global-this)": 1
+  "unicorn(no-array-sort)": 1
  },
  "src/features/board/render/three/preview-dispose.test.ts": {
   "eslint(curly)": 7,

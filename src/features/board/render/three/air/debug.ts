@@ -10,7 +10,13 @@ const SEG = 20;
 
 function boxLines(out: number[], min: V3, max: V3): void {
   const c = (i: number): V3 => [i & 1 ? max[0] : min[0], i & 2 ? max[1] : min[1], i & 4 ? max[2] : min[2]];
-  for (let i = 0; i < 8; i++) for (let a = 0; a < 3; a++) if (!(i & (1 << a))) out.push(...c(i), ...c(i | (1 << a)));
+  for (let i = 0; i < 8; i++) {
+    for (let a = 0; a < 3; a++) {
+      if (!(i & (1 << a))) {
+        out.push(...c(i), ...c(i | (1 << a)));
+      }
+    }
+  }
 }
 
 function ringLines(out: number[], at: V3, axis: number, r: number): void {
@@ -39,7 +45,9 @@ export function planLines(plan: AirPlan, sim?: AirSim): LineSegments[] {
     blue: number[] = [],
     grey: number[] = [];
   boxLines(white, plan.min, plan.max);
-  for (const b of plan.boxes) boxLines(b.k[0] < 0.12 && b.k[1] < 0.12 && b.k[2] < 0.12 ? red : orange, b.min, b.max);
+  for (const b of plan.boxes) {
+    boxLines(b.k[0] < 0.12 && b.k[1] < 0.12 && b.k[2] < 0.12 ? red : orange, b.min, b.max);
+  }
   for (const f of plan.fans) {
     if (f.kind === 'wall') {
       const axis = f.wall >> 1,
@@ -62,8 +70,9 @@ export function planLines(plan: AirPlan, sim?: AirSim): LineSegments[] {
       hi = (v.wall & 1) === 1,
       at: V3 = [...v.centre];
     at[axis] = hi ? plan.max[axis]! : plan.min[axis]!;
-    if ('r' in v.shape) ringLines(blue, at, axis, v.shape.r);
-    else {
+    if ('r' in v.shape) {
+      ringLines(blue, at, axis, v.shape.r);
+    } else {
       const lo: V3 = [...at],
         up: V3 = [...at],
         [u, w] = axis === 0 ? [1, 2] : axis === 1 ? [0, 2] : [0, 1];
@@ -77,12 +86,16 @@ export function planLines(plan: AirPlan, sim?: AirSim): LineSegments[] {
   // the fastest cells' arrows
   if (sim) {
     const g = sim.grid,
-      u = sim.field.u,
+      { u } = sim.field,
       top: [number, number][] = [];
-    for (let c = 0; c < g.cells; c += 5) top.push([c, Math.hypot(u[3 * c]!, u[3 * c + 1]!, u[3 * c + 2]!)]);
+    for (let c = 0; c < g.cells; c += 5) {
+      top.push([c, Math.hypot(u[3 * c]!, u[3 * c + 1]!, u[3 * c + 2]!)]);
+    }
     const c0: V3 = [0, 0, 0];
     for (const [c, m] of top) {
-      if (m < 800) continue;
+      if (m < 800) {
+        continue;
+      }
       g.centre(c, c0);
       const k = 700 / m;
       grey.push(...c0, c0[0] + u[3 * c]! * k, c0[1] + u[3 * c + 1]! * k, c0[2] + u[3 * c + 2]! * k);
@@ -100,13 +113,13 @@ export function planLines(plan: AirPlan, sim?: AirSim): LineSegments[] {
     return l;
   };
   return [
-    make(white, 0xffffff),
-    make(red, 0xff3344),
-    make(orange, 0xffa030),
-    make(green, 0x40ff70),
-    make(cyan, 0x40e0ff),
-    make(yellow, 0xffe040),
-    make(blue, 0x5080ff),
-    make(grey, 0x9090a0),
+    make(white, 0xff_ff_ff),
+    make(red, 0xff_33_44),
+    make(orange, 0xff_a0_30),
+    make(green, 0x40_ff_70),
+    make(cyan, 0x40_e0_ff),
+    make(yellow, 0xff_e0_40),
+    make(blue, 0x50_80_ff),
+    make(grey, 0x90_90_a0),
   ];
 }
