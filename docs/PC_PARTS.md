@@ -90,7 +90,7 @@ The owner's call: the models from the NVMe on were low quality next to the coole
 
 ## Build my PC mode
 
-- Entry: main menu, "Build my PC". Code: `render/three/buildmode3d.ts` (the stage), `render/three/buildpick.ts` (pure: which socket takes a part, which device owns a hit, a box on the screen), `board/ui/BuildMode.tsx` and the files it composes (`BuildShelf` over the shared `economy/ui/shop/PartShelf.tsx`, `BuildMachine` with `BuildStart`, `BuildBars`, `BuildBench` with `benchhud.ts`, `BuildCard`, `builddrag.ts`, `buildhud.ts`; see `docs/UI.md`).
+- Entry: main menu, "Build my PC". Code: `render/three/buildmode3d.ts` (the stage; its class lives in `render/three/buildstage/`, one layer a file, `buildstage.ts` on top), `render/three/buildpick.ts` (pure: which socket takes a part, which device owns a hit, a box on the screen), `board/ui/BuildMode.tsx` and the files it composes (`BuildShelf` over the shared `economy/ui/shop/PartShelf.tsx`, `BuildMachine` with `BuildStart`, `BuildBars`, `BuildBench` with `benchhud.ts`, `BuildCard`, `builddrag.ts`, `buildhud.ts`; see `docs/UI.md`).
 - Stage: the machine alone on a neutral floor, no room. Orbit camera.
 - A free sandbox: no inventory, no money. Every part is unlimited.
 - Shelf (left): the catalogue. A rail of categories (All first; an icon and a short name each, `railLabel`; the full name and the count in the tooltip), then the tiles: the still, the name, five tier pips (the tier against the best of its kind) and the price. Drag a part onto the PC: it fits the socket under the pointer when that socket takes it, else the first free socket, else the socket of the part it replaces. Click a shelf part to fit it in the first free socket.

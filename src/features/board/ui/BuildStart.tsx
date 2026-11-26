@@ -152,7 +152,7 @@ export function BuildStart({
     // (the machine as it stands now, with a picture of it: a save without one, a capture that fails, still keeps the build)
     const layout = stage.layout;
     void stage
-      .capture(THUMB.w, THUMB.h, 'image/webp', 0.8)
+      .capture(THUMB.w, THUMB.h, { type: 'image/webp', quality: 0.8 })
       .catch(() => null)
       .then((thumb) => {
         setSaved(saveBuild(name, layout, thumb));
