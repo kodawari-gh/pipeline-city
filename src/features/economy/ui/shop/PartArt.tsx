@@ -1,12 +1,5 @@
 import type { JSX } from 'preact';
-import {
-  BOARD_TIERS,
-  getSpec,
-  type CpuSpec,
-  type FanSpec,
-  type PsuSpec,
-  type RamSpec,
-} from '@/features/board/sim/specs';
+import * as boardSim from '@/features/board/sim/specs';
 import { getOsSpec } from '@/features/os/sim';
 import { getIspSpec, getRouterSpec } from '@/features/network/sim/specs';
 import { goodness } from './picker';
@@ -19,7 +12,7 @@ import { thumbOf, thumbsVersion } from '@/features/board/render/thumbs';
 
 const VB = { w: 120, h: 84 };
 
-function Cpu({ spec }: { spec: CpuSpec }) {
+function Cpu({ spec }: { spec: boardSim.CpuSpec }) {
   const e = spec.engine;
   const pins = Array.from({ length: 7 }, (_, i) => 26 + i * 11);
   return (
@@ -60,7 +53,7 @@ function Cpu({ spec }: { spec: CpuSpec }) {
   );
 }
 
-function Ram({ spec }: { spec: RamSpec }) {
+function Ram({ spec }: { spec: boardSim.RamSpec }) {
   const sticks = Math.max(1, Math.min(4, Math.round(spec.sizeBytes / (16 * 1024))));
   const g = goodness('ram', { key: 'latency', value: spec.latency, higherIsBetter: false });
   const x0 = 18;
@@ -165,7 +158,7 @@ function Cooler({ tier }: { tier: number }) {
 }
 
 /** A fan from its intake: the square frame with four screw bosses, the ring, the blades and the hub. A bigger fan draws bigger; high-airflow has more blades. */
-function Fan({ spec }: { spec: FanSpec }) {
+function Fan({ spec }: { spec: boardSim.FanSpec }) {
   const side = 30 + (spec.size - 40) * 0.46,
     h = side / 2,
     r = side * 0.44,
@@ -194,7 +187,7 @@ function Fan({ spec }: { spec: FanSpec }) {
   );
 }
 
-function Psu({ spec }: { spec: PsuSpec }) {
+function Psu({ spec }: { spec: boardSim.PsuSpec }) {
   const frac = Math.min(1, Math.sqrt(spec.watts / 1000)); // 40 W to 1 kW on one dial
   const arc = 'M28 62 A32 32 0 0 1 92 62';
   return (
@@ -302,7 +295,7 @@ function TpmModule({ tier }: { tier: number }) {
 }
 
 function Board({ tier }: { tier: number }) {
-  const slots = BOARD_TIERS[tier]?.slots ?? {};
+  const slots = boardSim.BOARD_TIERS[tier]?.slots ?? {};
   const dimm = slots.dimm ?? 0;
   const pcie = slots.pcie ?? 0;
   const bigAtx = (slots['atx-plus'] ?? 0) > 0;
@@ -598,7 +591,7 @@ const plateSpeed = (mbps: number) => (mbps >= 1000 ? `${mbps / 1000} Gb` : `${mb
 /** An internet plan as a wall plate: a speed dial (log scale), the speed, five tier pips and the jack. */
 function PlanPlate({ tier, down }: { tier: number; down: number }) {
   const arc = 'M34 60 A26 26 0 0 1 86 60';
-  const frac = Math.min(1, Math.max(0.06, Math.log10(down / 25) / Math.log10(20000 / 25)));
+  const frac = Math.min(1, Math.max(0.06, Math.log10(down / 25) / Math.log10(20_000 / 25)));
   return (
     <>
       <rect x={14} y={6} width={92} height={72} rx={9} class="plate edge" />
@@ -644,59 +637,77 @@ export function PartArt({ id, size = 64, label, fill }: { id: string; size?: num
     );
   }
   let body: JSX.Element | null = null;
-  const bm = /^board(\d+)$/.exec(id);
+  const bm = /^board(?<tier>\d+)$/u.exec(id);
   const os = getOsSpec(id);
   const router = getRouterSpec(id);
   const isp = getIspSpec(id);
-  if (bm) body = <Board tier={Number(bm[1])} />;
-  else if (os) body = <OsDisc tier={os.tier} />;
-  else if (router) body = <RouterArt tier={router.tier} />;
-  else if (isp) body = <PlanPlate tier={isp.tier} down={isp.downMbps} />;
-  else {
-    const spec = getSpec(id);
+  if (bm) {
+    body = <Board tier={Number(bm[1])} />;
+  } else if (os) {
+    body = <OsDisc tier={os.tier} />;
+  } else if (router) {
+    body = <RouterArt tier={router.tier} />;
+  } else if (isp) {
+    body = <PlanPlate tier={isp.tier} down={isp.downMbps} />;
+  } else {
+    const spec = boardSim.getSpec(id);
     if (spec) {
       switch (spec.kind) {
-        case 'cpu':
+        case 'cpu': {
           body = <Cpu spec={spec} />;
           break;
-        case 'ram':
+        }
+        case 'ram': {
           body = <Ram spec={spec} />;
           break;
-        case 'cooler':
+        }
+        case 'cooler': {
           body = <Cooler tier={spec.tier} />;
           break;
-        case 'fan':
+        }
+        case 'fan': {
           body = <Fan spec={spec} />;
           break;
-        case 'psu':
+        }
+        case 'psu': {
           body = <Psu spec={spec} />;
           break;
-        case 'display':
+        }
+        case 'display': {
           body = <Display />;
           break;
+        }
         case 'vrm-sink':
-        case 'ram-sink':
+        case 'ram-sink': {
           body = <VrmSink tier={spec.tier} />;
           break;
-        case 'nic':
+        }
+        case 'nic': {
           body = <NicCard tier={spec.tier} />;
           break;
-        case 'gpu':
+        }
+        case 'gpu': {
           body = <GpuCard tier={spec.tier} />;
           break;
-        case 'npu':
+        }
+        case 'npu': {
           body = <NpuCard tier={spec.tier} />;
           break;
-        case 'tpm':
+        }
+        case 'tpm': {
           body = <TpmModule tier={spec.tier} />;
           break;
-        case 'storage':
+        }
+        case 'storage': {
           body = spec.visual === 'hdd' ? <Hdd /> : spec.visual === 'ssd-nvme' ? <SsdNvme /> : <SsdSata />;
           break;
+        }
       }
     }
   }
-  if (!body) return null;
+  if (!body) {
+    return null;
+  }
   return (
     <svg
       class="art"

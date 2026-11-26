@@ -4,6 +4,25 @@ import { Icon } from '@/core/ui/kit/Icons';
 
 type Viewer = import('@/core/render/three/viewer').Viewer;
 type Build = (specId: string) => import('three').Object3D | null;
+interface Studio {
+  frame: () => HTMLElement | null;
+}
+
+/** Fit the viewer to the host, and to the studio frame when there is one (the dock grows with a part's variants). */
+function fitShowcase(el: HTMLElement, vw: Viewer, studio?: Studio): void {
+  const f = studio?.frame();
+  if (studio && f) {
+    const s = el.getBoundingClientRect(),
+      b = f.getBoundingClientRect();
+    vw.setInsets({
+      left: Math.max(0, b.left - s.left),
+      right: Math.max(0, s.right - b.right),
+      top: Math.max(0, b.top - s.top),
+      bottom: Math.max(0, s.bottom - b.bottom),
+    });
+  }
+  vw.resize();
+}
 
 /**
  * The showcase: the part you picked as a 3D model on a turntable. Its pointers read as the game's (`core/render/three/pad.ts`): drag to pan, right-drag or
@@ -12,15 +31,7 @@ type Build = (specId: string) => import('three').Object3D | null;
  * `studio`: the Gallery's look (the stage fills the screen, its bar is the studio's pill bar with Graphics, and the part is framed in the box
  * `frame` names: the viewer's insets are that box's edges measured from the stage).
  */
-export function Showcase({
-  specId,
-  onClose,
-  studio,
-}: {
-  specId: string;
-  onClose: () => void;
-  studio?: { frame: () => HTMLElement | null };
-}) {
+export function Showcase({ specId, onClose, studio }: { specId: string; onClose: () => void; studio?: Studio }) {
   const host = useRef<HTMLDivElement>(null);
   const viewer = useRef<Viewer | null>(null);
   const build = useRef<Build | null>(null);
@@ -32,7 +43,9 @@ export function Showcase({
       ro: ResizeObserver | null = null;
     Promise.all([import('@/core/render/three/viewer'), import('@/features/board/render/three/showcase')])
       .then(([v, sc]) => {
-        if (dead || !host.current) return;
+        if (dead || !host.current) {
+          return;
+        }
         try {
           const el = host.current,
             vw = v.mountViewer(el);
@@ -40,23 +53,14 @@ export function Showcase({
           build.current = sc.buildShowcaseModel;
           // (the panels' own size changes too: the dock grows with a part's variants)
           const fit = () => {
-            const f = studio?.frame();
-            if (studio && f) {
-              const s = el.getBoundingClientRect(),
-                b = f.getBoundingClientRect();
-              vw.setInsets({
-                left: Math.max(0, b.left - s.left),
-                right: Math.max(0, s.right - b.right),
-                top: Math.max(0, b.top - s.top),
-                bottom: Math.max(0, s.bottom - b.bottom),
-              });
-            }
-            vw.resize();
+            fitShowcase(el, vw, studio);
           };
           ro = new ResizeObserver(fit);
           ro.observe(el);
           const f = studio?.frame();
-          if (f) ro.observe(f);
+          if (f) {
+            ro.observe(f);
+          }
           fit();
           setState('ready');
         } catch {
@@ -64,7 +68,9 @@ export function Showcase({
         }
       })
       .catch(() => {
-        if (!dead) setState('failed');
+        if (!dead) {
+          setState('failed');
+        }
       });
     return () => {
       dead = true;
@@ -75,7 +81,9 @@ export function Showcase({
   }, []);
 
   useEffect(() => {
-    if (state !== 'ready' && state !== 'none') return;
+    if (state !== 'ready' && state !== 'none') {
+      return;
+    }
     const model = build.current?.(specId) ?? null;
     viewer.current?.setObject(model);
     setState(model ? 'ready' : 'none');

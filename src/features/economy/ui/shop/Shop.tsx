@@ -10,7 +10,7 @@ export { BuildMode } from '@/features/board/ui/BuildMode';
 import { StatCard } from './StatCard';
 import { kindOf } from './picker';
 import { closeShop, shopFocus, shopOpen } from '@/core/ui/state';
-import { hasModel, shopFor, type ShopKind } from './shopdata';
+import * as shopData from './shopdata';
 
 /**
  * The shop: every item the game sells. Three zones that never move: the category rail on the left, the items of the chosen category as
@@ -20,16 +20,18 @@ import { hasModel, shopFor, type ShopKind } from './shopdata';
  */
 export function Shop({ s }: { s: Snapshot }) {
   const open = shopOpen.value;
-  const [kind, setKind] = useState<ShopKind | null>(null);
+  const [kind, setKind] = useState<shopData.ShopKind | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [view3d, setView3d] = useState(true);
-  const all = open ? shopFor(s) : [];
+  const all = open ? shopData.shopFor(s) : [];
   const focus = shopFocus.value;
   // opened on a part (the picker's 3D view button): its category, the part picked, the 3D view on
   useEffect(() => {
-    if (!open || !focus) return;
+    if (!open || !focus) {
+      return;
+    }
     const k = kindOf(focus, s);
-    setKind(k && all.some((x) => x.kind === k) ? (k as ShopKind) : null);
+    setKind(k && all.some((x) => x.kind === k) ? (k as shopData.ShopKind) : null);
     setPicked(focus);
     setView3d(true);
     shopFocus.value = null;
@@ -38,25 +40,34 @@ export function Shop({ s }: { s: Snapshot }) {
   const flat = sections.flatMap((x) => x.items.map((i) => i.specId));
   const shown = picked && flat.includes(picked) ? picked : (flat[0] ?? null);
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (view3d) setView3d(false);
-        else closeShop();
+        if (view3d) {
+          setView3d(false);
+        } else {
+          closeShop();
+        }
         return;
       }
       const step =
         e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
-      if (!step || !flat.length) return;
+      if (!step || flat.length === 0) {
+        return;
+      }
       e.preventDefault();
       const i = Math.max(0, flat.indexOf(shown ?? ''));
       setPicked(flat[(i + step + flat.length) % flat.length]!);
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    globalThis.addEventListener('keydown', onKey);
+    return () => globalThis.removeEventListener('keydown', onKey);
   }, [open, view3d, shown, flat.join(',')]);
-  if (!open) return null;
-  const pickKind = (k: ShopKind | null) => {
+  if (!open) {
+    return null;
+  }
+  const pickKind = (k: shopData.ShopKind | null) => {
     setKind(k);
     setPicked(null);
   };
@@ -65,7 +76,9 @@ export function Shop({ s }: { s: Snapshot }) {
     <div
       class="modal-back shop-back"
       onClick={(e) => {
-        if (e.target === e.currentTarget) closeShop();
+        if (e.target === e.currentTarget) {
+          closeShop();
+        }
       }}
     >
       <div class="card shop" data-cue="ui_panel_open" role="dialog" aria-modal="true" aria-label="Shop">
@@ -117,7 +130,9 @@ export function Shop({ s }: { s: Snapshot }) {
             ))}
           </div>
           <aside class="shop-detail">
-            {shown && view3d && hasModel(shownKind) && <Showcase specId={shown} onClose={() => setView3d(false)} />}
+            {shown && view3d && shopData.hasModel(shownKind) && (
+              <Showcase specId={shown} onClose={() => setView3d(false)} />
+            )}
             {shown && <StatCard s={s} specId={shown} onPreview={view3d ? undefined : () => setView3d(true)} />}
           </aside>
         </div>

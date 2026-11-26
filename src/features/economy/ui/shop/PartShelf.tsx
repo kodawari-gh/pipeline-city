@@ -1,4 +1,4 @@
-import type { ComponentChildren, RefObject } from 'preact';
+import type { ComponentChildren, JSX, RefObject } from 'preact';
 import { useEffect, useMemo, useRef } from 'preact/hooks';
 import { Icon } from '@/core/ui/kit/Icons';
 import { PartArt } from './PartArt';
@@ -13,6 +13,43 @@ export interface ShelfPart {
 }
 
 const money = (n: number): string => (n <= 0 ? 'free' : `$${n.toLocaleString('en-US')}`);
+
+function TileBody({ p, lit, price }: { p: ShelfPart; lit: number; price: number | null }): JSX.Element {
+  return (
+    <>
+      <span class="bld-art">
+        <PartArt id={p.id} fill label={p.name} />
+      </span>
+      <span class="bld-tname">{p.name}</span>
+      <span class="bld-tmeta">
+        <span class="bld-pips" role="img" aria-label={`Tier ${p.tier}`}>
+          {Array.from({ length: 5 }, (_, i) => (
+            <i key={i} class={i < lit ? 'on' : ''} />
+          ))}
+        </span>
+        {price !== null && <span class="bld-price">{money(price)}</span>}
+      </span>
+    </>
+  );
+}
+
+/** Fade the rail's cut edges and hang the desk flyout beside the chosen tag (`--seltop`, ui.css). */
+function markRailFade(rail: HTMLElement, bin: HTMLElement): void {
+  const up = rail.scrollTop > 1,
+    down = rail.scrollTop + rail.clientHeight < rail.scrollHeight - 1;
+  if (up || down) {
+    rail.setAttribute('data-fade', `${up ? 't' : ''}${down ? 'b' : ''}`);
+  } else {
+    rail.removeAttribute('data-fade');
+  }
+  const tag = rail.querySelector<HTMLElement>('[aria-selected="true"]');
+  if (tag) {
+    bin.style.setProperty(
+      '--seltop',
+      `${Math.round(tag.getBoundingClientRect().top - bin.getBoundingClientRect().top - 6)}px`,
+    );
+  }
+}
 
 /**
  * The studio's shelf, the left panel of both studio screens (the Gallery and Build my PC): a rail of categories (an icon and a short name each; the full
@@ -71,7 +108,9 @@ export function PartShelf({
   // (the top tier of each kind: a tile's pips are its tier against it)
   const top = useMemo(() => {
     const m = new Map<string, number>();
-    for (const p of parts) m.set(p.kind, Math.max(m.get(p.kind) ?? 0, p.tier));
+    for (const p of parts) {
+      m.set(p.kind, Math.max(m.get(p.kind) ?? 0, p.tier));
+    }
     return m;
   }, [parts]);
   const shown = kind === 'all' ? kinds : [kind];
@@ -81,11 +120,16 @@ export function PartShelf({
   useEffect(() => {
     const box = list.current,
       tile = box?.querySelector<HTMLElement>('.bld-tile.on');
-    if (!box || !tile) return;
+    if (!box || !tile) {
+      return;
+    }
     const b = box.getBoundingClientRect(),
       t = tile.getBoundingClientRect();
-    if (t.top < b.top) box.scrollTop -= b.top - t.top;
-    else if (t.bottom > b.bottom) box.scrollTop += t.bottom - b.bottom;
+    if (t.top < b.top) {
+      box.scrollTop -= b.top - t.top;
+    } else if (t.bottom > b.bottom) {
+      box.scrollTop += t.bottom - b.bottom;
+    }
   }, [current, kind]);
 
   // the rail on a short screen (SPEC 6.4 step 5a): the rows shrink (`data-tight`), then the rail scrolls inside its tab with the chosen tag in view and a fade
@@ -93,32 +137,33 @@ export function PartShelf({
   useEffect(() => {
     const rail = railBox.current,
       bin = rail?.closest<HTMLElement>('.bld-bin');
-    if (!rail || !bin) return;
+    if (!rail || !bin) {
+      return;
+    }
     const fit = () => {
       rail.removeAttribute('data-tight');
-      if (rail.scrollHeight > rail.clientHeight + 1) rail.setAttribute('data-tight', '');
+      if (rail.scrollHeight > rail.clientHeight + 1) {
+        rail.setAttribute('data-tight', '');
+      }
       const tag = rail.querySelector<HTMLElement>('[aria-selected="true"]');
       if (tag) {
         const r = rail.getBoundingClientRect(),
           t = tag.getBoundingClientRect();
-        if (t.top < r.top) rail.scrollTop -= r.top - t.top;
-        else if (t.bottom > r.bottom) rail.scrollTop += t.bottom - r.bottom;
-        if (t.left < r.left) rail.scrollLeft -= r.left - t.left;
-        else if (t.right > r.right) rail.scrollLeft += t.right - r.right;
+        if (t.top < r.top) {
+          rail.scrollTop -= r.top - t.top;
+        } else if (t.bottom > r.bottom) {
+          rail.scrollTop += t.bottom - r.bottom;
+        }
+        if (t.left < r.left) {
+          rail.scrollLeft -= r.left - t.left;
+        } else if (t.right > r.right) {
+          rail.scrollLeft += t.right - r.right;
+        }
       }
       mark();
     };
     const mark = () => {
-      const up = rail.scrollTop > 1,
-        down = rail.scrollTop + rail.clientHeight < rail.scrollHeight - 1;
-      if (up || down) rail.setAttribute('data-fade', `${up ? 't' : ''}${down ? 'b' : ''}`);
-      else rail.removeAttribute('data-fade');
-      const tag = rail.querySelector<HTMLElement>('[aria-selected="true"]');
-      if (tag)
-        bin.style.setProperty(
-          '--seltop',
-          `${Math.round(tag.getBoundingClientRect().top - bin.getBoundingClientRect().top - 6)}px`,
-        );
+      markRailFade(rail, bin);
     };
     fit();
     rail.addEventListener('scroll', mark, { passive: true });
@@ -147,7 +192,9 @@ export function PartShelf({
         onPointerDown={
           onPress
             ? (e) => {
-                if (e.button === 0 && !dim) onPress(p, e);
+                if (e.button === 0 && !dim) {
+                  onPress(p, e);
+                }
               }
             : undefined
         }
@@ -155,7 +202,9 @@ export function PartShelf({
           onPress
             ? undefined
             : () => {
-                if (!dim) onActivate(p);
+                if (!dim) {
+                  onActivate(p);
+                }
               }
         }
         onKeyDown={(e) => {
@@ -165,18 +214,7 @@ export function PartShelf({
           }
         }}
       >
-        <span class="bld-art">
-          <PartArt id={p.id} fill label={p.name} />
-        </span>
-        <span class="bld-tname">{p.name}</span>
-        <span class="bld-tmeta">
-          <span class="bld-pips" role="img" aria-label={`Tier ${p.tier}`}>
-            {Array.from({ length: 5 }, (_, i) => (
-              <i key={i} class={i < lit ? 'on' : ''} />
-            ))}
-          </span>
-          {price !== null && <span class="bld-price">{money(price)}</span>}
-        </span>
+        <TileBody p={p} lit={lit} price={price} />
       </div>
     );
   };

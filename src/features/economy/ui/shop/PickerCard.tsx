@@ -15,50 +15,26 @@ import {
   uninstall,
   uninstallOs,
 } from '@/app/store';
-import { getSpec, type CpuSpec, type RamSpec } from '@/features/board/sim/specs';
+import * as boardSim from '@/features/board/sim/specs';
 import type { Snapshot } from '@/worker/game/game';
 import { describeId, fmtClock, fmtMoney } from '@/core/ui/logic';
-import {
-  boardId,
-  caseId,
-  clockZones,
-  estTempC,
-  installedCooler,
-  nextUpgrade,
-  pickerFor,
-  zoneOf,
-  type CompareRow,
-  type OsSection,
-  type LadderStep,
-  type PickerAction,
-  type PickerLine,
-  type PickerModel,
-  type ZoneName,
-} from './picker';
-import {
-  ramZones,
-  VRM_BUSY_RATIO,
-  VRM_ZONE_HELP,
-  VRM_ZONE_WORD,
-  vrmZone,
-  type VrmReadout,
-  type VrmZone,
-} from '@/features/board/ui/vrm';
+import * as picker from './picker';
+import * as vrm from '@/features/board/ui/vrm';
 import { Icon } from '@/core/ui/kit/Icons';
 import { DeclineButton, Deadline, NeedChips } from '@/features/jobs/ui/Jobs';
-import { lockBadge, type LevelLock, type MoreOffer } from '../progress/levelui';
+import * as levelUi from '../progress/levelui';
 import { openMilestones, openShopAt } from '@/core/ui/state';
 import { hasModel } from './shopdata';
 import { PartArt } from './PartArt';
 import { anchorOf } from '@/features/tutorial/ui/anchor';
-import { dockPlacement, placePopup, type Rect, type Side } from '@/core/ui/place';
+import * as place from '@/core/ui/place';
 import { STAT_HELP } from './stathelp';
 
 const shortName = (name: string) => name.split(' (')[0]!;
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
 /** The lock and "Level N" of an item the player level still gates. Pressing it opens the milestone screen at that level. */
-function LockBadge({ lock, reason }: { lock: LevelLock; reason?: string | undefined }) {
+function LockBadge({ lock, reason }: { lock: levelUi.LevelLock; reason?: string | undefined }) {
   return (
     <button
       class="lockbadge"
@@ -69,21 +45,24 @@ function LockBadge({ lock, reason }: { lock: LevelLock; reason?: string | undefi
         openMilestones(lock.level);
       }}
     >
-      <Icon name="lock" size={11} /> {lockBadge(lock)}
+      <Icon name="lock" size={11} /> {levelUi.lockBadge(lock)}
     </button>
   );
 }
 
 /** The small "+ price" on a fitted or spare tile (or board card): buy another copy, which goes into the inventory. */
-function MoreButton({ specId, more }: { specId: string; more: MoreOffer | undefined }) {
-  if (!more || (more.state !== 'ready' && more.state !== 'poor')) return null;
+function MoreButton({ specId, more }: { specId: string; more: levelUi.MoreOffer | undefined }) {
+  if (!more || (more.state !== 'ready' && more.state !== 'poor')) {
+    return null;
+  }
   const cost = more.free ? 'free' : fmtMoney(more.price);
-  if (more.state === 'poor')
+  if (more.state === 'poor') {
     return (
       <span class="need warn more" title={`Buy another: ${more.reason}`}>
         + {cost}
       </span>
     );
+  }
   return (
     <button
       class="primary buy more"
@@ -104,11 +83,19 @@ function MoreButton({ specId, more }: { specId: string; more: MoreOffer | undefi
 }
 
 /** One upgrade rung: owned, next (buy), blocked or later. Pressing the card compares it with the current part. */
-export function Rung({ step, picked, onPick }: { step: LadderStep; picked: boolean; onPick: (id: string) => void }) {
+export function Rung({
+  step,
+  picked,
+  onPick,
+}: {
+  step: picker.LadderStep;
+  picked: boolean;
+  onPick: (id: string) => void;
+}) {
   const cost = step.free ? 'free' : fmtMoney(step.price ?? 0);
   const foot = (() => {
     switch (step.state) {
-      case 'installed':
+      case 'installed': {
         return (
           <>
             <span class="need ok" title={step.spares ? `${step.spares} more in your inventory` : undefined}>
@@ -117,7 +104,8 @@ export function Rung({ step, picked, onPick }: { step: LadderStep; picked: boole
             <MoreButton specId={step.specId} more={step.more} />
           </>
         );
-      case 'crate':
+      }
+      case 'crate': {
         return (
           <>
             <span class="need ok">
@@ -126,7 +114,8 @@ export function Rung({ step, picked, onPick }: { step: LadderStep; picked: boole
             <MoreButton specId={step.specId} more={step.more} />
           </>
         );
-      case 'ready':
+      }
+      case 'ready': {
         return (
           <button
             class="primary buy"
@@ -141,26 +130,31 @@ export function Rung({ step, picked, onPick }: { step: LadderStep; picked: boole
             {step.free ? 'Take' : `Buy ${cost}`}
           </button>
         );
-      case 'poor':
+      }
+      case 'poor': {
         return (
           <span class="need warn" title={step.reason}>
             <Icon name="dollar" size={11} /> {cost}
           </span>
         );
-      case 'blocked':
+      }
+      case 'blocked': {
         return (
           <span class="need bad" title={step.reason}>
             <Icon name="lock" size={11} /> Blocked
           </span>
         );
-      case 'locked':
+      }
+      case 'locked': {
         return (
           <span class="need mute" title={step.reason}>
             <Icon name="lock" size={11} /> Later
           </span>
         );
-      case 'level':
+      }
+      case 'level': {
         return <LockBadge lock={step.lock!} reason={step.reason} />;
+      }
     }
   })();
   // A spare the sim will not fit right now (e.g. the OS needs more memory fitted first): the reason is in the rung.
@@ -205,10 +199,12 @@ export function Rung({ step, picked, onPick }: { step: LadderStep; picked: boole
 }
 
 /** Before/after bars: grey is the current part, coloured is the option; the delta is coloured by whether it is better. */
-export function Compare({ rows, option }: { rows: CompareRow[]; option: string }) {
-  if (!rows.length) return null;
+export function Compare({ rows, option }: { rows: picker.CompareRow[]; option: string }) {
+  if (rows.length === 0) {
+    return null;
+  }
   return (
-    <div class="compare" aria-label={`Compared with ${shortName(getSpec(option)?.name ?? option)}`}>
+    <div class="compare" aria-label={`Compared with ${shortName(boardSim.getSpec(option)?.name ?? option)}`}>
       {rows.map((r) => (
         <div
           class="crow"
@@ -234,26 +230,28 @@ export function Compare({ rows, option }: { rows: CompareRow[]; option: string }
   );
 }
 
-const ZONE_WORD: Record<ZoneName, string> = { safe: 'Safe', throttle: 'Throttle', unstable: 'Unstable' };
-const ZONE_HELP: Record<ZoneName, string> = {
+const ZONE_WORD: Record<picker.ZoneName, string> = { safe: 'Safe', throttle: 'Throttle', unstable: 'Unstable' };
+const ZONE_HELP: Record<picker.ZoneName, string> = {
   safe: 'Runs at full speed with this cooler.',
   throttle: 'Too hot: the chip slows itself down, so it runs slower than you asked.',
   unstable: 'Too hot: errors restart the job. Cool it down or slow the clock.',
 };
 
 /** Overclock dial: the track is coloured by zone (safe, throttle, unstable) from the sim's heat model. */
-function ClockDial({ s, cpu }: { s: Snapshot; cpu: NonNullable<PickerModel['device']> }) {
+function ClockDial({ s, cpu }: { s: Snapshot; cpu: NonNullable<picker.PickerModel['device']> }) {
   const c = s.cpuClock!;
-  const spec = getSpec(cpu.spec) as CpuSpec | undefined;
-  if (!spec || spec.kind !== 'cpu') return null;
-  const cooler = installedCooler(s);
-  const z = clockZones(spec, cooler);
+  const spec = boardSim.getSpec(cpu.spec) as boardSim.CpuSpec | undefined;
+  if (!spec || spec.kind !== 'cpu') {
+    return null;
+  }
+  const cooler = picker.installedCooler(s);
+  const z = picker.clockZones(spec, cooler);
   const span = c.max - c.min || 1;
   const pos = (x: number) => clamp01((x - c.min) / span) * 100;
   const thrPct = pos(z.throttleAt);
   const badPct = pos(z.unstableAt);
-  const zone = zoneOf(z, c.value);
-  const est = estTempC(spec, cooler, c.value);
+  const zone = picker.zoneOf(z, c.value);
+  const est = picker.estTempC(spec, cooler, c.value);
   return (
     <div
       class="dial"
@@ -289,16 +287,18 @@ function ClockDial({ s, cpu }: { s: Snapshot; cpu: NonNullable<PickerModel['devi
 }
 
 /** Memory overclock dial: like the processor's, with a second marker where the memory regulator runs out of rating. */
-function RamClockDial({ s, dev }: { s: Snapshot; dev: NonNullable<PickerModel['device']> }) {
-  const spec = getSpec(dev.spec) as RamSpec | undefined;
-  const z = ramZones(s, dev.id);
-  if (!spec || spec.kind !== 'ram' || !z) return null;
+function RamClockDial({ s, dev }: { s: Snapshot; dev: NonNullable<picker.PickerModel['device']> }) {
+  const spec = boardSim.getSpec(dev.spec) as boardSim.RamSpec | undefined;
+  const z = vrm.ramZones(s, dev.id);
+  if (!spec || spec.kind !== 'ram' || !z) {
+    return null;
+  }
   const value = dev.requestedClock ?? spec.clock.base;
   const span = z.max - z.min || 1;
   const pos = (x: number) => clamp01((x - z.min) / span) * 100;
   const thrPct = pos(Math.min(z.throttleAt, z.overloadAt)),
     badPct = pos(Math.min(z.unstableAt, z.overloadAt));
-  const zone: ZoneName =
+  const zone: picker.ZoneName =
     value >= Math.min(z.unstableAt, z.overloadAt) ? 'unstable' : value >= z.throttleAt ? 'throttle' : 'safe';
   const est = 25 + (spec.loadW * spec.heatFactor * (value / spec.clock.base) ** 3) / spec.thermal.passive;
   return (
@@ -335,15 +335,15 @@ function RamClockDial({ s, dev }: { s: Snapshot; dev: NonNullable<PickerModel['d
   );
 }
 
-const VRM_CLASS: Record<VrmZone, string> = { safe: 'safe', busy: 'throttle', overload: 'unstable' };
+const VRM_CLASS: Record<vrm.VrmZone, string> = { safe: 'safe', busy: 'throttle', overload: 'unstable' };
 
 /**
  * The VRM readout: a load bar with the safe, busy and overload zones (demand over the phases' rating), then the live
  * numbers as icon chips. Each chip explains itself on hover (describeId's plain line for its id).
  */
-function VrmBlock({ v, s }: { v: VrmReadout; s: Snapshot }) {
-  const zone = v.burnt ? 'overload' : vrmZone(v.loadRatio);
-  const busyPct = (VRM_BUSY_RATIO / v.barMax) * 100;
+function VrmBlock({ v, s }: { v: vrm.VrmReadout; s: Snapshot }) {
+  const zone = v.burnt ? 'overload' : vrm.vrmZone(v.loadRatio);
+  const busyPct = (vrm.VRM_BUSY_RATIO / v.barMax) * 100;
   const overPct = (1 / v.barMax) * 100;
   const fillPct = clamp01(v.loadRatio / v.barMax) * 100;
   const tip = (id: string) => describeId(id, s)?.plain ?? '';
@@ -351,11 +351,11 @@ function VrmBlock({ v, s }: { v: VrmReadout; s: Snapshot }) {
     <section class="pblock vrm-sec" aria-label="VRM">
       <h3>
         <Icon name="bolt" size={11} /> {v.rail === 'ram' ? 'Memory VRM' : 'VRM'}{' '}
-        <span class={`zchip ${VRM_CLASS[zone]}`}>{v.burnt ? 'Burnt' : VRM_ZONE_WORD[zone]}</span>
+        <span class={`zchip ${VRM_CLASS[zone]}`}>{v.burnt ? 'Burnt' : vrm.VRM_ZONE_WORD[zone]}</span>
       </h3>
       <div
         class="vtrack"
-        title={`${v.rail === 'ram' ? 'The memory regulator. ' : ''}${VRM_ZONE_HELP[zone]} Demand ${v.demandA.toFixed(1)} A of ${v.capacityA} A.`}
+        title={`${v.rail === 'ram' ? 'The memory regulator. ' : ''}${vrm.VRM_ZONE_HELP[zone]} Demand ${v.demandA.toFixed(1)} A of ${v.capacityA} A.`}
       >
         <i class="vz safe" style={{ left: '0%', width: `${busyPct}%` }} />
         <i class="vz busy" style={{ left: `${busyPct}%`, width: `${Math.max(0, overPct - busyPct)}%` }} />
@@ -414,8 +414,8 @@ function VrmBlock({ v, s }: { v: VrmReadout; s: Snapshot }) {
 }
 
 /** Live readings of an installed part as small icon chips. */
-function Readings({ dev }: { dev: NonNullable<PickerModel['device']> }) {
-  if (dev.burnt)
+function Readings({ dev }: { dev: NonNullable<picker.PickerModel['device']> }) {
+  if (dev.burnt) {
     return (
       <div class="chips">
         <span class="chip bad">
@@ -423,6 +423,7 @@ function Readings({ dev }: { dev: NonNullable<PickerModel['device']> }) {
         </span>
       </div>
     );
+  }
   return (
     <div class="chips">
       <span
@@ -457,27 +458,36 @@ function Readings({ dev }: { dev: NonNullable<PickerModel['device']> }) {
   );
 }
 
-function Action({ a }: { a: PickerAction }) {
+function Action({ a }: { a: picker.PickerAction }) {
   // Uninstalling wipes the drive: it takes two presses (the first asks, the second does it).
   const [armed, setArmed] = useState(false);
   const run = () => {
     switch (a.id) {
-      case 'power':
+      case 'power': {
         powerButton();
         break;
-      case 'powerCycle':
+      }
+      case 'powerCycle': {
         powerCycle();
         break;
-      case 'plug':
-        if (a.keyId !== undefined) plugKey(a.keyId);
+      }
+      case 'plug': {
+        if (a.keyId !== undefined) {
+          plugKey(a.keyId);
+        }
         break;
-      case 'eject':
+      }
+      case 'eject': {
         ejectKey();
         break;
-      case 'uninstall':
-        if (a.deviceId) uninstall(a.deviceId);
+      }
+      case 'uninstall': {
+        if (a.deviceId) {
+          uninstall(a.deviceId);
+        }
         break;
-      case 'uninstallOs':
+      }
+      case 'uninstallOs': {
         if (!armed) {
           setArmed(true);
           return;
@@ -485,14 +495,18 @@ function Action({ a }: { a: PickerAction }) {
         setArmed(false);
         uninstallOs();
         break;
-      case 'formatDrive':
+      }
+      case 'formatDrive': {
         if (!armed) {
           setArmed(true);
           return;
         }
         setArmed(false);
-        if (a.deviceId) formatDrive(a.deviceId, true);
+        if (a.deviceId) {
+          formatDrive(a.deviceId, true);
+        }
         break;
+      }
     }
   };
   const label =
@@ -504,7 +518,7 @@ function Action({ a }: { a: PickerAction }) {
   return (
     <button
       class={a.primary || armed ? 'primary' : ''}
-      disabled={!!a.why}
+      disabled={Boolean(a.why)}
       title={
         a.why ??
         (a.id === 'formatDrive'
@@ -523,7 +537,15 @@ function Action({ a }: { a: PickerAction }) {
 }
 
 /** The installed OS: status, slots, the queue, the running job, held keys to collect, the host drive and the later tiers. */
-function OsBlock({ sec, picked, onPick }: { sec: OsSection; picked: string | null; onPick: (id: string) => void }) {
+function OsBlock({
+  sec,
+  picked,
+  onPick,
+}: {
+  sec: picker.OsSection;
+  picked: string | null;
+  onPick: (id: string) => void;
+}) {
   return (
     <section class="pblock os-sec" aria-label={sec.name}>
       <h3 title={sec.name}>
@@ -576,32 +598,33 @@ function OsBlock({ sec, picked, onPick }: { sec: OsSection; picked: string | nul
   );
 }
 
-function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { current: HTMLDivElement | null } }) {
+function Body({ m, s, content }: { m: picker.PickerModel; s: Snapshot; content: { current: HTMLDivElement | null } }) {
   // The option the bars compare against: the picked rung, else the selected part, else the first upgrade on offer.
   const [picked, setPicked] = useState<string | null>(null);
   const firstOffer =
     m.ladder.find((r) => r.state === 'crate' || r.state === 'ready' || r.state === 'poor' || r.state === 'blocked')
       ?.specId ?? null;
   // With nothing on offer the bars still compare with the next tier up (locked or not), so its cost and delta show.
-  const next = nextUpgrade(m.ladder);
+  const next = picker.nextUpgrade(m.ladder);
   const option = picked ?? m.focus ?? firstOffer ?? next?.specId ?? null;
   // Operating systems have their own stats (programs, queue), so they are not compared with hardware bars.
   const artId =
-    m.device?.spec ?? (m.kind === 'board' ? boardId(s.boardTier) : m.kind === 'case' ? caseId(s.caseTier) : m.focus);
+    m.device?.spec ??
+    (m.kind === 'board' ? picker.boardId(s.boardTier) : m.kind === 'case' ? picker.caseId(s.caseTier) : m.focus);
   // With a clock dial the overclock warnings are shown by the dial's zone, not as text.
-  const lines: PickerLine[] = m.clock ? m.lines.filter((l) => l.level === 'info' || l.level === 'ok') : m.lines;
+  const lines: picker.PickerLine[] = m.clock ? m.lines.filter((l) => l.level === 'info' || l.level === 'ok') : m.lines;
   // Words only where something is wrong or the object has nothing else to show: warnings always, one plain line for a bare socket.
-  const calm = (l: PickerLine) => l.level === 'info' || l.level === 'ok';
+  const calm = (l: picker.PickerLine) => l.level === 'info' || l.level === 'ok';
   const shownLines = [
     ...lines.filter((l) => !calm(l)),
-    ...(m.device || m.ladder.length ? [] : lines.filter(calm).slice(0, 1)),
+    ...(m.device || m.ladder.length > 0 ? [] : lines.filter(calm).slice(0, 1)),
   ];
   const psu = m.kind === 'psu' ? s.power : null;
   const loadFrac = psu && psu.budgetW > 0 ? psu.totalW / psu.budgetW : 0;
   // A CPU row the board's VRM cannot feed says so in words, once, under the bars.
   const optWarn =
     (m.kind === 'cpu' || m.kind === 'os') && option ? m.ladder.find((r) => r.specId === option)?.warn : undefined;
-  const optName = option ? shortName(getSpec(option)?.name ?? option) : '';
+  const optName = option ? shortName(boardSim.getSpec(option)?.name ?? option) : '';
 
   return (
     <div class="pk-content" ref={content} data-kind={m.kind} aria-label={m.title}>
@@ -713,17 +736,21 @@ export function PickerCard() {
 
   // Escape closes the card. Registered while a card is open only.
   useEffect(() => {
-    if (!id) return;
+    if (!id) {
+      return;
+    }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') selected.value = null;
+      if (e.key === 'Escape') {
+        selected.value = null;
+      }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    globalThis.addEventListener('keydown', onKey);
+    return () => globalThis.removeEventListener('keydown', onKey);
   }, [id]);
 
   // A spare part in the inventory shows its stats in the shelf's own side card, not here.
-  const m = id && s && !id.startsWith('inv:') ? pickerFor(id, s) : null;
-  const open = !!m;
+  const m = id && s && !id.startsWith('inv:') ? picker.pickerFor(id, s) : null;
+  const open = m !== null;
 
   useEffect(() => {
     const el = shell.current,
@@ -734,21 +761,23 @@ export function PickerCard() {
     }
     // A card that has just opened is placed at once (no glide in from the top left, where the shell starts).
     const first = lastId.current === null;
-    if (first) el.classList.add('nomove');
+    if (first) {
+      el.classList.add('nomove');
+    }
     const reposition = () => {
       const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
       const inset = viewInset.peek();
       const vw = window.innerWidth,
         vh = window.innerHeight;
       const tile = id.startsWith('inv:') ? document.querySelector(`[data-inv~="${CSS.escape(id.slice(4))}"]`) : null;
-      let free: Rect = {
+      let free: place.Rect = {
         x: inset.left,
         y: inset.top,
         w: vw - inset.left - inset.right,
         h: vh - inset.top - inset.bottom,
       };
-      let anchor: Rect | null = null;
-      let order: Side[] | undefined;
+      let anchor: place.Rect | null = null;
+      let order: place.Side[] | undefined;
       if (tile) {
         const r = tile.getBoundingClientRect();
         anchor = { x: r.left, y: r.top, w: r.width, h: r.height };
@@ -757,7 +786,9 @@ export function PickerCard() {
         order = ['above', 'right', 'left'];
       } else {
         const a = anchorOf(id);
-        if (a && a.visible) anchor = { x: a.x, y: a.y, w: a.w, h: a.h };
+        if (a && a.visible) {
+          anchor = { x: a.x, y: a.y, w: a.w, h: a.h };
+        }
       }
       const margin = rem * 0.5;
       free = { x: free.x + margin, y: free.y, w: Math.max(1, free.w - 2 * margin), h: Math.max(1, free.h - margin) };
@@ -767,8 +798,8 @@ export function PickerCard() {
       const h = Math.min(natural, maxH);
       el.style.height = `${h}px`;
       const pl = anchor
-        ? placePopup(anchor, { w: width, h }, free, rem * GAP_REM, order)
-        : dockPlacement({ w: width, h }, free);
+        ? place.placePopup(anchor, { w: width, h }, free, rem * GAP_REM, order)
+        : place.dockPlacement({ w: width, h }, free);
       el.dataset['side'] = pl.side;
       el.style.setProperty('--tail', `${pl.tail}px`);
       el.style.transform = `translate(${Math.round(pl.x)}px, ${Math.round(pl.y)}px)`;
@@ -776,8 +807,8 @@ export function PickerCard() {
     // A different object: glide (slow transition) instead of following (short one).
     if (lastId.current !== null && lastId.current !== id) {
       el.classList.add('glide');
-      window.clearTimeout(glideTimer.current);
-      glideTimer.current = window.setTimeout(() => el.classList.remove('glide'), 520);
+      globalThis.clearTimeout(glideTimer.current);
+      glideTimer.current = globalThis.setTimeout(() => el.classList.remove('glide'), 520);
     }
     lastId.current = id;
     reposition();
@@ -800,7 +831,9 @@ export function PickerCard() {
     };
   }, [open, id]);
 
-  if (!id || !s || !m) return null;
+  if (!id || !s || !m) {
+    return null;
+  }
   // The shell is not keyed (position and height glide); the content is (a different selection starts with the default comparison).
   return (
     <aside class="card picker part-picker" ref={shell} data-side="dock" aria-label={m.title}>
