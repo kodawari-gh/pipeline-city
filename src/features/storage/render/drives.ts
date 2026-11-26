@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { box, disc, label, mix } from '@/core/render/ink';
-import { BAY_CELLS, CELL_W, M2_SLOTS, type Rect } from '../../board/render/layout/layout';
+import * as boardLayout from '../../board/render/layout/layout';
 import { m2Stick } from '../../board/render/layout/pins';
 import type { Theme } from '@/core/render/theme';
 import { armTip } from './diskplan';
@@ -19,9 +19,9 @@ const slotIndex = (slot: string): number => Number(slot.replace(/^(?:sata|m2)/u,
 
 /** The SATA drives are drawn at this design size (a cell of 700 x 500) and scaled to the cell of the cage. */
 const DESIGN = { w: 700, h: 500 };
-export const driveScale = () => CELL_W / DESIGN.w;
+export const driveScale = () => boardLayout.CELL_W / DESIGN.w;
 /** Body of a SATA drive in design coordinates (relative to its cell). */
-const bodyLocal = (kind: DriveKind): Rect =>
+const bodyLocal = (kind: DriveKind): boardLayout.Rect =>
   kind === 'hdd' ? { x: 46, y: 28, w: 640, h: 444 } : { x: 46, y: 78, w: 520, h: 344 };
 
 /** How far an NVMe stick's gold fingers reach west of its body (into the socket). */
@@ -31,20 +31,20 @@ export const NVME_FINGERS = 46;
  * Body rect of a drive of this kind sitting in a cage cell (SATA) or on an M.2 slot, in world coordinates. An NVMe stick's body is its PCB east
  * of the fingers (`m2Stick` less `NVME_FINGERS`): 80 x 22 mm in all, its notch on the slot's standoff.
  */
-export function driveBody(kind: DriveKind, slot: string): Rect {
+export function driveBody(kind: DriveKind, slot: string): boardLayout.Rect {
   if (kind === 'ssd-nvme') {
-    const s = m2Stick(M2_SLOTS[slotIndex(slot)] ?? M2_SLOTS[0]!);
+    const s = m2Stick(boardLayout.M2_SLOTS[slotIndex(slot)] ?? boardLayout.M2_SLOTS[0]!);
     return { x: s.x + NVME_FINGERS, y: s.y, w: s.w - NVME_FINGERS, h: s.h };
   }
-  const c = BAY_CELLS[slotIndex(slot)]!,
+  const c = boardLayout.BAY_CELLS[slotIndex(slot)]!,
     k = driveScale(),
     b = bodyLocal(kind);
   return { x: c.x + b.x * k, y: c.y + b.y * k, w: b.w * k, h: b.h * k };
 }
 
 /** Cell/slot rect that a drive of this slot occupies (drop target). */
-export const slotRect = (slot: string): Rect =>
-  slot.startsWith('m2') ? M2_SLOTS[slotIndex(slot)]! : BAY_CELLS[slotIndex(slot)]!;
+export const slotRect = (slot: string): boardLayout.Rect =>
+  slot.startsWith('m2') ? boardLayout.M2_SLOTS[slotIndex(slot)]! : boardLayout.BAY_CELLS[slotIndex(slot)]!;
 
 const metal = (_T: Theme) => '#2c3548';
 const metalHi = (_T: Theme) => '#3a4660';

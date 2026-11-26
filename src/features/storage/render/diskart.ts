@@ -4,7 +4,7 @@ import type { Theme } from '@/core/render/theme';
 import { cellRects, planFar, planNear } from '../../cpu/render/die/dieart';
 import type { DieArt, PlanStyle } from '../../cpu/render/die/dieart';
 import type { DiskBlock, DiskLink, DiskPlan } from './diskfloor';
-import { armTip, flatGrid, platterCell, queueLanes, type Cell } from './diskplan';
+import * as planCells from './diskplan';
 import type { DriveKind } from './drives';
 
 // The art of a drive's cutaway, in the CPU die's style (die/dieart.ts): a dark floor with a rim line in the tier's accent, macro blocks tinted in their
@@ -108,7 +108,7 @@ export interface DataCtx {
 }
 
 /** The colour of a cell, and how strongly it shows. */
-function cellStyle(T: Theme, c: Cell, x: DataCtx): { color: string; a: number } {
+function cellStyle(T: Theme, c: planCells.Cell, x: DataCtx): { color: string; a: number } {
   const dimK = x.dim ? 0.4 : 1;
   if (c.kind === 'free') {
     return { color: mix(T.die, T.ink, 0.1), a: 0.7 };
@@ -135,7 +135,7 @@ function cellStyle(T: Theme, c: Cell, x: DataCtx): { color: string; a: number } 
 }
 
 /** Wear as a red shade over a cell (flash only; a fresh cell has none). */
-const wearShade = (c: Cell): number => (c.kind === 'bad' ? 0 : Math.min(0.5, (c.wear / 100) * 0.5));
+const wearShade = (c: planCells.Cell): number => (c.kind === 'bad' ? 0 : Math.min(0.5, (c.wear / 100) * 0.5));
 
 /**
  * The capacity map: one cell per block group over the whole floor. A flash drive gets a flat grid, a hard disk its platter as rings (the first blocks on
@@ -146,7 +146,7 @@ export function drawMap(
   T: Theme,
   kind: DriveKind,
   plan: DiskPlan,
-  cells: readonly Cell[],
+  cells: readonly planCells.Cell[],
   x: DataCtx,
 ): void {
   g.clear();
@@ -154,7 +154,7 @@ export function drawMap(
     const p = plan.platter,
       ring = (p.R * 0.86) / p.tracks;
     cells.forEach((c, i) => {
-      const { track, sector } = platterCell(i, p.sectors);
+      const { track, sector } = planCells.platterCell(i, p.sectors);
       const r1 = p.R * 0.97 - track * ring,
         r0 = r1 - ring * 0.9,
         a0 = (sector / p.sectors) * Math.PI * 2 - Math.PI / 2,
@@ -179,7 +179,7 @@ export function drawMap(
   const m = plan.h * 0.06,
     w = plan.w - m * 2,
     h = plan.h - m * 2,
-    grid = flatGrid(cells.length, w, h);
+    grid = planCells.flatGrid(cells.length, w, h);
   cells.forEach((c, i) => {
     const s = cellStyle(T, c, x),
       cx = m + (i % grid.cols) * grid.cw,
@@ -232,7 +232,7 @@ export function drawArch(
   T: Theme,
   kind: DriveKind,
   plan: DiskPlan,
-  cells: readonly Cell[],
+  cells: readonly planCells.Cell[],
   x: DataCtx,
   live: ArchLive,
 ): void {
@@ -242,7 +242,14 @@ export function drawArch(
     const p = plan.platter,
       a = plan.arm,
       ring = (p.R * 0.86) / p.tracks;
-    const { x: ex, y: ey } = armTip(a.px, a.py, a.len, p.cx, p.cy, p.R * 0.97 - live.track * ring - ring * 0.45);
+    const { x: ex, y: ey } = planCells.armTip(
+      a.px,
+      a.py,
+      a.len,
+      p.cx,
+      p.cy,
+      p.R * 0.97 - live.track * ring - ring * 0.45,
+    );
     const ux = (ex - a.px) / a.len,
       uy = (ey - a.py) / a.len,
       nx = -uy,
@@ -306,7 +313,7 @@ export function drawArch(
   }
   const q = plan.blocks.find((b) => b.kind === 'queue');
   if (q) {
-    const { lanes, lit } = queueLanes(live.queued, live.depth),
+    const { lanes, lit } = planCells.queueLanes(live.queued, live.depth),
       rects = cellRects(q);
     for (let k = 0; k < lanes && k < rects.length; k++) {
       const r = rects[k]!;

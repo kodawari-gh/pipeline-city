@@ -12046,7 +12046,6 @@
  },
  "src/features/sandbox/sim/benchtasks.ts": {
   "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(no-array-callback-reference)": 1
  },
@@ -12080,7 +12079,6 @@
   "eslint(no-nested-ternary)": 1,
   "eslint(no-promise-executor-return)": 1,
   "eslint(no-use-before-define)": 3,
-  "import(consistent-type-specifier-style)": 5,
   "typescript(consistent-return)": 1,
   "typescript(no-non-null-assertion)": 2,
   "typescript(promise-function-async)": 1,
@@ -12109,7 +12107,6 @@
   "vitest(prefer-to-have-length)": 10
  },
  "src/features/sandbox/sim/sandbox.ts": {
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-unnecessary-type-conversion)": 1,
   "typescript(no-unsafe-type-assertion)": 2,
   "typescript(strict-boolean-expressions)": 3,
@@ -12123,7 +12120,6 @@
   "eslint(no-console)": 3,
   "eslint(no-eq-null)": 1,
   "eslint(no-use-before-define)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 2,
   "typescript(promise-function-async)": 1,
   "typescript(strict-boolean-expressions)": 2
@@ -12149,16 +12145,12 @@
   "typescript(no-confusing-void-expression)": 6,
   "typescript(strict-boolean-expressions)": 1
  },
- "src/features/storage/render/air.ts": {
-  "import(consistent-type-specifier-style)": 1
- },
  "src/features/storage/render/diskart.ts": {
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 4,
   "eslint(no-duplicate-imports)": 1,
   "eslint(no-nested-ternary)": 5,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 3,
   "unicorn(no-array-fill-with-reference-type)": 24,
   "unicorn(no-array-for-each)": 2,
@@ -12195,7 +12187,6 @@
  "src/features/storage/render/diskfloor.ts": {
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 3,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 1,
   "unicorn(no-array-for-each)": 1,
   "unicorn(prefer-single-call)": 1
@@ -12230,7 +12221,6 @@
   "eslint(max-params)": 5,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 1,
-  "import(consistent-type-specifier-style)": 2,
   "import(max-dependencies)": 1,
   "typescript(no-non-null-assertion)": 2,
   "typescript(prefer-readonly)": 1,
@@ -12266,7 +12256,6 @@
   "eslint(max-lines-per-function)": 2,
   "eslint(max-params)": 3,
   "eslint(no-nested-ternary)": 9,
-  "import(consistent-type-specifier-style)": 8,
   "import(max-dependencies)": 1,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-non-null-assertion)": 2,
@@ -12278,7 +12267,6 @@
   "eslint(max-params)": 3,
   "eslint(no-nested-ternary)": 1,
   "eslint(no-shadow)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(explicit-module-boundary-types)": 2,
   "typescript(no-non-null-assertion)": 4,
   "unicorn(no-array-fill-with-reference-type)": 18
@@ -12336,7 +12324,6 @@
   "eslint(max-classes-per-file)": 1,
   "eslint(max-lines)": 1,
   "eslint(max-params)": 1,
-  "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 11,
   "typescript(prefer-readonly)": 1,
   "typescript(strict-boolean-expressions)": 10

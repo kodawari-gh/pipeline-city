@@ -2,7 +2,7 @@ import type { Graphics } from 'pixi.js';
 import type { StorageCmd } from '../sim/storage';
 import { mix } from '@/core/render/ink';
 import { cellRects } from '../../cpu/render/die/dieart';
-import { drawPackets, drawTrails, packetOn, type Packet, type Trail } from '../../cpu/render/die/diepulse';
+import * as diePulse from '../../cpu/render/die/diepulse';
 import type { Theme } from '@/core/render/theme';
 import { accentOf } from './diskart';
 import type { DiskPlan } from './diskfloor';
@@ -21,8 +21,8 @@ const TAU = Math.PI * 2;
 export class DiskPlay {
   readonly player = new DiskPlayer();
   private clock = 0;
-  private packets: Packet[] = [];
-  private trails = new Map<string, Trail>();
+  private packets: diePulse.Packet[] = [];
+  private trails = new Map<string, diePulse.Trail>();
 
   /** The drive's newest commands (a snapshot). */
   ingest(kind: DriveKind, plan: DiskPlan, cmds: readonly StorageCmd[], totalBlocks: number, headLba: number): void {
@@ -61,7 +61,7 @@ export class DiskPlay {
         continue;
       }
       const color = s.data ? (s.write ? T.ld : T.st) : T.alu;
-      const { packet, trail } = packetOn(
+      const { packet, trail } = diePulse.packetOn(
         { id: l.id, lanes: s.data ? l.lanes : 1, pts: l.pts },
         s.rev,
         this.clock,
@@ -78,8 +78,8 @@ export class DiskPlay {
     if (n) {
       this.glow(g, T, plan, accent, n.script, n.t);
     }
-    drawTrails(tg, this.trails, this.clock, 1);
-    this.packets = drawPackets(pg, this.packets, this.clock, 1, T.ink);
+    diePulse.drawTrails(tg, this.trails, this.clock, 1);
+    this.packets = diePulse.drawPackets(pg, this.packets, this.clock, 1, T.ink);
     for (const [k, t] of this.trails) {
       if (this.clock - t.t0 > 1600) {
         this.trails.delete(k);

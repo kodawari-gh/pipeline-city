@@ -4,7 +4,7 @@ import { TEMPLATES } from '../../jobs/sim/gen';
 import type { Game } from '@/worker/game/game';
 import { NOT_SANDBOX } from '@/worker/game/internal';
 import { JOB_DEX } from '../../jobs/sim/jobdex';
-import { JOB_CLASSES, jobClass, levelDef, MAX_LEVEL, type JobClassId } from '../../economy/sim/levels';
+import * as levelSim from '../../economy/sim/levels';
 import type { Result } from '@/worker/game/types';
 
 /**
@@ -15,7 +15,7 @@ export function spawnKey(this: Game, template: string, scale = 1): Result<{ keyI
   if (!this.sandbox) {
     return NOT_SANDBOX;
   }
-  const cls = typeof template === 'string' ? jobClass(template) : undefined;
+  const cls = typeof template === 'string' ? levelSim.jobClass(template) : undefined;
   if (!cls && (typeof template !== 'string' || !Object.hasOwn(TEMPLATES, template))) {
     return { ok: false, reason: `unknown job template "${String(template)}"` };
   }
@@ -47,11 +47,11 @@ export function setLevel(this: Game, level: number): Result<{ level: number }> {
   if (!this.sandbox) {
     return NOT_SANDBOX;
   }
-  if (!Number.isInteger(level) || level < 1 || level > MAX_LEVEL) {
-    return { ok: false, reason: `level must be a whole number from 1 to ${MAX_LEVEL}` };
+  if (!Number.isInteger(level) || level < 1 || level > levelSim.MAX_LEVEL) {
+    return { ok: false, reason: `level must be a whole number from 1 to ${levelSim.MAX_LEVEL}` };
   }
   this.sandboxLevel = level;
-  this.note('sandbox', `rules level set to ${level} (${levelDef(level).name})`);
+  this.note('sandbox', `rules level set to ${level} (${levelSim.levelDef(level).name})`);
   return { ok: true, level };
 }
 
@@ -59,19 +59,19 @@ export function setLevel(this: Game, level: number): Result<{ level: number }> {
  * Sandbox: choose which job classes arrive on their own. `off` lists the classes that stop arriving (an empty list turns them all back on);
  * with every class of the level off nothing arrives. `spawnKey` still adds any class by hand. Refused in a campaign.
  */
-export function setJobClasses(this: Game, off: readonly string[]): Result<{ off: JobClassId[] }> {
+export function setJobClasses(this: Game, off: readonly string[]): Result<{ off: levelSim.JobClassId[] }> {
   if (!this.sandbox) {
     return NOT_SANDBOX;
   }
-  const known = new Set<string>(JOB_CLASSES.map((c) => c.id));
+  const known = new Set<string>(levelSim.JOB_CLASSES.map((c) => c.id));
   const bad = off.find((id) => !known.has(id));
   if (bad !== undefined) {
     return { ok: false, reason: `unknown job class '${bad}'` };
   }
-  this.sandboxOff = new Set(off as JobClassId[]);
+  this.sandboxOff = new Set(off as levelSim.JobClassId[]);
   for (const q of [this.tray, this.offersQ]) {
     for (const k of q.waiting()) {
-      if (this.sandboxOff.has(k.cls as JobClassId)) {
+      if (this.sandboxOff.has(k.cls as levelSim.JobClassId)) {
         q.take(k.id);
       }
     }

@@ -7,7 +7,7 @@
 import { BLOCK_BYTES, STORAGE_BASE, STORAGE_BUF, STORAGE_REG, STORAGE_STRIDE, StorageStatus } from '@/core/sim/memmap';
 import type { Rate } from '@/core/sim/hw/clock';
 import type { Device } from '@/core/sim/hw/device';
-import { DiskFs, type MountState } from './fs';
+import * as diskFs from './fs';
 import { Prng } from '@/core/sim/prng';
 
 /** Blocks per wear group: the wear counters and the bad-block marks are kept per group. */
@@ -49,9 +49,9 @@ export class Disk {
   commands = 0;
 
   /** Which files own which blocks (docs/OS.md). The media always has it; only an OS allocates on it. */
-  readonly fs: DiskFs;
+  readonly fs: diskFs.DiskFs;
   /** The superblock's verdict. Stays with the drive; `formatOs` sets `clean`, a power cut during a write sets `dirty`. */
-  mount: MountState = 'unformatted';
+  mount: diskFs.MountState = 'unformatted';
 
   /** Requests waiting at the drive (reads the game queued, see `Game.canServe`). */
   queued = 0;
@@ -79,7 +79,7 @@ export class Disk {
     this.blocks = Math.floor(capacityBytes / BLOCK_BYTES);
     this.data = new Uint8Array(this.blocks * BLOCK_BYTES);
     this.used = new Uint8Array(this.blocks);
-    this.fs = new DiskFs(this);
+    this.fs = new diskFs.DiskFs(this);
     this.enduranceBlocks = opts.enduranceBlocks ?? 1e9;
     this.queueDepth = opts.queueDepth ?? 4;
     this.seekByDistance = Boolean(opts.seekByDistance);

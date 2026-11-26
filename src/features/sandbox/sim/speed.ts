@@ -6,7 +6,7 @@
 //     nothing waits. That gives the cost of one tick and the ceiling;
 //   - paced: 8 s of real time with the worker's 100 ms timer, the ticks really delivered against the ticks owed.
 // Output lines start with "SPEED". The write-up is in docs/SANDBOX.md.
-import { advance, newHost, type HostState } from '@/worker/host';
+import * as workerHost from '@/worker/host';
 import { Game } from '@/worker/game/game';
 import { Operator } from '../../economy/sim/operator';
 import type { Speed } from '@/worker/protocol';
@@ -57,9 +57,9 @@ interface Call {
 }
 
 /** One worker call: advance by `elapsedMs` of wall time, then the snapshot the worker posts when something advanced. */
-function call(g: Game, host: HostState, elapsedMs: number): Call {
+function call(g: Game, host: workerHost.HostState, elapsedMs: number): Call {
   const a = performance.now();
-  const ticks = advance(host, elapsedMs);
+  const ticks = workerHost.advance(host, elapsedMs);
   const b = performance.now();
   if (ticks === 0) {
     return { ticks, advMs: b - a, snapMs: 0, snapped: false, running: false, phase: '' };
@@ -76,9 +76,9 @@ function call(g: Game, host: HostState, elapsedMs: number): Call {
   };
 }
 
-function machine(speed: Speed): { g: Game; host: HostState; op: Operator } {
+function machine(speed: Speed): { g: Game; host: workerHost.HostState; op: Operator } {
   const g = highEndBuild();
-  const host = newHost();
+  const host = workerHost.newHost();
   host.game = g;
   host.speed = speed;
   const op = new Operator(g);
