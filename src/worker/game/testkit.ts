@@ -1,6 +1,7 @@
 // Shared test rigs (not a test file).
 import type { EconomyConfig } from '../../features/economy/sim/economy';
 import { Game } from './game';
+import type { Result } from './types';
 
 export type Keys = { template: string; scale?: number }[];
 
@@ -33,9 +34,13 @@ export function rig(
   g.powerButton();
   const put = (id: string): void => {
     const b = g.purchase(id);
-    if (!b.ok) throw new Error(`purchase ${id}: ${b.reason}`);
+    if (!b.ok) {
+      throw new Error(`purchase ${id}: ${b.reason}`);
+    }
     const r = g.install(b.invId);
-    if (!r.ok) throw new Error(`install ${id}: ${r.reason}`);
+    if (!r.ok) {
+      throw new Error(`install ${id}: ${r.reason}`);
+    }
   };
   // The Starter board has one DIMM and a 24 A VRM: the OS rigs run on the Mainstream board (M.2 slot, 60 A VRM) so cpu1/cpu2 are fine.
   put('board1');
@@ -45,9 +50,21 @@ export function rig(
   g.uninstall(g.board.devices.find((d) => d.spec === 'ram0')!.id);
   put(opts.ram ?? 'ram1');
   put(storage);
-  if (opts.os !== false) put('os1');
-  for (const c of g.missingCables()) g.connectCable(c); // the bigger cases brought fans of their own: plug them
+  if (opts.os !== false) {
+    put('os1');
+  }
+  for (const c of g.missingCables()) {
+    g.connectCable(c); // the bigger cases brought fans of their own: plug them
+  }
   return g;
+}
+
+/** The accepted result `r`, or a throw that names `what` and the game's reason for refusing it. */
+function must<T>(r: Result<T>, what: string): { ok: true } & T {
+  if (!r.ok) {
+    throw new Error(`${what}: ${r.reason}`);
+  }
+  return r;
 }
 
 /**
@@ -68,34 +85,24 @@ export function netRig(
   } = {},
 ): Game {
   const g = rig(storage, { cpu: opts.cpu, keys: opts.keys ?? [], seed: opts.seed, economy: opts.economy });
-  for (const id of ['ram2']) {
-    const b = g.purchase(id);
-    if (!b.ok) throw new Error(`purchase ${id}: ${b.reason}`);
-    const r = g.install(b.invId);
-    if (!r.ok) throw new Error(`install ${id}: ${r.reason}`);
-  }
-  const router = g.purchase(opts.router ?? 'router1');
-  if (!router.ok) throw new Error(`router: ${router.reason}`);
-  const place = g.install(router.invId);
-  if (!place.ok) throw new Error(`place router: ${place.reason}`);
-  const plan = g.purchase(opts.isp ?? 'isp1');
-  if (!plan.ok) throw new Error(`isp: ${plan.reason}`);
+  const ram = must(g.purchase('ram2'), 'purchase ram2');
+  must(g.install(ram.invId), 'install ram2');
+  const router = must(g.purchase(opts.router ?? 'router1'), 'router');
+  must(g.install(router.invId), 'place router');
+  must(g.purchase(opts.isp ?? 'isp1'), 'isp');
   if (opts.port !== undefined) {
-    const nic = g.purchase(opts.port);
-    if (!nic.ok) throw new Error(`nic: ${nic.reason}`);
-    const inst = g.install(nic.invId);
-    if (!inst.ok) throw new Error(`install nic: ${inst.reason}`);
+    const nic = must(g.purchase(opts.port), 'nic');
+    must(g.install(nic.invId), 'install nic');
     const dev = g.board.devices.find((d) => d.spec === opts.port)!;
-    const c = g.connectCable('lan', dev.id);
-    if (!c.ok) throw new Error(`lan: ${c.reason}`);
+    must(g.connectCable('lan', dev.id), 'lan');
   } else {
-    const c = g.connectCable('lan');
-    if (!c.ok) throw new Error(`lan: ${c.reason}`);
+    must(g.connectCable('lan'), 'lan');
   }
   g.powerButton();
   if (opts.wait !== false) {
-    for (let i = 0; i < 4000 && g.snapshot().net.state !== 'link-up' && g.snapshot().net.state !== 'saturated'; i++)
+    for (let i = 0; i < 4000 && g.snapshot().net.state !== 'link-up' && g.snapshot().net.state !== 'saturated'; i++) {
       g.advanceBaseTick();
+    }
   }
   return g;
 }

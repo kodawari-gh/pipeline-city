@@ -3,7 +3,7 @@
 
 import { Game } from './game/game';
 import { CAMPAIGN_POWER_RATE, CAMPAIGN_START_MONEY } from '../features/economy/sim/economy';
-import { crashReport, type CrashReport } from './crash';
+import * as crashReports from './crash';
 import type { FromSim, Speed, ToSim } from './protocol';
 
 export interface HostState {
@@ -12,7 +12,7 @@ export interface HostState {
   /** Fractional base ticks owed (elapsed time x speed not yet simulated). */
   owed: number;
   /** A crash report not yet posted (`takeCrash`). */
-  crash: CrashReport | null;
+  crash: crashReports.CrashReport | null;
 }
 
 /** Catch-up cap per call. The worker calls every 100 ms, so this is far above what 64x needs (6.4 ticks per call). */
@@ -25,11 +25,13 @@ export function newHost(): HostState {
 /** The sim threw: pause it, and keep a report of the state it died in for `takeCrash`. A throw while one is waiting is its echo and is dropped. */
 export function recordCrash(state: HostState, e: unknown): void {
   state.speed = 0;
-  if (state.crash) return;
+  if (state.crash) {
+    return;
+  }
   try {
-    state.crash = crashReport(state.game, e);
+    state.crash = crashReports.crashReport(state.game, e);
   } catch {
-    state.crash = crashReport(null, e);
+    state.crash = crashReports.crashReport(null, e);
   }
 }
 
@@ -48,9 +50,9 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
         ? Game.fromSave(msg.save, { powerRatePerWh: CAMPAIGN_POWER_RATE })
         : new Game({
             seed: msg.seed ?? 1,
-            sandbox: !!msg.sandbox,
-            preassembled: !!msg.preassembled,
-            maxed: !!msg.maxed,
+            sandbox: Boolean(msg.sandbox),
+            preassembled: Boolean(msg.preassembled),
+            maxed: Boolean(msg.maxed),
             ...(msg.sandbox
               ? {}
               : { economy: { startMoney: CAMPAIGN_START_MONEY, powerRatePerWh: CAMPAIGN_POWER_RATE } }),
@@ -60,13 +62,17 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
       return [{ type: 'ready' }, { type: 'snapshot', snapshot: state.game.snapshot() }];
     }
     const g = state.game;
-    if (!g) return [{ type: 'error', message: `${msg.type}: sim not started` }];
+    if (!g) {
+      return [{ type: 'error', message: `${msg.type}: sim not started` }];
+    }
     switch (msg.type) {
-      case 'setSpeed':
-        if (msg.speed === 64 && !g.sandbox)
+      case 'setSpeed': {
+        if (msg.speed === 64 && !g.sandbox) {
           return [{ type: 'error', message: 'setSpeed: 64x is for the sandbox only' }];
+        }
         state.speed = msg.speed;
         return [];
+      }
       case 'step': {
         const ran = g.stepCycles(msg.cycles);
         return [{ type: 'snapshot', snapshot: g.snapshotAfterStep(ran) }];
@@ -76,79 +82,114 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
         g.advanceBaseTick();
         return [{ type: 'snapshot', snapshot: g.snapshotAfterStep(g.cycleNow() - c0) }];
       }
-      case 'stepGpu':
+      case 'stepGpu': {
         g.stepGpu(msg.slot, msg.cycles);
         return [{ type: 'snapshot', snapshot: g.snapshot() }];
-      case 'viewCore':
+      }
+      case 'viewCore': {
         g.setViewCore(msg.core);
         return [{ type: 'snapshot', snapshot: g.snapshot() }];
-      case 'spawnKey':
+      }
+      case 'spawnKey': {
         return refusable(g, 'spawnKey', g.spawnKey(msg.template, msg.scale));
-      case 'clearQueue':
+      }
+      case 'clearQueue': {
         return refusable(g, 'clearQueue', g.clearQueue());
-      case 'repairAll':
+      }
+      case 'repairAll': {
         return refusable(g, 'repairAll', g.repairAll());
-      case 'setReputation':
+      }
+      case 'setReputation': {
         return refusable(g, 'setReputation', g.setReputation(msg.value));
-      case 'setLevel':
+      }
+      case 'setLevel': {
         return refusable(g, 'setLevel', g.setLevel(msg.level));
-      case 'setJobClasses':
+      }
+      case 'setJobClasses': {
         return refusable(g, 'setJobClasses', g.setJobClasses(msg.off));
-      case 'setJobKinds':
+      }
+      case 'setJobKinds': {
         return refusable(g, 'setJobKinds', g.setJobKinds(msg.off));
-      case 'purchase':
+      }
+      case 'purchase': {
         return refusable(g, `purchase ${msg.id}`, g.purchase(msg.id));
-      case 'sell':
+      }
+      case 'sell': {
         return refusable(g, 'sell', g.sell(msg.invId));
-      case 'cancelSwap':
+      }
+      case 'cancelSwap': {
         return refusable(g, 'cancelSwap', g.cancelSwap(msg.invId));
-      case 'setCpuClock':
+      }
+      case 'setCpuClock': {
         return refusable(g, 'setCpuClock', g.setCpuClock(msg.clock));
-      case 'setRamClock':
+      }
+      case 'setRamClock': {
         return refusable(g, 'setRamClock', g.setRamClock(msg.deviceId, msg.clock));
-      case 'install':
+      }
+      case 'install': {
         return refusable(g, 'install', g.swapInstall(msg.invId, msg.slotId));
-      case 'uninstall':
+      }
+      case 'uninstall': {
         return refusable(g, 'uninstall', g.uninstall(msg.deviceId));
-      case 'connectCable':
+      }
+      case 'connectCable': {
         return refusable(g, 'connectCable', g.connectCable(msg.cable, msg.port));
-      case 'disconnectCable':
+      }
+      case 'disconnectCable': {
         return refusable(g, 'disconnectCable', g.disconnectCable(msg.cable));
-      case 'powerButton':
+      }
+      case 'powerButton': {
         return refusable(g, 'powerButton', g.powerButton());
-      case 'plugKey':
+      }
+      case 'plugKey': {
         return refusable(g, 'plugKey', g.plugAndBoot(msg.keyId));
-      case 'ejectKey':
+      }
+      case 'ejectKey': {
         return refusable(g, 'ejectKey', g.ejectKey());
-      case 'declineKey':
+      }
+      case 'declineKey': {
         return refusable(g, 'declineKey', g.declineKey(msg.keyId));
-      case 'declineJob':
+      }
+      case 'declineJob': {
         return refusable(g, 'declineJob', g.declineJob(msg.id));
-      case 'uninstallOs':
+      }
+      case 'uninstallOs': {
         return refusable(g, 'uninstallOs', g.uninstallOs());
-      case 'formatDrive':
+      }
+      case 'formatDrive': {
         return refusable(g, 'formatDrive', g.formatDrive(msg.deviceId, msg.confirm));
-      case 'setSpoolSlots':
+      }
+      case 'setSpoolSlots': {
         return refusable(g, 'setSpoolSlots', g.setSpoolSlots(msg.slots));
-      case 'setDataReserve':
+      }
+      case 'setDataReserve': {
         return refusable(g, 'setDataReserve', g.setDataReserve(msg.deviceId, msg.blocks));
-      case 'setSpoolAlloc':
+      }
+      case 'setSpoolAlloc': {
         return refusable(g, 'setSpoolAlloc', g.setSpoolAlloc(msg.deviceId, msg.slots));
-      case 'setSpoolDrive':
+      }
+      case 'setSpoolDrive': {
         return refusable(g, 'setSpoolDrive', g.setSpoolDrive(msg.deviceId, msg.on));
-      case 'acceptContract':
+      }
+      case 'acceptContract': {
         return refusable(g, 'acceptContract', g.acceptContract(msg.offerId, msg.deviceId));
-      case 'ignoreContract':
+      }
+      case 'ignoreContract': {
         return refusable(g, 'ignoreContract', g.ignoreContract(msg.offerId));
-      case 'powerCycle':
+      }
+      case 'powerCycle': {
         g.powerCycle();
         return [{ type: 'snapshot', snapshot: g.snapshot() }];
-      case 'requestSave':
+      }
+      case 'requestSave': {
         return [{ type: 'saved', save: g.toSave() }];
+      }
     }
   } catch (e) {
     // A refused action returns a reason; a throw after the game started is a bug or a machine fault, so keep the state it died in.
-    if (state.game && msg.type !== 'init') recordCrash(state, e);
+    if (state.game && msg.type !== 'init') {
+      recordCrash(state, e);
+    }
     return [{ type: 'error', message: (e as Error).message }, ...takeCrash(state)];
   }
 }
@@ -156,7 +197,9 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
 /** Reply to a game action: an error message if it was refused, then the new snapshot. */
 function refusable(g: Game, what: string, r: { ok: boolean; reason?: string }): FromSim[] {
   const out: FromSim[] = [];
-  if (!r.ok) out.push({ type: 'error', message: `${what}: ${r.reason}` });
+  if (!r.ok) {
+    out.push({ type: 'error', message: `${what}: ${r.reason}` });
+  }
   out.push({ type: 'snapshot', snapshot: g.snapshot() });
   return out;
 }
@@ -168,13 +211,19 @@ function refusable(g: Game, what: string, r: { ok: boolean; reason?: string }): 
  */
 export function advance(state: HostState, elapsedMs: number, maxTicks = MAX_TICKS_PER_FRAME): number {
   const g = state.game;
-  if (!g || state.speed === 0) return 0;
+  if (!g || state.speed === 0) {
+    return 0;
+  }
   state.owed += (Math.max(0, elapsedMs) / 1000) * state.speed;
   const n = Math.min(Math.floor(state.owed), maxTicks);
   state.owed -= n;
-  if (state.owed >= 1) state.owed -= Math.floor(state.owed); // drop the backlog beyond the cap
+  if (state.owed >= 1) {
+    state.owed -= Math.floor(state.owed); // drop the backlog beyond the cap
+  }
   try {
-    for (let i = 0; i < n; i++) g.advanceBaseTick();
+    for (let i = 0; i < n; i++) {
+      g.advanceBaseTick();
+    }
   } catch (e) {
     recordCrash(state, e); // paused now: the worker posts the report instead of throwing again every 100 ms
   }

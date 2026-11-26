@@ -18,17 +18,17 @@ import { generate } from '../../features/jobs/sim/gen';
 import { JOB_ROW } from '../../core/sim/memmap';
 import { getOsSpec } from '../../features/os/sim';
 import { SANDBOX_MONEY } from '../../features/economy/sim/economy';
-import { datasetBytes, type Contract, type ContractOffer } from '../../features/economy/sim/contracts';
+import * as contractBook from '../../features/economy/sim/contracts';
 import type { Game } from './game';
 import type { Key } from './internal';
-import { JOB_DEX, type DexRecord } from '../../features/jobs/sim/jobdex';
-import { JOB_LOG_CAP, type JobLogEntry } from '../../features/jobs/sim/joblog';
-import { JOB_CLASSES, levelFor, type JobClassId } from '../../features/economy/sim/levels';
-import { SAVE_VERSION, type SavedDisk, type SavedKey, type SavedNet, type SavedPlugged, type SaveV5 } from './save';
+import * as dexTable from '../../features/jobs/sim/jobdex';
+import * as jobHistory from '../../features/jobs/sim/joblog';
+import * as levelTable from '../../features/economy/sim/levels';
+import * as saveFormat from './save';
 
 /** Config-only save (no pipeline, registers or RAM). See docs/SAVE.md. */
-export function toSave(this: Game): SaveV5 {
-  const sk = (k: Key): SavedKey => ({
+export function toSave(this: Game): saveFormat.SaveV5 {
+  const sk = (k: Key): saveFormat.SavedKey => ({
     id: k.id,
     template: k.template,
     seed: k.seed,
@@ -41,7 +41,7 @@ export function toSave(this: Game): SaveV5 {
   });
   const disks = this.savedDisks();
   const p = this.plugged;
-  const plugged: SavedPlugged | null = p && {
+  const plugged: saveFormat.SavedPlugged | null = p && {
     ...sk(p),
     attempts: p.attempts,
     pluggedAt: p.pluggedAt,
@@ -51,7 +51,7 @@ export function toSave(this: Game): SaveV5 {
     ...(p.done && p.ranAt !== undefined ? { ranAt: p.ranAt } : {}),
   };
   return {
-    version: SAVE_VERSION,
+    version: saveFormat.SAVE_VERSION,
     seed: this.seed,
     prngState: this.machine.prng.getState(),
     money: this.money,
@@ -65,7 +65,10 @@ export function toSave(this: Game): SaveV5 {
     board: boardToJson(this.board),
     inventory: this.inventory.map((i) => ({ ...i })),
     nextInvId: this.nextInvId,
-    cables: { ...this.cables, ...Object.fromEntries(cablesOf(this.board).map((c) => [c.id, !!this.cables[c.id]])) }, // every cable of this case said outright (a missing fan cable reads as plugged: the saves from before them)
+    cables: {
+      ...this.cables,
+      ...Object.fromEntries(cablesOf(this.board).map((c) => [c.id, Boolean(this.cables[c.id])])),
+    }, // every cable of this case said outright (a missing fan cable reads as plugged: the saves from before them)
     tray: [...this.tray.waiting()].sort((a, b) => a.id - b.id).map(sk),
     plugged,
     tripped: this.thermal.power.tripped,
@@ -73,40 +76,40 @@ export function toSave(this: Game): SaveV5 {
     os: this.os && { spec: this.os.spec.id, deviceId: this.os.deviceId },
     firstBootTick: this.firstBootTick,
     ...(this.sandbox ? { sandbox: true, sandboxLevel: this.sandboxLevel } : {}),
-    ...(this.sandbox && this.sandboxOff.size ? { sandboxOff: [...this.sandboxOff] } : {}),
-    ...(this.sandbox && this.sandboxKindsOff.size ? { sandboxKindsOff: [...this.sandboxKindsOff] } : {}),
+    ...(this.sandbox && this.sandboxOff.size > 0 ? { sandboxOff: [...this.sandboxOff] } : {}),
+    ...(this.sandbox && this.sandboxKindsOff.size > 0 ? { sandboxKindsOff: [...this.sandboxKindsOff] } : {}),
     clientBase: this.clientBase,
     level: this.lvl,
     levelTicks: Object.fromEntries(Object.entries(this.levelTicks).map(([k, v]) => [k, v])),
     declined: this.declined,
     expired: this.expired,
-    ...(Object.keys(this.dex).length
-      ? { jobDex: JSON.parse(JSON.stringify(this.dex)) as Record<string, DexRecord> }
+    ...(Object.keys(this.dex).length > 0
+      ? { jobDex: JSON.parse(JSON.stringify(this.dex)) as Record<string, dexTable.DexRecord> }
       : {}),
-    ...(this.jobLog.length ? { jobLog: JSON.parse(JSON.stringify(this.jobLog)) as JobLogEntry[] } : {}),
+    ...(this.jobLog.length > 0 ? { jobLog: JSON.parse(JSON.stringify(this.jobLog)) as jobHistory.JobLogEntry[] } : {}),
     net: this.savedNet(sk),
-    ...(disks.length ? { disks } : {}),
-    ...(this.contracts.length || this.contractOffers.length || this.nextContractId > 1
+    ...(disks.length > 0 ? { disks } : {}),
+    ...(this.contracts.length > 0 || this.contractOffers.length > 0 || this.nextContractId > 1
       ? {
           contracts: {
             nextId: this.nextContractId,
             rng: this.contractRng.getState(),
-            offers: JSON.parse(JSON.stringify(this.contractOffers)) as ContractOffer[],
-            active: JSON.parse(JSON.stringify(this.contracts)) as Contract[],
+            offers: JSON.parse(JSON.stringify(this.contractOffers)) as contractBook.ContractOffer[],
+            active: JSON.parse(JSON.stringify(this.contracts)) as contractBook.Contract[],
           },
         }
       : {}),
     ...(this.video !== 'board' ? { video: this.video } : {}),
     ...(this.osCfg.spoolSlots !== null ||
-    this.osCfg.spoolOff.length ||
-    Object.keys(this.osCfg.spoolAlloc).length ||
-    Object.keys(this.osCfg.dataReserve).length
+    this.osCfg.spoolOff.length > 0 ||
+    Object.keys(this.osCfg.spoolAlloc).length > 0 ||
+    Object.keys(this.osCfg.dataReserve).length > 0
       ? {
           osConfig: {
             ...(this.osCfg.spoolSlots !== null ? { spoolSlots: this.osCfg.spoolSlots } : {}),
-            ...(this.osCfg.spoolOff.length ? { spoolOff: [...this.osCfg.spoolOff] } : {}),
-            ...(Object.keys(this.osCfg.spoolAlloc).length ? { spoolAlloc: { ...this.osCfg.spoolAlloc } } : {}),
-            ...(Object.keys(this.osCfg.dataReserve).length ? { dataReserve: { ...this.osCfg.dataReserve } } : {}),
+            ...(this.osCfg.spoolOff.length > 0 ? { spoolOff: [...this.osCfg.spoolOff] } : {}),
+            ...(Object.keys(this.osCfg.spoolAlloc).length > 0 ? { spoolAlloc: { ...this.osCfg.spoolAlloc } } : {}),
+            ...(Object.keys(this.osCfg.dataReserve).length > 0 ? { dataReserve: { ...this.osCfg.dataReserve } } : {}),
           },
         }
       : {}),
@@ -131,24 +134,30 @@ export function toSave(this: Game): SaveV5 {
  * The drives as logical records (docs/SAVE.md "Disks"): each ledger file, the blocks written outside files, the mount flag, the wear and bad groups
  * of the media (and of a mirror's second member). Never bytes. A drive that holds nothing and never wore is left out.
  */
-export function savedDisks(this: Game): SavedDisk[] {
-  const out: SavedDisk[] = [];
+export function savedDisks(this: Game): saveFormat.SavedDisk[] {
+  const out: saveFormat.SavedDisk[] = [];
   for (const d of this.board.devices) {
-    if (deviceSpec(d).kind !== 'storage') continue;
+    if (deviceSpec(d).kind !== 'storage') {
+      continue;
+    }
     const disk = this.disks.get(d.id);
-    if (!disk) continue;
+    if (!disk) {
+      continue;
+    }
     const media = disk.mediaState();
     const twin = disk.twin?.mediaState();
     const files = disk.fs.records();
     const worn =
       media.wear.length > 0 || media.bad.length > 0 || (twin && (twin.wear.length > 0 || twin.bad.length > 0));
-    if (disk.mount === 'unformatted' && files.length === 0 && !worn) continue;
+    if (disk.mount === 'unformatted' && files.length === 0 && !worn) {
+      continue;
+    }
     const written = disk.fs.writtenOutsideFiles();
     out.push({
       deviceId: d.id,
       mount: disk.mount,
       files,
-      ...(written.length ? { written } : {}),
+      ...(written.length > 0 ? { written } : {}),
       media,
       ...(twin ? { twin } : {}),
     });
@@ -161,42 +170,51 @@ export function savedDisks(this: Game): SavedDisk[] {
  * regenerated from its seed. The OS drive's boot image and spool region were just recreated by `formatOs`, so its own `os` and `spool` records are skipped
  * (and its spool's written blocks, which the machine rebuilds). A record that no longer fits is dropped.
  */
-export function restoreDisks(this: Game, list: readonly SavedDisk[]): void {
+export function restoreDisks(this: Game, list: readonly saveFormat.SavedDisk[]): void {
   for (const sd of list) {
     const dev = this.board.devices.find((d) => d.id === sd.deviceId);
-    if (!dev || deviceSpec(dev).kind !== 'storage') continue;
+    if (!dev || deviceSpec(dev).kind !== 'storage') {
+      continue;
+    }
     const disk = this.diskFor(dev);
     const isOs = this.os?.deviceId === dev.id;
     disk.restoreMedia(sd.media);
-    if (sd.twin && disk.twin) disk.twin.restoreMedia(sd.twin);
+    if (sd.twin && disk.twin) {
+      disk.twin.restoreMedia(sd.twin);
+    }
     const files = isOs ? sd.files.filter((f) => f.kind !== 'os' && f.kind !== 'spool') : sd.files;
     disk.fs.restore(files, isOs ? [] : (sd.written ?? []));
     for (const f of disk.fs.list('dataset')) {
-      if (f.seed !== undefined && !f.lost)
+      if (f.seed !== undefined && !f.lost) {
         disk.fs.write(
           f.id,
-          datasetBytes(
+          contractBook.datasetBytes(
             f.seed,
             f.extents.reduce((n, e) => n + e.len, 0),
           ),
         );
+      }
     }
-    if (sd.mount !== 'unformatted') disk.mount = sd.mount;
+    if (sd.mount !== 'unformatted') {
+      disk.mount = sd.mount;
+    }
   }
 }
 
 /** The contracts block of the save, back into the game: offers, running contracts, the id counter and the offers' stream. */
-export function restoreContracts(this: Game, c: NonNullable<SaveV5['contracts']>): void {
+export function restoreContracts(this: Game, c: NonNullable<saveFormat.SaveV5['contracts']>): void {
   this.nextContractId = c.nextId;
   this.contractRng.setState(c.rng);
-  this.contractOffers = JSON.parse(JSON.stringify(c.offers)) as ContractOffer[];
-  this.contracts = JSON.parse(JSON.stringify(c.active)) as Contract[];
+  this.contractOffers = JSON.parse(JSON.stringify(c.offers)) as contractBook.ContractOffer[];
+  this.contracts = JSON.parse(JSON.stringify(c.active)) as contractBook.Contract[];
   // A reload loses the drive queue: reads waiting for the drive are requested again.
-  for (const k of this.contracts) k.pending = [];
+  for (const k of this.contracts) {
+    k.pending = [];
+  }
 }
 
 /** The network block of the save: plan, router, cable, offers (downloads in flight restart as offers) and the spool. */
-export function savedNet(this: Game, sk: (k: Key) => SavedKey): SavedNet {
+export function savedNet(this: Game, sk: (k: Key) => saveFormat.SavedKey): saveFormat.SavedNet {
   const offers = [...this.offersQ.waiting(), ...this.downloads.map((t) => t.key), ...this.rx].sort(
     (a, b) => a.id - b.id,
   );
@@ -215,7 +233,7 @@ export function savedNet(this: Game, sk: (k: Key) => SavedKey): SavedNet {
  * Put a parsed save into this fresh game (`Game.fromSave` builds the game and calls this). The machine loads powered off; a
  * plugged key stays plugged and its job restarts from boot at the next power-on.
  */
-export function restoreSave(this: Game, s: SaveV5): void {
+export function restoreSave(this: Game, s: saveFormat.SaveV5): void {
   this.board = boardFromJson(s.board);
   // a save from before the radiators: its liquid loop kept the cooling of a slim radiator, so it gets one for free (top fan mount if the case has one)
   legacyRadiatorSlots(this.board);
@@ -230,10 +248,12 @@ export function restoreSave(this: Game, s: SaveV5): void {
   this.money = this.sandbox ? SANDBOX_MONEY : s.money;
   if (this.sandbox) {
     // the sandbox's own edits: the pinned level and what is switched off (an id that no longer exists is dropped)
-    if (s.sandboxLevel !== undefined) this.sandboxLevel = s.sandboxLevel;
-    const classes = new Set<string>(JOB_CLASSES.map((c) => c.id)),
-      kinds = new Set(JOB_DEX.filter((e) => !e.planned).map((e) => e.id));
-    this.sandboxOff = new Set((s.sandboxOff ?? []).filter((id) => classes.has(id)) as JobClassId[]);
+    if (s.sandboxLevel !== undefined) {
+      this.sandboxLevel = s.sandboxLevel;
+    }
+    const classes = new Set<string>(levelTable.JOB_CLASSES.map((c) => c.id)),
+      kinds = new Set(dexTable.JOB_DEX.filter((e) => !e.planned).map((e) => e.id));
+    this.sandboxOff = new Set((s.sandboxOff ?? []).filter((id) => classes.has(id)) as levelTable.JobClassId[]);
     this.sandboxKindsOff = new Set((s.sandboxKindsOff ?? []).filter((id) => kinds.has(id)));
   }
   this.baseTick = s.baseTick;
@@ -248,29 +268,32 @@ export function restoreSave(this: Game, s: SaveV5): void {
   this.cables = { ...s.cables, pcmains: s.cables['pcmains'] ?? true, monmains: s.cables['monmains'] ?? true }; // a save from before the wall cords had them plugged
   pruneCables(this.board, this.cables); // (a cord belongs to its PSU or monitor: one that has none comes off)
   // a save from before the fan cables had the machine running: every fan it has is plugged (a machine that used to run is not locked out of POST)
-  for (const [k, v] of Object.entries(allCables(this.board)))
-    if (isFanCable(k) && this.cables[k] === undefined) this.cables[k] = v;
+  for (const [k, v] of Object.entries(allCables(this.board))) {
+    if (isFanCable(k) && this.cables[k] === undefined) {
+      this.cables[k] = v;
+    }
+  }
   this.progress = { ...s.progress, mainsConnected: s.progress.mainsConnected ?? true }; // a save from before the cords needs no lesson on them
   // The first boot marks when clients start arriving; a save without the field (older v4) restarts it at the load tick.
   this.firstBootTick = s.progress.poweredOn ? (s.firstBootTick ?? s.baseTick) : null;
   this.declined = s.declined ?? 0;
-  this.dex = s.jobDex ? (JSON.parse(JSON.stringify(s.jobDex)) as Record<string, DexRecord>) : {};
+  this.dex = s.jobDex ? (JSON.parse(JSON.stringify(s.jobDex)) as Record<string, dexTable.DexRecord>) : {};
   this.jobLog = Array.isArray(s.jobLog)
-    ? (JSON.parse(JSON.stringify(s.jobLog)) as JobLogEntry[])
+    ? (JSON.parse(JSON.stringify(s.jobLog)) as jobHistory.JobLogEntry[])
         .filter((e) => e && typeof e.id === 'number' && typeof e.type === 'string')
-        .slice(-JOB_LOG_CAP)
+        .slice(-jobHistory.JOB_LOG_CAP)
     : [];
   this.expired = s.expired ?? 0;
   if (!this.sandbox) {
     if (s.clientBase !== undefined) {
       this.clientBase = s.clientBase;
-      this.lvl = levelFor(this.clientBase);
+      this.lvl = levelTable.levelFor(this.clientBase);
       this.levelTicks = Object.fromEntries(Object.entries(s.levelTicks ?? {}).map(([k, v]) => [Number(k), v]));
     } else {
       // A save from before levels: an average point per job so far, the level derived from it, no celebration. Parts
       // already installed stay (the level only gates what can be bought).
       this.clientBase = s.completed * 1.1;
-      this.lvl = levelFor(this.clientBase);
+      this.lvl = levelTable.levelFor(this.clientBase);
       this.levelTicks = { [this.lvl]: s.baseTick };
     }
   }
@@ -293,8 +316,12 @@ export function restoreSave(this: Game, s: SaveV5): void {
     this.networkLinked = s.net.networkLinked;
     this.deadTicks = s.net.deadTicks;
   }
-  if (this.lan && this.lan !== 'board' && !this.board.devices.some((d) => d.id === this.lan)) this.lan = null;
-  if (!this.routerTier) this.lan = null;
+  if (this.lan && this.lan !== 'board' && !this.board.devices.some((d) => d.id === this.lan)) {
+    this.lan = null;
+  }
+  if (!this.routerTier) {
+    this.lan = null;
+  }
   this.cables['lan'] = this.lan !== null;
   // the video cable's port (absent: the board's); a card that is not there any more puts it back
   this.video = typeof s.video === 'string' ? s.video : 'board';
@@ -309,9 +336,15 @@ export function restoreSave(this: Game, s: SaveV5): void {
     spoolAlloc: { ...s.osConfig?.spoolAlloc },
     dataReserve: { ...s.osConfig?.dataReserve },
   };
-  if (s.os) this.formatOs(getOsSpec(s.os.spec)!, s.os.deviceId, false);
-  if (s.disks) this.restoreDisks(s.disks);
-  if (s.contracts) this.restoreContracts(s.contracts);
+  if (s.os) {
+    this.formatOs(getOsSpec(s.os.spec)!, s.os.deviceId, false);
+  }
+  if (s.disks) {
+    this.restoreDisks(s.disks);
+  }
+  if (s.contracts) {
+    this.restoreContracts(s.contracts);
+  }
   // A save from before the retired flag, whose link had been up: its USB keys are retired (the rule of the link's return).
   const legacyRetired = s.net?.networkLinked === true;
   try {
@@ -319,7 +352,9 @@ export function restoreSave(this: Game, s: SaveV5): void {
     if (s.net) {
       this.offersQ.set(s.net.offers.map((k) => this.rebuild(k)));
       this.spool = s.net.spool.map((k) => this.rebuild(k));
-      for (const k of this.spool) k.reloaded = true;
+      for (const k of this.spool) {
+        k.reloaded = true;
+      }
     }
     if (s.plugged) {
       const p = s.plugged;
@@ -328,7 +363,9 @@ export function restoreSave(this: Game, s: SaveV5): void {
       key.pluggedAt = p.pluggedAt;
       key.done = p.done;
       key.doneAt = p.doneAt;
-      if (p.done && p.ranAt !== undefined) key.ranAt = p.ranAt;
+      if (p.done && p.ranAt !== undefined) {
+        key.ranAt = p.ranAt;
+      }
       key.result = p.result;
       key.retired = p.retired ?? (legacyRetired && !p.done);
       key.reloaded = true;
@@ -350,7 +387,9 @@ export function restoreSave(this: Game, s: SaveV5): void {
   } catch (e) {
     throw new Error(`save: cannot regenerate a key (${(e as Error).message})`, { cause: e });
   }
-  if (s.tripped) this.thermal.power = { ...this.thermal.power, tripped: true };
+  if (s.tripped) {
+    this.thermal.power = { ...this.thermal.power, tripped: true };
+  }
   this.powered = false;
   this.syncStorage();
   this.syncGpus();
