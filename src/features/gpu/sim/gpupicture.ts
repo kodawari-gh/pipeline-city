@@ -19,9 +19,9 @@ const PICTURE_COLS = 64;
 const PICTURE_ROWS = 40;
 export const PICTURE_LEN = PICTURE_COLS * PICTURE_ROWS;
 /** Byte addresses in card memory: the code, the two parameter words (phase, level), the picture (to 0x3000, inside the smallest card's 16K). */
-export const KERNEL_LAYOUT = { code: 0, param: 0x700, out: 0x800, maxPicture: PICTURE_LEN } as const;
+export const KERNEL_LAYOUT = { code: 0, param: 0x7_00, out: 0x8_00, maxPicture: PICTURE_LEN } as const;
 /** Where the CPU twins find the same two words in RAM (below the thread sync page, above the scan buffer the picture uses). */
-export const CPU_PARAM = 0x7000;
+export const CPU_PARAM = 0x70_00;
 
 export interface GpuKernelParams {
   /** Lanes of the card the kernel runs on. */
@@ -83,11 +83,15 @@ export function mandelCount(i: number, maxIter: number): number {
   for (;;) {
     const zr2 = Math.imul(zr, zr) >> 12,
       zi2 = Math.imul(zi, zi) >> 12;
-    if ((zr2 + zi2) >>> 14 !== 0) return count; // escaped before this step
+    if ((zr2 + zi2) >>> 14 !== 0) {
+      return count; // escaped before this step
+    }
     zi = ((Math.imul(zr, zi) >> 11) + cy) | 0;
     zr = (zr2 - zi2 + cx) | 0;
     count++;
-    if (count >= maxIter) return count;
+    if (count >= maxIter) {
+      return count;
+    }
   }
 }
 
@@ -115,29 +119,38 @@ const clamp255 = (v: number): number => Math.max(0, Math.min(255, v));
 /** One pixel of a frame. */
 function pixel(name: GpuKernelName, i: number, phase: number, level: number): number {
   switch (name) {
-    case 'vadd':
+    case 'vadd': {
       return clamp255(scene(i, phase) + level); // brightness
-    case 'saxpy':
+    }
+    case 'saxpy': {
       return clamp255((((scene(i, phase) - 96) * level) >> 3) + 96); // contrast: gain level/8 around the middle grey
-    case 'blur3':
-      return Math.imul(scene(i - level, phase) + scene(i, phase) + scene(i + level, phase), 21846) >>> 16; // a box blur `level` wide
-    case 'thresh':
+    }
+    case 'blur3': {
+      return Math.imul(scene(i - level, phase) + scene(i, phase) + scene(i + level, phase), 21_846) >>> 16; // a box blur `level` wide
+    }
+    case 'thresh': {
       return scene(i, phase) >= level ? 255 : 0; // a mask
+    }
     case 'poly': {
       const v = scene(i, phase);
-      return (v * (256 - level) + ((v * v) >> 8) * level) >> 8;
-    } // blend toward the square: darker midtones
-    case 'mandel':
+      return (v * (256 - level) + ((v * v) >> 8) * level) >> 8; // blend toward the square: darker midtones
+    }
+    case 'mandel': {
       return mandelCount(i, level) << 4;
-    case 'sphere':
+    }
+    case 'sphere': {
       return ballPixel(i, phase);
+    }
   }
 }
 
 function check(p: GpuKernelParams): void {
-  if (!Number.isInteger(p.lanes) || p.lanes < 1 || p.lanes > 32) throw new RangeError(`lanes ${p.lanes}`);
-  if (!Number.isInteger(p.len) || p.len < p.lanes || p.len % p.lanes !== 0 || p.len > PICTURE_LEN)
+  if (!Number.isInteger(p.lanes) || p.lanes < 1 || p.lanes > 32) {
+    throw new RangeError(`lanes ${p.lanes}`);
+  }
+  if (!Number.isInteger(p.len) || p.len < p.lanes || p.len % p.lanes !== 0 || p.len > PICTURE_LEN) {
     throw new RangeError(`len ${p.len}`);
+  }
 }
 
 /** What the kernel computes for one frame, in plain JS (the same integer arithmetic). */
@@ -181,38 +194,46 @@ const gClamp = (r: string, t: string): string =>
 /** The kernel's assembly (GPU ISA) for one frame. */
 export function gpuKernelSource(name: GpuKernelName, p: GpuKernelParams): string {
   check(p);
-  const n = p.lanes,
-    len = p.len;
+  const { lanes: n, len } = p;
   const head = `        lane v1\n        vli v6, 0\n        vld v7, ${P}(v6)\n        mpush\n      loop:\n`;
   const tail = (res: string) =>
     `        vslli v0, v1, 2\n        vst ${res}, ${OUT}(v0)\n        vaddi v1, v1, ${n}\n        vli v2, ${len}\n        msetlt v1, v2\n        bany loop\n        mpop\n        halt`;
   const level = `        vli v6, 0\n        vld v6, ${P + 4}(v6)\n`;
   switch (name) {
-    case 'vadd': // brightness: scene + level, clamped
+    case 'vadd': {
+      // brightness: scene + level, clamped
       return `${head + gScene('v1', 'v2', 'v3', 'v4', 'v5') + level}        vadd v2, v2, v6\n${gClamp(
         'v2',
         'v3',
       )}${tail('v2')}`;
-    case 'saxpy': // contrast: (scene - 96) * level / 8 + 96, clamped
+    }
+    case 'saxpy': {
+      // contrast: (scene - 96) * level / 8 + 96, clamped
       return `${
         head + gScene('v1', 'v2', 'v3', 'v4', 'v5') + level
       }        vaddi v2, v2, -96\n        vmul v2, v2, v6\n        vsrai v2, v2, 3\n        vaddi v2, v2, 96\n${gClamp(
         'v2',
         'v3',
       )}${tail('v2')}`;
-    case 'thresh': // a mask: an if and an else under the execution mask, so lanes diverge
+    }
+    case 'thresh': {
+      // a mask: an if and an else under the execution mask, so lanes diverge
       return `${
         head + gScene('v1', 'v2', 'v3', 'v4', 'v5') + level
       }        mpush\n        msetge v2, v6\n        vli v4, 255\n        melse\n        vli v4, 0\n        mpop\n${tail(
         'v4',
       )}`;
-    case 'poly': // a tone curve: blend of the scene and its square, level/256 toward the square
+    }
+    case 'poly': {
+      // a tone curve: blend of the scene and its square, level/256 toward the square
       return `${
         head + gScene('v1', 'v2', 'v3', 'v4', 'v5') + level
       }        vmul v3, v2, v2\n        vsrai v3, v3, 8\n        vmul v3, v3, v6\n        vli v4, 256\n        vsub v4, v4, v6\n        vmul v4, v4, v2\n        vadd v3, v3, v4\n        vsrai v3, v3, 8\n${tail(
         'v3',
       )}`;
-    case 'blur3': // a box blur `level` wide: three scenes, the running sum parked in the picture's own word
+    }
+    case 'blur3': {
+      // a box blur `level` wide: three scenes, the running sum parked in the picture's own word
       return (
         `${head + level}        vsub v1, v1, v6\n${gScene(
           'v1',
@@ -237,6 +258,7 @@ export function gpuKernelSource(name: GpuKernelName, p: GpuKernelParams): string
           'v2',
         )}`
       );
+    }
     case 'sphere': {
       // eight lit, checkered balls; every lane runs the same straight-line code
       return `
@@ -305,7 +327,8 @@ export function gpuKernelSource(name: GpuKernelName, p: GpuKernelParams): string
         mpop
         halt`;
     }
-    case 'mandel': // escape iterations of c = (xMin + col * dx, yMin + row * dy), at most `level`: lanes leave the inner loop at different times
+    case 'mandel': {
+      // escape iterations of c = (xMin + col * dx, yMin + row * dy), at most `level`: lanes leave the inner loop at different times
       return `
         lane v0
         vslli v0, v0, 8
@@ -357,13 +380,16 @@ export function gpuKernelSource(name: GpuKernelName, p: GpuKernelParams): string
         bany outer
         mpop
         halt`;
+    }
   }
 }
 
 /** A checksum of a frame: what the CPU fallback and the card must both reach. */
 export function outputChecksum(xs: readonly number[]): number {
   let s = 0;
-  for (const x of xs) s = (s + x) | 0;
+  for (const x of xs) {
+    s = (s + x) | 0;
+  }
   return s & 63;
 }
 
@@ -425,14 +451,15 @@ export function cpuKernel(name: GpuKernelName, ns: string, p: GpuKernelParams): 
   const loadParams = [`li t0, ${CPU_PARAM}`, 'lw a2, 0(t0)', 'lw a3, 4(t0)', 'li a1, 0'];
   const next = [`sw t3, 0(a0)`, 'addi a0, a0, 4', 'addi a1, a1, 1', `li t0, ${p.len}`, `bne a1, t0, ${ns}_o`, 'ret'];
   switch (name) {
-    case 'vadd':
+    case 'vadd': {
       return kernel(
         'gpu_vadd',
         ns,
         ['mem', 'alu', 'branch'],
         [...loadParams, `${ns}_o:`, ...cScene('a1', 't3'), 'add t3, t3, a3', ...cClamp('t3', ns), ...next],
       );
-    case 'saxpy':
+    }
+    case 'saxpy': {
       return kernel(
         'gpu_saxpy',
         ns,
@@ -449,7 +476,8 @@ export function cpuKernel(name: GpuKernelName, ns: string, p: GpuKernelParams): 
           ...next,
         ],
       );
-    case 'thresh':
+    }
+    case 'thresh': {
       return kernel(
         'gpu_thresh',
         ns,
@@ -466,7 +494,8 @@ export function cpuKernel(name: GpuKernelName, ns: string, p: GpuKernelParams): 
           ...next,
         ],
       );
-    case 'poly':
+    }
+    case 'poly': {
       return kernel(
         'gpu_poly',
         ns,
@@ -486,7 +515,8 @@ export function cpuKernel(name: GpuKernelName, ns: string, p: GpuKernelParams): 
           ...next,
         ],
       );
-    case 'blur3':
+    }
+    case 'blur3': {
       return kernel(
         'gpu_blur3',
         ns,
@@ -511,7 +541,8 @@ export function cpuKernel(name: GpuKernelName, ns: string, p: GpuKernelParams): 
           ...next,
         ],
       );
-    case 'sphere':
+    }
+    case 'sphere': {
       return kernel(
         'gpu_sphere',
         ns,
@@ -580,7 +611,8 @@ export function cpuKernel(name: GpuKernelName, ns: string, p: GpuKernelParams): 
           'ret',
         ],
       );
-    case 'mandel':
+    }
+    case 'mandel': {
       return kernel(
         'gpu_mandel',
         ns,
@@ -628,6 +660,7 @@ export function cpuKernel(name: GpuKernelName, ns: string, p: GpuKernelParams): 
           'ret',
         ],
       );
+    }
   }
 }
 

@@ -107,7 +107,9 @@ export interface GpuEngine {
 
 /** Whether two configs describe the same card (every field, not a chosen few), so a new field cannot silently keep the old core. */
 export function sameGpuConfig(a: GpuConfig | null, b: GpuConfig | null): boolean {
-  if (!a || !b) return a === b;
+  if (!a || !b) {
+    return a === b;
+  }
   const ra = { ...a, kind: a.kind ?? 'simd' } as unknown as Record<string, unknown>,
     rb = { ...b, kind: b.kind ?? 'simd' } as unknown as Record<string, unknown>;
   const ka = Object.keys(ra)

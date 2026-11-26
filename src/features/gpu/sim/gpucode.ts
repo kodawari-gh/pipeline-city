@@ -3,30 +3,32 @@
 // reference card, counting how often each instruction ran. Pure: no sim state, nothing is changed by looking.
 
 import { assembleGpu } from './isa/asm';
-import {
-  frameParams,
-  framesOf,
-  GPU_TASK_KERNELS,
-  gpuKernelSource,
-  KERNEL_LAYOUT,
-  PICTURE_LEN,
-  type GpuKernelName,
-} from './kernels';
+import * as kernels from './kernels';
 import { gpuDecode, gpuDisassemble } from './isa/isa';
 import { GpuRef } from './isa/ref';
 import type { CodeLine, OpClass } from '../../jobs/sim/jobcode';
 
 /** The kernel a job template runs on the card (`gpu.blur3` -> `blur3`), or null for a job that has none. */
-export const gpuKernelOf = (template: string): GpuKernelName | null =>
-  GPU_TASK_KERNELS.find((k) => template === `gpu.${k}`) ?? null;
+export const gpuKernelOf = (template: string): kernels.GpuKernelName | null =>
+  kernels.GPU_TASK_KERNELS.find((k) => template === `gpu.${k}`) ?? null;
 
 /** What a GPU instruction is for the listing's colours (the CPU's classes): the multiply, memory, mask and branch instructions stand out from plain arithmetic. */
 export function gpuOpClass(name: string): OpClass {
-  if (name === 'vld') return 'ld';
-  if (name === 'vst') return 'st';
-  if (name === 'vmul') return 'mul';
-  if (/^(mset|mpush|mpop|melse|bany|jmp)/.test(name)) return 'br';
-  if (name === 'bar' || name === 'halt') return 'sys';
+  if (name === 'vld') {
+    return 'ld';
+  }
+  if (name === 'vst') {
+    return 'st';
+  }
+  if (name === 'vmul') {
+    return 'mul';
+  }
+  if (/^(?:mset|mpush|mpop|melse|bany|jmp)/u.test(name)) {
+    return 'br';
+  }
+  if (name === 'bar' || name === 'halt') {
+    return 'sys';
+  }
   return 'alu';
 }
 
@@ -50,7 +52,9 @@ export function gpuListing(
     const i = gpuDecode(w);
     if (i && (i.name === 'bany' || i.name === 'jmp')) {
       const t = target(k, i.imm);
-      if (t >= 0 && t < 4 * words.length && !names.has(t)) names.set(t, [`L${t.toString(16)}`]);
+      if (t >= 0 && t < 4 * words.length && !names.has(t)) {
+        names.set(t, [`L${t.toString(16)}`]);
+      }
     }
   });
   return words.map((w, k) => {
@@ -58,7 +62,9 @@ export function gpuListing(
     let text = gpuDisassemble(w);
     if (i && (i.name === 'bany' || i.name === 'jmp')) {
       const t = names.get(target(k, i.imm));
-      if (t) text = `${i.name} ${t[0]}`;
+      if (t) {
+        text = `${i.name} ${t[0]}`;
+      }
     }
     return {
       addr: 4 * k,
@@ -73,7 +79,7 @@ export function gpuListing(
 
 /** One kernel for one lane count: its assembly, the listing with the counts of one frame, and what the frame did. */
 export interface GpuKernelProfile {
-  kernel: GpuKernelName;
+  kernel: kernels.GpuKernelName;
   lanes: number;
   /** The assembly source the generator wrote. */
   asm: string;
@@ -90,15 +96,23 @@ const cache = new Map<string, GpuKernelProfile | null>();
 /** Assemble the kernel of `template` for `lanes` lanes and run its first frame on the reference card, counting what each instruction does. Null when the job has no kernel. */
 export function gpuKernelProfile(template: string, lanes: number): GpuKernelProfile | null {
   const kernel = gpuKernelOf(template);
-  if (!kernel) return null;
+  if (!kernel) {
+    return null;
+  }
   const key = `${kernel}|${lanes}`;
-  if (cache.has(key)) return cache.get(key)!;
-  const asm = gpuKernelSource(kernel, { lanes, len: PICTURE_LEN });
+  if (cache.has(key)) {
+    return cache.get(key)!;
+  }
+  const asm = kernels.gpuKernelSource(kernel, { lanes, len: kernels.PICTURE_LEN });
   const { program, symbols } = assembleGpu(asm);
-  const ref = new GpuRef({ lanes, banks: Math.max(1, lanes >> 3), memBytes: KERNEL_LAYOUT.out + 4 * PICTURE_LEN + 64 });
-  ref.load(program, KERNEL_LAYOUT.code);
-  const f = frameParams(kernel, 0, 0, framesOf(1));
-  ref.load([f.phase, f.level], KERNEL_LAYOUT.param);
+  const ref = new GpuRef({
+    lanes,
+    banks: Math.max(1, lanes >> 3),
+    memBytes: kernels.KERNEL_LAYOUT.out + 4 * kernels.PICTURE_LEN + 64,
+  });
+  ref.load(program, kernels.KERNEL_LAYOUT.code);
+  const f = kernels.frameParams(kernel, 0, 0, kernels.framesOf(1));
+  ref.load([f.phase, f.level], kernels.KERNEL_LAYOUT.param);
   ref.reset(0, lanes);
   const counts = new Uint32Array(program.length),
     mix: Record<OpClass, number> = { alu: 0, ld: 0, st: 0, mul: 0, br: 0, sys: 0 };

@@ -1,16 +1,16 @@
 // The `simd` engine (gpu1): the reference interpreter's timing rule, one cycle at a time. An instruction issues on the first cycle of
-// its cost and the engine then waits out the rest (a conflicted vld / vst), so the totals equal `GpuRef.cycles`.
+// its cost and the engine then waits out the rest (a conflicted vld / vst), so the totals equal `gpuref.GpuRef.cycles`.
 
-import { GpuRef, type GpuStep } from '../isa/ref';
+import * as gpuref from '../isa/ref';
 import type { GpuEngine, SimdConfig } from './engine';
 
 export class SimdEngine implements GpuEngine {
-  private readonly ref: GpuRef;
+  private readonly ref: gpuref.GpuRef;
   private busy = 0;
   cycles = 0;
 
   constructor(cfg: SimdConfig) {
-    this.ref = new GpuRef(cfg);
+    this.ref = new gpuref.GpuRef(cfg);
   }
 
   get lanes(): number {
@@ -53,8 +53,10 @@ export class SimdEngine implements GpuEngine {
     this.cycles = 0;
   }
 
-  step(): GpuStep | null {
-    if (this.halted) return null;
+  step(): gpuref.GpuStep | null {
+    if (this.halted) {
+      return null;
+    }
     this.cycles++;
     if (this.busy > 0) {
       this.busy--;
