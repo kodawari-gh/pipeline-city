@@ -2,10 +2,29 @@ import { BoxGeometry, Mesh, SphereGeometry } from 'three';
 import { describe, expect, it } from 'vitest';
 import { DepthMap, Taut, arc, bake, convexHull } from './contact';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 const lowest = (g: BoxGeometry | SphereGeometry, axis: 0 | 1 | 2) => {
   g.computeBoundingBox();
-  return g.boundingBox!.min.getComponent(axis);
+  return must(g.boundingBox).min.getComponent(axis);
 };
+
+/** How many of the points are under the height `y`. */
+const countUnder = (p: { count: number; getY: (i: number) => number }, y: number) =>
+  Array.from({ length: p.count }, (_, i) => p.getY(i)).filter((v) => v < y).length;
+/** The points of a cloth line every `step` along it. */
+const samplesOf = (t: Taut, step: number) =>
+  Array.from({ length: Math.ceil(t.length / step) }, (_, k) => t.at(k * step));
+/** Whether a point is between the top's edge and the ledge of the step (x 10 to 30, kept clear of both). */
+const inGap = (p: { x: number }) => p.x > 10.5 && p.x < 29.5;
+/** Whether a point is the corner under the step (10, 40). */
+const isStepCorner = ([x, y]: readonly number[]) => x === 10 && y === 40;
 
 describe('contact', () => {
   it('sets a thing down on a flat face and on what is already there', () => {
@@ -42,18 +61,17 @@ describe('contact', () => {
     const ball = new SphereGeometry(300, 24, 16).translate(0, 300, 0);
     floor.settle(ball, -60);
     floor.conform(ball, 10);
-    const p = ball.attributes['position']!;
-    let min = Infinity,
-      flat = 0;
+    const p = must(ball.attributes['position']);
+    let min = Infinity;
     for (let i = 0; i < p.count; i++) {
       min = Math.min(min, p.getY(i));
-      if (p.getY(i) < 12) flat++;
     }
+    const flat = countUnder(p, 12);
     expect(min).toBeGreaterThanOrEqual(0);
     expect(flat).toBeGreaterThan(10);
     // the top is untouched
     ball.computeBoundingBox();
-    expect(ball.boundingBox!.max.y).toBeCloseTo(540, 0);
+    expect(must(ball.boundingBox).max.y).toBeCloseTo(540, 0);
   });
 
   it('moves a mesh into its geometry', () => {
@@ -62,7 +80,7 @@ describe('contact', () => {
     m.rotation.set(0, Math.PI / 2, 0);
     const g = bake(m);
     g.computeBoundingBox();
-    expect(g.boundingBox!.min.x).toBeCloseTo(95);
+    expect(must(g.boundingBox).min.x).toBeCloseTo(95);
     expect(m.position.x).toBe(0);
   });
 
@@ -75,12 +93,15 @@ describe('contact', () => {
     ] as const;
     const t = new Taut(box, [0, 50], [100, 0], 5);
     // from the top's edge (straight up by the offset), over the corner, down the side to its foot
-    expect(t.at(0)).toMatchObject({ x: expect.closeTo(0, 3), y: expect.closeTo(55, 3) });
+    const start = t.at(0);
+    expect(start.x).toBeCloseTo(0, 3);
+    expect(start.y).toBeCloseTo(55, 3);
     const end = t.at(t.length);
     expect(end.x).toBeCloseTo(105, 0);
     expect(end.y).toBeCloseTo(0, 0);
     // halfway down the side it is out by the offset, its normal straight out
-    const mid = t.at(t.length - 25);
+    const sideMid = t.length - 25,
+      mid = t.at(sideMid);
     expect(mid.x).toBeCloseTo(105, 0);
     expect(mid.nx).toBeCloseTo(1, 1);
     // past the end it runs on straight down
@@ -98,10 +119,9 @@ describe('contact', () => {
     ];
     const t = new Taut(pts, [0, 100], [30, 0], 0);
     // between the top's edge and the ledge it runs on the straight line from one to the other, never down into the corner
-    for (let s = 0; s < t.length; s += 2) {
-      const p = t.at(s);
-      if (p.x > 10.5 && p.x < 29.5) expect(p.y).toBeGreaterThan(90 - (p.x - 10) * 2.5 - 0.5);
+    for (const p of samplesOf(t, 2).filter((q) => inGap(q))) {
+      expect(p.y).toBeGreaterThan(90 - (p.x - 10) * 2.5 - 0.5);
     }
-    expect(convexHull(pts).some(([x, y]) => x === 10 && y === 40)).toBe(false);
+    expect(convexHull(pts).some((q) => isStepCorner(q))).toBe(false);
   });
 });

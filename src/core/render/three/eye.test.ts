@@ -16,8 +16,11 @@ function run(e: Eye, lum: number, ticks: number): number {
   let rest = -1;
   for (let n = 0; n < ticks; n++) {
     e.step(DT);
-    if (e.moving) rest = -1;
-    else if (rest < 0) rest = n;
+    if (e.moving) {
+      rest = -1;
+    } else if (rest < 0) {
+      rest = n;
+    }
     e.read(reading(lum, e, n));
   }
   return rest;
@@ -60,8 +63,7 @@ describe('Eye', () => {
   it('a held eye stays where it stands: a lens that darkens the picture on purpose must not be lifted back', () => {
     const e = new Eye(KEY, RANGE);
     run(e, 0.05, 300);
-    const goal = e.goal,
-      seen = e.seen;
+    const { goal, seen } = e;
     e.hold(true);
     expect(e.holding).toBe(true);
     // (a picture 25 times darker would lift the exposure to its limit)
@@ -74,7 +76,7 @@ describe('Eye', () => {
   it('drops the first readings after the hold, which are of the darkened picture, then reads again', () => {
     const e = new Eye(KEY, RANGE);
     e.read(0.05);
-    const goal = e.goal;
+    const { goal } = e;
     e.hold(true);
     e.hold(false);
     // (the readings in flight when the lens went off: the dark picture's)

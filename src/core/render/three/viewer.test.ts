@@ -1,53 +1,57 @@
 // The showcase viewer's first picture of a part (docs/render/load.md "The Gallery's first open"): its programs link before the draw, the page
 // alive; nothing is drawn until they have, a new part or a restored context waits again, and the first use of the programs comes before the draw.
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BoxGeometry, Mesh, MeshStandardMaterial } from 'three';
+import { mountViewer } from './viewer';
+import type * as viewerTypes from './viewer';
+import type * as initTypes from './init';
 
 const rig = vi.hoisted(() => ({
   ready: false,
   depthReady: true,
-  render: vi.fn(),
-  started: vi.fn(),
-  depth: vi.fn(),
-  used: vi.fn(),
+  render: vi.fn<() => void>(),
+  started: vi.fn<(...a: unknown[]) => void>(),
+  depth: vi.fn<(...a: unknown[]) => void>(),
+  used: vi.fn<() => void>(),
   restored: null as null | (() => void),
   frame: null as null | ((now: number) => void),
 }));
 
-vi.mock('three', async (orig) => {
-  const actual = await orig<typeof import('three')>();
+// (the renderer and the light probe are stand-ins with only the parts the viewer reaches, not three's classes: the module type is left open)
+vi.mock<object>(import('three'), async (orig) => {
+  const actual = await orig();
   class WebGLRenderer {
     domElement = {
-      style: { setProperty() {} },
+      style: { setProperty: noop },
       width: 400,
       height: 300,
       addEventListener: (k: string, f: () => void) => {
-        if (k === 'webglcontextrestored') rig.restored = f;
+        if (k === 'webglcontextrestored') {
+          rig.restored = f;
+        }
       },
-      removeEventListener() {},
+      removeEventListener: noop,
     };
     shadowMap = { enabled: false, type: 0 };
     outputColorSpace = '';
     toneMapping = 0;
     toneMappingExposure = 1;
-    setPixelRatio() {}
-    setSize() {}
+    setPixelRatio = noop;
+    setSize = noop;
     render = rig.render;
   }
-  class PMREMGenerator {
-    dispose() {}
-  }
+  const PMREMGenerator = vi.fn<typeof pmremStandIn>(pmremStandIn);
   return { ...actual, WebGLRenderer, PMREMGenerator };
 });
-vi.mock('./init', async (orig) => ({
-  ...(await orig<typeof import('./init')>()),
-  studioEnv: () => null,
-  restoreStudioEnv() {},
-  trackRender() {},
-  disposeRenderContext() {},
+vi.mock(import('./init'), async (orig) => ({
+  ...(await orig()),
+  studioEnv: vi.fn<typeof initTypes.studioEnv>(),
+  restoreStudioEnv: vi.fn<typeof initTypes.restoreStudioEnv>(),
+  trackRender: vi.fn<typeof initTypes.trackRender>(),
+  disposeRenderContext: vi.fn<typeof initTypes.disposeRenderContext>(),
 }));
-vi.mock('./compile', async (orig) => ({
-  ...(await orig<typeof import('./compile')>()),
+vi.mock(import('./compile'), async (orig) => ({
+  ...(await orig()),
   /** One program that links when the test says so, and counts its first use. */
   startPrograms: (...a: unknown[]) => {
     rig.started(...a);
@@ -60,17 +64,39 @@ vi.mock('./compile', async (orig) => ({
   },
 }));
 
-import { mountViewer, type Viewer } from './viewer';
+/** A stand-in that does nothing. */
+function noop(): void {
+  // (nothing to do)
+}
+/** The light probe's stand-in, made with `new` as the class is. */
+function pmremStandIn(): { dispose: () => void } {
+  return { dispose: noop };
+}
+const isElement = (x: unknown): x is HTMLElement => typeof x === 'object' && x !== null && 'appendChild' in x;
+/** The viewer's host element: one that takes the canvas, 400 by 300. */
+function host(): HTMLElement {
+  const el: unknown = { appendChild: noop, clientWidth: 400, clientHeight: 300 };
+  assert(isElement(el));
+  return el;
+}
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
 
 const TICK = 17; // ms; a little over 1/60 s, so the frame gate lets every tick pass
 const part = () => new Mesh(new BoxGeometry(10, 10, 10), new MeshStandardMaterial());
 
 describe('mountViewer, the first picture of a part', () => {
-  let viewer: Viewer, clock: number;
+  let viewer: viewerTypes.Viewer, clock: number;
   const tick = (n = 1) => {
     for (let i = 0; i < n; i++) {
       clock += TICK;
-      rig.frame!(clock);
+      must(rig.frame)(clock);
     }
   };
 
@@ -90,15 +116,15 @@ describe('mountViewer, the first picture of a part', () => {
       createElement: () => ({
         width: 0,
         height: 0,
-        getContext: () => ({ createRadialGradient: () => ({ addColorStop() {} }), fillRect() {} }),
+        getContext: () => ({ createRadialGradient: () => ({ addColorStop: noop }), fillRect: noop }),
       }),
     });
     vi.stubGlobal('requestAnimationFrame', (f: (now: number) => void) => {
       rig.frame = f;
       return 1;
     });
-    vi.stubGlobal('cancelAnimationFrame', () => {});
-    viewer = mountViewer({ appendChild() {}, clientWidth: 400, clientHeight: 300 } as unknown as HTMLElement);
+    vi.stubGlobal('cancelAnimationFrame', noop);
+    viewer = mountViewer(host());
     viewer.setObject(part());
   });
   afterEach(() => {
@@ -110,13 +136,13 @@ describe('mountViewer, the first picture of a part', () => {
   it('draws nothing while the programs link, starts them once, and draws when they have linked', () => {
     tick(30);
     expect(rig.render).not.toHaveBeenCalled();
-    expect(rig.started).toHaveBeenCalledTimes(1);
+    expect(rig.started).toHaveBeenCalledOnce();
     rig.ready = true;
     tick(1);
-    expect(rig.render).toHaveBeenCalledTimes(1);
-    expect(rig.started).toHaveBeenCalledTimes(1);
+    expect(rig.render).toHaveBeenCalledOnce();
+    expect(rig.started).toHaveBeenCalledOnce();
     // (the viewer draws to the canvas, tone mapped: the programs are made for that, or the draw would link its own)
-    expect(rig.started.mock.calls[0]![3]).toEqual({ toCanvas: true });
+    expect(must(rig.started.mock.calls[0])[3]).toStrictEqual({ toCanvas: true });
   });
 
   it('waits for the depth programs of the shadows too, started with the same scene (the key light casts)', () => {
@@ -124,11 +150,11 @@ describe('mountViewer, the first picture of a part', () => {
     rig.depthReady = false;
     tick(10);
     expect(rig.render).not.toHaveBeenCalled();
-    expect(rig.depth).toHaveBeenCalledTimes(1);
-    expect(rig.depth.mock.calls[0]![1]).toBe(rig.started.mock.calls[0]![1]);
+    expect(rig.depth).toHaveBeenCalledOnce();
+    expect(must(rig.depth.mock.calls[0])[1]).toBe(must(rig.started.mock.calls[0])[1]);
     rig.depthReady = true;
     tick(1);
-    expect(rig.render).toHaveBeenCalledTimes(1);
+    expect(rig.render).toHaveBeenCalledOnce();
   });
 
   it('makes the first use of the programs only once they have linked, and before the draw (no upload is queued then)', () => {
@@ -136,28 +162,28 @@ describe('mountViewer, the first picture of a part', () => {
     expect(rig.used).not.toHaveBeenCalled(); // (a first use of a program that links still would wait for its link)
     rig.ready = true;
     tick(1);
-    expect(rig.used).toHaveBeenCalledTimes(1);
-    expect(rig.used.mock.invocationCallOrder[0]).toBeLessThan(rig.render.mock.invocationCallOrder[0]!);
+    expect(rig.used).toHaveBeenCalledOnce();
+    expect(rig.used.mock.invocationCallOrder[0]).toBeLessThan(must(rig.render.mock.invocationCallOrder[0]));
   });
 
   it('draws at the first tick when the programs have linked already (the driver kept them)', () => {
     rig.ready = true;
     tick(1);
-    expect(rig.render).toHaveBeenCalledTimes(1);
+    expect(rig.render).toHaveBeenCalledOnce();
   });
 
   it('draws anyway when the link takes too long, and the page is not held for ever', () => {
     tick(5);
     expect(rig.render).not.toHaveBeenCalled();
-    clock += 16000;
+    clock += 16_000;
     tick(1);
-    expect(rig.render).toHaveBeenCalledTimes(1);
+    expect(rig.render).toHaveBeenCalledOnce();
   });
 
   it('a new part waits for its programs again', () => {
     rig.ready = true;
     tick(2);
-    expect(rig.started).toHaveBeenCalledTimes(1);
+    expect(rig.started).toHaveBeenCalledOnce();
     rig.ready = false;
     viewer.setObject(part());
     rig.render.mockClear();
@@ -166,21 +192,21 @@ describe('mountViewer, the first picture of a part', () => {
     expect(rig.render).not.toHaveBeenCalled();
     rig.ready = true;
     tick(1);
-    expect(rig.render).toHaveBeenCalledTimes(1);
+    expect(rig.render).toHaveBeenCalledOnce();
   });
 
   it('a restored context starts the programs again: the old ones are gone with the old context', () => {
     rig.ready = true;
     tick(2);
-    expect(rig.started).toHaveBeenCalledTimes(1);
+    expect(rig.started).toHaveBeenCalledOnce();
     rig.ready = false;
-    rig.restored!();
+    must(rig.restored)();
     rig.render.mockClear();
     tick(20);
     expect(rig.started).toHaveBeenCalledTimes(2);
     expect(rig.render).not.toHaveBeenCalled();
     rig.ready = true;
     tick(1);
-    expect(rig.render).toHaveBeenCalledTimes(1);
+    expect(rig.render).toHaveBeenCalledOnce();
   });
 });

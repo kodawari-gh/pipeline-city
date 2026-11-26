@@ -14,8 +14,9 @@ describe("the area lights' loop", () => {
   });
 
   it('leaves the other lights unrolled: their shadow maps need a constant index', () => {
-    for (const n of ['NUM_POINT_LIGHTS', 'NUM_SPOT_LIGHTS', 'NUM_DIR_LIGHTS'])
-      expect(chunk).toMatch(new RegExp(`#pragma unroll_loop_start\\s+for \\( int i = 0; i < ${n}`));
-    expect(chunk.split('unroll_loop_start').length).toBe(chunk.split('unroll_loop_end').length);
+    for (const n of ['NUM_POINT_LIGHTS', 'NUM_SPOT_LIGHTS', 'NUM_DIR_LIGHTS']) {
+      expect(chunk).toMatch(new RegExp(`#pragma unroll_loop_start\\s+for \\( int i = 0; i < ${n}`, 'u'));
+    }
+    expect(chunk.split('unroll_loop_start')).toHaveLength(chunk.split('unroll_loop_end').length);
   });
 });

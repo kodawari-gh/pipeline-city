@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
 import type { V3 } from './rope';
+import type * as threeTypes from 'three';
 import { Sleeve } from './sleeve';
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
 
 const arc = (n: number, R: number, z = 0): V3[] =>
   Array.from({ length: n }, (_, i) => {
@@ -9,35 +18,45 @@ const arc = (n: number, R: number, z = 0): V3[] =>
     return [R * Math.cos(t), R * Math.sin(t), z];
   });
 
+/** Each triangle that has an area: its face normal (by its winding, not of unit length), the sum of its corners' normals, and its number. */
+function facesOf(g: threeTypes.BufferGeometry): { face: Vector3; normals: Vector3; k: number }[] {
+  const pos = g.getAttribute('position'),
+    nrm = g.getAttribute('normal'),
+    idx = must(g.index);
+  const P = (i: number) => new Vector3().fromBufferAttribute(pos, i),
+    N = (i: number) => new Vector3().fromBufferAttribute(nrm, i);
+  const out: { face: Vector3; normals: Vector3; k: number }[] = [];
+  for (let t = 0; t < idx.count; t += 3) {
+    const a = idx.getX(t),
+      b = idx.getX(t + 1),
+      c = idx.getX(t + 2);
+    const face = P(b)
+      .sub(P(a))
+      .cross(P(c).sub(P(a)));
+    if (face.lengthSq() >= 1e-9) {
+      out.push({ face, normals: N(a).add(N(b)).add(N(c)), k: t / 3 });
+    }
+  }
+  return out;
+}
+
 describe('Sleeve', () => {
   it('keeps its vertex count over updates', () => {
     const sl = new Sleeve(2, 10, 20, 8),
-      count = sl.geometry.getAttribute('position').count;
+      { count } = sl.geometry.getAttribute('position');
     // the rings, then two caps a strand (a centre and a ring each)
     expect(count).toBe(2 * 21 * 9 + 2 * 2 * 10);
     sl.update([arc(6, 200), arc(9, 300, 50)]);
     sl.update([arc(12, 150), arc(4, 100)]);
     expect(sl.geometry.getAttribute('position').count).toBe(count);
-    expect(sl.geometry.index!.count).toBe(2 * 20 * 8 * 6 + 2 * 2 * 8 * 3);
+    expect(must(sl.geometry.index).count).toBe(2 * 20 * 8 * 6 + 2 * 2 * 8 * 3);
   });
 
   it('faces every triangle out, the way its normals point (the far wall never shows through)', () => {
     const sl = new Sleeve(1, 12, 24, 10);
     sl.update([arc(16, 300)]);
-    const pos = sl.geometry.getAttribute('position'),
-      nrm = sl.geometry.getAttribute('normal'),
-      idx = sl.geometry.index!;
-    const P = (i: number) => new Vector3().fromBufferAttribute(pos, i),
-      N = (i: number) => new Vector3().fromBufferAttribute(nrm, i);
-    for (let t = 0; t < idx.count; t += 3) {
-      const a = idx.getX(t),
-        b = idx.getX(t + 1),
-        c = idx.getX(t + 2);
-      const face = P(b)
-        .sub(P(a))
-        .cross(P(c).sub(P(a)));
-      if (face.lengthSq() < 1e-9) continue;
-      expect(face.dot(N(a).add(N(b)).add(N(c))), `triangle ${t / 3}`).toBeGreaterThan(0);
+    for (const { face, normals, k } of facesOf(sl.geometry)) {
+      expect(face.dot(normals), `triangle ${k}`).toBeGreaterThan(0);
     }
   });
 
@@ -55,12 +74,13 @@ describe('Sleeve', () => {
     for (const [e, x, nx] of [
       [0, 0, -1],
       [1, 500, 1],
-    ] as const)
+    ] as const) {
       for (let j = 0; j < 8; j++) {
         const v = caps + e * 8 + j;
         expect(pos.getX(v)).toBeCloseTo(x, 3);
         expect(nrm.getX(v)).toBeCloseTo(nx, 6);
       }
+    }
   });
 
   it('keeps a long straight lead straight into short segments, with no hook past it', () => {

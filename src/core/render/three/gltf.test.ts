@@ -1,12 +1,27 @@
-// @ts-ignore
-import * as fsMod from 'node:fs';
-import { describe, expect, it, vi } from 'vitest';
-import { BoxGeometry, Box3, Group, Mesh, MeshBasicMaterial, Texture, Vector3, type MeshStandardMaterial } from 'three';
+import { assert, describe, expect, it, vi } from 'vitest';
+import { BoxGeometry, Box3, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, Texture, Vector3 } from 'three';
+import type * as threeTypes from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import type { Program } from './compile';
-import { fitModel, joinModel, ktx2Support, loadModel, modelsIn, warmLateModels, type Ktx2 } from './gltf';
+import { fitModel, joinModel, ktx2Support, loadModel, modelsIn, warmLateModels } from './gltf';
+import type * as gltfTypes from './gltf';
 
-const fs = fsMod as any;
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+/** A file's bytes, as far as this test compares them. */
+interface FileBytes {
+  equals: (other: FileBytes) => boolean;
+}
+/** The part of `node:fs` this test reads with. */
+interface NodeFs {
+  readFileSync: (path: string) => FileBytes;
+}
+const fs = await vi.importActual<NodeFs>('node:fs');
 // (three's file loader tells its progress with a browser event that Node does not have)
 vi.stubGlobal(
   'ProgressEvent',
@@ -20,7 +35,9 @@ vi.stubGlobal(
   },
 );
 // (and it reads `self.URL` for an image inside the file)
-if (typeof self === 'undefined') vi.stubGlobal('self', globalThis);
+if (typeof self === 'undefined') {
+  vi.stubGlobal('self', globalThis);
+}
 
 /**
  * A .glb of one triangle (the smallest model the loader reads): a header, a JSON chunk and a binary chunk. `more`: more of the JSON (a
@@ -42,15 +59,15 @@ const glb = (more: Record<string, unknown> = {}, material = false): ArrayBuffer 
   const text = new TextEncoder().encode(json + ' '.repeat((4 - (json.length % 4)) % 4));
   const out = new ArrayBuffer(12 + 8 + text.length + 8 + bin.length),
     v = new DataView(out);
-  v.setUint32(0, 0x46546c67, true);
+  v.setUint32(0, 0x46_54_6c_67, true);
   v.setUint32(4, 2, true);
   v.setUint32(8, out.byteLength, true);
   v.setUint32(12, text.length, true);
-  v.setUint32(16, 0x4e4f534a, true);
+  v.setUint32(16, 0x4e_4f_53_4a, true);
   new Uint8Array(out, 20, text.length).set(text);
   const o = 20 + text.length;
   v.setUint32(o, bin.length, true);
-  v.setUint32(o + 4, 0x004e4942, true);
+  v.setUint32(o + 4, 0x00_4e_49_42, true);
   new Uint8Array(out, o + 8, bin.length).set(bin);
   return out;
 };
@@ -68,16 +85,60 @@ const WITH_KTX2 = glb(
 );
 /** The model as a url the loader can fetch with no server; `tag` makes it a model of its own (the cache is by url). */
 const urlOf = (model: ArrayBuffer, tag: string): string =>
-  `data:model/gltf-binary;name=${tag};base64,${btoa(String.fromCharCode(...new Uint8Array(model)))}`;
-/** A stand-in for three's `KTX2Loader` (it needs a worker and the wasm transcoder): it gives `tex`, or fails. */
-const fakeKtx2 = (tex: Texture | null, asked: string[] = []): Ktx2 =>
-  ({
-    load(url: string, onLoad: (t: Texture) => void, _p: unknown, onError: (e: unknown) => void) {
+  `data:model/gltf-binary;name=${tag};base64,${btoa(String.fromCodePoint(...new Uint8Array(model)))}`;
+/** A KTX2 loader as far as the glTF loader uses one (it loads each image through `load`). */
+const isKtx2 = (x: unknown): x is NonNullable<gltfTypes.Ktx2> => typeof x === 'object' && x !== null && 'load' in x;
+/** A stand-in for three's `KTX2Loader` (it needs a worker and the wasm transcoder) that gives `tex`, noting each url asked. */
+const fakeKtx2 = (tex: Texture, asked: string[] = []): NonNullable<gltfTypes.Ktx2> => {
+  const loader = {
+    load: (url: string, onLoad: (t: Texture) => void) => {
       asked.push(url);
-      if (tex) onLoad(tex);
-      else onError(new Error('no transcoder'));
+      onLoad(tex);
     },
-  }) as unknown as Ktx2;
+  };
+  assert(isKtx2(loader));
+  return loader;
+};
+/** A stand-in for three's `KTX2Loader` that fails every image (the glTF loader calls `load` inside a promise: a throw rejects it). */
+const brokenKtx2 = (): NonNullable<gltfTypes.Ktx2> => {
+  const loader = {
+    load: () => {
+      throw new Error('no transcoder');
+    },
+  };
+  assert(isKtx2(loader));
+  return loader;
+};
+/** Runs `then` once `p` settles to a value (as a user of the model would). */
+const after = async (p: Promise<unknown>, then: (v: unknown) => void) => {
+  then(await p);
+};
+
+/** A late model with its parent in a scene, and a warm-up whose programs link when `up.on` is set. */
+const joinRig = () => {
+  const up = { on: false },
+    scene = new Group(),
+    parent = new Group(),
+    model = new Mesh(new BoxGeometry(1, 1, 1), new MeshBasicMaterial());
+  scene.add(parent);
+  const order: string[] = [],
+    start = vi.fn<gltfTypes.WarmModel>(() => {
+      order.push('warm');
+      return [{ isReady: () => up.on }];
+    });
+  return { up, scene, parent, model, order, start };
+};
+
+/** The base colour map of the (last) standard mesh under `o`. */
+const mapOf = (o: threeTypes.Object3D): Texture | null => {
+  let map: Texture | null = null;
+  o.traverse((c) => {
+    if (c instanceof Mesh && c.material instanceof MeshStandardMaterial) {
+      ({ map } = c.material);
+    }
+  });
+  return map;
+};
 
 describe('glTF models', () => {
   it('fitModel scales evenly into the rect and the depth, and centres on the rect', () => {
@@ -115,15 +176,15 @@ describe('glTF models', () => {
 describe('modelsIn (the boot waits for the models its scene asked for)', () => {
   it('waits until the users of the models have them', async () => {
     const used: string[] = [];
-    void loadModel(urlOf(TRIANGLE, 'wait-a')).then(() => {
+    void after(loadModel(urlOf(TRIANGLE, 'wait-a')), () => {
       used.push('a');
     });
-    void loadModel(urlOf(TRIANGLE, 'wait-b')).then(() => {
+    void after(loadModel(urlOf(TRIANGLE, 'wait-b')), () => {
       used.push('b');
     });
-    expect(used).toEqual([]);
+    expect(used).toStrictEqual([]);
     await modelsIn();
-    expect(used.sort()).toEqual(['a', 'b']);
+    expect(used.toSorted()).toStrictEqual(['a', 'b']);
   });
 
   it('is done at once when no load is under way', async () => {
@@ -132,75 +193,68 @@ describe('modelsIn (the boot waits for the models its scene asked for)', () => {
   });
 
   it('holds a model back until `until` settles (a build that must not see it), and modelsIn waits for it too', async () => {
-    let open = () => {};
-    const until = new Promise<void>((done) => {
-      open = done;
-    });
+    const { promise: until, resolve: open } = Promise.withResolvers<boolean>();
     let got: unknown = 'none';
-    void loadModel(urlOf(TRIANGLE, 'held'), until).then((m) => {
+    void after(loadModel(urlOf(TRIANGLE, 'held'), until), (m) => {
       got = m;
     });
-    await new Promise((done) => setTimeout(done, 50));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 50);
+    });
     expect(got).toBe('none');
-    open();
+    open(true);
     await modelsIn();
     expect(got).not.toBe('none');
     expect(got).not.toBeNull();
   });
 
   it('gives up after its time on a slow model, which still reaches its user later', async () => {
-    const real = globalThis.fetch;
-    let arrive = () => {};
-    globalThis.fetch = (() =>
-      new Promise<Response>((done) => {
-        arrive = () => done(new Response(TRIANGLE));
-      })) as typeof fetch;
+    const { promise: slow, resolve: arrive } = Promise.withResolvers<Response>();
+    const fetched = vi.spyOn(globalThis, 'fetch').mockReturnValue(slow);
     try {
       let used = false;
-      void loadModel('http://localhost/slow-model.glb').then(() => {
+      void after(loadModel('http://localhost/slow-model.glb'), () => {
         used = true;
       });
       await modelsIn(20);
       expect(used).toBe(false);
-      arrive();
+      arrive(new Response(TRIANGLE));
       await modelsIn();
       expect(used).toBe(true);
     } finally {
-      globalThis.fetch = real;
+      fetched.mockRestore();
     }
   });
 });
 
 describe('joinModel (a model that comes in late links its programs while it is hidden)', () => {
-  /** A program that links when `up.on` is set. */
-  const rig = () => {
-    const up = { on: false },
-      scene = new Group(),
-      parent = new Group(),
-      model = new Mesh(new BoxGeometry(1, 1, 1), new MeshBasicMaterial());
-    scene.add(parent);
-    const order: string[] = [],
-      start = vi.fn((_m: unknown, _p: unknown) => {
-        order.push('warm');
-        return [{ isReady: () => up.on }] as Program[];
-      });
-    return { up, scene, parent, model, order, start };
-  };
+  const rig = joinRig;
 
   it('joins and shows at once in a scene that holds nothing, prepare first', () => {
     const { parent, model, order } = rig();
-    joinModel(parent, model, { prepare: () => order.push('prepare'), shown: () => order.push('shown') });
+    joinModel(parent, model, {
+      prepare: () => {
+        order.push('prepare');
+      },
+      shown: () => {
+        order.push('shown');
+      },
+    });
     expect(model.parent).toBe(parent);
     expect(model.visible).toBe(true);
-    expect(order).toEqual(['prepare', 'shown']);
+    expect(order).toStrictEqual(['prepare', 'shown']);
   });
 
   it('joins and shows at once while the scene has not started its programs (its batch takes the model)', () => {
     const { scene, parent, model, order } = rig();
     warmLateModels(scene, () => null);
-    joinModel(parent, model, { shown: () => order.push('shown') });
+    joinModel(parent, model, {
+      shown: () => {
+        order.push('shown');
+      },
+    });
     expect(model.visible).toBe(true);
-    expect(order).toEqual(['shown']);
+    expect(order).toStrictEqual(['shown']);
   });
 
   it('holds the model hidden until its programs have linked, warms it after prepare, and shows it then', () => {
@@ -208,20 +262,27 @@ describe('joinModel (a model that comes in late links its programs while it is h
     try {
       const { up, scene, parent, model, order, start } = rig();
       warmLateModels(scene, start);
-      joinModel(parent, model, { prepare: () => order.push('prepare'), shown: () => order.push('shown') });
+      joinModel(parent, model, {
+        prepare: () => {
+          order.push('prepare');
+        },
+        shown: () => {
+          order.push('shown');
+        },
+      });
       expect(start).toHaveBeenCalledWith(model, parent);
-      expect(order).toEqual(['prepare', 'warm']);
+      expect(order).toStrictEqual(['prepare', 'warm']);
       expect(model.parent).toBe(parent);
       expect(model.visible).toBe(false);
       vi.advanceTimersByTime(200);
       expect(model.visible).toBe(false);
-      expect(order).toEqual(['prepare', 'warm']);
+      expect(order).toStrictEqual(['prepare', 'warm']);
       up.on = true;
       vi.advanceTimersByTime(40);
       expect(model.visible).toBe(true);
-      expect(order).toEqual(['prepare', 'warm', 'shown']);
+      expect(order).toStrictEqual(['prepare', 'warm', 'shown']);
       vi.advanceTimersByTime(200);
-      expect(order).toEqual(['prepare', 'warm', 'shown']); // (once)
+      expect(order).toStrictEqual(['prepare', 'warm', 'shown']); // (once)
     } finally {
       vi.useRealTimers();
     }
@@ -248,11 +309,16 @@ describe('joinModel (a model that comes in late links its programs while it is h
       const { up, scene, parent, model, order, start } = rig();
       let alive = true;
       warmLateModels(scene, start);
-      joinModel(parent, model, { shown: () => order.push('shown'), alive: () => alive });
+      joinModel(parent, model, {
+        shown: () => {
+          order.push('shown');
+        },
+        alive: () => alive,
+      });
       alive = false;
       up.on = true;
       vi.advanceTimersByTime(200);
-      expect(order).toEqual(['warm']);
+      expect(order).toStrictEqual(['warm']);
       expect(model.visible).toBe(false);
       expect(vi.getTimerCount()).toBe(0);
     } finally {
@@ -262,50 +328,43 @@ describe('joinModel (a model that comes in late links its programs while it is h
 });
 
 describe('KTX2 textures in a model (KTX1)', () => {
-  const mapOf = (o: { traverse(f: (c: unknown) => void): void }): Texture | null => {
-    let map: Texture | null = null;
-    o.traverse((c) => {
-      const m = c as Mesh;
-      if (m.isMesh) map = (m.material as MeshStandardMaterial).map;
-    });
-    return map;
-  };
-
   it('a model with a KTX2 texture loads through the KTX2 loader', async () => {
     const tex = new Texture(),
       asked: string[] = [];
-    await ktx2Support(null, () => Promise.resolve(fakeKtx2(tex, asked)));
+    await ktx2Support(null, vi.fn<() => Promise<gltfTypes.Ktx2>>().mockResolvedValue(fakeKtx2(tex, asked)));
     const m = await loadModel(urlOf(WITH_KTX2, 'ok'));
     expect(m).not.toBeNull();
-    expect(asked.length).toBe(1);
-    expect(asked[0]).toMatch(/skin\.ktx2$/);
-    expect(mapOf(m!)).toBe(tex);
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toMatch(/skin\.ktx2$/u);
+    expect(mapOf(must(m))).toBe(tex);
   });
 
   it('a model without KTX2 loads as before', async () => {
     const m = await loadModel(urlOf(TRIANGLE, 'plain'));
     expect(m).not.toBeNull();
-    expect(new Box3().setFromObject(m!).max.y).toBeCloseTo(4);
+    expect(new Box3().setFromObject(must(m)).max.y).toBeCloseTo(4);
   });
 
   it('a KTX2 texture that fails gives no model (the primitives stay) and no throw', async () => {
-    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
-    await ktx2Support(null, () => Promise.resolve(fakeKtx2(null)));
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {
+      /* no-op */
+    });
+    await ktx2Support(null, vi.fn<() => Promise<gltfTypes.Ktx2>>().mockResolvedValue(brokenKtx2()));
     await expect(loadModel(urlOf(WITH_KTX2, 'broken'))).resolves.toBeNull();
     quiet.mockRestore();
   });
 
   it('a KTX2 loader that cannot be made leaves the plain loads working', async () => {
-    await expect(ktx2Support(null, () => Promise.reject(new Error('no chunk')))).resolves.toBeUndefined();
-    expect(await loadModel(urlOf(TRIANGLE, 'after'))).not.toBeNull();
+    const make = vi.fn<() => Promise<gltfTypes.Ktx2>>().mockRejectedValue(new Error('no chunk'));
+    await expect(ktx2Support(null, make)).resolves.toBeUndefined();
+    await expect(loadModel(urlOf(TRIANGLE, 'after'))).resolves.not.toBeNull();
   });
 
   it("the served transcoder is three's own (public/basis/ is a copy: copy it again after a three upgrade)", () => {
     for (const f of ['basis_transcoder.js', 'basis_transcoder.wasm']) {
-      expect(
-        fs.readFileSync(`public/basis/${f}`).equals(fs.readFileSync(`node_modules/three/examples/jsm/libs/basis/${f}`)),
-        f,
-      ).toBe(true);
+      const served = fs.readFileSync(`public/basis/${f}`),
+        own = fs.readFileSync(`node_modules/three/examples/jsm/libs/basis/${f}`);
+      expect(served.equals(own), `${f} is three's own`).toBe(true);
     }
   });
 });

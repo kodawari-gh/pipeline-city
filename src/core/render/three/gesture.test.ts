@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { LOCK_PX, TURN, turnOf, twoMove, twoStart, wheelZoom, type Two } from './gesture';
+import { LOCK_PX, TURN, turnOf, twoMove, twoStart, wheelZoom } from './gesture';
+import type * as gestureTypes from './gesture';
 
 describe('wheelZoom', () => {
   it('goes out for a wheel down and in for a wheel up', () => {
@@ -11,7 +12,7 @@ describe('wheelZoom', () => {
     expect(wheelZoom({ deltaY: 1, deltaMode: 1, ctrlKey: false })).toBeCloseTo(px, 10);
   });
   it('caps one event, so a fast wheel never jumps the whole way', () => {
-    const k = wheelZoom({ deltaY: 100000, deltaMode: 0, ctrlKey: false });
+    const k = wheelZoom({ deltaY: 100_000, deltaMode: 0, ctrlKey: false });
     expect(k).toBeCloseTo(Math.exp(300 * 0.0018), 10);
     expect(wheelZoom({ deltaY: 5000, deltaMode: 2, ctrlKey: false })).toBe(k);
   });
@@ -54,7 +55,7 @@ describe('two fingers', () => {
     expect(move.zoom).toBeCloseTo(0.5, 10); // the span doubled: the height shown halves
     expect(move.dx).toBeCloseTo(0, 10);
     expect(move.twist).toBeCloseTo(0, 10);
-    expect(move.at).toEqual({ x: 150, y: 200 }); // about where they were
+    expect(move.at).toStrictEqual({ x: 150, y: 200 }); // about where they were
     const back = twoMove(twoStart(A, B), { x: 125, y: 200 }, { x: 175, y: 200 });
     expect(back.move.zoom).toBeCloseTo(2, 10);
   });
@@ -90,7 +91,7 @@ describe('two fingers', () => {
   });
 
   it('takes the short way round for a twist across the half turn', () => {
-    const s: Two = {
+    const s: gestureTypes.Two = {
       a0: { x: 200, y: 200 },
       b0: { x: 100, y: 201 },
       kind: 'pinch',
@@ -113,15 +114,15 @@ describe('two fingers', () => {
   });
 
   it('a finger at rest while the other goes round it is a pinch, once the mover has been heard enough', () => {
-    let s = twoStart(A, B),
-      kind: string | null = null;
+    let s = twoStart(A, B);
+    const kinds: (string | null)[] = [];
     for (let i = 1; i <= 6; i++) {
       const r = twoMove(s, A, { x: 200 + 4 * i, y: 200 }, 1);
       s = r.two;
-      kind = r.move.kind;
-      if (i < 3) expect(kind).toBeNull(); // (its travel is under the lock, or the other finger is not heard)
+      kinds.push(r.move.kind);
     }
-    expect(kind).toBe('pinch');
+    expect(kinds.slice(0, 2)).toStrictEqual([null, null]); // (its travel is under the lock, or the other finger is not heard)
+    expect(kinds.at(-1)).toBe('pinch');
   });
 
   it('does not divide by a span of nothing', () => {

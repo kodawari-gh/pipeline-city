@@ -1,9 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { Container, Graphics } from 'pixi.js';
-
-// Text needs a canvas, which the tests do not have: labels are empty containers here (as in art.test.ts).
-vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), label: () => new Container() }));
-
+import { assert, describe, expect, it, vi } from 'vitest';
+import { Graphics } from 'pixi.js';
 import { cardLeads, specsOfKind } from '../../features/board/sim/specs';
 import {
   PLUG_BLOCK,
@@ -21,6 +17,28 @@ import {
 import { CARD_TOP, gpuPlan, GPU_H } from '../../features/gpu/render/gpulayout';
 import { setLayoutTier } from '../../features/board/render/layout/layout';
 import type { Theme } from './theme';
+
+// Labels are bare Pixi Text objects here, never measured or drawn (as in art.test.ts).
+vi.mock(import('./ink'), async (orig) => {
+  const pixi = await import('pixi.js');
+  return { ...(await orig()), label: (str: string) => new pixi.Text({ text: str }) };
+});
+
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+/** The count of drawing instructions a Graphics holds (a fan is circle paths: more fans, more instructions). */
+function instructionsOf(g: unknown): number {
+  assert.instanceOf(g, Graphics);
+  return g.context.instructions.length;
+}
+/** Whether a socket at `x` sits on a card of length `len`, its whole block on it. */
+const onCard = (x: number, len: number) => x > 0 && x + PLUG_BLOCK.w / 2 < len;
 
 const DARK: Theme = {
   bg: '#04060f',
@@ -42,15 +60,17 @@ const DARK: Theme = {
   br: '#ff55dc',
   bad: '#ff5a78',
 };
+/** The drawing instructions of the card's first layer, the one with its fans. */
+const size = (v: string) => instructionsOf(cardArt(DARK, v, 0).children[0]);
 
 describe('accelerator art', () => {
   it('every card spec has a length, a rectangle on its slot and art in the dark palette', () => {
     for (const spec of [...specsOfKind('gpu'), ...specsOfKind('npu')]) {
-      expect(CARD_LEN[spec.visual], spec.id).toBeGreaterThan(0);
+      expect(CARD_LEN[spec.visual], `${spec.id}: length`).toBeGreaterThan(0);
       for (let slot = 0; slot < 4; slot++) {
         setLayoutTier(3, 3);
         const r = cardRect(slot, spec.visual);
-        expect(r.w).toBeGreaterThan(CARD_LEN[spec.visual]!);
+        expect(r.w).toBeGreaterThan(must(CARD_LEN[spec.visual]));
         expect(r.h).toBeGreaterThan(150);
         expect(cardArt(DARK, spec.visual, slot).children.length, `${spec.id} ${slot}`).toBeGreaterThan(0);
       }
@@ -61,21 +81,18 @@ describe('accelerator art', () => {
     setLayoutTier(3, 3);
     const visuals = [...specsOfKind('gpu'), ...specsOfKind('npu')].map((s) => s.visual);
     for (const v of visuals) {
-      expect(cardRect(0, v).h, v).toBeGreaterThan(CARD_TOP);
-      expect(cardRect(0, v).y - cardRect(0, 'gpu-1').y, v).toBe(0);
-      expect(cardOrigin(0, v).y - cardOrigin(0, 'gpu-1').y, v).toBe(0);
+      expect(cardRect(0, v).h, `${v}: height`).toBeGreaterThan(CARD_TOP);
+      expect(cardRect(0, v).y - cardRect(0, 'gpu-1').y, `${v}: north edge`).toBe(0);
+      expect(cardOrigin(0, v).y - cardOrigin(0, 'gpu-1').y, `${v}: PCB corner`).toBe(0);
     }
   });
 
   it('better cards are longer, and a GPU draws one fan per tier', () => {
-    expect(CARD_LEN['gpu-1']).toBeLessThan(CARD_LEN['gpu-2']!);
-    expect(CARD_LEN['gpu-2']).toBeLessThan(CARD_LEN['gpu-3']!);
-    expect(CARD_LEN['npu-1']).toBeLessThan(CARD_LEN['npu-2']!);
+    expect(CARD_LEN['gpu-1']).toBeLessThan(must(CARD_LEN['gpu-2']));
+    expect(CARD_LEN['gpu-2']).toBeLessThan(must(CARD_LEN['gpu-3']));
+    expect(CARD_LEN['npu-1']).toBeLessThan(must(CARD_LEN['npu-2']));
     setLayoutTier(3, 3);
     // a Graphics holds every fan as circle paths: the bigger card has more instructions to draw
-    const size = (v: string) =>
-      (cardArt(DARK, v, 0).children[0] as unknown as { context: { instructions: unknown[] } }).context.instructions
-        .length;
     expect(size('gpu-3')).toBeGreaterThan(size('gpu-1'));
     expect(size('npu-2')).toBeGreaterThanOrEqual(size('npu-1')); // (no power socket on either: both run on slot power)
   });
@@ -83,9 +100,10 @@ describe('accelerator art', () => {
   it('a card has one power socket for each PCIe lead it takes, on its own length', () => {
     for (const s of [...specsOfKind('gpu'), ...specsOfKind('npu')]) {
       const plugs = cardPlugs(s.visual);
-      expect(plugs, s.id).toHaveLength(cardLeads(s));
-      for (const x of plugs)
-        expect(x > 0 && x + PLUG_BLOCK.w / 2 < CARD_LEN[s.visual]!, `${s.id} socket on the card`).toBe(true);
+      expect(plugs, `${s.id}: sockets`).toHaveLength(cardLeads(s));
+      for (const x of plugs) {
+        expect(onCard(x, must(CARD_LEN[s.visual])), `${s.id} socket on the card`).toBe(true);
+      }
     }
   });
 
@@ -98,14 +116,14 @@ describe('accelerator art', () => {
     ] as const) {
       const live = cardArt(DARK, v, 1, true),
         still = cardArt(DARK, v, 1);
-      expect(still.children.length - live.children.length, v).toBe(2 + fans); // the die and its traces, plus one blade set per fan
+      expect(still.children.length - live.children.length, `${v}: still parts`).toBe(2 + fans); // the die and its traces, plus one blade set per fan
       const o = cardOrigin(1, v),
         r = cardRect(1, v);
       expect(o.y).toBe(r.y); // the plan's origin is the card's top-left corner
       expect(gpuPlan(v).fans).toHaveLength(fans);
     }
-    const instr = (g: unknown) => (g as { context: { instructions: unknown[] } }).context.instructions.length;
-    expect(instr(gpuCover(new Graphics(), DARK, gpuPlan('gpu-2')))).toBeGreaterThan(0);
+    const cover = gpuCover(new Graphics(), DARK, gpuPlan('gpu-2'));
+    expect(instructionsOf(cover)).toBeGreaterThan(0);
   });
 
   it('the fans stand along the top edge of the card rectangle', () => {
@@ -124,15 +142,17 @@ describe('accelerator art', () => {
   });
 
   it('the TPM header exists on Mainstream and Enthusiast boards only, and the module sits on it', () => {
-    expect([0, 1, 2, 3].map((t) => tpmHeader(t) !== null)).toEqual([false, false, true, true]);
+    expect([0, 1, 2, 3].map((t) => tpmHeader(t) !== null)).toStrictEqual([false, false, true, true]);
     for (const tier of [2, 3]) {
       setLayoutTier(tier, tier);
-      const h = tpmHeader(tier)!,
-        r = tpmRect(tier)!,
+      const h = must(tpmHeader(tier)),
+        r = must(tpmRect(tier)),
         hr = headerRect(h);
       expect(r.x).toBeLessThan(hr.x);
       expect(r.x + r.w).toBeGreaterThan(hr.x + hr.w);
-      for (const spec of specsOfKind('tpm')) expect(tpmArt(DARK, spec.visual, h).children.length).toBeGreaterThan(0);
+      for (const spec of specsOfKind('tpm')) {
+        expect(tpmArt(DARK, spec.visual, h).children.length).toBeGreaterThan(0);
+      }
     }
     expect(tpmRect(0)).toBeNull();
   });

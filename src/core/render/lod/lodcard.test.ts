@@ -1,25 +1,42 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import type { Container } from 'pixi.js';
 import { cardCandidates, cardText } from './lodcard';
 import { RectCache } from './lodrect';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 /** A card `w` wide at (x, y). */
-const node = (x: number, y: number, w = 100): Container =>
-  ({ x, y, getLocalBounds: () => ({ x: 0, y: 0, width: w, height: 100 }) }) as unknown as Container;
+const node = (x: number, y: number, w = 100): Container => {
+  const card: unknown = { x, y, getLocalBounds: () => ({ x: 0, y: 0, width: w, height: 100 }) };
+  assert(isContainer(card));
+  return card;
+};
+/** A container as far as the card places read one: where it is and its bounds. */
+function isContainer(v: unknown): v is Container {
+  return typeof v === 'object' && v !== null && 'getLocalBounds' in v;
+}
 const view = { x: 0, y: 0, w: 4000, h: 3000 };
+/** The budget's say: the view, and the cards that hold a top slot. */
+const lod = (ids: string[]) => ({ view, top: new Set(ids) });
 
 describe('cardCandidates', () => {
   const cards = [
     { slot: 'a', root: node(1950, 1450) },
-    { slot: 'b', root: node(50000, 5000) },
+    { slot: 'b', root: node(50_000, 5000) },
   ];
   it('lists only cards in view, with their id', () => {
     const out = cardCandidates('gpu', cards, new RectCache(), view, 1.6, 1.5);
-    expect(out.map((c) => c.id)).toEqual(['gpu:a']);
-    expect(out[0]!.focus).toBeGreaterThan(0.9);
+    expect(out.map((c) => c.id)).toStrictEqual(['gpu:a']);
+    expect(must(out[0]).focus).toBeGreaterThan(0.9);
   });
   it('lists none below the detail zoom', () => {
-    expect(cardCandidates('gpu', cards, new RectCache(), view, 1, 1.5)).toEqual([]);
+    expect(cardCandidates('gpu', cards, new RectCache(), view, 1, 1.5)).toStrictEqual([]);
   });
   it('does not care how big a card is: only the zoom and its distance from the centre', () => {
     const small = [{ slot: 's', root: node(1950, 1450, 100) }],
@@ -43,7 +60,6 @@ describe('distance from the centre', () => {
 });
 
 describe('cardText', () => {
-  const lod = (ids: string[]) => ({ view, top: new Set(ids) });
   it('shows the counters without a budget', () => {
     expect(cardText(2, undefined, 'npu:a', 0.75, 1.5).showDetail).toBe(true);
   });
@@ -58,6 +74,6 @@ describe('cardText', () => {
   });
   it('hides both below their zooms', () => {
     const t = cardText(0.1, undefined, 'npu:a', 0.75, 1.5);
-    expect(t.showText || t.showDetail).toBe(false);
+    expect([t.showText, t.showDetail]).toStrictEqual([false, false]);
   });
 });
