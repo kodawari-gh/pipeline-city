@@ -7,27 +7,18 @@
 // arrivals and never goes back, so barrier number n is passed when it reaches n x T; the total (THREAD_TOTAL) is the sum of the threads' partial results.
 
 import { THREAD_SYNC } from './build';
-import {
-  Builder,
-  blankRows,
-  emitStatic,
-  layoutLine,
-  pad2,
-  renderLine,
-  rowAddr,
-  type Seg,
-  type TemplateFn,
-} from './build';
+import { Builder, blankRows, emitStatic, layoutLine, pad2, renderLine, rowAddr } from './build';
+import type * as buildTypes from './build';
 import * as K from './kernels';
 import { THREAD_TOTAL } from './threadtest';
 
-const imul = Math.imul;
+const { imul } = Math;
 const mask = (v: number): number => v & 1023;
 const words = (label: string, ws: number[]): string[] => [`${label}:`, ...ws.map((w) => `  .word ${w >>> 0}`)];
 
 /** The program's start: its line on the display, and a1 = T (at least 1), a2 = log2 T. */
 function open(b: Builder, p: { jobId: number }, label: string) {
-  const segs: Seg[] = [`#${pad2(p.jobId)} ${label}=`, { dyn: 4 }, ' OK'];
+  const segs: buildTypes.Seg[] = [`#${pad2(p.jobId)} ${label}=`, { dyn: 4 }, ' OK'];
   const line = layoutLine(segs);
   b.emit(
     'bne a1, zero, hpc_t',
@@ -88,7 +79,9 @@ function show(
 ) {
   b.emit(`li s0, ${rowAddr(p.row)}`);
   emitStatic(b, o.line, 0);
-  if (fromTotal) b.emit(`li t1, ${THREAD_TOTAL}`, 'lw a1, 0(t1)');
+  if (fromTotal) {
+    b.emit(`li t1, ${THREAD_TOTAL}`, 'lw a1, 0(t1)');
+  }
   b.emit(
     'andi a1, a1, 1023',
     `addi a0, s0, ${o.line.fields[0]!.off}`,
@@ -119,12 +112,14 @@ const slice = (n: number, first: string, end: string): string[] => [
 // ---------- reduce: fold a long array into one number ----------
 
 /** Sum of f(a) = a x a + a / 8 over 64 x scale words: the fold of a column of data. */
-const hpcReduce: TemplateFn = (rng, p) => {
+const hpcReduce: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const n = 64 * p.scale,
     vals = Array.from({ length: n }, () => rng.nextInt(1000));
   let total = 0;
-  for (const a of vals) total = (total + imul(a, a) + (a >>> 3)) | 0;
+  for (const a of vals) {
+    total = (total + imul(a, a) + (a >>> 3)) | 0;
+  }
   const data = b.ns('data');
   const o = open(b, p, 'hpc.reduce');
   b.emit(
@@ -153,7 +148,7 @@ const hpcReduce: TemplateFn = (rng, p) => {
 // ---------- matmul: C = A x B, the rows of C split between the threads ----------
 
 /** An 8 x K by K x 8 product (K = 8 x scale), the rows of A split between the threads; the answer is the sum of C. */
-const hpcMatmul: TemplateFn = (rng, p) => {
+const hpcMatmul: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const R = 8,
     C = 8,
@@ -161,8 +156,13 @@ const hpcMatmul: TemplateFn = (rng, p) => {
   const A = Array.from({ length: R * Kd }, () => rng.nextInt(16)),
     B = Array.from({ length: Kd * C }, () => rng.nextInt(16));
   let total = 0;
-  for (let i = 0; i < R; i++)
-    for (let j = 0; j < C; j++) for (let k = 0; k < Kd; k++) total = (total + imul(A[i * Kd + k]!, B[k * C + j]!)) | 0;
+  for (let i = 0; i < R; i++) {
+    for (let j = 0; j < C; j++) {
+      for (let k = 0; k < Kd; k++) {
+        total = (total + imul(A[i * Kd + k]!, B[k * C + j]!)) | 0;
+      }
+    }
+  }
   const da = b.ns('a'),
     db = b.ns('b');
   const o = open(b, p, 'hpc.matmul');
@@ -209,7 +209,7 @@ const hpcMatmul: TemplateFn = (rng, p) => {
 // ---------- nbody: bodies pulling on each other, a step at a time ----------
 
 /** 16 bodies on a line, `scale` steps: each step every body moves by (sum of (p_j - p_i) x m_j) / 256, from the positions of the step before (two buffers, a barrier between steps). */
-const hpcNbody: TemplateFn = (rng, p) => {
+const hpcNbody: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const n = 16,
     steps = p.scale;
@@ -287,16 +287,18 @@ const hpcNbody: TemplateFn = (rng, p) => {
 // ---------- montecarlo: how many random points land inside the quarter circle ----------
 
 /** 256 x scale points from a multiplicative hash of their number (so the count does not depend on how many threads split them); the answer is the count inside the circle. */
-const hpcMonteCarlo: TemplateFn = (_rng, p) => {
+const hpcMonteCarlo: buildTypes.TemplateFn = (_rng, p) => {
   const b = new Builder();
   const n = 256 * p.scale,
-    MUL = 0x9e3779b1 | 0;
+    MUL = 0x9e_37_79_b1 | 0;
   let hits = 0;
   for (let i = 0; i < n; i++) {
     const h = imul(i + 1, MUL) >>> 0,
       x = h >>> 24,
       y = (h >>> 16) & 255;
-    if (x * x + y * y < 65536) hits++;
+    if (x * x + y * y < 65_536) {
+      hits++;
+    }
   }
   const o = open(b, p, 'hpc.montecarlo');
   b.emit(
@@ -326,7 +328,7 @@ const hpcMonteCarlo: TemplateFn = (_rng, p) => {
 // ---------- sort: each thread sorts its part, thread 0 merges the runs ----------
 
 /** 16 x scale words, bubble sort of each thread's quarter, then thread 0 merges the runs and adds up value x (position + 1). */
-const hpcSort: TemplateFn = (rng, p) => {
+const hpcSort: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const n = 16 * p.scale,
     vals = Array.from({ length: n }, () => rng.nextInt(1000));
@@ -416,7 +418,7 @@ const hpcSort: TemplateFn = (rng, p) => {
 // ---------- bfs: levels of a graph, a barrier after each ----------
 
 /** A graph of 32 x scale vertices, each with two in-edges (the first from a lower vertex, so all are reachable from 0): breadth-first levels, every thread settling its own vertices each level. The answer is the sum of the levels. */
-const hpcBfs: TemplateFn = (rng, p) => {
+const hpcBfs: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const n = 32 * p.scale;
   const pred1 = Array.from({ length: n }, (_, v) => (v === 0 ? 0 : rng.nextInt(v))),
@@ -426,12 +428,15 @@ const hpcBfs: TemplateFn = (rng, p) => {
   for (let level = 1; ; level++) {
     const next = dist.slice();
     let any = false;
-    for (let v = 0; v < n; v++)
+    for (let v = 0; v < n; v++) {
       if (dist[v]! < 0 && (dist[pred1[v]!] === level - 1 || dist[pred2[v]!] === level - 1)) {
         next[v] = level;
         any = true;
       }
-    if (!any) break;
+    }
+    if (!any) {
+      break;
+    }
     dist.splice(0, n, ...next);
     depth = level;
   }
@@ -498,7 +503,7 @@ const hpcBfs: TemplateFn = (rng, p) => {
 // ---------- fft: log n stages of butterflies, a barrier after each ----------
 
 /** The Walsh-Hadamard transform (the butterflies of an FFT without the twiddles, so it stays in integers) of 64 to 256 words, each stage split between the threads; the answer is the sum of x[i] x (i + 1). */
-const hpcFft: TemplateFn = (rng, p) => {
+const hpcFft: buildTypes.TemplateFn = (rng, p) => {
   const b = new Builder();
   const n = p.scale >= 7 ? 256 : p.scale >= 4 ? 128 : 64,
     stages = Math.log2(n);
@@ -575,7 +580,7 @@ const hpcFft: TemplateFn = (rng, p) => {
   return show(b, p, o, 'hpc.fft request', total, true);
 };
 
-export const HPC_TEMPLATES: Record<string, TemplateFn> = {
+export const HPC_TEMPLATES: Record<string, buildTypes.TemplateFn> = {
   'hpc.reduce': hpcReduce,
   'hpc.matmul': hpcMatmul,
   'hpc.nbody': hpcNbody,

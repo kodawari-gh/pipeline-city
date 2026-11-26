@@ -28,7 +28,9 @@ export class UsbTray<J extends Job> implements WorkSource<J> {
   constructor(readonly cap: number) {}
 
   offer(job: J): boolean {
-    if (this.keys.length >= this.cap) return false;
+    if (this.keys.length >= this.cap) {
+      return false;
+    }
     this.keys.push(job);
     return true;
   }

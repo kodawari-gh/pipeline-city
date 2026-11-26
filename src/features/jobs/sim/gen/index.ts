@@ -6,10 +6,11 @@ import { Prng } from '@/core/sim/prng';
 import { ROM_DONE_VECTOR } from '@/core/sim/memmap';
 import { RefCpu, RefMemory } from '@/features/cpu/sim/ref';
 import type { Kernel, Mix } from './kernels';
-import { MAX_CODE_BYTES, TEMPLATES, type GenParams, type ResolvedParams } from './templates';
+import { MAX_CODE_BYTES, TEMPLATES } from './templates';
+import type { GenParams, ResolvedParams } from './build';
 
 export * from './kernels';
-export { TEMPLATES, gpuPicture, indexBytes, type GenParams, type GpuTarget, type NpuTarget } from './templates';
+export { TEMPLATES, gpuPicture, indexBytes, type GpuTarget, type NpuTarget } from './templates';
 
 interface KernelInfo {
   kernel: string;
@@ -44,28 +45,41 @@ export interface Generated {
 
 export const TEMPLATE_NAMES = Object.keys(TEMPLATES);
 
-export function generate(template: string, seed: number, params: GenParams = {}): Generated {
-  const fn = TEMPLATES[template];
-  if (!fn) throw new RangeError(`unknown template '${template}'`);
+/** Check `params` and fill in their defaults (the job id comes from `rng` when not given). */
+function resolveParams(params: GenParams, rng: Prng): ResolvedParams {
   const scale = params.scale ?? 1;
-  if (!Number.isInteger(scale) || scale < 1 || scale > 16) throw new RangeError(`scale ${scale}`);
-  const rng = new Prng(seed);
+  if (!Number.isInteger(scale) || scale < 1 || scale > 16) {
+    throw new RangeError(`scale ${scale}`);
+  }
   const jobId = params.jobId ?? rng.nextInt(100);
-  if (!Number.isInteger(jobId) || jobId < 0 || jobId > 99) throw new RangeError(`jobId ${jobId}`);
-  const resolved: ResolvedParams = {
+  if (!Number.isInteger(jobId) || jobId < 0 || jobId > 99) {
+    throw new RangeError(`jobId ${jobId}`);
+  }
+  return {
     scale,
     row: params.row ?? 0,
     jobId,
     ...(params.gpu ? { gpu: params.gpu } : {}),
     ...(params.npu ? { npu: params.npu } : {}),
   };
+}
+
+export function generate(template: string, seed: number, params: GenParams = {}): Generated {
+  const fn = TEMPLATES[template];
+  if (!fn) {
+    throw new RangeError(`unknown template '${template}'`);
+  }
+  const rng = new Prng(seed);
+  const resolved = resolveParams(params, rng);
   const built = fn(rng, resolved);
   // Builder.finish ends main with a lone `ecall` line; a hosted program returns to the ROM instead.
   const asm = params.hosted
     ? built.asm.replace('\n  ecall\n', `\n  li t0, ${ROM_DONE_VECTOR}\n  jalr zero, t0, 0\n`)
     : built.asm;
   const { program, symbols } = assemble(asm);
-  if (program.length * 4 > MAX_CODE_BYTES) throw new RangeError('generated program too large');
+  if (program.length * 4 > MAX_CODE_BYTES) {
+    throw new RangeError('generated program too large');
+  }
   const kernels: KernelInfo[] = built.kernels.map((k: Kernel) => ({
     kernel: k.name,
     ns: k.ns,

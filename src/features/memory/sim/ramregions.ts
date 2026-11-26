@@ -64,9 +64,13 @@ export function codeEndOf(ram: Uint8Array, lo: number, hi: number): number {
   let end = lo;
   for (let a = lo; a + 4 <= hi; a += 4) {
     const w = (ram[a]! | (ram[a + 1]! << 8) | (ram[a + 2]! << 16) | (ram[a + 3]! << 24)) >>> 0;
-    if (w === 0) continue;
+    if (w === 0) {
+      continue;
+    }
     const t = disassemble(w);
-    if (t === 'ecall' || t.startsWith('jalr zero, ra') || t === 'iret') end = a + 4;
+    if (t === 'ecall' || t.startsWith('jalr zero, ra') || t === 'iret') {
+      end = a + 4;
+    }
   }
   return end === lo ? hi : end;
 }
@@ -76,7 +80,9 @@ export function ramRegionsOf(ram: Uint8Array, ctx: RamContext): RamRegion[] {
   const add = (r: RamRegion): void => {
     const hi = Math.min(r.hi, ram.length),
       lo = Math.min(r.lo, hi);
-    if (hi > lo) out.push({ ...r, lo, hi });
+    if (hi > lo) {
+      out.push({ ...r, lo, hi });
+    }
   };
   add({
     id: 'rom',
@@ -104,7 +110,7 @@ export function ramRegionsOf(ram: Uint8Array, ctx: RamContext): RamRegion[] {
       lo: KERNEL_BASE,
       hi: KERNEL_BASE + kernelImageFor(ctx.os.tier ?? 1).length * 4,
     });
-    if (paged)
+    if (paged) {
       add({
         id: 'os-tables',
         kind: 'osdata',
@@ -113,6 +119,7 @@ export function ramRegionsOf(ram: Uint8Array, ctx: RamContext): RamRegion[] {
         lo: PAGED_TABLES,
         hi: PAGED_TABLES + PAGED_TABLES_BYTES,
       });
+    }
     const pre = (ctx.os.tier ?? 1) >= 3;
     add({
       id: 'os-table',
@@ -124,7 +131,7 @@ export function ramRegionsOf(ram: Uint8Array, ctx: RamContext): RamRegion[] {
       lo: KDATA_BASE,
       hi: kdataEndFor(ctx.os.tier ?? 1),
     });
-    if (pre)
+    if (pre) {
       add({
         id: 'os-jtable',
         kind: 'osdata',
@@ -133,7 +140,8 @@ export function ramRegionsOf(ram: Uint8Array, ctx: RamContext): RamRegion[] {
         lo: JT_BASE,
         hi: JT_BASE + JT_SLOTS * KSLOT_BYTES,
       });
-    if (pre)
+    }
+    if (pre) {
       add({
         id: 'os-ktable',
         kind: 'osdata',
@@ -142,7 +150,8 @@ export function ramRegionsOf(ram: Uint8Array, ctx: RamContext): RamRegion[] {
         lo: KTBL,
         hi: KTBL + KTBL_BYTES,
       });
-    if (pre)
+    }
+    if (pre) {
       add({
         id: 'os-fmap',
         kind: 'osdata',
@@ -151,6 +160,7 @@ export function ramRegionsOf(ram: Uint8Array, ctx: RamContext): RamRegion[] {
         lo: FMAP,
         hi: FMAP + 4 * FRAME_END,
       });
+    }
   }
   if (ctx.os && ctx.frames) {
     // the preemptive OS owns every frame by the map: runs of frames of one owner and kind are one region
@@ -162,12 +172,14 @@ export function ramRegionsOf(ram: Uint8Array, ctx: RamContext): RamRegion[] {
         continue;
       }
       let g = f;
-      while (g + 1 < e && ctx.frames[g + 1] === w) g++;
+      while (g + 1 < e && ctx.frames[g + 1] === w) {
+        g++;
+      }
       const kind = w >> 8,
         slot = (w & 255) - 1,
         p = ctx.procs?.[slot];
       const who = p ? p.label : `program ${slot + 1}`;
-      if (kind === 2)
+      if (kind === 2) {
         add({
           id: `ptab-${slot}-${n++}`,
           kind: 'osdata',
@@ -176,7 +188,7 @@ export function ramRegionsOf(ram: Uint8Array, ctx: RamContext): RamRegion[] {
           lo: f * 256,
           hi: (g + 1) * 256,
         });
-      else if (kind === 1)
+      } else if (kind === 1) {
         add({
           id: `work-${slot}-${n++}`,
           kind: 'work',
@@ -187,7 +199,7 @@ export function ramRegionsOf(ram: Uint8Array, ctx: RamContext): RamRegion[] {
           owner: p?.key,
           type: p?.type,
         });
-      else
+      } else {
         add({
           id: `app-${slot}-${n++}`,
           kind: 'app',
@@ -199,6 +211,7 @@ export function ramRegionsOf(ram: Uint8Array, ctx: RamContext): RamRegion[] {
           type: p?.type,
           codeEnd: codeEndOf(ram, f * 256, (g + 1) * 256),
         });
+      }
       f = g + 1;
     }
   }
@@ -223,7 +236,9 @@ export function ramRegionsOf(ram: Uint8Array, ctx: RamContext): RamRegion[] {
     let n = 0;
     for (let i = 0; i < pages.length;) {
       let j = i;
-      while (j + 1 < pages.length && pages[j + 1] === pages[j]! + 1) j++;
+      while (j + 1 < pages.length && pages[j + 1] === pages[j]! + 1) {
+        j++;
+      }
       add({
         id: `work-${ctx.job.key}-${n++}`,
         kind: 'work',
@@ -244,7 +259,11 @@ export function ramRegionsOf(ram: Uint8Array, ctx: RamContext): RamRegion[] {
 export function protectedPage(page: number, imageWords: number, base = USER_BASE): boolean {
   const lo = page * 256,
     hi = lo + 256;
-  if (hi <= USER_BASE) return true;
-  if (lo < base + imageWords * 4 && hi > base) return true;
+  if (hi <= USER_BASE) {
+    return true;
+  }
+  if (lo < base + imageWords * 4 && hi > base) {
+    return true;
+  }
   return hi > OS_HEADER_BASE && lo < kdataEndFor(1);
 }

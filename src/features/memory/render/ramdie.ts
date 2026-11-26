@@ -51,8 +51,7 @@ const M = 6,
 
 /** The plan of a die with the banks of `spec`: half of them above the spine, half under, `cols` across (at most four), a bank group the next `banks / bankGroups` in turn. */
 export function ramDiePlan(spec: RamDieSpec): RamDiePlan {
-  const w = RAM_DIE.w,
-    h = RAM_DIE.h,
+  const { w, h } = RAM_DIE,
     banks = Math.max(2, spec.banks),
     groups = Math.max(1, Math.min(spec.bankGroups, banks)),
     sub = spec.subChannels && spec.subChannels > 1 ? 2 : 1;
@@ -93,7 +92,9 @@ export function ramDiePlan(spec: RamDieSpec): RamDiePlan {
   if (sub === 2) {
     side(die.x, die.w / 2, 'a');
     side(die.x + die.w / 2, die.w / 2, 'b');
-  } else side(die.x, die.w, 'a');
+  } else {
+    side(die.x, die.w, 'a');
+  }
   return {
     w,
     h,
@@ -138,8 +139,9 @@ export function ramDieArt(T: Theme, plan: RamDiePlan): Container {
     .stroke({ width: 1.2, color: mix(T.line, accent, 0.6) });
   // the pads down the middle of the spine, as on a real chip's centre row
   const pad = 2.2;
-  for (let x = d.x + 6; x + pad < d.x + d.w - 4; x += pad * 2.4)
+  for (let x = d.x + 6; x + pad < d.x + d.w - 4; x += pad * 2.4) {
     g.rect(x, plan.spine.y + plan.spine.h / 2 - pad / 2, pad, pad);
+  }
   g.fill({ color: T.pin, alpha: 0.7 });
   g.poly([d.x + 1, d.y + 1, d.x + 12, d.y + 1, d.x + 1, d.y + 12]).fill({ color: accent, alpha: 0.9 });
   // the banks, a bank group in one tint, the next in another
@@ -151,12 +153,15 @@ export function ramDieArt(T: Theme, plan: RamDiePlan): Container {
       .fill({ color: mix(T.die, c, 0.12) })
       .stroke({ width: 0.9, color: c, alpha: 0.85 });
     // the cell array's word lines, the row decoder on its west side, the sense amplifiers along its foot
-    for (let y = r.y + 3; y < r.y + r.h - 5; y += 2.6) g.moveTo(r.x + 5, y).lineTo(r.x + r.w - 1.5, y);
+    for (let y = r.y + 3; y < r.y + r.h - 5; y += 2.6) {
+      g.moveTo(r.x + 5, y).lineTo(r.x + r.w - 1.5, y);
+    }
     g.stroke({ width: 0.35, color: c, alpha: 0.32 });
     g.rect(r.x + 0.8, r.y + 0.8, 3.4, r.h - 1.6).fill({ color: c, alpha: 0.4 });
     g.rect(r.x + 5, r.y + r.h - 4, r.w - 6.5, 3).fill({ color: c, alpha: 0.55 });
-    if (r.w >= 30 && r.h >= 15)
+    if (r.w >= 30 && r.h >= 15) {
       t.addChild(label(`B${b.index}`, r.x + 7, r.y + 5.5, 5.5, T.ink, { weight: '700', a: 0.85 }));
+    }
   }
   // the spine's logic
   const lc = [T.br, T.mute, T.ld, T.alu];
@@ -166,18 +171,20 @@ export function ramDieArt(T: Theme, plan: RamDiePlan): Container {
     g.roundRect(r.x, r.y, r.w, r.h, 1.5)
       .fill({ color: mix(T.die, c, 0.16) })
       .stroke({ width: 0.8, color: c, alpha: 0.85 });
-    if (r.w >= 24)
+    if (r.w >= 24) {
       t.addChild(
         label(l.label, r.x + 2.5, r.y + 4, Math.min(5.2, (r.w - 4) / (l.label.length * 0.62)), T.ink, {
           weight: '700',
           a: 0.9,
         }),
       );
+    }
   }
   // (two sub-channels: a line down the middle, each side with a spine of its own)
-  if (plan.divide !== null)
+  if (plan.divide !== null) {
     g.moveTo(plan.divide, d.y + 1)
       .lineTo(plan.divide, d.y + d.h - 1)
       .stroke({ width: 0.9, color: accent, alpha: 0.75 });
+  }
   return root;
 }

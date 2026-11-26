@@ -32,7 +32,9 @@ export function k(name: string, ns: string, mix: Mix[], footprintBytes: number, 
  * Needs 0 <= a1 < 10^width and a1 <= 1028 at every division step (divide by 10 is `(n*205)>>11`).
  */
 export function printDec(ns: string, width: number): Kernel {
-  if (!Number.isInteger(width) || width < 2 || width > 4) throw new RangeError(`printDec width ${width}`);
+  if (!Number.isInteger(width) || width < 2 || width > 4) {
+    throw new RangeError(`printDec width ${width}`);
+  }
   const body = ['li t0, 205', 'li t4, 10'];
   let cur = 'a1'; // register holding the remaining quotient
   for (let i = width - 1; i >= 1; i--) {
@@ -198,5 +200,7 @@ export function pollIdle(ns: string, offset = 0, mask = 1): Kernel {
 }
 
 function checkStride(s: number): void {
-  if (!Number.isInteger(s) || s < 4 || s % 4 !== 0 || s > 4096) throw new RangeError(`stride ${s}`);
+  if (!Number.isInteger(s) || s < 4 || s % 4 !== 0 || s > 4096) {
+    throw new RangeError(`stride ${s}`);
+  }
 }
