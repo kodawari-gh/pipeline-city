@@ -1,4 +1,4 @@
-import { clampHeat, type AirFan, type AirHeat, type AirSource } from '@/core/render/airsource';
+import * as airsource from '@/core/render/airsource';
 import { getSpec } from '../sim/specs';
 import { CASE, GEO, PSU, PSU_REAR_FAN, PSU_UNIT, RAM_SINK, REAR_FAN, VRM_SINK } from './layout/layout';
 import { psuFanRect, sinkFanRect } from './devices';
@@ -9,11 +9,11 @@ import { psuFanRect, sinkFanRect } from './devices';
  * spun by live.ts; a heatsink fan blows along its fins toward the rear exhaust). The case fans and the radiator's are the case's streams in the airflow model itself.
  * A fan part makes no heat: it is the stream of the mount or the heatsink it sits on.
  */
-export const boardAir: AirSource = {
+export const boardAir: airsource.AirSource = {
   id: 'board',
   kinds: ['psu', 'vrm-sink', 'ram-sink', 'radiator', 'fan'],
   heat(c) {
-    const out: AirHeat[] = [];
+    const out: airsource.AirHeat[] = [];
     const psu = c.s.devices.find((d) => d.kind === 'psu');
     if (psu) {
       const load = c.live ? Math.max(0, Math.min(1, c.s.power.totalW / Math.max(1, c.s.power.budgetW))) : 0;
@@ -23,22 +23,25 @@ export const boardAir: AirSource = {
       ['vrm', 'VRM', c.s.board?.vrm, GEO.vrmPhases],
       ['rvrm', 'MEM VRM', c.s.board?.ramVrm, GEO.dPhases],
     ] as const) {
-      if (!v) continue;
+      if (!v) {
+        continue;
+      }
       const rects = phases.slice(0, v.phases);
-      if (rects.length)
+      if (rects.length > 0) {
         out.push({
           id,
           label,
           rects,
           flat: true,
           tempC: v.tempC,
-          heat: c.live ? clampHeat((v.tempC - 30) / Math.max(10, v.throttleC - 30)) : 0,
+          heat: c.live ? airsource.clampHeat((v.tempC - 30) / Math.max(10, v.throttleC - 30)) : 0,
         });
+      }
     }
     return out;
   },
   fans(c) {
-    const out: AirFan[] = [];
+    const out: airsource.AirFan[] = [];
     const psuDev = c.s.devices.find((d) => d.kind === 'psu');
     if (psuDev && (getSpec(psuDev.spec) as { fan?: boolean } | undefined)?.fan) {
       // the PSU draws air from under the case, through its shroud, and blows it out the rear (west) wall's grille
@@ -67,7 +70,10 @@ export const boardAir: AirSource = {
       ['ramvrm', 'ram-sink', RAM_SINK],
     ] as const) {
       const d = c.s.devices.find((x) => x.kind === kind);
-      if (!d || !c.s.devices.some((f) => f.kind === 'fan' && f.slot.startsWith(`${d.slot}.fan`))) continue; // no fan in the housing
+      // no fan in the housing
+      if (!d || !c.s.devices.some((f) => f.kind === 'fan' && f.slot.startsWith(`${d.slot}.fan`))) {
+        continue;
+      }
       // the fan (flat in its housing over the fins, seen face-on) blows down into them; the air runs west ALONG the fin channels and out the
       // sink's west end, toward the rear exhaust (not out of the picture, not onto the processor)
       const f = sinkFanRect(kind),

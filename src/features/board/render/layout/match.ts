@@ -45,10 +45,11 @@ function segsOf(pts: Pt[]): Seg[] {
       q = pts[j + 1]!,
       dx = q[0] - p[0],
       dy = q[1] - p[1];
-    if (Math.abs(dy) < 1e-6 && Math.abs(dx) > 1e-6)
+    if (Math.abs(dy) < 1e-6 && Math.abs(dx) > 1e-6) {
       out.push({ j, axis: 'h', c: p[1], a: p[0], b: q[0], dir: dx > 0 ? 1 : -1 });
-    else if (Math.abs(dx) < 1e-6 && Math.abs(dy) > 1e-6)
+    } else if (Math.abs(dx) < 1e-6 && Math.abs(dy) > 1e-6) {
       out.push({ j, axis: 'v', c: p[0], a: p[1], b: q[1], dir: dy > 0 ? 1 : -1 });
+    }
   }
   return out;
 }
@@ -61,11 +62,14 @@ export const BEV = 8 - 4 * Math.SQRT2;
 export function toothFor(e: number, b0: number, Amax: number): { A: number; b: number } {
   let b = b0,
     A = (e + b * BEV) / 2;
+  // (a taller tooth than the room allows: the corners shrink instead)
   if (A > Amax) {
     A = Amax;
     b = (2 * A - e) / BEV;
-  } // (a taller tooth than the room allows: the corners shrink instead)
-  if (A >= 2 * b + 2 && b >= 1.5) return { A, b };
+  }
+  if (A >= 2 * b + 2 && b >= 1.5) {
+    return { A, b };
+  }
   // a notch: A = 2b, extra = 2A - b * BEV = A * (2 - BEV / 2)
   const An = e / (2 - BEV / 2);
   return { A: An, b: An / 2 };
@@ -107,20 +111,26 @@ export function serpentine(lines: Pt[][], o: SerpOpts): Pt[][] {
     Amax = Pf - clear;
   const lens = lines.map(lengthOf),
     tgt = Math.max(...lens);
-  if (n < 2 || tgt - Math.min(...lens) < tol) return lines;
+  if (n < 2 || tgt - Math.min(...lens) < tol) {
+    return lines;
+  }
 
   // the straight stretch every lane has in common (same axis, same direction, side by side): the longest one
   const segs = lines.map(segsOf);
   let best: { picks: Seg[]; lo: number; hi: number; axis: 'h' | 'v'; dir: 1 | -1 } | null = null;
   for (const s0 of segs[0]!) {
-    if (o.axis && s0.axis !== o.axis) continue;
+    if (o.axis && s0.axis !== o.axis) {
+      continue;
+    }
     const picks: Seg[] = [s0];
     let [lo, hi] = span(s0);
     for (let i = 1; i < n && picks.length === i; i++) {
       let pick: Seg | null = null,
         ov = 0;
       for (const s of segs[i]!) {
-        if (s.axis !== s0.axis || s.dir !== s0.dir || Math.abs(s.c - s0.c) > 4 * (n - 1) * o.pitch) continue;
+        if (s.axis !== s0.axis || s.dir !== s0.dir || Math.abs(s.c - s0.c) > 4 * (n - 1) * o.pitch) {
+          continue;
+        }
         const [a, b] = span(s),
           m = Math.min(b, hi) - Math.max(a, lo);
         if (m > ov) {
@@ -135,10 +145,13 @@ export function serpentine(lines: Pt[][], o: SerpOpts): Pt[][] {
         hi = Math.min(hi, b);
       }
     }
-    if (picks.length === n && hi - lo > 0 && (!best || hi - lo > best.hi - best.lo))
+    if (picks.length === n && hi - lo > 0 && (!best || hi - lo > best.hi - best.lo)) {
       best = { picks, lo, hi, axis: s0.axis, dir: s0.dir };
+    }
   }
-  if (!best) return lines;
+  if (!best) {
+    return lines;
+  }
   const { picks, lo, hi, axis, dir } = best;
 
   // the bundle opens out toward the side of its shortest lane; the lane on the far side keeps its place
@@ -156,14 +169,18 @@ export function serpentine(lines: Pt[][], o: SerpOpts): Pt[][] {
   const maxExtra = 2 * Amax - 1.5 * BEV;
   const plan = lines.map((_, i) => {
     const E = top - flared[i]!;
-    if (E < tol) return null;
+    if (E < tol) {
+      return null;
+    }
     const m = Math.max(1, Math.ceil(E / maxExtra - 1e-9));
     return { m, ...toothFor(E / m, b0, Amax) };
   });
   const pitchOf = (b: number) => 4 * b + flat + space;
   const need = Math.max(0, ...plan.map((p) => (p ? p.m * pitchOf(p.b) - space : 0)));
   const room = hi - lo - 2 * margin - 2 * dMax;
-  if (need > room) return lines;
+  if (need > room) {
+    return lines;
+  }
   const base = dir > 0 ? lo : hi,
     A = (t: number) => base + dir * t;
   const t0 = margin,
@@ -173,23 +190,29 @@ export function serpentine(lines: Pt[][], o: SerpOpts): Pt[][] {
   return lines.map((pts, i) => {
     const s = picks[i]!,
       d = delta[i]!,
-      c = s.c,
+      { c } = s,
       p = plan[i];
     const P = (t: number, q: number): Pt => (axis === 'h' ? [A(t), c + sgn * q] : [c + sgn * q, A(t)]);
     const mid2: Pt[] = [];
-    if (d > 1e-6) mid2.push(P(t0, 0), P(t0 + d, d));
+    if (d > 1e-6) {
+      mid2.push(P(t0, 0), P(t0 + d, d));
+    }
     if (p) {
       const pt = pitchOf(p.b),
         total = p.m * pt - space;
       for (let j = 0; j < p.m; j++) {
         const a = mid - total / 2 + j * pt,
-          b = p.b,
+          { b } = p,
           h = p.A;
         mid2.push(...toothPts(P, a, d, b, h, flat));
       }
     }
-    if (d > 1e-6) mid2.push(P(t1 - d, d), P(t1, 0));
-    if (!mid2.length) return pts;
+    if (d > 1e-6) {
+      mid2.push(P(t1 - d, d), P(t1, 0));
+    }
+    if (mid2.length === 0) {
+      return pts;
+    }
     const out = [...pts.slice(0, s.j + 1), ...mid2, ...pts.slice(s.j + 1)];
     return out.filter((q, j) => j === 0 || Math.hypot(q[0] - out[j - 1]![0], q[1] - out[j - 1]![1]) > 1e-6);
   });

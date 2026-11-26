@@ -85,10 +85,19 @@ export interface Hop {
 
 /** The lanes a pick selects (none when the board lacks that group: a port or slot it does not have). */
 export function lanesOf(bus: Bus, pick: Pick = 'all'): Lane[] {
-  if (pick === 'all') return bus.lanes;
-  if (pick === 'uplink') return bus.groups?.[0] ?? [];
-  if ('group' in pick) return bus.groups?.[pick.group] ?? [];
-  if ('header' in pick) return bus.heads?.find((h) => h.name === pick.header)?.lanes ?? []; // (a board without that header has no lanes to light)
+  if (pick === 'all') {
+    return bus.lanes;
+  }
+  if (pick === 'uplink') {
+    return bus.groups?.[0] ?? [];
+  }
+  if ('group' in pick) {
+    return bus.groups?.[pick.group] ?? [];
+  }
+  // (a board without that header has no lanes to light)
+  if ('header' in pick) {
+    return bus.heads?.find((h) => h.name === pick.header)?.lanes ?? [];
+  }
   return bus.groups?.[1 + pick.usbPort] ?? []; // (group 0 of the USB bus is the uplink, then one pair per port)
 }
 
@@ -104,7 +113,9 @@ export function resolve(buses: ReadonlyMap<BusKind, Bus>, hops: readonly Hop[]):
   for (const h of hops) {
     const bus = buses.get(h.bus),
       lanes = bus ? lanesOf(bus, h.pick) : [];
-    if (bus && lanes.length) out.push({ bus: h.bus, dir: h.dir, lanes, w: bus.w });
+    if (bus && lanes.length > 0) {
+      out.push({ bus: h.bus, dir: h.dir, lanes, w: bus.w });
+    }
   }
   return out;
 }
@@ -129,11 +140,15 @@ export const keyChain = (toKey: boolean): Hop[] =>
  * The bus lanes run CPU -> M.2 and chipset -> port; DMI runs CPU -> chipset.
  */
 export function driveChain(slot: string, toDrive: boolean): Hop[] {
-  const m = /^(m2|sata)(\d+)$/.exec(slot);
-  if (!m) return [];
+  const m = /^(?<kind>m2|sata)(?<group>\d+)$/u.exec(slot);
+  if (!m) {
+    return [];
+  }
   const group = { group: Number(m[2]) },
     d = toDrive ? 1 : -1;
-  if (m[1] === 'm2') return [{ bus: 'nvme', dir: d, pick: group }];
+  if (m[1] === 'm2') {
+    return [{ bus: 'nvme', dir: d, pick: group }];
+  }
   return toDrive
     ? [
         { bus: 'dmi', dir: 1 },
@@ -147,11 +162,15 @@ export function driveChain(slot: string, toDrive: boolean): Hop[] {
 
 /** A card in a PCIe slot (`pcie<k>`) and the CPU talk. The CPU feeds the x8 and wider slots itself; a x4 slot hangs off the chipset, so its messages cross DMI. */
 export function slotChain(slot: string, toCard: boolean): Hop[] {
-  const m = /^pcie(\d+)$/.exec(slot);
-  if (!m) return [];
+  const m = /^pcie(?<index>\d+)$/u.exec(slot);
+  if (!m) {
+    return [];
+  }
   const pick = { header: slot },
     d = toCard ? 1 : -1;
-  if (GEO.pcieLinks[Number(m[1])]?.cpu ?? true) return [{ bus: 'pcie', dir: d, pick }];
+  if (GEO.pcieLinks[Number(m[1])]?.cpu ?? true) {
+    return [{ bus: 'pcie', dir: d, pick }];
+  }
   return toCard
     ? [
         { bus: 'dmi', dir: 1 },
@@ -225,24 +244,42 @@ export type DeviceHit =
 export function deviceAt(addr: number): DeviceHit | null {
   const a = addr >>> 0,
     within = (base: number, size: number) => a >= base && a < base + size;
-  if (within(STORAGE_BASE, STORAGE_PORTS.length * STORAGE_STRIDE))
+  if (within(STORAGE_BASE, STORAGE_PORTS.length * STORAGE_STRIDE)) {
     return { kind: 'drive', slot: STORAGE_PORTS[Math.floor((a - STORAGE_BASE) / STORAGE_STRIDE)]! };
-  if (within(GPU_BASE, GPU_PORTS.length * GPU_STRIDE))
+  }
+  if (within(GPU_BASE, GPU_PORTS.length * GPU_STRIDE)) {
     return { kind: 'card', slot: GPU_PORTS[Math.floor((a - GPU_BASE) / GPU_STRIDE)]! };
-  if (within(NPU_BASE, NPU_PORTS.length * NPU_STRIDE))
+  }
+  if (within(NPU_BASE, NPU_PORTS.length * NPU_STRIDE)) {
     return { kind: 'card', slot: `pcie${Math.floor((a - NPU_BASE) / NPU_STRIDE)}` };
+  }
   if (
     within(PCH_BASE + PCH_KEY_WINDOW, PCH_KEY_WINDOW_SIZE) ||
     within(PCH_BASE + PCH_RESULT_WINDOW, PCH_RESULT_WORDS * 4)
-  )
+  ) {
     return { kind: 'key' };
-  if (within(PCH_BASE, PCH_KEY_WINDOW)) return { kind: 'chipset' };
-  if (within(TPM_BASE, TPM_SIZE)) return { kind: 'tpm' };
-  if (within(DISPLAY_BASE, DISPLAY_SIZE)) return { kind: 'display' };
-  if (within(INTC_BASE, INTC_SIZE)) return { kind: 'intc' };
-  if (within(TIMER_BASE, TIMER_SIZE)) return { kind: 'timer' };
-  if (within(MPU_BASE, MPU_SIZE)) return { kind: 'mpu' };
-  if (within(MMU_BASE, MMU_SIZE)) return { kind: 'mmu' };
+  }
+  if (within(PCH_BASE, PCH_KEY_WINDOW)) {
+    return { kind: 'chipset' };
+  }
+  if (within(TPM_BASE, TPM_SIZE)) {
+    return { kind: 'tpm' };
+  }
+  if (within(DISPLAY_BASE, DISPLAY_SIZE)) {
+    return { kind: 'display' };
+  }
+  if (within(INTC_BASE, INTC_SIZE)) {
+    return { kind: 'intc' };
+  }
+  if (within(TIMER_BASE, TIMER_SIZE)) {
+    return { kind: 'timer' };
+  }
+  if (within(MPU_BASE, MPU_SIZE)) {
+    return { kind: 'mpu' };
+  }
+  if (within(MMU_BASE, MMU_SIZE)) {
+    return { kind: 'mmu' };
+  }
   return null;
 }
 
@@ -269,19 +306,24 @@ export interface DieTouch {
 export function routeOnDie(die: DieTouch, addr: number, write: boolean, now: number): DeviceHit | null {
   const hit = deviceAt(addr),
     unit = hit ? DIE_UNIT[hit.kind] : undefined;
-  if (hit && (hit.kind === 'intc' || hit.kind === 'timer' || hit.kind === 'mpu' || hit.kind === 'mmu'))
+  if (hit && (hit.kind === 'intc' || hit.kind === 'timer' || hit.kind === 'mpu' || hit.kind === 'mmu')) {
     die.poke(hit.kind, write, now);
+  }
   if (!hit) {
     die.touchUnit('l2', write, now, addr);
     die.touchUnit('mc', write, now, addr);
-  } else if (unit) die.touchUnit(unit, write, now, addr);
+  } else if (unit) {
+    die.touchUnit(unit, write, now, addr);
+  }
   return hit;
 }
 
 /** An access to an AI card's window: the PCIe slot of the card and the offset in the window (registers below `NPU_MEM`, card memory from it), or null for any other address. */
 export function npuAccess(addr: number): { slot: string; off: number } | null {
   const a = addr >>> 0;
-  if (a < NPU_BASE || a >= NPU_BASE + NPU_PORTS.length * NPU_STRIDE) return null;
+  if (a < NPU_BASE || a >= NPU_BASE + NPU_PORTS.length * NPU_STRIDE) {
+    return null;
+  }
   return { slot: `pcie${Math.floor((a - NPU_BASE) / NPU_STRIDE)}`, off: (a - NPU_BASE) % NPU_STRIDE };
 }
 

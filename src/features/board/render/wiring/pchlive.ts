@@ -2,7 +2,7 @@ import type { Graphics } from 'pixi.js';
 import { box } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
 import type { Rect } from '../layout/layout';
-import { legsOf, type Side } from '../layout/pins';
+import * as pins from '../layout/pins';
 import type { Lane } from './routes';
 
 // The chipset at work (docs/render/live.md "Activity"). The PCH is a switch: a message comes in on the legs of one bus and goes out on the legs
@@ -14,19 +14,19 @@ import type { Lane } from './routes';
 export interface ChipLeg {
   x: number;
   y: number;
-  side: Side;
+  side: pins.Side;
   arrives: 1 | -1;
 }
 /** One packet reaching or leaving a leg, at game time `at`. */
 export interface LegHit {
   x: number;
   y: number;
-  side: Side;
+  side: pins.Side;
   color: string;
   at: number;
 }
 
-const SIDES: readonly Side[] = ['n', 's', 'w', 'e'];
+const SIDES: readonly pins.Side[] = ['n', 's', 'w', 'e'];
 /** How near a lane's end must be to a leg's middle to count as landing on it (the lanes end exactly on a leg: a half pitch is plenty). */
 const LAND = 14;
 /** The flash ramps up over `RAMP` ms before the packet gets there and dies away with a time constant of `FALL`; a hit is over after `HIT_MS`. */
@@ -36,15 +36,18 @@ export const HIT_MS = 900;
 
 /** The leg of `chip` one end of `lane` lands on, or null when the lane does not end on the chip. */
 export function chipLegOf(chip: Rect, lane: Lane): ChipLeg | null {
-  const pts = lane.pts,
+  const { pts } = lane,
     ends = [
-      { p: pts[pts.length - 1]!, arrives: 1 as const },
+      { p: pts.at(-1)!, arrives: 1 as const },
       { p: pts[0]!, arrives: -1 as const },
     ];
   for (const { p, arrives } of ends) {
     for (const side of SIDES) {
-      for (const [x, y] of legsOf(chip, side))
-        if (Math.hypot(p[0] - x, p[1] - y) <= LAND) return { x, y, side, arrives };
+      for (const [x, y] of pins.legsOf(chip, side)) {
+        if (Math.hypot(p[0] - x, p[1] - y) <= LAND) {
+          return { x, y, side, arrives };
+        }
+      }
     }
   }
   return null;
@@ -52,8 +55,12 @@ export function chipLegOf(chip: Rect, lane: Lane): ChipLeg | null {
 
 /** 0..1: how lit a leg is at `now` (rises just before the packet gets there, then dies away). */
 export function legGlow(h: Pick<LegHit, 'at'>, now: number): number {
-  if (now < h.at - RAMP) return 0;
-  if (now < h.at) return (now - (h.at - RAMP)) / RAMP;
+  if (now < h.at - RAMP) {
+    return 0;
+  }
+  if (now < h.at) {
+    return (now - (h.at - RAMP)) / RAMP;
+  }
   return Math.exp(-(now - h.at) / FALL);
 }
 
@@ -69,13 +76,24 @@ export interface Led {
  * blink while the key is read or written, a slow amber blink while the key enumerates. Dark with no power.
  */
 export function ledOf(powered: boolean, phase: string, keyActivity: string, now: number): Led | null {
-  if (!powered || phase === 'off') return null;
-  if (phase === 'error') return { tone: 'bad', on: true, a: 1 };
-  if (keyActivity === 'enumerating') return { tone: 'ld', on: Math.floor(now / 450) % 2 === 0, a: 1 };
-  if (keyActivity === 'ingesting' || keyActivity === 'flashing' || phase === 'loading' || phase === 'writing')
+  if (!powered || phase === 'off') {
+    return null;
+  }
+  if (phase === 'error') {
+    return { tone: 'bad', on: true, a: 1 };
+  }
+  if (keyActivity === 'enumerating') {
+    return { tone: 'ld', on: Math.floor(now / 450) % 2 === 0, a: 1 };
+  }
+  if (keyActivity === 'ingesting' || keyActivity === 'flashing' || phase === 'loading' || phase === 'writing') {
     return { tone: 'st', on: Math.floor(now / 130) % 2 === 0, a: 1 };
-  if (phase === 'posting' || phase === 'mounting' || phase === 'booting-os') return { tone: 'ld', on: true, a: 1 };
-  if (phase === 'halted') return { tone: 'st', on: true, a: 0.5 };
+  }
+  if (phase === 'posting' || phase === 'mounting' || phase === 'booting-os') {
+    return { tone: 'ld', on: true, a: 1 };
+  }
+  if (phase === 'halted') {
+    return { tone: 'st', on: true, a: 0.5 };
+  }
   return { tone: 'st', on: true, a: 1 };
 }
 
@@ -104,11 +122,15 @@ export function drawPch(g: Graphics, T: Theme, c: Rect, o: PchLook): void {
   const lv = o.level;
   if (lv > 0.01) {
     box(g, c.x, c.y, c.w, c.h, 26, { stroke: T.mul, lw: 8, sa: 0.5 * lv });
-    if (o.tier >= 2) box(g, c.x + 14, c.y + 14, c.w - 28, c.h - 28, 16, { fill: T.ld, fa: 0.1 * lv });
+    if (o.tier >= 2) {
+      box(g, c.x + 14, c.y + 14, c.w - 28, c.h - 28, 16, { fill: T.ld, fa: 0.1 * lv });
+    }
   }
   for (const h of o.hits) {
     const a = legGlow(h, o.now);
-    if (a < 0.02) continue;
+    if (a < 0.02) {
+      continue;
+    }
     const across = h.side === 'n' || h.side === 's',
       w = across ? 10 : 20,
       hh = across ? 20 : 10;
@@ -118,7 +140,9 @@ export function drawPch(g: Graphics, T: Theme, c: Rect, o: PchLook): void {
   if (o.led) {
     const { x, y } = pchLedAt(c),
       col = T[o.led.tone];
-    if (o.led.on) g.circle(x, y, 18).fill({ color: col, alpha: 0.3 * o.led.a });
+    if (o.led.on) {
+      g.circle(x, y, 18).fill({ color: col, alpha: 0.3 * o.led.a });
+    }
     g.circle(x, y, 8).fill({ color: o.led.on ? col : '#2a3150', alpha: o.led.on ? o.led.a : 0.7 });
   }
 }
