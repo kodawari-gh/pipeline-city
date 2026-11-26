@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { GpuFaultCode, NpuOp } from '@/core/sim/memmap';
 import { sampleRun, sampleStep, sampleView } from './npusample';
 import { liveShow, NpuPlayer, REPLAY_HOP_MS, REPLAY_QUEUE, replayLength, replayShow, replayStepMs } from './npuplayer';
@@ -19,16 +19,34 @@ describe('liveShow', () => {
     });
     const s = liveShow(v, 0);
     expect(s.step).toMatchObject({ op: NpuOp.Matmul, progress: 0.5 });
-    expect(s.prevAcc).toEqual(run[0]!.acc); // the accumulator before the product is the one the load left
-    expect(
-      liveShow(
-        sampleView({ phase: 'run', busy: true, index: 0, run: 1, stepWait: 5, stepSpan: 5, log: run.slice(0, 1) }),
-        0,
-      ).prevAcc.every((x) => x === 0),
-    ).toBe(true);
+    assert.exists(run[0]);
+    expect(s.prevAcc).toStrictEqual(run[0].acc); // the accumulator before the product is the one the load left
+    const firstStep = sampleView({
+      phase: 'run',
+      busy: true,
+      index: 0,
+      run: 1,
+      stepWait: 5,
+      stepSpan: 5,
+      log: run.slice(0, 1),
+    });
+    expect(liveShow(firstStep, 0).prevAcc.every((x) => x === 0)).toBe(true);
     expect(liveShow(sampleView(), 0)).toMatchObject({ step: null, progress: 1, replay: false });
   });
 });
+
+/** Plays whole replays (at least one advance) until none is left, giving up past 11; returns how many advances it took. */
+function drainReplays(p: NpuPlayer): number {
+  let n = 0;
+  while (p.replaying || n === 0) {
+    p.advance(replayLength(sampleRun()) + 1);
+    n++;
+    if (n > 10) {
+      break;
+    }
+  }
+  return n;
+}
 
 describe('replayShow', () => {
   it('walks in, each descriptor in turn, then out; the registers and the tiles follow the launch', () => {
@@ -37,21 +55,27 @@ describe('replayShow', () => {
       at = (t: number) => replayShow(steps, v, t, 0);
     expect(at(10)).toMatchObject({ phase: 'in', index: -1, step: null, replay: true, count: 3 });
     const t0 = REPLAY_HOP_MS,
-      len = steps.map(replayStepMs);
+      len = steps.map((s) => replayStepMs(s));
     expect(at(t0 + 10)).toMatchObject({ phase: 'run', index: 0, step: { op: NpuOp.Load } });
-    expect(at(t0 + 10).tiles).toEqual([true, false, false, false]);
-    const mid = at(t0 + len[0]! + len[1]! / 2);
+    expect(at(t0 + 10).tiles).toStrictEqual([true, false, false, false]);
+    assert.exists(len[0]);
+    assert.exists(len[1]);
+    const mid = at(t0 + len[0] + len[1] / 2);
     expect(mid).toMatchObject({ phase: 'run', index: 1, step: { op: NpuOp.Matmul, progress: 0.5 } });
     expect(mid.cycles).toBe(5 + 7);
-    expect(mid.prevAcc).toEqual(steps[0]!.acc);
-    expect(mid.acc).toEqual(steps[1]!.acc);
+    assert.exists(steps[0]);
+    expect(mid.prevAcc).toStrictEqual(steps[0].acc);
+    assert.exists(steps[1]);
+    expect(mid.acc).toStrictEqual(steps[1].acc);
     const end = at(t0 + len.reduce((n, x) => n + x, 0) + 10);
     expect(end).toMatchObject({ phase: 'out', index: 2, done: true, error: false, cycles: 24 });
-    expect(end.step!.writes).toEqual([[0x200, 0x240]]);
+    assert.exists(end.step);
+    expect(end.step.writes).toStrictEqual([[0x2_00, 0x2_40]]);
   });
   it('a launch that faulted ends in its fault', () => {
     const steps = [sampleStep(1, { index: 0, count: 1, op: NpuOp.Load, cost: 0, fault: true })];
-    expect(replayLength(steps)).toBe(2 * REPLAY_HOP_MS + replayStepMs(steps[0]!));
+    assert.exists(steps[0]);
+    expect(replayLength(steps)).toBe(2 * REPLAY_HOP_MS + replayStepMs(steps[0]));
     expect(replayShow(steps, sampleView(), replayLength(steps) - 10, 0)).toMatchObject({
       phase: 'out',
       error: true,
@@ -60,7 +84,7 @@ describe('replayShow', () => {
     });
   });
   it('knows the size of a layer from the block it writes', () => {
-    const steps = [sampleStep(1, { index: 0, count: 1, op: NpuOp.Layer, cost: 300, writes: [[0x800, 0x900]] })];
+    const steps = [sampleStep(1, { index: 0, count: 1, op: NpuOp.Layer, cost: 300, writes: [[0x8_00, 0x9_00]] })];
     expect(replayShow(steps, sampleView(), REPLAY_HOP_MS + 10, 0).step).toMatchObject({ op: NpuOp.Layer, n: 8 });
   });
 });
@@ -112,14 +136,9 @@ describe('NpuPlayer', () => {
           .slice(-15),
       }),
     );
-    let n = 0;
-    while (p.replaying || n === 0) {
-      p.advance(replayLength(sampleRun()) + 1);
-      n++;
-      if (n > 10) break;
-    }
-    expect(n).toBeLessThanOrEqual(REPLAY_QUEUE + 1);
-    p.feed(undefined);
+    expect(drainReplays(p)).toBeLessThanOrEqual(REPLAY_QUEUE + 1);
+    const noViews: ReturnType<typeof sampleView>[] = [];
+    p.feed(noViews.at(0));
     expect(p.show(0)).toBeNull();
   });
 });

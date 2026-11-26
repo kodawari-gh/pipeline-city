@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import type { TpmView } from '../sim/tpm';
 import { headerRect, tpmHeader } from '@/core/render/accelart';
 import { setLayoutTier } from '../../board/render/layout/layout';
@@ -31,14 +31,16 @@ const view = (o: Partial<TpmView> = {}): TpmView => ({
   measureTicks: 4,
   attestTicks: 60,
   surcharge: 2,
-  ramBytes: 16384,
+  ramBytes: 16_384,
   ...o,
 });
 
 describe('the words for the secure module', () => {
   it('describes every part the board writes, with the module on and off', () => {
     setLayoutTier(3, 3);
-    const hdr = headerRect(tpmHeader(3)!);
+    const tpmHeaderResult = tpmHeader(3);
+    assert.exists(tpmHeaderResult);
+    const hdr = headerRect(tpmHeaderResult);
     for (const [spec, visual] of [
       ['tpm1', 'tpm-1'],
       ['tpm2', 'tpm-2'],
@@ -46,21 +48,22 @@ describe('the words for the secure module', () => {
       const s = snap({
         devices: [dev({ id: 't1', spec, kind: 'tpm', slot: 'tpm0', tempC: 33 })],
         tpm: view({
-          range: { lo: 0x1000, hi: 0x2000 },
+          range: { lo: 0x10_00, hi: 0x20_00 },
           fault: 4,
-          lastViolation: 0x3000,
+          lastViolation: 0x30_00,
           sealed: [{ handle: 9, value: 7 }],
         }),
       });
       const ids = tpmIds(visual, 'tpm0', hdr);
-      expect(ids.length, visual).toBeGreaterThanOrEqual(9);
+      expect(ids.length, `for ${visual}`).toBeGreaterThanOrEqual(9);
       for (const id of ids) {
-        expect(isTpmId(id), id).toBe(true);
+        expect(isTpmId(id), `for ${id}`).toBe(true);
         for (const d of [describeId(id, s), describeId(id)]) {
           expect(d, `${visual} ${id}`).not.toBeNull();
-          expect(d!.title.length, `${id} title`).toBeGreaterThan(2);
-          expect(d!.plain.length, `${id} plain`).toBeGreaterThan(10);
-          expect(d!.nerd.length, `${id} nerd`).toBeGreaterThan(10);
+          assert.exists(d);
+          expect(d.title.length, `${id} title`).toBeGreaterThan(2);
+          expect(d.plain.length, `${id} plain`).toBeGreaterThan(10);
+          expect(d.nerd.length, `${id} nerd`).toBeGreaterThan(10);
         }
       }
     }
@@ -69,11 +72,17 @@ describe('the words for the secure module', () => {
   it('says what the module is doing now, and ignores ids that are not its parts', () => {
     const s = snap({
       devices: [dev({ id: 't1', spec: 'tpm1', kind: 'tpm', slot: 'tpm0' })],
-      tpm: view({ range: { lo: 0x1000, hi: 0x2000 }, surcharge: 2, guardedAccesses: 5 }),
+      tpm: view({ range: { lo: 0x10_00, hi: 0x20_00 }, surcharge: 2, guardedAccesses: 5 }),
     });
-    expect(describeId('tpm0.guard', s)!.nerd).toMatch(/protected 0x1000 to 0x2000.*\+2 cycles.*5 guarded/);
-    expect(describeId('tpm0.guard')!.nerd).toMatch(/^off/);
-    expect(describeId('tpm0.hash')!.nerd).toMatch(/h = h \* 33/);
+    const tpm0GuardInfo = describeId('tpm0.guard', s);
+    assert.exists(tpm0GuardInfo);
+    expect(tpm0GuardInfo.nerd).toMatch(/protected 0x1000 to 0x2000.*\+2 cycles.*5 guarded/u);
+    const tpm0GuardInfo2 = describeId('tpm0.guard');
+    assert.exists(tpm0GuardInfo2);
+    expect(tpm0GuardInfo2.nerd).toMatch(/^off/u);
+    const tpm0HashInfo = describeId('tpm0.hash');
+    assert.exists(tpm0HashInfo);
+    expect(tpm0HashInfo.nerd).toMatch(/h = h \* 33/u);
     expect(describeId('tpm0.nonsense', s)).toBeNull();
     expect(isTpmId('tpm0.regs')).toBe(true);
     expect(isTpmId('tpm0')).toBe(false);

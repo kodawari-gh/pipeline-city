@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import type { OsSnap, StorageSnap } from '@/worker/game/game';
-import type { Progress } from '@/worker/game/save';
+import type * as saveTypes from '@/worker/game/save';
 import { newProgress } from '@/worker/game/save';
 import {
   currentStep,
@@ -13,14 +13,14 @@ import {
   stepCount,
   stepProblem,
   tutorialForSave,
-  type TutorialState,
 } from './tutorial';
+import type * as tutorialTypes from './tutorial';
 import { describeId } from '@/core/ui/logic';
 import { dev, EMPTY_SLOTS, key, snap, STARTER_CRATE, STOCK_COOLER } from '@/core/ui/testdata';
 
-const welcomed: TutorialState = { ...INITIAL_TUTORIAL, welcomed: true };
+const welcomed: tutorialTypes.TutorialState = { ...INITIAL_TUTORIAL, welcomed: true };
 /** The first fifteen flags, in the order the player meets them (the pre-OS tutorial: key in first, then power, then the manual cycle). */
-const OLD_IN_ORDER: (keyof Progress)[] = [
+const OLD_IN_ORDER: (keyof saveTypes.Progress)[] = [
   'cpuInstalled',
   'coolerInstalled',
   'ramInstalled',
@@ -37,12 +37,19 @@ const OLD_IN_ORDER: (keyof Progress)[] = [
   'firstManualCycle',
   'firstPurchase',
 ];
-const oldUpTo = (n: number): Progress => {
+const oldUpTo = (n: number): saveTypes.Progress => {
   const p = newProgress(false);
-  for (const f of OLD_IN_ORDER.slice(0, n)) p[f] = true;
+  for (const f of OLD_IN_ORDER.slice(0, n)) {
+    p[f] = true;
+  }
   return p;
 };
 const idOf = (s: ReturnType<typeof currentStep>) => s?.id ?? null;
+/** The id of the step the player is on. */
+const stepOf = (s: ReturnType<typeof snap>, st: tutorialTypes.TutorialState) => idOf(currentStep(s, st));
+/** The id of the step the player is on with these flags (nothing else done). */
+const stepAfter = (progress: saveTypes.Progress, st: tutorialTypes.TutorialState) =>
+  idOf(currentStep(snap({ progress }), st));
 const oldDone = () => oldUpTo(15);
 
 const drive = (o: Partial<StorageSnap> = {}): StorageSnap => ({
@@ -93,15 +100,77 @@ const osOn = (o: Partial<OsSnap> = {}): OsSnap => ({
 const atLevel = (n: number) => ({ ...snap().level, level: n });
 const afterSpend = (extra: Partial<Parameters<typeof snap>[0]> = {}) =>
   snap({ progress: oldDone(), money: 500, inventory: [], level: atLevel(3), ...extra });
-const invItem = (kind: string, spec: string, id: string, freeSlots: string[] = []) => ({
+type InvItem = ReturnType<typeof snap>['inventory'][number];
+type CableSnap = ReturnType<typeof snap>['cables'][number];
+const invItem = (kind: InvItem['kind'], spec: string, id: string): InvItem => ({
   id,
   spec,
-  kind: kind as 'ram',
+  kind,
   name: spec,
-  freeSlots,
+  freeSlots: [],
   swapSlots: [],
+  installable: false,
+});
+/** `item`, fitting the free `slots` (installable when there is one). */
+const fitsIn = (item: InvItem, freeSlots: string[]): InvItem => ({
+  ...item,
+  freeSlots,
   installable: freeSlots.length > 0,
 });
+/** The step the player is on after the welcome card. */
+const welcomedStep = (s: ReturnType<typeof snap>) => stepOf(s, welcomed);
+/** A RAM stick of `spec` fitted in `slot`. */
+const ramDev = (spec: string, slot = 'dimm1') =>
+  dev({
+    id: 'dev3',
+    spec,
+    kind: 'ram',
+    name: 'RAM',
+    slot,
+    burnt: false,
+    requestedClock: null,
+    effectiveClock: 1,
+    tempC: 25,
+    powerW: 1,
+    throttle: 1,
+    unstable: false,
+  });
+/** A bigger RAM stick in the inventory that can swap into `swap`. */
+const bigRam = (swap = ['dimm1']) => ({ ...invItem('ram', 'ram1', 'inv7'), swapSlots: swap });
+/** The OS installed and booted, ingesting, with `extra` on top. */
+const osFlow = (extra: Partial<Parameters<typeof snap>[0]>) =>
+  afterSpend({
+    progress: { ...oldDone(), storageInstalled: true, osInstalled: true },
+    storage: [drive({ hasOs: true })],
+    os: osOn(),
+    powered: true,
+    phase: 'ingesting',
+    ...extra,
+  });
+/** The step with this id (fails the test when there is none). */
+const stepWithId = (id: string) => {
+  const foundSTEPS = STEPS.find((x) => x.id === id);
+  assert.exists(foundSTEPS);
+  return foundSTEPS;
+};
+/** A CPU offer in the shop at `price`. */
+const cpuOffer = (price: number, affordable: boolean) => ({
+  id: 'cpu1',
+  name: 'CPU',
+  kind: 'cpu' as const,
+  price,
+  affordable,
+});
+/** These cables, all plugged in except the `open` ones. */
+const cablesOpen = (ids: CableSnap['id'][], open: string[]): CableSnap[] =>
+  ids.map((id) => ({ id, name: id, connected: !open.includes(id) }));
+/** What the `stepId` step lights with these cables, all plugged in except the `open` ones. */
+const cableTargets = (stepId: string, ids: CableSnap['id'][], open: string[]) =>
+  stepWithId(stepId).targets(snap({ cables: cablesOpen(ids, open) }));
+const cableStepTargets = (open: string[]) => cableTargets('cables', ['atx', 'cpu', 'cpufan', 'video'], open);
+const wallStepTargets = (open: string[]) => cableTargets('wall', ['pcmains', 'monmains'], open);
+/** The progress flags the steps are driven by. */
+const stepFlags = () => STEPS.flatMap((s) => (s.flag === null ? [] : [s.flag]));
 
 describe('the sandbox has no tutorial', () => {
   it('a sandbox game (all flags set) shows no step and no OS lesson offer', () => {
@@ -111,17 +180,18 @@ describe('the sandbox has no tutorial', () => {
   });
 
   it('a campaign game with the same flags still gets the offer', () => {
-    expect(offerNextLesson(snap({ progress: newProgress(true) }), INITIAL_TUTORIAL)).toBe(true);
+    const allFlags = snap({ progress: newProgress(true) });
+    expect(offerNextLesson(allFlags, INITIAL_TUTORIAL)).toBe(true);
   });
 });
 
 describe('tutorial step from snapshot flags', () => {
   it('a new game opens on the welcome card', () => {
-    expect(idOf(currentStep(snap(), INITIAL_TUTORIAL))).toBe('welcome');
+    expect(stepOf(snap(), INITIAL_TUTORIAL)).toBe('welcome');
   });
 
   it('after welcome, with nothing done, it asks for the processor', () => {
-    expect(idOf(currentStep(snap(), welcomed))).toBe('cpu');
+    expect(stepOf(snap(), welcomed)).toBe('cpu');
   });
 
   it('walks the old steps in order as flags come in, then the OS steps', () => {
@@ -144,20 +214,20 @@ describe('tutorial step from snapshot flags', () => {
       'spend',
     ];
     for (let n = 0; n < OLD_IN_ORDER.length; n++) {
-      expect(idOf(currentStep(snap({ progress: oldUpTo(n) }), welcomed)), `after ${n} flags`).toBe(order[n]);
+      expect(stepAfter(oldUpTo(n), welcomed), `after ${n} flags`).toBe(order[n]);
     }
   });
 
   it('after the first pay the three numbers are explained one by one, each ended by Got it, before the next key', () => {
     const paid = { progress: oldUpTo(13) }; // firstKeyEjected is the 13th flag
-    const at = (acks: string[]) => idOf(currentStep(snap(paid), { ...welcomed, acks }));
+    const at = (acks: string[]) => stepOf(snap(paid), { ...welcomed, acks });
     expect(at([])).toBe('money');
     expect(at(['money'])).toBe('reputation');
     expect(at(['money', 'reputation'])).toBe('level');
     expect(at(['money', 'reputation', 'level'])).toBe('cycle');
     // A player already past them (an older save) is not sent back.
-    expect(idOf(currentStep(snap({ progress: oldUpTo(14) }), welcomed))).toBe('spend');
-    expect(STEPS.filter((x) => x.ack).map((x) => x.targets(snap()))).toEqual([
+    expect(stepAfter(oldUpTo(14), welcomed)).toBe('spend');
+    expect(STEPS.filter((x) => x.ack === true).map((x) => x.targets(snap()))).toStrictEqual([
       ['hud:money'],
       ['hud:reputation'],
       ['hud:level'],
@@ -165,7 +235,7 @@ describe('tutorial step from snapshot flags', () => {
   });
 
   it('the old flags alone are not the end: the next step is fitting the bought part', () => {
-    expect(idOf(currentStep(snap({ progress: oldDone() }), welcomed))).toBe('fit');
+    expect(stepAfter(oldDone(), welcomed)).toBe('fit');
   });
 
   it('after the OS job is paid out the network chapter follows, step by step, to the last card', () => {
@@ -180,40 +250,31 @@ describe('tutorial step from snapshot flags', () => {
         ...extra,
       });
     const jackBoard = { ...snap().board, features: { ...snap().board.features, ethernetMbps: 100 } };
-    const at = (s: ReturnType<typeof snap>) => idOf(currentStep(s, welcomed));
-    expect(at(net({}, { level: atLevel(3) }))).toBe('reachLevel4');
-    expect(at(net({}))).toBe('buyIsp');
-    expect(at(net({ ispBought: true }))).toBe('buyRouter');
-    expect(at(net({ ispBought: true }, { inventory: [invItem('router', 'router1', 'inv8', ['router'])] }))).toBe(
-      'placeRouter',
-    );
-    expect(at(net({ ispBought: true, routerInstalled: true }))).toBe('buyCase');
+    const router = fitsIn(invItem('router', 'router1', 'inv8'), ['router']);
+    const spareCase = { ...invItem('case', 'case1', 'inv8'), freeSlots: ['case'] };
+    const spareBoard = { ...invItem('board', 'board1', 'inv9'), swapSlots: ['board'] };
+    const level3 = net({}, { level: atLevel(3) });
+    expect(welcomedStep(level3)).toBe('reachLevel4');
+    expect(welcomedStep(net({}))).toBe('buyIsp');
+    expect(welcomedStep(net({ ispBought: true }))).toBe('buyRouter');
+    expect(welcomedStep(net({ ispBought: true }, { inventory: [router] }))).toBe('placeRouter');
+    expect(welcomedStep(net({ ispBought: true, routerInstalled: true }))).toBe('buyCase');
+    expect(welcomedStep(net({ ispBought: true, routerInstalled: true }, { inventory: [spareCase] }))).toBe('fitCase');
+    expect(welcomedStep(net({ ispBought: true, routerInstalled: true }, { caseTier: 1 }))).toBe('buyBoard');
     expect(
-      at(
-        net(
-          { ispBought: true, routerInstalled: true },
-          { inventory: [{ ...invItem('case', 'case1', 'inv8'), freeSlots: ['case'] }] },
-        ),
-      ),
-    ).toBe('fitCase');
-    expect(at(net({ ispBought: true, routerInstalled: true }, { caseTier: 1 }))).toBe('buyBoard');
-    expect(
-      at(
-        net(
-          { ispBought: true, routerInstalled: true },
-          { caseTier: 1, inventory: [{ ...invItem('board', 'board1', 'inv9'), swapSlots: ['board'] }] },
-        ),
-      ),
+      welcomedStep(net({ ispBought: true, routerInstalled: true }, { caseTier: 1, inventory: [spareBoard] })),
     ).toBe('fitBoard');
-    expect(at(net({ ispBought: true, routerInstalled: true }, { board: jackBoard }))).toBe('plugLan');
-    expect(at(net({ ispBought: true, routerInstalled: true, lanConnected: true }, { board: jackBoard }))).toBe(
-      'linkUp',
-    );
+    expect(welcomedStep(net({ ispBought: true, routerInstalled: true }, { board: jackBoard }))).toBe('plugLan');
     expect(
-      at(net({ ispBought: true, routerInstalled: true, lanConnected: true, linkUp: true }, { board: jackBoard })),
+      welcomedStep(net({ ispBought: true, routerInstalled: true, lanConnected: true }, { board: jackBoard })),
+    ).toBe('linkUp');
+    expect(
+      welcomedStep(
+        net({ ispBought: true, routerInstalled: true, lanConnected: true, linkUp: true }, { board: jackBoard }),
+      ),
     ).toBe('firstNetJob');
     expect(
-      at(
+      welcomedStep(
         net(
           { ispBought: true, routerInstalled: true, lanConnected: true, linkUp: true, firstNetJob: true },
           { board: jackBoard },
@@ -223,19 +284,21 @@ describe('tutorial step from snapshot flags', () => {
   });
 
   it('the case can only be bought with the machine off, like the board: the power button first, then the Shop', () => {
-    const step = STEPS.find((x) => x.id === 'buyCase')!;
+    const step = STEPS.find((x) => x.id === 'buyCase');
+    assert.exists(step);
     const purchases = [{ id: 'case1', name: 'Micro tower', kind: 'case' as const, price: 70, affordable: true }];
-    expect(step.targets(snap({ powered: true, purchases }))).toEqual(['power']);
-    expect(step.targets(snap({ powered: false, purchases }))).toEqual(['hud:shop', 'buy:case1']);
-    expect(stepProblem(snap({ powered: true, purchases }), step)).toMatch(/power button/);
+    expect(step.targets(snap({ powered: true, purchases }))).toStrictEqual(['power']);
+    expect(step.targets(snap({ powered: false, purchases }))).toStrictEqual(['hud:shop', 'buy:case1']);
+    expect(stepProblem(snap({ powered: true, purchases }), step)).toMatch(/power button/u);
   });
 
   it('the board can only be bought with the machine off: the step lights the power button first, then the Shop', () => {
-    const step = STEPS.find((x) => x.id === 'buyBoard')!;
+    const step = STEPS.find((x) => x.id === 'buyBoard');
+    assert.exists(step);
     const purchases = [{ id: 'board1', name: 'Basic', kind: 'board' as const, price: 150, affordable: true }];
-    expect(step.targets(snap({ powered: true, purchases }))).toEqual(['power']);
-    expect(step.targets(snap({ powered: false, purchases }))).toEqual(['hud:shop', 'buy:board1']);
-    expect(stepProblem(snap({ powered: true, purchases }), step)).toMatch(/power button/);
+    expect(step.targets(snap({ powered: true, purchases }))).toStrictEqual(['power']);
+    expect(step.targets(snap({ powered: false, purchases }))).toStrictEqual(['hud:shop', 'buy:board1']);
+    expect(stepProblem(snap({ powered: true, purchases }), step)).toMatch(/power button/u);
   });
 
   it('skipped and finished tutorials show nothing', () => {
@@ -248,20 +311,23 @@ describe('tutorial step from snapshot flags', () => {
     const s = snap({ progress: oldUpTo(7) });
     const step = currentStep(s, INITIAL_TUTORIAL);
     expect(step?.id).toBe('cables');
-    expect(stepCount(step!)).toEqual({ n: 7, total: 8, chapter: 'Build' });
+    assert.exists(step);
+    expect(stepCount(step)).toStrictEqual({ n: 7, total: 8, chapter: 'Build' });
   });
 
   it('resumes at the drive step from a save that has the bought part fitted and no drive yet', () => {
     const s = afterSpend({ inventory: [], storage: [], os: null });
-    expect(idOf(currentStep(s, welcomed))).toBe('buyDrive');
+    expect(stepOf(s, welcomed)).toBe('buyDrive');
   });
 
   it('waits at the client-base step below Level 3, and the step is done at Level 3 or once a drive is owned', () => {
     const low = afterSpend({ level: atLevel(2) });
-    expect(idOf(currentStep(low, welcomed))).toBe('reachLevel3');
-    expect(idOf(currentStep(afterSpend({ level: atLevel(3) }), welcomed))).toBe('buyDrive');
+    expect(stepOf(low, welcomed)).toBe('reachLevel3');
+    const spentAtLevel3 = afterSpend({ level: atLevel(3) });
+    expect(stepOf(spentAtLevel3, welcomed)).toBe('buyDrive');
     // A player who already owns a drive (an older save) is not sent back to wait.
-    expect(idOf(currentStep(afterSpend({ level: atLevel(1), storage: [drive()] }), welcomed))).not.toBe('reachLevel3');
+    const driveAtLevel1 = afterSpend({ level: atLevel(1), storage: [drive()] });
+    expect(stepOf(driveAtLevel1, welcomed)).not.toBe('reachLevel3');
   });
 
   it('resumes at the OS install from a save with a drive installed and the OS bought', () => {
@@ -270,7 +336,7 @@ describe('tutorial step from snapshot flags', () => {
       storage: [drive()],
       inventory: [invItem('os', 'os1', 'inv9')],
     });
-    expect(idOf(currentStep(s, welcomed))).toBe('os');
+    expect(stepOf(s, welcomed)).toBe('os');
   });
 
   it('resumes while the machine is booting the OS from the drive', () => {
@@ -281,7 +347,7 @@ describe('tutorial step from snapshot flags', () => {
       phase: 'booting-os',
       powered: true,
     });
-    expect(idOf(currentStep(s, welcomed))).toBe('bootOs');
+    expect(stepOf(s, welcomed)).toBe('bootOs');
   });
 
   it('out of order: parts placed before the earlier ones are skipped past, not repeated', () => {
@@ -289,19 +355,19 @@ describe('tutorial step from snapshot flags', () => {
     const p = newProgress(false);
     p.psuInstalled = true;
     p.monitorInstalled = true;
-    expect(idOf(currentStep(snap({ progress: p }), welcomed))).toBe('cpu');
+    expect(stepAfter(p, welcomed)).toBe('cpu');
     // Then the CPU and RAM: the next open step is the cables, not the PSU again.
     p.cpuInstalled = true;
     p.coolerInstalled = true;
     p.ramInstalled = true;
-    expect(idOf(currentStep(snap({ progress: p }), welcomed))).toBe('cables');
+    expect(stepAfter(p, welcomed)).toBe('cables');
   });
 
   it('out of order: the cooler needs the CPU, and the power step waits for the cooler', () => {
     // CPU in, cooler not yet: the cooler step comes before RAM, and power is not offered.
     const p = newProgress(false);
     p.cpuInstalled = true;
-    expect(idOf(currentStep(snap({ progress: p }), welcomed))).toBe('cooler');
+    expect(stepAfter(p, welcomed)).toBe('cooler');
     // Everything but the cooler is done: still the cooler, not the power button.
     const q = {
       ...oldUpTo(15),
@@ -313,49 +379,42 @@ describe('tutorial step from snapshot flags', () => {
       firstManualCycle: false,
       firstPurchase: false,
     };
-    expect(idOf(currentStep(snap({ progress: q }), welcomed))).toBe('cooler');
+    expect(stepAfter(q, welcomed)).toBe('cooler');
     // A legacy save (cooler pre-mounted, flag derived true) skips the step.
-    expect(idOf(currentStep(snap({ progress: oldUpTo(2) }), welcomed))).toBe('ram');
+    expect(stepAfter(oldUpTo(2), welcomed)).toBe('ram');
   });
 
   it('a fitted heatsink with a free fan spot asks for the fan next; the fan lights its spot and the step ends when it sits there', () => {
     const p = oldUpTo(2),
       cooler = { ...STOCK_COOLER };
     const spot = { id: 'cooler0.fan0', type: 'fan' as const, deviceId: null, size: 92 };
-    const fan = invItem('fan', 'fan92', 'inv6', ['cooler0.fan0', 'front0']);
+    const fan = fitsIn(invItem('fan', 'fan92', 'inv6'), ['cooler0.fan0', 'front0']);
     const open = snap({ progress: p, devices: [cooler], slots: [...EMPTY_SLOTS, spot], inventory: [fan] });
-    const step = currentStep(open, welcomed)!;
+    const step = currentStep(open, welcomed);
+    assert.exists(step);
     expect(step.id).toBe('fan');
-    expect(step.targets(open)).toEqual(['inventory', 'inv:inv6', 'cooler0.fan0']); // not the case mount
+    expect(step.targets(open)).toStrictEqual(['inventory', 'inv:inv6', 'cooler0.fan0']); // not the case mount
     const fitted = snap({
       progress: p,
       devices: [cooler, dev({ id: 'f', kind: 'fan', spec: 'fan92', slot: 'cooler0.fan0' })],
       slots: [...EMPTY_SLOTS, { ...spot, deviceId: 'f' }],
     });
-    expect(idOf(currentStep(fitted, welcomed))).toBe('ram');
-    expect(
-      stepProblem(
-        snap({
-          progress: p,
-          devices: [cooler],
-          slots: [...EMPTY_SLOTS, spot],
-          inventory: [invItem('fan', 'fan120', 'inv7', [])],
-        }),
-        step,
-      ),
-    ).toBeTruthy(); // a size that fits no spot of the heatsink
-    expect(
-      idOf(
-        currentStep(
-          snap({ progress: { ...p, poweredOn: true }, devices: [cooler], slots: [...EMPTY_SLOTS, spot] }),
-          welcomed,
-        ),
-      ),
-    ).not.toBe('fan'); // an old game that already runs is not sent back
+    expect(stepOf(fitted, welcomed)).toBe('ram');
+    // a size that fits no spot of the heatsink
+    const tooBig = snap({
+      progress: p,
+      devices: [cooler],
+      slots: [...EMPTY_SLOTS, spot],
+      inventory: [invItem('fan', 'fan120', 'inv7')],
+    });
+    assert.isNotEmpty(stepProblem(tooBig, step));
+    const running = snap({ progress: { ...p, poweredOn: true }, devices: [cooler], slots: [...EMPTY_SLOTS, spot] });
+    expect(stepOf(running, welcomed)).not.toBe('fan'); // an old game that already runs is not sent back
   });
 
   it('the cooler step shows the sim reason when it is dragged too early or power is pressed without it', () => {
-    const step = STEPS.find((x) => x.id === 'cooler')!;
+    const step = STEPS.find((x) => x.id === 'cooler');
+    assert.exists(step);
     const cooler = {
       id: 'inv5',
       spec: 'cooler0',
@@ -366,39 +425,37 @@ describe('tutorial step from snapshot flags', () => {
       installable: false,
       reason: 'install the CPU first: the cooler mounts on it',
     };
-    expect(stepProblem(snap({ inventory: [cooler] }), step)).toMatch(/install the CPU first/);
+    expect(stepProblem(snap({ inventory: [cooler] }), step)).toMatch(/install the CPU first/u);
     expect(
       stepProblem(
         snap({ phase: 'error', powered: true, postBlocker: 'no CPU cooler installed: it mounts on the CPU' }),
         step,
       ),
-    ).toMatch(/machine is on/);
+    ).toMatch(/machine is on/u);
     expect(
       stepProblem(
         snap({ phase: 'error', powered: false, postBlocker: 'no CPU cooler installed: it mounts on the CPU' }),
         step,
       ),
-    ).toMatch(/no CPU cooler/);
-    expect(step.targets(snap({ inventory: [{ ...cooler, freeSlots: ['cooler0'], installable: true }] }))).toEqual([
-      'inventory',
-      'inv:inv5',
-      'cooler0',
-    ]);
+    ).toMatch(/no CPU cooler/u);
+    expect(step.targets(snap({ inventory: [{ ...cooler, freeSlots: ['cooler0'], installable: true }] }))).toStrictEqual(
+      ['inventory', 'inv:inv5', 'cooler0'],
+    );
   });
 
   it('out of order: a job served before the power was ever pressed still points at the power button', () => {
     const p = newProgress(false);
     p.firstKeyPlugged = true;
-    expect(idOf(currentStep(snap({ progress: p }), welcomed))).toBe('cpu');
+    expect(stepAfter(p, welcomed)).toBe('cpu');
   });
 
   it('out of order: the OS bought before the drive is installed still asks for the drive first', () => {
     // A drive is owned (in the inventory) and the OS is bought too: the install of the drive comes first.
     const s = afterSpend({
       storage: [],
-      inventory: [invItem('storage', 'hdd0', 'inv5', ['sata0']), invItem('os', 'os1', 'inv6')],
+      inventory: [fitsIn(invItem('storage', 'hdd0', 'inv5'), ['sata0']), invItem('os', 'os1', 'inv6')],
     });
-    expect(idOf(currentStep(s, welcomed))).toBe('drive');
+    expect(stepOf(s, welcomed)).toBe('drive');
   });
 
   it('out of order: an OS installed before the drive step was seen is simply skipped past', () => {
@@ -407,7 +464,7 @@ describe('tutorial step from snapshot flags', () => {
       storage: [drive({ hasOs: true })],
       os: osOn(),
     });
-    expect(idOf(currentStep(s, welcomed))).toBe('bootOs');
+    expect(stepOf(s, welcomed)).toBe('bootOs');
   });
 
   it('a machine powered off during the OS boot goes back to the power button', () => {
@@ -417,7 +474,7 @@ describe('tutorial step from snapshot flags', () => {
       os: osOn(),
       phase: 'off',
     });
-    expect(idOf(currentStep(s, welcomed))).toBe('bootOs');
+    expect(stepOf(s, welcomed)).toBe('bootOs');
   });
 
   it('a migrated save with every old flag set and no welcome shows the offer, not the full flow', () => {
@@ -430,12 +487,14 @@ describe('tutorial step from snapshot flags', () => {
     const ids = STEPS.map((s) => s.id);
     expect(new Set(ids).size).toBe(ids.length);
     const keys: string[] = Object.keys(newProgress(false));
-    for (const s of STEPS) if (s.flag) expect(keys).toContain(s.flag);
+    for (const flag of stepFlags()) {
+      expect(keys).toContain(flag);
+    }
   });
 });
 
 describe('the OS lesson for players who finished the first tutorial', () => {
-  const finishedOld: TutorialState = { ...INITIAL_TUTORIAL, welcomed: true, finished: true };
+  const finishedOld: tutorialTypes.TutorialState = { ...INITIAL_TUTORIAL, welcomed: true, finished: true };
 
   it('is not forced through: no step, and one offer', () => {
     const s = snap({ progress: oldDone() });
@@ -445,30 +504,35 @@ describe('the OS lesson for players who finished the first tutorial', () => {
   });
 
   it('taking the lesson starts at the drive step (the finished steps stay done)', () => {
-    const taken: TutorialState = { ...finishedOld, finished: false, osLesson: true, offered: true };
+    const taken: tutorialTypes.TutorialState = { ...finishedOld, finished: false, osLesson: true, offered: true };
     const s = afterSpend();
-    expect(idOf(currentStep(s, taken))).toBe('buyDrive');
+    expect(stepOf(s, taken)).toBe('buyDrive');
     expect(offerNextLesson(s, taken)).toBe(false);
   });
 
   it('dismissing it never offers it again', () => {
-    const declined: TutorialState = { ...finishedOld, osLesson: false, offered: true };
-    expect(offerNextLesson(snap({ progress: oldDone() }), declined)).toBe(false);
-    expect(currentStep(snap({ progress: oldDone() }), declined)).toBeNull();
+    const declined: tutorialTypes.TutorialState = { ...finishedOld, osLesson: false, offered: true };
+    const doneOffer = snap({ progress: oldDone() });
+    expect(offerNextLesson(doneOffer, declined)).toBe(false);
+    const doneStep = snap({ progress: oldDone() });
+    expect(currentStep(doneStep, declined)).toBeNull();
   });
 
   it('a skipped old tutorial is not offered the lesson', () => {
-    expect(offerNextLesson(snap({ progress: oldDone() }), { ...finishedOld, skipped: true })).toBe(false);
+    const doneSkipped = snap({ progress: oldDone() });
+    expect(offerNextLesson(doneSkipped, { ...finishedOld, skipped: true })).toBe(false);
   });
 
   it('a player who has the lesson (finished the new tutorial) is never offered it', () => {
-    const doneNew: TutorialState = { ...finishedOld, osLesson: true };
-    expect(legacyFinished(snap({ progress: oldDone() }), doneNew)).toBe(false);
-    expect(offerNextLesson(snap({ progress: oldDone() }), doneNew)).toBe(false);
+    const doneNew: tutorialTypes.TutorialState = { ...finishedOld, osLesson: true };
+    const doneLegacy = snap({ progress: oldDone() });
+    expect(legacyFinished(doneLegacy, doneNew)).toBe(false);
+    const doneOfferNew = snap({ progress: oldDone() });
+    expect(offerNextLesson(doneOfferNew, doneNew)).toBe(false);
   });
 
   it('a player still in the old tutorial at its last card continues into the OS steps', () => {
-    expect(idOf(currentStep(snap({ progress: oldDone() }), welcomed))).toBe('fit');
+    expect(stepAfter(oldDone(), welcomed)).toBe('fit');
   });
 
   it('a new game is not treated as finished', () => {
@@ -478,59 +542,48 @@ describe('the OS lesson for players who finished the first tutorial', () => {
 
 describe('the OS steps (live state and phases)', () => {
   it('buying a drive is done as soon as one is owned, and the install step follows', () => {
-    const s = afterSpend({ inventory: [invItem('storage', 'hdd0', 'inv5', ['sata0'])] });
-    expect(idOf(currentStep(s, welcomed))).toBe('drive');
-    expect(STEPS.find((x) => x.id === 'drive')!.targets(s)).toEqual(['inv:inv5', 'sata0']);
+    const s = afterSpend({ inventory: [fitsIn(invItem('storage', 'hdd0', 'inv5'), ['sata0'])] });
+    expect(stepOf(s, welcomed)).toBe('drive');
+    const driveSTEPS = STEPS.find((x) => x.id === 'drive');
+    assert.exists(driveSTEPS);
+    expect(driveSTEPS.targets(s)).toStrictEqual(['inv:inv5', 'sata0']);
   });
 
   describe('the memory lesson before the OS', () => {
-    const ramDev = (spec: string, slot = 'dimm1') => ({
-      id: 'dev3',
-      spec,
-      kind: 'ram',
-      name: 'RAM',
-      slot,
-      burnt: false,
-      requestedClock: null,
-      effectiveClock: 1,
-      tempC: 25,
-      powerW: 1,
-      throttle: 1,
-      unstable: false,
-    });
     const base = { progress: { ...oldDone(), storageInstalled: true }, storage: [drive()] };
-    const bigRam = (swap = ['dimm1']) => ({ ...invItem('ram', 'ram1', 'inv7'), swapSlots: swap });
 
     it('a machine with too little memory buys, then fits, a bigger stick before it buys the OS', () => {
-      const short = afterSpend({ ...base, devices: [ramDev('ram0')] as never });
-      expect(idOf(currentStep(short, welcomed))).toBe('buyRam');
-      expect(STEPS.find((x) => x.id === 'buyRam')!.targets(short)).toEqual(['dimm1', 'buy:ram1']);
-      const owned = afterSpend({ ...base, devices: [ramDev('ram0')] as never, inventory: [bigRam()] });
-      expect(idOf(currentStep(owned, welcomed))).toBe('fitRam');
-      expect(STEPS.find((x) => x.id === 'fitRam')!.targets(owned)).toEqual(['inv:inv7', 'dimm1']);
-      const fitted = afterSpend({ ...base, devices: [ramDev('ram1')] as never });
-      expect(idOf(currentStep(fitted, welcomed))).toBe('buyOs');
+      const short = afterSpend({ ...base, devices: [ramDev('ram0')] });
+      expect(stepOf(short, welcomed)).toBe('buyRam');
+      const buyRamSTEPS = STEPS.find((x) => x.id === 'buyRam');
+      assert.exists(buyRamSTEPS);
+      expect(buyRamSTEPS.targets(short)).toStrictEqual(['dimm1', 'buy:ram1']);
+      const owned = afterSpend({ ...base, devices: [ramDev('ram0')], inventory: [bigRam()] });
+      expect(stepOf(owned, welcomed)).toBe('fitRam');
+      const fitRamSTEPS = STEPS.find((x) => x.id === 'fitRam');
+      assert.exists(fitRamSTEPS);
+      expect(fitRamSTEPS.targets(owned)).toStrictEqual(['inv:inv7', 'dimm1']);
+      const fitted = afterSpend({ ...base, devices: [ramDev('ram1')] });
+      expect(stepOf(fitted, welcomed)).toBe('buyOs');
     });
 
     it('the general fit step leaves the memory to its own lesson', () => {
-      const s = afterSpend({ ...base, devices: [ramDev('ram0')] as never, inventory: [bigRam()] });
-      expect(STEPS.find((x) => x.id === 'fit')!.targets(s)).toEqual([]);
+      const s = afterSpend({ ...base, devices: [ramDev('ram0')], inventory: [bigRam()] });
+      const fitSTEPS = STEPS.find((x) => x.id === 'fit');
+      assert.exists(fitSTEPS);
+      expect(fitSTEPS.targets(s)).toStrictEqual([]);
     });
 
     it('is skipped once the OS is bought, and says why the buy tile is stuck when money or the board is the problem', () => {
       const withOs = afterSpend({
         ...base,
-        devices: [ramDev('ram0')] as never,
+        devices: [ramDev('ram0')],
         inventory: [invItem('os', 'os1', 'inv9')],
       });
-      expect(idOf(currentStep(withOs, welcomed))).toBe('os');
+      expect(stepOf(withOs, welcomed)).toBe('os');
       const ram = { id: 'ram1', name: 'DRAM 32K fast', kind: 'ram' as const, price: 100, affordable: false };
-      expect(
-        stepProblem(
-          afterSpend({ ...base, money: 40, devices: [ramDev('ram0')] as never, purchases: [ram] }),
-          STEPS.find((x) => x.id === 'buyRam')!,
-        ),
-      ).toBe('Need $60 more.');
+      const poor = afterSpend({ ...base, money: 40, devices: [ramDev('ram0')], purchases: [ram] });
+      expect(stepProblem(poor, stepWithId('buyRam'))).toBe('Need $60 more.');
     });
   });
 
@@ -538,10 +591,12 @@ describe('the OS steps (live state and phases)', () => {
     const s = afterSpend({
       progress: { ...oldDone(), storageInstalled: true },
       storage: [drive()],
-      inventory: [invItem('os', 'os1', 'inv6', ['sata0'])],
+      inventory: [fitsIn(invItem('os', 'os1', 'inv6'), ['sata0'])],
     });
-    expect(idOf(currentStep(s, welcomed))).toBe('os');
-    expect(STEPS.find((x) => x.id === 'os')!.targets(s)).toEqual(['inv:inv6', 'sata0']);
+    expect(stepOf(s, welcomed)).toBe('os');
+    const osSTEPS = STEPS.find((x) => x.id === 'os');
+    assert.exists(osSTEPS);
+    expect(osSTEPS.targets(s)).toStrictEqual(['inv:inv6', 'sata0']);
   });
 
   it('the boot step is done in any running OS phase, and points at the monitor and the OS badge', () => {
@@ -552,33 +607,28 @@ describe('the OS steps (live state and phases)', () => {
       phase: 'idle-os',
       powered: true,
     });
-    expect(idOf(currentStep(s, welcomed))).toBe('osIngest');
-    expect(STEPS.find((x) => x.id === 'bootOs')!.targets(s)).toEqual(['power']);
+    expect(stepOf(s, welcomed)).toBe('osIngest');
+    const bootOsSTEPS = STEPS.find((x) => x.id === 'bootOs');
+    assert.exists(bootOsSTEPS);
+    expect(bootOsSTEPS.targets(s)).toStrictEqual(['power']);
   });
-
-  const osFlow = (extra: Partial<Parameters<typeof snap>[0]>) =>
-    afterSpend({
-      progress: { ...oldDone(), storageInstalled: true, osInstalled: true },
-      storage: [drive({ hasOs: true })],
-      os: osOn(),
-      powered: true,
-      phase: 'ingesting',
-      ...extra,
-    });
 
   it('a key plugged and queued: the OS lesson waits for the result and the pay-out, nothing is held', () => {
     const s = osFlow({ plugged: key({ id: 7, stage: 'queued' }) });
-    expect(idOf(currentStep(s, welcomed))).toBe('osPaid');
-    expect(STEPS.find((x) => x.id === 'osPaid')!.targets(s)).toEqual(['monitor']);
+    expect(stepOf(s, welcomed)).toBe('osPaid');
+    const osPaidSTEPS = STEPS.find((x) => x.id === 'osPaid');
+    assert.exists(osPaidSTEPS);
+    expect(osPaidSTEPS.targets(s)).toStrictEqual(['monitor']);
   });
 
   it('a key still being copied is not yet ingested', () => {
     const s = osFlow({ plugged: key({ id: 7, stage: 'ingesting' }), tray: [] });
-    expect(idOf(currentStep(s, welcomed))).toBe('osIngest');
+    expect(stepOf(s, welcomed)).toBe('osIngest');
   });
 
   it('a result being flashed onto the plugged key: still waiting for the pay-out', () => {
-    expect(idOf(currentStep(osFlow({ plugged: key({ id: 7, stage: 'flashing' }) }), welcomed))).toBe('osPaid');
+    const flashing = osFlow({ plugged: key({ id: 7, stage: 'flashing' }) });
+    expect(stepOf(flashing, welcomed)).toBe('osPaid');
   });
 
   it('a key back in the tray after the machine powers off: the job is lost and the boot step shows again', () => {
@@ -590,7 +640,7 @@ describe('the OS steps (live state and phases)', () => {
       phase: 'off',
       tray: [key({ id: 7 })],
     });
-    expect(idOf(currentStep(s, welcomed))).toBe('bootOs');
+    expect(stepOf(s, welcomed)).toBe('bootOs');
   });
 
   it('a job the OS delivered sets the final flag; the last card is then the one to show', () => {
@@ -601,7 +651,7 @@ describe('the OS steps (live state and phases)', () => {
 
 describe('replay', () => {
   // Replay: every flag is already true in the save, so the steps are judged from live state and deltas.
-  const replay: TutorialState = {
+  const replay: tutorialTypes.TutorialState = {
     ...INITIAL_TUTORIAL,
     welcomed: true,
     osLesson: true,
@@ -610,17 +660,17 @@ describe('replay', () => {
 
   it('judges installs from live state, not the sticky flags', () => {
     const s = snap({ progress: newProgress(true), devices: [] });
-    expect(idOf(currentStep(s, replay))).toBe('cpu');
+    expect(stepOf(s, replay)).toBe('cpu');
   });
 
   it('a part that is installed right now is skipped', () => {
     const s = snap({ progress: newProgress(true), devices: [dev({ kind: 'cpu' })] });
-    expect(idOf(currentStep(s, replay))).toBe('cooler'); // the cooler is not mounted yet
+    expect(stepOf(s, replay)).toBe('cooler'); // the cooler is not mounted yet
     const s2 = snap({
       progress: newProgress(true),
       devices: [dev({ kind: 'cpu' }), dev({ id: 'dc', kind: 'cooler', slot: 'cooler0' })],
     });
-    expect(idOf(currentStep(s2, replay))).toBe('ram');
+    expect(stepOf(s2, replay)).toBe('ram');
   });
 
   it('a new key ejected since the replay started finishes the removal step', () => {
@@ -631,23 +681,24 @@ describe('replay', () => {
   });
 
   it('a purchase since the replay started counts', () => {
+    assert.exists(STARTER_CRATE[0]);
     const s = snap({
       progress: newProgress(true),
-      inventory: [...STARTER_CRATE, { ...STARTER_CRATE[0]!, id: 'inv9' }],
+      inventory: [...STARTER_CRATE, { ...STARTER_CRATE[0], id: 'inv9' }],
     });
     expect(effectiveProgress(s, { ...replay, replay: { completed: 0, owned: 5 } }).firstPurchase).toBe(true);
   });
 
   it('a replay does not show the welcome card a second time once welcomed', () => {
     const s = snap({ progress: newProgress(true) });
-    expect(idOf(currentStep(s, { ...replay, welcomed: true }))).not.toBe('welcome');
+    expect(stepOf(s, { ...replay, welcomed: true })).not.toBe('welcome');
   });
 });
 
 describe('effectiveProgress', () => {
   it('uses the sticky flags outside a replay', () => {
     const p = oldUpTo(3);
-    expect(effectiveProgress(snap({ progress: p }), INITIAL_TUTORIAL)).toEqual(p);
+    expect(effectiveProgress(snap({ progress: p }), INITIAL_TUTORIAL)).toStrictEqual(p);
   });
 
   it('a plugged key that is already done counts as the job done', () => {
@@ -659,53 +710,56 @@ describe('effectiveProgress', () => {
 });
 
 describe("stepProblem: why a step is stuck, in the sim's own words", () => {
-  const step = (id: string) => STEPS.find((x) => x.id === id)!;
-
   it('the CPU step explains a refusal when the machine is on', () => {
     const s = snap({ powered: true, phase: 'halted', haltReason: 'no-boot-media' });
-    expect(stepProblem(s, step('cpu'))).toMatch(/Press the power button to switch it off/);
+    expect(stepProblem(s, stepWithId('cpu'))).toMatch(/Press the power button to switch it off/u);
   });
 
   it("the cable step shows the cable's blocked reason", () => {
-    expect(stepProblem(snap(), step('cables'))).toMatch(/power supply is not installed/);
+    expect(stepProblem(snap(), stepWithId('cables'))).toMatch(/power supply is not installed/u);
   });
 
   it('the key step waits for a key; a running machine would ignore it, an off machine is the right moment', () => {
-    const plug = step('plugKey');
-    expect(stepProblem(snap({ noPowerReason: null }), plug)).toMatch(/No key yet/);
-    expect(stepProblem(snap({ noPowerReason: null, tray: [key()] }), plug)).toBeNull();
-    expect(stepProblem(snap({ noPowerReason: null, tray: [key()], powered: true }), plug)).toMatch(
-      /already on.*Power it off/,
-    );
-    expect(stepProblem(snap({ tray: [key()] }), plug)).toMatch(/Install a power supply/); // plugging would start the machine: say why it cannot
+    const plug = stepWithId('plugKey');
+    expect(stepProblem(snap({ noPowerReason: null }), plug)).toMatch(/No key yet/u);
+    const keyInTray = snap({ noPowerReason: null, tray: [key()] });
+    expect(stepProblem(keyInTray, plug)).toBeNull();
+    const keyWhilePowered = snap({ noPowerReason: null, tray: [key()], powered: true });
+    expect(stepProblem(keyWhilePowered, plug)).toMatch(/already on.*Power it off/u);
+    const keyNoPsu = snap({ tray: [key()] });
+    expect(stepProblem(keyNoPsu, plug)).toMatch(/Install a power supply/u); // plugging would start the machine: say why it cannot
   });
 
   it('the watch step explains an ignored key, and the cycle step walks through the manual loop', () => {
-    expect(
-      stepProblem(
-        snap({ powered: true, phase: 'halted', haltReason: 'no-boot-media', plugged: key(), keyIgnored: true }),
-        step('watch'),
-      ),
-    ).toMatch(/only looks at boot/);
-    const cycle = step('cycle');
-    expect(stepProblem(snap({ tray: [key()] }), cycle)).toMatch(/Plug the next key/);
-    expect(stepProblem(snap({ plugged: key(), powered: true, phase: 'halted' }), cycle)).toMatch(
-      /Press the power button/,
-    );
-    expect(stepProblem(snap({ plugged: key() }), cycle)).toBeNull();
+    const ignored = snap({
+      powered: true,
+      phase: 'halted',
+      haltReason: 'no-boot-media',
+      plugged: key(),
+      keyIgnored: true,
+    });
+    expect(stepProblem(ignored, stepWithId('watch'))).toMatch(/only looks at boot/u);
+    const cycle = stepWithId('cycle');
+    const keyWaiting = snap({ tray: [key()] });
+    expect(stepProblem(keyWaiting, cycle)).toMatch(/Plug the next key/u);
+    const keyHalted = snap({ plugged: key(), powered: true, phase: 'halted' });
+    expect(stepProblem(keyHalted, cycle)).toMatch(/Press the power button/u);
+    const keyPlugged = snap({ plugged: key() });
+    expect(stepProblem(keyPlugged, cycle)).toBeNull();
   });
 
   it('no problem on the welcome card', () => {
-    expect(stepProblem(snap(), STEPS[0]!)).toBeNull();
+    assert.exists(STEPS[0]);
+    expect(stepProblem(snap(), STEPS[0])).toBeNull();
   });
 
   it('buying a drive says what is missing: money, or a blocked reason', () => {
     const hdd = { id: 'hdd0', name: 'HDD 96K', kind: 'storage' as const, price: 40, affordable: false };
-    expect(stepProblem(afterSpend({ money: 10, purchases: [hdd] }), step('buyDrive'))).toBe('Need $30 more.');
+    expect(stepProblem(afterSpend({ money: 10, purchases: [hdd] }), stepWithId('buyDrive'))).toBe('Need $30 more.');
     expect(
       stepProblem(
         afterSpend({ money: 10, purchases: [{ ...hdd, blocked: 'the board has no SATA slot' }] }),
-        step('buyDrive'),
+        stepWithId('buyDrive'),
       ),
     ).toBe('the board has no SATA slot');
   });
@@ -719,19 +773,19 @@ describe("stepProblem: why a step is stuck, in the sim's own words", () => {
       affordable: true,
       blocked: 'needs 32K of RAM',
     };
-    expect(stepProblem(afterSpend({ purchases: [os] }), step('buyOs'))).toBe('needs 32K of RAM');
+    expect(stepProblem(afterSpend({ purchases: [os] }), stepWithId('buyOs'))).toBe('needs 32K of RAM');
   });
 
   it("the boot step says the machine must be on, and shows the sim's reason if it stops", () => {
-    expect(stepProblem(afterSpend({ progress: oldDone(), phase: 'off', powered: false }), step('bootOs'))).toMatch(
-      /machine is off/,
-    );
-    expect(
-      stepProblem(
-        afterSpend({ progress: oldDone(), phase: 'error', powered: true, phaseReason: 'the OS drive burnt out' }),
-        step('bootOs'),
-      ),
-    ).toBe('the OS drive burnt out');
+    const machineOff = afterSpend({ progress: oldDone(), phase: 'off', powered: false });
+    expect(stepProblem(machineOff, stepWithId('bootOs'))).toMatch(/machine is off/u);
+    const burnt = afterSpend({
+      progress: oldDone(),
+      phase: 'error',
+      powered: true,
+      phaseReason: 'the OS drive burnt out',
+    });
+    expect(stepProblem(burnt, stepWithId('bootOs'))).toBe('the OS drive burnt out');
   });
 
   it('a part swap queued behind a running job is explained as waiting, and the pointer moves to the work', () => {
@@ -739,106 +793,115 @@ describe("stepProblem: why a step is stuck, in the sim's own words", () => {
     const s = afterSpend({
       powered: true,
       pendingSwaps: [queued],
-      inventory: [invItem('storage', 'hdd0', 'inv5', ['sata0'])],
+      inventory: [fitsIn(invItem('storage', 'hdd0', 'inv5'), ['sata0'])],
     });
     for (const id of ['fit', 'drive', 'os'] as const) {
-      expect(stepProblem(s, step(id))).toMatch(/^Waiting for the running job/);
-      expect(step(id).targets(s)).toEqual(['monitor']);
+      expect(stepProblem(s, stepWithId(id))).toMatch(/^Waiting for the running job/u);
+      expect(stepWithId(id).targets(s)).toStrictEqual(['monitor']);
     }
   });
 
   it('the spend step says how much is missing when nothing can be afforded yet', () => {
-    const p = (price: number, affordable: boolean) => ({
-      id: 'cpu1',
-      name: 'CPU',
-      kind: 'cpu' as const,
-      price,
-      affordable,
-    });
-    expect(stepProblem(snap({ money: 50, purchases: [p(200, false)] }), step('spend'))).toMatch(/^Need \$150/);
-    expect(stepProblem(snap({ money: 300, purchases: [p(200, true)] }), step('spend'))).toBeNull();
+    const broke = snap({ money: 50, purchases: [cpuOffer(200, false)] });
+    expect(stepProblem(broke, stepWithId('spend'))).toMatch(/^Need \$150/u);
+    const flush = snap({ money: 300, purchases: [cpuOffer(200, true)] });
+    expect(stepProblem(flush, stepWithId('spend'))).toBeNull();
   });
 
   it('the drive and OS install steps do not ask for the machine to be off: the swap does that itself', () => {
     const s = afterSpend({
       powered: true,
       phase: 'idle-os',
-      inventory: [invItem('storage', 'hdd0', 'inv5', ['sata0'])],
+      inventory: [fitsIn(invItem('storage', 'hdd0', 'inv5'), ['sata0'])],
     });
-    expect(stepProblem(s, step('drive'))).toBeNull();
+    expect(stepProblem(s, stepWithId('drive'))).toBeNull();
   });
 });
 
 describe('step targets (what the renderer pulses)', () => {
   it('installing the CPU pulses its crate item and the socket it fits', () => {
-    const cpu = STEPS.find((x) => x.id === 'cpu')!;
-    expect(cpu.targets(snap())).toEqual(['inv:inv1', 'cpu0']);
+    const cpu = STEPS.find((x) => x.id === 'cpu');
+    assert.exists(cpu);
+    expect(cpu.targets(snap())).toStrictEqual(['inv:inv1', 'cpu0']);
   });
 
   it('no step points at the old crate: the welcome card highlights the inventory button', () => {
     for (const step of STEPS) {
-      expect(step.targets(snap({ devices: [dev()] })), step.id).not.toContain('crate');
+      const withDev = snap({ devices: [dev()] });
+      expect(step.targets(withDev), `for ${step.id}`).not.toContain('crate');
     }
-    expect(STEPS[0]!.targets(snap())).toEqual(['inventory']);
+    assert.exists(STEPS[0]);
+    expect(STEPS[0].targets(snap())).toStrictEqual(['inventory']);
   });
 
   it('install steps point at their inventory items (inv:) and the socket, and the last card points nowhere', () => {
-    expect(STEPS.find((x) => x.id === 'ram')!.targets(snap())).toEqual(['inv:inv3', 'dimm0', 'dimm1']);
+    const ramSTEPS = STEPS.find((x) => x.id === 'ram');
+    assert.exists(ramSTEPS);
+    expect(ramSTEPS.targets(snap())).toStrictEqual(['inv:inv3', 'dimm0', 'dimm1']);
     const rich = snap({ purchases: [{ id: 'cpu1', name: 'CPU', kind: 'cpu' as const, price: 200, affordable: true }] });
-    expect(STEPS.find((x) => x.id === 'spend')!.targets(rich)).toEqual(['hud:shop', 'buy:cpu1']);
+    const spendSTEPS = STEPS.find((x) => x.id === 'spend');
+    assert.exists(spendSTEPS);
+    expect(spendSTEPS.targets(rich)).toStrictEqual(['hud:shop', 'buy:cpu1']);
     // Nothing is lit while the player cannot pay: the step's grey line says how much is missing.
     const poor = snap({
       purchases: [{ id: 'cpu1', name: 'CPU', kind: 'cpu' as const, price: 200, affordable: false }],
     });
-    expect(STEPS.find((x) => x.id === 'spend')!.targets(poor)).toEqual([]);
-    expect(STEPS.find((x) => x.id === 'done')!.targets(snap())).toEqual([]);
+    const spendSTEPS2 = STEPS.find((x) => x.id === 'spend');
+    assert.exists(spendSTEPS2);
+    expect(spendSTEPS2.targets(poor)).toStrictEqual([]);
+    const doneSTEPS = STEPS.find((x) => x.id === 'done');
+    assert.exists(doneSTEPS);
+    expect(doneSTEPS.targets(snap())).toStrictEqual([]);
   });
 
   it('the cable step lights one cable at a time: its plug and socket, not the devices', () => {
-    const cables = (open: string[]) =>
-      ['atx', 'cpu', 'cpufan', 'video'].map((id) => ({ id, connected: !open.includes(id), blocked: null }));
-    const targets = (open: string[]) =>
-      STEPS.find((x) => x.id === 'cables')!.targets(snap({ cables: cables(open) as never }));
-    expect(targets(['atx', 'cpu', 'cpufan', 'video'])).toEqual(['cable.atx']);
-    expect(targets(['cpu', 'cpufan', 'video'])).toEqual(['cable.cpu']);
-    expect(targets(['cpufan', 'video'])).toEqual(['cable.cpufan']);
-    expect(targets(['video'])).toEqual(['cable.video']);
-    expect(targets([])).toEqual([]);
+    expect(cableStepTargets(['atx', 'cpu', 'cpufan', 'video'])).toStrictEqual(['cable.atx']);
+    expect(cableStepTargets(['cpu', 'cpufan', 'video'])).toStrictEqual(['cable.cpu']);
+    expect(cableStepTargets(['cpufan', 'video'])).toStrictEqual(['cable.cpufan']);
+    expect(cableStepTargets(['video'])).toStrictEqual(['cable.video']);
+    expect(cableStepTargets([])).toStrictEqual([]);
   });
 
   it('the wall step lights the PC cord first, then the monitor cord, with the socket they go into', () => {
-    const cables = (open: string[]) =>
-      ['pcmains', 'monmains'].map((id) => ({ id, connected: !open.includes(id), blocked: null }));
-    const targets = (open: string[]) =>
-      STEPS.find((x) => x.id === 'wall')!.targets(snap({ cables: cables(open) as never }));
-    expect(targets(['pcmains', 'monmains'])).toEqual(['cable.pcmains', 'socket']);
-    expect(targets(['monmains'])).toEqual(['cable.monmains', 'socket']);
-    expect(targets([])).toEqual([]);
+    expect(wallStepTargets(['pcmains', 'monmains'])).toStrictEqual(['cable.pcmains', 'socket']);
+    expect(wallStepTargets(['monmains'])).toStrictEqual(['cable.monmains', 'socket']);
+    expect(wallStepTargets([])).toStrictEqual([]);
   });
 
   it('the key steps light the key until it is picked up, then only the port it goes into', () => {
     const grab = { kind: 'key' as const, id: 'key:9' };
     const withKey = snap({ tray: [key({ id: 9 })] });
     for (const id of ['plugKey', 'cycle', 'osIngest'] as const) {
-      const step = STEPS.find((x) => x.id === id)!;
-      expect(step.targets(withKey), `${id} before the grab`).toEqual(['key:9']);
-      expect(step.targets(withKey, grab), `${id} while dragging`).toEqual(['usb']);
+      const step = STEPS.find((x) => x.id === id);
+      assert.exists(step);
+      expect(step.targets(withKey), `${id} before the grab`).toStrictEqual(['key:9']);
+      expect(step.targets(withKey, grab), `${id} while dragging`).toStrictEqual(['usb']);
     }
     // No key yet: the tray is what to watch; nothing else is lit.
-    expect(STEPS.find((x) => x.id === 'plugKey')!.targets(snap())).toEqual(['tray']);
+    const plugKeySTEPS = STEPS.find((x) => x.id === 'plugKey');
+    assert.exists(plugKeySTEPS);
+    expect(plugKeySTEPS.targets(snap())).toStrictEqual(['tray']);
   });
 
   it('while the client base grows, the next key is lit, then only the port during a drag; nothing when a key is already in', () => {
-    const step = STEPS.find((x) => x.id === 'reachLevel3')!;
-    expect(step.targets(snap({ tray: [key({ id: 4 })] }))).toEqual(['key:4']);
-    expect(step.targets(snap({ tray: [key({ id: 4 })] }), { kind: 'key', id: 'key:4' })).toEqual(['usb']);
-    expect(step.targets(snap({ plugged: key({ id: 4 }), tray: [key({ id: 5 })] }))).toEqual([]);
-    expect(step.targets(snap())).toEqual([]);
+    const step = STEPS.find((x) => x.id === 'reachLevel3');
+    assert.exists(step);
+    const trayKey = snap({ tray: [key({ id: 4 })] });
+    expect(step.targets(trayKey)).toStrictEqual(['key:4']);
+    const trayKeyHeld = snap({ tray: [key({ id: 4 })] });
+    expect(step.targets(trayKeyHeld, { kind: 'key', id: 'key:4' })).toStrictEqual(['usb']);
+    const secondKey = snap({ plugged: key({ id: 4 }), tray: [key({ id: 5 })] });
+    expect(step.targets(secondKey)).toStrictEqual([]);
+    expect(step.targets(snap())).toStrictEqual([]);
   });
 
   it('the drive bay is the target of the buy-a-drive and buy-an-OS steps (the OS is offered there)', () => {
-    expect(STEPS.find((x) => x.id === 'buyDrive')!.targets(snap())).toEqual(['bay', 'buy:hdd0']);
-    expect(STEPS.find((x) => x.id === 'buyOs')!.targets(snap())).toEqual(['bay', 'buy:os1']);
+    const buyDriveSTEPS = STEPS.find((x) => x.id === 'buyDrive');
+    assert.exists(buyDriveSTEPS);
+    expect(buyDriveSTEPS.targets(snap())).toStrictEqual(['bay', 'buy:hdd0']);
+    const buyOsSTEPS = STEPS.find((x) => x.id === 'buyOs');
+    assert.exists(buyOsSTEPS);
+    expect(buyOsSTEPS.targets(snap())).toStrictEqual(['bay', 'buy:os1']);
   });
 });
 
@@ -846,8 +909,11 @@ describe('step texts', () => {
   it('every step has its own text, and the welcome opens the game', () => {
     const texts = STEPS.map((x) => x.text);
     expect(new Set(texts).size).toBe(texts.length);
-    expect(STEPS[0]!.text).toMatch(/^Welcome to Pipeline City!/);
-    expect(STEPS.find((x) => x.id === 'cpu')!.text).toMatch(/processor/);
+    assert.exists(STEPS[0]);
+    expect(STEPS[0].text).toMatch(/^Welcome to Pipeline City!/u);
+    const cpuSTEPS = STEPS.find((x) => x.id === 'cpu');
+    assert.exists(cpuSTEPS);
+    expect(cpuSTEPS.text).toMatch(/processor/u);
   });
 });
 
@@ -856,7 +922,7 @@ describe('every step target names a real id', () => {
   const FIXED = new Set(['inventory', 'power', 'monitor']);
   const known = (id: string, s: ReturnType<typeof snap>) =>
     FIXED.has(id) ||
-    /^(inv|key|hud):\S+$/.test(id) ||
+    /^(?:inv|key|hud):\S+$/u.test(id) ||
     (id.startsWith('buy:') && describeId(id.slice(4), s) !== null) ||
     describeId(id, s) !== null;
 
@@ -868,11 +934,19 @@ describe('every step target names a real id', () => {
   it('every target of every step is a real id', () => {
     const states = [
       snap(),
-      snap({ inventory: [invItem('board', 'board1', 'inv2', ['cpu0']), invItem('ram', 'ram1', 'inv3', ['dimm1'])] }),
+      snap({
+        inventory: [
+          fitsIn(invItem('board', 'board1', 'inv2'), ['cpu0']),
+          fitsIn(invItem('ram', 'ram1', 'inv3'), ['dimm1']),
+        ],
+      }),
     ];
     for (const s of states) {
-      for (const step of STEPS)
-        for (const t of step.targets(s)) expect(known(t, s), `${step.id} targets ${t}`).toBe(true);
+      for (const step of STEPS) {
+        for (const t of step.targets(s)) {
+          expect(known(t, s), `${step.id} targets ${t}`).toBe(true);
+        }
+      }
     }
   });
 });
@@ -888,7 +962,7 @@ describe('persisted tutorial state', () => {
         osLesson: true,
         offered: true,
       }),
-    ).toEqual({
+    ).toStrictEqual({
       welcomed: true,
       skipped: true,
       finished: false,
@@ -897,12 +971,12 @@ describe('persisted tutorial state', () => {
       offered: true,
       acks: [],
     });
-    expect(resumeState('nonsense')).toEqual(INITIAL_TUTORIAL);
-    expect(resumeState({ replay: { completed: 'x' } })).toEqual({ ...INITIAL_TUTORIAL, replay: null });
+    expect(resumeState('nonsense')).toStrictEqual(INITIAL_TUTORIAL);
+    expect(resumeState({ replay: { completed: 'x' } })).toStrictEqual({ ...INITIAL_TUTORIAL, replay: null });
   });
 
   it('a state saved before the OS lesson existed reads as not having it', () => {
-    expect(resumeState({ welcomed: true, finished: true })).toEqual({
+    expect(resumeState({ welcomed: true, finished: true })).toStrictEqual({
       ...INITIAL_TUTORIAL,
       welcomed: true,
       finished: true,
@@ -919,7 +993,7 @@ describe('tutorial state in a save', () => {
       acks: ['money'],
       replay: { completed: 2, owned: 5 },
     };
-    expect(tutorialForSave(saved, newProgress(false))).toEqual(saved);
+    expect(tutorialForSave(saved, newProgress(false))).toStrictEqual(saved);
   });
 
   it('an older save mid-OS-lesson resumes the lesson instead of offering it', () => {
@@ -933,12 +1007,14 @@ describe('tutorial state in a save', () => {
   it('an older save mid-way through the first lesson resumes without the welcome card', () => {
     const st = tutorialForSave(undefined, oldUpTo(6));
     expect(st.welcomed).toBe(true);
-    expect(idOf(currentStep(snap({ progress: oldUpTo(6) }), st))).not.toBe('welcome');
+    expect(stepAfter(oldUpTo(6), st)).not.toBe('welcome');
   });
 
   it('an older save that finished the first lesson still gets the OS offer; a blank one starts at the welcome', () => {
     const done = snap({ progress: oldDone() });
-    expect(offerNextLesson(done, tutorialForSave(undefined, oldDone()))).toBe(true);
-    expect(idOf(currentStep(snap(), tutorialForSave(undefined, newProgress(false))))).toBe('welcome');
+    const oldSave = tutorialForSave(undefined, oldDone());
+    expect(offerNextLesson(done, oldSave)).toBe(true);
+    const freshSave = tutorialForSave(undefined, newProgress(false));
+    expect(stepOf(snap(), freshSave)).toBe('welcome');
   });
 });

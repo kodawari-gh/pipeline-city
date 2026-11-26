@@ -2,13 +2,22 @@
 // Game actions (install, cables, power, plug, eject, purchase), and every step must become active in order and complete.
 // It never buys what it cannot afford, and no single step may take more than 10 minutes of game time.
 
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { CAMPAIGN_START_MONEY } from '../../economy/sim/economy';
 import { Game } from '@/worker/game/game';
-import type { Snapshot } from '@/worker/game/game';
-import { currentStep, INITIAL_TUTORIAL, pendingUpgrade, STEPS, type StepId, type TutorialState } from './tutorial';
+import type * as gameTypes from '@/worker/game/game';
+import { currentStep, INITIAL_TUTORIAL, pendingUpgrade, STEPS } from './tutorial';
+import type * as tutorialTypes from './tutorial';
 
-let ST: TutorialState = { ...INITIAL_TUTORIAL, welcomed: true };
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
+let ST: tutorialTypes.TutorialState = { ...INITIAL_TUTORIAL, welcomed: true };
 const resetTutorialState = () => {
   ST = { ...INITIAL_TUTORIAL, welcomed: true, acks: [] };
 };
@@ -18,7 +27,7 @@ const MAX_STEP_TICKS = 660;
 const SMOOTH_STEP_TICKS = 120;
 const SMOOTH_TOTAL_TICKS = 520;
 /** Steps a player may already be past when they come up (the level is reached while the OS lesson runs). */
-const OPTIONAL: StepId[] = ['reachLevel4'];
+const OPTIONAL = new Set<tutorialTypes.StepId>(['reachLevel4']);
 const PART_KINDS = ['cpu', 'ram', 'psu', 'cooler', 'display', 'case', 'board', 'storage', 'os'];
 
 /**
@@ -27,16 +36,18 @@ const PART_KINDS = ['cpu', 'ram', 'psu', 'cooler', 'display', 'case', 'board', '
  * machine is off, power on. With an OS the steps drive the keys.
  */
 /** The oldest key the machine can run (an unrunnable job waits in the tray until it expires; the sim refuses to plug it). */
-const nextKey = (s: Snapshot) => s.tray.find((k) => k.runnable);
+const nextKey = (s: gameTypes.Snapshot) => s.tray.find((k) => k.runnable);
 
-function serve(g: Game, s: Snapshot): void {
-  if (s.os) return;
+function serve(g: Game, s: gameTypes.Snapshot): void {
+  if (s.os) {
+    return;
+  }
   // A finished key left in the port of a machine that is off (the manual loop) is handed back before an OS can claim it.
-  if (!g.powered && s.plugged?.done) {
+  if (!g.powered && s.plugged?.done === true) {
     g.ejectKey();
     return;
   }
-  if (s.plugged?.done && !s.autoEject) {
+  if (s.plugged?.done === true && !s.autoEject) {
     g.ejectKey();
     return;
   }
@@ -44,238 +55,235 @@ function serve(g: Game, s: Snapshot): void {
     g.powerButton();
     return;
   }
-  if (!g.powered && !s.plugged && nextKey(s)) {
-    g.plugKey(nextKey(s)!.id);
+  const next = nextKey(s);
+  if (!g.powered && !s.plugged && next) {
+    g.plugKey(next.id);
     return;
   }
-  if (!g.powered && s.plugged) g.powerButton();
-}
-
-/** One public action per tick at most, as a patient player would. Returns nothing: the Game is the record. */
-function act(g: Game, s: Snapshot, id: StepId): void {
-  // The steps before the first purchase are the player's own actions; the background serve starts once they are done.
-  if (STEPS.findIndex((x) => x.id === id) >= STEPS.findIndex((x) => x.id === 'spend')) serve(g, s);
-  const powerOff = () => {
-    if (g.powered) g.powerButton();
-  };
-  // A free socket if there is one, else the occupied socket of the same kind (a swap: the old part returns to the inventory).
-  const installPart = (kinds: string[], pick: (i: Snapshot['inventory'][number]) => boolean = () => true) => {
-    powerOff();
-    const item = s.inventory.find(
-      (i) => kinds.includes(i.kind) && pick(i) && i.freeSlots.length + i.swapSlots.length > 0,
-    );
-    if (item) g.install(item.id, item.freeSlots[0] ?? item.swapSlots[0]);
-  };
-  const buy = (specId: string, price: number) => {
-    const p = s.purchases.find((x) => x.id === specId);
-    if (p && p.affordable && !p.blocked && s.money >= price) {
-      const r = g.purchase(specId);
-      if (!r.ok) throw new Error(`purchase ${specId}: ${r.reason}`);
-    }
-  };
-  switch (id) {
-    case 'cpu':
-      installPart(['cpu']);
-      break;
-    case 'ram':
-      installPart(['ram']);
-      break;
-    case 'cooler':
-      installPart(['cooler']);
-      break;
-    case 'fan':
-      installPart(['fan']);
-      break;
-    case 'psu':
-      installPart(['psu']);
-      break;
-    case 'monitor':
-      installPart(['display']);
-      break;
-    case 'cables': {
-      powerOff();
-      for (const cable of ['atx', 'cpu', 'cpufan', 'video'])
-        if (!s.cables.find((c) => c.id === cable)?.connected) g.connectCable(cable);
-      break;
-    }
-    case 'wall':
-      for (const cable of ['pcmains', 'monmains'])
-        if (!s.cables.find((c) => c.id === cable)?.connected) g.connectCable(cable);
-      break;
-    case 'bootOs':
-      if (!g.powered) g.powerButton();
-      break;
-    case 'plugKey':
-      // The key goes in while the machine is off; plugging it switches the machine on.
-      if (g.powered) g.powerButton();
-      else if (!s.plugged && nextKey(s)) g.plugAndBoot(nextKey(s)!.id);
-      break;
-    case 'cycle':
-      // Power off, plug the next key (it starts the machine): one action per tick.
-      if (g.powered) g.powerButton();
-      else if (!s.plugged && nextKey(s)) g.plugAndBoot(nextKey(s)!.id);
-      break;
-    case 'watch':
-      break;
-    case 'money':
-    case 'reputation':
-    case 'level':
-      ST = { ...ST, acks: [...ST.acks, id] };
-      break; // the player reads and presses Got it
-    case 'osPaid':
-      break; // the key pops out by itself
-    case 'spend':
-      buy('cpu1', 200);
-      break;
-    case 'reachLevel3':
-      break; // the background serve loop delivers the jobs
-    case 'fit':
-      installPart(PART_KINDS, (i) => pendingUpgrade(s, i));
-      break;
-    case 'buyDrive':
-      buy('hdd0', 40);
-      break;
-    case 'drive':
-      installPart(['storage']);
-      break;
-    case 'buyRam':
-      buy('ram1', 100);
-      break;
-    case 'fitRam':
-      installPart(['ram']);
-      break;
-    case 'buyOs':
-      buy('os1', 150);
-      break;
-    case 'os':
-      installPart(['os']);
-      break;
-    case 'osIngest':
-    case 'reachLevel4':
-      if (!g.powered) g.powerButton();
-      if (!s.plugged && nextKey(s)) g.plugKey(nextKey(s)!.id);
-      break;
-    case 'buyIsp':
-      buy('isp1', 150);
-      break;
-    case 'buyRouter':
-      buy('router1', 60);
-      break;
-    case 'placeRouter':
-      installPart(['router']);
-      break;
-    case 'buyCase':
-      if (g.powered) g.powerButton();
-      else buy('case1', 70);
-      break; // a case (like a board) can only be bought with the machine off
-    case 'fitCase':
-      installPart(['case']);
-      break;
-    case 'buyBoard':
-      if (g.powered) g.powerButton();
-      else buy('board1', 150);
-      break; // a board can only be bought with the machine off
-    case 'fitBoard':
-      installPart(['board']);
-      break;
-    case 'plugLan':
-      g.connectCable('lan');
-      break;
-    case 'linkUp':
-      if (!g.powered) g.powerButton();
-      break; // the OS brings the link up by itself
-    case 'firstNetJob':
-      break; // the jobs arrive and run on their own
-    case 'welcome':
-    case 'done':
-      break;
+  if (!g.powered && s.plugged) {
+    g.powerButton();
   }
 }
 
-describe('the tutorial is completable with public actions', () => {
-  it('a bot follows every step from a fresh game to the last card, in order, within 10 minutes per step', () => {
-    resetTutorialState();
-    const g = new Game({ seed: 7, economy: { startMoney: CAMPAIGN_START_MONEY } });
-    const seen: { id: StepId; tick: number }[] = [];
-    let last: StepId | null = null;
-    let finishedAt = -1;
+/** What the bot sees and acts on this tick. */
+interface Turn {
+  g: Game;
+  s: gameTypes.Snapshot;
+  id: tutorialTypes.StepId;
+}
 
-    for (let tick = 1; tick <= 20000; tick++) {
-      g.advanceBaseTick();
-      const s = g.snapshot();
-      const step = currentStep(s, ST)!;
-      if (step.id !== last) {
-        seen.push({ id: step.id, tick: s.baseTick });
-        last = step.id;
-      }
-      if (step.id === 'done') {
-        finishedAt = tick;
-        break;
-      }
-      act(g, s, step.id);
+const powerOff = (g: Game): void => {
+  if (g.powered) {
+    g.powerButton();
+  }
+};
+const powerOn = (g: Game): void => {
+  if (!g.powered) {
+    g.powerButton();
+  }
+};
+
+/** A free socket if there is one, else the occupied socket of the same kind (a swap: the old part returns to the inventory). */
+function installPart(
+  { g, s }: Turn,
+  kinds: string[],
+  pick: (i: gameTypes.Snapshot['inventory'][number]) => boolean = () => true,
+): void {
+  powerOff(g);
+  const item = s.inventory.find(
+    (i) => kinds.includes(i.kind) && pick(i) && i.freeSlots.length + i.swapSlots.length > 0,
+  );
+  if (item) {
+    g.install(item.id, item.freeSlots[0] ?? item.swapSlots[0]);
+  }
+}
+
+/** Buys `specId` when the shop offers it and the money is there. */
+function buy({ g, s }: Turn, specId: string, price: number): void {
+  const p = s.purchases.find((x) => x.id === specId);
+  if (p && p.affordable && (p.blocked ?? '') === '' && s.money >= price) {
+    const r = g.purchase(specId);
+    if (!r.ok) {
+      throw new Error(`purchase ${specId}: ${r.reason}`);
     }
+  }
+}
 
-    // Every step (but welcome, which the bot skips past with the Start button) became active, in STEPS order.
-    const expected = STEPS.filter((x) => x.id !== 'welcome' && !OPTIONAL.includes(x.id)).map((x) => x.id);
-    expect(seen.map((x) => x.id).filter((x) => !OPTIONAL.includes(x))).toEqual(expected);
-    expect(finishedAt).toBeGreaterThan(0);
+/** Buys `specId` with the machine off: a press of the power button first if it is on. */
+function buyOff(t: Turn, specId: string, price: number): void {
+  if (t.g.powered) {
+    t.g.powerButton();
+  } else {
+    buy(t, specId, price);
+  }
+}
 
-    // No step waited more than 10 minutes of game time (a money wait is the usual cause).
-    for (let i = 0; i + 1 < seen.length; i++) {
-      const dur = seen[i + 1]!.tick - seen[i]!.tick;
-      expect(dur, `${seen[i]!.id} took ${dur} s`).toBeLessThanOrEqual(MAX_STEP_TICKS);
+/** Connects every one of `cables` that is not connected yet. */
+function connectAll({ g, s }: Turn, cables: string[]): void {
+  for (const cable of cables) {
+    if (s.cables.find((c) => c.id === cable)?.connected !== true) {
+      g.connectCable(cable);
     }
+  }
+}
 
-    // The OS did the work: the drive and the OS are installed, a job was ingested and delivered, and the money was earned
-    // along the way (the bot only buys what it can pay for, so the purchases must have succeeded).
-    const end = g.snapshot();
-    expect(end.progress.storageInstalled && end.progress.osInstalled && end.progress.firstOsJob).toBe(true);
-    expect(end.os?.spec).toBe('os1');
-    expect(end.completed).toBeGreaterThanOrEqual(4);
-  }, 60000);
+/** Power off, plug the next key (it starts the machine): one action per tick. */
+function cycleKey({ g, s }: Turn): void {
+  if (g.powered) {
+    g.powerButton();
+    return;
+  }
+  const next = nextKey(s);
+  if (!s.plugged && next) {
+    g.plugAndBoot(next.id);
+  }
+}
 
-  it('the bot never has to wait for the sim to refuse a step: no action is refused on the way', () => {
-    // Re-run the same route, collecting every refusal the public actions give back.
-    resetTutorialState();
-    const g = new Game({ seed: 7, economy: { startMoney: CAMPAIGN_START_MONEY } });
-    const refused: string[] = [];
-    const wrap = <T extends { ok: boolean; reason?: string }>(name: string, r: T): T => {
-      if (!r.ok) refused.push(`${name}: ${r.reason}`);
-      return r;
-    };
-    const install = g.install.bind(g);
-    g.install = (inv: string, slot?: string) => wrap('install', install(inv, slot));
-    const connect = g.connectCable.bind(g);
-    g.connectCable = (c: string) => wrap('connectCable', connect(c));
-    const plug = g.plugKey.bind(g);
-    g.plugKey = (k: number) => wrap('plugKey', plug(k));
-    const eject = g.ejectKey.bind(g);
-    g.ejectKey = () => wrap('ejectKey', eject());
-    const power = g.powerButton.bind(g);
-    g.powerButton = () => wrap('powerButton', power());
-    const buy = g.purchase.bind(g);
-    g.purchase = (id: string) => wrap('purchase', buy(id));
+/** With the OS: power on, and plug the next key when the port is free. */
+function feedOs({ g, s }: Turn): void {
+  powerOn(g);
+  const next = nextKey(s);
+  if (!s.plugged && next) {
+    g.plugKey(next.id);
+  }
+}
 
-    for (let tick = 1; tick <= 20000; tick++) {
-      g.advanceBaseTick();
-      const s = g.snapshot();
-      const step = currentStep(s, ST)!;
-      if (step.id === 'done') break;
-      act(g, s, step.id);
-    }
-    // Nothing the tutorial asks for is ever refused: not a purchase, install, cable, key plug/removal or power press.
-    expect(refused).toEqual([]);
-  }, 60000);
-});
+/** The player reads the card and presses Got it. */
+const ack = ({ id }: Turn): void => {
+  ST = { ...ST, acks: [...ST.acks, id] };
+};
+const wait = (): void => {
+  // nothing to do: the sim gets there on its own
+};
 
-/** Run the whole tutorial: the bot acts once every `every` ticks (1 = instant, 6 = a slow, distracted player). */
-function runTutorial(seed: number, every: number) {
-  resetTutorialState();
-  const g = new Game({ seed, economy: { startMoney: CAMPAIGN_START_MONEY } });
-  const seen: { id: StepId; tick: number }[] = [];
+/** What the bot does on each step. */
+const ACTIONS: Record<tutorialTypes.StepId, (t: Turn) => void> = {
+  cpu: (t) => {
+    installPart(t, ['cpu']);
+  },
+  ram: (t) => {
+    installPart(t, ['ram']);
+  },
+  cooler: (t) => {
+    installPart(t, ['cooler']);
+  },
+  fan: (t) => {
+    installPart(t, ['fan']);
+  },
+  psu: (t) => {
+    installPart(t, ['psu']);
+  },
+  monitor: (t) => {
+    installPart(t, ['display']);
+  },
+  cables: (t) => {
+    powerOff(t.g);
+    connectAll(t, ['atx', 'cpu', 'cpufan', 'video']);
+  },
+  wall: (t) => {
+    connectAll(t, ['pcmains', 'monmains']);
+  },
+  bootOs: ({ g }) => {
+    powerOn(g);
+  },
+  // The key goes in while the machine is off; plugging it switches the machine on.
+  plugKey: cycleKey,
+  cycle: cycleKey,
+  watch: wait,
+  // the player reads and presses Got it
+  money: ack,
+  reputation: ack,
+  level: ack,
+  // the key pops out by itself
+  osPaid: wait,
+  spend: (t) => {
+    buy(t, 'cpu1', 200);
+  },
+  // the background serve loop delivers the jobs
+  reachLevel3: wait,
+  fit: (t) => {
+    installPart(t, PART_KINDS, (i) => pendingUpgrade(t.s, i));
+  },
+  buyDrive: (t) => {
+    buy(t, 'hdd0', 40);
+  },
+  drive: (t) => {
+    installPart(t, ['storage']);
+  },
+  buyRam: (t) => {
+    buy(t, 'ram1', 100);
+  },
+  fitRam: (t) => {
+    installPart(t, ['ram']);
+  },
+  buyOs: (t) => {
+    buy(t, 'os1', 150);
+  },
+  os: (t) => {
+    installPart(t, ['os']);
+  },
+  osIngest: feedOs,
+  reachLevel4: feedOs,
+  buyIsp: (t) => {
+    buy(t, 'isp1', 150);
+  },
+  buyRouter: (t) => {
+    buy(t, 'router1', 60);
+  },
+  placeRouter: (t) => {
+    installPart(t, ['router']);
+  },
+  // a case (like a board) can only be bought with the machine off
+  buyCase: (t) => {
+    buyOff(t, 'case1', 70);
+  },
+  fitCase: (t) => {
+    installPart(t, ['case']);
+  },
+  // a board can only be bought with the machine off
+  buyBoard: (t) => {
+    buyOff(t, 'board1', 150);
+  },
+  fitBoard: (t) => {
+    installPart(t, ['board']);
+  },
+  plugLan: ({ g }) => {
+    g.connectCable('lan');
+  },
+  // the OS brings the link up by itself
+  linkUp: ({ g }) => {
+    powerOn(g);
+  },
+  // the jobs arrive and run on their own
+  firstNetJob: wait,
+  welcome: wait,
+  done: wait,
+};
+
+/** One public action per tick at most, as a patient player would. Returns nothing: the Game is the record. */
+function act(g: Game, s: gameTypes.Snapshot, id: tutorialTypes.StepId): void {
+  // The steps before the first purchase are the player's own actions; the background serve starts once they are done.
+  if (STEPS.findIndex((x) => x.id === id) >= STEPS.findIndex((x) => x.id === 'spend')) {
+    serve(g, s);
+  }
+  ACTIONS[id]({ g, s, id });
+}
+
+interface Seen {
+  id: tutorialTypes.StepId;
+  tick: number;
+}
+
+/** Every step but welcome (the bot skips past it with the Start button) and the optional ones, in STEPS order. */
+const EXPECTED_ORDER = STEPS.filter((x) => x.id !== 'welcome' && !OPTIONAL.has(x.id)).map((x) => x.id);
+
+/** Records every refusal the public actions give back, as `action: reason`. */
+function watchRefusals(g: Game): string[] {
   const refused: string[] = [];
   const wrap = <T extends { ok: boolean; reason?: string }>(name: string, r: T): T => {
-    if (!r.ok) refused.push(`${name}: ${r.reason}`);
+    if (!r.ok) {
+      refused.push(`${name}: ${r.reason}`);
+    }
     return r;
   };
   const install = g.install.bind(g),
@@ -283,19 +291,26 @@ function runTutorial(seed: number, every: number) {
     plug = g.plugKey.bind(g),
     eject = g.ejectKey.bind(g),
     power = g.powerButton.bind(g),
-    buy = g.purchase.bind(g);
+    purchase = g.purchase.bind(g);
   g.install = (inv: string, slot?: string) => wrap('install', install(inv, slot));
   g.connectCable = (c: string) => wrap('connectCable', connect(c));
   g.plugKey = (k: number) => wrap('plugKey', plug(k));
   g.ejectKey = () => wrap('ejectKey', eject());
   g.powerButton = () => wrap('powerButton', power());
-  g.purchase = (id: string) => wrap('purchase', buy(id));
-  let last: StepId | null = null;
+  g.purchase = (id: string) => wrap('purchase', purchase(id));
+  return refused;
+}
+
+/** Plays the tutorial for up to `maxTicks`, acting once every `every` ticks: the steps as they became active, and the tick of the last card (-1: never). */
+function drive(g: Game, maxTicks: number, every: number): { seen: Seen[]; finishedAt: number } {
+  const seen: Seen[] = [];
+  let last: tutorialTypes.StepId | null = null;
   let finishedAt = -1;
-  for (let tick = 1; tick <= 30000; tick++) {
+  for (let tick = 1; tick <= maxTicks; tick++) {
     g.advanceBaseTick();
     const s = g.snapshot();
-    const step = currentStep(s, ST)!;
+    const step = currentStep(s, ST);
+    assert.exists(step);
     if (step.id !== last) {
       seen.push({ id: step.id, tick: s.baseTick });
       last = step.id;
@@ -304,8 +319,62 @@ function runTutorial(seed: number, every: number) {
       finishedAt = tick;
       break;
     }
-    if (tick % every === 0) act(g, s, step.id);
+    if (tick % every === 0) {
+      act(g, s, step.id);
+    }
   }
+  return { seen, finishedAt };
+}
+
+/** How long each step stayed active (the last one: 0). */
+const stepDurations = (seen: Seen[]): { id: tutorialTypes.StepId; dur: number }[] =>
+  seen.map((x, i) => ({ id: x.id, dur: (seen[i + 1]?.tick ?? x.tick) - x.tick }));
+
+describe('the tutorial is completable with public actions', () => {
+  it('a bot follows every step from a fresh game to the last card, in order, within 10 minutes per step', () => {
+    resetTutorialState();
+    const g = new Game({ seed: 7, economy: { startMoney: CAMPAIGN_START_MONEY } });
+    const { seen, finishedAt } = drive(g, 20_000, 1);
+
+    // Every step (but welcome, which the bot skips past with the Start button) became active, in STEPS order.
+    expect(seen.map((x) => x.id).filter((x) => !OPTIONAL.has(x))).toStrictEqual(EXPECTED_ORDER);
+    expect(finishedAt).toBeGreaterThan(0);
+
+    // No step waited more than 10 minutes of game time (a money wait is the usual cause).
+    for (let i = 0; i + 1 < seen.length; i++) {
+      const next = must(seen[i + 1]),
+        cur = must(seen[i]);
+      const dur = next.tick - cur.tick;
+      expect(dur, `${cur.id} took ${dur} s`).toBeLessThanOrEqual(MAX_STEP_TICKS);
+    }
+
+    // The OS did the work: the drive and the OS are installed, a job was ingested and delivered, and the money was earned
+    // along the way (the bot only buys what it can pay for, so the purchases must have succeeded).
+    const end = g.snapshot();
+    expect(end.progress.storageInstalled).toBe(true);
+    expect(end.progress.osInstalled).toBe(true);
+    expect(end.progress.firstOsJob).toBe(true);
+    expect(end.os?.spec).toBe('os1');
+    expect(end.completed).toBeGreaterThanOrEqual(4);
+  }, 60_000);
+
+  it('the bot never has to wait for the sim to refuse a step: no action is refused on the way', () => {
+    // Re-run the same route, collecting every refusal the public actions give back.
+    resetTutorialState();
+    const g = new Game({ seed: 7, economy: { startMoney: CAMPAIGN_START_MONEY } });
+    const refused = watchRefusals(g);
+    drive(g, 20_000, 1);
+    // Nothing the tutorial asks for is ever refused: not a purchase, install, cable, key plug/removal or power press.
+    expect(refused).toStrictEqual([]);
+  }, 60_000);
+});
+
+/** Run the whole tutorial: the bot acts once every `every` ticks (1 = instant, 6 = a slow, distracted player). */
+function runTutorial(seed: number, every: number) {
+  resetTutorialState();
+  const g = new Game({ seed, economy: { startMoney: CAMPAIGN_START_MONEY } });
+  const refused = watchRefusals(g);
+  const { seen, finishedAt } = drive(g, 30_000, every);
   return { g, seen, refused, finishedAt };
 }
 
@@ -318,19 +387,17 @@ describe('the tutorial stays smooth across seeds and player speeds', () => {
     [11, 6],
     [23, 10],
   ] as const;
-  for (const [seed, every] of cases) {
-    it(`seed ${seed}, one action every ${every} s: every step in order, nothing refused, no step waits long`, () => {
+  it.each(cases)(
+    'seed %i, one action every %i s: every step in order, nothing refused, no step waits long',
+    (seed, every) => {
       const { seen, refused, finishedAt } = runTutorial(seed, every);
       expect(finishedAt, 'the tutorial reached its last card').toBeGreaterThan(0);
-      expect(seen.map((x) => x.id).filter((x) => !OPTIONAL.includes(x))).toEqual(
-        STEPS.filter((x) => x.id !== 'welcome' && !OPTIONAL.includes(x.id)).map((x) => x.id),
-      );
-      expect(refused).toEqual([]);
-      const long = seen
-        .map((x, i) => ({ id: x.id, dur: (seen[i + 1]?.tick ?? x.tick) - x.tick }))
-        .filter((x) => x.dur > SMOOTH_STEP_TICKS);
-      expect(long).toEqual([]);
+      expect(seen.map((x) => x.id).filter((x) => !OPTIONAL.has(x))).toStrictEqual(EXPECTED_ORDER);
+      expect(refused).toStrictEqual([]);
+      const long = stepDurations(seen).filter((x) => x.dur > SMOOTH_STEP_TICKS);
+      expect(long).toStrictEqual([]);
       expect(finishedAt).toBeLessThanOrEqual(SMOOTH_TOTAL_TICKS);
-    }, 60000);
-  }
+    },
+    60_000,
+  );
 });

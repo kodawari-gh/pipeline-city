@@ -1,16 +1,38 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Container } from 'pixi.js';
-
-// Text needs a canvas, which the tests do not have: labels are empty containers here (as in diemulti.test.ts).
-vi.mock('@/core/render/ink', async (orig) => ({
-  ...(await orig<typeof import('@/core/render/ink')>()),
-  label: () => Object.assign(new Container(), { text: '' }),
-}));
-
 import { builtinTheme } from '@/core/render/theme';
 import type { RamMap } from '../../cpu/sim/pipesnap';
 import { CHIPS_PER_STICK } from './ramlayout';
 import { RamView } from './ramview';
+
+// Text needs a canvas, which the tests do not have: labels are empty containers here (as in diemulti.test.ts).
+vi.mock(import('@/core/render/ink'), async (orig) => {
+  const { Text } = await import('pixi.js');
+  /** A label that never measures itself: it keeps the empty bounds it starts with. */
+  class BlankText extends Text {
+    protected override updateBounds(): void {
+      this._bounds.clear(); // there is no canvas to measure the text with: no size, as an empty container
+    }
+  }
+  return { ...(await orig()), label: () => new BlankText({ text: '' }) };
+});
+
+/** The copy of the image the view keeps to compare with (it keeps it to itself, so it is read checked). */
+function own(v: RamView): unknown {
+  const holder: object = v;
+  if (!('prev' in holder)) {
+    throw new Error('the view has no image copy field');
+  }
+  return holder.prev;
+}
+
+/** How many reaches the view keeps (read checked, as `own`). */
+function keptTouches(v: RamView): number {
+  const holder: object = v;
+  if (!('touches' in holder) || !Array.isArray(holder.touches)) {
+    throw new Error('the view has no touches');
+  }
+  return holder.touches.length;
+}
 
 // Which stick holds an address (`stickOf`): the board's `Live` lights the lanes of the stick that answers a reach. The 3D board has no chips to draw
 // (its sticks show their own map), and the sticks still hold their windows of the address space.
@@ -52,7 +74,7 @@ describe.each([
   it("an address past the memory (a device window) is no stick's", () => {
     const v = view(two, rects());
     expect(v.stickOf(2 * MB)).toBe(-1);
-    expect(v.stickOf(0xf0000000)).toBe(-1);
+    expect(v.stickOf(0xf0_00_00_00)).toBe(-1);
   });
 
   it("answers with the stick's slot number, lowest slot first whatever the order the sticks are listed in", () => {
@@ -100,7 +122,6 @@ describe('the RAM map without chips', () => {
   });
 
   it('does not compare the whole image on every snapshot (nothing shows it): it keeps no copy to compare with', () => {
-    const own = (v: RamView) => (v as unknown as { prev: Uint8Array | null }).prev;
     const none = view([{ idx: 0, bytes: MB }], []);
     none.setMap(map(MB));
     expect(own(none)).toBeNull();
@@ -112,7 +133,9 @@ describe('the RAM map without chips', () => {
 
   it('a reach it is told of is kept without growing for ever', () => {
     const v = view([{ idx: 0, bytes: MB }], []);
-    for (let i = 0; i < 10000; i++) v.touch('fetch', i * 4, '#fff');
-    expect((v as unknown as { touches: unknown[] }).touches.length).toBeLessThanOrEqual(48);
+    for (let i = 0; i < 10_000; i++) {
+      v.touch('fetch', i * 4, '#fff');
+    }
+    expect(keptTouches(v)).toBeLessThanOrEqual(48);
   });
 });

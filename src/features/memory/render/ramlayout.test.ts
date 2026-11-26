@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { assemble } from '../../cpu/sim/asm';
 import type { RamRegion } from '../sim/ramregions';
 import {
@@ -17,6 +17,14 @@ import {
 } from './ramlayout';
 import type { Theme } from '@/core/render/theme';
 
+/** Returns `value`, or fails the test with a clear message when it is missing. */
+function must<T>(value: T): NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error('expected a value, got nothing');
+  }
+  return value;
+}
+
 const chips = (n: number) => Array.from({ length: n }, (_, i) => ({ x: i * 150, y: 0, w: 116, h: 112 }));
 const reg = (o: Partial<RamRegion> & { id: string; kind: RamRegion['kind']; lo: number; hi: number }): RamRegion => ({
   name: o.id,
@@ -29,50 +37,66 @@ describe('which addresses a chip stands for', () => {
     const l = chipLayout(
       chips(16),
       [
-        { idx: 1, bytes: 65536 },
-        { idx: 0, bytes: 65536 },
+        { idx: 1, bytes: 65_536 },
+        { idx: 0, bytes: 65_536 },
       ],
-      65536,
+      65_536,
     );
     expect(l).toHaveLength(16);
     // stick 0 (listed second) holds the lowest addresses, and the memory the sim has (64K) is all in it
-    expect(l[8]!.lo).toBe(0);
-    expect(l[15]!.hi).toBe(65536);
-    expect(l[0]!.lo).toBe(65536);
-    expect(l[15]!.hi - l[8]!.lo).toBe(65536);
-    for (const c of l) expect(c.hi - c.lo).toBe(8192);
+    assert.exists(l[8]);
+    expect(l[8].lo).toBe(0);
+    assert.exists(l[15]);
+    expect(l[15].hi).toBe(65_536);
+    assert.exists(l[0]);
+    expect(l[0].lo).toBe(65_536);
+    expect(l[15].hi - l[8].lo).toBe(65_536);
+    for (const c of l) {
+      expect(c.hi - c.lo).toBe(8192);
+    }
   });
 
   it('chips cut the address space without gaps or overlaps', () => {
     for (const [n, bytes, ram] of [
-      [8, 16384, 65536],
-      [16, 32768, 65536],
-      [64, 65536, 65536],
-      [24, 16384, 65536],
+      [8, 16_384, 65_536],
+      [16, 32_768, 65_536],
+      [64, 65_536, 65_536],
+      [24, 16_384, 65_536],
     ] as const) {
       const sticks = Array.from({ length: n / CHIPS_PER_STICK }, (_, i) => ({ idx: i, bytes }));
-      const l = chipLayout(chips(n), sticks, ram).sort((a, b) => a.lo - b.lo);
-      expect(l[0]!.lo).toBe(0);
-      for (let i = 1; i < l.length; i++) expect(l[i]!.lo).toBe(l[i - 1]!.hi);
-      expect(l[l.length - 1]!.hi).toBeGreaterThanOrEqual(ram);
-      for (const c of l) expect((c.hi - c.lo) % PAGE).toBe(0);
+      const l = chipLayout(chips(n), sticks, ram).toSorted((a, b) => a.lo - b.lo);
+      assert.exists(l[0]);
+      expect(l[0].lo).toBe(0);
+      for (let i = 1; i < l.length; i++) {
+        const lItem = l[i];
+        assert.exists(lItem);
+        expect(lItem.lo).toBe(must(l[i - 1]).hi);
+      }
+      const lastL = l.at(-1);
+      assert.exists(lastL);
+      expect(lastL.hi).toBeGreaterThanOrEqual(ram);
+      for (const c of l) {
+        expect((c.hi - c.lo) % PAGE).toBe(0);
+      }
     }
   });
 
   it('less memory installed than the sim has: the 64K is spread over the chips there are', () => {
-    const l = chipLayout(chips(8), [{ idx: 0, bytes: 16384 }], 65536);
-    expect(l[7]!.hi).toBe(65536);
+    const l = chipLayout(chips(8), [{ idx: 0, bytes: 16_384 }], 65_536);
+    assert.exists(l[7]);
+    expect(l[7].hi).toBe(65_536);
   });
 
   it('a page is a 16 x 16 tile and the pixel of a byte follows from it', () => {
-    const slot = chipLayout(chips(8), [{ idx: 0, bytes: 65536 }], 65536)[1]!; // 0x2000..0x3fff, 32 pages
+    const slot = chipLayout(chips(8), [{ idx: 0, bytes: 65_536 }], 65_536).at(1);
+    assert.exists(slot); // 0x2000..0x3fff, 32 pages
     expect(slot.tilesX).toBe(8);
     expect(slot.tilesY).toBe(4);
-    expect(pixelOf(slot, slot.lo)).toEqual({ x: 0, y: 0 });
-    expect(pixelOf(slot, slot.lo + 1)).toEqual({ x: 1, y: 0 });
-    expect(pixelOf(slot, slot.lo + TILE)).toEqual({ x: 0, y: 1 }); // the next 16 bytes (a cache line) are the next row
-    expect(pixelOf(slot, slot.lo + PAGE)).toEqual({ x: TILE, y: 0 }); // the next page is the next tile
-    expect(pixelOf(slot, slot.lo + 8 * PAGE)).toEqual({ x: 0, y: TILE });
+    expect(pixelOf(slot, slot.lo)).toStrictEqual({ x: 0, y: 0 });
+    expect(pixelOf(slot, slot.lo + 1)).toStrictEqual({ x: 1, y: 0 });
+    expect(pixelOf(slot, slot.lo + TILE)).toStrictEqual({ x: 0, y: 1 }); // the next 16 bytes (a cache line) are the next row
+    expect(pixelOf(slot, slot.lo + PAGE)).toStrictEqual({ x: TILE, y: 0 }); // the next page is the next tile
+    expect(pixelOf(slot, slot.lo + 8 * PAGE)).toStrictEqual({ x: 0, y: TILE });
     // every byte of the chip lands on its own pixel
     const seen = new Set<number>();
     for (let a = slot.lo; a < slot.hi; a++) {
@@ -118,16 +142,16 @@ describe('the memory table the OS shows', () => {
   it('splits memory into what the system holds, what each program holds (image and claimed) and what is free', () => {
     const rs = [
       reg({ id: 'rom', kind: 'rom', lo: 0, hi: 4096 }),
-      reg({ id: 'k', kind: 'os', lo: 0xc100, hi: 0xc500 }),
+      reg({ id: 'k', kind: 'os', lo: 0xc1_00, hi: 0xc5_00 }),
       reg({ id: 'a', kind: 'app', lo: 4096, hi: 4096 + 300, owner: 5, type: 'scan', name: '#05 scan' }),
-      reg({ id: 'w', kind: 'work', lo: 0x4000, hi: 0x4600, owner: 5, type: 'scan', name: '#05 scan data' }),
+      reg({ id: 'w', kind: 'work', lo: 0x40_00, hi: 0x46_00, owner: 5, type: 'scan', name: '#05 scan data' }),
     ];
-    const t = memoryTable(rs, 65536);
+    const t = memoryTable(rs, 65_536);
     expect(t.sys).toBe(4096 + 1024);
-    expect(t.procs).toEqual([
+    expect(t.procs).toStrictEqual([
       { owner: 5, name: '#05 scan', type: 'scan', bytes: 300 + 1536, image: 300, claimed: 1536 },
     ]);
-    expect(t.free).toBe(65536 - 5120 - 1836);
+    expect(t.free).toBe(65_536 - 5120 - 1836);
   });
   it('working memory is the programs colour, duller', () => {
     const T: Theme = {
@@ -158,7 +182,7 @@ describe('the memory table the OS shows', () => {
 
 describe('outlines of an address range', () => {
   it('a range inside one row is a rectangle', () => {
-    expect(spanOutline(2, 5, 0, 64, 8)).toEqual([
+    expect(spanOutline(2, 5, 0, 64, 8)).toStrictEqual([
       [2, 0],
       [5, 0],
       [5, 1],
@@ -166,7 +190,7 @@ describe('outlines of an address range', () => {
     ]);
   });
   it('a range over several rows is the shape of a selected block of text', () => {
-    expect(spanOutline(3, 20, 0, 64, 8)).toEqual([
+    expect(spanOutline(3, 20, 0, 64, 8)).toStrictEqual([
       [3, 0],
       [8, 0],
       [8, 2],
@@ -178,8 +202,8 @@ describe('outlines of an address range', () => {
     ]);
   });
   it('a range outside the chip has no outline, and one that starts before it starts at its first byte', () => {
-    expect(spanOutline(100, 200, 0, 64, 8)).toEqual([]);
-    expect(spanOutline(0, 10, 4, 64, 8)).toEqual([
+    expect(spanOutline(100, 200, 0, 64, 8)).toStrictEqual([]);
+    expect(spanOutline(0, 10, 4, 64, 8)).toStrictEqual([
       [0, 0],
       [6, 0],
       [6, 1],
@@ -190,16 +214,18 @@ describe('outlines of an address range', () => {
 
 describe('the owner map and the magnifier', () => {
   const { program } = assemble('main:\n  li a0, 1\n  add a0, a0, a0\n  ecall\ndata:\n  .word 0x64636261\n  .word 0');
-  const img = new Uint8Array(0x2000);
-  program.forEach((w, i) => new DataView(img.buffer).setUint32(0x1000 + 4 * i, w, true));
+  const img = new Uint8Array(0x20_00);
+  for (const [i, w] of program.entries()) {
+    new DataView(img.buffer).setUint32(0x10_00 + 4 * i, w, true);
+  }
   const regions = [
-    reg({ id: 'rom', kind: 'rom', lo: 0, hi: 0x1000 }),
+    reg({ id: 'rom', kind: 'rom', lo: 0, hi: 0x10_00 }),
     reg({
       id: 'app',
       kind: 'app',
-      lo: 0x1000,
-      hi: 0x1000 + program.length * 4,
-      codeEnd: 0x1000 + (program.length - 2) * 4,
+      lo: 0x10_00,
+      hi: 0x10_00 + program.length * 4,
+      codeEnd: 0x10_00 + (program.length - 2) * 4,
       owner: 3,
       type: 'calc',
     }),
@@ -208,29 +234,37 @@ describe('the owner map and the magnifier', () => {
   it('every byte has the region it belongs to, a later region winning', () => {
     const own = ownerMap(regions, img.length);
     expect(own[0]).toBe(1);
-    expect(own[0xfff]).toBe(1);
-    expect(own[0x1000]).toBe(2);
-    expect(own[0x1000 + program.length * 4]).toBe(0);
+    expect(own[0xf_ff]).toBe(1);
+    expect(own[0x10_00]).toBe(2);
+    expect(own[0x10_00 + program.length * 4]).toBe(0);
   });
 
   it('instructions are disassembled in code, words are text in data', () => {
-    expect(isCodeAt(regions, 0x1000)).toBe(true);
-    expect(isCodeAt(regions, 0x1000 + (program.length - 2) * 4)).toBe(false);
-    const rows = lensRows(img, regions, 0x1004, 5);
+    expect(isCodeAt(regions, 0x10_00)).toBe(true);
+    expect(isCodeAt(regions, 0x10_00 + (program.length - 2) * 4)).toBe(false);
+    const rows = lensRows(img, regions, 0x10_04, 5);
     expect(rows).toHaveLength(5);
     expect(rows.filter((r) => r.current)).toHaveLength(1);
-    expect(rows.find((r) => r.current)!.addr).toBe(0x1004);
-    expect(rows.find((r) => r.addr === 0x1004)!.text).toMatch(/^add /);
-    const data = lensRows(img, regions, 0x1000 + (program.length - 2) * 4, 3).find((r) => r.current)!;
+    const foundRow = rows.find((r) => r.current);
+    assert.exists(foundRow);
+    expect(foundRow.addr).toBe(0x10_04);
+    const foundRow2 = rows.find((r) => r.addr === 0x10_04);
+    assert.exists(foundRow2);
+    expect(foundRow2.text).toMatch(/^add /u);
+    const data = lensRows(img, regions, 0x10_00 + (program.length - 2) * 4, 3).find((r) => r.current);
+    assert.exists(data);
     expect(data.code).toBe(false);
     expect(data.text).toBe('abcd');
   });
 
   it('the magnifier stays inside the memory', () => {
     const top = lensRows(img, regions, 0, 9);
-    expect(top[0]!.addr).toBe(0);
+    assert.exists(top[0]);
+    expect(top[0].addr).toBe(0);
     const end = lensRows(img, regions, img.length - 4, 9);
-    expect(end[end.length - 1]!.addr).toBe(img.length - 4);
+    const lastEnd = end.at(-1);
+    assert.exists(lastEnd);
+    expect(lastEnd.addr).toBe(img.length - 4);
     expect(end).toHaveLength(9);
   });
 
@@ -238,6 +272,6 @@ describe('the owner map and the magnifier', () => {
     expect(sizeText(180)).toBe('180B');
     expect(sizeText(4096)).toBe('4K');
     expect(sizeText(1100)).toBe('1.1K');
-    expect(sizeText(65536)).toBe('64K');
+    expect(sizeText(65_536)).toBe('64K');
   });
 });
