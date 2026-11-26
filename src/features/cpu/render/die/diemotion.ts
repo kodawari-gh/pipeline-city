@@ -23,11 +23,21 @@ const HISTORY = 120;
 export type OpClass = 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'sys';
 
 export function opClass(op: string): OpClass {
-  if (op === 'mul') return 'mul';
-  if (op === 'lw' || op === 'lb' || op === 'lbu') return 'ld';
-  if (op === 'sw' || op === 'sb') return 'st';
-  if (op === 'jal' || op === 'jalr' || op[0] === 'b') return 'br';
-  if (op === 'ecall' || op === 'iret') return 'sys';
+  if (op === 'mul') {
+    return 'mul';
+  }
+  if (op === 'lw' || op === 'lb' || op === 'lbu') {
+    return 'ld';
+  }
+  if (op === 'sw' || op === 'sb') {
+    return 'st';
+  }
+  if (op === 'jal' || op === 'jalr' || op[0] === 'b') {
+    return 'br';
+  }
+  if (op === 'ecall' || op === 'iret') {
+    return 'sys';
+  }
   return 'alu';
 }
 
@@ -56,34 +66,46 @@ export function routeBetween(plan: CpuPlan, from: string, to: string): Route | n
     routes.set(plan, cache);
   }
   const key = `${from}>${to}`;
-  if (cache.has(key)) return cache.get(key) ?? null;
+  if (cache.has(key)) {
+    return cache.get(key) ?? null;
+  }
   const by = new Map(plan.blocks.map((b) => [b.id, b]));
   const a = by.get(from),
     b = by.get(to);
   let out: Route | null = null;
   if (a && b) {
-    if (from === to) out = { pts: [centre(a), centre(a)], len: 0, links: [] };
-    else {
+    if (from === to) {
+      out = { pts: [centre(a), centre(a)], len: 0, links: [] };
+    } else {
       // Dijkstra over blocks; an edge is a link walked either way
       const dd = new Map<string, number>([[from, 0]]);
       const prev = new Map<string, { id: string; link: Link; reverse: boolean }>();
       const todo = new Set<string>([from]);
-      while (todo.size) {
+      while (todo.size > 0) {
         let u = '',
           best = Infinity;
-        for (const id of todo)
+        for (const id of todo) {
           if (dd.get(id)! < best) {
             best = dd.get(id)!;
             u = id;
           }
+        }
         todo.delete(u);
-        if (u === to) break;
+        if (u === to) {
+          break;
+        }
         for (const l of plan.links) {
-          if (!ROUTE_KINDS.has(l.kind)) continue;
+          if (!ROUTE_KINDS.has(l.kind)) {
+            continue;
+          }
           const rev = l.to === u && l.from !== u;
-          if (l.from !== u && !rev) continue;
+          if (l.from !== u && !rev) {
+            continue;
+          }
           const v = rev ? l.from : l.to;
-          if (!by.has(v)) continue;
+          if (!by.has(v)) {
+            continue;
+          }
           // the side units (immediate, register file, predictor) are not on the way from stage to stage: going through one costs extra
           const w =
             l.pts.reduce((s, p, i) => (i ? s + dist(p, l.pts[i - 1]!) : 0), 0) +
@@ -100,7 +122,9 @@ export function routeBetween(plan: CpuPlan, from: string, to: string): Route | n
       const straight = dist(centre(a), centre(b));
       if (prev.has(to)) {
         const hops: { id: string; link: Link; reverse: boolean }[] = [];
-        for (let v = to; v !== from; v = prev.get(v)!.id) hops.unshift({ ...prev.get(v)!, id: v });
+        for (let v = to; v !== from; v = prev.get(v)!.id) {
+          hops.unshift({ ...prev.get(v)!, id: v });
+        }
         const pts: Pt[] = [centre(a)];
         for (const h of hops) {
           const lp = h.reverse ? [...h.link.pts].reverse() : h.link.pts;
@@ -108,11 +132,16 @@ export function routeBetween(plan: CpuPlan, from: string, to: string): Route | n
           pts.push(centre(by.get(h.id)!));
         }
         let len = 0;
-        for (let i = 1; i < pts.length; i++) len += dist(pts[i]!, pts[i - 1]!);
-        if (len <= straight * 4 + 900)
+        for (let i = 1; i < pts.length; i++) {
+          len += dist(pts[i]!, pts[i - 1]!);
+        }
+        if (len <= straight * 4 + 900) {
           out = { pts, len, links: hops.map((h) => ({ link: h.link, reverse: h.reverse })) };
+        }
       }
-      if (!out) out = { pts: [centre(a), centre(b)], len: straight, links: [] };
+      if (!out) {
+        out = { pts: [centre(a), centre(b)], len: straight, links: [] };
+      }
     }
   }
   cache.set(key, out);
@@ -122,10 +151,14 @@ export function routeBetween(plan: CpuPlan, from: string, to: string): Route | n
 /** The way one step of an instruction goes: along the wires if they join the two blocks in a few hops, else a straight glide (the unpipelined die has no wires between its stages). */
 function stepRoute(plan: CpuPlan, from: string, to: string, maxHops = 3): Route | null {
   const rt = routeBetween(plan, from, to);
-  if (!rt) return null;
-  if (rt.links.length > 0 && rt.links.length <= maxHops) return rt;
+  if (!rt) {
+    return null;
+  }
+  if (rt.links.length > 0 && rt.links.length <= maxHops) {
+    return rt;
+  }
   const a = rt.pts[0]!,
-    b = rt.pts[rt.pts.length - 1]!;
+    b = rt.pts.at(-1)!;
   return { pts: [a, b], len: dist(a, b), links: [] };
 }
 
@@ -136,7 +169,9 @@ function stepRoute(plan: CpuPlan, from: string, to: string, maxHops = 3): Route 
 function wirePoint(rt: Route, u: number): Pt | null {
   const lens = rt.links.map((h) => h.link.pts.reduce((n, p, i) => (i ? n + dist(p, h.link.pts[i - 1]!) : 0), 0));
   const total = lens.reduce((n, x) => n + x, 0);
-  if (rt.links.length === 0 || total <= 0) return null;
+  if (rt.links.length === 0 || total <= 0) {
+    return null;
+  }
   let d = clamp01(u) * total;
   for (let k = 0; k < rt.links.length; k++) {
     if (d <= lens[k]! || k === rt.links.length - 1) {
@@ -151,10 +186,16 @@ function wirePoint(rt: Route, u: number): Pt | null {
 
 /** The point a fraction `u` (0..1) of the way along a polyline, by length. */
 export function pointAt(pts: Pt[], u: number): Pt {
-  if (pts.length === 1) return pts[0]!;
+  if (pts.length === 1) {
+    return pts[0]!;
+  }
   let total = 0;
-  for (let i = 1; i < pts.length; i++) total += dist(pts[i]!, pts[i - 1]!);
-  if (total === 0) return pts[0]!;
+  for (let i = 1; i < pts.length; i++) {
+    total += dist(pts[i]!, pts[i - 1]!);
+  }
+  if (total === 0) {
+    return pts[0]!;
+  }
   let d = clamp01(u) * total;
   for (let i = 1; i < pts.length; i++) {
     const seg = dist(pts[i]!, pts[i - 1]!);
@@ -164,7 +205,7 @@ export function pointAt(pts: Pt[], u: number): Pt {
     }
     d -= seg;
   }
-  return pts[pts.length - 1]!;
+  return pts.at(-1)!;
 }
 
 /** The link joining two blocks, and whether it is walked backwards. */
@@ -175,9 +216,15 @@ function linkBetween(
   kinds?: readonly string[],
 ): { link: Link; reverse: boolean } | null {
   for (const l of plan.links) {
-    if (kinds && !kinds.includes(l.kind)) continue;
-    if (l.from === from && l.to === to) return { link: l, reverse: false };
-    if (l.from === to && l.to === from) return { link: l, reverse: true };
+    if (kinds && !kinds.includes(l.kind)) {
+      continue;
+    }
+    if (l.from === from && l.to === to) {
+      return { link: l, reverse: false };
+    }
+    if (l.from === to && l.to === from) {
+      return { link: l, reverse: true };
+    }
   }
   return null;
 }
@@ -192,13 +239,18 @@ export class Hosts {
   constructor(readonly plan: CpuPlan) {
     this.byId = new Map(plan.blocks.map((b) => [b.id, b]));
     this.ooo = plan.arch === 'ooo';
-    for (const b of plan.blocks)
-      if (b.kind === 'stage' && b.stage !== undefined && !b.core) this.frames.set(b.stage, b);
+    for (const b of plan.blocks) {
+      if (b.kind === 'stage' && b.stage !== undefined && !b.core) {
+        this.frames.set(b.stage, b);
+      }
+    }
   }
 
   private inFrame(stage: number, kind: string, lane: number): Block | undefined {
     const f = this.frames.get(stage);
-    if (!f) return undefined;
+    if (!f) {
+      return undefined;
+    }
     const in_ = this.plan.blocks.filter((b) => b.parent === f.id && b.kind === kind);
     return in_.find((b) => b.lane === lane) ?? in_[0];
   }
@@ -290,7 +342,9 @@ function cacheView(c: CacheSnap): CacheView {
   const words = new Map<number, number[]>();
   const per = c.lineBytes / 4;
   c.tags.forEach((t, slot) => {
-    if (t >= 0) words.set(t, c.words.slice(slot * per, slot * per + per));
+    if (t >= 0) {
+      words.set(t, c.words.slice(slot * per, slot * per + per));
+    }
   });
   return {
     lines: c.lines,
@@ -326,8 +380,12 @@ export class StoreReplay {
     this.regAt = new Array(this.regs.length).fill(-1);
     this.readAt = new Array(this.regs.length).fill(-1);
     this.d = cacheView(st.d);
-    if (st.i) this.i = cacheView(st.i);
-    if (st.l2) this.l2 = cacheView(st.l2);
+    if (st.i) {
+      this.i = cacheView(st.i);
+    }
+    if (st.l2) {
+      this.l2 = cacheView(st.l2);
+    }
     this.pred = {
       entries: st.pred.entries,
       bits: st.pred.bits,
@@ -345,10 +403,15 @@ export class StoreReplay {
       };
       this.events.push(e);
       const l = this.byCycle.get(e.cycle);
-      if (l) l.push(e);
-      else this.byCycle.set(e.cycle, [e]);
+      if (l) {
+        l.push(e);
+      } else {
+        this.byCycle.set(e.cycle, [e]);
+      }
     }
-    for (let k = this.events.length - 1; k >= 0; k--) this.apply(this.events[k]!, true, -1);
+    for (let k = this.events.length - 1; k >= 0; k--) {
+      this.apply(this.events[k]!, true, -1);
+    }
   }
 
   private cache(which: number): CacheView | undefined {
@@ -357,34 +420,46 @@ export class StoreReplay {
 
   private apply(e: StoreEvent, undo: boolean, at: number): void {
     switch (e.kind) {
-      case Ev.Reg:
+      case Ev.Reg: {
         this.regs[e.a] = undo ? e.c : e.b;
-        if (!undo) this.regAt[e.a] = at;
+        if (!undo) {
+          this.regAt[e.a] = at;
+        }
         break;
+      }
       case Ev.Fill: {
         const c = this.cache(e.a);
         if (c) {
           c.tags[e.b] = undo ? e.d : e.c;
-          if (!undo) c.fillAt[e.b] = at;
+          if (!undo) {
+            c.fillAt[e.b] = at;
+          }
         }
         break;
       }
       case Ev.Hit: {
         const c = this.cache(e.a);
-        if (c && !undo) c.hitAt[e.b] = at;
+        if (c && !undo) {
+          c.hitAt[e.b] = at;
+        }
         break;
       }
-      case Ev.Pred:
+      case Ev.Pred: {
         this.pred.table[e.a] = undo ? e.c : e.b;
-        if (!undo) this.pred.at[e.a] = at;
+        if (!undo) {
+          this.pred.at[e.a] = at;
+        }
         break;
+      }
     }
   }
 
   /** The writes of engine cycle `cycle` happen now (`at` is the replay clock). Returns them. */
   step(cycle: number, at: number): StoreEvent[] {
     const l = this.byCycle.get(cycle) ?? [];
-    for (const e of l) this.apply(e, false, at);
+    for (const e of l) {
+      this.apply(e, false, at);
+    }
     return l;
   }
 }
@@ -392,11 +467,13 @@ export class StoreReplay {
 /** The registers an instruction reads, by its disassembly ("sw a2, 4(s0)" reads a2 and s0; "add a1, a1, a0" reads a1 and a0). */
 export function regsRead(text: string): number[] {
   const sp = text.indexOf(' ');
-  if (sp === -1) return [];
+  if (sp === -1) {
+    return [];
+  }
   const op = text.slice(0, sp);
   const names = text
     .slice(sp + 1)
-    .split(/[\s,()]+/)
+    .split(/[\s,()]+/u)
     .filter((x) => x && (REG_NAMES as readonly string[]).includes(x));
   const idx = names.map((n) => (REG_NAMES as readonly string[]).indexOf(n));
   const noDest = op === 'sw' || op === 'sb' || op[0] === 'b' || op === 'ecall' || op === 'iret';
@@ -506,7 +583,9 @@ function prepare(seg: TraceSnap, seq: number, stored?: StoredSnap): Window {
     const seen = new Map<string, number>();
     for (const r of rows) {
       const ch = r.codes[k]!;
-      if (ch === ' ') continue;
+      if (ch === ' ') {
+        continue;
+      }
       const lane = seen.get(ch) ?? 0;
       seen.set(ch, lane + 1);
       r.lanes[k] = lane;
@@ -539,10 +618,12 @@ export class Player {
 
   /** The engine cycles the replay can be moved to (the history of windows), or null when there is none. */
   range(): { lo: number; hi: number } | null {
-    if (this.history.length === 0) return null;
+    if (this.history.length === 0) {
+      return null;
+    }
     return {
       lo: this.history[0]!.seg.end - this.history[0]!.seg.n + 1,
-      hi: this.history[this.history.length - 1]!.seg.end,
+      hi: this.history.at(-1)!.seg.end,
     };
   }
 
@@ -560,7 +641,9 @@ export class Player {
     for (let i = this.history.length - 1; i >= 0; i--) {
       const h = this.history[i]!,
         start = h.seg.end - h.seg.n + 1;
-      if (cycle < start || cycle > h.seg.end) continue;
+      if (cycle < start || cycle > h.seg.end) {
+        continue;
+      }
       this.show(prepare(h.seg, ++this.seq, h.stored), cycle - start);
       return true;
     }
@@ -574,22 +657,32 @@ export class Player {
     this.tau = k;
     this.fadeChips = [];
     this.fadeFrom = -1e9;
-    for (let j = 0; j < k; j++) w.store?.step(w.end - w.n + 1 + j, w.seq * 1000 + j);
+    for (let j = 0; j < k; j++) {
+      w.store?.step(w.end - w.n + 1 + j, w.seq * 1000 + j);
+    }
     this.lastShown = k - 1;
   }
 
   /** A new snapshot's trace. Only the newest waiting window is kept: the replay is a sample of the run, not all of it. */
   push(seg: TraceSnap | undefined, stored?: StoredSnap): void {
-    if (!seg || seg.rows.length === 0) return;
-    if (this.cur && seg.end === this.cur.end) return;
-    if (this.pending && seg.end === this.pending.end) return;
+    if (!seg || seg.rows.length === 0) {
+      return;
+    }
+    if (this.cur && seg.end === this.cur.end) {
+      return;
+    }
+    if (this.pending && seg.end === this.pending.end) {
+      return;
+    }
     if (this.cur && seg.end < this.cur.end - 1000) {
       this.cur = null;
       this.pending = null;
       this.history = [];
     } // a new attempt: the cycles started over
     this.history.push({ seg, stored });
-    if (this.history.length > HISTORY) this.history.shift();
+    if (this.history.length > HISTORY) {
+      this.history.shift();
+    }
     this.pending = prepare(seg, ++this.seq, stored);
   }
 
@@ -635,15 +728,18 @@ export class Player {
         this.pending = null;
         this.tau = 0;
         this.lastShown = -1;
-      } else if (this.tau > last + HOLD) this.tau = last + HOLD;
+      } else if (this.tau > last + HOLD) {
+        this.tau = last + HOLD;
+      }
       const t = Math.min(this.tau, this.cur.n - 1);
       // beats: every integer boundary passed since the last update (the first frame of a window counts its start)
       const k0 = this.lastShown < 0 ? 0 : Math.floor(this.lastShown) + 1;
       for (let k = k0; k <= Math.floor(t); k++) {
         beats.push(...this.beatsAt(this.cur, k));
         tick = true;
-        if (this.cur.store)
+        if (this.cur.store) {
           applied.push(...this.cur.store.step(this.cur.end - this.cur.n + 1 + k, this.cur.seq * 1000 + k));
+        }
       }
       this.lastShown = Math.max(this.lastShown, Math.floor(t));
       void before;
@@ -677,7 +773,9 @@ export class Player {
     stalled: boolean;
   }[] {
     const w = this.cur;
-    if (!w) return [];
+    if (!w) {
+      return [];
+    }
     const k = Math.min(w.n - 1, Math.floor(this.tau));
     const out: {
       id: number;
@@ -692,7 +790,7 @@ export class Player {
     }[] = [];
     for (const r of w.rows) {
       const ch = r.codes[k]!;
-      if (ch !== ' ' && ch !== 'x')
+      if (ch !== ' ' && ch !== 'x') {
         out.push({
           id: r.id,
           op: r.op,
@@ -704,6 +802,7 @@ export class Player {
           fresh: k === 0 || r.codes[k - 1] !== ch,
           stalled: !this.hosts.ooo && k > 0 && r.codes[k - 1] === ch && (ch === 'D' || ch === 'F' || ch === 'M'),
         });
+      }
     }
     return out;
   }
@@ -718,11 +817,17 @@ export class Player {
     const out: BeatEvent[] = [];
     for (const r of w.rows) {
       const a = r.codes[k]!;
-      if (a === ' ') continue;
+      if (a === ' ') {
+        continue;
+      }
       const prev = k > 0 ? r.codes[k - 1]! : ' ';
-      if (a === prev) continue;
+      if (a === prev) {
+        continue;
+      }
       let j = k;
-      while (j < w.n && r.codes[j] === a) j++;
+      while (j < w.n && r.codes[j] === a) {
+        j++;
+      }
       const dwell = j - k;
       out.push({
         to: a,
@@ -767,7 +872,7 @@ export class Player {
         // about to enter: it fades in where it will be
         if (b !== ' ' && b !== 'x') {
           const h = at(b, k + 1);
-          if (h && h.visible)
+          if (h && h.visible) {
             out.push({
               ...base,
               x: centre(h.block)[0],
@@ -776,6 +881,7 @@ export class Player {
               alpha: e,
               host: h.block.id,
             });
+          }
         }
         continue;
       }
@@ -783,14 +889,15 @@ export class Player {
         // flushed: stays where it was last seen, red, and goes
         let ch = ' ',
           kk = k;
-        for (let j = k - 1; j >= 0; j--)
+        for (let j = k - 1; j >= 0; j--) {
           if (r.codes[j] !== ' ' && r.codes[j] !== 'x') {
             ch = r.codes[j]!;
             kk = j;
             break;
           }
+        }
         const h = ch === ' ' ? null : at(ch, kk);
-        if (h && h.visible)
+        if (h && h.visible) {
           out.push({
             ...base,
             x: centre(h.block)[0],
@@ -800,10 +907,13 @@ export class Player {
             flushed: true,
             host: h.block.id,
           });
+        }
         continue;
       }
       const ha = at(a, k);
-      if (!ha) continue;
+      if (!ha) {
+        continue;
+      }
       const ca = centre(ha.block);
       if (b === ' ') {
         // done: slides into the register file (or fades where it is, when the die has none)
@@ -811,7 +921,7 @@ export class Player {
         const last = a === 'W' || a === 'C';
         if (last && ex && k + 1 < w.n) {
           const rt = stepRoute(this.plan, ha.block.id, ex.id, 1);
-          const p = rt ? pointAt(rt.pts, e * (rt.links.length ? 1 : 0.4)) : ca;
+          const p = rt ? pointAt(rt.pts, e * (rt.links.length > 0 ? 1 : 0.4)) : ca;
           out.push({
             ...base,
             x: p[0],
@@ -820,19 +930,22 @@ export class Player {
             alpha: ha.visible ? 1 - e : 0,
             host: ha.block.id,
           });
-        } else if (ha.visible)
+        } else if (ha.visible) {
           out.push({ ...base, x: ca[0], y: ca[1], scale: 1, alpha: k + 1 < w.n ? 1 - e : 1, host: ha.block.id });
+        }
         continue;
       }
       if (b === 'x') {
-        if (ha.visible) out.push({ ...base, x: ca[0], y: ca[1], scale: 1, alpha: 1, host: ha.block.id });
+        if (ha.visible) {
+          out.push({ ...base, x: ca[0], y: ca[1], scale: 1, alpha: 1, host: ha.block.id });
+        }
         continue;
       }
       if (b === a) {
         // waits here; in an in-order engine that is a stall
         const hs = at(a, k + 1);
         const cs = hs && hs.block.id !== ha.block.id ? centre(hs.block) : ca;
-        if (ha.visible)
+        if (ha.visible) {
           out.push({
             ...base,
             x: ca[0] + (cs[0] - ca[0]) * e,
@@ -842,11 +955,14 @@ export class Player {
             stalled: !H.ooo && (a === 'D' || a === 'F' || a === 'M'),
             host: ha.block.id,
           });
+        }
         continue;
       }
       const hb = at(b, k + 1);
       if (!hb) {
-        if (ha.visible) out.push({ ...base, x: ca[0], y: ca[1], scale: 1, alpha: 1, host: ha.block.id });
+        if (ha.visible) {
+          out.push({ ...base, x: ca[0], y: ca[1], scale: 1, alpha: 1, host: ha.block.id });
+        }
         continue;
       }
       const rt = stepRoute(this.plan, ha.block.id, hb.block.id);
@@ -859,7 +975,9 @@ export class Player {
               return [ca[0] + (cb[0] - ca[0]) * e, ca[1] + (cb[1] - ca[1]) * e] as Pt;
             })();
       const alpha = (ha.visible ? 1 - e : 0) + (hb.visible ? e : 0);
-      if (alpha <= 0.01) continue;
+      if (alpha <= 0.01) {
+        continue;
+      }
       out.push({
         ...base,
         x: p[0],
@@ -911,7 +1029,9 @@ export function packetsFor(plan: CpuPlan, ev: BeatEvent, ctx: BeatContext = { ev
     const list = ids.filter(has).filter((x, i, all) => i === 0 || x !== all[i - 1]);
     for (let i = 1; i < list.length; i++) {
       const l = linkBetween(plan, list[i - 1]!, list[i]!, kinds);
-      if (l) out.push({ ...l, delay: delay + (i - 1) * step, color });
+      if (l) {
+        out.push({ ...l, delay: delay + (i - 1) * step, color });
+      }
     }
   };
   const cls = opClass(ev.op);
@@ -922,14 +1042,17 @@ export function packetsFor(plan: CpuPlan, ev: BeatEvent, ctx: BeatContext = { ev
   const at = (kind: number, which: number) => ctx.events.some((e) => e.kind === kind && e.a === which);
   const hasL2 = has('l2');
   switch (ev.to) {
-    case 'F':
+    case 'F': {
       chain(['pc', 'fetch'], 0);
       if (has('ic')) {
         if (at(Ev.Fill, Which.I)) {
           chain(['fetch', 'ic', hasL2 ? 'l2' : 'fabric', 'fabric', 'mc'], 0.1, 'mute', 0.25);
           chain(['mc', 'fabric', hasL2 ? 'l2' : 'fabric', 'ic', 'fetch'], 1, 'inst', 0.3);
-        } else if (hasL2 && at(Ev.Hit, Which.L2)) chain(['l2', 'ic', 'fetch'], 0.2);
-        else chain(['ic', 'fetch'], 0.2);
+        } else if (hasL2 && at(Ev.Hit, Which.L2)) {
+          chain(['l2', 'ic', 'fetch'], 0.2);
+        } else {
+          chain(['ic', 'fetch'], 0.2);
+        }
       } else {
         // no instruction cache: fetches go to the system bus, through the shared L2 when the fetch unit is wired to it (a multicore tile)
         const via = hasL2 && linkBetween(plan, 'fetch', 'l2') ? 'l2' : 'fabric';
@@ -937,46 +1060,63 @@ export function packetsFor(plan: CpuPlan, ev: BeatEvent, ctx: BeatContext = { ev
         chain(['mc', 'fabric', via, 'fetch'], 0.6, 'inst', 0.3);
       }
       break;
-    case 'D':
+    }
+    case 'D': {
       chain(['rf', dec(ev.lane)], 0.1);
-      if (ooo) chain([dec(ev.lane), 'rat'], 0.4);
-      break;
-    case 'X':
-      if (!ooo) {
-        chain(['rf', 'lat1'], 0.1);
-        if (cls === 'br') chain(['lat1', 'br'], 0.4);
-      } else {
-        chain(['sched', unit(ev.id)], 0);
-        if (cls === 'ld') memAccess(0.3, ev.dwell > 2);
-        else if (cls === 'st') chain(['lsu', 'dc'], 0.3);
+      if (ooo) {
+        chain([dec(ev.lane), 'rat'], 0.4);
       }
       break;
-    case 'M':
-      if (cls === 'ld') memAccess(0, ev.miss, Math.max(0, ev.dwell - 1));
-      else if (cls === 'st') {
+    }
+    case 'X': {
+      if (!ooo) {
+        chain(['rf', 'lat1'], 0.1);
+        if (cls === 'br') {
+          chain(['lat1', 'br'], 0.4);
+        }
+      } else {
+        chain(['sched', unit(ev.id)], 0);
+        if (cls === 'ld') {
+          memAccess(0.3, ev.dwell > 2);
+        } else if (cls === 'st') {
+          chain(['lsu', 'dc'], 0.3);
+        }
+      }
+      break;
+    }
+    case 'M': {
+      if (cls === 'ld') {
+        memAccess(0, ev.miss, Math.max(0, ev.dwell - 1));
+      } else if (cls === 'st') {
         chain(['lsu', 'dc'], 0);
         chain(['dc', hasL2 ? 'l2' : 'fabric', 'fabric', 'mc'], 0.4, 'inst', 0.25);
       }
       break;
-    case 'W':
+    }
+    case 'W': {
       chain(['wb', 'rf'], 0);
       break;
-    case 'S':
+    }
+    case 'S': {
       chain(['disp', 'sched'], 0);
       chain(['disp', 'rob'], 0.1);
       break;
-    case 'R':
+    }
+    case 'R': {
       chain([unit(ev.id), 'bus'], 0);
       chain(['bus', 'rob'], 0.4);
       chain(['bus', 'sched'], 0.4, 'inst', 0.3, ['wakeup']);
       break;
-    case 'C':
+    }
+    case 'C': {
       chain(['rob', 'rf'], 0);
       break;
-    case 'x':
+    }
+    case 'x': {
       chain(['br', 'npc'], 0, 'bad', 0.3, ['flush']);
       chain(['bus', 'npc'], 0, 'bad', 0.3, ['flush']);
       break;
+    }
   }
   return out;
 

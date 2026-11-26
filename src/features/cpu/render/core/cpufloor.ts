@@ -3,7 +3,7 @@
 // (`placeTree`) and the router (`routeWires`) are generic over the block kind and need only `{id, rect, parent?}`, so the GPU card plan
 // (render/gpu) uses them too; `place` and `routeLinks` are the CPU die's instances.
 
-import { gridExact, type Block, type BlockKind, type Link, type LinkKind, type Pt, type Rect } from './cpuplan';
+import * as cpuplan from './cpuplan';
 import { dockLink } from '../die/glyphgeom';
 
 /** The gutter between sibling blocks: the wires run in it. */
@@ -12,11 +12,11 @@ export const GAP = 14;
 /** What the router needs of a block: where it is and which frame (a container, never an obstacle) holds it. */
 export interface Boxed {
   id: string;
-  rect: Rect;
+  rect: cpuplan.Rect;
   parent?: string;
 }
 
-export interface Spec<K extends string = BlockKind> {
+export interface Spec<K extends string = cpuplan.BlockKind> {
   id: string;
   kind: K;
   label: string;
@@ -27,17 +27,17 @@ export interface Spec<K extends string = BlockKind> {
   shape?: [number, number];
   ring?: boolean;
   /** `edge` (the board-facing ring, shared by the cores) or `core`; inherited from the enclosing split when absent. */
-  zone?: Block['zone'];
+  zone?: cpuplan.Block['zone'];
   stage?: number;
   lane?: number;
   unit?: string;
 }
-export interface Leaf<K extends string = BlockKind> {
+export interface Leaf<K extends string = cpuplan.BlockKind> {
   spec: Spec<K>;
   f?: number;
   px?: number;
 }
-export interface Split<K extends string = BlockKind> {
+export interface Split<K extends string = cpuplan.BlockKind> {
   dir: 'row' | 'col';
   kids: Node<K>[];
   /** Weight (default 1) or a fixed size in pixels along the parent's axis. */
@@ -48,15 +48,15 @@ export interface Split<K extends string = BlockKind> {
   frame?: Spec<K>;
   pad?: number;
   title?: number;
-  zone?: Block['zone'];
+  zone?: cpuplan.Block['zone'];
 }
-export type Node<K extends string = BlockKind> = Leaf<K> | Split<K>;
+export type Node<K extends string = cpuplan.BlockKind> = Leaf<K> | Split<K>;
 
 const isSplit = <K extends string>(n: Node<K>): n is Split<K> => 'dir' in n;
 
 type Sized = { f?: number | undefined; px?: number | undefined };
 
-export const leaf = <K extends string = BlockKind>(
+export const leaf = <K extends string = cpuplan.BlockKind>(
   id: string,
   kind: K,
   label: string,
@@ -65,11 +65,11 @@ export const leaf = <K extends string = BlockKind>(
   const { f, px, ...spec } = o;
   return { spec: { id, kind, label, ...spec }, ...(f !== undefined ? { f } : {}), ...(px !== undefined ? { px } : {}) };
 };
-export const row = <K extends string = BlockKind>(
+export const row = <K extends string = cpuplan.BlockKind>(
   kids: Node<K>[],
   o: Omit<Split<K>, 'dir' | 'kids'> = {},
 ): Split<K> => ({ dir: 'row', kids, ...o });
-export const col = <K extends string = BlockKind>(
+export const col = <K extends string = cpuplan.BlockKind>(
   kids: Node<K>[],
   o: Omit<Split<K>, 'dir' | 'kids'> = {},
 ): Split<K> => ({ dir: 'col', kids, ...o });
@@ -93,43 +93,54 @@ export function spans(total: number, kids: Sized[], gap: number): [number, numbe
   return out;
 }
 
-function make(s: Spec, r: Rect, parent: string | undefined, zone: Block['zone']): Block {
-  const b: Block = { id: s.id, kind: s.kind, label: s.label, rect: { ...r }, zone: s.zone ?? zone };
-  if (s.sub) b.sub = s.sub;
-  if (parent) b.parent = parent;
-  if (s.stage !== undefined) b.stage = s.stage;
-  if (s.lane !== undefined) b.lane = s.lane;
-  if (s.unit) b.unit = s.unit;
-  if (s.shape)
+function make(s: Spec, r: cpuplan.Rect, parent: string | undefined, zone: cpuplan.Block['zone']): cpuplan.Block {
+  const b: cpuplan.Block = { id: s.id, kind: s.kind, label: s.label, rect: { ...r }, zone: s.zone ?? zone };
+  if (s.sub) {
+    b.sub = s.sub;
+  }
+  if (parent) {
+    b.parent = parent;
+  }
+  if (s.stage !== undefined) {
+    b.stage = s.stage;
+  }
+  if (s.lane !== undefined) {
+    b.lane = s.lane;
+  }
+  if (s.unit) {
+    b.unit = s.unit;
+  }
+  if (s.shape) {
     b.grid = { cols: s.shape[0], rows: s.shape[1], count: s.shape[0] * s.shape[1], ...(s.ring ? { ring: true } : {}) };
-  else if (s.cells)
-    b.grid = { ...gridExact(s.cells, r.w - 16, Math.max(8, r.h - 44)), ...(s.ring ? { ring: true } : {}) };
+  } else if (s.cells) {
+    b.grid = { ...cpuplan.gridExact(s.cells, r.w - 16, Math.max(8, r.h - 44)), ...(s.ring ? { ring: true } : {}) };
+  }
   return b;
 }
 
 /** Builds the block of a spec: `frame` is true for the container drawn behind a split's children. */
 export type Maker<K extends string, B> = (
   s: Spec<K>,
-  r: Rect,
+  r: cpuplan.Rect,
   parent: string | undefined,
-  zone: Block['zone'],
+  zone: cpuplan.Block['zone'],
   frame: boolean,
 ) => B;
 
 /** Lay a tree out in `r`, pushing the blocks (a frame before its children), each made by `mk`. */
 export function placeTree<K extends string, B>(
   node: Node<K>,
-  r: Rect,
+  r: cpuplan.Rect,
   out: B[],
   mk: Maker<K, B>,
-  zone: Block['zone'] = 'core',
+  zone: cpuplan.Block['zone'] = 'core',
   parent?: string,
 ): void {
   if (!isSplit(node)) {
     out.push(mk(node.spec, r, parent, zone, false));
     return;
   }
-  if (node.zone) zone = node.zone;
+  zone = node.zone ?? zone;
   let inner = r,
     par = parent;
   if (node.frame) {
@@ -155,13 +166,19 @@ export function placeTree<K extends string, B>(
 }
 
 /** The CPU die's instance: a frame is a block of kind 'stage'. */
-export function place(node: Node, r: Rect, out: Block[], zone: Block['zone'] = 'core', parent?: string): void {
+export function place(
+  node: Node,
+  r: cpuplan.Rect,
+  out: cpuplan.Block[],
+  zone: cpuplan.Block['zone'] = 'core',
+  parent?: string,
+): void {
   placeTree(node, r, out, (s, rr, p, z, frame) => make(frame ? { ...s, kind: 'stage' } : s, rr, p, z), zone, parent);
 }
 
 // ---------------------------------------------------------------- the channel router
 
-export interface WireSpec<K extends string = LinkKind> {
+export interface WireSpec<K extends string = cpuplan.LinkKind> {
   id: string;
   kind: K;
   from: string;
@@ -172,12 +189,14 @@ export interface WireSpec<K extends string = LinkKind> {
 }
 export type LinkSpec = WireSpec;
 /** A routed wire: the spec with its polyline. */
-export type Wire<K extends string = LinkKind> = Required<Pick<WireSpec<K>, 'id' | 'kind' | 'from' | 'to' | 'lanes'>> &
-  Pick<WireSpec<K>, 'label' | 'both'> & { pts: Pt[] };
+export type Wire<K extends string = cpuplan.LinkKind> = Required<
+  Pick<WireSpec<K>, 'id' | 'kind' | 'from' | 'to' | 'lanes'>
+> &
+  Pick<WireSpec<K>, 'label' | 'both'> & { pts: cpuplan.Pt[] };
 
 const STEP = 6; // routing grid pitch
 const CLEAR = 2; // a wire keeps this far from every block
-const DIRS: Pt[] = [
+const DIRS: cpuplan.Pt[] = [
   [0, -1],
   [1, 0],
   [0, 1],
@@ -207,7 +226,9 @@ class Heap {
       if (this.less(i, p)) {
         this.swap(i, p);
         i = p;
-      } else break;
+      } else {
+        break;
+      }
     }
   }
   pop(): number {
@@ -222,9 +243,15 @@ class Heap {
       const l = 2 * i + 1,
         r = l + 1;
       let m = i;
-      if (l < this.a.length && this.less(l, m)) m = l;
-      if (r < this.a.length && this.less(r, m)) m = r;
-      if (m === i) break;
+      if (l < this.a.length && this.less(l, m)) {
+        m = l;
+      }
+      if (r < this.a.length && this.less(r, m)) {
+        m = r;
+      }
+      if (m === i) {
+        break;
+      }
       this.swap(i, m);
       i = m;
     }
@@ -245,13 +272,17 @@ class Heap {
  * face each other along enough of their edges, the hop becomes a jog: out of one block high on its edge, along the gutter, into the other low on
  * its edge, so the trace is long enough to see and to run a pulse along.
  */
-function jog(ra: Rect, rb: Rect, pts: Pt[]): Pt[] {
-  if (pts.length !== 2) return pts;
+function jog(ra: cpuplan.Rect, rb: cpuplan.Rect, pts: cpuplan.Pt[]): cpuplan.Pt[] {
+  if (pts.length !== 2) {
+    return pts;
+  }
   const [p, q] = [pts[0]!, pts[1]!];
   if (p[1] === q[1] && Math.abs(q[0] - p[0]) <= 40) {
     const lo = Math.max(ra.y, rb.y) + 10,
       hi = Math.min(ra.y + ra.h, rb.y + rb.h) - 10;
-    if (hi - lo < 24) return pts;
+    if (hi - lo < 24) {
+      return pts;
+    }
     const y1 = lo + (hi - lo) * 0.2,
       y2 = lo + (hi - lo) * 0.8,
       mx = (p[0] + q[0]) / 2;
@@ -265,7 +296,9 @@ function jog(ra: Rect, rb: Rect, pts: Pt[]): Pt[] {
   if (p[0] === q[0] && Math.abs(q[1] - p[1]) <= 40) {
     const lo = Math.max(ra.x, rb.x) + 10,
       hi = Math.min(ra.x + ra.w, rb.x + rb.w) - 10;
-    if (hi - lo < 24) return pts;
+    if (hi - lo < 24) {
+      return pts;
+    }
     const x1 = lo + (hi - lo) * 0.2,
       x2 = lo + (hi - lo) * 0.8,
       my = (p[1] + q[1]) / 2;
@@ -285,10 +318,10 @@ function jog(ra: Rect, rb: Rect, pts: Pt[]): Pt[] {
  * the two blocks; `dock` may run them on into the blocks' symbols. `tag` prefixes the errors.
  */
 export function routeWires<B extends Boxed, K extends string>(
-  die: Rect,
+  die: cpuplan.Rect,
   blocks: B[],
   specs: WireSpec<K>[],
-  dock?: (from: B, to: B, id: string, pts: Pt[]) => Pt[],
+  dock?: (from: B, to: B, id: string, pts: cpuplan.Pt[]) => cpuplan.Pt[],
   tag = 'plan',
 ): Wire<K>[] {
   const cols = Math.floor(die.w / STEP),
@@ -297,69 +330,87 @@ export function routeWires<B extends Boxed, K extends string>(
     cy = (j: number) => die.y + 3 + j * STEP;
   const blocked = new Uint8Array(cols * rows);
   const margin = 18; // keep off the die's own border
-  for (let j = 0; j < rows; j++)
+  for (let j = 0; j < rows; j++) {
     for (let i = 0; i < cols; i++) {
       const x = cx(i),
         y = cy(j);
-      if (x < die.x + margin || y < die.y + margin || x > die.x + die.w - margin || y > die.y + die.h - margin)
+      if (x < die.x + margin || y < die.y + margin || x > die.x + die.w - margin || y > die.y + die.h - margin) {
         blocked[j * cols + i] = 1;
+      }
     }
+  }
   const byId = new Map<string, B>();
   const frames = new Set(blocks.map((b) => b.parent).filter((p): p is string => p !== undefined));
   for (const b of blocks) {
     byId.set(b.id, b);
-    if (frames.has(b.id)) continue;
+    if (frames.has(b.id)) {
+      continue;
+    }
     const r = b.rect;
     const i0 = Math.max(0, Math.floor((r.x - CLEAR - die.x) / STEP) - 1),
       i1 = Math.min(cols - 1, Math.ceil((r.x + r.w + CLEAR - die.x) / STEP) + 1);
     const j0 = Math.max(0, Math.floor((r.y - CLEAR - die.y) / STEP) - 1),
       j1 = Math.min(rows - 1, Math.ceil((r.y + r.h + CLEAR - die.y) / STEP) + 1);
-    for (let j = j0; j <= j1; j++)
+    for (let j = j0; j <= j1; j++) {
       for (let i = i0; i <= i1; i++) {
         const x = cx(i),
           y = cy(j);
-        if (x > r.x - CLEAR && x < r.x + r.w + CLEAR && y > r.y - CLEAR && y < r.y + r.h + CLEAR)
+        if (x > r.x - CLEAR && x < r.x + r.w + CLEAR && y > r.y - CLEAR && y < r.y + r.h + CLEAR) {
           blocked[j * cols + i] = 1;
+        }
       }
+    }
   }
   const used = new Uint8Array(cols * rows);
 
   /** The free cells just outside a block's edges, facing out, inside the span of the side. */
-  const ports = (r: Rect): Port[] => {
+  const ports = (r: cpuplan.Rect): Port[] => {
     const out: Port[] = [];
     const i0 = Math.max(0, Math.floor((r.x - CLEAR - STEP - die.x) / STEP)),
       i1 = Math.min(cols - 1, Math.ceil((r.x + r.w + CLEAR + STEP - die.x) / STEP));
     const j0 = Math.max(0, Math.floor((r.y - CLEAR - STEP - die.y) / STEP)),
       j1 = Math.min(rows - 1, Math.ceil((r.y + r.h + CLEAR + STEP - die.y) / STEP));
-    for (let j = j0; j <= j1; j++)
+    for (let j = j0; j <= j1; j++) {
       for (let i = i0; i <= i1; i++) {
         const c = j * cols + i;
-        if (blocked[c]) continue;
+        if (blocked[c]) {
+          continue;
+        }
         const x = cx(i),
           y = cy(j);
         const inX = x >= r.x + 3 && x <= r.x + r.w - 3,
           inY = y >= r.y + 3 && y <= r.y + r.h - 3;
-        if (inX && y < r.y && y >= r.y - CLEAR - STEP) out.push({ cell: c, side: 0 });
-        else if (inX && y > r.y + r.h && y <= r.y + r.h + CLEAR + STEP) out.push({ cell: c, side: 2 });
-        else if (inY && x > r.x + r.w && x <= r.x + r.w + CLEAR + STEP) out.push({ cell: c, side: 1 });
-        else if (inY && x < r.x && x >= r.x - CLEAR - STEP) out.push({ cell: c, side: 3 });
+        if (inX && y < r.y && y >= r.y - CLEAR - STEP) {
+          out.push({ cell: c, side: 0 });
+        } else if (inX && y > r.y + r.h && y <= r.y + r.h + CLEAR + STEP) {
+          out.push({ cell: c, side: 2 });
+        } else if (inY && x > r.x + r.w && x <= r.x + r.w + CLEAR + STEP) {
+          out.push({ cell: c, side: 1 });
+        } else if (inY && x < r.x && x >= r.x - CLEAR - STEP) {
+          out.push({ cell: c, side: 3 });
+        }
       }
+    }
     return out;
   };
-  const onEdge = (r: Rect, p: Port): Pt => {
+  const onEdge = (r: cpuplan.Rect, p: Port): cpuplan.Pt => {
     const i = p.cell % cols,
       j = Math.floor(p.cell / cols),
       x = cx(i),
       y = cy(j);
     switch (p.side) {
-      case 0:
+      case 0: {
         return [x, r.y];
-      case 2:
+      }
+      case 2: {
         return [x, r.y + r.h];
-      case 1:
+      }
+      case 1: {
         return [r.x + r.w, y];
-      default:
+      }
+      default: {
         return [r.x, y];
+      }
     }
   };
 
@@ -369,13 +420,18 @@ export function routeWires<B extends Boxed, K extends string>(
   for (const spec of specs) {
     const a = byId.get(spec.from),
       b = byId.get(spec.to);
-    if (!a || !b) throw new Error(`${tag}: link ${spec.id}: unknown block ${spec.from} / ${spec.to}`);
+    if (!a || !b) {
+      throw new Error(`${tag}: link ${spec.id}: unknown block ${spec.from} / ${spec.to}`);
+    }
     const src = ports(a.rect),
       dst = ports(b.rect);
-    if (src.length === 0 || dst.length === 0)
+    if (src.length === 0 || dst.length === 0) {
       throw new Error(`${tag}: link ${spec.id}: no free edge on ${src.length === 0 ? spec.from : spec.to}`);
+    }
     const target = new Map<number, Port>();
-    for (const p of dst) target.set(p.cell, p);
+    for (const p of dst) {
+      target.set(p.cell, p);
+    }
     const heur = (c: number): number => {
       const x = cx(c % cols),
         y = cy(Math.floor(c / cols));
@@ -404,12 +460,18 @@ export function routeWires<B extends Boxed, K extends string>(
       const ci = c % cols,
         cj = Math.floor(c / cols);
       for (let nd = 0; nd < 4; nd++) {
-        if (nd === ((d + 2) & 3)) continue;
+        if (nd === ((d + 2) & 3)) {
+          continue;
+        }
         const ni = ci + DIRS[nd]![0],
           nj = cj + DIRS[nd]![1];
-        if (ni < 0 || nj < 0 || ni >= cols || nj >= rows) continue;
+        if (ni < 0 || nj < 0 || ni >= cols || nj >= rows) {
+          continue;
+        }
         const nc = nj * cols + ni;
-        if (blocked[nc]) continue;
+        if (blocked[nc]) {
+          continue;
+        }
         const ng = g + 1 + (nd !== d ? 5 : 0) + (used[nc] ? 3 : 0);
         const ns = nc * 4 + nd;
         if (ng < dist[ns]!) {
@@ -419,28 +481,36 @@ export function routeWires<B extends Boxed, K extends string>(
         }
       }
     }
-    if (end < 0) throw new Error(`${tag}: no route for link ${spec.id} (${spec.from} to ${spec.to})`);
+    if (end < 0) {
+      throw new Error(`${tag}: no route for link ${spec.id} (${spec.from} to ${spec.to})`);
+    }
     const states: number[] = [];
-    for (let st = end; st >= 0; st = prev[st]!) states.push(st);
+    for (let st = end; st >= 0; st = prev[st]!) {
+      states.push(st);
+    }
     states.reverse();
     const cells = states.map((st) => st >> 2);
     // the first cell of the path is a source port (its start direction says which side), the last a target port
     const first = src.find((p) => p.cell === cells[0] && p.side === (states[0]! & 3))!;
-    const last = target.get(cells[cells.length - 1]!)!;
-    const pts: Pt[] = [onEdge(a.rect, first)];
+    const last = target.get(cells.at(-1)!)!;
+    const pts: cpuplan.Pt[] = [onEdge(a.rect, first)];
     for (const c of cells) {
       pts.push([cx(c % cols), cy(Math.floor(c / cols))]);
       used[c] = 1;
     }
     pts.push(onEdge(b.rect, last));
-    const out: Pt[] = [];
+    const out: cpuplan.Pt[] = [];
     for (const p of pts) {
       const n = out.length;
-      if (n >= 1 && out[n - 1]![0] === p[0] && out[n - 1]![1] === p[1]) continue;
+      if (n >= 1 && out[n - 1]![0] === p[0] && out[n - 1]![1] === p[1]) {
+        continue;
+      }
       if (n >= 2) {
         const u = out[n - 2]!,
           v = out[n - 1]!;
-        if ((u[0] === v[0] && v[0] === p[0]) || (u[1] === v[1] && v[1] === p[1])) out.pop();
+        if ((u[0] === v[0] && v[0] === p[0]) || (u[1] === v[1] && v[1] === p[1])) {
+          out.pop();
+        }
       }
       out.push(p);
     }
@@ -459,6 +529,6 @@ export function routeWires<B extends Boxed, K extends string>(
 }
 
 /** The CPU die's instance: wires docked into the block symbols (`dock` false leaves them on the block edges). */
-export function routeLinks(die: Rect, blocks: Block[], specs: LinkSpec[], dock = true): Link[] {
+export function routeLinks(die: cpuplan.Rect, blocks: cpuplan.Block[], specs: LinkSpec[], dock = true): cpuplan.Link[] {
   return routeWires(die, blocks, specs, dock ? dockLink : undefined, 'cpuplan');
 }

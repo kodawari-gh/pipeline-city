@@ -42,9 +42,7 @@ export function glyphKit(g: Graphics, T: Theme, c: string, put: Put) {
   const solid = mix(T.die, c, 0.42),
     soft = mix(T.die, c, 0.2),
     line = mix(T.die, c, 0.85);
-  const rect = (rx: number, ry: number, rw: number, rh: number, f = solid) => {
-    g.roundRect(rx, ry, rw, rh, 1.5).fill({ color: f });
-  };
+  const rect = rectTool(g, solid);
   const stub = (x0: number, y0: number, x1: number, y1: number) => {
     g.moveTo(x0, y0).lineTo(x1, y1).stroke({ width: 1.2, color: line });
   };
@@ -56,7 +54,9 @@ export function glyphKit(g: Graphics, T: Theme, c: string, put: Put) {
     ins.forEach((t, k) => {
       const iy = my + mh * ((k + 0.5) / ins.length);
       stub(mx - 7, iy, mx, iy);
-      if (t) put(t, mx + 3 + t.length * 2, iy, 6);
+      if (t) {
+        put(t, mx + 3 + t.length * 2, iy, 6);
+      }
     });
     stub(mx + mw, my + mh / 2, mx + mw + 7, my + mh / 2);
   };
@@ -70,22 +70,45 @@ export function glyphKit(g: Graphics, T: Theme, c: string, put: Put) {
     ins.forEach((t, k) => {
       const iy = cy + (k - (ins.length - 1) / 2) * r * 1.1;
       stub(cx - r - 7, iy, cx - r * 0.8, iy);
-      if (t) put(t, cx - r - 3, iy - 4, 6);
+      if (t) {
+        put(t, cx - r - 3, iy - 4, 6);
+      }
     });
     stub(cx + r, cy, cx + r + 7, cy);
   };
-  /** A word as its fields in proportion. */
-  const word = (wx: number, wy: number, ww: number, wh: number, names = true) => {
+  const word = wordStrip({ rect, solid, soft, put });
+  return { solid, soft, line, rect, stub, poly, mux, adder, word };
+}
+
+/** The kit's `rect`: a rounded rectangle on `g`, filled `solid` unless told another colour. */
+function rectTool(g: Graphics, solid: string) {
+  return (rx: number, ry: number, rw: number, rh: number, f = solid) => {
+    g.roundRect(rx, ry, rw, rh, 1.5).fill({ color: f });
+  };
+}
+
+/** What `wordStrip` draws a word with: the kit's rectangle, its two fill shades and its label writer. */
+interface WordTools {
+  rect: ReturnType<typeof rectTool>;
+  solid: string;
+  soft: string;
+  put: Put;
+}
+
+/** A word as its fields in proportion (the kit's `word`). */
+function wordStrip({ rect, solid, soft, put }: WordTools) {
+  return (wx: number, wy: number, ww: number, wh: number, names = true) => {
     const total = WORD_FIELDS.reduce((s, f) => s + f.bits, 0);
     let fx = wx;
     WORD_FIELDS.forEach((f, k) => {
       const fw = (ww * f.bits) / total;
       rect(fx + 0.6, wy, fw - 1.2, wh, k % 2 ? solid : soft);
-      if (names && wh >= 8 && fw > 12) put(f.name, fx + fw / 2, wy + wh / 2, Math.min(7, wh * 0.7));
+      if (names && wh >= 8 && fw > 12) {
+        put(f.name, fx + fw / 2, wy + wh / 2, Math.min(7, wh * 0.7));
+      }
       fx += fw;
     });
   };
-  return { solid, soft, line, rect, stub, poly, mux, adder, word };
 }
 
 /** The notched trapezoid of an ALU (operands in on the left, the result out on the right), in a box. */
@@ -115,10 +138,11 @@ export function pcDigits(g: Graphics, kit: ReturnType<typeof glyphKit>, a: Rect)
   for (let k = 0; k < 8; k++) {
     const dx = x + k * (dw + gap);
     kit.rect(dx, y + (h - dh) / 2, dw, dh);
-    for (let j = 0; j < 4; j++)
+    for (let j = 0; j < 4; j++) {
       g.rect(dx + 1.5 + j * ((dw - 3) / 4), y + (h - dh) / 2 + dh - 3.5, Math.max(1, (dw - 3) / 4 - 1), 2).fill({
         color: kit.line,
       });
+    }
   }
 }
 
@@ -168,7 +192,9 @@ export function glyph(
       const n = fetchWidth(b),
         gap = 3,
         wh = Math.min(16, (h - (n - 1) * gap) / n);
-      for (let k = 0; k < n; k++) word(x, y + k * (wh + gap), w, wh, wh >= 9);
+      for (let k = 0; k < n; k++) {
+        word(x, y + k * (wh + gap), w, wh, wh >= 9);
+      }
       break;
     }
     case 'imm': {
@@ -190,11 +216,15 @@ export function glyph(
         const sl = slotsOf(b, a);
         sl.fields!.forEach((r, k) => {
           rect(r.x, r.y + 0.6, r.w, r.h - 1.2, k % 2 ? solid : soft);
-          if (r.h >= 9) put(WORD_FIELDS[k]!.name, r.x + r.w / 2, r.y + r.h / 2, Math.min(7, r.h * 0.7));
+          if (r.h >= 9) {
+            put(WORD_FIELDS[k]!.name, r.x + r.w / 2, r.y + r.h / 2, Math.min(7, r.h * 0.7));
+          }
         });
         sl.lines!.forEach((r, k) => {
           rect(r.x, r.y, r.w, r.h, soft);
-          if (r.h >= 7) put(CONTROL_LINES[k]!, r.x + r.w / 2, r.y + r.h / 2, 6);
+          if (r.h >= 7) {
+            put(CONTROL_LINES[k]!, r.x + r.w / 2, r.y + r.h / 2, 6);
+          }
         });
         break;
       }
@@ -207,7 +237,9 @@ export function glyph(
         lw = (w - (n - 1) * 3) / n;
       CONTROL_LINES.forEach((t, k) => {
         rect(x + k * (lw + 3), ly, lw, lh, soft);
-        if (lh >= 7 && lw > 14) put(t, x + k * (lw + 3) + lw / 2, ly + lh / 2, 6);
+        if (lh >= 7 && lw > 14) {
+          put(t, x + k * (lw + 3) + lw / 2, ly + lh / 2, 6);
+        }
       });
       break;
     }
@@ -234,9 +266,11 @@ export function glyph(
       // partial products added up in a triangle
       const rows = Math.max(3, Math.min(7, Math.floor(h / 7))),
         cell = Math.min(6, (h - 2) / rows, (w * 0.5) / rows);
-      for (let r = 0; r < rows; r++)
-        for (let k = 0; k <= r; k++)
+      for (let r = 0; r < rows; r++) {
+        for (let k = 0; k <= r; k++) {
           rect(x + 8 + k * (cell + 1.5), y + 1 + r * (cell + 1.5), cell, cell, k === r ? solid : soft);
+        }
+      }
       stub(x + 2, y + h / 2, x + 8, y + h / 2);
       stub(x + 12 + rows * (cell + 1.5), y + h / 2, x + w * 0.62, y + h / 2);
       rect(x + w * 0.62, y + h / 2 - 8, Math.min(60, w * 0.3), 16);
@@ -256,9 +290,11 @@ export function glyph(
         n = 4,
         sw = (qw - (n - 1) * 3) / n,
         sh = Math.min(12, (h - 6) / 2);
-      for (let q = 0; q < 2; q++)
-        for (let k = 0; k < n; k++)
+      for (let q = 0; q < 2; q++) {
+        for (let k = 0; k < n; k++) {
           rect(qx + k * (sw + 3), y + h / 2 - sh - 1.5 + q * (sh + 3), sw, sh, q ? solid : soft);
+        }
+      }
       put('load', qx - 11, y + h / 2 - sh / 2 - 1.5, 6);
       put('store', qx - 12, y + h / 2 + sh / 2 + 1.5, 6);
       break;
@@ -359,8 +395,9 @@ export function glyph(
       mux(x + w * 0.4, y + (h - Math.min(h, 40)) / 2, Math.min(w * 0.3, 40), Math.min(h, 40), ['alu', 'mem', 'pc+4']);
       break;
     }
-    default:
+    default: {
       break;
+    }
   }
 }
 
@@ -416,13 +453,24 @@ export function controlsOf(op: string): number[] {
     op === 'jalr' ||
     op === 'ecall' ||
     op === 'iret'
-  ))
+  )) {
     out.push(0);
-  if (op === 'lw' || op === 'lb' || op === 'lbu' || op === 'sw' || op === 'sb') out.push(1);
-  if (writes(op)) out.push(2);
-  if (op[0] === 'b' || op === 'jal' || op === 'jalr') out.push(3);
-  if (isImm(op) && op[0] !== 'b') out.push(4);
-  if (op === 'ecall' || op === 'iret') out.push(5);
+  }
+  if (op === 'lw' || op === 'lb' || op === 'lbu' || op === 'sw' || op === 'sb') {
+    out.push(1);
+  }
+  if (writes(op)) {
+    out.push(2);
+  }
+  if (op[0] === 'b' || op === 'jal' || op === 'jalr') {
+    out.push(3);
+  }
+  if (isImm(op) && op[0] !== 'b') {
+    out.push(4);
+  }
+  if (op === 'ecall' || op === 'iret') {
+    out.push(5);
+  }
   return out;
 }
 
@@ -529,12 +577,15 @@ export function slotsOf(
         ox = x + w * 0.4 + mw + 8;
       return { out: { x: ox, y: y + h / 2 - 7, w: Math.max(0, x + w - ox), h: 14 } };
     }
-    case 'mul':
+    case 'mul': {
       return { out: { x: x + w * 0.62, y: y + h / 2 - 8, w: Math.min(60, w * 0.3), h: 16 } };
-    case 'lsu':
+    }
+    case 'lsu': {
       return { operands: { x: x + w * 0.45, y: y + h - 9, w: w * 0.55, h: 9 } };
-    default:
+    }
+    default: {
       return {};
+    }
   }
 }
 
@@ -542,84 +593,114 @@ export function slotsOf(
 export function glyphLive(b: Block, a: Rect, items: LiveItem[], pc?: number, prog: readonly number[] = []): LiveGlyph {
   const s = slotsOf(b, a),
     out: LiveGlyph = { texts: [], lit: [] };
-  const it = items[0];
+  const [it] = items;
   /** How far an instruction has got into the block (0 just arrived .. 1 settled): its words wipe in, its control lines light one after another. */
   const pr = (k: number) => Math.max(0, Math.min(1, prog[k] ?? 1));
   const wipe = (r: Rect, f: number): Rect => ({ ...r, w: r.w * f });
   switch (b.kind) {
-    case 'hazard':
+    case 'hazard': {
       if (it) {
         const gz = hazardGeom(a);
         out.lit.push({ rect: wipe(gz.lamp, pr(0)), color: 'ld', a: 0.95 });
       }
       break;
-    case 'forward':
-      if (it)
+    }
+    case 'forward': {
+      if (it) {
         forwardGeom(a).muxes.forEach((m, k) => {
-          if ((it.flags ?? 0) & (1 << k))
+          if ((it.flags ?? 0) & (1 << k)) {
             out.lit.push({ rect: { x: m.mx, y: m.my, w: m.mw, h: m.mh }, color: 'st', a: 0.5 * pr(0) });
+          }
         });
+      }
       break;
-    case 'queue':
+    }
+    case 'queue': {
       items.slice(0, s.words?.length ?? 0).forEach((x, k) => {
         out.lit.push({ rect: wipe(s.words![k]!, pr(k)), color: 'ld', a: 0.92 });
-        if (pr(k) > 0.55) out.texts.push({ rect: s.words![k]!, top: x.op, bottom: '' });
+        if (pr(k) > 0.55) {
+          out.texts.push({ rect: s.words![k]!, top: x.op, bottom: '' });
+        }
       });
       break;
-    case 'pc':
+    }
+    case 'pc': {
       if (pc !== undefined && s.digits) {
         const hex = (pc >>> 0).toString(16).padStart(8, '0');
         s.digits.forEach((r, k) => out.texts.push({ rect: r, top: hex[k]!, bottom: '' }));
       }
       break;
-    case 'fetch':
+    }
+    case 'fetch': {
       items.slice(0, s.words?.length ?? 0).forEach((x, k) => {
         out.lit.push({ rect: wipe(s.words![k]!, pr(k)), color: 'alu', a: 0.92 });
-        if (pr(k) > 0.55) out.texts.push({ rect: s.words![k]!, top: x.text, bottom: '' });
+        if (pr(k) > 0.55) {
+          out.texts.push({ rect: s.words![k]!, top: x.text, bottom: '' });
+        }
       });
       break;
-    case 'decode':
+    }
+    case 'decode': {
       if (it && s.word && s.lines) {
         out.lit.push({ rect: wipe(s.word, pr(0)), color: 'alu', a: 0.92 });
-        if (pr(0) > 0.55 && s.fields)
+        if (pr(0) > 0.55 && s.fields) {
           slotValues(it.word ?? 0).forEach((v, k) => {
-            if (v) out.texts.push({ rect: s.fields![k]!, top: v, bottom: '' });
+            if (v) {
+              out.texts.push({ rect: s.fields![k]!, top: v, bottom: '' });
+            }
           });
+        }
         controlsOf(it.op).forEach((k, j) => {
-          if (pr(0) > 0.45 + 0.1 * j) out.lit.push({ rect: s.lines![k]!, color: 'br', a: 0.6 });
+          if (pr(0) > 0.45 + 0.1 * j) {
+            out.lit.push({ rect: s.lines![k]!, color: 'br', a: 0.6 });
+          }
         });
       }
       break;
-    case 'imm':
+    }
+    case 'imm': {
       if (it && s.out) {
         out.lit.push({ rect: wipe(s.out, pr(0)), color: 'alu', a: 0.92 });
-        if (pr(0) > 0.55) out.texts.push({ rect: s.out, top: slotValues(it.word ?? 0)[4] ?? '', bottom: '' });
+        if (pr(0) > 0.55) {
+          out.texts.push({ rect: s.out, top: slotValues(it.word ?? 0)[4] ?? '', bottom: '' });
+        }
       }
       break;
-    case 'wb':
+    }
+    case 'wb': {
       if (it && s.out && s.out.w > 20) {
         const wr = writesOf(it.word ?? 0);
         out.lit.push({ rect: wipe(s.out, pr(0)), color: 'st', a: 0.9 });
-        if (pr(0) > 0.55) out.texts.push({ rect: s.out, top: wr >= 0 ? `→ ${regName(wr)}` : 'done', bottom: '' });
+        if (pr(0) > 0.55) {
+          out.texts.push({ rect: s.out, top: wr >= 0 ? `→ ${regName(wr)}` : 'done', bottom: '' });
+        }
       }
       break;
+    }
     case 'alu':
     case 'mul':
-    case 'lsu':
+    case 'lsu': {
       if (it) {
         const col = b.kind === 'mul' ? 'mul' : b.kind === 'lsu' ? 'ld' : 'alu';
         if (s.op) {
           out.lit.push({ rect: wipe(s.op, pr(0)), color: col, a: 0.92 });
-          if (pr(0) > 0.55) out.texts.push({ rect: s.op, top: it.op, bottom: '' });
+          if (pr(0) > 0.55) {
+            out.texts.push({ rect: s.op, top: it.op, bottom: '' });
+          }
         }
         const r = s.operands;
-        if (r && r.h >= 7 && pr(0) > 0.7)
+        if (r && r.h >= 7 && pr(0) > 0.7) {
           out.texts.push({ rect: { ...r, h: Math.max(14, r.h) }, top: it.text.slice(it.op.length + 1), bottom: '' });
-        if (s.out && pr(0) > 0.8) out.lit.push({ rect: s.out, color: col, a: 0.55 });
+        }
+        if (s.out && pr(0) > 0.8) {
+          out.lit.push({ rect: s.out, color: col, a: 0.55 });
+        }
       }
       break;
-    default:
+    }
+    default: {
       break;
+    }
   }
   return out;
 }
