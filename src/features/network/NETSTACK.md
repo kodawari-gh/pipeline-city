@@ -145,7 +145,7 @@ Code: `src/features/network/sim/transport.ts` (`Flow`, `lossRoll`, `TRANSPORT`),
 
 _The original proposal, from before the stage 2 build (which polled), follows; OS 3 and up now do most of it:_
 
-- **A handler in the kernel** (`src/features/os/sim/kernel.ts`, assembly). Boot sets `VECTOR`, `MASK` (NIC line) and `CTRL`. The handler follows the convention of `CPU.md`: save, read `RX_HEAD`, acknowledge, set a "work waiting" flag in the kernel's data, restore, `iret`. For PIO it also copies the window.
+- **A handler in the kernel** (`src/features/os/sim/kernel/`, assembly). Boot sets `VECTOR`, `MASK` (NIC line) and `CTRL`. The handler follows the convention of `CPU.md`: save, read `RX_HEAD`, acknowledge, set a "work waiting" flag in the kernel's data, restore, `iret`. For PIO it also copies the window.
 - **The bottom half** is the kernel's existing idle/loop code: it already polls the PCH for a key between programs; it also checks the flag, drains the ring and ingests a complete job (`kingest`'s copy, sourced from a RAM staging buffer instead of the key window).
 - The virtual-key feed in `Game.feedKernel` and the zero-latency USB timings go away. USB keys keep their path unchanged.
 - **Running programs are interrupted.** The kernel runs one program at a time; a job in flight is paused by the handler for its length and resumes. With a busy network the job's turnaround grows by the handler cycles: there is no free lunch.

@@ -140,7 +140,7 @@ A device calls `machine.intc.raise(IRQ.X)` from its own `tick()`. Give the devic
 ### Open decisions
 
 - **Decided (owner): every CPU tier has an interrupt line.** `TECHTREE.md`'s "a CPU with an interrupt line" for the preemptive OS is then always met.
-- **Where the first handler lives.** The boot ROM (so it works without an OS) or the kernel (`src/features/os/sim/kernel.ts`, which the NIC stage needs).
+- **Where the first handler lives.** The boot ROM (so it works without an OS) or the kernel (`src/features/os/sim/kernel/`, which the NIC stage needs).
 - **Timer interrupt.** Built: the interval timer device (`src/core/sim/hw/timer.ts`, `TIMER_BASE` 0x4012_0000: `INTERVAL` cycles between interrupts on line 0, `COUNT`, `KICK`) and the preemptive kernel `os3` (src/features/os/OS.md "OS 3"). The MMU's `CONTROL` write inside a handler decides whether `iret` turns translation on.
 
 ### Tests
