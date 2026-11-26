@@ -3,8 +3,6 @@
 // arithmetic, loads and stores, multiplies, branches. Pure: no sim state, nothing is changed by looking.
 
 import { generate } from '../gen';
-// oxlint-disable-next-line eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own
-import type { Generated } from '../gen';
 import { decode, disassemble, SPEC_BY_NAME } from '../../../cpu/sim/isa';
 import { RefCpu, RefMemory } from '../../../cpu/sim/ref';
 import { OP_CLASSES, opClassOf } from './opClass';
@@ -15,6 +13,9 @@ const MAX_STEPS = 3_000_000;
 const DEVICE_BASE = 0x40_00_00_00;
 
 const cache = new Map<string, CodeProfile>();
+
+/** The generator's output (named from `generate`, so the generator is imported once). */
+type Generated = ReturnType<typeof generate>;
 
 /** What one run of the program did: the times each word ran, the executed mix, the branches, the memory traffic and the display text. */
 interface Run {

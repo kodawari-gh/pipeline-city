@@ -72,7 +72,7 @@ export function enqueue(this: Game, template: string, scale = 1, cls?: string, n
   const seed = this.machine.prng.nextU32();
   // A class with several kinds of job sends one the player's level has reached, chosen by the seed (no extra draw: the PRNG stream does not depend on it).
   const c = pick && cls ? jobClass(cls) : undefined;
-  const task = c && pickTask(c, this.level, seed, this.sandbox ? this.sandboxKindsOff : undefined);
+  const task = c && pickTask(c, this.level, { seed, off: this.sandbox ? this.sandboxKindsOff : undefined });
   if (task) {
     template = task.template;
     scale = task.scale ?? c!.scale;

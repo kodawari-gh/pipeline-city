@@ -1,10 +1,18 @@
 // The kinds of job a class sends (docs/JOBS.md "The catalogue"): the entry behind a template, the level and needs of an entry, and the weighted pick.
 
 import { jobClass } from '../../../economy/sim/levels';
-// oxlint-disable-next-line eslint/no-duplicate-imports -- `consistent-type-specifier-style` puts a module's types in an import of their own
-import type { JobClassDef, Need } from '../../../economy/sim/levels';
 import { JOB_DEX } from './catalog';
 import type { DexEntry } from './types';
+
+/** A job class and a need, as levels.ts defines them (named from the values, so levels.ts is imported once). */
+type JobClassDef = NonNullable<ReturnType<typeof jobClass>>;
+type Need = NonNullable<DexEntry['needs']>[number];
+
+/** One draw of `pickTask`: the seed, and the kinds switched off (sandbox), if any. */
+interface TaskDraw {
+  seed: number;
+  off?: ReadonlySet<string> | undefined;
+}
 
 /** The kind of job a generator template makes: the entry whose template it is (a key made from the mixed `cli` template has none until its program says which). */
 export const taskOfTemplate = (template: string): DexEntry | undefined =>
@@ -15,16 +23,10 @@ export const taskLevel = (e: DexEntry): number => e.level ?? jobClass(e.cls)?.fi
 export const taskNeeds = (e: DexEntry): Need[] => e.needs ?? jobClass(e.cls)?.needs ?? [];
 
 /**
- * The job a class sends for a draw `seed` at `level`, from the ones that have arrived at that level (weighted), or undefined to send the class's own
+ * The job a class sends for a draw (its `seed`, and the kinds `off`) at `level`, from the ones that have arrived at that level (weighted), or undefined to send the class's own
  * template (while only legacy jobs have arrived, which keeps a game that has not got further playing as it always did).
  */
-// oxlint-disable-next-line eslint/max-params -- the split (#130) keeps the public signature; its callers are in economy/sim/clients.ts and the tests.
-export function pickTask(
-  cls: JobClassDef,
-  level: number,
-  seed: number,
-  off?: ReadonlySet<string>,
-): DexEntry | undefined {
+export function pickTask(cls: JobClassDef, level: number, { seed, off }: TaskDraw): DexEntry | undefined {
   const open = JOB_DEX.filter(
     (e) => e.cls === cls.id && e.planned !== true && taskLevel(e) <= level && off?.has(e.id) !== true,
   );
