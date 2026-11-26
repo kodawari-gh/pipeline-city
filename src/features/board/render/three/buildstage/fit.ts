@@ -91,7 +91,9 @@ export abstract class StageFit extends StageShell {
         ? removalPlan(graph, devNode(aim.occupant.id))
         : removalPlanAll(
             graph,
-            accessBlockers(this.board, aim.slot, aim.spec.kind, aim.item).filter((n) => graph.has(n)),
+            accessBlockers({ board: this.board, slotId: aim.slot, kind: aim.spec.kind, specId: aim.item }).filter((n) =>
+              graph.has(n),
+            ),
           ),
     );
     if (steps.length === 0) {

@@ -65,7 +65,7 @@ function rig(sink?: string, cooler = 'cooler1'): simTypes.Board {
 function settle(b: simTypes.Board, fans: thermalTypes.FanPower, ticks = 600) {
   const th = new ThermalModel(new Prng(1));
   for (let k = 0; k < ticks; k++) {
-    th.step(b, { cpu: 1 }, true, fans);
+    th.step(b, { loads: { cpu: 1 }, powered: true, fans });
   }
   return { cpu: stateOf(th, b, 'cpu').tempC, vrm: th.vrm.tempC };
 }
