@@ -1,22 +1,24 @@
 // A job's picture: its program drawn as a grid of cells, one per instruction word, coloured by what the instruction does and as bright as it was busy
 // (docs/JOBS.md "The sprite"). The almanac and the log use it as the job's face; a job that is not met yet is a dark silhouette of the same shape.
-import { CODE_SOURCE, profileOf, spriteOf, type Sprite } from '@/features/jobs/sim/jobcode';
+import * as jobcode from '@/features/jobs/sim/jobcode';
 import type { TipPart } from '@/features/jobs/sim/jobdex';
 import type { IconName } from '@/features/economy/ui/shop/picker';
 
-const cache = new Map<string, Sprite | null>();
+const cache = new Map<string, jobcode.Sprite | null>();
 
 /** The sprite of an almanac entry at its first scale, or null for one that has no program yet. */
-function spriteFor(id: string): Sprite | null {
-  if (cache.has(id)) return cache.get(id)!;
-  const src = CODE_SOURCE[id];
-  const sp = src ? spriteOf(profileOf(src.template, src.scales[0]!)) : null;
+function spriteFor(id: string): jobcode.Sprite | null {
+  if (cache.has(id)) {
+    return cache.get(id)!;
+  }
+  const src = jobcode.CODE_SOURCE[id];
+  const sp = src ? jobcode.spriteOf(jobcode.profileOf(src.template, src.scales[0]!)) : null;
   cache.set(id, sp);
   return sp;
 }
 
 /** A fixed pattern for a job with no program: the shape of something not known yet. */
-const MYSTERY: Sprite = {
+const MYSTERY: jobcode.Sprite = {
   cols: 10,
   rows: 4,
   cells: Array.from({ length: 34 }, (_, i) => ({ cls: 'alu' as const, heat: 0.4 + ((i * 7) % 5) / 10 })),
@@ -71,26 +73,36 @@ export const PART_ICON: Record<TipPart, IconName> = {
 /** The icon for a need of a job class. */
 export function needIcon(kind: string): IconName {
   switch (kind) {
-    case 'os':
+    case 'os': {
       return 'layers';
+    }
     case 'storage':
-    case 'fs':
+    case 'fs': {
       return 'disk';
-    case 'net':
+    }
+    case 'net': {
       return 'net';
-    case 'tpm':
+    }
+    case 'tpm': {
       return 'slot';
-    case 'ecc':
+    }
+    case 'ecc': {
       return 'memory';
-    case 'ram':
+    }
+    case 'ram': {
       return 'stick';
-    case 'gpu':
+    }
+    case 'gpu': {
       return 'card';
-    case 'npu':
+    }
+    case 'npu': {
       return 'bolt';
-    case 'cores':
+    }
+    case 'cores': {
       return 'cpu';
-    default:
+    }
+    default: {
       return 'check';
+    }
   }
 }

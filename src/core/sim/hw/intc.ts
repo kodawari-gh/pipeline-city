@@ -23,7 +23,11 @@ export class IntcHub {
 
   /** Raise `IRQ.IPI` on every core whose bit is set in `mask`. */
   ipi(mask: number): void {
-    for (let k = 0; k < this.banks.length && k < 32; k++) if ((mask >>> k) & 1) this.banks[k]!.raise(IRQ.IPI);
+    for (let k = 0; k < this.banks.length && k < 32; k++) {
+      if ((mask >>> k) & 1) {
+        this.banks[k]!.raise(IRQ.IPI);
+      }
+    }
   }
 }
 
@@ -75,7 +79,9 @@ export class Intc implements Device {
     this.parked = false;
     this.parkedCycles = 0;
     this.rowBase = 0;
-    if (this.index === 0) this.hub.routes.fill(0);
+    if (this.index === 0) {
+      this.hub.routes.fill(0);
+    }
   }
 
   /** Whether a parked core wakes now: a line that is not masked is pending (the interrupt is taken, if interrupts are on, as usual). */
@@ -95,7 +101,9 @@ export class Intc implements Device {
 
   /** The line to take now, or -1: interrupts on, and a pending line that is not masked. The lowest line wins. */
   next(): number {
-    if (!this.ie) return -1;
+    if (!this.ie) {
+      return -1;
+    }
     const m = (this.pending & this.mask) >>> 0;
     return m === 0 ? -1 : 31 - Math.clz32(m & -m);
   }
@@ -107,7 +115,9 @@ export class Intc implements Device {
     this.ie = false;
     this.taken++;
     this.lastLatency = latency;
-    if (latency > this.maxLatency) this.maxLatency = latency;
+    if (latency > this.maxLatency) {
+      this.maxLatency = latency;
+    }
   }
 
   /** iret retired: interrupts are on again. */
@@ -117,28 +127,39 @@ export class Intc implements Device {
 
   private word(reg: number): number {
     switch (reg) {
-      case INTC_REG.PENDING:
+      case INTC_REG.PENDING: {
         return this.pending;
-      case INTC_REG.MASK:
+      }
+      case INTC_REG.MASK: {
         return this.mask;
-      case INTC_REG.VECTOR:
+      }
+      case INTC_REG.VECTOR: {
         return this.vector;
-      case INTC_REG.EPC:
+      }
+      case INTC_REG.EPC: {
         return this.epc;
-      case INTC_REG.CAUSE:
+      }
+      case INTC_REG.CAUSE: {
         return this.cause;
-      case INTC_REG.CTRL:
+      }
+      case INTC_REG.CTRL: {
         return this.ie ? 1 : 0;
-      case INTC_REG.COUNT:
+      }
+      case INTC_REG.COUNT: {
         return this.taken;
-      case INTC_REG.ROW_BASE:
+      }
+      case INTC_REG.ROW_BASE: {
         return this.rowBase;
-      case INTC_REG.CORE_ID:
+      }
+      case INTC_REG.CORE_ID: {
         return this.index;
-      case INTC_REG.CORES:
+      }
+      case INTC_REG.CORES: {
         return this.hub.banks.length;
-      case INTC_REG.PARK:
+      }
+      case INTC_REG.PARK: {
         return this.parked ? 1 : 0;
+      }
       default: {
         const line = (reg - INTC_REG.ROUTE) >> 2;
         return reg >= INTC_REG.ROUTE && line < INTC_ROUTES ? this.hub.routes[line]! : 0;
@@ -157,33 +178,47 @@ export class Intc implements Device {
     const byte = (val & 0xff) << shift;
     const merge = (old: number): number => ((old & ~(0xff << shift)) | byte) >>> 0;
     switch (reg) {
-      case INTC_REG.MASK:
+      case INTC_REG.MASK: {
         this.mask = merge(this.mask);
         break;
-      case INTC_REG.ACK:
+      }
+      case INTC_REG.ACK: {
         this.ack(byte >>> 0);
         break;
-      case INTC_REG.VECTOR:
+      }
+      case INTC_REG.VECTOR: {
         this.vector = merge(this.vector);
         break;
-      case INTC_REG.EPC:
+      }
+      case INTC_REG.EPC: {
         this.epc = merge(this.epc);
         break;
-      case INTC_REG.CTRL:
-        if (shift === 0) this.ie = (val & 1) !== 0;
+      }
+      case INTC_REG.CTRL: {
+        if (shift === 0) {
+          this.ie = (val & 1) !== 0;
+        }
         break;
-      case INTC_REG.ROW_BASE:
+      }
+      case INTC_REG.ROW_BASE: {
         this.rowBase = merge(this.rowBase) | 0;
         break;
-      case INTC_REG.IPI:
+      }
+      case INTC_REG.IPI: {
         this.hub.ipi(byte >>> 0);
         break;
-      case INTC_REG.PARK:
-        if (val & 0xff) this.parked = true;
+      }
+      case INTC_REG.PARK: {
+        if (val & 0xff) {
+          this.parked = true;
+        }
         break;
+      }
       default: {
         const line = (reg - INTC_REG.ROUTE) >> 2;
-        if (reg >= INTC_REG.ROUTE && line < INTC_ROUTES) this.hub.routes[line] = merge(this.hub.routes[line]!);
+        if (reg >= INTC_REG.ROUTE && line < INTC_ROUTES) {
+          this.hub.routes[line] = merge(this.hub.routes[line]!);
+        }
       }
     }
   }
