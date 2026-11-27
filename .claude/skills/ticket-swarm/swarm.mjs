@@ -16,6 +16,9 @@ import {
   symlinkSync,
   unlinkSync,
   rmdirSync,
+  openSync,
+  readSync,
+  closeSync,
 } from 'node:fs';
 import { join, dirname, resolve, basename } from 'node:path';
 import { tmpdir, homedir } from 'node:os';
@@ -1432,6 +1435,7 @@ const HELP = `swarm.mjs: ticket swarm runner (config docs/agents/board.json)
   catchup <parent> [--from <ref>] [--model <m>] [--effort <e>]   merge <ref> (default: current branch) into parent/<parent>; a merger agent settles conflicts; then the gates
   status [<key>]                                 phase, rounds and tier of each ticket in a run
   retry <key> <n>                                [--model <m>]  resume a stopped ticket from its kept branches (--model: restart the ladder at <m>; else exhausted: one more top-tier round)
+  watch <key> [--match <regex>] [--min <m>]      print new event-log lines that match (default: stops, needs, failures); exit at FINISHED or after <m> min (29)
   gc                                             remove worktrees and branches of closed tickets, and unused shared installs
   deps                                           in a swarm worktree: replace shared dependency links with a private install
   lock [--name <name>] -- <command...>           run a command under a machine-wide mutex (default name: browser)
@@ -1475,6 +1479,43 @@ function applyRetry(T, { model }) {
   delete T.reason;
 }
 
+const WATCH_MATCH = 'NEED|STOP|denial|FINISHED|DONE|failed|critical';
+
+/**
+ * Print each new matching line of a run's event log. Exit at FINISHED or after `min` minutes.
+ * It replaces `tail -F | grep`: on Windows a killed Monitor shell leaves `tail` running forever.
+ */
+async function watch(cfg, key, { match, min }) {
+  const file = join(cfg.root, '.claude', 'swarm', `${key}.log`);
+  const re = new RegExp(match, 'u');
+  const end = Date.now() + min * 60e3;
+  let pos = existsSync(file) ? statSync(file).size : 0;
+  let rest = '';
+  while (Date.now() < end) {
+    const size = existsSync(file) ? statSync(file).size : 0;
+    if (size < pos) {
+      pos = 0; // the log was replaced
+    }
+    if (size > pos) {
+      const buf = Buffer.alloc(size - pos);
+      const fd = openSync(file, 'r');
+      readSync(fd, buf, 0, buf.length, pos);
+      closeSync(fd);
+      pos = size;
+      const lines = (rest + buf.toString('utf8')).split(/\r?\n/u);
+      rest = lines.pop() ?? '';
+      for (const l of lines.filter((x) => re.test(x))) {
+        console.log(l);
+        if (/ FINISHED/u.test(l)) {
+          return;
+        }
+      }
+    }
+    await sleep(1000);
+  }
+  console.log(`watch ${key}: ${min} min passed, re-arm to go on`);
+}
+
 function opt(a, name, def) {
   const i = a.indexOf(name);
   return i >= 0 ? a[i + 1] : def;
@@ -1512,6 +1553,12 @@ async function main(argv) {
   }
   if (cmd === 'retry') {
     return retry(cfg, a);
+  }
+  if (cmd === 'watch') {
+    if (!a[0]) {
+      throw new Error('watch needs a run key, like p115');
+    }
+    return watch(cfg, a[0], { match: opt(a, '--match', WATCH_MATCH), min: Number(opt(a, '--min', '29')) });
   }
   if (cmd === 'gc') {
     for (const line of gc(cfg)) {
