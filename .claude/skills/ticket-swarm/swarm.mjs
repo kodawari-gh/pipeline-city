@@ -121,6 +121,15 @@ export function tierAt(planned, failures) {
 }
 export const tierName = (t) => `${t.model} ${t.effort}`;
 
+/** Cut `s` to at most `max` chars at a word end: a cut word fails the spell gate on the log. */
+export function clip(s, max) {
+  if (s.length <= max) {
+    return s;
+  }
+  const cut = s.slice(0, max + 1).replace(/\s+\S*$/u, '');
+  return `${cut || s.slice(0, max)} ...`;
+}
+
 // ---------- process helpers ----------
 
 /** Wait for every worker before a stop, so none is cut off mid-commit. */
@@ -1061,11 +1070,8 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
       }
       const note =
         rv.verdict === 'PASS'
-          ? rv.commands.join('; ').slice(0, 200)
-          : rv.findings
-              .map((f) => `${f.file}: ${f.problem}`)
-              .join('; ')
-              .slice(0, 300);
+          ? clip(rv.commands.join('; '), 200)
+          : clip(rv.findings.map((f) => `${f.file}: ${f.problem}`).join('; '), 300);
       T.rows.push(
         `| #${n} | ${T.rounds} | ${tierName(tier)} | ${rv.verdict} | ${note.replace(/\|/g, '/').replace(/\r?\n/g, ' ')} |`,
       );
