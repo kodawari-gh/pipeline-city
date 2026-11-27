@@ -129,6 +129,8 @@ describe('the stage fits the network', () => {
     expect(net(s).router).toBe('router1');
     expect(s.refusal.peek()).toBeNull();
     expect(s.snapshot.net.router).toMatchObject({ name: 'Home router', mbps: 100 });
+    // (the build log says what went in, as words)
+    expect(s.status.peek().log.at(-1)).toBe('Fit Home router');
   });
 
   it('puts an internet plan in place of the one that stands, and an OS in place of the OS', async () => {

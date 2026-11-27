@@ -8,9 +8,18 @@ import { cableBlocked, cableNeeded, cablesOf } from './cables';
 import { HOSES, SIDE, buildGraph, devNode, hasLoop, isCableNode, removalPlan } from './removal';
 import { getSpec } from './specs';
 
-/** What a step does: the side panel opens, a part, a cable or the loop's hoses come out, a part goes back, a cable goes in, the hoses go on. */
+/** What a step does: the side panel opens, a part, a cable or the loop's hoses come out, a part goes in or back, a cable goes in or runs out, the hoses go on, a case or board is fitted. */
 type StepKind =
-  'door-open' | 'part-out' | 'cable-out' | 'hoses-out' | 'part-in' | 'put-back' | 'cable-in' | 'cable-run' | 'hoses-on';
+  | 'door-open'
+  | 'part-out'
+  | 'cable-out'
+  | 'hoses-out'
+  | 'part-in'
+  | 'put-back'
+  | 'cable-in'
+  | 'cable-run'
+  | 'hoses-on'
+  | 'shell-in';
 
 /** The game at one moment of a job: its snapshot, and copies of its board and cables. */
 export interface SessionState {

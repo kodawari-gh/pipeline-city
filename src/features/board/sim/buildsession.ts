@@ -7,12 +7,27 @@ import type { Snapshot } from '@/worker/protocol';
 import { presetGame, startGame } from './buildpreset';
 import { FitJob } from './buildfit';
 import { RemovalJob, assemble, stateOf } from './buildscript';
-import { boardSlots, freeSlots, slotAccepts, slotFits, uninstall } from './board';
+import { netName, netState, setNet } from './buildnet';
+import { boardSlots, freeSlots, slotAccepts, slotFits, uninstall, upgradeBoard, upgradeCase } from './board';
 import type { BuildPreset, Shown } from './buildspecs';
-import { SIDE, accessBlockers, buildGraph, devNode, isDevNode, removalPlan, removalPlanAll } from './removal';
+import {
+  BOARD,
+  CASE,
+  SIDE,
+  accessBlockers,
+  buildGraph,
+  devNode,
+  isDevNode,
+  removalPlan,
+  removalPlanAll,
+} from './removal';
 import { getSpec } from './specs';
 
 export { isOutStep } from './buildscript';
+
+/** A net kind and a board, as the game names them. */
+type NetKind = keyof ReturnType<typeof netState>;
+type Board = Game['board'];
 
 /** The script, the refusals and why the job was not done (nothing moved, the game is unchanged), or null (`buildscript.ts`). */
 type Outcome = ReturnType<RemovalJob['run']>;
@@ -64,6 +79,97 @@ export class BuildSession {
       return { script: [], before: stateOf(this.game), refusals: [], refusal };
     }
     return new RemovalJob(this.game).run(node);
+  }
+
+  /**
+   * Put the OS, router or plan `id` in its place, or take the one of `kind` out (`id` null). The same item again is refused. `step` is what the stage
+   * records for Undo when the change was done (`from` is the item that was there: Undo sets it), and a refused change has no step: `reason` is the words for the
+   * hint line (none when there was nothing to take out).
+   */
+  setNet(kind: NetKind, id: string | null): NetOutcome {
+    const from = netState(this.game)[kind],
+      step = { kind, from, to: id };
+    if (id !== null && from === id) {
+      return { ok: false, reason: `${netName(id)} is already in place` };
+    }
+    if (id === null && from === null) {
+      return { ok: false };
+    }
+    const r = setNet(this.game, kind, id);
+    if (r.ok) {
+      return { ok: true, step };
+    }
+    const reason =
+      id === null ? `Cannot take ${netName(from ?? '')} out: ${r.reason}` : `Cannot fit ${netName(id)}: ${r.reason}`;
+    return { ok: false, reason };
+  }
+
+  /** Undo a `setNet`: set the item that was there. */
+  undoNet(step: NetStep): NetOutcome {
+    return this.setNet(step.kind, step.from);
+  }
+
+  /** Why a new case or board (`case2`, `board1`) is refused, or null. `shown` is what stands on the stage, `held` a case or board the game holds aside. */
+  shellRefusal(itemId: string, shown: Shown, held: boolean): string | null {
+    const b = this.game.board,
+      isCase = itemId.startsWith('case'),
+      tier = Number(itemId.slice(-1)),
+      bare = shown !== 'machine';
+    if (shown === 'nothing' && !isCase) {
+      return 'Fit a case first: every part goes in it';
+    }
+    if (!held && (isCase ? tier === b.caseTier : tier === b.tier && b.burnt !== true && !bare)) {
+      return 'That one is already fitted';
+    }
+    const why = held ? null : shellRefusal(b, itemId);
+    return why === null ? null : `Cannot fit it: ${why}`;
+  }
+
+  /**
+   * Fit the case or board `itemId` on the machine as it stands (`held`: the game already holds it, nothing to change): one step. The parts in its way are
+   * the stage's (it takes them out and puts them back step by step, before and after); every other part stays in place and moves with it (`Game.install`:
+   * the same ids, the drives' data and the OS kept). A refused fit has no step: `refusal` is the words for the hint line.
+   */
+  fitShell(itemId: string, held = false): Outcome {
+    const g = this.game,
+      before = stateOf(g),
+      why = this.shellRefusal(itemId, 'machine', held);
+    if (why !== null) {
+      return { script: [], before, refusals: [], refusal: why };
+    }
+    if (!held) {
+      const bought = g.purchase(itemId),
+        fitted = bought.ok ? g.install(bought.invId) : bought;
+      if (!fitted.ok) {
+        return { script: [], before, refusals: [], refusal: `Cannot fit it: ${fitted.reason}` };
+      }
+    }
+    const node = itemId.startsWith('case') ? CASE : BOARD,
+      step: Outcome['script'][number] = {
+        kind: 'shell-in',
+        node,
+        target: true,
+        ids: new Map(),
+        refusals: [],
+        ...stateOf(g),
+      };
+    return { script: [step], before, refusals: [], refusal: null };
+  }
+
+  /** One change from the OS sheet's disk page: the game's own method. The refusal text (`what: reason`), or null when it was done. */
+  osDo(what: string, change: (g: Game) => { ok: boolean; reason?: string }): string | null {
+    const r = change(this.game);
+    return r.ok ? null : `${what}: ${r.reason}`;
+  }
+
+  /** The player plugs a cable in (outside a job): the game's answer. */
+  connectCable(id: string, port?: string): CableOutcome {
+    return this.game.connectCable(id, port);
+  }
+
+  /** The player pulls a cable out (outside a job): the game's answer. */
+  disconnectCable(id: string): CableOutcome {
+    return this.game.disconnectCable(id);
   }
 
   /** Why the fit of `item` into `slot` is refused, asked of the game before anything moves (its board and money are not touched), or null. */
@@ -149,4 +255,32 @@ export class BuildSession {
     }
     return new FitJob(g).fit({ item, slot, steps, occupant });
   }
+}
+
+/** The game's answer to a cable the player moved: done, or why not. */
+export interface CableOutcome {
+  ok: boolean;
+  reason?: string;
+}
+
+/** An OS, router or plan change as the stage records it for Undo: the item that was there (`from`) and the one that came (`to`). */
+export interface NetStep {
+  kind: NetKind;
+  from: string | null;
+  to: string | null;
+}
+
+/** What `setNet` did: a done change has the step to record; a refused one has no step and, when there is one, the reason. */
+export type NetOutcome =
+  { ok: true; step: NetStep; reason?: undefined } | { ok: false; step?: undefined; reason?: string };
+
+/**
+ * Why the game would refuse a new case or board (`itemId`: "case2", "board1"), asked of a copy of the machine with its parts out (a swap takes them out
+ * first, so what they need does not count); null when it takes it.
+ */
+export function shellRefusal(board: Board, itemId: string): string | null {
+  const copy: Board = { ...board, devices: [] },
+    tier = Number(itemId.slice(-1));
+  const r = itemId.startsWith('case') ? upgradeCase(copy, tier) : upgradeBoard(copy, tier);
+  return r.ok ? null : r.reason;
 }

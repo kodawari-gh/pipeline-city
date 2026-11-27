@@ -2,7 +2,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Group, PerspectiveCamera, Scene } from 'three';
 import { BUILD_PRESETS } from '@/features/board/sim/buildspecs';
-import { createBoard } from '@/features/board/sim/board';
 
 vi.mock('@/core/render/three/init', async (orig) => {
   const actual = await orig<typeof import('@/core/render/three/init')>();
@@ -45,7 +44,7 @@ vi.mock('./lens3d', () => ({
   },
 }));
 
-import { BuildStage, shellRefusal } from './buildmode3d';
+import { BuildStage } from './buildmode3d';
 import { DOOR_SECONDS, doorWait } from './casedoor';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
 import { setLayoutTier } from '../layout/layout';
@@ -312,6 +311,7 @@ describe('BuildStage and the side panel', () => {
   });
 });
 
+// (the case and board rules themselves: sim/buildsession.edits.test.ts)
 describe('a new case or board is checked before anything moves', () => {
   beforeEach(() => {
     vi.stubGlobal(
@@ -323,24 +323,6 @@ describe('a new case or board is checked before anything moves', () => {
     );
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {});
-  });
-
-  it('says why the game would refuse a case, whatever is fitted', () => {
-    const board = createBoard(3, 3);
-    board.devices.push({ id: 'dev1', spec: 'cpu1', slot: 'cpu0' });
-    expect(shellRefusal(board, 'case0')).toMatch(/too small/);
-    expect(shellRefusal(board, 'case3')).toMatch(/already fitted/);
-    expect(shellRefusal(board, 'case2')).toMatch(/too small/);
-    expect(shellRefusal(createBoard(1, 3), 'case1')).toBeNull();
-    expect(shellRefusal(createBoard(0, 0), 'case3')).toBeNull();
-  });
-
-  it('says why the game would refuse a board, and does not change the board it asks about', () => {
-    const board = createBoard(1, 1);
-    expect(shellRefusal(board, 'board1')).toMatch(/already fitted/);
-    expect(shellRefusal(board, 'board3')).toBeNull();
-    expect(board.tier).toBe(1);
-    expect(board.caseTier).toBe(1);
   });
 
   it('refuses a case that is too small before the board or the case lifts, and keeps the history', async () => {

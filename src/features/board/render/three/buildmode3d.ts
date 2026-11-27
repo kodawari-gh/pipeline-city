@@ -80,8 +80,6 @@ import {
   freeSlots,
   slotAccepts,
   slotFits,
-  upgradeBoard,
-  upgradeCase,
   type Board,
   type InstalledDevice,
   type SlotInfo,
@@ -98,7 +96,7 @@ import {
 import { BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind, type DeviceKind } from '@/features/board/sim/specs';
 import type { Snapshot } from '@/worker/protocol';
 import type { Game } from '@/worker/game/game';
-import type { CableSnap, Result } from '@/worker/game/types';
+import type { CableSnap } from '@/worker/game/types';
 import { freeBakePools, startBaker } from './bake';
 import { deviceFor, fitSlots, screenRect, socketFor, type Rect } from './buildpick';
 import { centred, fitFactor, pictureWindow, type Pt } from './buildshot';
@@ -135,7 +133,7 @@ import type { BuildLayout, BuildPreset, Shown } from '@/features/board/sim/build
 import { OUTSIDE, bareGame, fullGame, layoutGame, presetGame } from '@/features/board/sim/buildpreset';
 import { BuildSession, isOutStep } from '@/features/board/sim/buildsession';
 import type { Outcome, ScriptStep, SessionState } from '@/features/board/sim/buildscript';
-import { netKindOf, netName, netState, setNet, type NetKind } from '@/features/board/sim/buildnet';
+import { netKindOf, netName, netState, type NetKind } from '@/features/board/sim/buildnet';
 import { ISP_SPECS, ROUTER_SPECS } from '@/features/network/sim';
 import { LinkLeds } from '@/features/network/render/jackleds';
 import { OS_SPECS } from '@/features/os/sim';
@@ -315,17 +313,6 @@ export function binParts(): BinPart[] {
   return out;
 }
 
-/**
- * Why the game would refuse a new case or board (`itemId`: "case2", "board1"), asked of a copy of the machine with its parts out (a swap takes them out
- * first, so what they need does not count); null when it takes it. Asked before anything moves: a swap the game refuses must not lift a case off for nothing.
- */
-export function shellRefusal(board: Board, itemId: string): string | null {
-  const copy: Board = { ...board, devices: [] },
-    tier = Number(itemId.slice(-1));
-  const r = itemId.startsWith('case') ? upgradeCase(copy, tier) : upgradeBoard(copy, tier);
-  return r.ok ? null : r.reason;
-}
-
 export class BuildStage {
   readonly status = signal<BuildStatus>({ busy: false, step: '', log: [], rev: 0 });
   /**
@@ -398,6 +385,9 @@ export class BuildStage {
     this.benchChanged();
   }
   private session: BuildSession | null = null;
+  private get buildSession(): BuildSession {
+    return this.alive(this.session);
+  }
   private get _game(): Game | null {
     return this.session?.game ?? null;
   }
@@ -559,7 +549,7 @@ export class BuildStage {
             this.handMoved(id, true);
           } else {
             this.cableChanged(
-              this.edit((g) => g.connectCable(id, port)),
+              this.edit(() => this.buildSession.connectCable(id, port)),
               'plug it in',
               'cable_connect',
             );
@@ -572,7 +562,7 @@ export class BuildStage {
             this.handMoved(id, false);
           } else {
             this.cableChanged(
-              this.edit((g) => g.disconnectCable(id)),
+              this.edit(() => this.buildSession.disconnectCable(id)),
               'pull it out',
               'cable_disconnect',
             );
@@ -1671,9 +1661,12 @@ export class BuildStage {
     if (s.t === 'swap')
       return this.swapIn(s.game, undo ? 'Went back to the machine before' : 'Went forward again', s.shown);
     if (s.t === 'net') {
-      const to = undo ? s.from : s.to,
-        r = this.setNetItem(s.kind, to);
-      if (!r.ok) this.refuse(`Cannot ${to ? `fit ${netName(to)}` : 'take it out'}: ${r.reason}`);
+      const r = this.edit(() => (undo ? this.buildSession.undoNet(s) : this.buildSession.setNet(s.kind, s.to)));
+      if (r.ok) {
+        this.bump();
+      } else if (r.reason !== undefined) {
+        this.refuse(r.reason);
+      }
       return s;
     }
     await this.run(undo ? { t: s.t === 'fit' ? 'remove' : 'fit', spec: s.spec, slot: s.slot } : s);
@@ -2346,7 +2339,7 @@ export class BuildStage {
         return null;
       }
       await this.play(node, 'cable', 'out');
-      this.edit((g) => g.disconnectCable(id));
+      this.edit(() => this.buildSession.disconnectCable(id));
       undo?.push({ t: 'cable', id });
       this.rebuild();
       return null;
@@ -2412,7 +2405,7 @@ export class BuildStage {
         return;
       }
       if (this.dead) return;
-      this.edit((g) => g.connectCable(u.id));
+      this.edit(() => this.buildSession.connectCable(u.id));
       this.rebuild();
       await this.play(cableNode(u.id), 'cable', 'in');
       return;
@@ -2536,9 +2529,9 @@ export class BuildStage {
    * The game's answer to a plug in or out. A refusal is said on the hint line. A cable moved by the player (no job runs) brings the machine in line with the game:
    * the wall's lights (the LAN lead), the chip, the alerts. A job does that at its end.
    */
-  private cableChanged(r: Result, what: string, cue: CueId): void {
+  private cableChanged(r: ReturnType<BuildSession['connectCable']>, what: string, cue: CueId): void {
     if (!r.ok) {
-      this.refuse(`Cannot ${what}: ${r.reason}`);
+      this.refuse(`Cannot ${what}: ${r.reason ?? 'refused'}`);
       return;
     }
     playCue(cue);
@@ -2776,6 +2769,10 @@ export class BuildStage {
       }
       case 'put-back': {
         await this.playPutBack(s);
+        return;
+      }
+      case 'shell-in': {
+        // (a case or board fitted: `fitShell` plays that on its own)
         return;
       }
       case 'cable-run': {
@@ -3106,9 +3103,9 @@ export class BuildStage {
     }
   }
 
-  /** Put an OS, a router or an internet plan in its place (`id`), or take it out (`id` null): the game's own answer, and no step is recorded here. */
-  private setNetItem(kind: NetKind, id: string | null): Result {
-    const r = this.edit((g) => setNet(g, kind, id));
+  /** Put an OS, a router or an internet plan in its place (`id`), or take it out (`id` null), through the session: it refuses the same item again. */
+  private setNetItem(kind: NetKind, id: string | null): ReturnType<BuildSession['setNet']> {
+    const r = this.edit(() => this.buildSession.setNet(kind, id));
     if (r.ok) this.bump();
     return r;
   }
@@ -3119,20 +3116,15 @@ export class BuildStage {
    * the one of its kind; the same item again is refused. Undo sets the item that was there.
    */
   private async fitNet(itemId: string): Promise<void> {
-    const kind = netKindOf(itemId)!,
-      was = netState(this.game)[kind],
-      name = netName(itemId);
-    if (was === itemId) {
-      this.refuse(`${name} is already in place`);
-      return;
-    }
-    const r = this.setNetItem(kind, itemId);
+    const r = this.setNetItem(netKindOf(itemId)!, itemId);
     if (!r.ok) {
-      this.refuse(`Cannot fit ${name}: ${r.reason}`);
+      if (r.reason !== undefined) {
+        this.refuse(r.reason);
+      }
       return;
     }
-    this.record({ t: 'net', kind, from: was, to: itemId });
-    this.note(`Fit ${name}`);
+    this.record({ t: 'net', ...r.step });
+    this.note(`Fit ${netName(itemId)}`);
   }
 
   /**
@@ -3141,9 +3133,11 @@ export class BuildStage {
    */
   osDo(what: string, change: (g: Game) => { ok: boolean; reason?: string }): void {
     if (this.dead || !this._game || this.status.peek().busy) return;
-    const r = this.edit(change);
+    const refusal = this.edit(() => this.buildSession.osDo(what, change));
     this.bump();
-    if (!r.ok) this.refuse(`${what}: ${r.reason}`);
+    if (refusal !== null) {
+      this.refuse(refusal);
+    }
   }
 
   /** The processor's cores as the OS sees them (`hardware` cores, `logical` ones), for the OS sheet: what each OS would do with them. */
@@ -3158,10 +3152,12 @@ export class BuildStage {
       if (!was) return;
       const r = this.setNetItem(kind, null);
       if (!r.ok) {
-        this.refuse(`Cannot take ${netName(was)} out: ${r.reason}`);
+        if (r.reason !== undefined) {
+          this.refuse(r.reason);
+        }
         return;
       }
-      this.record({ t: 'net', kind, from: was, to: null });
+      this.record({ t: 'net', ...r.step });
       this.note(`Took out ${netName(was)}`);
     });
   }
@@ -3178,20 +3174,12 @@ export class BuildStage {
       shown = this.shown.peek(),
       bare = shown !== 'machine',
       none = shown === 'nothing';
-    if (none && !isCase) {
-      this.refuse('Fit a case first: every part goes in it');
-      return;
-    }
     // (what the game holds for a bare case or an empty stage is only held aside: a board of its tier, or a case of its tier on an empty stage, is not "already fitted")
     const held = isCase ? none && tier === this.board.caseTier : bare && tier === this.board.tier;
-    if (!held && (isCase ? tier === this.board.caseTier : tier === this.board.tier && !this.board.burnt && !bare)) {
-      this.refuse('That one is already fitted');
-      return;
-    }
-    // (asked of the game before anything moves: a case it refuses is not lifted off for nothing, and a refusal keeps the history)
-    const why = held ? null : shellRefusal(this.board, itemId);
+    // (asked of the session before anything moves: a case it refuses is not lifted off for nothing, and a refusal keeps the history)
+    const why = this.buildSession.shellRefusal(itemId, shown, held);
     if (why) {
-      this.refuse(`Cannot fit it: ${why}`);
+      this.refuse(why);
       return;
     }
     if (bare) {
@@ -3225,9 +3213,15 @@ export class BuildStage {
       await this.playAll(this.machine.caseRoots, 'case', 'out');
     }
     // (the board a bare case holds aside, of the tier asked for, is the one that goes in: the game has nothing to change. The same for the first case of an empty stage)
-    const bought = held ? { ok: true as const, invId: '' } : this.edit((g) => g.purchase(itemId));
-    const fitted = held ? bought : bought.ok ? this.edit((g) => g.install(bought.invId)) : bought;
-    if (!fitted.ok) this.refuse(`Cannot fit it: ${fitted.reason}`);
+    // (the session fits it on the machine as it stands: the parts this loop took out come back below, the others moved with it)
+    const job = this.edit(() => this.buildSession.fitShell(itemId, held));
+    const fitted = { ok: job.refusal === null };
+    for (const r of [...job.script.flatMap((s) => s.refusals), ...job.refusals]) {
+      this.refuse(r);
+    }
+    if (job.refusal !== null) {
+      this.refuse(job.refusal);
+    }
     // (a case on an empty stage is a bare case now; a board in the case makes it a machine that stands as any other)
     else if (isCase) {
       if (none) this.shown.value = 'case';
