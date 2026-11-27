@@ -7,6 +7,7 @@
     "docs/pipeline-city-*/**",
     ".claude/worktrees/**",
     ".claude/swarm/**",
+    "docs/agents/swarm-log.md",
     "e2e/shots/**",
   ],
 }
