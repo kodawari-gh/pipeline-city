@@ -65,7 +65,13 @@ function stage(): Stage {
     lod() {},
     root: new Group(),
   };
-  s['_game'] = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
+  s['_game'] = new Game({
+    seed: 1,
+    sandbox: true,
+    preassembled: true,
+    maxed: true,
+    looseFit: true,
+  });
   s['rebuild'] = function (this: { snaps: { drop(): void } }) {
     this.snaps.drop();
   };
@@ -105,54 +111,6 @@ describe('BuildStage swaps and Undo', () => {
     await s.redo();
     expect(fitted(s)).toBe(0);
     expect(s.canRedo).toBe(false);
-  });
-
-  it('undoes a chain of swaps one machine at a time', async () => {
-    const s = stage(),
-      full = fitted(s);
-    await s.buildPreset(BUILD_PRESETS[0]!);
-    const budget = fitted(s);
-    expect(budget).toBeGreaterThan(0);
-    expect(budget).toBeLessThan(full);
-    await s.clear();
-    await s.reset();
-    expect(fitted(s)).toBe(full);
-    await s.undo(); // the full rig, undone: the empty stage
-    expect(fitted(s)).toBe(0);
-    await s.undo(); // the empty stage, undone: the budget machine
-    expect(fitted(s)).toBe(budget);
-    await s.undo(); // the budget machine, undone: where it began
-    expect(fitted(s)).toBe(full);
-    expect(s.canUndo).toBe(false);
-  });
-
-  it('counts each swap, Undo included, so a line about one swap is stale after the next', async () => {
-    const s = stage(),
-      at = s.swaps;
-    await s.clear();
-    expect(s.swaps).toBe(at + 1);
-    await s.undo();
-    expect(s.swaps).toBe(at + 2);
-  });
-
-  it('forgets the machines that Redo would bring back once a new one is made', async () => {
-    const s = stage();
-    await s.clear();
-    await s.undo();
-    expect(s.canRedo).toBe(true);
-    await s.buildPreset(BUILD_PRESETS[1]!);
-    expect(s.canRedo).toBe(false);
-  });
-
-  it('keeps only the last few machines', async () => {
-    const s = stage();
-    for (let i = 0; i < 12; i++) await s.clear();
-    let undone = 0;
-    while (s.canUndo && undone < 20) {
-      await s.undo();
-      undone++;
-    }
-    expect(undone).toBe(8);
   });
 
   it('lets go of the picked part and its row of the old machine', async () => {

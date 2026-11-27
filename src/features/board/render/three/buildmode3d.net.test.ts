@@ -1,5 +1,5 @@
-// The stage takes the network from the shelf (`BuildStage.fit` of an OS, a router or an internet plan; `removeNet`): each goes in the room, not in a socket, replaces the one of
-// its kind, shows in the snapshot, and Undo and Redo set the one that was there.
+// The stage takes the network from the shelf (`BuildStage.fit` of an OS, a router or an internet plan): the shelf, the drop, the snapshot, the build log and
+// the hint line. The rules are the session's (sim/buildsession.edits.test.ts, sim/buildnet.test.ts).
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Group, PerspectiveCamera, Scene } from 'three';
 
@@ -72,7 +72,13 @@ function stage(): BuildStage {
     panelIds: () => [],
     syncPanel() {},
   };
-  s['_game'] = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
+  s['_game'] = new Game({
+    seed: 1,
+    sandbox: true,
+    preassembled: true,
+    maxed: true,
+    looseFit: true,
+  });
   s['rebuild'] = s['rebuildAll'] = function (this: {
     snaps: { drop(): void };
     board: { tier: number; caseTier: number };
@@ -122,86 +128,22 @@ describe('the stage fits the network', () => {
     for (const id of ['os1', 'router3', 'isp2']) expect(s.dropTarget(id)).toBe(id);
   });
 
-  it('puts a router in place of the one that stands, and the snapshot says so', async () => {
+  it('shows the router that came in, and says so in the build log', async () => {
     const s = stage();
     expect(net(s).router).toBe('router4');
     await s.fit('router1');
     expect(net(s).router).toBe('router1');
     expect(s.refusal.peek()).toBeNull();
     expect(s.snapshot.net.router).toMatchObject({ name: 'Home router', mbps: 100 });
+    // (the build log says what went in, as words)
+    expect(s.status.peek().log.at(-1)).toBe('Fit Home router');
   });
 
-  it('puts an internet plan in place of the one that stands, and an OS in place of the OS', async () => {
-    const s = stage();
-    await s.fit('isp2');
-    await s.fit('os2');
-    expect(net(s)).toEqual({ os: 'os2', router: 'router4', isp: 'isp2' });
-  });
-
-  it('refuses the item that is already in place, and keeps the history as it was', async () => {
+  it('says on the hint line that an item is already in place', async () => {
     const s = stage();
     await s.fit('router4');
     expect(s.refusal.peek()?.text).toMatch(/already in place/);
     expect(s.canUndo).toBe(false);
-  });
-
-  it('takes each out from the panel, and the machine has none of it then', async () => {
-    const s = stage();
-    await s.removeNet('router');
-    await s.removeNet('isp');
-    await s.removeNet('os');
-    expect(net(s)).toEqual({ os: null, router: null, isp: null });
-    expect(s.snapshot.net.state).toBe('no-device');
-    // (nothing to take out: no refusal, no step)
-    const n = s.canUndo;
-    await s.removeNet('os');
-    expect(s.canUndo).toBe(n);
-  });
-
-  it('cables a router that comes in, and a router that leaves takes the cable with it', async () => {
-    const s = stage();
-    await s.removeNet('router');
-    expect(s.cables['lan']).toBe(false);
-    await s.fit('router2');
-    expect(s.cables['lan']).toBe(true);
-    await s.removeNet('router');
-    expect(s.cables['lan']).toBe(false);
-  });
-
-  it('says why an OS does not go in (no drive), and leaves the stage as it was', async () => {
-    const s = stage();
-    await s.clear();
-    await s.removeNet('os');
-    await s.fit('os1');
-    expect(s.refusal.peek()?.text).toMatch(/^Cannot fit Resident OS 1\.0: .*drive/i);
-    expect(net(s).os).toBeNull();
-  });
-
-  it('is undone and done again, step by step', async () => {
-    const s = stage();
-    await s.fit('router1');
-    await s.removeNet('isp');
-    await s.fit('os1');
-    expect(net(s)).toEqual({ os: 'os1', router: 'router1', isp: null });
-    await s.undo();
-    expect(net(s)).toEqual({ os: 'os4', router: 'router1', isp: null });
-    await s.undo();
-    expect(net(s)).toEqual({ os: 'os4', router: 'router1', isp: 'isp5' });
-    await s.undo();
-    expect(net(s)).toEqual({ os: 'os4', router: 'router4', isp: 'isp5' });
-    expect(s.canUndo).toBe(false);
-    await s.redo();
-    await s.redo();
-    await s.redo();
-    expect(net(s)).toEqual({ os: 'os1', router: 'router1', isp: null });
-    expect(s.canRedo).toBe(false);
-  });
-
-  it('keeps an OS the player took out off the drive when a later part fits (the game puts back only an OS whose drive left)', async () => {
-    const s = stage();
-    await s.removeNet('os');
-    await s.fit('ram0');
-    expect(net(s).os).toBeNull();
   });
 });
 

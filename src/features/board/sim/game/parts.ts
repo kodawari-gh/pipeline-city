@@ -330,8 +330,8 @@ export function releaseOs(this: Game, dev: InstalledDevice): void {
 
 /**
  * Build my PC (`looseFit`): the OS follows its drive. With no OS installed and one in the inventory, it goes on the drive in the socket it left, or on the
- * first drive that can hold it; with no such drive it waits there. The stage calls it when a job ends (a part that is only in the way comes out and goes
- * back, and the OS must land where it was). A game with no loose fit, a running machine or no OS item: nothing happens.
+ * first drive that can hold it; with no such drive it waits there. The Build session calls it at the end of a command (a part that is only in the way comes
+ * out and goes back, and the OS must land where it was). A game with no loose fit, a running machine or no OS item: nothing happens.
  */
 export function keepOs(this: Game): void {
   if (!this.looseFit || this.os || this.powered) return;

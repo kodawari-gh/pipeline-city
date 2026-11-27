@@ -1,5 +1,6 @@
 // BuildStage's empty start: nothing on the stage. The player brings a case in from the shelf (a bare case, with no motherboard in it), then a board (the
 // machine then stands as any other), then the parts. Undo and Redo walk the same way back and forth: the machine, the bare case, nothing, the machine before.
+// The rules of a new case or board are the session's (sim/buildsession.edits.test.ts).
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Group, PerspectiveCamera, Scene } from 'three';
 import { BUILD_PRESETS } from '@/features/board/sim/buildspecs';
@@ -73,7 +74,13 @@ function stage(): BuildStage {
     panelIds: () => [],
     syncPanel() {},
   };
-  s['_game'] = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
+  s['_game'] = new Game({
+    seed: 1,
+    sandbox: true,
+    preassembled: true,
+    maxed: true,
+    looseFit: true,
+  });
   s['rebuild'] = s['rebuildAll'] = function (this: {
     snaps: { drop(): void };
     board: { tier: number; caseTier: number };
@@ -88,19 +95,20 @@ function stage(): BuildStage {
 
 const cpu = (): string => binParts().find((b) => b.kind === 'cpu')!.id;
 
-describe('the empty start', () => {
-  beforeEach(() => {
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe() {}
-        disconnect() {}
-      },
-    );
-    vi.stubGlobal('requestAnimationFrame', () => 1);
-    vi.stubGlobal('cancelAnimationFrame', () => {});
-  });
+// (each test of the file: the stage's browser hooks)
+beforeEach(() => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
+  vi.stubGlobal('requestAnimationFrame', () => 1);
+  vi.stubGlobal('cancelAnimationFrame', () => {});
+});
 
+describe('the empty start', () => {
   it('is nothing: no case, no board, no part', async () => {
     const s = stage();
     expect(s.shown.peek()).toBe('machine');
@@ -177,22 +185,10 @@ describe('the empty start', () => {
     expect(s.board.devices.some((d) => d.spec === cpu())).toBe(true);
   });
 
-  it('brings a bigger case with a bigger board (the sandbox lets the case follow the board)', async () => {
+  it('keeps the case bare when a case is swapped', async () => {
     const s = stage();
     await s.clear();
     await s.fit('case0');
-    await s.fit('board2');
-    expect(s.shown.peek()).toBe('machine');
-    expect(s.board.tier).toBe(2);
-    expect(s.board.caseTier).toBe(2);
-  });
-
-  it('keeps the case bare when a case is swapped, and says a case that stands is already fitted', async () => {
-    const s = stage();
-    await s.clear();
-    await s.fit('case0');
-    await s.fit('case0');
-    expect(s.refusal.peek()?.text).toBe('That one is already fitted');
     await s.fit('case2');
     expect(s.shown.peek()).toBe('case');
     expect(s.board.caseTier).toBe(2);
