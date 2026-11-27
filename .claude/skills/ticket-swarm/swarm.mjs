@@ -59,6 +59,8 @@ const MODELS = ['haiku', 'sonnet', 'opus'];
 const EFFORTS = ['medium', 'high', 'xhigh'];
 /** Phases a rerun resumes: their worktrees are kept. */
 const RESUMABLE = new Set(['running', 'critical', 'permission']);
+/** Phases `retry` can resume: every stop. */
+const STOPPED = new Set(['critical', 'permission', 'blocked', 'exhausted']);
 /** Permission rules for every swarm agent; `swarm.allow` adds the repo's own commands. */
 const AGENT_ALLOW = [
   'Bash(git status:*)',
@@ -363,6 +365,7 @@ class Swarm {
     };
     this.dir = join(this.root, '.claude', 'swarm');
     mkdirSync(this.dir, { recursive: true });
+    this.key = key;
     this.statePath = join(this.dir, `${key}.json`);
     this.logPath = join(this.dir, `${key}.log`);
     this.state = existsSync(this.statePath)
@@ -382,6 +385,24 @@ class Swarm {
   }
   save() {
     writeFileSync(this.statePath, JSON.stringify(this.state, null, 2));
+  }
+  /** Apply the `retry` requests a CLI call left while this runner holds the state (it would overwrite a direct edit). */
+  takeRetries(running = new Map()) {
+    const pre = `${this.key}.retry-`;
+    for (const f of readdirSync(this.dir).filter((x) => x.startsWith(pre) && x.endsWith('.json'))) {
+      const n = Number(f.slice(pre.length, -5));
+      const T = this.state.tickets[n];
+      if (running.has(n)) {
+        continue;
+      }
+      if (T && STOPPED.has(T.phase)) {
+        const req = readFileSync(join(this.dir, f), 'utf8');
+        applyRetry(T, JSON.parse(req));
+        this.save();
+        this.emit(`#${n} retry taken: resumes at round ${T.rounds + 1}${T.restart ? ` from ${T.restart.model}` : ''}`);
+      }
+      rmSync(join(this.dir, f));
+    }
   }
   emit(line) {
     const l = `${stamp()} ${line}`;
@@ -941,7 +962,7 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
     const merge = this.wt(n, int);
     let pending = this.reopen(n, workers);
     for (;;) {
-      const tier = tierAt(planned, T.failures);
+      const tier = ladderTier(T, planned);
       if (!tier) {
         throw new Stop('ladder exhausted', 'exhausted');
       }
@@ -1188,6 +1209,7 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
       running.set(n, p);
     };
     for (;;) {
+      this.takeRetries(running);
       let ready = [];
       if (parent) {
         const r = sync(this.cfg, parent);
@@ -1404,7 +1426,7 @@ const HELP = `swarm.mjs: ticket swarm runner (config docs/agents/board.json)
   ticket <n>[,<n>...] [--base <branch>]          swarm the named tickets only
   catchup <parent> [--from <ref>] [--model <m>] [--effort <e>]   merge <ref> (default: current branch) into parent/<parent>; a merger agent settles conflicts; then the gates
   status [<key>]                                 phase, rounds and tier of each ticket in a run
-  retry <key> <n>                                mark a stopped ticket to resume from its kept branches on the next run (exhausted: one more top-tier round)
+  retry <key> <n>                                [--model <m>]  resume a stopped ticket from its kept branches (--model: restart the ladder at <m>; else exhausted: one more top-tier round)
   gc                                             remove worktrees and branches of closed tickets, and unused shared installs
   deps                                           in a swarm worktree: replace shared dependency links with a private install
   lock [--name <name>] -- <command...>           run a command under a machine-wide mutex (default name: browser)
@@ -1413,21 +1435,39 @@ ticket: base defaults to the current branch.
 --no-install skips the install command in new worktrees. State and event log: .claude/swarm/<key>.{json,log}.`;
 
 /** Mark a stopped ticket to resume on the next run, from the branches its stop kept. */
-function retry(cfg, key, n) {
-  const f = join(cfg.root, '.claude', 'swarm', `${key}.json`);
+function retry(cfg, [key, n, ...rest]) {
+  const model = opt(rest, '--model');
+  if (model && !MODELS.includes(model)) {
+    throw new Error(`retry: --model must be one of ${MODELS.join(', ')}`);
+  }
+  const dir = join(cfg.root, '.claude', 'swarm');
+  const f = join(dir, `${key}.json`);
   const s = existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : null;
   const T = s?.tickets[n];
-  if (!T || ['done', 'new', 'resume', 'running'].includes(T.phase)) {
+  if (!T || !STOPPED.has(T.phase)) {
     throw new Error(`retry: #${n} in ${key} is not a stopped ticket`);
   }
-  // An exhausted ticket gets one more round at the top tier; else it stops again at once.
-  if (T.phase === 'exhausted' && T.failures > 0) {
+  // A request file, not a state edit: a live runner would overwrite the edit. The runner applies it on load or at its next queue scan.
+  writeFileSync(join(dir, `${key}.retry-${n}.json`), JSON.stringify({ model: model ?? null }));
+  console.log(
+    `#${n} will resume at round ${T.rounds + 1}${model ? ` from ${model} medium` : ''} on the next queue scan (a run in progress takes it within 2 min)`,
+  );
+}
+
+/** The ticket's tier now. A retry with a model restarts the ladder there: small findings need no top tier. */
+function ladderTier(T, planned) {
+  return tierAt(T.restart?.model ?? planned, T.failures - (T.restart?.at ?? 0));
+}
+
+/** Mark a stopped ticket to resume. With a model: restart the ladder there. Without: an exhausted ticket gets one more top-tier round. */
+function applyRetry(T, { model }) {
+  if (model) {
+    T.restart = { model, at: T.failures };
+  } else if (T.phase === 'exhausted' && T.failures > 0) {
     T.failures--;
   }
   T.phase = 'resume';
   delete T.reason;
-  writeFileSync(f, JSON.stringify(s, null, 2));
-  console.log(`#${n} will resume at round ${T.rounds + 1} on the next run`);
 }
 
 function opt(a, name, def) {
@@ -1466,7 +1506,7 @@ async function main(argv) {
     return;
   }
   if (cmd === 'retry') {
-    return retry(cfg, a[0], a[1]);
+    return retry(cfg, a);
   }
   if (cmd === 'gc') {
     for (const line of gc(cfg)) {
