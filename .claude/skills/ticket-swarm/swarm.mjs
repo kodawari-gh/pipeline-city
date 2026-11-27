@@ -747,13 +747,14 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
 
   /**
    * Merge `ref` into the base in a worktree of its own, then run the repo gates. A merger agent settles
-   * conflicts. Run once every child is done, before the parent's PR. A rerun resumes in the kept worktree.
+   * conflicts. A rerun resumes in the kept worktree. The worktree is detached, so a live runner's squashes
+   * keep landing on the base meanwhile; `landCatchUp` takes them in at the end.
    */
   async catchUp(parent, ref, { tier, note }) {
     const p = join(this.root, '.claude', 'worktrees', `p${parent}-catchup`);
     if (!existsSync(join(p, '.git'))) {
       gitOk(this.root, 'worktree', 'prune');
-      git(this.root, 'worktree', 'add', p, this.base);
+      git(this.root, 'worktree', 'add', '--detach', p, this.base);
     }
     if (this.sw.shareDeps) {
       await this.ensureDeps(parent, p);
@@ -768,9 +769,25 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
     if (failed) {
       throw new Critical(`catch-up gate failed: ${failed.cmd}\n${failed.tail.slice(-800)}`);
     }
+    this.landCatchUp(p);
     removeWorktree(this.root, this.sw.shareDeps, p);
     gitOk(this.root, 'worktree', 'prune');
     this.emit(`#${parent} catch-up DONE: ${this.base} at ${git(this.root, 'rev-parse', '--short', this.base)}`);
+  }
+
+  /** Move the base to the catch-up tip. Tickets that landed meanwhile are merged in first; update-ref checks the old tip. */
+  landCatchUp(p) {
+    for (let i = 0; i < 5; i++) {
+      const cur = git(this.root, 'rev-parse', this.base);
+      if (!gitOk(this.root, 'merge-base', '--is-ancestor', cur, 'HEAD') && !gitOk(p, 'merge', '--no-edit', cur)) {
+        gitOk(p, 'merge', '--abort');
+        throw new Critical(`catch-up: ${this.base} moved and its new commits conflict; rerun to settle`);
+      }
+      if (gitOk(this.root, 'update-ref', `refs/heads/${this.base}`, git(p, 'rev-parse', 'HEAD'), cur)) {
+        return;
+      }
+    }
+    throw new Critical(`catch-up: ${this.base} kept moving; rerun to land`);
   }
 
   async settleCatchUp({ parent, p, ref, tier, note }) {
