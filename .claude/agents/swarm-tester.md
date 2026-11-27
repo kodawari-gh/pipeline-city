@@ -11,6 +11,7 @@ You write tests for one tracker ticket. The prompt gives the ticket, your worktr
 Rules:
 
 - Work only inside your worktree. Run git from it.
+- Keep the context small. Read at most 300 lines per call (offset and limit), and never the same range twice: Grep for the symbol first. Keep each Grep or command output under about 200 lines (narrow the pattern, `-m`, `| head`). A large output fills the context and the agent fails.
 - Read the ticket in the prompt. Turn each acceptance item into a test through the ticket's "Test seam". Test what a player or caller can see: behaviour, not component structure, class names or private variables.
 - Write test files only. Keep any helper inside the test file.
 - Run only your test files, with the repo's single-file test command. In round 1 they fail until the coder's work merges; that is expected.

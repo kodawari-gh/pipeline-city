@@ -16,6 +16,9 @@ import {
   symlinkSync,
   unlinkSync,
   rmdirSync,
+  openSync,
+  readSync,
+  closeSync,
 } from 'node:fs';
 import { join, dirname, resolve, basename } from 'node:path';
 import { tmpdir, homedir } from 'node:os';
@@ -59,6 +62,8 @@ const MODELS = ['haiku', 'sonnet', 'opus'];
 const EFFORTS = ['medium', 'high', 'xhigh'];
 /** Phases a rerun resumes: their worktrees are kept. */
 const RESUMABLE = new Set(['running', 'critical', 'permission']);
+/** Phases `retry` can resume: every stop. */
+const STOPPED = new Set(['critical', 'permission', 'blocked', 'exhausted']);
 /** Permission rules for every swarm agent; `swarm.allow` adds the repo's own commands. */
 const AGENT_ALLOW = [
   'Bash(git status:*)',
@@ -115,6 +120,15 @@ export function tierAt(planned, failures) {
   return { model: MODELS[Math.floor(i / EFFORTS.length)], effort: EFFORTS[i % EFFORTS.length] };
 }
 export const tierName = (t) => `${t.model} ${t.effort}`;
+
+/** Cut `s` to at most `max` chars at a word end: a cut word fails the spell gate on the log. */
+export function clip(s, max) {
+  if (s.length <= max) {
+    return s;
+  }
+  const cut = s.slice(0, max + 1).replace(/\s+\S*$/u, '');
+  return `${cut || s.slice(0, max)} ...`;
+}
 
 // ---------- process helpers ----------
 
@@ -363,6 +377,7 @@ class Swarm {
     };
     this.dir = join(this.root, '.claude', 'swarm');
     mkdirSync(this.dir, { recursive: true });
+    this.key = key;
     this.statePath = join(this.dir, `${key}.json`);
     this.logPath = join(this.dir, `${key}.log`);
     this.state = existsSync(this.statePath)
@@ -374,7 +389,6 @@ class Swarm {
     this.state.base ||= base;
     this.base = this.state.base;
     this.claude = findClaude(cfg);
-    this.agents = agentsJson(this.root);
     this.agentSettings = JSON.stringify({
       permissions: { allow: [...AGENT_ALLOW, ...(this.sw.allow ?? [])], deny: AGENT_DENY },
     });
@@ -382,6 +396,24 @@ class Swarm {
   }
   save() {
     writeFileSync(this.statePath, JSON.stringify(this.state, null, 2));
+  }
+  /** Apply the `retry` requests a CLI call left while this runner holds the state (it would overwrite a direct edit). */
+  takeRetries(running = new Map()) {
+    const pre = `${this.key}.retry-`;
+    for (const f of readdirSync(this.dir).filter((x) => x.startsWith(pre) && x.endsWith('.json'))) {
+      const n = Number(f.slice(pre.length, -5));
+      const T = this.state.tickets[n];
+      if (running.has(n)) {
+        continue;
+      }
+      if (T && STOPPED.has(T.phase)) {
+        const req = readFileSync(join(this.dir, f), 'utf8');
+        applyRetry(T, JSON.parse(req));
+        this.save();
+        this.emit(`#${n} retry taken: resumes at round ${T.rounds + 1}${T.restart ? ` from ${T.restart.model}` : ''}`);
+      }
+      rmSync(join(this.dir, f));
+    }
   }
   emit(line) {
     const l = `${stamp()} ${line}`;
@@ -406,7 +438,7 @@ class Swarm {
     return [
       '-p',
       '--agents',
-      this.agents,
+      agentsJson(this.root), // read at each call: a rule fix reaches a live run
       '--agent',
       role,
       '--model',
@@ -429,6 +461,7 @@ class Swarm {
   async agent(role, n, cwd, tier, prompt, schema) {
     const args = this.agentArgs(role, tier, schema);
     let limitWaits = 0;
+    let limitWhy = '';
     for (let attempt = 1; attempt <= 2; attempt++) {
       const r = await sh(this.claude, args, { cwd, input: prompt, timeoutMs: this.sw.agentTimeoutMin * 60e3 });
       let j = null;
@@ -451,6 +484,11 @@ class Swarm {
       const why = r.timedOut
         ? 'timed out'
         : (j?.result || r.err || r.out).toString().trim().split(/\r?\n/).slice(-3).join(' | ').slice(0, 300);
+      // The cap counts per limit window: a new reset time starts a new count, so a second window is no failure.
+      if (/hit your .*limit/iu.test(why) && why !== limitWhy) {
+        limitWhy = why;
+        limitWaits = 0;
+      }
       if (/hit your .*limit/iu.test(why) && ++limitWaits <= 36) {
         this.emit(`#${n} ${role} usage limit hit, waiting 10 min: ${why}`);
         await sleep(600e3);
@@ -779,7 +817,13 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
       coder:
         'Fix source and docs only. Keep every exported name and shape the merged source has; add, never rename or remove. A test that disagrees on a name is the tester to fix.',
     };
-    T.findings = workers.map((role) => ({
+    // Route by the files the output names: when every one is a test file, only the tester reruns.
+    // Else the coder adapts its names to the tests' last ones while the tester adapts to the coder's, round after round.
+    const paths = failed.tail.match(/[\w./-]+\.[cm]?[jt]sx?(?=[:\s(]|$)/gmu) ?? [];
+    const owners = new Set(paths.map((f) => (this.testRe.test(f) ? 'tester' : 'coder')));
+    const only = owners.size === 1 ? [...owners][0] : null;
+    const to = only && workers.includes(only) ? [only] : workers;
+    T.findings = to.map((role) => ({
       role,
       file: '(repo gate)',
       problem: `"${failed.cmd}" failed after the round merge. ${side[role] ?? ''} Output tail:\n${failed.tail}`,
@@ -935,7 +979,7 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
     const merge = this.wt(n, int);
     let pending = this.reopen(n, workers);
     for (;;) {
-      const tier = tierAt(planned, T.failures);
+      const tier = ladderTier(T, planned);
       if (!tier) {
         throw new Stop('ladder exhausted', 'exhausted');
       }
@@ -1004,7 +1048,7 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
       delete T.gateHead;
       if (failed) {
         this.gateFail(n, tier, failed);
-        relaunch = workers;
+        relaunch = routed(T.findings);
         continue;
       }
 
@@ -1026,11 +1070,8 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
       }
       const note =
         rv.verdict === 'PASS'
-          ? rv.commands.join('; ').slice(0, 200)
-          : rv.findings
-              .map((f) => `${f.file}: ${f.problem}`)
-              .join('; ')
-              .slice(0, 300);
+          ? clip(rv.commands.join('; '), 200)
+          : clip(rv.findings.map((f) => `${f.file}: ${f.problem}`).join('; '), 300);
       T.rows.push(
         `| #${n} | ${T.rounds} | ${tierName(tier)} | ${rv.verdict} | ${note.replace(/\|/g, '/').replace(/\r?\n/g, ' ')} |`,
       );
@@ -1056,6 +1097,8 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
     // Swarm log rows land with the squash.
     if (this.sw.log) {
       const lp = join(merge, this.sw.log);
+      // A rerun after a failed log commit starts from the committed log, so rows do not repeat.
+      spawnSync('git', ['checkout', 'HEAD', '--', this.sw.log], { cwd: merge, windowsHide: true });
       if (!existsSync(lp)) {
         mkdirSync(dirname(lp), { recursive: true });
         writeFileSync(
@@ -1182,6 +1225,7 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
       running.set(n, p);
     };
     for (;;) {
+      this.takeRetries(running);
       let ready = [];
       if (parent) {
         const r = sync(this.cfg, parent);
@@ -1398,7 +1442,8 @@ const HELP = `swarm.mjs: ticket swarm runner (config docs/agents/board.json)
   ticket <n>[,<n>...] [--base <branch>]          swarm the named tickets only
   catchup <parent> [--from <ref>] [--model <m>] [--effort <e>]   merge <ref> (default: current branch) into parent/<parent>; a merger agent settles conflicts; then the gates
   status [<key>]                                 phase, rounds and tier of each ticket in a run
-  retry <key> <n>                                mark a stopped ticket to resume from its kept branches on the next run
+  retry <key> <n>                                [--model <m>]  resume a stopped ticket from its kept branches (--model: restart the ladder at <m>; else exhausted: one more top-tier round)
+  watch <key> [--match <regex>] [--min <m>]      print new event-log lines that match (default: stops, needs, failures); exit at FINISHED or after <m> min (29)
   gc                                             remove worktrees and branches of closed tickets, and unused shared installs
   deps                                           in a swarm worktree: replace shared dependency links with a private install
   lock [--name <name>] -- <command...>           run a command under a machine-wide mutex (default name: browser)
@@ -1407,17 +1452,76 @@ ticket: base defaults to the current branch.
 --no-install skips the install command in new worktrees. State and event log: .claude/swarm/<key>.{json,log}.`;
 
 /** Mark a stopped ticket to resume on the next run, from the branches its stop kept. */
-function retry(cfg, key, n) {
-  const f = join(cfg.root, '.claude', 'swarm', `${key}.json`);
+function retry(cfg, [key, n, ...rest]) {
+  const model = opt(rest, '--model');
+  if (model && !MODELS.includes(model)) {
+    throw new Error(`retry: --model must be one of ${MODELS.join(', ')}`);
+  }
+  const dir = join(cfg.root, '.claude', 'swarm');
+  const f = join(dir, `${key}.json`);
   const s = existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : null;
   const T = s?.tickets[n];
-  if (!T || ['done', 'new', 'resume', 'running'].includes(T.phase)) {
+  if (!T || !STOPPED.has(T.phase)) {
     throw new Error(`retry: #${n} in ${key} is not a stopped ticket`);
+  }
+  // A request file, not a state edit: a live runner would overwrite the edit. The runner applies it on load or at its next queue scan.
+  writeFileSync(join(dir, `${key}.retry-${n}.json`), JSON.stringify({ model: model ?? null }));
+  console.log(
+    `#${n} will resume at round ${T.rounds + 1}${model ? ` from ${model} medium` : ''} on the next queue scan (a run in progress takes it within 2 min)`,
+  );
+}
+
+/** The ticket's tier now. A retry with a model restarts the ladder there: small findings need no top tier. */
+function ladderTier(T, planned) {
+  return tierAt(T.restart?.model ?? planned, T.failures - (T.restart?.at ?? 0));
+}
+
+/** Mark a stopped ticket to resume. With a model: restart the ladder there. Without: an exhausted ticket gets one more top-tier round. */
+function applyRetry(T, { model }) {
+  if (model) {
+    T.restart = { model, at: T.failures };
+  } else if (T.phase === 'exhausted' && T.failures > 0) {
+    T.failures--;
   }
   T.phase = 'resume';
   delete T.reason;
-  writeFileSync(f, JSON.stringify(s, null, 2));
-  console.log(`#${n} will resume at round ${T.rounds + 1} on the next run`);
+}
+
+const WATCH_MATCH = 'NEED|STOP|denial|FINISHED|DONE|failed|critical';
+
+/**
+ * Print each new matching line of a run's event log. Exit at FINISHED or after `min` minutes.
+ * It replaces `tail -F | grep`: on Windows a killed Monitor shell leaves `tail` running forever.
+ */
+async function watch(cfg, key, { match, min }) {
+  const file = join(cfg.root, '.claude', 'swarm', `${key}.log`);
+  const re = new RegExp(match, 'u');
+  const end = Date.now() + min * 60e3;
+  let pos = existsSync(file) ? statSync(file).size : 0;
+  let rest = '';
+  while (Date.now() < end) {
+    const size = existsSync(file) ? statSync(file).size : 0;
+    if (size < pos) {
+      pos = 0; // the log was replaced
+    }
+    if (size > pos) {
+      const buf = Buffer.alloc(size - pos);
+      const fd = openSync(file, 'r');
+      readSync(fd, buf, 0, buf.length, pos);
+      closeSync(fd);
+      pos = size;
+      const lines = (rest + buf.toString('utf8')).split(/\r?\n/u);
+      rest = lines.pop() ?? '';
+      for (const l of lines.filter((x) => re.test(x))) {
+        console.log(l);
+        if (/ FINISHED/u.test(l)) {
+          return;
+        }
+      }
+    }
+    await sleep(1000);
+  }
+  console.log(`watch ${key}: ${min} min passed, re-arm to go on`);
 }
 
 function opt(a, name, def) {
@@ -1456,7 +1560,13 @@ async function main(argv) {
     return;
   }
   if (cmd === 'retry') {
-    return retry(cfg, a[0], a[1]);
+    return retry(cfg, a);
+  }
+  if (cmd === 'watch') {
+    if (!a[0]) {
+      throw new Error('watch needs a run key, like p115');
+    }
+    return watch(cfg, a[0], { match: opt(a, '--match', WATCH_MATCH), min: Number(opt(a, '--min', '29')) });
   }
   if (cmd === 'gc') {
     for (const line of gc(cfg)) {

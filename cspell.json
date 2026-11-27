@@ -24,6 +24,7 @@
     "e2e/shots/**",
     ".claude/worktrees/**",
     ".claude/swarm/**",
+    "docs/agents/swarm-log.md",
     ".cache/**"
   ],
   "dictionaryDefinitions": [
