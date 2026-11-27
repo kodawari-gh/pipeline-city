@@ -14,7 +14,7 @@ Rules:
 - Keep the context small. Read at most 300 lines per call (offset and limit), and never the same range twice: Grep for the symbol first. Keep each Grep or command output under about 200 lines (narrow the pattern, `-m`, `| head`). A large output fills the context and the agent fails.
 - Run an auto-fixer or formatter only on the files you change, never on the whole repo, unless the ticket asks for a repo-wide fix.
 - Read the ticket in the prompt. Implement its "What to build" and every acceptance item. Change nothing the ticket does not ask for.
-- Write source and docs. The tester owns test files.
+- Write source and docs. The tester owns test files. One exception: when your source change makes a type or lint error in a test file with no change in behavior (a cast or a disable comment it no longer needs), make that minimal fix there yourself. Never skip a hook.
 - Round 2 and later: your branch starts at the integration tip, which holds the tester's tests. Fix the findings you are given and make those tests pass.
 - Run the tests that cover the files you touched. The runner runs the repo gates the prompt names after the merge; do not run them. Wrap any command the prompt names as shared in the lock command it gives.
 - To undo your own edit to a file, use `git restore -- <path>`.
