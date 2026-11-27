@@ -858,14 +858,20 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
   async runChecks(n, p) {
     for (const cmd of this.sw.checks ?? []) {
       const shared = this.sw.locked.some((l) => cmd.startsWith(l));
-      const line = shared ? `node "${SELF}" lock -- ${cmd}` : cmd;
+      // `swarm.rerun` gates time out when parallel tickets load the machine: one ticket at a time runs them.
+      const heavy = !shared && (this.sw.rerun ?? []).includes(cmd);
+      let lockName = heavy ? 'gates' : '';
+      if (shared) {
+        lockName = 'browser';
+      }
+      const line = lockName ? `node "${SELF}" lock --name ${lockName} -- ${cmd}` : cmd;
       const t0 = Date.now();
       const opts = { cwd: p, shell: true, timeoutMs: this.sw.agentTimeoutMin * 60e3 };
       let r = await sh(line, [], opts);
-      if (r.code !== 0 && !shared && (this.sw.rerun ?? []).includes(cmd)) {
-        // `swarm.rerun` gates time out when parallel tickets load the machine: rerun once alone before a round is spent.
-        this.emit(`#${n} check failed, rerun alone: ${cmd}`);
-        r = await sh(`node "${SELF}" lock --name gates -- ${cmd}`, [], opts);
+      if (r.code !== 0 && heavy) {
+        // Agents still load the machine: rerun once before a round is spent.
+        this.emit(`#${n} check failed, rerun: ${cmd}`);
+        r = await sh(line, [], opts);
       }
       const secs = Math.round((Date.now() - t0) / 1000);
       if (r.code !== 0) {
