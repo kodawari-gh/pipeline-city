@@ -40,7 +40,8 @@ import {
  * @typedef {{ keys: string[], dirs: string[] }} ShareDeps
  * @typedef {{ slots: number, permissionMode: string, agentTimeoutMin: number, testFile: string, locked: string[],
  *   coAuthor: Record<string, string>, install?: string, shareDeps?: ShareDeps, log?: string, claudeBin?: string,
- *   checks?: string[], rerun?: string[], allow?: string[] }} SwarmConfig
+ *   checks?: string[], rerun?: string[], allow?: string[], gateFailsPerTier: number,
+ *   roleModels?: Record<string, string> }} SwarmConfig
  */
 
 /** A git or tool failure: the ticket stops, its worktrees stay for diagnosis, a rerun resumes it. */
@@ -331,8 +332,14 @@ const REVIEW_SCHEMA = {
           line: { type: 'integer' },
           problem: { type: 'string' },
           acceptance: { type: 'string' },
+          size: {
+            type: 'string',
+            enum: ['small', 'large'],
+            description:
+              'small: a local fix (a few lines, a moved test, a removed export); large: a design or behavior fix',
+          },
         },
-        required: ['role', 'file', 'problem'],
+        required: ['role', 'file', 'problem', 'size'],
       },
     },
     permission: PERMISSION_FIELD,
@@ -370,7 +377,8 @@ class Swarm {
       slots: 2,
       permissionMode: 'auto',
       agentTimeoutMin: 60,
-      testFile: '\\.(test|spec)\\.[cm]?[jt]sx?$',
+      testFile: '(^|/)(test_[^/]+|[^/]+_test)\\.\\w+$|\\.(test|spec)\\.\\w+$',
+      gateFailsPerTier: 2,
       locked: [],
       coAuthor: {},
       ...cfg.swarm,
@@ -442,7 +450,7 @@ class Swarm {
       '--agent',
       role,
       '--model',
-      tier.model,
+      this.sw.roleModels?.[role.replace(/^swarm-/u, '')] ?? tier.model, // a pinned role skips the ladder's model
       '--effort',
       (role === 'swarm-coder' && process.env.SWARM_EFFORT) || tier.effort,
       '--output-format',
@@ -820,8 +828,9 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
     };
     // Route by the files the output names: when every one is a test file, only the tester reruns.
     // Else the coder adapts its names to the tests' last ones while the tester adapts to the coder's, round after round.
-    const paths = failed.tail.match(/[\w./-]+\.[cm]?[jt]sx?(?=[:\s(]|$)/gmu) ?? [];
-    const owners = new Set(paths.map((f) => (this.testRe.test(f) ? 'tester' : 'coder')));
+    const wt = this.wt(n, this.intRole(n));
+    const paths = (failed.tail.match(/[\w.-]+(?:[/\\][\w.-]+)+\.\w+/gu) ?? []).filter((f) => existsSync(join(wt, f)));
+    const owners = new Set(paths.map((f) => (this.testRe.test(f.replaceAll('\\', '/')) ? 'tester' : 'coder')));
     const only = owners.size === 1 ? [...owners][0] : null;
     const to = only && workers.includes(only) ? [only] : workers;
     T.findings = to.map((role) => ({
@@ -829,7 +838,8 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
       file: '(repo gate)',
       problem: `"${failed.cmd}" failed after the round merge. ${side[role] ?? ''} Output tail:\n${failed.tail}`,
     }));
-    T.failures++;
+    // A gate failure is mostly a coder/tester mismatch, not a weak model.
+    softOrHardFail(T, true, this.sw.gateFailsPerTier);
     this.save();
   }
 
@@ -1118,7 +1128,12 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
       }
       const prev = new Set(T.findings.map((f) => `${f.file}|${f.problem}`));
       T.findings = rv.findings.map((f) => ({ ...f, repeat: prev.has(`${f.file}|${f.problem}`) }));
-      T.failures++;
+      // Small, new findings need no stronger model: they count as a soft failure, like a gate failure.
+      softOrHardFail(
+        T,
+        T.findings.every((f) => f.size === 'small' && !f.repeat),
+        this.sw.gateFailsPerTier,
+      );
       this.save();
       relaunch = routed(T.findings);
     }
@@ -1504,6 +1519,18 @@ function retry(cfg, [key, n, ...rest]) {
   console.log(
     `#${n} will resume at round ${T.rounds + 1}${model ? ` from ${model} medium` : ''} on the next queue scan (a run in progress takes it within 2 min)`,
   );
+}
+
+/**
+ * Count a FAIL round on the ladder. A hard failure climbs one tier. A soft one (a repo gate, or only small new
+ * findings) climbs only on every `perTier`-th soft failure in a row, so the ladder still ends.
+ */
+function softOrHardFail(T, soft, perTier) {
+  T.softStreak = soft ? (T.softStreak ?? 0) + 1 : 0;
+  if (!soft || T.softStreak >= perTier) {
+    T.failures++;
+    T.softStreak = 0;
+  }
 }
 
 /** The ticket's tier now. A retry with a model restarts the ladder there: small findings need no top tier. */

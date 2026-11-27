@@ -10,6 +10,7 @@ description: Build tracker tickets with a swarm of headless subagents (coder and
 ```text
 node .claude/skills/ticket-swarm/swarm.mjs ticket <n>[,<n>...] [--base <branch>]
 node .claude/skills/ticket-swarm/swarm.mjs run <parent> [--base <branch>] [--from <ref>] [--slots <k>]
+node .claude/skills/ticket-swarm/swarm.mjs retry <key> <n> [--model <m>]
 node .claude/skills/ticket-swarm/swarm.mjs status | gc | deps | lock -- <cmd>
 ```
 
@@ -29,7 +30,9 @@ Per ticket, per round:
 4. The reviewer runs the ticket's other checks, judges the diff against the acceptance items and the scope, and returns PASS or FAIL with findings tagged by role.
 5. PASS: In review, then one squash commit on the base (swarm log rows included), issue closed, Done with `Rounds` and `Cost`, worktrees and branches removed. FAIL: next round one step up the ladder.
 
-**Ladder**: start at the planned model, effort `medium`. Each FAIL raises effort (`medium` → `high` → `xhigh`), then the model (`haiku` → `sonnet` → `opus`) at `medium`. A FAIL at `opus xhigh` stops the ticket.
+**Ladder**: start at the planned model, effort `medium`. Each hard FAIL raises effort (`medium` → `high` → `xhigh`), then the model (`haiku` → `sonnet` → `opus`) at `medium`. A FAIL at `opus xhigh` stops the ticket. A soft FAIL (a repo gate failure, or a review whose findings are all `small` and new) climbs only every `swarm.gateFailsPerTier`-th time in a row (default 2). `swarm.roleModels` (for example `{"merger": "haiku"}`) pins a role's model; its effort still follows the ladder.
+
+**Test seam**: coder and tester run at the same time and meet only through the ticket's "Test seam" section (names, signatures, test paths). Most gate failures are a seam the ticket left vague: fix the ticket, not the ladder.
 
 **Cost**: the sum of `total_cost_usd` of every agent run on the ticket (API-equivalent USD), written to the board on Done or stop.
 
@@ -47,13 +50,13 @@ State and events live in `.claude/swarm/<key>.{json,log}`. A rerun of the same c
 
 ## Events to act on
 
-| Event line               | Action                                                                                                                  |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| `NEED planned model`     | Set the planned model. The run picks it up within 2 minutes.                                                            |
-| `NEED permission: ...`   | Ask the user to allow the command. Add the rule to `swarm.allow`, then rerun to resume.                                 |
-| `STOP blocked: ...`      | The coder cannot build the ticket as written. Fix the ticket with the user, then `swarm.mjs retry <key> <n>` and rerun. |
-| `uncommitted work saved` | Read the ref named in the issue comment before you rerun.                                                               |
-| `STOP exhausted`         | Every tier failed. Report the findings (on the issue) to the user. On their go, `retry` gives one more top-tier round.  |
-| `STOP critical: ...`     | A git or tool failure. Worktrees are kept. Diagnose, fix, rerun to resume.                                              |
-| `permission denial(s)`   | An agent was refused a tool. If it repeats, report it to the user.                                                      |
-| `FINISHED`               | Report each ticket's result, rounds and cost.                                                                           |
+| Event line               | Action                                                                                                                                                                        |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEED planned model`     | Set the planned model. The run picks it up within 2 minutes.                                                                                                                  |
+| `NEED permission: ...`   | Ask the user to allow the command. Add the rule to `swarm.allow`, then rerun to resume.                                                                                       |
+| `STOP blocked: ...`      | The coder cannot build the ticket as written. Fix the ticket with the user, then `swarm.mjs retry <key> <n>` and rerun.                                                       |
+| `uncommitted work saved` | Read the ref named in the issue comment before you rerun.                                                                                                                     |
+| `STOP exhausted`         | Every tier failed. Report the findings (on the issue) to the user. On their go, `retry` gives one more top-tier round; `retry --model <m>` restarts the ladder at that model. |
+| `STOP critical: ...`     | A git or tool failure. Worktrees are kept. Diagnose, fix, rerun to resume.                                                                                                    |
+| `permission denial(s)`   | An agent was refused a tool. If it repeats, report it to the user.                                                                                                            |
+| `FINISHED`               | Report each ticket's result, rounds and cost.                                                                                                                                 |

@@ -77,7 +77,13 @@ The end-to-end behaviour this ticket makes work, from the player's or caller's v
 
 ## Test seam
 
-The module and exported functions the tester calls, and the test helpers to use. Name modules, not line numbers.
+The contract the coder and tester build to at the same time, so their work fits when merged. Name exactly:
+
+- each module path and exported name the tests call, with its signature (arguments and return shape);
+- the test file path(s) to create;
+- the test helpers to use.
+
+Name modules, not line numbers. A new name goes here only once: the coder makes it, the tester calls it.
 
 When no new test applies (a config change, a reformat, an auto-fix that existing suites prove), write this exact line instead: `Tests: none`. The swarm then runs no tester.
 

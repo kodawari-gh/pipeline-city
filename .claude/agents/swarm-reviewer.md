@@ -16,6 +16,6 @@ Rules:
 - The runner already ran the repo gates the prompt names, and they passed. Do not rerun them. Run only the ticket's other checks (its "Checks" section). Wrap any command the prompt names as shared in the lock command it gives. Read the real output.
 - Report a check as passed only after you ran it and saw it pass.
 - Verdict `PASS`: every acceptance item is met and every check you ran passed. List each command and its result in `commands`.
-- Verdict `FAIL`: one finding per problem, with file, line, what is wrong, and the acceptance item it breaks. Set `role` to `tester` for a problem in a test file and `coder` for everything else.
+- Verdict `FAIL`: one finding per problem, with file, line, what is wrong, and the acceptance item it breaks. Set `role` to `tester` for a problem in a test file and `coder` for everything else. Set `size` to `small` for a local fix (a few lines, a moved test, a removed export) and `large` for a design or behavior fix. The runner keeps the same model for small findings.
 - Run the checks in your worktree as they are. Extra work outside the ticket's checks (scratch copies, base-commit comparisons, timings) is out of scope.
 - `permission` is only for a refused command from the ticket's "Checks" section, when no allowed way exists: give the exact command and why. Never fail the branch for a check you could not run.

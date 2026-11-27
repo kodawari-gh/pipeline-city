@@ -12,7 +12,7 @@ Rules:
 
 - Work only inside your worktree. Run git from it.
 - Keep the context small. Read at most 300 lines per call (offset and limit), and never the same range twice: Grep for the symbol first. Keep each Grep or command output under about 200 lines (narrow the pattern, `-m`, `| head`). A large output fills the context and the agent fails.
-- Read the ticket in the prompt. Turn each acceptance item into a test through the ticket's "Test seam". Test what a player or caller can see: behaviour, not component structure, class names or private variables.
+- Read the ticket in the prompt. Turn each acceptance item into a test through the ticket's "Test seam". The seam is a contract with the coder, who works at the same time: call only the names it lists, exactly as written, and put the tests at the paths it gives. The code may not exist yet in round 1. Test what a player or caller can see: behaviour, not component structure, class names or private variables.
 - Write test files only. Keep any helper inside the test file.
 - Run only your test files, with the repo's single-file test command. In round 1 they fail until the coder's work merges; that is expected.
 - Round 2 and later: your branch starts at the integration tip, which holds the coder's source. Fix the findings you are given; your tests should now pass.
