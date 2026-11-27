@@ -749,7 +749,7 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
    * Merge `ref` into the base in a worktree of its own, then run the repo gates. A merger agent settles
    * conflicts. Run once every child is done, before the parent's PR. A rerun resumes in the kept worktree.
    */
-  async catchUp(parent, ref, tier) {
+  async catchUp(parent, ref, { tier, note }) {
     const p = join(this.root, '.claude', 'worktrees', `p${parent}-catchup`);
     if (!existsSync(join(p, '.git'))) {
       gitOk(this.root, 'worktree', 'prune');
@@ -762,7 +762,7 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
     }
     this.emit(`#${parent} catch-up: merge ${ref} into ${this.base}`);
     if (!gitOk(p, 'merge', '--no-ff', '--no-edit', ref)) {
-      await this.settleCatchUp({ parent, p, ref, tier });
+      await this.settleCatchUp({ parent, p, ref, tier, note });
     }
     const failed = await this.runChecks(parent, p);
     if (failed) {
@@ -773,7 +773,7 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
     this.emit(`#${parent} catch-up DONE: ${this.base} at ${git(this.root, 'rev-parse', '--short', this.base)}`);
   }
 
-  async settleCatchUp({ parent, p, ref, tier }) {
+  async settleCatchUp({ parent, p, ref, tier, note }) {
     if (!gitOk(p, 'rev-parse', '-q', '--verify', 'MERGE_HEAD')) {
       throw new Critical(`catch-up merge of ${ref} did not start`);
     }
@@ -789,9 +789,20 @@ Commands already run in this worktree. Run each one bare, with no "cd ... &&" pr
 Commit hooks always run. When a hook fails, fix the cause (a hook that says to update a baseline means run that update) and commit again.
 Co-author line for commits: ${this.coAuthor(tier.model)}
 Task: the merge of ${ref} into ${this.base} stopped on conflicts in: ${files.join(', ')}.
-Keep the parent's changes and every change ${ref} made: when ${this.base} moved or rewrote code that ${ref} edited, apply the ${ref} edit to the new code. Stage the paths, and commit with git commit --no-edit. If you cannot, run git merge --abort and report resolved=false.`;
+Keep the parent's changes and every change ${ref} made: when ${this.base} moved or rewrote code that ${ref} edited, apply the ${ref} edit to the new code. Stage the paths, and commit with git commit --no-edit. If you cannot, run git merge --abort and report resolved=false.${
+      note
+        ? `
+Guidance from the orchestrator: ${note}`
+        : ''
+    }`;
     const out = await this.agent('swarm-merger', parent, p, tier, prompt, MERGE_SCHEMA);
     if (!out.resolved || gitOk(p, 'rev-parse', '-q', '--verify', 'MERGE_HEAD')) {
+      // An aborted merge leaves nothing to resume. A kept worktree would hold the base checked out,
+      // and the runner's squashes would then commit there with hooks.
+      if (!gitOk(p, 'rev-parse', '-q', '--verify', 'MERGE_HEAD') && !git(p, 'status', '--porcelain')) {
+        removeWorktree(this.root, this.sw.shareDeps, p);
+        gitOk(this.root, 'worktree', 'prune');
+      }
       throw new Critical(`catch-up merge of ${ref} not settled: ${out.summary}`);
     }
     this.emit(`#${parent} catch-up merger: ${out.summary.split(/\r?\n/u)[0].slice(0, 200)}`);
@@ -1216,7 +1227,8 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
       throw new Critical(`merge --squash refused in ${p}: ${String(error.stderr || error.message).slice(0, 300)}`);
     }
     try {
-      git(p, 'commit', '-F', msgFile);
+      // The subject starts with "#<n>": the default cleanup would drop it as a comment line.
+      git(p, 'commit', '--cleanup=whitespace', '-F', msgFile);
     } catch (error) {
       // Leave the checkout as it was: unstage the squash and restore the files.
       gitOk(p, 'reset', '--merge');
@@ -1496,7 +1508,7 @@ async function lock(name, cmd) {
 const HELP = `swarm.mjs: ticket swarm runner (config docs/agents/board.json)
   run <parent> [--base <branch>] [--from <ref>] [--slots <k>]   swarm every ready child until none is left
   ticket <n>[,<n>...] [--base <branch>]          swarm the named tickets only
-  catchup <parent> [--from <ref>] [--model <m>] [--effort <e>]   merge <ref> (default: current branch) into parent/<parent>; a merger agent settles conflicts; then the gates
+  catchup <parent> [--from <ref>] [--model <m>] [--effort <e>] [--note <text>]   merge <ref> (default: current branch) into parent/<parent>; a merger agent settles conflicts (--note: design guidance for it); then the gates
   status [<key>]                                 phase, rounds and tier of each ticket in a run
   retry <key> <n>                                [--model <m>]  resume a stopped ticket from its kept branches (--model: restart the ladder at <m>; else exhausted: one more top-tier round)
   watch <key> [--match <regex>] [--min <m>]      print new event-log lines that match (default: stops, needs, failures); exit at FINISHED or after <m> min (29)
@@ -1673,7 +1685,7 @@ async function main(argv) {
     }
     const s = new Swarm(cfg, `p${parent}-catchup`, `parent/${parent}`);
     const tier = { model: opt(a, '--model', 'opus'), effort: opt(a, '--effort', 'high') };
-    return s.catchUp(parent, opt(a, '--from', current === '' ? 'HEAD' : current), tier);
+    return s.catchUp(parent, opt(a, '--from', current === '' ? 'HEAD' : current), { tier, note: opt(a, '--note', '') });
   }
   if (cmd === 'ticket') {
     const base = opt(a, '--base', current);
