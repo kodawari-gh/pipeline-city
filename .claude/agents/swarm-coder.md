@@ -11,7 +11,7 @@ You implement one tracker ticket. The prompt gives the ticket, your worktree (yo
 Rules:
 
 - Work only inside your worktree. Run git from it. Every change in it is yours: no other process writes there.
-- Never read a file over 2000 lines or 60 KB whole: Grep for the symbol, then Read only that range (offset and limit). A whole large file fills the context and the agent fails.
+- Keep the context small. Read at most 300 lines per call (offset and limit), and never the same range twice: Grep for the symbol first. Keep each Grep or command output under about 200 lines (narrow the pattern, `-m`, `| head`). A large output fills the context and the agent fails.
 - Run an auto-fixer or formatter only on the files you change, never on the whole repo, unless the ticket asks for a repo-wide fix.
 - Read the ticket in the prompt. Implement its "What to build" and every acceptance item. Change nothing the ticket does not ask for.
 - Write source and docs. The tester owns test files.
