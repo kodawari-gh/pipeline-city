@@ -571,6 +571,7 @@ ${lockLine}${depsLine}${role === 'reviewer' ? '' : checksLine}${extra}`;
       gitOk(this.root, 'worktree', 'prune');
       if (gitOk(this.root, 'rev-parse', '--verify', `refs/heads/${b}`)) {
         git(this.root, 'worktree', 'add', p, b);
+        this.restoreWip(n, role, p);
       } else {
         git(this.root, 'worktree', 'add', p, '-b', b, this.base);
       }
@@ -866,6 +867,23 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
     return null;
   }
 
+  /** Put the work saveWip kept back into a re-made worktree, uncommitted, so a resumed agent goes on from it. */
+  restoreWip(n, role, p) {
+    const ref = `refs/swarm/wip/${n}-${role}`;
+    if (!gitOk(this.root, 'rev-parse', '--verify', ref)) {
+      return;
+    }
+    // Only when the wip sits on the branch tip: a moved branch makes the old diff unsafe to replay.
+    if (git(this.root, 'rev-parse', `${ref}^`) !== git(p, 'rev-parse', 'HEAD')) {
+      this.emit(`#${n} kept ${ref}: branch moved since it was saved`);
+      return;
+    }
+    git(p, 'read-tree', '-m', '-u', ref);
+    git(p, 'reset', '-q');
+    git(this.root, 'update-ref', '-d', ref);
+    this.emit(`#${n} restored uncommitted ${role} work from ${ref}`);
+  }
+
   /**
    * Keep each worktree's uncommitted work as a commit under refs/swarm/wip/<n>-<role> before a stop drops it.
    * Uses a private index and commit-tree: no hooks run and the worktree and branch stay as they are.
@@ -946,6 +964,19 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
    * True when a stop cut a round after its workers finished: a role commit is not merged yet, or the merge
    * stopped in the gates (`gateHead`) or in the review (`reviewHead`). The round then resumes at the merge.
    */
+  /**
+   * True when the last round passed review and a stop then cut the landing (a failed log commit or squash).
+   * No role work came after the PASS, so the ticket lands with no new round.
+   */
+  passedBeforeStop(n, merge, workers) {
+    const T = this.t(n);
+    return (
+      T.cut &&
+      /\| PASS \|/u.test(T.rows.at(-1) ?? '') &&
+      workers.every((r) => gitOk(merge, 'merge-base', '--is-ancestor', this.br(n, r), 'HEAD'))
+    );
+  }
+
   resumesAtMerge(n, merge, workers) {
     const head = git(merge, 'rev-parse', 'HEAD');
     const t = this.t(n);
@@ -977,6 +1008,10 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
     let relaunch = T.findings.length ? routed(T.findings) : workers;
     const int = this.intRole(n);
     const merge = this.wt(n, int);
+    if (this.passedBeforeStop(n, merge, workers)) {
+      this.emit(`#${n} passed review before the stop: landing`);
+      return this.land(n, issue, ladderTier(T, planned));
+    }
     let pending = this.reopen(n, workers);
     for (;;) {
       const tier = ladderTier(T, planned);
