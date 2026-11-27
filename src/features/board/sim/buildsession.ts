@@ -1,39 +1,75 @@
 // The Build session (docs/PC_PARTS.md "Build my PC"): Build my PC's game and its rules, with no picture. A command runs the whole job on the game at once
 // (each part in the way taken out, the part taken out, the others put back) and returns a script (`buildscript.ts`): one step per thing that happens, each
 // with the game as the step leaves it. The stage (render/three/buildmode3d.ts) plays the script; it makes no change to the game while it plays.
-// The order of a removal is the removal graph's (`removal.ts`). The starts are `buildpreset.ts`'s.
+// The order of a removal is the removal graph's (`removal.ts`). The two moves on a part are `buildmoves.ts`'s, the starts `buildpreset.ts`'s, the case and
+// board rules `buildshell.ts`'s.
+// The session also owns the history (`buildhistory.ts`): Undo and Redo are commands that return a script, and a swap (a preset, a saved build, reset,
+// clear) is one step that puts another game in the place of the session's and returns a swap step.
 import type { Game } from '@/worker/game/game';
 import type { Snapshot } from '@/worker/protocol';
-import { presetGame, startGame } from './buildpreset';
-import { FitJob } from './buildfit';
-import { RemovalJob, assemble, stateOf } from './buildscript';
-import { netName, netState, setNet } from './buildnet';
-import { boardSlots, freeSlots, slotAccepts, slotFits, uninstall, upgradeBoard, upgradeCase } from './board';
-import type { BuildPreset, Shown } from './buildspecs';
-import {
-  BOARD,
-  CASE,
-  SIDE,
-  accessBlockers,
-  buildGraph,
-  devNode,
-  isDevNode,
-  removalPlan,
-  removalPlanAll,
-} from './removal';
-import { getSpec } from './specs';
+import { BuildHistory, replayPart } from './buildhistory';
+import { putIn, takeOut } from './buildmoves';
+import { changeNet } from './buildnet';
+import { bareGame, fullGame, layoutGame, presetGame, startGame } from './buildpreset';
+import { stateOf } from './buildscript';
+import { fitShellOn, stageShellRefusal } from './buildshell';
+import type { BuildLayout, BuildPreset, Shown } from './buildspecs';
+import { devNode } from './removal';
 
 export { isOutStep } from './buildscript';
+export { shellRefusal } from './buildshell';
 
-/** A net kind and a board, as the game names them. */
-type NetKind = keyof ReturnType<typeof netState>;
-type Board = Game['board'];
-
+type Way = Parameters<BuildHistory['next']>[0];
+type HistoryStep = NonNullable<ReturnType<BuildHistory['next']>>;
+/** A net kind as the game names it, what `setNet` did, and the change it made (`buildnet.ts`). */
+type NetKind = Parameters<typeof changeNet>[1];
+type NetOutcome = ReturnType<typeof changeNet>;
+type NetStep = NonNullable<NetOutcome['step']>;
 /** The script, the refusals and why the job was not done (nothing moved, the game is unchanged), or null (`buildscript.ts`). */
-type Outcome = ReturnType<RemovalJob['run']>;
+type Outcome = ReturnType<typeof takeOut>;
+type ScriptStep = Outcome['script'][number];
+type PartStep = Extract<HistoryStep, { t: 'fit' | 'remove' }>;
+
+/** What Undo or Redo did. `jobs`: one for each part it fitted or took out, to play one after the other (`script`: their steps in a row, or the swap step). */
+interface Replay extends Outcome {
+  jobs: Outcome[];
+}
+
+/** What a job could not put back, as its steps say it. */
+const alongOf = (job: Outcome): NonNullable<ScriptStep['along']> => job.script.flatMap((s) => s.along ?? []);
 
 export class BuildSession {
-  constructor(readonly game: Game) {}
+  private current: Game;
+  private readonly history = new BuildHistory();
+  /** What stands on the stage for the game: the machine, a bare case or nothing. A command that is told nothing else keeps it with the game it leaves. */
+  private standing: Shown = 'machine';
+
+  constructor(game: Game) {
+    this.current = game;
+  }
+
+  /** The game of the session: a swap, and the Undo or Redo of one, puts another here. */
+  get game(): Game {
+    return this.current;
+  }
+  get canUndo(): boolean {
+    return this.history.canUndo;
+  }
+  get canRedo(): boolean {
+    return this.history.canRedo;
+  }
+  /** How many times the machine was swapped for another (a swap, and the Undo or Redo of one): a UI tells a swap it just made from a later one by it. */
+  get swaps(): number {
+    return this.history.swaps;
+  }
+  /** Is the last step of the history a swap? Then Undo brings back the machine that was on the stage before. */
+  get lastWasSwap(): boolean {
+    return this.history.lastWasSwap;
+  }
+  /** The kind of the step Undo (or Redo) takes next: a part plays as a job, a swap and an OS, router or plan change happen at once. */
+  next(way: Way): HistoryStep['t'] | undefined {
+    return this.history.next(way)?.t;
+  }
 
   /** A session on a ready-made machine (`presetGame`), or on a start of the Start list by its key (`startGame`: "empty", "full", a machine's key). */
   static async fromPreset(p: BuildPreset | string): Promise<BuildSession> {
@@ -49,80 +85,76 @@ export class BuildSession {
     return this.game.snapshot();
   }
 
-  /** Why a removal of `node` cannot start, or null. */
-  private refusal(node: string): string | null {
-    const g = this.game;
-    if (isDevNode(node) && !g.board.devices.some((d) => devNode(d.id) === node)) {
-      return `Cannot take it out: no installed device "${node.slice(4)}"`;
-    }
-    if (!buildGraph(g.board, g.cables).has(node)) {
-      return `Cannot take it out: ${node} is not in the machine`;
-    }
-    if (g.powered) {
-      return 'Cannot take it out: power the machine off first';
-    }
-    // (the game refuses the drive that holds the OS outside Build my PC: refused here, before a part in its way moves)
-    const os = g.os?.deviceId;
-    if (os !== undefined && node === devNode(os) && !g.looseFit) {
-      return 'Cannot take it out: the OS is installed on this drive: uninstall the OS first';
-    }
-    return null;
-  }
-
   /**
    * Take `node` (a removal graph node: `dev:<id>`, `cable:<id>`) out with everything in its way, then put the others back in reverse order. A refused job
-   * moves nothing and has no step.
+   * moves nothing and has no script. A part taken out is a step of the history; a cable is not.
    */
   remove(node: string): Outcome {
-    const refusal = this.refusal(node);
-    if (refusal !== null) {
-      return { script: [], before: stateOf(this.game), refusals: [], refusal };
+    const job = takeOut(this.game, node),
+      gone = job.before.board.devices.find((d) => devNode(d.id) === node);
+    if (job.refusal === null && gone !== undefined) {
+      const along = alongOf(job),
+        step: PartStep = { t: 'remove', spec: gone.spec, slot: gone.slot };
+      if (along.length > 0) {
+        step.along = along;
+      }
+      this.history.record(step);
     }
-    return new RemovalJob(this.game).run(node);
+    return job;
   }
 
   /**
-   * Put the OS, router or plan `id` in its place, or take the one of `kind` out (`id` null). The same item again is refused. `step` is what the stage
-   * records for Undo when the change was done (`from` is the item that was there: Undo sets it), and a refused change has no step: `reason` is the words for the
-   * hint line (none when there was nothing to take out).
+   * Fit a catalogue part (`item`) into a socket: `drop` (when it takes the part), else the first free socket that takes it, else the socket of the part it
+   * replaces. The parts in the way come out, the part in the slot comes out, the part is bought and installed, the others go back, the hoses go on last when
+   * the part made the loop, and the cables it brought run out. `shown`: what the stage shows (a bare case has no board to plug into). A refused fit moves
+   * nothing and has no script. A part that went in is a step of the history, after the removal of the part it replaced. Cases, boards and the OS, router
+   * and plan are not sockets: `fitShell` fits cases and boards (the stage calls `bareStep` or `forget` first), and `setNet` the others.
    */
-  setNet(kind: NetKind, id: string | null): NetOutcome {
-    const from = netState(this.game)[kind],
-      step = { kind, from, to: id };
-    if (id !== null && from === id) {
-      return { ok: false, reason: `${netName(id)} is already in place` };
+  fit(item: string, drop?: string, shown: Shown = 'machine'): Outcome {
+    const job = putIn(this.game, { item, drop }, shown),
+      put = job.script.find((s) => s.kind === 'part-in'),
+      { slot, spec } = put ?? {};
+    if (slot === undefined || spec === undefined) {
+      return job;
     }
-    if (id === null && from === null) {
-      return { ok: false };
+    const occupant = job.before.board.devices.find((d) => d.slot === slot),
+      along = alongOf(job),
+      steps: PartStep[] = [{ t: 'fit', spec, slot }];
+    if (occupant !== undefined) {
+      steps.unshift({ t: 'remove', spec: occupant.spec, slot });
     }
-    const r = setNet(this.game, kind, id);
-    if (r.ok) {
-      return { ok: true, step };
+    // (what could not go back is on the first step: Undo brings it back last)
+    const [first] = steps;
+    if (first !== undefined && along.length > 0) {
+      first.along = along;
     }
-    const reason =
-      id === null ? `Cannot take ${netName(from ?? '')} out: ${r.reason}` : `Cannot fit ${netName(id)}: ${r.reason}`;
-    return { ok: false, reason };
+    for (const s of steps) {
+      this.history.record(s);
+    }
+    return job;
   }
 
-  /** Undo a `setNet`: set the item that was there. */
+  /**
+   * Put the OS, router or plan `id` in its place, or take the one of `kind` out (`id` null): a step of the history when the game takes it. The same item
+   * again is refused. `step` is the change (`from` is the item that was there), and a refused change has no step: `reason` is the words for the hint line
+   * (none when there was nothing to take out).
+   */
+  setNet(kind: NetKind, id: string | null): NetOutcome {
+    const r = changeNet(this.game, kind, id);
+    if (r.ok) {
+      this.history.record({ t: 'net', ...r.step });
+    }
+    return r;
+  }
+
+  /** Reverse a `setNet`: set the item that was there. It records no step. */
   undoNet(step: NetStep): NetOutcome {
-    return this.setNet(step.kind, step.from);
+    return changeNet(this.game, step.kind, step.from);
   }
 
   /** Why a new case or board (`case2`, `board1`) is refused, or null. `shown` is what stands on the stage, `held` a case or board the game holds aside. */
   shellRefusal(itemId: string, shown: Shown, held: boolean): string | null {
-    const b = this.game.board,
-      isCase = itemId.startsWith('case'),
-      tier = Number(itemId.slice(-1)),
-      bare = shown !== 'machine';
-    if (shown === 'nothing' && !isCase) {
-      return 'Fit a case first: every part goes in it';
-    }
-    if (!held && (isCase ? tier === b.caseTier : tier === b.tier && b.burnt !== true && !bare)) {
-      return 'That one is already fitted';
-    }
-    const why = held ? null : shellRefusal(b, itemId);
-    return why === null ? null : `Cannot fit it: ${why}`;
+    return stageShellRefusal(this.game, itemId, { shown, held });
   }
 
   /**
@@ -131,29 +163,7 @@ export class BuildSession {
    * the same ids, the drives' data and the OS kept). A refused fit has no step: `refusal` is the words for the hint line.
    */
   fitShell(itemId: string, held = false): Outcome {
-    const g = this.game,
-      before = stateOf(g),
-      why = this.shellRefusal(itemId, 'machine', held);
-    if (why !== null) {
-      return { script: [], before, refusals: [], refusal: why };
-    }
-    if (!held) {
-      const bought = g.purchase(itemId),
-        fitted = bought.ok ? g.install(bought.invId) : bought;
-      if (!fitted.ok) {
-        return { script: [], before, refusals: [], refusal: `Cannot fit it: ${fitted.reason}` };
-      }
-    }
-    const node = itemId.startsWith('case') ? CASE : BOARD,
-      step: Outcome['script'][number] = {
-        kind: 'shell-in',
-        node,
-        target: true,
-        ids: new Map(),
-        refusals: [],
-        ...stateOf(g),
-      };
-    return { script: [step], before, refusals: [], refusal: null };
+    return fitShellOn(this.game, itemId, held);
   }
 
   /** One change from the OS sheet's disk page: the game's own method. The refusal text (`what: reason`), or null when it was done. */
@@ -172,88 +182,101 @@ export class BuildSession {
     return this.game.disconnectCable(id);
   }
 
-  /** Why the fit of `item` into `slot` is refused, asked of the game before anything moves (its board and money are not touched), or null. */
-  private fitRefusal(item: string, slot: string): string | null {
-    const g = this.game,
-      name = getSpec(item)?.name ?? item;
-    if (g.powered) {
-      return `${name} does not fit: power the machine off first`;
+  /**
+   * Undo the last step of the history. `shown`: what stands on the stage for the game now. A part step is reversed, and then what the step took out for
+   * good goes back. The script is empty when there is nothing to undo.
+   */
+  undo(shown: Shown = this.standing): Replay {
+    return this.replay('undo', shown);
+  }
+
+  /** Do the step Undo took last, again. */
+  redo(shown: Shown = this.standing): Replay {
+    return this.replay('redo', shown);
+  }
+
+  private replay(way: Way, shown: Shown): Replay {
+    const before = stateOf(this.game),
+      step = this.history.take(way),
+      done = (script: ScriptStep[], jobs: Outcome[], refusal: string | null = null): Replay => ({
+        script,
+        before,
+        refusals: jobs.flatMap((j) => j.refusals),
+        refusal,
+        jobs,
+      });
+    if (step === undefined) {
+      return done([], []);
     }
-    const offer = g.snapshot().purchases.find((p) => p.id === item);
-    if (offer === undefined) {
-      return `Cannot get ${name}: "${item}" is not for sale`;
+    if (step.t === 'swap') {
+      this.history.give(way, { t: 'swap', game: this.game, shown });
+      const line = way === 'undo' ? 'Went back to the machine before' : 'Went forward again';
+      return done([this.swapTo(step.game, step.shown, line)], []);
     }
-    if (offer.locked !== undefined) {
-      return `Cannot get ${name}: unlocks at level ${offer.locked.level} (${offer.locked.name})`;
+    this.history.give(way, step);
+    if (step.t === 'net') {
+      const r = way === 'undo' ? this.undoNet(step) : changeNet(this.game, step.kind, step.to);
+      return done([], [], r.ok ? null : (r.reason ?? null));
     }
-    if (offer.blocked !== undefined && offer.blocked !== '') {
-      return `Cannot get ${name}: ${offer.blocked}`;
-    }
-    if (!offer.affordable) {
-      return `Cannot get ${name}: needs $${offer.price}, have $${g.money}`;
-    }
-    // (the part in the slot comes out before the install: a part of another kind there does not refuse the fit)
-    const board = structuredClone(g.board),
-      occupant = board.devices.find((d) => d.slot === slot);
-    if (occupant !== undefined) {
-      uninstall(board, occupant.id);
-    }
-    const r = g.placeInto(board, item, slot);
-    return r.ok ? null : `${name} does not fit: ${r.reason}`;
+    const jobs = replayPart(this.game, step, { undo: way === 'undo', shown });
+    return done(
+      jobs.flatMap((j) => j.script),
+      jobs,
+      jobs.find((j) => j.refusal !== null)?.refusal ?? null,
+    );
+  }
+
+  /** `g` takes the place of the session's game: the step that says so. */
+  private swapTo(g: Game, shown: Shown, line: string): ScriptStep {
+    this.current = g;
+    this.standing = shown;
+    return { kind: 'swap', node: 'swap', target: true, ids: new Map(), refusals: [], shown, line, ...stateOf(g) };
+  }
+
+  /** A swap: one step of the history, which keeps the game that leaves with what stood on the stage for it (`left`). */
+  private swap(coming: { game: Game; line: string; shown?: Shown }, left: Shown = this.standing): Outcome {
+    const before = stateOf(this.game);
+    this.history.record({ t: 'swap', game: this.game, shown: left });
+    const step = this.swapTo(coming.game, coming.shown ?? 'machine', coming.line);
+    return { script: [step], before, refusals: [], refusal: null };
+  }
+
+  /** A ready-made machine in the place of this one. `left`, here and below: what stands on the stage for the game that leaves. */
+  async buildPreset(p: BuildPreset, left?: Shown): Promise<Outcome> {
+    const game = await presetGame(p);
+    return this.swap({ game, line: `Built the ${p.name} machine` }, left);
+  }
+
+  /** A saved layout in the place of this machine. Parts that no longer fit are skipped. */
+  async loadLayout(l: BuildLayout, name: string, left?: Shown): Promise<Outcome> {
+    const game = await layoutGame(l);
+    return this.swap({ game, line: `Loaded ${name}` }, left);
+  }
+
+  /** The biggest rig, as at the start. */
+  async reset(left?: Shown): Promise<Outcome> {
+    const game = await fullGame();
+    return this.swap({ game, line: 'Fitted every part' }, left);
+  }
+
+  /** Nothing on the stage, not even a case. */
+  async clear(left?: Shown): Promise<Outcome> {
+    const game = await bareGame();
+    return this.swap({ game, line: 'Cleared the stage', shown: 'nothing' }, left);
   }
 
   /**
-   * Fit a catalogue part (`item`) into a socket: `drop` (when it takes the part), else the first free socket that takes it, else the socket of the part it
-   * replaces. The parts in the way come out, the part in the slot comes out, the part is bought and installed, the others go back, the hoses go on last when
-   * the part made the loop, and the cables it brought run out. `shown`: what the stage shows (a bare case has no board to plug into). A refused fit moves
-   * nothing and has no step. Cases, boards and the OS, router and plan are not sockets: the stage fits them.
+   * Before the stage fits a case or a board on a bare case or an empty stage (`left`): a swap step keeps what stands there, as a copy, since the game is
+   * about to change.
    */
-  fit(item: string, drop?: string, shown: Shown = 'machine'): Outcome {
-    const g = this.game,
-      refuse = (refusal: string): Outcome => ({ script: [], before: stateOf(g), refusals: [], refusal });
-    if (shown === 'nothing') {
-      return refuse('Fit a case first: every part goes in it');
-    }
-    if (shown === 'case') {
-      return refuse('Fit a motherboard first: every other part plugs into it');
-    }
-    const spec = getSpec(item);
-    if (spec === undefined) {
-      return refuse(`Unknown part ${item}`);
-    }
-    const slots = boardSlots(g.board),
-      fits = (s: ReturnType<typeof boardSlots>[number]): boolean => slotAccepts(s.type, spec.slot) && slotFits(s, spec),
-      [free] = freeSlots(g.board, spec.slot, spec),
-      taken = slots.find((s) => fits(s) && g.board.devices.some((d) => d.slot === s.id)),
-      aimed = drop !== undefined && slots.some((s) => s.id === drop && fits(s)) ? drop : undefined,
-      slot = aimed ?? free?.id ?? taken?.id;
-    if (slot === undefined) {
-      return refuse(
-        spec.kind === 'fan'
-          ? `Nothing in this machine takes a ${spec.size} mm fan`
-          : `${spec.name} fits no socket on this board`,
-      );
-    }
-    const why = this.fitRefusal(item, slot);
-    if (why !== null) {
-      return refuse(why);
-    }
-    const occupant = g.board.devices.find((d) => d.slot === slot) ?? null,
-      graph = buildGraph(g.board, g.cables),
-      plan = occupant
-        ? removalPlan(graph, devNode(occupant.id))
-        : removalPlanAll(
-            graph,
-            accessBlockers(g.board, slot, spec.kind, item).filter((n) => graph.has(n)),
-          ),
-      steps = assemble(g.board, plan);
-    if (steps.length === 0) {
-      steps.push(SIDE);
-    }
-    if (steps[0] !== SIDE) {
-      steps.unshift(SIDE);
-    }
-    return new FitJob(g).fit({ item, slot, steps, occupant });
+  async bareStep(left: Shown): Promise<void> {
+    const copy = await bareGame(this.game.board.caseTier);
+    this.history.record({ t: 'swap', game: copy, shown: left });
+  }
+
+  /** Start the history over (a new case or board on a built machine is not a step to undo). */
+  forget(): void {
+    this.history.forget();
   }
 }
 
@@ -261,26 +284,4 @@ export class BuildSession {
 export interface CableOutcome {
   ok: boolean;
   reason?: string;
-}
-
-/** An OS, router or plan change as the stage records it for Undo: the item that was there (`from`) and the one that came (`to`). */
-export interface NetStep {
-  kind: NetKind;
-  from: string | null;
-  to: string | null;
-}
-
-/** What `setNet` did: a done change has the step to record; a refused one has no step and, when there is one, the reason. */
-export type NetOutcome =
-  { ok: true; step: NetStep; reason?: undefined } | { ok: false; step?: undefined; reason?: string };
-
-/**
- * Why the game would refuse a new case or board (`itemId`: "case2", "board1"), asked of a copy of the machine with its parts out (a swap takes them out
- * first, so what they need does not count); null when it takes it.
- */
-export function shellRefusal(board: Board, itemId: string): string | null {
-  const copy: Board = { ...board, devices: [] },
-    tier = Number(itemId.slice(-1));
-  const r = itemId.startsWith('case') ? upgradeCase(copy, tier) : upgradeBoard(copy, tier);
-  return r.ok ? null : r.reason;
 }

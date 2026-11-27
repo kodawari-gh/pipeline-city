@@ -4,11 +4,15 @@ import type { Game } from '@/worker/game/game';
 import type { Snapshot } from '@/worker/protocol';
 import type { Board, Cables, InstalledDevice } from '@/features/board/sim';
 import { deviceSpec, fittedRadiator, mountFan } from './board';
+import type { Shown } from './buildspecs';
 import { cableBlocked, cableNeeded, cablesOf } from './cables';
 import { HOSES, SIDE, buildGraph, devNode, hasLoop, isCableNode, removalPlan } from './removal';
 import { getSpec } from './specs';
 
-/** What a step does: the side panel opens, a part, a cable or the loop's hoses come out, a part goes in or back, a cable goes in or runs out, the hoses go on, a case or board is fitted. */
+/**
+ * What a step does: the side panel opens, a part, a cable or the loop's hoses come out, a part goes in or back, a cable goes in or runs out, the hoses go
+ * on, a case or board is fitted, or the whole machine is swapped.
+ */
 type StepKind =
   | 'door-open'
   | 'part-out'
@@ -19,7 +23,8 @@ type StepKind =
   | 'cable-in'
   | 'cable-run'
   | 'hoses-on'
-  | 'shell-in';
+  | 'shell-in'
+  | 'swap';
 
 /** The game at one moment of a job: its snapshot, and copies of its board and cables. */
 export interface SessionState {
@@ -29,7 +34,7 @@ export interface SessionState {
 }
 
 /** A part the job took out and could not put back: it stays out (Undo brings it back after the part). */
-interface Along {
+export interface Along {
   spec: string;
   slot: string;
 }
@@ -51,6 +56,9 @@ export interface ScriptStep extends SessionState {
   refusals: string[];
   /** The step the job is recorded on (the target's): the parts that could not go back, in the order they would go back. */
   along?: Along[];
+  /** A swap step: what stands on the stage for the game that comes, and the words for the log. */
+  shown?: Shown;
+  line?: string;
 }
 
 /** A job's result: the steps, the game before them, the refusals after the last step, and the game's refusal of the job (nothing moved), or null. */

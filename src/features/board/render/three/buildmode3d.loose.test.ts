@@ -359,3 +359,123 @@ describe('the stage plays a removal from the Build session script (ticket #109)'
     );
   });
 });
+
+/** Hold the job at its next opening of the side panel: `reached` resolves when it gets there, `release` lets it go on. */
+function holdAtDoor(s: BuildStage): { reached: Promise<void>; release: () => void } {
+  const arrived = Promise.withResolvers<boolean>(),
+    gate = Promise.withResolvers<boolean>();
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stage's stubbed move (`stage`), held by the test
+  const st = s as unknown as { door: () => Promise<void> };
+  st.door = async () => {
+    arrived.resolve(true);
+    await gate.promise;
+  };
+  const reach = async (): Promise<void> => {
+      await arrived.promise;
+    },
+    release = (): void => {
+      gate.resolve(true);
+    };
+  return { reached: reach(), release };
+}
+
+// (`Array.from`: the list can be a `structuredClone` of the state, from another realm)
+const partsOf = (list: readonly { spec: string; slot: string }[]): string[] =>
+  Array.from(list, (d) => `${d.spec}@${d.slot}`).toSorted();
+const shownParts = (s: BuildStage): string[] => partsOf(s.board.devices);
+const gameParts = (s: BuildStage): string[] => partsOf(s.game.board.devices);
+
+const ramNode = (s: BuildStage): string => devNode(of(s, 'ram')[0]?.id ?? 'none');
+
+describe('the stage plays Undo and Redo from the Build session script (ticket #111)', () => {
+  it('Undo of a removal: the stage shows the machine before the step while the game already holds its end', async () => {
+    const s = stage(),
+      full = shownParts(s);
+    await s.remove(ramNode(s));
+    const without = shownParts(s);
+    const hold = holdAtDoor(s),
+      job = s.undo();
+    await hold.reached;
+    expect(s.status.peek().busy).toBe(true);
+    expect(gameParts(s)).toStrictEqual(full);
+    expect(shownParts(s)).toStrictEqual(without);
+    hold.release();
+    await job;
+    expect(shownParts(s)).toStrictEqual(full);
+    expect(s.status.peek().busy).toBe(false);
+  });
+
+  it('Redo of a removal: the same', async () => {
+    const s = stage(),
+      full = shownParts(s);
+    await s.remove(ramNode(s));
+    const without = shownParts(s);
+    await s.undo();
+    const hold = holdAtDoor(s),
+      job = s.redo();
+    await hold.reached;
+    expect(gameParts(s)).toStrictEqual(without);
+    expect(shownParts(s)).toStrictEqual(full);
+    hold.release();
+    await job;
+    expect(shownParts(s)).toStrictEqual(without);
+    expect([s.canUndo, s.canRedo]).toStrictEqual([true, false]);
+  });
+
+  it('Undo of a swap puts the machine before on the stage, and Redo the new one', async () => {
+    const s = stage(),
+      { game: first } = s;
+    await s.clear();
+    const { game: second } = s;
+    await s.undo();
+    expect(s.game).toBe(first);
+    expect(s.shown.peek()).toBe('machine');
+    expect(s.status.peek().log).toStrictEqual(['Went back to the machine before']);
+    await s.redo();
+    expect(s.game).toBe(second);
+    expect(s.shown.peek()).toBe('nothing');
+    expect(s.status.peek().log).toStrictEqual(['Went forward again']);
+  });
+
+  it('while a job plays, Undo and Redo are ignored: the game and the history stay, and work again after it', async () => {
+    const s = stage(),
+      full = shownParts(s);
+    await s.reset();
+    await s.clear();
+    await s.undo(); // (one step to undo, one to redo)
+    const { game, swaps } = s,
+      hold = holdAtDoor(s),
+      job = s.remove(ramNode(s));
+    await hold.reached;
+    const during = gameParts(s),
+      could = [s.canUndo, s.canRedo];
+    await s.undo();
+    await s.redo();
+    expect(s.game).toBe(game);
+    expect(gameParts(s)).toStrictEqual(during);
+    expect([s.canUndo, s.canRedo]).toStrictEqual(could);
+    expect(s.swaps).toBe(swaps);
+    hold.release();
+    await job;
+    await s.undo();
+    expect(shownParts(s)).toStrictEqual(full);
+  });
+
+  it('a second Undo while an Undo plays is ignored', async () => {
+    const s = stage(),
+      { game: first } = s;
+    await s.reset();
+    const { game: second } = s;
+    await s.remove(ramNode(s));
+    const hold = holdAtDoor(s),
+      job = s.undo();
+    await hold.reached;
+    await s.undo();
+    expect(s.game).toBe(second);
+    hold.release();
+    await job;
+    expect(s.game).toBe(second);
+    await s.undo();
+    expect(s.game).toBe(first);
+  });
+});

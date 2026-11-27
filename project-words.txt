@@ -73,10 +73,12 @@ bufs
 buildalerts
 builddrag
 buildframe
+buildhistory
 buildhud
 buildloose
 buildmode
 buildmotion
+buildmoves
 buildnet
 buildpick
 buildfit
@@ -84,6 +86,7 @@ buildpreset
 buildrun
 buildscript
 buildsession
+buildshell
 buildshot
 buildspecs
 buildstills

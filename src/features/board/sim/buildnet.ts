@@ -48,6 +48,35 @@ function put(g: Game, id: string): Result {
   return r.ok ? { ok: true } : r;
 }
 
+/** An OS, router or plan change as the history records it for Undo: the item that was there (`from`) and the one that came (`to`). */
+interface NetStep {
+  kind: NetKind;
+  from: string | null;
+  to: string | null;
+}
+
+/** What a change did: a done change has the step to record; a refused one has no step and, when there is one, the reason. */
+type NetOutcome = { ok: true; step: NetStep; reason?: undefined } | { ok: false; step?: undefined; reason?: string };
+
+/** `setNet` with the step of the change and, when it is refused, the words for the hint line. The item already in place is refused. */
+export function changeNet(g: Game, kind: NetKind, id: string | null): NetOutcome {
+  const from = netState(g)[kind],
+    step = { kind, from, to: id };
+  if (id !== null && from === id) {
+    return { ok: false, reason: `${netName(id)} is already in place` };
+  }
+  if (id === null && from === null) {
+    return { ok: false };
+  }
+  const r = setNet(g, kind, id);
+  if (r.ok) {
+    return { ok: true, step };
+  }
+  const reason =
+    id === null ? `Cannot take ${netName(from ?? '')} out: ${r.reason}` : `Cannot fit ${netName(id)}: ${r.reason}`;
+  return { ok: false, reason };
+}
+
 /**
  * Put this item in its place (`id`), or take what is there out (`id` null). A new router or OS replaces the old one; a new plan replaces the old plan. A router
  * that comes in is cabled at once when the cable is out (the ethernet cable has one way to go: the board's jack, or the first network card). A router that

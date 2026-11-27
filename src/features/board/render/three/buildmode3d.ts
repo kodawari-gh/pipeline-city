@@ -130,7 +130,7 @@ import {
   type RunState,
 } from '@/features/board/sim/buildrun';
 import type { BuildLayout, BuildPreset, Shown } from '@/features/board/sim/buildspecs';
-import { OUTSIDE, bareGame, fullGame, layoutGame, presetGame } from '@/features/board/sim/buildpreset';
+import { OUTSIDE } from '@/features/board/sim/buildpreset';
 import { BuildSession, isOutStep } from '@/features/board/sim/buildsession';
 import type { Outcome, ScriptStep, SessionState } from '@/features/board/sim/buildscript';
 import { netKindOf, netName, netState, type NetKind } from '@/features/board/sim/buildnet';
@@ -169,24 +169,10 @@ export interface BuildStatus {
   rev: number;
 }
 
-/** One step of the undo history: a part fitted or taken out, or the whole machine swapped for another (`swap`: the game it left, kept to come back to, and what stood on the stage for it: a machine, a bare case or nothing). */
-type PartStep = { t: 'fit' | 'remove'; spec: string; slot: string; along?: Along[] };
-/** A part the step took out and could not put back (a fan whose heatsink went, a cooler whose CPU went): it stays out, and Undo brings it back after the part. */
-type Along = { spec: string; slot: string };
-/** The OS, the router or the internet plan changed from one item to another (ids; null for none): Undo sets the one it was. */
-type NetStep = { t: 'net'; kind: NetKind; from: string | null; to: string | null };
-type Step = PartStep | NetStep | { t: 'swap'; game: Game; shown: Shown };
-/** The cue of a step the player made (ticket #66): a part or an OS, router or plan in is an install; out, an uninstall. A new machine has none. */
-function stepCue(s: Step): CueId | null {
-  if (s.t === 'fit') return 'install';
-  if (s.t === 'remove') return 'uninstall';
-  if (s.t === 'net') return s.to ? 'install' : 'uninstall';
-  return null;
-}
-/** How many whole machines the history keeps (each holds a game): the oldest and the steps before it go first. */
-const KEEP_SWAPS = 8;
 /** How long a refusal stays on the hint line, counted from the end of the job that raised it. */
 const REFUSAL_MS = 6000;
+
+type Way = Parameters<BuildSession['next']>[0];
 
 /** What a swap took out, to put back. */
 /** A part that came out, to put back. */
@@ -289,7 +275,9 @@ export class SnapCache {
 /** The bin: every case, board and part kind that has a 3D model in the machine. */
 export function binParts(): BinPart[] {
   const out: BinPart[] = CASE_TIERS.map((c) => ({ id: `case${c.tier}`, name: c.name, kind: 'case', tier: c.tier }));
-  for (const b of BOARD_TIERS) out.push({ id: `board${b.tier}`, name: `${b.name} board`, kind: 'board', tier: b.tier });
+  for (const b of BOARD_TIERS) {
+    out.push({ id: `board${b.tier}`, name: `${b.name} board`, kind: 'board', tier: b.tier });
+  }
   for (const k of [
     'cpu',
     'cooler',
@@ -304,12 +292,23 @@ export function binParts(): BinPart[] {
     'nic',
     'tpm',
     'psu',
-  ] as const)
-    for (const s of specsOfKind(k)) out.push({ id: s.id, name: s.name, kind: k, tier: s.tier });
+  ] as const) {
+    for (const s of specsOfKind(k)) {
+      out.push({ id: s.id, name: s.name, kind: k, tier: s.tier });
+    }
+  }
   // (the network: an OS goes on a drive, a router stands by the wall, a plan comes in by the wall jack; an OS the game lists as later is not for sale)
-  for (const s of OS_SPECS) if (!s.later) out.push({ id: s.id, name: s.name, kind: 'os', tier: s.tier });
-  for (const s of ROUTER_SPECS) out.push({ id: s.id, name: s.name, kind: 'router', tier: s.tier });
-  for (const s of ISP_SPECS) out.push({ id: s.id, name: s.name, kind: 'isp', tier: s.tier });
+  for (const s of OS_SPECS) {
+    if (!s.later) {
+      out.push({ id: s.id, name: s.name, kind: 'os', tier: s.tier });
+    }
+  }
+  for (const s of ROUTER_SPECS) {
+    out.push({ id: s.id, name: s.name, kind: 'router', tier: s.tier });
+  }
+  for (const s of ISP_SPECS) {
+    out.push({ id: s.id, name: s.name, kind: 'isp', tier: s.tier });
+  }
   return out;
 }
 
@@ -372,12 +371,19 @@ export class BuildStage {
   /** Counts up with every change to the game: what memoizes on the machine as it stands (`alerts`) keys on it, as a running game gives a new snapshot every tick. */
   private editRev = 0;
 
-  /** The sandbox game, owned by the Build session (`sim/buildsession.ts`). Change it only through `edit` (or put a new game here): the stage keeps its snapshot until then. */
+  /**
+   * The sandbox game, owned by the Build session (`sim/buildsession.ts`). Change it only through `edit` or a session command (or put a new game here,
+   * which starts a new session): the stage keeps its snapshot until then.
+   */
   get game(): Game {
     return this.alive(this._game);
   }
   set game(g: Game) {
     this.session = new BuildSession(g);
+    this.newGame();
+  }
+  /** Another game stands on the stage: nothing kept of the one before holds. */
+  private newGame(): void {
     this.owed = 0;
     this.editRev++;
     this.snaps.drop();
@@ -1616,115 +1622,112 @@ export class BuildStage {
     );
   }
 
-  // ------------------------------------------------------------------ undo and redo (a part fitted or taken out; the whole machine swapped for a preset, a saved build, the full rig or an empty case; a new case or board starts over)
-  private past: Step[] = [];
-  private future: Step[] = [];
-  private replay = false;
+  // ------------------------------------------------------------------ undo, redo and swaps: the history is the session's (`sim/buildhistory.ts`); the stage plays what a command returns
+  /** Does an Undo or Redo play? Its parts go in with no cue: the cue is for a step the player makes. */
+  private replaying = false;
   get canUndo(): boolean {
-    return this.past.length > 0;
+    return this.session?.canUndo ?? false;
   }
   get canRedo(): boolean {
-    return this.future.length > 0;
+    return this.session?.canRedo ?? false;
   }
-  private record(s: Step): void {
-    if (this.replay) return;
-    const cue = stepCue(s);
-    if (cue) playCue(cue);
-    this.past.push(s);
-    this.future = [];
-    // (a swap keeps a whole game: past the limit the oldest goes, and with it the steps made on the machines before it)
-    let swaps = 0;
-    for (const x of this.past) if (x.t === 'swap') swaps++;
-    if (swaps > KEEP_SWAPS) this.past = this.past.slice(this.past.findIndex((x) => x.t === 'swap') + 1);
-  }
-  private forget(): void {
-    this.past = [];
-    this.future = [];
-  }
-  private async run(s: PartStep): Promise<void> {
-    this.replay = true;
-    try {
-      if (s.t === 'fit') await this.fit(s.spec, s.slot);
-      else {
-        const d = this.board.devices.find((x) => x.slot === s.slot && x.spec === s.spec);
-        if (d) await this.remove(devNode(d.id));
-      }
-    } finally {
-      this.replay = false;
-    }
-  }
-  /**
-   * Do a step, or its opposite (`undo`). The step to keep for the way back: a part's as it was, a swap's as the game it left. The opposite of a step also puts back
-   * the parts that step took out for good (`along`): Undo of a cooler's removal brings back the cooler and the fan that sat on it.
-   */
-  private async apply(s: Step, undo: boolean): Promise<Step> {
-    if (s.t === 'swap')
-      return this.swapIn(s.game, undo ? 'Went back to the machine before' : 'Went forward again', s.shown);
-    if (s.t === 'net') {
-      const r = this.edit(() => (undo ? this.buildSession.undoNet(s) : this.buildSession.setNet(s.kind, s.to)));
-      if (r.ok) {
-        this.bump();
-      } else if (r.reason !== undefined) {
-        this.refuse(r.reason);
-      }
-      return s;
-    }
-    await this.run(undo ? { t: s.t === 'fit' ? 'remove' : 'fit', spec: s.spec, slot: s.slot } : s);
-    if (undo) for (const a of s.along ?? []) await this.run({ t: 'fit', spec: a.spec, slot: a.slot });
-    return s;
-  }
-  async undo(): Promise<void> {
-    const s = this.past.pop();
-    if (!s || this.status.peek().busy) {
-      if (s) this.past.push(s);
-      return;
-    }
-    this.future.push(await this.apply(s, true));
-    this.bump();
-  }
-  async redo(): Promise<void> {
-    const s = this.future.pop();
-    if (!s || this.status.peek().busy) {
-      if (s) this.future.push(s);
-      return;
-    }
-    this.past.push(await this.apply(s, false));
-    this.bump();
-  }
-
   /** How many times the machine was swapped for another (a preset, a saved build, Undo of one): the UI tells a swap it just made from a later one by it. */
-  private swapCount = 0;
   get swaps(): number {
-    return this.swapCount;
+    return this.session?.swaps ?? 0;
   }
   /** Is the last step of the history a swap? Then Undo brings back the machine that was on the stage before. */
   get lastWasSwap(): boolean {
-    return this.past[this.past.length - 1]?.t === 'swap';
+    return this.session?.lastWasSwap ?? false;
+  }
+  async undo(): Promise<void> {
+    await this.replay('undo');
+  }
+  async redo(): Promise<void> {
+    await this.replay('redo');
+  }
+
+  /** Undo or Redo: a part plays as a job; a swap, and an OS, router or plan change, happen at once. Ignored while a job plays. */
+  private async replay(way: Way): Promise<void> {
+    const { session } = this,
+      next = session?.next(way);
+    if (session === null || next === undefined || this.status.peek().busy) return;
+    if (next === 'swap') {
+      const wasSteel = this.steel;
+      this.showSwap(session[way](this.shown.peek()), wasSteel);
+    } else if (next === 'net') {
+      const { refusal } = this.edit(() => session[way](this.shown.peek()));
+      if (refusal !== null) this.refuse(refusal);
+    } else {
+      // (Undo of a fit, and Redo of a removal, take the part out first)
+      const takesOut = (next === 'fit') === (way === 'undo');
+      await this.job(async () => this.replayParts(session, way, takesOut));
+    }
+    this.bump();
   }
 
   /**
-   * Put `g` on the stage in place of the machine, and give the step that puts the old one back. What was picked, lit or scored belonged to the old
-   * machine. `shown`: what stands on the stage for it (`shown`, the signal): a bare case, or nothing at all.
+   * The session does the whole Undo or Redo of a part on the game first: one job for the part (a removal when `takesOut`), and one fit for each part
+   * that comes back after it. The stage then plays them in turn, each as `remove` or `fit` plays it.
    */
-  private swapIn(g: Game, line: string, shown: Shown = 'machine'): Step {
-    const left = this.game,
-      was = this.shown.peek(),
-      wasSteel = this.steel;
+  private async replayParts(session: BuildSession, way: Way, takesOut: boolean): Promise<void> {
+    const { jobs } = session[way](this.shown.peek());
+    if (jobs.some((j) => j.script.length > 0)) this.changed();
+    this.replaying = true;
+    try {
+      await this.replayJobs(jobs, takesOut);
+    } finally {
+      this.replaying = false;
+      // (a last job the game refused has no step to play: the stage goes to the game)
+      if (this.playing !== null) {
+        this.playing = null;
+        this.panelRev++;
+        this.snaps.drop();
+      }
+    }
+  }
+
+  /** The jobs of an Undo or Redo, one after the other, each as `remove` plays it (`removal`: the first one only) or as `fit` does. */
+  private async replayJobs([job, ...rest]: Outcome[], removal: boolean): Promise<void> {
+    if (job === undefined || this.dead) return;
+    const [after] = rest,
+      outs = job.script.filter(isOutStep).length,
+      // (a refused removal is not played)
+      plays = job.script.length > 0 && !(removal && job.refusal !== null);
+    if (plays) await this.playScript(job, outs > 2 ? QUICK : 1);
+    if (this.dead) return;
+    // (the game stands at the end of the last job already: until the next one plays, the stage shows the machine as this one leaves it)
+    if (after !== undefined) {
+      this.playing = { ...after.before, over: new Map() };
+      this.snaps.drop();
+    }
+    if (job.refusal !== null) this.refuse(job.refusal);
+    else if (removal) this.noteDone(outs);
+    if (!removal) await this.runLoose();
+    if (after !== undefined) {
+      this.putDown();
+      this.reeled.clear();
+      this.rebuild();
+    }
+    await this.replayJobs(rest, false);
+  }
+
+  /** The session put another game in the place of its own: show it. What was picked, lit or scored belonged to the machine that left (`wasSteel`: its side panel). */
+  private showSwap({ script: [step] }: Outcome, wasSteel: boolean): void {
+    if (step === undefined) return;
+    const shown = step.shown ?? 'machine';
     this.clearRefusal();
-    this.swapCount++;
     this.shown.value = shown; // (before the build: it draws the machine as it is now)
-    this.game = g; // (the scores of the old machine become the ones to compare with: `benchChanged`, in the setter)
+    this.newGame(); // (the scores of the old machine become the ones to compare with: `benchChanged`)
     this.panelOut.clear(); // (the machine that comes has its leads in their headers)
     this.panelRev++;
     this.select(null);
     this.glow(null);
-    this.status.value = { busy: false, step: '', log: [line], rev: this.status.peek().rev };
+    this.status.value = { busy: false, step: '', log: [step.line ?? ''], rev: this.status.peek().rev };
     this.rebuild();
     // (a steel panel opens for the new machine, there is nothing to see shut; a glass one is left to the zoom, as it was; with no case there is no panel)
     if (shown === 'nothing') this.wantOpen = false;
     else if (this.steel) this.wantOpen = true;
     else if (wasSteel) this.wantOpen = false;
-    return { t: 'swap', game: left, shown: was };
   }
   private bump(): void {
     const st = this.status.peek();
@@ -2619,23 +2622,7 @@ export class BuildStage {
     } finally {
       // (a close in the middle of a job: the stage is gone, nothing to put back)
       if (!this.dead) {
-        // (a cable still held back shows as it stands)
-        this.hand.cancel();
-        this.releaseReeled();
-        this.panelHome();
-        // (the side panel is the zoom's again: it stays while the view is on the board; a loop's hoses are never left off.
-        // A steel panel shows nothing shut, so what the job did stays in view: the panel stays open until the player shuts it)
-        this.jobOpen = false;
-        if (this.steel && this.machine.doorOpen) this.wantOpen = true;
-        this.pace = 1;
-        this.skipping = false;
-        this.hosesOff = false;
-        const h = this._machine?.hoses;
-        if (h && !h.root.visible) {
-          h.rest();
-          h.root.visible = true;
-          this.demand.ask();
-        }
+        this.putDown();
         this.status.value = { ...this.status.peek(), busy: false, step: '' };
         this.holdRefusal(); // (a refusal the job raised: its seconds count from now)
         this.keepOs();
@@ -2645,6 +2632,27 @@ export class BuildStage {
           ? (this.board.devices.find((d) => d.slot === was.slot && d.spec === was.spec)?.id ?? null)
           : null;
       }
+    }
+  }
+
+  /** After a script: the hand is empty, and the case and the hoses are as between two jobs. */
+  private putDown(): void {
+    // (a cable still held back shows as it stands)
+    this.hand.cancel();
+    this.releaseReeled();
+    this.panelHome();
+    // (the side panel is the zoom's again: it stays while the view is on the board; a loop's hoses are never left off.
+    // A steel panel shows nothing shut, so what the job did stays in view: the panel stays open until the player shuts it)
+    this.jobOpen = false;
+    if (this.steel && this.machine.doorOpen) this.wantOpen = true;
+    this.pace = 1;
+    this.skipping = false;
+    this.hosesOff = false;
+    const h = this._machine?.hoses;
+    if (h && !h.root.visible) {
+      h.rest();
+      h.root.visible = true;
+      this.demand.ask();
     }
   }
 
@@ -2664,23 +2672,19 @@ export class BuildStage {
     if (session === null) {
       return;
     }
-    const gone = isDevNode(node) ? this.board.devices.find((x) => devNode(x.id) === node) : undefined;
     const job = this.edit(() => session.remove(node));
     if (job.refusal !== null) {
       this.refuse(job.refusal);
       return;
     }
-    const step: PartStep | null = gone === undefined ? null : { t: 'remove', spec: gone.spec, slot: gone.slot };
-    if (step !== null) {
-      this.record(step);
-    }
+    // (a part's removal is a step the player made: its cue. A cable's has its own)
+    if (job.before.board.devices.some((d) => devNode(d.id) === node)) playCue('uninstall');
     const outs = job.script.filter(isOutStep).length;
     await this.playScript(job, outs > 2 ? QUICK : 1);
-    // (what could not go back, as the part's removal left it: Undo brings it back after the part)
-    const along = job.script.flatMap((s) => s.along ?? []);
-    if (step !== null && along.length > 0) {
-      step.along = along.map((a) => ({ spec: a.spec, slot: a.slot }));
-    }
+    this.noteDone(outs);
+  }
+
+  private noteDone(outs: number): void {
     this.note(`Done: ${outs} step${outs === 1 ? '' : 's'}`);
   }
 
@@ -2784,7 +2788,8 @@ export class BuildStage {
         }
         break;
       }
-      // (it is played with the parts behind it: `playPartIn`)
+      // (a new part is played with the parts behind it, by `playPartIn`; a swap has no motion: `showSwap`)
+      case 'swap':
       case 'part-in': {
         return;
       }
@@ -3054,7 +3059,11 @@ export class BuildStage {
       o.visible = false;
     }
     this.note(`Fit ${getSpec(put.spec ?? '')?.name ?? put.spec ?? put.node} in ${put.slot ?? ''}`);
-    this.recordFit(job, put);
+    // (a fit the player made: the cue of the part that left its slot, then of the new one)
+    if (!this.replaying) {
+      if (job.before.board.devices.some((d) => d.slot === put.slot)) playCue('uninstall');
+      playCue('install');
+    }
     for (const n of sets.slice(1).flatMap((x) => x.nodes)) {
       const d = this.board.devices.find((x) => devNode(x.id) === n);
       if (d !== undefined) {
@@ -3082,31 +3091,13 @@ export class BuildStage {
     this.pace = 1;
   }
 
-  /** The steps a fit records, as its part goes in: the part it replaces comes out, the new one goes in. What could not go back is on the first (Undo brings it back last). */
-  private recordFit(job: Outcome, put: ScriptStep): void {
-    const { slot, spec } = put;
-    if (slot === undefined || spec === undefined) {
-      return;
-    }
-    const occupant = job.before.board.devices.find((d) => d.slot === slot),
-      along = job.script.flatMap((s) => s.along ?? []),
-      steps: PartStep[] = [{ t: 'fit', spec, slot }];
-    if (occupant !== undefined) {
-      steps.unshift({ t: 'remove', spec: occupant.spec, slot });
-    }
-    const [first] = steps;
-    if (first !== undefined && along.length > 0) {
-      first.along = along;
-    }
-    for (const s of steps) {
-      this.record(s);
-    }
-  }
-
-  /** Put an OS, a router or an internet plan in its place (`id`), or take it out (`id` null), through the session: it refuses the same item again. */
+  /** Put an OS, a router or an internet plan in its place (`id`), or take it out (`id` null): the session's answer, and it records the step. */
   private setNetItem(kind: NetKind, id: string | null): ReturnType<BuildSession['setNet']> {
     const r = this.edit(() => this.buildSession.setNet(kind, id));
-    if (r.ok) this.bump();
+    if (r.ok) {
+      playCue(id === null ? 'uninstall' : 'install');
+      this.bump();
+    }
     return r;
   }
 
@@ -3123,7 +3114,6 @@ export class BuildStage {
       }
       return;
     }
-    this.record({ t: 'net', ...r.step });
     this.note(`Fit ${netName(itemId)}`);
   }
 
@@ -3157,7 +3147,6 @@ export class BuildStage {
         }
         return;
       }
-      this.record({ t: 'net', ...r.step });
       this.note(`Took out ${netName(was)}`);
     });
   }
@@ -3182,11 +3171,9 @@ export class BuildStage {
       this.refuse(why);
       return;
     }
-    if (bare) {
-      // (the bare case or the empty stage as it stands, to come back to: a copy, as the game is about to change)
-      this.record({ t: 'swap', game: await bareGame(this.board.caseTier), shown });
-      this.swapCount++;
-    } else this.forget(); // (a new case or board is not a step to undo: the history ends here)
+    // (the bare case or the empty stage as it stands is a step to come back to)
+    if (bare) await this.alive(this.session).bareStep(shown);
+    else this.alive(this.session).forget(); // (a new case or board is not a step to undo: the history ends here)
     if (this.dead) return;
     playCue('install');
     // the case comes off when it is the new part, and when the new board is too big for it (the sandbox lets the case follow the board: `Game.install`)
@@ -3261,13 +3248,19 @@ export class BuildStage {
     if (!this.bare.peek()) await this.plugNeeded();
   }
 
+  /** A swap by the session (one step Undo takes back), then the stage shows the game that came. */
+  private async swap(command: (session: BuildSession, left: Shown) => Promise<Outcome>): Promise<void> {
+    const { session } = this;
+    if (session === null || this.status.peek().busy) return;
+    const wasSteel = this.steel,
+      done = await command(session, this.shown.peek());
+    if (!this.dead) this.showSwap(done, wasSteel);
+  }
+
   /** A ready-made machine, built at once (no animation): `level` 0..1 picks how high a tier of each part; `ram`, `storage`, `gpus` and `npus` how many
    *  of each to fit. Parts that fit nowhere are skipped. */
   async buildPreset(p: BuildPreset): Promise<void> {
-    if (this.status.peek().busy) return;
-    const g = await presetGame(p);
-    if (this.dead) return;
-    this.record(this.swapIn(g, `Built the ${p.name} machine`));
+    await this.swap(async (s, left) => s.buildPreset(p, left));
   }
 
   /** Load the benchmark's code (once): `benchIssues` has an answer after it. */
@@ -3326,27 +3319,17 @@ export class BuildStage {
 
   /** Build a saved layout at once (no animation). Parts that no longer fit are skipped. */
   async loadLayout(l: BuildLayout, name: string): Promise<void> {
-    if (this.status.peek().busy) return;
-    const g = await layoutGame(l);
-    if (this.dead) return;
-    // (the machine it replaces stays in the history: Undo brings it back)
-    this.record(this.swapIn(g, `Loaded ${name}`));
+    await this.swap(async (s, left) => s.loadLayout(l, name, left));
   }
 
   /** A new sandbox machine: the biggest rig, as at the start. */
   async reset(): Promise<void> {
-    if (this.status.peek().busy) return;
-    const g = await fullGame();
-    if (this.dead) return;
-    this.record(this.swapIn(g, 'Fitted every part'));
+    await this.swap(async (s, left) => s.reset(left));
   }
 
   /** Nothing on the stage, not even a case: build up from nothing, the case first (from the shelf), then the board, then the parts. */
   async clear(): Promise<void> {
-    if (this.status.peek().busy) return;
-    const g = await bareGame();
-    if (this.dead) return;
-    this.record(this.swapIn(g, 'Cleared the stage', 'nothing'));
+    await this.swap(async (s, left) => s.clear(left));
   }
 
   /**
