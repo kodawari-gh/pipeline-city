@@ -11,6 +11,7 @@ A merge of the base branch into a ticket's integration branch stopped on conflic
 Rules:
 
 - Work only inside your worktree.
+- Never read a file over 2000 lines or 60 KB whole: Grep for the symbol, then Read only that range (offset and limit). A whole large file fills the context and the agent fails.
 - Read the ticket and both sides of each conflict. Keep the ticket's behaviour and the base's changes.
 - Stage the resolved paths by name. Finish with `git commit --no-edit`. Set `resolved` to true.
 - When a conflict needs a decision the ticket does not settle, run `git merge --abort`, set `resolved` to false, and say why in `summary`.
