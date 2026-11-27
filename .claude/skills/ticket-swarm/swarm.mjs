@@ -449,6 +449,7 @@ class Swarm {
   async agent(role, n, cwd, tier, prompt, schema) {
     const args = this.agentArgs(role, tier, schema);
     let limitWaits = 0;
+    let limitWhy = '';
     for (let attempt = 1; attempt <= 2; attempt++) {
       const r = await sh(this.claude, args, { cwd, input: prompt, timeoutMs: this.sw.agentTimeoutMin * 60e3 });
       let j = null;
@@ -471,6 +472,11 @@ class Swarm {
       const why = r.timedOut
         ? 'timed out'
         : (j?.result || r.err || r.out).toString().trim().split(/\r?\n/).slice(-3).join(' | ').slice(0, 300);
+      // The cap counts per limit window: a new reset time starts a new count, so a second window is no failure.
+      if (/hit your .*limit/iu.test(why) && why !== limitWhy) {
+        limitWhy = why;
+        limitWaits = 0;
+      }
       if (/hit your .*limit/iu.test(why) && ++limitWaits <= 36) {
         this.emit(`#${n} ${role} usage limit hit, waiting 10 min: ${why}`);
         await sleep(600e3);
