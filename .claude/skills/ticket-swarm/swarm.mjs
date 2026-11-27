@@ -1091,6 +1091,8 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
     // Swarm log rows land with the squash.
     if (this.sw.log) {
       const lp = join(merge, this.sw.log);
+      // A rerun after a failed log commit starts from the committed log, so rows do not repeat.
+      spawnSync('git', ['checkout', 'HEAD', '--', this.sw.log], { cwd: merge, windowsHide: true });
       if (!existsSync(lp)) {
         mkdirSync(dirname(lp), { recursive: true });
         writeFileSync(
