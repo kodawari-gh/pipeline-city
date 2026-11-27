@@ -1,10 +1,9 @@
 // BuildStage's empty start: nothing on the stage. The player brings a case in from the shelf (a bare case, with no motherboard in it), then a board (the
 // machine then stands as any other), then the parts. Undo and Redo walk the same way back and forth: the machine, the bare case, nothing, the machine before.
-// A new case on a machine moves the parts the case holds with it, as the game does; a case the game refuses is said on the hint line.
+// The rules of a new case or board are the session's (sim/buildsession.edits.test.ts).
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Group, PerspectiveCamera, Scene } from 'three';
 import { BUILD_PRESETS } from '@/features/board/sim/buildspecs';
-import { deviceSpec, fanHost } from '@/features/board/sim/board';
 
 vi.mock('@/core/render/three/init', async (orig) => {
   const actual = await orig<typeof import('@/core/render/three/init')>();
@@ -75,7 +74,13 @@ function stage(): BuildStage {
     panelIds: () => [],
     syncPanel() {},
   };
-  s['_game'] = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
+  s['_game'] = new Game({
+    seed: 1,
+    sandbox: true,
+    preassembled: true,
+    maxed: true,
+    looseFit: true,
+  });
   s['rebuild'] = s['rebuildAll'] = function (this: {
     snaps: { drop(): void };
     board: { tier: number; caseTier: number };
@@ -180,22 +185,10 @@ describe('the empty start', () => {
     expect(s.board.devices.some((d) => d.spec === cpu())).toBe(true);
   });
 
-  it('brings a bigger case with a bigger board (the sandbox lets the case follow the board)', async () => {
+  it('keeps the case bare when a case is swapped', async () => {
     const s = stage();
     await s.clear();
     await s.fit('case0');
-    await s.fit('board2');
-    expect(s.shown.peek()).toBe('machine');
-    expect(s.board.tier).toBe(2);
-    expect(s.board.caseTier).toBe(2);
-  });
-
-  it('keeps the case bare when a case is swapped, and says a case that stands is already fitted', async () => {
-    const s = stage();
-    await s.clear();
-    await s.fit('case0');
-    await s.fit('case0');
-    expect(s.refusal.peek()?.text).toBe('That one is already fitted');
     await s.fit('case2');
     expect(s.shown.peek()).toBe('case');
     expect(s.board.caseTier).toBe(2);
@@ -275,78 +268,5 @@ describe('the empty start', () => {
     s.openInside(true);
     expect(s.insideOpen).toBe(false);
     expect(await s.capture(320, 240)).toBeNull();
-  });
-});
-
-/** A Mini tower on a Starter board, its OS on the SSD in the cage, its fans on the case's mounts and the cooler's. */
-const SMALL = {
-  caseTier: 0,
-  boardTier: 0,
-  parts: [
-    { spec: 'cpu2', slot: 'cpu0' },
-    { spec: 'cooler1', slot: 'cooler0' },
-    { spec: 'fan120', slot: 'cooler0.fan0' },
-    { spec: 'fan120', slot: 'cooler0.fan1' },
-    { spec: 'ram1b', slot: 'dimm0' },
-    { spec: 'ssd1', slot: 'sata0' },
-    { spec: 'display0', slot: 'display0' },
-    { spec: 'fan92', slot: 'front0' },
-    { spec: 'fan92', slot: 'front1' },
-    { spec: 'psu1', slot: 'atx0' },
-  ],
-  os: 1,
-};
-
-/** The parts the case holds, not the board (the supply, the drives in the cage, the monitor, the radiator, the fans on the case's mounts), with their ids. */
-function caseParts(g: Game): string[] {
-  return g.board.devices
-    .filter((d) => {
-      const { kind } = deviceSpec(d);
-      return (
-        ['psu', 'display', 'radiator'].includes(kind) ||
-        d.slot.startsWith('sata') ||
-        (kind === 'fan' && fanHost(d.slot) === null)
-      );
-    })
-    .map((d) => `${d.id}:${d.spec}@${d.slot}`)
-    .toSorted();
-}
-
-/** Each part by spec and slot, whatever its id. */
-const fittedParts = (g: Game): string[] => g.board.devices.map((d) => `${d.spec}@${d.slot}`).toSorted();
-
-describe('a new case on a machine', () => {
-  it('moves the parts the case holds with it: the same ids, the drive in the cage with its files, and its OS', async () => {
-    const s = stage();
-    await s.loadLayout(SMALL, 'small');
-    const { game } = s,
-      held = caseParts(game),
-      parts = fittedParts(game),
-      os = { ...game.os },
-      drive = String(game.os?.deviceId),
-      disk = game.disks.get(drive);
-    expect(game.board.devices.find((d) => d.id === drive)?.slot).toBe('sata0');
-    expect(disk).toBeDefined();
-    expect(held).toHaveLength(5);
-    await s.fit('case1');
-    expect(s.refusal.peek()).toBeNull();
-    expect(s.board.caseTier).toBe(1);
-    expect(s.shown.peek()).toBe('machine');
-    expect(caseParts(s.game)).toStrictEqual(held);
-    expect(s.game.disks.get(drive)).toBe(disk);
-    expect(s.game.os).toStrictEqual(os);
-    // (the parts on the board came out and are all in their slots again)
-    expect(fittedParts(s.game)).toStrictEqual(parts);
-  });
-
-  it('says on the hint line why the game refuses a case with no mounts for the radiator, and the radiator stays where it is', async () => {
-    const s = stage();
-    await s.loadLayout({ caseTier: 1, boardTier: 0, parts: [{ spec: 'rad1', slot: 'rad-top' }] }, 'radiator');
-    const held = caseParts(s.game);
-    expect(fittedParts(s.game)).toStrictEqual(['rad1@rad-top']);
-    await s.fit('case0');
-    expect(String(s.refusal.peek()?.text)).toMatch(/^Cannot fit it: .*no top fan mounts/u);
-    expect(s.board.caseTier).toBe(1);
-    expect(caseParts(s.game)).toStrictEqual(held);
   });
 });

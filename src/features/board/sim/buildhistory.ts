@@ -50,6 +50,44 @@ export function replayPart(g: Game, s: PartStep, at: { undo: boolean; shown: Sho
   return jobs;
 }
 
+/** What a job could not put back, as its steps say it. */
+const alongOf = (job: ReturnType<typeof takeOut>): Along[] => job.script.flatMap((s) => s.along ?? []);
+
+/** The step of a removal of `node`: none for a refused job, or for a cable. */
+export function removedSteps(job: ReturnType<typeof takeOut>, node: string): PartStep[] {
+  const gone = job.before.board.devices.find((d) => devNode(d.id) === node);
+  if (job.refusal !== null || gone === undefined) {
+    return [];
+  }
+  const along = alongOf(job),
+    step: PartStep = { t: 'remove', spec: gone.spec, slot: gone.slot };
+  if (along.length > 0) {
+    step.along = along;
+  }
+  return [step];
+}
+
+/** The steps of a fit: the removal of the part it replaced, then the fit. None when no part went in. */
+export function fittedSteps(job: ReturnType<typeof putIn>): PartStep[] {
+  const put = job.script.find((s) => s.kind === 'part-in'),
+    { slot, spec } = put ?? {};
+  if (slot === undefined || spec === undefined) {
+    return [];
+  }
+  const occupant = job.before.board.devices.find((d) => d.slot === slot),
+    along = alongOf(job),
+    steps: PartStep[] = [{ t: 'fit', spec, slot }];
+  if (occupant !== undefined) {
+    steps.unshift({ t: 'remove', spec: occupant.spec, slot });
+  }
+  // (what could not go back is on the first step: Undo brings it back last)
+  const [first] = steps;
+  if (first !== undefined && along.length > 0) {
+    first.along = along;
+  }
+  return steps;
+}
+
 /** The most swaps the past holds: each keeps a whole game. */
 const KEEP_SWAPS = 8;
 

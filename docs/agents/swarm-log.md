@@ -133,3 +133,6 @@ Escalation table: see `.claude/skills/ticket-swarm/SKILL.md`.
 | #112 | 9 | sonnet medium | PASS | git diff parent/100...HEAD (read in full): all six acceptance items are met in the diff. The only unrelated change is a one-line markdown fix in docs/agents/swarm-log.md, from merge commit f8b90e36; i |
 | #111 | 1 | sonnet medium | FAIL | runner check failed: npm run check |
 | #111 | 3 | sonnet high | PASS | npm run check: not rerun; the runner reported it passed on this HEAD; npm run test:fast: not rerun on its own; the runner reported it passed on this HEAD; npx vitest run src/features/board/sim/buildse |
+| #113 | 1 | sonnet medium | FAIL | runner check failed: npm run test:fast |
+| #113 | 2 | sonnet high | FAIL | runner check failed: npm run test:fast |
+| #113 | 3 | sonnet xhigh | PASS | npx vitest run src/features/board/sim/buildsession src/features/board/render/three/buildmode3d -> PASS: 18 files, 160 tests.; npm run test:q -> exit 1. Fast part: 441 files, 5332 tests passed, 1 todo. ... |

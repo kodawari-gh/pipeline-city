@@ -6,8 +6,10 @@ import { ECONOMY } from '../../economy/sim/economy';
 import { createBoard, deviceSpec, fanHost } from './board';
 import { netState } from './buildnet';
 import { bareGame, fullGame, layoutGame } from './buildpreset';
-import { BuildSession, shellRefusal } from './buildsession';
+import { BuildSession, isOutStep, shellRefusal } from './buildsession';
 import type { BuildLayout } from './buildspecs';
+import { checkCompat } from './index';
+import { devNode } from './removal';
 
 ECONOMY.levelGating = false;
 ECONOMY.caseGating = false;
@@ -52,8 +54,9 @@ function caseParts(g: Game): string[] {
     .toSorted();
 }
 
-/** Each part by spec and slot, whatever its id. */
-const fittedParts = (g: Game): string[] => g.board.devices.map((d) => `${d.spec}@${d.slot}`).toSorted();
+/** Each part by spec and slot, whatever its id; of a game, or of a script's step (a clone: its own arrays do not compare strictly with this file's). */
+const fittedParts = ({ board }: Pick<Game, 'board'>): string[] =>
+  Array.from(board.devices, (d) => `${d.spec}@${d.slot}`).toSorted();
 
 /** The cases the game holds aside. */
 const spareCases = (g: Game): number => g.inventory.filter((i) => i.spec.startsWith('case')).length;
@@ -262,7 +265,11 @@ describe('case and board', () => {
   });
 
   it('refuses a case with no mounts on the side of the radiator, and the radiator stays where it is', async () => {
-    const g = await layoutGame({ caseTier: 1, boardTier: 0, parts: [{ spec: 'rad1', slot: 'rad-top' }] }),
+    const g = await layoutGame({
+        caseTier: 1,
+        boardTier: 0,
+        parts: [{ spec: 'rad1', slot: 'rad-top' }],
+      }),
       s = new BuildSession(g),
       held = caseParts(g);
     expect(fittedParts(g)).toStrictEqual(['rad1@rad-top']);
@@ -270,6 +277,193 @@ describe('case and board', () => {
     expect(String(out.refusal)).toMatch(/^Cannot fit it: .*no top fan mounts/u);
     expect(g.board.caseTier).toBe(1);
     expect(caseParts(g)).toStrictEqual(held);
+  });
+});
+
+describe('a new case or board on a built machine (ticket #113)', () => {
+  it.each(['case1', 'board1'])('%s: the script takes the parts in its way out, then puts them back', async (item) => {
+    const g = await layoutGame(SMALL),
+      s = new BuildSession(g),
+      parts = fittedParts(g),
+      out = s.fitShell(item),
+      kinds = out.script.map((x) => x.kind),
+      at = kinds.indexOf('shell-in');
+    expect(out.refusal).toBeNull();
+    expect(at).toBeGreaterThan(0);
+    expect(out.script.slice(0, at).some((x) => isOutStep(x))).toBe(true);
+    expect(kinds.slice(at + 1)).toContain('put-back');
+    expect(fittedParts(s.game)).toStrictEqual(parts);
+    // (the last step shows the game as the command leaves it)
+    expect(out.script.slice(-1).map((x) => fittedParts(x))).toStrictEqual([parts]);
+  });
+});
+
+describe('the empty stage and the bare case', () => {
+  const NEEDS_CASE = /Fit a case first/u;
+
+  it('refuses a part and a board until a case is there: the game and the history stay', async () => {
+    const s = new BuildSession(await fullGame());
+    await s.clear();
+    const was = s.snapshot().board;
+    expect(String(s.fit('cpu1', undefined, 'nothing').refusal)).toMatch(NEEDS_CASE);
+    expect(String(s.shellRefusal('board1', 'nothing', false))).toMatch(NEEDS_CASE);
+    // (the case of the tier the game holds aside is there to fit)
+    expect(s.shellRefusal(`case${was.caseTier}`, 'nothing', true)).toBeNull();
+    expect(s.snapshot().board).toStrictEqual(was);
+    expect(s.next('undo')).toBe('swap');
+  });
+
+  it('refuses a part on a bare case until a board is there', async () => {
+    const s = new BuildSession(await bareGame(1));
+    expect(String(s.fit('cpu1', undefined, 'case').refusal)).toMatch(/Fit a motherboard first/u);
+    expect(s.game.board.devices).toStrictEqual([]);
+    expect(s.canUndo).toBe(false);
+  });
+
+  it('brings a bigger case with a bigger board', async () => {
+    const s = new BuildSession(await bareGame(1));
+    expect(s.fitShell('board2').refusal).toBeNull();
+    expect(s.game.board.tier).toBe(2);
+    expect(s.game.board.caseTier).toBe(2);
+  });
+
+  it('refuses the case a bare case already is', async () => {
+    const s = new BuildSession(await bareGame(1));
+    expect(s.shellRefusal('case1', 'case', false)).toBe('That one is already fitted');
+    expect(s.shellRefusal('case2', 'case', false)).toBeNull();
+  });
+});
+
+const issues = (s: BuildSession): string[] => checkCompat(s.game.board).map((i) => i.id);
+
+describe('a part the machine cannot run', () => {
+  const NO_LEADS: BuildLayout = {
+    caseTier: 1,
+    boardTier: 1,
+    parts: ['psu1@atx0', 'cpu1@cpu0', 'cooler0@cooler0', 'ram0@dimm0'].map((p) => {
+      const [spec = '', slot = ''] = p.split('@');
+      return { spec, slot };
+    }),
+  };
+  it('takes a supply too small: the machine trips, and Undo puts the old one back', async () => {
+    const s = new BuildSession(await fullGame()),
+      parts = fittedParts(s.game);
+    expect(s.fit('psu0').refusal).toBeNull();
+    expect(issues(s)).toContain('psu-trip');
+    s.undo(); // (a swap is two steps: the new supply out, then the old one back)
+    s.undo();
+    expect(fittedParts(s.game)).toStrictEqual(parts);
+    expect(issues(s)).not.toContain('psu-trip');
+  });
+
+  it('takes a card with no power lead, and says the lead is missing until Undo', async () => {
+    const s = new BuildSession(await layoutGame(NO_LEADS));
+    expect(s.fit('gpu2').refusal).toBeNull();
+    expect(issues(s)).toContain('pcie-leads');
+    s.undo();
+    expect(issues(s)).not.toContain('pcie-leads');
+  });
+
+  it('refuses a card that fits no socket', async () => {
+    const s = new BuildSession(await layoutGame(NO_LEADS));
+    expect(String(s.fit('gpu3').refusal)).toMatch(/fits no socket/u);
+    expect(s.canUndo).toBe(false);
+  });
+});
+
+/** Where the last step of a command's script shows the OS (the stage ends on that step); null when no drive holds it. */
+const shownOsSlot = ({ script }: Pick<ReturnType<BuildSession['fit']>, 'script'>): string | null =>
+  script.at(-1)?.snapshot.os?.slot ?? null;
+
+/** The stage node of the drive that holds the OS. */
+const osDrive = (s: BuildSession): string => devNode(String(s.game.os?.deviceId));
+
+/** SMALL with no case fan and the OS on an NVMe drive, on a Mainstream board in a Full tower. */
+const NVME = {
+  ...SMALL,
+  caseTier: 3,
+  boardTier: 2,
+  parts: SMALL.parts
+    .filter((p) => !p.slot.startsWith('front'))
+    .map((p) => (p.spec === 'ssd1' ? { spec: 'nvme2', slot: 'm20' } : p)),
+};
+
+describe('the OS follows its drive', () => {
+  it('moves to a drive that stayed when its drive comes out', async () => {
+    const s = new BuildSession(await fullGame()),
+      drive = s.game.board.devices.find((d) => d.id === s.game.os?.deviceId);
+    expect(drive).toBeDefined();
+    const out = s.remove(devNode(String(drive?.id))),
+      slot = s.snapshot().os?.slot;
+    expect(out.refusal).toBeNull();
+    expect(slot).toBeDefined();
+    expect(slot).not.toBe(drive?.slot);
+    expect(shownOsSlot(out)).toBe(slot);
+    // (the removal did it: nothing left to do)
+    expect(s.keepOs()).toBe(false);
+  });
+
+  it('waits with no drive, and goes back on the drive that goes in', async () => {
+    const s = new BuildSession(await layoutGame(SMALL)),
+      out = s.remove(osDrive(s));
+    expect(out.refusal).toBeNull();
+    expect(s.snapshot().os).toBeNull();
+    expect(shownOsSlot(out)).toBeNull();
+    const back = s.fit('ssd1', 'sata0');
+    expect(back.refusal).toBeNull();
+    expect(s.snapshot().os?.slot).toBe('sata0');
+    expect(shownOsSlot(back)).toBe('sata0');
+  });
+
+  it('goes back on its drive when Undo puts the drive back, and leaves with it on Redo', async () => {
+    const s = new BuildSession(await layoutGame(SMALL)),
+      out = s.remove(osDrive(s));
+    expect(out.refusal).toBeNull();
+    const undone = s.undo();
+    expect(undone.refusal).toBeNull();
+    expect(s.snapshot().os?.slot).toBe('sata0');
+    expect(shownOsSlot(undone)).toBe('sata0');
+    const redone = s.redo();
+    expect(redone.refusal).toBeNull();
+    expect(s.snapshot().os).toBeNull();
+    expect(shownOsSlot(redone)).toBeNull();
+  });
+
+  it('ends on its drive when a new board takes the drive out and puts it back', async () => {
+    const s = new BuildSession(await layoutGame(NVME)),
+      drive = osDrive(s);
+    expect(s.snapshot().os?.slot).toBe('m20');
+    const out = s.fitShell('board3');
+    expect(out.refusal).toBeNull();
+    expect(out.script.filter(isOutStep).map((x) => x.node)).toContain(drive);
+    expect(s.snapshot().os?.slot).toBe('m20');
+    expect(shownOsSlot(out)).toBe('m20');
+  });
+
+  it('stays off when the player removed it, whatever is fitted after', async () => {
+    const s = new BuildSession(await layoutGame(SMALL));
+    stepOf(s.setNet('os', null));
+    expect(s.fit('ram0').refusal).toBeNull();
+    expect(s.keepOs()).toBe(false);
+    expect(s.game.os).toBeNull();
+  });
+});
+
+describe('network steps in the history', () => {
+  it('undoes and redoes them one by one, last first', async () => {
+    const s = new BuildSession(await fullGame()),
+      start = netState(s.game);
+    stepOf(s.setNet('os', null));
+    stepOf(s.setNet('isp', null));
+    const end = netState(s.game);
+    s.undo();
+    expect(netState(s.game).isp).toBe(start.isp);
+    expect(netState(s.game).os).toBeNull();
+    s.undo();
+    expect(netState(s.game)).toStrictEqual(start);
+    s.redo();
+    s.redo();
+    expect(netState(s.game)).toStrictEqual(end);
   });
 });
 

@@ -100,7 +100,7 @@ export class FitJob extends RemovalJob {
   }
 
   /** The cables the machine needs go in. The cords from the wall go in too; the video cable and the LAN lead stay out: they are the player's. */
-  private plugNeeded(): void {
+  protected plugNeeded(): void {
     for (const c of cablesOf(this.game.board)) {
       if (!OUTSIDE.has(c.id) || WALL_CABLES.includes(c.id)) {
         this.plugBack(c.id);

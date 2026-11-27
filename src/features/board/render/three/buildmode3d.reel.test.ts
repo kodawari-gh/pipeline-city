@@ -4,6 +4,7 @@
 // order of the steps and what the stage asks of them.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Group, PerspectiveCamera, Scene } from 'three';
+import type { HandHost } from './plughand3d';
 
 vi.mock('@/core/render/three/init', async (orig) => {
   const actual = await orig<typeof import('@/core/render/three/init')>();
@@ -45,6 +46,20 @@ vi.mock('./lens3d', () => ({
     frame() {}
   },
 }));
+/** The host the stage gave its hand: where the hand says a plug went in or came out. */
+const wired = vi.hoisted(() => ({ host: null as HandHost | null }));
+vi.mock(import('./plughand3d'), async (orig) => {
+  const actual = await orig();
+  return {
+    ...actual,
+    PlugHand: class extends actual.PlugHand {
+      constructor(...args: ConstructorParameters<typeof actual.PlugHand>) {
+        super(...args);
+        [wired.host] = args;
+      }
+    },
+  };
+});
 
 import { BuildStage } from './buildmode3d';
 import { setLayoutTier } from '../layout/layout';
@@ -52,14 +67,6 @@ import { devNode } from '@/features/board/sim/removal';
 import { cablesLost, cablesOf } from '@/features/board/sim/cables';
 import { deviceSpec } from '@/features/board/sim/board';
 import { Game } from '@/worker/game/game';
-
-/** What the tests reach into. */
-interface Inside {
-  reeled: Set<string>;
-  cables: Record<string, boolean>;
-  edit(f: (g: Game) => unknown): unknown;
-}
-const hid = (s: BuildStage): Inside => s as unknown as Inside;
 
 interface Fake {
   calls: string[];
@@ -69,7 +76,7 @@ interface Fake {
 
 /**
  * A stage with the full rig and no 3D. The machine has a rig for every cable and writes down what is held back; the hand writes down what it was asked and
- * does what the real one's host does to the game (a plug pulled is disconnected, a cable run to its socket is connected).
+ * tells its host what the real one tells it (a plug pulled is disconnected, a cable run to its socket is connected).
  */
 function stage(): { s: BuildStage; fake: Fake } {
   const fake: Fake = { calls: [], held: [], heldBack: new Set() };
@@ -113,14 +120,14 @@ function stage(): { s: BuildStage; fake: Fake } {
   };
   s['playAll'] = () => Promise.resolve();
   s['door'] = () => Promise.resolve();
-  const t = s as unknown as Inside;
+  const { host } = wired;
   s['hand'] = {
     root: new Group(),
     kind: null,
     cancel() {},
     pullOut: (id: string) => {
       fake.calls.push(`pull ${id}`);
-      t.edit((g) => g.disconnectCable(id));
+      host?.disconnect?.(id);
       return Promise.resolve(true);
     },
     stow: (id: string) => {
@@ -130,13 +137,13 @@ function stage(): { s: BuildStage; fake: Fake } {
     },
     feed: (id: string, plug: boolean) => {
       fake.calls.push(`feed ${id}${plug ? ' in' : ' loose'}`);
-      if (plug) t.edit((g) => g.connectCable(id));
+      if (plug) host?.connect?.(id);
       fake.heldBack.delete(id);
       return Promise.resolve(true);
     },
     plugIn: (id: string) => {
       fake.calls.push(`carry ${id}`);
-      t.edit((g) => g.connectCable(id));
+      host?.connect?.(id);
       return Promise.resolve(true);
     },
   };
@@ -164,7 +171,7 @@ describe('the cables that go with their part', () => {
     const lost = cablesLost(s.board, psu.id) as string[];
     expect(lost.length).toBeGreaterThan(2);
     expect(lost).toEqual(expect.arrayContaining(['atx', 'cpu', 'pcmains']));
-    const plugged = lost.filter((id) => hid(s).cables[id]);
+    const plugged = lost.filter((id) => s.cables[id]);
     await s.remove(devNode(psu.id));
     // the supply is out, and each of its cables was stowed
     expect(s.board.devices.some((d) => d.id === psu.id)).toBe(false);

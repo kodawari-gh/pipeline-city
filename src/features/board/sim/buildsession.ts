@@ -1,20 +1,19 @@
 // The Build session (docs/PC_PARTS.md "Build my PC"): Build my PC's game and its rules, with no picture. A command runs the whole job on the game at once
 // (each part in the way taken out, the part taken out, the others put back) and returns a script (`buildscript.ts`): one step per thing that happens, each
-// with the game as the step leaves it. The stage (render/three/buildmode3d.ts) plays the script; it makes no change to the game while it plays.
+// with the game as the step leaves it. The stage (render/three/buildmode3d.ts) plays the script. It never edits the game: every edit is a command here.
 // The order of a removal is the removal graph's (`removal.ts`). The two moves on a part are `buildmoves.ts`'s, the starts `buildpreset.ts`'s, the case and
 // board rules `buildshell.ts`'s.
 // The session also owns the history (`buildhistory.ts`): Undo and Redo are commands that return a script, and a swap (a preset, a saved build, reset,
 // clear) is one step that puts another game in the place of the session's and returns a swap step.
 import type { Game } from '@/worker/game/game';
 import type { Snapshot } from '@/worker/protocol';
-import { BuildHistory, replayPart } from './buildhistory';
+import { BuildHistory, fittedSteps, removedSteps, replayPart } from './buildhistory';
 import { putIn, takeOut } from './buildmoves';
 import { changeNet } from './buildnet';
 import { bareGame, fullGame, layoutGame, presetGame, startGame } from './buildpreset';
 import { stateOf } from './buildscript';
 import { fitShellOn, stageShellRefusal } from './buildshell';
 import type { BuildLayout, BuildPreset, Shown } from './buildspecs';
-import { devNode } from './removal';
 
 export { isOutStep } from './buildscript';
 export { shellRefusal } from './buildshell';
@@ -28,15 +27,11 @@ type NetStep = NonNullable<NetOutcome['step']>;
 /** The script, the refusals and why the job was not done (nothing moved, the game is unchanged), or null (`buildscript.ts`). */
 type Outcome = ReturnType<typeof takeOut>;
 type ScriptStep = Outcome['script'][number];
-type PartStep = Extract<HistoryStep, { t: 'fit' | 'remove' }>;
 
 /** What Undo or Redo did. `jobs`: one for each part it fitted or took out, to play one after the other (`script`: their steps in a row, or the swap step). */
 interface Replay extends Outcome {
   jobs: Outcome[];
 }
-
-/** What a job could not put back, as its steps say it. */
-const alongOf = (job: Outcome): NonNullable<ScriptStep['along']> => job.script.flatMap((s) => s.along ?? []);
 
 export class BuildSession {
   private current: Game;
@@ -87,19 +82,15 @@ export class BuildSession {
 
   /**
    * Take `node` (a removal graph node: `dev:<id>`, `cable:<id>`) out with everything in its way, then put the others back in reverse order. A refused job
-   * moves nothing and has no script. A part taken out is a step of the history; a cable is not.
+   * moves nothing and has no script. A part taken out is a step of the history; a cable is not. The OS follows its drive (`follow`), here and after `fit`,
+   * `fitShell`, `undo` and `redo`.
    */
   remove(node: string): Outcome {
-    const job = takeOut(this.game, node),
-      gone = job.before.board.devices.find((d) => devNode(d.id) === node);
-    if (job.refusal === null && gone !== undefined) {
-      const along = alongOf(job),
-        step: PartStep = { t: 'remove', spec: gone.spec, slot: gone.slot };
-      if (along.length > 0) {
-        step.along = along;
-      }
-      this.history.record(step);
+    const job = takeOut(this.game, node);
+    for (const s of removedSteps(job, node)) {
+      this.history.record(s);
     }
+    this.follow(job.script);
     return job;
   }
 
@@ -108,29 +99,14 @@ export class BuildSession {
    * replaces. The parts in the way come out, the part in the slot comes out, the part is bought and installed, the others go back, the hoses go on last when
    * the part made the loop, and the cables it brought run out. `shown`: what the stage shows (a bare case has no board to plug into). A refused fit moves
    * nothing and has no script. A part that went in is a step of the history, after the removal of the part it replaced. Cases, boards and the OS, router
-   * and plan are not sockets: `fitShell` fits cases and boards (the stage calls `bareStep` or `forget` first), and `setNet` the others.
+   * and plan are not sockets: `fitShell` fits cases and boards (the caller calls `bareStep` or `forget` first), and `setNet` the others.
    */
   fit(item: string, drop?: string, shown: Shown = 'machine'): Outcome {
-    const job = putIn(this.game, { item, drop }, shown),
-      put = job.script.find((s) => s.kind === 'part-in'),
-      { slot, spec } = put ?? {};
-    if (slot === undefined || spec === undefined) {
-      return job;
-    }
-    const occupant = job.before.board.devices.find((d) => d.slot === slot),
-      along = alongOf(job),
-      steps: PartStep[] = [{ t: 'fit', spec, slot }];
-    if (occupant !== undefined) {
-      steps.unshift({ t: 'remove', spec: occupant.spec, slot });
-    }
-    // (what could not go back is on the first step: Undo brings it back last)
-    const [first] = steps;
-    if (first !== undefined && along.length > 0) {
-      first.along = along;
-    }
-    for (const s of steps) {
+    const job = putIn(this.game, { item, drop }, shown);
+    for (const s of fittedSteps(job)) {
       this.history.record(s);
     }
+    this.follow(job.script);
     return job;
   }
 
@@ -158,12 +134,42 @@ export class BuildSession {
   }
 
   /**
-   * Fit the case or board `itemId` on the machine as it stands (`held`: the game already holds it, nothing to change): one step. The parts in its way are
-   * the stage's (it takes them out and puts them back step by step, before and after); every other part stays in place and moves with it (`Game.install`:
-   * the same ids, the drives' data and the OS kept). A refused fit has no step: `refusal` is the words for the hint line.
+   * Fit the case or board `itemId` (`held`: the game already holds it, nothing to change; `shown`: what stands on the stage). The parts in its way come
+   * out, it is fitted (one `shell-in` step), those parts go back, and the cables the machine needs go in. Every other part stays in place and moves with it
+   * (`Game.install`: the same ids, the drives' data and the OS kept). A fit refused before anything moves has no script; one the game refuses keeps its
+   * script (the parts come out and go back) and sets `refusal`, the words for the hint line. The history is the caller's (`bareStep`, `forget`).
    */
-  fitShell(itemId: string, held = false): Outcome {
-    return fitShellOn(this.game, itemId, held);
+  fitShell(itemId: string, held = false, shown: Shown = 'machine'): Outcome {
+    const job = fitShellOn(this.game, itemId, { shown, held });
+    this.follow(job.script);
+    return job;
+  }
+
+  /** The power button of the machine: the game's answer (on to off is a hard power-off). */
+  powerButton(): ReturnType<Game['powerButton']> {
+    return this.game.powerButton();
+  }
+
+  /** Run the machine `ticks` base ticks. */
+  advance(ticks: number): void {
+    for (let i = 0; i < ticks; i++) {
+      this.game.advanceBaseTick();
+    }
+  }
+
+  /** The OS follows its drive (`Game.keepOs`). The part and case commands do it themselves. True when the OS changed. */
+  keepOs(): boolean {
+    const was = this.game.os;
+    this.game.keepOs();
+    return this.game.os !== was;
+  }
+
+  /** The end of a command that ran a script: the OS follows its drive, and the last step shows the game as the command leaves it. */
+  private follow(script: ScriptStep[]): void {
+    const last = script.at(-1);
+    if (last !== undefined && this.keepOs()) {
+      Object.assign(last, stateOf(this.game));
+    }
   }
 
   /** One change from the OS sheet's disk page: the game's own method. The refusal text (`what: reason`), or null when it was done. */
@@ -218,12 +224,11 @@ export class BuildSession {
       const r = way === 'undo' ? this.undoNet(step) : changeNet(this.game, step.kind, step.to);
       return done([], [], r.ok ? null : (r.reason ?? null));
     }
-    const jobs = replayPart(this.game, step, { undo: way === 'undo', shown });
-    return done(
-      jobs.flatMap((j) => j.script),
-      jobs,
-      jobs.find((j) => j.refusal !== null)?.refusal ?? null,
-    );
+    const jobs = replayPart(this.game, step, { undo: way === 'undo', shown }),
+      script = jobs.flatMap((j) => j.script);
+    // (once, after the last job: a drive that comes back takes its OS)
+    this.follow(script);
+    return done(script, jobs, jobs.find((j) => j.refusal !== null)?.refusal ?? null);
   }
 
   /** `g` takes the place of the session's game: the step that says so. */
