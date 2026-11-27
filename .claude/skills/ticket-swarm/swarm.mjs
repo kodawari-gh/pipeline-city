@@ -377,7 +377,6 @@ class Swarm {
     this.state.base ||= base;
     this.base = this.state.base;
     this.claude = findClaude(cfg);
-    this.agents = agentsJson(this.root);
     this.agentSettings = JSON.stringify({
       permissions: { allow: [...AGENT_ALLOW, ...(this.sw.allow ?? [])], deny: AGENT_DENY },
     });
@@ -427,7 +426,7 @@ class Swarm {
     return [
       '-p',
       '--agents',
-      this.agents,
+      agentsJson(this.root), // read at each call: a rule fix reaches a live run
       '--agent',
       role,
       '--model',
