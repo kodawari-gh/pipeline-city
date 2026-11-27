@@ -9,6 +9,8 @@ Reference for writing any document an agent consumes: a skill, an `AGENTS.md` / 
 
 When the document you're writing is a skill, read [`SKILL-MECHANICS.md`](SKILL-MECHANICS.md) for frontmatter, invocation choice, and router skills.
 
+A skill stays generic: it must work in any repo. Repo ids, commands, paths and notes go in the repo's own config or docs (for example `docs/agents/`), and the skill points to them. Scripts a skill needs live in the skill folder. Before you finish a skill edit, grep it for repo names, ids, npm scripts and paths. A lesson learned while running a skill goes into that skill or into the repo docs, never into an agent's private memory, so every later user sees it.
+
 ## Context pointers
 
 A **context pointer** is a reference held in the agent's context that names some out-of-context material and encodes the condition for reaching it. A skill's description is one; a line in `AGENTS.md` naming a doc is the same object. The pointer's _wording_, not its target, decides when the agent reaches the material, and how reliably. A must-have target behind a weakly worded pointer is a variance bug: sharpen the wording first, and inline the material only if sharpening fails.

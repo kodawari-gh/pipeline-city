@@ -30,7 +30,7 @@ Change no code for item 2 until the user confirms it.
 
 ## Branches and worktrees
 
-The runner makes and removes all of these. Do not make or delete them by hand.
+The runner makes and removes all of these. Do not make or delete them by hand: a hand removal can delete the shared dependency install through its link (see Dependencies in `ticket-swarm`).
 
 | Branch              | Worktree                        | Made from         | Used by                        |
 | ------------------- | ------------------------------- | ----------------- | ------------------------------ |
