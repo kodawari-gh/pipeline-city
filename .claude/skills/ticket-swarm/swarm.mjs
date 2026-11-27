@@ -571,6 +571,7 @@ ${lockLine}${depsLine}${role === 'reviewer' ? '' : checksLine}${extra}`;
       gitOk(this.root, 'worktree', 'prune');
       if (gitOk(this.root, 'rev-parse', '--verify', `refs/heads/${b}`)) {
         git(this.root, 'worktree', 'add', p, b);
+        this.restoreWip(n, role, p);
       } else {
         git(this.root, 'worktree', 'add', p, '-b', b, this.base);
       }
@@ -864,6 +865,23 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
       this.emit(`#${n} check ok (${secs}s): ${cmd}`);
     }
     return null;
+  }
+
+  /** Put the work saveWip kept back into a re-made worktree, uncommitted, so a resumed agent goes on from it. */
+  restoreWip(n, role, p) {
+    const ref = `refs/swarm/wip/${n}-${role}`;
+    if (!gitOk(this.root, 'rev-parse', '--verify', ref)) {
+      return;
+    }
+    // Only when the wip sits on the branch tip: a moved branch makes the old diff unsafe to replay.
+    if (git(this.root, 'rev-parse', `${ref}^`) !== git(p, 'rev-parse', 'HEAD')) {
+      this.emit(`#${n} kept ${ref}: branch moved since it was saved`);
+      return;
+    }
+    git(p, 'read-tree', '-m', '-u', ref);
+    git(p, 'reset', '-q');
+    git(this.root, 'update-ref', '-d', ref);
+    this.emit(`#${n} restored uncommitted ${role} work from ${ref}`);
   }
 
   /**
