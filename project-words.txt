@@ -79,6 +79,7 @@ buildmode
 buildmotion
 buildnet
 buildpick
+buildfit
 buildpreset
 buildrun
 buildscript

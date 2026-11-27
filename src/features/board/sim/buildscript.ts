@@ -9,7 +9,8 @@ import { HOSES, SIDE, buildGraph, devNode, hasLoop, isCableNode, removalPlan } f
 import { getSpec } from './specs';
 
 /** What a step does: the side panel opens, a part, a cable or the loop's hoses come out, a part goes back, a cable goes in, the hoses go on. */
-type StepKind = 'door-open' | 'part-out' | 'cable-out' | 'hoses-out' | 'put-back' | 'cable-in' | 'hoses-on';
+type StepKind =
+  'door-open' | 'part-out' | 'cable-out' | 'hoses-out' | 'part-in' | 'put-back' | 'cable-in' | 'cable-run' | 'hoses-on';
 
 /** The game at one moment of a job: its snapshot, and copies of its board and cables. */
 export interface SessionState {
@@ -68,7 +69,7 @@ const OUT_KINDS: ReadonlySet<StepKind> = new Set(['door-open', 'part-out', 'cabl
 export const isOutStep = (s: ScriptStep): boolean => OUT_KINDS.has(s.kind);
 
 /** The fans on a radiator's mounts. */
-export function railFans(board: Board): InstalledDevice[] {
+function railFans(board: Board): InstalledDevice[] {
   const rad = fittedRadiator(board);
   if (rad === null) {
     return [];
@@ -86,7 +87,7 @@ export function assemble(board: Board, steps: string[]): string[] {
   return steps.filter((n) => !fans.has(n));
 }
 
-const nameOf = (spec: string): string => getSpec(spec)?.name ?? spec;
+export const nameOf = (spec: string): string => getSpec(spec)?.name ?? spec;
 
 /** The game at this moment, kept for a step. */
 export function stateOf(g: Game): SessionState {
@@ -98,14 +99,14 @@ export function stateOf(g: Game): SessionState {
  * the game just after it, and with the refusals raised since the step before.
  */
 export class RemovalJob {
-  private readonly steps: ScriptStep[] = [];
-  private readonly along: Along[] = [];
-  private readonly undo: Undo[] = [];
-  private pending: string[] = [];
-  private refusal: string | null = null;
-  private target = '';
+  protected readonly steps: ScriptStep[] = [];
+  protected readonly along: Along[] = [];
+  protected readonly undo: Undo[] = [];
+  protected pending: string[] = [];
+  protected refusal: string | null = null;
+  protected target = '';
 
-  constructor(private readonly game: Game) {}
+  constructor(protected readonly game: Game) {}
 
   /** Take `node` out; the script, and the game's refusal of the target itself (null when it came out). */
   run(node: string): Outcome {
@@ -126,13 +127,13 @@ export class RemovalJob {
     return { script: this.steps, before, refusals: this.pending, refusal: this.refusal };
   }
 
-  private push(step: StepIn): void {
+  protected push(step: StepIn): void {
     this.steps.push({ target: false, ids: new Map(), ...step, refusals: this.pending, ...stateOf(this.game) });
     this.pending = [];
   }
 
   /** Take one node out; what is to go back goes on `undo` (not the target). */
-  private takeOut(n: string): void {
+  protected takeOut(n: string): void {
     const g = this.game,
       target = n === this.target;
     if (n === SIDE || n === HOSES) {
@@ -161,7 +162,7 @@ export class RemovalJob {
   }
 
   /** A part comes out (a radiator with the fans on it, as one piece). */
-  private takeOutPart(d: InstalledDevice, target: boolean): void {
+  protected takeOutPart(d: InstalledDevice, target: boolean): void {
     const g = this.game,
       fans = deviceSpec(d).kind === 'radiator' ? railFans(g.board) : [],
       along: Gone[] = [];
@@ -194,7 +195,7 @@ export class RemovalJob {
     }
   }
 
-  private putBack(u: Undo): void {
+  protected putBack(u: Undo): void {
     if (u.t === 'hoses') {
       if (hasLoop(this.game.board)) {
         this.push({ kind: 'hoses-on', node: HOSES });
@@ -209,7 +210,7 @@ export class RemovalJob {
   }
 
   /** A cable goes back in, when the machine still needs it and nothing keeps it out. */
-  private plugBack(id: string): void {
+  protected plugBack(id: string): void {
     const g = this.game,
       c = cablesOf(g.board).find((x) => x.id === id);
     if (
@@ -233,7 +234,7 @@ export class RemovalJob {
   }
 
   /** A part goes back into its slot (a radiator with its fans); one that cannot stays out. */
-  private putBackPart(u: Gone & { along: Gone[] }): void {
+  protected putBackPart(u: Gone & { along: Gone[] }): void {
     const ids = new Map<string, string>();
     for (const x of [u, ...u.along]) {
       const r = this.game.install(x.invId, x.slot);

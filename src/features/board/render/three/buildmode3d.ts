@@ -1,6 +1,6 @@
 // BUILD MY PC (docs/PC_PARTS.md): the machine alone on a plain stage, away from the room, to build it, swap its parts and watch every part come out and go in.
 // It runs a sandbox `Game` on the main thread (the real rules: `install`, `uninstall`, `connectCable`) and draws its snapshot with the game's own `Machine3D`.
-// The game is the Build session's (`sim/buildsession.ts`): a removal runs there whole first, and the stage plays its script (`playScript`).
+// The game is the Build session's (`sim/buildsession.ts`): a removal or a fit runs there whole first, and the stage plays its script (`playScript`).
 // What has to come out before what is the removal graph (`sim/removal.ts`); how each step looks is `buildmotion.ts`. A swap or a removal takes out
 // every part that stands in the way (in the graph's order), does the job, then puts those parts back in reverse order.
 // The case's shell and the board are one piece here: swapping either plays the whole machine lifting away (the parts in it come out first).
@@ -58,7 +58,6 @@ import { roomGeo } from '@/features/room/render/shell/room';
 import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import {
-  accessBlockers,
   buildGraph,
   BOARD,
   CASE,
@@ -70,7 +69,6 @@ import {
   isDevNode,
   isPump,
   removalPlan,
-  removalPlanAll,
   SIDE,
 } from '@/features/board/sim/removal';
 import {
@@ -135,7 +133,7 @@ import {
 } from '@/features/board/sim/buildrun';
 import type { BuildLayout, BuildPreset, Shown } from '@/features/board/sim/buildspecs';
 import { OUTSIDE, bareGame, fullGame, layoutGame, presetGame } from '@/features/board/sim/buildpreset';
-import { BuildSession, assemble, isOutStep, railFans } from '@/features/board/sim/buildsession';
+import { BuildSession, isOutStep } from '@/features/board/sim/buildsession';
 import type { Outcome, ScriptStep, SessionState } from '@/features/board/sim/buildscript';
 import { netKindOf, netName, netState, setNet, type NetKind } from '@/features/board/sim/buildnet';
 import { ISP_SPECS, ROUTER_SPECS } from '@/features/network/sim';
@@ -193,9 +191,9 @@ const KEEP_SWAPS = 8;
 const REFUSAL_MS = 6000;
 
 /** What a swap took out, to put back. */
-/** A part that came out (`along`: the fans of a radiator, which came out with it as one assembly). */
+/** A part that came out, to put back. */
 type Gone = { spec: string; slot: string; invId: string; clock?: number | undefined };
-type Undo = { t: 'cable'; id: string } | { t: 'hoses' } | ({ t: 'dev'; along?: Gone[] } & Gone);
+type Undo = { t: 'cable'; id: string } | { t: 'hoses' } | ({ t: 'dev' } & Gone);
 
 /** The eye's key and range, as in the game's board view. */
 const EYE_KEY = 0.04,
@@ -668,12 +666,19 @@ export class BuildStage {
     try {
       return change(this.game);
     } finally {
-      this.snaps.drop();
-      this.editRev++;
-      this.benchChanged();
-      this.demand.ask();
-      // (a cord pulled from a running machine, or a change that stops it: the chip follows at once, not at the next tick)
-      if (this._game && this._game.powered !== this.state.peek().on) this.syncRun();
+      this.changed();
+    }
+  }
+
+  /** The game changed: the kept snapshot goes, and what was worked out for the machine as it stood. */
+  private changed(): void {
+    this.snaps.drop();
+    this.editRev++;
+    this.benchChanged();
+    this.demand.ask();
+    // (a cord pulled from a running machine, or a change that stops it: the chip follows at once, not at the next tick)
+    if (this._game && this._game.powered !== this.state.peek().on) {
+      this.syncRun();
     }
   }
 
@@ -2349,13 +2354,6 @@ export class BuildStage {
     const d = this.board.devices.find((x) => devNode(x.id) === node);
     if (!d) return null;
     const kind = deviceSpec(d).kind;
-    if (kind === 'radiator' && this.deferring && this.railFans().length) {
-      const done = await this.takeOutRadiator(d, undo);
-      if (done) return done.inv;
-    }
-    // a part of a removal (`remove`) stays built: it is hidden where it ended, and a part that goes back is shown again (no build for each step)
-    const obj = this.deferring && kind !== 'display' && kind !== 'psu' ? this.objectOf(node) : null;
-    const home = obj ? { p: obj.position.clone(), z: obj.rotation.z, y: obj.rotation.y } : null;
     // the cables that go with the part (a supply's leads and cord, a monitor's cables) are taken back into their hole first
     for (const id of cablesLost(this.board, d.id)) await this.reelIn(id);
     await this.unseat(node, motionOf(kind, d.slot, this.board));
@@ -2366,95 +2364,9 @@ export class BuildStage {
       return null;
     }
     undo?.push({ t: 'dev', spec: d.spec, slot: d.slot, invId: r.invId!, clock: d.clock });
-    if (obj && home && !this.dead) {
-      obj.visible = false;
-      this.held.set(`${d.spec}@${d.slot}`, { obj, id: d.id, ...home });
-      this.bump();
-      this.demand.ask();
-      return r.invId;
-    }
     this.rebuild();
     await this.coverBack(kind);
     return r.invId;
-  }
-
-  /** The fans on a radiator's mounts. */
-  private railFans(): InstalledDevice[] {
-    return railFans(this.board);
-  }
-
-  /** Steps with the fans of a radiator dropped when the radiator is in them: it takes them along. */
-  private assemble(steps: string[]): string[] {
-    return assemble(this.board, steps);
-  }
-
-  /**
-   * A radiator comes out with the fans on it, as one piece: the screws come out through the case panel (the fans sit between the panel and the
-   * radiator), then the radiator and its fans leave together. Null (nothing played) when a part is not built.
-   */
-  private async takeOutRadiator(d: InstalledDevice, undo: Undo[] | null): Promise<{ inv: string | null } | null> {
-    const fans = this.railFans(),
-      parts = [d, ...fans],
-      objs = parts.map((x) => this.objectOf(devNode(x.id)));
-    if (!fans.length || objs.some((o) => !o)) return null;
-    const homes = objs.map((o) => ({ p: o!.position.clone(), z: o!.rotation.z, y: o!.rotation.y }));
-    this.note(`Take out ${deviceSpec(d).name} with its ${fans.length} fan${fans.length === 1 ? '' : 's'}`);
-    await this.playAll(objs as Object3D[], 'assembly', 'out');
-    if (this.dead) return { inv: null };
-    const along: Gone[] = [];
-    for (const f of fans) {
-      const r = this.edit((g) => g.uninstall(f.id));
-      if (r.ok) along.push({ spec: f.spec, slot: f.slot, invId: r.invId!, clock: f.clock });
-    }
-    const r = this.edit((g) => g.uninstall(d.id));
-    if (!r.ok) {
-      this.refuse(`Cannot take it out: ${r.reason}`);
-      this.rebuild();
-      return { inv: null };
-    }
-    undo?.push({ t: 'dev', spec: d.spec, slot: d.slot, invId: r.invId!, clock: d.clock, along });
-    parts.forEach((x, i) => {
-      objs[i]!.visible = false;
-      this.held.set(`${x.spec}@${x.slot}`, { obj: objs[i]!, id: x.id, ...homes[i]! });
-    });
-    this.bump();
-    this.demand.ask();
-    return { inv: r.invId! };
-  }
-
-  /** The radiator and its fans go back as one piece: shown again where they were (or built again), then pressed onto the panel together. */
-  private async putBackAssembly(u: Undo & { t: 'dev' }): Promise<void> {
-    const list: Gone[] = [u, ...(u.along ?? [])],
-      placed: { g: Gone; id: string }[] = [];
-    for (const g of list) {
-      const r = this.edit((x) => x.install(g.invId, g.slot));
-      if (r.ok && r.deviceId) placed.push({ g, id: r.deviceId });
-      else {
-        this.stays(g);
-        this.refuse(`Cannot put ${getSpec(g.spec)?.name ?? g.spec} back: ${r.ok ? 'no device' : r.reason}`);
-      }
-    }
-    if (!placed.length) return;
-    this.note(`Put back ${getSpec(u.spec)?.name ?? u.spec}${placed.length > 1 ? ' with its fans' : ''}`);
-    if (!placed.every((p) => this.held.has(`${p.g.spec}@${p.g.slot}`))) {
-      this.builtKey = '';
-      this.rebuild();
-    }
-    const objs: Object3D[] = [];
-    for (const p of placed) {
-      const kept = this.held.get(`${p.g.spec}@${p.g.slot}`);
-      if (kept) {
-        this.held.delete(`${p.g.spec}@${p.g.slot}`);
-        this.refit(kept, p.id);
-        objs.push(kept.obj);
-      } else {
-        const o = this.objectOf(devNode(p.id));
-        if (o) objs.push(o);
-      }
-    }
-    this.snaps.drop();
-    this.bump();
-    await this.playAll(objs, 'assembly', 'in');
   }
 
   /** A held part goes back under the id the game gave it, at its place, shown. */
@@ -2470,14 +2382,8 @@ export class BuildStage {
     kept.obj.visible = true;
   }
 
-  /** Parts a removal took out and keeps built, by `spec@slot`: hidden at the far end of their way, with the place, the turns and the id they had. */
+  /** Parts a script took out and keeps built, by `spec@slot`: hidden at the far end of their way, with the place, the turns and the id they had. */
   private readonly held = new Map<string, { obj: Object3D; id: string; p: Vector3; z: number; y: number }>();
-  private deferring = false;
-  /** The parts this job took out and could not put back, in the order they would go back (`Along`): the step it records keeps them for Undo. */
-  private stayed: Along[] = [];
-  private stays(g: { spec: string; slot: string }): void {
-    this.stayed.push({ spec: g.spec, slot: g.slot });
-  }
 
   private async putBack(u: Undo): Promise<void> {
     if (u.t === 'hoses') {
@@ -2511,14 +2417,9 @@ export class BuildStage {
       await this.play(cableNode(u.id), 'cable', 'in');
       return;
     }
-    if (u.along?.length) {
-      await this.putBackAssembly(u);
-      return;
-    }
     const r = this.edit((g) => g.install(u.invId, u.slot));
     // (a fan the new heatsink or case has no spot for stays out, as the game sends it to the inventory)
     if (!r.ok) {
-      this.stays(u);
       this.refuse(
         getSpec(u.spec)?.kind === 'fan'
           ? `${getSpec(u.spec)!.name} no longer fits: it stays out`
@@ -2527,19 +2428,6 @@ export class BuildStage {
       return;
     }
     this.note(`Put back ${getSpec(u.spec)?.name ?? u.spec}`);
-    const kept = this.held.get(`${u.spec}@${u.slot}`);
-    if (kept && r.deviceId) {
-      // the part that came out is still built: it goes back where it was, under the id the game gave it
-      this.held.delete(`${u.spec}@${u.slot}`);
-      this.refit(kept, r.deviceId);
-      this.snaps.drop();
-      this.bump();
-      await this.seat(
-        devNode(r.deviceId),
-        motionOf(deviceSpec(this.board.devices.find((x) => x.id === r.deviceId)!).kind, u.slot, this.board),
-      );
-      return;
-    }
     this.rebuild();
     const node = devNode(r.deviceId ?? '');
     await this.seat(
@@ -2726,7 +2614,6 @@ export class BuildStage {
     const sel = this.selected.peek(),
       was = sel ? this.board.devices.find((d) => d.id === sel) : undefined;
     const had = standing(this.alerts, this.board);
-    this.stayed = [];
     this.reeled.clear();
     this.hover.value = null;
     this.status.value = { ...this.status.peek(), busy: true, step: '' };
@@ -2813,13 +2700,25 @@ export class BuildStage {
     this.playing = { ...job.before, over: new Map() };
     this.snaps.drop();
     try {
+      // (a new part goes in with the put-back steps right behind it, as one: `playPartIn`)
+      const from = job.script.findIndex((s) => s.kind === 'part-in'),
+        end = job.script.findIndex((s, i) => i > from && s.kind !== 'put-back'),
+        group = from === -1 ? [] : job.script.slice(from, end === -1 ? job.script.length : end);
+      let others = quick;
       for (const s of job.script) {
         if (this.dead) {
           return;
         }
-        this.pace = s.target ? 1 : quick;
-        // oxlint-disable-next-line no-await-in-loop -- one step after the other: each plays on the state the one before left
-        await this.playStep(s);
+        if (s === group[0]) {
+          // oxlint-disable-next-line no-await-in-loop -- one step after the other: each plays on the state the one before left
+          await this.playPartIn(job, group);
+          // (the hoses and the cables after the new part go at full pace)
+          others = 1;
+        } else if (!group.includes(s)) {
+          this.pace = s.target ? 1 : others;
+          // oxlint-disable-next-line no-await-in-loop -- one step after the other: each plays on the state the one before left
+          await this.playStep(s);
+        }
       }
       for (const r of job.refusals) {
         this.refuse(r);
@@ -2879,9 +2778,20 @@ export class BuildStage {
         await this.playPutBack(s);
         return;
       }
-      default: {
+      case 'cable-run': {
+        // (a cable the new part brought and no step plugged in: it runs out of its hole and lies loose)
+        const id = s.node.slice(6);
+        if (this.reeled.has(id)) {
+          this.setStep('Lay the cable out');
+          await this.runOut(id, false);
+        }
+        break;
+      }
+      // (it is played with the parts behind it: `playPartIn`)
+      case 'part-in': {
         return;
       }
+      // no default
     }
     this.reach(s);
   }
@@ -2969,7 +2879,7 @@ export class BuildStage {
     await this.coverBack(kind);
   }
 
-  /** Keep a part that came out built, by `spec@slot` as a fit finds a part it took out; a part that goes back finds its own by the old id (`takeHeld`). */
+  /** Keep a part that came out built, by `spec@slot` as a fit finds it again; a part that goes back finds its own by the old id (`takeHeld`). */
   private keep(obj: Object3D, x: InstalledDevice): void {
     this.held.set(`${x.spec}@${x.slot}`, {
       obj,
@@ -3067,159 +2977,133 @@ export class BuildStage {
   }
 
   /** Fit a catalogue part (its id; the shelf is unlimited, there is no inventory here). `drop`: the socket it was dropped on
-   *  (`slotAt`) when that socket takes it; otherwise (or without one) the first free socket that takes it, else the socket of the part it replaces. */
+   *  (`slotAt`). The session does the whole fit on the game first (`BuildSession.fit`, which picks the socket); the stage then plays its script. */
   fit(item: string, drop?: string): Promise<void> {
     return this.job(async () => {
-      const itemId = item;
-      if (/^(case|board)\d$/.test(itemId)) return this.fitShell(itemId);
-      if (netKindOf(itemId)) return this.fitNet(itemId);
-      // (a bare case has no socket: every part plugs into the board; with no case there is nothing to plug into)
-      if (this.shown.peek() === 'nothing') {
-        this.refuse('Fit a case first: every part goes in it');
-        return;
+      if (/^(case|board)\d$/.test(item)) {
+        return this.fitShell(item);
       }
-      if (this.bare.peek()) {
-        this.refuse('Fit a motherboard first: every other part plugs into it');
-        return;
+      if (netKindOf(item)) {
+        return this.fitNet(item);
       }
-      const spec = getSpec(itemId);
-      if (!spec) {
-        this.refuse(`Unknown part ${itemId}`);
-        return;
-      }
-      const fits = (s: SlotInfo) => slotAccepts(s.type, spec.slot) && slotFits(s, spec);
-      const free = freeSlots(this.board, spec.slot, spec)[0];
-      const taken = boardSlots(this.board).find((s) => fits(s) && this.board.devices.some((d) => d.slot === s.id));
-      const aimed = drop && boardSlots(this.board).some((s) => s.id === drop && fits(s)) ? drop : undefined;
-      const slot = aimed ?? free?.id ?? taken?.id;
-      if (!slot) {
-        this.refuse(
-          spec.kind === 'fan'
-            ? `Nothing in this machine takes a ${spec.size} mm fan`
-            : `${spec.name} fits no socket on this board`,
-        );
-        return;
-      }
-      const occupant = this.board.devices.find((d) => d.slot === slot) ?? null;
-      const graph = buildGraph(this.board, this.cables);
-      const steps = this.assemble(
-        occupant
-          ? removalPlan(graph, devNode(occupant.id))
-          : removalPlanAll(
-              graph,
-              accessBlockers(this.board, slot, spec.kind, itemId).filter((n) => graph.has(n)),
-            ),
-      );
-      if (!steps.length) steps.push(SIDE);
-      if (steps[0] !== SIDE) steps.unshift(SIDE);
-      const undo: Undo[] = [],
-        looped = hasLoop(this.board),
-        had = new Set<string>(this.snapshot.cables.filter((c) => c.connected || !c.blocked).map((c) => c.id));
-      // (the parts in the way are hidden, not built again: the one build below has them all back)
-      this.deferring = true;
-      try {
-        for (const n of steps) {
-          this.pace = steps.length > 2 && !(occupant && n === devNode(occupant.id)) ? QUICK : 1;
-          await this.takeOut(n, occupant && n === devNode(occupant.id) ? null : undo);
-        }
-      } finally {
-        this.deferring = false;
-        this.pace = 1;
-      }
-      let fresh: { id: string; kind: string; slot: string; asm?: boolean } | null = null;
-      // (the steps this fit records: the part it replaces comes out, the new one goes in; what cannot go back belongs to the first of them, as Undo brings it back last)
-      const recorded: PartStep[] = [];
-      const bought = this.edit((g) => g.purchase(itemId));
-      if (!bought.ok) this.refuse(`Cannot get ${spec.name}: ${bought.reason}`);
-      else {
-        const put = this.edit((g) => g.install(bought.invId, slot));
-        if (!put.ok) this.refuse(`${spec.name} does not fit: ${put.reason}`);
-        else {
-          this.note(`Fit ${spec.name} in ${slot}`);
-          if (occupant) recorded.push({ t: 'remove', spec: occupant.spec, slot });
-          recorded.push({ t: 'fit', spec: itemId, slot });
-          for (const s of recorded) this.record(s);
-          fresh = { id: put.deviceId ?? '', kind: spec.kind, slot };
-          // (the same part in the same socket: the one that came out stands as the new one)
-          const same = this.held.get(`${itemId}@${slot}`);
-          if (same && put.deviceId) {
-            this.held.delete(`${itemId}@${slot}`);
-            this.refit(same, put.deviceId);
-          }
-        }
-      }
-      // the parts that were in the way go back in the game now; one build shows the new part and all of them
-      const back: { id: string; kind: string; slot: string; asm?: boolean }[] = [],
-        cables: Undo[] = [];
-      for (const u of undo.reverse()) {
-        if (u.t === 'cable') {
-          cables.push(u);
-          continue;
-        }
-        if (u.t === 'hoses') continue; // (they go on after every part is in: `connectHoses` below)
-        for (const g of [u as Gone, ...(u.along ?? [])]) {
-          const r = this.edit((x) => x.install(g.invId, g.slot));
-          if (!r.ok) {
-            this.stays(g);
-            this.refuse(
-              getSpec(g.spec)?.kind === 'fan'
-                ? `${getSpec(g.spec)!.name} no longer fits: it stays out`
-                : `Cannot put ${getSpec(g.spec)?.name ?? g.spec} back: ${r.reason}`,
-            );
-            continue;
-          }
-          this.note(`Put back ${getSpec(g.spec)?.name ?? g.spec}`);
-          // (a part that is still built stands again under its new id: the build below leaves it as it is)
-          const kept = this.held.get(`${g.spec}@${g.slot}`);
-          if (kept && r.deviceId) {
-            this.held.delete(`${g.spec}@${g.slot}`);
-            this.refit(kept, r.deviceId);
-          }
-          back.push({
-            id: r.deviceId ?? '',
-            kind: deviceSpec(this.board.devices.find((x) => x.id === r.deviceId)!).kind,
-            slot: g.slot,
-            asm: !!u.along?.length,
-          });
-        }
-      }
-      if (recorded[0] && this.stayed.length) recorded[0].along = this.stayed.splice(0);
-      // a part that just made the loop (a pump with a radiator in, a radiator with a pump in): its hoses are built off and go on last
-      if (!looped && hasLoop(this.board)) this.hosesOff = true;
-      // (one patch or one build: the part that came is built, the others stand as they are, hidden until they go back in)
-      this.rebuild();
-      // what the new part brought (a supply's leads and cord, a monitor's cables) stays out of sight until the part is in: then it runs out of its hole
-      for (const c of this.snapshot.cables) if ((c.connected || !c.blocked) && !had.has(c.id)) this.reeled.add(c.id);
-      this.holdReeled();
-      const shown = [...(fresh ? [fresh] : []), ...back].map((x) => ({ ...x, obj: this.objectOf(devNode(x.id)) }));
-      for (const x of shown) if (x.obj) x.obj.visible = false;
-      const asm = shown.filter((x) => x.asm && x.obj);
-      let asmDone = false;
-      for (const [i, x] of shown.entries()) {
-        this.pace = i === 0 || shown.length < 3 ? 1 : QUICK;
-        if (x.asm && x.obj) {
-          // (a radiator and its fans go back together)
-          if (!asmDone) {
-            asmDone = true;
-            for (const a of asm) a.obj!.visible = true;
-            await this.playAll(
-              asm.map((a) => a.obj!),
-              'assembly',
-              'in',
-            );
-          }
-          continue;
-        }
-        if (x.obj) x.obj.visible = true;
-        await this.seat(devNode(x.id), motionOf(x.kind, x.slot, this.board));
-      }
-      this.pace = 1;
-      // (the loop's hoses go on once the pump and the radiator are both in, then the cables)
-      await this.connectHoses();
-      for (const u of cables) await this.putBack(u);
-      await this.plugNeeded();
-      await this.runLoose();
+      return this.fitSteps(item, drop);
     });
+  }
+
+  private async fitSteps(item: string, drop: string | undefined): Promise<void> {
+    const { session } = this;
+    if (session === null) {
+      return;
+    }
+    const job = session.fit(item, drop, this.shown.peek());
+    // (a refused fit moved nothing and has no step: the kept snapshot and the scores stand)
+    if (job.script.length > 0) {
+      this.changed();
+      await this.playScript(job, job.script.filter(isOutStep).length > 2 ? QUICK : 1);
+    }
+    if (job.refusal !== null) {
+      this.refuse(job.refusal);
+    }
+    // (a cable taken back into its hole that no step ran out, as the video cable, lies where it falls)
+    await this.runLoose();
+  }
+
+  /**
+   * The new part goes in, with the parts that go back after it (`group`: the part-in step and the put-back steps behind it). One build shows them all,
+   * hidden; each is then seated in turn (a radiator with its fans as one piece). A part with an object kept for its old id keeps that object.
+   */
+  private async playPartIn(job: Outcome, group: ScriptStep[]): Promise<void> {
+    const [put] = group,
+      last = group.at(-1);
+    if (put === undefined || last === undefined) {
+      return;
+    }
+    for (const s of group) {
+      for (const r of s.refusals) {
+        this.refuse(r);
+      }
+      // (before the build: a patch or a build drops what is kept)
+      for (const [from, to] of s.ids) {
+        const kept = this.takeHeld(from);
+        if (kept) {
+          this.refit(kept, to);
+        }
+      }
+    }
+    // (a part an earlier job took out may stand built yet, as for the Undo of its removal: it goes back in)
+    const key = `${put.spec ?? ''}@${put.slot ?? ''}`,
+      same = this.held.get(key);
+    if (same) {
+      this.held.delete(key);
+      this.refit(same, put.node.slice(4));
+    }
+    this.reach(last);
+    // a part that just made the loop is built with its hoses off: they go on last
+    if (job.script.some((s) => s.kind === 'hoses-on')) {
+      this.hosesOff = true;
+    }
+    // what the new part brought (a supply's leads and cord, a monitor's cables) stays out of sight until the part is in: then it runs out of its hole
+    for (const s of job.script) {
+      if (s.kind === 'cable-run') {
+        this.reeled.add(s.node.slice(6));
+      }
+    }
+    this.rebuild();
+    const sets = group.map((s) => {
+      const nodes = s.kind === 'part-in' ? [s.node] : Array.from(s.ids.values(), (id) => devNode(id));
+      return { s, nodes, objs: nodes.map((n) => this.objectOf(n)).filter((o): o is Object3D => !!o) };
+    });
+    for (const o of sets.flatMap((x) => x.objs)) {
+      o.visible = false;
+    }
+    this.note(`Fit ${getSpec(put.spec ?? '')?.name ?? put.spec ?? put.node} in ${put.slot ?? ''}`);
+    this.recordFit(job, put);
+    for (const n of sets.slice(1).flatMap((x) => x.nodes)) {
+      const d = this.board.devices.find((x) => devNode(x.id) === n);
+      if (d !== undefined) {
+        this.note(`Put back ${deviceSpec(d).name}`);
+      }
+    }
+    const many = sets.flatMap((x) => x.nodes).length >= 3;
+    for (const [i, { s, nodes, objs }] of sets.entries()) {
+      if (this.dead) {
+        return;
+      }
+      this.pace = i > 0 && many ? QUICK : 1;
+      for (const o of objs) {
+        o.visible = true;
+      }
+      if (s.with !== undefined && s.with.length > 0) {
+        // oxlint-disable-next-line no-await-in-loop -- one part after the other goes in
+        await this.playAll(objs, 'assembly', 'in');
+      } else {
+        const motion = motionOf(getSpec(s.spec ?? '')?.kind ?? '', s.slot ?? '', this.board);
+        // oxlint-disable-next-line no-await-in-loop -- one part after the other goes in
+        await this.seat(nodes[0] ?? s.node, motion);
+      }
+    }
+    this.pace = 1;
+  }
+
+  /** The steps a fit records, as its part goes in: the part it replaces comes out, the new one goes in. What could not go back is on the first (Undo brings it back last). */
+  private recordFit(job: Outcome, put: ScriptStep): void {
+    const { slot, spec } = put;
+    if (slot === undefined || spec === undefined) {
+      return;
+    }
+    const occupant = job.before.board.devices.find((d) => d.slot === slot),
+      along = job.script.flatMap((s) => s.along ?? []),
+      steps: PartStep[] = [{ t: 'fit', spec, slot }];
+    if (occupant !== undefined) {
+      steps.unshift({ t: 'remove', spec: occupant.spec, slot });
+    }
+    const [first] = steps;
+    if (first !== undefined && along.length > 0) {
+      first.along = along;
+    }
+    for (const s of steps) {
+      this.record(s);
+    }
   }
 
   /** Put an OS, a router or an internet plan in its place (`id`), or take it out (`id` null): the game's own answer, and no step is recorded here. */
