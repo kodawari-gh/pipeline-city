@@ -946,6 +946,19 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
    * True when a stop cut a round after its workers finished: a role commit is not merged yet, or the merge
    * stopped in the gates (`gateHead`) or in the review (`reviewHead`). The round then resumes at the merge.
    */
+  /**
+   * True when the last round passed review and a stop then cut the landing (a failed log commit or squash).
+   * No role work came after the PASS, so the ticket lands with no new round.
+   */
+  passedBeforeStop(n, merge, workers) {
+    const T = this.t(n);
+    return (
+      T.cut &&
+      /\| PASS \|/u.test(T.rows.at(-1) ?? '') &&
+      workers.every((r) => gitOk(merge, 'merge-base', '--is-ancestor', this.br(n, r), 'HEAD'))
+    );
+  }
+
   resumesAtMerge(n, merge, workers) {
     const head = git(merge, 'rev-parse', 'HEAD');
     const t = this.t(n);
@@ -977,6 +990,10 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
     let relaunch = T.findings.length ? routed(T.findings) : workers;
     const int = this.intRole(n);
     const merge = this.wt(n, int);
+    if (this.passedBeforeStop(n, merge, workers)) {
+      this.emit(`#${n} passed review before the stop: landing`);
+      return this.land(n, issue, ladderTier(T, planned));
+    }
     let pending = this.reopen(n, workers);
     for (;;) {
       const tier = ladderTier(T, planned);
