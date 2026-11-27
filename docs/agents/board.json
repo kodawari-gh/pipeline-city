@@ -52,7 +52,7 @@
       "Bash(uv run:*)",
       "Bash(gh issue view:*)"
     ],
-    "slots": 2,
+    "slots": 3,
     "permissionMode": "auto",
     "agentTimeoutMin": 60,
     "coAuthor": {

@@ -406,6 +406,18 @@ class Swarm {
     writeFileSync(this.statePath, JSON.stringify(this.state, null, 2));
   }
   /** Apply the `retry` requests a CLI call left while this runner holds the state (it would overwrite a direct edit). */
+  takeSlots() {
+    const f = join(this.dir, `${this.key}.slots.json`);
+    if (!existsSync(f)) {
+      return;
+    }
+    const { slots } = JSON.parse(readFileSync(f, 'utf8'));
+    rmSync(f);
+    if (slots > 0 && slots !== this.sw.slots) {
+      this.sw.slots = slots;
+      this.emit(`slots now ${slots}`);
+    }
+  }
   takeRetries(running = new Map()) {
     const pre = `${this.key}.retry-`;
     for (const f of readdirSync(this.dir).filter((x) => x.startsWith(pre) && x.endsWith('.json'))) {
@@ -1311,6 +1323,7 @@ Guidance from the orchestrator: ${note}`
     };
     for (;;) {
       this.takeRetries(running);
+      this.takeSlots();
       let ready = [];
       if (parent) {
         const r = sync(this.cfg, parent);
@@ -1528,6 +1541,7 @@ const HELP = `swarm.mjs: ticket swarm runner (config docs/agents/board.json)
   catchup <parent> [--from <ref>] [--model <m>] [--effort <e>] [--note <text>]   merge <ref> (default: current branch) into parent/<parent>; a merger agent settles conflicts (--note: design guidance for it); then the gates
   status [<key>]                                 phase, rounds and tier of each ticket in a run
   retry <key> <n>                                [--model <m>]  resume a stopped ticket from its kept branches (--model: restart the ladder at <m>; else exhausted: one more top-tier round)
+  slots <key> <k>                                run k tickets at once in a live run, from its next queue scan
   watch <key> [--match <regex>] [--min <m>]      print new event-log lines that match (default: stops, needs, failures); exit at FINISHED or after <m> min (29)
   gc                                             remove worktrees and branches of closed tickets, and unused shared installs
   deps                                           in a swarm worktree: replace shared dependency links with a private install
@@ -1658,6 +1672,17 @@ async function main(argv) {
   }
   if (cmd === 'retry') {
     return retry(cfg, a);
+  }
+  if (cmd === 'slots') {
+    const k = Number(a[1]);
+    if (!a[0] || !(k > 0)) {
+      throw new Error('slots needs a run key and a number, like: slots p115 3');
+    }
+    // A request file, as for retry: the live runner takes it at its next queue scan.
+    writeFileSync(join(cfg.root, '.claude', 'swarm', `${a[0]}.slots.json`), JSON.stringify({ slots: k }));
+    return console.log(
+      `${a[0]}: ${k} slots from the next queue scan (within 2 min); a new run uses swarm.slots or --slots`,
+    );
   }
   if (cmd === 'watch') {
     if (!a[0]) {
