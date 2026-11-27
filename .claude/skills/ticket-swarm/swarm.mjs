@@ -781,19 +781,29 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
     if (failed) {
       throw new Critical(`catch-up gate failed: ${failed.cmd}\n${failed.tail.slice(-800)}`);
     }
-    this.landCatchUp(p);
+    await this.landCatchUp(parent, p, tier);
     removeWorktree(this.root, this.sw.shareDeps, p);
     gitOk(this.root, 'worktree', 'prune');
     this.emit(`#${parent} catch-up DONE: ${this.base} at ${git(this.root, 'rev-parse', '--short', this.base)}`);
   }
 
-  /** Move the base to the catch-up tip. Tickets that landed meanwhile are merged in first; update-ref checks the old tip. */
-  landCatchUp(p) {
+  /**
+   * Move the base to the catch-up tip. Tickets that landed meanwhile are merged in first (a conflict goes
+   * to the merger, as in the first merge) and the gates rerun; update-ref checks the old tip.
+   */
+  async landCatchUp(parent, p, tier) {
     for (let i = 0; i < 5; i++) {
       const cur = git(this.root, 'rev-parse', this.base);
-      if (!gitOk(this.root, 'merge-base', '--is-ancestor', cur, 'HEAD') && !gitOk(p, 'merge', '--no-edit', cur)) {
-        gitOk(p, 'merge', '--abort');
-        throw new Critical(`catch-up: ${this.base} moved and its new commits conflict; rerun to settle`);
+      if (!gitOk(this.root, 'merge-base', '--is-ancestor', cur, 'HEAD')) {
+        const ref = `the new ${this.base} commits (${cur.slice(0, 8)})`;
+        this.emit(`#${parent} catch-up: merge ${ref}`);
+        if (!gitOk(p, 'merge', '--no-edit', cur)) {
+          await this.settleCatchUp({ parent, p, ref, tier, note: undefined });
+        }
+        const failed = await this.runChecks(parent, p);
+        if (failed) {
+          throw new Critical(`catch-up gate failed: ${failed.cmd}\n${failed.tail.slice(-800)}`);
+        }
       }
       if (gitOk(this.root, 'update-ref', `refs/heads/${this.base}`, git(p, 'rev-parse', 'HEAD'), cur)) {
         return;
@@ -826,9 +836,13 @@ Guidance from the orchestrator: ${note}`
     }`;
     const out = await this.agent('swarm-merger', parent, p, tier, prompt, MERGE_SCHEMA);
     if (!out.resolved || gitOk(p, 'rev-parse', '-q', '--verify', 'MERGE_HEAD')) {
-      // An aborted merge leaves nothing to resume. A kept worktree would hold the base checked out,
-      // and the runner's squashes would then commit there with hooks.
-      if (!gitOk(p, 'rev-parse', '-q', '--verify', 'MERGE_HEAD') && !git(p, 'status', '--porcelain')) {
+      // An aborted first merge leaves nothing to resume. Keep the worktree when its HEAD holds a settled
+      // merge that is not on the base yet (an aborted landing merge).
+      if (
+        !gitOk(p, 'rev-parse', '-q', '--verify', 'MERGE_HEAD') &&
+        !git(p, 'status', '--porcelain') &&
+        gitOk(this.root, 'merge-base', '--is-ancestor', git(p, 'rev-parse', 'HEAD'), this.base)
+      ) {
         removeWorktree(this.root, this.sw.shareDeps, p);
         gitOk(this.root, 'worktree', 'prune');
       }
